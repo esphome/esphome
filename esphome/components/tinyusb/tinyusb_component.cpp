@@ -3,6 +3,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "tinyusb_default_config.h"
+#ifdef TINYUSB_KEYBOARD
+#include "../tinyusb_keyboard/keyboard.h"
+#endif
 
 namespace esphome::tinyusb {
 
@@ -28,7 +31,7 @@ void TinyUSB::setup() {
 
 #ifdef TINYUSB_KEYBOARD
   // esp_tinyusb requires a valid full-speed configuration descriptor when HID is enabled.
-  // This is a minimal keyboard HID configuration descriptor written by AI.
+  // This is a minimal keyboard HID configuration descriptor, not much thought has been put into the contents.
   static const uint8_t fs_configuration_descriptor[] = {
       /* Configuration Descriptor (9) */
       0x09,       /* bLength */
@@ -49,7 +52,7 @@ void TinyUSB::setup() {
       0x03, /* bInterfaceClass = HID */
       0x01, /* bInterfaceSubClass = Boot */
       0x01, /* bInterfaceProtocol = Keyboard */
-      0x04, /* iInterface (string index) */
+      0x00, /* iInterface (no string descriptor) */
 
       /* HID Descriptor (9) */
       0x09,       /* bLength */
@@ -58,7 +61,8 @@ void TinyUSB::setup() {
       0x21,       /* bCountryCode (0x21 used previously) */
       0x01,       /* bNumDescriptors */
       0x22,       /* bDescriptorType (Report) */
-      0x5C, 0x00, /* wDescriptorLength = 92 bytes (combined report descriptor) */
+      (uint8_t) (sizeof(esphome::tinyusb_keyboard::HID_REPORT_DESCRIPTOR) & 0xFF),
+      (uint8_t) (sizeof(esphome::tinyusb_keyboard::HID_REPORT_DESCRIPTOR) >> 8), /* wDescriptorLength */
 
       /* Endpoint Descriptor (7) */
       0x07,       /* bLength */
