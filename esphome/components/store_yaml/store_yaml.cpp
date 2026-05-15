@@ -14,10 +14,19 @@ StoreYamlComponent *global_store_yaml = nullptr;
 void StoreYamlComponent::setup() { global_store_yaml = this; }
 
 void StoreYamlComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "YAML:");
-  ESP_LOGCONFIG(TAG, "  Compressed size: %zu bytes", this->size_);
-  ESP_LOGCONFIG(TAG, "  Uncompressed size: %zu bytes", this->uncompressed_size_);
-  ESP_LOGCONFIG(TAG, "  Encoding: %s", ENCODING);
+  ESP_LOGCONFIG(TAG,
+                "YAML:\n"
+                "  Compressed size: %zu bytes\n"
+                "  Uncompressed size: %zu bytes\n"
+                "  Encoding: %s",
+                this->size_, this->uncompressed_size_, ENCODING);
+}
+
+void StoreYamlComponent::read_chunk(size_t pos, uint8_t *dst, size_t len) const {
+  const uint8_t *src = this->data_ + pos;
+  for (size_t i = 0; i < len; i++) {
+    dst[i] = progmem_read_byte(&src[i]);
+  }
 }
 
 }  // namespace esphome::store_yaml

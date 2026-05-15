@@ -1179,7 +1179,8 @@ static constexpr size_t STORE_YAML_CHUNK_SIZE = 512;
 static uint8_t store_yaml_chunk_buf[STORE_YAML_CHUNK_SIZE];
 
 void APIConnection::on_get_yaml_request() {
-  if (store_yaml::global_store_yaml == nullptr || store_yaml::global_store_yaml->get_data() == nullptr) {
+  auto *comp = store_yaml::global_store_yaml;
+  if (comp == nullptr || comp->get_size() == 0) {
     // No blob — send a single done=true response so the client doesn't hang.
     GetYamlResponse resp;
     resp.done = true;
@@ -1197,7 +1198,6 @@ void APIConnection::try_send_store_yaml_() {
   if (comp == nullptr)
     return;
 
-  const uint8_t *data = comp->get_data();
   const size_t total = comp->get_size();
 
   while (this->store_yaml_pos_ < total || this->store_yaml_pos_ == 0) {
@@ -1207,10 +1207,9 @@ void APIConnection::try_send_store_yaml_() {
     const size_t remaining = total - this->store_yaml_pos_;
     const size_t to_send = remaining < STORE_YAML_CHUNK_SIZE ? remaining : STORE_YAML_CHUNK_SIZE;
 
-    // Copy from PROGMEM into a stack buffer. progmem_read_byte is a no-op except on ESP8266.
-    for (size_t i = 0; i < to_send; i++) {
-      store_yaml_chunk_buf[i] = progmem_read_byte(&data[this->store_yaml_pos_ + i]);
-    }
+    // Pulls a chunk out of PROGMEM into a stack buffer; on ESP8266 this routes
+    // through progmem_read_byte, on every other platform it's a plain byte copy.
+    comp->read_chunk(this->store_yaml_pos_, store_yaml_chunk_buf, to_send);
 
     GetYamlResponse resp;
     resp.set_data(store_yaml_chunk_buf, to_send);
