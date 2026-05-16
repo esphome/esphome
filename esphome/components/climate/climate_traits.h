@@ -205,6 +205,9 @@ class ClimateTraits {
   float get_visual_max_humidity() const { return this->visual_max_humidity_; }
   void set_visual_max_humidity(float visual_max_humidity) { this->visual_max_humidity_ = visual_max_humidity; }
 
+  TemperatureUnit get_temperature_unit() const { return this->temperature_unit_; }
+  void set_temperature_unit(TemperatureUnit unit) { this->temperature_unit_ = unit; }
+
  protected:
   void set_mode_support_(climate::ClimateMode mode, bool supported) {
     if (supported) {
@@ -265,6 +268,7 @@ class ClimateTraits {
   uint32_t feature_flags_{0};
   float visual_min_temperature_{10};
   float visual_max_temperature_{30};
+  TemperatureUnit temperature_unit_{TemperatureUnit::CELSIUS};
   float visual_target_temperature_step_{0.1};
   float visual_current_temperature_step_{0.1};
   float visual_min_humidity_{30};

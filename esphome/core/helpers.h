@@ -1611,6 +1611,12 @@ constexpr float celsius_to_fahrenheit(float value) { return value * 1.8f + 32.0f
 /// Convert degrees Fahrenheit to degrees Celsius.
 constexpr float fahrenheit_to_celsius(float value) { return (value - 32.0f) / 1.8f; }
 
+enum class TemperatureUnit : uint8_t {
+  CELSIUS = 0,
+  FAHRENHEIT = 1,
+  KELVIN = 2,
+};
+
 ///@}
 
 /// @name Utilities
