@@ -73,6 +73,30 @@ from ..types import (
 EVENT_LAMB = "event_lamb__"
 
 
+def _lazy_update_schema(widget_type: "WidgetType"):
+    """Defer construction of a widget's update-action schema until first use.
+
+    base_update_schema(...).extend(widget_type.modify_schema) compiles several
+    voluptuous schemas and is invoked once per WidgetType at import time. The
+    caller (register_action) only needs a validator, so wrap the build in a
+    closure that materialises on the first validation and caches the result.
+    """
+    compiled: list = []
+
+    def validator(value):
+        if not compiled:
+            from ..schemas import base_update_schema
+
+            compiled.append(
+                base_update_schema(widget_type, widget_type.parts).extend(
+                    widget_type.modify_schema
+                )
+            )
+        return compiled[0](value)
+
+    return validator
+
+
 class WidgetType:
     """
     Describes a type of Widget, e.g. "bar" or "line"
@@ -113,18 +137,23 @@ class WidgetType:
 
         # Local import to avoid circular import
         from ..automation import update_to_code
-        from ..schemas import WIDGET_TYPES, base_update_schema
+        from ..schemas import WIDGET_TYPES
 
         if not is_mock:
             if self.name in WIDGET_TYPES:
                 raise EsphomeError(f"Duplicate definition of widget type '{self.name}'")
             WIDGET_TYPES[self.name] = self
 
-            # Register the update action automatically, adding widget-specific properties
+            # Register the update action automatically, adding widget-specific
+            # properties. The update schema is built lazily on first validation:
+            # base_update_schema involves part_schema / Schema.extend chains that
+            # cost ~7ms per widget at import time (~200ms total across ~25
+            # widgets) and is unused for any YAML that never triggers a
+            # `lvgl.<widget>.update` action.
             register_action(
                 f"lvgl.{self.name}.update",
                 ObjUpdateAction,
-                base_update_schema(self, self.parts).extend(self.modify_schema),
+                _lazy_update_schema(self),
                 synchronous=True,
             )(update_to_code)
 
