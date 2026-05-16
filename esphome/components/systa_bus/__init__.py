@@ -15,8 +15,6 @@ SystaBus = systa_bus_ns.class_("SystaBus", cg.Component, uart.UARTDevice)
 
 CONF_SYSTA_BUS_ID = "systa_bus_id"
 
-CONF_SYSTASOLAR_AQUA = "systasolar_aqua"
-
 CONFIG_SCHEMA = uart.UART_DEVICE_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(SystaBus),

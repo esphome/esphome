@@ -5,7 +5,7 @@ namespace esphome::systa_bus {
 
 static const char *const TAG = "systa_bus.sensor";
 
-static inline int16_t get_i16be(std::vector<uint8_t> &message, uint16_t start) {
+static inline int16_t get_i16be(const StaticVector<uint8_t, BUFFER_SIZE> &message, uint16_t start) {
   return (int16_t) ((message[start] << 8) + message[start + 1]);
 }
 
@@ -18,7 +18,7 @@ void SystaSolarAquaSensor::dump_config() {
   LOG_SENSOR("  ", "Pump Speed", this->pump_speed_sensor_);
 }
 
-void SystaSolarAquaSensor::handle_message(std::vector<uint8_t> &message) {
+void SystaSolarAquaSensor::handle_message(const StaticVector<uint8_t, BUFFER_SIZE> &message) {
   if (get_message_type(message) == MESSAGE_TYPE_AQUA_SENSOR_DATA) {
     if (this->temperature_tsa_sensor_ != nullptr)
       this->temperature_tsa_sensor_->publish_state(get_i16be(message, 4) * 0.1f);

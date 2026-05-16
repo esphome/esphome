@@ -10,7 +10,7 @@ void SystaBus::dump_config() {
   check_uart_settings(9600);
 }
 
-static bool checksum(const std::vector<uint8_t> &data) {
+static bool checksum(const StaticVector<uint8_t, BUFFER_SIZE> &data) {
   uint8_t csum = 0;
   for (uint8_t i : data)
     csum += i;
@@ -23,25 +23,25 @@ void SystaBus::loop() {
 
   do {
     uint8_t c;
-    this->read_byte(&c);
+    if (!this->read_byte(&c)) break;
 
-    if (this->state_ == 0 && c == 0xfc) {
-      this->state_ = 1;
+    if (this->state_ == ParseState::IDLE && c == 0xfc) {
+      this->state_ = ParseState::HEADER;
       this->buffer_.clear();
       this->buffer_.push_back(c);
-    } else if (this->state_ == 1) {
-      this->state_ = 2;
+    } else if (this->state_ == ParseState::HEADER) {
+      this->state_ = ParseState::BODY;
       this->buffer_.push_back(c);
-      this->message_type_ = get_message_type(this->buffer_);
+      uint16_t message_type = get_message_type(this->buffer_);
       this->length_ = this->buffer_[1] + 3;
-      if (!(this->message_type_ == MESSAGE_TYPE_AQUA_SENSOR_DATA)) {
-        ESP_LOGV(TAG, "Unknown message type 0x%04x", this->message_type_);
-        this->state_ = 0;
+      if (message_type != MESSAGE_TYPE_AQUA_SENSOR_DATA) {
+        ESP_LOGV(TAG, "Unknown message type 0x%04x", message_type);
+        this->state_ = ParseState::IDLE;
       }
-    } else if (this->state_ == 2) {
+    } else if (this->state_ == ParseState::BODY) {
       this->buffer_.push_back(c);
       if (this->buffer_.size() == this->length_) {
-        this->state_ = 0;
+        this->state_ = ParseState::IDLE;
         if (!checksum(this->buffer_)) {
           ESP_LOGW(TAG, "Checksum failed");
           continue;
