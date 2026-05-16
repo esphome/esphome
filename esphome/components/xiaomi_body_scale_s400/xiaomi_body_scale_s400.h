@@ -7,8 +7,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace xiaomi_body_scale_s400 {
+namespace esphome::xiaomi_body_scale_s400 {
 
 class XiaomiBodyScaleS400 : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
@@ -38,7 +37,6 @@ class XiaomiBodyScaleS400 : public Component, public esp32_ble_tracker::ESPBTDev
   sensor::Sensor *profile_id_{nullptr};
 };
 
-}  // namespace xiaomi_body_scale_s400
-}  // namespace esphome
+}  // namespace esphome::xiaomi_body_scale_s400
 
 #endif
