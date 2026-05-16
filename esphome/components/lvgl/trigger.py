@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.const import (
     CONF_ID,
     CONF_ON_BOOT,
+    CONF_ON_UPDATE,
     CONF_ON_VALUE,
     CONF_TRIGGER_ID,
     CONF_X,
@@ -89,6 +90,13 @@ async def generate_triggers():
                     conf,
                     w,
                     LV_EVENT.VALUE_CHANGED,
+                    UPDATE_EVENT,
+                )
+
+            for conf in config.get(CONF_ON_UPDATE, ()):
+                await add_trigger(
+                    conf,
+                    w,
                     UPDATE_EVENT,
                 )
 

@@ -22,13 +22,13 @@ from esphome.bundle import (
     _add_bytes_to_tar,
     _default_target_dir,
     _find_used_secret_keys,
-    _force_load_include_files,
     extract_bundle,
     is_bundle_path,
     prepare_bundle_for_compile,
     read_bundle_manifest,
 )
 from esphome.core import CORE, EsphomeError
+from esphome.yaml_util import force_load_include_files
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -947,7 +947,7 @@ def test_discover_files_nested_include_load_failure(
     paths = [f.path for f in files]
     assert "test.yaml" in paths
     assert any(
-        "failed to load !include" in r.message and "missing.yaml" in r.message
+        "failed to load !include" in r.message.lower() and "missing.yaml" in r.message
         for r in caplog.records
     )
 
@@ -974,8 +974,8 @@ def test_force_load_skips_duplicate_include_file() -> None:
     # Same instance appears twice — second visit must hit the _seen guard.
     tree = {"a": stub, "b": [stub]}
 
-    with patch("esphome.bundle.yaml_util.IncludeFile", _StubInclude):
-        _force_load_include_files(tree)
+    with patch("esphome.yaml_util.IncludeFile", _StubInclude):
+        force_load_include_files(tree)
 
     assert stub.load_calls == 1
 
@@ -989,8 +989,8 @@ def test_force_load_handles_cyclic_containers() -> None:
     cyclic_list.append(cyclic_list)
 
     # Should return without recursing forever
-    _force_load_include_files(cyclic_dict)
-    _force_load_include_files(cyclic_list)
+    force_load_include_files(cyclic_dict)
+    force_load_include_files(cyclic_list)
 
 
 def test_discover_files_yaml_reload_failure(

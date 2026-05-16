@@ -119,7 +119,15 @@ from esphome.util import Registry  # noqa: E402
 
 def sort_obj(obj):
     if isinstance(obj, dict):
-        return {k: sort_obj(v) for k, v in sorted(obj.items(), key=lambda x: str(x[0]))}
+        is_enum = obj.get(S_TYPE) == "enum"
+        result = {}
+        for k, v in sorted(obj.items(), key=lambda x: str(x[0])):
+            if is_enum and k == "values" and isinstance(v, dict):
+                # Preserve source order of enum options
+                result[k] = {vk: sort_obj(vv) for vk, vv in v.items()}
+            else:
+                result[k] = sort_obj(v)
+        return result
     if isinstance(obj, list):
         return [sort_obj(item) for item in obj]
     return obj
