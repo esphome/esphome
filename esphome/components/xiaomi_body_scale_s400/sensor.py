@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BINDKEY,
     CONF_ID,
+    CONF_IMPEDANCE,
     CONF_MAC_ADDRESS,
     CONF_WEIGHT,
     DEVICE_CLASS_WEIGHT,
@@ -11,7 +12,6 @@ from esphome.const import (
     UNIT_KILOGRAM,
 )
 
-CONF_IMPEDANCE = "impedance"
 CONF_IMPEDANCE_LOW = "impedance_low"  # low frequency  50 kHz — larger value
 CONF_IMPEDANCE_HIGH = "impedance_high"  # high frequency 250 kHz — smaller value
 CONF_HEART_RATE = "heart_rate"

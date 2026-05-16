@@ -595,6 +595,7 @@ esphome/components/wl_134/* @hobbypunk90
 esphome/components/wts01/* @alepee
 esphome/components/x9c/* @EtienneMD
 esphome/components/xgzp68xx/* @gcormier
+esphome/components/xiaomi_body_scale_s400/* @dckiller51
 esphome/components/xiaomi_hhccjcy10/* @fariouche
 esphome/components/xiaomi_lywsd02mmc/* @juanluss31
 esphome/components/xiaomi_lywsd03mmc/* @ahpohl

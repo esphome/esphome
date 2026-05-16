@@ -5,8 +5,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace xiaomi_body_scale_s400 {
+namespace esphome::xiaomi_body_scale_s400 {
 
 static const char *const TAG = "xiaomi_body_scale_s400";
 
@@ -178,7 +177,6 @@ bool XiaomiBodyScaleS400::parse_device(const esp32_ble_tracker::ESPBTDevice &dev
   return false;
 }
 
-}  // namespace xiaomi_body_scale_s400
-}  // namespace esphome
+}  // namespace esphome::xiaomi_body_scale_s400
 
 #endif
