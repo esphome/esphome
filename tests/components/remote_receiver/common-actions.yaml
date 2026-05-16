@@ -172,3 +172,8 @@ on_toto:
     - logger.log:
         format: "on_toto: %u %u %u"
         args: ["x.rc_code_1", "x.rc_code_2", "x.command"]
+on_hob2hood:
+  then:
+    - logger.log:
+        format: "on_hob2hood: %u"
+        args: ["x.command"]

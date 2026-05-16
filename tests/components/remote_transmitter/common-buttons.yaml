@@ -260,3 +260,8 @@ button:
       - remote_transmitter.digital_write: true
       - remote_transmitter.digital_write:
           value: false
+  - platform: template
+    name: Hob2Hood
+    on_press:
+      - remote_transmitter.transmit_hob2hood:
+          command: light_on
