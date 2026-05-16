@@ -6,8 +6,10 @@ from esphome.const import (
     CONF_ID,
     DEVICE_CLASS_DURATION,
     STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_TOTAL_INCREASING,
+    STATE_CLASS_TOTAL,
+    UNIT_DAY,
     UNIT_HOUR,
+    UNIT_PERCENT,
 )
 
 CONF_MAX_LIFETIME = "max_lifetime"
@@ -48,7 +50,7 @@ def validate_speed_config(config):
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         FilterLifetime,
-        unit_of_measurement="%",
+        unit_of_measurement=UNIT_PERCENT,
         accuracy_decimals=2,
         icon="mdi:air-filter",
         state_class=STATE_CLASS_MEASUREMENT,
@@ -64,11 +66,11 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_HOUR,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_DURATION,
-                state_class=STATE_CLASS_TOTAL_INCREASING,
+                state_class=STATE_CLASS_TOTAL,
                 icon="mdi:timer-outline",
             ),
             cv.Optional(CONF_REMAINING_DAYS): sensor.sensor_schema(
-                unit_of_measurement="d",
+                unit_of_measurement=UNIT_DAY,
                 accuracy_decimals=0,
                 icon="mdi:calendar-clock",
             ),

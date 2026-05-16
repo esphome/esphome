@@ -41,11 +41,9 @@ bool FilterLifetime::get_is_on_() {
 }
 
 float FilterLifetime::get_current_speed_() {
-  // Check sensor first, then lambda, default to 100.0
   if (this->current_speed_sensor_ != nullptr) {
-    if (!std::isnan(this->current_speed_sensor_->state)) {
-      return this->current_speed_sensor_->state;
-    }
+    // Sensor configured but not yet valid: skip accumulation rather than assume 100%.
+    return std::isnan(this->current_speed_sensor_->state) ? 0.0f : this->current_speed_sensor_->state;
   }
   if (this->current_speed_lambda_) {
     return this->current_speed_lambda_();
