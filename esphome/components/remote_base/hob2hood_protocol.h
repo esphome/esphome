@@ -15,11 +15,7 @@ enum Hob2HoodCommand : uint8_t {
 };
 
 struct Hob2HoodData {
-  Hob2HoodData() {}
-  Hob2HoodData(Hob2HoodCommand command) { this->command = command; }
-
   Hob2HoodCommand command{HOB2HOOD_CMD_LIGHT_ON};
-
   bool operator==(const Hob2HoodData &rhs) const { return this->command == rhs.command; }
 };
 
