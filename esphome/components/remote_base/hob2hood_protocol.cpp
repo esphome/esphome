@@ -60,8 +60,8 @@ void Hob2HoodProtocol::encode(RemoteTransmitData *dst, const Hob2HoodData &data)
 
 optional<Hob2HoodData> Hob2HoodProtocol::decode(RemoteReceiveData src) {
   static constexpr std::array<Hob2HoodCommand, 7> COMMANDS = {
-    HOB2HOOD_CMD_LIGHT_OFF, HOB2HOOD_CMD_LIGHT_ON, HOB2HOOD_CMD_FAN_OFF, HOB2HOOD_CMD_FAN_LOW,
-    HOB2HOOD_CMD_FAN_MEDIUM, HOB2HOOD_CMD_FAN_HIGH, HOB2HOOD_CMD_FAN_MAX,
+      HOB2HOOD_CMD_LIGHT_OFF,  HOB2HOOD_CMD_LIGHT_ON, HOB2HOOD_CMD_FAN_OFF, HOB2HOOD_CMD_FAN_LOW,
+      HOB2HOOD_CMD_FAN_MEDIUM, HOB2HOOD_CMD_FAN_HIGH, HOB2HOOD_CMD_FAN_MAX,
   };
   for (auto cmd : COMMANDS) {
     src.reset();
@@ -75,14 +75,30 @@ optional<Hob2HoodData> Hob2HoodProtocol::decode(RemoteReceiveData src) {
 void Hob2HoodProtocol::dump(const Hob2HoodData &data) {
   const char *command_str;
   switch (data.command) {
-    case HOB2HOOD_CMD_LIGHT_OFF: command_str = "light_off"; break;
-    case HOB2HOOD_CMD_LIGHT_ON: command_str = "light_on"; break;
-    case HOB2HOOD_CMD_FAN_OFF: command_str = "fan_off"; break;
-    case HOB2HOOD_CMD_FAN_LOW: command_str = "fan_low"; break;
-    case HOB2HOOD_CMD_FAN_MEDIUM: command_str = "fan_medium"; break;
-    case HOB2HOOD_CMD_FAN_HIGH: command_str = "fan_high"; break;
-    case HOB2HOOD_CMD_FAN_MAX: command_str = "fan_max"; break;
-    default: command_str = "unknown"; break;
+    case HOB2HOOD_CMD_LIGHT_OFF:
+      command_str = "light_off";
+      break;
+    case HOB2HOOD_CMD_LIGHT_ON:
+      command_str = "light_on";
+      break;
+    case HOB2HOOD_CMD_FAN_OFF:
+      command_str = "fan_off";
+      break;
+    case HOB2HOOD_CMD_FAN_LOW:
+      command_str = "fan_low";
+      break;
+    case HOB2HOOD_CMD_FAN_MEDIUM:
+      command_str = "fan_medium";
+      break;
+    case HOB2HOOD_CMD_FAN_HIGH:
+      command_str = "fan_high";
+      break;
+    case HOB2HOOD_CMD_FAN_MAX:
+      command_str = "fan_max";
+      break;
+    default:
+      command_str = "unknown";
+      break;
   }
   ESP_LOGD(TAG, "Received Hob2Hood: %s", command_str);
 }
