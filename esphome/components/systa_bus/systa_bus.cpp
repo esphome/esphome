@@ -23,7 +23,8 @@ void SystaBus::loop() {
 
   do {
     uint8_t c;
-    if (!this->read_byte(&c)) break;
+    if (!this->read_byte(&c))
+      break;
 
     if (this->state_ == ParseState::IDLE && c == 0xfc) {
       this->state_ = ParseState::HEADER;

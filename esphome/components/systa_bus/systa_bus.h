@@ -12,11 +12,7 @@ static inline uint16_t get_message_type(const StaticVector<uint8_t, BUFFER_SIZE>
   return (static_cast<uint16_t>(message[0]) << 8) | static_cast<uint16_t>(message[1]);
 }
 
-enum class ParseState : uint8_t {
-  IDLE,
-  HEADER,
-  BODY
-};
+enum class ParseState : uint8_t { IDLE, HEADER, BODY };
 
 class SystaBusListener {
  public:
