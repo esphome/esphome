@@ -11,10 +11,12 @@ import pytest
 from esphome.components.esp32 import (
     KEY_COMPONENTS,
     KEY_ESP32,
+    KEY_IDF_VERSION,
     KEY_PATH,
     KEY_REF,
     KEY_REPO,
 )
+import esphome.config_validation as cv
 from esphome.const import KEY_CORE
 from esphome.core import CORE
 
@@ -24,7 +26,10 @@ def _reset_core(tmp_path: Path) -> None:
     """Give each test its own CORE.build_path and a clean esp32 data slot."""
     CORE.build_path = str(tmp_path)
     CORE.data.setdefault(KEY_CORE, {})
-    CORE.data[KEY_ESP32] = {KEY_COMPONENTS: {}}
+    CORE.data[KEY_ESP32] = {
+        KEY_COMPONENTS: {},
+        KEY_IDF_VERSION: cv.Version(5, 5, 4),
+    }
 
 
 def _write_project_description(tmp_path: Path, components: dict[str, str]) -> None:
