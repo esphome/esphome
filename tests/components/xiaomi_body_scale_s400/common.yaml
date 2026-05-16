@@ -1,0 +1,16 @@
+esp32_ble_tracker:
+
+sensor:
+  - platform: xiaomi_body_scale_s400
+    mac_address: "AA:BB:CC:DD:EE:FF"
+    bindkey: "00112233445566778899aabbccddeeff"
+    weight:
+      name: "Scale Weight"
+    impedance_low:
+      name: "Scale Impedance Low"
+    impedance_high:
+      name: "Scale Impedance High"
+    heart_rate:
+      name: "Scale Heart Rate"
+    profile_id:
+      name: "Scale Profile ID"
