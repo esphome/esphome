@@ -8,8 +8,7 @@
 #include <utility>
 #include <vector>
 
-namespace esphome {
-namespace sx126x {
+namespace esphome::sx126x {
 
 enum SX126xBw : uint8_t {
   // FSK
@@ -146,5 +145,4 @@ class SX126x : public Component,
   bool rf_switch_{false};
 };
 
-}  // namespace sx126x
-}  // namespace esphome
+}  // namespace esphome::sx126x

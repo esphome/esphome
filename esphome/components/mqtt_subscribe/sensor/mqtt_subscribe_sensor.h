@@ -8,8 +8,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/mqtt/mqtt_client.h"
 
-namespace esphome {
-namespace mqtt_subscribe {
+namespace esphome::mqtt_subscribe {
 
 class MQTTSubscribeSensor : public sensor::Sensor, public Component {
  public:
@@ -27,7 +26,6 @@ class MQTTSubscribeSensor : public sensor::Sensor, public Component {
   uint8_t qos_{0};
 };
 
-}  // namespace mqtt_subscribe
-}  // namespace esphome
+}  // namespace esphome::mqtt_subscribe
 
 #endif  // USE_MQTT

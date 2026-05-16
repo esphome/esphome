@@ -5,8 +5,7 @@
 #include "esphome/components/output/float_output.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace mcp4461 {
+namespace esphome::mcp4461 {
 
 class Mcp4461Wiper : public output::FloatOutput, public Parented<Mcp4461Component> {
  public:
@@ -45,5 +44,4 @@ class Mcp4461Wiper : public output::FloatOutput, public Parented<Mcp4461Componen
   float state_;
 };
 
-}  // namespace mcp4461
-}  // namespace esphome
+}  // namespace esphome::mcp4461
