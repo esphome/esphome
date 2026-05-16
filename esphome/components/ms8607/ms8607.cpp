@@ -63,7 +63,6 @@ enum class MS8607Component::SetupStatus {
 };
 
 static uint8_t crc4(uint16_t *buffer, size_t length);
-static uint8_t hsensor_crc_check(uint16_t value);
 
 void MS8607Component::setup() {
   this->error_code_ = ErrorCode::NONE;
@@ -244,35 +243,6 @@ static uint8_t crc4(uint16_t *buffer, size_t length) {
   return (crc_remainder >> 12) & 0xF;  // only the most significant 4 bits
 }
 
-/**
- * @brief Calculates CRC value for the provided humidity (+ status bits) value
- *
- * CRC-8 check comes from other MS8607 libraries on github. I did not find it in the datasheet,
- * and it differs from the crc8 implementation that's already part of esphome.
- *
- * @param value two byte humidity sensor value read from i2c
- * @return uint8_t computed crc value
- */
-static uint8_t hsensor_crc_check(uint16_t value) {
-  uint32_t polynom = 0x988000;  // x^8 + x^5 + x^4 + 1
-  uint32_t msb = 0x800000;
-  uint32_t mask = 0xFF8000;
-  uint32_t result = (uint32_t) value << 8;  // Pad with zeros as specified in spec
-
-  while (msb != 0x80) {
-    // Check if msb of current value is 1 and apply XOR mask
-    if (result & msb) {
-      result = ((result ^ polynom) & mask) | (result & ~mask);
-    }
-
-    // Shift by one
-    msb >>= 1;
-    mask >>= 1;
-    polynom >>= 1;
-  }
-  return result & 0xFF;
-}
-
 void MS8607Component::request_read_temperature_() {
   // Tell MS8607 to start ADC conversion of temperature sensor
   if (!this->write_bytes(MS8607_CMD_CONV_D2_OSR_8K, nullptr, 0)) {
@@ -338,7 +308,7 @@ void MS8607Component::read_humidity_(float temperature_float) {
   // Bit1 of the two LSBS must be set to '1'. Bit0 is currently not assigned"
   uint16_t humidity = encode_uint16(bytes[0], bytes[1]);
   uint8_t const expected_crc = bytes[2];
-  uint8_t const actual_crc = hsensor_crc_check(humidity);
+  uint8_t const actual_crc = crc8(bytes, 2, 0, 0x31, true);
   if (expected_crc != actual_crc) {
     ESP_LOGE(TAG, "Incorrect Humidity CRC value. Provided value 0x%01X != calculated value 0x%01X", expected_crc,
              actual_crc);
