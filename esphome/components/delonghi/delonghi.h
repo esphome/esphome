@@ -2,8 +2,7 @@
 
 #include "esphome/components/climate_ir/climate_ir.h"
 
-namespace esphome {
-namespace delonghi {
+namespace esphome::delonghi {
 
 // Values for DELONGHI ARC43XXX IR Controllers
 const uint8_t DELONGHI_ADDRESS = 83;
@@ -60,5 +59,4 @@ class DelonghiClimate : public climate_ir::ClimateIR {
   bool parse_state_frame_(const uint8_t frame[]);
 };
 
-}  // namespace delonghi
-}  // namespace esphome
+}  // namespace esphome::delonghi

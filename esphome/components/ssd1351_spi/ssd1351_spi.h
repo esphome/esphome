@@ -4,8 +4,7 @@
 #include "esphome/components/ssd1351_base/ssd1351_base.h"
 #include "esphome/components/spi/spi.h"
 
-namespace esphome {
-namespace ssd1351_spi {
+namespace esphome::ssd1351_spi {
 
 class SPISSD1351 : public ssd1351_base::SSD1351,
                    public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_TRAILING,
@@ -26,5 +25,4 @@ class SPISSD1351 : public ssd1351_base::SSD1351,
   GPIOPin *dc_pin_;
 };
 
-}  // namespace ssd1351_spi
-}  // namespace esphome
+}  // namespace esphome::ssd1351_spi

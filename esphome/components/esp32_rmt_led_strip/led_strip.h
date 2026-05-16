@@ -13,8 +13,7 @@
 #include <esp_idf_version.h>
 #include <driver/rmt_tx.h>
 
-namespace esphome {
-namespace esp32_rmt_led_strip {
+namespace esphome::esp32_rmt_led_strip {
 
 enum RGBOrder : uint8_t {
   ORDER_RGB,
@@ -102,7 +101,6 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
   optional<uint32_t> max_refresh_rate_{};
 };
 
-}  // namespace esp32_rmt_led_strip
-}  // namespace esphome
+}  // namespace esphome::esp32_rmt_led_strip
 
 #endif  // USE_ESP32
