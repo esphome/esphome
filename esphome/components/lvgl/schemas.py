@@ -40,7 +40,7 @@ from .defines import (
     get_remapped_uses,
     is_press_event,
 )
-from .helpers import CONF_IF_NAN, validate_printf
+from .helpers import CONF_IF_NAN, lazy_once, validate_printf
 from .layout import (
     FLEX_OBJ_SCHEMA,
     GRID_CELL_SCHEMA,
@@ -542,27 +542,25 @@ def container_schema(widget_type: WidgetType, extras=None):
     :param extras:  Additional options to be made available, e.g. layout properties for children
     :return: The schema for this type of widget.
     """
+
     # Schema construction is deferred until first validation. obj_schema and the
     # part_schema -> base_update_schema chain account for ~225ms of cumulative
     # work at lvgl module import time across ~9 callers; building lazily keeps
     # `esphome config` fast for YAMLs that never reach this widget type.
-    schema_holder: list = []
-
     def build() -> cv.Schema:
-        if not schema_holder:
-            built = obj_schema(widget_type).extend(
-                {cv.GenerateID(): cv.declare_id(widget_type.w_type)}
-            )
-            if extras:
-                built = built.extend(extras)
-            # Delayed evaluation for recursion
-            built = built.extend(widget_type.schema)
-            schema_holder.append(built)
-        return schema_holder[0]
+        built = obj_schema(widget_type).extend(
+            {cv.GenerateID(): cv.declare_id(widget_type.w_type)}
+        )
+        if extras:
+            built = built.extend(extras)
+        # Delayed evaluation for recursion
+        return built.extend(widget_type.schema)
+
+    get_schema = lazy_once(build)
 
     def validator(value):
         value = value or {}
-        return append_layout_schema(build(), value)(value)
+        return append_layout_schema(get_schema(), value)(value)
 
     return validator
 

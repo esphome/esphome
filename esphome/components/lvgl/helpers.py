@@ -1,9 +1,30 @@
+from collections.abc import Callable
 import re
+from typing import TypeVar
 
 from esphome import config_validation as cv
 from esphome.const import CONF_ARGS, CONF_FORMAT
 
 CONF_IF_NAN = "if_nan"
+
+T = TypeVar("T")
+
+
+def lazy_once(build: Callable[[], T]) -> Callable[[], T]:
+    """Return a no-arg callable that runs ``build`` at most once and caches it.
+
+    Used to defer voluptuous schema construction until first validation. Many
+    of the lvgl schemas would otherwise be built at module-import time even for
+    YAMLs that never reach them.
+    """
+    cached: list[T] = []
+
+    def get() -> T:
+        if not cached:
+            cached.append(build())
+        return cached[0]
+
+    return get
 
 
 # noqa

@@ -81,18 +81,19 @@ def _lazy_update_schema(widget_type: "WidgetType"):
     caller (register_action) only needs a validator, so wrap the build in a
     closure that materialises on the first validation and caches the result.
     """
-    compiled: list = []
+    from ..helpers import lazy_once
+
+    def build():
+        from ..schemas import base_update_schema
+
+        return base_update_schema(widget_type, widget_type.parts).extend(
+            widget_type.modify_schema
+        )
+
+    get_schema = lazy_once(build)
 
     def validator(value):
-        if not compiled:
-            from ..schemas import base_update_schema
-
-            compiled.append(
-                base_update_schema(widget_type, widget_type.parts).extend(
-                    widget_type.modify_schema
-                )
-            )
-        return compiled[0](value)
+        return get_schema()(value)
 
     return validator
 
