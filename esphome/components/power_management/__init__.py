@@ -139,7 +139,6 @@ async def to_code(config):
     if config.get(CONF_ENABLE_LIGHT_SLEEP):
         # this causes automatic light sleep if no tasks are pending
         add_idf_sdkconfig_option("CONFIG_FREERTOS_USE_TICKLESS_IDLE", True)
-        add_idf_sdkconfig_option("CONFIG_IEEE802154_SLEEP_ENABLE", True)
         if config.get(CONF_POWER_DOWN_PERIPHERALS):
             # There is a defined set of peripheral's that work with PM
             add_idf_sdkconfig_option(
@@ -218,6 +217,11 @@ def _pm_final_validate(config):
     ):
         # find all actions
         _pm_recursive_validator(full_config)
+
+    if config.get(CONF_ENABLE_LIGHT_SLEEP) and (
+        full_config.get("openthread") or full_config.get("zigbee")
+    ):
+        add_idf_sdkconfig_option("CONFIG_IEEE802154_SLEEP_ENABLE", True)
 
 
 FINAL_VALIDATE_SCHEMA = _pm_final_validate
