@@ -18,7 +18,7 @@ class FilterLifetime : public sensor::Sensor, public PollingComponent {
   void setup() override;
   void update() override;
 
-  void set_max_lifetime(int max_lifetime) { this->max_lifetime_ = max_lifetime; }
+  void set_max_lifetime(uint32_t max_lifetime_minutes) { this->max_lifetime_minutes_ = max_lifetime_minutes; }
   void set_is_on_lambda(std::function<bool()> is_on) { this->is_on_lambda_ = std::move(is_on); }
   void set_is_on_sensor(binary_sensor::BinarySensor *sensor) { this->is_on_sensor_ = sensor; }
   void set_current_speed_lambda(std::function<float()> current_speed) {
@@ -32,7 +32,7 @@ class FilterLifetime : public sensor::Sensor, public PollingComponent {
   bool get_is_on_();
   float get_current_speed_();
 
-  int max_lifetime_{0};                                 // Maximum filter lifetime in months
+  uint32_t max_lifetime_minutes_{0};                    // Maximum filter lifetime in minutes
   std::function<bool()> is_on_lambda_;                  // Lambda to check if device is on
   binary_sensor::BinarySensor *is_on_sensor_{nullptr};  // Binary sensor to check if device is on
   std::function<float()> current_speed_lambda_;         // Lambda to get current speed percentage (0-100)

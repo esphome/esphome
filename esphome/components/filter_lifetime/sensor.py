@@ -57,7 +57,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(
         {
-            cv.Required(CONF_MAX_LIFETIME): cv.int_range(min=1),
+            cv.Required(CONF_MAX_LIFETIME): cv.positive_time_period_minutes,
             cv.Optional(CONF_IS_ON): cv.returning_lambda,
             cv.Optional(CONF_IS_ON_SENSOR): cv.use_id(binary_sensor.BinarySensor),
             cv.Optional(CONF_CURRENT_SPEED): cv.returning_lambda,
@@ -86,7 +86,7 @@ async def to_code(config):
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
-    cg.add(var.set_max_lifetime(config[CONF_MAX_LIFETIME]))
+    cg.add(var.set_max_lifetime(int(config[CONF_MAX_LIFETIME])))
 
     if CONF_IS_ON in config:
         is_on_template = await cg.templatable(config[CONF_IS_ON], [], bool)

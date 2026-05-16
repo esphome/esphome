@@ -13,7 +13,7 @@ sensor:
   - platform: filter_lifetime
     name: "Filter Lifetime Lambda"
     id: filter_lifetime_lambda
-    max_lifetime: 12
+    max_lifetime: 365d
     is_on: !lambda 'return true;'
     current_speed: !lambda 'return 50.0;'
     update_interval: 60s
@@ -26,7 +26,7 @@ sensor:
   - platform: filter_lifetime
     name: "Filter Lifetime Sensor"
     id: filter_lifetime_sensor
-    max_lifetime: 12
+    max_lifetime: 365d
     is_on_sensor: fan_running
     current_speed_sensor: fan_speed_percent
     update_interval: 60s
@@ -39,7 +39,7 @@ sensor:
   - platform: filter_lifetime
     name: "Filter Lifetime Default"
     id: filter_lifetime_default
-    max_lifetime: 6
+    max_lifetime: 180d
     update_interval: 60s
 
 button:
