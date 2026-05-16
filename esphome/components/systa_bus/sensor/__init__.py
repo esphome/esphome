@@ -16,7 +16,7 @@ from esphome.types import ConfigType
 
 from .. import CONF_SYSTA_BUS_ID, CONF_SYSTASOLAR_AQUA, SystaBus, systa_bus_ns
 
-SystaSolar_Aqua = systa_bus_ns.class_("SystaSolarAquaSensor", cg.Component)
+SystaSolarAqua = systa_bus_ns.class_("SystaSolarAquaSensor", cg.Component)
 
 CONF_TEMPERATURE_TSA = "temperature_tsa"
 CONF_TEMPERATURE_TSE = "temperature_tse"
@@ -28,7 +28,7 @@ CONFIG_SCHEMA = cv.typed_schema(
     {
         CONF_SYSTASOLAR_AQUA: cv.COMPONENT_SCHEMA.extend(
             {
-                cv.GenerateID(): cv.declare_id(SystaSolar_Aqua),
+                cv.GenerateID(): cv.declare_id(SystaSolarAqua),
                 cv.GenerateID(CONF_SYSTA_BUS_ID): cv.use_id(SystaBus),
                 cv.Optional(CONF_TEMPERATURE_TSA): sensor.sensor_schema(
                     unit_of_measurement=UNIT_CELSIUS,

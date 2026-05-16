@@ -1,8 +1,5 @@
 #include "systa_bus.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include <algorithm>
-#include <cinttypes>
 
 namespace esphome::systa_bus {
 
@@ -38,7 +35,7 @@ void SystaBus::loop() {
       this->message_type_ = get_message_type(this->buffer_);
       this->length_ = this->buffer_[1] + 3;
       if (!(this->message_type_ == MESSAGE_TYPE_AQUA_SENSOR_DATA)) {
-        ESP_LOGW(TAG, "Unknown message type 0x%04x", this->message_type_);
+        ESP_LOGV(TAG, "Unknown message type 0x%04x", this->message_type_);
         this->state_ = 0;
       }
     } else if (this->state_ == 2) {

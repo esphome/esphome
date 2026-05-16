@@ -1,5 +1,4 @@
 #include "systa_bus_sensor.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::systa_bus {

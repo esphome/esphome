@@ -7,7 +7,9 @@ namespace esphome::systa_bus {
 
 static constexpr uint16_t MESSAGE_TYPE_AQUA_SENSOR_DATA = 0xfc16;
 
-static inline uint16_t get_message_type(std::vector<uint8_t> &message) { return (message[0] << 8) + message[1]; }
+static inline uint16_t get_message_type(const std::vector<uint8_t> &message) {
+  return (static_cast<uint16_t>(message[0]) << 8) | static_cast<uint16_t>(message[1]);
+}
 
 class SystaBusListener {
  public:
