@@ -161,7 +161,7 @@ void BME680BSECComponent::dump_config() {
                 "  IAQ Mode: %s\n"
                 "  Supply Voltage: %sV\n"
                 "  Sample Rate: %s\n"
-                "  State Save Interval: %ims",
+                "  State Save Interval: %" PRIu32 "ms",
                 this->temperature_offset_, this->iaq_mode_ == IAQ_MODE_STATIC ? "Static" : "Mobile",
                 this->supply_voltage_ == SUPPLY_VOLTAGE_3V3 ? "3.3" : "1.8",
                 BME680_BSEC_SAMPLE_RATE_LOG(this->sample_rate_), this->state_save_interval_ms_);
@@ -461,7 +461,7 @@ int8_t BME680BSECComponent::write_bytes_wrapper(uint8_t devid, uint8_t a_registe
 }
 
 void BME680BSECComponent::delay_ms(uint32_t period) {
-  ESP_LOGV(TAG, "Delaying for %ums", period);
+  ESP_LOGV(TAG, "Delaying for %" PRIu32 "ms", period);
   delay(period);
 }
 

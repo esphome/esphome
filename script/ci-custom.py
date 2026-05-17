@@ -1068,7 +1068,12 @@ PACKAGE_BUS_RE = re.compile(
 )
 
 
-@lint_content_check(include=["tests/components/*/test.*.yaml"])
+@lint_content_check(
+    include=[
+        "tests/components/*/test.*.yaml",
+        "tests/components/*/validate.*.yaml",
+    ]
+)
 def lint_test_package_key_matches_bus(fname, content):
     """Ensure package keys match the common bus directory name.
 
