@@ -9,8 +9,7 @@
 #include <limits>
 #include <vector>
 
-namespace esphome {
-namespace fingerprint_grow {
+namespace esphome::fingerprint_grow {
 
 static const uint16_t START_CODE = 0xEF01;
 
@@ -274,5 +273,4 @@ template<typename... Ts> class AuraLEDControlAction : public Action<Ts...>, publ
   }
 };
 
-}  // namespace fingerprint_grow
-}  // namespace esphome
+}  // namespace esphome::fingerprint_grow

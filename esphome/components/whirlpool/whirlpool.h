@@ -2,8 +2,7 @@
 
 #include "esphome/components/climate_ir/climate_ir.h"
 
-namespace esphome {
-namespace whirlpool {
+namespace esphome::whirlpool {
 
 /// Simple enum to represent models.
 enum Model {
@@ -61,5 +60,4 @@ class WhirlpoolClimate : public climate_ir::ClimateIR {
   }
 };
 
-}  // namespace whirlpool
-}  // namespace esphome
+}  // namespace esphome::whirlpool

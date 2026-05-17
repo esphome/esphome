@@ -24,6 +24,7 @@ CONF_SENDSPIN_ID = "sendspin_id"
 
 CONF_INITIAL_STATIC_DELAY = "initial_static_delay"
 CONF_FIXED_DELAY = "fixed_delay"
+CONF_DECODE_MEMORY = "decode_memory"
 
 # sendspin-cpp library lives in the global `sendspin` namespace.
 sendspin_library_ns = cg.global_ns.namespace("sendspin")
@@ -38,6 +39,18 @@ CODEC_FORMAT_UNSUPPORTED = SendspinCodecFormat.enum("UNSUPPORTED")
 # Library Structs
 AudioSupportedFormatObject = sendspin_library_ns.struct("AudioSupportedFormatObject")
 PlayerRoleConfig = sendspin_library_ns.struct("PlayerRoleConfig")
+
+# MemoryLocation enum (from sendspin/types.h) controls SPIRAM-vs-internal-RAM placement
+# preference for the player role's transfer buffers.
+SendspinMemoryLocation = sendspin_library_ns.enum("MemoryLocation", is_class=True)
+
+MEMORY_PSRAM = "psram"
+MEMORY_INTERNAL = "internal"
+MEMORY_LOCATIONS = [MEMORY_PSRAM, MEMORY_INTERNAL]
+MEMORY_LOCATION_ENUM = {
+    MEMORY_PSRAM: SendspinMemoryLocation.PREFER_EXTERNAL,
+    MEMORY_INTERNAL: SendspinMemoryLocation.PREFER_INTERNAL,
+}
 
 # Trailing underscore avoids clashing with sendspin-cpp's global `sendspin` namespace.
 # Analysis tools strip the trailing underscore (same pattern as `template_`).
@@ -193,11 +206,14 @@ async def to_code(config: ConfigType) -> None:
         )
 
     # sendspin-cpp library
-    esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.3.1")
+    esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.5.0")
 
     cg.add_define("USE_SENDSPIN", True)  # for MDNS
 
     data = _get_data()
+
+    # The color role is not yet wired up in ESPHome; disable it in the library for now.
+    esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_COLOR", False)
 
     # Configure Sendspin roles based on requested features (ESPHome internally via USE_SENDSPIN_*)
     # and disable building unused code paths in the sendspin-cpp library (IDF SDKConfig via CONFIG_SENDSPIN_ENABLE_*).
@@ -249,14 +265,23 @@ async def to_code(config: ConfigType) -> None:
                 "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True
             )
 
-        player_config_struct = cg.StructInitializer(
-            PlayerRoleConfig,
+        # Library defaults: priority 18 (one above httpd_priority 17 so the decoder is not
+        # starved by the HTTP server during the initial encoded-audio burst at stream start),
+        # decode buffer location PREFER_EXTERNAL.
+        player_struct_fields = [
             ("audio_formats", audio_format_structs),
             ("audio_buffer_capacity", player_cfg[CONF_BUFFER_SIZE]),
             ("fixed_delay_us", player_cfg[CONF_FIXED_DELAY]),
             ("initial_static_delay_ms", player_cfg[CONF_INITIAL_STATIC_DELAY]),
             ("psram_stack", psram_stack),
-            ("priority", 2),
+        ]
+        if (decode_memory := player_cfg.get(CONF_DECODE_MEMORY)) is not None:
+            player_struct_fields.append(
+                ("decode_buffer_location", MEMORY_LOCATION_ENUM[decode_memory])
+            )
+        player_config_struct = cg.StructInitializer(
+            PlayerRoleConfig,
+            *player_struct_fields,
         )
         cg.add(var.set_player_config(player_config_struct))
     else:

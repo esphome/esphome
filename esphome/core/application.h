@@ -233,11 +233,10 @@ class Application {
   /// loops and scheduler items still feed after every op, so any op exceeding
   /// this threshold triggers a real feed naturally.
   /// Safety margins vs. platform watchdog timeouts:
-  ///   - ESP32 task WDT (user-configurable):  ~5x  <-- auto-scaled below
-  ///   - ESP8266 soft WDT (~1.6 s):           ~5x  <-- floor case; any future change
-  ///                                                   must keep comfortable margin here
-  ///   - ESP8266 HW WDT (~6 s):               ~20x
-  ///   - BK72xx HW WDT (10 s):                ~5x  <-- platform override below
+  ///   - ESP32 task WDT (user-configurable):  ~5x   <-- auto-scaled below
+  ///   - ESP8266 soft WDT (~1.6 s):           ~16x  <-- 100 ms feed (see USE_ESP8266 below)
+  ///   - ESP8266 HW WDT (~6 s):               ~60x
+  ///   - BK72xx HW WDT (10 s):                ~5x   <-- platform override below
 #ifdef USE_BK72XX
   // BDK busy-waits 200us per WDT reload (sctrl_dpll_delay200us). LibreTiny
   // sets HW WDT to 10s; 2000ms keeps ~5x margin. See wdt_ctrl WCMD_RELOAD_PERIOD:
@@ -257,6 +256,15 @@ class Application {
   static_assert(CONFIG_ESP_TASK_WDT_TIMEOUT_S >= 5,
                 "CONFIG_ESP_TASK_WDT_TIMEOUT_S must be at least 5s for a safe WDT feed interval");
   static constexpr uint32_t WDT_FEED_INTERVAL_MS = (CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000U) / 5U;
+#elif defined(USE_ESP8266)
+  // ESP8266 needs a tighter feed cadence than the other targets: the soft WDT
+  // is ~1.6 s and the HW WDT ~6 s, but a single long iteration (mDNS reply,
+  // wifi scan, OTA verify, lwIP TCP retransmit storm) can push the loop past
+  // a few hundred ms without giving the SDK a chance to feed. 100 ms keeps a
+  // ~16x margin to the soft WDT and ~60x to the HW WDT while still avoiding
+  // the per-iteration arch_feed_wdt() cost (this is the rate limit; component
+  // loops and scheduler items still feed after every op).
+  static constexpr uint32_t WDT_FEED_INTERVAL_MS = 100;
 #else
   static constexpr uint32_t WDT_FEED_INTERVAL_MS = 300;
 #endif
@@ -637,10 +645,12 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // flag preserves it. wake_request_take() exchange-clears the flag; wakes
   // that arrive during Phase B re-set it and run Phase B again on the next
   // iteration.
-  const bool high_frequency = HighFrequencyLoopRequester::is_high_frequency();
-  const uint32_t elapsed = now - this->last_loop_;
-  const bool woke = esphome::wake_request_take();
-  const bool do_component_phase = high_frequency || woke || (elapsed >= this->loop_interval_);
+  //
+  // wake_request_take() must always be called first since it does an
+  // atomic exchange to clear the flag, and we want to run the component phase
+  // if either the flag was set or the scheduler requested a high-frequency loop.
+  const bool do_component_phase = esphome::wake_request_take() || HighFrequencyLoopRequester::is_high_frequency() ||
+                                  (now - this->last_loop_ >= this->loop_interval_);
 
   if (do_component_phase) {
     ComponentPhaseGuard phase_guard{*this};

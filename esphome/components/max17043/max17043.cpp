@@ -1,8 +1,7 @@
 #include "max17043.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace max17043 {
+namespace esphome::max17043 {
 
 // MAX174043 is a 1-Cell Fuel Gauge with ModelGauge and Low-Battery Alert
 // Consult the datasheet at https://www.analog.com/en/products/max17043.html
@@ -90,5 +89,4 @@ void MAX17043Component::sleep_mode() {
   }
 }
 
-}  // namespace max17043
-}  // namespace esphome
+}  // namespace esphome::max17043

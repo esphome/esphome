@@ -5,8 +5,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace pm1006 {
+namespace esphome::pm1006 {
 
 class PM1006Component : public PollingComponent, public uart::UARTDevice {
  public:
@@ -33,5 +32,4 @@ class PM1006Component : public PollingComponent, public uart::UARTDevice {
   uint32_t last_transmission_{0};
 };
 
-}  // namespace pm1006
-}  // namespace esphome
+}  // namespace esphome::pm1006
