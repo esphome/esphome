@@ -15,6 +15,9 @@
 #ifdef USE_RUNTIME_IMAGE_PNG
 #include "png_decoder.h"
 #endif
+#ifdef USE_RUNTIME_IMAGE_QOI
+#include "qoi_decoder.h"
+#endif
 
 namespace esphome::runtime_image {
 
@@ -34,24 +37,6 @@ inline bool is_color_on(const Color &color) {
   // Approximation using fast integer computations; produces acceptable results
   // Equivalent to 0.25 * R + 0.5 * G + 0.25 * B
   return ((color.r >> 2) + (color.g >> 1) + (color.b >> 2)) & 0x80;
-}
-
-const char *get_mime_type_for_format(ImageFormat format) {
-  for (const auto &entry : MIME_LOOKUP_TABLE) {
-    if (entry.format == format) {
-      return entry.mime_type;
-    }
-  }
-  return "image/*";  // Default fallback
-}
-
-std::optional<ImageFormat> get_format_for_mime_type(const char *mime_type) {
-  for (const auto &entry : MIME_LOOKUP_TABLE) {
-    if (strcasestr(mime_type, entry.mime_type)) {
-      return entry.format;
-    }
-  }
-  return std::nullopt;
 }
 
 RuntimeImage::RuntimeImage(ImageFormat format, image::ImageType type, image::Transparency transparency,
@@ -385,6 +370,10 @@ std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_(ImageFormat format) 
 #ifdef USE_RUNTIME_IMAGE_PNG
     case PNG:
       return make_unique<PngDecoder>(this);
+#endif
+#ifdef USE_RUNTIME_IMAGE_QOI
+    case QOI:
+      return make_unique<QoiDecoder>(this);
 #endif
     case AUTO:
       ESP_LOGE(TAG, "Image format could not be determined; set `format:` explicitly in the configuration");
