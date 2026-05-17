@@ -232,7 +232,7 @@ bool HDMICEC::send(uint8_t source, uint8_t destination, const uint8_t *payload_b
 
   if (payload_size > Frame::MAX_PAYLOAD_LENGTH) {
     ESP_LOGE("hdmi_cec", "Send abort %u->%u opcode=%u: Payload length %u exceeds max %u bytes", source, destination,
-             payload_bytes[0], (unsigned int) (payload.size()), Frame::MAX_PAYLOAD_LENGTH);
+             payload_bytes[0], payload_size, Frame::MAX_PAYLOAD_LENGTH);
     return false;
   }
 
