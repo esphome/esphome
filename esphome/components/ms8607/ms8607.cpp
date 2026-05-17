@@ -75,12 +75,18 @@ void MS8607Component::setup() {
 }
 
 void MS8607Component::try_reset_() {
-  ESP_LOGD(TAG, "Resetting both I2C addresses: 0x%02X, 0x%02X", this->address_, this->humidity_device_->get_address());
+  ESP_LOGD(TAG, "Resetting I2C addresses: 0x%02X, 0x%02X", this->address_,
+           this->humidity_device_ != nullptr ? this->humidity_device_->get_address() : 0x00);
   // I believe sending the reset command to both addresses is preferable to
   // skipping humidity if PT fails for some reason.
   // However, only consider the reset successful if they both ACK
   bool const pt_successful = this->write_bytes(MS8607_PT_CMD_RESET, nullptr, 0);
-  bool const h_successful = this->humidity_device_->write_bytes(MS8607_CMD_H_RESET, nullptr, 0);
+  bool h_successful = true;
+
+  // Skip humidity reset & readings if no humidity sensor is configured
+  if (this->humidity_device_ != nullptr && this->humidity_sensor_ != nullptr) {
+    h_successful = this->humidity_device_->write_bytes(MS8607_CMD_H_RESET, nullptr, 0);
+  }
 
   if (!(pt_successful && h_successful)) {
     ESP_LOGE(TAG, "Resetting I2C devices failed");
@@ -134,8 +140,10 @@ void MS8607Component::update() {
 void MS8607Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MS8607:");
   LOG_I2C_DEVICE(this);
-  // LOG_I2C_DEVICE doesn't work for humidity, the `address_` is protected. Log using get_address()
-  ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->humidity_device_->get_address());
+  if (this->humidity_device_ != nullptr) {
+    // LOG_I2C_DEVICE doesn't work for humidity, the `address_` is protected. Log using get_address()
+    ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->humidity_device_->get_address());
+  }
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     switch (this->error_code_) {
@@ -284,6 +292,10 @@ void MS8607Component::read_pressure_(uint32_t d2_raw_temperature) {
 }
 
 void MS8607Component::request_read_humidity_(float temperature_float) {
+  if (this->humidity_device_ == nullptr || this->humidity_sensor_ == nullptr) {
+    return;
+  }
+
   if (!this->humidity_device_->write_bytes(MS8607_CMD_H_MEASURE_NO_HOLD, nullptr, 0)) {
     ESP_LOGW(TAG, "Request to measure humidity failed");
     this->status_set_warning();
@@ -295,6 +307,10 @@ void MS8607Component::request_read_humidity_(float temperature_float) {
 }
 
 void MS8607Component::read_humidity_(float temperature_float) {
+  if (this->humidity_device_ == nullptr || this->humidity_sensor_ == nullptr) {
+    return;
+  }
+
   uint8_t bytes[3];
   if (!this->humidity_device_->read_bytes_raw(bytes, 3)) {
     ESP_LOGW(TAG, "Failed to read the measured humidity value");
@@ -326,9 +342,7 @@ void MS8607Component::read_humidity_(float temperature_float) {
       humidity_percentage + (20 - temperature_float) * MS8607_H_TEMP_COEFFICIENT;
   ESP_LOGD(TAG, "Compensated for temperature, humidity=%.2f%%", compensated_humidity_percentage);
 
-  if (this->humidity_sensor_ != nullptr) {
-    this->humidity_sensor_->publish_state(compensated_humidity_percentage);
-  }
+  this->humidity_sensor_->publish_state(compensated_humidity_percentage);
   this->status_clear_warning();
 }
 
@@ -399,7 +413,7 @@ void MS8607Component::calculate_values_(uint32_t d2_raw_temperature, uint32_t d1
   }
   this->status_clear_warning();
 
-  if (this->humidity_sensor_ != nullptr) {
+  if (this->humidity_device_ != nullptr && this->humidity_sensor_ != nullptr) {
     // now that we have temperature (to compensate the humidity with), kick off that read
     this->request_read_humidity_(temperature_float);
   }
