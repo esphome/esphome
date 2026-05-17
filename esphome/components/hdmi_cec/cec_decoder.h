@@ -7,8 +7,7 @@
 
 #include "hdmi_cec.h"
 
-namespace esphome {
-namespace hdmi_cec {
+namespace esphome::hdmi_cec {
 
 /**
  * This LookupTable is const-initialised and only provides a simple 'find()'.
@@ -186,5 +185,4 @@ class Decoder {
   const static CecOpcodeTable CEC_OPCODE_TABLE;
   const static VendorIdTable VENDOR_IDS;
 };  // class Decoder
-}  // namespace hdmi_cec
-}  // namespace esphome
+}  // namespace esphome::hdmi_cec

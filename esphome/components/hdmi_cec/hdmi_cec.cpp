@@ -13,8 +13,7 @@
 #include "cec_decoder.h"
 #endif
 
-namespace esphome {
-namespace hdmi_cec {
+namespace esphome::hdmi_cec {
 
 // CEC protocol constants as stated in standard:
 static constexpr uint8_t MAX_FRAME_LENGTH_BYTES = 16;  // max frame (message) length in bytes
@@ -707,5 +706,4 @@ void IRAM_ATTR CECReceive::reset_state_variables_() {
   recv_frame_buffer_ = nullptr;
 }
 
-}  // namespace hdmi_cec
-}  // namespace esphome
+}  // namespace esphome::hdmi_cec
