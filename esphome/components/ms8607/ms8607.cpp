@@ -138,7 +138,8 @@ void MS8607Component::update() {
   }
 
   // Updating happens async and sequentially.
-  // Temperature, then pressure, then humidity
+  // Temperature, then optionally pressure, then optionally humidity
+  // Temperature is used for compensation of pressure & humidity, so we'll always want it
   this->request_read_temperature_();
 }
 
@@ -273,7 +274,13 @@ void MS8607Component::read_temperature_() {
   }
 
   const uint32_t d2_raw_temperature = encode_uint32(0, bytes[0], bytes[1], bytes[2]);
-  this->request_read_pressure_(d2_raw_temperature);
+
+  if (this->pressure_sensor_ != nullptr) {
+    this->request_read_pressure_(d2_raw_temperature);
+  } else {
+    // No pressure sensor configured, skip the pressure reading
+    this->calculate_values_(d2_raw_temperature, 0);
+  }
 }
 
 void MS8607Component::request_read_pressure_(uint32_t d2_raw_temperature) {
@@ -352,70 +359,80 @@ void MS8607Component::read_humidity_(float temperature_float) {
 }
 
 void MS8607Component::calculate_values_(uint32_t d2_raw_temperature, uint32_t d1_raw_pressure) {
-  // Perform the first order pressure/temperature calculation
+  // Perform the first order temperature calculation
 
   // d_t: "difference between actual and reference temperature" = D2 - [C5] * 2**8
   const int32_t d_t = int32_t(d2_raw_temperature) - (int32_t(this->calibration_values_.reference_temperature) << 8);
+  const int64_t d_t_squared = int64_t(d_t) * d_t;
+
   // actual temperature as hundredths of degree celsius in range [-4000, 8500]
   // 2000 + d_t * [C6] / (2**23)
   int32_t temperature =
       2000 + ((int64_t(d_t) * this->calibration_values_.temperature_coefficient_of_temperature) >> 23);
 
-  // offset at actual temperature. [C2] * (2**17) + (d_t * [C4] / (2**6))
-  int64_t pressure_offset = (int64_t(this->calibration_values_.pressure_offset) << 17) +
-                            ((int64_t(d_t) * this->calibration_values_.pressure_offset_temperature_coefficient) >> 6);
-  // sensitivity at actual temperature. [C1] * (2**16) + ([C3] * d_t) / (2**7)
-  int64_t pressure_sensitivity =
-      (int64_t(this->calibration_values_.pressure_sensitivity) << 16) +
-      ((int64_t(d_t) * this->calibration_values_.pressure_sensitivity_temperature_coefficient) >> 7);
-
-  // Perform the second order compensation, for non-linearity over temperature range
-  const int64_t d_t_squared = int64_t(d_t) * d_t;
+  // Perform the second order temperature compensation, for non-linearity over temperature range
   int64_t temperature_2 = 0;
-  int32_t pressure_offset_2 = 0;
-  int32_t pressure_sensitivity_2 = 0;
   if (temperature < 2000) {
-    // (TEMP - 2000)**2 / 2**4
-    const int32_t low_temperature_adjustment = (temperature - 2000) * (temperature - 2000) >> 4;
-
     // T2 = 3 * (d_t**2) / 2**33
     temperature_2 = (3 * d_t_squared) >> 33;
-    // OFF2 = 61 * (TEMP-2000)**2 / 2**4
-    pressure_offset_2 = 61 * low_temperature_adjustment;
-    // SENS2 = 29 * (TEMP-2000)**2 / 2**4
-    pressure_sensitivity_2 = 29 * low_temperature_adjustment;
-
-    if (temperature < -1500) {
-      // (TEMP+1500)**2
-      const int32_t very_low_temperature_adjustment = (temperature + 1500) * (temperature + 1500);
-
-      // OFF2 = OFF2 + 17 * (TEMP+1500)**2
-      pressure_offset_2 += 17 * very_low_temperature_adjustment;
-      // SENS2 = SENS2 + 9 * (TEMP+1500)**2
-      pressure_sensitivity_2 += 9 * very_low_temperature_adjustment;
-    }
   } else {
     // T2 = 5 * (d_t**2) / 2**38
     temperature_2 = (5 * d_t_squared) >> 38;
   }
-
   temperature -= temperature_2;
-  pressure_offset -= pressure_offset_2;
-  pressure_sensitivity -= pressure_sensitivity_2;
-
-  // Temperature compensated pressure. [1000, 120000] => [10.00 mbar, 1200.00 mbar]
-  const int32_t pressure = (((d1_raw_pressure * pressure_sensitivity) >> 21) - pressure_offset) >> 15;
-
   const float temperature_float = temperature / 100.0f;
-  const float pressure_float = pressure / 100.0f;
-  ESP_LOGD(TAG, "Temperature=%0.2f°C, Pressure=%0.2fhPa", temperature_float, pressure_float);
+  ESP_LOGD(TAG, "Temperature=%0.2f°C", temperature_float);
 
   if (this->temperature_sensor_ != nullptr) {
     this->temperature_sensor_->publish_state(temperature_float);
   }
+
   if (this->pressure_sensor_ != nullptr) {
+    // Perform the first order pressure calculation
+
+    // offset at actual temperature. [C2] * (2**17) + (d_t * [C4] / (2**6))
+    int64_t pressure_offset = (int64_t(this->calibration_values_.pressure_offset) << 17) +
+                              ((int64_t(d_t) * this->calibration_values_.pressure_offset_temperature_coefficient) >> 6);
+    // sensitivity at actual temperature. [C1] * (2**16) + ([C3] * d_t) / (2**7)
+    int64_t pressure_sensitivity =
+        (int64_t(this->calibration_values_.pressure_sensitivity) << 16) +
+        ((int64_t(d_t) * this->calibration_values_.pressure_sensitivity_temperature_coefficient) >> 7);
+
+    // Perform the second order pressure compensation, for non-linearity over temperature range
+    int32_t pressure_offset_2 = 0;
+    int32_t pressure_sensitivity_2 = 0;
+    if (temperature < 2000) {
+      // (TEMP - 2000)**2 / 2**4
+      const int32_t low_temperature_adjustment = (temperature - 2000) * (temperature - 2000) >> 4;
+
+      // OFF2 = 61 * (TEMP-2000)**2 / 2**4
+      pressure_offset_2 = 61 * low_temperature_adjustment;
+      // SENS2 = 29 * (TEMP-2000)**2 / 2**4
+      pressure_sensitivity_2 = 29 * low_temperature_adjustment;
+
+      if (temperature < -1500) {
+        // (TEMP+1500)**2
+        const int32_t very_low_temperature_adjustment = (temperature + 1500) * (temperature + 1500);
+
+        // OFF2 = OFF2 + 17 * (TEMP+1500)**2
+        pressure_offset_2 += 17 * very_low_temperature_adjustment;
+        // SENS2 = SENS2 + 9 * (TEMP+1500)**2
+        pressure_sensitivity_2 += 9 * very_low_temperature_adjustment;
+      }
+    }
+
+    pressure_offset -= pressure_offset_2;
+    pressure_sensitivity -= pressure_sensitivity_2;
+
+    // Temperature compensated pressure. [1000, 120000] => [10.00 mbar, 1200.00 mbar]
+    const int32_t pressure = (((d1_raw_pressure * pressure_sensitivity) >> 21) - pressure_offset) >> 15;
+
+    const float pressure_float = pressure / 100.0f;
+    ESP_LOGD(TAG, "Pressure=%0.2fhPa", pressure_float);
+
     this->pressure_sensor_->publish_state(pressure_float);  // hPa aka mbar
   }
+
   this->status_clear_warning();
 
   if (this->humidity_device_ != nullptr && this->humidity_sensor_ != nullptr) {
