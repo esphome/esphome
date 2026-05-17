@@ -7,6 +7,7 @@ import re
 import time
 
 from esphome import loader
+from esphome.compiled_config import save_compiled_config
 from esphome.config import iter_component_configs, iter_components
 from esphome.const import (
     HEADER_FILE_EXTENSIONS,
@@ -86,6 +87,21 @@ def replace_file_content(text, pattern, repl):
 
 
 def storage_should_clean(old: StorageJSON | None, new: StorageJSON) -> bool:
+    """Return True when the build tree must be wiped before reuse.
+
+    Predicate is True when *old* is missing (first build),
+    ``src_version`` differs, ``build_path`` differs, or a previously
+    loaded integration was removed in *new*. Adding integrations or
+    changing unrelated fields (friendly name, esphome version, etc.)
+    does not trigger a clean.
+
+    Used by esphome-device-builder (esphome/device-builder) to gate
+    its remote-build artifact materialiser so a local → remote → local
+    cycle preserves PlatformIO's local object cache instead of wiping
+    it on every cycle. The signature, semantics, and ``None`` handling
+    for *old* are part of the public contract; keep them stable so the
+    offloader's wipe decision tracks core's.
+    """
     if old is None:
         return True
 
@@ -109,6 +125,11 @@ def update_storage_json() -> None:
     path = storage_path()
     old = StorageJSON.load(path)
     new = StorageJSON.from_esphome_core(CORE, old)
+
+    # Refresh the cache upload/logs read on the next call.
+    if CORE.config is not None:
+        save_compiled_config(CORE.config)
+
     if old == new:
         return
 
@@ -484,6 +505,14 @@ def clean_build(clear_pio_cache: bool = True):
     if dependencies_lock.is_file():
         _LOGGER.info("Deleting %s", dependencies_lock)
         dependencies_lock.unlink()
+    # Native ESP-IDF toolchain artifacts: the IDF CMake/ninja build dir
+    # and the Component Manager's fetched managed components live under
+    # the project's build path, not under .pioenvs / .piolibdeps.
+    for name in ("build", "managed_components"):
+        idf_path = CORE.relative_build_path(name)
+        if idf_path.is_dir():
+            _LOGGER.info("Deleting %s", idf_path)
+            rmtree(idf_path)
 
     if not clear_pio_cache:
         return
