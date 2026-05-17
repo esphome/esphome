@@ -132,7 +132,7 @@ class MQTTClientComponent : public Component {
    *
    * @param topic_prefix The topic prefix. The last "/" is appended automatically.
    */
-  void set_topic_prefix(const std::string &topic_prefix, const std::string &check_topic_prefix);
+  void set_topic_prefix(const std::string &topic_prefix);
   /// Get the topic prefix of this device, using default if necessary
   const std::string &get_topic_prefix() const;
 
@@ -269,7 +269,7 @@ class MQTTClientComponent : public Component {
       .unique_id_generator = MQTT_LEGACY_UNIQUE_ID_GENERATOR,
       .object_id_generator = MQTT_NONE_OBJECT_ID_GENERATOR,
   };
-  std::string topic_prefix_{};
+  std::string topic_prefix_;
   MQTTMessage log_message_;
   std::string payload_buffer_;
   int log_level_{ESPHOME_LOG_LEVEL};

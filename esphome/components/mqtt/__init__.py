@@ -220,7 +220,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BIRTH_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_WILL_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_SHUTDOWN_MESSAGE): MQTT_MESSAGE_SCHEMA,
-            cv.Optional(CONF_TOPIC_PREFIX, default=lambda: CORE.name): cv.All(
+            cv.Optional(CONF_TOPIC_PREFIX): cv.All(
                 cv.publish_topic, cv.Length(max=TOPIC_PREFIX_MAX_LEN)
             ),
             cv.Optional(CONF_LOG_TOPIC): cv.Any(
@@ -351,7 +351,8 @@ async def to_code(config):
             )
         )
 
-    cg.add(var.set_topic_prefix(config[CONF_TOPIC_PREFIX], CORE.name))
+    if CONF_TOPIC_PREFIX in config:
+        cg.add(var.set_topic_prefix(config[CONF_TOPIC_PREFIX]))
 
     if config[CONF_USE_ABBREVIATIONS]:
         cg.add_define("USE_MQTT_ABBREVIATIONS")
