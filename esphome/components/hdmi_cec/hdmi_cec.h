@@ -58,7 +58,8 @@ class Frame {
     }
   }
   std::string to_string() const;  // NOLINT
-  constexpr static int MAX_LENGTH = 16;
+  constexpr static unsigned int MAX_LENGTH = 16;
+  constexpr static unsigned int MAX_PAYLOAD_LENGTH = MAX_LENGTH - 1;  // subtract 1 byte for the src&dst field
 
  protected:
   std::array<uint8_t, MAX_LENGTH> data_;
@@ -264,11 +265,6 @@ class HDMICEC : public Component {
   bool send(uint8_t destination, const uint8_t *payload_bytes, unsigned int payload_size) {
     return send(address_, destination, payload_bytes, payload_size);
   }
-  // And finally, provided for backwards compatibility, now discouraged:
-  // Better avoid use of a 'source' != my address_. Better avoid the 'vector' for its heap allocation
-  bool send(uint8_t source, uint8_t destination, const std::vector<uint8_t> &payload) {
-    return send(source, destination, payload.data(), payload.size());
-  }
 
   // Component overrides
   float get_setup_priority() const override { return esphome::setup_priority::DATA; }
@@ -316,10 +312,11 @@ template<typename... Ts> class SendAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(std::vector<uint8_t>, data)
 
   void play(const Ts &...x) override {
-    auto source_address = source_.has_value() ? source_.value(x...) : parent_->address();
-    auto destination_address = destination_.value(x...);
-    auto data = data_.value(x...);
-    parent_->send(source_address, destination_address, data);
+    auto source_address = this->source_.has_value() ? this->source_.value(x...) : this->parent_->address();
+    auto destination_address = this->destination_.value(x...);
+    const std::vector<uint8_t> &payload = this->data_.value(x...);
+
+    this->parent_->send(source_address, destination_address, payload.data(), payload.size());
   }
 
  protected:

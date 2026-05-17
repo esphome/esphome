@@ -15,6 +15,9 @@ from esphome.const import (
 
 CODEOWNERS = ["@JosVanEijndhoven"]
 
+MAX_LOGICAL_ADDRESS = 15
+MAX_PAYLOAD_LENGTH = 15
+MAX_OSD_NAME_LENGTH = MAX_PAYLOAD_LENGTH - 1  # 1 byte reserved for opcode
 CONF_PHYSICAL_ADDRESS = "physical_address"
 CONF_PROMISCUOUS_MODE = "promiscuous_mode"
 CONF_MONITOR_MODE = "monitor_mode"
@@ -27,8 +30,13 @@ CONF_PARENT = "parent"
 
 def validate_data_array(value):
     if isinstance(value, list):
+        if len(value) > MAX_PAYLOAD_LENGTH:
+            raise cv.Invalid(
+                f"HDMI-CEC data payload cannot exceed {MAX_PAYLOAD_LENGTH} bytes."
+            )
         return cv.Schema([cv.hex_uint8_t])(value)
-    raise cv.Invalid("data must be a list of bytes")
+    # If it's a lambda string, we can't inspect length in Python, let cv handle it
+    return cv.lambda_(value)
 
 
 def validate_osd_name(value):
@@ -36,8 +44,8 @@ def validate_osd_name(value):
         raise cv.Invalid("Must be a string")
     if len(value) < 1:
         raise cv.Invalid("Must be a non-empty string")
-    if len(value) > 14:
-        raise cv.Invalid("Must not be more than 14-characters long")
+    if len(value) > MAX_OSD_NAME_LENGTH:
+        raise cv.Invalid(f"Must not be more than {MAX_OSD_NAME_LENGTH}-characters long")
 
     for char in value:
         if not 0x20 <= ord(char) < 0x7E:
@@ -60,7 +68,7 @@ CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(HDMICEC),
         cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
-        cv.Required(CONF_ADDRESS): cv.int_range(min=0, max=15),
+        cv.Required(CONF_ADDRESS): cv.int_range(min=0, max=MAX_LOGICAL_ADDRESS),
         cv.Required(CONF_PHYSICAL_ADDRESS): cv.uint16_t,
         cv.Optional(CONF_PROMISCUOUS_MODE, default=False): cv.boolean,
         cv.Optional(CONF_MONITOR_MODE, default=False): cv.boolean,
@@ -70,8 +78,10 @@ CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
         cv.Optional(CONF_ON_MESSAGE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MessageTrigger),
-                cv.Optional(CONF_SOURCE): cv.int_range(min=0, max=15),
-                cv.Optional(CONF_DESTINATION): cv.int_range(min=0, max=15),
+                cv.Optional(CONF_SOURCE): cv.int_range(min=0, max=MAX_LOGICAL_ADDRESS),
+                cv.Optional(CONF_DESTINATION): cv.int_range(
+                    min=0, max=MAX_LOGICAL_ADDRESS
+                ),
                 cv.Optional(CONF_OPCODE): cv.uint8_t,
                 cv.Optional(CONF_DATA): validate_data_array,
             }
@@ -142,10 +152,15 @@ async def to_code(config):
     SendAction,
     {
         cv.GenerateID(CONF_PARENT): cv.use_id(HDMICEC),
-        cv.Optional(CONF_SOURCE): cv.templatable(cv.int_range(min=0, max=15)),
-        cv.Required(CONF_DESTINATION): cv.templatable(cv.int_range(min=0, max=15)),
+        cv.Optional(CONF_SOURCE): cv.templatable(
+            cv.int_range(min=0, max=MAX_LOGICAL_ADDRESS)
+        ),
+        cv.Required(CONF_DESTINATION): cv.templatable(
+            cv.int_range(min=0, max=MAX_LOGICAL_ADDRESS)
+        ),
         cv.Required(CONF_DATA): cv.templatable(validate_data_array),
     },
+    synchronous=True,
 )
 async def send_action_to_code(config, action_id, template_args, args):
     parent = await cg.get_variable(config[CONF_PARENT])

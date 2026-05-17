@@ -230,6 +230,12 @@ bool HDMICEC::send(uint8_t source, uint8_t destination, const uint8_t *payload_b
     return false;
   }
 
+  if (payload_size > Frame::MAX_PAYLOAD_LENGTH) {
+    ESP_LOGE("hdmi_cec", "Send abort %u->%u opcode=%u: Payload length %u exceeds max %u bytes", source, destination,
+             payload_bytes[0], (unsigned int) (payload.size()), Frame::MAX_PAYLOAD_LENGTH);
+    return false;
+  }
+
   return xmit_.queue_for_send(source, destination, payload_bytes, payload_size);
 }
 
@@ -269,9 +275,6 @@ bool CECTransmit::queue_for_send(uint8_t source, uint8_t destination, const uint
   Frame *frame = send_queue_.back();
   if (!frame)
     return false;  // queue is (still) full
-
-  if (1 + payload_size > Frame::MAX_LENGTH)  // Frame has 1 byte to hold source and destination plus payload
-    return false;                            // exceeds the cec 1.4 standard max message length
 
   new (frame) Frame(source, destination, payload_bytes, payload_size);
   send_queue_.push_back();  // commit the frame obtained from the last 'back()'
