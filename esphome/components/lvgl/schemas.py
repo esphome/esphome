@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from typing import Any
 
 from esphome import config_validation as cv
 from esphome.automation import Trigger, validate_automation
@@ -534,7 +535,7 @@ def strip_defaults(schema: cv.Schema):
     return cv.Schema({cv.Optional(k): v for k, v in schema.schema.items()})
 
 
-def container_schema(widget_type: WidgetType, extras=None):
+def container_schema(widget_type: WidgetType, extras=None) -> Callable[[Any], Any]:
     """
     Create a schema for a container widget of a given type. All obj properties are available, plus
     the extras passed in, plus any defined for the specific widget being specified.
@@ -558,7 +559,7 @@ def container_schema(widget_type: WidgetType, extras=None):
 
     get_schema = lazy_once(build)
 
-    def validator(value):
+    def validator(value: Any) -> Any:
         value = value or {}
         return append_layout_schema(get_schema(), value)(value)
 

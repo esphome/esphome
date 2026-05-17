@@ -1,4 +1,6 @@
+from collections.abc import Callable
 import sys
+from typing import Any
 
 from esphome import codegen as cg, config_validation as cv
 from esphome.automation import register_action
@@ -74,7 +76,7 @@ from ..types import (
 EVENT_LAMB = "event_lamb__"
 
 
-def _lazy_update_schema(widget_type: "WidgetType"):
+def _lazy_update_schema(widget_type: "WidgetType") -> Callable[[Any], Any]:
     """Defer construction of a widget's update-action schema until first use.
 
     base_update_schema(...).extend(widget_type.modify_schema) compiles several
@@ -87,7 +89,7 @@ def _lazy_update_schema(widget_type: "WidgetType"):
     level would deadlock the import.
     """
 
-    def build():
+    def build() -> Schema:
         from ..schemas import base_update_schema
 
         return base_update_schema(widget_type, widget_type.parts).extend(
@@ -96,7 +98,7 @@ def _lazy_update_schema(widget_type: "WidgetType"):
 
     get_schema = lazy_once(build)
 
-    def validator(value):
+    def validator(value: Any) -> Any:
         return get_schema()(value)
 
     return validator
