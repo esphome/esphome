@@ -169,54 +169,6 @@ MQTT_DISCOVERY_OBJECT_ID_GENERATOR_OPTIONS = {
 }
 
 
-def validate_config(value):
-    # Populate default fields
-    out = value.copy()
-    topic_prefix = value[CONF_TOPIC_PREFIX]
-    # If the topic prefix is not null and these messages are not configured, then set them to the default
-    # If the topic prefix is null and these messages are not configured, then set them to null
-    if CONF_BIRTH_MESSAGE not in value:
-        if topic_prefix != "":
-            out[CONF_BIRTH_MESSAGE] = {
-                CONF_TOPIC: f"{topic_prefix}/status",
-                CONF_PAYLOAD: "online",
-                CONF_QOS: 0,
-                CONF_RETAIN: True,
-            }
-        else:
-            out[CONF_BIRTH_MESSAGE] = {}
-    if CONF_WILL_MESSAGE not in value:
-        if topic_prefix != "":
-            out[CONF_WILL_MESSAGE] = {
-                CONF_TOPIC: f"{topic_prefix}/status",
-                CONF_PAYLOAD: "offline",
-                CONF_QOS: 0,
-                CONF_RETAIN: True,
-            }
-        else:
-            out[CONF_WILL_MESSAGE] = {}
-    if CONF_SHUTDOWN_MESSAGE not in value:
-        if topic_prefix != "":
-            out[CONF_SHUTDOWN_MESSAGE] = {
-                CONF_TOPIC: f"{topic_prefix}/status",
-                CONF_PAYLOAD: "offline",
-                CONF_QOS: 0,
-                CONF_RETAIN: True,
-            }
-        else:
-            out[CONF_SHUTDOWN_MESSAGE] = {}
-    if CONF_LOG_TOPIC not in value:
-        if topic_prefix != "":
-            out[CONF_LOG_TOPIC] = {
-                CONF_TOPIC: f"{topic_prefix}/debug",
-                CONF_QOS: 0,
-                CONF_RETAIN: True,
-            }
-        else:
-            out[CONF_LOG_TOPIC] = {}
-    return out
-
-
 def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for MQTT component."""
     # MQTT needs 1 socket for the broker connection
@@ -404,21 +356,7 @@ async def to_code(config):
     if config[CONF_USE_ABBREVIATIONS]:
         cg.add_define("USE_MQTT_ABBREVIATIONS")
 
-    birth_message = config[CONF_BIRTH_MESSAGE]
-    if not birth_message:
-        cg.add(var.disable_birth_message())
-    else:
-        cg.add(var.set_birth_message(exp_mqtt_message(birth_message)))
-    will_message = config[CONF_WILL_MESSAGE]
-    if not will_message:
-        cg.add(var.disable_last_will())
-    else:
-        cg.add(var.set_last_will(exp_mqtt_message(will_message)))
-    shutdown_message = config[CONF_SHUTDOWN_MESSAGE]
-    if not shutdown_message:
-        cg.add(var.disable_shutdown_message())
-    else:
-        cg.add(var.set_shutdown_message(exp_mqtt_message(shutdown_message)))
+    # TODO: last will & testament, birth/death config
 
     log_topic = config[CONF_LOG_TOPIC]
     if not log_topic:

@@ -57,13 +57,6 @@ struct MQTTCredentials {
   bool clean_session;     ///< Whether the session will be cleaned or remembered between connects.
 };
 
-/// Simple data struct for Home Assistant component availability.
-struct Availability {
-  std::string topic;  ///< Empty means disabled
-  std::string payload_available;
-  std::string payload_not_available;
-};
-
 /// available discovery unique_id generators
 enum MQTTDiscoveryUniqueIdGenerator {
   MQTT_LEGACY_UNIQUE_ID_GENERATOR = 0,
@@ -103,19 +96,6 @@ class MQTTClientComponent : public Component {
  public:
   MQTTClientComponent();
 
-  /// Set the last will testament message.
-  void set_last_will(MQTTMessage &&message);
-  /// Remove the last will testament message.
-  void disable_last_will();
-
-  /// Set the birth message.
-  void set_birth_message(MQTTMessage &&message);
-  /// Remove the birth message.
-  void disable_birth_message();
-
-  void set_shutdown_message(MQTTMessage &&message);
-  void disable_shutdown_message();
-
   /// Set the keep alive time in seconds, every 0.7*keep_alive a ping will be sent.
   void set_keep_alive(uint16_t keep_alive_s);
 
@@ -143,7 +123,6 @@ class MQTTClientComponent : public Component {
   void set_cl_key(const char *key) { this->mqtt_backend_.set_cl_key(key); }
   void set_skip_cert_cn_check(bool skip_check) { this->mqtt_backend_.set_skip_cert_cn_check(skip_check); }
 #endif
-  const Availability &get_availability();
 
   /** Set the topic prefix that will be prepended to all topics together with "/". This will, in most cases,
    * be the name of your Application.
@@ -280,24 +259,6 @@ class MQTTClientComponent : public Component {
   static void dns_found_callback(const char *name, const ip_addr_t *ipaddr, void *callback_arg);
 #endif
 
-  /// Re-calculate the availability property.
-  void recalculate_availability_();
-
-  bool subscribe_(const char *topic, uint8_t qos);
-  void resubscribe_subscription_(MQTTSubscription *sub);
-  void resubscribe_subscriptions_();
-
-  MQTTCredentials credentials_;
-  /// The last will message. Disabled optional denotes it being default and
-  /// an empty topic denotes the the feature being disabled.
-  MQTTMessage last_will_;
-  /// The birth message (e.g. the message that's send on an established connection.
-  /// See last_will_ for what different values denote.
-  MQTTMessage birth_message_;
-  bool sent_birth_message_{false};
-  MQTTMessage shutdown_message_;
-  /// Caches availability.
-  Availability availability_{};
   /// The discovery info options for Home Assistant. Undefined optional means
   /// default and empty prefix means disabled.
   MQTTDiscoveryInfo discovery_info_{

@@ -211,9 +211,7 @@ void MQTTClientComponent::dump_config() {
   if (!this->log_message_.topic.empty()) {
     ESP_LOGCONFIG(TAG, "  Log Topic: '%s'", this->log_message_.topic.c_str());
   }
-  if (!this->availability_.topic.empty()) {
-    ESP_LOGCONFIG(TAG, "  Availability: '%s'", this->availability_.topic.c_str());
-  }
+  // TODO: log availability topic
 }
 bool MQTTClientComponent::can_proceed() {
   return network::is_disabled() || this->state_ == MQTT_CLIENT_DISABLED || this->is_connected() ||
@@ -320,10 +318,8 @@ void MQTTClientComponent::start_connect_() {
   this->mqtt_backend_.set_credentials(username, password);
 
   this->mqtt_backend_.set_server(this->credentials_.address.c_str(), this->credentials_.port);
-  if (!this->last_will_.topic.empty()) {
-    this->mqtt_backend_.set_will(this->last_will_.topic.c_str(), this->last_will_.qos, this->last_will_.retain,
-                                 this->last_will_.payload.c_str());
-  }
+
+  // TODO: set last will
 
   this->mqtt_backend_.connect();
   this->state_ = MQTT_CLIENT_CONNECTING;
@@ -343,7 +339,7 @@ void MQTTClientComponent::check_connected() {
   }
 
   this->state_ = MQTT_CLIENT_CONNECTED;
-  this->sent_birth_message_ = false;
+  // TODO: this->sent_birth_message_ = false;
   this->status_clear_warning();
   ESP_LOGI(TAG, "Connected");
   // MQTT Client needs some time to be fully set up.
@@ -392,9 +388,7 @@ void MQTTClientComponent::loop() {
         ESP_LOGW(TAG, "Lost client connection");
         this->start_dnslookup_();
       } else {
-        if (!this->birth_message_.topic.empty() && !this->sent_birth_message_) {
-          this->sent_birth_message_ = this->publish(this->birth_message_);
-        }
+        // TODO: send birth msg
 
         this->last_connected_ = now;
         this->resubscribe_subscriptions_();
@@ -687,38 +681,8 @@ void MQTTClientComponent::set_publish_nan_as_none(bool publish_nan_as_none) {
   this->publish_nan_as_none_ = publish_nan_as_none;
 }
 bool MQTTClientComponent::is_publish_nan_as_none() const { return this->publish_nan_as_none_; }
-void MQTTClientComponent::disable_birth_message() {
-  this->birth_message_.topic = "";
-  this->recalculate_availability_();
-}
-void MQTTClientComponent::disable_shutdown_message() {
-  this->shutdown_message_.topic = "";
-  this->recalculate_availability_();
-}
 bool MQTTClientComponent::is_discovery_enabled() const { return !this->discovery_info_.prefix.empty(); }
 bool MQTTClientComponent::is_discovery_ip_enabled() const { return this->discovery_info_.discover_ip; }
-const Availability &MQTTClientComponent::get_availability() { return this->availability_; }
-void MQTTClientComponent::recalculate_availability_() {
-  if (this->birth_message_.topic.empty() || this->birth_message_.topic != this->last_will_.topic) {
-    this->availability_.topic = "";
-    return;
-  }
-  this->availability_.topic = this->birth_message_.topic;
-  this->availability_.payload_available = this->birth_message_.payload;
-  this->availability_.payload_not_available = this->last_will_.payload;
-}
-
-void MQTTClientComponent::set_last_will(MQTTMessage &&message) {
-  this->last_will_ = std::move(message);
-  this->recalculate_availability_();
-}
-
-void MQTTClientComponent::set_birth_message(MQTTMessage &&message) {
-  this->birth_message_ = std::move(message);
-  this->recalculate_availability_();
-}
-
-void MQTTClientComponent::set_shutdown_message(MQTTMessage &&message) { this->shutdown_message_ = std::move(message); }
 
 void MQTTClientComponent::set_discovery_info(std::string &&prefix, MQTTDiscoveryUniqueIdGenerator unique_id_generator,
                                              MQTTDiscoveryObjectIdGenerator object_id_generator, bool retain,
@@ -731,8 +695,6 @@ void MQTTClientComponent::set_discovery_info(std::string &&prefix, MQTTDiscovery
   this->discovery_info_.clean = clean;
 }
 
-void MQTTClientComponent::disable_last_will() { this->last_will_.topic = ""; }
-
 void MQTTClientComponent::disable_discovery() {
   this->discovery_info_ = MQTTDiscoveryInfo{
       .prefix = "",
@@ -744,11 +706,7 @@ void MQTTClientComponent::disable_discovery() {
   };
 }
 void MQTTClientComponent::on_shutdown() {
-  if (!this->shutdown_message_.topic.empty()) {
-    yield();
-    this->publish(this->shutdown_message_);
-    yield();
-  }
+  // TODO: birth/death message
   this->mqtt_backend_.disconnect();
 }
 
