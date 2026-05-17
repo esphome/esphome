@@ -118,6 +118,11 @@ void MS8607Component::try_reset_() {
     if (this->read_calibration_values_from_prom_()) {
       this->setup_status_ = SetupStatus::SUCCESSFUL;
       this->status_clear_error();
+      if (this->temperature_sensor_ == nullptr && this->pressure_sensor_ == nullptr &&
+          this->humidity_sensor_ == nullptr) {
+        ESP_LOGD(TAG, "Setup was successful, but no sensors are configured. Stopping polling");
+        this->stop_poller();
+      }
     } else {
       this->mark_failed();
       return;
