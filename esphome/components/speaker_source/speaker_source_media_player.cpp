@@ -59,7 +59,11 @@ void SpeakerSourceMediaPlayer::dump_config() {
 }
 
 void SpeakerSourceMediaPlayer::setup() {
-  this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+  state = media_player::MEDIA_PLAYER_STATE_OFF;
+#else
+  state = media_player::MEDIA_PLAYER_STATE_IDLE;
+#endif
 
   this->media_control_command_queue_ = xQueueCreate(MEDIA_CONTROLS_QUEUE_LENGTH, sizeof(MediaPlayerControlCommand));
 
@@ -209,6 +213,46 @@ size_t SpeakerSourceMediaPlayer::handle_media_output_(uint8_t pipeline, media_so
   return 0;
 }
 
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+// THREAD CONTEXT: Called from main loop (loop)
+media_player::MediaPlayerState SpeakerSourceMediaPlayer::on_off_state_intercept_(media_player::MediaPlayerState state) {
+  switch (state) {
+    case media_player::MEDIA_PLAYER_STATE_PLAYING:
+      return media_player::MEDIA_PLAYER_STATE_PLAYING;
+    case media_player::MEDIA_PLAYER_STATE_PAUSED:
+      if (this->state == media_player::MEDIA_PLAYER_STATE_OFF) {
+        return media_player::MEDIA_PLAYER_STATE_OFF;
+      }
+      if (this->is_turn_off_) {
+        this->is_turn_off_ = false;
+        if (this->state == media_player::MEDIA_PLAYER_STATE_PAUSED) {
+          this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
+          this->publish_state();
+          ESP_LOGD(TAG, "State changed to %s", media_player::media_player_state_to_string(this->state));
+        }
+        return media_player::MEDIA_PLAYER_STATE_OFF;
+      }
+      return media_player::MEDIA_PLAYER_STATE_PAUSED;
+    case media_player::MEDIA_PLAYER_STATE_IDLE:
+      // Intentional Fall-through
+    default:
+      if (this->state == media_player::MEDIA_PLAYER_STATE_OFF) {
+        return media_player::MEDIA_PLAYER_STATE_OFF;
+      }
+      if (this->is_turn_off_) {
+        this->is_turn_off_ = false;
+        if (this->state != media_player::MEDIA_PLAYER_STATE_IDLE) {
+          this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
+          this->publish_state();
+          ESP_LOGD(TAG, "State changed to %s", media_player::media_player_state_to_string(this->state));
+        }
+        return media_player::MEDIA_PLAYER_STATE_OFF;
+      }
+      return media_player::MEDIA_PLAYER_STATE_IDLE;
+  }
+}
+#endif
+
 // THREAD CONTEXT: Called from main loop (loop)
 media_player::MediaPlayerState SpeakerSourceMediaPlayer::get_source_state_(
     media_source::MediaSource *source, bool playlist_active, media_player::MediaPlayerState old_state) const {
@@ -264,20 +308,35 @@ void SpeakerSourceMediaPlayer::loop() {
         case media_source::MediaSourceState::ERROR:
           ESP_LOGE(TAG, "Announcement source error");
           // Fall through to media pipeline state
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+          this->state = this->on_off_state_intercept_(
+              this->get_source_state_(media_ps.active_source, media_playlist_active, old_state));
+#else
           this->state = this->get_source_state_(media_ps.active_source, media_playlist_active, old_state);
+#endif
           break;
         default:
           break;
       }
     } else {
       // Announcement source is idle, fall through to media pipeline
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+      this->state = this->on_off_state_intercept_(
+          this->get_source_state_(media_ps.active_source, media_playlist_active, old_state));
+#else
       this->state = this->get_source_state_(media_ps.active_source, media_playlist_active, old_state);
+#endif
     }
   } else if (announcement_playlist_active && old_state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING) {
     this->state = media_player::MEDIA_PLAYER_STATE_ANNOUNCING;
   } else {
     // No active announcement, check media pipeline
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+    this->state = this->on_off_state_intercept_(
+        this->get_source_state_(media_ps.active_source, media_playlist_active, old_state));
+#else
     this->state = this->get_source_state_(media_ps.active_source, media_playlist_active, old_state);
+#endif
   }
 
   if (this->state != old_state) {
@@ -561,6 +620,12 @@ void SpeakerSourceMediaPlayer::handle_player_command_(media_player::MediaPlayerC
       break;
     }
 
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+    case media_player::MEDIA_PLAYER_COMMAND_TURN_OFF:
+      this->is_turn_off_ = true;
+      // Intentional Fall-through
+#endif
+
     case media_player::MEDIA_PLAYER_COMMAND_STOP: {
       if (!has_internal_playlist) {
         this->cancel_timeout(PIPELINE_TIMEOUT_IDS[pipeline]);
@@ -700,6 +765,12 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
 
   const auto &media_url = call.get_media_url();
   if (media_url.has_value()) {
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+    if (this->state == media_player::MEDIA_PLAYER_STATE_OFF) {
+      this->state = media_player::MEDIA_PLAYER_STATE_ON;
+      publish_state();
+    }
+#endif
     auto command = call.get_command();
     bool enqueue = command.has_value() && command.value() == media_player::MEDIA_PLAYER_COMMAND_ENQUEUE;
 
@@ -741,6 +812,20 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
       case media_player::MEDIA_PLAYER_COMMAND_VOLUME_DOWN:
         this->set_volume_(std::max(0.0f, this->volume - this->volume_increment_));
         break;
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+      case media_player::MEDIA_PLAYER_COMMAND_TURN_ON:
+        if (this->state == media_player::MEDIA_PLAYER_STATE_OFF) {
+          this->state = media_player::MEDIA_PLAYER_STATE_ON;
+          this->publish_state();
+        }
+        break;
+      case media_player::MEDIA_PLAYER_COMMAND_PLAY:
+        if (this->state == media_player::MEDIA_PLAYER_STATE_OFF) {
+          this->state = media_player::MEDIA_PLAYER_STATE_ON;
+          publish_state();
+        }
+        // Intentional Fall-through
+#endif
       default:
         // Queue command for processing in loop()
         control_command.type = MediaPlayerControlCommand::SEND_COMMAND;
@@ -760,6 +845,9 @@ media_player::MediaPlayerTraits SpeakerSourceMediaPlayer::get_traits() {
   // supported by our player.
   auto traits = media_player::MediaPlayerTraits();
   traits.set_supports_pause(true);
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+  traits.set_supports_turn_off_on(true);
+#endif
 
   for (const auto &ps : this->pipelines_) {
     if (ps.format.has_value()) {

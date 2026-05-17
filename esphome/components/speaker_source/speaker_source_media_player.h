@@ -216,6 +216,9 @@ class SpeakerSourceMediaPlayer : public Component, public media_player::MediaPla
   /// @return The appropriate MediaPlayerState
   media_player::MediaPlayerState get_source_state_(media_source::MediaSource *media_source, bool playlist_active,
                                                    media_player::MediaPlayerState old_state) const;
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+  media_player::MediaPlayerState on_off_state_intercept_(media_player::MediaPlayerState);
+#endif
 
   void process_control_queue_();
   void handle_player_command_(media_player::MediaPlayerCommand player_command, uint8_t pipeline);
@@ -256,6 +259,9 @@ class SpeakerSourceMediaPlayer : public Component, public media_player::MediaPla
   float volume_min_;
 
   bool is_muted_{false};
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+  bool is_turn_off_{false};
+#endif
 };
 
 }  // namespace esphome::speaker_source
