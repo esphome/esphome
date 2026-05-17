@@ -70,7 +70,7 @@ class Frame {
  * application. The use of std::Atomics allows safe multi-thread operation when used with
  * a single producer and single consumer thread, where each Atomic index is updated
  * by one thread only.
- * After initialization, it operates without dynamic memmory allocation.
+ * After initialization, it operates without dynamic memory allocation.
  * This allows the gpio isr to safely and efficiently pick-up and pass Frames.
  * Due to its fixed memory size, it might return NULL pointers in case the buffer is full or empty.
  */
@@ -98,7 +98,7 @@ template<unsigned int SIZE> class FrameRingBuffer {
   // This invalidates further use of this frame by the caller.
   void push_back() { cyclic_incr_(back_inx_); }
   bool is_empty() const { return count_() == 0; }
-  bool is_full() const { return count_() == SIZE; }  // using safe wrap-around of unsignd int
+  bool is_full() const { return count_() == SIZE; }
   void reset() {
     front_inx_ = 0;
     back_inx_ = 0;
@@ -180,7 +180,7 @@ class CECTransmit {
 
  protected:
   /**
-   * Send the CEC protocol frane start bit.
+   * Send the CEC protocol frame start bit.
    * While doing so, check if another initiator tries to do the same, and if so, abort.
    * @return true: start bit was successful, false: bus collision is detected and abort
    */
