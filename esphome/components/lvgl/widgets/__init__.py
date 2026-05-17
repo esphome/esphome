@@ -48,6 +48,7 @@ from ..defines import (
     join_enums,
     literal,
 )
+from ..helpers import lazy_once
 from ..lv_validation import lv_int
 from ..lvcode import (
     LvConditional,
@@ -80,8 +81,11 @@ def _lazy_update_schema(widget_type: "WidgetType"):
     voluptuous schemas and is invoked once per WidgetType at import time. The
     caller (register_action) only needs a validator, so wrap the build in a
     closure that materialises on the first validation and caches the result.
+
+    The ``from ..schemas import base_update_schema`` import stays inside the
+    closure because ``schemas`` imports ``WidgetType`` from this module — top-
+    level would deadlock the import.
     """
-    from ..helpers import lazy_once
 
     def build():
         from ..schemas import base_update_schema

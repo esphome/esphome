@@ -16,6 +16,11 @@ def lazy_once(build: Callable[[], T]) -> Callable[[], T]:
     Used to defer voluptuous schema construction until first validation. Many
     of the lvgl schemas would otherwise be built at module-import time even for
     YAMLs that never reach them.
+
+    Not thread-safe — concurrent first-callers would each run ``build``. esphome
+    config validation is single-threaded so this is fine in practice. If
+    ``build`` raises, the cache stays empty and the next call retries; there is
+    no negative-cache.
     """
     cached: list[T] = []
 
