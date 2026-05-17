@@ -36,11 +36,12 @@ class SoundLevelComponent : public Component {
   void stop();
 
  protected:
-  /// @brief Internal start command that, if necessary, allocates ``audio_buffer_`` and a ring buffer which
-  /// ``audio_buffer_`` owns and ``ring_buffer_`` points to. Returns true if allocations were successful.
+  /// @brief Internal start command that, if necessary, allocates a ring buffer and a zero-copy
+  /// ``RingBufferAudioSource`` that reads directly from it. ``ring_buffer_`` weakly references the
+  /// ring buffer owned by ``audio_source_``. Returns true if allocations were successful.
   bool start_();
 
-  /// @brief Internal stop command the deallocates ``audio_buffer_`` (which automatically deallocates its ring buffer)
+  /// @brief Internal stop command that deallocates ``audio_source_`` (which releases its ring buffer)
   void stop_();
 
   microphone::MicrophoneSource *microphone_source_{nullptr};
@@ -48,7 +49,7 @@ class SoundLevelComponent : public Component {
   sensor::Sensor *peak_sensor_{nullptr};
   sensor::Sensor *rms_sensor_{nullptr};
 
-  std::unique_ptr<audio::AudioSourceTransferBuffer> audio_buffer_;
+  std::unique_ptr<audio::RingBufferAudioSource> audio_source_;
   std::weak_ptr<ring_buffer::RingBuffer> ring_buffer_;
 
   int32_t squared_peak_{0};
