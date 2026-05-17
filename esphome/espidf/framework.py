@@ -26,16 +26,18 @@ _LOGGER = logging.getLogger(__name__)
 _SCRIPTS_DIR = Path(__file__).parent
 
 
-def _str_to_lst_of_str(a: str) -> list[str]:
+def _str_to_lst_of_str(a: str | list[str]) -> list[str]:
     """
     Convert a string to a list of string
 
     Args:
-        a: A string containing semicolon-separated values
+        a: A string containing semicolon-separated values, or an already-split list
 
     Returns:
         list of strings
     """
+    if isinstance(a, list):
+        return a
     return list(f.strip() for f in a.split(";") if f.strip())
 
 
