@@ -45,8 +45,10 @@ void DaikinMadoka::loop() {
 void DaikinMadoka::control(const ClimateCall &call) {
   if (this->node_state != espbt::ClientState::ESTABLISHED)
     return;
-  if (call.get_mode().has_value()) {
-    ClimateMode mode = *call.get_mode();
+
+  auto mode_opt = call.get_mode();
+  if (mode_opt.has_value()) {
+    ClimateMode mode = mode_opt.value();
     uint8_t mode_out = 255, status_out = 0;
     switch (mode) {
       case climate::CLIMATE_MODE_OFF:
@@ -83,21 +85,24 @@ void DaikinMadoka::control(const ClimateCall &call) {
     this->query_(CMD_SET_SETTING_STATUS, std::vector<uint8_t>{0x20, 0x01, (uint8_t) status_out}, 200);
   }
   std::vector<uint8_t> temp_setpoint_args;
-  if (call.get_target_temperature_high().has_value()) {
-    uint16_t target_high = *call.get_target_temperature_high() * 128;
+  auto target_temperature_high_opt = call.get_target_temperature_high();
+  if (target_temperature_high_opt.has_value()) {
+    uint16_t target_high = target_temperature_high_opt.value() * 128;
     temp_setpoint_args.insert(temp_setpoint_args.end(),
                               {0x20, 0x02, (uint8_t) ((target_high >> 8) & 0xFF), (uint8_t) (target_high & 0xFF)});
   }
-  if (call.get_target_temperature_low().has_value()) {
-    uint16_t target_low = *call.get_target_temperature_low() * 128;
+  auto target_temperature_low_opt = call.get_target_temperature_low();
+  if (target_temperature_low_opt.has_value()) {
+    uint16_t target_low = target_temperature_low_opt.value() * 128;
     temp_setpoint_args.insert(temp_setpoint_args.end(),
                               {0x21, 0x02, (uint8_t) ((target_low >> 8) & 0xFF), (uint8_t) (target_low & 0xFF)});
   }
   if (!temp_setpoint_args.empty()) {
     this->query_(CMD_SET_SETPOINT, temp_setpoint_args, 400);
   }
-  if (call.get_fan_mode().has_value()) {
-    uint8_t fan_mode = call.get_fan_mode().value();
+  auto fan_mode_opt = call.get_fan_mode();
+  if (fan_mode_opt.has_value()) {
+    uint8_t fan_mode = fan_mode_opt.value();
     uint8_t fan_mode_out = 255;
     switch (fan_mode) {
       case climate::CLIMATE_FAN_AUTO:
