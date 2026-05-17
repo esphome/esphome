@@ -1,0 +1,64 @@
+lis3dh_i2c:
+  id: lis3dh_id
+  i2c_id: i2c_bus
+  address: 0x18
+  update_interval: 100ms
+  range: 2G
+  odr: 100Hz
+  mode: normal
+  fifo_enabled: true
+  fifo_mode: stream_to_fifo
+  fifo_watermark: 25
+  tap_enabled: true
+  tap_threshold: 0x12
+  tap_shock_duration: 0x20
+  tap_quiet_duration: 0x20
+  tap_double_tap_timeout: 0x30
+  activity_enabled: true
+  activity_threshold: 0x10
+  activity_duration: 0x05
+  freefall_enabled: true
+  freefall_threshold: 0x08
+  freefall_duration: 0x01
+  enable_deep_sleep_wakeup: false
+  high_pass_filter_enabled: true
+  high_pass_filter_mode: 0
+  high_pass_filter_cutoff: 0
+  on_tap:
+    - then:
+        - logger.log: "LIS3DH tap detected"
+  on_double_tap:
+    - then:
+        - logger.log: "LIS3DH double-tap detected"
+
+sensor:
+  - platform: lis3dh
+    lis3dh_id: lis3dh_id
+    acceleration_x:
+      name: LIS3DH X-axis acceleration
+    acceleration_y:
+      name: LIS3DH Y-axis acceleration
+    acceleration_z:
+      name: LIS3DH Z-axis acceleration
+    temperature:
+      name: LIS3DH temperature
+
+binary_sensor:
+  - platform: lis3dh
+    lis3dh_id: lis3dh_id
+    tap:
+      name: LIS3DH tap
+    double_tap:
+      name: LIS3DH double tap
+    activity:
+      name: LIS3DH activity
+    freefall:
+      name: LIS3DH freefall
+
+text_sensor:
+  - platform: lis3dh
+    lis3dh_id: lis3dh_id
+    orientation_xy:
+      name: LIS3DH orientation XY
+    orientation_z:
+      name: LIS3DH orientation Z

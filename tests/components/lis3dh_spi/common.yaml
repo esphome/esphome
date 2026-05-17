@@ -1,0 +1,38 @@
+lis3dh_spi:
+  id: lis3dh_spi_id
+  spi_id: spi_bus
+  cs_pin: ${cs_pin}
+  update_interval: 100ms
+  range: 4G
+  odr: 100Hz
+  mode: high_resolution
+  fifo_enabled: true
+  fifo_mode: stream_to_fifo
+  fifo_watermark: 20
+  tap_enabled: true
+  activity_enabled: true
+  freefall_enabled: true
+
+sensor:
+  - platform: lis3dh
+    lis3dh_id: lis3dh_spi_id
+    acceleration_x:
+      name: LIS3DH SPI X-axis acceleration
+    acceleration_y:
+      name: LIS3DH SPI Y-axis acceleration
+    acceleration_z:
+      name: LIS3DH SPI Z-axis acceleration
+    temperature:
+      name: LIS3DH SPI temperature
+
+binary_sensor:
+  - platform: lis3dh
+    lis3dh_id: lis3dh_spi_id
+    tap:
+      name: LIS3DH SPI tap
+    double_tap:
+      name: LIS3DH SPI double tap
+    activity:
+      name: LIS3DH SPI activity
+    freefall:
+      name: LIS3DH SPI freefall
