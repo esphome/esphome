@@ -13,7 +13,7 @@ bool global_has_deep_sleep = false;  // NOLINT(cppcoreguidelines-avoid-non-const
 void DeepSleepComponent::setup() {
   global_has_deep_sleep = true;
 
-#ifdef USE_OTA
+#ifdef USE_OTA_STATE_LISTENER
   // Register this component to listen to OTA events if a timeout is configured
   if (this->ota_prevent_timeout_ > 0) {
     ota::get_global_ota_callback()->add_global_state_listener(this);
@@ -100,7 +100,7 @@ void DeepSleepComponent::prevent_deep_sleep() { this->prevent_ = true; }
 
 void DeepSleepComponent::allow_deep_sleep() { this->prevent_ = false; }
 
-#ifdef USE_OTA
+#ifdef USE_OTA_STATE_LISTENER
 void DeepSleepComponent::on_ota_global_state(ota::OTAState state, float progress, uint8_t error,
                                              ota::OTAComponent *component) {
   if (this->ota_prevent_timeout_ == 0)

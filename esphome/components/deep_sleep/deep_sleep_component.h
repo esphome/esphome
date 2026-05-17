@@ -15,7 +15,7 @@
 
 #include <cinttypes>
 
-#ifdef USE_OTA
+#ifdef USE_OTA_STATE_LISTENER
 #include "esphome/components/ota/ota_backend.h"
 #endif
 
@@ -75,9 +75,8 @@ template<typename... Ts> class PreventDeepSleepAction;
  * on the ESP32 set_wakeup_pin.
  */
 class DeepSleepComponent : public Component
-#ifdef USE_OTA
-    ,
-                           public ota::OTAGlobalStateListener
+#ifdef USE_OTA_STATE_LISTENER
+                           , public ota::OTAGlobalStateListener
 #endif
 {
  public:
@@ -119,8 +118,9 @@ class DeepSleepComponent : public Component
 
   void set_ota_prevent_timeout(uint32_t timeout) { this->ota_prevent_timeout_ = timeout; }
 
-#ifdef USE_OTA
-  void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *component) override;
+#ifdef USE_OTA_STATE_LISTENER
+  void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, 
+                           ota::OTAComponent *component) override;
 #endif
 
   void setup() override;
