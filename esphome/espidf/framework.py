@@ -69,7 +69,7 @@ ESPHOME_IDF_DEFAULT_FEATURES = _str_to_lst_of_str(
 ESPHOME_IDF_FRAMEWORK_MIRRORS = _str_to_lst_of_str(
     os.environ.get(
         "ESPHOME_IDF_FRAMEWORK_MIRRORS",
-        "https://github.com/espressif/esp-idf/releases/download/v{VERSION}/esp-idf-v{VERSION}.zip;https://github.com/espressif/esp-idf/releases/download/v{MAJOR}.{MINOR}/esp-idf-v{MAJOR}.{MINOR}.zip",
+        "https://github.com/esphome-libs/esp-idf/releases/download/v{VERSION}/esp-idf-v{VERSION}.tar.xz;https://github.com/esphome-libs/esp-idf/releases/download/v{MAJOR}.{MINOR}/esp-idf-v{MAJOR}.{MINOR}.tar.xz",
     )
 )
 
