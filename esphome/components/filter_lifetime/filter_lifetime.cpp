@@ -23,7 +23,7 @@ void FilterLifetime::dump_config() {
                 this->max_lifetime_minutes_ / (24.0f * 60.0f));
   ESP_LOGCONFIG(TAG, "  Stored Runtime: %.1f minutes", this->runtime_minutes_);
   if (this->is_on_sensor_ != nullptr) {
-    LOG_SENSOR("  ", "Is-On Sensor", this->is_on_sensor_);
+    LOG_BINARY_SENSOR("  ", "Is-On Sensor", this->is_on_sensor_);
   } else if (this->is_on_lambda_) {
     ESP_LOGCONFIG(TAG, "  Is-On: lambda");
   } else {
