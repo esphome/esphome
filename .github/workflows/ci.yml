@@ -52,14 +52,22 @@ jobs:
           path: venv
           # yamllint disable-line rule:line-length
           key: ${{ runner.os }}-${{ steps.python.outputs.python-version }}-venv-${{ steps.cache-key.outputs.key }}
+      - name: Set up uv
+        # Only needed on cache miss to populate the venv. ``uv pip install``
+        # detects the activated venv via ``VIRTUAL_ENV`` so downstream jobs
+        # that ``. venv/bin/activate`` see an identical layout.
+        if: steps.cache-venv.outputs.cache-hit != 'true'
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
       - name: Create Python virtual environment
         if: steps.cache-venv.outputs.cache-hit != 'true'
         run: |
           python -m venv venv
           . venv/bin/activate
           python --version
-          pip install -r requirements.txt -r requirements_dev.txt -r requirements_test.txt pre-commit
-          pip install -e .
+          uv pip install -r requirements.txt -r requirements_dev.txt -r requirements_test.txt pre-commit
+          uv pip install -e .
 
   pylint:
     name: Check pylint
@@ -181,7 +189,7 @@ jobs:
         # own CI). No ``--cov`` here -- this is purely a downstream
         # smoke check against this PR's esphome code.
         working-directory: device-builder
-        run: pytest -q -n auto --maxfail=5 --durations=10 --no-cov --ignore=tests/benchmarks
+        run: pytest -q -n auto --maxfail=5 --durations=30 --no-cov --ignore=tests/benchmarks
 
   pytest:
     name: Run pytest
@@ -222,12 +230,12 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           . ./venv/Scripts/activate.ps1
-          pytest -vv --cov-report=xml --tb=native -n auto tests --ignore=tests/integration/
+          pytest -vv --cov-report=xml --tb=native --durations=30 -n auto tests --ignore=tests/integration/
       - name: Run pytest
         if: matrix.os == 'ubuntu-latest' || matrix.os == 'macOS-latest'
         run: |
           . venv/bin/activate
-          pytest -vv --cov-report=xml --tb=native -n auto tests --ignore=tests/integration/
+          pytest -vv --cov-report=xml --tb=native --durations=30 -n auto tests --ignore=tests/integration/
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
         with:
@@ -249,9 +257,12 @@ jobs:
       integration-test-buckets: ${{ steps.determine.outputs.integration-test-buckets }}
       clang-tidy: ${{ steps.determine.outputs.clang-tidy }}
       clang-tidy-mode: ${{ steps.determine.outputs.clang-tidy-mode }}
+      clang-tidy-full-scan: ${{ steps.determine.outputs.clang-tidy-full-scan }}
       python-linters: ${{ steps.determine.outputs.python-linters }}
       import-time: ${{ steps.determine.outputs.import-time }}
       device-builder: ${{ steps.determine.outputs.device-builder }}
+      native-idf: ${{ steps.determine.outputs.native-idf }}
+      native-idf-components: ${{ steps.determine.outputs.native-idf-components }}
       changed-components: ${{ steps.determine.outputs.changed-components }}
       changed-components-with-tests: ${{ steps.determine.outputs.changed-components-with-tests }}
       directly-changed-components-with-tests: ${{ steps.determine.outputs.directly-changed-components-with-tests }}
@@ -285,7 +296,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           . venv/bin/activate
-          output=$(python script/determine-jobs.py)
+          EXTRA_ARGS=""
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'ci-run-all') }}" == "true" ]]; then
+            EXTRA_ARGS="--force-all"
+            echo "::notice::ci-run-all label detected -- forcing every CI job to run"
+          fi
+          output=$(python script/determine-jobs.py $EXTRA_ARGS)
           echo "Test determination output:"
           echo "$output" | jq
 
@@ -294,9 +310,12 @@ jobs:
           echo "integration-test-buckets=$(echo "$output" | jq -c '.integration_test_buckets')" >> $GITHUB_OUTPUT
           echo "clang-tidy=$(echo "$output" | jq -r '.clang_tidy')" >> $GITHUB_OUTPUT
           echo "clang-tidy-mode=$(echo "$output" | jq -r '.clang_tidy_mode')" >> $GITHUB_OUTPUT
+          echo "clang-tidy-full-scan=$(echo "$output" | jq -r '.clang_tidy_full_scan')" >> $GITHUB_OUTPUT
           echo "python-linters=$(echo "$output" | jq -r '.python_linters')" >> $GITHUB_OUTPUT
           echo "import-time=$(echo "$output" | jq -r '.import_time')" >> $GITHUB_OUTPUT
           echo "device-builder=$(echo "$output" | jq -r '.device_builder')" >> $GITHUB_OUTPUT
+          echo "native-idf=$(echo "$output" | jq -r '.native_idf')" >> $GITHUB_OUTPUT
+          echo "native-idf-components=$(echo "$output" | jq -r '.native_idf_components')" >> $GITHUB_OUTPUT
           echo "changed-components=$(echo "$output" | jq -c '.changed_components')" >> $GITHUB_OUTPUT
           echo "changed-components-with-tests=$(echo "$output" | jq -c '.changed_components_with_tests')" >> $GITHUB_OUTPUT
           echo "directly-changed-components-with-tests=$(echo "$output" | jq -c '.directly_changed_components_with_tests')" >> $GITHUB_OUTPUT
@@ -340,14 +359,20 @@ jobs:
         with:
           path: venv
           key: ${{ runner.os }}-${{ steps.python.outputs.python-version }}-venv-${{ needs.common.outputs.cache-key }}
+      - name: Set up uv
+        # Only needed on cache miss to populate the venv.
+        if: steps.cache-venv.outputs.cache-hit != 'true'
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
       - name: Create Python virtual environment
         if: steps.cache-venv.outputs.cache-hit != 'true'
         run: |
           python -m venv venv
           . venv/bin/activate
           python --version
-          pip install -r requirements.txt -r requirements_test.txt
-          pip install -e .
+          uv pip install -r requirements.txt -r requirements_test.txt
+          uv pip install -e .
       - name: Register matcher
         run: echo "::add-matcher::.github/workflows/matchers/pytest.json"
       - name: Run integration tests
@@ -359,7 +384,7 @@ jobs:
           . venv/bin/activate
           mapfile -t test_files < <(echo "$BUCKET_TESTS" | jq -r '.[]')
           echo "Bucket ${{ matrix.bucket.name }}: running ${#test_files[@]} integration tests"
-          pytest -vv --no-cov --tb=native -n auto "${test_files[@]}"
+          pytest -vv --no-cov --tb=native --durations=30 -n auto "${test_files[@]}"
 
   cpp-unit-tests:
     name: Run C++ unit tests
@@ -419,7 +444,10 @@ jobs:
       - name: Run CodSpeed benchmarks
         uses: CodSpeedHQ/action@3194d9a39c4d46684cb44bf7207fc56626aad8fd # v4.15.1
         with:
-          run: ${{ steps.build.outputs.binary }}
+          run: |
+            . venv/bin/activate
+            ${{ steps.build.outputs.binary }}
+            pytest tests/benchmarks/python/ --codspeed --no-cov
           mode: simulation
 
   clang-tidy-single:
@@ -493,7 +521,13 @@ jobs:
         id: check_full_scan
         run: |
           . venv/bin/activate
-          if python script/clang_tidy_hash.py --check; then
+          # determine-jobs.clang-tidy-full-scan is true when core C++ changed
+          # OR the ci-run-all label forced --force-all. Independent of the
+          # hash check, both must produce a full scan in the job itself.
+          if [ "${{ needs.determine-jobs.outputs.clang-tidy-full-scan }}" = "true" ]; then
+            echo "full_scan=true" >> $GITHUB_OUTPUT
+            echo "reason=determine_jobs" >> $GITHUB_OUTPUT
+          elif python script/clang_tidy_hash.py --check; then
             echo "full_scan=true" >> $GITHUB_OUTPUT
             echo "reason=hash_changed" >> $GITHUB_OUTPUT
           else
@@ -505,7 +539,7 @@ jobs:
         run: |
           . venv/bin/activate
           if [ "${{ steps.check_full_scan.outputs.full_scan }}" = "true" ]; then
-            echo "Running FULL clang-tidy scan (hash changed)"
+            echo "Running FULL clang-tidy scan (reason: ${{ steps.check_full_scan.outputs.reason }})"
             script/clang-tidy --all-headers --fix ${{ matrix.options }} ${{ matrix.ignore_errors && '|| true' || '' }}
           else
             echo "Running clang-tidy on changed files only"
@@ -565,7 +599,13 @@ jobs:
         id: check_full_scan
         run: |
           . venv/bin/activate
-          if python script/clang_tidy_hash.py --check; then
+          # determine-jobs.clang-tidy-full-scan is true when core C++ changed
+          # OR the ci-run-all label forced --force-all. Independent of the
+          # hash check, both must produce a full scan in the job itself.
+          if [ "${{ needs.determine-jobs.outputs.clang-tidy-full-scan }}" = "true" ]; then
+            echo "full_scan=true" >> $GITHUB_OUTPUT
+            echo "reason=determine_jobs" >> $GITHUB_OUTPUT
+          elif python script/clang_tidy_hash.py --check; then
             echo "full_scan=true" >> $GITHUB_OUTPUT
             echo "reason=hash_changed" >> $GITHUB_OUTPUT
           else
@@ -577,7 +617,7 @@ jobs:
         run: |
           . venv/bin/activate
           if [ "${{ steps.check_full_scan.outputs.full_scan }}" = "true" ]; then
-            echo "Running FULL clang-tidy scan (hash changed)"
+            echo "Running FULL clang-tidy scan (reason: ${{ steps.check_full_scan.outputs.reason }})"
             script/clang-tidy --all-headers --fix --environment esp32-arduino-tidy
           else
             echo "Running clang-tidy on changed files only"
@@ -654,7 +694,13 @@ jobs:
         id: check_full_scan
         run: |
           . venv/bin/activate
-          if python script/clang_tidy_hash.py --check; then
+          # determine-jobs.clang-tidy-full-scan is true when core C++ changed
+          # OR the ci-run-all label forced --force-all. Independent of the
+          # hash check, both must produce a full scan in the job itself.
+          if [ "${{ needs.determine-jobs.outputs.clang-tidy-full-scan }}" = "true" ]; then
+            echo "full_scan=true" >> $GITHUB_OUTPUT
+            echo "reason=determine_jobs" >> $GITHUB_OUTPUT
+          elif python script/clang_tidy_hash.py --check; then
             echo "full_scan=true" >> $GITHUB_OUTPUT
             echo "reason=hash_changed" >> $GITHUB_OUTPUT
           else
@@ -666,7 +712,7 @@ jobs:
         run: |
           . venv/bin/activate
           if [ "${{ steps.check_full_scan.outputs.full_scan }}" = "true" ]; then
-            echo "Running FULL clang-tidy scan (hash changed)"
+            echo "Running FULL clang-tidy scan (reason: ${{ steps.check_full_scan.outputs.reason }})"
             script/clang-tidy --all-headers --fix ${{ matrix.options }}
           else
             echo "Running clang-tidy on changed files only"
@@ -823,10 +869,14 @@ jobs:
     needs:
       - common
       - determine-jobs
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && needs.determine-jobs.outputs.native-idf == 'true'
     env:
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
-      TEST_COMPONENTS: esp32,api,heatpumpir,bme280_i2c,bh1750,aht10,esp32_ble,esp32_ble_beacon,esp32_ble_client,esp32_ble_server,esp32_ble_tracker,ble_client,ble_presence,ble_rssi,ble_scanner
+      # Comma-joined subset of the native-IDF representative component list,
+      # computed by script/determine-jobs.py (native_idf_components_to_test).
+      # Single source of truth -- the full list lives in
+      # script/determine-jobs.py::NATIVE_IDF_TEST_COMPONENTS.
+      TEST_COMPONENTS: ${{ needs.determine-jobs.outputs.native-idf-components }}
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
