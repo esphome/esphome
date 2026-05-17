@@ -16,6 +16,7 @@ Syslog = syslog_ns.class_("Syslog", Component, Parented.template(udp.UDPComponen
 
 CONF_STRIP = "strip"
 CONF_FACILITY = "facility"
+CONF_HOSTNAME = "hostname"
 CONFIG_SCHEMA = udp.UDP_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(Syslog),
@@ -24,6 +25,7 @@ CONFIG_SCHEMA = udp.UDP_SCHEMA.extend(
         cv.Optional(CONF_LEVEL, default="DEBUG"): is_log_level,
         cv.Optional(CONF_STRIP, default=True): cv.boolean,
         cv.Optional(CONF_FACILITY, default=16): cv.int_range(0, 23),
+        cv.Optional(CONF_HOSTNAME, default=""): cv.string,
     }
 )
 
@@ -40,3 +42,4 @@ async def to_code(config):
     await cg.register_parented(var, parent)
     cg.add(var.set_strip(config[CONF_STRIP]))
     cg.add(var.set_facility(config[CONF_FACILITY]))
+    cg.add(var.set_hostname(config[CONF_HOSTNAME]))

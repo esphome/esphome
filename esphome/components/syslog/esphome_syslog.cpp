@@ -67,9 +67,11 @@ void Syslog::log_(const int level, const char *tag, const char *message, size_t 
     packet[offset++] = '-';
   }
 
+  // Use device name if the syslog hostname isn't defined
+  const char *hostname = this->hostname_.empty() ? App.get_name().c_str() : this->hostname_.c_str();
+
   // Write hostname, tag, and message
-  offset = buf_append_printf(packet, sizeof(packet), offset, " %s %s: %.*s", App.get_name().c_str(), tag, (int) len,
-                             message);
+  offset = buf_append_printf(packet, sizeof(packet), offset, " %s %s: %.*s", hostname, tag, (int) len, message);
   // Clamp to exclude null terminator position if buffer was filled
   if (offset >= sizeof(packet)) {
     offset = sizeof(packet) - 1;
