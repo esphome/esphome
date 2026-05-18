@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_POWER,
     CONF_SHUNT_RESISTANCE,
     CONF_SHUNT_VOLTAGE,
+    CONF_MODE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
@@ -38,6 +39,12 @@ ina3221_ns = cg.esphome_ns.namespace("ina3221")
 INA3221Component = ina3221_ns.class_(
     "INA3221Component", cg.PollingComponent, i2c.I2CDevice
 )
+
+INA3221Mode = ina3221_ns.enum("INA3221Mode")
+MODE_OPTIONS = {
+    "CONTINUOUS": INA3221Mode.INA3221_MODE_CONTINUOUS,
+    "SINGLE_SHOT": INA3221Mode.INA3221_MODE_SINGLE_SHOT,
+}
 
 INA3221Averaging = ina3221_ns.enum("INA3221Averaging")
 AVERAGING_OPTIONS = {
@@ -104,6 +111,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_CHANNEL_1): INA3221_CHANNEL_SCHEMA,
             cv.Optional(CONF_CHANNEL_2): INA3221_CHANNEL_SCHEMA,
             cv.Optional(CONF_CHANNEL_3): INA3221_CHANNEL_SCHEMA,
+            cv.Optional(CONF_MODE, default="CONTINUOUS"): cv.enum(
+                MODE_OPTIONS, upper=True
+            ),
             cv.Optional(CONF_POWER_DOWN_ON_SHUTDOWN, default=False): cv.boolean,
             cv.Optional(CONF_AVERAGING, default=1): cv.enum(
                 AVERAGING_OPTIONS, int=True
@@ -138,7 +148,6 @@ CONFIG_SCHEMA = (
     .extend(i2c.i2c_device_schema(0x40))
 )
 
-
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -166,6 +175,9 @@ async def to_code(config):
             cg.add(var.set_warning_current_limit(i, conf[CONF_WARNING_CURRENT_LIMIT]))
         if CONF_CRITICAL_CURRENT_LIMIT in conf:
             cg.add(var.set_critical_current_limit(i, conf[CONF_CRITICAL_CURRENT_LIMIT]))
+
+    if CONF_MODE in config:
+        cg.add(var.set_mode(config[CONF_MODE]))
 
     cg.add(var.set_power_down_on_shutdown(config[CONF_POWER_DOWN_ON_SHUTDOWN]))
     if CONF_AVERAGING in config:

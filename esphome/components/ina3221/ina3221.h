@@ -7,6 +7,11 @@
 
 namespace esphome::ina3221 {
 
+enum INA3221Mode {
+  INA3221_MODE_SINGLE_SHOT = 0b011,
+  INA3221_MODE_CONTINUOUS = 0b111,
+};
+
 enum INA3221Averaging {
   INA3221_AVERAGING_1 = 0b000,
   INA3221_AVERAGING_4 = 0b001,
@@ -44,6 +49,7 @@ class INA3221Component : public PollingComponent, public i2c::I2CDevice {
   void set_shunt_resistance(int channel, float resistance_ohm);
   void set_power_down_on_shutdown(bool power_down) { this->power_down_on_shutdown_ = power_down; }
 
+  void set_mode(INA3221Mode mode) { this->mode_ = mode; }
   void set_averaging(INA3221Averaging averaging) { this->averaging_ = averaging; }
   void set_bus_conversion_time(INA3221ConversionTime ct) { this->bus_conversion_time_ = ct; }
   void set_shunt_conversion_time(INA3221ConversionTime ct) { this->shunt_conversion_time_ = ct; }
@@ -58,6 +64,8 @@ class INA3221Component : public PollingComponent, public i2c::I2CDevice {
   void on_shutdown() override;
 
  protected:
+  void read_data_();
+
   struct INA3221Channel {
     float shunt_resistance_{0.1f};
     sensor::Sensor *bus_voltage_sensor_{nullptr};
@@ -74,6 +82,7 @@ class INA3221Component : public PollingComponent, public i2c::I2CDevice {
   } channels_[3];
   bool power_down_on_shutdown_{false};
 
+  INA3221Mode mode_{INA3221_MODE_CONTINUOUS};
   INA3221Averaging averaging_{INA3221_AVERAGING_1};
   INA3221ConversionTime bus_conversion_time_{INA3221_CONVERSION_TIME_1100US};
   INA3221ConversionTime shunt_conversion_time_{INA3221_CONVERSION_TIME_1100US};

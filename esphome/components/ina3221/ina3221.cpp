@@ -24,15 +24,35 @@ static const uint8_t INA3221_REGISTER_CHANNEL3_WARNING_ALERT = 0x0C;
 static const uint8_t INA3221_REGISTER_SHUNT_VOLTAGE_SUM = 0x0D;
 static const uint8_t INA3221_REGISTER_MASK_ENABLE = 0x0F;
 
-// Addresses:
-// A0 = GND -> 0x40
-// A0 = VS  -> 0x41
-// A0 = SDA -> 0x42
-// A0 = SCL -> 0x43
+static float get_conversion_time_ms(INA3221ConversionTime ct) {
+  switch (ct) {
+    case INA3221_CONVERSION_TIME_140US: return 0.14f;
+    case INA3221_CONVERSION_TIME_204US: return 0.204f;
+    case INA3221_CONVERSION_TIME_332US: return 0.332f;
+    case INA3221_CONVERSION_TIME_588US: return 0.588f;
+    case INA3221_CONVERSION_TIME_1100US: return 1.1f;
+    case INA3221_CONVERSION_TIME_2116US: return 2.116f;
+    case INA3221_CONVERSION_TIME_4156US: return 4.156f;
+    case INA3221_CONVERSION_TIME_8244US: return 8.244f;
+    default: return 1.1f;
+  }
+}
+
+static int get_averaging_samples(INA3221Averaging avg) {
+  switch (avg) {
+    case INA3221_AVERAGING_1: return 1;
+    case INA3221_AVERAGING_4: return 4;
+    case INA3221_AVERAGING_16: return 16;
+    case INA3221_AVERAGING_64: return 64;
+    case INA3221_AVERAGING_128: return 128;
+    case INA3221_AVERAGING_256: return 256;
+    case INA3221_AVERAGING_512: return 512;
+    case INA3221_AVERAGING_1024: return 1024;
+    default: return 1;
+  }
+}
 
 void INA3221Component::setup() {
-  // Config Register
-  // 0bx000000000000000 << 15 RESET Bit (1 -> trigger reset)
   if (!this->write_byte_16(INA3221_REGISTER_CONFIG, 0x8000)) {
     this->mark_failed();
     return;
@@ -40,7 +60,6 @@ void INA3221Component::setup() {
   delay(1);
 
   uint16_t config = 0;
-  // 0b0xxx000000000000 << 12 Channel Enables (1 -> ON)
   if (this->channels_[0].exists()) {
     config |= 0b0100000000000000;
   }
@@ -50,20 +69,16 @@ void INA3221Component::setup() {
   if (this->channels_[2].exists()) {
     config |= 0b0001000000000000;
   }
-  // 0b0000xxx000000000 << 9 Averaging Mode (0 -> 1 sample, 111 -> 1024 samples)
   config |= (this->averaging_ << 9);
-  // 0b0000000xxx000000 << 6 Bus Voltage Conversion time (100 -> 1.1ms, 111 -> 8.244 ms)
   config |= (this->bus_conversion_time_ << 6);
-  // 0b0000000000xxx000 << 3 Shunt Voltage Conversion time (same as above)
   config |= (this->shunt_conversion_time_ << 3);
-  // 0b0000000000000xxx << 0 Operating mode (111 -> Shunt and bus, continuous)
-  config |= 0b0000000000000111;
+  config |= this->mode_; // Configures for either CONTINUOUS or SINGLE_SHOT
+
   if (!this->write_byte_16(INA3221_REGISTER_CONFIG, config)) {
     this->mark_failed();
     return;
   }
 
-  // Configure limit alerts
   for (int i = 0; i < 3; i++) {
     if (!std::isnan(this->channels_[i].critical_current_limit_)) {
       float limit_v = this->channels_[i].critical_current_limit_ * this->channels_[i].shunt_resistance_;
@@ -77,12 +92,11 @@ void INA3221Component::setup() {
     }
   }
 
-  // Configure Mask/Enable for Summation
   if (this->has_summation_()) {
     uint16_t mask_reg = 0;
-    if (this->channels_[0].exists()) mask_reg |= (1 << 14); // SCC1
-    if (this->channels_[1].exists()) mask_reg |= (1 << 13); // SCC2
-    if (this->channels_[2].exists()) mask_reg |= (1 << 12); // SCC3
+    if (this->channels_[0].exists()) mask_reg |= (1 << 14);
+    if (this->channels_[1].exists()) mask_reg |= (1 << 13);
+    if (this->channels_[2].exists()) mask_reg |= (1 << 12);
     this->write_byte_16(INA3221_REGISTER_MASK_ENABLE, mask_reg);
   }
 }
@@ -118,6 +132,31 @@ inline uint8_t ina3221_bus_voltage_register(int channel) { return 0x02 + channel
 inline uint8_t ina3221_shunt_voltage_register(int channel) { return 0x01 + channel * 2; }
 
 void INA3221Component::update() {
+  if (this->mode_ == INA3221_MODE_SINGLE_SHOT) {
+    uint16_t config;
+    if (this->read_byte_16(INA3221_REGISTER_CONFIG, &config)) {
+      // Clear mode bits and set to single shot to trigger next conversion
+      config = (config & 0xFFF8) | INA3221_MODE_SINGLE_SHOT;
+      this->write_byte_16(INA3221_REGISTER_CONFIG, config);
+
+      int active_channels = (this->channels_[0].exists() ? 1 : 0) +
+                            (this->channels_[1].exists() ? 1 : 0) +
+                            (this->channels_[2].exists() ? 1 : 0);
+
+      // Calculate total required time based on current settings
+      float total_time_ms = (get_conversion_time_ms(this->bus_conversion_time_) +
+                             get_conversion_time_ms(this->shunt_conversion_time_)) *
+                            get_averaging_samples(this->averaging_) * active_channels;
+
+      uint32_t wait_time = (uint32_t)(total_time_ms) + 5; // Add 5ms buffer for hardware timing variations
+      this->set_timeout("read", wait_time, [this]() { this->read_data_(); });
+    }
+  } else {
+    this->read_data_();
+  }
+}
+
+void INA3221Component::read_data_() {
   float total_bus_voltage_v = 0.0f;
   float total_current_a = 0.0f;
   int active_channels = 0;
@@ -161,7 +200,6 @@ void INA3221Component::update() {
   if (this->has_summation_()) {
     uint16_t raw;
     if (this->read_byte_16(INA3221_REGISTER_SHUNT_VOLTAGE_SUM, &raw)) {
-      // Shunt voltage sum register is bits 15-1, LSB = 40uV, divide by 2 to shift right by 1
       const float sum_shunt_voltage_v = int16_t(raw) * 40.0f / 2.0f / 1000000.0f;
       if (this->sum_shunt_voltage_sensor_ != nullptr)
         this->sum_shunt_voltage_sensor_->publish_state(sum_shunt_voltage_v);
@@ -200,9 +238,6 @@ bool INA3221Component::has_summation_() {
 void INA3221Component::on_shutdown() {
   if (this->power_down_on_shutdown_) {
     ESP_LOGD(TAG, "Putting INA3221 to sleep...");
-    // 0x00 is the config register.
-    // Reading the current register, masking out the mode bits, and writing the power-down bits
-    // is safer, but a hard overwrite to 0x7120 also achieves the baseline power-down state.
     this->write_byte_16(0x00, 0x7120);
   }
 }
