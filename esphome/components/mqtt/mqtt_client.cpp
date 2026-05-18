@@ -681,9 +681,7 @@ void MQTTClientComponent::set_log_level(int level) { this->log_level_ = level; }
 void MQTTClientComponent::set_keep_alive(uint16_t keep_alive_s) { this->mqtt_backend_.set_keep_alive(keep_alive_s); }
 void MQTTClientComponent::set_log_message_template(MQTTMessage &&message) { this->log_message_ = std::move(message); }
 const MQTTDiscoveryInfo &MQTTClientComponent::get_discovery_info() const { return this->discovery_info_; }
-void MQTTClientComponent::set_topic_prefix(const std::string &topic_prefix) {
-  this->topic_prefix_ = topic_prefix;
-}
+void MQTTClientComponent::set_topic_prefix(const std::string &topic_prefix) { this->topic_prefix_ = topic_prefix; }
 const std::string &MQTTClientComponent::get_topic_prefix() const { return this->topic_prefix_; }
 void MQTTClientComponent::set_status_topic(const std::string &topic) { this->status_.topic = topic; };
 const std::string MQTTClientComponent::get_status_topic() {
@@ -693,15 +691,9 @@ const std::string MQTTClientComponent::get_status_topic() {
 
   return this->get_topic_prefix() + "/status";
 }
-void MQTTClientComponent::set_lwt_enabled(bool enabled) {
-  this->status_.lwt.enabled = enabled;
-}
-void MQTTClientComponent::set_birth_enabled(bool enabled) {
-  this->status_.birth.enabled = enabled;
-}
-void MQTTClientComponent::set_death_enabled(bool enabled) {
-  this->status_.death.enabled = enabled;
-}
+void MQTTClientComponent::set_lwt_enabled(bool enabled) { this->status_.lwt.enabled = enabled; }
+void MQTTClientComponent::set_birth_enabled(bool enabled) { this->status_.birth.enabled = enabled; }
+void MQTTClientComponent::set_death_enabled(bool enabled) { this->status_.death.enabled = enabled; }
 void MQTTClientComponent::set_lwt_params(const MQTTClientStatusMessageConfig &conf) { this->status_.lwt = conf; }
 void MQTTClientComponent::set_birth_params(const MQTTClientStatusMessageConfig &conf) { this->status_.birth = conf; }
 void MQTTClientComponent::set_death_params(const MQTTClientStatusMessageConfig &conf) { this->status_.death = conf; }
