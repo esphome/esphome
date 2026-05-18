@@ -94,11 +94,26 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
         _LOGGER.debug("Skipping size summary: %s", e)
         return
 
-    dram = data.get("memory_types", {}).get("DRAM") or {}
+    memory_types = data.get("memory_types", {})
+    dram = memory_types.get("DRAM") or memory_types.get("DIRAM") or {}
     ram_used = dram.get("used")
     ram_total = dram.get("size")
     if ram_total and ram_used is not None:
-        print(f"RAM:   {_format_bar(ram_used, ram_total)}")
+        # On unified-DIRAM variants (S2, S3, C-series, H2, P4) ``.iram0.text``
+        # shares the DIRAM region but is flash-backed via the cache window,
+        # not actual SRAM consumption. Strip it from both used and total so
+        # the percentage reflects data RAM pressure rather than raw region
+        # utilization. No-op on the original ESP32, where ``.iram0.text``
+        # lives in a separate IRAM region.
+        text_size = sum(
+            sec.get("size", 0)
+            for sec in (dram.get("sections") or {}).values()
+            if sec.get("abbrev_name") == ".text"
+        )
+        ram_used -= text_size
+        ram_total -= text_size
+        if ram_total > 0:
+            print(f"RAM:   {_format_bar(ram_used, ram_total)}")
 
     image_size = data.get("image_size")
     if image_size is None or partitions_csv is None:
