@@ -308,9 +308,11 @@ void SpeakerSourceMediaPlayer::loop() {
         case media_source::MediaSourceState::ERROR:
           ESP_LOGE(TAG, "Announcement source error");
           // Fall through to media pipeline state
-          this->state = this->get_source_state_(media_ps.active_source, media_playlist_active, old_state);
 #ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
-          this->state = this->on_off_update_state_(this->state);
+          this->state = this->on_off_update_state_(
+              this->get_source_state_(media_ps.active_source, media_playlist_active, old_state));
+#else
+          this->state = this->get_source_state_(media_ps.active_source, media_playlist_active, old_state);
 #endif
           break;
         default:
@@ -318,18 +320,22 @@ void SpeakerSourceMediaPlayer::loop() {
       }
     } else {
       // Announcement source is idle, fall through to media pipeline
-      this->state = this->get_source_state_(media_ps.active_source, media_playlist_active, old_state);
 #ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
-      this->state = this->on_off_update_state_(this->state);
+      this->state =
+          this->on_off_update_state_(this->get_source_state_(media_ps.active_source, media_playlist_active, old_state));
+#else
+      this->state = this->get_source_state_(media_ps.active_source, media_playlist_active, old_state);
 #endif
     }
   } else if (announcement_playlist_active && old_state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING) {
     this->state = media_player::MEDIA_PLAYER_STATE_ANNOUNCING;
   } else {
     // No active announcement, check media pipeline
-    this->state = this->get_source_state_(media_ps.active_source, media_playlist_active, old_state);
 #ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
-    this->state = this->on_off_update_state_(this->state);
+    this->state =
+        this->on_off_update_state_(this->get_source_state_(media_ps.active_source, media_playlist_active, old_state));
+#else
+    this->state = this->get_source_state_(media_ps.active_source, media_playlist_active, old_state);
 #endif
   }
 
@@ -811,8 +817,6 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
       case media_player::MEDIA_PLAYER_COMMAND_TURN_ON:
         if (this->state == media_player::MEDIA_PLAYER_STATE_OFF) {
           this->state = media_player::MEDIA_PLAYER_STATE_ON;
-          this->publish_state();
-          ESP_LOGD(TAG, "State changed to %s", media_player::media_player_state_to_string(this->state));
         }
         break;
       case media_player::MEDIA_PLAYER_COMMAND_PLAY:
