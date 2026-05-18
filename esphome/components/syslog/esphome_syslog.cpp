@@ -68,7 +68,7 @@ void Syslog::log_(const int level, const char *tag, const char *message, size_t 
   }
 
   // Use device name if the syslog hostname isn't defined
-  const char *hostname = this->hostname_.empty() ? App.get_name().c_str() : this->hostname_.c_str();
+  const char *hostname = this->hostname_ == nullptr ? App.get_name().c_str() : this->hostname_;
 
   // Write hostname, tag, and message
   offset = buf_append_printf(packet, sizeof(packet), offset, " %s %s: %.*s", hostname, tag, (int) len, message);
