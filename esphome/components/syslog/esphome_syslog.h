@@ -14,7 +14,7 @@ class Syslog : public Component, public Parented<udp::UDPComponent> {
   void on_log(uint8_t level, const char *tag, const char *message, size_t message_len);
   void set_strip(bool strip) { this->strip_ = strip; }
   void set_facility(int facility) { this->facility_ = facility; }
-  void set_hostname(const std::string &hostname) { this->hostname_ = hostname; }
+  void set_hostname(const char *hostname) { this->hostname_ = hostname; }
 
  protected:
   int log_level_;
@@ -22,7 +22,7 @@ class Syslog : public Component, public Parented<udp::UDPComponent> {
   time::RealTimeClock *time_;
   bool strip_{true};
   int facility_{16};
-  std::string hostname_;
+  const char * hostname_;
 };
 }  // namespace esphome::syslog
 #endif
