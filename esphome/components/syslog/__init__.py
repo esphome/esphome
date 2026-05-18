@@ -25,7 +25,7 @@ CONFIG_SCHEMA = udp.UDP_SCHEMA.extend(
         cv.Optional(CONF_LEVEL, default="DEBUG"): is_log_level,
         cv.Optional(CONF_STRIP, default=True): cv.boolean,
         cv.Optional(CONF_FACILITY, default=16): cv.int_range(0, 23),
-        cv.Optional(CONF_HOSTNAME, default=""): cv.string,
+        cv.Optional(CONF_HOSTNAME): cv.string,
     }
 )
 
