@@ -212,7 +212,13 @@ void MQTTClientComponent::dump_config() {
   if (!this->log_message_.topic.empty()) {
     ESP_LOGCONFIG(TAG, "  Log Topic: '%s'", this->log_message_.topic.c_str());
   }
-  // TODO: log availability topic
+  ESP_LOGCONFIG(TAG, "  Status Topic: '%s'", this->get_status_topic().c_str());
+  if (this->birth_death_enabled_) {
+    ESP_LOGCONFIG(TAG, "  Birth and death messages enabled");
+  }
+  if (this->status_.lwt.enabled) {
+    ESP_LOGCONFIG(TAG, "  Last will and testament enabled");
+  }
 }
 bool MQTTClientComponent::can_proceed() {
   return network::is_disabled() || this->state_ == MQTT_CLIENT_DISABLED || this->is_connected() ||
@@ -320,7 +326,10 @@ void MQTTClientComponent::start_connect_() {
 
   this->mqtt_backend_.set_server(this->credentials_.address.c_str(), this->credentials_.port);
 
-  // TODO: set last will
+  if (this->status_.lwt.enabled) {
+    this->mqtt_backend_.set_will(this->get_status_topic().c_str(), this->status_.lwt.qos, this->status_.lwt.retain,
+                                 this->status_.payload_not_available.c_str());
+  }
 
   this->mqtt_backend_.connect();
   this->state_ = MQTT_CLIENT_CONNECTING;
@@ -340,7 +349,7 @@ void MQTTClientComponent::check_connected() {
   }
 
   this->state_ = MQTT_CLIENT_CONNECTED;
-  // TODO: this->sent_birth_message_ = false;
+  this->birth_message_sent_ = false;
   this->status_clear_warning();
   ESP_LOGI(TAG, "Connected");
   // MQTT Client needs some time to be fully set up.
@@ -389,7 +398,10 @@ void MQTTClientComponent::loop() {
         ESP_LOGW(TAG, "Lost client connection");
         this->start_dnslookup_();
       } else {
-        // TODO: send birth msg
+        if (this->birth_death_enabled_ && !this->birth_message_sent_) {
+          this->birth_message_sent_ = this->publish(get_status_topic(), this->status_.payload_available,
+                                                    this->status_.birth.qos, this->status_.birth.retain);
+        }
 
         this->last_connected_ = now;
         this->resubscribe_subscriptions_();
@@ -673,6 +685,33 @@ void MQTTClientComponent::set_topic_prefix(const std::string &topic_prefix) {
   this->topic_prefix_ = topic_prefix;
 }
 const std::string &MQTTClientComponent::get_topic_prefix() const { return this->topic_prefix_; }
+void MQTTClientComponent::set_status_topic(const std::string &topic) { this->status_.topic = topic; };
+const std::string MQTTClientComponent::get_status_topic() {
+  if (this->status_.topic.has_value()) {
+    return this->status_.topic.value();
+  }
+
+  return this->get_topic_prefix() + "/status";
+}
+void MQTTClientComponent::set_lwt_enabled(bool enabled) {
+  this->status_.lwt.enabled = enabled;
+}
+void MQTTClientComponent::set_birth_enabled(bool enabled) {
+  this->status_.birth.enabled = enabled;
+}
+void MQTTClientComponent::set_death_enabled(bool enabled) {
+  this->status_.death.enabled = enabled;
+}
+void MQTTClientComponent::set_lwt_params(const MQTTClientStatusMessageConfig &conf) { this->status_.lwt = conf; }
+void MQTTClientComponent::set_birth_params(const MQTTClientStatusMessageConfig &conf) { this->status_.birth = conf; }
+void MQTTClientComponent::set_death_params(const MQTTClientStatusMessageConfig &conf) { this->status_.death = conf; }
+const Availability MQTTClientComponent::get_availability() {
+  return Availability{
+      .topic = get_status_topic(),
+      .payload_available = this->status_.payload_available,
+      .payload_not_available = this->status_.payload_not_available,
+  };
+}
 void MQTTClientComponent::set_publish_nan_as_none(bool publish_nan_as_none) {
   this->publish_nan_as_none_ = publish_nan_as_none;
 }
@@ -702,7 +741,11 @@ void MQTTClientComponent::disable_discovery() {
   };
 }
 void MQTTClientComponent::on_shutdown() {
-  // TODO: birth/death message
+  if (this->birth_death_enabled_) {
+    this->publish(this->get_status_topic(), this->status_.payload_not_available, this->status_.death.qos,
+                  this->status_.death.retain);
+  }
+
   this->mqtt_backend_.disconnect();
 }
 

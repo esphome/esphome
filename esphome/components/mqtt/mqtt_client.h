@@ -57,6 +57,31 @@ struct MQTTCredentials {
   bool clean_session;     ///< Whether the session will be cleaned or remembered between connects.
 };
 
+/// Status reporting message parameters.
+struct MQTTClientStatusMessageConfig {
+  bool enabled = true;
+  uint8_t qos = 1;
+  bool retain = true;
+};
+
+/// Simple data struct for state reporting configuration (last will, birth, death).
+struct MQTTClientStatusConfig {
+  std::optional<std::string> topic;
+  std::string payload_available;
+  std::string payload_not_available;
+  /// TODO: Investigate the need for and implications of differing message params.
+  MQTTClientStatusMessageConfig birth;
+  MQTTClientStatusMessageConfig death;
+  MQTTClientStatusMessageConfig lwt;
+};
+
+/// Simple data struct for Home Assistant component availability.
+struct Availability {
+  std::string topic;
+  std::string payload_available;
+  std::string payload_not_available;
+};
+
 /// available discovery unique_id generators
 enum MQTTDiscoveryUniqueIdGenerator {
   MQTT_LEGACY_UNIQUE_ID_GENERATOR = 0,
@@ -135,6 +160,27 @@ class MQTTClientComponent : public Component {
   void set_topic_prefix(const std::string &topic_prefix);
   /// Get the topic prefix of this device, using default if necessary
   const std::string &get_topic_prefix() const;
+
+  /** Set the topic used for status reporting (birth, death, last will and testament).
+   *
+   * @param topic The topic to be used for status reporting.
+   */
+  void set_status_topic(const std::string &topic);
+  /// Get the status reporting topic.
+  const std::string get_status_topic();
+
+  /// Allow enabling/disabling status reporting.
+  void set_lwt_enabled(bool enabled);
+  void set_birth_enabled(bool enabled);
+  void set_death_enabled(bool enabled);
+
+  /// Configure message parameters of lwt, birth, death messages.
+  void set_lwt_params(const MQTTClientStatusMessageConfig &conf);
+  void set_birth_params(const MQTTClientStatusMessageConfig &conf);
+  void set_death_params(const MQTTClientStatusMessageConfig &conf);
+
+  /// Compat method used by components to obtain the status configuration info
+  const Availability get_availability();
 
   /// Manually set the topic used for logging.
   void set_log_message_template(MQTTMessage &&message);
@@ -259,6 +305,12 @@ class MQTTClientComponent : public Component {
   static void dns_found_callback(const char *name, const ip_addr_t *ipaddr, void *callback_arg);
 #endif
 
+  bool subscribe_(const char *topic, uint8_t qos);
+  void resubscribe_subscription_(MQTTSubscription *sub);
+  void resubscribe_subscriptions_();
+
+  MQTTCredentials credentials_;
+
   /// The discovery info options for Home Assistant. Undefined optional means
   /// default and empty prefix means disabled.
   MQTTDiscoveryInfo discovery_info_{
@@ -270,6 +322,13 @@ class MQTTClientComponent : public Component {
       .object_id_generator = MQTT_NONE_OBJECT_ID_GENERATOR,
   };
   std::string topic_prefix_;
+  MQTTClientStatusConfig status_{
+      .payload_available = "online",
+      .payload_not_available = "offline",
+  };
+  bool lwt_enabled_{true};
+  bool birth_death_enabled_{true};
+  bool birth_message_sent_{false};
   MQTTMessage log_message_;
   std::string payload_buffer_;
   int log_level_{ESPHOME_LOG_LEVEL};

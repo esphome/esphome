@@ -1,3 +1,6 @@
+import logging
+from typing import cast
+
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
@@ -26,6 +29,7 @@ from esphome.const import (
     CONF_DISCOVERY_PREFIX,
     CONF_DISCOVERY_RETAIN,
     CONF_DISCOVERY_UNIQUE_ID_GENERATOR,
+    CONF_ENABLE,
     CONF_ENABLE_ON_BOOT,
     CONF_ID,
     CONF_KEEPALIVE,
@@ -47,6 +51,7 @@ from esphome.const import (
     CONF_SHUTDOWN_MESSAGE,
     CONF_SKIP_CERT_CN_CHECK,
     CONF_STATE_TOPIC,
+    CONF_STATUS,
     CONF_SUBSCRIBE_QOS,
     CONF_TOPIC,
     CONF_TOPIC_PREFIX,
@@ -61,7 +66,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.types import ConfigType
+from esphome.types import ConfigFragmentType, ConfigType
 
 DEPENDENCIES = ["network"]
 
@@ -75,6 +80,9 @@ def AUTO_LOAD():
 CONF_DISCOVER_IP = "discover_ip"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
+CONF_LWT = "lwt"
+CONF_BIRTH = "birth"
+CONF_DEATH = "death"
 
 # Max lengths for stack-based topic building.
 # These values are used in cv.Length() validators below to ensure the C++ code
@@ -89,11 +97,35 @@ def validate_message_just_topic(value):
     return MQTT_MESSAGE_BASE({CONF_TOPIC: value})
 
 
-MQTT_MESSAGE_BASE = cv.Schema(
+MQTT_MESSAGE_PARAMS = cv.Schema(
     {
-        cv.Required(CONF_TOPIC): cv.publish_topic,
         cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
         cv.Optional(CONF_RETAIN, default=True): cv.boolean,
+    }
+)
+
+MQTT_STATUS_MESSAGE_PARAMS = MQTT_MESSAGE_PARAMS.extend(
+    {
+        cv.Optional(CONF_ENABLE, default=True): cv.boolean,
+        # default QoS class to 1
+        cv.Optional(CONF_QOS, default=1): cv.mqtt_qos,
+    }
+)
+
+MQTT_STATUS_CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_TOPIC): cv.publish_topic,
+        cv.Optional(CONF_PAYLOAD_AVAILABLE): cv.mqtt_payload,
+        cv.Optional(CONF_PAYLOAD_NOT_AVAILABLE): cv.mqtt_payload,
+        cv.Optional(CONF_LWT): MQTT_MESSAGE_PARAMS,
+        cv.Optional(CONF_BIRTH): MQTT_MESSAGE_PARAMS,
+        cv.Optional(CONF_DEATH): MQTT_MESSAGE_PARAMS,
+    }
+)
+
+MQTT_MESSAGE_BASE = MQTT_MESSAGE_PARAMS.extend(
+    {
+        cv.Required(CONF_TOPIC): cv.publish_topic,
     }
 )
 
@@ -112,6 +144,7 @@ MQTT_MESSAGE_SCHEMA = cv.Any(
 
 mqtt_ns = cg.esphome_ns.namespace("mqtt")
 MQTTMessage = mqtt_ns.struct("MQTTMessage")
+MQTTClientStatusMessageConfig = mqtt_ns.struct("MQTTClientStatusMessageConfig")
 MQTTClientDisconnectReason = mqtt_ns.enum("MQTTClientDisconnectReason")
 MQTTClientComponent = mqtt_ns.class_("MQTTClientComponent", cg.Component)
 MQTTPublishAction = mqtt_ns.class_("MQTTPublishAction", automation.Action)
@@ -169,6 +202,91 @@ MQTT_DISCOVERY_OBJECT_ID_GENERATOR_OPTIONS = {
 }
 
 
+def validate_config(config: ConfigType) -> ConfigType:
+    """Preprocess the configuration and map deprecated options to new options"""
+    out = config.copy()
+
+    logger_ = logging.getLogger(__package__)
+
+    _ConfigDictFramgmentType = dict[str | int, ConfigFragmentType]
+
+    topic_prefix = config.get(CONF_TOPIC_PREFIX) or CORE.name
+    if CONF_LOG_TOPIC not in config:
+        if topic_prefix != "":
+            out[CONF_LOG_TOPIC] = {
+                CONF_TOPIC: f"{topic_prefix}/debug",
+                CONF_QOS: 0,
+                CONF_RETAIN: True,
+            }
+        else:
+            out[CONF_LOG_TOPIC] = {}
+
+    def _map_status_msg(
+        msg_type: str,
+        msg: _ConfigDictFramgmentType | None,
+        status_cfg: _ConfigDictFramgmentType,
+    ) -> _ConfigDictFramgmentType:
+        def _get_status_msg(name: str) -> _ConfigDictFramgmentType:
+            return cast(
+                _ConfigDictFramgmentType,
+                status_cfg.get(name, MQTT_STATUS_MESSAGE_PARAMS({})),
+            )
+
+        if msg is not None:
+            logger_.warning(
+                f"Usage of the legacy last will/birth/death message configuration detected. Please use {CONF_STATUS!r}."
+            )
+
+            # If the topic of birth and last will messages do not match or the topic is empty, disable status
+            # reporting completely.
+            if CONF_TOPIC in status_cfg and (
+                status_cfg[CONF_TOPIC] != msg[CONF_TOPIC] or not msg[CONF_TOPIC]
+            ):
+                for t in (CONF_LWT, CONF_BIRTH, CONF_DEATH):
+                    status_msg = _get_status_msg(t)
+                    status_msg[CONF_ENABLE] = False
+                    status_cfg[t] = status_msg
+
+            status_msg = _get_status_msg(msg_type)
+
+            if CONF_TOPIC in msg:
+                # If the topic differs from one configured by another msg type, all messages are disabled by the check
+                # above.
+                status_msg[CONF_TOPIC] = msg[CONF_TOPIC]
+
+            if CONF_QOS in msg:
+                status_msg[CONF_QOS] = msg[CONF_QOS]
+
+            if CONF_RETAIN in msg:
+                status_msg[CONF_RETAIN] = msg[CONF_RETAIN]
+
+            status_cfg[msg_type] = status_msg
+
+        return status_cfg
+
+    # LWT, birth, shutdown message mapping
+    lwt = cast(_ConfigDictFramgmentType | None, config.get(CONF_WILL_MESSAGE))
+    birth = cast(_ConfigDictFramgmentType | None, config.get(CONF_BIRTH_MESSAGE))
+    shutdown = cast(_ConfigDictFramgmentType | None, config.get(CONF_SHUTDOWN_MESSAGE))
+
+    if any(msg is not None for msg in (lwt, birth, shutdown)):
+        if CONF_STATUS in out:
+            raise cv.Invalid(
+                f"{CONF_STATUS!r} cannot be combined with the legacy {CONF_WILL_MESSAGE!r}, {CONF_BIRTH_MESSAGE!r}, "
+                f"or {CONF_SHUTDOWN_MESSAGE!r} options."
+            )
+
+        status: _ConfigDictFramgmentType = {}
+
+        _map_status_msg(CONF_LWT, lwt, status)
+        _map_status_msg(CONF_BIRTH, birth, status)
+        _map_status_msg(CONF_DEATH, shutdown, status)
+
+        out[CONF_STATUS] = status
+
+    return out
+
+
 def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for MQTT component."""
     # MQTT needs 1 socket for the broker connection
@@ -217,6 +335,7 @@ CONFIG_SCHEMA = cv.All(
                 MQTT_DISCOVERY_OBJECT_ID_GENERATOR_OPTIONS
             ),
             cv.Optional(CONF_USE_ABBREVIATIONS, default=True): cv.boolean,
+            cv.Optional(CONF_STATUS): MQTT_STATUS_CONFIG_SCHEMA,
             cv.Optional(CONF_BIRTH_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_WILL_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_SHUTDOWN_MESSAGE): MQTT_MESSAGE_SCHEMA,
@@ -357,7 +476,34 @@ async def to_code(config):
     if config[CONF_USE_ABBREVIATIONS]:
         cg.add_define("USE_MQTT_ABBREVIATIONS")
 
-    # TODO: last will & testament, birth/death config
+    if config_status := config.get(CONF_STATUS):
+        if CONF_TOPIC in config_status:
+            cg.add(var.set_status_topic(config_status[CONF_TOPIC]))
+
+        if CONF_PAYLOAD_AVAILABLE in config_status:
+            cg.add(
+                var.set_status_payload_available(config_status[CONF_PAYLOAD_AVAILABLE])
+            )
+
+        if CONF_PAYLOAD_NOT_AVAILABLE in config_status:
+            cg.add(
+                var.set_status_payload_not_available(
+                    config_status[CONF_PAYLOAD_AVAILABLE]
+                )
+            )
+
+        for msg_type in (CONF_LWT, CONF_BIRTH, CONF_DEATH):
+            if msg_config := config_status.get(msg_type):
+                cg.add(
+                    getattr(var, f"set_{msg_type}_params")(
+                        cg.StructInitializer(
+                            MQTTClientStatusMessageConfig,
+                            ("enabled", msg_config[CONF_ENABLE]),
+                            ("qos", msg_config[CONF_QOS]),
+                            ("retain", msg_config[CONF_RETAIN]),
+                        )
+                    )
+                )
 
     log_topic = config[CONF_LOG_TOPIC]
     if not log_topic:
