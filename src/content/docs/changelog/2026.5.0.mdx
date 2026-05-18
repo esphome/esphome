@@ -504,6 +504,32 @@ For detailed migration guides and API documentation, see the [ESPHome Developers
 - [audio][media_player][speaker] WAV decoding is no longer always built [esphome#16244](https://github.com/esphome/esphome/pull/16244) by [@kahrendt](https://github.com/kahrendt) (breaking-change)
 - [audio_file][speaker] Eliminate code duplication for files built into firmware [esphome#16266](https://github.com/esphome/esphome/pull/16266) by [@kahrendt](https://github.com/kahrendt) (breaking-change)
 
+### Beta Changes
+
+- [espidf] Stop perpetual reconfigure loop on native ESP-IDF builds [esphome#16415](https://github.com/esphome/esphome/pull/16415) by [@swoboda1337](https://github.com/swoboda1337)
+- [espidf] Trim has_outdated_files watch list; embed IDF version in sdkconfig [esphome#16416](https://github.com/esphome/esphome/pull/16416) by [@swoboda1337](https://github.com/swoboda1337)
+- [tinyusb] Reject `tinyusb:` configured without a USB class companion [esphome#16413](https://github.com/esphome/esphome/pull/16413) by [@kbx81](https://github.com/kbx81)
+- [tinyusb] Reject `logger.hardware_uart: USB_CDC` [esphome#16417](https://github.com/esphome/esphome/pull/16417) by [@kbx81](https://github.com/kbx81)
+- [esp32] Sweep ESP-IDF toolchain warnings + bump deprecated mark_failed [esphome#16432](https://github.com/esphome/esphome/pull/16432) by [@swoboda1337](https://github.com/swoboda1337)
+- [tests] Fix -Wformat= mismatches in test YAML lambdas/logger.log [esphome#16435](https://github.com/esphome/esphome/pull/16435) by [@swoboda1337](https://github.com/swoboda1337)
+- [docker] Install libusb-1.0 so ESP-IDF tools can validate openocd [esphome#16424](https://github.com/esphome/esphome/pull/16424) by [@swoboda1337](https://github.com/swoboda1337)
+- [multiple] Fix -Wformat= mismatches in component .cpp sources [esphome#16433](https://github.com/esphome/esphome/pull/16433) by [@swoboda1337](https://github.com/swoboda1337)
+- [espidf] Gate esp_idf_size --ng on IDF version [esphome#16441](https://github.com/esphome/esphome/pull/16441) by [@swoboda1337](https://github.com/swoboda1337)
+- [esp32_hosted] Bump esp_hosted to 2.12.7 [esphome#16440](https://github.com/esphome/esphome/pull/16440) by [@swoboda1337](https://github.com/swoboda1337)
+- [audio] Bump microMP3 to v0.2.1 [esphome#16429](https://github.com/esphome/esphome/pull/16429) by [@kahrendt](https://github.com/kahrendt)
+- [sound_level] Use RingBufferAudioSource [esphome#16436](https://github.com/esphome/esphome/pull/16436) by [@kahrendt](https://github.com/kahrendt)
+- [wifi] Refuse to compile when wifi_ssid is the device-builder placeholder [esphome#16444](https://github.com/esphome/esphome/pull/16444) by [@bdraco](https://github.com/bdraco)
+- [core] Fix KeyError: 'esp32' on upload when validated-config cache is used [esphome#16457](https://github.com/esphome/esphome/pull/16457) by [@bdraco](https://github.com/bdraco)
+- [esp32_hosted][fingerprint_grow] Fix two remaining ESP32 toolchain warnings [esphome#16442](https://github.com/esphome/esphome/pull/16442) by [@swoboda1337](https://github.com/swoboda1337)
+- Bump aioesphomeapi from 45.0.0 to 45.0.1 [esphome#16467](https://github.com/esphome/esphome/pull/16467) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- [ft5x06] Fix setting calibration values [esphome#16446](https://github.com/esphome/esphome/pull/16446) by [@clydebarrow](https://github.com/clydebarrow)
+- [lvgl] Fix image define [esphome#16468](https://github.com/esphome/esphome/pull/16468) by [@clydebarrow](https://github.com/clydebarrow)
+- Bump aioesphomeapi from 45.0.1 to 45.0.2 [esphome#16469](https://github.com/esphome/esphome/pull/16469) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- [ci] Use larger app partition for esp32-s3-idf component test grouping [esphome#16430](https://github.com/esphome/esphome/pull/16430) by [@bdraco](https://github.com/bdraco)
+- Bump aioesphomeapi from 45.0.2 to 45.0.3 [esphome#16479](https://github.com/esphome/esphome/pull/16479) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump zeroconf from 0.148.0 to 0.149.3 [esphome#16480](https://github.com/esphome/esphome/pull/16480) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- [espidf] Switch direct framework downloader to esphome-libs/esp-idf tarballs [esphome#16484](https://github.com/esphome/esphome/pull/16484) by [@swoboda1337](https://github.com/swoboda1337)
+
 ### All changes
 
 <details>
@@ -905,6 +931,25 @@ For detailed migration guides and API documentation, see the [ESPHome Developers
 - [mitsubishi_cn105] Add vane and wide-vane support [esphome#16405](https://github.com/esphome/esphome/pull/16405) by [@crnjan](https://github.com/crnjan)
 - [writer] Clean ESP-IDF build artifacts in clean_build [esphome#16410](https://github.com/esphome/esphome/pull/16410) by [@swoboda1337](https://github.com/swoboda1337)
 - [espidf] Regenerate bundled CMakeLists; auto-REQUIRE via IDF build properties [esphome#16406](https://github.com/esphome/esphome/pull/16406) by [@swoboda1337](https://github.com/swoboda1337)
+- [espidf] Stop perpetual reconfigure loop on native ESP-IDF builds [esphome#16415](https://github.com/esphome/esphome/pull/16415) by [@swoboda1337](https://github.com/swoboda1337)
+- [espidf] Trim has_outdated_files watch list; embed IDF version in sdkconfig [esphome#16416](https://github.com/esphome/esphome/pull/16416) by [@swoboda1337](https://github.com/swoboda1337)
+- [tinyusb] Reject `tinyusb:` configured without a USB class companion [esphome#16413](https://github.com/esphome/esphome/pull/16413) by [@kbx81](https://github.com/kbx81)
+- [tinyusb] Reject `logger.hardware_uart: USB_CDC` [esphome#16417](https://github.com/esphome/esphome/pull/16417) by [@kbx81](https://github.com/kbx81)
+- [esp32] Sweep ESP-IDF toolchain warnings + bump deprecated mark_failed [esphome#16432](https://github.com/esphome/esphome/pull/16432) by [@swoboda1337](https://github.com/swoboda1337)
+- [tests] Fix -Wformat= mismatches in test YAML lambdas/logger.log [esphome#16435](https://github.com/esphome/esphome/pull/16435) by [@swoboda1337](https://github.com/swoboda1337)
+- [docker] Install libusb-1.0 so ESP-IDF tools can validate openocd [esphome#16424](https://github.com/esphome/esphome/pull/16424) by [@swoboda1337](https://github.com/swoboda1337)
+- [multiple] Fix -Wformat= mismatches in component .cpp sources [esphome#16433](https://github.com/esphome/esphome/pull/16433) by [@swoboda1337](https://github.com/swoboda1337)
+- [espidf] Gate esp_idf_size --ng on IDF version [esphome#16441](https://github.com/esphome/esphome/pull/16441) by [@swoboda1337](https://github.com/swoboda1337)
+- [esp32_hosted] Bump esp_hosted to 2.12.7 [esphome#16440](https://github.com/esphome/esphome/pull/16440) by [@swoboda1337](https://github.com/swoboda1337)
+- [audio] Bump microMP3 to v0.2.1 [esphome#16429](https://github.com/esphome/esphome/pull/16429) by [@kahrendt](https://github.com/kahrendt)
+- [sound_level] Use RingBufferAudioSource [esphome#16436](https://github.com/esphome/esphome/pull/16436) by [@kahrendt](https://github.com/kahrendt)
+- [wifi] Refuse to compile when wifi_ssid is the device-builder placeholder [esphome#16444](https://github.com/esphome/esphome/pull/16444) by [@bdraco](https://github.com/bdraco)
+- [core] Fix KeyError: 'esp32' on upload when validated-config cache is used [esphome#16457](https://github.com/esphome/esphome/pull/16457) by [@bdraco](https://github.com/bdraco)
+- [esp32_hosted][fingerprint_grow] Fix two remaining ESP32 toolchain warnings [esphome#16442](https://github.com/esphome/esphome/pull/16442) by [@swoboda1337](https://github.com/swoboda1337)
+- [ft5x06] Fix setting calibration values [esphome#16446](https://github.com/esphome/esphome/pull/16446) by [@clydebarrow](https://github.com/clydebarrow)
+- [lvgl] Fix image define [esphome#16468](https://github.com/esphome/esphome/pull/16468) by [@clydebarrow](https://github.com/clydebarrow)
+- [ci] Use larger app partition for esp32-s3-idf component test grouping [esphome#16430](https://github.com/esphome/esphome/pull/16430) by [@bdraco](https://github.com/bdraco)
+- [espidf] Switch direct framework downloader to esphome-libs/esp-idf tarballs [esphome#16484](https://github.com/esphome/esphome/pull/16484) by [@swoboda1337](https://github.com/swoboda1337)
 
 </details>
 
@@ -952,5 +997,9 @@ For detailed migration guides and API documentation, see the [ESPHome Developers
 - Bump aioesphomeapi from 44.24.2 to 45.0.0 [esphome#16391](https://github.com/esphome/esphome/pull/16391) by [@dependabot[bot]](https://github.com/apps/dependabot)
 - Bump requests from 2.34.0 to 2.34.1 [esphome#16408](https://github.com/esphome/esphome/pull/16408) by [@dependabot[bot]](https://github.com/apps/dependabot)
 - Bump actions/create-github-app-token from 3.1.1 to 3.2.0 [esphome#16409](https://github.com/esphome/esphome/pull/16409) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump aioesphomeapi from 45.0.0 to 45.0.1 [esphome#16467](https://github.com/esphome/esphome/pull/16467) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump aioesphomeapi from 45.0.1 to 45.0.2 [esphome#16469](https://github.com/esphome/esphome/pull/16469) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump aioesphomeapi from 45.0.2 to 45.0.3 [esphome#16479](https://github.com/esphome/esphome/pull/16479) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump zeroconf from 0.148.0 to 0.149.3 [esphome#16480](https://github.com/esphome/esphome/pull/16480) by [@dependabot[bot]](https://github.com/apps/dependabot)
 
 </details>
