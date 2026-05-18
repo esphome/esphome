@@ -99,19 +99,7 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
     ram_used = ram_region.get("used")
     ram_total = ram_region.get("size")
     if ram_total and ram_used is not None:
-        # Strip code from the RAM line so unified-DIRAM variants (S2, S3,
-        # C/H/P) report data-side pressure only, matching the original
-        # ESP32 where code lives in a separate IRAM region. No-op on the
-        # original ESP32: .text never lands in DRAM there.
-        text_size = sum(
-            sec.get("size", 0)
-            for sec in (ram_region.get("sections") or {}).values()
-            if sec.get("abbrev_name") == ".text"
-        )
-        ram_used -= text_size
-        ram_total -= text_size
-        if ram_total > 0:
-            print(f"RAM:   {_format_bar(ram_used, ram_total)}")
+        print(f"RAM:   {_format_bar(ram_used, ram_total)}")
 
     image_size = data.get("image_size")
     if image_size is None or partitions_csv is None:

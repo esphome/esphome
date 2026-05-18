@@ -83,28 +83,25 @@ def test_print_summary_esp32_uses_dram(
 def test_print_summary_s3_falls_back_to_diram(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """ESP32-S3 with no DRAM key falls back to DIRAM and strips ``.iram0.text``."""
+    """ESP32-S3 with no DRAM key falls back to DIRAM and reports raw region usage."""
     size_json = _write_size_json(tmp_path, _s3_size_data())
     print_summary(size_json, partitions_csv=None)
     out = capsys.readouterr().out
-    # used = 104999 - 58051 = 46948; total = 341760 - 58051 = 283709
-    assert "used 46948 bytes from 283709 bytes" in out
+    assert "used 104999 bytes from 341760 bytes" in out
 
 
 def test_print_summary_skips_when_diram_total_collapses(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """If subtracting ``.text`` would zero out the total, drop the RAM line rather than divide by zero."""
+    """A zero-size region drops the RAM line rather than divide by zero."""
     size_json = _write_size_json(
         tmp_path,
         {
             "memory_types": {
                 "DIRAM": {
-                    "size": 1000,
-                    "used": 1000,
-                    "sections": {
-                        ".iram0.text": {"abbrev_name": ".text", "size": 1000},
-                    },
+                    "size": 0,
+                    "used": 0,
+                    "sections": {},
                 },
             },
         },
