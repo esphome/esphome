@@ -5,10 +5,10 @@ from esphome.const import (
     CONF_BUS_VOLTAGE,
     CONF_CURRENT,
     CONF_ID,
+    CONF_MODE,
     CONF_POWER,
     CONF_SHUNT_RESISTANCE,
     CONF_SHUNT_VOLTAGE,
-    CONF_MODE,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
@@ -147,6 +147,7 @@ CONFIG_SCHEMA = (
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x40))
 )
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])

@@ -26,29 +26,47 @@ static const uint8_t INA3221_REGISTER_MASK_ENABLE = 0x0F;
 
 static float get_conversion_time_ms(INA3221ConversionTime ct) {
   switch (ct) {
-    case INA3221_CONVERSION_TIME_140US: return 0.14f;
-    case INA3221_CONVERSION_TIME_204US: return 0.204f;
-    case INA3221_CONVERSION_TIME_332US: return 0.332f;
-    case INA3221_CONVERSION_TIME_588US: return 0.588f;
-    case INA3221_CONVERSION_TIME_1100US: return 1.1f;
-    case INA3221_CONVERSION_TIME_2116US: return 2.116f;
-    case INA3221_CONVERSION_TIME_4156US: return 4.156f;
-    case INA3221_CONVERSION_TIME_8244US: return 8.244f;
-    default: return 1.1f;
+    case INA3221_CONVERSION_TIME_140US:
+      return 0.14f;
+    case INA3221_CONVERSION_TIME_204US:
+      return 0.204f;
+    case INA3221_CONVERSION_TIME_332US:
+      return 0.332f;
+    case INA3221_CONVERSION_TIME_588US:
+      return 0.588f;
+    case INA3221_CONVERSION_TIME_1100US:
+      return 1.1f;
+    case INA3221_CONVERSION_TIME_2116US:
+      return 2.116f;
+    case INA3221_CONVERSION_TIME_4156US:
+      return 4.156f;
+    case INA3221_CONVERSION_TIME_8244US:
+      return 8.244f;
+    default:
+      return 1.1f;
   }
 }
 
 static int get_averaging_samples(INA3221Averaging avg) {
   switch (avg) {
-    case INA3221_AVERAGING_1: return 1;
-    case INA3221_AVERAGING_4: return 4;
-    case INA3221_AVERAGING_16: return 16;
-    case INA3221_AVERAGING_64: return 64;
-    case INA3221_AVERAGING_128: return 128;
-    case INA3221_AVERAGING_256: return 256;
-    case INA3221_AVERAGING_512: return 512;
-    case INA3221_AVERAGING_1024: return 1024;
-    default: return 1;
+    case INA3221_AVERAGING_1:
+      return 1;
+    case INA3221_AVERAGING_4:
+      return 4;
+    case INA3221_AVERAGING_16:
+      return 16;
+    case INA3221_AVERAGING_64:
+      return 64;
+    case INA3221_AVERAGING_128:
+      return 128;
+    case INA3221_AVERAGING_256:
+      return 256;
+    case INA3221_AVERAGING_512:
+      return 512;
+    case INA3221_AVERAGING_1024:
+      return 1024;
+    default:
+      return 1;
   }
 }
 
@@ -72,7 +90,7 @@ void INA3221Component::setup() {
   config |= (this->averaging_ << 9);
   config |= (this->bus_conversion_time_ << 6);
   config |= (this->shunt_conversion_time_ << 3);
-  config |= this->mode_; // Configures for either CONTINUOUS or SINGLE_SHOT
+  config |= this->mode_;  // Configures for either CONTINUOUS or SINGLE_SHOT
 
   if (!this->write_byte_16(INA3221_REGISTER_CONFIG, config)) {
     this->mark_failed();
@@ -142,16 +160,15 @@ void INA3221Component::update() {
       config = (config & 0xFFF8) | INA3221_MODE_SINGLE_SHOT;
       this->write_byte_16(INA3221_REGISTER_CONFIG, config);
 
-      int active_channels = (this->channels_[0].exists() ? 1 : 0) +
-                            (this->channels_[1].exists() ? 1 : 0) +
+      int active_channels = (this->channels_[0].exists() ? 1 : 0) + (this->channels_[1].exists() ? 1 : 0) +
                             (this->channels_[2].exists() ? 1 : 0);
 
       // Calculate total required time based on current settings
-      float total_time_ms = (get_conversion_time_ms(this->bus_conversion_time_) +
-                             get_conversion_time_ms(this->shunt_conversion_time_)) *
-                            get_averaging_samples(this->averaging_) * active_channels;
+      float total_time_ms =
+          (get_conversion_time_ms(this->bus_conversion_time_) + get_conversion_time_ms(this->shunt_conversion_time_)) *
+          get_averaging_samples(this->averaging_) * active_channels;
 
-      uint32_t wait_time = (uint32_t)(total_time_ms) + 5; // Add 5ms buffer for hardware timing variations
+      uint32_t wait_time = (uint32_t) (total_time_ms) + 5;  // Add 5ms buffer for hardware timing variations
       this->set_timeout("read", wait_time, [this]() { this->read_data_(); });
     }
   } else {
