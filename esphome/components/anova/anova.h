@@ -10,8 +10,7 @@
 
 #include <esp_gattc_api.h>
 
-namespace esphome {
-namespace anova {
+namespace esphome::anova {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
@@ -45,7 +44,6 @@ class Anova : public climate::Climate, public esphome::ble_client::BLEClientNode
   bool fahrenheit_;
 };
 
-}  // namespace anova
-}  // namespace esphome
+}  // namespace esphome::anova
 
 #endif

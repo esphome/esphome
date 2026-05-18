@@ -2,6 +2,7 @@
 #include "image_decoder.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include <algorithm>
 #include <cstring>
 
 #ifdef USE_RUNTIME_IMAGE_BMP
@@ -42,6 +43,14 @@ int RuntimeImage::resize(int width, int height) {
   // Use fixed dimensions if specified (0 means auto-resize)
   int target_width = this->fixed_width_ ? this->fixed_width_ : width;
   int target_height = this->fixed_height_ ? this->fixed_height_ : height;
+
+  // When both fixed dimensions are set, scale uniformly to preserve aspect ratio
+  if (this->fixed_width_ && this->fixed_height_ && width > 0 && height > 0) {
+    float scale =
+        std::min(static_cast<float>(this->fixed_width_) / width, static_cast<float>(this->fixed_height_) / height);
+    target_width = static_cast<int>(width * scale);
+    target_height = static_cast<int>(height * scale);
+  }
 
   size_t result = this->resize_buffer_(target_width, target_height);
   if (result > 0 && this->progressive_display_) {
@@ -97,7 +106,7 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
       break;
     }
     case image::IMAGE_TYPE_RGB565: {
-      uint32_t pos = this->get_position_(x, y);
+      const size_t pos = (x + y * this->buffer_width_) * 2;
       Color mapped_color = color;
       this->map_chroma_key(mapped_color);
       uint16_t rgb565 = display::ColorUtil::color_to_565(mapped_color);
@@ -109,7 +118,8 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
         this->buffer_[pos + 1] = static_cast<uint8_t>((rgb565 >> 8) & 0xFF);
       }
       if (this->transparency_ == image::TRANSPARENCY_ALPHA_CHANNEL) {
-        this->buffer_[pos + 2] = color.w;
+        const size_t alpha_pos = pos / 2 + this->buffer_width_ * this->buffer_height_ * 2;
+        this->buffer_[alpha_pos] = color.w;
       }
       break;
     }
@@ -117,9 +127,9 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
       uint32_t pos = this->get_position_(x, y);
       Color mapped_color = color;
       this->map_chroma_key(mapped_color);
-      this->buffer_[pos + 0] = mapped_color.r;
+      this->buffer_[pos + 0] = mapped_color.b;
       this->buffer_[pos + 1] = mapped_color.g;
-      this->buffer_[pos + 2] = mapped_color.b;
+      this->buffer_[pos + 2] = mapped_color.r;
       if (this->transparency_ == image::TRANSPARENCY_ALPHA_CHANNEL) {
         this->buffer_[pos + 3] = color.w;
       }
@@ -230,13 +240,17 @@ void RuntimeImage::release() {
 void RuntimeImage::release_buffer_() {
   if (this->buffer_) {
     ESP_LOGV(TAG, "Releasing buffer of size %zu", this->get_buffer_size_(this->buffer_width_, this->buffer_height_));
-    this->allocator_.deallocate(this->buffer_, this->get_buffer_size_(this->buffer_width_, this->buffer_height_));
+    RAMAllocator<uint8_t> allocator;
+    allocator.deallocate(this->buffer_, this->get_buffer_size_(this->buffer_width_, this->buffer_height_));
     this->buffer_ = nullptr;
     this->data_start_ = nullptr;
     this->width_ = 0;
     this->height_ = 0;
     this->buffer_width_ = 0;
     this->buffer_height_ = 0;
+#ifdef USE_LVGL
+    memset(&this->dsc_, 0, sizeof(this->dsc_));
+#endif
   }
 }
 
@@ -254,11 +268,12 @@ size_t RuntimeImage::resize_buffer_(int width, int height) {
   }
 
   ESP_LOGD(TAG, "Allocating buffer: %dx%d, %zu bytes", width, height, new_size);
-  this->buffer_ = this->allocator_.allocate(new_size);
+  RAMAllocator<uint8_t> allocator;
+  this->buffer_ = allocator.allocate(new_size);
 
   if (!this->buffer_) {
     ESP_LOGE(TAG, "Failed to allocate %zu bytes. Largest free block: %zu", new_size,
-             this->allocator_.get_max_free_block_size());
+             allocator.get_max_free_block_size());
     return 0;
   }
 
@@ -272,6 +287,10 @@ size_t RuntimeImage::resize_buffer_(int width, int height) {
 }
 
 size_t RuntimeImage::get_buffer_size_(int width, int height) const {
+  if (this->get_type() == image::IMAGE_TYPE_RGB565 && this->transparency_ == image::TRANSPARENCY_ALPHA_CHANNEL) {
+    // Add extra alpha channel for RGB565 with alpha
+    return width * height * 3;
+  }
   return (this->get_bpp() * width + 7u) / 8u * height;
 }
 

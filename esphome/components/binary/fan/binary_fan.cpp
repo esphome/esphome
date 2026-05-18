@@ -1,8 +1,7 @@
 #include "binary_fan.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace binary {
+namespace esphome::binary {
 
 static const char *const TAG = "binary.fan";
 
@@ -18,12 +17,15 @@ fan::FanTraits BinaryFan::get_traits() {
   return fan::FanTraits(this->oscillating_ != nullptr, false, this->direction_ != nullptr, 0);
 }
 void BinaryFan::control(const fan::FanCall &call) {
-  if (call.get_state().has_value())
-    this->state = *call.get_state();
-  if (call.get_oscillating().has_value())
-    this->oscillating = *call.get_oscillating();
-  if (call.get_direction().has_value())
-    this->direction = *call.get_direction();
+  auto state = call.get_state();
+  if (state.has_value())
+    this->state = *state;
+  auto oscillating = call.get_oscillating();
+  if (oscillating.has_value())
+    this->oscillating = *oscillating;
+  auto direction = call.get_direction();
+  if (direction.has_value())
+    this->direction = *direction;
 
   this->write_state_();
   this->publish_state();
@@ -36,5 +38,4 @@ void BinaryFan::write_state_() {
     this->direction_->set_state(this->direction == fan::FanDirection::REVERSE);
 }
 
-}  // namespace binary
-}  // namespace esphome
+}  // namespace esphome::binary

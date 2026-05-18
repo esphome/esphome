@@ -12,8 +12,7 @@
 #include <algorithm>
 #include <cstring>
 
-namespace esphome {
-namespace resampler {
+namespace esphome::resampler {
 
 static const UBaseType_t RESAMPLER_TASK_PRIORITY = 1;
 
@@ -147,7 +146,7 @@ void ResamplerSpeaker::loop() {
     xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::STATE_STOPPING);
   }
   if (event_group_bits & ResamplingEventGroupBits::STATE_STOPPED) {
-    this->delete_task_();
+    this->task_.deallocate();
     ESP_LOGD(TAG, "Stopped");
     xEventGroupClearBits(this->event_group_, ResamplingEventGroupBits::ALL_BITS);
   }
@@ -190,7 +189,7 @@ void ResamplerSpeaker::loop() {
         this->output_speaker_->stop();
       }
 
-      if (this->output_speaker_->is_stopped() && (this->task_handle_ == nullptr)) {
+      if (this->output_speaker_->is_stopped() && !this->task_.is_created()) {
         // Only transition to stopped state once the output speaker and resampler task are fully stopped
         this->waiting_for_output_ = false;
         this->state_ = speaker::STATE_STOPPED;
@@ -209,9 +208,6 @@ void ResamplerSpeaker::loop() {
 
 void ResamplerSpeaker::set_start_error_(esp_err_t err) {
   switch (err) {
-    case ESP_ERR_INVALID_STATE:
-      this->status_set_error(LOG_STR("Task failed to start"));
-      break;
     case ESP_ERR_NO_MEM:
       this->status_set_error(LOG_STR("Not enough memory"));
       break;
@@ -230,7 +226,7 @@ size_t ResamplerSpeaker::play(const uint8_t *data, size_t length, TickType_t tic
   if ((this->output_speaker_->is_running()) && (!this->requires_resampling_())) {
     bytes_written = this->output_speaker_->play(data, length, ticks_to_wait);
   } else {
-    std::shared_ptr<RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
     if (temp_ring_buffer) {
       // Only write to the ring buffer if the reference is valid
       bytes_written = temp_ring_buffer->write_without_replacement(data, length, ticks_to_wait);
@@ -248,11 +244,9 @@ void ResamplerSpeaker::send_command_(uint32_t command_bit, bool wake_loop) {
   uint32_t event_bits = xEventGroupGetBits(this->event_group_);
   if (!(event_bits & command_bit)) {
     xEventGroupSetBits(this->event_group_, command_bit);
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
     if (wake_loop) {
       App.wake_loop_threadsafe();
     }
-#endif
   }
 }
 
@@ -267,34 +261,10 @@ esp_err_t ResamplerSpeaker::start_() {
 
   if (this->requires_resampling_()) {
     // Start the resampler task to handle converting sample rates
-    return this->start_task_();
-  }
-
-  return ESP_OK;
-}
-
-esp_err_t ResamplerSpeaker::start_task_() {
-  if (this->task_stack_buffer_ == nullptr) {
-    if (this->task_stack_in_psram_) {
-      RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_EXTERNAL);
-      this->task_stack_buffer_ = stack_allocator.allocate(TASK_STACK_SIZE);
-    } else {
-      RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_INTERNAL);
-      this->task_stack_buffer_ = stack_allocator.allocate(TASK_STACK_SIZE);
+    if (!this->task_.create(resample_task, "resampler", TASK_STACK_SIZE, (void *) this, RESAMPLER_TASK_PRIORITY,
+                            this->task_stack_in_psram_)) {
+      return ESP_ERR_NO_MEM;
     }
-  }
-
-  if (this->task_stack_buffer_ == nullptr) {
-    return ESP_ERR_NO_MEM;
-  }
-
-  if (this->task_handle_ == nullptr) {
-    this->task_handle_ = xTaskCreateStatic(resample_task, "resampler", TASK_STACK_SIZE, (void *) this,
-                                           RESAMPLER_TASK_PRIORITY, this->task_stack_buffer_, &this->task_stack_);
-  }
-
-  if (this->task_handle_ == nullptr) {
-    return ESP_ERR_INVALID_STATE;
   }
 
   return ESP_OK;
@@ -305,31 +275,10 @@ void ResamplerSpeaker::stop() { this->send_command_(ResamplingEventGroupBits::CO
 void ResamplerSpeaker::enter_stopping_state_() {
   this->state_ = speaker::STATE_STOPPING;
   this->state_start_ms_ = App.get_loop_component_start_time();
-  if (this->task_handle_ != nullptr) {
+  if (this->task_.is_created()) {
     xEventGroupSetBits(this->event_group_, ResamplingEventGroupBits::TASK_COMMAND_STOP);
   }
   this->output_speaker_->stop();
-}
-
-void ResamplerSpeaker::delete_task_() {
-  if (this->task_handle_ != nullptr) {
-    // Delete the suspended task
-    vTaskDelete(this->task_handle_);
-    this->task_handle_ = nullptr;
-  }
-
-  if (this->task_stack_buffer_ != nullptr) {
-    // Deallocate the task stack buffer
-    if (this->task_stack_in_psram_) {
-      RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_EXTERNAL);
-      stack_allocator.deallocate(this->task_stack_buffer_, TASK_STACK_SIZE);
-    } else {
-      RAMAllocator<StackType_t> stack_allocator(RAMAllocator<StackType_t>::ALLOC_INTERNAL);
-      stack_allocator.deallocate(this->task_stack_buffer_, TASK_STACK_SIZE);
-    }
-
-    this->task_stack_buffer_ = nullptr;
-  }
 }
 
 void ResamplerSpeaker::finish() { this->send_command_(ResamplingEventGroupBits::COMMAND_FINISH); }
@@ -337,7 +286,7 @@ void ResamplerSpeaker::finish() { this->send_command_(ResamplingEventGroupBits::
 bool ResamplerSpeaker::has_buffered_data() const {
   bool has_ring_buffer_data = false;
   if (this->requires_resampling_()) {
-    std::shared_ptr<RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
     if (temp_ring_buffer) {
       has_ring_buffer_data = (temp_ring_buffer->available() > 0);
     }
@@ -365,63 +314,64 @@ void ResamplerSpeaker::resample_task(void *params) {
 
   xEventGroupSetBits(this_resampler->event_group_, ResamplingEventGroupBits::STATE_STARTING);
 
-  std::unique_ptr<audio::AudioResampler> resampler =
-      make_unique<audio::AudioResampler>(this_resampler->audio_stream_info_.ms_to_bytes(TRANSFER_BUFFER_DURATION_MS),
-                                         this_resampler->target_stream_info_.ms_to_bytes(TRANSFER_BUFFER_DURATION_MS));
+  {  // Ensure C++ objects fall out of scope for proper cleanup before stopping the task
+    std::unique_ptr<audio::AudioResampler> resampler = make_unique<audio::AudioResampler>(
+        this_resampler->audio_stream_info_.ms_to_bytes(TRANSFER_BUFFER_DURATION_MS),
+        this_resampler->target_stream_info_.ms_to_bytes(TRANSFER_BUFFER_DURATION_MS));
 
-  esp_err_t err = resampler->start(this_resampler->audio_stream_info_, this_resampler->target_stream_info_,
-                                   this_resampler->taps_, this_resampler->filters_);
+    esp_err_t err = resampler->start(this_resampler->audio_stream_info_, this_resampler->target_stream_info_,
+                                     this_resampler->taps_, this_resampler->filters_);
 
-  if (err == ESP_OK) {
-    std::shared_ptr<RingBuffer> temp_ring_buffer =
-        RingBuffer::create(this_resampler->audio_stream_info_.ms_to_bytes(this_resampler->buffer_duration_ms_));
+    if (err == ESP_OK) {
+      std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(
+          this_resampler->audio_stream_info_.ms_to_bytes(this_resampler->buffer_duration_ms_));
 
-    if (!temp_ring_buffer) {
-      err = ESP_ERR_NO_MEM;
-    } else {
-      this_resampler->ring_buffer_ = temp_ring_buffer;
-      resampler->add_source(this_resampler->ring_buffer_);
+      if (!temp_ring_buffer) {
+        err = ESP_ERR_NO_MEM;
+      } else {
+        this_resampler->ring_buffer_ = temp_ring_buffer;
+        resampler->add_source(this_resampler->ring_buffer_);
 
-      this_resampler->output_speaker_->set_audio_stream_info(this_resampler->target_stream_info_);
-      resampler->add_sink(this_resampler->output_speaker_);
-    }
-  }
-
-  if (err == ESP_OK) {
-    xEventGroupSetBits(this_resampler->event_group_, ResamplingEventGroupBits::STATE_RUNNING);
-  } else if (err == ESP_ERR_NO_MEM) {
-    xEventGroupSetBits(this_resampler->event_group_, ResamplingEventGroupBits::ERR_ESP_NO_MEM);
-  } else if (err == ESP_ERR_NOT_SUPPORTED) {
-    xEventGroupSetBits(this_resampler->event_group_, ResamplingEventGroupBits::ERR_ESP_NOT_SUPPORTED);
-  }
-
-  while (err == ESP_OK) {
-    uint32_t event_bits = xEventGroupGetBits(this_resampler->event_group_);
-
-    if (event_bits & ResamplingEventGroupBits::TASK_COMMAND_STOP) {
-      break;
+        this_resampler->output_speaker_->set_audio_stream_info(this_resampler->target_stream_info_);
+        resampler->add_sink(this_resampler->output_speaker_);
+      }
     }
 
-    // Stop gracefully if the decoder is done
-    int32_t ms_differential = 0;
-    audio::AudioResamplerState resampler_state = resampler->resample(false, &ms_differential);
-
-    if (resampler_state == audio::AudioResamplerState::FINISHED) {
-      break;
-    } else if (resampler_state == audio::AudioResamplerState::FAILED) {
-      xEventGroupSetBits(this_resampler->event_group_, ResamplingEventGroupBits::ERR_ESP_FAIL);
-      break;
+    if (err == ESP_OK) {
+      xEventGroupSetBits(this_resampler->event_group_, ResamplingEventGroupBits::STATE_RUNNING);
+    } else if (err == ESP_ERR_NO_MEM) {
+      xEventGroupSetBits(this_resampler->event_group_, ResamplingEventGroupBits::ERR_ESP_NO_MEM);
+    } else if (err == ESP_ERR_NOT_SUPPORTED) {
+      xEventGroupSetBits(this_resampler->event_group_, ResamplingEventGroupBits::ERR_ESP_NOT_SUPPORTED);
     }
+
+    while (err == ESP_OK) {
+      uint32_t event_bits = xEventGroupGetBits(this_resampler->event_group_);
+
+      if (event_bits & ResamplingEventGroupBits::TASK_COMMAND_STOP) {
+        break;
+      }
+
+      // Stop gracefully if the decoder is done
+      int32_t ms_differential = 0;
+      audio::AudioResamplerState resampler_state = resampler->resample(false, &ms_differential);
+
+      if (resampler_state == audio::AudioResamplerState::FINISHED) {
+        break;
+      } else if (resampler_state == audio::AudioResamplerState::FAILED) {
+        xEventGroupSetBits(this_resampler->event_group_, ResamplingEventGroupBits::ERR_ESP_FAIL);
+        break;
+      }
+    }
+
+    xEventGroupSetBits(this_resampler->event_group_, ResamplingEventGroupBits::STATE_STOPPING);
   }
 
-  xEventGroupSetBits(this_resampler->event_group_, ResamplingEventGroupBits::STATE_STOPPING);
-  resampler.reset();
   xEventGroupSetBits(this_resampler->event_group_, ResamplingEventGroupBits::STATE_STOPPED);
 
   vTaskSuspend(nullptr);  // Suspend this task indefinitely until the loop method deletes it
 }
 
-}  // namespace resampler
-}  // namespace esphome
+}  // namespace esphome::resampler
 
 #endif

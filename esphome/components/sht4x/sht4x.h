@@ -6,8 +6,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace sht4x {
+namespace esphome::sht4x {
 
 enum SHT4XPRECISION { SHT4X_PRECISION_HIGH = 0, SHT4X_PRECISION_MED, SHT4X_PRECISION_LOW };
 
@@ -35,14 +34,14 @@ class SHT4XComponent : public PollingComponent, public sensirion_common::Sensiri
   SHT4XHEATERTIME heater_time_;
   float duty_cycle_;
 
-  void start_heater_();
   void read_serial_number_();
   uint8_t heater_command_;
+  uint32_t heater_interval_{0};
+  uint32_t last_heater_millis_{0};
   uint32_t serial_number_;
 
   sensor::Sensor *temp_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
 };
 
-}  // namespace sht4x
-}  // namespace esphome
+}  // namespace esphome::sht4x

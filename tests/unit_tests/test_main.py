@@ -2,26 +2,36 @@
 
 from __future__ import annotations
 
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from dataclasses import dataclass
 import json
 import logging
+import os
 from pathlib import Path
 import re
+import sys
 import time
 from typing import Any
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from pytest import CaptureFixture
+from zeroconf import ServiceStateChange
 
-from esphome import platformio_api
 from esphome.__main__ import (
     Purpose,
+    _get_configured_xtal_freq,
+    _make_crystal_freq_callback,
+    _resolve_network_devices,
+    _validate_bootloader_binary,
+    _validate_partition_table_binary,
     choose_upload_log_host,
     command_analyze_memory,
+    command_bundle,
     command_clean_all,
+    command_config_hash,
     command_rename,
+    command_run,
     command_update_all,
     command_wizard,
     compile_program,
@@ -31,19 +41,28 @@ from esphome.__main__ import (
     has_mqtt,
     has_mqtt_ip_lookup,
     has_mqtt_logging,
+    has_name_add_mac_suffix,
     has_non_ip_address,
     has_ota,
     has_resolvable_address,
+    has_web_server_ota,
     mqtt_get_ip,
+    parse_args,
     run_esphome,
     run_miniterm,
     show_logs,
     upload_program,
     upload_using_esptool,
+    upload_using_picotool,
+    upload_using_platformio,
 )
+from esphome.address_cache import AddressCache
+from esphome.bundle import BUNDLE_EXTENSION, BundleFile, BundleResult
+from esphome.components import esp32
 from esphome.components.esp32 import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
 from esphome.const import (
     CONF_API,
+    CONF_AUTH,
     CONF_BAUD_RATE,
     CONF_BROKER,
     CONF_DISABLED,
@@ -54,6 +73,7 @@ from esphome.const import (
     CONF_MDNS,
     CONF_MQTT,
     CONF_NAME,
+    CONF_NAME_ADD_MAC_SUFFIX,
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PLATFORM,
@@ -61,6 +81,8 @@ from esphome.const import (
     CONF_SUBSTITUTIONS,
     CONF_TOPIC,
     CONF_USE_ADDRESS,
+    CONF_USERNAME,
+    CONF_WEB_SERVER,
     CONF_WIFI,
     KEY_CORE,
     KEY_TARGET_PLATFORM,
@@ -68,8 +90,17 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
+    Toolchain,
 )
 from esphome.core import CORE, EsphomeError
+from esphome.espota2 import (
+    OTA_TYPE_UPDATE_APP,
+    OTA_TYPE_UPDATE_BOOTLOADER,
+    OTA_TYPE_UPDATE_PARTITION_TABLE,
+)
+from esphome.platformio import toolchain
+from esphome.util import BootselResult, FlashImage
+from esphome.zeroconf import _await_discovery, discover_mdns_devices
 
 
 def strip_ansi_codes(text: str) -> str:
@@ -121,6 +152,7 @@ def setup_core(
         config[CONF_WIFI] = {CONF_USE_ADDRESS: address}
 
     CORE.config = config
+    CORE.toolchain = Toolchain.PLATFORMIO
 
     if platform is not None:
         CORE.data[KEY_CORE] = {}
@@ -161,6 +193,13 @@ def mock_run_miniterm() -> Generator[Mock]:
 
 
 @pytest.fixture
+def mock_wait_for_serial_port() -> Generator[Mock]:
+    """Mock _wait_for_serial_port for testing."""
+    with patch("esphome.__main__._wait_for_serial_port") as mock:
+        yield mock
+
+
+@pytest.fixture
 def mock_upload_using_esptool() -> Generator[Mock]:
     """Mock upload_using_esptool for testing."""
     with patch("esphome.__main__.upload_using_esptool") as mock:
@@ -175,9 +214,23 @@ def mock_upload_using_platformio() -> Generator[Mock]:
 
 
 @pytest.fixture
+def mock_upload_using_picotool() -> Generator[Mock]:
+    """Mock upload_using_picotool for testing."""
+    with patch("esphome.__main__.upload_using_picotool") as mock:
+        yield mock
+
+
+@pytest.fixture
 def mock_run_ota() -> Generator[Mock]:
     """Mock espota2.run_ota for testing."""
     with patch("esphome.espota2.run_ota") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_run_web_server_ota() -> Generator[Mock]:
+    """Mock web_server_ota.run_ota for testing."""
+    with patch("esphome.web_server_ota.run_ota") as mock:
         yield mock
 
 
@@ -237,7 +290,7 @@ def mock_run_external_process() -> Generator[Mock]:
 
 @pytest.fixture
 def mock_run_external_command_main() -> Generator[Mock]:
-    """Mock run_external_command in __main__ module (different from platformio_api)."""
+    """Mock run_external_command in __main__ module (different from platformio toolchain)."""
     with patch("esphome.__main__.run_external_command") as mock:
         mock.return_value = 0  # Default to success
         yield mock
@@ -851,6 +904,221 @@ def test_choose_upload_log_host_no_address_with_ota_config() -> None:
         )
 
 
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_no_defaults_with_rp2040_bootsel(
+    mock_choose_prompt: Mock,
+) -> None:
+    """Test interactive mode shows RP2040 BOOTSEL option via picotool."""
+    setup_core(platform=PLATFORM_RP2040)
+
+    with (
+        patch(
+            "esphome.__main__._find_picotool", return_value=Path("/usr/bin/picotool")
+        ),
+        patch("esphome.__main__.detect_rp2040_bootsel", return_value=BootselResult(1)),
+    ):
+        result = choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+        assert result == ["/dev/ttyUSB0"]  # mock_choose_prompt default
+        mock_choose_prompt.assert_called_once_with(
+            [("RP2040 BOOTSEL (via picotool)", "BOOTSEL")],
+            purpose=Purpose.UPLOADING,
+        )
+
+
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_rp2040_no_device_shows_bootsel_help() -> None:
+    """Test BOOTSEL instructions shown when no RP2040 device found."""
+    setup_core(platform=PLATFORM_RP2040)
+
+    with (
+        patch(
+            "esphome.__main__._find_picotool", return_value=Path("/usr/bin/picotool")
+        ),
+        patch("esphome.__main__.detect_rp2040_bootsel", return_value=BootselResult(0)),
+        pytest.raises(EsphomeError, match="BOOTSEL"),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+
+
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_rp2040_bootsel_tip_with_ota(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test BOOTSEL tip shown when only OTA options exist for RP2040."""
+    setup_core(
+        platform=PLATFORM_RP2040,
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]},
+        address="192.168.1.100",
+    )
+
+    with (
+        patch(
+            "esphome.__main__._find_picotool", return_value=Path("/usr/bin/picotool")
+        ),
+        patch("esphome.__main__.detect_rp2040_bootsel", return_value=BootselResult(0)),
+        patch(
+            "esphome.__main__.choose_prompt",
+            return_value="192.168.1.100",
+        ),
+        caplog.at_level(logging.INFO, logger="esphome.__main__"),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+        assert "BOOTSEL" in caplog.text
+
+
+def test_choose_upload_log_host_rp2040_bootsel_tip_with_serial_ports(
+    caplog: pytest.LogCaptureFixture,
+    mock_choose_prompt: Mock,
+) -> None:
+    """Test BOOTSEL tip shown when serial ports exist but no BOOTSEL device."""
+    setup_core(platform=PLATFORM_RP2040)
+
+    mock_ports = [MockSerialPort("/dev/ttyACM0", "RP2040 Serial")]
+    with (
+        patch("esphome.__main__.get_serial_ports", return_value=mock_ports),
+        patch(
+            "esphome.__main__._find_picotool",
+            return_value=Path("/usr/bin/picotool"),
+        ),
+        patch("esphome.__main__.detect_rp2040_bootsel", return_value=BootselResult(0)),
+        caplog.at_level(logging.INFO, logger="esphome.__main__"),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+        assert "BOOTSEL" in caplog.text
+
+
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_rp2040_permission_error_no_options(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test permission warning shown when BOOTSEL device found but not accessible."""
+    setup_core(platform=PLATFORM_RP2040)
+
+    with (
+        patch(
+            "esphome.__main__._find_picotool", return_value=Path("/usr/bin/picotool")
+        ),
+        patch(
+            "esphome.__main__.detect_rp2040_bootsel",
+            return_value=BootselResult(0, permission_error=True),
+        ),
+        patch("esphome.__main__.sys.platform", "linux"),
+        pytest.raises(EsphomeError, match="BOOTSEL"),
+        caplog.at_level(logging.WARNING, logger="esphome.__main__"),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+
+    assert "USB permissions" in caplog.text
+    assert "udev" in caplog.text
+
+
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_rp2040_permission_error_with_ota(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test permission warning shown with OTA fallback available."""
+    setup_core(
+        platform=PLATFORM_RP2040,
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]},
+        address="192.168.1.100",
+    )
+
+    with (
+        patch(
+            "esphome.__main__._find_picotool", return_value=Path("/usr/bin/picotool")
+        ),
+        patch(
+            "esphome.__main__.detect_rp2040_bootsel",
+            return_value=BootselResult(0, permission_error=True),
+        ),
+        patch(
+            "esphome.__main__.choose_prompt",
+            return_value="192.168.1.100",
+        ),
+        caplog.at_level(logging.WARNING, logger="esphome.__main__"),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+
+    assert "USB permissions" in caplog.text
+
+
+def test_choose_upload_log_host_no_bootsel_for_non_rp2040(
+    mock_no_serial_ports: Mock,
+) -> None:
+    """Test that BOOTSEL detection is not run for non-RP2040 platforms."""
+    setup_core(
+        platform=PLATFORM_ESP32,
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]},
+        address="192.168.1.100",
+    )
+
+    with (
+        patch("esphome.__main__._find_picotool") as mock_find_picotool,
+        patch(
+            "esphome.__main__.choose_prompt",
+            return_value="192.168.1.100",
+        ),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+        mock_find_picotool.assert_not_called()
+
+
+def test_choose_upload_log_host_rp2040_serial_and_bootsel(
+    mock_choose_prompt: Mock,
+) -> None:
+    """Test both serial ports and BOOTSEL option shown for RP2040."""
+    setup_core(platform=PLATFORM_RP2040)
+
+    mock_ports = [MockSerialPort("/dev/ttyACM0", "RP2040 Serial")]
+    with (
+        patch("esphome.__main__.get_serial_ports", return_value=mock_ports),
+        patch(
+            "esphome.__main__._find_picotool", return_value=Path("/usr/bin/picotool")
+        ),
+        patch("esphome.__main__.detect_rp2040_bootsel", return_value=BootselResult(1)),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+        mock_choose_prompt.assert_called_once_with(
+            [
+                ("/dev/ttyACM0 (RP2040 Serial)", "/dev/ttyACM0"),
+                ("RP2040 BOOTSEL (via picotool)", "BOOTSEL"),
+            ],
+            purpose=Purpose.UPLOADING,
+        )
+
+
 @dataclass
 class MockArgs:
     """Mock args for testing."""
@@ -865,6 +1133,11 @@ class MockArgs:
     name: str | None = None
     dashboard: bool = False
     reset: bool = False
+    list_only: bool = False
+    output: str | None = None
+    ota_platform: str | None = None
+    partition_table: bool = False
+    bootloader: bool = False
 
 
 def test_upload_program_serial_esp32(
@@ -929,11 +1202,11 @@ def test_upload_using_esptool_path_conversion(
     CORE.data[KEY_ESP32] = {KEY_VARIANT: VARIANT_ESP32}
 
     # Create mock IDEData with Path objects
-    mock_idedata = MagicMock(spec=platformio_api.IDEData)
+    mock_idedata = MagicMock(spec=toolchain.IDEData)
     mock_idedata.firmware_bin_path = tmp_path / "firmware.bin"
     mock_idedata.extra_flash_images = [
-        platformio_api.FlashImage(path=tmp_path / "bootloader.bin", offset="0x1000"),
-        platformio_api.FlashImage(path=tmp_path / "partitions.bin", offset="0x8000"),
+        FlashImage(path=tmp_path / "bootloader.bin", offset="0x1000"),
+        FlashImage(path=tmp_path / "partitions.bin", offset="0x8000"),
     ]
 
     mock_get_idedata.return_value = mock_idedata
@@ -989,6 +1262,48 @@ def test_upload_using_esptool_path_conversion(
     partitions_path = cmd_list[partitions_offset_idx + 1]
     assert isinstance(partitions_path, str)
     assert partitions_path.endswith("partitions.bin")
+
+
+def test_upload_using_esptool_skips_missing_extra_flash_images(
+    tmp_path: Path,
+    mock_run_external_command_main: Mock,
+    mock_get_idedata: Mock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A non-existent path in extra_flash_images must be filtered out with a
+    warning, and must not appear in the esptool command line. Only the valid
+    images are flashed. Regression test for
+    https://github.com/esphome/esphome/issues/15634.
+    """
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: VARIANT_ESP32}
+
+    missing_path = tmp_path / "variants" / "tasmota" / "tinyuf2.bin"
+
+    mock_idedata = MagicMock(spec=toolchain.IDEData)
+    mock_idedata.firmware_bin_path = tmp_path / "firmware.bin"
+    mock_idedata.extra_flash_images = [
+        FlashImage(path=tmp_path / "bootloader.bin", offset="0x1000"),
+        FlashImage(path=missing_path, offset="0x2d0000"),
+    ]
+    mock_get_idedata.return_value = mock_idedata
+
+    (tmp_path / "firmware.bin").touch()
+    (tmp_path / "bootloader.bin").touch()
+    # Intentionally do NOT create missing_path
+
+    config = {CONF_ESPHOME: {"platformio_options": {}}}
+
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        result = upload_using_esptool(config, "/dev/ttyUSB0", None, None)
+
+    assert result == 0
+    assert "Skipping missing flash image" in caplog.text
+    assert str(missing_path) in caplog.text
+
+    cmd_list = list(mock_run_external_command_main.call_args[0][1:])
+    assert str(missing_path) not in cmd_list
+    assert "0x2d0000" not in cmd_list
 
 
 def test_upload_using_esptool_with_file_path(
@@ -1060,6 +1375,46 @@ def test_upload_program_serial_platformio_platforms(
     mock_upload_using_platformio.assert_called_once_with(config, device)
 
 
+def test_upload_using_platformio_creates_signed_bin_for_rp2040(
+    tmp_path: Path,
+) -> None:
+    """Test that upload_using_platformio creates firmware.bin.signed for RP2040."""
+    setup_core(platform=PLATFORM_RP2040)
+
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    firmware_bin = build_dir / "firmware.bin"
+    firmware_bin.write_bytes(b"test firmware content")
+    firmware_elf = build_dir / "firmware.elf"
+    firmware_elf.write_bytes(b"elf")
+
+    mock_idedata = MagicMock()
+    mock_idedata.firmware_elf_path = str(firmware_elf)
+
+    with (
+        patch("esphome.platformio.toolchain.get_idedata", return_value=mock_idedata),
+        patch("esphome.platformio.toolchain.run_platformio_cli_run", return_value=0),
+    ):
+        result = upload_using_platformio({}, "/dev/ttyACM0")
+
+    assert result == 0
+    signed_bin = build_dir / "firmware.bin.signed"
+    assert signed_bin.is_file()
+    assert signed_bin.read_bytes() == b"test firmware content"
+
+
+def test_upload_using_platformio_skips_signed_bin_for_non_rp2040(
+    tmp_path: Path,
+) -> None:
+    """Test that upload_using_platformio doesn't create signed bin for non-RP2040."""
+    setup_core(platform=PLATFORM_ESP32)
+
+    with patch("esphome.platformio.toolchain.run_platformio_cli_run", return_value=0):
+        result = upload_using_platformio({}, "/dev/ttyUSB0")
+
+    assert result == 0
+
+
 def test_upload_program_serial_upload_failed(
     mock_upload_using_esptool: Mock,
     mock_get_port_type: Mock,
@@ -1080,6 +1435,158 @@ def test_upload_program_serial_upload_failed(
     assert host is None
     mock_check_permissions.assert_called_once_with("/dev/ttyUSB0")
     mock_upload_using_esptool.assert_called_once()
+
+
+def test_upload_program_bootsel(
+    mock_upload_using_picotool: Mock,
+    mock_get_port_type: Mock,
+) -> None:
+    """Test upload_program with BOOTSEL for RP2040."""
+    setup_core(platform=PLATFORM_RP2040)
+    mock_get_port_type.return_value = "BOOTSEL"
+    mock_upload_using_picotool.return_value = 0
+
+    config = {}
+    args = MockArgs()
+    devices = ["BOOTSEL"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    # BOOTSEL device can't be used for logging, so host should be None
+    assert host is None
+    mock_upload_using_picotool.assert_called_once_with(config)
+
+
+def test_upload_program_bootsel_failed(
+    mock_upload_using_picotool: Mock,
+    mock_get_port_type: Mock,
+) -> None:
+    """Test upload_program when BOOTSEL upload fails."""
+    setup_core(platform=PLATFORM_RP2040)
+    mock_get_port_type.return_value = "BOOTSEL"
+    mock_upload_using_picotool.return_value = 1
+
+    config = {}
+    args = MockArgs()
+    devices = ["BOOTSEL"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 1
+    assert host is None
+    mock_upload_using_picotool.assert_called_once_with(config)
+
+
+def test_upload_using_picotool_success(tmp_path: Path) -> None:
+    """Test upload_using_picotool succeeds."""
+    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    firmware_elf = build_dir / "firmware.elf"
+    firmware_elf.write_bytes(b"\x00" * 1024)
+
+    # Create picotool binary
+    packages_dir = tmp_path / "packages"
+    toolchain_bin = packages_dir / "toolchain-rp2040-earlephilhower" / "bin"
+    toolchain_bin.mkdir(parents=True)
+    picotool_dir = packages_dir / "tool-picotool-rp2040-earlephilhower"
+    picotool_dir.mkdir(parents=True)
+    binary_name = "picotool.exe" if sys.platform == "win32" else "picotool"
+    picotool = picotool_dir / binary_name
+    picotool.touch()
+
+    mock_idedata = MagicMock()
+    mock_idedata.firmware_elf_path = str(firmware_elf)
+    mock_idedata.cc_path = str(toolchain_bin / "arm-none-eabi-gcc")
+
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stderr = b""
+
+    config = {}
+    with (
+        patch("esphome.platformio.toolchain.get_idedata", return_value=mock_idedata),
+        patch("subprocess.run", return_value=mock_result),
+    ):
+        exit_code = upload_using_picotool(config)
+
+    assert exit_code == 0
+
+
+def test_upload_using_picotool_no_elf(tmp_path: Path) -> None:
+    """Test upload_using_picotool when ELF file is missing."""
+    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+
+    mock_idedata = MagicMock()
+    mock_idedata.firmware_elf_path = str(build_dir / "firmware.elf")
+    mock_idedata.cc_path = "/fake/path/gcc"
+
+    config = {}
+    with patch("esphome.platformio.toolchain.get_idedata", return_value=mock_idedata):
+        exit_code = upload_using_picotool(config)
+
+    assert exit_code == 1
+
+
+def test_upload_using_picotool_not_found(tmp_path: Path) -> None:
+    """Test upload_using_picotool when picotool binary not found."""
+    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    firmware_elf = build_dir / "firmware.elf"
+    firmware_elf.write_bytes(b"\x00" * 512)
+
+    mock_idedata = MagicMock()
+    mock_idedata.firmware_elf_path = str(firmware_elf)
+    mock_idedata.cc_path = "/fake/path/gcc"
+
+    config = {}
+    with patch("esphome.platformio.toolchain.get_idedata", return_value=mock_idedata):
+        exit_code = upload_using_picotool(config)
+
+    assert exit_code == 1
+
+
+def test_upload_using_picotool_permission_error(tmp_path: Path) -> None:
+    """Test upload_using_picotool shows helpful message on permission error."""
+    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    firmware_elf = build_dir / "firmware.elf"
+    firmware_elf.write_bytes(b"\x00" * 512)
+
+    packages_dir = tmp_path / "packages"
+    toolchain_bin = packages_dir / "toolchain-rp2040-earlephilhower" / "bin"
+    toolchain_bin.mkdir(parents=True)
+    picotool_dir = packages_dir / "tool-picotool-rp2040-earlephilhower"
+    picotool_dir.mkdir(parents=True)
+    binary_name = "picotool.exe" if sys.platform == "win32" else "picotool"
+    picotool = picotool_dir / binary_name
+    picotool.touch()
+
+    mock_idedata = MagicMock()
+    mock_idedata.firmware_elf_path = str(firmware_elf)
+    mock_idedata.cc_path = str(toolchain_bin / "arm-none-eabi-gcc")
+
+    mock_result = MagicMock()
+    mock_result.returncode = 1
+    mock_result.stderr = b"LIBUSB_ERROR_ACCESS"
+
+    config = {}
+    with (
+        patch("esphome.platformio.toolchain.get_idedata", return_value=mock_idedata),
+        patch("subprocess.run", return_value=mock_result),
+    ):
+        exit_code = upload_using_picotool(config)
+
+    assert exit_code == 1
 
 
 def test_upload_program_ota_success(
@@ -1113,7 +1620,7 @@ def test_upload_program_ota_success(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, "secret", expected_firmware
+        ["192.168.1.100"], 3232, "secret", expected_firmware, OTA_TYPE_UPDATE_APP
     )
 
 
@@ -1144,8 +1651,408 @@ def test_upload_program_ota_with_file_arg(
     assert exit_code == 0
     assert host == "192.168.1.100"
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, None, Path("custom.bin")
+        ["192.168.1.100"], 3232, None, Path("custom.bin"), OTA_TYPE_UPDATE_APP
     )
+
+
+_PARTITION_TABLE_LEN = 0xC00
+
+
+def _make_partition_table_bytes() -> bytes:
+    """Build a minimal partition table image accepted by _validate_partition_table_binary."""
+    table = bytearray(b"\xff" * _PARTITION_TABLE_LEN)
+    # First entry: ESP_PARTITION_MAGIC (0x50AA) little-endian -> bytes 0xAA, 0x50.
+    table[0] = 0xAA
+    table[1] = 0x50
+    # MD5 checksum entry at offset 32: ESP_PARTITION_MAGIC_MD5 (0xEBEB) little-endian.
+    table[32] = 0xEB
+    table[33] = 0xEB
+    return bytes(table)
+
+
+def test_upload_program_ota_partition_table_with_file_arg(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test upload_program with OTA and partition table."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    partition_file = tmp_path / "partitions.bin"
+    partition_file.write_bytes(_make_partition_table_bytes())
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(file=str(partition_file), partition_table=True)
+    devices = ["192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.100"],
+        3232,
+        None,
+        partition_file,
+        OTA_TYPE_UPDATE_PARTITION_TABLE,
+    )
+
+
+def test_upload_program_serial_partition_table(
+    mock_upload_using_esptool: Mock,
+    mock_get_port_type: Mock,
+) -> None:
+    """Test serial upload with partition table option (unsupported)."""
+    setup_core(platform=PLATFORM_ESP32)
+    mock_get_port_type.return_value = "SERIAL"
+    mock_upload_using_esptool.return_value = 0
+
+    config = {}
+    args = MockArgs(partition_table=True)
+    devices = ["/dev/ttyUSB0"]
+
+    with pytest.raises(
+        EsphomeError,
+        match="The option --partition-table can only be used for Over The Air updates",
+    ):
+        upload_program(config, args, devices)
+
+
+def test_upload_program_ota_partition_table_mqttip(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """--partition-table is allowed for MQTTIP devices; they resolve to a real IP at OTA time."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "MQTTIP"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    partition_file = tmp_path / "partitions.bin"
+    partition_file.write_bytes(_make_partition_table_bytes())
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(file=str(partition_file), partition_table=True)
+
+    with patch(
+        "esphome.__main__._resolve_network_devices", return_value=["192.168.1.100"]
+    ):
+        exit_code, host = upload_program(config, args, ["MQTTIP"])
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.100"],
+        3232,
+        None,
+        partition_file,
+        OTA_TYPE_UPDATE_PARTITION_TABLE,
+    )
+
+
+def test_validate_partition_table_binary_accepts_valid(tmp_path: Path) -> None:
+    f = tmp_path / "partitions.bin"
+    f.write_bytes(_make_partition_table_bytes())
+    _validate_partition_table_binary(f)
+
+
+_PARTITION_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "partition_tables"
+
+
+@pytest.mark.parametrize(
+    "fixture",
+    [
+        # Stock ESP-IDF gen_esp32part.py output for an ESPHome build.
+        "esphome_default.bin",
+        # ESP-IDF Hello-world example partition table (vendored from espressif/esp-serial-flasher).
+        "esp_idf_hello_world.bin",
+        # Partition table shipped with esphome_dashboard's prebuilt firmware.
+        "esphome_dashboard_firmware.bin",
+    ],
+)
+def test_validate_partition_table_binary_accepts_real_binaries(fixture: str) -> None:
+    """Real-world partition-table binaries from ESP-IDF / ESPHome tooling pass validation."""
+    _validate_partition_table_binary(_PARTITION_FIXTURE_DIR / fixture)
+
+
+def test_validate_partition_table_binary_rejects_wrong_size(tmp_path: Path) -> None:
+    f = tmp_path / "partitions.bin"
+    f.write_bytes(b"\xaa\x50" + b"\xff" * 100)
+    with pytest.raises(EsphomeError, match="wrong size"):
+        _validate_partition_table_binary(f)
+
+
+def test_validate_partition_table_binary_rejects_wrong_magic(tmp_path: Path) -> None:
+    data = bytearray(_make_partition_table_bytes())
+    data[0] = 0x00
+    data[1] = 0x00
+    f = tmp_path / "partitions.bin"
+    f.write_bytes(bytes(data))
+    with pytest.raises(EsphomeError, match="partition magic"):
+        _validate_partition_table_binary(f)
+
+
+def test_validate_partition_table_binary_rejects_missing_md5(tmp_path: Path) -> None:
+    data = bytearray(_make_partition_table_bytes())
+    data[32] = 0xFF
+    data[33] = 0xFF
+    f = tmp_path / "partitions.bin"
+    f.write_bytes(bytes(data))
+    with pytest.raises(EsphomeError, match="missing the MD5 checksum entry"):
+        _validate_partition_table_binary(f)
+
+
+def test_validate_partition_table_binary_missing_file(tmp_path: Path) -> None:
+    with pytest.raises(EsphomeError, match="Cannot read partition table file"):
+        _validate_partition_table_binary(tmp_path / "does-not-exist.bin")
+
+
+def test_validate_bootloader_binary_rejects_wrong_magic(tmp_path: Path) -> None:
+    data = bytearray(_make_bootloader_bytes())
+    data[0] = 0x00
+    f = tmp_path / "bootloader.bin"
+    f.write_bytes(bytes(data))
+    with pytest.raises(EsphomeError, match="magic"):
+        _validate_bootloader_binary(f)
+
+
+def test_validate_bootloader_binary_missing_file(tmp_path: Path) -> None:
+    with pytest.raises(EsphomeError, match="Cannot read bootloader file"):
+        _validate_bootloader_binary(tmp_path / "does-not-exist.bin")
+
+
+def test_validate_bootloader_binary_rejects_empty_file(tmp_path: Path) -> None:
+    f = tmp_path / "bootloader.bin"
+    f.write_bytes(b"")
+    with pytest.raises(EsphomeError, match="is empty"):
+        _validate_bootloader_binary(f)
+
+
+def test_upload_program_ota_partition_table_invalid_file(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """--partition-table must fail before calling run_ota when the file is not a partition table."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+
+    bad_file = tmp_path / "firmware.bin"
+    bad_file.write_bytes(b"\x00" * 4096)
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(file=str(bad_file), partition_table=True)
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(EsphomeError, match="wrong size"):
+        upload_program(config, args, devices)
+    mock_run_ota.assert_not_called()
+
+
+def test_upload_program_ota_partition_table_without_allow_flag(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """--partition-table must fail fast when allow_partition_access is not enabled in YAML."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+            }
+        ]
+    }
+    args = MockArgs(file="partitions.bin", partition_table=True)
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(
+        EsphomeError,
+        match=(
+            r"The option --partition-table requires 'allow_partition_access: true'.*"
+            r"retry --partition-table"
+        ),
+    ):
+        upload_program(config, args, devices)
+    mock_run_ota.assert_not_called()
+
+
+def _make_bootloader_bytes() -> bytes:
+    """Build a minimal bootloader image accepted by _validate_bootloader_binary."""
+    table = bytearray(b"\xff")
+    # Starts with: ESP_IMAGE_HEADER_MAGIC (0xE9)
+    table[0] = 0xE9
+    return bytes(table)
+
+
+def test_upload_program_ota_bootloader_with_file_arg(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test upload_program with OTA and bootloader."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    bootloader_file = tmp_path / "bootloader.bin"
+    bootloader_file.write_bytes(_make_bootloader_bytes())
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(file=str(bootloader_file), bootloader=True)
+    devices = ["192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.100"],
+        3232,
+        None,
+        bootloader_file,
+        OTA_TYPE_UPDATE_BOOTLOADER,
+    )
+
+
+def test_upload_program_ota_partition_table_and_bootloader_options(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """--partition-table and --bootloader can't be used together."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(file="partitions.bin", partition_table=True, bootloader=True)
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(
+        EsphomeError,
+        match="--partition-table and --bootloader",
+    ):
+        upload_program(config, args, devices)
+    mock_run_ota.assert_not_called()
+
+
+def test_upload_program_ota_bootloader_without_allow_flag(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """--bootloader must fail fast when allow_partition_access is not enabled in YAML."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+            }
+        ]
+    }
+    args = MockArgs(file="bootloader.bin", bootloader=True)
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(
+        EsphomeError,
+        match=(
+            r"The option --bootloader requires 'allow_partition_access: true'.*"
+            r"retry --bootloader"
+        ),
+    ):
+        upload_program(config, args, devices)
+    mock_run_ota.assert_not_called()
+
+
+def test_upload_program_ota_bootloader_platform_web_server(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test bootloader upload with web_server OTA."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    mock_get_port_type.return_value = "NETWORK"
+
+    bootloader_file = tmp_path / "bootloader.bin"
+    bootloader_file.write_bytes(_make_bootloader_bytes())
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_WEB_SERVER,
+                CONF_WEB_SERVER: {
+                    CONF_PORT: 80,
+                    CONF_AUTH: {CONF_USERNAME: "admin", CONF_PASSWORD: "pw"},
+                },
+                "allow_partition_access": True,
+            }
+        ]
+    }
+    args = MockArgs(file=str(bootloader_file), bootloader=True)
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(
+        EsphomeError,
+        match="the web_server OTA path can only update the firmware image",
+    ):
+        upload_program(config, args, devices)
+    mock_run_ota.assert_not_called()
 
 
 def test_upload_program_ota_no_config(
@@ -1156,6 +2063,277 @@ def test_upload_program_ota_no_config(
     mock_get_port_type.return_value = "NETWORK"
 
     config = {}  # No OTA config
+    args = MockArgs()
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(EsphomeError, match="Cannot upload Over the Air"):
+        upload_program(config, args, devices)
+
+
+def test_has_web_server_ota_detects_platform() -> None:
+    """has_web_server_ota returns True when web_server OTA platform is configured."""
+    setup_core(
+        config={
+            CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}],
+        }
+    )
+    assert has_web_server_ota() is True
+    assert has_ota() is True
+
+
+def test_has_web_server_ota_returns_false_without_config() -> None:
+    """has_web_server_ota returns False when only native OTA is configured."""
+    setup_core(
+        config={
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
+        }
+    )
+    assert has_web_server_ota() is False
+    assert has_ota() is True
+
+
+def test_upload_program_web_server_only_auto_dispatches(
+    mock_run_web_server_ota: Mock,
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """When only web_server OTA is configured, upload_program picks it automatically."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_web_server_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}],
+        CONF_WEB_SERVER: {
+            CONF_PORT: 80,
+            CONF_AUTH: {CONF_USERNAME: "admin", CONF_PASSWORD: "pw"},
+        },
+    }
+    args = MockArgs()
+    devices = ["192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    expected_firmware = (
+        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+    )
+    mock_run_web_server_ota.assert_called_once_with(
+        ["192.168.1.100"], 80, "admin", "pw", expected_firmware
+    )
+    mock_run_ota.assert_not_called()
+
+
+def test_upload_program_web_server_no_auth(
+    mock_run_web_server_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """web_server OTA works without an auth block (passes None for credentials)."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_web_server_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}],
+        CONF_WEB_SERVER: {CONF_PORT: 8080},
+    }
+    args = MockArgs()
+    devices = ["192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    expected_firmware = (
+        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+    )
+    mock_run_web_server_ota.assert_called_once_with(
+        ["192.168.1.100"], 8080, None, None, expected_firmware
+    )
+
+
+def test_upload_program_both_platforms_default_prefers_native(
+    mock_run_ota: Mock,
+    mock_run_web_server_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """When both OTA platforms are configured, default selection is native API."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                CONF_PASSWORD: "secret",
+            },
+            {CONF_PLATFORM: CONF_WEB_SERVER},
+        ],
+        CONF_WEB_SERVER: {CONF_PORT: 80},
+    }
+    args = MockArgs()
+    devices = ["192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    mock_run_ota.assert_called_once()
+    mock_run_web_server_ota.assert_not_called()
+
+
+def test_upload_program_ota_platform_override_to_web_server(
+    mock_run_ota: Mock,
+    mock_run_web_server_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """--ota-platform web_server forces web_server OTA even when native is configured."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_web_server_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                CONF_PASSWORD: "secret",
+            },
+            {CONF_PLATFORM: CONF_WEB_SERVER},
+        ],
+        CONF_WEB_SERVER: {CONF_PORT: 80},
+    }
+    args = MockArgs(ota_platform=CONF_WEB_SERVER)
+    devices = ["192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    mock_run_ota.assert_not_called()
+    mock_run_web_server_ota.assert_called_once()
+
+
+def test_upload_program_ota_platform_unavailable(
+    mock_get_port_type: Mock,
+) -> None:
+    """--ota-platform must reference a platform that is actually configured."""
+    setup_core(platform=PLATFORM_ESP32)
+    mock_get_port_type.return_value = "NETWORK"
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                CONF_PASSWORD: "secret",
+            }
+        ],
+    }
+    args = MockArgs(ota_platform=CONF_WEB_SERVER)
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(EsphomeError, match="--ota-platform web_server"):
+        upload_program(config, args, devices)
+
+
+def test_upload_program_web_server_missing_component(
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """web_server OTA without a web_server component fails with a clear error."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+
+    config = {
+        CONF_OTA: [{CONF_PLATFORM: CONF_WEB_SERVER}],
+        # No CONF_WEB_SERVER
+    }
+    args = MockArgs()
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(EsphomeError, match="web_server.*not configured"):
+        upload_program(config, args, devices)
+
+
+def test_upload_program_unrelated_ota_platform_ignored(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """OTA list entries that are neither esphome nor web_server are ignored.
+
+    Covers the false branch in _choose_ota_platform's filter loop and the
+    no-match branch in _upload_via_native_api's lookup loop.
+    """
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_OTA: [
+            {CONF_PLATFORM: "http_request"},  # unrelated platform; ignored
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                CONF_PASSWORD: "secret",
+            },
+        ],
+    }
+    args = MockArgs()
+    devices = ["192.168.1.100"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    mock_run_ota.assert_called_once()
+
+
+def test_upload_program_duplicate_platform_dedup_in_error(
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """Duplicate same-platform OTA entries don't repeat in --ota-platform errors."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+
+    config = {
+        CONF_OTA: [
+            {CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3232},
+            {CONF_PLATFORM: CONF_ESPHOME, CONF_PORT: 3233},
+        ],
+    }
+    args = MockArgs(ota_platform=CONF_WEB_SERVER)
+    devices = ["192.168.1.100"]
+
+    with pytest.raises(EsphomeError) as excinfo:
+        upload_program(config, args, devices)
+
+    # Error mentions esphome once in the platform list, not "esphome, esphome".
+    msg = str(excinfo.value)
+    assert "esphome, esphome" not in msg
+    assert msg.endswith(": esphome")
+
+
+def test_upload_program_only_unrelated_ota_platforms(
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """Only unrelated OTA platforms configured -> raises like missing OTA."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+
+    config = {
+        CONF_OTA: [{CONF_PLATFORM: "http_request"}],
+    }
     args = MockArgs()
     devices = ["192.168.1.100"]
 
@@ -1202,7 +2380,7 @@ def test_upload_program_ota_with_mqtt_resolution(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, None, expected_firmware
+        ["192.168.1.100"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP
     )
 
 
@@ -1250,7 +2428,7 @@ def test_upload_program_ota_with_mqtt_empty_broker(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.50"], 3232, None, expected_firmware
+        ["192.168.1.50"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP
     )
     # Verify warning was logged
     assert "MQTT IP discovery failed" in caplog.text
@@ -1285,6 +2463,7 @@ def test_show_logs_serial(
     mock_get_port_type: Mock,
     mock_check_permissions: Mock,
     mock_run_miniterm: Mock,
+    mock_wait_for_serial_port: Mock,
 ) -> None:
     """Test show_logs with serial port."""
     setup_core(config={"logger": {}}, platform=PLATFORM_ESP32)
@@ -1333,7 +2512,34 @@ def test_show_logs_api(
 
     assert result == 0
     mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.1.100", "192.168.1.101"]
+        CORE.config, ["192.168.1.100", "192.168.1.101"], subscribe_states=True
+    )
+
+
+@patch("esphome.components.api.client.run_logs")
+def test_show_logs_api_no_states(
+    mock_run_logs: Mock,
+) -> None:
+    """Test show_logs with --no-states flag."""
+    setup_core(
+        config={
+            "logger": {},
+            CONF_API: {},
+            CONF_MDNS: {CONF_DISABLED: False},
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_run_logs.return_value = 0
+
+    args = MockArgs()
+    args.no_states = True
+    devices = ["192.168.1.100"]
+
+    result = show_logs(CORE.config, args, devices)
+
+    assert result == 0
+    mock_run_logs.assert_called_once_with(
+        CORE.config, ["192.168.1.100"], subscribe_states=False
     )
 
 
@@ -1359,7 +2565,9 @@ def test_show_logs_api_with_fqdn_mdns_disabled(
 
     assert result == 0
     # Should use the FQDN directly, not try MQTT lookup
-    mock_run_logs.assert_called_once_with(CORE.config, ["device.example.com"])
+    mock_run_logs.assert_called_once_with(
+        CORE.config, ["device.example.com"], subscribe_states=True
+    )
 
 
 @patch("esphome.components.api.client.run_logs")
@@ -1387,7 +2595,9 @@ def test_show_logs_api_with_mqtt_fallback(
 
     assert result == 0
     mock_mqtt_get_ip.assert_called_once_with(CORE.config, "user", "pass", "client")
-    mock_run_logs.assert_called_once_with(CORE.config, ["192.168.1.200"])
+    mock_run_logs.assert_called_once_with(
+        CORE.config, ["192.168.1.200"], subscribe_states=True
+    )
 
 
 @patch("esphome.mqtt.show_logs")
@@ -1606,6 +2816,8 @@ def test_get_port_type() -> None:
     assert get_port_type("esphome-device.local") == "NETWORK"
     assert get_port_type("10.0.0.1") == "NETWORK"
 
+    assert get_port_type("BOOTSEL") == "BOOTSEL"
+
 
 def test_has_mqtt_ip_lookup() -> None:
     """Test has_mqtt_ip_lookup function."""
@@ -1710,6 +2922,509 @@ def test_has_resolvable_address() -> None:
     assert has_resolvable_address() is False
 
 
+def test_has_name_add_mac_suffix() -> None:
+    """Test has_name_add_mac_suffix function."""
+
+    # Test with name_add_mac_suffix enabled
+    setup_core(config={CONF_ESPHOME: {CONF_NAME_ADD_MAC_SUFFIX: True}})
+    assert has_name_add_mac_suffix() is True
+
+    # Test with name_add_mac_suffix disabled
+    setup_core(config={CONF_ESPHOME: {CONF_NAME_ADD_MAC_SUFFIX: False}})
+    assert has_name_add_mac_suffix() is False
+
+    # Test with name_add_mac_suffix not set (defaults to False)
+    setup_core(config={CONF_ESPHOME: {}})
+    assert has_name_add_mac_suffix() is False
+
+    # Test with no esphome config
+    setup_core(config={})
+    assert has_name_add_mac_suffix() is False
+
+    # Test with no config at all
+    CORE.config = None
+    assert has_name_add_mac_suffix() is False
+
+
+@pytest.fixture
+def mock_mdns_discovery() -> Generator[MagicMock]:
+    """Fixture to mock the async mDNS discovery infrastructure.
+
+    Patches ``AsyncEsphomeZeroconf``, ``AsyncServiceBrowser`` and
+    ``AddressResolver`` in ``esphome.zeroconf`` and exposes hooks for tests to
+    stage browser events and control resolution results. The default
+    ``AddressResolver`` stub simulates a cache hit returning no addresses, so
+    matched hosts appear in the discovery output with empty address lists
+    unless the test overrides ``_resolver_setup``.
+    """
+    with (
+        patch("esphome.zeroconf.AsyncEsphomeZeroconf") as mock_aiozc_class,
+        patch("esphome.zeroconf.AsyncServiceBrowser") as mock_browser_class,
+        patch("esphome.zeroconf.AddressResolver") as mock_resolver_class,
+    ):
+        mock_aiozc = MagicMock()
+        mock_aiozc.zeroconf = MagicMock()
+        mock_aiozc.async_close = AsyncMock(return_value=None)
+        mock_aiozc_class.return_value = mock_aiozc
+
+        mock_browser = MagicMock()
+        mock_browser.async_cancel = AsyncMock(return_value=None)
+
+        # Default: each host gets a fresh resolver that hits the cache and
+        # returns no addresses. Tests can override via ``_resolver_setup``.
+        def default_resolver_factory(name: str) -> MagicMock:
+            resolver = MagicMock()
+            resolver._name = name
+            resolver.load_from_cache.return_value = True
+            resolver.async_request = AsyncMock(return_value=True)
+            resolver.parsed_scoped_addresses.return_value = []
+            return resolver
+
+        mock_resolver_class.side_effect = default_resolver_factory
+
+        # Store references for test access
+        mock_aiozc._mock_browser_class = mock_browser_class
+        mock_aiozc._mock_browser = mock_browser
+        mock_aiozc._mock_class = mock_aiozc_class
+        mock_aiozc._mock_resolver_class = mock_resolver_class
+        yield mock_aiozc
+
+
+@pytest.mark.parametrize(
+    ("discovered_services", "base_name", "expected_hosts"),
+    [
+        # Matching devices; different-prefix device is filtered out
+        (
+            [
+                ("mydevice-abc123._esphomelib._tcp.local.", ServiceStateChange.Added),
+                ("mydevice-def456._esphomelib._tcp.local.", ServiceStateChange.Added),
+                (
+                    "otherdevice-abcdef._esphomelib._tcp.local.",
+                    ServiceStateChange.Added,
+                ),
+            ],
+            "mydevice",
+            ["mydevice-abc123.local", "mydevice-def456.local"],
+        ),
+        # No matches at all
+        (
+            [
+                (
+                    "otherdevice-abcdef._esphomelib._tcp.local.",
+                    ServiceStateChange.Added,
+                ),
+            ],
+            "mydevice",
+            [],
+        ),
+        # Deduplication (same device Added then Updated)
+        (
+            [
+                ("mydevice-abc123._esphomelib._tcp.local.", ServiceStateChange.Added),
+                ("mydevice-abc123._esphomelib._tcp.local.", ServiceStateChange.Updated),
+            ],
+            "mydevice",
+            ["mydevice-abc123.local"],
+        ),
+        # Suffix must be exactly 6 hex chars: wrong length and non-hex are rejected
+        (
+            [
+                # too short
+                ("mydevice-abcd._esphomelib._tcp.local.", ServiceStateChange.Added),
+                # too long
+                (
+                    "mydevice-abcdef1._esphomelib._tcp.local.",
+                    ServiceStateChange.Added,
+                ),
+                # non-hex
+                ("mydevice-xyz123._esphomelib._tcp.local.", ServiceStateChange.Added),
+                # valid
+                ("mydevice-012345._esphomelib._tcp.local.", ServiceStateChange.Added),
+            ],
+            "mydevice",
+            ["mydevice-012345.local"],
+        ),
+        # Prefix-collision: base "foo" must not match "foo-bar-abc123"
+        (
+            [
+                ("foo-abcdef._esphomelib._tcp.local.", ServiceStateChange.Added),
+                ("foo-bar-abcdef._esphomelib._tcp.local.", ServiceStateChange.Added),
+            ],
+            "foo",
+            ["foo-abcdef.local"],
+        ),
+    ],
+    ids=[
+        "matching_with_filter",
+        "no_matches",
+        "deduplication",
+        "hex_suffix_filter",
+        "prefix_collision",
+    ],
+)
+def test_discover_mdns_devices(
+    mock_mdns_discovery: MagicMock,
+    discovered_services: list[tuple[str, ServiceStateChange]],
+    base_name: str,
+    expected_hosts: list[str],
+) -> None:
+    """Test discover_mdns_devices filtering and deduplication."""
+    mock_browser = mock_mdns_discovery._mock_browser
+
+    def capture_callback(
+        zc: MagicMock,
+        service_type: str,
+        handlers: list[Callable[..., None]],
+    ) -> MagicMock:
+        callback = handlers[0]
+        for service_name, state_change in discovered_services:
+            callback(
+                mock_mdns_discovery.zeroconf, service_type, service_name, state_change
+            )
+        return mock_browser
+
+    mock_mdns_discovery._mock_browser_class.side_effect = capture_callback
+
+    # Each discovered host gets a resolver that returns a unique IP string
+    # derived from its server name so we can assert per-host.
+    def resolver_factory(name: str) -> MagicMock:
+        resolver = MagicMock()
+        resolver._name = name
+        resolver.load_from_cache.return_value = True
+        resolver.async_request = AsyncMock(return_value=True)
+        resolver.parsed_scoped_addresses.return_value = [f"10.0.0.1#{name}"]
+        return resolver
+
+    mock_mdns_discovery._mock_resolver_class.side_effect = resolver_factory
+
+    result = discover_mdns_devices(base_name, timeout=0)
+
+    assert sorted(result) == expected_hosts
+    # Resolved addresses should be stored for matched hosts. AddressResolver
+    # receives the fully-qualified name (``<device>.local.``).
+    for host in expected_hosts:
+        short = host.partition(".")[0]
+        assert result[host] == [f"10.0.0.1#{short}.local."]
+    mock_browser.async_cancel.assert_awaited_once()
+    mock_mdns_discovery.async_close.assert_awaited_once()
+
+
+def test_discover_mdns_devices_init_failure(caplog: pytest.LogCaptureFixture) -> None:
+    """If AsyncEsphomeZeroconf fails to init, return empty dict and log warning."""
+    with (
+        patch(
+            "esphome.zeroconf.AsyncEsphomeZeroconf",
+            side_effect=OSError("no network"),
+        ),
+        caplog.at_level(logging.WARNING, logger="esphome.zeroconf"),
+    ):
+        result = discover_mdns_devices("mydevice", timeout=0)
+
+    assert result == {}
+    assert "mDNS discovery failed to initialize" in caplog.text
+
+
+def test_discover_mdns_devices_resolution_failure(
+    mock_mdns_discovery: MagicMock,
+) -> None:
+    """If resolution raises, the host is still listed with an empty address list."""
+    mock_browser = mock_mdns_discovery._mock_browser
+
+    def capture_callback(
+        zc: MagicMock,
+        service_type: str,
+        handlers: list[Callable[..., None]],
+    ) -> MagicMock:
+        handlers[0](
+            mock_mdns_discovery.zeroconf,
+            service_type,
+            "mydevice-abc123._esphomelib._tcp.local.",
+            ServiceStateChange.Added,
+        )
+        return mock_browser
+
+    mock_mdns_discovery._mock_browser_class.side_effect = capture_callback
+
+    # Resolver misses the cache, then async_request raises.
+    def failing_resolver_factory(name: str) -> MagicMock:
+        resolver = MagicMock()
+        resolver.load_from_cache.return_value = False
+        resolver.async_request = AsyncMock(side_effect=OSError("boom"))
+        resolver.parsed_scoped_addresses.return_value = []
+        return resolver
+
+    mock_mdns_discovery._mock_resolver_class.side_effect = failing_resolver_factory
+
+    result = discover_mdns_devices("mydevice", timeout=0)
+
+    assert result == {"mydevice-abc123.local": []}
+
+
+def test_discover_mdns_devices_ignores_removed_state(
+    mock_mdns_discovery: MagicMock,
+) -> None:
+    """``Removed`` state changes are ignored and do not appear in the result."""
+    mock_browser = mock_mdns_discovery._mock_browser
+
+    def capture_callback(
+        zc: MagicMock,
+        service_type: str,
+        handlers: list[Callable[..., None]],
+    ) -> MagicMock:
+        handlers[0](
+            mock_mdns_discovery.zeroconf,
+            service_type,
+            "mydevice-abc123._esphomelib._tcp.local.",
+            ServiceStateChange.Removed,
+        )
+        return mock_browser
+
+    mock_mdns_discovery._mock_browser_class.side_effect = capture_callback
+
+    result = discover_mdns_devices("mydevice", timeout=0)
+
+    assert result == {}
+    # No AddressResolver should have been constructed since no host matched.
+    mock_mdns_discovery._mock_resolver_class.assert_not_called()
+
+
+def test_discover_mdns_devices_empty_resolution(
+    mock_mdns_discovery: MagicMock,
+) -> None:
+    """Host is listed with empty addresses when resolver returns no addresses."""
+    mock_browser = mock_mdns_discovery._mock_browser
+
+    def capture_callback(
+        zc: MagicMock,
+        service_type: str,
+        handlers: list[Callable[..., None]],
+    ) -> MagicMock:
+        handlers[0](
+            mock_mdns_discovery.zeroconf,
+            service_type,
+            "mydevice-abc123._esphomelib._tcp.local.",
+            ServiceStateChange.Added,
+        )
+        return mock_browser
+
+    mock_mdns_discovery._mock_browser_class.side_effect = capture_callback
+    # Default fixture resolver is a cache-hit with no addresses — simulates
+    # the "browse found it but no A/AAAA records are available" case.
+
+    result = discover_mdns_devices("mydevice", timeout=0)
+
+    assert result == {"mydevice-abc123.local": []}
+
+
+def test_resolve_network_devices_expands_cached_mdns_hosts(tmp_path: Path) -> None:
+    """Hostnames in ``CORE.address_cache`` are expanded to their cached IPs."""
+    setup_core(tmp_path=tmp_path)
+    CORE.address_cache = AddressCache(
+        mdns_cache={
+            "device-abc123.local": ["10.0.0.1", "10.0.0.2"],
+        }
+    )
+
+    result = _resolve_network_devices(
+        ["device-abc123.local", "192.168.1.50", "device-abc123.local"],
+        CORE.config,
+        MockArgs(),
+    )
+
+    # Cached hostname is replaced with its IPs (deduplicated across repeats)
+    # and the literal IP is preserved after.
+    assert result == ["10.0.0.1", "10.0.0.2", "192.168.1.50"]
+
+
+def test_resolve_network_devices_keeps_uncached_hosts(tmp_path: Path) -> None:
+    """Hostnames not in the cache pass through unchanged."""
+    setup_core(tmp_path=tmp_path)
+    CORE.address_cache = AddressCache()
+
+    result = _resolve_network_devices(
+        ["unknown.local", "192.168.1.50"],
+        CORE.config,
+        MockArgs(),
+    )
+
+    assert result == ["unknown.local", "192.168.1.50"]
+
+
+def test_await_discovery_timeout_returns_empty(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """If the discovery runner never sets its event, return {} and warn."""
+    stub = MagicMock()
+    stub.event.wait.return_value = False
+    stub.exception = None
+    stub.result = {"should_not_be_read": ["1.2.3.4"]}
+
+    with caplog.at_level(logging.WARNING, logger="esphome.zeroconf"):
+        result = _await_discovery(stub, timeout=0.01)
+
+    assert result == {}
+    assert "mDNS discovery timed out after 0.0s" in caplog.text
+    stub.event.wait.assert_called_once_with(timeout=pytest.approx(2.01))
+
+
+def test_await_discovery_propagates_exception_as_empty(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """If the coroutine raised, log and return {} rather than re-raise."""
+    stub = MagicMock()
+    stub.event.wait.return_value = True
+    stub.exception = RuntimeError("boom")
+    stub.result = None
+
+    with caplog.at_level(logging.WARNING, logger="esphome.zeroconf"):
+        result = _await_discovery(stub, timeout=5.0)
+
+    assert result == {}
+    assert "mDNS discovery failed: boom" in caplog.text
+
+
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_discovers_mac_suffix_devices(tmp_path: Path) -> None:
+    """Interactive mode discovers MAC-suffixed devices and populates the cache."""
+    setup_core(
+        config={
+            CONF_ESPHOME: {CONF_NAME_ADD_MAC_SUFFIX: True},
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
+        },
+        address="mydevice.local",
+        tmp_path=tmp_path,
+        name="mydevice",
+    )
+    CORE.address_cache = None
+
+    discovered = {
+        "mydevice-abc123.local": ["10.0.0.1"],
+        "mydevice-def456.local": ["10.0.0.2"],
+    }
+    with (
+        patch(
+            "esphome.zeroconf.discover_mdns_devices", return_value=discovered
+        ) as mock_discover,
+        patch(
+            "esphome.__main__.choose_prompt", return_value="mydevice-abc123.local"
+        ) as mock_prompt,
+    ):
+        result = choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+
+    assert result == ["mydevice-abc123.local"]
+    mock_discover.assert_called_once_with("mydevice")
+    mock_prompt.assert_called_once_with(
+        [
+            ("Over The Air (mydevice-abc123.local)", "mydevice-abc123.local"),
+            ("Over The Air (mydevice-def456.local)", "mydevice-def456.local"),
+        ],
+        purpose=Purpose.UPLOADING,
+    )
+    # Resolved IPs should be cached so downstream resolution skips a second
+    # Zeroconf lookup.
+    assert CORE.address_cache is not None
+    assert CORE.address_cache.get_mdns_addresses("mydevice-abc123.local") == [
+        "10.0.0.1"
+    ]
+    assert CORE.address_cache.get_mdns_addresses("mydevice-def456.local") == [
+        "10.0.0.2"
+    ]
+
+
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_mac_suffix_no_devices_found(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """When discovery finds nothing, no OTA option is offered and a warning logs."""
+    setup_core(
+        config={
+            CONF_ESPHOME: {CONF_NAME_ADD_MAC_SUFFIX: True},
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
+        },
+        address="mydevice.local",
+        tmp_path=tmp_path,
+        name="mydevice",
+    )
+
+    with (
+        patch("esphome.zeroconf.discover_mdns_devices", return_value={}),
+        caplog.at_level(logging.WARNING, logger="esphome.__main__"),
+        pytest.raises(EsphomeError),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+
+    assert "No devices matching 'mydevice-<mac>.local'" in caplog.text
+
+
+def test_choose_upload_log_host_default_ota_discovers_mac_suffix(
+    tmp_path: Path,
+) -> None:
+    """``--device OTA`` also runs mDNS discovery when name_add_mac_suffix is on."""
+    setup_core(
+        config={
+            CONF_ESPHOME: {CONF_NAME_ADD_MAC_SUFFIX: True},
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
+        },
+        address="mydevice.local",
+        tmp_path=tmp_path,
+        name="mydevice",
+    )
+    CORE.address_cache = None
+
+    discovered = {
+        "mydevice-abc123.local": ["10.0.0.1"],
+        "mydevice-def456.local": ["10.0.0.2"],
+    }
+    with patch(
+        "esphome.zeroconf.discover_mdns_devices", return_value=discovered
+    ) as mock_discover:
+        result = choose_upload_log_host(
+            default="OTA",
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+
+    # Both discovered hostnames are returned so aioesphomeapi / espota2 can
+    # try each in turn with the cached IPs.
+    assert result == ["mydevice-abc123.local", "mydevice-def456.local"]
+    mock_discover.assert_called_once_with("mydevice")
+    assert CORE.address_cache is not None
+    assert CORE.address_cache.get_mdns_addresses("mydevice-abc123.local") == [
+        "10.0.0.1"
+    ]
+
+
+def test_choose_upload_log_host_default_ota_no_suffix_discovery(
+    tmp_path: Path,
+) -> None:
+    """``--device OTA`` without name_add_mac_suffix uses CORE.address as-is."""
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]},
+        address="192.168.1.100",
+        tmp_path=tmp_path,
+        name="mydevice",
+    )
+
+    with patch("esphome.zeroconf.discover_mdns_devices") as mock_discover:
+        result = choose_upload_log_host(
+            default="OTA",
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+
+    assert result == ["192.168.1.100"]
+    # Discovery must NOT run when name_add_mac_suffix is disabled.
+    mock_discover.assert_not_called()
+
+
 def test_command_wizard(tmp_path: Path) -> None:
     """Test command_wizard function."""
     config_file = tmp_path / "test.yaml"
@@ -1723,6 +3438,33 @@ def test_command_wizard(tmp_path: Path) -> None:
 
         assert result == 0
         mock_wizard.assert_called_once_with(config_file)
+
+
+def test_command_config_hash(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+) -> None:
+    """command_config_hash runs codegen then prints CORE.config_hash.
+
+    The printed format must match `0x{config_hash:08x}` used by
+    generate_build_info_data_cpp so the value can be compared byte-for-byte
+    against the ESPHOME_CONFIG_HASH embedded in firmware.
+    """
+    setup_core(tmp_path=tmp_path, config={"esphome": {"name": "test"}})
+    args = MockArgs()
+
+    # generate_cpp_contents requires real components to be loaded; mock it out
+    # so this test isolates the command's output contract. The command must
+    # still call it (codegen can mutate config, which affects the hash).
+    with patch("esphome.__main__.generate_cpp_contents") as mock_generate:
+        result = command_config_hash(args, CORE.config)
+
+    assert result == 0
+    mock_generate.assert_called_once_with(CORE.config)
+
+    output = strip_ansi_codes(capfd.readouterr().out).strip()
+    assert re.fullmatch(r"0x[0-9a-f]{8}", output)
+    assert output == f"0x{CORE.config_hash:08x}"
 
 
 def test_command_rename_invalid_characters(
@@ -1883,6 +3625,467 @@ esp32:
 
     captured = capfd.readouterr()
     assert "Rename failed" in captured.out
+
+
+def test_command_rename_install_failure_reverts(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+    mock_run_external_process: Mock,
+) -> None:
+    """Test rename when the install (esphome run) step fails."""
+    config_file = tmp_path / "oldname.yaml"
+    config_file.write_text("""
+esphome:
+  name: oldname
+
+esp32:
+  board: nodemcu-32s
+""")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
+
+    args = MockArgs(name="newname", dashboard=False)
+
+    # First call (config validation) succeeds; second (esphome run) fails.
+    mock_run_external_process.side_effect = [0, 1]
+
+    result = command_rename(args, {})
+
+    assert result == 1
+
+    # New file was unlinked when install failed.
+    new_file = tmp_path / "newname.yaml"
+    assert not new_file.exists()
+
+    # Old file is preserved so the device stays reachable under the
+    # original hostname.
+    assert config_file.exists()
+
+
+def test_command_rename_target_exists_refuses(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+    mock_run_external_process: Mock,
+) -> None:
+    """Test rename refuses when the target filename already exists.
+
+    Without this guard, the rename would overwrite the unrelated
+    device's YAML and OTA-install our firmware to the wrong device.
+    """
+    config_file = tmp_path / "oldname.yaml"
+    config_file.write_text("""
+esphome:
+  name: oldname
+
+esp32:
+  board: nodemcu-32s
+""")
+    target_file = tmp_path / "newname.yaml"
+    target_file.write_text("""
+esphome:
+  name: someoneelse
+
+esp32:
+  board: nodemcu-32s
+""")
+    target_original = target_file.read_text()
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
+
+    args = MockArgs(name="newname", dashboard=False)
+
+    result = command_rename(args, {})
+
+    assert result == 1
+    # No subprocess work happened — refusal is up-front.
+    mock_run_external_process.assert_not_called()
+    # Target file untouched: same content, still on disk.
+    assert target_file.exists()
+    assert target_file.read_text() == target_original
+    # Source file untouched.
+    assert config_file.exists()
+
+    captured = capfd.readouterr()
+    assert "already exists" in captured.out
+
+
+def test_command_rename_same_name_refuses(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+    mock_run_external_process: Mock,
+) -> None:
+    """Test rename refuses when the new name matches the current name.
+
+    A same-name rename would otherwise re-write the YAML and queue
+    a redundant compile + install — wasted work the user almost
+    certainly didn't intend.
+    """
+    config_file = tmp_path / "samename.yaml"
+    config_file.write_text("""
+esphome:
+  name: samename
+
+esp32:
+  board: nodemcu-32s
+""")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "samename"}}
+
+    args = MockArgs(name="samename", dashboard=False)
+
+    result = command_rename(args, {})
+
+    assert result == 1
+    mock_run_external_process.assert_not_called()
+    # File preserved verbatim — no rewrite happened.
+    assert config_file.exists()
+
+    captured = capfd.readouterr()
+    assert "already" in captured.out.lower()
+
+
+def test_command_rename_does_not_touch_friendly_name_substring(
+    tmp_path: Path,
+    mock_run_external_process: Mock,
+) -> None:
+    r"""Test rename does not match the ``name:`` substring of ``friendly_name:``.
+
+    Without anchoring the regex at line start, the pattern
+    ``\s*name:\s+<old>`` could match the trailing ``name:``
+    substring inside ``friendly_name: <old>``. The rewrite would
+    flip both lines to the new name, leaving the user with a
+    silently corrupted ``friendly_name``.
+    """
+    config_file = tmp_path / "oldname.yaml"
+    config_file.write_text("""
+esphome:
+  name: oldname
+  friendly_name: oldname
+
+esp32:
+  board: nodemcu-32s
+""")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "oldname"}}
+
+    args = MockArgs(name="newname", dashboard=False)
+    mock_run_external_process.return_value = 0
+
+    result = command_rename(args, {})
+
+    assert result == 0
+    new_file = tmp_path / "newname.yaml"
+    content = new_file.read_text()
+    # esphome.name swapped.
+    assert 'name: "newname"' in content
+    # friendly_name kept verbatim.
+    assert "friendly_name: oldname" in content
+
+
+def test_command_rename_does_not_match_old_name_as_value_prefix(
+    tmp_path: Path,
+    mock_run_external_process: Mock,
+) -> None:
+    r"""Test rename does not match ``old_name`` as a prefix of a longer value.
+
+    With ``old_name = kitchen`` the value ``kitchen2`` (a sensor
+    or wifi entry) would otherwise match the unanchored
+    ``["']?kitchen["']?`` pattern at the prefix and get
+    rewritten to the new name. The end-of-value lookahead keeps
+    the match restricted to whole tokens.
+    """
+    config_file = tmp_path / "kitchen.yaml"
+    config_file.write_text("""
+esphome:
+  name: kitchen
+
+esp32:
+  board: nodemcu-32s
+
+wifi:
+  ap:
+    ssid: kitchen2
+""")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "kitchen"}}
+
+    args = MockArgs(name="garage", dashboard=False)
+    mock_run_external_process.return_value = 0
+
+    result = command_rename(args, {})
+
+    assert result == 0
+    new_file = tmp_path / "garage.yaml"
+    content = new_file.read_text()
+    assert 'name: "garage"' in content
+    # The wifi ssid value is unrelated and stays intact.
+    assert "ssid: kitchen2" in content
+
+
+def test_command_rename_same_resolved_name_refuses(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+    mock_run_external_process: Mock,
+) -> None:
+    """Test rename refuses when ``new_name`` matches the resolved device name.
+
+    The path-equality check only catches the case where the
+    config filename matches the device name. For a config whose
+    filename and ``esphome.name`` differ (here ``weird-file.yaml``
+    holds ``esphome.name: kitchen``), running
+    ``esphome rename weird-file.yaml kitchen`` would otherwise
+    fall through to the rewrite + install: the YAML's name stays
+    ``kitchen``, the file is renamed to ``kitchen.yaml``, and the
+    device gets a redundant flash. Refuse up-front so the
+    "already the device's name" message matches reality.
+    """
+    config_file = tmp_path / "weird-file.yaml"
+    config_file.write_text("""
+esphome:
+  name: kitchen
+
+esp32:
+  board: nodemcu-32s
+""")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "kitchen"}}
+
+    args = MockArgs(name="kitchen", dashboard=False)
+
+    result = command_rename(args, {})
+
+    assert result == 1
+    mock_run_external_process.assert_not_called()
+    # Source file untouched, no derived target written.
+    assert config_file.exists()
+    assert not (tmp_path / "kitchen.yaml").exists()
+
+    captured = capfd.readouterr()
+    assert "already" in captured.out.lower()
+
+
+def test_command_rename_target_path_equals_source_refuses(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+    mock_run_external_process: Mock,
+) -> None:
+    """Test rename refuses when the new path resolves to the source file.
+
+    Reachable only when the YAML's filename and ``esphome.name``
+    disagree — here ``kitchen.yaml`` holds ``esphome.name: garage``
+    and the user runs ``esphome rename kitchen.yaml kitchen``. The
+    name-equality check above passes (``garage != kitchen``), but
+    ``<config_dir>/kitchen.yaml`` resolves to the source file
+    itself, so the rewrite would clobber the source mid-rename.
+    Refuse rather than silently overwriting.
+    """
+    config_file = tmp_path / "kitchen.yaml"
+    config_file.write_text("""
+esphome:
+  name: garage
+
+esp32:
+  board: nodemcu-32s
+""")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "garage"}}
+
+    args = MockArgs(name="kitchen", dashboard=False)
+
+    result = command_rename(args, {})
+
+    assert result == 1
+    mock_run_external_process.assert_not_called()
+    # Source file still present and unmodified.
+    assert config_file.exists()
+    assert "name: garage" in config_file.read_text()
+
+    captured = capfd.readouterr()
+    assert "already" in captured.out.lower()
+
+
+def test_command_rename_does_not_touch_lookalike_name_in_other_blocks(
+    tmp_path: Path,
+    mock_run_external_process: Mock,
+) -> None:
+    """Test rename only swaps the esphome.name line.
+
+    A device whose name happens to match a sensor's / output's
+    ``name:`` value must not have those other names rewritten —
+    they're independent. Without an anchor for the esphome block
+    a naive regex would clobber every line whose value matches.
+    """
+    config_file = tmp_path / "kitchen.yaml"
+    config_file.write_text("""
+esphome:
+  name: kitchen
+
+esp32:
+  board: nodemcu-32s
+
+sensor:
+  - platform: template
+    name: kitchen
+    lambda: 'return 0;'
+""")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "kitchen"}}
+
+    args = MockArgs(name="garage", dashboard=False)
+    mock_run_external_process.return_value = 0
+
+    result = command_rename(args, {})
+
+    assert result == 0
+
+    new_file = tmp_path / "garage.yaml"
+    content = new_file.read_text()
+    # esphome.name renamed.
+    assert 'name: "garage"' in content
+    # Sensor's name is the user's entity name — must not be touched.
+    assert "    name: kitchen\n" in content
+
+
+def test_command_rename_preserves_trailing_comment(
+    tmp_path: Path,
+    mock_run_external_process: Mock,
+) -> None:
+    """Test rename preserves a trailing ``# comment`` on the name line."""
+    config_file = tmp_path / "kitchen.yaml"
+    config_file.write_text("""
+esphome:
+  name: kitchen  # primary device
+
+esp32:
+  board: nodemcu-32s
+""")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "kitchen"}}
+
+    args = MockArgs(name="garage", dashboard=False)
+    mock_run_external_process.return_value = 0
+
+    result = command_rename(args, {})
+
+    assert result == 0
+
+    new_file = tmp_path / "garage.yaml"
+    content = new_file.read_text()
+    assert "# primary device" in content
+
+
+def test_command_rename_handles_double_quoted_value(
+    tmp_path: Path,
+    mock_run_external_process: Mock,
+) -> None:
+    """Test rename matches when the existing value is double-quoted."""
+    config_file = tmp_path / "kitchen.yaml"
+    config_file.write_text("""
+esphome:
+  name: "kitchen"
+
+esp32:
+  board: nodemcu-32s
+""")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "kitchen"}}
+
+    args = MockArgs(name="garage", dashboard=False)
+    mock_run_external_process.return_value = 0
+
+    result = command_rename(args, {})
+
+    assert result == 0
+    new_file = tmp_path / "garage.yaml"
+    assert 'name: "garage"' in new_file.read_text()
+
+
+def test_command_rename_handles_single_quoted_value(
+    tmp_path: Path,
+    mock_run_external_process: Mock,
+) -> None:
+    """Test rename matches when the existing value is single-quoted."""
+    config_file = tmp_path / "kitchen.yaml"
+    config_file.write_text("""
+esphome:
+  name: 'kitchen'
+
+esp32:
+  board: nodemcu-32s
+""")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {CONF_ESPHOME: {CONF_NAME: "kitchen"}}
+
+    args = MockArgs(name="garage", dashboard=False)
+    mock_run_external_process.return_value = 0
+
+    result = command_rename(args, {})
+
+    assert result == 0
+    new_file = tmp_path / "garage.yaml"
+    assert 'name: "garage"' in new_file.read_text()
+
+
+def test_command_rename_too_many_substitution_matches_refuses(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+    mock_run_external_process: Mock,
+) -> None:
+    """Test rename refuses when ``${var}`` resolves to multiple matches.
+
+    When ``esphome.name: ${device_name}`` and the substitution
+    definition ``device_name: foo`` appears more than once in the
+    YAML (e.g. inside multiple included blocks), the regex rewrite
+    can't tell which one to flip. Rather than silently picking one
+    or rewriting both, the command refuses.
+    """
+    config_file = tmp_path / "oldname.yaml"
+    config_file.write_text("""
+substitutions:
+  device_name: oldname
+
+esphome:
+  name: ${device_name}
+
+# A copy-pasted block that re-declares the substitution at the
+# same indent level - happens when users splice in a packaged
+# fragment without renaming the variable.
+example:
+  device_name: oldname
+
+esp32:
+  board: nodemcu-32s
+""")
+    setup_core(tmp_path=tmp_path)
+    CORE.config_path = config_file
+    CORE.config = {
+        CONF_ESPHOME: {CONF_NAME: "oldname"},
+        CONF_SUBSTITUTIONS: {"device_name": "oldname"},
+    }
+
+    args = MockArgs(name="newname", dashboard=False)
+
+    result = command_rename(args, {})
+
+    assert result == 1
+    mock_run_external_process.assert_not_called()
+    # File untouched.
+    assert config_file.exists()
+    assert "device_name: oldname" in config_file.read_text()
+
+    captured = capfd.readouterr()
+    assert "Too many matches" in captured.out
 
 
 def test_command_update_all_path_string_conversion(
@@ -2190,7 +4393,11 @@ def test_upload_program_ota_static_ip_with_mqttip(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100", "192.168.2.50"], 3232, None, expected_firmware
+        ["192.168.1.100", "192.168.2.50"],
+        3232,
+        None,
+        expected_firmware,
+        OTA_TYPE_UPDATE_APP,
     )
 
 
@@ -2233,7 +4440,11 @@ def test_upload_program_ota_multiple_mqttip_resolves_once(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.2.50", "192.168.2.51", "192.168.1.100"], 3232, None, expected_firmware
+        ["192.168.2.50", "192.168.2.51", "192.168.1.100"],
+        3232,
+        None,
+        expected_firmware,
+        OTA_TYPE_UPDATE_APP,
     )
 
 
@@ -2315,7 +4526,7 @@ def test_show_logs_api_static_ip_with_mqttip(
 
     # Verify run_logs was called with both IPs
     mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.1.100", "192.168.2.50"]
+        CORE.config, ["192.168.1.100", "192.168.2.50"], subscribe_states=True
     )
 
 
@@ -2351,7 +4562,9 @@ def test_show_logs_api_multiple_mqttip_resolves_once(
     # Note: "MQTT" is a different magic string from "MQTTIP", but both trigger MQTT resolution
     # The _resolve_network_devices helper filters out both after first resolution
     mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.2.50", "192.168.2.51", "192.168.1.100"]
+        CORE.config,
+        ["192.168.2.50", "192.168.2.51", "192.168.1.100"],
+        subscribe_states=True,
     )
 
 
@@ -2396,7 +4609,7 @@ def test_upload_program_ota_mqtt_timeout_fallback(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, None, expected_firmware
+        ["192.168.1.100"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP
     )
 
 
@@ -2431,7 +4644,9 @@ def test_show_logs_api_mqtt_timeout_fallback(
     mock_mqtt_get_ip.assert_called_once_with(CORE.config, "user", "pass", "client")
 
     # Verify run_logs was called with only the static IP (MQTT failed)
-    mock_run_logs.assert_called_once_with(CORE.config, ["192.168.1.100"])
+    mock_run_logs.assert_called_once_with(
+        CORE.config, ["192.168.1.100"], subscribe_states=True
+    )
 
 
 def test_detect_external_components_no_external(
@@ -2511,7 +4726,7 @@ def test_command_analyze_memory_success(
     firmware_elf.write_text("mock elf file")
 
     # Mock idedata
-    mock_idedata_obj = MagicMock(spec=platformio_api.IDEData)
+    mock_idedata_obj = MagicMock(spec=toolchain.IDEData)
     mock_idedata_obj.firmware_elf_path = str(firmware_elf)
     mock_idedata_obj.objdump_path = "/path/to/objdump"
     mock_idedata_obj.readelf_path = "/path/to/readelf"
@@ -2583,7 +4798,7 @@ def test_command_analyze_memory_with_external_components(
     firmware_elf.write_text("mock elf file")
 
     # Mock idedata
-    mock_idedata_obj = MagicMock(spec=platformio_api.IDEData)
+    mock_idedata_obj = MagicMock(spec=toolchain.IDEData)
     mock_idedata_obj.firmware_elf_path = str(firmware_elf)
     mock_idedata_obj.objdump_path = "/path/to/objdump"
     mock_idedata_obj.readelf_path = "/path/to/readelf"
@@ -2674,16 +4889,18 @@ def test_command_analyze_memory_no_idedata(
 
 @pytest.fixture
 def mock_compile_build_info_run_compile() -> Generator[Mock]:
-    """Mock platformio_api.run_compile for build_info tests."""
-    with patch("esphome.platformio_api.run_compile", return_value=0) as mock:
+    """Mock toolchain.run_compile for build_info tests."""
+    with patch("esphome.platformio.toolchain.run_compile", return_value=0) as mock:
         yield mock
 
 
 @pytest.fixture
 def mock_compile_build_info_get_idedata() -> Generator[Mock]:
-    """Mock platformio_api.get_idedata for build_info tests."""
+    """Mock toolchain.get_idedata for build_info tests."""
     mock_idedata = MagicMock()
-    with patch("esphome.platformio_api.get_idedata", return_value=mock_idedata) as mock:
+    with patch(
+        "esphome.platformio.toolchain.get_idedata", return_value=mock_idedata
+    ) as mock:
         yield mock
 
 
@@ -2951,6 +5168,7 @@ def test_run_miniterm_batches_lines_with_same_timestamp(
 
     mock_serial = MockSerial([chunk, MOCK_SERIAL_END])
 
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
     config = {
         CONF_LOGGER: {
             CONF_BAUD_RATE: 115200,
@@ -2961,7 +5179,7 @@ def test_run_miniterm_batches_lines_with_same_timestamp(
 
     with (
         patch("serial.Serial", return_value=mock_serial),
-        patch.object(platformio_api, "process_stacktrace") as mock_bt,
+        patch.object(esp32, "process_stacktrace") as mock_bt,
     ):
         mock_bt.return_value = False
         result = run_miniterm(config, "/dev/ttyUSB0", args)
@@ -2989,6 +5207,7 @@ def test_run_miniterm_different_chunks_different_timestamps(
 
     mock_serial = MockSerial([chunk1, chunk2, MOCK_SERIAL_END])
 
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
     config = {
         CONF_LOGGER: {
             CONF_BAUD_RATE: 115200,
@@ -2999,7 +5218,7 @@ def test_run_miniterm_different_chunks_different_timestamps(
 
     with (
         patch("serial.Serial", return_value=mock_serial),
-        patch.object(platformio_api, "process_stacktrace") as mock_bt,
+        patch.object(esp32, "process_stacktrace") as mock_bt,
     ):
         mock_bt.return_value = False
         result = run_miniterm(config, "/dev/ttyUSB0", args)
@@ -3019,6 +5238,7 @@ def test_run_miniterm_handles_split_lines() -> None:
 
     mock_serial = MockSerial([chunk1, chunk2, MOCK_SERIAL_END])
 
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
     config = {
         CONF_LOGGER: {
             CONF_BAUD_RATE: 115200,
@@ -3029,7 +5249,7 @@ def test_run_miniterm_handles_split_lines() -> None:
 
     with (
         patch("serial.Serial", return_value=mock_serial),
-        patch.object(platformio_api, "process_stacktrace") as mock_bt,
+        patch.object(esp32, "process_stacktrace") as mock_bt,
         patch("esphome.__main__.safe_print") as mock_print,
     ):
         mock_bt.return_value = False
@@ -3057,6 +5277,7 @@ def test_run_miniterm_backtrace_state_maintained() -> None:
 
     mock_serial = MockSerial([backtrace_chunk, MOCK_SERIAL_END])
 
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
     config = {
         CONF_LOGGER: {
             CONF_BAUD_RATE: 115200,
@@ -3082,7 +5303,7 @@ def test_run_miniterm_backtrace_state_maintained() -> None:
     with (
         patch("serial.Serial", return_value=mock_serial),
         patch.object(
-            platformio_api,
+            esp32,
             "process_stacktrace",
             side_effect=track_backtrace_state,
         ),
@@ -3122,6 +5343,7 @@ def test_run_miniterm_handles_empty_reads(
 
     mock_serial = MockSerial([b"", chunk, b"", MOCK_SERIAL_END])
 
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
     config = {
         CONF_LOGGER: {
             CONF_BAUD_RATE: 115200,
@@ -3132,7 +5354,7 @@ def test_run_miniterm_handles_empty_reads(
 
     with (
         patch("serial.Serial", return_value=mock_serial),
-        patch.object(platformio_api, "process_stacktrace") as mock_bt,
+        patch.object(esp32, "process_stacktrace") as mock_bt,
     ):
         mock_bt.return_value = False
         result = run_miniterm(config, "/dev/ttyUSB0", args)
@@ -3194,6 +5416,7 @@ def test_run_miniterm_buffer_limit_prevents_unbounded_growth() -> None:
 
     mock_serial = MockSerial([large_data_no_newline, final_line, MOCK_SERIAL_END])
 
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
     config = {
         CONF_LOGGER: {
             CONF_BAUD_RATE: 115200,
@@ -3204,7 +5427,7 @@ def test_run_miniterm_buffer_limit_prevents_unbounded_growth() -> None:
 
     with (
         patch("serial.Serial", return_value=mock_serial),
-        patch.object(platformio_api, "process_stacktrace") as mock_bt,
+        patch.object(esp32, "process_stacktrace") as mock_bt,
         patch("esphome.__main__.safe_print") as mock_print,
         patch("esphome.__main__.SERIAL_BUFFER_MAX_SIZE", test_buffer_limit),
     ):
@@ -3291,3 +5514,435 @@ esp32:
         clean_output.split("SUMMARY")[1] if "SUMMARY" in clean_output else ""
     )
     assert "secrets.yaml" not in summary_section
+
+
+# --- command_bundle tests ---
+
+
+def test_command_bundle_list_only(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+) -> None:
+    """Test command_bundle with --list-only prints files and returns 0."""
+    mock_files = [
+        BundleFile(path="device.yaml", source=tmp_path / "device.yaml"),
+        BundleFile(path="secrets.yaml", source=tmp_path / "secrets.yaml"),
+        BundleFile(path="common/base.yaml", source=tmp_path / "common" / "base.yaml"),
+    ]
+
+    args = MockArgs(list_only=True)
+    config: dict[str, Any] = {}
+
+    mock_creator = MagicMock()
+    mock_creator.discover_files.return_value = mock_files
+
+    with patch("esphome.bundle.ConfigBundleCreator", return_value=mock_creator):
+        result = command_bundle(args, config)
+
+    assert result == 0
+    captured = capsys.readouterr()
+    # Files should be printed in sorted order
+    assert "common/base.yaml" in captured.out
+    assert "device.yaml" in captured.out
+    assert "secrets.yaml" in captured.out
+
+
+def test_command_bundle_list_only_empty(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+) -> None:
+    """Test command_bundle --list-only with no files discovered."""
+    args = MockArgs(list_only=True)
+    config: dict[str, Any] = {}
+
+    mock_creator = MagicMock()
+    mock_creator.discover_files.return_value = []
+
+    with patch("esphome.bundle.ConfigBundleCreator", return_value=mock_creator):
+        result = command_bundle(args, config)
+
+    assert result == 0
+
+
+def test_command_bundle_creates_archive(tmp_path: Path) -> None:
+    """Test command_bundle creates archive at default output path."""
+    CORE.config_path = tmp_path / "mydevice.yaml"
+
+    mock_result = BundleResult(
+        data=b"fake-tar-gz-data",
+        manifest={"manifest_version": 1},
+        files=[BundleFile(path="mydevice.yaml", source=tmp_path / "mydevice.yaml")],
+    )
+
+    args = MockArgs()
+    config: dict[str, Any] = {}
+
+    mock_creator = MagicMock()
+    mock_creator.create_bundle.return_value = mock_result
+
+    with patch("esphome.bundle.ConfigBundleCreator", return_value=mock_creator):
+        result = command_bundle(args, config)
+
+    assert result == 0
+    output_path = tmp_path / f"mydevice{BUNDLE_EXTENSION}"
+    assert output_path.exists()
+    assert output_path.read_bytes() == b"fake-tar-gz-data"
+
+
+def test_command_bundle_custom_output(tmp_path: Path) -> None:
+    """Test command_bundle with -o custom output path."""
+    custom_output = tmp_path / "output" / "custom.esphomebundle.tar.gz"
+    mock_result = BundleResult(
+        data=b"custom-output-data",
+        manifest={"manifest_version": 1},
+        files=[BundleFile(path="mydevice.yaml", source=tmp_path / "mydevice.yaml")],
+    )
+
+    args = MockArgs(output=str(custom_output))
+    config: dict[str, Any] = {}
+
+    mock_creator = MagicMock()
+    mock_creator.create_bundle.return_value = mock_result
+
+    with patch("esphome.bundle.ConfigBundleCreator", return_value=mock_creator):
+        result = command_bundle(args, config)
+
+    assert result == 0
+    assert custom_output.exists()
+    assert custom_output.read_bytes() == b"custom-output-data"
+
+
+def test_command_bundle_creates_parent_dirs(tmp_path: Path) -> None:
+    """Test command_bundle creates parent directories for output path."""
+    nested_output = tmp_path / "deep" / "nested" / "dir" / "out.tar.gz"
+    mock_result = BundleResult(
+        data=b"data",
+        manifest={"manifest_version": 1},
+        files=[BundleFile(path="mydevice.yaml", source=tmp_path / "mydevice.yaml")],
+    )
+
+    args = MockArgs(output=str(nested_output))
+    config: dict[str, Any] = {}
+
+    mock_creator = MagicMock()
+    mock_creator.create_bundle.return_value = mock_result
+
+    with patch("esphome.bundle.ConfigBundleCreator", return_value=mock_creator):
+        result = command_bundle(args, config)
+
+    assert result == 0
+    assert nested_output.exists()
+
+
+def test_command_bundle_logs_info(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test command_bundle logs bundle creation info."""
+    CORE.config_path = tmp_path / "mydevice.yaml"
+
+    mock_result = BundleResult(
+        data=b"x" * 2048,
+        manifest={"manifest_version": 1},
+        files=[
+            BundleFile(path="mydevice.yaml", source=tmp_path / "mydevice.yaml"),
+            BundleFile(path="secrets.yaml", source=tmp_path / "secrets.yaml"),
+        ],
+    )
+
+    args = MockArgs()
+    config: dict[str, Any] = {}
+
+    mock_creator = MagicMock()
+    mock_creator.create_bundle.return_value = mock_result
+
+    with (
+        patch("esphome.bundle.ConfigBundleCreator", return_value=mock_creator),
+        caplog.at_level(logging.INFO),
+    ):
+        result = command_bundle(args, config)
+
+    assert result == 0
+    assert "Bundle created" in caplog.text
+    assert "2 files" in caplog.text
+    assert "2.0 KB" in caplog.text
+
+
+def test_run_esphome_bundle_detection(tmp_path: Path) -> None:
+    """Test run_esphome detects .esphomebundle.tar.gz and extracts it."""
+    bundle_path = tmp_path / f"device{BUNDLE_EXTENSION}"
+    bundle_path.write_bytes(b"fake-bundle")
+
+    extracted_yaml = tmp_path / "extracted" / "device.yaml"
+
+    with (
+        patch("esphome.bundle.is_bundle_path", return_value=True) as mock_is_bundle,
+        patch(
+            "esphome.bundle.prepare_bundle_for_compile",
+            return_value=extracted_yaml,
+        ) as mock_prepare,
+        patch("esphome.__main__.read_config", return_value=None),
+    ):
+        result = run_esphome(["esphome", "compile", str(bundle_path)])
+
+    mock_is_bundle.assert_called_once()
+    mock_prepare.assert_called_once_with(bundle_path)
+    # read_config returns None → exit code 2
+    assert result == 2
+
+
+def test_run_esphome_non_bundle_skips_extraction(tmp_path: Path) -> None:
+    """Test run_esphome does not extract for regular .yaml files."""
+    yaml_file = tmp_path / "device.yaml"
+    yaml_file.write_text("esphome:\n  name: test\n")
+
+    with (
+        patch("esphome.bundle.is_bundle_path", return_value=False) as mock_is_bundle,
+        patch("esphome.bundle.prepare_bundle_for_compile") as mock_prepare,
+        patch("esphome.__main__.read_config", return_value=None),
+    ):
+        result = run_esphome(["esphome", "compile", str(yaml_file)])
+
+    mock_is_bundle.assert_called_once()
+    mock_prepare.assert_not_called()
+    assert result == 2
+
+
+@pytest.mark.parametrize(
+    ("command", "expected_skip"),
+    [
+        ("logs", True),
+        ("clean", True),
+        ("compile", False),
+        ("config", False),
+        ("run", False),
+        ("clean-mqtt", False),
+    ],
+)
+def test_run_esphome_skip_external_update_per_command(
+    tmp_path: Path, command: str, expected_skip: bool
+) -> None:
+    """read_config is invoked with skip_external_update=True only for commands
+    that don't need fresh external components (logs, clean)."""
+    yaml_file = tmp_path / "device.yaml"
+    yaml_file.write_text("esphome:\n  name: test\n")
+
+    with patch("esphome.__main__.read_config", return_value=None) as mock_read:
+        run_esphome(["esphome", command, str(yaml_file)])
+
+    mock_read.assert_called_once()
+    assert mock_read.call_args.kwargs["skip_external_update"] is expected_skip
+
+
+def test_get_configured_xtal_freq_reads_sdkconfig(tmp_path: Path) -> None:
+    """Test reading XTAL_FREQ from sdkconfig."""
+    CORE.name = "test-device"
+    CORE.build_path = tmp_path
+    sdkconfig = tmp_path / "sdkconfig.test-device"
+    sdkconfig.write_text(
+        "CONFIG_SOC_XTAL_SUPPORT_26M=y\nCONFIG_XTAL_FREQ=26\nCONFIG_XTAL_FREQ_26=y\n"
+    )
+    assert _get_configured_xtal_freq() == 26
+
+
+def test_get_configured_xtal_freq_default_40(tmp_path: Path) -> None:
+    """Test reading default 40MHz XTAL_FREQ from sdkconfig."""
+    CORE.name = "test-device"
+    CORE.build_path = tmp_path
+    sdkconfig = tmp_path / "sdkconfig.test-device"
+    sdkconfig.write_text("CONFIG_XTAL_FREQ=40\nCONFIG_XTAL_FREQ_40=y\n")
+    assert _get_configured_xtal_freq() == 40
+
+
+def test_get_configured_xtal_freq_missing_file(tmp_path: Path) -> None:
+    """Test that missing sdkconfig returns None."""
+    CORE.name = "test-device"
+    CORE.build_path = tmp_path
+    assert _get_configured_xtal_freq() is None
+
+
+def test_get_configured_xtal_freq_no_xtal_line(tmp_path: Path) -> None:
+    """Test that sdkconfig without XTAL_FREQ returns None."""
+    CORE.name = "test-device"
+    CORE.build_path = tmp_path
+    sdkconfig = tmp_path / "sdkconfig.test-device"
+    sdkconfig.write_text("CONFIG_OTHER=123\n")
+    assert _get_configured_xtal_freq() is None
+
+
+def test_crystal_freq_callback_mismatch() -> None:
+    """Test callback returns warning on crystal frequency mismatch."""
+    callback = _make_crystal_freq_callback(40)
+    result = callback("Crystal frequency:  26MHz")
+    assert result is not None
+    assert "26MHz" in result
+    assert "40MHz" in result
+    assert "CONFIG_XTAL_FREQ_26" in result
+
+
+def test_crystal_freq_callback_match() -> None:
+    """Test callback returns None when frequencies match."""
+    callback = _make_crystal_freq_callback(40)
+    result = callback("Crystal frequency:  40MHz")
+    assert result is None
+
+
+def test_crystal_freq_callback_no_crystal_line() -> None:
+    """Test callback returns None for unrelated lines."""
+    callback = _make_crystal_freq_callback(40)
+    assert callback("Chip type: ESP8684H") is None
+    assert callback("MAC: a0:b7:65:8b:16:d4") is None
+    assert callback("") is None
+
+
+def test_upload_using_esptool_passes_crystal_callback(
+    tmp_path: Path,
+    mock_run_external_command_main: Mock,
+    mock_get_idedata: Mock,
+) -> None:
+    """Test that upload_using_esptool passes crystal freq callback for ESP32."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: VARIANT_ESP32}
+
+    # Create sdkconfig with XTAL_FREQ
+    build_dir = Path(CORE.build_path)
+    build_dir.mkdir(parents=True, exist_ok=True)
+    sdkconfig = build_dir / "sdkconfig.test"
+    sdkconfig.write_text("CONFIG_XTAL_FREQ=40\n")
+
+    mock_idedata = MagicMock(spec=toolchain.IDEData)
+    mock_idedata.firmware_bin_path = tmp_path / "firmware.bin"
+    mock_idedata.extra_flash_images = []
+    mock_get_idedata.return_value = mock_idedata
+    (tmp_path / "firmware.bin").touch()
+
+    config = {CONF_ESPHOME: {"platformio_options": {}}}
+    upload_using_esptool(config, "/dev/ttyUSB0", None, None)
+
+    # Verify line_callbacks was passed with the crystal callback
+    call_kwargs = mock_run_external_command_main.call_args[1]
+    assert "line_callbacks" in call_kwargs
+    assert len(call_kwargs["line_callbacks"]) == 1
+
+
+def test_upload_using_esptool_subprocess_passes_crystal_callback(
+    mock_run_external_process: Mock,
+    mock_get_idedata: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test that crystal freq callback is passed via run_external_process."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: VARIANT_ESP32}
+
+    # Create sdkconfig with XTAL_FREQ
+    build_dir = Path(CORE.build_path)
+    build_dir.mkdir(parents=True, exist_ok=True)
+    sdkconfig = build_dir / "sdkconfig.test"
+    sdkconfig.write_text("CONFIG_XTAL_FREQ=40\n")
+
+    mock_idedata = MagicMock(spec=toolchain.IDEData)
+    mock_idedata.firmware_bin_path = tmp_path / "firmware.bin"
+    mock_idedata.extra_flash_images = []
+    mock_get_idedata.return_value = mock_idedata
+    (tmp_path / "firmware.bin").touch()
+
+    config = {CONF_ESPHOME: {"platformio_options": {}}}
+    with patch.dict(os.environ, {"ESPHOME_USE_SUBPROCESS": "1"}):
+        upload_using_esptool(config, "/dev/ttyUSB0", None, None)
+
+    call_kwargs = mock_run_external_process.call_args[1]
+    assert "line_callbacks" in call_kwargs
+    assert len(call_kwargs["line_callbacks"]) == 1
+
+
+def test_parse_args_run_no_states() -> None:
+    """Test that --no-states is parsed for the run command."""
+    args = parse_args(["esphome", "run", "--no-states", "device.yaml"])
+    assert args.no_states is True
+
+
+def test_parse_args_run_no_states_default() -> None:
+    """Test that no_states defaults to False for the run command."""
+    args = parse_args(["esphome", "run", "device.yaml"])
+    assert args.no_states is False
+
+
+def test_parse_args_logs_no_states() -> None:
+    """Test that --no-states is parsed for the logs command."""
+    args = parse_args(["esphome", "logs", "--no-states", "device.yaml"])
+    assert args.no_states is True
+
+
+@patch("esphome.components.api.client.run_logs")
+def test_command_run_passes_no_states_to_show_logs(
+    mock_run_logs: Mock,
+) -> None:
+    """Test that command_run propagates --no-states through to run_logs."""
+    setup_core(
+        config={
+            "logger": {},
+            CONF_API: {},
+            CONF_MDNS: {CONF_DISABLED: False},
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_run_logs.return_value = 0
+
+    args = MockArgs()
+    args.no_states = True
+    args.no_logs = False
+    args.device = None
+
+    with (
+        patch("esphome.__main__.write_cpp", return_value=0),
+        patch("esphome.__main__.compile_program", return_value=0),
+        patch(
+            "esphome.__main__.choose_upload_log_host",
+            return_value=["192.168.1.100"],
+        ),
+        patch("esphome.__main__.upload_program", return_value=(0, "192.168.1.100")),
+        patch("esphome.__main__.get_serial_ports", return_value=[]),
+    ):
+        result = command_run(args, CORE.config)
+
+    assert result == 0
+    mock_run_logs.assert_called_once_with(
+        CORE.config, ["192.168.1.100"], subscribe_states=False
+    )
+
+
+@patch("esphome.components.api.client.run_logs")
+def test_command_run_defaults_subscribe_states_true(
+    mock_run_logs: Mock,
+) -> None:
+    """Test that command_run subscribes states by default (no --no-states)."""
+    setup_core(
+        config={
+            "logger": {},
+            CONF_API: {},
+            CONF_MDNS: {CONF_DISABLED: False},
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_run_logs.return_value = 0
+
+    args = MockArgs()
+    args.no_logs = False
+    args.device = None
+
+    with (
+        patch("esphome.__main__.write_cpp", return_value=0),
+        patch("esphome.__main__.compile_program", return_value=0),
+        patch(
+            "esphome.__main__.choose_upload_log_host",
+            return_value=["192.168.1.100"],
+        ),
+        patch("esphome.__main__.upload_program", return_value=(0, "192.168.1.100")),
+        patch("esphome.__main__.get_serial_ports", return_value=[]),
+    ):
+        result = command_run(args, CORE.config)
+
+    assert result == 0
+    mock_run_logs.assert_called_once_with(
+        CORE.config, ["192.168.1.100"], subscribe_states=True
+    )

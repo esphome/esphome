@@ -3,8 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/components/climate_ir/climate_ir.h"
 
-namespace esphome {
-namespace hitachi_ac424 {
+namespace esphome::hitachi_ac424 {
 
 const uint16_t HITACHI_AC424_HDR_MARK = 3416;   // ac
 const uint16_t HITACHI_AC424_HDR_SPACE = 1604;  // ac
@@ -119,5 +118,4 @@ class HitachiClimate : public climate_ir::ClimateIR {
   void dump_state_(const char action[], uint8_t remote_state[]);
 };
 
-}  // namespace hitachi_ac424
-}  // namespace esphome
+}  // namespace esphome::hitachi_ac424

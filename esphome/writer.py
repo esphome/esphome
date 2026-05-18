@@ -1,16 +1,13 @@
-from collections.abc import Callable
 import importlib
 import json
 import logging
 import os
 from pathlib import Path
 import re
-import shutil
-import stat
 import time
-from types import TracebackType
 
 from esphome import loader
+from esphome.compiled_config import save_compiled_config
 from esphome.config import iter_component_configs, iter_components
 from esphome.const import (
     HEADER_FILE_EXTENSIONS,
@@ -22,11 +19,10 @@ from esphome.core import CORE, EsphomeError
 from esphome.helpers import (
     copy_file_if_changed,
     cpp_string_escape,
-    get_str_env,
     is_ha_addon,
     read_file,
+    rmtree,
     walk_files,
-    write_file,
     write_file_if_changed,
 )
 from esphome.storage_json import StorageJSON, storage_path
@@ -91,6 +87,21 @@ def replace_file_content(text, pattern, repl):
 
 
 def storage_should_clean(old: StorageJSON | None, new: StorageJSON) -> bool:
+    """Return True when the build tree must be wiped before reuse.
+
+    Predicate is True when *old* is missing (first build),
+    ``src_version`` differs, ``build_path`` differs, or a previously
+    loaded integration was removed in *new*. Adding integrations or
+    changing unrelated fields (friendly name, esphome version, etc.)
+    does not trigger a clean.
+
+    Used by esphome-device-builder (esphome/device-builder) to gate
+    its remote-build artifact materialiser so a local → remote → local
+    cycle preserves PlatformIO's local object cache instead of wiping
+    it on every cycle. The signature, semantics, and ``None`` handling
+    for *old* are part of the public contract; keep them stable so the
+    offloader's wipe decision tracks core's.
+    """
     if old is None:
         return True
 
@@ -114,6 +125,11 @@ def update_storage_json() -> None:
     path = storage_path()
     old = StorageJSON.load(path)
     new = StorageJSON.from_esphome_core(CORE, old)
+
+    # Refresh the cache upload/logs read on the next call.
+    if CORE.config is not None:
+        save_compiled_config(CORE.config)
+
     if old == new:
         return
 
@@ -175,6 +191,8 @@ VERSION_H_FORMAT = """\
 DEFINES_H_TARGET = "esphome/core/defines.h"
 VERSION_H_TARGET = "esphome/core/version.h"
 BUILD_INFO_DATA_H_TARGET = "esphome/core/build_info_data.h"
+BUILD_INFO_DATA_CPP_TARGET = "esphome/core/build_info_data.cpp"
+ENTITY_TYPES_H_TARGET = "esphome/core/entity_types.h"
 ESPHOME_README_TXT = """
 THIS DIRECTORY IS AUTO-GENERATED, DO NOT MODIFY
 
@@ -200,22 +218,42 @@ def copy_src_tree():
     source_files_l.sort()
 
     # Build #include list for esphome.h
+    # X-macro files are included multiple times with different macro definitions
+    # and must not be included bare in esphome.h
+    # Deprecated headers that re-export from a relocated component must not be
+    # auto-included, since their #include of the new path only resolves when the
+    # new component is loaded by a consumer.
+    esphome_h_exclude = {
+        Path(ENTITY_TYPES_H_TARGET),
+        Path(
+            "esphome/core/ring_buffer.h"
+        ),  # moved to components/ring_buffer/, removed in 2026.11.0
+    }
     include_l = []
     for target, _ in source_files_l:
-        if target.suffix in HEADER_FILE_EXTENSIONS:
+        if target.suffix in HEADER_FILE_EXTENSIONS and target not in esphome_h_exclude:
             include_l.append(f'#include "{target}"')
     include_l.append("")
     include_s = "\n".join(include_l)
 
     source_files_copy = source_files_map.copy()
     ignore_targets = [
-        Path(x) for x in (DEFINES_H_TARGET, VERSION_H_TARGET, BUILD_INFO_DATA_H_TARGET)
+        Path(x)
+        for x in (
+            DEFINES_H_TARGET,
+            VERSION_H_TARGET,
+            BUILD_INFO_DATA_H_TARGET,
+            BUILD_INFO_DATA_CPP_TARGET,
+        )
     ]
     for t in ignore_targets:
         source_files_copy.pop(t, None)
 
     # Files to exclude from sources_changed tracking (generated files)
-    generated_files = {Path("esphome/core/build_info_data.h")}
+    generated_files = {
+        Path("esphome/core/build_info_data.h"),
+        Path("esphome/core/build_info_data.cpp"),
+    }
 
     sources_changed = False
     for fname in walk_files(CORE.relative_src_path("esphome")):
@@ -268,12 +306,15 @@ def copy_src_tree():
     build_info_data_h_path = CORE.relative_src_path(
         "esphome", "core", "build_info_data.h"
     )
+    build_info_data_cpp_path = CORE.relative_src_path(
+        "esphome", "core", "build_info_data.cpp"
+    )
     build_info_json_path = CORE.relative_build_path("build_info.json")
     config_hash, build_time, build_time_str, comment = get_build_info()
 
     # Defensively force a rebuild if the build_info files don't exist, or if
     # there was a config change which didn't actually cause a source change
-    if not build_info_data_h_path.exists():
+    if not build_info_data_h_path.exists() or not build_info_data_cpp_path.exists():
         sources_changed = True
     else:
         try:
@@ -288,13 +329,19 @@ def copy_src_tree():
 
     # Write build_info header and JSON metadata
     if sources_changed:
-        write_file(
+        # write_file_if_changed avoids bumping mtime on identical content,
+        # which is what makes the stable header actually isolate metadata churn.
+        write_file_if_changed(
             build_info_data_h_path,
-            generate_build_info_data_h(
+            generate_build_info_data_h(),
+        )
+        write_file_if_changed(
+            build_info_data_cpp_path,
+            generate_build_info_data_cpp(
                 config_hash, build_time, build_time_str, comment
             ),
         )
-        write_file(
+        write_file_if_changed(
             build_info_json_path,
             json.dumps(
                 {
@@ -345,27 +392,60 @@ def get_build_info() -> tuple[int, int, str, str]:
     return config_hash, build_time, build_time_str, comment
 
 
-def generate_build_info_data_h(
-    config_hash: int, build_time: int, build_time_str: str, comment: str
-) -> str:
-    """Generate build_info_data.h header with config hash, build time, and comment."""
-    # cpp_string_escape returns '"escaped"', slice off the quotes since template has them
-    escaped_comment = cpp_string_escape(comment)[1:-1]
-    # +1 for null terminator
-    comment_size = len(comment) + 1
-    return f"""#pragma once
-// Auto-generated build_info data
-#define ESPHOME_CONFIG_HASH 0x{config_hash:08x}U  // NOLINT
-#define ESPHOME_BUILD_TIME {build_time}  // NOLINT
-#define ESPHOME_COMMENT_SIZE {comment_size}  // NOLINT
+def generate_build_info_data_h() -> str:
+    """Generate stable declarations for build info provided by generated C++."""
+    return """#pragma once
+// Auto-generated build_info declarations
+#include <cstddef>
+#include <cstdint>
+#include <ctime>
 #ifdef USE_ESP8266
 #include <pgmspace.h>
-static const char ESPHOME_BUILD_TIME_STR[] PROGMEM = "{build_time_str}";
-static const char ESPHOME_COMMENT_STR[] PROGMEM = "{escaped_comment}";
-#else
-static const char ESPHOME_BUILD_TIME_STR[] = "{build_time_str}";
-static const char ESPHOME_COMMENT_STR[] = "{escaped_comment}";
 #endif
+
+namespace esphome {
+extern const uint32_t ESPHOME_CONFIG_HASH;
+extern const time_t ESPHOME_BUILD_TIME;
+extern const size_t ESPHOME_COMMENT_SIZE;
+#ifdef USE_ESP8266
+extern const char ESPHOME_BUILD_TIME_STR[] PROGMEM;
+extern const char ESPHOME_COMMENT_STR[] PROGMEM;
+#else
+extern const char ESPHOME_BUILD_TIME_STR[];
+extern const char ESPHOME_COMMENT_STR[];
+#endif
+}  // namespace esphome
+"""
+
+
+def generate_build_info_data_cpp(
+    config_hash: int, build_time: int, build_time_str: str, comment: str
+) -> str:
+    """Generate build_info_data.cpp with config hash, build time, and comment."""
+    from esphome.core.config import COMMENT_MAX_LEN
+
+    # Defense-in-depth clamp; errors="ignore" drops a partial trailing UTF-8
+    # sequence so the literal never decodes to a truncated codepoint.
+    encoded = comment.encode("utf-8")[:COMMENT_MAX_LEN]
+    comment = encoded.decode("utf-8", errors="ignore")
+    # cpp_string_escape wraps in quotes; strip them since the template has them.
+    escaped_comment = cpp_string_escape(comment)[1:-1]
+    comment_size = len(comment.encode("utf-8")) + 1  # +1 for NUL
+    return f"""// Auto-generated build_info data
+#include "esphome/core/build_info_data.h"
+
+namespace esphome {{
+const uint32_t ESPHOME_CONFIG_HASH = 0x{config_hash:08x}U;  // NOLINT
+const time_t ESPHOME_BUILD_TIME = {build_time};  // NOLINT
+const size_t ESPHOME_COMMENT_SIZE = {comment_size};  // NOLINT
+#ifdef USE_ESP8266
+const char ESPHOME_BUILD_TIME_STR[] PROGMEM = "{build_time_str}";
+const char ESPHOME_COMMENT_STR[] PROGMEM = "{escaped_comment}";
+#else
+const char ESPHOME_BUILD_TIME_STR[] = "{build_time_str}";
+const char ESPHOME_COMMENT_STR[] = "{escaped_comment}";
+#endif
+}}  // namespace esphome
 """
 
 
@@ -384,7 +464,10 @@ def write_cpp(code_s):
         code_format = CPP_BASE_FORMAT
 
     copy_src_tree()
+    # using namespace esphome must precede all variable declarations since
+    # codegen types assume this namespace is in scope (esphome_ns = global_ns).
     global_s = '#include "esphome.h"\n'
+    global_s += "using namespace esphome;\n"
     global_s += CORE.cpp_global_section
 
     full_file = f"{code_format[0] + CPP_INCLUDE_BEGIN}\n{global_s}{CPP_INCLUDE_END}"
@@ -402,28 +485,6 @@ def clean_cmake_cache():
         if pioenvs_cmake_path.is_file():
             _LOGGER.info("Deleting %s", pioenvs_cmake_path)
             pioenvs_cmake_path.unlink()
-
-
-def _rmtree_error_handler(
-    func: Callable[[str], object],
-    path: str,
-    exc_info: tuple[type[BaseException], BaseException, TracebackType | None],
-) -> None:
-    """Error handler for shutil.rmtree to handle read-only files on Windows.
-
-    On Windows, git pack files and other files may be marked read-only,
-    causing shutil.rmtree to fail with "Access is denied". This handler
-    removes the read-only flag and retries the deletion.
-    """
-    if os.access(path, os.W_OK):
-        raise exc_info[1].with_traceback(exc_info[2])
-    os.chmod(path, stat.S_IWUSR | stat.S_IRUSR)
-    func(path)
-
-
-def rmtree(path: Path | str) -> None:
-    """Remove a directory tree, handling read-only files on Windows."""
-    shutil.rmtree(path, onerror=_rmtree_error_handler)
 
 
 def clean_build(clear_pio_cache: bool = True):
@@ -444,6 +505,14 @@ def clean_build(clear_pio_cache: bool = True):
     if dependencies_lock.is_file():
         _LOGGER.info("Deleting %s", dependencies_lock)
         dependencies_lock.unlink()
+    # Native ESP-IDF toolchain artifacts: the IDF CMake/ninja build dir
+    # and the Component Manager's fetched managed components live under
+    # the project's build path, not under .pioenvs / .piolibdeps.
+    for name in ("build", "managed_components"):
+        idf_path = CORE.relative_build_path(name)
+        if idf_path.is_dir():
+            _LOGGER.info("Deleting %s", idf_path)
+            rmtree(idf_path)
 
     if not clear_pio_cache:
         return
@@ -463,18 +532,52 @@ def clean_build(clear_pio_cache: bool = True):
             rmtree(cache_dir)
 
 
+def _get_custom_build_dir(item: Path, data_dir: Path) -> Path | None:
+    """Parse a YAML config to find a custom build directory."""
+    from esphome import yaml_util
+
+    try:
+        raw = yaml_util.load_yaml(item)
+    except (EsphomeError, OSError) as e:
+        _LOGGER.debug("Could not parse %s to find build_path: %s", item, e)
+        return None
+    if not isinstance(raw, dict):
+        return None
+    esphome_conf = raw.get("esphome", {})
+    if not isinstance(esphome_conf, dict):
+        return None
+    if build_path := esphome_conf.get("build_path"):
+        return data_dir / build_path
+    return None
+
+
 def clean_all(configuration: list[str]):
     data_dirs = []
     for config in configuration:
         item = Path(config)
         if item.is_file() and item.suffix in (".yaml", ".yml"):
-            data_dirs.append(item.parent / ".esphome")
+            data_dir = item.parent / ".esphome"
+            data_dirs.append(data_dir)
+            if custom := _get_custom_build_dir(item, data_dir):
+                data_dirs.append(custom)
         else:
             data_dirs.append(item / ".esphome")
     if is_ha_addon():
         data_dirs.append(Path("/data"))
-    if "ESPHOME_DATA_DIR" in os.environ:
-        data_dirs.append(Path(get_str_env("ESPHOME_DATA_DIR", None)))
+    if env_data_dir := os.environ.get("ESPHOME_DATA_DIR"):
+        data_dirs.append(Path(env_data_dir))
+    if env_build_path := os.environ.get("ESPHOME_BUILD_PATH"):
+        data_dirs.append(Path(env_build_path))
+    if not data_dirs:
+        # No config files or known data dirs, check current directory
+        cwd_esphome = Path.cwd() / ".esphome"
+        if cwd_esphome.is_dir():
+            data_dirs.append(cwd_esphome)
+        else:
+            _LOGGER.warning(
+                "No configuration files specified and no .esphome directory found in current directory. "
+                "Pass YAML files or a configuration directory to clean build artifacts."
+            )
 
     # Clean build dir
     for dir in data_dirs:

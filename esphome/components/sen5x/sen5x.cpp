@@ -5,8 +5,7 @@
 #include "esphome/core/log.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace sen5x {
+namespace esphome::sen5x {
 
 static const char *const TAG = "sen5x";
 
@@ -54,15 +53,6 @@ static const LogString *rht_accel_mode_to_string(RhtAccelerationMode mode) {
     default:
       return LOG_STR("UNKNOWN");
   }
-}
-
-// This function performs an in-place conversion of the provided buffer
-// from uint16_t values to big endianness
-static inline const char *sensirion_convert_to_string_in_place(uint16_t *array, size_t length) {
-  for (size_t i = 0; i < length; i++) {
-    array[i] = convert_big_endian(array[i]);
-  }
-  return reinterpret_cast<const char *>(array);
 }
 
 void SEN5XComponent::setup() {
@@ -432,5 +422,4 @@ bool SEN5XComponent::start_fan_cleaning() {
   return true;
 }
 
-}  // namespace sen5x
-}  // namespace esphome
+}  // namespace esphome::sen5x

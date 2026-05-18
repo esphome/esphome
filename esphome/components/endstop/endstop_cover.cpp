@@ -3,8 +3,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace endstop {
+namespace esphome::endstop {
 
 static const char *const TAG = "endstop.cover";
 
@@ -37,8 +36,9 @@ void EndstopCover::control(const CoverCall &call) {
       }
     }
   }
-  if (call.get_position().has_value()) {
-    auto pos = *call.get_position();
+  auto opt_pos = call.get_position();
+  if (opt_pos.has_value()) {
+    auto pos = *opt_pos;
     if (pos == this->position) {
       // already at target
     } else {
@@ -191,5 +191,4 @@ void EndstopCover::recompute_position_() {
   this->last_recompute_time_ = now;
 }
 
-}  // namespace endstop
-}  // namespace esphome
+}  // namespace esphome::endstop

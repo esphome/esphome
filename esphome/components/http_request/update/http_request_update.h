@@ -11,8 +11,7 @@
 #include <freertos/FreeRTOS.h>
 #endif
 
-namespace esphome {
-namespace http_request {
+namespace esphome::http_request {
 
 class HttpRequestUpdate final : public update::UpdateEntity, public PollingComponent, public ota::OTAStateListener {
  public:
@@ -40,7 +39,7 @@ class HttpRequestUpdate final : public update::UpdateEntity, public PollingCompo
 #ifdef USE_ESP32
   TaskHandle_t update_task_handle_{nullptr};
 #endif
+  uint8_t initial_check_remaining_{0};
 };
 
-}  // namespace http_request
-}  // namespace esphome
+}  // namespace esphome::http_request

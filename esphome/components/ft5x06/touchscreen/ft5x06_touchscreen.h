@@ -6,8 +6,7 @@
 #include "esphome/core/gpio.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace ft5x06 {
+namespace esphome::ft5x06 {
 
 enum VendorId {
   FT5X06_ID_UNKNOWN = 0,
@@ -52,5 +51,4 @@ class FT5x06Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
   InternalGPIOPin *interrupt_pin_{nullptr};
 };
 
-}  // namespace ft5x06
-}  // namespace esphome
+}  // namespace esphome::ft5x06

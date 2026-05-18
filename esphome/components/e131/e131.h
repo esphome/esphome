@@ -1,16 +1,18 @@
 #pragma once
 #include "esphome/core/defines.h"
 #ifdef USE_NETWORK
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 #include "esphome/components/socket/socket.h"
+#elif defined(USE_SOCKET_IMPL_LWIP_TCP)
+#include <WiFiUdp.h>
+#endif
 #include "esphome/core/component.h"
 
 #include <cinttypes>
-#include <map>
 #include <memory>
 #include <vector>
 
-namespace esphome {
-namespace e131 {
+namespace esphome::e131 {
 
 class E131AddressableLightEffect;
 
@@ -21,6 +23,11 @@ const int E131_MAX_PROPERTY_VALUES_COUNT = 513;
 struct E131Packet {
   uint16_t count;
   uint8_t values[E131_MAX_PROPERTY_VALUES_COUNT];
+};
+
+struct UniverseConsumer {
+  uint16_t universe;
+  uint16_t consumers;
 };
 
 class E131Component : public esphome::Component {
@@ -38,18 +45,32 @@ class E131Component : public esphome::Component {
   void set_method(E131ListenMethod listen_method) { this->listen_method_ = listen_method; }
 
  protected:
+  inline ssize_t read_(uint8_t *buf, size_t len) {
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+    return this->socket_->read(buf, len);
+#elif defined(USE_SOCKET_IMPL_LWIP_TCP)
+    if (!this->udp_.parsePacket())
+      return -1;
+    return this->udp_.read(buf, len);
+#endif
+  }
   bool packet_(const uint8_t *data, size_t len, int &universe, E131Packet &packet);
   bool process_(int universe, const E131Packet &packet);
   bool join_igmp_groups_();
+  UniverseConsumer *find_universe_(int universe);
   void join_(int universe);
   void leave_(int universe);
 
   E131ListenMethod listen_method_{E131_MULTICAST};
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   std::unique_ptr<socket::Socket> socket_;
+#elif defined(USE_SOCKET_IMPL_LWIP_TCP)
+  WiFiUDP udp_;
+#endif
   std::vector<E131AddressableLightEffect *> light_effects_;
-  std::map<int, int> universe_consumers_;
+  std::vector<UniverseConsumer> universe_consumers_;
 };
 
-}  // namespace e131
-}  // namespace esphome
+}  // namespace esphome::e131
+
 #endif

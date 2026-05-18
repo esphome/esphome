@@ -46,48 +46,48 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
   Cover *cover_;
 };
 
+// All configured fields are baked into a single stateless lambda whose
+// constants live in flash. Each action stores only one function pointer
+// plus one parent pointer, regardless of how many fields the user set.
+// Trigger args are forwarded to the apply function so user lambdas
+// (e.g. `position: !lambda "return x;"`) keep working.
+//
+// Trigger args are normalized to `const std::remove_cvref_t<Ts> &...` so
+// the codegen can emit a matching parameter list for both the apply lambda
+// and any inner field lambdas without producing invalid C++ source text
+// (e.g. `const T & &` if Ts already carries a reference, or `const const
+// T &` if Ts already carries a const). This keeps trigger args no-copy
+// regardless of whether the trigger supplies `T`, `T &`, or `const T &`.
+
 template<typename... Ts> class ControlAction : public Action<Ts...> {
  public:
-  explicit ControlAction(Cover *cover) : cover_(cover) {}
-
-  TEMPLATABLE_VALUE(bool, stop)
-  TEMPLATABLE_VALUE(float, position)
-  TEMPLATABLE_VALUE(float, tilt)
+  using ApplyFn = void (*)(CoverCall &, const std::remove_cvref_t<Ts> &...);
+  ControlAction(Cover *cover, ApplyFn apply) : cover_(cover), apply_(apply) {}
 
   void play(const Ts &...x) override {
     auto call = this->cover_->make_call();
-    if (this->stop_.has_value())
-      call.set_stop(this->stop_.value(x...));
-    if (this->position_.has_value())
-      call.set_position(this->position_.value(x...));
-    if (this->tilt_.has_value())
-      call.set_tilt(this->tilt_.value(x...));
+    this->apply_(call, x...);
     call.perform();
   }
 
  protected:
   Cover *cover_;
+  ApplyFn apply_;
 };
 
 template<typename... Ts> class CoverPublishAction : public Action<Ts...> {
  public:
-  CoverPublishAction(Cover *cover) : cover_(cover) {}
-  TEMPLATABLE_VALUE(float, position)
-  TEMPLATABLE_VALUE(float, tilt)
-  TEMPLATABLE_VALUE(CoverOperation, current_operation)
+  using ApplyFn = void (*)(Cover *, const std::remove_cvref_t<Ts> &...);
+  CoverPublishAction(Cover *cover, ApplyFn apply) : cover_(cover), apply_(apply) {}
 
   void play(const Ts &...x) override {
-    if (this->position_.has_value())
-      this->cover_->position = this->position_.value(x...);
-    if (this->tilt_.has_value())
-      this->cover_->tilt = this->tilt_.value(x...);
-    if (this->current_operation_.has_value())
-      this->cover_->current_operation = this->current_operation_.value(x...);
+    this->apply_(this->cover_, x...);
     this->cover_->publish_state();
   }
 
  protected:
   Cover *cover_;
+  ApplyFn apply_;
 };
 
 template<bool OPEN, typename... Ts> class CoverPositionCondition : public Condition<Ts...> {
@@ -105,17 +105,18 @@ template<typename... Ts> using CoverIsClosedCondition = CoverPositionCondition<f
 
 template<bool OPEN> class CoverPositionTrigger : public Trigger<> {
  public:
-  CoverPositionTrigger(Cover *a_cover) {
-    a_cover->add_on_state_callback([this, a_cover]() {
-      if (a_cover->position != this->last_position_) {
-        this->last_position_ = a_cover->position;
-        if (a_cover->position == (OPEN ? COVER_OPEN : COVER_CLOSED))
+  CoverPositionTrigger(Cover *a_cover) : cover_(a_cover) {
+    a_cover->add_on_state_callback([this]() {
+      if (this->cover_->position != this->last_position_) {
+        this->last_position_ = this->cover_->position;
+        if (this->cover_->position == (OPEN ? COVER_OPEN : COVER_CLOSED))
           this->trigger();
       }
     });
   }
 
  protected:
+  Cover *cover_;
   float last_position_{NAN};
 };
 
@@ -124,9 +125,9 @@ using CoverClosedTrigger = CoverPositionTrigger<false>;
 
 template<CoverOperation OP> class CoverTrigger : public Trigger<> {
  public:
-  CoverTrigger(Cover *a_cover) {
-    a_cover->add_on_state_callback([this, a_cover]() {
-      auto current_op = a_cover->current_operation;
+  CoverTrigger(Cover *a_cover) : cover_(a_cover) {
+    a_cover->add_on_state_callback([this]() {
+      auto current_op = this->cover_->current_operation;
       if (current_op == OP) {
         if (!this->last_operation_.has_value() || this->last_operation_.value() != OP) {
           this->trigger();
@@ -137,6 +138,7 @@ template<CoverOperation OP> class CoverTrigger : public Trigger<> {
   }
 
  protected:
+  Cover *cover_;
   optional<CoverOperation> last_operation_{};
 };
 }  // namespace esphome::cover

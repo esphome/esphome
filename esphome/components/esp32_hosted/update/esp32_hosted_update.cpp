@@ -92,7 +92,7 @@ void Esp32HostedUpdate::setup() {
   if (esp_hosted_get_coprocessor_fwversion(&ver_info) == ESP_OK) {
     // 16 bytes: "255.255.255" (11 chars) + null + safety margin
     char buf[16];
-    snprintf(buf, sizeof(buf), "%d.%d.%d", ver_info.major1, ver_info.minor1, ver_info.patch1);
+    snprintf(buf, sizeof(buf), "%" PRIu32 ".%" PRIu32 ".%" PRIu32, ver_info.major1, ver_info.minor1, ver_info.patch1);
     this->update_info_.current_version = buf;
   } else {
     this->update_info_.current_version = "unknown";
@@ -106,11 +106,12 @@ void Esp32HostedUpdate::setup() {
     esp_app_desc_t *app_desc = (esp_app_desc_t *) (this->firmware_data_ + app_desc_offset);
     if (app_desc->magic_word == ESP_APP_DESC_MAGIC_WORD) {
       ESP_LOGD(TAG,
-               "Firmware version: %s\n"
-               "Project name: %s\n"
-               "Build date: %s\n"
-               "Build time: %s\n"
-               "IDF version: %s",
+               "ESP32 Hosted firmware:\n"
+               "  Firmware version: %s\n"
+               "  Project name: %s\n"
+               "  Build date: %s\n"
+               "  Build time: %s\n"
+               "  IDF version: %s",
                app_desc->version, app_desc->project_name, app_desc->date, app_desc->time, app_desc->idf_ver);
       this->update_info_.latest_version = app_desc->version;
       if (this->update_info_.latest_version != this->update_info_.current_version) {
@@ -119,8 +120,8 @@ void Esp32HostedUpdate::setup() {
         this->state_ = update::UPDATE_STATE_NO_UPDATE;
       }
     } else {
-      ESP_LOGW(TAG, "Invalid app description magic word: 0x%08x (expected 0x%08x)", app_desc->magic_word,
-               ESP_APP_DESC_MAGIC_WORD);
+      ESP_LOGW(TAG, "Invalid app description magic word: 0x%08" PRIx32 " (expected 0x%08" PRIx32 ")",
+               app_desc->magic_word, static_cast<uint32_t>(ESP_APP_DESC_MAGIC_WORD));
       this->state_ = update::UPDATE_STATE_NO_UPDATE;
     }
   } else {
@@ -446,6 +447,13 @@ void Esp32HostedUpdate::perform(bool force) {
     ESP_LOGW(TAG, "Update not available");
     return;
   }
+
+#ifdef USE_ESP32_HOSTED_HTTP_UPDATE
+  if (this->firmware_url_.empty()) {
+    ESP_LOGW(TAG, "No firmware URL available, run check first");
+    return;
+  }
+#endif
 
   update::UpdateState prev_state = this->state_;
   this->state_ = update::UPDATE_STATE_INSTALLING;

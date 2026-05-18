@@ -1,0 +1,19 @@
+esphome:
+  on_boot:
+    then:
+      - hdc302x.heater_on:
+          id: hdc302x_sensor
+          power: QUARTER
+          duration: 5s
+      - hdc302x.heater_off:
+          id: hdc302x_sensor
+
+sensor:
+  - platform: hdc302x
+    id: hdc302x_sensor
+    i2c_id: i2c_bus
+    temperature:
+      name: Temperature
+    humidity:
+      name: Humidity
+    update_interval: 15s

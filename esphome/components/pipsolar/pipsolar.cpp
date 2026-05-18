@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pipsolar {
+namespace esphome::pipsolar {
 
 static const char *const TAG = "pipsolar";
 
@@ -162,13 +161,15 @@ void Pipsolar::loop() {
 }
 
 uint8_t Pipsolar::check_incoming_length_(uint8_t length) {
-  if (this->read_pos_ - 3 == length) {
+  if (this->read_pos_ >= 3 && this->read_pos_ - 3 == length) {
     return 1;
   }
   return 0;
 }
 
 uint8_t Pipsolar::check_incoming_crc_() {
+  if (this->read_pos_ < 3)
+    return 0;
   uint16_t crc16;
   crc16 = this->pipsolar_crc_(read_buffer_, read_pos_ - 3);
   if (((uint8_t) ((crc16) >> 8)) == read_buffer_[read_pos_ - 3] &&
@@ -190,8 +191,13 @@ bool Pipsolar::send_next_command_() {
   if (!this->command_queue_[this->command_queue_position_].empty()) {
     const char *command = this->command_queue_[this->command_queue_position_].c_str();
     uint8_t byte_command[16];
-    uint8_t length = this->command_queue_[this->command_queue_position_].length();
-    for (uint8_t i = 0; i < length; i++) {
+    size_t length = this->command_queue_[this->command_queue_position_].length();
+    if (length > sizeof(byte_command)) {
+      ESP_LOGE(TAG, "Command too long: %zu", length);
+      this->command_queue_[this->command_queue_position_].clear();
+      return false;
+    }
+    for (size_t i = 0; i < length; i++) {
       byte_command[i] = (uint8_t) this->command_queue_[this->command_queue_position_].at(i);
     }
     this->state_ = STATE_COMMAND;
@@ -426,13 +432,17 @@ void Pipsolar::handle_qpigs_(const char *message) {
 }
 
 void Pipsolar::handle_qmod_(const char *message) {
-  std::string mode;
-  char device_mode = char(message[1]);
   if (this->last_qmod_) {
     this->last_qmod_->publish_state(message);
   }
+  // QMOD response is "(M" where M is the device-mode character. Bail out if the
+  // message is shorter than 2 chars (e.g. empty error response from
+  // handle_poll_error_) — reading message[1] would otherwise be out of bounds.
+  if (message[0] == '\0' || message[1] == '\0')
+    return;
   if (this->device_mode_) {
-    mode = device_mode;
+    std::string mode;
+    mode = char(message[1]);
     this->device_mode_->publish_state(mode);
   }
 }
@@ -645,6 +655,7 @@ void Pipsolar::handle_qpiws_(const char *message) {
       case 34:
         this->publish_binary_sensor_(enabled, this->warning_high_ac_input_during_bus_soft_start_);
         value_warnings_present |= enabled.value_or(false);
+        break;
       case 35:
         this->publish_binary_sensor_(enabled, this->warning_battery_equalization_);
         value_warnings_present |= enabled.value_or(false);
@@ -748,8 +759,7 @@ esphome::optional<bool> Pipsolar::get_bit_(std::string bits, uint8_t bit_pos) {
 }
 
 void Pipsolar::dump_config() {
-  ESP_LOGCONFIG(TAG, "Pipsolar:\n"
-                     "enabled polling commands:");
+  ESP_LOGCONFIG(TAG, "Pipsolar enabled polling commands:");
   for (auto &enabled_polling_command : this->enabled_polling_commands_) {
     if (enabled_polling_command.length != 0) {
       ESP_LOGCONFIG(TAG, "%s", enabled_polling_command.command);
@@ -800,5 +810,4 @@ uint16_t Pipsolar::pipsolar_crc_(uint8_t *msg, uint8_t len) {
   return crc;
 }
 
-}  // namespace pipsolar
-}  // namespace esphome
+}  // namespace esphome::pipsolar

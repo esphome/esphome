@@ -1,12 +1,11 @@
 import esphome.codegen as cg
-from esphome.components import socket
-from esphome.components.uart import (
-    CONF_DATA_BITS,
-    CONF_PARITY,
-    CONF_STOP_BITS,
-    UARTComponent,
+from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
+from esphome.components.uart import CONF_DEBUG_PREFIX, CONF_FLUSH_TIMEOUT, UARTComponent
+from esphome.components.usb_host import (
+    get_max_packet_size,
+    register_usb_client,
+    usb_device_schema,
 )
-from esphome.components.usb_host import register_usb_client, usb_device_schema
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
@@ -18,7 +17,7 @@ from esphome.const import (
 )
 from esphome.cpp_types import Component
 
-AUTO_LOAD = ["uart", "usb_host", "bytebuffer", "socket"]
+AUTO_LOAD = ["uart", "usb_host", "bytebuffer"]
 CODEOWNERS = ["@clydebarrow"]
 
 usb_uart_ns = cg.esphome_ns.namespace("usb_uart")
@@ -94,6 +93,10 @@ def channel_schema(channels, baud_rate_required):
                             ),
                             cv.Optional(CONF_DUMMY_RECEIVER, default=False): cv.boolean,
                             cv.Optional(CONF_DEBUG, default=False): cv.boolean,
+                            cv.Optional(CONF_DEBUG_PREFIX, default=""): cv.string,
+                            cv.Optional(
+                                CONF_FLUSH_TIMEOUT, default="100ms"
+                            ): cv.positive_time_period_milliseconds,
                         }
                     )
                 ),
@@ -117,22 +120,32 @@ CONFIG_SCHEMA = cv.ensure_list(
 
 
 async def to_code(config):
-    # Enable wake_loop_threadsafe for low-latency USB data processing
-    # The USB task queues data events that need immediate processing
-    socket.require_wake_loop_threadsafe()
+    # The output chunk pool/queue are compile-time-sized templates shared by all
+    # USBUartChannel instances, so use the largest buffer_size across every channel
+    # of every device. Add one extra slot because LockFreeQueue<T,N> is a ring
+    # buffer that wastes one entry.
+    max_buffer_size = max(
+        channel[CONF_BUFFER_SIZE]
+        for device in config
+        for channel in device[CONF_CHANNELS]
+    )
+    output_chunk_count = max(max_buffer_size // get_max_packet_size(), 2) + 1
+    cg.add_define("USB_UART_OUTPUT_CHUNK_COUNT", output_chunk_count)
 
     for device in config:
         var = await register_usb_client(device)
         for index, channel in enumerate(device[CONF_CHANNELS]):
             chvar = cg.new_Pvariable(channel[CONF_ID], index, channel[CONF_BUFFER_SIZE])
             await cg.register_parented(chvar, var)
-            cg.add(chvar.set_rx_buffer_size(channel[CONF_BUFFER_SIZE]))
             cg.add(chvar.set_stop_bits(channel[CONF_STOP_BITS]))
             cg.add(chvar.set_data_bits(channel[CONF_DATA_BITS]))
             cg.add(chvar.set_parity(channel[CONF_PARITY]))
             cg.add(chvar.set_baud_rate(channel[CONF_BAUD_RATE]))
             cg.add(chvar.set_dummy_receiver(channel[CONF_DUMMY_RECEIVER]))
+            cg.add(chvar.set_flush_timeout(channel[CONF_FLUSH_TIMEOUT]))
             cg.add(chvar.set_debug(channel[CONF_DEBUG]))
+            if channel[CONF_DEBUG_PREFIX]:
+                cg.add(chvar.set_debug_prefix(channel[CONF_DEBUG_PREFIX]))
             cg.add(var.add_channel(chvar))
             if channel[CONF_DEBUG]:
                 cg.add_define("USE_UART_DEBUGGER")

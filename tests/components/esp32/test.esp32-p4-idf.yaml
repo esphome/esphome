@@ -1,5 +1,6 @@
 esp32:
   variant: esp32p4
+  engineering_sample: true
   flash_size: 32MB
   cpu_frequency: 400MHz
   framework:

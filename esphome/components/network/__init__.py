@@ -111,21 +111,21 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(NetworkComponent),
         cv.SplitDefault(
             CONF_ENABLE_IPV6,
-            esp8266=False,
-            esp32=False,
-            rp2040=False,
             bk72xx=False,
+            esp32=False,
+            esp8266=False,
             host=False,
+            rp2040=False,
         ): cv.All(
             cv.boolean,
             cv.Any(
                 cv.require_framework_version(
+                    bk72xx_arduino=cv.Version(1, 7, 0),
                     esp_idf=cv.Version(0, 0, 0),
                     esp32_arduino=cv.Version(0, 0, 0),
                     esp8266_arduino=cv.Version(0, 0, 0),
-                    rp2040_arduino=cv.Version(0, 0, 0),
-                    bk72xx_arduino=cv.Version(1, 7, 0),
                     host=cv.Version(0, 0, 0),
+                    rp2040_arduino=cv.Version(0, 0, 0),
                 ),
                 cv.boolean_false,
             ),
@@ -220,12 +220,12 @@ async def to_code(config):
         elif enable_ipv6:
             cg.add_build_flag("-DCONFIG_LWIP_IPV6")
             cg.add_build_flag("-DCONFIG_LWIP_IPV6_AUTOCONFIG")
-            if CORE.is_rp2040:
-                cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_IPV6")
-            if CORE.is_esp8266:
-                cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
             if CORE.is_bk72xx:
                 cg.add_build_flag("-DCONFIG_IPV6")
+            if CORE.is_esp8266:
+                cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
+            if CORE.is_rp2040:
+                cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_IPV6")
 
     CORE.add_job(network_component_to_code, config)
 

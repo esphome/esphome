@@ -141,8 +141,8 @@ class SprinklerValveOperator {
   uint32_t start_delay_{0};
   uint32_t stop_delay_{0};
   uint32_t run_duration_{0};
-  uint64_t start_millis_{0};
-  uint64_t stop_millis_{0};
+  optional<uint32_t> start_millis_{};
+  optional<uint32_t> stop_millis_{};
   Sprinkler *controller_{nullptr};
   SprinklerValve *valve_{nullptr};
   SprinklerState state_{IDLE};

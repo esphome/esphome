@@ -8,11 +8,10 @@
 #include <utility>
 #include <vector>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
-static const uint8_t MAX_DATA_LENGTH = 15;
-static const uint8_t DATA_LENGTH_MASK = 0x3f;
+static constexpr uint8_t MAX_DATA_LENGTH = 15;
+static constexpr uint8_t DATA_LENGTH_MASK = 0x3f;
 
 /*
 Message Format:
@@ -272,5 +271,4 @@ template<typename... Ts> class ABBWelcomeAction : public RemoteTransmitterAction
   } data_;
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

@@ -29,7 +29,6 @@ class PngDecoder : public ImageDecoder {
   uint32_t get_pixels_decoded() const { return this->pixels_decoded_; }
 
  protected:
-  RAMAllocator<pngle_t> allocator_;
   pngle_t *pngle_{nullptr};
   uint32_t pixels_decoded_{0};
 };

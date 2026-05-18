@@ -165,7 +165,6 @@ class RuntimeImage : public image::Image {
   std::unique_ptr<ImageDecoder> create_decoder_();
 
   // Memory management
-  RAMAllocator<uint8_t> allocator_{};
   uint8_t *buffer_{nullptr};
 
   // Decoder management

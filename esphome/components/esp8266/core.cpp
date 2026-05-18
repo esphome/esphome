@@ -3,37 +3,12 @@
 #include "core.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/helpers.h"
-#include "preferences.h"
 #include <Arduino.h>
-#include <core_esp8266_features.h>
-
-extern "C" {
-#include <user_interface.h>
-}
 
 namespace esphome {
 
-void IRAM_ATTR HOT yield() { ::yield(); }
-uint32_t IRAM_ATTR HOT millis() { return ::millis(); }
-void IRAM_ATTR HOT delay(uint32_t ms) { ::delay(ms); }
-uint32_t IRAM_ATTR HOT micros() { return ::micros(); }
-void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
-void arch_restart() {
-  system_restart();
-  // restart() doesn't always end execution
-  while (true) {  // NOLINT(clang-diagnostic-unreachable-code)
-    yield();
-  }
-}
-void arch_init() {}
-void IRAM_ATTR HOT arch_feed_wdt() { system_soft_wdt_feed(); }
-
-uint8_t progmem_read_byte(const uint8_t *addr) {
-  return pgm_read_byte(addr);  // NOLINT
-}
-uint32_t IRAM_ATTR HOT arch_get_cpu_cycle_count() { return esp_get_cycle_count(); }
-uint32_t arch_get_cpu_freq_hz() { return F_CPU; }
+// HAL functions live in hal.cpp. This file keeps only the ESP8266-specific
+// firmware bootstrap (Tasmota OTA magic bytes, optional GPIO pre-init).
 
 void force_link_symbols() {
   // Tasmota uses magic bytes in the binary to check if an OTA firmware is compatible

@@ -247,6 +247,23 @@ class LogStringLiteral(Literal):
         return f"LOG_STR({cpp_string_escape(self.string)})"
 
 
+class FlashStringLiteral(Literal):
+    """A string literal wrapped in ESPHOME_F() for PROGMEM storage on ESP8266.
+
+    On ESP8266, ESPHOME_F(s) expands to F(s) which stores the string in flash (PROGMEM).
+    On other platforms, ESPHOME_F(s) expands to plain s (no-op).
+    """
+
+    __slots__ = ("string",)
+
+    def __init__(self, string: str) -> None:
+        super().__init__()
+        self.string = string
+
+    def __str__(self) -> str:
+        return f"ESPHOME_F({cpp_string_escape(self.string)})"
+
+
 class IntLiteral(Literal):
     __slots__ = ("i",)
 
@@ -424,7 +441,7 @@ class ProgmemAssignmentExpression(AssignmentExpression):
         super().__init__(type_, "", name, rhs)
 
     def __str__(self):
-        return f"static const {self.type} {self.name}[] PROGMEM = {self.rhs}"
+        return f"static constexpr {self.type} {self.name}[] PROGMEM = {self.rhs}"
 
 
 class StaticConstAssignmentExpression(AssignmentExpression):
@@ -548,6 +565,29 @@ def new_variable(
     return obj
 
 
+def _extract_component_ns(type_str: str) -> str:
+    """Extract the component namespace from a fully-qualified C++ type string.
+
+    Strips leading ``esphome::`` and template arguments, then returns
+    the first namespace segment.  Falls back to ``"esphome"`` when the
+    type has no namespace qualifier (after stripping templates).
+
+    Examples::
+
+        esphome::dsmr::Dsmr                                        -> dsmr
+        esphome::logger::Logger                                     -> logger
+        esphome::Automation<std::optional<bool>, std::optional<bool>> -> esphome
+        Logger                                                      -> esphome
+    """
+    bare = type_str.removeprefix("esphome::")
+    # Strip template arguments before namespace extraction to avoid
+    # matching :: inside template params (e.g. Automation<std::optional<bool>>)
+    bare_no_template = bare.split("<", maxsplit=1)[0]
+    if "::" in bare_no_template:
+        return bare_no_template.split("::", maxsplit=1)[0].rstrip("_")
+    return "esphome"
+
+
 def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     """Declare a new pointer variable in the code generation.
 
@@ -562,10 +602,53 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     obj = MockObj(id_, "->")
     if type_ is not None:
         id_.type = type_
-    decl = VariableDeclarationExpression(id_.type, "*", id_, static=True)
-    CORE.add_global(decl)
-    assignment = AssignmentExpression(None, None, id_, rhs)
-    CORE.add(assignment)
+
+    if isinstance(rhs, MockObj) and rhs.is_new_expr:
+        # For 'new' allocations, use placement new into static storage
+        # to avoid heap fragmentation on embedded devices.
+        #
+        # Storage must be sized and aligned for the actual instantiated class,
+        # which may be a subclass of id_.type (e.g. `cv.declare_id(BaseClass)`
+        # combined with `SubClass.new()` — used by ili9xxx, waveshare_epaper,
+        # etc. to select a model-specific constructor). Using id_.type would
+        # run the base-class default constructor instead, silently losing any
+        # subclass initialization. Template args live on the CallExpression
+        # and are re-emitted below.
+        call_expr = rhs.base
+        assert isinstance(call_expr, CallExpression), (
+            f"Expected CallExpression for placement new, got {type(call_expr)}"
+        )
+        actual_type = rhs.new_type if rhs.new_type is not None else id_.type
+        if call_expr.template_args is not None:
+            actual_type = f"{actual_type}{call_expr.template_args}"
+        pointer_type = id_.type
+        # Extract component namespace from type for memory analysis attribution
+        component_ns = _extract_component_ns(str(actual_type))
+        storage_name = f"{component_ns}__{id_.id}__pstorage"
+
+        # Declare aligned byte array for the object storage
+        CORE.add_global(
+            RawStatement(
+                f"alignas({actual_type}) static unsigned char {storage_name}[sizeof({actual_type})];"
+            )
+        )
+        # Pointer declaration uses id_.type to preserve the declared base-class
+        # pointer type for downstream callers (polymorphism through base ptr).
+        CORE.add_global(
+            AssignmentExpression(
+                f"static {pointer_type}",
+                "*const ",
+                id_,
+                MockObj(f"reinterpret_cast<{pointer_type} *>({storage_name})"),
+            )
+        )
+        placement_new = CallExpression(f"new({id_.id}) {actual_type}", *call_expr.args)
+        CORE.add(ExpressionStatement(placement_new))
+    else:
+        decl = VariableDeclarationExpression(id_.type, "*", id_, static=True)
+        CORE.add_global(decl)
+        CORE.add(AssignmentExpression(None, None, id_, rhs))
+
     CORE.register_variable(id_, obj)
     return obj
 
@@ -746,11 +829,17 @@ async def templatable(
     args: list[tuple[SafeExpType, str]],
     output_type: SafeExpType | None,
     to_exp: Callable | dict = None,
+    *,
+    wrap_constant: bool = False,
 ):
     """Generate code for a templatable config option.
 
     If `value` is a templated value, the lambda expression is returned.
-    Otherwise the value is returned as-is (optionally process with to_exp).
+    For std::string output, constants are returned as-is (with PROGMEM wrapping),
+    using the std::string-specific TemplatableValue specialization.
+    For all other output types, constants are wrapped in stateless lambdas
+    so that TemplatableFn-backed macro-generated fields can store them as
+    function pointers.
 
     :param value: The value to process.
     :param args: The arguments for the lambda expression.
@@ -760,11 +849,28 @@ async def templatable(
     """
     if is_template(value):
         return await process_lambda(value, args, return_type=output_type)
-    if to_exp is None:
-        return value
-    if isinstance(to_exp, dict):
-        return to_exp[value]
-    return to_exp(value)
+    # Late import to avoid circular dependency (cpp_generator <-> cpp_types).
+    from esphome.cpp_types import std_string
+
+    if to_exp is not None:
+        value = to_exp[value] if isinstance(to_exp, dict) else to_exp(value)
+    elif (
+        isinstance(value, str) and output_type is not None and output_type is std_string
+    ):
+        # Automatically wrap static strings in ESPHOME_F() for PROGMEM storage on ESP8266.
+        # On other platforms ESPHOME_F() is a no-op returning const char*.
+        return FlashStringLiteral(value)
+    # Wrap non-string constants in stateless lambdas so that TemplatableFn
+    # (used by TEMPLATABLE_VALUE macro) stores them as function pointers.
+    # wrap_constant=True forces wrapping even with output_type=None (compiler deduces type).
+    if (output_type is not None or wrap_constant) and output_type is not std_string:
+        return LambdaExpression(
+            f"return {safe_exp(value)};",
+            args,
+            capture="",
+            return_type=output_type,
+        )
+    return value
 
 
 class MockObj(Expression):
@@ -773,11 +879,16 @@ class MockObj(Expression):
     Mostly consists of magic methods that allow ESPHome's codegen syntax.
     """
 
-    __slots__ = ("base", "op")
+    __slots__ = ("base", "op", "is_new_expr", "new_type")
 
-    def __init__(self, base, op="."):
+    def __init__(self, base, op=".", is_new_expr=False, new_type=None) -> None:
         self.base = base
         self.op = op
+        self.is_new_expr = is_new_expr
+        # For `is_new_expr=True` objects, `new_type` holds the class name being
+        # constructed (e.g. "ili9xxx::ILI9XXXST7789V"). Needed by Pvariable so
+        # placement new uses the actual subclass rather than id_.type.
+        self.new_type = new_type
 
     def __getattr__(self, attr: str) -> "MockObj":
         # prevent python dunder methods being replaced by mock objects
@@ -792,7 +903,9 @@ class MockObj(Expression):
 
     def __call__(self, *args: SafeExpType) -> "MockObj":
         call = CallExpression(self.base, *args)
-        return MockObj(call, self.op)
+        return MockObj(
+            call, self.op, is_new_expr=self.is_new_expr, new_type=self.new_type
+        )
 
     def __str__(self):
         return str(self.base)
@@ -806,7 +919,7 @@ class MockObj(Expression):
 
     @property
     def new(self) -> "MockObj":
-        return MockObj(f"new {self.base}", "->")
+        return MockObj(f"new {self.base}", "->", is_new_expr=True, new_type=self.base)
 
     def template(self, *args: SafeExpType) -> "MockObj":
         """Apply template parameters to this object."""

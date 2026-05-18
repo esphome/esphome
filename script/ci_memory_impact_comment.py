@@ -160,6 +160,76 @@ def format_change(before: int, after: int, threshold: float | None = None) -> st
     return f"{emoji} {delta_str} ({pct_str})"
 
 
+def _sig_base(sym: str) -> str:
+    """Strip argument types from a symbol name for fuzzy matching.
+
+    Removes the entire outermost parenthesized argument list (including
+    the parentheses) from the symbol string.
+
+    This makes, for example, "foo(int)::nested" and "foo(float)::nested"
+    share the same key "foo::nested", while "foo(int)" maps to "foo" and
+    therefore does NOT collide with "foo(int)::nested".
+    """
+    start = sym.find("(")
+    if start == -1:
+        return sym
+    end = sym.rfind(")")
+    if end == -1:
+        return sym
+    return sym[:start] + sym[end + 1 :]
+
+
+_AMBIGUOUS = object()
+
+
+def _match_signature_changes(
+    changed_symbols: list[tuple[str, int, int, int]],
+    new_symbols: list[tuple[str, int]],
+    removed_symbols: list[tuple[str, int]],
+) -> tuple[
+    list[tuple[str, int, int, int]],
+    list[tuple[str, int]],
+    list[tuple[str, int]],
+]:
+    """Match new/removed symbol pairs that only differ in argument types.
+
+    When a function's argument types change (e.g. foo(vector<>&) -> foo(Buffer&)),
+    it appears as a new + removed symbol. This matches them by base name and moves
+    them to changed_symbols. Only matches unambiguous 1:1 pairs.
+    """
+    if not new_symbols or not removed_symbols:
+        return changed_symbols, new_symbols, removed_symbols
+
+    # Build base -> entry maps; mark ambiguous bases with sentinel
+    new_by_base: dict[str, tuple[str, int] | object] = {}
+    for entry in new_symbols:
+        base = _sig_base(entry[0])
+        new_by_base[base] = _AMBIGUOUS if base in new_by_base else entry
+    removed_by_base: dict[str, tuple[str, int] | object] = {}
+    for entry in removed_symbols:
+        base = _sig_base(entry[0])
+        removed_by_base[base] = _AMBIGUOUS if base in removed_by_base else entry
+
+    matched: set[str] = set()  # matched base keys
+    for base, new_entry in new_by_base.items():
+        if new_entry is _AMBIGUOUS:
+            continue
+        rem_entry = removed_by_base.get(base)
+        if rem_entry is None or rem_entry is _AMBIGUOUS:
+            continue
+        pr_sym, pr_size = new_entry
+        _rm_sym, target_size = rem_entry
+        delta = pr_size - target_size
+        if delta != 0:
+            changed_symbols.append((pr_sym, target_size, pr_size, delta))
+        matched.add(base)
+
+    if matched:
+        new_symbols = [e for e in new_symbols if _sig_base(e[0]) not in matched]
+        removed_symbols = [e for e in removed_symbols if _sig_base(e[0]) not in matched]
+    return changed_symbols, new_symbols, removed_symbols
+
+
 def prepare_symbol_changes_data(
     target_symbols: dict | None, pr_symbols: dict | None
 ) -> dict | None:
@@ -199,6 +269,11 @@ def prepare_symbol_changes_data(
             # Changed symbol
             delta = pr_size - target_size
             changed_symbols.append((symbol, target_size, pr_size, delta))
+
+    # Match new/removed symbols that only differ in argument types
+    changed_symbols, new_symbols, removed_symbols = _match_signature_changes(
+        changed_symbols, new_symbols, removed_symbols
+    )
 
     if not changed_symbols and not new_symbols and not removed_symbols:
         return None

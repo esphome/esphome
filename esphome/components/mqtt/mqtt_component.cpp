@@ -209,12 +209,16 @@ bool MQTTComponent::send_discovery_() {
 
         if (this->is_disabled_by_default_())
           root[MQTT_ENABLED_BY_DEFAULT] = false;
-        // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-        const auto icon_ref = this->get_icon_ref_();
-        if (!icon_ref.empty()) {
-          root[MQTT_ICON] = icon_ref;
+        char icon_buf[MAX_ICON_LENGTH];
+        const char *icon = this->get_icon_to_(icon_buf);
+        if (icon[0] != '\0') {
+          root[MQTT_ICON] = icon;
         }
-        // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
+        char dc_buf[MAX_DEVICE_CLASS_LENGTH];
+        const char *dc = this->get_entity()->get_device_class_to(dc_buf);
+        if (dc[0] != '\0') {
+          root[MQTT_DEVICE_CLASS] = dc;
+        }
 
         const auto entity_category = this->get_entity()->get_entity_category();
         if (entity_category != ENTITY_CATEGORY_NONE) {
@@ -268,7 +272,7 @@ bool MQTTComponent::send_discovery_() {
           root[MQTT_UNIQUE_ID] = unique_id_buf;
         }
 
-        const std::string &node_name = App.get_name();
+        const auto &node_name = App.get_name();
         if (discovery_info.object_id_generator == MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR) {
           // node_name (max 31) + "_" (1) + object_id (max 128) + null
           char object_id_full[ESPHOME_DEVICE_NAME_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 1];
@@ -276,8 +280,8 @@ bool MQTTComponent::send_discovery_() {
           root[MQTT_OBJECT_ID] = object_id_full;
         }
 
-        const std::string &friendly_name_ref = App.get_friendly_name();
-        const std::string &node_friendly_name = friendly_name_ref.empty() ? node_name : friendly_name_ref;
+        const auto &friendly_name_ref = App.get_friendly_name();
+        const auto &node_friendly_name = friendly_name_ref.empty() ? node_name : friendly_name_ref;
         const char *node_area = App.get_area();
 
         JsonObject device_info = root[MQTT_DEVICE].to<JsonObject>();
@@ -405,12 +409,6 @@ void MQTTComponent::process_resend() {
     this->schedule_resend_state();
   }
 }
-void MQTTComponent::call_dump_config() {
-  if (this->is_internal())
-    return;
-
-  this->dump_config();
-}
 void MQTTComponent::schedule_resend_state() { this->resend_state_ = true; }
 bool MQTTComponent::is_connected_() const { return global_mqtt_client->is_connected(); }
 
@@ -419,7 +417,6 @@ const StringRef &MQTTComponent::friendly_name_() const { return this->get_entity
 StringRef MQTTComponent::get_default_object_id_to_(std::span<char, OBJECT_ID_MAX_LEN> buf) const {
   return this->get_entity()->get_object_id_to(buf);
 }
-StringRef MQTTComponent::get_icon_ref_() const { return this->get_entity()->get_icon_ref(); }
 bool MQTTComponent::is_disabled_by_default_() const { return this->get_entity()->is_disabled_by_default(); }
 bool MQTTComponent::compute_is_internal_() {
   if (this->custom_state_topic_.has_value()) {

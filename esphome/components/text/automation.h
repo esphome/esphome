@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "text.h"
 
-namespace esphome {
-namespace text {
+namespace esphome::text {
 
 class TextStateTrigger : public Trigger<std::string> {
  public:
@@ -29,5 +28,4 @@ template<typename... Ts> class TextSetAction : public Action<Ts...> {
   Text *text_;
 };
 
-}  // namespace text
-}  // namespace esphome
+}  // namespace esphome::text

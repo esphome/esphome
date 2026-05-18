@@ -4,18 +4,18 @@
 
 #include "esphome/components/audio/audio.h"
 #include "esphome/components/audio/audio_transfer_buffer.h"
+#include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/components/speaker/speaker.h"
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/static_task.h"
 
-#include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
 
 #include <atomic>
 
-namespace esphome {
-namespace mixer_speaker {
+namespace esphome::mixer_speaker {
 
 /* Classes for mixing several source speaker audio streams and writing it to another speaker component.
  *  - Volume controls are passed through to the output speaker
@@ -67,11 +67,13 @@ class SourceSpeaker : public speaker::Speaker, public Component {
   void set_pause_state(bool pause_state) override { this->pause_state_ = pause_state; }
   bool get_pause_state() const override { return this->pause_state_; }
 
-  /// @brief Transfers audio from the ring buffer into the transfer buffer. Ducks audio while transferring.
-  /// @param transfer_buffer Locked shared_ptr to the transfer buffer (must be valid, not null)
+  /// @brief Exposes the next ring buffer chunk (zero-copy) and ducks the freshly exposed bytes in place.
+  /// If the source still has bytes from a prior partial consume, this is a no-op (those bytes were already
+  /// ducked on the fill that exposed them).
+  /// @param audio_source Locked shared_ptr to the audio source (must be valid, not null)
   /// @param ticks_to_wait FreeRTOS ticks to wait while waiting to read from the ring buffer.
-  /// @return Number of bytes transferred from the ring buffer.
-  size_t process_data_from_source(std::shared_ptr<audio::AudioSourceTransferBuffer> &transfer_buffer,
+  /// @return Number of bytes newly exposed from the ring buffer.
+  size_t process_data_from_source(std::shared_ptr<audio::RingBufferAudioSource> &audio_source,
                                   TickType_t ticks_to_wait);
 
   /// @brief Sets the ducking level for the source speaker.
@@ -83,7 +85,7 @@ class SourceSpeaker : public speaker::Speaker, public Component {
   void set_parent(MixerSpeaker *parent) { this->parent_ = parent; }
   void set_timeout(uint32_t ms) { this->timeout_ms_ = ms; }
 
-  std::weak_ptr<audio::AudioSourceTransferBuffer> get_transfer_buffer() { return this->transfer_buffer_; }
+  std::weak_ptr<audio::RingBufferAudioSource> get_audio_source() { return this->audio_source_; }
 
  protected:
   friend class MixerSpeaker;
@@ -106,8 +108,8 @@ class SourceSpeaker : public speaker::Speaker, public Component {
 
   MixerSpeaker *parent_;
 
-  std::shared_ptr<audio::AudioSourceTransferBuffer> transfer_buffer_;
-  std::weak_ptr<RingBuffer> ring_buffer_;
+  std::shared_ptr<audio::RingBufferAudioSource> audio_source_;
+  std::weak_ptr<ring_buffer::RingBuffer> ring_buffer_;
 
   uint32_t buffer_duration_ms_;
   uint32_t last_seen_data_ms_{0};
@@ -143,8 +145,6 @@ class MixerSpeaker : public Component {
   /// @param stream_info The calling source speaker's audio stream information
   /// @return ESP_ERR_NOT_SUPPORTED if the incoming stream is incompatible due to unsupported bits per sample
   ///         ESP_ERR_INVALID_ARG if the incoming stream is incompatible to be mixed with the other input audio stream
-  ///         ESP_ERR_NO_MEM if there isn't enough memory for the task's stack
-  ///         ESP_ERR_INVALID_STATE if the task fails to start
   ///         ESP_OK if the incoming stream is compatible and the mixer task starts
   esp_err_t start(audio::AudioStreamInfo &stream_info);
 
@@ -188,16 +188,6 @@ class MixerSpeaker : public Component {
 
   static void audio_mixer_task(void *params);
 
-  /// @brief Starts the mixer task after allocating memory for the task stack.
-  /// @return ESP_ERR_NO_MEM if there isn't enough memory for the task's stack
-  ///         ESP_ERR_INVALID_STATE if the task didn't start
-  ///         ESP_OK if successful
-  esp_err_t start_task_();
-
-  /// @brief If the task is stopped, it sets the task handle to the nullptr and deallocates its stack
-  /// @return ESP_OK if the task was stopped, ESP_ERR_INVALID_STATE otherwise.
-  esp_err_t delete_task_();
-
   EventGroupHandle_t event_group_{nullptr};
 
   FixedVector<SourceSpeaker *> source_speakers_;
@@ -207,16 +197,14 @@ class MixerSpeaker : public Component {
   bool queue_mode_;
   bool task_stack_in_psram_{false};
 
-  TaskHandle_t task_handle_{nullptr};
-  StaticTask_t task_stack_;
-  StackType_t *task_stack_buffer_{nullptr};
+  StaticTask task_;
 
   optional<audio::AudioStreamInfo> audio_stream_info_;
 
   std::atomic<uint32_t> frames_in_pipeline_{0};  // Frames written to output but not yet played
+  uint32_t all_stopped_since_ms_{0};             // Debounce transient all-stopped windows before stopping task
 };
 
-}  // namespace mixer_speaker
-}  // namespace esphome
+}  // namespace esphome::mixer_speaker
 
 #endif

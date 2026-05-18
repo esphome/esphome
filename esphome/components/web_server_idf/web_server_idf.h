@@ -16,6 +16,7 @@
 #include <vector>
 
 #ifdef USE_WEBSERVER
+#include "esphome/components/json/json_util.h"
 #include "esphome/components/web_server/list_entities.h"
 #endif
 
@@ -133,8 +134,17 @@ class AsyncWebServerRequest {
 
   void redirect(const std::string &url);
 
-  void send(AsyncWebServerResponse *response);
-  void send(int code, const char *content_type = nullptr, const char *content = nullptr);
+  inline void ESPHOME_ALWAYS_INLINE send(AsyncWebServerResponse *response) {
+    httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
+  }
+  inline void ESPHOME_ALWAYS_INLINE send(int code, const char *content_type = nullptr, const char *content = nullptr) {
+    this->init_response_(nullptr, code, content_type);
+    if (content) {
+      httpd_resp_send(*this, content, HTTPD_RESP_USE_STRLEN);
+    } else {
+      httpd_resp_send(*this, nullptr, 0);
+    }
+  }
   // NOLINTNEXTLINE(readability-identifier-naming)
   AsyncWebServerResponse *beginResponse(int code, const char *content_type) {
     auto *res = new AsyncWebServerResponseEmpty(this);  // NOLINT(cppcoreguidelines-owning-memory)
@@ -203,7 +213,7 @@ class AsyncWebServer {
   ~AsyncWebServer() { this->end(); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
-  void onNotFound(std::function<void(AsyncWebServerRequest *request)> fn) { on_not_found_ = std::move(fn); }
+  void onNotFound(std::function<void(AsyncWebServerRequest *request)> &&fn) { on_not_found_ = std::move(fn); }
 
   void begin();
   void end();
@@ -250,7 +260,7 @@ class AsyncWebHandler {
 class AsyncEventSource;
 class AsyncEventSourceResponse;
 
-using message_generator_t = std::string(esphome::web_server::WebServer *, void *);
+using message_generator_t = json::SerializationBuffer<>(esphome::web_server::WebServer *, void *);
 
 /*
   This class holds a pointer to the source component that wants to publish a state event, and a pointer to a function
@@ -289,6 +299,9 @@ class AsyncEventSourceResponse {
   AsyncEventSourceResponse(const AsyncWebServerRequest *request, esphome::web_server_idf::AsyncEventSource *server,
                            esphome::web_server::WebServer *ws);
 
+  // Main-loop only: sends initial ping/config/sorting_groups, starts entity iterator.
+  void start_session_main_loop_();
+
   void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
   void process_deferred_queue_();
   void process_buffer_();
@@ -300,7 +313,7 @@ class AsyncEventSourceResponse {
   std::vector<DeferredEvent> deferred_queue_;
   esphome::web_server::WebServer *web_server_;
   esphome::web_server::ListEntitiesIterator entities_iterator_;
-  std::string event_buffer_{""};
+  std::string event_buffer_;
   size_t event_bytes_sent_;
   uint16_t consecutive_send_failures_{0};
   static constexpr uint16_t MAX_CONSECUTIVE_SEND_FAILURES = 2500;  // ~20 seconds at 125Hz loop rate
@@ -325,24 +338,32 @@ class AsyncEventSource : public AsyncWebHandler {
   }
   // NOLINTNEXTLINE(readability-identifier-naming)
   void handleRequest(AsyncWebServerRequest *request) override;
+  // Callback runs on the main loop (not the httpd task) after the session's
+  // initial ping/config/sorting_groups have been sent.
   // NOLINTNEXTLINE(readability-identifier-naming)
-  void onConnect(connect_handler_t cb) { this->on_connect_ = std::move(cb); }
+  void onConnect(connect_handler_t &&cb) { this->on_connect_ = std::move(cb); }
 
   void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
-  void loop();
+  /// Returns true if there are sessions remaining (including pending cleanup).
+  bool loop();
   bool empty() { return this->count() == 0; }
 
   size_t count() const { return this->sessions_.size(); }
 
  protected:
+  // Cold path: move sessions from pending_sessions_ into sessions_ and greet each one.
+  void __attribute__((noinline, cold)) adopt_pending_sessions_main_loop_();
+
   std::string url_;
-  // Use vector instead of set: SSE sessions are typically 1-5 connections (browsers, dashboards).
-  // Linear search is faster than red-black tree overhead for this small dataset.
-  // Only operations needed: add session, remove session, iterate sessions - no need for sorted order.
+  // Main-loop only. Vector: SSE sessions are 1-5 connections, linear search beats set.
   std::vector<AsyncEventSourceResponse *> sessions_;
+  // Httpd-task intake; guarded by pending_mutex_, gated by has_pending_sessions_.
+  std::vector<AsyncEventSourceResponse *> pending_sessions_;
+  Mutex pending_mutex_;
   connect_handler_t on_connect_{};
   esphome::web_server::WebServer *web_server_;
+  std::atomic<bool> has_pending_sessions_{false};
 };
 #endif  // USE_WEBSERVER
 

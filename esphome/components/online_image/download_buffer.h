@@ -15,7 +15,10 @@ namespace esphome::online_image {
 class DownloadBuffer {
  public:
   DownloadBuffer(size_t size);
-  ~DownloadBuffer() { this->allocator_.deallocate(this->buffer_, this->size_); }
+  ~DownloadBuffer() {
+    RAMAllocator<uint8_t> allocator;
+    allocator.deallocate(this->buffer_, this->size_);
+  }
 
   uint8_t *data(size_t offset = 0);
   uint8_t *append() { return this->data(this->unread_); }
@@ -34,7 +37,6 @@ class DownloadBuffer {
   size_t resize(size_t size);
 
  protected:
-  RAMAllocator<uint8_t> allocator_{};
   uint8_t *buffer_;
   size_t size_;
   /** Total number of downloaded bytes not yet read. */

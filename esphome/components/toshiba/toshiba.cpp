@@ -4,8 +4,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace toshiba {
+namespace esphome::toshiba {
 
 struct RacPt1411hwruFanSpeed {
   uint8_t code1;
@@ -275,7 +274,7 @@ static Ras2819tSecondPacketCodes get_ras_2819t_second_packet_codes(climate::Clim
  */
 static uint8_t get_ras_2819t_temp_code(float temperature) {
   int temp_index = static_cast<int>(temperature) - 18;
-  if (temp_index < 0 || temp_index >= static_cast<int>(sizeof(RAS_2819T_TEMP_CODES))) {
+  if (temp_index < 0 || static_cast<size_t>(temp_index) >= sizeof(RAS_2819T_TEMP_CODES)) {
     ESP_LOGW(TAG, "Temperature %.1f°C out of range [18-30°C], defaulting to 24°C", temperature);
     return 0x40;  // Default to 24°C
   }
@@ -502,7 +501,7 @@ void ToshibaClimate::transmit_generic_() {
   }
 
   uint8_t fan;
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_QUIET:
       fan = TOSHIBA_FAN_SPEED_QUIET;
       break;
@@ -567,7 +566,7 @@ void ToshibaClimate::transmit_rac_pt1411hwru_() {
     message[2] = RAC_PT1411HWRU_NO_FAN.code1;
     message[7] = RAC_PT1411HWRU_NO_FAN.code2;
   } else {
-    switch (this->fan_mode.value()) {
+    switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
       case climate::CLIMATE_FAN_LOW:
         message[2] = RAC_PT1411HWRU_FAN_LOW.code1;
         message[7] = RAC_PT1411HWRU_FAN_LOW.code2;
@@ -811,12 +810,12 @@ void ToshibaClimate::transmit_ras_2819t_() {
     uint8_t temp_code = get_ras_2819t_temp_code(temperature);
 
     // Get fan speed encoding for rc_code_1
-    climate::ClimateFanMode effective_fan_mode = this->fan_mode.value();
+    climate::ClimateFanMode effective_fan_mode = this->fan_mode.value_or(climate::CLIMATE_FAN_ON);
 
     // Dry mode only supports AUTO fan speed
     if (this->mode == climate::CLIMATE_MODE_DRY) {
       effective_fan_mode = climate::CLIMATE_FAN_AUTO;
-      if (this->fan_mode.value() != climate::CLIMATE_FAN_AUTO) {
+      if (this->fan_mode.value_or(climate::CLIMATE_FAN_ON) != climate::CLIMATE_FAN_AUTO) {
         ESP_LOGW(TAG, "Dry mode only supports AUTO fan speed, forcing AUTO");
       }
     }
@@ -951,10 +950,10 @@ void ToshibaClimate::transmit_ras_2819t_() {
 }
 
 uint8_t ToshibaClimate::is_valid_rac_pt1411hwru_header_(const uint8_t *message) {
-  const std::vector<uint8_t> header{RAC_PT1411HWRU_MESSAGE_HEADER0, RAC_PT1411HWRU_CS_HEADER,
-                                    RAC_PT1411HWRU_SWING_HEADER};
+  static constexpr uint8_t HEADERS[] = {RAC_PT1411HWRU_MESSAGE_HEADER0, RAC_PT1411HWRU_CS_HEADER,
+                                        RAC_PT1411HWRU_SWING_HEADER};
 
-  for (auto i : header) {
+  for (auto i : HEADERS) {
     if ((message[0] == i) && (message[1] == static_cast<uint8_t>(~i)))
       return i;
   }
@@ -1372,5 +1371,4 @@ bool ToshibaClimate::decode_(remote_base::RemoteReceiveData *data, uint8_t *mess
   return true;
 }
 
-}  // namespace toshiba
-}  // namespace esphome
+}  // namespace esphome::toshiba

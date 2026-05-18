@@ -2,12 +2,12 @@
 #include "esphome/core/log.h"
 
 #ifdef HAS_PCNT
-#include <esp_clk_tree.h>
+#include <driver/gpio.h>
+#include <esp_private/esp_clk.h>
 #include <hal/pcnt_ll.h>
 #endif
 
-namespace esphome {
-namespace pulse_counter {
+namespace esphome::pulse_counter {
 
 static const char *const TAG = "pulse_counter";
 
@@ -76,8 +76,8 @@ bool HwPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   }
 
   pcnt_chan_config_t chan_config = {
-      .edge_gpio_num = this->pin->get_pin(),
-      .level_gpio_num = -1,
+      .edge_gpio_num = static_cast<gpio_num_t>(this->pin->get_pin()),
+      .level_gpio_num = GPIO_NUM_NC,
   };
   error = pcnt_new_channel(this->pcnt_unit, &chan_config, &this->pcnt_channel);
   if (error != ESP_OK) {
@@ -117,9 +117,7 @@ bool HwPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   }
 
   if (this->filter_us != 0) {
-    uint32_t apb_freq;
-    esp_clk_tree_src_get_freq_hz(SOC_MOD_CLK_APB, ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED, &apb_freq);
-    uint32_t max_glitch_ns = PCNT_LL_MAX_GLITCH_WIDTH * 1000000u / apb_freq;
+    uint32_t max_glitch_ns = PCNT_LL_MAX_GLITCH_WIDTH * 1000u / ((uint32_t) esp_clk_apb_freq() / 1000000u);
     pcnt_glitch_filter_config_t filter_config = {
         .max_glitch_ns = std::min(this->filter_us * 1000u, max_glitch_ns),
     };
@@ -177,7 +175,8 @@ void PulseCounterSensor::setup() {
 
 void PulseCounterSensor::set_total_pulses(uint32_t pulses) {
   this->current_total_ = pulses;
-  this->total_sensor_->publish_state(pulses);
+  if (this->total_sensor_ != nullptr)
+    this->total_sensor_->publish_state(pulses);
 }
 
 void PulseCounterSensor::dump_config() {
@@ -210,5 +209,4 @@ void PulseCounterSensor::update() {
   this->last_time_ = now;
 }
 
-}  // namespace pulse_counter
-}  // namespace esphome
+}  // namespace esphome::pulse_counter

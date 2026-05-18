@@ -13,8 +13,7 @@
 #include "esphome/components/captive_portal/captive_portal.h"
 #endif
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 static const char *const TAG = "tuya";
 static const int COMMAND_DELAY = 10;
@@ -210,13 +209,12 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
           bool is_pin_equals =
               this->status_pin_ != nullptr && this->status_pin_->get_pin() == this->status_pin_reported_;
           // Configure status pin toggling (if reported and configured) or WIFI_STATE periodic send
-          if (is_pin_equals) {
-            ESP_LOGV(TAG, "Configured status pin %i", this->status_pin_reported_);
-            this->set_interval("wifi", 1000, [this] { this->set_status_pin_(); });
-          } else {
-            ESP_LOGW(TAG, "Supplied status_pin does not equals the reported pin %i. TuyaMcu will work in limited mode.",
+          if (!is_pin_equals) {
+            ESP_LOGW(TAG, "Supplied status_pin does not equals the reported pin %i. Using supplied pin anyway.",
                      this->status_pin_reported_);
           }
+          ESP_LOGV(TAG, "Configured status pin %i", this->status_pin_->get_pin());
+          this->set_interval("wifi", 1000, [this] { this->set_status_pin_(); });
         } else {
           this->init_state_ = TuyaInitState::INIT_WIFI;
           ESP_LOGV(TAG, "Configured WIFI_STATE periodic send");
@@ -686,8 +684,10 @@ void Tuya::set_numeric_datapoint_value_(uint8_t datapoint_id, TuyaDatapointType 
     case 4:
       data.push_back(value >> 24);
       data.push_back(value >> 16);
+      [[fallthrough]];
     case 2:
       data.push_back(value >> 8);
+      [[fallthrough]];
     case 1:
       data.push_back(value >> 0);
       break;
@@ -760,5 +760,4 @@ void Tuya::register_listener(uint8_t datapoint_id, const std::function<void(Tuya
 
 TuyaInitState Tuya::get_init_state() { return this->init_state_; }
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya
