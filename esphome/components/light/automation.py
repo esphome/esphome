@@ -306,7 +306,7 @@ async def _light_effect_cycle_to_code(config, action_id, template_arg, forward: 
     paren = await cg.get_variable(config[CONF_ID])
     cycle_template_arg = cg.TemplateArguments(forward, *template_arg)
     var = cg.new_Pvariable(action_id, cycle_template_arg, paren)
-    cg.add(var.set_include_off(config[CONF_INCLUDE_NONE]))
+    cg.add(var.set_include_none(config[CONF_INCLUDE_NONE]))
     return var
 
 
