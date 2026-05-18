@@ -9,6 +9,7 @@ Additional switches to support additional features for Haier AC.
 # Example configuration entry
 switch:
   - platform: haier
+    haier_id: haier_ac
     beeper:
       name: Haier beeper
     health_mode:
@@ -21,7 +22,7 @@ switch:
 
 ## Configuration variables
 
-- **haier_id** (**Required**, [ID](/guides/configuration-types#id)): The id of Haier climate component
+- **haier_id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the Haier climate component.
 - **beeper** (*Optional*): (supported only by hOn) A switch that enables or disables Haier climate sound feedback.
   All options from [Switch](/components/switch#config-switch).
 
