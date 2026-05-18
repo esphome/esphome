@@ -1282,6 +1282,7 @@ class EditRequestHandler(BaseHandler):
         )
         if content is not None:
             self.set_header("Content-Type", "application/yaml")
+            self.set_header("Cache-Control", "no-store")
             self.write(content)
 
     def _read_file(self, filename: str, configuration: str) -> bytes | None:
@@ -1312,6 +1313,7 @@ class EditRequestHandler(BaseHandler):
         await loop.run_in_executor(None, write_file, filename, self.request.body)
         # Ensure the StorageJSON is updated as well
         DASHBOARD.entries.async_schedule_storage_json_update(filename)
+        self.set_header("Cache-Control", "no-store")
         self.set_status(200)
 
 
