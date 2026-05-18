@@ -8,8 +8,7 @@
 #include "esp_netif.h"
 #include "esp_event.h"
 #endif
-namespace esphome {
-namespace network {
+namespace esphome::network {
 
 static const char *const TAG = "network";
 
@@ -33,6 +32,6 @@ void NetworkComponent::setup() {
   }
 #endif
 }
-}  // namespace network
-}  // namespace esphome
+
+}  // namespace esphome::network
 #endif

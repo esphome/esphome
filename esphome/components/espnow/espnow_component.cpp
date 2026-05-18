@@ -149,9 +149,6 @@ bool ESPNowComponent::is_wifi_enabled() {
 }
 
 void ESPNowComponent::setup() {
-  // Initialize LwIP stack for wake_loop_threadsafe() socket support
-  // Network interface setup handled by network component
-
   if (this->enable_on_boot_) {
     this->enable_();
   } else {
