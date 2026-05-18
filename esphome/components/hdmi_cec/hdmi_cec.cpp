@@ -28,7 +28,7 @@ static constexpr uint32_t LOW_BIT_US = 1500;
 static constexpr uint32_t SIGNAL_FREE_TIME_AFTER_RECEIVE = (TOTAL_BIT_US * 5);
 static constexpr uint32_t SIGNAL_FREE_TIME_AFTER_XMIT_FAIL = (TOTAL_BIT_US * 3);
 static constexpr uint32_t SIGNAL_FREE_TIME_AFTER_XMIT_SUCCESS = (TOTAL_BIT_US * 7);
-static constexpr uint8_t MAX_ATTEMPTS = 5;
+static constexpr uint8_t MAX_ATTEMPTS = 8;  // CEC says 5, but we also count 'bus busy' occurences
 
 // constants used for this implementation:
 static const char *const TAG = "hdmi_cec";
@@ -375,7 +375,8 @@ void CECTransmit::transmit_message() {
   // pin to detect a bus collision and allow early termination of the frame transmit
   if (!send_start_bit_() || !transmit_my_address_(frame->initiator_addr())) {
     // sending these first bits caused a bus-collision with another initiator.
-    // further transmission is stopped immediatly, as the other initiator might not see the collision,
+    // further transmission is stopped immediatly, as the other initiator might not see the collision
+    confirm_received_us_ = micros();  // this would otherwise be set after seeing the (first) full byte
     required_idle_period_ = SIGNAL_FREE_TIME_AFTER_XMIT_FAIL;
     transmit_state_ = TransmitState::IDLE;
     return;
@@ -392,7 +393,7 @@ void CECTransmit::transmit_message() {
 bool CECTransmit::transmit_my_address_(const uint8_t initiator_addr) {
   // My (initiator) address is in the 4 MSB bits of the header byte (CEC transfers MSB first)
   bool ok = true;
-  for (int i = 3; i >= 0; i--) {
+  for (int i = 3; i >= 0 && ok; i--) {
     bool bit_value = ((initiator_addr >> i) & 0x1);
     if (bit_value) {
       ok &= send_high_and_test_();
