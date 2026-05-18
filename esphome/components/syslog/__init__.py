@@ -42,4 +42,5 @@ async def to_code(config):
     await cg.register_parented(var, parent)
     cg.add(var.set_strip(config[CONF_STRIP]))
     cg.add(var.set_facility(config[CONF_FACILITY]))
-    cg.add(var.set_hostname(config[CONF_HOSTNAME]))
+    if hostname := config.get(CONF_HOSTNAME):
+        cg.add(var.set_hostname(hostname))
