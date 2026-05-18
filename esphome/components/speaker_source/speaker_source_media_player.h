@@ -217,7 +217,7 @@ class SpeakerSourceMediaPlayer : public Component, public media_player::MediaPla
   media_player::MediaPlayerState get_source_state_(media_source::MediaSource *media_source, bool playlist_active,
                                                    media_player::MediaPlayerState old_state) const;
 #ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
-  media_player::MediaPlayerState on_off_state_intercept_(media_player::MediaPlayerState);
+  media_player::MediaPlayerState on_off_update_state_(media_player::MediaPlayerState);
 #endif
 
   void process_control_queue_();

@@ -60,9 +60,9 @@ void SpeakerSourceMediaPlayer::dump_config() {
 
 void SpeakerSourceMediaPlayer::setup() {
 #ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
-  state = media_player::MEDIA_PLAYER_STATE_OFF;
+  this->state = media_player::MEDIA_PLAYER_STATE_OFF;
 #else
-  state = media_player::MEDIA_PLAYER_STATE_IDLE;
+  this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
 #endif
 
   this->media_control_command_queue_ = xQueueCreate(MEDIA_CONTROLS_QUEUE_LENGTH, sizeof(MediaPlayerControlCommand));
@@ -215,7 +215,7 @@ size_t SpeakerSourceMediaPlayer::handle_media_output_(uint8_t pipeline, media_so
 
 #ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
 // THREAD CONTEXT: Called from main loop (loop)
-media_player::MediaPlayerState SpeakerSourceMediaPlayer::on_off_state_intercept_(media_player::MediaPlayerState state) {
+media_player::MediaPlayerState SpeakerSourceMediaPlayer::on_off_update_state_(media_player::MediaPlayerState state) {
   switch (state) {
     case media_player::MEDIA_PLAYER_STATE_PLAYING:
       return media_player::MEDIA_PLAYER_STATE_PLAYING;
@@ -308,11 +308,9 @@ void SpeakerSourceMediaPlayer::loop() {
         case media_source::MediaSourceState::ERROR:
           ESP_LOGE(TAG, "Announcement source error");
           // Fall through to media pipeline state
-#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
-          this->state = this->on_off_state_intercept_(
-              this->get_source_state_(media_ps.active_source, media_playlist_active, old_state));
-#else
           this->state = this->get_source_state_(media_ps.active_source, media_playlist_active, old_state);
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+          this->state = this->on_off_update_state_(this->state);
 #endif
           break;
         default:
@@ -320,22 +318,18 @@ void SpeakerSourceMediaPlayer::loop() {
       }
     } else {
       // Announcement source is idle, fall through to media pipeline
-#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
-      this->state = this->on_off_state_intercept_(
-          this->get_source_state_(media_ps.active_source, media_playlist_active, old_state));
-#else
       this->state = this->get_source_state_(media_ps.active_source, media_playlist_active, old_state);
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+      this->state = this->on_off_update_state_(this->state);
 #endif
     }
   } else if (announcement_playlist_active && old_state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING) {
     this->state = media_player::MEDIA_PLAYER_STATE_ANNOUNCING;
   } else {
     // No active announcement, check media pipeline
-#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
-    this->state = this->on_off_state_intercept_(
-        this->get_source_state_(media_ps.active_source, media_playlist_active, old_state));
-#else
     this->state = this->get_source_state_(media_ps.active_source, media_playlist_active, old_state);
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+    this->state = this->on_off_update_state_(this->state);
 #endif
   }
 
