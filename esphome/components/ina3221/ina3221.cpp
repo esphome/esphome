@@ -82,21 +82,24 @@ void INA3221Component::setup() {
   for (int i = 0; i < 3; i++) {
     if (!std::isnan(this->channels_[i].critical_current_limit_)) {
       float limit_v = this->channels_[i].critical_current_limit_ * this->channels_[i].shunt_resistance_;
-      int16_t reg_val = (int16_t)(limit_v * 1000000.0f / 40.0f);
+      int16_t reg_val = (int16_t) (limit_v * 1000000.0f / 40.0f);
       this->write_byte_16(INA3221_REGISTER_CHANNEL1_CRITICAL_ALERT + i, reg_val << 3);
     }
     if (!std::isnan(this->channels_[i].warning_current_limit_)) {
       float limit_v = this->channels_[i].warning_current_limit_ * this->channels_[i].shunt_resistance_;
-      int16_t reg_val = (int16_t)(limit_v * 1000000.0f / 40.0f);
+      int16_t reg_val = (int16_t) (limit_v * 1000000.0f / 40.0f);
       this->write_byte_16(INA3221_REGISTER_CHANNEL1_WARNING_ALERT + i, reg_val << 3);
     }
   }
 
   if (this->has_summation_()) {
     uint16_t mask_reg = 0;
-    if (this->channels_[0].exists()) mask_reg |= (1 << 14);
-    if (this->channels_[1].exists()) mask_reg |= (1 << 13);
-    if (this->channels_[2].exists()) mask_reg |= (1 << 12);
+    if (this->channels_[0].exists())
+      mask_reg |= (1 << 14);  // SCC1
+    if (this->channels_[1].exists())
+      mask_reg |= (1 << 13);  // SCC2
+    if (this->channels_[2].exists())
+      mask_reg |= (1 << 12);  // SCC3
     this->write_byte_16(INA3221_REGISTER_MASK_ENABLE, mask_reg);
   }
 }
@@ -191,8 +194,10 @@ void INA3221Component::read_data_() {
     }
 
     if (channel.exists()) {
-      if (!std::isnan(bus_voltage_v)) total_bus_voltage_v += bus_voltage_v;
-      if (!std::isnan(current_a)) total_current_a += current_a;
+      if (!std::isnan(bus_voltage_v))
+        total_bus_voltage_v += bus_voltage_v;
+      if (!std::isnan(current_a))
+        total_current_a += current_a;
       active_channels++;
     }
   }

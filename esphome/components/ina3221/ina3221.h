@@ -54,8 +54,12 @@ class INA3221Component : public PollingComponent, public i2c::I2CDevice {
   void set_bus_conversion_time(INA3221ConversionTime ct) { this->bus_conversion_time_ = ct; }
   void set_shunt_conversion_time(INA3221ConversionTime ct) { this->shunt_conversion_time_ = ct; }
 
-  void set_warning_current_limit(int channel, float current_a) { this->channels_[channel].warning_current_limit_ = current_a; }
-  void set_critical_current_limit(int channel, float current_a) { this->channels_[channel].critical_current_limit_ = current_a; }
+  void set_warning_current_limit(int channel, float current_a) {
+    this->channels_[channel].warning_current_limit_ = current_a;
+  }
+  void set_critical_current_limit(int channel, float current_a) {
+    this->channels_[channel].critical_current_limit_ = current_a;
+  }
 
   void set_sum_shunt_voltage_sensor(sensor::Sensor *obj) { this->sum_shunt_voltage_sensor_ = obj; }
   void set_sum_current_sensor(sensor::Sensor *obj) { this->sum_current_sensor_ = obj; }
