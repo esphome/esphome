@@ -282,3 +282,34 @@ async def test_syslog(
             assert "SHORT_MESSAGE_CONTENT" in short_msg, (
                 f"Short message content missing: {short_msg}"
             )
+
+
+@pytest.mark.asyncio
+async def test_syslog_custom_hostname(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    async with syslog_udp_listener() as (udp_port, receiver):
+        config = yaml_config.replace(
+            "SYSLOG_PORT_PLACEHOLDER",
+            str(udp_port),
+        ).replace(
+            "SYSLOG_HOSTNAME_PLACEHOLDER",
+            'hostname: "syslog-test.site-a.example.com"\n',
+        )
+
+        async with run_compiled(config), api_client_connected() as client:
+            await receiver.wait_for_messages(timeout=10.0)
+
+            # only validate hostname behavior here
+            parsed = [
+                parse_syslog_message(m)
+                for m in receiver.messages
+                if parse_syslog_message(m)
+            ]
+
+            assert parsed, "No syslog messages received"
+
+            for msg in parsed:
+                assert msg["hostname"] == "syslog-test.site-a.example.com"
