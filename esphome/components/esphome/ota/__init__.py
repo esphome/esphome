@@ -130,6 +130,7 @@ CONFIG_SCHEMA = cv.All(
                 bk72xx=8892,
                 ln882x=8820,
                 rtl87xx=8892,
+                host=8082,
             ): cv.port,
             cv.Optional(CONF_ALLOW_PARTITION_ACCESS, default=False): cv.boolean,
             cv.Optional(CONF_PASSWORD): cv.string,
