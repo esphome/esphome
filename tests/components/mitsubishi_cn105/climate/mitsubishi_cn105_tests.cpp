@@ -53,13 +53,15 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
 
   // Settings response
   ctx.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x10, 0x02, 0x00, 0x00, 0x00, 0x08, 0x07,
-                    0x00, 0x00, 0x00, 0x00, 0x03, 0xB0, 0x00, 0x00, 0x00, 0x00, 0x99});
+                    0x00, 0x04, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3C});
 
   // Settings should still have initial values
   EXPECT_FALSE(ctx.sut.status().power_on);
   EXPECT_THAT(ctx.sut.status().target_temperature, ::testing::IsNan());
   EXPECT_EQ(ctx.sut.status().mode, MitsubishiCN105::Mode::UNKNOWN);
   EXPECT_EQ(ctx.sut.status().fan_mode, MitsubishiCN105::FanMode::UNKNOWN);
+  EXPECT_EQ(ctx.sut.status().vane_mode, MitsubishiCN105::VaneMode::UNKNOWN);
+  EXPECT_EQ(ctx.sut.status().wide_vane_mode, MitsubishiCN105::WideVaneMode::UNKNOWN);
 
   ctx.sut.set_current_time(300);
   ASSERT_FALSE(ctx.sut.update());
@@ -70,6 +72,8 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
   EXPECT_EQ(ctx.sut.status().target_temperature, 24.0f);
   EXPECT_EQ(ctx.sut.status().mode, MitsubishiCN105::Mode::AUTO);
   EXPECT_EQ(ctx.sut.status().fan_mode, MitsubishiCN105::FanMode::AUTO);
+  EXPECT_EQ(ctx.sut.status().vane_mode, MitsubishiCN105::VaneMode::POSITION_4);
+  EXPECT_EQ(ctx.sut.status().wide_vane_mode, MitsubishiCN105::WideVaneMode::SWING);
 
   // Now fetch room temperature (0x03)
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::UPDATING_STATUS);
@@ -303,6 +307,30 @@ TEST(MitsubishiCN105Tests, DecodeStatusRoomTempPackageTempEncodedB) {
   EXPECT_EQ(ctx.sut.status().room_temperature, 30.0f);
 }
 
+TEST(MitsubishiCN105Tests, DecodeWideVanePackageHighBitNotSet) {
+  auto ctx = TestContext{};
+
+  ctx.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x10, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x58});
+
+  ctx.sut.update();
+
+  EXPECT_EQ(ctx.sut.status().wide_vane_mode, MitsubishiCN105::WideVaneMode::CENTER);
+  EXPECT_FALSE(ctx.sut.set_wide_vane_high_bit_);
+}
+
+TEST(MitsubishiCN105Tests, DecodeWideVanePackageHighBitSet) {
+  auto ctx = TestContext{};
+
+  ctx.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x10, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x83, 0x00, 0x00, 0x00, 0x00, 0x00, 0xD8});
+
+  ctx.sut.update();
+
+  EXPECT_EQ(ctx.sut.status().wide_vane_mode, MitsubishiCN105::WideVaneMode::CENTER);
+  EXPECT_TRUE(ctx.sut.set_wide_vane_high_bit_);
+}
+
 TEST(MitsubishiCN105Tests, ApplySettingsPowerOn) {
   auto ctx = TestContext{};
 
@@ -365,6 +393,37 @@ TEST(MitsubishiCN105Tests, ApplyFanModeSpeed1) {
                                                   0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x73));
 }
 
+TEST(MitsubishiCN105Tests, ApplyVaneModeSwing) {
+  auto ctx = TestContext{};
+
+  ctx.sut.set_vane_mode(MitsubishiCN105::VaneMode::SWING);
+  ctx.sut.apply_settings();
+
+  EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x01, 0x10, 0x00, 0x00, 0x00, 0x00,
+                                                  0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x66));
+}
+
+TEST(MitsubishiCN105Tests, ApplyWideVaneModeLeftAndHighBitNotSet) {
+  auto ctx = TestContext{};
+
+  ctx.sut.set_wide_vane_mode(MitsubishiCN105::WideVaneMode::LEFT);
+  ctx.sut.apply_settings();
+
+  EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00,
+                                                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x7A));
+}
+
+TEST(MitsubishiCN105Tests, ApplyWideVaneModeLeftAndHighBitSet) {
+  auto ctx = TestContext{};
+
+  ctx.sut.set_wide_vane_high_bit_ = true;
+  ctx.sut.set_wide_vane_mode(MitsubishiCN105::WideVaneMode::LEFT);
+  ctx.sut.apply_settings();
+
+  EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00,
+                                                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x82, 0x00, 0x00, 0xFA));
+}
+
 TEST(MitsubishiCN105Tests, WriteInterruptsWaitingForNextStatusUpdate) {
   auto ctx = TestContext{};
 
@@ -391,15 +450,15 @@ TEST(MitsubishiCN105Tests, WriteInterruptsWaitingForNextStatusUpdate) {
   ctx.sut.set_target_temperature(25.0f);
   ctx.sut.set_mode(MitsubishiCN105::Mode::HEAT);
   ctx.sut.set_fan_mode(MitsubishiCN105::FanMode::AUTO);
+  ctx.sut.set_vane_mode(MitsubishiCN105::VaneMode::AUTO);
 
   // Waiting for next status update must be interrupted and new values send to AC
   ctx.sut.set_current_time(6000);
   ASSERT_FALSE(ctx.sut.update());
   EXPECT_EQ(ctx.sut.status_update_wait_credit_ms_, 1000);
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::APPLYING_SETTINGS);
-  EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x01, 0x0F, 0x00, 0x00, 0x01, 0x00,
-                                                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xB2, 0x00, 0xBB));
-
+  EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x01, 0x1F, 0x00, 0x00, 0x01, 0x00,
+                                                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xB2, 0x00, 0xAB));
   // Write ACK response
   ctx.uart.push_rx({0xFC, 0x61, 0x01, 0x30, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5E});
