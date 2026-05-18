@@ -129,6 +129,7 @@ enum class Phase : uint8_t {
   INIT_RESET,     // reset pulse + wake controller + packed-write enable
   INIT_DEV_INFO,  // GET_DEV_INFO and validate
   INIT_VCOM,      // write configured VCOM
+  INIT_TEMP,      // force temperature for waveform LUT selection
   INIT_DONE,      // allocate framebuffer; transition to IDLE
   // Update flow
   UPDATE_PREPARE,   // do_update_, compute dirty region, decide 4bpp/1bpp
@@ -162,6 +163,12 @@ class IT8951Display : public Display,
   void set_reversed(bool reversed) { this->reversed_ = reversed; }
   void set_sleep_when_done(bool s) { this->sleep_when_done_ = s; }
   void set_vcom(uint16_t vcom_mv) { this->vcom_ = vcom_mv; }
+  void set_vcom_register(uint16_t selector) { this->vcom_register_ = selector; }
+  void set_force_temperature(int16_t celsius) {
+    this->force_temperature_ = celsius;
+    this->force_temperature_set_ = true;
+  }
+  void set_use_legacy_dpy_area(bool use) { this->use_legacy_dpy_area_ = use; }
   void set_force_1bpp(bool f) { this->force_1bpp_ = f; }
   void set_update_mode(uint16_t m) { this->default_update_mode_ = static_cast<UpdateMode>(m); }
   void set_transform(uint8_t t) {
@@ -228,6 +235,7 @@ class IT8951Display : public Display,
   void enqueue_init_reset_();
   void enqueue_init_dev_info_();
   void enqueue_init_vcom_();
+  void enqueue_init_temp_();
   void enqueue_update_transfer_();
   void enqueue_update_refresh_();
   void enqueue_update_restore_();
@@ -278,6 +286,10 @@ class IT8951Display : public Display,
   uint8_t full_update_every_{1};
   uint32_t reset_duration_{10};
   uint16_t vcom_{2300};
+  uint16_t vcom_register_{I80_CMD_VCOM_WRITE};
+  int16_t force_temperature_{DEFAULT_FORCE_TEMP_C};
+  bool force_temperature_set_{false};
+  bool use_legacy_dpy_area_{false};
   bool reversed_{false};
   bool sleep_when_done_{false};
   bool force_1bpp_{false};

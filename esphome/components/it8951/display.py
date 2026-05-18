@@ -39,8 +39,18 @@ AUTO_LOAD = ["split_buffer"]
 DEPENDENCIES = ["spi"]
 
 CONF_VCOM = "vcom"
+CONF_VCOM_REGISTER = "vcom_register"
+CONF_FORCE_TEMPERATURE = "force_temperature"
 CONF_FORCE_1BPP = "force_1bpp"
 CONF_UPDATE_MODE = "update_mode"
+CONF_USE_LEGACY_DPY_AREA = "use_legacy_dpy_area"
+
+# VCOM SET sub-command selectors. The IT8951 firmware accepts different
+# values across panels; most respond to 0x0001, but a few — e.g. the Seeed
+# reTerminal E1003 — only respond to 0x0002 and silently drop 0x0001.
+VCOM_REGISTER_DEFAULT = 0x0001
+VCOM_REGISTER_ALT = 0x0002
+VCOM_REGISTER_OPTIONS = (VCOM_REGISTER_DEFAULT, VCOM_REGISTER_ALT)
 
 it8951_ns = cg.esphome_ns.namespace("it8951")
 IT8951Display = it8951_ns.class_("IT8951Display", display.Display, spi.SPIDevice)
@@ -126,6 +136,21 @@ IT8951Model(
     reset_pin=12,
     cs_pin=10,
     vcom=1400,
+    # reTerminal E1003 panel firmware only accepts the 0x0002 VCOM SET
+    # selector; using the default 0x0001 leaves VCOM unchanged and breaks
+    # grayscale waveforms (GC16/GL16) — INIT still works because it does
+    # not depend on VCOM accuracy.
+    vcom_register=VCOM_REGISTER_ALT,
+    # The reTerminal E1003 ships with on-die temperature sensing disabled,
+    # so the host must declare an operating temperature; otherwise the
+    # waveform LUT defaults to a value that produces no visible change
+    # for grayscale modes.
+    force_temperature=25,
+    # reTerminal E1003 expects the framebuffer in IT8951-native polarity
+    # (0x00 = black, 0x0F = white). The driver's default polarity is the
+    # opposite, so enable `reversed` here to get correct on-screen output
+    # (white background, black text/graphics).
+    reversed=True,
     sleep_when_done=False,
     data_rate=4_000_000,
 )
@@ -195,6 +220,20 @@ def _model_schema(config):
             cv.Optional(
                 CONF_VCOM, default=model.get_default(CONF_VCOM, 2300)
             ): cv.int_range(0, 5000),
+            cv.Optional(
+                CONF_VCOM_REGISTER,
+                default=model.get_default(
+                    CONF_VCOM_REGISTER, VCOM_REGISTER_DEFAULT
+                ),
+            ): cv.one_of(*VCOM_REGISTER_OPTIONS, int=True),
+            cv.Optional(
+                CONF_FORCE_TEMPERATURE,
+                default=model.get_default(CONF_FORCE_TEMPERATURE),
+            ): cv.Any(cv.none, cv.int_range(min=-40, max=85)),
+            cv.Optional(
+                CONF_USE_LEGACY_DPY_AREA,
+                default=model.get_default(CONF_USE_LEGACY_DPY_AREA, False),
+            ): cv.boolean,
             cv.Optional(CONF_UPDATE_MODE): update_mode,
             cv.Optional(CONF_RESET_DURATION): cv.All(
                 cv.positive_time_period_milliseconds,
@@ -281,6 +320,10 @@ async def to_code(config):
     cg.add(var.set_reversed(config[CONF_REVERSED]))
     cg.add(var.set_sleep_when_done(config[CONF_SLEEP_WHEN_DONE]))
     cg.add(var.set_vcom(config[CONF_VCOM]))
+    cg.add(var.set_vcom_register(config[CONF_VCOM_REGISTER]))
+    if config.get(CONF_FORCE_TEMPERATURE) is not None:
+        cg.add(var.set_force_temperature(config[CONF_FORCE_TEMPERATURE]))
+    cg.add(var.set_use_legacy_dpy_area(config[CONF_USE_LEGACY_DPY_AREA]))
     cg.add(var.set_force_1bpp(config[CONF_FORCE_1BPP]))
     if CONF_UPDATE_MODE in config:
         cg.add(var.set_update_mode(UPDATE_MODE_OPTIONS[config[CONF_UPDATE_MODE]]))

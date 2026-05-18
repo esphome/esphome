@@ -148,7 +148,12 @@ void IT8951Display::process_op_(const Op &op) {
       this->op_xfer_area_end_();
       break;
     case OpType::DPY_BUF_CMD:
-      this->spi_cmd_(I80_CMD_DPY_BUF_AREA);
+      // Some panel firmwares (notably Seeed reTerminal E1003) silently drop
+      // I80_CMD_DPY_BUF_AREA (0x0037) — the LUT engine never starts and the
+      // host eventually times out after ~12s. Fall back to the basic
+      // I80_CMD_DPY_AREA (0x0034) for those panels; the buffer address is
+      // already programmed via LISAR during the transfer phase.
+      this->spi_cmd_(this->use_legacy_dpy_area_ ? I80_CMD_DPY_AREA : I80_CMD_DPY_BUF_AREA);
       break;
     case OpType::DPY_BUF_ARGS:
       this->op_dpy_buf_args_();
@@ -223,6 +228,15 @@ void IT8951Display::advance_phase_() {
       break;
 
     case Phase::INIT_VCOM:
+      this->set_phase_(Phase::INIT_TEMP);
+      if (this->force_temperature_set_) {
+        this->enqueue_init_temp_();
+      } else {
+        this->advance_phase_();
+      }
+      break;
+
+    case Phase::INIT_TEMP:
       this->set_phase_(Phase::INIT_DONE);
       this->advance_phase_();
       break;
@@ -354,10 +368,24 @@ void IT8951Display::enqueue_init_dev_info_() {
 
 void IT8951Display::enqueue_init_vcom_() {
   // Always write configured VCOM. The IT8951 stores it in OTP-backed RAM;
-  // rewriting the same value is harmless.
+  // rewriting the same value is harmless. The VCOM SET selector is
+  // panel-specific (see I80_CMD_VCOM_WRITE / I80_CMD_VCOM_WRITE_ALT in
+  // it8951_defs.h) and is supplied via the model preset.
   this->enqueue_(OpType::CMD, I80_CMD_VCOM);
-  this->enqueue_(OpType::WRITE_W, I80_CMD_VCOM_WRITE);
+  this->enqueue_(OpType::WRITE_W, this->vcom_register_);
   this->enqueue_(OpType::WRITE_W, this->vcom_);
+}
+
+void IT8951Display::enqueue_init_temp_() {
+  // Force panel temperature (in degrees C) so the controller selects the
+  // correct waveform LUT. Some panels (e.g. Seeed reTerminal E1003) ship
+  // with auto-temperature disabled and rely on the host to declare the
+  // operating temperature; without this, grayscale waveforms run against
+  // a mismatched LUT and pixels do not visibly change even though the LUT
+  // engine completes a full cycle.
+  this->enqueue_(OpType::CMD, I80_CMD_FORCE_TEMP);
+  this->enqueue_(OpType::WRITE_W, I80_CMD_FORCE_TEMP_WRITE);
+  this->enqueue_(OpType::WRITE_W, static_cast<uint16_t>(this->force_temperature_));
 }
 
 // --- Update op enqueuers -----------------------------------------------------
@@ -606,6 +634,20 @@ bool IT8951Display::op_xfer_rows_() {
 }
 
 void IT8951Display::op_dpy_buf_args_() {
+  // I80_CMD_DPY_BUF_AREA (0x0037) takes 7 args (with explicit buffer addr).
+  // I80_CMD_DPY_AREA     (0x0034) takes 5 args; the buffer address is taken
+  // from LISAR which we program during the transfer phase, so this is safe.
+  if (this->use_legacy_dpy_area_) {
+    const uint16_t args[5] = {
+        this->area_x_,
+        this->area_y_,
+        this->area_w_,
+        this->area_h_,
+        static_cast<uint16_t>(this->active_mode_),
+    };
+    this->spi_write_args_(args, 5);
+    return;
+  }
   const uint16_t args[7] = {
       this->area_x_,
       this->area_y_,
@@ -891,7 +933,15 @@ void IT8951Display::dump_config() {
   ESP_LOGCONFIG(TAG, "  Buffer: %u bytes in %u segment(s)", static_cast<unsigned>(this->buffer_length_),
                 static_cast<unsigned>(this->buffer_.get_buffer_count()));
   ESP_LOGCONFIG(TAG, "  Image buffer addr: 0x%04X%04X", this->img_buf_addr_h_, this->img_buf_addr_l_);
-  ESP_LOGCONFIG(TAG, "  VCOM: %.02fV", static_cast<float>(this->vcom_) / 1000.0f);
+  ESP_LOGCONFIG(TAG, "  VCOM: %.02fV (set selector 0x%04X)", static_cast<float>(this->vcom_) / 1000.0f,
+                this->vcom_register_);
+  if (this->force_temperature_set_) {
+    ESP_LOGCONFIG(TAG, "  Force temperature: %d °C", this->force_temperature_);
+  } else {
+    ESP_LOGCONFIG(TAG, "  Force temperature: (controller default)");
+  }
+  ESP_LOGCONFIG(TAG, "  Display command: %s",
+                this->use_legacy_dpy_area_ ? "DPY_AREA (0x0034, legacy)" : "DPY_BUF_AREA (0x0037)");
   ESP_LOGCONFIG(TAG, "  Sleep when done: %s", YESNO(this->sleep_when_done_));
   ESP_LOGCONFIG(TAG, "  Full update every: %u", this->full_update_every_);
   ESP_LOGCONFIG(TAG, "  Reversed colors: %s", YESNO(this->reversed_));

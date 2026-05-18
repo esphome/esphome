@@ -35,7 +35,25 @@ static constexpr uint16_t I80_CMD_GET_DEV_INFO = 0x0302;
 static constexpr uint16_t I80_CMD_DPY_BUF_AREA = 0x0037;
 static constexpr uint16_t I80_CMD_VCOM = 0x0039;
 static constexpr uint16_t I80_CMD_VCOM_READ = 0x0000;
+// VCOM write selectors. Different IT8951-driven panels accept different
+// selector values for the VCOM SET sub-command. Most panels (M5EPD,
+// generic dev kits) accept 0x0001. Some panels — notably the Seeed
+// reTerminal E1003 — only respond to selector 0x0002 and silently ignore
+// 0x0001, leaving VCOM at its default and making grayscale waveforms
+// (GC16/GL16) ineffective even though INIT still works.
 static constexpr uint16_t I80_CMD_VCOM_WRITE = 0x0001;
+static constexpr uint16_t I80_CMD_VCOM_WRITE_ALT = 0x0002;
+
+// Force temperature command. The IT8951 selects waveform LUTs based on
+// panel temperature; if it is left at the controller default, panels with
+// auto-temperature disabled (notably the Seeed reTerminal E1003) will
+// run waveforms against a mismatched LUT, leaving pixels visually
+// unchanged even though the LUT engine completes a full cycle. The
+// selector word selects the operation (0x0001 = write); the value word
+// is the temperature in degrees Celsius.
+static constexpr uint16_t I80_CMD_FORCE_TEMP = 0x0040;
+static constexpr uint16_t I80_CMD_FORCE_TEMP_WRITE = 0x0001;
+static constexpr int16_t DEFAULT_FORCE_TEMP_C = 25;
 
 // --- Pixel mode (bits per pixel encoding) ---
 static constexpr uint8_t PIXEL_2BPP = 0;
