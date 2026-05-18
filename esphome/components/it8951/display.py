@@ -222,9 +222,7 @@ def _model_schema(config):
             ): cv.int_range(0, 5000),
             cv.Optional(
                 CONF_VCOM_REGISTER,
-                default=model.get_default(
-                    CONF_VCOM_REGISTER, VCOM_REGISTER_DEFAULT
-                ),
+                default=model.get_default(CONF_VCOM_REGISTER, VCOM_REGISTER_DEFAULT),
             ): cv.one_of(*VCOM_REGISTER_OPTIONS, int=True),
             cv.Optional(
                 CONF_FORCE_TEMPERATURE,

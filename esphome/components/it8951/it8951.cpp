@@ -639,11 +639,7 @@ void IT8951Display::op_dpy_buf_args_() {
   // from LISAR which we program during the transfer phase, so this is safe.
   if (this->use_legacy_dpy_area_) {
     const uint16_t args[5] = {
-        this->area_x_,
-        this->area_y_,
-        this->area_w_,
-        this->area_h_,
-        static_cast<uint16_t>(this->active_mode_),
+        this->area_x_, this->area_y_, this->area_w_, this->area_h_, static_cast<uint16_t>(this->active_mode_),
     };
     this->spi_write_args_(args, 5);
     return;
