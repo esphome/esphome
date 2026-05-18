@@ -163,6 +163,16 @@ dialog::backdrop {
   visibility: hidden;
 }
 
+/* Tighten loose lists: blank lines between list items in source produce
+   <li><p>...</p></li> output. Strip the leading/trailing paragraph margins so
+   single-paragraph items sit flush against each other while items with multiple
+   paragraphs still get spacing between their internal paragraphs. The class is
+   repeated to win specificity against Starlight's own li > :last-child rule. */
+.sl-markdown-content.sl-markdown-content li > p:first-child { margin-block-start: 0; }
+.sl-markdown-content.sl-markdown-content li > p:last-child { margin-block-end: 0; }
+.sl-markdown-content.sl-markdown-content li > ul,
+.sl-markdown-content.sl-markdown-content li > ol { margin-block-start: 0; }
+
 /* GitHub Alerts - Custom ESPHome Colors (matching Hugo theme style) */
 .markdown-alert {
   padding: 0.75rem 1rem;
