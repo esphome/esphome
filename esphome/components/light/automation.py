@@ -26,8 +26,8 @@ from esphome.const import (
     CONF_WARM_WHITE,
     CONF_WHITE,
 )
-from esphome.core import CORE, EsphomeError, Lambda
-from esphome.cpp_generator import LambdaExpression
+from esphome.core import CORE, ID, EsphomeError, Lambda
+from esphome.cpp_generator import LambdaExpression, MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 from .types import (
@@ -288,7 +288,12 @@ LIGHT_EFFECT_CYCLE_ACTION_SCHEMA = automation.maybe_simple_id(
     LIGHT_EFFECT_CYCLE_ACTION_SCHEMA,
     synchronous=True,
 )
-async def light_effect_next_to_code(config, action_id, template_arg, args):
+async def light_effect_next_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     return await _light_effect_cycle_to_code(config, action_id, template_arg, True)
 
 
@@ -298,11 +303,21 @@ async def light_effect_next_to_code(config, action_id, template_arg, args):
     LIGHT_EFFECT_CYCLE_ACTION_SCHEMA,
     synchronous=True,
 )
-async def light_effect_previous_to_code(config, action_id, template_arg, args):
+async def light_effect_previous_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     return await _light_effect_cycle_to_code(config, action_id, template_arg, False)
 
 
-async def _light_effect_cycle_to_code(config, action_id, template_arg, forward: bool):
+async def _light_effect_cycle_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    forward: bool,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     cycle_template_arg = cg.TemplateArguments(forward, *template_arg)
     var = cg.new_Pvariable(action_id, cycle_template_arg, paren)
