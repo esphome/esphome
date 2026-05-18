@@ -9,15 +9,16 @@ substitutions:
 <<: !include common.yaml
 
 media_player:
-  on_turn_on:
-    - then:
-        - homeassistant.service:
-            data:
-              entity_id: switch.media_player_1_switch
-            action: switch.turn_on
-  on_turn_off:
-    - then:
-        - homeassistant.service:
-            data:
-              entity_id: switch.media_player_1_switch
-            action: switch.turn_off
+  - platform: speaker_source
+    on_turn_on:
+      - then:
+          - homeassistant.service:
+              data:
+                entity_id: switch.media_player_1_switch
+              action: switch.turn_on
+    on_turn_off:
+      - then:
+          - homeassistant.service:
+              data:
+                entity_id: switch.media_player_1_switch
+              action: switch.turn_off
