@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -21,7 +22,6 @@ from esphome.espidf.component import (
     _check_library_data,
     _collect_filtered_files,
     _convert_library_to_component,
-    _detect_requires,
     _parse_library_json,
     _parse_library_properties,
     _process_dependencies,
@@ -83,19 +83,6 @@ def test_collect_filtered_files_exclude(tmp_path):
     assert str(f2) not in result
 
 
-def test_detect_requires(tmp_path):
-    f = tmp_path / "main.c"
-    f.write_text('#include "mbedtls/foo.h"')
-
-    result = _detect_requires([str(f)])
-    assert "mbedtls" in result
-
-
-def test_detect_requires_ignores_invalid_file(tmp_path):
-    result = _detect_requires([str(tmp_path / "missing.c")])
-    assert result == set()
-
-
 def test_split_list_by_condition():
     items = ["-Iinclude", "-Llib", "-Wall"]
 
@@ -142,7 +129,7 @@ def test_generate_cmakelists_txt_with_flags(tmp_component, tmp_path):
         == f"""idf_component_register(
   SRCS "src{sep}main.c"
   INCLUDE_DIRS "src"
-  REQUIRES dep
+  REQUIRES dep ${{ESPHOME_PROJECT_MANAGED_COMPONENTS}} ${{ESPHOME_PROJECT_BUILTIN_COMPONENTS}}
 )
 target_compile_options(${{COMPONENT_LIB}} PUBLIC
   "-DTEST"
@@ -158,6 +145,58 @@ target_link_libraries(${{COMPONENT_LIB}} INTERFACE
 )
 """
     )
+
+
+def test_generate_cmakelists_txt_references_project_managed_components_variable(
+    tmp_component: IDFComponent,
+) -> None:
+    # The CMakeLists is cached under pio_components/<hash>/ and shared
+    # across projects, so the project-managed REQUIRES list is exposed via
+    # a CMake variable expanded at configure time rather than baked here.
+    src_dir = tmp_component.path / "src"
+    src_dir.mkdir()
+    (src_dir / "main.c").write_text("int main() {}")
+    tmp_component.data = {}
+
+    content = generate_cmakelists_txt(tmp_component)
+    assert "${ESPHOME_PROJECT_MANAGED_COMPONENTS}" in content
+
+
+def test_generate_idf_component_overwrites_bundled_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    esp32_idf_core: None,
+) -> None:
+    # A library that ships its own CMakeLists.txt + idf_component.yml must
+    # have both replaced by ESPHome's generated content. Library authors'
+    # bundled IDF metadata is frequently broken (bogus REQUIRES, hard-coded
+    # frameworks), so we always regenerate from library.json.
+    from esphome.espidf.component import _generate_idf_component
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "main.cpp").write_text("// dummy\n")
+    (tmp_path / "library.json").write_text(json.dumps({"name": "tripwire-lib"}))
+    (tmp_path / "CMakeLists.txt").write_text("# TRIPWIRE_BUNDLED_CMAKELISTS\n")
+    (tmp_path / "idf_component.yml").write_text("# TRIPWIRE_BUNDLED_MANIFEST\n")
+
+    fake_component = IDFComponent(
+        "owner/tripwire-lib", "1.0.0", source=URLSource("http://dummy")
+    )
+    fake_component.path = tmp_path
+    monkeypatch.setattr(
+        esphome.espidf.component,
+        "_convert_library_to_component",
+        lambda _lib: fake_component,
+    )
+    monkeypatch.setattr(fake_component, "download", lambda force=False: None)
+
+    _generate_idf_component(Library("owner/tripwire-lib", "1.0.0", None))
+
+    cml = (tmp_path / "CMakeLists.txt").read_text()
+    manifest = (tmp_path / "idf_component.yml").read_text()
+    assert "TRIPWIRE_BUNDLED_CMAKELISTS" not in cml
+    assert "TRIPWIRE_BUNDLED_MANIFEST" not in manifest
+    assert "idf_component_register" in cml
 
 
 def test_generate_idf_component_yml_basic(tmp_component):
@@ -183,27 +222,6 @@ dependencies:
   dep:
     version: '1.0'
     override_path: {dep.path}
-"""
-    )
-
-
-def test_generate_idf_component_yml_arduino_registry_dep(tmp_component):
-    # Synthetic arduino-esp32 dep with no source / no path: should emit a
-    # version-only entry so the IDF component manager resolves it from the
-    # registry instead of via git.
-    dep = IDFComponent("espressif/arduino-esp32", "3.3.8", source=None)
-
-    tmp_component.dependencies = [dep]
-    tmp_component.data = {}
-
-    result = generate_idf_component_yml(tmp_component)
-
-    assert (
-        result
-        == """version: 1.0.0
-dependencies:
-  espressif/arduino-esp32:
-    version: 3.3.8
 """
     )
 

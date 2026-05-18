@@ -64,7 +64,7 @@ mqtt:
         topic: some/topic
         payload: Good-bye
     - lambda: |-
-        ESP_LOGD("MQTT", "Disconnect reason %d", reason);
+        ESP_LOGD("MQTT", "Disconnect reason %d", (int) reason);
   publish_nan_as_none: false
 
 binary_sensor:
