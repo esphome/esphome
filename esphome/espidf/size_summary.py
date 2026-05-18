@@ -99,15 +99,10 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
     ram_used = ram_region.get("used")
     ram_total = ram_region.get("size")
     if ram_total and ram_used is not None:
-        # On unified-DIRAM variants (S2, S3, C-series, H2, P4) any ``.text``
-        # section in this region (e.g. ``.iram0.text``) is code, not data --
-        # it still consumes SRAM, but it's reported on its own row in the
-        # per-region table and isn't what the RAM line is meant to track.
-        # Strip it from both used and total so the percentage matches the
-        # original ESP32's ``DRAM`` accounting (which excludes code by
-        # virtue of code living in a separate ``IRAM`` region there) and
-        # reflects data RAM pressure (.bss/.data/.noinit). No-op on the
-        # original ESP32, where ``.text`` sections never land in DRAM.
+        # Strip code from the RAM line so unified-DIRAM variants (S2, S3,
+        # C/H/P) report data-side pressure only, matching the original
+        # ESP32 where code lives in a separate IRAM region. No-op on the
+        # original ESP32: .text never lands in DRAM there.
         text_size = sum(
             sec.get("size", 0)
             for sec in (ram_region.get("sections") or {}).values()
