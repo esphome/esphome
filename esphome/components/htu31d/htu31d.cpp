@@ -44,32 +44,6 @@ static const uint8_t HTU31D_RESET = 0x1E;
 static const uint8_t HTU31D_DIAGNOSTICS = 0x08;
 
 /**
- * Computes a CRC result for the provided input.
- *
- * @returns the computed CRC result for the provided input
- */
-uint8_t compute_crc(uint32_t value) {
-  uint32_t polynom = 0x98800000;  // x^8 + x^5 + x^4 + 1
-  uint32_t msb = 0x80000000;
-  uint32_t mask = 0xFF800000;
-  uint32_t threshold = 0x00000080;
-  uint32_t result = value;
-
-  while (msb != threshold) {
-    // Check if msb of current value is 1 and apply XOR mask
-    if (result & msb)
-      result = ((result ^ polynom) & mask) | (result & ~mask);
-
-    // Shift by one
-    msb >>= 1;
-    mask >>= 1;
-    polynom >>= 1;
-  }
-
-  return result;
-}
-
-/**
  * Resets the sensor and ensures that the devices serial number can be read over
  * I2C.
  */
@@ -112,7 +86,7 @@ void HTU31DComponent::update() {
     // Calculate temperature value.
     uint16_t raw_temp = encode_uint16(thdata[0], thdata[1]);
 
-    uint8_t crc = compute_crc((uint32_t) raw_temp << 8);
+    uint8_t crc = crc8(thdata, 2, 0, 0x31, true);
     if (crc != thdata[2]) {
       this->status_set_warning();
       ESP_LOGE(TAG, "Error validating temperature CRC");
@@ -131,7 +105,7 @@ void HTU31DComponent::update() {
     // Calculate humidty value.
     uint16_t raw_hum = encode_uint16(thdata[3], thdata[4]);
 
-    crc = compute_crc((uint32_t) raw_hum << 8);
+    crc = crc8(thdata + 3, 2, 0, 0x31, true);
     if (crc != thdata[5]) {
       this->status_set_warning();
       ESP_LOGE(TAG, "Error validating humidty CRC");
@@ -197,7 +171,7 @@ uint32_t HTU31DComponent::read_serial_num_() {
 
   serial = encode_uint32(reply[0], reply[1], reply[2], padding);
 
-  uint8_t crc = compute_crc(serial);
+  uint8_t crc = crc8(reply, 3, 0, 0x31, true);
   if (crc != reply[3]) {
     ESP_LOGE(TAG, "Error validating serial CRC");
     return 0;

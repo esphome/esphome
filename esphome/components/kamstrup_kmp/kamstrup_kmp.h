@@ -123,7 +123,4 @@ class KamstrupKMPComponent : public PollingComponent, public uart::UARTDevice {
   void set_sensor_value_(uint16_t command, float value, uint8_t unit_idx);
 };
 
-// "true" CCITT CRC-16
-uint16_t crc16_ccitt(const uint8_t *buffer, int len);
-
 }  // namespace esphome::kamstrup_kmp

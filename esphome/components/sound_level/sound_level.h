@@ -4,11 +4,11 @@
 
 #include "esphome/components/audio/audio_transfer_buffer.h"
 #include "esphome/components/microphone/microphone_source.h"
+#include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/components/sensor/sensor.h"
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
-#include "esphome/core/ring_buffer.h"
 
 namespace esphome::sound_level {
 
@@ -49,7 +49,7 @@ class SoundLevelComponent : public Component {
   sensor::Sensor *rms_sensor_{nullptr};
 
   std::unique_ptr<audio::AudioSourceTransferBuffer> audio_buffer_;
-  std::weak_ptr<RingBuffer> ring_buffer_;
+  std::weak_ptr<ring_buffer::RingBuffer> ring_buffer_;
 
   int32_t squared_peak_{0};
   uint64_t squared_samples_sum_{0};

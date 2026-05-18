@@ -5,9 +5,9 @@
 #include "esphome/components/audio/audio.h"
 #include "esphome/components/audio/audio_reader.h"
 #include "esphome/components/audio/audio_decoder.h"
+#include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/components/speaker/speaker.h"
 
-#include "esphome/core/ring_buffer.h"
 #include "esphome/core/static_task.h"
 
 #include "esp_err.h"
@@ -129,7 +129,7 @@ class AudioPipeline {
   size_t buffer_size_;           // Ring buffer between reader and decoder
   size_t transfer_buffer_size_;  // Internal source/sink buffers for the audio reader and decoder
 
-  std::weak_ptr<RingBuffer> raw_file_ring_buffer_;
+  std::weak_ptr<ring_buffer::RingBuffer> raw_file_ring_buffer_;
 
   // Handles basic control/state of the three tasks
   EventGroupHandle_t event_group_{nullptr};
