@@ -22,7 +22,7 @@ class Syslog : public Component, public Parented<udp::UDPComponent> {
   time::RealTimeClock *time_;
   bool strip_{true};
   int facility_{16};
-  const char * hostname_;
+  const char *hostname_;
 };
 }  // namespace esphome::syslog
 #endif
