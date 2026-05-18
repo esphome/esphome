@@ -177,22 +177,24 @@ void MitsubishiCN105Climate::apply_values_() {
   }
 
   if (!this->supported_swing_modes_.empty()) {
-    if (this->supported_swing_modes_.count(climate::CLIMATE_SWING_VERTICAL) &&
-        status.vane_mode != MitsubishiCN105::VaneMode::UNKNOWN &&
-        status.vane_mode != MitsubishiCN105::VaneMode::SWING) {
-      this->last_non_swing_vane_mode_ = status.vane_mode;
+    bool vertical_swinging = false;
+    bool horizontal_swinging = false;
+
+    if (this->supported_swing_modes_.count(climate::CLIMATE_SWING_VERTICAL)) {
+      if (status.vane_mode == MitsubishiCN105::VaneMode::SWING) {
+        vertical_swinging = true;
+      } else if (status.vane_mode != MitsubishiCN105::VaneMode::UNKNOWN) {
+        this->last_non_swing_vane_mode_ = status.vane_mode;
+      }
     }
 
-    if (this->supported_swing_modes_.count(climate::CLIMATE_SWING_HORIZONTAL) &&
-        status.wide_vane_mode != MitsubishiCN105::WideVaneMode::UNKNOWN &&
-        status.wide_vane_mode != MitsubishiCN105::WideVaneMode::SWING) {
-      this->last_non_swing_wide_vane_mode_ = status.wide_vane_mode;
+    if (this->supported_swing_modes_.count(climate::CLIMATE_SWING_HORIZONTAL)) {
+      if (status.wide_vane_mode == MitsubishiCN105::WideVaneMode::SWING) {
+        horizontal_swinging = true;
+      } else if (status.wide_vane_mode != MitsubishiCN105::WideVaneMode::UNKNOWN) {
+        this->last_non_swing_wide_vane_mode_ = status.wide_vane_mode;
+      }
     }
-
-    const bool vertical_swinging = this->supported_swing_modes_.count(climate::CLIMATE_SWING_VERTICAL) &&
-                                   status.vane_mode == MitsubishiCN105::VaneMode::SWING;
-    const bool horizontal_swinging = this->supported_swing_modes_.count(climate::CLIMATE_SWING_HORIZONTAL) &&
-                                     status.wide_vane_mode == MitsubishiCN105::WideVaneMode::SWING;
 
     if (vertical_swinging && horizontal_swinging) {
       this->swing_mode = climate::CLIMATE_SWING_BOTH;
