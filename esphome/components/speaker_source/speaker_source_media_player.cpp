@@ -763,6 +763,7 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
     if (this->state == media_player::MEDIA_PLAYER_STATE_OFF) {
       this->state = media_player::MEDIA_PLAYER_STATE_ON;
       publish_state();
+      ESP_LOGD(TAG, "State changed to %s", media_player::media_player_state_to_string(this->state));
     }
 #endif
     auto command = call.get_command();
@@ -811,6 +812,7 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
         if (this->state == media_player::MEDIA_PLAYER_STATE_OFF) {
           this->state = media_player::MEDIA_PLAYER_STATE_ON;
           this->publish_state();
+          ESP_LOGD(TAG, "State changed to %s", media_player::media_player_state_to_string(this->state));
         }
         break;
       case media_player::MEDIA_PLAYER_COMMAND_PLAY:
