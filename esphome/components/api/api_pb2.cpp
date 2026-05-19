@@ -290,6 +290,7 @@ uint8_t *ListEntitiesCoverResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE
 #ifdef USE_DEVICES
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 13, this->device_id);
 #endif
+  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 14, this->supports_toggle);
   return pos;
 }
 uint32_t ListEntitiesCoverResponse::calculate_size() const {
@@ -310,6 +311,7 @@ uint32_t ListEntitiesCoverResponse::calculate_size() const {
 #ifdef USE_DEVICES
   size += ProtoSize::calc_uint32(1, this->device_id);
 #endif
+  size += ProtoSize::calc_bool(1, this->supports_toggle);
   return size;
 }
 uint8_t *CoverStateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
@@ -350,6 +352,9 @@ bool CoverCommandRequest::decode_varint(uint32_t field_id, proto_varint_value_t 
       this->device_id = value;
       break;
 #endif
+    case 10:
+      this->toggle = value != 0;
+      break;
     default:
       return false;
   }

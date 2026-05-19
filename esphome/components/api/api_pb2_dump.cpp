@@ -1026,6 +1026,7 @@ const char *ListEntitiesCoverResponse::dump_to(DumpBuffer &out) const {
 #ifdef USE_DEVICES
   dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
+  dump_field(out, ESPHOME_PSTR("supports_toggle"), this->supports_toggle);
   return out.c_str();
 }
 const char *CoverStateResponse::dump_to(DumpBuffer &out) const {
@@ -1050,6 +1051,7 @@ const char *CoverCommandRequest::dump_to(DumpBuffer &out) const {
 #ifdef USE_DEVICES
   dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
+  dump_field(out, ESPHOME_PSTR("toggle"), this->toggle);
   return out.c_str();
 }
 #endif

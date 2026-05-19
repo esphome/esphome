@@ -384,6 +384,7 @@ message ListEntitiesCoverResponse {
   EntityCategory entity_category = 11;
   bool supports_stop = 12;
   uint32 device_id = 13 [(field_ifdef) = "USE_DEVICES"];
+  bool supports_toggle = 14;
 }
 
 // Deprecated in API version 1.1
@@ -445,6 +446,7 @@ message CoverCommandRequest {
   float tilt = 7;
   bool stop = 8;
   uint32 device_id = 9 [(field_ifdef) = "USE_DEVICES"];
+  bool toggle = 10;
 }
 
 // ==================== FAN ====================
