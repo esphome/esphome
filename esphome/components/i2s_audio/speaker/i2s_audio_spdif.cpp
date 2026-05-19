@@ -411,8 +411,9 @@ esp_err_t I2SAudioSpeakerSPDIF::start_i2s_driver(audio::AudioStreamInfo &audio_s
              this->sample_rate_, audio_stream_info.get_sample_rate());
     return ESP_ERR_NOT_SUPPORTED;
   }
-  if (audio_stream_info.get_bits_per_sample() != 16) {
-    ESP_LOGE(TAG, "Only supports 16 bits per sample");
+  const uint8_t bits_per_sample = audio_stream_info.get_bits_per_sample();
+  if (bits_per_sample != 16 && bits_per_sample != 24 && bits_per_sample != 32) {
+    ESP_LOGE(TAG, "Only supports 16, 24, or 32 bits per sample (got %u)", (unsigned) bits_per_sample);
     return ESP_ERR_NOT_SUPPORTED;
   }
   if (audio_stream_info.get_channels() != 2) {
@@ -420,11 +421,8 @@ esp_err_t I2SAudioSpeakerSPDIF::start_i2s_driver(audio::AudioStreamInfo &audio_s
     return ESP_ERR_NOT_SUPPORTED;
   }
 
-  if (this->slot_bit_width_ != I2S_SLOT_BIT_WIDTH_AUTO &&
-      (i2s_slot_bit_width_t) audio_stream_info.get_bits_per_sample() > this->slot_bit_width_) {
-    ESP_LOGE(TAG, "Stream bits per sample must be less than or equal to the speaker's configuration");
-    return ESP_ERR_NOT_SUPPORTED;
-  }
+  // Tell the encoder what input width to expect. 32-bit input is truncated to 24-bit on the wire.
+  this->spdif_encoder_->set_bytes_per_sample(bits_per_sample / 8);
 
   if (!this->parent_->try_lock()) {
     ESP_LOGE(TAG, "Parent bus is busy");
