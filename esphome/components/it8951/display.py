@@ -224,10 +224,16 @@ def _model_schema(config):
                 CONF_VCOM_REGISTER,
                 default=model.get_default(CONF_VCOM_REGISTER, VCOM_REGISTER_DEFAULT),
             ): cv.one_of(*VCOM_REGISTER_OPTIONS, int=True),
-            cv.Optional(
-                CONF_FORCE_TEMPERATURE,
-                default=model.get_default(CONF_FORCE_TEMPERATURE),
-            ): cv.Any(cv.none, cv.int_range(min=-40, max=85)),
+            **(
+                {
+                    cv.Optional(
+                        CONF_FORCE_TEMPERATURE,
+                        default=model.get_default(CONF_FORCE_TEMPERATURE),
+                    ): cv.int_range(min=-40, max=85)
+                }
+                if model.get_default(CONF_FORCE_TEMPERATURE) is not None
+                else {}
+            ),
             cv.Optional(
                 CONF_USE_LEGACY_DPY_AREA,
                 default=model.get_default(CONF_USE_LEGACY_DPY_AREA, False),
@@ -319,7 +325,7 @@ async def to_code(config):
     cg.add(var.set_sleep_when_done(config[CONF_SLEEP_WHEN_DONE]))
     cg.add(var.set_vcom(config[CONF_VCOM]))
     cg.add(var.set_vcom_register(config[CONF_VCOM_REGISTER]))
-    if config.get(CONF_FORCE_TEMPERATURE) is not None:
+    if CONF_FORCE_TEMPERATURE in config:
         cg.add(var.set_force_temperature(config[CONF_FORCE_TEMPERATURE]))
     cg.add(var.set_use_legacy_dpy_area(config[CONF_USE_LEGACY_DPY_AREA]))
     cg.add(var.set_force_1bpp(config[CONF_FORCE_1BPP]))
