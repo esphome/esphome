@@ -588,6 +588,18 @@ def add_idf_component(
     }
 
 
+def get_managed_component_require_names() -> list[str]:
+    """Return sorted IDF require names for components added via
+    ``add_idf_component`` (``owner/name`` -> ``owner__name``).
+
+    The build_gen layer (``build_gen.espidf.get_project_cmakelists``)
+    feeds this list into ``ESPHOME_PROJECT_MANAGED_COMPONENTS`` so
+    converted PIO libraries can REQUIRE them by name at configure time.
+    """
+    components_registry = CORE.data.get(KEY_ESP32, {}).get(KEY_COMPONENTS, {})
+    return sorted(name.replace("/", "__") for name in components_registry)
+
+
 def exclude_builtin_idf_component(name: str) -> None:
     """Exclude an ESP-IDF component from the build.
 
@@ -1754,8 +1766,12 @@ async def to_code(config):
             )
     else:
         cg.add_build_flag("-Wno-error=format")
-        cg.add_build_flag("-Wno-error=missing-field-initializers")
+        cg.add_build_flag("-Wno-error=maybe-uninitialized")
+        cg.add_build_flag("-Wno-error=overloaded-virtual")
+        cg.add_build_flag("-Wno-error=reorder")
         cg.add_build_flag("-Wno-error=volatile")
+        # -Wno- (not -Wno-error=): suppress entirely, too noisy on C++ aggregates
+        cg.add_build_flag("-Wno-missing-field-initializers")
 
     cg.set_cpp_standard("gnu++20")
     cg.add_build_flag("-DUSE_ESP32")
@@ -2450,8 +2466,14 @@ def _write_sdkconfig():
     )
 
     want_opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    # Include the resolved framework version as a Kconfig comment so a
+    # version switch that happens to leave the option set unchanged still
+    # bumps this file's content -- which is what has_outdated_files()
+    # uses to decide whether to reconfigure.
+    framework_version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     contents = (
-        "\n".join(
+        f"# ESPHOME_IDF_VERSION={framework_version}\n"
+        + "\n".join(
             f"{name}={_format_sdkconfig_val(value)}"
             for name, value in sorted(want_opts.items())
         )
@@ -2495,7 +2517,12 @@ def _write_idf_component_yml():
 
         stubs_dir = CORE.relative_build_path("component_stubs")
         stubs_dir.mkdir(exist_ok=True)
-        for component_name in components_to_stub:
+        # Sort so the dict insertion order (and thus the generated
+        # src/idf_component.yml) is deterministic across runs; otherwise
+        # the manifest content shuffles every build, write_file_if_changed
+        # always writes, and ninja keeps triggering CMake re-runs on
+        # otherwise-cached rebuilds.
+        for component_name in sorted(components_to_stub):
             # Create stub directory with minimal CMakeLists.txt
             stub_path = stubs_dir / _idf_component_stub_name(component_name)
             stub_path.mkdir(exist_ok=True)
