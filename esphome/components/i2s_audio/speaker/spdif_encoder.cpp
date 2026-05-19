@@ -114,6 +114,8 @@ void SPDIFEncoder::set_bytes_per_sample(uint8_t bytes_per_sample) {
   if (this->bytes_per_sample_ != bytes_per_sample) {
     this->bytes_per_sample_ = bytes_per_sample;
     this->build_channel_status_();
+    // Discard any partial block built at the previous width so we never mix widths on the wire.
+    this->reset();
     ESP_LOGD(TAG, "Input width set to %u-bit", (unsigned) bytes_per_sample * 8);
   }
 }
