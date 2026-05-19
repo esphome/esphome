@@ -1,6 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor
+from esphome.components.const import CONF_CONTROL, CONF_ROLLING_CODE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -19,6 +20,7 @@ from esphome.const import (
     CONF_ID,
     CONF_INDEX,
     CONF_INVERTED,
+    CONF_KEY,
     CONF_LEVEL,
     CONF_MAGNITUDE,
     CONF_NBITS,
@@ -1862,6 +1864,58 @@ async def panasonic_action(var, config, args):
     cg.add(var.set_address(template_))
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint32)
     cg.add(var.set_command(template_))
+
+
+# SomfyRts
+SomfyRtsData, SomfyRtsBinarySensor, SomfyRtsTrigger, SomfyRtsAction, SomfyRtsDumper = (
+    declare_protocol("SomfyRts")
+)
+
+SOMFY_RTS_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_KEY): cv.hex_uint8_t,
+        cv.Required(CONF_CONTROL): cv.hex_uint8_t,
+        cv.Required(CONF_ROLLING_CODE): cv.hex_uint16_t,
+        cv.Required(CONF_ADDRESS): cv.hex_uint32_t,
+    }
+)
+
+
+@register_binary_sensor("somfy_rts", SomfyRtsBinarySensor, SOMFY_RTS_SCHEMA)
+def somfy_rts_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                SomfyRtsData,
+                ("key", config[CONF_KEY]),
+                ("control", config[CONF_CONTROL]),
+                ("rolling_code", config[CONF_ROLLING_CODE]),
+                ("address", config[CONF_ADDRESS]),
+            )
+        )
+    )
+
+
+@register_trigger("somfy_rts", SomfyRtsTrigger, SomfyRtsData)
+def somfy_rts_trigger(var, config):
+    pass
+
+
+@register_dumper("somfy_rts", SomfyRtsDumper)
+def somfy_rts_dumper(var, config):
+    pass
+
+
+@register_action("somfy_rts", SomfyRtsAction, SOMFY_RTS_SCHEMA)
+async def somfy_rts_action(var, config, args):
+    cg.add(var.set_key(await cg.templatable(config[CONF_KEY], args, cg.uint8)))
+    cg.add(var.set_control(await cg.templatable(config[CONF_CONTROL], args, cg.uint8)))
+    cg.add(
+        var.set_rolling_code(
+            await cg.templatable(config[CONF_ROLLING_CODE], args, cg.uint16)
+        )
+    )
+    cg.add(var.set_address(await cg.templatable(config[CONF_ADDRESS], args, cg.uint32)))
 
 
 # Nexa
