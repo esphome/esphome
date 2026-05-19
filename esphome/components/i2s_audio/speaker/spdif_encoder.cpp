@@ -170,7 +170,7 @@ void SPDIFEncoder::build_channel_status_() {
     case 2:
       word_length_code = 0x02;
       break;
-    case 3:  // Intentional fallthrough
+    case 3:  // Shared case
     case 4:
       word_length_code = 0x0D;
       break;
