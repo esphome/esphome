@@ -226,8 +226,12 @@ async def to_code(config):
                 cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
             if CORE.is_rp2040:
                 cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_IPV6")
-
-    CORE.add_job(network_component_to_code, config)
+    # Pvariable creation lives in a separate coroutine at NETWORK_SERVICES so it
+    # emits after wifi/ethernet at COMMUNICATION. This keeps compile-time config
+    # (above) separate from C++ object lifecycle and allows wiring in interface
+    # pointers via get_variable().
+    if CORE.is_esp32:
+        CORE.add_job(network_component_to_code, config)
 
 
 @coroutine_with_priority(CoroPriority.NETWORK_SERVICES)

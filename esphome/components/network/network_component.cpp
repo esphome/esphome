@@ -1,20 +1,17 @@
 #include "network_component.h"
 
 #include "esphome/core/defines.h"
-#ifdef USE_NETWORK
+#if defined(USE_NETWORK) && defined(USE_ESP32)
 #include "esphome/core/log.h"
-#ifdef USE_ESP32
 #include "esp_err.h"
 #include "esp_netif.h"
 #include "esp_event.h"
-#endif
 namespace esphome::network {
 
 static const char *const TAG = "network";
 
 void NetworkComponent::setup() {
   // Initialize ESP-IDF network interfaces and ensure the default event loop exists
-#ifdef USE_ESP32
   esp_err_t err;
   err = esp_netif_init();
   if (err != ESP_OK) {
@@ -30,7 +27,6 @@ void NetworkComponent::setup() {
     this->mark_failed();
     return;
   }
-#endif
 }
 
 }  // namespace esphome::network

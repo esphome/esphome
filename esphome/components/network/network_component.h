@@ -1,6 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
-#ifdef USE_NETWORK
+#if defined(USE_NETWORK) && defined(USE_ESP32)
 #include "esphome/core/component.h"
 
 namespace esphome::network {
