@@ -138,21 +138,21 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
   // Reset lockstep records queue so it starts paired with the (also-reset) i2s_event_queue_.
   xQueueReset(this->write_records_queue_);
 
-  const uint32_t dma_buffers_duration_ms = DMA_BUFFER_DURATION_MS * SPDIF_DMA_BUFFERS_COUNT;
-  // Ensure ring buffer duration is at least the duration of all DMA buffers
-  const uint32_t ring_buffer_duration = std::max(dma_buffers_duration_ms, this->buffer_duration_ms_);
-
   // The DMA buffers may have more bits per sample, so calculate buffer sizes based on the input audio stream info
   const size_t bytes_per_frame = this->current_stream_info_.frames_to_bytes(1);
-  // Round the ring buffer size down to a multiple of bytes_per_frame so the wrap boundary stays frame-aligned and
-  // avoids unnecessary single-frame splices.
-  const size_t ring_buffer_size =
-      (this->current_stream_info_.ms_to_bytes(ring_buffer_duration) / bytes_per_frame) * bytes_per_frame;
 
-  // For SPDIF mode, one DMA buffer = one SPDIF block = 192 PCM frames
+  // For SPDIF mode, one DMA buffer = one SPDIF block = 192 PCM frames (~4 ms at 48 kHz),
+  // not the ~15 ms a standard I2S DMA buffer holds. Derive the DMA floor from actual block size.
   const uint32_t frames_to_fill_single_dma_buffer = SPDIF_BLOCK_SAMPLES;
   const size_t bytes_to_fill_single_dma_buffer =
       this->current_stream_info_.frames_to_bytes(frames_to_fill_single_dma_buffer);
+  const size_t dma_buffers_floor_bytes = bytes_to_fill_single_dma_buffer * SPDIF_DMA_BUFFERS_COUNT;
+
+  // Round the ring buffer size down to a multiple of bytes_per_frame so the wrap boundary stays frame-aligned and
+  // avoids unnecessary single-frame splices. Ensure it is at least large enough to cover all DMA buffers.
+  const size_t requested_ring_buffer_bytes =
+      (this->current_stream_info_.ms_to_bytes(this->buffer_duration_ms_) / bytes_per_frame) * bytes_per_frame;
+  const size_t ring_buffer_size = std::max(dma_buffers_floor_bytes, requested_ring_buffer_bytes);
 
   bool successful_setup = false;
   std::unique_ptr<audio::RingBufferAudioSource> audio_source;
@@ -177,7 +177,8 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
     // on_sent events drain in lockstep without crediting any audio frames.
     this->spdif_encoder_->set_preload_mode(true);
     for (size_t i = 0; i < SPDIF_DMA_BUFFERS_COUNT; i++) {
-      esp_err_t preload_err = this->spdif_encoder_->flush_with_silence(pdMS_TO_TICKS(DMA_BUFFER_DURATION_MS));
+      // i2s_channel_preload_data is non-blocking (returns immediately when the preload buffer fills), so no wait.
+      esp_err_t preload_err = this->spdif_encoder_->flush_with_silence(0);
       if (preload_err != ESP_OK) {
         break;  // DMA preload buffer full or error
       }
