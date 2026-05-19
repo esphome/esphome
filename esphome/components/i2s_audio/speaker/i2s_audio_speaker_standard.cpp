@@ -16,6 +16,7 @@ namespace esphome::i2s_audio {
 
 static const char *const TAG = "i2s_audio.speaker.std";
 
+static constexpr uint32_t DMA_BUFFER_DURATION_MS = 15;
 static constexpr size_t DMA_BUFFERS_COUNT = 4;
 // Sized to comfortably absorb scheduling jitter: at most DMA_BUFFERS_COUNT events can be in flight,
 // doubled so that a transient backlog never overruns the queue (which would desync the lockstep
