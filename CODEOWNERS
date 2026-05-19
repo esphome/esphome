@@ -348,6 +348,7 @@ esphome/components/modbus_controller/sensor/* @martgras
 esphome/components/modbus_controller/switch/* @martgras
 esphome/components/modbus_controller/text_sensor/* @martgras
 esphome/components/modbus_device_tcp/* @pintomax
+esphome/components/modbus_server/* @exciton
 esphome/components/mopeka_ble/* @Fabian-Schmidt @spbrogan
 esphome/components/mopeka_pro_check/* @spbrogan
 esphome/components/mopeka_std_check/* @Fabian-Schmidt
@@ -416,6 +417,7 @@ esphome/components/resampler/speaker/* @kahrendt
 esphome/components/restart/* @esphome/core
 esphome/components/rf_bridge/* @jesserockz
 esphome/components/rgbct/* @jesserockz
+esphome/components/ring_buffer/* @kahrendt
 esphome/components/rp2040/* @jesserockz
 esphome/components/rp2040_ble/* @bdraco
 esphome/components/rp2040_pio_led_strip/* @Papa-DMan
@@ -444,6 +446,7 @@ esphome/components/sen6x/* @martgras @mebner86 @mikelawrence @tuct
 esphome/components/sendspin/* @kahrendt
 esphome/components/sendspin/media_player/* @kahrendt
 esphome/components/sendspin/media_source/* @kahrendt
+esphome/components/sendspin/sensor/* @kahrendt
 esphome/components/sendspin/text_sensor/* @kahrendt
 esphome/components/sensirion_common/* @martgras
 esphome/components/sensor/* @esphome/core

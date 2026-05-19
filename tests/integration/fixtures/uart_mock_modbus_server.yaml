@@ -86,9 +86,9 @@ modbus:
   uart_id: virtual_uart_dev
   role: server
 
-modbus_controller:
+modbus_server:
   - address: 1
-    server_registers:
+    registers:
       - address: 0x03
         value_type: U_WORD
         read_lambda: |-

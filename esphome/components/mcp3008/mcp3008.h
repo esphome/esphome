@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace mcp3008 {
+namespace esphome::mcp3008 {
 
 class MCP3008 : public Component,
                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
@@ -18,5 +17,4 @@ class MCP3008 : public Component,
   float read_data(uint8_t pin);
 };
 
-}  // namespace mcp3008
-}  // namespace esphome
+}  // namespace esphome::mcp3008

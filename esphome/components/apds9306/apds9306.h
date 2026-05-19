@@ -7,8 +7,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace apds9306 {
+namespace esphome::apds9306 {
 
 enum MeasurementBitWidth : uint8_t {
   MEASUREMENT_BIT_WIDTH_20 = 0,
@@ -62,5 +61,4 @@ class APDS9306 : public sensor::Sensor, public PollingComponent, public i2c::I2C
   AmbientLightGain gain_;
 };
 
-}  // namespace apds9306
-}  // namespace esphome
+}  // namespace esphome::apds9306

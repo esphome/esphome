@@ -193,7 +193,13 @@ class APIServer final : public Component,
   // Range-for view over the populated slice [0, api_connection_count_). Read-only with respect
   // to ownership — callers get `const unique_ptr&` so they can invoke non-const methods on the
   // APIConnection but cannot reset/move the slot and break the count invariant.
-  using APIConnectionPtr = std::unique_ptr<APIConnection>;
+  // Custom deleter is defined out-of-line in api_server.cpp so libc++ does not
+  // eagerly instantiate `delete static_cast<APIConnection *>(p)` here, where
+  // only the forward declaration of APIConnection is visible (incomplete type).
+  struct APIConnectionDeleter {
+    void operator()(APIConnection *p) const;
+  };
+  using APIConnectionPtr = std::unique_ptr<APIConnection, APIConnectionDeleter>;
   class ActiveClientsView {
     const APIConnectionPtr *begin_;
     const APIConnectionPtr *end_;
@@ -292,7 +298,7 @@ class APIServer final : public Component,
   uint32_t last_connected_{0};
 
   // Slots [0, api_connection_count_) are populated; trailing slots are always nullptr.
-  std::array<std::unique_ptr<APIConnection>, MAX_API_CONNECTIONS> clients_{};
+  std::array<APIConnectionPtr, MAX_API_CONNECTIONS> clients_{};
   // Vectors and strings (12 bytes each on 32-bit)
   // Shared proto write buffer for all connections.
   // Not pre-allocated: all send paths call prepare_first_message_buffer() which

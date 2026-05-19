@@ -3,8 +3,7 @@
 #include "mipi_dsi.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace mipi_dsi {
+namespace esphome::mipi_dsi {
 
 // Maximum bytes to log for init commands (truncated if larger)
 static constexpr size_t MIPI_DSI_MAX_CMD_LOG_BYTES = 64;
@@ -411,6 +410,5 @@ void MIPI_DSI::dump_config() {
                 YESNO(this->invert_colors_), this->pclk_frequency_);
   LOG_PIN("  Reset Pin ", this->reset_pin_);
 }
-}  // namespace mipi_dsi
-}  // namespace esphome
+}  // namespace esphome::mipi_dsi
 #endif  // USE_ESP32_VARIANT_ESP32P4

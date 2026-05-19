@@ -654,7 +654,7 @@ def test_resolve_package_max_depth_exceeded(tmp_path: Path) -> None:
     package_config = yaml_util.IncludeFile(
         parent, "test.yaml", None, always_returns_include
     )
-    processor = _PackageProcessor({}, None, False)
+    processor = _PackageProcessor({}, None)
     with pytest.raises(
         cv.Invalid,
         match=f"Maximum include nesting depth \\({MAX_INCLUDE_DEPTH}\\) exceeded",
@@ -776,7 +776,7 @@ def test_resolve_package_undefined_var_in_include_filename(tmp_path: Path) -> No
     package_config = yaml_util.IncludeFile(
         parent, "${undefined_var}.yaml", None, loader
     )
-    processor = _PackageProcessor({}, None, False)
+    processor = _PackageProcessor({}, None)
     with pytest.raises(cv.Invalid, match="unresolved substitutions"):
         processor.resolve_package(package_config, substitutions.ContextVars(), [])
 
@@ -818,3 +818,23 @@ def test_resolve_include_error_no_expanded_from_for_literal_filename(
         substitutions.resolve_include(include, [], substitutions.ContextVars())
 
     assert "expanded from" not in str(exc_info.value)
+
+
+def test_include_vars_applied_to_lambda_value(tmp_path: Path) -> None:
+    """!include vars: must substitute into a top-level !lambda value in the included file.
+
+    Regression test for the case where the included file's root is a Lambda;
+    add_context() previously only tagged dict/list/str, so the include's vars
+    never reached the substitution pass for Lambda content.
+    """
+    included = tmp_path / "lambda.yaml"
+    included.write_text('!lambda |-\n  return "${foo}";\n')
+
+    include = yaml_util.IncludeFile(
+        tmp_path / "main.yaml", "lambda.yaml", {"foo": "bar"}, yaml_util.load_yaml
+    )
+    config = OrderedDict({"value": include.load()})
+    result = substitutions.do_substitution_pass(config)
+
+    assert isinstance(result["value"], Lambda)
+    assert result["value"].value == 'return "bar";'

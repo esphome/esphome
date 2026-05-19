@@ -1,7 +1,6 @@
 import datetime
 import random
 
-from esphome import automation
 import esphome.codegen as cg
 from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
@@ -10,35 +9,6 @@ from esphome.const import (
     CONF_MODEL,
     CONF_NAME,
     CONF_UNIT_OF_MEASUREMENT,
-    UNIT_AMPERE,
-    UNIT_CELSIUS,
-    UNIT_CENTIMETER,
-    UNIT_DECIBEL,
-    UNIT_HECTOPASCAL,
-    UNIT_HERTZ,
-    UNIT_HOUR,
-    UNIT_KELVIN,
-    UNIT_KILOMETER,
-    UNIT_KILOWATT,
-    UNIT_KILOWATT_HOURS,
-    UNIT_LUX,
-    UNIT_METER,
-    UNIT_MICROGRAMS_PER_CUBIC_METER,
-    UNIT_MILLIAMP,
-    UNIT_MILLIGRAMS_PER_CUBIC_METER,
-    UNIT_MILLIMETER,
-    UNIT_MILLISECOND,
-    UNIT_MILLIVOLT,
-    UNIT_MINUTE,
-    UNIT_OHM,
-    UNIT_PARTS_PER_BILLION,
-    UNIT_PARTS_PER_MILLION,
-    UNIT_PASCAL,
-    UNIT_PERCENT,
-    UNIT_SECOND,
-    UNIT_VOLT,
-    UNIT_WATT,
-    UNIT_WATT_HOURS,
     __version__,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -50,8 +20,10 @@ from esphome.cpp_generator import (
 from esphome.types import ConfigType
 
 from .const import (
-    CONF_ON_JOIN,
+    BACNET_UNIT_NO_UNITS,
+    BACNET_UNITS,
     CONF_POWER_SOURCE,
+    CONF_ROUTER,
     CONF_WIPE_ON_BOOT,
     KEY_ZIGBEE,
     POWER_SOURCE,
@@ -84,41 +56,6 @@ ZigbeeBinarySensor = zigbee_ns.class_("ZigbeeBinarySensor", cg.Component)
 ZigbeeSensor = zigbee_ns.class_("ZigbeeSensor", cg.Component)
 ZigbeeSwitch = zigbee_ns.class_("ZigbeeSwitch", cg.Component)
 ZigbeeNumber = zigbee_ns.class_("ZigbeeNumber", cg.Component)
-
-# BACnet engineering units mapping (ZCL uses BACnet unit codes)
-# See: https://github.com/zigpy/zha/blob/dev/zha/application/platforms/number/bacnet.py
-BACNET_UNITS = {
-    UNIT_CELSIUS: 62,
-    UNIT_KELVIN: 63,
-    UNIT_VOLT: 5,
-    UNIT_MILLIVOLT: 124,
-    UNIT_AMPERE: 3,
-    UNIT_MILLIAMP: 2,
-    UNIT_OHM: 4,
-    UNIT_WATT: 47,
-    UNIT_KILOWATT: 48,
-    UNIT_WATT_HOURS: 18,
-    UNIT_KILOWATT_HOURS: 19,
-    UNIT_PASCAL: 53,
-    UNIT_HECTOPASCAL: 133,
-    UNIT_HERTZ: 27,
-    UNIT_MILLIMETER: 30,
-    UNIT_CENTIMETER: 118,
-    UNIT_METER: 31,
-    UNIT_KILOMETER: 193,
-    UNIT_MILLISECOND: 159,
-    UNIT_SECOND: 73,
-    UNIT_MINUTE: 72,
-    UNIT_HOUR: 71,
-    UNIT_PARTS_PER_MILLION: 96,
-    UNIT_PARTS_PER_BILLION: 97,
-    UNIT_MICROGRAMS_PER_CUBIC_METER: 219,
-    UNIT_MILLIGRAMS_PER_CUBIC_METER: 218,
-    UNIT_LUX: 37,
-    UNIT_DECIBEL: 199,
-    UNIT_PERCENT: 98,
-}
-BACNET_UNIT_NO_UNITS = 95
 
 zephyr_binary_sensor = cv.Schema(
     {
@@ -157,10 +94,13 @@ zephyr_number = cv.Schema(
 )
 
 
-async def zephyr_to_code(config: ConfigType) -> None:
+async def zephyr_to_code(config: ConfigType) -> "MockObj":
     zephyr_add_prj_conf("ZIGBEE", True)
     zephyr_add_prj_conf("ZIGBEE_APP_UTILS", True)
-    zephyr_add_prj_conf("ZIGBEE_ROLE_END_DEVICE", True)
+    if config[CONF_ROUTER]:
+        zephyr_add_prj_conf("ZIGBEE_ROLE_ROUTER", True)
+    else:
+        zephyr_add_prj_conf("ZIGBEE_ROLE_END_DEVICE", True)
 
     zephyr_add_prj_conf("ZIGBEE_CHANNEL_SELECTION_MODE_MULTI", True)
 
@@ -199,14 +139,13 @@ async def zephyr_to_code(config: ConfigType) -> None:
 
     var = cg.new_Pvariable(config[CONF_ID])
 
-    if on_join_config := config.get(CONF_ON_JOIN):
-        await automation.build_automation(var.get_join_trigger(), [], on_join_config)
-
     await cg.register_component(var, config)
 
     CORE.add_job(_ctx_to_code, config)
 
     cg.add(var.set_sleepy(config[CONF_SLEEPY]))
+
+    return var
 
 
 async def _attr_to_code(config: ConfigType) -> None:

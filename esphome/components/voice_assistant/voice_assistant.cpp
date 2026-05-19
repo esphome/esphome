@@ -9,8 +9,7 @@
 #include <cinttypes>
 #include <cstdio>
 
-namespace esphome {
-namespace voice_assistant {
+namespace esphome::voice_assistant {
 
 static const char *const TAG = "voice_assistant";
 
@@ -31,11 +30,21 @@ VoiceAssistant::VoiceAssistant() { global_voice_assistant = this; }
 
 void VoiceAssistant::setup() {
   this->mic_source_->add_data_callback([this](const std::vector<uint8_t> &data) {
-    std::shared_ptr<RingBuffer> temp_ring_buffer = this->ring_buffer_;
-    if (this->ring_buffer_.use_count() > 1) {
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_;
+    if (temp_ring_buffer != nullptr) {
       temp_ring_buffer->write((void *) data.data(), data.size());
     }
   });
+
+  // Second microphone channel
+  if (this->mic_source2_ != nullptr) {
+    this->mic_source2_->add_data_callback([this](const std::vector<uint8_t> &data) {
+      std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer2_;
+      if (temp_ring_buffer != nullptr) {
+        temp_ring_buffer->write((void *) data.data(), data.size());
+      }
+    });
+  }
 
 #ifdef USE_MEDIA_PLAYER
   if (this->media_player_ != nullptr) {
@@ -116,9 +125,9 @@ bool VoiceAssistant::allocate_buffers_() {
   }
 #endif
 
-  if (this->ring_buffer_.use_count() == 0) {
-    this->ring_buffer_ = RingBuffer::create(RING_BUFFER_SIZE);
-    if (this->ring_buffer_.use_count() == 0) {
+  if (this->ring_buffer_ == nullptr) {
+    this->ring_buffer_ = ring_buffer::RingBuffer::create(RING_BUFFER_SIZE);
+    if (this->ring_buffer_ == nullptr) {
       ESP_LOGE(TAG, "Could not allocate ring buffer");
       return false;
     }
@@ -133,6 +142,26 @@ bool VoiceAssistant::allocate_buffers_() {
     }
   }
 
+  // Second microphone channel
+  if (this->mic_source2_ != nullptr) {
+    if (this->ring_buffer2_ == nullptr) {
+      this->ring_buffer2_ = ring_buffer::RingBuffer::create(RING_BUFFER_SIZE);
+      if (this->ring_buffer2_ == nullptr) {
+        ESP_LOGE(TAG, "Could not allocate second ring buffer");
+        return false;
+      }
+    }
+
+    if (this->send_buffer2_ == nullptr) {
+      RAMAllocator<uint8_t> send_allocator;
+      this->send_buffer2_ = send_allocator.allocate(SEND_BUFFER_SIZE);
+      if (this->send_buffer2_ == nullptr) {
+        ESP_LOGW(TAG, "Could not allocate second send buffer");
+        return false;
+      }
+    }
+  }
+
   return true;
 }
 
@@ -143,6 +172,15 @@ void VoiceAssistant::clear_buffers_() {
 
   if (this->ring_buffer_ != nullptr) {
     this->ring_buffer_->reset();
+  }
+
+  // Second microphone channel
+  if (this->send_buffer2_ != nullptr) {
+    memset(this->send_buffer2_, 0, SEND_BUFFER_SIZE);
+  }
+
+  if (this->ring_buffer2_ != nullptr) {
+    this->ring_buffer2_->reset();
   }
 
 #ifdef USE_SPEAKER
@@ -163,9 +201,16 @@ void VoiceAssistant::deallocate_buffers_() {
     this->send_buffer_ = nullptr;
   }
 
-  if (this->ring_buffer_.use_count() > 0) {
-    this->ring_buffer_.reset();
+  this->ring_buffer_.reset();
+
+  // Second microphone channel
+  if (this->send_buffer2_ != nullptr) {
+    RAMAllocator<uint8_t> send_deallocator;
+    send_deallocator.deallocate(this->send_buffer2_, SEND_BUFFER_SIZE);
+    this->send_buffer2_ = nullptr;
   }
+
+  this->ring_buffer2_.reset();
 
 #ifdef USE_SPEAKER
   if ((this->speaker_ != nullptr) && (this->speaker_buffer_ != nullptr)) {
@@ -184,7 +229,8 @@ void VoiceAssistant::reset_conversation_id() {
 void VoiceAssistant::loop() {
   if (this->api_client_ == nullptr && this->state_ != State::IDLE && this->state_ != State::STOP_MICROPHONE &&
       this->state_ != State::STOPPING_MICROPHONE) {
-    if (this->mic_source_->is_running() || this->state_ == State::STARTING_MICROPHONE) {
+    if (this->mic_source_->is_running() || (this->mic_source2_ && this->mic_source2_->is_running()) ||
+        this->state_ == State::STARTING_MICROPHONE) {
       this->set_state_(State::STOP_MICROPHONE, State::IDLE);
     } else {
       this->set_state_(State::IDLE, State::IDLE);
@@ -216,11 +262,14 @@ void VoiceAssistant::loop() {
       this->clear_buffers_();
 
       this->mic_source_->start();
+      if (this->mic_source2_) {
+        this->mic_source2_->start();
+      }
       this->set_state_(State::STARTING_MICROPHONE);
       break;
     }
     case State::STARTING_MICROPHONE: {
-      if (this->mic_source_->is_running()) {
+      if (this->mic_source_->is_running() && (!this->mic_source2_ || this->mic_source2_->is_running())) {
         this->set_state_(this->desired_state_);
       }
       break;
@@ -267,15 +316,44 @@ void VoiceAssistant::loop() {
       break;  // State changed when udp server port received
     }
     case State::STREAMING_MICROPHONE: {
-      size_t available = this->ring_buffer_->available();
-      while (available >= SEND_BUFFER_SIZE) {
-        size_t read_bytes = this->ring_buffer_->read((void *) this->send_buffer_, SEND_BUFFER_SIZE, 0);
-        if (this->audio_mode_ == AUDIO_MODE_API) {
+      if (this->audio_mode_ == AUDIO_MODE_API) {
+        // API audio
+        // Both microphone channels are sent, if configured
+        bool is_available = this->ring_buffer_->available() >= SEND_BUFFER_SIZE;
+        bool is_available2 = false;
+        if (this->mic_source2_) {
+          is_available2 = this->ring_buffer2_->available() >= SEND_BUFFER_SIZE;
+        }
+
+        while (is_available || is_available2) {
           api::VoiceAssistantAudio msg;
-          msg.data = this->send_buffer_;
-          msg.data_len = read_bytes;
+
+          if (is_available) {
+            size_t read_bytes = this->ring_buffer_->read((void *) this->send_buffer_, SEND_BUFFER_SIZE, 0);
+            msg.data = this->send_buffer_;
+            msg.data_len = read_bytes;
+          }
+
+          // Second microphone channel
+          if (is_available2) {
+            size_t read_bytes = this->ring_buffer2_->read((void *) this->send_buffer2_, SEND_BUFFER_SIZE, 0);
+            msg.data2 = this->send_buffer2_;
+            msg.data2_len = read_bytes;
+          }
+
           this->api_client_->send_message(msg);
-        } else {
+          is_available = this->ring_buffer_->available() >= SEND_BUFFER_SIZE;
+          if (this->mic_source2_) {
+            is_available2 = this->ring_buffer2_->available() >= SEND_BUFFER_SIZE;
+          } else {
+            is_available2 = false;
+          }
+        }
+      } else {
+        // UDP (will eventually be deprecated)
+        // Only the primary microphone channel is used
+        while (this->ring_buffer_->available() >= SEND_BUFFER_SIZE) {
+          size_t read_bytes = this->ring_buffer_->read((void *) this->send_buffer_, SEND_BUFFER_SIZE, 0);
           if (!this->udp_socket_running_) {
             if (!this->start_udp_socket_()) {
               this->set_state_(State::STOP_MICROPHONE, State::IDLE);
@@ -285,14 +363,23 @@ void VoiceAssistant::loop() {
           this->socket_->sendto(this->send_buffer_, read_bytes, 0, (struct sockaddr *) &this->dest_addr_,
                                 sizeof(this->dest_addr_));
         }
-        available = this->ring_buffer_->available();
-      }
-
+      }  // audio mode
       break;
     }
     case State::STOP_MICROPHONE: {
-      if (this->mic_source_->is_running()) {
-        this->mic_source_->stop();
+      // Check both microphone channels
+      bool is_running = this->mic_source_->is_running();
+      bool is_running2 = false;
+      if (this->mic_source2_) {
+        is_running2 = this->mic_source2_->is_running();
+      }
+      if (is_running || is_running2) {
+        if (is_running) {
+          this->mic_source_->stop();
+        }
+        if (is_running2) {
+          this->mic_source2_->stop();
+        }
         this->set_state_(State::STOPPING_MICROPHONE);
       } else {
         this->set_state_(this->desired_state_);
@@ -300,7 +387,13 @@ void VoiceAssistant::loop() {
       break;
     }
     case State::STOPPING_MICROPHONE: {
-      if (this->mic_source_->is_stopped()) {
+      // Check both microphone channels
+      bool is_stopped = this->mic_source_->is_stopped();
+      bool is_stopped2 = true;
+      if (this->mic_source2_) {
+        is_stopped2 = this->mic_source2_->is_stopped();
+      }
+      if (is_stopped && is_stopped2) {
         this->set_state_(this->desired_state_);
       }
       break;
@@ -505,7 +598,8 @@ void VoiceAssistant::start_streaming() {
   ESP_LOGD(TAG, "Client started, streaming microphone");
   this->audio_mode_ = AUDIO_MODE_API;
 
-  if (this->mic_source_->is_running()) {
+  // Both microphone channels
+  if (this->mic_source_->is_running() && (!this->mic_source2_ || this->mic_source2_->is_running())) {
     this->set_state_(State::STREAMING_MICROPHONE, State::STREAMING_MICROPHONE);
   } else {
     this->set_state_(State::START_MICROPHONE, State::STREAMING_MICROPHONE);
@@ -521,6 +615,10 @@ void VoiceAssistant::start_streaming(struct sockaddr_storage *addr, uint16_t por
   ESP_LOGD(TAG, "Client started, streaming microphone");
   this->audio_mode_ = AUDIO_MODE_UDP;
 
+  if (this->mic_source2_ != nullptr) {
+    ESP_LOGW(TAG, "UDP audio mode does not support a second microphone channel; only the primary will be streamed");
+  }
+
   memcpy(&this->dest_addr_, addr, sizeof(this->dest_addr_));
   if (this->dest_addr_.ss_family == AF_INET) {
     ((struct sockaddr_in *) &this->dest_addr_)->sin_port = htons(port);
@@ -535,6 +633,7 @@ void VoiceAssistant::start_streaming(struct sockaddr_storage *addr, uint16_t por
     return;
   }
 
+  // Only primary microphone channel over UDP
   if (this->mic_source_->is_running()) {
     this->set_state_(State::STREAMING_MICROPHONE, State::STREAMING_MICROPHONE);
   } else {
@@ -677,7 +776,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       break;
     case api::enums::VOICE_ASSISTANT_INTENT_PROGRESS: {
       ESP_LOGD(TAG, "Intent progress");
-      std::string tts_url_for_trigger = "";
+      std::string tts_url_for_trigger;
 #ifdef USE_MEDIA_PLAYER
       if (this->media_player_ != nullptr) {
         for (const auto &arg : msg.data) {
@@ -783,8 +882,8 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       break;
     }
     case api::enums::VOICE_ASSISTANT_ERROR: {
-      std::string code = "";
-      std::string message = "";
+      std::string code;
+      std::string message;
       for (const auto &arg : msg.data) {
         if (arg.name == "code") {
           code = arg.value;
@@ -1007,7 +1106,6 @@ const Configuration &VoiceAssistant::get_configuration() {
 
 VoiceAssistant *global_voice_assistant = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace voice_assistant
-}  // namespace esphome
+}  // namespace esphome::voice_assistant
 
 #endif  // USE_VOICE_ASSISTANT
