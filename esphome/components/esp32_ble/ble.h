@@ -120,7 +120,10 @@ class ESP32BLE : public Component {
 
 #ifdef ESPHOME_ESP32_BLE_ALLOWLIST_SIZE
   void set_allowlist_items(const std::initializer_list<allowlist_item_t> &allowlist_items) {
-    this->allowlist_items_ = allowlist_items;
+    this->allowlist_items_.clear();
+    for (const auto &allowlist_item : allowlist_items) {
+      this->allowlist_items_.push_back(allowlist_item);
+    }
   }
 #endif
 
