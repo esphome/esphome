@@ -12,8 +12,7 @@
 #include <memory>
 #include <vector>
 
-namespace esphome {
-namespace e131 {
+namespace esphome::e131 {
 
 class E131AddressableLightEffect;
 
@@ -72,6 +71,6 @@ class E131Component : public esphome::Component {
   std::vector<UniverseConsumer> universe_consumers_;
 };
 
-}  // namespace e131
-}  // namespace esphome
+}  // namespace esphome::e131
+
 #endif

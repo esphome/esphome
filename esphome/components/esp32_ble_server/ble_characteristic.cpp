@@ -7,8 +7,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace esp32_ble_server {
+namespace esphome::esp32_ble_server {
 
 static const char *const TAG = "esp32_ble_server.characteristic";
 
@@ -16,13 +15,9 @@ BLECharacteristic::~BLECharacteristic() {
   for (auto *descriptor : this->descriptors_) {
     delete descriptor;  // NOLINT(cppcoreguidelines-owning-memory)
   }
-  vSemaphoreDelete(this->set_value_lock_);
 }
 
 BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) : uuid_(uuid) {
-  this->set_value_lock_ = xSemaphoreCreateBinary();
-  xSemaphoreGive(this->set_value_lock_);
-
   this->properties_ = (esp_gatt_char_prop_t) 0;
 
   this->set_broadcast_property((properties & PROPERTY_BROADCAST) != 0);
@@ -35,11 +30,7 @@ BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) 
 
 void BLECharacteristic::set_value(ByteBuffer buffer) { this->set_value(buffer.get_data()); }
 
-void BLECharacteristic::set_value(std::vector<uint8_t> &&buffer) {
-  xSemaphoreTake(this->set_value_lock_, 0L);
-  this->value_ = std::move(buffer);
-  xSemaphoreGive(this->set_value_lock_);
-}
+void BLECharacteristic::set_value(std::vector<uint8_t> &&buffer) { this->value_ = std::move(buffer); }
 
 void BLECharacteristic::set_value(std::initializer_list<uint8_t> data) {
   this->set_value(std::vector<uint8_t>(data));  // Delegate to move overload
@@ -227,13 +218,14 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
         }
       } else {
         response.attr_value.offset = 0;
-        if (this->value_.size() + 1 > max_offset) {
-          response.attr_value.len = max_offset;
-          this->value_read_offset_ = max_offset;
-        } else {
-          response.attr_value.len = this->value_.size();
+        response.attr_value.len = this->value_.size();
+        if (response.attr_value.len > ESP_GATT_MAX_ATTR_LEN) {
+          ESP_LOGW(TAG, "Characteristic length %u exceeds buffer size of %u, truncating", response.attr_value.len,
+                   ESP_GATT_MAX_ATTR_LEN);
+          response.attr_value.len = ESP_GATT_MAX_ATTR_LEN;
         }
         memcpy(response.attr_value.value, this->value_.data(), response.attr_value.len);
+        this->value_read_offset_ = 0;
       }
 
       response.attr_value.handle = this->handle_;
@@ -348,7 +340,6 @@ BLECharacteristic::ClientNotificationEntry *BLECharacteristic::find_client_in_no
   return nullptr;
 }
 
-}  // namespace esp32_ble_server
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_server
 
 #endif

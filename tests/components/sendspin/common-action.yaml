@@ -1,0 +1,8 @@
+# `sendspin.switch` action enables the controller role, so we use a standalone test
+packages:
+  base: !include common.yaml
+
+wifi:
+  on_connect:
+    then:
+      - sendspin.switch:

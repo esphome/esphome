@@ -15,10 +15,14 @@ CST226Button = cst226_ns.class_(
     cg.Parented.template(CST226Touchscreen),
 )
 
-CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(CST226Button).extend(
-    {
-        cv.GenerateID(CONF_CST226_ID): cv.use_id(CST226Touchscreen),
-    }
+CONFIG_SCHEMA = (
+    binary_sensor.binary_sensor_schema(CST226Button)
+    .extend(
+        {
+            cv.GenerateID(CONF_CST226_ID): cv.use_id(CST226Touchscreen),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
 )
 
 

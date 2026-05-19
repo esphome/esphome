@@ -90,8 +90,6 @@ esp32_ble_tracker_ns = cg.esphome_ns.namespace("esp32_ble_tracker")
 ESP32BLETracker = esp32_ble_tracker_ns.class_(
     "ESP32BLETracker",
     cg.Component,
-    esp32_ble.GAPEventHandler,
-    esp32_ble.GATTcEventHandler,
     cg.Parented.template(esp32_ble.ESP32BLE),
 )
 ESPBTClient = esp32_ble_tracker_ns.class_("ESPBTClient")
@@ -373,13 +371,15 @@ ESP32_BLE_START_SCAN_ACTION_SCHEMA = cv.Schema(
     "esp32_ble_tracker.start_scan",
     ESP32BLEStartScanAction,
     ESP32_BLE_START_SCAN_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def esp32_ble_tracker_start_scan_action_to_code(
     config, action_id, template_arg, args
 ):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    cg.add(var.set_continuous(config[CONF_CONTINUOUS]))
+    template_ = await cg.templatable(config[CONF_CONTINUOUS], args, cg.bool_)
+    cg.add(var.set_continuous(template_))
     return var
 
 
@@ -396,6 +396,7 @@ ESP32_BLE_STOP_SCAN_ACTION_SCHEMA = automation.maybe_simple_id(
     "esp32_ble_tracker.stop_scan",
     ESP32BLEStopScanAction,
     ESP32_BLE_STOP_SCAN_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def esp32_ble_tracker_stop_scan_action_to_code(
     config, action_id, template_arg, args

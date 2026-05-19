@@ -26,6 +26,7 @@ water_heater::WaterHeaterTraits TemplateWaterHeater::traits() {
 
   if (!this->supported_modes_.empty()) {
     traits.set_supported_modes(this->supported_modes_);
+    traits.add_feature_flags(water_heater::WATER_HEATER_SUPPORTS_OPERATION_MODE);
   }
 
   traits.set_supports_current_temperature(true);

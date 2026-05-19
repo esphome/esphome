@@ -1960,6 +1960,10 @@ BOARDS = {
         "name": "Hornbill ESP32 Minima",
         "variant": VARIANT_ESP32,
     },
+    "huidu_hd_wf1": {
+        "name": "Huidu HD-WF1",
+        "variant": VARIANT_ESP32S2,
+    },
     "huidu_hd_wf2": {
         "name": "Huidu HD-WF2",
         "variant": VARIANT_ESP32S3,
@@ -2026,6 +2030,10 @@ BOARDS = {
     },
     "lilygo-t-display-s3": {
         "name": "LilyGo T-Display-S3",
+        "variant": VARIANT_ESP32S3,
+    },
+    "lilygo-t-energy-s3": {
+        "name": "LilyGo T-Energy-S3",
         "variant": VARIANT_ESP32S3,
     },
     "lilygo-t3-s3": {
@@ -2289,9 +2297,17 @@ BOARDS = {
         "name": "S.ODI Ultra v1",
         "variant": VARIANT_ESP32,
     },
+    "seeed_xiao_esp32_s3_plus": {
+        "name": "Seeed Studio XIAO ESP32S3 Plus",
+        "variant": VARIANT_ESP32S3,
+    },
     "seeed_xiao_esp32c3": {
         "name": "Seeed Studio XIAO ESP32C3",
         "variant": VARIANT_ESP32C3,
+    },
+    "seeed_xiao_esp32c5": {
+        "name": "Seeed Studio XIAO ESP32C5",
+        "variant": VARIANT_ESP32C5,
     },
     "seeed_xiao_esp32c6": {
         "name": "Seeed Studio XIAO ESP32C6",

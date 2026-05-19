@@ -67,13 +67,15 @@ def _validate_load_certificate(value):
         contents = read_relative_config_path(value)
         return wrapped_load_pem_x509_certificate(contents)
     except ValueError as err:
-        raise cv.Invalid(f"Invalid certificate: {err}")
+        raise cv.Invalid(f"Invalid certificate: {err}") from err
 
 
 def validate_certificate(value):
+    # _validate_load_certificate already calls cv.file_() internally,
+    # but returns the parsed certificate object.  We re-call cv.file_()
+    # to get the resolved path string that the bundle walker can discover.
     _validate_load_certificate(value)
-    # Validation result should be the path, not the loaded certificate
-    return value
+    return str(cv.file_(value))
 
 
 def _validate_load_private_key(key, cert_pw):
@@ -84,9 +86,9 @@ def _validate_load_private_key(key, cert_pw):
     except ValueError as e:
         raise cv.Invalid(
             f"There was an error with the EAP 'password:' provided for 'key' {e}"
-        )
+        ) from e
     except TypeError as e:
-        raise cv.Invalid(f"There was an error with the EAP 'key:' provided: {e}")
+        raise cv.Invalid(f"There was an error with the EAP 'key:' provided: {e}") from e
 
 
 def _check_private_key_cert_match(key, cert):

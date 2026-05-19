@@ -10,8 +10,7 @@
 #include <vector>
 #include <queue>
 
-namespace esphome {
-namespace modbus {
+namespace esphome::modbus {
 
 static constexpr uint16_t MODBUS_TX_BUFFER_SIZE = 15;
 
@@ -122,5 +121,4 @@ class ModbusDevice {
   uint8_t address_;
 };
 
-}  // namespace modbus
-}  // namespace esphome
+}  // namespace esphome::modbus

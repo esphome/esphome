@@ -22,7 +22,7 @@ class LibreTinyUARTComponent : public UARTComponent, public Component {
   bool read_array(uint8_t *data, size_t len) override;
 
   size_t available() override;
-  FlushResult flush() override;
+  UARTFlushResult flush() override;
 
   uint16_t get_config();
 
