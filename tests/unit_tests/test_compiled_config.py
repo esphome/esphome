@@ -22,6 +22,7 @@ from esphome.const import (
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    KEY_VARIANT,
 )
 from esphome.core import CORE
 
@@ -47,7 +48,12 @@ wifi:
 """
 
 
-def _write_storage(storage_path: Path) -> None:
+def _write_storage(
+    storage_path: Path,
+    *,
+    esp_platform: str = "ESP32",
+    core_platform: str | None = "esp32",
+) -> None:
     """Write a vanilla StorageJSON sidecar for the cache tests."""
     storage_path.parent.mkdir(parents=True, exist_ok=True)
     data = {
@@ -59,14 +65,14 @@ def _write_storage(storage_path: Path) -> None:
         "src_version": 1,
         "address": "192.168.1.42",
         "web_port": None,
-        "esp_platform": "ESP32",
+        "esp_platform": esp_platform,
         "build_path": "/build/lite_test",
         "firmware_bin_path": "/build/lite_test/firmware.bin",
         "loaded_integrations": ["api", "logger", "ota", "wifi"],
         "loaded_platforms": [],
         "no_mdns": False,
         "framework": "arduino",
-        "core_platform": "esp32",
+        "core_platform": core_platform,
     }
     storage_path.write_text(json.dumps(data))
 
@@ -123,6 +129,50 @@ def test_load_compiled_config_happy_path(fresh_cache_files: Path) -> None:
     assert CORE.build_path == Path("/build/lite_test")
     assert CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] == "esp32"
     assert CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] == "arduino"
+    # upload_using_esptool reads get_esp32_variant() off CORE.data[KEY_ESP32].
+    from esphome.components.esp32.const import KEY_ESP32
+
+    assert CORE.data[KEY_ESP32][KEY_VARIANT] == "ESP32"
+
+
+def test_load_compiled_config_populates_esp32_variant(tmp_path: Path) -> None:
+    """ESP32 variants survive the cache fast path so esptool gets the right --chip."""
+    from esphome.components.esp32.const import KEY_ESP32
+
+    yaml_path = tmp_path / "lite_test.yaml"
+    yaml_path.write_text("esphome:\n  name: lite_test\n")
+    CORE.config_path = yaml_path
+
+    storage_dir = tmp_path / ".esphome" / "storage"
+    _write_storage(storage_dir / "lite_test.yaml.json", esp_platform="ESP32S3")
+    cache = _write_cache(storage_dir / "lite_test.yaml.validated.yaml")
+    _set_cache_mtime(cache, yaml_path, offset=5)
+
+    assert load_compiled_config(yaml_path) is not None
+    assert CORE.data[KEY_ESP32][KEY_VARIANT] == "ESP32S3"
+
+
+def test_load_compiled_config_skips_esp32_block_for_other_platforms(
+    tmp_path: Path,
+) -> None:
+    """Non-esp32 targets shouldn't fabricate an esp32 data block."""
+    from esphome.components.esp32.const import KEY_ESP32
+
+    yaml_path = tmp_path / "lite_test.yaml"
+    yaml_path.write_text("esphome:\n  name: lite_test\n")
+    CORE.config_path = yaml_path
+
+    storage_dir = tmp_path / ".esphome" / "storage"
+    _write_storage(
+        storage_dir / "lite_test.yaml.json",
+        esp_platform="ESP8266",
+        core_platform="esp8266",
+    )
+    cache = _write_cache(storage_dir / "lite_test.yaml.validated.yaml")
+    _set_cache_mtime(cache, yaml_path, offset=5)
+
+    assert load_compiled_config(yaml_path) is not None
+    assert KEY_ESP32 not in CORE.data
 
 
 @pytest.mark.parametrize(

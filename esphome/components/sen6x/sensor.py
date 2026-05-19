@@ -14,7 +14,6 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_TYPE,
     CONF_VOC,
-    DEVICE_CLASS_AQI,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_PM1,
@@ -93,13 +92,11 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_VOC): sensor.sensor_schema(
                 icon=ICON_RADIATOR,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_AQI,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_NOX): sensor.sensor_schema(
                 icon=ICON_RADIATOR,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_AQI,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_CO2): sensor.sensor_schema(
