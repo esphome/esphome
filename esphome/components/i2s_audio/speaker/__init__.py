@@ -89,7 +89,7 @@ def _set_num_channels_from_config(config):
 
 def _set_stream_limits(config):
     if config.get(CONF_SPDIF_MODE, False):
-        # SPDIF mode: fixed to 16-bit stereo at configured sample rate
+        # SPDIF mode: 16/24/32-bit audio and stereo at configured sample rate
         audio.set_stream_limits(
             min_bits_per_sample=16,
             max_bits_per_sample=32,
