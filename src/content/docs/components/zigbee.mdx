@@ -29,8 +29,7 @@ to the coordinator.
 - On `ESP32` Zigbee can be used together with [WiFi](/components/wifi) with some limitations:
   - WiFi station mode + Zigbee end device is working fine.
   - WiFi station mode + Zigbee router leads to an unstable Zigbee network. Still can be used if WiFi is only enabled for short times (e.g. OTA)
-  - WiFi access point + Zigbee end device could lead to an unstable access point with increased packet loss. If the AP is only used as fallback there should be no issues.
-  - WiFi access point + Zigbee router is not supported
+  - WiFi access point + Zigbee is not supported
 
 > [!CAUTION]
 > Whenever the configuration is changed, the device should be removed and re-added to the Zigbee network.

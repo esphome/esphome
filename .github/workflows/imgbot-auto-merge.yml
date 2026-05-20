@@ -1,0 +1,67 @@
+name: ImgBot Auto Merge
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.user.login == 'imgbot[bot]'
+    steps:
+      - name: Generate a token
+        id: generate-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.ESPHOME_GITHUB_APP_CLIENT_ID }}
+          private-key: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
+
+      - name: Verify only image files are changed
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          if ! files=$(gh api graphql \
+            -F owner="$OWNER" -F repo="$REPO" -F pr="$PR_NUMBER" \
+            -f query='query($owner:String!,$repo:String!,$pr:Int!,$endCursor:String){
+              repository(owner:$owner,name:$repo){
+                pullRequest(number:$pr){
+                  files(first:100,after:$endCursor){
+                    pageInfo{hasNextPage endCursor}
+                    nodes{path}
+                  }
+                }
+              }
+            }' \
+            --paginate \
+            --jq '.data.repository.pullRequest.files.nodes[].path'); then
+            echo "::error::Failed to fetch PR files."
+            exit 1
+          fi
+          if [ -z "$files" ]; then
+            echo "::error::PR has no changed files."
+            exit 1
+          fi
+          non_image=$(printf '%s\n' "$files" | grep -viE '\.(png|jpe?g|gif|svg|webp)$' || true)
+          if [ -n "$non_image" ]; then
+            echo "::error::PR touches non-image files; refusing to auto-merge:"
+            printf '%s\n' "$non_image"
+            echo "Disabling auto-merge in case it was enabled by a prior run."
+            gh pr merge --disable-auto "$PR_URL" || true
+            exit 1
+          fi
+
+      - name: Approve and enable auto-merge
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr review --approve "$PR_URL"
+          gh pr merge --auto --squash "$PR_URL"
