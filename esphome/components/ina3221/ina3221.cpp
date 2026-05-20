@@ -26,29 +26,47 @@ static const uint8_t INA3221_REGISTER_MASK_ENABLE = 0x0F;
 
 static float get_conversion_time_ms(INA3221ConversionTime ct) {
   switch (ct) {
-    case INA3221_CONVERSION_TIME_140US: return 0.14f;
-    case INA3221_CONVERSION_TIME_204US: return 0.204f;
-    case INA3221_CONVERSION_TIME_332US: return 0.332f;
-    case INA3221_CONVERSION_TIME_588US: return 0.588f;
-    case INA3221_CONVERSION_TIME_1100US: return 1.1f;
-    case INA3221_CONVERSION_TIME_2116US: return 2.116f;
-    case INA3221_CONVERSION_TIME_4156US: return 4.156f;
-    case INA3221_CONVERSION_TIME_8244US: return 8.244f;
-    default: return 1.1f;
+    case INA3221_CONVERSION_TIME_140US:
+      return 0.14f;
+    case INA3221_CONVERSION_TIME_204US:
+      return 0.204f;
+    case INA3221_CONVERSION_TIME_332US:
+      return 0.332f;
+    case INA3221_CONVERSION_TIME_588US:
+      return 0.588f;
+    case INA3221_CONVERSION_TIME_1100US:
+      return 1.1f;
+    case INA3221_CONVERSION_TIME_2116US:
+      return 2.116f;
+    case INA3221_CONVERSION_TIME_4156US:
+      return 4.156f;
+    case INA3221_CONVERSION_TIME_8244US:
+      return 8.244f;
+    default:
+      return 1.1f;
   }
 }
 
 static int get_averaging_samples(INA3221Averaging avg) {
   switch (avg) {
-    case INA3221_AVERAGING_1: return 1;
-    case INA3221_AVERAGING_4: return 4;
-    case INA3221_AVERAGING_16: return 16;
-    case INA3221_AVERAGING_64: return 64;
-    case INA3221_AVERAGING_128: return 128;
-    case INA3221_AVERAGING_256: return 256;
-    case INA3221_AVERAGING_512: return 512;
-    case INA3221_AVERAGING_1024: return 1024;
-    default: return 1;
+    case INA3221_AVERAGING_1:
+      return 1;
+    case INA3221_AVERAGING_4:
+      return 4;
+    case INA3221_AVERAGING_16:
+      return 16;
+    case INA3221_AVERAGING_64:
+      return 64;
+    case INA3221_AVERAGING_128:
+      return 128;
+    case INA3221_AVERAGING_256:
+      return 256;
+    case INA3221_AVERAGING_512:
+      return 512;
+    case INA3221_AVERAGING_1024:
+      return 1024;
+    default:
+      return 1;
   }
 }
 
@@ -59,18 +77,19 @@ void INA3221Component::setup() {
   }
   delay(1);
 
-  int active_channels = (this->channels_[0].exists() ? 1 : 0) +
-                        (this->channels_[1].exists() ? 1 : 0) +
+  int active_channels = (this->channels_[0].exists() ? 1 : 0) + (this->channels_[1].exists() ? 1 : 0) +
                         (this->channels_[2].exists() ? 1 : 0);
 
   // Validate timing for SINGLE_SHOT mode
   if (this->mode_ == INA3221_MODE_SINGLE_SHOT && active_channels > 0) {
-    float total_time_ms = (get_conversion_time_ms(this->bus_conversion_time_) +
-                           get_conversion_time_ms(this->shunt_conversion_time_)) *
-                          get_averaging_samples(this->averaging_) * active_channels;
+    float total_time_ms =
+        (get_conversion_time_ms(this->bus_conversion_time_) + get_conversion_time_ms(this->shunt_conversion_time_)) *
+        get_averaging_samples(this->averaging_) * active_channels;
 
     if (total_time_ms > this->get_update_interval()) {
-      ESP_LOGE(TAG, "Single-Shot conversion time (%.1fms) exceeds update interval (%ums)! Please reduce averaging or conversion time.", 
+      ESP_LOGE(TAG,
+               "Single-Shot conversion time (%.1fms) exceeds update interval (%ums)! Please reduce averaging or "
+               "conversion time.",
                total_time_ms, this->get_update_interval());
       this->mark_failed();
       return;
@@ -78,14 +97,17 @@ void INA3221Component::setup() {
   }
 
   uint16_t config = 0;
-  if (this->channels_[0].exists()) config |= 0b0100000000000000;
-  if (this->channels_[1].exists()) config |= 0b0010000000000000;
-  if (this->channels_[2].exists()) config |= 0b0001000000000000;
-  
+  if (this->channels_[0].exists())
+    config |= 0b0100000000000000;
+  if (this->channels_[1].exists())
+    config |= 0b0010000000000000;
+  if (this->channels_[2].exists())
+    config |= 0b0001000000000000;
+
   config |= (this->averaging_ << 9);
   config |= (this->bus_conversion_time_ << 6);
   config |= (this->shunt_conversion_time_ << 3);
-  config |= this->mode_; 
+  config |= this->mode_;
 
   if (!this->write_byte_16(INA3221_REGISTER_CONFIG, config)) {
     this->mark_failed();
@@ -95,21 +117,24 @@ void INA3221Component::setup() {
   for (int i = 0; i < 3; i++) {
     if (!std::isnan(this->channels_[i].critical_current_limit_)) {
       float limit_v = this->channels_[i].critical_current_limit_ * this->channels_[i].shunt_resistance_;
-      int16_t reg_val = (int16_t)(limit_v * 1000000.0f / 40.0f);
+      int16_t reg_val = (int16_t) (limit_v * 1000000.0f / 40.0f);
       this->write_byte_16(INA3221_REGISTER_CHANNEL1_CRITICAL_ALERT + i, reg_val << 3);
     }
     if (!std::isnan(this->channels_[i].warning_current_limit_)) {
       float limit_v = this->channels_[i].warning_current_limit_ * this->channels_[i].shunt_resistance_;
-      int16_t reg_val = (int16_t)(limit_v * 1000000.0f / 40.0f);
+      int16_t reg_val = (int16_t) (limit_v * 1000000.0f / 40.0f);
       this->write_byte_16(INA3221_REGISTER_CHANNEL1_WARNING_ALERT + i, reg_val << 3);
     }
   }
 
   if (this->has_summation_()) {
     uint16_t mask_reg = 0;
-    if (this->channels_[0].exists()) mask_reg |= (1 << 14);
-    if (this->channels_[1].exists()) mask_reg |= (1 << 13);
-    if (this->channels_[2].exists()) mask_reg |= (1 << 12);
+    if (this->channels_[0].exists())
+      mask_reg |= (1 << 14);
+    if (this->channels_[1].exists())
+      mask_reg |= (1 << 13);
+    if (this->channels_[2].exists())
+      mask_reg |= (1 << 12);
     this->write_byte_16(INA3221_REGISTER_MASK_ENABLE, mask_reg);
   }
 }
@@ -151,15 +176,14 @@ void INA3221Component::update() {
       config = (config & 0xFFF8) | INA3221_MODE_SINGLE_SHOT;
       this->write_byte_16(INA3221_REGISTER_CONFIG, config);
 
-      int active_channels = (this->channels_[0].exists() ? 1 : 0) +
-                            (this->channels_[1].exists() ? 1 : 0) +
+      int active_channels = (this->channels_[0].exists() ? 1 : 0) + (this->channels_[1].exists() ? 1 : 0) +
                             (this->channels_[2].exists() ? 1 : 0);
 
-      float total_time_ms = (get_conversion_time_ms(this->bus_conversion_time_) +
-                             get_conversion_time_ms(this->shunt_conversion_time_)) *
-                            get_averaging_samples(this->averaging_) * active_channels;
+      float total_time_ms =
+          (get_conversion_time_ms(this->bus_conversion_time_) + get_conversion_time_ms(this->shunt_conversion_time_)) *
+          get_averaging_samples(this->averaging_) * active_channels;
 
-      uint32_t wait_time = (uint32_t)(total_time_ms) + 5; 
+      uint32_t wait_time = (uint32_t) (total_time_ms) + 5;
       this->set_timeout("read", wait_time, [this]() { this->read_data_(); });
     }
   } else {
@@ -178,7 +202,7 @@ void INA3221Component::read_data_() {
     INA3221Channel &channel = this->channels_[i];
     float bus_voltage_v = NAN, current_a = NAN;
     uint16_t raw;
-    
+
     if (channel.should_measure_bus_voltage()) {
       if (!this->read_byte_16(ina3221_bus_voltage_register(i), &raw)) {
         this->status_set_warning();
@@ -188,7 +212,7 @@ void INA3221Component::read_data_() {
       if (channel.bus_voltage_sensor_ != nullptr)
         channel.bus_voltage_sensor_->publish_state(bus_voltage_v);
     }
-    
+
     if (channel.should_measure_shunt_voltage()) {
       if (!this->read_byte_16(ina3221_shunt_voltage_register(i), &raw)) {
         this->status_set_warning();
@@ -201,7 +225,7 @@ void INA3221Component::read_data_() {
       if (channel.current_sensor_ != nullptr)
         channel.current_sensor_->publish_state(current_a);
     }
-    
+
     if (channel.power_sensor_ != nullptr) {
       channel.power_sensor_->publish_state(bus_voltage_v * current_a);
     }
