@@ -797,8 +797,8 @@ def _resolve_framework_version(value):
 
     Normalises value[CONF_VERSION] to its string form and returns the parsed
     cv.Version. Shared between the PIO and esp-idf toolchain paths; toolchain-
-    specific concerns (source defaults, platform_version, recommended-version
-    warnings) live in the per-toolchain functions.
+    specific concerns (source defaults, platform_version) live in the per-
+    toolchain functions.
     """
     if value[CONF_VERSION] in PLATFORM_VERSION_LOOKUP:
         if value[CONF_TYPE] == FRAMEWORK_ARDUINO:
@@ -813,8 +813,17 @@ def _resolve_framework_version(value):
     if value[CONF_TYPE] == FRAMEWORK_ARDUINO:
         if version < cv.Version(3, 0, 0):
             raise cv.Invalid("Only Arduino 3.0+ is supported.")
-    elif version < cv.Version(5, 0, 0):
-        raise cv.Invalid("Only ESP-IDF 5.0+ is supported.")
+        recommended = ARDUINO_FRAMEWORK_VERSION_LOOKUP["recommended"]
+    else:
+        if version < cv.Version(5, 0, 0):
+            raise cv.Invalid("Only ESP-IDF 5.0+ is supported.")
+        recommended = ESP_IDF_FRAMEWORK_VERSION_LOOKUP["recommended"]
+
+    if version != recommended:
+        _LOGGER.warning(
+            "The selected framework version is not the recommended one. "
+            "If there are connectivity or build issues please remove the manual version."
+        )
 
     return version
 
@@ -836,7 +845,6 @@ def _check_pio_versions(config):
     version = _resolve_framework_version(value)
 
     if value[CONF_TYPE] == FRAMEWORK_ARDUINO:
-        recommended_version = ARDUINO_FRAMEWORK_VERSION_LOOKUP["recommended"]
         platform_lookup = ARDUINO_PLATFORM_VERSION_LOOKUP.get(version)
         value[CONF_SOURCE] = value.get(
             CONF_SOURCE, _format_framework_arduino_version(version)
@@ -844,7 +852,6 @@ def _check_pio_versions(config):
         if _is_framework_url(value[CONF_SOURCE]):
             value[CONF_SOURCE] = f"{ARDUINO_FRAMEWORK_PKG}@{value[CONF_SOURCE]}"
     else:
-        recommended_version = ESP_IDF_FRAMEWORK_VERSION_LOOKUP["recommended"]
         platform_lookup = ESP_IDF_PLATFORM_VERSION_LOOKUP.get(version)
         value[CONF_SOURCE] = value.get(
             CONF_SOURCE,
@@ -859,12 +866,6 @@ def _check_pio_versions(config):
                 "Framework version not recognized; please specify platform_version"
             )
         value[CONF_PLATFORM_VERSION] = _parse_pio_platform_version(str(platform_lookup))
-
-    if version != recommended_version:
-        _LOGGER.warning(
-            "The selected framework version is not the recommended one. "
-            "If there are connectivity or build issues please remove the manual version."
-        )
 
     if value[CONF_PLATFORM_VERSION] != _parse_pio_platform_version(
         str(PLATFORM_VERSION_LOOKUP["recommended"])
@@ -888,6 +889,12 @@ def _check_esp_idf_versions(config):
     value.pop(CONF_PLATFORM_VERSION, None)
 
     version = _resolve_framework_version(value)
+
+    if CONF_SOURCE in value:
+        _LOGGER.warning(
+            "A custom framework source is set. "
+            "If there are connectivity or build issues please remove the manual source."
+        )
 
     # Official ESP-IDF frameworks don't use the 'extra' semver component.
     value[CONF_VERSION] = str(cv.Version(version.major, version.minor, version.patch))
