@@ -479,6 +479,14 @@ void VoiceAssistant::loop() {
         this->tts_stream_end_trigger_.trigger();
       }
 #endif
+#ifdef USE_MEDIA_PLAYER
+      if (this->speaker_ == nullptr && this->media_player_ != nullptr) {
+        if (this->media_player_->is_announcing()) {
+          break;
+        }
+        ESP_LOGD(TAG, "Media player has finished announcing");
+      }
+#endif
       if (this->continue_conversation_) {
         this->set_state_(State::START_MICROPHONE, State::START_PIPELINE);
       } else {
