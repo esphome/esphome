@@ -792,7 +792,7 @@ PLATFORM_VERSION_LOOKUP = {
 }
 
 
-def _resolve_framework_version(value):
+def _resolve_framework_version(value: ConfigType) -> cv.Version:
     """Resolve a named or raw framework version and validate the minimum.
 
     Normalises value[CONF_VERSION] to its string form and returns the parsed
@@ -828,7 +828,7 @@ def _resolve_framework_version(value):
     return version
 
 
-def _check_pio_versions(config):
+def _check_pio_versions(config: ConfigType) -> ConfigType:
     config = config.copy()
     value = config[CONF_FRAMEWORK]
 
@@ -878,7 +878,7 @@ def _check_pio_versions(config):
     return config
 
 
-def _check_esp_idf_versions(config):
+def _check_esp_idf_versions(config: ConfigType) -> ConfigType:
     config = config.copy()
     value = config[CONF_FRAMEWORK]
 
