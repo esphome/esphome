@@ -185,6 +185,12 @@ class AsyncWebServerRequest {
   std::string arg(const char *name);
   std::string arg(const std::string &name) { return this->arg(name.c_str()); }
 
+  /// Returns the raw request body (e.g. JSON for application/json, raw bytes for any
+  /// non-form content type). For form-urlencoded requests this returns the unparsed
+  /// form string; use arg() to extract individual fields. View is valid for the
+  /// lifetime of the request object only.
+  StringRef body() const { return StringRef(this->post_query_); }
+
   operator httpd_req_t *() const { return this->req_; }
   optional<std::string> get_header(const char *name) const;
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -209,7 +215,7 @@ class AsyncWebHandler;
 
 class AsyncWebServer {
  public:
-  AsyncWebServer(uint16_t port) : port_(port){};
+  AsyncWebServer(uint16_t port) : port_(port) {};
   ~AsyncWebServer() { this->end(); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)

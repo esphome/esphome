@@ -158,6 +158,27 @@ void AsyncWebServer::begin() {
         .user_ctx = this,
     };
     httpd_register_uri_handler(this->server_, &handler_options);
+
+    // PUT and PATCH carry bodies; reuse the POST path which reads + parses them.
+    for (auto method : {HTTP_PUT, HTTP_PATCH}) {
+      const httpd_uri_t handler_body = {
+          .uri = "",
+          .method = method,
+          .handler = AsyncWebServer::request_post_handler,
+          .user_ctx = this,
+      };
+      httpd_register_uri_handler(this->server_, &handler_body);
+    }
+
+    // DELETE typically has no body; route through the no-body handler so clients
+    // that omit Content-Length are not rejected with 411.
+    const httpd_uri_t handler_delete = {
+        .uri = "",
+        .method = HTTP_DELETE,
+        .handler = AsyncWebServer::request_handler,
+        .user_ctx = this,
+    };
+    httpd_register_uri_handler(this->server_, &handler_delete);
   }
 }
 
@@ -183,11 +204,11 @@ esp_err_t AsyncWebServer::request_post_handler(httpd_req_t *r) {
       auto *server = static_cast<AsyncWebServer *>(r->user_ctx);
       return server->handle_multipart_upload_(r, content_type_char);
 #endif
-    } else {
-      ESP_LOGW(TAG, "Unsupported content type for POST: %s", content_type_char);
-      // fallback to get handler to support backward compatibility
-      return AsyncWebServer::request_handler(r);
     }
+    // For any other content type (e.g. application/json, text/plain) we read the raw
+    // body below and hand it to the handler via AsyncWebServerRequest::body(). Form
+    // parsing (arg()) still works for form-urlencoded; for other types it just won't
+    // find any key=value pairs, which is the desired behavior.
   }
 
   // Handle regular form data
@@ -276,11 +297,32 @@ void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code
     case 200:
       status = HTTPD_200;
       break;
+    case 201:
+      status = "201 Created";
+      break;
+    case 204:
+      status = "204 No Content";
+      break;
+    case 400:
+      status = "400 Bad Request";
+      break;
+    case 403:
+      status = "403 Forbidden";
+      break;
     case 404:
       status = HTTPD_404;
       break;
+    case 405:
+      status = "405 Method Not Allowed";
+      break;
     case 409:
       status = HTTPD_409;
+      break;
+    case 500:
+      status = HTTPD_500;
+      break;
+    case 507:
+      status = "507 Insufficient Storage";
       break;
     default:
       status = HTTPD_500;
