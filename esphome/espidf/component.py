@@ -154,41 +154,6 @@ class IDFComponent:
         self.path = self.source.download(self.get_sanitized_name(), force=force)
 
 
-def _sanitize_version(version: str) -> str:
-    """
-    Sanitize a version string by removing common requirement prefixes or a leading v.
-
-    Args:
-        version: Version string to clean.
-
-    Returns:
-        Cleaned version string without common requirement symbols.
-    """
-    version = version.strip()
-
-    prefixes = (
-        "^",
-        "~=",
-        "~",
-        ">=",
-        "<=",
-        "==",
-        "!=",
-        ">",
-        "<",
-        "=",
-        "v",
-        "V",
-    )
-
-    for p in prefixes:
-        if version.startswith(p):
-            version = version[len(p) :]
-            break
-
-    return version.strip()
-
-
 def _get_package_from_pio_registry(
     username: str | None, pkgname: str, requirements: str
 ) -> tuple[str, str, str | None, str | None]:
@@ -405,8 +370,10 @@ def _convert_library_to_component(library: Library) -> IDFComponent:
         name = str(split_result.path).strip("/")
         name = name.removesuffix(".git")
 
-        # Sanitize version
-        version = _sanitize_version(split_result.fragment)
+        # IDF Component Manager only accepts "*", a 40-char commit hash, or
+        # semver here. The actual git ref is preserved in GitSource.ref;
+        # override_path makes this field cosmetic at build time.
+        version = "*"
         repository = urlunsplit(split_result._replace(fragment=""))
 
         source = GitSource(str(repository), split_result.fragment)
@@ -619,9 +586,6 @@ def generate_idf_component_yml(component: IDFComponent) -> str:
     if description:
         data["description"] = description
 
-    # Do not use the version from library.json/library.properties; it may be incorrect.
-    data["version"] = component.version
-
     repository = component.data.get("repository", {}).get("url", None)
     if repository:
         data["repository"] = repository
@@ -633,7 +597,6 @@ def generate_idf_component_yml(component: IDFComponent) -> str:
 
         # Add this dependency to dependencies
         dep = {}
-        dep["version"] = dependency.version
 
         # Should use dependency.path as override path
         try:
@@ -643,6 +606,8 @@ def generate_idf_component_yml(component: IDFComponent) -> str:
             if not isinstance(dependency.source, GitSource):
                 raise e
             dep["git"] = dependency.source.url
+            if dependency.source.ref:
+                dep["version"] = dependency.source.ref
 
         data["dependencies"][dependency.get_sanitized_name()] = dep
 

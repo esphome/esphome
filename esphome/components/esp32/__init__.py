@@ -2488,9 +2488,8 @@ def _write_sdkconfig():
 
 def _platformio_library_to_dependency(library: Library) -> tuple[str, dict[str, str]]:
     dependency: dict[str, str] = {}
-    name, version, path = generate_idf_component(library)
+    name, _version, path = generate_idf_component(library)
     dependency["override_path"] = str(path)
-    dependency["version"] = version
     return name, dependency
 
 
