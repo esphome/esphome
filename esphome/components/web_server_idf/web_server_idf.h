@@ -215,7 +215,7 @@ class AsyncWebHandler;
 
 class AsyncWebServer {
  public:
-  AsyncWebServer(uint16_t port) : port_(port) {};
+  AsyncWebServer(uint16_t port) : port_(port){};
   ~AsyncWebServer() { this->end(); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
