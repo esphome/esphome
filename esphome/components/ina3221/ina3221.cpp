@@ -216,8 +216,10 @@ void INA3221Component::read_data_() {
 
     // Only run this math if we are actually tracking sum_current or sum_power
     if (calculate_totals && channel.exists()) {
-      if (!std::isnan(bus_voltage_v)) total_bus_voltage_v += bus_voltage_v;
-      if (!std::isnan(current_a)) total_current_a += current_a;
+      if (!std::isnan(bus_voltage_v))
+        total_bus_voltage_v += bus_voltage_v;
+      if (!std::isnan(current_a))
+        total_current_a += current_a;
       active_channels++;
     }
   }
