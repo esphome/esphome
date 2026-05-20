@@ -335,6 +335,10 @@ async def to_code(config):
     if CONF_PRIORITY in config:
         priority_list = config[CONF_PRIORITY]
         CORE.data[KEY_NETWORK_PRIORITY] = priority_list
+        # Enable Component::set_setup_priority() so the per-interface to_code
+        # calls below have a defined symbol to link against. Without this define
+        # the implementation in core/component.cpp is compiled out.
+        cg.add_define("USE_SETUP_PRIORITY_OVERRIDE")
 
         def _fmt(entry):
             if entry["timeout"] is not None:
