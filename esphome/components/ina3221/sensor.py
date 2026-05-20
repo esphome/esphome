@@ -104,6 +104,36 @@ INA3221_CHANNEL_SCHEMA = cv.Schema(
     }
 )
 
+def validate_ina3221(config):
+    if config.get(CONF_MODE) == "SINGLE_SHOT":
+        avg = config.get(CONF_AVERAGING, 1)
+        bus_ct_str = config.get(CONF_BUS_CONVERSION_TIME, "1100us")
+        shunt_ct_str = config.get(CONF_SHUNT_CONVERSION_TIME, "1100us")
+
+        ct_map = {
+            "140us": 0.14, "204us": 0.204, "332us": 0.332, "588us": 0.588,
+            "1100us": 1.1, "2116us": 2.116, "4156us": 4.156, "8244us": 8.244
+        }
+        bus_ct = ct_map[bus_ct_str]
+        shunt_ct = ct_map[shunt_ct_str]
+
+        active_channels = sum(1 for ch in [CONF_CHANNEL_1, CONF_CHANNEL_2, CONF_CHANNEL_3] if ch in config)
+        if active_channels == 0:
+            return config
+
+        total_ms = (bus_ct + shunt_ct) * avg * active_channels
+        update_interval = config.get("update_interval")
+
+        # duck-type check for ESPHome's TimePeriod object
+        if update_interval and hasattr(update_interval, "total_milliseconds"):
+            ui_ms = update_interval.total_milliseconds
+            if total_ms > ui_ms:
+                raise cv.Invalid(
+                    f"Single-Shot conversion time ({total_ms:.1f}ms) exceeds the update_interval ({ui_ms}ms). "
+                    f"Please reduce averaging, lower conversion times, or increase the update_interval."
+                )
+    return config
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -145,7 +175,8 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(i2c.i2c_device_schema(0x40))
+    .extend(i2c.i2c_device_schema(0x40)),
+    validate_ina3221
 )
 
 

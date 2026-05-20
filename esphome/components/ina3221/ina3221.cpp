@@ -180,11 +180,13 @@ void INA3221Component::read_data_() {
   float total_bus_voltage_v = 0.0f;
   float total_current_a = 0.0f;
   int active_channels = 0;
+  bool calculate_totals = (this->sum_current_sensor_ != nullptr || this->sum_power_sensor_ != nullptr);
 
   for (int i = 0; i < 3; i++) {
     INA3221Channel &channel = this->channels_[i];
     float bus_voltage_v = NAN, current_a = NAN;
     uint16_t raw;
+
     if (channel.should_measure_bus_voltage()) {
       if (!this->read_byte_16(ina3221_bus_voltage_register(i), &raw)) {
         this->status_set_warning();
@@ -194,6 +196,7 @@ void INA3221Component::read_data_() {
       if (channel.bus_voltage_sensor_ != nullptr)
         channel.bus_voltage_sensor_->publish_state(bus_voltage_v);
     }
+
     if (channel.should_measure_shunt_voltage()) {
       if (!this->read_byte_16(ina3221_shunt_voltage_register(i), &raw)) {
         this->status_set_warning();
@@ -206,19 +209,20 @@ void INA3221Component::read_data_() {
       if (channel.current_sensor_ != nullptr)
         channel.current_sensor_->publish_state(current_a);
     }
+
     if (channel.power_sensor_ != nullptr) {
       channel.power_sensor_->publish_state(bus_voltage_v * current_a);
     }
 
-    if (channel.exists()) {
-      if (!std::isnan(bus_voltage_v))
-        total_bus_voltage_v += bus_voltage_v;
-      if (!std::isnan(current_a))
-        total_current_a += current_a;
+    // Only run this math if we are actually tracking sum_current or sum_power
+    if (calculate_totals && channel.exists()) {
+      if (!std::isnan(bus_voltage_v)) total_bus_voltage_v += bus_voltage_v;
+      if (!std::isnan(current_a)) total_current_a += current_a;
       active_channels++;
     }
   }
 
+  // Check if hardware summation register or software sums are required
   if (this->has_summation_()) {
     uint16_t raw;
     if (this->read_byte_16(INA3221_REGISTER_SHUNT_VOLTAGE_SUM, &raw)) {
