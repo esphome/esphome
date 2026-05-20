@@ -16,7 +16,6 @@ KEY_SUBMODULES = "submodules"
 KEY_EXTRA_BUILD_FILES = "extra_build_files"
 KEY_FULL_CERT_BUNDLE = "full_cert_bundle"
 KEY_IDF_VERSION = "idf_version"
-KEY_IDF_FRAMEWORK_SOURCE = "idf_framework_source"
 
 VARIANT_ESP32 = "ESP32"
 VARIANT_ESP32C2 = "ESP32C2"

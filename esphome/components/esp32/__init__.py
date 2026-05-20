@@ -65,7 +65,6 @@ from .const import (  # noqa
     KEY_EXTRA_BUILD_FILES,
     KEY_FLASH_SIZE,
     KEY_FULL_CERT_BUNDLE,
-    KEY_IDF_FRAMEWORK_SOURCE,
     KEY_IDF_VERSION,
     KEY_PATH,
     KEY_REF,
@@ -478,14 +477,6 @@ def set_core_data(config):
             "Please update ARDUINO_IDF_VERSION_LOOKUP.",
             path=[CONF_FRAMEWORK, CONF_VERSION],
         )
-
-    # Under the esp-idf toolchain a user-supplied framework `source:` overrides
-    # the default download mirrors for the underlying ESP-IDF tarball. Applies
-    # regardless of framework type — in the arduino-on-IDF case arduino-esp32
-    # is pulled in as an IDF component on top of the same IDF framework
-    # download, so CONF_SOURCE governs the same artifact.
-    if CORE.using_toolchain_esp_idf:
-        CORE.data[KEY_ESP32][KEY_IDF_FRAMEWORK_SOURCE] = conf.get(CONF_SOURCE)
 
     CORE.data[KEY_ESP32][KEY_BOARD] = config[CONF_BOARD]
     CORE.data[KEY_ESP32][KEY_FLASH_SIZE] = config[CONF_FLASH_SIZE]
