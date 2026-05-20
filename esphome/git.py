@@ -277,7 +277,7 @@ class GitFile:
         if self.ref is None:
             raise ValueError("URL has no ref")
         if self.domain == "codeberg.org":
-            return f"https://codeberg.org/{self.owner}/{self.repo}/raw/branch/{self.ref}/{self.filename}"
+            return f"https://codeberg.org/{self.owner}/{self.repo}/raw/commit/{self.ref}/{self.filename}"
         if self.domain == "github.com":
             return f"https://raw.githubusercontent.com/{self.owner}/{self.repo}/{self.ref}/{self.filename}"
         if self.domain == "gitlab.com":
