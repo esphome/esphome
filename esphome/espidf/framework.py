@@ -826,10 +826,8 @@ def _check_esphome_idf_framework_install(
     env_stamp_file = framework_path / ESPHOME_STAMP_FILE
     idf_tools_path = framework_path / "tools" / "idf_tools.py"
     _LOGGER.info("Checking ESP-IDF %s framework ...", version)
-    # Log the override every invocation, including the cached-framework case,
-    # so the user can verify what's in effect even when no download runs.
-    # (Note: a *changed* override won't trigger re-extraction on its own —
-    # use ``esphome clean`` to force a re-download against the new URL.)
+    # Logged every invocation (not just on install) so the user can verify the
+    # override. A changed URL needs ``esphome clean`` to force a re-download.
     if source_url:
         _LOGGER.info("Using framework source override: %s", source_url)
 
