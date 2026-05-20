@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Generator
 from contextlib import contextmanager, suppress
+from dataclasses import dataclass, field
 import functools
 import inspect
 from io import BytesIO, TextIOBase, TextIOWrapper
@@ -231,6 +232,130 @@ class IncludeFile:
     def has_unresolved_expressions(self) -> bool:
         """Check if the filename contains substitution variables or Jinja expressions."""
         return has_substitution_or_expression(str(self.file))
+
+
+def force_load_include_files(
+    obj: Any,
+    *,
+    warn_on_unresolved: bool = True,
+    _seen: set[int] | None = None,
+) -> None:
+    """Recursively resolve any deferred ``IncludeFile`` instances in a YAML tree.
+
+    Nested ``!include`` returns a deferred ``IncludeFile`` that is only resolved
+    later (substitution / packages pass). Callers that need every referenced
+    file to actually load — bundle discovery, on-device YAML recovery — invoke
+    this while a :func:`track_yaml_loads` listener is active so the underlying
+    loader fires and records every reachable file.
+
+    ``IncludeFile`` instances whose path contains unresolved substitution
+    variables cannot be loaded. By default a warning is logged for each one;
+    pass ``warn_on_unresolved=False`` (used by discovery paths that run on a
+    fresh re-parse where substitutions haven't been applied yet) to demote it
+    to a debug log.
+    """
+    if _seen is None:
+        _seen = set()
+
+    if isinstance(obj, IncludeFile):
+        if id(obj) in _seen:
+            return
+        _seen.add(id(obj))
+        if obj.has_unresolved_expressions():
+            log = _LOGGER.warning if warn_on_unresolved else _LOGGER.debug
+            log(
+                "Cannot resolve !include %s (referenced from %s) with substitutions in path",
+                obj.file,
+                obj.parent_file,
+            )
+            return
+        try:
+            loaded = obj.load()
+        except EsphomeError as err:
+            _LOGGER.warning(
+                "Failed to load !include %s (referenced from %s): %s",
+                obj.file,
+                obj.parent_file,
+                err,
+            )
+            return
+        force_load_include_files(
+            loaded, warn_on_unresolved=warn_on_unresolved, _seen=_seen
+        )
+    elif isinstance(obj, dict):
+        if id(obj) in _seen:
+            return
+        _seen.add(id(obj))
+        for value in obj.values():
+            force_load_include_files(
+                value, warn_on_unresolved=warn_on_unresolved, _seen=_seen
+            )
+    elif isinstance(obj, (list, tuple)):
+        if id(obj) in _seen:
+            return
+        _seen.add(id(obj))
+        for item in obj:
+            force_load_include_files(
+                item, warn_on_unresolved=warn_on_unresolved, _seen=_seen
+            )
+
+
+@dataclass(slots=True)
+class DiscoveredYamlFiles:
+    """Result of :func:`discover_user_yaml_files`.
+
+    ``files`` contains every resolved path the YAML loader touched while we
+    were re-parsing the user's config; ``secrets`` is the subset whose
+    *un-resolved* filename matched :data:`esphome.const.SECRETS_FILES` (so
+    a ``secrets.yaml`` symlinked to a differently-named target is still
+    flagged as secrets).
+    """
+
+    files: list[Path] = field(default_factory=list)
+    secrets: set[Path] = field(default_factory=set)
+
+
+def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
+    """Fresh-re-parse ``config_path`` and report every file the YAML loader
+    pulled in, plus which of them came in under a secrets filename.
+
+    Does NOT run schema validation, substitutions, or package resolution — so
+    component-internal YAML loaded by validators (LVGL helpers, dashboard
+    imports, etc.) is *not* captured. Deferred ``!include`` references whose
+    paths don't depend on substitutions are force-loaded here so they're
+    captured too.
+
+    Must run on a fresh parse because :meth:`IncludeFile.load` caches its
+    result; on an already-resolved tree :meth:`load` returns without invoking
+    the loader and the listener would not fire for the referenced files.
+    """
+    from esphome.const import SECRETS_FILES
+
+    secrets: set[Path] = set()
+
+    def _capture_secret(fname: Path) -> None:
+        if Path(fname).name in SECRETS_FILES:
+            secrets.add(Path(fname).resolve())
+
+    with track_yaml_loads() as loaded:
+        _load_listeners.append(_capture_secret)
+        try:
+            try:
+                data = load_yaml(config_path)
+            except EsphomeError:
+                return DiscoveredYamlFiles(list(loaded), secrets)
+            force_load_include_files(data, warn_on_unresolved=False)
+        finally:
+            _load_listeners.remove(_capture_secret)
+
+    # Deduplicate while preserving first-seen order.
+    seen: set[Path] = set()
+    unique: list[Path] = []
+    for path in loaded:
+        if path not in seen:
+            seen.add(path)
+            unique.append(path)
+    return DiscoveredYamlFiles(unique, secrets)
 
 
 def _add_data_ref(fn):
