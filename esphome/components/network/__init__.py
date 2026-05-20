@@ -35,9 +35,18 @@ KEY_NETWORK_PRIORITY = "network_priority"
 
 VALID_NETWORK_TYPES = ["ethernet", "openthread", "wifi", "modem"]
 
-# Setup priority base values — first in list gets the highest priority
-NETWORK_PRIORITY_BASE = 300.0
-NETWORK_PRIORITY_STEP = 100.0
+# Setup priority base values — first in list gets the highest priority.
+#
+# The base equals the historical setup_priority::WIFI / ::ETHERNET default
+# (250.0), so a single-entry priority list yields exactly the same setup order
+# as a config with no priority block. Subsequent entries step down by a small
+# amount to break ties without crossing other priority bands.
+#
+# Important: must stay strictly less than setup_priority::AFTER_BLUETOOTH
+# (300.0), which NetworkComponent itself uses — otherwise the highest-priority
+# interface could tie with NetworkComponent and run before esp_netif_init().
+NETWORK_PRIORITY_BASE = 250.0
+NETWORK_PRIORITY_STEP = 5.0
 
 network_ns = cg.esphome_ns.namespace("network")
 NetworkComponent = network_ns.class_("NetworkComponent", cg.Component)
