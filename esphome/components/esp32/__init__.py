@@ -479,10 +479,12 @@ def set_core_data(config):
             path=[CONF_FRAMEWORK, CONF_VERSION],
         )
 
-    # Under the esp-idf toolchain, a user-supplied framework `source:` overrides
-    # the default download mirrors. Stashed on CORE.data so toolchain.py can
-    # pick it up without re-parsing CONF_FRAMEWORK.
-    if CORE.using_toolchain_esp_idf and conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
+    # Under the esp-idf toolchain a user-supplied framework `source:` overrides
+    # the default download mirrors for the underlying ESP-IDF tarball. Applies
+    # regardless of framework type — in the arduino-on-IDF case arduino-esp32
+    # is pulled in as an IDF component on top of the same IDF framework
+    # download, so CONF_SOURCE governs the same artifact.
+    if CORE.using_toolchain_esp_idf:
         CORE.data[KEY_ESP32][KEY_IDF_FRAMEWORK_SOURCE] = conf.get(CONF_SOURCE)
 
     CORE.data[KEY_ESP32][KEY_BOARD] = config[CONF_BOARD]
