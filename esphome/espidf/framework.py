@@ -826,6 +826,12 @@ def _check_esphome_idf_framework_install(
     env_stamp_file = framework_path / ESPHOME_STAMP_FILE
     idf_tools_path = framework_path / "tools" / "idf_tools.py"
     _LOGGER.info("Checking ESP-IDF %s framework ...", version)
+    # Log the override every invocation, including the cached-framework case,
+    # so the user can verify what's in effect even when no download runs.
+    # (Note: a *changed* override won't trigger re-extraction on its own —
+    # use ``esphome clean`` to force a re-download against the new URL.)
+    if source_url:
+        _LOGGER.info("Using framework source override: %s", source_url)
 
     # 2. Download and extract the framework if not already extracted.
     # The marker is written last after extraction succeeds, so its presence
@@ -853,11 +859,7 @@ def _check_esphome_idf_framework_install(
             except ValueError:
                 pass
 
-            if source_url:
-                _LOGGER.info("Using framework source override: %s", source_url)
-                mirrors = [source_url]
-            else:
-                mirrors = ESPHOME_IDF_FRAMEWORK_MIRRORS
+            mirrors = [source_url] if source_url else ESPHOME_IDF_FRAMEWORK_MIRRORS
             download_from_mirrors(mirrors, substitutions, tmp.file)
 
             _LOGGER.info("Extracting ESP-IDF %s framework ...", version)

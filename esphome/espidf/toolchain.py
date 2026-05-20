@@ -47,7 +47,7 @@ def _get_framework_source_override() -> str | None:
     """
     if CORE.config is None:
         return None
-    return CORE.config.get("esp32", {}).get(CONF_FRAMEWORK, {}).get(CONF_SOURCE)
+    return CORE.config.get(KEY_ESP32, {}).get(CONF_FRAMEWORK, {}).get(CONF_SOURCE)
 
 
 def _get_esphome_esp_idf_paths(
