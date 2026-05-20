@@ -244,7 +244,8 @@ async function checkInternalLinks(fname, content, anchorCache) {
 
   // Skip template and documentation files with example links
   const ignoreFiles = [
-    '.claude/instructions.md',
+    'AGENTS.md',
+    'CONTRIBUTING.md',
     'script/release_notes_template.md',
   ];
   if (ignoreFiles.includes(fname)) return;
@@ -461,6 +462,11 @@ async function main() {
 
   // Process files
   for (const [fname, gitMode] of gitFiles) {
+    // Skip symlinks - the target file is linted directly
+    if (gitMode === 120000) {
+      continue;
+    }
+
     // Skip ignored folders
     if (ignoreFolders.some(folder => fname.startsWith(folder) || fname.includes(`/${folder}`))) {
       continue;
