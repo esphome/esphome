@@ -3,7 +3,11 @@ import logging
 
 from esphome import automation, pins
 import esphome.codegen as cg
-from esphome.components.network import ip_address_literal
+from esphome.components.network import (
+    KEY_NETWORK_PRIORITY,
+    get_network_priority,
+    ip_address_literal,
+)
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -27,6 +31,7 @@ from esphome.const import (
     CONF_PAGE_ID,
     CONF_PIN,
     CONF_POLLING_INTERVAL,
+    CONF_PRIORITY,
     CONF_RESET_PIN,
     CONF_SPI,
     CONF_STATIC_IP,
@@ -48,7 +53,6 @@ from esphome.core import (
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-CONFLICTS_WITH = ["wifi"]
 AUTO_LOAD = ["network"]
 LOGGER = logging.getLogger(__name__)
 
@@ -487,6 +491,11 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
+    # Apply network priority if configured, otherwise use the existing default
+    prio = get_network_priority("ethernet")
+    if prio is not None:
+        cg.add(var.set_setup_priority(prio))
+
     if CORE.is_esp32:
         await _to_code_esp32(var, config)
     elif CORE.is_rp2040:
@@ -576,10 +585,16 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
             )
             cg.add(var.add_phy_register(reg))
 
-    # Disable WiFi when using Ethernet to save memory
-    add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENABLED", False)
-    # Also disable WiFi/BT coexistence since WiFi is disabled
-    add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", False)
+    # Disable WiFi when using Ethernet alone to save memory.
+    # When network: priority: lists both interfaces, WiFi must remain enabled.
+    net_priority = CORE.data.get(KEY_NETWORK_PRIORITY, [])
+    priority_ifaces = {e["interface"] for e in net_priority}
+    running_with_wifi = "wifi" in priority_ifaces and "ethernet" in priority_ifaces
+    if not running_with_wifi:
+        # Disable WiFi when using Ethernet to save memory
+        add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENABLED", False)
+        # Also disable WiFi/BT coexistence since WiFi is disabled
+        add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", False)
 
     # Re-enable ESP-IDF's Ethernet driver (excluded by default to save compile time)
     include_builtin_idf_component("esp_eth")
@@ -665,6 +680,17 @@ def _final_validate_rmii_pins(config: ConfigType) -> None:
 
 def _final_validate(config: ConfigType) -> ConfigType:
     """Final validation for Ethernet component."""
+    # Allow ethernet + wifi coexistence only when both are declared in network: priority:
+    full = fv.full_config.get()
+    net_priority = full.get("network", {}).get(CONF_PRIORITY, [])
+    priority_ifaces = {e["interface"] for e in net_priority}
+    has_priority_config = "ethernet" in priority_ifaces and "wifi" in priority_ifaces
+    if "wifi" in full and not has_priority_config:
+        raise cv.Invalid(
+            "Component ethernet cannot be used together with component wifi "
+            "unless both are listed under 'network: priority:'"
+        )
+
     _final_validate_spi(config)
     _final_validate_rmii_pins(config)
     return config

@@ -5,8 +5,15 @@ import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 import esphome.config_validation as cv
-from esphome.const import CONF_ENABLE_IPV6, CONF_ID, CONF_MIN_IPV6_ADDR_COUNT
+from esphome.const import (
+    CONF_ENABLE_IPV6,
+    CONF_ID,
+    CONF_MIN_IPV6_ADDR_COUNT,
+    CONF_PRIORITY,
+    CONF_TIMEOUT,
+)
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+import esphome.final_validate as fv
 
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["mdns"]
@@ -17,6 +24,19 @@ _LOGGER = logging.getLogger(__name__)
 # Components can request high performance networking and this configures lwip and WiFi settings
 KEY_HIGH_PERFORMANCE_NETWORKING = "high_performance_networking"
 CONF_ENABLE_HIGH_PERFORMANCE = "enable_high_performance"
+
+# Network priority tracking infrastructure
+# Components can query this to determine their relative setup priority and fallback timeout.
+# CORE.data[KEY_NETWORK_PRIORITY] is a list of dicts:
+#   [{"interface": "ethernet", "timeout": 30000}, {"interface": "wifi", "timeout": None}, ...]
+# where timeout is in milliseconds, or None meaning "start the next interface immediately".
+KEY_NETWORK_PRIORITY = "network_priority"
+
+VALID_NETWORK_TYPES = ["ethernet", "openthread", "wifi", "modem"]
+
+# Setup priority base values — first in list gets the highest priority
+NETWORK_PRIORITY_BASE = 300.0
+NETWORK_PRIORITY_STEP = 100.0
 
 network_ns = cg.esphome_ns.namespace("network")
 NetworkComponent = network_ns.class_("NetworkComponent", cg.Component)
@@ -106,6 +126,157 @@ def has_high_performance_networking() -> bool:
     return CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING, False)
 
 
+def _get_priority_entry(iface: str) -> dict | None:
+    """Return the priority entry dict for the given interface, or None if not configured."""
+    priority_list = CORE.data.get(KEY_NETWORK_PRIORITY)
+    if priority_list is None:
+        return None
+    iface_lower = iface.lower()
+    for entry in priority_list:
+        if entry["interface"] == iface_lower:
+            return entry
+    return None
+
+
+def get_network_priority(iface: str) -> float | None:
+    """Get the setup priority for the given network interface type.
+
+    Returns the float setup priority for ``iface`` based on the order declared
+    under ``network: priority:``.  Interfaces listed first receive a higher
+    setup priority so they are initialised before lower-priority ones.
+
+    If no ``network: priority:`` has been configured this returns ``None`` and
+    the calling component should fall back to its own default setup priority.
+
+    Args:
+        iface: Interface type string — one of ``"ethernet"``, ``"wifi"``,
+               ``"openthread"`` or ``"modem"`` (case-insensitive).
+
+    Returns:
+        float setup priority, or None if no priority list was configured.
+
+    Example usage inside a component's ``to_code``::
+
+        from esphome.components import network
+
+        async def to_code(config):
+            var = cg.new_Pvariable(config[CONF_ID])
+            await cg.register_component(var, config)
+
+            prio = network.get_network_priority("ethernet")
+            if prio is not None:
+                cg.add(var.set_setup_priority(prio))
+            ...
+    """
+    priority_list = CORE.data.get(KEY_NETWORK_PRIORITY)
+    if priority_list is None:
+        return None
+    iface_lower = iface.lower()
+    for idx, entry in enumerate(priority_list):
+        if entry["interface"] == iface_lower:
+            return NETWORK_PRIORITY_BASE - (idx * NETWORK_PRIORITY_STEP)
+    return None
+
+
+def get_network_timeout(iface: str) -> int | None:
+    """Get the fallback timeout in milliseconds for the given network interface.
+
+    Returns the timeout (in ms) that the runtime should wait for ``iface`` to
+    connect before attempting to bring up the next interface in the priority
+    list.  Returns ``None`` if no timeout was configured for this interface,
+    meaning the next interface should start immediately.
+
+    Args:
+        iface: Interface type string — one of ``"ethernet"``, ``"wifi"``,
+               ``"openthread"`` or ``"modem"`` (case-insensitive).
+
+    Returns:
+        int timeout in milliseconds, or None if no timeout is configured.
+
+    Example usage inside a component's ``to_code``::
+
+        from esphome.components import network
+
+        async def to_code(config):
+            ...
+            timeout_ms = network.get_network_timeout("ethernet")
+            if timeout_ms is not None:
+                cg.add(var.set_fallback_timeout(timeout_ms))
+            ...
+    """
+    entry = _get_priority_entry(iface)
+    if entry is None:
+        return None
+    return entry.get("timeout")
+
+
+def _validate_timeout(value):
+    """Accept any common ESPHome/HA time period format, or a plain integer as seconds.
+
+    Accepted formats: 30s, 10sec, 1min, 500ms, 1h, 1.5h, 30 (plain int → 30s).
+    """
+    if isinstance(value, int):
+        # Plain integer — treat as seconds, e.g. timeout: 30 means 30s
+        return cv.positive_time_period_milliseconds(f"{value}s")
+    return cv.positive_time_period_milliseconds(value)
+
+
+def _priority_entry_schema(value):
+    """Validate a single priority list entry in either plain string or mapping form.
+
+    Plain string form (no timeout):
+        - ethernet
+
+    Mapping form with optional timeout:
+        - ethernet:
+            timeout: 30s
+    """
+    if isinstance(value, str):
+        return cv.one_of(*VALID_NETWORK_TYPES, lower=True)(value)
+    if isinstance(value, dict):
+        if len(value) != 1:
+            raise cv.Invalid(
+                "Each priority entry must have exactly one interface name as its key"
+            )
+        iface = next(iter(value))
+        cv.one_of(*VALID_NETWORK_TYPES, lower=True)(iface)
+        opts = cv.Schema(
+            {
+                cv.Optional(CONF_TIMEOUT): _validate_timeout,
+            }
+        )(value[iface] or {})
+        return {iface: opts}
+    raise cv.Invalid(
+        f"Expected an interface name string or a mapping, got {type(value).__name__}"
+    )
+
+
+def _normalize_priority_entry(value) -> dict:
+    """Normalize a validated priority entry to a canonical dict.
+
+    Returns a dict with keys:
+      - ``interface``: str, lowercase interface name
+      - ``timeout``: int milliseconds, or None
+    """
+    if isinstance(value, str):
+        return {"interface": value, "timeout": None}
+    # Mapping form — exactly one key (the interface name)
+    iface, opts = next(iter(value.items()))
+    timeout = opts.get(CONF_TIMEOUT)
+    timeout_ms = int(timeout.total_milliseconds) if timeout is not None else None
+    return {"interface": iface, "timeout": timeout_ms}
+
+
+def _validate_priority_list(value):
+    """Validate and normalize the full priority list, rejecting duplicates."""
+    raw = cv.ensure_list(_priority_entry_schema)(value)
+    entries = [_normalize_priority_entry(e) for e in raw]
+    interfaces = [e["interface"] for e in entries]
+    if len(interfaces) != len(set(interfaces)):
+        raise cv.Invalid("Duplicate entries are not allowed in 'priority'")
+    return entries
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(NetworkComponent),
@@ -132,14 +303,48 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_MIN_IPV6_ADDR_COUNT, default=0): cv.positive_int,
         cv.Optional(CONF_ENABLE_HIGH_PERFORMANCE): cv.All(cv.boolean, cv.only_on_esp32),
+        cv.Optional(CONF_PRIORITY): _validate_priority_list,
     }
 )
+
+
+def _final_validate(config):
+    """Check that every interface named in 'priority' has a corresponding component block."""
+    full = fv.full_config.get()
+    for entry in config.get(CONF_PRIORITY, []):
+        iface = entry["interface"]
+        if iface not in full:
+            raise cv.Invalid(
+                f"'{iface}' is listed in 'network: priority:' but no '{iface}:' "
+                f"component is configured",
+                [CONF_PRIORITY],
+            )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 @coroutine_with_priority(CoroPriority.NETWORK)
 async def to_code(config):
     cg.add_define("USE_NETWORK")
     # ESP32 with Arduino uses ESP-IDF network APIs directly, no Arduino Network library needed
+
+    # Store the user-declared network priority list in CORE.data so that ethernet,
+    # wifi and other network components can query it via get_network_priority() and
+    # get_network_timeout() during their own to_code phase.
+    if CONF_PRIORITY in config:
+        priority_list = config[CONF_PRIORITY]
+        CORE.data[KEY_NETWORK_PRIORITY] = priority_list
+
+        def _fmt(entry):
+            if entry["timeout"] is not None:
+                return f"{entry['interface']} (timeout: {entry['timeout']}ms)"
+            return entry["interface"]
+
+        _LOGGER.info(
+            "Network interface priority: %s",
+            " > ".join(_fmt(e) for e in priority_list),
+        )
 
     # Apply high performance networking settings
     # Config can explicitly enable/disable, or default to component-driven behavior

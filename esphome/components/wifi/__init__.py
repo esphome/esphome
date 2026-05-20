@@ -12,6 +12,7 @@ from esphome.components.esp32 import (
     only_on_variant,
 )
 from esphome.components.network import (
+    get_network_priority,
     has_high_performance_networking,
     ip_address_literal,
 )
@@ -42,7 +43,6 @@ from esphome.const import (
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_ON_ERROR,
-    CONF_OUTPUT_POWER,
     CONF_PASSWORD,
     CONF_POWER_SAVE_MODE,
     CONF_PRIORITY,
@@ -440,6 +440,7 @@ def _validate(config):
     return config
 
 
+CONF_OUTPUT_POWER = "output_power"
 CONF_PASSIVE_SCAN = "passive_scan"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -573,6 +574,10 @@ def wifi_network(config, ap, static_ip):
 @coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
+
+    prio = get_network_priority("wifi")
+    if prio is not None:
+        cg.add(var.set_setup_priority(prio))
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
 
     # Track if any network uses Enterprise authentication
