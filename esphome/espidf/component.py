@@ -361,7 +361,8 @@ def _convert_library_to_component(library: Library) -> IDFComponent:
 
     #  Repository is provided directly
     if library.repository:
-        # Parse repository URL to extract name and version
+        # Parse repository URL: path becomes the component name, fragment
+        # becomes the git ref stored on GitSource.
         split_result = urlsplit(library.repository)
         if not split_result.fragment.strip():
             raise ValueError(f"Missing ref in URL {library.repository}")
@@ -595,21 +596,11 @@ def generate_idf_component_yml(component: IDFComponent) -> str:
         if "dependencies" not in data:
             data["dependencies"] = {}
 
-        # Add this dependency to dependencies
-        dep = {}
-
-        # Should use dependency.path as override path
-        try:
-            dep["override_path"] = str(dependency.path)
-        except RuntimeError as e:
-            # No local path: only a GitSource can substitute its URL.
-            if not isinstance(dependency.source, GitSource):
-                raise e
-            dep["git"] = dependency.source.url
-            if dependency.source.ref:
-                dep["version"] = dependency.source.ref
-
-        data["dependencies"][dependency.get_sanitized_name()] = dep
+        # Every dependency goes through _generate_idf_component →
+        # component.download() before this runs, so .path is always set.
+        data["dependencies"][dependency.get_sanitized_name()] = {
+            "override_path": str(dependency.path),
+        }
 
     return yaml_util.dump(data)
 

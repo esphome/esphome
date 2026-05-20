@@ -224,9 +224,9 @@ def test_generate_idf_component_yml_with_dependencies(tmp_component, tmp_path):
     )
 
 
-def test_generate_idf_component_yml_missing_path_reraises(tmp_component):
-    # A dep without a path and without a recognised source should re-raise
-    # the underlying RuntimeError instead of silently producing a bad manifest.
+def test_generate_idf_component_yml_missing_path_raises(tmp_component):
+    # A dep without a path is a contract violation — every dep is expected
+    # to have been downloaded before YAML generation. Raise loudly.
     dep = IDFComponent("foo/bar", "1.0", source=None)
 
     tmp_component.dependencies = [dep]
