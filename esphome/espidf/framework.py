@@ -803,7 +803,8 @@ def _check_esphome_idf_framework_install(
         source_url: Optional override URL for the framework tarball. Supports
             the same ``{VERSION}`` / ``{MAJOR}`` / ``{MINOR}`` / ``{PATCH}`` /
             ``{EXTRA}`` substitutions as ESPHOME_IDF_FRAMEWORK_MIRRORS. When
-            set, it's tried before the default mirror list.
+            set, it replaces the default mirror list — no implicit fallback,
+            so a misspelled URL fails loudly.
 
     Returns:
         tuple of (framework_path, install_flag)
@@ -852,9 +853,11 @@ def _check_esphome_idf_framework_install(
             except ValueError:
                 pass
 
-            mirrors = ESPHOME_IDF_FRAMEWORK_MIRRORS
             if source_url:
-                mirrors = [source_url, *mirrors]
+                _LOGGER.info("Using framework source override: %s", source_url)
+                mirrors = [source_url]
+            else:
+                mirrors = ESPHOME_IDF_FRAMEWORK_MIRRORS
             download_from_mirrors(mirrors, substitutions, tmp.file)
 
             _LOGGER.info("Extracting ESP-IDF %s framework ...", version)
@@ -1028,9 +1031,10 @@ def check_esp_idf_install(
         tools: list of tools to install
         features: Features to install
         force: If True, force reinstallation
-        source_url: Optional override URL for the framework tarball. Forwarded
+        source_url: Optional override URL for the framework tarball. When
+            set, it replaces the default mirror list (no fallback). Forwarded
             to ``_check_esphome_idf_framework_install``; supports the same URL
-            substitutions as the default mirror list.
+            substitutions.
 
     Returns:
         tuple of (framework_path, python_env_path)
