@@ -204,10 +204,10 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
   }
   if (updated) {
     // low and high watermark may speed up drawing from buffer
-    this->x_low_ = std::min<uint16_t>(this->x_low_, x);
-    this->y_low_ = std::min<uint16_t>(this->y_low_, y);
-    this->x_high_ = std::max<uint16_t>(this->x_high_, x);
-    this->y_high_ = std::max<uint16_t>(this->y_high_, y);
+    this->x_low_ = std::min<int>(this->x_low_, x);
+    this->y_low_ = std::min<int>(this->y_low_, y);
+    this->x_high_ = std::max<int>(this->x_high_, x);
+    this->y_high_ = std::max<int>(this->y_high_, y);
   }
 }
 

@@ -46,7 +46,7 @@ class AddressableLight : public LightOutput, public Component {
       this->shift_right(-amnt);
       return;
     }
-    amnt = std::min<int32_t>(amnt, this->size());
+    amnt = static_cast<int32_t>(std::min<size_t>(amnt, this->size()));
     this->range(0, -amnt) = this->range(amnt, this->size());
   }
   void shift_right(int32_t amnt) {
@@ -54,7 +54,7 @@ class AddressableLight : public LightOutput, public Component {
       this->shift_left(-amnt);
       return;
     }
-    amnt = std::min<int32_t>(amnt, this->size());
+    amnt = static_cast<int32_t>(std::min<size_t>(amnt, this->size()));
     this->range(amnt, this->size()) = this->range(0, -amnt);
   }
   // Indicates whether an effect that directly updates the output buffer is active to prevent overwriting
