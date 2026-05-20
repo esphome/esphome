@@ -1767,9 +1767,11 @@ async def to_code(config):
     else:
         cg.add_build_flag("-Wno-error=format")
         cg.add_build_flag("-Wno-error=maybe-uninitialized")
-        cg.add_build_flag("-Wno-error=missing-field-initializers")
+        cg.add_build_flag("-Wno-error=overloaded-virtual")
         cg.add_build_flag("-Wno-error=reorder")
         cg.add_build_flag("-Wno-error=volatile")
+        # -Wno- (not -Wno-error=): suppress entirely, too noisy on C++ aggregates
+        cg.add_build_flag("-Wno-missing-field-initializers")
 
     cg.set_cpp_standard("gnu++20")
     cg.add_build_flag("-DUSE_ESP32")
@@ -2002,7 +2004,8 @@ async def to_code(config):
     if not advanced[CONF_ENABLE_LWIP_MDNS_QUERIES]:
         add_idf_sdkconfig_option("CONFIG_LWIP_DNS_SUPPORT_MDNS_QUERIES", False)
     if not advanced[CONF_ENABLE_LWIP_BRIDGE_INTERFACE]:
-        add_idf_sdkconfig_option("CONFIG_LWIP_BRIDGEIF_MAX_PORTS", 0)
+        # Kconfig range is [1,63]; 0 gets clamped to the default.
+        add_idf_sdkconfig_option("CONFIG_LWIP_BRIDGEIF_MAX_PORTS", 1)
 
     _configure_lwip_max_sockets(conf)
 
@@ -2249,7 +2252,8 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_FATFS_VOLUME_COUNT", 2)
     elif advanced[CONF_DISABLE_FATFS]:
         add_idf_sdkconfig_option("CONFIG_FATFS_LFN_NONE", True)
-        add_idf_sdkconfig_option("CONFIG_FATFS_VOLUME_COUNT", 0)
+        # Kconfig range is [1,10]; 0 gets clamped to the default.
+        add_idf_sdkconfig_option("CONFIG_FATFS_VOLUME_COUNT", 1)
 
     for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
         add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
@@ -2486,9 +2490,8 @@ def _write_sdkconfig():
 
 def _platformio_library_to_dependency(library: Library) -> tuple[str, dict[str, str]]:
     dependency: dict[str, str] = {}
-    name, version, path = generate_idf_component(library)
+    name, _version, path = generate_idf_component(library)
     dependency["override_path"] = str(path)
-    dependency["version"] = version
     return name, dependency
 
 
