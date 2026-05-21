@@ -18,6 +18,8 @@ speaker:
     i2s_dout_pin: ${dout_pin}
   - platform: mixer
     output_speaker: speaker_id
+    bits_per_sample: 32
+    num_channels: 2
     source_speakers:
       - id: source_speaker_1_id
       - id: source_speaker_2_id
