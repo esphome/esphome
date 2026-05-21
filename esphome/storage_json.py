@@ -14,6 +14,7 @@ from esphome.const import (
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    Toolchain,
 )
 from esphome.core import CORE
 from esphome.helpers import write_file_if_changed
@@ -98,6 +99,7 @@ class StorageJSON:
         no_mdns: bool,
         framework: str | None = None,
         core_platform: str | None = None,
+        toolchain: str | None = None,
     ) -> None:
         # Version of the storage JSON schema
         assert storage_version is None or isinstance(storage_version, int)
@@ -134,6 +136,9 @@ class StorageJSON:
         self.framework = framework
         # The core platform of this firmware. Like "esp32", "rp2040", "host" etc.
         self.core_platform = core_platform
+        # The toolchain used for the build ("platformio" / "esp-idf"); only
+        # populated on the platforms that expose a toolchain choice in YAML.
+        self.toolchain = toolchain
 
     def as_dict(self):
         return {
@@ -153,6 +158,7 @@ class StorageJSON:
             "no_mdns": self.no_mdns,
             "framework": self.framework,
             "core_platform": self.core_platform,
+            "toolchain": self.toolchain,
         }
 
     def to_json(self):
@@ -189,6 +195,7 @@ class StorageJSON:
             ),
             framework=esph.target_framework,
             core_platform=esph.target_platform,
+            toolchain=esph.toolchain.value if esph.toolchain is not None else None,
         )
 
     @staticmethod
@@ -236,6 +243,7 @@ class StorageJSON:
         no_mdns = storage.get("no_mdns", False)
         framework = storage.get("framework")
         core_platform = storage.get("core_platform")
+        toolchain = storage.get("toolchain")
         return StorageJSON(
             storage_version,
             name,
@@ -253,6 +261,7 @@ class StorageJSON:
             no_mdns,
             framework,
             core_platform,
+            toolchain,
         )
 
     @staticmethod
@@ -273,6 +282,12 @@ class StorageJSON:
         """
         CORE.name = self.name
         CORE.build_path = self.build_path
+        # Restore the resolved toolchain (which validators set during a
+        # full compile). Without this the upload/logs fast path picks
+        # the PlatformIO fallback and CORE.firmware_bin points at a
+        # .pioenvs/<name>/firmware.bin the esp-idf toolchain never wrote.
+        if self.toolchain and CORE.toolchain is None:
+            CORE.toolchain = Toolchain(self.toolchain)
         target_platform = self.core_platform or self.target_platform.lower()
         CORE.data[KEY_CORE] = {
             KEY_TARGET_PLATFORM: target_platform,
