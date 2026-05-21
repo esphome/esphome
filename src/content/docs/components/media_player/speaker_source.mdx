@@ -42,7 +42,7 @@ media_player:
 
   - **speaker** (**Required**, [ID](/guides/configuration-types#id)): The [speaker](/components/speaker/) to output the audio.
   - **sources** (**Required**, list of [IDs](/guides/configuration-types#id)): A list of [media source](/components/media_source/) component IDs to use for this pipeline. At least one source is required. When a media URL is received, the pipeline finds the first source that can handle the URI prefix. Each source can only belong to one pipeline; if both pipelines need the same type of source, configure separate instances.
-  - **format** (*Optional*, enum): The audio format Home Assistant will transcode audio to before sending it to the device. One of `FLAC`, `MP3`, `OPUS`, `WAV`, or `NONE`. `NONE` disables transcoding in Home Assistant. Defaults to `FLAC`.
+  - **format** (*Optional*, enum): The audio format Home Assistant will transcode audio to before sending it to the device. One of `FLAC`, `MP3`, `OPUS`, `WAV`, or `NONE`. `NONE` disables transcoding in Home Assistant; ESPHome will then compile support for all supported codecs (`FLAC`, `MP3`, `OPUS`, and `WAV`), which increases firmware size. To compile in additional codecs without setting this to `NONE`, use the [Audio](/components/audio/) component. Defaults to `FLAC`.
   - **sample_rate** (*Optional*, positive integer): Sample rate for the transcoded audio. Should be supported by the configured `speaker` component. Defaults to the speaker's sample rate. The `OPUS` codec only supports a `48000` sample rate.
   - **num_channels** (*Optional*, positive integer): Number of channels for the transcoded audio. Must be either `1` or `2`. Defaults to the speaker's number of channels.
 
@@ -145,6 +145,7 @@ When using the `media_player.play_media` action, the media URL is routed to the 
 
 ## See Also
 
+- [Audio](/components/audio/)
 - [Media Source Components](/components/media_source/)
 - [Audio File Media Source](/components/media_source/audio_file/)
 - [Speaker Components](/components/speaker/)

@@ -12,7 +12,12 @@ Supported widgets are [`arc`](/components/lvgl/widgets#lvgl-widget-arc), [`bar`]
 
 - **widget** (**Required**): The ID of a supported widget configured in LVGL, which will reflect the state of the number.
 - **animated** (*Optional*, boolean): Whether to set the value of the widget with an animation (if supported by the widget). Defaults to `true`.
-- **update_on_release** (*Optional*, boolean): By default the number will publish a new value each time the value of the associated widget changes. If this option is `true` then the value will only be published when touch is released.
+- **trigger** (*Optional*, string): Specifies which events will cause the number to be updated with the widget's value. One of `on_change`, `on_update`, `on_value`, `on_release`. Defaults to `on_value`.
+  - `on_change`: Update only when the user interacts with the widget.
+  - `on_update`: Update only when the value is changed programmatically (e.g. via an `lvgl.*.update` action).
+  - `on_value`: Update on both user interaction and programmatic changes.
+  - `on_release`: Update only when the user releases the widget after interaction.
+- **update_on_release** (*Optional*, boolean): **Deprecated** — use `trigger: on_release` instead.
 - **restore_value**: (*Optional*, bool) Restore the value of the number from non-volatile memory when the device is restarted. Defaults to `false`.
 - All other variables from [Number](/components/number#config-number).
 
@@ -23,10 +28,12 @@ number:
   - platform: lvgl
     widget: slider_id
     name: LVGL Slider
+    trigger: on_release
 ```
 
 > [!NOTE]
-> Widget-specific actions (`lvgl.arc.update`, `lvgl.bar.update`, `lvgl.slider.update`, `lvgl.spinbox.update`, `lvgl.spinbox.decrement`, `lvgl.spinbox.increment`  ) will trigger correspponding component updates to be sent to Home Assistant.
+> Widget-specific actions (`lvgl.arc.update`, `lvgl.bar.update`, `lvgl.slider.update`, `lvgl.spinbox.update`, `lvgl.spinbox.decrement`, `lvgl.spinbox.increment`  )
+> will trigger corresponding component updates to be sent to Home Assistant if the `trigger` is set to `on_value` (the default) or `on_update`.
 
 ## See Also
 

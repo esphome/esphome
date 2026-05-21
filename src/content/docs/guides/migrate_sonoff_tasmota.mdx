@@ -14,14 +14,44 @@ import tasmotaUploadImg from './images/tasmota_upload.png';
 Migrating from previous Tasmota setups is very easy. You just need to have
 ESPHome create a binary for you and then upload that in the Tasmota web interface.
 
-## Incompatible versions
+> [!CAUTION]
+When migrating via OTA on ESP32, from Tasmota v12 or higher (with safeboot partition) it is required to add the
+option `allow_partition_access: true` to your config on the first ESPHome firmware you upload to the device.
+Failing to do so will soft-brick your device by making OTA updates impossible!
 
-WARNING! Migrating via OTA on ESP32, from Tasmota v12 (with boot partition) and up is currently not possible! Trying
-it could soft-brick your device!
+## Writing a configuration
+
+First create a configuration for your device.
+
+### ESP32 devices
+
+Check the Tasmota image variant on your device, as it tells you which type of ESP32 you have. It is usually displayed at the bottom right of the Tasmota web interface.
+  - `solo1`: Single-core ESP32
+  - `tasmota32`: Dual-core ESP32
+  - `tasmota32xx`: Different ESP32 variant where `xx` can be for example `c3`, `c6`, `s2`, `s3`. You need to pick the right variant when creating your ESPHome config.
+
+If you have a single-core ESP32 device you need to compile ESPHome with single-core support or it will fail to boot. Add the following to your config for single-core devices:
+
+```yaml
+esp32:
+  ...
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_FREERTOS_UNICORE: y
+```
+
+**Important**: When migrating from Tasmota v12 or higher, make sure to add `allow_partition_access: true` to the ota section of the config:
+
+```yaml
+ota:
+  - platform: esphome
+    allow_partition_access: true
+```
 
 ## Getting the Binary
 
-First create a configuration for your device. Then, generate and download the firmware image:
+Generate and download the firmware image:
 
 ### Using the Home Assistant add-on/dashboard
 
@@ -107,6 +137,91 @@ replacing `http://<MY-ESPHOME:6052>/` with the host and port of your ESPHome ins
 with your device configuration file name.
 
 If you need to use the uncompressed image for any reason, just remove `&compressed=1` from the above url.
+
+## ESP32 Partition table migration
+
+If you migrated an ESP32 device from Tasmota v12 or later using the safeboot-based layout, you need to update the partition table after uploading ESPHome. Regular OTA updates are impossible until this step is completed. Older or non-safeboot Tasmota layouts may not require this step.
+
+> [!CAUTION]
+> There is a risk of bricking the device if the power is interrupted or the ESP is reset during a partition table update, requiring serial flashing to repair it. Make sure you have a stable power supply. The update is usually completed within less than 15 seconds after running the `esphome upload` command.
+
+> [!NOTE]
+> Picking a method whose size limit is too small for your running app does **not** brick the device. The device verifies the new partition table before writing anything to flash and rejects the upload with an error if the running app would not fit. You can safely retry with the next-larger method. Only power loss or a reset *during* a partition table update that has already passed verification can leave the device unable to boot.
+
+Open the ESPHome logs. In the config section of the logs, check the `Used size` of the running app. This tells you which method to use. You only have to complete the steps for one of the methods below.
+
+### Direct Method
+
+**Downloads**:
+- [partitions_esphome.bin](/files/ota/partitions_esphome.bin)
+
+**Requirement**: The `Used size` must be `851968 bytes` or less. Run the following command in a command line:
+
+```shell
+esphome upload --partition-table --file partitions_esphome.bin <MY_DEVICE>.yaml
+```
+
+### Indirect Method A
+
+**Downloads**:
+- [partitions_tasmota_migration_a.bin](/files/ota/partitions_tasmota_migration_a.bin)
+- [partitions_esphome.bin](/files/ota/partitions_esphome.bin)
+
+**Requirement**: The `Used size` must be `983040 bytes` or less. Run the following commands in a command line:
+
+```shell
+esphome upload --partition-table --file partitions_tasmota_migration_a.bin <MY_DEVICE>.yaml
+esphome upload --partition-table --file partitions_esphome.bin <MY_DEVICE>.yaml
+```
+
+### Indirect Method B
+
+**Downloads**:
+- [partitions_tasmota_migration_b1.bin](/files/ota/partitions_tasmota_migration_b1.bin)
+- [partitions_tasmota_migration_b2.bin](/files/ota/partitions_tasmota_migration_b2.bin)
+- [partitions_esphome.bin](/files/ota/partitions_esphome.bin)
+
+**Requirement**: The `Used size` must be `1376256 bytes` or less. Run the following commands in a command line:
+
+```shell
+esphome upload --partition-table --file partitions_tasmota_migration_b1.bin <MY_DEVICE>.yaml
+esphome upload --partition-table --file partitions_tasmota_migration_b2.bin <MY_DEVICE>.yaml
+esphome upload --partition-table --file partitions_esphome.bin <MY_DEVICE>.yaml
+```
+
+### Indirect Method C
+
+**Downloads**:
+- [partitions_tasmota_migration_c.bin](/files/ota/partitions_tasmota_migration_c.bin)
+- [partitions_esphome.bin](/files/ota/partitions_esphome.bin)
+
+**Requirement**: The `Used size` can be any size but you have to install a regular OTA update with a size of `851968 bytes` or less during the process. Run the following command in a command line:
+
+```shell
+esphome upload --partition-table --file partitions_tasmota_migration_c.bin <MY_DEVICE>.yaml
+```
+
+Install the OTA app update now: To reach the target size of `851968 bytes` or less, you probably have to remove all components except `esp32`, `esphome`, `logger`, `api`, `ota` and `wifi` from your config. Compile and install ESPHome via OTA. Then, run the following command in a command line:
+
+```shell
+esphome upload --partition-table --file partitions_esphome.bin <MY_DEVICE>.yaml
+```
+
+### After completing the partition table migration
+
+The ESP will reboot itself after completing each partition table update. The process is complete after successful installation of the `partitions_esphome.bin` partition table. Verify that the partition table in the ESPHome logs looks like this:
+
+```
+Partition table:
+  Name         Type Subtype  Address    Size
+  otadata      0x1  0x0      0x9000     0x2000
+  phy_init     0x1  0x1      0xB000     0x1000
+  app0         0x0  0x10     0x10000    0x1C0000
+  app1         0x0  0x11     0x1D0000   0x1C0000
+  nvs          0x1  0x2      0x390000   0x70000
+```
+
+You can now remove the line `allow_partition_access: true` from your config, add more components and install ESPHome updates via OTA.
 
 ## See Also
 

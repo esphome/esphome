@@ -12,9 +12,23 @@ mapping:
   - id: weather_icon
     from: string
     to: image
+    default_value: unknown_weather_img
     entries:
       clear-night: clear_night_img
       cloudy: cloudy_img
+
+  - id: day_map
+    from: int
+    to: string
+    entries:
+      1: DIM
+      2: LUN
+      3: MAR
+      4: MER
+      5: JEU
+      6: VEN
+      7: SAM
+    default_value: "---"
 
  # Using the mapping in an automation
 text_sensor:
@@ -35,6 +49,7 @@ text_sensor:
 - **from** (**Required**, string): The type of the keys in the mapping. Can be one of `string` or `int`.
 - **to** (**Required**, string): The type of values in the map. May be one of `string` or `int` or a class specifier as discussed below.
 - **entries** (**Required**, dict): A list of key-value pairs that define the mapping. The keys must be of the type specified in the `from` field, and the values must be of the type specified in the `to` field.
+- **default_value** (*Optional*, value): A default value that will be returned if a key is not found in the mapping. The type of this value must match the `to` type.
 
 ## Mapping to a class
 

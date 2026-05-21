@@ -31,7 +31,6 @@ output:
       number: GPIOXX
       mode:
         input: true
-      inverted: yes
 
 light:
   - platform: monochromatic
@@ -50,8 +49,12 @@ light:
   doing so, `allow_other_uses` pin schema option **must** be set to `true` to
   avoid configuration errors due to pin reuse.
 
-- **method** (*Optional*): Set the method for dimming, can be:
+- **zero_cross_interrupt_type** (*Optional*): Set the interrupt type for the zero crossing interrupt, can be:
+  - `FALLING`  : (default) trigger on falling edges.
+  - `RISING`  : trigger on rising edges.
+  - `ANY`  : trigger on any edge.
 
+- **method** (*Optional*): Set the method for dimming, can be:
   - `leading pulse`  : (default) a short pulse to trigger a triac.
   - `leading`  : gate pin driven high until the zero cross is detected
   - `trailing`  : gate pin driven high from zero cross until dim period, this method

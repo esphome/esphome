@@ -1,0 +1,93 @@
+---
+description: "Zephyr BLE Server"
+title: "Zephyr BLE Server"
+---
+
+The `zephyr_ble_server` component enables a Bluetooth Low Energy GATT server on devices running the
+Zephyr RTOS. It supports secure pairing flows, including the **Numeric Comparison** passkey
+confirmation model defined in the Bluetooth specification.
+
+```yaml
+# Example configuration entry
+zephyr_ble_server:
+  on_numeric_comparison_request:
+    then:
+      - logger.log:
+          format: "Compare this passkey with the one on your BLE device: %06d"
+          args: [passkey]
+      - ble_server.numeric_comparison_reply:
+          accept: true
+```
+
+## Configuration variables
+
+- **on_numeric_comparison_request** (*Optional*, [Automation](/automations)): An automation to
+  compare the passkeys shown on the two BLE devices. See [`on_numeric_comparison_request`](#on_numeric_comparison_request).
+
+## BLE Server Automation
+
+### `on_numeric_comparison_request`
+
+This automation is triggered when a numeric comparison is requested by the BLE device.
+
+```yaml
+zephyr_ble_server:
+  on_numeric_comparison_request:
+    then:
+      - logger.log:
+          format: "Compare this passkey with the one on your BLE device: %06d"
+          args: [passkey]
+      - ble_server.numeric_comparison_reply:
+          accept: true
+```
+
+## `ble_server.numeric_comparison_reply` Action
+
+This action triggers an authentication attempt after a numeric comparison.
+
+Example usage:
+
+```yaml
+on_...:
+  then:
+    - ble_server.numeric_comparison_reply:
+        accept: true
+```
+
+### Configuration variables
+
+- **accept** (**Required**, boolean, [templatable](/automations/templates)): Should be `true` if the
+  passkeys displayed on both BLE devices are matching.
+
+## Passkey examples
+
+Secure connection with numeric comparison accepted automatically:
+
+```yaml
+zephyr_ble_server:
+  on_numeric_comparison_request:
+    then:
+      - logger.log:
+          format: "Compare this passkey with the one on your BLE device: %06d"
+          args: [passkey]
+      - ble_server.numeric_comparison_reply:
+          accept: true
+```
+
+Secure connection with numeric comparison accepted via a lambda:
+
+```yaml
+zephyr_ble_server:
+  on_numeric_comparison_request:
+    then:
+      - logger.log:
+          format: "Compare this passkey with the one on your BLE device: %06d"
+          args: [passkey]
+      - ble_server.numeric_comparison_reply:
+          accept: !lambda "return true;"
+```
+
+## See Also
+
+- [BLE Client](/components/ble_client)
+- [Automations](/automations)

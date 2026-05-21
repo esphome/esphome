@@ -6,20 +6,32 @@ title: "LVGL Binary Sensor"
 The `lvgl` binary sensor platform creates a binary sensor from an LVGL widget
 and requires [LVGL](/components/lvgl/) to be configured.
 
-Supported widget is [`button`](/components/lvgl/widgets#lvgl-widget-button). A single binary sensor supports only a single widget; in other words, it's not possible to have multiple widgets associated with a single ESPHome binary sensor component.
+Any widget that supports the `pressed` or `checked` [state](/components/lvgl/widgets#lvgl-widgetproperty-state) can be used; in particular, [`button`](/components/lvgl/widgets#lvgl-widget-button), [`buttonmatrix`](/components/lvgl/widgets#lvgl-widget-buttonmatrix), [`checkbox`](/components/lvgl/widgets#lvgl-widget-checkbox) and [`switch`](/components/lvgl/widgets#lvgl-widget-switch). A single binary sensor supports only a single widget; in other words, it's not possible to have multiple widgets associated with a single ESPHome binary sensor component.
 
 ## Configuration variables
 
 - **widget** (**Required**): The ID of a supported widget configured in LVGL, which will reflect the state of the binary sensor.
+- **state** (*Optional*, string): Which widget state to report. One of:
+  - `PRESSED` (default): The binary sensor is `on` while the widget is being pressed (momentary).
+  - `CHECKED`: The binary sensor reflects the `checked` (toggled) state of the widget.
+    This is useful for `checkable` buttons, `checkbox` and `switch` widgets, where the binary sensor follows the
+    toggle state and updates whenever it changes (either by user interaction or programmatically through `lvgl.widget.update`).
 - All other variables from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
-Example:
+Examples:
 
 ```yaml
+# Momentary push button - reports pressed state
 binary_sensor:
   - platform: lvgl
     widget: btn_id
     name: LVGL push button
+
+# Toggle/checkable widget - reports checked state
+  - platform: lvgl
+    widget: switch_id
+    state: CHECKED
+    name: LVGL switch state
 ```
 
 ## See Also

@@ -132,6 +132,11 @@ wifi:
   Possible values are `AUTO` (use both 2.4 GHz and 5 GHz), `2.4GHZ` (2.4 GHz only), and `5GHZ` (5 GHz only).
   If not specified, it defaults to `AUTO`.
 
+- **phy_mode** (*Optional*, string): Only on `esp8266`. Pins the radio to a specific 802.11 PHY mode.
+  Possible values are `AUTO`, `11B`, `11G`, and `11N`. Defaults to `AUTO`, which leaves the SDK at
+  its default behavior. There is a known compatibility issue with some routers when ESP8266 devices use
+  802.11n; you can work around it by limiting the ESP to 802.11g with `phy_mode: 11G`.
+
 - **post_connect_roaming** (*Optional*, bool): Enable basic post-connect
   roaming for stationary devices. After connecting to a non-hidden network,
   the device will periodically check for better access points with the same

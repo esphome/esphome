@@ -56,6 +56,14 @@ esp32:
 
 - **framework** (*Optional*): Options for the underlying framework used by ESPHome. See [Framework](#esp32-framework).
 
+- **watchdog_timeout** (*Optional*, [Time](/guides/configuration-types#time)): The timeout applied to the
+  ESP-IDF task watchdog. If a subscribed task fails to feed the watchdog within this period, the device
+  will reboot. Useful for power-managed devices or long blocking operations that need extended watchdog
+  windows. Defaults to `5s`, valid range is `5s` to `60s`. Note: OTA updates temporarily raise the
+  watchdog to `15s` when the configured timeout is below that threshold.
+
+- **toolchain** (*Optional*, [Toolchain](#esp32-toolchain)): Toolchain used to build the firmware.
+
 ## Variants
 
 ESPHome supports the following ESP32 variants. Use the `variant` configuration option to select the correct one
@@ -251,6 +259,35 @@ chip is required for wireless connectivity via [ESP-Hosted](/components/esp32_ho
 - **ADC:** 7 channels
 - **DAC:** None
 - **MIPI DSI/CSI:** Yes (display and camera interfaces)
+
+<span id="esp32-toolchain"></span>
+
+## Toolchain Configuration
+
+ESPHome supports multiple toolchains for building firmware. The toolchain determines how the firmware is compiled and which build system is used.
+
+Currently supported toolchains include:
+
+- `platformio` (default)
+- `esp-idf`
+
+**Example for using ESP-IDF toolchain:**
+
+```yaml
+esp32:
+  toolchain: esp-idf
+```
+
+When `esp-idf` is selected, ESPHome uses its native ESP-IDF integration, including automatic framework installation and environment management as described in this [documentation](/guides/esp_idf/).
+
+You can also select the toolchain via the [CLI](/guides/cli#cli-toolchain):
+
+```bash
+esphome --toolchain esp-idf compile my_device.yaml
+```
+
+If not specified, `platformio` is used by default.
+If both `esp32.toolchain` and the `--toolchain` CLI option are set, the CLI option takes precedence.
 
 <span id="esp32-framework"></span>
 

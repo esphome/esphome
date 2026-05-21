@@ -171,11 +171,24 @@ on_...:
 ### `sx126x.set_mode_sleep` Action
 
 This [action](/automations/actions#all-actions) sets the `sx126x` mode to sleep.
+By default the radio enters warm sleep — config registers are retained so that
+on wake it is ready for `sx126x.set_mode_rx` / `sx126x.set_mode_tx` again. For
+battery-powered nodes that pair the radio with deep sleep, `cold: true`
+switches to cold sleep (~0.6&nbsp;µA, vs ~600&nbsp;µA warm). Cold sleep does
+not retain config, so the radio must be reinitialized on wake. With deep sleep
+this happens automatically — the device reboots on wake and the component
+reinitializes the radio during startup.
 
 ```yaml
 on_...:
-  - sx126x.set_mode_sleep
+  - sx126x.set_mode_sleep:
+      cold: true
 ```
+
+#### Configuration variables
+
+- **cold** (*Optional*, [templatable](/automations/templates), boolean): If true,
+  enter cold sleep instead of warm sleep. Defaults to `false`.
 
 ### `sx126x.set_mode_standby` Action
 

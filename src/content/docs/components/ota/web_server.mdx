@@ -107,6 +107,46 @@ ota:
 > - The web interface may become unresponsive during the update process - this is normal
 > - Do not power off the device during an update
 
+## Using the Command Line
+
+`esphome upload` and `esphome run` can upload firmware via the `web_server` OTA platform too.
+This is useful when:
+
+- The device only has `platform: web_server` configured under `ota:` (no native API OTA).
+- You no longer have the [ESPHome OTA password](/components/ota/esphome/#removing-a-password)
+  but still know the `web_server` `auth` credentials.
+- The native API OTA port is blocked by a firewall while the configured `web_server`
+  port (HTTP, default 80) is reachable.
+
+When `platform: web_server` is the only OTA platform configured, the CLI selects it
+automatically. When both `platform: esphome` and `platform: web_server` are configured,
+the CLI prefers the native API OTA path by default because the native protocol uses
+challenge-response auth with hashed nonces (the password never crosses the wire), while
+the `web_server` path relies on HTTP Basic auth. Pass `--ota-platform web_server` to
+force the HTTP path anyway:
+
+```bash
+# Auto-select web_server OTA when it's the only platform configured:
+esphome upload <config.yaml>
+
+# Force the web_server OTA path with either upload or run:
+esphome upload <config.yaml> --ota-platform web_server
+esphome run <config.yaml> --ota-platform web_server
+```
+
+If a `web_server` `auth` block is configured, the CLI sends those credentials as an
+HTTP Basic `Authorization` header. The device challenges with `WWW-Authenticate: Basic`,
+so the credentials cross the network in cleartext. The `--ota-platform web_server` path
+does **not** use the [ESPHome OTA password](/components/ota/esphome/) at all; it only
+uses the `web_server` `auth` credentials.
+
+> [!WARNING]
+> HTTP Basic auth credentials are sent in cleartext on the local network, the same as
+> the web UI upload flow. Treat the `web_server` `auth` username/password as a
+> "local-network-only" secret. If you have a choice, prefer
+> [`platform: esphome`](/components/ota/esphome/) for CLI uploads since it never
+> sends the password over the wire.
+
 ## See Also
 
 - [Over-the-Air Updates](/components/ota/)

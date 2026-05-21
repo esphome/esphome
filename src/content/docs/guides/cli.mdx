@@ -54,6 +54,21 @@ Can also be enabled via environment variable `ESPHOME_VERBOSE=true`.
 
 Please see [command line substitutions](/components/substitutions#command-line-substitutions) for details.
 
+<span id="cli-toolchain"></span>
+### `--toolchain` Option
+
+**`--toolchain TOOLCHAIN`**
+: Selects which toolchain to use for compiling the project. Supported values are:
+
+* `platformio` (default)
+* `esp-idf`
+
+The toolchain can be configured using `esp32.toolchain` (see the [ESP32 toolchain configuration](/components/esp32#esp32-toolchain)).
+If not specified, `platformio` is used by default.
+If both `esp32.toolchain` and the `--toolchain` CLI option are set, the CLI option takes precedence.
+
+Please see [ESP-IDF toolchain documentation](/guides/esp_idf/) for details on using the ESP-IDF integration.
+
 ## Commands
 
 ### `run` Command
@@ -122,6 +137,11 @@ basis, or set with this option at the time of uploading.
 
 The `esphome config <CONFIG>` validates the configuration and displays the validation result.
 
+### `config-hash` Command
+
+The `esphome config-hash <CONFIG>` loads the configuration and calculates the hash that you can compare
+against the hash from the [Version Text Sensor](/components/text_sensor/version/) on a running device.
+
 ### `compile` Command
 
 The `esphome compile <CONFIG>` validates the configuration and compiles the firmware.
@@ -163,6 +183,15 @@ basis, or set with this option at the time of uploading.
 
 **`--host-port HOST_PORT`**
 : Specify the host port to use for legacy Over the Air uploads.
+
+
+**`--ota-platform {esphome,web_server}`**
+: Also accepted by [`run`](#run-command). Force a specific OTA platform when uploading firmware.
+By default, ESPHome uses the OTA platform configured in the device's YAML; if both `platform: esphome`
+and `platform: web_server` are configured, the native `esphome` protocol is preferred. Use
+`--ota-platform web_server` to upload via the
+[Web Server OTA platform](/components/ota/web_server/#using-the-command-line) instead — for example,
+when the OTA password has been lost but the `web_server` `auth` credentials are still known.
 
 
 ### `clean-mqtt` Command

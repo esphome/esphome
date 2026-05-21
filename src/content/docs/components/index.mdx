@@ -94,6 +94,7 @@ ESPHome-specific components or components supporting ESPHome device provisioning
   ["ESP32 Hosted", "/components/esp32_hosted/", "network-wifi.svg", "dark-invert"],
   ["Ethernet", "/components/ethernet/", "ethernet.svg", "dark-invert"],
   ["OpenThread", "/components/openthread/", "openthread.png"],
+  ["Zigbee", "/components/zigbee/", "zigbee.svg"],
 ]} />
 
 ## Network Protocols
@@ -110,7 +111,7 @@ ESPHome-specific components or components supporting ESPHome device provisioning
   ["StatsD", "/components/statsd/", "connection.svg", "dark-invert"],
   ["UDP", "/components/udp/", "udp.svg"],
   ["WireGuard", "/components/wireguard/", "wireguard_custom_logo.svg", "dark-invert"],
-  ["Zigbee End Device", "/components/zigbee/", "zigbee.svg"],
+  ["Zigbee", "/components/zigbee/", "zigbee.svg"],
 ]} />
 
 ## Bluetooth/BLE
@@ -124,6 +125,7 @@ ESPHome-specific components or components supporting ESPHome device provisioning
   ["Improv via BLE", "/components/esp32_improv/", "improv.svg", "dark-invert"],
   ["Nordic UART Service (NUS)", "/components/ble_nus/", "bluetooth.svg", "dark-invert"],
   ["RP2040 BLE", "/components/rp2040_ble/", "bluetooth.svg", "dark-invert"],
+  ["Zephyr BLE Server", "/components/zephyr_ble_server/", "bluetooth.svg", "dark-invert"],
 ]} />
 
 ## Management and Monitoring
@@ -513,6 +515,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
   ["Person Sensor (SEN21231)", "/components/sensor/sen21231/", "sen21231.png"],
   ["Resol VBus", "/components/vbus/", "resol_deltasol_bs_plus.jpg"],
   ["Rotary Encoder", "/components/sensor/rotary_encoder/", "rotary_encoder.jpg"],
+  ["Sendspin Sensor", "/components/sensor/sendspin/", "music.svg", "dark-invert"],
   ["SMT100", "/components/sensor/smt100/", "smt100.jpg", "Moisture & Temperature"],
   ["Sound Level", "/components/sensor/sound_level/", "waveform.svg", "dark-invert"],
   ["SY6970", "/components/sensor/sy6970/", "sy6970.jpg", "Battery charge IC"],
@@ -900,6 +903,8 @@ Used for creating infrared (IR) remote control transmitters and/or receivers.
 <ImgTable items={[
   ["Media Source Core", "/components/media_source/", "folder-open.svg", "dark-invert"],
   ["Audio File Media Source", "/components/media_source/audio_file/", "file-document-box.svg", "dark-invert"],
+  ["Audio HTTP Media Source", "/components/media_source/audio_http/", "http.svg", "dark-invert"],
+  ["Sendspin Media Source", "/components/media_source/sendspin/", "music.svg", "dark-invert"],
 ]} />
 
 ## Media Player Components
@@ -908,6 +913,7 @@ Used for creating infrared (IR) remote control transmitters and/or receivers.
   ["Media Player Core", "/components/media_player/", "folder-open.svg", "dark-invert"],
   ["DFPlayer", "/components/dfplayer/", "dfplayer.svg", "dark-invert"],
   ["I2S Audio", "/components/media_player/i2s_audio/", "i2s_audio.svg"],
+  ["Sendspin Group", "/components/media_player/sendspin/", "music.svg", "dark-invert"],
   ["Speaker", "/components/media_player/speaker/", "speaker.svg", "dark-invert"],
   ["Speaker Source", "/components/media_player/speaker_source/", "speaker.svg", "dark-invert"],
 ]} />
@@ -964,6 +970,13 @@ Used for creating infrared (IR) remote control transmitters and/or receivers.
   ["TLC5947", "/components/output/tlc5947/", "tlc5947.jpg"],
   ["TLC5971", "/components/output/tlc5971/", "tlc5971.jpg"],
   ["X9C Potentiometer", "/components/output/x9c/", "x9c.jpg"],
+]} />
+
+## Radio Frequency Components
+
+<ImgTable items={[
+  ["Radio Frequency Core", "/components/radio_frequency/", "remote.svg", "dark-invert"],
+  ["IR/RF Proxy", "/components/ir_rf_proxy/", "remote.svg", "dark-invert"],
 ]} />
 
 ## Select Components
@@ -1029,6 +1042,7 @@ Used for creating infrared (IR) remote control transmitters and/or receivers.
   ["MQTT Subscribe Text", "/components/text_sensor/mqtt_subscribe/", "mqtt.png"],
   ["Nextion Text Sensor", "/components/text_sensor/nextion/", "nextion.jpg"],
   ["OpenThread Info", "/components/text_sensor/openthread_info/", "openthread.png"],
+  ["Sendspin Text Sensor", "/components/text_sensor/sendspin/", "music.svg", "dark-invert"],
   ["Text component Text Sensor", "/components/text_sensor/text/", "description.svg", "dark-invert"],
   ["Tuya Text Sensor", "/components/text_sensor/tuya/", "tuya.png"],
   ["Version", "/components/text_sensor/version/", "new-box.svg", "dark-invert"],
@@ -1101,6 +1115,7 @@ ESPHome to cellular networks. **Does not encompass Wi-Fi.**
 ## Miscellaneous Components
 
 <ImgTable items={[
+  ["Audio", "/components/audio/", "music.svg", "dark-invert"],
   ["Audio File", "/components/audio_file/", "file-document-box.svg", "dark-invert"],
   ["Camera Encoder", "/components/camera/camera_encoder/", "camera.svg", "dark-invert"],
   ["ESP32 Camera", "/components/esp32_camera/", "camera.svg", "dark-invert"],
@@ -1110,6 +1125,8 @@ ESPHome to cellular networks. **Does not encompass Wi-Fi.**
   ["HLK-FM22x Face Recognition", "/components/hlk_fm22x/", "fingerprint.svg", "dark-invert"],
   ["Key Collector", "/components/key_collector/", "matrix_keypad.jpg"],
   ["Modbus Controller", "/components/modbus_controller/", "modbus.png"],
+  ["Modbus Server", "/components/modbus_server/", "modbus.png"],
+  ["Sendspin", "/components/sendspin/", "music.svg", "dark-invert"],
   ["Sprinkler", "/components/sprinkler/", "sprinkler-variant.svg", "dark-invert"],
   ["Status LED", "/components/status_led/", "led-on.svg", "dark-invert"],
   ["Sun", "/components/sun/", "weather-sunny.svg", "dark-invert"],
