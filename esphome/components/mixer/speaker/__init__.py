@@ -100,14 +100,14 @@ CONFIG_SCHEMA = cv.All(
 )
 
 FINAL_VALIDATE_SCHEMA = cv.All(
+    inherit_property_from(CONF_BITS_PER_SAMPLE, CONF_OUTPUT_SPEAKER),
+    inherit_property_from(CONF_NUM_CHANNELS, CONF_OUTPUT_SPEAKER),
     cv.Schema(
         {
             cv.Optional(CONF_SOURCE_SPEAKERS): [_validate_source_speaker],
         },
         extra=cv.ALLOW_EXTRA,
     ),
-    inherit_property_from(CONF_BITS_PER_SAMPLE, CONF_OUTPUT_SPEAKER),
-    inherit_property_from(CONF_NUM_CHANNELS, CONF_OUTPUT_SPEAKER),
     _validate_output_speaker,
 )
 
