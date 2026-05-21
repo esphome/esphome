@@ -113,6 +113,7 @@ ARDUINO_FRAMEWORK_NAME = "framework-arduinoespressif32"
 ARDUINO_FRAMEWORK_PKG = f"pioarduino/{ARDUINO_FRAMEWORK_NAME}"
 ARDUINO_LIBS_NAME = f"{ARDUINO_FRAMEWORK_NAME}-libs"
 ARDUINO_LIBS_PKG = f"pioarduino/{ARDUINO_LIBS_NAME}"
+ARDUINO_ESP32_COMPONENT_NAME = "espressif/arduino-esp32"
 
 LOG_LEVELS_IDF = [
     "NONE",
@@ -1747,7 +1748,9 @@ async def _add_yaml_idf_components(components: list[ConfigType]):
 async def _finalize_arduino_aware_flags():
     """Build flags that depend on whether arduino-esp32 is linked in.
 
-    Runs after FINAL so KEY_COMPONENTS is fully populated.
+    Scheduler runs lower priority values later, so ``FINAL - 1`` fires
+    after every ``FINAL`` job (incl. ``_add_yaml_idf_components``) --
+    by then ``KEY_COMPONENTS`` is fully populated.
 
     - Skip our esp_panic_handler wrap when Arduino is linked; Arduino
       wraps the same symbol and the linker errors on the duplicate.
@@ -1757,7 +1760,7 @@ async def _finalize_arduino_aware_flags():
     """
     arduino_linked = (
         CORE.using_arduino
-        or "espressif/arduino-esp32" in CORE.data[KEY_ESP32][KEY_COMPONENTS]
+        or ARDUINO_ESP32_COMPONENT_NAME in CORE.data[KEY_ESP32][KEY_COMPONENTS]
     )
     if not arduino_linked:
         cg.add_build_flag("-Wl,--wrap=esp_panic_handler")
@@ -2587,7 +2590,7 @@ def _write_idf_component_yml():
 
         if CORE.using_toolchain_esp_idf:
             add_idf_component(
-                name="espressif/arduino-esp32",
+                name=ARDUINO_ESP32_COMPONENT_NAME,
                 ref=str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
             )
 
