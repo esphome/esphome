@@ -44,9 +44,6 @@ SOURCE_SPEAKER_SCHEMA = speaker.SPEAKER_SCHEMA.extend(
             cv.positive_time_period_milliseconds,
             cv.one_of(CONF_NEVER, lower=True),
         ),
-        cv.Optional(CONF_BITS_PER_SAMPLE, default=16): cv.one_of(
-            8, 16, 24, 32, int=True
-        ),
     }
 )
 
@@ -60,6 +57,7 @@ def _validate_source_speaker(config):
     output_speaker_id = fconf.get_config_for_path(path)
     config[CONF_OUTPUT_SPEAKER] = output_speaker_id
 
+    inherit_property_from(CONF_BITS_PER_SAMPLE, CONF_OUTPUT_SPEAKER)(config)
     inherit_property_from(CONF_NUM_CHANNELS, CONF_OUTPUT_SPEAKER)(config)
     inherit_property_from(CONF_SAMPLE_RATE, CONF_OUTPUT_SPEAKER)(config)
 
