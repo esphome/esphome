@@ -549,11 +549,11 @@ def _tar_extract_all(
                     if not (mode & stat.S_IXUSR):
                         mode &= ~(stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
                     mode |= stat.S_IRUSR | stat.S_IWUSR
-                elif member.isdir() or member.issym():
-                    # Ignore mode for directories & symlinks
-                    mode = None
-                else:
-                    # Block special files
+                elif not (member.isdir() or member.issym()):
+                    # Block special files. Directories and symlinks keep
+                    # their masked-original mode — passing None here would
+                    # crash tarfile.extract on Python <3.12 (its chmod
+                    # path calls os.chmod unconditionally).
                     continue
 
                 member.mode = mode
