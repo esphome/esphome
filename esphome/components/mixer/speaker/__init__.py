@@ -66,8 +66,6 @@ def _validate_source_speaker(config):
     audio.final_validate_audio_schema(
         "mixer",
         audio_device=CONF_OUTPUT_SPEAKER,
-        bits_per_sample=config.get(CONF_BITS_PER_SAMPLE),
-        channels=config.get(CONF_NUM_CHANNELS),
         sample_rate=config.get(CONF_SAMPLE_RATE),
     )(config)
 
