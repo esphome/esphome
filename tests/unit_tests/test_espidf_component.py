@@ -203,7 +203,7 @@ def test_generate_idf_component_yml_basic(tmp_component):
     tmp_component.data = {"description": "test", "repository": {"url": "http://aaa"}}
     result = generate_idf_component_yml(tmp_component)
 
-    assert result == "description: test\nversion: 1.0.0\nrepository: http://aaa\n"
+    assert result == "description: test\nrepository: http://aaa\n"
 
 
 def test_generate_idf_component_yml_with_dependencies(tmp_component, tmp_path):
@@ -217,18 +217,16 @@ def test_generate_idf_component_yml_with_dependencies(tmp_component, tmp_path):
 
     assert (
         result
-        == f"""version: 1.0.0
-dependencies:
+        == f"""dependencies:
   dep:
-    version: '1.0'
     override_path: {dep.path}
 """
     )
 
 
-def test_generate_idf_component_yml_missing_path_reraises(tmp_component):
-    # A dep without a path and without a recognised source should re-raise
-    # the underlying RuntimeError instead of silently producing a bad manifest.
+def test_generate_idf_component_yml_missing_path_raises(tmp_component):
+    # A dep without a path is a contract violation — every dep is expected
+    # to have been downloaded before YAML generation. Raise loudly.
     dep = IDFComponent("foo/bar", "1.0", source=None)
 
     tmp_component.dependencies = [dep]
@@ -422,8 +420,20 @@ def test_convert_library_with_repository():
     result = _convert_library_to_component(lib)
 
     assert result.name == "foo/bar"
-    assert result.version == "1.2.3"
+    assert result.version == "*"
     assert isinstance(result.source, GitSource)
+    assert result.source.ref == "v1.2.3"
+
+
+def test_convert_library_with_branch_ref():
+    lib = Library("name", None, "https://github.com/foo/bar.git#some-branch")
+
+    result = _convert_library_to_component(lib)
+
+    assert result.name == "foo/bar"
+    assert result.version == "*"
+    assert isinstance(result.source, GitSource)
+    assert result.source.ref == "some-branch"
 
 
 def test_convert_library_missing_ref():
