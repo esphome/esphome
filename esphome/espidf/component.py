@@ -352,7 +352,6 @@ def _convert_library_to_component(library: Library) -> IDFComponent:
         IDFComponent: The resolved component with name, version, and URL
 
     Raises:
-        ValueError: If a repository URL is missing a reference (#)
         RuntimeError: If no artifact can be found for the library
     """
     name = None
