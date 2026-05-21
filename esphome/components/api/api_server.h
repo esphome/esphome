@@ -3,11 +3,7 @@
 #include "esphome/core/defines.h"
 #ifdef USE_API
 #include "api_buffer.h"
-// api_connection.h must be included before clients_ is declared so APIConnection
-// is a complete type when std::unique_ptr<APIConnection> is instantiated. libc++
-// otherwise trips static_assert(sizeof(_Tp) >= 0, "cannot delete an incomplete
-// type") while parsing the array member. api_connection.h transitively brings in
-// list_entities.h and subscribe_state.h.
+// Must precede clients_ so APIConnection is complete for default_delete (libc++).
 #include "api_connection.h"
 #include "api_noise_context.h"
 #include "api_pb2.h"

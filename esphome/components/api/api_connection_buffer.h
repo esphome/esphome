@@ -3,15 +3,8 @@
 #include "esphome/core/defines.h"
 #ifdef USE_API
 
-// Inline definitions for APIConnection members that need the complete
-// APIServer type (currently encode_to_buffer for the hot batch-send path and
-// get_batch_delay_ms_). Pulled into a dedicated header so api_server.h does
-// not have to carry APIConnection method bodies and api_connection.h can
-// keep just a forward declaration of APIServer, breaking the include cycle
-// that previously forced a custom std::unique_ptr deleter on libc++.
-//
-// Include this header from translation units that call encode_to_buffer or
-// any other APIConnection inline that touches APIServer.
+// Inline APIConnection methods that need APIServer complete. Include this
+// instead of api_connection.h when calling encode_to_buffer or get_batch_delay_ms_.
 
 #include "api_connection.h"
 #include "api_server.h"
