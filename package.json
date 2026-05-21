@@ -13,7 +13,7 @@
   "dependencies": {
     "@astrojs/starlight": "^0.38.5",
     "astro": "^6.3.6",
-    "katex": "^0.16.45",
+    "katex": "^0.16.47",
     "micromark": "^4.0.2",
     "rehype-katex": "^7.0.1",
     "remark-github-blockquote-alert": "^2.1.0",
