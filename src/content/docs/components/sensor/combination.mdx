@@ -52,7 +52,7 @@ sensor:
         coefficient: -1.0
 ```
 
-- `MAXIMUM`, `MEAN`, `MEDIAN`, `MINIMUM`, `MOST_RECENTLY_UPDATED`,
+- `MAX`, `MEAN`, `MEDIAN`, `MIN`, `MOST_RECENTLY_UPDATED`,
   `RANGE`, `SUM` combinations: These types compute the specified combination among
   all source sensor states.
 
@@ -71,7 +71,7 @@ sensor:
 ## Configuration variables
 
 - **type** (**Required**, enum): Combination statistic type, should be one of
-  `KALMAN`, `LINEAR`, `MAXIMUM`, `MEAN`, `MEDIAN`, `MINIMUM`,
+  `KALMAN`, `LINEAR`, `MAX`, `MEAN`, `MEDIAN`, `MIN`,
   `MOST_RECENTLY_UPDATED`, `RANGE`, or `SUM`.
 
 - **sources** (**Required**, list): A list of sensors to use as source.
