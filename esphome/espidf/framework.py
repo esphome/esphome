@@ -786,17 +786,20 @@ def download_from_mirrors(
 def _write_idf_version_txt(framework_path: Path, version: str) -> None:
     """Write <framework_path>/version.txt if missing.
 
-    IDF's build.cmake resolves the version it embeds in the firmware
-    (and stamps onto the bootloader) by first running ``git describe``
-    against IDF_PATH, then falling back to ``${IDF_PATH}/version.txt``.
-    The esphome-libs/esp-idf tarball strips ``.git``, so git_describe
-    returns junk (HEAD-HASH-NOTFOUND on a clean strip, ``<hash>-dirty``
-    on a partial strip) and the bootloader's version string ends up
-    matching. Drop a version.txt at the framework root so the fallback
-    reports the real release.
+    IDF's build.cmake picks the version it embeds in the firmware (and
+    stamps onto the bootloader) in this order: ``${IDF_PATH}/version.txt``
+    if present, else ``git describe`` against IDF_PATH, else the
+    ``IDF_VERSION_MAJOR/MINOR/PATCH`` triplet from ``tools/cmake/version.cmake``.
+    On a clean esphome-libs tarball ``.git`` is fully stripped, so
+    git_describe returns ``HEAD-HASH-NOTFOUND`` (falsy) and the triplet
+    wins -- correct by luck. But a *partial* ``.git`` (e.g. a custom
+    framework.source pointed at a real git URL where build artifacts
+    mark the tree dirty) makes git_describe return ``<hash>-dirty``,
+    which is what then gets baked into the bootloader. Dropping
+    version.txt forces the right answer regardless.
     """
     version_txt = framework_path / "version.txt"
-    if version_txt.is_file():
+    if version_txt.exists():
         return
     try:
         version_txt.write_text(f"v{version}\n", encoding="utf-8")
