@@ -4,8 +4,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace pzem004t {
+namespace esphome::pzem004t {
 
 class PZEM004T : public PollingComponent, public uart::UARTDevice {
  public:
@@ -42,5 +41,4 @@ class PZEM004T : public PollingComponent, public uart::UARTDevice {
   uint32_t last_read_{0};
 };
 
-}  // namespace pzem004t
-}  // namespace esphome
+}  // namespace esphome::pzem004t

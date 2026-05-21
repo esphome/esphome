@@ -3,8 +3,7 @@
 #ifdef USE_NETWORK
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace prometheus {
+namespace esphome::prometheus {
 
 void PrometheusHandler::handleRequest(AsyncWebServerRequest *req) {
   AsyncResponseStream *stream = req->beginResponseStream("text/plain; version=0.0.4; charset=utf-8");
@@ -1249,6 +1248,6 @@ void PrometheusHandler::date_base_row_(AsyncResponseStream *stream, const char *
 }
 #endif
 
-}  // namespace prometheus
-}  // namespace esphome
+}  // namespace esphome::prometheus
+
 #endif

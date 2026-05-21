@@ -1,8 +1,7 @@
 #include "as3935_i2c.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace as3935_i2c {
+namespace esphome::as3935_i2c {
 
 static const char *const TAG = "as3935_i2c";
 
@@ -40,5 +39,4 @@ void I2CAS3935Component::dump_config() {
   LOG_I2C_DEVICE(this);
 }
 
-}  // namespace as3935_i2c
-}  // namespace esphome
+}  // namespace esphome::as3935_i2c

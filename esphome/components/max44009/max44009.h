@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace max44009 {
+namespace esphome::max44009 {
 
 enum MAX44009Mode { MAX44009_MODE_AUTO, MAX44009_MODE_LOW_POWER, MAX44009_MODE_CONTINUOUS };
 
@@ -32,5 +31,4 @@ class MAX44009Sensor : public sensor::Sensor, public PollingComponent, public i2
   MAX44009Mode mode_{MAX44009_MODE_AUTO};
 };
 
-}  // namespace max44009
-}  // namespace esphome
+}  // namespace esphome::max44009

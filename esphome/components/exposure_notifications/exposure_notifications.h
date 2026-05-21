@@ -7,8 +7,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace exposure_notifications {
+namespace esphome::exposure_notifications {
 
 struct ExposureNotification {
   std::array<uint8_t, 6> address;
@@ -23,7 +22,6 @@ class ExposureNotificationTrigger : public Trigger<ExposureNotification>,
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
 };
 
-}  // namespace exposure_notifications
-}  // namespace esphome
+}  // namespace esphome::exposure_notifications
 
 #endif

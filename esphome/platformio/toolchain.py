@@ -64,7 +64,7 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
         # a user-provided value (or the unmodified path on platforms that
         # don't need the strip).
         os.environ["PYTHONEXEPATH"] = python_exe
-    cmd = [python_exe, "-m", "esphome.platformio_runner"] + list(args)
+    cmd = [python_exe, "-m", "esphome.platformio.runner"] + list(args)
 
     return run_external_process(*cmd, **kwargs)
 

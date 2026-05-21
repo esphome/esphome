@@ -5,8 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace tt21100 {
+namespace esphome::tt21100 {
 
 class TT21100Button : public binary_sensor::BinarySensor,
                       public Component,
@@ -24,5 +23,4 @@ class TT21100Button : public binary_sensor::BinarySensor,
   uint8_t index_;
 };
 
-}  // namespace tt21100
-}  // namespace esphome
+}  // namespace esphome::tt21100

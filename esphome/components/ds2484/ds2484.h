@@ -6,8 +6,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/one_wire/one_wire.h"
 
-namespace esphome {
-namespace ds2484 {
+namespace esphome::ds2484 {
 
 class DS2484OneWireBus : public one_wire::OneWireBus, public i2c::I2CDevice, public Component {
  public:
@@ -39,5 +38,4 @@ class DS2484OneWireBus : public one_wire::OneWireBus, public i2c::I2CDevice, pub
   bool active_pullup_{false};
   bool strong_pullup_{false};
 };
-}  // namespace ds2484
-}  // namespace esphome
+}  // namespace esphome::ds2484

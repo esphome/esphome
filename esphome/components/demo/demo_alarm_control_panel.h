@@ -3,8 +3,7 @@
 #include "esphome/components/alarm_control_panel/alarm_control_panel.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace demo {
+namespace esphome::demo {
 
 using namespace alarm_control_panel;
 
@@ -62,5 +61,4 @@ class DemoAlarmControlPanel : public AlarmControlPanel, public Component {
   DemoAlarmControlPanelType type_{};
 };
 
-}  // namespace demo
-}  // namespace esphome
+}  // namespace esphome::demo
