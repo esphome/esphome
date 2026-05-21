@@ -663,8 +663,11 @@ def _process_dependencies(component: IDFComponent):
     if isinstance(dependencies, dict):
         normalized = []
         for raw_name, spec in dependencies.items():
-            owner, _, pkgname = raw_name.rpartition("/")
-            entry = {"name": pkgname, "owner": owner or None}
+            if "/" in raw_name:
+                owner, pkgname = raw_name.split("/", 1)
+            else:
+                owner, pkgname = None, raw_name
+            entry = {"name": pkgname, "owner": owner}
             if isinstance(spec, dict):
                 entry.update(spec)
             else:

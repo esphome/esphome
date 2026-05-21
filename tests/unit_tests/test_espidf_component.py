@@ -557,3 +557,51 @@ def test_process_dependencies_dict_form_with_url_value(tmp_component, monkeypatc
     assert captured[0].name == "foo/Bar"
     assert captured[0].version is None
     assert captured[0].repository == "https://github.com/foo/bar.git#main"
+
+
+def test_process_dependencies_dict_form_with_nested_spec(tmp_component, monkeypatch):
+    """A dict-value that's itself a dict is merged into the entry.
+
+    PIO's library.json allows ``{"owner/Name": {"version": "...", ...}}``
+    for entries that need fields beyond just a version (platforms,
+    frameworks, etc.). The extra fields flow into _check_library_data
+    via the entry merge.
+    """
+    captured: list[Library] = []
+    checked: list[dict] = []
+
+    def fake_generate(library):
+        captured.append(library)
+        return IDFComponent(
+            library.name, library.version, source=URLSource("http://dummy.com")
+        )
+
+    tmp_component.data = {
+        "dependencies": {
+            "nanopb/Nanopb": {"version": "^0.4.91", "platforms": "espidf"},
+        }
+    }
+    monkeypatch.setattr(
+        esphome.espidf.component, "_generate_idf_component", fake_generate
+    )
+    monkeypatch.setattr(
+        esphome.espidf.component,
+        "_check_library_data",
+        checked.append,
+    )
+
+    _process_dependencies(tmp_component)
+
+    assert len(captured) == 1
+    assert captured[0].name == "nanopb/Nanopb"
+    assert captured[0].version == "^0.4.91"
+    # Extra spec fields reach _check_library_data so platform/framework
+    # gating still applies.
+    assert checked == [
+        {
+            "name": "Nanopb",
+            "owner": "nanopb",
+            "version": "^0.4.91",
+            "platforms": "espidf",
+        }
+    ]
