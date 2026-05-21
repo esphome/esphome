@@ -1,5 +1,6 @@
 #include "api_connection.h"
 #ifdef USE_API
+#include "api_server.h"  // brings APIServer complete for encode_to_buffer/get_batch_delay_ms_
 #ifdef USE_API_NOISE
 #include "api_frame_helper_noise.h"
 #endif

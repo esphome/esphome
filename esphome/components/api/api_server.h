@@ -3,6 +3,12 @@
 #include "esphome/core/defines.h"
 #ifdef USE_API
 #include "api_buffer.h"
+// api_connection.h must be included before clients_ is declared so APIConnection
+// is a complete type when std::unique_ptr<APIConnection> is instantiated. libc++
+// otherwise trips static_assert(sizeof(_Tp) >= 0, "cannot delete an incomplete
+// type") while parsing the array member. api_connection.h transitively brings in
+// list_entities.h and subscribe_state.h.
+#include "api_connection.h"
 #include "api_noise_context.h"
 #include "api_pb2.h"
 #include "api_pb2_service.h"
@@ -12,8 +18,6 @@
 #include "esphome/core/controller.h"
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
-#include "list_entities.h"
-#include "subscribe_state.h"
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
@@ -191,15 +195,9 @@ class APIServer final : public Component,
   bool is_connected_with_state_subscription() const;
 
   // Range-for view over the populated slice [0, api_connection_count_). Read-only with respect
-  // to ownership — callers get `const unique_ptr&` so they can invoke non-const methods on the
+  // to ownership; callers get `const unique_ptr&` so they can invoke non-const methods on the
   // APIConnection but cannot reset/move the slot and break the count invariant.
-  // Custom deleter is defined out-of-line in api_server.cpp so libc++ does not
-  // eagerly instantiate `delete static_cast<APIConnection *>(p)` here, where
-  // only the forward declaration of APIConnection is visible (incomplete type).
-  struct APIConnectionDeleter {
-    void operator()(APIConnection *p) const;
-  };
-  using APIConnectionPtr = std::unique_ptr<APIConnection, APIConnectionDeleter>;
+  using APIConnectionPtr = std::unique_ptr<APIConnection>;
   class ActiveClientsView {
     const APIConnectionPtr *begin_;
     const APIConnectionPtr *end_;
@@ -358,6 +356,50 @@ template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
     return global_api_server->is_connected();
   }
 };
+
+// Inline definitions for APIConnection members declared in api_connection.h
+// that need the complete APIServer type. Defined here, after APIServer is
+// complete, so api_connection.h can break the include cycle by only
+// forward-declaring APIServer.
+
+inline uint16_t ESPHOME_ALWAYS_INLINE APIConnection::encode_to_buffer(uint32_t calculated_size,
+                                                                      MessageEncodeFn encode_fn, const void *msg,
+                                                                      APIConnection *conn, uint32_t remaining_size) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  if (conn->flags_.log_only_mode) {
+    auto *proto_msg = static_cast<const ProtoMessage *>(msg);
+    DumpBuffer dump_buf;
+    conn->log_send_message_(proto_msg->message_name(), proto_msg->dump_to(dump_buf));
+    return 1;
+  }
+#endif
+  const uint8_t footer_size = conn->helper_->frame_footer_size();
+
+  // First message uses max padding (already in buffer), subsequent use exact header size
+  size_t to_add;
+  if (conn->flags_.batch_first_message) {
+    conn->flags_.batch_first_message = false;
+    conn->batch_header_size_ = conn->helper_->frame_header_padding();
+    to_add = calculated_size;
+  } else {
+    conn->batch_header_size_ = conn->helper_->frame_header_size(calculated_size, conn->batch_message_type_);
+    to_add = calculated_size + conn->batch_header_size_ + footer_size;
+  }
+
+  // Check if it fits (using actual header size, not max padding)
+  uint16_t total_calculated_size = calculated_size + conn->batch_header_size_ + footer_size;
+  if (total_calculated_size > remaining_size)
+    return 0;
+
+  auto &shared_buf = conn->parent_->get_shared_buffer_ref();
+  shared_buf.resize(shared_buf.size() + to_add);
+  ProtoWriteBuffer buffer{&shared_buf, shared_buf.size() - calculated_size};
+  encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
+
+  return total_calculated_size;
+}
+
+inline uint32_t APIConnection::get_batch_delay_ms_() const { return this->parent_->get_batch_delay(); }
 
 }  // namespace esphome::api
 #endif
