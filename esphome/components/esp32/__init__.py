@@ -1743,6 +1743,29 @@ async def _add_yaml_idf_components(components: list[ConfigType]):
         )
 
 
+@coroutine_with_priority(CoroPriority.FINAL - 1)
+async def _finalize_arduino_aware_flags():
+    """Build flags that depend on whether arduino-esp32 is linked in.
+
+    Runs after FINAL so KEY_COMPONENTS is fully populated.
+
+    - Skip our esp_panic_handler wrap when Arduino is linked; Arduino
+      wraps the same symbol and the linker errors on the duplicate.
+    - Define USE_ARDUINO in the hybrid esp-idf+arduino-esp32-component
+      case so ESPHome's ``#ifdef USE_ARDUINO`` paths light up. The
+      framework=arduino branch already adds it inline in to_code.
+    """
+    arduino_linked = (
+        CORE.using_arduino
+        or "espressif/arduino-esp32" in CORE.data[KEY_ESP32][KEY_COMPONENTS]
+    )
+    if not arduino_linked:
+        cg.add_build_flag("-Wl,--wrap=esp_panic_handler")
+        cg.add_define("USE_ESP32_CRASH_HANDLER")
+    elif not CORE.using_arduino:
+        cg.add_build_flag("-DUSE_ARDUINO")
+
+
 async def to_code(config):
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     conf = config[CONF_FRAMEWORK]
@@ -1802,11 +1825,8 @@ async def to_code(config):
     cg.add_build_flag("-DUSE_ESP32")
     cg.add_define("USE_NATIVE_64BIT_TIME")
     cg.add_build_flag("-Wl,-z,noexecstack")
-    # Arduino already wraps esp_panic_handler for its own backtrace handler,
-    # so only add our wrap when using ESP-IDF framework to avoid linker conflicts.
-    if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
-        cg.add_build_flag("-Wl,--wrap=esp_panic_handler")
-        cg.add_define("USE_ESP32_CRASH_HANDLER")
+    # Deferred so KEY_COMPONENTS is fully populated -- see the coroutine.
+    CORE.add_job(_finalize_arduino_aware_flags)
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     variant = config[CONF_VARIANT]
     cg.add_build_flag(f"-DUSE_ESP32_VARIANT_{variant}")
