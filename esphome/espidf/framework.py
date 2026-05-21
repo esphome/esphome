@@ -549,11 +549,11 @@ def _tar_extract_all(
                     if not (mode & stat.S_IXUSR):
                         mode &= ~(stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
                     mode |= stat.S_IRUSR | stat.S_IWUSR
-                elif member.isdir() or member.issym():
-                    # Ignore mode for directories & symlinks
-                    mode = None
-                else:
-                    # Block special files
+                elif not (member.isdir() or member.issym()):
+                    # Block special files. Directories and symlinks keep
+                    # their masked-original mode — passing None here would
+                    # crash tarfile.extract on Python <3.12 (its chmod
+                    # path calls os.chmod unconditionally).
                     continue
 
                 member.mode = mode
@@ -783,6 +783,34 @@ def download_from_mirrors(
         return None
 
 
+def _write_idf_version_txt(framework_path: Path, version: str) -> None:
+    """Write <framework_path>/version.txt if missing.
+
+    IDF's build.cmake picks the version it embeds in the firmware (and
+    stamps onto the bootloader) in this order: ``${IDF_PATH}/version.txt``
+    if present, else ``git describe`` against IDF_PATH, else the
+    ``IDF_VERSION_MAJOR/MINOR/PATCH`` triplet from ``tools/cmake/version.cmake``.
+    On a clean esphome-libs tarball ``.git`` is fully stripped, so
+    git_describe returns ``HEAD-HASH-NOTFOUND`` (falsy) and the triplet
+    wins -- correct by luck. But a *partial* ``.git`` (e.g. a custom
+    framework.source pointed at a real git URL where build artifacts
+    mark the tree dirty) makes git_describe return ``<hash>-dirty``,
+    which is what then gets baked into the bootloader. Dropping
+    version.txt forces the right answer regardless.
+    """
+    version_txt = framework_path / "version.txt"
+    if version_txt.exists():
+        return
+    try:
+        version_txt.write_text(f"v{version}\n", encoding="utf-8")
+    except OSError as e:
+        _LOGGER.warning(
+            "Could not write %s (%s); bootloader version string may be incorrect.",
+            version_txt,
+            e,
+        )
+
+
 def _check_esphome_idf_framework_install(
     version: str,
     targets: list[str],
@@ -863,6 +891,11 @@ def _check_esphome_idf_framework_install(
             _LOGGER.info("Extracting ESP-IDF %s framework ...", version)
             archive_extract_all(tmp.file, framework_path, progress_header="Extracting")
             extracted_marker.touch()
+
+    # Idempotent post-extract patch: written every invocation so a build
+    # dir extracted before this fix gets the file too, without forcing a
+    # clean. Skips when version.txt already exists.
+    _write_idf_version_txt(framework_path, version)
 
     # 3. Check if the framework tools are the same and correctly installed
     if not install:

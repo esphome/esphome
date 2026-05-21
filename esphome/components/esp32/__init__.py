@@ -1987,7 +1987,7 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_HEAP_PLACE_FUNCTION_INTO_FLASH", True)
 
     # Setup watchdog
-    add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT", True)
+    add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_INIT", True)
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_PANIC", True)
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0", False)
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1", False)
@@ -2122,7 +2122,6 @@ async def to_code(config):
         for key, flag in ASSERTION_LEVELS.items():
             add_idf_sdkconfig_option(flag, assertion_level == key)
 
-    add_idf_sdkconfig_option("CONFIG_COMPILER_OPTIMIZATION_DEFAULT", False)
     compiler_optimization = advanced[CONF_COMPILER_OPTIMIZATION]
     for key, flag in COMPILER_OPTIMIZATIONS.items():
         add_idf_sdkconfig_option(flag, compiler_optimization == key)
