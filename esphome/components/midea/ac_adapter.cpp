@@ -3,9 +3,7 @@
 #include "esphome/core/log.h"
 #include "ac_adapter.h"
 
-namespace esphome {
-namespace midea {
-namespace ac {
+namespace esphome::midea::ac {
 
 const char *const Constants::TAG = "midea";
 const char *const Constants::FREEZE_PROTECTION = "freeze protection";
@@ -172,8 +170,6 @@ void Converters::to_climate_traits(ClimateTraits &traits, const dudanov::midea::
   // since custom presets are stored on the Climate base class
 }
 
-}  // namespace ac
-}  // namespace midea
-}  // namespace esphome
+}  // namespace esphome::midea::ac
 
 #endif  // USE_ARDUINO

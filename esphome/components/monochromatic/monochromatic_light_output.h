@@ -4,8 +4,7 @@
 #include "esphome/components/output/float_output.h"
 #include "esphome/components/light/light_output.h"
 
-namespace esphome {
-namespace monochromatic {
+namespace esphome::monochromatic {
 
 class MonochromaticLightOutput : public light::LightOutput {
  public:
@@ -25,5 +24,4 @@ class MonochromaticLightOutput : public light::LightOutput {
   output::FloatOutput *output_;
 };
 
-}  // namespace monochromatic
-}  // namespace esphome
+}  // namespace esphome::monochromatic

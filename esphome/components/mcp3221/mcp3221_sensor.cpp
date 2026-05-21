@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp3221 {
+namespace esphome::mcp3221 {
 
 static const char *const TAG = "mcp3221";
 
@@ -27,5 +26,4 @@ void MCP3221Sensor::update() {
   this->publish_state(v);
 }
 
-}  // namespace mcp3221
-}  // namespace esphome
+}  // namespace esphome::mcp3221

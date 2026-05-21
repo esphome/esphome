@@ -8,7 +8,13 @@ import os
 from pathlib import Path
 
 from esphome import const
-from esphome.const import CONF_DISABLED, CONF_MDNS
+from esphome.const import (
+    CONF_DISABLED,
+    CONF_MDNS,
+    KEY_CORE,
+    KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
+)
 from esphome.core import CORE
 from esphome.helpers import write_file_if_changed
 from esphome.types import CoreType
@@ -255,6 +261,33 @@ class StorageJSON:
             return StorageJSON._load_impl(path)
         except Exception:  # pylint: disable=broad-except
             return None
+
+    def apply_to_core(self) -> None:
+        """Populate CORE with the metadata upload/logs read.
+
+        Inverse of :meth:`from_esphome_core`. Keep paired -- a new
+        attribute upload/logs needs has to be captured there too.
+        Validator-only fields (loaded_integrations/platforms,
+        friendly_name) are skipped; the fast path doesn't run
+        validation and CORE.__init__ defaults them.
+        """
+        CORE.name = self.name
+        CORE.build_path = self.build_path
+        target_platform = self.core_platform or self.target_platform.lower()
+        CORE.data[KEY_CORE] = {
+            KEY_TARGET_PLATFORM: target_platform,
+            KEY_TARGET_FRAMEWORK: self.framework,
+        }
+        # The compile pipeline populates CORE.data[KEY_ESP32] when esp32's
+        # validator runs; on the cache fast path that validator is skipped,
+        # so populate the variant upload_using_esptool reads via
+        # esp32.get_esp32_variant(). target_platform on disk is the variant
+        # (e.g. "ESP32S3"); core_platform is the family (e.g. "esp32").
+        if target_platform == const.PLATFORM_ESP32:
+            from esphome.components.esp32.const import KEY_ESP32
+            from esphome.const import KEY_VARIANT
+
+            CORE.data[KEY_ESP32] = {KEY_VARIANT: self.target_platform}
 
     def __eq__(self, o) -> bool:
         return isinstance(o, StorageJSON) and self.as_dict() == o.as_dict()
