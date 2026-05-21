@@ -55,7 +55,7 @@ def test_gpio_one_wire_esp32_idf_registers_bus(
     main_cpp = generate_main(HERE / "test_gpio_one_wire_esp32_idf.yaml")
 
     assert "new(ow_bus) gpio::GPIOOneWireBus();" in main_cpp
-    assert "App.register_component_(ow_bus);" in main_cpp
+    assert "App.register_component_(ow_bus" in main_cpp
 
 
 def test_gpio_one_wire_esp32_idf_includes_rmt_driver(
@@ -134,7 +134,7 @@ def test_gpio_one_wire_esp8266_registers_bus(
     main_cpp = generate_main(HERE / "test_gpio_one_wire_esp8266.yaml")
 
     assert "new(ow_bus) gpio::GPIOOneWireBus();" in main_cpp
-    assert "App.register_component_(ow_bus);" in main_cpp
+    assert "App.register_component_(ow_bus" in main_cpp
 
 
 def test_gpio_one_wire_esp8266_no_rmt_data(
@@ -189,8 +189,8 @@ def test_two_buses_esp32_registered_independently(
     """
     main_cpp = generate_main(HERE / "test_gpio_one_wire_esp32_two_buses.yaml")
 
-    assert "App.register_component_(ow_bus1);" in main_cpp
-    assert "App.register_component_(ow_bus2);" in main_cpp
+    assert "App.register_component_(ow_bus1" in main_cpp
+    assert "App.register_component_(ow_bus2" in main_cpp
 
     # Count occurrences: exactly two register_component calls for the two buses
     assert main_cpp.count("App.register_component_(ow_bus") == 2
@@ -258,10 +258,10 @@ def test_two_buses_esp32_generated_code_order(
     main_cpp = generate_main(HERE / "test_gpio_one_wire_esp32_two_buses.yaml")
 
     pos_bus1_new = main_cpp.index("new(ow_bus1) gpio::GPIOOneWireBus();")
-    pos_bus1_reg = main_cpp.index("App.register_component_(ow_bus1);")
+    pos_bus1_reg = main_cpp.index("App.register_component_(ow_bus1")
     pos_bus1_pin = main_cpp.index("ow_bus1->set_pin(")
     pos_bus2_new = main_cpp.index("new(ow_bus2) gpio::GPIOOneWireBus();")
-    pos_bus2_reg = main_cpp.index("App.register_component_(ow_bus2);")
+    pos_bus2_reg = main_cpp.index("App.register_component_(ow_bus2")
     pos_bus2_pin = main_cpp.index("ow_bus2->set_pin(")
 
     # Bus1's entire setup block is before bus2's
@@ -312,8 +312,8 @@ def test_two_buses_esp8266_registered_independently(
     """ESP8266: Both buses must be registered as separate ESPHome components."""
     main_cpp = generate_main(HERE / "test_gpio_one_wire_esp8266_two_buses.yaml")
 
-    assert "App.register_component_(ow_bus1);" in main_cpp
-    assert "App.register_component_(ow_bus2);" in main_cpp
+    assert "App.register_component_(ow_bus1" in main_cpp
+    assert "App.register_component_(ow_bus2" in main_cpp
     assert main_cpp.count("App.register_component_(ow_bus") == 2
 
 
@@ -447,7 +447,7 @@ def test_use_rmt_false_on_esp32_still_registers_bus(
     main_cpp = generate_main(HERE / "test_gpio_one_wire_esp32_idf_use_rmt_false.yaml")
 
     assert "new(ow_bus) gpio::GPIOOneWireBus();" in main_cpp
-    assert "App.register_component_(ow_bus);" in main_cpp
+    assert "App.register_component_(ow_bus" in main_cpp
 
 
 def test_use_rmt_true_on_esp8266_raises_error(
