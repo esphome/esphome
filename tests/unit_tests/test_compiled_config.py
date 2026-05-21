@@ -253,6 +253,33 @@ def test_run_esphome_upload_and_logs_fall_back_when_no_cache(
     mock_read.assert_called_once()
 
 
+def test_run_esphome_upload_does_not_refresh_cache_without_sidecar(
+    tmp_path: Path,
+) -> None:
+    """Without a StorageJSON sidecar (no compile has run), the fallback
+    skips the cache write -- load_compiled_config requires the sidecar,
+    so writing the rendered (secret-resolved) YAML would be inert and
+    leak secrets to disk for nothing."""
+    yaml_path = tmp_path / "lite_test.yaml"
+    yaml_path.write_text("esphome:\n  name: lite_test\n")
+    CORE.config_path = yaml_path
+
+    with (
+        patch(
+            "esphome.__main__.read_config",
+            return_value={"esphome": {"name": "lite_test"}},
+        ),
+        patch("esphome.compiled_config.save_compiled_config") as mock_save,
+        patch.dict(
+            "esphome.__main__.POST_CONFIG_ACTIONS",
+            {"upload": lambda args, config: 0},
+        ),
+    ):
+        run_esphome(["esphome", "upload", str(yaml_path)])
+
+    mock_save.assert_not_called()
+
+
 @pytest.mark.parametrize("command", ["upload", "logs"])
 def test_run_esphome_upload_and_logs_refresh_cache_on_fallback(
     tmp_path: Path, command: str

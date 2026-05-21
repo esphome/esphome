@@ -2468,12 +2468,15 @@ def run_esphome(argv):
             skip_external_update=skip_external,
         )
         # Refresh the cache so the next upload/logs hits the fast path
-        # instead of re-running read_config. load_compiled_config still
-        # gates on the storage sidecar, so a save without one is inert.
+        # instead of re-running read_config. Skip when the storage
+        # sidecar is absent (no compile has run): the cache would
+        # never be loaded back, so writing secrets to disk is wasted.
         if cache_eligible and config is not None:
             from esphome.compiled_config import save_compiled_config
+            from esphome.storage_json import ext_storage_path
 
-            save_compiled_config(config)
+            if ext_storage_path(conf_path.name).exists():
+                save_compiled_config(config)
     if config is None:
         return 2
     CORE.config = config
