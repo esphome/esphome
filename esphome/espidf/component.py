@@ -655,6 +655,23 @@ def _process_dependencies(component: IDFComponent):
     if not dependencies:
         return
 
+    # PIO's library.json accepts both the list-of-dicts form and the
+    # shorthand dict form ``{"owner/Name": "version_spec"}``. Normalize
+    # the dict form so the loop below sees a uniform list. Iterating a
+    # dict gives string keys, which would silently fail the
+    # ``"name" in dependency`` substring check and skip every entry.
+    if isinstance(dependencies, dict):
+        normalized = []
+        for raw_name, spec in dependencies.items():
+            owner, _, pkgname = raw_name.rpartition("/")
+            entry = {"name": pkgname, "owner": owner or None}
+            if isinstance(spec, dict):
+                entry.update(spec)
+            else:
+                entry["version"] = spec
+            normalized.append(entry)
+        dependencies = normalized
+
     _LOGGER.info("Processing %s@%s component dependencies...", name, version)
     for dependency in dependencies:
         # Validate dependency structure
