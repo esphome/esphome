@@ -26,16 +26,18 @@ _LOGGER = logging.getLogger(__name__)
 _SCRIPTS_DIR = Path(__file__).parent
 
 
-def _str_to_lst_of_str(a: str) -> list[str]:
+def _str_to_lst_of_str(a: str | list[str]) -> list[str]:
     """
     Convert a string to a list of string
 
     Args:
-        a: A string containing semicolon-separated values
+        a: A string containing semicolon-separated values, or an already-split list
 
     Returns:
         list of strings
     """
+    if isinstance(a, list):
+        return a
     return list(f.strip() for f in a.split(";") if f.strip())
 
 
@@ -67,10 +69,11 @@ ESPHOME_IDF_DEFAULT_FEATURES = _str_to_lst_of_str(
 )
 
 ESPHOME_IDF_FRAMEWORK_MIRRORS = _str_to_lst_of_str(
-    os.environ.get(
-        "ESPHOME_IDF_FRAMEWORK_MIRRORS",
-        "https://github.com/esphome-libs/esp-idf/releases/download/v{VERSION}/esp-idf-v{VERSION}.tar.xz;https://github.com/esphome-libs/esp-idf/releases/download/v{MAJOR}.{MINOR}/esp-idf-v{MAJOR}.{MINOR}.tar.xz",
-    )
+    os.environ.get("ESPHOME_IDF_FRAMEWORK_MIRRORS")
+    or [
+        "https://github.com/esphome-libs/esp-idf/releases/download/v{VERSION}/esp-idf-v{VERSION}.tar.xz",
+        "https://github.com/esphome-libs/esp-idf/releases/download/v{MAJOR}.{MINOR}/esp-idf-v{MAJOR}.{MINOR}.tar.xz",
+    ]
 )
 
 ESP_IDF_CONSTRAINTS_MIRRORS = _str_to_lst_of_str(

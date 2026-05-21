@@ -276,7 +276,6 @@ display:
     auto_wake_on_touch: true
     brightness: 80%
     command_spacing: 5ms
-    dump_device_info: true
     exit_reparse_on_start: true
     lambda: |-
         ESP_LOGD("display","Display is being tested!");
