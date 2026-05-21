@@ -282,8 +282,17 @@ class StorageJSON:
         CORE.name = self.name
         CORE.build_path = self.build_path
         # Restore toolchain so upload/logs picks the right firmware_bin path.
+        # An unknown value (corrupt sidecar, or written by a newer ESPHome)
+        # just leaves CORE.toolchain None — the fallback then picks PlatformIO.
         if self.toolchain and CORE.toolchain is None:
-            CORE.toolchain = Toolchain(self.toolchain)
+            try:
+                CORE.toolchain = Toolchain(self.toolchain)
+            except ValueError:
+                _LOGGER.debug(
+                    "Ignoring unknown toolchain %r from %s",
+                    self.toolchain,
+                    storage_path(),
+                )
         target_platform = self.core_platform or self.target_platform.lower()
         CORE.data[KEY_CORE] = {
             KEY_TARGET_PLATFORM: target_platform,
