@@ -136,8 +136,7 @@ class StorageJSON:
         self.framework = framework
         # The core platform of this firmware. Like "esp32", "rp2040", "host" etc.
         self.core_platform = core_platform
-        # The toolchain used for the build ("platformio" / "esp-idf"); only
-        # populated on the platforms that expose a toolchain choice in YAML.
+        # The toolchain used for the build ("platformio" / "esp-idf")
         self.toolchain = toolchain
 
     def as_dict(self):
@@ -282,10 +281,7 @@ class StorageJSON:
         """
         CORE.name = self.name
         CORE.build_path = self.build_path
-        # Restore the resolved toolchain (which validators set during a
-        # full compile). Without this the upload/logs fast path picks
-        # the PlatformIO fallback and CORE.firmware_bin points at a
-        # .pioenvs/<name>/firmware.bin the esp-idf toolchain never wrote.
+        # Restore toolchain so upload/logs picks the right firmware_bin path.
         if self.toolchain and CORE.toolchain is None:
             CORE.toolchain = Toolchain(self.toolchain)
         target_platform = self.core_platform or self.target_platform.lower()
