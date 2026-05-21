@@ -18,7 +18,7 @@ import requests
 
 from esphome.config_validation import Version
 from esphome.core import CORE
-from esphome.helpers import ProgressBar, get_str_env, rmtree
+from esphome.helpers import ProgressBar, get_str_env, rmtree, write_file_if_changed
 
 PathType = str | os.PathLike
 
@@ -844,8 +844,18 @@ def _patch_tools_json_for_linux_arm64(framework_path: Path) -> None:
     if not tools_json.is_file():
         return
 
-    with open(tools_json, encoding="utf-8") as f:
-        data = json.load(f)
+    try:
+        with open(tools_json, encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        _LOGGER.warning(
+            "Could not parse %s for linux-arm64 backport (%s); "
+            "skipping. A clean reinstall of the framework directory "
+            "may be needed.",
+            tools_json,
+            e,
+        )
+        return
 
     changed = False
     for tool in data.get("tools", []):
@@ -859,9 +869,10 @@ def _patch_tools_json_for_linux_arm64(framework_path: Path) -> None:
             changed = True
 
     if changed:
-        with open(tools_json, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-            f.write("\n")
+        # write_file_if_changed stages a tempfile in the destination dir
+        # and atomically replaces — safe against mid-write interruption
+        # and concurrent invocations.
+        write_file_if_changed(tools_json, json.dumps(data, indent=2) + "\n")
         _LOGGER.info(
             "Patched %s to add ninja linux-arm64 download "
             "(espressif/esp-idf#18272 backport).",
