@@ -66,6 +66,12 @@ FILTER_IDF_LINES: list[str] = [
     # Drop the blank line rich emits after the note so the build log
     # doesn't end with an orphan gap before ESPHome's own status lines.
     r"\s*$",
+    # ESP-IDF shells out to ``git rev-parse`` to embed a commit hash;
+    # esphome-libs strips ``.git`` from the tarball so those probes fail
+    # noisily without affecting the build.
+    r"-- git rev-parse returned ",
+    r"fatal: not a git repository",
+    r"Stopping at filesystem boundary",
 ]
 
 
