@@ -11,8 +11,8 @@ static const uint8_t DALLAS_MODEL_DS18B20 = 0x28;
 static const uint8_t DALLAS_MODEL_DS1825 = 0x3B;
 static const uint8_t DALLAS_MODEL_DS28EA00 = 0x42;
 
-const uint8_t ONE_WIRE_ROM_SELECT = 0x55;
-const uint8_t ONE_WIRE_ROM_SEARCH = 0xF0;
+static const uint8_t ONE_WIRE_ROM_SELECT = 0x55;
+static const uint8_t ONE_WIRE_ROM_SEARCH = 0xF0;
 
 const std::vector<uint64_t> &OneWireBus::get_devices() { return this->devices_; }
 
@@ -56,11 +56,8 @@ void OneWireBus::search() {
   }
 }
 
-bool OneWireBus::skip() {
-  if (!this->reset_())
-    return false;
+void OneWireBus::skip() {
   this->write8(0xCC);  // skip ROM
-  return true;
 }
 
 const LogString *OneWireBus::get_model_str(uint8_t model) {

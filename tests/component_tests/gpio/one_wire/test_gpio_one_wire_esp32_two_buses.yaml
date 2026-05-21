@@ -1,0 +1,18 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+one_wire:
+  - platform: gpio
+    id: ow_bus1
+    pin: 4
+    use_rmt: true
+
+  - platform: gpio
+    id: ow_bus2
+    pin: 17
+    use_rmt: true

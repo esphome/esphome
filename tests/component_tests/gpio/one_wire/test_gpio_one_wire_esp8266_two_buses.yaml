@@ -1,0 +1,14 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+one_wire:
+  - platform: gpio
+    id: ow_bus1
+    pin: 4
+
+  - platform: gpio
+    id: ow_bus2
+    pin: 5

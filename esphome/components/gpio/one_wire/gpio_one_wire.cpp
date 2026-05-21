@@ -6,6 +6,35 @@ namespace esphome::gpio {
 
 static const char *const TAG = "gpio.one_wire";
 
+// ---------------------------------------------------------------------------
+// Shared: dump_config and reset_search are the same for both implementations
+// ---------------------------------------------------------------------------
+
+void GPIOOneWireBus::dump_config() {
+#ifdef USE_ONE_WIRE_RMT
+  ESP_LOGCONFIG(TAG, "GPIO 1-wire bus (RMT):");
+#else
+  ESP_LOGCONFIG(TAG, "GPIO 1-wire bus:");
+#endif
+  LOG_PIN("  Pin: ", this->t_pin_);
+  this->dump_devices_(TAG);
+}
+
+void GPIOOneWireBus::reset_search() {
+  this->last_discrepancy_ = 0;
+  this->last_device_flag_ = false;
+  this->address_ = 0;
+}
+
+// ===========================================================================
+// GPIO bit-bang implementation (all other platforms, or ESP32 without RMT)
+// ===========================================================================
+
+#ifndef USE_ONE_WIRE_RMT
+
+// ---------------------------------------------------------------------------
+// setup() — GPIO path
+// ---------------------------------------------------------------------------
 void GPIOOneWireBus::setup() {
   this->t_pin_->setup();
   this->t_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
@@ -16,12 +45,9 @@ void GPIOOneWireBus::setup() {
   this->search();
 }
 
-void GPIOOneWireBus::dump_config() {
-  ESP_LOGCONFIG(TAG, "GPIO 1-wire bus:");
-  LOG_PIN("  Pin: ", this->t_pin_);
-  this->dump_devices_(TAG);
-}
-
+// ---------------------------------------------------------------------------
+// reset_int() — GPIO path
+// ---------------------------------------------------------------------------
 int HOT IRAM_ATTR GPIOOneWireBus::reset_int() {
   InterruptLock lock;
   // See reset here:
@@ -62,6 +88,9 @@ int HOT IRAM_ATTR GPIOOneWireBus::reset_int() {
   return r ? 1 : 0;
 }
 
+// ---------------------------------------------------------------------------
+// write_bit_() / read_bit_() — GPIO path
+// ---------------------------------------------------------------------------
 void HOT IRAM_ATTR GPIOOneWireBus::write_bit_(bool bit) {
   // drive bus low
   this->pin_.digital_write(false);
@@ -105,6 +134,9 @@ bool HOT IRAM_ATTR GPIOOneWireBus::read_bit_() {
   return r;
 }
 
+// ---------------------------------------------------------------------------
+// write8() / write64() / read8() / read64() — GPIO path
+// ---------------------------------------------------------------------------
 void IRAM_ATTR GPIOOneWireBus::write8(uint8_t val) {
   InterruptLock lock;
   for (uint8_t i = 0; i < 8; i++) {
@@ -136,12 +168,9 @@ uint64_t IRAM_ATTR GPIOOneWireBus::read64() {
   return ret;
 }
 
-void GPIOOneWireBus::reset_search() {
-  this->last_discrepancy_ = 0;
-  this->last_device_flag_ = false;
-  this->address_ = 0;
-}
-
+// ---------------------------------------------------------------------------
+// search_int() — GPIO path
+// ---------------------------------------------------------------------------
 uint64_t IRAM_ATTR GPIOOneWireBus::search_int() {
   InterruptLock lock;
   if (this->last_device_flag_)
@@ -200,5 +229,7 @@ uint64_t IRAM_ATTR GPIOOneWireBus::search_int() {
   this->address_ = address;
   return address;
 }
+
+#endif  // !USE_ONE_WIRE_RMT
 
 }  // namespace esphome::gpio
