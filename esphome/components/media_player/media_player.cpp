@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
-namespace esphome {
-namespace media_player {
+namespace esphome::media_player {
 
 static const char *const TAG = "media_player";
 
@@ -199,11 +198,10 @@ MediaPlayerCall &MediaPlayerCall::set_announcement(bool announce) {
 }
 
 void MediaPlayer::publish_state() {
-  this->state_callback_.call();
+  this->state_callback_.call(this->state);
 #if defined(USE_MEDIA_PLAYER) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_media_player_update(this);
 #endif
 }
 
-}  // namespace media_player
-}  // namespace esphome
+}  // namespace esphome::media_player

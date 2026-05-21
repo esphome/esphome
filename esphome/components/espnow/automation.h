@@ -67,6 +67,7 @@ template<typename... Ts> class SendAction : public Action<Ts...>, public Parente
     }
   }
 
+ protected:
   void play(const Ts &...x) override { /* ignore - see play_complex */
   }
 
@@ -75,7 +76,6 @@ template<typename... Ts> class SendAction : public Action<Ts...>, public Parente
     this->error_.stop();
   }
 
- protected:
   ActionList<Ts...> sent_;
   ActionList<Ts...> error_;
 
@@ -89,7 +89,7 @@ template<typename... Ts> class SendAction : public Action<Ts...>, public Parente
 template<typename... Ts> class AddPeerAction : public Action<Ts...>, public Parented<ESPNowComponent> {
   TEMPLATABLE_VALUE(peer_address_t, address);
 
- public:
+ protected:
   void play(const Ts &...x) override {
     peer_address_t address = this->address_.value(x...);
     this->parent_->add_peer(address.data());
@@ -99,7 +99,7 @@ template<typename... Ts> class AddPeerAction : public Action<Ts...>, public Pare
 template<typename... Ts> class DeletePeerAction : public Action<Ts...>, public Parented<ESPNowComponent> {
   TEMPLATABLE_VALUE(peer_address_t, address);
 
- public:
+ protected:
   void play(const Ts &...x) override {
     peer_address_t address = this->address_.value(x...);
     this->parent_->del_peer(address.data());
@@ -107,8 +107,9 @@ template<typename... Ts> class DeletePeerAction : public Action<Ts...>, public P
 };
 
 template<typename... Ts> class SetChannelAction : public Action<Ts...>, public Parented<ESPNowComponent> {
- public:
   TEMPLATABLE_VALUE(uint8_t, channel)
+
+ protected:
   void play(const Ts &...x) override {
     if (this->parent_->is_wifi_enabled()) {
       return;
@@ -125,9 +126,9 @@ class OnReceiveTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_t *,
     memcpy(this->address_, address.data(), ESP_NOW_ETH_ALEN);
   }
 
-  explicit OnReceiveTrigger() : has_address_(false) {}
+  explicit OnReceiveTrigger() {}
 
-  bool on_received(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) override {
+  bool on_receive(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) override {
     bool match = !this->has_address_ || (memcmp(this->address_, info.src_addr, ESP_NOW_ETH_ALEN) == 0);
     if (!match)
       return false;
@@ -138,7 +139,7 @@ class OnReceiveTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_t *,
 
  protected:
   bool has_address_{false};
-  uint8_t address_[ESP_NOW_ETH_ALEN];
+  uint8_t address_[ESP_NOW_ETH_ALEN]{};
 };
 class OnUnknownPeerTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint8_t>,
                              public ESPNowUnknownPeerHandler {
@@ -148,15 +149,15 @@ class OnUnknownPeerTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_
     return false;  // Return false to continue processing other internal handlers
   }
 };
-class OnBroadcastedTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint8_t>,
-                             public ESPNowBroadcastedHandler {
+class OnBroadcastTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_t *, uint8_t>,
+                           public ESPNowBroadcastHandler {
  public:
-  explicit OnBroadcastedTrigger(std::array<uint8_t, ESP_NOW_ETH_ALEN> address) : has_address_(true) {
+  explicit OnBroadcastTrigger(std::array<uint8_t, ESP_NOW_ETH_ALEN> address) : has_address_(true) {
     memcpy(this->address_, address.data(), ESP_NOW_ETH_ALEN);
   }
-  explicit OnBroadcastedTrigger() : has_address_(false) {}
+  explicit OnBroadcastTrigger() {}
 
-  bool on_broadcasted(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) override {
+  bool on_broadcast(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) override {
     bool match = !this->has_address_ || (memcmp(this->address_, info.src_addr, ESP_NOW_ETH_ALEN) == 0);
     if (!match)
       return false;
@@ -167,7 +168,7 @@ class OnBroadcastedTrigger : public Trigger<const ESPNowRecvInfo &, const uint8_
 
  protected:
   bool has_address_{false};
-  uint8_t address_[ESP_NOW_ETH_ALEN];
+  uint8_t address_[ESP_NOW_ETH_ALEN]{};
 };
 
 }  // namespace esphome::espnow

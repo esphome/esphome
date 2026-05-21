@@ -54,10 +54,18 @@ from esphome.const import (
     CONF_TTLS_PHASE_2,
     CONF_USE_ADDRESS,
     CONF_USERNAME,
+    CONF_WIFI,
+    PLACEHOLDER_WIFI_SSID,
     Platform,
     PlatformFramework,
 )
-from esphome.core import CORE, CoroPriority, HexInt, coroutine_with_priority
+from esphome.core import (
+    CORE,
+    CoroPriority,
+    EsphomeError,
+    HexInt,
+    coroutine_with_priority,
+)
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -67,12 +75,76 @@ _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["network"]
 
-_LOGGER = logging.getLogger(__name__)
-
 NO_WIFI_VARIANTS = [const.VARIANT_ESP32H2, const.VARIANT_ESP32P4]
+
+
+def variant_has_wifi(variant: str) -> bool:
+    """Return True if *variant* has a native WiFi PHY.
+
+    Variants without a native PHY (ESP32-H2, ESP32-P4) need the
+    ``esp32_hosted`` co-processor to use ``wifi:``.
+
+    Case-insensitive on *variant* so external callers can pass either
+    the upstream uppercase form (e.g. ``"ESP32H2"`` from
+    ``const.VARIANT_ESP32H2``) or a lowercase form their own enum
+    surfaces (e.g. ``"esp32h2"`` from device-builder's
+    ``Esp32Variant``). Both classify identically.
+
+    Used by device-builder (esphome/device-builder) to decide whether
+    its basic-setup wizard emits a ``wifi:`` block — please keep the
+    signature stable.
+    """
+    return variant.upper() not in NO_WIFI_VARIANTS
+
+
+_WIFI_FIRST_PLATFORMS: frozenset[str] = frozenset(
+    {
+        Platform.ESP8266,
+        Platform.BK72XX,
+        Platform.RTL87XX,
+        Platform.LN882X,
+        # Legacy umbrella key for the LibreTiny families (bk72xx /
+        # rtl87xx / ln882x); still produced by older configs that
+        # haven't migrated to the per-family keys.
+        Platform.LIBRETINY_OLDSTYLE,
+    }
+)
+
+
+def has_native_wifi(
+    *, platform: str, board: str | None = None, variant: str | None = None
+) -> bool:
+    """Return True when the given platform/board/variant has native WiFi.
+
+    Single dispatch entry point for tooling that needs to decide
+    whether emitting a ``wifi:`` block produces a compilable
+    config. Caller passes whichever platform-relevant fields they
+    have (``variant`` for ESP32, ``board`` for RP2040), and this
+    function routes to the right per-platform check internally.
+
+    Allowlist-based: unknown / Wi-Fi-less platforms (``host``,
+    ``nrf52``) return False so a future platform added to ESPHome
+    fails closed in external tooling rather than silently emitting
+    a ``wifi:`` block the new platform's component would reject.
+
+    Used by device-builder (esphome/device-builder)'s basic-setup
+    wizard. Centralised here so callers don't have to special-case
+    each platform — as ESPHome adds new platforms, this dispatcher
+    is the one place to teach them about Wi-Fi capability.
+    """
+    if platform == Platform.ESP32:
+        return variant_has_wifi(variant) if variant else True
+    if platform == Platform.RP2040:
+        from esphome.components.rp2040 import board_id_has_wifi
+
+        return board_id_has_wifi(board) if board else True
+    return platform in _WIFI_FIRST_PLATFORMS
+
+
 CONF_SAVE = "save"
 CONF_BAND_MODE = "band_mode"
 CONF_MIN_AUTH_MODE = "min_auth_mode"
+CONF_PHY_MODE = "phy_mode"
 CONF_POST_CONNECT_ROAMING = "post_connect_roaming"
 
 # Maximum number of WiFi networks that can be configured
@@ -112,6 +184,14 @@ WIFI_MIN_AUTH_MODES = {
     "WPA3": WifiMinAuthMode.WIFI_MIN_AUTH_MODE_WPA3,
 }
 VALIDATE_WIFI_MIN_AUTH_MODE = cv.enum(WIFI_MIN_AUTH_MODES, upper=True)
+
+WiFi8266PhyMode = wifi_ns.enum("WiFi8266PhyMode")
+WIFI_8266_PHY_MODES = {
+    "AUTO": WiFi8266PhyMode.WIFI_8266_PHY_MODE_AUTO,
+    "11B": WiFi8266PhyMode.WIFI_8266_PHY_MODE_11B,
+    "11G": WiFi8266PhyMode.WIFI_8266_PHY_MODE_11G,
+    "11N": WiFi8266PhyMode.WIFI_8266_PHY_MODE_11N,
+}
 WiFiConnectedCondition = wifi_ns.class_("WiFiConnectedCondition", Condition)
 WiFiEnabledCondition = wifi_ns.class_("WiFiEnabledCondition", Condition)
 WiFiAPActiveCondition = wifi_ns.class_("WiFiAPActiveCondition", Condition)
@@ -289,12 +369,12 @@ def final_validate(config):
 def _consume_wifi_sockets(config: ConfigType) -> ConfigType:
     """Register UDP PCBs used internally by lwIP for DHCP and DNS.
 
-    Only needed on LibreTiny where we directly set MEMP_NUM_UDP_PCB (the raw
-    PCB pool shared by both application sockets and lwIP internals like DHCP/DNS).
-    On ESP32, CONFIG_LWIP_MAX_SOCKETS only controls the POSIX socket layer —
-    DHCP/DNS use raw udp_new() which bypasses it entirely.
+    Needed on LibreTiny and RP2040 where we directly set MEMP_NUM_UDP_PCB (the
+    raw PCB pool shared by both application sockets and lwIP internals like
+    DHCP/DNS). On ESP32, CONFIG_LWIP_MAX_SOCKETS only controls the POSIX socket
+    layer — DHCP/DNS use raw udp_new() which bypasses it entirely.
     """
-    if not (CORE.is_bk72xx or CORE.is_rtl87xx or CORE.is_ln882x):
+    if not (CORE.is_bk72xx or CORE.is_rtl87xx or CORE.is_ln882x or CORE.is_rp2040):
         return config
     from esphome.components import socket
 
@@ -405,6 +485,10 @@ CONFIG_SCHEMA = cv.All(
                 cv.enum(WIFI_BAND_MODES, upper=True),
                 cv.only_on_esp32,
                 only_on_variant(supported=[const.VARIANT_ESP32C5]),
+            ),
+            cv.Optional(CONF_PHY_MODE): cv.All(
+                cv.enum(WIFI_8266_PHY_MODES, upper=True),
+                cv.only_on_esp8266,
             ),
             cv.Optional(CONF_PASSIVE_SCAN, default=False): cv.boolean,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
@@ -569,6 +653,9 @@ async def to_code(config):
 
     if CORE.is_esp8266:
         cg.add_library("ESP8266WiFi", None)
+        if CONF_PHY_MODE in config:
+            cg.add_define("USE_WIFI_PHY_MODE")
+            cg.add(var.set_phy_mode(config[CONF_PHY_MODE]))
     elif CORE.is_rp2040:
         cg.add_library("WiFi", None)
 
@@ -824,3 +911,45 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "wifi_component_pico_w.cpp": {PlatformFramework.RP2040_ARDUINO},
     }
 )
+
+
+def _placeholder_wifi_credentials(config: ConfigType) -> list[str]:
+    """Return human-readable locations where the dashboard's placeholder wifi
+    values still appear. Empty list means no placeholders were found.
+    """
+    placeholders: list[str] = []
+    wifi_conf = config.get(CONF_WIFI)
+    if not wifi_conf:
+        return placeholders
+
+    for idx, network in enumerate(wifi_conf.get(CONF_NETWORKS, [])):
+        ssid = network.get(CONF_SSID)
+        if isinstance(ssid, str) and ssid == PLACEHOLDER_WIFI_SSID:
+            placeholders.append(f"wifi.networks[{idx}].ssid")
+
+    ap_conf = wifi_conf.get(CONF_AP)
+    if ap_conf:
+        ap_ssid = ap_conf.get(CONF_SSID)
+        if isinstance(ap_ssid, str) and ap_ssid == PLACEHOLDER_WIFI_SSID:
+            placeholders.append("wifi.ap.ssid")
+
+    return placeholders
+
+
+def check_placeholder_credentials(config: ConfigType) -> None:
+    """Raise EsphomeError if any wifi credential is the dashboard placeholder.
+
+    Call only at compile time. NEVER from CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA,
+    or any path reached by `esphome config`; device-builder relies on
+    validation passing with the placeholders still in place.
+    """
+    locations = _placeholder_wifi_credentials(config)
+    if not locations:
+        return
+    formatted = ", ".join(locations)
+    raise EsphomeError(
+        f"wifi configuration still contains the dashboard placeholder value "
+        f"'{PLACEHOLDER_WIFI_SSID}' at: {formatted}. "
+        f"Open secrets.yaml and replace 'wifi_ssid' (and 'wifi_password') "
+        f"with your real wifi credentials before flashing."
+    )

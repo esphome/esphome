@@ -5,8 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace sm2135 {
+namespace esphome::sm2135 {
 
 enum SM2135Current : uint8_t {
   SM2135_CURRENT_10MA = 0x00,
@@ -86,5 +85,4 @@ class SM2135 : public Component {
   bool update_{true};
 };
 
-}  // namespace sm2135
-}  // namespace esphome
+}  // namespace esphome::sm2135

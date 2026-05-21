@@ -12,7 +12,7 @@ from PIL import Image, UnidentifiedImageError
 
 from esphome import core, external_files
 import esphome.codegen as cg
-from esphome.components.const import CONF_BYTE_ORDER
+from esphome.components.const import CONF_BYTE_ORDER, KEY_METADATA
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEFAULTS,
@@ -28,7 +28,6 @@ from esphome.const import (
     CONF_URL,
 )
 from esphome.core import CORE, HexInt
-from esphome.final_validate import full_config
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,7 +52,6 @@ CONF_CHROMA_KEY = "chroma_key"
 CONF_ALPHA_CHANNEL = "alpha_channel"
 CONF_INVERT_ALPHA = "invert_alpha"
 CONF_IMAGES = "images"
-KEY_METADATA = "metadata"
 
 TRANSPARENCY_TYPES = (
     CONF_OPAQUE,
@@ -677,12 +675,16 @@ def _final_validate(config):
     :param config:
     :return:
     """
-    fv = full_config.get()
-    if "lvgl" in fv and not all(CONF_BYTE_ORDER in x for x in config):
-        config = config.copy()
-        for c in config:
-            if not c.get(CONF_BYTE_ORDER):
-                c[CONF_BYTE_ORDER] = "LITTLE_ENDIAN"
+    config = config.copy()
+    for c in config:
+        if byte_order := c.get(CONF_BYTE_ORDER):
+            if byte_order == "BIG_ENDIAN":
+                _LOGGER.warning(
+                    "The image '%s' is configured with big-endian byte order, little-endian is expected",
+                    c.get(CONF_FILE),
+                )
+        else:
+            c[CONF_BYTE_ORDER] = "LITTLE_ENDIAN"
     return config
 
 
@@ -742,21 +744,28 @@ async def write_image(config, all_frames=False):
         if frame_count <= 1:
             _LOGGER.warning("Image file %s has no animation frames", path)
 
-    total_rows = height * frame_count
-    encoder = IMAGE_TYPE[type](width, total_rows, transparency, dither, invert_alpha)
-    if byte_order := config.get(CONF_BYTE_ORDER):
-        # Check for valid type has already been done in validate_settings
-        encoder.set_big_endian(byte_order == "BIG_ENDIAN")
+    # Encode each frame with its own encoder and concatenate. This keeps every
+    # frame self-contained on disk (e.g. RGB565+alpha emits [RGB plane | alpha plane]
+    # per frame) so animation frame stepping in image.cpp / animation.cpp stays
+    # correct without needing to know the total frame count.
+    byte_order = config.get(CONF_BYTE_ORDER)
+    combined_data: list[int] = []
+    encoder: ImageEncoder | None = None
     for frame_index in range(frame_count):
         image.seek(frame_index)
+        encoder = IMAGE_TYPE[type](width, height, transparency, dither, invert_alpha)
+        if byte_order is not None:
+            # Check for valid type has already been done in validate_settings
+            encoder.set_big_endian(byte_order == "BIG_ENDIAN")
         pixels = encoder.convert(image.resize((width, height)), path).getdata()
         for row in range(height):
             for col in range(width):
                 encoder.encode(pixels[row * width + col])
             encoder.end_row()
         encoder.end_image()
+        combined_data.extend(encoder.data)
 
-    rhs = [HexInt(x) for x in encoder.data]
+    rhs = [HexInt(x) for x in combined_data]
     prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
     image_type = get_image_type_enum(type)
     trans_value = get_transparency_enum(encoder.transparency)

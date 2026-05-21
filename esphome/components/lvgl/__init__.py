@@ -1,15 +1,16 @@
 import importlib
 from pathlib import Path
 import pkgutil
+import re
 
-from esphome.automation import build_automation, validate_automation
+from esphome.automation import Trigger, build_automation, validate_automation
 import esphome.codegen as cg
 from esphome.components.const import (
     CONF_BYTE_ORDER,
     CONF_COLOR_DEPTH,
     CONF_DRAW_ROUNDING,
 )
-from esphome.components.display import Display
+from esphome.components.display import Display, get_display_metadata, validate_rotation
 from esphome.components.esp32 import (
     VARIANT_ESP32P4,
     add_idf_component,
@@ -30,13 +31,15 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
     CONF_BUFFER_SIZE,
+    CONF_ESPHOME,
     CONF_GROUP,
     CONF_ID,
     CONF_LAMBDA,
     CONF_LOG_LEVEL,
-    CONF_ON_BOOT,
     CONF_ON_IDLE,
     CONF_PAGES,
+    CONF_PLATFORMIO_OPTIONS,
+    CONF_ROTATION,
     CONF_TIMEOUT,
     CONF_TRIGGER_ID,
 )
@@ -44,10 +47,20 @@ from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import MockObj
 from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
+from esphome.writer import clean_build
 from esphome.yaml_util import load_yaml
 
-from . import defines as df, helpers, lv_validation as lvalid, widgets
-from .automation import focused_widgets, layers_to_code, lvgl_update, refreshed_widgets
+from . import defines as df, lv_validation as lvalid, widgets
+from .automation import layers_to_code, lvgl_update
+from .defines import (
+    CONF_ALIGN_TO_LAMBDA_ID,
+    LOGGER,
+    add_lv_use,
+    get_focused_widgets,
+    get_lv_images_used,
+    get_refreshed_widgets,
+    set_widgets_completed,
+)
 from .encoders import (
     ENCODERS_CONFIG,
     encoders_to_code,
@@ -56,9 +69,10 @@ from .encoders import (
 )
 from .gradient import GRADIENT_SCHEMA, gradients_to_code
 from .keypads import KEYPADS_CONFIG, keypads_to_code
-from .lv_validation import lv_bool, lv_images_used
-from .lvcode import LvContext, LvglComponent, lvgl_static
+from .lv_validation import lv_bool
+from .lvcode import LvContext, LvglComponent, lv_event_t_ptr, lvgl_static
 from .schemas import (
+    BASE_PROPS,
     DISP_BG_SCHEMA,
     FULL_STYLE_SCHEMA,
     STYLE_REMAP,
@@ -69,16 +83,26 @@ from .schemas import (
 )
 from .styles import styles_to_code, theme_to_code
 from .touchscreens import touchscreen_schema, touchscreens_to_code
-from .trigger import add_on_boot_triggers, generate_triggers
-from .types import IdleTrigger, PlainTrigger, lv_font_t, lv_group_t, lv_style_t, lvgl_ns
+from .trigger import generate_align_tos, generate_triggers
+from .types import (
+    IdleTrigger,
+    PlainTrigger,
+    RotationType,
+    lv_font_t,
+    lv_group_t,
+    lv_lambda_t,
+    lv_obj_t_ptr,
+    lv_style_t,
+    lvgl_ns,
+)
 from .widgets import (
     LvScrActType,
     Widget,
     add_widgets,
     get_screen_active,
     set_obj_properties,
-    styles_used,
 )
+from .widgets.img import CONF_IMAGE
 
 # Import only what we actually use directly in this file
 from .widgets.msgbox import MSGBOX_SCHEMA, msgboxes_to_code
@@ -131,9 +155,28 @@ def generate_lv_conf_h():
     all_defines = set(
         df.LV_DEFINES + tuple(f"LV_USE_{w.upper()}" for w in WIDGET_TYPES)
     )
-    # Get the defines that are actually used based on the config
-    lv_defines = df.get_data(df.KEY_LV_DEFINES)
-    unused_defines = all_defines - set(lv_defines)
+    build_flags = (
+        CORE.config[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS).get("build_flags", [])
+    )
+    if not isinstance(build_flags, list):
+        build_flags = [build_flags]
+    # Extract define names from build flags like '-DLV_USE_CHART=1', '-D LV_USE_CHART',
+    # or multiple defines in one string.
+    define_pattern = r'-D\s*([A-Z_][A-Z0-9_]*)(?:=[^\s\'"\]]*)?'
+    defines_from_flags = {
+        m.group(1) for flag in build_flags for m in re.finditer(define_pattern, flag)
+    }
+
+    # Get the defines that are actually used based on the config,
+    lv_defines = df.get_defines()
+    clashes = defines_from_flags & lv_defines.keys()
+    if clashes:
+        LOGGER.warning(
+            "Some defines are set both by ESPHome build flags and by LVGL configuration which may lead to unexpected behavior: %s",
+            sorted(list(clashes)),
+        )
+    unused_defines = all_defines - lv_defines.keys() - defines_from_flags
+
     # Create the content of lv_conf.h with the used defines set to their value, and the unused defines disabled
     definitions = [as_macro(m, v) for m, v in lv_defines.items()] + [
         as_macro(m, "0") for m in unused_defines
@@ -183,6 +226,11 @@ def final_validation(config_list):
                 raise cv.Invalid(
                     "Using lambda: or pages: in display config is not compatible with LVGL"
                 )
+            # treating 0 as false is intended here.
+            if display.get(CONF_ROTATION):
+                raise cv.Invalid(
+                    "use of 'rotation' in the display config is not compatible with LVGL, please set rotation in the LVGL config instead"
+                )
             if display.get(CONF_AUTO_CLEAR_ENABLED) is True:
                 raise cv.Invalid(
                     "Using auto_clear_enabled: true in display config not compatible with LVGL"
@@ -194,7 +242,7 @@ def final_validation(config_list):
         buffer_frac = config[CONF_BUFFER_SIZE]
         if CORE.is_esp32 and buffer_frac > 0.5 and PSRAM_DOMAIN not in global_config:
             df.LOGGER.warning("buffer_size: may need to be reduced without PSRAM")
-        for w in focused_widgets:
+        for w in get_focused_widgets():
             path = global_config.get_path_for_id(w)
             widget_conf = global_config.get_config_for_path(path[:-1])
             if (
@@ -205,7 +253,7 @@ def final_validation(config_list):
                     "A non adjustable arc may not be focused",
                     path,
                 )
-        for w in refreshed_widgets:
+        for w in get_refreshed_widgets():
             path = global_config.get_path_for_id(w)
             widget_conf = global_config.get_config_for_path(path[:-1])
             if not any(isinstance(v, (Lambda, dict)) for v in widget_conf.values()):
@@ -213,7 +261,7 @@ def final_validation(config_list):
                     f"Widget '{w}' does not have any dynamic properties to refresh",
                 )
         # Do per-widget type final validation for update actions
-        for widget_type, update_configs in df.get_data(df.KEY_UPDATED_WIDGETS).items():
+        for widget_type, update_configs in df.get_updated_widgets().items():
             for conf in update_configs:
                 for id_conf in conf.get(CONF_ID, ()):
                     name = id_conf[CONF_ID]
@@ -245,6 +293,7 @@ async def to_code(configs):
     df.add_define("LV_USE_STDLIB_SPRINTF", "LV_STDLIB_CLIB")
     df.add_define("LV_USE_STDLIB_STRING", "LV_STDLIB_CLIB")
     df.add_define("LV_USE_STDLIB_MALLOC", "LV_STDLIB_CUSTOM")
+    df.add_define("LV_DEF_REFR_PERIOD", "16")
     cg.add_define("USE_LVGL")
     # suppress default enabling of extra widgets
     # cg.add_define("LV_KCONFIG_PRESENT")
@@ -261,7 +310,7 @@ async def to_code(configs):
         cg.RawExpression(f"ESPHOME_LOG_LEVEL_{config_0[CONF_LOG_LEVEL]}"),
     )
     df.add_define("LV_COLOR_DEPTH", config_0[CONF_COLOR_DEPTH])
-    for font in helpers.lv_fonts_used:
+    for font in df.get_lv_fonts_used():
         df.add_define(f"LV_FONT_{font.upper()}")
 
     if config_0[CONF_COLOR_DEPTH] == 16:
@@ -276,7 +325,7 @@ async def to_code(configs):
     cg.add_build_flag("-Isrc")
 
     cg.add_global(lvgl_ns.using)
-    for font in helpers.esphome_fonts_used:
+    for font in df.get_esphome_fonts_used():
         await cg.get_variable(font)
     default_font = config_0[df.CONF_DEFAULT_FONT]
     if not lvalid.is_lv_font(default_font):
@@ -313,6 +362,21 @@ async def to_code(configs):
         displays = [
             await cg.get_variable(display) for display in config[df.CONF_DISPLAYS]
         ]
+        rotation_type = RotationType.ROTATION_UNUSED
+        # options will have CONF_ROTATION true if rotation is changed in an automation.
+        if CONF_ROTATION in config or df.get_options().get(CONF_ROTATION) is True:
+            if all(
+                get_display_metadata(str(disp)).has_hardware_rotation
+                for disp in displays
+            ):
+                rotation_type = RotationType.ROTATION_HARDWARE
+                df.LOGGER.info("LVGL will use hardware rotation via display driver")
+            else:
+                rotation_type = RotationType.ROTATION_SOFTWARE
+                if CORE.is_esp32 and get_esp32_variant() == VARIANT_ESP32P4:
+                    df.LOGGER.info("LVGL will use software rotation (PPA accelerated)")
+                else:
+                    df.LOGGER.info("LVGL will use software rotation")
         lv_component = cg.new_Pvariable(
             config[CONF_ID],
             displays,
@@ -321,8 +385,11 @@ async def to_code(configs):
             config[CONF_DRAW_ROUNDING],
             config[df.CONF_RESUME_ON_INPUT],
             config[df.CONF_UPDATE_WHEN_DISPLAY_IDLE],
+            rotation_type,
         )
         await cg.register_component(lv_component, config)
+        if rotation := config.get(CONF_ROTATION):
+            cg.add(lv_component.set_rotation(rotation))
         Widget.create(config[CONF_ID], lv_component, LvScrActType(), config)
 
         lv_scr_act = get_screen_active(lv_component)
@@ -341,10 +408,11 @@ async def to_code(configs):
             await lvgl_update(lv_component, config)
             await msgboxes_to_code(lv_component, config)
             # await disp_update(lv_component.get_disp(), config)
-    # Set this directly since we are limited in how many methods can be added to the Widget class.
-    Widget.widgets_completed = True
+    # Mark all widgets as completed so awaiters of ``wait_for_widgets`` proceed.
+    set_widgets_completed(True)
     async with LvContext():
         await generate_triggers()
+        await generate_align_tos(configs[0])
         for config in configs:
             lv_component = await cg.get_variable(config[CONF_ID])
             await generate_page_triggers(config)
@@ -365,12 +433,15 @@ async def to_code(configs):
                             f"set_{trigger_name.removeprefix('on_')}_trigger",
                         )(trigger_var)
                     )
-            await add_on_boot_triggers(config.get(CONF_ON_BOOT, ()))
 
     # This must be done after all widgets are created
-    for comp in helpers.lvgl_components_required:
-        cg.add_define(f"USE_LVGL_{comp.upper()}")
-    lv_image_formats = df.get_color_formats().copy()
+    styles_used = df.get_styles_used()
+    if any(BASE_PROPS.get(x) is lvalid.lv_image for x in styles_used):
+        add_lv_use(CONF_IMAGE)
+    for use in df.get_lv_uses():
+        df.add_define(f"LV_USE_{use.upper()}")
+        cg.add_define(f"USE_LVGL_{use.upper()}")
+
     if {
         "transform_rotation",
         "transform_scale",
@@ -378,22 +449,27 @@ async def to_code(configs):
         "transform_scale_y",
     } & styles_used:
         df.add_define("LV_COLOR_SCREEN_TRANSP", "1")
-        lv_image_formats.add("ARGB8888")
-    lv_image_formats.add(
-        "RGB565"
-    )  # Currently always need RGB565 for the display buffer
-    for use in helpers.lv_uses:
-        df.add_define(f"LV_USE_{use.upper()}")
-        cg.add_define(f"USE_LVGL_{use.upper()}")
 
-    for image_id in lv_images_used:
+    if configs[0].get(df.CONF_THEME, {}).get(df.CONF_DARK_MODE):
+        df.add_define("LV_THEME_DEFAULT_DARK", "1")
+
+    # Currently always need RGB565 for the display buffer, and ARGB8888 is used for layer blending
+    lv_image_formats = {"RGB565", "ARGB8888"}
+    if {
+        "drop_shadow_color",
+        "drop_shadow_offset_x",
+        "drop_shadow_offset_y",
+        "drop_shadow_opa",
+        "drop_shadow_quality",
+        "drop_shadow_radius",
+    } & styles_used:
+        lv_image_formats.add("A8")
+
+    for image_id in get_lv_images_used():
         await cg.get_variable(image_id)
         metadata = get_image_metadata(image_id.id)
         image_type = IMAGE_TYPE[metadata.image_type]
         transparent = metadata.transparency != CONF_OPAQUE
-        if transparent:
-            # Internal draw layer will use ARGB8888
-            lv_image_formats.add("ARGB8888")
         if image_type == ImageBinary:
             lv_image_formats.add("I1")
         if image_type == ImageGrayscale:
@@ -406,8 +482,10 @@ async def to_code(configs):
         lv_image_formats.add("RGB888")
     for fmt in lv_image_formats:
         df.add_define(f"LV_DRAW_SW_SUPPORT_{fmt}", "1")
+
     lv_conf_h_file = CORE.relative_src_path(LV_CONF_FILENAME)
-    write_file_if_changed(lv_conf_h_file, generate_lv_conf_h())
+    if write_file_if_changed(lv_conf_h_file, generate_lv_conf_h()):
+        clean_build(clear_pio_cache=False)
     cg.add_build_flag("-DLV_CONF_H=1")
     # handle windows paths in a way that doesn't break the generated C++
     lv_conf_h_path = Path(lv_conf_h_file).as_posix()
@@ -443,8 +521,11 @@ def add_hello_world(config):
 def _theme_schema(value):
     return cv.Schema(
         {
-            cv.Optional(name): obj_schema(w).extend(FULL_STYLE_SCHEMA)
-            for name, w in WIDGET_TYPES.items()
+            cv.Optional(df.CONF_DARK_MODE, default=False): cv.boolean,
+            **{
+                cv.Optional(name): obj_schema(w).extend(FULL_STYLE_SCHEMA)
+                for name, w in WIDGET_TYPES.items()
+            },
         }
     )(value)
 
@@ -457,7 +538,19 @@ LVGL_SCHEMA = cv.All(
         cv.polling_component_schema("1s")
         .extend(
             {
+                **{
+                    cv.Optional(event): validate_automation(
+                        {
+                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                                Trigger.template(lv_obj_t_ptr, lv_event_t_ptr)
+                            ),
+                        }
+                    )
+                    for event in df.LV_SCREEN_EVENT_TRIGGERS
+                    + df.LV_DISPLAY_EVENT_TRIGGERS
+                },
                 cv.GenerateID(CONF_ID): cv.declare_id(LvglComponent),
+                cv.GenerateID(CONF_ALIGN_TO_LAMBDA_ID): cv.declare_id(lv_lambda_t),
                 cv.GenerateID(df.CONF_DISPLAYS): display_schema,
                 cv.Optional(CONF_COLOR_DEPTH, default=16): cv.one_of(16),
                 cv.Optional(
@@ -469,6 +562,7 @@ LVGL_SCHEMA = cv.All(
                 ): cv.boolean,
                 cv.Optional(CONF_DRAW_ROUNDING, default=2): cv.positive_int,
                 cv.Optional(CONF_BUFFER_SIZE, default=0): cv.percentage,
+                cv.Optional(CONF_ROTATION): validate_rotation,
                 cv.Optional(CONF_LOG_LEVEL, default="WARN"): cv.one_of(
                     *df.LV_LOG_LEVELS, upper=True
                 ),

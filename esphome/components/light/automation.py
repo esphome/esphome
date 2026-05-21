@@ -37,6 +37,7 @@ from .types import (
     AddressableSet,
     ColorMode,
     DimRelativeAction,
+    LightCall,
     LightControlAction,
     LightIsOffCondition,
     LightIsOnCondition,
@@ -60,8 +61,10 @@ from .types import (
 )
 async def light_toggle_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if CONF_TRANSITION_LENGTH in config:
+    has_transition_length = CONF_TRANSITION_LENGTH in config
+    toggle_template_arg = cg.TemplateArguments(has_transition_length, *template_arg)
+    var = cg.new_Pvariable(action_id, toggle_template_arg, paren)
+    if has_transition_length:
         template_ = await cg.templatable(
             config[CONF_TRANSITION_LENGTH], args, cg.uint32
         )
@@ -178,73 +181,76 @@ def _resolve_effect_index(config: ConfigType) -> int:
 )
 async def light_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if CONF_COLOR_MODE in config:
-        template_ = await cg.templatable(config[CONF_COLOR_MODE], args, ColorMode)
-        cg.add(var.set_color_mode(template_))
-    if CONF_STATE in config:
-        template_ = await cg.templatable(config[CONF_STATE], args, bool)
-        cg.add(var.set_state(template_))
-    if CONF_TRANSITION_LENGTH in config:
-        template_ = await cg.templatable(
-            config[CONF_TRANSITION_LENGTH], args, cg.uint32
-        )
-        cg.add(var.set_transition_length(template_))
-    if CONF_FLASH_LENGTH in config:
-        template_ = await cg.templatable(config[CONF_FLASH_LENGTH], args, cg.uint32)
-        cg.add(var.set_flash_length(template_))
-    if CONF_BRIGHTNESS in config:
-        template_ = await cg.templatable(config[CONF_BRIGHTNESS], args, float)
-        cg.add(var.set_brightness(template_))
-    if CONF_COLOR_BRIGHTNESS in config:
-        template_ = await cg.templatable(config[CONF_COLOR_BRIGHTNESS], args, float)
-        cg.add(var.set_color_brightness(template_))
-    if CONF_RED in config:
-        template_ = await cg.templatable(config[CONF_RED], args, float)
-        cg.add(var.set_red(template_))
-    if CONF_GREEN in config:
-        template_ = await cg.templatable(config[CONF_GREEN], args, float)
-        cg.add(var.set_green(template_))
-    if CONF_BLUE in config:
-        template_ = await cg.templatable(config[CONF_BLUE], args, float)
-        cg.add(var.set_blue(template_))
-    if CONF_WHITE in config:
-        template_ = await cg.templatable(config[CONF_WHITE], args, float)
-        cg.add(var.set_white(template_))
-    if CONF_COLOR_TEMPERATURE in config:
-        template_ = await cg.templatable(config[CONF_COLOR_TEMPERATURE], args, float)
-        cg.add(var.set_color_temperature(template_))
-    if CONF_COLD_WHITE in config:
-        template_ = await cg.templatable(config[CONF_COLD_WHITE], args, float)
-        cg.add(var.set_cold_white(template_))
-    if CONF_WARM_WHITE in config:
-        template_ = await cg.templatable(config[CONF_WARM_WHITE], args, float)
-        cg.add(var.set_warm_white(template_))
+
+    # All configured fields are folded into a single stateless lambda whose
+    # constants live in flash; the action stores only a function pointer.
+    FIELDS = (
+        (CONF_COLOR_MODE, "set_color_mode", ColorMode),
+        (CONF_STATE, "set_state", cg.bool_),
+        (CONF_TRANSITION_LENGTH, "set_transition_length", cg.uint32),
+        (CONF_FLASH_LENGTH, "set_flash_length", cg.uint32),
+        (CONF_BRIGHTNESS, "set_brightness", cg.float_),
+        (CONF_COLOR_BRIGHTNESS, "set_color_brightness", cg.float_),
+        (CONF_RED, "set_red", cg.float_),
+        (CONF_GREEN, "set_green", cg.float_),
+        (CONF_BLUE, "set_blue", cg.float_),
+        (CONF_WHITE, "set_white", cg.float_),
+        (CONF_COLOR_TEMPERATURE, "set_color_temperature", cg.float_),
+        (CONF_COLD_WHITE, "set_cold_white", cg.float_),
+        (CONF_WARM_WHITE, "set_warm_white", cg.float_),
+    )
+
+    # Normalize trigger args to `const std::remove_cvref_t<T> &` so the
+    # apply lambda and any inner field lambdas (generated below via
+    # `process_lambda`) share one parameter spelling that's well-formed for
+    # any T (value, ref, or const-ref). Matches LightControlAction::ApplyFn.
+    normalized_args = [
+        (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), n)
+        for t, n in args
+    ]
+
+    fwd_args = ", ".join(name for _, name in args)
+    body_lines: list[str] = []
+
+    for conf_key, setter, type_ in FIELDS:
+        if conf_key not in config:
+            continue
+        value = config[conf_key]
+        if isinstance(value, Lambda):
+            inner = await cg.process_lambda(value, normalized_args, return_type=type_)
+            body_lines.append(f"call.{setter}(({inner})({fwd_args}));")
+        else:
+            body_lines.append(f"call.{setter}({cg.safe_exp(value)});")
+
     if CONF_EFFECT in config:
         if isinstance(config[CONF_EFFECT], Lambda):
-            # Lambda returns a string — wrap in a C++ lambda that resolves
-            # the effect name to its uint32_t index at runtime
             inner_lambda = await cg.process_lambda(
-                config[CONF_EFFECT], args, return_type=cg.std_string
+                config[CONF_EFFECT], normalized_args, return_type=cg.std_string
             )
-            fwd_args = ", ".join(n for _, n in args)
-            # capture="" is correct: paren is a global variable name
-            # string-interpolated into the body at codegen time, not a
-            # C++ runtime capture.
-            wrapper = LambdaExpression(
-                f"auto __effect_s = ({inner_lambda})({fwd_args});\n"
-                f"return {paren}->get_effect_index("
-                f"__effect_s.c_str(), __effect_s.size());",
-                args,
-                capture="",
-                return_type=cg.uint32,
+            body_lines.append(
+                f"{{ auto __effect_s = ({inner_lambda})({fwd_args});\n"
+                f"call.set_effect(parent->get_effect_index("
+                f"__effect_s.c_str(), __effect_s.size())); }}"
             )
-            cg.add(var.set_effect(wrapper))
         else:
-            # Static string — resolve effect name to index at codegen time
-            effect_index = _resolve_effect_index(config)
-            cg.add(var.set_effect(effect_index))
-    return var
+            # Cast disambiguates between set_effect(uint32_t) and
+            # set_effect(optional<uint32_t>) when the literal is an int.
+            body_lines.append(
+                f"call.set_effect(static_cast<uint32_t>({_resolve_effect_index(config)}));"
+            )
+
+    apply_args = [
+        (LightState.operator("ptr"), "parent"),
+        (LightCall.operator("ref"), "call"),
+        *normalized_args,
+    ]
+    apply_lambda = LambdaExpression(
+        ["\n".join(body_lines)],
+        apply_args,
+        capture="",
+        return_type=cg.void,
+    )
+    return cg.new_Pvariable(action_id, template_arg, paren, apply_lambda)
 
 
 CONF_RELATIVE_BRIGHTNESS = "relative_brightness"
@@ -278,10 +284,12 @@ LIGHT_DIM_RELATIVE_ACTION_SCHEMA = cv.Schema(
 )
 async def light_dim_relative_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    templ = await cg.templatable(config[CONF_RELATIVE_BRIGHTNESS], args, float)
+    has_transition_length = CONF_TRANSITION_LENGTH in config
+    dim_template_arg = cg.TemplateArguments(has_transition_length, *template_arg)
+    var = cg.new_Pvariable(action_id, dim_template_arg, paren)
+    templ = await cg.templatable(config[CONF_RELATIVE_BRIGHTNESS], args, cg.float_)
     cg.add(var.set_relative_brightness(templ))
-    if CONF_TRANSITION_LENGTH in config:
+    if has_transition_length:
         templ = await cg.templatable(config[CONF_TRANSITION_LENGTH], args, cg.uint32)
         cg.add(var.set_transition_length(templ))
     if conf := config.get(CONF_BRIGHTNESS_LIMITS):

@@ -12,8 +12,7 @@
 
 #include "esp_lcd_panel_rgb.h"
 
-namespace esphome {
-namespace st7701s {
+namespace esphome::st7701s {
 
 constexpr static const char *const TAG = "display.st7701s";
 const uint8_t SW_RESET_CMD = 0x01;
@@ -113,6 +112,5 @@ class ST7701S : public display::Display,
   esp_lcd_panel_handle_t handle_{};
 };
 
-}  // namespace st7701s
-}  // namespace esphome
+}  // namespace esphome::st7701s
 #endif

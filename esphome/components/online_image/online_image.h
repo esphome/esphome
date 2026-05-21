@@ -88,18 +88,18 @@ class OnlineImage : public PollingComponent,
    */
   size_t download_buffer_initial_size_;
 
-  std::string url_{""};
+  std::string url_;
 
   std::vector<std::pair<std::string, TemplatableValue<std::string>>> request_headers_;
 
   /**
    * The value of the ETag HTTP header provided in the last response.
    */
-  std::string etag_ = "";
+  std::string etag_;
   /**
    * The value of the Last-Modified HTTP header provided in the last response.
    */
-  std::string last_modified_ = "";
+  std::string last_modified_;
 
   uint32_t start_time_{0};
 };
@@ -127,20 +127,6 @@ template<typename... Ts> class OnlineImageReleaseAction : public Action<Ts...> {
 
  protected:
   OnlineImage *parent_;
-};
-
-class DownloadFinishedTrigger : public Trigger<bool> {
- public:
-  explicit DownloadFinishedTrigger(OnlineImage *parent) {
-    parent->add_on_finished_callback([this](bool cached) { this->trigger(cached); });
-  }
-};
-
-class DownloadErrorTrigger : public Trigger<> {
- public:
-  explicit DownloadErrorTrigger(OnlineImage *parent) {
-    parent->add_on_error_callback([this]() { this->trigger(); });
-  }
 };
 
 }  // namespace esphome::online_image

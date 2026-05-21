@@ -2,11 +2,12 @@
 
 CODEOWNERS = ["@esphome/core"]
 
-CONF_BYTE_ORDER = "byte_order"
-CONF_CLIMATE_ID = "climate_id"
 BYTE_ORDER_LITTLE = "little_endian"
 BYTE_ORDER_BIG = "big_endian"
 
+CONF_B_CONSTANT = "b_constant"
+CONF_BYTE_ORDER = "byte_order"
+CONF_CLIMATE_ID = "climate_id"
 CONF_COLOR_DEPTH = "color_depth"
 CONF_CRC_ENABLE = "crc_enable"
 CONF_DATA_BITS = "data_bits"
@@ -31,5 +32,7 @@ CONF_VOLUME_MIN = "volume_min"
 ICON_CURRENT_DC = "mdi:current-dc"
 ICON_SOLAR_PANEL = "mdi:solar-panel"
 ICON_SOLAR_POWER = "mdi:solar-power"
+
+KEY_METADATA = "metadata"
 
 UNIT_AMPERE_HOUR = "Ah"

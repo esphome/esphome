@@ -13,8 +13,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace sim800l {
+namespace esphome::sim800l {
 
 const uint16_t SIM800L_READ_BUFFER_LENGTH = 1024;
 
@@ -121,41 +120,6 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   CallbackManager<void(std::string)> ussd_received_callback_;
 };
 
-class Sim800LReceivedMessageTrigger : public Trigger<std::string, std::string> {
- public:
-  explicit Sim800LReceivedMessageTrigger(Sim800LComponent *parent) {
-    parent->add_on_sms_received_callback(
-        [this](const std::string &message, const std::string &sender) { this->trigger(message, sender); });
-  }
-};
-
-class Sim800LIncomingCallTrigger : public Trigger<std::string> {
- public:
-  explicit Sim800LIncomingCallTrigger(Sim800LComponent *parent) {
-    parent->add_on_incoming_call_callback([this](const std::string &caller_id) { this->trigger(caller_id); });
-  }
-};
-
-class Sim800LCallConnectedTrigger : public Trigger<> {
- public:
-  explicit Sim800LCallConnectedTrigger(Sim800LComponent *parent) {
-    parent->add_on_call_connected_callback([this]() { this->trigger(); });
-  }
-};
-
-class Sim800LCallDisconnectedTrigger : public Trigger<> {
- public:
-  explicit Sim800LCallDisconnectedTrigger(Sim800LComponent *parent) {
-    parent->add_on_call_disconnected_callback([this]() { this->trigger(); });
-  }
-};
-class Sim800LReceivedUssdTrigger : public Trigger<std::string> {
- public:
-  explicit Sim800LReceivedUssdTrigger(Sim800LComponent *parent) {
-    parent->add_on_ussd_received_callback([this](const std::string &ussd) { this->trigger(ussd); });
-  }
-};
-
 template<typename... Ts> class Sim800LSendSmsAction : public Action<Ts...> {
  public:
   Sim800LSendSmsAction(Sim800LComponent *parent) : parent_(parent) {}
@@ -219,5 +183,4 @@ template<typename... Ts> class Sim800LDisconnectAction : public Action<Ts...> {
   Sim800LComponent *parent_;
 };
 
-}  // namespace sim800l
-}  // namespace esphome
+}  // namespace esphome::sim800l

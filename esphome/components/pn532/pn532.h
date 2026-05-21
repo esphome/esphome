@@ -10,8 +10,7 @@
 #include <cinttypes>
 #include <vector>
 
-namespace esphome {
-namespace pn532 {
+namespace esphome::pn532 {
 
 static const uint8_t PN532_COMMAND_VERSION_DATA = 0x02;
 static const uint8_t PN532_COMMAND_SAMCONFIGURATION = 0x14;
@@ -133,17 +132,9 @@ class PN532BinarySensor : public binary_sensor::BinarySensor {
   bool found_{false};
 };
 
-class PN532OnFinishedWriteTrigger : public Trigger<> {
- public:
-  explicit PN532OnFinishedWriteTrigger(PN532 *parent) {
-    parent->add_on_finished_write_callback([this]() { this->trigger(); });
-  }
-};
-
 template<typename... Ts> class PN532IsWritingCondition : public Condition<Ts...>, public Parented<PN532> {
  public:
   bool check(const Ts &...x) override { return this->parent_->is_writing(); }
 };
 
-}  // namespace pn532
-}  // namespace esphome
+}  // namespace esphome::pn532

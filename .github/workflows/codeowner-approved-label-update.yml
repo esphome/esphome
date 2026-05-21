@@ -15,9 +15,9 @@ on:
       - beta
 
 permissions:
-  issues: write
-  pull-requests: read
-  contents: read
+  issues: write       # issues.addLabels / removeLabel to manage the 'code-owner-approved' label on the PR
+  pull-requests: read  # listReviews to determine whether a codeowner has approved
+  contents: read       # actions/checkout to read CODEOWNERS and the shared codeowners.js helper
 
 jobs:
   codeowner-approved:
@@ -34,7 +34,7 @@ jobs:
             CODEOWNERS
 
       - name: Check codeowner approval and update label
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         with:

@@ -155,7 +155,7 @@ ESP8266_PIN_SCHEMA = cv.All(
 
 @dataclass
 class PinInitialState:
-    mode = 255
+    mode: int = 255
     level: int = 255
 
 

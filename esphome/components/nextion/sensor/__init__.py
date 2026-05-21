@@ -85,16 +85,16 @@ async def to_code(config):
         cg.add(var.set_component_id(config[CONF_COMPONENT_ID]))
 
     if CONF_WAVE_CHANNEL_ID in config:
+        cg.add_define("USE_NEXTION_WAVEFORM")
         cg.add(var.set_wave_channel_id(config[CONF_WAVE_CHANNEL_ID]))
-
-    if CONF_WAVEFORM_SEND_LAST_VALUE in config:
-        cg.add(var.set_waveform_send_last_value(config[CONF_WAVEFORM_SEND_LAST_VALUE]))
-
-    if CONF_WAVE_MAX_VALUE in config:
-        cg.add(var.set_wave_max_value(config[CONF_WAVE_MAX_VALUE]))
-
-    if CONF_WAVE_MAX_LENGTH in config:
-        cg.add(var.set_wave_max_length(config[CONF_WAVE_MAX_LENGTH]))
+        if CONF_WAVEFORM_SEND_LAST_VALUE in config:
+            cg.add(
+                var.set_waveform_send_last_value(config[CONF_WAVEFORM_SEND_LAST_VALUE])
+            )
+        if CONF_WAVE_MAX_VALUE in config:
+            cg.add(var.set_wave_max_value(config[CONF_WAVE_MAX_VALUE]))
+        if CONF_WAVE_MAX_LENGTH in config:
+            cg.add(var.set_wave_max_length(config[CONF_WAVE_MAX_LENGTH]))
 
 
 @automation.register_action(
@@ -116,13 +116,13 @@ async def sensor_nextion_publish_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
-    template_ = await cg.templatable(config[CONF_STATE], args, float)
+    template_ = await cg.templatable(config[CONF_STATE], args, cg.float_)
     cg.add(var.set_state(template_))
 
-    template_ = await cg.templatable(config[CONF_PUBLISH_STATE], args, bool)
+    template_ = await cg.templatable(config[CONF_PUBLISH_STATE], args, cg.bool_)
     cg.add(var.set_publish_state(template_))
 
-    template_ = await cg.templatable(config[CONF_SEND_TO_NEXTION], args, bool)
+    template_ = await cg.templatable(config[CONF_SEND_TO_NEXTION], args, cg.bool_)
     cg.add(var.set_send_to_nextion(template_))
 
     return var

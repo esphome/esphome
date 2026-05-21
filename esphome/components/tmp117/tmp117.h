@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace tmp117 {
+namespace esphome::tmp117 {
 
 class TMP117Component : public PollingComponent, public i2c::I2CDevice, public sensor::Sensor {
  public:
@@ -22,5 +21,4 @@ class TMP117Component : public PollingComponent, public i2c::I2CDevice, public s
   uint16_t config_;
 };
 
-}  // namespace tmp117
-}  // namespace esphome
+}  // namespace esphome::tmp117

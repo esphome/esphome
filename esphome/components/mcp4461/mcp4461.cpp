@@ -3,8 +3,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace mcp4461 {
+namespace esphome::mcp4461 {
 
 static const char *const TAG = "mcp4461";
 constexpr uint8_t EEPROM_WRITE_TIMEOUT_MS = 10;
@@ -628,5 +627,4 @@ bool Mcp4461Component::mcp4461_write_(uint8_t addr, uint16_t data, bool nonvolat
   }
   return this->write_byte(reg, value_byte);
 }
-}  // namespace mcp4461
-}  // namespace esphome
+}  // namespace esphome::mcp4461

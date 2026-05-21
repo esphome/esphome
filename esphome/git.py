@@ -102,6 +102,7 @@ def clone_or_update(
     username: str = None,
     password: str = None,
     submodules: list[str] | None = None,
+    subpath: Path | None = None,
     _recover_broken: bool = True,
 ) -> tuple[Path, Callable[[], None] | None]:
     key = f"{url}@{ref}"
@@ -112,6 +113,9 @@ def clone_or_update(
         )
 
     repo_dir = _compute_destination_path(key, domain)
+    if subpath:
+        repo_dir = repo_dir / subpath
+
     if not repo_dir.is_dir():
         _LOGGER.info("Cloning %s", key)
         _LOGGER.debug("Location: %s", repo_dir)
@@ -124,7 +128,10 @@ def clone_or_update(
                 # We need to fetch the PR branch first, otherwise git will complain
                 # about missing objects
                 _LOGGER.info("Fetching %s", ref)
-                run_git_command(["git", "fetch", "--", "origin", ref], git_dir=repo_dir)
+                run_git_command(
+                    ["git", "fetch", "--depth=1", "--", "origin", ref],
+                    git_dir=repo_dir,
+                )
                 run_git_command(
                     ["git", "reset", "--hard", "FETCH_HEAD"], git_dir=repo_dir
                 )
@@ -134,7 +141,8 @@ def clone_or_update(
                     "Initializing submodules (%s) for %s", ", ".join(submodules), key
                 )
                 run_git_command(
-                    ["git", "submodule", "update", "--init"] + submodules,
+                    ["git", "submodule", "update", "--init", "--depth=1", "--"]
+                    + submodules,
                     git_dir=repo_dir,
                 )
         except GitException:
@@ -146,9 +154,7 @@ def clone_or_update(
             raise
 
     else:
-        # Check refresh needed
-        # Skip refresh if NEVER_REFRESH is specified
-        if refresh == NEVER_REFRESH:
+        if refresh == NEVER_REFRESH or CORE.skip_external_update:
             _LOGGER.debug("Skipping update for %s (refresh disabled)", key)
             return repo_dir, None
 
@@ -177,8 +183,13 @@ def clone_or_update(
                     git_dir=repo_dir,
                 )
 
-                # Fetch remote ref
-                cmd = ["git", "fetch", "--", "origin"]
+                # Fetch from the remote. --depth=1 keeps the clone shallow
+                # while still picking up new commits when the remote tip
+                # moves: a shallow fetch retrieves the current tip being
+                # fetched, whether that's an explicit ref or the remote's
+                # default branch, then reset --hard FETCH_HEAD updates the
+                # working tree to it.
+                cmd = ["git", "fetch", "--depth=1", "--", "origin"]
                 if ref is not None:
                     cmd.append(ref)
                 run_git_command(cmd, git_dir=repo_dir)
@@ -227,7 +238,8 @@ def clone_or_update(
                     "Updating submodules (%s) for %s", ", ".join(submodules), key
                 )
                 run_git_command(
-                    ["git", "submodule", "update", "--init"] + submodules,
+                    ["git", "submodule", "update", "--init", "--depth=1", "--"]
+                    + submodules,
                     git_dir=repo_dir,
                 )
 
