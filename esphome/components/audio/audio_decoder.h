@@ -5,9 +5,9 @@
 #include "audio.h"
 #include "audio_transfer_buffer.h"
 
+#include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/ring_buffer.h"
 
 #ifdef USE_SPEAKER
 #include "esphome/components/speaker/speaker.h"
@@ -35,8 +35,7 @@
 #include <micro_wav/wav_decoder.h>
 #endif
 
-namespace esphome {
-namespace audio {
+namespace esphome::audio {
 
 enum class AudioDecoderState : uint8_t {
   DECODING = 0,  // More data is available to decode
@@ -71,12 +70,12 @@ class AudioDecoder {
   /// @brief Adds a source ring buffer for raw file data. Takes ownership of the ring buffer in a shared_ptr.
   /// @param input_ring_buffer weak_ptr of a shared_ptr of the sink ring buffer to transfer ownership
   /// @return ESP_OK if successsful, ESP_ERR_NO_MEM if the transfer buffer wasn't allocated
-  esp_err_t add_source(std::weak_ptr<RingBuffer> &input_ring_buffer);
+  esp_err_t add_source(std::weak_ptr<ring_buffer::RingBuffer> &input_ring_buffer);
 
   /// @brief Adds a sink ring buffer for decoded audio. Takes ownership of the ring buffer in a shared_ptr.
   /// @param output_ring_buffer weak_ptr of a shared_ptr of the sink ring buffer to transfer ownership
   /// @return ESP_OK if successsful, ESP_ERR_NO_MEM if the transfer buffer wasn't allocated
-  esp_err_t add_sink(std::weak_ptr<RingBuffer> &output_ring_buffer);
+  esp_err_t add_sink(std::weak_ptr<ring_buffer::RingBuffer> &output_ring_buffer);
 
 #ifdef USE_SPEAKER
   /// @brief Adds a sink speaker for decoded audio.
@@ -155,7 +154,6 @@ class AudioDecoder {
 
   bool pause_output_{false};
 };
-}  // namespace audio
-}  // namespace esphome
+}  // namespace esphome::audio
 
 #endif

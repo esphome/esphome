@@ -1624,3 +1624,171 @@ def test_split_conflicting_groups_preserves_original_signature_for_first_bucket(
     platform, signature = next(iter(extra))
     assert platform == "esp32"
     assert signature.startswith("i2c__conflict")
+
+
+# ---------------------------------------------------------------------------
+# get_component_test_files / is_validate_only_file
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def fake_component_tests(tmp_path: Path) -> Path:
+    """Create a fake tests/components/ tree and return the repo root.
+
+    Layout for component "demo":
+        test.esp32-idf.yaml
+        test.esp8266-ard.yaml
+        test-variant.esp32-idf.yaml
+        validate.esp32-idf.yaml
+        validate-legacy.esp32-idf.yaml
+
+    Layout for component "validate_only":
+        validate.esp32-idf.yaml      (only validate files)
+
+    Layout for component "no_tests":
+        common.yaml                  (no test/validate files at all)
+    """
+    tests_dir = tmp_path / "tests" / "components"
+
+    demo = tests_dir / "demo"
+    demo.mkdir(parents=True)
+    (demo / "test.esp32-idf.yaml").write_text("")
+    (demo / "test.esp8266-ard.yaml").write_text("")
+    (demo / "test-variant.esp32-idf.yaml").write_text("")
+    (demo / "validate.esp32-idf.yaml").write_text("")
+    (demo / "validate-legacy.esp32-idf.yaml").write_text("")
+
+    validate_only = tests_dir / "validate_only"
+    validate_only.mkdir(parents=True)
+    (validate_only / "validate.esp32-idf.yaml").write_text("")
+
+    no_tests = tests_dir / "no_tests"
+    no_tests.mkdir(parents=True)
+    (no_tests / "common.yaml").write_text("")
+
+    return tmp_path
+
+
+def _names(paths: list[Path]) -> set[str]:
+    return {p.name for p in paths}
+
+
+def test_get_component_test_files_default_excludes_validate(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """Default behaviour: only base test.*.yaml; no variants, no validate."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    files = helpers.get_component_test_files("demo")
+
+    assert _names(files) == {"test.esp32-idf.yaml", "test.esp8266-ard.yaml"}
+
+
+def test_get_component_test_files_all_variants_excludes_validate(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """all_variants=True picks up test variants but still skips validate."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    files = helpers.get_component_test_files("demo", all_variants=True)
+
+    assert _names(files) == {
+        "test.esp32-idf.yaml",
+        "test.esp8266-ard.yaml",
+        "test-variant.esp32-idf.yaml",
+    }
+
+
+def test_get_component_test_files_include_validate_base_only(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """include_validate=True with base-only adds validate.*.yaml only."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    files = helpers.get_component_test_files("demo", include_validate=True)
+
+    assert _names(files) == {
+        "test.esp32-idf.yaml",
+        "test.esp8266-ard.yaml",
+        "validate.esp32-idf.yaml",
+    }
+
+
+def test_get_component_test_files_include_validate_all_variants(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """include_validate=True with all_variants adds validate variants too."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    files = helpers.get_component_test_files(
+        "demo", all_variants=True, include_validate=True
+    )
+
+    assert _names(files) == {
+        "test.esp32-idf.yaml",
+        "test.esp8266-ard.yaml",
+        "test-variant.esp32-idf.yaml",
+        "validate.esp32-idf.yaml",
+        "validate-legacy.esp32-idf.yaml",
+    }
+
+
+def test_get_component_test_files_validate_only_component(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """A component with only validate files is invisible without the flag."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    assert helpers.get_component_test_files("validate_only") == []
+    assert helpers.get_component_test_files("validate_only", all_variants=True) == []
+
+    files = helpers.get_component_test_files(
+        "validate_only", all_variants=True, include_validate=True
+    )
+    assert _names(files) == {"validate.esp32-idf.yaml"}
+
+
+def test_get_component_test_files_missing_component(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """Unknown components return an empty list, regardless of flags."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    assert (
+        helpers.get_component_test_files(
+            "does_not_exist", all_variants=True, include_validate=True
+        )
+        == []
+    )
+
+
+def test_get_component_test_files_component_without_tests(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """A component with only common.yaml and no test/validate files returns []."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    assert (
+        helpers.get_component_test_files(
+            "no_tests", all_variants=True, include_validate=True
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize(
+    ("filename", "expected"),
+    [
+        ("validate.esp32-idf.yaml", True),
+        ("validate-legacy.esp32-idf.yaml", True),
+        ("validate.host.yaml", True),
+        ("test.esp32-idf.yaml", False),
+        ("test-variant.esp32-idf.yaml", False),
+        ("common.yaml", False),
+        # Defensive: a hypothetical name starting with "validate" but not
+        # following the grammar must not be classified as a validate file.
+        ("validatesomething.yaml", False),
+    ],
+)
+def test_is_validate_only_file(filename: str, expected: bool, tmp_path: Path) -> None:
+    assert helpers.is_validate_only_file(tmp_path / filename) is expected
