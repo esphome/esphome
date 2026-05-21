@@ -783,6 +783,31 @@ def download_from_mirrors(
         return None
 
 
+def _write_idf_version_txt(framework_path: Path, version: str) -> None:
+    """Write <framework_path>/version.txt if missing.
+
+    IDF's build.cmake resolves the version it embeds in the firmware
+    (and stamps onto the bootloader) by first running ``git describe``
+    against IDF_PATH, then falling back to ``${IDF_PATH}/version.txt``.
+    The esphome-libs/esp-idf tarball strips ``.git``, so git_describe
+    returns junk (HEAD-HASH-NOTFOUND on a clean strip, ``<hash>-dirty``
+    on a partial strip) and the bootloader's version string ends up
+    matching. Drop a version.txt at the framework root so the fallback
+    reports the real release.
+    """
+    version_txt = framework_path / "version.txt"
+    if version_txt.is_file():
+        return
+    try:
+        version_txt.write_text(f"v{version}\n", encoding="utf-8")
+    except OSError as e:
+        _LOGGER.warning(
+            "Could not write %s (%s); bootloader version string may be incorrect.",
+            version_txt,
+            e,
+        )
+
+
 def _check_esphome_idf_framework_install(
     version: str,
     targets: list[str],
@@ -854,6 +879,11 @@ def _check_esphome_idf_framework_install(
             _LOGGER.info("Extracting ESP-IDF %s framework ...", version)
             archive_extract_all(tmp.file, framework_path, progress_header="Extracting")
             extracted_marker.touch()
+
+    # Idempotent post-extract patch: written every invocation so a build
+    # dir extracted before this fix gets the file too, without forcing a
+    # clean. Skips when version.txt already exists.
+    _write_idf_version_txt(framework_path, version)
 
     # 3. Check if the framework tools are the same and correctly installed
     if not install:
