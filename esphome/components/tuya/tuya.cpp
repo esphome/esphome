@@ -203,16 +203,20 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       }
       if (this->init_state_ == TuyaInitState::INIT_CONF) {
         // If mcu returned status gpio, then we can omit sending wifi state
-        if (this->status_pin_reported_ != -1 && this->status_pin_ != nullptr) {
+        if (this->status_pin_reported_ != -1) {
           this->init_state_ = TuyaInitState::INIT_DATAPOINT;
           this->send_empty_command_(TuyaCommandType::DATAPOINT_QUERY);
-          // Configure status pin toggling (if reported and configured) or WIFI_STATE periodic send
-          if (this->status_pin_->get_pin() != this->status_pin_reported_) {
-            ESP_LOGW(TAG, "Supplied status_pin does not equal the reported pin %i. Using supplied pin anyway.",
+          if (this->status_pin_ != nullptr) {
+            if (this->status_pin_->get_pin() != this->status_pin_reported_) {
+              ESP_LOGW(TAG, "Supplied status_pin does not equal the reported pin %i. Using supplied pin anyway.",
+                       this->status_pin_reported_);
+            }
+            ESP_LOGV(TAG, "Configured status pin %i", this->status_pin_->get_pin());
+            this->set_interval("wifi", 1000, [this] { this->set_status_pin_(); });
+          } else {
+            ESP_LOGW(TAG, "MCU reported status_pin %i but no status_pin was configured; running in limited mode.",
                      this->status_pin_reported_);
           }
-          ESP_LOGV(TAG, "Configured status pin %i", this->status_pin_->get_pin());
-          this->set_interval("wifi", 1000, [this] { this->set_status_pin_(); });
         } else {
           this->init_state_ = TuyaInitState::INIT_WIFI;
           ESP_LOGV(TAG, "Configured WIFI_STATE periodic send");
