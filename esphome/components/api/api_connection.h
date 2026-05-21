@@ -38,8 +38,8 @@ class ComponentIterator;
 namespace esphome::api {
 
 // Forward declaration to break the api_connection.h <-> api_server.h include cycle.
-// APIServer is only used through pointers/references in this header; methods that
-// need the complete type are defined inline at the bottom of api_server.h.
+// APIServer is only used through pointers/references in this header; the few
+// inline methods that need the complete type are defined in api_connection_buffer.h.
 class APIServer;
 
 // Keepalive timeout in milliseconds
@@ -419,8 +419,9 @@ class APIConnection final : public APIServerConnectionBase {
 
   // Core batch encoding logic. Computes header size, checks fit, resizes buffer, encodes.
   // ALWAYS_INLINE so the compiler can devirtualize encode_fn at hot call sites.
-  // Definition is at the bottom of api_server.h, where APIServer is a complete type
-  // (needed for conn->parent_->get_shared_buffer_ref()). Callers must include api_server.h.
+  // Definition lives in api_connection_buffer.h, where APIServer is a complete type
+  // (needed for conn->parent_->get_shared_buffer_ref()). Callers must include
+  // api_connection_buffer.h.
   static uint16_t ESPHOME_ALWAYS_INLINE encode_to_buffer(uint32_t calculated_size, MessageEncodeFn encode_fn,
                                                          const void *msg, APIConnection *conn, uint32_t remaining_size);
 
@@ -766,7 +767,7 @@ class APIConnection final : public APIServerConnectionBase {
   // Read by process_batch_multi_ to pass into MessageInfo.
   uint8_t batch_header_size_{0};
 
-  // Definition at the bottom of api_server.h (needs APIServer complete).
+  // Definition in api_connection_buffer.h (needs APIServer complete).
   uint32_t get_batch_delay_ms_() const;
   // Message will use 8 more bytes than the minimum size, and typical
   // MTU is 1500. Sometimes users will see as low as 1460 MTU.
