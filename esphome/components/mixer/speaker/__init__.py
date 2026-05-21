@@ -74,6 +74,17 @@ def _validate_source_speaker(config):
     return config
 
 
+def _validate_output_speaker(config):
+    audio.final_validate_audio_schema(
+        "mixer",
+        audio_device=CONF_OUTPUT_SPEAKER,
+        bits_per_sample=config.get(CONF_BITS_PER_SAMPLE),
+        channels=config.get(CONF_NUM_CHANNELS),
+    )(config)
+
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -101,6 +112,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
     ),
     inherit_property_from(CONF_BITS_PER_SAMPLE, CONF_OUTPUT_SPEAKER),
     inherit_property_from(CONF_NUM_CHANNELS, CONF_OUTPUT_SPEAKER),
+    _validate_output_speaker,
 )
 
 
