@@ -29,11 +29,6 @@ static constexpr uint8_t OCP_140MA = 0x38;  // 140 mA max current
 // LoRa low data rate optimization threshold
 static constexpr float LOW_DATA_RATE_OPTIMIZE_THRESHOLD = 16.38f;  // 16.38 ms
 
-// Datasheet §8.3: every SPI transaction is "NSS low, then wait BUSY low,
-// then send opcode". The NSS falling edge is also what wakes the chip from
-// sleep, so the order must be CS-low first and wait_busy_() second --
-// otherwise any command issued while the chip is in sleep deadlocks waiting
-// for a BUSY edge that only the NSS-low can trigger.
 uint8_t SX126x::read_fifo_(uint8_t offset, std::vector<uint8_t> &packet) {
   this->enable();
   this->wait_busy_();
