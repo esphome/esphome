@@ -93,7 +93,7 @@ class URLSource(Source):
 
 
 class GitSource(Source):
-    def __init__(self, url: str, ref: str):
+    def __init__(self, url: str, ref: str | None):
         self.url = url
         self.ref = ref
 
@@ -109,7 +109,7 @@ class GitSource(Source):
         return path
 
     def __str__(self):
-        return f"{self.url}#{self.ref}"
+        return f"{self.url}#{self.ref}" if self.ref else self.url
 
 
 class InvalidIDFComponent(Exception):
@@ -362,10 +362,11 @@ def _convert_library_to_component(library: Library) -> IDFComponent:
     #  Repository is provided directly
     if library.repository:
         # Parse repository URL: path becomes the component name, fragment
-        # becomes the git ref stored on GitSource.
+        # (if any) becomes the git ref stored on GitSource. A missing
+        # fragment is fine -- clone_or_update leaves the depth-1 clone on
+        # the remote's default branch, matching PIO's lib_deps behavior
+        # and external_components handling.
         split_result = urlsplit(library.repository)
-        if not split_result.fragment.strip():
-            raise ValueError(f"Missing ref in URL {library.repository}")
 
         # Sanitize name
         name = str(split_result.path).strip("/")
@@ -377,7 +378,8 @@ def _convert_library_to_component(library: Library) -> IDFComponent:
         version = "*"
         repository = urlunsplit(split_result._replace(fragment=""))
 
-        source = GitSource(str(repository), split_result.fragment)
+        ref = split_result.fragment.strip() or None
+        source = GitSource(str(repository), ref)
 
     # Version is provided - resolve using PlatformIO registry
     elif library.version:
