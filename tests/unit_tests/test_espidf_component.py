@@ -436,11 +436,21 @@ def test_convert_library_with_branch_ref():
     assert result.source.ref == "some-branch"
 
 
-def test_convert_library_missing_ref():
+def test_convert_library_missing_ref_uses_default_branch():
+    """A bare URL with no #ref clones the remote's default branch.
+
+    Matches PIO's lib_deps behavior and external_components handling --
+    git.clone_or_update with ref=None leaves the depth-1 clone on
+    whatever branch the remote HEAD points at.
+    """
     lib = Library("name", None, "https://github.com/foo/bar.git")
 
-    with pytest.raises(ValueError):
-        _convert_library_to_component(lib)
+    result = _convert_library_to_component(lib)
+
+    assert result.name == "foo/bar"
+    assert result.version == "*"
+    assert isinstance(result.source, GitSource)
+    assert result.source.ref is None
 
 
 def test_convert_library_registry(monkeypatch):
