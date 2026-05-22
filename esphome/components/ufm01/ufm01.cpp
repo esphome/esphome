@@ -1,5 +1,6 @@
 #include "ufm01.h"
 #include "esphome/core/log.h"
+#include <cstdio>
 #include <iomanip>
 #include <sstream>
 
@@ -57,7 +58,7 @@ static void log_hex(uint8_t data[32]) {
     if (i > 0) {
       res += " ";
     }
-    sprintf(buf, "%02d:0x%02X", i, data[i]);
+    snprintf(buf, sizeof(buf), "%02u:0x%02X", static_cast<unsigned int>(i), data[i]);
     res += buf;
   }
   ESP_LOGD(TAG, "%s", res.c_str());
