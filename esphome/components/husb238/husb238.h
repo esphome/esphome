@@ -121,6 +121,12 @@ union RegGoCommand {
   uint8_t raw;
 };
 
+static_assert(sizeof(PdStatus0) == 1, "PdStatus0 must be 1 byte");
+static_assert(sizeof(RegPdStatus1) == 1, "RegPdStatus1 must be 1 byte");
+static_assert(sizeof(RegSrcPdo) == 1, "RegSrcPdo must be 1 byte");
+static_assert(sizeof(RegSrcPdoSelect) == 1, "RegSrcPdoSelect must be 1 byte");
+static_assert(sizeof(RegGoCommand) == 1, "RegGoCommand must be 1 byte");
+
 class Husb238Component : public PollingComponent, public i2c::I2CDevice {
  public:
   Husb238Component() = default;
@@ -150,8 +156,9 @@ class Husb238Component : public PollingComponent, public i2c::I2CDevice {
       RegSrcPdoSelect src_pdo_sel;
       RegGoCommand go_command;
     };
-    uint8_t raw[10];
+    uint8_t raw[REG_NUM];
   } registers_;
+  static_assert(sizeof(registers_) == REG_NUM, "registers_ layout must match REG_NUM bytes");
 
   bool read_all_(bool &is_changed);
 };

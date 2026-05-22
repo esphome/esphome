@@ -26,7 +26,7 @@ void Husb238Component::update() {
   if (!this->read_all_(is_changed)) {
     is_changed = !this->status_has_error();
     this->status_set_error("Unable to communicate with HUSB238 chip");
-    std::fill(std::begin(this->registers_.raw), std::end(this->registers_.raw), 0);
+    std::memset(this->registers_.raw, 0, REG_NUM);
   } else {
     this->status_clear_error();
   }
@@ -69,13 +69,12 @@ bool Husb238Component::read_all_(bool &is_changed) {
   uint8_t old_regs[REG_NUM];
   std::memcpy(old_regs, this->registers_.raw, REG_NUM);
 
-  auto ok = this->read_bytes(static_cast<uint8_t>(CommandRegister::PD_STATUS0), &this->registers_.raw[0], REG_NUM);
-  if (!ok) {
+  if (!this->read_bytes(static_cast<uint8_t>(CommandRegister::PD_STATUS0), &this->registers_.raw[0], REG_NUM)) {
     ESP_LOGE(TAG, "Error reading HUSB238");
+    return false;
   }
   is_changed = std::memcmp(old_regs, this->registers_.raw, REG_NUM) != 0;
-
-  return ok;
+  return true;
 }
 
 }  // namespace esphome::husb238
