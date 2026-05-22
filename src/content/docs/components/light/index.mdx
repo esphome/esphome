@@ -375,6 +375,40 @@ on_...:
 >             - delay: 0.1s
 > ```
 
+### `light.effect.next` / `light.effect.previous` Action
+
+These [Actions](/automations/actions#all-actions) cycle through the effects configured for a light. `light.effect.next`
+advances to the next effect; `light.effect.previous` steps back to the previous one. The cycle wraps around at either
+end.
+
+```yaml
+on_...:
+  then:
+    - light.effect.next:
+        id: light_1
+    # Shorthand
+    - light.effect.next: light_1
+    - light.effect.previous:
+        id: light_1
+        include_none: true
+```
+
+**Configuration variables:**
+
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the light.
+- **include_none** (*Optional*, boolean): If `true`, "None" (no effect) is included as a step in the cycle, so the light
+  passes through an un-effected state when wrapping around. If `false`, only the configured effects are cycled and
+  "None" is skipped. Defaults to `false`.
+
+> [!NOTE]
+> If the light has no effect active and `include_none` is `false`, the first call will jump to the first configured
+> effect. The referenced light must have at least one effect configured; this is checked at configuration validation
+> time.
+
+> [!NOTE]
+> The action turns the light on if it isn't already on, so the chosen effect starts immediately. To cycle effects only
+> while the light is on, gate the action with the [`light.is_on`](#light-is_on_condition) condition.
+
 <span id="light-addressable_set_action"></span>
 
 ### `light.addressable_set` Action
