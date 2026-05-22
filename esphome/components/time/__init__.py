@@ -100,12 +100,19 @@ def _extract_tz_string(tzfile: bytes) -> str:
         raise
 
 
-def get_cached_tz():
-    return CORE.data.setdefault(DOMAIN, {}).get(CONF_TIMEZONE)
-
-
-def detect_tz() -> str:
-    if cached := get_cached_tz():
+def detect_tz() -> str | None:
+    if CORE.target_platform not in {
+        PLATFORM_ESP8266,
+        PLATFORM_ESP32,
+        PLATFORM_RP2040,
+        PLATFORM_BK72XX,
+        PLATFORM_RTL87XX,
+        PLATFORM_LN882X,
+        PLATFORM_HOST,
+    }:
+        return None
+    # Avoids duplicate logger messages when multiple time components are configured
+    if cached := CORE.data.setdefault(DOMAIN, {}).get(CONF_TIMEZONE):
         return cached
     iana_key = tzlocal.get_localzone_name()
     if iana_key is None:
@@ -391,15 +398,8 @@ def _emit_parsed_timezone_fields(parsed):
 
 async def setup_time_core_(time_var, config):
     timezone = config.get(CONF_TIMEZONE)
-    if not timezone and CORE.target_platform in {
-        PLATFORM_ESP8266,
-        PLATFORM_ESP32,
-        PLATFORM_RP2040,
-        PLATFORM_BK72XX,
-        PLATFORM_RTL87XX,
-        PLATFORM_LN882X,
-        PLATFORM_HOST,
-    }:
+    # an empty timezone is treated as disabling timezones completely as before
+    if timezone is None:
         timezone = detect_tz()
     if timezone:
         cg.add_define("USE_TIME_TIMEZONE")
