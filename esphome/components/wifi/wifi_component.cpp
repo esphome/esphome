@@ -632,11 +632,14 @@ void WiFiComponent::setup() {
 #endif
 
   if (this->enable_on_boot_) {
+#ifdef USE_ESP32
+    this->wifi_lazy_init_();
+#endif
     this->start();
   } else {
-#ifdef USE_ESP32
-    esp_netif_init();
-#endif
+    // Note: esp_netif_init() used to be called here as a fallback for non-IDF builds.
+    // It is now centralized in NetworkComponent::setup(), which runs at AFTER_BLUETOOTH
+    // (300) ahead of WiFi (250). No action needed.
     this->state_ = WIFI_COMPONENT_STATE_DISABLED;
   }
 }
@@ -1278,6 +1281,11 @@ void WiFiComponent::enable() {
 
   ESP_LOGD(TAG, "Enabling");
   this->state_ = WIFI_COMPONENT_STATE_OFF;
+#ifdef USE_ESP32
+  // Idempotent — only allocates DMA buffers + netifs on the first call. After this,
+  // start() can safely run.
+  this->wifi_lazy_init_();
+#endif
   this->start();
 }
 
