@@ -92,11 +92,19 @@ AudioResamplerState AudioResampler::resample(bool stop_gracefully, int32_t *ms_d
     // Lazily create the zero-copy source on first use. Frame-aligned reads ensure multi-channel frames are
     // never split across the ring buffer's wrap boundary.
     const size_t bytes_per_frame = this->input_stream_info_.frames_to_bytes(1);
-    this->audio_source_ = RingBufferAudioSource::create(std::move(this->source_ring_buffer_), this->input_buffer_size_,
+    if ((bytes_per_frame == 0) || (bytes_per_frame > RingBufferAudioSource::MAX_ALIGNMENT_BYTES)) {
+      // Stream info is unset or the frame is too large to use as an alignment; the uint8_t cast below would
+      // truncate it and could yield a source that tears frames.
+      return AudioResamplerState::FAILED;
+    }
+    // Pass the shared_ptr by copy so a failed create() leaves source_ring_buffer_ intact; release our
+    // reference only after the source has taken ownership.
+    this->audio_source_ = RingBufferAudioSource::create(this->source_ring_buffer_, this->input_buffer_size_,
                                                         static_cast<uint8_t>(bytes_per_frame));
     if (this->audio_source_ == nullptr) {
       return AudioResamplerState::FAILED;
     }
+    this->source_ring_buffer_.reset();
   }
 
   if (stop_gracefully) {
