@@ -456,3 +456,10 @@ async def to_code(config):
 async def network_component_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
+    # Pass the priority list to the C++ component. NetworkComponent::add_priority_entry
+    # captures the interface-name string literal pointer; CORE.data[KEY_NETWORK_PRIORITY]
+    # holds the normalized list of dicts (`{"interface": str, "timeout": int|None}`).
+    for entry in CORE.data.get(KEY_NETWORK_PRIORITY, []):
+        timeout_ms = entry["timeout"] if entry["timeout"] is not None else 0
+        cg.add(var.add_priority_entry(entry["interface"], timeout_ms))
