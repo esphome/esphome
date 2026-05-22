@@ -4,8 +4,7 @@
 // Datasheet:
 // - https://datasheets.maximintegrated.com/en/ds/DS1307.pdf
 
-namespace esphome {
-namespace pcf85063 {
+namespace esphome::pcf85063 {
 
 static const char *const TAG = "pcf85063";
 
@@ -40,14 +39,11 @@ void PCF85063Component::read_time() {
       .hour = uint8_t(pcf85063_.reg.hour + 10u * pcf85063_.reg.hour_10),
       .day_of_week = uint8_t(pcf85063_.reg.weekday),
       .day_of_month = uint8_t(pcf85063_.reg.day + 10u * pcf85063_.reg.day_10),
-      .day_of_year = 1,  // ignored by recalc_timestamp_utc(false)
       .month = uint8_t(pcf85063_.reg.month + 10u * pcf85063_.reg.month_10),
       .year = uint16_t(pcf85063_.reg.year + 10u * pcf85063_.reg.year_10 + 2000),
-      .is_dst = false,  // not used
-      .timestamp = 0,   // overwritten by recalc_timestamp_utc(false)
   };
   rtc_time.recalc_timestamp_utc(false);
-  if (!rtc_time.is_valid()) {
+  if (!rtc_time.is_valid(/*check_day_of_week=*/true, /*check_day_of_year=*/false)) {
     ESP_LOGE(TAG, "Invalid RTC time, not syncing to system clock.");
     return;
   }
@@ -102,5 +98,4 @@ bool PCF85063Component::write_rtc_() {
            pcf85063_.reg.day_10, pcf85063_.reg.day, ONOFF(!pcf85063_.reg.osc_stop), pcf85063_.reg.clkout_control);
   return true;
 }
-}  // namespace pcf85063
-}  // namespace esphome
+}  // namespace esphome::pcf85063

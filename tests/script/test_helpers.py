@@ -36,6 +36,7 @@ def clear_helpers_cache() -> None:
     """Clear cached functions before each test."""
     helpers._get_github_event_data.cache_clear()
     helpers._get_changed_files_github_actions.cache_clear()
+    helpers.get_components_per_integration_fixture.cache_clear()
 
 
 @pytest.mark.parametrize(
@@ -1027,6 +1028,51 @@ def test_get_all_dependencies_empty_set() -> None:
     assert result == set()
 
 
+def test_get_all_dependencies_platform_component() -> None:
+    """Platform components (domain.component) are looked up via get_platform,
+    not get_component."""
+    platform_comp = Mock()
+    platform_comp.dependencies = []
+    platform_comp.auto_load = []
+
+    with (
+        patch("esphome.loader.get_component") as mock_get_component,
+        patch("esphome.loader.get_platform") as mock_get_platform,
+    ):
+        mock_get_platform.return_value = platform_comp
+        mock_get_component.return_value = None
+
+        result = helpers.get_all_dependencies({"sensor.bthome"})
+
+        mock_get_platform.assert_called_once_with("sensor", "bthome")
+        mock_get_component.assert_not_called()
+        assert result == {"sensor.bthome"}
+
+
+def test_get_all_dependencies_platform_component_with_dependencies() -> None:
+    """Dependencies of a platform component are resolved transitively."""
+    platform_comp = Mock()
+    platform_comp.dependencies = ["sensor"]
+    platform_comp.auto_load = []
+
+    sensor_comp = Mock()
+    sensor_comp.dependencies = []
+    sensor_comp.auto_load = []
+
+    with (
+        patch("esphome.loader.get_component") as mock_get_component,
+        patch("esphome.loader.get_platform") as mock_get_platform,
+    ):
+        mock_get_platform.return_value = platform_comp
+        mock_get_component.side_effect = lambda name: (
+            sensor_comp if name == "sensor" else None
+        )
+
+        result = helpers.get_all_dependencies({"sensor.bthome"})
+
+        assert result == {"sensor.bthome", "sensor"}
+
+
 def test_get_components_from_integration_fixtures() -> None:
     """Test extraction of components from fixture YAML files."""
     yaml_content = {
@@ -1044,7 +1090,7 @@ def test_get_components_from_integration_fixtures() -> None:
         "gpio",
     }
 
-    mock_yaml_file = Mock()
+    mock_yaml_file = Mock(stem="test_fixture")
 
     with (
         patch("pathlib.Path.glob") as mock_glob,
@@ -1055,6 +1101,55 @@ def test_get_components_from_integration_fixtures() -> None:
         components = helpers.get_components_from_integration_fixtures()
 
         assert components == expected_components
+
+
+def test_get_components_from_integration_fixtures_skips_yaml_anchors() -> None:
+    """Test that YAML anchor keys (starting with '.') are excluded."""
+    yaml_content = {
+        "sensor": [{"platform": "template", "name": "test"}],
+        "esphome": {"name": "test"},
+        ".sensor_filters": {"filters": [{"timeout": "50ms"}]},
+        ".binary_filters": {"filters": [{"settle": "50ms"}]},
+    }
+
+    mock_yaml_file = Mock(stem="test_fixture")
+
+    with (
+        patch("pathlib.Path.glob") as mock_glob,
+        patch("esphome.yaml_util.load_yaml", return_value=yaml_content),
+    ):
+        mock_glob.return_value = [mock_yaml_file]
+
+        components = helpers.get_components_from_integration_fixtures()
+
+        assert ".sensor_filters" not in components
+        assert ".binary_filters" not in components
+        assert components == {"sensor", "esphome", "template"}
+
+
+def test_get_integration_test_files_for_components_real_fixtures() -> None:
+    """Test that component changes map to the correct real integration test files.
+
+    This test uses real fixtures to verify the mapping stays correct
+    as new tests are added.
+    """
+    # modbus should include at least the modbus test
+    modbus_tests = helpers.get_integration_test_files_for_components({"modbus"})
+    assert "tests/integration/test_uart_mock_modbus.py" in modbus_tests
+
+    # ld2410 should include at least the ld2410 test
+    ld2410_tests = helpers.get_integration_test_files_for_components({"ld2410"})
+    assert "tests/integration/test_uart_mock_ld2410.py" in ld2410_tests
+
+    # syslog should include at least the syslog test
+    syslog_tests = helpers.get_integration_test_files_for_components({"syslog"})
+    assert "tests/integration/test_syslog.py" in syslog_tests
+
+    # A component not used by any fixture should return nothing
+    fake_tests = helpers.get_integration_test_files_for_components(
+        {"nonexistent_component_xyz"}
+    )
+    assert fake_tests == []
 
 
 @pytest.mark.parametrize(
@@ -1373,3 +1468,327 @@ def test_cache_miss_corrupted_json(
         result = helpers.create_components_graph()
         # Should handle corruption gracefully and rebuild
         assert result == {}
+
+
+# ---------------------------------------------------------------------------
+# parse_component_metadata / split_conflicting_groups
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def fake_components(tmp_path: Path) -> Path:
+    """Create a fake esphome/components/ tree and return the repo root.
+
+    Component layout (tested against split_conflicting_groups):
+
+        alpha          -- CONFLICTS_WITH=["beta"]
+        beta           -- CONFLICTS_WITH=["alpha"]
+        beta_variant   -- AUTO_LOAD=["beta"]
+        gamma          -- (no metadata)
+        one_sided      -- CONFLICTS_WITH=["plain"]  (plain does not reject back)
+        plain          -- no CONFLICTS_WITH
+        callable_auto  -- AUTO_LOAD is a function (not a list literal) -> ignored
+        broken         -- __init__.py has a SyntaxError
+    """
+    components = tmp_path / "esphome" / "components"
+    components.mkdir(parents=True)
+
+    def write(name: str, body: str) -> None:
+        (components / name).mkdir()
+        (components / name / "__init__.py").write_text(body)
+
+    write("alpha", 'CONFLICTS_WITH = ["beta"]\n')
+    write("beta", 'CONFLICTS_WITH = ["alpha"]\n')
+    write("beta_variant", 'AUTO_LOAD = ["beta"]\n')
+    write("gamma", "")
+    write("one_sided", 'CONFLICTS_WITH = ["plain"]\n')
+    write("plain", "")
+    write("callable_auto", "def AUTO_LOAD():\n    return ['beta']\n")
+    write("broken", "this is not valid python !!!")
+    helpers.parse_component_metadata.cache_clear()
+    return tmp_path
+
+
+def test_parse_component_metadata_list_literals(
+    fake_components: Path, monkeypatch: MonkeyPatch
+) -> None:
+    monkeypatch.setattr(helpers, "root_path", str(fake_components))
+    helpers.parse_component_metadata.cache_clear()
+
+    meta = helpers.parse_component_metadata("alpha")
+    assert meta.conflicts_with == frozenset({"beta"})
+    assert meta.auto_load == frozenset()
+
+    variant = helpers.parse_component_metadata("beta_variant")
+    assert variant.auto_load == frozenset({"beta"})
+    assert variant.conflicts_with == frozenset()
+
+
+def test_parse_component_metadata_missing_empty_and_callable(
+    fake_components: Path, monkeypatch: MonkeyPatch
+) -> None:
+    monkeypatch.setattr(helpers, "root_path", str(fake_components))
+    helpers.parse_component_metadata.cache_clear()
+
+    # Unknown component -> empty metadata, not an error.
+    unknown = helpers.parse_component_metadata("does_not_exist")
+    assert unknown == helpers.ComponentMetadata()
+
+    # Empty __init__.py -> empty metadata.
+    assert helpers.parse_component_metadata("gamma") == helpers.ComponentMetadata()
+
+    # Callable AUTO_LOAD cannot be statically evaluated -> empty.
+    callable_meta = helpers.parse_component_metadata("callable_auto")
+    assert callable_meta.auto_load == frozenset()
+
+    # SyntaxError in __init__.py must not raise.
+    assert helpers.parse_component_metadata("broken") == helpers.ComponentMetadata()
+
+
+def test_split_conflicting_groups_splits_direct_conflict(
+    fake_components: Path, monkeypatch: MonkeyPatch
+) -> None:
+    monkeypatch.setattr(helpers, "root_path", str(fake_components))
+    helpers.parse_component_metadata.cache_clear()
+
+    result = helpers.split_conflicting_groups(
+        {("esp32", "i2c"): ["alpha", "beta", "gamma"]}
+    )
+    # alpha and beta must end up in different buckets; gamma has no conflicts.
+    buckets = list(result.values())
+    assert any("alpha" in b for b in buckets)
+    assert any("beta" in b for b in buckets)
+    for bucket in buckets:
+        assert not ({"alpha", "beta"} <= set(bucket))
+    # Gamma sticks with whichever bucket it landed in first (alpha's).
+    all_members = {c for b in buckets for c in b}
+    assert all_members == {"alpha", "beta", "gamma"}
+
+
+def test_split_conflicting_groups_propagates_through_auto_load(
+    fake_components: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """A component that AUTO_LOADs a conflicting one must also be split out."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_components))
+    helpers.parse_component_metadata.cache_clear()
+
+    result = helpers.split_conflicting_groups(
+        {("esp32", "i2c"): ["alpha", "beta_variant"]}
+    )
+    buckets = list(result.values())
+    for bucket in buckets:
+        assert not ({"alpha", "beta_variant"} <= set(bucket))
+    assert sum(len(b) for b in buckets) == 2
+
+
+def test_split_conflicting_groups_symmetric_one_sided_declaration(
+    fake_components: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """If only one side declares CONFLICTS_WITH, the pair must still be split."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_components))
+    helpers.parse_component_metadata.cache_clear()
+
+    result = helpers.split_conflicting_groups(
+        {("esp32", "i2c"): ["one_sided", "plain"]}
+    )
+    buckets = list(result.values())
+    for bucket in buckets:
+        assert not ({"one_sided", "plain"} <= set(bucket))
+
+
+def test_split_conflicting_groups_preserves_non_conflicting_group(
+    fake_components: Path, monkeypatch: MonkeyPatch
+) -> None:
+    monkeypatch.setattr(helpers, "root_path", str(fake_components))
+    helpers.parse_component_metadata.cache_clear()
+
+    original = {("esp32", "i2c"): ["alpha", "gamma", "plain"]}
+    result = helpers.split_conflicting_groups(original)
+    # All three are mutually compatible -- the group must not be split.
+    assert result == original
+
+
+def test_split_conflicting_groups_preserves_original_signature_for_first_bucket(
+    fake_components: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """When a group is split, the first bucket keeps the original signature key."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_components))
+    helpers.parse_component_metadata.cache_clear()
+
+    result = helpers.split_conflicting_groups({("esp32", "i2c"): ["alpha", "beta"]})
+    keys = set(result.keys())
+    assert ("esp32", "i2c") in keys
+    # One additional bucket with a disambiguated signature.
+    extra = keys - {("esp32", "i2c")}
+    assert len(extra) == 1
+    platform, signature = next(iter(extra))
+    assert platform == "esp32"
+    assert signature.startswith("i2c__conflict")
+
+
+# ---------------------------------------------------------------------------
+# get_component_test_files / is_validate_only_file
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def fake_component_tests(tmp_path: Path) -> Path:
+    """Create a fake tests/components/ tree and return the repo root.
+
+    Layout for component "demo":
+        test.esp32-idf.yaml
+        test.esp8266-ard.yaml
+        test-variant.esp32-idf.yaml
+        validate.esp32-idf.yaml
+        validate-legacy.esp32-idf.yaml
+
+    Layout for component "validate_only":
+        validate.esp32-idf.yaml      (only validate files)
+
+    Layout for component "no_tests":
+        common.yaml                  (no test/validate files at all)
+    """
+    tests_dir = tmp_path / "tests" / "components"
+
+    demo = tests_dir / "demo"
+    demo.mkdir(parents=True)
+    (demo / "test.esp32-idf.yaml").write_text("")
+    (demo / "test.esp8266-ard.yaml").write_text("")
+    (demo / "test-variant.esp32-idf.yaml").write_text("")
+    (demo / "validate.esp32-idf.yaml").write_text("")
+    (demo / "validate-legacy.esp32-idf.yaml").write_text("")
+
+    validate_only = tests_dir / "validate_only"
+    validate_only.mkdir(parents=True)
+    (validate_only / "validate.esp32-idf.yaml").write_text("")
+
+    no_tests = tests_dir / "no_tests"
+    no_tests.mkdir(parents=True)
+    (no_tests / "common.yaml").write_text("")
+
+    return tmp_path
+
+
+def _names(paths: list[Path]) -> set[str]:
+    return {p.name for p in paths}
+
+
+def test_get_component_test_files_default_excludes_validate(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """Default behaviour: only base test.*.yaml; no variants, no validate."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    files = helpers.get_component_test_files("demo")
+
+    assert _names(files) == {"test.esp32-idf.yaml", "test.esp8266-ard.yaml"}
+
+
+def test_get_component_test_files_all_variants_excludes_validate(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """all_variants=True picks up test variants but still skips validate."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    files = helpers.get_component_test_files("demo", all_variants=True)
+
+    assert _names(files) == {
+        "test.esp32-idf.yaml",
+        "test.esp8266-ard.yaml",
+        "test-variant.esp32-idf.yaml",
+    }
+
+
+def test_get_component_test_files_include_validate_base_only(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """include_validate=True with base-only adds validate.*.yaml only."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    files = helpers.get_component_test_files("demo", include_validate=True)
+
+    assert _names(files) == {
+        "test.esp32-idf.yaml",
+        "test.esp8266-ard.yaml",
+        "validate.esp32-idf.yaml",
+    }
+
+
+def test_get_component_test_files_include_validate_all_variants(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """include_validate=True with all_variants adds validate variants too."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    files = helpers.get_component_test_files(
+        "demo", all_variants=True, include_validate=True
+    )
+
+    assert _names(files) == {
+        "test.esp32-idf.yaml",
+        "test.esp8266-ard.yaml",
+        "test-variant.esp32-idf.yaml",
+        "validate.esp32-idf.yaml",
+        "validate-legacy.esp32-idf.yaml",
+    }
+
+
+def test_get_component_test_files_validate_only_component(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """A component with only validate files is invisible without the flag."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    assert helpers.get_component_test_files("validate_only") == []
+    assert helpers.get_component_test_files("validate_only", all_variants=True) == []
+
+    files = helpers.get_component_test_files(
+        "validate_only", all_variants=True, include_validate=True
+    )
+    assert _names(files) == {"validate.esp32-idf.yaml"}
+
+
+def test_get_component_test_files_missing_component(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """Unknown components return an empty list, regardless of flags."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    assert (
+        helpers.get_component_test_files(
+            "does_not_exist", all_variants=True, include_validate=True
+        )
+        == []
+    )
+
+
+def test_get_component_test_files_component_without_tests(
+    fake_component_tests: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """A component with only common.yaml and no test/validate files returns []."""
+    monkeypatch.setattr(helpers, "root_path", str(fake_component_tests))
+
+    assert (
+        helpers.get_component_test_files(
+            "no_tests", all_variants=True, include_validate=True
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize(
+    ("filename", "expected"),
+    [
+        ("validate.esp32-idf.yaml", True),
+        ("validate-legacy.esp32-idf.yaml", True),
+        ("validate.host.yaml", True),
+        ("test.esp32-idf.yaml", False),
+        ("test-variant.esp32-idf.yaml", False),
+        ("common.yaml", False),
+        # Defensive: a hypothetical name starting with "validate" but not
+        # following the grammar must not be classified as a validate file.
+        ("validatesomething.yaml", False),
+    ],
+)
+def test_is_validate_only_file(filename: str, expected: bool, tmp_path: Path) -> None:
+    assert helpers.is_validate_only_file(tmp_path / filename) is expected

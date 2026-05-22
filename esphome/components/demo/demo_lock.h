@@ -2,8 +2,7 @@
 
 #include "esphome/components/lock/lock.h"
 
-namespace esphome {
-namespace demo {
+namespace esphome::demo {
 
 class DemoLock : public lock::Lock {
  protected:
@@ -14,5 +13,4 @@ class DemoLock : public lock::Lock {
   }
 };
 
-}  // namespace demo
-}  // namespace esphome
+}  // namespace esphome::demo

@@ -36,6 +36,9 @@ struct ParsedTimezone {
   bool has_dst() const { return this->dst_start.type != DSTRuleType::NONE; }
 };
 
+/// Format a POSIX offset as "+HHMM"/"-HHMM" into buf (must be >= 6 bytes).
+void format_designation(int32_t posix_offset, char *buf, size_t buf_size);
+
 /// Parse a POSIX TZ string into a ParsedTimezone struct.
 ///
 /// @deprecated Remove before 2026.9.0 (bridge code for backward compatibility).

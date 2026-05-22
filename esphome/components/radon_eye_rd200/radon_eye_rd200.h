@@ -11,8 +11,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace radon_eye_rd200 {
+namespace esphome::radon_eye_rd200 {
 
 class RadonEyeRD200 : public PollingComponent, public ble_client::BLEClientNode {
  public:
@@ -41,7 +40,6 @@ class RadonEyeRD200 : public PollingComponent, public ble_client::BLEClientNode 
   esp32_ble_tracker::ESPBTUUID sensors_read_characteristic_uuid_;
 };
 
-}  // namespace radon_eye_rd200
-}  // namespace esphome
+}  // namespace esphome::radon_eye_rd200
 
 #endif  // USE_ESP32

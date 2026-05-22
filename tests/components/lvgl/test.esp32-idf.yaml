@@ -21,7 +21,7 @@ binary_sensor:
       ignore_strapping_warning: true
 
 display:
-  - platform: ili9xxx
+  - platform: mipi_spi
     spi_id: spi_bus
     model: st7789v
     id: second_display
@@ -41,7 +41,7 @@ display:
     invert_colors: false
     update_interval: never
 
-  - platform: ili9xxx
+  - platform: mipi_spi
     spi_id: spi_bus
     model: st7789v
     id: tft_display

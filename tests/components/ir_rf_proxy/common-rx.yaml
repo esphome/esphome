@@ -8,6 +8,7 @@ infrared:
   - platform: ir_rf_proxy
     id: ir_rx
     name: "IR Receiver"
+    receiver_frequency: 38kHz
     remote_receiver_id: ir_receiver
 
   # RF 900MHz receiver

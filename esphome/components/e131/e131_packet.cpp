@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <cstring>
 #include "e131.h"
 #ifdef USE_NETWORK
@@ -11,8 +12,7 @@
 #include <lwip/ip4_addr.h>
 #include <lwip/ip_addr.h>
 
-namespace esphome {
-namespace e131 {
+namespace esphome::e131 {
 
 static const char *const TAG = "e131";
 
@@ -57,7 +57,7 @@ union E131RawPacket {
 
 // We need to have at least one `1` value
 // Get the offset of `property_values[1]`
-const size_t E131_MIN_PACKET_SIZE = reinterpret_cast<size_t>(&((E131RawPacket *) nullptr)->property_values[1]);
+const size_t E131_MIN_PACKET_SIZE = offsetof(E131RawPacket, property_values) + sizeof(uint8_t);
 
 bool E131Component::join_igmp_groups_() {
   if (this->listen_method_ != E131_MULTICAST)
@@ -157,6 +157,6 @@ bool E131Component::packet_(const uint8_t *data, size_t len, int &universe, E131
   return true;
 }
 
-}  // namespace e131
-}  // namespace esphome
+}  // namespace esphome::e131
+
 #endif

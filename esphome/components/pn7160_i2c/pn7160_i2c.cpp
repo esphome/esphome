@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace pn7160_i2c {
+namespace esphome::pn7160_i2c {
 
 static const char *const TAG = "pn7160_i2c";
 
@@ -34,7 +33,8 @@ uint8_t PN7160I2C::read_nfcc(nfc::NciMessage &rx, const uint16_t timeout) {
 }
 
 uint8_t PN7160I2C::write_nfcc(nfc::NciMessage &tx) {
-  if (this->write(tx.encode().data(), tx.encode().size()) == i2c::ERROR_OK) {
+  auto encoded = tx.encode();
+  if (this->write(encoded.data(), encoded.size()) == i2c::ERROR_OK) {
     return nfc::STATUS_OK;
   }
   return nfc::STATUS_FAILED;
@@ -45,5 +45,4 @@ void PN7160I2C::dump_config() {
   LOG_I2C_DEVICE(this);
 }
 
-}  // namespace pn7160_i2c
-}  // namespace esphome
+}  // namespace esphome::pn7160_i2c

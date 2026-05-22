@@ -10,22 +10,13 @@
 
 namespace esphome::logger {
 
-TaskLogBuffer::TaskLogBuffer(size_t slot_count) : slot_count_(slot_count) {
-  // Allocate message slots
-  this->slots_ = std::make_unique<LogMessage[]>(slot_count);
-}
-
-TaskLogBuffer::~TaskLogBuffer() {
-  // unique_ptr handles cleanup automatically
-}
-
 int TaskLogBuffer::acquire_write_slot_() {
   // Try to reserve a slot using compare-and-swap
   size_t current_reserve = this->reserve_index_.load(std::memory_order_relaxed);
 
   while (true) {
     // Calculate next index (with wrap-around)
-    size_t next_reserve = (current_reserve + 1) % this->slot_count_;
+    size_t next_reserve = (current_reserve + 1) % ESPHOME_TASK_LOG_BUFFER_SIZE;
 
     // Check if buffer would be full
     // Buffer is full when next write position equals read position
@@ -50,7 +41,7 @@ void TaskLogBuffer::commit_write_slot_(int slot_index) {
   // Try to advance the write_index if we're the next expected commit
   // This ensures messages are read in order
   size_t expected = slot_index;
-  size_t next = (slot_index + 1) % this->slot_count_;
+  size_t next = (slot_index + 1) % ESPHOME_TASK_LOG_BUFFER_SIZE;
 
   // We only advance write_index if this slot is the next one expected
   // This handles out-of-order commits correctly
@@ -63,7 +54,7 @@ void TaskLogBuffer::commit_write_slot_(int slot_index) {
 
     // Successfully advanced, check if next slot is also ready
     expected = next;
-    next = (next + 1) % this->slot_count_;
+    next = (next + 1) % ESPHOME_TASK_LOG_BUFFER_SIZE;
     if (!this->slots_[expected].ready.load(std::memory_order_acquire)) {
       break;
     }
@@ -142,7 +133,7 @@ void TaskLogBuffer::release_message_main_loop() {
   this->slots_[current_read].ready.store(false, std::memory_order_release);
 
   // Advance read index
-  size_t next_read = (current_read + 1) % this->slot_count_;
+  size_t next_read = (current_read + 1) % ESPHOME_TASK_LOG_BUFFER_SIZE;
   this->read_index_.store(next_read, std::memory_order_release);
 }
 

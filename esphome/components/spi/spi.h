@@ -23,9 +23,9 @@ using SPIInterface = SPIClassRP2040 *;
 using SPIInterface = SPIClass *;
 #endif
 
-#elif defined(CLANG_TIDY)
+#elif defined(USE_HOST) || defined(CLANG_TIDY)
 
-using SPIInterface = void *;  // Stub for platforms without SPI (e.g., Zephyr)
+using SPIInterface = void *;  // Stub for platforms without SPI (e.g., host, Zephyr)
 
 #endif  // USE_ESP32 / USE_ARDUINO
 
@@ -33,6 +33,8 @@ using SPIInterface = void *;  // Stub for platforms without SPI (e.g., Zephyr)
  * Implementation of SPI Controller mode.
  */
 namespace esphome::spi {
+
+#define LOG_SPI_DEVICE(this) ESP_LOGCONFIG(TAG, "  CS Pin: %d", esphome::spi::Utility::get_pin_no(this->cs_));
 
 /// The bit-order for SPI devices. This defines how the data read from and written to the device is interpreted.
 enum SPIBitOrder {
@@ -449,7 +451,7 @@ class SPIDevice : public SPIClient {
 
   uint8_t read_byte() { return this->delegate_->transfer(0); }
 
-  void read_array(uint8_t *data, size_t length) { return this->delegate_->read_array(data, length); }
+  void read_array(uint8_t *data, size_t length) { this->delegate_->read_array(data, length); }
 
   /**
    * Write a single data item, up to 32 bits.

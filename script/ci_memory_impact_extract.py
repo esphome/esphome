@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # pylint: disable=wrong-import-position
 from esphome.analyze_memory import MemoryAnalyzer
-from esphome.platformio_api import IDEData
+from esphome.platformio.toolchain import IDEData
 from script.ci_helpers import write_github_output
 
 # Regex patterns for extracting memory usage from PlatformIO output
