@@ -307,12 +307,12 @@ def test_all_predefined_models(
 
 
 def test_native_generation(
-    generate_main: Callable[[str | Path], str],
+    cached_generate_main: Callable[[Path], tuple[str, dict[str, Any]]],
     component_fixture_path: Callable[[str], Path],
 ) -> None:
     """Test code generation for display."""
 
-    main_cpp = generate_main(component_fixture_path("native.yaml"))
+    main_cpp, _ = cached_generate_main(component_fixture_path("native.yaml"))
     assert (
         "mipi_spi::MipiSpiBuffer<uint16_t, mipi_spi::PIXEL_MODE_16, true, mipi_spi::PIXEL_MODE_16, mipi_spi::BUS_TYPE_QUAD, 360, 360, 0, 1, 0, true, 1, 1>()"
         in main_cpp
@@ -323,12 +323,12 @@ def test_native_generation(
 
 
 def test_lvgl_generation(
-    generate_main: Callable[[str | Path], str],
+    cached_generate_main: Callable[[Path], tuple[str, dict[str, Any]]],
     component_fixture_path: Callable[[str], Path],
 ) -> None:
     """Test LVGL generation configuration."""
 
-    main_cpp = generate_main(component_fixture_path("lvgl.yaml"))
+    main_cpp, _ = cached_generate_main(component_fixture_path("lvgl.yaml"))
     assert (
         "mipi_spi::MipiSpi<uint16_t, mipi_spi::PIXEL_MODE_16, true, mipi_spi::PIXEL_MODE_16, mipi_spi::BUS_TYPE_SINGLE, 128, 160, 0, 0, 0, true>();"
         in main_cpp

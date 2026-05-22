@@ -1,11 +1,13 @@
 """Tests for mpip_spi configuration validation."""
 
 from collections.abc import Callable, Generator
+from pathlib import Path
 from unittest import mock
 
 import pytest
 
 from esphome import config_validation as cv
+from esphome.components.display import DisplayMetaData, get_all_display_metadata
 from esphome.components.esp32 import KEY_ESP32, KEY_VARIANT, VARIANTS
 from esphome.components.esp32.gpio import validate_gpio_pin
 from esphome.const import CONF_INPUT, CONF_OUTPUT
@@ -21,6 +23,40 @@ def mock_spi_final_validate():
         return_value=lambda config: None,
     ):
         yield
+
+
+@pytest.fixture(scope="session")
+def _generation_cache() -> dict[Path, tuple[str, dict[str, DisplayMetaData]]]:
+    """Session-wide cache of generation output keyed by fixture yaml path.
+
+    Stores ``(main_cpp_text, display_metadata_snapshot)`` so multiple tests
+    that exercise the same fixture only pay for code generation once.
+    """
+    return {}
+
+
+@pytest.fixture
+def cached_generate_main(
+    generate_main: Callable[[str | Path], str],
+    _generation_cache: dict[Path, tuple[str, dict[str, DisplayMetaData]]],
+) -> Callable[[Path], tuple[str, dict[str, DisplayMetaData]]]:
+    """Like ``generate_main`` but caches results across the test session.
+
+    Returns ``(main_cpp_text, display_metadata_snapshot)``; the snapshot is
+    captured at generation time so callers see the same data after CORE has
+    been reset for the next test.
+    """
+
+    def _get(path: Path) -> tuple[str, dict[str, DisplayMetaData]]:
+        path = Path(path)
+        cached = _generation_cache.get(path)
+        if cached is None:
+            main_cpp = generate_main(path)
+            cached = (main_cpp, dict(get_all_display_metadata()))
+            _generation_cache[path] = cached
+        return cached
+
+    return _get
 
 
 @pytest.fixture

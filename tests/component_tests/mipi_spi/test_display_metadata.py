@@ -173,12 +173,11 @@ def test_metadata_multiple_displays_independent(
 
 
 def test_metadata_via_code_generation_native(
-    generate_main: Callable[[str | Path], str],
+    cached_generate_main: Callable[[Path], tuple[str, dict[str, DisplayMetaData]]],
     component_fixture_path: Callable[[str], Path],
 ) -> None:
     """Full code generation for native.yaml should produce correct metadata."""
-    generate_main(component_fixture_path("native.yaml"))
-    all_meta = get_all_display_metadata()
+    _, all_meta = cached_generate_main(component_fixture_path("native.yaml"))
     # native.yaml: model JC3636W518 -> 360x360, no writer, full hardware rotation
     assert len(all_meta) == 1
     meta = next(iter(all_meta.values()))
@@ -188,12 +187,11 @@ def test_metadata_via_code_generation_native(
 
 
 def test_metadata_via_code_generation_lvgl(
-    generate_main: Callable[[str | Path], str],
+    cached_generate_main: Callable[[Path], tuple[str, dict[str, DisplayMetaData]]],
     component_fixture_path: Callable[[str], Path],
 ) -> None:
     """Full code generation for lvgl.yaml should produce correct metadata."""
-    generate_main(component_fixture_path("lvgl.yaml"))
-    all_meta = get_all_display_metadata()
+    _, all_meta = cached_generate_main(component_fixture_path("lvgl.yaml"))
     # lvgl.yaml: model ST7735 -> 128x160, no writer (lvgl draws directly), full hw rotation
     assert len(all_meta) == 1
     meta = next(iter(all_meta.values()))
