@@ -1507,7 +1507,7 @@ async def test_websocket_refresh_command(
         # test can deterministically wait for the server-side handler to run
         # instead of relying on a fixed sleep (flaky on Windows CI under load).
         called = asyncio.Event()
-        mock_subscriber.request_refresh = Mock(side_effect=lambda: called.set())
+        mock_subscriber.request_refresh = Mock(side_effect=called.set)
 
         # Send refresh command
         await websocket_client.write_message(json.dumps({"event": "refresh"}))
