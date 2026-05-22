@@ -162,7 +162,8 @@ AudioDecoderState AudioDecoder::decode(bool stop_gracefully) {
       }
 
       if ((bytes_written > 0) && (this->output_transfer_buffer_->available() == 0)) {
-        // Wrote a full decoded chunk of audio
+        // All decoded audio has been flushed to the sink; return so the caller can react to stop/pause before
+        // decoding the next batch
         return AudioDecoderState::DECODING;
       }
     } else {
