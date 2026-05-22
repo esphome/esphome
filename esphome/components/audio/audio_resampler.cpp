@@ -12,16 +12,17 @@ static const uint32_t READ_WRITE_TIMEOUT_MS = 20;
 
 AudioResampler::AudioResampler(size_t input_buffer_size, size_t output_buffer_size)
     : input_buffer_size_(input_buffer_size), output_buffer_size_(output_buffer_size) {
-  this->input_transfer_buffer_ = AudioSourceTransferBuffer::create(input_buffer_size);
   this->output_transfer_buffer_ = AudioSinkTransferBuffer::create(output_buffer_size);
 }
 
 esp_err_t AudioResampler::add_source(std::weak_ptr<ring_buffer::RingBuffer> &input_ring_buffer) {
-  if (this->input_transfer_buffer_ != nullptr) {
-    this->input_transfer_buffer_->set_source(input_ring_buffer);
-    return ESP_OK;
+  // The zero-copy RingBufferAudioSource is created lazily on the first resample() call, once both the ring
+  // buffer (stored here) and the input stream info (set by start()) are available, in either order.
+  this->source_ring_buffer_ = input_ring_buffer.lock();
+  if (this->source_ring_buffer_ == nullptr) {
+    return ESP_ERR_NO_MEM;
   }
-  return ESP_ERR_NO_MEM;
+  return ESP_OK;
 }
 
 esp_err_t AudioResampler::add_sink(std::weak_ptr<ring_buffer::RingBuffer> &output_ring_buffer) {
@@ -47,7 +48,7 @@ esp_err_t AudioResampler::start(AudioStreamInfo &input_stream_info, AudioStreamI
   this->input_stream_info_ = input_stream_info;
   this->output_stream_info_ = output_stream_info;
 
-  if ((this->input_transfer_buffer_ == nullptr) || (this->output_transfer_buffer_ == nullptr)) {
+  if (this->output_transfer_buffer_ == nullptr) {
     return ESP_ERR_NO_MEM;
   }
 
@@ -87,8 +88,19 @@ esp_err_t AudioResampler::start(AudioStreamInfo &input_stream_info, AudioStreamI
 }
 
 AudioResamplerState AudioResampler::resample(bool stop_gracefully, int32_t *ms_differential) {
+  if (this->audio_source_ == nullptr) {
+    // Lazily create the zero-copy source on first use. Frame-aligned reads ensure multi-channel frames are
+    // never split across the ring buffer's wrap boundary.
+    const size_t bytes_per_frame = this->input_stream_info_.frames_to_bytes(1);
+    this->audio_source_ = RingBufferAudioSource::create(std::move(this->source_ring_buffer_), this->input_buffer_size_,
+                                                        static_cast<uint8_t>(bytes_per_frame));
+    if (this->audio_source_ == nullptr) {
+      return AudioResamplerState::FAILED;
+    }
+  }
+
   if (stop_gracefully) {
-    if (!this->input_transfer_buffer_->has_buffered_data() && (this->output_transfer_buffer_->available() == 0)) {
+    if (!this->audio_source_->has_buffered_data() && (this->output_transfer_buffer_->available() == 0)) {
       return AudioResamplerState::FINISHED;
     }
   }
@@ -102,9 +114,11 @@ AudioResamplerState AudioResampler::resample(bool stop_gracefully, int32_t *ms_d
     delay(READ_WRITE_TIMEOUT_MS);
   }
 
-  this->input_transfer_buffer_->transfer_data_from_source(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS));
+  // Expose a chunk of the ring buffer's internal storage. pre_shift is ignored by RingBufferAudioSource
+  // (there is no intermediate transfer buffer to compact).
+  this->audio_source_->fill(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS), false);
 
-  if (this->input_transfer_buffer_->available() == 0) {
+  if (this->audio_source_->available() == 0) {
     // No samples available to process
     return AudioResamplerState::RESAMPLING;
   }
@@ -112,17 +126,17 @@ AudioResamplerState AudioResampler::resample(bool stop_gracefully, int32_t *ms_d
   const size_t bytes_free = this->output_transfer_buffer_->free();
   const uint32_t frames_free = this->output_stream_info_.bytes_to_frames(bytes_free);
 
-  const size_t bytes_available = this->input_transfer_buffer_->available();
+  const size_t bytes_available = this->audio_source_->available();
   const uint32_t frames_available = this->input_stream_info_.bytes_to_frames(bytes_available);
 
   if ((this->input_stream_info_.get_sample_rate() != this->output_stream_info_.get_sample_rate()) ||
       (this->input_stream_info_.get_bits_per_sample() != this->output_stream_info_.get_bits_per_sample())) {
     // Adjust gain by -3 dB to avoid clipping due to the resampling process
     esp_audio_libs::resampler::ResamplerResults results =
-        this->resampler_->resample(this->input_transfer_buffer_->get_buffer_start(),
-                                   this->output_transfer_buffer_->get_buffer_end(), frames_available, frames_free, -3);
+        this->resampler_->resample(this->audio_source_->data(), this->output_transfer_buffer_->get_buffer_end(),
+                                   frames_available, frames_free, -3);
 
-    this->input_transfer_buffer_->decrease_buffer_length(this->input_stream_info_.frames_to_bytes(results.frames_used));
+    this->audio_source_->consume(this->input_stream_info_.frames_to_bytes(results.frames_used));
     this->output_transfer_buffer_->increase_buffer_length(
         this->output_stream_info_.frames_to_bytes(results.frames_generated));
 
@@ -146,10 +160,10 @@ AudioResamplerState AudioResampler::resample(bool stop_gracefully, int32_t *ms_d
     const size_t bytes_to_transfer = std::min(this->output_stream_info_.frames_to_bytes(frames_free),
                                               this->input_stream_info_.frames_to_bytes(frames_available));
 
-    std::memcpy((void *) this->output_transfer_buffer_->get_buffer_end(),
-                (void *) this->input_transfer_buffer_->get_buffer_start(), bytes_to_transfer);
+    std::memcpy((void *) this->output_transfer_buffer_->get_buffer_end(), (const void *) this->audio_source_->data(),
+                bytes_to_transfer);
 
-    this->input_transfer_buffer_->decrease_buffer_length(bytes_to_transfer);
+    this->audio_source_->consume(bytes_to_transfer);
     this->output_transfer_buffer_->increase_buffer_length(bytes_to_transfer);
   }
 
