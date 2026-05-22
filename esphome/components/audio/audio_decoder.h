@@ -70,7 +70,7 @@ class AudioDecoder {
   /// @brief Adds a source ring buffer for raw file data. Shares ownership of the ring buffer via a shared_ptr.
   /// The decoder reads directly from the ring buffer's internal storage with a zero-copy RingBufferAudioSource.
   /// @param input_ring_buffer weak_ptr of the source ring buffer to read from
-  /// @return ESP_OK if successful, ESP_ERR_NO_MEM if the source couldn't be created
+  /// @return ESP_OK if successful, ESP_ERR_INVALID_ARG if the ring buffer is expired or the buffer size is zero
   esp_err_t add_source(std::weak_ptr<ring_buffer::RingBuffer> &input_ring_buffer);
 
   /// @brief Adds a sink ring buffer for decoded audio. Takes ownership of the ring buffer in a shared_ptr.

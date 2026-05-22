@@ -27,7 +27,8 @@ esp_err_t AudioDecoder::add_source(std::weak_ptr<ring_buffer::RingBuffer> &input
   // aligned, so no frame alignment is required.
   auto source = RingBufferAudioSource::create(input_ring_buffer.lock(), this->input_buffer_size_);
   if (source == nullptr) {
-    return ESP_ERR_NO_MEM;
+    // create() only returns nullptr for invalid arguments (expired ring buffer or zero buffer size)
+    return ESP_ERR_INVALID_ARG;
   }
   this->input_buffer_ = std::move(source);
   return ESP_OK;
