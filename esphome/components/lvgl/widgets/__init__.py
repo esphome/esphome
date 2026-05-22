@@ -77,9 +77,7 @@ EVENT_LAMB = "event_lamb__"
 
 
 def _build_update_schema(widget_type: "WidgetType") -> Schema:
-    """Materialise the `lvgl.<widget>.update` action schema for a widget type."""
-    # Local import: `..schemas` imports `WidgetType` from this module, so a
-    # top-level import would loop.
+    # Local import: ..schemas imports WidgetType from this module.
     from ..schemas import base_update_schema
 
     return base_update_schema(widget_type, widget_type.parts).extend(
@@ -90,18 +88,8 @@ def _build_update_schema(widget_type: "WidgetType") -> Schema:
 def _update_action_schema(
     widget_type: "WidgetType",
 ) -> Schema | Callable[[Any], Any]:
-    """Return the registered schema for a widget's update action.
-
-    When `EnableSchemaExtraction` is on (script/build_language_schema.py), the
-    schema must be materialised eagerly so `schema_extractors` can introspect
-    the full mapping; the registry stores `raw_schema` directly and wrapping a
-    bare validator in `Schema()` would hide its structure from the dumper.
-
-    Otherwise the schema build is deferred until the first `lvgl.<widget>.update`
-    action is validated. That removes ~200 ms of cumulative voluptuous work
-    across ~25 widget types at lvgl module import time for any YAML that never
-    triggers an update action.
-    """
+    # Eager when extracting so build_language_schema.py sees the mapping;
+    # lazy otherwise to skip ~200 ms of import-time voluptuous work.
     if EnableSchemaExtraction:
         return _build_update_schema(widget_type)
 
@@ -166,11 +154,6 @@ class WidgetType:
                 raise EsphomeError(f"Duplicate definition of widget type '{self.name}'")
             WIDGET_TYPES[self.name] = self
 
-            # Register the update action automatically, adding widget-specific
-            # properties. The schema is materialised lazily on first validation
-            # (see `_update_action_schema`); the schema dumper still sees the
-            # full mapping because that helper picks the eager build when
-            # schema extraction is enabled.
             register_action(
                 f"lvgl.{self.name}.update",
                 ObjUpdateAction,
