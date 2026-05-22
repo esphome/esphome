@@ -1821,9 +1821,6 @@ async def to_code(config):
         cg.add_build_flag("-Wno-error=overloaded-virtual")
         cg.add_build_flag("-Wno-error=reorder")
         cg.add_build_flag("-Wno-error=volatile")
-        # IDF v6 headers (e.g. driver/twai.h) emit #warning deprecation
-        # notices that fire under -Werror. Demote to a warning so legacy
-        # components keep building until they migrate.
         cg.add_build_flag("-Wno-error=cpp")
         # -Wno- (not -Wno-error=): suppress entirely, too noisy on C++ aggregates
         cg.add_build_flag("-Wno-missing-field-initializers")
