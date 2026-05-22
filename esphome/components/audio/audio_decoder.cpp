@@ -9,7 +9,6 @@ namespace esphome::audio {
 
 static const char *const TAG = "audio.decoder";
 
-static const uint32_t DECODING_TIMEOUT_MS = 50;    // The decode function will yield after this duration
 static const uint32_t READ_WRITE_TIMEOUT_MS = 20;  // Timeout for transferring audio data
 
 static const uint32_t MAX_POTENTIALLY_FAILED_COUNT = 10;
@@ -20,11 +19,12 @@ AudioDecoder::AudioDecoder(size_t input_buffer_size, size_t output_buffer_size)
 }
 
 esp_err_t AudioDecoder::add_source(std::weak_ptr<ring_buffer::RingBuffer> &input_ring_buffer) {
-  auto source = AudioSourceTransferBuffer::create(this->input_buffer_size_);
+  // Zero-copy source reading directly from the ring buffer's internal storage. Raw file data is byte
+  // aligned, so no frame alignment is required.
+  auto source = RingBufferAudioSource::create(input_ring_buffer.lock(), this->input_buffer_size_);
   if (source == nullptr) {
     return ESP_ERR_NO_MEM;
   }
-  source->set_source(input_ring_buffer);
   this->input_buffer_ = std::move(source);
   return ESP_OK;
 }
@@ -142,13 +142,6 @@ AudioDecoderState AudioDecoder::decode(bool stop_gracefully) {
 
   FileDecoderState state = FileDecoderState::MORE_TO_PROCESS;
 
-  uint32_t decoding_start = millis();
-
-  bool first_loop_iteration = true;
-
-  size_t bytes_processed = 0;
-  size_t bytes_available_before_processing = 0;
-
   while (state == FileDecoderState::MORE_TO_PROCESS) {
     // Transfer decoded out
     if (!this->pause_output_) {
@@ -161,45 +154,27 @@ AudioDecoderState AudioDecoder::decode(bool stop_gracefully) {
         this->playback_ms_ +=
             this->audio_stream_info_.value().frames_to_milliseconds_with_remainder(&this->accumulated_frames_written_);
       }
+
+      if ((bytes_written > 0) && (this->output_transfer_buffer_->available() == 0)) {
+        // Wrote a full decoded chunk of audio
+        return AudioDecoderState::DECODING;
+      }
     } else {
       // If paused, block to avoid wasting CPU resources
       delay(READ_WRITE_TIMEOUT_MS);
     }
 
-    // Verify there is enough space to store more decoded audio and that the function hasn't been running too long
-    if ((this->output_transfer_buffer_->free() < this->free_buffer_required_) ||
-        (millis() - decoding_start > DECODING_TIMEOUT_MS)) {
+    if (this->output_transfer_buffer_->available() > 0) {
+      // Output transfer buffer indicates backpressure, return so caller can handle other events;
+      // e.g., stop/pause, before trying again
       return AudioDecoderState::DECODING;
     }
 
-    // Decode more audio
+    // Expose the next chunk of file data. Every decoder buffers internally and consumes only what it
+    // processed, so the source does not need to accumulate or stitch chunks across fill() calls.
+    this->input_buffer_->fill(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS), false);
 
-    // Never shift the input buffer; every decoder buffers internally and consumes only what it processed.
-    size_t bytes_read = this->input_buffer_->fill(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS), false);
-
-    if (!first_loop_iteration && (this->input_buffer_->available() < bytes_processed)) {
-      // Less data is available than what was processed in last iteration, so don't attempt to decode.
-      // This attempts to avoid the decoder from consistently trying to decode an incomplete frame. The transfer buffer
-      // will shift the remaining data to the start and copy more from the source the next time the decode function is
-      // called
-      break;
-    }
-
-    bytes_available_before_processing = this->input_buffer_->available();
-
-    if ((this->potentially_failed_count_ > 0) && (bytes_read == 0)) {
-      // Failed to decode in last attempt and there is no new data
-
-      if ((this->input_buffer_->free() == 0) && first_loop_iteration) {
-        // The input buffer is full (or read-only, e.g. const flash source). Since it previously failed on the exact
-        // same data, we can never recover. For const sources this is correct: the entire file is already available, so
-        // a decode failure is genuine, not a transient out-of-data condition.
-        state = FileDecoderState::FAILED;
-      } else {
-        // Attempt to get more data next time
-        state = FileDecoderState::IDLE;
-      }
-    } else if (this->input_buffer_->available() == 0) {
+    if (this->input_buffer_->available() == 0) {
       // No data to decode, attempt to get more data next time
       state = FileDecoderState::IDLE;
     } else {
@@ -230,9 +205,6 @@ AudioDecoderState AudioDecoder::decode(bool stop_gracefully) {
           break;
       }
     }
-
-    first_loop_iteration = false;
-    bytes_processed = bytes_available_before_processing - this->input_buffer_->available();
 
     if (state == FileDecoderState::POTENTIALLY_FAILED) {
       ++this->potentially_failed_count_;
