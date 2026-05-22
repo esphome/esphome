@@ -4,8 +4,7 @@
 #include <iomanip>
 #include <sstream>
 
-namespace esphome {
-namespace ufm01 {
+namespace esphome::ufm01 {
 
 static const char *const TAG = "ufm_01";
 
@@ -164,5 +163,4 @@ void UFM01Component::loop() {
   }
 }
 
-}  // namespace ufm01
-}  // namespace esphome
+}  // namespace esphome::ufm01

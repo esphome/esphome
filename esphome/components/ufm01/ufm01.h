@@ -12,8 +12,7 @@
 
 // component API deifinition at https://www.sciosense.com/wp-content/uploads/2025/06/UFM-01-Datasheet-1.pdf
 
-namespace esphome {
-namespace ufm01 {
+namespace esphome::ufm01 {
 
 class UFM01Component : public uart::UARTDevice, public sensor::Sensor, public Component {
   SUB_SENSOR(volume)
@@ -47,5 +46,4 @@ class UFM01Component : public uart::UARTDevice, public sensor::Sensor, public Co
   void on_data_(uint8_t data[32]);
 };
 
-}  // namespace ufm01
-}  // namespace esphome
+}  // namespace esphome::ufm01
