@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # pylint: disable=wrong-import-position
 from esphome.analyze_memory import MemoryAnalyzer
-from esphome.platformio_api import IDEData
+from esphome.platformio.toolchain import IDEData
 from script.ci_helpers import write_github_output
 
 # Regex patterns for extracting memory usage from PlatformIO output
@@ -92,18 +92,23 @@ def run_detailed_analysis(build_dir: str) -> dict | None:
         print(f"Build directory not found: {build_dir}", file=sys.stderr)
         return None
 
-    # Find firmware.elf
+    # Find firmware.elf (or raw_firmware.elf for LibreTiny)
     elf_path = None
     for elf_candidate in [
         build_path / "firmware.elf",
         build_path / ".pioenvs" / build_path.name / "firmware.elf",
+        # LibreTiny uses raw_firmware.elf
+        build_path / "raw_firmware.elf",
+        build_path / ".pioenvs" / build_path.name / "raw_firmware.elf",
     ]:
         if elf_candidate.exists():
             elf_path = str(elf_candidate)
             break
 
     if not elf_path:
-        print(f"firmware.elf not found in {build_dir}", file=sys.stderr)
+        print(
+            f"firmware.elf/raw_firmware.elf not found in {build_dir}", file=sys.stderr
+        )
         return None
 
     # Find idedata.json - check multiple locations

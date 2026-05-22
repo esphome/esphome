@@ -8,8 +8,7 @@
 
 #include "ltr_definitions_501.h"
 
-namespace esphome {
-namespace ltr501 {
+namespace esphome::ltr501 {
 
 enum LtrDataAvail : uint8_t { LTR_NO_DATA, LTR_BAD_DATA, LTR_DATA_OK };
 
@@ -58,6 +57,14 @@ class LTRAlsPs501Component : public PollingComponent, public i2c::I2CDevice {
   void set_actual_integration_time_sensor(sensor::Sensor *sensor) { this->actual_integration_time_sensor_ = sensor; }
   void set_proximity_counts_sensor(sensor::Sensor *sensor) { this->proximity_counts_sensor_ = sensor; }
 
+  template<typename F> void add_on_ps_high_trigger_callback(F &&callback) {
+    this->on_ps_high_trigger_callback_.add(std::forward<F>(callback));
+  }
+
+  template<typename F> void add_on_ps_low_trigger_callback(F &&callback) {
+    this->on_ps_low_trigger_callback_.add(std::forward<F>(callback));
+  }
+
  protected:
   //
   // Internal state machine, used to split all the actions into
@@ -74,6 +81,7 @@ class LTRAlsPs501Component : public PollingComponent, public i2c::I2CDevice {
     READY_TO_PUBLISH,
     KEEP_PUBLISHING
   } state_{State::NOT_INITIALIZED};
+  uint8_t tries_{0};
 
   LtrType ltr_type_{LtrType::LTR_TYPE_ALS_ONLY};
 
@@ -130,6 +138,8 @@ class LTRAlsPs501Component : public PollingComponent, public i2c::I2CDevice {
   PsGain501 ps_gain_{PsGain501::PS_GAIN_1};
   uint16_t ps_threshold_high_{0xffff};
   uint16_t ps_threshold_low_{0x0000};
+  uint32_t last_ps_high_trigger_time_{0};
+  uint32_t last_ps_low_trigger_time_{0};
 
   //
   //   Sensors for publishing data
@@ -148,36 +158,7 @@ class LTRAlsPs501Component : public PollingComponent, public i2c::I2CDevice {
   }
   bool is_any_ps_sensor_enabled_() const { return this->proximity_counts_sensor_ != nullptr; }
 
-  //
-  // Trigger section for the automations
-  //
-  friend class LTRPsHighTrigger;
-  friend class LTRPsLowTrigger;
-
   CallbackManager<void()> on_ps_high_trigger_callback_;
   CallbackManager<void()> on_ps_low_trigger_callback_;
-
-  void add_on_ps_high_trigger_callback_(std::function<void()> callback) {
-    this->on_ps_high_trigger_callback_.add(std::move(callback));
-  }
-
-  void add_on_ps_low_trigger_callback_(std::function<void()> callback) {
-    this->on_ps_low_trigger_callback_.add(std::move(callback));
-  }
 };
-
-class LTRPsHighTrigger : public Trigger<> {
- public:
-  explicit LTRPsHighTrigger(LTRAlsPs501Component *parent) {
-    parent->add_on_ps_high_trigger_callback_([this]() { this->trigger(); });
-  }
-};
-
-class LTRPsLowTrigger : public Trigger<> {
- public:
-  explicit LTRPsLowTrigger(LTRAlsPs501Component *parent) {
-    parent->add_on_ps_low_trigger_callback_([this]() { this->trigger(); });
-  }
-};
-}  // namespace ltr501
-}  // namespace esphome
+}  // namespace esphome::ltr501

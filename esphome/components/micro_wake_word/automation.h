@@ -3,9 +3,9 @@
 #include "micro_wake_word.h"
 #include "streaming_model.h"
 
-#ifdef USE_ESP_IDF
-namespace esphome {
-namespace micro_wake_word {
+#ifdef USE_ESP32
+
+namespace esphome::micro_wake_word {
 
 template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<MicroWakeWord> {
  public:
@@ -49,6 +49,6 @@ template<typename... Ts> class ModelIsEnabledCondition : public Condition<Ts...>
   WakeWordModel *wake_word_model_;
 };
 
-}  // namespace micro_wake_word
-}  // namespace esphome
+}  // namespace esphome::micro_wake_word
+
 #endif

@@ -49,10 +49,6 @@ EPaperBase = epaper_spi_ns.class_(
 )
 Transform = epaper_spi_ns.enum("Transform")
 
-EPaperSpectraE6 = epaper_spi_ns.class_("EPaperSpectraE6", EPaperBase)
-EPaper7p3InSpectraE6 = epaper_spi_ns.class_("EPaper7p3InSpectraE6", EPaperSpectraE6)
-
-
 # Import all models dynamically from the models package
 for module_info in pkgutil.iter_modules(models.__path__):
     importlib.import_module(f".models.{module_info.name}", package=__package__)
@@ -76,50 +72,42 @@ def model_schema(config):
         model.get_default(CONF_MINIMUM_UPDATE_INTERVAL, "1s")
     )
     cv_dimensions = cv.Optional if model.get_default(CONF_WIDTH) else cv.Required
-    return (
-        display.FULL_DISPLAY_SCHEMA.extend(
-            spi.spi_device_schema(
-                cs_pin_required=False,
-                default_mode="MODE0",
-                default_data_rate=model.get_default(CONF_DATA_RATE, 10_000_000),
-            )
+    return display.FULL_DISPLAY_SCHEMA.extend(
+        spi.spi_device_schema(
+            cs_pin_required=False,
+            default_mode="MODE0",
+            default_data_rate=model.get_default(CONF_DATA_RATE, 10_000_000),
         )
-        .extend(
-            {
-                model.option(pin): pins.gpio_output_pin_schema
-                for pin in (CONF_RESET_PIN, CONF_CS_PIN, CONF_BUSY_PIN)
-            }
-        )
-        .extend(
-            {
-                cv.Optional(CONF_ROTATION, default=0): validate_rotation,
-                cv.Required(CONF_MODEL): cv.one_of(model.name, upper=True),
-                cv.Optional(CONF_UPDATE_INTERVAL, default=cv.UNDEFINED): cv.All(
-                    update_interval, cv.Range(min=minimum_update_interval)
-                ),
-                cv.Optional(CONF_TRANSFORM): cv.Schema(
-                    {
-                        cv.Required(CONF_MIRROR_X): cv.boolean,
-                        cv.Required(CONF_MIRROR_Y): cv.boolean,
-                    }
-                ),
-                cv.Optional(CONF_FULL_UPDATE_EVERY, default=1): cv.int_range(1, 255),
-                model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema,
-                cv.GenerateID(): cv.declare_id(class_name),
-                cv.GenerateID(CONF_INIT_SEQUENCE_ID): cv.declare_id(cg.uint8),
-                cv_dimensions(CONF_DIMENSIONS): DIMENSION_SCHEMA,
-                model.option(CONF_ENABLE_PIN): cv.ensure_list(
-                    pins.gpio_output_pin_schema
-                ),
-                model.option(CONF_INIT_SEQUENCE, cv.UNDEFINED): cv.ensure_list(
-                    map_sequence
-                ),
-                model.option(CONF_RESET_DURATION, cv.UNDEFINED): cv.All(
-                    cv.positive_time_period_milliseconds,
-                    cv.Range(max=core.TimePeriod(milliseconds=500)),
-                ),
-            }
-        )
+    ).extend(
+        {
+            cv.Optional(CONF_ROTATION, default=0): validate_rotation,
+            cv.Required(CONF_MODEL): cv.one_of(model.name, upper=True),
+            cv.Optional(CONF_UPDATE_INTERVAL, default=cv.UNDEFINED): cv.All(
+                update_interval, cv.Range(min=minimum_update_interval)
+            ),
+            cv.Optional(CONF_TRANSFORM): cv.Schema(
+                {
+                    cv.Required(CONF_MIRROR_X): cv.boolean,
+                    cv.Required(CONF_MIRROR_Y): cv.boolean,
+                }
+            ),
+            cv.Optional(CONF_FULL_UPDATE_EVERY, default=1): cv.int_range(1, 255),
+            model.option(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
+            model.option(CONF_CS_PIN): pins.gpio_output_pin_schema,
+            model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema,
+            model.option(CONF_RESET_PIN): pins.gpio_output_pin_schema,
+            cv.GenerateID(): cv.declare_id(class_name),
+            cv.GenerateID(CONF_INIT_SEQUENCE_ID): cv.declare_id(cg.uint8),
+            cv_dimensions(CONF_DIMENSIONS): DIMENSION_SCHEMA,
+            model.option(CONF_ENABLE_PIN): cv.ensure_list(pins.gpio_output_pin_schema),
+            model.option(CONF_INIT_SEQUENCE, cv.UNDEFINED): cv.ensure_list(
+                map_sequence
+            ),
+            model.option(CONF_RESET_DURATION, cv.UNDEFINED): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=core.TimePeriod(milliseconds=500)),
+            ),
+        }
     )
 
 
@@ -184,12 +172,11 @@ async def to_code(config):
         height,
         init_sequence_id,
         init_sequence_length,
+        *model.get_constructor_args(config),
     )
 
-    # Rotation is handled by setting the transform
-    display_config = {k: v for k, v in config.items() if k != CONF_ROTATION}
-    await display.register_display(var, display_config)
-    await spi.register_spi_device(var, config)
+    await display.register_display(var, config)
+    await spi.register_spi_device(var, config, write_only=True)
 
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))
@@ -212,16 +199,6 @@ async def to_code(config):
         transform[CONF_SWAP_XY] = False
     else:
         transform = {x: model.get_default(x, False) for x in TRANSFORM_OPTIONS}
-    rotation = config[CONF_ROTATION]
-    if rotation == 180:
-        transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
-        transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
-    elif rotation == 90:
-        transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
-        transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
-    elif rotation == 270:
-        transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
-        transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
     transform_str = "|".join(
         {
             str(getattr(Transform, x.upper()))

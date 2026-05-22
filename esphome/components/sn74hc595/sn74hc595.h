@@ -11,8 +11,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace sn74hc595 {
+namespace esphome::sn74hc595 {
 
 class SN74HC595Component : public Component {
  public:
@@ -54,7 +53,7 @@ class SN74HC595GPIOPin : public GPIOPin, public Parented<SN74HC595Component> {
   void pin_mode(gpio::Flags flags) override {}
   bool digital_read() override { return false; }
   void digital_write(bool value) override;
-  std::string dump_summary() const override;
+  size_t dump_summary(char *buffer, size_t len) const override;
 
   void set_pin(uint16_t pin) { pin_ = pin; }
   void set_inverted(bool inverted) { inverted_ = inverted; }
@@ -93,5 +92,4 @@ class SN74HC595SPIComponent : public SN74HC595Component,
 
 #endif
 
-}  // namespace sn74hc595
-}  // namespace esphome
+}  // namespace esphome::sn74hc595

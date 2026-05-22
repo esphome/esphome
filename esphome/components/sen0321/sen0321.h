@@ -7,8 +7,7 @@
 // ref:
 // https://github.com/DFRobot/DFRobot_OzoneSensor
 
-namespace esphome {
-namespace sen0321_sensor {
+namespace esphome::sen0321_sensor {
 // Sensor Mode
 // While passive is supposedly supported, it does not appear to work reliably.
 static const uint8_t SENSOR_MODE_REGISTER = 0x03;
@@ -31,5 +30,4 @@ class Sen0321Sensor : public sensor::Sensor, public PollingComponent, public i2c
   void read_data_();
 };
 
-}  // namespace sen0321_sensor
-}  // namespace esphome
+}  // namespace esphome::sen0321_sensor

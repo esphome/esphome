@@ -4,8 +4,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace he60r {
+namespace esphome::he60r {
 
 static const char *const TAG = "he60r.cover";
 static const uint8_t QUERY_BYTE = 0x38;
@@ -171,9 +170,12 @@ void HE60rCover::control(const CoverCall &call) {
     } else {
       this->toggles_needed_++;
     }
-  } else if (call.get_position().has_value()) {
+  } else {
+    auto pos_opt = call.get_position();
+    if (!pos_opt.has_value())
+      return;
     // go to position action
-    auto pos = *call.get_position();
+    auto pos = *pos_opt;
     // are we at the target?
     if (pos == this->position) {
       this->start_direction_(COVER_OPERATION_IDLE);
@@ -236,7 +238,7 @@ void HE60rCover::recompute_position_() {
     return;
 
   const uint32_t now = millis();
-  if (now > this->last_recompute_time_) {
+  if (now != this->last_recompute_time_) {
     auto diff = (unsigned) (now - last_recompute_time_);
     float delta;
     switch (this->current_operation) {
@@ -261,5 +263,4 @@ void HE60rCover::recompute_position_() {
   }
 }
 
-}  // namespace he60r
-}  // namespace esphome
+}  // namespace esphome::he60r

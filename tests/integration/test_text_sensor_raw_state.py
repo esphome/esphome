@@ -42,6 +42,11 @@ async def test_text_sensor_raw_state(
     map_off_future: asyncio.Future[str] = loop.create_future()
     map_unknown_future: asyncio.Future[str] = loop.create_future()
     chained_future: asyncio.Future[str] = loop.create_future()
+    to_lower_future: asyncio.Future[str] = loop.create_future()
+    lambda_future: asyncio.Future[str] = loop.create_future()
+    lambda_pass_future: asyncio.Future[str] = loop.create_future()
+    lambda_skip_future: asyncio.Future[str] = loop.create_future()
+    lambda_raw_state_future: asyncio.Future[tuple[str, str]] = loop.create_future()
 
     # Patterns to match log output
     # NO_FILTER: state='hello world' raw_state='hello world'
@@ -58,6 +63,13 @@ async def test_text_sensor_raw_state(
     map_off_pattern = re.compile(r"MAP_OFF: state='([^']*)'")
     map_unknown_pattern = re.compile(r"MAP_UNKNOWN: state='([^']*)'")
     chained_pattern = re.compile(r"CHAINED: state='([^']*)'")
+    to_lower_pattern = re.compile(r"TO_LOWER: state='([^']*)'")
+    lambda_pattern = re.compile(r"LAMBDA: state='([^']*)'")
+    lambda_pass_pattern = re.compile(r"LAMBDA_PASS: state='([^']*)'")
+    lambda_skip_pattern = re.compile(r"LAMBDA_SKIP: state='([^']*)'")
+    lambda_raw_state_pattern = re.compile(
+        r"LAMBDA_RAW_STATE: state='([^']*)' raw_state='([^']*)'"
+    )
 
     def check_output(line: str) -> None:
         """Check log output for expected messages."""
@@ -91,6 +103,27 @@ async def test_text_sensor_raw_state(
 
         if not chained_future.done() and (match := chained_pattern.search(line)):
             chained_future.set_result(match.group(1))
+
+        if not to_lower_future.done() and (match := to_lower_pattern.search(line)):
+            to_lower_future.set_result(match.group(1))
+
+        if not lambda_future.done() and (match := lambda_pattern.search(line)):
+            lambda_future.set_result(match.group(1))
+
+        if not lambda_pass_future.done() and (
+            match := lambda_pass_pattern.search(line)
+        ):
+            lambda_pass_future.set_result(match.group(1))
+
+        if not lambda_skip_future.done() and (
+            match := lambda_skip_pattern.search(line)
+        ):
+            lambda_skip_future.set_result(match.group(1))
+
+        if not lambda_raw_state_future.done() and (
+            match := lambda_raw_state_pattern.search(line)
+        ):
+            lambda_raw_state_future.set_result((match.group(1), match.group(2)))
 
     async with (
         run_compiled(yaml_config, line_callback=check_output),
@@ -272,3 +305,111 @@ async def test_text_sensor_raw_state(
             pytest.fail("Timeout waiting for CHAINED log message")
 
         assert state == "[value]", f"Chained failed: expected '[value]', got '{state}'"
+
+        # Test 10: to_lower filter
+        # "HELLO WORLD" -> "hello world"
+        to_lower_button = next(
+            (e for e in entities if "test_to_lower_button" in e.object_id.lower()),
+            None,
+        )
+        assert to_lower_button is not None, "Test To Lower Button not found"
+        client.button_command(to_lower_button.key)
+
+        try:
+            state = await asyncio.wait_for(to_lower_future, timeout=5.0)
+        except TimeoutError:
+            pytest.fail("Timeout waiting for TO_LOWER log message")
+
+        assert state == "hello world", (
+            f"to_lower failed: expected 'hello world', got '{state}'"
+        )
+
+        # Test 11: Lambda filter
+        # "test" -> "[test]"
+        lambda_button = next(
+            (e for e in entities if "test_lambda_button" in e.object_id.lower()),
+            None,
+        )
+        assert lambda_button is not None, "Test Lambda Button not found"
+        client.button_command(lambda_button.key)
+
+        try:
+            state = await asyncio.wait_for(lambda_future, timeout=5.0)
+        except TimeoutError:
+            pytest.fail("Timeout waiting for LAMBDA log message")
+
+        assert state == "[test]", f"Lambda failed: expected '[test]', got '{state}'"
+
+        # Test 12: Lambda filter - value passes through
+        # "value" -> "value passed"
+        lambda_pass_button = next(
+            (e for e in entities if "test_lambda_pass_button" in e.object_id.lower()),
+            None,
+        )
+        assert lambda_pass_button is not None, "Test Lambda Pass Button not found"
+        client.button_command(lambda_pass_button.key)
+
+        try:
+            state = await asyncio.wait_for(lambda_pass_future, timeout=5.0)
+        except TimeoutError:
+            pytest.fail("Timeout waiting for LAMBDA_PASS log message")
+
+        assert state == "value passed", (
+            f"Lambda pass failed: expected 'value passed', got '{state}'"
+        )
+
+        # Test 13: Lambda filter - skip publishing (return {})
+        # "skip" -> no publish, state remains "value passed" from previous test
+        lambda_skip_button = next(
+            (e for e in entities if "test_lambda_skip_button" in e.object_id.lower()),
+            None,
+        )
+        assert lambda_skip_button is not None, "Test Lambda Skip Button not found"
+        client.button_command(lambda_skip_button.key)
+
+        try:
+            state = await asyncio.wait_for(lambda_skip_future, timeout=5.0)
+        except TimeoutError:
+            pytest.fail("Timeout waiting for LAMBDA_SKIP log message")
+
+        # When lambda returns {}, value should NOT be published
+        # State remains from previous successful publish ("value passed")
+        assert state == "value passed", (
+            f"Lambda skip failed: expected 'value passed' (unchanged), got '{state}'"
+        )
+
+        # Test 14: Lambda filter - verify raw_state is preserved (not mutated)
+        # This is critical to verify the in-place mutation optimization is safe
+        # "original" -> state="original MODIFIED", raw_state="original"
+        lambda_raw_state_button = next(
+            (
+                e
+                for e in entities
+                if "test_lambda_raw_state_button" in e.object_id.lower()
+            ),
+            None,
+        )
+        assert lambda_raw_state_button is not None, (
+            "Test Lambda Raw State Button not found"
+        )
+        client.button_command(lambda_raw_state_button.key)
+
+        try:
+            state, raw_state = await asyncio.wait_for(
+                lambda_raw_state_future, timeout=5.0
+            )
+        except TimeoutError:
+            pytest.fail("Timeout waiting for LAMBDA_RAW_STATE log message")
+
+        assert state == "original MODIFIED", (
+            f"Lambda raw_state test failed: expected state='original MODIFIED', "
+            f"got '{state}'"
+        )
+        assert raw_state == "original", (
+            f"Lambda raw_state test failed: raw_state was mutated! "
+            f"Expected 'original', got '{raw_state}'"
+        )
+        assert state != raw_state, (
+            f"Lambda filter should modify state but preserve raw_state. "
+            f"state='{state}', raw_state='{raw_state}'"
+        )

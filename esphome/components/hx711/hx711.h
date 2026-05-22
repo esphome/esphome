@@ -6,8 +6,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace hx711 {
+namespace esphome::hx711 {
 
 enum HX711Gain : uint8_t {
   HX711_GAIN_128 = 1,
@@ -23,7 +22,6 @@ class HX711Sensor : public sensor::Sensor, public PollingComponent {
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
 
  protected:
@@ -34,5 +32,4 @@ class HX711Sensor : public sensor::Sensor, public PollingComponent {
   HX711Gain gain_{HX711_GAIN_128};
 };
 
-}  // namespace hx711
-}  // namespace esphome
+}  // namespace esphome::hx711

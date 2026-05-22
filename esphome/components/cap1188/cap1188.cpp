@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace cap1188 {
+namespace esphome::cap1188 {
 
 static const char *const TAG = "cap1188";
 
@@ -63,14 +62,14 @@ void CAP1188Component::finish_setup_() {
 }
 
 void CAP1188Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "CAP1188:");
-  LOG_I2C_DEVICE(this);
-  LOG_PIN("  Reset Pin: ", this->reset_pin_);
   ESP_LOGCONFIG(TAG,
+                "CAP1188:\n"
                 "  Product ID: 0x%x\n"
                 "  Manufacture ID: 0x%x\n"
                 "  Revision ID: 0x%x",
                 this->cap1188_product_id_, this->cap1188_manufacture_id_, this->cap1188_revision_);
+  LOG_I2C_DEVICE(this);
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
 
   switch (this->error_code_) {
     case COMMUNICATION_FAILED:
@@ -92,7 +91,7 @@ void CAP1188Component::loop() {
     this->read_register(CAP1188_MAIN, &data, 1);
     data = data & ~CAP1188_MAIN_INT;
 
-    this->write_register(CAP1188_MAIN, &data, 2);
+    this->write_register(CAP1188_MAIN, &data, 1);
   }
 
   for (auto *channel : this->channels_) {
@@ -100,5 +99,4 @@ void CAP1188Component::loop() {
   }
 }
 
-}  // namespace cap1188
-}  // namespace esphome
+}  // namespace esphome::cap1188

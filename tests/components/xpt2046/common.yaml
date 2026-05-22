@@ -6,6 +6,7 @@ display:
     cs_pin: ${disp_cs_pin}
     dc_pin: ${dc_pin}
     reset_pin: ${reset_pin}
+    data_rate: 20MHz
     invert_colors: false
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());

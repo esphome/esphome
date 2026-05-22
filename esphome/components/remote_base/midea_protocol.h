@@ -7,8 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "remote_base.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 class MideaData {
  public:
@@ -29,7 +28,16 @@ class MideaData {
   bool is_valid() const { return this->data_[OFFSET_CS] == this->calc_cs_(); }
   void finalize() { this->data_[OFFSET_CS] = this->calc_cs_(); }
   bool is_compliment(const MideaData &rhs) const;
-  std::string to_string() const { return format_hex_pretty(this->data_.data(), this->data_.size()); }
+  /// @deprecated Allocates heap memory. Use to_str() instead. Removed in 2026.7.0.
+  ESPDEPRECATED("Allocates heap memory. Use to_str() instead. Removed in 2026.7.0.", "2026.1.0")
+  std::string to_string() const { return format_hex_pretty(this->data_.data(), this->data_.size()); }  // NOLINT
+  /// Buffer size for to_str(): 6 bytes = "AA.BB.CC.DD.EE.FF\0"
+  static constexpr size_t TO_STR_BUFFER_SIZE = format_hex_pretty_size(6);
+  /// Format to buffer, returns pointer to buffer
+  const char *to_str(char *buffer) const {
+    format_hex_pretty_to(buffer, TO_STR_BUFFER_SIZE, this->data_.data(), this->data_.size(), '.');
+    return buffer;
+  }
   // compare only 40-bits
   bool operator==(const MideaData &rhs) const {
     return std::equal(this->data_.begin(), this->data_.begin() + OFFSET_CS, rhs.data_.begin());
@@ -53,7 +61,7 @@ class MideaData {
     this->data_[idx] |= (value << shift);
   }
   void set_mask_(uint8_t idx, bool state, uint8_t mask = 255) { this->set_value_(idx, state ? mask : 0, mask); }
-  static const uint8_t OFFSET_CS = 5;
+  static constexpr uint8_t OFFSET_CS = 5;
   // 48-bits data
   std::array<uint8_t, 6> data_;
   // Calculate checksum
@@ -79,5 +87,4 @@ template<typename... Ts> class MideaAction : public RemoteTransmitterActionBase<
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

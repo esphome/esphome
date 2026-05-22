@@ -9,14 +9,16 @@
 
 #include <Updater.h>
 
-namespace esphome {
-namespace ota {
+namespace esphome::ota {
 
 static const char *const TAG = "ota.arduino_rp2040";
 
-std::unique_ptr<ota::OTABackend> make_ota_backend() { return make_unique<ota::ArduinoRP2040OTABackend>(); }
+std::unique_ptr<ArduinoRP2040OTABackend> make_ota_backend() { return make_unique<ArduinoRP2040OTABackend>(); }
 
-OTAResponseTypes ArduinoRP2040OTABackend::begin(size_t image_size) {
+OTAResponseTypes ArduinoRP2040OTABackend::begin(size_t image_size, OTAType ota_type) {
+  if (ota_type != OTA_TYPE_UPDATE_APP) {
+    return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
+  }
   // OTA size of 0 is not currently handled, but
   // web_server is not supported for RP2040, so this is not an issue.
   bool ret = Update.begin(image_size, U_FLASH);
@@ -75,8 +77,6 @@ void ArduinoRP2040OTABackend::abort() {
   rp2040::preferences_prevent_write(false);
 }
 
-}  // namespace ota
-}  // namespace esphome
-
+}  // namespace esphome::ota
 #endif  // USE_RP2040
 #endif  // USE_ARDUINO

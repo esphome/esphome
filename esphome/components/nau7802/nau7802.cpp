@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace nau7802 {
+namespace esphome::nau7802 {
 
 static const char *const TAG = "nau7802";
 
@@ -83,8 +82,7 @@ void NAU7802Sensor::setup() {
 
   // turn on AFE
   pu_ctrl |= PU_CTRL_POWERUP_ANALOG;
-  auto f = std::bind(&NAU7802Sensor::complete_setup_, this);
-  this->set_timeout(600, f);
+  this->set_timeout(600, [this]() { this->complete_setup_(); });
 }
 
 void NAU7802Sensor::complete_setup_() {
@@ -131,9 +129,9 @@ void NAU7802Sensor::dump_config() {
   }
   // Note these may differ from the values on the device if calbration has been run
   ESP_LOGCONFIG(TAG,
-                "  Offset Calibration: %s\n"
+                "  Offset Calibration: %" PRId32 "\n"
                 "  Gain Calibration: %f",
-                to_string(this->offset_calibration_).c_str(), this->gain_calibration_);
+                this->offset_calibration_, this->gain_calibration_);
 
   std::string voltage = "unknown";
   switch (this->ldo_) {
@@ -289,14 +287,12 @@ void NAU7802Sensor::loop() {
       this->status_clear_error();
 
     int32_t ocal = this->read_value_(OCAL1_B2_REG, 3);
-    ESP_LOGI(TAG, "New Offset: %s", to_string(ocal).c_str());
+    ESP_LOGI(TAG, "New Offset: %" PRId32, ocal);
     uint32_t gcal = this->read_value_(GCAL1_B3_REG, 4);
     float gcal_f = ((float) gcal / (float) (1 << GCAL1_FRACTIONAL));
     ESP_LOGI(TAG, "New Gain: %f", gcal_f);
   }
 }
-
-float NAU7802Sensor::get_setup_priority() const { return setup_priority::DATA; }
 
 void NAU7802Sensor::update() {
   if (!this->is_data_ready_()) {
@@ -316,5 +312,4 @@ void NAU7802Sensor::update() {
 
 bool NAU7802Sensor::is_data_ready_() { return this->reg(PU_CTRL_REG).get() & PU_CTRL_CYCLE_READY; }
 
-}  // namespace nau7802
-}  // namespace esphome
+}  // namespace esphome::nau7802

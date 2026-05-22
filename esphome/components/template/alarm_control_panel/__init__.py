@@ -118,8 +118,7 @@ async def to_code(config):
     var = await alarm_control_panel.new_alarm_control_panel(config)
     await cg.register_component(var, config)
     if CONF_CODES in config:
-        for acode in config[CONF_CODES]:
-            cg.add(var.add_code(acode))
+        cg.add(var.set_codes(config[CONF_CODES]))
         if CONF_REQUIRES_CODE_TO_ARM in config:
             cg.add(var.set_requires_code_to_arm(config[CONF_REQUIRES_CODE_TO_ARM]))
 

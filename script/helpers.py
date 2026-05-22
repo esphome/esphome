@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import ast
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from functools import cache
 import hashlib
 import json
@@ -115,7 +117,7 @@ def get_component_from_path(file_path: str) -> str | None:
 
 
 def get_component_test_files(
-    component: str, *, all_variants: bool = False
+    component: str, *, all_variants: bool = False, include_validate: bool = False
 ) -> list[Path]:
     """Get test files for a component.
 
@@ -123,6 +125,10 @@ def get_component_test_files(
         component: Component name (e.g., "wifi")
         all_variants: If True, returns all test files including variants (test-*.yaml).
                      If False, returns only base test files (test.*.yaml).
+                     Default is False.
+        include_validate: If True, also returns config-only files (validate.*.yaml,
+                     and validate-*.yaml when all_variants is True). These files
+                     are validated with `esphome config` but never compiled.
                      Default is False.
 
     Returns:
@@ -134,9 +140,130 @@ def get_component_test_files(
 
     if all_variants:
         # Match both test.*.yaml and test-*.yaml patterns
-        return list(tests_dir.glob("test[.-]*.yaml"))
+        files = list(tests_dir.glob("test[.-]*.yaml"))
+        if include_validate:
+            files.extend(tests_dir.glob("validate[.-]*.yaml"))
+        return files
     # Match only test.*.yaml (base tests)
-    return list(tests_dir.glob("test.*.yaml"))
+    files = list(tests_dir.glob("test.*.yaml"))
+    if include_validate:
+        files.extend(tests_dir.glob("validate.*.yaml"))
+    return files
+
+
+def is_validate_only_file(test_file: Path) -> bool:
+    """Return True if the given path is a config-only validate file.
+
+    Validate files follow the same grammar as test files but with a
+    ``validate`` prefix instead of ``test``: ``validate.<platform>.yaml``
+    or ``validate-<variant>.<platform>.yaml``. They are exercised with
+    ``esphome config`` only and skipped during compile.
+    """
+    name = test_file.name
+    return name.startswith("validate.") or name.startswith("validate-")
+
+
+@dataclass(frozen=True)
+class ComponentMetadata:
+    """Statically-parsed AUTO_LOAD and CONFLICTS_WITH declarations."""
+
+    auto_load: frozenset[str] = field(default_factory=frozenset)
+    conflicts_with: frozenset[str] = field(default_factory=frozenset)
+
+
+@cache
+def parse_component_metadata(name: str) -> ComponentMetadata:
+    """Return the AUTO_LOAD / CONFLICTS_WITH declarations for a component.
+
+    Parses the component's ``esphome/components/<name>/__init__.py`` statically.
+    Callable forms (``def AUTO_LOAD():``) require runtime imports and are
+    reported as empty -- safe for conflict detection since they cannot be
+    evaluated without executing the module.
+    """
+    init_file = Path(root_path) / ESPHOME_COMPONENTS_PATH / name / "__init__.py"
+    if not init_file.exists():
+        return ComponentMetadata()
+    try:
+        tree = ast.parse(init_file.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError, UnicodeError):
+        return ComponentMetadata()
+    fields: dict[str, frozenset[str]] = {
+        "AUTO_LOAD": frozenset(),
+        "CONFLICTS_WITH": frozenset(),
+    }
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.List):
+            continue
+        for target in node.targets:
+            if not isinstance(target, ast.Name) or target.id not in fields:
+                continue
+            fields[target.id] = frozenset(
+                e.value
+                for e in node.value.elts
+                if isinstance(e, ast.Constant) and isinstance(e.value, str)
+            )
+    return ComponentMetadata(
+        auto_load=fields["AUTO_LOAD"],
+        conflicts_with=fields["CONFLICTS_WITH"],
+    )
+
+
+@dataclass
+class _ConflictWalk:
+    loaded: set[str]
+    rejects: set[str]
+
+
+def split_conflicting_groups(
+    grouped_components: dict[tuple[str, str], list[str]],
+) -> dict[tuple[str, str], list[str]]:
+    """Split groups so components declaring mutual CONFLICTS_WITH end up in separate builds.
+
+    A conflict propagates through AUTO_LOAD: if X declares CONFLICTS_WITH=[Y]
+    and Z auto-loads Y, then X and Z conflict (e.g. bme680_bsec vs.
+    bme68x_bsec2_i2c which auto-loads bme68x_bsec2). Only components that
+    appear in the batch (and their AUTO_LOAD closures) are parsed. The
+    conflict relation is treated as symmetric even when only one side
+    declares it (e.g. ethernet rejects wifi but wifi does not declare the
+    reverse).
+    """
+    batch = {c for comps in grouped_components.values() for c in comps}
+
+    walks: dict[str, _ConflictWalk] = {}
+    for comp in batch:
+        walk = _ConflictWalk(loaded={comp}, rejects=set())
+        stack = [comp]
+        while stack:
+            metadata = parse_component_metadata(stack.pop())
+            walk.rejects |= metadata.conflicts_with
+            new = metadata.auto_load - walk.loaded
+            walk.loaded |= new
+            stack.extend(new)
+        walks[comp] = walk
+
+    def conflicts(a: str, b: str) -> bool:
+        wa, wb = walks[a], walks[b]
+        return not wa.rejects.isdisjoint(wb.loaded) or not wb.rejects.isdisjoint(
+            wa.loaded
+        )
+
+    result: dict[tuple[str, str], list[str]] = {}
+    for (platform, signature), components in grouped_components.items():
+        buckets: list[list[str]] = []
+        for comp in components:
+            for bucket in buckets:
+                if not any(conflicts(comp, other) for other in bucket):
+                    bucket.append(comp)
+                    break
+            else:
+                buckets.append([comp])
+        if len(buckets) == 1:
+            result[(platform, signature)] = buckets[0]
+            continue
+        for index, bucket in enumerate(buckets):
+            key = signature if index == 0 else f"{signature}__conflict{index}"
+            result[(platform, key)] = bucket
+    return result
 
 
 def styled(color: str | tuple[str, ...], msg: str, reset: bool = True) -> str:
@@ -174,7 +301,12 @@ def build_all_include(header_files: list[str] | None = None) -> None:
             if line
         ]
 
-    headers = [f'#include "{h}"' for h in header_files]
+    from esphome.writer import ENTITY_TYPES_H_TARGET
+
+    # X-macro files are included multiple times with different macro definitions
+    # and must not be included bare in the all-include header
+    exclude = {ENTITY_TYPES_H_TARGET}
+    headers = [f'#include "{h}"' for h in header_files if h not in exclude]
     headers.sort()
     headers.append("")
     content = "\n".join(headers)
@@ -624,7 +756,9 @@ def get_usable_cpu_count() -> int:
     )
 
 
-def get_all_dependencies(component_names: set[str]) -> set[str]:
+def get_all_dependencies(
+    component_names: set[str],
+) -> set[str]:
     """Get all dependencies for a set of components.
 
     Args:
@@ -640,7 +774,7 @@ def get_all_dependencies(component_names: set[str]) -> set[str]:
         PLATFORM_HOST,
     )
     from esphome.core import CORE
-    from esphome.loader import get_component
+    from esphome.loader import get_component, get_platform
 
     all_components: set[str] = set(component_names)
 
@@ -660,7 +794,11 @@ def get_all_dependencies(component_names: set[str]) -> set[str]:
         new_components: set[str] = set()
 
         for comp_name in all_components:
-            comp = get_component(comp_name)
+            if "." in comp_name:
+                domain, platform = comp_name.split(".", maxsplit=1)
+                comp = get_platform(domain, platform)
+            else:
+                comp = get_component(comp_name)
             if not comp:
                 continue
 
@@ -689,35 +827,141 @@ def get_all_dependencies(component_names: set[str]) -> set[str]:
     return all_components
 
 
+def _extract_components_from_yaml(config: dict) -> set[str]:
+    """Extract component names from a parsed YAML config.
+
+    Args:
+        config: Parsed YAML configuration dictionary
+
+    Returns:
+        Set of component names found in the config
+    """
+    components: set[str] = set()
+
+    # Add all top-level component keys (skip YAML anchor keys starting with '.')
+    components.update(k for k in config if isinstance(k, str) and not k.startswith("."))
+
+    # Add platform values from list entries (e.g., sensor -> platform: template adds "template")
+    for value in config.values():
+        if isinstance(value, list):
+            components.update(
+                item["platform"]
+                for item in value
+                if isinstance(item, dict) and "platform" in item
+            )
+
+    return components
+
+
 def get_components_from_integration_fixtures() -> set[str]:
     """Extract all components used in integration test fixtures.
 
     Returns:
         Set of component names used in integration test fixtures
     """
+    return {
+        comp
+        for components in get_components_per_integration_fixture().values()
+        for comp in components
+    }
+
+
+@cache
+def get_components_per_integration_fixture() -> dict[str, set[str]]:
+    """Extract components used in each integration test fixture.
+
+    Returns:
+        Dictionary mapping fixture name (stem) to set of component names
+    """
     from esphome import yaml_util
 
-    components: set[str] = set()
+    result: dict[str, set[str]] = {}
     fixtures_dir = Path(__file__).parent.parent / "tests" / "integration" / "fixtures"
 
     for yaml_file in fixtures_dir.glob("*.yaml"):
-        config: dict[str, any] | None = yaml_util.load_yaml(yaml_file)
+        config: dict[str, Any] | None = yaml_util.load_yaml(yaml_file)
         if not config:
             continue
 
-        # Add all top-level component keys
-        components.update(config.keys())
+        result[yaml_file.stem] = _extract_components_from_yaml(config)
 
-        # Add platform components (e.g., output.template)
-        for value in config.values():
-            if not isinstance(value, list):
-                continue
+    return result
 
-            for item in value:
-                if isinstance(item, dict) and "platform" in item:
-                    components.add(item["platform"])
 
-    return components
+_TEST_FUNC_RE = re.compile(r"async def (test_\w+)")
+
+
+@cache
+def get_fixture_to_test_files() -> dict[str, frozenset[str]]:
+    """Map integration test fixture names to the test files that use them.
+
+    Returns:
+        Dictionary mapping fixture name to frozenset of test file paths
+        (relative to repo root)
+    """
+    integration_dir = Path(__file__).parent.parent / "tests" / "integration"
+    result: dict[str, set[str]] = {}
+
+    for test_file in integration_dir.glob("test_*.py"):
+        content = test_file.read_text(encoding="utf-8")
+        rel_path = test_file.relative_to(Path(__file__).parent.parent).as_posix()
+        for func in _TEST_FUNC_RE.findall(content):
+            base_name = func.replace("test_", "").partition("[")[0]
+            result.setdefault(base_name, set()).add(rel_path)
+
+    return {k: frozenset(v) for k, v in result.items()}
+
+
+@cache
+def _get_component_to_integration_test_files() -> dict[str, frozenset[str]]:
+    """Build index mapping each component to the test files that depend on it.
+
+    Resolves full dependency trees once per fixture, then inverts the mapping
+    so lookups are O(1) per component.
+
+    Returns:
+        Dictionary mapping component name to frozenset of test file paths
+    """
+    fixture_components = get_components_per_integration_fixture()
+    fixture_to_test_files = get_fixture_to_test_files()
+
+    result: dict[str, set[str]] = {}
+    for fixture_name, components in fixture_components.items():
+        test_files = fixture_to_test_files.get(fixture_name)
+        if not test_files:
+            continue
+        # Get full dependency tree for this fixture's components
+        all_deps = get_all_dependencies(components)
+        for dep in all_deps:
+            result.setdefault(dep, set()).update(test_files)
+
+    return {k: frozenset(v) for k, v in result.items()}
+
+
+def get_integration_test_files_for_components(
+    changed_components: set[str],
+) -> list[str]:
+    """Get integration test file paths that use any of the given components.
+
+    Uses a precomputed component → test files index for O(C) lookup
+    where C is the number of changed components.
+
+    Args:
+        changed_components: Set of component names that have changed
+
+    Returns:
+        Sorted list of test file paths relative to repo root
+        (e.g., ["tests/integration/test_api.py", ...])
+    """
+    component_to_tests = _get_component_to_integration_test_files()
+
+    return sorted(
+        {
+            test_file
+            for component in changed_components
+            for test_file in component_to_tests.get(component, ())
+        }
+    )
 
 
 def filter_component_and_test_files(file_path: str) -> bool:

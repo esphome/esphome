@@ -4,8 +4,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace xl9535 {
+namespace esphome::xl9535 {
 
 enum {
   XL9535_INPUT_PORT_0_REGISTER = 0x00,
@@ -39,7 +38,7 @@ class XL9535GPIOPin : public GPIOPin {
   gpio::Flags get_flags() const override { return this->flags_; }
 
   void setup() override;
-  std::string dump_summary() const override;
+  size_t dump_summary(char *buffer, size_t len) const override;
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
@@ -52,5 +51,4 @@ class XL9535GPIOPin : public GPIOPin {
   gpio::Flags flags_;
 };
 
-}  // namespace xl9535
-}  // namespace esphome
+}  // namespace esphome::xl9535

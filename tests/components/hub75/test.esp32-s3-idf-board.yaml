@@ -6,6 +6,7 @@ display:
     panel_height: 32
     double_buffer: true
     brightness: 128
+    gamma_correct: gamma_2_2
     pages:
       - id: page1
         lambda: |-

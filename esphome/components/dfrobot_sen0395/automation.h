@@ -5,8 +5,7 @@
 
 #include "dfrobot_sen0395.h"
 
-namespace esphome {
-namespace dfrobot_sen0395 {
+namespace esphome::dfrobot_sen0395 {
 
 template<typename... Ts>
 class DfrobotSen0395ResetAction : public Action<Ts...>, public Parented<DfrobotSen0395Component> {
@@ -85,5 +84,4 @@ class DfrobotSen0395SettingsAction : public Action<Ts...>, public Parented<Dfrob
   }
 };
 
-}  // namespace dfrobot_sen0395
-}  // namespace esphome
+}  // namespace esphome::dfrobot_sen0395

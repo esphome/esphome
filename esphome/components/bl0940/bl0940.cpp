@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace bl0940 {
+namespace esphome::bl0940 {
 
 static const char *const TAG = "bl0940";
 
@@ -182,7 +181,10 @@ void BL0940::recalibrate_() {
 
   ESP_LOGD(TAG,
            "Recalibrated reference values:\n"
-           "Voltage: %f\n, Current: %f\n, Power: %f\n, Energy: %f\n",
+           "  Voltage: %f\n"
+           "  Current: %f\n"
+           "  Power: %f\n"
+           "  Energy: %f",
            this->voltage_reference_cal_, this->current_reference_cal_, this->power_reference_cal_,
            this->energy_reference_cal_);
 }
@@ -271,5 +273,4 @@ void BL0940::dump_config() {  // NOLINT(readability-function-cognitive-complexit
   LOG_SENSOR("", "External temperature", this->external_temperature_sensor_);
 }
 
-}  // namespace bl0940
-}  // namespace esphome
+}  // namespace esphome::bl0940

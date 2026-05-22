@@ -4,7 +4,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
-
 #ifdef USE_ESP32
 #include <esp_sleep.h>
 #endif
@@ -16,8 +15,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace deep_sleep {
+namespace esphome::deep_sleep {
 
 #if defined(USE_ESP32) || defined(USE_BK72XX)
 
@@ -113,7 +111,6 @@ class DeepSleepComponent : public Component {
   void setup() override;
   void dump_config() override;
   void loop() override;
-  float get_loop_priority() const override;
   float get_setup_priority() const override;
 
   /// Helper to enter deep sleep mode
@@ -130,6 +127,8 @@ class DeepSleepComponent : public Component {
   void dump_config_platform_();
   bool prepare_to_sleep_();
   void deep_sleep_();
+  void schedule_sleep_();
+  bool should_teardown_();
 
 #ifdef USE_BK72XX
   bool pin_prevents_sleep_(WakeUpPinItem &pinItem) const;
@@ -143,7 +142,7 @@ class DeepSleepComponent : public Component {
 #endif  // USE_BK72XX
 
 #ifdef USE_ESP32
-  InternalGPIOPin *wakeup_pin_;
+  InternalGPIOPin *wakeup_pin_{nullptr};
   WakeupPinMode wakeup_pin_mode_{WAKEUP_PIN_MODE_IGNORE};
 
 #if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3)
@@ -244,5 +243,4 @@ template<typename... Ts> class AllowDeepSleepAction : public Action<Ts...>, publ
   void play(const Ts &...x) override { this->parent_->allow_deep_sleep(); }
 };
 
-}  // namespace deep_sleep
-}  // namespace esphome
+}  // namespace esphome::deep_sleep
