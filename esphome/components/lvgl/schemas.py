@@ -545,6 +545,13 @@ _CONTAINER_SCHEMA_CACHE: dict[
 def container_schema(
     widget_type: WidgetType, extras: Any = None
 ) -> Callable[[Any], Any]:
+    """
+    Create a schema for a container widget of a given type. All obj properties are available, plus
+    the extras passed in, plus any defined for the specific widget being specified.
+    :param widget_type:     The widget type, e.g. "image"
+    :param extras:  Additional options to be made available, e.g. layout properties for children
+    :return: The schema for this type of widget.
+    """
     cache_key = (id(widget_type), id(extras))
     cached = _CONTAINER_SCHEMA_CACHE.get(cache_key)
     if cached is not None:
