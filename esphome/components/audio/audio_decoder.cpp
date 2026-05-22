@@ -11,6 +11,10 @@ static const char *const TAG = "audio.decoder";
 
 static const uint32_t READ_WRITE_TIMEOUT_MS = 20;  // Timeout for transferring audio data
 
+// Max consecutive decode iterations that consume input but produce no output; e.g., skipping a large metadata block,
+// before yielding and returning.
+static const uint8_t MAX_NO_OUTPUT_ITERATIONS = 32;
+
 static const uint32_t MAX_POTENTIALLY_FAILED_COUNT = 10;
 
 AudioDecoder::AudioDecoder(size_t input_buffer_size, size_t output_buffer_size)
@@ -141,6 +145,7 @@ AudioDecoderState AudioDecoder::decode(bool stop_gracefully) {
   }
 
   FileDecoderState state = FileDecoderState::MORE_TO_PROCESS;
+  uint8_t no_output_iterations = 0;
 
   while (state == FileDecoderState::MORE_TO_PROCESS) {
     // Transfer decoded out
@@ -167,6 +172,15 @@ AudioDecoderState AudioDecoder::decode(bool stop_gracefully) {
     if (this->output_transfer_buffer_->available() > 0) {
       // Output transfer buffer indicates backpressure, return so caller can handle other events;
       // e.g., stop/pause, before trying again
+      return AudioDecoderState::DECODING;
+    }
+
+    // Reaching here means no decoded output is pending (any would have returned above). Bounds long no-output
+    // stretches; e.g., skipping a large metadata block, so a source that keeps the ring buffer full can't spin this
+    // loop without yielding and trip the watchdog. The delay yields allowing other tasks to feed the watchdog and
+    // the return keeps stop/pause responsive.
+    if (++no_output_iterations >= MAX_NO_OUTPUT_ITERATIONS) {
+      delay(1);
       return AudioDecoderState::DECODING;
     }
 
