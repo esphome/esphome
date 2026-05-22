@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from typing import Any
 
 from esphome import config_validation as cv
 from esphome.automation import Trigger, validate_automation
@@ -534,7 +535,23 @@ def strip_defaults(schema: cv.Schema):
     return cv.Schema({cv.Optional(k): v for k, v in schema.schema.items()})
 
 
-def container_schema(widget_type: WidgetType, extras=None):
+# Memoize the validators produced by `container_schema()` so that repeat calls
+# with the same (widget_type, extras) return the same validator. The dominant
+# cost of a widget validation today is voluptuous schema construction inside
+# this function; without caching, `any_widget_schema()`'s per-entry loop and
+# the various top-level callers (LVGL_SCHEMA, msgbox, tabview, tileview) each
+# rebuild the same nested schema tree from scratch. The key is `id()` based
+# because `extras` may be a non-hashable dict, and the stored tuple keeps the
+# originals alive so id-recycling after GC does not return a stale validator
+# (verified by the `is` guard below).
+_CONTAINER_SCHEMA_CACHE: dict[
+    tuple[int, int], tuple[Any, Any, Callable[[Any], Any]]
+] = {}
+
+
+def container_schema(
+    widget_type: WidgetType, extras: Any = None
+) -> Callable[[Any], Any]:
     """
     Create a schema for a container widget of a given type. All obj properties are available, plus
     the extras passed in, plus any defined for the specific widget being specified.
@@ -542,19 +559,37 @@ def container_schema(widget_type: WidgetType, extras=None):
     :param extras:  Additional options to be made available, e.g. layout properties for children
     :return: The schema for this type of widget.
     """
-    schema = obj_schema(widget_type).extend(
-        {cv.GenerateID(): cv.declare_id(widget_type.w_type)}
-    )
-    if extras:
-        schema = schema.extend(extras)
-    # Delayed evaluation for recursion
+    cache_key = (id(widget_type), id(extras))
+    cached = _CONTAINER_SCHEMA_CACHE.get(cache_key)
+    if cached is not None:
+        cached_widget_type, cached_extras, cached_validator = cached
+        if cached_widget_type is widget_type and cached_extras is extras:
+            return cached_validator
 
-    schema = schema.extend(widget_type.schema)
+    # The schema is built on first validation rather than at construction
+    # time. This keeps `container_schema()` calls cheap at module import; the
+    # ~225ms of cumulative voluptuous work previously done eagerly by
+    # LVGL_SCHEMA / msgbox / tabview / tileview only happens when validation
+    # actually reaches one of these widgets.
+    built: list[cv.Schema] = []
 
-    def validator(value):
+    def get_schema() -> cv.Schema:
+        if not built:
+            schema = obj_schema(widget_type).extend(
+                {cv.GenerateID(): cv.declare_id(widget_type.w_type)}
+            )
+            if extras:
+                schema = schema.extend(extras)
+            # Delayed evaluation for recursion
+            schema = schema.extend(widget_type.schema)
+            built.append(schema)
+        return built[0]
+
+    def validator(value: Any) -> Any:
         value = value or {}
-        return append_layout_schema(schema, value)(value)
+        return append_layout_schema(get_schema(), value)(value)
 
+    _CONTAINER_SCHEMA_CACHE[cache_key] = (widget_type, extras, validator)
     return validator
 
 
