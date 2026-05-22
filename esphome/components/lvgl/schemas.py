@@ -536,9 +536,7 @@ def strip_defaults(schema: cv.Schema):
 
 
 # Keyed by (id(widget_type), id(extras)); strong refs in the value keep both
-# alive so id() can't be recycled. Bounded in practice by the caller set
-# (top-level LVGL_SCHEMA / msgbox / tabview / tileview plus any_widget_schema's
-# per-widget loop, all of which reuse module-level extras).
+# alive so id() can't be recycled.
 _CONTAINER_SCHEMA_CACHE: dict[
     tuple[int, int], tuple[Any, Any, Callable[[Any], Any]]
 ] = {}
