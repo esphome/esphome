@@ -20,7 +20,7 @@ esp_err_t AudioResampler::add_source(std::weak_ptr<ring_buffer::RingBuffer> &inp
   // buffer (stored here) and the input stream info (set by start()) are available, in either order.
   this->source_ring_buffer_ = input_ring_buffer.lock();
   if (this->source_ring_buffer_ == nullptr) {
-    return ESP_ERR_NO_MEM;
+    return ESP_ERR_INVALID_STATE;
   }
   return ESP_OK;
 }

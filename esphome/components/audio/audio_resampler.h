@@ -41,7 +41,7 @@ class AudioResampler {
   /// RingBufferAudioSource that reads directly from its internal storage is created lazily on the first
   /// resample() call, so add_source() and start() may be called in any order.
   /// @param input_ring_buffer weak_ptr of a shared_ptr of the source ring buffer to transfer ownership
-  /// @return ESP_OK if successful, ESP_ERR_NO_MEM if the ring buffer is no longer alive
+  /// @return ESP_OK if successful, ESP_ERR_INVALID_STATE if the ring buffer is no longer alive
   esp_err_t add_source(std::weak_ptr<ring_buffer::RingBuffer> &input_ring_buffer);
 
   /// @brief Adds a sink ring buffer for resampled audio. Takes ownership of the ring buffer in a shared_ptr.
