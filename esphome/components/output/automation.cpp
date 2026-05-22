@@ -1,10 +1,8 @@
 #include "automation.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace output {
+namespace esphome::output {
 
 static const char *const TAG = "output.automation";
 
-}  // namespace output
-}  // namespace esphome
+}  // namespace esphome::output

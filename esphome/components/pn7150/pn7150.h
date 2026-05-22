@@ -11,8 +11,7 @@
 
 #include <functional>
 
-namespace esphome {
-namespace pn7150 {
+namespace esphome::pn7150 {
 
 static constexpr uint16_t NFCC_DEFAULT_TIMEOUT = 10;
 static constexpr uint16_t NFCC_INIT_TIMEOUT = 50;
@@ -167,12 +166,12 @@ class PN7150 : public nfc::Nfcc, public Component {
   void register_ontag_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
   void register_ontagremoved_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
 
-  void add_on_emulated_tag_scan_callback(std::function<void()> callback) {
-    this->on_emulated_tag_scan_callback_.add(std::move(callback));
+  template<typename F> void add_on_emulated_tag_scan_callback(F &&callback) {
+    this->on_emulated_tag_scan_callback_.add(std::forward<F>(callback));
   }
 
-  void add_on_finished_write_callback(std::function<void()> callback) {
-    this->on_finished_write_callback_.add(std::move(callback));
+  template<typename F> void add_on_finished_write_callback(F &&callback) {
+    this->on_finished_write_callback_.add(std::forward<F>(callback));
   }
 
   bool is_writing() { return this->next_task_ != EP_READ; };
@@ -292,5 +291,4 @@ class PN7150 : public nfc::Nfcc, public Component {
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
 };
 
-}  // namespace pn7150
-}  // namespace esphome
+}  // namespace esphome::pn7150

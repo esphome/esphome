@@ -1,0 +1,10 @@
+<<: !include common.yaml
+
+media_source:
+  - platform: sendspin
+    id: media_source_id
+    buffer_size: 500000
+    initial_static_delay: 5ms
+    static_delay_adjustable: true
+    fixed_delay: 480us
+    decode_memory: internal

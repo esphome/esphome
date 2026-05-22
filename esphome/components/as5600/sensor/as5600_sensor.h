@@ -7,17 +7,13 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/as5600/as5600.h"
 
-namespace esphome {
-namespace as5600 {
+namespace esphome::as5600 {
 
 class AS5600Sensor : public PollingComponent, public Parented<AS5600Component>, public sensor::Sensor {
  public:
   void update() override;
   void dump_config() override;
 
-  void set_angle_sensor(sensor::Sensor *angle_sensor) { this->angle_sensor_ = angle_sensor; }
-  void set_raw_angle_sensor(sensor::Sensor *raw_angle_sensor) { this->raw_angle_sensor_ = raw_angle_sensor; }
-  void set_position_sensor(sensor::Sensor *position_sensor) { this->position_sensor_ = position_sensor; }
   void set_raw_position_sensor(sensor::Sensor *raw_position_sensor) {
     this->raw_position_sensor_ = raw_position_sensor;
   }
@@ -28,9 +24,6 @@ class AS5600Sensor : public PollingComponent, public Parented<AS5600Component>, 
   OutRangeMode get_out_of_range_mode() { return this->out_of_range_mode_; }
 
  protected:
-  sensor::Sensor *angle_sensor_{nullptr};
-  sensor::Sensor *raw_angle_sensor_{nullptr};
-  sensor::Sensor *position_sensor_{nullptr};
   sensor::Sensor *raw_position_sensor_{nullptr};
   sensor::Sensor *gain_sensor_{nullptr};
   sensor::Sensor *magnitude_sensor_{nullptr};
@@ -38,5 +31,4 @@ class AS5600Sensor : public PollingComponent, public Parented<AS5600Component>, 
   OutRangeMode out_of_range_mode_{OUT_RANGE_MODE_MIN_MAX};
 };
 
-}  // namespace as5600
-}  // namespace esphome
+}  // namespace esphome::as5600

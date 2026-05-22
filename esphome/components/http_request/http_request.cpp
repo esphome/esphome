@@ -11,7 +11,7 @@ static const char *const TAG = "http_request";
 void HttpRequestComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "HTTP Request:\n"
-                "  Timeout: %ums\n"
+                "  Timeout: %" PRIu32 "ms\n"
                 "  User-Agent: %s\n"
                 "  Follow redirects: %s\n"
                 "  Redirect limit: %d",
@@ -22,7 +22,7 @@ void HttpRequestComponent::dump_config() {
 }
 
 std::string HttpContainer::get_response_header(const std::string &header_name) {
-  auto lower = str_lower_case(header_name);
+  auto lower = str_lower_case(header_name);  // NOLINT
   for (const auto &entry : this->response_headers_) {
     if (entry.name == lower) {
       ESP_LOGD(TAG, "Header with name %s found with value %s", lower.c_str(), entry.value.c_str());

@@ -244,6 +244,7 @@ async def to_code(config):
         # disable built in rgb support as it uses the new RMT drivers and will
         # conflict with NeoPixelBus which uses the legacy drivers
         cg.add_build_flag("-DESP32_ARDUINO_NO_RGB_BUILTIN")
+        cg.add_library("SPI", None)
         cg.add_library("makuna/NeoPixelBus", "2.8.0")
     else:
         cg.add_library("makuna/NeoPixelBus", "2.7.3")

@@ -1,35 +1,25 @@
 from ast import literal_eval
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from itertools import chain, islice
-import logging
 import math
-import re
 from types import GeneratorType
 from typing import Any
 
 import jinja2 as jinja
 from jinja2.nativetypes import NativeCodeGenerator, NativeTemplate
+from jinja2.runtime import missing as Missing
 
-from esphome.yaml_util import ESPLiteralValue
+# Re-exported for backward compatibility — consumers import has_jinja from here
+from esphome.expression import has_jinja  # noqa: F401  # pylint: disable=unused-import
 
 TemplateError = jinja.TemplateError
 TemplateSyntaxError = jinja.TemplateSyntaxError
 TemplateRuntimeError = jinja.TemplateRuntimeError
 UndefinedError = jinja.UndefinedError
 Undefined = jinja.Undefined
-
-_LOGGER = logging.getLogger(__name__)
-
-DETECT_JINJA = r"(\$\{)"
-detect_jinja_re = re.compile(
-    r"<%.+?%>"  # Block form expression: <% ... %>
-    r"|\$\{[^}]+\}",  # Braced form expression: ${ ... }
-    flags=re.MULTILINE,
-)
-
-
-def has_jinja(st: str) -> bool:
-    return detect_jinja_re.search(st) is not None
+# Sentinel key for resolver callback in ContextVars.
+# Dots are invalid in substitution names so this can never collide with user keys.
+Resolver = ".resolver"
 
 
 # SAFE_GLOBALS defines a allowlist of built-in functions or modules that are considered safe to expose
@@ -50,33 +40,6 @@ SAFE_GLOBALS = {
     "chr": chr,
     "len": len,
 }
-
-
-class JinjaStr(str):
-    """
-    Wraps a string containing an unresolved Jinja expression,
-    storing the variables visible to it when it failed to resolve.
-    For example, an expression inside a package, `${ A * B }` may fail
-    to resolve at package parsing time if `A` is a local package var
-    but `B` is a substitution defined in the root yaml.
-    Therefore, we store the value of `A` as an upvalue bound
-    to the original string so we may be able to resolve `${ A * B }`
-    later in the main substitutions pass.
-    """
-
-    Undefined = object()
-
-    def __new__(cls, value: str, upvalues=None):
-        if isinstance(value, JinjaStr):
-            base = str(value)
-            merged = {**value.upvalues, **(upvalues or {})}
-        else:
-            base = value
-            merged = dict(upvalues or {})
-        obj = super().__new__(cls, base)
-        obj.upvalues = merged
-        obj.result = JinjaStr.Undefined
-        return obj
 
 
 class JinjaError(Exception):
@@ -106,9 +69,13 @@ class JinjaError(Exception):
 class TrackerContext(jinja.runtime.Context):
     def resolve_or_missing(self, key):
         val = super().resolve_or_missing(key)
-        if isinstance(val, JinjaStr):
-            self.environment.context_trace[key] = val
-            val, _ = self.environment.expand(val)
+        if val is Missing:
+            # Variable not in the template context — check if a resolver callback
+            # was registered (by _push_context) to lazily resolve dependencies
+            # between substitution variables in the same block.
+            resolver = super().resolve_or_missing(Resolver)
+            if resolver is not Missing:
+                val = resolver(key)
         self.environment.context_trace[key] = val
         return val
 
@@ -160,15 +127,13 @@ def _concat_nodes_override(values: Iterator[Any]) -> Any:
 
 
 class Jinja(jinja.Environment):
-    """
-    Wraps a Jinja environment
-    """
+    """Jinja environment configured for ESPHome substitution expressions."""
 
     # jinja environment customization overrides
     code_generator_class = NativeCodeGenerator
     concat = staticmethod(_concat_nodes_override)
 
-    def __init__(self, context_vars: dict):
+    def __init__(self) -> None:
         super().__init__(
             trim_blocks=True,
             lstrip_blocks=True,
@@ -183,49 +148,25 @@ class Jinja(jinja.Environment):
         self.context_class = TrackerContext
         self.add_extension("jinja2.ext.do")
         self.context_trace = {}
-        self.context_vars = {**context_vars}
-        for k, v in self.context_vars.items():
-            if isinstance(v, ESPLiteralValue):
-                continue
-            if isinstance(v, str) and not isinstance(v, JinjaStr) and has_jinja(v):
-                self.context_vars[k] = JinjaStr(v, self.context_vars)
 
-        self.globals = {
-            **self.globals,
-            **self.context_vars,
-            **SAFE_GLOBALS,
-        }
+        self.globals = {**self.globals, **SAFE_GLOBALS}
 
-    def expand(self, content_str: str | JinjaStr) -> Any:
+    def expand(self, content_str: str, context_vars: Mapping[str, Any]) -> Any:
         """
         Renders a string that may contain Jinja expressions or statements
         Returns the resulting value if all variables and expressions could be resolved.
-        Otherwise, it returns a tagged (JinjaStr) string that captures variables
-        in scope (upvalues), like a closure for later evaluation.
         """
         result = None
-        override_vars = {}
-        if isinstance(content_str, JinjaStr):
-            if content_str.result is not JinjaStr.Undefined:
-                return content_str.result, None
-            # If `value` is already a JinjaStr, it means we are trying to evaluate it again
-            # in a parent pass.
-            # Hopefully, all required variables are visible now.
-            override_vars = content_str.upvalues
 
         old_trace = self.context_trace
         self.context_trace = {}
         try:
             template = self.from_string(content_str)
-            result = template.render(override_vars)
+            result = template.render(context_vars)
             if isinstance(result, Undefined):
-                print("" + result)  # force a UndefinedError exception
-        except (TemplateSyntaxError, UndefinedError) as err:
-            # `content_str` contains a Jinja expression that refers to a variable that is undefined
-            # in this scope. Perhaps it refers to a root substitution that is not visible yet.
-            # Therefore, return `content_str` as a JinjaStr, which contains the variables
-            # that are actually visible to it at this point to postpone evaluation.
-            return JinjaStr(content_str, {**self.context_vars, **override_vars}), err
+                str(result)  # force a UndefinedError exception
+        except UndefinedError as err:
+            raise err
         except JinjaError as err:
             err.context_trace = {**self.context_trace, **err.context_trace}
             err.eval_stack.append(content_str)
@@ -242,10 +183,7 @@ class Jinja(jinja.Environment):
         finally:
             self.context_trace = old_trace
 
-        if isinstance(content_str, JinjaStr):
-            content_str.result = result
-
-        return result, None
+        return result
 
 
 class JinjaTemplate(NativeTemplate):

@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_GROUP,
     CONF_ID,
     CONF_ON_BOOT,
+    CONF_ON_UPDATE,
     CONF_ON_VALUE,
     CONF_STATE,
     CONF_TEXT,
@@ -23,14 +24,23 @@ from esphome.core.config import StartupTrigger
 
 from . import defines as df, lv_validation as lvalid
 from .defines import (
+    CONF_EXT_CLICK_AREA,
     CONF_SCROLL_DIR,
     CONF_SCROLL_SNAP_X,
     CONF_SCROLL_SNAP_Y,
     CONF_SCROLLBAR_MODE,
     CONF_TIME_FORMAT,
+    CONF_TRIGGER,
     LV_GRAD_DIR,
+    LV_VALUE_EVENTS,
+    VALUE_ON_CHANGE,
+    VALUE_ON_RELEASE,
+    VALUE_ON_UPDATE,
+    VALUE_ON_VALUE,
+    get_remapped_uses,
+    is_press_event,
 )
-from .helpers import CONF_IF_NAN, requires_component, validate_printf
+from .helpers import CONF_IF_NAN, validate_printf
 from .layout import (
     FLEX_OBJ_SCHEMA,
     GRID_CELL_SCHEMA,
@@ -38,19 +48,22 @@ from .layout import (
     grid_alignments,
 )
 from .lv_validation import lv_color, lv_font, lv_gradient, lv_image, opacity
-from .lvcode import LvglComponent, lv_event_t_ptr
+from .lvcode import UPDATE_EVENT, LvglComponent, lv_event_t_ptr
 from .types import (
+    LV_EVENT,
     LVEncoderListener,
     LvType,
-    WidgetType,
     lv_group_t,
     lv_obj_t,
+    lv_point_t,
     lv_pseudo_button_t,
     lv_style_t,
 )
+from .widgets import WidgetType
 
 # this will be populated later, in __init__.py to avoid circular imports.
 WIDGET_TYPES: dict = {}
+
 
 TIME_TEXT_SCHEMA = cv.Schema(
     {
@@ -107,7 +120,7 @@ PRESS_TIME = cv.All(
 ENCODER_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.All(
-            cv.declare_id(LVEncoderListener), requires_component("binary_sensor")
+            cv.declare_id(LVEncoderListener), cv.requires_component("binary_sensor")
         ),
         cv.Optional(CONF_GROUP): cv.declare_id(lv_group_t),
         cv.Optional(df.CONF_INITIAL_FOCUS): cv.All(
@@ -120,8 +133,8 @@ ENCODER_SCHEMA = cv.Schema(
 
 POINT_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_X): cv.templatable(cv.int_),
-        cv.Required(CONF_Y): cv.templatable(cv.int_),
+        cv.Required(CONF_X): lvalid.pixels_or_percent,
+        cv.Required(CONF_Y): lvalid.pixels_or_percent,
     }
 )
 
@@ -134,9 +147,13 @@ def point_schema(value):
     """
     if isinstance(value, dict):
         return POINT_SCHEMA(value)
+    if isinstance(value, list):
+        if len(value) != 2:
+            raise cv.Invalid("Invalid point format, should be <x_int>, <y_int>")
+        return POINT_SCHEMA({CONF_X: value[0], CONF_Y: value[1]})
     try:
-        x, y = map(int, value.split(","))
-        return {CONF_X: x, CONF_Y: y}
+        x, y = str(value).split(",")
+        return POINT_SCHEMA({CONF_X: x, CONF_Y: y})
     except ValueError:
         pass
     # not raising this in the catch block because pylint doesn't like it
@@ -144,26 +161,42 @@ def point_schema(value):
 
 
 # All LVGL styles and their validators
-STYLE_PROPS = {
+BASE_PROPS = {
     "align": df.CHILD_ALIGNMENTS.one_of,
-    "arc_opa": lvalid.opacity,
+    "anim_duration": lvalid.lv_milliseconds,
     "arc_color": lvalid.lv_color,
+    "arc_opa": lvalid.opacity,
     "arc_rounded": lvalid.lv_bool,
     "arc_width": lvalid.pixels,
-    "anim_time": lvalid.lv_milliseconds,
+    "base_dir": df.LvConstant("LV_BASE_DIR_", "LTR", "RTL", "AUTO").one_of,
     "bg_color": lvalid.lv_color,
     "bg_grad": lv_gradient,
     "bg_grad_color": lvalid.lv_color,
-    "bg_dither_mode": df.LvConstant("LV_DITHER_", "NONE", "ORDERED", "ERR_DIFF").one_of,
     "bg_grad_dir": LV_GRAD_DIR.one_of,
+    "bg_grad_opa": lvalid.opacity,
     "bg_grad_stop": lvalid.stop_value,
     "bg_image_opa": lvalid.opacity,
     "bg_image_recolor": lvalid.lv_color,
     "bg_image_recolor_opa": lvalid.opacity,
     "bg_image_src": lvalid.lv_image,
     "bg_image_tiled": lvalid.lv_bool,
+    "bg_main_opa": lvalid.opacity,
     "bg_main_stop": lvalid.stop_value,
     "bg_opa": lvalid.opacity,
+    "bitmap_mask_src": lvalid.lv_image,
+    "blend_mode": df.LvConstant(
+        "LV_BLEND_MODE_",
+        "NORMAL",
+        "ADDITIVE",
+        "SUBTRACTIVE",
+        "MULTIPLY",
+        "DIFFERENCE",
+    ).one_of,
+    "blur_backdrop": lvalid.lv_bool,
+    "blur_quality": df.LvConstant(
+        "LV_BLUR_QUALITY_", "AUTO", "SPEED", "PRECISION"
+    ).one_of,
+    "blur_radius": lvalid.lv_positive_int,
     "border_color": lvalid.lv_color,
     "border_opa": lvalid.opacity,
     "border_post": lvalid.lv_bool,
@@ -173,14 +206,33 @@ STYLE_PROPS = {
     "border_width": lvalid.lv_positive_int,
     "clip_corner": lvalid.lv_bool,
     "color_filter_opa": lvalid.opacity,
+    "drop_shadow_color": lvalid.lv_color,
+    "drop_shadow_offset_x": lvalid.lv_int,
+    "drop_shadow_offset_y": lvalid.lv_int,
+    "drop_shadow_opa": lvalid.opacity,
+    "drop_shadow_quality": df.LvConstant(
+        "LV_BLUR_QUALITY_", "AUTO", "SPEED", "PRECISION"
+    ).one_of,
+    "drop_shadow_radius": lvalid.lv_positive_int,
     "height": lvalid.size,
+    "image_opa": lvalid.opacity,
     "image_recolor": lvalid.lv_color,
     "image_recolor_opa": lvalid.opacity,
-    "line_width": lvalid.lv_positive_int,
-    "line_dash_width": lvalid.lv_positive_int,
-    "line_dash_gap": lvalid.lv_positive_int,
-    "line_rounded": lvalid.lv_bool,
+    "length": lvalid.pixels_or_percent,
     "line_color": lvalid.lv_color,
+    "line_dash_gap": lvalid.lv_positive_int,
+    "line_dash_width": lvalid.lv_positive_int,
+    "line_opa": lvalid.opacity,
+    "line_rounded": lvalid.lv_bool,
+    "line_width": lvalid.lv_positive_int,
+    "margin_bottom": lvalid.padding,
+    "margin_left": lvalid.padding,
+    "margin_right": lvalid.padding,
+    "margin_top": lvalid.padding,
+    "max_height": lvalid.pixels_or_percent,
+    "max_width": lvalid.pixels_or_percent,
+    "min_height": lvalid.pixels_or_percent,
+    "min_width": lvalid.pixels_or_percent,
     "opa": lvalid.opacity,
     "opa_layered": lvalid.opacity,
     "outline_color": lvalid.lv_color,
@@ -190,11 +242,17 @@ STYLE_PROPS = {
     "pad_all": lvalid.padding,
     "pad_bottom": lvalid.padding,
     "pad_left": lvalid.padding,
+    "pad_radial": lvalid.padding,
     "pad_right": lvalid.padding,
     "pad_top": lvalid.padding,
+    "radial_offset": lvalid.size,
+    "radius": lvalid.lv_fraction,
+    "recolor": lvalid.lv_color,
+    "recolor_opa": lvalid.opacity,
+    "rotary_sensitivity": lvalid.lv_positive_int,
     "shadow_color": lvalid.lv_color,
-    "shadow_ofs_x": lvalid.lv_int,
-    "shadow_ofs_y": lvalid.lv_int,
+    "shadow_offset_x": lvalid.lv_int,
+    "shadow_offset_y": lvalid.lv_int,
     "shadow_opa": lvalid.opacity,
     "shadow_spread": lvalid.lv_int,
     "shadow_width": lvalid.lv_positive_int,
@@ -209,32 +267,57 @@ STYLE_PROPS = {
     "text_letter_space": lvalid.lv_positive_int,
     "text_line_space": lvalid.lv_positive_int,
     "text_opa": lvalid.opacity,
-    "transform_angle": lvalid.lv_angle,
+    "text_outline_stroke_color": lvalid.lv_color,
+    "text_outline_stroke_opa": lvalid.opacity,
+    "text_outline_stroke_width": lvalid.lv_positive_int,
     "transform_height": lvalid.pixels_or_percent,
     "transform_pivot_x": lvalid.pixels_or_percent,
     "transform_pivot_y": lvalid.pixels_or_percent,
-    "transform_zoom": lvalid.zoom,
+    "transform_rotation": lvalid.lv_angle,
+    "transform_scale": lvalid.scale,
+    "transform_scale_x": lvalid.scale,
+    "transform_scale_y": lvalid.scale,
+    "transform_skew_x": lvalid.lv_angle,
+    "transform_skew_y": lvalid.lv_angle,
+    "transform_width": lvalid.pixels_or_percent,
+    "translate_radial": lvalid.lv_int,
     "translate_x": lvalid.pixels_or_percent,
     "translate_y": lvalid.pixels_or_percent,
-    "max_height": lvalid.pixels_or_percent,
-    "max_width": lvalid.pixels_or_percent,
-    "min_height": lvalid.pixels_or_percent,
-    "min_width": lvalid.pixels_or_percent,
-    "radius": lvalid.lv_fraction,
     "width": lvalid.size,
     "x": lvalid.pixels_or_percent,
     "y": lvalid.pixels_or_percent,
 }
 
 STYLE_REMAP = {
-    "bg_image_opa": "bg_img_opa",
-    "bg_image_recolor": "bg_img_recolor",
-    "bg_image_recolor_opa": "bg_img_recolor_opa",
-    "bg_image_src": "bg_img_src",
-    "bg_image_tiled": "bg_img_tiled",
-    "image_recolor": "img_recolor",
-    "image_recolor_opa": "img_recolor_opa",
+    "anim_time": "anim_duration",
+    "transform_angle": "transform_rotation",
+    "transform_zoom": "transform_scale",
+    "zoom": "scale",
+    "angle": "rotation",
+    "shadow_ofs_x": "shadow_offset_x",
+    "shadow_ofs_y": "shadow_offset_y",
+    "r_mod": "length",
 }
+
+STYLE_PROPS = BASE_PROPS | {
+    p: BASE_PROPS[v] for p, v in STYLE_REMAP.items() if v in BASE_PROPS
+}
+
+
+def remap_property(prop, record=True):
+    """
+    Remap an old style property to new style property.
+    Optionally record the use of the deprecated property.
+    :param prop: Name of the style property to remap.
+    :param record: Whether to record the use of the deprecated property.
+    :return: The remapped property name, or ``prop`` if no remapping exists.
+    """
+    if prop in STYLE_REMAP:
+        if record:
+            get_remapped_uses().add(prop)
+        return STYLE_REMAP[prop]
+    return prop
+
 
 # Complete object style schema
 STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).extend(
@@ -243,6 +326,7 @@ STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).ex
         cv.Optional(df.CONF_SCROLLBAR_MODE): df.LvConstant(
             "LV_SCROLLBAR_MODE_", "OFF", "ON", "ACTIVE", "AUTO"
         ).one_of,
+        cv.Optional(CONF_EXT_CLICK_AREA): lvalid.pixels,
         cv.Optional(CONF_SCROLL_DIR): df.SCROLL_DIRECTIONS.one_of,
         cv.Optional(CONF_SCROLL_SNAP_X): df.SNAP_DIRECTIONS.one_of,
         cv.Optional(CONF_SCROLL_SNAP_Y): df.SNAP_DIRECTIONS.one_of,
@@ -250,6 +334,7 @@ STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).ex
 )
 
 OBJ_PROPERTIES = {
+    CONF_EXT_CLICK_AREA,
     CONF_SCROLL_SNAP_X,
     CONF_SCROLL_SNAP_Y,
     CONF_SCROLL_DIR,
@@ -276,7 +361,20 @@ SET_STATE_SCHEMA = cv.Schema(
 )
 # Setting object flags
 FLAG_SCHEMA = cv.Schema({cv.Optional(flag): lvalid.lv_bool for flag in df.OBJ_FLAGS})
-FLAG_LIST = cv.ensure_list(df.LvConstant("LV_OBJ_FLAG_", *df.OBJ_FLAGS).one_of)
+FLAG_LIST = cv.ensure_list(df.LV_OBJ_FLAG.one_of)
+
+VALUE_TRIGGER_SCHEMA = {
+    cv.Optional(CONF_TRIGGER, default=CONF_ON_VALUE): cv.one_of(
+        *LV_VALUE_EVENTS, lower=True
+    ),
+}
+
+TRIGGER_EVENT_MAP = {
+    VALUE_ON_CHANGE: (LV_EVENT.VALUE_CHANGED,),
+    VALUE_ON_UPDATE: (UPDATE_EVENT,),
+    VALUE_ON_VALUE: (LV_EVENT.VALUE_CHANGED, UPDATE_EVENT),
+    VALUE_ON_RELEASE: (LV_EVENT.RELEASED,),
+}
 
 
 def part_schema(parts):
@@ -293,15 +391,22 @@ def part_schema(parts):
 def automation_schema(typ: LvType):
     events = df.LV_EVENT_TRIGGERS + df.SWIPE_TRIGGERS
     if typ.has_on_value:
-        events = events + (CONF_ON_VALUE,)
+        events = events + (CONF_ON_VALUE, CONF_ON_UPDATE)
     args = typ.get_arg_type()
-    args.append(lv_event_t_ptr)
+
+    def get_trigger_args(event):
+        result = args.copy()
+        if is_press_event(event):
+            result.append(lv_point_t)
+        result.append(lv_event_t_ptr)
+        return result
+
     return {
         **{
             cv.Optional(event): validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        Trigger.template(*args)
+                        Trigger.template(*get_trigger_args(event))
                     ),
                 }
             )
@@ -322,7 +427,7 @@ def _update_widget(widget_type: WidgetType) -> Callable[[dict], dict]:
     """
 
     def validator(value: dict) -> dict:
-        df.get_data(df.KEY_UPDATED_WIDGETS).setdefault(widget_type, []).append(value)
+        df.get_updated_widgets().setdefault(widget_type, []).append(value)
         return value
 
     return validator
@@ -418,6 +523,17 @@ ALL_STYLES = {
 }
 
 
+def strip_defaults(schema: cv.Schema):
+    """
+    Take a schema and remove any default values, also convert Required to Optional.
+    Useful for converting an object schema to a modify schema
+    :param schema: The original Schema
+    :return: A new schema with no defaults and all items optional
+    """
+
+    return cv.Schema({cv.Optional(k): v for k, v in schema.schema.items()})
+
+
 def container_schema(widget_type: WidgetType, extras=None):
     """
     Create a schema for a container widget of a given type. All obj properties are available, plus
@@ -478,12 +594,12 @@ def any_widget_schema(extras=None):
             container_validator = container_schema(widget_type, extras=extras)
             if required := widget_type.required_component:
                 container_validator = cv.All(
-                    container_validator, requires_component(required)
+                    container_validator, cv.requires_component(required)
                 )
             # Apply custom validation
-            value = widget_type.validate(value or {})
             path = [key] if is_dict else [index, key]
             with prepend_path(path):
+                value = widget_type.validate(value or {})
                 result.append({key: container_validator(value)})
         return result
 

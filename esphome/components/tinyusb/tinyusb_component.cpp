@@ -2,6 +2,7 @@
 #include "tinyusb_component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "tinyusb_default_config.h"
 
 namespace esphome::tinyusb {
 
@@ -15,15 +16,34 @@ void TinyUSB::setup() {
     this->string_descriptor_[SERIAL_NUMBER] = mac_addr_buf;
   }
 
-  this->tusb_cfg_ = {
-      .descriptor = &this->usb_descriptor_,
-      .string_descriptor = this->string_descriptor_,
-      .string_descriptor_count = SIZE,
-      .external_phy = false,
+  // Start from esp_tinyusb defaults to keep required task settings valid across esp_tinyusb updates.
+  this->tusb_cfg_ = TINYUSB_DEFAULT_CONFIG();
+  this->tusb_cfg_.port = TINYUSB_PORT_FULL_SPEED_0;
+  this->tusb_cfg_.phy.skip_setup = false;
+  this->tusb_cfg_.descriptor = {
+      .device = &this->usb_descriptor_,
+      .string = this->string_descriptor_,
+      .string_count = SIZE,
   };
+
+  // Defense-in-depth: esp_tinyusb's tinyusb_descriptors_set() fails with
+  // ESP_ERR_INVALID_ARG when no configuration descriptor is provided and
+  // no class that has a built-in default (CDC/MSC/NCM) is compiled in. In
+  // that case the internal task exits without notifying us, and
+  // tinyusb_driver_install() blocks 5s on the notify-take -- long enough
+  // to trip the task watchdog. Bail early so the rest of the device can
+  // still boot.
+#if !(CFG_TUD_CDC > 0 || CFG_TUD_MSC > 0 || CFG_TUD_NCM > 0)
+  if (this->tusb_cfg_.descriptor.full_speed_config == nullptr) {
+    ESP_LOGE(TAG, "No USB class configured");
+    this->mark_failed();
+    return;
+  }
+#endif
 
   esp_err_t result = tinyusb_driver_install(&this->tusb_cfg_);
   if (result != ESP_OK) {
+    ESP_LOGE(TAG, "tinyusb_driver_install failed: %s", esp_err_to_name(result));
     this->mark_failed();
   }
 }

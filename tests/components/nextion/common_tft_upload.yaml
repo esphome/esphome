@@ -1,0 +1,5 @@
+display:
+  - id: !extend main_lcd
+    tft_url: http://esphome.io/default35.tft
+    tft_upload_http_timeout: 20s
+    tft_upload_http_retries: 10
