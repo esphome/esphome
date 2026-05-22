@@ -1,3 +1,4 @@
+from collections.abc import Callable
 import sys
 from typing import Any
 
@@ -86,7 +87,9 @@ def _build_update_schema(widget_type: "WidgetType") -> Schema:
     )
 
 
-def _update_action_schema(widget_type: "WidgetType") -> Any:
+def _update_action_schema(
+    widget_type: "WidgetType",
+) -> Schema | Callable[[Any], Any]:
     """Return the registered schema for a widget's update action.
 
     When `EnableSchemaExtraction` is on (script/build_language_schema.py), the
@@ -102,12 +105,13 @@ def _update_action_schema(widget_type: "WidgetType") -> Any:
     if EnableSchemaExtraction:
         return _build_update_schema(widget_type)
 
-    built: list[Schema] = []
+    cached: Schema | None = None
 
     def get_schema() -> Schema:
-        if not built:
-            built.append(_build_update_schema(widget_type))
-        return built[0]
+        nonlocal cached
+        if cached is None:
+            cached = _build_update_schema(widget_type)
+        return cached
 
     def validator(value: Any) -> Any:
         return get_schema()(value)
