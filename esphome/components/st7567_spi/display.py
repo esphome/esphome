@@ -32,7 +32,7 @@ FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await st7567_base.setup_st7567(var, config)
-    await spi.register_spi_device(var, config)
+    await spi.register_spi_device(var, config, write_only=True)
 
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))

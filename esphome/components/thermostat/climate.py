@@ -118,10 +118,8 @@ PRESET_CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_MODE): validate_climate_mode,
         cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
         cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
-        cv.Optional(CONF_FAN_MODE): cv.templatable(climate.validate_climate_fan_mode),
-        cv.Optional(CONF_SWING_MODE): cv.templatable(
-            climate.validate_climate_swing_mode
-        ),
+        cv.Optional(CONF_FAN_MODE): climate.validate_climate_fan_mode,
+        cv.Optional(CONF_SWING_MODE): climate.validate_climate_swing_mode,
     }
 )
 
@@ -151,6 +149,19 @@ def generate_comparable_preset(config, name):
         comparable_preset += f"     {CONF_DEFAULT_TARGET_TEMPERATURE_HIGH}: {config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH]}\n"
 
     return comparable_preset
+
+
+def validate_heat_cool_mode(value) -> list:
+    """Validate heat_cool_mode - accepts either True or an automation."""
+    if value is True:
+        # Convert True to empty automation list
+        return []
+    if value is False:
+        raise cv.Invalid(
+            "heat_cool_mode cannot be 'false'. Specify 'true' to enable the mode or provide an automation"
+        )
+    # Otherwise validate as automation
+    return automation.validate_automation(single=True)(value)
 
 
 def validate_thermostat(config):
@@ -490,7 +501,7 @@ def validate_thermostat(config):
     # If restoring default preset on boot is true then ensure we have a default preset
     if (
         CONF_ON_BOOT_RESTORE_FROM in config
-        and config[CONF_ON_BOOT_RESTORE_FROM] is OnBootRestoreFrom.DEFAULT_PRESET
+        and config[CONF_ON_BOOT_RESTORE_FROM] == "DEFAULT_PRESET"
         and CONF_DEFAULT_PRESET not in config
     ):
         raise cv.Invalid(
@@ -554,9 +565,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FAN_ONLY_MODE): automation.validate_automation(
                 single=True
             ),
-            cv.Optional(CONF_HEAT_COOL_MODE): automation.validate_automation(
-                single=True
-            ),
+            cv.Optional(CONF_HEAT_COOL_MODE): validate_heat_cool_mode,
             cv.Optional(CONF_HEAT_MODE): automation.validate_automation(single=True),
             cv.Optional(CONF_OFF_MODE): automation.validate_automation(single=True),
             cv.Optional(CONF_FAN_MODE_ON_ACTION): automation.validate_automation(
@@ -620,7 +629,7 @@ CONFIG_SCHEMA = cv.All(
             ): automation.validate_automation(single=True),
             cv.Optional(CONF_HUMIDITY_HYSTERESIS, default=1.0): cv.percentage,
             cv.Optional(CONF_DEFAULT_MODE, default=None): cv.valid,
-            cv.Optional(CONF_DEFAULT_PRESET): cv.templatable(cv.string),
+            cv.Optional(CONF_DEFAULT_PRESET): cv.string,
             cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
             cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
             cv.Optional(
@@ -828,9 +837,11 @@ async def to_code(config):
         )
         cg.add(var.set_supports_heat(True))
     if CONF_HEAT_COOL_MODE in config:
-        await automation.build_automation(
-            var.get_heat_cool_mode_trigger(), [], config[CONF_HEAT_COOL_MODE]
-        )
+        # Build automation only if user provided actions (not just `true`)
+        if config[CONF_HEAT_COOL_MODE]:
+            await automation.build_automation(
+                var.get_heat_cool_mode_trigger(), [], config[CONF_HEAT_COOL_MODE]
+            )
         cg.add(var.set_supports_heat_cool(True))
     if CONF_OFF_MODE in config:
         await automation.build_automation(

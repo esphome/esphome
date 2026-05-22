@@ -1,0 +1,12 @@
+# Common SPI configuration for ESP32-P4 IDF tests
+
+substitutions:
+  clk_pin: GPIO36
+  mosi_pin: GPIO32
+  miso_pin: GPIO33
+
+spi:
+  - id: spi_bus
+    clk_pin: ${clk_pin}
+    mosi_pin: ${mosi_pin}
+    miso_pin: ${miso_pin}

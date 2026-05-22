@@ -5,8 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace esphome {
-namespace audio {
+namespace esphome::audio {
 
 class AudioStreamInfo {
   /* Class to respresent important parameters of the audio stream that also provides helper function to convert between
@@ -113,7 +112,12 @@ enum class AudioFileType : uint8_t {
 #ifdef USE_AUDIO_MP3_SUPPORT
   MP3,
 #endif
+#ifdef USE_AUDIO_OPUS_SUPPORT
+  OPUS,
+#endif
+#ifdef USE_AUDIO_WAV_SUPPORT
   WAV,
+#endif
 };
 
 struct AudioFile {
@@ -126,6 +130,13 @@ struct AudioFile {
 /// @param file_type
 /// @return const char pointer to the readable file type
 const char *audio_file_type_to_string(AudioFileType file_type);
+
+/// @brief Detect audio file type from a Content-Type header value and/or URL extension.
+/// Tries Content-Type first, then falls back to URL extension. Either parameter may be null.
+/// @param content_type Content-Type header value (may be null or empty)
+/// @param url URL to inspect for file extension (may be null or empty)
+/// @return The detected AudioFileType, or NONE if unknown
+AudioFileType detect_audio_file_type(const char *content_type, const char *url);
 
 /// @brief Scales Q15 fixed point audio samples. Scales in place if audio_samples == output_buffer.
 /// @param audio_samples PCM int16 audio samples
@@ -183,5 +194,4 @@ inline void pack_q31_as_audio_sample(int32_t sample, uint8_t *data, size_t bytes
   }
 }
 
-}  // namespace audio
-}  // namespace esphome
+}  // namespace esphome::audio

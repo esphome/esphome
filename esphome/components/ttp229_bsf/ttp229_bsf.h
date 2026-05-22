@@ -6,8 +6,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace ttp229_bsf {
+namespace esphome::ttp229_bsf {
 
 class TTP229BSFChannel : public binary_sensor::BinarySensor {
  public:
@@ -51,5 +50,4 @@ class TTP229BSFComponent : public Component {
   std::vector<TTP229BSFChannel *> channels_{};
 };
 
-}  // namespace ttp229_bsf
-}  // namespace esphome
+}  // namespace esphome::ttp229_bsf

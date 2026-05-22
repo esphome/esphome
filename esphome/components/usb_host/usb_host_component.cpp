@@ -4,8 +4,7 @@
 #include <cinttypes>
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace usb_host {
+namespace esphome::usb_host {
 
 void USBHost::setup() {
   usb_host_config_t config{};
@@ -28,7 +27,6 @@ void USBHost::loop() {
   }
 }
 
-}  // namespace usb_host
-}  // namespace esphome
+}  // namespace esphome::usb_host
 
 #endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3

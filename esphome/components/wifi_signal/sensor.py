@@ -25,6 +25,6 @@ CONFIG_SCHEMA = sensor.sensor_schema(
 
 
 async def to_code(config):
-    wifi.request_wifi_listeners()
+    wifi.request_wifi_connect_state_listener()
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)

@@ -1,8 +1,7 @@
 #include "whirlpool.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace whirlpool {
+namespace esphome::whirlpool {
 
 static const char *const TAG = "whirlpool.climate";
 
@@ -31,6 +30,13 @@ const uint8_t WHIRLPOOL_FAN_LOW = 3;
 const uint8_t WHIRLPOOL_SWING_MASK = 128;
 
 const uint8_t WHIRLPOOL_POWER = 0x04;
+
+WhirlpoolClimate::WhirlpoolClimate()
+    : climate_ir::ClimateIR(
+          WHIRLPOOL_DG11J1_3A_TEMP_MIN, WHIRLPOOL_DG11J1_3A_TEMP_MAX, 1.0f, true, true,
+          {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH},
+          {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}),
+      model_(MODEL_DG11J1_3A) {}
 
 void WhirlpoolClimate::transmit_state() {
   this->last_transmit_time_ = millis();  // setting the time of the last transmission.
@@ -82,7 +88,7 @@ void WhirlpoolClimate::transmit_state() {
   remote_state[3] |= (uint8_t) (temp - this->temperature_min_()) << 4;
 
   // Fan speed
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_HIGH:
       remote_state[2] |= WHIRLPOOL_FAN_HIGH;
       break;
@@ -163,6 +169,7 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   uint8_t remote_state[WHIRLPOOL_STATE_LENGTH] = {0};
+  bool skip_footer = false;
   // Read all bytes.
   for (int i = 0; i < WHIRLPOOL_STATE_LENGTH; i++) {
     // Read bit
@@ -170,6 +177,13 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
       if (!data.expect_item(WHIRLPOOL_BIT_MARK, WHIRLPOOL_GAP))
         return false;
     }
+    if (i == 14 && !data.is_valid()) {
+      // Remote control only sent 14 bytes, nothing more to read, not even the footer
+      ESP_LOGV(TAG, "Remote control only sent %d bytes", i);
+      skip_footer = true;
+      break;
+    }
+
     for (int j = 0; j < 8; j++) {
       if (data.expect_item(WHIRLPOOL_BIT_MARK, WHIRLPOOL_ONE_SPACE)) {
         remote_state[i] |= 1 << j;
@@ -183,7 +197,7 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
     ESP_LOGVV(TAG, "Byte %d %02X", i, remote_state[i]);
   }
   // Validate footer
-  if (!data.expect_mark(WHIRLPOOL_BIT_MARK)) {
+  if (!data.expect_mark(WHIRLPOOL_BIT_MARK) && !skip_footer) {
     ESP_LOGV(TAG, "Footer fail");
     return false;
   }
@@ -196,7 +210,7 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
   for (uint8_t i = 14; i < 20; i++)
     checksum20 ^= remote_state[i];
 
-  if (checksum13 != remote_state[13] || checksum20 != remote_state[20]) {
+  if (checksum13 != remote_state[13] || (!skip_footer && checksum20 != remote_state[20])) {
     ESP_LOGVV(TAG, "Checksum fail");
     return false;
   }
@@ -292,5 +306,4 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
   return true;
 }
 
-}  // namespace whirlpool
-}  // namespace esphome
+}  // namespace esphome::whirlpool

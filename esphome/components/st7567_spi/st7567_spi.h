@@ -4,8 +4,7 @@
 #include "esphome/components/st7567_base/st7567_base.h"
 #include "esphome/components/spi/spi.h"
 
-namespace esphome {
-namespace st7567_spi {
+namespace esphome::st7567_spi {
 
 class SPIST7567 : public st7567_base::ST7567,
                   public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_TRAILING,
@@ -25,5 +24,4 @@ class SPIST7567 : public st7567_base::ST7567,
   GPIOPin *dc_pin_;
 };
 
-}  // namespace st7567_spi
-}  // namespace esphome
+}  // namespace esphome::st7567_spi

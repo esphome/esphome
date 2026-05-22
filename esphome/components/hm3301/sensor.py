@@ -1,5 +1,8 @@
+import logging
+
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.aqi import AQI_CALCULATION_TYPE, CONF_AQI, CONF_CALCULATION_TYPE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -15,23 +18,18 @@ from esphome.const import (
     UNIT_MICROGRAMS_PER_CUBIC_METER,
 )
 
+_LOGGER = logging.getLogger(__name__)
+
 DEPENDENCIES = ["i2c"]
+AUTO_LOAD = ["aqi"]
 CODEOWNERS = ["@freekode"]
 
 hm3301_ns = cg.esphome_ns.namespace("hm3301")
 HM3301Component = hm3301_ns.class_(
     "HM3301Component", cg.PollingComponent, i2c.I2CDevice
 )
-AQICalculatorType = hm3301_ns.enum("AQICalculatorType")
 
-CONF_AQI = "aqi"
-CONF_CALCULATION_TYPE = "calculation_type"
 UNIT_INDEX = "index"
-
-AQI_CALCULATION_TYPE = {
-    "CAQI": AQICalculatorType.CAQI_TYPE,
-    "AQI": AQICalculatorType.AQI_TYPE,
-}
 
 
 def _validate(config):
@@ -105,7 +103,12 @@ async def to_code(config):
         sens = await sensor.new_sensor(config[CONF_PM_10_0])
         cg.add(var.set_pm_10_0_sensor(sens))
 
+    # Remove before 2026.12.0
     if CONF_AQI in config:
+        _LOGGER.warning(
+            "The 'aqi' option in hm3301 is deprecated, "
+            "please use the standalone 'aqi' sensor platform instead."
+        )
         sens = await sensor.new_sensor(config[CONF_AQI])
         cg.add(var.set_aqi_sensor(sens))
         cg.add(var.set_aqi_calculation_type(config[CONF_AQI][CONF_CALCULATION_TYPE]))

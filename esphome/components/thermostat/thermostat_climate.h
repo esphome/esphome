@@ -10,8 +10,7 @@
 #include <array>
 #include <cinttypes>
 
-namespace esphome {
-namespace thermostat {
+namespace esphome::thermostat {
 
 enum HumidificationAction : uint8_t {
   THERMOSTAT_HUMIDITY_CONTROL_ACTION_OFF = 0,
@@ -41,13 +40,11 @@ enum OnBootRestoreFrom : uint8_t {
 
 struct ThermostatClimateTimer {
   ThermostatClimateTimer() = default;
-  ThermostatClimateTimer(bool active, uint32_t time, uint32_t started, std::function<void()> func)
-      : active(active), time(time), started(started), func(std::move(func)) {}
+  ThermostatClimateTimer(bool active, uint32_t time, uint32_t started) : active(active), time(time), started(started) {}
 
   bool active;
   uint32_t time;
   uint32_t started;
-  std::function<void()> func;
 };
 
 struct ThermostatClimateTargetTempConfig {
@@ -149,40 +146,40 @@ class ThermostatClimate : public climate::Climate, public Component {
   void set_preset_config(std::initializer_list<PresetEntry> presets);
   void set_custom_preset_config(std::initializer_list<CustomPresetEntry> presets);
 
-  Trigger<> *get_cool_action_trigger() const;
-  Trigger<> *get_supplemental_cool_action_trigger() const;
-  Trigger<> *get_dry_action_trigger() const;
-  Trigger<> *get_fan_only_action_trigger() const;
-  Trigger<> *get_heat_action_trigger() const;
-  Trigger<> *get_supplemental_heat_action_trigger() const;
-  Trigger<> *get_idle_action_trigger() const;
-  Trigger<> *get_auto_mode_trigger() const;
-  Trigger<> *get_cool_mode_trigger() const;
-  Trigger<> *get_dry_mode_trigger() const;
-  Trigger<> *get_fan_only_mode_trigger() const;
-  Trigger<> *get_heat_mode_trigger() const;
-  Trigger<> *get_heat_cool_mode_trigger() const;
-  Trigger<> *get_off_mode_trigger() const;
-  Trigger<> *get_fan_mode_on_trigger() const;
-  Trigger<> *get_fan_mode_off_trigger() const;
-  Trigger<> *get_fan_mode_auto_trigger() const;
-  Trigger<> *get_fan_mode_low_trigger() const;
-  Trigger<> *get_fan_mode_medium_trigger() const;
-  Trigger<> *get_fan_mode_high_trigger() const;
-  Trigger<> *get_fan_mode_middle_trigger() const;
-  Trigger<> *get_fan_mode_focus_trigger() const;
-  Trigger<> *get_fan_mode_diffuse_trigger() const;
-  Trigger<> *get_fan_mode_quiet_trigger() const;
-  Trigger<> *get_swing_mode_both_trigger() const;
-  Trigger<> *get_swing_mode_horizontal_trigger() const;
-  Trigger<> *get_swing_mode_off_trigger() const;
-  Trigger<> *get_swing_mode_vertical_trigger() const;
-  Trigger<> *get_humidity_change_trigger() const;
-  Trigger<> *get_temperature_change_trigger() const;
-  Trigger<> *get_preset_change_trigger() const;
-  Trigger<> *get_humidity_control_dehumidify_action_trigger() const;
-  Trigger<> *get_humidity_control_humidify_action_trigger() const;
-  Trigger<> *get_humidity_control_off_action_trigger() const;
+  Trigger<> *get_cool_action_trigger();
+  Trigger<> *get_supplemental_cool_action_trigger();
+  Trigger<> *get_dry_action_trigger();
+  Trigger<> *get_fan_only_action_trigger();
+  Trigger<> *get_heat_action_trigger();
+  Trigger<> *get_supplemental_heat_action_trigger();
+  Trigger<> *get_idle_action_trigger();
+  Trigger<> *get_auto_mode_trigger();
+  Trigger<> *get_cool_mode_trigger();
+  Trigger<> *get_dry_mode_trigger();
+  Trigger<> *get_fan_only_mode_trigger();
+  Trigger<> *get_heat_mode_trigger();
+  Trigger<> *get_heat_cool_mode_trigger();
+  Trigger<> *get_off_mode_trigger();
+  Trigger<> *get_fan_mode_on_trigger();
+  Trigger<> *get_fan_mode_off_trigger();
+  Trigger<> *get_fan_mode_auto_trigger();
+  Trigger<> *get_fan_mode_low_trigger();
+  Trigger<> *get_fan_mode_medium_trigger();
+  Trigger<> *get_fan_mode_high_trigger();
+  Trigger<> *get_fan_mode_middle_trigger();
+  Trigger<> *get_fan_mode_focus_trigger();
+  Trigger<> *get_fan_mode_diffuse_trigger();
+  Trigger<> *get_fan_mode_quiet_trigger();
+  Trigger<> *get_swing_mode_both_trigger();
+  Trigger<> *get_swing_mode_horizontal_trigger();
+  Trigger<> *get_swing_mode_off_trigger();
+  Trigger<> *get_swing_mode_vertical_trigger();
+  Trigger<> *get_humidity_change_trigger();
+  Trigger<> *get_temperature_change_trigger();
+  Trigger<> *get_preset_change_trigger();
+  Trigger<> *get_humidity_control_dehumidify_action_trigger();
+  Trigger<> *get_humidity_control_humidify_action_trigger();
+  Trigger<> *get_humidity_control_off_action_trigger();
   /// Get current hysteresis values
   float cool_deadband();
   float cool_overrun();
@@ -217,7 +214,13 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// Change to a provided preset setting; will reset temperature, mode, fan, and swing modes accordingly
   void change_preset_(climate::ClimatePreset preset);
   /// Change to a provided custom preset setting; will reset temperature, mode, fan, and swing modes accordingly
-  void change_custom_preset_(const char *custom_preset);
+  void change_custom_preset_(const char *custom_preset) {
+    this->change_custom_preset_(custom_preset, strlen(custom_preset));
+  }
+  void change_custom_preset_(const char *custom_preset, size_t len);
+  void change_custom_preset_(StringRef custom_preset) {
+    this->change_custom_preset_(custom_preset.c_str(), custom_preset.size());
+  }
 
   /// Applies the temperature, mode, fan, and swing modes of the provided config.
   /// This is agnostic of custom vs built in preset
@@ -266,7 +269,10 @@ class ThermostatClimate : public climate::Climate, public Component {
   bool cancel_timer_(ThermostatClimateTimerIndex timer_index);
   bool timer_active_(ThermostatClimateTimerIndex timer_index);
   uint32_t timer_duration_(ThermostatClimateTimerIndex timer_index);
-  std::function<void()> timer_cbf_(ThermostatClimateTimerIndex timer_index);
+  /// Call the appropriate timer callback based on timer index
+  void call_timer_callback_(ThermostatClimateTimerIndex timer_index);
+  /// Enhanced timer duration setter with running timer adjustment
+  void set_timer_duration_in_sec_(ThermostatClimateTimerIndex timer_index, uint32_t time);
 
   /// set_timeout() callbacks for various actions (see above)
   void cooling_max_run_time_timer_callback_();
@@ -411,115 +417,65 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// The sensor used for getting the current humidity
   sensor::Sensor *humidity_sensor_{nullptr};
 
-  /// The trigger to call when the controller should switch to cooling action/mode.
-  ///
-  /// A null value for this attribute means that the controller has no cooling action
-  /// For example electric heat, where only heating (power on) and not-heating
-  /// (power off) is possible.
-  Trigger<> *cool_action_trigger_{nullptr};
-  Trigger<> *supplemental_cool_action_trigger_{nullptr};
-  Trigger<> *cool_mode_trigger_{nullptr};
+  /// Trigger for cooling action/mode
+  Trigger<> cool_action_trigger_;
+  Trigger<> supplemental_cool_action_trigger_;
+  Trigger<> cool_mode_trigger_;
 
-  /// The trigger to call when the controller should switch to dry (dehumidification) mode.
-  ///
-  /// In dry mode, the controller is assumed to have both heating and cooling disabled,
-  /// although the system may use its cooling mechanism to achieve drying.
-  Trigger<> *dry_action_trigger_{nullptr};
-  Trigger<> *dry_mode_trigger_{nullptr};
+  /// Trigger for dry (dehumidification) mode
+  Trigger<> dry_action_trigger_;
+  Trigger<> dry_mode_trigger_;
 
-  /// The trigger to call when the controller should switch to heating action/mode.
-  ///
-  /// A null value for this attribute means that the controller has no heating action
-  /// For example window blinds, where only cooling (blinds closed) and not-cooling
-  /// (blinds open) is possible.
-  Trigger<> *heat_action_trigger_{nullptr};
-  Trigger<> *supplemental_heat_action_trigger_{nullptr};
-  Trigger<> *heat_mode_trigger_{nullptr};
+  /// Trigger for heating action/mode
+  Trigger<> heat_action_trigger_;
+  Trigger<> supplemental_heat_action_trigger_;
+  Trigger<> heat_mode_trigger_;
 
-  /// The trigger to call when the controller should switch to heat/cool mode.
-  ///
-  /// In heat/cool mode, the controller will enable heating/cooling as necessary and switch
-  /// to idle when the temperature is within the thresholds/set points.
-  Trigger<> *heat_cool_mode_trigger_{nullptr};
+  /// Trigger for heat/cool mode
+  Trigger<> heat_cool_mode_trigger_;
 
-  /// The trigger to call when the controller should switch to auto mode.
-  ///
-  /// In auto mode, the controller will enable heating/cooling as supported/necessary and switch
-  /// to idle when the temperature is within the thresholds/set points.
-  Trigger<> *auto_mode_trigger_{nullptr};
+  /// Trigger for auto mode
+  Trigger<> auto_mode_trigger_;
 
-  /// The trigger to call when the controller should switch to idle action/off mode.
-  ///
-  /// In these actions/modes, the controller is assumed to have both heating and cooling disabled.
-  Trigger<> *idle_action_trigger_{nullptr};
-  Trigger<> *off_mode_trigger_{nullptr};
+  /// Trigger for idle action/off mode
+  Trigger<> idle_action_trigger_;
+  Trigger<> off_mode_trigger_;
 
-  /// The trigger to call when the controller should switch to fan-only action/mode.
-  ///
-  /// In fan-only mode, the controller is assumed to have both heating and cooling disabled.
-  /// The system should activate the fan only.
-  Trigger<> *fan_only_action_trigger_{nullptr};
-  Trigger<> *fan_only_mode_trigger_{nullptr};
+  /// Trigger for fan-only action/mode
+  Trigger<> fan_only_action_trigger_;
+  Trigger<> fan_only_mode_trigger_;
 
-  /// The trigger to call when the controller should switch on the fan.
-  Trigger<> *fan_mode_on_trigger_{nullptr};
+  /// Fan mode triggers
+  Trigger<> fan_mode_on_trigger_;
+  Trigger<> fan_mode_off_trigger_;
+  Trigger<> fan_mode_auto_trigger_;
+  Trigger<> fan_mode_low_trigger_;
+  Trigger<> fan_mode_medium_trigger_;
+  Trigger<> fan_mode_high_trigger_;
+  Trigger<> fan_mode_middle_trigger_;
+  Trigger<> fan_mode_focus_trigger_;
+  Trigger<> fan_mode_diffuse_trigger_;
+  Trigger<> fan_mode_quiet_trigger_;
 
-  /// The trigger to call when the controller should switch off the fan.
-  Trigger<> *fan_mode_off_trigger_{nullptr};
+  /// Swing mode triggers
+  Trigger<> swing_mode_both_trigger_;
+  Trigger<> swing_mode_off_trigger_;
+  Trigger<> swing_mode_horizontal_trigger_;
+  Trigger<> swing_mode_vertical_trigger_;
 
-  /// The trigger to call when the controller should switch the fan to "auto" mode.
-  Trigger<> *fan_mode_auto_trigger_{nullptr};
+  /// Trigger for target humidity changes
+  Trigger<> humidity_change_trigger_;
 
-  /// The trigger to call when the controller should switch the fan to "low" speed.
-  Trigger<> *fan_mode_low_trigger_{nullptr};
+  /// Trigger for target temperature changes
+  Trigger<> temperature_change_trigger_;
 
-  /// The trigger to call when the controller should switch the fan to "medium" speed.
-  Trigger<> *fan_mode_medium_trigger_{nullptr};
+  /// Trigger for preset mode changes
+  Trigger<> preset_change_trigger_;
 
-  /// The trigger to call when the controller should switch the fan to "high" speed.
-  Trigger<> *fan_mode_high_trigger_{nullptr};
-
-  /// The trigger to call when the controller should switch the fan to "middle" position.
-  Trigger<> *fan_mode_middle_trigger_{nullptr};
-
-  /// The trigger to call when the controller should switch the fan to "focus" position.
-  Trigger<> *fan_mode_focus_trigger_{nullptr};
-
-  /// The trigger to call when the controller should switch the fan to "diffuse" position.
-  Trigger<> *fan_mode_diffuse_trigger_{nullptr};
-
-  /// The trigger to call when the controller should switch the fan to "quiet" position.
-  Trigger<> *fan_mode_quiet_trigger_{nullptr};
-
-  /// The trigger to call when the controller should switch the swing mode to "both".
-  Trigger<> *swing_mode_both_trigger_{nullptr};
-
-  /// The trigger to call when the controller should switch the swing mode to "off".
-  Trigger<> *swing_mode_off_trigger_{nullptr};
-
-  /// The trigger to call when the controller should switch the swing mode to "horizontal".
-  Trigger<> *swing_mode_horizontal_trigger_{nullptr};
-
-  /// The trigger to call when the controller should switch the swing mode to "vertical".
-  Trigger<> *swing_mode_vertical_trigger_{nullptr};
-
-  /// The trigger to call when the target humidity changes.
-  Trigger<> *humidity_change_trigger_{nullptr};
-
-  /// The trigger to call when the target temperature(s) change(es).
-  Trigger<> *temperature_change_trigger_{nullptr};
-
-  /// The trigger to call when the preset mode changes
-  Trigger<> *preset_change_trigger_{nullptr};
-
-  /// The trigger to call when dehumidification is required
-  Trigger<> *humidity_control_dehumidify_action_trigger_{nullptr};
-
-  /// The trigger to call when humidification is required
-  Trigger<> *humidity_control_humidify_action_trigger_{nullptr};
-
-  /// The trigger to call when (de)humidification should stop
-  Trigger<> *humidity_control_off_action_trigger_{nullptr};
+  /// Humidity control triggers
+  Trigger<> humidity_control_dehumidify_action_trigger_;
+  Trigger<> humidity_control_humidify_action_trigger_;
+  Trigger<> humidity_control_off_action_trigger_;
 
   /// A reference to the trigger that was previously active.
   ///
@@ -532,27 +488,16 @@ class ThermostatClimate : public climate::Climate, public Component {
   Trigger<> *prev_humidity_control_trigger_{nullptr};
 
   /// Climate action timers
-  std::array<ThermostatClimateTimer, THERMOSTAT_TIMER_COUNT> timer_{
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::cooling_max_run_time_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::cooling_off_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::cooling_on_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::fan_mode_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::fanning_off_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::fanning_on_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::heating_max_run_time_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::heating_off_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::heating_on_timer_callback_, this)),
-      ThermostatClimateTimer(false, 0, 0, std::bind(&ThermostatClimate::idle_on_timer_callback_, this)),
-  };
+  std::array<ThermostatClimateTimer, THERMOSTAT_TIMER_COUNT> timer_{};
 
   /// The set of standard preset configurations this thermostat supports (Eg. AWAY, ECO, etc)
   FixedVector<PresetEntry> preset_config_{};
   /// The set of custom preset configurations this thermostat supports (eg. "My Custom Preset")
   FixedVector<CustomPresetEntry> custom_preset_config_{};
-  /// Default custom preset to use on start up (pointer to entry in custom_preset_config_)
+
  private:
+  /// Default custom preset to use on start up (pointer to entry in custom_preset_config_)
   const char *default_custom_preset_{nullptr};
 };
 
-}  // namespace thermostat
-}  // namespace esphome
+}  // namespace esphome::thermostat

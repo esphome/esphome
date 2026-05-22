@@ -3,7 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#if defined(USE_LIBRETINY) || defined(USE_ESP8266) || defined(USE_RP2040)
+#if defined(USE_LIBRETINY) || defined(USE_ESP8266) || defined(USE_RP2040) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
 
 namespace esphome::remote_receiver {
 
@@ -76,16 +76,16 @@ void RemoteReceiverComponent::setup() {
 }
 
 void RemoteReceiverComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Remote Receiver:");
-  LOG_PIN("  Pin: ", this->pin_);
   ESP_LOGCONFIG(TAG,
-                "  Buffer Size: %u\n"
-                "  Tolerance: %u%s\n"
-                "  Filter out pulses shorter than: %u us\n"
-                "  Signal is done after %u us of no changes",
+                "Remote Receiver:\n"
+                "  Buffer Size: %" PRIu32 "\n"
+                "  Tolerance: %" PRIu32 "%s\n"
+                "  Filter out pulses shorter than: %" PRIu32 " us\n"
+                "  Signal is done after %" PRIu32 " us of no changes",
                 this->buffer_size_, this->tolerance_,
                 (this->tolerance_mode_ == remote_base::TOLERANCE_MODE_TIME) ? " us" : "%", this->filter_us_,
                 this->idle_us_);
+  LOG_PIN("  Pin: ", this->pin_);
 }
 
 void RemoteReceiverComponent::loop() {

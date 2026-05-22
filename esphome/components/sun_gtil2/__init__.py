@@ -13,11 +13,15 @@ sun_gtil2_ns = cg.esphome_ns.namespace("sun_gtil2")
 
 SunGTIL2Component = sun_gtil2_ns.class_("SunGTIL2", cg.Component, uart.UARTDevice)
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(SunGTIL2Component),
-    }
-).extend(uart.UART_DEVICE_SCHEMA)
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(SunGTIL2Component),
+        }
+    )
+    .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config):

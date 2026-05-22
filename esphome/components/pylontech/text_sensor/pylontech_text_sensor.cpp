@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pylontech {
+namespace esphome::pylontech {
 
 static const char *const TAG = "pylontech.textsensor";
 
@@ -25,18 +24,17 @@ void PylontechTextSensor::on_line_read(PylontechListener::LineContents *line) {
     return;
   }
   if (this->base_state_text_sensor_ != nullptr) {
-    this->base_state_text_sensor_->publish_state(std::string(line->base_st));
+    this->base_state_text_sensor_->publish_state(line->base_st);
   }
   if (this->voltage_state_text_sensor_ != nullptr) {
-    this->voltage_state_text_sensor_->publish_state(std::string(line->volt_st));
+    this->voltage_state_text_sensor_->publish_state(line->volt_st);
   }
   if (this->current_state_text_sensor_ != nullptr) {
-    this->current_state_text_sensor_->publish_state(std::string(line->curr_st));
+    this->current_state_text_sensor_->publish_state(line->curr_st);
   }
   if (this->temperature_state_text_sensor_ != nullptr) {
-    this->temperature_state_text_sensor_->publish_state(std::string(line->temp_st));
+    this->temperature_state_text_sensor_->publish_state(line->temp_st);
   }
 }
 
-}  // namespace pylontech
-}  // namespace esphome
+}  // namespace esphome::pylontech

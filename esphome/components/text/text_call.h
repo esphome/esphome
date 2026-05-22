@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "text_traits.h"
 
-namespace esphome {
-namespace text {
+namespace esphome::text {
 
 class Text;
 
@@ -14,6 +13,7 @@ class TextCall {
   void perform();
 
   TextCall &set_value(const std::string &value);
+  TextCall &set_value(const char *value, size_t len);
 
  protected:
   Text *const parent_;
@@ -21,5 +21,4 @@ class TextCall {
   void validate_();
 };
 
-}  // namespace text
-}  // namespace esphome
+}  // namespace esphome::text

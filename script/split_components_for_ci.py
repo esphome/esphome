@@ -28,7 +28,7 @@ from script.analyze_component_buses import (
     create_grouping_signature,
     merge_compatible_bus_groups,
 )
-from script.helpers import get_component_test_files
+from script.helpers import get_component_test_files, split_conflicting_groups
 
 # Weighting for batch creation
 # Isolated components can't be grouped/merged, so they count as 10x
@@ -44,14 +44,21 @@ ALL_PLATFORMS = "all"
 def has_test_files(component_name: str, tests_dir: Path) -> bool:
     """Check if a component has test files.
 
+    Validate files (validate.*.yaml) count -- a component with only config-only
+    test files still needs a CI runner for schema validation.
+
     Args:
         component_name: Name of the component
         tests_dir: Path to tests/components directory (unused, kept for compatibility)
 
     Returns:
-        True if the component has test.*.yaml or test-*.yaml files
+        True if the component has test.*.yaml, test-*.yaml, or validate.*.yaml files
     """
-    return bool(get_component_test_files(component_name, all_variants=True))
+    return bool(
+        get_component_test_files(
+            component_name, all_variants=True, include_validate=True
+        )
+    )
 
 
 def create_intelligent_batches(
@@ -144,6 +151,11 @@ def create_intelligent_batches(
     # This allows components with different buses (ble + uart) to be batched together
     # improving the efficiency of test_build_components.py grouping
     signature_groups = merge_compatible_bus_groups(signature_groups)
+
+    # Split groups containing mutually-incompatible components (CONFLICTS_WITH).
+    # Without this, batch weighting assumes the group is one build when it will
+    # actually be split into two at build time -- throwing off CI distribution.
+    signature_groups = split_conflicting_groups(signature_groups)
 
     # Create batches by keeping signature groups together
     # Components with the same signature stay in the same batches

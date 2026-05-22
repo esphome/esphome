@@ -93,11 +93,31 @@ def _bus_declare_type(value):
     raise NotImplementedError
 
 
+def _rp2040_i2c_controller(pin):
+    """Return the I2C controller number (0 or 1) for a given RP2040/RP2350 GPIO pin.
+
+    See RP2040 datasheet Table 2 (section 1.4.3, "GPIO Functions"):
+    https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
+    See RP2350 datasheet Table 7 (section 9.4, "Function Select"):
+    https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf
+    """
+    return (pin // 2) % 2
+
+
 def validate_config(config):
     if CORE.is_esp32:
         return cv.require_framework_version(
             esp_idf=cv.Version(5, 4, 2), esp32_arduino=cv.Version(3, 2, 1)
         )(config)
+    if CORE.is_rp2040:
+        sda_controller = _rp2040_i2c_controller(config[CONF_SDA])
+        scl_controller = _rp2040_i2c_controller(config[CONF_SCL])
+        if sda_controller != scl_controller:
+            raise cv.Invalid(
+                f"SDA pin GPIO{config[CONF_SDA]} is on I2C{sda_controller} but "
+                f"SCL pin GPIO{config[CONF_SCL]} is on I2C{scl_controller}. "
+                f"Both pins must be on the same I2C controller."
+            )
     return config
 
 
@@ -121,7 +141,7 @@ CONFIG_SCHEMA = cv.All(
                 nrf52="100kHz",
             ): cv.All(
                 cv.frequency,
-                cv.Range(min=0, min_included=False),
+                cv.float_range(min=0, min_included=False),
             ),
             cv.Optional(CONF_TIMEOUT): cv.All(
                 cv.only_with_framework(["arduino", "esp-idf"]),
@@ -146,7 +166,24 @@ def _final_validate(config):
     full_config = fv.full_config.get()[CONF_I2C]
     if CORE.using_zephyr and len(full_config) > 1:
         raise cv.Invalid("Second i2c is not implemented on Zephyr yet")
-    if CORE.using_esp_idf and get_esp32_variant() in ESP32_I2C_CAPABILITIES:
+    if CORE.is_rp2040:
+        if len(full_config) > 2:
+            raise cv.Invalid(
+                "The maximum number of I2C interfaces for RP2040/RP2350 is 2"
+            )
+        if len(full_config) > 1:
+            controllers = [
+                _rp2040_i2c_controller(conf[CONF_SDA]) for conf in full_config
+            ]
+            if len(set(controllers)) != len(controllers):
+                raise cv.Invalid(
+                    "Multiple I2C buses are configured to use the same I2C controller. "
+                    "Each bus must use pins on a different controller. "
+                    "The I2C controller is determined by (gpio / 2) % 2: "
+                    "even pin pairs (0-1, 4-5, 8-9, ...) use I2C0, "
+                    "odd pin pairs (2-3, 6-7, 10-11, ...) use I2C1."
+                )
+    if CORE.is_esp32 and get_esp32_variant() in ESP32_I2C_CAPABILITIES:
         variant = get_esp32_variant()
         max_num = ESP32_I2C_CAPABILITIES[variant]["NUM"]
         if len(full_config) > max_num:
@@ -183,7 +220,7 @@ async def to_code(config):
     if CORE.using_zephyr:
         zephyr_add_prj_conf("I2C", True)
         i2c = "i2c0"
-        if zephyr_data()[KEY_BOARD] in ["xiao_ble"]:
+        if zephyr_data()[KEY_BOARD] == "xiao_ble":
             i2c = "i2c1"
         zephyr_add_overlay(
             f"""
@@ -237,10 +274,6 @@ def i2c_device_schema(default_address):
     """
     schema = {
         cv.GenerateID(CONF_I2C_ID): cv.use_id(I2CBus),
-        cv.Optional("multiplexer"): cv.invalid(
-            "This option has been removed, please see "
-            "the tca9584a docs for the updated way to use multiplexers"
-        ),
     }
     if default_address is None:
         schema[cv.Required(CONF_ADDRESS)] = cv.i2c_address
@@ -254,7 +287,7 @@ async def register_i2c_device(var, config):
 
     Sets the i2c bus to use and the i2c address.
 
-    This is a coroutine, you need to await it with a 'yield' expression!
+    This is a coroutine, you need to await it with an 'await' expression!
     """
     parent = await cg.get_variable(config[CONF_I2C_ID])
     cg.add(var.set_i2c_bus(parent))

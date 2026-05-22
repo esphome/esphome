@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_ID,
     CONF_POWER_MODE,
     CONF_RANGE,
+    CONF_WATCHDOG,
 )
 
 CODEOWNERS = ["@ammmze"]
@@ -57,7 +58,6 @@ FAST_FILTER = {
 
 CONF_RAW_ANGLE = "raw_angle"
 CONF_RAW_POSITION = "raw_position"
-CONF_WATCHDOG = "watchdog"
 CONF_SLOW_FILTER = "slow_filter"
 CONF_FAST_FILTER = "fast_filter"
 CONF_START_POSITION = "start_position"
@@ -83,7 +83,7 @@ def angle_to_position(value, min=-360, max=360):
         value = angle(min=min, max=max)(value)
         return (RESOLUTION + round(value * ANGLE_TO_POSITION)) % RESOLUTION
     except cv.Invalid as e:
-        raise cv.Invalid(f"When using angle, {e.error_message}")
+        raise cv.Invalid(f"When using angle, {e.error_message}") from e
 
 
 def percent_to_position(value):
@@ -164,7 +164,7 @@ def has_valid_range_config():
         except cv.Invalid as e:
             raise cv.Invalid(
                 f"The range between start and end position is invalid. It was was {range} but {e.error_message}"
-            )
+            ) from e
 
     return validator
 

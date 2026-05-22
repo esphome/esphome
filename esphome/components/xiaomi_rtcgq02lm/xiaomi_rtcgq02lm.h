@@ -13,13 +13,12 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace xiaomi_rtcgq02lm {
+namespace esphome::xiaomi_rtcgq02lm {
 
 class XiaomiRTCGQ02LM : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; };
-  void set_bindkey(const std::string &bindkey);
+  void set_bindkey(const char *bindkey);
 
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
   void dump_config() override;
@@ -54,7 +53,6 @@ class XiaomiRTCGQ02LM : public Component, public esp32_ble_tracker::ESPBTDeviceL
 #endif
 };
 
-}  // namespace xiaomi_rtcgq02lm
-}  // namespace esphome
+}  // namespace esphome::xiaomi_rtcgq02lm
 
 #endif

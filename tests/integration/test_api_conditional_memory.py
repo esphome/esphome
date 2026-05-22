@@ -23,12 +23,14 @@ async def test_api_conditional_memory(
     # Track log messages
     connected_future = loop.create_future()
     disconnected_future = loop.create_future()
+    no_clients_future = loop.create_future()
     service_simple_future = loop.create_future()
     service_args_future = loop.create_future()
 
     # Patterns to match in logs
     connected_pattern = re.compile(r"Client .* connected from")
     disconnected_pattern = re.compile(r"Client .* disconnected from")
+    no_clients_pattern = re.compile(r"No clients remaining")
     service_simple_pattern = re.compile(r"Simple service called")
     service_args_pattern = re.compile(
         r"Service called with: test_string, 123, 1, 42\.50"
@@ -40,6 +42,8 @@ async def test_api_conditional_memory(
             connected_future.set_result(True)
         elif not disconnected_future.done() and disconnected_pattern.search(line):
             disconnected_future.set_result(True)
+        elif not no_clients_future.done() and no_clients_pattern.search(line):
+            no_clients_future.set_result(True)
         elif not service_simple_future.done() and service_simple_pattern.search(line):
             service_simple_future.set_result(True)
         elif not service_args_future.done() and service_args_pattern.search(line):
@@ -109,3 +113,7 @@ async def test_api_conditional_memory(
 
         # Client disconnected here, wait for disconnect log
         await asyncio.wait_for(disconnected_future, timeout=5.0)
+
+        # Verify fix for issue #11131: api.connected should be false in trigger
+        # when the last client disconnects
+        await asyncio.wait_for(no_clients_future, timeout=5.0)

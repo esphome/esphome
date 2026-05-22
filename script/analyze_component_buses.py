@@ -34,7 +34,7 @@ from typing import Any
 # Add esphome to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from helpers import BASE_BUS_COMPONENTS
+from helpers import BASE_BUS_COMPONENTS, is_validate_only_file
 
 from esphome import yaml_util
 from esphome.config_helpers import Extend, Remove
@@ -83,6 +83,7 @@ ISOLATED_COMPONENTS = {
     "openthread": "Conflicts with wifi: used by most components",
     "openthread_info": "Conflicts with wifi: used by most components",
     "matrix_keypad": "Needs isolation due to keypad",
+    "microphone": "Defines PDM microphone requiring I2S port 0 - conflicts with micro_wake_word PDM mic when merged",
     "modbus_controller": "Defines multiple modbus buses for testing client/server functionality - conflicts with package modbus bus",
     "neopixelbus": "RMT type conflict with ESP32 Arduino/ESP-IDF headers (enum vs struct rmt_channel_t)",
     "packages": "cannot merge packages",
@@ -282,6 +283,13 @@ def analyze_component(component_dir: Path) -> tuple[dict[str, list[str]], bool, 
 
     # Analyze all YAML files in the component directory
     for yaml_file in component_dir.glob("*.yaml"):
+        # validate.*.yaml files are config-only -- they don't compile, so
+        # their contents must not influence compile-time grouping decisions
+        # (e.g. a !extend used only to exercise schema validation must not
+        # disqualify the whole component from being grouped).
+        if is_validate_only_file(yaml_file):
+            continue
+
         analysis = analyze_yaml_file(yaml_file)
 
         # Track if any file uses extend/remove

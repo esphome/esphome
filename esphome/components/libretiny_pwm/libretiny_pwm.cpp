@@ -3,8 +3,7 @@
 
 #ifdef USE_LIBRETINY
 
-namespace esphome {
-namespace libretiny_pwm {
+namespace esphome::libretiny_pwm {
 
 static const char *const TAG = "libretiny.pwm";
 
@@ -31,9 +30,11 @@ void LibreTinyPWM::setup() {
 }
 
 void LibreTinyPWM::dump_config() {
-  ESP_LOGCONFIG(TAG, "PWM Output:");
+  ESP_LOGCONFIG(TAG,
+                "PWM Output:\n"
+                "  Frequency: %.1f Hz",
+                this->frequency_);
   LOG_PIN("  Pin ", this->pin_);
-  ESP_LOGCONFIG(TAG, "  Frequency: %.1f Hz", this->frequency_);
 }
 
 void LibreTinyPWM::update_frequency(float frequency) {
@@ -47,7 +48,6 @@ void LibreTinyPWM::update_frequency(float frequency) {
   this->write_state(this->duty_);
 }
 
-}  // namespace libretiny_pwm
-}  // namespace esphome
+}  // namespace esphome::libretiny_pwm
 
 #endif

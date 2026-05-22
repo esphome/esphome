@@ -7,21 +7,22 @@ namespace esphome::api {
 
 class APIPlaintextFrameHelper final : public APIFrameHelper {
  public:
-  APIPlaintextFrameHelper(std::unique_ptr<socket::Socket> socket, const ClientInfo *client_info)
-      : APIFrameHelper(std::move(socket), client_info) {
-    // Plaintext header structure (worst case):
-    // Pos 0: indicator (0x00)
-    // Pos 1-3: payload size varint (up to 3 bytes)
-    // Pos 4-5: message type varint (up to 2 bytes)
-    // Pos 6+: actual payload data
-    frame_header_padding_ = 6;
+  // Plaintext header structure (worst case):
+  // Pos 0: indicator (0x00)
+  // Pos 1-3: payload size varint (up to 3 bytes)
+  // Pos 4-5: message type varint (up to 2 bytes)
+  // Pos 6+: actual payload data
+  static constexpr uint8_t HEADER_PADDING = 1 + 3 + 2;  // indicator + size varint + type varint
+
+  explicit APIPlaintextFrameHelper(std::unique_ptr<socket::Socket> socket) : APIFrameHelper(std::move(socket)) {
+    frame_header_padding_ = HEADER_PADDING;
   }
   ~APIPlaintextFrameHelper() override = default;
   APIError init() override;
   APIError loop() override;
   APIError read_packet(ReadPacketBuffer *buffer) override;
   APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) override;
-  APIError write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) override;
+  APIError write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) override;
 
  protected:
   APIError try_read_frame_();
