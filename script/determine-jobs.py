@@ -5,6 +5,7 @@ This script is a centralized way to determine which CI jobs need to run based on
 what files have changed. It outputs JSON with the following structure:
 
 {
+  "core_ci": true/false,
   "integration_tests": true/false,
   "integration_test_buckets": [{"name": "1/3", "tests": ["tests/integration/test_foo.py", ...]}, ...],
   "clang_tidy": true/false,
@@ -22,6 +23,11 @@ what files have changed. It outputs JSON with the following structure:
 }
 
 The CI workflow uses this information to:
+- Gate the unconditional jobs (ci-custom, pytest, pre-commit-ci-lite) via core_ci;
+  false when a pull_request only touches CI-irrelevant meta paths (other workflow
+  files, .github/actions/build-image/*, .yamllint, .github/dependabot.yml, docker/**)
+  so workflow-only PRs satisfy the required CI Status check without running the
+  unconditional jobs. Always true on non-pull_request events and under --force-all.
 - Skip or run integration tests
 - Skip or run clang-tidy (and whether to do a full scan)
 - Skip or run clang-format
