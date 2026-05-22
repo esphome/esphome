@@ -1,0 +1,37 @@
+---
+name: CI Status stub
+
+# Branch protection on `dev` requires a status check named `CI Status`,
+# which is produced by the final job in ci.yml. The CI workflow uses
+# path filters that skip workflow-only and meta-config changes, so for
+# PRs that only touch those files (for example dependabot bumps of
+# GitHub Actions) ci.yml never runs and the required `CI Status`
+# context never appears, blocking the merge.
+#
+# This workflow runs on the inverse path set of ci.yml's pull_request
+# filter and emits a passing `CI Status` check so those PRs can merge
+# without an admin force-merge.
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/*.yml"
+      - "!.github/workflows/ci.yml"
+      - ".github/actions/build-image/**"
+      - ".yamllint"
+      - ".github/dependabot.yml"
+      - "docker/**"
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  ci-status:
+    name: CI Status
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Report success
+        run: echo "No CI run needed; satisfying required CI Status check."
