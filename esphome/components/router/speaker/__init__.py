@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_NUM_CHANNELS,
     CONF_OUTPUT_SPEAKER,
     CONF_SAMPLE_RATE,
-    PLATFORM_ESP32,
 )
 from esphome.core import ID
 from esphome.cpp_generator import MockObj
@@ -59,7 +58,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_SAMPLE_RATE): cv.int_range(8000, 96000),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_on([PLATFORM_ESP32]),
+    cv.only_on_esp32,
     _set_stream_limits,
 )
 
