@@ -107,6 +107,7 @@ size_t Router::play(const uint8_t *data, size_t length, TickType_t ticks_to_wait
   if (this->state_ == speaker::STATE_STOPPED) {
     this->start();
     vTaskDelay(ticks_to_wait);
+    ticks_to_wait = 0;
   }
 
   size_t written = active->play(data, length, ticks_to_wait);
