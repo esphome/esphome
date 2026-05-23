@@ -140,10 +140,12 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void log_gattc_warning_(const char *operation, esp_err_t err);
   void log_connection_params_(const char *param_type);
   void handle_connection_result_(esp_err_t ret);
-  /// Hook called from the DISCONNECTING safety timeout after the base class forces IDLE.
+  /// Hook called once a connection has been fully torn down (after release_services() and
+  /// set_idle_()), from both the CLOSE_EVT handler and the DISCONNECTING safety timeout.
   /// Subclasses with extra per-connection accounting (e.g. bluetooth_proxy slot state)
-  /// override this to perform the same cleanup the normal CLOSE_EVT path would do.
-  virtual void on_disconnect_timeout_() {}
+  /// override this to release that state. `reason` is the controller reason code, or
+  /// ESP_GATT_CONN_TIMEOUT for the safety-timeout path.
+  virtual void on_disconnect_complete_(esp_err_t reason) {}
   /// Transition to IDLE and reset conn_id — call when the connection is fully dead.
   void set_idle_() {
     this->set_state(espbt::ClientState::IDLE);

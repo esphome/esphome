@@ -144,14 +144,15 @@ void BluetoothConnection::loop() {
   }
 }
 
-void BluetoothConnection::on_disconnect_timeout_() {
-  // The base class forced IDLE because CLOSE_EVT never arrived. Run the same slot
-  // cleanup the CLOSE_EVT path would have done so the proxy slot is freed, the API
-  // client is notified, and send_service_ is reset for the next connection.
+void BluetoothConnection::on_disconnect_complete_(esp_err_t reason) {
+  // Called from both the CLOSE_EVT handler and the DISCONNECTING safety timeout in the
+  // base class. Free the proxy slot, notify the API client, and reset send_service_.
+  // address_ may already be 0 if reset_connection_ ran earlier on this teardown.
   if (this->address_ == 0) {
     return;
   }
-  this->reset_connection_(ESP_GATT_CONN_TIMEOUT);
+  ESP_LOGD(TAG, "[%d] [%s] Close, reason=0x%02x, freeing slot", this->connection_index_, this->address_str_, reason);
+  this->reset_connection_(reason);
 }
 
 void BluetoothConnection::reset_connection_(esp_err_t reason) {
@@ -383,14 +384,6 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
                param->disconnect.reason);
       // Send disconnection notification but don't free the slot yet
       this->proxy_->send_device_connection(this->address_, false, 0, param->disconnect.reason);
-      break;
-    }
-    case ESP_GATTC_CLOSE_EVT: {
-      ESP_LOGD(TAG, "[%d] [%s] Close, reason=0x%02x, freeing slot", this->connection_index_, this->address_str_,
-               param->close.reason);
-      // Now the GATT connection is fully closed and controller resources are freed
-      // Safe to mark the connection slot as available
-      this->reset_connection_(param->close.reason);
       break;
     }
     case ESP_GATTC_OPEN_EVT: {
