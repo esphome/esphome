@@ -1821,6 +1821,7 @@ async def to_code(config):
         cg.add_build_flag("-Wno-error=overloaded-virtual")
         cg.add_build_flag("-Wno-error=reorder")
         cg.add_build_flag("-Wno-error=volatile")
+        cg.add_build_flag("-Wno-error=cpp")
         # -Wno- (not -Wno-error=): suppress entirely, too noisy on C++ aggregates
         cg.add_build_flag("-Wno-missing-field-initializers")
 
