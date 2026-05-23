@@ -121,7 +121,7 @@ void Esp32HostedUpdate::setup() {
       }
     } else {
       ESP_LOGW(TAG, "Invalid app description magic word: 0x%08" PRIx32 " (expected 0x%08" PRIx32 ")",
-               app_desc->magic_word, ESP_APP_DESC_MAGIC_WORD);
+               app_desc->magic_word, static_cast<uint32_t>(ESP_APP_DESC_MAGIC_WORD));
       this->state_ = update::UPDATE_STATE_NO_UPDATE;
     }
   } else {

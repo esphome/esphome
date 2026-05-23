@@ -87,6 +87,21 @@ def replace_file_content(text, pattern, repl):
 
 
 def storage_should_clean(old: StorageJSON | None, new: StorageJSON) -> bool:
+    """Return True when the build tree must be wiped before reuse.
+
+    Predicate is True when *old* is missing (first build),
+    ``src_version`` differs, ``build_path`` differs, or a previously
+    loaded integration was removed in *new*. Adding integrations or
+    changing unrelated fields (friendly name, esphome version, etc.)
+    does not trigger a clean.
+
+    Used by esphome-device-builder (esphome/device-builder) to gate
+    its remote-build artifact materialiser so a local → remote → local
+    cycle preserves PlatformIO's local object cache instead of wiping
+    it on every cycle. The signature, semantics, and ``None`` handling
+    for *old* are part of the public contract; keep them stable so the
+    offloader's wipe decision tracks core's.
+    """
     if old is None:
         return True
 
