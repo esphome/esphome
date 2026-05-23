@@ -95,14 +95,11 @@ def _update_action_schema(
 
     cached: Schema | None = None
 
-    def get_schema() -> Schema:
+    def validator(value: Any) -> Any:
         nonlocal cached
         if cached is None:
             cached = _build_update_schema(widget_type)
-        return cached
-
-    def validator(value: Any) -> Any:
-        return get_schema()(value)
+        return cached(value)
 
     return validator
 
