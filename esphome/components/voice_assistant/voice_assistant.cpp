@@ -319,10 +319,12 @@ void VoiceAssistant::loop() {
 
           if (available > 0) {
             this->audio_source_->consume(available);
-            available = this->audio_source_->fill(0, false);
           }
+          available = this->audio_source_->fill(0, false);
           if (available2 > 0) {
             this->audio_source2_->consume(available2);
+          }
+          if (this->audio_source2_ != nullptr) {
             available2 = this->audio_source2_->fill(0, false);
           }
         }
