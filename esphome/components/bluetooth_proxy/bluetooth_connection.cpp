@@ -135,8 +135,11 @@ void BluetoothConnection::loop() {
   // - For V3_WITH_CACHE: Services are never sent, disable after INIT state
   // - For V3_WITHOUT_CACHE: Disable only after service discovery is complete
   //   (send_service_ == DONE_SENDING_SERVICES, which is only set after services are sent)
-  if (this->state() != espbt::ClientState::INIT && (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE ||
-                                                    this->send_service_ == DONE_SENDING_SERVICES)) {
+  // Never disable while DISCONNECTING — BLEClientBase::loop() needs to keep running so the
+  // 10s safety timeout can force IDLE if CLOSE_EVT is never delivered.
+  if (this->state() != espbt::ClientState::INIT && this->state() != espbt::ClientState::DISCONNECTING &&
+      (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE ||
+       this->send_service_ == DONE_SENDING_SERVICES)) {
     this->disable_loop();
   }
 }
