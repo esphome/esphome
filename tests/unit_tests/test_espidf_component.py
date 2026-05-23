@@ -203,7 +203,7 @@ def test_generate_idf_component_yml_basic(tmp_component):
     tmp_component.data = {"description": "test", "repository": {"url": "http://aaa"}}
     result = generate_idf_component_yml(tmp_component)
 
-    assert result == "description: test\nversion: 1.0.0\nrepository: http://aaa\n"
+    assert result == "description: test\nrepository: http://aaa\n"
 
 
 def test_generate_idf_component_yml_with_dependencies(tmp_component, tmp_path):
@@ -217,18 +217,16 @@ def test_generate_idf_component_yml_with_dependencies(tmp_component, tmp_path):
 
     assert (
         result
-        == f"""version: 1.0.0
-dependencies:
+        == f"""dependencies:
   dep:
-    version: '1.0'
     override_path: {dep.path}
 """
     )
 
 
-def test_generate_idf_component_yml_missing_path_reraises(tmp_component):
-    # A dep without a path and without a recognised source should re-raise
-    # the underlying RuntimeError instead of silently producing a bad manifest.
+def test_generate_idf_component_yml_missing_path_raises(tmp_component):
+    # A dep without a path is a contract violation — every dep is expected
+    # to have been downloaded before YAML generation. Raise loudly.
     dep = IDFComponent("foo/bar", "1.0", source=None)
 
     tmp_component.dependencies = [dep]
@@ -422,15 +420,37 @@ def test_convert_library_with_repository():
     result = _convert_library_to_component(lib)
 
     assert result.name == "foo/bar"
-    assert result.version == "1.2.3"
+    assert result.version == "*"
     assert isinstance(result.source, GitSource)
+    assert result.source.ref == "v1.2.3"
 
 
-def test_convert_library_missing_ref():
+def test_convert_library_with_branch_ref():
+    lib = Library("name", None, "https://github.com/foo/bar.git#some-branch")
+
+    result = _convert_library_to_component(lib)
+
+    assert result.name == "foo/bar"
+    assert result.version == "*"
+    assert isinstance(result.source, GitSource)
+    assert result.source.ref == "some-branch"
+
+
+def test_convert_library_missing_ref_uses_default_branch():
+    """A bare URL with no #ref clones the remote's default branch.
+
+    Matches PIO's lib_deps behavior and external_components handling --
+    git.clone_or_update with ref=None leaves the depth-1 clone on
+    whatever branch the remote HEAD points at.
+    """
     lib = Library("name", None, "https://github.com/foo/bar.git")
 
-    with pytest.raises(ValueError):
-        _convert_library_to_component(lib)
+    result = _convert_library_to_component(lib)
+
+    assert result.name == "foo/bar"
+    assert result.version == "*"
+    assert isinstance(result.source, GitSource)
+    assert result.source.ref is None
 
 
 def test_convert_library_registry(monkeypatch):
@@ -485,3 +505,113 @@ def test_process_dependencies_skips_invalid(tmp_component):
     _process_dependencies(tmp_component)
 
     assert tmp_component.dependencies == []
+
+
+def test_process_dependencies_dict_form(tmp_component, monkeypatch):
+    """PIO library.json shorthand ``{"owner/Name": "version"}`` is honored.
+
+    Iterating a dict gives string keys, which would silently fail the
+    ``"name" in dependency`` substring check. Normalize to list-of-dicts
+    first so the dict form (used by e.g. tesla-ble for its nanopb dep)
+    is treated the same as the verbose list form.
+    """
+    captured: list[Library] = []
+
+    def fake_generate(library):
+        captured.append(library)
+        return IDFComponent(
+            library.name, library.version, source=URLSource("http://dummy.com")
+        )
+
+    tmp_component.data = {
+        "dependencies": {
+            "nanopb/Nanopb": "^0.4.91",
+            "BareName": "1.2.3",
+        }
+    }
+    monkeypatch.setattr(
+        esphome.espidf.component, "_generate_idf_component", fake_generate
+    )
+    monkeypatch.setattr(esphome.espidf.component, "_check_library_data", lambda x: None)
+
+    _process_dependencies(tmp_component)
+
+    assert len(tmp_component.dependencies) == 2
+    names = sorted(lib.name for lib in captured)
+    versions = sorted(lib.version for lib in captured)
+    assert names == ["BareName", "nanopb/Nanopb"]
+    assert versions == ["1.2.3", "^0.4.91"]
+
+
+def test_process_dependencies_dict_form_with_url_value(tmp_component, monkeypatch):
+    """A dict-value that's a URL gets routed to ``repository`` like the list form."""
+    captured: list[Library] = []
+
+    def fake_generate(library):
+        captured.append(library)
+        return IDFComponent(library.name, "*", source=URLSource("http://dummy.com"))
+
+    tmp_component.data = {
+        "dependencies": {
+            "foo/Bar": "https://github.com/foo/bar.git#main",
+        }
+    }
+    monkeypatch.setattr(
+        esphome.espidf.component, "_generate_idf_component", fake_generate
+    )
+    monkeypatch.setattr(esphome.espidf.component, "_check_library_data", lambda x: None)
+
+    _process_dependencies(tmp_component)
+
+    assert len(captured) == 1
+    assert captured[0].name == "foo/Bar"
+    assert captured[0].version is None
+    assert captured[0].repository == "https://github.com/foo/bar.git#main"
+
+
+def test_process_dependencies_dict_form_with_nested_spec(tmp_component, monkeypatch):
+    """A dict-value that's itself a dict is merged into the entry.
+
+    PIO's library.json allows ``{"owner/Name": {"version": "...", ...}}``
+    for entries that need fields beyond just a version (platforms,
+    frameworks, etc.). The extra fields flow into _check_library_data
+    via the entry merge.
+    """
+    captured: list[Library] = []
+    checked: list[dict] = []
+
+    def fake_generate(library):
+        captured.append(library)
+        return IDFComponent(
+            library.name, library.version, source=URLSource("http://dummy.com")
+        )
+
+    tmp_component.data = {
+        "dependencies": {
+            "nanopb/Nanopb": {"version": "^0.4.91", "platforms": "espidf"},
+        }
+    }
+    monkeypatch.setattr(
+        esphome.espidf.component, "_generate_idf_component", fake_generate
+    )
+    monkeypatch.setattr(
+        esphome.espidf.component,
+        "_check_library_data",
+        checked.append,
+    )
+
+    _process_dependencies(tmp_component)
+
+    assert len(captured) == 1
+    assert captured[0].name == "nanopb/Nanopb"
+    assert captured[0].version == "^0.4.91"
+    # Extra spec fields reach _check_library_data so platform/framework
+    # gating still applies.
+    assert checked == [
+        {
+            "name": "Nanopb",
+            "owner": "nanopb",
+            "version": "^0.4.91",
+            "platforms": "espidf",
+        }
+    ]
