@@ -94,7 +94,7 @@ esp_err_t w5500_custom_spi_read(void *spi_ctx, uint32_t cmd, uint32_t addr, void
   trans.length = 8 * len;
   trans.rx_buffer = data;
   esp_err_t ret = w5500_custom_spi_transfer(ctx, &trans, len);
-  if (use_rxdata) {
+  if (use_rxdata && (ret == ESP_OK)) {
     memcpy(data, trans.rx_data, len);
   }
   return ret;
