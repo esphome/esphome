@@ -72,9 +72,7 @@ void BLEClientBase::loop() {
     // never delivered CLOSE_EVT/DISCONNECT_EVT, services would leak without this call.
     this->release_services();
     this->set_idle_();
-    // Notify subclasses so they can release any extra per-connection state (e.g. bluetooth_proxy
-    // slot accounting) that would normally be cleared by the CLOSE_EVT handler.
-    this->on_disconnect_timeout_();
+    this->on_disconnect_complete_(ESP_GATT_CONN_TIMEOUT);
   }
 }
 
@@ -421,6 +419,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       this->log_gattc_lifecycle_event_("CLOSE");
       this->release_services();
       this->set_idle_();
+      this->on_disconnect_complete_(param->close.reason);
       break;
     }
     case ESP_GATTC_SEARCH_RES_EVT: {
