@@ -149,6 +149,10 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void set_disconnecting_() {
     this->disconnecting_started_ = millis();
     this->set_state(espbt::ClientState::DISCONNECTING);
+    // BluetoothConnection::loop() disables the component loop after service discovery
+    // completes, so the DISCONNECTING timeout check in loop() would never run if CLOSE_EVT
+    // gets lost. Re-enable the loop so the 10s safety timeout can force IDLE.
+    this->enable_loop();
   }
   // Compact error logging helpers to reduce flash usage
   void log_error_(const char *message);
