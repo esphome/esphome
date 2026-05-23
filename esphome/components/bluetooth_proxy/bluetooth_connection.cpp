@@ -144,6 +144,16 @@ void BluetoothConnection::loop() {
   }
 }
 
+void BluetoothConnection::on_disconnect_timeout_() {
+  // The base class forced IDLE because CLOSE_EVT never arrived. Run the same slot
+  // cleanup the CLOSE_EVT path would have done so the proxy slot is freed, the API
+  // client is notified, and send_service_ is reset for the next connection.
+  if (this->address_ == 0) {
+    return;
+  }
+  this->reset_connection_(ESP_GATT_CONN_TIMEOUT);
+}
+
 void BluetoothConnection::reset_connection_(esp_err_t reason) {
   // Send disconnection notification
   this->proxy_->send_device_connection(this->address_, false, 0, reason);

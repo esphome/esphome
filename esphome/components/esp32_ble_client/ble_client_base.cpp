@@ -72,6 +72,9 @@ void BLEClientBase::loop() {
     // never delivered CLOSE_EVT/DISCONNECT_EVT, services would leak without this call.
     this->release_services();
     this->set_idle_();
+    // Notify subclasses so they can release any extra per-connection state (e.g. bluetooth_proxy
+    // slot accounting) that would normally be cleared by the CLOSE_EVT handler.
+    this->on_disconnect_timeout_();
   }
 }
 
