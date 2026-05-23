@@ -1816,9 +1816,8 @@ async def to_code(config):
                 Path(__file__).parent / "iram_fix.py.script",
             )
     else:
-        # Undo IDF's blanket -Werror. Warnings still print; they just don't
-        # fail the build. Avoids needing a new -Wno-error=<class> entry every
-        # time a GCC/IDF bump newly errors on third-party (PIO-converted) code.
+        # Undo IDF's blanket -Werror so third-party libraries and user
+        # lambdas don't need a -Wno-error=<class> entry per warning class.
         cg.add_build_flag("-Wno-error")
         # -Wno- (not -Wno-error=): suppress entirely, too noisy on C++ aggregates
         cg.add_build_flag("-Wno-missing-field-initializers")
