@@ -33,6 +33,8 @@ class BluetoothConnection final : public esp32_ble_client::BLEClientBase {
  protected:
   friend class BluetoothProxy;
 
+  void on_disconnect_complete(esp_err_t reason) override;
+
   bool supports_efficient_uuids_() const;
   void send_service_for_discovery_();
   void reset_connection_(esp_err_t reason);
