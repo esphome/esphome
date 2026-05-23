@@ -69,7 +69,7 @@ esp_err_t w5500_custom_spi_transfer(W5500CustomSpiContext *ctx, spi_transaction_
     ret = spi_device_polling_transmit(ctx->handle, trans);
   }
   xSemaphoreGive(ctx->lock);
-  return ret == ESP_OK ? ESP_OK : ESP_FAIL;
+  return ret;
 }
 
 esp_err_t w5500_custom_spi_write(void *spi_ctx, uint32_t cmd, uint32_t addr, const void *data, uint32_t len) {
