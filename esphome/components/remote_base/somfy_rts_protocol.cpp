@@ -10,7 +10,7 @@ static constexpr uint16_t BIT_LENGTH_US_HIGH = 600;
 static constexpr uint16_t BIT_LENGTH_US_LOW = 600;
 
 static constexpr uint16_t WAKEUP_HIGH_US = 10000;
-static constexpr uint16_t WAKEUP_LOW_US = 98000;
+static constexpr uint32_t WAKEUP_LOW_US = 98000;
 
 static constexpr uint16_t HW_SYNC_US = 2500;
 
@@ -20,25 +20,25 @@ static constexpr uint16_t SW_SYNC_LOW_US = 650;
 static constexpr uint16_t INTERFRAME_GAP_US = 30415;
 
 // Private
-void SomfyRtsProtocol::wakeup(RemoteTransmitData *dst) const { dst->item(WAKEUP_HIGH_US, WAKEUP_LOW_US); }
+void SomfyRtsProtocol::wakeup_(RemoteTransmitData *dst) const { dst->item(WAKEUP_HIGH_US, WAKEUP_LOW_US); }
 
 // Private
-void SomfyRtsProtocol::hw_sync(RemoteTransmitData *dst) const {
+void SomfyRtsProtocol::hw_sync_(RemoteTransmitData *dst) const {
   dst->item(HW_SYNC_US, HW_SYNC_US);
   dst->item(HW_SYNC_US, HW_SYNC_US);
 }
 
 // Private
-void SomfyRtsProtocol::sw_sync(RemoteTransmitData *dst) const { dst->item(SW_SYNC_HIGH_US, SW_SYNC_LOW_US); }
+void SomfyRtsProtocol::sw_sync_(RemoteTransmitData *dst) const { dst->item(SW_SYNC_HIGH_US, SW_SYNC_LOW_US); }
 
 // Private (Manchester encoding)
-void SomfyRtsProtocol::one(RemoteTransmitData *dst) const {
+void SomfyRtsProtocol::one_(RemoteTransmitData *dst) const {
   dst->space(BIT_LENGTH_US_LOW);
   dst->mark(BIT_LENGTH_US_HIGH);
 }
 
 // Private (Manchester encoding)
-void SomfyRtsProtocol::zero(RemoteTransmitData *dst) const {
+void SomfyRtsProtocol::zero_(RemoteTransmitData *dst) const {
   dst->mark(BIT_LENGTH_US_HIGH);
   dst->space(BIT_LENGTH_US_LOW);
 }
@@ -47,13 +47,13 @@ void SomfyRtsProtocol::encode(RemoteTransmitData *dst, const SomfyRtsData &data)
   dst->set_carrier_frequency(0);
 
   // Send wakeup
-  this->wakeup(dst);
+  this->wakeup_(dst);
 
   // Hardware sync
-  this->hw_sync(dst);
+  this->hw_sync_(dst);
 
   // Software sync
-  this->sw_sync(dst);
+  this->sw_sync_(dst);
 
   uint8_t frame[FRAME_SIZE_IN_BYTES];
   // Some non standard implementations of the SomfyRTS protocol encode the commands inside the key instead of inside the
@@ -85,9 +85,9 @@ void SomfyRtsProtocol::encode(RemoteTransmitData *dst, const SomfyRtsData &data)
   for (uint8_t i = 0; i < FRAME_SIZE_IN_BYTES; i++) {
     for (int8_t y = 7; y >= 0; y--) {  // Send MSB first
       if (frame[i] & (1 << y))
-        this->one(dst);
+        this->one_(dst);
       else
-        this->zero(dst);
+        this->zero_(dst);
     }
   }
 

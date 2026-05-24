@@ -22,13 +22,13 @@ struct SomfyRtsData {
 
 class SomfyRtsProtocol : public RemoteProtocol<SomfyRtsData> {
  private:
-  void wakeup(RemoteTransmitData *dst) const;
-  void hw_sync(RemoteTransmitData *dst) const;
-  void sw_sync(RemoteTransmitData *dst) const;
+  void wakeup_(RemoteTransmitData *dst) const;
+  void hw_sync_(RemoteTransmitData *dst) const;
+  void sw_sync_(RemoteTransmitData *dst) const;
 
   // Helper functions for manchester encoding
-  inline void zero(RemoteTransmitData *dst) const;
-  inline void one(RemoteTransmitData *dst) const;
+  inline void zero_(RemoteTransmitData *dst) const;
+  inline void one_(RemoteTransmitData *dst) const;
 
  public:
   void encode(RemoteTransmitData *dst, const SomfyRtsData &data) override;

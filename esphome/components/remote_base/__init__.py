@@ -1,7 +1,11 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor
-from esphome.components.const import CONF_CONTROL, CONF_ROLLING_CODE
+from esphome.components.const import (
+    CONF_CONTROL,
+    CONF_CONTROL_IN_KEY,
+    CONF_ROLLING_CODE,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -1874,9 +1878,10 @@ SomfyRtsData, SomfyRtsBinarySensor, SomfyRtsTrigger, SomfyRtsAction, SomfyRtsDum
 SOMFY_RTS_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_KEY): cv.hex_uint8_t,
-        cv.Required(CONF_CONTROL): cv.hex_uint8_t,
+        cv.Required(CONF_CONTROL): cv.All(cv.hex_uint8_t, cv.Range(max=0x0F)),
         cv.Required(CONF_ROLLING_CODE): cv.hex_uint16_t,
-        cv.Required(CONF_ADDRESS): cv.hex_uint32_t,
+        cv.Required(CONF_ADDRESS): cv.All(cv.hex_uint32_t, cv.Range(max=0xFFFFFF)),
+        cv.Optional(CONF_CONTROL_IN_KEY, default=False): cv.boolean,
     }
 )
 
@@ -1891,6 +1896,7 @@ def somfy_rts_binary_sensor(var, config):
                 ("control", config[CONF_CONTROL]),
                 ("rolling_code", config[CONF_ROLLING_CODE]),
                 ("address", config[CONF_ADDRESS]),
+                ("control_in_key", config[CONF_CONTROL_IN_KEY]),
             )
         )
     )
@@ -1916,6 +1922,11 @@ async def somfy_rts_action(var, config, args):
         )
     )
     cg.add(var.set_address(await cg.templatable(config[CONF_ADDRESS], args, cg.uint32)))
+    cg.add(
+        var.set_control_in_key(
+            await cg.templatable(config[CONF_CONTROL_IN_KEY], args, cg.bool_)
+        )
+    )
 
 
 # Nexa
