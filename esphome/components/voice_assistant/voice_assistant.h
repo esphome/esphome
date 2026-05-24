@@ -9,6 +9,7 @@
 #include "esphome/core/helpers.h"
 
 #include "esphome/components/api/api_connection.h"
+#include "esphome/components/audio/audio_transfer_buffer.h"
 #include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/microphone/microphone_source.h"
@@ -306,17 +307,19 @@ class VoiceAssistant : public Component {
 
   std::string wake_word_;
 
-  std::shared_ptr<ring_buffer::RingBuffer> ring_buffer_;
-  std::shared_ptr<ring_buffer::RingBuffer> ring_buffer2_;
+  // Zero-copy sources that read directly from each microphone channel's ring buffer internal storage.
+  // Each source owns its ring buffer; the matching ``ring_buffer_``/``ring_buffer2_`` weak_ptr is used by
+  // the microphone callback (a different thread) to write into it.
+  std::unique_ptr<audio::RingBufferAudioSource> audio_source_;
+  std::unique_ptr<audio::RingBufferAudioSource> audio_source2_;
+  std::weak_ptr<ring_buffer::RingBuffer> ring_buffer_;
+  std::weak_ptr<ring_buffer::RingBuffer> ring_buffer2_;
 
   bool use_wake_word_;
   uint8_t noise_suppression_level_;
   uint8_t auto_gain_;
   float volume_multiplier_;
   uint32_t conversation_timeout_;
-
-  uint8_t *send_buffer_{nullptr};
-  uint8_t *send_buffer2_{nullptr};
 
   bool continuous_{false};
   bool silence_detection_;
