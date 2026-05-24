@@ -5,6 +5,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "w5500_custom_spi.h"
 
 #include <lwip/dns.h>
 #include <cinttypes>
@@ -207,6 +208,10 @@ void EthernetComponent::setup() {
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   w5500_config.poll_period_ms = this->polling_interval_;
 #endif
+  // Install the custom SPI driver that offloads the bulk RX/TX frame transfers off the busy-wait
+  // path. w5500_config (and the devcfg it references) outlives esp_eth_mac_new_w5500() below, which
+  // runs the driver's init().
+  install_w5500_async_spi(w5500_config);
 #elif defined(USE_ETHERNET_DM9051)
   dm9051_config.int_gpio_num = this->interrupt_pin_;
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
