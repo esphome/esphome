@@ -15,8 +15,8 @@ struct SomfyRtsData {
   bool control_in_key;
 
   bool operator==(const SomfyRtsData &rhs) const {
-    return key == rhs.key && control == rhs.control && checksum == rhs.checksum &&
-           rolling_code == rhs.rolling_code && address == rhs.address;
+    return key == rhs.key && control == rhs.control && checksum == rhs.checksum && rolling_code == rhs.rolling_code &&
+           address == rhs.address;
   }
 };
 
