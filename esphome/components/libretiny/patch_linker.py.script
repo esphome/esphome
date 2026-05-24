@@ -13,7 +13,9 @@ import subprocess
 # - RTL8710B: hal.h uses section(".image2.ram.text"); stock linker consumes it.
 # - RTL8720C: hal.h uses section(".sram.text"); stock linker consumes it.
 # - LN882H: stock linker has no glob for ".sram.text", so we inject
-#   KEEP(*(.sram.text*)) into ".flash_copysection" (> RAM0 AT> FLASH).
+#   KEEP(*(.sram.text*)) into ".flash_copysection" (> RAM0 AT> FLASH)
+#   immediately after KEEP(*(.vectors)), so the vector table stays at
+#   __copysection_ram0_start (0x20000000) for correct Cortex-M4 VTOR alignment.
 #
 # All families also get a post-link summary showing where IRAM_ATTR landed.
 
@@ -27,7 +29,11 @@ _KEEP_LINE = (
     "__esphome_sram_text_end = .; "
     + _MARKER + "\n"
 )
-_LN_COPY = re.compile(r"(\.flash_copysection\s*:\s*\{\s*\n)")
+# Inject after KEEP(*(.vectors)) so the vector table stays at
+# __copysection_ram0_start (0x20000000). Cortex-M4 VTOR requires a 512-byte-
+# aligned address; injecting before the vectors would push them to an
+# unaligned offset and mis-route every IRQ handler.
+_LN_COPY = re.compile(r"(KEEP\(\*\(\.vectors\)\)[^\n]*\n)")
 
 
 def _detect(env):
@@ -56,7 +62,7 @@ KNOWN_VARIANTS = frozenset({
 
 
 def _inject_keep(host_section):
-    """Return a patcher that injects _KEEP_LINE at the top of `host_section`."""
+    """Return a patcher that injects _KEEP_LINE after `host_section` match."""
     def patch(content):
         if _MARKER in content:
             return content

@@ -776,6 +776,88 @@ def test_should_run_import_time_with_branch() -> None:
 
 
 @pytest.mark.parametrize(
+    ("path", "expected_result"),
+    [
+        # Exact-file matches in the CI-irrelevant set.
+        (".yamllint", True),
+        (".github/dependabot.yml", True),
+        # Other top-level workflow files are irrelevant; ci.yml itself is not.
+        (".github/workflows/codeql.yml", True),
+        (".github/workflows/release.yml", True),
+        (".github/workflows/ci.yml", False),
+        # Nested files under workflows/ are not matched by the single-star glob.
+        (".github/workflows/matchers/gcc.json", False),
+        # build-image action: direct children only (single-star glob).
+        (".github/actions/build-image/action.yml", True),
+        (".github/actions/build-image/nested/file.yml", False),
+        # Other actions are CI-relevant.
+        (".github/actions/restore-python/action.yml", False),
+        # docker/** covers everything under docker/.
+        ("docker/Dockerfile", True),
+        ("docker/scripts/run.sh", True),
+        # Regular source files are CI-relevant.
+        ("esphome/__main__.py", False),
+        ("esphome/components/wifi/wifi_component.cpp", False),
+        ("README.md", False),
+        ("tests/script/test_determine_jobs.py", False),
+    ],
+)
+def test_is_ci_irrelevant_path(path: str, expected_result: bool) -> None:
+    """Test _is_ci_irrelevant_path mirrors the historic ci.yml path filter."""
+    assert determine_jobs._is_ci_irrelevant_path(path) == expected_result
+
+
+@pytest.mark.parametrize(
+    ("changed_files", "expected_result"),
+    [
+        # Empty diffs default to True — don't accidentally skip CI on a
+        # broken probe.
+        ([], True),
+        # Any CI-relevant file flips the result to True.
+        (["esphome/__main__.py"], True),
+        (["esphome/components/wifi/wifi_component.cpp"], True),
+        (["README.md"], True),
+        # All-irrelevant diffs return False.
+        ([".github/workflows/codeql.yml"], False),
+        (
+            [".github/workflows/codeql.yml", ".github/workflows/release.yml"],
+            False,
+        ),
+        ([".yamllint"], False),
+        ([".github/dependabot.yml"], False),
+        (["docker/Dockerfile"], False),
+        (
+            [
+                ".github/workflows/codeql.yml",
+                ".github/dependabot.yml",
+                "docker/Dockerfile",
+            ],
+            False,
+        ),
+        # Mixed diffs always trigger CI.
+        (
+            [".github/workflows/codeql.yml", "esphome/__main__.py"],
+            True,
+        ),
+        # ci.yml itself is treated as CI-relevant.
+        ([".github/workflows/ci.yml"], True),
+    ],
+)
+def test_should_run_core_ci(changed_files: list[str], expected_result: bool) -> None:
+    """Test should_run_core_ci function."""
+    with patch.object(determine_jobs, "changed_files", return_value=changed_files):
+        assert determine_jobs.should_run_core_ci() == expected_result
+
+
+def test_should_run_core_ci_with_branch() -> None:
+    """Test should_run_core_ci passes the branch through to changed_files."""
+    with patch.object(determine_jobs, "changed_files") as mock_changed:
+        mock_changed.return_value = []
+        determine_jobs.should_run_core_ci("release")
+        mock_changed.assert_called_once_with("release")
+
+
+@pytest.mark.parametrize(
     ("changed_files", "expected_result"),
     [
         # esphome Python files trigger downstream device-builder tests
@@ -1518,6 +1600,7 @@ def test_clang_tidy_mode_full_scan(
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
+    mock_determine_cpp_unit_tests: Mock,
     mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -1529,6 +1612,9 @@ def test_clang_tidy_mode_full_scan(
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = False
+    # Without this mock, main() runs the real determine_cpp_unit_tests
+    # which loads the full component graph (~5s import of every component).
+    mock_determine_cpp_unit_tests.return_value = (False, [])
 
     # Mock changed_files to return no component files
     mock_changed_files.return_value = []
@@ -1584,6 +1670,7 @@ def test_clang_tidy_mode_targeted_scan(
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
+    mock_determine_cpp_unit_tests: Mock,
     mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -1595,6 +1682,9 @@ def test_clang_tidy_mode_targeted_scan(
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = False
+    # Without this mock, main() runs the real determine_cpp_unit_tests
+    # which loads the full component graph (~5s import of every component).
+    mock_determine_cpp_unit_tests.return_value = (False, [])
 
     # Create component names
     components = [f"comp{i}" for i in range(component_count)]
@@ -2602,3 +2692,151 @@ def test_main_validate_only_excludes_transitive_components(
     # Only foo (directly changed, validate-only). bar is a transitive dep
     # and still needs compile despite no source change of its own.
     assert output["validate_only_components"] == ["foo"]
+
+
+def test_main_force_all_overrides_detection(
+    mock_determine_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_should_run_import_time: Mock,
+    mock_should_run_device_builder: Mock,
+    mock_native_idf_components_to_test: Mock,
+    mock_determine_cpp_unit_tests: Mock,
+    mock_changed_files: Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """--force-all bypasses per-feature detection and runs every job.
+
+    Detection mocks all return False/empty (which would normally skip
+    everything) -- the flag must override them. Also verifies clang-tidy
+    goes to ``split`` (full scan) and the component-test matrix is
+    populated from disk rather than from changed-files.
+    """
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+    mock_determine_integration_tests.return_value = (False, [])
+    mock_should_run_clang_tidy.return_value = False
+    mock_should_run_clang_format.return_value = False
+    mock_should_run_python_linters.return_value = False
+    mock_should_run_import_time.return_value = False
+    mock_should_run_device_builder.return_value = False
+    mock_native_idf_components_to_test.return_value = []
+    mock_determine_cpp_unit_tests.return_value = (False, [])
+    mock_changed_files.return_value = []
+
+    with (
+        patch("sys.argv", ["determine-jobs.py", "--force-all"]),
+        patch.object(determine_jobs, "get_changed_components", return_value=[]),
+        patch.object(
+            determine_jobs, "filter_component_and_test_files", return_value=False
+        ),
+        patch.object(
+            determine_jobs, "get_components_with_dependencies", return_value=[]
+        ),
+        patch.object(
+            determine_jobs,
+            "detect_memory_impact_config",
+            return_value={"should_run": "false"},
+        ),
+        patch.object(determine_jobs, "should_run_benchmarks", return_value=False),
+        # create_intelligent_batches scans every tests/components/<name>/*.yaml
+        # under --force-all (~2500 YAML loads, ~10s in CI). This test only
+        # asserts that main() routes to it and returns non-empty -- the
+        # batching logic itself has its own dedicated tests.
+        patch.object(
+            determine_jobs,
+            "create_intelligent_batches",
+            return_value=([["fake_batch"]], None),
+        ),
+    ):
+        determine_jobs.main()
+
+    output = json.loads(capsys.readouterr().out)
+
+    assert output["integration_tests"] is True
+    assert output["clang_tidy"] is True
+    assert output["clang_tidy_mode"] == "split"
+    assert output["clang_tidy_full_scan"] is True
+    assert output["clang_format"] is True
+    assert output["python_linters"] is True
+    assert output["import_time"] is True
+    assert output["device_builder"] is True
+    assert output["native_idf"] is True
+    # native_idf_components is a CSV of NATIVE_IDF_TEST_COMPONENTS
+    assert "esp32" in output["native_idf_components"].split(",")
+    assert output["cpp_unit_tests_run_all"] is True
+    assert output["cpp_unit_tests_components"] == []
+    assert output["benchmarks"] is True
+    # Detection helpers must not be consulted when --force-all is set
+    mock_determine_integration_tests.assert_not_called()
+    mock_should_run_clang_tidy.assert_not_called()
+    mock_should_run_clang_format.assert_not_called()
+    mock_should_run_python_linters.assert_not_called()
+    mock_should_run_import_time.assert_not_called()
+    mock_should_run_device_builder.assert_not_called()
+    mock_native_idf_components_to_test.assert_not_called()
+    mock_determine_cpp_unit_tests.assert_not_called()
+    # Component matrix is populated from disk (tests/components/ in the repo)
+    assert output["component_test_count"] > 0
+    assert len(output["component_test_batches"]) > 0
+
+
+def test_main_force_all_off_uses_detection(
+    mock_determine_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_should_run_import_time: Mock,
+    mock_should_run_device_builder: Mock,
+    mock_native_idf_components_to_test: Mock,
+    mock_determine_cpp_unit_tests: Mock,
+    mock_changed_files: Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without --force-all, detection helpers drive the decision (regression guard)."""
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+    mock_determine_integration_tests.return_value = (False, [])
+    mock_should_run_clang_tidy.return_value = False
+    mock_should_run_clang_format.return_value = False
+    mock_should_run_python_linters.return_value = False
+    mock_should_run_import_time.return_value = False
+    mock_should_run_device_builder.return_value = False
+    mock_native_idf_components_to_test.return_value = []
+    mock_determine_cpp_unit_tests.return_value = (False, [])
+    mock_changed_files.return_value = []
+
+    with (
+        patch("sys.argv", ["determine-jobs.py"]),
+        patch.object(determine_jobs, "get_changed_components", return_value=[]),
+        patch.object(
+            determine_jobs, "filter_component_and_test_files", return_value=False
+        ),
+        patch.object(
+            determine_jobs, "get_components_with_dependencies", return_value=[]
+        ),
+        patch.object(
+            determine_jobs,
+            "detect_memory_impact_config",
+            return_value={"should_run": "false"},
+        ),
+        patch.object(
+            determine_jobs, "create_intelligent_batches", return_value=([], {})
+        ),
+        patch.object(determine_jobs, "should_run_benchmarks", return_value=False),
+    ):
+        determine_jobs.main()
+
+    output = json.loads(capsys.readouterr().out)
+
+    assert output["integration_tests"] is False
+    assert output["clang_tidy"] is False
+    assert output["clang_format"] is False
+    assert output["python_linters"] is False
+    assert output["native_idf"] is False
+    assert output["component_test_count"] == 0
+    mock_determine_integration_tests.assert_called_once()
+    mock_should_run_clang_tidy.assert_called_once()

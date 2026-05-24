@@ -29,10 +29,11 @@ jobs:
             } = require('./.github/scripts/detect-tags.js');
 
             const title = context.payload.pull_request.title;
-            const author = context.payload.pull_request.user.login;
+            const user = context.payload.pull_request.user;
 
-            // Skip bot PRs (e.g. dependabot) - they have their own title format
-            if (author === 'dependabot[bot]') {
+            // Skip bot PRs (e.g. dependabot, esphome[bot] device-class sync) -
+            // they have their own title formats.
+            if (user.type === 'Bot') {
               return;
             }
 

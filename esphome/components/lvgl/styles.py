@@ -9,6 +9,7 @@ from .defines import (
     CONF_THEME,
     LValidator,
     add_lv_use,
+    get_styles_used,
     get_theme_widget_map,
     literal,
 )
@@ -25,6 +26,7 @@ def has_style_props(config) -> bool:
 async def style_set(svar, style):
     for prop, validator in ALL_STYLES.items():
         if (value := style.get(prop)) is not None:
+            get_styles_used().add(prop)
             if isinstance(validator, LValidator):
                 value = await validator.process(value)
             if isinstance(value, list):

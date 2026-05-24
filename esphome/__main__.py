@@ -50,6 +50,7 @@ from esphome.const import (
     CONF_TOPIC,
     CONF_USERNAME,
     CONF_WEB_SERVER,
+    CONF_WIFI,
     ENV_NOGITIGNORE,
     KEY_CORE,
     KEY_TARGET_PLATFORM,
@@ -733,6 +734,13 @@ def write_cpp_file() -> int:
 
 
 def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
+    # Keep this gate here, NOT in config validation: device-builder needs
+    # `esphome config` to keep succeeding with placeholders so onboarding can run.
+    if CONF_WIFI in config:
+        from esphome.components.wifi import check_placeholder_credentials
+
+        check_placeholder_credentials(config)
+
     # NOTE: "Build path:" format is parsed by script/ci_memory_impact_extract.py
     # If you change this format, update the regex in that script as well
     _LOGGER.info("Compiling app... Build path: %s", CORE.build_path)
@@ -2441,7 +2449,10 @@ def run_esphome(argv):
     # Skipped when -s overrides are passed, since the cache was written
     # against the previous substitution set.
     config: ConfigType | None = None
-    if args.command in ("upload", "logs") and not command_line_substitutions:
+    cache_eligible = (
+        args.command in ("upload", "logs") and not command_line_substitutions
+    )
+    if cache_eligible:
         from esphome.compiled_config import load_compiled_config
 
         config = load_compiled_config(conf_path)
@@ -2456,6 +2467,16 @@ def run_esphome(argv):
             command_line_substitutions,
             skip_external_update=skip_external,
         )
+        # Refresh the cache so the next upload/logs hits the fast path
+        # instead of re-running read_config. Skip when the storage
+        # sidecar is absent (no compile has run): the cache would
+        # never be loaded back, so writing secrets to disk is wasted.
+        if cache_eligible and config is not None:
+            from esphome.compiled_config import save_compiled_config
+            from esphome.storage_json import ext_storage_path
+
+            if ext_storage_path(conf_path.name).exists():
+                save_compiled_config(config)
     if config is None:
         return 2
     CORE.config = config
