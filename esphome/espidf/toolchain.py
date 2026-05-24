@@ -10,6 +10,7 @@ import shutil
 import subprocess
 
 from esphome.components.esp32.const import KEY_ESP32, KEY_FLASH_SIZE, KEY_IDF_VERSION
+from esphome.const import CONF_FRAMEWORK, CONF_SOURCE
 from esphome.core import CORE, EsphomeError
 from esphome.espidf.framework import check_esp_idf_install, get_framework_env
 from esphome.espidf.size_summary import print_summary
@@ -37,13 +38,27 @@ def _get_core_framework_version():
     return str(CORE.data[KEY_ESP32][KEY_IDF_VERSION])
 
 
+def _get_framework_source_override() -> str | None:
+    """Return the user-supplied esp32.framework.source override, if any.
+
+    The override lets a user point the IDF tarball download at a custom URL
+    (mirror, fork, local server). Substitutions like ``{VERSION}`` /
+    ``{MAJOR}`` etc. work the same as in the default mirror list.
+    """
+    if CORE.config is None:
+        return None
+    return CORE.config.get(KEY_ESP32, {}).get(CONF_FRAMEWORK, {}).get(CONF_SOURCE)
+
+
 def _get_esphome_esp_idf_paths(
     version: str | None = None,
 ) -> tuple[os.PathLike, os.PathLike]:
     version = version or _get_core_framework_version()
     paths = _cache().paths
     if version not in paths:
-        paths[version] = check_esp_idf_install(version)
+        paths[version] = check_esp_idf_install(
+            version, source_url=_get_framework_source_override()
+        )
     return paths[version]
 
 
