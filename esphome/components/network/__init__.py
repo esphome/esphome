@@ -7,6 +7,7 @@ from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 import esphome.config_validation as cv
 from esphome.const import CONF_ENABLE_IPV6, CONF_ID, CONF_MIN_IPV6_ADDR_COUNT
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["mdns"]
