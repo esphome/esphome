@@ -194,7 +194,7 @@ CONFIG_SCHEMA = cv.All(
                         cv.string_strict, cv.Length(min=1)
                     ),
                     cv.Required(CONF_PASSWORD): cv.All(
-                        cv.string_strict, cv.Length(min=1)
+                        cv.templatable(cv.string_strict), cv.Length(min=1)
                     ),
                 }
             ),
@@ -322,7 +322,12 @@ async def to_code(config):
     if CONF_AUTH in config:
         cg.add_define("USE_WEBSERVER_AUTH")
         cg.add(paren.set_auth_username(config[CONF_AUTH][CONF_USERNAME]))
-        cg.add(paren.set_auth_password(config[CONF_AUTH][CONF_PASSWORD]))
+        password_config = config[CONF_AUTH][CONF_PASSWORD]
+        # Handle both static and templatable password
+        if isinstance(password_config, cg.TemplateArguments):
+            cg.add(paren.set_auth_password_template(password_config))
+        else:
+            cg.add(paren.set_auth_password(password_config))
     if CONF_CSS_INCLUDE in config:
         cg.add_define("USE_WEBSERVER_CSS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_CSS_INCLUDE])
