@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 import platform
 import tempfile
+import os
 
 from esphome.components.zephyr import zephyr_data
 from esphome.components.zephyr.const import KEY_BOARD
@@ -19,7 +20,6 @@ from esphome.espidf.framework import (
 
 _LOGGER = logging.getLogger(__name__)
 
-_WEST_VERSION = "1.5.0"
 _TOOLCHAIN_VERSION = "0.17.4"
 
 SDK_NG_TOOLCHAIN_MIRRORS = _str_to_lst_of_str(
@@ -42,6 +42,8 @@ def _get_framework_path(version: str) -> Path:
 def _get_toolchain_path(version: str) -> Path:
     return _get_tools_path() / "toolchains" / f"{version}"
 
+def _get_requirements_path() -> Path:
+    return Path(__file__).parent / "requirements.txt"
 
 def check_and_install() -> (Path, dict[str, str]):
     framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
@@ -49,21 +51,44 @@ def check_and_install() -> (Path, dict[str, str]):
     python_env_path = _get_python_env_path(version)
     env_python_path = _get_python_env_executable_path(python_env_path, "python")
     framework_path = _get_framework_path(version)
-    west_env = {"ZEPHYR_BASE": str(framework_path)}
-    sentinel = python_env_path / ".ready"
-    install_venv = not sentinel.exists()
+    west_env = {
+        **os.environ,
+        "ZEPHYR_BASE": str(framework_path),
+        "PATH": f"{env_python_path.parent}{os.pathsep}{os.environ.get('PATH', '')}",
+    }
+    print(west_env)
+
+    venv_sentinel = python_env_path / ".ready"
+    requirements_path = _get_requirements_path()
+
+    install_venv = not env_python_path.exists()
+    requirements_changed = (
+        not venv_sentinel.exists()
+        or venv_sentinel.stat().st_mtime < requirements_path.stat().st_mtime
+    )
+
     if install_venv:
         rmdir(python_env_path, msg=f"Clean up {version} Python environment")
-
         _create_venv(python_env_path, msg=f"{version}")
 
-        _LOGGER.info("Installing west %s ...", _WEST_VERSION)
-        cmd = [str(env_python_path), "-m", "pip", "install", f"west=={_WEST_VERSION}"]
-        if not _exec_ok(
-            cmd,
-        ):
-            raise EsphomeError(f"Upgrade {version} Python environment packages failure")
-        sentinel.touch()
+    if install_venv or requirements_changed:
+        _LOGGER.info(
+            "Installing Python packages from %s ...", requirements_path.name
+        )
+        cmd = [
+            str(env_python_path),
+            "-m",
+            "pip",
+            "install",
+            "--upgrade",
+            "-r",
+            str(requirements_path),
+        ]
+        if not _exec_ok(cmd):
+            raise EsphomeError(
+                f"Upgrade {version} Python environment packages failure"
+            )
+        venv_sentinel.touch()
 
     sentinel = framework_path / ".ready"
     if install_venv or not sentinel.exists():
