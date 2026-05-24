@@ -9,6 +9,7 @@ import subprocess
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.zephyr import (
+    add_extra_script,
     copy_files as zephyr_copy_files,
     zephyr_add_overlay,
     zephyr_add_pm_static,
@@ -21,6 +22,7 @@ from esphome.components.zephyr import (
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
     CONF_CDC_ACM,
+    KEY_BOARD,
     KEY_BOOTLOADER,
     KEY_ZEPHYR,
     CdcAcm,
@@ -36,6 +38,7 @@ from esphome.const import (
     CONF_OTA,
     CONF_RESET_PIN,
     CONF_SAFE_MODE,
+    CONF_TOOLCHAIN,
     CONF_VERSION,
     CONF_VOLTAGE,
     KEY_CORE,
@@ -44,10 +47,12 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
     PLATFORM_NRF52,
     ThreadModel,
+    Toolchain,
 )
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.core.config import BOARD_MAX_LENGTH
 import esphome.final_validate as fv
+from esphome.helpers import write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
@@ -67,8 +72,35 @@ AUTO_LOAD = ["zephyr", "preferences"]
 IS_TARGET_PLATFORM = True
 _LOGGER = logging.getLogger(__name__)
 
+FAKE_BOARD_MANIFEST = """
+{
+    "frameworks": [
+        "zephyr"
+    ],
+    "name": "esphome nrf52",
+    "upload": {
+        "maximum_ram_size": 248832,
+        "maximum_size": 815104,
+        "speed": 115200
+    },
+    "url": "https://esphome.io/",
+    "vendor": "esphome",
+    "build": {
+        "bsp": {
+            "name": "adafruit"
+        },
+        "softdevice": {
+            "sd_fwid": "0x00B6"
+        }
+    }
+}
+"""
+
 
 def set_core_data(config: ConfigType) -> ConfigType:
+    # Resolve toolchain: CLI (already on CORE.toolchain) > YAML > default.
+    if CORE.toolchain is None:
+        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.PLATFORMIO)
     zephyr_set_core_data(config)
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_NRF52
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
@@ -80,10 +112,18 @@ def set_core_data(config: ConfigType) -> ConfigType:
 
 
 def set_framework(config: ConfigType) -> ConfigType:
+    if CONF_VERSION not in config[CONF_FRAMEWORK]:
+        default_version = "2.6.1-b" if CORE.using_toolchain_platformio else "2.9.2"
+        config = {
+            **config,
+            CONF_FRAMEWORK: {**config[CONF_FRAMEWORK], CONF_VERSION: default_version},
+        }
     framework_ver = cv.Version.parse(
         cv.version_number(config[CONF_FRAMEWORK][CONF_VERSION])
     )
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = framework_ver
+    if not CORE.using_toolchain_platformio:
+        return config
     if framework_ver < cv.Version(2, 9, 2):
         return cv.require_framework_version(
             nrf52_zephyr=cv.Version(2, 6, 1, "a"),
@@ -182,7 +222,7 @@ CONFIG_SCHEMA = cv.All(
                 default={},
             ): cv.Schema(
                 {
-                    cv.Optional(CONF_VERSION, default="2.6.1-b"): cv.string_strict,
+                    cv.Optional(CONF_VERSION): cv.string_strict,
                     cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
                         {
                             cv.Optional(
@@ -238,40 +278,51 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 @coroutine_with_priority(CoroPriority.PLATFORM)
 async def to_code(config: ConfigType) -> None:
     """Convert the configuration to code."""
-    cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_NRF52")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "NRF52")
     # nRF52 processors are single-core
     cg.add_define(ThreadModel.SINGLE)
-    cg.add_platformio_option(CONF_FRAMEWORK, CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK])
-    cg.add_platformio_option(
-        "platform",
-        "https://github.com/tomaszduda23/platform-nordicnrf52/archive/refs/tags/v10.3.0-5.zip",
-    )
-    cg.add_platformio_option(
-        "platform_packages",
-        [
-            f"platformio/framework-zephyr@https://github.com/tomaszduda23/framework-sdk-nrf/archive/refs/tags/v{CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}.zip",
-        ],
-    )
+    if CORE.using_toolchain_platformio:
+        cg.add_platformio_option("board", config[CONF_BOARD])
+        cg.add_platformio_option(
+            CONF_FRAMEWORK, CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK]
+        )
+        cg.add_platformio_option(
+            "platform",
+            "https://github.com/tomaszduda23/platform-nordicnrf52/archive/refs/tags/v10.3.0-5.zip",
+        )
+        cg.add_platformio_option(
+            "platform_packages",
+            [
+                f"platformio/framework-zephyr@https://github.com/tomaszduda23/framework-sdk-nrf/archive/refs/tags/v{CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}.zip",
+            ],
+        )
+        if config[KEY_BOOTLOADER] != BOOTLOADER_MCUBOOT:
+            # make sure that firmware.zip is created
+            # for Adafruit_nRF52_Bootloader
+            cg.add_platformio_option("board_upload.protocol", "nrfutil")
+            cg.add_platformio_option("board_upload.use_1200bps_touch", "true")
+            cg.add_platformio_option("board_upload.require_upload_port", "true")
+            cg.add_platformio_option("board_upload.wait_for_upload_port", "true")
+
+        add_extra_script(
+            "pre",
+            "pre_build.py",
+            Path(__file__).parent / "pre_build.py.script",
+        )
+        # build is done by west so bypass board checking in platformio
+        cg.add_platformio_option("boards_dir", CORE.relative_build_path("boards"))
 
     if config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
         cg.add_define("USE_BOOTLOADER_MCUBOOT")
-    else:
-        if "_sd" in config[KEY_BOOTLOADER]:
-            bootloader = config[KEY_BOOTLOADER].split("_")
-            sd_id = bootloader[2][2:]
-            cg.add_define("USE_SOFTDEVICE_ID", int(sd_id))
-            if (len(bootloader)) > 3:
-                sd_version = bootloader[3][1:]
-                cg.add_define("USE_SOFTDEVICE_VERSION", int(sd_version))
-        # make sure that firmware.zip is created
-        # for Adafruit_nRF52_Bootloader
-        cg.add_platformio_option("board_upload.protocol", "nrfutil")
-        cg.add_platformio_option("board_upload.use_1200bps_touch", "true")
-        cg.add_platformio_option("board_upload.require_upload_port", "true")
-        cg.add_platformio_option("board_upload.wait_for_upload_port", "true")
+    elif "_sd" in config[KEY_BOOTLOADER]:
+        bootloader = config[KEY_BOOTLOADER].split("_")
+        sd_id = bootloader[2][2:]
+        cg.add_define("USE_SOFTDEVICE_ID", int(sd_id))
+        if (len(bootloader)) > 3:
+            sd_version = bootloader[3][1:]
+            cg.add_define("USE_SOFTDEVICE_VERSION", int(sd_version))
 
     zephyr_setup_preferences()
     zephyr_to_code(config)
@@ -341,6 +392,16 @@ async def _dfu_to_code(dfu_config):
 
 def copy_files() -> None:
     """Copy files to the build directory."""
+
+    if CORE.using_toolchain_platformio and (
+        zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
+        or zephyr_data()[KEY_BOARD] == "xiao_ble"
+    ):
+        write_file_if_changed(
+            CORE.relative_build_path(f"boards/{zephyr_data()[KEY_BOARD]}.json"),
+            FAKE_BOARD_MANIFEST,
+        )
+
     zephyr_copy_files()
 
 
@@ -415,6 +476,8 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
             mcumgr_device = host
         else:
+            if not CORE.using_toolchain_platformio:
+                raise EsphomeError("Not implemented yet")
             result = _upload_using_platformio(config, host, ["-t", "upload"])
             if result != 0:
                 raise EsphomeError(f"Upload failed with result: {result}")

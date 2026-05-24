@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from typing import Any
 
 from esphome import config_validation as cv
 from esphome.automation import Trigger, validate_automation
@@ -10,6 +11,7 @@ from esphome.const import (
     CONF_GROUP,
     CONF_ID,
     CONF_ON_BOOT,
+    CONF_ON_UPDATE,
     CONF_ON_VALUE,
     CONF_STATE,
     CONF_TEXT,
@@ -29,7 +31,13 @@ from .defines import (
     CONF_SCROLL_SNAP_Y,
     CONF_SCROLLBAR_MODE,
     CONF_TIME_FORMAT,
+    CONF_TRIGGER,
     LV_GRAD_DIR,
+    LV_VALUE_EVENTS,
+    VALUE_ON_CHANGE,
+    VALUE_ON_RELEASE,
+    VALUE_ON_UPDATE,
+    VALUE_ON_VALUE,
     get_remapped_uses,
     is_press_event,
 )
@@ -41,8 +49,9 @@ from .layout import (
     grid_alignments,
 )
 from .lv_validation import lv_color, lv_font, lv_gradient, lv_image, opacity
-from .lvcode import LvglComponent, lv_event_t_ptr
+from .lvcode import UPDATE_EVENT, LvglComponent, lv_event_t_ptr
 from .types import (
+    LV_EVENT,
     LVEncoderListener,
     LvType,
     lv_group_t,
@@ -355,6 +364,19 @@ SET_STATE_SCHEMA = cv.Schema(
 FLAG_SCHEMA = cv.Schema({cv.Optional(flag): lvalid.lv_bool for flag in df.OBJ_FLAGS})
 FLAG_LIST = cv.ensure_list(df.LV_OBJ_FLAG.one_of)
 
+VALUE_TRIGGER_SCHEMA = {
+    cv.Optional(CONF_TRIGGER, default=CONF_ON_VALUE): cv.one_of(
+        *LV_VALUE_EVENTS, lower=True
+    ),
+}
+
+TRIGGER_EVENT_MAP = {
+    VALUE_ON_CHANGE: (LV_EVENT.VALUE_CHANGED,),
+    VALUE_ON_UPDATE: (UPDATE_EVENT,),
+    VALUE_ON_VALUE: (LV_EVENT.VALUE_CHANGED, UPDATE_EVENT),
+    VALUE_ON_RELEASE: (LV_EVENT.RELEASED,),
+}
+
 
 def part_schema(parts):
     """
@@ -370,7 +392,7 @@ def part_schema(parts):
 def automation_schema(typ: LvType):
     events = df.LV_EVENT_TRIGGERS + df.SWIPE_TRIGGERS
     if typ.has_on_value:
-        events = events + (CONF_ON_VALUE,)
+        events = events + (CONF_ON_VALUE, CONF_ON_UPDATE)
     args = typ.get_arg_type()
 
     def get_trigger_args(event):
@@ -513,7 +535,16 @@ def strip_defaults(schema: cv.Schema):
     return cv.Schema({cv.Optional(k): v for k, v in schema.schema.items()})
 
 
-def container_schema(widget_type: WidgetType, extras=None):
+# Keyed by (id(widget_type), id(extras)); strong refs in the value keep both
+# alive so id() can't be recycled.
+_CONTAINER_SCHEMA_CACHE: dict[
+    tuple[int, int], tuple[Any, Any, Callable[[Any], Any]]
+] = {}
+
+
+def container_schema(
+    widget_type: WidgetType, extras: Any = None
+) -> Callable[[Any], Any]:
     """
     Create a schema for a container widget of a given type. All obj properties are available, plus
     the extras passed in, plus any defined for the specific widget being specified.
@@ -521,19 +552,31 @@ def container_schema(widget_type: WidgetType, extras=None):
     :param extras:  Additional options to be made available, e.g. layout properties for children
     :return: The schema for this type of widget.
     """
-    schema = obj_schema(widget_type).extend(
-        {cv.GenerateID(): cv.declare_id(widget_type.w_type)}
-    )
-    if extras:
-        schema = schema.extend(extras)
-    # Delayed evaluation for recursion
+    cache_key = (id(widget_type), id(extras))
+    cached = _CONTAINER_SCHEMA_CACHE.get(cache_key)
+    if cached is not None:
+        cached_widget_type, cached_extras, cached_validator = cached
+        if cached_widget_type is widget_type and cached_extras is extras:
+            return cached_validator
 
-    schema = schema.extend(widget_type.schema)
+    cached_schema: cv.Schema | None = None
 
-    def validator(value):
+    def get_schema() -> cv.Schema:
+        nonlocal cached_schema
+        if cached_schema is None:
+            schema = obj_schema(widget_type).extend(
+                {cv.GenerateID(): cv.declare_id(widget_type.w_type)}
+            )
+            if extras:
+                schema = schema.extend(extras)
+            cached_schema = schema.extend(widget_type.schema)
+        return cached_schema
+
+    def validator(value: Any) -> Any:
         value = value or {}
-        return append_layout_schema(schema, value)(value)
+        return append_layout_schema(get_schema(), value)(value)
 
+    _CONTAINER_SCHEMA_CACHE[cache_key] = (widget_type, extras, validator)
     return validator
 
 

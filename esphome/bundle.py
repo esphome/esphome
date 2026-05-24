@@ -260,42 +260,20 @@ class ConfigBundleCreator:
     def _discover_yaml_includes(self) -> None:
         """Discover YAML files loaded during config parsing.
 
-        Deliberately uses a fresh re-parse and force-loads every deferred
-        ``IncludeFile`` to include *all* potentially-reachable includes,
-        even branches not selected by the local substitutions. Bundles are
-        meant to be compiled on another system where command-line
-        substitution overrides may choose a different branch — e.g.
-        ``!include network/${eth_model}/config.yaml`` must ship every
-        candidate so the remote build can pick any one.
-
-        Entries with unresolved substitution variables in the filename
-        path are skipped with a warning (they cannot be resolved without
-        the substitution pass).
-
-        Secrets files are tracked separately so we can filter them to
-        only include the keys this config actually references.
+        Delegates to :func:`yaml_util.discover_user_yaml_files`, which does a
+        fresh re-parse and force-loads every deferred ``IncludeFile`` so that
+        *all* potentially-reachable includes are captured (even branches not
+        selected by local substitutions). Bundles are meant to be compiled on
+        another system where command-line substitution overrides may choose a
+        different branch — e.g. ``!include network/${eth_model}/config.yaml``
+        must ship every candidate so the remote build can pick any one.
         """
-        # Must be a fresh parse: IncludeFile.load() caches its result in
-        # _content, and we discover files by listening for loader calls. On
-        # an already-parsed tree the cache is populated, .load() returns
-        # without calling the loader, the listener never fires, and the
-        # referenced files would be silently dropped from the bundle.
-        with yaml_util.track_yaml_loads() as loaded_files:
-            try:
-                data = yaml_util.load_yaml(self._config_path)
-            except EsphomeError:
-                _LOGGER.debug(
-                    "Bundle: re-loading YAML for include discovery failed, "
-                    "proceeding with partial file list"
-                )
-            else:
-                _force_load_include_files(data)
-
-        for fpath in loaded_files:
-            if fpath == self._config_path.resolve():
+        discovered = yaml_util.discover_user_yaml_files(self._config_path)
+        self._secrets_paths.update(discovered.secrets)
+        config_resolved = self._config_path.resolve()
+        for fpath in discovered.files:
+            if fpath == config_resolved:
                 continue  # Already added as config
-            if fpath.name in const.SECRETS_FILES:
-                self._secrets_paths.add(fpath)
             self._add_file(fpath)
 
     def _discover_component_files(self) -> None:
@@ -623,57 +601,6 @@ def _add_bytes_to_tar(tar: tarfile.TarFile, name: str, data: bytes) -> None:
     info.gid = 0
     info.mode = 0o644
     tar.addfile(info, io.BytesIO(data))
-
-
-def _force_load_include_files(obj: Any, _seen: set[int] | None = None) -> None:
-    """Recursively resolve any ``IncludeFile`` instances in a YAML tree.
-
-    Nested ``!include`` returns a deferred ``IncludeFile`` that is only
-    resolved during the substitution pass. During bundle discovery we need
-    the referenced files to actually load so the ``track_yaml_loads``
-    listener fires for them.
-
-    ``IncludeFile`` instances with unresolved substitution variables in the
-    filename cannot be loaded — we skip and warn about those.
-    """
-    if _seen is None:
-        _seen = set()
-
-    if isinstance(obj, yaml_util.IncludeFile):
-        if id(obj) in _seen:
-            return
-        _seen.add(id(obj))
-        if obj.has_unresolved_expressions():
-            _LOGGER.warning(
-                "Bundle: cannot resolve !include %s (referenced from %s) "
-                "with substitutions in path",
-                obj.file,
-                obj.parent_file,
-            )
-            return
-        try:
-            loaded = obj.load()
-        except EsphomeError as err:
-            _LOGGER.warning(
-                "Bundle: failed to load !include %s (referenced from %s): %s",
-                obj.file,
-                obj.parent_file,
-                err,
-            )
-            return
-        _force_load_include_files(loaded, _seen)
-    elif isinstance(obj, dict):
-        if id(obj) in _seen:
-            return
-        _seen.add(id(obj))
-        for value in obj.values():
-            _force_load_include_files(value, _seen)
-    elif isinstance(obj, (list, tuple)):
-        if id(obj) in _seen:
-            return
-        _seen.add(id(obj))
-        for item in obj:
-            _force_load_include_files(item, _seen)
 
 
 def _resolve_include_path(include_path: Any) -> Path | None:
