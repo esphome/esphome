@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import logging
 
 from esphome import automation, pins
+from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.network import ip_address_literal
 from esphome.config_helpers import filter_source_files_from_platform
@@ -218,6 +219,10 @@ MANUAL_IP_SCHEMA = cv.Schema(
 
 EthernetComponent = ethernet_ns.class_("EthernetComponent", cg.Component)
 ManualIP = ethernet_ns.struct("ManualIP")
+EthernetConnectedCondition = ethernet_ns.class_("EthernetConnectedCondition", Condition)
+EthernetEnabledCondition = ethernet_ns.class_("EthernetEnabledCondition", Condition)
+EthernetEnableAction = ethernet_ns.class_("EthernetEnableAction", automation.Action)
+EthernetDisableAction = ethernet_ns.class_("EthernetDisableAction", automation.Action)
 
 
 def _is_framework_spi_polling_mode_supported() -> bool:
@@ -720,3 +725,31 @@ def _filter_source_files() -> list[str]:
 
 
 FILTER_SOURCE_FILES = _filter_source_files
+
+
+@automation.register_condition(
+    "ethernet.connected", EthernetConnectedCondition, cv.Schema({})
+)
+async def ethernet_connected_to_code(config, condition_id, template_arg, args):
+    return cg.new_Pvariable(condition_id, template_arg)
+
+
+@automation.register_condition(
+    "ethernet.enabled", EthernetEnabledCondition, cv.Schema({})
+)
+async def ethernet_enabled_to_code(config, condition_id, template_arg, args):
+    return cg.new_Pvariable(condition_id, template_arg)
+
+
+@automation.register_action(
+    "ethernet.enable", EthernetEnableAction, cv.Schema({}), synchronous=True
+)
+async def ethernet_enable_to_code(config, action_id, template_arg, args):
+    return cg.new_Pvariable(action_id, template_arg)
+
+
+@automation.register_action(
+    "ethernet.disable", EthernetDisableAction, cv.Schema({}), synchronous=True
+)
+async def ethernet_disable_to_code(config, action_id, template_arg, args):
+    return cg.new_Pvariable(action_id, template_arg)

@@ -19,7 +19,21 @@ esphome:
   on_boot:
     priority: 200
     then:
-      - lambda: |-
-          if (id(eth).is_disabled()) {
-            id(eth).enable();
-          }
+      - if:
+          condition:
+            not:
+              ethernet.enabled:
+          then:
+            - ethernet.enable:
+
+button:
+  - platform: template
+    name: "Disable Ethernet"
+    on_press:
+      - ethernet.disable:
+
+binary_sensor:
+  - platform: template
+    name: "Ethernet Connected"
+    lambda: |-
+      return id(eth).is_connected();
