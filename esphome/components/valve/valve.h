@@ -12,24 +12,24 @@
 namespace esphome::valve {
 
 // Backward-compat aliases — these MUST remain for external code. Remove after 2026.12.0.
-using ValveOperation [[deprecated("Use actuator::ActuatorOperation instead. Removed in 2026.12.0")]] =
-    actuator::ActuatorOperation;
-[[deprecated(
-    "Use actuator::ACTUATOR_OPERATION_IDLE instead. Removed in 2026.12.0")]] constexpr actuator::ActuatorOperation
-    VALVE_OPERATION_IDLE = actuator::ACTUATOR_OPERATION_IDLE;
-[[deprecated(
-    "Use actuator::ACTUATOR_OPERATION_OPENING instead. Removed in 2026.12.0")]] constexpr actuator::ActuatorOperation
-    VALVE_OPERATION_OPENING = actuator::ACTUATOR_OPERATION_OPENING;
-[[deprecated(
-    "Use actuator::ACTUATOR_OPERATION_CLOSING instead. Removed in 2026.12.0")]] constexpr actuator::ActuatorOperation
-    VALVE_OPERATION_CLOSING = actuator::ACTUATOR_OPERATION_CLOSING;
+using ValveOperation ESPDEPRECATED("Use actuator::ActuatorOperation instead. Removed in 2026.12.0",
+                                   "2025.12.0") = actuator::ActuatorOperation;
+constexpr actuator::ActuatorOperation VALVE_OPERATION_IDLE
+    ESPDEPRECATED("Use actuator::ACTUATOR_OPERATION_IDLE instead. Removed in 2026.12.0",
+                  "2025.12.0") = actuator::ACTUATOR_OPERATION_IDLE;
+constexpr actuator::ActuatorOperation VALVE_OPERATION_OPENING
+    ESPDEPRECATED("Use actuator::ACTUATOR_OPERATION_OPENING instead. Removed in 2026.12.0",
+                  "2025.12.0") = actuator::ACTUATOR_OPERATION_OPENING;
+constexpr actuator::ActuatorOperation VALVE_OPERATION_CLOSING
+    ESPDEPRECATED("Use actuator::ACTUATOR_OPERATION_CLOSING instead. Removed in 2026.12.0",
+                  "2025.12.0") = actuator::ACTUATOR_OPERATION_CLOSING;
 
 // VALVE_OPEN / VALVE_CLOSED kept as static const for binary compatibility with
 // existing code that references the valve namespace constants.
-[[deprecated("Use actuator::ACTUATOR_OPEN instead. Removed in 2026.12.0")]] static const float VALVE_OPEN =
-    actuator::ACTUATOR_OPEN;
-[[deprecated("Use actuator::ACTUATOR_CLOSED instead. Removed in 2026.12.0")]] static const float VALVE_CLOSED =
-    actuator::ACTUATOR_CLOSED;
+static const float VALVE_OPEN ESPDEPRECATED("Use actuator::ACTUATOR_OPEN instead. Removed in 2026.12.0",
+                                            "2025.12.0") = actuator::ACTUATOR_OPEN;
+static const float VALVE_CLOSED ESPDEPRECATED("Use actuator::ACTUATOR_CLOSED instead. Removed in 2026.12.0",
+                                              "2025.12.0") = actuator::ACTUATOR_CLOSED;
 
 #define LOG_VALVE(prefix, type, obj) \
   if ((obj) != nullptr) { \
