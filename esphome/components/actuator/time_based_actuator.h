@@ -10,8 +10,6 @@ namespace esphome::actuator {
 class TimeBasedActuatorBase : public Component {
  public:
   void set_actuator(IActuator *actuator) { this->actuator_ = actuator; }
-  void setup() override;
-  void loop() override;
 
   Trigger<> *get_open_trigger() { return &this->open_trigger_; }
   Trigger<> *get_close_trigger() { return &this->close_trigger_; }
@@ -26,12 +24,6 @@ class TimeBasedActuatorBase : public Component {
   ActuatorOperation get_last_operation() const { return this->last_operation_; }
 
  protected:
-  void control(const ActuatorCallBase &call);
-  void stop_prev_trigger_();
-  bool is_at_target_() const;
-  void start_direction_(ActuatorOperation dir);
-  void recompute_position_();
-
   IActuator *actuator_{nullptr};
   Trigger<> open_trigger_;
   uint32_t open_duration_{0};

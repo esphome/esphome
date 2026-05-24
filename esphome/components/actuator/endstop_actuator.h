@@ -11,8 +11,6 @@ namespace esphome::actuator {
 class EndstopActuatorBase : public Component {
  public:
   void set_actuator(IActuator *actuator) { this->actuator_ = actuator; }
-  void setup() override;
-  void loop() override;
 
   Trigger<> *get_open_trigger() { return &this->open_trigger_; }
   Trigger<> *get_close_trigger() { return &this->close_trigger_; }
@@ -24,13 +22,8 @@ class EndstopActuatorBase : public Component {
   void set_max_duration(uint32_t max_duration) { this->max_duration_ = max_duration; }
 
  protected:
-  void control(const ActuatorCallBase &call);
-  void stop_prev_trigger_();
   bool is_open_() const { return this->open_endstop_->state; }
   bool is_closed_() const { return this->close_endstop_->state; }
-  bool is_at_target_() const;
-  void start_direction_(ActuatorOperation dir);
-  void recompute_position_();
 
   IActuator *actuator_{nullptr};
   binary_sensor::BinarySensor *open_endstop_{nullptr};

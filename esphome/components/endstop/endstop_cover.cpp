@@ -1,3 +1,7 @@
+// This file will be rewritten in the endstop-actuator-base PR.
+// Suppress deprecation warnings from the cover compat shims until then.
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 #include "endstop_cover.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"

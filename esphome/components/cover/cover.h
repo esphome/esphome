@@ -11,13 +11,22 @@
 
 namespace esphome::cover {
 
-// Backward-compat aliases — these MUST remain for external code
-using CoverOperation = actuator::ActuatorOperation;
-constexpr CoverOperation COVER_OPERATION_IDLE = actuator::ACTUATOR_OPERATION_IDLE;
-constexpr CoverOperation COVER_OPERATION_OPENING = actuator::ACTUATOR_OPERATION_OPENING;
-constexpr CoverOperation COVER_OPERATION_CLOSING = actuator::ACTUATOR_OPERATION_CLOSING;
-static constexpr float COVER_OPEN = actuator::ACTUATOR_OPEN;
-static constexpr float COVER_CLOSED = actuator::ACTUATOR_CLOSED;
+// Backward-compat aliases — these MUST remain for external code. Remove after 2026.12.0.
+using CoverOperation [[deprecated("Use actuator::ActuatorOperation instead. Removed in 2026.12.0")]] =
+    actuator::ActuatorOperation;
+[[deprecated(
+    "Use actuator::ACTUATOR_OPERATION_IDLE instead. Removed in 2026.12.0")]] constexpr actuator::ActuatorOperation
+    COVER_OPERATION_IDLE = actuator::ACTUATOR_OPERATION_IDLE;
+[[deprecated(
+    "Use actuator::ACTUATOR_OPERATION_OPENING instead. Removed in 2026.12.0")]] constexpr actuator::ActuatorOperation
+    COVER_OPERATION_OPENING = actuator::ACTUATOR_OPERATION_OPENING;
+[[deprecated(
+    "Use actuator::ACTUATOR_OPERATION_CLOSING instead. Removed in 2026.12.0")]] constexpr actuator::ActuatorOperation
+    COVER_OPERATION_CLOSING = actuator::ACTUATOR_OPERATION_CLOSING;
+[[deprecated("Use actuator::ACTUATOR_OPEN instead. Removed in 2026.12.0")]] static constexpr float COVER_OPEN =
+    actuator::ACTUATOR_OPEN;
+[[deprecated("Use actuator::ACTUATOR_CLOSED instead. Removed in 2026.12.0")]] static constexpr float COVER_CLOSED =
+    actuator::ACTUATOR_CLOSED;
 
 #define LOG_COVER(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -70,7 +79,7 @@ struct CoverRestoreState {
   void apply(Cover *cover);
 } __attribute__((packed));
 
-const LogString *cover_operation_to_str(CoverOperation op);
+const LogString *cover_operation_to_str(actuator::ActuatorOperation op);
 
 /** Base class for all cover devices.
  *
@@ -98,7 +107,7 @@ class Cover : public actuator::ActuatorBase, public actuator::IActuator {
   explicit Cover();
 
   /// The current tilt value of the cover from 0.0 to 1.0.
-  float tilt{COVER_OPEN};
+  float tilt{actuator::ACTUATOR_OPEN};
 
   /// Construct a new cover call used to control the cover.
   CoverCall make_call();

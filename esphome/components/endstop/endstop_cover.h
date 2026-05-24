@@ -1,5 +1,10 @@
 #pragma once
 
+// This file will be rewritten in the endstop-actuator-base PR.
+// Suppress deprecation warnings from the cover compat shims until then.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
@@ -51,5 +56,7 @@ class EndstopCover : public cover::Cover, public Component {
   float target_position_{0};
   cover::CoverOperation last_operation_{cover::COVER_OPERATION_OPENING};
 };
+
+#pragma GCC diagnostic pop
 
 }  // namespace esphome::endstop
