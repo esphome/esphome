@@ -1,0 +1,56 @@
+esphome:
+  on_boot:
+    then:
+      - output.set_level:
+          id: basic_pwm
+          level: 50%
+      - output.nrf52_pwm.set_frequency:
+          id: runtime_pwm
+          frequency: 2kHz
+      - light.turn_on:
+          id: pwm_light
+          brightness: 75%
+      - servo.write:
+          id: pwm_servo
+          level: 25%
+
+output:
+  - platform: nrf52_pwm
+    id: basic_pwm
+    pin: P0.13
+    frequency: 1kHz
+
+  - platform: nrf52_pwm
+    id: shared_pwm_1
+    pin: P0.14
+    frequency: 500Hz
+
+  - platform: nrf52_pwm
+    id: shared_pwm_2
+    pin:
+      number: P0.15
+      inverted: true
+    frequency: 500Hz
+
+  - platform: nrf52_pwm
+    id: runtime_pwm
+    pin: P0.16
+    frequency: 1.5kHz
+
+  - platform: nrf52_pwm
+    id: light_pwm
+    pin: P0.17
+    frequency: 1kHz
+
+light:
+  - platform: monochromatic
+    id: pwm_light
+    name: PWM Light
+    output: light_pwm
+
+servo:
+  id: pwm_servo
+  output: runtime_pwm
+  restore: true
+  min_level: 4%
+  max_level: 8%
