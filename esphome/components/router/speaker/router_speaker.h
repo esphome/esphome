@@ -5,11 +5,11 @@
 #include "esphome/components/speaker/speaker.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 #include <freertos/FreeRTOS.h>
 
 #include <atomic>
-#include <vector>
 
 namespace esphome::router {
 
@@ -39,6 +39,8 @@ class Router : public Component, public speaker::Speaker {
   void set_mute_state(bool mute_state) override;
   bool get_mute_state() override { return this->mute_state_; }
 
+  // Allocate the output list to its final size. Must be called before add_output().
+  void set_output_count(size_t count) { this->outputs_.init(count); }
   void add_output(speaker::Speaker *spk) { this->outputs_.push_back(spk); }
 
   /// Switch the active output to the given speaker. Must be one of the configured outputs.
@@ -69,7 +71,7 @@ class Router : public Component, public speaker::Speaker {
   std::atomic<int8_t> pending_start_prev_idx_{-1};
 
  private:
-  std::vector<speaker::Speaker *> outputs_;
+  FixedVector<speaker::Speaker *> outputs_;
   // Index into outputs_, always within [0, outputs_.size()). Defaults to the first
   // configured output; updated by switch_to_output().
   std::atomic<int8_t> active_output_idx_{0};

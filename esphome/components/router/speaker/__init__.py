@@ -87,7 +87,9 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     # The first configured output is the default active output on boot.
-    for spk_id in config[CONF_OUTPUT_SPEAKERS]:
+    speakers = config[CONF_OUTPUT_SPEAKERS]
+    cg.add(var.set_output_count(len(speakers)))
+    for spk_id in speakers:
         spk = await cg.get_variable(spk_id)
         cg.add(var.add_output(spk))
 
