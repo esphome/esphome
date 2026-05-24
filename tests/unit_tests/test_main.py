@@ -29,6 +29,7 @@ from esphome.__main__ import (
     command_analyze_memory,
     command_bundle,
     command_clean_all,
+    command_config_hash,
     command_rename,
     command_run,
     command_update_all,
@@ -3437,6 +3438,33 @@ def test_command_wizard(tmp_path: Path) -> None:
 
         assert result == 0
         mock_wizard.assert_called_once_with(config_file)
+
+
+def test_command_config_hash(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+) -> None:
+    """command_config_hash runs codegen then prints CORE.config_hash.
+
+    The printed format must match `0x{config_hash:08x}` used by
+    generate_build_info_data_cpp so the value can be compared byte-for-byte
+    against the ESPHOME_CONFIG_HASH embedded in firmware.
+    """
+    setup_core(tmp_path=tmp_path, config={"esphome": {"name": "test"}})
+    args = MockArgs()
+
+    # generate_cpp_contents requires real components to be loaded; mock it out
+    # so this test isolates the command's output contract. The command must
+    # still call it (codegen can mutate config, which affects the hash).
+    with patch("esphome.__main__.generate_cpp_contents") as mock_generate:
+        result = command_config_hash(args, CORE.config)
+
+    assert result == 0
+    mock_generate.assert_called_once_with(CORE.config)
+
+    output = strip_ansi_codes(capfd.readouterr().out).strip()
+    assert re.fullmatch(r"0x[0-9a-f]{8}", output)
+    assert output == f"0x{CORE.config_hash:08x}"
 
 
 def test_command_rename_invalid_characters(

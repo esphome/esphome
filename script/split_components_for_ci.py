@@ -44,14 +44,21 @@ ALL_PLATFORMS = "all"
 def has_test_files(component_name: str, tests_dir: Path) -> bool:
     """Check if a component has test files.
 
+    Validate files (validate.*.yaml) count -- a component with only config-only
+    test files still needs a CI runner for schema validation.
+
     Args:
         component_name: Name of the component
         tests_dir: Path to tests/components directory (unused, kept for compatibility)
 
     Returns:
-        True if the component has test.*.yaml or test-*.yaml files
+        True if the component has test.*.yaml, test-*.yaml, or validate.*.yaml files
     """
-    return bool(get_component_test_files(component_name, all_variants=True))
+    return bool(
+        get_component_test_files(
+            component_name, all_variants=True, include_validate=True
+        )
+    )
 
 
 def create_intelligent_batches(

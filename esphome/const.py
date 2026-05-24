@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2026.5.0-dev"
+__version__ = "2026.6.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -1367,6 +1367,7 @@ DEVICE_CLASS_TEMPERATURE = "temperature"
 DEVICE_CLASS_TEMPERATURE_DELTA = "temperature_delta"
 DEVICE_CLASS_TIMESTAMP = "timestamp"
 DEVICE_CLASS_UPDATE = "update"
+DEVICE_CLASS_UPTIME = "uptime"
 DEVICE_CLASS_VIBRATION = "vibration"
 DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS = "volatile_organic_compounds"
 DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS = "volatile_organic_compounds_parts"
@@ -1415,3 +1416,12 @@ ENTITY_CATEGORY_DIAGNOSTIC = "diagnostic"
 # The corresponding constant exists in c++
 # when update_interval is set to never, it becomes SCHEDULER_DONT_RUN milliseconds
 SCHEDULER_DONT_RUN = 4294967295
+
+# Sentinel values written by the esphome-device-builder dashboard into
+# secrets.yaml on first boot so that !secret wifi_ssid / !secret wifi_password
+# references resolve cleanly through validation before the user has finished
+# the onboarding wizard. Compilation refuses if these reach the binary so that
+# a user who dismisses onboarding can't accidentally flash a device that will
+# never associate with their wifi.
+PLACEHOLDER_WIFI_SSID = "REPLACE_WITH_YOUR_WIFI_NETWORK"
+PLACEHOLDER_WIFI_PASSWORD = "REPLACE_WITH_YOUR_WIFI_PASSWORD"  # noqa: S105
