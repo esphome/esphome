@@ -185,7 +185,8 @@ void MicroWakeWord::inference_task(void *params) {
         audio_source->fill(pdMS_TO_TICKS(DATA_TIMEOUT_MS), false);
 
         // The frontend buffers samples internally and only emits a feature once it has a full window, so we can
-        // hand it whatever the source exposes.
+        // hand it whatever the source exposes. The frontend consumes at least one sample per call, so available()
+        // strictly decreases and this loop always terminates.
         while (audio_source->available() >= sizeof(int16_t)) {
           const size_t samples_available = audio_source->available() / sizeof(int16_t);
           const int16_t *audio_data = reinterpret_cast<const int16_t *>(audio_source->data());
@@ -193,10 +194,6 @@ void MicroWakeWord::inference_task(void *params) {
           size_t processed_samples = 0;
           const bool feature_generated =
               this_mww->generate_features_(audio_data, samples_available, features_buffer, &processed_samples);
-
-          if (processed_samples == 0) {
-            break;  // Defensive: the frontend always consumes at least one sample when given any.
-          }
           audio_source->consume(processed_samples * sizeof(int16_t));
 
           if (feature_generated) {
