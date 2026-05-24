@@ -107,7 +107,7 @@ const LogString *cover_operation_to_str(CoverOperation op);
  * to control all values of the cover. Also implement get_traits() to return what operations
  * the cover supports.
  */
-class Cover : public EntityBase, public EntityBase_DeviceClass {
+class Cover : public EntityBase {
  public:
   explicit Cover();
 
@@ -125,7 +125,7 @@ class Cover : public EntityBase, public EntityBase_DeviceClass {
   /// Construct a new cover call used to control the cover.
   CoverCall make_call();
 
-  void add_on_state_callback(std::function<void()> &&f);
+  template<typename F> void add_on_state_callback(F &&f) { this->state_callback_.add(std::forward<F>(f)); }
 
   /** Publish the current state of the cover.
    *

@@ -4,8 +4,7 @@
 #include "pn532.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pn532 {
+namespace esphome::pn532 {
 
 static const char *const TAG = "pn532.mifare_ultralight";
 
@@ -99,7 +98,7 @@ bool PN532::find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_3_to_6
                                          uint8_t &message_start_index) {
   const uint8_t p4_offset = nfc::MIFARE_ULTRALIGHT_PAGE_SIZE;  // page 4 will begin 4 bytes into the vector
 
-  if (!(page_3_to_6.size() > p4_offset + 5)) {
+  if (!(page_3_to_6.size() > p4_offset + 6)) {
     return false;
   }
 
@@ -134,7 +133,7 @@ bool PN532::write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *
   } else {
     encoded.insert(encoded.begin() + 1, 0xFF);
     encoded.insert(encoded.begin() + 2, (message_length >> 8) & 0xFF);
-    encoded.insert(encoded.begin() + 2, message_length & 0xFF);
+    encoded.insert(encoded.begin() + 3, message_length & 0xFF);
   }
   encoded.push_back(0xFE);
 
@@ -189,5 +188,4 @@ bool PN532::write_mifare_ultralight_page_(uint8_t page_num, const uint8_t *write
   return true;
 }
 
-}  // namespace pn532
-}  // namespace esphome
+}  // namespace esphome::pn532

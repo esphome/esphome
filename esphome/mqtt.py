@@ -2,6 +2,7 @@ import contextlib
 from datetime import datetime
 import json
 import logging
+import os
 import ssl
 import tempfile
 import time
@@ -109,14 +110,18 @@ def prepare(
             CONF_CLIENT_CERTIFICATE_KEY
         ):
             with (
-                tempfile.NamedTemporaryFile(mode="w+") as cert_file,
-                tempfile.NamedTemporaryFile(mode="w+") as key_file,
+                tempfile.NamedTemporaryFile(mode="w+", delete=False) as cert_file,
+                tempfile.NamedTemporaryFile(mode="w+", delete=False) as key_file,
             ):
-                cert_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE))
-                cert_file.flush()
-                key_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE_KEY))
-                key_file.flush()
-                context.load_cert_chain(cert_file.name, key_file.name)
+                try:
+                    cert_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE))
+                    key_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE_KEY))
+                    cert_file.close()
+                    key_file.close()
+                    context.load_cert_chain(cert_file.name, key_file.name)
+                finally:
+                    os.unlink(cert_file.name)
+                    os.unlink(key_file.name)
         client.tls_set_context(context)
 
     try:

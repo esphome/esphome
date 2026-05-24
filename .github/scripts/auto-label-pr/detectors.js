@@ -1,5 +1,37 @@
-const fs = require('fs');
 const { DOCS_PR_PATTERNS } = require('./constants');
+const {
+  COMPONENT_REGEX,
+  detectComponents,
+  hasCoreChanges,
+  hasDashboardChanges,
+  hasGitHubActionsChanges,
+} = require('../detect-tags');
+const { loadCodeowners, getEffectiveOwners } = require('../codeowners');
+
+// Top-level `CONFIG_SCHEMA = ...` (assignment) or `CONFIG_SCHEMA: ConfigType = ...` (annotation).
+// Ruff/Black enforce exactly one space around `=` and no space before `:`,
+// so we can match strictly: `CONFIG_SCHEMA ` or `CONFIG_SCHEMA:`.
+const CONFIG_SCHEMA_REGEX = /^CONFIG_SCHEMA[ :]/m;
+
+// Fetch a file's contents from the PR head SHA via the GitHub API.
+// The auto-label workflow runs on `pull_request_target`, which checks out the
+// base branch — files added by the PR don't exist in the workspace, so we have
+// to fetch them from the head SHA. Returns null if the file can't be fetched.
+async function fetchPrFileContent(github, context, path) {
+  try {
+    const { owner, repo } = context.repo;
+    const { data } = await github.rest.repos.getContent({
+      owner,
+      repo,
+      path,
+      ref: context.payload.pull_request.head.sha,
+    });
+    return Buffer.from(data.content, 'base64').toString('utf8');
+  } catch (error) {
+    console.log(`Failed to fetch ${path} from PR head:`, error.message);
+    return null;
+  }
+}
 
 // Strategy: Merge branch detection
 async function detectMergeBranch(context) {
@@ -20,15 +52,13 @@ async function detectMergeBranch(context) {
 // Strategy: Component and platform labeling
 async function detectComponentPlatforms(changedFiles, apiData) {
   const labels = new Set();
-  const componentRegex = /^esphome\/components\/([^\/]+)\//;
   const targetPlatformRegex = new RegExp(`^esphome\/components\/(${apiData.targetPlatforms.join('|')})/`);
 
-  for (const file of changedFiles) {
-    const componentMatch = file.match(componentRegex);
-    if (componentMatch) {
-      labels.add(`component: ${componentMatch[1]}`);
-    }
+  for (const comp of detectComponents(changedFiles)) {
+    labels.add(`component: ${comp}`);
+  }
 
+  for (const file of changedFiles) {
     const platformMatch = file.match(targetPlatformRegex);
     if (platformMatch) {
       labels.add(`platform: ${platformMatch[1]}`);
@@ -39,75 +69,86 @@ async function detectComponentPlatforms(changedFiles, apiData) {
 }
 
 // Strategy: New component detection
-async function detectNewComponents(prFiles) {
+async function detectNewComponents(github, context, prFiles) {
   const labels = new Set();
+  let hasYamlLoadable = false;
   const addedFiles = prFiles.filter(file => file.status === 'added').map(file => file.filename);
 
   for (const file of addedFiles) {
     const componentMatch = file.match(/^esphome\/components\/([^\/]+)\/__init__\.py$/);
-    if (componentMatch) {
-      try {
-        const content = fs.readFileSync(file, 'utf8');
-        if (content.includes('IS_TARGET_PLATFORM = True')) {
-          labels.add('new-target-platform');
-        }
-      } catch (error) {
-        console.log(`Failed to read content of ${file}:`, error.message);
-      }
-      labels.add('new-component');
+    if (!componentMatch) continue;
+
+    labels.add('new-component');
+    const content = await fetchPrFileContent(github, context, file);
+    if (content === null) {
+      // Safe default: assume YAML-loadable so needs-docs behaviour is unchanged on fetch failure
+      hasYamlLoadable = true;
+      continue;
+    }
+    if (content.includes('IS_TARGET_PLATFORM = True')) {
+      labels.add('new-target-platform');
+    }
+    if (CONFIG_SCHEMA_REGEX.test(content)) {
+      hasYamlLoadable = true;
     }
   }
 
-  return labels;
+  return { labels, hasYamlLoadable };
 }
 
 // Strategy: New platform detection
-async function detectNewPlatforms(prFiles, apiData) {
+async function detectNewPlatforms(github, context, prFiles, apiData) {
   const labels = new Set();
+  let hasYamlLoadable = false;
   const addedFiles = prFiles.filter(file => file.status === 'added').map(file => file.filename);
 
-  for (const file of addedFiles) {
-    const platformFileMatch = file.match(/^esphome\/components\/([^\/]+)\/([^\/]+)\.py$/);
-    if (platformFileMatch) {
-      const [, component, platform] = platformFileMatch;
-      if (apiData.platformComponents.includes(platform)) {
-        labels.add('new-platform');
-      }
-    }
+  const platformPathPatterns = [
+    /^esphome\/components\/([^\/]+)\/([^\/]+)\.py$/,
+    /^esphome\/components\/([^\/]+)\/([^\/]+)\/__init__\.py$/,
+  ];
 
-    const platformDirMatch = file.match(/^esphome\/components\/([^\/]+)\/([^\/]+)\/__init__\.py$/);
-    if (platformDirMatch) {
-      const [, component, platform] = platformDirMatch;
-      if (apiData.platformComponents.includes(platform)) {
-        labels.add('new-platform');
+  for (const file of addedFiles) {
+    for (const re of platformPathPatterns) {
+      const match = file.match(re);
+      if (!match) continue;
+      const platform = match[2];
+      if (!apiData.platformComponents.includes(platform)) break;
+
+      labels.add('new-platform');
+      const content = await fetchPrFileContent(github, context, file);
+      if (content === null) {
+        // Safe default: assume YAML-loadable so needs-docs behaviour is unchanged on fetch failure
+        hasYamlLoadable = true;
+      } else if (CONFIG_SCHEMA_REGEX.test(content)) {
+        hasYamlLoadable = true;
       }
+      break;
     }
   }
 
-  return labels;
+  return { labels, hasYamlLoadable };
 }
 
 // Strategy: Core files detection
 async function detectCoreChanges(changedFiles) {
   const labels = new Set();
-  const coreFiles = changedFiles.filter(file =>
-    file.startsWith('esphome/core/') ||
-    (file.startsWith('esphome/') && file.split('/').length === 2)
-  );
-
-  if (coreFiles.length > 0) {
+  if (hasCoreChanges(changedFiles)) {
     labels.add('core');
   }
-
   return labels;
 }
 
 // Strategy: PR size detection
-async function detectPRSize(prFiles, totalAdditions, totalDeletions, totalChanges, isMegaPR, SMALL_PR_THRESHOLD, TOO_BIG_THRESHOLD) {
+async function detectPRSize(prFiles, totalAdditions, totalDeletions, totalChanges, isMegaPR, SMALL_PR_THRESHOLD, MEDIUM_PR_THRESHOLD, TOO_BIG_THRESHOLD) {
   const labels = new Set();
 
   if (totalChanges <= SMALL_PR_THRESHOLD) {
     labels.add('small-pr');
+    return labels;
+  }
+
+  if (totalChanges <= MEDIUM_PR_THRESHOLD) {
+    labels.add('medium-pr');
     return labels;
   }
 
@@ -131,80 +172,33 @@ async function detectPRSize(prFiles, totalAdditions, totalDeletions, totalChange
 // Strategy: Dashboard changes
 async function detectDashboardChanges(changedFiles) {
   const labels = new Set();
-  const dashboardFiles = changedFiles.filter(file =>
-    file.startsWith('esphome/dashboard/') ||
-    file.startsWith('esphome/components/dashboard_import/')
-  );
-
-  if (dashboardFiles.length > 0) {
+  if (hasDashboardChanges(changedFiles)) {
     labels.add('dashboard');
   }
-
   return labels;
 }
 
 // Strategy: GitHub Actions changes
 async function detectGitHubActionsChanges(changedFiles) {
   const labels = new Set();
-  const githubActionsFiles = changedFiles.filter(file =>
-    file.startsWith('.github/workflows/')
-  );
-
-  if (githubActionsFiles.length > 0) {
+  if (hasGitHubActionsChanges(changedFiles)) {
     labels.add('github-actions');
   }
-
   return labels;
 }
 
 // Strategy: Code owner detection
 async function detectCodeOwner(github, context, changedFiles) {
   const labels = new Set();
-  const { owner, repo } = context.repo;
 
   try {
-    const { data: codeownersFile } = await github.rest.repos.getContent({
-      owner,
-      repo,
-      path: 'CODEOWNERS',
-    });
-
-    const codeownersContent = Buffer.from(codeownersFile.content, 'base64').toString('utf8');
+    const codeownersPatterns = loadCodeowners();
     const prAuthor = context.payload.pull_request.user.login;
 
-    const codeownersLines = codeownersContent.split('\n')
-      .map(line => line.trim())
-      .filter(line => line && !line.startsWith('#'));
-
-    const codeownersRegexes = codeownersLines.map(line => {
-      const parts = line.split(/\s+/);
-      const pattern = parts[0];
-      const owners = parts.slice(1);
-
-      let regex;
-      if (pattern.endsWith('*')) {
-        const dir = pattern.slice(0, -1);
-        regex = new RegExp(`^${dir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`);
-      } else if (pattern.includes('*')) {
-        // First escape all regex special chars except *, then replace * with .*
-        const regexPattern = pattern
-          .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-          .replace(/\*/g, '.*');
-        regex = new RegExp(`^${regexPattern}$`);
-      } else {
-        regex = new RegExp(`^${pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
-      }
-
-      return { regex, owners };
-    });
-
-    for (const file of changedFiles) {
-      for (const { regex, owners } of codeownersRegexes) {
-        if (regex.test(file) && owners.some(owner => owner === `@${prAuthor}`)) {
-          labels.add('by-code-owner');
-          return labels;
-        }
-      }
+    // Check if PR author is a codeowner of any changed file
+    const effective = getEffectiveOwners(changedFiles, codeownersPatterns);
+    if (effective.users.has(prAuthor)) {
+      labels.add('by-code-owner');
     }
   } catch (error) {
     console.log('Failed to read or parse CODEOWNERS file:', error.message);
@@ -238,6 +232,7 @@ async function detectPRTemplateCheckboxes(context) {
     { pattern: /- \[x\] New feature \(non-breaking change which adds functionality\)/i, label: 'new-feature' },
     { pattern: /- \[x\] Breaking change \(fix or feature that would cause existing functionality to not work as expected\)/i, label: 'breaking-change' },
     { pattern: /- \[x\] Developer breaking change \(an API change that could break external components\)/i, label: 'developer-breaking-change' },
+    { pattern: /- \[x\] Undocumented C\+\+ API change \(removal or change of undocumented public methods that lambda users may depend on\)/i, label: 'undocumented-api-change' },
     { pattern: /- \[x\] Code quality improvements to existing code or addition of tests/i, label: 'code-quality' }
   ];
 
@@ -258,7 +253,7 @@ async function detectDeprecatedComponents(github, context, changedFiles) {
   const { owner, repo } = context.repo;
 
   // Compile regex once for better performance
-  const componentFileRegex = /^esphome\/components\/([^\/]+)\//;
+  const componentFileRegex = COMPONENT_REGEX;
 
   // Get files that are modified or added in components directory
   const componentFiles = changedFiles.filter(file => componentFileRegex.test(file));
@@ -276,19 +271,20 @@ async function detectDeprecatedComponents(github, context, changedFiles) {
     }
   }
 
-  // Get PR head to fetch files from the PR branch
-  const prNumber = context.payload.pull_request.number;
+  // Get base branch ref to check if deprecation already exists for the component
+  // This prevents flagging a PR that simply adds deprecation
+  const baseRef = context.payload.pull_request.base.ref;
 
   // Check each component's __init__.py for DEPRECATED_COMPONENT constant
   for (const component of components) {
     const initFile = `esphome/components/${component}/__init__.py`;
     try {
-      // Fetch file content from PR head using GitHub API
+      // Fetch file content from base branch using GitHub API
       const { data: fileData } = await github.rest.repos.getContent({
         owner,
         repo,
         path: initFile,
-        ref: `refs/pull/${prNumber}/head`
+        ref: baseRef
       });
 
       // Decode base64 content
@@ -321,8 +317,26 @@ async function detectDeprecatedComponents(github, context, changedFiles) {
   return { labels, deprecatedInfo };
 }
 
+// Strategy: Detect when maintainers cannot modify the PR branch
+function detectMaintainerAccess(context) {
+  const pr = context.payload.pull_request;
+
+  // Only relevant for cross-repo PRs (forks)
+  if (!pr.head.repo || pr.head.repo.full_name === pr.base.repo.full_name) {
+    return null;
+  }
+
+  if (pr.maintainer_can_modify) {
+    return null;
+  }
+
+  const isOrgFork = pr.head.repo.owner.type === 'Organization';
+  console.log(`Maintainer cannot modify PR branch (${isOrgFork ? 'org fork: ' + pr.head.repo.owner.login : 'user disabled'})`);
+  return { isOrgFork, orgName: pr.head.repo.owner.login };
+}
+
 // Strategy: Requirements detection
-async function detectRequirements(allLabels, prFiles, context) {
+async function detectRequirements(allLabels, prFiles, context, hasYamlLoadable) {
   const labels = new Set();
 
   // Check for missing tests
@@ -330,8 +344,15 @@ async function detectRequirements(allLabels, prFiles, context) {
     labels.add('needs-tests');
   }
 
-  // Check for missing docs
-  if (allLabels.has('new-component') || allLabels.has('new-platform') || allLabels.has('new-feature')) {
+  // Check for missing docs.
+  // `new-feature` (PR-body checkbox) always counts. `new-component` / `new-platform`
+  // only count when at least one newly added file defines a top-level CONFIG_SCHEMA,
+  // i.e. the new component/platform is actually loadable from YAML.
+  const docsEligible =
+    allLabels.has('new-feature') ||
+    ((allLabels.has('new-component') || allLabels.has('new-platform')) && hasYamlLoadable);
+
+  if (docsEligible) {
     const prBody = context.payload.pull_request.body || '';
     const hasDocsLink = DOCS_PR_PATTERNS.some(pattern => pattern.test(prBody));
 
@@ -369,5 +390,6 @@ module.exports = {
   detectTests,
   detectPRTemplateCheckboxes,
   detectDeprecatedComponents,
+  detectMaintainerAccess,
   detectRequirements
 };

@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace pmsa003i {
+namespace esphome::pmsa003i {
 
 /**! Structure holding Plantower's standard packet **/
 // From https://github.com/adafruit/Adafruit_PM25AQI
@@ -63,5 +62,4 @@ class PMSA003IComponent : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *pmc_10_0_sensor_{nullptr};
 };
 
-}  // namespace pmsa003i
-}  // namespace esphome
+}  // namespace esphome::pmsa003i

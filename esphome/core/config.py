@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 import logging
 import os
 from pathlib import Path
@@ -49,6 +50,7 @@ from esphome.core import (
 )
 from esphome.helpers import (
     copy_file_if_changed,
+    cpp_string_escape,
     fnv1a_32bit_hash,
     get_str_env,
     walk_files,
@@ -56,6 +58,38 @@ from esphome.helpers import (
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
+
+# C++ variable names and separators for app name buffers (used with MAC suffix)
+_APP_NAME_BUF_VAR = "esphome_app_name_buf"
+_APP_NAME_MAC_SEP = "-"
+_APP_FRIENDLY_NAME_BUF_VAR = "esphome_app_friendly_name_buf"
+_APP_FRIENDLY_NAME_MAC_SEP = " "
+# Placeholder suffix for MAC address (last 6 hex chars)
+_MAC_SUFFIX_PLACEHOLDER = "XXXXXX"
+
+
+def make_app_name_cpp(
+    value: str, var_name: str, sep: str, *, add_mac_suffix: bool
+) -> tuple[str, str | None, int]:
+    """Compute C++ expression and optional global declaration for an app name.
+
+    Returns (cpp_expr, global_decl_or_none, byte_length).
+    - cpp_expr: The C++ expression to pass to pre_setup (var name or string literal).
+    - global_decl: A static char[] declaration string, or None if not needed.
+    - byte_length: The UTF-8 byte length of the string value.
+    """
+    if add_mac_suffix:
+        buf_value = "" if not value else f"{value}{sep}{_MAC_SUFFIX_PLACEHOLDER}"
+        escaped = cpp_string_escape(buf_value)
+        return (
+            var_name,
+            f"static char {var_name}[] = {escaped};",
+            len(buf_value.encode("utf-8")),
+        )
+    if not value:
+        return '""', None, 0
+    return cpp_string_escape(value), None, len(value.encode("utf-8"))
+
 
 StartupTrigger = cg.esphome_ns.class_(
     "StartupTrigger", cg.Component, automation.Trigger.template()
@@ -77,6 +111,8 @@ VALID_INCLUDE_EXTS = {".h", ".hpp", ".tcc", ".ino", ".cpp", ".c"}
 
 def validate_hostname(config):
     # Keep in sync with ESPHOME_DEVICE_NAME_MAX_LEN in esphome/core/entity_base.h
+    if not config[CONF_NAME]:
+        raise cv.Invalid("Hostname must not be empty", path=[CONF_NAME])
     max_length = 31
     if config[CONF_NAME_ADD_MAC_SUFFIX]:
         max_length -= 7  # "-AABBCC" is appended when add mac suffix option is used
@@ -120,22 +156,22 @@ def validate_ids_and_references(config: ConfigType) -> ConfigType:
         hash_dict[hash_val] = id_obj.id
 
     # Collect all areas
-    all_areas: list[dict[str, str | core.ID]] = []
+    all_areas: list[tuple[dict[str, str | core.ID], str]] = []
     if CONF_AREA in config:
-        all_areas.append(config[CONF_AREA])
-    all_areas.extend(config[CONF_AREAS])
+        all_areas.append((config[CONF_AREA], CONF_AREA))
+    all_areas.extend((area, CONF_AREAS) for area in config.get(CONF_AREAS, []))
 
     # Validate area hash collisions and collect IDs
     area_hashes: dict[int, str] = {}
     area_ids: set[str] = set()
-    for area in all_areas:
+    for area, key in all_areas:
         area_id: core.ID = area[CONF_ID]
-        check_hash_collision(area_id, area_hashes, "Area", [CONF_AREAS, area_id.id])
+        check_hash_collision(area_id, area_hashes, "Area", [key, area_id.id])
         area_ids.add(area_id.id)
 
     # Validate device hash collisions and area references
     device_hashes: dict[int, str] = {}
-    for device in config[CONF_DEVICES]:
+    for device in config.get(CONF_DEVICES, []):
         device_id: core.ID = device[CONF_ID]
         check_hash_collision(
             device_id, device_hashes, "Device", [CONF_DEVICES, device_id.id]
@@ -187,11 +223,34 @@ else:
 # Keep in sync with ESPHOME_FRIENDLY_NAME_MAX_LEN in esphome/core/entity_base.h
 FRIENDLY_NAME_MAX_LEN = 120
 
+# Max device class string length (47 chars + null = 48-byte PROGMEM buffer)
+# Keep in sync with MAX_DEVICE_CLASS_LENGTH in esphome/core/entity_base.h:
+# DEVICE_CLASS_MAX_LENGTH == MAX_DEVICE_CLASS_LENGTH - 1 (C++ includes the null)
+DEVICE_CLASS_MAX_LENGTH = 47
+
+
+# Max icon string length (63 chars + null = 64-byte PROGMEM buffer)
+# Keep in sync with MAX_ICON_LENGTH in esphome/core/entity_base.h
+ICON_MAX_LENGTH = 63
+
+# Max unit of measurement string length
+UNIT_OF_MEASUREMENT_MAX_LENGTH = 63
+
+# Max project name/version string length (must fit in single-byte varint for proto encoding)
+PROJECT_MAX_LENGTH = 127
+
+# Max board/model string length (must fit in single-byte varint for proto encoding)
+BOARD_MAX_LENGTH = 127
+
+# Keep in sync with ESPHOME_COMMENT_SIZE_MAX in esphome/core/application.h
+# (C++ side includes the null terminator).
+COMMENT_MAX_LEN = 255
+
 AREA_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(Area),
         cv.Required(CONF_NAME): cv.All(
-            cv.string_no_slash, cv.Length(max=FRIENDLY_NAME_MAX_LEN)
+            cv.string_no_slash, cv.ByteLength(max=FRIENDLY_NAME_MAX_LEN)
         ),
     }
 )
@@ -200,7 +259,7 @@ DEVICE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(Device),
         cv.Required(CONF_NAME): cv.All(
-            cv.string_no_slash, cv.Length(max=FRIENDLY_NAME_MAX_LEN)
+            cv.string_no_slash, cv.ByteLength(max=FRIENDLY_NAME_MAX_LEN)
         ),
         cv.Optional(CONF_AREA_ID): cv.use_id(Area),
     }
@@ -217,10 +276,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_NAME): cv.valid_name,
             # Keep max=120 in sync with OBJECT_ID_MAX_LEN in esphome/core/entity_base.h
             cv.Optional(CONF_FRIENDLY_NAME, ""): cv.All(
-                cv.string_no_slash, cv.Length(max=FRIENDLY_NAME_MAX_LEN)
+                cv.string_no_slash, cv.ByteLength(max=FRIENDLY_NAME_MAX_LEN)
             ),
             cv.Optional(CONF_AREA): validate_area_config,
-            cv.Optional(CONF_COMMENT): cv.All(cv.string, cv.Length(max=255)),
+            cv.Optional(CONF_COMMENT): cv.All(
+                cv.string, cv.ByteLength(max=COMMENT_MAX_LEN)
+            ),
             cv.Required(CONF_BUILD_PATH): cv.string,
             cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema(
                 {
@@ -257,9 +318,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PROJECT): cv.Schema(
                 {
                     cv.Required(CONF_NAME): cv.All(
-                        cv.string_strict, valid_project_name
+                        cv.string_strict,
+                        valid_project_name,
+                        cv.ByteLength(max=PROJECT_MAX_LENGTH),
                     ),
-                    cv.Required(CONF_VERSION): cv.string_strict,
+                    cv.Required(CONF_VERSION): cv.All(
+                        cv.string_strict, cv.ByteLength(max=PROJECT_MAX_LENGTH)
+                    ),
                     cv.Optional(CONF_ON_UPDATE): automation.validate_automation(
                         {
                             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -281,9 +346,6 @@ CONFIG_SCHEMA = cv.All(
     ),
     validate_hostname,
 )
-
-
-FINAL_VALIDATE_SCHEMA = cv.All(validate_ids_and_references)
 
 
 PRELOAD_CONFIG_SCHEMA = cv.Schema(
@@ -504,26 +566,80 @@ async def _add_controller_registry_define() -> None:
         cg.add_define("CONTROLLER_REGISTRY_MAX", controller_count)
 
 
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _add_looping_components() -> None:
+    # Emit ESPHOME_LOOPING_COMPONENT_COUNT. Sizing of looping_components_
+    # happens in core to_code() so it lands before safe_mode's early return.
+    entries = CORE.data.get("looping_component_entries", [])
+
+    # Build constexpr sum for the exact count, deduplicating by type
+    # Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance
+    type_counts = Counter(entries)
+    terms = [
+        f"({count} * HasLoopOverride<{cpp_type}>::value)"
+        for cpp_type, count in type_counts.items()
+    ] or ["0"]
+    constexpr_expr = " + \\\n  ".join(terms)
+    cg.add_global(
+        cg.RawStatement(
+            f"static constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT = \\\n"
+            f"  {constexpr_expr};"
+        )
+    )
+
+
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config: ConfigType) -> None:
-    cg.add_global(cg.global_ns.namespace("esphome").using)
+    # using namespace esphome is hardcoded in writer.py to guarantee it
+    # precedes all variable declarations regardless of coroutine priority.
+
     # These can be used by user lambdas, put them to default scope
+    # picolibc (IDF 6.0+) declares isnan in global scope, conflicting with using std::isnan
+    cg.add_global(cg.RawStatement("#ifndef __PICOLIBC__"))
     cg.add_global(cg.RawExpression("using std::isnan"))
+    cg.add_global(cg.RawStatement("#endif"))
     cg.add_global(cg.RawExpression("using std::min"))
     cg.add_global(cg.RawExpression("using std::max"))
 
-    cg.add(
-        cg.App.pre_setup(
-            config[CONF_NAME],
-            config[CONF_FRIENDLY_NAME],
-            config[CONF_NAME_ADD_MAC_SUFFIX],
+    # Construct App via placement new — see application.cpp for storage details
+    cg.add_global(cg.RawStatement("#include <new>"))
+    cg.add(cg.RawExpression("new (&App) Application()"))
+    name = config[CONF_NAME]
+    friendly_name = config[CONF_FRIENDLY_NAME]
+    name_add_mac_suffix = config[CONF_NAME_ADD_MAC_SUFFIX]
+
+    def _emit_app_name(
+        value: str, var_name: str, sep: str
+    ) -> tuple[cg.Expression, int]:
+        """Emit codegen for an app name and return (expression, byte_length)."""
+        cpp_expr, global_decl, byte_len = make_app_name_cpp(
+            value, var_name, sep, add_mac_suffix=name_add_mac_suffix
         )
+        if global_decl is not None:
+            cg.add_global(cg.RawStatement(global_decl))
+        return cg.RawExpression(cpp_expr), byte_len
+
+    name_expr, name_len = _emit_app_name(name, _APP_NAME_BUF_VAR, _APP_NAME_MAC_SEP)
+    friendly_expr, friendly_len = _emit_app_name(
+        friendly_name, _APP_FRIENDLY_NAME_BUF_VAR, _APP_FRIENDLY_NAME_MAC_SEP
     )
+    if name_add_mac_suffix:
+        cg.add_define("ESPHOME_NAME_ADD_MAC_SUFFIX")
+    cg.add(cg.App.pre_setup(name_expr, name_len, friendly_expr, friendly_len))
     # Define component count for static allocation
     cg.add_define("ESPHOME_COMPONENT_COUNT", len(CORE.component_ids))
 
+    # Pre-init FixedVector with exact capacity so calculate_looping_components_()
+    # can skip the counting pass
+    cg.add(
+        cg.RawExpression(
+            "App.looping_components_.init(ESPHOME_LOOPING_COMPONENT_COUNT)"
+        )
+    )
+
     CORE.add_job(_add_platform_defines)
     CORE.add_job(_add_controller_registry_define)
+    CORE.add_job(_add_looping_components)
 
     CORE.add_job(_add_automations, config)
 
@@ -643,9 +759,52 @@ async def to_code(config: ConfigType) -> None:
 # Platform-specific source files for core
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
-        "ring_buffer.cpp": {
+        "static_task.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
+        },
+        "main_task.c": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+        "lwip_fast_select.c": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+        "time_64.cpp": {
+            PlatformFramework.ESP8266_ARDUINO,
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+        # Per-platform wake implementations — wake.h dispatches to exactly one of
+        # these based on USE_*, so the others can be skipped at the source level
+        # too. Header files next to each .cpp are always copied (the dispatcher
+        # #include's them) but compile to empty TUs on the wrong platform anyway.
+        "wake/wake_freertos.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+        "wake/wake_esp8266.cpp": {
+            PlatformFramework.ESP8266_ARDUINO,
+        },
+        "wake/wake_rp2040.cpp": {
+            PlatformFramework.RP2040_ARDUINO,
+        },
+        "wake/wake_host.cpp": {
+            PlatformFramework.HOST_NATIVE,
+        },
+        "wake/wake_zephyr.cpp": {
+            PlatformFramework.NRF52_ZEPHYR,
         },
         # Note: lock_free_queue.h and event_pool.h are header files and don't need to be filtered
         # as they are only included when needed by the preprocessor

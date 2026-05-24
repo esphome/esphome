@@ -1,6 +1,6 @@
 #pragma once
 
-#include "esphome/components/ota/ota_backend.h"
+#include "esphome/components/ota/ota_backend_factory.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -11,8 +11,7 @@
 
 #include "../http_request.h"
 
-namespace esphome {
-namespace http_request {
+namespace esphome::http_request {
 
 static const uint8_t MD5_SIZE = 32;
 
@@ -39,7 +38,7 @@ class OtaHttpRequestComponent final : public ota::OTAComponent, public Parented<
   void flash();
 
  protected:
-  void cleanup_(std::unique_ptr<ota::OTABackend> backend, const std::shared_ptr<HttpContainer> &container);
+  void cleanup_(ota::OTABackendPtr backend, const std::shared_ptr<HttpContainer> &container);
   uint8_t do_ota_();
   std::string get_url_with_auth_(const std::string &url);
   bool http_get_md5_();
@@ -56,5 +55,4 @@ class OtaHttpRequestComponent final : public ota::OTAComponent, public Parented<
   static const uint16_t HTTP_RECV_BUFFER = 256;  // the firmware GET chunk size
 };
 
-}  // namespace http_request
-}  // namespace esphome
+}  // namespace esphome::http_request

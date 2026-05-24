@@ -2,8 +2,7 @@
 #include "tuya_light.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 static const char *const TAG = "tuya.light";
 
@@ -56,6 +55,9 @@ void TuyaLight::setup() {
         ESP_LOGD(TAG, "Light is transitioning, datapoint change ignored");
         return;
       }
+
+      if (!this->color_type_.has_value())
+        return;
 
       float red, green, blue;
       switch (*this->color_type_) {
@@ -185,7 +187,7 @@ void TuyaLight::write_state(light::LightState *state) {
     }
   }
 
-  if (this->color_id_.has_value() && (brightness == 0.0f || !color_interlock_)) {
+  if (this->color_id_.has_value() && this->color_type_.has_value() && (brightness == 0.0f || !color_interlock_)) {
     std::string color_value;
     switch (*this->color_type_) {
       case TuyaColorType::RGB: {
@@ -225,5 +227,4 @@ void TuyaLight::write_state(light::LightState *state) {
   }
 }
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

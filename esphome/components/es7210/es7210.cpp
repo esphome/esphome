@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace es7210 {
+namespace esphome::es7210 {
 
 static const char *const TAG = "es7210";
 
@@ -172,7 +171,7 @@ uint8_t ES7210::es7210_gain_reg_value_(float mic_gain) {
   // reg: 12 - 34.5dB, 13 - 36dB, 14 - 37.5dB
   mic_gain += 0.5;
   if (mic_gain <= 33.0) {
-    return (uint8_t) mic_gain / 3;
+    return (uint8_t) (mic_gain / 3);
   }
   if (mic_gain < 36.0) {
     return 12;
@@ -224,5 +223,4 @@ bool ES7210::es7210_update_reg_bit_(uint8_t reg_addr, uint8_t update_bits, uint8
   return this->write_byte(reg_addr, regv);
 }
 
-}  // namespace es7210
-}  // namespace esphome
+}  // namespace esphome::es7210

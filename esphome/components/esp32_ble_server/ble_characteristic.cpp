@@ -7,8 +7,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace esp32_ble_server {
+namespace esphome::esp32_ble_server {
 
 static const char *const TAG = "esp32_ble_server.characteristic";
 
@@ -16,13 +15,9 @@ BLECharacteristic::~BLECharacteristic() {
   for (auto *descriptor : this->descriptors_) {
     delete descriptor;  // NOLINT(cppcoreguidelines-owning-memory)
   }
-  vSemaphoreDelete(this->set_value_lock_);
 }
 
 BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) : uuid_(uuid) {
-  this->set_value_lock_ = xSemaphoreCreateBinary();
-  xSemaphoreGive(this->set_value_lock_);
-
   this->properties_ = (esp_gatt_char_prop_t) 0;
 
   this->set_broadcast_property((properties & PROPERTY_BROADCAST) != 0);
@@ -35,11 +30,7 @@ BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) 
 
 void BLECharacteristic::set_value(ByteBuffer buffer) { this->set_value(buffer.get_data()); }
 
-void BLECharacteristic::set_value(std::vector<uint8_t> &&buffer) {
-  xSemaphoreTake(this->set_value_lock_, 0L);
-  this->value_ = std::move(buffer);
-  xSemaphoreGive(this->set_value_lock_);
-}
+void BLECharacteristic::set_value(std::vector<uint8_t> &&buffer) { this->value_ = std::move(buffer); }
 
 void BLECharacteristic::set_value(std::initializer_list<uint8_t> data) {
   this->set_value(std::vector<uint8_t>(data));  // Delegate to move overload
@@ -205,38 +196,35 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
         (*this->on_read_callback_)(param->read.conn_id);
       }
 
-      uint16_t max_offset = 22;
-
+      // Use the client-supplied offset for long reads; short reads always start at 0.
+      // The Bluedroid stack truncates ATT_READ_RSP / ATT_READ_BLOB_RSP to MTU-1, so we
+      // just provide as much data as we have from the requested offset and let the stack
+      // handle framing. The client issues subsequent blob reads with increasing offsets
+      // until it has received the whole value.
+      const uint16_t offset = param->read.is_long ? param->read.offset : 0;
+      esp_gatt_status_t status = ESP_GATT_OK;
       esp_gatt_rsp_t response;
-      if (param->read.is_long) {
-        if (this->value_.size() - this->value_read_offset_ < max_offset) {
-          //  Last message in the chain
-          response.attr_value.len = this->value_.size() - this->value_read_offset_;
-          response.attr_value.offset = this->value_read_offset_;
-          memcpy(response.attr_value.value, this->value_.data() + response.attr_value.offset, response.attr_value.len);
-          this->value_read_offset_ = 0;
-        } else {
-          response.attr_value.len = max_offset;
-          response.attr_value.offset = this->value_read_offset_;
-          memcpy(response.attr_value.value, this->value_.data() + response.attr_value.offset, response.attr_value.len);
-          this->value_read_offset_ += max_offset;
-        }
+      response.attr_value.offset = offset;
+
+      if (offset > this->value_.size()) {
+        status = ESP_GATT_INVALID_OFFSET;
+        response.attr_value.len = 0;
       } else {
-        response.attr_value.offset = 0;
-        if (this->value_.size() + 1 > max_offset) {
-          response.attr_value.len = max_offset;
-          this->value_read_offset_ = max_offset;
-        } else {
-          response.attr_value.len = this->value_.size();
+        size_t remaining = this->value_.size() - offset;
+        if (remaining > ESP_GATT_MAX_ATTR_LEN) {
+          ESP_LOGW(TAG, "Characteristic length %u exceeds buffer size of %u, truncating",
+                   static_cast<unsigned>(remaining), ESP_GATT_MAX_ATTR_LEN);
+          remaining = ESP_GATT_MAX_ATTR_LEN;
         }
-        memcpy(response.attr_value.value, this->value_.data(), response.attr_value.len);
+        response.attr_value.len = remaining;
+        memcpy(response.attr_value.value, this->value_.data() + offset, remaining);
       }
 
       response.attr_value.handle = this->handle_;
       response.attr_value.auth_req = ESP_GATT_AUTH_REQ_NONE;
 
       esp_err_t err =
-          esp_ble_gatts_send_response(gatts_if, param->read.conn_id, param->read.trans_id, ESP_GATT_OK, &response);
+          esp_ble_gatts_send_response(gatts_if, param->read.conn_id, param->read.trans_id, status, &response);
       if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_ble_gatts_send_response failed: %d", err);
       }
@@ -306,8 +294,8 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
           (*this->on_write_callback_)(this->value_, param->exec_write.conn_id);
         }
       }
-      esp_err_t err =
-          esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, ESP_GATT_OK, nullptr);
+      esp_err_t err = esp_ble_gatts_send_response(gatts_if, param->exec_write.conn_id, param->exec_write.trans_id,
+                                                  ESP_GATT_OK, nullptr);
       if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_ble_gatts_send_response failed: %d", err);
       }
@@ -344,7 +332,6 @@ BLECharacteristic::ClientNotificationEntry *BLECharacteristic::find_client_in_no
   return nullptr;
 }
 
-}  // namespace esp32_ble_server
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_server
 
 #endif

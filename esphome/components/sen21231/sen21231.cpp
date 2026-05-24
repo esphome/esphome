@@ -1,8 +1,7 @@
 #include "sen21231.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sen21231_sensor {
+namespace esphome::sen21231_sensor {
 
 static const char *const TAG = "sen21231_sensor.sensor";
 
@@ -20,7 +19,12 @@ void Sen21231Sensor::dump_config() {
 
 void Sen21231Sensor::read_data_() {
   person_sensor_results_t results;
-  this->read_bytes(PERSON_SENSOR_I2C_ADDRESS, (uint8_t *) &results, sizeof(results));
+  if (!this->read_bytes(PERSON_SENSOR_I2C_ADDRESS, (uint8_t *) &results, sizeof(results))) {
+    ESP_LOGW(TAG, "Failed to read data from SEN21231");
+    this->status_set_warning();
+    return;
+  }
+  this->status_clear_warning();
   ESP_LOGD(TAG, "SEN21231: %d faces detected", results.num_faces);
   this->publish_state(results.num_faces);
   if (results.num_faces == 1) {
@@ -28,5 +32,4 @@ void Sen21231Sensor::read_data_() {
   }
 }
 
-}  // namespace sen21231_sensor
-}  // namespace esphome
+}  // namespace esphome::sen21231_sensor

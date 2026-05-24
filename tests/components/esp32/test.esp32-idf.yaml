@@ -10,6 +10,7 @@ esp32:
       use_full_certificate_bundle: false  # Test CMN bundle (default)
       include_builtin_idf_components:
         - freertos  # Test escape hatch (freertos is always included anyway)
+      enable_full_printf: false
       disable_debug_stubs: true
       disable_ocd_aware: true
       disable_usb_serial_jtag_secondary: true
@@ -18,6 +19,8 @@ esp32:
       disable_mbedtls_pkcs7: true
       disable_regi2c_in_iram: true
       disable_fatfs: true
+      sram1_as_iram: true
+  watchdog_timeout: 7s
 
 wifi:
   ssid: MySSID

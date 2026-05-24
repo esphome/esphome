@@ -9,8 +9,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace mopeka_std_check {
+namespace esphome::mopeka_std_check {
 
 enum SensorType {
   STANDARD = 0x02,
@@ -40,7 +39,7 @@ struct mopeka_std_package {  // NOLINT(readability-identifier-naming,altera-stru
   bool slow_update_rate : 1;
   bool sync_pressed : 1;
 
-  mopeka_std_values val[4];
+  mopeka_std_values val[3];
 } __attribute__((packed));
 
 class MopekaStdCheck : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
@@ -71,10 +70,9 @@ class MopekaStdCheck : public Component, public esp32_ble_tracker::ESPBTDeviceLi
 
   float get_lpg_speed_of_sound_(float temperature);
   uint8_t parse_battery_level_(const mopeka_std_package *message);
-  uint8_t parse_temperature_(const mopeka_std_package *message);
+  int8_t parse_temperature_(const mopeka_std_package *message);
 };
 
-}  // namespace mopeka_std_check
-}  // namespace esphome
+}  // namespace esphome::mopeka_std_check
 
 #endif

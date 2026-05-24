@@ -48,46 +48,49 @@ void TemplateDate::update() {
 }
 
 void TemplateDate::control(const datetime::DateCall &call) {
-  bool has_year = call.get_year().has_value();
-  bool has_month = call.get_month().has_value();
-  bool has_day = call.get_day().has_value();
+  auto opt_year = call.get_year();
+  auto opt_month = call.get_month();
+  auto opt_day = call.get_day();
+  bool has_year = opt_year.has_value();
+  bool has_month = opt_month.has_value();
+  bool has_day = opt_day.has_value();
 
   ESPTime value = {};
   if (has_year)
-    value.year = *call.get_year();
+    value.year = *opt_year;
 
   if (has_month)
-    value.month = *call.get_month();
+    value.month = *opt_month;
 
   if (has_day)
-    value.day_of_month = *call.get_day();
+    value.day_of_month = *opt_day;
 
   this->set_trigger_.trigger(value);
 
   if (this->optimistic_) {
     if (has_year)
-      this->year_ = *call.get_year();
+      this->year_ = *opt_year;
     if (has_month)
-      this->month_ = *call.get_month();
+      this->month_ = *opt_month;
     if (has_day)
-      this->day_ = *call.get_day();
+      this->day_ = *opt_day;
     this->publish_state();
   }
 
   if (this->restore_value_) {
     datetime::DateEntityRestoreState temp = {};
     if (has_year) {
-      temp.year = *call.get_year();
+      temp.year = *opt_year;
     } else {
       temp.year = this->year_;
     }
     if (has_month) {
-      temp.month = *call.get_month();
+      temp.month = *opt_month;
     } else {
       temp.month = this->month_;
     }
     if (has_day) {
-      temp.day = *call.get_day();
+      temp.day = *opt_day;
     } else {
       temp.day = this->day_;
     }

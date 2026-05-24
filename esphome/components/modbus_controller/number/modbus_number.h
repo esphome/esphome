@@ -6,8 +6,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace modbus_controller {
+namespace esphome::modbus_controller {
 
 using value_to_data_t = std::function<float>(float);
 
@@ -46,5 +45,4 @@ class ModbusNumber : public number::Number, public Component, public SensorItem 
   bool use_write_multiple_{false};
 };
 
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller

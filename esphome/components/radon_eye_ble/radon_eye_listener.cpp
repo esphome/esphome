@@ -4,8 +4,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace radon_eye_ble {
+namespace esphome::radon_eye_ble {
 
 static const char *const TAG = "radon_eye_ble";
 
@@ -19,7 +18,6 @@ bool RadonEyeListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device
   return false;
 }
 
-}  // namespace radon_eye_ble
-}  // namespace esphome
+}  // namespace esphome::radon_eye_ble
 
 #endif

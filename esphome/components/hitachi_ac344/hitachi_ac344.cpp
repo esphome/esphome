@@ -1,7 +1,6 @@
 #include "hitachi_ac344.h"
 
-namespace esphome {
-namespace hitachi_ac344 {
+namespace esphome::hitachi_ac344 {
 
 static const char *const TAG = "climate.hitachi_ac344";
 
@@ -175,7 +174,7 @@ void HitachiClimate::transmit_state() {
 
   set_temp_(static_cast<uint8_t>(this->target_temperature));
 
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_LOW:
       set_fan_(HITACHI_AC344_FAN_LOW);
       break;
@@ -366,5 +365,4 @@ void HitachiClimate::dump_state_(const char action[], uint8_t state[]) {
   ESP_LOGV(TAG, "%s: %02X %02X %02X", action, state[40], state[41], state[42]);
 }
 
-}  // namespace hitachi_ac344
-}  // namespace esphome
+}  // namespace esphome::hitachi_ac344

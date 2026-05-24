@@ -102,7 +102,11 @@ async def test_water_heater_template(
             f"Expected target temp 60.0, got {initial_state.target_temperature}"
         )
 
-        # Verify supported features: away mode and on/off (fixture has away + is_on lambdas)
+        # Verify supported features: operation mode, away mode, and on/off
+        assert (
+            test_water_heater.supported_features
+            & WaterHeaterFeature.SUPPORTS_OPERATION_MODE
+        ) != 0, "Expected SUPPORTS_OPERATION_MODE in supported_features"
         assert (
             test_water_heater.supported_features & WaterHeaterFeature.SUPPORTS_AWAY_MODE
         ) != 0, "Expected SUPPORTS_AWAY_MODE in supported_features"

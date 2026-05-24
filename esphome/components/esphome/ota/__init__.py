@@ -16,10 +16,12 @@ from esphome.const import (
     CONF_SAFE_MODE,
     CONF_VERSION,
 )
-from esphome.core import coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 import esphome.final_validate as fv
 from esphome.types import ConfigType
+
+CONF_ALLOW_PARTITION_ACCESS = "allow_partition_access"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -75,8 +77,20 @@ def ota_esphome_final_validate(config):
                 merged_ota_esphome_configs_by_port[conf_port] = merge_config(
                     merged_ota_esphome_configs_by_port[conf_port], ota_conf
                 )
+            if ota_conf.get(CONF_ALLOW_PARTITION_ACCESS) and not CORE.is_esp32:
+                raise cv.Invalid(
+                    f"{CONF_ALLOW_PARTITION_ACCESS} is only supported on the esp32"
+                )
         else:
             new_ota_conf.append(ota_conf)
+
+    if len(merged_ota_esphome_configs_by_port) > 1:
+        raise cv.Invalid(
+            f"Only a single port is supported for '{CONF_OTA}' "
+            f"'{CONF_PLATFORM}: {CONF_ESPHOME}'. Got ports "
+            f"{sorted(merged_ota_esphome_configs_by_port.keys())}. Consolidate "
+            f"onto a single port; configs sharing a port are merged automatically."
+        )
 
     new_ota_conf.extend(merged_ota_esphome_configs_by_port.values())
 
@@ -116,7 +130,9 @@ CONFIG_SCHEMA = cv.All(
                 bk72xx=8892,
                 ln882x=8820,
                 rtl87xx=8892,
+                host=8082,
             ): cv.port,
+            cv.Optional(CONF_ALLOW_PARTITION_ACCESS, default=False): cv.boolean,
             cv.Optional(CONF_PASSWORD): cv.string,
             cv.Optional(CONF_NUM_ATTEMPTS): cv.invalid(
                 f"'{CONF_SAFE_MODE}' (and its related configuration variables) has moved from 'ota' to its own component. See https://esphome.io/components/safe_mode"
@@ -142,11 +158,21 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_port(config[CONF_PORT]))
 
-    # Password could be set to an empty string and we can assume that means no password
-    if config.get(CONF_PASSWORD):
-        cg.add(var.set_auth_password(config[CONF_PASSWORD]))
+    # Compile the auth path whenever `password:` is present in YAML, even if empty.
+    # An empty password opts in to the auth code path so set_auth_password() can be
+    # called at runtime (e.g. to rotate the password from a lambda). When `password:`
+    # is omitted entirely, the auth path is excluded to save flash on small devices.
+    if CONF_PASSWORD in config:
         cg.add_define("USE_OTA_PASSWORD")
+        if config[CONF_PASSWORD]:
+            cg.add(var.set_auth_password(config[CONF_PASSWORD]))
     cg.add_define("USE_OTA_VERSION", config[CONF_VERSION])
+
+    if config.get(CONF_ALLOW_PARTITION_ACCESS):
+        cg.add_define("USE_OTA_PARTITIONS")
+
+    # Build flag so lwip_fast_select.c (a .c file that can't include defines.h) sees it.
+    cg.add_build_flag("-DUSE_OTA_PLATFORM_ESPHOME")
 
     await cg.register_component(var, config)
     await ota_to_code(var, config)
