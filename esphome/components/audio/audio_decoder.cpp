@@ -190,7 +190,9 @@ AudioDecoderState AudioDecoder::decode(bool stop_gracefully) {
     // processed, so the source does not need to accumulate or stitch chunks across fill() calls.
     this->input_buffer_->fill(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS), false);
 
-    if (this->input_buffer_->available() == 0) {
+    const size_t available_before_decode = this->input_buffer_->available();
+
+    if (available_before_decode == 0) {
       // No data to decode, attempt to get more data next time
       state = FileDecoderState::IDLE;
     } else {
@@ -229,7 +231,16 @@ AudioDecoderState AudioDecoder::decode(bool stop_gracefully) {
     } else if (state == FileDecoderState::FAILED) {
       return AudioDecoderState::FAILED;
     } else if (state == FileDecoderState::MORE_TO_PROCESS) {
-      this->potentially_failed_count_ = 0;
+      // Reset the failsafe only when the iteration made forward progress: input was consumed or output was
+      // produced (output_transfer_buffer_ is drained empty above, so any available bytes are new). A
+      // MORE_TO_PROCESS that neither consumes input nor produces output means the decoder is stalled; count it
+      // toward the failsafe so a stuck stream eventually surfaces as FAILED instead of looping forever.
+      if ((this->input_buffer_->available() < available_before_decode) ||
+          (this->output_transfer_buffer_->available() > 0)) {
+        this->potentially_failed_count_ = 0;
+      } else {
+        ++this->potentially_failed_count_;
+      }
     }
   }
   return AudioDecoderState::DECODING;
