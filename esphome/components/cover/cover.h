@@ -127,6 +127,8 @@ class Cover : public actuator::ActuatorBase, public actuator::IActuator {
   actuator::ActuatorOperation get_operation() const override { return this->current_operation; }
   void set_operation(actuator::ActuatorOperation op) override { this->current_operation = op; }
   void do_publish_state(bool save = true) override { this->publish_state(save); }
+  optional<float> do_restore_state() override;
+  const char *get_entity_name() const override { return this->get_name().c_str(); }
 
  protected:
   friend CoverCall;

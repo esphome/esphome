@@ -177,6 +177,14 @@ optional<CoverRestoreState> Cover::restore_state_() {
   return recovered;
 }
 
+optional<float> Cover::do_restore_state() {
+  auto restore = this->restore_state_();
+  if (!restore.has_value())
+    return {};
+  restore->apply(this);
+  return restore->position;
+}
+
 bool Cover::is_fully_open() const { return this->position == COVER_OPEN; }
 bool Cover::is_fully_closed() const { return this->position == COVER_CLOSED; }
 

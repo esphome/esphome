@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import binary_sensor, cover
+from esphome.components import actuator as actuator_component, binary_sensor, cover
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CLOSE_ACTION,
@@ -14,7 +14,9 @@ from esphome.const import (
 )
 
 endstop_ns = cg.esphome_ns.namespace("endstop")
-EndstopCover = endstop_ns.class_("EndstopCover", cover.Cover, cg.Component)
+EndstopCover = endstop_ns.class_(
+    "EndstopCover", actuator_component.EndstopActuatorBase, cover.Cover
+)
 
 CONFIG_SCHEMA = (
     cover.cover_schema(EndstopCover)

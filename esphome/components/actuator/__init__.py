@@ -15,6 +15,7 @@ actuator_ns = cg.esphome_ns.namespace("actuator")
 ActuatorBase = actuator_ns.class_("ActuatorBase", cg.EntityBase)
 ActuatorCallBase = actuator_ns.class_("ActuatorCallBase")
 IActuator = actuator_ns.class_("IActuator")
+EndstopActuatorBase = actuator_ns.class_("EndstopActuatorBase", cg.Component)
 
 # Constants exposed as raw C++ float literals so that str() == "1.0f" / "0.0f"
 ACTUATOR_OPEN = RawExpression("1.0f")
