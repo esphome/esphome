@@ -99,8 +99,6 @@ void SomfyRtsProtocol::dump(const SomfyRtsData &data) {
            data.rolling_code, data.address);
 }
 
-optional<SomfyRtsData> SomfyRtsProtocol::decode(RemoteReceiveData src) {
-  return {};
-}
+optional<SomfyRtsData> SomfyRtsProtocol::decode(RemoteReceiveData src) { return {}; }
 
 }  // namespace esphome::remote_base
