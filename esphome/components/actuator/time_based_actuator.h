@@ -20,8 +20,6 @@ class TimeBasedActuatorBase : public Component {
   void set_manual_control(bool value) { this->manual_control_ = value; }
   void set_assumed_state(bool value) { this->assumed_state_ = value; }
   bool get_assumed_state() const { return this->assumed_state_; }
-  bool get_has_built_in_endstop() const { return this->has_built_in_endstop_; }
-  ActuatorOperation get_last_operation() const { return this->last_operation_; }
 
  protected:
   IActuator *actuator_{nullptr};
