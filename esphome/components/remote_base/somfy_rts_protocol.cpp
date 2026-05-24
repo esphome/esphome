@@ -100,8 +100,7 @@ void SomfyRtsProtocol::dump(const SomfyRtsData &data) {
 }
 
 optional<SomfyRtsData> SomfyRtsProtocol::decode(RemoteReceiveData src) {
-  SomfyRtsData out = {0};
-  return out;
+  return {};
 }
 
 }  // namespace esphome::remote_base
