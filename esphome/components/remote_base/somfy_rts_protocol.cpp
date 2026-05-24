@@ -73,21 +73,24 @@ void SomfyRtsProtocol::encode(RemoteTransmitData *dst, const SomfyRtsData &data)
 
   // Create checksum
   uint8_t crc = 0;
-  for (uint8_t i = 0; i < FRAME_SIZE_IN_BYTES; i++)
-    crc = crc ^ (frame[i] >> 4) ^ (frame[i] & 0xF);
+  for (uint8_t data_byte : frame) {
+    crc = crc ^ (data_byte >> 4) ^ (data_byte & 0xF);
+  }
   frame[1] |= (crc & 0x0F);
 
   // Obfuscate with XOR
-  for (uint8_t i = 1; i < FRAME_SIZE_IN_BYTES; i++)
+  for (uint8_t i = 1; i < FRAME_SIZE_IN_BYTES; i++) {
     frame[i] ^= frame[i - 1];
+  }
 
   // Manchester encode bits
-  for (uint8_t i = 0; i < FRAME_SIZE_IN_BYTES; i++) {
+  for (uint8_t data_byte : frame) {
     for (int8_t y = 7; y >= 0; y--) {  // Send MSB first
-      if (frame[i] & (1 << y))
+      if (data_byte & (1 << y)) {
         this->one_(dst);
-      else
+      } else {
         this->zero_(dst);
+      }
     }
   }
 
