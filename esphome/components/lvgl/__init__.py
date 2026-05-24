@@ -79,7 +79,7 @@ from .schemas import (
     WIDGET_TYPES,
     any_widget_schema,
     container_schema,
-    obj_schema,
+    obj_dict,
 )
 from .styles import styles_to_code, theme_to_code
 from .touchscreens import touchscreen_schema, touchscreens_to_code
@@ -519,11 +519,15 @@ def add_hello_world(config):
 
 
 def _theme_schema(value):
+    # Merge into a single dict per widget so each widget schema compiles once;
+    # see obj_dict() in schemas.py for why chained .extend() is avoided here.
     return cv.Schema(
         {
             cv.Optional(df.CONF_DARK_MODE, default=False): cv.boolean,
             **{
-                cv.Optional(name): obj_schema(w).extend(FULL_STYLE_SCHEMA)
+                cv.Optional(name): cv.Schema(
+                    {**obj_dict(w), **FULL_STYLE_SCHEMA.schema}
+                )
                 for name, w in WIDGET_TYPES.items()
             },
         }

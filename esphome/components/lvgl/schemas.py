@@ -378,15 +378,26 @@ TRIGGER_EVENT_MAP = {
 }
 
 
-def part_schema(parts):
+def part_dict(parts: tuple[str, ...] | list[str]) -> dict[Any, Any]:
+    """
+    Return the raw mapping used by part_schema, so callers can merge it into a
+    larger dict and avoid chained .extend() calls (each .extend() recompiles the
+    whole mapping, turning the build into O(N^2)).
+    """
+    return {
+        **STATE_SCHEMA.schema,
+        **FLAG_SCHEMA.schema,
+        **{cv.Optional(part): STATE_SCHEMA for part in parts},
+    }
+
+
+def part_schema(parts: tuple[str, ...] | list[str]) -> cv.Schema:
     """
     Generate a schema for the various parts (e.g. main:, indicator:) of a widget type
     :param parts:  The parts to include
     :return: The schema
     """
-    return STATE_SCHEMA.extend(FLAG_SCHEMA).extend(
-        {cv.Optional(part): STATE_SCHEMA for part in parts}
-    )
+    return cv.Schema(part_dict(parts))
 
 
 def automation_schema(typ: LvType):
@@ -462,23 +473,27 @@ def base_update_schema(widget_type: WidgetType | LvType, parts):
     return schema
 
 
-def obj_schema(widget_type: WidgetType):
+def obj_dict(widget_type: WidgetType) -> dict[Any, Any]:
+    """
+    Return the raw mapping used by obj_schema, so callers can merge it into a
+    larger dict and avoid chained .extend() calls.
+    """
+    return {
+        **part_dict(widget_type.parts),
+        **ALIGN_TO_SCHEMA,
+        **automation_schema(widget_type.w_type),
+        cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
+        cv.Optional(CONF_GROUP): cv.use_id(lv_group_t),
+    }
+
+
+def obj_schema(widget_type: WidgetType) -> cv.Schema:
     """
     Create a schema for a widget type itself i.e. no allowance for children
     :param widget_type:
     :return:
     """
-    return (
-        part_schema(widget_type.parts)
-        .extend(ALIGN_TO_SCHEMA)
-        .extend(automation_schema(widget_type.w_type))
-        .extend(
-            {
-                cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
-                cv.Optional(CONF_GROUP): cv.use_id(lv_group_t),
-            }
-        )
-    )
+    return cv.Schema(obj_dict(widget_type))
 
 
 ALIGN_TO_SCHEMA = {
