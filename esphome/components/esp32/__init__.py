@@ -1816,12 +1816,12 @@ async def to_code(config):
                 Path(__file__).parent / "iram_fix.py.script",
             )
     else:
-        cg.add_build_flag("-Wno-error=format")
-        cg.add_build_flag("-Wno-error=maybe-uninitialized")
-        cg.add_build_flag("-Wno-error=overloaded-virtual")
-        cg.add_build_flag("-Wno-error=reorder")
-        cg.add_build_flag("-Wno-error=volatile")
-        cg.add_build_flag("-Wno-error=cpp")
+        # Demote IDF's blanket -Werror to warnings so third-party libs
+        # and user lambdas don't need a -Wno-error=<class> per warning.
+        # The sdkconfig knob disables IDF's rewrite to -Werror=all (which
+        # can't be globally undone); -Wno-error then handles the demotion.
+        add_idf_sdkconfig_option("CONFIG_COMPILER_DISABLE_DEFAULT_ERRORS", False)
+        cg.add_build_flag("-Wno-error")
         # -Wno- (not -Wno-error=): suppress entirely, too noisy on C++ aggregates
         cg.add_build_flag("-Wno-missing-field-initializers")
 
