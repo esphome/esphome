@@ -14,7 +14,7 @@ from esphome.components.mipi import (
 )
 import esphome.config_validation as cv
 
-from .amoled import CO5300
+from .amoled import CO5300, SH8601
 from .ili import ILI9488_A, ST7789V
 from .jc import AXS15231
 
@@ -254,4 +254,16 @@ ST7789V.extend(
     reset_pin=21,
     cs_pin=14,
     dc_pin={"number": 15, "ignore_strapping_warning": True},
+)
+
+SH8601.extend(
+    "WAVESHARE-ESP32-C6-TOUCH-AMOLED-1.8",
+    # Official dimension 368x448, yet only 366x446 scanout visible in display
+    width=366,
+    height=446,
+    offset_height=1,
+    offset_width=1,
+    cs_pin={"number": 5, "ignore_strapping_warning": True},
+    # Optional HW reset pin: Needs manual pca9554 platform config first to expose EXIO4 pin
+    # reset_pin={"pca9554": None, "number": "4"},
 )
