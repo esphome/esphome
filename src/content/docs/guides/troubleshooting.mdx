@@ -17,7 +17,7 @@ instructions for capturing and understanding crash data.
 
 ESPHome automatically captures crash backtraces and stores them across software resets (warm reboots) on
 **ESP32**, **ESP8266**, and **RP2040**. After a crash, the backtrace is logged at boot and
-when `esphome logs` connects via the API. The ESPHome CLI and ESPHome Builder automatically decode the addresses
+when `esphome logs` connects via the API. The ESPHome CLI and ESPHome Device Builder automatically decode the addresses
 using the debug symbols from your last local compile.
 
 > [!NOTE]
@@ -26,8 +26,8 @@ using the debug symbols from your last local compile.
 
 > [!WARNING]
 > To get decoded stack traces, you must view the logs using the **ESPHome CLI** (`esphome logs`) or the
-> **ESPHome Builder**. Viewing logs through other tools (such as a generic serial monitor or the Home Assistant
-> log viewer) will show raw addresses without decoding them. The ESPHome CLI and ESPHome Builder use the debug
+> **ESPHome Device Builder**. Viewing logs through other tools (such as a generic serial monitor or the Home Assistant
+> log viewer) will show raw addresses without decoding them. The ESPHome CLI and ESPHome Device Builder use the debug
 > symbols from your last local compile to decode the crash addresses into function names, file paths, and line
 > numbers.
 
@@ -40,7 +40,7 @@ To see the decoded crash data:
    esphome upload your-device.yaml
    ```
 
-1. **View logs using the ESPHome CLI or ESPHome Builder** after the crash (no USB needed):
+1. **View logs using the ESPHome CLI or ESPHome Device Builder** after the crash (no USB needed):
 
    ```shell
    esphome logs your-device.yaml
@@ -157,7 +157,7 @@ crash output via serial console. This requires:
 If you already have a stack trace but need to decode it, you can use the
 [ESP Stack Trace Decoder](https://esphome.github.io/esp-stacktrace-decoder/) web tool:
 
-1. **Download the .elf file**: From ESPHome Builder, click the overflow menu (three dots) on your device card
+1. **Download the .elf file**: From ESPHome Device Builder, click the overflow menu (three dots) on your device card
    and select "Download .elf file"
 
    > [!NOTE]
