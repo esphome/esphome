@@ -113,6 +113,7 @@ ARDUINO_FRAMEWORK_NAME = "framework-arduinoespressif32"
 ARDUINO_FRAMEWORK_PKG = f"pioarduino/{ARDUINO_FRAMEWORK_NAME}"
 ARDUINO_LIBS_NAME = f"{ARDUINO_FRAMEWORK_NAME}-libs"
 ARDUINO_LIBS_PKG = f"pioarduino/{ARDUINO_LIBS_NAME}"
+ARDUINO_ESP32_COMPONENT_NAME = "espressif/arduino-esp32"
 
 LOG_LEVELS_IDF = [
     "NONE",
@@ -792,19 +793,15 @@ PLATFORM_VERSION_LOOKUP = {
 }
 
 
-def _check_pio_versions(config):
-    config = config.copy()
-    value = config[CONF_FRAMEWORK]
+def _resolve_framework_version(value: ConfigType) -> cv.Version:
+    """Resolve a named or raw framework version and validate the minimum.
 
+    Normalises value[CONF_VERSION] to its string form and returns the parsed
+    cv.Version. Shared between the PIO and esp-idf toolchain paths; toolchain-
+    specific concerns (source defaults, platform_version) live in the per-
+    toolchain functions.
+    """
     if value[CONF_VERSION] in PLATFORM_VERSION_LOOKUP:
-        if CONF_SOURCE in value or CONF_PLATFORM_VERSION in value:
-            raise cv.Invalid(
-                "Version needs to be explicitly set when a custom source or platform_version is used."
-            )
-
-        platform_lookup = PLATFORM_VERSION_LOOKUP[value[CONF_VERSION]]
-        value[CONF_PLATFORM_VERSION] = _parse_pio_platform_version(str(platform_lookup))
-
         if value[CONF_TYPE] == FRAMEWORK_ARDUINO:
             version = ARDUINO_FRAMEWORK_VERSION_LOOKUP[value[CONF_VERSION]]
         else:
@@ -817,7 +814,38 @@ def _check_pio_versions(config):
     if value[CONF_TYPE] == FRAMEWORK_ARDUINO:
         if version < cv.Version(3, 0, 0):
             raise cv.Invalid("Only Arduino 3.0+ is supported.")
-        recommended_version = ARDUINO_FRAMEWORK_VERSION_LOOKUP["recommended"]
+        recommended = ARDUINO_FRAMEWORK_VERSION_LOOKUP["recommended"]
+    else:
+        if version < cv.Version(5, 0, 0):
+            raise cv.Invalid("Only ESP-IDF 5.0+ is supported.")
+        recommended = ESP_IDF_FRAMEWORK_VERSION_LOOKUP["recommended"]
+
+    if version != recommended:
+        _LOGGER.warning(
+            "The selected framework version is not the recommended one. "
+            "If there are connectivity or build issues please remove the manual version."
+        )
+
+    return version
+
+
+def _check_pio_versions(config: ConfigType) -> ConfigType:
+    config = config.copy()
+    value = config[CONF_FRAMEWORK]
+
+    is_named_version = value[CONF_VERSION] in PLATFORM_VERSION_LOOKUP
+    if is_named_version and (CONF_SOURCE in value or CONF_PLATFORM_VERSION in value):
+        raise cv.Invalid(
+            "Version needs to be explicitly set when a custom source or platform_version is used."
+        )
+    if is_named_version:
+        value[CONF_PLATFORM_VERSION] = _parse_pio_platform_version(
+            str(PLATFORM_VERSION_LOOKUP[value[CONF_VERSION]])
+        )
+
+    version = _resolve_framework_version(value)
+
+    if value[CONF_TYPE] == FRAMEWORK_ARDUINO:
         platform_lookup = ARDUINO_PLATFORM_VERSION_LOOKUP.get(version)
         value[CONF_SOURCE] = value.get(
             CONF_SOURCE, _format_framework_arduino_version(version)
@@ -825,9 +853,6 @@ def _check_pio_versions(config):
         if _is_framework_url(value[CONF_SOURCE]):
             value[CONF_SOURCE] = f"{ARDUINO_FRAMEWORK_PKG}@{value[CONF_SOURCE]}"
     else:
-        if version < cv.Version(5, 0, 0):
-            raise cv.Invalid("Only ESP-IDF 5.0+ is supported.")
-        recommended_version = ESP_IDF_FRAMEWORK_VERSION_LOOKUP["recommended"]
         platform_lookup = ESP_IDF_PLATFORM_VERSION_LOOKUP.get(version)
         value[CONF_SOURCE] = value.get(
             CONF_SOURCE,
@@ -843,12 +868,6 @@ def _check_pio_versions(config):
             )
         value[CONF_PLATFORM_VERSION] = _parse_pio_platform_version(str(platform_lookup))
 
-    if version != recommended_version:
-        _LOGGER.warning(
-            "The selected framework version is not the recommended one. "
-            "If there are connectivity or build issues please remove the manual version."
-        )
-
     if value[CONF_PLATFORM_VERSION] != _parse_pio_platform_version(
         str(PLATFORM_VERSION_LOOKUP["recommended"])
     ):
@@ -860,19 +879,26 @@ def _check_pio_versions(config):
     return config
 
 
-def _check_esp_idf_versions(config):
-    config = _check_pio_versions(config)
+def _check_esp_idf_versions(config: ConfigType) -> ConfigType:
+    config = config.copy()
     value = config[CONF_FRAMEWORK]
 
-    # Remove unwanted keys if present
-    for key in (CONF_SOURCE, CONF_PLATFORM_VERSION):
-        value.pop(key, None)
+    # platform_version is a PlatformIO concept; drop it if a user carried it
+    # over from a PIO-style config. CONF_SOURCE, on the other hand, is kept:
+    # it lets a user override the framework tarball URL under the esp-idf
+    # toolchain (the espidf framework downloader consults it).
+    value.pop(CONF_PLATFORM_VERSION, None)
 
-    # Official ESP-IDF frameworks don't use extra
-    version = cv.Version.parse(value[CONF_VERSION])
-    version = cv.Version(version.major, version.minor, version.patch)
+    version = _resolve_framework_version(value)
 
-    value[CONF_VERSION] = str(version)
+    if CONF_SOURCE in value:
+        _LOGGER.warning(
+            "A custom framework source is set. "
+            "If there are connectivity or build issues please remove the manual source."
+        )
+
+    # Official ESP-IDF frameworks don't use the 'extra' semver component.
+    value[CONF_VERSION] = str(cv.Version(version.major, version.minor, version.patch))
 
     return config
 
@@ -1718,6 +1744,31 @@ async def _add_yaml_idf_components(components: list[ConfigType]):
         )
 
 
+@coroutine_with_priority(CoroPriority.FINAL - 1)
+async def _finalize_arduino_aware_flags():
+    """Build flags that depend on whether arduino-esp32 is linked in.
+
+    Scheduler runs lower priority values later, so ``FINAL - 1`` fires
+    after every ``FINAL`` job (incl. ``_add_yaml_idf_components``) --
+    by then ``KEY_COMPONENTS`` is fully populated.
+
+    - Skip our esp_panic_handler wrap when Arduino is linked; Arduino
+      wraps the same symbol and the linker errors on the duplicate.
+    - Define USE_ARDUINO in the hybrid esp-idf+arduino-esp32-component
+      case so ESPHome's ``#ifdef USE_ARDUINO`` paths light up. The
+      framework=arduino branch already adds it inline in to_code.
+    """
+    arduino_linked = (
+        CORE.using_arduino
+        or ARDUINO_ESP32_COMPONENT_NAME in CORE.data[KEY_ESP32][KEY_COMPONENTS]
+    )
+    if not arduino_linked:
+        cg.add_build_flag("-Wl,--wrap=esp_panic_handler")
+        cg.add_define("USE_ESP32_CRASH_HANDLER")
+    elif not CORE.using_arduino:
+        cg.add_build_flag("-DUSE_ARDUINO")
+
+
 async def to_code(config):
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     conf = config[CONF_FRAMEWORK]
@@ -1765,11 +1816,12 @@ async def to_code(config):
                 Path(__file__).parent / "iram_fix.py.script",
             )
     else:
-        cg.add_build_flag("-Wno-error=format")
-        cg.add_build_flag("-Wno-error=maybe-uninitialized")
-        cg.add_build_flag("-Wno-error=overloaded-virtual")
-        cg.add_build_flag("-Wno-error=reorder")
-        cg.add_build_flag("-Wno-error=volatile")
+        # Demote IDF's blanket -Werror to warnings so third-party libs
+        # and user lambdas don't need a -Wno-error=<class> per warning.
+        # The sdkconfig knob disables IDF's rewrite to -Werror=all (which
+        # can't be globally undone); -Wno-error then handles the demotion.
+        add_idf_sdkconfig_option("CONFIG_COMPILER_DISABLE_DEFAULT_ERRORS", False)
+        cg.add_build_flag("-Wno-error")
         # -Wno- (not -Wno-error=): suppress entirely, too noisy on C++ aggregates
         cg.add_build_flag("-Wno-missing-field-initializers")
 
@@ -1777,11 +1829,8 @@ async def to_code(config):
     cg.add_build_flag("-DUSE_ESP32")
     cg.add_define("USE_NATIVE_64BIT_TIME")
     cg.add_build_flag("-Wl,-z,noexecstack")
-    # Arduino already wraps esp_panic_handler for its own backtrace handler,
-    # so only add our wrap when using ESP-IDF framework to avoid linker conflicts.
-    if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
-        cg.add_build_flag("-Wl,--wrap=esp_panic_handler")
-        cg.add_define("USE_ESP32_CRASH_HANDLER")
+    # Deferred so KEY_COMPONENTS is fully populated -- see the coroutine.
+    CORE.add_job(_finalize_arduino_aware_flags)
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     variant = config[CONF_VARIANT]
     cg.add_build_flag(f"-DUSE_ESP32_VARIANT_{variant}")
@@ -1962,7 +2011,7 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_HEAP_PLACE_FUNCTION_INTO_FLASH", True)
 
     # Setup watchdog
-    add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT", True)
+    add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_INIT", True)
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_PANIC", True)
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0", False)
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1", False)
@@ -2004,7 +2053,8 @@ async def to_code(config):
     if not advanced[CONF_ENABLE_LWIP_MDNS_QUERIES]:
         add_idf_sdkconfig_option("CONFIG_LWIP_DNS_SUPPORT_MDNS_QUERIES", False)
     if not advanced[CONF_ENABLE_LWIP_BRIDGE_INTERFACE]:
-        add_idf_sdkconfig_option("CONFIG_LWIP_BRIDGEIF_MAX_PORTS", 0)
+        # Kconfig range is [1,63]; 0 gets clamped to the default.
+        add_idf_sdkconfig_option("CONFIG_LWIP_BRIDGEIF_MAX_PORTS", 1)
 
     _configure_lwip_max_sockets(conf)
 
@@ -2096,7 +2146,6 @@ async def to_code(config):
         for key, flag in ASSERTION_LEVELS.items():
             add_idf_sdkconfig_option(flag, assertion_level == key)
 
-    add_idf_sdkconfig_option("CONFIG_COMPILER_OPTIMIZATION_DEFAULT", False)
     compiler_optimization = advanced[CONF_COMPILER_OPTIMIZATION]
     for key, flag in COMPILER_OPTIMIZATIONS.items():
         add_idf_sdkconfig_option(flag, compiler_optimization == key)
@@ -2251,7 +2300,8 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_FATFS_VOLUME_COUNT", 2)
     elif advanced[CONF_DISABLE_FATFS]:
         add_idf_sdkconfig_option("CONFIG_FATFS_LFN_NONE", True)
-        add_idf_sdkconfig_option("CONFIG_FATFS_VOLUME_COUNT", 0)
+        # Kconfig range is [1,10]; 0 gets clamped to the default.
+        add_idf_sdkconfig_option("CONFIG_FATFS_VOLUME_COUNT", 1)
 
     for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
         add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
@@ -2488,9 +2538,8 @@ def _write_sdkconfig():
 
 def _platformio_library_to_dependency(library: Library) -> tuple[str, dict[str, str]]:
     dependency: dict[str, str] = {}
-    name, version, path = generate_idf_component(library)
+    name, _version, path = generate_idf_component(library)
     dependency["override_path"] = str(path)
-    dependency["version"] = version
     return name, dependency
 
 
@@ -2542,7 +2591,7 @@ def _write_idf_component_yml():
 
         if CORE.using_toolchain_esp_idf:
             add_idf_component(
-                name="espressif/arduino-esp32",
+                name=ARDUINO_ESP32_COMPONENT_NAME,
                 ref=str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
             )
 

@@ -768,10 +768,35 @@ def _load_yaml_internal_with_type(
     content: TextIOWrapper,
     yaml_loader: Callable[[Path], dict[str, Any]],
 ) -> Any:
-    """Load a YAML file."""
+    """Load a YAML file.
+
+    Supports an optional leading YAML frontmatter document: when the file
+    contains two YAML documents separated by ``---``, the first document is
+    treated as metadata and stored in :attr:`CORE.frontmatter` keyed by the
+    resolved file path, while the second document is returned as the actual
+    configuration. Frontmatter is ignored by config validation and code
+    generation.
+    """
     loader = loader_type(content, fname, yaml_loader)
     try:
-        return loader.get_single_data() or OrderedDict()
+        documents: list[Any] = []
+        while loader.check_data():
+            documents.append(loader.get_data())
+        if len(documents) > 2:
+            raise EsphomeError(
+                f"YAML file '{fname}' contains {len(documents)} documents but "
+                f"at most two are supported (an optional frontmatter document "
+                f"followed by the configuration)."
+            )
+        if len(documents) == 2:
+            frontmatter = documents[0]
+            config = documents[1]
+            if frontmatter is not None:
+                CORE.frontmatter[Path(fname).resolve()] = frontmatter
+            return config if config is not None else OrderedDict()
+        if len(documents) == 1:
+            return documents[0] or OrderedDict()
+        return OrderedDict()
     except yaml.YAMLError as exc:
         raise EsphomeError(exc) from exc
     finally:
