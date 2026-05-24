@@ -1,8 +1,10 @@
+from collections.abc import Callable
 import logging
 from pathlib import Path
 import re
 from string import ascii_letters, digits
 import subprocess
+from typing import Any
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -22,9 +24,16 @@ from esphome.const import (
     PLATFORM_RP2040,
     ThreadModel,
 )
-from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
+from esphome.core import (
+    CORE,
+    CoroPriority,
+    EsphomeCore,
+    EsphomeError,
+    coroutine_with_priority,
+)
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed, read_file, write_file_if_changed
+from esphome.types import ConfigType
 
 from . import boards
 from .const import (
@@ -80,7 +89,7 @@ def board_id_has_wifi(board_id: str) -> bool:
     return board_info.get("wifi", False)
 
 
-def set_core_data(config):
+def set_core_data(config: ConfigType) -> ConfigType:
     CORE.data[KEY_RP2040] = {}
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_RP2040
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "arduino"
@@ -95,18 +104,23 @@ def set_core_data(config):
     return config
 
 
-def get_rp2040_variant(core_obj=None) -> str:
+def get_rp2040_variant(core_obj: EsphomeCore | None = None) -> str:
     return (core_obj or CORE).data[KEY_RP2040][KEY_VARIANT]
 
 
-def only_on_variant(*, supported=None, unsupported=None, msg_prefix="This feature"):
+def only_on_variant(
+    *,
+    supported: str | list[str] | None = None,
+    unsupported: str | list[str] | None = None,
+    msg_prefix: str = "This feature",
+) -> Callable[[Any], Any]:
     """Config validator for features only available on some RP2040 variants."""
     if supported is not None and not isinstance(supported, list):
         supported = [supported]
     if unsupported is not None and not isinstance(unsupported, list):
         unsupported = [unsupported]
 
-    def validator_(obj):
+    def validator_(obj: Any) -> Any:
         if not CORE.is_rp2040:
             raise cv.Invalid(f"{msg_prefix} is only available on RP2040")
         variant = get_rp2040_variant()
@@ -234,10 +248,10 @@ ARDUINO_FRAMEWORK_SCHEMA = cv.All(
 )
 
 
-def _detect_variant(value):
+def _detect_variant(value: ConfigType) -> ConfigType:
     value = value.copy()
-    board = value.get(CONF_BOARD)
-    variant = value.get(CONF_VARIANT)
+    board: str | None = value.get(CONF_BOARD)
+    variant: str | None = value.get(CONF_VARIANT)
 
     if board is None:
         # `cv.has_at_least_one_key` guarantees variant is set here.
@@ -264,7 +278,7 @@ def _detect_variant(value):
         elif variant != board_variant:
             raise cv.Invalid(
                 f"Option '{CONF_VARIANT}' ({variant}) does not match the "
-                f"selected board ({board_variant}).",
+                f"selected board '{board}' ({board_variant}).",
                 path=[CONF_VARIANT],
             )
 

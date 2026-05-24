@@ -1,4 +1,4 @@
-"""Tests for RP2040 component public helpers."""
+"""Tests for RP2040 component public helpers and variant detection."""
 
 import pytest
 
@@ -70,8 +70,10 @@ def test_detect_variant_matching_explicit_variant_passes() -> None:
 
 
 def test_detect_variant_mismatched_variant_raises() -> None:
-    """Board/variant mismatch must be rejected."""
-    with pytest.raises(cv.Invalid, match="does not match the selected board"):
+    """Board/variant mismatch must be rejected and name the offending board."""
+    with pytest.raises(
+        cv.Invalid, match=r"does not match the selected board 'rpipicow'"
+    ):
         _detect_variant({CONF_BOARD: "rpipicow", CONF_VARIANT: VARIANT_RP2350})
 
 
