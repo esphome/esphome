@@ -5,8 +5,9 @@ import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 import esphome.config_validation as cv
-from esphome.const import CONF_ENABLE_IPV6, CONF_MIN_IPV6_ADDR_COUNT
+from esphome.const import CONF_ENABLE_IPV6, CONF_ID, CONF_MIN_IPV6_ADDR_COUNT
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["mdns"]
@@ -19,6 +20,7 @@ KEY_HIGH_PERFORMANCE_NETWORKING = "high_performance_networking"
 CONF_ENABLE_HIGH_PERFORMANCE = "enable_high_performance"
 
 network_ns = cg.esphome_ns.namespace("network")
+NetworkComponent = network_ns.class_("NetworkComponent", cg.Component)
 IPAddress = network_ns.class_("IPAddress")
 
 
@@ -107,6 +109,7 @@ def has_high_performance_networking() -> bool:
 
 CONFIG_SCHEMA = cv.Schema(
     {
+        cv.GenerateID(): cv.declare_id(NetworkComponent),
         cv.SplitDefault(
             CONF_ENABLE_IPV6,
             bk72xx=False,
@@ -224,3 +227,15 @@ async def to_code(config):
                 cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
             if CORE.is_rp2040:
                 cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_IPV6")
+    # Pvariable creation lives in a separate coroutine at NETWORK_SERVICES so it
+    # emits after wifi/ethernet at COMMUNICATION. This keeps compile-time config
+    # (above) separate from C++ object lifecycle and allows wiring in interface
+    # pointers via get_variable().
+    if CORE.is_esp32:
+        CORE.add_job(network_component_to_code, config)
+
+
+@coroutine_with_priority(CoroPriority.NETWORK_SERVICES)
+async def network_component_to_code(config: ConfigType) -> None:
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
