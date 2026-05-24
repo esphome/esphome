@@ -2,6 +2,7 @@ from esphome import automation
 from esphome.automation import Condition, maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+import esphome.components.actuator as actuator_component
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
@@ -33,6 +34,8 @@ from esphome.cpp_generator import LambdaExpression, MockObjClass
 IS_PLATFORM_COMPONENT = True
 
 CODEOWNERS = ["@esphome/core"]
+AUTO_LOAD = ["actuator"]
+DEPENDENCIES = ["actuator"]
 
 DEVICE_CLASSES = [
     DEVICE_CLASS_EMPTY,
@@ -41,9 +44,11 @@ DEVICE_CLASSES = [
 ]
 
 valve_ns = cg.esphome_ns.namespace("valve")
+actuator_ns = cg.esphome_ns.namespace("actuator")
+ActuatorBase = actuator_ns.class_("ActuatorBase", cg.EntityBase)
 
-Valve = valve_ns.class_("Valve", cg.EntityBase)
-ValveCall = valve_ns.class_("ValveCall")
+Valve = valve_ns.class_("Valve", ActuatorBase, actuator_ns.class_("IActuator"))
+ValveCall = valve_ns.class_("ValveCall", actuator_ns.class_("ActuatorCallBase"))
 
 VALVE_OPEN = valve_ns.VALVE_OPEN
 VALVE_CLOSED = valve_ns.VALVE_CLOSED
@@ -55,10 +60,11 @@ VALVE_STATES = {
 validate_valve_state = cv.enum(VALVE_STATES, upper=True)
 
 ValveOperation = valve_ns.enum("ValveOperation")
+
 VALVE_OPERATIONS = {
-    "IDLE": ValveOperation.VALVE_OPERATION_IDLE,
-    "OPENING": ValveOperation.VALVE_OPERATION_OPENING,
-    "CLOSING": ValveOperation.VALVE_OPERATION_CLOSING,
+    "IDLE": actuator_component.ActuatorOperation.ACTUATOR_OPERATION_IDLE,
+    "OPENING": actuator_component.ActuatorOperation.ACTUATOR_OPERATION_OPENING,
+    "CLOSING": actuator_component.ActuatorOperation.ACTUATOR_OPERATION_CLOSING,
 }
 validate_valve_operation = cv.enum(VALVE_OPERATIONS, upper=True)
 

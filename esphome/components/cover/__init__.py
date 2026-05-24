@@ -6,6 +6,7 @@ from esphome import automation
 from esphome.automation import Condition, maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+import esphome.components.actuator as actuator_component
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
@@ -51,6 +52,8 @@ from esphome.types import ConfigType, TemplateArgsType
 IS_PLATFORM_COMPONENT = True
 
 CODEOWNERS = ["@esphome/core"]
+AUTO_LOAD = ["actuator"]
+DEPENDENCIES = ["actuator"]
 DEVICE_CLASSES = [
     DEVICE_CLASS_AWNING,
     DEVICE_CLASS_BLIND,
@@ -68,9 +71,11 @@ DEVICE_CLASSES = [
 _LOGGER = logging.getLogger(__name__)
 
 cover_ns = cg.esphome_ns.namespace("cover")
+actuator_ns = cg.esphome_ns.namespace("actuator")
+ActuatorBase = actuator_ns.class_("ActuatorBase", cg.EntityBase)
 
-Cover = cover_ns.class_("Cover", cg.EntityBase)
-CoverCall = cover_ns.class_("CoverCall")
+Cover = cover_ns.class_("Cover", ActuatorBase, actuator_ns.class_("IActuator"))
+CoverCall = cover_ns.class_("CoverCall", actuator_ns.class_("ActuatorCallBase"))
 
 COVER_OPEN = cover_ns.COVER_OPEN
 COVER_CLOSED = cover_ns.COVER_CLOSED
@@ -82,10 +87,11 @@ COVER_STATES = {
 validate_cover_state = cv.enum(COVER_STATES, upper=True)
 
 CoverOperation = cover_ns.enum("CoverOperation")
+
 COVER_OPERATIONS = {
-    "IDLE": CoverOperation.COVER_OPERATION_IDLE,
-    "OPENING": CoverOperation.COVER_OPERATION_OPENING,
-    "CLOSING": CoverOperation.COVER_OPERATION_CLOSING,
+    "IDLE": actuator_component.ActuatorOperation.ACTUATOR_OPERATION_IDLE,
+    "OPENING": actuator_component.ActuatorOperation.ACTUATOR_OPERATION_OPENING,
+    "CLOSING": actuator_component.ActuatorOperation.ACTUATOR_OPERATION_CLOSING,
 }
 validate_cover_operation = cv.enum(COVER_OPERATIONS, upper=True)
 

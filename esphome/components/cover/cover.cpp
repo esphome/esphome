@@ -26,50 +26,51 @@ const LogString *cover_operation_to_str(CoverOperation op) {
   return CoverOperationStrings::get_log_str(static_cast<uint8_t>(op), CoverOperationStrings::LAST_INDEX);
 }
 
-Cover::Cover() : position{COVER_OPEN} {}
+Cover::Cover() { this->position = COVER_OPEN; }
 
-CoverCall::CoverCall(Cover *parent) : parent_(parent) {}
+//
+// CoverCall
+//
+
+CoverCall::CoverCall(Cover *parent) : actuator::ActuatorCallBase(parent) {}
+
+// Covariant wrappers — call parent method, return CoverCall& for fluent chaining
 CoverCall &CoverCall::set_command(const char *command) {
-  if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("OPEN")) == 0) {
-    this->set_command_open();
-  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("CLOSE")) == 0) {
-    this->set_command_close();
-  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("STOP")) == 0) {
-    this->set_command_stop();
-  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("TOGGLE")) == 0) {
-    this->set_command_toggle();
-  } else {
-    ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command);
-  }
+  actuator::ActuatorCallBase::set_command(command);
   return *this;
 }
 CoverCall &CoverCall::set_command_open() {
-  this->position_ = COVER_OPEN;
+  actuator::ActuatorCallBase::set_command_open();
   return *this;
 }
 CoverCall &CoverCall::set_command_close() {
-  this->position_ = COVER_CLOSED;
+  actuator::ActuatorCallBase::set_command_close();
   return *this;
 }
 CoverCall &CoverCall::set_command_stop() {
-  this->stop_ = true;
+  actuator::ActuatorCallBase::set_command_stop();
   return *this;
 }
 CoverCall &CoverCall::set_command_toggle() {
-  this->toggle_ = true;
+  actuator::ActuatorCallBase::set_command_toggle();
   return *this;
 }
 CoverCall &CoverCall::set_position(float position) {
-  this->position_ = position;
+  actuator::ActuatorCallBase::set_position(position);
   return *this;
 }
 CoverCall &CoverCall::set_tilt(float tilt) {
   this->tilt_ = tilt;
   return *this;
 }
+CoverCall &CoverCall::set_stop(bool stop) {
+  actuator::ActuatorCallBase::set_stop(stop);
+  return *this;
+}
+
 void CoverCall::perform() {
   ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
-  auto traits = this->parent_->get_traits();
+  auto traits = static_cast<Cover *>(this->parent_)->get_traits();
   this->validate_();
   if (this->stop_) {
     ESP_LOGV(TAG, "  Command: STOP");
@@ -89,11 +90,12 @@ void CoverCall::perform() {
   }
   this->parent_->control(*this);
 }
-const optional<float> &CoverCall::get_position() const { return this->position_; }
-const optional<float> &CoverCall::get_tilt() const { return this->tilt_; }
-const optional<bool> &CoverCall::get_toggle() const { return this->toggle_; }
+
 void CoverCall::validate_() {
-  auto traits = this->parent_->get_traits();
+  // Call base class validation first (position range check, stop conflict)
+  actuator::ActuatorCallBase::validate_();
+
+  auto traits = static_cast<Cover *>(this->parent_)->get_traits();
   const char *name = this->parent_->get_name().c_str();
 
   if (this->position_.has_value()) {
@@ -101,9 +103,6 @@ void CoverCall::validate_() {
     if (!traits.get_supports_position() && pos != COVER_OPEN && pos != COVER_CLOSED) {
       ESP_LOGW(TAG, "'%s': position unsupported", name);
       this->position_.reset();
-    } else if (pos < 0.0f || pos > 1.0f) {
-      ESP_LOGW(TAG, "'%s': position %.2f out of range", name, pos);
-      this->position_ = clamp(pos, 0.0f, 1.0f);
     }
   }
   if (this->tilt_.has_value()) {
@@ -123,21 +122,14 @@ void CoverCall::validate_() {
     }
   }
   if (this->stop_) {
-    if (this->position_.has_value() || this->tilt_.has_value() || this->toggle_.has_value()) {
-      ESP_LOGW(TAG, "'%s': cannot position/tilt/toggle when stopping", name);
-      this->position_.reset();
+    if (this->tilt_.has_value()) {
+      ESP_LOGW(TAG, "'%s': cannot tilt when stopping", name);
       this->tilt_.reset();
-      this->toggle_.reset();
     }
   }
 }
-CoverCall &CoverCall::set_stop(bool stop) {
-  this->stop_ = stop;
-  return *this;
-}
-bool CoverCall::get_stop() const { return this->stop_; }
 
-CoverCall Cover::make_call() { return {this}; }
+CoverCall Cover::make_call() { return CoverCall(this); }
 
 void Cover::publish_state(bool save) {
   this->position = clamp(this->position, 0.0f, 1.0f);
@@ -176,6 +168,7 @@ void Cover::publish_state(bool save) {
     this->rtc_.save(&restore);
   }
 }
+
 optional<CoverRestoreState> Cover::restore_state_() {
   this->rtc_ = this->make_entity_preference<CoverRestoreState>();
   CoverRestoreState recovered{};

@@ -5,12 +5,22 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
+#include "esphome/components/actuator/actuator.h"
+
 #include "valve_traits.h"
 
 namespace esphome::valve {
 
-const extern float VALVE_OPEN;
-const extern float VALVE_CLOSED;
+// Backward-compat aliases — these MUST remain for external code
+using ValveOperation = actuator::ActuatorOperation;
+constexpr ValveOperation VALVE_OPERATION_IDLE = actuator::ACTUATOR_OPERATION_IDLE;
+constexpr ValveOperation VALVE_OPERATION_OPENING = actuator::ACTUATOR_OPERATION_OPENING;
+constexpr ValveOperation VALVE_OPERATION_CLOSING = actuator::ACTUATOR_OPERATION_CLOSING;
+
+// VALVE_OPEN / VALVE_CLOSED kept as static const for binary compatibility with
+// existing code that references the valve namespace constants.
+static const float VALVE_OPEN = actuator::ACTUATOR_OPEN;
+static const float VALVE_CLOSED = actuator::ACTUATOR_CLOSED;
 
 #define LOG_VALVE(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -24,39 +34,28 @@ const extern float VALVE_CLOSED;
 
 class Valve;
 
-class ValveCall {
+// Inheritance: ValveCall -> ActuatorCallBase
+class ValveCall : public actuator::ActuatorCallBase {
  public:
-  ValveCall(Valve *parent);
+  explicit ValveCall(Valve *parent);
 
-  /// Set the command as a string, "STOP", "OPEN", "CLOSE", "TOGGLE".
+  // Covariant wrappers — return ValveCall& for fluent chaining compatibility
   ValveCall &set_command(const char *command);
-  /// Set the command to open the valve.
   ValveCall &set_command_open();
-  /// Set the command to close the valve.
   ValveCall &set_command_close();
-  /// Set the command to stop the valve.
   ValveCall &set_command_stop();
-  /// Set the command to toggle the valve.
   ValveCall &set_command_toggle();
-  /// Set the call to a certain target position.
   ValveCall &set_position(float position);
-  /// Set whether this valve call should stop the valve.
   ValveCall &set_stop(bool stop);
 
-  /// Perform the valve call.
   void perform();
 
-  const optional<float> &get_position() const;
-  bool get_stop() const;
-  const optional<bool> &get_toggle() const;
+  const optional<float> &get_position() const { return this->position_; }
+  bool get_stop() const { return this->stop_; }
+  const optional<bool> &get_toggle() const { return this->toggle_; }
 
  protected:
-  void validate_();
-
-  Valve *parent_;
-  bool stop_{false};
-  optional<float> position_{};
-  optional<bool> toggle_{};
+  void validate_() override;
 };
 
 /// Struct used to store the restored state of a valve
@@ -68,16 +67,6 @@ struct ValveRestoreState {
   /// Apply these settings to the valve
   void apply(Valve *valve);
 } __attribute__((packed));
-
-/// Enum encoding the current operation of a valve.
-enum ValveOperation : uint8_t {
-  /// The valve is currently idle (not moving)
-  VALVE_OPERATION_IDLE = 0,
-  /// The valve is currently opening.
-  VALVE_OPERATION_OPENING,
-  /// The valve is currently closing.
-  VALVE_OPERATION_CLOSING,
-};
 
 const LogString *valve_operation_to_str(ValveOperation op);
 
@@ -100,23 +89,15 @@ const LogString *valve_operation_to_str(ValveOperation op);
  * to control all values of the valve. Also implement get_traits() to return what operations
  * the valve supports.
  */
-class Valve : public EntityBase {
+// Inheritance: Valve -> ActuatorBase, IActuator
+class Valve : public actuator::ActuatorBase, public actuator::IActuator {
  public:
   explicit Valve();
-
-  /// The current operation of the valve (idle, opening, closing).
-  ValveOperation current_operation{VALVE_OPERATION_IDLE};
-  /** The position of the valve from 0.0 (fully closed) to 1.0 (fully open).
-   *
-   * For binary valves this is always equals to 0.0 or 1.0 (see also VALVE_OPEN and
-   * VALVE_CLOSED constants).
-   */
-  float position;
 
   /// Construct a new valve call used to control the valve.
   ValveCall make_call();
 
-  template<typename F> void add_on_state_callback(F &&f) { this->state_callback_.add(std::forward<F>(f)); }
+  using actuator::ActuatorBase::add_on_state_callback;
 
   /** Publish the current state of the valve.
    *
@@ -134,16 +115,24 @@ class Valve : public EntityBase {
   /// Helper method to check if the valve is fully closed. Equivalent to comparing .position against 0.0
   bool is_fully_closed() const;
 
+  // IActuator implementation
+  float get_position() const override { return this->position; }
+  void set_position(float p) override { this->position = p; }
+  actuator::ActuatorOperation get_operation() const override { return this->current_operation; }
+  void set_operation(actuator::ActuatorOperation op) override { this->current_operation = op; }
+  void do_publish_state(bool save = true) override { this->publish_state(save); }
+
  protected:
   friend ValveCall;
 
   virtual void control(const ValveCall &call) = 0;
 
+  // Bridge from ActuatorBase — safe cast because Valve::make_call() always constructs a ValveCall
+  void control(const actuator::ActuatorCallBase &call) override final {
+    this->control(static_cast<const ValveCall &>(call));
+  }
+
   optional<ValveRestoreState> restore_state_();
-
-  LazyCallbackManager<void()> state_callback_{};
-
-  ESPPreferenceObject rtc_;
 };
 
 }  // namespace esphome::valve
