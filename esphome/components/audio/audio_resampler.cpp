@@ -57,6 +57,13 @@ esp_err_t AudioResampler::start(AudioStreamInfo &input_stream_info, AudioStreamI
     return ESP_ERR_NOT_SUPPORTED;
   }
 
+  // Reject frame sizes that can't be used as the zero-copy source's alignment up front, where the caller checks
+  // the return code. The lazy create() in resample() keeps its own guard since it runs before the uint8_t cast.
+  const size_t bytes_per_frame = this->input_stream_info_.frames_to_bytes(1);
+  if ((bytes_per_frame == 0) || (bytes_per_frame > RingBufferAudioSource::MAX_ALIGNMENT_BYTES)) {
+    return ESP_ERR_NOT_SUPPORTED;
+  }
+
   if ((input_stream_info.get_sample_rate() != output_stream_info.get_sample_rate()) ||
       (input_stream_info.get_bits_per_sample() != output_stream_info.get_bits_per_sample())) {
     this->resampler_ = make_unique<esp_audio_libs::resampler::Resampler>(
