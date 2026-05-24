@@ -52,10 +52,10 @@ class Router : public Component, public speaker::Speaker {
   }
 
  protected:
-  // Frames written to the active output via play() since the last counter reset.
-  std::atomic<uint64_t> frames_written_to_active_{0};
-  // Frames credited via the active output's audio_output_callback since the last counter reset.
-  std::atomic<uint64_t> frames_credited_to_active_{0};
+  // Frames written to the active output but not yet played: incremented in play() and decremented
+  // (clamped at zero) by the active output's audio_output_callback. Mirrors mixer_speaker's
+  // frames_in_pipeline_.
+  std::atomic<uint32_t> frames_in_pipeline_{0};
 
   bool cached_pause_{false};
 

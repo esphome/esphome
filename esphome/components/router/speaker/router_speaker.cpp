@@ -6,9 +6,24 @@
 
 #include "esp_timer.h"
 
+#include <algorithm>
+
 namespace esphome::router {
 
 static const char *const TAG = "router.speaker";
+
+static inline uint32_t atomic_subtract_clamped(std::atomic<uint32_t> &var, uint32_t amount) {
+  uint32_t current = var.load(std::memory_order_acquire);
+  uint32_t subtracted = 0;
+  if (current > 0) {
+    uint32_t new_value;
+    do {
+      subtracted = std::min(amount, current);
+      new_value = current - subtracted;
+    } while (!var.compare_exchange_weak(current, new_value, std::memory_order_release, std::memory_order_acquire));
+  }
+  return subtracted;
+}
 
 void Router::setup() {
   // Register a callback on every configured output. Each lambda captures its own
@@ -25,7 +40,7 @@ void Router::setup() {
       if (this->active_output_idx_.load(std::memory_order_relaxed) != static_cast<int8_t>(i)) {
         return;
       }
-      this->frames_credited_to_active_.fetch_add(frames, std::memory_order_relaxed);
+      atomic_subtract_clamped(this->frames_in_pipeline_, frames);
       this->audio_output_callback_.call(frames, timestamp_us);
     });
   }
@@ -50,14 +65,10 @@ void Router::loop() {
       // clocks) clears cleanly. The leftover audio is intentionally dropped and
       // the producer is told it played "now", giving a clean discontinuity that
       // keeps frame accounting consistent across the switch.
-      const uint64_t written = this->frames_written_to_active_.load(std::memory_order_relaxed);
-      const uint64_t credited = this->frames_credited_to_active_.load(std::memory_order_relaxed);
-      if (written > credited) {
-        const uint64_t in_flight = written - credited;
-        this->audio_output_callback_.call(static_cast<uint32_t>(in_flight), esp_timer_get_time());
+      const uint32_t in_flight = this->frames_in_pipeline_.exchange(0, std::memory_order_acq_rel);
+      if (in_flight > 0) {
+        this->audio_output_callback_.call(in_flight, esp_timer_get_time());
       }
-      this->frames_written_to_active_.store(0, std::memory_order_relaxed);
-      this->frames_credited_to_active_.store(0, std::memory_order_relaxed);
 
       this->apply_cached_state_to_active_();
       this->state_ = speaker::STATE_STARTING;
@@ -113,14 +124,13 @@ size_t Router::play(const uint8_t *data, size_t length, TickType_t ticks_to_wait
   size_t written = active->play(data, length, ticks_to_wait);
   if (written > 0) {
     const uint32_t frames = this->audio_stream_info_.bytes_to_frames(written);
-    this->frames_written_to_active_.fetch_add(frames, std::memory_order_relaxed);
+    this->frames_in_pipeline_.fetch_add(frames, std::memory_order_release);
   }
   return written;
 }
 
 void Router::start() {
-  this->frames_written_to_active_.store(0, std::memory_order_relaxed);
-  this->frames_credited_to_active_.store(0, std::memory_order_relaxed);
+  this->frames_in_pipeline_.store(0, std::memory_order_release);
   this->apply_cached_state_to_active_();
   this->state_ = speaker::STATE_STARTING;
   this->get_active_output()->start();
@@ -179,7 +189,7 @@ bool Router::switch_to_output(speaker::Speaker *target) {
   // A switch is already in flight: pending_start_prev_idx_ is still releasing the
   // shared bus and the current active output's start() is still deferred (it never
   // started). Just redirect which output we start once the bus frees. Leave the bus
-  // holder (pending_start_prev_idx_), the frame counters (loop() still owes one
+  // holder (pending_start_prev_idx_), the in-flight frame counter (loop() still owes one
   // synthetic credit for the bus holder's in-flight frames), and state_ alone, and
   // don't stop the current active output, which never started.
   if (this->pending_start_prev_idx_.load(std::memory_order_relaxed) >= 0) {
@@ -208,8 +218,7 @@ bool Router::switch_to_output(speaker::Speaker *target) {
     this->state_ = speaker::STATE_STOPPING;
     this->pending_start_prev_idx_.store(old_idx, std::memory_order_relaxed);
   } else {
-    this->frames_written_to_active_.store(0, std::memory_order_relaxed);
-    this->frames_credited_to_active_.store(0, std::memory_order_relaxed);
+    this->frames_in_pipeline_.store(0, std::memory_order_release);
   }
   return true;
 }
