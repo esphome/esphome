@@ -30,7 +30,7 @@ VoiceAssistant::VoiceAssistant() { global_voice_assistant = this; }
 
 void VoiceAssistant::setup() {
   this->mic_source_->add_data_callback([this](const std::vector<uint8_t> &data) {
-    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_;
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
     if (temp_ring_buffer != nullptr) {
       temp_ring_buffer->write((void *) data.data(), data.size());
     }
@@ -39,7 +39,7 @@ void VoiceAssistant::setup() {
   // Second microphone channel
   if (this->mic_source2_ != nullptr) {
     this->mic_source2_->add_data_callback([this](const std::vector<uint8_t> &data) {
-      std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer2_;
+      std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer2_.lock();
       if (temp_ring_buffer != nullptr) {
         temp_ring_buffer->write((void *) data.data(), data.size());
       }
@@ -125,62 +125,47 @@ bool VoiceAssistant::allocate_buffers_() {
   }
 #endif
 
-  if (this->ring_buffer_ == nullptr) {
-    this->ring_buffer_ = ring_buffer::RingBuffer::create(RING_BUFFER_SIZE);
-    if (this->ring_buffer_ == nullptr) {
+  if (this->audio_source_ == nullptr) {
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(RING_BUFFER_SIZE);
+    if (temp_ring_buffer == nullptr) {
       ESP_LOGE(TAG, "Could not allocate ring buffer");
       return false;
     }
-  }
-
-  if (this->send_buffer_ == nullptr) {
-    RAMAllocator<uint8_t> send_allocator;
-    this->send_buffer_ = send_allocator.allocate(SEND_BUFFER_SIZE);
-    if (send_buffer_ == nullptr) {
-      ESP_LOGW(TAG, "Could not allocate send buffer");
+    // Zero-copy source that reads directly from the ring buffer; frame-aligned to never split an int16 sample.
+    this->audio_source_ = audio::RingBufferAudioSource::create(temp_ring_buffer, SEND_BUFFER_SIZE, sizeof(int16_t));
+    if (this->audio_source_ == nullptr) {
+      ESP_LOGE(TAG, "Could not allocate audio source");
       return false;
     }
+    this->ring_buffer_ = temp_ring_buffer;
   }
 
   // Second microphone channel
-  if (this->mic_source2_ != nullptr) {
-    if (this->ring_buffer2_ == nullptr) {
-      this->ring_buffer2_ = ring_buffer::RingBuffer::create(RING_BUFFER_SIZE);
-      if (this->ring_buffer2_ == nullptr) {
-        ESP_LOGE(TAG, "Could not allocate second ring buffer");
-        return false;
-      }
+  if ((this->mic_source2_ != nullptr) && (this->audio_source2_ == nullptr)) {
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(RING_BUFFER_SIZE);
+    if (temp_ring_buffer == nullptr) {
+      ESP_LOGE(TAG, "Could not allocate second ring buffer");
+      return false;
     }
-
-    if (this->send_buffer2_ == nullptr) {
-      RAMAllocator<uint8_t> send_allocator;
-      this->send_buffer2_ = send_allocator.allocate(SEND_BUFFER_SIZE);
-      if (this->send_buffer2_ == nullptr) {
-        ESP_LOGW(TAG, "Could not allocate second send buffer");
-        return false;
-      }
+    this->audio_source2_ = audio::RingBufferAudioSource::create(temp_ring_buffer, SEND_BUFFER_SIZE, sizeof(int16_t));
+    if (this->audio_source2_ == nullptr) {
+      ESP_LOGE(TAG, "Could not allocate second audio source");
+      return false;
     }
+    this->ring_buffer2_ = temp_ring_buffer;
   }
 
   return true;
 }
 
 void VoiceAssistant::clear_buffers_() {
-  if (this->send_buffer_ != nullptr) {
-    memset(this->send_buffer_, 0, SEND_BUFFER_SIZE);
-  }
-
-  if (this->ring_buffer_ != nullptr) {
-    this->ring_buffer_->reset();
+  if (this->audio_source_ != nullptr) {
+    this->audio_source_->clear_buffered_data();
   }
 
   // Second microphone channel
-  if (this->send_buffer2_ != nullptr) {
-    memset(this->send_buffer2_, 0, SEND_BUFFER_SIZE);
-  }
-
-  if (this->ring_buffer2_ != nullptr) {
-    this->ring_buffer2_->reset();
+  if (this->audio_source2_ != nullptr) {
+    this->audio_source2_->clear_buffered_data();
   }
 
 #ifdef USE_SPEAKER
@@ -195,22 +180,11 @@ void VoiceAssistant::clear_buffers_() {
 }
 
 void VoiceAssistant::deallocate_buffers_() {
-  if (this->send_buffer_ != nullptr) {
-    RAMAllocator<uint8_t> send_deallocator;
-    send_deallocator.deallocate(this->send_buffer_, SEND_BUFFER_SIZE);
-    this->send_buffer_ = nullptr;
-  }
-
-  this->ring_buffer_.reset();
+  // Destroying each source releases its ring buffer; the matching weak_ptr then expires automatically.
+  this->audio_source_.reset();
 
   // Second microphone channel
-  if (this->send_buffer2_ != nullptr) {
-    RAMAllocator<uint8_t> send_deallocator;
-    send_deallocator.deallocate(this->send_buffer2_, SEND_BUFFER_SIZE);
-    this->send_buffer2_ = nullptr;
-  }
-
-  this->ring_buffer2_.reset();
+  this->audio_source2_.reset();
 
 #ifdef USE_SPEAKER
   if ((this->speaker_ != nullptr) && (this->speaker_buffer_ != nullptr)) {
@@ -316,52 +290,57 @@ void VoiceAssistant::loop() {
       break;  // State changed when udp server port received
     }
     case State::STREAMING_MICROPHONE: {
+      // pre_shift is ignored by RingBufferAudioSource (no intermediate transfer buffer to compact).
       if (this->audio_mode_ == AUDIO_MODE_API) {
         // API audio
         // Both microphone channels are sent, if configured
-        bool is_available = this->ring_buffer_->available() >= SEND_BUFFER_SIZE;
-        bool is_available2 = false;
-        if (this->mic_source2_) {
-          is_available2 = this->ring_buffer2_->available() >= SEND_BUFFER_SIZE;
+        size_t available = this->audio_source_->fill(0, false);
+        size_t available2 = 0;
+        if (this->audio_source2_ != nullptr) {
+          available2 = this->audio_source2_->fill(0, false);
         }
 
-        while (is_available || is_available2) {
+        while (available > 0 || available2 > 0) {
           api::VoiceAssistantAudio msg;
 
-          if (is_available) {
-            size_t read_bytes = this->ring_buffer_->read((void *) this->send_buffer_, SEND_BUFFER_SIZE, 0);
-            msg.data = this->send_buffer_;
-            msg.data_len = read_bytes;
+          if (available > 0) {
+            // Zero-copy: send_message() copies the data out before we consume it
+            msg.data = this->audio_source_->data();
+            msg.data_len = available;
           }
 
           // Second microphone channel
-          if (is_available2) {
-            size_t read_bytes = this->ring_buffer2_->read((void *) this->send_buffer2_, SEND_BUFFER_SIZE, 0);
-            msg.data2 = this->send_buffer2_;
-            msg.data2_len = read_bytes;
+          if (available2 > 0) {
+            msg.data2 = this->audio_source2_->data();
+            msg.data2_len = available2;
           }
 
           this->api_client_->send_message(msg);
-          is_available = this->ring_buffer_->available() >= SEND_BUFFER_SIZE;
-          if (this->mic_source2_) {
-            is_available2 = this->ring_buffer2_->available() >= SEND_BUFFER_SIZE;
-          } else {
-            is_available2 = false;
+
+          if (available > 0) {
+            this->audio_source_->consume(available);
+          }
+          available = this->audio_source_->fill(0, false);
+          if (available2 > 0) {
+            this->audio_source2_->consume(available2);
+          }
+          if (this->audio_source2_ != nullptr) {
+            available2 = this->audio_source2_->fill(0, false);
           }
         }
       } else {
         // UDP (will eventually be deprecated)
         // Only the primary microphone channel is used
-        while (this->ring_buffer_->available() >= SEND_BUFFER_SIZE) {
-          size_t read_bytes = this->ring_buffer_->read((void *) this->send_buffer_, SEND_BUFFER_SIZE, 0);
+        while (this->audio_source_->fill(0, false) > 0) {
           if (!this->udp_socket_running_) {
             if (!this->start_udp_socket_()) {
               this->set_state_(State::STOP_MICROPHONE, State::IDLE);
               break;
             }
           }
-          this->socket_->sendto(this->send_buffer_, read_bytes, 0, (struct sockaddr *) &this->dest_addr_,
-                                sizeof(this->dest_addr_));
+          this->socket_->sendto(this->audio_source_->data(), this->audio_source_->available(), 0,
+                                (struct sockaddr *) &this->dest_addr_, sizeof(this->dest_addr_));
+          this->audio_source_->consume(this->audio_source_->available());
         }
       }  // audio mode
       break;

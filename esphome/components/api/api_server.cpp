@@ -1,6 +1,7 @@
 #include "api_server.h"
 #ifdef USE_API
 #include <cerrno>
+#include <cinttypes>
 #include "api_connection.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
@@ -29,11 +30,6 @@ static const char *const TAG = "api";
 APIServer *global_api_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 APIServer::APIServer() { global_api_server = this; }
-
-// Custom deleter defined here so `delete` sees the complete APIConnection type.
-// This prevents libc++ from emitting an "incomplete type" error when other
-// translation units only have the forward declaration of APIConnection.
-void APIServer::APIConnectionDeleter::operator()(APIConnection *p) const { delete p; }
 
 void APIServer::socket_failed_(const LogString *msg) {
   ESP_LOGW(TAG, "Socket %s: errno %d", LOG_STR_ARG(msg), errno);
@@ -682,7 +678,7 @@ uint32_t APIServer::register_active_action_call(uint32_t client_call_id, APIConn
   // Schedule automatic cleanup after timeout (client will have given up by then)
   // Uses numeric ID overload to avoid heap allocation from str_sprintf
   this->set_timeout(action_call_id, USE_API_ACTION_CALL_TIMEOUT_MS, [this, action_call_id]() {
-    ESP_LOGD(TAG, "Action call %u timed out", action_call_id);
+    ESP_LOGD(TAG, "Action call %" PRIu32 " timed out", action_call_id);
     this->unregister_active_action_call(action_call_id);
   });
 
@@ -726,7 +722,7 @@ void APIServer::send_action_response(uint32_t action_call_id, bool success, Stri
       return;
     }
   }
-  ESP_LOGW(TAG, "Cannot send response: no active call found for action_call_id %u", action_call_id);
+  ESP_LOGW(TAG, "Cannot send response: no active call found for action_call_id %" PRIu32, action_call_id);
 }
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 void APIServer::send_action_response(uint32_t action_call_id, bool success, StringRef error_message,
@@ -738,7 +734,7 @@ void APIServer::send_action_response(uint32_t action_call_id, bool success, Stri
       return;
     }
   }
-  ESP_LOGW(TAG, "Cannot send response: no active call found for action_call_id %u", action_call_id);
+  ESP_LOGW(TAG, "Cannot send response: no active call found for action_call_id %" PRIu32, action_call_id);
 }
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES

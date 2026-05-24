@@ -6,14 +6,6 @@ on:
     branches: [dev, beta, release]
 
   pull_request:
-    paths:
-      - "**"
-      - "!.github/workflows/*.yml"
-      - "!.github/actions/build-image/*"
-      - ".github/workflows/ci.yml"
-      - "!.yamllint"
-      - "!.github/dependabot.yml"
-      - "!docker/**"
   merge_group:
 
 permissions:
@@ -101,6 +93,8 @@ jobs:
     runs-on: ubuntu-24.04
     needs:
       - common
+      - determine-jobs
+    if: needs.determine-jobs.outputs.core-ci == 'true'
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -223,6 +217,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     needs:
       - common
+      - determine-jobs
+    if: needs.determine-jobs.outputs.core-ci == 'true'
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -261,6 +257,7 @@ jobs:
     needs:
       - common
     outputs:
+      core-ci: ${{ steps.determine.outputs.core-ci }}
       integration-tests: ${{ steps.determine.outputs.integration-tests }}
       integration-test-buckets: ${{ steps.determine.outputs.integration-test-buckets }}
       clang-tidy: ${{ steps.determine.outputs.clang-tidy }}
@@ -314,6 +311,7 @@ jobs:
           echo "$output" | jq
 
           # Extract individual fields
+          echo "core-ci=$(echo "$output" | jq -r '.core_ci')" >> $GITHUB_OUTPUT
           echo "integration-tests=$(echo "$output" | jq -r '.integration_tests')" >> $GITHUB_OUTPUT
           echo "integration-test-buckets=$(echo "$output" | jq -c '.integration_test_buckets')" >> $GITHUB_OUTPUT
           echo "clang-tidy=$(echo "$output" | jq -r '.clang_tidy')" >> $GITHUB_OUTPUT
@@ -969,7 +967,8 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - common
-    if: github.event_name == 'pull_request' && !startsWith(github.base_ref, 'beta') && !startsWith(github.base_ref, 'release')
+      - determine-jobs
+    if: github.event_name == 'pull_request' && !startsWith(github.base_ref, 'beta') && !startsWith(github.base_ref, 'release') && needs.determine-jobs.outputs.core-ci == 'true'
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
