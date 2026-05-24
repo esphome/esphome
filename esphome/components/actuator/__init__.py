@@ -42,3 +42,5 @@ class _ActuatorOperationEnum:
 
 
 ActuatorOperation = _ActuatorOperationEnum()
+
+TimeBasedActuatorBase = actuator_ns.class_("TimeBasedActuatorBase", cg.Component)

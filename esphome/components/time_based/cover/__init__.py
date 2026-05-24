@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import cover
+from esphome.components import actuator as actuator_component, cover
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ASSUMED_STATE,
@@ -13,7 +13,9 @@ from esphome.const import (
 
 from .. import time_based_ns
 
-TimeBasedCover = time_based_ns.class_("TimeBasedCover", cover.Cover, cg.Component)
+TimeBasedCover = time_based_ns.class_(
+    "TimeBasedCover", actuator_component.TimeBasedActuatorBase, cover.Cover
+)
 
 CONF_HAS_BUILT_IN_ENDSTOP = "has_built_in_endstop"
 CONF_MANUAL_CONTROL = "manual_control"
