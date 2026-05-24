@@ -94,9 +94,10 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
         _LOGGER.debug("Skipping size summary: %s", e)
         return
 
-    dram = data.get("memory_types", {}).get("DRAM") or {}
-    ram_used = dram.get("used")
-    ram_total = dram.get("size")
+    memory_types = data.get("memory_types", {})
+    ram_region = memory_types.get("DRAM") or memory_types.get("DIRAM") or {}
+    ram_used = ram_region.get("used")
+    ram_total = ram_region.get("size")
     if ram_total and ram_used is not None:
         print(f"RAM:   {_format_bar(ram_used, ram_total)}")
 
