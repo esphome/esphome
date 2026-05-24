@@ -415,6 +415,37 @@ For detailed migration guides and API documentation, see the [ESPHome Developers
 
 {/* markdownlint-disable MD013 */}
 
+## Release 2026.5.1 - May 25
+
+<details>
+<summary></summary>
+
+- Bump zeroconf from 0.149.12 to 0.149.13 [esphome#16520](https://github.com/esphome/esphome/pull/16520) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump zeroconf from 0.149.13 to 0.149.16 [esphome#16533](https://github.com/esphome/esphome/pull/16533) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- [espidf] Filter noisy 'git rev-parse' errors when .git is stripped [esphome#16521](https://github.com/esphome/esphome/pull/16521) by [@swoboda1337](https://github.com/swoboda1337)
+- [espidf] Fix tarfile extract crashing on Python 3.11 with None mode [esphome#16530](https://github.com/esphome/esphome/pull/16530) by [@swoboda1337](https://github.com/swoboda1337)
+- [espidf] Write version.txt after extract so bootloader shows the real version [esphome#16532](https://github.com/esphome/esphome/pull/16532) by [@swoboda1337](https://github.com/swoboda1337)
+- [core] Persist & restore CORE.toolchain through StorageJSON [esphome#16531](https://github.com/esphome/esphome/pull/16531) by [@swoboda1337](https://github.com/swoboda1337)
+- [espidf] Backport ninja linux-arm64 entry into tools.json on aarch64 hosts [esphome#16527](https://github.com/esphome/esphome/pull/16527) by [@swoboda1337](https://github.com/swoboda1337)
+- [espidf] Default to remote HEAD when cg.add_library URL has no #ref [esphome#16535](https://github.com/esphome/esphome/pull/16535) by [@swoboda1337](https://github.com/swoboda1337)
+- [espidf] Honor the dict shorthand for library.json dependencies [esphome#16537](https://github.com/esphome/esphome/pull/16537) by [@swoboda1337](https://github.com/swoboda1337)
+- [esp32] Defer esp_panic_handler wrap so arduino-esp32 IDF component skips it [esphome#16538](https://github.com/esphome/esphome/pull/16538) by [@swoboda1337](https://github.com/swoboda1337)
+- [tuya] Restore null guard on status_pin lost in #16353 [esphome#16539](https://github.com/esphome/esphome/pull/16539) by [@swoboda1337](https://github.com/swoboda1337)
+- [api] Break api_connection/api_server include cycle to drop custom unique_ptr deleter [esphome#16542](https://github.com/esphome/esphome/pull/16542) by [@bdraco](https://github.com/bdraco)
+- [sx126x] Assert NSS before wait_busy so commands wake the chip from sleep [esphome#16546](https://github.com/esphome/esphome/pull/16546) by [@swoboda1337](https://github.com/swoboda1337)
+- [core] Refresh compiled config cache after upload/logs fallback [esphome#16548](https://github.com/esphome/esphome/pull/16548) by [@bdraco](https://github.com/bdraco)
+- [sendspin] Bump sendspin-cpp to v0.6.1 [esphome#16553](https://github.com/esphome/esphome/pull/16553) by [@kahrendt](https://github.com/kahrendt)
+- [dashboard] Fix flaky test_websocket_refresh_command on Windows CI [esphome#16565](https://github.com/esphome/esphome/pull/16565) by [@bdraco](https://github.com/bdraco)
+- [libretiny] Fix LN882H IRAM_ATTR injection point in patch_linker.py [esphome#16570](https://github.com/esphome/esphome/pull/16570) by [@Bl00d-B0b](https://github.com/Bl00d-B0b)
+- [esp8266] Use os_timer-based esp_delay() in delay() [esphome#16563](https://github.com/esphome/esphome/pull/16563) by [@bdraco](https://github.com/bdraco)
+- [uart] Wake main loop on ESP8266 software serial RX [esphome#16562](https://github.com/esphome/esphome/pull/16562) by [@bdraco](https://github.com/bdraco)
+- [esp32] Demote IDF #warning deprecations from error under ESP-IDF toolchain [esphome#16584](https://github.com/esphome/esphome/pull/16584) by [@swoboda1337](https://github.com/swoboda1337)
+- [bluetooth_proxy] Recover slot stuck in DISCONNECTING when CLOSE_EVT is dropped [esphome#16588](https://github.com/esphome/esphome/pull/16588) by [@bdraco](https://github.com/bdraco)
+- [esp32] Replace per-class -Wno-error=X demotes with blanket -Wno-error for ESP-IDF toolchain [esphome#16599](https://github.com/esphome/esphome/pull/16599) by [@swoboda1337](https://github.com/swoboda1337)
+- [esp32] Disable IDF's COMPILER_DISABLE_DEFAULT_ERRORS so -Wno-error actually undoes -Werror [esphome#16604](https://github.com/esphome/esphome/pull/16604) by [@swoboda1337](https://github.com/swoboda1337)
+
+</details>
+
 ## Full list of changes
 
 ### New Features
