@@ -453,7 +453,7 @@ async def to_code(config):
 
 
 @coroutine_with_priority(CoroPriority.NETWORK_SERVICES)
-async def network_component_to_code(config):
+async def network_component_to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

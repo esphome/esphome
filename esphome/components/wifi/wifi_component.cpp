@@ -637,9 +637,6 @@ void WiFiComponent::setup() {
 #endif
     this->start();
   } else {
-    // Note: esp_netif_init() used to be called here as a fallback for non-IDF builds.
-    // It is now centralized in NetworkComponent::setup(), which runs at AFTER_BLUETOOTH
-    // (300) ahead of WiFi (250). No action needed.
     this->state_ = WIFI_COMPONENT_STATE_DISABLED;
   }
 }
@@ -2201,7 +2198,15 @@ bool WiFiComponent::request_high_performance() {
   }
 
   // Give the semaphore (non-blocking). This increments the count.
-  return xSemaphoreGive(this->high_performance_semaphore_) == pdTRUE;
+  bool success = xSemaphoreGive(this->high_performance_semaphore_) == pdTRUE;
+
+  // Wake the main loop so the switch to high-performance mode is applied on the
+  // next tick instead of waiting up to loop_interval.
+  if (success) {
+    App.wake_loop_threadsafe();
+  }
+
+  return success;
 }
 
 bool WiFiComponent::release_high_performance() {
