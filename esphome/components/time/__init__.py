@@ -335,8 +335,8 @@ def validate_tz(value: str) -> str:
 TIME_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_TIMEZONE): cv.All(
-            validate_tz,
             cv.only_with_framework(["arduino", "esp-idf", "host"]),
+            validate_tz,
         ),
         cv.Optional(CONF_ON_TIME): automation.validate_automation(
             {

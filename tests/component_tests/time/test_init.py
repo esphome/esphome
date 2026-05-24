@@ -291,10 +291,29 @@ def test_time_schema_explicit_empty_timezone_accepted(
 def test_time_schema_timezone_rejected_on_zephyr(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    """TIME_SCHEMA must reject a timezone value on Zephyr (unsupported framework)."""
+    """TIME_SCHEMA must reject a timezone value on Zephyr with the framework error.
+
+    The platform check (cv.only_with_framework) must run BEFORE validate_tz so
+    that users receive an actionable "unsupported framework" message rather than a
+    confusing TZ-parsing error.
+    """
     set_core_config(PlatformFramework.NRF52_ZEPHYR)
-    with pytest.raises(cv.Invalid):
+    with pytest.raises(cv.Invalid, match="only available with framework"):
         TIME_SCHEMA({CONF_TIMEZONE: "UTC0"})
+
+
+def test_time_schema_invalid_tz_on_zephyr_gives_framework_error(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Even a syntactically invalid TZ string must produce the framework error on Zephyr.
+
+    This specifically tests that cv.only_with_framework is evaluated before
+    validate_tz: if the order were reversed, an invalid POSIX string would
+    generate a misleading TZ-parsing error instead.
+    """
+    set_core_config(PlatformFramework.NRF52_ZEPHYR)
+    with pytest.raises(cv.Invalid, match="only available with framework"):
+        TIME_SCHEMA({CONF_TIMEZONE: "NOTAVALIDTZ!!!"})
 
 
 # ---------------------------------------------------------------------------
