@@ -129,8 +129,7 @@ class MixerSpeaker : public Component {
 
   /// @brief Starts the mixer task. Called by a source speaker giving the current audio stream information
   /// @param stream_info The calling source speaker's audio stream information
-  /// @return ESP_ERR_NOT_SUPPORTED if the incoming stream is incompatible due to unsupported bits per sample
-  ///         ESP_ERR_INVALID_ARG if the incoming stream is incompatible to be mixed with the other input audio stream
+  /// @return ESP_ERR_INVALID_ARG if the incoming stream is incompatible to be mixed with the other input audio stream
   ///         ESP_OK if the incoming stream is compatible and the mixer task starts
   esp_err_t start(audio::AudioStreamInfo &stream_info);
 
