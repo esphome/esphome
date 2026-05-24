@@ -142,7 +142,7 @@ async def _smpmgr_upload_connected(
         with open(firmware, "rb") as file:
             image = file.read()
             upload_size = len(image)
-            progress = ProgressBar()
+            progress = ProgressBar("Uploading")
             progress.update(0)
             try:
                 async for offset in smp_client.upload(image):
