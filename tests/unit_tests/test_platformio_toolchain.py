@@ -913,12 +913,55 @@ def test_run_platformio_cli_run_builds_command(
     mock_run_platformio_cli.assert_called_once_with(
         "run",
         "-d",
-        CORE.build_path,
+        str(CORE.build_path),
         "-e",
         toolchain.platformio_env_name(),
         "-v",
         "extra",
         "args",
+    )
+
+
+def test_run_platformio_cli_run_reuses_existing_generated_env(
+    setup_core: Path, mock_run_platformio_cli: Mock
+) -> None:
+    """Upload-only PlatformIO runs should use the env from generated ini."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    CORE.name = "living-room"
+    CORE.build_path = setup_core / "build" / "living-room"
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "rp2040",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    platformio_ini = CORE.relative_build_path("platformio.ini")
+    platformio_ini.parent.mkdir(parents=True)
+    platformio_ini.write_text(
+        """
+; ========== AUTO GENERATED CODE BEGIN ===========
+
+[env:rp2040-arduino-compiled1234]
+lib_deps =
+    Component/Generated @ 2.0.0
+; =========== AUTO GENERATED CODE END ============
+""",
+        encoding="utf-8",
+    )
+    mock_run_platformio_cli.return_value = 0
+
+    config = {"name": "test"}
+    toolchain.run_platformio_cli_run(config, False, "-t", "upload", "-t", "nobuild")
+
+    mock_run_platformio_cli.assert_called_once_with(
+        "run",
+        "-d",
+        str(CORE.build_path),
+        "-e",
+        "rp2040-arduino-compiled1234",
+        "-t",
+        "upload",
+        "-t",
+        "nobuild",
     )
 
 
