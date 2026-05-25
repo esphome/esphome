@@ -13,8 +13,12 @@ import pytest
 import voluptuous as vol
 
 from esphome import config_validation as cv
-import esphome.components.lvgl  # noqa: F401
-from esphome.components.lvgl import defines as df, schemas as lvgl_schemas
+import esphome.components.lvgl
+from esphome.components.lvgl import (
+    _theme_schema,
+    defines as df,
+    schemas as lvgl_schemas,
+)
 from esphome.components.lvgl.schemas import (
     ALIGN_TO_SCHEMA,
     FLAG_SCHEMA,
@@ -28,6 +32,8 @@ from esphome.components.lvgl.schemas import (
     part_dict,
     part_schema,
 )
+from esphome.components.lvgl.types import LvType
+from esphome.components.lvgl.widgets import WidgetType
 
 
 @pytest.fixture(autouse=True)
@@ -172,8 +178,6 @@ def test_theme_schema_merges_obj_dict_and_full_style_props() -> None:
     # end-to-end with one key from each side (a STATE_SCHEMA part from obj_dict
     # and a FULL_STYLE-only property) to lock the behaviour against future
     # regressions in either source.
-    from esphome.components.lvgl import _theme_schema
-
     out = _theme_schema(
         {
             df.CONF_DARK_MODE: True,
@@ -198,10 +202,6 @@ def test_theme_schema_self_heals_when_a_widget_type_is_registered_later() -> Non
     # any_widget_schema explicitly supports external components registering
     # widgets lazily, and the device builder revalidates in-process, so a
     # widget registered after first use must invalidate the cached snapshot.
-    from esphome.components.lvgl import _theme_schema
-    from esphome.components.lvgl.types import LvType
-    from esphome.components.lvgl.widgets import WidgetType
-
     _theme_schema({df.CONF_DARK_MODE: True})  # populate the cache
 
     name = "test_self_heal_widget"
