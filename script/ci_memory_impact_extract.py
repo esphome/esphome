@@ -80,15 +80,11 @@ def _pioenv_dirs(build_path: Path) -> list[Path]:
 
 def _find_elf_path(build_path: Path) -> str | None:
     """Find firmware.elf/raw_firmware.elf in current and historical layouts."""
-    for elf_candidate in [
-        build_path / "firmware.elf",
-        *[pioenv_dir / "firmware.elf" for pioenv_dir in _pioenv_dirs(build_path)],
-        # LibreTiny uses raw_firmware.elf
-        build_path / "raw_firmware.elf",
-        *[pioenv_dir / "raw_firmware.elf" for pioenv_dir in _pioenv_dirs(build_path)],
-    ]:
-        if elf_candidate.exists():
-            return str(elf_candidate)
+    for artifact_dir in [build_path, *_pioenv_dirs(build_path)]:
+        for elf_name in ("firmware.elf", "raw_firmware.elf"):
+            elf_candidate = artifact_dir / elf_name
+            if elf_candidate.exists():
+                return str(elf_candidate)
 
     return None
 

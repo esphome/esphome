@@ -79,6 +79,24 @@ def test_find_elf_path_uses_generated_libretiny_raw_firmware(tmp_path: Path) -> 
     assert _find_elf_path(build_path) == str(raw_firmware_elf)
 
 
+def test_find_elf_path_prefers_current_libretiny_raw_firmware(
+    tmp_path: Path,
+) -> None:
+    """A stale firmware.elf must not hide the active LibreTiny raw ELF."""
+    build_path = tmp_path / "test-device"
+    _write_platformio_ini(build_path, "bk72xx-arduino-abc123")
+    stale_firmware_elf = build_path / ".pioenvs" / "test-device" / "firmware.elf"
+    raw_firmware_elf = (
+        build_path / ".pioenvs" / "bk72xx-arduino-abc123" / "raw_firmware.elf"
+    )
+    stale_firmware_elf.parent.mkdir(parents=True)
+    raw_firmware_elf.parent.mkdir(parents=True)
+    stale_firmware_elf.touch()
+    raw_firmware_elf.touch()
+
+    assert _find_elf_path(build_path) == str(raw_firmware_elf)
+
+
 def test_idedata_candidates_check_generated_env_before_legacy(
     tmp_path: Path,
 ) -> None:

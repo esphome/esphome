@@ -75,6 +75,17 @@ def _platformio_toolchain_cache_key(core=CORE) -> str:
     return re.sub(r"[^a-zA-Z0-9_.-]", "_", f"{platform}-{framework}")
 
 
+def _platformio_env_device_scope(core=CORE) -> str:
+    """Return a device-name env prefix when build outputs share a project dir."""
+    if not core.name or core.build_path is None:
+        return ""
+
+    if Path(core.build_path).name == core.name:
+        return ""
+
+    return f"{core.name}-"
+
+
 def _normalize_platformio_values(value: str | list[str] | None) -> list[str]:
     """Return sorted PlatformIO values for stable fingerprints."""
     if value is None:
@@ -228,7 +239,7 @@ def platformio_env_name(*, prefer_existing: bool = False) -> str:
     fingerprint = hashlib.sha256(
         json.dumps(_platformio_env_fingerprint_values(), sort_keys=True).encode()
     ).hexdigest()[:16]
-    return f"{_platformio_toolchain_cache_key()}-{fingerprint}"
+    return f"{_platformio_env_device_scope()}{_platformio_toolchain_cache_key()}-{fingerprint}"
 
 
 def _platformio_libdeps_dir(core=CORE) -> Path:

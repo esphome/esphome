@@ -518,6 +518,29 @@ def test_run_platformio_cli_scopes_libdeps_by_toolchain_and_dependencies(
         assert toolchain.platformio_env_name() == f"rp2040-arduino-{fingerprint}"
 
 
+def test_platformio_env_name_disambiguates_shared_custom_build_path(
+    setup_core: Path,
+) -> None:
+    """Two devices sharing one build path must not overwrite PIO artifacts."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    shared_build_path = setup_core / "build" / "shared"
+    CORE.build_path = shared_build_path
+    CORE.name = "living-room"
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "rp2040",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    first_env = toolchain.platformio_env_name()
+
+    CORE.name = "kitchen"
+    second_env = toolchain.platformio_env_name()
+
+    assert first_env.startswith("living-room-rp2040-arduino-")
+    assert second_env.startswith("kitchen-rp2040-arduino-")
+    assert first_env != second_env
+
+
 def test_platformio_env_name_includes_preserved_common_libdeps(
     setup_core: Path,
 ) -> None:
