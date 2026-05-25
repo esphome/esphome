@@ -518,7 +518,7 @@ def add_hello_world(config):
     return config
 
 
-def _theme_schema(value):
+def _theme_schema(value: dict) -> dict:
     # Merge into a single dict per widget so each widget schema compiles once;
     # see obj_dict() in schemas.py for why chained .extend() is avoided here.
     return cv.Schema(
