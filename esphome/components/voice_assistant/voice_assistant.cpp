@@ -293,54 +293,62 @@ void VoiceAssistant::loop() {
       // pre_shift is ignored by RingBufferAudioSource (no intermediate transfer buffer to compact).
       if (this->audio_mode_ == AUDIO_MODE_API) {
         // API audio
-        // Both microphone channels are sent, if configured
-        size_t available = this->audio_source_->fill(0, false);
-        size_t available2 = 0;
-        if (this->audio_source2_ != nullptr) {
-          available2 = this->audio_source2_->fill(0, false);
-        }
-
-        while (available > 0 || available2 > 0) {
-          api::VoiceAssistantAudio msg;
-
-          if (available > 0) {
-            // Zero-copy: send_message() copies the data out before we consume it
-            msg.data = this->audio_source_->data();
-            msg.data_len = available;
+        // Both microphone channels are sent together, if configured. Home Assistant feeds one of the
+        // channels to its speech-to-text stream and treats an empty payload on that channel as
+        // end-of-stream, and the device cannot know which channel it picked, so only send once every
+        // configured channel has audio exposed, and always send them together. Message size is
+        // otherwise unconstrained: Home Assistant re-chunks the audio on its end.
+        while (true) {
+          // fill() exposes a new chunk, or returns 0 if a previous chunk is still exposed; available()
+          // reports the currently exposed bytes either way.
+          this->audio_source_->fill(0, false);
+          size_t available = this->audio_source_->available();
+          size_t available2 = 0;
+          if (this->audio_source2_ != nullptr) {
+            this->audio_source2_->fill(0, false);
+            available2 = this->audio_source2_->available();
           }
 
-          // Second microphone channel
-          if (available2 > 0) {
+          // Wait for any empty channel to fill; the exposed chunk on the other channel is kept for the
+          // next pass.
+          if ((available == 0) || ((this->audio_source2_ != nullptr) && (available2 == 0))) {
+            break;
+          }
+
+          api::VoiceAssistantAudio msg;
+          // Zero-copy: send_message() copies the data out before we consume it.
+          msg.data = this->audio_source_->data();
+          msg.data_len = available;
+          if (this->audio_source2_ != nullptr) {
             msg.data2 = this->audio_source2_->data();
             msg.data2_len = available2;
           }
 
           this->api_client_->send_message(msg);
 
-          if (available > 0) {
-            this->audio_source_->consume(available);
-          }
-          available = this->audio_source_->fill(0, false);
-          if (available2 > 0) {
-            this->audio_source2_->consume(available2);
-          }
+          this->audio_source_->consume(available);
           if (this->audio_source2_ != nullptr) {
-            available2 = this->audio_source2_->fill(0, false);
+            this->audio_source2_->consume(available2);
           }
         }
       } else {
         // UDP (will eventually be deprecated)
         // Only the primary microphone channel is used
-        while (this->audio_source_->fill(0, false) > 0) {
+        while (true) {
+          this->audio_source_->fill(0, false);
+          size_t available = this->audio_source_->available();
+          if (available == 0) {
+            break;
+          }
           if (!this->udp_socket_running_) {
             if (!this->start_udp_socket_()) {
               this->set_state_(State::STOP_MICROPHONE, State::IDLE);
               break;
             }
           }
-          this->socket_->sendto(this->audio_source_->data(), this->audio_source_->available(), 0,
-                                (struct sockaddr *) &this->dest_addr_, sizeof(this->dest_addr_));
-          this->audio_source_->consume(this->audio_source_->available());
+          this->socket_->sendto(this->audio_source_->data(), available, 0, (struct sockaddr *) &this->dest_addr_,
+                                sizeof(this->dest_addr_));
+          this->audio_source_->consume(available);
         }
       }  // audio mode
       break;
@@ -841,8 +849,8 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       });
       State new_state = this->local_output_ ? State::STREAMING_RESPONSE : State::IDLE;
       if (new_state != this->state_) {
-        // Don't needlessly change the state. The intent progress stage may have already changed the state to streaming
-        // response.
+        // Don't needlessly change the state. The intent progress stage may have already changed the state to
+        // streaming response.
         this->set_state_(new_state, new_state);
       }
       break;
