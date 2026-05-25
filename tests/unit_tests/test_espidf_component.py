@@ -266,7 +266,7 @@ def test_check_library_data_invalid_framework(esp32_idf_core, caplog):
     # included so that PIO manifests that only list "arduino" (but actually
     # compile under IDF) can be used without forking them.
     _check_library_data({"name": "lib", "platforms": "*", "frameworks": ["other"]})
-    assert "does not include 'espidf'" in caplog.text
+    assert "do not include 'espidf'" in caplog.text
 
 
 def test_extra_script_captures_libpath_libs_and_defines(tmp_path):
