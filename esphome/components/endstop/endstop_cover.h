@@ -31,7 +31,7 @@ class EndstopCover : public cover::Cover, public Component {
   bool is_closed_() const { return this->close_endstop_->state; }
   bool is_at_target_() const;
 
-  void start_direction_(actuator::ActuatorOperation dir);
+  void start_direction_(cover::CoverOperation dir);
 
   void recompute_position_();
 
@@ -49,7 +49,7 @@ class EndstopCover : public cover::Cover, public Component {
   uint32_t start_dir_time_{0};
   uint32_t last_publish_time_{0};
   float target_position_{0};
-  actuator::ActuatorOperation last_operation_{actuator::ACTUATOR_OPERATION_OPENING};
+  cover::CoverOperation last_operation_{cover::COVER_OPERATION_OPENING};
 };
 
 }  // namespace esphome::endstop
