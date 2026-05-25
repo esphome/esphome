@@ -13,7 +13,26 @@ static void log_matrix(const float m[9]) {
   ESP_LOGCONFIG(TAG, "    - [%9.6f, %9.6f, %9.6f]", m[6], m[7], m[8]);
 }
 
+void MotionComponent::setup() {
+  if (this->pref_key_ != 0) {
+    this->pref_ = global_preferences->make_preference<float[9]>(this->pref_key_);
+    float saved[9];
+    if (this->pref_.load(&saved)) {
+      memcpy(this->matrix_, saved, sizeof(this->matrix_));
+      ESP_LOGI(TAG, "Restored calibration from NVS");
+      log_matrix(this->matrix_);
+    }
+  }
+}
 void MotionComponent::dump_config() { log_matrix(this->matrix_); }
+void MotionComponent::save_calibration() {
+  if (this->pref_key_ == 0) {
+    ESP_LOGW(TAG, "Cannot save calibration: no preference key set");
+    return;
+  }
+  this->pref_.save(&this->matrix_);
+  ESP_LOGI(TAG, "Saved calibration to NVS");
+}
 void MotionComponent::update() {
   if (this->is_failed())
     return;
