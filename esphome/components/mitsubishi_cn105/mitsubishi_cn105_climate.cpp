@@ -66,6 +66,7 @@ void MitsubishiCN105Climate::dump_config() {
                 this->hp_.get_update_interval(), this->parent_->get_baud_rate(), this->parent_->get_data_bits(),
                 LOG_STR_ARG(parity_to_str(this->parent_->get_parity())), this->parent_->get_stop_bits());
   LOG_SELECT("  ", "Vertical vane direction", this->vertical_vane_direction_select_);
+  LOG_SELECT("  ", "Horizontal vane direction", this->horizontal_vane_direction_select_);
 }
 
 void MitsubishiCN105Climate::setup() { this->hp_.initialize(); }
