@@ -29,7 +29,7 @@ def test_find_firmware_elf_keeps_legacy_device_env_fallback(tmp_path: Path) -> N
 def test_find_firmware_elf_uses_stable_libretiny_raw_firmware(
     tmp_path: Path,
 ) -> None:
-    """LibreTiny raw_firmware.elf should be found under the stable PIO env."""
+    """The LibreTiny raw_firmware.elf should be found under the stable PIO env."""
     build_path = tmp_path / ".esphome" / "build" / "test-device"
     raw_firmware_elf = (
         build_path / ".pioenvs" / PLATFORMIO_ENV_NAME / "raw_firmware.elf"
