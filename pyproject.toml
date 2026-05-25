@@ -112,6 +112,7 @@ exclude = ['generated']
 [tool.ruff.lint]
 select = [
   "E",    # pycodestyle
+  "EXE",  # flake8-executable
   "F",    # pyflakes/autoflake
   "FLY",  # flynt: convert string formatting to f-strings
   "FURB", # refurb
