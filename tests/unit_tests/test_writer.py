@@ -542,8 +542,12 @@ def test_clean_build_preserves_shared_caches_when_pio_cache_disabled(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / "project" / name
+    mock_core.data_dir = tmp_path / ".esphome"
 
-    clean_build(clear_pio_cache=False)
+    with patch(
+        "platformio.project.config.ProjectConfig.get_instance"
+    ) as mock_get_instance:
+        clean_build(clear_pio_cache=False)
 
     assert not pioenvs_dir.exists()
     assert not piolibdeps_dir.exists()
@@ -552,6 +556,7 @@ def test_clean_build_preserves_shared_caches_when_pio_cache_disabled(
     assert not managed_components_dir.exists()
     assert shared_pio_components.exists()
     assert platformio_cache_dir.exists()
+    mock_get_instance.assert_not_called()
 
 
 @patch("esphome.writer.CORE")
