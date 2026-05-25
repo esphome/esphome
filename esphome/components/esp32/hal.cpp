@@ -14,8 +14,12 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-#ifdef USE_ESP32_HOSTED
+// USE_ESP32_HOSTED is set unconditionally in defines.h for static analysis, so
+// the header may not actually be on the include path under Arduino builds
+// where the esp_hosted IDF component is not linked. Guard with __has_include.
+#if defined(USE_ESP32_HOSTED) && __has_include(<esp_hosted.h>)
 #include <esp_hosted.h>
+#define ESPHOME_HAVE_ESP_HOSTED
 #endif
 
 // Empty esp32 namespace block to satisfy ci-custom's lint_namespace check.
@@ -63,7 +67,7 @@ void arch_init() {
   esp_ota_mark_app_valid_cancel_rollback();
 #endif
 
-#ifdef USE_ESP32_HOSTED
+#ifdef ESPHOME_HAVE_ESP_HOSTED
   // Bring up the esp_hosted coprocessor transport before any component setup runs.
   // The SDIO mempool allocation needs a large contiguous chunk of DMA-capable internal RAM;
   // doing it here (rather than lazily from wifi/ble/update setup) avoids fragmentation
