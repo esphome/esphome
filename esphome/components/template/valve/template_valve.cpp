@@ -82,10 +82,10 @@ void TemplateValve::control(const ValveCall &call) {
     auto pos = *pos_val;
     this->stop_prev_trigger_();
 
-    if (pos == actuator::ACTUATOR_OPEN) {
+    if (pos == VALVE_OPEN) {
       this->open_trigger_.trigger();
       this->prev_command_trigger_ = &this->open_trigger_;
-    } else if (pos == actuator::ACTUATOR_CLOSED) {
+    } else if (pos == VALVE_CLOSED) {
       this->close_trigger_.trigger();
       this->prev_command_trigger_ = &this->close_trigger_;
     } else {
