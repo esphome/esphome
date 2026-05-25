@@ -16,7 +16,7 @@ void MitsubishiCN105HorizontalVaneDirectionSelect::control(size_t index) {
 }
 
 void MitsubishiCN105HorizontalVaneDirectionSelect::publish_vane_state(MitsubishiCN105::WideVaneMode mode) {
-  if (const auto it = std::find(VALUES.begin(), VALUES.end(), mode); it != VALUES.end()) {
+  if (const auto *const it = std::find(VALUES.begin(), VALUES.end(), mode); it != VALUES.end()) {
     this->publish_state(std::distance(VALUES.begin(), it));
   }
 }
