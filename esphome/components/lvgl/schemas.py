@@ -435,7 +435,7 @@ def _lazy_validate_automation(extra_schema: dict) -> Callable[[Any], Any]:
     return validator
 
 
-def automation_schema(typ: LvType):
+def automation_schema(typ: LvType) -> dict[Any, Any]:
     events = df.LV_EVENT_TRIGGERS + df.SWIPE_TRIGGERS
     if typ.has_on_value:
         events = events + (CONF_ON_VALUE, CONF_ON_UPDATE)

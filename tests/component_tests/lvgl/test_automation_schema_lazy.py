@@ -11,12 +11,13 @@ from esphome.components.lvgl.schemas import (
     _lazy_validate_automation,
     automation_schema,
 )
+from esphome.components.lvgl.widgets import WidgetType
 from esphome.config_validation import GenerateID, declare_id
 from esphome.const import CONF_TRIGGER_ID
 from esphome.core.config import StartupTrigger
 
 
-def _widget_type(name: str = "obj"):
+def _widget_type(name: str = "obj") -> WidgetType:
     wt = WIDGET_TYPES.get(name)
     assert wt is not None, f"widget type {name!r} not registered"
     return wt
