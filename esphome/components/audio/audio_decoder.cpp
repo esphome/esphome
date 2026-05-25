@@ -9,8 +9,11 @@ namespace esphome::audio {
 
 static const char *const TAG = "audio.decoder";
 
-static const uint32_t DECODING_TIMEOUT_MS = 50;    // The decode function will yield after this duration
 static const uint32_t READ_WRITE_TIMEOUT_MS = 20;  // Timeout for transferring audio data
+
+// Max consecutive decode iterations that consume input but produce no output; e.g., skipping a large metadata block,
+// before yielding and returning.
+static const uint8_t MAX_NO_OUTPUT_ITERATIONS = 32;
 
 static const uint32_t MAX_POTENTIALLY_FAILED_COUNT = 10;
 
@@ -20,11 +23,13 @@ AudioDecoder::AudioDecoder(size_t input_buffer_size, size_t output_buffer_size)
 }
 
 esp_err_t AudioDecoder::add_source(std::weak_ptr<ring_buffer::RingBuffer> &input_ring_buffer) {
-  auto source = AudioSourceTransferBuffer::create(this->input_buffer_size_);
+  // Zero-copy source reading directly from the ring buffer's internal storage. Raw file data is byte
+  // aligned, so no frame alignment is required.
+  auto source = RingBufferAudioSource::create(input_ring_buffer.lock(), this->input_buffer_size_);
   if (source == nullptr) {
-    return ESP_ERR_NO_MEM;
+    // create() only returns nullptr for invalid arguments (expired ring buffer or zero buffer size)
+    return ESP_ERR_INVALID_ARG;
   }
-  source->set_source(input_ring_buffer);
   this->input_buffer_ = std::move(source);
   return ESP_OK;
 }
@@ -141,13 +146,7 @@ AudioDecoderState AudioDecoder::decode(bool stop_gracefully) {
   }
 
   FileDecoderState state = FileDecoderState::MORE_TO_PROCESS;
-
-  uint32_t decoding_start = millis();
-
-  bool first_loop_iteration = true;
-
-  size_t bytes_processed = 0;
-  size_t bytes_available_before_processing = 0;
+  uint8_t no_output_iterations = 0;
 
   while (state == FileDecoderState::MORE_TO_PROCESS) {
     // Transfer decoded out
@@ -161,45 +160,39 @@ AudioDecoderState AudioDecoder::decode(bool stop_gracefully) {
         this->playback_ms_ +=
             this->audio_stream_info_.value().frames_to_milliseconds_with_remainder(&this->accumulated_frames_written_);
       }
+
+      if ((bytes_written > 0) && (this->output_transfer_buffer_->available() == 0)) {
+        // All decoded audio has been flushed to the sink; return so the caller can react to stop/pause before
+        // decoding the next batch
+        return AudioDecoderState::DECODING;
+      }
     } else {
       // If paused, block to avoid wasting CPU resources
       delay(READ_WRITE_TIMEOUT_MS);
     }
 
-    // Verify there is enough space to store more decoded audio and that the function hasn't been running too long
-    if ((this->output_transfer_buffer_->free() < this->free_buffer_required_) ||
-        (millis() - decoding_start > DECODING_TIMEOUT_MS)) {
+    if (this->output_transfer_buffer_->available() > 0) {
+      // Output transfer buffer indicates backpressure, return so caller can handle other events;
+      // e.g., stop/pause, before trying again
       return AudioDecoderState::DECODING;
     }
 
-    // Decode more audio
-
-    // Never shift the input buffer; every decoder buffers internally and consumes only what it processed.
-    size_t bytes_read = this->input_buffer_->fill(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS), false);
-
-    if (!first_loop_iteration && (this->input_buffer_->available() < bytes_processed)) {
-      // Less data is available than what was processed in last iteration, so don't attempt to decode.
-      // This attempts to avoid the decoder from consistently trying to decode an incomplete frame. The transfer buffer
-      // will shift the remaining data to the start and copy more from the source the next time the decode function is
-      // called
-      break;
+    // Reaching here means no decoded output is pending (any would have returned above). Bounds long no-output
+    // stretches; e.g., skipping a large metadata block, so a source that keeps the ring buffer full can't spin this
+    // loop without yielding and trip the watchdog. The delay yields allowing other tasks to feed the watchdog and
+    // the return keeps stop/pause responsive.
+    if (++no_output_iterations >= MAX_NO_OUTPUT_ITERATIONS) {
+      delay(1);
+      return AudioDecoderState::DECODING;
     }
 
-    bytes_available_before_processing = this->input_buffer_->available();
+    // Expose the next chunk of file data. Every decoder buffers internally and consumes only what it
+    // processed, so the source does not need to accumulate or stitch chunks across fill() calls.
+    this->input_buffer_->fill(pdMS_TO_TICKS(READ_WRITE_TIMEOUT_MS), false);
 
-    if ((this->potentially_failed_count_ > 0) && (bytes_read == 0)) {
-      // Failed to decode in last attempt and there is no new data
+    const size_t available_before_decode = this->input_buffer_->available();
 
-      if ((this->input_buffer_->free() == 0) && first_loop_iteration) {
-        // The input buffer is full (or read-only, e.g. const flash source). Since it previously failed on the exact
-        // same data, we can never recover. For const sources this is correct: the entire file is already available, so
-        // a decode failure is genuine, not a transient out-of-data condition.
-        state = FileDecoderState::FAILED;
-      } else {
-        // Attempt to get more data next time
-        state = FileDecoderState::IDLE;
-      }
-    } else if (this->input_buffer_->available() == 0) {
+    if (available_before_decode == 0) {
       // No data to decode, attempt to get more data next time
       state = FileDecoderState::IDLE;
     } else {
@@ -231,9 +224,6 @@ AudioDecoderState AudioDecoder::decode(bool stop_gracefully) {
       }
     }
 
-    first_loop_iteration = false;
-    bytes_processed = bytes_available_before_processing - this->input_buffer_->available();
-
     if (state == FileDecoderState::POTENTIALLY_FAILED) {
       ++this->potentially_failed_count_;
     } else if (state == FileDecoderState::END_OF_FILE) {
@@ -241,7 +231,16 @@ AudioDecoderState AudioDecoder::decode(bool stop_gracefully) {
     } else if (state == FileDecoderState::FAILED) {
       return AudioDecoderState::FAILED;
     } else if (state == FileDecoderState::MORE_TO_PROCESS) {
-      this->potentially_failed_count_ = 0;
+      // Reset the failsafe only when the iteration made forward progress: input was consumed or output was
+      // produced (output_transfer_buffer_ is drained empty above, so any available bytes are new). A
+      // MORE_TO_PROCESS that neither consumes input nor produces output means the decoder is stalled; count it
+      // toward the failsafe so a stuck stream eventually surfaces as FAILED instead of looping forever.
+      if ((this->input_buffer_->available() < available_before_decode) ||
+          (this->output_transfer_buffer_->available() > 0)) {
+        this->potentially_failed_count_ = 0;
+      } else {
+        ++this->potentially_failed_count_;
+      }
     }
   }
   return AudioDecoderState::DECODING;

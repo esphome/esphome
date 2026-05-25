@@ -46,7 +46,7 @@ from esphome.const import (
     Toolchain,
     __version__,
 )
-from esphome.core import CORE, HexInt, Library
+from esphome.core import CORE, EsphomeError, HexInt, Library
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
 from esphome.espidf.component import generate_idf_component
@@ -2658,13 +2658,29 @@ def copy_files():
 
 
 def _decode_pc(config, addr):
-    from esphome.platformio import toolchain
+    # _decode_pc runs from the api log processor's asyncio callback, which
+    # only catches EsphomeError. Any other exception escaping here tears down
+    # the protocol and triggers an infinite reconnect/replay loop. Convert
+    # toolchain-resolution errors (e.g. missing build dir / cmake cache) into
+    # EsphomeError so the caller can disable decoding cleanly.
+    if CORE.using_toolchain_esp_idf:
+        from esphome.espidf import toolchain as idf_toolchain
 
-    idedata = toolchain.get_idedata(config)
-    if not idedata.addr2line_path or not idedata.firmware_elf_path:
+        try:
+            addr2line_path = idf_toolchain.get_addr2line_path()
+            firmware_elf_path = idf_toolchain.get_elf_path()
+        except RuntimeError as err:
+            raise EsphomeError(f"ESP-IDF toolchain not available: {err}") from err
+    else:
+        from esphome.platformio import toolchain
+
+        idedata = toolchain.get_idedata(config)
+        addr2line_path = idedata.addr2line_path
+        firmware_elf_path = idedata.firmware_elf_path
+    if not addr2line_path or not firmware_elf_path:
         _LOGGER.debug("decode_pc no addr2line")
         return
-    command = [idedata.addr2line_path, "-pfiaC", "-e", idedata.firmware_elf_path, addr]
+    command = [str(addr2line_path), "-pfiaC", "-e", str(firmware_elf_path), addr]
     try:
         translation = subprocess.check_output(command, close_fds=False).decode().strip()
     except Exception:  # pylint: disable=broad-except
