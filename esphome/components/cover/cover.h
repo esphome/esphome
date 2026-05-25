@@ -70,7 +70,7 @@ struct CoverRestoreState {
   void apply(Cover *cover);
 } __attribute__((packed));
 
-const LogString *cover_operation_to_str(actuator::ActuatorOperation op);
+const LogString *cover_operation_to_str(CoverOperation op);
 
 /** Base class for all cover devices.
  *
@@ -98,7 +98,7 @@ class Cover : public actuator::ActuatorBase, public actuator::IActuator {
   explicit Cover();
 
   /// The current tilt value of the cover from 0.0 to 1.0.
-  float tilt{actuator::ACTUATOR_OPEN};
+  float tilt{COVER_OPEN};
 
   /// Construct a new cover call used to control the cover.
   CoverCall make_call();

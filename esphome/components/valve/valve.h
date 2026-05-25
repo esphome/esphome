@@ -65,7 +65,7 @@ struct ValveRestoreState {
   void apply(Valve *valve);
 } __attribute__((packed));
 
-const LogString *valve_operation_to_str(actuator::ActuatorOperation op);
+const LogString *valve_operation_to_str(ValveOperation op);
 
 /** Base class for all valve devices.
  *

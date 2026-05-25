@@ -9,19 +9,17 @@ namespace esphome::valve {
 static const char *const TAG = "valve";
 
 const LogString *valve_command_to_str(float pos) {
-  if (pos == actuator::ACTUATOR_OPEN) {
+  if (pos == VALVE_OPEN) {
     return LOG_STR("OPEN");
-  } else if (pos == actuator::ACTUATOR_CLOSED) {
+  } else if (pos == VALVE_CLOSED) {
     return LOG_STR("CLOSE");
   } else {
     return LOG_STR("UNKNOWN");
   }
 }
-const LogString *valve_operation_to_str(actuator::ActuatorOperation op) {
-  return actuator::actuator_operation_to_str(op);
-}
+const LogString *valve_operation_to_str(ValveOperation op) { return actuator::actuator_operation_to_str(op); }
 
-Valve::Valve() { this->position = actuator::ACTUATOR_OPEN; }
+Valve::Valve() { this->position = VALVE_OPEN; }
 
 //
 // ValveCall
@@ -87,7 +85,7 @@ void ValveCall::validate() {
 
   if (this->position_.has_value()) {
     auto pos = *this->position_;
-    if (!traits.get_supports_position() && pos != actuator::ACTUATOR_OPEN && pos != actuator::ACTUATOR_CLOSED) {
+    if (!traits.get_supports_position() && pos != VALVE_OPEN && pos != VALVE_CLOSED) {
       ESP_LOGW(TAG, "'%s' - This valve device does not support setting position!", this->parent_->get_name().c_str());
       this->position_.reset();
     }
@@ -110,9 +108,9 @@ void Valve::publish_state(bool save) {
   if (traits.get_supports_position()) {
     ESP_LOGV(TAG, "  Position: %.0f%%", this->position * 100.0f);
   } else {
-    if (this->position == actuator::ACTUATOR_OPEN) {
+    if (this->position == VALVE_OPEN) {
       ESP_LOGV(TAG, "  State: OPEN");
-    } else if (this->position == actuator::ACTUATOR_CLOSED) {
+    } else if (this->position == VALVE_CLOSED) {
       ESP_LOGV(TAG, "  State: CLOSED");
     } else {
       ESP_LOGV(TAG, "  State: UNKNOWN");
@@ -133,8 +131,8 @@ void Valve::publish_state(bool save) {
   }
 }
 
-bool Valve::is_fully_open() const { return this->position == actuator::ACTUATOR_OPEN; }
-bool Valve::is_fully_closed() const { return this->position == actuator::ACTUATOR_CLOSED; }
+bool Valve::is_fully_open() const { return this->position == VALVE_OPEN; }
+bool Valve::is_fully_closed() const { return this->position == VALVE_CLOSED; }
 
 ValveCall ValveRestoreState::to_call(Valve *valve) {
   auto call = valve->make_call();

@@ -9,19 +9,17 @@ namespace esphome::cover {
 static const char *const TAG = "cover";
 
 const LogString *cover_command_to_str(float pos) {
-  if (pos == actuator::ACTUATOR_OPEN) {
+  if (pos == COVER_OPEN) {
     return LOG_STR("OPEN");
-  } else if (pos == actuator::ACTUATOR_CLOSED) {
+  } else if (pos == COVER_CLOSED) {
     return LOG_STR("CLOSE");
   } else {
     return LOG_STR("UNKNOWN");
   }
 }
-const LogString *cover_operation_to_str(actuator::ActuatorOperation op) {
-  return actuator::actuator_operation_to_str(op);
-}
+const LogString *cover_operation_to_str(CoverOperation op) { return actuator::actuator_operation_to_str(op); }
 
-Cover::Cover() { this->position = actuator::ACTUATOR_OPEN; }
+Cover::Cover() { this->position = COVER_OPEN; }
 
 //
 // CoverCall
@@ -95,7 +93,7 @@ void CoverCall::validate() {
 
   if (this->position_.has_value()) {
     auto pos = *this->position_;
-    if (!traits.get_supports_position() && pos != actuator::ACTUATOR_OPEN && pos != actuator::ACTUATOR_CLOSED) {
+    if (!traits.get_supports_position() && pos != COVER_OPEN && pos != COVER_CLOSED) {
       ESP_LOGW(TAG, "'%s': position unsupported", name);
       this->position_.reset();
     }
@@ -135,9 +133,9 @@ void Cover::publish_state(bool save) {
   if (traits.get_supports_position()) {
     ESP_LOGV(TAG, "  Position: %.0f%%", this->position * 100.0f);
   } else {
-    if (this->position == actuator::ACTUATOR_OPEN) {
+    if (this->position == COVER_OPEN) {
       ESP_LOGV(TAG, "  State: OPEN");
-    } else if (this->position == actuator::ACTUATOR_CLOSED) {
+    } else if (this->position == COVER_CLOSED) {
       ESP_LOGV(TAG, "  State: CLOSED");
     } else {
       ESP_LOGV(TAG, "  State: UNKNOWN");
@@ -164,8 +162,8 @@ void Cover::publish_state(bool save) {
   }
 }
 
-bool Cover::is_fully_open() const { return this->position == actuator::ACTUATOR_OPEN; }
-bool Cover::is_fully_closed() const { return this->position == actuator::ACTUATOR_CLOSED; }
+bool Cover::is_fully_open() const { return this->position == COVER_OPEN; }
+bool Cover::is_fully_closed() const { return this->position == COVER_CLOSED; }
 
 CoverCall CoverRestoreState::to_call(Cover *cover) {
   auto call = cover->make_call();
