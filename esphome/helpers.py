@@ -381,6 +381,9 @@ def rmtree(path: Path | str) -> None:
     causing shutil.rmtree to fail. This handles that by removing the
     read-only flag and retrying.
     """
+    path = Path(path)
+    if not path.exists() and not path.is_symlink():
+        return
 
     def _onerror(func, path, exc_info):
         if os.access(path, os.W_OK):
