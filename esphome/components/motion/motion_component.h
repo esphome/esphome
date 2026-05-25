@@ -29,6 +29,7 @@ class MotionComponent : public PollingComponent {
  public:
   // Lifecycle
   void update() override;
+  void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
 
   void set_matrix(const std::array<float, 9> &m) { memcpy(this->matrix_, m.data(), sizeof(this->matrix_)); }

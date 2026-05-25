@@ -7,12 +7,13 @@ namespace esphome::motion {
 static const char *const TAG = "motion";
 
 static void log_matrix(const float m[9]) {
-  ESP_LOGI(TAG, "Calibration matrix (use as transform_matrix config):");
-  ESP_LOGI(TAG, "  - [%9.6f, %9.6f, %9.6f]", m[0], m[1], m[2]);
-  ESP_LOGI(TAG, "  - [%9.6f, %9.6f, %9.6f]", m[3], m[4], m[5]);
-  ESP_LOGI(TAG, "  - [%9.6f, %9.6f, %9.6f]", m[6], m[7], m[8]);
+  ESP_LOGCONFIG(TAG, "  Calibration matrix:");
+  ESP_LOGCONFIG(TAG, "    - [%9.6f, %9.6f, %9.6f]", m[0], m[1], m[2]);
+  ESP_LOGCONFIG(TAG, "    - [%9.6f, %9.6f, %9.6f]", m[3], m[4], m[5]);
+  ESP_LOGCONFIG(TAG, "    - [%9.6f, %9.6f, %9.6f]", m[6], m[7], m[8]);
 }
 
+void MotionComponent::dump_config() { log_matrix(this->matrix_); }
 void MotionComponent::update() {
   if (this->is_failed())
     return;
@@ -36,9 +37,13 @@ bool MotionComponent::calibrate_level() {
     return false;
   }
 
-  float nx = raw.acceleration[X_AXIS];
-  float ny = raw.acceleration[Y_AXIS];
-  float nz = raw.acceleration[Z_AXIS];
+  // Apply the current matrix first so any existing axis mapping is preserved.
+  float mapped[3];
+  this->map_axes_(mapped, raw.acceleration);
+
+  float nx = mapped[X_AXIS];
+  float ny = mapped[Y_AXIS];
+  float nz = mapped[Z_AXIS];
   float mag = std::sqrt(nx * nx + ny * ny + nz * nz);
   if (mag < 0.1f) {
     ESP_LOGW(TAG, "calibrate_level: acceleration magnitude too small (%.3f)", mag);
@@ -51,30 +56,43 @@ bool MotionComponent::calibrate_level() {
   nz /= mag;
 
   // Compute rotation matrix R such that R * [nx, ny, nz] = [0, 0, 1]
-  // using Rodrigues' rotation formula.
+  // using Rodrigues' rotation formula, then compose with the existing matrix.
   if (nz > 0.9999f) {
-    // Already aligned with +Z — use identity
-    float m[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
-    memcpy(this->matrix_, m, sizeof(this->matrix_));
-  } else if (nz < -0.9999f) {
-    // Aligned with -Z — 180° rotation about X
-    float m[9] = {1, 0, 0, 0, -1, 0, 0, 0, -1};
-    memcpy(this->matrix_, m, sizeof(this->matrix_));
-  } else {
-    float f = 1.0f / (1.0f + nz);
-    this->matrix_[0] = 1.0f - nx * nx * f;
-    this->matrix_[1] = -nx * ny * f;
-    this->matrix_[2] = -nx;
-    this->matrix_[3] = -nx * ny * f;
-    this->matrix_[4] = 1.0f - ny * ny * f;
-    this->matrix_[5] = -ny;
-    this->matrix_[6] = nx;
-    this->matrix_[7] = ny;
-    this->matrix_[8] = nz;
+    // Already aligned with +Z — nothing to compose
+    ESP_LOGI(TAG, "Level calibration: already aligned");
+    log_matrix(this->matrix_);
+    return true;
   }
 
-  ESP_LOGI(TAG, "Level calibration applied (raw accel: [%.3f, %.3f, %.3f])", raw.acceleration[X_AXIS],
-           raw.acceleration[Y_AXIS], raw.acceleration[Z_AXIS]);
+  float r[9];
+  if (nz < -0.9999f) {
+    // Aligned with -Z — 180° rotation about X
+    float m[9] = {1, 0, 0, 0, -1, 0, 0, 0, -1};
+    memcpy(r, m, sizeof(r));
+  } else {
+    float f = 1.0f / (1.0f + nz);
+    r[0] = 1.0f - nx * nx * f;
+    r[1] = -nx * ny * f;
+    r[2] = -nx;
+    r[3] = -nx * ny * f;
+    r[4] = 1.0f - ny * ny * f;
+    r[5] = -ny;
+    r[6] = nx;
+    r[7] = ny;
+    r[8] = nz;
+  }
+
+  // Compose: new_matrix = R * old_matrix
+  float old[9];
+  memcpy(old, this->matrix_, sizeof(old));
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      this->matrix_[i * 3 + j] = r[i * 3 + 0] * old[j] + r[i * 3 + 1] * old[3 + j] + r[i * 3 + 2] * old[6 + j];
+    }
+  }
+
+  ESP_LOGI(TAG, "Level calibration applied (mapped accel: [%.3f, %.3f, %.3f])", mapped[X_AXIS], mapped[Y_AXIS],
+           mapped[Z_AXIS]);
   log_matrix(this->matrix_);
   return true;
 }
