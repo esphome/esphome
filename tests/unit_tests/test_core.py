@@ -591,20 +591,33 @@ class TestEsphomeCore:
         assert target.is_esp32 is False
         assert target.is_esp8266 is True
 
-    def test_firmware_bin__default(self, target):
+    def test_firmware_bin__default(self, target, tmp_path):
         """Default embedded PlatformIO builds use the stable shared env."""
         target.name = "test-device"
+        target.build_path = tmp_path / "build"
         target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp32"}
         assert target.firmware_bin == Path(
-            f"foo/build/.pioenvs/{const.PLATFORMIO_ENV_NAME}/firmware.bin"
+            f"{tmp_path}/build/.pioenvs/{const.PLATFORMIO_ENV_NAME}/firmware.bin"
         )
 
-    def test_firmware_bin__libretiny(self, target):
+    def test_firmware_bin__default_falls_back_to_legacy_env(self, target, tmp_path):
+        """Upload-only paths should still find pre-migration firmware."""
+        target.name = "test-device"
+        target.build_path = tmp_path / "build"
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp32"}
+        legacy_firmware = target.relative_pioenvs_path(target.name, "firmware.bin")
+        legacy_firmware.parent.mkdir(parents=True, exist_ok=True)
+        legacy_firmware.write_bytes(b"old")
+
+        assert target.firmware_bin == legacy_firmware
+
+    def test_firmware_bin__libretiny(self, target, tmp_path):
         """The libretiny platform produces firmware.uf2 in the stable env."""
         target.name = "test-device"
+        target.build_path = tmp_path / "build"
         target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "bk72xx"}
         assert target.firmware_bin == Path(
-            f"foo/build/.pioenvs/{const.PLATFORMIO_ENV_NAME}/firmware.uf2"
+            f"{tmp_path}/build/.pioenvs/{const.PLATFORMIO_ENV_NAME}/firmware.uf2"
         )
 
     def test_firmware_bin__host(self, target):
@@ -644,6 +657,26 @@ class TestEsphomeCore:
         }
 
         assert target.pioenv_name == "nrf52-sensor"
+
+    def test_relative_platformio_artifact_path_prefers_stable_env(
+        self, target, tmp_path
+    ):
+        """A current artifact should win over any legacy env leftover."""
+        target.name = "test-device"
+        target.build_path = tmp_path / "build"
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp32"}
+        legacy_firmware = target.relative_pioenvs_path(target.name, "firmware.bin")
+        current_firmware = target.relative_pioenvs_path(
+            const.PLATFORMIO_ENV_NAME, "firmware.bin"
+        )
+        legacy_firmware.parent.mkdir(parents=True, exist_ok=True)
+        current_firmware.parent.mkdir(parents=True, exist_ok=True)
+        legacy_firmware.write_bytes(b"old")
+        current_firmware.write_bytes(b"new")
+
+        assert (
+            target.relative_platformio_artifact_path("firmware.bin") == current_firmware
+        )
 
     @pytest.mark.skipif(os.name == "nt", reason="Unix-specific test")
     def test_data_dir_default_unix(self, target):
