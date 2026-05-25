@@ -3,14 +3,14 @@
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
-#include "actuator.h"
+#include "esphome/components/actuator/actuator.h"
 
-namespace esphome::actuator {
+namespace esphome::endstop {
 
 // Inheritance: EndstopActuatorBase -> Component (holds IActuator* pointer, no diamond)
 class EndstopActuatorBase : public Component {
  public:
-  void set_actuator(IActuator *actuator) { this->actuator_ = actuator; }
+  void set_actuator(actuator::IActuator *actuator) { this->actuator_ = actuator; }
   void setup() override;
   void loop() override;
 
@@ -24,15 +24,15 @@ class EndstopActuatorBase : public Component {
   void set_max_duration(uint32_t max_duration) { this->max_duration_ = max_duration; }
 
  protected:
-  void control(const ActuatorCallBase &call);
+  void control(const actuator::ActuatorCallBase &call);
   void stop_prev_trigger_();
   bool is_open_() const { return this->open_endstop_->state; }
   bool is_closed_() const { return this->close_endstop_->state; }
   bool is_at_target_() const;
-  void start_direction_(ActuatorOperation dir);
+  void start_direction_(actuator::ActuatorOperation dir);
   void recompute_position_();
 
-  IActuator *actuator_{nullptr};
+  actuator::IActuator *actuator_{nullptr};
   binary_sensor::BinarySensor *open_endstop_{nullptr};
   binary_sensor::BinarySensor *close_endstop_{nullptr};
   Trigger<> open_trigger_;
@@ -47,7 +47,7 @@ class EndstopActuatorBase : public Component {
   uint32_t start_dir_time_{0};
   uint32_t last_publish_time_{0};
   float target_position_{0};
-  ActuatorOperation last_operation_{ACTUATOR_OPERATION_OPENING};
+  actuator::ActuatorOperation last_operation_{actuator::ACTUATOR_OPERATION_OPENING};
 };
 
-}  // namespace esphome::actuator
+}  // namespace esphome::endstop

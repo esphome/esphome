@@ -2,8 +2,6 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
-#include "esphome/core/progmem.h"
-
 #include <strings.h>
 
 namespace esphome::valve {
@@ -19,12 +17,7 @@ const LogString *valve_command_to_str(float pos) {
     return LOG_STR("UNKNOWN");
   }
 }
-// Valve operation strings indexed by ValveOperation enum (0-2): IDLE, OPENING, CLOSING, plus UNKNOWN
-PROGMEM_STRING_TABLE(ValveOperationStrings, "IDLE", "OPENING", "CLOSING", "UNKNOWN");
-
-const LogString *valve_operation_to_str(ValveOperation op) {
-  return ValveOperationStrings::get_log_str(static_cast<uint8_t>(op), ValveOperationStrings::LAST_INDEX);
-}
+const LogString *valve_operation_to_str(ValveOperation op) { return actuator::actuator_operation_to_str(op); }
 
 Valve::Valve() { this->position = VALVE_OPEN; }
 
@@ -67,7 +60,7 @@ ValveCall &ValveCall::set_stop(bool stop) {
 void ValveCall::perform() {
   ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   auto traits = static_cast<Valve *>(this->parent_)->get_traits();
-  this->validate_();
+  this->ValveCall::validate();
   if (this->stop_) {
     ESP_LOGV(TAG, "  Command: STOP");
   }
@@ -81,13 +74,10 @@ void ValveCall::perform() {
   if (this->toggle_.has_value()) {
     ESP_LOGV(TAG, "  Command: TOGGLE");
   }
-  this->parent_->control(*this);
+  static_cast<Valve *>(this->parent_)->control(*this);
 }
 
-void ValveCall::validate_() {
-  // Call base class validation first (position range check, stop conflict)
-  actuator::ActuatorCallBase::validate_();
-
+void ValveCall::validate() {
   auto traits = static_cast<Valve *>(this->parent_)->get_traits();
 
   if (this->position_.has_value()) {
@@ -95,11 +85,21 @@ void ValveCall::validate_() {
     if (!traits.get_supports_position() && pos != VALVE_OPEN && pos != VALVE_CLOSED) {
       ESP_LOGW(TAG, "'%s' - This valve device does not support setting position!", this->parent_->get_name().c_str());
       this->position_.reset();
+    } else if (pos < 0.0f || pos > 1.0f) {
+      ESP_LOGW(TAG, "'%s': position %.2f out of range [0.0 - 1.0]", this->parent_->get_name().c_str(), pos);
+      this->position_ = clamp(pos, 0.0f, 1.0f);
     }
   }
   if (this->toggle_.has_value()) {
     if (!traits.get_supports_toggle()) {
       ESP_LOGW(TAG, "'%s' - This valve device does not support toggle!", this->parent_->get_name().c_str());
+      this->toggle_.reset();
+    }
+  }
+  if (this->stop_) {
+    if (this->position_.has_value() || this->toggle_.has_value()) {
+      ESP_LOGW(TAG, "'%s': cannot set position/toggle when stopping", this->parent_->get_name().c_str());
+      this->position_.reset();
       this->toggle_.reset();
     }
   }
@@ -136,14 +136,6 @@ void Valve::publish_state(bool save) {
     restore.position = this->position;
     this->rtc_.save(&restore);
   }
-}
-
-optional<ValveRestoreState> Valve::restore_state_() {
-  this->rtc_ = this->make_entity_preference<ValveRestoreState>();
-  ValveRestoreState recovered{};
-  if (!this->rtc_.load(&recovered))
-    return {};
-  return recovered;
 }
 
 bool Valve::is_fully_open() const { return this->position == VALVE_OPEN; }

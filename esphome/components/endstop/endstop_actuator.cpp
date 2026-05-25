@@ -3,19 +3,21 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/application.h"
 
-namespace esphome::actuator {
+namespace esphome::endstop {
 
-static const char *const TAG = "actuator.endstop";
+using namespace esphome::actuator;
+
+static const char *const TAG = "endstop";
 
 void EndstopActuatorBase::control(const ActuatorCallBase &call) {
   if (call.get_stop()) {
     this->start_direction_(ACTUATOR_OPERATION_IDLE);
-    this->actuator_->do_publish_state();
+    this->actuator_->do_publish_state(true);
   }
   if (call.get_toggle().has_value()) {
     if (this->actuator_->get_operation() != ACTUATOR_OPERATION_IDLE) {
       this->start_direction_(ACTUATOR_OPERATION_IDLE);
-      this->actuator_->do_publish_state();
+      this->actuator_->do_publish_state(true);
     } else {
       if (this->actuator_->get_position() == ACTUATOR_CLOSED || this->last_operation_ == ACTUATOR_OPERATION_CLOSING) {
         this->target_position_ = ACTUATOR_OPEN;
@@ -63,18 +65,18 @@ void EndstopActuatorBase::loop() {
 
     this->start_direction_(ACTUATOR_OPERATION_IDLE);
     this->actuator_->set_position(ACTUATOR_OPEN);
-    this->actuator_->do_publish_state();
+    this->actuator_->do_publish_state(true);
   } else if (this->actuator_->get_operation() == ACTUATOR_OPERATION_CLOSING && this->is_closed_()) {
     float dur = (now - this->start_dir_time_) / 1e3f;
     ESP_LOGD(TAG, "'%s' - Close endstop reached. Took %.1fs.", this->actuator_->get_entity_name(), dur);
 
     this->start_direction_(ACTUATOR_OPERATION_IDLE);
     this->actuator_->set_position(ACTUATOR_CLOSED);
-    this->actuator_->do_publish_state();
+    this->actuator_->do_publish_state(true);
   } else if (now - this->start_dir_time_ > this->max_duration_) {
     ESP_LOGD(TAG, "'%s' - Max duration reached. Stopping.", this->actuator_->get_entity_name());
     this->start_direction_(ACTUATOR_OPERATION_IDLE);
-    this->actuator_->do_publish_state();
+    this->actuator_->do_publish_state(true);
   }
 
   // Recompute position every loop cycle
@@ -82,7 +84,7 @@ void EndstopActuatorBase::loop() {
 
   if (this->actuator_->get_operation() != ACTUATOR_OPERATION_IDLE && this->is_at_target_()) {
     this->start_direction_(ACTUATOR_OPERATION_IDLE);
-    this->actuator_->do_publish_state();
+    this->actuator_->do_publish_state(true);
   }
 
   // Send current position every second
@@ -174,4 +176,4 @@ void EndstopActuatorBase::recompute_position_() {
   this->last_recompute_time_ = now;
 }
 
-}  // namespace esphome::actuator
+}  // namespace esphome::endstop

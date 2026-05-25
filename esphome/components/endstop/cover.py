@@ -1,15 +1,19 @@
 import esphome.codegen as cg
-from esphome.components import actuator as actuator_component, cover
+from esphome.components import cover
 import esphome.config_validation as cv
 
-endstop_ns = cg.esphome_ns.namespace("endstop")
-EndstopCover = endstop_ns.class_(
-    "EndstopCover", actuator_component.EndstopActuatorBase, cover.Cover
+from . import (
+    ENDSTOP_ACTUATOR_SCHEMA,
+    EndstopActuatorBase,
+    apply_endstop_actuator_config,
+    endstop_ns,
 )
+
+EndstopCover = endstop_ns.class_("EndstopCover", EndstopActuatorBase, cover.Cover)
 
 CONFIG_SCHEMA = (
     cover.cover_schema(EndstopCover)
-    .extend(actuator_component.ENDSTOP_ACTUATOR_SCHEMA)
+    .extend(ENDSTOP_ACTUATOR_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA)
 )
 
@@ -17,4 +21,4 @@ CONFIG_SCHEMA = (
 async def to_code(config):
     var = await cover.new_cover(config)
     await cg.register_component(var, config)
-    await actuator_component.apply_endstop_actuator_config(var, config)
+    await apply_endstop_actuator_config(var, config)

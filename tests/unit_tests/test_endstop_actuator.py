@@ -17,6 +17,7 @@ class TestEndstopActuatorImport:
 
     def test_endstop_actuator_importable(self):
         """The EndstopActuatorBase must be importable from esphome.components.actuator."""
+        # pylint: disable-next=unused-import
         from esphome.components.actuator import EndstopActuatorBase  # noqa: F401
 
     def test_endstop_actuator_class_exported(self):
