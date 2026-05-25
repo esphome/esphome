@@ -1,7 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import climate, uart
-from esphome.components.climate import ClimateSwingMode
+from esphome.components.climate import validate_climate_swing_mode
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -18,13 +18,6 @@ AUTO_LOAD = ["climate"]
 CODEOWNERS = ["@crnjan"]
 
 CONF_CURRENT_TEMPERATURE_MIN_INTERVAL = "current_temperature_min_interval"
-
-SUPPORTED_SWING_MODES_OPTIONS = {
-    "OFF": ClimateSwingMode.CLIMATE_SWING_OFF,
-    "VERTICAL": ClimateSwingMode.CLIMATE_SWING_VERTICAL,
-    "HORIZONTAL": ClimateSwingMode.CLIMATE_SWING_HORIZONTAL,
-    "BOTH": ClimateSwingMode.CLIMATE_SWING_BOTH,
-}
 
 mitsubishi_ns = cg.esphome_ns.namespace("mitsubishi_cn105")
 
@@ -56,9 +49,9 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_CURRENT_TEMPERATURE_MIN_INTERVAL, default="60s"
             ): cv.update_interval,
-            cv.Optional(CONF_SUPPORTED_SWING_MODES, default="VERTICAL"): cv.enum(
-                SUPPORTED_SWING_MODES_OPTIONS, upper=True
-            ),
+            cv.Optional(
+                CONF_SUPPORTED_SWING_MODES, default="OFF"
+            ): validate_climate_swing_mode,
         }
     )
 )
