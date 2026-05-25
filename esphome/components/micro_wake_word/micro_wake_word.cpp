@@ -217,10 +217,7 @@ void MicroWakeWord::inference_task(void *params) {
   FrontendFreeStateContents(&this_mww->frontend_state_);
 
   xEventGroupSetBits(this_mww->event_group_, EventGroupBits::TASK_STOPPED);
-  while (true) {
-    // Continuously delay until the main loop deletes the task
-    delay(10);
-  }
+  vTaskSuspend(nullptr);  // Suspend this task indefinitely until the loop method deletes it
 }
 
 std::vector<WakeWordModel *> MicroWakeWord::get_wake_words() {
@@ -243,14 +240,14 @@ void MicroWakeWord::add_vad_model(const uint8_t *model_start, uint8_t probabilit
 #endif
 
 void MicroWakeWord::suspend_task_() {
-  if (this->inference_task_handle_ != nullptr) {
-    vTaskSuspend(this->inference_task_handle_);
+  if (this->inference_task_.is_created()) {
+    vTaskSuspend(this->inference_task_.get_handle());
   }
 }
 
 void MicroWakeWord::resume_task_() {
-  if (this->inference_task_handle_ != nullptr) {
-    vTaskResume(this->inference_task_handle_);
+  if (this->inference_task_.is_created()) {
+    vTaskResume(this->inference_task_.get_handle());
   }
 }
 
@@ -292,8 +289,7 @@ void MicroWakeWord::loop() {
 
   if ((event_group_bits & EventGroupBits::TASK_STOPPED)) {
     ESP_LOGD(TAG, "Inference task is finished, freeing task resources");
-    vTaskDelete(this->inference_task_handle_);
-    this->inference_task_handle_ = nullptr;
+    this->inference_task_.deallocate();
     xEventGroupClearBits(this->event_group_, ALL_BITS);
     xQueueReset(this->detection_queue_);
     this->set_state_(State::STOPPED);
@@ -311,7 +307,7 @@ void MicroWakeWord::loop() {
 
   switch (this->state_) {
     case State::STARTING:
-      if ((this->inference_task_handle_ == nullptr) && !this->status_has_error()) {
+      if (!this->inference_task_.is_created() && !this->status_has_error()) {
         // Setup preprocesor feature generator. If done in the task, it would lock the task to its initial core, as it
         // uses floating point operations.
         if (!FrontendPopulateState(&this->frontend_config_, &this->frontend_state_,
@@ -320,10 +316,8 @@ void MicroWakeWord::loop() {
           return;
         }
 
-        xTaskCreate(MicroWakeWord::inference_task, "mww", INFERENCE_TASK_STACK_SIZE, (void *) this,
-                    INFERENCE_TASK_PRIORITY, &this->inference_task_handle_);
-
-        if (this->inference_task_handle_ == nullptr) {
+        if (!this->inference_task_.create(MicroWakeWord::inference_task, "mww", INFERENCE_TASK_STACK_SIZE,
+                                          (void *) this, INFERENCE_TASK_PRIORITY, this->task_stack_in_psram_)) {
           FrontendFreeStateContents(&this->frontend_state_);  // Deallocate frontend state
           this->status_momentary_error("task_start", 1000);
         }

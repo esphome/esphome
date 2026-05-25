@@ -610,11 +610,17 @@ def _check_library_data(data: dict):
     """
     Check if a library data is compatible with the ESP-IDF framework.
 
+    A platform mismatch (e.g. an AVR-only library on ESP32) raises
+    ``InvalidIDFComponent`` so the caller skips the library. A framework
+    mismatch only logs a warning — PIO manifests often understate the
+    frameworks they actually compile under, and IDF (unlike PIO's
+    ``lib_compat_mode``) has no opt-out, so we include the library anyway.
+
     Args:
-        component: IDFComponent object being processed
+        data: PIO library manifest dict being processed.
 
     Raises:
-        ValueError: If library has unsupported platforms or frameworks
+        InvalidIDFComponent: If the library does not support the ESP32 platform.
     """
     platforms = data.get("platforms", "*")
     if isinstance(platforms, str):
@@ -632,12 +638,21 @@ def _check_library_data(data: dict):
         frameworks = [a.strip() for a in frameworks.split(",")]
     frameworks = _ensure_list(frameworks)
 
-    # Check if library supports ESP-IDF framework
+    # Check if library declares the active framework. PIO library manifests
+    # often list only "arduino" even when the library actually compiles fine
+    # under ESP-IDF, and IDF (unlike PIO with `lib_compat_mode`) has no way to
+    # opt out of the check. Warn instead of failing so the user isn't forced to
+    # fork the library to fix the manifest.
     framework = "arduino" if CORE.using_arduino else "espidf"
     valid_framework = "*" in frameworks or framework in frameworks
 
     if not valid_framework:
-        raise InvalidIDFComponent(f"Unsupported library frameworks: {frameworks}")
+        _LOGGER.warning(
+            "Library %s declares frameworks %s that do not include '%s'; including anyway",
+            data.get("name", "<unknown>"),
+            frameworks,
+            framework,
+        )
 
 
 def _process_dependencies(component: IDFComponent):
