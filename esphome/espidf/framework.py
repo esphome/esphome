@@ -794,17 +794,8 @@ _GITHUB_HTTPS_RE = re.compile(
 
 
 def _parse_git_source(source_url: str) -> tuple[str, str | None] | None:
-    """Detect a GitHub framework source URL.
-
-    Returns ``(url, ref)`` if ``source_url`` is a recognized GitHub git
-    source, otherwise ``None`` (treat as plain archive URL).
-
-    Accepted forms (matches the string-shorthand subset of
-    ``external_components`` ``SOURCE_SCHEMA``):
-
-      - ``github://owner/repo[@ref]``                shorthand
-      - ``https://github.com/owner/repo.git[@ref]``  explicit URL
-    """
+    """Return ``(url, ref)`` for ``github://owner/repo[@ref]`` or
+    ``https://github.com/owner/repo.git[@ref]``, else ``None``."""
     if m := _GITHUB_SHORTHAND_RE.match(source_url):
         owner, repo, ref = m.group(1), m.group(2), m.group(3)
         return f"https://github.com/{owner}/{repo}.git", ref
@@ -816,17 +807,10 @@ def _parse_git_source(source_url: str) -> tuple[str, str | None] | None:
 def _clone_idf_with_submodules(
     framework_path: Path, git_url: str, ref: str | None
 ) -> None:
-    """Clone ESP-IDF from a git URL into ``framework_path`` with submodules.
+    """Shallow-clone ESP-IDF with submodules into ``framework_path``.
 
-    The plain ``archive/<ref>.zip`` URL from GitHub strips submodules, so
-    components that vendor upstream code via a submodule (``mbedtls``,
-    ``openthread``, ``esptool``, ``bootloader``, ...) come down empty and
-    the CMake configure dies. This path runs ``git clone
-    --recurse-submodules --shallow-submodules`` so the working tree is
-    actually buildable.
-
-    The clone is shallow (``--depth=1``) and submodules are shallow too;
-    ESP-IDF master is still ~2-3 GB after this.
+    GitHub's archive zip strips submodules, so vendored components
+    (mbedtls, openthread, esptool, ...) come down empty and CMake fails.
     """
     from esphome.git import run_git_command
 
@@ -1001,9 +985,6 @@ def _check_esphome_idf_framework_install(
 
         git_source = _parse_git_source(source_url) if source_url else None
         if git_source is not None:
-            # Plain archive URLs from GitHub strip submodules; pull via git
-            # with --recurse-submodules so components like mbedtls/openthread
-            # actually have their nested source.
             git_url, ref = git_source
             _clone_idf_with_submodules(framework_path, git_url, ref)
         else:
