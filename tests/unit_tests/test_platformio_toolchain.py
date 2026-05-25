@@ -429,6 +429,41 @@ def test_run_platformio_cli_run_builds_command(
     )
 
 
+def test_run_platformio_cli_run_reuses_existing_generated_env(
+    setup_core: Path, mock_run_platformio_cli: Mock
+) -> None:
+    """Upload-only PlatformIO runs should use the env from generated ini."""
+    CORE.build_path = setup_core / "build" / "test"
+    platformio_ini = CORE.relative_build_path("platformio.ini")
+    platformio_ini.parent.mkdir(parents=True)
+    platformio_ini.write_text(
+        """
+; ========== AUTO GENERATED CODE BEGIN ===========
+
+[env:test-device]
+platform = custom
+; =========== AUTO GENERATED CODE END ============
+""",
+        encoding="utf-8",
+    )
+    mock_run_platformio_cli.return_value = 0
+
+    config = {"name": "test"}
+    toolchain.run_platformio_cli_run(config, False, "-t", "upload", "-t", "nobuild")
+
+    mock_run_platformio_cli.assert_called_once_with(
+        "run",
+        "-d",
+        str(CORE.build_path),
+        "-e",
+        "test-device",
+        "-t",
+        "upload",
+        "-t",
+        "nobuild",
+    )
+
+
 def test_run_compile(setup_core: Path, mock_run_platformio_cli_run: Mock) -> None:
     """Test run_compile with process limit."""
     from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME

@@ -790,10 +790,17 @@ class EsphomeCore:
             return self.name
         return PLATFORMIO_ENV_NAME
 
-    def relative_platformio_artifact_path(self, filename: str) -> Path:
+    def relative_platformio_artifact_path(
+        self, filename: str, *, prefer_existing: bool = True
+    ) -> Path:
         path = self.relative_pioenvs_path(self.pioenv_name, filename)
         legacy_path = self.relative_pioenvs_path(self.name, filename)
-        if path != legacy_path and not path.exists() and legacy_path.exists():
+        if (
+            prefer_existing
+            and path != legacy_path
+            and not path.exists()
+            and legacy_path.exists()
+        ):
             return legacy_path
         return path
 
@@ -803,17 +810,26 @@ class EsphomeCore:
             return self.name
         return self.pioenv_name
 
-    @property
-    def firmware_bin(self) -> Path:
+    def firmware_bin_path(self, *, prefer_existing: bool = True) -> Path:
         # Check if using ESP-IDF toolchain
         if self.using_toolchain_esp_idf:
             return self.relative_build_path("build", f"{self.name}.bin")
         if self.is_libretiny:
-            return self.relative_platformio_artifact_path("firmware.uf2")
+            return self.relative_platformio_artifact_path(
+                "firmware.uf2", prefer_existing=prefer_existing
+            )
         if self.is_host:
             # Host builds produce a native ELF/Mach-O named `program`.
-            return self.relative_platformio_artifact_path("program")
-        return self.relative_platformio_artifact_path("firmware.bin")
+            return self.relative_platformio_artifact_path(
+                "program", prefer_existing=prefer_existing
+            )
+        return self.relative_platformio_artifact_path(
+            "firmware.bin", prefer_existing=prefer_existing
+        )
+
+    @property
+    def firmware_bin(self) -> Path:
+        return self.firmware_bin_path()
 
     @property
     def partition_table_bin(self) -> Path:
