@@ -111,9 +111,6 @@ CO5300 = DriverChip(
 # - Max 480x480. Some scanout offset may be invisible.
 # - Supports multiple bus modes. Only Quad used by current mipi_spi boards.
 # - Max Quad SPI write cycle 50MHz/20ns. Board pinouts may limit further.
-# - SLPOUT shall happen before further init. Will also read OTP.
-#   Waiting time needed afterwards, before sending next command.
-#   Longer waits may be needed e.g. before sending SLPIN, but latter unused.
 # - MADCTL only supports bits D3(RGB/BGR) + D6(MX): No HW transform
 # - HW reset pin only needed for leaving deep standby (=latter unused).
 # - Tearing (TEON/TESCAN): Leaving to default TEON 0. Needs TE interrupt
@@ -125,10 +122,7 @@ SH8601 = DriverChip(
     color_order=MODE_RGB,
     bus_mode=TYPE_QUAD,
     swap_xy=cv.UNDEFINED,  # disable HW transform
-    no_slpout=True,
     initsequence=(
-        (SLPOUT,),
-        delay(5),
         # Use this if dynamic dimming default 0x28 after reset
         # (=reducing burnin, but dynamic pumping possible) undesired:
         # (WRCTRLD, 0x20),  # Enable brightness ctrl[5], disable display dim[3]
