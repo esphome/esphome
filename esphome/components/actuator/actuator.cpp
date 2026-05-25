@@ -35,36 +35,6 @@ ActuatorCallBase &ActuatorCallBase::set_command(const char *command) {
   return *this;
 }
 
-ActuatorCallBase &ActuatorCallBase::set_command_open() {
-  this->position_ = ACTUATOR_OPEN;
-  return *this;
-}
-
-ActuatorCallBase &ActuatorCallBase::set_command_close() {
-  this->position_ = ACTUATOR_CLOSED;
-  return *this;
-}
-
-ActuatorCallBase &ActuatorCallBase::set_command_stop() {
-  this->stop_ = true;
-  return *this;
-}
-
-ActuatorCallBase &ActuatorCallBase::set_command_toggle() {
-  this->toggle_ = true;
-  return *this;
-}
-
-ActuatorCallBase &ActuatorCallBase::set_position(float position) {
-  this->position_ = position;
-  return *this;
-}
-
-ActuatorCallBase &ActuatorCallBase::set_stop(bool stop) {
-  this->stop_ = stop;
-  return *this;
-}
-
 void ActuatorCallBase::validate() {
   if (this->position_.has_value()) {
     auto pos = *this->position_;

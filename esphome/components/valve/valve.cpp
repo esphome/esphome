@@ -78,9 +78,6 @@ void ValveCall::perform() {
 }
 
 void ValveCall::validate() {
-  // Call base class validation first (position range check, stop conflict)
-  actuator::ActuatorCallBase::validate();
-
   auto traits = static_cast<Valve *>(this->parent_)->get_traits();
 
   if (this->position_.has_value()) {
@@ -88,11 +85,21 @@ void ValveCall::validate() {
     if (!traits.get_supports_position() && pos != VALVE_OPEN && pos != VALVE_CLOSED) {
       ESP_LOGW(TAG, "'%s' - This valve device does not support setting position!", this->parent_->get_name().c_str());
       this->position_.reset();
+    } else if (pos < 0.0f || pos > 1.0f) {
+      ESP_LOGW(TAG, "'%s': position %.2f out of range [0.0 - 1.0]", this->parent_->get_name().c_str(), pos);
+      this->position_ = clamp(pos, 0.0f, 1.0f);
     }
   }
   if (this->toggle_.has_value()) {
     if (!traits.get_supports_toggle()) {
       ESP_LOGW(TAG, "'%s' - This valve device does not support toggle!", this->parent_->get_name().c_str());
+      this->toggle_.reset();
+    }
+  }
+  if (this->stop_) {
+    if (this->position_.has_value() || this->toggle_.has_value()) {
+      ESP_LOGW(TAG, "'%s': cannot set position/toggle when stopping", this->parent_->get_name().c_str());
+      this->position_.reset();
       this->toggle_.reset();
     }
   }

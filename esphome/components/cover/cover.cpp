@@ -85,9 +85,6 @@ void CoverCall::perform() {
 }
 
 void CoverCall::validate() {
-  // Call base class validation first (position range check, stop conflict)
-  actuator::ActuatorCallBase::validate();
-
   auto traits = static_cast<Cover *>(this->parent_)->get_traits();
   const char *name = this->parent_->get_name().c_str();
 
@@ -96,6 +93,9 @@ void CoverCall::validate() {
     if (!traits.get_supports_position() && pos != COVER_OPEN && pos != COVER_CLOSED) {
       ESP_LOGW(TAG, "'%s': position unsupported", name);
       this->position_.reset();
+    } else if (pos < 0.0f || pos > 1.0f) {
+      ESP_LOGW(TAG, "'%s': position %.2f out of range [0.0 - 1.0]", name, pos);
+      this->position_ = clamp(pos, 0.0f, 1.0f);
     }
   }
   if (this->tilt_.has_value()) {
@@ -115,6 +115,11 @@ void CoverCall::validate() {
     }
   }
   if (this->stop_) {
+    if (this->position_.has_value() || this->toggle_.has_value()) {
+      ESP_LOGW(TAG, "'%s': cannot set position/toggle when stopping", name);
+      this->position_.reset();
+      this->toggle_.reset();
+    }
     if (this->tilt_.has_value()) {
       ESP_LOGW(TAG, "'%s': cannot tilt when stopping", name);
       this->tilt_.reset();

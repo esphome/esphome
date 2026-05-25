@@ -30,12 +30,30 @@ class ActuatorCallBase {
   explicit ActuatorCallBase(ActuatorBase *parent) : parent_(parent) {}
 
   ActuatorCallBase &set_command(const char *command);
-  ActuatorCallBase &set_command_open();
-  ActuatorCallBase &set_command_close();
-  ActuatorCallBase &set_command_stop();
-  ActuatorCallBase &set_command_toggle();
-  ActuatorCallBase &set_position(float position);
-  ActuatorCallBase &set_stop(bool stop);
+  ActuatorCallBase &set_command_open() {
+    this->position_ = ACTUATOR_OPEN;
+    return *this;
+  }
+  ActuatorCallBase &set_command_close() {
+    this->position_ = ACTUATOR_CLOSED;
+    return *this;
+  }
+  ActuatorCallBase &set_command_stop() {
+    this->stop_ = true;
+    return *this;
+  }
+  ActuatorCallBase &set_command_toggle() {
+    this->toggle_ = true;
+    return *this;
+  }
+  ActuatorCallBase &set_position(float position) {
+    this->position_ = position;
+    return *this;
+  }
+  ActuatorCallBase &set_stop(bool stop) {
+    this->stop_ = stop;
+    return *this;
+  }
 
   void perform();
 
