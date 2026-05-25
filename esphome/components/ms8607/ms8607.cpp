@@ -367,7 +367,7 @@ void MS8607Component::calculate_values_(uint32_t d2_raw_temperature, uint32_t d1
 
   // actual temperature as hundredths of degree celsius in range [-4000, 8500]
   // 2000 + d_t * [C6] / (2**23)
-  int32_t temperature =
+  const int32_t temperature =
       2000 + ((int64_t(d_t) * this->calibration_values_.temperature_coefficient_of_temperature) >> 23);
 
   // Perform the second order temperature compensation, for non-linearity over temperature range
@@ -379,8 +379,8 @@ void MS8607Component::calculate_values_(uint32_t d2_raw_temperature, uint32_t d1
     // T2 = 5 * (d_t**2) / 2**38
     temperature_2 = (5 * d_t_squared) >> 38;
   }
-  temperature -= temperature_2;
-  const float temperature_float = temperature / 100.0f;
+
+  const float temperature_float = (temperature - temperature_2) / 100.0f;
   ESP_LOGD(TAG, "Temperature=%0.2f°C", temperature_float);
 
   if (this->temperature_sensor_ != nullptr) {
