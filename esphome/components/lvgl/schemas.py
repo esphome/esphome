@@ -462,13 +462,23 @@ def base_update_schema(widget_type: WidgetType | LvType, parts):
     return schema
 
 
+# Widget types are module-level singletons populated at import time, so we
+# can cache compiled obj_schemas by widget_type identity for the lifetime of
+# the process. The strong reference in the value keeps the key (an id()
+# target) from being recycled.
+_OBJ_SCHEMA_CACHE: dict[int, tuple[WidgetType, cv.Schema]] = {}
+
+
 def obj_schema(widget_type: WidgetType):
     """
     Create a schema for a widget type itself i.e. no allowance for children
     :param widget_type:
     :return:
     """
-    return (
+    cached = _OBJ_SCHEMA_CACHE.get(id(widget_type))
+    if cached is not None and cached[0] is widget_type:
+        return cached[1]
+    schema = (
         part_schema(widget_type.parts)
         .extend(ALIGN_TO_SCHEMA)
         .extend(automation_schema(widget_type.w_type))
@@ -479,6 +489,8 @@ def obj_schema(widget_type: WidgetType):
             }
         )
     )
+    _OBJ_SCHEMA_CACHE[id(widget_type)] = (widget_type, schema)
+    return schema
 
 
 ALIGN_TO_SCHEMA = {
