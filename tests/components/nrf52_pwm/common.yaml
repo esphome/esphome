@@ -4,6 +4,18 @@ esphome:
       - output.set_level:
           id: basic_pwm
           level: 50%
+      - output.set_level:
+          id: basic_pwm
+          level: 100%
+      - output.set_level:
+          id: basic_pwm
+          level: 0%
+      - output.set_level:
+          id: shared_pwm_2
+          level: 50%
+      - output.set_level:
+          id: shared_pwm_1
+          level: 0%
       - output.nrf52_pwm.set_frequency:
           id: runtime_pwm
           frequency: 2kHz
@@ -13,6 +25,7 @@ esphome:
       - servo.write:
           id: pwm_servo
           level: 25%
+      - servo.detach: pwm_servo
 
 output:
   - platform: nrf52_pwm

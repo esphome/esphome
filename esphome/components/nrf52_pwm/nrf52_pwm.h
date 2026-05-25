@@ -27,7 +27,7 @@ class Nrf52PWMOutput : public output::FloatOutput, public Component {
 
  protected:
   void write_state(float state) override;
-  bool write_pwm_(float state);
+  bool write_pwm_();
   uint32_t period_ns_() const;
 
   InternalGPIOPin *pin_{nullptr};
