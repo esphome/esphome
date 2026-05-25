@@ -162,12 +162,14 @@ def main() -> int:
             else:
                 self._filter_pattern = None
             self._line_buffer = ""
-            # IDF 6.1+ writes raw bytes to ``stream.buffer`` if present,
-            # bypassing our text-level filter. Mask it so IDF falls back
-            # to ``stream.write()``.
-            self.buffer = None
 
         def __getattr__(self, name: str):
+            # Hide ``buffer`` so consumers that use either
+            # ``getattr(stream, 'buffer', None)`` or
+            # ``hasattr(stream, 'buffer')`` see this as a text-only stream
+            # and skip writing raw bytes (which would bypass the filter).
+            if name == "buffer":
+                raise AttributeError(name)
             return getattr(self._stream, name)
 
         def isatty(self) -> bool:
