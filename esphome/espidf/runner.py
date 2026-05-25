@@ -162,13 +162,9 @@ def main() -> int:
             else:
                 self._filter_pattern = None
             self._line_buffer = ""
-            # Force IDF 6.1+ RunTool.write_stdout_bytes (in
-            # tools/idf_py_actions/tools.py) to take the text
-            # ``output_stream.write(...)`` path instead of writing raw bytes
-            # directly to ``output_stream.buffer.write(...)``. The buffer
-            # path bypasses our text-level filter entirely, so cmake output
-            # like ``-- Components: ...`` and ``-- Component paths: ...``
-            # would otherwise reach the terminal unfiltered on IDF 6.1.
+            # IDF 6.1+ writes raw bytes to ``stream.buffer`` if present,
+            # bypassing our text-level filter. Mask it so IDF falls back
+            # to ``stream.write()``.
             self.buffer = None
 
         def __getattr__(self, name: str):
