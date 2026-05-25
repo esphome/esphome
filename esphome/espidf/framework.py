@@ -40,7 +40,7 @@ def _str_to_lst_of_str(a: str | list[str]) -> list[str]:
     """
     if isinstance(a, list):
         return a
-    return list(f.strip() for f in a.split(";") if f.strip())
+    return [f.strip() for f in a.split(";") if f.strip()]
 
 
 ESPHOME_STAMP_FILE = ".esphome.stamp.json"

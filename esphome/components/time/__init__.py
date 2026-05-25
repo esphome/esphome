@@ -204,7 +204,7 @@ def cron_expression_validator(name, min_value, max_value, special_mapping=None):
                     raise cv.Invalid(
                         f"{name} {v} is out of range (min={min_value} max={max_value})."
                     )
-            return list(sorted(value))
+            return sorted(value)
         value = cv.string(value)
         values = set()
         for part in value.split(","):

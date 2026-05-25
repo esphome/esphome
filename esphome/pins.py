@@ -313,9 +313,7 @@ def gpio_base_schema(
     :return: A schema for the pin
     """
     mode_default = len(modes) == 1
-    mode_dict = dict(
-        map(lambda m: (cv.Optional(m, default=mode_default), cv.boolean), modes)
-    )
+    mode_dict = {cv.Optional(m, default=mode_default): cv.boolean for m in modes}
 
     def _number_validator(value):
         if isinstance(value, str) and value.upper().startswith("GPIOX"):
