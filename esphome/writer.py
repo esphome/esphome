@@ -488,6 +488,12 @@ def clean_cmake_cache():
 
 
 def clean_build(clear_pio_cache: bool = True):
+    """Clean per-project build artifacts.
+
+    ``clear_pio_cache=False`` still allows a project rebuild while preserving
+    shared caches such as ``<data_dir>/pio_components`` and PlatformIO's global
+    package cache.
+    """
     # Allow skipping cache cleaning for integration tests
     if os.environ.get("ESPHOME_SKIP_CLEAN_BUILD"):
         _LOGGER.warning("Skipping build cleaning (ESPHOME_SKIP_CLEAN_BUILD set)")

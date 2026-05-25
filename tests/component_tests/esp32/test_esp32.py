@@ -5,6 +5,7 @@ Test ESP32 configuration
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -16,6 +17,8 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_IGNORE_PIN_VALIDATION_ERROR,
     CONF_NUMBER,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     PlatformFramework,
     Toolchain,
 )
@@ -271,3 +274,40 @@ def test_native_idf_enables_reproducible_build(
 
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_APP_REPRODUCIBLE_BUILD") is True
+
+
+def test_platformio_sdkconfig_change_cleans_build(tmp_path: Path) -> None:
+    """The PlatformIO path still cleans build artifacts on sdkconfig changes."""
+    from esphome.components import esp32
+
+    CORE.config_path = tmp_path / "test.yaml"
+    CORE.build_path = tmp_path / "build" / "test"
+    CORE.name = "test"
+    CORE.toolchain = Toolchain.PLATFORMIO
+    CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: cv.Version(5, 5, 4)}
+    CORE.data[KEY_ESP32] = {KEY_SDKCONFIG_OPTIONS: {"CONFIG_FREERTOS_HZ": 1000}}
+
+    with patch("esphome.components.esp32.clean_build") as mock_clean:
+        esp32._write_sdkconfig()
+
+    mock_clean.assert_called_once_with(clear_pio_cache=False)
+
+
+def test_native_idf_sdkconfig_change_cleans_project_build(tmp_path: Path) -> None:
+    """Native ESP-IDF keeps the same project-clean behavior as PlatformIO."""
+    from esphome.components import esp32
+
+    CORE.config_path = tmp_path / "test.yaml"
+    CORE.build_path = tmp_path / "build" / "test"
+    CORE.name = "test"
+    CORE.toolchain = Toolchain.ESP_IDF
+    CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: cv.Version(5, 5, 4)}
+    CORE.data[KEY_ESP32] = {KEY_SDKCONFIG_OPTIONS: {"CONFIG_FREERTOS_HZ": 1000}}
+
+    with patch("esphome.components.esp32.clean_build") as mock_clean:
+        esp32._write_sdkconfig()
+
+    mock_clean.assert_called_once_with(clear_pio_cache=False)
+    assert CORE.relative_build_path("sdkconfig.test").read_text() == (
+        "# ESPHOME_IDF_VERSION=5.5.4\nCONFIG_FREERTOS_HZ=1000\n"
+    )

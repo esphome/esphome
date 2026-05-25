@@ -507,6 +507,54 @@ def test_clean_build(
 
 
 @patch("esphome.writer.CORE")
+def test_clean_build_preserves_shared_caches_when_pio_cache_disabled(
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """clear_pio_cache=False cleans the project but keeps shared caches."""
+    pioenvs_dir = tmp_path / "project" / ".pioenvs"
+    pioenvs_dir.mkdir(parents=True)
+    (pioenvs_dir / "firmware.o").write_text("object")
+
+    piolibdeps_dir = tmp_path / "project" / ".piolibdeps"
+    piolibdeps_dir.mkdir(parents=True)
+    (piolibdeps_dir / "library").mkdir()
+
+    dependencies_lock = tmp_path / "project" / "dependencies.lock"
+    dependencies_lock.write_text("lock")
+
+    idf_build_dir = tmp_path / "project" / "build"
+    idf_build_dir.mkdir(parents=True)
+    (idf_build_dir / "CMakeCache.txt").write_text("cache")
+
+    managed_components_dir = tmp_path / "project" / "managed_components"
+    managed_components_dir.mkdir(parents=True)
+    (managed_components_dir / "espressif__mdns").mkdir()
+
+    shared_pio_components = tmp_path / ".esphome" / "pio_components"
+    shared_pio_components.mkdir(parents=True)
+    (shared_pio_components / "converted-lib").mkdir()
+
+    platformio_cache_dir = tmp_path / ".platformio" / ".cache"
+    platformio_cache_dir.mkdir(parents=True)
+    (platformio_cache_dir / "package.tar.gz").write_text("package")
+
+    mock_core.relative_pioenvs_path.return_value = pioenvs_dir
+    mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
+    mock_core.relative_build_path.side_effect = lambda name: tmp_path / "project" / name
+
+    clean_build(clear_pio_cache=False)
+
+    assert not pioenvs_dir.exists()
+    assert not piolibdeps_dir.exists()
+    assert not dependencies_lock.exists()
+    assert not idf_build_dir.exists()
+    assert not managed_components_dir.exists()
+    assert shared_pio_components.exists()
+    assert platformio_cache_dir.exists()
+
+
+@patch("esphome.writer.CORE")
 def test_clean_build_partial_exists(
     mock_core: MagicMock,
     tmp_path: Path,
