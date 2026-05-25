@@ -38,7 +38,7 @@ from esphome.const import (
     PLATFORM_RP2040,
     PLATFORM_RTL87XX,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -116,16 +116,16 @@ def detect_tz() -> str | None:
         return cached
     iana_key = tzlocal.get_localzone_name()
     if iana_key is None:
-        raise cv.Invalid(
+        raise EsphomeError(
             "Could not automatically determine timezone, please set timezone manually."
         )
-    _LOGGER.info("Detected timezone '%s'", iana_key)
     tzfile = _load_tzdata(iana_key)
     if tzfile is None:
-        raise cv.Invalid(
+        raise EsphomeError(
             "Could not automatically determine timezone, please set timezone manually."
         )
     ret = _extract_tz_string(tzfile)
+    _LOGGER.info("Detected timezone '%s'", iana_key)
     _LOGGER.debug(" -> TZ string %s", ret)
     CORE.data.setdefault(DOMAIN, {})[CONF_TIMEZONE] = ret
     return ret
@@ -409,8 +409,11 @@ async def setup_time_core_(time_var, config):
             cg.add(time_var.set_timezone(timezone))
         else:
             # Embedded: pre-parse at codegen time, emit struct directly
-            parsed = parse_posix_tz_python(timezone)
-            _emit_parsed_timezone_fields(parsed)
+            try:
+                parsed = parse_posix_tz_python(timezone)
+                _emit_parsed_timezone_fields(parsed)
+            except ValueError as e:
+                raise EsphomeError(f"Invalid timezone: {timezone}") from e
 
     for conf in config.get(CONF_ON_TIME, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
