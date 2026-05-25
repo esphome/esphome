@@ -136,3 +136,23 @@ def test_spread_sources_carry_no_extra_schemas(schema: cv.Schema) -> None:
     assert not schema._extra_schemas
     assert schema.extra is vol.PREVENT_EXTRA
     assert schema.required is False
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [STATE_SCHEMA, FLAG_SCHEMA, STYLE_SCHEMA, FULL_STYLE_SCHEMA],
+)
+def test_spread_sources_have_no_top_level_marker_defaults(schema: cv.Schema) -> None:
+    # _theme_schema merges obj_dict(w) with FULL_STYLE_SCHEMA.schema; on a key
+    # collision, dict-spread keeps the first source's marker (and its default)
+    # but the last source's value, whereas .extend() would take both from the
+    # later source. The two are equivalent today because the overlapping
+    # markers are the same instances (both derive from STYLE_SCHEMA) and none
+    # carry a top-level default. Lock that so a future divergent default would
+    # fail CI rather than silently drift the merged validation.
+    offenders = [
+        marker.schema
+        for marker in schema.schema
+        if isinstance(marker, vol.Optional) and marker.default is not vol.UNDEFINED
+    ]
+    assert not offenders, f"top-level Optional with default: {offenders}"
