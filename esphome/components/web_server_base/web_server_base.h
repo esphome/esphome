@@ -68,13 +68,13 @@ class AuthMiddlewareHandler : public MiddlewareHandler {
     if (credentials_->username_is_template && credentials_->username_template) {
       current_username = credentials_->username_template();
     }
-    
+
     // Get the current password (either static or from template)
     std::string current_password = credentials_->password;
     if (credentials_->password_is_template && credentials_->password_template) {
       current_password = credentials_->password_template();
     }
-    
+
     bool success = request->authenticate(current_username.c_str(), current_password.c_str());
     if (!success) {
       request->requestAuthentication();
@@ -135,7 +135,7 @@ class WebServerBase {
   AsyncWebServer *get_server() const { return this->server_; }
 
 #ifdef USE_WEBSERVER_AUTH
-  void set_auth_username(std::string auth_username) { 
+  void set_auth_username(std::string auth_username) {
     credentials_.username = std::move(auth_username);
     credentials_.username_is_template = false;
   }
@@ -143,7 +143,7 @@ class WebServerBase {
     credentials_.username_template = username_template;
     credentials_.username_is_template = true;
   }
-  void set_auth_password(std::string auth_password) { 
+  void set_auth_password(std::string auth_password) {
     credentials_.password = std::move(auth_password);
     credentials_.password_is_template = false;
   }

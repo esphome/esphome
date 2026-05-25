@@ -327,7 +327,7 @@ async def to_code(config):
             cg.add(paren.set_auth_username_template(username_config))
         else:
             cg.add(paren.set_auth_username(username_config))
-        
+
         password_config = config[CONF_AUTH][CONF_PASSWORD]
         # Handle both static and templatable password
         if isinstance(password_config, cg.TemplateArguments):

@@ -1,13 +1,10 @@
 """Tests for templatable password in web_server component."""
+
 import pytest
+
 from esphome.components.web_server import CONFIG_SCHEMA
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_AUTH,
-    CONF_PASSWORD,
-    CONF_USERNAME,
-    CONF_PORT,
-)
+from esphome.const import CONF_AUTH, CONF_PASSWORD, CONF_PORT, CONF_USERNAME
 
 
 def test_web_server_password_static():
