@@ -113,6 +113,16 @@ inline uint64_t qword_from_hex_str(const std::string &value, uint8_t pos) {
  * @return value of type T extracted from buffer
  */
 template<typename T> T get_data(const std::vector<uint8_t> &data, size_t buffer_offset) {
+  // Defensive bounds check the controller layer should reject mismatched
+  // responses before they reach here, but this prevents undefined behavior
+  // if that check is bypassed.
+  if (buffer_offset + sizeof(T) > data.size()) {
+    ESP_LOGW("modbus_helpers",
+             "get_data: offset %zu + size %zu exceeds data length %zu - returning 0",
+             buffer_offset, sizeof(T), data.size());
+    return T(0);
+  }
+
   if (sizeof(T) == sizeof(uint8_t)) {
     return T(data[buffer_offset]);
   }
