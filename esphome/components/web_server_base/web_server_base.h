@@ -50,9 +50,11 @@ class MiddlewareHandler : public AsyncWebHandler {
 struct Credentials {
   std::string username;
   std::string password;
-  // Function pointer for templatable password
+  // Function pointers for templatable credentials
+  std::function<std::string()> username_template;
   std::function<std::string()> password_template;
-  bool has_template{false};
+  bool username_is_template{false};
+  bool password_is_template{false};
 };
 
 class AuthMiddlewareHandler : public MiddlewareHandler {
@@ -61,13 +63,19 @@ class AuthMiddlewareHandler : public MiddlewareHandler {
       : MiddlewareHandler(next), credentials_(credentials) {}
 
   bool check_auth(AsyncWebServerRequest *request) {
+    // Get the current username (either static or from template)
+    std::string current_username = credentials_->username;
+    if (credentials_->username_is_template && credentials_->username_template) {
+      current_username = credentials_->username_template();
+    }
+    
     // Get the current password (either static or from template)
     std::string current_password = credentials_->password;
-    if (credentials_->has_template && credentials_->password_template) {
+    if (credentials_->password_is_template && credentials_->password_template) {
       current_password = credentials_->password_template();
     }
     
-    bool success = request->authenticate(credentials_->username.c_str(), current_password.c_str());
+    bool success = request->authenticate(current_username.c_str(), current_password.c_str());
     if (!success) {
       request->requestAuthentication();
     }
@@ -127,14 +135,21 @@ class WebServerBase {
   AsyncWebServer *get_server() const { return this->server_; }
 
 #ifdef USE_WEBSERVER_AUTH
-  void set_auth_username(std::string auth_username) { credentials_.username = std::move(auth_username); }
+  void set_auth_username(std::string auth_username) { 
+    credentials_.username = std::move(auth_username);
+    credentials_.username_is_template = false;
+  }
+  void set_auth_username_template(std::function<std::string()> username_template) {
+    credentials_.username_template = username_template;
+    credentials_.username_is_template = true;
+  }
   void set_auth_password(std::string auth_password) { 
     credentials_.password = std::move(auth_password);
-    credentials_.has_template = false;
+    credentials_.password_is_template = false;
   }
   void set_auth_password_template(std::function<std::string()> password_template) {
     credentials_.password_template = password_template;
-    credentials_.has_template = true;
+    credentials_.password_is_template = true;
   }
 #endif
 
