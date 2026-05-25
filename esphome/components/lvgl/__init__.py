@@ -520,12 +520,16 @@ def add_hello_world(config):
 
 
 @functools.cache
-def _build_theme_schema() -> cv.Schema:
-    # The theme schema is independent of the value being validated; it depends
-    # only on the module-level WIDGET_TYPES singleton, which is finalised at
-    # import time. Build it once on first use (after widget registration has
-    # completed) and reuse the compiled schema for every validation. See
-    # obj_dict() in schemas.py for why chained .extend() is avoided here.
+def _build_theme_schema(
+    widget_types: tuple[tuple[str, widgets.WidgetType], ...],
+) -> cv.Schema:
+    # The theme schema is value-independent: it depends only on the set of
+    # registered widget types. Key the cache on a snapshot of WIDGET_TYPES so
+    # that an external component registering a new widget after the first
+    # validation (legal per any_widget_schema's lazy-evaluation contract)
+    # produces a fresh tuple, a cache miss, and a rebuilt schema -- the cache
+    # self-heals instead of stale-rejecting valid themes. See obj_dict() in
+    # schemas.py for why chained .extend() is avoided here.
     return cv.Schema(
         {
             cv.Optional(df.CONF_DARK_MODE, default=False): cv.boolean,
@@ -533,14 +537,14 @@ def _build_theme_schema() -> cv.Schema:
                 cv.Optional(name): cv.Schema(
                     {**obj_dict(w), **FULL_STYLE_SCHEMA.schema}
                 )
-                for name, w in WIDGET_TYPES.items()
+                for name, w in widget_types
             },
         }
     )
 
 
 def _theme_schema(value: dict) -> dict:
-    return _build_theme_schema()(value)
+    return _build_theme_schema(tuple(WIDGET_TYPES.items()))(value)
 
 
 FINAL_VALIDATE_SCHEMA = final_validation

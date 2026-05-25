@@ -193,6 +193,29 @@ def test_theme_schema_merges_obj_dict_and_full_style_props() -> None:
     assert obj_out[df.CONF_GRID_CELL_X_ALIGN] == "LV_GRID_ALIGN_CENTER"
 
 
+def test_theme_schema_self_heals_when_a_widget_type_is_registered_later() -> None:
+    # _build_theme_schema is functools.cached on a snapshot of WIDGET_TYPES.
+    # any_widget_schema explicitly supports external components registering
+    # widgets lazily, and the device builder revalidates in-process, so a
+    # widget registered after first use must invalidate the cached snapshot.
+    from esphome.components.lvgl import _theme_schema
+    from esphome.components.lvgl.types import LvType
+    from esphome.components.lvgl.widgets import WidgetType
+
+    _theme_schema({df.CONF_DARK_MODE: True})  # populate the cache
+
+    name = "test_self_heal_widget"
+    assert name not in WIDGET_TYPES
+    # is_mock=True skips registration side-effects; insert into WIDGET_TYPES
+    # manually so the next theme call sees the new entry.
+    WIDGET_TYPES[name] = WidgetType(name, LvType("test_fake_t"), (), is_mock=True)
+    try:
+        out = _theme_schema({df.CONF_DARK_MODE: False, name: {"bg_color": 0x010203}})
+        assert out[name]["bg_color"] == 0x010203
+    finally:
+        WIDGET_TYPES.pop(name, None)
+
+
 @pytest.mark.parametrize(
     "schema",
     [STATE_SCHEMA, FLAG_SCHEMA, STYLE_SCHEMA, FULL_STYLE_SCHEMA],

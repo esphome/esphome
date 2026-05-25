@@ -483,8 +483,12 @@ def base_update_schema(widget_type: WidgetType | LvType, parts):
 # Memoize obj_dict() the same way _OBJ_SCHEMA_CACHE memoizes obj_schema().
 # automation_schema(w.w_type) builds fresh Trigger.template(...) objects on
 # every call, so without this cache _theme_schema pays that cost per widget
-# per validation. Callers must treat the returned dict as immutable (current
-# callers spread it into a new dict, which is safe).
+# per validation. Callers must treat the returned dict as immutable. The
+# _theme_schema caller spreads it into a fresh dict, which is safe; the
+# obj_schema caller passes it directly to cv.Schema(...) -- voluptuous stores
+# the mapping by reference but never mutates it (.extend() copies first), so
+# the alias is also safe today. Adding in-place mutation of obj_schema(w).schema
+# would corrupt this cache.
 _OBJ_DICT_CACHE: dict[int, tuple[WidgetType, dict[Any, Any]]] = {}
 
 
