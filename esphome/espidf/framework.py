@@ -798,6 +798,9 @@ def _parse_git_source(source_url: str) -> tuple[str, str | None] | None:
     ``https://github.com/owner/repo.git[@ref]``, else ``None``."""
     if m := _GITHUB_SHORTHAND_RE.match(source_url):
         owner, repo, ref = m.group(1), m.group(2), m.group(3)
+        # Tolerate a trailing ".git" on the shorthand repo so the
+        # github://owner/repo.git form doesn't silently become repo.git.git.
+        repo = repo.removesuffix(".git")
         return f"https://github.com/{owner}/{repo}.git", ref
     if m := _GITHUB_HTTPS_RE.match(source_url):
         return m.group(1), m.group(2)
@@ -811,21 +814,46 @@ def _clone_idf_with_submodules(
 
     GitHub's archive zip strips submodules, so vendored components
     (mbedtls, openthread, esptool, ...) come down empty and CMake fails.
+
+    Uses clone + ``fetch FETCH_HEAD`` + ``reset --hard`` instead of
+    ``--branch``: ``--branch`` only accepts branch or tag names, but a
+    user can also point at a commit SHA. The fetch-then-reset pattern
+    handles branches, tags, and SHAs uniformly (mirrors the approach in
+    ``esphome.git.clone_or_update``).
     """
     from esphome.git import run_git_command
 
-    cmd = [
-        "git",
-        "clone",
-        "--depth=1",
-        "--recurse-submodules",
-        "--shallow-submodules",
-    ]
-    if ref:
-        cmd += ["--branch", ref]
-    cmd += ["--", git_url, str(framework_path)]
     _LOGGER.info("Cloning ESP-IDF from %s%s", git_url, f"@{ref}" if ref else "")
-    run_git_command(cmd)
+    run_git_command(["git", "clone", "--depth=1", "--", git_url, str(framework_path)])
+    if ref:
+        run_git_command(
+            ["git", "fetch", "--depth=1", "--", "origin", ref],
+            git_dir=framework_path,
+        )
+        run_git_command(
+            ["git", "reset", "--hard", "FETCH_HEAD"],
+            git_dir=framework_path,
+        )
+    run_git_command(
+        [
+            "git",
+            "submodule",
+            "update",
+            "--init",
+            "--recursive",
+            "--depth=1",
+        ],
+        git_dir=framework_path,
+    )
+
+    # Sanity-check the resulting tree. run_git_command only raises when
+    # stderr is non-empty, so a clone that silently produces no working
+    # tree would otherwise be marked extracted and stuck until
+    # ``esphome clean``.
+    if not (framework_path / "tools" / "idf_tools.py").is_file():
+        raise RuntimeError(
+            f"Clone of {git_url} produced no usable ESP-IDF tree at {framework_path}"
+        )
 
 
 def _write_idf_version_txt(framework_path: Path, version: str) -> None:
