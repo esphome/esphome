@@ -366,6 +366,7 @@ esphome/components/nfc/* @jesserockz @kbx81
 esphome/components/noblex/* @AGalfra
 esphome/components/npi19/* @bakerkj
 esphome/components/nrf52/* @tomaszduda23
+esphome/components/nrf52_pwm/* @spsancti
 esphome/components/number/* @esphome/core
 esphome/components/one_wire/* @ssieb
 esphome/components/online_image/* @clydebarrow @guillempages
