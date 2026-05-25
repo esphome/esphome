@@ -138,6 +138,33 @@ def test_spread_sources_carry_no_extra_schemas(schema: cv.Schema) -> None:
     assert schema.required is False
 
 
+def test_theme_schema_merges_obj_dict_and_full_style_props() -> None:
+    # _theme_schema is the riskiest merge: obj_dict(w) and FULL_STYLE_SCHEMA.schema
+    # share many STYLE_SCHEMA marker instances. Exercise the merged schema
+    # end-to-end with one key from each side (a STATE_SCHEMA part from obj_dict
+    # and a FULL_STYLE-only property) to lock the behaviour against future
+    # regressions in either source.
+    from esphome.components.lvgl import _theme_schema
+
+    out = _theme_schema(
+        {
+            df.CONF_DARK_MODE: True,
+            "obj": {
+                "bg_color": 0x112233,
+                "checked": {"bg_color": 0x445566},
+                df.CONF_PAD_ROW: 4,
+                df.CONF_GRID_CELL_X_ALIGN: "CENTER",
+            },
+        }
+    )
+    assert out[df.CONF_DARK_MODE] is True
+    obj_out = out["obj"]
+    assert obj_out["bg_color"] == 0x112233
+    assert obj_out["checked"]["bg_color"] == 0x445566
+    assert obj_out[df.CONF_PAD_ROW] == 4
+    assert obj_out[df.CONF_GRID_CELL_X_ALIGN] == "LV_GRID_ALIGN_CENTER"
+
+
 @pytest.mark.parametrize(
     "schema",
     [STATE_SCHEMA, FLAG_SCHEMA, STYLE_SCHEMA, FULL_STYLE_SCHEMA],
