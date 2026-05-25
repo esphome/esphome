@@ -4,21 +4,14 @@ This module defines the shared base classes for actuator-type devices
 (Cover, Valve). It provides no YAML configuration on its own.
 """
 
-from esphome import automation
-import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ASSUMED_STATE,
-    CONF_CLOSE_ACTION,
-    CONF_CLOSE_DURATION,
-    CONF_OPEN_ACTION,
-    CONF_OPEN_DURATION,
-    CONF_STOP_ACTION,
-)
-from esphome.cpp_generator import RawExpression
+from collections.abc import Callable
+from dataclasses import dataclass
 
-CONF_HAS_BUILT_IN_ENDSTOP = "has_built_in_endstop"
-CONF_MANUAL_CONTROL = "manual_control"
+import esphome.codegen as cg
+from esphome.const import CONF_ID
+from esphome.core import ID, Lambda
+from esphome.cpp_generator import LambdaExpression, MockObj, RawExpression
+from esphome.types import ConfigType, TemplateArgsType
 
 CODEOWNERS = ["@esphome/core", "@exciton"]
 
@@ -35,20 +28,20 @@ ACTUATOR_CLOSED = RawExpression("0.0f")
 
 # ActuatorOperation enum — expose as a namespace object so callers can do
 # ActuatorOperation.ACTUATOR_OPERATION_IDLE etc.
-# Use RawExpression for each member so that str() yields the integer string
-# ("0", "1", "2") required by the unit tests and matching what C++ enums resolve to.
+# Members render as qualified C++ names so generated code can assign them to
+# ActuatorOperation fields without implicit int-to-enum conversion errors.
 
 
 class _ActuatorOperationEnum:
     """Lightweight stand-in for the C++ ActuatorOperation enum.
 
-    Attributes are exposed as RawExpression so their str() equals the
-    underlying integer value ("0", "1", "2"), matching C++ enum promotion.
+    Attributes render as qualified C++ names (e.g. "esphome::actuator::ACTUATOR_OPERATION_IDLE")
+    so they can be emitted directly into generated code without implicit int-to-enum conversions.
     """
 
-    ACTUATOR_OPERATION_IDLE = RawExpression("0")
-    ACTUATOR_OPERATION_OPENING = RawExpression("1")
-    ACTUATOR_OPERATION_CLOSING = RawExpression("2")
+    ACTUATOR_OPERATION_IDLE = actuator_ns.ACTUATOR_OPERATION_IDLE
+    ACTUATOR_OPERATION_OPENING = actuator_ns.ACTUATOR_OPERATION_OPENING
+    ACTUATOR_OPERATION_CLOSING = actuator_ns.ACTUATOR_OPERATION_CLOSING
 
     def __str__(self):
         return "actuator::ActuatorOperation"
@@ -56,34 +49,62 @@ class _ActuatorOperationEnum:
 
 ActuatorOperation = _ActuatorOperationEnum()
 
-TimeBasedActuatorBase = actuator_ns.class_("TimeBasedActuatorBase", cg.Component)
 
-TIME_BASED_ACTUATOR_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_STOP_ACTION): automation.validate_automation(single=True),
-        cv.Required(CONF_OPEN_ACTION): automation.validate_automation(single=True),
-        cv.Required(CONF_OPEN_DURATION): cv.positive_time_period_milliseconds,
-        cv.Required(CONF_CLOSE_ACTION): automation.validate_automation(single=True),
-        cv.Required(CONF_CLOSE_DURATION): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_HAS_BUILT_IN_ENDSTOP, default=False): cv.boolean,
-        cv.Optional(CONF_MANUAL_CONTROL, default=False): cv.boolean,
-        cv.Optional(CONF_ASSUMED_STATE, default=True): cv.boolean,
-    }
-)
+@dataclass(frozen=True)
+class ApplyField:
+    """One field in a folded-lambda action.
+
+    `conf_key` is the YAML key looked up in `config`. When present, the
+    helper emits `statement_fn(target, value_expr)` into the lambda body.
+    `target` is whatever the statement function needs to identify the
+    field (typically a setter name like `"set_position"` or a struct
+    member like `"position"`). `type_` is the C++ return type for
+    `cg.process_lambda` when the value is a user lambda.
+    """
+
+    conf_key: str
+    target: str
+    type_: object
 
 
-async def apply_time_based_actuator_config(var, config):
-    await automation.build_automation(
-        var.get_stop_trigger(), [], config[CONF_STOP_ACTION]
+async def build_apply_lambda_action(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+    fields: tuple["ApplyField", ...],
+    prefix_args: list[tuple[object, str]],
+    statement_fn: Callable[[str, str], str],
+) -> MockObj:
+    """Fold configured fields into a single stateless apply lambda action.
+
+    Constants are emitted as flash immediates; user lambdas are invoked
+    inline so trigger args still flow. Trigger arg types are normalized to
+    `const std::remove_cvref_t<T> &` to match the ApplyFn signature for
+    any T (value, ref, or const-ref).
+    """
+    paren = await cg.get_variable(config[CONF_ID])
+    normalized_args = [
+        (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), n)
+        for t, n in args
+    ]
+    fwd_args = ", ".join(name for _, name in args)
+    body_lines: list[str] = []
+    for field in fields:
+        if (value := config.get(field.conf_key)) is None:
+            continue
+        if isinstance(value, Lambda):
+            inner = await cg.process_lambda(
+                value, normalized_args, return_type=field.type_
+            )
+            value_expr = f"({inner})({fwd_args})"
+        else:
+            value_expr = str(cg.safe_exp(value))
+        body_lines.append(statement_fn(field.target, value_expr))
+    apply_lambda = LambdaExpression(
+        ["\n".join(body_lines)],
+        [*prefix_args, *normalized_args],
+        capture="",
+        return_type=cg.void,
     )
-    cg.add(var.set_open_duration(config[CONF_OPEN_DURATION]))
-    await automation.build_automation(
-        var.get_open_trigger(), [], config[CONF_OPEN_ACTION]
-    )
-    cg.add(var.set_close_duration(config[CONF_CLOSE_DURATION]))
-    await automation.build_automation(
-        var.get_close_trigger(), [], config[CONF_CLOSE_ACTION]
-    )
-    cg.add(var.set_has_built_in_endstop(config[CONF_HAS_BUILT_IN_ENDSTOP]))
-    cg.add(var.set_manual_control(config[CONF_MANUAL_CONTROL]))
-    cg.add(var.set_assumed_state(config[CONF_ASSUMED_STATE]))
+    return cg.new_Pvariable(action_id, template_arg, paren, apply_lambda)

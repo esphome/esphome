@@ -11,11 +11,11 @@
 
 namespace esphome::cover {
 
-// Backward-compat aliases — these MUST remain for external code
+// Backward-compat aliases.
 using CoverOperation = actuator::ActuatorOperation;
-constexpr CoverOperation COVER_OPERATION_IDLE = actuator::ACTUATOR_OPERATION_IDLE;
-constexpr CoverOperation COVER_OPERATION_OPENING = actuator::ACTUATOR_OPERATION_OPENING;
-constexpr CoverOperation COVER_OPERATION_CLOSING = actuator::ACTUATOR_OPERATION_CLOSING;
+constexpr actuator::ActuatorOperation COVER_OPERATION_IDLE = actuator::ACTUATOR_OPERATION_IDLE;
+constexpr actuator::ActuatorOperation COVER_OPERATION_OPENING = actuator::ACTUATOR_OPERATION_OPENING;
+constexpr actuator::ActuatorOperation COVER_OPERATION_CLOSING = actuator::ACTUATOR_OPERATION_CLOSING;
 static constexpr float COVER_OPEN = actuator::ACTUATOR_OPEN;
 static constexpr float COVER_CLOSED = actuator::ACTUATOR_CLOSED;
 
@@ -54,7 +54,7 @@ class CoverCall : public actuator::ActuatorCallBase {
   const optional<bool> &get_toggle() const { return this->toggle_; }
 
  protected:
-  void validate_() override;
+  void validate() override;
 
   optional<float> tilt_{};
 };
@@ -126,7 +126,7 @@ class Cover : public actuator::ActuatorBase, public actuator::IActuator {
   void set_position(float p) override { this->position = p; }
   actuator::ActuatorOperation get_operation() const override { return this->current_operation; }
   void set_operation(actuator::ActuatorOperation op) override { this->current_operation = op; }
-  void do_publish_state(bool save = true) override { this->publish_state(save); }
+  void do_publish_state(bool save) override { this->publish_state(save); }
 
  protected:
   friend CoverCall;
@@ -134,11 +134,9 @@ class Cover : public actuator::ActuatorBase, public actuator::IActuator {
   virtual void control(const CoverCall &call) = 0;
 
   // Bridge from ActuatorBase — safe cast because Cover::make_call() always constructs a CoverCall
-  void control(const actuator::ActuatorCallBase &call) override final {
-    this->control(static_cast<const CoverCall &>(call));
-  }
+  void control(const actuator::ActuatorCallBase &call) final { this->control(static_cast<const CoverCall &>(call)); }
 
-  optional<CoverRestoreState> restore_state_();
+  optional<CoverRestoreState> restore_state_() { return ActuatorBase::restore_state_<CoverRestoreState>(); }
 };
 
 }  // namespace esphome::cover

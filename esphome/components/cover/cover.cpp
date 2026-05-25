@@ -2,8 +2,6 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
-#include "esphome/core/progmem.h"
-
 #include <strings.h>
 
 namespace esphome::cover {
@@ -19,12 +17,7 @@ const LogString *cover_command_to_str(float pos) {
     return LOG_STR("UNKNOWN");
   }
 }
-// Cover operation strings indexed by CoverOperation enum (0-2): IDLE, OPENING, CLOSING, plus UNKNOWN
-PROGMEM_STRING_TABLE(CoverOperationStrings, "IDLE", "OPENING", "CLOSING", "UNKNOWN");
-
-const LogString *cover_operation_to_str(CoverOperation op) {
-  return CoverOperationStrings::get_log_str(static_cast<uint8_t>(op), CoverOperationStrings::LAST_INDEX);
-}
+const LogString *cover_operation_to_str(CoverOperation op) { return actuator::actuator_operation_to_str(op); }
 
 Cover::Cover() { this->position = COVER_OPEN; }
 
@@ -71,7 +64,7 @@ CoverCall &CoverCall::set_stop(bool stop) {
 void CoverCall::perform() {
   ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   auto traits = static_cast<Cover *>(this->parent_)->get_traits();
-  this->validate_();
+  this->CoverCall::validate();
   if (this->stop_) {
     ESP_LOGV(TAG, "  Command: STOP");
   }
@@ -88,13 +81,10 @@ void CoverCall::perform() {
   if (this->toggle_.has_value()) {
     ESP_LOGV(TAG, "  Command: TOGGLE");
   }
-  this->parent_->control(*this);
+  static_cast<Cover *>(this->parent_)->control(*this);
 }
 
-void CoverCall::validate_() {
-  // Call base class validation first (position range check, stop conflict)
-  actuator::ActuatorCallBase::validate_();
-
+void CoverCall::validate() {
   auto traits = static_cast<Cover *>(this->parent_)->get_traits();
   const char *name = this->parent_->get_name().c_str();
 
@@ -103,6 +93,9 @@ void CoverCall::validate_() {
     if (!traits.get_supports_position() && pos != COVER_OPEN && pos != COVER_CLOSED) {
       ESP_LOGW(TAG, "'%s': position unsupported", name);
       this->position_.reset();
+    } else if (pos < 0.0f || pos > 1.0f) {
+      ESP_LOGW(TAG, "'%s': position %.2f out of range [0.0 - 1.0]", name, pos);
+      this->position_ = clamp(pos, 0.0f, 1.0f);
     }
   }
   if (this->tilt_.has_value()) {
@@ -122,6 +115,11 @@ void CoverCall::validate_() {
     }
   }
   if (this->stop_) {
+    if (this->position_.has_value() || this->toggle_.has_value()) {
+      ESP_LOGW(TAG, "'%s': cannot set position/toggle when stopping", name);
+      this->position_.reset();
+      this->toggle_.reset();
+    }
     if (this->tilt_.has_value()) {
       ESP_LOGW(TAG, "'%s': cannot tilt when stopping", name);
       this->tilt_.reset();
@@ -167,14 +165,6 @@ void Cover::publish_state(bool save) {
     }
     this->rtc_.save(&restore);
   }
-}
-
-optional<CoverRestoreState> Cover::restore_state_() {
-  this->rtc_ = this->make_entity_preference<CoverRestoreState>();
-  CoverRestoreState recovered{};
-  if (!this->rtc_.load(&recovered))
-    return {};
-  return recovered;
 }
 
 bool Cover::is_fully_open() const { return this->position == COVER_OPEN; }
