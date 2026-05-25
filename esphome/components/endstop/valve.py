@@ -1,16 +1,15 @@
 import esphome.codegen as cg
 from esphome.components import valve
-from esphome.components.endstop import (
+import esphome.config_validation as cv
+
+from . import (
     ENDSTOP_ACTUATOR_SCHEMA,
     EndstopActuatorBase,
     apply_endstop_actuator_config,
+    endstop_ns,
 )
-import esphome.config_validation as cv
 
-DEPENDENCIES = ["valve", "endstop"]
-
-endstop_valve_ns = cg.esphome_ns.namespace("endstop_valve")
-EndstopValve = endstop_valve_ns.class_("EndstopValve", EndstopActuatorBase, valve.Valve)
+EndstopValve = endstop_ns.class_("EndstopValve", EndstopActuatorBase, valve.Valve)
 
 CONFIG_SCHEMA = (
     valve.valve_schema(EndstopValve)

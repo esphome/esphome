@@ -1,9 +1,9 @@
 #include "endstop_valve.h"
 #include "esphome/core/log.h"
 
-namespace esphome::endstop_valve {
+namespace esphome::endstop {
 
-static const char *const TAG = "endstop_valve";
+static const char *const TAG = "endstop.valve";
 
 using namespace esphome::valve;
 
@@ -26,4 +26,4 @@ void EndstopValve::dump_config() {
   LOG_BINARY_SENSOR("  ", "Close Endstop", this->close_endstop_);
 }
 
-}  // namespace esphome::endstop_valve
+}  // namespace esphome::endstop
