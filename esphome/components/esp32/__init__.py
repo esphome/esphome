@@ -46,7 +46,7 @@ from esphome.const import (
     Toolchain,
     __version__,
 )
-from esphome.core import CORE, HexInt, Library
+from esphome.core import CORE, EsphomeError, HexInt, Library
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
 from esphome.espidf.component import generate_idf_component
@@ -2658,11 +2658,19 @@ def copy_files():
 
 
 def _decode_pc(config, addr):
+    # _decode_pc runs from the api log processor's asyncio callback, which
+    # only catches EsphomeError. Any other exception escaping here tears down
+    # the protocol and triggers an infinite reconnect/replay loop. Convert
+    # toolchain-resolution errors (e.g. missing build dir / cmake cache) into
+    # EsphomeError so the caller can disable decoding cleanly.
     if CORE.using_toolchain_esp_idf:
         from esphome.espidf import toolchain as idf_toolchain
 
-        addr2line_path = idf_toolchain.get_addr2line_path()
-        firmware_elf_path = idf_toolchain.get_elf_path()
+        try:
+            addr2line_path = idf_toolchain.get_addr2line_path()
+            firmware_elf_path = idf_toolchain.get_elf_path()
+        except RuntimeError as err:
+            raise EsphomeError(f"ESP-IDF toolchain not available: {err}") from err
     else:
         from esphome.platformio import toolchain
 
