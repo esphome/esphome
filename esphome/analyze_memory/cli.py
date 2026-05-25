@@ -509,7 +509,7 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             lines.append(
                 f"{_COMPONENT_CORE} Symbols > {self.SYMBOL_SIZE_THRESHOLD} B ({len(large_core_symbols)} symbols):"
             )
-            for i, (symbol, demangled, size) in enumerate(large_core_symbols):
+            for i, (_symbol, demangled, size) in enumerate(large_core_symbols):
                 # Core symbols only track (symbol, demangled, size) without section info,
                 # so we don't show section labels here
                 lines.append(
@@ -601,7 +601,7 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                 lines.append(
                     f"{comp_name} Symbols > {self.SYMBOL_SIZE_THRESHOLD} B & storage ({len(large_symbols)} symbols):"
                 )
-                for i, (symbol, demangled, size, section) in enumerate(large_symbols):
+                for i, (_symbol, demangled, size, section) in enumerate(large_symbols):
                     lines.append(
                         f"{i + 1}. {self._format_symbol_with_section(demangled, size, section)}"
                     )
@@ -640,7 +640,7 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                 lines.append(
                     f"  Symbols > {self.RAM_SYMBOL_SIZE_THRESHOLD} B ({len(large_ram_syms)}):"
                 )
-                for symbol, demangled, size, section in large_ram_syms[:10]:
+                for _symbol, demangled, size, section in large_ram_syms[:10]:
                     # Format section label consistently by stripping leading dot
                     section_label = section.lstrip(".") if section else ""
                     display_name = _format_pstorage_name(demangled)

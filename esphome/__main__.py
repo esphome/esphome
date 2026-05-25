@@ -608,7 +608,7 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
 
     try:
         module = importlib.import_module("esphome.components." + CORE.target_platform)
-        process_stacktrace = getattr(module, "process_stacktrace")
+        process_stacktrace = module.process_stacktrace
     except (AttributeError, ImportError):
         _LOGGER.info(
             'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
@@ -1101,7 +1101,7 @@ def upload_program(
     host = devices[0]
     try:
         module = importlib.import_module("esphome.components." + CORE.target_platform)
-        if getattr(module, "upload_program")(config, args, host):
+        if module.upload_program(config, args, host):
             return 0, host
     except AttributeError:
         pass
@@ -1353,7 +1353,7 @@ def _validate_bootloader_binary(binary: Path) -> None:
 def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int | None:
     try:
         module = importlib.import_module("esphome.components." + CORE.target_platform)
-        if getattr(module, "show_logs")(config, args, devices):
+        if module.show_logs(config, args, devices):
             return 0
     except AttributeError:
         pass

@@ -407,8 +407,10 @@ async def wait_and_connect_api_client(
         # Wait for connection with timeout
         try:
             await asyncio.wait_for(connected_future, timeout=timeout)
-        except TimeoutError:
-            raise TimeoutError(f"Failed to connect to API after {timeout} seconds")
+        except TimeoutError as err:
+            raise TimeoutError(
+                f"Failed to connect to API after {timeout} seconds"
+            ) from err
 
         if return_disconnect_event:
             yield client, disconnect_event

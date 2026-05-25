@@ -1047,7 +1047,7 @@ def detect_memory_impact_config(
     # Find common platforms supported by ALL components
     # This ensures we can build all components together in a merged config
     common_platforms = set(MEMORY_IMPACT_PLATFORM_PREFERENCE)
-    for component, platforms in component_platforms_map.items():
+    for platforms in component_platforms_map.values():
         common_platforms &= platforms
 
     # Select the most preferred platform from the common set

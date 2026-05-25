@@ -594,7 +594,9 @@ async def to_code(config):
             x.height,
         ]
         for (x, y) in zip(
-            glyph_args, list(accumulate([len(x.bitmap_data) for x in glyph_args]))
+            glyph_args,
+            list(accumulate([len(x.bitmap_data) for x in glyph_args])),
+            strict=True,
         )
     ]
 

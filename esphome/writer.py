@@ -358,7 +358,7 @@ def copy_src_tree():
     platform = "esphome.components." + CORE.target_platform
     try:
         module = importlib.import_module(platform)
-        copy_files = getattr(module, "copy_files")
+        copy_files = module.copy_files
         copy_files()
     except AttributeError:
         pass
