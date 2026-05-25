@@ -16,6 +16,8 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_IGNORE_PIN_VALIDATION_ERROR,
     CONF_NUMBER,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     PLATFORMIO_ENV_NAME,
     PlatformFramework,
     Toolchain,
@@ -265,12 +267,13 @@ def test_platformio_sdkconfig_uses_stable_env_name(tmp_path: Path) -> None:
     CORE.name = "test-device"
     CORE.build_path = tmp_path
     CORE.toolchain = Toolchain.PLATFORMIO
+    CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: cv.Version(5, 5, 4)}
     CORE.data[KEY_ESP32] = {KEY_SDKCONFIG_OPTIONS: {"CONFIG_TEST": True}}
 
     _write_sdkconfig()
 
     assert (tmp_path / f"sdkconfig.{PLATFORMIO_ENV_NAME}").read_text() == (
-        "CONFIG_TEST=y\n"
+        "# ESPHOME_IDF_VERSION=5.5.4\nCONFIG_TEST=y\n"
     )
     assert not (tmp_path / "sdkconfig.test-device").exists()
 
@@ -282,11 +285,14 @@ def test_native_idf_sdkconfig_keeps_device_name(tmp_path: Path) -> None:
     CORE.name = "test-device"
     CORE.build_path = tmp_path
     CORE.toolchain = Toolchain.ESP_IDF
+    CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: cv.Version(5, 5, 4)}
     CORE.data[KEY_ESP32] = {KEY_SDKCONFIG_OPTIONS: {"CONFIG_TEST": True}}
 
     _write_sdkconfig()
 
-    assert (tmp_path / "sdkconfig.test-device").read_text() == "CONFIG_TEST=y\n"
+    assert (tmp_path / "sdkconfig.test-device").read_text() == (
+        "# ESPHOME_IDF_VERSION=5.5.4\nCONFIG_TEST=y\n"
+    )
     assert not (tmp_path / f"sdkconfig.{PLATFORMIO_ENV_NAME}").exists()
 
 
