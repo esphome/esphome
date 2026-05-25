@@ -8,6 +8,7 @@ import logging
 import os
 from pathlib import Path
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -784,38 +785,32 @@ def download_from_mirrors(
         return None
 
 
+_GITHUB_SHORTHAND_RE = re.compile(
+    r"^github://([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+?)(?:@([a-zA-Z0-9\-_.\./]+))?$"
+)
+_GITHUB_HTTPS_RE = re.compile(
+    r"^(https://github\.com/[a-zA-Z0-9\-]+/[a-zA-Z0-9\-\._]+?\.git)(?:@([a-zA-Z0-9\-_.\./]+))?$"
+)
+
+
 def _parse_git_source(source_url: str) -> tuple[str, str | None] | None:
-    """Detect a git framework source URL.
+    """Detect a GitHub framework source URL.
 
-    Returns ``(url, ref)`` if ``source_url`` looks like a git repo,
-    otherwise ``None`` (treat as plain archive URL).
+    Returns ``(url, ref)`` if ``source_url`` is a recognized GitHub git
+    source, otherwise ``None`` (treat as plain archive URL).
 
-    Recognized forms:
-      - HTTPS/HTTP ending in ``.git`` (optionally followed by ``@<ref>``)
-      - ``git://`` or ``ssh://`` protocol
-      - ``git@host:path`` SSH shorthand
+    Accepted forms (matches the string-shorthand subset of
+    ``external_components`` ``SOURCE_SCHEMA``):
 
-    Examples:
-      - ``https://github.com/espressif/esp-idf.git@master``
-      - ``git@github.com:espressif/esp-idf.git``
-      - ``ssh://git@github.com/espressif/esp-idf.git``
+      - ``github://owner/repo[@ref]``                shorthand
+      - ``https://github.com/owner/repo.git[@ref]``  explicit URL
     """
-    # Split off ``@<ref>`` only from the last path segment so an embedded
-    # ``user@host`` in an SSH URL isn't mistaken for a ref.
-    url = source_url
-    ref: str | None = None
-    if "@" in url.rsplit("/", 1)[-1]:
-        candidate, candidate_ref = url.rsplit("@", 1)
-        # Treat as ref only if what's left still looks like a URL (has a
-        # scheme or SSH shorthand). Otherwise it's the ``user@host`` of an
-        # SSH URL with no explicit ref.
-        if "://" in candidate or candidate.startswith("git@"):
-            url, ref = candidate, candidate_ref
-
-    is_git = url.endswith(".git") or url.startswith(("git://", "ssh://", "git@"))
-    if not is_git:
-        return None
-    return url, ref
+    if m := _GITHUB_SHORTHAND_RE.match(source_url):
+        owner, repo, ref = m.group(1), m.group(2), m.group(3)
+        return f"https://github.com/{owner}/{repo}.git", ref
+    if m := _GITHUB_HTTPS_RE.match(source_url):
+        return m.group(1), m.group(2)
+    return None
 
 
 def _clone_idf_with_submodules(
