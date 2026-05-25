@@ -774,6 +774,9 @@ def test_platformio_env_name_resolves_local_libdeps(
         ("symlink://../local_lib", "symlink://{local_lib}"),
         ("Custom=../local_lib", "Custom={local_lib}"),
         ("Custom=file://../local_lib", "Custom=file://{local_lib}"),
+        ("Custom @ ../local_lib", "Custom @ {local_lib}"),
+        ("Custom @ file://../local_lib", "Custom @ file://{local_lib}"),
+        ("Custom @ symlink://../local_lib", "Custom @ symlink://{local_lib}"),
     ],
 )
 def test_platformio_env_name_resolves_local_libdep_uri_targets(

@@ -139,6 +139,16 @@ def _platformio_lib_dep_fingerprint_value(lib_dep: str, project_dir: Path) -> st
             return f"{name.strip()}={resolved_target}"
         return f"{name.strip()}={value}"
 
+    if "@" in lib_dep:
+        name, value = lib_dep.split("@", 1)
+        value = value.strip()
+        if (
+            name.strip()
+            and value
+            and (resolved_target := _resolve_local_lib_dep_target(value, project_dir))
+        ):
+            return f"{name.strip()} @ {resolved_target}"
+
     if resolved_target := _resolve_local_lib_dep_target(lib_dep, project_dir):
         return resolved_target
     return lib_dep
