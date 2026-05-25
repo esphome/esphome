@@ -4,6 +4,7 @@
 #ifdef USE_VOICE_ASSISTANT
 
 #include "esphome/components/socket/socket.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
@@ -25,6 +26,11 @@ static const size_t SEND_BUFFER_SAMPLES = 32 * SAMPLE_RATE_HZ / 1000;  // 32ms *
 static const size_t SEND_BUFFER_SIZE = SEND_BUFFER_SAMPLES * sizeof(int16_t);
 static const size_t RECEIVE_SIZE = 1024;
 static const size_t SPEAKER_BUFFER_SIZE = 16 * RECEIVE_SIZE;
+
+// If one microphone channel keeps producing audio while another configured channel produces none for this
+// long, treat the silent channel as failed and stop the stream. A working microphone exposes a chunk every
+// SEND_BUFFER_SAMPLES (32 ms), so this is far longer than any legitimate gap between chunks.
+static const uint32_t AUDIO_CHANNEL_STALL_TIMEOUT_MS = 2000;
 
 VoiceAssistant::VoiceAssistant() { global_voice_assistant = this; }
 
@@ -168,6 +174,9 @@ void VoiceAssistant::clear_buffers_() {
     this->audio_source2_->clear_buffered_data();
   }
 
+  // Reset the multi-channel stall watchdog (see audio_channel_stall_start_).
+  this->audio_channel_stall_start_ = 0;
+
 #ifdef USE_SPEAKER
   if ((this->speaker_ != nullptr) && (this->speaker_buffer_ != nullptr)) {
     memset(this->speaker_buffer_, 0, SPEAKER_BUFFER_SIZE);
@@ -310,11 +319,37 @@ void VoiceAssistant::loop() {
             available2 = this->audio_source2_->available();
           }
 
-          // Wait for any empty channel to fill; the exposed chunk on the other channel is kept for the
-          // next pass.
-          if ((available == 0) || ((this->audio_source2_ != nullptr) && (available2 == 0))) {
+          const bool channel_empty = (available == 0);
+          const bool channel2_empty = (this->audio_source2_ != nullptr) && (available2 == 0);
+          if (channel_empty || channel2_empty) {
+            // A configured channel has no audio yet, so keep any chunk exposed on the other channel for the
+            // next pass rather than sending an empty payload. When one channel has data and the other does
+            // not, watch how long the empty channel stays starved: Home Assistant has no stream timeout and
+            // would never tell us to stop, so a channel that fails outright would otherwise hang streaming
+            // here forever with the live channel's chunk held. Stop the stream with an error after a
+            // prolonged imbalance.
+            if ((available > 0) || (available2 > 0)) {
+              const uint32_t now = App.get_loop_component_start_time();
+              if (this->audio_channel_stall_start_ == 0) {
+                this->audio_channel_stall_start_ = now;
+              } else if ((now - this->audio_channel_stall_start_) >= AUDIO_CHANNEL_STALL_TIMEOUT_MS) {
+                ESP_LOGW(TAG, "Mic channel %d stalled, stopping stream", channel_empty ? 0 : 1);
+                this->audio_channel_stall_start_ = 0;
+                this->signal_stop_();
+                this->set_state_(State::STOP_MICROPHONE, State::IDLE);
+                this->defer([this]() {
+                  this->error_trigger_.trigger("mic-channel-stalled", "A microphone channel stopped producing audio");
+                });
+              }
+            } else {
+              // Both channels are idle (no audio buffered yet); normal, not a stalled channel.
+              this->audio_channel_stall_start_ = 0;
+            }
             break;
           }
+
+          // Both channels have audio exposed; clear any in-progress stall timer.
+          this->audio_channel_stall_start_ = 0;
 
           api::VoiceAssistantAudio msg;
           // Zero-copy: send_message() copies the data out before we consume it.

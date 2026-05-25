@@ -315,6 +315,13 @@ class VoiceAssistant : public Component {
   std::weak_ptr<ring_buffer::RingBuffer> ring_buffer_;
   std::weak_ptr<ring_buffer::RingBuffer> ring_buffer2_;
 
+  // When streaming multiple channels, the send loop holds an exposed chunk on one channel until the other
+  // channel also has audio so the channels are always sent together (an empty payload looks like
+  // end-of-stream to Home Assistant). Home Assistant has no stream timeout, so a channel that stops
+  // producing entirely would hang streaming forever. This records when such an imbalance began so a
+  // prolonged one can be detected and stopped; 0 means no imbalance is currently being timed.
+  uint32_t audio_channel_stall_start_{0};
+
   bool use_wake_word_;
   uint8_t noise_suppression_level_;
   uint8_t auto_gain_;
