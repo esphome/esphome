@@ -19,6 +19,7 @@ import pytest
 from esphome.components.time import DOMAIN, TIME_SCHEMA, detect_tz, validate_tz
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ID,
     CONF_TIMEZONE,
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
@@ -26,7 +27,7 @@ from esphome.const import (
     Platform,
     PlatformFramework,
 )
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 from tests.component_tests.types import SetCoreConfigCallable
 
 # ---------------------------------------------------------------------------
@@ -180,7 +181,7 @@ def test_detect_tz_returns_pre_seeded_cache(
 def test_detect_tz_raises_when_tzlocal_returns_none(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    """detect_tz() must raise cv.Invalid when the local timezone cannot be determined."""
+    """detect_tz() must raise EsphomeError when the local timezone cannot be determined."""
     set_core_config(PlatformFramework.ESP32_IDF)
 
     with (
@@ -188,7 +189,7 @@ def test_detect_tz_raises_when_tzlocal_returns_none(
             "esphome.components.time.tzlocal.get_localzone_name",
             return_value=None,
         ),
-        pytest.raises(cv.Invalid, match="Could not automatically determine timezone"),
+        pytest.raises(EsphomeError, match="Could not automatically determine timezone"),
     ):
         detect_tz()
 
@@ -196,7 +197,7 @@ def test_detect_tz_raises_when_tzlocal_returns_none(
 def test_detect_tz_raises_when_tzdata_not_found(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    """detect_tz() must raise cv.Invalid when tzdata has no entry for the IANA key."""
+    """detect_tz() must raise EsphomeError when tzdata has no entry for the IANA key."""
     set_core_config(PlatformFramework.ESP32_IDF)
 
     with (
@@ -208,7 +209,7 @@ def test_detect_tz_raises_when_tzdata_not_found(
             "esphome.components.time._load_tzdata",
             return_value=None,
         ),
-        pytest.raises(cv.Invalid, match="Could not automatically determine timezone"),
+        pytest.raises(EsphomeError, match="Could not automatically determine timezone"),
     ):
         detect_tz()
 
@@ -321,77 +322,48 @@ def test_time_schema_invalid_tz_on_zephyr_gives_framework_error(
 # ---------------------------------------------------------------------------
 
 
-def test_ha_time_defines_ha_timezone_when_no_explicit_tz() -> None:
+@pytest.fixture
+def mock_ha_cg():
+    """Mock codegen functions used by homeassistant/time to_code."""
+    with (
+        mock.patch(
+            "esphome.components.homeassistant.time.cg.new_Pvariable",
+            return_value=mock.MagicMock(),
+        ),
+        mock.patch(
+            "esphome.components.homeassistant.time.cg.add_define",
+        ) as mock_add_define,
+        mock.patch(
+            "esphome.components.homeassistant.time.cg.register_component",
+            new_callable=mock.AsyncMock,
+        ),
+        mock.patch(
+            "esphome.components.homeassistant.time.time_.register_time",
+            new_callable=mock.AsyncMock,
+        ),
+    ):
+        yield mock_add_define
+
+
+@pytest.mark.asyncio
+async def test_ha_time_defines_ha_timezone_when_no_explicit_tz(mock_ha_cg) -> None:
     """When CONF_TIMEZONE is absent from the config, to_code() must call
     cg.add_define('USE_HOMEASSISTANT_TIMEZONE')."""
-    from esphome.components.homeassistant.time import CONF_TIMEZONE as _CONF_TZ
+    from esphome.components.homeassistant.time import to_code
 
-    # The condition tested is the one in to_code:
-    #   if CONF_TIMEZONE not in config:
-    #       cg.add_define("USE_HOMEASSISTANT_TIMEZONE")
-    config_without_tz = {}
-    assert _CONF_TZ not in config_without_tz, (
-        "Config must not contain timezone for this test to be meaningful"
-    )
+    await to_code({CONF_ID: mock.MagicMock()})
 
-    defines_emitted = []
-    with mock.patch(
-        "esphome.components.homeassistant.time.cg.add_define",
-        side_effect=defines_emitted.append,
-    ):
-        # Simulate the conditional that to_code() uses
-        if _CONF_TZ not in config_without_tz:
-            import esphome.codegen as cg
-
-            cg.add_define("USE_HOMEASSISTANT_TIMEZONE")
-
-    assert "USE_HOMEASSISTANT_TIMEZONE" in defines_emitted
+    mock_ha_cg.assert_any_call("USE_HOMEASSISTANT_TIMEZONE")
 
 
-def test_ha_time_no_ha_timezone_define_when_explicit_tz() -> None:
+@pytest.mark.asyncio
+async def test_ha_time_no_ha_timezone_define_when_explicit_tz(mock_ha_cg) -> None:
     """When CONF_TIMEZONE is present in the config, to_code() must NOT call
     cg.add_define('USE_HOMEASSISTANT_TIMEZONE')."""
-    from esphome.components.homeassistant.time import CONF_TIMEZONE as _CONF_TZ
+    from esphome.components.homeassistant.time import to_code
 
-    config_with_tz = {_CONF_TZ: "UTC0"}
+    await to_code({CONF_ID: mock.MagicMock(), CONF_TIMEZONE: "UTC0"})
 
-    defines_emitted = []
-    with mock.patch(
-        "esphome.components.homeassistant.time.cg.add_define",
-        side_effect=defines_emitted.append,
-    ):
-        if _CONF_TZ not in config_with_tz:
-            import esphome.codegen as cg
-
-            cg.add_define("USE_HOMEASSISTANT_TIMEZONE")
-
-    assert "USE_HOMEASSISTANT_TIMEZONE" not in defines_emitted
-
-
-def test_ha_time_define_condition_matches_source(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Verify that the condition in homeassistant/time/__init__.py uses
-    ``CONF_TIMEZONE not in config`` – i.e. it guards on absence, not on None."""
-    import ast
-    import inspect
-
-    from esphome.components.homeassistant import time as ha_time
-
-    source = inspect.getsource(ha_time.to_code)
-    tree = ast.parse(source)
-
-    # Look for an If node whose test is a "not in" comparison involving CONF_TIMEZONE
-    found = False
-    for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.If)
-            and isinstance(node.test, ast.Compare)
-            and any(isinstance(op, ast.NotIn) for op in node.test.ops)
-        ):
-            found = True
-            break
-
-    assert found, (
-        "to_code() in homeassistant/time/__init__.py must use 'if CONF_TIMEZONE not in config'"
-    )
+    define_calls = [call.args[0] for call in mock_ha_cg.call_args_list]
+    assert "USE_HOMEASSISTANT_TIME" in define_calls
+    assert "USE_HOMEASSISTANT_TIMEZONE" not in define_calls
