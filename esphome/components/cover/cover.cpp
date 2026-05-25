@@ -66,7 +66,7 @@ CoverCall &CoverCall::set_stop(bool stop) {
 void CoverCall::perform() {
   ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   auto traits = static_cast<Cover *>(this->parent_)->get_traits();
-  this->validate();
+  this->CoverCall::validate();
   if (this->stop_) {
     ESP_LOGV(TAG, "  Command: STOP");
   }

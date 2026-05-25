@@ -62,7 +62,7 @@ ValveCall &ValveCall::set_stop(bool stop) {
 void ValveCall::perform() {
   ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   auto traits = static_cast<Valve *>(this->parent_)->get_traits();
-  this->validate();
+  this->ValveCall::validate();
   if (this->stop_) {
     ESP_LOGV(TAG, "  Command: STOP");
   }
