@@ -116,20 +116,31 @@ def _resolve_local_lib_dep_uri(value: str, project_dir: Path) -> str | None:
     return None
 
 
+def _resolve_local_lib_dep_target(value: str, project_dir: Path) -> str | None:
+    """Return a resolved target for local PlatformIO dependency specs."""
+    value = value.strip()
+    if resolved_uri := _resolve_local_lib_dep_uri(value, project_dir):
+        return resolved_uri
+
+    path = Path(value).expanduser()
+    if path.is_absolute() or value.startswith((".", "~")):
+        resolved = path if path.is_absolute() else project_dir / path
+        return str(resolved.resolve())
+    return None
+
+
 def _platformio_lib_dep_fingerprint_value(lib_dep: str, project_dir: Path) -> str:
     """Return a stable fingerprint value for one PlatformIO library dependency."""
     lib_dep = lib_dep.strip()
     if "=" in lib_dep:
         name, value = lib_dep.split("=", 1)
-        if resolved_uri := _resolve_local_lib_dep_uri(value.strip(), project_dir):
-            return f"{name.strip()}={resolved_uri}"
-    elif resolved_uri := _resolve_local_lib_dep_uri(lib_dep, project_dir):
-        return resolved_uri
+        value = value.strip()
+        if resolved_target := _resolve_local_lib_dep_target(value, project_dir):
+            return f"{name.strip()}={resolved_target}"
+        return f"{name.strip()}={value}"
 
-    path = Path(lib_dep).expanduser()
-    if path.is_absolute() or lib_dep.startswith((".", "~")):
-        resolved = path if path.is_absolute() else project_dir / path
-        return str(resolved.resolve())
+    if resolved_target := _resolve_local_lib_dep_target(lib_dep, project_dir):
+        return resolved_target
     return lib_dep
 
 
@@ -227,14 +238,14 @@ def _platformio_uses_shared_libdeps(core=CORE) -> bool:
     return target_platform not in (PLATFORM_HOST, PLATFORM_NRF52)
 
 
-def _platformio_libdeps_lock_path() -> Path:
+def _platformio_libdeps_lock_path(env_name: str | None = None) -> Path:
     """Return the lock path for the current shared PlatformIO libdeps env."""
     return CORE.relative_internal_path(
-        "platformio", "libdeps", ".locks", f"{platformio_env_name()}.lock"
+        "platformio", "libdeps", ".locks", f"{env_name or platformio_env_name()}.lock"
     )
 
 
-def _set_platformio_libdeps_dir() -> Path | None:
+def _set_platformio_libdeps_dir(env_name: str | None = None) -> Path | None:
     """Set ESPHome-managed libdeps dir while preserving user overrides."""
     libdeps_dir = str(_platformio_libdeps_dir().absolute())
     current = os.environ.get("PLATFORMIO_LIBDEPS_DIR")
@@ -246,7 +257,7 @@ def _set_platformio_libdeps_dir() -> Path | None:
     os.environ[_PLATFORMIO_MANAGED_LIBDEPS_ENV] = libdeps_dir
     if not _platformio_uses_shared_libdeps():
         return None
-    return _platformio_libdeps_lock_path()
+    return _platformio_libdeps_lock_path(env_name)
 
 
 @contextmanager
@@ -283,10 +294,12 @@ def _platformio_libdeps_lock(lock_path: Path | None):
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
-def run_platformio_cli(*args, **kwargs) -> str | int:
+def run_platformio_cli(
+    *args, libdeps_env_name: str | None = None, **kwargs
+) -> str | int:
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = str(CORE.relative_pioenvs_path().absolute())
-    libdeps_lock_path = _set_platformio_libdeps_dir()
+    libdeps_lock_path = _set_platformio_libdeps_dir(libdeps_env_name)
     # Suppress Python syntax warnings from third-party scripts during compilation
     os.environ.setdefault("PYTHONWARNINGS", "ignore::SyntaxWarning")
     # Increase uv retry count to handle transient network errors (default is 3)
@@ -309,17 +322,18 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
 
 
 def run_platformio_cli_run(config, verbose, *args, **kwargs) -> str | int:
+    env_name = platformio_env_name(prefer_existing=True)
     command = [
         "run",
         "-d",
         str(CORE.build_path),
         "-e",
-        platformio_env_name(prefer_existing=True),
+        env_name,
     ]
     if verbose:
         command += ["-v"]
     command += list(args)
-    return run_platformio_cli(*command, **kwargs)
+    return run_platformio_cli(*command, libdeps_env_name=env_name, **kwargs)
 
 
 def run_compile(config, verbose):

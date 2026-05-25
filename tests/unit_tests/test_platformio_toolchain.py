@@ -772,13 +772,14 @@ def test_platformio_env_name_resolves_local_libdeps(
     [
         ("file://../local_lib", "file://{local_lib}"),
         ("symlink://../local_lib", "symlink://{local_lib}"),
+        ("Custom=../local_lib", "Custom={local_lib}"),
         ("Custom=file://../local_lib", "Custom=file://{local_lib}"),
     ],
 )
 def test_platformio_env_name_resolves_local_libdep_uri_targets(
     setup_core: Path, lib_dep: str, fingerprint_value: str
 ) -> None:
-    """Local URI libdeps are fingerprinted by their resolved target path."""
+    """Local libdeps are fingerprinted by their resolved target path."""
     from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
 
     CORE.build_path = str(setup_core / "build" / "test")
@@ -949,6 +950,7 @@ def test_run_platformio_cli_run_builds_command(
         "-v",
         "extra",
         "args",
+        libdeps_env_name=toolchain.platformio_env_name(),
     )
 
 
@@ -992,7 +994,67 @@ lib_deps =
         "upload",
         "-t",
         "nobuild",
+        libdeps_env_name="rp2040-arduino-compiled1234",
     )
+
+
+def test_run_platformio_cli_run_locks_existing_generated_env(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    """Upload-only runs lock the same generated env passed to PlatformIO."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    lock_paths = []
+
+    def record_lock(lock_path: Path | None):
+        @contextmanager
+        def lock_context():
+            lock_paths.append(lock_path)
+            yield
+
+        return lock_context()
+
+    CORE.name = "living-room"
+    CORE.build_path = setup_core / "build" / "living-room"
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "rp2040",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    platformio_ini = CORE.relative_build_path("platformio.ini")
+    platformio_ini.parent.mkdir(parents=True)
+    platformio_ini.write_text(
+        """
+; ========== AUTO GENERATED CODE BEGIN ===========
+
+[env:rp2040-arduino-compiled1234]
+lib_deps =
+    Component/Generated @ 2.0.0
+; =========== AUTO GENERATED CODE END ============
+""",
+        encoding="utf-8",
+    )
+
+    with (
+        patch.dict(os.environ, {}, clear=True),
+        patch(
+            "esphome.platformio.toolchain._platformio_libdeps_lock",
+            side_effect=record_lock,
+        ),
+    ):
+        mock_run_external_process.return_value = 0
+        toolchain.run_platformio_cli_run({}, False, "-t", "upload")
+
+    mock_run_external_process.assert_called_once()
+    assert "-e" in mock_run_external_process.call_args[0]
+    assert "rp2040-arduino-compiled1234" in mock_run_external_process.call_args[0]
+    assert lock_paths == [
+        setup_core
+        / ".esphome"
+        / "platformio"
+        / "libdeps"
+        / ".locks"
+        / "rp2040-arduino-compiled1234.lock"
+    ]
 
 
 def test_run_compile(setup_core: Path, mock_run_platformio_cli_run: Mock) -> None:
