@@ -1,9 +1,9 @@
 #include "time_based_valve.h"
 #include "esphome/core/log.h"
 
-namespace esphome::time_based_valve {
+namespace esphome::time_based {
 
-static const char *const TAG = "time_based_valve";
+static const char *const TAG = "time_based.valve";
 
 using namespace esphome::valve;
 
@@ -34,4 +34,4 @@ ValveTraits TimeBasedValve::get_traits() {
   return traits;
 }
 
-}  // namespace esphome::time_based_valve
+}  // namespace esphome::time_based

@@ -528,7 +528,6 @@ esphome/components/text/* @mauritskorse
 esphome/components/thermopro_ble/* @sittner
 esphome/components/thermostat/* @kbx81
 esphome/components/time/* @esphome/core
-esphome/components/time_based_valve/* @exciton
 esphome/components/tinyusb/* @kbx81
 esphome/components/tlc5947/* @rnauber
 esphome/components/tlc5971/* @IJIJI

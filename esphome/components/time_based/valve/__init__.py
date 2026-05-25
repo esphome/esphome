@@ -1,17 +1,15 @@
 import esphome.codegen as cg
 from esphome.components import valve
-from esphome.components.time_based import (
+import esphome.config_validation as cv
+
+from .. import (
     TIME_BASED_ACTUATOR_SCHEMA,
     TimeBasedActuatorBase,
     apply_time_based_actuator_config,
+    time_based_ns,
 )
-import esphome.config_validation as cv
 
-from .. import time_based_valve_ns
-
-DEPENDENCIES = ["valve", "time_based"]
-
-TimeBasedValve = time_based_valve_ns.class_(
+TimeBasedValve = time_based_ns.class_(
     "TimeBasedValve", TimeBasedActuatorBase, valve.Valve
 )
 
