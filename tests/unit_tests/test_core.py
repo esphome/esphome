@@ -610,6 +610,9 @@ class TestEsphomeCore:
         legacy_firmware.write_bytes(b"old")
 
         assert target.firmware_bin == legacy_firmware
+        assert target.firmware_bin_path(
+            prefer_existing=False
+        ) == target.relative_pioenvs_path(const.PLATFORMIO_ENV_NAME, "firmware.bin")
 
     def test_firmware_bin__libretiny(self, target, tmp_path):
         """The libretiny platform produces firmware.uf2 in the stable env."""

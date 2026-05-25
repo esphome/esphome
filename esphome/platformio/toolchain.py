@@ -11,6 +11,9 @@ from esphome.util import FlashImage, run_external_process
 
 _LOGGER = logging.getLogger(__name__)
 
+_INI_AUTO_GENERATE_BEGIN = "; ========== AUTO GENERATED CODE BEGIN ==========="
+_INI_AUTO_GENERATE_END = "; =========== AUTO GENERATED CODE END ============"
+
 
 def _strip_win_long_path_prefix(path: str) -> str:
     r"""Strip the Windows extended-length path prefix from ``path``.
@@ -69,8 +72,38 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     return run_external_process(*cmd, **kwargs)
 
 
+def _read_generated_platformio_env_name() -> str | None:
+    platformio_ini = Path(CORE.build_path) / "platformio.ini"
+    if not platformio_ini.is_file():
+        return None
+
+    text = platformio_ini.read_text(encoding="utf-8")
+    begin = text.find(_INI_AUTO_GENERATE_BEGIN)
+    end = text.find(_INI_AUTO_GENERATE_END)
+    if begin == -1 or end == -1 or begin >= end:
+        return None
+
+    for line in text[begin + len(_INI_AUTO_GENERATE_BEGIN) : end].splitlines():
+        line = line.strip()
+        if line.startswith("[env:") and line.endswith("]"):
+            return line[len("[env:") : -1].strip()
+    return None
+
+
+def platformio_env_name(*, prefer_existing: bool = False) -> str:
+    if prefer_existing and (env_name := _read_generated_platformio_env_name()):
+        return env_name
+    return CORE.pioenv_name
+
+
 def run_platformio_cli_run(config, verbose, *args, **kwargs) -> str | int:
-    command = ["run", "-d", str(CORE.build_path), "-e", CORE.pioenv_name]
+    command = [
+        "run",
+        "-d",
+        str(CORE.build_path),
+        "-e",
+        platformio_env_name(prefer_existing=True),
+    ]
     if verbose:
         command += ["-v"]
     command += list(args)
