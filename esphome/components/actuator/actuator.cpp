@@ -78,6 +78,8 @@ void ActuatorCallBase::validate_() {
   }
 }
 
+void ActuatorCallBase::call_control_() { this->parent_->control(*this); }
+
 void ActuatorCallBase::perform() {
   ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   this->validate_();
@@ -90,7 +92,7 @@ void ActuatorCallBase::perform() {
   if (this->toggle_.has_value()) {
     ESP_LOGV(TAG, "  Command: TOGGLE");
   }
-  this->parent_->control(*this);
+  this->call_control_();
 }
 
 //

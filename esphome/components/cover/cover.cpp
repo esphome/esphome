@@ -88,7 +88,7 @@ void CoverCall::perform() {
   if (this->toggle_.has_value()) {
     ESP_LOGV(TAG, "  Command: TOGGLE");
   }
-  this->parent_->control(*this);
+  this->call_control_();
 }
 
 void CoverCall::validate_() {

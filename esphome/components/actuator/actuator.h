@@ -14,7 +14,7 @@ enum ActuatorOperation : uint8_t {
   ACTUATOR_OPERATION_IDLE = 0,
   ACTUATOR_OPERATION_OPENING,
   ACTUATOR_OPERATION_CLOSING,
-} __attribute__((packed));
+};
 
 struct ActuatorRestoreState {
   float position;
@@ -43,6 +43,8 @@ class ActuatorCallBase {
 
  protected:
   virtual void validate_();
+
+  void call_control_();
 
   ActuatorBase *parent_;
   bool stop_{false};
