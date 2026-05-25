@@ -24,7 +24,7 @@ void TimeBasedActuatorBase::loop() {
     } else {
       this->start_direction_(ACTUATOR_OPERATION_IDLE);
     }
-    this->actuator_->do_publish_state();
+    this->actuator_->do_publish_state(true);
   }
 
   // Send current position every second
@@ -37,12 +37,12 @@ void TimeBasedActuatorBase::loop() {
 void TimeBasedActuatorBase::control(const ActuatorCallBase &call) {
   if (call.get_stop()) {
     this->start_direction_(ACTUATOR_OPERATION_IDLE);
-    this->actuator_->do_publish_state();
+    this->actuator_->do_publish_state(true);
   }
   if (call.get_toggle().has_value()) {
     if (this->actuator_->get_operation() != ACTUATOR_OPERATION_IDLE) {
       this->start_direction_(ACTUATOR_OPERATION_IDLE);
-      this->actuator_->do_publish_state();
+      this->actuator_->do_publish_state(true);
     } else {
       if (this->actuator_->get_position() == ACTUATOR_CLOSED || this->last_operation_ == ACTUATOR_OPERATION_CLOSING) {
         this->target_position_ = ACTUATOR_OPEN;
