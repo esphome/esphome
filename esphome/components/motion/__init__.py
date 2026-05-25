@@ -4,7 +4,7 @@ import re
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_ON_ERROR, CONF_ON_SUCCESS
 from esphome.cpp_generator import MockObj, MockObjClass
 
 CODEOWNERS = ["@esphome/core"]
@@ -151,30 +151,40 @@ async def new_motion_component(config: dict) -> MockObj:
 
 # --- Actions ---
 
-MOTION_ACTION_SCHEMA = cv.Schema(
+CALIBRATE_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(MotionComponent),
+        cv.Optional(CONF_ON_SUCCESS): automation.validate_automation(single=True),
+        cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
     }
 )
+
+
+async def _build_calibrate_action(config, action_id, template_arg, args):
+    parent = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, parent)
+    if on_success := config.get(CONF_ON_SUCCESS):
+        await automation.build_automation(var.get_success_trigger(), [], on_success)
+    if on_error := config.get(CONF_ON_ERROR):
+        await automation.build_automation(var.get_error_trigger(), [], on_error)
+    return var
 
 
 @automation.register_action(
     "motion.calibrate_level",
     CalibrateLevelAction,
-    MOTION_ACTION_SCHEMA,
+    CALIBRATE_ACTION_SCHEMA,
     synchronous=True,
 )
 async def calibrate_level_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)
+    return await _build_calibrate_action(config, action_id, template_arg, args)
 
 
 @automation.register_action(
     "motion.calibrate_heading",
     CalibrateHeadingAction,
-    MOTION_ACTION_SCHEMA,
+    CALIBRATE_ACTION_SCHEMA,
     synchronous=True,
 )
 async def calibrate_heading_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)
+    return await _build_calibrate_action(config, action_id, template_arg, args)

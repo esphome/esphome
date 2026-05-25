@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 from voluptuous import Invalid, MultipleInvalid
 
 from esphome.components.motion import (
+    CALIBRATE_ACTION_SCHEMA,
     CONF_AXIS_MAP,
     CONF_TRANSFORM_MATRIX,
     _axis_map,
     _axis_map_to_matrix,
+    _build_calibrate_action,
     _transform_matrix,
     _validate_matrix_options,
 )
@@ -22,6 +26,7 @@ from esphome.components.motion.sensor import (
     CONFIG_SCHEMA,
     build_sensor_expr,
 )
+from esphome.const import CONF_ID, CONF_ON_ERROR, CONF_ON_SUCCESS
 from esphome.cpp_generator import MockObj
 
 # --- Axis map validation ---
@@ -603,6 +608,124 @@ class TestCalibrateHeading:
             expected = 1.0 if i % 4 == 0 else 0.0
             assert product[i] == pytest.approx(expected, abs=1e-5)
         assert _det(heading_m) == pytest.approx(1.0, abs=1e-5)
+
+
+# --- Calibration action schema & codegen ---
+
+
+class TestCalibrateActionSchema:
+    """Tests for the CALIBRATE_ACTION_SCHEMA used by both calibration actions."""
+
+    def test_schema_accepts_on_success_key(self):
+        """on_success must be a recognised optional key."""
+        schema_keys = {str(k) for k in CALIBRATE_ACTION_SCHEMA.schema}
+        assert CONF_ON_SUCCESS in schema_keys
+
+    def test_schema_accepts_on_error_key(self):
+        """on_error must be a recognised optional key."""
+        schema_keys = {str(k) for k in CALIBRATE_ACTION_SCHEMA.schema}
+        assert CONF_ON_ERROR in schema_keys
+
+
+@pytest.fixture
+def mock_codegen():
+    """Mock cg and automation functions used by _build_calibrate_action."""
+    mock_var = MagicMock()
+    mock_parent = MagicMock()
+
+    with (
+        patch(
+            "esphome.components.motion.cg.get_variable",
+            new_callable=AsyncMock,
+            return_value=mock_parent,
+        ) as mock_get_var,
+        patch(
+            "esphome.components.motion.cg.new_Pvariable",
+            return_value=mock_var,
+        ) as mock_new_pvar,
+        patch(
+            "esphome.components.motion.automation.build_automation",
+            new_callable=AsyncMock,
+        ) as mock_build_auto,
+    ):
+        yield {
+            "get_variable": mock_get_var,
+            "new_Pvariable": mock_new_pvar,
+            "build_automation": mock_build_auto,
+            "var": mock_var,
+            "parent": mock_parent,
+        }
+
+
+@pytest.mark.asyncio
+async def test_build_calibrate_action_no_triggers(mock_codegen):
+    """Without on_success/on_error, build_automation should not be called."""
+    config = {CONF_ID: MagicMock()}
+    action_id = MagicMock()
+    template_arg = MagicMock()
+
+    result = await _build_calibrate_action(config, action_id, template_arg, [])
+
+    assert result is mock_codegen["var"]
+    mock_codegen["new_Pvariable"].assert_called_once_with(
+        action_id, template_arg, mock_codegen["parent"]
+    )
+    mock_codegen["build_automation"].assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_build_calibrate_action_with_on_success(mock_codegen):
+    """on_success should wire build_automation to get_success_trigger()."""
+    on_success_config = MagicMock()
+    config = {CONF_ID: MagicMock(), CONF_ON_SUCCESS: on_success_config}
+
+    await _build_calibrate_action(config, MagicMock(), MagicMock(), [])
+
+    mock_codegen["build_automation"].assert_called_once_with(
+        mock_codegen["var"].get_success_trigger(), [], on_success_config
+    )
+
+
+@pytest.mark.asyncio
+async def test_build_calibrate_action_with_on_error(mock_codegen):
+    """on_error should wire build_automation to get_error_trigger()."""
+    on_error_config = MagicMock()
+    config = {CONF_ID: MagicMock(), CONF_ON_ERROR: on_error_config}
+
+    await _build_calibrate_action(config, MagicMock(), MagicMock(), [])
+
+    mock_codegen["build_automation"].assert_called_once_with(
+        mock_codegen["var"].get_error_trigger(), [], on_error_config
+    )
+
+
+@pytest.mark.asyncio
+async def test_build_calibrate_action_with_both_triggers(mock_codegen):
+    """Both on_success and on_error should each produce a build_automation call."""
+    on_success_config = MagicMock()
+    on_error_config = MagicMock()
+    config = {
+        CONF_ID: MagicMock(),
+        CONF_ON_SUCCESS: on_success_config,
+        CONF_ON_ERROR: on_error_config,
+    }
+
+    await _build_calibrate_action(config, MagicMock(), MagicMock(), [])
+
+    assert mock_codegen["build_automation"].call_count == 2
+    calls = mock_codegen["build_automation"].call_args_list
+    # First call: on_success
+    assert calls[0].args == (
+        mock_codegen["var"].get_success_trigger(),
+        [],
+        on_success_config,
+    )
+    # Second call: on_error
+    assert calls[1].args == (
+        mock_codegen["var"].get_error_trigger(),
+        [],
+        on_error_config,
+    )
 
 
 # --- Sensor config schema type validation ---

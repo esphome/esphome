@@ -63,19 +63,39 @@ class MotionComponent : public PollingComponent {
 template<typename... Ts> class CalibrateLevelAction : public Action<Ts...> {
  public:
   explicit CalibrateLevelAction(MotionComponent *parent) : parent_(parent) {}
-  void play(const Ts &...) override { this->parent_->calibrate_level(); }
+  Trigger<> *get_success_trigger() { return &this->success_trigger_; }
+  Trigger<> *get_error_trigger() { return &this->error_trigger_; }
+  void play(const Ts &...) override {
+    if (this->parent_->calibrate_level()) {
+      this->success_trigger_.trigger();
+    } else {
+      this->error_trigger_.trigger();
+    }
+  }
 
  protected:
   MotionComponent *parent_;
+  Trigger<> success_trigger_;
+  Trigger<> error_trigger_;
 };
 
 template<typename... Ts> class CalibrateHeadingAction : public Action<Ts...> {
  public:
   explicit CalibrateHeadingAction(MotionComponent *parent) : parent_(parent) {}
-  void play(const Ts &...) override { this->parent_->calibrate_heading(); }
+  Trigger<> *get_success_trigger() { return &this->success_trigger_; }
+  Trigger<> *get_error_trigger() { return &this->error_trigger_; }
+  void play(const Ts &...) override {
+    if (this->parent_->calibrate_heading()) {
+      this->success_trigger_.trigger();
+    } else {
+      this->error_trigger_.trigger();
+    }
+  }
 
  protected:
   MotionComponent *parent_;
+  Trigger<> success_trigger_;
+  Trigger<> error_trigger_;
 };
 
 }  // namespace esphome::motion
