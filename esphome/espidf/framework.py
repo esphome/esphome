@@ -818,6 +818,8 @@ def _clone_idf_with_submodules(
     The clone is shallow (``--depth=1``) and submodules are shallow too;
     ESP-IDF master is still ~2-3 GB after this.
     """
+    from esphome.git import run_git_command
+
     cmd = [
         "git",
         "clone",
@@ -829,7 +831,7 @@ def _clone_idf_with_submodules(
         cmd += ["--branch", ref]
     cmd += ["--", git_url, str(framework_path)]
     _LOGGER.info("Cloning ESP-IDF from %s%s", git_url, f"@{ref}" if ref else "")
-    subprocess.run(cmd, check=True)
+    run_git_command(cmd)
 
 
 def _write_idf_version_txt(framework_path: Path, version: str) -> None:
