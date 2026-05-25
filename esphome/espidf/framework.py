@@ -784,6 +784,54 @@ def download_from_mirrors(
         return None
 
 
+def _parse_git_source(source_url: str) -> tuple[str, str | None] | None:
+    """Parse a ``git+`` framework source URL.
+
+    Accepts pip-style ``git+<url>[@<ref>]`` (e.g.
+    ``git+https://github.com/espressif/esp-idf.git@master``). Returns
+    ``(url, ref)`` if the input is a git source, or ``None`` if it's a
+    plain archive URL.
+    """
+    if not source_url.startswith("git+"):
+        return None
+    git_url = source_url[len("git+") :]
+    ref: str | None = None
+    # Use rsplit("@") so URLs with embedded ``user@host`` (ssh) keep the ref
+    # split on the last ``@`` only.
+    if "@" in git_url.rsplit("/", 1)[-1]:
+        git_url, ref = git_url.rsplit("@", 1)
+    return git_url, ref
+
+
+def _clone_idf_with_submodules(
+    framework_path: Path, git_url: str, ref: str | None
+) -> None:
+    """Clone ESP-IDF from a git URL into ``framework_path`` with submodules.
+
+    The plain ``archive/<ref>.zip`` URL from GitHub strips submodules, so
+    components that vendor upstream code via a submodule (``mbedtls``,
+    ``openthread``, ``esptool``, ``bootloader``, ...) come down empty and
+    the CMake configure dies. This path runs ``git clone
+    --recurse-submodules --shallow-submodules`` so the working tree is
+    actually buildable.
+
+    The clone is shallow (``--depth=1``) and submodules are shallow too;
+    ESP-IDF master is still ~2-3 GB after this.
+    """
+    cmd = [
+        "git",
+        "clone",
+        "--depth=1",
+        "--recurse-submodules",
+        "--shallow-submodules",
+    ]
+    if ref:
+        cmd += ["--branch", ref]
+    cmd += ["--", git_url, str(framework_path)]
+    _LOGGER.info("Cloning ESP-IDF from %s%s", git_url, f"@{ref}" if ref else "")
+    subprocess.run(cmd, check=True)
+
+
 def _write_idf_version_txt(framework_path: Path, version: str) -> None:
     """Write <framework_path>/version.txt if missing.
 
@@ -939,27 +987,37 @@ def _check_esphome_idf_framework_install(
     if install:
         rmdir(framework_path, msg=f"Clean up ESP-IDF {version} framework")
 
-        # Download in temporary file
-        with tempfile.NamedTemporaryFile() as tmp:
-            _LOGGER.info("Downloading ESP-IDF %s framework ...", version)
+        git_source = _parse_git_source(source_url) if source_url else None
+        if git_source is not None:
+            # Plain archive URLs from GitHub strip submodules; pull via git
+            # with --recurse-submodules so components like mbedtls/openthread
+            # actually have their nested source.
+            git_url, ref = git_source
+            _clone_idf_with_submodules(framework_path, git_url, ref)
+        else:
+            # Download in temporary file
+            with tempfile.NamedTemporaryFile() as tmp:
+                _LOGGER.info("Downloading ESP-IDF %s framework ...", version)
 
-            # Create substitutions for the URLs
-            substitutions = {"VERSION": version}
-            try:
-                ver = Version.parse(version)
-                substitutions["MAJOR"] = str(ver.major)
-                substitutions["MINOR"] = str(ver.minor)
-                substitutions["PATCH"] = str(ver.patch)
-                substitutions["EXTRA"] = ver.extra
-            except ValueError:
-                pass
+                # Create substitutions for the URLs
+                substitutions = {"VERSION": version}
+                try:
+                    ver = Version.parse(version)
+                    substitutions["MAJOR"] = str(ver.major)
+                    substitutions["MINOR"] = str(ver.minor)
+                    substitutions["PATCH"] = str(ver.patch)
+                    substitutions["EXTRA"] = ver.extra
+                except ValueError:
+                    pass
 
-            mirrors = [source_url] if source_url else ESPHOME_IDF_FRAMEWORK_MIRRORS
-            download_from_mirrors(mirrors, substitutions, tmp.file)
+                mirrors = [source_url] if source_url else ESPHOME_IDF_FRAMEWORK_MIRRORS
+                download_from_mirrors(mirrors, substitutions, tmp.file)
 
-            _LOGGER.info("Extracting ESP-IDF %s framework ...", version)
-            archive_extract_all(tmp.file, framework_path, progress_header="Extracting")
-            extracted_marker.touch()
+                _LOGGER.info("Extracting ESP-IDF %s framework ...", version)
+                archive_extract_all(
+                    tmp.file, framework_path, progress_header="Extracting"
+                )
+        extracted_marker.touch()
 
     # Idempotent post-extract patch: written every invocation so a build
     # dir extracted before this fix gets the file too, without forcing a
