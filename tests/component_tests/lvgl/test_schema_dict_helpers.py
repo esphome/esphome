@@ -7,12 +7,14 @@ corresponding Schema(...) wrappers must accept and reject the same configs.
 
 from __future__ import annotations
 
+from collections.abc import Generator
+
 import pytest
 import voluptuous as vol
 
 from esphome import config_validation as cv
 import esphome.components.lvgl  # noqa: F401
-from esphome.components.lvgl import defines as df
+from esphome.components.lvgl import defines as df, schemas as lvgl_schemas
 from esphome.components.lvgl.schemas import (
     ALIGN_TO_SCHEMA,
     FLAG_SCHEMA,
@@ -26,6 +28,16 @@ from esphome.components.lvgl.schemas import (
     part_dict,
     part_schema,
 )
+
+
+@pytest.fixture(autouse=True)
+def _clear_obj_dict_cache() -> Generator[None]:
+    cache = getattr(lvgl_schemas, "_OBJ_DICT_CACHE", None)
+    if cache is not None:
+        cache.clear()
+    yield
+    if cache is not None:
+        cache.clear()
 
 
 def _marker_names(mapping) -> set[str]:
@@ -63,6 +75,15 @@ def test_obj_dict_extends_part_dict_with_align_automation_state_group() -> None:
     assert _marker_names(ALIGN_TO_SCHEMA) <= obj_keys
     assert _marker_names(automation_schema(wt.w_type)) <= obj_keys
     assert {"state", "group"} <= obj_keys
+
+
+def test_obj_dict_is_memoized_by_widget_type() -> None:
+    wt = _widget_type("obj")
+    first = obj_dict(wt)
+    second = obj_dict(wt)
+    assert first is second
+    # Different widget type, different dict.
+    assert obj_dict(_widget_type("label")) is not first
 
 
 def test_part_schema_round_trips_known_state_and_part_settings() -> None:

@@ -480,6 +480,14 @@ def base_update_schema(widget_type: WidgetType | LvType, parts):
     return schema
 
 
+# Memoize obj_dict() the same way _OBJ_SCHEMA_CACHE memoizes obj_schema().
+# automation_schema(w.w_type) builds fresh Trigger.template(...) objects on
+# every call, so without this cache _theme_schema pays that cost per widget
+# per validation. Callers must treat the returned dict as immutable (current
+# callers spread it into a new dict, which is safe).
+_OBJ_DICT_CACHE: dict[int, tuple[WidgetType, dict[Any, Any]]] = {}
+
+
 def obj_dict(widget_type: WidgetType) -> dict[Any, Any]:
     """
     Return the raw mapping used by obj_schema, so callers can merge it into a
@@ -488,14 +496,21 @@ def obj_dict(widget_type: WidgetType) -> dict[Any, Any]:
     Inherits the same source-schema invariant documented on part_dict: any
     schema spread into this mapping must use the default extra=PREVENT_EXTRA
     and required=False and must carry no add_extra/prepend_extra validators.
+
+    The returned mapping is cached and must be treated as immutable by callers.
     """
-    return {
+    cached = _OBJ_DICT_CACHE.get(id(widget_type))
+    if cached is not None and cached[0] is widget_type:
+        return cached[1]
+    built = {
         **part_dict(widget_type.parts),
         **ALIGN_TO_SCHEMA,
         **automation_schema(widget_type.w_type),
         cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
         cv.Optional(CONF_GROUP): cv.use_id(lv_group_t),
     }
+    _OBJ_DICT_CACHE[id(widget_type)] = (widget_type, built)
+    return built
 
 
 # Widget types are module-level singletons populated at import time, so we
