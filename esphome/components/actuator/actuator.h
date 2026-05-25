@@ -14,11 +14,13 @@ enum ActuatorOperation : uint8_t {
   ACTUATOR_OPERATION_IDLE = 0,
   ACTUATOR_OPERATION_OPENING,
   ACTUATOR_OPERATION_CLOSING,
-} __attribute__((packed));
+};
 
 struct ActuatorRestoreState {
   float position;
 } __attribute__((packed));
+
+const LogString *actuator_operation_to_str(ActuatorOperation op);
 
 class ActuatorBase;
 
@@ -28,12 +30,30 @@ class ActuatorCallBase {
   explicit ActuatorCallBase(ActuatorBase *parent) : parent_(parent) {}
 
   ActuatorCallBase &set_command(const char *command);
-  ActuatorCallBase &set_command_open();
-  ActuatorCallBase &set_command_close();
-  ActuatorCallBase &set_command_stop();
-  ActuatorCallBase &set_command_toggle();
-  ActuatorCallBase &set_position(float position);
-  ActuatorCallBase &set_stop(bool stop);
+  ActuatorCallBase &set_command_open() {
+    this->position_ = ACTUATOR_OPEN;
+    return *this;
+  }
+  ActuatorCallBase &set_command_close() {
+    this->position_ = ACTUATOR_CLOSED;
+    return *this;
+  }
+  ActuatorCallBase &set_command_stop() {
+    this->stop_ = true;
+    return *this;
+  }
+  ActuatorCallBase &set_command_toggle() {
+    this->toggle_ = true;
+    return *this;
+  }
+  ActuatorCallBase &set_position(float position) {
+    this->position_ = position;
+    return *this;
+  }
+  ActuatorCallBase &set_stop(bool stop) {
+    this->stop_ = stop;
+    return *this;
+  }
 
   void perform();
 
@@ -42,7 +62,9 @@ class ActuatorCallBase {
   const optional<bool> &get_toggle() const { return this->toggle_; }
 
  protected:
-  virtual void validate_();
+  virtual void validate();
+
+  void call_control_();
 
   ActuatorBase *parent_;
   bool stop_{false};
@@ -66,7 +88,13 @@ class ActuatorBase : public EntityBase {
 
   virtual void control(const ActuatorCallBase &call) = 0;
 
-  optional<ActuatorRestoreState> restore_state_();
+  template<typename T> optional<T> restore_state_() {
+    this->rtc_ = this->make_entity_preference<T>();
+    T recovered{};
+    if (!this->rtc_.load(&recovered))
+      return {};
+    return recovered;
+  }
 
   LazyCallbackManager<void()> state_callback_{};
   ESPPreferenceObject rtc_;

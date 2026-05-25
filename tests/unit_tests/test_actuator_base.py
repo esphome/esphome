@@ -19,6 +19,7 @@ class TestActuatorModuleImport:
 
     def test_actuator_module_importable(self):
         """The esphome.components.actuator module must be importable."""
+        # pylint: disable-next=unused-import
         from esphome.components import actuator  # noqa: F401
 
     def test_actuator_open_constant_exists(self):
@@ -62,31 +63,33 @@ class TestActuatorModuleImport:
         )
 
     def test_actuator_operation_idle(self):
-        """ActuatorOperation.ACTUATOR_OPERATION_IDLE must be 0."""
+        """ActuatorOperation.ACTUATOR_OPERATION_IDLE must render as the qualified C++ name."""
         from esphome.components import actuator
 
         op = actuator.ActuatorOperation
         idle = op.ACTUATOR_OPERATION_IDLE
-        assert str(idle) == "0", f"ACTUATOR_OPERATION_IDLE expected '0', got '{idle}'"
+        assert str(idle) == "actuator::ACTUATOR_OPERATION_IDLE", (
+            f"ACTUATOR_OPERATION_IDLE expected qualified C++ name, got '{idle}'"
+        )
 
     def test_actuator_operation_opening(self):
-        """ActuatorOperation.ACTUATOR_OPERATION_OPENING must be 1."""
+        """ActuatorOperation.ACTUATOR_OPERATION_OPENING must render as the qualified C++ name."""
         from esphome.components import actuator
 
         op = actuator.ActuatorOperation
         opening = op.ACTUATOR_OPERATION_OPENING
-        assert str(opening) == "1", (
-            f"ACTUATOR_OPERATION_OPENING expected '1', got '{opening}'"
+        assert str(opening) == "actuator::ACTUATOR_OPERATION_OPENING", (
+            f"ACTUATOR_OPERATION_OPENING expected qualified C++ name, got '{opening}'"
         )
 
     def test_actuator_operation_closing(self):
-        """ActuatorOperation.ACTUATOR_OPERATION_CLOSING must be 2."""
+        """ActuatorOperation.ACTUATOR_OPERATION_CLOSING must render as the qualified C++ name."""
         from esphome.components import actuator
 
         op = actuator.ActuatorOperation
         closing = op.ACTUATOR_OPERATION_CLOSING
-        assert str(closing) == "2", (
-            f"ACTUATOR_OPERATION_CLOSING expected '2', got '{closing}'"
+        assert str(closing) == "actuator::ACTUATOR_OPERATION_CLOSING", (
+            f"ACTUATOR_OPERATION_CLOSING expected qualified C++ name, got '{closing}'"
         )
 
     def test_actuator_base_class_exists(self):

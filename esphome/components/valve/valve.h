@@ -11,16 +11,13 @@
 
 namespace esphome::valve {
 
-// Backward-compat aliases — these MUST remain for external code
+// Backward-compat aliases.
 using ValveOperation = actuator::ActuatorOperation;
-constexpr ValveOperation VALVE_OPERATION_IDLE = actuator::ACTUATOR_OPERATION_IDLE;
-constexpr ValveOperation VALVE_OPERATION_OPENING = actuator::ACTUATOR_OPERATION_OPENING;
-constexpr ValveOperation VALVE_OPERATION_CLOSING = actuator::ACTUATOR_OPERATION_CLOSING;
-
-// VALVE_OPEN / VALVE_CLOSED kept as static const for binary compatibility with
-// existing code that references the valve namespace constants.
-static const float VALVE_OPEN = actuator::ACTUATOR_OPEN;
-static const float VALVE_CLOSED = actuator::ACTUATOR_CLOSED;
+constexpr actuator::ActuatorOperation VALVE_OPERATION_IDLE = actuator::ACTUATOR_OPERATION_IDLE;
+constexpr actuator::ActuatorOperation VALVE_OPERATION_OPENING = actuator::ACTUATOR_OPERATION_OPENING;
+constexpr actuator::ActuatorOperation VALVE_OPERATION_CLOSING = actuator::ACTUATOR_OPERATION_CLOSING;
+static constexpr float VALVE_OPEN = actuator::ACTUATOR_OPEN;
+static constexpr float VALVE_CLOSED = actuator::ACTUATOR_CLOSED;
 
 #define LOG_VALVE(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -55,7 +52,7 @@ class ValveCall : public actuator::ActuatorCallBase {
   const optional<bool> &get_toggle() const { return this->toggle_; }
 
  protected:
-  void validate_() override;
+  void validate() override;
 };
 
 /// Struct used to store the restored state of a valve
@@ -130,11 +127,9 @@ class Valve : public actuator::ActuatorBase, public actuator::IActuator {
   virtual void control(const ValveCall &call) = 0;
 
   // Bridge from ActuatorBase — safe cast because Valve::make_call() always constructs a ValveCall
-  void control(const actuator::ActuatorCallBase &call) override final {
-    this->control(static_cast<const ValveCall &>(call));
-  }
+  void control(const actuator::ActuatorCallBase &call) final { this->control(static_cast<const ValveCall &>(call)); }
 
-  optional<ValveRestoreState> restore_state_();
+  optional<ValveRestoreState> restore_state_() { return ActuatorBase::restore_state_<ValveRestoreState>(); }
 };
 
 }  // namespace esphome::valve
