@@ -117,9 +117,8 @@ template<typename T> T get_data(const std::vector<uint8_t> &data, size_t buffer_
   // responses before they reach here, but this prevents undefined behavior
   // if that check is bypassed.
   if (buffer_offset + sizeof(T) > data.size()) {
-    ESP_LOGW("modbus_helpers",
-             "get_data: offset %zu + size %zu exceeds data length %zu - returning 0",
-             buffer_offset, sizeof(T), data.size());
+    ESP_LOGW("modbus_helpers", "get_data: offset %zu + size %zu exceeds data length %zu - returning 0", buffer_offset,
+             sizeof(T), data.size());
     return T(0);
   }
 
