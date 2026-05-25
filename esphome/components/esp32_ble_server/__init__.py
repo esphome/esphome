@@ -307,24 +307,30 @@ def final_validate_config(config):
     # Check if all characteristics that require notifications have the notify property set
     for char_id in CORE.data.get(DOMAIN, {}).get(KEY_NOTIFY_REQUIRED, set()):
         # Look for the characteristic in the configuration
-        char_config = [
+        matches = [
             char_conf
             for service_conf in config[CONF_SERVICES]
             for char_conf in service_conf[CONF_CHARACTERISTICS]
             if char_conf[CONF_ID] == char_id
-        ][0]
+        ]
+        if not matches:
+            continue
+        char_config = matches[0]
         if not char_config[CONF_NOTIFY]:
             raise cv.Invalid(
                 f"Characteristic {char_config[CONF_UUID]} has notify actions and the {CONF_NOTIFY} property is not set"
             )
     for char_id in CORE.data.get(DOMAIN, {}).get(KEY_SET_VALUE, set()):
         # Look for the characteristic in the configuration
-        char_config = [
+        matches = [
             char_conf
             for service_conf in config[CONF_SERVICES]
             for char_conf in service_conf[CONF_CHARACTERISTICS]
             if char_conf[CONF_ID] == char_id
-        ][0]
+        ]
+        if not matches:
+            continue
+        char_config = matches[0]
         if isinstance(char_config.get(CONF_VALUE, {}).get(CONF_DATA), cv.Lambda):
             raise cv.Invalid(
                 f"Characteristic {char_config[CONF_UUID]} has both a set_value action and a templated value"

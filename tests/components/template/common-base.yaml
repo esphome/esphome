@@ -171,6 +171,7 @@ sensor:
               quantile: .9
           - round: 1
       - round_to_multiple_of: 0.25
+      - round_to_significant_digits: 3
       - skip_initial: 3
       - sliding_window_moving_average:
           window_size: 15
@@ -201,6 +202,11 @@ sensor:
           value: last
       - timeout:
           timeout: 1d
+      - to_ntc_temperature:
+          calibration:
+            b_constant: 3950
+            reference_temperature: 25.0°C
+            reference_resistance: 10kOhm
       - to_ntc_resistance:
           calibration:
             - 10.0kOhm -> 25°C
@@ -269,8 +275,6 @@ cover:
     stop_action:
       - logger.log: stop_action
     optimistic: true
-    on_open:
-      - logger.log: "Cover on_open (deprecated)"
     on_opened:
       - logger.log: "Cover fully opened"
     on_closed:
@@ -292,6 +296,60 @@ cover:
             cover.is_closed: template_cover_with_triggers
           then:
             logger.log: Cover is closed
+  # Exercise cover.control / cover.template.publish action variants so they
+  # get build coverage in CI (and so memory-impact analysis on PRs that
+  # touch ControlAction / CoverPublishAction sees real instances).
+  - platform: template
+    name: "Template Cover Actions"
+    id: template_cover_actions
+    has_position: true
+    optimistic: true
+    open_action:
+      # CONF_STATE alias for the position bit
+      - cover.template.publish:
+          id: template_cover_actions
+          state: OPEN
+      - cover.template.publish:
+          id: template_cover_actions
+          position: 1.0
+      - cover.template.publish:
+          id: template_cover_actions
+          current_operation: IDLE
+    close_action:
+      - cover.template.publish:
+          id: template_cover_actions
+          position: 0.0
+          tilt: 0.0
+    stop_action:
+      - cover.template.publish:
+          id: template_cover_actions
+          current_operation: IDLE
+    tilt_action:
+      - lambda: |-
+          id(template_cover_actions).tilt = tilt;
+          id(template_cover_actions).publish_state();
+    on_idle:
+      # position only
+      - cover.control:
+          id: template_cover_actions
+          position: 50%
+      # tilt only
+      - cover.control:
+          id: template_cover_actions
+          tilt: 75%
+      # position + tilt
+      - cover.control:
+          id: template_cover_actions
+          position: 25%
+          tilt: 30%
+      # stop
+      - cover.control:
+          id: template_cover_actions
+          stop: true
+      # CONF_STATE alias for position
+      - cover.control:
+          id: template_cover_actions
+          state: OPEN
 
 number:
   - platform: template
@@ -301,6 +359,32 @@ number:
     min_value: 0
     max_value: 100
     step: 1
+  # Exercise valve.control inside a trigger with non-empty Ts (number on_value
+  # passes float).
+  - platform: template
+    id: template_valve_position_number
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+    on_value:
+      then:
+        - valve.control:
+            id: template_valve
+            position: !lambda "return x / 100.0f;"
+  # Same regression test for cover.control: forces the apply-lambda
+  # codegen to handle a non-empty trigger Ts (float).
+  - platform: template
+    id: template_cover_position_number
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+    on_value:
+      then:
+        - cover.control:
+            id: template_cover_with_triggers
+            position: !lambda "return x / 100.0f;"
 
 select:
   - platform: template
@@ -387,6 +471,20 @@ valve:
           state: CLOSED
     stop_action:
       - logger.log: stop_action
+      # Exercise valve.control with various field combinations so the
+      # ControlAction codegen paths get build coverage.
+      - valve.control:
+          id: template_valve
+          stop: true
+      - valve.control:
+          id: template_valve
+          position: 50%
+      - valve.control:
+          id: template_valve
+          state: OPEN
+      - valve.control:
+          id: template_valve
+          position: !lambda 'return 0.25f;'
     optimistic: true
 
 text:

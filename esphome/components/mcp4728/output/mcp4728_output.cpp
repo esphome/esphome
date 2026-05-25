@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp4728 {
+namespace esphome::mcp4728 {
 
 void MCP4728Channel::write_state(float state) {
   const uint16_t max_duty = 4095;
@@ -13,5 +12,4 @@ void MCP4728Channel::write_state(float state) {
   this->parent_->set_channel_value_(this->channel_, duty);
 }
 
-}  // namespace mcp4728
-}  // namespace esphome
+}  // namespace esphome::mcp4728

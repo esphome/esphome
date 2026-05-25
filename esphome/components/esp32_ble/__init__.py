@@ -7,7 +7,7 @@ from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import socket
+from esphome.components.const import CONF_USE_PSRAM
 from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
 from esphome.components.esp32.const import VARIANT_ESP32C2
 import esphome.config_validation as cv
@@ -343,6 +343,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_MAX_CONNECTIONS, default=DEFAULT_MAX_CONNECTIONS): cv.All(
             cv.positive_int, cv.Range(min=1, max=IDF_MAX_CONNECTIONS)
         ),
+        cv.Optional(CONF_USE_PSRAM): cv.All(
+            cv.only_on_esp32, cv.requires_component("psram"), cv.boolean
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -374,14 +377,14 @@ def bt_uuid(value):
     value = in_value.upper()
 
     if len(value) == len(bt_uuid16_format):
-        pattern = re.compile("^[A-F|0-9]{4,}$")
+        pattern = re.compile("^[A-F0-9]{4,}$")
         if not pattern.match(value):
             raise cv.Invalid(
                 f"Invalid hexadecimal value for 16 bit UUID format: '{in_value}'"
             )
         return value
     if len(value) == len(bt_uuid32_format):
-        pattern = re.compile("^[A-F|0-9]{8,}$")
+        pattern = re.compile("^[A-F0-9]{8,}$")
         if not pattern.match(value):
             raise cv.Invalid(
                 f"Invalid hexadecimal value for 32 bit UUID format: '{in_value}'"
@@ -389,7 +392,7 @@ def bt_uuid(value):
         return value
     if len(value) == len(bt_uuid128_format):
         pattern = re.compile(
-            "^[A-F|0-9]{8,}-[A-F|0-9]{4,}-[A-F|0-9]{4,}-[A-F|0-9]{4,}-[A-F|0-9]{12,}$"
+            "^[A-F0-9]{8,}-[A-F0-9]{4,}-[A-F0-9]{4,}-[A-F0-9]{4,}-[A-F0-9]{12,}$"
         )
         if not pattern.match(value):
             raise cv.Invalid(
@@ -592,17 +595,28 @@ async def to_code(config):
         cg.add(var.set_name(name))
     await cg.register_component(var, config)
 
-    # BLE uses the socket wake_loop_threadsafe() mechanism to wake the main loop from BLE tasks
-    # This enables low-latency (~12μs) BLE event processing instead of waiting for
-    # select() timeout (0-16ms). The wake socket is shared across all components.
-    socket.require_wake_loop_threadsafe()
-
     # Define max connections for use in C++ code (e.g., ble_server.h)
     max_connections = config.get(CONF_MAX_CONNECTIONS, DEFAULT_MAX_CONNECTIONS)
     cg.add_define("USE_ESP32_BLE_MAX_CONNECTIONS", max_connections)
 
     add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
     add_idf_sdkconfig_option("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
+
+    # When PSRAM and BT are used together, Bluedroid should prefer SPIRAM for
+    # heap allocations and use dynamic (heap-based) environment memory tables
+    # instead of large static DRAM arrays. This frees ~40 kB of internal RAM.
+    # Reference: Espressif ADF Design Considerations
+    # https://espressif-docs.readthedocs-hosted.com/projects/esp-adf/en/latest/
+    #            design-guide/design-considerations.html
+    if config.get(CONF_USE_PSRAM, False):
+        cg.add_define("USE_ESP32_BLE_PSRAM")
+        # CONFIG_BT_ALLOCATION_FROM_SPIRAM_FIRST is only available on ESP32
+        # (BTDM dual-mode controller). BLE-only SoCs (C3, S3, C2, H2) do not
+        # expose this Kconfig symbol; applying it there would cause a build error.
+        if get_esp32_variant() == const.VARIANT_ESP32:
+            add_idf_sdkconfig_option("CONFIG_BT_ALLOCATION_FROM_SPIRAM_FIRST", True)
+        # CONFIG_BT_BLE_DYNAMIC_ENV_MEMORY applies to all Bluedroid-enabled variants.
+        add_idf_sdkconfig_option("CONFIG_BT_BLE_DYNAMIC_ENV_MEMORY", True)
 
     # Register the core BLE loggers that are always needed
     register_bt_logger(BTLoggers.GAP, BTLoggers.BTM, BTLoggers.HCI)

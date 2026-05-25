@@ -7,8 +7,7 @@
 
 #include "../mcp3204.h"
 
-namespace esphome {
-namespace mcp3204 {
+namespace esphome::mcp3204 {
 
 class MCP3204Sensor : public PollingComponent,
                       public Parented<MCP3204>,
@@ -26,5 +25,4 @@ class MCP3204Sensor : public PollingComponent,
   bool differential_mode_;
 };
 
-}  // namespace mcp3204
-}  // namespace esphome
+}  // namespace esphome::mcp3204

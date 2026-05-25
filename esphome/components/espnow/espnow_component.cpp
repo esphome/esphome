@@ -92,10 +92,8 @@ void on_send_report(const uint8_t *mac_addr, esp_now_send_status_t status)
   // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
   // allocate() returned non-null, the queue cannot be full.
 
-  // Wake main loop immediately to process ESP-NOW send event instead of waiting for select() timeout
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  // Wake main loop immediately to process ESP-NOW send event
   App.wake_loop_threadsafe();
-#endif
 }
 
 void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int size) {
@@ -115,10 +113,8 @@ void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int 
   // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
   // allocate() returned non-null, the queue cannot be full.
 
-  // Wake main loop immediately to process ESP-NOW receive event instead of waiting for select() timeout
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  // Wake main loop immediately to process ESP-NOW receive event
   App.wake_loop_threadsafe();
-#endif
 }
 
 ESPNowComponent::ESPNowComponent() { global_esp_now = this; }
@@ -153,12 +149,6 @@ bool ESPNowComponent::is_wifi_enabled() {
 }
 
 void ESPNowComponent::setup() {
-#ifndef USE_WIFI
-  // Initialize LwIP stack for wake_loop_threadsafe() socket support
-  // When WiFi component is present, it handles esp_netif_init()
-  ESP_ERROR_CHECK(esp_netif_init());
-#endif
-
   if (this->enable_on_boot_) {
     this->enable_();
   } else {
@@ -178,8 +168,6 @@ void ESPNowComponent::enable() {
 
 void ESPNowComponent::enable_() {
   if (!this->is_wifi_enabled()) {
-    esp_event_loop_create_default();
-
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
@@ -303,13 +291,13 @@ void ESPNowComponent::loop() {
                    format_hex_pretty_to(hex_buf, packet->packet_.receive.data, packet->packet_.receive.size));
 #endif
           if (memcmp(info.des_addr, ESPNOW_BROADCAST_ADDR, ESP_NOW_ETH_ALEN) == 0) {
-            for (auto *handler : this->broadcasted_handlers_) {
-              if (handler->on_broadcasted(info, packet->packet_.receive.data, packet->packet_.receive.size))
+            for (auto *handler : this->broadcast_handlers_) {
+              if (handler->on_broadcast(info, packet->packet_.receive.data, packet->packet_.receive.size))
                 break;  // If a handler returns true, stop processing further handlers
             }
           } else {
-            for (auto *handler : this->received_handlers_) {
-              if (handler->on_received(info, packet->packet_.receive.data, packet->packet_.receive.size))
+            for (auto *handler : this->receive_handlers_) {
+              if (handler->on_receive(info, packet->packet_.receive.data, packet->packet_.receive.size))
                 break;  // If a handler returns true, stop processing further handlers
             }
           }

@@ -1,0 +1,15 @@
+values:
+  - var1: 4
+  - a: 5
+  - b: 6
+  - c: The value of C is 7
+  - This value comes from inc2.yaml. x is 3, y is 4
+  - From main config, x is 3, y is 2
+  - $a $b $c are out of scope here
+  - keys_in_inc3:
+      x: 3
+      y: 2
+substitutions:
+  x: 3
+  y: 2
+  include_file: inc1

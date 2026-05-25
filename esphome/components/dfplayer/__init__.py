@@ -64,15 +64,19 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_FINISHED_PLAYBACK, "add_on_finished_playback_callback"
+    ),
+)
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    for conf in config.get(CONF_ON_FINISHED_PLAYBACK, []):
-        await automation.build_callback_automation(
-            var, "add_on_finished_playback_callback", [], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 @automation.register_action(
@@ -122,7 +126,7 @@ async def dfplayer_previous_to_code(config, action_id, template_arg, args):
 async def dfplayer_play_mp3_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_FILE], args, float)
+    template_ = await cg.templatable(config[CONF_FILE], args, cg.uint16)
     cg.add(var.set_file(template_))
     return var
 
@@ -143,10 +147,10 @@ async def dfplayer_play_mp3_to_code(config, action_id, template_arg, args):
 async def dfplayer_play_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_FILE], args, float)
+    template_ = await cg.templatable(config[CONF_FILE], args, cg.uint16)
     cg.add(var.set_file(template_))
     if CONF_LOOP in config:
-        template_ = await cg.templatable(config[CONF_LOOP], args, float)
+        template_ = await cg.templatable(config[CONF_LOOP], args, cg.bool_)
         cg.add(var.set_loop(template_))
     return var
 
@@ -167,13 +171,13 @@ async def dfplayer_play_to_code(config, action_id, template_arg, args):
 async def dfplayer_play_folder_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_FOLDER], args, float)
+    template_ = await cg.templatable(config[CONF_FOLDER], args, cg.uint16)
     cg.add(var.set_folder(template_))
     if CONF_FILE in config:
-        template_ = await cg.templatable(config[CONF_FILE], args, float)
+        template_ = await cg.templatable(config[CONF_FILE], args, cg.uint16)
         cg.add(var.set_file(template_))
     if CONF_LOOP in config:
-        template_ = await cg.templatable(config[CONF_LOOP], args, float)
+        template_ = await cg.templatable(config[CONF_LOOP], args, cg.bool_)
         cg.add(var.set_loop(template_))
     return var
 
@@ -213,7 +217,7 @@ async def dfplayer_set_device_to_code(config, action_id, template_arg, args):
 async def dfplayer_set_volume_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    template_ = await cg.templatable(config[CONF_VOLUME], args, float)
+    template_ = await cg.templatable(config[CONF_VOLUME], args, cg.uint8)
     cg.add(var.set_volume(template_))
     return var
 

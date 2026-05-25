@@ -1,0 +1,83 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+spi:
+  - id: spi_bus
+    clk_pin: GPIO18
+    mosi_pin: GPIO23
+
+display:
+  - platform: mipi_spi
+    spi_id: spi_bus
+    model: st7789v
+    id: tft_display
+    dimensions:
+      width: 240
+      height: 320
+    cs_pin: GPIO22
+    dc_pin: GPIO21
+    auto_clear_enabled: false
+    invert_colors: false
+    update_interval: never
+
+lvgl:
+  id: lvgl_id
+  displays: tft_display
+  pages:
+    - id: main_page
+      widgets:
+        # Widget with multiple static states; one true, one false.
+        - button:
+            id: btn_static
+            state:
+              checked: true
+              disabled: false
+
+        # Widget with a templated (lambda) state.
+        - button:
+            id: btn_lambda
+            state:
+              pressed: !lambda return true;
+
+        # Button referenced by enable/disable actions; the on_click handler
+        # exercises both branches of the obj_disable/obj_enable code path.
+        - button:
+            id: btn_actions
+            on_click:
+              - lvgl.widget.disable: btn_actions
+              - lvgl.widget.enable: btn_actions
+
+        # Button matrix with two buttons; matrix_btn_a is targeted by
+        # lvgl.widget.disable/enable actions to exercise the
+        # MatrixButton.set_state code path.
+        - buttonmatrix:
+            id: matrix
+            rows:
+              - buttons:
+                  - id: matrix_btn_a
+                    text: A
+                    control:
+                      checkable: true
+                  - id: matrix_btn_b
+                    text: B
+                    control:
+                      checkable: true
+            on_click:
+              - lvgl.widget.disable: matrix_btn_a
+              - lvgl.widget.enable: matrix_btn_a
+
+        # Switch derived from an LVGL switch widget – exercises
+        # set_state(LV_STATE.CHECKED, v) inside the control lambda.
+        - switch:
+            id: switch_widget
+
+switch:
+  - platform: lvgl
+    id: lvgl_switch
+    name: LVGL Switch
+    widget: switch_widget

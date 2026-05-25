@@ -5,8 +5,7 @@
 #include "esphome/components/button/button.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace factory_reset {
+namespace esphome::factory_reset {
 
 class FactoryResetButton : public button::Button, public Component {
  public:
@@ -19,5 +18,4 @@ class FactoryResetButton : public button::Button, public Component {
   void press_action() override;
 };
 
-}  // namespace factory_reset
-}  // namespace esphome
+}  // namespace esphome::factory_reset

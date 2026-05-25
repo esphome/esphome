@@ -2,8 +2,6 @@
 #ifdef USE_OPENTHREAD
 #include "openthread.h"
 
-#include <freertos/portmacro.h>
-
 #include <openthread/cli.h>
 #include <openthread/instance.h>
 #include <openthread/logging.h>
@@ -181,7 +179,7 @@ void OpenThreadSrpComponent::setup() {
     memcpy(string, host_name.c_str(), host_name_len);
 
     // Set port
-    entry->mService.mPort = const_cast<TemplatableValue<uint16_t> &>(service.port).value();
+    entry->mService.mPort = service.port.value();
 
     otDnsTxtEntry *txt_entries =
         reinterpret_cast<otDnsTxtEntry *>(this->pool_alloc_(sizeof(otDnsTxtEntry) * service.txt_records.size()));

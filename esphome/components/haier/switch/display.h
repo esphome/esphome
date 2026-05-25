@@ -3,8 +3,7 @@
 #include "esphome/components/switch/switch.h"
 #include "../haier_base.h"
 
-namespace esphome {
-namespace haier {
+namespace esphome::haier {
 
 class DisplaySwitch : public switch_::Switch, public Parented<HaierClimateBase> {
  public:
@@ -14,5 +13,4 @@ class DisplaySwitch : public switch_::Switch, public Parented<HaierClimateBase> 
   void write_state(bool state) override;
 };
 
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier

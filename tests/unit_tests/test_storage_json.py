@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from esphome import storage_json
-from esphome.const import CONF_DISABLED, CONF_MDNS
+from esphome.const import CONF_DISABLED, CONF_MDNS, Toolchain
 from esphome.core import CORE
 
 
@@ -308,6 +308,7 @@ def test_storage_json_from_esphome_core(setup_core: Path) -> None:
     mock_core.loaded_platforms = {"sensor"}
     mock_core.config = {CONF_MDNS: {CONF_DISABLED: True}}
     mock_core.target_framework = "esp-idf"
+    mock_core.toolchain = Toolchain.ESP_IDF
 
     with patch("esphome.components.esp32.get_esp32_variant") as mock_variant:
         mock_variant.return_value = "ESP32-C3"
@@ -327,6 +328,7 @@ def test_storage_json_from_esphome_core(setup_core: Path) -> None:
     assert result.no_mdns is True
     assert result.framework == "esp-idf"
     assert result.core_platform == "esp32"
+    assert result.toolchain == "esp-idf"
 
 
 def test_storage_json_from_esphome_core_mdns_enabled(setup_core: Path) -> None:
@@ -345,10 +347,12 @@ def test_storage_json_from_esphome_core_mdns_enabled(setup_core: Path) -> None:
     mock_core.loaded_platforms = set()
     mock_core.config = {}  # No MDNS config means enabled
     mock_core.target_framework = "arduino"
+    mock_core.toolchain = None
 
     result = storage_json.StorageJSON.from_esphome_core(mock_core, old=None)
 
     assert result.no_mdns is False
+    assert result.toolchain is None
 
 
 def test_storage_json_load_valid_file(tmp_path: Path) -> None:
@@ -468,6 +472,73 @@ def test_storage_json_equality() -> None:
     assert storage1 == storage2
     assert storage1 != storage3
     assert storage1 != "not a storage object"
+
+
+def _make_storage_with_toolchain(
+    toolchain: str | None,
+) -> storage_json.StorageJSON:
+    return storage_json.StorageJSON(
+        storage_version=1,
+        name="dev",
+        friendly_name=None,
+        comment=None,
+        esphome_version="2024.1.0",
+        src_version=1,
+        address="dev.local",
+        web_port=None,
+        target_platform="ESP32",
+        build_path=Path("/build"),
+        firmware_bin_path=Path("/build/firmware.bin"),
+        loaded_integrations=set(),
+        loaded_platforms=set(),
+        no_mdns=False,
+        framework="esp-idf",
+        core_platform="esp32",
+        toolchain=toolchain,
+    )
+
+
+def test_storage_json_toolchain_round_trip(setup_core: Path) -> None:
+    """Sidecar toolchain survives save -> load -> apply_to_core."""
+    storage = _make_storage_with_toolchain("esp-idf")
+    path = setup_core / "storage.json"
+    path.write_text(storage.to_json())
+
+    # Serialization key is stable -- device-builder relies on it.
+    assert json.loads(path.read_text())["toolchain"] == "esp-idf"
+
+    loaded = storage_json.StorageJSON.load(path)
+    assert loaded is not None
+    assert loaded.toolchain == "esp-idf"
+
+    CORE.toolchain = None
+    with patch("esphome.components.esp32.get_esp32_variant"):
+        loaded.apply_to_core()
+    assert CORE.toolchain == Toolchain.ESP_IDF
+
+
+def test_storage_json_apply_to_core_preserves_cli_toolchain(
+    setup_core: Path,
+) -> None:
+    """A CLI-set CORE.toolchain wins over the sidecar value."""
+    loaded = _make_storage_with_toolchain("esp-idf")
+
+    CORE.toolchain = Toolchain.PLATFORMIO
+    with patch("esphome.components.esp32.get_esp32_variant"):
+        loaded.apply_to_core()
+    assert CORE.toolchain == Toolchain.PLATFORMIO
+
+
+def test_storage_json_apply_to_core_ignores_unknown_toolchain(
+    setup_core: Path,
+) -> None:
+    """Unknown enum values (corrupt sidecar / newer ESPHome) fall through to None."""
+    loaded = _make_storage_with_toolchain("gcc")
+
+    CORE.toolchain = None
+    with patch("esphome.components.esp32.get_esp32_variant"):
+        loaded.apply_to_core()
+    assert CORE.toolchain is None
 
 
 def test_esphome_storage_json_as_dict() -> None:

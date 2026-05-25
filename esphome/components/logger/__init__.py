@@ -472,14 +472,15 @@ async def _late_logger_init(config: ConfigType) -> None:
         # esphome implement own fatal error handler which save PC/LR before reset
         zephyr_add_prj_conf("RESET_ON_FATAL_ERROR", False)
         zephyr_add_prj_conf("THREAD_LOCAL_STORAGE", True)
-        if config[CONF_HARDWARE_UART] == UART0:
-            zephyr_add_overlay("""&uart0 { status = "okay";};""")
-        if config[CONF_HARDWARE_UART] == UART1:
-            zephyr_add_overlay("""&uart1 { status = "okay";};""")
-        if config[CONF_HARDWARE_UART] == USB_CDC:
-            cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
-            zephyr_add_prj_conf("UART_LINE_CTRL", True)
-            zephyr_add_cdc_acm(config, 0)
+        if has_serial_logging:
+            if config[CONF_HARDWARE_UART] == UART0:
+                zephyr_add_overlay("""&uart0 { status = "okay";};""")
+            if config[CONF_HARDWARE_UART] == UART1:
+                zephyr_add_overlay("""&uart1 { status = "okay";};""")
+            if config[CONF_HARDWARE_UART] == USB_CDC:
+                cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
+                zephyr_add_prj_conf("UART_LINE_CTRL", True)
+                zephyr_add_cdc_acm(config, 0)
 
     # Register at end for safe mode
     await cg.register_component(log, config)
@@ -505,13 +506,13 @@ async def _late_logger_init(config: ConfigType) -> None:
 def validate_printf(value):
     # https://stackoverflow.com/questions/30011379/how-can-i-parse-a-c-format-string-in-python
     cfmt = r"""
-    (                                  # start of capture group 1
-    %                                  # literal "%"
-    (?:[-+0 #]{0,5})                   # optional flags
-    (?:\d+|\*)?                        # width
-    (?:\.(?:\d+|\*))?                  # precision
-    (?:h|l|ll|w|I|I32|I64)?            # size
-    [cCdiouxXeEfgGaAnpsSZ]             # type
+    (                                   # start of capture group 1
+    %                                   # literal "%"
+    (?:[-+0 #]{0,5})                    # optional flags
+    (?:\d+|\*)?                         # width
+    (?:\.(?:\d+|\*))?                   # precision
+    (?:hh|h|ll|l|j|z|t|L|w|I|I32|I64)?  # size
+    [cCdiouxXeEfgGaAnpsSZ]              # type
     )
     """  # noqa
     matches = re.findall(cfmt, value[CONF_FORMAT], flags=re.VERBOSE)
