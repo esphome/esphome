@@ -20,7 +20,7 @@ from esphome.const import (
 )
 from esphome.cpp_generator import RawExpression
 
-CODEOWNERS = ["@esphome/core"]
+CODEOWNERS = ["@esphome/core", "@exciton"]
 
 actuator_ns = cg.esphome_ns.namespace("actuator")
 
