@@ -122,6 +122,7 @@ select = [
   "NPY",  # numpy-specific rules
   "PERF", # performance
   "PL",   # pylint
+  "PYI",  # flake8-pyi
   "Q",    # flake8-quotes
   "SIM",  # flake8-simplify
   "RET",  # flake8-ret

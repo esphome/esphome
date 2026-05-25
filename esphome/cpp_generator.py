@@ -1077,43 +1077,45 @@ class MockObj(Expression):
         op = BinOpExpression(other, "|", self)
         return MockObj(op)
 
-    def __iadd__(self, other: SafeExpType) -> "MockObj":
+    # MockObj operator overloads build a new C++ expression rather than mutating self,
+    # so the PYI034 "augmented assignment returns self" assumption does not apply.
+    def __iadd__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "+=", other)
         return MockObj(op)
 
-    def __isub__(self, other: SafeExpType) -> "MockObj":
+    def __isub__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "-=", other)
         return MockObj(op)
 
-    def __imul__(self, other: SafeExpType) -> "MockObj":
+    def __imul__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "*=", other)
         return MockObj(op)
 
-    def __itruediv__(self, other: SafeExpType) -> "MockObj":
+    def __itruediv__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "/=", other)
         return MockObj(op)
 
-    def __imod__(self, other: SafeExpType) -> "MockObj":
+    def __imod__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "%=", other)
         return MockObj(op)
 
-    def __ilshift__(self, other: SafeExpType) -> "MockObj":
+    def __ilshift__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "<<=", other)
         return MockObj(op)
 
-    def __irshift__(self, other: SafeExpType) -> "MockObj":
+    def __irshift__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, ">>=", other)
         return MockObj(op)
 
-    def __iand__(self, other: SafeExpType) -> "MockObj":
+    def __iand__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "&=", other)
         return MockObj(op)
 
-    def __ixor__(self, other: SafeExpType) -> "MockObj":
+    def __ixor__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "^=", other)
         return MockObj(op)
 
-    def __ior__(self, other: SafeExpType) -> "MockObj":
+    def __ior__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "|=", other)
         return MockObj(op)
 
