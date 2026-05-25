@@ -6,12 +6,18 @@ import re
 import subprocess
 
 # ESPHome marks ISR code IRAM_ATTR, which on LibreTiny maps to a per-family
-# section routed into RAM-executable memory (see esphome/core/hal.h).
+# section routed into RAM-executable memory (see esphome/core/hal.h). The
+# input section name is always .sram.text; only the output section it lands
+# in differs per family.
 #
 # This script is NOT loaded on BK72xx (IRAM_ATTR is a no-op there; the SDK
 # masks FIQ+IRQ around flash writes). On the remaining families:
-# - RTL8710B: hal.h uses section(".image2.ram.text"); stock linker consumes it.
-# - RTL8720C: hal.h uses section(".sram.text"); stock linker consumes it.
+# - RTL8720C: stock linker consumes *(.sram.text*) into .ram.code_text.
+# - RTL8710B: stock linker has KEEP(*(.image2.ram.text*)) in .ram_image2.text,
+#   but ltchiptool's AmebaZ elf2bin (soc/ambz/binary.py) does NOT list
+#   .ram_image2.text in sections_ram, so code there is silently dropped from
+#   the flashed image. Inject KEEP(*(.sram.text*)) at the top of
+#   .ram_image2.data (which IS extracted) instead.
 # - LN882H: stock linker has no glob for ".sram.text", so we inject
 #   KEEP(*(.sram.text*)) into ".flash_copysection" (> RAM0 AT> FLASH)
 #   immediately after KEEP(*(.vectors)), so the vector table stays at
@@ -34,6 +40,12 @@ _KEEP_LINE = (
 # aligned address; injecting before the vectors would push them to an
 # unaligned offset and mis-route every IRQ handler.
 _LN_COPY = re.compile(r"(KEEP\(\*\(\.vectors\)\)[^\n]*\n)")
+# Inject at the top of .ram_image2.data, before __data_start__ so our code
+# does not fall inside the data range markers. .ram_image2.data is one of the
+# sections ltchiptool's AmebaZ elf2bin extracts; BD_RAM is rwx so the code is
+# executable. AmbZ has no C runtime .data copy loop (the bootloader loads
+# image2 into BD_RAM whole) so the inline code is not clobbered after boot.
+_AMBZ_DATA = re.compile(r"(\.ram_image2\.data\s*:\s*\n?\s*\{\s*\n)")
 
 
 def _detect(env):
@@ -71,12 +83,11 @@ def _inject_keep(host_section):
 
 
 # Variants not listed here intentionally have no .ld patcher:
-# - RTL8710B: hal.h uses section(".image2.ram.text") which the stock linker
-#   already routes into .ram_image2.text (> BD_RAM).
-# - RTL8720C: stock linker already consumes *(.sram.text*).
+# - RTL8720C: stock linker already consumes *(.sram.text*) into .ram.code_text.
 # - BK72xx (all): SDK masks FIQ+IRQ around flash writes, IRAM_ATTR is no-op.
 _PATCHERS_BY_VARIANT = {
     "LN882H": (_inject_keep(_LN_COPY),),
+    "RTL8710B": (_inject_keep(_AMBZ_DATA),),
 }
 
 
