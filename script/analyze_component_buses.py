@@ -85,6 +85,7 @@ ISOLATED_COMPONENTS = {
     "matrix_keypad": "Needs isolation due to keypad",
     "microphone": "Defines PDM microphone requiring I2S port 0 - conflicts with micro_wake_word PDM mic when merged",
     "modbus_controller": "Defines multiple modbus buses for testing client/server functionality - conflicts with package modbus bus",
+    "router": "Defines i2s_audio: as a list with multiple hubs (i2s_a, i2s_b) that gets overwritten when merged with other components using i2s_audio: as a mapping (merge_config cannot merge list+dict)",
     "neopixelbus": "RMT type conflict with ESP32 Arduino/ESP-IDF headers (enum vs struct rmt_channel_t)",
     "packages": "cannot merge packages",
     "tinyusb": "Conflicts with usb_host component - cannot be used together",
