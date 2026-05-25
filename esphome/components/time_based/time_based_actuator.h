@@ -2,14 +2,14 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
-#include "actuator.h"
+#include "esphome/components/actuator/actuator.h"
 
-namespace esphome::actuator {
+namespace esphome::time_based {
 
 // Inheritance: TimeBasedActuatorBase -> Component (holds IActuator* pointer, no diamond)
 class TimeBasedActuatorBase : public Component {
  public:
-  void set_actuator(IActuator *actuator) { this->actuator_ = actuator; }
+  void set_actuator(actuator::IActuator *actuator) { this->actuator_ = actuator; }
   void setup() override {}
   void loop() override;
 
@@ -24,13 +24,13 @@ class TimeBasedActuatorBase : public Component {
   bool get_assumed_state() const { return this->assumed_state_; }
 
  protected:
-  void control(const ActuatorCallBase &call);
+  void control(const actuator::ActuatorCallBase &call);
   void stop_prev_trigger_();
   bool is_at_target_() const;
-  void start_direction_(ActuatorOperation dir);
+  void start_direction_(actuator::ActuatorOperation dir);
   void recompute_position_();
 
-  IActuator *actuator_{nullptr};
+  actuator::IActuator *actuator_{nullptr};
   Trigger<> open_trigger_;
   uint32_t open_duration_{0};
   Trigger<> close_trigger_;
@@ -45,7 +45,7 @@ class TimeBasedActuatorBase : public Component {
   bool has_built_in_endstop_{false};
   bool manual_control_{false};
   bool assumed_state_{false};
-  ActuatorOperation last_operation_{ACTUATOR_OPERATION_OPENING};
+  actuator::ActuatorOperation last_operation_{actuator::ACTUATOR_OPERATION_OPENING};
 };
 
-}  // namespace esphome::actuator
+}  // namespace esphome::time_based

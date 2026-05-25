@@ -3,7 +3,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome::actuator {
+namespace esphome::time_based {
+
+using namespace esphome::actuator;
 
 void TimeBasedActuatorBase::loop() {
   if (this->actuator_->get_operation() == ACTUATOR_OPERATION_IDLE)
@@ -159,4 +161,4 @@ void TimeBasedActuatorBase::recompute_position_() {
   this->last_recompute_time_ = now;
 }
 
-}  // namespace esphome::actuator
+}  // namespace esphome::time_based
