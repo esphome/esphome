@@ -113,6 +113,7 @@ ARDUINO_FRAMEWORK_NAME = "framework-arduinoespressif32"
 ARDUINO_FRAMEWORK_PKG = f"pioarduino/{ARDUINO_FRAMEWORK_NAME}"
 ARDUINO_LIBS_NAME = f"{ARDUINO_FRAMEWORK_NAME}-libs"
 ARDUINO_LIBS_PKG = f"pioarduino/{ARDUINO_LIBS_NAME}"
+ARDUINO_ESP32_COMPONENT_NAME = "espressif/arduino-esp32"
 
 LOG_LEVELS_IDF = [
     "NONE",
@@ -1743,6 +1744,31 @@ async def _add_yaml_idf_components(components: list[ConfigType]):
         )
 
 
+@coroutine_with_priority(CoroPriority.FINAL - 1)
+async def _finalize_arduino_aware_flags():
+    """Build flags that depend on whether arduino-esp32 is linked in.
+
+    Scheduler runs lower priority values later, so ``FINAL - 1`` fires
+    after every ``FINAL`` job (incl. ``_add_yaml_idf_components``) --
+    by then ``KEY_COMPONENTS`` is fully populated.
+
+    - Skip our esp_panic_handler wrap when Arduino is linked; Arduino
+      wraps the same symbol and the linker errors on the duplicate.
+    - Define USE_ARDUINO in the hybrid esp-idf+arduino-esp32-component
+      case so ESPHome's ``#ifdef USE_ARDUINO`` paths light up. The
+      framework=arduino branch already adds it inline in to_code.
+    """
+    arduino_linked = (
+        CORE.using_arduino
+        or ARDUINO_ESP32_COMPONENT_NAME in CORE.data[KEY_ESP32][KEY_COMPONENTS]
+    )
+    if not arduino_linked:
+        cg.add_build_flag("-Wl,--wrap=esp_panic_handler")
+        cg.add_define("USE_ESP32_CRASH_HANDLER")
+    elif not CORE.using_arduino:
+        cg.add_build_flag("-DUSE_ARDUINO")
+
+
 async def to_code(config):
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     conf = config[CONF_FRAMEWORK]
@@ -1790,11 +1816,12 @@ async def to_code(config):
                 Path(__file__).parent / "iram_fix.py.script",
             )
     else:
-        cg.add_build_flag("-Wno-error=format")
-        cg.add_build_flag("-Wno-error=maybe-uninitialized")
-        cg.add_build_flag("-Wno-error=overloaded-virtual")
-        cg.add_build_flag("-Wno-error=reorder")
-        cg.add_build_flag("-Wno-error=volatile")
+        # Demote IDF's blanket -Werror to warnings so third-party libs
+        # and user lambdas don't need a -Wno-error=<class> per warning.
+        # The sdkconfig knob disables IDF's rewrite to -Werror=all (which
+        # can't be globally undone); -Wno-error then handles the demotion.
+        add_idf_sdkconfig_option("CONFIG_COMPILER_DISABLE_DEFAULT_ERRORS", False)
+        cg.add_build_flag("-Wno-error")
         # -Wno- (not -Wno-error=): suppress entirely, too noisy on C++ aggregates
         cg.add_build_flag("-Wno-missing-field-initializers")
 
@@ -1802,11 +1829,8 @@ async def to_code(config):
     cg.add_build_flag("-DUSE_ESP32")
     cg.add_define("USE_NATIVE_64BIT_TIME")
     cg.add_build_flag("-Wl,-z,noexecstack")
-    # Arduino already wraps esp_panic_handler for its own backtrace handler,
-    # so only add our wrap when using ESP-IDF framework to avoid linker conflicts.
-    if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
-        cg.add_build_flag("-Wl,--wrap=esp_panic_handler")
-        cg.add_define("USE_ESP32_CRASH_HANDLER")
+    # Deferred so KEY_COMPONENTS is fully populated -- see the coroutine.
+    CORE.add_job(_finalize_arduino_aware_flags)
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     variant = config[CONF_VARIANT]
     cg.add_build_flag(f"-DUSE_ESP32_VARIANT_{variant}")
@@ -1987,7 +2011,7 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_HEAP_PLACE_FUNCTION_INTO_FLASH", True)
 
     # Setup watchdog
-    add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT", True)
+    add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_INIT", True)
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_PANIC", True)
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0", False)
     add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1", False)
@@ -2122,7 +2146,6 @@ async def to_code(config):
         for key, flag in ASSERTION_LEVELS.items():
             add_idf_sdkconfig_option(flag, assertion_level == key)
 
-    add_idf_sdkconfig_option("CONFIG_COMPILER_OPTIMIZATION_DEFAULT", False)
     compiler_optimization = advanced[CONF_COMPILER_OPTIMIZATION]
     for key, flag in COMPILER_OPTIMIZATIONS.items():
         add_idf_sdkconfig_option(flag, compiler_optimization == key)
@@ -2568,7 +2591,7 @@ def _write_idf_component_yml():
 
         if CORE.using_toolchain_esp_idf:
             add_idf_component(
-                name="espressif/arduino-esp32",
+                name=ARDUINO_ESP32_COMPONENT_NAME,
                 ref=str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
             )
 
