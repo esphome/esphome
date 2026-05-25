@@ -60,6 +60,7 @@ from esphome.address_cache import AddressCache
 from esphome.bundle import BUNDLE_EXTENSION, BundleFile, BundleResult
 from esphome.components import esp32
 from esphome.components.esp32 import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_API,
     CONF_AUTH,
@@ -85,6 +86,7 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WIFI,
     KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     KEY_TARGET_PLATFORM,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
@@ -5795,6 +5797,7 @@ def test_esp32_write_sdkconfig_uses_generated_platformio_env(
 ) -> None:
     """ESP32 PlatformIO sdkconfig must match the generated $PIOENV."""
     setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test-device")
+    CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version(5, 5, 4)
     CORE.data[KEY_ESP32] = {esp32.KEY_SDKCONFIG_OPTIONS: {"CONFIG_TEST_VALUE": True}}
 
     with (
@@ -5820,8 +5823,9 @@ def test_esp32_write_sdkconfig_uses_generated_platformio_env(
         / "test-device"
         / "sdkconfig.esp32-arduino-abc123.esphomeinternal"
     )
-    assert sdkconfig.read_text() == "CONFIG_TEST_VALUE=y\n"
-    assert internal.read_text() == "CONFIG_TEST_VALUE=y\n"
+    expected = "# ESPHOME_IDF_VERSION=5.5.4\nCONFIG_TEST_VALUE=y\n"
+    assert sdkconfig.read_text() == expected
+    assert internal.read_text() == expected
     assert not (
         tmp_path / ".esphome" / "build" / "test-device" / "sdkconfig.test-device"
     ).exists()
