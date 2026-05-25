@@ -50,6 +50,7 @@ from esphome.const import (
     CONF_TOPIC,
     CONF_USERNAME,
     CONF_WEB_SERVER,
+    CONF_WIFI,
     ENV_NOGITIGNORE,
     KEY_CORE,
     KEY_TARGET_PLATFORM,
@@ -733,11 +734,22 @@ def write_cpp_file() -> int:
 
 
 def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
+    # Keep this gate here, NOT in config validation: device-builder needs
+    # `esphome config` to keep succeeding with placeholders so onboarding can run.
+    if CONF_WIFI in config:
+        from esphome.components.wifi import check_placeholder_credentials
+
+        check_placeholder_credentials(config)
+
     # NOTE: "Build path:" format is parsed by script/ci_memory_impact_extract.py
     # If you change this format, update the regex in that script as well
     _LOGGER.info("Compiling app... Build path: %s", CORE.build_path)
 
-    if CORE.using_toolchain_esp_idf:
+    module = importlib.import_module("esphome.components." + CORE.target_platform)
+    platform_run_compile = getattr(module, "run_compile", None)
+    if platform_run_compile is not None and platform_run_compile(args, config):
+        pass
+    elif CORE.using_toolchain_esp_idf:
         from esphome.espidf import toolchain
 
         rc = toolchain.run_compile(config, CORE.verbose)
@@ -1411,6 +1423,15 @@ def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
     return 0
 
 
+def command_config_hash(args: ArgsProtocol, config: ConfigType) -> int | None:
+    # generating code might modify config, so it must be done in order to generate
+    # a hash that will match what was generated when compiling and then running
+    # on the device
+    generate_cpp_contents(config)
+    safe_print(f"0x{CORE.config_hash:08x}")
+    return 0
+
+
 def command_vscode(args: ArgsProtocol) -> int | None:
     from esphome import vscode
 
@@ -1946,6 +1967,7 @@ PRE_CONFIG_ACTIONS = {
 
 POST_CONFIG_ACTIONS = {
     "config": command_config,
+    "config-hash": command_config_hash,
     "compile": command_compile,
     "upload": command_upload,
     "logs": command_logs,
@@ -2057,6 +2079,13 @@ def parse_args(argv):
     )
     parser_config.add_argument(
         "--show-secrets", help="Show secrets in output.", action="store_true"
+    )
+
+    parser_config_hash = subparsers.add_parser(
+        "config-hash", help="Calculate the hash of the configuration."
+    )
+    parser_config_hash.add_argument(
+        "configuration", help="Your YAML configuration file(s).", nargs="+"
     )
 
     parser_compile = subparsers.add_parser(
@@ -2413,10 +2442,41 @@ def run_esphome(argv):
     # Commands that don't need fresh external components: logs just connects
     # to the device, and clean is about to delete the build directory.
     skip_external = args.command in ("logs", "clean")
-    config = read_config(
-        dict(args.substitution) if args.substitution else {},
-        skip_external_update=skip_external,
+    command_line_substitutions = dict(args.substitution) if args.substitution else {}
+
+    # Fast path for upload/logs: reuse the validated-config cache the
+    # last compile wrote. Falls back to read_config when missing/stale.
+    # Skipped when -s overrides are passed, since the cache was written
+    # against the previous substitution set.
+    config: ConfigType | None = None
+    cache_eligible = (
+        args.command in ("upload", "logs") and not command_line_substitutions
     )
+    if cache_eligible:
+        from esphome.compiled_config import load_compiled_config
+
+        config = load_compiled_config(conf_path)
+        if config is not None:
+            _LOGGER.info(
+                "Loaded validated config cache for %s, skipping validation.",
+                conf_path.name,
+            )
+
+    if config is None:
+        config = read_config(
+            command_line_substitutions,
+            skip_external_update=skip_external,
+        )
+        # Refresh the cache so the next upload/logs hits the fast path
+        # instead of re-running read_config. Skip when the storage
+        # sidecar is absent (no compile has run): the cache would
+        # never be loaded back, so writing secrets to disk is wasted.
+        if cache_eligible and config is not None:
+            from esphome.compiled_config import save_compiled_config
+            from esphome.storage_json import ext_storage_path
+
+            if ext_storage_path(conf_path.name).exists():
+                save_compiled_config(config)
     if config is None:
         return 2
     CORE.config = config
