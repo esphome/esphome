@@ -16,7 +16,9 @@ from esphome.components.lvgl import defines as df
 from esphome.components.lvgl.schemas import (
     ALIGN_TO_SCHEMA,
     FLAG_SCHEMA,
+    FULL_STYLE_SCHEMA,
     STATE_SCHEMA,
+    STYLE_SCHEMA,
     WIDGET_TYPES,
     automation_schema,
     obj_dict,
@@ -120,3 +122,17 @@ def test_obj_schema_returns_cv_schema_for_extend_callers() -> None:
     schema = obj_schema(_widget_type("obj"))
     extended = schema.extend({cv.Optional("extra_key"): cv.string})
     extended({"extra_key": "value"})
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [STATE_SCHEMA, FLAG_SCHEMA, STYLE_SCHEMA, FULL_STYLE_SCHEMA],
+)
+def test_spread_sources_carry_no_extra_schemas(schema: cv.Schema) -> None:
+    # part_dict / obj_dict reach into .schema and rebuild via cv.Schema(...),
+    # which silently drops _extra_schemas and any non-default extra/required.
+    # Lock the invariant so a future add_extra() on these sources fails CI
+    # instead of quietly removing validation from part/obj/theme schemas.
+    assert not schema._extra_schemas
+    assert schema.extra is vol.PREVENT_EXTRA
+    assert schema.required is False
