@@ -37,8 +37,8 @@ class ZigbeeAttribute : public Component {
         role_(role),
         attr_id_(attr_id),
         attr_type_(attr_type),
-        scale_(scale),
-        max_size_(max_size) {}
+        max_size_(max_size),
+        scale_(scale) {}
   void loop() override;
   template<typename T> void add_attr(T value);
   esp_zb_zcl_reporting_info_t get_reporting_info();

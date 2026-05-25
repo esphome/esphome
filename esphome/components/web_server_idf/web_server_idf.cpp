@@ -66,7 +66,7 @@ namespace {
  *   - HTTPD_SOCK_ERR_TIMEOUT if the send buffer is full (EAGAIN/EWOULDBLOCK).
  *   - HTTPD_SOCK_ERR_FAIL for other errors.
  */
-int nonblocking_send(httpd_handle_t hd, int sockfd, const char *buf, size_t buf_len, int flags) {
+[[maybe_unused]] int nonblocking_send(httpd_handle_t hd, int sockfd, const char *buf, size_t buf_len, int flags) {
   if (buf == nullptr) {
     return HTTPD_SOCK_ERR_INVALID;
   }

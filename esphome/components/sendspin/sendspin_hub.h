@@ -35,7 +35,9 @@ namespace esphome::sendspin_ {
 /// without each subcomponent having to pick a priority independently. Children run
 /// one step later than hub so they can assume hub's setup() has already completed.
 namespace sendspin_priority {
-inline constexpr float HUB = esphome::setup_priority::PROCESSOR;
+// AFTER_WIFI so the hub runs after the wifi/ethernet drivers are up and we can read the active
+// interface's MAC for client_id.
+inline constexpr float HUB = esphome::setup_priority::AFTER_WIFI;
 inline constexpr float CHILD = HUB - 1.0f;
 }  // namespace sendspin_priority
 
@@ -148,6 +150,10 @@ class SendspinHub final : public Component,
  protected:
   /// @brief Builds the SendspinClientConfig from ESPHome configuration and platform info.
   sendspin::SendspinClientConfig build_client_config_();
+
+  /// @brief Writes the active network interface's MAC into @p buf and returns its data pointer.
+  /// Uses the ethernet MAC if ethernet is configured, otherwise the base MAC (used by wifi).
+  static const char *get_client_id_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
 
   // --- SendspinClientListener overrides ---
   void on_group_update(const sendspin::GroupUpdateObject &group) override;
