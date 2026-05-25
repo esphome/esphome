@@ -101,6 +101,7 @@ async def async_run_logs(
         client_info=f"ESPHome Logs {__version__}",
         noise_psk=noise_psk,
         addresses=addresses,  # Pass all addresses for automatic retry
+        provide_time=False,
     )
 
     # Try platform-specific stacktrace handler first, fall back to generic
