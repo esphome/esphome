@@ -56,7 +56,7 @@ void MitsubishiCN105Climate::dump_config() {
     ESP_LOGCONFIG(TAG, "  Current temperature min interval: %" PRIu32 " ms",
                   this->hp_.get_room_temperature_min_interval());
   } else {
-    ESP_LOGCONFIG(TAG, "  Current temperature: disabled");
+    ESP_LOGCONFIG(TAG, "  Current temperature: DISABLED");
   }
   ESP_LOGCONFIG(TAG,
                 "  Update interval: %" PRIu32 " ms\n"

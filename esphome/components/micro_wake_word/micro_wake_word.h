@@ -115,13 +115,16 @@ class MicroWakeWord : public Component
 
   void set_state_(State state);
 
-  /// @brief Generates spectrogram features from an input buffer of audio samples
-  /// @param audio_buffer (int16_t *) Buffer containing input audio samples
-  /// @param samples_available (size_t) Number of samples avaiable in the input buffer
-  /// @param features_buffer (int8_t *) Buffer to store generated features
-  /// @return (size_t) Number of samples processed from the input buffer
-  size_t generate_features_(int16_t *audio_buffer, size_t samples_available,
-                            int8_t features_buffer[PREPROCESSOR_FEATURE_SIZE]);
+  /// @brief Generates a spectrogram feature from an input buffer of audio samples. The frontend buffers samples
+  /// internally, so callers may stream arbitrary-sized chunks; a feature is only emitted once enough samples have
+  /// accumulated to fill a full analysis window.
+  /// @param audio_buffer (const int16_t *) Buffer containing input audio samples
+  /// @param samples_available (size_t) Number of samples available in the input buffer
+  /// @param features_buffer (int8_t *) Buffer to store the generated feature, valid only when the return value is true
+  /// @param processed_samples (size_t *) Set to the number of samples consumed from the input buffer
+  /// @return True if a new feature was generated; false if more samples are required
+  bool generate_features_(const int16_t *audio_buffer, size_t samples_available,
+                          int8_t features_buffer[PREPROCESSOR_FEATURE_SIZE], size_t *processed_samples);
 
   /// @brief Processes any new probabilities for each model. If any wake word is detected, it will send a DetectionEvent
   /// to the detection_queue_.

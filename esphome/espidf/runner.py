@@ -57,6 +57,21 @@ FILTER_IDF_LINES: list[str] = [
     # line, so a NOTICE often arrives prefixed with ".NOTICE:" or
     # "...........NOTICE:".
     r"\.*NOTICE: ",
+    # ``idf.py size`` prefaces its table with a centered banner; the
+    # per-region table below already makes the structure obvious.
+    r"\s*Memory Type Usage Summary",
+    # Prefix match for esp-idf-size's trailing "Note:" paragraph (no
+    # upstream flag suppresses it).
+    r"Note: The reported total sizes may be smaller than those in the",
+    # Drop the blank line rich emits after the note so the build log
+    # doesn't end with an orphan gap before ESPHome's own status lines.
+    r"\s*$",
+    # ESP-IDF shells out to ``git rev-parse`` to embed a commit hash;
+    # esphome-libs strips ``.git`` from the tarball so those probes fail
+    # noisily without affecting the build.
+    r"-- git rev-parse returned ",
+    r"fatal: not a git repository",
+    r"Stopping at filesystem boundary",
 ]
 
 
