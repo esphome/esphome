@@ -785,22 +785,37 @@ def download_from_mirrors(
 
 
 def _parse_git_source(source_url: str) -> tuple[str, str | None] | None:
-    """Parse a ``git+`` framework source URL.
+    """Detect a git framework source URL.
 
-    Accepts pip-style ``git+<url>[@<ref>]`` (e.g.
-    ``git+https://github.com/espressif/esp-idf.git@master``). Returns
-    ``(url, ref)`` if the input is a git source, or ``None`` if it's a
-    plain archive URL.
+    Returns ``(url, ref)`` if ``source_url`` looks like a git repo,
+    otherwise ``None`` (treat as plain archive URL).
+
+    Recognized forms:
+      - HTTPS/HTTP ending in ``.git`` (optionally followed by ``@<ref>``)
+      - ``git://`` or ``ssh://`` protocol
+      - ``git@host:path`` SSH shorthand
+
+    Examples:
+      - ``https://github.com/espressif/esp-idf.git@master``
+      - ``git@github.com:espressif/esp-idf.git``
+      - ``ssh://git@github.com/espressif/esp-idf.git``
     """
-    if not source_url.startswith("git+"):
-        return None
-    git_url = source_url[len("git+") :]
+    # Split off ``@<ref>`` only from the last path segment so an embedded
+    # ``user@host`` in an SSH URL isn't mistaken for a ref.
+    url = source_url
     ref: str | None = None
-    # Use rsplit("@") so URLs with embedded ``user@host`` (ssh) keep the ref
-    # split on the last ``@`` only.
-    if "@" in git_url.rsplit("/", 1)[-1]:
-        git_url, ref = git_url.rsplit("@", 1)
-    return git_url, ref
+    if "@" in url.rsplit("/", 1)[-1]:
+        candidate, candidate_ref = url.rsplit("@", 1)
+        # Treat as ref only if what's left still looks like a URL (has a
+        # scheme or SSH shorthand). Otherwise it's the ``user@host`` of an
+        # SSH URL with no explicit ref.
+        if "://" in candidate or candidate.startswith("git@"):
+            url, ref = candidate, candidate_ref
+
+    is_git = url.endswith(".git") or url.startswith(("git://", "ssh://", "git@"))
+    if not is_git:
+        return None
+    return url, ref
 
 
 def _clone_idf_with_submodules(
