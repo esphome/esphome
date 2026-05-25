@@ -1,10 +1,5 @@
 #pragma once
 
-// This file will be rewritten in the time-based-actuator-base PR.
-// Suppress deprecation warnings from the cover compat shims until then.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/components/cover/cover.h"
@@ -32,7 +27,7 @@ class TimeBasedCover : public cover::Cover, public Component {
   void stop_prev_trigger_();
   bool is_at_target_() const;
 
-  void start_direction_(cover::CoverOperation dir);
+  void start_direction_(actuator::ActuatorOperation dir);
 
   void recompute_position_();
 
@@ -50,9 +45,7 @@ class TimeBasedCover : public cover::Cover, public Component {
   bool has_built_in_endstop_{false};
   bool manual_control_{false};
   bool assumed_state_{false};
-  cover::CoverOperation last_operation_{cover::COVER_OPERATION_OPENING};
+  actuator::ActuatorOperation last_operation_{actuator::ACTUATOR_OPERATION_OPENING};
 };
-
-#pragma GCC diagnostic pop
 
 }  // namespace esphome::time_based

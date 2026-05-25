@@ -1,7 +1,3 @@
-// This file will be rewritten in the time-based-actuator-base PR.
-// Suppress deprecation warnings from the cover compat shims until then.
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-
 #include "time_based_cover.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
@@ -11,6 +7,7 @@ namespace esphome::time_based {
 
 static const char *const TAG = "time_based.cover";
 
+using namespace esphome::actuator;
 using namespace esphome::cover;
 
 void TimeBasedCover::dump_config() {
@@ -29,7 +26,7 @@ void TimeBasedCover::setup() {
   }
 }
 void TimeBasedCover::loop() {
-  if (this->current_operation == COVER_OPERATION_IDLE)
+  if (this->current_operation == ACTUATOR_OPERATION_IDLE)
     return;
 
   const uint32_t now = App.get_loop_component_start_time();
@@ -39,11 +36,11 @@ void TimeBasedCover::loop() {
 
   if (this->is_at_target_()) {
     if (this->has_built_in_endstop_ &&
-        (this->target_position_ == COVER_OPEN || this->target_position_ == COVER_CLOSED)) {
+        (this->target_position_ == ACTUATOR_OPEN || this->target_position_ == ACTUATOR_CLOSED)) {
       // Don't trigger stop, let the cover stop by itself.
-      this->current_operation = COVER_OPERATION_IDLE;
+      this->current_operation = ACTUATOR_OPERATION_IDLE;
     } else {
-      this->start_direction_(COVER_OPERATION_IDLE);
+      this->start_direction_(ACTUATOR_OPERATION_IDLE);
     }
     this->publish_state();
   }
@@ -65,20 +62,20 @@ CoverTraits TimeBasedCover::get_traits() {
 }
 void TimeBasedCover::control(const CoverCall &call) {
   if (call.get_stop()) {
-    this->start_direction_(COVER_OPERATION_IDLE);
+    this->start_direction_(ACTUATOR_OPERATION_IDLE);
     this->publish_state();
   }
   if (call.get_toggle().has_value()) {
-    if (this->current_operation != COVER_OPERATION_IDLE) {
-      this->start_direction_(COVER_OPERATION_IDLE);
+    if (this->current_operation != ACTUATOR_OPERATION_IDLE) {
+      this->start_direction_(ACTUATOR_OPERATION_IDLE);
       this->publish_state();
     } else {
-      if (this->position == COVER_CLOSED || this->last_operation_ == COVER_OPERATION_CLOSING) {
-        this->target_position_ = COVER_OPEN;
-        this->start_direction_(COVER_OPERATION_OPENING);
+      if (this->position == ACTUATOR_CLOSED || this->last_operation_ == ACTUATOR_OPERATION_CLOSING) {
+        this->target_position_ = ACTUATOR_OPEN;
+        this->start_direction_(ACTUATOR_OPERATION_OPENING);
       } else {
-        this->target_position_ = COVER_CLOSED;
-        this->start_direction_(COVER_OPERATION_CLOSING);
+        this->target_position_ = ACTUATOR_CLOSED;
+        this->start_direction_(ACTUATOR_OPERATION_CLOSING);
       }
     }
   }
@@ -87,24 +84,24 @@ void TimeBasedCover::control(const CoverCall &call) {
     auto pos = *pos_val;
     if (pos == this->position) {
       // already at target
-      if (this->manual_control_ && (pos == COVER_OPEN || pos == COVER_CLOSED)) {
+      if (this->manual_control_ && (pos == ACTUATOR_OPEN || pos == ACTUATOR_CLOSED)) {
         // for covers with manual control switch, we can't rely on the computed position, so if
         // the command triggered again, we'll assume it's in the opposite direction anyway.
-        auto op = pos == COVER_CLOSED ? COVER_OPERATION_CLOSING : COVER_OPERATION_OPENING;
-        this->position = pos == COVER_CLOSED ? COVER_OPEN : COVER_CLOSED;
+        auto op = pos == ACTUATOR_CLOSED ? ACTUATOR_OPERATION_CLOSING : ACTUATOR_OPERATION_OPENING;
+        this->position = pos == ACTUATOR_CLOSED ? ACTUATOR_OPEN : ACTUATOR_CLOSED;
         this->target_position_ = pos;
         this->start_direction_(op);
       }
       // for covers with built in end stop, we should send the command again
-      if (this->has_built_in_endstop_ && (pos == COVER_OPEN || pos == COVER_CLOSED)) {
-        auto op = pos == COVER_CLOSED ? COVER_OPERATION_CLOSING : COVER_OPERATION_OPENING;
+      if (this->has_built_in_endstop_ && (pos == ACTUATOR_OPEN || pos == ACTUATOR_CLOSED)) {
+        auto op = pos == ACTUATOR_CLOSED ? ACTUATOR_OPERATION_CLOSING : ACTUATOR_OPERATION_OPENING;
         this->target_position_ = pos;
         this->start_direction_(op);
       }
     } else {
-      auto op = pos < this->position ? COVER_OPERATION_CLOSING : COVER_OPERATION_OPENING;
-      if (this->manual_control_ && (pos == COVER_OPEN || pos == COVER_CLOSED)) {
-        this->position = pos == COVER_CLOSED ? COVER_OPEN : COVER_CLOSED;
+      auto op = pos < this->position ? ACTUATOR_OPERATION_CLOSING : ACTUATOR_OPERATION_OPENING;
+      if (this->manual_control_ && (pos == ACTUATOR_OPEN || pos == ACTUATOR_CLOSED)) {
+        this->position = pos == ACTUATOR_CLOSED ? ACTUATOR_OPEN : ACTUATOR_CLOSED;
       }
       this->target_position_ = pos;
       this->start_direction_(op);
@@ -119,30 +116,30 @@ void TimeBasedCover::stop_prev_trigger_() {
 }
 bool TimeBasedCover::is_at_target_() const {
   switch (this->current_operation) {
-    case COVER_OPERATION_OPENING:
+    case ACTUATOR_OPERATION_OPENING:
       return this->position >= this->target_position_;
-    case COVER_OPERATION_CLOSING:
+    case ACTUATOR_OPERATION_CLOSING:
       return this->position <= this->target_position_;
-    case COVER_OPERATION_IDLE:
+    case ACTUATOR_OPERATION_IDLE:
     default:
       return true;
   }
 }
-void TimeBasedCover::start_direction_(CoverOperation dir) {
-  if (dir == this->current_operation && dir != COVER_OPERATION_IDLE)
+void TimeBasedCover::start_direction_(ActuatorOperation dir) {
+  if (dir == this->current_operation && dir != ACTUATOR_OPERATION_IDLE)
     return;
 
   this->recompute_position_();
   Trigger<> *trig;
   switch (dir) {
-    case COVER_OPERATION_IDLE:
+    case ACTUATOR_OPERATION_IDLE:
       trig = &this->stop_trigger_;
       break;
-    case COVER_OPERATION_OPENING:
+    case ACTUATOR_OPERATION_OPENING:
       this->last_operation_ = dir;
       trig = &this->open_trigger_;
       break;
-    case COVER_OPERATION_CLOSING:
+    case ACTUATOR_OPERATION_CLOSING:
       this->last_operation_ = dir;
       trig = &this->close_trigger_;
       break;
@@ -161,17 +158,17 @@ void TimeBasedCover::start_direction_(CoverOperation dir) {
   this->prev_command_trigger_ = trig;
 }
 void TimeBasedCover::recompute_position_() {
-  if (this->current_operation == COVER_OPERATION_IDLE)
+  if (this->current_operation == ACTUATOR_OPERATION_IDLE)
     return;
 
   float dir;
   float action_dur;
   switch (this->current_operation) {
-    case COVER_OPERATION_OPENING:
+    case ACTUATOR_OPERATION_OPENING:
       dir = 1.0f;
       action_dur = this->open_duration_;
       break;
-    case COVER_OPERATION_CLOSING:
+    case ACTUATOR_OPERATION_CLOSING:
       dir = -1.0f;
       action_dur = this->close_duration_;
       break;
