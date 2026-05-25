@@ -113,14 +113,22 @@ exclude = ['generated']
 select = [
   "E",    # pycodestyle
   "F",    # pyflakes/autoflake
+  "FA",   # flake8-future-annotations
   "FLY",  # flynt: convert string formatting to f-strings
   "FURB", # refurb
   "I",    # isort
+  "ICN",  # flake8-import-conventions
+  "LOG",  # flake8-logging
+  "NPY",  # numpy-specific rules
   "PERF", # performance
   "PL",   # pylint
+  "Q",    # flake8-quotes
   "SIM",  # flake8-simplify
   "RET",  # flake8-ret
+  "T10",  # flake8-debugger
   "UP",   # pyupgrade
+  "W",    # pycodestyle warnings
+  "YTT",  # flake8-2020
 ]
 
 ignore = [
