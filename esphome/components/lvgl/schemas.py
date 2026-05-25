@@ -383,6 +383,13 @@ def part_dict(parts: tuple[str, ...] | list[str]) -> dict[Any, Any]:
     Return the raw mapping used by part_schema, so callers can merge it into a
     larger dict and avoid chained .extend() calls (each .extend() recompiles the
     whole mapping, turning the build into O(N^2)).
+
+    Invariant: the source schemas spread here (STATE_SCHEMA, FLAG_SCHEMA, the
+    nested STATE_SCHEMA values) must use the default extra=PREVENT_EXTRA and
+    required=False and must not register any add_extra/prepend_extra
+    validators. Reaching into .schema and rebuilding via cv.Schema(...) keeps
+    only the mapping; non-default extra/required and any _extra_schemas would
+    be silently dropped.
     """
     return {
         **STATE_SCHEMA.schema,
@@ -477,6 +484,10 @@ def obj_dict(widget_type: WidgetType) -> dict[Any, Any]:
     """
     Return the raw mapping used by obj_schema, so callers can merge it into a
     larger dict and avoid chained .extend() calls.
+
+    Inherits the same source-schema invariant documented on part_dict: any
+    schema spread into this mapping must use the default extra=PREVENT_EXTRA
+    and required=False and must carry no add_extra/prepend_extra validators.
     """
     return {
         **part_dict(widget_type.parts),

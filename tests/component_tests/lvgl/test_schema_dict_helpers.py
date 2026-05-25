@@ -88,7 +88,7 @@ def test_obj_schema_accepts_empty_config_for_every_widget_type(name: str) -> Non
     obj_schema(_widget_type(name))({})
 
 
-def test_obj_schema_accepts_align_to_and_state_group(monkeypatch) -> None:
+def test_obj_schema_accepts_align_to_and_state_group() -> None:
     schema = obj_schema(_widget_type("obj"))
     out = schema(
         {
