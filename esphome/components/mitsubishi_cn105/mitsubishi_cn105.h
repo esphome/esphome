@@ -120,7 +120,7 @@ class MitsubishiCN105 {
     uint8_t read_pos_{0};
   };
 
-  enum class UpdateFlag : uint8_t {
+  enum class PropertyId : uint8_t {
     TEMPERATURE = 0,
     POWER = 1,
     MODE = 2,
@@ -128,36 +128,39 @@ class MitsubishiCN105 {
     VANE = 4,
     WIDE_VANE = 5,
     REMOTE_TEMPERATURE = 6,
+    UNTRACKED = 7,
   };
 
   struct UpdateFlags {
-    template<typename... Flags> void set(Flags... flags) { (this->mask_.insert(flags), ...); }
-    template<typename... Flags> void clear(Flags... flags) { (this->mask_.erase(flags), ...); }
+    void set(PropertyId id) { this->mask_.insert(id); }
+    void clear(PropertyId id) { this->mask_.erase(id); }
     bool any() const { return !this->mask_.empty(); }
-    bool contains(UpdateFlag flag) const { return this->mask_.count(flag); }
-    bool contains_only(UpdateFlag flag) const { return this->mask_.get_mask() == Mask{flag}.get_mask(); }
+    bool contains(PropertyId id) const { return this->mask_.count(id); }
+    bool contains_only(PropertyId id) const { return this->mask_.get_mask() == Mask{id}.get_mask(); }
 
    protected:
-    using Mask =
-        FiniteSetMask<UpdateFlag, DefaultBitPolicy<UpdateFlag, static_cast<int>(UpdateFlag::REMOTE_TEMPERATURE) + 1>>;
-
+    using Mask = FiniteSetMask<PropertyId, DefaultBitPolicy<PropertyId, static_cast<int>(PropertyId::UNTRACKED)>>;
     Mask mask_;
   };
+
+  struct PropertyContext {
+    bool use_temperature_encoding_b{false};
+    bool set_wide_vane_high_bit{false};
+  };
+
+  friend struct Property;
 
   void set_state_(State new_state);
   void did_transition_(State to);
   bool process_rx_packet_(uint8_t type, const uint8_t *payload, size_t len);
   bool process_status_packet_(const uint8_t *payload, size_t len);
   bool parse_status_payload_(uint8_t msg_type, const uint8_t *payload, size_t len);
-  bool parse_status_settings_(const uint8_t *payload, size_t len);
-  bool parse_status_room_temperature_(const uint8_t *payload, size_t len);
-  void send_packet_(const uint8_t *packet, size_t len);
+  void send_packet_(std::span<const uint8_t> packet);
   void update_status_();
   bool should_request_room_temperature_() const;
   void apply_settings_();
   bool has_timed_out_(uint32_t timeout) const { return ((get_loop_time_ms() - this->operation_start_ms_) >= timeout); }
   void set_remote_temperature_half_deg_(uint8_t temperature_half_deg);
-  template<typename T> void send_packet_(const T &packet) { this->send_packet_(packet.data(), packet.size()); }
   static bool should_transition(State from, State to);
   static const LogString *state_to_string(State state);
 
@@ -167,11 +170,10 @@ class MitsubishiCN105 {
   uint32_t operation_start_ms_{0};
   uint32_t room_temperature_min_interval_ms_{60000};
   std::optional<uint32_t> last_room_temperature_update_ms_;
-  Status status_{};
+  Status status_;
   State state_{State::NOT_CONNECTED};
   UpdateFlags pending_updates_;
-  bool use_temperature_encoding_b_{false};
-  bool set_wide_vane_high_bit_{false};
+  PropertyContext property_context_;
   FrameParser frame_parser_;
   uint8_t current_status_msg_type_{0};
 

@@ -266,7 +266,7 @@ TEST(MitsubishiCN105Tests, DecodeStatusSettingsPackageTempEncodedA) {
   ctx.sut.update();
 
   EXPECT_TRUE(ctx.sut.status().power_on);
-  EXPECT_FALSE(ctx.sut.use_temperature_encoding_b_);
+  EXPECT_FALSE(ctx.sut.property_context_.use_temperature_encoding_b);
   EXPECT_EQ(ctx.sut.status().target_temperature, 26.0f);
   EXPECT_EQ(ctx.sut.status().mode, MitsubishiCN105::Mode::COOL);
   EXPECT_EQ(ctx.sut.status().fan_mode, MitsubishiCN105::FanMode::QUIET);
@@ -281,7 +281,7 @@ TEST(MitsubishiCN105Tests, DecodeStatusSettingsPackageTempEncodedB) {
   ctx.sut.update();
 
   EXPECT_FALSE(ctx.sut.status().power_on);
-  EXPECT_TRUE(ctx.sut.use_temperature_encoding_b_);
+  EXPECT_TRUE(ctx.sut.property_context_.use_temperature_encoding_b);
   EXPECT_EQ(ctx.sut.status().target_temperature, 18.5f);
   EXPECT_EQ(ctx.sut.status().mode, MitsubishiCN105::Mode::FAN_ONLY);
   EXPECT_EQ(ctx.sut.status().fan_mode, MitsubishiCN105::FanMode::SPEED_4);
@@ -316,7 +316,7 @@ TEST(MitsubishiCN105Tests, DecodeWideVanePackageHighBitNotSet) {
   ctx.sut.update();
 
   EXPECT_EQ(ctx.sut.status().wide_vane_mode, MitsubishiCN105::WideVaneMode::CENTER);
-  EXPECT_FALSE(ctx.sut.set_wide_vane_high_bit_);
+  EXPECT_FALSE(ctx.sut.property_context_.set_wide_vane_high_bit);
 }
 
 TEST(MitsubishiCN105Tests, DecodeWideVanePackageHighBitSet) {
@@ -328,7 +328,7 @@ TEST(MitsubishiCN105Tests, DecodeWideVanePackageHighBitSet) {
   ctx.sut.update();
 
   EXPECT_EQ(ctx.sut.status().wide_vane_mode, MitsubishiCN105::WideVaneMode::CENTER);
-  EXPECT_TRUE(ctx.sut.set_wide_vane_high_bit_);
+  EXPECT_TRUE(ctx.sut.property_context_.set_wide_vane_high_bit);
 }
 
 TEST(MitsubishiCN105Tests, ApplySettingsPowerOn) {
@@ -354,7 +354,7 @@ TEST(MitsubishiCN105Tests, ApplySettingsTemperatureEncodedA) {
 TEST(MitsubishiCN105Tests, ApplySettingsTemperatureEncodedB) {
   auto ctx = TestContext{};
 
-  ctx.sut.use_temperature_encoding_b_ = true;
+  ctx.sut.property_context_.use_temperature_encoding_b = true;
   ctx.sut.set_target_temperature(26.0f);
   ctx.sut.apply_settings();
 
@@ -365,7 +365,7 @@ TEST(MitsubishiCN105Tests, ApplySettingsTemperatureEncodedB) {
 TEST(MitsubishiCN105Tests, ApplySettingsHalfDegreeTemperatureEncodedB) {
   auto ctx = TestContext{};
 
-  ctx.sut.use_temperature_encoding_b_ = true;
+  ctx.sut.property_context_.use_temperature_encoding_b = true;
   ctx.sut.set_target_temperature(26.5f);
   ctx.sut.apply_settings();
 
@@ -416,7 +416,7 @@ TEST(MitsubishiCN105Tests, ApplyWideVaneModeLeftAndHighBitNotSet) {
 TEST(MitsubishiCN105Tests, ApplyWideVaneModeLeftAndHighBitSet) {
   auto ctx = TestContext{};
 
-  ctx.sut.set_wide_vane_high_bit_ = true;
+  ctx.sut.property_context_.set_wide_vane_high_bit = true;
   ctx.sut.set_wide_vane_mode(MitsubishiCN105::WideVaneMode::LEFT);
   ctx.sut.apply_settings();
 
@@ -445,7 +445,7 @@ TEST(MitsubishiCN105Tests, WriteInterruptsWaitingForNextStatusUpdate) {
   EXPECT_EQ(ctx.sut.status_update_wait_credit_ms_, 0);
 
   // Write new values
-  ctx.sut.use_temperature_encoding_b_ = true;
+  ctx.sut.property_context_.use_temperature_encoding_b = true;
   ctx.sut.set_power(false);
   ctx.sut.set_target_temperature(25.0f);
   ctx.sut.set_mode(MitsubishiCN105::Mode::HEAT);
@@ -508,7 +508,7 @@ TEST(MitsubishiCN105Tests, ApplyQueuedSettingsThenRemoteRoomTempInSecondWrite) {
   auto ctx = TestContext{};
 
   // Queue normal settings plus remote temperature together.
-  ctx.sut.use_temperature_encoding_b_ = true;
+  ctx.sut.property_context_.use_temperature_encoding_b = true;
   ctx.sut.set_power(false);
   ctx.sut.set_target_temperature(25.0f);
   ctx.sut.set_mode(MitsubishiCN105::Mode::HEAT);
@@ -521,11 +521,11 @@ TEST(MitsubishiCN105Tests, ApplyQueuedSettingsThenRemoteRoomTempInSecondWrite) {
 
   EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x01, 0x0F, 0x00, 0x00, 0x01, 0x00,
                                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xB2, 0x00, 0xBB));
-  EXPECT_TRUE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
-  EXPECT_FALSE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::UpdateFlag::POWER));
-  EXPECT_FALSE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::UpdateFlag::TEMPERATURE));
-  EXPECT_FALSE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::UpdateFlag::MODE));
-  EXPECT_FALSE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::UpdateFlag::FAN));
+  EXPECT_TRUE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::PropertyId::REMOTE_TEMPERATURE));
+  EXPECT_FALSE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::PropertyId::POWER));
+  EXPECT_FALSE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::PropertyId::TEMPERATURE));
+  EXPECT_FALSE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::PropertyId::MODE));
+  EXPECT_FALSE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::PropertyId::FAN));
 
   // ACK the first write. Remote temperature should still be pending afterward.
   ctx.uart.tx.clear();
@@ -533,7 +533,7 @@ TEST(MitsubishiCN105Tests, ApplyQueuedSettingsThenRemoteRoomTempInSecondWrite) {
                     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5E});
   ASSERT_FALSE(ctx.sut.update());
 
-  EXPECT_TRUE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
+  EXPECT_TRUE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::PropertyId::REMOTE_TEMPERATURE));
 
   // The next apply sends the remote-temperature packet and clears the last pending flag.
   ctx.uart.tx.clear();
@@ -557,7 +557,7 @@ TEST(MitsubishiCN105Tests, WriteTimeoutClearsStatusUpdateWaitCreditOnReconnect) 
   ASSERT_EQ(ctx.sut.status_update_wait_credit_ms_, 0);
 
   // Interrupt that wait with a write so credit is accumulated.
-  ctx.sut.use_temperature_encoding_b_ = true;
+  ctx.sut.property_context_.use_temperature_encoding_b = true;
   ctx.sut.set_power(false);
   ctx.sut.set_target_temperature(25.0f);
   ctx.sut.set_mode(MitsubishiCN105::Mode::HEAT);
@@ -581,25 +581,25 @@ TEST(MitsubishiCN105Tests, SetOutOfRangeRemoteRoomTempIsIgnored) {
   auto ctx = TestContext{};
 
   ctx.sut.set_remote_temperature(7.0f);
-  EXPECT_FALSE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
+  EXPECT_FALSE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::PropertyId::REMOTE_TEMPERATURE));
 
   ctx.sut.set_remote_temperature(40.0f);
-  EXPECT_FALSE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
+  EXPECT_FALSE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::PropertyId::REMOTE_TEMPERATURE));
 
   ctx.sut.set_remote_temperature(NAN);
-  EXPECT_FALSE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
+  EXPECT_FALSE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::PropertyId::REMOTE_TEMPERATURE));
 }
 
 TEST(MitsubishiCN105Tests, SetMinRemoteRoomTemp) {
   auto ctx = TestContext{};
   ctx.sut.set_remote_temperature(8.0f);
-  EXPECT_TRUE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
+  EXPECT_TRUE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::PropertyId::REMOTE_TEMPERATURE));
 }
 
 TEST(MitsubishiCN105Tests, SetMaxRemoteRoomTemp) {
   auto ctx = TestContext{};
   ctx.sut.set_remote_temperature(39.5f);
-  EXPECT_TRUE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::UpdateFlag::REMOTE_TEMPERATURE));
+  EXPECT_TRUE(ctx.sut.pending_updates_.contains(TestableMitsubishiCN105::PropertyId::REMOTE_TEMPERATURE));
 }
 
 }  // namespace esphome::mitsubishi_cn105::testing
