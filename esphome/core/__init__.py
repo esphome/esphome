@@ -5,7 +5,7 @@ import math
 import os
 from pathlib import Path
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from esphome.const import (
     CONF_COMMENT,
@@ -569,6 +569,12 @@ class EsphomeCore:
         self.build_path: Path | None = None
         # The validated configuration, this is None until the config has been validated
         self.config: ConfigType | None = None
+        # YAML frontmatter loaded from user YAML files. Frontmatter is a leading
+        # YAML document separated by `---` from the actual configuration. It is
+        # ignored by config validation and code generation, but kept here so it
+        # can be inspected by callers (tooling, future features). Keyed by the
+        # resolved Path of the source file.
+        self.frontmatter: dict[Path, Any] = {}
         # The pending tasks in the task queue (mostly for C++ generation)
         # This is a priority queue (with heapq)
         # Each item is a tuple of form: (-priority, unique number, task)
@@ -634,6 +640,7 @@ class EsphomeCore:
         self.config_path = None
         self.build_path = None
         self.config = None
+        self.frontmatter = {}
         self.event_loop = _FakeEventLoop()
         self.task_counter = 0
         self.variables = {}

@@ -34,6 +34,14 @@ def clear_secrets_cache() -> None:
     yaml_util._SECRET_CACHE.clear()
 
 
+@pytest.fixture(autouse=True)
+def clear_core_frontmatter() -> None:
+    """Reset CORE.frontmatter between tests."""
+    core.CORE.frontmatter = {}
+    yield
+    core.CORE.frontmatter = {}
+
+
 def test_include_with_vars(fixture_path: Path) -> None:
     yaml_file = fixture_path / "yaml_util" / "includetest.yaml"
 
@@ -1182,3 +1190,153 @@ def test_track_yaml_loads_records_resolved_paths(tmp_path: Path) -> None:
     with track_yaml_loads() as loaded:
         yaml_util.load_yaml(link)
     assert target.resolve() in loaded
+
+
+# ---------------------------------------------------------------------------
+# YAML frontmatter
+# ---------------------------------------------------------------------------
+
+
+def test_frontmatter_parsed_and_stored_on_core(tmp_path: Path) -> None:
+    """A leading `---`-separated YAML document is stored as frontmatter and
+    stripped from the returned config."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text(
+        "author: Jesse\nlabels: [office, climate]\n---\nesphome:\n  name: my_node\n"
+    )
+
+    config = yaml_util.load_yaml(yaml_file)
+
+    # Config does not contain frontmatter keys
+    assert "author" not in config
+    assert "labels" not in config
+    assert config["esphome"]["name"] == "my_node"
+
+    # Frontmatter is stored on CORE keyed by resolved path
+    frontmatter = core.CORE.frontmatter[yaml_file.resolve()]
+    assert frontmatter["author"] == "Jesse"
+    assert frontmatter["labels"] == ["office", "climate"]
+
+
+def test_frontmatter_absent_when_single_document(tmp_path: Path) -> None:
+    """A YAML file with a single document does not populate CORE.frontmatter."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text("esphome:\n  name: my_node\n")
+
+    yaml_util.load_yaml(yaml_file)
+    assert yaml_file.resolve() not in core.CORE.frontmatter
+
+
+def test_frontmatter_absent_when_leading_doc_separator(tmp_path: Path) -> None:
+    """A leading `---` with no content above it is just a document start marker,
+    not frontmatter, and must not populate CORE.frontmatter."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text("---\nesphome:\n  name: my_node\n")
+
+    config = yaml_util.load_yaml(yaml_file)
+    assert config["esphome"]["name"] == "my_node"
+    assert yaml_file.resolve() not in core.CORE.frontmatter
+
+
+def test_frontmatter_supports_arbitrary_keys(tmp_path: Path) -> None:
+    """Frontmatter keys are not validated — any structure is accepted."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text(
+        "any_key: any_value\n"
+        "nested:\n"
+        "  count: 42\n"
+        "  items:\n"
+        "    - a\n"
+        "    - b\n"
+        "---\n"
+        "esphome:\n"
+        "  name: t\n"
+    )
+
+    yaml_util.load_yaml(yaml_file)
+    frontmatter = core.CORE.frontmatter[yaml_file.resolve()]
+    assert frontmatter["any_key"] == "any_value"
+    assert frontmatter["nested"]["count"] == 42
+    assert frontmatter["nested"]["items"] == ["a", "b"]
+
+
+def test_frontmatter_supports_deeply_nested_paths(tmp_path: Path) -> None:
+    """Frontmatter preserves deeply nested dict/list structures intact."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text(
+        "device:\n"
+        "  metadata:\n"
+        "    location:\n"
+        "      building: HQ\n"
+        "      floor: 3\n"
+        "      room:\n"
+        "        number: 302\n"
+        "        occupants:\n"
+        "          - name: Jesse\n"
+        "            role:\n"
+        "              title: maintainer\n"
+        "              since: 2021\n"
+        "          - name: Alice\n"
+        "            role:\n"
+        "              title: contributor\n"
+        "              since: 2024\n"
+        "---\n"
+        "esphome:\n"
+        "  name: t\n"
+    )
+
+    yaml_util.load_yaml(yaml_file)
+    fm = core.CORE.frontmatter[yaml_file.resolve()]
+    room = fm["device"]["metadata"]["location"]["room"]
+    assert room["number"] == 302
+    assert room["occupants"][0]["name"] == "Jesse"
+    assert room["occupants"][0]["role"]["title"] == "maintainer"
+    assert room["occupants"][0]["role"]["since"] == 2021
+    assert room["occupants"][1]["role"]["title"] == "contributor"
+
+
+def test_frontmatter_more_than_two_documents_raises(tmp_path: Path) -> None:
+    """Three or more YAML documents is unsupported and must raise."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text("a: 1\n---\nb: 2\n---\nc: 3\n")
+
+    with pytest.raises(EsphomeError, match="at most two are supported"):
+        yaml_util.load_yaml(yaml_file)
+
+
+def test_frontmatter_empty_frontmatter_doc_not_stored(tmp_path: Path) -> None:
+    """An empty (null) frontmatter document is treated as no frontmatter."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text("---\n---\nesphome:\n  name: t\n")
+
+    config = yaml_util.load_yaml(yaml_file)
+    assert config["esphome"]["name"] == "t"
+    assert yaml_file.resolve() not in core.CORE.frontmatter
+
+
+def test_frontmatter_empty_config_doc(tmp_path: Path) -> None:
+    """An empty config document after a frontmatter document yields an empty config."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text("only: frontmatter\n---\n")
+
+    config = yaml_util.load_yaml(yaml_file)
+    assert config == {}
+    assert core.CORE.frontmatter[yaml_file.resolve()]["only"] == "frontmatter"
+
+
+def test_frontmatter_included_file_stored(tmp_path: Path) -> None:
+    """Frontmatter on an !include'd file is also captured on CORE, keyed by
+    that file's resolved path."""
+    inc = tmp_path / "child.yaml"
+    inc.write_text("child_meta: hello\n---\nchild_key: value\n")
+    main = tmp_path / "main.yaml"
+    main.write_text("esphome:\n  name: t\nchild: !include child.yaml\n")
+
+    config = yaml_util.load_yaml(main)
+    # !include is deferred; force resolution so the child file actually loads
+    force_load_include_files(config)
+    assert config["child"].load()["child_key"] == "value"
+    # Main file has no frontmatter
+    assert main.resolve() not in core.CORE.frontmatter
+    # Included file's frontmatter is captured
+    assert core.CORE.frontmatter[inc.resolve()]["child_meta"] == "hello"
