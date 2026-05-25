@@ -39,6 +39,7 @@ LIMIT_MODES = {
 # Actions
 ToggleAction = light_ns.class_("ToggleAction", automation.Action)
 LightControlAction = light_ns.class_("LightControlAction", automation.Action)
+LightEffectCycleAction = light_ns.class_("LightEffectCycleAction", automation.Action)
 DimRelativeAction = light_ns.class_("DimRelativeAction", automation.Action)
 AddressableSet = light_ns.class_("AddressableSet", automation.Action)
 LightIsOnCondition = light_ns.class_("LightIsOnCondition", automation.Condition)

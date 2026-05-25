@@ -68,6 +68,9 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) 
       return OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
     } else if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
       return OTA_RESPONSE_ERROR_WRITING_FLASH;
+    } else if (err == ESP_ERR_OTA_PARTITION_CONFLICT) {
+      // This error appears with 1 factory and 1 ota partition
+      return OTA_RESPONSE_ERROR_NO_UPDATE_PARTITION;
     }
     return OTA_RESPONSE_ERROR_UNKNOWN;
   }

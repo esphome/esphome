@@ -89,10 +89,10 @@ def _set_num_channels_from_config(config):
 
 def _set_stream_limits(config):
     if config.get(CONF_SPDIF_MODE, False):
-        # SPDIF mode: fixed to 16-bit stereo at configured sample rate
+        # SPDIF mode: 16/24/32-bit audio and stereo at configured sample rate
         audio.set_stream_limits(
             min_bits_per_sample=16,
-            max_bits_per_sample=16,
+            max_bits_per_sample=32,
             min_channels=2,
             max_channels=2,
             min_sample_rate=config.get(CONF_SAMPLE_RATE),
@@ -213,9 +213,6 @@ def _final_validate(config):
             )
         if config[CONF_CHANNEL] != CONF_STEREO:
             raise cv.Invalid("SPDIF mode only supports stereo channel configuration")
-        # bits_per_sample is converted to float by the schema
-        if config[CONF_BITS_PER_SAMPLE] != 16:
-            raise cv.Invalid("SPDIF mode only supports 16 bits per sample")
         if not config[CONF_USE_APLL]:
             raise cv.Invalid(
                 "SPDIF mode requires 'use_apll: true' for accurate clock generation"
