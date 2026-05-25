@@ -1,13 +1,13 @@
 #pragma once
 
-#include "esphome/components/actuator/time_based_actuator.h"
+#include "esphome/components/time_based/time_based_actuator.h"
 #include "esphome/components/valve/valve.h"
 
 namespace esphome::time_based_valve {
 
 // Inheritance: TimeBasedValve -> TimeBasedActuatorBase (Component), Valve (ActuatorBase, IActuator)
 // No shared ancestors. No diamond inheritance.
-class TimeBasedValve : public actuator::TimeBasedActuatorBase, public valve::Valve {
+class TimeBasedValve : public time_based::TimeBasedActuatorBase, public valve::Valve {
  public:
   TimeBasedValve() { this->set_actuator(this); }
   void setup() override;
@@ -15,7 +15,7 @@ class TimeBasedValve : public actuator::TimeBasedActuatorBase, public valve::Val
   void dump_config() override;
 
  protected:
-  void control(const valve::ValveCall &call) override { actuator::TimeBasedActuatorBase::control(call); }
+  void control(const valve::ValveCall &call) override { time_based::TimeBasedActuatorBase::control(call); }
 };
 
 }  // namespace esphome::time_based_valve
