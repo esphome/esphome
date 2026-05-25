@@ -116,6 +116,7 @@ select = [
   "FLY",  # flynt: convert string formatting to f-strings
   "FURB", # refurb
   "I",    # isort
+  "ISC",  # flake8-implicit-str-concat
   "PERF", # performance
   "PL",   # pylint
   "SIM",  # flake8-simplify
