@@ -363,33 +363,47 @@ def _det(m: list[float]) -> float:
     )
 
 
-def _calibrate_level(raw: list[float]) -> list[float]:
-    """Python port of MotionComponent::calibrate_level."""
+def _calibrate_level(
+    raw: list[float], matrix: list[float] | None = None
+) -> list[float]:
+    """Python port of MotionComponent::calibrate_level.
+
+    Composes the correction with *matrix* (defaults to identity).
+    """
     import math
 
-    nx, ny, nz = raw
+    if matrix is None:
+        matrix = list(IDENTITY)
+
+    # Apply current matrix first
+    mapped = _mat_vec(matrix, raw)
+
+    nx, ny, nz = mapped
     mag = math.sqrt(nx * nx + ny * ny + nz * nz)
     nx /= mag
     ny /= mag
     nz /= mag
 
     if nz > 0.9999:
-        return [1, 0, 0, 0, 1, 0, 0, 0, 1]
-    if nz < -0.9999:
-        return [1, 0, 0, 0, -1, 0, 0, 0, -1]
+        return matrix[:]  # already aligned, preserve existing matrix
 
-    f = 1.0 / (1.0 + nz)
-    return [
-        1.0 - nx * nx * f,
-        -nx * ny * f,
-        -nx,
-        -nx * ny * f,
-        1.0 - ny * ny * f,
-        -ny,
-        nx,
-        ny,
-        nz,
-    ]
+    if nz < -0.9999:
+        r = [1, 0, 0, 0, -1, 0, 0, 0, -1]
+    else:
+        f = 1.0 / (1.0 + nz)
+        r = [
+            1.0 - nx * nx * f,
+            -nx * ny * f,
+            -nx,
+            -nx * ny * f,
+            1.0 - ny * ny * f,
+            -ny,
+            nx,
+            ny,
+            nz,
+        ]
+
+    return _mat_mul(r, matrix)
 
 
 def _calibrate_heading(matrix: list[float], raw: list[float]) -> list[float]:
@@ -436,6 +450,31 @@ class TestCalibrateLevel:
     def test_already_flat(self):
         m = _calibrate_level([0, 0, 1.0])
         assert m == IDENTITY
+
+    def test_preserves_existing_matrix_when_flat(self):
+        """If already flat after axis mapping, level cal should not change the matrix."""
+        swap = [0, 1, 0, 1, 0, 0, 0, 0, 1]  # swap X↔Y
+        m = _calibrate_level([0, 0, 1.0], swap)
+        assert m == swap
+
+    def test_composes_with_existing_matrix(self):
+        """Level calibration should correct tilt while preserving an existing axis swap."""
+        import math
+
+        swap = [0, 1, 0, 1, 0, 0, 0, 0, 1]  # swap X↔Y
+        # Tilted raw: gravity has X component in raw frame
+        raw = [0.3, 0.0, 0.954]
+        m = _calibrate_level(raw, swap)
+        # After calibration, current raw should map to [0, 0, ~1]
+        mag = math.sqrt(sum(v * v for v in raw))
+        norm = [v / mag for v in raw]
+        result = _mat_vec(m, norm)
+        assert result[0] == pytest.approx(0, abs=1e-5)
+        assert result[1] == pytest.approx(0, abs=1e-5)
+        assert result[2] == pytest.approx(1, abs=1e-5)
+        # Result should differ from calibrating without the swap
+        m_no_swap = _calibrate_level(raw)
+        assert m != m_no_swap
 
     def test_upside_down(self):
         m = _calibrate_level([0, 0, -1.0])

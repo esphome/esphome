@@ -1,4 +1,5 @@
 from collections.abc import Callable
+import hashlib
 import re
 
 from esphome import automation
@@ -137,6 +138,12 @@ def motion_schema(class_: MockObjClass, has_accel: bool, has_gyro: bool) -> cv.S
 #  Code generation
 async def register_motion_component(var: MockObj, config) -> None:
     await cg.register_component(var, config)
+    # Set preference key for NVS save/restore (based on component ID)
+    obj_id = config[CONF_ID].id
+    if isinstance(obj_id, str):
+        obj_id = obj_id.encode()
+    pref_hash = int(hashlib.md5(obj_id).hexdigest()[:8], 16)
+    cg.add(var.set_calibration_key(pref_hash))
     if axis_map := config.get(CONF_AXIS_MAP):
         cg.add(var.set_matrix(_axis_map_to_matrix(axis_map)))
     elif transform_matrix := config.get(CONF_TRANSFORM_MATRIX):
@@ -151,9 +158,12 @@ async def new_motion_component(config: dict) -> MockObj:
 
 # --- Actions ---
 
+CONF_SAVE = "save"
+
 CALIBRATE_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(MotionComponent),
+        cv.Optional(CONF_SAVE, default=False): cv.boolean,
         cv.Optional(CONF_ON_SUCCESS): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
     }
@@ -163,6 +173,8 @@ CALIBRATE_ACTION_SCHEMA = cv.Schema(
 async def _build_calibrate_action(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, parent)
+    if config.get(CONF_SAVE):
+        cg.add(var.set_save(True))
     if on_success := config.get(CONF_ON_SUCCESS):
         await automation.build_automation(var.get_success_trigger(), [], on_success)
     if on_error := config.get(CONF_ON_ERROR):
