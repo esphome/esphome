@@ -19,6 +19,10 @@ time:
     id: homeassistant_time
 ```
 
+If no `timezone` is configured for this component, an initial timezone will be inferred from the build host, but
+at runtime the timezone will be updated from Home Assistant when the time is synced.
+An explicitly configured timezone will prevent the timezone from being updated from Home Assistant.
+
 ## Configuration variables
 
 - All options from [Base Time Configuration](/components/time#base_time_config).
