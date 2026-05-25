@@ -3,6 +3,7 @@
 # pylint: disable=protected-access
 
 from contextlib import contextmanager
+import errno
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -32,6 +33,53 @@ def _expected_env_fingerprint(
             sort_keys=True,
         ).encode()
     ).hexdigest()[:16]
+
+
+def _write_platformio_ini(build_path: Path, env_name: str) -> None:
+    build_path.mkdir(parents=True, exist_ok=True)
+    (build_path / "platformio.ini").write_text(
+        f"""
+; ========== AUTO GENERATED CODE BEGIN ===========
+
+[env:{env_name}]
+lib_deps =
+    Component/Generated @ 2.0.0
+; =========== AUTO GENERATED CODE END ============
+""",
+        encoding="utf-8",
+    )
+
+
+def _write_storage_json(config_filename: str, firmware_bin_path: Path) -> None:
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+    from esphome.storage_json import ext_storage_path
+
+    core_data = CORE.data[KEY_CORE]
+    path = ext_storage_path(config_filename)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "storage_version": 1,
+                "name": CORE.name,
+                "friendly_name": None,
+                "comment": None,
+                "esphome_version": "2026.1.0",
+                "src_version": 1,
+                "address": "test.local",
+                "web_port": None,
+                "esp_platform": core_data[KEY_TARGET_PLATFORM].upper(),
+                "build_path": str(CORE.build_path),
+                "firmware_bin_path": str(firmware_bin_path),
+                "loaded_integrations": [],
+                "loaded_platforms": [],
+                "no_mdns": False,
+                "framework": core_data[KEY_TARGET_FRAMEWORK],
+                "core_platform": core_data[KEY_TARGET_PLATFORM],
+                "toolchain": "platformio",
+            }
+        )
+    )
 
 
 def test_idedata_firmware_elf_path(setup_core: Path) -> None:
@@ -541,6 +589,107 @@ def test_platformio_env_name_disambiguates_shared_custom_build_path(
     assert first_env != second_env
 
 
+def test_platformio_env_name_ignores_foreign_generated_env_for_shared_build_path(
+    setup_core: Path,
+) -> None:
+    """Upload-only paths must not reuse another device's generated PIO env."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    shared_build_path = setup_core / "build" / "shared"
+    CORE.name = "living-room"
+    CORE.build_path = shared_build_path
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "rp2040",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    _write_platformio_ini(shared_build_path, "kitchen-rp2040-arduino-compiled1234")
+
+    env_name = toolchain.platformio_env_name(prefer_existing=True)
+
+    assert env_name.startswith("living-room-rp2040-arduino-")
+
+
+def test_platformio_env_name_rejects_prefix_matched_foreign_env(
+    setup_core: Path,
+) -> None:
+    """Shared-build env reuse matches the exact device/toolchain prefix."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    shared_build_path = setup_core / "build" / "shared"
+    CORE.name = "plug"
+    CORE.build_path = shared_build_path
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "rp2040",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    _write_platformio_ini(shared_build_path, "plug-kitchen-rp2040-arduino-compiled")
+
+    env_name = toolchain.platformio_env_name(prefer_existing=True)
+
+    assert env_name.startswith("plug-rp2040-arduino-")
+
+
+def test_platformio_env_name_rejects_unscoped_foreign_env(
+    setup_core: Path,
+) -> None:
+    """Existing generated env reuse still checks ownership on normal paths."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    CORE.name = "plug"
+    CORE.build_path = setup_core / "build" / "plug"
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "rp2040",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    _write_platformio_ini(CORE.build_path, "kitchen-rp2040-arduino-compiled")
+
+    env_name = toolchain.platformio_env_name(prefer_existing=True)
+
+    assert env_name.startswith("rp2040-arduino-")
+
+
+def test_platformio_env_name_reuses_legacy_device_env(
+    setup_core: Path,
+) -> None:
+    """Legacy upload-only envs remain valid when they exactly match the device."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    shared_build_path = setup_core / "build" / "shared"
+    CORE.name = "living-room"
+    CORE.build_path = shared_build_path
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "rp2040",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    _write_platformio_ini(shared_build_path, "living-room")
+
+    assert toolchain.platformio_env_name(prefer_existing=True) == "living-room"
+
+
+def test_platformio_env_name_reuses_stored_env_when_shared_ini_is_foreign(
+    setup_core: Path,
+) -> None:
+    """Per-config storage keeps upload-only artifact paths device-safe."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    shared_build_path = setup_core / "build" / "shared"
+    CORE.config_path = setup_core / "living-room.yaml"
+    CORE.name = "living-room"
+    CORE.build_path = shared_build_path
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "rp2040",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    stored_env = "living-room-rp2040-arduino-compiled1234"
+    _write_storage_json(
+        CORE.config_filename,
+        shared_build_path / ".pioenvs" / stored_env / "firmware.bin",
+    )
+    _write_platformio_ini(shared_build_path, "kitchen-rp2040-arduino-compiled5678")
+
+    assert toolchain.platformio_env_name(prefer_existing=True) == stored_env
+
+
 def test_platformio_env_name_includes_preserved_common_libdeps(
     setup_core: Path,
 ) -> None:
@@ -636,6 +785,64 @@ lib_deps =
     fingerprint = _expected_env_fingerprint([str(local_lib.resolve())])
 
     assert toolchain.platformio_env_name() == f"rp2040-arduino-{fingerprint}"
+
+
+def test_platformio_env_name_preserves_tilde_version_constraints(
+    setup_core: Path,
+) -> None:
+    """Ensure PlatformIO semver "~" constraints are not expanded as home paths."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    CORE.build_path = setup_core / "build" / "test"
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "rp2040",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    CORE.add_platformio_option("lib_deps", ["User/CustomLib @ ~1.2.3"])
+    CORE.add_platformio_option("platform", "libretiny @ ~1.9.0")
+    CORE.add_platformio_option("platform_packages", ["framework-local @ ~2.0.0"])
+    CORE.relative_build_path().mkdir(parents=True)
+    CORE.relative_build_path("platformio.ini").write_text(
+        """
+[common]
+lib_deps =
+    Common/Library @ ~3.4.5
+""",
+        encoding="utf-8",
+    )
+
+    fingerprint = _expected_env_fingerprint(
+        [
+            "Common/Library @ ~3.4.5",
+            "User/CustomLib @ ~1.2.3",
+        ],
+        {
+            "platform": ["libretiny @ ~1.9.0"],
+            "platform_packages": ["framework-local @ ~2.0.0"],
+        },
+    )
+
+    assert toolchain.platformio_env_name() == f"rp2040-arduino-{fingerprint}"
+
+
+@pytest.mark.parametrize("config_path", [None, "test.yaml"])
+def test_platformio_env_name_skips_storage_lookup_without_path_config_path(
+    setup_core: Path,
+    config_path: Path | str | None,
+) -> None:
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    CORE.config_path = config_path
+    CORE.build_path = setup_core / "build" / "test"
+    CORE.name = "test"
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "rp2040",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+
+    env_name = toolchain.platformio_env_name(prefer_existing=True)
+
+    assert env_name.startswith("rp2040-arduino-")
 
 
 def test_platformio_env_name_includes_common_libdeps_before_ini_regeneration(
@@ -770,6 +977,39 @@ def test_run_platformio_cli_preserves_late_user_libdeps_override(
         assert os.environ[toolchain._PLATFORMIO_MANAGED_LIBDEPS_ENV] == managed_value
 
 
+def test_platformio_libdeps_lock_waits_for_windows_contention(
+    tmp_path: Path,
+) -> None:
+    """Windows libdeps locking should wait past msvcrt's short retry window."""
+    calls = []
+    attempts = {"count": 0}
+
+    def locking(_fd: int, mode: int, _nbytes: int) -> None:
+        calls.append(mode)
+        if mode == fake_msvcrt.LK_NBLCK and attempts["count"] < 2:
+            attempts["count"] += 1
+            raise OSError(errno.EACCES, "busy")
+
+    fake_msvcrt = SimpleNamespace(LK_NBLCK=1, LK_UNLCK=2, locking=locking)
+    lock_path = tmp_path / "env.lock"
+
+    with (
+        patch("esphome.platformio.toolchain.os.name", "nt"),
+        patch.dict("sys.modules", {"msvcrt": fake_msvcrt}),
+        patch("esphome.platformio.toolchain.time.sleep") as mock_sleep,
+        toolchain._platformio_libdeps_lock(lock_path),
+    ):
+        pass
+
+    assert calls == [
+        fake_msvcrt.LK_NBLCK,
+        fake_msvcrt.LK_NBLCK,
+        fake_msvcrt.LK_NBLCK,
+        fake_msvcrt.LK_UNLCK,
+    ]
+    assert mock_sleep.call_count == 2
+
+
 def test_platformio_env_name_resolves_local_libdeps(
     setup_core: Path,
 ) -> None:
@@ -840,13 +1080,48 @@ def test_platformio_env_name_includes_toolchain_options(
     CORE.add_platformio_option(
         "platform_packages", ["framework-arduinoespressif32 @ 3.2.0"]
     )
+    CORE.add_platformio_option("lib_ignore", ["IRremoteESP8266"])
     CORE.add_platformio_option("build_flags", ["-DDEVICE_SPECIFIC"])
 
     fingerprint = _expected_env_fingerprint(
         ["AsyncTCP-esphome @ 2.1.4"],
         {
+            "lib_ignore": ["IRremoteESP8266"],
             "platform": ["platformio/espressif32 @ 6.10.0"],
             "platform_packages": ["framework-arduinoespressif32 @ 3.2.0"],
+        },
+    )
+
+    assert toolchain.platformio_env_name() == f"esp32-arduino-{fingerprint}"
+
+
+def test_platformio_env_name_resolves_local_platform_options(
+    setup_core: Path,
+) -> None:
+    """Local PlatformIO platform specs are fingerprinted by resolved path."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    CORE.build_path = str(setup_core / "project" / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    local_platform = setup_core / "project" / "build" / "local_platform"
+    local_framework = setup_core / "project" / "build" / "local_framework"
+    local_platform.mkdir(parents=True)
+    local_framework.mkdir()
+    CORE.add_platformio_option("platform", "file://../local_platform")
+    CORE.add_platformio_option(
+        "platform_packages", ["framework-local=file://../local_framework"]
+    )
+
+    fingerprint = _expected_env_fingerprint(
+        [],
+        {
+            "platform": [f"file://{local_platform.resolve()}"],
+            "platform_packages": [
+                f"framework-local=file://{local_framework.resolve()}"
+            ],
         },
     )
 

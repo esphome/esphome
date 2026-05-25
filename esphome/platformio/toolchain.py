@@ -1,5 +1,6 @@
 import configparser
 from contextlib import contextmanager
+import errno
 import hashlib
 import json
 import logging
@@ -7,6 +8,7 @@ import os
 from pathlib import Path
 import re
 import sys
+import time
 
 from esphome.const import (
     CONF_COMPILE_PROCESS_LIMIT,
@@ -28,12 +30,22 @@ _PLATFORMIO_ENV_FINGERPRINT_OPTIONS = {
     "board",
     "framework",
     "lib_compat_mode",
+    "lib_ignore",
     "lib_ldf_mode",
     "platform",
     "platform_packages",
 }
 _PLATFORMIO_MANAGED_LIBDEPS_ENV = "ESPHOME_PLATFORMIO_MANAGED_LIBDEPS_DIR"
 _LOCAL_LIBDEP_URI_PREFIXES = ("file://", "symlink://")
+_HOME_PATH_RE = re.compile(r"^~(?:$|[/\\]|[^/\\]+[/\\])")
+_WINDOWS_LOCK_RETRY_DELAY = 0.1
+_WINDOWS_LOCK_BUSY_ERRNOS = {
+    errno.EACCES,
+    errno.EAGAIN,
+    errno.EDEADLK,
+}
+if hasattr(errno, "EDEADLOCK"):
+    _WINDOWS_LOCK_BUSY_ERRNOS.add(errno.EDEADLOCK)
 
 
 def _strip_win_long_path_prefix(path: str) -> str:
@@ -121,10 +133,24 @@ def _resolve_local_lib_dep_uri(value: str, project_dir: Path) -> str | None:
     for prefix in _LOCAL_LIBDEP_URI_PREFIXES:
         if not value.startswith(prefix):
             continue
-        target = Path(value[len(prefix) :]).expanduser()
+        target = _platformio_path_value(value[len(prefix) :])
+        if target is None:
+            return None
         resolved = target if target.is_absolute() else project_dir / target
         return f"{prefix}{resolved.resolve()}"
     return None
+
+
+def _platformio_path_value(value: str) -> Path | None:
+    """Return a path candidate, keeping semver "~" constraints literal."""
+    if not value.startswith("~"):
+        return Path(value)
+    if not _HOME_PATH_RE.match(value):
+        return None
+    try:
+        return Path(value).expanduser()
+    except RuntimeError:
+        return None
 
 
 def _resolve_local_lib_dep_target(value: str, project_dir: Path) -> str | None:
@@ -133,7 +159,9 @@ def _resolve_local_lib_dep_target(value: str, project_dir: Path) -> str | None:
     if resolved_uri := _resolve_local_lib_dep_uri(value, project_dir):
         return resolved_uri
 
-    path = Path(value).expanduser()
+    path = _platformio_path_value(value)
+    if path is None:
+        return None
     if path.is_absolute() or value.startswith((".", "~")):
         resolved = path if path.is_absolute() else project_dir / path
         return str(resolved.resolve())
@@ -194,17 +222,61 @@ def _platformio_libdeps_fingerprint_values() -> list[str]:
 
 def _platformio_env_fingerprint_values() -> dict[str, object]:
     """Return values that must stay compatible inside one PlatformIO env."""
+    project_dir = Path(CORE.build_path)
     platformio_options = {}
     for key, value in sorted(CORE.platformio_options.items()):
         if key == "lib_deps":
             continue
         if key in _PLATFORMIO_ENV_FINGERPRINT_OPTIONS or key.startswith("board_build."):
-            platformio_options[key] = _normalize_platformio_values(value)
+            values = _normalize_platformio_values(value)
+            if key in {"platform", "platform_packages"}:
+                values = [
+                    _platformio_lib_dep_fingerprint_value(item, project_dir)
+                    for item in values
+                ]
+            platformio_options[key] = values
 
     return {
         "lib_deps": _platformio_libdeps_fingerprint_values(),
         "platformio_options": platformio_options,
     }
+
+
+def _platformio_env_matches_current_device(env_name: str) -> bool:
+    """Return whether an env name can safely be reused for this config."""
+    if CORE.name and env_name == CORE.name:
+        return True
+
+    device_scope = _platformio_env_device_scope()
+    return env_name.startswith(f"{device_scope}{_platformio_toolchain_cache_key()}-")
+
+
+def _read_stored_platformio_env_name() -> str | None:
+    """Return the env name stored by the last compile for this config."""
+    from esphome.storage_json import StorageJSON, ext_storage_path
+
+    if not isinstance(CORE.config_path, Path):
+        return None
+
+    storage = StorageJSON.load(ext_storage_path(CORE.config_path.name))
+    if storage is None or storage.firmware_bin_path is None:
+        return None
+
+    env_dir = storage.firmware_bin_path.parent
+    pioenvs_dir = CORE.relative_pioenvs_path()
+    try:
+        relative = env_dir.relative_to(pioenvs_dir)
+    except ValueError:
+        try:
+            relative = env_dir.resolve().relative_to(pioenvs_dir.resolve())
+        except ValueError:
+            return None
+
+    if len(relative.parts) != 1:
+        return None
+
+    env_name = relative.parts[0]
+    return env_name if _platformio_env_matches_current_device(env_name) else None
 
 
 def _read_generated_platformio_env_name() -> str | None:
@@ -224,7 +296,10 @@ def _read_generated_platformio_env_name() -> str | None:
         text,
         flags=re.MULTILINE,
     )
-    return env_match.group(1) if env_match else None
+    if env_match is None:
+        return None
+    env_name = env_match.group(1)
+    return env_name if _platformio_env_matches_current_device(env_name) else None
 
 
 def platformio_env_name(*, prefer_existing: bool = False) -> str:
@@ -233,8 +308,11 @@ def platformio_env_name(*, prefer_existing: bool = False) -> str:
     if target_platform in (PLATFORM_HOST, PLATFORM_NRF52):
         return CORE.name
 
-    if prefer_existing and (env_name := _read_generated_platformio_env_name()):
-        return env_name
+    if prefer_existing:
+        if env_name := _read_generated_platformio_env_name():
+            return env_name
+        if env_name := _read_stored_platformio_env_name():
+            return env_name
 
     fingerprint = hashlib.sha256(
         json.dumps(_platformio_env_fingerprint_values(), sort_keys=True).encode()
@@ -281,6 +359,26 @@ def _set_platformio_libdeps_dir(env_name: str | None = None) -> Path | None:
     return _platformio_libdeps_lock_path(env_name)
 
 
+def _lock_windows_file_byte(lock_file) -> None:
+    """Block until the first byte of ``lock_file`` can be locked on Windows."""
+    import msvcrt  # pylint: disable=import-error
+
+    lock_file.seek(0)
+    if not lock_file.read(1):
+        lock_file.write(b"\0")
+        lock_file.flush()
+
+    while True:
+        lock_file.seek(0)
+        try:
+            msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+            return
+        except OSError as err:
+            if err.errno not in _WINDOWS_LOCK_BUSY_ERRNOS:
+                raise
+            time.sleep(_WINDOWS_LOCK_RETRY_DELAY)
+
+
 @contextmanager
 def _platformio_libdeps_lock(lock_path: Path | None):
     """Hold a cross-process lock while PlatformIO mutates shared libdeps."""
@@ -293,12 +391,7 @@ def _platformio_libdeps_lock(lock_path: Path | None):
         if os.name == "nt":
             import msvcrt  # pylint: disable=import-error
 
-            lock_file.seek(0)
-            if not lock_file.read(1):
-                lock_file.write(b"\0")
-                lock_file.flush()
-            lock_file.seek(0)
-            msvcrt.locking(lock_file.fileno(), msvcrt.LK_LOCK, 1)
+            _lock_windows_file_byte(lock_file)
             try:
                 yield
             finally:
