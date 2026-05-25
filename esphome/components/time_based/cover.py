@@ -2,7 +2,7 @@ import esphome.codegen as cg
 from esphome.components import cover
 import esphome.config_validation as cv
 
-from .. import (
+from . import (
     TIME_BASED_ACTUATOR_SCHEMA,
     TimeBasedActuatorBase,
     apply_time_based_actuator_config,
