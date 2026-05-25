@@ -9,15 +9,12 @@ esphome:
           target_speaker: !lambda return id(speaker_a_id);
 
 i2s_audio:
-  - id: i2s_a
-    i2s_lrclk_pin: ${a_lrclk_pin}
-    i2s_bclk_pin: ${a_bclk_pin}
-  - id: i2s_b
+  i2s_lrclk_pin: ${a_lrclk_pin}
+  i2s_bclk_pin: ${a_bclk_pin}
 
 speaker:
   - platform: i2s_audio
     id: speaker_a_id
-    i2s_audio_id: i2s_a
     dac_type: external
     i2s_dout_pin: ${a_dout_pin}
     sample_rate: 48000
@@ -25,7 +22,6 @@ speaker:
     channel: stereo
   - platform: i2s_audio
     id: speaker_b_id
-    i2s_audio_id: i2s_b
     dac_type: external
     i2s_dout_pin: ${b_dout_pin}
     spdif_mode: true
