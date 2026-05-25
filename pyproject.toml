@@ -126,6 +126,7 @@ select = [
   "LOG",  # flake8-logging
   "NPY",  # numpy-specific rules
   "PERF", # performance
+  "PGH",  # pygrep-hooks
   "PL",   # pylint
   "PYI",  # flake8-pyi
   "Q",    # flake8-quotes
