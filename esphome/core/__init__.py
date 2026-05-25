@@ -790,6 +790,13 @@ class EsphomeCore:
             return self.name
         return PLATFORMIO_ENV_NAME
 
+    def relative_platformio_artifact_path(self, filename: str) -> Path:
+        path = self.relative_pioenvs_path(self.pioenv_name, filename)
+        legacy_path = self.relative_pioenvs_path(self.name, filename)
+        if path != legacy_path and not path.exists() and legacy_path.exists():
+            return legacy_path
+        return path
+
     @property
     def sdkconfig_name(self) -> str:
         if self.using_toolchain_esp_idf:
@@ -802,11 +809,11 @@ class EsphomeCore:
         if self.using_toolchain_esp_idf:
             return self.relative_build_path("build", f"{self.name}.bin")
         if self.is_libretiny:
-            return self.relative_pioenvs_path(self.pioenv_name, "firmware.uf2")
+            return self.relative_platformio_artifact_path("firmware.uf2")
         if self.is_host:
             # Host builds produce a native ELF/Mach-O named `program`.
-            return self.relative_pioenvs_path(self.pioenv_name, "program")
-        return self.relative_pioenvs_path(self.pioenv_name, "firmware.bin")
+            return self.relative_platformio_artifact_path("program")
+        return self.relative_platformio_artifact_path("firmware.bin")
 
     @property
     def partition_table_bin(self) -> Path:
@@ -817,13 +824,13 @@ class EsphomeCore:
             return self.relative_build_path(
                 "build", "partition_table", "partition-table.bin"
             )
-        return self.relative_pioenvs_path(self.pioenv_name, "partitions.bin")
+        return self.relative_platformio_artifact_path("partitions.bin")
 
     @property
     def bootloader_bin(self) -> Path:
         if self.using_toolchain_esp_idf:
             return self.relative_build_path("build", "bootloader", "bootloader.bin")
-        return self.relative_pioenvs_path(self.pioenv_name, "bootloader.bin")
+        return self.relative_platformio_artifact_path("bootloader.bin")
 
     @property
     def target_platform(self):
