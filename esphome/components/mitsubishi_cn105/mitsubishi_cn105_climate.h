@@ -8,6 +8,8 @@
 
 namespace esphome::mitsubishi_cn105 {
 
+class MitsubishiCN105VerticalVaneDirectionSelect;
+
 class MitsubishiCN105Climate : public climate::Climate, public Component, public uart::UARTDevice {
  public:
   explicit MitsubishiCN105Climate() : hp_(*this) {}
@@ -26,6 +28,9 @@ class MitsubishiCN105Climate : public climate::Climate, public Component, public
   void clear_remote_temperature() { this->hp_.clear_remote_temperature(); }
 
   void set_supported_swing_mode(climate::ClimateSwingMode mode);
+  
+  void set_vertical_vane_direction_select(MitsubishiCN105VerticalVaneDirectionSelect *select);
+  void set_vertical_vane_direction(MitsubishiCN105::VaneMode vane_mode);
 
  protected:
   void apply_values_();
@@ -34,6 +39,10 @@ class MitsubishiCN105Climate : public climate::Climate, public Component, public
   climate::ClimateSwingModeMask supported_swing_modes_{};
   MitsubishiCN105::VaneMode last_non_swing_vane_mode_{MitsubishiCN105::VaneMode::AUTO};
   MitsubishiCN105::WideVaneMode last_non_swing_wide_vane_mode_{MitsubishiCN105::WideVaneMode::CENTER};
+  
+  MitsubishiCN105VerticalVaneDirectionSelect* vertical_vane_direction_select_{nullptr};
+  //SUB_SELECT(vertical_vane_direction)
+  //SUB_SELECT(horizontal_vane_direction)
 };
 
 template<typename... Ts>

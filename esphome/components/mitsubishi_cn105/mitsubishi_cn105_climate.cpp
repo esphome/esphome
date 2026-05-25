@@ -1,5 +1,6 @@
 #include <cinttypes>
 #include "mitsubishi_cn105_climate.h"
+#include "mitsubishi_cn105_vertical_vane_select.h"
 #include "esphome/core/log.h"
 
 namespace esphome::mitsubishi_cn105 {
@@ -63,6 +64,7 @@ void MitsubishiCN105Climate::dump_config() {
                 "  UART: baud_rate=%" PRIu32 " data_bits=%u parity=%s stop_bits=%u",
                 this->hp_.get_update_interval(), this->parent_->get_baud_rate(), this->parent_->get_data_bits(),
                 LOG_STR_ARG(parity_to_str(this->parent_->get_parity())), this->parent_->get_stop_bits());
+  LOG_SELECT("  ", "Vertical vane direction", this->vertical_vane_direction_select_);
 }
 
 void MitsubishiCN105Climate::setup() { this->hp_.initialize(); }
@@ -207,6 +209,10 @@ void MitsubishiCN105Climate::apply_values_() {
     }
   }
 
+  if (this->vertical_vane_direction_select_ != nullptr) {
+    this->vertical_vane_direction_select_->publish_vane_state(status.vane_mode);
+  }
+
   this->publish_state();
 }
 
@@ -234,6 +240,15 @@ void MitsubishiCN105Climate::set_supported_swing_mode(climate::ClimateSwingMode 
     default:
       break;
   }
+}
+
+void MitsubishiCN105Climate::set_vertical_vane_direction_select(MitsubishiCN105VerticalVaneDirectionSelect *select) {
+  this->vertical_vane_direction_select_ = select;
+}
+
+void MitsubishiCN105Climate::set_vertical_vane_direction(MitsubishiCN105::VaneMode vane_mode) { 
+  this->hp_.set_vane_mode(vane_mode);
+  this->apply_values_();
 }
 
 }  // namespace esphome::mitsubishi_cn105
