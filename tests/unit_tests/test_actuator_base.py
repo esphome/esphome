@@ -19,6 +19,7 @@ class TestActuatorModuleImport:
 
     def test_actuator_module_importable(self):
         """The esphome.components.actuator module must be importable."""
+        # pylint: disable-next=unused-import
         from esphome.components import actuator  # noqa: F401
 
     def test_actuator_open_constant_exists(self):
