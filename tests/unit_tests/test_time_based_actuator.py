@@ -8,6 +8,7 @@ Phases:
 
 
 def test_time_based_actuator_importable():
+    # pylint: disable-next=unused-import
     from esphome.components.actuator import TimeBasedActuatorBase  # noqa: F401
 
 
