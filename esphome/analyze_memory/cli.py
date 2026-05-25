@@ -28,11 +28,15 @@ if TYPE_CHECKING:
 
 
 def _find_firmware_elf(build_path: Path) -> str | None:
-    """Find firmware.elf in current and historical PlatformIO layouts."""
+    """Find firmware.elf/raw_firmware.elf in current and historical layouts."""
     for elf_candidate in [
         build_path / "firmware.elf",
         build_path / ".pioenvs" / PLATFORMIO_ENV_NAME / "firmware.elf",
         build_path / ".pioenvs" / build_path.name / "firmware.elf",
+        # LibreTiny uses raw_firmware.elf
+        build_path / "raw_firmware.elf",
+        build_path / ".pioenvs" / PLATFORMIO_ENV_NAME / "raw_firmware.elf",
+        build_path / ".pioenvs" / build_path.name / "raw_firmware.elf",
     ]:
         if elf_candidate.exists():
             return str(elf_candidate)
@@ -776,7 +780,10 @@ def main():
     elf_file = _find_firmware_elf(build_path)
 
     if not elf_file:
-        print(f"Error: firmware.elf not found in {build_dir}", file=sys.stderr)
+        print(
+            f"Error: firmware.elf/raw_firmware.elf not found in {build_dir}",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     # Find idedata.json - check current directory first, then home
