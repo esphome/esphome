@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from typing import Any
 
 from esphome import config_validation as cv
 from esphome.automation import Trigger, validate_automation
@@ -461,13 +462,23 @@ def base_update_schema(widget_type: WidgetType | LvType, parts):
     return schema
 
 
+# Widget types are module-level singletons populated at import time, so we
+# can cache compiled obj_schemas by widget_type identity for the lifetime of
+# the process. The strong reference in the value keeps the key (an id()
+# target) from being recycled.
+_OBJ_SCHEMA_CACHE: dict[int, tuple[WidgetType, cv.Schema]] = {}
+
+
 def obj_schema(widget_type: WidgetType):
     """
     Create a schema for a widget type itself i.e. no allowance for children
     :param widget_type:
     :return:
     """
-    return (
+    cached = _OBJ_SCHEMA_CACHE.get(id(widget_type))
+    if cached is not None and cached[0] is widget_type:
+        return cached[1]
+    schema = (
         part_schema(widget_type.parts)
         .extend(ALIGN_TO_SCHEMA)
         .extend(automation_schema(widget_type.w_type))
@@ -478,6 +489,8 @@ def obj_schema(widget_type: WidgetType):
             }
         )
     )
+    _OBJ_SCHEMA_CACHE[id(widget_type)] = (widget_type, schema)
+    return schema
 
 
 ALIGN_TO_SCHEMA = {
@@ -534,7 +547,16 @@ def strip_defaults(schema: cv.Schema):
     return cv.Schema({cv.Optional(k): v for k, v in schema.schema.items()})
 
 
-def container_schema(widget_type: WidgetType, extras=None):
+# Keyed by (id(widget_type), id(extras)); strong refs in the value keep both
+# alive so id() can't be recycled.
+_CONTAINER_SCHEMA_CACHE: dict[
+    tuple[int, int], tuple[Any, Any, Callable[[Any], Any]]
+] = {}
+
+
+def container_schema(
+    widget_type: WidgetType, extras: Any = None
+) -> Callable[[Any], Any]:
     """
     Create a schema for a container widget of a given type. All obj properties are available, plus
     the extras passed in, plus any defined for the specific widget being specified.
@@ -542,19 +564,31 @@ def container_schema(widget_type: WidgetType, extras=None):
     :param extras:  Additional options to be made available, e.g. layout properties for children
     :return: The schema for this type of widget.
     """
-    schema = obj_schema(widget_type).extend(
-        {cv.GenerateID(): cv.declare_id(widget_type.w_type)}
-    )
-    if extras:
-        schema = schema.extend(extras)
-    # Delayed evaluation for recursion
+    cache_key = (id(widget_type), id(extras))
+    cached = _CONTAINER_SCHEMA_CACHE.get(cache_key)
+    if cached is not None:
+        cached_widget_type, cached_extras, cached_validator = cached
+        if cached_widget_type is widget_type and cached_extras is extras:
+            return cached_validator
 
-    schema = schema.extend(widget_type.schema)
+    cached_schema: cv.Schema | None = None
 
-    def validator(value):
+    def get_schema() -> cv.Schema:
+        nonlocal cached_schema
+        if cached_schema is None:
+            schema = obj_schema(widget_type).extend(
+                {cv.GenerateID(): cv.declare_id(widget_type.w_type)}
+            )
+            if extras:
+                schema = schema.extend(extras)
+            cached_schema = schema.extend(widget_type.schema)
+        return cached_schema
+
+    def validator(value: Any) -> Any:
         value = value or {}
-        return append_layout_schema(schema, value)(value)
+        return append_layout_schema(get_schema(), value)(value)
 
+    _CONTAINER_SCHEMA_CACHE[cache_key] = (widget_type, extras, validator)
     return validator
 
 
