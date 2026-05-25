@@ -490,8 +490,6 @@ def clean_cmake_cache():
 
 
 def clean_build(clear_pio_cache: bool = True):
-    from esphome.platformio.toolchain import _platformio_libdeps_dir
-
     # Allow skipping cache cleaning for integration tests
     if os.environ.get("ESPHOME_SKIP_CLEAN_BUILD"):
         _LOGGER.warning("Skipping build cleaning (ESPHOME_SKIP_CLEAN_BUILD set)")
@@ -501,11 +499,10 @@ def clean_build(clear_pio_cache: bool = True):
     if pioenvs.is_dir():
         _LOGGER.info("Deleting %s", pioenvs)
         rmtree(pioenvs)
-    piolibdeps_dirs = {CORE.relative_piolibdeps_path(), _platformio_libdeps_dir(CORE)}
-    for piolibdeps in piolibdeps_dirs:
-        if piolibdeps.is_dir():
-            _LOGGER.info("Deleting %s", piolibdeps)
-            rmtree(piolibdeps)
+    piolibdeps = CORE.relative_piolibdeps_path()
+    if piolibdeps.is_dir():
+        _LOGGER.info("Deleting %s", piolibdeps)
+        rmtree(piolibdeps)
     dependencies_lock = CORE.relative_build_path("dependencies.lock")
     if dependencies_lock.is_file():
         _LOGGER.info("Deleting %s", dependencies_lock)

@@ -437,7 +437,7 @@ def test_clean_build(
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test clean_build removes all build artifacts."""
+    """Test clean_build removes device build artifacts without shared libdeps."""
     # Create directory structure and files
     pioenvs_dir = tmp_path / ".pioenvs"
     pioenvs_dir.mkdir()
@@ -486,15 +486,9 @@ def test_clean_build(
     assert platformio_cache_dir.exists()
 
     # Mock PlatformIO's ProjectConfig cache_dir
-    with (
-        patch(
-            "platformio.project.config.ProjectConfig.get_instance"
-        ) as mock_get_instance,
-        patch(
-            "esphome.platformio.toolchain._platformio_libdeps_dir",
-            return_value=shared_piolibdeps_dir,
-        ),
-    ):
+    with patch(
+        "platformio.project.config.ProjectConfig.get_instance"
+    ) as mock_get_instance:
         mock_config = MagicMock()
         mock_get_instance.return_value = mock_config
         mock_config.get.side_effect = lambda section, option: (
@@ -507,10 +501,11 @@ def test_clean_build(
         with caplog.at_level("INFO"):
             clean_build()
 
-    # Verify all were removed
+    # Verify device-scoped paths were removed; shared libdeps are preserved
+    # because sibling builds may be using the same PlatformIO env.
     assert not pioenvs_dir.exists()
     assert not piolibdeps_dir.exists()
-    assert not shared_piolibdeps_dir.exists()
+    assert shared_piolibdeps_dir.exists()
     assert not dependencies_lock.exists()
     assert not idf_build_dir.exists()
     assert not managed_components_dir.exists()
@@ -520,7 +515,7 @@ def test_clean_build(
     assert "Deleting" in caplog.text
     assert ".pioenvs" in caplog.text
     assert ".piolibdeps" in caplog.text
-    assert str(shared_piolibdeps_dir) in caplog.text
+    assert str(shared_piolibdeps_dir) not in caplog.text
     assert "dependencies.lock" in caplog.text
     assert str(idf_build_dir) in caplog.text
     assert str(managed_components_dir) in caplog.text

@@ -1,4 +1,5 @@
 import configparser
+from contextlib import contextmanager
 import hashlib
 import json
 import logging
@@ -31,7 +32,7 @@ _PLATFORMIO_ENV_FINGERPRINT_OPTIONS = {
     "platform",
     "platform_packages",
 }
-_managed_platformio_libdeps_dir = {"value": None}
+_PLATFORMIO_MANAGED_LIBDEPS_ENV = "ESPHOME_PLATFORMIO_MANAGED_LIBDEPS_DIR"
 
 
 def _strip_win_long_path_prefix(path: str) -> str:
@@ -90,7 +91,12 @@ def _read_common_platformio_lib_deps() -> list[str]:
     config = configparser.RawConfigParser(strict=False)
     try:
         config.read(platformio_ini, encoding="utf-8")
-    except configparser.Error:
+    except configparser.Error as err:
+        _LOGGER.warning(
+            "Could not parse %s for preserved common lib_deps: %s",
+            platformio_ini,
+            err,
+        )
         return []
 
     if not config.has_option("common", "lib_deps"):
@@ -196,21 +202,72 @@ def _platformio_libdeps_dir(core=CORE) -> Path:
     )
 
 
-def _set_platformio_libdeps_dir() -> None:
+def _platformio_uses_shared_libdeps(core=CORE) -> bool:
+    """Return whether this target uses an ESPHome-managed shared libdeps root."""
+    target_platform = core.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM)
+    return target_platform not in (PLATFORM_HOST, PLATFORM_NRF52)
+
+
+def _platformio_libdeps_lock_path() -> Path:
+    """Return the lock path for the current shared PlatformIO libdeps env."""
+    return CORE.relative_internal_path(
+        "platformio", "libdeps", ".locks", f"{platformio_env_name()}.lock"
+    )
+
+
+def _set_platformio_libdeps_dir() -> Path | None:
     """Set ESPHome-managed libdeps dir while preserving user overrides."""
     libdeps_dir = str(_platformio_libdeps_dir().absolute())
     current = os.environ.get("PLATFORMIO_LIBDEPS_DIR")
-    if current is not None and current != _managed_platformio_libdeps_dir["value"]:
-        return
+    managed = os.environ.get(_PLATFORMIO_MANAGED_LIBDEPS_ENV)
+    if current is not None and current != managed:
+        return None
 
     os.environ["PLATFORMIO_LIBDEPS_DIR"] = libdeps_dir
-    _managed_platformio_libdeps_dir["value"] = libdeps_dir
+    os.environ[_PLATFORMIO_MANAGED_LIBDEPS_ENV] = libdeps_dir
+    if not _platformio_uses_shared_libdeps():
+        return None
+    return _platformio_libdeps_lock_path()
+
+
+@contextmanager
+def _platformio_libdeps_lock(lock_path: Path | None):
+    """Hold a cross-process lock while PlatformIO mutates shared libdeps."""
+    if lock_path is None:
+        yield
+        return
+
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+b") as lock_file:
+        if os.name == "nt":
+            import msvcrt  # pylint: disable=import-error
+
+            lock_file.seek(0)
+            if not lock_file.read(1):
+                lock_file.write(b"\0")
+                lock_file.flush()
+            lock_file.seek(0)
+            msvcrt.locking(lock_file.fileno(), msvcrt.LK_LOCK, 1)
+            try:
+                yield
+            finally:
+                lock_file.seek(0)
+                msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+            return
+
+        import fcntl
+
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = str(CORE.relative_pioenvs_path().absolute())
-    _set_platformio_libdeps_dir()
+    libdeps_lock_path = _set_platformio_libdeps_dir()
     # Suppress Python syntax warnings from third-party scripts during compilation
     os.environ.setdefault("PYTHONWARNINGS", "ignore::SyntaxWarning")
     # Increase uv retry count to handle transient network errors (default is 3)
@@ -228,7 +285,8 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
         os.environ["PYTHONEXEPATH"] = python_exe
     cmd = [python_exe, "-m", "esphome.platformio.runner"] + list(args)
 
-    return run_external_process(*cmd, **kwargs)
+    with _platformio_libdeps_lock(libdeps_lock_path):
+        return run_external_process(*cmd, **kwargs)
 
 
 def run_platformio_cli_run(config, verbose, *args, **kwargs) -> str | int:

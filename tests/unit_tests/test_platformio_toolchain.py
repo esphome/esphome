@@ -338,6 +338,49 @@ def test_run_platformio_cli_sets_environment_variables(
         assert "arg" in args
 
 
+def test_run_platformio_cli_locks_shared_libdeps_env(
+    setup_core: Path, mock_run_external_process: Mock
+) -> None:
+    """Shared libdeps runs are serialized by env to avoid cross-process races."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    lock_paths = []
+
+    def record_lock(lock_path: Path | None):
+        @contextmanager
+        def lock_context():
+            lock_paths.append(lock_path)
+            yield
+
+        return lock_context()
+
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp8266",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+
+    with (
+        patch.dict(os.environ, {}, clear=True),
+        patch(
+            "esphome.platformio.toolchain._platformio_libdeps_lock",
+            side_effect=record_lock,
+        ),
+    ):
+        mock_run_external_process.return_value = 0
+        toolchain.run_platformio_cli("test")
+
+    fingerprint = _expected_env_fingerprint([])
+    assert lock_paths == [
+        setup_core
+        / ".esphome"
+        / "platformio"
+        / "libdeps"
+        / ".locks"
+        / f"esp8266-arduino-{fingerprint}.lock"
+    ]
+
+
 @pytest.mark.parametrize(
     ("platform", "input_path", "expected"),
     [
@@ -517,6 +560,32 @@ lib_deps =
     assert toolchain.platformio_env_name() == f"rp2040-arduino-{fingerprint}"
 
 
+def test_platformio_env_name_logs_malformed_common_libdeps(
+    setup_core: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Malformed preserved platformio.ini lib_deps are diagnosable."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    CORE.build_path = setup_core / "build" / "test"
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "rp2040",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    CORE.add_platformio_option("lib_deps", ["${common.lib_deps}"])
+    CORE.relative_build_path().mkdir(parents=True)
+    CORE.relative_build_path("platformio.ini").write_text(
+        "[common\nlib_deps = Broken/Dependency\n",
+        encoding="utf-8",
+    )
+
+    with caplog.at_level("WARNING"):
+        assert toolchain.platformio_env_name().startswith("rp2040-arduino-")
+
+    assert "Could not parse" in caplog.text
+    assert "preserved common lib_deps" in caplog.text
+
+
 def test_platformio_env_name_resolves_common_local_libdeps(
     setup_core: Path,
 ) -> None:
@@ -608,7 +677,6 @@ def test_run_platformio_cli_updates_managed_libdeps_between_targets(
     """Long-lived processes update ESPHome-managed libdeps per target."""
     from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
 
-    toolchain._managed_platformio_libdeps_dir["value"] = None
     with patch.dict(os.environ, {}, clear=True):
         mock_run_external_process.return_value = 0
         CORE.build_path = str(setup_core / "build" / "esp8266")
@@ -638,7 +706,6 @@ def test_run_platformio_cli_preserves_user_libdeps_override(
     """User-provided PLATFORMIO_LIBDEPS_DIR remains authoritative."""
     from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
 
-    toolchain._managed_platformio_libdeps_dir["value"] = None
     CORE.build_path = str(setup_core / "build" / "test")
     CORE.data[KEY_CORE] = {
         KEY_TARGET_PLATFORM: "esp8266",
@@ -652,7 +719,7 @@ def test_run_platformio_cli_preserves_user_libdeps_override(
         toolchain.run_platformio_cli("test")
 
         assert os.environ["PLATFORMIO_LIBDEPS_DIR"] == "/custom/libdeps"
-        assert toolchain._managed_platformio_libdeps_dir["value"] is None
+        assert toolchain._PLATFORMIO_MANAGED_LIBDEPS_ENV not in os.environ
 
 
 def test_run_platformio_cli_preserves_late_user_libdeps_override(
@@ -661,7 +728,6 @@ def test_run_platformio_cli_preserves_late_user_libdeps_override(
     """Per-config environment overrides win after a previous managed compile."""
     from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
 
-    toolchain._managed_platformio_libdeps_dir["value"] = None
     mock_run_external_process.return_value = 0
     with patch.dict(os.environ, {}, clear=True):
         CORE.build_path = str(setup_core / "build" / "first")
@@ -678,7 +744,7 @@ def test_run_platformio_cli_preserves_late_user_libdeps_override(
 
         assert managed_value != "/custom/libdeps"
         assert os.environ["PLATFORMIO_LIBDEPS_DIR"] == "/custom/libdeps"
-        assert toolchain._managed_platformio_libdeps_dir["value"] == managed_value
+        assert os.environ[toolchain._PLATFORMIO_MANAGED_LIBDEPS_ENV] == managed_value
 
 
 def test_platformio_env_name_resolves_local_libdeps(
