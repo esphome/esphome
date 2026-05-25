@@ -33,6 +33,7 @@ _PLATFORMIO_ENV_FINGERPRINT_OPTIONS = {
     "platform_packages",
 }
 _PLATFORMIO_MANAGED_LIBDEPS_ENV = "ESPHOME_PLATFORMIO_MANAGED_LIBDEPS_DIR"
+_LOCAL_LIBDEP_URI_PREFIXES = ("file://", "symlink://")
 
 
 def _strip_win_long_path_prefix(path: str) -> str:
@@ -105,8 +106,26 @@ def _read_common_platformio_lib_deps() -> list[str]:
     return _normalize_platformio_values(config.get("common", "lib_deps").splitlines())
 
 
+def _resolve_local_lib_dep_uri(value: str, project_dir: Path) -> str | None:
+    for prefix in _LOCAL_LIBDEP_URI_PREFIXES:
+        if not value.startswith(prefix):
+            continue
+        target = Path(value[len(prefix) :]).expanduser()
+        resolved = target if target.is_absolute() else project_dir / target
+        return f"{prefix}{resolved.resolve()}"
+    return None
+
+
 def _platformio_lib_dep_fingerprint_value(lib_dep: str, project_dir: Path) -> str:
     """Return a stable fingerprint value for one PlatformIO library dependency."""
+    lib_dep = lib_dep.strip()
+    if "=" in lib_dep:
+        name, value = lib_dep.split("=", 1)
+        if resolved_uri := _resolve_local_lib_dep_uri(value.strip(), project_dir):
+            return f"{name.strip()}={resolved_uri}"
+    elif resolved_uri := _resolve_local_lib_dep_uri(lib_dep, project_dir):
+        return resolved_uri
+
     path = Path(lib_dep).expanduser()
     if path.is_absolute() or lib_dep.startswith((".", "~")):
         resolved = path if path.is_absolute() else project_dir / path

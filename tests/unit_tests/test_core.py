@@ -603,6 +603,23 @@ class TestEsphomeCore:
                 "foo/build/.pioenvs/esp32-arduino-abc123/firmware.bin"
             )
 
+    def test_firmware_bin_path_can_ignore_existing_env(self, target):
+        """Storage metadata should describe the newly generated env path."""
+        target.name = "test-device"
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp32"}
+        with patch(
+            "esphome.platformio.toolchain.platformio_env_name",
+            side_effect=lambda *, prefer_existing: (
+                "test-device" if prefer_existing else "esp32-arduino-abc123"
+            ),
+        ):
+            assert target.firmware_bin == Path(
+                "foo/build/.pioenvs/test-device/firmware.bin"
+            )
+            assert target.firmware_bin_path(prefer_existing=False) == Path(
+                "foo/build/.pioenvs/esp32-arduino-abc123/firmware.bin"
+            )
+
     def test_firmware_bin__libretiny(self, target):
         """The libretiny platform produces firmware.uf2."""
         target.name = "test-device"

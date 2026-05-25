@@ -782,8 +782,7 @@ class EsphomeCore:
     def relative_piolibdeps_path(self, *path: str | Path) -> Path:
         return self.relative_build_path(".piolibdeps", *path)
 
-    @property
-    def firmware_bin(self) -> Path:
+    def firmware_bin_path(self, *, prefer_existing: bool = True) -> Path:
         # Check if using ESP-IDF toolchain
         if self.using_toolchain_esp_idf:
             return self.relative_build_path("build", f"{self.name}.bin")
@@ -793,10 +792,14 @@ class EsphomeCore:
 
         from esphome.platformio.toolchain import platformio_env_name
 
-        env_name = platformio_env_name(prefer_existing=True)
+        env_name = platformio_env_name(prefer_existing=prefer_existing)
         if self.is_libretiny:
             return self.relative_pioenvs_path(env_name, "firmware.uf2")
         return self.relative_pioenvs_path(env_name, "firmware.bin")
+
+    @property
+    def firmware_bin(self) -> Path:
+        return self.firmware_bin_path()
 
     @property
     def partition_table_bin(self) -> Path:

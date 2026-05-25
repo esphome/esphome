@@ -767,6 +767,36 @@ def test_platformio_env_name_resolves_local_libdeps(
     assert toolchain.platformio_env_name() == f"rp2040-arduino-{fingerprint}"
 
 
+@pytest.mark.parametrize(
+    ("lib_dep", "fingerprint_value"),
+    [
+        ("file://../local_lib", "file://{local_lib}"),
+        ("symlink://../local_lib", "symlink://{local_lib}"),
+        ("Custom=file://../local_lib", "Custom=file://{local_lib}"),
+    ],
+)
+def test_platformio_env_name_resolves_local_libdep_uri_targets(
+    setup_core: Path, lib_dep: str, fingerprint_value: str
+) -> None:
+    """Local URI libdeps are fingerprinted by their resolved target path."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "rp2040",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    local_lib = setup_core / "build" / "local_lib"
+    local_lib.mkdir(parents=True)
+    CORE.add_platformio_option("lib_deps", [lib_dep])
+
+    fingerprint = _expected_env_fingerprint(
+        [fingerprint_value.format(local_lib=local_lib.resolve())]
+    )
+
+    assert toolchain.platformio_env_name() == f"rp2040-arduino-{fingerprint}"
+
+
 def test_platformio_env_name_includes_toolchain_options(
     setup_core: Path,
 ) -> None:
