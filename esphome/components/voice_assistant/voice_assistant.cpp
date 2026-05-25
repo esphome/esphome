@@ -296,8 +296,9 @@ void VoiceAssistant::loop() {
         // Both microphone channels are sent together, if configured. Home Assistant feeds one of the
         // channels to its speech-to-text stream and treats an empty payload on that channel as
         // end-of-stream, and the device cannot know which channel it picked, so only send once every
-        // configured channel has audio exposed, and always send them together. Message size is
-        // otherwise unconstrained: Home Assistant re-chunks the audio on its end.
+        // configured channel has audio exposed, and always send them together. We don't target any
+        // particular message size: Home Assistant re-chunks the audio, and each fill() exposes at most
+        // SEND_BUFFER_SIZE bytes.
         while (true) {
           // fill() exposes a new chunk, or returns 0 if a previous chunk is still exposed; available()
           // reports the currently exposed bytes either way.
