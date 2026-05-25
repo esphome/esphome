@@ -1,8 +1,10 @@
 #pragma once
 
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include <array>
+#include <cmath>
 #include <functional>
 #include <numbers>
 
@@ -31,6 +33,11 @@ class MotionComponent : public PollingComponent {
 
   void set_matrix(const std::array<float, 9> &m) { memcpy(this->matrix_, m.data(), sizeof(this->matrix_)); }
 
+  /// Calibrate the matrix so the current reading maps to [0, 0, 1] (device flat).
+  bool calibrate_level();
+  /// Assuming Y-axis rotation only, correct the heading so X/Y align correctly.
+  bool calibrate_heading();
+
   template<typename F> void add_listener(F &&cb) { this->motion_data_callback_.add(std::forward<F>(cb)); }
 
  protected:
@@ -49,6 +56,26 @@ class MotionComponent : public PollingComponent {
   }
 
   LazyCallbackManager<void(MotionData &)> motion_data_callback_{};
+};
+
+// --- Actions ---
+
+template<typename... Ts> class CalibrateLevelAction : public Action<Ts...> {
+ public:
+  explicit CalibrateLevelAction(MotionComponent *parent) : parent_(parent) {}
+  void play(const Ts &...) override { this->parent_->calibrate_level(); }
+
+ protected:
+  MotionComponent *parent_;
+};
+
+template<typename... Ts> class CalibrateHeadingAction : public Action<Ts...> {
+ public:
+  explicit CalibrateHeadingAction(MotionComponent *parent) : parent_(parent) {}
+  void play(const Ts &...) override { this->parent_->calibrate_heading(); }
+
+ protected:
+  MotionComponent *parent_;
 };
 
 }  // namespace esphome::motion

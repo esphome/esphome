@@ -1,6 +1,7 @@
 from collections.abc import Callable
 import re
 
+from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
@@ -19,6 +20,10 @@ AXES = ["x", "y", "z"]
 
 CONF_AXIS_MAP = "axis_map"
 CONF_MOTION_ID = "motion_id"
+CONF_TRANSFORM_MATRIX = "transform_matrix"
+
+CalibrateLevelAction = motion_ns.class_("CalibrateLevelAction", automation.Action)
+CalibrateHeadingAction = motion_ns.class_("CalibrateHeadingAction", automation.Action)
 
 KEY_ACCELEROMETER = "accelerometer"
 KEY_GYROSCOPE = "gyroscope"
@@ -64,15 +69,50 @@ def _axis_map_to_matrix(config: dict[str, str]) -> list[int]:
     return matrix
 
 
+def _transform_matrix(value):
+    """Accept a flat list of 9 floats or a 3x3 nested list."""
+    if not isinstance(value, list) or len(value) == 0:
+        raise cv.Invalid("Expected a list of 9 numbers or a 3x3 nested list")
+    # Nested 3x3
+    if isinstance(value[0], list):
+        if len(value) != 3:
+            raise cv.Invalid(f"3x3 matrix must have 3 rows, got {len(value)}")
+        flat = []
+        for i, row in enumerate(value):
+            if not isinstance(row, list) or len(row) != 3:
+                raise cv.Invalid(
+                    f"Each row must be a list of 3 numbers, row {i} has {len(row)}"
+                )
+            flat.extend(cv.float_(v) for v in row)
+        return flat
+    # Flat list
+    if len(value) != 9:
+        raise cv.Invalid(f"Flat matrix must have exactly 9 values, got {len(value)}")
+    return [cv.float_(v) for v in value]
+
+
+def _validate_matrix_options(config):
+    if CONF_AXIS_MAP in config and CONF_TRANSFORM_MATRIX in config:
+        raise cv.Invalid(
+            f"'{CONF_AXIS_MAP}' and '{CONF_TRANSFORM_MATRIX}' are mutually exclusive"
+        )
+    return config
+
+
 #  Top-level CONFIG_SCHEMA
-_CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_AXIS_MAP): cv.All(
-            {cv.Required(k): cv.string_strict for k in AXES},
-            _axis_map,
-        ),
-    }
-).extend(cv.polling_component_schema("250ms"))
+_CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.Optional(CONF_AXIS_MAP): cv.All(
+                {cv.Required(k): cv.string_strict for k in AXES},
+                _axis_map,
+            ),
+            cv.Optional(CONF_TRANSFORM_MATRIX): _transform_matrix,
+        }
+    )
+    .extend(cv.polling_component_schema("250ms"))
+    .add_extra(_validate_matrix_options)
+)
 
 
 def _add_data(has_accel: bool, has_gyro: bool) -> Callable[[dict], dict]:
@@ -99,9 +139,42 @@ async def register_motion_component(var: MockObj, config) -> None:
     await cg.register_component(var, config)
     if axis_map := config.get(CONF_AXIS_MAP):
         cg.add(var.set_matrix(_axis_map_to_matrix(axis_map)))
+    elif transform_matrix := config.get(CONF_TRANSFORM_MATRIX):
+        cg.add(var.set_matrix(transform_matrix))
 
 
 async def new_motion_component(config: dict) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     await register_motion_component(var, config)
     return var
+
+
+# --- Actions ---
+
+MOTION_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(MotionComponent),
+    }
+)
+
+
+@automation.register_action(
+    "motion.calibrate_level",
+    CalibrateLevelAction,
+    MOTION_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def calibrate_level_to_code(config, action_id, template_arg, args):
+    parent = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, parent)
+
+
+@automation.register_action(
+    "motion.calibrate_heading",
+    CalibrateHeadingAction,
+    MOTION_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def calibrate_heading_to_code(config, action_id, template_arg, args):
+    parent = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, parent)
