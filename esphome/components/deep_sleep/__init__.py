@@ -162,13 +162,22 @@ def validate_config(config: ConfigType) -> ConfigType:
                 )
             if wakeup_pins:
                 wakeup_pins[0][CONF_WAKEUP_PIN_MODE] = config.pop(CONF_WAKEUP_PIN_MODE)
-    elif (
-        isinstance(config.get(CONF_WAKEUP_PIN), list)
-        and len(config[CONF_WAKEUP_PIN]) > 1
-    ):
-        raise cv.Invalid(
-            "Your platform does not support providing multiple entries in wakeup_pin"
-        )
+    elif isinstance(config.get(CONF_WAKEUP_PIN), list):
+        wakeup_pins = config[CONF_WAKEUP_PIN]
+        if len(wakeup_pins) > 1:
+            raise cv.Invalid(
+                "Your platform does not support providing multiple entries in wakeup_pin"
+            )
+        # On non-BK72xx platforms there is no per-pin wakeup_pin_mode concept; hoist a
+        # nested wakeup_pin_mode to the top level so it actually takes effect rather
+        # than being silently dropped by the codegen.
+        if wakeup_pins and CONF_WAKEUP_PIN_MODE in wakeup_pins[0]:
+            if CONF_WAKEUP_PIN_MODE in config:
+                raise cv.Invalid(
+                    "Specify wakeup_pin_mode either at the top level under deep_sleep "
+                    "or under the pin entry, not both"
+                )
+            config[CONF_WAKEUP_PIN_MODE] = wakeup_pins[0].pop(CONF_WAKEUP_PIN_MODE)
 
     return config
 

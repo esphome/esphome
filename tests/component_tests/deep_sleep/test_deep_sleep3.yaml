@@ -1,0 +1,13 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: nodemcu-32s
+
+deep_sleep:
+  id: deepsleep
+  sleep_duration: 1min
+  wakeup_pin:
+    - pin: GPIO12
+      wakeup_pin_mode: KEEP_AWAKE

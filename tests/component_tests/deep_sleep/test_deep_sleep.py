@@ -46,3 +46,16 @@ def test_deep_sleep_run_duration_dictionary(generate_main):
         "    .gpio_cause = 30000,\n"
         "});"
     ) in main_cpp
+
+
+def test_deep_sleep_esp32_nested_wakeup_pin_mode(generate_main):
+    """
+    On ESP32, a wakeup_pin_mode nested under a single-pin list entry should be
+    hoisted to the top level so it actually takes effect rather than being
+    silently dropped by the codegen.
+    """
+    main_cpp = generate_main("tests/component_tests/deep_sleep/test_deep_sleep3.yaml")
+
+    assert "deepsleep->set_wakeup_pin(" in main_cpp
+    assert "deepsleep->set_wakeup_pin_mode(" in main_cpp
+    assert "WAKEUP_PIN_MODE_KEEP_AWAKE" in main_cpp
