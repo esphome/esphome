@@ -16,6 +16,7 @@ esphome/components/a01nyub/* @MrSuicideParrot
 esphome/components/a02yyuw/* @TH-Braemer
 esphome/components/absolute_humidity/* @DAVe3283
 esphome/components/ac_dimmer/* @glmnet
+esphome/components/actuator/* @esphome/core @exciton
 esphome/components/adc/* @esphome/core
 esphome/components/adc128s102/* @DeerMaximum
 esphome/components/addressable_light/* @justfalter
@@ -150,6 +151,7 @@ esphome/components/ektf2232/touchscreen/* @jesserockz
 esphome/components/emc2101/* @ellull
 esphome/components/emmeti/* @E440QF
 esphome/components/emontx/* @FredM67 @glynhudson @TrystanLea
+esphome/components/endstop_valve/* @exciton
 esphome/components/ens160/* @latonita
 esphome/components/ens160_base/* @latonita @vincentscode
 esphome/components/ens160_i2c/* @latonita
