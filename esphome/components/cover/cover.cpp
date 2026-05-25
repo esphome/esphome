@@ -71,7 +71,7 @@ CoverCall &CoverCall::set_stop(bool stop) {
 void CoverCall::perform() {
   ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   auto traits = static_cast<Cover *>(this->parent_)->get_traits();
-  this->validate_();
+  this->validate();
   if (this->stop_) {
     ESP_LOGV(TAG, "  Command: STOP");
   }
@@ -91,9 +91,9 @@ void CoverCall::perform() {
   this->call_control_();
 }
 
-void CoverCall::validate_() {
+void CoverCall::validate() {
   // Call base class validation first (position range check, stop conflict)
-  actuator::ActuatorCallBase::validate_();
+  actuator::ActuatorCallBase::validate();
 
   auto traits = static_cast<Cover *>(this->parent_)->get_traits();
   const char *name = this->parent_->get_name().c_str();

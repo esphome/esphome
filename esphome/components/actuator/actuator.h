@@ -42,7 +42,7 @@ class ActuatorCallBase {
   const optional<bool> &get_toggle() const { return this->toggle_; }
 
  protected:
-  virtual void validate_();
+  virtual void validate();
 
   void call_control_();
 

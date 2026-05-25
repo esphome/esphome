@@ -64,7 +64,7 @@ class ValveCall : public actuator::ActuatorCallBase {
   const optional<bool> &get_toggle() const { return this->toggle_; }
 
  protected:
-  void validate_() override;
+  void validate() override;
 };
 
 /// Struct used to store the restored state of a valve
@@ -129,7 +129,7 @@ class Valve : public actuator::ActuatorBase, public actuator::IActuator {
   void set_position(float p) override { this->position = p; }
   actuator::ActuatorOperation get_operation() const override { return this->current_operation; }
   void set_operation(actuator::ActuatorOperation op) override { this->current_operation = op; }
-  void do_publish_state(bool save = true) override { this->publish_state(save); }
+  void do_publish_state(bool save) override { this->publish_state(save); }
 
  protected:
   friend ValveCall;
@@ -137,9 +137,7 @@ class Valve : public actuator::ActuatorBase, public actuator::IActuator {
   virtual void control(const ValveCall &call) = 0;
 
   // Bridge from ActuatorBase — safe cast because Valve::make_call() always constructs a ValveCall
-  void control(const actuator::ActuatorCallBase &call) override final {
-    this->control(static_cast<const ValveCall &>(call));
-  }
+  void control(const actuator::ActuatorCallBase &call) final { this->control(static_cast<const ValveCall &>(call)); }
 
   optional<ValveRestoreState> restore_state_();
 };

@@ -61,7 +61,7 @@ ActuatorCallBase &ActuatorCallBase::set_stop(bool stop) {
   return *this;
 }
 
-void ActuatorCallBase::validate_() {
+void ActuatorCallBase::validate() {
   if (this->position_.has_value()) {
     auto pos = *this->position_;
     if (pos < 0.0f || pos > 1.0f) {
@@ -82,7 +82,7 @@ void ActuatorCallBase::call_control_() { this->parent_->control(*this); }
 
 void ActuatorCallBase::perform() {
   ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
-  this->validate_();
+  this->validate();
   if (this->stop_) {
     ESP_LOGV(TAG, "  Command: STOP");
   }

@@ -67,7 +67,7 @@ ValveCall &ValveCall::set_stop(bool stop) {
 void ValveCall::perform() {
   ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   auto traits = static_cast<Valve *>(this->parent_)->get_traits();
-  this->validate_();
+  this->validate();
   if (this->stop_) {
     ESP_LOGV(TAG, "  Command: STOP");
   }
@@ -84,9 +84,9 @@ void ValveCall::perform() {
   this->call_control_();
 }
 
-void ValveCall::validate_() {
+void ValveCall::validate() {
   // Call base class validation first (position range check, stop conflict)
-  actuator::ActuatorCallBase::validate_();
+  actuator::ActuatorCallBase::validate();
 
   auto traits = static_cast<Valve *>(this->parent_)->get_traits();
 
