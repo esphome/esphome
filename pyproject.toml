@@ -119,6 +119,7 @@ select = [
   "PERF", # performance
   "PL",   # pylint
   "SIM",  # flake8-simplify
+  "SLOT", # flake8-slots
   "RET",  # flake8-ret
   "UP",   # pyupgrade
 ]
