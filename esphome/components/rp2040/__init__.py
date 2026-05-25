@@ -314,11 +314,6 @@ async def to_code(config):
     # Allow LDF to properly discover dependency including those in preprocessor
     # conditionals
     cg.add_platformio_option("lib_ldf_mode", "chain+")
-    # The Arduino Pico framework's WebServer library fails to compile (lacks
-    # WiFi dependency). Ignore it — ESPHome uses ESPAsyncWebServer instead.
-    # A pre-build script provides a minimal HTTP_Method.h that ESPAsyncWebServer
-    # includes from WebServer.
-    cg.add_platformio_option("lib_ignore", ["WebServer"])
     cg.add_platformio_option("lib_compat_mode", "strict")
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_RP2040")
@@ -330,17 +325,7 @@ async def to_code(config):
     cg.add_define("ESPHOME_VARIANT", VARIANT_FRIENDLY[variant])
     cg.add_define(ThreadModel.SINGLE)
 
-    # PIO extra script: add WiFi include path so the framework's WebServer
-    # library (which includes WiFiServer.h without declaring a WiFi dependency)
-    # can find the header when LDF pulls it in as a transitive dependency.
-    copy_file_if_changed(
-        Path(__file__).parent / "fix_webserver_wifi_include.py.script",
-        CORE.relative_build_path("fix_webserver_wifi_include.py"),
-    )
-    cg.add_platformio_option(
-        "extra_scripts",
-        ["pre:fix_webserver_wifi_include.py", "post:post_build.py"],
-    )
+    cg.add_platformio_option("extra_scripts", ["post:post_build.py"])
 
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("framework", "arduino")
