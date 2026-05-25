@@ -4,6 +4,7 @@ sensor:
     temperature:
       name: Temperature
     humidity:
+      i2c_id: i2c_bus
       name: Humidity
     pressure:
       name: Pressure

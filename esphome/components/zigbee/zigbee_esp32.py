@@ -117,15 +117,11 @@ def final_validate_esp32(config: ConfigType) -> ConfigType:
     if not CORE.is_esp32:
         return config
     if CONF_WIFI in fv.full_config.get():
-        if config[CONF_ROUTER] and CONF_AP in fv.full_config.get()[CONF_WIFI]:
-            raise cv.Invalid(
-                "Only Zigbee End Device can be used together with a Wifi Access Point."
-            )
         if CONF_AP in fv.full_config.get()[CONF_WIFI]:
-            _LOGGER.warning(
-                "Wifi Access Point might be unstable while Zigbee is active, use only as fallback."
+            raise cv.Invalid(
+                "A Wifi Access Point can not be used together with Zigbee."
             )
-        elif config[CONF_ROUTER]:
+        if config[CONF_ROUTER]:
             _LOGGER.warning(
                 "The Zigbee Router might miss packets while Wifi is active and could destabilize "
                 "your network. Use only if Wifi is off most of the time."
