@@ -261,7 +261,9 @@ def test_check_library_data_invalid_platform(esp32_idf_core):
         _check_library_data({"platforms": ["other"], "frameworks": "*"})
 
 
-def test_check_library_data_invalid_framework(esp32_idf_core, caplog):
+def test_check_library_data_invalid_framework(
+    esp32_idf_core: None, caplog: pytest.LogCaptureFixture
+) -> None:
     # Framework mismatch is a warning, not a hard skip: the library is still
     # included so that PIO manifests that only list "arduino" (but actually
     # compile under IDF) can be used without forking them.
