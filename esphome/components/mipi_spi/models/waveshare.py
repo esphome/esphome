@@ -264,6 +264,6 @@ SH8601.extend(
     offset_height=1,
     offset_width=1,
     cs_pin={"number": 5, "ignore_strapping_warning": True},
-    # Optional HW reset pin: Needs manual pca9554 platform config first to expose EXIO4 pin
-    # reset_pin={"pca9554": None, "number": "4"},
+    # Reset pin needs manual pca9554 platform config:
+    reset_pin={"pca9554": None, "number": "4"},
 )
