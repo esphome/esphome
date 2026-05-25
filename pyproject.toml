@@ -115,6 +115,7 @@ select = [
   "F",    # pyflakes/autoflake
   "FLY",  # flynt: convert string formatting to f-strings
   "FURB", # refurb
+  "G",    # flake8-logging-format
   "I",    # isort
   "PERF", # performance
   "PL",   # pylint

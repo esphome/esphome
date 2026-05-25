@@ -272,9 +272,10 @@ def check_strapping_pin(conf, strapping_pin_list: set[int], logger: Logger):
     num = conf[CONF_NUMBER]
     if num in strapping_pin_list and not conf.get(CONF_IGNORE_STRAPPING_WARNING):
         logger.warning(
-            f"GPIO{num} is a strapping PIN and should only be used for I/O with care.\n"
+            "GPIO%s is a strapping PIN and should only be used for I/O with care.\n"
             "Attaching external pullup/down resistors to strapping pins can cause unexpected failures.\n"
             "See https://esphome.io/guides/faq/#why-am-i-getting-a-warning-about-strapping-pins",
+            num,
         )
     # mitigate undisciplined use of strapping:
     if num not in strapping_pin_list and conf.get(CONF_IGNORE_STRAPPING_WARNING):

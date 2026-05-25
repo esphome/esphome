@@ -96,7 +96,7 @@ def _extract_tz_string(tzfile: bytes) -> str:
         return tzfile.split(b"\n")[-2].decode()
     except (IndexError, UnicodeDecodeError):
         _LOGGER.error("Could not determine TZ string. Please report this issue.")
-        _LOGGER.error("tzfile contents: %s", tzfile, exc_info=True)
+        _LOGGER.exception("tzfile contents: %s", tzfile)
         raise
 
 
