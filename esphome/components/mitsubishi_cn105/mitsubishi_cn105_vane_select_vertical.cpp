@@ -1,15 +1,11 @@
-#include "mitsubishi_cn105_vertical_vane_select.h"
+#include "mitsubishi_cn105_vane_select_vertical.h"
 
 namespace esphome::mitsubishi_cn105 {
 
 static constexpr std::array VALUES{
-  MitsubishiCN105::VaneMode::AUTO,
-  MitsubishiCN105::VaneMode::POSITION_1,
-  MitsubishiCN105::VaneMode::POSITION_2,
-  MitsubishiCN105::VaneMode::POSITION_3,
-  MitsubishiCN105::VaneMode::POSITION_4,
-  MitsubishiCN105::VaneMode::POSITION_5,
-  MitsubishiCN105::VaneMode::SWING,
+    MitsubishiCN105::VaneMode::AUTO,       MitsubishiCN105::VaneMode::POSITION_1, MitsubishiCN105::VaneMode::POSITION_2,
+    MitsubishiCN105::VaneMode::POSITION_3, MitsubishiCN105::VaneMode::POSITION_4, MitsubishiCN105::VaneMode::POSITION_5,
+    MitsubishiCN105::VaneMode::SWING,
 };
 
 void MitsubishiCN105VerticalVaneDirectionSelect::control(size_t index) {

@@ -1,6 +1,7 @@
 #include <cinttypes>
 #include "mitsubishi_cn105_climate.h"
-#include "mitsubishi_cn105_vertical_vane_select.h"
+#include "mitsubishi_cn105_vane_select_horizontal.h"
+#include "mitsubishi_cn105_vane_select_vertical.h"
 #include "esphome/core/log.h"
 
 namespace esphome::mitsubishi_cn105 {
@@ -213,6 +214,10 @@ void MitsubishiCN105Climate::apply_values_() {
     this->vertical_vane_direction_select_->publish_vane_state(status.vane_mode);
   }
 
+  if (this->horizontal_vane_direction_select_ != nullptr) {
+    this->horizontal_vane_direction_select_->publish_vane_state(status.wide_vane_mode);
+  }
+
   this->publish_state();
 }
 
@@ -246,8 +251,18 @@ void MitsubishiCN105Climate::set_vertical_vane_direction_select(MitsubishiCN105V
   this->vertical_vane_direction_select_ = select;
 }
 
-void MitsubishiCN105Climate::set_vertical_vane_direction(MitsubishiCN105::VaneMode vane_mode) { 
+void MitsubishiCN105Climate::set_horizontal_vane_direction_select(
+    MitsubishiCN105HorizontalVaneDirectionSelect *select) {
+  this->horizontal_vane_direction_select_ = select;
+}
+
+void MitsubishiCN105Climate::set_vertical_vane_direction(MitsubishiCN105::VaneMode vane_mode) {
   this->hp_.set_vane_mode(vane_mode);
+  this->apply_values_();
+}
+
+void MitsubishiCN105Climate::set_horizontal_vane_direction(MitsubishiCN105::WideVaneMode wide_vane_mode) {
+  this->hp_.set_wide_vane_mode(wide_vane_mode);
   this->apply_values_();
 }
 

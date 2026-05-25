@@ -131,6 +131,16 @@ async def to_code(config: ConfigType) -> None:
         )
         await cg.register_parented(sel, var)
         cg.add(var.set_vertical_vane_direction_select(sel))
+    if conf := config.get(CONF_HORIZONTAL_VANE_DIRECTION):
+        sel = cg.new_Pvariable(conf[CONF_ID])
+        await select.register_select(
+            sel,
+            conf,
+            options=list(HORIZONTAL_VANE_DIRECTION_OPTIONS.keys()),
+        )
+        await cg.register_parented(sel, var)
+        cg.add(var.set_horizontal_vane_direction_select(sel))
+
 
 @automation.register_action(
     "climate.mitsubishi_cn105.set_remote_temperature",

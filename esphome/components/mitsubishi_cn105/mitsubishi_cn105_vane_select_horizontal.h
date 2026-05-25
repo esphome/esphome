@@ -5,11 +5,11 @@
 
 namespace esphome::mitsubishi_cn105 {
 
-class MitsubishiCN105VerticalVaneDirectionSelect : public select::Select, public Parented<MitsubishiCN105Climate> {
+class MitsubishiCN105HorizontalVaneDirectionSelect : public select::Select, public Parented<MitsubishiCN105Climate> {
  public:
-  void publish_vane_state(MitsubishiCN105::VaneMode mode);
+  void publish_vane_state(MitsubishiCN105::WideVaneMode mode);
 
-protected:
+ protected:
   void control(size_t index) override;
 };
 
