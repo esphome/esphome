@@ -142,6 +142,8 @@ class MQTTClientComponent : public Component {
   void set_cl_certificate(const char *cert) { this->mqtt_backend_.set_cl_certificate(cert); }
   void set_cl_key(const char *key) { this->mqtt_backend_.set_cl_key(key); }
   void set_skip_cert_cn_check(bool skip_check) { this->mqtt_backend_.set_skip_cert_cn_check(skip_check); }
+  void set_transport(MQTTTransport transport) { this->mqtt_backend_.set_transport(transport); }
+  void set_ws_path(const std::string &path) { this->mqtt_backend_.set_ws_path(path); }
 #endif
   const Availability &get_availability();
 

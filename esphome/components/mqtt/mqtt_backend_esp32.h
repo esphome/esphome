@@ -218,6 +218,8 @@ class MQTTBackendESP32 final : public MQTTBackend {
   void set_cl_certificate(const std::string &cert) { cl_certificate_ = cert; }
   void set_cl_key(const std::string &key) { cl_key_ = key; }
   void set_skip_cert_cn_check(bool skip_check) { skip_cert_cn_check_ = skip_check; }
+  void set_transport(MQTTTransport transport) { this->transport_ = transport; }
+  void set_ws_path(const std::string &path) { this->ws_path_ = path; }
 
   // No destructor needed: ESPHome components live for the entire device runtime.
   // The MQTT task and queue will run until the device reboots or loses power,
@@ -256,6 +258,8 @@ class MQTTBackendESP32 final : public MQTTBackend {
   optional<std::string> cl_certificate_;
   optional<std::string> cl_key_;
   bool skip_cert_cn_check_{false};
+  MQTTTransport transport_{MQTTTransport::TCP};
+  std::string ws_path_;
 #if defined(USE_MQTT_IDF_ENQUEUE)
   static void esphome_mqtt_task(void *params);
   // Pool sized to queue capacity (SIZE-1) — see mqtt_event_pool_ comment.
