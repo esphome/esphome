@@ -192,8 +192,6 @@ bool ESP32BLE::ble_setup_() {
 
   esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 #else
-  esp_hosted_connect_to_slave();  // NOLINT
-
   if (esp_hosted_bt_controller_init() != ESP_OK) {
     ESP_LOGW(TAG, "esp_hosted_bt_controller_init failed");
     return false;

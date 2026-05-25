@@ -82,11 +82,6 @@ static int compare_versions(int major1, int minor1, int patch1, int major2, int 
 void Esp32HostedUpdate::setup() {
   this->update_info_.title = "ESP32 Hosted Coprocessor";
 
-#ifndef USE_WIFI
-  // If WiFi is not present, connect to the coprocessor
-  esp_hosted_connect_to_slave();  // NOLINT
-#endif
-
   // Get coprocessor version
   esp_hosted_coprocessor_fwver_t ver_info;
   if (esp_hosted_get_coprocessor_fwversion(&ver_info) == ESP_OK) {

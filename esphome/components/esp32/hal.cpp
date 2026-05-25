@@ -14,6 +14,10 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#ifdef USE_ESP32_HOSTED
+#include <esp_hosted.h>
+#endif
+
 // Empty esp32 namespace block to satisfy ci-custom's lint_namespace check.
 // HAL functions live in namespace esphome (root) — they are not part of the
 // esp32 component's API.
@@ -57,6 +61,14 @@ void arch_init() {
   // in which case safe_mode will mark it valid after confirming successful boot.
 #ifndef USE_OTA_ROLLBACK
   esp_ota_mark_app_valid_cancel_rollback();
+#endif
+
+#ifdef USE_ESP32_HOSTED
+  // Bring up the esp_hosted coprocessor transport before any component setup runs.
+  // The SDIO mempool allocation needs a large contiguous chunk of DMA-capable internal RAM;
+  // doing it here (rather than lazily from wifi/ble/update setup) avoids fragmentation
+  // from later component allocations on memory-tight builds (e.g. P4 + C6 + large LVGL UI).
+  esp_hosted_connect_to_slave();  // NOLINT
 #endif
 }
 
