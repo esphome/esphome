@@ -3,6 +3,7 @@ from pathlib import Path
 
 from esphome import pins
 from esphome.components import esp32
+from esphome.components.const import CONF_USE_PSRAM
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CLK_PIN,
@@ -39,6 +40,7 @@ BASE_SCHEMA = cv.Schema(
         cv.Required(CONF_VARIANT): cv.one_of(*esp32.VARIANTS, upper=True),
         cv.Required(CONF_ACTIVE_HIGH): cv.boolean,
         cv.Required(CONF_RESET_PIN): pins.internal_gpio_output_pin_number,
+        cv.Optional(CONF_USE_PSRAM, default=False): cv.boolean,
     }
 )
 
@@ -242,6 +244,12 @@ async def to_code(config):
     else:
         _configure_spi(config)
 
+    # Place the transport mempool in PSRAM. Required on memory-tight host
+    # configurations (e.g. P4 with a large LVGL UI) where the internal-RAM
+    # mempool allocation fails at boot with `sdio_mempool_create` assert.
+    if config[CONF_USE_PSRAM]:
+        esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_MEMPOOL_PREFER_SPIRAM", True)
+
     # Library versions
     idf_ver = esp32.idf_version()
     os.environ["ESP_IDF_VERSION"] = f"{idf_ver.major}.{idf_ver.minor}"
@@ -249,7 +257,7 @@ async def to_code(config):
         esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="1.5.1")
         esp32.add_idf_component(name="espressif/wifi_remote_over_eppp", ref="0.3.2")
         esp32.add_idf_component(name="espressif/eppp_link", ref="1.1.5")
-        esp32.add_idf_component(name="espressif/esp_hosted", ref="2.12.7")
+        esp32.add_idf_component(name="espressif/esp_hosted", ref="2.12.8")
     else:
         esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="0.13.0")
         esp32.add_idf_component(name="espressif/eppp_link", ref="0.2.0")
