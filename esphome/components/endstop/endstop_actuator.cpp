@@ -3,9 +3,11 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/application.h"
 
-namespace esphome::actuator {
+namespace esphome::endstop {
 
-static const char *const TAG = "actuator.endstop";
+using namespace esphome::actuator;
+
+static const char *const TAG = "endstop";
 
 void EndstopActuatorBase::control(const ActuatorCallBase &call) {
   if (call.get_stop()) {
@@ -174,4 +176,4 @@ void EndstopActuatorBase::recompute_position_() {
   this->last_recompute_time_ = now;
 }
 
-}  // namespace esphome::actuator
+}  // namespace esphome::endstop
