@@ -20,6 +20,8 @@ struct ActuatorRestoreState {
   float position;
 } __attribute__((packed));
 
+const LogString *actuator_operation_to_str(ActuatorOperation op);
+
 class ActuatorBase;
 
 // Inheritance: ActuatorCallBase — base call class for actuator commands
@@ -68,7 +70,13 @@ class ActuatorBase : public EntityBase {
 
   virtual void control(const ActuatorCallBase &call) = 0;
 
-  optional<ActuatorRestoreState> restore_state_();
+  template<typename T> optional<T> restore_state_() {
+    this->rtc_ = this->make_entity_preference<T>();
+    T recovered{};
+    if (!this->rtc_.load(&recovered))
+      return {};
+    return recovered;
+  }
 
   LazyCallbackManager<void()> state_callback_{};
   ESPPreferenceObject rtc_;

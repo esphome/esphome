@@ -12,6 +12,10 @@ static const char *const TAG = "actuator";
 // Actuator operation strings indexed by ActuatorOperation enum (0-2): IDLE, OPENING, CLOSING, plus UNKNOWN
 PROGMEM_STRING_TABLE(ActuatorOperationStrings, "IDLE", "OPENING", "CLOSING", "UNKNOWN");
 
+const LogString *actuator_operation_to_str(ActuatorOperation op) {
+  return ActuatorOperationStrings::get_log_str(static_cast<uint8_t>(op), ActuatorOperationStrings::LAST_INDEX);
+}
+
 //
 // ActuatorCallBase
 //
@@ -101,13 +105,5 @@ void ActuatorCallBase::perform() {
 
 bool ActuatorBase::is_fully_open() const { return this->position == ACTUATOR_OPEN; }
 bool ActuatorBase::is_fully_closed() const { return this->position == ACTUATOR_CLOSED; }
-
-optional<ActuatorRestoreState> ActuatorBase::restore_state_() {
-  this->rtc_ = this->make_entity_preference<ActuatorRestoreState>();
-  ActuatorRestoreState recovered{};
-  if (!this->rtc_.load(&recovered))
-    return {};
-  return recovered;
-}
 
 }  // namespace esphome::actuator

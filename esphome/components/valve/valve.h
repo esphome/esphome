@@ -127,7 +127,7 @@ class Valve : public actuator::ActuatorBase, public actuator::IActuator {
   // Bridge from ActuatorBase — safe cast because Valve::make_call() always constructs a ValveCall
   void control(const actuator::ActuatorCallBase &call) final { this->control(static_cast<const ValveCall &>(call)); }
 
-  optional<ValveRestoreState> restore_state_();
+  optional<ValveRestoreState> restore_state_() { return ActuatorBase::restore_state_<ValveRestoreState>(); }
 };
 
 }  // namespace esphome::valve

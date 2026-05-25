@@ -2,8 +2,6 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
-#include "esphome/core/progmem.h"
-
 #include <strings.h>
 
 namespace esphome::valve {
@@ -19,11 +17,8 @@ const LogString *valve_command_to_str(float pos) {
     return LOG_STR("UNKNOWN");
   }
 }
-// Valve operation strings indexed by ValveOperation enum (0-2): IDLE, OPENING, CLOSING, plus UNKNOWN
-PROGMEM_STRING_TABLE(ValveOperationStrings, "IDLE", "OPENING", "CLOSING", "UNKNOWN");
-
 const LogString *valve_operation_to_str(actuator::ActuatorOperation op) {
-  return ValveOperationStrings::get_log_str(static_cast<uint8_t>(op), ValveOperationStrings::LAST_INDEX);
+  return actuator::actuator_operation_to_str(op);
 }
 
 Valve::Valve() { this->position = actuator::ACTUATOR_OPEN; }
@@ -136,14 +131,6 @@ void Valve::publish_state(bool save) {
     restore.position = this->position;
     this->rtc_.save(&restore);
   }
-}
-
-optional<ValveRestoreState> Valve::restore_state_() {
-  this->rtc_ = this->make_entity_preference<ValveRestoreState>();
-  ValveRestoreState recovered{};
-  if (!this->rtc_.load(&recovered))
-    return {};
-  return recovered;
 }
 
 bool Valve::is_fully_open() const { return this->position == actuator::ACTUATOR_OPEN; }
