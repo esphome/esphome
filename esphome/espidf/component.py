@@ -632,12 +632,20 @@ def _check_library_data(data: dict):
         frameworks = [a.strip() for a in frameworks.split(",")]
     frameworks = _ensure_list(frameworks)
 
-    # Check if library supports ESP-IDF framework
+    # Check if library declares the active framework. PIO library manifests
+    # often list only "arduino" even when the library actually compiles fine
+    # under ESP-IDF, and IDF (unlike PIO with `lib_compat_mode`) has no way to
+    # opt out of the check. Warn instead of failing so the user isn't forced to
+    # fork the library to fix the manifest.
     framework = "arduino" if CORE.using_arduino else "espidf"
     valid_framework = "*" in frameworks or framework in frameworks
 
     if not valid_framework:
-        raise InvalidIDFComponent(f"Unsupported library frameworks: {frameworks}")
+        _LOGGER.warning(
+            "Library declares frameworks %s which does not include '%s'; including anyway",
+            frameworks,
+            framework,
+        )
 
 
 def _process_dependencies(component: IDFComponent):
