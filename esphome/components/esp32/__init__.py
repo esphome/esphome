@@ -2658,13 +2658,21 @@ def copy_files():
 
 
 def _decode_pc(config, addr):
-    from esphome.platformio import toolchain
+    if CORE.using_toolchain_esp_idf:
+        from esphome.espidf import toolchain as idf_toolchain
 
-    idedata = toolchain.get_idedata(config)
-    if not idedata.addr2line_path or not idedata.firmware_elf_path:
+        addr2line_path = idf_toolchain.get_addr2line_path()
+        firmware_elf_path = idf_toolchain.get_elf_path()
+    else:
+        from esphome.platformio import toolchain
+
+        idedata = toolchain.get_idedata(config)
+        addr2line_path = idedata.addr2line_path
+        firmware_elf_path = idedata.firmware_elf_path
+    if not addr2line_path or not firmware_elf_path:
         _LOGGER.debug("decode_pc no addr2line")
         return
-    command = [idedata.addr2line_path, "-pfiaC", "-e", idedata.firmware_elf_path, addr]
+    command = [str(addr2line_path), "-pfiaC", "-e", str(firmware_elf_path), addr]
     try:
         translation = subprocess.check_output(command, close_fds=False).decode().strip()
     except Exception:  # pylint: disable=broad-except
