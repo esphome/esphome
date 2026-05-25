@@ -845,7 +845,14 @@ def test_run_platformio_cli_run_builds_command(
     toolchain.run_platformio_cli_run(config, True, "extra", "args")
 
     mock_run_platformio_cli.assert_called_once_with(
-        "run", "-d", CORE.build_path, "-v", "extra", "args"
+        "run",
+        "-d",
+        CORE.build_path,
+        "-e",
+        toolchain.platformio_env_name(),
+        "-v",
+        "extra",
+        "args",
     )
 
 

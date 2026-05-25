@@ -232,7 +232,7 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
 
 
 def run_platformio_cli_run(config, verbose, *args, **kwargs) -> str | int:
-    command = ["run", "-d", str(CORE.build_path)]
+    command = ["run", "-d", str(CORE.build_path), "-e", platformio_env_name()]
     if verbose:
         command += ["-v"]
     command += list(args)
