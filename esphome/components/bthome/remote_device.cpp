@@ -5,9 +5,7 @@
 
 #include <cstring>
 
-namespace esphome {
-namespace bthome {
-namespace client {
+namespace esphome::bthome::client {
 
 static const char *const TAG = "bthome";
 
@@ -79,6 +77,4 @@ bool RemoteDeviceBase::parse_data(MacAddressPtr source_address, const uint8_t *d
   return true;
 }
 
-}  // namespace client
-}  // namespace bthome
-}  // namespace esphome
+}  // namespace esphome::bthome::client

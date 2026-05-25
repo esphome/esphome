@@ -5,8 +5,7 @@
 #include "esphome/core/log.h"
 #include "mbedtls/ccm.h"
 
-namespace esphome {
-namespace bthome {
+namespace esphome::bthome {
 
 static const char *const TAG = "bthome";
 
@@ -103,7 +102,6 @@ const uint8_t *bthome_decrypt(const uint8_t *ciphertext, size_t ciphertext_size,
   return bthome_encryption_buf;
 }
 
-}  // namespace bthome
-}  // namespace esphome
+}  // namespace esphome::bthome
 
 #endif  // USE_BTHOME_DECRYPTION

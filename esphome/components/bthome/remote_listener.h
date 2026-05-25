@@ -4,9 +4,7 @@
 
 #include <array>
 
-namespace esphome {
-namespace bthome {
-namespace client {
+namespace esphome::bthome::client {
 
 template<size_t NUM_DEVICES> class DeviceListener : public IBTHomeListener {
  public:
@@ -26,6 +24,4 @@ template<size_t NUM_DEVICES> class DeviceListener : public IBTHomeListener {
   std::array<RemoteDeviceBase *, NUM_DEVICES> devices_{};
 };
 
-}  // namespace client
-}  // namespace bthome
-}  // namespace esphome
+}  // namespace esphome::bthome::client

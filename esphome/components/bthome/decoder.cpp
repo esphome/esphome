@@ -2,8 +2,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace bthome {
+namespace esphome::bthome {
 
 static const char *const TAG = "bthome";
 
@@ -119,5 +118,4 @@ BTHomePayloadDecoder::BTHomePayloadDecoder(const uint8_t *payload, size_t size) 
 BTHomePayloadDecoder::Iterator BTHomePayloadDecoder::begin() const { return Iterator(payload_, size_); }
 BTHomePayloadDecoder::Iterator BTHomePayloadDecoder::end() const { return Iterator(nullptr, 0); }
 
-}  // namespace bthome
-}  // namespace esphome
+}  // namespace esphome::bthome

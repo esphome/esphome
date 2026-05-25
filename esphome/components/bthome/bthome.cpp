@@ -2,8 +2,7 @@
 
 #include <cstring>
 
-namespace esphome {
-namespace bthome {
+namespace esphome::bthome {
 
 float bthome_scaling_factor(BTHomeObjectType type) {
   switch (type) {
@@ -126,5 +125,4 @@ const char *MacAddressPtr::c_str() const {
 
 const char *MacAddress::c_str() const { return MacAddressPtr(*this).c_str(); }
 
-}  // namespace bthome
-}  // namespace esphome
+}  // namespace esphome::bthome

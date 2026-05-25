@@ -8,8 +8,7 @@
 #include "remote_device.h"
 #include "bthome.h"
 
-namespace esphome {
-namespace bthome {
+namespace esphome::bthome {
 
 // Encrypt BTHome payload data (used in tests to generate ciphertext for decrypt tests)
 // Returns pointer to encrypted packet on success, nullptr on failure
@@ -23,7 +22,6 @@ const uint8_t *bthome_encrypt(const uint8_t *plaintext, size_t plaintext_size, M
 const uint8_t *bthome_decrypt(const uint8_t *ciphertext, size_t ciphertext_size, MacAddressPtr source_address,
                               BTHomeHeader header, const EncryptionKey &key, size_t &plaintext_size);
 
-}  // namespace bthome
-}  // namespace esphome
+}  // namespace esphome::bthome
 
 #endif  // USE_BTHOME_DECRYPTION

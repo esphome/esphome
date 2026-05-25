@@ -1,8 +1,6 @@
 #include "binary_sensor.h"
 
-namespace esphome {
-namespace bthome {
-namespace client {
+namespace esphome::bthome::client {
 
 bool BTHomeBinarySensor::process_object(const BTHomeObject &object) {
   if (object.type != this->object_type_)
@@ -11,6 +9,4 @@ bool BTHomeBinarySensor::process_object(const BTHomeObject &object) {
   return true;
 }
 
-}  // namespace client
-}  // namespace bthome
-}  // namespace esphome
+}  // namespace esphome::bthome::client

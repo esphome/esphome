@@ -2,8 +2,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace esphome {
-namespace bthome {
+namespace esphome::bthome {
 
 static constexpr size_t BLE_FLAGS_SIZE = 3;       // [02 01 06]
 static constexpr size_t BLE_SVC_HEADER_SIZE = 4;  // [LL 16 D2 FC]
@@ -32,5 +31,4 @@ class IBLEListener {
   virtual void setup(IBTHomeListener *) = 0;
 };
 
-}  // namespace bthome
-}  // namespace esphome
+}  // namespace esphome::bthome

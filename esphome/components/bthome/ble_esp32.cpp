@@ -2,8 +2,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace bthome {
+namespace esphome::bthome {
 
 #ifdef USE_ESP32
 
@@ -38,5 +37,4 @@ bool ESP32BLEListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device
 
 #endif  // USE_ESP32
 
-}  // namespace bthome
-}  // namespace esphome
+}  // namespace esphome::bthome

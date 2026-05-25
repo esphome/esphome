@@ -4,8 +4,7 @@
 #include "esphome/core/string_ref.h"
 #include "bthome.h"
 
-namespace esphome {
-namespace bthome {
+namespace esphome::bthome {
 
 struct BTHomeObject {
   BTHomeObjectType type = BTHomeObjectType::PACKET_ID;
@@ -44,5 +43,4 @@ class BTHomePayloadDecoder {
   const uint8_t *payload_;
   size_t size_;
 };
-}  // namespace bthome
-}  // namespace esphome
+}  // namespace esphome::bthome

@@ -3,15 +3,11 @@
 #include "esphome/core/component.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-namespace esphome {
-namespace bthome {
-namespace client {
+namespace esphome::bthome::client {
 
 class BTHomeBinarySensor : public BTHomeRemoteObject, public esphome::binary_sensor::BinarySensor, public Component {
  public:
   bool process_object(const BTHomeObject &object) override;
 };
 
-}  // namespace client
-}  // namespace bthome
-}  // namespace esphome
+}  // namespace esphome::bthome::client
