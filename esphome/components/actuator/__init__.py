@@ -13,7 +13,7 @@ from esphome.core import ID, Lambda
 from esphome.cpp_generator import LambdaExpression, MockObj, RawExpression
 from esphome.types import ConfigType, TemplateArgsType
 
-CODEOWNERS = ["@esphome/core"]
+CODEOWNERS = ["@esphome/core", "@exciton"]
 
 actuator_ns = cg.esphome_ns.namespace("actuator")
 
