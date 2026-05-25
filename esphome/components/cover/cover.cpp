@@ -83,7 +83,7 @@ void CoverCall::perform() {
   if (this->toggle_.has_value()) {
     ESP_LOGV(TAG, "  Command: TOGGLE");
   }
-  this->call_control_();
+  static_cast<Cover *>(this->parent_)->control(*this);
 }
 
 void CoverCall::validate() {

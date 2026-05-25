@@ -76,7 +76,7 @@ void ValveCall::perform() {
   if (this->toggle_.has_value()) {
     ESP_LOGV(TAG, "  Command: TOGGLE");
   }
-  this->call_control_();
+  static_cast<Valve *>(this->parent_)->control(*this);
 }
 
 void ValveCall::validate() {
