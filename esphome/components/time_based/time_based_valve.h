@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../time_based_actuator.h"
+#include "time_based_actuator.h"
 #include "esphome/components/valve/valve.h"
 
 namespace esphome::time_based {
