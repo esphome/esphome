@@ -28,20 +28,20 @@ ACTUATOR_CLOSED = RawExpression("0.0f")
 
 # ActuatorOperation enum — expose as a namespace object so callers can do
 # ActuatorOperation.ACTUATOR_OPERATION_IDLE etc.
-# Use RawExpression for each member so that str() yields the integer string
-# ("0", "1", "2") required by the unit tests and matching what C++ enums resolve to.
+# Members render as qualified C++ names so generated code can assign them to
+# ActuatorOperation fields without implicit int-to-enum conversion errors.
 
 
 class _ActuatorOperationEnum:
     """Lightweight stand-in for the C++ ActuatorOperation enum.
 
-    Attributes are exposed as RawExpression so their str() equals the
-    underlying integer value ("0", "1", "2"), matching C++ enum promotion.
+    Attributes render as qualified C++ names (e.g. "esphome::actuator::ACTUATOR_OPERATION_IDLE")
+    so they can be emitted directly into generated code without implicit int-to-enum conversions.
     """
 
-    ACTUATOR_OPERATION_IDLE = RawExpression("0")
-    ACTUATOR_OPERATION_OPENING = RawExpression("1")
-    ACTUATOR_OPERATION_CLOSING = RawExpression("2")
+    ACTUATOR_OPERATION_IDLE = actuator_ns.ACTUATOR_OPERATION_IDLE
+    ACTUATOR_OPERATION_OPENING = actuator_ns.ACTUATOR_OPERATION_OPENING
+    ACTUATOR_OPERATION_CLOSING = actuator_ns.ACTUATOR_OPERATION_CLOSING
 
     def __str__(self):
         return "actuator::ActuatorOperation"
