@@ -123,6 +123,7 @@ select = [
   "PERF", # performance
   "PL",   # pylint
   "Q",    # flake8-quotes
+  "RSE",  # flake8-raise
   "SIM",  # flake8-simplify
   "RET",  # flake8-ret
   "T10",  # flake8-debugger
