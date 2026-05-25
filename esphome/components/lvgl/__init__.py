@@ -1,3 +1,4 @@
+import functools
 import importlib
 from pathlib import Path
 import pkgutil
@@ -518,9 +519,13 @@ def add_hello_world(config):
     return config
 
 
-def _theme_schema(value: dict) -> dict:
-    # Merge into a single dict per widget so each widget schema compiles once;
-    # see obj_dict() in schemas.py for why chained .extend() is avoided here.
+@functools.cache
+def _build_theme_schema() -> cv.Schema:
+    # The theme schema is independent of the value being validated; it depends
+    # only on the module-level WIDGET_TYPES singleton, which is finalised at
+    # import time. Build it once on first use (after widget registration has
+    # completed) and reuse the compiled schema for every validation. See
+    # obj_dict() in schemas.py for why chained .extend() is avoided here.
     return cv.Schema(
         {
             cv.Optional(df.CONF_DARK_MODE, default=False): cv.boolean,
@@ -531,7 +536,11 @@ def _theme_schema(value: dict) -> dict:
                 for name, w in WIDGET_TYPES.items()
             },
         }
-    )(value)
+    )
+
+
+def _theme_schema(value: dict) -> dict:
+    return _build_theme_schema()(value)
 
 
 FINAL_VALIDATE_SCHEMA = final_validation

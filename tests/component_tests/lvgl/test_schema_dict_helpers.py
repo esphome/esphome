@@ -35,9 +35,16 @@ def _clear_obj_dict_cache() -> Generator[None]:
     cache = getattr(lvgl_schemas, "_OBJ_DICT_CACHE", None)
     if cache is not None:
         cache.clear()
+    # The lazily-built theme schema is cached on _build_theme_schema; clear it
+    # too so each test starts from a clean slate.
+    build_theme = getattr(esphome.components.lvgl, "_build_theme_schema", None)
+    if build_theme is not None and hasattr(build_theme, "cache_clear"):
+        build_theme.cache_clear()
     yield
     if cache is not None:
         cache.clear()
+    if build_theme is not None and hasattr(build_theme, "cache_clear"):
+        build_theme.cache_clear()
 
 
 def _marker_names(mapping) -> set[str]:
