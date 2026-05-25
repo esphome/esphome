@@ -20,7 +20,7 @@ from esphome.cpp_generator import RawExpression
 CONF_HAS_BUILT_IN_ENDSTOP = "has_built_in_endstop"
 CONF_MANUAL_CONTROL = "manual_control"
 
-CODEOWNERS = ["@esphome/core"]
+CODEOWNERS = ["@esphome/core", "@exciton"]
 
 actuator_ns = cg.esphome_ns.namespace("actuator")
 
