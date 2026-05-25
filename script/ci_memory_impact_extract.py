@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # pylint: disable=wrong-import-position
 from esphome.analyze_memory import MemoryAnalyzer
+from esphome.const import PLATFORMIO_ENV_NAME
 from esphome.platformio.toolchain import IDEData
 from script.ci_helpers import write_github_output
 
@@ -33,6 +34,43 @@ from script.ci_helpers import write_github_output
 _RAM_PATTERN = re.compile(r"RAM:\s+\[.*?\]\s+\d+\.\d+%\s+\(used\s+(\d+)\s+bytes")
 _FLASH_PATTERN = re.compile(r"Flash:\s+\[.*?\]\s+\d+\.\d+%\s+\(used\s+(\d+)\s+bytes")
 _BUILD_PATH_PATTERN = re.compile(r"Build path: (.+)")
+
+
+def _pioenv_dirs(build_path: Path) -> list[Path]:
+    """Return current and historical PlatformIO env directories."""
+    env_names = [PLATFORMIO_ENV_NAME]
+    if build_path.name != PLATFORMIO_ENV_NAME:
+        env_names.append(build_path.name)
+
+    return [build_path / ".pioenvs" / env_name for env_name in env_names]
+
+
+def _find_elf_path(build_path: Path) -> str | None:
+    """Find firmware.elf/raw_firmware.elf in current and historical layouts."""
+    for elf_candidate in [
+        build_path / "firmware.elf",
+        *[pioenv_dir / "firmware.elf" for pioenv_dir in _pioenv_dirs(build_path)],
+        # LibreTiny uses raw_firmware.elf
+        build_path / "raw_firmware.elf",
+        *[pioenv_dir / "raw_firmware.elf" for pioenv_dir in _pioenv_dirs(build_path)],
+    ]:
+        if elf_candidate.exists():
+            return str(elf_candidate)
+
+    return None
+
+
+def _idedata_candidates(build_path: Path) -> list[Path]:
+    """Return idedata search paths in current and historical layouts."""
+    device_name = build_path.name
+    return [
+        # In .pioenvs for test builds
+        *[pioenv_dir / "idedata.json" for pioenv_dir in _pioenv_dirs(build_path)],
+        # In .esphome/idedata for regular builds
+        Path.home() / ".esphome" / "idedata" / f"{device_name}.json",
+        # Check parent directories for .esphome/idedata (for test_build_components)
+        build_path.parent.parent.parent / "idedata" / f"{device_name}.json",
+    ]
 
 
 def extract_from_compile_output(
@@ -92,18 +130,7 @@ def run_detailed_analysis(build_dir: str) -> dict | None:
         print(f"Build directory not found: {build_dir}", file=sys.stderr)
         return None
 
-    # Find firmware.elf (or raw_firmware.elf for LibreTiny)
-    elf_path = None
-    for elf_candidate in [
-        build_path / "firmware.elf",
-        build_path / ".pioenvs" / build_path.name / "firmware.elf",
-        # LibreTiny uses raw_firmware.elf
-        build_path / "raw_firmware.elf",
-        build_path / ".pioenvs" / build_path.name / "raw_firmware.elf",
-    ]:
-        if elf_candidate.exists():
-            elf_path = str(elf_candidate)
-            break
+    elf_path = _find_elf_path(build_path)
 
     if not elf_path:
         print(
@@ -111,19 +138,8 @@ def run_detailed_analysis(build_dir: str) -> dict | None:
         )
         return None
 
-    # Find idedata.json - check multiple locations
-    device_name = build_path.name
-    idedata_candidates = [
-        # In .pioenvs for test builds
-        build_path / ".pioenvs" / device_name / "idedata.json",
-        # In .esphome/idedata for regular builds
-        Path.home() / ".esphome" / "idedata" / f"{device_name}.json",
-        # Check parent directories for .esphome/idedata (for test_build_components)
-        build_path.parent.parent.parent / "idedata" / f"{device_name}.json",
-    ]
-
     idedata = None
-    for idedata_path in idedata_candidates:
+    for idedata_path in _idedata_candidates(build_path):
         if not idedata_path.exists():
             continue
         try:

@@ -192,7 +192,7 @@ def run_idf_py(
 
 def _get_sdkconfig_args() -> list[str]:
     """Get cmake -D flags for the sdkconfig file, if it exists."""
-    sdkconfig_path = CORE.relative_build_path(f"sdkconfig.{CORE.name}")
+    sdkconfig_path = CORE.relative_build_path(f"sdkconfig.{CORE.sdkconfig_name}")
     if sdkconfig_path.is_file():
         return ["-D", f"SDKCONFIG={sdkconfig_path}"]
     return []
@@ -235,7 +235,7 @@ def has_outdated_files():
     cmakecache_txt_path = CORE.relative_build_path("build/CMakeCache.txt")
     build_config_path = CORE.relative_build_path("build/config")
     sdkconfig_internal_path = CORE.relative_build_path(
-        f"sdkconfig.{CORE.name}.esphomeinternal"
+        f"sdkconfig.{CORE.sdkconfig_name}.esphomeinternal"
     )
     idf_component_yml_path = CORE.relative_build_path("src/idf_component.yml")
     dependency_lock_path = CORE.relative_build_path("dependencies.lock")
