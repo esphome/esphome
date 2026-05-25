@@ -1,4 +1,14 @@
 climate:
   - platform: mitsubishi_cn105
+    id: ac
     name: "AC Test"
     uart_id: uart_bus
+
+esphome:
+  on_boot:
+    then:
+      - climate.mitsubishi_cn105.set_remote_temperature:
+          id: ac
+          temperature: 22.0
+      - climate.mitsubishi_cn105.clear_remote_temperature:
+          id: ac

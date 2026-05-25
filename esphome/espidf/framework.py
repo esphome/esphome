@@ -7,6 +7,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import platform
 import shutil
 import subprocess
 import sys
@@ -17,7 +18,7 @@ import requests
 
 from esphome.config_validation import Version
 from esphome.core import CORE
-from esphome.helpers import ProgressBar, get_str_env, rmtree
+from esphome.helpers import ProgressBar, get_str_env, rmtree, write_file_if_changed
 
 PathType = str | os.PathLike
 
@@ -26,16 +27,18 @@ _LOGGER = logging.getLogger(__name__)
 _SCRIPTS_DIR = Path(__file__).parent
 
 
-def _str_to_lst_of_str(a: str) -> list[str]:
+def _str_to_lst_of_str(a: str | list[str]) -> list[str]:
     """
     Convert a string to a list of string
 
     Args:
-        a: A string containing semicolon-separated values
+        a: A string containing semicolon-separated values, or an already-split list
 
     Returns:
         list of strings
     """
+    if isinstance(a, list):
+        return a
     return list(f.strip() for f in a.split(";") if f.strip())
 
 
@@ -67,10 +70,11 @@ ESPHOME_IDF_DEFAULT_FEATURES = _str_to_lst_of_str(
 )
 
 ESPHOME_IDF_FRAMEWORK_MIRRORS = _str_to_lst_of_str(
-    os.environ.get(
-        "ESPHOME_IDF_FRAMEWORK_MIRRORS",
-        "https://github.com/espressif/esp-idf/releases/download/v{VERSION}/esp-idf-v{VERSION}.zip;https://github.com/espressif/esp-idf/releases/download/v{MAJOR}.{MINOR}/esp-idf-v{MAJOR}.{MINOR}.zip",
-    )
+    os.environ.get("ESPHOME_IDF_FRAMEWORK_MIRRORS")
+    or [
+        "https://github.com/esphome-libs/esp-idf/releases/download/v{VERSION}/esp-idf-v{VERSION}.tar.xz",
+        "https://github.com/esphome-libs/esp-idf/releases/download/v{MAJOR}.{MINOR}/esp-idf-v{MAJOR}.{MINOR}.tar.xz",
+    ]
 )
 
 ESP_IDF_CONSTRAINTS_MIRRORS = _str_to_lst_of_str(
@@ -546,11 +550,11 @@ def _tar_extract_all(
                     if not (mode & stat.S_IXUSR):
                         mode &= ~(stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
                     mode |= stat.S_IRUSR | stat.S_IWUSR
-                elif member.isdir() or member.issym():
-                    # Ignore mode for directories & symlinks
-                    mode = None
-                else:
-                    # Block special files
+                elif not (member.isdir() or member.issym()):
+                    # Block special files. Directories and symlinks keep
+                    # their masked-original mode — passing None here would
+                    # crash tarfile.extract on Python <3.12 (its chmod
+                    # path calls os.chmod unconditionally).
                     continue
 
                 member.mode = mode
@@ -780,12 +784,109 @@ def download_from_mirrors(
         return None
 
 
+def _write_idf_version_txt(framework_path: Path, version: str) -> None:
+    """Write <framework_path>/version.txt if missing.
+
+    IDF's build.cmake picks the version it embeds in the firmware (and
+    stamps onto the bootloader) in this order: ``${IDF_PATH}/version.txt``
+    if present, else ``git describe`` against IDF_PATH, else the
+    ``IDF_VERSION_MAJOR/MINOR/PATCH`` triplet from ``tools/cmake/version.cmake``.
+    On a clean esphome-libs tarball ``.git`` is fully stripped, so
+    git_describe returns ``HEAD-HASH-NOTFOUND`` (falsy) and the triplet
+    wins -- correct by luck. But a *partial* ``.git`` (e.g. a custom
+    framework.source pointed at a real git URL where build artifacts
+    mark the tree dirty) makes git_describe return ``<hash>-dirty``,
+    which is what then gets baked into the bootloader. Dropping
+    version.txt forces the right answer regardless.
+    """
+    version_txt = framework_path / "version.txt"
+    if version_txt.exists():
+        return
+    try:
+        version_txt.write_text(f"v{version}\n", encoding="utf-8")
+    except OSError as e:
+        _LOGGER.warning(
+            "Could not write %s (%s); bootloader version string may be incorrect.",
+            version_txt,
+            e,
+        )
+
+
+# Backport of espressif/esp-idf#18272: every ESPHome-supported IDF release
+# through v6.0 ships a tools.json whose ninja 1.12.1 entry has no
+# ``linux-arm64`` source. ``idf_tools.py`` then either fails to find a
+# matching binary or grabs the x86_64 one, which can't execute on
+# aarch64. cmake is already populated across the same release range; we
+# only need to inject ninja. Values lifted verbatim from the IDF v6.0.1
+# tools.json where the fix landed natively.
+_NINJA_ARM64_BACKPORT: dict[str, dict[str, str | int]] = {
+    "1.12.1": {
+        "rename_dist": "ninja-linux-arm64-v1.12.1.zip",
+        "sha256": "5c25c6570b0155e95fce5918cb95f1ad9870df5768653afe128db822301a05a1",
+        "size": 121787,
+        "url": "https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-linux-aarch64.zip",
+    },
+}
+
+
+def _patch_tools_json_for_linux_arm64(framework_path: Path) -> None:
+    """Inject ninja linux-arm64 entries into the framework's tools.json on aarch64.
+
+    Idempotent: a tools.json that already has the entry, or a host that
+    isn't aarch64, is a no-op. Applied unconditionally on every install
+    check so a build dir extracted before the backport got fixed up
+    without forcing a clean.
+    """
+    if platform.machine() != "aarch64":
+        return
+
+    tools_json = framework_path / "tools" / "tools.json"
+    if not tools_json.is_file():
+        return
+
+    try:
+        with open(tools_json, encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        _LOGGER.warning(
+            "Could not parse %s for linux-arm64 backport (%s); "
+            "skipping. A clean reinstall of the framework directory "
+            "may be needed.",
+            tools_json,
+            e,
+        )
+        return
+
+    changed = False
+    for tool in data.get("tools", []):
+        if tool.get("name") != "ninja":
+            continue
+        for ver in tool.get("versions", []):
+            entry = _NINJA_ARM64_BACKPORT.get(ver.get("name"))
+            if entry is None or ver.get("linux-arm64"):
+                continue
+            ver["linux-arm64"] = entry
+            changed = True
+
+    if changed:
+        # write_file_if_changed stages a tempfile in the destination dir
+        # and atomically replaces — safe against mid-write interruption
+        # and concurrent invocations.
+        write_file_if_changed(tools_json, json.dumps(data, indent=2) + "\n")
+        _LOGGER.info(
+            "Patched %s to add ninja linux-arm64 download "
+            "(espressif/esp-idf#18272 backport).",
+            tools_json,
+        )
+
+
 def _check_esphome_idf_framework_install(
     version: str,
     targets: list[str],
     tools: list[str],
     force: bool = False,
     env: dict[str, str] | None = None,
+    source_url: str | None = None,
 ) -> tuple[Path, bool]:
     """
     Check and install ESP-IDF framework.
@@ -796,6 +897,11 @@ def _check_esphome_idf_framework_install(
         tools: list of tools to install
         force: If True, force reinstallation
         env: Optional dictionary of environment variables to set
+        source_url: Optional override URL for the framework tarball. Supports
+            the same ``{VERSION}`` / ``{MAJOR}`` / ``{MINOR}`` / ``{PATCH}`` /
+            ``{EXTRA}`` substitutions as ESPHOME_IDF_FRAMEWORK_MIRRORS. When
+            set, it replaces the default mirror list — no implicit fallback,
+            so a misspelled URL fails loudly.
 
     Returns:
         tuple of (framework_path, install_flag)
@@ -817,6 +923,10 @@ def _check_esphome_idf_framework_install(
     env_stamp_file = framework_path / ESPHOME_STAMP_FILE
     idf_tools_path = framework_path / "tools" / "idf_tools.py"
     _LOGGER.info("Checking ESP-IDF %s framework ...", version)
+    # Logged every invocation (not just on install) so the user can verify the
+    # override. A changed URL needs ``esphome clean`` to force a re-download.
+    if source_url:
+        _LOGGER.info("Using framework source override: %s", source_url)
 
     # 2. Download and extract the framework if not already extracted.
     # The marker is written last after extraction succeeds, so its presence
@@ -844,13 +954,22 @@ def _check_esphome_idf_framework_install(
             except ValueError:
                 pass
 
-            download_from_mirrors(
-                ESPHOME_IDF_FRAMEWORK_MIRRORS, substitutions, tmp.file
-            )
+            mirrors = [source_url] if source_url else ESPHOME_IDF_FRAMEWORK_MIRRORS
+            download_from_mirrors(mirrors, substitutions, tmp.file)
 
             _LOGGER.info("Extracting ESP-IDF %s framework ...", version)
             archive_extract_all(tmp.file, framework_path, progress_header="Extracting")
             extracted_marker.touch()
+
+    # Idempotent post-extract patch: written every invocation so a build
+    # dir extracted before this fix gets the file too, without forcing a
+    # clean. Skips when version.txt already exists.
+    _write_idf_version_txt(framework_path, version)
+
+    # Apply the ninja linux-arm64 backport on every invocation, not just on
+    # fresh extracts — idempotent and cheap, and lets a build dir carrying
+    # a pre-patch tools.json get fixed up without forcing a clean.
+    _patch_tools_json_for_linux_arm64(framework_path)
 
     # 3. Check if the framework tools are the same and correctly installed
     if not install:
@@ -1008,6 +1127,7 @@ def check_esp_idf_install(
     tools: list[str] | None = None,
     features: list[str] | None = None,
     force: bool = False,
+    source_url: str | None = None,
 ) -> tuple[Path, Path]:
     """
     Check and install ESP-IDF framework and Python environment.
@@ -1018,6 +1138,10 @@ def check_esp_idf_install(
         tools: list of tools to install
         features: Features to install
         force: If True, force reinstallation
+        source_url: Optional override URL for the framework tarball. When
+            set, it replaces the default mirror list (no fallback). Forwarded
+            to ``_check_esphome_idf_framework_install``; supports the same URL
+            substitutions.
 
     Returns:
         tuple of (framework_path, python_env_path)
@@ -1040,7 +1164,7 @@ def check_esp_idf_install(
 
     # 1) Framework
     framework_path, installed = _check_esphome_idf_framework_install(
-        version, targets, tools, force=force, env=env
+        version, targets, tools, force=force, env=env, source_url=source_url
     )
 
     features = features or ESPHOME_IDF_DEFAULT_FEATURES

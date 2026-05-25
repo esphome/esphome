@@ -1,3 +1,6 @@
+psram:
+  mode: quad
+
 i2s_audio:
   i2s_lrclk_pin: GPIO18
   i2s_bclk_pin: GPIO19
@@ -12,6 +15,7 @@ microphone:
 
 micro_wake_word:
   microphone: echo_microphone
+  task_stack_in_psram: true
   on_wake_word_detected:
     - logger.log: "Wake word detected"
     - micro_wake_word.stop:

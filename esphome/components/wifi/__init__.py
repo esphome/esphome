@@ -54,10 +54,18 @@ from esphome.const import (
     CONF_TTLS_PHASE_2,
     CONF_USE_ADDRESS,
     CONF_USERNAME,
+    CONF_WIFI,
+    PLACEHOLDER_WIFI_SSID,
     Platform,
     PlatformFramework,
 )
-from esphome.core import CORE, CoroPriority, HexInt, coroutine_with_priority
+from esphome.core import (
+    CORE,
+    CoroPriority,
+    EsphomeError,
+    HexInt,
+    coroutine_with_priority,
+)
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -903,3 +911,45 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "wifi_component_pico_w.cpp": {PlatformFramework.RP2040_ARDUINO},
     }
 )
+
+
+def _placeholder_wifi_credentials(config: ConfigType) -> list[str]:
+    """Return human-readable locations where the dashboard's placeholder wifi
+    values still appear. Empty list means no placeholders were found.
+    """
+    placeholders: list[str] = []
+    wifi_conf = config.get(CONF_WIFI)
+    if not wifi_conf:
+        return placeholders
+
+    for idx, network in enumerate(wifi_conf.get(CONF_NETWORKS, [])):
+        ssid = network.get(CONF_SSID)
+        if isinstance(ssid, str) and ssid == PLACEHOLDER_WIFI_SSID:
+            placeholders.append(f"wifi.networks[{idx}].ssid")
+
+    ap_conf = wifi_conf.get(CONF_AP)
+    if ap_conf:
+        ap_ssid = ap_conf.get(CONF_SSID)
+        if isinstance(ap_ssid, str) and ap_ssid == PLACEHOLDER_WIFI_SSID:
+            placeholders.append("wifi.ap.ssid")
+
+    return placeholders
+
+
+def check_placeholder_credentials(config: ConfigType) -> None:
+    """Raise EsphomeError if any wifi credential is the dashboard placeholder.
+
+    Call only at compile time. NEVER from CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA,
+    or any path reached by `esphome config`; device-builder relies on
+    validation passing with the placeholders still in place.
+    """
+    locations = _placeholder_wifi_credentials(config)
+    if not locations:
+        return
+    formatted = ", ".join(locations)
+    raise EsphomeError(
+        f"wifi configuration still contains the dashboard placeholder value "
+        f"'{PLACEHOLDER_WIFI_SSID}' at: {formatted}. "
+        f"Open secrets.yaml and replace 'wifi_ssid' (and 'wifi_password') "
+        f"with your real wifi credentials before flashing."
+    )

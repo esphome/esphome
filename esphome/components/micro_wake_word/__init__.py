@@ -7,7 +7,7 @@ from urllib.parse import urljoin
 from esphome import automation, external_files, git
 from esphome.automation import register_action, register_condition
 import esphome.codegen as cg
-from esphome.components import esp32, microphone, ota
+from esphome.components import esp32, microphone, ota, psram
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FILE,
@@ -20,6 +20,7 @@ from esphome.const import (
     CONF_RAW_DATA_ID,
     CONF_REF,
     CONF_REFRESH,
+    CONF_TASK_STACK_IN_PSRAM,
     CONF_TYPE,
     CONF_URL,
     CONF_USERNAME,
@@ -358,6 +359,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_VAD): _maybe_empty_vad_schema,
             cv.Optional(CONF_STOP_AFTER_DETECTION, default=True): cv.boolean,
+            cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
             cv.Optional(CONF_MODEL): cv.invalid(
                 f"The {CONF_MODEL} parameter has moved to be a list element under the {CONF_MODELS} parameter."
             ),
@@ -450,6 +452,10 @@ async def to_code(config):
 
     cg.add_define("USE_MICRO_WAKE_WORD")
     ota.request_ota_state_listeners()
+
+    if config.get(CONF_TASK_STACK_IN_PSRAM):
+        cg.add(var.set_task_stack_in_psram(True))
+        psram.request_external_task_stack()
 
     esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.3.3~1")
     # Pin esp-nn for stable future builds (esp-tflite-micro depends on esp-nn)

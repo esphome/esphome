@@ -204,10 +204,9 @@ static void esp_zb_task_(void *pvParameters) {
 
 void ZigbeeComponent::setup() {
   global_zigbee = this;
-  esp_zb_platform_config_t config = {
-      .radio_config = ESP_ZB_DEFAULT_RADIO_CONFIG(),
-      .host_config = ESP_ZB_DEFAULT_HOST_CONFIG(),
-  };
+  esp_zb_platform_config_t config = {};
+  config.radio_config = ESP_ZB_DEFAULT_RADIO_CONFIG();
+  config.host_config = ESP_ZB_DEFAULT_HOST_CONFIG();
 #ifdef USE_WIFI
   if (esp_coex_wifi_i154_enable() != ESP_OK) {
     this->mark_failed();

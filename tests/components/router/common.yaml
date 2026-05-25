@@ -1,0 +1,44 @@
+esphome:
+  on_boot:
+    then:
+      - router.speaker.switch_output:
+          id: router_id
+          target_speaker: speaker_b_id
+      # id omitted: auto-resolved since there's a single router instance
+      - router.speaker.switch_output:
+          target_speaker: !lambda return id(speaker_a_id);
+
+i2s_audio:
+  - id: i2s_a
+    i2s_lrclk_pin: ${a_lrclk_pin}
+    i2s_bclk_pin: ${a_bclk_pin}
+  - id: i2s_b
+
+speaker:
+  - platform: i2s_audio
+    id: speaker_a_id
+    i2s_audio_id: i2s_a
+    dac_type: external
+    i2s_dout_pin: ${a_dout_pin}
+    sample_rate: 48000
+    bits_per_sample: 16bit
+    channel: stereo
+  - platform: i2s_audio
+    id: speaker_b_id
+    i2s_audio_id: i2s_b
+    dac_type: external
+    i2s_dout_pin: ${b_dout_pin}
+    spdif_mode: true
+    use_apll: true
+    sample_rate: 48000
+    bits_per_sample: 16bit
+    channel: stereo
+    i2s_mode: primary
+  - platform: router
+    id: router_id
+    output_speakers:
+      - speaker_a_id
+      - speaker_b_id
+    sample_rate: 48000
+    bits_per_sample: 16
+    num_channels: 2
