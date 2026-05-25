@@ -1,8 +1,7 @@
 #include "nexa_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.nexa";
 
@@ -236,5 +235,4 @@ void NexaProtocol::dump(const NexaData &data) {
            data.state, data.channel, data.level);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base
