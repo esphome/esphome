@@ -43,7 +43,10 @@ class IrRfProxy : public infrared::Infrared {
 #endif  // USE_IR_RF
 
 #ifdef USE_RADIO_FREQUENCY
-/// RfProxy - Radio Frequency platform implementation using remote_transmitter/receiver as backend
+/// RfProxy - Radio Frequency platform implementation using remote_transmitter/receiver as backend.
+/// Driver-agnostic: integration with specific RF front-end chips (CC1101, RFM69, etc.) is done
+/// in YAML by wiring their actions to `remote_transmitter`'s on_transmit/on_complete triggers and
+/// to this entity's on_control trigger (see radio_frequency component docs).
 class RfProxy : public radio_frequency::RadioFrequency {
  public:
   RfProxy() = default;

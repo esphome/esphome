@@ -5,8 +5,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace senseair {
+namespace esphome::senseair {
 
 enum SenseAirStatus : uint8_t {
   FATAL_ERROR = 1 << 0,
@@ -88,5 +87,4 @@ template<typename... Ts> class SenseAirABCGetPeriodAction : public Action<Ts...>
   SenseAirComponent *senseair_;
 };
 
-}  // namespace senseair
-}  // namespace esphome
+}  // namespace esphome::senseair

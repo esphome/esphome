@@ -64,6 +64,24 @@ def mock_should_run_import_time() -> Generator[Mock, None, None]:
 
 
 @pytest.fixture
+def mock_should_run_device_builder() -> Generator[Mock, None, None]:
+    """Mock should_run_device_builder from determine_jobs."""
+    with patch.object(determine_jobs, "should_run_device_builder") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_native_idf_components_to_test() -> Generator[Mock, None, None]:
+    """Mock native_idf_components_to_test from determine_jobs.
+
+    main() drives both the ``native_idf`` boolean output and the
+    ``native_idf_components`` CSV from this one function.
+    """
+    with patch.object(determine_jobs, "native_idf_components_to_test") as mock:
+        yield mock
+
+
+@pytest.fixture
 def mock_determine_cpp_unit_tests() -> Generator[Mock, None, None]:
     """Mock determine_cpp_unit_tests from helpers."""
     with patch.object(determine_jobs, "determine_cpp_unit_tests") as mock:
@@ -99,6 +117,8 @@ def test_main_all_tests_should_run(
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
     mock_should_run_import_time: Mock,
+    mock_should_run_device_builder: Mock,
+    mock_native_idf_components_to_test: Mock,
     mock_changed_files: Mock,
     mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
@@ -113,6 +133,8 @@ def test_main_all_tests_should_run(
     mock_should_run_clang_format.return_value = True
     mock_should_run_python_linters.return_value = True
     mock_should_run_import_time.return_value = True
+    mock_should_run_device_builder.return_value = True
+    mock_native_idf_components_to_test.return_value = ["api", "esp32"]
     mock_determine_cpp_unit_tests.return_value = (False, ["wifi", "api", "sensor"])
 
     # Mock changed_files to return non-component files (to avoid memory impact)
@@ -193,6 +215,9 @@ def test_main_all_tests_should_run(
     assert output["clang_format"] is True
     assert output["python_linters"] is True
     assert output["import_time"] is True
+    assert output["device_builder"] is True
+    assert output["native_idf"] is True
+    assert output["native_idf_components"] == "api,esp32"
     assert output["changed_components"] == ["wifi", "api", "sensor"]
     # changed_components_with_tests will only include components that actually have test files
     assert "changed_components_with_tests" in output
@@ -225,6 +250,8 @@ def test_main_no_tests_should_run(
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
     mock_should_run_import_time: Mock,
+    mock_should_run_device_builder: Mock,
+    mock_native_idf_components_to_test: Mock,
     mock_changed_files: Mock,
     mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
@@ -239,6 +266,8 @@ def test_main_no_tests_should_run(
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = False
     mock_should_run_import_time.return_value = False
+    mock_should_run_device_builder.return_value = False
+    mock_native_idf_components_to_test.return_value = []
     mock_determine_cpp_unit_tests.return_value = (False, [])
 
     # Mock changed_files to return no component files
@@ -278,6 +307,9 @@ def test_main_no_tests_should_run(
     assert output["clang_format"] is False
     assert output["python_linters"] is False
     assert output["import_time"] is False
+    assert output["device_builder"] is False
+    assert output["native_idf"] is False
+    assert output["native_idf_components"] == ""
     assert output["changed_components"] == []
     assert output["changed_components_with_tests"] == []
     assert output["component_test_count"] == 0
@@ -299,6 +331,8 @@ def test_main_with_branch_argument(
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
     mock_should_run_import_time: Mock,
+    mock_should_run_device_builder: Mock,
+    mock_native_idf_components_to_test: Mock,
     mock_changed_files: Mock,
     mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
@@ -313,6 +347,8 @@ def test_main_with_branch_argument(
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = True
     mock_should_run_import_time.return_value = True
+    mock_should_run_device_builder.return_value = True
+    mock_native_idf_components_to_test.return_value = ["esp32"]
     mock_determine_cpp_unit_tests.return_value = (False, ["mqtt"])
 
     # Mock changed_files to return non-component files (to avoid memory impact)
@@ -350,6 +386,8 @@ def test_main_with_branch_argument(
     mock_should_run_clang_format.assert_called_once_with("main")
     mock_should_run_python_linters.assert_called_once_with("main")
     mock_should_run_import_time.assert_called_once_with("main")
+    mock_should_run_device_builder.assert_called_once_with("main")
+    mock_native_idf_components_to_test.assert_called_once_with("main")
 
     # Check output
     captured = capsys.readouterr()
@@ -362,6 +400,9 @@ def test_main_with_branch_argument(
     assert output["clang_format"] is False
     assert output["python_linters"] is True
     assert output["import_time"] is True
+    assert output["device_builder"] is True
+    assert output["native_idf"] is True
+    assert output["native_idf_components"] == "esp32"
     assert output["changed_components"] == ["mqtt"]
     # changed_components_with_tests will only include components that actually have test files
     assert "changed_components_with_tests" in output
@@ -732,6 +773,300 @@ def test_should_run_import_time_with_branch() -> None:
         mock_changed.return_value = []
         determine_jobs.should_run_import_time("release")
         mock_changed.assert_called_once_with("release")
+
+
+@pytest.mark.parametrize(
+    ("path", "expected_result"),
+    [
+        # Exact-file matches in the CI-irrelevant set.
+        (".yamllint", True),
+        (".github/dependabot.yml", True),
+        # Other top-level workflow files are irrelevant; ci.yml itself is not.
+        (".github/workflows/codeql.yml", True),
+        (".github/workflows/release.yml", True),
+        (".github/workflows/ci.yml", False),
+        # Nested files under workflows/ are not matched by the single-star glob.
+        (".github/workflows/matchers/gcc.json", False),
+        # build-image action: direct children only (single-star glob).
+        (".github/actions/build-image/action.yml", True),
+        (".github/actions/build-image/nested/file.yml", False),
+        # Other actions are CI-relevant.
+        (".github/actions/restore-python/action.yml", False),
+        # docker/** covers everything under docker/.
+        ("docker/Dockerfile", True),
+        ("docker/scripts/run.sh", True),
+        # Regular source files are CI-relevant.
+        ("esphome/__main__.py", False),
+        ("esphome/components/wifi/wifi_component.cpp", False),
+        ("README.md", False),
+        ("tests/script/test_determine_jobs.py", False),
+    ],
+)
+def test_is_ci_irrelevant_path(path: str, expected_result: bool) -> None:
+    """Test _is_ci_irrelevant_path mirrors the historic ci.yml path filter."""
+    assert determine_jobs._is_ci_irrelevant_path(path) == expected_result
+
+
+@pytest.mark.parametrize(
+    ("changed_files", "expected_result"),
+    [
+        # Empty diffs default to True — don't accidentally skip CI on a
+        # broken probe.
+        ([], True),
+        # Any CI-relevant file flips the result to True.
+        (["esphome/__main__.py"], True),
+        (["esphome/components/wifi/wifi_component.cpp"], True),
+        (["README.md"], True),
+        # All-irrelevant diffs return False.
+        ([".github/workflows/codeql.yml"], False),
+        (
+            [".github/workflows/codeql.yml", ".github/workflows/release.yml"],
+            False,
+        ),
+        ([".yamllint"], False),
+        ([".github/dependabot.yml"], False),
+        (["docker/Dockerfile"], False),
+        (
+            [
+                ".github/workflows/codeql.yml",
+                ".github/dependabot.yml",
+                "docker/Dockerfile",
+            ],
+            False,
+        ),
+        # Mixed diffs always trigger CI.
+        (
+            [".github/workflows/codeql.yml", "esphome/__main__.py"],
+            True,
+        ),
+        # ci.yml itself is treated as CI-relevant.
+        ([".github/workflows/ci.yml"], True),
+    ],
+)
+def test_should_run_core_ci(changed_files: list[str], expected_result: bool) -> None:
+    """Test should_run_core_ci function."""
+    with patch.object(determine_jobs, "changed_files", return_value=changed_files):
+        assert determine_jobs.should_run_core_ci() == expected_result
+
+
+def test_should_run_core_ci_with_branch() -> None:
+    """Test should_run_core_ci passes the branch through to changed_files."""
+    with patch.object(determine_jobs, "changed_files") as mock_changed:
+        mock_changed.return_value = []
+        determine_jobs.should_run_core_ci("release")
+        mock_changed.assert_called_once_with("release")
+
+
+@pytest.mark.parametrize(
+    ("changed_files", "expected_result"),
+    [
+        # esphome Python files trigger downstream device-builder tests
+        (["esphome/__main__.py"], True),
+        (["esphome/components/wifi/__init__.py"], True),
+        (["esphome/core/config.py"], True),
+        (["esphome/types.pyi"], True),
+        # Runtime dependency changes trigger
+        (["requirements.txt"], True),
+        (["pyproject.toml"], True),
+        # Non-C++ files packaged with esphome trigger -- device-builder
+        # picks them up because esphome's pyproject sets
+        # include-package-data = true.
+        (["esphome/idf_component.yml"], True),
+        (["esphome/dashboard/templates/index.html"], True),
+        (["esphome/components/api/api_pb2_service.json"], True),
+        # Mixed: any triggering file is enough
+        (["docs/README.md", "esphome/config.py"], True),
+        # Dev/test-only dependency changes don't trigger device-builder
+        # (they don't affect the importable surface device-builder uses)
+        (["requirements_dev.txt"], False),
+        (["requirements_test.txt"], False),
+        # Files outside esphome/ don't trigger
+        (["script/some_other_script.py"], False),
+        (["tests/script/test_determine_jobs.py"], False),
+        # C++ files under esphome/ don't trigger -- they only affect
+        # compiled firmware, not the Python install device-builder pulls in.
+        (["esphome/core/component.cpp"], False),
+        (["esphome/core/component.h"], False),
+        (["esphome/components/wifi/wifi_component.cpp"], False),
+        # Files outside esphome/ entirely
+        (["tests/components/wifi/test.esp32-idf.yaml"], False),
+        (["README.md"], False),
+        ([], False),
+    ],
+)
+def test_should_run_device_builder(
+    changed_files: list[str], expected_result: bool
+) -> None:
+    """Test should_run_device_builder function (non-beta/release target)."""
+    with (
+        patch.object(determine_jobs, "changed_files", return_value=changed_files),
+        # Mock target branch to "dev" so the beta/release skip is bypassed
+        # for these per-file behavior checks.
+        patch.object(determine_jobs, "get_target_branch", return_value="dev"),
+    ):
+        result = determine_jobs.should_run_device_builder()
+        assert result == expected_result
+
+
+def test_should_run_device_builder_with_branch() -> None:
+    """Test should_run_device_builder with branch argument."""
+    with (
+        patch.object(determine_jobs, "changed_files") as mock_changed,
+        patch.object(determine_jobs, "get_target_branch", return_value="dev"),
+    ):
+        mock_changed.return_value = []
+        determine_jobs.should_run_device_builder("release")
+        mock_changed.assert_called_once_with("release")
+
+
+@pytest.mark.parametrize("target_branch", ["beta", "release", "release-2026.5"])
+def test_should_run_device_builder_skips_beta_release(target_branch: str) -> None:
+    """Beta/release target branches skip device-builder (lag behind device-builder@main)."""
+    with (
+        patch.object(determine_jobs, "get_target_branch", return_value=target_branch),
+        patch.object(determine_jobs, "changed_files") as mock_changed,
+    ):
+        # Even with a triggering file present, the target-branch guard wins.
+        mock_changed.return_value = ["esphome/__main__.py"]
+        assert determine_jobs.should_run_device_builder() is False
+        # changed_files shouldn't even be consulted -- the guard short-circuits.
+        mock_changed.assert_not_called()
+
+
+_NATIVE_IDF_FULL_LIST_FILES = [
+    # Core C++/Python changes -- caught by core_changed()
+    ["esphome/core/component.cpp"],
+    ["esphome/core/config.py"],
+    # Native IDF infrastructure paths
+    ["esphome/espidf/framework.py"],
+    ["esphome/espidf/component.py"],
+    ["esphome/espidf/api.py"],
+    ["esphome/build_gen/espidf.py"],
+    # Workflow / harness files
+    ["script/test_build_components.py"],
+    [".github/workflows/ci.yml"],
+]
+
+
+@pytest.mark.parametrize("changed_files", _NATIVE_IDF_FULL_LIST_FILES)
+def test_native_idf_components_to_test_returns_full_list_on_infrastructure(
+    changed_files: list[str],
+) -> None:
+    """Infrastructure / core / harness changes fall back to the full component list."""
+    with (
+        patch.object(determine_jobs, "changed_files", return_value=changed_files),
+        # The dep-closure path shouldn't be consulted at all -- if it is,
+        # the obviously-wrong "wifi" sneaks in and the assertion catches it.
+        patch.object(
+            determine_jobs, "get_components_with_dependencies", return_value=["wifi"]
+        ),
+    ):
+        result = determine_jobs.native_idf_components_to_test()
+        assert result == sorted(determine_jobs.NATIVE_IDF_TEST_COMPONENTS)
+
+
+@pytest.mark.parametrize(
+    ("changed_files", "dependency_closure", "expected"),
+    [
+        # Single tested component changed -- narrow to just that component.
+        (
+            ["esphome/components/esp32/__init__.py"],
+            ["esp32"],
+            ["esp32"],
+        ),
+        # Dependency closure: multiple BLE components in the changed set
+        # are all intersected with the test list and returned sorted.
+        (
+            ["esphome/components/esp32_ble/ble.cpp"],
+            ["esp32_ble", "esp32_ble_tracker", "ble_scanner"],
+            ["ble_scanner", "esp32_ble", "esp32_ble_tracker"],
+        ),
+        # api in the test set -- narrow to [api] even though the closure
+        # has other (unrelated to native-IDF coverage) entries.
+        (
+            ["esphome/components/api/api_connection.cpp"],
+            ["api", "logger"],
+            ["api"],
+        ),
+        # Components outside the test set return an empty list (job skipped).
+        (
+            ["esphome/components/wifi/wifi_component.cpp"],
+            ["wifi", "network"],
+            [],
+        ),
+        # Pure Python-only change outside trigger paths -> empty.
+        (["esphome/yaml_util.py"], [], []),
+        # Non-IDF files in esphome/build_gen/ do NOT trigger the full
+        # list -- only esphome/build_gen/espidf.py is a trigger.
+        (["esphome/build_gen/platformio.py"], [], []),
+        # Docs / unrelated files -> empty.
+        (["README.md"], [], []),
+        ([], [], []),
+    ],
+)
+def test_native_idf_components_to_test_narrowing(
+    changed_files: list[str],
+    dependency_closure: list[str],
+    expected: list[str],
+) -> None:
+    """Component changes narrow the test list to the intersection."""
+    with (
+        patch.object(determine_jobs, "changed_files", return_value=changed_files),
+        patch.object(
+            determine_jobs,
+            "get_components_with_dependencies",
+            return_value=dependency_closure,
+        ),
+    ):
+        result = determine_jobs.native_idf_components_to_test()
+        assert result == expected
+
+
+def test_native_idf_components_to_test_with_branch() -> None:
+    """native_idf_components_to_test passes branch argument through.
+
+    Regression test: an earlier version called ``get_changed_components()``,
+    which silently ignored the branch argument because that helper re-runs
+    ``changed_files()`` with its own default. The current implementation
+    derives the closure from ``files = changed_files(branch)`` directly,
+    so a branch arg has to flow through ``changed_files``.
+    """
+    with (
+        patch.object(determine_jobs, "changed_files") as mock_changed,
+        patch.object(
+            determine_jobs, "get_components_with_dependencies", return_value=[]
+        ),
+    ):
+        mock_changed.return_value = []
+        determine_jobs.native_idf_components_to_test("release")
+        mock_changed.assert_called_once_with("release")
+
+
+@pytest.mark.parametrize(
+    ("components_to_test", "expected"),
+    [
+        ([], False),
+        (["esp32"], True),
+        (["esp32", "api"], True),
+    ],
+)
+def test_should_run_native_idf(components_to_test: list[str], expected: bool) -> None:
+    """should_run_native_idf is a thin wrapper around the component list."""
+    with patch.object(
+        determine_jobs,
+        "native_idf_components_to_test",
+        return_value=components_to_test,
+    ):
+        assert determine_jobs.should_run_native_idf() is expected
+
+
+def test_should_run_native_idf_with_branch() -> None:
+    """Test should_run_native_idf passes branch argument through."""
+    with patch.object(
+        determine_jobs, "native_idf_components_to_test", return_value=[]
+    ) as mock_inner:
+        determine_jobs.should_run_native_idf("release")
+        mock_inner.assert_called_once_with("release")
 
 
 @pytest.mark.parametrize(
@@ -1265,6 +1600,7 @@ def test_clang_tidy_mode_full_scan(
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
+    mock_determine_cpp_unit_tests: Mock,
     mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -1276,6 +1612,9 @@ def test_clang_tidy_mode_full_scan(
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = False
+    # Without this mock, main() runs the real determine_cpp_unit_tests
+    # which loads the full component graph (~5s import of every component).
+    mock_determine_cpp_unit_tests.return_value = (False, [])
 
     # Mock changed_files to return no component files
     mock_changed_files.return_value = []
@@ -1331,6 +1670,7 @@ def test_clang_tidy_mode_targeted_scan(
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
+    mock_determine_cpp_unit_tests: Mock,
     mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -1342,6 +1682,9 @@ def test_clang_tidy_mode_targeted_scan(
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = False
+    # Without this mock, main() runs the real determine_cpp_unit_tests
+    # which loads the full component graph (~5s import of every component).
+    mock_determine_cpp_unit_tests.return_value = (False, [])
 
     # Create component names
     components = [f"comp{i}" for i in range(component_count)]
@@ -2122,3 +2465,378 @@ def test_should_run_benchmarks_with_branch() -> None:
         mock_changed.return_value = []
         determine_jobs.should_run_benchmarks("release")
         mock_changed.assert_called_with("release")
+
+
+# ---------------------------------------------------------------------------
+# _component_change_is_validate_only
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("component", "changed", "expected"),
+    [
+        # Only a base validate file changed.
+        (
+            "foo",
+            ["tests/components/foo/validate.esp32-idf.yaml"],
+            True,
+        ),
+        # Only a validate variant changed.
+        (
+            "foo",
+            ["tests/components/foo/validate-legacy.esp32-idf.yaml"],
+            True,
+        ),
+        # Multiple validate files (all validate).
+        (
+            "foo",
+            [
+                "tests/components/foo/validate.esp32-idf.yaml",
+                "tests/components/foo/validate-legacy.esp32-idf.yaml",
+            ],
+            True,
+        ),
+        # Mixed: validate + regular test must NOT be classified as validate-only.
+        (
+            "foo",
+            [
+                "tests/components/foo/validate.esp32-idf.yaml",
+                "tests/components/foo/test.esp32-idf.yaml",
+            ],
+            False,
+        ),
+        # Regular test only.
+        (
+            "foo",
+            ["tests/components/foo/test.esp32-idf.yaml"],
+            False,
+        ),
+        # Source change disqualifies even if a validate file is also touched.
+        (
+            "foo",
+            [
+                "esphome/components/foo/foo.cpp",
+                "tests/components/foo/validate.esp32-idf.yaml",
+            ],
+            False,
+        ),
+        # No matching files at all.
+        ("foo", ["esphome/core/helpers.cpp"], False),
+        # Filenames merely starting with "validate" but not following the
+        # grammar must not match (defensive against accidental classification).
+        (
+            "foo",
+            ["tests/components/foo/validatesomething.yaml"],
+            False,
+        ),
+        # An unrelated component's validate change doesn't affect this one.
+        (
+            "foo",
+            ["tests/components/bar/validate.esp32-idf.yaml"],
+            False,
+        ),
+        # common.yaml change in the component dir disqualifies.
+        (
+            "foo",
+            [
+                "tests/components/foo/common.yaml",
+                "tests/components/foo/validate.esp32-idf.yaml",
+            ],
+            False,
+        ),
+    ],
+)
+def test_component_change_is_validate_only(
+    component: str, changed: list[str], expected: bool
+) -> None:
+    """The validate-only classifier rejects anything beyond validate.* edits."""
+    assert (
+        determine_jobs._component_change_is_validate_only(component, changed)
+        is expected
+    )
+
+
+def test_main_emits_validate_only_components(
+    mock_determine_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_should_run_import_time: Mock,
+    mock_should_run_device_builder: Mock,
+    mock_changed_files: Mock,
+    mock_determine_cpp_unit_tests: Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Directly-changed components whose only edits are validate.*.yaml are
+    listed in `validate_only_components` so CI can skip their compile stage.
+    """
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+    mock_determine_integration_tests.return_value = (False, [])
+    mock_should_run_clang_tidy.return_value = False
+    mock_should_run_clang_format.return_value = False
+    mock_should_run_python_linters.return_value = False
+    mock_should_run_import_time.return_value = False
+    mock_should_run_device_builder.return_value = False
+    mock_determine_cpp_unit_tests.return_value = (False, [])
+
+    # foo: only validate file changed (qualifies)
+    # bar: test file changed (does not qualify)
+    mock_changed_files.return_value = [
+        "tests/components/foo/validate.esp32-idf.yaml",
+        "tests/components/bar/test.esp32-idf.yaml",
+    ]
+
+    with (
+        patch("sys.argv", ["determine-jobs.py"]),
+        patch.object(determine_jobs, "_is_clang_tidy_full_scan", return_value=False),
+        patch.object(
+            determine_jobs,
+            "get_changed_components",
+            return_value=["foo", "bar"],
+        ),
+        patch.object(
+            determine_jobs,
+            "filter_component_and_test_files",
+            side_effect=lambda f: f.startswith("tests/components/"),
+        ),
+        patch.object(
+            determine_jobs,
+            "get_components_with_dependencies",
+            side_effect=lambda files, deps: ["foo", "bar"],
+        ),
+        patch.object(determine_jobs, "_component_has_tests", return_value=True),
+        patch.object(
+            determine_jobs,
+            "detect_memory_impact_config",
+            return_value={"should_run": "false"},
+        ),
+        patch.object(
+            determine_jobs,
+            "create_intelligent_batches",
+            return_value=([["foo", "bar"]], {}),
+        ),
+    ):
+        determine_jobs.main()
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["validate_only_components"] == ["foo"]
+
+
+def test_main_validate_only_excludes_transitive_components(
+    mock_determine_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_should_run_import_time: Mock,
+    mock_should_run_device_builder: Mock,
+    mock_changed_files: Mock,
+    mock_determine_cpp_unit_tests: Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A component pulled in only as a dependency must NOT be considered
+    validate-only, even if it has no source changes -- its dependency moved,
+    so the compile is still required.
+    """
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+    mock_determine_integration_tests.return_value = (False, [])
+    mock_should_run_clang_tidy.return_value = False
+    mock_should_run_clang_format.return_value = False
+    mock_should_run_python_linters.return_value = False
+    mock_should_run_import_time.return_value = False
+    mock_should_run_device_builder.return_value = False
+    mock_determine_cpp_unit_tests.return_value = (False, [])
+
+    # Only foo's validate file changed directly. bar is a transitive dep.
+    mock_changed_files.return_value = [
+        "tests/components/foo/validate.esp32-idf.yaml",
+    ]
+
+    with (
+        patch("sys.argv", ["determine-jobs.py"]),
+        patch.object(determine_jobs, "_is_clang_tidy_full_scan", return_value=False),
+        patch.object(
+            determine_jobs,
+            "get_changed_components",
+            return_value=["foo", "bar"],  # bar pulled in via dependencies
+        ),
+        patch.object(
+            determine_jobs,
+            "filter_component_and_test_files",
+            side_effect=lambda f: f.startswith("tests/components/"),
+        ),
+        patch.object(
+            determine_jobs,
+            "get_components_with_dependencies",
+            # deps=False -> directly_changed = [foo]; deps=True -> [foo, bar]
+            side_effect=lambda files, deps: ["foo", "bar"] if deps else ["foo"],
+        ),
+        patch.object(determine_jobs, "_component_has_tests", return_value=True),
+        patch.object(
+            determine_jobs,
+            "detect_memory_impact_config",
+            return_value={"should_run": "false"},
+        ),
+        patch.object(
+            determine_jobs,
+            "create_intelligent_batches",
+            return_value=([["foo", "bar"]], {}),
+        ),
+    ):
+        determine_jobs.main()
+
+    output = json.loads(capsys.readouterr().out)
+    # Only foo (directly changed, validate-only). bar is a transitive dep
+    # and still needs compile despite no source change of its own.
+    assert output["validate_only_components"] == ["foo"]
+
+
+def test_main_force_all_overrides_detection(
+    mock_determine_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_should_run_import_time: Mock,
+    mock_should_run_device_builder: Mock,
+    mock_native_idf_components_to_test: Mock,
+    mock_determine_cpp_unit_tests: Mock,
+    mock_changed_files: Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """--force-all bypasses per-feature detection and runs every job.
+
+    Detection mocks all return False/empty (which would normally skip
+    everything) -- the flag must override them. Also verifies clang-tidy
+    goes to ``split`` (full scan) and the component-test matrix is
+    populated from disk rather than from changed-files.
+    """
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+    mock_determine_integration_tests.return_value = (False, [])
+    mock_should_run_clang_tidy.return_value = False
+    mock_should_run_clang_format.return_value = False
+    mock_should_run_python_linters.return_value = False
+    mock_should_run_import_time.return_value = False
+    mock_should_run_device_builder.return_value = False
+    mock_native_idf_components_to_test.return_value = []
+    mock_determine_cpp_unit_tests.return_value = (False, [])
+    mock_changed_files.return_value = []
+
+    with (
+        patch("sys.argv", ["determine-jobs.py", "--force-all"]),
+        patch.object(determine_jobs, "get_changed_components", return_value=[]),
+        patch.object(
+            determine_jobs, "filter_component_and_test_files", return_value=False
+        ),
+        patch.object(
+            determine_jobs, "get_components_with_dependencies", return_value=[]
+        ),
+        patch.object(
+            determine_jobs,
+            "detect_memory_impact_config",
+            return_value={"should_run": "false"},
+        ),
+        patch.object(determine_jobs, "should_run_benchmarks", return_value=False),
+        # create_intelligent_batches scans every tests/components/<name>/*.yaml
+        # under --force-all (~2500 YAML loads, ~10s in CI). This test only
+        # asserts that main() routes to it and returns non-empty -- the
+        # batching logic itself has its own dedicated tests.
+        patch.object(
+            determine_jobs,
+            "create_intelligent_batches",
+            return_value=([["fake_batch"]], None),
+        ),
+    ):
+        determine_jobs.main()
+
+    output = json.loads(capsys.readouterr().out)
+
+    assert output["integration_tests"] is True
+    assert output["clang_tidy"] is True
+    assert output["clang_tidy_mode"] == "split"
+    assert output["clang_tidy_full_scan"] is True
+    assert output["clang_format"] is True
+    assert output["python_linters"] is True
+    assert output["import_time"] is True
+    assert output["device_builder"] is True
+    assert output["native_idf"] is True
+    # native_idf_components is a CSV of NATIVE_IDF_TEST_COMPONENTS
+    assert "esp32" in output["native_idf_components"].split(",")
+    assert output["cpp_unit_tests_run_all"] is True
+    assert output["cpp_unit_tests_components"] == []
+    assert output["benchmarks"] is True
+    # Detection helpers must not be consulted when --force-all is set
+    mock_determine_integration_tests.assert_not_called()
+    mock_should_run_clang_tidy.assert_not_called()
+    mock_should_run_clang_format.assert_not_called()
+    mock_should_run_python_linters.assert_not_called()
+    mock_should_run_import_time.assert_not_called()
+    mock_should_run_device_builder.assert_not_called()
+    mock_native_idf_components_to_test.assert_not_called()
+    mock_determine_cpp_unit_tests.assert_not_called()
+    # Component matrix is populated from disk (tests/components/ in the repo)
+    assert output["component_test_count"] > 0
+    assert len(output["component_test_batches"]) > 0
+
+
+def test_main_force_all_off_uses_detection(
+    mock_determine_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_should_run_import_time: Mock,
+    mock_should_run_device_builder: Mock,
+    mock_native_idf_components_to_test: Mock,
+    mock_determine_cpp_unit_tests: Mock,
+    mock_changed_files: Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without --force-all, detection helpers drive the decision (regression guard)."""
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+    mock_determine_integration_tests.return_value = (False, [])
+    mock_should_run_clang_tidy.return_value = False
+    mock_should_run_clang_format.return_value = False
+    mock_should_run_python_linters.return_value = False
+    mock_should_run_import_time.return_value = False
+    mock_should_run_device_builder.return_value = False
+    mock_native_idf_components_to_test.return_value = []
+    mock_determine_cpp_unit_tests.return_value = (False, [])
+    mock_changed_files.return_value = []
+
+    with (
+        patch("sys.argv", ["determine-jobs.py"]),
+        patch.object(determine_jobs, "get_changed_components", return_value=[]),
+        patch.object(
+            determine_jobs, "filter_component_and_test_files", return_value=False
+        ),
+        patch.object(
+            determine_jobs, "get_components_with_dependencies", return_value=[]
+        ),
+        patch.object(
+            determine_jobs,
+            "detect_memory_impact_config",
+            return_value={"should_run": "false"},
+        ),
+        patch.object(
+            determine_jobs, "create_intelligent_batches", return_value=([], {})
+        ),
+        patch.object(determine_jobs, "should_run_benchmarks", return_value=False),
+    ):
+        determine_jobs.main()
+
+    output = json.loads(capsys.readouterr().out)
+
+    assert output["integration_tests"] is False
+    assert output["clang_tidy"] is False
+    assert output["clang_format"] is False
+    assert output["python_linters"] is False
+    assert output["native_idf"] is False
+    assert output["component_test_count"] == 0
+    mock_determine_integration_tests.assert_called_once()
+    mock_should_run_clang_tidy.assert_called_once()

@@ -506,6 +506,15 @@ async def climate_control_to_code(config, action_id, template_arg, args):
         (CONF_SWING_MODE, "set_swing_mode", ClimateSwingMode),
     )
 
+    # Normalize trigger args to `const std::remove_cvref_t<T> &` so the
+    # apply lambda and any inner field lambdas (generated below via
+    # `process_lambda`) share one parameter spelling that's well-formed for
+    # any T (value, ref, or const-ref). Matches ControlAction::ApplyFn.
+    normalized_args = [
+        (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), n)
+        for t, n in args
+    ]
+
     fwd_args = ", ".join(name for _, name in args)
     body_lines: list[str] = []
 
@@ -513,7 +522,7 @@ async def climate_control_to_code(config, action_id, template_arg, args):
         if (value := config.get(conf_key)) is None:
             continue
         if isinstance(value, Lambda):
-            inner = await cg.process_lambda(value, args, return_type=type_)
+            inner = await cg.process_lambda(value, normalized_args, return_type=type_)
             body_lines.append(f"call.{setter}(({inner})({fwd_args}));")
         elif type_ is cg.std_string:
             # Static custom strings: emit a flash literal and pass the
@@ -526,10 +535,9 @@ async def climate_control_to_code(config, action_id, template_arg, args):
         else:
             body_lines.append(f"call.{setter}({cg.safe_exp(value)});")
 
-    # Match ControlAction::ApplyFn signature: const Ts &... for trigger args.
     apply_args = [
         (ClimateCall.operator("ref"), "call"),
-        *((t.operator("const").operator("ref"), n) for t, n in args),
+        *normalized_args,
     ]
     apply_lambda = LambdaExpression(
         ["\n".join(body_lines)],

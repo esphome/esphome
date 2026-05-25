@@ -3,8 +3,7 @@
 #include "../vbus.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-namespace esphome {
-namespace vbus {
+namespace esphome::vbus {
 
 class DeltaSolBSPlusBSensor : public VBusListener, public Component {
  public:
@@ -166,5 +165,4 @@ class VBusCustomSubBSensor : public binary_sensor::BinarySensor, public Componen
   message_parser_t message_parser_;
 };
 
-}  // namespace vbus
-}  // namespace esphome
+}  // namespace esphome::vbus

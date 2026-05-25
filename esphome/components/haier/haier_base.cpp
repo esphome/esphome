@@ -10,8 +10,7 @@
 using namespace esphome::climate;
 using namespace esphome::uart;
 
-namespace esphome {
-namespace haier {
+namespace esphome::haier {
 
 static const char *const TAG = "haier.climate";
 constexpr size_t COMMUNICATION_TIMEOUT_MS = 60000;
@@ -418,5 +417,4 @@ void HaierClimateBase::send_message_(const haier_protocol::HaierMessage &command
   this->last_request_timestamp_ = std::chrono::steady_clock::now();
 }
 
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier

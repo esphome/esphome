@@ -4,8 +4,7 @@
 #include "esphome/components/safe_mode/safe_mode.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace safe_mode {
+namespace esphome::safe_mode {
 
 class SafeModeButton final : public button::Button, public Component {
  public:
@@ -17,5 +16,4 @@ class SafeModeButton final : public button::Button, public Component {
   void press_action() override;
 };
 
-}  // namespace safe_mode
-}  // namespace esphome
+}  // namespace esphome::safe_mode

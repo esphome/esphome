@@ -89,6 +89,17 @@ def import_config(
     network: str = CONF_WIFI,
     encryption: bool = False,
 ) -> None:
+    """Materialise a dashboard-imported device's YAML on disk.
+
+    Used by:
+    - esphome.dashboard (legacy dashboard)
+    - device-builder (esphome/device-builder) — called from the
+      ``devices/import`` WS handler to seed the YAML for an adopted
+      factory firmware. Coordinate before changing the kwargs or the
+      generated YAML's top-level keys; both consumers depend on the
+      output shape (``esphome.name`` / ``packages:`` import url) to
+      route subsequent compile + flash operations.
+    """
     p = Path(path)
 
     if p.exists():

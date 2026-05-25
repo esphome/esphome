@@ -26,6 +26,21 @@ void TinyUSB::setup() {
       .string_count = SIZE,
   };
 
+  // Defense-in-depth: esp_tinyusb's tinyusb_descriptors_set() fails with
+  // ESP_ERR_INVALID_ARG when no configuration descriptor is provided and
+  // no class that has a built-in default (CDC/MSC/NCM) is compiled in. In
+  // that case the internal task exits without notifying us, and
+  // tinyusb_driver_install() blocks 5s on the notify-take -- long enough
+  // to trip the task watchdog. Bail early so the rest of the device can
+  // still boot.
+#if !(CFG_TUD_CDC > 0 || CFG_TUD_MSC > 0 || CFG_TUD_NCM > 0)
+  if (this->tusb_cfg_.descriptor.full_speed_config == nullptr) {
+    ESP_LOGE(TAG, "No USB class configured");
+    this->mark_failed();
+    return;
+  }
+#endif
+
   esp_err_t result = tinyusb_driver_install(&this->tusb_cfg_);
   if (result != ESP_OK) {
     ESP_LOGE(TAG, "tinyusb_driver_install failed: %s", esp_err_to_name(result));
