@@ -207,8 +207,14 @@ async def to_code(config):
 
     if CORE.is_nrf52:
         enable_ipv6 = config.get(CONF_ENABLE_IPV6, True)
+        if not enable_ipv6:
+            _LOGGER.warning(
+                "IPv6 cannot be disabled on nRF52 because the Zephyr IPAddress implementation is IPv6-only. "
+                "Forcing CONFIG_NET_IPV6=y."
+            )
+            config[CONF_ENABLE_IPV6] = True
         zephyr_add_prj_conf("NETWORKING", True)
-        zephyr_add_prj_conf("NET_IPV6", enable_ipv6)
+        zephyr_add_prj_conf("NET_IPV6", True)
         zephyr_add_prj_conf("NET_TCP", True)
         zephyr_add_prj_conf("NET_UDP", True)
 

@@ -71,11 +71,14 @@ struct IPAddress {
   bool is_ip4() const { return false; }
   bool is_ip6() const { return this->is_set(); }
   bool is_multicast() const { return net_ipv6_is_addr_mcast(&ip_addr_); }
+  // Remove before 2026.8.0
+  ESPDEPRECATED(
+      "str() is deprecated: use 'char buf[IP_ADDRESS_BUFFER_SIZE]; ip.str_to(buf);' instead. Removed in 2026.8.0",
+      "2026.2.0")
   std::string str() const {
-    char buffer[INET6_ADDRSTRLEN];
-    if (inet_ntop(AF_INET6, &ip_addr_, buffer, sizeof(buffer)) == nullptr)
-      return {};
-    return std::string(buffer);
+    char buf[IP_ADDRESS_BUFFER_SIZE];
+    this->str_to(buf);
+    return buf;
   }
   char *str_to(char *buf) const {
     if (inet_ntop(AF_INET6, &ip_addr_, buf, IP_ADDRESS_BUFFER_SIZE) == nullptr)
