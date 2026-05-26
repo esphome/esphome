@@ -116,7 +116,7 @@ wifi:
   - `WPA2` - Allows WPA2 and WPA3 networks (recommended, uses AES encryption)
   - `WPA3` - Only allows WPA3 networks (most secure, ESP32 only)
 
-  Defaults to `WPA2` on ESP32 and `WPA` on ESP8266 (will change to `WPA2` in 2026.6.0).
+  Defaults to `WPA2` on ESP32 and ESP8266.
 
   **Security Warning:** Setting `min_auth_mode: WPA` allows connection to networks using deprecated WPA/TKIP encryption,
   which has known security vulnerabilities. Only use this setting for legacy routers that cannot be upgraded to WPA2 or WPA3.
