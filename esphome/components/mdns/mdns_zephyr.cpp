@@ -2,10 +2,15 @@
 #if defined(USE_ZEPHYR) && defined(USE_MDNS)
 
 #include "mdns_component.h"
+#include "esphome/core/log.h"
 
 namespace esphome::mdns {
 
-void MDNSComponent::setup() {}
+static const char *const TAG = "mdns.zephyr";
+
+void MDNSComponent::setup() {
+  ESP_LOGW(TAG, "mDNS is not implemented for Zephyr; the component will remain inactive");
+}
 
 void MDNSComponent::on_shutdown() {}
 
