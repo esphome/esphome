@@ -1,3 +1,5 @@
+import logging
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import light
@@ -33,6 +35,8 @@ from ._methods import (
     METHODS,
 )
 from .const import CHIP_TYPES, CONF_ASYNC, CONF_BUS, ONE_WIRE_CHIPS
+
+_LOGGER = logging.getLogger(__name__)
 
 neopixelbus_ns = cg.esphome_ns.namespace("neopixelbus")
 NeoPixelBusLightOutputBase = neopixelbus_ns.class_(
@@ -241,6 +245,12 @@ async def to_code(config):
     # https://github.com/Makuna/NeoPixelBus/blob/master/library.json
     # Version Listed Here: https://registry.platformio.org/libraries/makuna/NeoPixelBus/versions
     if CORE.is_esp32:
+        _LOGGER.warning(
+            "'neopixelbus' on ESP32 is deprecated. The upstream library "
+            "(makuna/NeoPixelBus) is no longer actively maintained. Migrate "
+            "to 'esp32_rmt_led_strip'. Removal is targeted for 2027.1 but "
+            "may happen sooner once ESPHome moves to ESP-IDF 6."
+        )
         # disable built in rgb support as it uses the new RMT drivers and will
         # conflict with NeoPixelBus which uses the legacy drivers
         cg.add_build_flag("-DESP32_ARDUINO_NO_RGB_BUILTIN")
