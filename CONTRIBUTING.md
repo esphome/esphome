@@ -338,6 +338,27 @@ import Figure from '@components/Figure.astro';
 
 - `caption`: For captions with markdown/links (use `<Fragment slot="caption">` with markdown content)
 
+### Reusable Components for Repeated Patterns
+
+If your content needs the same HTML or CSS structure repeated many times — for example, every row in a table calling
+the same widget — that pattern is a candidate for a reusable Astro component under `src/components/`.
+`LightEffectPreview` is an example: it renders a small animated preview that the light effects table calls once per
+row.
+
+When you're not sure whether a new component is the right call, flag it in your PR description and let maintainers
+decide. Avoid duplicating large blocks of inline `<style>` or HTML directly in MDX content.
+
+### Prefer Markdown over Raw HTML
+
+When Markdown syntax produces the same rendered result, use it instead of raw HTML:
+
+- Markdown tables (`| col1 | col2 |`) over `<table>` blocks
+- Markdown links (`[text](url)`) over `<a href>`
+- Markdown emphasis (`*italic*`, `**bold**`) over `<i>`, `<b>`, `<em>`, `<strong>`
+
+Raw HTML and JSX should appear only when Markdown cannot express what you need: invoking custom components like
+`LightEffectPreview` or `Figure`, complex layouts, or specific accessibility attributes.
+
 ## Git Workflow
 
 ### Branch Strategy
@@ -345,6 +366,8 @@ import Figure from '@components/Figure.astro';
 - **Bug fixes and documentation corrections**: Target the `current` branch
 - **New features and new component docs**: Target the `next` branch
 - **Create separate branches** for each pull request (one PR per feature/fix)
+- **Prefer small, focused pull requests**: If a change spans multiple unrelated topics or files, split into
+  separate PRs for easier review
 - **Always branch from the target branch**: Use `git checkout -b <branch-name> current` or `git checkout -b <branch-name> next` to ensure you're branching from the correct base
 
 ### Commit Messages
@@ -394,6 +417,10 @@ npm run build
 - [ ] Verify no H1 headings in content (title comes from frontmatter)
 - [ ] Verify images are imported correctly (single-use) or in /public/images/ (multi-use)
 - [ ] Check that ImgTable images are in /public/images/
+- [ ] Section headings use Title Case (e.g., "Configuration Variables")
+- [ ] Variable names, parameter names, and short code snippets are wrapped in single backticks
+- [ ] Markdown syntax used when it produces the same result as raw HTML
+- [ ] No large inline `<style>` blocks in MDX (raise with maintainers if you think one is needed)
 
 ## Common Patterns
 
