@@ -2,6 +2,9 @@
 #include "core_types.h"
 #include "core_frame.h"
 
+namespace esphome {
+namespace sharp_ac {
+
 class SharpState
 {
 public:
@@ -14,14 +17,18 @@ public:
     bool ion;
     Preset preset;
 
-    SharpCommandFrame toFrame()
+    SharpCommandFrame to_frame()
     {
         SharpCommandFrame frame;
-        frame.setData(this);
+        frame.set_data(this);
         return frame;
     }
 
-    SharpState() : state(false), mode(PowerMode::fan), fan(FanMode::low), swingH(SwingHorizontal::middle), swingV(SwingVertical::mid), temperature(25), ion(false), preset(Preset::NONE) {}
+    SharpState()
+        : state(false), mode(PowerMode::FAN), fan(FanMode::FAN_LOW), swingH(SwingHorizontal::MIDDLE),
+          swingV(SwingVertical::MID), temperature(25), ion(false), preset(Preset::NONE)
+    {
+    }
 
     SharpState(const SharpState &other)
     {
@@ -35,3 +42,6 @@ public:
         preset = other.preset;
     }
 };
+
+}  // namespace sharp_ac
+}  // namespace esphome

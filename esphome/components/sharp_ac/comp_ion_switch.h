@@ -1,22 +1,13 @@
 #pragma once
 
-#include "esphome/components/switch/switch.h"
 #include "comp_climate.h"
+#include "esphome/components/switch/switch.h"
 
-namespace esphome
-{
-   namespace sharp_ac
-   {
+namespace esphome::sharp_ac {
 
-      class IonSwitch : public switch_::Switch, public Parented<SharpAc>
-      {
+class IonSwitch : public switch_::Switch, public Parented<SharpAc> {
+ protected:
+  void write_state(bool state) override { this->parent_->set_ion(state); }
+};
 
-      protected:
-         void write_state(bool state) override
-         {
-            parent_->setIon(state);
-         };
-      };
-
-   }
-}
+}  // namespace esphome::sharp_ac

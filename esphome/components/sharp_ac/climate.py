@@ -98,31 +98,31 @@ async def to_code(config):
             horizontal_conf, options=HORIZONTAL_SWING_OPTIONS
         )
         await cg.register_parented(swing_select, var)
-        cg.add(var.setVaneHorizontalSelect(swing_select))
+        cg.add(var.set_vane_horizontal_select(swing_select))
 
     if vertical_conf := vane_config.get(CONF_VERTICAL):
         swing_select = await select.new_select(
             vertical_conf, options=VERTICAL_SWING_OPTIONS
         )
         await cg.register_parented(swing_select, var)
-        cg.add(var.setVaneVerticalSelect(swing_select))
+        cg.add(var.set_vane_vertical_select(swing_select))
 
     if CONF_ION_SWITCH in config:
         conf = config[CONF_ION_SWITCH]
         swt = await switch.new_switch(conf)
         await cg.register_parented(swt, var)
-        cg.add(var.setIonSwitch(swt))
+        cg.add(var.set_ion_switch(swt))
 
     if CONF_CONNECTION_STATUS in config:
         conf = config[CONF_CONNECTION_STATUS]
         sens = await text_sensor.new_text_sensor(conf)
-        cg.add(var.setConnectionStatusSensor(sens))
+        cg.add(var.set_connection_status_sensor(sens))
 
     if CONF_RECONNECT_BUTTON in config:
         conf = config[CONF_RECONNECT_BUTTON]
         btn = await button.new_button(conf)
         await cg.register_parented(btn, var)
-        cg.add(var.setReconnectButton(btn))
+        cg.add(var.set_reconnect_button(btn))
 
     await uart.register_uart_device(var, config)
     await climate.register_climate(var, config)
