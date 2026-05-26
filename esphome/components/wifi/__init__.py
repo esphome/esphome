@@ -326,23 +326,9 @@ def validate_variant(_):
 
 
 def _apply_min_auth_mode_default(config):
-    """Apply platform-specific default for min_auth_mode and warn ESP8266 users."""
-    # Only apply defaults for platforms that support min_auth_mode
+    """Apply platform-specific default for min_auth_mode."""
     if CONF_MIN_AUTH_MODE not in config and (CORE.is_esp8266 or CORE.is_esp32):
-        if CORE.is_esp8266:
-            _LOGGER.warning(
-                "The minimum WiFi authentication mode (wifi -> min_auth_mode) is not set. "
-                "This controls the weakest encryption your device will accept when connecting to WiFi. "
-                "Currently defaults to WPA (less secure), but will change to WPA2 (more secure) in 2026.6.0. "
-                "WPA uses TKIP encryption which has known security vulnerabilities and should be avoided. "
-                "WPA2 uses AES encryption which is significantly more secure. "
-                "To silence this warning, explicitly set min_auth_mode under 'wifi:'. "
-                "If your router supports WPA2 or WPA3, set 'min_auth_mode: WPA2'. "
-                "If your router only supports WPA, set 'min_auth_mode: WPA'."
-            )
-            config[CONF_MIN_AUTH_MODE] = VALIDATE_WIFI_MIN_AUTH_MODE("WPA")
-        elif CORE.is_esp32:
-            config[CONF_MIN_AUTH_MODE] = VALIDATE_WIFI_MIN_AUTH_MODE("WPA2")
+        config[CONF_MIN_AUTH_MODE] = VALIDATE_WIFI_MIN_AUTH_MODE("WPA2")
     return config
 
 
