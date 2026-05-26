@@ -860,11 +860,6 @@ class EsphomeCore:
         return self.target_framework == "arduino"
 
     @property
-    def using_esp_idf(self):
-        # Legacy alias; prefer is_esp32.
-        return self.is_esp32
-
-    @property
     def using_toolchain_esp_idf(self):
         return self.toolchain == Toolchain.ESP_IDF
 
