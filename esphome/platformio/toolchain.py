@@ -198,13 +198,10 @@ def _platformio_libdeps_fingerprint_values() -> list[str]:
     generated_lib_deps = [x.as_lib_dep for x in CORE.platformio_libraries.values()] + [
         "${common.lib_deps}"
     ]
-    configured_lib_deps = CORE.platformio_options.get("lib_deps")
-    if isinstance(configured_lib_deps, list):
-        lib_deps = _normalize_platformio_values(
-            configured_lib_deps + generated_lib_deps
-        )
-    else:
-        lib_deps = _normalize_platformio_values(generated_lib_deps)
+    configured_lib_deps = _normalize_platformio_values(
+        CORE.platformio_options.get("lib_deps")
+    )
+    lib_deps = _normalize_platformio_values(configured_lib_deps + generated_lib_deps)
 
     project_dir = Path(CORE.build_path)
     values = []

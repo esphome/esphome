@@ -901,6 +901,30 @@ def test_platformio_env_name_includes_configured_and_generated_libdeps(
     assert toolchain.platformio_env_name() == f"esp32-arduino-{fingerprint}"
 
 
+def test_platformio_env_name_includes_scalar_configured_libdeps(
+    setup_core: Path,
+) -> None:
+    """Scalar user lib_deps values must isolate generated envs too."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    CORE.build_path = setup_core / "build" / "test"
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    CORE.add_platformio_option("lib_deps", "OneOff/ScalarLib @ 4.2.0")
+    CORE.add_library(Library("GeneratedAsync", "2.0.0"))
+
+    fingerprint = _expected_env_fingerprint(
+        [
+            "GeneratedAsync@2.0.0",
+            "OneOff/ScalarLib @ 4.2.0",
+        ]
+    )
+
+    assert toolchain.platformio_env_name() == f"esp32-arduino-{fingerprint}"
+
+
 def test_run_platformio_cli_updates_managed_libdeps_between_targets(
     setup_core: Path, mock_run_external_process: Mock
 ) -> None:
