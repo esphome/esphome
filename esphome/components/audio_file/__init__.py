@@ -72,7 +72,7 @@ def _file_schema(value: ConfigType | str) -> ConfigType:
 
 def _validate_file_shorthand(value: str) -> ConfigType:
     value = cv.string_strict(value)
-    if value.startswith("http://") or value.startswith("https://"):
+    if value.startswith(("http://", "https://")):
         return _file_schema(
             {
                 CONF_TYPE: TYPE_WEB,

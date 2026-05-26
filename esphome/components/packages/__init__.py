@@ -112,7 +112,7 @@ def expand_file_to_files(config: dict):
 def validate_yaml_filename(value):
     value = cv.string(value)
 
-    if not (value.endswith(".yaml") or value.endswith(".yml")):
+    if not value.endswith((".yaml", ".yml")):
         raise cv.Invalid("Only YAML (.yaml / .yml) files are supported.")
 
     return value
