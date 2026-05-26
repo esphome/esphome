@@ -151,12 +151,4 @@ void ValveRestoreState::apply(Valve *valve) {
   valve->publish_state();
 }
 
-optional<float> Valve::do_restore_state() {
-  auto restore = this->restore_state_();
-  if (!restore.has_value())
-    return {};
-  restore->apply(this);
-  return restore->position;
-}
-
 }  // namespace esphome::valve
