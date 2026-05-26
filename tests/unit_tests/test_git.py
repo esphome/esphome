@@ -1209,3 +1209,24 @@ def test_resolve_symlink_stub_returns_none_for_directory_target(
         result = git.resolve_symlink_stub(repo_dir, stub)
 
     assert result is None
+
+
+def test_resolve_symlink_stub_returns_none_when_resolve_raises(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Path.resolve() raising (e.g. on a malformed target) must not propagate."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+
+    stub = repo_dir / "broken.yaml"
+    stub.write_text("ignored")
+
+    mock_run_git_command.return_value = "120000 abc123 0\tbroken.yaml"
+
+    with (
+        patch("esphome.git.sys.platform", "win32"),
+        patch.object(Path, "resolve", side_effect=OSError("bad path")),
+    ):
+        result = git.resolve_symlink_stub(repo_dir, stub)
+
+    assert result is None

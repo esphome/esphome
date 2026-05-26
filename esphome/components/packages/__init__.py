@@ -215,7 +215,7 @@ def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
     If loading fails after cloning, attempts a revert and retry in case
     a prior cached checkout is stale.
     """
-    repo_dir, revert = git.clone_or_update(
+    repo_root, revert = git.clone_or_update(
         url=config[CONF_URL],
         ref=config.get(CONF_REF),
         refresh=config[CONF_REFRESH],
@@ -225,6 +225,10 @@ def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
     )
     files: list[dict[str, Any]] = []
 
+    # ``repo_root`` is the directory containing ``.git`` and must be passed
+    # to git for symlink-stub resolution. ``repo_dir`` may be narrowed to a
+    # subdirectory via the user's CONF_PATH and is used for file lookups.
+    repo_dir = repo_root
     if base_path := config.get(CONF_PATH):
         repo_dir = repo_dir / base_path
 
@@ -254,7 +258,7 @@ def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
             # as plain text files containing the symlink target path, so
             # parsing them as YAML yields a bare scalar instead of a mapping.
             # Best-effort: follow the symlink target ourselves and re-load.
-            target = git.resolve_symlink_stub(repo_dir, yaml_file)
+            target = git.resolve_symlink_stub(repo_root, yaml_file)
             if target is not None:
                 new_yaml = _load(target)
         if not isinstance(new_yaml, dict):

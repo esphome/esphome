@@ -154,11 +154,19 @@ def resolve_symlink_stub(repo_dir: Path, file_path: Path) -> Path | None:
     except UnicodeDecodeError:
         return None
 
-    target_path = (file_path.parent / target_str).resolve()
-
-    # Defensive: ``Path.resolve()`` follows ``..``; re-verify containment.
+    # ``Path()`` and ``Path.resolve()`` can raise on malformed inputs (e.g.
+    # embedded NUL bytes from a hostile symlink blob, paths too long for the
+    # OS, or temporary I/O errors). Catch broadly — this helper is purely a
+    # best-effort recovery and must never raise.
     try:
-        target_path.relative_to(repo_dir.resolve())
+        target_path = (file_path.parent / target_str).resolve()
+        repo_root_resolved = repo_dir.resolve()
+    except (OSError, ValueError, RuntimeError):
+        return None
+
+    # ``Path.resolve()`` follows ``..``; re-verify containment afterwards.
+    try:
+        target_path.relative_to(repo_root_resolved)
     except ValueError:
         _LOGGER.warning(
             "Refusing to follow symlink %s -> %s (escapes repository)",
