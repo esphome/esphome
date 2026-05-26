@@ -236,19 +236,28 @@ def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
 
     def _load_package_yaml(yaml_file: Path, filename: str) -> dict:
         """Load a YAML file from a remote package, validating min_version."""
-        try:
-            new_yaml = yaml_util.load_yaml(yaml_file)
-        except EsphomeError as e:
-            raise cv.Invalid(
-                f"{filename} is not a valid YAML file."
-                f" Please check the file contents.\n{e}"
-            ) from e
+
+        def _load(path: Path) -> dict | str | None:
+            try:
+                return yaml_util.load_yaml(path)
+            except EsphomeError as e:
+                raise cv.Invalid(
+                    f"{filename} is not a valid YAML file."
+                    f" Please check the file contents.\n{e}"
+                ) from e
+
+        new_yaml = _load(yaml_file)
         if not isinstance(new_yaml, dict):
             # On Windows, git defaults to core.symlinks=false unless the user
             # has Developer Mode enabled or is running elevated. Files stored
             # in the repo as symlinks (tree mode 120000) are then checked out
             # as plain text files containing the symlink target path, so
             # parsing them as YAML yields a bare scalar instead of a mapping.
+            # Best-effort: follow the symlink target ourselves and re-load.
+            target = git.resolve_symlink_stub(repo_dir, yaml_file)
+            if target is not None:
+                new_yaml = _load(target)
+        if not isinstance(new_yaml, dict):
             raise cv.Invalid(
                 f"{filename} does not contain a YAML mapping at the top level "
                 f"(got {type(new_yaml).__name__}). "

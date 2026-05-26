@@ -1003,23 +1003,26 @@ def test_refresh_picks_up_new_remote_commits(
     ]
 
 
-def test_materialize_symlinks_noop_on_non_windows(
+def test_resolve_symlink_stub_returns_none_on_non_windows(
     tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
-    """On non-Windows platforms, _materialize_symlinks returns without calling git."""
+    """On non-Windows, resolve_symlink_stub returns None without calling git."""
     repo_dir = tmp_path / "repo"
     repo_dir.mkdir()
+    stub = repo_dir / "file.yaml"
+    stub.write_text("static/file.yaml")
 
     with patch("esphome.git.sys.platform", "linux"):
-        git._materialize_symlinks(repo_dir)
+        result = git.resolve_symlink_stub(repo_dir, stub)
 
+    assert result is None
     mock_run_git_command.assert_not_called()
 
 
-def test_materialize_symlinks_replaces_symlink_stub_with_target_content(
+def test_resolve_symlink_stub_returns_target_for_mode_120000(
     tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
-    """A mode-120000 stub on Windows is replaced with the target file's bytes."""
+    """A mode-120000 file is recognised as a stub; its target Path is returned."""
     repo_dir = tmp_path / "repo"
     repo_dir.mkdir()
     (repo_dir / "static").mkdir()
@@ -1030,19 +1033,17 @@ def test_materialize_symlinks_replaces_symlink_stub_with_target_content(
     stub = repo_dir / "real.yaml"
     stub.write_text("static/real.yaml")
 
-    mock_run_git_command.return_value = (
-        "100644 abc123 0\tstatic/real.yaml\n120000 def456 0\treal.yaml\n"
-    )
+    mock_run_git_command.return_value = "120000 abc123 0\treal.yaml"
 
     with patch("esphome.git.sys.platform", "win32"):
-        git._materialize_symlinks(repo_dir)
+        result = git.resolve_symlink_stub(repo_dir, stub)
 
-    assert stub.read_text() == "esphome:\n  name: real\n"
-    # Target is untouched.
-    assert target.read_text() == "esphome:\n  name: real\n"
+    assert result == target.resolve()
+    # Stub file itself was not modified — only inspected.
+    assert stub.read_text() == "static/real.yaml"
 
 
-def test_materialize_symlinks_resolves_relative_parent_paths(
+def test_resolve_symlink_stub_resolves_relative_parent_paths(
     tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
     """Symlink targets with ``..`` segments resolve correctly within the repo."""
@@ -1056,15 +1057,15 @@ def test_materialize_symlinks_resolves_relative_parent_paths(
     stub = repo_dir / "subdir" / "shared.yaml"
     stub.write_text("../static/shared.yaml")
 
-    mock_run_git_command.return_value = "120000 abc123 0\tsubdir/shared.yaml\n"
+    mock_run_git_command.return_value = "120000 abc123 0\tsubdir/shared.yaml"
 
     with patch("esphome.git.sys.platform", "win32"):
-        git._materialize_symlinks(repo_dir)
+        result = git.resolve_symlink_stub(repo_dir, stub)
 
-    assert stub.read_text() == "shared content"
+    assert result == target.resolve()
 
 
-def test_materialize_symlinks_refuses_escape_outside_repo(
+def test_resolve_symlink_stub_refuses_escape_outside_repo(
     tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
     """A symlink pointing outside the repository is not followed."""
@@ -1077,23 +1078,21 @@ def test_materialize_symlinks_refuses_escape_outside_repo(
     stub = repo_dir / "escape.yaml"
     stub.write_text("../outside.yaml")
 
-    mock_run_git_command.return_value = "120000 abc123 0\tescape.yaml\n"
+    mock_run_git_command.return_value = "120000 abc123 0\tescape.yaml"
 
     with patch("esphome.git.sys.platform", "win32"):
-        git._materialize_symlinks(repo_dir)
+        result = git.resolve_symlink_stub(repo_dir, stub)
 
-    # Stub content unchanged — escape attempt rejected.
-    assert stub.read_text() == "../outside.yaml"
+    assert result is None
 
 
-def test_materialize_symlinks_leaves_real_symlinks_alone(
+def test_resolve_symlink_stub_returns_none_for_real_symlink(
     tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
-    """If git did create a real symlink, _materialize_symlinks does not touch it.
+    """A real symlink already opens transparently, so the helper short-circuits.
 
-    Skipped on Windows where symlink creation requires the
-    SeCreateSymbolicLinkPrivilege; the helper's behavior is identical on
-    real-symlink platforms so testing it on Linux/macOS suffices.
+    Skipped on Windows where symlink creation requires
+    SeCreateSymbolicLinkPrivilege.
     """
     if os.name == "nt":
         pytest.skip("Requires symlink-creation privilege on Windows")
@@ -1106,39 +1105,37 @@ def test_materialize_symlinks_leaves_real_symlinks_alone(
     real_link = repo_dir / "link.yaml"
     real_link.symlink_to("real.yaml")
 
-    mock_run_git_command.return_value = "120000 abc123 0\tlink.yaml\n"
-
     with patch("esphome.git.sys.platform", "win32"):
-        git._materialize_symlinks(repo_dir)
+        result = git.resolve_symlink_stub(repo_dir, real_link)
 
-    # Still a real symlink, untouched.
-    assert real_link.is_symlink()
-    assert real_link.read_text() == "real content"
+    assert result is None
+    # No git call needed for real symlinks.
+    mock_run_git_command.assert_not_called()
 
 
-def test_materialize_symlinks_skips_non_symlink_entries(
+def test_resolve_symlink_stub_returns_none_for_regular_file(
     tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
-    """Regular files (mode 100644) are not rewritten even if their content
-    happens to look like a path."""
+    """A regular file (mode 100644) whose content looks path-shaped is not
+    followed."""
     repo_dir = tmp_path / "repo"
     repo_dir.mkdir()
 
     regular = repo_dir / "looks_like_path.txt"
     regular.write_text("static/something.yaml")
 
-    mock_run_git_command.return_value = "100644 abc123 0\tlooks_like_path.txt\n"
+    mock_run_git_command.return_value = "100644 abc123 0\tlooks_like_path.txt"
 
     with patch("esphome.git.sys.platform", "win32"):
-        git._materialize_symlinks(repo_dir)
+        result = git.resolve_symlink_stub(repo_dir, regular)
 
-    assert regular.read_text() == "static/something.yaml"
+    assert result is None
 
 
-def test_materialize_symlinks_swallows_git_failure(
+def test_resolve_symlink_stub_returns_none_when_git_fails(
     tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
-    """A failure to enumerate the index leaves the working tree untouched."""
+    """If ``git ls-files`` fails (e.g. not a repo), the helper returns None."""
     repo_dir = tmp_path / "repo"
     repo_dir.mkdir()
 
@@ -1148,16 +1145,57 @@ def test_materialize_symlinks_swallows_git_failure(
     mock_run_git_command.side_effect = GitCommandError("ls-files exploded")
 
     with patch("esphome.git.sys.platform", "win32"):
-        git._materialize_symlinks(repo_dir)
+        result = git.resolve_symlink_stub(repo_dir, stub)
 
-    # Stub untouched — no rewrite attempted.
-    assert stub.read_text() == "static/real.yaml"
+    assert result is None
 
 
-def test_materialize_symlinks_skips_when_target_is_directory(
+def test_resolve_symlink_stub_returns_none_for_non_utf8_content(
     tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
-    """A symlink pointing at a directory is skipped (not rewritten)."""
+    """A file whose bytes are not valid UTF-8 must not raise — return None."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+
+    stub = repo_dir / "binary.bin"
+    stub.write_bytes(b"\xff\xfe\x00\xff")
+
+    mock_run_git_command.return_value = "120000 abc123 0\tbinary.bin"
+
+    with patch("esphome.git.sys.platform", "win32"):
+        result = git.resolve_symlink_stub(repo_dir, stub)
+
+    assert result is None
+
+
+def test_resolve_symlink_stub_preserves_whitespace_in_target(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Only trailing CR/LF is stripped — internal whitespace is preserved."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    target_dir = repo_dir / "dir with spaces"
+    target_dir.mkdir()
+    target = target_dir / "real.yaml"
+    target.write_text("hello")
+
+    stub = repo_dir / "link.yaml"
+    # Trailing newline (as git's checkout may append) is stripped, but
+    # whitespace inside the target path itself must survive.
+    stub.write_bytes(b"dir with spaces/real.yaml\n")
+
+    mock_run_git_command.return_value = "120000 abc123 0\tlink.yaml"
+
+    with patch("esphome.git.sys.platform", "win32"):
+        result = git.resolve_symlink_stub(repo_dir, stub)
+
+    assert result == target.resolve()
+
+
+def test_resolve_symlink_stub_returns_none_for_directory_target(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A symlink pointing at a directory has no file content to load."""
     repo_dir = tmp_path / "repo"
     repo_dir.mkdir()
     (repo_dir / "dir_target").mkdir()
@@ -1165,9 +1203,9 @@ def test_materialize_symlinks_skips_when_target_is_directory(
     stub = repo_dir / "link_to_dir"
     stub.write_text("dir_target")
 
-    mock_run_git_command.return_value = "120000 abc123 0\tlink_to_dir\n"
+    mock_run_git_command.return_value = "120000 abc123 0\tlink_to_dir"
 
     with patch("esphome.git.sys.platform", "win32"):
-        git._materialize_symlinks(repo_dir)
+        result = git.resolve_symlink_stub(repo_dir, stub)
 
-    assert stub.read_text() == "dir_target"
+    assert result is None

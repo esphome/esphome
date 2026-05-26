@@ -95,98 +95,82 @@ def _compute_destination_path(key: str, domain: str) -> Path:
     return base_dir / h.hexdigest()[:8]
 
 
-def _materialize_symlinks(repo_dir: Path) -> None:
-    """Resolve git-tracked symlinks that git checked out as plain files.
+def resolve_symlink_stub(repo_dir: Path, file_path: Path) -> Path | None:
+    """Return the symlink target if ``file_path`` is a Windows-checked-out symlink stub.
 
     On Windows, when ``core.symlinks=false`` (the default unless the user has
     SeCreateSymbolicLinkPrivilege — i.e. Developer Mode or running elevated),
     git materializes files with tree mode ``120000`` as plain text files
-    whose content is the literal symlink target path. That breaks anything
-    that opens the file expecting the target's content (e.g. remote package
-    YAMLs that are symlinks to their canonical location in the repo).
+    whose content is the literal symlink target path. Opening such a file
+    yields the target path string instead of the target's content.
 
-    Walks the index for mode-120000 entries and, for any whose working-tree
-    file is a plain file (not a real symlink), replaces it with the resolved
-    target's bytes. No-op on platforms where git checks out real symlinks.
+    If ``file_path`` is one of those stubs, return the resolved target Path
+    inside ``repo_dir``. Otherwise return ``None`` and the caller should use
+    ``file_path`` as-is.
+
+    Designed to be called *only* when normal access has already produced an
+    unexpected result (e.g. YAML parsed as a top-level scalar), so the
+    per-file ``git ls-files`` subprocess cost is paid only on the failure
+    path. Returns ``None`` on any error or check failure — it's purely a
+    best-effort recovery, never raises.
     """
-    # Skipping the subprocess on non-Windows is cheaper; on Unix git creates
-    # real symlinks so the is_symlink() check below would short-circuit anyway.
+    # On non-Windows, git creates real symlinks; ordinary file access already
+    # transparently follows them.
     if sys.platform != "win32":
-        return
+        return None
+    if file_path.is_symlink():
+        return None
+    if not file_path.is_file():
+        return None
 
     try:
-        # ``git ls-files -s`` prints "<mode> <sha> <stage>\t<path>" per entry.
-        out = run_git_command(["git", "ls-files", "-s"], git_dir=repo_dir)
-    except GitException:
-        # Better to leave the working tree alone than silently corrupt files.
-        _LOGGER.debug(
-            "Could not list git index for %s; skipping symlink fixup", repo_dir
+        rel = file_path.relative_to(repo_dir)
+    except ValueError:
+        return None
+
+    try:
+        # ``git ls-files -s <path>`` prints "<mode> <sha> <stage>\t<path>"
+        # for that single entry, or empty if untracked.
+        out = run_git_command(
+            ["git", "ls-files", "-s", "--", rel.as_posix()],
+            git_dir=repo_dir,
         )
-        return
+    except GitException:
+        return None
 
-    repo_root = repo_dir.resolve()
-    for line in out.splitlines():
-        try:
-            meta, path = line.split("\t", 1)
-        except ValueError:
-            continue
-        parts = meta.split()
-        if not parts or parts[0] != "120000":
-            continue
+    parts = out.split()
+    if not parts or parts[0] != "120000":
+        return None
 
-        link_path = repo_dir / path
-        # If git did create a real symlink (privilege available), leave it
-        # alone — opening the file already works.
-        if link_path.is_symlink():
-            continue
-        if not link_path.is_file():
-            continue
+    # Stubs are short ASCII relative paths. Decode defensively, and only
+    # strip the trailing newline git's checkout may append — preserving any
+    # whitespace that could be part of a valid target name.
+    try:
+        raw = file_path.read_bytes()
+    except OSError:
+        return None
+    try:
+        target_str = raw.decode("utf-8").rstrip("\r\n")
+    except UnicodeDecodeError:
+        return None
 
-        try:
-            target_str = link_path.read_text(encoding="utf-8").strip()
-        except OSError as err:
-            _LOGGER.debug("Could not read symlink stub %s: %s", link_path, err)
-            continue
+    target_path = (file_path.parent / target_str).resolve()
 
-        # Symlink targets are stored relative to the symlink's directory.
-        target_path = (link_path.parent / target_str).resolve()
+    # Defensive: ``Path.resolve()`` follows ``..``; re-verify containment.
+    try:
+        target_path.relative_to(repo_dir.resolve())
+    except ValueError:
+        _LOGGER.warning(
+            "Refusing to follow symlink %s -> %s (escapes repository)",
+            file_path,
+            target_str,
+        )
+        return None
 
-        # Defensive against malformed or hostile repos: ``Path.resolve()`` may
-        # follow ``..`` segments, so re-check containment after resolution.
-        try:
-            target_path.relative_to(repo_root)
-        except ValueError:
-            _LOGGER.warning(
-                "Refusing to resolve symlink %s -> %s (escapes repository)",
-                link_path,
-                target_str,
-            )
-            continue
+    if not target_path.is_file():
+        return None
 
-        if not target_path.is_file():
-            _LOGGER.debug(
-                "Symlink %s points at %s which is not a regular file; skipping",
-                link_path,
-                target_path,
-            )
-            continue
-
-        try:
-            data = target_path.read_bytes()
-            link_path.write_bytes(data)
-            _LOGGER.debug(
-                "Resolved symlink %s -> %s (%d bytes)",
-                link_path,
-                target_path,
-                len(data),
-            )
-        except OSError as err:
-            _LOGGER.warning(
-                "Failed to materialize symlink %s -> %s: %s",
-                link_path,
-                target_path,
-                err,
-            )
+    return target_path
 
 
 def clone_or_update(
@@ -241,8 +225,6 @@ def clone_or_update(
                     + submodules,
                     git_dir=repo_dir,
                 )
-
-            _materialize_symlinks(repo_dir)
         except GitException:
             # Remove incomplete clone to prevent stale state. Without this,
             # a failed ref fetch leaves a clone on the default branch, and
@@ -340,8 +322,6 @@ def clone_or_update(
                     + submodules,
                     git_dir=repo_dir,
                 )
-
-            _materialize_symlinks(repo_dir)
 
             def revert():
                 _LOGGER.info("Reverting changes to %s -> %s", key, old_sha)
