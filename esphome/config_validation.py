@@ -1862,7 +1862,7 @@ def extract_keys(schema):
         elif isinstance(skey, vol.Marker) and isinstance(skey.schema, str):
             keys.append(skey.schema)
         else:
-            raise ValueError()
+            raise ValueError
     keys.sort()
     return keys
 

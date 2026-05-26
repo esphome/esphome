@@ -22,6 +22,7 @@ from esphome.const import (
 )
 from esphome.core import TimePeriod
 from esphome.core.config import StartupTrigger
+from esphome.schema_extractors import EnableSchemaExtraction
 
 from . import defines as df, lv_validation as lvalid
 from .defines import (
@@ -407,7 +408,34 @@ def part_schema(parts: tuple[str, ...] | list[str]) -> cv.Schema:
     return cv.Schema(part_dict(parts))
 
 
-def automation_schema(typ: LvType):
+def _lazy_validate_automation(extra_schema: dict) -> Callable[[Any], Any]:
+    """Return a validator that defers building the validate_automation schema.
+
+    validate_automation() runs AUTOMATION_SCHEMA.extend(extra_schema), which
+    voluptuous compiles eagerly. automation_schema() builds ~60 of these per
+    widget type, and the vast majority of slots are never invoked by a given
+    user config. Deferring the build to first use removes that work from
+    schema-construction time.
+
+    When EnableSchemaExtraction is set (build_language_schema.py), fall back
+    to eager construction so the @schema_extractor("automation") decoration
+    inside validate_automation is registered.
+    """
+    if EnableSchemaExtraction:
+        return validate_automation(extra_schema)
+
+    cached: Callable[[Any], Any] | None = None
+
+    def validator(value: Any) -> Any:
+        nonlocal cached
+        if cached is None:
+            cached = validate_automation(extra_schema)
+        return cached(value)
+
+    return validator
+
+
+def automation_schema(typ: LvType) -> dict[Any, Any]:
     events = df.LV_EVENT_TRIGGERS + df.SWIPE_TRIGGERS
     if typ.has_on_value:
         events = events + (CONF_ON_VALUE, CONF_ON_UPDATE)
@@ -422,7 +450,7 @@ def automation_schema(typ: LvType):
 
     return {
         **{
-            cv.Optional(event): validate_automation(
+            cv.Optional(event): _lazy_validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
                         Trigger.template(*get_trigger_args(event))
@@ -431,7 +459,7 @@ def automation_schema(typ: LvType):
             )
             for event in events
         },
-        cv.Optional(CONF_ON_BOOT): validate_automation(
+        cv.Optional(CONF_ON_BOOT): _lazy_validate_automation(
             {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupTrigger)}
         ),
     }

@@ -907,7 +907,7 @@ def test_format_path_current_obj_without_location_falls_back_to_key():
     """An ESPHomeDataBase current_obj with no esp_range falls back to the key's location."""
 
     class _NoRange(ESPHomeDataBase, str):
-        pass
+        __slots__ = ()
 
     obj = _NoRange.__new__(_NoRange, "value")
     str.__init__(obj)
