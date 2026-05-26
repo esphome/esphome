@@ -1283,11 +1283,11 @@ class PackedBufferTypeInfo(TypeInfo):
         """Dump shows buffer info but not decoded values."""
         return (
             f'out.append(2, \' \').append_p(ESPHOME_PSTR("{self.name}")).append(": ");\n'
-            + 'out.append_p(ESPHOME_PSTR("packed buffer ["));\n'
-            + f"append_uint(out, this->{self.field_name}_count_);\n"
-            + 'out.append_p(ESPHOME_PSTR(" values, "));\n'
-            + f"append_uint(out, this->{self.field_name}_length_);\n"
-            + 'out.append_p(ESPHOME_PSTR(" bytes]\\n"));'
+            'out.append_p(ESPHOME_PSTR("packed buffer ["));\n'
+            f"append_uint(out, this->{self.field_name}_count_);\n"
+            'out.append_p(ESPHOME_PSTR(" values, "));\n'
+            f"append_uint(out, this->{self.field_name}_length_);\n"
+            'out.append_p(ESPHOME_PSTR(" bytes]\\n"));'
         )
 
     def dump(self, name: str) -> str:
@@ -3551,7 +3551,7 @@ static const char *const TAG = "api.service";
         if id_ is not None and not mt.options.deprecated:
             id_to_msg_name[id_] = mt.name
 
-    for id_, (_, _, case_label) in cases:
+    for id_, (_, _, _case_label) in cases:
         msg_name = id_to_msg_name.get(id_, "")
         if msg_name in message_auth_map:
             needs_auth = message_auth_map[msg_name]
@@ -3614,7 +3614,7 @@ static const char *const TAG = "api.service";
 
     # Dispatch switch
     out += "  switch (msg_type) {\n"
-    for i, (case, ifdef, case_label) in cases:
+    for _i, (case, ifdef, case_label) in cases:
         if ifdef is not None:
             out += _make_ifdef_line(ifdef) + "\n"
 

@@ -40,8 +40,9 @@ import voluptuous as vol
 import yaml
 from yaml.nodes import Node
 
-from esphome import const, platformio_api, yaml_util
+from esphome import const, yaml_util
 from esphome.helpers import get_bool_env, mkdir_p, sort_ip_addresses
+from esphome.platformio import toolchain
 from esphome.storage_json import (
     StorageJSON,
     archive_storage_path,
@@ -1029,7 +1030,7 @@ class DownloadListRequestHandler(BaseHandler):
 
         try:
             module = importlib.import_module(f"esphome.components.{platform}")
-            get_download_types = getattr(module, "get_download_types")
+            get_download_types = module.get_download_types
         except AttributeError as exc:
             raise ValueError(f"Unknown platform {platform}") from exc
         downloads = get_download_types(storage_json)
@@ -1090,7 +1091,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
                 self.send_error(404 if rc == 2 else 500)
                 return
 
-            idedata = platformio_api.IDEData(json.loads(stdout))
+            idedata = toolchain.IDEData(json.loads(stdout))
 
             found = False
             for image in idedata.extra_flash_images:
@@ -1145,7 +1146,7 @@ class MainRequestHandler(BaseHandler):
         begin = bool(self.get_argument("begin", False))
         if settings.using_password:
             # Simply accessing the xsrf_token sets the cookie for us
-            self.xsrf_token  # pylint: disable=pointless-statement
+            self.xsrf_token  # pylint: disable=pointless-statement  # noqa: B018
         else:
             self.clear_cookie("_xsrf")
 
@@ -1518,7 +1519,10 @@ def get_static_file_url(name: str) -> str:
     return f"{base}?hash={hash_}"
 
 
-def make_app(debug=get_bool_env(ENV_DEV)) -> tornado.web.Application:
+def make_app(debug: bool | None = None) -> tornado.web.Application:
+    if debug is None:
+        debug = get_bool_env(ENV_DEV)
+
     def log_function(handler: tornado.web.RequestHandler) -> None:
         if handler.get_status() < 400:
             log_method = access_log.info

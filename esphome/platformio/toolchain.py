@@ -64,7 +64,7 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
         # a user-provided value (or the unmodified path on platforms that
         # don't need the strip).
         os.environ["PYTHONEXEPATH"] = python_exe
-    cmd = [python_exe, "-m", "esphome.platformio_runner"] + list(args)
+    cmd = [python_exe, "-m", "esphome.platformio.runner"] + list(args)
 
     return run_external_process(*cmd, **kwargs)
 
@@ -96,7 +96,7 @@ def _run_idedata(config):
     try:
         return json.loads(match.group())
     except ValueError:
-        _LOGGER.error("Could not parse idedata", exc_info=True)
+        _LOGGER.exception("Could not parse idedata")
         _LOGGER.error("Stdout: %s", stdout)
         raise
 
