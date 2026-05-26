@@ -6,16 +6,16 @@
 
 #include "esphome/core/progmem.h"
 
-#if defined(USE_ESP32)
+#if USE_ESP32
 #include "esphome/core/hal.h"
 #include "esphome/components/web_server_idf/web_server_idf.h"
-#elif !defined(USE_ZEPHYR)
+#else
 #include <ESPAsyncWebServer.h>
 #endif
 
-#if defined(USE_ESP32)
+#if USE_ESP32
 using PlatformString = std::string;
-#elif !defined(USE_ZEPHYR)
+#else
 using PlatformString = String;
 #endif
 
@@ -39,9 +39,7 @@ class MiddlewareHandler : public AsyncWebHandler {
   void handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) override {
     next_->handleBody(request, data, len, index, total);
   }
-  bool isRequestHandlerTrivial() const override {
-    return next_->isRequestHandlerTrivial();
-  }
+  bool isRequestHandlerTrivial() const override { return next_->isRequestHandlerTrivial(); }
 
  protected:
   AsyncWebHandler *next_;
