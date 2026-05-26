@@ -893,7 +893,7 @@ class MockObj(Expression):
     def __getattr__(self, attr: str) -> "MockObj":
         # prevent python dunder methods being replaced by mock objects
         if attr.startswith("__"):
-            raise AttributeError()
+            raise AttributeError
         next_op = "."
         if attr.startswith("P") and self.op not in ["::", ""]:
             attr = attr[1:]
