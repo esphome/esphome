@@ -79,7 +79,7 @@ def shared_platformio_cache() -> Generator[Path]:
     lock_file = Path.home() / ".esphome-integration-tests-init.lock"
 
     # Always acquire the lock to ensure cache is ready before proceeding
-    with open(lock_file, "w") as lock_fd:
+    with lock_file.open("w") as lock_fd:
         fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
 
         # Check if the native platform is installed (the actual indicator of a populated cache)

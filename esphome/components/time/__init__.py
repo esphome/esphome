@@ -418,11 +418,11 @@ async def setup_time_core_(time_var, config):
     for conf in config.get(CONF_ON_TIME, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
 
-        seconds = conf.get(CONF_SECONDS, list(range(0, 61)))
+        seconds = conf.get(CONF_SECONDS, list(range(61)))
         cg.add(trigger.add_seconds(seconds))
-        minutes = conf.get(CONF_MINUTES, list(range(0, 60)))
+        minutes = conf.get(CONF_MINUTES, list(range(60)))
         cg.add(trigger.add_minutes(minutes))
-        hours = conf.get(CONF_HOURS, list(range(0, 24)))
+        hours = conf.get(CONF_HOURS, list(range(24)))
         cg.add(trigger.add_hours(hours))
         days_of_month = conf.get(CONF_DAYS_OF_MONTH, list(range(1, 32)))
         cg.add(trigger.add_days_of_month(days_of_month))
