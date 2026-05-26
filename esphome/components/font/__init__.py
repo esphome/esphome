@@ -401,7 +401,7 @@ def validate_file_shorthand(value):
             data[CONF_WEIGHT] = weight[1:]
         return font_file_schema(data)
 
-    if value.startswith("http://") or value.startswith("https://"):
+    if value.startswith(("http://", "https://")):
         return font_file_schema(
             {
                 CONF_TYPE: TYPE_WEB,
@@ -594,7 +594,9 @@ async def to_code(config):
             x.height,
         ]
         for (x, y) in zip(
-            glyph_args, list(accumulate([len(x.bitmap_data) for x in glyph_args]))
+            glyph_args,
+            list(accumulate([len(x.bitmap_data) for x in glyph_args])),
+            strict=True,
         )
     ]
 

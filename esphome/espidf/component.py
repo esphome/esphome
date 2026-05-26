@@ -317,24 +317,26 @@ def _collect_filtered_files(src_dir: PathType, src_filters: list[str]) -> list[s
         if pattern.endswith("/"):
             pattern = pattern.rstrip("/") + "/**"
 
-        full_pattern = os.path.join(glob.escape(str(src_dir)), pattern)
+        # glob.escape has no pathlib equivalent and the matcher works on raw
+        # path strings, so PTH118/PTH207 don't apply here.
+        full_pattern = os.path.join(glob.escape(str(src_dir)), pattern)  # noqa: PTH118
 
         matched = []
-        for item in glob.glob(full_pattern, recursive=True):
-            if not os.path.isdir(item):
+        for item in glob.glob(full_pattern, recursive=True):  # noqa: PTH207
+            if not Path(item).is_dir():
                 matched.append(item)
             else:
                 # PlatformIO quirk: a directory matched with "*" should include all its
                 # nested files and subdirectories, not just the directory itself.
                 for root, _, files in os.walk(item):
-                    matched.extend([os.path.join(root, f) for f in files])
+                    matched.extend([str(Path(root) / f) for f in files])
 
         if sign == "+":
             selected.update(matched)
         elif sign == "-":
             selected.difference_update(matched)
 
-    return [r for r in selected if os.path.isfile(r)]
+    return [r for r in selected if Path(r).is_file()]
 
 
 def _convert_library_to_component(library: Library) -> IDFComponent:
@@ -486,7 +488,7 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     # Only keep sources
     build_src_files = [os.path.relpath(p, component.path) for p in build_src_files]
     build_src_files = [
-        f for f in build_src_files if os.path.splitext(f)[1] in SRC_FILE_EXTENSIONS
+        f for f in build_src_files if Path(f).suffix in SRC_FILE_EXTENSIONS
     ]
 
     # Handle build flags
@@ -740,7 +742,7 @@ def _parse_library_json(library_json_path: PathType):
     Returns:
         dict: Parsed JSON content as a Python dictionary.
     """
-    with open(library_json_path, encoding="utf8") as fp:
+    with Path(library_json_path).open(encoding="utf8") as fp:
         return json.load(fp)
 
 
@@ -754,7 +756,7 @@ def _parse_library_properties(library_properties_path: PathType):
     Returns:
         dict[str, str]: Mapping of parsed property keys to values.
     """
-    with open(library_properties_path, encoding="utf8") as fp:
+    with Path(library_properties_path).open(encoding="utf8") as fp:
         data = {}
         for line in fp.read().splitlines():
             line = line.strip()

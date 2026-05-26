@@ -293,7 +293,7 @@ def test_extra_script_captures_libpath_libs_and_defines(tmp_path):
 
     result = run_extra_script(script, library_dir=tmp_path, idf_target="esp32")
 
-    assert result.libpath == [os.path.join("src", "esp32")]
+    assert result.libpath == [str(Path("src") / "esp32")]
     assert result.libs == ["algobsec"]
     assert ("BAR", "1") in result.cppdefines
     assert "FOO" in result.cppdefines

@@ -249,7 +249,7 @@ async def async_resolve_hosts(
             ),
             return_exceptions=True,
         )
-        for host, result in zip(pending, results):
+        for host, result in zip(pending, results, strict=True):
             if isinstance(result, BaseException):
                 _LOGGER.debug("Failed to resolve %s: %s", host, result)
 
