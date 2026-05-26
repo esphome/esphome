@@ -180,7 +180,8 @@ optional<float> Cover::do_restore_state() {
   if (!restore.has_value())
     return {};
   restore->apply(this);
-  return restore->position;
+  float pos = restore->position;  // copy to avoid packed-field reference
+  return pos;
 }
 
 bool Cover::is_fully_open() const { return this->position == COVER_OPEN; }
