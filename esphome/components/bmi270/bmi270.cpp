@@ -62,6 +62,7 @@ bool BMI270Component::load_config_file_() {
 //  setup() ─
 
 void BMI270Component::setup() {
+  MotionComponent::setup();
   // 1. Verify chip ID
   uint8_t chip_id = 0;
   if (!this->read_byte(BMI270_REG_CHIP_ID, &chip_id)) {
@@ -146,6 +147,7 @@ void BMI270Component::dump_config() {
 
   ESP_LOGCONFIG(TAG, "  Accel range : %s", ACCEL_RANGE_STRS[accel_range_]);
   ESP_LOGCONFIG(TAG, "  Gyro  range : %s", GYRO_RANGE_STRS[gyro_range_]);
+  MotionComponent::dump_config();
 }
 
 //  update() ─
