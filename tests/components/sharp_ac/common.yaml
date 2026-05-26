@@ -1,0 +1,35 @@
+logger:
+  baud_rate: 0
+  level: DEBUG
+
+api:
+
+ota:
+  platform: esphome
+
+wifi:
+  ssid: "test-ssid"
+  password: "test-password"
+  min_auth_mode: WPA2
+
+uart:
+  tx_pin: 1
+  rx_pin: 3
+  baud_rate: 9600
+  parity: EVEN
+
+climate:
+  - platform: sharp_ac
+    id: hvac
+    name: "Sharp AC"
+    vane:
+      horizontal:
+        name: "Horizontal Vane"
+      vertical:
+        name: "Vertical Vane"
+    ion_switch:
+      name: "Ion"
+    connection_status:
+      name: "Connection Status"
+    reconnect_button:
+      name: "Reconnect"
