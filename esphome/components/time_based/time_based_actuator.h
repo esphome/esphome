@@ -24,7 +24,7 @@ class TimeBasedActuatorBase : public Component {
   bool get_assumed_state() const { return this->assumed_state_; }
 
  protected:
-  void control(const actuator::ActuatorCallBase &call);
+  void control_(const actuator::ActuatorCallBase &call);
   void stop_prev_trigger_();
   bool is_at_target_() const;
   void start_direction_(actuator::ActuatorOperation dir);

@@ -34,7 +34,7 @@ void TimeBasedActuatorBase::loop() {
   }
 }
 
-void TimeBasedActuatorBase::control(const ActuatorCallBase &call) {
+void TimeBasedActuatorBase::control_(const ActuatorCallBase &call) {
   if (call.get_stop()) {
     this->start_direction_(ACTUATOR_OPERATION_IDLE);
     this->actuator_->do_publish_state(true);

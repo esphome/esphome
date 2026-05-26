@@ -15,7 +15,7 @@ class TimeBasedCover : public TimeBasedActuatorBase, public cover::Cover {
   void dump_config() override;
 
  protected:
-  void control(const cover::CoverCall &call) override { TimeBasedActuatorBase::control(call); }
+  void control(const cover::CoverCall &call) override { TimeBasedActuatorBase::control_(call); }
 };
 
 }  // namespace esphome::time_based

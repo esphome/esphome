@@ -167,6 +167,23 @@ void Cover::publish_state(bool save) {
   }
 }
 
+optional<CoverRestoreState> Cover::restore_state_() {
+  this->rtc_ = this->make_entity_preference<CoverRestoreState>();
+  CoverRestoreState recovered{};
+  if (!this->rtc_.load(&recovered))
+    return {};
+  return recovered;
+}
+
+optional<float> Cover::do_restore_state() {
+  auto restore = this->restore_state_();
+  if (!restore.has_value())
+    return {};
+  restore->apply(this);
+  float pos = restore->position;  // copy to avoid packed-field reference
+  return pos;
+}
+
 bool Cover::is_fully_open() const { return this->position == COVER_OPEN; }
 bool Cover::is_fully_closed() const { return this->position == COVER_CLOSED; }
 
