@@ -15,6 +15,7 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 from .const import (
+    CONF_CLUSTER,
     CONF_ON_JOIN,
     CONF_POWER_SOURCE,
     CONF_REPORT,
@@ -68,7 +69,12 @@ BASE_SCHEMA = cv.Schema(
             cv.requires_component("esp32"),
             _check_report_deprecation,
             cv.enum(REPORT, lower=True),
-        )
+        ),
+        cv.OnlyWith(CONF_CLUSTER, "esp32", default="basic"): cv.All(
+            cv.requires_component("zigbee"),
+            cv.requires_component("esp32"),
+            cv.one_of(*["basic", "default"], lower=True),
+        ),
     }
 )
 BINARY_SENSOR_SCHEMA = cv.Schema({}).extend(BASE_SCHEMA).extend(zephyr_binary_sensor)
@@ -176,21 +182,27 @@ async def to_code(config: ConfigType) -> None:
 
 
 async def setup_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
-    if not config.get(CONF_ZIGBEE_ID) or config.get(CONF_INTERNAL):
+    if config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
-        from .zigbee_zephyr import zephyr_setup_binary_sensor
-
-        await zephyr_setup_binary_sensor(entity, config)
+        if not config.get(CONF_ZIGBEE_ID):
+            return
+        from .zigbee_zephyr import add_binary_sensor
+    else:
+        from .zigbee_esp32 import add_binary_sensor
+    CORE.add_job(add_binary_sensor, entity, config)
 
 
 async def setup_sensor(entity: cg.MockObj, config: ConfigType) -> None:
-    if not config.get(CONF_ZIGBEE_ID) or config.get(CONF_INTERNAL):
+    if config.get(CONF_INTERNAL):
         return
     if CORE.using_zephyr:
-        from .zigbee_zephyr import zephyr_setup_sensor
-
-        await zephyr_setup_sensor(entity, config)
+        if not config.get(CONF_ZIGBEE_ID):
+            return
+        from .zigbee_zephyr import add_sensor
+    else:
+        from .zigbee_esp32 import add_sensor
+    CORE.add_job(add_sensor, entity, config)
 
 
 async def setup_switch(entity: cg.MockObj, config: ConfigType) -> None:

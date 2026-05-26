@@ -58,6 +58,7 @@ REPORT = {
     "default": report.ZIGBEE_REPORT_DEFAULT,
 }
 
+CONF_CLUSTER = "cluster"
 CONF_ON_JOIN = "on_join"
 CONF_WIPE_ON_BOOT = "wipe_on_boot"
 CONF_REPORT = "report"
