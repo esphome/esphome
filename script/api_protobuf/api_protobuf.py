@@ -3163,7 +3163,7 @@ def main() -> None:
         defines_content += "\n"
     defines_content += "\nnamespace esphome::api {}  // namespace esphome::api\n"
 
-    with open(root / "api_pb2_defines.h", "w", encoding="utf-8") as f:
+    with (root / "api_pb2_defines.h").open("w", encoding="utf-8") as f:
         f.write(defines_content)
 
     content = FILE_HEADER
@@ -3448,13 +3448,13 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
 #endif  // HAS_PROTO_MESSAGE_DUMP
 """
 
-    with open(root / "api_pb2.h", "w", encoding="utf-8") as f:
+    with (root / "api_pb2.h").open("w", encoding="utf-8") as f:
         f.write(content)
 
-    with open(root / "api_pb2.cpp", "w", encoding="utf-8") as f:
+    with (root / "api_pb2.cpp").open("w", encoding="utf-8") as f:
         f.write(cpp)
 
-    with open(root / "api_pb2_dump.cpp", "w", encoding="utf-8") as f:
+    with (root / "api_pb2_dump.cpp").open("w", encoding="utf-8") as f:
         f.write(dump_cpp)
 
     hpp = FILE_HEADER
@@ -3641,10 +3641,10 @@ static const char *const TAG = "api.service";
 }  // namespace esphome::api
 """
 
-    with open(root / "api_pb2_service.h", "w", encoding="utf-8") as f:
+    with (root / "api_pb2_service.h").open("w", encoding="utf-8") as f:
         f.write(hpp)
 
-    with open(root / "api_pb2_service.cpp", "w", encoding="utf-8") as f:
+    with (root / "api_pb2_service.cpp").open("w", encoding="utf-8") as f:
         f.write(cpp)
 
     prot_file.unlink()

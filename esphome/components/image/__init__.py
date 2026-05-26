@@ -395,7 +395,7 @@ def download_image(value):
 def is_svg_file(file):
     if not file:
         return False
-    with open(file, "rb") as f:
+    with Path(file).open("rb") as f:
         return "<svg" in str(f.read(1024))
 
 
