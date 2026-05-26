@@ -34,9 +34,7 @@ def test_get_base_frontend_path_dev_mode() -> None:
         # The function uses Path.resolve() which resolves symlinks
         # The actual function adds "/" to the path, so we simulate that
         test_path_with_slash = test_path if test_path.endswith("/") else test_path + "/"
-        expected = (
-            Path(os.getcwd()) / test_path_with_slash / "esphome_dashboard"
-        ).resolve()
+        expected = (Path.cwd() / test_path_with_slash / "esphome_dashboard").resolve()
         assert result == expected
 
 
@@ -62,9 +60,7 @@ def test_get_base_frontend_path_dev_mode_relative_path() -> None:
         # The function uses Path.resolve() which resolves symlinks
         # The actual function adds "/" to the path, so we simulate that
         test_path_with_slash = test_path if test_path.endswith("/") else test_path + "/"
-        expected = (
-            Path(os.getcwd()) / test_path_with_slash / "esphome_dashboard"
-        ).resolve()
+        expected = (Path.cwd() / test_path_with_slash / "esphome_dashboard").resolve()
         assert result == expected
         assert result.is_absolute()
 
@@ -157,7 +153,7 @@ def test_load_file_path(tmp_path: Path) -> None:
     test_file = tmp_path / "test.txt"
     test_file.write_bytes(b"test content")
 
-    with open(test_file, "rb") as f:
+    with test_file.open("rb") as f:
         content = f.read()
     assert content == b"test content"
 

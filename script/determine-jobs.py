@@ -306,7 +306,7 @@ def _is_clang_tidy_full_scan() -> bool:
     """
     try:
         result = subprocess.run(
-            [os.path.join(root_path, "script", "clang_tidy_hash.py"), "--check"],
+            [str(Path(root_path) / "script" / "clang_tidy_hash.py"), "--check"],
             capture_output=True,
             check=False,
         )
@@ -1047,7 +1047,7 @@ def detect_memory_impact_config(
     # Find common platforms supported by ALL components
     # This ensures we can build all components together in a merged config
     common_platforms = set(MEMORY_IMPACT_PLATFORM_PREFERENCE)
-    for component, platforms in component_platforms_map.items():
+    for platforms in component_platforms_map.values():
         common_platforms &= platforms
 
     # Select the most preferred platform from the common set

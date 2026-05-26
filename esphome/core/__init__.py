@@ -1081,7 +1081,7 @@ class EnumValue:
 
     @enum_value.setter
     def enum_value(self, value):
-        setattr(self, "_enum_value", value)
+        self._enum_value = value
 
 
 CORE = EsphomeCore()

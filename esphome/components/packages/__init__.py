@@ -215,7 +215,7 @@ def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
     If loading fails after cloning, attempts a revert and retry in case
     a prior cached checkout is stale.
     """
-    repo_dir, revert = git.clone_or_update(
+    repo_root, revert = git.clone_or_update(
         url=config[CONF_URL],
         ref=config.get(CONF_REF),
         refresh=config[CONF_REFRESH],
@@ -225,6 +225,10 @@ def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
     )
     files: list[dict[str, Any]] = []
 
+    # ``repo_root`` is the directory containing ``.git`` and must be passed
+    # to git for symlink-stub resolution. ``repo_dir`` may be narrowed to a
+    # subdirectory via the user's CONF_PATH and is used for file lookups.
+    repo_dir = repo_root
     if base_path := config.get(CONF_PATH):
         repo_dir = repo_dir / base_path
 
@@ -236,13 +240,37 @@ def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
 
     def _load_package_yaml(yaml_file: Path, filename: str) -> dict:
         """Load a YAML file from a remote package, validating min_version."""
-        try:
-            new_yaml = yaml_util.load_yaml(yaml_file)
-        except EsphomeError as e:
+
+        def _load(path: Path) -> dict | str | None:
+            try:
+                return yaml_util.load_yaml(path)
+            except EsphomeError as e:
+                raise cv.Invalid(
+                    f"{filename} is not a valid YAML file."
+                    f" Please check the file contents.\n{e}"
+                ) from e
+
+        new_yaml = _load(yaml_file)
+        if not isinstance(new_yaml, dict):
+            # On Windows, git defaults to core.symlinks=false unless the user
+            # has Developer Mode enabled or is running elevated. Files stored
+            # in the repo as symlinks (tree mode 120000) are then checked out
+            # as plain text files containing the symlink target path, so
+            # parsing them as YAML yields a bare scalar instead of a mapping.
+            # Best-effort: follow the symlink target ourselves and re-load.
+            target = git.resolve_symlink_stub(repo_root, yaml_file)
+            if target is not None:
+                new_yaml = _load(target)
+        if not isinstance(new_yaml, dict):
             raise cv.Invalid(
-                f"{filename} is not a valid YAML file."
-                f" Please check the file contents.\n{e}"
-            ) from e
+                f"{filename} does not contain a YAML mapping at the top level "
+                f"(got {type(new_yaml).__name__}). "
+                f"If this file is a git symlink in the source repository, it "
+                f"may not have been materialized correctly on your platform "
+                f"(this is a known issue with git on Windows without Developer "
+                f"Mode enabled). Try pointing your package at the real file "
+                f"path instead."
+            )
         esphome_config = new_yaml.get(CONF_ESPHOME) or {}
         min_version = esphome_config.get(CONF_MIN_VERSION)
         if min_version is not None and cv.Version.parse(min_version) > cv.Version.parse(

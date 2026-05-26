@@ -14,7 +14,7 @@ import time
 import colorama
 from helpers import filter_changed, git_ls_files, print_error_for_file, styled
 
-sys.path.append(os.path.dirname(__file__))
+sys.path.append(str(Path(__file__).parent))
 
 
 def find_all(a_str, sub):
@@ -342,8 +342,8 @@ def lint_const_ordered(fname, content):
             (i + 1, line) for i, line in enumerate(lines) if line.startswith(start)
         ]
         ordered = sorted(matching, key=lambda x: x[1].replace("_", " "))
-        ordered = [(mi, ol) for (mi, _), (_, ol) in zip(matching, ordered)]
-        for (mi, mline), (_, ol) in zip(matching, ordered):
+        ordered = [(mi, ol) for (mi, _), (_, ol) in zip(matching, ordered, strict=True)]
+        for (mi, mline), (_, ol) in zip(matching, ordered, strict=True):
             if mline == ol:
                 continue
             target = next(i for i, line in ordered if line == mline)
