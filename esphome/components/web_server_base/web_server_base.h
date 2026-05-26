@@ -41,7 +41,7 @@ class MiddlewareHandler : public AsyncWebHandler {
   }
   bool isRequestHandlerTrivial() const override {
     return next_->isRequestHandlerTrivial();
-  }  // NOLINT(readability-identifier-naming)
+  }
 
  protected:
   AsyncWebHandler *next_;
