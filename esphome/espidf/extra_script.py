@@ -108,7 +108,7 @@ def run_extra_script(
     """
     env = _FakeSConsEnv(board_mcu=idf_target, pio_env=f"esphome_{idf_target}")
     code = compile(script_path.read_text(), str(script_path), "exec")
-    old_cwd = os.getcwd()
+    old_cwd = Path.cwd()
     try:
         os.chdir(library_dir)
         exec(  # noqa: S102 pylint: disable=exec-used

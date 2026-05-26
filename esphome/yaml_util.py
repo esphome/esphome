@@ -763,7 +763,7 @@ def parse_yaml(file_name: Path, file_handle: TextIOWrapper, yaml_loader=None) ->
 
 
 def _load_yaml_internal_with_type(
-    loader_type: type[ESPHomeLoader] | type[ESPHomePurePythonLoader],
+    loader_type: type[ESPHomeLoader | ESPHomePurePythonLoader],
     fname: Path,
     content: TextIOWrapper,
     yaml_loader: Callable[[Path], dict[str, Any]],

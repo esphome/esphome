@@ -96,7 +96,7 @@ def _extract_tz_string(tzfile: bytes) -> str:
         return tzfile.split(b"\n")[-2].decode()
     except (IndexError, UnicodeDecodeError):
         _LOGGER.error("Could not determine TZ string. Please report this issue.")
-        _LOGGER.error("tzfile contents: %s", tzfile, exc_info=True)
+        _LOGGER.exception("tzfile contents: %s", tzfile)
         raise
 
 
@@ -204,7 +204,7 @@ def cron_expression_validator(name, min_value, max_value, special_mapping=None):
                     raise cv.Invalid(
                         f"{name} {v} is out of range (min={min_value} max={max_value})."
                     )
-            return list(sorted(value))
+            return sorted(value)
         value = cv.string(value)
         values = set()
         for part in value.split(","):

@@ -11,7 +11,7 @@ from pathlib import Path
 import re
 import sys
 import time
-from typing import Any
+from typing import Any, Self
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
@@ -5110,11 +5110,11 @@ class MockSerial:
         self.timeout = 0.1
         self._is_open = False
 
-    def __enter__(self) -> MockSerial:
+    def __enter__(self) -> Self:
         self._is_open = True
         return self
 
-    def __exit__(self, *args: Any) -> None:
+    def __exit__(self, *args: object) -> None:
         self._is_open = False
 
     @property

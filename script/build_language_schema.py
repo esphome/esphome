@@ -972,7 +972,7 @@ def convert(schema, config_var, path):
             }
         elif schema_type == "use_id":
             if inspect.ismodule(data):
-                m_attr_obj = getattr(data, "CONFIG_SCHEMA")
+                m_attr_obj = data.CONFIG_SCHEMA
                 use_schema = known_schemas.get(repr(m_attr_obj))
                 if use_schema:
                     [output_module, output_name] = use_schema[0][1].split(".")

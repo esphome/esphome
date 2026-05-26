@@ -98,7 +98,7 @@ def read_audio_file_and_type(file_config: ConfigType) -> tuple[bytes, MockObj]:
     else:
         raise cv.Invalid("Unsupported file source")
 
-    with open(path, "rb") as f:
+    with path.open("rb") as f:
         data = f.read()
 
     try:
