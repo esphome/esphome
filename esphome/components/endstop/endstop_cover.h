@@ -14,7 +14,7 @@ class EndstopCover : public EndstopActuatorBase, public cover::Cover {
   void dump_config() override;
 
  protected:
-  void control(const cover::CoverCall &call) override { EndstopActuatorBase::control(call); }
+  void control(const cover::CoverCall &call) override { EndstopActuatorBase::control_(call); }
 };
 
 }  // namespace esphome::endstop

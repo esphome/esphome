@@ -141,6 +141,15 @@ void Valve::publish_state(bool save) {
 bool Valve::is_fully_open() const { return this->position == VALVE_OPEN; }
 bool Valve::is_fully_closed() const { return this->position == VALVE_CLOSED; }
 
+optional<float> Valve::do_restore_state() {
+  auto restore = this->restore_state_();
+  if (!restore.has_value())
+    return {};
+  restore->apply(this);
+  float pos = restore->position;  // copy to avoid packed-field reference
+  return pos;
+}
+
 ValveCall ValveRestoreState::to_call(Valve *valve) {
   auto call = valve->make_call();
   call.set_position(this->position);
@@ -149,14 +158,6 @@ ValveCall ValveRestoreState::to_call(Valve *valve) {
 void ValveRestoreState::apply(Valve *valve) {
   valve->position = this->position;
   valve->publish_state();
-}
-
-optional<float> Valve::do_restore_state() {
-  auto restore = this->restore_state_();
-  if (!restore.has_value())
-    return {};
-  restore->apply(this);
-  return restore->position;
 }
 
 }  // namespace esphome::valve

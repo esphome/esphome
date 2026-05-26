@@ -9,7 +9,7 @@ using namespace esphome::actuator;
 
 static const char *const TAG = "endstop";
 
-void EndstopActuatorBase::control(const ActuatorCallBase &call) {
+void EndstopActuatorBase::control_(const ActuatorCallBase &call) {
   if (call.get_stop()) {
     this->start_direction_(ACTUATOR_OPERATION_IDLE);
     this->actuator_->do_publish_state(true);
