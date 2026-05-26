@@ -861,7 +861,7 @@ class EsphomeCore:
 
     @property
     def using_esp_idf(self):
-        # Legacy alias; prefer is_esp32 (or using_toolchain_esp_idf).
+        # Legacy alias; prefer is_esp32.
         return self.is_esp32
 
     @property
