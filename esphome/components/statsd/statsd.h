@@ -78,7 +78,7 @@ class StatsdComponent : public PollingComponent {
   struct sockaddr_in destination_;
 #endif
 
-  void send_(std::string *out);  // NOLINT(readability-identifier-naming)
+  void send_(std::string *out);
 };
 
 }  // namespace esphome::statsd
