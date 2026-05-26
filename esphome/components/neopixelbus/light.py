@@ -24,6 +24,7 @@ from esphome.const import (
     Framework,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 from ._methods import (
     METHOD_BIT_BANG,
@@ -138,7 +139,7 @@ def _validate(config):
     return config
 
 
-def _warn_esp32_deprecated(config):
+def _warn_esp32_deprecated(config: ConfigType) -> ConfigType:
     if CORE.is_esp32:
         _LOGGER.warning(
             "'neopixelbus' on ESP32 is deprecated. The upstream library "
