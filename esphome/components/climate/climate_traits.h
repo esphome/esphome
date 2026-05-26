@@ -114,9 +114,7 @@ class ClimateTraits {
   // Remove before 2026.11.0
   ESPDEPRECATED("Call set_supported_fan_modes_ordered() on the Climate entity instead. Removed in 2026.11.0",
                 "2026.5.0")
-  void set_supported_fan_modes(const ClimateFanModeList &modes) {
-    this->set_supported_fan_modes_ordered(modes);
-  }
+  void set_supported_fan_modes(const ClimateFanModeList &modes) { this->set_supported_fan_modes_ordered(modes); }
   void add_supported_fan_mode(ClimateFanMode mode) {
     if (this->supports_fan_mode(mode))
       return;

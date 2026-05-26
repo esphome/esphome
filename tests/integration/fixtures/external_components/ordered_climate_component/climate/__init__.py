@@ -6,7 +6,9 @@ import esphome.config_validation as cv
 from esphome.types import ConfigType
 
 ordered_climate_ns = cg.esphome_ns.namespace("ordered_climate_test")
-OrderedClimate = ordered_climate_ns.class_("OrderedClimate", climate.Climate, cg.Component)
+OrderedClimate = ordered_climate_ns.class_(
+    "OrderedClimate", climate.Climate, cg.Component
+)
 
 CONFIG_SCHEMA = climate.climate_schema(OrderedClimate).extend(cv.COMPONENT_SCHEMA)
 
