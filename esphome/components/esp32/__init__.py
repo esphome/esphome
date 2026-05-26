@@ -740,6 +740,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # These versions correspond to pioarduino/esp-idf releases
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
+    cv.Version(4, 0, 0): cv.Version(6, 1, 0),
     cv.Version(4, 0, 0): cv.Version(6, 0, 1),
     cv.Version(3, 3, 8): cv.Version(5, 5, 4),
     cv.Version(3, 3, 7): cv.Version(5, 5, 3, "1"),
@@ -767,6 +768,9 @@ ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
 }
 
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(
+        6, 1, 0
+    ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
     cv.Version(
         6, 0, 1
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
@@ -905,6 +909,7 @@ def _check_esp_idf_versions(config: ConfigType) -> ConfigType:
 
     # Official ESP-IDF frameworks don't use the 'extra' semver component.
     value[CONF_VERSION] = str(cv.Version(version.major, version.minor, version.patch))
+    value[CONF_SOURCE] = "https://github.com/espressif/esp-idf.git"
 
     return config
 
