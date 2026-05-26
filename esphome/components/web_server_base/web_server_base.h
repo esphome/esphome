@@ -6,16 +6,16 @@
 
 #include "esphome/core/progmem.h"
 
-#if USE_ESP32
+#if defined(USE_ESP32)
 #include "esphome/core/hal.h"
 #include "esphome/components/web_server_idf/web_server_idf.h"
-#elif USE_ARDUINO
+#elif !defined(USE_ZEPHYR)
 #include <ESPAsyncWebServer.h>
 #endif
 
-#if USE_ESP32
+#if defined(USE_ESP32)
 using PlatformString = std::string;
-#elif USE_ARDUINO
+#elif !defined(USE_ZEPHYR)
 using PlatformString = String;
 #endif
 
