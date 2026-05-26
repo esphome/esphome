@@ -487,6 +487,53 @@ def string_strict(value):
     )
 
 
+# Substring fallbacks for fields whose validator isn't explicitly wrapped in
+# ``cv.sensitive``. Frontends and dump tooling should prefer the explicit
+# marker; this list exists so we still mask obvious leaks in unmigrated or
+# third-party schemas. Kept here as the single source of truth.
+SENSITIVE_KEY_FRAGMENTS: frozenset[str] = frozenset(
+    {
+        "password",
+        "passcode",
+        "secret",
+        "token",
+        "api_key",
+        "apikey",
+        "psk",
+    }
+)
+
+
+class SensitiveValidator:
+    """Marker wrapper that flags a field as containing sensitive data (passwords,
+    encryption keys, PSKs, tokens). Frontends and dump tooling detect this marker
+    to mask the value; validation behavior is delegated to the inner validator.
+    """
+
+    def __init__(self, inner: Callable[[typing.Any], typing.Any]) -> None:
+        self.inner = inner
+
+    def __call__(self, value: typing.Any) -> typing.Any:
+        return self.inner(value)
+
+    def __repr__(self) -> str:
+        # Mirror the inner validator's repr so ``build_language_schema``'s
+        # ``known_schemas``/``extended_schemas`` dedup (keyed on ``repr(schema)``)
+        # treats two wrappers around the same inner as identical, and so
+        # voluptuous error messages stay readable.
+        return repr(self.inner)
+
+
+def sensitive(
+    inner: Callable[[typing.Any], typing.Any] = string,
+) -> SensitiveValidator:
+    """Mark a field as sensitive so that frontends mask it and dump tooling redacts it.
+
+    Validation behavior is identical to ``inner`` (defaults to ``cv.string``).
+    """
+    return SensitiveValidator(inner)
+
+
 def icon(value):
     """Validate that a given config value is a valid icon."""
     from esphome.core.config import ICON_MAX_LENGTH
@@ -1136,7 +1183,9 @@ def date_time(date: bool, time: bool):
                 format += "%p"
 
         try:
-            date_obj = datetime.strptime(value, format)
+            # The generated format never includes %z/%Z, so this parses a
+            # naive wall-clock date/time by design.
+            date_obj = datetime.strptime(value, format)  # noqa: DTZ007
         except ValueError as err:
             raise Invalid(f"Invalid {exc_message}: {err}") from err
 

@@ -114,6 +114,7 @@ select = [
   "B",    # flake8-bugbear
   "BLE",  # flake8-blind-except
   "C4",   # flake8-comprehensions
+  "DTZ",  # flake8-datetimez
   "E",    # pycodestyle
   "EXE",  # flake8-executable
   "F",    # pyflakes/autoflake
@@ -127,6 +128,7 @@ select = [
   "LOG",  # flake8-logging
   "NPY",  # numpy-specific rules
   "PERF", # performance
+  "PGH",  # pygrep-hooks
   "PIE",  # flake8-pie
   "PL",   # pylint
   "PTH",  # flake8-use-pathlib
