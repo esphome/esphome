@@ -905,7 +905,6 @@ def _check_esp_idf_versions(config: ConfigType) -> ConfigType:
 
     # Official ESP-IDF frameworks don't use the 'extra' semver component.
     value[CONF_VERSION] = str(cv.Version(version.major, version.minor, version.patch))
-    value[CONF_SOURCE] = "https://github.com/espressif/esp-idf.git"
 
     return config
 
