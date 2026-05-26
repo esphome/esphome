@@ -126,7 +126,10 @@ void Modbus::receive_bytes_() {
     size_t buffer_size = this->rx_buffer_.size();
     this->last_modbus_byte_ = this->last_receive_check_;
     this->rx_buffer_.resize(buffer_size + bytes);
-    this->read_array(this->rx_buffer_.data() + buffer_size, bytes);
+    if (!this->read_array(this->rx_buffer_.data() + buffer_size, bytes)) {
+      this->rx_buffer_.resize(buffer_size);
+      return;
+    }
     if (buffer_size == 0) {
       ESP_LOGV(TAG, "Received first byte %" PRIu8 " (0X%x) of %zu bytes %" PRIu32 "ms after last send",
                this->rx_buffer_[0], this->rx_buffer_[0], this->rx_buffer_.size(), millis() - this->last_send_);
@@ -148,34 +151,34 @@ void ModbusClientHub::parse_modbus_frames() {
 }
 
 void ModbusServerHub::parse_modbus_frames() {
-  if (!this->rx_buffer_.empty()) {
-    size_t size;
-    do {
-      size = this->rx_buffer_.size();
-      ESP_LOGVV(TAG, "Parsing frames buffer size = %" PRIu32, size);
-      if (this->expecting_peer_response_ != 0) {
-        if (!this->parse_modbus_server_frame_()) {
-          ESP_LOGV(TAG, "Stop expecting peer response from %" PRIu8 " due to parse failure, and retry parse",
-                   this->expecting_peer_response_);
-          this->expecting_peer_response_ = 0;
-          size++;  // force retry parse as client frame
-        } else if (this->timeout_() && size == this->rx_buffer_.size()) {
-          // If we timed out and the above parse attempt did not then we also stop expecting a response
-          ESP_LOGV(TAG,
-                   "Stop expecting peer response from %" PRIu8
-                   " due to timeout after partial response, and retry parse",
-                   this->expecting_peer_response_);
-          this->expecting_peer_response_ = 0;
-          size++;  // force retry parse as client frame
-        }
-      } else {
-        if (!this->parse_modbus_client_frame_())
-          this->clear_rx_buffer_(LOG_STR("parse failed"), true);
+  while (!this->rx_buffer_.empty()) {
+    size_t size = this->rx_buffer_.size();
+    ESP_LOGVV(TAG, "Parsing frames buffer size = %" PRIu32, size);
+    bool retry_as_client = false;
+    if (this->expecting_peer_response_ != 0) {
+      if (!this->parse_modbus_server_frame_()) {
+        ESP_LOGV(TAG, "Stop expecting peer response from %" PRIu8 " due to parse failure, and retry parse",
+                 this->expecting_peer_response_);
+        this->expecting_peer_response_ = 0;
+        retry_as_client = true;
+      } else if (this->timeout_() && size == this->rx_buffer_.size()) {
+        // If we timed out and the above parse attempt did not consume data, stop expecting a response
+        ESP_LOGV(TAG,
+                 "Stop expecting peer response from %" PRIu8 " due to timeout after partial response, and retry parse",
+                 this->expecting_peer_response_);
+        this->expecting_peer_response_ = 0;
+        retry_as_client = true;
       }
-    } while (!this->rx_buffer_.empty() && size > this->rx_buffer_.size());
-    if (this->timeout_())
-      this->clear_rx_buffer_(LOG_STR("timeout after partial response"), true);
+    } else {
+      if (!this->parse_modbus_client_frame_())
+        this->clear_rx_buffer_(LOG_STR("parse failed"), true);
+    }
+    // Stop if the buffer didn't shrink (no frame consumed) and no mode switch triggered a retry
+    if (!retry_as_client && size <= this->rx_buffer_.size())
+      break;
   }
+  if (this->timeout_())
+    this->clear_rx_buffer_(LOG_STR("timeout after partial response"), true);
 }
 
 uint16_t Modbus::find_custom_frame_end_(uint16_t min_length) const {
@@ -247,7 +250,7 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
   // This requires copying the frame data to a local buffer beforehand.
   uint8_t data_offset = helpers::client_frame_data_offset(this->rx_buffer_.data(), this->rx_buffer_.size());
   uint16_t data_len = frame_length - 2 - data_offset;
-  uint8_t data[MAX_FRAME_SIZE] = {};
+  uint8_t data[MAX_FRAME_SIZE];
   std::memcpy(data, this->rx_buffer_.data() + data_offset, data_len);
   this->clear_rx_buffer_(LOG_STR("parse succeeded"), false, frame_length);
 

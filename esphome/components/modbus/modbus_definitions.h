@@ -36,6 +36,12 @@ enum class ModbusFunctionCode : uint8_t {
   READ_FIFO_QUEUE = 0x18,                // not implemented
 };
 
+/*Allow direct comparison operators between ModbusFunctionCode and uint8_t*/
+inline bool operator==(ModbusFunctionCode lhs, uint8_t rhs) { return static_cast<uint8_t>(lhs) == rhs; }
+inline bool operator==(uint8_t lhs, ModbusFunctionCode rhs) { return lhs == static_cast<uint8_t>(rhs); }
+inline bool operator!=(ModbusFunctionCode lhs, uint8_t rhs) { return !(static_cast<uint8_t>(lhs) == rhs); }
+inline bool operator!=(uint8_t lhs, ModbusFunctionCode rhs) { return !(lhs == static_cast<uint8_t>(rhs)); }
+
 // 4.3 MODBUS Data model
 enum class ModbusRegisterType : uint8_t {
   CUSTOM = 0x00,

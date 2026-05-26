@@ -152,7 +152,10 @@ class ModbusClientDevice {
  public:
   ModbusClientDevice() = default;
   ModbusClientDevice(ModbusClientHub *parent, uint8_t address) : parent_(parent), address_(address) {}
-  virtual ~ModbusClientDevice() { this->clear_tx_queue_for_device(); }
+  virtual ~ModbusClientDevice() {
+    if (this->parent_ != nullptr)
+      this->clear_tx_queue_for_device();
+  }
   void set_parent(ModbusClientHub *parent) { this->parent_ = parent; }
   void set_address(uint8_t address) { this->address_ = address; }
   virtual void on_modbus_data(const std::vector<uint8_t> &data) {}
@@ -184,7 +187,7 @@ class ModbusClientDevice {
 };
 
 // This is for compatibility with external components using the former class name
-class ModbusDevice : public ModbusClientDevice {};
+using ModbusDevice = ModbusClientDevice;
 
 class ModbusServerDevice {
  public:

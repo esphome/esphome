@@ -156,6 +156,13 @@ StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(ModbusFunctionCode functio
   if (values_len > 0 && is_function_code_write(static_cast<uint8_t>(function_code))) {
     if (function_code == ModbusFunctionCode::WRITE_MULTIPLE_COILS ||
         function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
+      // 6 bytes of overhead (fc + start_addr×2 + qty×2 + byte_count) leave MAX_PDU_SIZE-6 bytes for values
+      static constexpr size_t MAX_WRITE_MULTIPLE_VALUES_LEN = MAX_PDU_SIZE - 6;
+      if (values_len > MAX_WRITE_MULTIPLE_VALUES_LEN) {
+        ESP_LOGE(TAG, "values_len %zu exceeds PDU capacity %zu, dropping request", values_len,
+                 MAX_WRITE_MULTIPLE_VALUES_LEN);
+        return {};
+      }
       pdu.push_back(values_len);  // Byte count is required for write multiple
       for (size_t i = 0; i < values_len; i++)
         pdu.push_back(values[i]);
