@@ -168,6 +168,10 @@ StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(ModbusFunctionCode functio
         pdu.push_back(values[i]);
     } else {
       // Write single register or coil (2 bytes)
+      if (values_len < 2) {
+        ESP_LOGE(TAG, "values_len %zu too small for write-single command (need 2), dropping request", values_len);
+        return {};
+      }
       pdu.push_back(values[0]);
       pdu.push_back(values[1]);
     }
