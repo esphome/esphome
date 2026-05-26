@@ -1,5 +1,6 @@
 #include "api_connection.h"
 #ifdef USE_API
+#include "api_connection_buffer.h"  // for encode_to_buffer / get_batch_delay_ms_ inlines
 #ifdef USE_API_NOISE
 #include "api_frame_helper_noise.h"
 #endif
@@ -1242,7 +1243,7 @@ void APIConnection::try_send_store_yaml_() {
 void APIConnection::on_get_time_response(const GetTimeResponse &value) {
   if (homeassistant::global_homeassistant_time != nullptr) {
     homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
-#ifdef USE_TIME_TIMEZONE
+#if defined(USE_HOMEASSISTANT_TIMEZONE) && defined(USE_TIME_TIMEZONE)
     if (!value.timezone.empty()) {
       // Check if the sender provided pre-parsed timezone data.
       // If std_offset is non-zero or DST rules are present, the parsed data was populated.

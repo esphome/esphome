@@ -199,6 +199,7 @@ CONF_BROKER = "broker"
 CONF_BSSID = "bssid"
 CONF_BUFFER_DURATION = "buffer_duration"
 CONF_BUFFER_SIZE = "buffer_size"
+CONF_BUILD_FLAGS = "build_flags"
 CONF_BUILD_PATH = "build_path"
 CONF_BUS_VOLTAGE = "bus_voltage"
 CONF_BUSY_PIN = "busy_pin"
@@ -1416,3 +1417,12 @@ ENTITY_CATEGORY_DIAGNOSTIC = "diagnostic"
 # The corresponding constant exists in c++
 # when update_interval is set to never, it becomes SCHEDULER_DONT_RUN milliseconds
 SCHEDULER_DONT_RUN = 4294967295
+
+# Sentinel values written by the esphome-device-builder dashboard into
+# secrets.yaml on first boot so that !secret wifi_ssid / !secret wifi_password
+# references resolve cleanly through validation before the user has finished
+# the onboarding wizard. Compilation refuses if these reach the binary so that
+# a user who dismisses onboarding can't accidentally flash a device that will
+# never associate with their wifi.
+PLACEHOLDER_WIFI_SSID = "REPLACE_WITH_YOUR_WIFI_NETWORK"
+PLACEHOLDER_WIFI_PASSWORD = "REPLACE_WITH_YOUR_WIFI_PASSWORD"  # noqa: S105
