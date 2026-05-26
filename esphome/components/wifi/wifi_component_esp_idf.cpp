@@ -174,10 +174,15 @@ void WiFiComponent::wifi_lazy_init_() {
   if (this->wifi_initialized_)
     return;
 
-  s_sta_netif = esp_netif_create_default_wifi_sta();
+  // Guard each creation so partial init (e.g. a failed esp_wifi_init() below)
+  // followed by a retry via enable() does not leak the existing netif handle
+  // nor re-register the default WiFi handlers.
+  if (s_sta_netif == nullptr)
+    s_sta_netif = esp_netif_create_default_wifi_sta();
 
 #ifdef USE_WIFI_AP
-  s_ap_netif = esp_netif_create_default_wifi_ap();
+  if (s_ap_netif == nullptr)
+    s_ap_netif = esp_netif_create_default_wifi_ap();
 #endif  // USE_WIFI_AP
 
   wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
