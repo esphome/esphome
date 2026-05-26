@@ -857,16 +857,6 @@ only_on_rp2040 = only_on(PLATFORM_RP2040)
 only_with_arduino = only_with_framework(Framework.ARDUINO)
 
 
-def only_with_esp_idf(obj):
-    """Deprecated: use only_on_esp32 instead."""
-    _LOGGER.warning(
-        "cv.only_with_esp_idf was deprecated in 2026.1, will change behavior in 2026.6. "
-        "ESP32 Arduino builds on top of ESP-IDF, so ESP-IDF features are available in both frameworks. "
-        "Use cv.only_on_esp32 and/or cv.only_with_arduino instead."
-    )
-    return only_with_framework(Framework.ESP_IDF)(obj)
-
-
 # Adapted from:
 # https://github.com/alecthomas/voluptuous/issues/115#issuecomment-144464666
 def has_at_least_one_key(*keys):
