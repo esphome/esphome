@@ -99,10 +99,12 @@ def _set_stream_limits(config):
             max_sample_rate=config.get(CONF_SAMPLE_RATE),
         )(config)
     elif config[CONF_I2S_MODE] == CONF_PRIMARY:
-        # Primary mode has modifiable stream settings
+        # Primary mode can reconfigure the bus to the incoming sample rate and channel count, but the
+        # configured bits per sample is a hard ceiling: the speaker rejects any stream that exceeds the
+        # slot bit width it was set up with (see start_i2s_driver), so advertise that as the maximum.
         audio.set_stream_limits(
             min_bits_per_sample=8,
-            max_bits_per_sample=32,
+            max_bits_per_sample=config[CONF_BITS_PER_SAMPLE],
             min_channels=1,
             max_channels=2,
             min_sample_rate=16000,
@@ -112,12 +114,12 @@ def _set_stream_limits(config):
         # Secondary mode has unmodifiable max bits per sample and min/max sample rates
         audio.set_stream_limits(
             min_bits_per_sample=8,
-            max_bits_per_sample=config.get(CONF_BITS_PER_SAMPLE),
+            max_bits_per_sample=config[CONF_BITS_PER_SAMPLE],
             min_channels=1,
             max_channels=2,
             min_sample_rate=config.get(CONF_SAMPLE_RATE),
             max_sample_rate=config.get(CONF_SAMPLE_RATE),
-        )
+        )(config)
 
     return config
 
