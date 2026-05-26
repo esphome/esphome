@@ -8,6 +8,7 @@ import logging
 import os
 from pathlib import Path
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -39,7 +40,7 @@ def _str_to_lst_of_str(a: str | list[str]) -> list[str]:
     """
     if isinstance(a, list):
         return a
-    return list(f.strip() for f in a.split(";") if f.strip())
+    return [f.strip() for f in a.split(";") if f.strip()]
 
 
 ESPHOME_STAMP_FILE = ".esphome.stamp.json"
@@ -784,6 +785,77 @@ def download_from_mirrors(
         return None
 
 
+_GITHUB_SHORTHAND_RE = re.compile(
+    r"^github://([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+?)(?:@([a-zA-Z0-9\-_.\./]+))?$"
+)
+_GITHUB_HTTPS_RE = re.compile(
+    r"^(https://github\.com/[a-zA-Z0-9\-]+/[a-zA-Z0-9\-\._]+?\.git)(?:@([a-zA-Z0-9\-_.\./]+))?$"
+)
+
+
+def _parse_git_source(source_url: str) -> tuple[str, str | None] | None:
+    """Return ``(url, ref)`` for ``github://owner/repo[@ref]`` or
+    ``https://github.com/owner/repo.git[@ref]``, else ``None``."""
+    if m := _GITHUB_SHORTHAND_RE.match(source_url):
+        owner, repo, ref = m.group(1), m.group(2), m.group(3)
+        # Tolerate a trailing ".git" on the shorthand repo so the
+        # github://owner/repo.git form doesn't silently become repo.git.git.
+        repo = repo.removesuffix(".git")
+        return f"https://github.com/{owner}/{repo}.git", ref
+    if m := _GITHUB_HTTPS_RE.match(source_url):
+        return m.group(1), m.group(2)
+    return None
+
+
+def _clone_idf_with_submodules(
+    framework_path: Path, git_url: str, ref: str | None
+) -> None:
+    """Shallow-clone ESP-IDF with submodules into ``framework_path``.
+
+    GitHub's archive zip strips submodules, so vendored components
+    (mbedtls, openthread, esptool, ...) come down empty and CMake fails.
+
+    Uses clone + ``fetch FETCH_HEAD`` + ``reset --hard`` instead of
+    ``--branch``: ``--branch`` only accepts branch or tag names, but a
+    user can also point at a commit SHA. The fetch-then-reset pattern
+    handles branches, tags, and SHAs uniformly (mirrors the approach in
+    ``esphome.git.clone_or_update``).
+    """
+    from esphome.git import run_git_command
+
+    _LOGGER.info("Cloning ESP-IDF from %s%s", git_url, f"@{ref}" if ref else "")
+    run_git_command(["git", "clone", "--depth=1", "--", git_url, str(framework_path)])
+    if ref:
+        run_git_command(
+            ["git", "fetch", "--depth=1", "--", "origin", ref],
+            git_dir=framework_path,
+        )
+        run_git_command(
+            ["git", "reset", "--hard", "FETCH_HEAD"],
+            git_dir=framework_path,
+        )
+    run_git_command(
+        [
+            "git",
+            "submodule",
+            "update",
+            "--init",
+            "--recursive",
+            "--depth=1",
+        ],
+        git_dir=framework_path,
+    )
+
+    # Sanity-check the resulting tree. run_git_command only raises when
+    # stderr is non-empty, so a clone that silently produces no working
+    # tree would otherwise be marked extracted and stuck until
+    # ``esphome clean``.
+    if not (framework_path / "tools" / "idf_tools.py").is_file():
+        raise RuntimeError(
+            f"Clone of {git_url} produced no usable ESP-IDF tree at {framework_path}"
+        )
+
+
 def _write_idf_version_txt(framework_path: Path, version: str) -> None:
     """Write <framework_path>/version.txt if missing.
 
@@ -939,27 +1011,34 @@ def _check_esphome_idf_framework_install(
     if install:
         rmdir(framework_path, msg=f"Clean up ESP-IDF {version} framework")
 
-        # Download in temporary file
-        with tempfile.NamedTemporaryFile() as tmp:
-            _LOGGER.info("Downloading ESP-IDF %s framework ...", version)
+        git_source = _parse_git_source(source_url) if source_url else None
+        if git_source is not None:
+            git_url, ref = git_source
+            _clone_idf_with_submodules(framework_path, git_url, ref)
+        else:
+            # Download in temporary file
+            with tempfile.NamedTemporaryFile() as tmp:
+                _LOGGER.info("Downloading ESP-IDF %s framework ...", version)
 
-            # Create substitutions for the URLs
-            substitutions = {"VERSION": version}
-            try:
-                ver = Version.parse(version)
-                substitutions["MAJOR"] = str(ver.major)
-                substitutions["MINOR"] = str(ver.minor)
-                substitutions["PATCH"] = str(ver.patch)
-                substitutions["EXTRA"] = ver.extra
-            except ValueError:
-                pass
+                # Create substitutions for the URLs
+                substitutions = {"VERSION": version}
+                try:
+                    ver = Version.parse(version)
+                    substitutions["MAJOR"] = str(ver.major)
+                    substitutions["MINOR"] = str(ver.minor)
+                    substitutions["PATCH"] = str(ver.patch)
+                    substitutions["EXTRA"] = ver.extra
+                except ValueError:
+                    pass
 
-            mirrors = [source_url] if source_url else ESPHOME_IDF_FRAMEWORK_MIRRORS
-            download_from_mirrors(mirrors, substitutions, tmp.file)
+                mirrors = [source_url] if source_url else ESPHOME_IDF_FRAMEWORK_MIRRORS
+                download_from_mirrors(mirrors, substitutions, tmp.file)
 
-            _LOGGER.info("Extracting ESP-IDF %s framework ...", version)
-            archive_extract_all(tmp.file, framework_path, progress_header="Extracting")
-            extracted_marker.touch()
+                _LOGGER.info("Extracting ESP-IDF %s framework ...", version)
+                archive_extract_all(
+                    tmp.file, framework_path, progress_header="Extracting"
+                )
+        extracted_marker.touch()
 
     # Idempotent post-extract patch: written every invocation so a build
     # dir extracted before this fix gets the file too, without forcing a

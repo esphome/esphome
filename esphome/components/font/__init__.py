@@ -563,13 +563,13 @@ async def to_code(config):
     point_set.update(flatten(config[CONF_GLYPHS]))
     # Create the codepoint to font file map
     base_font = FONT_CACHE[config[CONF_FILE]]
-    point_font_map: dict[str, Face] = {c: base_font for c in point_set}
+    point_font_map: dict[str, Face] = dict.fromkeys(point_set, base_font)
     # process extras, updating the map and extending the codepoint list
     for extra in config[CONF_EXTRAS]:
         extra_points = flatten(extra[CONF_GLYPHS])
         point_set.update(extra_points)
         extra_font = FONT_CACHE[extra[CONF_FILE]]
-        point_font_map.update({c: extra_font for c in extra_points})
+        point_font_map.update(dict.fromkeys(extra_points, extra_font))
 
     codepoints = list(point_set)
     codepoints.sort(key=functools.cmp_to_key(glyph_comparator))

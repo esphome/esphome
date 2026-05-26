@@ -159,7 +159,7 @@ def get_esphome_device_ip(
     username: str | None = None,
     password: str | None = None,
     client_id: str | None = None,
-    timeout: int | float = 25,
+    timeout: float = 25,
 ) -> list[str]:
     if CONF_MQTT not in config:
         raise EsphomeError(

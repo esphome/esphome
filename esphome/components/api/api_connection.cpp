@@ -1169,7 +1169,7 @@ void APIConnection::on_camera_image_request(const CameraImageRequest &msg) {
 void APIConnection::on_get_time_response(const GetTimeResponse &value) {
   if (homeassistant::global_homeassistant_time != nullptr) {
     homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
-#ifdef USE_TIME_TIMEZONE
+#if defined(USE_HOMEASSISTANT_TIMEZONE) && defined(USE_TIME_TIMEZONE)
     if (!value.timezone.empty()) {
       // Check if the sender provided pre-parsed timezone data.
       // If std_offset is non-zero or DST rules are present, the parsed data was populated.

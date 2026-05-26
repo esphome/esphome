@@ -55,7 +55,7 @@ ESPHOME_DATA_EXTRA_CMAKE_KEY = "EXTRA_CMAKE"
 
 class Source:
     def download(self, dir_suffix: str, force: bool = False) -> Path:
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class URLSource(Source):

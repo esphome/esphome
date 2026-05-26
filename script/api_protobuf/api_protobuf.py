@@ -1283,11 +1283,11 @@ class PackedBufferTypeInfo(TypeInfo):
         """Dump shows buffer info but not decoded values."""
         return (
             f'out.append(2, \' \').append_p(ESPHOME_PSTR("{self.name}")).append(": ");\n'
-            + 'out.append_p(ESPHOME_PSTR("packed buffer ["));\n'
-            + f"append_uint(out, this->{self.field_name}_count_);\n"
-            + 'out.append_p(ESPHOME_PSTR(" values, "));\n'
-            + f"append_uint(out, this->{self.field_name}_length_);\n"
-            + 'out.append_p(ESPHOME_PSTR(" bytes]\\n"));'
+            'out.append_p(ESPHOME_PSTR("packed buffer ["));\n'
+            f"append_uint(out, this->{self.field_name}_count_);\n"
+            'out.append_p(ESPHOME_PSTR(" values, "));\n'
+            f"append_uint(out, this->{self.field_name}_length_);\n"
+            'out.append_p(ESPHOME_PSTR(" bytes]\\n"));'
         )
 
     def dump(self, name: str) -> str:
