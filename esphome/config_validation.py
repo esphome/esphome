@@ -855,9 +855,7 @@ only_on_esp8266 = only_on(PLATFORM_ESP8266)
 only_on_nrf52 = only_on(PLATFORM_NRF52)
 only_on_rp2040 = only_on(PLATFORM_RP2040)
 only_with_arduino = only_with_framework(Framework.ARDUINO)
-# Legacy alias. ESP32 Arduino now builds on top of ESP-IDF, so ESP-IDF features
-# are available in both frameworks; the "pure IDF framework" gate has been
-# folded into "is ESP32". Prefer cv.only_on_esp32 directly.
+# Legacy alias; prefer only_on_esp32.
 only_with_esp_idf = only_on_esp32
 
 

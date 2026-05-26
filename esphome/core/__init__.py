@@ -861,10 +861,7 @@ class EsphomeCore:
 
     @property
     def using_esp_idf(self):
-        # Legacy alias. ESP32 Arduino now builds on top of ESP-IDF, so the
-        # "pure IDF framework" check has been folded into "is ESP32". Prefer
-        # CORE.is_esp32 (or CORE.using_toolchain_esp_idf for the actual
-        # toolchain question) in new code.
+        # Legacy alias; prefer is_esp32 (or using_toolchain_esp_idf).
         return self.is_esp32
 
     @property
