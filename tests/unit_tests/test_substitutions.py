@@ -840,6 +840,48 @@ def test_include_vars_applied_to_lambda_value(tmp_path: Path) -> None:
     assert result["value"].value == 'return "bar";'
 
 
+@patch("esphome.git.resolve_symlink_stub")
+@patch("esphome.git.clone_or_update")
+def test_remote_package_symlink_stub_is_followed(
+    mock_clone_or_update: MagicMock,
+    mock_resolve_symlink_stub: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """When a package YAML is a scalar (symlink stub) and resolve_symlink_stub
+    returns a target, the loader follows the target and uses its content."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    (repo_dir / "static").mkdir()
+
+    # Stub file: content is the target path string (simulating Windows behavior).
+    stub = repo_dir / "file1.yaml"
+    stub.write_text("static/file1.yaml")
+
+    # Real target with valid YAML mapping.
+    target = repo_dir / "static" / "file1.yaml"
+    target.write_text("substitutions:\n  hello: world\n")
+
+    mock_clone_or_update.return_value = (repo_dir, None)
+    mock_resolve_symlink_stub.return_value = target
+
+    config: dict[str, Any] = {
+        "packages": {
+            "test_package": {
+                "url": "https://github.com/esphome/repo1",
+                "ref": "main",
+                "files": ["file1.yaml"],
+            }
+        }
+    }
+
+    # Must succeed (does not raise the helpful cv.Invalid) because the stub
+    # was followed and a valid mapping was loaded from the target.
+    do_packages_pass(config)
+    assert mock_resolve_symlink_stub.called
+
+
 @patch("esphome.git.clone_or_update")
 def test_remote_package_scalar_yaml_raises_helpful_error(
     mock_clone_or_update: MagicMock, tmp_path: Path

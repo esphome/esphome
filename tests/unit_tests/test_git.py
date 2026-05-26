@@ -1230,3 +1230,75 @@ def test_resolve_symlink_stub_returns_none_when_resolve_raises(
         result = git.resolve_symlink_stub(repo_dir, stub)
 
     assert result is None
+
+
+def test_resolve_symlink_stub_returns_none_when_file_missing(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A file path that doesn't exist is rejected before git is consulted."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+
+    missing = repo_dir / "ghost.yaml"  # not created
+
+    with patch("esphome.git.sys.platform", "win32"):
+        result = git.resolve_symlink_stub(repo_dir, missing)
+
+    assert result is None
+    mock_run_git_command.assert_not_called()
+
+
+def test_resolve_symlink_stub_returns_none_when_path_outside_repo(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A file path that isn't under repo_dir is rejected (ValueError from relative_to)."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+
+    outside = tmp_path / "stray.yaml"
+    outside.write_text("something")
+
+    with patch("esphome.git.sys.platform", "win32"):
+        result = git.resolve_symlink_stub(repo_dir, outside)
+
+    assert result is None
+    mock_run_git_command.assert_not_called()
+
+
+def test_resolve_symlink_stub_returns_none_when_untracked(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Empty `git ls-files` output (untracked file) makes the helper return None."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+
+    stub = repo_dir / "untracked.yaml"
+    stub.write_text("static/foo.yaml")
+
+    mock_run_git_command.return_value = ""
+
+    with patch("esphome.git.sys.platform", "win32"):
+        result = git.resolve_symlink_stub(repo_dir, stub)
+
+    assert result is None
+
+
+def test_resolve_symlink_stub_returns_none_when_read_bytes_raises(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """An OSError from read_bytes() (e.g. file vanished mid-call) must not propagate."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+
+    stub = repo_dir / "racy.yaml"
+    stub.write_text("static/racy.yaml")
+
+    mock_run_git_command.return_value = "120000 abc123 0\tracy.yaml"
+
+    with (
+        patch("esphome.git.sys.platform", "win32"),
+        patch.object(Path, "read_bytes", side_effect=OSError("vanished")),
+    ):
+        result = git.resolve_symlink_stub(repo_dir, stub)
+
+    assert result is None
