@@ -855,16 +855,10 @@ only_on_esp8266 = only_on(PLATFORM_ESP8266)
 only_on_nrf52 = only_on(PLATFORM_NRF52)
 only_on_rp2040 = only_on(PLATFORM_RP2040)
 only_with_arduino = only_with_framework(Framework.ARDUINO)
-
-
-def only_with_esp_idf(obj):
-    """Deprecated: use only_on_esp32 instead."""
-    _LOGGER.warning(
-        "cv.only_with_esp_idf was deprecated in 2026.1, will change behavior in 2026.6. "
-        "ESP32 Arduino builds on top of ESP-IDF, so ESP-IDF features are available in both frameworks. "
-        "Use cv.only_on_esp32 and/or cv.only_with_arduino instead."
-    )
-    return only_with_framework(Framework.ESP_IDF)(obj)
+# Legacy alias. ESP32 Arduino now builds on top of ESP-IDF, so ESP-IDF features
+# are available in both frameworks; the "pure IDF framework" gate has been
+# folded into "is ESP32". Prefer cv.only_on_esp32 directly.
+only_with_esp_idf = only_on_esp32
 
 
 # Adapted from:

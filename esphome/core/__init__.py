@@ -861,12 +861,11 @@ class EsphomeCore:
 
     @property
     def using_esp_idf(self):
-        _LOGGER.warning(
-            "CORE.using_esp_idf was deprecated in 2026.1, will change behavior in 2026.6. "
-            "ESP32 Arduino builds on top of ESP-IDF, so ESP-IDF features are available in both frameworks. "
-            "Use CORE.is_esp32 and/or CORE.using_arduino instead."
-        )
-        return self.target_framework == "esp-idf"
+        # Legacy alias. ESP32 Arduino now builds on top of ESP-IDF, so the
+        # "pure IDF framework" check has been folded into "is ESP32". Prefer
+        # CORE.is_esp32 (or CORE.using_toolchain_esp_idf for the actual
+        # toolchain question) in new code.
+        return self.is_esp32
 
     @property
     def using_toolchain_esp_idf(self):
