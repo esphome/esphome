@@ -11,6 +11,6 @@ external_components:
   - source: EXTERNAL_COMPONENT_PATH
 
 climate:
-  - platform: ordered_climate
+  - platform: ordered_climate_component
     id: ordered_climate
     name: Ordered Climate
