@@ -118,6 +118,7 @@ class Valve : public actuator::ActuatorBase, public actuator::IActuator {
   actuator::ActuatorOperation get_operation() const override { return this->current_operation; }
   void set_operation(actuator::ActuatorOperation op) override { this->current_operation = op; }
   void do_publish_state(bool save) override { this->publish_state(save); }
+  optional<float> do_restore_state() override;
 
  protected:
   friend ValveCall;
