@@ -850,6 +850,11 @@ def convert(schema, config_var, path):
             convert(ext, config_var, f"{path}/ext{idx}")
         return
 
+    if isinstance(schema, cv._SensitiveValidator):
+        config_var["sensitive"] = True
+        convert(schema.inner, config_var, path + "/sensitive")
+        return
+
     if isinstance(schema, cv.All):
         i = 0
         for inner in schema.validators:
@@ -1125,6 +1130,21 @@ def convert_keys(converted, schema, path):
 
         # Do value
         convert(v, result, path + f"/{str(k)}")
+
+        # Heuristic fallback when the field's validator wasn't explicitly
+        # wrapped in ``cv.sensitive``. Only applies to string-typed leaves so
+        # we don't mark unrelated nested schemas. ``sensitive_source`` lets
+        # consumers distinguish explicit markers from heuristic matches.
+        if (
+            "sensitive" not in result
+            and result.get(S_TYPE) == "string"
+            and isinstance(k, (cv.Required, cv.Optional, cv.Inclusive, cv.Exclusive))
+        ):
+            key_lower = str(k).lower()
+            if any(frag in key_lower for frag in cv.SENSITIVE_KEY_FRAGMENTS):
+                result["sensitive"] = True
+                result["sensitive_source"] = "heuristic"
+
         if "schema" not in converted:
             converted[S_TYPE] = "schema"
             converted["schema"] = {S_CONFIG_VARS: {}}
