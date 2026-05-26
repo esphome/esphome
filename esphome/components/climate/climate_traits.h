@@ -14,6 +14,7 @@ namespace esphome::climate {
 // Bitmask size is automatically calculated from the last enum value
 using ClimateModeMask = FiniteSetMask<ClimateMode, DefaultBitPolicy<ClimateMode, CLIMATE_MODE_AUTO + 1>>;
 using ClimateFanModeMask = FiniteSetMask<ClimateFanMode, DefaultBitPolicy<ClimateFanMode, CLIMATE_FAN_QUIET + 1>>;
+using ClimateFanModeList = StaticVector<ClimateFanMode, CLIMATE_FAN_QUIET + 1>;
 using ClimateSwingModeMask =
     FiniteSetMask<ClimateSwingMode, DefaultBitPolicy<ClimateSwingMode, CLIMATE_SWING_HORIZONTAL + 1>>;
 using ClimatePresetMask = FiniteSetMask<ClimatePreset, DefaultBitPolicy<ClimatePreset, CLIMATE_PRESET_ACTIVITY + 1>>;
@@ -86,11 +87,45 @@ class ClimateTraits {
   bool supports_mode(ClimateMode mode) const { return this->supported_modes_.count(mode); }
   const ClimateModeMask &get_supported_modes() const { return this->supported_modes_; }
 
-  void set_supported_fan_modes(ClimateFanModeMask modes) { this->supported_fan_modes_ = modes; }
-  void add_supported_fan_mode(ClimateFanMode mode) { this->supported_fan_modes_.insert(mode); }
+  void set_supported_fan_modes(ClimateFanModeMask modes) {
+    this->supported_fan_modes_ = modes;
+    this->supported_fan_modes_ordered_.clear();
+    for (ClimateFanMode mode : modes)
+      this->supported_fan_modes_ordered_.push_back(mode);
+  }
+  void set_supported_fan_modes_ordered(std::initializer_list<ClimateFanMode> modes) {
+    this->supported_fan_modes_.clear();
+    this->supported_fan_modes_ordered_.clear();
+    for (ClimateFanMode mode : modes)
+      this->add_supported_fan_mode(mode);
+  }
+  void set_supported_fan_modes_ordered(const ClimateFanModeList &modes) {
+    this->supported_fan_modes_.clear();
+    this->supported_fan_modes_ordered_.clear();
+    for (ClimateFanMode mode : modes)
+      this->add_supported_fan_mode(mode);
+  }
+  // Remove before 2026.11.0
+  ESPDEPRECATED("Call set_supported_fan_modes_ordered() on the Climate entity instead. Removed in 2026.11.0",
+                "2026.5.0")
+  void set_supported_fan_modes(std::initializer_list<ClimateFanMode> modes) {
+    this->set_supported_fan_modes_ordered(modes);
+  }
+  // Remove before 2026.11.0
+  ESPDEPRECATED("Call set_supported_fan_modes_ordered() on the Climate entity instead. Removed in 2026.11.0",
+                "2026.5.0")
+  void set_supported_fan_modes(const ClimateFanModeList &modes) {
+    this->set_supported_fan_modes_ordered(modes);
+  }
+  void add_supported_fan_mode(ClimateFanMode mode) {
+    if (this->supports_fan_mode(mode))
+      return;
+    this->supported_fan_modes_.insert(mode);
+    this->supported_fan_modes_ordered_.push_back(mode);
+  }
   bool supports_fan_mode(ClimateFanMode fan_mode) const { return this->supported_fan_modes_.count(fan_mode); }
   bool get_supports_fan_modes() const {
-    if (!this->supported_fan_modes_.empty()) {
+    if (!this->supported_fan_modes_.empty() || !this->supported_fan_modes_ordered_.empty()) {
       return true;
     }
     // Same precedence as get_supported_custom_fan_modes() getter
@@ -100,6 +135,7 @@ class ClimateTraits {
     return !this->compat_custom_fan_modes_.empty();  // Compat: remove in 2026.11.0
   }
   const ClimateFanModeMask &get_supported_fan_modes() const { return this->supported_fan_modes_; }
+  const ClimateFanModeList &get_supported_fan_modes_ordered() const { return this->supported_fan_modes_ordered_; }
 
   // Remove before 2026.11.0
   ESPDEPRECATED("Call set_supported_custom_fan_modes() on the Climate entity instead. Removed in 2026.11.0", "2026.5.0")
@@ -215,9 +251,16 @@ class ClimateTraits {
   }
   void set_fan_mode_support_(climate::ClimateFanMode mode, bool supported) {
     if (supported) {
-      this->supported_fan_modes_.insert(mode);
+      this->add_supported_fan_mode(mode);
     } else {
       this->supported_fan_modes_.erase(mode);
+      ClimateFanModeList supported_fan_modes_ordered;
+      for (ClimateFanMode existing_mode : this->supported_fan_modes_ordered_) {
+        if (existing_mode != mode) {
+          supported_fan_modes_ordered.push_back(existing_mode);
+        }
+      }
+      this->supported_fan_modes_ordered_ = supported_fan_modes_ordered;
     }
   }
   void set_swing_mode_support_(climate::ClimateSwingMode mode, bool supported) {
@@ -272,6 +315,7 @@ class ClimateTraits {
 
   climate::ClimateModeMask supported_modes_{climate::CLIMATE_MODE_OFF};
   climate::ClimateFanModeMask supported_fan_modes_;
+  climate::ClimateFanModeList supported_fan_modes_ordered_;
   climate::ClimateSwingModeMask supported_swing_modes_;
   climate::ClimatePresetMask supported_presets_;
 

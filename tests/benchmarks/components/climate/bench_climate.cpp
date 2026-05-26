@@ -32,7 +32,7 @@ static void setup_hvac_climate(BenchClimate &climate) {
       climate::CLIMATE_MODE_HEAT,
       climate::CLIMATE_MODE_FAN_ONLY,
   });
-  climate.traits_.set_supported_fan_modes({
+  climate.traits_.set_supported_fan_modes_ordered({
       climate::CLIMATE_FAN_AUTO,
       climate::CLIMATE_FAN_LOW,
       climate::CLIMATE_FAN_MEDIUM,

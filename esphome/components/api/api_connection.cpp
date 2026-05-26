@@ -776,7 +776,7 @@ uint16_t APIConnection::try_send_climate_info(EntityBase *entity, APIConnection 
   msg.visual_current_temperature_step = traits.get_visual_current_temperature_step();
   msg.visual_min_humidity = traits.get_visual_min_humidity();
   msg.visual_max_humidity = traits.get_visual_max_humidity();
-  msg.supported_fan_modes = &traits.get_supported_fan_modes();
+  msg.supported_fan_modes = &traits.get_supported_fan_modes_ordered();
   msg.supported_custom_fan_modes = &traits.get_supported_custom_fan_modes();
   msg.supported_presets = &traits.get_supported_presets();
   msg.supported_custom_presets = &traits.get_supported_custom_presets();

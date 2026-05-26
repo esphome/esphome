@@ -768,10 +768,12 @@ void Climate::dump_traits_(const char *tag) {
     for (ClimateMode m : traits.get_supported_modes())
       ESP_LOGCONFIG(tag, "  - %s", LOG_STR_ARG(climate_mode_to_string(m)));
   }
-  if (!traits.get_supported_fan_modes().empty()) {
+  if (!traits.get_supported_fan_modes_ordered().empty()) {
     ESP_LOGCONFIG(tag, "  Supported fan modes:");
-    for (ClimateFanMode m : traits.get_supported_fan_modes())
-      ESP_LOGCONFIG(tag, "  - %s", LOG_STR_ARG(climate_fan_mode_to_string(m)));
+    for (ClimateFanMode m : traits.get_supported_fan_modes_ordered()) {
+      if (traits.supports_fan_mode(m))
+        ESP_LOGCONFIG(tag, "  - %s", LOG_STR_ARG(climate_fan_mode_to_string(m)));
+    }
   }
   if (!traits.get_supported_custom_fan_modes().empty()) {
     ESP_LOGCONFIG(tag, "  Supported custom fan modes:");

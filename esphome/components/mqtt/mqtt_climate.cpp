@@ -163,26 +163,10 @@ void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCo
     root[MQTT_FAN_MODE_STATE_TOPIC] = this->get_fan_mode_state_topic();
     // fan_modes
     JsonArray fan_modes = root[ESPHOME_F("fan_modes")].to<JsonArray>();
-    if (traits.supports_fan_mode(CLIMATE_FAN_ON))
-      fan_modes.add(ESPHOME_F("on"));
-    if (traits.supports_fan_mode(CLIMATE_FAN_OFF))
-      fan_modes.add(ESPHOME_F("off"));
-    if (traits.supports_fan_mode(CLIMATE_FAN_AUTO))
-      fan_modes.add(ESPHOME_F("auto"));
-    if (traits.supports_fan_mode(CLIMATE_FAN_LOW))
-      fan_modes.add(ESPHOME_F("low"));
-    if (traits.supports_fan_mode(CLIMATE_FAN_MEDIUM))
-      fan_modes.add(ESPHOME_F("medium"));
-    if (traits.supports_fan_mode(CLIMATE_FAN_HIGH))
-      fan_modes.add(ESPHOME_F("high"));
-    if (traits.supports_fan_mode(CLIMATE_FAN_MIDDLE))
-      fan_modes.add(ESPHOME_F("middle"));
-    if (traits.supports_fan_mode(CLIMATE_FAN_FOCUS))
-      fan_modes.add(ESPHOME_F("focus"));
-    if (traits.supports_fan_mode(CLIMATE_FAN_DIFFUSE))
-      fan_modes.add(ESPHOME_F("diffuse"));
-    if (traits.supports_fan_mode(CLIMATE_FAN_QUIET))
-      fan_modes.add(ESPHOME_F("quiet"));
+    for (ClimateFanMode fan_mode : traits.get_supported_fan_modes_ordered()) {
+      if (traits.supports_fan_mode(fan_mode))
+        fan_modes.add(climate_fan_mode_to_mqtt_str(fan_mode));
+    }
     for (const auto &fan_mode : traits.get_supported_custom_fan_modes())
       fan_modes.add(fan_mode);
   }

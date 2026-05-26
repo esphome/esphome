@@ -1102,7 +1102,7 @@ message ListEntitiesClimateResponse {
   // Deprecated in API version 1.5
   bool legacy_supports_away = 11 [deprecated=true];
   bool supports_action = 12; // Deprecated: use feature_flags
-  repeated ClimateFanMode supported_fan_modes = 13 [(container_pointer_no_template) = "climate::ClimateFanModeMask"];
+  repeated ClimateFanMode supported_fan_modes = 13 [(container_pointer_no_template) = "climate::ClimateFanModeList"];
   repeated ClimateSwingMode supported_swing_modes = 14 [(container_pointer_no_template) = "climate::ClimateSwingModeMask"];
   repeated string supported_custom_fan_modes = 15 [(container_pointer_no_template) = "std::vector<const char *>"];
   repeated ClimatePreset supported_presets = 16 [(container_pointer_no_template) = "climate::ClimatePresetMask"];

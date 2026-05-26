@@ -1,0 +1,16 @@
+esphome:
+  name: climate-fan-mode-order-test
+
+host:
+
+api:
+
+logger:
+
+external_components:
+  - source: EXTERNAL_COMPONENT_PATH
+
+climate:
+  - platform: ordered_climate
+    id: ordered_climate
+    name: Ordered Climate

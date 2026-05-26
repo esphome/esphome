@@ -1390,7 +1390,7 @@ class ListEntitiesClimateResponse final : public InfoResponseProtoMessage {
   float visual_max_temperature{0.0f};
   float visual_target_temperature_step{0.0f};
   bool supports_action{false};
-  const climate::ClimateFanModeMask *supported_fan_modes{};
+  const climate::ClimateFanModeList *supported_fan_modes{};
   const climate::ClimateSwingModeMask *supported_swing_modes{};
   const std::vector<const char *> *supported_custom_fan_modes{};
   const climate::ClimatePresetMask *supported_presets{};

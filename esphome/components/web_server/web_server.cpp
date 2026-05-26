@@ -1564,8 +1564,10 @@ json::SerializationBuffer<> WebServer::climate_json_(climate::Climate *obj, Json
       opt.add(PSTR_LOCAL(climate::climate_mode_to_string(m)));
     if (traits.get_supports_fan_modes()) {
       JsonArray opt = root[ESPHOME_F("fan_modes")].to<JsonArray>();
-      for (climate::ClimateFanMode m : traits.get_supported_fan_modes())
-        opt.add(PSTR_LOCAL(climate::climate_fan_mode_to_string(m)));
+      for (climate::ClimateFanMode m : traits.get_supported_fan_modes_ordered()) {
+        if (traits.supports_fan_mode(m))
+          opt.add(PSTR_LOCAL(climate::climate_fan_mode_to_string(m)));
+      }
     }
 
     if (!traits.get_supported_custom_fan_modes().empty()) {

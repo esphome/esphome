@@ -105,7 +105,7 @@ class DemoClimate : public climate::Climate, public Component {
             climate::CLIMATE_MODE_FAN_ONLY,
         });
         traits.add_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
-        traits.set_supported_fan_modes({
+        traits.set_supported_fan_modes_ordered({
             climate::CLIMATE_FAN_ON,
             climate::CLIMATE_FAN_OFF,
             climate::CLIMATE_FAN_AUTO,
