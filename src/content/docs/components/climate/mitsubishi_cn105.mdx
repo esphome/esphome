@@ -62,6 +62,7 @@ climate:
     uart_id: ac_uart
     update_interval: 1s
     current_temperature_min_interval: 60s
+    supported_swing_modes: BOTH
 ```
 
 > [!WARNING]
@@ -79,6 +80,7 @@ climate:
 - Current temperature reporting
 - Modes: `OFF`, `HEAT`, `COOL`, `DRY`, `FAN_ONLY`, `HEAT_COOL` (called `AUTO` by Mitsubishi)
 - Fan modes: `AUTO`, `QUIET`, `LOW`, `MEDIUM`, `MIDDLE`, `HIGH`
+- Swing modes: `OFF`, `VERTICAL`, `HORIZONTAL`, `BOTH` (configurable via `supported_swing_modes`)
 
 > [!NOTE]
 > Fan modes map to the following Mitsubishi fan speeds:
@@ -103,6 +105,13 @@ climate:
   Set to `never` to disable room temperature polling.
 
   Defaults to `60s`.
+
+- **supported_swing_modes** (*Optional*, enum): Selects which swing modes are exposed by the climate entity. Defaults to `'OFF'`.
+
+  - `'OFF'` — no swing support  
+  - `VERTICAL` — exposes `'OFF'`, `VERTICAL`  
+  - `HORIZONTAL` — exposes `'OFF'`, `HORIZONTAL`  
+  - `BOTH` — exposes `'OFF'`, `VERTICAL`, `HORIZONTAL`, `BOTH`
 
 - All other options from [Climate](/components/climate#config-climate).
 
