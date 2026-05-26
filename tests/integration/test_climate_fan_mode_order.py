@@ -33,9 +33,9 @@ async def test_climate_fan_mode_order(
 
         ordered_climate = climate_infos[0]
         assert ordered_climate.supported_fan_modes == [
-            ClimateFanMode.CLIMATE_FAN_HIGH,
-            ClimateFanMode.CLIMATE_FAN_AUTO,
-            ClimateFanMode.CLIMATE_FAN_LOW,
+            ClimateFanMode.HIGH,
+            ClimateFanMode.AUTO,
+            ClimateFanMode.LOW,
         ], (
             "Expected supported fan modes to preserve component-defined order, "
             f"got {ordered_climate.supported_fan_modes}"
