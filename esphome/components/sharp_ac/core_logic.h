@@ -25,24 +25,23 @@ namespace esphome::sharp_ac {
       virtual void format_hex_pretty_to(char *buffer, size_t buffer_size, const uint8_t *data, size_t len) = 0;
     };
 
-    class SharpAcStateCallback {
-    public:
-      virtual ~SharpAcStateCallback() = default;
-      virtual void on_state_update() = 0;
-      virtual void on_ion_state_update(bool state) = 0;
-      virtual void on_vane_horizontal_update(SwingHorizontal val) = 0;
-      virtual void on_vane_vertical_update(SwingVertical val) = 0;
-      virtual void on_connection_status_update(int status) = 0;
-    };
+class SharpAcStateCallback {
+ public:
+  virtual ~SharpAcStateCallback() = default;
+  virtual void on_state_update() = 0;
+  virtual void on_ion_state_update(bool state) = 0;
+  virtual void on_vane_horizontal_update(SwingHorizontal val) = 0;
+  virtual void on_vane_vertical_update(SwingVertical val) = 0;
+  virtual void on_connection_status_update(int status) = 0;
+};
 
-    class SharpAcCore
-    {
-    public:
-      SharpAcCore(SharpAcHardwareInterface* hardware, SharpAcStateCallback* callback);
-      virtual ~SharpAcCore() = default;
+class SharpAcCore {
+ public:
+  SharpAcCore(SharpAcHardwareInterface *hardware, SharpAcStateCallback *callback);
+  virtual ~SharpAcCore() = default;
 
-      void loop();
-      void setup();
+  void loop();
+  void setup();
 
       void set_ion(bool state);
       void set_vane_horizontal(SwingHorizontal val);

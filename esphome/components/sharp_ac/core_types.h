@@ -13,11 +13,11 @@ enum class PowerMode
     FAN = 0x4
 };
 
-enum class Preset
-{
-    NONE = 0x0,
-    ECO = 0x1,
-    FULLPOWER = 0x2
+enum class SwingHorizontal {
+  swing = 0xF,
+  middle = 0x1,
+  right = 0x2,
+  left = 0x3,
 };
 
 enum class FanMode
