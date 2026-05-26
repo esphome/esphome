@@ -852,7 +852,7 @@ def convert(schema, config_var, path):
 
     if isinstance(schema, cv._SensitiveValidator):
         config_var["sensitive"] = True
-        convert(schema.inner, config_var, path + "/sensitive")
+        convert(schema.inner, config_var, f"{path}/sensitive")
         return
 
     if isinstance(schema, cv.All):
