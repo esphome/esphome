@@ -727,29 +727,19 @@ def _filter_source_files() -> list[str]:
 FILTER_SOURCE_FILES = _filter_source_files
 
 
-@automation.register_condition(
-    "ethernet.connected", EthernetConnectedCondition, cv.Schema({})
-)
-async def ethernet_connected_to_code(config, condition_id, template_arg, args):
-    return cg.new_Pvariable(condition_id, template_arg)
+async def _new_pvariable_to_code(config, id_, template_arg, args):
+    return cg.new_Pvariable(id_, template_arg)
 
 
-@automation.register_condition(
-    "ethernet.enabled", EthernetEnabledCondition, cv.Schema({})
-)
-async def ethernet_enabled_to_code(config, condition_id, template_arg, args):
-    return cg.new_Pvariable(condition_id, template_arg)
-
-
-@automation.register_action(
-    "ethernet.enable", EthernetEnableAction, cv.Schema({}), synchronous=True
-)
-async def ethernet_enable_to_code(config, action_id, template_arg, args):
-    return cg.new_Pvariable(action_id, template_arg)
-
-
-@automation.register_action(
-    "ethernet.disable", EthernetDisableAction, cv.Schema({}), synchronous=True
-)
-async def ethernet_disable_to_code(config, action_id, template_arg, args):
-    return cg.new_Pvariable(action_id, template_arg)
+for _name, _cls in (
+    ("ethernet.connected", EthernetConnectedCondition),
+    ("ethernet.enabled", EthernetEnabledCondition),
+):
+    automation.register_condition(_name, _cls, cv.Schema({}))(_new_pvariable_to_code)
+for _name, _cls in (
+    ("ethernet.enable", EthernetEnableAction),
+    ("ethernet.disable", EthernetDisableAction),
+):
+    automation.register_action(_name, _cls, cv.Schema({}), synchronous=True)(
+        _new_pvariable_to_code
+    )
