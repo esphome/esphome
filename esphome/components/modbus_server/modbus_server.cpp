@@ -5,6 +5,7 @@
 namespace esphome::modbus_server {
 using modbus::ModbusFunctionCode;
 using modbus::ModbusExceptionCode;
+using modbus::helpers::payload_to_number;
 
 static const char *const TAG = "modbus_server";
 
