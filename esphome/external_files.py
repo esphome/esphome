@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 import logging
 import os
 from pathlib import Path
+import time
 
 import requests
 
@@ -142,8 +143,7 @@ def has_remote_file_changed(
 def is_file_recent(file_path: Path, refresh: TimePeriodSeconds) -> bool:
     if file_path.exists():
         creation_time = file_path.stat().st_ctime
-        current_time = datetime.now().timestamp()
-        return current_time - creation_time <= refresh.total_seconds
+        return time.time() - creation_time <= refresh.total_seconds
     return False
 
 

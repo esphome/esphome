@@ -113,6 +113,7 @@ exclude = ['generated']
 select = [
   "B",    # flake8-bugbear
   "C4",   # flake8-comprehensions
+  "DTZ",  # flake8-datetimez
   "E",    # pycodestyle
   "EXE",  # flake8-executable
   "F",    # pyflakes/autoflake

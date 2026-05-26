@@ -1136,7 +1136,8 @@ def date_time(date: bool, time: bool):
                 format += "%p"
 
         try:
-            date_obj = datetime.strptime(value, format)
+            # User-supplied date strings; tz info comes from the user's format.
+            date_obj = datetime.strptime(value, format)  # noqa: DTZ007
         except ValueError as err:
             raise Invalid(f"Invalid {exc_message}: {err}") from err
 

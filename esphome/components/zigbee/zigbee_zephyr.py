@@ -161,7 +161,8 @@ async def _attr_to_code(config: ConfigType) -> None:
         zigbee_set_string(basic_attrs.mf_name, "esphome"),
         zigbee_set_string(basic_attrs.model_id, config[CONF_MODEL]),
         zigbee_set_string(
-            basic_attrs.date_code, datetime.datetime.now().strftime("%Y%m%d %H%M%S")
+            basic_attrs.date_code,
+            datetime.datetime.now(tz=datetime.UTC).strftime("%Y%m%d %H%M%S"),
         ),
         zigbee_assign(
             basic_attrs.power_source,

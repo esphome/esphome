@@ -139,7 +139,7 @@ def show_discover(config, username=None, password=None, client_id=None):
     _LOGGER.info("Starting log output from %s", topic)
 
     def on_message(client, userdata, msg):
-        time_ = datetime.now().time().strftime("[%H:%M:%S]")
+        time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
         payload = msg.payload.decode(errors="backslashreplace")
         if len(payload) > 0:
             message = time_ + " " + payload
@@ -184,7 +184,7 @@ def get_esphome_device_ip(
 
     def on_message(client, userdata, msg):
         nonlocal dev_ip
-        time_ = datetime.now().time().strftime("[%H:%M:%S]")
+        time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
         payload = msg.payload.decode(errors="backslashreplace")
         if len(payload) > 0:
             message = time_ + " " + payload
@@ -253,7 +253,7 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
     _LOGGER.info("Starting log output from %s", topic)
 
     def on_message(client, userdata, msg):
-        time_ = datetime.now().time().strftime("[%H:%M:%S]")
+        time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
         payload = msg.payload.decode(errors="backslashreplace")
         message = time_ + payload
         safe_print(message)
