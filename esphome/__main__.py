@@ -1800,7 +1800,7 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
         ram_report = ram_analyzer.generate_report()
         print()
         print(ram_report)
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception as e:  # noqa: BLE001  # pylint: disable=broad-except
         _LOGGER.warning("RAM strings analysis failed: %s", e)
 
     return 0

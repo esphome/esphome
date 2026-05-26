@@ -120,7 +120,7 @@ def run_extra_script(
                 "__name__": "__pio_extra_script__",
             },
         )
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         _LOGGER.warning("PIO extra-script %s raised %s; skipping", script_path, e)
         return ExtraScriptResult()
     finally:

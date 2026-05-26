@@ -392,7 +392,7 @@ def compile_and_get_binary(
         if exit_code != 0:
             print(f"Error compiling {label} for {', '.join(components)}")
             return exit_code, None
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error compiling {label} for {', '.join(components)}: {e}")
         return EXIT_COMPILE_ERROR, None
 
