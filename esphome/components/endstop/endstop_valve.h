@@ -14,7 +14,7 @@ class EndstopValve : public EndstopActuatorBase, public valve::Valve {
   void dump_config() override;
 
  protected:
-  void control(const valve::ValveCall &call) override { EndstopActuatorBase::control(call); }
+  void control(const valve::ValveCall &call) override { EndstopActuatorBase::control_(call); }
 };
 
 }  // namespace esphome::endstop
