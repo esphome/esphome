@@ -91,7 +91,7 @@ def load_analysis_json(json_path: str) -> dict | None:
         return None
 
     try:
-        with open(json_file, encoding="utf-8") as f:
+        with Path(json_file).open(encoding="utf-8") as f:
             return json.load(f)
     except (json.JSONDecodeError, OSError) as e:
         print(f"Failed to load analysis JSON: {e}", file=sys.stderr)

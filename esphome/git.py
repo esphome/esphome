@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 import re
 import subprocess
+import sys
 import urllib.parse
 
 import esphome.config_validation as cv
@@ -92,6 +93,92 @@ def _compute_destination_path(key: str, domain: str) -> Path:
     h = hashlib.new("sha256")
     h.update(key.encode())
     return base_dir / h.hexdigest()[:8]
+
+
+def resolve_symlink_stub(repo_dir: Path, file_path: Path) -> Path | None:
+    """Return the symlink target if ``file_path`` is a Windows-checked-out symlink stub.
+
+    On Windows, when ``core.symlinks=false`` (the default unless the user has
+    SeCreateSymbolicLinkPrivilege — i.e. Developer Mode or running elevated),
+    git materializes files with tree mode ``120000`` as plain text files
+    whose content is the literal symlink target path. Opening such a file
+    yields the target path string instead of the target's content.
+
+    If ``file_path`` is one of those stubs, return the resolved target Path
+    inside ``repo_dir``. Otherwise return ``None`` and the caller should use
+    ``file_path`` as-is.
+
+    Designed to be called *only* when normal access has already produced an
+    unexpected result (e.g. YAML parsed as a top-level scalar), so the
+    per-file ``git ls-files`` subprocess cost is paid only on the failure
+    path. Returns ``None`` on any error or check failure — it's purely a
+    best-effort recovery, never raises.
+    """
+    # On non-Windows, git creates real symlinks; ordinary file access already
+    # transparently follows them.
+    if sys.platform != "win32":
+        return None
+    if file_path.is_symlink():
+        return None
+    if not file_path.is_file():
+        return None
+
+    try:
+        rel = file_path.relative_to(repo_dir)
+    except ValueError:
+        return None
+
+    try:
+        # ``git ls-files -s <path>`` prints "<mode> <sha> <stage>\t<path>"
+        # for that single entry, or empty if untracked.
+        out = run_git_command(
+            ["git", "ls-files", "-s", "--", rel.as_posix()],
+            git_dir=repo_dir,
+        )
+    except GitException:
+        return None
+
+    parts = out.split()
+    if not parts or parts[0] != "120000":
+        return None
+
+    # Stubs are short ASCII relative paths. Decode defensively, and only
+    # strip the trailing newline git's checkout may append — preserving any
+    # whitespace that could be part of a valid target name.
+    try:
+        raw = file_path.read_bytes()
+    except OSError:
+        return None
+    try:
+        target_str = raw.decode("utf-8").rstrip("\r\n")
+    except UnicodeDecodeError:
+        return None
+
+    # ``Path()`` and ``Path.resolve()`` can raise on malformed inputs (e.g.
+    # embedded NUL bytes from a hostile symlink blob, paths too long for the
+    # OS, or temporary I/O errors). Catch broadly — this helper is purely a
+    # best-effort recovery and must never raise.
+    try:
+        target_path = (file_path.parent / target_str).resolve()
+        repo_root_resolved = repo_dir.resolve()
+    except (OSError, ValueError, RuntimeError):
+        return None
+
+    # ``Path.resolve()`` follows ``..``; re-verify containment afterwards.
+    try:
+        target_path.relative_to(repo_root_resolved)
+    except ValueError:
+        _LOGGER.warning(
+            "Refusing to follow symlink %s -> %s (escapes repository)",
+            file_path,
+            target_str,
+        )
+        return None
+
+    if not target_path.is_file():
+        return None
+
+    return target_path
 
 
 def clone_or_update(
