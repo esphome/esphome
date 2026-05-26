@@ -86,9 +86,12 @@ async def to_code(config):
         cg.add(var.set_turnaround_time(config[CONF_TURNAROUND_TIME]))
 
 
-def modbus_device_schema(default_address):
+def modbus_device_schema(
+    default_address, role: Literal["client", "server"] = "client"
+):
+    hub_type = ModbusClient if role == "client" else ModbusServer
     schema = {
-        cv.GenerateID(CONF_MODBUS_ID): cv.use_id(Modbus),
+        cv.GenerateID(CONF_MODBUS_ID): cv.use_id(hub_type),
     }
     if default_address is None:
         schema[cv.Required(CONF_ADDRESS)] = cv.hex_uint8_t

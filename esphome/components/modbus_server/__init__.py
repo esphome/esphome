@@ -61,7 +61,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_REGISTERS,
             ): cv.ensure_list(ModbusServerRegisterSchema),
         }
-    ).extend(modbus.modbus_device_schema(0x01)),
+    ).extend(modbus.modbus_device_schema(0x01, role="server")),
 )
 
 
