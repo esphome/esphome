@@ -1,4 +1,3 @@
-import glob
 import logging
 from pathlib import Path
 from typing import Any
@@ -106,7 +105,7 @@ REMOTES = {
 # Collect all input YAML files for test_substitutions_fixtures parametrized tests:
 HERE = Path(__file__).parent
 BASE_DIR = HERE / "fixtures" / "substitutions"
-SOURCES = sorted(glob.glob(str(BASE_DIR / "*.input.yaml")))
+SOURCES = sorted(str(p) for p in BASE_DIR.glob("*.input.yaml"))
 assert SOURCES, f"test_substitutions_fixtures: No input YAML files found in {BASE_DIR}"
 
 

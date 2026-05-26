@@ -72,8 +72,9 @@ def run_git_command(cmd: list[str], git_dir: Path | None = None) -> str:
         )
     except FileNotFoundError as err:
         raise GitNotInstalledError(
-            "git is not installed but required for external_components.\n"
-            "Please see https://git-scm.com/book/en/v2/Getting-Started-Installing-Git for installing git"
+            "git is not installed. See "
+            "https://git-scm.com/book/en/v2/Getting-Started-Installing-Git "
+            "for installation instructions."
         ) from err
 
     if ret.returncode != 0 and ret.stderr:
