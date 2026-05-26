@@ -378,15 +378,33 @@ TRIGGER_EVENT_MAP = {
 }
 
 
-def part_schema(parts):
+def part_dict(parts: tuple[str, ...] | list[str]) -> dict[Any, Any]:
+    """
+    Return the raw mapping used by part_schema, so callers can merge it into a
+    larger dict and avoid chained .extend() calls (each .extend() recompiles the
+    whole mapping, turning the build into O(N^2)).
+
+    Invariant: the source schemas spread here (STATE_SCHEMA, FLAG_SCHEMA, the
+    nested STATE_SCHEMA values) must use the default extra=PREVENT_EXTRA and
+    required=False and must not register any add_extra/prepend_extra
+    validators. Reaching into .schema and rebuilding via cv.Schema(...) keeps
+    only the mapping; non-default extra/required and any _extra_schemas would
+    be silently dropped.
+    """
+    return {
+        **STATE_SCHEMA.schema,
+        **FLAG_SCHEMA.schema,
+        **{cv.Optional(part): STATE_SCHEMA for part in parts},
+    }
+
+
+def part_schema(parts: tuple[str, ...] | list[str]) -> cv.Schema:
     """
     Generate a schema for the various parts (e.g. main:, indicator:) of a widget type
     :param parts:  The parts to include
     :return: The schema
     """
-    return STATE_SCHEMA.extend(FLAG_SCHEMA).extend(
-        {cv.Optional(part): STATE_SCHEMA for part in parts}
-    )
+    return cv.Schema(part_dict(parts))
 
 
 def automation_schema(typ: LvType):
@@ -462,6 +480,43 @@ def base_update_schema(widget_type: WidgetType | LvType, parts):
     return schema
 
 
+# Memoize obj_dict() the same way _OBJ_SCHEMA_CACHE memoizes obj_schema().
+# automation_schema(w.w_type) builds fresh Trigger.template(...) objects on
+# every call, so without this cache _theme_schema pays that cost per widget
+# per validation. Callers must treat the returned dict as immutable. The
+# _theme_schema caller spreads it into a fresh dict, which is safe; the
+# obj_schema caller passes it directly to cv.Schema(...) -- voluptuous stores
+# the mapping by reference but never mutates it (.extend() copies first), so
+# the alias is also safe today. Adding in-place mutation of obj_schema(w).schema
+# would corrupt this cache.
+_OBJ_DICT_CACHE: dict[int, tuple[WidgetType, dict[Any, Any]]] = {}
+
+
+def obj_dict(widget_type: WidgetType) -> dict[Any, Any]:
+    """
+    Return the raw mapping used by obj_schema, so callers can merge it into a
+    larger dict and avoid chained .extend() calls.
+
+    Inherits the same source-schema invariant documented on part_dict: any
+    schema spread into this mapping must use the default extra=PREVENT_EXTRA
+    and required=False and must carry no add_extra/prepend_extra validators.
+
+    The returned mapping is cached and must be treated as immutable by callers.
+    """
+    cached = _OBJ_DICT_CACHE.get(id(widget_type))
+    if cached is not None and cached[0] is widget_type:
+        return cached[1]
+    built = {
+        **part_dict(widget_type.parts),
+        **ALIGN_TO_SCHEMA,
+        **automation_schema(widget_type.w_type),
+        cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
+        cv.Optional(CONF_GROUP): cv.use_id(lv_group_t),
+    }
+    _OBJ_DICT_CACHE[id(widget_type)] = (widget_type, built)
+    return built
+
+
 # Widget types are module-level singletons populated at import time, so we
 # can cache compiled obj_schemas by widget_type identity for the lifetime of
 # the process. The strong reference in the value keeps the key (an id()
@@ -469,7 +524,7 @@ def base_update_schema(widget_type: WidgetType | LvType, parts):
 _OBJ_SCHEMA_CACHE: dict[int, tuple[WidgetType, cv.Schema]] = {}
 
 
-def obj_schema(widget_type: WidgetType):
+def obj_schema(widget_type: WidgetType) -> cv.Schema:
     """
     Create a schema for a widget type itself i.e. no allowance for children
     :param widget_type:
@@ -478,17 +533,7 @@ def obj_schema(widget_type: WidgetType):
     cached = _OBJ_SCHEMA_CACHE.get(id(widget_type))
     if cached is not None and cached[0] is widget_type:
         return cached[1]
-    schema = (
-        part_schema(widget_type.parts)
-        .extend(ALIGN_TO_SCHEMA)
-        .extend(automation_schema(widget_type.w_type))
-        .extend(
-            {
-                cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
-                cv.Optional(CONF_GROUP): cv.use_id(lv_group_t),
-            }
-        )
-    )
+    schema = cv.Schema(obj_dict(widget_type))
     _OBJ_SCHEMA_CACHE[id(widget_type)] = (widget_type, schema)
     return schema
 

@@ -17,10 +17,10 @@ from typing import Any
 
 import colorama
 
-root_path = os.path.abspath(os.path.normpath(os.path.join(__file__, "..", "..")))
-basepath = os.path.join(root_path, "esphome")
-temp_folder = os.path.join(root_path, ".temp")
-temp_header_file = os.path.join(temp_folder, "all-include.cpp")
+root_path = str(Path(__file__).resolve().parent.parent)
+basepath = str(Path(root_path) / "esphome")
+temp_folder = str(Path(root_path) / ".temp")
+temp_header_file = str(Path(temp_folder) / "all-include.cpp")
 
 # C++ file extensions used for clang-tidy and clang-format checks
 CPP_FILE_EXTENSIONS = (".cpp", ".h", ".hpp", ".cc", ".cxx", ".c", ".tcc")
@@ -339,8 +339,8 @@ def _get_github_event_data() -> dict | None:
         Parsed event data dictionary, or None if not available
     """
     github_event_path = os.environ.get("GITHUB_EVENT_PATH")
-    if github_event_path and os.path.exists(github_event_path):
-        with open(github_event_path) as f:
+    if github_event_path and Path(github_event_path).exists():
+        with Path(github_event_path).open() as f:
             return json.load(f)
     return None
 
@@ -464,7 +464,8 @@ def _get_changed_files_from_command(command: list[str]) -> list[str]:
         raise Exception(f"Command failed: {' '.join(command)}\nstderr: {proc.stderr}")
 
     changed_files = splitlines_no_ends(proc.stdout)
-    changed_files = [os.path.relpath(f, os.getcwd()) for f in changed_files if f]
+    cwd = Path.cwd()
+    changed_files = [os.path.relpath(f, cwd) for f in changed_files if f]  # noqa: PTH109
     changed_files.sort()
     return changed_files
 
@@ -499,7 +500,7 @@ def get_changed_components() -> list[str] | None:
         return None
 
     # Use list-components.py to get changed components
-    script_path = os.path.join(root_path, "script", "list-components.py")
+    script_path = str(Path(root_path) / "script" / "list-components.py")
     cmd = [script_path, "--changed"]
 
     try:
@@ -619,7 +620,7 @@ def filter_changed(files: list[str]) -> list[str]:
 def filter_grep(files: list[str], value: list[str]) -> list[str]:
     matched = []
     for file in files:
-        with open(file, encoding="utf-8") as handle:
+        with Path(file).open(encoding="utf-8") as handle:
             contents = handle.read()
         if any(v in contents for v in value):
             matched.append(file)

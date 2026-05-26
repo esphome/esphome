@@ -1358,7 +1358,7 @@ def test_clean_build_handles_readonly_files(
     # Create a read-only file (simulating git pack files on Windows)
     readonly_file = git_dir / "pack-abc123.pack"
     readonly_file.write_text("pack data")
-    os.chmod(readonly_file, stat.S_IRUSR)  # Read-only
+    readonly_file.chmod(stat.S_IRUSR)  # Read-only
 
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
@@ -1393,7 +1393,7 @@ def test_clean_all_handles_readonly_files(
     subdir.mkdir()
     readonly_file = subdir / "readonly.txt"
     readonly_file.write_text("content")
-    os.chmod(readonly_file, stat.S_IRUSR)  # Read-only
+    readonly_file.chmod(stat.S_IRUSR)  # Read-only
 
     # Verify file is read-only
     assert not os.access(readonly_file, os.W_OK)
@@ -1422,7 +1422,7 @@ def test_clean_build_reraises_for_other_errors(
     test_file.write_text("content")
 
     # Make subdir read-only so files inside can't be deleted
-    os.chmod(subdir, stat.S_IRUSR | stat.S_IXUSR)
+    subdir.chmod(stat.S_IRUSR | stat.S_IXUSR)
 
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
@@ -1440,7 +1440,7 @@ def test_clean_build_reraises_for_other_errors(
             clean_build()
     finally:
         # Cleanup - restore write permission so tmp_path cleanup works
-        os.chmod(subdir, stat.S_IRWXU)
+        subdir.chmod(stat.S_IRWXU)
 
 
 # Tests for get_build_info()

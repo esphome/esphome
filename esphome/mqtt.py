@@ -2,7 +2,7 @@ import contextlib
 from datetime import datetime
 import json
 import logging
-import os
+from pathlib import Path
 import ssl
 import tempfile
 import time
@@ -120,8 +120,8 @@ def prepare(
                     key_file.close()
                     context.load_cert_chain(cert_file.name, key_file.name)
                 finally:
-                    os.unlink(cert_file.name)
-                    os.unlink(key_file.name)
+                    Path(cert_file.name).unlink()
+                    Path(key_file.name).unlink()
         client.tls_set_context(context)
 
     try:
@@ -159,7 +159,7 @@ def get_esphome_device_ip(
     username: str | None = None,
     password: str | None = None,
     client_id: str | None = None,
-    timeout: int | float = 25,
+    timeout: float = 25,
 ) -> list[str]:
     if CONF_MQTT not in config:
         raise EsphomeError(
