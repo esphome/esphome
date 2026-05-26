@@ -483,9 +483,7 @@ def should_run_device_builder(branch: str | None = None) -> bool:
         True if the device-builder downstream tests should run, False otherwise.
     """
     target_branch = get_target_branch()
-    if target_branch and (
-        target_branch.startswith("release") or target_branch.startswith("beta")
-    ):
+    if target_branch and (target_branch.startswith(("release", "beta"))):
         return False
 
     for file in changed_files(branch):
@@ -955,9 +953,7 @@ def detect_memory_impact_config(
     # all components at once would produce nonsensical memory impact results.
     # Memory impact analysis is most useful for focused PRs targeting dev.
     target_branch = get_target_branch()
-    if target_branch and (
-        target_branch.startswith("release") or target_branch.startswith("beta")
-    ):
+    if target_branch and (target_branch.startswith(("release", "beta"))):
         print(
             f"Memory impact: Skipping analysis for target branch {target_branch} "
             f"(would try to build all components at once, giving nonsensical results)",
@@ -1311,7 +1307,7 @@ def main() -> None:
         # (no isolation, all components are groupable)
         target_branch = get_target_branch()
         is_release_branch = target_branch and (
-            target_branch.startswith("release") or target_branch.startswith("beta")
+            target_branch.startswith(("release", "beta"))
         )
 
         if is_release_branch:

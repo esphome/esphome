@@ -126,6 +126,7 @@ select = [
   "LOG",  # flake8-logging
   "NPY",  # numpy-specific rules
   "PERF", # performance
+  "PIE",  # flake8-pie
   "PL",   # pylint
   "PTH",  # flake8-use-pathlib
   "PYI",  # flake8-pyi
