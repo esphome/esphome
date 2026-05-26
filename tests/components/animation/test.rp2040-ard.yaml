@@ -11,3 +11,4 @@ display:
     dc_pin: 21
     reset_pin: 22
     invert_colors: false
+    data_rate: 10MHz

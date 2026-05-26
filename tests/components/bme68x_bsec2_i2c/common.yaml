@@ -9,6 +9,7 @@ bme68x_bsec2_i2c:
 
 sensor:
   - platform: bme68x_bsec2
+    id: bme_sensor
     temperature:
       name: BME68X Temperature
     pressure:

@@ -10,8 +10,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace bedjet {
+namespace esphome::bedjet {
 
 class BedJetClimate : public climate::Climate, public BedJetClient, public PollingComponent {
  public:
@@ -42,29 +41,14 @@ class BedJetClimate : public climate::Climate, public BedJetClient, public Polli
         climate::CLIMATE_MODE_DRY,
     });
 
-    // It would be better if we had a slider for the fan modes.
-    traits.set_supported_custom_fan_modes(BEDJET_FAN_STEP_NAMES_SET);
     traits.set_supported_presets({
         // If we support NONE, then have to decide what happens if the user switches to it (turn off?)
         // climate::CLIMATE_PRESET_NONE,
         // Climate doesn't have a "TURBO" mode, but we can use the BOOST preset instead.
         climate::CLIMATE_PRESET_BOOST,
     });
-    traits.set_supported_custom_presets({
-        // We could fetch biodata from bedjet and set these names that way.
-        // But then we have to invert the lookup in order to send the right preset.
-        // For now, we can leave them as M1-3 to match the remote buttons.
-        // EXT HT added to match remote button.
-        "EXT HT",
-        "M1",
-        "M2",
-        "M3",
-    });
-    if (this->heating_mode_ == HEAT_MODE_EXTENDED) {
-      traits.add_supported_custom_preset("LTD HT");
-    } else {
-      traits.add_supported_custom_preset("EXT HT");
-    }
+    // Custom fan modes and presets are set once in setup(), stored on Climate base class,
+    // and wired automatically via get_traits()
     traits.set_visual_min_temperature(19.0);
     traits.set_visual_max_temperature(43.0);
     traits.set_visual_temperature_step(1.0);
@@ -87,7 +71,6 @@ class BedJetClimate : public climate::Climate, public BedJetClient, public Polli
   }
 };
 
-}  // namespace bedjet
-}  // namespace esphome
+}  // namespace esphome::bedjet
 
 #endif

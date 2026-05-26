@@ -135,10 +135,24 @@ void BluetoothConnection::loop() {
   // - For V3_WITH_CACHE: Services are never sent, disable after INIT state
   // - For V3_WITHOUT_CACHE: Disable only after service discovery is complete
   //   (send_service_ == DONE_SENDING_SERVICES, which is only set after services are sent)
-  if (this->state_ != espbt::ClientState::INIT && (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE ||
-                                                   this->send_service_ == DONE_SENDING_SERVICES)) {
+  // Never disable while DISCONNECTING — BLEClientBase::loop() needs to keep running so the
+  // 10s safety timeout can force IDLE if CLOSE_EVT is never delivered.
+  if (this->state() != espbt::ClientState::INIT && this->state() != espbt::ClientState::DISCONNECTING &&
+      (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE ||
+       this->send_service_ == DONE_SENDING_SERVICES)) {
     this->disable_loop();
   }
+}
+
+void BluetoothConnection::on_disconnect_complete(esp_err_t reason) {
+  // Called from both the CLOSE_EVT handler and the DISCONNECTING safety timeout in the
+  // base class. Free the proxy slot, notify the API client, and reset send_service_.
+  // address_ may already be 0 if reset_connection_ ran earlier on this teardown.
+  if (this->address_ == 0) {
+    return;
+  }
+  ESP_LOGD(TAG, "[%d] [%s] Close, reason=0x%02x, freeing slot", this->connection_index_, this->address_str_, reason);
+  this->reset_connection_(reason);
 }
 
 void BluetoothConnection::reset_connection_(esp_err_t reason) {
@@ -183,10 +197,7 @@ void BluetoothConnection::send_service_for_discovery_() {
   static constexpr size_t MAX_PACKET_SIZE = 1360;
 
   // Keep running total of actual message size
-  size_t current_size = 0;
-  api::ProtoSize size;
-  resp.calculate_size(size);
-  current_size = size.get_size();
+  size_t current_size = resp.calculate_size();
 
   while (this->send_service_ < this->service_count_) {
     esp_gattc_service_elem_t service_result;
@@ -196,8 +207,8 @@ void BluetoothConnection::send_service_for_discovery_() {
 
     if (service_status != ESP_GATT_OK || service_count == 0) {
       ESP_LOGE(TAG, "[%d] [%s] esp_ble_gattc_get_service %s, status=%d, service_count=%d, offset=%d",
-               this->connection_index_, this->address_str().c_str(),
-               service_status != ESP_GATT_OK ? "error" : "missing", service_status, service_count, this->send_service_);
+               this->connection_index_, this->address_str(), service_status != ESP_GATT_OK ? "error" : "missing",
+               service_status, service_count, this->send_service_);
       this->send_service_ = DONE_SENDING_SERVICES;
       return;
     }
@@ -302,9 +313,7 @@ void BluetoothConnection::send_service_for_discovery_() {
     }  // end if (total_char_count > 0)
 
     // Calculate the actual size of just this service
-    api::ProtoSize service_sizer;
-    service_resp.calculate_size(service_sizer);
-    size_t service_size = service_sizer.get_size() + 1;  // +1 for field tag
+    size_t service_size = service_resp.calculate_size() + 1;  // +1 for field tag
 
     // Check if adding this service would exceed the limit
     if (current_size + service_size > MAX_PACKET_SIZE) {
@@ -312,13 +321,13 @@ void BluetoothConnection::send_service_for_discovery_() {
       if (resp.services.size() > 1) {
         resp.services.pop_back();
         ESP_LOGD(TAG, "[%d] [%s] Service %d would exceed limit (current: %d + service: %d > %d), sending current batch",
-                 this->connection_index_, this->address_str().c_str(), this->send_service_, current_size, service_size,
+                 this->connection_index_, this->address_str(), this->send_service_, current_size, service_size,
                  MAX_PACKET_SIZE);
         // Don't increment send_service_ - we'll retry this service in next batch
       } else {
         // This single service is too large, but we have to send it anyway
         ESP_LOGV(TAG, "[%d] [%s] Service %d is too large (%d bytes) but sending anyway", this->connection_index_,
-                 this->address_str().c_str(), this->send_service_, service_size);
+                 this->address_str(), this->send_service_, service_size);
         // Increment so we don't get stuck
         this->send_service_++;
       }
@@ -333,25 +342,24 @@ void BluetoothConnection::send_service_for_discovery_() {
   }
 
   // Send the message with dynamically batched services
-  api_conn->send_message(resp, api::BluetoothGATTGetServicesResponse::MESSAGE_TYPE);
+  api_conn->send_message(resp);
 }
 
 void BluetoothConnection::log_connection_error_(const char *operation, esp_gatt_status_t status) {
-  ESP_LOGE(TAG, "[%d] [%s] %s error, status=%d", this->connection_index_, this->address_str().c_str(), operation,
-           status);
+  ESP_LOGE(TAG, "[%d] [%s] %s error, status=%d", this->connection_index_, this->address_str(), operation, status);
 }
 
 void BluetoothConnection::log_connection_warning_(const char *operation, esp_err_t err) {
-  ESP_LOGW(TAG, "[%d] [%s] %s failed, err=%d", this->connection_index_, this->address_str().c_str(), operation, err);
+  ESP_LOGW(TAG, "[%d] [%s] %s failed, err=%d", this->connection_index_, this->address_str(), operation, err);
 }
 
 void BluetoothConnection::log_gatt_not_connected_(const char *action, const char *type) {
-  ESP_LOGW(TAG, "[%d] [%s] Cannot %s GATT %s, not connected.", this->connection_index_, this->address_str().c_str(),
-           action, type);
+  ESP_LOGW(TAG, "[%d] [%s] Cannot %s GATT %s, not connected.", this->connection_index_, this->address_str(), action,
+           type);
 }
 
 void BluetoothConnection::log_gatt_operation_error_(const char *operation, uint16_t handle, esp_gatt_status_t status) {
-  ESP_LOGW(TAG, "[%d] [%s] Error %s for handle 0x%2X, status=%d", this->connection_index_, this->address_str().c_str(),
+  ESP_LOGW(TAG, "[%d] [%s] Error %s for handle 0x%2X, status=%d", this->connection_index_, this->address_str(),
            operation, handle, status);
 }
 
@@ -372,18 +380,10 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
     case ESP_GATTC_DISCONNECT_EVT: {
       // Don't reset connection yet - wait for CLOSE_EVT to ensure controller has freed resources
       // This prevents race condition where we mark slot as free before controller cleanup is complete
-      ESP_LOGD(TAG, "[%d] [%s] Disconnect, reason=0x%02x", this->connection_index_, this->address_str_.c_str(),
+      ESP_LOGD(TAG, "[%d] [%s] Disconnect, reason=0x%02x", this->connection_index_, this->address_str_,
                param->disconnect.reason);
       // Send disconnection notification but don't free the slot yet
       this->proxy_->send_device_connection(this->address_, false, 0, param->disconnect.reason);
-      break;
-    }
-    case ESP_GATTC_CLOSE_EVT: {
-      ESP_LOGD(TAG, "[%d] [%s] Close, reason=0x%02x, freeing slot", this->connection_index_, this->address_str_.c_str(),
-               param->close.reason);
-      // Now the GATT connection is fully closed and controller resources are freed
-      // Safe to mark the connection slot as available
-      this->reset_connection_(param->close.reason);
       break;
     }
     case ESP_GATTC_OPEN_EVT: {
@@ -416,11 +416,14 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
         this->proxy_->send_gatt_error(this->address_, param->read.handle, param->read.status);
         break;
       }
+      auto *api_connection = this->proxy_->get_api_connection();
+      if (api_connection == nullptr)
+        break;
       api::BluetoothGATTReadResponse resp;
       resp.address = this->address_;
       resp.handle = param->read.handle;
       resp.set_data(param->read.value, param->read.value_len);
-      this->proxy_->get_api_connection()->send_message(resp, api::BluetoothGATTReadResponse::MESSAGE_TYPE);
+      api_connection->send_message(resp);
       break;
     }
     case ESP_GATTC_WRITE_CHAR_EVT:
@@ -430,10 +433,13 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
         this->proxy_->send_gatt_error(this->address_, param->write.handle, param->write.status);
         break;
       }
+      auto *api_connection = this->proxy_->get_api_connection();
+      if (api_connection == nullptr)
+        break;
       api::BluetoothGATTWriteResponse resp;
       resp.address = this->address_;
       resp.handle = param->write.handle;
-      this->proxy_->get_api_connection()->send_message(resp, api::BluetoothGATTWriteResponse::MESSAGE_TYPE);
+      api_connection->send_message(resp);
       break;
     }
     case ESP_GATTC_UNREG_FOR_NOTIFY_EVT: {
@@ -443,10 +449,13 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
         this->proxy_->send_gatt_error(this->address_, param->unreg_for_notify.handle, param->unreg_for_notify.status);
         break;
       }
+      auto *api_connection = this->proxy_->get_api_connection();
+      if (api_connection == nullptr)
+        break;
       api::BluetoothGATTNotifyResponse resp;
       resp.address = this->address_;
       resp.handle = param->unreg_for_notify.handle;
-      this->proxy_->get_api_connection()->send_message(resp, api::BluetoothGATTNotifyResponse::MESSAGE_TYPE);
+      api_connection->send_message(resp);
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
@@ -456,20 +465,26 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
         this->proxy_->send_gatt_error(this->address_, param->reg_for_notify.handle, param->reg_for_notify.status);
         break;
       }
+      auto *api_connection = this->proxy_->get_api_connection();
+      if (api_connection == nullptr)
+        break;
       api::BluetoothGATTNotifyResponse resp;
       resp.address = this->address_;
       resp.handle = param->reg_for_notify.handle;
-      this->proxy_->get_api_connection()->send_message(resp, api::BluetoothGATTNotifyResponse::MESSAGE_TYPE);
+      api_connection->send_message(resp);
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
-      ESP_LOGV(TAG, "[%d] [%s] ESP_GATTC_NOTIFY_EVT: handle=0x%2X", this->connection_index_, this->address_str_.c_str(),
+      ESP_LOGV(TAG, "[%d] [%s] ESP_GATTC_NOTIFY_EVT: handle=0x%2X", this->connection_index_, this->address_str_,
                param->notify.handle);
+      auto *api_connection = this->proxy_->get_api_connection();
+      if (api_connection == nullptr)
+        break;
       api::BluetoothGATTNotifyDataResponse resp;
       resp.address = this->address_;
       resp.handle = param->notify.handle;
       resp.set_data(param->notify.value, param->notify.value_len);
-      this->proxy_->get_api_connection()->send_message(resp, api::BluetoothGATTNotifyDataResponse::MESSAGE_TYPE);
+      api_connection->send_message(resp);
       break;
     }
     default:
@@ -502,8 +517,7 @@ esp_err_t BluetoothConnection::read_characteristic(uint16_t handle) {
     return ESP_GATT_NOT_CONNECTED;
   }
 
-  ESP_LOGV(TAG, "[%d] [%s] Reading GATT characteristic handle %d", this->connection_index_, this->address_str_.c_str(),
-           handle);
+  ESP_LOGV(TAG, "[%d] [%s] Reading GATT characteristic handle %d", this->connection_index_, this->address_str_, handle);
 
   esp_err_t err = esp_ble_gattc_read_char(this->gattc_if_, this->conn_id_, handle, ESP_GATT_AUTH_REQ_NONE);
   return this->check_and_log_error_("esp_ble_gattc_read_char", err);
@@ -515,8 +529,7 @@ esp_err_t BluetoothConnection::write_characteristic(uint16_t handle, const uint8
     this->log_gatt_not_connected_("write", "characteristic");
     return ESP_GATT_NOT_CONNECTED;
   }
-  ESP_LOGV(TAG, "[%d] [%s] Writing GATT characteristic handle %d", this->connection_index_, this->address_str_.c_str(),
-           handle);
+  ESP_LOGV(TAG, "[%d] [%s] Writing GATT characteristic handle %d", this->connection_index_, this->address_str_, handle);
 
   // ESP-IDF's API requires a non-const uint8_t* but it doesn't modify the data
   // The BTC layer immediately copies the data to its own buffer (see btc_gattc.c)
@@ -532,8 +545,7 @@ esp_err_t BluetoothConnection::read_descriptor(uint16_t handle) {
     this->log_gatt_not_connected_("read", "descriptor");
     return ESP_GATT_NOT_CONNECTED;
   }
-  ESP_LOGV(TAG, "[%d] [%s] Reading GATT descriptor handle %d", this->connection_index_, this->address_str_.c_str(),
-           handle);
+  ESP_LOGV(TAG, "[%d] [%s] Reading GATT descriptor handle %d", this->connection_index_, this->address_str_, handle);
 
   esp_err_t err = esp_ble_gattc_read_char_descr(this->gattc_if_, this->conn_id_, handle, ESP_GATT_AUTH_REQ_NONE);
   return this->check_and_log_error_("esp_ble_gattc_read_char_descr", err);
@@ -544,8 +556,7 @@ esp_err_t BluetoothConnection::write_descriptor(uint16_t handle, const uint8_t *
     this->log_gatt_not_connected_("write", "descriptor");
     return ESP_GATT_NOT_CONNECTED;
   }
-  ESP_LOGV(TAG, "[%d] [%s] Writing GATT descriptor handle %d", this->connection_index_, this->address_str_.c_str(),
-           handle);
+  ESP_LOGV(TAG, "[%d] [%s] Writing GATT descriptor handle %d", this->connection_index_, this->address_str_, handle);
 
   // ESP-IDF's API requires a non-const uint8_t* but it doesn't modify the data
   // The BTC layer immediately copies the data to its own buffer (see btc_gattc.c)
@@ -564,13 +575,13 @@ esp_err_t BluetoothConnection::notify_characteristic(uint16_t handle, bool enabl
 
   if (enable) {
     ESP_LOGV(TAG, "[%d] [%s] Registering for GATT characteristic notifications handle %d", this->connection_index_,
-             this->address_str_.c_str(), handle);
+             this->address_str_, handle);
     esp_err_t err = esp_ble_gattc_register_for_notify(this->gattc_if_, this->remote_bda_, handle);
     return this->check_and_log_error_("esp_ble_gattc_register_for_notify", err);
   }
 
   ESP_LOGV(TAG, "[%d] [%s] Unregistering for GATT characteristic notifications handle %d", this->connection_index_,
-           this->address_str_.c_str(), handle);
+           this->address_str_, handle);
   esp_err_t err = esp_ble_gattc_unregister_for_notify(this->gattc_if_, this->remote_bda_, handle);
   return this->check_and_log_error_("esp_ble_gattc_unregister_for_notify", err);
 }

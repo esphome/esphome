@@ -99,7 +99,7 @@ async def test_scheduler_heap_stress(
         )
 
         # Call the run_heap_stress_test service to start the test
-        client.execute_service(run_stress_test_service, {})
+        await client.execute_service(run_stress_test_service, {})
 
         # Wait for all callbacks to execute (should be quick, but give more time for scheduling)
         try:

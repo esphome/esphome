@@ -4,8 +4,7 @@
 
 #include <algorithm>
 
-namespace esphome {
-namespace xpt2046 {
+namespace esphome::xpt2046 {
 
 static const char *const TAG = "xpt2046";
 
@@ -59,10 +58,8 @@ void XPT2046Component::update_touches() {
 }
 
 void XPT2046Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "XPT2046:");
-
-  LOG_PIN("  IRQ Pin: ", this->irq_pin_);
   ESP_LOGCONFIG(TAG,
+                "XPT2046:\n"
                 "  X min: %d\n"
                 "  X max: %d\n"
                 "  Y min: %d\n"
@@ -73,7 +70,7 @@ void XPT2046Component::dump_config() {
                 "  threshold: %d",
                 this->x_raw_min_, this->x_raw_max_, this->y_raw_min_, this->y_raw_max_, YESNO(this->swap_x_y_),
                 YESNO(this->invert_x_), YESNO(this->invert_y_), this->threshold_);
-
+  LOG_PIN("  IRQ Pin: ", this->irq_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -109,5 +106,4 @@ int16_t XPT2046Component::read_adc_(uint8_t ctrl) {  // NOLINT
   return ((data[0] << 8) | data[1]) >> 3;
 }
 
-}  // namespace xpt2046
-}  // namespace esphome
+}  // namespace esphome::xpt2046

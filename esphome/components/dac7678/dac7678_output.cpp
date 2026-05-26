@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace dac7678 {
+namespace esphome::dac7678 {
 
 static const char *const TAG = "dac7678";
 
@@ -62,6 +61,8 @@ void DAC7678Output::register_channel(DAC7678Channel *channel) {
 }
 
 void DAC7678Output::set_channel_value_(uint8_t channel, uint16_t value) {
+  if (channel >= std::size(this->dac_input_reg_))
+    return;
   if (this->dac_input_reg_[channel] != value) {
     ESP_LOGV(TAG, "Channel %01u: input_reg=%04u ", channel, value);
 
@@ -80,5 +81,4 @@ void DAC7678Channel::write_state(float state) {
   this->parent_->set_channel_value_(this->channel_, input);
 }
 
-}  // namespace dac7678
-}  // namespace esphome
+}  // namespace esphome::dac7678

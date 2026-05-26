@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace veml7700 {
+namespace esphome::veml7700 {
 
 using esphome::i2c::ErrorCode;
 
@@ -196,5 +195,4 @@ class VEML7700Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *actual_integration_time_sensor_{nullptr};  // Actual integration time for the measurement
 };
 
-}  // namespace veml7700
-}  // namespace esphome
+}  // namespace esphome::veml7700

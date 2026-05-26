@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace growatt_solar {
+namespace esphome::growatt_solar {
 
 static const char *const TAG = "growatt_solar";
 
@@ -26,7 +25,7 @@ void GrowattSolar::update() {
   }
 
   // The bus might be slow, or there might be other devices, or other components might be talking to our device.
-  if (this->waiting_for_response()) {
+  if (!this->ready_for_immediate_send()) {
     this->waiting_to_update_ = true;
     return;
   }
@@ -141,5 +140,4 @@ void GrowattSolar::dump_config() {
                 this->address_);
 }
 
-}  // namespace growatt_solar
-}  // namespace esphome
+}  // namespace esphome::growatt_solar

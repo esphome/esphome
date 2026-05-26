@@ -31,6 +31,11 @@ microphone:
     i2s_din_pin: ${i2s_din_pin}
     adc_type: external
     pdm: false
+  - platform: i2s_audio
+    id: mic_id_external2
+    i2s_din_pin: ${i2s_din_pin2}
+    adc_type: external
+    pdm: false
 
 speaker:
   - platform: i2s_audio
@@ -40,9 +45,12 @@ speaker:
 
 voice_assistant:
   microphone:
-    microphone: mic_id_external
-    gain_factor: 4
-    channels: 0
+    - microphone: mic_id_external
+      gain_factor: 4
+      channels: 0
+    - microphone: mic_id_external2
+      gain_factor: 4
+      channels: 0
   speaker: speaker_id
   micro_wake_word: mww_id
   conversation_timeout: 60s
@@ -68,3 +76,24 @@ voice_assistant:
     - logger.log:
         format: "Voice assistant error - code %s, message: %s"
         args: [code.c_str(), message.c_str()]
+  on_timer_started:
+    - logger.log:
+        format: "Timer started: %s"
+        args: [timer.id.c_str()]
+  on_timer_updated:
+    - logger.log:
+        format: "Timer updated: %s"
+        args: [timer.id.c_str()]
+  on_timer_cancelled:
+    - logger.log:
+        format: "Timer cancelled: %s"
+        args: [timer.id.c_str()]
+  on_timer_finished:
+    - logger.log:
+        format: "Timer finished: %s"
+        args: [timer.id.c_str()]
+  on_timer_tick:
+    - lambda: |-
+        for (auto &timer : timers) {
+          ESP_LOGD("timer", "Timer %s: %" PRIu32 "s left", timer.name.c_str(), timer.seconds_left);
+        }

@@ -1,4 +1,4 @@
-"""Tests for mpip_spi configuration validation."""
+"""Tests for mipi_spi configuration validation."""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -204,11 +204,6 @@ def test_transform_and_init_sequence_errors(
             r"extra keys not allowed @ data\['brightness'\]",
             id="brightness_not_supported",
         ),
-        pytest.param(
-            {"model": "T-DISPLAY-S3-PRO"},
-            "PSRAM is required for this display",
-            id="psram_required",
-        ),
     ],
 )
 def test_esp32s3_specific_errors(
@@ -220,28 +215,11 @@ def test_esp32s3_specific_errors(
 
     set_core_config(
         PlatformFramework.ESP32_IDF,
-        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32S3},
+        platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
     )
 
     with pytest.raises(cv.Invalid, match=error_match):
         run_schema_validation(config)
-
-
-def test_framework_specific_errors(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    """Test framework-specific configuration errors"""
-
-    set_core_config(
-        PlatformFramework.ESP32_ARDUINO,
-        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
-    )
-
-    with pytest.raises(
-        cv.Invalid,
-        match=r"This feature is only available with framework\(s\) esp-idf",
-    ):
-        run_schema_validation({"model": "wt32-sc01-plus"})
 
 
 def test_custom_model_with_all_options(
@@ -250,7 +228,7 @@ def test_custom_model_with_all_options(
     """Test custom model configuration with all available options."""
     set_core_config(
         PlatformFramework.ESP32_IDF,
-        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32S3},
+        platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
     )
 
     run_schema_validation(
@@ -293,7 +271,7 @@ def test_all_predefined_models(
     """Test all predefined display models validate successfully with appropriate defaults."""
     set_core_config(
         PlatformFramework.ESP32_IDF,
-        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32S3},
+        platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
     )
 
     # Enable PSRAM which is required for some models
@@ -304,14 +282,14 @@ def test_all_predefined_models(
         config = {"model": name}
 
         # Get the pins required by this model and find a compatible variant
-        pins = [
-            pin
-            for pin in [
-                model.get_default(pin, None)
-                for pin in ("dc_pin", "reset_pin", "cs_pin")
-            ]
-            if pin is not None
-        ]
+        pins = []
+        for pin_name in ("dc_pin", "reset_pin", "cs_pin", "enable_pin"):
+            pin_value = model.get_default(pin_name, None)
+            if pin_value is not None:
+                if isinstance(pin_value, list):
+                    pins.extend(pin_value)
+                else:
+                    pins.append(pin_value)
         choose_variant_with_pins(pins)
 
         # Add required fields that don't have defaults
@@ -336,7 +314,7 @@ def test_native_generation(
 
     main_cpp = generate_main(component_fixture_path("native.yaml"))
     assert (
-        "mipi_spi::MipiSpiBuffer<uint16_t, mipi_spi::PIXEL_MODE_16, true, mipi_spi::PIXEL_MODE_16, mipi_spi::BUS_TYPE_QUAD, 360, 360, 0, 1, display::DISPLAY_ROTATION_0_DEGREES, 1, 1>()"
+        "mipi_spi::MipiSpiBuffer<uint16_t, mipi_spi::PIXEL_MODE_16, true, mipi_spi::PIXEL_MODE_16, mipi_spi::BUS_TYPE_QUAD, 360, 360, 0, 1, 0, true, 1, 1>()"
         in main_cpp
     )
     assert "set_init_sequence({240, 1, 8, 242" in main_cpp
@@ -352,7 +330,7 @@ def test_lvgl_generation(
 
     main_cpp = generate_main(component_fixture_path("lvgl.yaml"))
     assert (
-        "mipi_spi::MipiSpi<uint16_t, mipi_spi::PIXEL_MODE_16, true, mipi_spi::PIXEL_MODE_16, mipi_spi::BUS_TYPE_SINGLE, 128, 160, 0, 0>();"
+        "mipi_spi::MipiSpi<uint16_t, mipi_spi::PIXEL_MODE_16, true, mipi_spi::PIXEL_MODE_16, mipi_spi::BUS_TYPE_SINGLE, 128, 160, 0, 0, 0, true>();"
         in main_cpp
     )
     assert "set_init_sequence({1, 0, 10, 255, 177" in main_cpp

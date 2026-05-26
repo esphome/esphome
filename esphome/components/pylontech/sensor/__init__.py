@@ -10,6 +10,7 @@ from esphome.const import (
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
+    STATE_CLASS_MEASUREMENT,
     UNIT_AMPERE,
     UNIT_CELSIUS,
     UNIT_PERCENT,
@@ -18,7 +19,7 @@ from esphome.const import (
 
 from .. import CONF_BATTERY, CONF_PYLONTECH_ID, PYLONTECH_COMPONENT_SCHEMA, pylontech_ns
 
-PylontechSensor = pylontech_ns.class_("PylontechSensor", cg.Component)
+PylontechSensor = pylontech_ns.class_("PylontechSensor")
 
 CONF_COULOMB = "coulomb"
 CONF_TEMPERATURE_LOW = "temperature_low"
@@ -32,46 +33,55 @@ TYPES: dict[str, cv.Schema] = {
         unit_of_measurement=UNIT_VOLT,
         accuracy_decimals=3,
         device_class=DEVICE_CLASS_VOLTAGE,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_CURRENT: sensor.sensor_schema(
         unit_of_measurement=UNIT_AMPERE,
         accuracy_decimals=3,
         device_class=DEVICE_CLASS_CURRENT,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_TEMPERATURE: sensor.sensor_schema(
         unit_of_measurement=UNIT_CELSIUS,
         accuracy_decimals=1,
         device_class=DEVICE_CLASS_TEMPERATURE,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_TEMPERATURE_LOW: sensor.sensor_schema(
         unit_of_measurement=UNIT_CELSIUS,
         accuracy_decimals=1,
         device_class=DEVICE_CLASS_TEMPERATURE,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_TEMPERATURE_HIGH: sensor.sensor_schema(
         unit_of_measurement=UNIT_CELSIUS,
         accuracy_decimals=1,
         device_class=DEVICE_CLASS_TEMPERATURE,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_VOLTAGE_LOW: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT,
         accuracy_decimals=3,
         device_class=DEVICE_CLASS_VOLTAGE,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_VOLTAGE_HIGH: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT,
         accuracy_decimals=3,
         device_class=DEVICE_CLASS_VOLTAGE,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_COULOMB: sensor.sensor_schema(
         unit_of_measurement=UNIT_PERCENT,
         accuracy_decimals=0,
         device_class=DEVICE_CLASS_BATTERY,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_MOS_TEMPERATURE: sensor.sensor_schema(
         unit_of_measurement=UNIT_CELSIUS,
         accuracy_decimals=1,
         device_class=DEVICE_CLASS_TEMPERATURE,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
 }
 

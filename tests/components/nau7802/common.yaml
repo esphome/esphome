@@ -1,13 +1,13 @@
 sensor:
   - platform: nau7802
     i2c_id: i2c_bus
-    id: test_id
+    id: nau7802_test_id
     name: weight
     gain: 32
     ldo_voltage: "3.0v"
     samples_per_second: 10
     on_value:
       then:
-        - nau7802.calibrate_external_offset: test_id
-        - nau7802.calibrate_internal_offset: test_id
-        - nau7802.calibrate_gain: test_id
+        - nau7802.calibrate_external_offset: nau7802_test_id
+        - nau7802.calibrate_internal_offset: nau7802_test_id
+        - nau7802.calibrate_gain: nau7802_test_id

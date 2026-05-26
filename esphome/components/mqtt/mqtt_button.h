@@ -8,8 +8,7 @@
 #include "esphome/components/button/button.h"
 #include "mqtt_component.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 class MQTTButtonComponent : public mqtt::MQTTComponent {
  public:
@@ -27,14 +26,13 @@ class MQTTButtonComponent : public mqtt::MQTTComponent {
 
  protected:
   /// "button" component type.
-  std::string component_type() const override;
+  const char *component_type() const override;
   const EntityBase *get_entity() const override;
 
   button::Button *button_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

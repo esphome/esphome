@@ -1,8 +1,7 @@
 #include "esphome/core/log.h"
 #include "hm3301.h"
 
-namespace esphome {
-namespace hm3301 {
+namespace esphome::hm3301 {
 
 static const char *const TAG = "hm3301.sensor";
 
@@ -30,8 +29,6 @@ void HM3301Component::dump_config() {
   LOG_SENSOR("  ", "PM10.0", this->pm_10_0_sensor_);
   LOG_SENSOR("  ", "AQI", this->aqi_sensor_);
 }
-
-float HM3301Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void HM3301Component::update() {
   if (this->read(data_buffer_, 29) != i2c::ERROR_OK) {
@@ -63,7 +60,7 @@ void HM3301Component::update() {
 
   int16_t aqi_value = -1;
   if (this->aqi_sensor_ != nullptr && pm_2_5_value != -1 && pm_10_0_value != -1) {
-    AbstractAQICalculator *calculator = this->aqi_calculator_factory_.get_calculator(this->aqi_calc_type_);
+    aqi::AbstractAQICalculator *calculator = this->aqi_calculator_factory_.get_calculator(this->aqi_calc_type_);
     aqi_value = calculator->get_aqi(pm_2_5_value, pm_10_0_value);
   }
 
@@ -96,5 +93,4 @@ uint16_t HM3301Component::get_sensor_value_(const uint8_t *data, uint8_t i) {
   return (uint16_t) data[i * 2] << 8 | data[i * 2 + 1];
 }
 
-}  // namespace hm3301
-}  // namespace esphome
+}  // namespace esphome::hm3301

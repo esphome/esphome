@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include <driver/gpio.h>
 
-namespace esphome {
-namespace esp32 {
+namespace esphome::esp32 {
 
 // Static assertions to ensure our bit-packed fields can hold the enum values
 static_assert(GPIO_NUM_MAX <= 256, "gpio_num_t has too many values for uint8_t");
@@ -24,7 +23,7 @@ class ESP32InternalGPIOPin : public InternalGPIOPin {
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
-  std::string dump_summary() const override;
+  size_t dump_summary(char *buffer, size_t len) const override;
   void detach_interrupt() const override;
   ISRInternalGPIOPin to_isr() const override;
   uint8_t get_pin() const override { return this->pin_; }
@@ -40,18 +39,17 @@ class ESP32InternalGPIOPin : public InternalGPIOPin {
   // - 3 bytes for members below
   // - 1 byte padding for alignment
   // - 4 bytes for vtable pointer
-  uint8_t pin_;        // GPIO pin number (0-255, actual max ~54 on ESP32)
-  gpio::Flags flags_;  // GPIO flags (1 byte)
+  uint8_t pin_;          // GPIO pin number (0-255, actual max ~54 on ESP32)
+  gpio::Flags flags_{};  // GPIO flags (1 byte)
   struct PinFlags {
     uint8_t inverted : 1;        // Invert pin logic (1 bit)
     uint8_t drive_strength : 2;  // Drive strength 0-3 (2 bits)
     uint8_t reserved : 5;        // Reserved for future use (5 bits)
-  } pin_flags_;                  // Total: 1 byte
+  } pin_flags_{};                // Total: 1 byte
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
   static bool isr_service_installed;
 };
 
-}  // namespace esp32
-}  // namespace esphome
+}  // namespace esphome::esp32
 
 #endif  // USE_ESP32

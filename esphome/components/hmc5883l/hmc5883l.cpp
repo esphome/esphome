@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace hmc5883l {
+namespace esphome::hmc5883l {
 
 static const char *const TAG = "hmc5883l";
 static const uint8_t HMC5883L_ADDRESS = 0x1E;
@@ -83,7 +82,6 @@ void HMC5883LComponent::dump_config() {
   LOG_SENSOR("  ", "Z Axis", this->z_sensor_);
   LOG_SENSOR("  ", "Heading", this->heading_sensor_);
 }
-float HMC5883LComponent::get_setup_priority() const { return setup_priority::DATA; }
 void HMC5883LComponent::update() {
   uint16_t raw_x, raw_y, raw_z;
   if (!this->read_byte_16(HMC5883L_REGISTER_DATA_X_MSB, &raw_x) ||
@@ -96,7 +94,7 @@ void HMC5883LComponent::update() {
   float mg_per_bit;
   switch (this->range_) {
     case HMC5883L_RANGE_88_UT:
-      mg_per_bit = 0.073f;
+      mg_per_bit = 0.73f;
       break;
     case HMC5883L_RANGE_130_UT:
       mg_per_bit = 0.92f;
@@ -141,5 +139,4 @@ void HMC5883LComponent::update() {
     this->heading_sensor_->publish_state(heading);
 }
 
-}  // namespace hmc5883l
-}  // namespace esphome
+}  // namespace esphome::hmc5883l

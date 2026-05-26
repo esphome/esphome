@@ -13,6 +13,34 @@ packages:
         value: 5
       - id: component3
         value: 6
+  - lvgl:
+      pages:
+        - id: page1
+          widgets:
+            - obj:
+                id: object1
+                x: 1
+                y: 2
+            - obj:
+                id: object2
+                x: 5
+            - obj:
+                id: object3
+                x: 6
+                y: 7
+                widgets:
+                  - obj:
+                      id: object4
+                      x: 8
+                      y: 9
+            - obj:
+                id: object5
+                x: 10
+                y: 11
+            - obj:
+                id: ["Invalid ID"]
+            - obj:
+                id: {"invalid": "id"}
 
 some_component:
   - id: !extend ${A}
@@ -20,3 +48,23 @@ some_component:
   - id: component2
     value: 3
   - id: !remove ${C}
+
+lvgl:
+  pages:
+    - id: !extend page1
+      widgets:
+        - obj:
+            id: !extend object1
+            x: 3
+            width: 4
+        - obj:
+            id: !remove object2
+        - obj:
+            id: !extend object3
+            y: 12
+            height: 13
+            widgets:
+              - obj:
+                  id: !extend object4
+                  x: 14
+                  width: 15

@@ -9,3 +9,6 @@ sensor:
     resolution: 9
   - platform: dallas_temp
     name: Dallas Temperature 2
+  - platform: dallas_temp
+    name: Dallas Temperature 3
+    index: 2

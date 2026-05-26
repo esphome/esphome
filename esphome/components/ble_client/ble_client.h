@@ -15,8 +15,7 @@
 #include <string>
 #include <vector>
 
-namespace esphome {
-namespace ble_client {
+namespace esphome::ble_client {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
@@ -75,7 +74,6 @@ class BLEClient : public BLEClientBase {
   std::vector<BLEClientNode *> nodes_;
 };
 
-}  // namespace ble_client
-}  // namespace esphome
+}  // namespace esphome::ble_client
 
 #endif

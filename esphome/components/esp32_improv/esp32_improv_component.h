@@ -28,8 +28,7 @@
 
 #include <improv.h>
 
-namespace esphome {
-namespace esp32_improv {
+namespace esphome::esp32_improv {
 
 using namespace esp32_ble_server;
 
@@ -45,10 +44,11 @@ class ESP32ImprovComponent : public Component, public improv_base::ImprovBase {
   void start();
   void stop();
   bool is_active() const { return this->state_ != improv::STATE_STOPPED; }
+  bool should_start() const { return this->should_start_; }
 
 #ifdef USE_ESP32_IMPROV_STATE_CALLBACK
-  void add_on_state_callback(std::function<void(improv::State, improv::Error)> &&callback) {
-    this->state_callback_.add(std::move(callback));
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
   }
 #endif
 #ifdef USE_BINARY_SENSOR
@@ -109,7 +109,7 @@ class ESP32ImprovComponent : public Component, public improv_base::ImprovBase {
   void set_state_(improv::State state, bool update_advertising = true);
   void set_error_(improv::Error error);
   improv::State get_initial_state_() const;
-  void send_response_(std::vector<uint8_t> &response);
+  void send_response_(std::vector<uint8_t> &&response);
   void process_incoming_data_();
   void on_wifi_connect_timeout_();
   void check_wifi_connection_();
@@ -123,7 +123,6 @@ class ESP32ImprovComponent : public Component, public improv_base::ImprovBase {
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern ESP32ImprovComponent *global_improv_component;
 
-}  // namespace esp32_improv
-}  // namespace esphome
+}  // namespace esphome::esp32_improv
 
 #endif

@@ -5,8 +5,7 @@
 #include <cstdlib>
 #include "esphome/components/display/display.h"
 
-namespace esphome {
-namespace graphical_display_menu {
+namespace esphome::graphical_display_menu {
 
 static const char *const TAG = "graphical_display_menu";
 
@@ -38,13 +37,13 @@ void GraphicalDisplayMenu::setup() {
 void GraphicalDisplayMenu::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Graphical Display Menu\n"
-                "Has Display: %s\n"
-                "Popup Mode: %s\n"
-                "Advanced Drawing Mode: %s\n"
-                "Has Font: %s\n"
-                "Mode: %s\n"
-                "Active: %s\n"
-                "Menu items:",
+                "  Has Display: %s\n"
+                "  Popup Mode: %s\n"
+                "  Advanced Drawing Mode: %s\n"
+                "  Has Font: %s\n"
+                "  Mode: %s\n"
+                "  Active: %s\n"
+                "  Menu items:",
                 YESNO(this->display_ != nullptr), YESNO(this->display_ != nullptr), YESNO(this->display_ == nullptr),
                 YESNO(this->font_ != nullptr),
                 this->mode_ == display_menu_base::MENU_MODE_ROTARY ? "Rotary" : "Joystick", YESNO(this->active_));
@@ -246,5 +245,4 @@ void GraphicalDisplayMenu::draw_item(const display_menu_base::MenuItem *item, co
 
 void GraphicalDisplayMenu::update() { this->on_redraw_callbacks_.call(); }
 
-}  // namespace graphical_display_menu
-}  // namespace esphome
+}  // namespace esphome::graphical_display_menu

@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from esphome import config_validation as cv, core
+from esphome.components.safe_mode import to_code as safe_mode_to_code
 from esphome.const import (
     CONF_AREA,
     CONF_AREAS,
@@ -23,6 +24,7 @@ from esphome.const import (
 from esphome.core import CORE, config
 from esphome.core.config import (
     Area,
+    make_app_name_cpp,
     preload_core_config,
     valid_include,
     valid_project_name,
@@ -247,6 +249,24 @@ def test_area_id_hash_collision(
     )
 
 
+def test_area_singular_hash_collision(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Test that area hash collisions between singular area: and areas: list are detected."""
+    result = load_config_from_fixture(
+        yaml_file, "area_singular_hash_collision.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    captured = capsys.readouterr()
+    assert (
+        "Area ID 'd6ka' with hash 3082558663 collides with existing area ID 'test_2258'"
+        in captured.out
+    )
+    # Error path should point to 'areas' (where the colliding entry is), not 'area'
+    assert "areas" in captured.out
+
+
 def test_device_duplicate_id(
     yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -259,6 +279,17 @@ def test_device_duplicate_id(
     # Check for the specific error message from IDPassValidationStep
     captured = capsys.readouterr()
     assert "ID duplicate_device redefined!" in captured.out
+
+
+def test_substitution_with_id(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Test that a ids coming from substitutions do not cause false positive ID redefinition."""
+    load_config_from_fixture(
+        yaml_file, "id_collision_with_substitution.yaml", FIXTURES_DIR
+    )
+    captured = capsys.readouterr()
+    assert "ID some_switch_id redefined!" not in captured.out
 
 
 def test_add_platform_defines_priority() -> None:
@@ -280,6 +311,75 @@ def test_add_platform_defines_priority() -> None:
         f"_add_platform_defines priority ({config._add_platform_defines.priority}) must be lower than "
         f"globals priority ({globals_to_code.priority}) to fix issue #10431 (sensor count bug with lambdas)"
     )
+
+
+def test_to_code_priority_above_safe_mode() -> None:
+    """Test that core to_code emits the looping_components_ init before safe_mode.
+
+    Regression test for https://github.com/esphome/esphome/issues/16262.
+    safe_mode emits an `if (should_enter_safe_mode(...)) return;` line in main()
+    at APPLICATION priority. The `App.looping_components_.init(...)` call must be
+    emitted at a higher priority than APPLICATION so it lands in main() before
+    the early return; otherwise the FixedVector is never sized when safe mode is
+    active and loop() never runs (Wi-Fi never connects).
+    """
+    assert config.to_code.priority > safe_mode_to_code.priority, (
+        f"core to_code priority ({config.to_code.priority}) must be greater than "
+        f"safe_mode to_code priority ({safe_mode_to_code.priority}) so that "
+        "App.looping_components_.init() is emitted before safe_mode's early return"
+    )
+
+
+@pytest.mark.asyncio
+async def test_add_looping_components_handles_empty_entries() -> None:
+    """Test that _add_looping_components emits a valid constexpr when there are
+    no looping component entries.
+
+    With zero entries the generated constexpr must still be syntactically valid
+    C++ (`= 0;`), not an empty expression (`= ;`). This guards the empty-list
+    case that would otherwise produce uncompilable main.cpp output.
+    """
+    CORE.data["looping_component_entries"] = []
+
+    await config._add_looping_components()
+
+    constexpr_lines = [
+        str(s)
+        for s in CORE.global_statements
+        if "ESPHOME_LOOPING_COMPONENT_COUNT" in str(s)
+    ]
+    assert len(constexpr_lines) == 1
+    text = constexpr_lines[0]
+    assert "static constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT" in text
+    # The right-hand side must contain a literal `0`, not be empty.
+    rhs = text.split("=", 1)[1]
+    assert "0" in rhs
+    assert rhs.strip().rstrip(";").strip(), (
+        f"constexpr right-hand side must not be empty, got: {text!r}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_add_looping_components_with_entries() -> None:
+    """Test that _add_looping_components builds a HasLoopOverride sum from entries."""
+    CORE.data["looping_component_entries"] = [
+        "esphome::wifi::WiFiComponent",
+        "esphome::logger::Logger",
+        "esphome::wifi::WiFiComponent",
+    ]
+
+    await config._add_looping_components()
+
+    constexpr_lines = [
+        str(s)
+        for s in CORE.global_statements
+        if "ESPHOME_LOOPING_COMPONENT_COUNT" in str(s)
+    ]
+    assert len(constexpr_lines) == 1
+    text = constexpr_lines[0]
+    # Deduplicated by type, with per-type counts as multiplier.
+    assert "(2 * HasLoopOverride<esphome::wifi::WiFiComponent>::value)" in text
+    assert "(1 * HasLoopOverride<esphome::logger::Logger>::value)" in text
 
 
 def test_valid_include_with_angle_brackets() -> None:
@@ -386,7 +486,7 @@ def test_preload_core_config_basic(setup_core: Path) -> None:
     assert CONF_BUILD_PATH in config[CONF_ESPHOME]
     # Verify default build path is "build/<device_name>"
     build_path = config[CONF_ESPHOME][CONF_BUILD_PATH]
-    assert build_path.endswith(os.path.join("build", "test_device"))
+    assert build_path.endswith(str(Path("build") / "test_device"))
 
 
 def test_preload_core_config_with_build_path(setup_core: Path) -> None:
@@ -423,7 +523,7 @@ def test_preload_core_config_env_build_path(setup_core: Path) -> None:
     assert "test_device" in config[CONF_ESPHOME][CONF_BUILD_PATH]
     # Verify it uses the env var path with device name appended
     build_path = config[CONF_ESPHOME][CONF_BUILD_PATH]
-    expected_path = os.path.join("/env/build", "test_device")
+    expected_path = str(Path("/env/build") / "test_device")
     assert build_path == expected_path or build_path == expected_path.replace(
         "/", os.sep
     )
@@ -442,11 +542,14 @@ def test_preload_core_config_no_platform(setup_core: Path) -> None:
     # Mock _is_target_platform to avoid expensive component loading
     with patch("esphome.core.config._is_target_platform") as mock_is_platform:
         # Return True for known platforms
-        mock_is_platform.side_effect = lambda name: name in [
-            "esp32",
-            "esp8266",
-            "rp2040",
-        ]
+        mock_is_platform.side_effect = lambda name: (
+            name
+            in [
+                "esp32",
+                "esp8266",
+                "rp2040",
+            ]
+        )
 
         with pytest.raises(cv.Invalid, match="Platform missing"):
             preload_core_config(config, result)
@@ -466,11 +569,14 @@ def test_preload_core_config_multiple_platforms(setup_core: Path) -> None:
     # Mock _is_target_platform to avoid expensive component loading
     with patch("esphome.core.config._is_target_platform") as mock_is_platform:
         # Return True for known platforms
-        mock_is_platform.side_effect = lambda name: name in [
-            "esp32",
-            "esp8266",
-            "rp2040",
-        ]
+        mock_is_platform.side_effect = lambda name: (
+            name
+            in [
+                "esp32",
+                "esp8266",
+                "rp2040",
+            ]
+        )
 
         with pytest.raises(cv.Invalid, match="Found multiple target platform blocks"):
             preload_core_config(config, result)
@@ -633,7 +739,7 @@ async def test_add_includes_with_single_file(
     """Test add_includes copies a single header file to build directory."""
     CORE.config_path = tmp_path / "config.yaml"
     CORE.build_path = tmp_path / "build"
-    os.makedirs(CORE.build_path, exist_ok=True)
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
 
     # Create include file
     include_file = tmp_path / "my_header.h"
@@ -663,7 +769,7 @@ async def test_add_includes_with_directory_unix(
     """Test add_includes copies all files from a directory on Unix."""
     CORE.config_path = tmp_path / "config.yaml"
     CORE.build_path = tmp_path / "build"
-    os.makedirs(CORE.build_path, exist_ok=True)
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
 
     # Create include directory with files
     include_dir = tmp_path / "includes"
@@ -708,7 +814,7 @@ async def test_add_includes_with_directory_windows(
     """Test add_includes copies all files from a directory on Windows."""
     CORE.config_path = tmp_path / "config.yaml"
     CORE.build_path = tmp_path / "build"
-    os.makedirs(CORE.build_path, exist_ok=True)
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
 
     # Create include directory with files
     include_dir = tmp_path / "includes"
@@ -750,7 +856,7 @@ async def test_add_includes_with_multiple_sources(
     """Test add_includes with multiple files and directories."""
     CORE.config_path = tmp_path / "config.yaml"
     CORE.build_path = tmp_path / "build"
-    os.makedirs(CORE.build_path, exist_ok=True)
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
 
     # Create various include sources
     single_file = tmp_path / "single.h"
@@ -778,7 +884,7 @@ async def test_add_includes_empty_directory(
     """Test add_includes with an empty directory doesn't fail."""
     CORE.config_path = tmp_path / "config.yaml"
     CORE.build_path = tmp_path / "build"
-    os.makedirs(CORE.build_path, exist_ok=True)
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
 
     # Create empty directory
     empty_dir = tmp_path / "empty"
@@ -800,7 +906,7 @@ async def test_add_includes_preserves_directory_structure_unix(
     """Test that add_includes preserves relative directory structure on Unix."""
     CORE.config_path = tmp_path / "config.yaml"
     CORE.build_path = tmp_path / "build"
-    os.makedirs(CORE.build_path, exist_ok=True)
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
 
     # Create nested directory structure
     lib_dir = tmp_path / "lib"
@@ -834,7 +940,7 @@ async def test_add_includes_preserves_directory_structure_windows(
     """Test that add_includes preserves relative directory structure on Windows."""
     CORE.config_path = tmp_path / "config.yaml"
     CORE.build_path = tmp_path / "build"
-    os.makedirs(CORE.build_path, exist_ok=True)
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
 
     # Create nested directory structure
     lib_dir = tmp_path / "lib"
@@ -867,7 +973,7 @@ async def test_add_includes_overwrites_existing_files(
     """Test that add_includes overwrites existing files in build directory."""
     CORE.config_path = tmp_path / "config.yaml"
     CORE.build_path = tmp_path / "build"
-    os.makedirs(CORE.build_path, exist_ok=True)
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
 
     # Create include file
     include_file = tmp_path / "header.h"
@@ -881,3 +987,150 @@ async def test_add_includes_overwrites_existing_files(
     mock_copy_file_if_changed.assert_called_once_with(
         include_file, CORE.build_path / "src" / "header.h"
     )
+
+
+def test_config_hash_returns_int() -> None:
+    """Test that config_hash returns an integer."""
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test"}}
+    assert isinstance(CORE.config_hash, int)
+
+
+def test_config_hash_is_cached() -> None:
+    """Test that config_hash is computed once and cached."""
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test"}}
+
+    # First access computes the hash
+    hash1 = CORE.config_hash
+
+    # Modify config (without resetting cache)
+    CORE.config = {"esphome": {"name": "different"}}
+
+    # Second access returns cached value
+    hash2 = CORE.config_hash
+
+    assert hash1 == hash2
+
+
+def test_config_hash_reset_clears_cache() -> None:
+    """Test that reset() clears the cached config_hash."""
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test"}}
+    hash1 = CORE.config_hash
+
+    # Reset clears the cache
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "different"}}
+
+    hash2 = CORE.config_hash
+
+    # After reset, hash should be recomputed
+    assert hash1 != hash2
+
+
+def test_config_hash_deterministic_key_order() -> None:
+    """Test that config_hash is deterministic regardless of key insertion order."""
+    CORE.reset()
+    # Create two configs with same content but different key order
+    config1 = {"z_key": 1, "a_key": 2, "nested": {"z_nested": "z", "a_nested": "a"}}
+    config2 = {"a_key": 2, "z_key": 1, "nested": {"a_nested": "a", "z_nested": "z"}}
+
+    CORE.config = config1
+    hash1 = CORE.config_hash
+
+    CORE.reset()
+    CORE.config = config2
+    hash2 = CORE.config_hash
+
+    # Hashes should be equal because keys are sorted during serialization
+    assert hash1 == hash2
+
+
+def test_config_hash_different_for_different_configs() -> None:
+    """Test that different configs produce different hashes."""
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test1"}}
+    hash1 = CORE.config_hash
+
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test2"}}
+    hash2 = CORE.config_hash
+
+    assert hash1 != hash2
+
+
+def test_make_app_name_cpp_no_mac_simple() -> None:
+    """Test simple name without MAC suffix returns string literal."""
+    cpp_expr, global_decl, byte_len = make_app_name_cpp(
+        "my-device", "buf", "-", add_mac_suffix=False
+    )
+    assert cpp_expr == '"my-device"'
+    assert global_decl is None
+    assert byte_len == 9
+
+
+def test_make_app_name_cpp_no_mac_empty() -> None:
+    """Test empty name without MAC suffix."""
+    cpp_expr, global_decl, byte_len = make_app_name_cpp(
+        "", "buf", "-", add_mac_suffix=False
+    )
+    assert cpp_expr == '""'
+    assert global_decl is None
+    assert byte_len == 0
+
+
+def test_make_app_name_cpp_mac_suffix() -> None:
+    """Test name with MAC suffix emits static buffer."""
+    cpp_expr, global_decl, byte_len = make_app_name_cpp(
+        "my-device", "esphome_app_name_buf", "-", add_mac_suffix=True
+    )
+    assert cpp_expr == "esphome_app_name_buf"
+    assert global_decl is not None
+    assert "static char esphome_app_name_buf[]" in global_decl
+    assert "my-device-XXXXXX" in global_decl
+    assert byte_len == len("my-device-XXXXXX")
+
+
+def test_make_app_name_cpp_mac_suffix_empty() -> None:
+    """Test empty name with MAC suffix emits empty static buffer."""
+    cpp_expr, global_decl, byte_len = make_app_name_cpp(
+        "", "esphome_app_name_buf", "-", add_mac_suffix=True
+    )
+    assert cpp_expr == "esphome_app_name_buf"
+    assert global_decl is not None
+    assert "static char esphome_app_name_buf[]" in global_decl
+    assert byte_len == 0
+
+
+def test_make_app_name_cpp_mac_suffix_space_sep() -> None:
+    """Test friendly name uses space separator for MAC suffix."""
+    cpp_expr, global_decl, byte_len = make_app_name_cpp(
+        "My Device", "esphome_app_friendly_name_buf", " ", add_mac_suffix=True
+    )
+    assert cpp_expr == "esphome_app_friendly_name_buf"
+    assert global_decl is not None
+    assert "My Device XXXXXX" in global_decl
+    assert byte_len == len("My Device XXXXXX")
+
+
+def test_make_app_name_cpp_non_ascii_utf8_length() -> None:
+    """Test non-ASCII characters use UTF-8 byte length."""
+    _, global_decl, byte_len = make_app_name_cpp(
+        "café", "buf", "-", add_mac_suffix=False
+    )
+    assert byte_len == len("café".encode())  # 5 bytes, not 4 chars
+    assert global_decl is None
+
+
+def test_make_app_name_cpp_non_ascii_mac_suffix_utf8_length() -> None:
+    """Test non-ASCII with MAC suffix uses UTF-8 byte length."""
+    _, _, byte_len = make_app_name_cpp("café", "buf", "-", add_mac_suffix=True)
+    assert byte_len == len("café-XXXXXX".encode())
+
+
+def test_make_app_name_cpp_special_chars_escaped() -> None:
+    """Test special characters are properly escaped in C++ string."""
+    cpp_expr, _, _ = make_app_name_cpp('my "device"', "buf", "-", add_mac_suffix=False)
+    # cpp_string_escape uses octal escapes for quotes
+    assert '"' not in cpp_expr[1:-1]  # no unescaped quotes inside the outer quotes

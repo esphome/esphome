@@ -11,6 +11,7 @@ st7701s.extend(
     vsync_pin=17,
     pclk_pin=21,
     pclk_frequency="12MHz",
+    pclk_inverted=False,
     pixel_mode="18bit",
     mirror_x=True,
     mirror_y=True,

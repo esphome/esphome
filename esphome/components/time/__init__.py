@@ -1,6 +1,11 @@
+import errno
 from importlib import resources
 import logging
 
+from aioesphomeapi.posix_tz import (
+    DSTRuleType as PyDSTRuleType,
+    parse_posix_tz as parse_posix_tz_python,
+)
 import tzlocal
 
 from esphome import automation
@@ -25,13 +30,21 @@ from esphome.const import (
     CONF_SECONDS,
     CONF_TIMEZONE,
     CONF_TRIGGER_ID,
+    PLATFORM_BK72XX,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_HOST,
+    PLATFORM_LN882X,
+    PLATFORM_RP2040,
+    PLATFORM_RTL87XX,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
 
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
+DOMAIN = "time"
 
 time_ns = cg.esphome_ns.namespace("time")
 RealTimeClock = time_ns.class_("RealTimeClock", cg.PollingComponent)
@@ -39,19 +52,43 @@ CronTrigger = time_ns.class_("CronTrigger", automation.Trigger.template(), cg.Co
 SyncTrigger = time_ns.class_("SyncTrigger", automation.Trigger.template(), cg.Component)
 TimeHasTimeCondition = time_ns.class_("TimeHasTimeCondition", Condition)
 
+# C++ types for pre-parsed timezone struct generation
+DSTRuleType_cpp = time_ns.enum("DSTRuleType", is_class=True)
+DSTRule_cpp = time_ns.struct("DSTRule")
+ParsedTimezone_cpp = time_ns.struct("ParsedTimezone")
+
+# Map Python DSTRuleType enum values to C++ enum expressions
+_DST_RULE_TYPE_MAP = {
+    PyDSTRuleType.NONE: DSTRuleType_cpp.NONE,
+    PyDSTRuleType.MONTH_WEEK_DAY: DSTRuleType_cpp.MONTH_WEEK_DAY,
+    PyDSTRuleType.JULIAN_NO_LEAP: DSTRuleType_cpp.JULIAN_NO_LEAP,
+    PyDSTRuleType.DAY_OF_YEAR: DSTRuleType_cpp.DAY_OF_YEAR,
+}
+
 
 def _load_tzdata(iana_key: str) -> bytes | None:
     # From https://tzdata.readthedocs.io/en/latest/#examples
+    if not iana_key:
+        return None
     try:
         package_loc, resource = iana_key.rsplit("/", 1)
     except ValueError:
-        return None
-    package = "tzdata.zoneinfo." + package_loc.replace("/", ".")
+        # Handle top-level timezone entries like "UTC", "GMT"
+        package = "tzdata.zoneinfo"
+        resource = iana_key
+    else:
+        package = "tzdata.zoneinfo." + package_loc.replace("/", ".")
 
     try:
         return (resources.files(package) / resource).read_bytes()
-    except (FileNotFoundError, ModuleNotFoundError):
+    except (FileNotFoundError, ModuleNotFoundError, IsADirectoryError):
         return None
+    except OSError as e:
+        # Windows raises EINVAL for paths with NTFS-illegal chars (e.g. '<'/'>'
+        # in POSIX TZ strings like "<+08>-8" that validate_tz feeds back here).
+        if e.errno == errno.EINVAL:
+            return None
+        raise
 
 
 def _extract_tz_string(tzfile: bytes) -> str:
@@ -59,24 +96,38 @@ def _extract_tz_string(tzfile: bytes) -> str:
         return tzfile.split(b"\n")[-2].decode()
     except (IndexError, UnicodeDecodeError):
         _LOGGER.error("Could not determine TZ string. Please report this issue.")
-        _LOGGER.error("tzfile contents: %s", tzfile, exc_info=True)
+        _LOGGER.exception("tzfile contents: %s", tzfile)
         raise
 
 
-def detect_tz() -> str:
+def detect_tz() -> str | None:
+    if CORE.target_platform not in {
+        PLATFORM_ESP8266,
+        PLATFORM_ESP32,
+        PLATFORM_RP2040,
+        PLATFORM_BK72XX,
+        PLATFORM_RTL87XX,
+        PLATFORM_LN882X,
+        PLATFORM_HOST,
+    }:
+        return None
+    # Avoids duplicate logger messages when multiple time components are configured
+    if cached := CORE.data.setdefault(DOMAIN, {}).get(CONF_TIMEZONE):
+        return cached
     iana_key = tzlocal.get_localzone_name()
     if iana_key is None:
-        raise cv.Invalid(
+        raise EsphomeError(
             "Could not automatically determine timezone, please set timezone manually."
         )
-    _LOGGER.info("Detected timezone '%s'", iana_key)
     tzfile = _load_tzdata(iana_key)
     if tzfile is None:
-        raise cv.Invalid(
+        raise EsphomeError(
             "Could not automatically determine timezone, please set timezone manually."
         )
     ret = _extract_tz_string(tzfile)
+    _LOGGER.info("Detected timezone '%s'", iana_key)
     _LOGGER.debug(" -> TZ string %s", ret)
+    CORE.data.setdefault(DOMAIN, {})[CONF_TIMEZONE] = ret
     return ret
 
 
@@ -87,8 +138,7 @@ def _parse_cron_int(value, special_mapping, message):
     try:
         return int(value)
     except ValueError:
-        # pylint: disable=raise-missing-from
-        raise cv.Invalid(message.format(value))
+        raise cv.Invalid(message.format(value)) from None
 
 
 def _parse_cron_part(part, min_value, max_value, special_mapping):
@@ -101,8 +151,8 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
                 f"Can't have more than two '/' in one time expression, got {part}"
             )
         offset, repeat = data
-        offset_n = 0
-        if offset:
+        offset_n = min_value
+        if offset and offset not in ("*", "?"):
             offset_n = _parse_cron_int(
                 offset,
                 special_mapping,
@@ -112,10 +162,9 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
         try:
             repeat_n = int(repeat)
         except ValueError:
-            # pylint: disable=raise-missing-from
             raise cv.Invalid(
                 f"Repeat for '/' time expression must be an integer, got {repeat}"
-            )
+            ) from None
         return set(range(offset_n, max_value + 1, repeat_n))
     if "-" in part:
         data = part.split("-")
@@ -155,7 +204,7 @@ def cron_expression_validator(name, min_value, max_value, special_mapping=None):
                     raise cv.Invalid(
                         f"{name} {v} is out of range (min={min_value} max={max_value})."
                     )
-            return list(sorted(value))
+            return sorted(value)
         value = cv.string(value)
         values = set()
         for part in value.split(","):
@@ -260,25 +309,32 @@ def validate_tz(value: str) -> str:
     value = cv.string_strict(value)
 
     tzfile = _load_tzdata(value)
-    if tzfile is None:
-        # Not a IANA key, probably a TZ string
-        return value
+    if tzfile is not None:
+        value = _extract_tz_string(tzfile)
+        is_iana = True
+    else:
+        is_iana = False
 
-    return _extract_tz_string(tzfile)
+    # Validate that the POSIX TZ string is parseable (skip empty strings)
+    if value:
+        try:
+            parse_posix_tz_python(value)
+        except ValueError as e:
+            if is_iana:
+                raise cv.Invalid(f"Invalid POSIX timezone string '{value}': {e}") from e
+            raise cv.Invalid(
+                f"Invalid POSIX timezone string '{value}': {e}. "
+                f"If you meant to use an IANA timezone, check the list of valid "
+                f"timezones at "
+                f"https://en.wikipedia.org/wiki/List_of_tz_database_time_zones"
+            ) from e
+
+    return value
 
 
 TIME_SCHEMA = cv.Schema(
     {
-        cv.SplitDefault(
-            CONF_TIMEZONE,
-            esp8266=detect_tz,
-            esp32=detect_tz,
-            rp2040=detect_tz,
-            bk72xx=detect_tz,
-            rtl87xx=detect_tz,
-            ln882x=detect_tz,
-            host=detect_tz,
-        ): cv.All(
+        cv.Optional(CONF_TIMEZONE): cv.All(
             cv.only_with_framework(["arduino", "esp-idf", "host"]),
             validate_tz,
         ),
@@ -302,13 +358,62 @@ TIME_SCHEMA = cv.Schema(
             }
         ),
     }
-).extend(cv.polling_component_schema("15min"))
+).extend(
+    # ``visibility=ADVANCED`` flags the inherited ``update_interval``
+    # field for visual editors — the 15min default is correct for
+    # essentially every user, so editors should keep it tucked under
+    # "advanced" so it doesn't crowd the form. Validation is
+    # unaffected; YAML can override as before.
+    cv.polling_component_schema("15min", visibility=cv.Visibility.ADVANCED)
+)
+
+
+def _emit_dst_rule_fields(prefix, rule):
+    """Emit field-by-field assignments for a DSTRule to avoid rodata struct blob."""
+    cg.add(cg.RawExpression(f"{prefix}.time_seconds = {rule.time_seconds}"))
+    cg.add(cg.RawExpression(f"{prefix}.day = {rule.day}"))
+    cg.add(cg.RawExpression(f"{prefix}.type = {_DST_RULE_TYPE_MAP[rule.type]}"))
+    cg.add(cg.RawExpression(f"{prefix}.month = {rule.month}"))
+    cg.add(cg.RawExpression(f"{prefix}.week = {rule.week}"))
+    cg.add(cg.RawExpression(f"{prefix}.day_of_week = {rule.day_of_week}"))
+
+
+def _emit_parsed_timezone_fields(parsed):
+    """Emit field-by-field assignments for a local ParsedTimezone, then set_global_tz().
+
+    Uses individual assignments on a stack variable instead of a struct initializer
+    to keep constants as immediate operands in instructions (.irom0.text/flash)
+    rather than a const blob in .rodata (which maps to RAM on ESP8266).
+    Wrapped in a scope block to allow multiple time platforms in the same build.
+    """
+    cg.add(cg.RawStatement("{"))
+    cg.add(cg.RawExpression("time::ParsedTimezone tz{}"))
+    cg.add(cg.RawExpression(f"tz.std_offset_seconds = {parsed.std_offset_seconds}"))
+    cg.add(cg.RawExpression(f"tz.dst_offset_seconds = {parsed.dst_offset_seconds}"))
+    _emit_dst_rule_fields("tz.dst_start", parsed.dst_start)
+    _emit_dst_rule_fields("tz.dst_end", parsed.dst_end)
+    cg.add(time_ns.set_global_tz(cg.RawExpression("tz")))
+    cg.add(cg.RawStatement("}"))
 
 
 async def setup_time_core_(time_var, config):
-    if timezone := config.get(CONF_TIMEZONE):
-        cg.add(time_var.set_timezone(timezone))
+    timezone = config.get(CONF_TIMEZONE)
+    # an empty timezone is treated as disabling timezones completely as before
+    if timezone is None:
+        timezone = detect_tz()
+    if timezone:
         cg.add_define("USE_TIME_TIMEZONE")
+
+        if CORE.is_host:
+            # Host platform needs setenv("TZ")/tzset() for libc compatibility
+            cg.add(time_var.set_timezone(timezone))
+        else:
+            # Embedded: pre-parse at codegen time, emit struct directly
+            try:
+                parsed = parse_posix_tz_python(timezone)
+                _emit_parsed_timezone_fields(parsed)
+            except ValueError as e:
+                raise EsphomeError(f"Invalid timezone: {timezone}") from e
 
     for conf in config.get(CONF_ON_TIME, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)

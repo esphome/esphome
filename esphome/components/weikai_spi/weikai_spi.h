@@ -6,15 +6,13 @@
 ///          wk2124_spi, wk2132_spi, wk2168_spi, wk2204_spi, wk2212_spi,
 
 #pragma once
-#include <bitset>
 #include <memory>
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/weikai/weikai.h"
 
-namespace esphome {
-namespace weikai_spi {
+namespace esphome::weikai_spi {
 ////////////////////////////////////////////////////////////////////////////////////
 /// @brief WeikaiRegisterSPI objects acts as proxies to access remote register through an SPI Bus
 ////////////////////////////////////////////////////////////////////////////////////
@@ -50,5 +48,4 @@ class WeikaiComponentSPI : public weikai::WeikaiComponent,
   WeikaiRegisterSPI reg_spi_{this, 0, 0};  ///< init to this component
 };
 
-}  // namespace weikai_spi
-}  // namespace esphome
+}  // namespace esphome::weikai_spi

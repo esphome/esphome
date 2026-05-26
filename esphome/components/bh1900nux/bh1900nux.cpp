@@ -1,8 +1,7 @@
 #include "esphome/core/log.h"
 #include "bh1900nux.h"
 
-namespace esphome {
-namespace bh1900nux {
+namespace esphome::bh1900nux {
 
 static const char *const TAG = "bh1900nux.sensor";
 
@@ -23,7 +22,7 @@ void BH1900NUXSensor::setup() {
   i2c::ErrorCode result_code =
       this->write_register(SOFT_RESET_REG, &SOFT_RESET_PAYLOAD, 1);  // Software Reset to check communication
   if (result_code != i2c::ERROR_OK) {
-    this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 }
@@ -50,5 +49,4 @@ void BH1900NUXSensor::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-}  // namespace bh1900nux
-}  // namespace esphome
+}  // namespace esphome::bh1900nux

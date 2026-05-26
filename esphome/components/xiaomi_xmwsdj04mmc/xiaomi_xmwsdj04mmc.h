@@ -7,13 +7,12 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace xiaomi_xmwsdj04mmc {
+namespace esphome::xiaomi_xmwsdj04mmc {
 
 class XiaomiXMWSDJ04MMC : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { this->address_ = address; }
-  void set_bindkey(const std::string &bindkey);
+  void set_bindkey(const char *bindkey);
 
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
 
@@ -30,7 +29,6 @@ class XiaomiXMWSDJ04MMC : public Component, public esp32_ble_tracker::ESPBTDevic
   sensor::Sensor *battery_level_{nullptr};
 };
 
-}  // namespace xiaomi_xmwsdj04mmc
-}  // namespace esphome
+}  // namespace esphome::xiaomi_xmwsdj04mmc
 
 #endif

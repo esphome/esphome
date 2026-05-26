@@ -9,8 +9,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace mopeka_pro_check {
+namespace esphome::mopeka_pro_check {
 
 enum SensorType {
   STANDARD_BOTTOM_UP = 0x03,
@@ -61,11 +60,10 @@ class MopekaProCheck : public Component, public esp32_ble_tracker::ESPBTDeviceLi
 
   uint8_t parse_battery_level_(const std::vector<uint8_t> &message);
   uint32_t parse_distance_(const std::vector<uint8_t> &message);
-  uint8_t parse_temperature_(const std::vector<uint8_t> &message);
+  int8_t parse_temperature_(const std::vector<uint8_t> &message);
   SensorReadQuality parse_read_quality_(const std::vector<uint8_t> &message);
 };
 
-}  // namespace mopeka_pro_check
-}  // namespace esphome
+}  // namespace esphome::mopeka_pro_check
 
 #endif

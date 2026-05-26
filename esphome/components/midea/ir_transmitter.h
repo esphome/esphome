@@ -4,8 +4,7 @@
 #ifdef USE_REMOTE_TRANSMITTER
 #include "esphome/components/remote_base/midea_protocol.h"
 
-namespace esphome {
-namespace midea {
+namespace esphome::midea {
 
 using remote_base::RemoteTransmitterBase;
 using IrData = remote_base::MideaData;
@@ -84,8 +83,7 @@ class IrTransmitter {
   RemoteTransmitterBase *transmitter_{nullptr};
 };
 
-}  // namespace midea
-}  // namespace esphome
+}  // namespace esphome::midea
 
 #endif
 #endif  // USE_ARDUINO

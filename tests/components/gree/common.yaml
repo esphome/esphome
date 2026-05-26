@@ -1,5 +1,18 @@
 climate:
   - platform: gree
     name: GREE
-    model: generic
+    id: my_gree_ac
+    model: YAN
     transmitter_id: xmitr
+
+switch:
+  - platform: gree
+    gree_id: my_gree_ac
+    light:
+      name: "AC Lights"
+    turbo:
+      name: "AC Turbo"
+    health:
+      name: "AC Health"
+    xfan:
+      name: "AC X-Fan"

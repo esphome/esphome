@@ -1,4 +1,6 @@
 # I2C bus for camera sensor
+psram:
+
 i2c:
   - id: i2c_camera_bus
     sda: 25
@@ -28,6 +30,7 @@ esp32_camera:
   resolution: 640x480
   jpeg_quality: 10
   frame_buffer_location: PSRAM
+  pixel_format: JPEG
   on_image:
     then:
       - lambda: |-

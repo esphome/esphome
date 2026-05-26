@@ -28,7 +28,7 @@ from script.analyze_component_buses import (
     create_grouping_signature,
     merge_compatible_bus_groups,
 )
-from script.helpers import get_component_test_files
+from script.helpers import get_component_test_files, split_conflicting_groups
 
 # Weighting for batch creation
 # Isolated components can't be grouped/merged, so they count as 10x
@@ -44,14 +44,21 @@ ALL_PLATFORMS = "all"
 def has_test_files(component_name: str, tests_dir: Path) -> bool:
     """Check if a component has test files.
 
+    Validate files (validate.*.yaml) count -- a component with only config-only
+    test files still needs a CI runner for schema validation.
+
     Args:
         component_name: Name of the component
         tests_dir: Path to tests/components directory (unused, kept for compatibility)
 
     Returns:
-        True if the component has test.*.yaml files
+        True if the component has test.*.yaml, test-*.yaml, or validate.*.yaml files
     """
-    return bool(get_component_test_files(component_name))
+    return bool(
+        get_component_test_files(
+            component_name, all_variants=True, include_validate=True
+        )
+    )
 
 
 def create_intelligent_batches(
@@ -61,6 +68,10 @@ def create_intelligent_batches(
     directly_changed: set[str] | None = None,
 ) -> tuple[list[list[str]], dict[tuple[str, str], list[str]]]:
     """Create batches optimized for component grouping.
+
+    IMPORTANT: This function is called from both split_components_for_ci.py (standalone script)
+    and determine-jobs.py (integrated into job determination). Be careful when refactoring
+    to ensure changes work in both contexts.
 
     Args:
         components: List of component names to batch
@@ -118,8 +129,13 @@ def create_intelligent_batches(
             continue
 
         # Get signature from any platform (they should all have the same buses)
-        # Components not in component_buses were filtered out by has_test_files check
-        comp_platforms = component_buses[component]
+        # Components not in component_buses may only have variant-specific tests
+        comp_platforms = component_buses.get(component)
+        if not comp_platforms:
+            # Component has tests but no analyzable base config - treat as no buses
+            signature_groups[(ALL_PLATFORMS, NO_BUSES_SIGNATURE)].append(component)
+            continue
+
         for platform, buses in comp_platforms.items():
             if buses:
                 signature = create_grouping_signature({platform: buses}, platform)
@@ -135,6 +151,11 @@ def create_intelligent_batches(
     # This allows components with different buses (ble + uart) to be batched together
     # improving the efficiency of test_build_components.py grouping
     signature_groups = merge_compatible_bus_groups(signature_groups)
+
+    # Split groups containing mutually-incompatible components (CONFLICTS_WITH).
+    # Without this, batch weighting assumes the group is one build when it will
+    # actually be split into two at build time -- throwing off CI distribution.
+    signature_groups = split_conflicting_groups(signature_groups)
 
     # Create batches by keeping signature groups together
     # Components with the same signature stay in the same batches
@@ -274,7 +295,7 @@ def main() -> int:
     # Sort groups by signature for readability
     groupable_groups = []
     isolated_groups = []
-    for (platform, signature), group_comps in sorted(signature_groups.items()):
+    for (_platform, signature), group_comps in sorted(signature_groups.items()):
         if signature.startswith(ISOLATED_SIGNATURE_PREFIX):
             isolated_groups.append((signature, group_comps))
         else:

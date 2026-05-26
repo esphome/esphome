@@ -34,7 +34,7 @@ from typing import Any
 # Add esphome to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from helpers import BASE_BUS_COMPONENTS
+from helpers import BASE_BUS_COMPONENTS, is_validate_only_file
 
 from esphome import yaml_util
 from esphome.config_helpers import Extend, Remove
@@ -77,14 +77,18 @@ ISOLATED_COMPONENTS = {
     "esphome": "Defines devices/areas in esphome: section that are referenced in other sections - breaks when merged",
     "ethernet": "Defines ethernet: which conflicts with wifi: used by most components",
     "ethernet_info": "Related to ethernet component which conflicts with wifi",
+    "gps": "TinyGPSPlus library declares millis() function that creates ambiguity with ESPHome millis() macro when merged with components using millis() in lambdas",
     "lvgl": "Defines multiple SDL displays on host platform that conflict when merged with other display configs",
     "mapping": "Uses dict format for image/display sections incompatible with standard list format - ESPHome merge_config cannot handle",
     "openthread": "Conflicts with wifi: used by most components",
     "openthread_info": "Conflicts with wifi: used by most components",
     "matrix_keypad": "Needs isolation due to keypad",
+    "microphone": "Defines PDM microphone requiring I2S port 0 - conflicts with micro_wake_word PDM mic when merged",
     "modbus_controller": "Defines multiple modbus buses for testing client/server functionality - conflicts with package modbus bus",
     "neopixelbus": "RMT type conflict with ESP32 Arduino/ESP-IDF headers (enum vs struct rmt_channel_t)",
     "packages": "cannot merge packages",
+    "tinyusb": "Conflicts with usb_host component - cannot be used together",
+    "usb_cdc_acm": "Depends on tinyusb which conflicts with usb_host",
 }
 
 
@@ -279,6 +283,13 @@ def analyze_component(component_dir: Path) -> tuple[dict[str, list[str]], bool, 
 
     # Analyze all YAML files in the component directory
     for yaml_file in component_dir.glob("*.yaml"):
+        # validate.*.yaml files are config-only -- they don't compile, so
+        # their contents must not influence compile-time grouping decisions
+        # (e.g. a !extend used only to exercise schema validation must not
+        # disqualify the whole component from being grouped).
+        if is_validate_only_file(yaml_file):
+            continue
+
         analysis = analyze_yaml_file(yaml_file)
 
         # Track if any file uses extend/remove

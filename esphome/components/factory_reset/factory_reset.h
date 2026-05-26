@@ -9,35 +9,27 @@
 #include <esp_system.h>
 #endif
 
-namespace esphome {
-namespace factory_reset {
+namespace esphome::factory_reset {
 class FactoryResetComponent : public Component {
  public:
-  FactoryResetComponent(uint8_t required_count, uint32_t max_interval)
-      : required_count_(required_count), max_interval_(max_interval) {}
+  FactoryResetComponent(uint8_t required_count, uint16_t max_interval)
+      : max_interval_(max_interval), required_count_(required_count) {}
 
   void dump_config() override;
   void setup() override;
-  void add_increment_callback(std::function<void(uint8_t, uint8_t)> &&callback) {
-    this->increment_callback_.add(std::move(callback));
+  template<typename F> void add_increment_callback(F &&callback) {
+    this->increment_callback_.add(std::forward<F>(callback));
   }
 
  protected:
   ~FactoryResetComponent() = default;
   void save_(uint8_t count);
   ESPPreferenceObject flash_{};  // saves the number of fast power cycles
-  uint8_t required_count_;       // The number of boot attempts before fast boot is enabled
-  uint32_t max_interval_;        // max interval between power cycles
   CallbackManager<void(uint8_t, uint8_t)> increment_callback_{};
+  uint16_t max_interval_;   // max interval between power cycles in seconds
+  uint8_t required_count_;  // The number of boot attempts before fast boot is enabled
 };
 
-class FastBootTrigger : public Trigger<uint8_t, uint8_t> {
- public:
-  explicit FastBootTrigger(FactoryResetComponent *parent) {
-    parent->add_increment_callback([this](uint8_t current, uint8_t target) { this->trigger(current, target); });
-  }
-};
-}  // namespace factory_reset
-}  // namespace esphome
+}  // namespace esphome::factory_reset
 
 #endif  // !defined(USE_RP2040) && !defined(USE_HOST)
