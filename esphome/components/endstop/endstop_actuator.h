@@ -24,7 +24,7 @@ class EndstopActuatorBase : public Component {
   void set_max_duration(uint32_t max_duration) { this->max_duration_ = max_duration; }
 
  protected:
-  void control(const actuator::ActuatorCallBase &call);
+  void control_(const actuator::ActuatorCallBase &call);
   void stop_prev_trigger_();
   bool is_open_() const { return this->open_endstop_->state; }
   bool is_closed_() const { return this->close_endstop_->state; }
