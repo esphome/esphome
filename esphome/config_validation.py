@@ -516,6 +516,13 @@ class SensitiveValidator:
     def __call__(self, value: typing.Any) -> typing.Any:
         return self.inner(value)
 
+    def __repr__(self) -> str:
+        # Mirror the inner validator's repr so ``build_language_schema``'s
+        # ``known_schemas``/``extended_schemas`` dedup (keyed on ``repr(schema)``)
+        # treats two wrappers around the same inner as identical, and so
+        # voluptuous error messages stay readable.
+        return repr(self.inner)
+
 
 def sensitive(
     inner: Callable[[typing.Any], typing.Any] = string,

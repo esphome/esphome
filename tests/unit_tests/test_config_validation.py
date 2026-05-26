@@ -151,6 +151,19 @@ def test_sensitive__is_detectable_via_isinstance() -> None:
     assert isinstance(validator, config_validation.SensitiveValidator)
 
 
+def test_sensitive__repr_mirrors_inner() -> None:
+    # The schema dump dedups on ``repr(schema)``; mirroring the inner
+    # validator's repr keeps two ``cv.sensitive(cv.string)`` wrappers
+    # interchangeable for that purpose and avoids leaking the wrapper as
+    # noise in voluptuous error messages.
+    assert repr(config_validation.sensitive(config_validation.string)) == repr(
+        config_validation.string
+    )
+    assert repr(config_validation.sensitive(config_validation.string)) == repr(
+        config_validation.sensitive(config_validation.string)
+    )
+
+
 def test_sensitive_key_fragments__covers_common_terms() -> None:
     assert isinstance(config_validation.SENSITIVE_KEY_FRAGMENTS, frozenset)
     for term in ("password", "passcode", "secret", "token", "api_key", "apikey", "psk"):

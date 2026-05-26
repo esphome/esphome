@@ -1139,13 +1139,17 @@ def convert_keys(converted, schema, path):
         # Heuristic fallback when the field's validator wasn't explicitly
         # wrapped in ``cv.sensitive``. Only applies to string-typed leaves so
         # we don't mark unrelated nested schemas. ``sensitive_source`` lets
-        # consumers distinguish explicit markers from heuristic matches.
+        # consumers distinguish explicit markers from heuristic matches. Pull
+        # the field name from ``k.schema`` (voluptuous's stored key) rather
+        # than ``str(k)`` so we don't depend on the marker's ``__str__``
+        # representation.
         if (
             "sensitive" not in result
             and result.get(S_TYPE) == "string"
             and isinstance(k, (cv.Required, cv.Optional, cv.Inclusive, cv.Exclusive))
+            and isinstance(k.schema, str)
         ):
-            key_lower = str(k).lower()
+            key_lower = k.schema.lower()
             if any(frag in key_lower for frag in cv.SENSITIVE_KEY_FRAGMENTS):
                 result["sensitive"] = True
                 result["sensitive_source"] = "heuristic"
