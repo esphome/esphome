@@ -105,6 +105,28 @@ class MS8607Component final : public PollingComponent, public i2c::I2CDevice {
   SetupStatus setup_status_;
   uint32_t reset_interval_{5};
   uint8_t reset_attempts_remaining_{3};
+
+  struct CompensatedTemperature {
+    /// difference between actual and reference temperature
+    int32_t d_t;
+    /// temperature as hundredths of degree celsius in range [-4000, 8500], after first order
+    /// temperature calculation
+    int32_t first_order_temperature;
+    /// actual temperature, after 2nd order temperature calculation, in degrees celsius as a float
+    float temperature_float;
+  };
+
+  /// use raw temperature and calibration values to figure out actual temperature value
+  /// return value includes some intermediate values needed by the pressure compensation algorithm
+  static struct CompensatedTemperature compensated_temperature(
+      uint32_t d2_raw_temperature, const struct MS8607Component::CalibrationValues &calibration_values);
+
+  /// use raw pressure, calibration values, and current temperature to figure out actual pressure
+  static float compensated_pressure(uint32_t d1_raw_pressure, const struct CalibrationValues &calibration_values,
+                                    const struct CompensatedTemperature &temperature_values);
+
+  ///
+  static float compensated_humidity(float humidity_float, float temperature_float);
 };
 
 }  // namespace esphome::ms8607
