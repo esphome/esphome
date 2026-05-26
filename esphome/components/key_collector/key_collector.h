@@ -5,8 +5,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace key_collector {
+namespace esphome::key_collector {
 
 class KeyCollector : public Component {
  public:
@@ -63,5 +62,4 @@ template<typename... Ts> class DisableAction : public Action<Ts...>, public Pare
   void play(const Ts &...x) override { this->parent_->set_enabled(false); }
 };
 
-}  // namespace key_collector
-}  // namespace esphome
+}  // namespace esphome::key_collector

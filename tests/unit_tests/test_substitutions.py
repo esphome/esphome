@@ -1,4 +1,3 @@
-import glob
 import logging
 from pathlib import Path
 from typing import Any
@@ -106,7 +105,7 @@ REMOTES = {
 # Collect all input YAML files for test_substitutions_fixtures parametrized tests:
 HERE = Path(__file__).parent
 BASE_DIR = HERE / "fixtures" / "substitutions"
-SOURCES = sorted(glob.glob(str(BASE_DIR / "*.input.yaml")))
+SOURCES = sorted(str(p) for p in BASE_DIR.glob("*.input.yaml"))
 assert SOURCES, f"test_substitutions_fixtures: No input YAML files found in {BASE_DIR}"
 
 
@@ -818,3 +817,23 @@ def test_resolve_include_error_no_expanded_from_for_literal_filename(
         substitutions.resolve_include(include, [], substitutions.ContextVars())
 
     assert "expanded from" not in str(exc_info.value)
+
+
+def test_include_vars_applied_to_lambda_value(tmp_path: Path) -> None:
+    """!include vars: must substitute into a top-level !lambda value in the included file.
+
+    Regression test for the case where the included file's root is a Lambda;
+    add_context() previously only tagged dict/list/str, so the include's vars
+    never reached the substitution pass for Lambda content.
+    """
+    included = tmp_path / "lambda.yaml"
+    included.write_text('!lambda |-\n  return "${foo}";\n')
+
+    include = yaml_util.IncludeFile(
+        tmp_path / "main.yaml", "lambda.yaml", {"foo": "bar"}, yaml_util.load_yaml
+    )
+    config = OrderedDict({"value": include.load()})
+    result = substitutions.do_substitution_pass(config)
+
+    assert isinstance(result["value"], Lambda)
+    assert result["value"].value == 'return "bar";'

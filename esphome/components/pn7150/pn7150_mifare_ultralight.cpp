@@ -5,8 +5,7 @@
 #include "pn7150.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pn7150 {
+namespace esphome::pn7150 {
 
 static const char *const TAG = "pn7150.mifare_ultralight";
 
@@ -183,5 +182,4 @@ uint8_t PN7150::write_mifare_ultralight_page_(uint8_t page_num, const uint8_t *w
   return nfc::STATUS_OK;
 }
 
-}  // namespace pn7150
-}  // namespace esphome
+}  // namespace esphome::pn7150

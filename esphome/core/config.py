@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_AREA,
     CONF_AREA_ID,
     CONF_AREAS,
+    CONF_BUILD_FLAGS,
     CONF_BUILD_PATH,
     CONF_COMMENT,
     CONF_COMPILE_PROCESS_LIMIT,
@@ -288,6 +289,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.string_strict: cv.Any([cv.string], cv.string),
                 }
             ),
+            cv.Optional(CONF_BUILD_FLAGS, default=[]): cv.ensure_list(cv.string_strict),
             cv.Optional(CONF_ENVIRONMENT_VARIABLES, default={}): cv.Schema(
                 {
                     cv.string_strict: cv.string,
@@ -511,6 +513,12 @@ async def _add_platformio_options(pio_options):
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
+async def _add_build_flags(flags: list[str]) -> None:
+    for flag in flags:
+        cg.add_build_flag(flag)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
 async def _add_environment_variables(env_vars: dict[str, str]) -> None:
     # Set environment variables for the build process
     os.environ.update(env_vars)
@@ -568,14 +576,9 @@ async def _add_controller_registry_define() -> None:
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_looping_components() -> None:
-    # Emit a constexpr that computes the looping component count at C++ compile time
-    # and pre-init the FixedVector with the exact capacity. Uses std::is_same_v to
-    # detect loop() overrides. The constexpr goes in main.cpp's global section where
-    # all component types are in scope. calculate_looping_components_() then skips
-    # the counting pass and only does the two population passes.
+    # Emit ESPHOME_LOOPING_COMPONENT_COUNT. Sizing of looping_components_
+    # happens in core to_code() so it lands before safe_mode's early return.
     entries = CORE.data.get("looping_component_entries", [])
-    if not entries:
-        return
 
     # Build constexpr sum for the exact count, deduplicating by type
     # Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance
@@ -583,20 +586,12 @@ async def _add_looping_components() -> None:
     terms = [
         f"({count} * HasLoopOverride<{cpp_type}>::value)"
         for cpp_type, count in type_counts.items()
-    ]
+    ] or ["0"]
     constexpr_expr = " + \\\n  ".join(terms)
     cg.add_global(
         cg.RawStatement(
             f"static constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT = \\\n"
             f"  {constexpr_expr};"
-        )
-    )
-
-    # Pre-init FixedVector with exact capacity so calculate_looping_components_()
-    # can skip the counting pass
-    cg.add(
-        cg.RawExpression(
-            "App.looping_components_.init(ESPHOME_LOOPING_COMPONENT_COUNT)"
         )
     )
 
@@ -641,6 +636,14 @@ async def to_code(config: ConfigType) -> None:
     cg.add(cg.App.pre_setup(name_expr, name_len, friendly_expr, friendly_len))
     # Define component count for static allocation
     cg.add_define("ESPHOME_COMPONENT_COUNT", len(CORE.component_ids))
+
+    # Pre-init FixedVector with exact capacity so calculate_looping_components_()
+    # can skip the counting pass
+    cg.add(
+        cg.RawExpression(
+            "App.looping_components_.init(ESPHOME_LOOPING_COMPONENT_COUNT)"
+        )
+    )
 
     CORE.add_job(_add_platform_defines)
     CORE.add_job(_add_controller_registry_define)
@@ -710,6 +713,9 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_PLATFORMIO_OPTIONS]:
         CORE.add_job(_add_platformio_options, config[CONF_PLATFORMIO_OPTIONS])
 
+    if config[CONF_BUILD_FLAGS]:
+        CORE.add_job(_add_build_flags, config[CONF_BUILD_FLAGS])
+
     if config[CONF_ENVIRONMENT_VARIABLES]:
         CORE.add_job(_add_environment_variables, config[CONF_ENVIRONMENT_VARIABLES])
 
@@ -764,10 +770,6 @@ async def to_code(config: ConfigType) -> None:
 # Platform-specific source files for core
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
-        "ring_buffer.cpp": {
-            PlatformFramework.ESP32_ARDUINO,
-            PlatformFramework.ESP32_IDF,
-        },
         "static_task.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,

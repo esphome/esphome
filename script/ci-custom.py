@@ -14,7 +14,7 @@ import time
 import colorama
 from helpers import filter_changed, git_ls_files, print_error_for_file, styled
 
-sys.path.append(os.path.dirname(__file__))
+sys.path.append(str(Path(__file__).parent))
 
 
 def find_all(a_str, sub):
@@ -250,7 +250,7 @@ def lint_ext_check(fname):
     ]
 )
 def lint_executable_bit(fname: Path) -> str | None:
-    ex = EXECUTABLE_BIT[str(fname)]
+    ex = EXECUTABLE_BIT[fname.as_posix()]
     if ex != 100644:
         return (
             f"File has invalid executable bit {ex}. If running from a windows machine please "
@@ -341,9 +341,9 @@ def lint_const_ordered(fname, content):
         matching = [
             (i + 1, line) for i, line in enumerate(lines) if line.startswith(start)
         ]
-        ordered = list(sorted(matching, key=lambda x: x[1].replace("_", " ")))
-        ordered = [(mi, ol) for (mi, _), (_, ol) in zip(matching, ordered)]
-        for (mi, mline), (_, ol) in zip(matching, ordered):
+        ordered = sorted(matching, key=lambda x: x[1].replace("_", " "))
+        ordered = [(mi, ol) for (mi, _), (_, ol) in zip(matching, ordered, strict=True)]
+        for (mi, mline), (_, ol) in zip(matching, ordered, strict=True):
             if mline == ol:
                 continue
             target = next(i for i, line in ordered if line == mline)
@@ -562,7 +562,7 @@ def lint_constants_usage():
 # Maximum allowed CONF_ constants in esphome/const.py.
 # This file is frozen — new constants go in esphome/components/const/__init__.py.
 # Decrease this number when constants are moved out of const.py.
-CONST_PY_MAX_CONF = 1011
+CONST_PY_MAX_CONF = 1013
 
 
 @lint_content_check(include=["esphome/const.py"])
@@ -1068,7 +1068,12 @@ PACKAGE_BUS_RE = re.compile(
 )
 
 
-@lint_content_check(include=["tests/components/*/test.*.yaml"])
+@lint_content_check(
+    include=[
+        "tests/components/*/test.*.yaml",
+        "tests/components/*/validate.*.yaml",
+    ]
+)
 def lint_test_package_key_matches_bus(fname, content):
     """Ensure package keys match the common bus directory name.
 

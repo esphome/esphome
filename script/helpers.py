@@ -17,10 +17,10 @@ from typing import Any
 
 import colorama
 
-root_path = os.path.abspath(os.path.normpath(os.path.join(__file__, "..", "..")))
-basepath = os.path.join(root_path, "esphome")
-temp_folder = os.path.join(root_path, ".temp")
-temp_header_file = os.path.join(temp_folder, "all-include.cpp")
+root_path = str(Path(__file__).resolve().parent.parent)
+basepath = str(Path(root_path) / "esphome")
+temp_folder = str(Path(root_path) / ".temp")
+temp_header_file = str(Path(temp_folder) / "all-include.cpp")
 
 # C++ file extensions used for clang-tidy and clang-format checks
 CPP_FILE_EXTENSIONS = (".cpp", ".h", ".hpp", ".cc", ".cxx", ".c", ".tcc")
@@ -117,7 +117,7 @@ def get_component_from_path(file_path: str) -> str | None:
 
 
 def get_component_test_files(
-    component: str, *, all_variants: bool = False
+    component: str, *, all_variants: bool = False, include_validate: bool = False
 ) -> list[Path]:
     """Get test files for a component.
 
@@ -125,6 +125,10 @@ def get_component_test_files(
         component: Component name (e.g., "wifi")
         all_variants: If True, returns all test files including variants (test-*.yaml).
                      If False, returns only base test files (test.*.yaml).
+                     Default is False.
+        include_validate: If True, also returns config-only files (validate.*.yaml,
+                     and validate-*.yaml when all_variants is True). These files
+                     are validated with `esphome config` but never compiled.
                      Default is False.
 
     Returns:
@@ -136,9 +140,27 @@ def get_component_test_files(
 
     if all_variants:
         # Match both test.*.yaml and test-*.yaml patterns
-        return list(tests_dir.glob("test[.-]*.yaml"))
+        files = list(tests_dir.glob("test[.-]*.yaml"))
+        if include_validate:
+            files.extend(tests_dir.glob("validate[.-]*.yaml"))
+        return files
     # Match only test.*.yaml (base tests)
-    return list(tests_dir.glob("test.*.yaml"))
+    files = list(tests_dir.glob("test.*.yaml"))
+    if include_validate:
+        files.extend(tests_dir.glob("validate.*.yaml"))
+    return files
+
+
+def is_validate_only_file(test_file: Path) -> bool:
+    """Return True if the given path is a config-only validate file.
+
+    Validate files follow the same grammar as test files but with a
+    ``validate`` prefix instead of ``test``: ``validate.<platform>.yaml``
+    or ``validate-<variant>.<platform>.yaml``. They are exercised with
+    ``esphome config`` only and skipped during compile.
+    """
+    name = test_file.name
+    return name.startswith("validate.") or name.startswith("validate-")
 
 
 @dataclass(frozen=True)
@@ -317,8 +339,8 @@ def _get_github_event_data() -> dict | None:
         Parsed event data dictionary, or None if not available
     """
     github_event_path = os.environ.get("GITHUB_EVENT_PATH")
-    if github_event_path and os.path.exists(github_event_path):
-        with open(github_event_path) as f:
+    if github_event_path and Path(github_event_path).exists():
+        with Path(github_event_path).open() as f:
             return json.load(f)
     return None
 
@@ -442,7 +464,8 @@ def _get_changed_files_from_command(command: list[str]) -> list[str]:
         raise Exception(f"Command failed: {' '.join(command)}\nstderr: {proc.stderr}")
 
     changed_files = splitlines_no_ends(proc.stdout)
-    changed_files = [os.path.relpath(f, os.getcwd()) for f in changed_files if f]
+    cwd = Path.cwd()
+    changed_files = [os.path.relpath(f, cwd) for f in changed_files if f]  # noqa: PTH109
     changed_files.sort()
     return changed_files
 
@@ -477,7 +500,7 @@ def get_changed_components() -> list[str] | None:
         return None
 
     # Use list-components.py to get changed components
-    script_path = os.path.join(root_path, "script", "list-components.py")
+    script_path = str(Path(root_path) / "script" / "list-components.py")
     cmd = [script_path, "--changed"]
 
     try:
@@ -597,7 +620,7 @@ def filter_changed(files: list[str]) -> list[str]:
 def filter_grep(files: list[str], value: list[str]) -> list[str]:
     matched = []
     for file in files:
-        with open(file, encoding="utf-8") as handle:
+        with Path(file).open(encoding="utf-8") as handle:
             contents = handle.read()
         if any(v in contents for v in value):
             matched.append(file)

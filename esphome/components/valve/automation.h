@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "valve.h"
 
-namespace esphome {
-namespace valve {
+namespace esphome::valve {
 
 template<typename... Ts> class OpenAction : public Action<Ts...> {
  public:
@@ -52,9 +51,16 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
 // plus one parent pointer, regardless of how many fields the user set.
 // Trigger args are forwarded to the apply function so user lambdas
 // (e.g. `position: !lambda "return x;"`) keep working.
+//
+// Trigger args are normalized to `const std::remove_cvref_t<Ts> &...` so
+// the codegen can emit a matching parameter list for both the apply lambda
+// and any inner field lambdas without producing invalid C++ source text
+// (e.g. `const T & &` if Ts already carries a reference, or `const const
+// T &` if Ts already carries a const). This keeps trigger args no-copy
+// regardless of whether the trigger supplies `T`, `T &`, or `const T &`.
 template<typename... Ts> class ControlAction : public Action<Ts...> {
  public:
-  using ApplyFn = void (*)(ValveCall &, const Ts &...);
+  using ApplyFn = void (*)(ValveCall &, const std::remove_cvref_t<Ts> &...);
   ControlAction(Valve *valve, ApplyFn apply) : valve_(valve), apply_(apply) {}
 
   void play(const Ts &...x) override {
@@ -114,5 +120,4 @@ class ValveClosedTrigger : public Trigger<> {
   Valve *valve_;
 };
 
-}  // namespace valve
-}  // namespace esphome
+}  // namespace esphome::valve

@@ -6,8 +6,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace sgp30 {
+namespace esphome::sgp30 {
 
 static const char *const TAG = "sgp30";
 
@@ -302,5 +301,4 @@ void SGP30Component::update() {
   });
 }
 
-}  // namespace sgp30
-}  // namespace esphome
+}  // namespace esphome::sgp30

@@ -5,8 +5,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace radon_eye_rd200 {
+namespace esphome::radon_eye_rd200 {
 
 static const char *const TAG = "radon_eye_rd200";
 
@@ -211,7 +210,6 @@ void RadonEyeRD200::dump_config() {
 
 RadonEyeRD200::RadonEyeRD200() : PollingComponent(10000) {}
 
-}  // namespace radon_eye_rd200
-}  // namespace esphome
+}  // namespace esphome::radon_eye_rd200
 
 #endif  // USE_ESP32

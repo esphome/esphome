@@ -7,8 +7,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace gps {
+namespace esphome::gps {
 
 class GPS;
 
@@ -67,5 +66,4 @@ class GPS : public PollingComponent, public uart::UARTDevice {
   std::vector<GPSListener *> listeners_{};
 };
 
-}  // namespace gps
-}  // namespace esphome
+}  // namespace esphome::gps

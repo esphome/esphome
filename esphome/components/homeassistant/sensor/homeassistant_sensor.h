@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace homeassistant {
+namespace esphome::homeassistant {
 
 class HomeassistantSensor : public sensor::Sensor, public Component {
  public:
@@ -19,5 +18,4 @@ class HomeassistantSensor : public sensor::Sensor, public Component {
   const char *attribute_{nullptr};
 };
 
-}  // namespace homeassistant
-}  // namespace esphome
+}  // namespace esphome::homeassistant
