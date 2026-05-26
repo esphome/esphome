@@ -244,6 +244,12 @@ class VoiceAssistant : public Component {
   void signal_stop_();
   void start_playback_timeout_();
 
+  // Drains the exposed microphone audio and sends it to Home Assistant over the API in one loop() pass.
+  void stream_api_audio_();
+  // Handles a pass where at least one configured channel has no audio exposed, timing out a channel that
+  // stalls. See audio_channel_stall_start_.
+  void handle_channel_stall_(size_t available, size_t available2);
+
   std::unique_ptr<socket::Socket> socket_ = nullptr;
   struct sockaddr_storage dest_addr_;
 

@@ -209,6 +209,79 @@ void VoiceAssistant::reset_conversation_id() {
   ESP_LOGD(TAG, "reset conversation ID");
 }
 
+void VoiceAssistant::stream_api_audio_() {
+  // Both microphone channels are sent together, if configured. Home Assistant feeds one of the
+  // channels to its speech-to-text stream and treats an empty payload on that channel as
+  // end-of-stream, and the device cannot know which channel it picked, so only send once every
+  // configured channel has audio exposed, and always send them together. We don't target any
+  // particular message size: Home Assistant re-chunks the audio, and each fill() exposes at most
+  // SEND_BUFFER_SIZE bytes.
+  while (true) {
+    // fill() exposes a new chunk, or returns 0 if a previous chunk is still exposed; available()
+    // reports the currently exposed bytes either way.
+    this->audio_source_->fill(0, false);
+    size_t available = this->audio_source_->available();
+    size_t available2 = 0;
+    if (this->audio_source2_ != nullptr) {
+      this->audio_source2_->fill(0, false);
+      available2 = this->audio_source2_->available();
+    }
+
+    const bool channel_empty = (available == 0);
+    const bool channel2_empty = (this->audio_source2_ != nullptr) && (available2 == 0);
+    if (channel_empty || channel2_empty) {
+      // A configured channel has no audio yet, so keep any chunk exposed on the other channel for the
+      // next pass rather than sending an empty payload.
+      this->handle_channel_stall_(available, available2);
+      break;
+    }
+
+    // Both channels have audio exposed; clear any in-progress stall timer.
+    this->audio_channel_stall_start_ = 0;
+
+    api::VoiceAssistantAudio msg;
+    // Zero-copy: send_message() copies the data out before we consume it.
+    msg.data = this->audio_source_->data();
+    msg.data_len = available;
+    if (this->audio_source2_ != nullptr) {
+      msg.data2 = this->audio_source2_->data();
+      msg.data2_len = available2;
+    }
+
+    this->api_client_->send_message(msg);
+
+    this->audio_source_->consume(available);
+    if (this->audio_source2_ != nullptr) {
+      this->audio_source2_->consume(available2);
+    }
+  }
+}
+
+void VoiceAssistant::handle_channel_stall_(size_t available, size_t available2) {
+  // Called when at least one configured channel has no audio exposed. When one channel has data and the
+  // other does not, watch how long the empty channel stays starved: Home Assistant has no stream timeout
+  // and would never tell us to stop, so a channel that fails outright would otherwise hang streaming
+  // forever with the live channel's chunk held. Stop the stream with an error after a prolonged imbalance.
+  if ((available == 0) && (available2 == 0)) {
+    // Both channels are idle (no audio buffered yet); normal, not a stalled channel.
+    this->audio_channel_stall_start_ = 0;
+    return;
+  }
+
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->audio_channel_stall_start_ == 0) {
+    this->audio_channel_stall_start_ = now;
+  } else if ((now - this->audio_channel_stall_start_) >= AUDIO_CHANNEL_STALL_TIMEOUT_MS) {
+    ESP_LOGW(TAG, "Mic channel %d stalled, stopping stream", (available == 0) ? 0 : 1);
+    this->audio_channel_stall_start_ = 0;
+    this->signal_stop_();
+    this->set_state_(State::STOP_MICROPHONE, State::IDLE);
+    this->defer([this]() {
+      this->error_trigger_.trigger("mic-channel-stalled", "A microphone channel stopped producing audio");
+    });
+  }
+}
+
 void VoiceAssistant::loop() {
   if (this->api_client_ == nullptr && this->state_ != State::IDLE && this->state_ != State::STOP_MICROPHONE &&
       this->state_ != State::STOPPING_MICROPHONE) {
@@ -301,72 +374,7 @@ void VoiceAssistant::loop() {
     case State::STREAMING_MICROPHONE: {
       // pre_shift is ignored by RingBufferAudioSource (no intermediate transfer buffer to compact).
       if (this->audio_mode_ == AUDIO_MODE_API) {
-        // API audio
-        // Both microphone channels are sent together, if configured. Home Assistant feeds one of the
-        // channels to its speech-to-text stream and treats an empty payload on that channel as
-        // end-of-stream, and the device cannot know which channel it picked, so only send once every
-        // configured channel has audio exposed, and always send them together. We don't target any
-        // particular message size: Home Assistant re-chunks the audio, and each fill() exposes at most
-        // SEND_BUFFER_SIZE bytes.
-        while (true) {
-          // fill() exposes a new chunk, or returns 0 if a previous chunk is still exposed; available()
-          // reports the currently exposed bytes either way.
-          this->audio_source_->fill(0, false);
-          size_t available = this->audio_source_->available();
-          size_t available2 = 0;
-          if (this->audio_source2_ != nullptr) {
-            this->audio_source2_->fill(0, false);
-            available2 = this->audio_source2_->available();
-          }
-
-          const bool channel_empty = (available == 0);
-          const bool channel2_empty = (this->audio_source2_ != nullptr) && (available2 == 0);
-          if (channel_empty || channel2_empty) {
-            // A configured channel has no audio yet, so keep any chunk exposed on the other channel for the
-            // next pass rather than sending an empty payload. When one channel has data and the other does
-            // not, watch how long the empty channel stays starved: Home Assistant has no stream timeout and
-            // would never tell us to stop, so a channel that fails outright would otherwise hang streaming
-            // here forever with the live channel's chunk held. Stop the stream with an error after a
-            // prolonged imbalance.
-            if ((available > 0) || (available2 > 0)) {
-              const uint32_t now = App.get_loop_component_start_time();
-              if (this->audio_channel_stall_start_ == 0) {
-                this->audio_channel_stall_start_ = now;
-              } else if ((now - this->audio_channel_stall_start_) >= AUDIO_CHANNEL_STALL_TIMEOUT_MS) {
-                ESP_LOGW(TAG, "Mic channel %d stalled, stopping stream", channel_empty ? 0 : 1);
-                this->audio_channel_stall_start_ = 0;
-                this->signal_stop_();
-                this->set_state_(State::STOP_MICROPHONE, State::IDLE);
-                this->defer([this]() {
-                  this->error_trigger_.trigger("mic-channel-stalled", "A microphone channel stopped producing audio");
-                });
-              }
-            } else {
-              // Both channels are idle (no audio buffered yet); normal, not a stalled channel.
-              this->audio_channel_stall_start_ = 0;
-            }
-            break;
-          }
-
-          // Both channels have audio exposed; clear any in-progress stall timer.
-          this->audio_channel_stall_start_ = 0;
-
-          api::VoiceAssistantAudio msg;
-          // Zero-copy: send_message() copies the data out before we consume it.
-          msg.data = this->audio_source_->data();
-          msg.data_len = available;
-          if (this->audio_source2_ != nullptr) {
-            msg.data2 = this->audio_source2_->data();
-            msg.data2_len = available2;
-          }
-
-          this->api_client_->send_message(msg);
-
-          this->audio_source_->consume(available);
-          if (this->audio_source2_ != nullptr) {
-            this->audio_source2_->consume(available2);
-          }
-        }
+        this->stream_api_audio_();
       } else {
         // UDP (will eventually be deprecated)
         // Only the primary microphone channel is used
