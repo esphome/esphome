@@ -1040,7 +1040,7 @@ class DownloadListRequestHandler(BaseHandler):
 class DownloadBinaryRequestHandler(BaseHandler):
     def _load_file(self, path: str, compressed: bool) -> bytes:
         """Load a file from disk and compress it if requested."""
-        with open(path, "rb") as f:
+        with Path(path).open("rb") as f:
             data = f.read()
             if compressed:
                 return gzip.compress(data, 9)
@@ -1292,7 +1292,7 @@ class EditRequestHandler(BaseHandler):
     def _read_file(self, filename: str, configuration: str) -> bytes | None:
         """Read a file and return the content as bytes."""
         try:
-            with open(file=filename, encoding="utf-8") as f:
+            with Path(filename).open(encoding="utf-8") as f:
                 return f.read()
         except FileNotFoundError:
             if configuration in const.SECRETS_FILES:
@@ -1493,7 +1493,7 @@ def get_base_frontend_path() -> Path:
         static_path += "/"
 
     # This path can be relative, so resolve against the root or else templates don't work
-    path = Path(os.getcwd()) / static_path / "esphome_dashboard"
+    path = Path.cwd() / static_path / "esphome_dashboard"
     return path.resolve()
 
 

@@ -794,7 +794,7 @@ def _check_and_emit_build_info() -> None:
 
     # Read build_info from JSON
     try:
-        with open(build_info_json_path, encoding="utf-8") as f:
+        with build_info_json_path.open(encoding="utf-8") as f:
             build_info = json.load(f)
     except (OSError, json.JSONDecodeError) as e:
         _LOGGER.debug("Failed to read build_info: %s", e)
@@ -1056,7 +1056,7 @@ def _wait_for_serial_port(
     def _port_found() -> bool:
         if port is not None:
             if os.name == "posix":
-                return os.path.exists(port)
+                return Path(port).exists()
             return any(p.path == port for p in get_serial_ports())
         ports = get_serial_ports()
         if known_ports is not None:

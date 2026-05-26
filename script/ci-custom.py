@@ -14,7 +14,7 @@ import time
 import colorama
 from helpers import filter_changed, git_ls_files, print_error_for_file, styled
 
-sys.path.append(os.path.dirname(__file__))
+sys.path.append(str(Path(__file__).parent))
 
 
 def find_all(a_str, sub):

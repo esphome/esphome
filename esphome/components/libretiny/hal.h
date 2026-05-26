@@ -11,11 +11,19 @@
 #include "esphome/core/time_64.h"
 
 // IRAM_ATTR places a function in executable RAM so it is callable from an
-// ISR even while flash is busy (XIP stall, OTA, logger flash write).
-// Each family uses a section its stock linker already routes to RAM:
-// RTL8710B → .image2.ram.text, RTL8720C → .sram.text. LN882H is the
-// exception: its stock linker has no matching glob, so patch_linker.py
-// injects KEEP(*(.sram.text*)) into .flash_copysection at pre-link.
+// ISR even while flash is busy (XIP stall, OTA, logger flash write). All
+// LibreTiny families that need it share the same .sram.text input section
+// name; how that section is routed into RAM differs per family:
+//   RTL8720C: stock linker consumes *(.sram.text*) into .ram.code_text.
+//   RTL8710B: patch_linker.py.script injects KEEP(*(.sram.text*)) at the
+//             top of .ram_image2.data (which IS in ltchiptool's
+//             sections_ram). The stock linker has KEEP(*(.image2.ram.text*))
+//             in .ram_image2.text but that output section is NOT in
+//             ltchiptool's AmebaZ elf2bin sections_ram list, so code routed
+//             there is dropped from the flashed binary.
+//   LN882H:   patch_linker.py.script injects KEEP(*(.sram.text*)) into
+//             .flash_copysection (> RAM0 AT> FLASH), after KEEP(*(.vectors))
+//             so the Cortex-M4 vector table stays 512-byte-aligned for VTOR.
 //
 // BK72xx (all variants) are left as a no-op: their SDK wraps flash
 // operations in GLOBAL_INT_DISABLE() which masks FIQ + IRQ at the CPU for
@@ -26,13 +34,7 @@
 // layer.
 #if defined(USE_BK72XX)
 #define IRAM_ATTR
-#elif defined(USE_LIBRETINY_VARIANT_RTL8710B)
-// Stock linker consumes *(.image2.ram.text*) into .ram_image2.text (> BD_RAM).
-#define IRAM_ATTR __attribute__((noinline, section(".image2.ram.text")))
 #else
-// RTL8720C: stock linker consumes *(.sram.text*) into .ram.code_text.
-// LN882H: patch_linker.py.script injects *(.sram.text*) into
-// .flash_copysection (> RAM0 AT> FLASH).
 #define IRAM_ATTR __attribute__((noinline, section(".sram.text")))
 #endif
 #define PROGMEM
