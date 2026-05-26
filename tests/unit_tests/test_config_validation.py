@@ -130,7 +130,7 @@ def test_string_string__invalid(value):
 def test_sensitive__default_delegates_to_string() -> None:
     validator = config_validation.sensitive()
 
-    assert isinstance(validator, config_validation._SensitiveValidator)
+    assert isinstance(validator, config_validation.SensitiveValidator)
     assert validator.inner is config_validation.string
     assert validator("hunter2") == "hunter2"
     assert validator(42) == "42"
@@ -148,7 +148,7 @@ def test_sensitive__custom_inner_delegates_validation() -> None:
 def test_sensitive__is_detectable_via_isinstance() -> None:
     validator = config_validation.sensitive()
 
-    assert isinstance(validator, config_validation._SensitiveValidator)
+    assert isinstance(validator, config_validation.SensitiveValidator)
 
 
 def test_sensitive_key_fragments__covers_common_terms() -> None:

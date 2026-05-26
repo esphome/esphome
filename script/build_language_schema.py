@@ -39,7 +39,11 @@ parser.add_argument(
 )
 parser.add_argument("--check", action="store_true", help="Check only for CI")
 
-args = parser.parse_args()
+# Module-level ``Namespace`` so helper functions can reference ``args``
+# without threading it through every call. ``main()`` fills it via
+# ``parser.parse_args(namespace=args)``; tests import this module without
+# invoking ``main()`` and rely on the defaults below.
+args = argparse.Namespace(output_path=".", check=False)
 
 DUMP_RAW = False
 DUMP_UNKNOWN = False
@@ -850,8 +854,9 @@ def convert(schema, config_var, path):
             convert(ext, config_var, f"{path}/ext{idx}")
         return
 
-    if isinstance(schema, cv._SensitiveValidator):
+    if isinstance(schema, cv.SensitiveValidator):
         config_var["sensitive"] = True
+        config_var["sensitive_source"] = "explicit"
         convert(schema.inner, config_var, f"{path}/sensitive")
         return
 
@@ -1162,4 +1167,10 @@ def convert_keys(converted, schema, path):
             config_vars["string"] = config_vars.pop(key)
 
 
-build_schema()
+def main() -> None:
+    parser.parse_args(namespace=args)
+    build_schema()
+
+
+if __name__ == "__main__":
+    main()

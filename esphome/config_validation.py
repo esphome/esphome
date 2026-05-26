@@ -504,7 +504,7 @@ SENSITIVE_KEY_FRAGMENTS: frozenset[str] = frozenset(
 )
 
 
-class _SensitiveValidator:
+class SensitiveValidator:
     """Marker wrapper that flags a field as containing sensitive data (passwords,
     encryption keys, PSKs, tokens). Frontends and dump tooling detect this marker
     to mask the value; validation behavior is delegated to the inner validator.
@@ -519,12 +519,12 @@ class _SensitiveValidator:
 
 def sensitive(
     inner: Callable[[typing.Any], typing.Any] = string,
-) -> _SensitiveValidator:
+) -> SensitiveValidator:
     """Mark a field as sensitive so that frontends mask it and dump tooling redacts it.
 
     Validation behavior is identical to ``inner`` (defaults to ``cv.string``).
     """
-    return _SensitiveValidator(inner)
+    return SensitiveValidator(inner)
 
 
 def icon(value):
