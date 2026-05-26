@@ -15,7 +15,7 @@
 
 #if USE_ESP32
 using PlatformString = std::string;
-#else
+#elif USE_ARDUINO
 using PlatformString = String;
 #endif
 
