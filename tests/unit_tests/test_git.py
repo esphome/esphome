@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import os
 from pathlib import Path
 from typing import Any
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -1001,3 +1001,173 @@ def test_refresh_picks_up_new_remote_commits(
         "--hard",
         "old_sha",
     ]
+
+
+def test_materialize_symlinks_noop_on_non_windows(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """On non-Windows platforms, _materialize_symlinks returns without calling git."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+
+    with patch("esphome.git.sys.platform", "linux"):
+        git._materialize_symlinks(repo_dir)
+
+    mock_run_git_command.assert_not_called()
+
+
+def test_materialize_symlinks_replaces_symlink_stub_with_target_content(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A mode-120000 stub on Windows is replaced with the target file's bytes."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    (repo_dir / "static").mkdir()
+
+    target = repo_dir / "static" / "real.yaml"
+    target.write_text("esphome:\n  name: real\n")
+
+    stub = repo_dir / "real.yaml"
+    stub.write_text("static/real.yaml")
+
+    mock_run_git_command.return_value = (
+        "100644 abc123 0\tstatic/real.yaml\n120000 def456 0\treal.yaml\n"
+    )
+
+    with patch("esphome.git.sys.platform", "win32"):
+        git._materialize_symlinks(repo_dir)
+
+    assert stub.read_text() == "esphome:\n  name: real\n"
+    # Target is untouched.
+    assert target.read_text() == "esphome:\n  name: real\n"
+
+
+def test_materialize_symlinks_resolves_relative_parent_paths(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Symlink targets with ``..`` segments resolve correctly within the repo."""
+    repo_dir = tmp_path / "repo"
+    (repo_dir / "subdir").mkdir(parents=True)
+    (repo_dir / "static").mkdir()
+
+    target = repo_dir / "static" / "shared.yaml"
+    target.write_text("shared content")
+
+    stub = repo_dir / "subdir" / "shared.yaml"
+    stub.write_text("../static/shared.yaml")
+
+    mock_run_git_command.return_value = "120000 abc123 0\tsubdir/shared.yaml\n"
+
+    with patch("esphome.git.sys.platform", "win32"):
+        git._materialize_symlinks(repo_dir)
+
+    assert stub.read_text() == "shared content"
+
+
+def test_materialize_symlinks_refuses_escape_outside_repo(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A symlink pointing outside the repository is not followed."""
+    outside = tmp_path / "outside.yaml"
+    outside.write_text("sensitive")
+
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+
+    stub = repo_dir / "escape.yaml"
+    stub.write_text("../outside.yaml")
+
+    mock_run_git_command.return_value = "120000 abc123 0\tescape.yaml\n"
+
+    with patch("esphome.git.sys.platform", "win32"):
+        git._materialize_symlinks(repo_dir)
+
+    # Stub content unchanged — escape attempt rejected.
+    assert stub.read_text() == "../outside.yaml"
+
+
+def test_materialize_symlinks_leaves_real_symlinks_alone(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """If git did create a real symlink, _materialize_symlinks does not touch it.
+
+    Skipped on Windows where symlink creation requires the
+    SeCreateSymbolicLinkPrivilege; the helper's behavior is identical on
+    real-symlink platforms so testing it on Linux/macOS suffices.
+    """
+    if os.name == "nt":
+        pytest.skip("Requires symlink-creation privilege on Windows")
+
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    target = repo_dir / "real.yaml"
+    target.write_text("real content")
+
+    real_link = repo_dir / "link.yaml"
+    real_link.symlink_to("real.yaml")
+
+    mock_run_git_command.return_value = "120000 abc123 0\tlink.yaml\n"
+
+    with patch("esphome.git.sys.platform", "win32"):
+        git._materialize_symlinks(repo_dir)
+
+    # Still a real symlink, untouched.
+    assert real_link.is_symlink()
+    assert real_link.read_text() == "real content"
+
+
+def test_materialize_symlinks_skips_non_symlink_entries(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Regular files (mode 100644) are not rewritten even if their content
+    happens to look like a path."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+
+    regular = repo_dir / "looks_like_path.txt"
+    regular.write_text("static/something.yaml")
+
+    mock_run_git_command.return_value = "100644 abc123 0\tlooks_like_path.txt\n"
+
+    with patch("esphome.git.sys.platform", "win32"):
+        git._materialize_symlinks(repo_dir)
+
+    assert regular.read_text() == "static/something.yaml"
+
+
+def test_materialize_symlinks_swallows_git_failure(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A failure to enumerate the index leaves the working tree untouched."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+
+    stub = repo_dir / "real.yaml"
+    stub.write_text("static/real.yaml")
+
+    mock_run_git_command.side_effect = GitCommandError("ls-files exploded")
+
+    with patch("esphome.git.sys.platform", "win32"):
+        git._materialize_symlinks(repo_dir)
+
+    # Stub untouched — no rewrite attempted.
+    assert stub.read_text() == "static/real.yaml"
+
+
+def test_materialize_symlinks_skips_when_target_is_directory(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A symlink pointing at a directory is skipped (not rewritten)."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    (repo_dir / "dir_target").mkdir()
+
+    stub = repo_dir / "link_to_dir"
+    stub.write_text("dir_target")
+
+    mock_run_git_command.return_value = "120000 abc123 0\tlink_to_dir\n"
+
+    with patch("esphome.git.sys.platform", "win32"):
+        git._materialize_symlinks(repo_dir)
+
+    assert stub.read_text() == "dir_target"

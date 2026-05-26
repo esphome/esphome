@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 import re
 import subprocess
+import sys
 import urllib.parse
 
 import esphome.config_validation as cv
@@ -94,6 +95,100 @@ def _compute_destination_path(key: str, domain: str) -> Path:
     return base_dir / h.hexdigest()[:8]
 
 
+def _materialize_symlinks(repo_dir: Path) -> None:
+    """Resolve git-tracked symlinks that git checked out as plain files.
+
+    On Windows, when ``core.symlinks=false`` (the default unless the user has
+    SeCreateSymbolicLinkPrivilege — i.e. Developer Mode or running elevated),
+    git materializes files with tree mode ``120000`` as plain text files
+    whose content is the literal symlink target path. That breaks anything
+    that opens the file expecting the target's content (e.g. remote package
+    YAMLs that are symlinks to their canonical location in the repo).
+
+    Walks the index for mode-120000 entries and, for any whose working-tree
+    file is a plain file (not a real symlink), replaces it with the resolved
+    target's bytes. No-op on platforms where git checks out real symlinks.
+    """
+    # Skipping the subprocess on non-Windows is cheaper; on Unix git creates
+    # real symlinks so the is_symlink() check below would short-circuit anyway.
+    if sys.platform != "win32":
+        return
+
+    try:
+        # ``git ls-files -s`` prints "<mode> <sha> <stage>\t<path>" per entry.
+        out = run_git_command(["git", "ls-files", "-s"], git_dir=repo_dir)
+    except GitException:
+        # Better to leave the working tree alone than silently corrupt files.
+        _LOGGER.debug(
+            "Could not list git index for %s; skipping symlink fixup", repo_dir
+        )
+        return
+
+    repo_root = repo_dir.resolve()
+    for line in out.splitlines():
+        try:
+            meta, path = line.split("\t", 1)
+        except ValueError:
+            continue
+        parts = meta.split()
+        if not parts or parts[0] != "120000":
+            continue
+
+        link_path = repo_dir / path
+        # If git did create a real symlink (privilege available), leave it
+        # alone — opening the file already works.
+        if link_path.is_symlink():
+            continue
+        if not link_path.is_file():
+            continue
+
+        try:
+            target_str = link_path.read_text(encoding="utf-8").strip()
+        except OSError as err:
+            _LOGGER.debug("Could not read symlink stub %s: %s", link_path, err)
+            continue
+
+        # Symlink targets are stored relative to the symlink's directory.
+        target_path = (link_path.parent / target_str).resolve()
+
+        # Defensive against malformed or hostile repos: ``Path.resolve()`` may
+        # follow ``..`` segments, so re-check containment after resolution.
+        try:
+            target_path.relative_to(repo_root)
+        except ValueError:
+            _LOGGER.warning(
+                "Refusing to resolve symlink %s -> %s (escapes repository)",
+                link_path,
+                target_str,
+            )
+            continue
+
+        if not target_path.is_file():
+            _LOGGER.debug(
+                "Symlink %s points at %s which is not a regular file; skipping",
+                link_path,
+                target_path,
+            )
+            continue
+
+        try:
+            data = target_path.read_bytes()
+            link_path.write_bytes(data)
+            _LOGGER.debug(
+                "Resolved symlink %s -> %s (%d bytes)",
+                link_path,
+                target_path,
+                len(data),
+            )
+        except OSError as err:
+            _LOGGER.warning(
+                "Failed to materialize symlink %s -> %s: %s",
+                link_path,
+                target_path,
+                err,
+            )
+
+
 def clone_or_update(
     *,
     url: str,
@@ -146,6 +241,8 @@ def clone_or_update(
                     + submodules,
                     git_dir=repo_dir,
                 )
+
+            _materialize_symlinks(repo_dir)
         except GitException:
             # Remove incomplete clone to prevent stale state. Without this,
             # a failed ref fetch leaves a clone on the default branch, and
@@ -243,6 +340,8 @@ def clone_or_update(
                     + submodules,
                     git_dir=repo_dir,
                 )
+
+            _materialize_symlinks(repo_dir)
 
             def revert():
                 _LOGGER.info("Reverting changes to %s -> %s", key, old_sha)

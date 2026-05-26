@@ -243,6 +243,21 @@ def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
                 f"{filename} is not a valid YAML file."
                 f" Please check the file contents.\n{e}"
             ) from e
+        if not isinstance(new_yaml, dict):
+            # On Windows, git defaults to core.symlinks=false unless the user
+            # has Developer Mode enabled or is running elevated. Files stored
+            # in the repo as symlinks (tree mode 120000) are then checked out
+            # as plain text files containing the symlink target path, so
+            # parsing them as YAML yields a bare scalar instead of a mapping.
+            raise cv.Invalid(
+                f"{filename} does not contain a YAML mapping at the top level "
+                f"(got {type(new_yaml).__name__}). "
+                f"If this file is a git symlink in the source repository, it "
+                f"may not have been materialized correctly on your platform "
+                f"(this is a known issue with git on Windows without Developer "
+                f"Mode enabled). Try pointing your package at the real file "
+                f"path instead."
+            )
         esphome_config = new_yaml.get(CONF_ESPHOME) or {}
         min_version = esphome_config.get(CONF_MIN_VERSION)
         if min_version is not None and cv.Version.parse(min_version) > cv.Version.parse(
