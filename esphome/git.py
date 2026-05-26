@@ -160,7 +160,7 @@ def clone_or_update(
             return repo_dir, None
 
         file_timestamp = Path(repo_dir / ".git" / "FETCH_HEAD")
-        # On first clone, FETCH_HEAD does not exists
+        # On first clone, FETCH_HEAD does not exist
         if not file_timestamp.exists():
             file_timestamp = Path(repo_dir / ".git" / "HEAD")
         age_seconds = time.time() - file_timestamp.stat().st_mtime
