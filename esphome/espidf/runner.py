@@ -164,6 +164,12 @@ def main() -> int:
             self._line_buffer = ""
 
         def __getattr__(self, name: str):
+            # Hide ``buffer`` so consumers that use either
+            # ``getattr(stream, 'buffer', None)`` or
+            # ``hasattr(stream, 'buffer')`` see this as a text-only stream
+            # and skip writing raw bytes (which would bypass the filter).
+            if name == "buffer":
+                raise AttributeError(name)
             return getattr(self._stream, name)
 
         def isatty(self) -> bool:

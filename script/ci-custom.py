@@ -341,7 +341,7 @@ def lint_const_ordered(fname, content):
         matching = [
             (i + 1, line) for i, line in enumerate(lines) if line.startswith(start)
         ]
-        ordered = list(sorted(matching, key=lambda x: x[1].replace("_", " ")))
+        ordered = sorted(matching, key=lambda x: x[1].replace("_", " "))
         ordered = [(mi, ol) for (mi, _), (_, ol) in zip(matching, ordered)]
         for (mi, mline), (_, ol) in zip(matching, ordered):
             if mline == ol:

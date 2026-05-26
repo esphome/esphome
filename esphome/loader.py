@@ -239,12 +239,12 @@ def _lookup_module(domain: str, exception: bool) -> ComponentManifest | None:
                 "Unable to import component %s: %s", domain, str(e), exc_info=False
             )
         else:
-            _LOGGER.error("Unable to import component %s:", domain, exc_info=True)
+            _LOGGER.exception("Unable to import component %s:", domain)
         return None
     except Exception:  # pylint: disable=broad-except
         if exception:
             raise
-        _LOGGER.error("Unable to load component %s:", domain, exc_info=True)
+        _LOGGER.exception("Unable to load component %s:", domain)
         return None
 
     manif = ComponentManifest(module)
