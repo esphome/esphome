@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/xiaomi_ble/xiaomi_ble.h"
@@ -25,6 +26,7 @@ class XiaomiBodyScaleS400 : public Component, public esp32_ble_tracker::ESPBTDev
   void set_impedance_high(sensor::Sensor *impedance_high) { impedance_high_ = impedance_high; }
   void set_heart_rate(sensor::Sensor *heart_rate) { heart_rate_ = heart_rate; }
   void set_profile_id(sensor::Sensor *profile_id) { profile_id_ = profile_id; }
+  void set_stabilized(binary_sensor::BinarySensor *stabilized) { stabilized_ = stabilized; }
 
  protected:
   uint64_t address_;
@@ -35,6 +37,7 @@ class XiaomiBodyScaleS400 : public Component, public esp32_ble_tracker::ESPBTDev
   sensor::Sensor *impedance_high_{nullptr};  // 250 kHz — smaller value
   sensor::Sensor *heart_rate_{nullptr};
   sensor::Sensor *profile_id_{nullptr};
+  binary_sensor::BinarySensor *stabilized_{nullptr};
 };
 
 }  // namespace esphome::xiaomi_body_scale_s400

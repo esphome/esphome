@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import esp32_ble_tracker, sensor
+from esphome.components import binary_sensor, esp32_ble_tracker, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BINDKEY,
@@ -20,7 +20,7 @@ UNIT_OHM = "Ω"
 UNIT_BPM = "bpm"
 
 DEPENDENCIES = ["esp32_ble_tracker"]
-AUTO_LOAD = ["xiaomi_ble"]
+AUTO_LOAD = ["xiaomi_ble", "binary_sensor"]
 
 xiaomi_body_scale_s400_ns = cg.esphome_ns.namespace("xiaomi_body_scale_s400")
 XiaomiBodyScaleS400 = xiaomi_body_scale_s400_ns.class_(
@@ -61,6 +61,9 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=0,
                 icon="mdi:identifier",
             ),
+            cv.Optional("stabilized"): binary_sensor.binary_sensor_schema(
+                icon="mdi:scale-bathroom",
+            ),
         }
     )
     .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
@@ -94,3 +97,6 @@ async def to_code(config):
     if CONF_PROFILE_ID in config:
         sens = await sensor.new_sensor(config[CONF_PROFILE_ID])
         cg.add(var.set_profile_id(sens))
+    if "stabilized" in config:
+        sens = await binary_sensor.new_binary_sensor(config["stabilized"])
+        cg.add(var.set_stabilized(sens))

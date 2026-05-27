@@ -158,18 +158,23 @@ bool XiaomiBodyScaleS400::parse_device(const esp32_ble_tracker::ESPBTDevice &dev
     if (heart_rate > 0 && heart_rate < 127 && this->heart_rate_ != nullptr)
       this->heart_rate_->publish_state((float) heart_rate + 50.0f);
 
-    if (impedance != 0) {
-      if (weight == 0 && heart_rate == 0) {
-        // Packet without weight/heart_rate → high frequency 250 kHz → impedance_high
+    if (weight == 0 && heart_rate == 0) {
+      // Last packet of the measurement cycle — stabilized regardless of impedance
+      if (impedance != 0) {
+        // High frequency 250 kHz → impedance_high
         if (this->impedance_high_ != nullptr)
           this->impedance_high_->publish_state(impedance / 10.0f);
-      } else {
-        // Packet with weight/heart_rate → low frequency 50 kHz → impedance_low
-        if (this->impedance_low_ != nullptr)
-          this->impedance_low_->publish_state(impedance / 10.0f);
-        if (this->impedance_ != nullptr)
-          this->impedance_->publish_state(impedance / 10.0f);
       }
+      if (this->stabilized_ != nullptr)
+        this->stabilized_->publish_state(true);
+    } else if (impedance != 0) {
+      // Packet with weight/heart_rate → low frequency 50 kHz → impedance_low
+      if (this->impedance_low_ != nullptr)
+        this->impedance_low_->publish_state(impedance / 10.0f);
+      if (this->impedance_ != nullptr)
+        this->impedance_->publish_state(impedance / 10.0f);
+      if (this->stabilized_ != nullptr)
+        this->stabilized_->publish_state(false);
     }
 
     return true;
