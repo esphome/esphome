@@ -913,7 +913,7 @@ def _validate_toolchain(value) -> Toolchain:
     return Toolchain(cv.one_of(*(t.value for t in Toolchain), lower=True)(value))
 
 
-def _resolve_toolchain(value):
+def _resolve_toolchain(value: ConfigType) -> ConfigType:
     # Resolve toolchain: CLI (already on CORE.toolchain) > YAML > default.
     # Runs before _detect_variant so downstream validators can rely on
     # CORE.toolchain instead of re-resolving it from the config dict.
@@ -922,7 +922,7 @@ def _resolve_toolchain(value):
     return value
 
 
-def _check_versions(config):
+def _check_versions(config: ConfigType) -> ConfigType:
     if CORE.using_toolchain_esp_idf:
         return _check_esp_idf_versions(config)
     return _check_pio_versions(config)
