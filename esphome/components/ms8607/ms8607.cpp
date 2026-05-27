@@ -178,6 +178,16 @@ void MS8607Component::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
+  ESP_LOGVV(TAG, "  Calibration Values:");
+  ESP_LOGVV(TAG, "    Pressure Sensitivity: 0x%02X", this->calibration_values_.pressure_sensitivity);
+  ESP_LOGVV(TAG, "    Pressure Offset: 0x%02X", this->calibration_values_.pressure_offset);
+  ESP_LOGVV(TAG, "    Pressure Sensitivity Temperature Coefficient: 0x%02X",
+            this->calibration_values_.pressure_sensitivity_temperature_coefficient);
+  ESP_LOGVV(TAG, "    Pressure Offset Temperature Coefficient: 0x%02X",
+            this->calibration_values_.pressure_offset_temperature_coefficient);
+  ESP_LOGVV(TAG, "    Reference Temperature: 0x%02X", this->calibration_values_.reference_temperature);
+  ESP_LOGVV(TAG, "    Temperature Coefficient of Temperature: 0x%02X",
+            this->calibration_values_.temperature_coefficient_of_temperature);
 }
 
 bool MS8607Component::read_calibration_values_from_prom_() {
