@@ -28,7 +28,7 @@
 #if __has_include(<psa/crypto.h>)
 #include <dlms_parser/decryption/aes_128_gcm_decryptor_tfpsa.h>
 #elif !defined(USE_ESP8266) && __has_include(<mbedtls/gcm.h>)
-#if __has_include(<mbedtls/gcm.h>)
+#if __has_include(<mbedtls/esp_config.h>)
 #include <mbedtls/esp_config.h>
 #endif
 #include <dlms_parser/decryption/aes_128_gcm_decryptor_mbedtls.h>
