@@ -18,11 +18,9 @@ BSDSocketImpl::BSDSocketImpl(int fd, bool monitor_loop) {
     return;
 #ifdef USE_HOST
   // Release listening ports on OTA re-exec.
-  {
-    int flags = ::fcntl(this->fd_, F_GETFD, 0);
-    if (flags >= 0)
-      ::fcntl(this->fd_, F_SETFD, flags | FD_CLOEXEC);
-  }
+  int flags = ::fcntl(this->fd_, F_GETFD, 0);
+  if (flags >= 0)
+    ::fcntl(this->fd_, F_SETFD, flags | FD_CLOEXEC);
 #endif
   if (!monitor_loop)
     return;
