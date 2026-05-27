@@ -7,6 +7,7 @@ from collections.abc import Callable
 import heapq
 import json
 from operator import itemgetter
+from pathlib import Path
 import sys
 from typing import TYPE_CHECKING
 
@@ -510,7 +511,7 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             lines.append(
                 f"{_COMPONENT_CORE} Symbols > {self.SYMBOL_SIZE_THRESHOLD} B ({len(large_core_symbols)} symbols):"
             )
-            for i, (symbol, demangled, size) in enumerate(large_core_symbols):
+            for i, (_symbol, demangled, size) in enumerate(large_core_symbols):
                 # Core symbols only track (symbol, demangled, size) without section info,
                 # so we don't show section labels here
                 lines.append(
@@ -602,7 +603,7 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                 lines.append(
                     f"{comp_name} Symbols > {self.SYMBOL_SIZE_THRESHOLD} B & storage ({len(large_symbols)} symbols):"
                 )
-                for i, (symbol, demangled, size, section) in enumerate(large_symbols):
+                for i, (_symbol, demangled, size, section) in enumerate(large_symbols):
                     lines.append(
                         f"{i + 1}. {self._format_symbol_with_section(demangled, size, section)}"
                     )
@@ -641,7 +642,7 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                 lines.append(
                     f"  Symbols > {self.RAM_SYMBOL_SIZE_THRESHOLD} B ({len(large_ram_syms)}):"
                 )
-                for symbol, demangled, size, section in large_ram_syms[:10]:
+                for _symbol, demangled, size, section in large_ram_syms[:10]:
                     # Format section label consistently by stripping leading dot
                     section_label = section.lstrip(".") if section else ""
                     display_name = _format_pstorage_name(demangled)
@@ -700,7 +701,7 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
         content = "\n".join(lines)
 
         if output_file:
-            with open(output_file, "w", encoding="utf-8") as f:
+            with Path(output_file).open("w", encoding="utf-8") as f:
                 f.write(content)
         else:
             print(content)
@@ -737,7 +738,7 @@ def main():
     build_dir = sys.argv[1]
 
     # Load build directory
-    from pathlib import Path
+    import json
 
     from esphome.platformio.toolchain import IDEData
 
@@ -785,7 +786,7 @@ def main():
         if not idedata_path.exists():
             continue
         try:
-            with open(idedata_path, encoding="utf-8") as f:
+            with idedata_path.open(encoding="utf-8") as f:
                 raw_data = json.load(f)
             idedata = IDEData(raw_data)
             print(f"Loaded idedata from: {idedata_path}", file=sys.stderr)

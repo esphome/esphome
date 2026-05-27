@@ -297,7 +297,7 @@ def write_github_summary(
         test_results: List of all test results
     """
     summary_content = format_github_summary(test_results, toolchain)
-    with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
+    with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as f:
         f.write(summary_content)
 
 
@@ -890,7 +890,7 @@ def run_grouped_component_tests(
     print("=" * 80 + "\n")
 
     # Execute grouped tests
-    for (platform, signature), components in grouped_components.items():
+    for (platform, _signature), components in grouped_components.items():
         # Only group if we have multiple components with same signature
         if len(components) <= 1:
             continue
@@ -1055,7 +1055,7 @@ def test_components(
 
         # Create empty test files for each platform (or filtered platform)
         reference_tests: list[Path] = []
-        for platform_name, base_file in platform_bases.items():
+        for platform_name in platform_bases:
             if platform_filter and not platform_name.startswith(platform_filter):
                 continue
             # Create an empty test file named to match the platform

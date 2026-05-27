@@ -65,7 +65,7 @@ from .const import (
 )
 
 # force import gpio to register pin schema
-from .gpio import nrf52_pin_to_code  # noqa
+from .gpio import nrf52_pin_to_code  # noqa: F401
 
 CODEOWNERS = ["@tomaszduda23"]
 AUTO_LOAD = ["zephyr", "preferences"]

@@ -144,7 +144,7 @@ void BluetoothConnection::loop() {
   }
 }
 
-void BluetoothConnection::on_disconnect_complete_(esp_err_t reason) {
+void BluetoothConnection::on_disconnect_complete(esp_err_t reason) {
   // Called from both the CLOSE_EVT handler and the DISCONNECTING safety timeout in the
   // base class. Free the proxy slot, notify the API client, and reset send_service_.
   // address_ may already be 0 if reset_connection_ ran earlier on this teardown.

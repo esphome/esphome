@@ -1313,6 +1313,7 @@ lvgl:
                                 width: 6
                                 start_value: 0
                                 end_value: 360
+                                rounded: true
     - id: page3
       layout: Horizontal
       pad_all: 6px

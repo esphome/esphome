@@ -1169,13 +1169,11 @@ void APIConnection::on_camera_image_request(const CameraImageRequest &msg) {
 void APIConnection::on_get_time_response(const GetTimeResponse &value) {
   if (homeassistant::global_homeassistant_time != nullptr) {
     homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
-#ifdef USE_TIME_TIMEZONE
-    // Only apply if the sender provided pre-parsed timezone data.
-    // Old clients (before 2026.3.0) only send the timezone string without the parsed struct,
-    // so all parsed_timezone fields default to zero — skip to keep the codegen-configured timezone.
-    // For actual UTC (all zeros), this also skips, which is harmless since UTC is the default.
-    // Eventually the timezone string will be removed and only the struct will be sent.
-    {
+#if defined(USE_HOMEASSISTANT_TIMEZONE) && defined(USE_TIME_TIMEZONE)
+    if (!value.timezone.empty()) {
+      // Check if the sender provided pre-parsed timezone data.
+      // If std_offset is non-zero or DST rules are present, the parsed data was populated.
+      // For UTC (all zeros), string parsing produces the same result, so the fallback is equivalent.
       const auto &pt = value.parsed_timezone;
       if (pt.std_offset_seconds != 0 || pt.dst_start.type != enums::DST_RULE_TYPE_NONE) {
         time::ParsedTimezone tz{};
