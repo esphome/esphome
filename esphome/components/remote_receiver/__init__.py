@@ -144,6 +144,7 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                 esp32_p4=192,
                 esp32_s2=192,
                 esp32_s3=192,
+                esp32_s31=192,
             ): cv.All(cv.only_on_esp32, cv.int_range(min=2)),
             cv.Optional(CONF_FILTER_SYMBOLS): cv.All(
                 cv.only_on_esp32, cv.int_range(min=0)

@@ -73,6 +73,7 @@ CONFIG_SCHEMA = (
                 esp32_p4=48,
                 esp32_s2=64,
                 esp32_s3=48,
+                esp32_s31=48,
             ): cv.All(cv.only_on_esp32, cv.int_range(min=2)),
             cv.Optional(CONF_NON_BLOCKING): cv.All(cv.only_on_esp32, cv.boolean),
             cv.Optional(CONF_ON_TRANSMIT): automation.validate_automation(single=True),
