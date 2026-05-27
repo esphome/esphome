@@ -2596,7 +2596,7 @@ def _write_idf_component_yml():
                 arduino_stub / "CMakeLists.txt",
                 "idf_component_register()\n"
                 "target_link_libraries(${COMPONENT_LIB} "
-                "INTERFACE idf::framework-arduinoespressif32)\n",
+                f"INTERFACE idf::{ARDUINO_FRAMEWORK_NAME})\n",
             )
             dependencies[ARDUINO_ESP32_COMPONENT_NAME] = {
                 "version": "*",
