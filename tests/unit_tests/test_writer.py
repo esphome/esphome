@@ -44,6 +44,37 @@ from esphome.writer import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _isolate_platformio_paths(tmp_path_factory: pytest.TempPathFactory) -> Any:
+    """Sandbox PlatformIO path lookups so tests never touch ~/.platformio.
+
+    `clean_all` queries ProjectConfig for `cache_dir`, `packages_dir`,
+    `platforms_dir`, `core_dir` and `rmtree`s any of those that exist. By
+    default `core_dir` resolves to ~/.platformio, which is global state
+    shared across pytest-xdist workers — multiple workers can each pass
+    `is_dir()` and then race inside `shutil.rmtree`, producing
+    FileNotFoundError flakes (and trashing developers' local PIO state
+    when the suite is run outside CI).
+
+    Patch ProjectConfig.get_instance to point every PIO dir at a unique
+    tmp directory that doesn't actually exist on disk — `is_dir()`
+    returns False, so the rmtree loop in clean_all is skipped entirely.
+    Tests that want to verify the PIO-cleanup branch (e.g. test_clean_all,
+    test_clean_all_partial_exists) install their own inner patch which
+    stacks on top of this one and wins for the duration of their block.
+    """
+    pio_root = tmp_path_factory.mktemp("isolated_pio") / "nonexistent"
+    mock_cfg = MagicMock()
+    mock_cfg.get.side_effect = lambda section, option: (
+        str(pio_root / option) if section == "platformio" else ""
+    )
+    with patch(
+        "platformio.project.config.ProjectConfig.get_instance",
+        return_value=mock_cfg,
+    ):
+        yield
+
+
 @pytest.fixture
 def mock_copy_src_tree():
     """Mock copy_src_tree to avoid side effects during tests."""
