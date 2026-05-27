@@ -81,6 +81,7 @@ from .const import (
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
     VARIANT_FRIENDLY,
     VARIANTS,
 )
@@ -406,6 +407,7 @@ CPU_FREQUENCIES = {
     VARIANT_ESP32P4: get_cpu_frequencies(40, 360, 400),
     VARIANT_ESP32S2: get_cpu_frequencies(80, 160, 240),
     VARIANT_ESP32S3: get_cpu_frequencies(80, 160, 240),
+    VARIANT_ESP32S31: get_cpu_frequencies(240, 320),
 }
 
 # Make sure not missed here if a new variant added.

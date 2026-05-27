@@ -9,6 +9,7 @@ from .const import (
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
     VARIANTS,
 )
 
@@ -23,6 +24,8 @@ STANDARD_BOARDS = {
     VARIANT_ESP32P4: "esp32-p4_r3-evboard",
     VARIANT_ESP32S2: "esp32-s2-kaluga-1",
     VARIANT_ESP32S3: "esp32-s3-devkitc-1",
+    # TODO[ESP32-S31]: replace once Espressif publishes a devkit board name.
+    VARIANT_ESP32S31: "esp32-s31-devkitc-1",
 }
 
 # Make sure not missed here if a new variant added.
