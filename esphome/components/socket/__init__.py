@@ -169,7 +169,6 @@ async def to_code(config):
         cg.add_define("USE_SOCKET_IMPL_LWIP_SOCKETS")
     elif impl == IMPLEMENTATION_BSD_SOCKETS:
         cg.add_define("USE_SOCKET_IMPL_BSD_SOCKETS")
-        cg.add_define("USE_SOCKET_SELECT_SUPPORT")
         if CORE.is_nrf52:
             from esphome.components.zephyr import zephyr_add_prj_conf
 
