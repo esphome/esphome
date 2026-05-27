@@ -1014,21 +1014,18 @@ class ESPHomeDumper(yaml.SafeDumper):
         return self.represent_scalar(tag="tag:yaml.org,2002:str", value=str(value))
 
     def represent_sensitive(self, value: SensitiveStr) -> yaml.ScalarNode:
-        # ``!secret`` references win: keep the original representation so the
-        # dumped YAML round-trips back to ``!secret name`` instead of leaking
-        # the resolved value.
-        if is_secret(value):
-            return self.represent_secret(value)
-        if self._redact_sensitive:
-            # Emit the conceal sequence as literal ``\033`` text (not actual
-            # ESC bytes) so the dump matches the previous regex-based output
-            # and downstream consumers like device-builder, which match
-            # ``\033[8m...\033[28m`` against the rendered text, keep working.
+        # Only the redact-and-not-a-secret branch is unique to sensitive
+        # values; otherwise let ``represent_stringify`` handle ``!secret``
+        # precedence and the plain-str fallthrough. Conceal sequence is
+        # emitted as literal ``\033`` text (not actual ESC bytes) so the
+        # output matches the prior regex format and device-builder's
+        # ``\033[8m...\033[28m`` parser keeps working.
+        if self._redact_sensitive and not is_secret(value):
             return self.represent_scalar(
                 tag="tag:yaml.org,2002:str",
                 value=f"\\033[8m{value}\\033[28m",
             )
-        return self.represent_scalar(tag="tag:yaml.org,2002:str", value=str(value))
+        return self.represent_stringify(value)
 
     # pylint: disable=arguments-renamed
     def represent_bool(self, value):
