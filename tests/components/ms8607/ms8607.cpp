@@ -110,69 +110,87 @@ TEST(MS8607Test, Category1_TemperatureCriticalBoundaries) {
   }
 }
 
+float test_pressure_helper(const uint32_t d1, const uint32_t d2,
+                           const TestableMS8607Component::CalibrationValues &calibration_values) {
+  auto temp_res = TestableMS8607Component::compensated_temperature(d2, calibration_values);
+  return TestableMS8607Component::compensated_pressure(d1, calibration_values, temp_res);
+}
+
 TEST(MS8607Test, Category2_PressureCompensationMath) {
   auto calibration_values = create_calibration_values();
 
   // 1. Standard Mid-Scale Barometric Pressure (~1013 mbar @ 20°C)
   {
-    uint32_t const d1 = 6268671;
-    uint32_t const d2_raw_temperature = calibration_values.reference_temperature << 8;
-    auto temp_res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
-    float const pressure = TestableMS8607Component::compensated_pressure(d1, calibration_values, temp_res);
+    float const pressure =
+        test_pressure_helper(6268671, calibration_values.reference_temperature << 8, calibration_values);
     EXPECT_NEAR(pressure, 1013.00f, 1e-2f);
   }
 
-  // 2. Minimum Pressure at Reference Temp (10 mbar @ 20°C)
+  // 2. Lowest Pressure at Reference Temp (10 mbar @ 20°C)
   {
-    uint32_t const d1 = 4000671;
-    uint32_t const d2_raw_temperature = calibration_values.reference_temperature << 8;
-    auto temp_res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
-    float const pressure = TestableMS8607Component::compensated_pressure(d1, calibration_values, temp_res);
+    float const pressure =
+        test_pressure_helper(4000671, calibration_values.reference_temperature << 8, calibration_values);
     EXPECT_NEAR(pressure, 10.00f, 1e-2f);
   }
 
-  // 3. Maximum Pressure at Reference Temp (1200 mbar @ 20°C)
+  // 3. Highest Pressure at Reference Temp (1200 mbar @ 20°C)
   {
-    uint32_t const d1 = 6691519;
-    uint32_t const d2_raw_temperature = calibration_values.reference_temperature << 8;
-    auto temp_res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
-    float const pressure = TestableMS8607Component::compensated_pressure(d1, calibration_values, temp_res);
+    float const pressure =
+        test_pressure_helper(6691519, calibration_values.reference_temperature << 8, calibration_values);
     EXPECT_NEAR(pressure, 1200.00f, 1e-2f);
   }
 
-  // 4. Low Pressure at Extreme Low Temperature (10 mbar @ -40°C)
+  // 4. Lowest Pressure at Lowest Temperature (10 mbar @ -40°C)
   {
-    uint32_t const d1 = 3991039;
-    uint32_t const d2_raw_temperature = 6537387;
-    auto temp_res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
-    float const pressure = TestableMS8607Component::compensated_pressure(d1, calibration_values, temp_res);
+    float const pressure = test_pressure_helper(3991039, 6537387, calibration_values);
     EXPECT_NEAR(pressure, 10.00f, 1e-2f);
   }
 
-  // 5. High Pressure at Extreme Low Temperature (1200 mbar @ -40°C)
+  // 5. Sea Level Pressure at Lowest Temperature (1013 mbar @ -40°C)
   {
-    uint32_t const d1 = 7117343;
-    uint32_t const d2_raw_temperature = 6537387;
-    auto temp_res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
-    float const pressure = TestableMS8607Component::compensated_pressure(d1, calibration_values, temp_res);
+    float const pressure = test_pressure_helper(6626079, 6537387, calibration_values);
+    EXPECT_NEAR(pressure, 1013.00f, 1e-2f);
+  }
+
+  // 6. Highest Pressure at Lowest Temperature (1200 mbar @ -40°C)
+  {
+    float const pressure = test_pressure_helper(7117343, 6537387, calibration_values);
     EXPECT_NEAR(pressure, 1200.00f, 1e-2f);
   }
 
-  // 6. Low Pressure at Extreme High Temperature (10 mbar @ +85°C)
+  // 7. Lowest Pressure at Highest Temperature (10 mbar @ +85°C)
   {
-    uint32_t const d1 = 4002959;
-    uint32_t const d2_raw_temperature = 10034215;
-    auto temp_res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
-    float const pressure = TestableMS8607Component::compensated_pressure(d1, calibration_values, temp_res);
+    float const pressure = test_pressure_helper(4002959, 10034215, calibration_values);
     EXPECT_NEAR(pressure, 10.00f, 1e-2f);
   }
 
-  // 7. High Pressure at Extreme High Temperature (1200 mbar @ +85°C)
+  // 8. Sea Level Pressure at Highest Temperature (1013 mbar @ 85°C)
   {
-    uint32_t const d1 = 6350655;
-    uint32_t const d2_raw_temperature = 10034215;
-    auto temp_res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
-    float const pressure = TestableMS8607Component::compensated_pressure(d1, calibration_values, temp_res);
+    float const pressure = test_pressure_helper(5981727, 10034215, calibration_values);
+    EXPECT_NEAR(pressure, 1013.00f, 1e-2f);
+  }
+
+  // 9. Highest Pressure at Highest Temperature (1200 mbar @ +85°C)
+  {
+    float const pressure = test_pressure_helper(6350655, 10034215, calibration_values);
+    EXPECT_NEAR(pressure, 1200.00f, 1e-2f);
+  }
+
+  // 10. Lowest Pressure at Below Reference Temperature (10 mbar @ +0°C)
+  {
+    float const pressure = test_pressure_helper(3998959, 7514695, calibration_values);
+    EXPECT_NEAR(pressure, 10.00f, 1e-2f);
+  }
+
+  // 11. Sea Level Pressure at Below Reference Temperature (1013 mbar @ +0°C)
+  {
+    float const pressure = test_pressure_helper(6371807, 7514695, calibration_values);
+    EXPECT_NEAR(pressure, 1013.00f, 1e-2f);
+  }
+
+  // 12. Highest Pressure at at Below Reference Temperature (1200 mbar @ +0°C)
+  {
+    float const pressure = test_pressure_helper(6814191, 7514695, calibration_values);
     EXPECT_NEAR(pressure, 1200.00f, 1e-2f);
   }
 }
