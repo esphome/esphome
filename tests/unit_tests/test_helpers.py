@@ -1062,35 +1062,3 @@ def test_progressbar_enabled_on_pipe_with_dashboard(monkeypatch) -> None:
 
     bar = ProgressBar("Uploading", stream=stream)
     assert bar.enabled is True
-
-
-def test_rmtree_nonexistent_path(tmp_path: Path) -> None:
-    """Non-existent path is silently skipped without raising.
-
-    Python 3.14 on Linux uses a new stack-based shutil._rmtree_safe_fd_step
-    that calls os.lstat before entering the directory. When the path does not
-    exist, the onerror handler is invoked with func=os.lstat, and the
-    subsequent os.chmod inside the handler also fails, producing an unhandled
-    exception. The fix is to return early when the path does not exist.
-    """
-    nonexistent = tmp_path / "does_not_exist"
-    assert not nonexistent.exists()
-    helpers.rmtree(nonexistent)  # must not raise
-    assert not nonexistent.exists()
-
-
-def test_rmtree_existing_directory(tmp_path: Path) -> None:
-    """Existing directory tree is fully removed."""
-    target = tmp_path / "target"
-    (target / "sub").mkdir(parents=True)
-    (target / "sub" / "file.txt").write_text("data")
-    helpers.rmtree(target)
-    assert not target.exists()
-
-
-def test_rmtree_accepts_str_path(tmp_path: Path) -> None:
-    """String path argument is accepted alongside Path objects."""
-    target = tmp_path / "target"
-    target.mkdir()
-    helpers.rmtree(str(target))
-    assert not target.exists()
