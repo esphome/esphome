@@ -86,7 +86,7 @@ void ValveCall::validate() {
       ESP_LOGW(TAG, "'%s' - This valve device does not support setting position!", this->parent_->get_name().c_str());
       this->position_.reset();
     } else if (pos < 0.0f || pos > 1.0f) {
-      ESP_LOGW(TAG, "'%s': position %.2f out of range [0.0 - 1.0]", this->parent_->get_name().c_str(), pos);
+      ESP_LOGW(TAG, "'%s' - Position %.2f is out of range [0.0 - 1.0]", this->parent_->get_name().c_str(), pos);
       this->position_ = clamp(pos, 0.0f, 1.0f);
     }
   }
@@ -97,9 +97,12 @@ void ValveCall::validate() {
     }
   }
   if (this->stop_) {
-    if (this->position_.has_value() || this->toggle_.has_value()) {
-      ESP_LOGW(TAG, "'%s': cannot set position/toggle when stopping", this->parent_->get_name().c_str());
+    if (this->position_.has_value()) {
+      ESP_LOGW(TAG, "Cannot set position when stopping a valve!");
       this->position_.reset();
+    }
+    if (this->toggle_.has_value()) {
+      ESP_LOGW(TAG, "Cannot set toggle when stopping a valve!");
       this->toggle_.reset();
     }
   }
