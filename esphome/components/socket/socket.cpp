@@ -67,7 +67,7 @@ size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::s
 #if USE_NETWORK_IPV6
   else if (addr_ptr->sa_family == AF_INET6 && len >= sizeof(sockaddr_in6)) {
     const auto *addr = reinterpret_cast<const struct sockaddr_in6 *>(addr_ptr);
-#if defined(USE_HOST)
+#ifdef USE_HOST
     // Format IPv4-mapped IPv6 addresses as regular IPv4 (POSIX layout, no LWIP union)
     if (IN6_IS_ADDR_V4MAPPED(&addr->sin6_addr) &&
         esphome_inet_ntop4(&addr->sin6_addr.s6_addr[12], buf.data(), buf.size()) != nullptr) {
