@@ -261,9 +261,14 @@ def test_check_library_data_invalid_platform(esp32_idf_core):
         _check_library_data({"platforms": ["other"], "frameworks": "*"})
 
 
-def test_check_library_data_invalid_framework(esp32_idf_core):
-    with pytest.raises(InvalidIDFComponent):
-        _check_library_data({"platforms": "*", "frameworks": ["other"]})
+def test_check_library_data_invalid_framework(
+    esp32_idf_core: None, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Framework mismatch is a warning, not a hard skip: the library is still
+    # included so that PIO manifests that only list "arduino" (but actually
+    # compile under IDF) can be used without forking them.
+    _check_library_data({"name": "lib", "platforms": "*", "frameworks": ["other"]})
+    assert "do not include 'espidf'" in caplog.text
 
 
 def test_extra_script_captures_libpath_libs_and_defines(tmp_path):
@@ -288,7 +293,7 @@ def test_extra_script_captures_libpath_libs_and_defines(tmp_path):
 
     result = run_extra_script(script, library_dir=tmp_path, idf_target="esp32")
 
-    assert result.libpath == [os.path.join("src", "esp32")]
+    assert result.libpath == [str(Path("src") / "esp32")]
     assert result.libs == ["algobsec"]
     assert ("BAR", "1") in result.cppdefines
     assert "FOO" in result.cppdefines
@@ -436,11 +441,21 @@ def test_convert_library_with_branch_ref():
     assert result.source.ref == "some-branch"
 
 
-def test_convert_library_missing_ref():
+def test_convert_library_missing_ref_uses_default_branch():
+    """A bare URL with no #ref clones the remote's default branch.
+
+    Matches PIO's lib_deps behavior and external_components handling --
+    git.clone_or_update with ref=None leaves the depth-1 clone on
+    whatever branch the remote HEAD points at.
+    """
     lib = Library("name", None, "https://github.com/foo/bar.git")
 
-    with pytest.raises(ValueError):
-        _convert_library_to_component(lib)
+    result = _convert_library_to_component(lib)
+
+    assert result.name == "foo/bar"
+    assert result.version == "*"
+    assert isinstance(result.source, GitSource)
+    assert result.source.ref is None
 
 
 def test_convert_library_registry(monkeypatch):
@@ -495,3 +510,113 @@ def test_process_dependencies_skips_invalid(tmp_component):
     _process_dependencies(tmp_component)
 
     assert tmp_component.dependencies == []
+
+
+def test_process_dependencies_dict_form(tmp_component, monkeypatch):
+    """PIO library.json shorthand ``{"owner/Name": "version"}`` is honored.
+
+    Iterating a dict gives string keys, which would silently fail the
+    ``"name" in dependency`` substring check. Normalize to list-of-dicts
+    first so the dict form (used by e.g. tesla-ble for its nanopb dep)
+    is treated the same as the verbose list form.
+    """
+    captured: list[Library] = []
+
+    def fake_generate(library):
+        captured.append(library)
+        return IDFComponent(
+            library.name, library.version, source=URLSource("http://dummy.com")
+        )
+
+    tmp_component.data = {
+        "dependencies": {
+            "nanopb/Nanopb": "^0.4.91",
+            "BareName": "1.2.3",
+        }
+    }
+    monkeypatch.setattr(
+        esphome.espidf.component, "_generate_idf_component", fake_generate
+    )
+    monkeypatch.setattr(esphome.espidf.component, "_check_library_data", lambda x: None)
+
+    _process_dependencies(tmp_component)
+
+    assert len(tmp_component.dependencies) == 2
+    names = sorted(lib.name for lib in captured)
+    versions = sorted(lib.version for lib in captured)
+    assert names == ["BareName", "nanopb/Nanopb"]
+    assert versions == ["1.2.3", "^0.4.91"]
+
+
+def test_process_dependencies_dict_form_with_url_value(tmp_component, monkeypatch):
+    """A dict-value that's a URL gets routed to ``repository`` like the list form."""
+    captured: list[Library] = []
+
+    def fake_generate(library):
+        captured.append(library)
+        return IDFComponent(library.name, "*", source=URLSource("http://dummy.com"))
+
+    tmp_component.data = {
+        "dependencies": {
+            "foo/Bar": "https://github.com/foo/bar.git#main",
+        }
+    }
+    monkeypatch.setattr(
+        esphome.espidf.component, "_generate_idf_component", fake_generate
+    )
+    monkeypatch.setattr(esphome.espidf.component, "_check_library_data", lambda x: None)
+
+    _process_dependencies(tmp_component)
+
+    assert len(captured) == 1
+    assert captured[0].name == "foo/Bar"
+    assert captured[0].version is None
+    assert captured[0].repository == "https://github.com/foo/bar.git#main"
+
+
+def test_process_dependencies_dict_form_with_nested_spec(tmp_component, monkeypatch):
+    """A dict-value that's itself a dict is merged into the entry.
+
+    PIO's library.json allows ``{"owner/Name": {"version": "...", ...}}``
+    for entries that need fields beyond just a version (platforms,
+    frameworks, etc.). The extra fields flow into _check_library_data
+    via the entry merge.
+    """
+    captured: list[Library] = []
+    checked: list[dict] = []
+
+    def fake_generate(library):
+        captured.append(library)
+        return IDFComponent(
+            library.name, library.version, source=URLSource("http://dummy.com")
+        )
+
+    tmp_component.data = {
+        "dependencies": {
+            "nanopb/Nanopb": {"version": "^0.4.91", "platforms": "espidf"},
+        }
+    }
+    monkeypatch.setattr(
+        esphome.espidf.component, "_generate_idf_component", fake_generate
+    )
+    monkeypatch.setattr(
+        esphome.espidf.component,
+        "_check_library_data",
+        checked.append,
+    )
+
+    _process_dependencies(tmp_component)
+
+    assert len(captured) == 1
+    assert captured[0].name == "nanopb/Nanopb"
+    assert captured[0].version == "^0.4.91"
+    # Extra spec fields reach _check_library_data so platform/framework
+    # gating still applies.
+    assert checked == [
+        {
+            "name": "Nanopb",
+            "owner": "nanopb",
+            "version": "^0.4.91",
+            "platforms": "espidf",
+        }
+    ]

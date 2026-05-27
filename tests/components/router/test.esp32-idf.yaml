@@ -1,0 +1,7 @@
+substitutions:
+  a_lrclk_pin: GPIO4
+  a_bclk_pin: GPIO5
+  a_dout_pin: GPIO14
+  b_dout_pin: GPIO19
+
+<<: !include common.yaml

@@ -514,7 +514,7 @@ def validate_printf(value):
     (?:hh|h|ll|l|j|z|t|L|w|I|I32|I64)?  # size
     [cCdiouxXeEfgGaAnpsSZ]              # type
     )
-    """  # noqa
+    """
     matches = re.findall(cfmt, value[CONF_FORMAT], flags=re.VERBOSE)
     if len(matches) != len(value[CONF_ARGS]):
         raise cv.Invalid(

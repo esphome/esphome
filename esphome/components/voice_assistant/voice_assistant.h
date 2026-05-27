@@ -9,6 +9,7 @@
 #include "esphome/core/helpers.h"
 
 #include "esphome/components/api/api_connection.h"
+#include "esphome/components/audio/audio_transfer_buffer.h"
 #include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/microphone/microphone_source.h"
@@ -243,6 +244,12 @@ class VoiceAssistant : public Component {
   void signal_stop_();
   void start_playback_timeout_();
 
+  // Drains the exposed microphone audio and sends it to Home Assistant over the API in one loop() pass.
+  void stream_api_audio_();
+  // Handles a pass where at least one configured channel has no audio exposed, timing out a channel that
+  // stalls. See audio_channel_stall_start_.
+  void handle_channel_stall_(size_t available, size_t available2);
+
   std::unique_ptr<socket::Socket> socket_ = nullptr;
   struct sockaddr_storage dest_addr_;
 
@@ -306,17 +313,26 @@ class VoiceAssistant : public Component {
 
   std::string wake_word_;
 
-  std::shared_ptr<ring_buffer::RingBuffer> ring_buffer_;
-  std::shared_ptr<ring_buffer::RingBuffer> ring_buffer2_;
+  // Zero-copy sources that read directly from each microphone channel's ring buffer internal storage.
+  // Each source owns its ring buffer; the matching ``ring_buffer_``/``ring_buffer2_`` weak_ptr is used by
+  // the microphone callback (a different thread) to write into it.
+  std::unique_ptr<audio::RingBufferAudioSource> audio_source_;
+  std::unique_ptr<audio::RingBufferAudioSource> audio_source2_;
+  std::weak_ptr<ring_buffer::RingBuffer> ring_buffer_;
+  std::weak_ptr<ring_buffer::RingBuffer> ring_buffer2_;
+
+  // When streaming multiple channels, the send loop holds an exposed chunk on one channel until the other
+  // channel also has audio so the channels are always sent together (an empty payload looks like
+  // end-of-stream to Home Assistant). Home Assistant has no stream timeout, so a channel that stops
+  // producing entirely would hang streaming forever. This records when such an imbalance began so a
+  // prolonged one can be detected and stopped; 0 means no imbalance is currently being timed.
+  uint32_t audio_channel_stall_start_{0};
 
   bool use_wake_word_;
   uint8_t noise_suppression_level_;
   uint8_t auto_gain_;
   float volume_multiplier_;
   uint32_t conversation_timeout_;
-
-  uint8_t *send_buffer_{nullptr};
-  uint8_t *send_buffer2_{nullptr};
 
   bool continuous_{false};
   bool silence_detection_;
