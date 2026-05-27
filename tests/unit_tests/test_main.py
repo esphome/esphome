@@ -387,6 +387,18 @@ def test_redact_with_legacy_fallback__deduplicates_warnings(
     assert len(password_warnings) == 1
 
 
+def test_redact_with_legacy_fallback__does_not_match_fragment_in_middle(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Fragment must end the field name; embedded matches like
+    ``key_value_pair`` are unrelated to a sensitive key and must not be
+    redacted (matching the prior regex's scope)."""
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback("key_value_pair: abc\n")
+    assert "\\033[8m" not in out
+    assert not any("legacy substring" in rec.message for rec in caplog.records)
+
+
 def test_choose_upload_log_host_with_string_default() -> None:
     """Test with a single string default device."""
     setup_core()

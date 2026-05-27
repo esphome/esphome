@@ -1427,9 +1427,12 @@ def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
 # in 2026.12.0 once canonical sensitive fields are migrated.
 #
 # The negative lookahead ``(?!\\033\[8m)`` skips values already wrapped by the
-# SensitiveStr representer, so explicit tagging silences the warning.
+# SensitiveStr representer, so explicit tagging silences the warning. No
+# trailing ``\w*`` after the fragment so the fragment must end the field
+# name (preserves the prior regex's matching scope while letting the
+# leading ``\w*`` capture the full field name for the warning).
 _LEGACY_REDACTION_RE = re.compile(
-    r"(?P<key>\w*(?:password|key|psk|ssid)\w*)\: (?!\\033\[8m)(?P<val>.+)"
+    r"(?P<key>\w*(?:password|key|psk|ssid))\: (?!\\033\[8m)(?P<val>.+)"
 )
 _LEGACY_REDACTION_REMOVAL = "2026.12.0"
 
