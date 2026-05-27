@@ -1420,19 +1420,15 @@ def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
     return 0
 
 
-# Legacy substring redaction fallback. Catches sensitive-looking fields that
-# aren't yet tagged with ``cv.sensitive(...)`` so config dumps don't regress
-# for unmigrated/third-party schemas. Each match also logs a one-time
-# deprecation warning naming the field; this fallback is slated for removal
-# in 2026.12.0 once canonical sensitive fields are migrated.
-#
-# The negative lookahead ``(?!\\033\[8m)`` skips values already wrapped by the
-# SensitiveStr representer, so explicit tagging silences the warning. No
-# trailing ``\w*`` after the fragment so the fragment must end the field
-# name (preserves the prior regex's matching scope while letting the
-# leading ``\w*`` capture the full field name for the warning).
+# Legacy substring redaction fallback for unmigrated schemas; removed in
+# 2026.12.0 once canonical sensitive fields are tagged. The lookahead skips
+# values that already render themselves: ``\033[8m`` (SensitiveStr wrap),
+# ``!secret`` (preserves the user-friendly tag), ``!lambda`` (multi-line
+# block; first line is structural). Un-anchored on purpose to match the
+# prior regex; leading ``\w*`` captures the full field name for warnings.
 _LEGACY_REDACTION_RE = re.compile(
-    r"(?P<key>\w*(?:password|key|psk|ssid))\: (?!\\033\[8m)(?P<val>.+)"
+    r"(?P<key>\w*(?:password|key|psk|ssid))\: "
+    r"(?!\\033\[8m|!secret\b|!lambda\b)(?P<val>.+)"
 )
 _LEGACY_REDACTION_REMOVAL = "2026.12.0"
 
@@ -1441,15 +1437,8 @@ def _redact_with_legacy_fallback(output: str) -> str:
     unmarked: set[str] = set()
 
     def _replace(m: re.Match[str]) -> str:
-        val = m.group("val")
-        # Lambda values in a ``cv.sensitive(cv.templatable(...))`` field still
-        # hit this branch because ``Lambda`` isn't a ``str`` and so doesn't
-        # carry the ``SensitiveStr`` tag. The field itself IS tagged; warning
-        # the author to add ``cv.sensitive`` would be misleading. Still wrap
-        # the first line so the user-visible output matches the prior regex.
-        if not val.startswith("!lambda"):
-            unmarked.add(m.group("key"))
-        return f"{m.group('key')}: \\033[8m{val}\\033[28m"
+        unmarked.add(m.group("key"))
+        return f"{m.group('key')}: \\033[8m{m.group('val')}\\033[28m"
 
     output = _LEGACY_REDACTION_RE.sub(_replace, output)
     for key in sorted(unmarked):

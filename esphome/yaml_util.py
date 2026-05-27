@@ -819,9 +819,9 @@ def dump(dict_, show_secrets=False, sort_keys=False):
         _SECRET_VALUES.clear()
         _SECRET_CACHE.clear()
 
-    # Per-call subclass so the redaction flag lives on the dumper class itself,
-    # not in module-level mutable state. Cheap (one type object per call),
-    # encapsulated, and thread-safe by construction.
+    # Per-call subclass so the redaction flag doesn't leak across calls.
+    # (``_SECRET_VALUES`` / ``_SECRET_CACHE`` remain module globals; YAML
+    # processing is single-threaded today, so this isolates only the flag.)
     class _Dumper(ESPHomeDumper):
         _redact_sensitive = not show_secrets
 
@@ -1101,8 +1101,7 @@ ESPHomeDumper.add_multi_representer(
 )
 ESPHomeDumper.add_multi_representer(bool, ESPHomeDumper.represent_bool)
 ESPHomeDumper.add_multi_representer(str, ESPHomeDumper.represent_stringify)
-# Registered after ``str`` so ``add_multi_representer``'s MRO lookup prefers
-# the more specific ``SensitiveStr`` representer over the bare-``str`` one.
+# MRO-walked dispatch; SensitiveStr's own entry wins over the str one.
 ESPHomeDumper.add_multi_representer(SensitiveStr, ESPHomeDumper.represent_sensitive)
 ESPHomeDumper.add_multi_representer(int, ESPHomeDumper.represent_int)
 ESPHomeDumper.add_multi_representer(float, ESPHomeDumper.represent_float)

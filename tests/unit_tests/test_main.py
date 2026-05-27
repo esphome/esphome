@@ -388,17 +388,27 @@ def test_redact_with_legacy_fallback__deduplicates_warnings(
     assert len(password_warnings) == 1
 
 
-def test_redact_with_legacy_fallback__suppresses_warning_for_lambda(
+def test_redact_with_legacy_fallback__skips_lambda_values(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Lambda values in cv.sensitive(cv.templatable(...)) fields hit the
-    legacy regex (Lambda isn't str so SensitiveStr tagging doesn't apply),
-    but the field IS tagged. The warning would mislead the author, so it's
-    suppressed; the first line still gets wrapped for visual parity."""
+    """``!lambda`` first line is structural, body is unreachable by a
+    single-line regex anyway, and tagged fields shouldn't trigger a warning."""
     text = '          ssid: !lambda |-\n            return "x";\n'
     with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
         out = _redact_with_legacy_fallback(text)
-    assert "ssid: \\033[8m!lambda |-\\033[28m" in out
+    assert out == text
+    assert not any("legacy substring" in rec.message for rec in caplog.records)
+
+
+def test_redact_with_legacy_fallback__skips_secret_references(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """``!secret name`` is the dumper's user-friendly representation; the
+    name isn't the secret, so wrapping it would clobber the round-trip."""
+    text = "          password: !secret wifi_password\n"
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback(text)
+    assert out == text
     assert not any("legacy substring" in rec.message for rec in caplog.records)
 
 
