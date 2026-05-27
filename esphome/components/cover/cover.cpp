@@ -164,14 +164,6 @@ void Cover::publish_state(bool save) {
   }
 }
 
-optional<CoverRestoreState> Cover::restore_state_() {
-  this->rtc_ = this->make_entity_preference<CoverRestoreState>();
-  CoverRestoreState recovered{};
-  if (!this->rtc_.load(&recovered))
-    return {};
-  return recovered;
-}
-
 optional<float> Cover::do_restore_state() {
   auto restore = this->restore_state_();
   if (!restore.has_value())
