@@ -3,8 +3,7 @@
 #include "core_frame.h"
 #include "core_state.h"
 
-namespace esphome {
-namespace sharp_ac {
+namespace esphome::sharp_ac {
 
 SharpFrame::SharpFrame(char c) : size_(1) {
   data_ = new uint8_t[size_];
@@ -222,5 +221,4 @@ SharpACKFrame::SharpACKFrame() : SharpFrame(0x06) {}
 
 void SharpACKFrame::set_checksum() {}
 
-}  // namespace sharp_ac
-}  // namespace esphome
+}  // namespace esphome::sharp_ac

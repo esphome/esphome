@@ -2,8 +2,7 @@
 #include "core_types.h"
 #include "core_frame.h"
 
-namespace esphome {
-namespace sharp_ac {
+namespace esphome::sharp_ac {
 
 class SharpState {
  public:
@@ -44,5 +43,4 @@ class SharpState {
   }
 };
 
-}  // namespace sharp_ac
-}  // namespace esphome
+}  // namespace esphome::sharp_ac

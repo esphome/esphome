@@ -1,8 +1,7 @@
 #pragma once
 #include <cstdint>
 
-namespace esphome {
-namespace sharp_ac {
+namespace esphome::sharp_ac {
 
 inline constexpr uint8_t ACK[] = {0x06};
 
@@ -15,5 +14,4 @@ inline constexpr uint8_t SUBSCRIBE_MSG2[] = {0x03, 0xFE, 0xA0, 0x01, 0x00, 0x00,
 inline constexpr uint8_t GET_STATE[] = {0xdd, 0x02, 0xfc, 0x62};
 inline constexpr uint8_t GET_STATUS[] = {0xdd, 0x02, 0xfd, 0x62};
 
-}  // namespace sharp_ac
-}  // namespace esphome
+}  // namespace esphome::sharp_ac

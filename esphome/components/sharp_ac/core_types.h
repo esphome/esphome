@@ -1,7 +1,6 @@
 #pragma once
 
-namespace esphome {
-namespace sharp_ac {
+namespace esphome::sharp_ac {
 
 static constexpr int ION_MODE = 0x80;
 
@@ -32,5 +31,4 @@ enum class SwingVertical {
   LOWEST = 0xD,
 };
 
-}  // namespace sharp_ac
-}  // namespace esphome
+}  // namespace esphome::sharp_ac

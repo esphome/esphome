@@ -101,8 +101,8 @@ class SharpAcCore {
   uint32_t previous_millis_ = 0;
   uint32_t last_request_time_ = 0;
   bool awaiting_response_ = false;
-  static constexpr uint32_t interval_ = 60000UL;
-  static constexpr uint32_t response_timeout_ = 10000UL;  // 10 seconds
+  static constexpr uint32_t INTERVAL = 60000UL;
+  static constexpr uint32_t RESPONSE_TIMEOUT = 10000UL;  // 10 seconds
   float current_temperature_ = 0.0f;
 };
 

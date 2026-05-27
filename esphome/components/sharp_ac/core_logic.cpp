@@ -260,7 +260,7 @@ void SharpAcCore::check_timeout_() {
   }
 
   uint32_t current_millis = this->hardware_->get_millis();
-  if (current_millis - this->last_request_time_ >= response_timeout_) {
+  if (current_millis - this->last_request_time_ >= RESPONSE_TIMEOUT) {
     this->hardware_->log_debug(TAG, "Timeout - no response for 10s, reconnecting...");
     this->reset_connection();
   }
@@ -287,7 +287,7 @@ void SharpAcCore::loop() {
 
   if (this->status_ != 8) {
     this->start_init_();
-  } else if (current_millis - this->previous_millis_ >= interval_) {
+  } else if (current_millis - this->previous_millis_ >= INTERVAL) {
     this->previous_millis_ = current_millis;
     SharpFrame frame(GET_STATUS, sizeof(GET_STATUS) + 1);
     this->write_frame_(frame);

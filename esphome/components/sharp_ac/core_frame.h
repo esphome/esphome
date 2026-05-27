@@ -4,8 +4,7 @@
 #include <cstddef>
 #include "core_types.h"
 
-namespace esphome {
-namespace sharp_ac {
+namespace esphome::sharp_ac {
 
 class SharpState;
 
@@ -64,5 +63,4 @@ class SharpACKFrame : public SharpFrame {
   void set_checksum() override;
 };
 
-}  // namespace sharp_ac
-}  // namespace esphome
+}  // namespace esphome::sharp_ac
