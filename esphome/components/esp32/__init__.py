@@ -944,8 +944,8 @@ def _detect_variant(value):
         # ESP-IDF toolchain only uses CONF_BOARD as the informational
         # ESPHOME_BOARD string, so synthesize one from the friendly variant
         # name rather than carrying a PIO board name through the IDF build.
-        resolved_toolchain = CORE.toolchain or value.get(
-            CONF_TOOLCHAIN, Toolchain.PLATFORMIO
+        resolved_toolchain = Toolchain(
+            CORE.toolchain or value.get(CONF_TOOLCHAIN, Toolchain.PLATFORMIO)
         )
         if resolved_toolchain == Toolchain.ESP_IDF:
             value = value.copy()
