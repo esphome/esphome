@@ -22,6 +22,7 @@ from esphome.const import (
     Framework,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 from ._methods import (
     METHOD_BIT_BANG,
@@ -166,7 +167,7 @@ def _validate_method(value):
     )(value)
 
 
-def _reject_esp32(config):
+def _reject_esp32(config: ConfigType) -> ConfigType:
     if CORE.is_esp32:
         raise cv.Invalid(
             "'neopixelbus' is no longer supported on ESP32. Use the "
