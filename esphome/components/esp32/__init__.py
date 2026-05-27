@@ -941,11 +941,21 @@ def _detect_variant(value):
         # If variant is set, we can derive the board from it
         # variant has already been validated against the known set
         if variant not in STANDARD_BOARDS:
-            raise cv.Invalid(
-                f"No default board is known for {variant}. "
-                f"Please specify the `board:` option explicitly.",
-                path=[CONF_VARIANT],
+            # PlatformIO needs a real board name; the ESP-IDF toolchain only
+            # uses CONF_BOARD as an informational ESPHOME_BOARD string, so
+            # synthesize a placeholder for variants without a default board.
+            resolved_toolchain = CORE.toolchain or value.get(
+                CONF_TOOLCHAIN, Toolchain.PLATFORMIO
             )
+            if resolved_toolchain == Toolchain.PLATFORMIO:
+                raise cv.Invalid(
+                    f"No default board is known for {variant}. "
+                    f"Please specify the `board:` option explicitly.",
+                    path=[CONF_VARIANT],
+                )
+            value = value.copy()
+            value[CONF_BOARD] = VARIANT_FRIENDLY[variant].lower()
+            return value
         value = value.copy()
         value[CONF_BOARD] = STANDARD_BOARDS[variant]
         if variant == VARIANT_ESP32P4:
