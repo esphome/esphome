@@ -1192,6 +1192,8 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
         tz.dst_end.week = static_cast<uint8_t>(pt.dst_end.week);
         tz.dst_end.day_of_week = static_cast<uint8_t>(pt.dst_end.day_of_week);
         time::set_global_tz(tz);
+      } else {
+        homeassistant::global_homeassistant_time->set_timezone(value.timezone.c_str(), value.timezone.size());
       }
     }
 #endif

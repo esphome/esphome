@@ -911,7 +911,7 @@ message GetTimeResponse {
   option (no_delay) = true;
 
   fixed32 epoch_seconds = 1;
-  string timezone = 2 [deprecated = true];  // Use parsed_timezone instead. Remove before 2026.9.0.
+  string timezone = 2;
   ParsedTimezone parsed_timezone = 3;
 }
 

@@ -1403,6 +1403,7 @@ const char *ParsedTimezone::dump_to(DumpBuffer &out) const {
 const char *GetTimeResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("GetTimeResponse"));
   dump_field(out, ESPHOME_PSTR("epoch_seconds"), this->epoch_seconds);
+  dump_field(out, ESPHOME_PSTR("timezone"), this->timezone);
   out.append(2, ' ').append_p(ESPHOME_PSTR("parsed_timezone")).append(": ");
   this->parsed_timezone.dump_to(out);
   out.append("\n");

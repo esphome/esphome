@@ -1202,11 +1202,12 @@ class ParsedTimezone final : public ProtoDecodableMessage {
 class GetTimeResponse final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 37;
-  static constexpr uint8_t ESTIMATED_SIZE = 22;
+  static constexpr uint8_t ESTIMATED_SIZE = 31;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("get_time_response"); }
 #endif
   uint32_t epoch_seconds{0};
+  StringRef timezone{};
   ParsedTimezone parsed_timezone{};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
