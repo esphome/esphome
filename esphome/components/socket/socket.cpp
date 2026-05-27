@@ -15,6 +15,11 @@ namespace esphome::socket {
 // Shared ready() implementation for fd-based socket implementations (BSD and LWIP sockets).
 // Checks if the host wake select() loop has marked this fd as ready.
 bool socket_ready_fd(int fd, bool loop_monitored) { return !loop_monitored || wake_fd_ready(fd); }
+#else
+// TODO: busy-polls on nRF52 — every loop iteration will attempt a read() syscall.
+// Functionally correct (EAGAIN will be returned when nothing is available), but a
+// yield or delay-based approach would reduce idle CPU usage.
+bool socket_ready_fd(int fd, bool loop_monitored) { return true; }
 #endif
 
 // Platform-specific inet_ntop wrappers
@@ -62,19 +67,27 @@ size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::s
 #if USE_NETWORK_IPV6
   else if (addr_ptr->sa_family == AF_INET6 && len >= sizeof(sockaddr_in6)) {
     const auto *addr = reinterpret_cast<const struct sockaddr_in6 *>(addr_ptr);
-#ifdef USE_HOST
+#if defined(USE_HOST)
     // Format IPv4-mapped IPv6 addresses as regular IPv4 (POSIX layout, no LWIP union)
     if (IN6_IS_ADDR_V4MAPPED(&addr->sin6_addr) &&
         esphome_inet_ntop4(&addr->sin6_addr.s6_addr[12], buf.data(), buf.size()) != nullptr) {
       return strlen(buf.data());
     }
 #elif !defined(USE_SOCKET_IMPL_LWIP_TCP)
-    // Format IPv4-mapped IPv6 addresses as regular IPv4 (LWIP layout)
+    // Format IPv4-mapped IPv6 addresses as regular IPv4
+#if defined(USE_ZEPHYR)
+    if (addr->sin6_addr.s6_addr32[0] == 0 && addr->sin6_addr.s6_addr32[1] == 0 &&
+        addr->sin6_addr.s6_addr32[2] == htonl(0xFFFF) &&
+        esphome_inet_ntop4(&addr->sin6_addr.s6_addr32[3], buf.data(), buf.size()) != nullptr) {
+      return strlen(buf.data());
+    }
+#else
     if (addr->sin6_addr.un.u32_addr[0] == 0 && addr->sin6_addr.un.u32_addr[1] == 0 &&
         addr->sin6_addr.un.u32_addr[2] == htonl(0xFFFF) &&
         esphome_inet_ntop4(&addr->sin6_addr.un.u32_addr[3], buf.data(), buf.size()) != nullptr) {
       return strlen(buf.data());
     }
+#endif
 #endif
     if (esphome_inet_ntop6(&addr->sin6_addr, buf.data(), buf.size()) != nullptr)
       return strlen(buf.data());
