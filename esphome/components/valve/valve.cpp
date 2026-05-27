@@ -141,9 +141,6 @@ void Valve::publish_state(bool save) {
   }
 }
 
-bool Valve::is_fully_open() const { return this->position == VALVE_OPEN; }
-bool Valve::is_fully_closed() const { return this->position == VALVE_CLOSED; }
-
 optional<float> Valve::do_restore_state() {
   auto restore = this->restore_state_();
   if (!restore.has_value())

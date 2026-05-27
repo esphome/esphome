@@ -173,9 +173,6 @@ optional<float> Cover::do_restore_state() {
   return pos;
 }
 
-bool Cover::is_fully_open() const { return this->position == COVER_OPEN; }
-bool Cover::is_fully_closed() const { return this->position == COVER_CLOSED; }
-
 CoverCall CoverRestoreState::to_call(Cover *cover) {
   auto call = cover->make_call();
   auto traits = cover->get_traits();

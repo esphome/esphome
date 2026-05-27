@@ -107,11 +107,6 @@ class Valve : public actuator::ActuatorBase, public actuator::IActuator {
 
   virtual ValveTraits get_traits() = 0;
 
-  /// Helper method to check if the valve is fully open. Equivalent to comparing .position against 1.0
-  bool is_fully_open() const;
-  /// Helper method to check if the valve is fully closed. Equivalent to comparing .position against 0.0
-  bool is_fully_closed() const;
-
   // IActuator implementation
   float get_position() const override { return this->position; }
   void set_position(float p) override { this->position = p; }
