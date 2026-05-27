@@ -45,11 +45,15 @@ def test_esp32_config(
     config = CONFIG_SCHEMA(config)
     assert config["variant"] == VARIANT_ESP32
 
-    # Check that defining a variant sets the board name correctly
+    # Check that defining a variant sets the board name correctly.
+    # Run under the ESP-IDF toolchain so variants without an entry in
+    # STANDARD_BOARDS (S31, H4, H21) still derive a board name from
+    # VARIANT_FRIENDLY rather than failing with cv.Invalid.
     for variant in VARIANTS:
         config = CONFIG_SCHEMA(
             {
                 "variant": variant,
+                "toolchain": Toolchain.ESP_IDF.value,
             }
         )
         assert VARIANT_FRIENDLY[variant].lower() in config["board"]
