@@ -4,6 +4,7 @@
 #ifdef USE_VOICE_ASSISTANT
 
 #include "esphome/components/socket/socket.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
@@ -25,6 +26,11 @@ static const size_t SEND_BUFFER_SAMPLES = 32 * SAMPLE_RATE_HZ / 1000;  // 32ms *
 static const size_t SEND_BUFFER_SIZE = SEND_BUFFER_SAMPLES * sizeof(int16_t);
 static const size_t RECEIVE_SIZE = 1024;
 static const size_t SPEAKER_BUFFER_SIZE = 16 * RECEIVE_SIZE;
+
+// If one microphone channel keeps producing audio while another configured channel produces none for this
+// long, treat the silent channel as failed and stop the stream. A working microphone exposes a chunk every
+// SEND_BUFFER_SAMPLES (32 ms), so this is far longer than any legitimate gap between chunks.
+static const uint32_t AUDIO_CHANNEL_STALL_TIMEOUT_MS = 2000;
 
 VoiceAssistant::VoiceAssistant() { global_voice_assistant = this; }
 
@@ -168,6 +174,9 @@ void VoiceAssistant::clear_buffers_() {
     this->audio_source2_->clear_buffered_data();
   }
 
+  // Reset the multi-channel stall watchdog (see audio_channel_stall_start_).
+  this->audio_channel_stall_start_ = 0;
+
 #ifdef USE_SPEAKER
   if ((this->speaker_ != nullptr) && (this->speaker_buffer_ != nullptr)) {
     memset(this->speaker_buffer_, 0, SPEAKER_BUFFER_SIZE);
@@ -198,6 +207,79 @@ void VoiceAssistant::deallocate_buffers_() {
 void VoiceAssistant::reset_conversation_id() {
   this->conversation_id_ = "";
   ESP_LOGD(TAG, "reset conversation ID");
+}
+
+void VoiceAssistant::stream_api_audio_() {
+  // Both microphone channels are sent together, if configured. Home Assistant feeds one of the
+  // channels to its speech-to-text stream and treats an empty payload on that channel as
+  // end-of-stream, and the device cannot know which channel it picked, so only send once every
+  // configured channel has audio exposed, and always send them together. We don't target any
+  // particular message size: Home Assistant re-chunks the audio, and each fill() exposes at most
+  // SEND_BUFFER_SIZE bytes.
+  while (true) {
+    // fill() exposes a new chunk, or returns 0 if a previous chunk is still exposed; available()
+    // reports the currently exposed bytes either way.
+    this->audio_source_->fill(0, false);
+    size_t available = this->audio_source_->available();
+    size_t available2 = 0;
+    if (this->audio_source2_ != nullptr) {
+      this->audio_source2_->fill(0, false);
+      available2 = this->audio_source2_->available();
+    }
+
+    const bool channel_empty = (available == 0);
+    const bool channel2_empty = (this->audio_source2_ != nullptr) && (available2 == 0);
+    if (channel_empty || channel2_empty) {
+      // A configured channel has no audio yet, so keep any chunk exposed on the other channel for the
+      // next pass rather than sending an empty payload.
+      this->handle_channel_stall_(available, available2);
+      break;
+    }
+
+    // Both channels have audio exposed; clear any in-progress stall timer.
+    this->audio_channel_stall_start_ = 0;
+
+    api::VoiceAssistantAudio msg;
+    // Zero-copy: send_message() copies the data out before we consume it.
+    msg.data = this->audio_source_->data();
+    msg.data_len = available;
+    if (this->audio_source2_ != nullptr) {
+      msg.data2 = this->audio_source2_->data();
+      msg.data2_len = available2;
+    }
+
+    this->api_client_->send_message(msg);
+
+    this->audio_source_->consume(available);
+    if (this->audio_source2_ != nullptr) {
+      this->audio_source2_->consume(available2);
+    }
+  }
+}
+
+void VoiceAssistant::handle_channel_stall_(size_t available, size_t available2) {
+  // Called when at least one configured channel has no audio exposed. When one channel has data and the
+  // other does not, watch how long the empty channel stays starved: Home Assistant has no stream timeout
+  // and would never tell us to stop, so a channel that fails outright would otherwise hang streaming
+  // forever with the live channel's chunk held. Stop the stream with an error after a prolonged imbalance.
+  if ((available == 0) && (available2 == 0)) {
+    // Both channels are idle (no audio buffered yet); normal, not a stalled channel.
+    this->audio_channel_stall_start_ = 0;
+    return;
+  }
+
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->audio_channel_stall_start_ == 0) {
+    this->audio_channel_stall_start_ = now;
+  } else if ((now - this->audio_channel_stall_start_) >= AUDIO_CHANNEL_STALL_TIMEOUT_MS) {
+    ESP_LOGW(TAG, "Mic channel %d stalled, stopping stream", (available == 0) ? 0 : 1);
+    this->audio_channel_stall_start_ = 0;
+    this->signal_stop_();
+    this->set_state_(State::STOP_MICROPHONE, State::IDLE);
+    this->defer([this]() {
+      this->error_trigger_.trigger("mic-channel-stalled", "A microphone channel stopped producing audio");
+    });
+  }
 }
 
 void VoiceAssistant::loop() {
@@ -292,55 +374,25 @@ void VoiceAssistant::loop() {
     case State::STREAMING_MICROPHONE: {
       // pre_shift is ignored by RingBufferAudioSource (no intermediate transfer buffer to compact).
       if (this->audio_mode_ == AUDIO_MODE_API) {
-        // API audio
-        // Both microphone channels are sent, if configured
-        size_t available = this->audio_source_->fill(0, false);
-        size_t available2 = 0;
-        if (this->audio_source2_ != nullptr) {
-          available2 = this->audio_source2_->fill(0, false);
-        }
-
-        while (available > 0 || available2 > 0) {
-          api::VoiceAssistantAudio msg;
-
-          if (available > 0) {
-            // Zero-copy: send_message() copies the data out before we consume it
-            msg.data = this->audio_source_->data();
-            msg.data_len = available;
-          }
-
-          // Second microphone channel
-          if (available2 > 0) {
-            msg.data2 = this->audio_source2_->data();
-            msg.data2_len = available2;
-          }
-
-          this->api_client_->send_message(msg);
-
-          if (available > 0) {
-            this->audio_source_->consume(available);
-          }
-          available = this->audio_source_->fill(0, false);
-          if (available2 > 0) {
-            this->audio_source2_->consume(available2);
-          }
-          if (this->audio_source2_ != nullptr) {
-            available2 = this->audio_source2_->fill(0, false);
-          }
-        }
+        this->stream_api_audio_();
       } else {
         // UDP (will eventually be deprecated)
         // Only the primary microphone channel is used
-        while (this->audio_source_->fill(0, false) > 0) {
+        while (true) {
+          this->audio_source_->fill(0, false);
+          size_t available = this->audio_source_->available();
+          if (available == 0) {
+            break;
+          }
           if (!this->udp_socket_running_) {
             if (!this->start_udp_socket_()) {
               this->set_state_(State::STOP_MICROPHONE, State::IDLE);
               break;
             }
           }
-          this->socket_->sendto(this->audio_source_->data(), this->audio_source_->available(), 0,
-                                (struct sockaddr *) &this->dest_addr_, sizeof(this->dest_addr_));
-          this->audio_source_->consume(this->audio_source_->available());
+          this->socket_->sendto(this->audio_source_->data(), available, 0, (struct sockaddr *) &this->dest_addr_,
+                                sizeof(this->dest_addr_));
+          this->audio_source_->consume(available);
         }
       }  // audio mode
       break;
@@ -841,8 +893,8 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       });
       State new_state = this->local_output_ ? State::STREAMING_RESPONSE : State::IDLE;
       if (new_state != this->state_) {
-        // Don't needlessly change the state. The intent progress stage may have already changed the state to streaming
-        // response.
+        // Don't needlessly change the state. The intent progress stage may have already changed the state to
+        // streaming response.
         this->set_state_(new_state, new_state);
       }
       break;
