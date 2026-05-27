@@ -338,7 +338,10 @@ class EsphomeStorageJSON:
     @property
     def last_update_check(self) -> datetime | None:
         try:
-            return datetime.strptime(self.last_update_check_str, "%Y-%m-%dT%H:%M:%S")
+            # Stored format is naive ISO without %z; preserved for backward compat.
+            return datetime.strptime(  # noqa: DTZ007
+                self.last_update_check_str, "%Y-%m-%dT%H:%M:%S"
+            )
         except Exception:  # pylint: disable=broad-except
             return None
 
