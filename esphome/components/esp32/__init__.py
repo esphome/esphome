@@ -940,6 +940,12 @@ def _detect_variant(value):
     if variant and board is None:
         # If variant is set, we can derive the board from it
         # variant has already been validated against the known set
+        if variant not in STANDARD_BOARDS:
+            raise cv.Invalid(
+                f"No default board is known for {variant}. "
+                f"Please specify the `board:` option explicitly.",
+                path=[CONF_VARIANT],
+            )
         value = value.copy()
         value[CONF_BOARD] = STANDARD_BOARDS[variant]
         if variant == VARIANT_ESP32P4:

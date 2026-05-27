@@ -6,13 +6,9 @@ from .const import (
     VARIANT_ESP32C6,
     VARIANT_ESP32C61,
     VARIANT_ESP32H2,
-    VARIANT_ESP32H4,
-    VARIANT_ESP32H21,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
-    VARIANT_ESP32S31,
-    VARIANTS,
 )
 
 STANDARD_BOARDS = {
@@ -23,19 +19,10 @@ STANDARD_BOARDS = {
     VARIANT_ESP32C6: "esp32-c6-devkitm-1",
     VARIANT_ESP32C61: "esp32-c61-devkitc1-n8r2",
     VARIANT_ESP32H2: "esp32-h2-devkitm-1",
-    # TODO[ESP32-H4]: replace once Espressif publishes a devkit board name.
-    VARIANT_ESP32H4: "esp32-h4-devkitm-1",
-    # TODO[ESP32-H21]: replace once Espressif publishes a devkit board name.
-    VARIANT_ESP32H21: "esp32-h21-devkitm-1",
     VARIANT_ESP32P4: "esp32-p4_r3-evboard",
     VARIANT_ESP32S2: "esp32-s2-kaluga-1",
     VARIANT_ESP32S3: "esp32-s3-devkitc-1",
-    # TODO[ESP32-S31]: replace once Espressif publishes a devkit board name.
-    VARIANT_ESP32S31: "esp32-s31-devkitc-1",
 }
-
-# Make sure not missed here if a new variant added.
-assert all(v in STANDARD_BOARDS for v in VARIANTS)
 
 ESP32_BASE_PINS = {
     "TX": 1,
