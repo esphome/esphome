@@ -1318,31 +1318,14 @@ def main() -> None:
             # Normal PR: only directly changed components are isolated
             batch_directly_changed = directly_changed_with_tests
 
-        # Components that must run in their own batch (known to fail,
-        # should not take down other components)
-        solo_batch_components = {
-            "fastled_clockless",
-            "fastled_spi",
-            "neopixelbus",
-        }
-        solo_components = [
-            c for c in changed_components_with_tests if c in solo_batch_components
-        ]
-        remaining_components = [
-            c for c in changed_components_with_tests if c not in solo_batch_components
-        ]
-
         batches, _ = create_intelligent_batches(
-            components=remaining_components,
+            components=changed_components_with_tests,
             tests_dir=tests_dir,
             batch_size=COMPONENT_TEST_BATCH_SIZE,
             directly_changed=batch_directly_changed,
         )
         # Convert batches to space-separated strings for CI matrix
         component_test_batches = [" ".join(batch) for batch in batches]
-        # Add solo components as individual batches
-        for comp in solo_components:
-            component_test_batches.append(comp)
     else:
         component_test_batches = []
 
