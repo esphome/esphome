@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import time as time_
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_TIMEZONE
 
 from .. import homeassistant_ns
 
@@ -21,3 +21,5 @@ async def to_code(config):
     await time_.register_time(var, config)
     await cg.register_component(var, config)
     cg.add_define("USE_HOMEASSISTANT_TIME")
+    if CONF_TIMEZONE not in config:
+        cg.add_define("USE_HOMEASSISTANT_TIMEZONE")

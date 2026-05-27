@@ -54,10 +54,18 @@ from esphome.const import (
     CONF_TTLS_PHASE_2,
     CONF_USE_ADDRESS,
     CONF_USERNAME,
+    CONF_WIFI,
+    PLACEHOLDER_WIFI_SSID,
     Platform,
     PlatformFramework,
 )
-from esphome.core import CORE, CoroPriority, HexInt, coroutine_with_priority
+from esphome.core import (
+    CORE,
+    CoroPriority,
+    EsphomeError,
+    HexInt,
+    coroutine_with_priority,
+)
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -243,7 +251,7 @@ EAP_AUTH_SCHEMA = cv.All(
         {
             cv.Optional(CONF_IDENTITY): cv.string_strict,
             cv.Optional(CONF_USERNAME): cv.string_strict,
-            cv.Optional(CONF_PASSWORD): cv.string_strict,
+            cv.Optional(CONF_PASSWORD): cv.sensitive(cv.string_strict),
             cv.Optional(CONF_CERTIFICATE_AUTHORITY): wpa2_eap.validate_certificate,
             cv.SplitDefault(CONF_TTLS_PHASE_2, esp32="mschapv2"): cv.All(
                 cv.enum(TTLS_PHASE_2), cv.only_on_esp32
@@ -264,7 +272,7 @@ WIFI_NETWORK_BASE = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(WiFiAP),
         cv.Optional(CONF_SSID): cv.ssid,
-        cv.Optional(CONF_PASSWORD): validate_password,
+        cv.Optional(CONF_PASSWORD): cv.sensitive(validate_password),
         cv.Optional(CONF_CHANNEL): validate_channel,
         cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
     }
@@ -318,23 +326,9 @@ def validate_variant(_):
 
 
 def _apply_min_auth_mode_default(config):
-    """Apply platform-specific default for min_auth_mode and warn ESP8266 users."""
-    # Only apply defaults for platforms that support min_auth_mode
+    """Apply platform-specific default for min_auth_mode."""
     if CONF_MIN_AUTH_MODE not in config and (CORE.is_esp8266 or CORE.is_esp32):
-        if CORE.is_esp8266:
-            _LOGGER.warning(
-                "The minimum WiFi authentication mode (wifi -> min_auth_mode) is not set. "
-                "This controls the weakest encryption your device will accept when connecting to WiFi. "
-                "Currently defaults to WPA (less secure), but will change to WPA2 (more secure) in 2026.6.0. "
-                "WPA uses TKIP encryption which has known security vulnerabilities and should be avoided. "
-                "WPA2 uses AES encryption which is significantly more secure. "
-                "To silence this warning, explicitly set min_auth_mode under 'wifi:'. "
-                "If your router supports WPA2 or WPA3, set 'min_auth_mode: WPA2'. "
-                "If your router only supports WPA, set 'min_auth_mode: WPA'."
-            )
-            config[CONF_MIN_AUTH_MODE] = VALIDATE_WIFI_MIN_AUTH_MODE("WPA")
-        elif CORE.is_esp32:
-            config[CONF_MIN_AUTH_MODE] = VALIDATE_WIFI_MIN_AUTH_MODE("WPA2")
+        config[CONF_MIN_AUTH_MODE] = VALIDATE_WIFI_MIN_AUTH_MODE("WPA2")
     return config
 
 
@@ -441,7 +435,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.ensure_list(WIFI_NETWORK_STA), cv.Length(max=MAX_WIFI_NETWORKS)
             ),
             cv.Optional(CONF_SSID): cv.ssid,
-            cv.Optional(CONF_PASSWORD): validate_password,
+            cv.Optional(CONF_PASSWORD): cv.sensitive(validate_password),
             cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
             cv.Optional(CONF_EAP): EAP_AUTH_SCHEMA,
             cv.Optional(CONF_AP): wifi_network_ap,
@@ -857,7 +851,7 @@ async def final_step():
     cv.Schema(
         {
             cv.Required(CONF_SSID): cv.templatable(cv.ssid),
-            cv.Required(CONF_PASSWORD): cv.templatable(validate_password),
+            cv.Required(CONF_PASSWORD): cv.sensitive(cv.templatable(validate_password)),
             cv.Optional(CONF_SAVE, default=True): cv.templatable(cv.boolean),
             cv.Optional(CONF_TIMEOUT, default="30000ms"): cv.templatable(
                 cv.positive_time_period_milliseconds
@@ -903,3 +897,45 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "wifi_component_pico_w.cpp": {PlatformFramework.RP2040_ARDUINO},
     }
 )
+
+
+def _placeholder_wifi_credentials(config: ConfigType) -> list[str]:
+    """Return human-readable locations where the dashboard's placeholder wifi
+    values still appear. Empty list means no placeholders were found.
+    """
+    placeholders: list[str] = []
+    wifi_conf = config.get(CONF_WIFI)
+    if not wifi_conf:
+        return placeholders
+
+    for idx, network in enumerate(wifi_conf.get(CONF_NETWORKS, [])):
+        ssid = network.get(CONF_SSID)
+        if isinstance(ssid, str) and ssid == PLACEHOLDER_WIFI_SSID:
+            placeholders.append(f"wifi.networks[{idx}].ssid")
+
+    ap_conf = wifi_conf.get(CONF_AP)
+    if ap_conf:
+        ap_ssid = ap_conf.get(CONF_SSID)
+        if isinstance(ap_ssid, str) and ap_ssid == PLACEHOLDER_WIFI_SSID:
+            placeholders.append("wifi.ap.ssid")
+
+    return placeholders
+
+
+def check_placeholder_credentials(config: ConfigType) -> None:
+    """Raise EsphomeError if any wifi credential is the dashboard placeholder.
+
+    Call only at compile time. NEVER from CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA,
+    or any path reached by `esphome config`; device-builder relies on
+    validation passing with the placeholders still in place.
+    """
+    locations = _placeholder_wifi_credentials(config)
+    if not locations:
+        return
+    formatted = ", ".join(locations)
+    raise EsphomeError(
+        f"wifi configuration still contains the dashboard placeholder value "
+        f"'{PLACEHOLDER_WIFI_SSID}' at: {formatted}. "
+        f"Open secrets.yaml and replace 'wifi_ssid' (and 'wifi_password') "
+        f"with your real wifi credentials before flashing."
+    )
