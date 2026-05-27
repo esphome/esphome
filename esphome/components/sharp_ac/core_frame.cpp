@@ -73,16 +73,18 @@ Preset SharpModeFrame::get_preset() {
   // Command frames (0xFB): byte[7]=0x10 for ECO, byte[10]=0x01 for FULLPOWER
   if (this->data_[2] == 0xFC) {
     // Response frame format
-    if ((this->data_[7] & 0x40) == 0x40)
+    if ((this->data_[7] & 0x40) == 0x40) {
       return Preset::ECO;
-    else if ((this->data_[7] & 0x80) == 0x80)
+    } else if ((this->data_[7] & 0x80) == 0x80) {
       return Preset::FULLPOWER;
+    }
   } else {
     // Command frame format (0xFB)
-    if (this->data_[10] == 0x01)
+    if (this->data_[10] == 0x01) {
       return Preset::FULLPOWER;
-    else if (this->data_[7] == 0x10)
+    } else if (this->data_[7] == 0x10) {
       return Preset::ECO;
+    }
   }
 
   return Preset::NONE;
@@ -91,37 +93,41 @@ Preset SharpModeFrame::get_preset() {
 SwingVertical SharpModeFrame::get_swing_vertical() {
   // Response frames (0xFC)
   // Command frames (0xFB)
-  if (this->data_[2] == 0xFC)
+  if (this->data_[2] == 0xFC) {
     return static_cast<SwingVertical>(this->data_[6] & 0x0F);
-  else  // 0xFB command frames
+  } else {  // 0xFB command frames
     return static_cast<SwingVertical>(this->data_[8] & 0x0F);
+  }
 }
 
 SwingHorizontal SharpModeFrame::get_swing_horizontal() {
   // Response frames (0xFC)
   // Command frames (0xFB)
-  if (this->data_[2] == 0xFC)
+  if (this->data_[2] == 0xFC) {
     return static_cast<SwingHorizontal>((this->data_[6] & 0xF0) >> 4);
-  else  // 0xFB command frames
+  } else {  // 0xFB command frames
     return static_cast<SwingHorizontal>((this->data_[8] & 0xF0) >> 4);
+  }
 }
 
 FanMode SharpModeFrame::get_fan_mode() {
   // Response frames (0xFC)
   // Command frames (0xFB)
-  if (this->data_[2] == 0xFC)
+  if (this->data_[2] == 0xFC) {
     return static_cast<FanMode>((this->data_[5] & 0xF0) >> 4);
-  else  // 0xFB command frames
+  } else {  // 0xFB command frames
     return static_cast<FanMode>((this->data_[6] & 0xF0) >> 4);
+  }
 }
 
 PowerMode SharpModeFrame::get_power_mode() {
   // Response frames (0xFC)
   // Command frames (0xFB)
-  if (this->data_[2] == 0xFC)
+  if (this->data_[2] == 0xFC) {
     return static_cast<PowerMode>(this->data_[5] & 0x0F);
-  else  // 0xFB command frames
+  } else {  // 0xFB command frames
     return static_cast<PowerMode>(this->data_[6] & 0x0F);
+  }
 }
 
 bool SharpModeFrame::get_ion() {
@@ -153,10 +159,7 @@ void SharpCommandFrame::set_data(SharpState *state) {
       this->data_[4] = 0x00;
       break;
     }
-    case PowerMode::COOL: {
-      this->data_[4] = 0xC0 | (state->temperature - 15);
-      break;
-    }
+    case PowerMode::COOL:
     case PowerMode::HEAT: {
       this->data_[4] = 0xC0 | (state->temperature - 15);
       break;
@@ -165,21 +168,24 @@ void SharpCommandFrame::set_data(SharpState *state) {
 
   // Byte 6: Mode (lower nibble) + Fan (upper nibble)
   this->data_[6] = (uint8_t) state->mode;
-  if (state->mode == PowerMode::FAN && state->fan == FanMode::FAN_AUTO)
+  if (state->mode == PowerMode::FAN && state->fan == FanMode::FAN_AUTO) {
     this->data_[6] |= (uint8_t) FanMode::FAN_LOW << 4;
-  else if (state->preset == Preset::FULLPOWER)
+  } else if (state->preset == Preset::FULLPOWER) {
     this->data_[6] |= (uint8_t) FanMode::FAN_AUTO << 4;
-  else
+  } else {
     this->data_[6] |= (uint8_t) state->fan << 4;
+  }
 
   // Byte 5: State indicator
   if (state->state) {
-    if (state->preset == Preset::NONE)
+    if (state->preset == Preset::NONE) {
       this->data_[5] = 0x31;
-    else
+    } else {
       this->data_[5] = 0x61;
-  } else
+    }
+  } else {
     this->data_[5] = 0x21;
+  }
 
   // Ion mode
   if (state->ion) {

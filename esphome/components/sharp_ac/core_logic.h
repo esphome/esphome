@@ -44,8 +44,8 @@ class SharpAcCore {
   void setup();
 
   void set_ion(bool state);
-  void set_vane_horizontal(SwingHorizontal val);
-  void set_vane_vertical(SwingVertical val);
+  void set_vane_horizontal(SwingHorizontal state);
+  void set_vane_vertical(SwingVertical state);
 
   void publish_update();
   const SharpState &get_state() const { return state_; }
