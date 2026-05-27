@@ -27,8 +27,8 @@
 
 #if __has_include(<psa/crypto.h>)
 #include <dlms_parser/decryption/aes_128_gcm_decryptor_tfpsa.h>
-#elif __has_include(<mbedtls/gcm.h>)
-#if __has_include(<mbedtls/esp_config.h>)
+#elif !defined(USE_ESP8266) && __has_include(<mbedtls/gcm.h>)
+#if __has_include(<mbedtls/gcm.h>)
 #include <mbedtls/esp_config.h>
 #endif
 #include <dlms_parser/decryption/aes_128_gcm_decryptor_mbedtls.h>
@@ -64,7 +64,7 @@ class Aes128GcmDecryptorDummy : public dlms_parser::Aes128GcmDecryptor {
 
 #if __has_include(<psa/crypto.h>)
 using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorTfPsa;
-#elif __has_include(<mbedtls/gcm.h>)
+#elif !defined(USE_ESP8266) && __has_include(<mbedtls/gcm.h>)
 using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorMbedTls;
 #elif __has_include(<bearssl/bearssl.h>)
 using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorBearSsl;
