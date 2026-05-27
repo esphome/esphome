@@ -196,66 +196,64 @@ TEST(MS8607Test, Category2_PressureCompensationMath) {
 }
 
 TEST(MS8607Test, Category3_HumidityTemperatureCompensation) {
-  // Note: D_RH is a 12-bit ADC value, which corresponds to the upper bits of
-  // the raw 16-bit humidity value. So D_RH << 4 is passed as the humidity_float.
-
-  // 1. Perfect Dry Boundary (0% RH @ 20°C)
+  // Datasheet example: 0x7C80 (i.e. 31872) @ 20°C is 54.80%
   {
-    float const d_rh = 0.0f;
-    float const raw_humidity = d_rh * 16.0f;
-    float const temp = 20.0f;
-    float const hum = TestableMS8607Component::compensated_humidity(raw_humidity, temp);
-    EXPECT_NEAR(hum, -6.0f, 1e-3f);
+    float const humidity = TestableMS8607Component::compensated_humidity(0x7C80, 20.0f);
+    EXPECT_NEAR(humidity, 54.80f, 1e-2f);
   }
 
-  // 2. Saturated Wet Boundary (100% RH @ 20°C)
+  // Datasheet example at lower temperature (0x7C80 @ 0°C)
   {
-    float const d_rh = 4095.0f;
-    float const raw_humidity = d_rh * 16.0f;
-    float const temp = 20.0f;
-    float const hum = TestableMS8607Component::compensated_humidity(raw_humidity, temp);
-    EXPECT_NEAR(hum, 117.9697f, 1e-3f);
+    float const humidity = TestableMS8607Component::compensated_humidity(0x7C80, 0.0f);
+    EXPECT_NEAR(humidity, 54.80f - 3.6f, 1e-2f);
   }
 
-  // 3. Mid-Range Humidity at Reference Temp (50% RH @ 20°C)
+  // Datasheet example at higher temperature (0x7C80 @ 40°C)
   {
-    float const d_rh = 2048.0f;
-    float const raw_humidity = d_rh * 16.0f;
-    float const temp = 20.0f;
-    float const hum = TestableMS8607Component::compensated_humidity(raw_humidity, temp);
-    EXPECT_NEAR(hum, 56.0f, 1e-3f);
+    float const humidity = TestableMS8607Component::compensated_humidity(0x7C80, 40.0f);
+    EXPECT_NEAR(humidity, 54.80f + 3.6f, 1e-2f);
   }
 
-  // 4. Humidity Compensation at High Temperature (100% RH @ +85°C)
+  // Lowest humidity, without temperature compensation
   {
-    float const d_rh = 4095.0f;
-    float const raw_humidity = d_rh * 16.0f;
-    float const temp = 148.90f;
-    float const hum = TestableMS8607Component::compensated_humidity(raw_humidity, temp);
-    EXPECT_NEAR(hum, 141.1717f, 1e-3f);
+    float const humidity = TestableMS8607Component::compensated_humidity(0, 20.0f);
+    EXPECT_NEAR(humidity, -6.0f, 1e-2f);
   }
 
-  // 5. Humidity Compensation at Extreme Low Temp (100% RH @ -40°C)
+  // Highest humidity, without temperature compensation
   {
-    float const d_rh = 4095.0f;
-    float const raw_humidity = d_rh * 16.0f;
-    float const temp = -313.06f;
-    float const hum = TestableMS8607Component::compensated_humidity(raw_humidity, temp);
-    EXPECT_NEAR(hum, 58.0189f, 1e-3f);
+    // bottom two bits are status bits, and get stripped
+    float const humidity = TestableMS8607Component::compensated_humidity(0xFFFB, 20.0f);
+    EXPECT_NEAR(humidity, 118.99f, 1e-2f);
   }
 
-  // 6. Low Humidity at Extreme Low Temp (0% RH @ -40°C)
+  // 100% humidity at 20°
   {
-    float const d_rh = 0.0f;
-    float const raw_humidity = d_rh * 16.0f;
-    float const temp = -313.06f;
-    float const hum = TestableMS8607Component::compensated_humidity(raw_humidity, temp);
-    EXPECT_NEAR(hum, -65.9508f, 1e-3f);
+    float const humidity = TestableMS8607Component::compensated_humidity(55575, 20.0f);
+    EXPECT_NEAR(humidity, 100.00f, 1e-2f);
+  }
+
+  // Humidity Compensation at High Temperature (100% RH @ +85°C)
+  {
+    float const humidity = TestableMS8607Component::compensated_humidity(55575, 85.0f);
+    EXPECT_NEAR(humidity, 111.70f, 1e-2f);
+  }
+
+  // Humidity Compensation at Extreme Low Temp (100% RH @ -40°C)
+  {
+    float const humidity = TestableMS8607Component::compensated_humidity(55575, -40.0f);
+    EXPECT_NEAR(humidity, 89.20f, 1e-2f);
+  }
+
+  // Low Humidity at Extreme Low Temp (0% RH @ -40°C)
+  {
+    float const humidity = TestableMS8607Component::compensated_humidity(0, -40.0f);
+    EXPECT_NEAR(humidity, -16.80f, 1e-2f);
   }
 }
 
 TEST(MS8607Test, Category4_MathematicalEdgeCases) {
-  // 1. All Zero Raw Input State (Fault / Sensor Error simulation)
+  // All Zero Raw Input State (Fault / Sensor Error simulation)
   {
     auto calibration_values = create_calibration_values();
     uint32_t const d1 = 0;
