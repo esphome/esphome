@@ -211,10 +211,6 @@ void SharpCommandFrame::set_data(SharpState *state)
         this->data_[4] = 0xC0 | (state->temperature - 15);
         break;
     }
-    case PowerMode::heat: {
-      this->data[4] = 0xC0 | (state->temperature - 15);
-      break;
-    }
   }
 
     // Byte 6: Mode (lower nibble) + Fan (upper nibble)

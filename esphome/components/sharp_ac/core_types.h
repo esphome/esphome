@@ -14,10 +14,16 @@ enum class PowerMode
 };
 
 enum class SwingHorizontal {
-  swing = 0xF,
-  middle = 0x1,
-  right = 0x2,
-  left = 0x3,
+    SWING = 0xF,
+    MIDDLE = 0x1,
+    RIGHT = 0x2,
+    LEFT = 0x3,
+};
+
+enum class Preset {
+    NONE = 0x0,
+    ECO = 0x1,
+    FULLPOWER = 0x2,
 };
 
 enum class FanMode
@@ -38,14 +44,6 @@ enum class SwingVertical
     MID = 0xB,
     LOW_POS = 0xC,
     LOWEST = 0xD,
-};
-
-enum class SwingHorizontal
-{
-    SWING = 0xF,
-    MIDDLE = 0x1,
-    RIGHT = 0x2,
-    LEFT = 0x3,
 };
 
 }  // namespace sharp_ac
