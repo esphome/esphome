@@ -20,7 +20,7 @@ dependencies:
   espressif/esp-tflite-micro:
     version: 1.3.3~1
   espressif/esp32-camera:
-    version: 2.1.6
+    version: 2.1.5
   espressif/mdns:
     version: 1.11.0
   espressif/esp_wifi_remote:
