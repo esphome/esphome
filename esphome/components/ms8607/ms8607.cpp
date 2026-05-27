@@ -467,9 +467,11 @@ float MS8607Component::compensated_pressure(uint32_t d1_raw_pressure,
 }
 
 float MS8607Component::compensated_humidity(float humidity_float, float temperature_float) {
-  // map 16 bit humidity value into range [-6%, 118%]
-  float const humidity_partial = double(humidity_float) / (1 << 16);
-  float const humidity_percentage = std::lerp(-6.0, 118.0, humidity_partial);
+  // map 16 bit humidity value into range [-6%, 119%]
+  // Datasheet is inconsistent on upper max value (118 vs 119), but example value,
+  // calculation equation, and max value in table all indicate it should be 119%
+  float const humidity_partial = humidity_float / (1 << 16);
+  float const humidity_percentage = std::lerp(-6.0, 119.0, humidity_partial);
   return humidity_percentage + (20 - temperature_float) * MS8607_H_TEMP_COEFFICIENT;
 }
 
