@@ -127,6 +127,49 @@ def test_string_string__invalid(value):
         config_validation.string_strict(value)
 
 
+def test_sensitive__default_delegates_to_string() -> None:
+    validator = config_validation.sensitive()
+
+    assert isinstance(validator, config_validation.SensitiveValidator)
+    assert validator.inner is config_validation.string
+    assert validator("hunter2") == "hunter2"
+    assert validator(42) == "42"
+
+
+def test_sensitive__custom_inner_delegates_validation() -> None:
+    validator = config_validation.sensitive(config_validation.string_strict)
+
+    assert validator.inner is config_validation.string_strict
+    assert validator("abc") == "abc"
+    with pytest.raises(Invalid, match="Must be string, got"):
+        validator(123)
+
+
+def test_sensitive__is_detectable_via_isinstance() -> None:
+    validator = config_validation.sensitive()
+
+    assert isinstance(validator, config_validation.SensitiveValidator)
+
+
+def test_sensitive__repr_mirrors_inner() -> None:
+    # The schema dump dedups on ``repr(schema)``; mirroring the inner
+    # validator's repr keeps two ``cv.sensitive(cv.string)`` wrappers
+    # interchangeable for that purpose and avoids leaking the wrapper as
+    # noise in voluptuous error messages.
+    assert repr(config_validation.sensitive(config_validation.string)) == repr(
+        config_validation.string
+    )
+    assert repr(config_validation.sensitive(config_validation.string)) == repr(
+        config_validation.sensitive(config_validation.string)
+    )
+
+
+def test_sensitive_key_fragments__covers_common_terms() -> None:
+    assert isinstance(config_validation.SENSITIVE_KEY_FRAGMENTS, frozenset)
+    for term in ("password", "passcode", "secret", "token", "api_key", "apikey", "psk"):
+        assert term in config_validation.SENSITIVE_KEY_FRAGMENTS
+
+
 @given(
     builds(
         lambda v: "mdi:" + v,

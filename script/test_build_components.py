@@ -297,7 +297,7 @@ def write_github_summary(
         test_results: List of all test results
     """
     summary_content = format_github_summary(test_results, toolchain)
-    with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
+    with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as f:
         f.write(summary_content)
 
 

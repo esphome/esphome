@@ -91,6 +91,7 @@ def main() -> int:
     # ---- end sys.path fix-up -----------------------------------------------
 
     import os
+    from pathlib import Path
     import re
     import runpy
 
@@ -229,7 +230,7 @@ def main() -> int:
     # runpy.run_path does not do this automatically, but idf.py relies
     # on it to import its sibling modules (python_version_checker,
     # idf_py_actions, ...).
-    script_dir = os.path.dirname(os.path.abspath(script_path))
+    script_dir = str(Path(script_path).resolve().parent)
     if script_dir not in sys.path:
         sys.path.insert(0, script_dir)
 

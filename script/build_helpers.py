@@ -195,7 +195,7 @@ def load_component_yaml_configs(components: list[str], tests_dir: Path) -> dict:
         yaml_path = tests_dir / component / BENCHMARK_YAML_FILENAME
         if not yaml_path.is_file():
             continue
-        with open(yaml_path) as f:
+        with yaml_path.open() as f:
             component_config = yaml.safe_load(f)
         if component_config and isinstance(component_config, dict):
             for key, value in component_config.items():
