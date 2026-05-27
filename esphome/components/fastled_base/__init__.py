@@ -42,21 +42,30 @@ async def new_fastled_light(config):
         cg.add(var.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))
 
     if CORE.is_esp32:
+        from esphome.components.esp32 import (
+            add_idf_component,
+            include_builtin_idf_component,
+        )
+
+        # Use FastLED's own CMakeLists.txt by registering it as an ESP-IDF
+        # managed component. That CMakeLists declares its own REQUIRES, so
+        # the IDF driver/* headers FastLED needs are in scope.
         # TEMPORARY: pin to swoboda1337's FastLED fork with the ESP-IDF 6
-        # build fixes (see https://github.com/swoboda1337/FastLED/tree/
+        # build fixes (https://github.com/swoboda1337/FastLED/tree/
         # idf6-build-fixes). Revert to fastled/FastLED once an upstream
         # tagged release with these fixes is available.
-        cg.add_library(
-            "FastLED",
-            None,
-            "https://github.com/swoboda1337/FastLED.git#765840c6c64f1489d993a0f1ab3401ecc0b6356a",
+        add_idf_component(
+            name="FastLED",
+            repo="https://github.com/swoboda1337/FastLED.git",
+            ref="14ac9726fa2c90f931e814f27ba3139deef7fd84",
         )
-        # ESPHome disables the Arduino SPI library by default; FastLED needs
-        # SPI.h, so opt in here.
         cg.add_library("SPI", None)
-
-        from esphome.components.esp32 import include_builtin_idf_component
-
+        # FastLED's CMakeLists REQUIREs these IDF components; ESPHome
+        # excludes them by default to save build time, so opt back in.
+        include_builtin_idf_component("driver")
+        include_builtin_idf_component("esp_driver_i2s")
+        include_builtin_idf_component("esp_driver_mcpwm")
+        include_builtin_idf_component("esp_driver_rmt")
         include_builtin_idf_component("esp_lcd")
     else:
         cg.add_library("fastled/FastLED", "3.9.16")
