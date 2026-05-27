@@ -424,6 +424,18 @@ def test_redact_with_legacy_fallback__does_not_match_fragment_in_middle(
     assert not any("legacy substring" in rec.message for rec in caplog.records)
 
 
+def test_redact_with_legacy_fallback__does_not_match_fragment_as_suffix(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Fragment must start the name or follow ``_``; ``monkey:`` shouldn't
+    fire a 'legacy heuristic' warning because there's no sensitive field
+    here — the user has nothing to migrate."""
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback("monkey: 1234\n")
+    assert "\\033[8m" not in out
+    assert not any("legacy substring" in rec.message for rec in caplog.records)
+
+
 def test_command_config__invokes_legacy_fallback_when_redacting(
     tmp_path: Path, capfd: CaptureFixture[str]
 ) -> None:

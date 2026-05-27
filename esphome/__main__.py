@@ -1424,10 +1424,11 @@ def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
 # 2026.12.0 once canonical sensitive fields are tagged. The lookahead skips
 # values that already render themselves: ``\033[8m`` (SensitiveStr wrap),
 # ``!secret`` (preserves the user-friendly tag), ``!lambda`` (multi-line
-# block; first line is structural). Un-anchored on purpose to match the
-# prior regex; leading ``\w*`` captures the full field name for warnings.
+# block; first line is structural). The fragment must either start the
+# field name or follow ``_`` so the warning names a real field; this avoids
+# false positives like ``monkey:`` matching the ``key`` fragment.
 _LEGACY_REDACTION_RE = re.compile(
-    r"(?P<key>\w*(?:password|key|psk|ssid))\: "
+    r"(?P<key>\b(?:\w+_)?(?:password|key|psk|ssid))\: "
     r"(?!\\033\[8m|!secret\b|!lambda\b)(?P<val>.+)"
 )
 _LEGACY_REDACTION_REMOVAL = "2026.12.0"
