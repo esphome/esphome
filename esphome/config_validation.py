@@ -534,6 +534,56 @@ def sensitive(
     return SensitiveValidator(inner)
 
 
+def _validator_has_sensitive_marker(validator: typing.Any) -> bool:
+    """Return True when ``validator`` is wrapped in ``cv.sensitive`` at the top."""
+    if isinstance(validator, SensitiveValidator):
+        return True
+    if isinstance(validator, (vol.All, vol.Any)) and hasattr(validator, "validators"):
+        return any(_validator_has_sensitive_marker(v) for v in validator.validators)
+    return False
+
+
+def collect_sensitive_keys(schema: typing.Any, out: set[str]) -> None:
+    """Walk a voluptuous schema and add field names wrapped in ``cv.sensitive`` to ``out``.
+
+    Recurses through ``vol.Schema``, ``vol.All``, ``vol.Any``, ``SensitiveValidator``,
+    and dict literals. Only string field names are collected; non-string keys
+    (callable validators) and nested function-wrapped schemas are skipped, matching
+    the limits of static voluptuous introspection.
+    """
+    _collect_sensitive_keys_inner(schema, out, set())
+
+
+def _collect_sensitive_keys_inner(
+    schema: typing.Any, out: set[str], seen: set[int]
+) -> None:
+    sid = id(schema)
+    if sid in seen:
+        return
+    seen.add(sid)
+    if isinstance(schema, SensitiveValidator):
+        _collect_sensitive_keys_inner(schema.inner, out, seen)
+        return
+    if isinstance(schema, vol.Schema):
+        _collect_sensitive_keys_inner(schema.schema, out, seen)
+        return
+    if isinstance(schema, (vol.All, vol.Any)) and hasattr(schema, "validators"):
+        for v in schema.validators:
+            _collect_sensitive_keys_inner(v, out, seen)
+        return
+    if isinstance(schema, dict):
+        for k, v in schema.items():
+            if (
+                isinstance(
+                    k, (vol.Required, vol.Optional, vol.Inclusive, vol.Exclusive)
+                )
+                and isinstance(k.schema, str)
+                and _validator_has_sensitive_marker(v)
+            ):
+                out.add(k.schema)
+            _collect_sensitive_keys_inner(v, out, seen)
+
+
 def icon(value):
     """Validate that a given config value is a valid icon."""
     from esphome.core.config import ICON_MAX_LENGTH

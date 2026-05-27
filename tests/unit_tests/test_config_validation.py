@@ -170,6 +170,76 @@ def test_sensitive_key_fragments__covers_common_terms() -> None:
         assert term in config_validation.SENSITIVE_KEY_FRAGMENTS
 
 
+def test_collect_sensitive_keys__direct_marker() -> None:
+    cv = config_validation
+    schema = cv.Schema(
+        {
+            cv.Required("password"): cv.sensitive(),
+            cv.Optional("hostname"): cv.string,
+        }
+    )
+    out: set[str] = set()
+    cv.collect_sensitive_keys(schema, out)
+    assert out == {"password"}
+
+
+def test_collect_sensitive_keys__nested_schema() -> None:
+    cv = config_validation
+    inner = cv.Schema({cv.Required("token"): cv.sensitive(cv.string_strict)})
+    schema = cv.Schema({cv.Optional("auth"): inner})
+    out: set[str] = set()
+    cv.collect_sensitive_keys(schema, out)
+    assert out == {"token"}
+
+
+def test_collect_sensitive_keys__inside_all_chain() -> None:
+    cv = config_validation
+    # Sensitive marker wrapped in cv.All; the helper should still pick it up.
+    schema = cv.Schema(
+        {cv.Required("key"): cv.All(cv.sensitive(cv.string), cv.Length(min=1))}
+    )
+    out: set[str] = set()
+    cv.collect_sensitive_keys(schema, out)
+    assert out == {"key"}
+
+
+def test_collect_sensitive_keys__ignores_unmarked() -> None:
+    cv = config_validation
+    schema = cv.Schema(
+        {
+            cv.Optional("password"): cv.string,
+            cv.Optional("token"): cv.string,
+        }
+    )
+    out: set[str] = set()
+    cv.collect_sensitive_keys(schema, out)
+    assert out == set()
+
+
+def test_collect_sensitive_keys__skips_non_string_keys() -> None:
+    cv = config_validation
+    # Key whose .schema is a callable rather than a string should be skipped.
+    schema = cv.Schema(
+        {
+            cv.Required(cv.string): cv.sensitive(),
+            cv.Required("password"): cv.sensitive(),
+        }
+    )
+    out: set[str] = set()
+    cv.collect_sensitive_keys(schema, out)
+    assert out == {"password"}
+
+
+def test_collect_sensitive_keys__deduplicates_across_calls() -> None:
+    cv = config_validation
+    schema_a = cv.Schema({cv.Required("password"): cv.sensitive()})
+    schema_b = cv.Schema({cv.Required("password"): cv.sensitive()})
+    out: set[str] = set()
+    cv.collect_sensitive_keys(schema_a, out)
+    cv.collect_sensitive_keys(schema_b, out)
+    assert out == {"password"}
+
+
 @given(
     builds(
         lambda v: "mdi:" + v,

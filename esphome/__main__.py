@@ -1414,13 +1414,49 @@ def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
     output = yaml_util.dump(config, args.show_secrets)
     # add the console decoration so the front-end can hide the secrets
     if not args.show_secrets:
-        output = re.sub(
-            r"(password|key|psk|ssid)\: (.+)", r"\1: \\033[8m\2\\033[28m", output
-        )
+        output = _redact_sensitive(output)
     if not CORE.quiet:
         safe_print(output)
     _LOGGER.info("Configuration is valid!")
     return 0
+
+
+# Substring fallbacks preserved from the previous regex so existing behavior
+# (redacting fields with names like ``ssid`` or ``encryption_key``) is not
+# regressed. Explicit names from ``cv.sensitive`` are added on top.
+_REDACTION_FALLBACK_FRAGMENTS: frozenset[str] = frozenset({"key", "ssid"})
+
+
+def _collect_loaded_sensitive_keys() -> set[str]:
+    import esphome.config_validation as cv
+    from esphome.loader import get_component
+
+    explicit: set[str] = set()
+    for domain in CORE.loaded_integrations:
+        manifest = get_component(domain)
+        if manifest is None:
+            continue
+        schema = manifest.config_schema
+        if schema is not None:
+            cv.collect_sensitive_keys(schema, explicit)
+    return explicit
+
+
+def _build_redaction_pattern(explicit_names: set[str]) -> re.Pattern[str]:
+    import esphome.config_validation as cv
+
+    alternation = "|".join(
+        re.escape(n)
+        for n in sorted(
+            explicit_names | cv.SENSITIVE_KEY_FRAGMENTS | _REDACTION_FALLBACK_FRAGMENTS
+        )
+    )
+    return re.compile(rf"({alternation})\: (.+)")
+
+
+def _redact_sensitive(output: str) -> str:
+    pattern = _build_redaction_pattern(_collect_loaded_sensitive_keys())
+    return pattern.sub(r"\1: \\033[8m\2\\033[28m", output)
 
 
 def command_config_hash(args: ArgsProtocol, config: ConfigType) -> int | None:

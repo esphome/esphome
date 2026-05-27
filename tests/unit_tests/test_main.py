@@ -20,6 +20,7 @@ from zeroconf import ServiceStateChange
 
 from esphome.__main__ import (
     Purpose,
+    _build_redaction_pattern,
     _get_configured_xtal_freq,
     _make_crystal_freq_callback,
     _resolve_network_devices,
@@ -338,6 +339,34 @@ def mock_ram_strings_analyzer() -> Generator[Mock]:
         mock_analyzer.generate_report.return_value = "Mock RAM Strings Report"
         mock_class.return_value = mock_analyzer
         yield mock_class
+
+
+def test_build_redaction_pattern__includes_fragments_and_fallbacks() -> None:
+    pattern = _build_redaction_pattern(set())
+    # Fragment set (cv.SENSITIVE_KEY_FRAGMENTS) members are matched.
+    assert pattern.search("password: secret_value") is not None
+    assert pattern.search("token: abc") is not None
+    # Pre-existing wildcard fallbacks (key, ssid) are still matched.
+    assert pattern.search("key: foo") is not None
+    assert pattern.search("ssid: MyNetwork") is not None
+    # Non-sensitive fields are left alone.
+    assert pattern.search("hostname: server") is None
+
+
+def test_build_redaction_pattern__honors_explicit_names() -> None:
+    # A field name that isn't a fragment or fallback only matches when
+    # supplied as an explicit name from cv.sensitive.
+    no_explicit = _build_redaction_pattern(set())
+    assert no_explicit.search("auth_string: abc") is None
+
+    with_explicit = _build_redaction_pattern({"auth_string"})
+    assert with_explicit.search("auth_string: abc") is not None
+
+
+def test_build_redaction_pattern__substitution_wraps_value() -> None:
+    pattern = _build_redaction_pattern(set())
+    out = pattern.sub(r"\1: \\033[8m\2\\033[28m", "password: hunter2")
+    assert out == "password: \\033[8mhunter2\\033[28m"
 
 
 def test_choose_upload_log_host_with_string_default() -> None:
