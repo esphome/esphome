@@ -5,10 +5,6 @@ import esphome.config_validation as cv
 from esphome.const import CONF_INPUT, CONF_MODE, CONF_NUMBER
 from esphome.pins import check_strapping_pin
 
-# TODO[ESP32-S31]: revisit once a datasheet/TRM is published. The pin
-# count below comes from SOC_GPIO_PIN_COUNT in soc_caps.h; the strapping
-# and reserved-pin sets are placeholders that need verification against
-# Espressif's chip documentation when it ships.
 _ESP32S31_STRAPPING_PINS: set[int] = set()
 
 _LOGGER = logging.getLogger(__name__)
