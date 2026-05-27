@@ -15,7 +15,7 @@
 #include <cstring>
 
 #ifdef USE_ESP32
-#include "rom/crc.h"
+#include "esp_rom_crc.h"
 #endif
 
 namespace esphome {
@@ -86,7 +86,7 @@ uint8_t crc8(const uint8_t *data, uint8_t len, uint8_t crc, uint8_t poly, bool m
 uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t reverse_poly, bool refin, bool refout) {
 #ifdef USE_ESP32
   if (reverse_poly == 0x8408) {
-    crc = crc16_le(refin ? crc : (crc ^ 0xffff), data, len);
+    crc = esp_rom_crc16_le(refin ? crc : (crc ^ 0xffff), data, len);
     return refout ? crc : (crc ^ 0xffff);
   }
 #endif
@@ -126,7 +126,7 @@ uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t reverse
 uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t poly, bool refin, bool refout) {
 #if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32S2)
   if (poly == 0x1021) {
-    crc = crc16_be(refin ? crc : (crc ^ 0xffff), data, len);
+    crc = esp_rom_crc16_be(refin ? crc : (crc ^ 0xffff), data, len);
     return refout ? crc : (crc ^ 0xffff);
   }
 #endif
