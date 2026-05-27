@@ -388,6 +388,20 @@ def test_redact_with_legacy_fallback__deduplicates_warnings(
     assert len(password_warnings) == 1
 
 
+def test_redact_with_legacy_fallback__suppresses_warning_for_lambda(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Lambda values in cv.sensitive(cv.templatable(...)) fields hit the
+    legacy regex (Lambda isn't str so SensitiveStr tagging doesn't apply),
+    but the field IS tagged. The warning would mislead the author, so it's
+    suppressed; the first line still gets wrapped for visual parity."""
+    text = '          ssid: !lambda |-\n            return "x";\n'
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback(text)
+    assert "ssid: \\033[8m!lambda |-\\033[28m" in out
+    assert not any("legacy substring" in rec.message for rec in caplog.records)
+
+
 def test_redact_with_legacy_fallback__does_not_match_fragment_in_middle(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

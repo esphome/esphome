@@ -1441,8 +1441,15 @@ def _redact_with_legacy_fallback(output: str) -> str:
     unmarked: set[str] = set()
 
     def _replace(m: re.Match[str]) -> str:
-        unmarked.add(m.group("key"))
-        return f"{m.group('key')}: \\033[8m{m.group('val')}\\033[28m"
+        val = m.group("val")
+        # Lambda values in a ``cv.sensitive(cv.templatable(...))`` field still
+        # hit this branch because ``Lambda`` isn't a ``str`` and so doesn't
+        # carry the ``SensitiveStr`` tag. The field itself IS tagged; warning
+        # the author to add ``cv.sensitive`` would be misleading. Still wrap
+        # the first line so the user-visible output matches the prior regex.
+        if not val.startswith("!lambda"):
+            unmarked.add(m.group("key"))
+        return f"{m.group('key')}: \\033[8m{val}\\033[28m"
 
     output = _LEGACY_REDACTION_RE.sub(_replace, output)
     for key in sorted(unmarked):
