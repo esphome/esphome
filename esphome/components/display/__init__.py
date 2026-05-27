@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from esphome import automation, core
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
-from esphome.components.const import KEY_METADATA
+from esphome.components.const import BYTE_ORDER_BIG, KEY_METADATA
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
@@ -18,8 +18,7 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     SCHEDULER_DONT_RUN,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.cpp_generator import MockObj
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 
 DOMAIN = "display"
 IS_PLATFORM_COMPONENT = True
@@ -159,29 +158,71 @@ async def setup_display_core_(var, config):
 class DisplayMetaData:
     width: int = 0
     height: int = 0
-    has_writer: bool = False
     has_hardware_rotation: bool = False
+    byte_order: str = BYTE_ORDER_BIG
+    has_writer: bool = False
+    rotation: int = 0
+    draw_rounding: int = 0
+
+
+def _get_metadata_list() -> list[tuple]:
+    """Get the raw metadata list. Each entry is (id, DisplayMetaData)."""
+    return CORE.data.setdefault(DOMAIN, {}).setdefault(KEY_METADATA, [])
 
 
 def get_all_display_metadata() -> dict[str, DisplayMetaData]:
-    """Get all display metadata."""
-    return CORE.data.setdefault(DOMAIN, {}).setdefault(KEY_METADATA, {})
+    """Get all display metadata as a dict keyed by resolved ID strings.
+
+    Must not be called before IDs have been finalised.
+    """
+    entries = _get_metadata_list()
+    assert all(id_.id is not None for id_, _ in entries), (
+        "get_all_display_metadata called before display IDs have been resolved"
+    )
+    return {id_.id: meta for id_, meta in entries}
 
 
-def get_display_metadata(display_id: str) -> DisplayMetaData | None:
-    """Get display metadata by ID for use by other components."""
-    return get_all_display_metadata().get(display_id, DisplayMetaData())
+def get_display_metadata(display_id: str) -> DisplayMetaData:
+    """Get display metadata by ID string.
+
+    Must not be called before IDs have been finalised.
+    """
+    for id_, meta in _get_metadata_list():
+        assert id_.id is not None, (
+            "get_display_metadata called before display IDs have been resolved"
+        )
+        if id_.id == display_id:
+            return meta
+    return DisplayMetaData()
 
 
 def add_metadata(
-    id: str | MockObj,
+    id: ID,
     width: int,
     height: int,
-    has_writer: bool,
     has_hardware_rotation: bool = False,
+    byte_order: str = BYTE_ORDER_BIG,
+    has_writer: bool = False,
+    rotation: int = 0,
+    draw_rounding: int = 0,
 ):
-    get_all_display_metadata()[str(id)] = DisplayMetaData(
-        width, height, has_writer, has_hardware_rotation
+    entries = _get_metadata_list()
+    assert not any(existing_id is id for existing_id, _ in entries), (
+        f"Duplicate display metadata for ID {id}"
+    )
+    entries.append(
+        (
+            id,
+            DisplayMetaData(
+                width=width,
+                height=height,
+                has_hardware_rotation=has_hardware_rotation,
+                byte_order=byte_order,
+                has_writer=has_writer,
+                rotation=rotation,
+                draw_rounding=draw_rounding,
+            ),
+        )
     )
 
 

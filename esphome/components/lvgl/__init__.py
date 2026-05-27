@@ -7,6 +7,7 @@ import re
 from esphome.automation import Trigger, build_automation, validate_automation
 import esphome.codegen as cg
 from esphome.components.const import (
+    BYTE_ORDER_BIG,
     CONF_BYTE_ORDER,
     CONF_COLOR_DEPTH,
     CONF_DRAW_ROUNDING,
@@ -30,12 +31,10 @@ from esphome.components.image import (
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_AUTO_CLEAR_ENABLED,
     CONF_BUFFER_SIZE,
     CONF_ESPHOME,
     CONF_GROUP,
     CONF_ID,
-    CONF_LAMBDA,
     CONF_LOG_LEVEL,
     CONF_ON_IDLE,
     CONF_PAGES,
@@ -214,31 +213,50 @@ def multi_conf_validate(configs: list[dict]):
 
 
 def final_validation(config_list):
+    global_config = full_config.get()
+    # Resolve byte_order from display metadata before multi-config validation
+    for config in config_list:
+        display_byte_orders = set()
+        for display_id in config[df.CONF_DISPLAYS]:
+            meta = get_display_metadata(display_id.id)
+            if meta.byte_order:
+                display_byte_orders.add(meta.byte_order)
+        if len(display_byte_orders) > 1:
+            raise cv.Invalid(
+                "All displays configured for an LVGL instance must use the same byte_order"
+            )
+        if display_byte_orders:
+            display_order = next(iter(display_byte_orders))
+            if CONF_BYTE_ORDER in config:
+                if config[CONF_BYTE_ORDER] != display_order:
+                    LOGGER.warning(
+                        "LVGL byte_order '%s' does not match display byte_order '%s'",
+                        config[CONF_BYTE_ORDER],
+                        display_order,
+                    )
+            else:
+                config[CONF_BYTE_ORDER] = display_order
+        if CONF_BYTE_ORDER not in config:
+            config[CONF_BYTE_ORDER] = BYTE_ORDER_BIG
     if len(config_list) != 1:
         multi_conf_validate(config_list)
-    global_config = full_config.get()
     for config in config_list:
         if (pages := config.get(CONF_PAGES)) and all(p[df.CONF_SKIP] for p in pages):
             raise cv.Invalid("At least one page must not be skipped")
         for display_id in config[df.CONF_DISPLAYS]:
-            path = global_config.get_path_for_id(display_id)[:-1]
-            display = global_config.get_config_for_path(path)
-            if CONF_LAMBDA in display or CONF_PAGES in display:
+            meta = get_display_metadata(str(display_id))
+            if meta.has_writer:
                 raise cv.Invalid(
-                    "Using lambda: or pages: in display config is not compatible with LVGL"
+                    "Using lambda:, pages:, or auto_clear_enabled: true in display config is not compatible with LVGL"
                 )
             # treating 0 as false is intended here.
-            if display.get(CONF_ROTATION):
+            if meta.rotation:
                 raise cv.Invalid(
                     "use of 'rotation' in the display config is not compatible with LVGL, please set rotation in the LVGL config instead"
                 )
-            if display.get(CONF_AUTO_CLEAR_ENABLED) is True:
-                raise cv.Invalid(
-                    "Using auto_clear_enabled: true in display config not compatible with LVGL"
-                )
-            if draw_rounding := display.get(CONF_DRAW_ROUNDING):
+            if meta.draw_rounding:
                 config[CONF_DRAW_ROUNDING] = max(
-                    draw_rounding, config[CONF_DRAW_ROUNDING]
+                    meta.draw_rounding, config[CONF_DRAW_ROUNDING]
                 )
         buffer_frac = config[CONF_BUFFER_SIZE]
         if CORE.is_esp32 and buffer_frac > 0.5 and PSRAM_DOMAIN not in global_config:
@@ -583,7 +601,7 @@ LVGL_SCHEMA = cv.All(
                 cv.Optional(CONF_LOG_LEVEL, default="WARN"): cv.one_of(
                     *df.LV_LOG_LEVELS, upper=True
                 ),
-                cv.Optional(CONF_BYTE_ORDER, default="big_endian"): cv.one_of(
+                cv.Optional(CONF_BYTE_ORDER): cv.one_of(
                     "big_endian", "little_endian", lower=True
                 ),
                 cv.Optional(df.CONF_STYLE_DEFINITIONS): cv.ensure_list(
