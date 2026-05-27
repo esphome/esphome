@@ -27,6 +27,7 @@ from esphome.const import (
     SCHEDULER_DONT_RUN,
 )
 from esphome.core import CORE, HexInt, Lambda
+from esphome.yaml_util import SensitiveStr
 
 
 def test_check_not_templatable__invalid():
@@ -146,8 +147,6 @@ def test_sensitive__custom_inner_delegates_validation() -> None:
 
 
 def test_sensitive__wraps_string_result_in_sensitive_str() -> None:
-    from esphome.yaml_util import SensitiveStr
-
     validator = config_validation.sensitive()
     result = validator("hunter2")
 
@@ -157,8 +156,6 @@ def test_sensitive__wraps_string_result_in_sensitive_str() -> None:
 
 
 def test_sensitive__does_not_double_tag_already_sensitive() -> None:
-    from esphome.yaml_util import SensitiveStr
-
     # If the inner validator already returns a SensitiveStr (e.g., nested
     # cv.sensitive wrappers), re-tagging is a no-op rather than a new
     # SensitiveStr around the same value.

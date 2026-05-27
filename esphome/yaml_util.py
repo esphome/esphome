@@ -1013,7 +1013,7 @@ class ESPHomeDumper(yaml.SafeDumper):
             return self.represent_secret(value)
         return self.represent_scalar(tag="tag:yaml.org,2002:str", value=str(value))
 
-    def represent_sensitive(self, value):
+    def represent_sensitive(self, value: SensitiveStr) -> yaml.ScalarNode:
         # ``!secret`` references win: keep the original representation so the
         # dumped YAML round-trips back to ``!secret name`` instead of leaking
         # the resolved value.
