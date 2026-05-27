@@ -30,6 +30,7 @@ from esphome.__main__ import (
     command_analyze_memory,
     command_bundle,
     command_clean_all,
+    command_config,
     command_config_hash,
     command_rename,
     command_run,
@@ -397,6 +398,41 @@ def test_redact_with_legacy_fallback__does_not_match_fragment_in_middle(
         out = _redact_with_legacy_fallback("key_value_pair: abc\n")
     assert "\\033[8m" not in out
     assert not any("legacy substring" in rec.message for rec in caplog.records)
+
+
+def test_command_config__invokes_legacy_fallback_when_redacting(
+    tmp_path: Path, capfd: CaptureFixture[str]
+) -> None:
+    """``command_config`` runs the legacy fallback on the dumped output when
+    ``--show-secrets`` is off. Cover the wiring (not just the helper).
+    """
+    setup_core(tmp_path=tmp_path, config={"esphome": {"name": "test"}})
+    args = MockArgs()
+    args.show_secrets = False
+
+    result = command_config(args, {"wifi": {"password": "hunter2"}})
+
+    assert result == 0
+    output = capfd.readouterr().out
+    assert "\\033[8mhunter2\\033[28m" in output
+
+
+def test_command_config__show_secrets_skips_redaction(
+    tmp_path: Path, capfd: CaptureFixture[str]
+) -> None:
+    """With ``--show-secrets`` the helper isn't invoked and the value
+    renders raw.
+    """
+    setup_core(tmp_path=tmp_path, config={"esphome": {"name": "test"}})
+    args = MockArgs()
+    args.show_secrets = True
+
+    result = command_config(args, {"wifi": {"password": "hunter2"}})
+
+    assert result == 0
+    output = capfd.readouterr().out
+    assert "hunter2" in output
+    assert "\\033[8m" not in output
 
 
 def test_choose_upload_log_host_with_string_default() -> None:
