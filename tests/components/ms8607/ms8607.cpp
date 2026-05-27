@@ -19,6 +19,15 @@ class TestableMS8607Component : public MS8607Component {
 /// Create a CalibrationValues object with provided values, defaults to the
 /// "Example / Typical" values from datasheet:
 /// https://www.te.com/commerce/DocumentDelivery/DDEController?Action=showdoc&DocId=Data+Sheet%7FMS8607-02BA01%7FB3%7Fpdf%7FEnglish%7FENG_DS_MS8607-02BA01_B3.pdf%7FCAT-BLPS0018
+/*
+Note that calibration values read from my MS8607 are in the same range
+Pressure Sensitivity: 0xA932 == 43314
+Pressure Offset: 0xAC7F == 44159
+Pressure Sensitivity Temperature Coefficient: 0x6773 == 26483
+Pressure Offset Temperature Coefficient: 0x6DC3 == 28009
+Reference Temperature: 0x7691 == 30353
+Temperature Coefficient of Temperature: 0x6B04 == 27396
+*/
 static TestableMS8607Component::CalibrationValues create_calibration_values(uint16_t c1 = 46372, uint16_t c2 = 43981,
                                                                             uint16_t c3 = 29059, uint16_t c4 = 27842,
                                                                             uint16_t c5 = 31553, uint16_t c6 = 28165) {
@@ -91,6 +100,7 @@ TEST(MS8607Test, Category1_TemperatureCriticalBoundaries) {
   }
 
   // 7. Minimum Specified Temperature Before 2nd Order (-51.15°C)
+  // Note: I suspect this is out of range
   {
     uint32_t const d2_raw_temperature = 6290732;
     auto res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
@@ -105,11 +115,11 @@ TEST(MS8607Test, Category2_PressureCompensationMath) {
 
   // 1. Standard Mid-Scale Barometric Pressure (~1013 mbar @ 20°C)
   {
-    uint32_t const d1 = 8300000;
+    uint32_t const d1 = 6268671;
     uint32_t const d2_raw_temperature = calibration_values.reference_temperature << 8;
     auto temp_res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
     float const pressure = TestableMS8607Component::compensated_pressure(d1, calibration_values, temp_res);
-    EXPECT_NEAR(pressure, 1911.33f, 1e-2f);
+    EXPECT_NEAR(pressure, 1013.00f, 1e-2f);
   }
 
   // 2. Minimum Linear Pressure Limit (10 mbar)
