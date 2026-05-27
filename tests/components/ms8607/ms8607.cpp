@@ -34,10 +34,11 @@ static TestableMS8607Component::CalibrationValues create_calibration_values(uint
 
 TEST(MS8607Test, Category1_TemperatureCriticalBoundaries) {
   auto calibration_values = create_calibration_values();
+  uint32_t const reference_temperature = calibration_values.reference_temperature << 8;
 
   // 1. Exact Reference Temperature (20°C Standard Baseline)
   {
-    uint32_t const d2_raw_temperature = calibration_values.reference_temperature << 8;
+    uint32_t const d2_raw_temperature = reference_temperature;
     auto res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
     EXPECT_EQ(res.d_t, 0);
     EXPECT_EQ(res.first_order_temperature, 2000);
@@ -46,7 +47,7 @@ TEST(MS8607Test, Category1_TemperatureCriticalBoundaries) {
 
   // 2. Just Above Crossover (20.01°C)
   {
-    uint32_t const d2_raw_temperature = (calibration_values.reference_temperature << 8) + 2000;
+    uint32_t const d2_raw_temperature = reference_temperature + 2000;
     auto res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
     EXPECT_EQ(res.d_t, 2000);
     EXPECT_EQ(res.first_order_temperature, 2006);
@@ -55,38 +56,47 @@ TEST(MS8607Test, Category1_TemperatureCriticalBoundaries) {
 
   // 3. Just Below Crossover (19.99°C)
   {
-    uint32_t const d2_raw_temperature = (calibration_values.reference_temperature << 8) - 2000;
+    uint32_t const d2_raw_temperature = reference_temperature - 2000;
     auto res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
     EXPECT_EQ(res.d_t, -2000);
     EXPECT_EQ(res.first_order_temperature, 1993);
     EXPECT_NEAR(res.temperature_float, 19.93f, 1e-3f);
   }
 
-  // 4. Maximum Specified Temperature (+85°C)
+  // 4. Maximum Specified Temperature Before 2nd Order (+84.32°C)
   {
-    uint32_t const d2_raw_temperature = 12000000;
+    uint32_t const d2_raw_temperature = 10013516;
     auto res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
-    EXPECT_EQ(res.d_t, 3922432);
-    EXPECT_EQ(res.first_order_temperature, 15169);
-    EXPECT_NEAR(res.temperature_float, 148.90f, 1e-3f);
+    EXPECT_EQ(res.d_t, 1935948);
+    EXPECT_EQ(res.first_order_temperature, 8500);
+    EXPECT_NEAR(res.temperature_float, 84.32f, 1e-3f);
   }
 
-  // 5. Minimum Specified Temperature (-40°C)
+  // 5. Maximum Specified Temperature (+85°C)
   {
-    uint32_t const d2_raw_temperature = 2000000;
+    uint32_t const d2_raw_temperature = 10034215;
     auto res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
-    EXPECT_EQ(res.d_t, -6077568);
-    EXPECT_EQ(res.first_order_temperature, -18406);
-    EXPECT_NEAR(res.temperature_float, -313.06f, 1e-3f);
+    EXPECT_EQ(res.d_t, 1956647);
+    EXPECT_EQ(res.first_order_temperature, 8569);
+    EXPECT_NEAR(res.temperature_float, 85.00f, 1e-3f);
   }
 
-  // 6. Extreme Frost/Under-range Boundary (-50°C)
+  // 6. Minimum Specified Temperature (-40°C)
   {
-    uint32_t const d2_raw_temperature = 500000;
+    uint32_t const d2_raw_temperature = 6537387;
     auto res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
-    EXPECT_EQ(res.d_t, -7577568);
-    EXPECT_EQ(res.first_order_temperature, -23442);
-    EXPECT_NEAR(res.temperature_float, -434.95f, 1e-3f);
+    EXPECT_EQ(res.d_t, -1540181);
+    EXPECT_EQ(res.first_order_temperature, -3172);
+    EXPECT_NEAR(res.temperature_float, -40.00f, 1e-3f);
+  }
+
+  // 7. Minimum Specified Temperature Before 2nd Order (-51.15°C)
+  {
+    uint32_t const d2_raw_temperature = 6290732;
+    auto res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
+    EXPECT_EQ(res.d_t, -1786836);
+    EXPECT_EQ(res.first_order_temperature, -4000);
+    EXPECT_NEAR(res.temperature_float, -51.15f, 1e-3f);
   }
 }
 
