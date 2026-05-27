@@ -939,7 +939,7 @@ def _detect_variant(value):
     variant = value.get(CONF_VARIANT)
     if variant and board is None:
         # If variant is set, we can derive the board from it
-        # variant has already been validated against the known set
+        # variant has already been validated against the known set.
         # PlatformIO needs a real board name to find its board file; the
         # ESP-IDF toolchain only uses CONF_BOARD as the informational
         # ESPHOME_BOARD string, so synthesize one from the friendly variant
