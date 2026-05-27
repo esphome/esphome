@@ -1,7 +1,4 @@
 from esphome import automation, codegen as cg, config_validation as cv
-from esphome.components.lvgl.lvcode import LambdaContext, LvglComponent
-from esphome.components.lvgl.schemas import STYLE_PROPS
-from esphome.components.lvgl.types import LvAnimation, LvglAction, lv_color_t, lv_obj_t
 from esphome.config_validation import COMPONENT_SCHEMA
 from esphome.const import (
     CONF_ACCELERATION,
@@ -31,8 +28,9 @@ from .lv_validation import (
     lv_positive_float,
     lv_zero_to_one_float,
 )
-from .lvcode import LVGL_COMP_ARG
-from .types import lvgl_ns
+from .lvcode import LVGL_COMP_ARG, LambdaContext, LvglComponent
+from .schemas import STYLE_PROPS
+from .types import LvAnimation, LvglAction, lv_color_t, lv_obj_t, lvgl_ns
 from .widgets import get_widgets
 
 LvAnimationTimingRoundTrip = lvgl_ns.class_("LvAnimationTimingRoundTrip")
@@ -199,6 +197,7 @@ async def animations_to_code(config):
         },
         key=CONF_ID,
     ),
+    synchronous=True,
 )
 async def start_animation(config, action_id, template_arg, args):
     animations = config[CONF_ID]

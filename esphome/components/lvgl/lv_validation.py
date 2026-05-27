@@ -242,8 +242,7 @@ def get_component_colors(value):
 def color_retmapper(value):
     if isinstance(value, cv.Lambda):
         return cv.returning_lambda(value)
-    r, g, b = get_component_colors(value)
-    return literal(f"lv_color_make({r}, {g}, {b})")
+    return get_component_colors(value)
 
 
 lv_color = LValidator(color, ty.lv_color_t, retmapper=color_retmapper, animatable=True)
