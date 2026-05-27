@@ -1412,10 +1412,45 @@ def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
     if not CORE.verbose:
         config = strip_default_ids(config)
     output = yaml_util.dump(config, args.show_secrets)
+    if not args.show_secrets:
+        output = _redact_with_legacy_fallback(output)
     if not CORE.quiet:
         safe_print(output)
     _LOGGER.info("Configuration is valid!")
     return 0
+
+
+# Legacy substring redaction fallback. Catches sensitive-looking fields that
+# aren't yet tagged with ``cv.sensitive(...)`` so config dumps don't regress
+# for unmigrated/third-party schemas. Each match also logs a one-time
+# deprecation warning naming the field; this fallback is slated for removal
+# in 2026.12.0 once canonical sensitive fields are migrated.
+#
+# The negative lookahead ``(?!\\033\[8m)`` skips values already wrapped by the
+# SensitiveStr representer, so explicit tagging silences the warning.
+_LEGACY_REDACTION_RE = re.compile(
+    r"(?P<key>\w*(?:password|key|psk|ssid)\w*)\: (?!\\033\[8m)(?P<val>.+)"
+)
+_LEGACY_REDACTION_REMOVAL = "2026.12.0"
+
+
+def _redact_with_legacy_fallback(output: str) -> str:
+    unmarked: set[str] = set()
+
+    def _replace(m: re.Match[str]) -> str:
+        unmarked.add(m.group("key"))
+        return f"{m.group('key')}: \\033[8m{m.group('val')}\\033[28m"
+
+    output = _LEGACY_REDACTION_RE.sub(_replace, output)
+    for key in sorted(unmarked):
+        _LOGGER.warning(
+            "Field '%s' is being redacted by a legacy substring heuristic. "
+            "Mark this field's schema validator with cv.sensitive(...) for "
+            "deterministic redaction; the heuristic will be removed in %s.",
+            key,
+            _LEGACY_REDACTION_REMOVAL,
+        )
+    return output
 
 
 def command_config_hash(args: ArgsProtocol, config: ConfigType) -> int | None:

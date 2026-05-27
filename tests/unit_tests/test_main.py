@@ -22,6 +22,7 @@ from esphome.__main__ import (
     Purpose,
     _get_configured_xtal_freq,
     _make_crystal_freq_callback,
+    _redact_with_legacy_fallback,
     _resolve_network_devices,
     _validate_bootloader_binary,
     _validate_partition_table_binary,
@@ -338,6 +339,52 @@ def mock_ram_strings_analyzer() -> Generator[Mock]:
         mock_analyzer.generate_report.return_value = "Mock RAM Strings Report"
         mock_class.return_value = mock_analyzer
         yield mock_class
+
+
+def test_redact_with_legacy_fallback__wraps_unmarked_field(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Unmarked sensitive-shaped fields are redacted; a deprecation warning
+    is emitted naming the field."""
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback("password: hunter2\n")
+    assert "password: \\033[8mhunter2\\033[28m" in out
+    assert any(
+        "password" in rec.message and "cv.sensitive" in rec.message
+        for rec in caplog.records
+    )
+
+
+def test_redact_with_legacy_fallback__skips_already_wrapped(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Values already wrapped by the SensitiveStr representer don't trigger
+    the heuristic or the warning."""
+    wrapped = "password: \\033[8mhunter2\\033[28m\n"
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback(wrapped)
+    assert out == wrapped
+    assert not any("legacy substring" in rec.message for rec in caplog.records)
+
+
+def test_redact_with_legacy_fallback__captures_full_field_name(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The warning names the actual field, not just the matched fragment."""
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        _redact_with_legacy_fallback("encryption_key: abc\n")
+    assert any("encryption_key" in rec.message for rec in caplog.records)
+
+
+def test_redact_with_legacy_fallback__deduplicates_warnings(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """One warning per unique field name even if it appears many times."""
+    text = "password: a\npassword: b\npassword: c\n"
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        _redact_with_legacy_fallback(text)
+    password_warnings = [rec for rec in caplog.records if "'password'" in rec.message]
+    assert len(password_warnings) == 1
 
 
 def test_choose_upload_log_host_with_string_default() -> None:
