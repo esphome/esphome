@@ -45,7 +45,7 @@ TEST(MS8607Test, Category1_TemperatureCriticalBoundaries) {
   auto calibration_values = create_calibration_values();
   uint32_t const reference_temperature = calibration_values.reference_temperature << 8;
 
-  // 1. Exact Reference Temperature (20°C Standard Baseline)
+  // Exact Reference Temperature (20°C Standard Baseline)
   {
     uint32_t const d2_raw_temperature = reference_temperature;
     auto res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
@@ -54,7 +54,7 @@ TEST(MS8607Test, Category1_TemperatureCriticalBoundaries) {
     EXPECT_NEAR(res.temperature_float, 20.0f, 1e-3f);
   }
 
-  // 2. Just Above Crossover (20.01°C)
+  // Just Above Crossover (20.01°C)
   {
     uint32_t const d2_raw_temperature = reference_temperature + 2000;
     auto res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
@@ -63,7 +63,7 @@ TEST(MS8607Test, Category1_TemperatureCriticalBoundaries) {
     EXPECT_NEAR(res.temperature_float, 20.06f, 1e-3f);
   }
 
-  // 3. Just Below Crossover (19.99°C)
+  // Just Below Crossover (19.99°C)
   {
     uint32_t const d2_raw_temperature = reference_temperature - 2000;
     auto res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
@@ -72,7 +72,7 @@ TEST(MS8607Test, Category1_TemperatureCriticalBoundaries) {
     EXPECT_NEAR(res.temperature_float, 19.93f, 1e-3f);
   }
 
-  // 4. Maximum Specified Temperature Before 2nd Order (+84.32°C)
+  // Maximum Specified Temperature Before 2nd Order (+84.32°C)
   {
     uint32_t const d2_raw_temperature = 10013516;
     auto res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
@@ -81,7 +81,7 @@ TEST(MS8607Test, Category1_TemperatureCriticalBoundaries) {
     EXPECT_NEAR(res.temperature_float, 84.32f, 1e-3f);
   }
 
-  // 5. Maximum Specified Temperature (+85°C)
+  // Maximum Specified Temperature (+85°C)
   {
     uint32_t const d2_raw_temperature = 10034215;
     auto res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
@@ -90,7 +90,7 @@ TEST(MS8607Test, Category1_TemperatureCriticalBoundaries) {
     EXPECT_NEAR(res.temperature_float, 85.00f, 1e-3f);
   }
 
-  // 6. Minimum Specified Temperature (-40°C)
+  // Minimum Specified Temperature (-40°C)
   {
     uint32_t const d2_raw_temperature = 6537387;
     auto res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
@@ -99,7 +99,7 @@ TEST(MS8607Test, Category1_TemperatureCriticalBoundaries) {
     EXPECT_NEAR(res.temperature_float, -40.00f, 1e-3f);
   }
 
-  // 7. Minimum Specified Temperature Before 2nd Order (-51.15°C)
+  // Minimum Specified Temperature Before 2nd Order (-51.15°C)
   // Note: I suspect this is out of range
   {
     uint32_t const d2_raw_temperature = 6290732;
@@ -119,76 +119,76 @@ float test_pressure_helper(const uint32_t d1, const uint32_t d2,
 TEST(MS8607Test, Category2_PressureCompensationMath) {
   auto calibration_values = create_calibration_values();
 
-  // 1. Standard Mid-Scale Barometric Pressure (~1013 mbar @ 20°C)
+  // Standard Mid-Scale Barometric Pressure (~1013 mbar @ 20°C)
   {
     float const pressure =
         test_pressure_helper(6268671, calibration_values.reference_temperature << 8, calibration_values);
     EXPECT_NEAR(pressure, 1013.00f, 1e-2f);
   }
 
-  // 2. Lowest Pressure at Reference Temp (10 mbar @ 20°C)
+  // Lowest Pressure at Reference Temp (10 mbar @ 20°C)
   {
     float const pressure =
         test_pressure_helper(4000671, calibration_values.reference_temperature << 8, calibration_values);
     EXPECT_NEAR(pressure, 10.00f, 1e-2f);
   }
 
-  // 3. Highest Pressure at Reference Temp (1200 mbar @ 20°C)
+  // Highest Pressure at Reference Temp (1200 mbar @ 20°C)
   {
     float const pressure =
         test_pressure_helper(6691519, calibration_values.reference_temperature << 8, calibration_values);
     EXPECT_NEAR(pressure, 1200.00f, 1e-2f);
   }
 
-  // 4. Lowest Pressure at Lowest Temperature (10 mbar @ -40°C)
+  // Lowest Pressure at Lowest Temperature (10 mbar @ -40°C)
   {
     float const pressure = test_pressure_helper(3991039, 6537387, calibration_values);
     EXPECT_NEAR(pressure, 10.00f, 1e-2f);
   }
 
-  // 5. Sea Level Pressure at Lowest Temperature (1013 mbar @ -40°C)
+  // Sea Level Pressure at Lowest Temperature (1013 mbar @ -40°C)
   {
     float const pressure = test_pressure_helper(6626079, 6537387, calibration_values);
     EXPECT_NEAR(pressure, 1013.00f, 1e-2f);
   }
 
-  // 6. Highest Pressure at Lowest Temperature (1200 mbar @ -40°C)
+  // Highest Pressure at Lowest Temperature (1200 mbar @ -40°C)
   {
     float const pressure = test_pressure_helper(7117343, 6537387, calibration_values);
     EXPECT_NEAR(pressure, 1200.00f, 1e-2f);
   }
 
-  // 7. Lowest Pressure at Highest Temperature (10 mbar @ +85°C)
+  // Lowest Pressure at Highest Temperature (10 mbar @ +85°C)
   {
     float const pressure = test_pressure_helper(4002959, 10034215, calibration_values);
     EXPECT_NEAR(pressure, 10.00f, 1e-2f);
   }
 
-  // 8. Sea Level Pressure at Highest Temperature (1013 mbar @ 85°C)
+  // Sea Level Pressure at Highest Temperature (1013 mbar @ 85°C)
   {
     float const pressure = test_pressure_helper(5981727, 10034215, calibration_values);
     EXPECT_NEAR(pressure, 1013.00f, 1e-2f);
   }
 
-  // 9. Highest Pressure at Highest Temperature (1200 mbar @ +85°C)
+  // Highest Pressure at Highest Temperature (1200 mbar @ +85°C)
   {
     float const pressure = test_pressure_helper(6350655, 10034215, calibration_values);
     EXPECT_NEAR(pressure, 1200.00f, 1e-2f);
   }
 
-  // 10. Lowest Pressure at Below Reference Temperature (10 mbar @ +0°C)
+  // Lowest Pressure at Below Reference Temperature (10 mbar @ +0°C)
   {
     float const pressure = test_pressure_helper(3998959, 7514695, calibration_values);
     EXPECT_NEAR(pressure, 10.00f, 1e-2f);
   }
 
-  // 11. Sea Level Pressure at Below Reference Temperature (1013 mbar @ +0°C)
+  // Sea Level Pressure at Below Reference Temperature (1013 mbar @ +0°C)
   {
     float const pressure = test_pressure_helper(6371807, 7514695, calibration_values);
     EXPECT_NEAR(pressure, 1013.00f, 1e-2f);
   }
 
-  // 12. Highest Pressure at at Below Reference Temperature (1200 mbar @ +0°C)
+  // Highest Pressure at at Below Reference Temperature (1200 mbar @ +0°C)
   {
     float const pressure = test_pressure_helper(6814191, 7514695, calibration_values);
     EXPECT_NEAR(pressure, 1200.00f, 1e-2f);
@@ -271,7 +271,7 @@ TEST(MS8607Test, Category4_MathematicalEdgeCases) {
     EXPECT_NEAR(hum, -95.8344f, 1e-2f);
   }
 
-  // 2. All Max Raw Input State (Fault / Line Floating simulation)
+  // All Max Raw Input State (Fault / Line Floating simulation)
   {
     auto calibration_values = create_calibration_values();
     uint32_t const d1 = 16777215;
@@ -287,7 +287,7 @@ TEST(MS8607Test, Category4_MathematicalEdgeCases) {
     EXPECT_NEAR(hum, 168.0691f, 1e-2f);
   }
 
-  // 3. Maximum Positive dT Matrix Deviation
+  // Maximum Positive dT Matrix Deviation
   {
     auto calibration_values = create_calibration_values();
     uint32_t const d2_raw_temperature = 16777215;
@@ -296,7 +296,7 @@ TEST(MS8607Test, Category4_MathematicalEdgeCases) {
     EXPECT_NEAR(res.temperature_float, 298.33f, 1e-2f);
   }
 
-  // 4. Maximum Negative dT Matrix Deviation
+  // Maximum Negative dT Matrix Deviation
   {
     auto calibration_values = create_calibration_values();
     uint32_t const d2_raw_temperature = 1;
@@ -305,7 +305,7 @@ TEST(MS8607Test, Category4_MathematicalEdgeCases) {
     EXPECT_NEAR(res.temperature_float, -479.08f, 1e-2f);
   }
 
-  // 5. Sensitivity Scaling Overflow Point (C coefficients manually adjusted to max 65535)
+  // Sensitivity Scaling Overflow Point (C coefficients manually adjusted to max 65535)
   {
     auto calibration_values = create_calibration_values(65535, 65535, 65535, 65535, 65535, 65535);
     uint32_t const d1 = 16777215;
@@ -322,7 +322,7 @@ TEST(MS8607Test, Category4_MathematicalEdgeCases) {
 TEST(MS8607Test, Category5_DynamicSwingsAndEnvironmentalCrossStress) {
   auto calibration_values = create_calibration_values();
 
-  // 1. High Altitude / Severe Cold (e.g., Weather Balloon Profile)
+  // High Altitude / Severe Cold (e.g., Weather Balloon Profile)
   {
     uint32_t const d1 = 10000;
     uint32_t const d2_raw_temperature = 1500000;
@@ -337,7 +337,7 @@ TEST(MS8607Test, Category5_DynamicSwingsAndEnvironmentalCrossStress) {
     EXPECT_NEAR(hum, -69.9219f, 1e-2f);
   }
 
-  // 2. Hyperbaric Chamber / Tropical Heat Wave
+  // Hyperbaric Chamber / Tropical Heat Wave
   {
     uint32_t const d1 = 15000000;
     uint32_t const d2_raw_temperature = 11500000;
@@ -352,7 +352,7 @@ TEST(MS8607Test, Category5_DynamicSwingsAndEnvironmentalCrossStress) {
     EXPECT_NEAR(hum, 132.365f, 1e-2f);
   }
 
-  // 3. Rapid Freeze-Drying State Transition
+  // Rapid Freeze-Drying State Transition
   {
     uint32_t const d1 = 50000;
     uint32_t const d2_raw_temperature = 2500000;
