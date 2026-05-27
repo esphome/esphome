@@ -135,6 +135,16 @@ def _validate(config):
     return config
 
 
+def _reject_esp32(config: ConfigType) -> ConfigType:
+    if CORE.is_esp32:
+        raise cv.Invalid(
+            "'neopixelbus' is no longer supported on ESP32. Use the "
+            "'esp32_rmt_led_strip' light platform instead: "
+            "https://esphome.io/components/light/esp32_rmt_led_strip/"
+        )
+    return config
+
+
 def _validate_method(value):
     if value is None:
         # default method is determined afterwards because it depends on the chip type chosen
@@ -165,16 +175,6 @@ def _validate_method(value):
     return cv.typed_schema(
         {k: v.method_schema for k, v in METHODS.items()}, lower=True
     )(value)
-
-
-def _reject_esp32(config: ConfigType) -> ConfigType:
-    if CORE.is_esp32:
-        raise cv.Invalid(
-            "'neopixelbus' is no longer supported on ESP32. Use the "
-            "'esp32_rmt_led_strip' light platform instead: "
-            "https://esphome.io/components/light/esp32_rmt_led_strip/"
-        )
-    return config
 
 
 CONFIG_SCHEMA = cv.All(
