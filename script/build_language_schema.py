@@ -39,7 +39,11 @@ parser.add_argument(
 )
 parser.add_argument("--check", action="store_true", help="Check only for CI")
 
-args = parser.parse_args()
+# Module-level ``Namespace`` so helper functions can reference ``args``
+# without threading it through every call. ``main()`` fills it via
+# ``parser.parse_args(namespace=args)``; tests import this module without
+# invoking ``main()`` and rely on the defaults below.
+args = argparse.Namespace(output_path=".", check=False)
 
 DUMP_RAW = False
 DUMP_UNKNOWN = False
@@ -850,6 +854,12 @@ def convert(schema, config_var, path):
             convert(ext, config_var, f"{path}/ext{idx}")
         return
 
+    if isinstance(schema, cv.SensitiveValidator):
+        config_var["sensitive"] = True
+        config_var["sensitive_source"] = "explicit"
+        convert(schema.inner, config_var, f"{path}/sensitive")
+        return
+
     if isinstance(schema, cv.All):
         i = 0
         for inner in schema.validators:
@@ -1125,6 +1135,25 @@ def convert_keys(converted, schema, path):
 
         # Do value
         convert(v, result, path + f"/{str(k)}")
+
+        # Heuristic fallback when the field's validator wasn't explicitly
+        # wrapped in ``cv.sensitive``. Only applies to string-typed leaves so
+        # we don't mark unrelated nested schemas. ``sensitive_source`` lets
+        # consumers distinguish explicit markers from heuristic matches. Pull
+        # the field name from ``k.schema`` (voluptuous's stored key) rather
+        # than ``str(k)`` so we don't depend on the marker's ``__str__``
+        # representation.
+        if (
+            "sensitive" not in result
+            and result.get(S_TYPE) == "string"
+            and isinstance(k, (cv.Required, cv.Optional, cv.Inclusive, cv.Exclusive))
+            and isinstance(k.schema, str)
+        ):
+            key_lower = k.schema.lower()
+            if any(frag in key_lower for frag in cv.SENSITIVE_KEY_FRAGMENTS):
+                result["sensitive"] = True
+                result["sensitive_source"] = "heuristic"
+
         if "schema" not in converted:
             converted[S_TYPE] = "schema"
             converted["schema"] = {S_CONFIG_VARS: {}}
@@ -1142,4 +1171,10 @@ def convert_keys(converted, schema, path):
             config_vars["string"] = config_vars.pop(key)
 
 
-build_schema()
+def main() -> None:
+    parser.parse_args(namespace=args)
+    build_schema()
+
+
+if __name__ == "__main__":
+    main()

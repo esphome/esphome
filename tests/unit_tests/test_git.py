@@ -1,8 +1,8 @@
 """Tests for git.py module."""
 
-from datetime import datetime, timedelta
 import os
 from pathlib import Path
+import time
 from typing import Any
 from unittest.mock import Mock, patch
 
@@ -34,9 +34,9 @@ def _setup_old_repo(repo_dir: Path, days_old: int = 2) -> None:
     # Create FETCH_HEAD file with old timestamp
     fetch_head = git_dir / "FETCH_HEAD"
     fetch_head.write_text("test")
-    old_time = datetime.now() - timedelta(days=days_old)
+    old_time = time.time() - days_old * 86400
     fetch_head.touch()
-    os.utime(fetch_head, (old_time.timestamp(), old_time.timestamp()))
+    os.utime(fetch_head, (old_time, old_time))
 
 
 def _get_git_command_type(cmd: list[str]) -> str | None:
@@ -285,10 +285,10 @@ def test_clone_or_update_with_refresh_updates_old_repo(
     # Create FETCH_HEAD file with old timestamp (2 days ago)
     fetch_head = git_dir / "FETCH_HEAD"
     fetch_head.write_text("test")
-    old_time = datetime.now() - timedelta(days=2)
+    old_time = time.time() - 2 * 86400
     fetch_head.touch()  # Create the file
     # Set modification time to 2 days ago
-    os.utime(fetch_head, (old_time.timestamp(), old_time.timestamp()))
+    os.utime(fetch_head, (old_time, old_time))
 
     # Mock git command responses
     mock_run_git_command.return_value = "abc123"  # SHA for rev-parse
@@ -333,10 +333,10 @@ def test_clone_or_update_with_refresh_skips_fresh_repo(
     # Create FETCH_HEAD file with recent timestamp (1 hour ago)
     fetch_head = git_dir / "FETCH_HEAD"
     fetch_head.write_text("test")
-    recent_time = datetime.now() - timedelta(hours=1)
+    recent_time = time.time() - 3600
     fetch_head.touch()  # Create the file
     # Set modification time to 1 hour ago
-    os.utime(fetch_head, (recent_time.timestamp(), recent_time.timestamp()))
+    os.utime(fetch_head, (recent_time, recent_time))
 
     # Call with refresh=1d (1 day)
     refresh = TimePeriodSeconds(days=1)
@@ -409,10 +409,10 @@ def test_clone_or_update_with_none_refresh_always_updates(
     # Create FETCH_HEAD file with very recent timestamp (1 second ago)
     fetch_head = git_dir / "FETCH_HEAD"
     fetch_head.write_text("test")
-    recent_time = datetime.now() - timedelta(seconds=1)
+    recent_time = time.time() - 1
     fetch_head.touch()  # Create the file
     # Set modification time to 1 second ago
-    os.utime(fetch_head, (recent_time.timestamp(), recent_time.timestamp()))
+    os.utime(fetch_head, (recent_time, recent_time))
 
     # Mock git command responses
     mock_run_git_command.return_value = "abc123"  # SHA for rev-parse

@@ -56,7 +56,7 @@ from esphome.types import ConfigType
 from esphome.writer import clean_build, clean_cmake_cache
 
 from .boards import BOARDS, STANDARD_BOARDS
-from .const import (  # noqa
+from .const import (
     KEY_ARDUINO_LIBRARIES,
     KEY_BOARD,
     KEY_COMPONENTS,
@@ -86,7 +86,7 @@ from .const import (  # noqa
 )
 
 # force import gpio to register pin schema
-from .gpio import esp32_pin_to_code  # noqa
+from .gpio import esp32_pin_to_code  # noqa: F401
 
 _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["preferences"]
@@ -2683,7 +2683,7 @@ def _decode_pc(config, addr):
     command = [str(addr2line_path), "-pfiaC", "-e", str(firmware_elf_path), addr]
     try:
         translation = subprocess.check_output(command, close_fds=False).decode().strip()
-    except Exception:  # pylint: disable=broad-except
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-except
         _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
         return
 

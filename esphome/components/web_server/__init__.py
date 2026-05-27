@@ -193,8 +193,8 @@ CONFIG_SCHEMA = cv.All(
                     cv.Required(CONF_USERNAME): cv.All(
                         cv.string_strict, cv.Length(min=1)
                     ),
-                    cv.Required(CONF_PASSWORD): cv.All(
-                        cv.string_strict, cv.Length(min=1)
+                    cv.Required(CONF_PASSWORD): cv.sensitive(
+                        cv.All(cv.string_strict, cv.Length(min=1))
                     ),
                 }
             ),

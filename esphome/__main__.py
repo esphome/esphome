@@ -639,7 +639,7 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
                         chunk = ser.read(ser.in_waiting or 1)
                         if not chunk:
                             continue
-                        time_ = datetime.now()
+                        time_ = datetime.now().astimezone()
                         milliseconds = time_.microsecond // 1000
                         time_str = f"[{time_.hour:02}:{time_.minute:02}:{time_.second:02}.{milliseconds:03}]"
 
@@ -1800,7 +1800,7 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
         ram_report = ram_analyzer.generate_report()
         print()
         print(ram_report)
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception as e:  # noqa: BLE001  # pylint: disable=broad-except
         _LOGGER.warning("RAM strings analysis failed: %s", e)
 
     return 0

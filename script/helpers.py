@@ -103,9 +103,7 @@ def get_component_from_path(file_path: str) -> str | None:
     Returns:
         Component name if path is in components or tests directory, None otherwise
     """
-    if file_path.startswith(ESPHOME_COMPONENTS_PATH) or file_path.startswith(
-        ESPHOME_TESTS_COMPONENTS_PATH
-    ):
+    if file_path.startswith((ESPHOME_COMPONENTS_PATH, ESPHOME_TESTS_COMPONENTS_PATH)):
         parts = file_path.split("/")
         if len(parts) >= 3 and parts[2]:
             # Verify that parts[2] is actually a component directory, not a file
@@ -160,7 +158,7 @@ def is_validate_only_file(test_file: Path) -> bool:
     ``esphome config`` only and skipped during compile.
     """
     name = test_file.name
-    return name.startswith("validate.") or name.startswith("validate-")
+    return name.startswith(("validate.", "validate-"))
 
 
 @dataclass(frozen=True)
