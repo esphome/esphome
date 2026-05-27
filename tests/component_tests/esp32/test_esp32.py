@@ -49,8 +49,8 @@ def test_esp32_config(
     # Run under the ESP-IDF toolchain so variants without an entry in
     # STANDARD_BOARDS (S31, H4, H21) still derive a board name from
     # VARIANT_FRIENDLY rather than failing with cv.Invalid. CORE.toolchain
-    # gets pinned to PLATFORMIO by the first CONFIG_SCHEMA() call above
-    # (via _check_versions) and that pinned value wins over the dict's
+    # gets pinned by the first CONFIG_SCHEMA() call above (via
+    # _resolve_toolchain) and that pinned value wins over the dict's
     # CONF_TOOLCHAIN, so clear it between iterations to mirror a fresh
     # config run.
     for variant in VARIANTS:

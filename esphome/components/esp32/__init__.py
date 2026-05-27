@@ -913,11 +913,16 @@ def _validate_toolchain(value) -> Toolchain:
     return Toolchain(cv.one_of(*(t.value for t in Toolchain), lower=True)(value))
 
 
-def _check_versions(config):
+def _resolve_toolchain(value):
     # Resolve toolchain: CLI (already on CORE.toolchain) > YAML > default.
+    # Runs before _detect_variant so downstream validators can rely on
+    # CORE.toolchain instead of re-resolving it from the config dict.
     if CORE.toolchain is None:
-        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.PLATFORMIO)
+        CORE.toolchain = value.get(CONF_TOOLCHAIN, Toolchain.PLATFORMIO)
+    return value
 
+
+def _check_versions(config):
     if CORE.using_toolchain_esp_idf:
         return _check_esp_idf_versions(config)
     return _check_pio_versions(config)
@@ -944,10 +949,7 @@ def _detect_variant(value):
         # ESP-IDF toolchain only uses CONF_BOARD as the informational
         # ESPHOME_BOARD string, so synthesize one from the friendly variant
         # name rather than carrying a PIO board name through the IDF build.
-        resolved_toolchain = Toolchain(
-            CORE.toolchain or value.get(CONF_TOOLCHAIN, Toolchain.PLATFORMIO)
-        )
-        if resolved_toolchain == Toolchain.ESP_IDF:
+        if CORE.using_toolchain_esp_idf:
             value = value.copy()
             value[CONF_BOARD] = VARIANT_FRIENDLY[variant].lower()
             return value
@@ -1629,6 +1631,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ),
+    _resolve_toolchain,
     _detect_variant,
     _set_default_framework,
     _check_versions,
