@@ -11,9 +11,8 @@
 
 namespace esphome::socket {
 
+#ifndef USE_LWIP_FAST_SELECT
 #ifdef USE_HOST
-// Shared ready() implementation for fd-based socket implementations (BSD and LWIP sockets).
-// Checks if the host wake select() loop has marked this fd as ready.
 bool socket_ready_fd(int fd, bool loop_monitored) { return !loop_monitored || wake_fd_ready(fd); }
 #else
 // TODO: busy-polls on nRF52 — every loop iteration will attempt a read() syscall.
@@ -21,6 +20,7 @@ bool socket_ready_fd(int fd, bool loop_monitored) { return !loop_monitored || wa
 // yield or delay-based approach would reduce idle CPU usage.
 bool socket_ready_fd(int fd, bool loop_monitored) { return true; }
 #endif
+#endif  // USE_LWIP_FAST_SELECT
 
 // Platform-specific inet_ntop wrappers
 #if defined(USE_SOCKET_IMPL_LWIP_TCP)
