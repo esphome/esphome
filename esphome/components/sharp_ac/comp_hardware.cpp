@@ -184,12 +184,12 @@ void SharpAc::control(const ClimateCall &call) {
   if (call.get_mode().has_value()) {
     ClimateMode new_mode = call.get_mode().value();
     ESP_LOGD("sharp_ac", "Setting mode: %d (%s)", (int) new_mode,
-             new_mode == ClimateMode::CLIMATE_MODE_OFF      ? "OFF"
-             : new_mode == ClimateMode::CLIMATE_MODE_COOL   ? "COOL"
-             : new_mode == ClimateMode::CLIMATE_MODE_HEAT   ? "HEAT"
-             : new_mode == ClimateMode::CLIMATE_MODE_DRY    ? "DRY"
+             new_mode == ClimateMode::CLIMATE_MODE_OFF        ? "OFF"
+             : new_mode == ClimateMode::CLIMATE_MODE_COOL     ? "COOL"
+             : new_mode == ClimateMode::CLIMATE_MODE_HEAT     ? "HEAT"
+             : new_mode == ClimateMode::CLIMATE_MODE_DRY      ? "DRY"
              : new_mode == ClimateMode::CLIMATE_MODE_FAN_ONLY ? "FAN"
-                                                             : "UNKNOWN");
+                                                              : "UNKNOWN");
 
     switch (new_mode) {
       case ClimateMode::CLIMATE_MODE_OFF:
