@@ -52,6 +52,16 @@ _load_listeners: list[Callable[[Path], None]] = []
 DocumentPath = list[str | int]
 
 
+class SensitiveStr(str):
+    """Marker subclass for validated strings that should be masked in
+    user-visible YAML output. ``cv.sensitive`` wraps validated values in this
+    type so ``dump()`` can render them with ANSI conceal codes without
+    needing a post-process regex.
+    """
+
+    __slots__ = ()
+
+
 @contextmanager
 def track_yaml_loads() -> Generator[list[Path]]:
     """Context manager that records every file loaded by the YAML loader.
@@ -808,11 +818,18 @@ def dump(dict_, show_secrets=False, sort_keys=False):
     if show_secrets:
         _SECRET_VALUES.clear()
         _SECRET_CACHE.clear()
+
+    # Per-call subclass so the redaction flag lives on the dumper class itself,
+    # not in module-level mutable state. Cheap (one type object per call),
+    # encapsulated, and thread-safe by construction.
+    class _Dumper(ESPHomeDumper):
+        _redact_sensitive = not show_secrets
+
     return yaml.dump(
         dict_,
         default_flow_style=False,
         allow_unicode=True,
-        Dumper=ESPHomeDumper,
+        Dumper=_Dumper,
         sort_keys=sort_keys,
     )
 
@@ -958,6 +975,10 @@ def format_path(path: DocumentPath, current_obj: Any) -> str:
 
 
 class ESPHomeDumper(yaml.SafeDumper):
+    # Default for the base class; per-call subclass in ``dump()`` overrides.
+    # When True, ``represent_sensitive`` wraps values in ANSI conceal codes.
+    _redact_sensitive: bool = False
+
     def represent_mapping(self, tag, mapping, flow_style=None):
         value = []
         node = yaml.MappingNode(tag, value, flow_style=flow_style)
@@ -990,6 +1011,23 @@ class ESPHomeDumper(yaml.SafeDumper):
     def represent_stringify(self, value):
         if is_secret(value):
             return self.represent_secret(value)
+        return self.represent_scalar(tag="tag:yaml.org,2002:str", value=str(value))
+
+    def represent_sensitive(self, value):
+        # ``!secret`` references win: keep the original representation so the
+        # dumped YAML round-trips back to ``!secret name`` instead of leaking
+        # the resolved value.
+        if is_secret(value):
+            return self.represent_secret(value)
+        if self._redact_sensitive:
+            # Emit the conceal sequence as literal ``\033`` text (not actual
+            # ESC bytes) so the dump matches the previous regex-based output
+            # and downstream consumers like device-builder, which match
+            # ``\033[8m...\033[28m`` against the rendered text, keep working.
+            return self.represent_scalar(
+                tag="tag:yaml.org,2002:str",
+                value=f"\\033[8m{value}\\033[28m",
+            )
         return self.represent_scalar(tag="tag:yaml.org,2002:str", value=str(value))
 
     # pylint: disable=arguments-renamed
@@ -1063,6 +1101,9 @@ ESPHomeDumper.add_multi_representer(
 )
 ESPHomeDumper.add_multi_representer(bool, ESPHomeDumper.represent_bool)
 ESPHomeDumper.add_multi_representer(str, ESPHomeDumper.represent_stringify)
+# Registered after ``str`` so ``add_multi_representer``'s MRO lookup prefers
+# the more specific ``SensitiveStr`` representer over the bare-``str`` one.
+ESPHomeDumper.add_multi_representer(SensitiveStr, ESPHomeDumper.represent_sensitive)
 ESPHomeDumper.add_multi_representer(int, ESPHomeDumper.represent_int)
 ESPHomeDumper.add_multi_representer(float, ESPHomeDumper.represent_float)
 ESPHomeDumper.add_multi_representer(_BaseAddress, ESPHomeDumper.represent_stringify)

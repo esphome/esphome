@@ -1412,11 +1412,6 @@ def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
     if not CORE.verbose:
         config = strip_default_ids(config)
     output = yaml_util.dump(config, args.show_secrets)
-    # add the console decoration so the front-end can hide the secrets
-    if not args.show_secrets:
-        output = re.sub(
-            r"(password|key|psk|ssid)\: (.+)", r"\1: \\033[8m\2\\033[28m", output
-        )
     if not CORE.quiet:
         safe_print(output)
     _LOGGER.info("Configuration is valid!")

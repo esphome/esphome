@@ -271,7 +271,7 @@ EAP_AUTH_SCHEMA = cv.All(
 WIFI_NETWORK_BASE = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(WiFiAP),
-        cv.Optional(CONF_SSID): cv.ssid,
+        cv.Optional(CONF_SSID): cv.sensitive(cv.ssid),
         cv.Optional(CONF_PASSWORD): cv.sensitive(validate_password),
         cv.Optional(CONF_CHANNEL): validate_channel,
         cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
@@ -434,7 +434,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_NETWORKS): cv.All(
                 cv.ensure_list(WIFI_NETWORK_STA), cv.Length(max=MAX_WIFI_NETWORKS)
             ),
-            cv.Optional(CONF_SSID): cv.ssid,
+            cv.Optional(CONF_SSID): cv.sensitive(cv.ssid),
             cv.Optional(CONF_PASSWORD): cv.sensitive(validate_password),
             cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
             cv.Optional(CONF_EAP): EAP_AUTH_SCHEMA,
@@ -850,7 +850,7 @@ async def final_step():
     WiFiConfigureAction,
     cv.Schema(
         {
-            cv.Required(CONF_SSID): cv.templatable(cv.ssid),
+            cv.Required(CONF_SSID): cv.sensitive(cv.templatable(cv.ssid)),
             cv.Required(CONF_PASSWORD): cv.sensitive(cv.templatable(validate_password)),
             cv.Optional(CONF_SAVE, default=True): cv.templatable(cv.boolean),
             cv.Optional(CONF_TIMEOUT, default="30000ms"): cv.templatable(
