@@ -267,7 +267,7 @@ class StorageJSON:
     def load(path: Path) -> StorageJSON | None:
         try:
             return StorageJSON._load_impl(path)
-        except Exception:  # pylint: disable=broad-except
+        except Exception:  # noqa: BLE001  # pylint: disable=broad-except
             return None
 
     def apply_to_core(self) -> None:
@@ -342,7 +342,7 @@ class EsphomeStorageJSON:
             return datetime.strptime(  # noqa: DTZ007
                 self.last_update_check_str, "%Y-%m-%dT%H:%M:%S"
             )
-        except Exception:  # pylint: disable=broad-except
+        except Exception:  # noqa: BLE001  # pylint: disable=broad-except
             return None
 
     @last_update_check.setter
@@ -371,7 +371,7 @@ class EsphomeStorageJSON:
     def load(path: str) -> EsphomeStorageJSON | None:
         try:
             return EsphomeStorageJSON._load_impl(path)
-        except Exception:  # pylint: disable=broad-except
+        except Exception:  # noqa: BLE001  # pylint: disable=broad-except
             return None
 
     @staticmethod

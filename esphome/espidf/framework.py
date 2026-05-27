@@ -783,7 +783,7 @@ def download_from_mirrors(
                 f.seek(0)
                 return url
 
-            except Exception as e:  # pylint: disable=broad-exception-caught
+            except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
                 _LOGGER.debug("Failed to download %s: %s", url, str(e))
                 last_exception = e
 

@@ -2602,7 +2602,7 @@ def _write_idf_component_yml():
                 arduino_stub / "CMakeLists.txt",
                 "idf_component_register()\n"
                 "target_link_libraries(${COMPONENT_LIB} "
-                "INTERFACE idf::framework-arduinoespressif32)\n",
+                f"INTERFACE idf::{ARDUINO_FRAMEWORK_NAME})\n",
             )
             dependencies[ARDUINO_ESP32_COMPONENT_NAME] = {
                 "version": "*",
@@ -2710,7 +2710,7 @@ def _decode_pc(config, addr):
     command = [str(addr2line_path), "-pfiaC", "-e", str(firmware_elf_path), addr]
     try:
         translation = subprocess.check_output(command, close_fds=False).decode().strip()
-    except Exception:  # pylint: disable=broad-except
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-except
         _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
         return
 
