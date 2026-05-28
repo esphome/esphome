@@ -163,5 +163,6 @@ inline CoverCall &CoverCall::set_stop(bool stop) {
   actuator::ActuatorCallBase::set_stop(stop);
   return *this;
 }
+inline CoverCall Cover::make_call() { return CoverCall(this); }
 
 }  // namespace esphome::cover

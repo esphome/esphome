@@ -82,8 +82,6 @@ void ValveCall::validate() {
   }
 }
 
-ValveCall Valve::make_call() { return ValveCall(this); }
-
 void Valve::publish_state(bool save) {
   this->position = clamp(this->position, 0.0f, 1.0f);
 

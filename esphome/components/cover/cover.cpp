@@ -94,8 +94,6 @@ void CoverCall::validate() {
   }
 }
 
-CoverCall Cover::make_call() { return CoverCall(this); }
-
 void Cover::publish_state(bool save) {
   this->position = clamp(this->position, 0.0f, 1.0f);
   this->tilt = clamp(this->tilt, 0.0f, 1.0f);

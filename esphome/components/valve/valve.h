@@ -148,5 +148,6 @@ inline ValveCall &ValveCall::set_stop(bool stop) {
   actuator::ActuatorCallBase::set_stop(stop);
   return *this;
 }
+inline ValveCall Valve::make_call() { return ValveCall(this); }
 
 }  // namespace esphome::valve
