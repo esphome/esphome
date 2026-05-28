@@ -122,7 +122,7 @@ class EPaperBase : public Display,
 
   const char *epaper_state_to_string_();
   bool is_idle_() const;
-  virtual void setup_pins_() const;
+  virtual void setup_pins() const;
   virtual bool reset();
   virtual bool initialise(bool partial);
   void send_init_sequence_(const uint8_t *sequence, size_t length);

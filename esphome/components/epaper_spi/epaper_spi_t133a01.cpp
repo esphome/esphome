@@ -99,7 +99,7 @@ uint8_t EPaperT133A01::color_to_index(Color color) {
   return T133A01_BLACK;
 }
 
-void EPaperT133A01::setup_pins_() const {
+void EPaperT133A01::setup_pins() const {
   // Set up base pins
   this->dc_pin_->setup();
   this->dc_pin_->digital_write(false);

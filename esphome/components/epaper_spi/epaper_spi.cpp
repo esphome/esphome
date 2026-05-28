@@ -25,7 +25,7 @@ void EPaperBase::setup() {
     this->mark_failed(LOG_STR("Failed to initialise buffer"));
     return;
   }
-  this->setup_pins_();
+  this->setup_pins();
   this->spi_setup();
 }
 
@@ -37,7 +37,7 @@ bool EPaperBase::init_buffer_(size_t buffer_length) {
   return true;
 }
 
-void EPaperBase::setup_pins_() const {
+void EPaperBase::setup_pins() const {
   this->dc_pin_->setup();  // OUTPUT
   this->dc_pin_->digital_write(false);
 
