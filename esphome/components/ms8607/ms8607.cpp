@@ -40,6 +40,13 @@ static const uint8_t MS8607_CMD_CONV_D2_OSR_8K = 0x5A;
 
 static uint8_t crc4(uint16_t *buffer, size_t length);
 
+// Sanity check Temperature & Pressure Readings, these values are way out of range
+
+/// value below which we consider a 24 bit ADC reading to be invalid
+const uint32_t ADC_24BIT_LOWER_LIMIT = (1 << 16);
+/// value above which we consider a 24 bit ADC reading to be invalid
+const uint32_t ADC_24BIT_UPPER_LIMIT = (1 << 24) - (1 << 16);
+
 void MS8607Component::setup() {
   this->reset_interval_ = 5;
   this->reset_attempts_remaining_ = 3;
@@ -257,11 +264,18 @@ void MS8607Component::request_read_temperature_() {
 void MS8607Component::read_temperature_() {
   uint8_t bytes[3];  // 24 bits
   if (!this->read_bytes(MS8607_CMD_ADC_READ, bytes, 3)) {
+    ESP_LOGE(TAG, "ADC Read of temperature failed");
     this->status_set_warning();
     return;
   }
 
   const uint32_t d2_raw_temperature = encode_uint32(0, bytes[0], bytes[1], bytes[2]);
+
+  if (d2_raw_temperature < ADC_24BIT_LOWER_LIMIT || d2_raw_temperature > ADC_24BIT_UPPER_LIMIT) {
+    ESP_LOGE(TAG, "ADC Read of temperature resulted in value out of acceptable range: %u", d2_raw_temperature);
+    this->status_set_warning();
+    return;
+  }
 
   if (this->pressure_sensor_ != nullptr) {
     this->request_read_pressure_(d2_raw_temperature);
@@ -284,10 +298,18 @@ void MS8607Component::request_read_pressure_(uint32_t d2_raw_temperature) {
 void MS8607Component::read_pressure_(uint32_t d2_raw_temperature) {
   uint8_t bytes[3];  // 24 bits
   if (!this->read_bytes(MS8607_CMD_ADC_READ, bytes, 3)) {
+    ESP_LOGE(TAG, "ADC Read of pressure failed");
     this->status_set_warning();
     return;
   }
   const uint32_t d1_raw_pressure = encode_uint32(0, bytes[0], bytes[1], bytes[2]);
+
+  if (d1_raw_pressure < ADC_24BIT_LOWER_LIMIT || d1_raw_pressure > ADC_24BIT_UPPER_LIMIT) {
+    ESP_LOGE(TAG, "ADC Read of pressure resulted in value out of acceptable range: %u", d1_raw_pressure);
+    this->status_set_warning();
+    return;
+  }
+
   this->calculate_values_(d2_raw_temperature, d1_raw_pressure);
 }
 
@@ -297,7 +319,7 @@ void MS8607Component::request_read_humidity_(float temperature_float) {
   }
 
   if (!this->humidity_device_->write_bytes(MS8607_CMD_H_MEASURE_NO_HOLD, nullptr, 0)) {
-    ESP_LOGW(TAG, "Request to measure humidity failed");
+    ESP_LOGE(TAG, "Request to measure humidity failed");
     this->status_set_warning();
     return;
   }
@@ -313,7 +335,7 @@ void MS8607Component::read_humidity_(float temperature_float) {
 
   uint8_t bytes[3];
   if (!this->humidity_device_->read_bytes_raw(bytes, 3)) {
-    ESP_LOGW(TAG, "Failed to read the measured humidity value");
+    ESP_LOGE(TAG, "Failed to read the measured humidity value");
     this->status_set_warning();
     return;
   }
@@ -332,6 +354,13 @@ void MS8607Component::read_humidity_(float temperature_float) {
   if (!(humidity & 0x2)) {
     // data sheet says Bit1 should always set, but nothing about what happens if it isn't
     ESP_LOGE(TAG, "Humidity status bit was not set to 1?");
+  }
+  if (humidity == 0) {
+    // treat this like a bad I2C read, because we received all zeros, despite the datasheet saying
+    // there should be at least Bit1 set. CRC might have passed because all zeros results in expected CRC of 0.
+    ESP_LOGE(TAG, "Treating this humidity read as a failed read, skipping it");
+    this->status_set_warning();
+    return;
   }
   humidity &= ~(0b11);  // strip status & unassigned bits from data
 
