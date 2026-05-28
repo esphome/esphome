@@ -294,26 +294,24 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t funct
       return;
     } else {  // We have a valid device waiting for this response
 
+      ModbusClientDevice *device = wfr.device;
+      this->waiting_for_response_.reset();
       // Is it an error response?
       if (helpers::is_function_code_exception(function_code)) {
         uint8_t exception = len > 0 ? data[0] : 0;
         ESP_LOGW(TAG,
                  "Error function code: 0x%X exception: %" PRIu8 ", address: %" PRIu8 ", %" PRIu32 "ms after last send",
                  function_code, exception, address, this->last_modbus_byte_ - this->last_send_);
-        if (wfr.device)
-          wfr.device->on_modbus_error(function_code & FUNCTION_CODE_MASK, exception);
+        if (device)
+          device->on_modbus_error(function_code & FUNCTION_CODE_MASK, exception);
 
-      } else if (wfr.device) {  // Not an error response
+      } else if (device) {  // Not an error response
         // on_modbus_data is existing public API taking const std::vector<uint8_t>&
-        wfr.device->on_modbus_data(std::vector<uint8_t>(data, data + len));
+        device->on_modbus_data(std::vector<uint8_t>(data, data + len));
       } else {  // Not an error response, but no device to respond to
         ESP_LOGV(TAG, "Ignoring response from %" PRIu8 " - no callback device set, %" PRIu32 "ms after last send",
                  address, this->last_modbus_byte_ - this->last_send_);
       }
-      // Reset after callbacks so wfr remains a valid reference throughout.
-      // send_next_frame_() is only called from loop(), not from callbacks, so
-      // deferring here does not prevent the next command from being sent.
-      this->waiting_for_response_.reset();
     }
   }
 }
