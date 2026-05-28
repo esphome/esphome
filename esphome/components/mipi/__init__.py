@@ -133,6 +133,8 @@ MADCTL_FLIP_FLAG = 0x100  # meta-flag to indicate use of axis flips
 # Special constant for delays in command sequences
 DELAY_FLAG = 0xFFF  # Special flag to indicate a delay
 
+CONF_PAD_HEIGHT = "pad_height"
+CONF_PAD_WIDTH = "pad_width"
 CONF_PIXEL_MODE = "pixel_mode"
 CONF_USE_AXIS_FLIPS = "use_axis_flips"
 
@@ -298,6 +300,23 @@ class DriverChip:
         return self.__class__(name, initsequence=tuple(initsequence), **defaults)
 
     def get_default(self, key, fallback: Any = False) -> Any:
+        if key not in self.defaults:
+            if key == CONF_NATIVE_WIDTH:
+                width = self.get_default(CONF_WIDTH, 0)
+                if width == 0:
+                    return fallback
+                offset_width = self.get_default(CONF_OFFSET_WIDTH, 0)
+                pad_width = self.get_default(CONF_PAD_WIDTH, offset_width)
+                return width + offset_width + pad_width
+
+            if key == CONF_NATIVE_HEIGHT:
+                height = self.get_default(CONF_HEIGHT, 0)
+                if height == 0:
+                    return fallback
+                offset_height = self.get_default(CONF_OFFSET_HEIGHT, 0)
+                pad_height = self.get_default(CONF_PAD_HEIGHT, offset_height)
+                return height + offset_height + pad_height
+
         return self.defaults.get(key, fallback)
 
     @property
@@ -361,12 +380,10 @@ class DriverChip:
         # if mirroring axes and there are offsets, also mirror the offsets to cater for situations where
         # the offset is asymmetric
         if transform.get(CONF_MIRROR_X):
-            native_width = self.get_default(CONF_NATIVE_WIDTH, width + offset_width * 2)
+            native_width = self.get_default(CONF_NATIVE_WIDTH, 0)
             offset_width = native_width - width - offset_width
         if transform.get(CONF_MIRROR_Y):
-            native_height = self.get_default(
-                CONF_NATIVE_HEIGHT, height + offset_height * 2
-            )
+            native_height = self.get_default(CONF_NATIVE_HEIGHT, 0)
             offset_height = native_height - height - offset_height
         # Swap default dimensions if swap_xy is set, or if rotation is 90/270 and we are not using a buffer
         if swap and transform.get(CONF_SWAP_XY) is True:
