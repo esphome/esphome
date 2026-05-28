@@ -219,7 +219,7 @@ def final_validation(config_list):
         metas = [get_display_metadata(disp.id) for disp in config[df.CONF_DISPLAYS]]
         if any(m.has_writer for m in metas):
             raise cv.Invalid(
-                "Using lambda:, pages:, or auto_clear_enabled: true in display config is not compatible with LVGL"
+                "Using lambda:, pages:, auto_clear_enabled: true, or show_test_card: true in display config is not compatible with LVGL"
             )
         if any(m.rotation != 0 for m in metas):
             raise cv.Invalid(
