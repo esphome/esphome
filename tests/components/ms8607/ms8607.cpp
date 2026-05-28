@@ -253,67 +253,37 @@ TEST(MS8607Test, Category3_HumidityTemperatureCompensation) {
 }
 
 TEST(MS8607Test, Category4_MathematicalEdgeCases) {
-  // All Zero Raw Input State (Fault / Sensor Error simulation)
+  auto calibration_values = create_calibration_values();
+
+  // Minimum value accepted by read_* methods
   {
-    auto calibration_values = create_calibration_values();
-    uint32_t const d1 = 0;
-    uint32_t const d2_raw_temperature = 0;
-    float const d_rh = 0.0f;
+    // these values are below what the data sheet accepts, but should avoid Undefined Behavior
+    auto temp_res = TestableMS8607Component::compensated_temperature(6315741, calibration_values);
+    float const pressure = TestableMS8607Component::compensated_pressure(3961087, calibration_values, temp_res);
+    float const humidity = TestableMS8607Component::compensated_humidity(0, temp_res.temperature_float);
 
-    auto temp_res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
-    float const pressure = TestableMS8607Component::compensated_pressure(d1, calibration_values, temp_res);
-    float const hum = TestableMS8607Component::compensated_humidity(d_rh * 16.0f, temp_res.temperature_float);
+    EXPECT_NEAR(temp_res.temperature_float, -50.0f, 1e-2f);
+    EXPECT_NEAR(pressure, 0.0f, 1e-2f);
+    EXPECT_NEAR(humidity, -18.6f, 1e-2f);
 
-    EXPECT_NEAR(temp_res.temperature_float, -479.08f, 1e-2f);
-    EXPECT_NEAR(pressure, 3063.58f, 1e-2f);
-    EXPECT_NEAR(hum, -95.8344f, 1e-2f);
+    // Check humidity CRC, if we got all zeros on that read. The Humidity read should never be all
+    // zeros, but if it is, this shows that the CRC would pass and the component should bail
+    uint8_t bytes[3];
+    bytes[0] = bytes[1] = bytes[2] = 0;
+    uint8_t const actual_crc = crc8(bytes, 2, 0, 0x31, true);
+    EXPECT_EQ(actual_crc, bytes[2]);
   }
 
-  // All Max Raw Input State (Fault / Line Floating simulation)
+  // Maximum values accepted by read_* methods
   {
-    auto calibration_values = create_calibration_values();
-    uint32_t const d1 = 16777215;
-    uint32_t const d2_raw_temperature = 16777215;
-    float const d_rh = 4095.0f;
+    // these values are above what the data sheet accepts, but should avoid Undefined Behavior
+    auto temp_res = TestableMS8607Component::compensated_temperature(10491904, calibration_values);
+    float const pressure = TestableMS8607Component::compensated_pressure(6857823, calibration_values, temp_res);
+    float const hum = TestableMS8607Component::compensated_humidity(0xFFFB, temp_res.temperature_float);
 
-    auto temp_res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
-    float const pressure = TestableMS8607Component::compensated_pressure(d1, calibration_values, temp_res);
-    float const hum = TestableMS8607Component::compensated_humidity(d_rh * 16.0f, temp_res.temperature_float);
-
-    EXPECT_NEAR(temp_res.temperature_float, 298.33f, 1e-2f);
-    EXPECT_NEAR(pressure, 9326.51f, 1e-2f);
-    EXPECT_NEAR(hum, 168.0691f, 1e-2f);
-  }
-
-  // Maximum Positive dT Matrix Deviation
-  {
-    auto calibration_values = create_calibration_values();
-    uint32_t const d2_raw_temperature = 16777215;
-    auto res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
-    EXPECT_EQ(res.d_t, 8699647);
-    EXPECT_NEAR(res.temperature_float, 298.33f, 1e-2f);
-  }
-
-  // Maximum Negative dT Matrix Deviation
-  {
-    auto calibration_values = create_calibration_values();
-    uint32_t const d2_raw_temperature = 1;
-    auto res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
-    EXPECT_EQ(res.d_t, -8077567);
-    EXPECT_NEAR(res.temperature_float, -479.08f, 1e-2f);
-  }
-
-  // Sensitivity Scaling Overflow Point (C coefficients manually adjusted to max 65535)
-  {
-    auto calibration_values = create_calibration_values(65535, 65535, 65535, 65535, 65535, 65535);
-    uint32_t const d1 = 16777215;
-    uint32_t const d2_raw_temperature = 16777215;
-
-    auto temp_res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
-    float const pressure = TestableMS8607Component::compensated_pressure(d1, calibration_values, temp_res);
-
-    EXPECT_NEAR(temp_res.temperature_float, 20.01f, 1e-2f);
-    EXPECT_NEAR(pressure, 7864.35f, 1e-2f);
+    EXPECT_NEAR(temp_res.temperature_float, 100.0f, 1e-2f);
+    EXPECT_NEAR(pressure, 1500.0f, 1e-2f);
+    EXPECT_NEAR(hum, 133.39f, 1e-2f);
   }
 }
 

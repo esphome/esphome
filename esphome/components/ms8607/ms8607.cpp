@@ -42,10 +42,15 @@ static uint8_t crc4(uint16_t *buffer, size_t length);
 
 // Sanity check Temperature & Pressure Readings, these values are way out of range
 
-/// value below which we consider a 24 bit ADC reading to be invalid
-const uint32_t ADC_24BIT_LOWER_LIMIT = (1 << 16);
-/// value above which we consider a 24 bit ADC reading to be invalid
-const uint32_t ADC_24BIT_UPPER_LIMIT = (1 << 24) - (1 << 16);
+/// value below which we consider a temperature reading to be invalid
+const float TEMPERATURE_LOWER_LIMIT = -50.0f;
+/// value above which we consider a temperature reading to be invalid
+const float TEMPERATURE_UPPER_LIMIT = 100.0f;
+
+/// value below which we consider a pressure reading to be invalid
+const float PRESSURE_LOWER_LIMIT = 0.0f;
+/// value above which we consider a pressure reading to be invalid
+const float PRESSURE_UPPER_LIMIT = 1500.0f;
 
 void MS8607Component::setup() {
   this->reset_interval_ = 5;
@@ -271,12 +276,6 @@ void MS8607Component::read_temperature_() {
 
   const uint32_t d2_raw_temperature = encode_uint32(0, bytes[0], bytes[1], bytes[2]);
 
-  if (d2_raw_temperature < ADC_24BIT_LOWER_LIMIT || d2_raw_temperature > ADC_24BIT_UPPER_LIMIT) {
-    ESP_LOGE(TAG, "ADC Read of temperature resulted in value out of acceptable range: %u", d2_raw_temperature);
-    this->status_set_warning();
-    return;
-  }
-
   if (this->pressure_sensor_ != nullptr) {
     this->request_read_pressure_(d2_raw_temperature);
   } else {
@@ -303,13 +302,6 @@ void MS8607Component::read_pressure_(uint32_t d2_raw_temperature) {
     return;
   }
   const uint32_t d1_raw_pressure = encode_uint32(0, bytes[0], bytes[1], bytes[2]);
-
-  if (d1_raw_pressure < ADC_24BIT_LOWER_LIMIT || d1_raw_pressure > ADC_24BIT_UPPER_LIMIT) {
-    ESP_LOGE(TAG, "ADC Read of pressure resulted in value out of acceptable range: %u", d1_raw_pressure);
-    this->status_set_warning();
-    return;
-  }
-
   this->calculate_values_(d2_raw_temperature, d1_raw_pressure);
 }
 
@@ -375,6 +367,14 @@ void MS8607Component::calculate_values_(uint32_t d2_raw_temperature, uint32_t d1
   struct CompensatedTemperature temperature_values =
       MS8607Component::compensated_temperature(d2_raw_temperature, this->calibration_values_);
 
+  if (temperature_values.temperature_float < TEMPERATURE_LOWER_LIMIT ||
+      temperature_values.temperature_float > TEMPERATURE_UPPER_LIMIT) {
+    ESP_LOGE(TAG, "Treating this temperature read of %0.2f°C as a failed read, skipping it",
+             temperature_values.temperature_float);
+    this->status_set_warning();
+    return;
+  }
+
   ESP_LOGD(TAG, "Temperature=%0.2f°C", temperature_values.temperature_float);
 
   if (this->temperature_sensor_ != nullptr) {
@@ -383,6 +383,13 @@ void MS8607Component::calculate_values_(uint32_t d2_raw_temperature, uint32_t d1
 
   if (this->pressure_sensor_ != nullptr) {
     float pressure_float = compensated_pressure(d1_raw_pressure, this->calibration_values_, temperature_values);
+
+    if (pressure_float < PRESSURE_LOWER_LIMIT || pressure_float > PRESSURE_UPPER_LIMIT) {
+      ESP_LOGE(TAG, "Treating this pressure read of %.2fhPa as a failed read, skipping it", pressure_float);
+      this->status_set_warning();
+      return;
+    }
+
     ESP_LOGD(TAG, "Pressure=%0.2fhPa", pressure_float);
 
     this->pressure_sensor_->publish_state(pressure_float);  // hPa aka mbar
