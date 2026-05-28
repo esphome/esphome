@@ -77,6 +77,10 @@ display:
   - platform: epaper_spi
     model: seeed-reterminal-e1002
   - platform: epaper_spi
+    model: seeed-reterminal-e1004
+    # E1004: 1200x1600 6-color panel (T133A01)
+    # Requires PSRAM due to large buffer (~937KB)
+  - platform: epaper_spi
     model: seeed-ee04-mono-4.26
     full_update_every: 10
     # Override pins to avoid conflict with other display configs

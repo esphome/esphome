@@ -40,6 +40,7 @@ from . import models
 AUTO_LOAD = ["split_buffer"]
 DEPENDENCIES = ["spi"]
 
+CONF_CS1_PIN = "cs1_pin"
 CONF_INIT_SEQUENCE_ID = "init_sequence_id"
 CONF_MINIMUM_UPDATE_INTERVAL = "minimum_update_interval"
 
@@ -99,6 +100,7 @@ def model_schema(config):
             cv.GenerateID(): cv.declare_id(class_name),
             cv.GenerateID(CONF_INIT_SEQUENCE_ID): cv.declare_id(cg.uint8),
             cv_dimensions(CONF_DIMENSIONS): DIMENSION_SCHEMA,
+            model.option(CONF_CS1_PIN): pins.gpio_output_pin_schema,
             model.option(CONF_ENABLE_PIN): cv.ensure_list(pins.gpio_output_pin_schema),
             model.option(CONF_INIT_SEQUENCE, cv.UNDEFINED): cv.ensure_list(
                 map_sequence
@@ -192,6 +194,13 @@ async def to_code(config):
     if busy_pin := config.get(CONF_BUSY_PIN):
         busy = await cg.gpio_pin_expression(busy_pin)
         cg.add(var.set_busy_pin(busy))
+    if cs1_pin := config.get(CONF_CS1_PIN):
+        cs1 = await cg.gpio_pin_expression(cs1_pin)
+        cg.add(var.set_cs1_pin(cs1))
+    if enable_pins := config.get(CONF_ENABLE_PIN):
+        for enable_pin in enable_pins:
+            enable = await cg.gpio_pin_expression(enable_pin)
+            cg.add(var.set_enable_pin(enable))
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
     if CONF_RESET_DURATION in config:
         cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))
