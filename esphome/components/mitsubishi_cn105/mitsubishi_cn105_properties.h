@@ -79,8 +79,6 @@ struct Property {
     };
 
     struct Room {
-      static constexpr auto ID = PropertyId::UNTRACKED;
-
       static void decode_context(PropertyContext &ctx, const uint8_t *payload) {}
 
       static void decode(Status &status, const uint8_t *payload, const PropertyContext &ctx) {
@@ -259,9 +257,12 @@ struct Property {
    protected:
     template<typename T, typename Out> ESPHOME_ALWAYS_INLINE void decode_one_(Out &out) {
       T::decode_context(this->context, this->payload.data());
-      if (T::ID == PropertyId::UNTRACKED || !this->pending_writes.contains(T::ID)) {
-        T::decode(out, this->payload.data(), this->context);
+      if constexpr (requires { T::ID; }) {
+        if (this->pending_writes.contains(T::ID)) {
+          return;
+        }
       }
+      T::decode(out, this->payload.data(), this->context);
     }
 
     template<typename... T, typename Out> void ESPHOME_ALWAYS_INLINE decode_(Out &out) {

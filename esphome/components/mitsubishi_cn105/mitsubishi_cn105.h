@@ -127,8 +127,7 @@ class MitsubishiCN105 {
     FAN = 3,
     VANE = 4,
     WIDE_VANE = 5,
-    REMOTE_TEMPERATURE = 6,
-    UNTRACKED = 7,
+    REMOTE_TEMPERATURE = 6
   };
 
   struct UpdateFlags {
@@ -139,7 +138,8 @@ class MitsubishiCN105 {
     bool contains_only(PropertyId id) const { return this->mask_.get_mask() == Mask{id}.get_mask(); }
 
    protected:
-    using Mask = FiniteSetMask<PropertyId, DefaultBitPolicy<PropertyId, static_cast<int>(PropertyId::UNTRACKED)>>;
+    using Mask =
+        FiniteSetMask<PropertyId, DefaultBitPolicy<PropertyId, static_cast<int>(PropertyId::REMOTE_TEMPERATURE) + 1>>;
     Mask mask_;
   };
 
