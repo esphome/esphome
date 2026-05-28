@@ -156,6 +156,10 @@ class ModbusClientDevice {
     if (this->parent_ != nullptr)
       this->clear_tx_queue_for_device();
   }
+  ModbusClientDevice(const ModbusClientDevice &) = delete;
+  ModbusClientDevice &operator=(const ModbusClientDevice &) = delete;
+  ModbusClientDevice(ModbusClientDevice &&) = delete;
+  ModbusClientDevice &operator=(ModbusClientDevice &&) = delete;
   void set_parent(ModbusClientHub *parent) { this->parent_ = parent; }
   void set_address(uint8_t address) { this->address_ = address; }
   virtual void on_modbus_data(const std::vector<uint8_t> &data) {}
@@ -193,6 +197,11 @@ class ModbusServerDevice {
  public:
   ModbusServerDevice() = default;
   ModbusServerDevice(ModbusServerHub *parent, uint8_t address) : parent_(parent), address_(address) {}
+  virtual ~ModbusServerDevice() = default;
+  ModbusServerDevice(const ModbusServerDevice &) = delete;
+  ModbusServerDevice &operator=(const ModbusServerDevice &) = delete;
+  ModbusServerDevice(ModbusServerDevice &&) = delete;
+  ModbusServerDevice &operator=(ModbusServerDevice &&) = delete;
   void set_parent(ModbusServerHub *parent) { this->parent_ = parent; }
   void set_address(uint8_t address) { this->address_ = address; }
   virtual void on_modbus_read_registers(uint8_t function_code, uint16_t start_address, uint16_t number_of_registers){};
