@@ -5,7 +5,10 @@ import esphome.config_validation as cv
 from esphome.const import CONF_INPUT, CONF_MODE, CONF_NUMBER
 from esphome.pins import check_strapping_pin
 
-_ESP32H4_STRAPPING_PINS: set[int] = set()
+# Partial set from the ESP-IDF / esptool boot-mode docs:
+# https://docs.espressif.com/projects/esptool/en/latest/esp32h4/advanced-topics/boot-mode-selection.html
+# The full list awaits the ESP32-H4 datasheet's "Strapping Pins" section.
+_ESP32H4_STRAPPING_PINS: set[int] = {13, 14}
 
 _LOGGER = logging.getLogger(__name__)
 
