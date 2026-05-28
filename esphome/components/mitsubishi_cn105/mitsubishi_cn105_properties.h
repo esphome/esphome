@@ -134,7 +134,8 @@ struct Property {
       return true;
     }
 
-   protected:
+   private:
+    friend Derived;
     constexpr Lookup() = default;
   };
 
