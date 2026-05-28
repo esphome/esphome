@@ -56,7 +56,7 @@ from esphome.types import ConfigType
 from esphome.writer import clean_build, clean_cmake_cache
 
 from .boards import BOARDS, STANDARD_BOARDS
-from .const import (  # noqa
+from .const import (
     KEY_ARDUINO_LIBRARIES,
     KEY_BOARD,
     KEY_COMPONENTS,
@@ -86,7 +86,7 @@ from .const import (  # noqa
 )
 
 # force import gpio to register pin schema
-from .gpio import esp32_pin_to_code  # noqa
+from .gpio import esp32_pin_to_code  # noqa: F401
 
 _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["preferences"]
@@ -2583,6 +2583,26 @@ def _write_idf_component_yml():
                 "override_path": str(stub_path),
             }
 
+        # On the PlatformIO toolchain, framework-arduinoespressif32 already
+        # ships arduino-esp32. Stub the managed component so anything that
+        # `REQUIRES arduino-esp32` (e.g. third-party FastLED) resolves to a
+        # CMake target that re-exports the framework's INTERFACE properties
+        # (INCLUDE_DIRS, public compile options like -DESP32, transitive
+        # REQUIRES) instead of triggering a duplicate download/rebuild.
+        if CORE.using_toolchain_platformio:
+            arduino_stub = stubs_dir / "arduino-esp32"
+            arduino_stub.mkdir(exist_ok=True)
+            write_file_if_changed(
+                arduino_stub / "CMakeLists.txt",
+                "idf_component_register()\n"
+                "target_link_libraries(${COMPONENT_LIB} "
+                f"INTERFACE idf::{ARDUINO_FRAMEWORK_NAME})\n",
+            )
+            dependencies[ARDUINO_ESP32_COMPONENT_NAME] = {
+                "version": "*",
+                "override_path": str(arduino_stub),
+            }
+
         # Remove stubs for components that are now required by enabled libraries
         for component_name in required_idf_components:
             stub_path = stubs_dir / _idf_component_stub_name(component_name)
@@ -2683,7 +2703,7 @@ def _decode_pc(config, addr):
     command = [str(addr2line_path), "-pfiaC", "-e", str(firmware_elf_path), addr]
     try:
         translation = subprocess.check_output(command, close_fds=False).decode().strip()
-    except Exception:  # pylint: disable=broad-except
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-except
         _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
         return
 

@@ -4,7 +4,7 @@ PyYAML==6.0.3
 paho-mqtt==1.6.1
 colorama==0.4.6
 icmplib==3.0.4
-tornado==6.5.5
+tornado==6.5.6
 tzlocal==5.3.1    # from time
 tzdata>=2026.2  # from time
 pyserial==3.5
@@ -12,7 +12,7 @@ platformio==6.1.19
 esptool==5.2.0
 click==8.3.3
 esphome-dashboard==20260425.0
-aioesphomeapi==45.2.2
+aioesphomeapi==45.3.1
 zeroconf==0.149.16
 puremagic==1.30
 ruamel.yaml==0.19.1 # dashboard_import

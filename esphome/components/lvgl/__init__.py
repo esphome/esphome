@@ -174,7 +174,7 @@ def generate_lv_conf_h():
     if clashes:
         LOGGER.warning(
             "Some defines are set both by ESPHome build flags and by LVGL configuration which may lead to unexpected behavior: %s",
-            sorted(list(clashes)),
+            sorted(clashes),
         )
     unused_defines = all_defines - lv_defines.keys() - defines_from_flags
 

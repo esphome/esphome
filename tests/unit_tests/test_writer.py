@@ -44,6 +44,42 @@ from esphome.writer import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _isolate_platformio_paths(tmp_path_factory: pytest.TempPathFactory) -> Any:
+    """Sandbox PlatformIO path lookups so tests never touch ~/.platformio.
+
+    `clean_all` and `clean_build` both query ProjectConfig for paths like
+    `cache_dir` and `core_dir` and `rmtree` anything that exists. By
+    default `core_dir` resolves to ~/.platformio, which is global state
+    shared across pytest-xdist workers — multiple workers can each pass
+    `is_dir()` and then race inside `shutil.rmtree`, producing
+    FileNotFoundError flakes (and trashing developers' local PIO state
+    when the suite is run outside CI).
+
+    14 of the 18 `clean_*` tests in this file invoke `clean_all` /
+    `clean_build` without installing their own ProjectConfig mock, so
+    making the fixture autouse is simpler than tagging each test
+    individually.
+
+    Patch ProjectConfig.get_instance to point every PIO dir at a unique
+    tmp directory that doesn't actually exist on disk — `is_dir()`
+    returns False, so the rmtree loop is skipped entirely. Tests that
+    want to verify the PIO-cleanup branch (e.g. test_clean_all,
+    test_clean_all_partial_exists) install their own inner patch which
+    stacks on top of this one and wins for the duration of their block.
+    """
+    pio_root = tmp_path_factory.mktemp("isolated_pio") / "nonexistent"
+    mock_cfg = MagicMock()
+    mock_cfg.get.side_effect = lambda section, option: (
+        str(pio_root / option) if section == "platformio" else ""
+    )
+    with patch(
+        "platformio.project.config.ProjectConfig.get_instance",
+        return_value=mock_cfg,
+    ):
+        yield
+
+
 @pytest.fixture
 def mock_copy_src_tree():
     """Mock copy_src_tree to avoid side effects during tests."""
@@ -1358,7 +1394,7 @@ def test_clean_build_handles_readonly_files(
     # Create a read-only file (simulating git pack files on Windows)
     readonly_file = git_dir / "pack-abc123.pack"
     readonly_file.write_text("pack data")
-    os.chmod(readonly_file, stat.S_IRUSR)  # Read-only
+    readonly_file.chmod(stat.S_IRUSR)  # Read-only
 
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
@@ -1393,7 +1429,7 @@ def test_clean_all_handles_readonly_files(
     subdir.mkdir()
     readonly_file = subdir / "readonly.txt"
     readonly_file.write_text("content")
-    os.chmod(readonly_file, stat.S_IRUSR)  # Read-only
+    readonly_file.chmod(stat.S_IRUSR)  # Read-only
 
     # Verify file is read-only
     assert not os.access(readonly_file, os.W_OK)
@@ -1422,7 +1458,7 @@ def test_clean_build_reraises_for_other_errors(
     test_file.write_text("content")
 
     # Make subdir read-only so files inside can't be deleted
-    os.chmod(subdir, stat.S_IRUSR | stat.S_IXUSR)
+    subdir.chmod(stat.S_IRUSR | stat.S_IXUSR)
 
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
@@ -1440,7 +1476,7 @@ def test_clean_build_reraises_for_other_errors(
             clean_build()
     finally:
         # Cleanup - restore write permission so tmp_path cleanup works
-        os.chmod(subdir, stat.S_IRWXU)
+        subdir.chmod(stat.S_IRWXU)
 
 
 # Tests for get_build_info()

@@ -241,20 +241,21 @@ def has_outdated_files():
     dependency_lock_path = CORE.relative_build_path("dependencies.lock")
     build_ninja_path = CORE.relative_build_path("build/build.ninja")
 
-    if not os.path.isdir(build_config_path) or not os.listdir(build_config_path):
+    if not build_config_path.is_dir() or not any(build_config_path.iterdir()):
         return True
-    if not os.path.isfile(cmakecache_txt_path):
+    if not cmakecache_txt_path.is_file():
         return True
-    if not os.path.isfile(build_ninja_path):
+    if not build_ninja_path.is_file():
         return True
-    if os.path.isfile(dependency_lock_path) and os.path.getmtime(
-        dependency_lock_path
-    ) > os.path.getmtime(build_ninja_path):
+    if (
+        dependency_lock_path.is_file()
+        and dependency_lock_path.stat().st_mtime > build_ninja_path.stat().st_mtime
+    ):
         return True
 
-    cmakecache_txt_mtime = os.path.getmtime(cmakecache_txt_path)
+    cmakecache_txt_mtime = cmakecache_txt_path.stat().st_mtime
     return any(
-        os.path.getmtime(f) > cmakecache_txt_mtime
+        f.stat().st_mtime > cmakecache_txt_mtime
         for f in [sdkconfig_internal_path, idf_component_yml_path]
         if f.exists()
     )
@@ -452,7 +453,7 @@ def create_factory_bin() -> bool:
         return False
 
     try:
-        with open(flasher_args_path, encoding="utf-8") as f:
+        with flasher_args_path.open(encoding="utf-8") as f:
             flash_data = json.load(f)
     except (json.JSONDecodeError, OSError) as e:
         _LOGGER.error("Failed to read flasher_args.json: %s", e)
