@@ -96,7 +96,7 @@ def _extract_tz_string(tzfile: bytes) -> str:
         return tzfile.split(b"\n")[-2].decode()
     except (IndexError, UnicodeDecodeError):
         _LOGGER.error("Could not determine TZ string. Please report this issue.")
-        _LOGGER.error("tzfile contents: %s", tzfile, exc_info=True)
+        _LOGGER.exception("tzfile contents: %s", tzfile)
         raise
 
 
@@ -204,7 +204,7 @@ def cron_expression_validator(name, min_value, max_value, special_mapping=None):
                     raise cv.Invalid(
                         f"{name} {v} is out of range (min={min_value} max={max_value})."
                     )
-            return list(sorted(value))
+            return sorted(value)
         value = cv.string(value)
         values = set()
         for part in value.split(","):
@@ -418,11 +418,11 @@ async def setup_time_core_(time_var, config):
     for conf in config.get(CONF_ON_TIME, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
 
-        seconds = conf.get(CONF_SECONDS, list(range(0, 61)))
+        seconds = conf.get(CONF_SECONDS, list(range(61)))
         cg.add(trigger.add_seconds(seconds))
-        minutes = conf.get(CONF_MINUTES, list(range(0, 60)))
+        minutes = conf.get(CONF_MINUTES, list(range(60)))
         cg.add(trigger.add_minutes(minutes))
-        hours = conf.get(CONF_HOURS, list(range(0, 24)))
+        hours = conf.get(CONF_HOURS, list(range(24)))
         cg.add(trigger.add_hours(hours))
         days_of_month = conf.get(CONF_DAYS_OF_MONTH, list(range(1, 32)))
         cg.add(trigger.add_days_of_month(days_of_month))

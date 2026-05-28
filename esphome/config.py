@@ -1005,7 +1005,6 @@ def validate_config(
     CORE.skip_external_update = skip_external_update
 
     loader.clear_component_meta_finders()
-    loader.install_custom_components_meta_finder()
 
     # 0. Load packages
     if CONF_PACKAGES in config:
