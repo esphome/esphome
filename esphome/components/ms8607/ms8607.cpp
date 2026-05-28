@@ -41,6 +41,8 @@ static const uint8_t MS8607_CMD_CONV_D2_OSR_8K = 0x5A;
 static uint8_t crc4(uint16_t *buffer, size_t length);
 
 void MS8607Component::setup() {
+  this->reset_interval_ = 5;
+  this->reset_attempts_remaining_ = 3;
   this->error_code_ = ErrorCode::NONE;
   this->setup_status_ = SetupStatus::NEEDS_RESET;
 
