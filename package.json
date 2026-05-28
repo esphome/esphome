@@ -1,5 +1,5 @@
 {
-  "name": "esphome-docs",
+  "name": "esphome.io",
   "version": "2.0.0",
   "description": "ESPHome Documentation",
   "type": "module",
@@ -23,11 +23,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/esphome/esphome-docs.git"
+    "url": "git+https://github.com/esphome/esphome.io.git"
   },
   "license": "CC-BY-4.0",
   "bugs": {
-    "url": "https://github.com/esphome/esphome-docs/issues"
+    "url": "https://github.com/esphome/esphome.io/issues"
   },
   "homepage": "https://esphome.io",
   "devDependencies": {

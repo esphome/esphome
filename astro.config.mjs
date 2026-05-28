@@ -167,7 +167,7 @@ export default defineConfig({
         },
       ],
       editLink: {
-        baseUrl: "https://github.com/esphome/esphome-docs/edit/current/",
+        baseUrl: "https://github.com/esphome/esphome.io/edit/current/",
       },
       routeMiddleware: ["./src/routeData.ts"],
       components: {

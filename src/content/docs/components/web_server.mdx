@@ -189,16 +189,16 @@ captive_portal:
 
 The following assume copies of the files with local paths - which are config dependent.
 
-Example `web_server` version 1 configuration with CSS and JS included from esphome-docs.
+Example `web_server` version 1 configuration with CSS and JS included from a local folder.
 CSS and JS URL's are set to empty value, so no internet access is needed for this device to show it's web interface.
 
 ```yaml
 web_server:
   port: 80
   version: 1
-  css_include: "../../../esphome-docs/_static/webserver-v1.min.css"
+  css_include: "<some_folder>/webserver-v1.min.css"
   css_url: ""
-  js_include: "../../../esphome-docs/_static/webserver-v1.min.js"
+  js_include: "<some_folder>/webserver-v1.min.js"
   js_url: ""
 ```
 
