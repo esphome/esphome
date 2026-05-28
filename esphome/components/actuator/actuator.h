@@ -55,16 +55,12 @@ class ActuatorCallBase {
     return *this;
   }
 
-  void perform();
-
   const optional<float> &get_position() const { return this->position_; }
   bool get_stop() const { return this->stop_; }
   const optional<bool> &get_toggle() const { return this->toggle_; }
 
  protected:
   virtual void validate();
-
-  void call_control_();
 
   ActuatorBase *parent_;
   bool stop_{false};
@@ -84,10 +80,6 @@ class ActuatorBase : public EntityBase {
   template<typename F> void add_on_state_callback(F &&f) { this->state_callback_.add(std::forward<F>(f)); }
 
  protected:
-  friend ActuatorCallBase;
-
-  virtual void control(const ActuatorCallBase &call) = 0;
-
   template<typename T> optional<T> restore_state_() {
     this->rtc_ = this->make_entity_preference<T>();
     T recovered{};

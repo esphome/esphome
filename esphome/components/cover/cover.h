@@ -130,9 +130,6 @@ class Cover : public actuator::ActuatorBase, public actuator::IActuator {
 
   virtual void control(const CoverCall &call) = 0;
 
-  // Bridge from ActuatorBase — safe cast because Cover::make_call() always constructs a CoverCall
-  void control(const actuator::ActuatorCallBase &call) final { this->control(static_cast<const CoverCall &>(call)); }
-
   optional<CoverRestoreState> restore_state_() { return ActuatorBase::restore_state_<CoverRestoreState>(); }
 };
 

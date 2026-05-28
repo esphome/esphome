@@ -52,23 +52,6 @@ void ActuatorCallBase::validate() {
   }
 }
 
-void ActuatorCallBase::call_control_() { this->parent_->control(*this); }
-
-void ActuatorCallBase::perform() {
-  ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
-  this->validate();
-  if (this->stop_) {
-    ESP_LOGV(TAG, "  Command: STOP");
-  }
-  if (this->position_.has_value()) {
-    ESP_LOGV(TAG, "  Position: %.0f%%", *this->position_ * 100.0f);
-  }
-  if (this->toggle_.has_value()) {
-    ESP_LOGV(TAG, "  Command: TOGGLE");
-  }
-  this->call_control_();
-}
-
 //
 // ActuatorBase
 //
