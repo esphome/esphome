@@ -205,7 +205,7 @@ def get_display_metadata(display_id: str) -> DisplayMetaData:
     dimensions = disp_config.get(CONF_DIMENSIONS, (0, 0))
     if isinstance(dimensions, dict):
         dimensions = (dimensions.get(CONF_WIDTH, 0), dimensions.get(CONF_HEIGHT, 0))
-    elif not isinstance(dimensions, tuple):
+    elif not isinstance(dimensions, tuple) or len(dimensions) != 2:
         dimensions = (0, 0)
 
     return DisplayMetaData(
