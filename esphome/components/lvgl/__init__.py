@@ -216,11 +216,21 @@ def final_validation(config_list):
     global_config = full_config.get()
     # Resolve byte_order from display metadata before multi-config validation
     for config in config_list:
-        display_byte_orders = set()
-        for display_id in config[df.CONF_DISPLAYS]:
-            meta = get_display_metadata(display_id.id)
-            if meta.byte_order:
-                display_byte_orders.add(meta.byte_order)
+        metas = [get_display_metadata(disp.id) for disp in config[df.CONF_DISPLAYS]]
+        if any(m.has_writer for m in metas):
+            raise cv.Invalid(
+                "Using lambda:, pages:, or auto_clear_enabled: true in display config is not compatible with LVGL"
+            )
+        if any(m.rotation != 0 for m in metas):
+            raise cv.Invalid(
+                "use of 'rotation' in the display config is not compatible with LVGL, please set rotation in the LVGL config instead"
+            )
+        config[CONF_DRAW_ROUNDING] = max(
+            [m.draw_rounding for m in metas] + [config[CONF_DRAW_ROUNDING]]
+        )
+        display_byte_orders = {
+            m.byte_order for m in metas if m.byte_order is not cv.UNDEFINED
+        }
         if len(display_byte_orders) > 1:
             raise cv.Invalid(
                 "All displays configured for an LVGL instance must use the same byte_order"
@@ -238,55 +248,39 @@ def final_validation(config_list):
                 config[CONF_BYTE_ORDER] = display_order
         if CONF_BYTE_ORDER not in config:
             config[CONF_BYTE_ORDER] = BYTE_ORDER_BIG
-    if len(config_list) != 1:
-        multi_conf_validate(config_list)
-    for config in config_list:
+
         if (pages := config.get(CONF_PAGES)) and all(p[df.CONF_SKIP] for p in pages):
             raise cv.Invalid("At least one page must not be skipped")
-        for display_id in config[df.CONF_DISPLAYS]:
-            meta = get_display_metadata(str(display_id))
-            if meta.has_writer:
-                raise cv.Invalid(
-                    "Using lambda:, pages:, or auto_clear_enabled: true in display config is not compatible with LVGL"
-                )
-            # treating 0 as false is intended here.
-            if meta.rotation:
-                raise cv.Invalid(
-                    "use of 'rotation' in the display config is not compatible with LVGL, please set rotation in the LVGL config instead"
-                )
-            if meta.draw_rounding:
-                config[CONF_DRAW_ROUNDING] = max(
-                    meta.draw_rounding, config[CONF_DRAW_ROUNDING]
-                )
         buffer_frac = config[CONF_BUFFER_SIZE]
         if CORE.is_esp32 and buffer_frac > 0.5 and PSRAM_DOMAIN not in global_config:
             df.LOGGER.warning("buffer_size: may need to be reduced without PSRAM")
-        for w in get_focused_widgets():
-            path = global_config.get_path_for_id(w)
-            widget_conf = global_config.get_config_for_path(path[:-1])
-            if (
-                df.CONF_ADJUSTABLE in widget_conf
-                and not widget_conf[df.CONF_ADJUSTABLE]
-            ):
-                raise cv.Invalid(
-                    "A non adjustable arc may not be focused",
-                    path,
-                )
-        for w in get_refreshed_widgets():
-            path = global_config.get_path_for_id(w)
-            widget_conf = global_config.get_config_for_path(path[:-1])
-            if not any(isinstance(v, (Lambda, dict)) for v in widget_conf.values()):
-                raise cv.Invalid(
-                    f"Widget '{w}' does not have any dynamic properties to refresh",
-                )
-        # Do per-widget type final validation for update actions
-        for widget_type, update_configs in df.get_updated_widgets().items():
-            for conf in update_configs:
-                for id_conf in conf.get(CONF_ID, ()):
-                    name = id_conf[CONF_ID]
-                    path = global_config.get_path_for_id(name)
-                    widget_conf = global_config.get_config_for_path(path[:-1])
-                    widget_type.final_validate(name, conf, widget_conf, path[1:])
+
+    if len(config_list) != 1:
+        multi_conf_validate(config_list)
+
+    for w in get_focused_widgets():
+        path = global_config.get_path_for_id(w)
+        widget_conf = global_config.get_config_for_path(path[:-1])
+        if df.CONF_ADJUSTABLE in widget_conf and not widget_conf[df.CONF_ADJUSTABLE]:
+            raise cv.Invalid(
+                "A non adjustable arc may not be focused",
+                path,
+            )
+    for w in get_refreshed_widgets():
+        path = global_config.get_path_for_id(w)
+        widget_conf = global_config.get_config_for_path(path[:-1])
+        if not any(isinstance(v, (Lambda, dict)) for v in widget_conf.values()):
+            raise cv.Invalid(
+                f"Widget '{w}' does not have any dynamic properties to refresh",
+            )
+    # Do per-widget type final validation for update actions
+    for widget_type, update_configs in df.get_updated_widgets().items():
+        for conf in update_configs:
+            for id_conf in conf.get(CONF_ID, ()):
+                name = id_conf[CONF_ID]
+                path = global_config.get_path_for_id(name)
+                widget_conf = global_config.get_config_for_path(path[:-1])
+                widget_type.final_validate(name, conf, widget_conf, path[1:])
 
 
 async def to_code(configs):

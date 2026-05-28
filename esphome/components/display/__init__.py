@@ -19,6 +19,7 @@ from esphome.const import (
     SCHEDULER_DONT_RUN,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.final_validate import full_config
 
 DOMAIN = "display"
 IS_PLATFORM_COMPONENT = True
@@ -193,7 +194,23 @@ def get_display_metadata(display_id: str) -> DisplayMetaData:
         )
         if id_.id == display_id:
             return meta
-    return DisplayMetaData()
+    # No metadata found, display driver may not yet support it.
+    # Read the raw config to populate the returned data
+    global_config = full_config.get()
+    path = global_config.get_path_for_id(ID(display_id))[:-1]
+    disp_config = global_config.get_config_for_path(path)
+
+    return DisplayMetaData(
+        width=0,
+        height=0,
+        has_hardware_rotation=False,
+        byte_order=cv.UNDEFINED,
+        has_writer=disp_config.get(CONF_AUTO_CLEAR_ENABLED, False)
+        or disp_config.get(CONF_PAGES) is not None
+        or disp_config.get(CONF_LAMBDA) is not None,
+        rotation=0,
+        draw_rounding=0,
+    )
 
 
 def add_metadata(
