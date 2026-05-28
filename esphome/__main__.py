@@ -1412,15 +1412,45 @@ def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
     if not CORE.verbose:
         config = strip_default_ids(config)
     output = yaml_util.dump(config, args.show_secrets)
-    # add the console decoration so the front-end can hide the secrets
     if not args.show_secrets:
-        output = re.sub(
-            r"(password|key|psk|ssid)\: (.+)", r"\1: \\033[8m\2\\033[28m", output
-        )
+        output = _redact_with_legacy_fallback(output)
     if not CORE.quiet:
         safe_print(output)
     _LOGGER.info("Configuration is valid!")
     return 0
+
+
+# Legacy substring redaction fallback for unmigrated schemas; removed in
+# 2026.12.0 once canonical sensitive fields are tagged. The lookahead skips
+# values that already render themselves: ``\033[8m`` (SensitiveStr wrap),
+# ``!secret`` (preserves the user-friendly tag), ``!lambda`` (multi-line
+# block; first line is structural). The fragment must either start the
+# field name or follow ``_`` so the warning names a real field; this avoids
+# false positives like ``monkey:`` matching the ``key`` fragment.
+_LEGACY_REDACTION_RE = re.compile(
+    r"(?P<key>\b(?:\w+_)?(?:password|key|psk|ssid))\: "
+    r"(?!\\033\[8m|!secret\b|!lambda\b)(?P<val>.+)"
+)
+_LEGACY_REDACTION_REMOVAL = "2026.12.0"
+
+
+def _redact_with_legacy_fallback(output: str) -> str:
+    unmarked: set[str] = set()
+
+    def _replace(m: re.Match[str]) -> str:
+        unmarked.add(m.group("key"))
+        return f"{m.group('key')}: \\033[8m{m.group('val')}\\033[28m"
+
+    output = _LEGACY_REDACTION_RE.sub(_replace, output)
+    for key in sorted(unmarked):
+        _LOGGER.warning(
+            "Field '%s' is being redacted by a legacy substring heuristic. "
+            "Mark this field's schema validator with cv.sensitive(...) for "
+            "deterministic redaction; the heuristic will be removed in %s.",
+            key,
+            _LEGACY_REDACTION_REMOVAL,
+        )
+    return output
 
 
 def command_config_hash(args: ArgsProtocol, config: ConfigType) -> int | None:

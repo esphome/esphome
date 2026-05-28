@@ -101,7 +101,7 @@ from esphome.schema_extractors import (
 )
 from esphome.util import parse_esphome_version
 from esphome.voluptuous_schema import _Schema
-from esphome.yaml_util import make_data_base
+from esphome.yaml_util import SensitiveStr, make_data_base
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -514,7 +514,13 @@ class SensitiveValidator:
         self.inner = inner
 
     def __call__(self, value: typing.Any) -> typing.Any:
-        return self.inner(value)
+        validated = self.inner(value)
+        # Tag string results so yaml_util.dump can mask them. Non-string
+        # results pass through unchanged; already-tagged values are not
+        # re-wrapped to keep nested cv.sensitive applications idempotent.
+        if isinstance(validated, str) and not isinstance(validated, SensitiveStr):
+            return SensitiveStr(validated)
+        return validated
 
     def __repr__(self) -> str:
         # Mirror the inner validator's repr so ``build_language_schema``'s
