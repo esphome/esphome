@@ -54,9 +54,10 @@ class CoverCall : public actuator::ActuatorCallBase {
   const optional<bool> &get_toggle() const { return this->toggle_; }
 
  protected:
-  void validate() override;
-
   optional<float> tilt_{};
+
+ private:
+  void validate() override;
 };
 
 /// Struct used to store the restored state of a cover

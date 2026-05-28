@@ -60,12 +60,13 @@ class ActuatorCallBase {
   const optional<bool> &get_toggle() const { return this->toggle_; }
 
  protected:
-  virtual void validate();
-
   ActuatorBase *parent_;
   bool stop_{false};
   optional<float> position_{};
   optional<bool> toggle_{};
+
+ private:
+  virtual void validate();
 };
 
 // Inheritance: ActuatorBase -> EntityBase
