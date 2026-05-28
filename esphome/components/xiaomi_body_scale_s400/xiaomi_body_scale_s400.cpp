@@ -158,23 +158,40 @@ bool XiaomiBodyScaleS400::parse_device(const esp32_ble_tracker::ESPBTDevice &dev
     if (heart_rate > 0 && heart_rate < 127 && this->heart_rate_ != nullptr)
       this->heart_rate_->publish_state((float) heart_rate + 50.0f);
 
-    if (weight == 0 && heart_rate == 0) {
-      // Last packet of the measurement cycle — stabilized regardless of impedance
-      if (impedance != 0) {
-        // High frequency 250 kHz → impedance_high
-        if (this->impedance_high_ != nullptr)
-          this->impedance_high_->publish_state(impedance / 10.0f);
-      }
+    if (weight == 0 && heart_rate == 0 && impedance == 0) {
+      // Person stepped off the scale → reset
       if (this->stabilized_ != nullptr)
+        this->stabilized_->publish_state(false);
+    } else if (weight == 0 && heart_rate == 0) {
+      // Last packet, impedance_high only → measurement complete (bare feet)
+      if (this->impedance_high_ != nullptr)
+        this->impedance_high_->publish_state(impedance / 10.0f);
+      if (this->stabilized_ != nullptr) {
         this->stabilized_->publish_state(true);
+        // Reset after 1s so the next measurement cycle is detected
+        this->set_timeout("stabilized_reset", 1000, [this]() {
+          if (this->stabilized_ != nullptr)
+            this->stabilized_->publish_state(false);
+        });
+      }
     } else if (impedance != 0) {
-      // Packet with weight/heart_rate → low frequency 50 kHz → impedance_low
+      // Packet with weight/heart_rate + impedance → low frequency 50 kHz → impedance_low
       if (this->impedance_low_ != nullptr)
         this->impedance_low_->publish_state(impedance / 10.0f);
       if (this->impedance_ != nullptr)
         this->impedance_->publish_state(impedance / 10.0f);
       if (this->stabilized_ != nullptr)
         this->stabilized_->publish_state(false);
+    } else {
+      // Packet with weight only → measurement complete (with socks)
+      if (this->stabilized_ != nullptr) {
+        this->stabilized_->publish_state(true);
+        // Reset after 1s so the next measurement cycle is detected
+        this->set_timeout("stabilized_reset", 1000, [this]() {
+          if (this->stabilized_ != nullptr)
+            this->stabilized_->publish_state(false);
+        });
+      }
     }
 
     return true;
