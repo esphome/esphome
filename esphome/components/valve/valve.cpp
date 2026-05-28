@@ -25,35 +25,9 @@ Valve::Valve() { this->position = VALVE_OPEN; }
 // ValveCall
 //
 
-ValveCall::ValveCall(Valve *parent) : actuator::ActuatorCallBase(parent) {}
-
-// Covariant wrappers — call parent method, return ValveCall& for fluent chaining
+// Covariant wrapper for set_command (the only one with non-trivial base) — others are inline in valve.h
 ValveCall &ValveCall::set_command(const char *command) {
   actuator::ActuatorCallBase::set_command(command);
-  return *this;
-}
-ValveCall &ValveCall::set_command_open() {
-  actuator::ActuatorCallBase::set_command_open();
-  return *this;
-}
-ValveCall &ValveCall::set_command_close() {
-  actuator::ActuatorCallBase::set_command_close();
-  return *this;
-}
-ValveCall &ValveCall::set_command_stop() {
-  actuator::ActuatorCallBase::set_command_stop();
-  return *this;
-}
-ValveCall &ValveCall::set_command_toggle() {
-  actuator::ActuatorCallBase::set_command_toggle();
-  return *this;
-}
-ValveCall &ValveCall::set_position(float position) {
-  actuator::ActuatorCallBase::set_position(position);
-  return *this;
-}
-ValveCall &ValveCall::set_stop(bool stop) {
-  actuator::ActuatorCallBase::set_stop(stop);
   return *this;
 }
 

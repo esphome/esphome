@@ -120,4 +120,33 @@ class Valve : public actuator::ActuatorBase, public actuator::IActuator {
   optional<ValveRestoreState> restore_state_() { return ActuatorBase::restore_state_<ValveRestoreState>(); }
 };
 
+// Inline definitions placed after Valve's full declaration so the Valve* → ActuatorBase* upcast
+// in the constructor is well-formed. Defining these inline allows the compiler to fold the
+// covariant wrappers and constructor into the call site (make_call().set_*().perform()).
+inline ValveCall::ValveCall(Valve *parent) : actuator::ActuatorCallBase(parent) {}
+inline ValveCall &ValveCall::set_command_open() {
+  actuator::ActuatorCallBase::set_command_open();
+  return *this;
+}
+inline ValveCall &ValveCall::set_command_close() {
+  actuator::ActuatorCallBase::set_command_close();
+  return *this;
+}
+inline ValveCall &ValveCall::set_command_stop() {
+  actuator::ActuatorCallBase::set_command_stop();
+  return *this;
+}
+inline ValveCall &ValveCall::set_command_toggle() {
+  actuator::ActuatorCallBase::set_command_toggle();
+  return *this;
+}
+inline ValveCall &ValveCall::set_position(float position) {
+  actuator::ActuatorCallBase::set_position(position);
+  return *this;
+}
+inline ValveCall &ValveCall::set_stop(bool stop) {
+  actuator::ActuatorCallBase::set_stop(stop);
+  return *this;
+}
+
 }  // namespace esphome::valve
