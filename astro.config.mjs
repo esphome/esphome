@@ -167,7 +167,9 @@ export default defineConfig({
         },
       ],
       editLink: {
-        baseUrl: "https://github.com/esphome/esphome.io/edit/current/",
+        baseUrl: `https://github.com/esphome/esphome.io/edit/${
+          ["next", "beta"].includes(process.env.BRANCH) ? "next" : "current"
+        }/`,
       },
       routeMiddleware: ["./src/routeData.ts"],
       components: {
@@ -254,14 +256,14 @@ export default defineConfig({
               document.querySelector('button[data-open-modal]')?.click();
               return;
             }
-          
+
             // 2. New 'Enter' shortcut for first search result
             if (e.key === 'Enter' && e.target.classList.contains('pagefind-ui__search-input')) {
               const firstResult = document.querySelector('.pagefind-ui__result-link');
-              
+
               if (firstResult) {
                 // Prevent the default form submission or modal close behavior
-                e.preventDefault(); 
+                e.preventDefault();
                 e.stopImmediatePropagation();
                 firstResult.click();
               }
