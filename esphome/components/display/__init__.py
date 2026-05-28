@@ -3,11 +3,13 @@ from dataclasses import dataclass
 from esphome import automation, core
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
-from esphome.components.const import BYTE_ORDER_BIG, KEY_METADATA
+from esphome.components.const import BYTE_ORDER_BIG, CONF_BYTE_ORDER, KEY_METADATA
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
+    CONF_DIMENSIONS,
     CONF_FROM,
+    CONF_HEIGHT,
     CONF_ID,
     CONF_LAMBDA,
     CONF_PAGE_ID,
@@ -16,6 +18,7 @@ from esphome.const import (
     CONF_TO,
     CONF_TRIGGER_ID,
     CONF_UPDATE_INTERVAL,
+    CONF_WIDTH,
     SCHEDULER_DONT_RUN,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
@@ -199,17 +202,18 @@ def get_display_metadata(display_id: str) -> DisplayMetaData:
     global_config = full_config.get()
     path = global_config.get_path_for_id(ID(display_id))[:-1]
     disp_config = global_config.get_config_for_path(path)
+    dimensions = disp_config.get(CONF_DIMENSIONS, {})
 
     return DisplayMetaData(
-        width=0,
-        height=0,
+        width=dimensions.get(CONF_WIDTH, 0),
+        height=dimensions.get(CONF_HEIGHT, 0),
         has_hardware_rotation=False,
-        byte_order=cv.UNDEFINED,
+        byte_order=disp_config.get(CONF_BYTE_ORDER, cv.UNDEFINED),
         has_writer=disp_config.get(CONF_AUTO_CLEAR_ENABLED) is True
         or disp_config.get(CONF_PAGES) is not None
         or disp_config.get(CONF_LAMBDA) is not None,
-        rotation=0,
-        draw_rounding=0,
+        rotation=disp_config.get(CONF_ROTATION, 0),
+        draw_rounding=disp_config.get("draw_rounding", 0),
     )
 
 

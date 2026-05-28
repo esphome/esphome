@@ -72,15 +72,23 @@ def test_get_display_metadata_missing_reads_raw_config():
         # path in get_display_metadata can find the display config.
         fc = Config()
         fc["display"] = [
-            {"id": ID("no_such_display", True), "auto_clear_enabled": True}
+            {
+                "id": ID("no_such_display", True),
+                "auto_clear_enabled": True,
+                "dimensions": {"width": 320, "height": 240},
+                "byte_order": BYTE_ORDER_LITTLE,
+                "rotation": 90,
+            }
         ]
         fc.declare_ids.append((ID("no_such_display", True), ["display", 0, "id"]))
         full_config.set(fc)
         data = get_display_metadata("no_such_display")
-        assert data.width == 0
-        assert data.height == 0
+        assert data.width == 320
+        assert data.height == 240
         assert data.has_hardware_rotation is False
         assert data.has_writer is True
+        assert data.byte_order == BYTE_ORDER_LITTLE
+        assert data.rotation == 90
 
 
 def test_add_multiple_displays():
