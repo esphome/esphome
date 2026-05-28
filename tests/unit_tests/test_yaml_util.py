@@ -12,11 +12,16 @@ import esphome.config_validation as cv
 from esphome.core import DocumentLocation, DocumentRange, EsphomeError
 from esphome.util import OrderedDict
 from esphome.yaml_util import (
+    DiscoveredYamlFiles,
     ESPHomeDataBase,
     ESPLiteralValue,
+    SensitiveStr,
+    discover_user_yaml_files,
+    force_load_include_files,
     format_path,
     make_data_base,
     make_literal,
+    track_yaml_loads,
 )
 
 
@@ -28,6 +33,14 @@ def clear_secrets_cache() -> None:
     yield
     yaml_util._SECRET_VALUES.clear()
     yaml_util._SECRET_CACHE.clear()
+
+
+@pytest.fixture(autouse=True)
+def clear_core_frontmatter() -> None:
+    """Reset CORE.frontmatter between tests."""
+    core.CORE.frontmatter = {}
+    yield
+    core.CORE.frontmatter = {}
 
 
 def test_include_with_vars(fixture_path: Path) -> None:
@@ -895,7 +908,7 @@ def test_format_path_current_obj_without_location_falls_back_to_key():
     """An ESPHomeDataBase current_obj with no esp_range falls back to the key's location."""
 
     class _NoRange(ESPHomeDataBase, str):
-        pass
+        __slots__ = ()
 
     obj = _NoRange.__new__(_NoRange, "value")
     str.__init__(obj)
@@ -966,3 +979,419 @@ def test_make_literal_blocks_substitution() -> None:
     # undefined in the context.
     assert result == {"pin": "${PIN}"}
     assert isinstance(result, ESPLiteralValue)
+
+
+# ---------------------------------------------------------------------------
+# force_load_include_files / discover_user_yaml_files
+# ---------------------------------------------------------------------------
+
+
+class _StubInclude:
+    """Stand-in for `IncludeFile` that records how `load()` was called.
+
+    Patched in via `esphome.yaml_util.IncludeFile` so the recursion in
+    `force_load_include_files` treats instances as deferred includes without
+    needing an actual on-disk file.
+    """
+
+    def __init__(
+        self,
+        file: str = "stub.yaml",
+        parent_file: Path | None = None,
+        *,
+        unresolved: bool = False,
+        load_result: object = None,
+        raise_on_load: EsphomeError | None = None,
+    ) -> None:
+        self.file = Path(file)
+        self.parent_file = parent_file or Path("/tmp/parent.yaml")
+        self._unresolved = unresolved
+        self._load_result = load_result if load_result is not None else {}
+        self._raise = raise_on_load
+        self.load_calls = 0
+
+    def has_unresolved_expressions(self) -> bool:
+        return self._unresolved
+
+    def load(self) -> object:
+        self.load_calls += 1
+        if self._raise is not None:
+            raise self._raise
+        return self._load_result
+
+
+@pytest.fixture
+def patch_include_file():
+    """Replace `IncludeFile` with `_StubInclude` so isinstance checks in
+    `force_load_include_files` match the stubs constructed by tests."""
+    with patch("esphome.yaml_util.IncludeFile", _StubInclude):
+        yield
+
+
+def test_force_load_include_files_resolves_nested_includes(
+    patch_include_file: None,
+) -> None:
+    """A tree of dict/list/IncludeFile is walked and every IncludeFile is loaded."""
+    inner = _StubInclude("inner.yaml")
+    outer = _StubInclude("outer.yaml", load_result={"nested": inner})
+    force_load_include_files([{"a": outer}, "scalar"])
+    assert outer.load_calls == 1
+    assert inner.load_calls == 1
+
+
+def test_force_load_include_files_seen_guard_prevents_double_load(
+    patch_include_file: None,
+) -> None:
+    """The same IncludeFile referenced from two branches loads once."""
+    stub = _StubInclude("once.yaml")
+    force_load_include_files({"a": stub, "b": [stub]})
+    assert stub.load_calls == 1
+
+
+def test_force_load_include_files_handles_cyclic_containers() -> None:
+    """Cyclic dict/list references don't trigger infinite recursion."""
+    cyclic_dict: dict[str, object] = {}
+    cyclic_dict["self"] = cyclic_dict
+    cyclic_list: list[object] = []
+    cyclic_list.append(cyclic_list)
+    # Both calls must return without recursing forever.
+    force_load_include_files(cyclic_dict)
+    force_load_include_files(cyclic_list)
+
+
+@pytest.mark.parametrize(
+    ("warn_on_unresolved", "expect_level"),
+    [
+        pytest.param(True, "WARNING", id="default-warns"),
+        pytest.param(False, "DEBUG", id="opt-in-demotes"),
+    ],
+)
+def test_force_load_include_files_unresolved_log_level(
+    patch_include_file: None,
+    caplog: pytest.LogCaptureFixture,
+    warn_on_unresolved: bool,
+    expect_level: str,
+) -> None:
+    """Substitution-templated include paths skip the load and log at the
+    level chosen by `warn_on_unresolved`."""
+    stub = _StubInclude("${var}.yaml", unresolved=True)
+    with caplog.at_level("DEBUG", logger="esphome.yaml_util"):
+        force_load_include_files({"k": stub}, warn_on_unresolved=warn_on_unresolved)
+    assert stub.load_calls == 0
+    matching = [
+        r.levelname for r in caplog.records if "Cannot resolve !include" in r.message
+    ]
+    assert matching == [expect_level]
+
+
+def test_force_load_include_files_warns_on_load_failure(
+    patch_include_file: None,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An `EsphomeError` raised by `load()` is caught and logged, not propagated."""
+    stub = _StubInclude("missing.yaml", raise_on_load=EsphomeError("boom"))
+    with caplog.at_level("WARNING", logger="esphome.yaml_util"):
+        force_load_include_files({"k": stub})
+    assert any(
+        "Failed to load !include" in r.message and "missing.yaml" in r.message
+        for r in caplog.records
+    )
+
+
+def test_discovered_yaml_files_holds_files_and_secrets() -> None:
+    """`DiscoveredYamlFiles` is a small data carrier; both fields are mandatory."""
+    files = [Path("/tmp/a.yaml")]
+    secrets = {Path("/tmp/a.yaml")}
+    discovered = DiscoveredYamlFiles(files, secrets)
+    assert discovered.files is files
+    assert discovered.secrets is secrets
+
+
+def _write(tmp_path: Path, name: str, content: str) -> Path:
+    """Write `content` to `tmp_path/name`, creating parent dirs as needed."""
+    path = tmp_path / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content)
+    return path
+
+
+def _write_entry_including(tmp_path: Path, included_name: str) -> Path:
+    """Write a minimal entry yaml that `!include`s `included_name`."""
+    return _write(
+        tmp_path,
+        "entry.yaml",
+        f"esphome:\n  name: test\nwifi: !include {included_name}\n",
+    )
+
+
+def test_discover_user_yaml_files_captures_includes(tmp_path: Path) -> None:
+    """A `!include` in the entry yaml is force-loaded so the listener fires."""
+    _write(tmp_path, "wifi.yaml", "ssid: my_ssid\npassword: my_pw\n")
+    discovered = discover_user_yaml_files(_write_entry_including(tmp_path, "wifi.yaml"))
+    names = {p.name for p in discovered.files}
+    assert names == {"entry.yaml", "wifi.yaml"}
+    assert discovered.secrets == set()
+
+
+@pytest.mark.parametrize(
+    "secret_name",
+    [
+        pytest.param("secrets.yaml", id="yaml"),
+        pytest.param("secrets.yml", id="yml"),
+    ],
+)
+def test_discover_user_yaml_files_flags_secrets_filename(
+    tmp_path: Path, secret_name: str
+) -> None:
+    """Both `secrets.yaml` and `secrets.yml` get flagged in `.secrets`."""
+    _write(tmp_path, secret_name, "key: value\n")
+    discovered = discover_user_yaml_files(_write_entry_including(tmp_path, secret_name))
+    assert (tmp_path / secret_name).resolve() in discovered.secrets
+
+
+def test_discover_user_yaml_files_flags_secrets_symlink(tmp_path: Path) -> None:
+    """`secrets.yaml` symlinked to a non-secrets-named target is still flagged
+    because the un-resolved basename is what gets recorded."""
+    target = _write(tmp_path, "real_creds.yaml", "key: value\n")
+    (tmp_path / "secrets.yaml").symlink_to(target)
+    discovered = discover_user_yaml_files(
+        _write_entry_including(tmp_path, "secrets.yaml")
+    )
+    # The recorded "secret path" is the resolved target — even though its
+    # basename is `real_creds.yaml`, it's still in `.secrets`.
+    assert target.resolve() in discovered.secrets
+
+
+def test_discover_user_yaml_files_swallows_parse_errors(tmp_path: Path) -> None:
+    """A YAML parse failure returns whatever was tracked so far without raising."""
+    entry = _write(tmp_path, "entry.yaml", "esphome: [unterminated\n")
+    discovered = discover_user_yaml_files(entry)
+    assert isinstance(discovered, DiscoveredYamlFiles)
+
+
+def test_discover_user_yaml_files_deduplicates(tmp_path: Path) -> None:
+    """The same file referenced twice appears once in `.files`."""
+    _write(tmp_path, "wifi.yaml", "ssid: a\n")
+    entry = _write(
+        tmp_path,
+        "entry.yaml",
+        "esphome:\n  name: test\nwifi: !include wifi.yaml\nfoo: !include wifi.yaml\n",
+    )
+    discovered = discover_user_yaml_files(entry)
+    wifi_resolved = (tmp_path / "wifi.yaml").resolve()
+    assert discovered.files.count(wifi_resolved) == 1
+
+
+def test_track_yaml_loads_records_resolved_paths(tmp_path: Path) -> None:
+    """`track_yaml_loads` is the building block — sanity-check it resolves
+    symlinks so callers can dedupe by identity."""
+    target = _write(tmp_path, "actual.yaml", "esphome:\n  name: t\n")
+    link = tmp_path / "alias.yaml"
+    link.symlink_to(target)
+    with track_yaml_loads() as loaded:
+        yaml_util.load_yaml(link)
+    assert target.resolve() in loaded
+
+
+# ---------------------------------------------------------------------------
+# YAML frontmatter
+# ---------------------------------------------------------------------------
+
+
+def test_frontmatter_parsed_and_stored_on_core(tmp_path: Path) -> None:
+    """A leading `---`-separated YAML document is stored as frontmatter and
+    stripped from the returned config."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text(
+        "author: Jesse\nlabels: [office, climate]\n---\nesphome:\n  name: my_node\n"
+    )
+
+    config = yaml_util.load_yaml(yaml_file)
+
+    # Config does not contain frontmatter keys
+    assert "author" not in config
+    assert "labels" not in config
+    assert config["esphome"]["name"] == "my_node"
+
+    # Frontmatter is stored on CORE keyed by resolved path
+    frontmatter = core.CORE.frontmatter[yaml_file.resolve()]
+    assert frontmatter["author"] == "Jesse"
+    assert frontmatter["labels"] == ["office", "climate"]
+
+
+def test_frontmatter_absent_when_single_document(tmp_path: Path) -> None:
+    """A YAML file with a single document does not populate CORE.frontmatter."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text("esphome:\n  name: my_node\n")
+
+    yaml_util.load_yaml(yaml_file)
+    assert yaml_file.resolve() not in core.CORE.frontmatter
+
+
+def test_frontmatter_absent_when_leading_doc_separator(tmp_path: Path) -> None:
+    """A leading `---` with no content above it is just a document start marker,
+    not frontmatter, and must not populate CORE.frontmatter."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text("---\nesphome:\n  name: my_node\n")
+
+    config = yaml_util.load_yaml(yaml_file)
+    assert config["esphome"]["name"] == "my_node"
+    assert yaml_file.resolve() not in core.CORE.frontmatter
+
+
+def test_frontmatter_supports_arbitrary_keys(tmp_path: Path) -> None:
+    """Frontmatter keys are not validated — any structure is accepted."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text(
+        "any_key: any_value\n"
+        "nested:\n"
+        "  count: 42\n"
+        "  items:\n"
+        "    - a\n"
+        "    - b\n"
+        "---\n"
+        "esphome:\n"
+        "  name: t\n"
+    )
+
+    yaml_util.load_yaml(yaml_file)
+    frontmatter = core.CORE.frontmatter[yaml_file.resolve()]
+    assert frontmatter["any_key"] == "any_value"
+    assert frontmatter["nested"]["count"] == 42
+    assert frontmatter["nested"]["items"] == ["a", "b"]
+
+
+def test_frontmatter_supports_deeply_nested_paths(tmp_path: Path) -> None:
+    """Frontmatter preserves deeply nested dict/list structures intact."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text(
+        "device:\n"
+        "  metadata:\n"
+        "    location:\n"
+        "      building: HQ\n"
+        "      floor: 3\n"
+        "      room:\n"
+        "        number: 302\n"
+        "        occupants:\n"
+        "          - name: Jesse\n"
+        "            role:\n"
+        "              title: maintainer\n"
+        "              since: 2021\n"
+        "          - name: Alice\n"
+        "            role:\n"
+        "              title: contributor\n"
+        "              since: 2024\n"
+        "---\n"
+        "esphome:\n"
+        "  name: t\n"
+    )
+
+    yaml_util.load_yaml(yaml_file)
+    fm = core.CORE.frontmatter[yaml_file.resolve()]
+    room = fm["device"]["metadata"]["location"]["room"]
+    assert room["number"] == 302
+    assert room["occupants"][0]["name"] == "Jesse"
+    assert room["occupants"][0]["role"]["title"] == "maintainer"
+    assert room["occupants"][0]["role"]["since"] == 2021
+    assert room["occupants"][1]["role"]["title"] == "contributor"
+
+
+def test_frontmatter_more_than_two_documents_raises(tmp_path: Path) -> None:
+    """Three or more YAML documents is unsupported and must raise."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text("a: 1\n---\nb: 2\n---\nc: 3\n")
+
+    with pytest.raises(EsphomeError, match="at most two are supported"):
+        yaml_util.load_yaml(yaml_file)
+
+
+def test_frontmatter_empty_frontmatter_doc_not_stored(tmp_path: Path) -> None:
+    """An empty (null) frontmatter document is treated as no frontmatter."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text("---\n---\nesphome:\n  name: t\n")
+
+    config = yaml_util.load_yaml(yaml_file)
+    assert config["esphome"]["name"] == "t"
+    assert yaml_file.resolve() not in core.CORE.frontmatter
+
+
+def test_frontmatter_empty_config_doc(tmp_path: Path) -> None:
+    """An empty config document after a frontmatter document yields an empty config."""
+    yaml_file = tmp_path / "main.yaml"
+    yaml_file.write_text("only: frontmatter\n---\n")
+
+    config = yaml_util.load_yaml(yaml_file)
+    assert config == {}
+    assert core.CORE.frontmatter[yaml_file.resolve()]["only"] == "frontmatter"
+
+
+def test_frontmatter_included_file_stored(tmp_path: Path) -> None:
+    """Frontmatter on an !include'd file is also captured on CORE, keyed by
+    that file's resolved path."""
+    inc = tmp_path / "child.yaml"
+    inc.write_text("child_meta: hello\n---\nchild_key: value\n")
+    main = tmp_path / "main.yaml"
+    main.write_text("esphome:\n  name: t\nchild: !include child.yaml\n")
+
+    config = yaml_util.load_yaml(main)
+    # !include is deferred; force resolution so the child file actually loads
+    force_load_include_files(config)
+    assert config["child"].load()["child_key"] == "value"
+    # Main file has no frontmatter
+    assert main.resolve() not in core.CORE.frontmatter
+    # Included file's frontmatter is captured
+    assert core.CORE.frontmatter[inc.resolve()]["child_meta"] == "hello"
+
+
+def test_sensitive_str__is_a_str_subclass() -> None:
+    value = SensitiveStr("hunter2")
+    assert isinstance(value, str)
+    assert value == "hunter2"
+
+
+def test_dump__redacts_sensitive_str_by_default() -> None:
+    out = yaml_util.dump({"password": SensitiveStr("hunter2")})
+    assert "\\033[8mhunter2\\033[28m" in out
+    assert "hunter2" not in out.replace(
+        "\\033[8mhunter2\\033[28m", ""
+    )  # the raw value is only present inside the wrap
+
+
+def test_dump__show_secrets_emits_sensitive_str_raw() -> None:
+    out = yaml_util.dump({"password": SensitiveStr("hunter2")}, show_secrets=True)
+    assert "hunter2" in out
+    assert "\\033[8m" not in out
+    assert "\\033[28m" not in out
+
+
+def test_dump__plain_str_is_not_redacted() -> None:
+    out = yaml_util.dump({"hostname": "myserver"})
+    assert "myserver" in out
+    assert "\\033[8m" not in out
+
+
+def test_dump__secret_reference_wins_over_redaction() -> None:
+    # If the value also has an entry in _SECRET_VALUES (i.e., it was loaded
+    # via !secret), the dump should render it as !secret <name>, not as a
+    # redacted scalar. SensitiveStr layered on top must not change that.
+    value = SensitiveStr("hunter2")
+    yaml_util._SECRET_VALUES[str(value)] = "my_secret_name"
+    try:
+        out = yaml_util.dump({"password": value})
+        assert "!secret" in out
+        assert "my_secret_name" in out
+        assert "\\033[8m" not in out
+    finally:
+        yaml_util._SECRET_VALUES.clear()
+
+
+def test_dump__redaction_flag_does_not_leak_between_calls() -> None:
+    # Per-call _Dumper subclass means show_secrets in one call doesn't
+    # affect another. Run them in both orders to catch any leakage.
+    redacted = yaml_util.dump({"password": SensitiveStr("hunter2")})
+    raw = yaml_util.dump({"password": SensitiveStr("hunter2")}, show_secrets=True)
+    redacted_again = yaml_util.dump({"password": SensitiveStr("hunter2")})
+
+    assert "\\033[8m" in redacted
+    assert "\\033[8m" not in raw
+    assert "\\033[8m" in redacted_again

@@ -87,6 +87,21 @@ def replace_file_content(text, pattern, repl):
 
 
 def storage_should_clean(old: StorageJSON | None, new: StorageJSON) -> bool:
+    """Return True when the build tree must be wiped before reuse.
+
+    Predicate is True when *old* is missing (first build),
+    ``src_version`` differs, ``build_path`` differs, or a previously
+    loaded integration was removed in *new*. Adding integrations or
+    changing unrelated fields (friendly name, esphome version, etc.)
+    does not trigger a clean.
+
+    Used by esphome-device-builder (esphome/device-builder) to gate
+    its remote-build artifact materialiser so a local → remote → local
+    cycle preserves PlatformIO's local object cache instead of wiping
+    it on every cycle. The signature, semantics, and ``None`` handling
+    for *old* are part of the public contract; keep them stable so the
+    offloader's wipe decision tracks core's.
+    """
     if old is None:
         return True
 
@@ -185,8 +200,8 @@ ESPHome automatically populates the build directory, and any
 changes to this directory will be removed the next time esphome is
 run.
 
-For modifying esphome's core files, please use a development esphome install,
-the custom_components folder or the external_components feature.
+For modifying esphome's core files, please use a development esphome install
+or the external_components feature.
 """
 
 
@@ -343,7 +358,7 @@ def copy_src_tree():
     platform = "esphome.components." + CORE.target_platform
     try:
         module = importlib.import_module(platform)
-        copy_files = getattr(module, "copy_files")
+        copy_files = module.copy_files
         copy_files()
     except AttributeError:
         pass

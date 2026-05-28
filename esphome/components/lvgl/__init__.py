@@ -1,3 +1,4 @@
+import functools
 import importlib
 from pathlib import Path
 import pkgutil
@@ -55,6 +56,7 @@ from .automation import layers_to_code, lvgl_update
 from .defines import (
     CONF_ALIGN_TO_LAMBDA_ID,
     LOGGER,
+    add_lv_use,
     get_focused_widgets,
     get_lv_images_used,
     get_refreshed_widgets,
@@ -71,13 +73,14 @@ from .keypads import KEYPADS_CONFIG, keypads_to_code
 from .lv_validation import lv_bool
 from .lvcode import LvContext, LvglComponent, lv_event_t_ptr, lvgl_static
 from .schemas import (
+    BASE_PROPS,
     DISP_BG_SCHEMA,
     FULL_STYLE_SCHEMA,
     STYLE_REMAP,
     WIDGET_TYPES,
     any_widget_schema,
     container_schema,
-    obj_schema,
+    obj_dict,
 )
 from .styles import styles_to_code, theme_to_code
 from .touchscreens import touchscreen_schema, touchscreens_to_code
@@ -100,6 +103,7 @@ from .widgets import (
     get_screen_active,
     set_obj_properties,
 )
+from .widgets.img import CONF_IMAGE
 
 # Import only what we actually use directly in this file
 from .widgets.msgbox import MSGBOX_SCHEMA, msgboxes_to_code
@@ -170,7 +174,7 @@ def generate_lv_conf_h():
     if clashes:
         LOGGER.warning(
             "Some defines are set both by ESPHome build flags and by LVGL configuration which may lead to unexpected behavior: %s",
-            sorted(list(clashes)),
+            sorted(clashes),
         )
     unused_defines = all_defines - lv_defines.keys() - defines_from_flags
 
@@ -433,6 +437,8 @@ async def to_code(configs):
 
     # This must be done after all widgets are created
     styles_used = df.get_styles_used()
+    if any(BASE_PROPS.get(x) is lvalid.lv_image for x in styles_used):
+        add_lv_use(CONF_IMAGE)
     for use in df.get_lv_uses():
         df.add_define(f"LV_USE_{use.upper()}")
         cg.add_define(f"USE_LVGL_{use.upper()}")
@@ -513,16 +519,32 @@ def add_hello_world(config):
     return config
 
 
-def _theme_schema(value):
+@functools.cache
+def _build_theme_schema(
+    widget_types: tuple[tuple[str, widgets.WidgetType], ...],
+) -> cv.Schema:
+    # The theme schema is value-independent: it depends only on the set of
+    # registered widget types. Key the cache on a snapshot of WIDGET_TYPES so
+    # that an external component registering a new widget after the first
+    # validation (legal per any_widget_schema's lazy-evaluation contract)
+    # produces a fresh tuple, a cache miss, and a rebuilt schema -- the cache
+    # self-heals instead of stale-rejecting valid themes. See obj_dict() in
+    # schemas.py for why chained .extend() is avoided here.
     return cv.Schema(
         {
             cv.Optional(df.CONF_DARK_MODE, default=False): cv.boolean,
             **{
-                cv.Optional(name): obj_schema(w).extend(FULL_STYLE_SCHEMA)
-                for name, w in WIDGET_TYPES.items()
+                cv.Optional(name): cv.Schema(
+                    {**obj_dict(w), **FULL_STYLE_SCHEMA.schema}
+                )
+                for name, w in widget_types
             },
         }
-    )(value)
+    )
+
+
+def _theme_schema(value: dict) -> dict:
+    return _build_theme_schema(tuple(WIDGET_TYPES.items()))(value)
 
 
 FINAL_VALIDATE_SCHEMA = final_validation

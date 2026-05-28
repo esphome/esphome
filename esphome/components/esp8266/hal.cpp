@@ -5,6 +5,7 @@
 
 #include <Arduino.h>
 #include <core_esp8266_features.h>
+#include <coredecls.h>
 
 extern "C" {
 #include <user_interface.h>
@@ -71,23 +72,22 @@ uint32_t IRAM_ATTR HOT millis() {
   return result;
 }
 
-// Poll-based delay that avoids ::delay() — Arduino's __delay has an intra-object
-// call to the original millis() that --wrap can't intercept, so calling ::delay()
-// would keep the slow Arduino millis body alive in IRAM. optimistic_yield still
-// enters esp_schedule()/esp_suspend_within_cont() via yield(), so SDK tasks and
-// WiFi run correctly. Theoretically less power-efficient than Arduino's
-// os_timer-based delay() for long waits, but nearly all ESPHome delays are short
-// (sensor/I²C/SPI settling in the 1–100 ms range) where the difference is
-// negligible.
+// Delegate to Arduino's 1-arg esp_delay(), which uses os_timer + esp_suspend to
+// suspend the cont task for `ms` milliseconds without polling millis(). This
+// matches pre-2026.5.0 behavior (when esphome::delay() forwarded to ::delay())
+// and lets the SDK run freely while we wait, which timing-sensitive
+// interrupt-driven code (e.g. ESP8266 software-serial RX in components like
+// fingerprint_grow) depends on. The poll-based busy-wait that this replaced
+// rarely yielded inside short waits like delay(1), starving WiFi/SDK tasks and
+// extending interrupt latency. Unlike ::delay(), esp_delay()'s 1-arg form does
+// not call millis(), so the slow Arduino millis() body is not pulled into IRAM
+// by this path (the --wrap=millis goal of #15662 is preserved).
 void HOT delay(uint32_t ms) {
   if (ms == 0) {
     optimistic_yield(1000);
     return;
   }
-  uint32_t start = millis();
-  while (millis() - start < ms) {
-    optimistic_yield(1000);
-  }
+  esp_delay(ms);
 }
 
 void arch_restart() {

@@ -5,6 +5,7 @@ This script is a centralized way to determine which CI jobs need to run based on
 what files have changed. It outputs JSON with the following structure:
 
 {
+  "core_ci": true/false,
   "integration_tests": true/false,
   "integration_test_buckets": [{"name": "1/3", "tests": ["tests/integration/test_foo.py", ...]}, ...],
   "clang_tidy": true/false,
@@ -22,6 +23,11 @@ what files have changed. It outputs JSON with the following structure:
 }
 
 The CI workflow uses this information to:
+- Gate the unconditional jobs (ci-custom, pytest, pre-commit-ci-lite) via core_ci;
+  false when a pull_request only touches CI-irrelevant meta paths (other workflow
+  files, .github/actions/build-image/*, .yamllint, .github/dependabot.yml, docker/**)
+  so workflow-only PRs satisfy the required CI Status check without running the
+  unconditional jobs. Always true on non-pull_request events and under --force-all.
 - Skip or run integration tests
 - Skip or run clang-tidy (and whether to do a full scan)
 - Skip or run clang-format
@@ -300,13 +306,13 @@ def _is_clang_tidy_full_scan() -> bool:
     """
     try:
         result = subprocess.run(
-            [os.path.join(root_path, "script", "clang_tidy_hash.py"), "--check"],
+            [str(Path(root_path) / "script" / "clang_tidy_hash.py"), "--check"],
             capture_output=True,
             check=False,
         )
         # Exit 0 means hash changed (full scan needed)
         return result.returncode == 0
-    except Exception:
+    except Exception:  # noqa: BLE001
         # If hash check fails, run full scan to be safe
         return True
 
@@ -477,9 +483,7 @@ def should_run_device_builder(branch: str | None = None) -> bool:
         True if the device-builder downstream tests should run, False otherwise.
     """
     target_branch = get_target_branch()
-    if target_branch and (
-        target_branch.startswith("release") or target_branch.startswith("beta")
-    ):
+    if target_branch and (target_branch.startswith(("release", "beta"))):
         return False
 
     for file in changed_files(branch):
@@ -712,6 +716,69 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
     return any(get_component_from_path(f) in benchmarked_components for f in files)
 
 
+# Files / path patterns whose changes alone don't warrant running the
+# unconditional CI jobs (`ci-custom`, `pytest`, `pre-commit-ci-lite`).
+# Single source of truth for what we treat as "CI-irrelevant" on
+# pull_request events; ci.yml used to encode this in its own
+# `pull_request.paths` filter, but that hid the required `CI Status`
+# check on PRs that only touched these files (dependabot Action bumps,
+# dependabot.yml edits, docker/ changes, etc.) and forced admin
+# force-merges.
+#
+# ci.yml itself is deliberately *not* ignored — editing the CI workflow
+# must still run CI. Workflows that have their own dedicated triggers
+# (codeql.yml, ci-docker.yml, ...) are matched via the
+# `.github/workflows/*.yml` prefix below and exclude ci.yml explicitly.
+CI_IRRELEVANT_EXACT_FILES = frozenset(
+    {
+        ".yamllint",
+        ".github/dependabot.yml",
+    }
+)
+
+
+def _is_ci_irrelevant_path(path: str) -> bool:
+    """Whether a single changed path is irrelevant to the unconditional CI jobs."""
+    if path in CI_IRRELEVANT_EXACT_FILES:
+        return True
+    # docker/** — all descendants
+    if path.startswith("docker/"):
+        return True
+    # .github/workflows/*.yml — top-level workflow files other than ci.yml
+    # (ci.yml itself must still trigger full CI when edited).
+    if path.startswith(".github/workflows/") and path.endswith(".yml"):
+        if path == ".github/workflows/ci.yml":
+            return False
+        if "/" not in path[len(".github/workflows/") :]:
+            return True
+    # .github/actions/build-image/* — direct children only, matches the
+    # single-star glob the workflow used to encode.
+    if path.startswith(".github/actions/build-image/"):
+        rest = path[len(".github/actions/build-image/") :]
+        if rest and "/" not in rest:
+            return True
+    return False
+
+
+def should_run_core_ci(branch: str | None = None) -> bool:
+    """Determine if the unconditional CI jobs (ci-custom/pytest/pre-commit-ci-lite) should run.
+
+    Returns False only when every changed file is in the CI-irrelevant set
+    above (see ``_is_ci_irrelevant_path``). Empty diffs return True so we
+    never accidentally skip CI when the diff probe fails.
+
+    Args:
+        branch: Branch to compare against. If None, uses default.
+
+    Returns:
+        True if the unconditional CI jobs should run, False otherwise.
+    """
+    files = changed_files(branch)
+    if not files:
+        return True
+    return any(not _is_ci_irrelevant_path(f) for f in files)
+
+
 def _any_changed_file_endswith(branch: str | None, extensions: tuple[str, ...]) -> bool:
     """Check if a changed file ends with any of the specified extensions."""
     return any(file.endswith(extensions) for file in changed_files(branch))
@@ -886,9 +953,7 @@ def detect_memory_impact_config(
     # all components at once would produce nonsensical memory impact results.
     # Memory impact analysis is most useful for focused PRs targeting dev.
     target_branch = get_target_branch()
-    if target_branch and (
-        target_branch.startswith("release") or target_branch.startswith("beta")
-    ):
+    if target_branch and (target_branch.startswith(("release", "beta"))):
         print(
             f"Memory impact: Skipping analysis for target branch {target_branch} "
             f"(would try to build all components at once, giving nonsensical results)",
@@ -978,7 +1043,7 @@ def detect_memory_impact_config(
     # Find common platforms supported by ALL components
     # This ensures we can build all components together in a merged config
     common_platforms = set(MEMORY_IMPACT_PLATFORM_PREFERENCE)
-    for component, platforms in component_platforms_map.items():
+    for platforms in component_platforms_map.values():
         common_platforms &= platforms
 
     # Select the most preferred platform from the common set
@@ -1062,22 +1127,52 @@ def main() -> None:
     parser.add_argument(
         "-b", "--branch", help="Branch to compare changed files against"
     )
+    parser.add_argument(
+        "--force-all",
+        action="store_true",
+        help=(
+            "Force every job to run regardless of what changed. Used by CI "
+            "when the ci-run-all label is applied to a PR (escape hatch for "
+            "changes that need full-matrix validation but don't touch enough "
+            "files to trigger it organically)."
+        ),
+    )
     args = parser.parse_args()
 
     # Determine what should run
-    integration_run_all, integration_test_files = determine_integration_tests(
-        args.branch
+    # core_ci gates the unconditional jobs in ci.yml (ci-custom, pytest,
+    # pre-commit-ci-lite). Non-pull_request events (push to dev/beta/release
+    # and merge_group) always run them so behavior like venv-cache saves on
+    # push to dev is preserved.
+    event_name = os.environ.get("GITHUB_EVENT_NAME", "")
+    run_core_ci = (
+        True
+        if args.force_all or event_name != "pull_request"
+        else should_run_core_ci(args.branch)
     )
+    if args.force_all:
+        integration_run_all, integration_test_files = True, []
+        run_clang_tidy = True
+        run_clang_format = True
+        run_python_linters = True
+        run_import_time = True
+        run_device_builder = True
+        native_idf_components = sorted(NATIVE_IDF_TEST_COMPONENTS)
+        run_native_idf = True
+    else:
+        integration_run_all, integration_test_files = determine_integration_tests(
+            args.branch
+        )
+        run_clang_tidy = should_run_clang_tidy(args.branch)
+        run_clang_format = should_run_clang_format(args.branch)
+        run_python_linters = should_run_python_linters(args.branch)
+        run_import_time = should_run_import_time(args.branch)
+        run_device_builder = should_run_device_builder(args.branch)
+        native_idf_components = native_idf_components_to_test(args.branch)
+        run_native_idf = bool(native_idf_components)
     run_integration, integration_test_buckets = _compute_integration_test_buckets(
         integration_run_all, integration_test_files
     )
-    run_clang_tidy = should_run_clang_tidy(args.branch)
-    run_clang_format = should_run_clang_format(args.branch)
-    run_python_linters = should_run_python_linters(args.branch)
-    run_import_time = should_run_import_time(args.branch)
-    run_device_builder = should_run_device_builder(args.branch)
-    native_idf_components = native_idf_components_to_test(args.branch)
-    run_native_idf = bool(native_idf_components)
     changed_cpp_file_count = count_changed_cpp_files(args.branch)
 
     # Get changed components
@@ -1106,11 +1201,27 @@ def main() -> None:
         changed_components = changed_components_result
         is_core_change = False
 
-    # Filter to only components that have test files
-    # Components without tests shouldn't generate CI test jobs
-    changed_components_with_tests = [
-        component for component in changed_components if _component_has_tests(component)
-    ]
+    if args.force_all:
+        # Force every component with tests into the CI matrix. Each disk entry
+        # under tests/components/<name> is treated as a component; filtered
+        # below by _component_has_tests so components without YAML tests are
+        # still excluded.
+        tests_root = Path(root_path) / ESPHOME_TESTS_COMPONENTS_PATH
+        all_components = sorted(d.name for d in tests_root.iterdir() if d.is_dir())
+        changed_components_with_tests = [
+            component for component in all_components if _component_has_tests(component)
+        ]
+        # Treat as a core change so downstream logic (clang-tidy full scan,
+        # dep expansion) sees the same world as when esphome/core/ changes.
+        is_core_change = True
+    else:
+        # Filter to only components that have test files
+        # Components without tests shouldn't generate CI test jobs
+        changed_components_with_tests = [
+            component
+            for component in changed_components
+            if _component_has_tests(component)
+        ]
 
     # Get directly changed components with tests (for isolated testing)
     # These will be tested WITHOUT --testing-mode in CI to enable full validation
@@ -1143,8 +1254,10 @@ def main() -> None:
     memory_impact = detect_memory_impact_config(args.branch)
 
     # Determine clang-tidy mode based on actual files that will be checked
+    is_full_scan = False
     if run_clang_tidy:
         # Full scan needed if: hash changed OR core files changed
+        # (is_core_change is forced True under --force-all)
         is_full_scan = _is_clang_tidy_full_scan() or is_core_change
 
         if is_full_scan:
@@ -1177,10 +1290,12 @@ def main() -> None:
 
     # Build output
     # Determine which C++ unit tests to run
-    cpp_run_all, cpp_components = determine_cpp_unit_tests(args.branch)
-
-    # Determine if benchmarks should run
-    run_benchmarks = should_run_benchmarks(args.branch)
+    if args.force_all:
+        cpp_run_all, cpp_components = True, []
+        run_benchmarks = True
+    else:
+        cpp_run_all, cpp_components = determine_cpp_unit_tests(args.branch)
+        run_benchmarks = should_run_benchmarks(args.branch)
 
     # Split components into batches for CI testing
     # This intelligently groups components with similar bus configurations
@@ -1192,7 +1307,7 @@ def main() -> None:
         # (no isolation, all components are groupable)
         target_branch = get_target_branch()
         is_release_branch = target_branch and (
-            target_branch.startswith("release") or target_branch.startswith("beta")
+            target_branch.startswith(("release", "beta"))
         )
 
         if is_release_branch:
@@ -1215,10 +1330,12 @@ def main() -> None:
         component_test_batches = []
 
     output: dict[str, Any] = {
+        "core_ci": run_core_ci,
         "integration_tests": run_integration,
         "integration_test_buckets": integration_test_buckets,
         "clang_tidy": run_clang_tidy,
         "clang_tidy_mode": clang_tidy_mode,
+        "clang_tidy_full_scan": is_full_scan,
         "clang_format": run_clang_format,
         "python_linters": run_python_linters,
         "import_time": run_import_time,

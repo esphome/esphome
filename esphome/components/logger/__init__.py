@@ -506,15 +506,15 @@ async def _late_logger_init(config: ConfigType) -> None:
 def validate_printf(value):
     # https://stackoverflow.com/questions/30011379/how-can-i-parse-a-c-format-string-in-python
     cfmt = r"""
-    (                                  # start of capture group 1
-    %                                  # literal "%"
-    (?:[-+0 #]{0,5})                   # optional flags
-    (?:\d+|\*)?                        # width
-    (?:\.(?:\d+|\*))?                  # precision
-    (?:h|l|ll|w|I|I32|I64)?            # size
-    [cCdiouxXeEfgGaAnpsSZ]             # type
+    (                                   # start of capture group 1
+    %                                   # literal "%"
+    (?:[-+0 #]{0,5})                    # optional flags
+    (?:\d+|\*)?                         # width
+    (?:\.(?:\d+|\*))?                   # precision
+    (?:hh|h|ll|l|j|z|t|L|w|I|I32|I64)?  # size
+    [cCdiouxXeEfgGaAnpsSZ]              # type
     )
-    """  # noqa
+    """
     matches = re.findall(cfmt, value[CONF_FORMAT], flags=re.VERBOSE)
     if len(matches) != len(value[CONF_ARGS]):
         raise cv.Invalid(

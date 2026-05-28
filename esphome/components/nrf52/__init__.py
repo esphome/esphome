@@ -66,7 +66,7 @@ from .const import (
 from .framework import check_and_install
 
 # force import gpio to register pin schema
-from .gpio import nrf52_pin_to_code  # noqa
+from .gpio import nrf52_pin_to_code  # noqa: F401
 
 CODEOWNERS = ["@tomaszduda23"]
 AUTO_LOAD = ["zephyr", "preferences"]
@@ -536,7 +536,7 @@ def _addr2line(addr2line: str, elf: Path, addr: str) -> str:
             check=True,
         )
         return result.stdout.strip().splitlines()[0]
-    except Exception as err:  # pylint: disable=broad-except
+    except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
         _LOGGER.error("Running command failed: %s", err)
     return ""
 
