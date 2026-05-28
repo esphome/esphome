@@ -11,7 +11,9 @@ from esphome.components.display import (
     get_all_display_metadata,
     get_display_metadata,
 )
+from esphome.config import Config
 from esphome.core import ID
+from esphome.final_validate import full_config
 
 
 def test_add_metadata_basic():
@@ -63,14 +65,22 @@ def test_add_metadata_with_byte_order():
         assert meta.byte_order == BYTE_ORDER_LITTLE
 
 
-def test_get_display_metadata_missing_returns_default():
-    """Test that querying a non-existent ID returns default metadata."""
+def test_get_display_metadata_missing_reads_raw_config():
+    """Querying a non-existent ID falls back to raw config lookup."""
     with patch("esphome.components.display.CORE.data", {}):
+        # Set up a minimal full_config with a display entry so the fallback
+        # path in get_display_metadata can find the display config.
+        fc = Config()
+        fc["display"] = [
+            {"id": ID("no_such_display", True), "auto_clear_enabled": True}
+        ]
+        fc.declare_ids.append((ID("no_such_display", True), ["display", 0, "id"]))
+        full_config.set(fc)
         data = get_display_metadata("no_such_display")
         assert data.width == 0
         assert data.height == 0
         assert data.has_hardware_rotation is False
-        assert data.byte_order == BYTE_ORDER_BIG
+        assert data.has_writer is True
 
 
 def test_add_multiple_displays():
