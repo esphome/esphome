@@ -321,7 +321,7 @@ bool HOT EPaperT133A01::transfer_data() {
   const uint16_t bytes_per_half_row = this->width_ / 4;
   const uint16_t total_rows = this->height_;
   const uint16_t bytes_per_row = this->width_ / 2;
-  uint8_t line_data[400];
+  uint8_t line_data[400] = {};
 
   size_t half = this->current_data_index_;
 
