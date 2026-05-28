@@ -9,8 +9,6 @@ Supported models:
 - Seeed-reTerminal-E1004: 1200x1600 pixels, 6-color (T133A01 panel)
 """
 
-from esphome.const import CONF_CS_PIN, CONF_DC_PIN, CONF_RESET_PIN, CONF_BUSY_PIN
-
 from . import EpaperModel
 
 

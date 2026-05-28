@@ -203,9 +203,8 @@ bool EPaperT133A01::initialise(bool partial) {
   // TRES - Resolution Setting (CS + CS1).
   // Fixed value {0x04, 0xB0, 0x03, 0x20} matching Arduino TRES_V.
   // With width=1200, height=1600: first word = width = 1200, second word = height/2 = 800.
-  this->cmd_data_cs1_(R61_TRES, {
-      (uint8_t) (this->width_ >> 8), (uint8_t) (this->width_ & 0xFF),
-      (uint8_t) ((this->height_ / 2) >> 8), (uint8_t) ((this->height_ / 2) & 0xFF)});
+  this->cmd_data_cs1_(R61_TRES, {(uint8_t) (this->width_ >> 8), (uint8_t) (this->width_ & 0xFF),
+                                 (uint8_t) ((this->height_ / 2) >> 8), (uint8_t) ((this->height_ / 2) & 0xFF)});
   delay(10);
 
   // PWR - Power Setting (via CS)
