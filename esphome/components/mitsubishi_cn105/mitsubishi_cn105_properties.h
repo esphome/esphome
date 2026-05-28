@@ -133,6 +133,9 @@ struct Property {
       mask.set(Derived::ID);
       return true;
     }
+
+   protected:
+    constexpr Lookup() = default;
   };
 
   struct Mode : Lookup<Mode, &Status::mode> {
