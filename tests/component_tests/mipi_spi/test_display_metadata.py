@@ -32,7 +32,7 @@ def test_metadata_native_quad_default_test_card(
         platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
     )
     config = CONFIG_SCHEMA({"model": "JC3636W518", "id": "jc3232w518"})
-    meta = get_display_metadata(str(config["id"]))
+    meta = get_display_metadata(config["id"])
     assert meta is not None
     assert meta.width == 360
     assert meta.height == 360
@@ -51,7 +51,7 @@ def test_metadata_single_mode_with_dc_pin(
     config = CONFIG_SCHEMA(
         {"model": "ST7735", "dc_pin": 18, "id": "single_mode_with_dc_pin"}
     )
-    meta = get_display_metadata(str(config["id"]))
+    meta = get_display_metadata(config["id"])
     assert meta is not None
     assert meta.width == 128
     assert meta.height == 160
@@ -76,7 +76,7 @@ def test_metadata_custom_dimensions(
             "id": "custom_dimensions",
         }
     )
-    meta = get_display_metadata(str(config["id"]))
+    meta = get_display_metadata(config["id"])
     assert meta is not None
     assert meta.width == 480
     assert meta.height == 320
@@ -92,8 +92,8 @@ def test_metadata_no_swap_xy_not_full_hardware_rotation(
         platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
     )
     # JC3248W535 has swap_xy=cv.UNDEFINED -> transforms={mirror_x, mirror_y} only
-    CONFIG_SCHEMA({"model": "JC3248W535", "id": "jc3248w535"})
-    meta = get_display_metadata("jc3248w535")
+    config = CONFIG_SCHEMA({"model": "JC3248W535", "id": "jc3248w535"})
+    meta = get_display_metadata(config["id"])
     assert meta is not None
     assert meta.has_hardware_rotation is False
 

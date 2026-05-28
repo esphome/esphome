@@ -20,7 +20,7 @@ def test_add_metadata_basic():
     """Test adding metadata with an ID object."""
     with patch("esphome.components.display.CORE.data", {}):
         add_metadata(ID("my_display"), 320, 240)
-        meta = get_display_metadata("my_display")
+        meta = get_display_metadata(ID("my_display"))
         assert meta == DisplayMetaData(
             width=320,
             height=240,
@@ -39,7 +39,7 @@ def test_add_metadata_with_all_fields():
             has_hardware_rotation=True,
             byte_order=BYTE_ORDER_LITTLE,
         )
-        meta = get_display_metadata("my_display")
+        meta = get_display_metadata(ID("my_display"))
         assert meta == DisplayMetaData(
             width=480,
             height=320,
@@ -52,7 +52,7 @@ def test_add_metadata_hardware_rotation_default():
     """Test that has_hardware_rotation defaults to False."""
     with patch("esphome.components.display.CORE.data", {}):
         add_metadata(ID("disp"), 128, 64)
-        meta = get_display_metadata("disp")
+        meta = get_display_metadata(ID("disp"))
         assert meta.has_hardware_rotation is False
         assert meta.byte_order == BYTE_ORDER_BIG
 
@@ -61,7 +61,7 @@ def test_add_metadata_with_byte_order():
     """Test adding metadata with explicit byte_order."""
     with patch("esphome.components.display.CORE.data", {}):
         add_metadata(ID("disp"), 240, 320, byte_order=BYTE_ORDER_LITTLE)
-        meta = get_display_metadata("disp")
+        meta = get_display_metadata(ID("disp"))
         assert meta.byte_order == BYTE_ORDER_LITTLE
 
 
@@ -88,7 +88,7 @@ def test_get_display_metadata_missing_reads_raw_config():
         fc.declare_ids.append((ID("no_such_display", True), ["display", 0, "id"]))
         fc.declare_ids.append((ID("other_display", True), ["display", 1, "id"]))
         full_config.set(fc)
-        data = get_display_metadata("no_such_display")
+        data = get_display_metadata(ID("no_such_display"))
         assert data.width == 320
         assert data.height == 240
         assert data.has_hardware_rotation is False
@@ -96,7 +96,7 @@ def test_get_display_metadata_missing_reads_raw_config():
         assert data.byte_order == BYTE_ORDER_LITTLE
         assert data.rotation == 90
 
-        data = get_display_metadata("other_display")
+        data = get_display_metadata(ID("other_display"))
         assert data.width == 1024
         assert data.height == 600
         assert data.has_writer is False
@@ -145,4 +145,4 @@ def test_get_metadata_asserts_on_unresolved_id():
     with patch("esphome.components.display.CORE.data", {}):
         add_metadata(ID(None), 320, 240)
         with pytest.raises(AssertionError, match="resolved"):
-            get_display_metadata("anything")
+            get_display_metadata(ID("anything"))

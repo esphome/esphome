@@ -216,7 +216,7 @@ def final_validation(config_list):
     global_config = full_config.get()
     # Resolve byte_order from display metadata before multi-config validation
     for config in config_list:
-        metas = [get_display_metadata(disp.id) for disp in config[df.CONF_DISPLAYS]]
+        metas = [get_display_metadata(disp) for disp in config[df.CONF_DISPLAYS]]
         if any(m.has_writer for m in metas):
             raise cv.Invalid(
                 "Using lambda:, pages:, auto_clear_enabled: true, or show_test_card: true in display config is not compatible with LVGL"
@@ -379,8 +379,7 @@ async def to_code(configs):
         # options will have CONF_ROTATION true if rotation is changed in an automation.
         if CONF_ROTATION in config or df.get_options().get(CONF_ROTATION) is True:
             if all(
-                get_display_metadata(str(disp)).has_hardware_rotation
-                for disp in displays
+                get_display_metadata(disp).has_hardware_rotation for disp in displays
             ):
                 rotation_type = RotationType.ROTATION_HARDWARE
                 df.LOGGER.info("LVGL will use hardware rotation via display driver")

@@ -3,7 +3,12 @@ from dataclasses import dataclass
 from esphome import automation, core
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
-from esphome.components.const import BYTE_ORDER_BIG, CONF_BYTE_ORDER, KEY_METADATA
+from esphome.components.const import (
+    BYTE_ORDER_BIG,
+    CONF_BYTE_ORDER,
+    CONF_DRAW_ROUNDING,
+    KEY_METADATA,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
@@ -186,21 +191,23 @@ def get_all_display_metadata() -> dict[str, DisplayMetaData]:
     return {id_.id: meta for id_, meta in entries}
 
 
-def get_display_metadata(display_id: str) -> DisplayMetaData:
-    """Get display metadata by ID string.
+def get_display_metadata(display_id: ID) -> DisplayMetaData:
+    """Get display metadata by ID object
 
     Must not be called before IDs have been finalised.
     """
     for id_, meta in _get_metadata_list():
+        if id_ is display_id:
+            return meta
         assert id_.id is not None, (
             "get_display_metadata called before display IDs have been resolved"
         )
-        if id_.id == display_id:
+        if id_.id == display_id.id:
             return meta
     # No metadata found, display driver may not yet support it.
     # Read the raw config to populate the returned data
     global_config = full_config.get()
-    path = global_config.get_path_for_id(ID(display_id))[:-1]
+    path = global_config.get_path_for_id(display_id)[:-1]
     disp_config = global_config.get_config_for_path(path)
     dimensions = disp_config.get(CONF_DIMENSIONS, (0, 0))
     if isinstance(dimensions, dict):
@@ -208,7 +215,7 @@ def get_display_metadata(display_id: str) -> DisplayMetaData:
     elif not isinstance(dimensions, tuple) or len(dimensions) != 2:
         dimensions = (0, 0)
 
-    return DisplayMetaData(
+    meta = DisplayMetaData(
         width=dimensions[0],
         height=dimensions[1],
         has_hardware_rotation=False,
@@ -218,8 +225,10 @@ def get_display_metadata(display_id: str) -> DisplayMetaData:
         or disp_config.get(CONF_LAMBDA) is not None
         or disp_config.get(CONF_SHOW_TEST_CARD) is True,
         rotation=disp_config.get(CONF_ROTATION, 0),
-        draw_rounding=disp_config.get("draw_rounding", 0),
+        draw_rounding=disp_config.get(CONF_DRAW_ROUNDING, 0),
     )
+    _get_metadata_list().append((display_id, meta))
+    return meta
 
 
 def add_metadata(
