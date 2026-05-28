@@ -568,5 +568,10 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
 def run_compile(args, config: ConfigType) -> bool:
     if CORE.using_toolchain_platformio:
         return False
+    if not CORE.using_toolchain_sdk_nrf:
+        raise EsphomeError(
+            "Unsupported toolchain for nRF52."
+            "Supported toolchains are 'platformio' and 'sdk-nrf'."
+        )
     check_and_install()
     raise EsphomeError("Native build for nRF52 is not implemented yet")
