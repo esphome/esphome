@@ -34,7 +34,7 @@ class Valve;
 // Inheritance: ValveCall -> ActuatorCallBase
 class ValveCall : public actuator::ActuatorCallBase {
  public:
-  explicit ValveCall(Valve *parent);
+  ValveCall(Valve *parent);
 
   // Covariant wrappers — return ValveCall& for fluent chaining compatibility
   ValveCall &set_command(const char *command);

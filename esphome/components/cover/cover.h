@@ -34,7 +34,7 @@ class Cover;
 // Inheritance: CoverCall -> ActuatorCallBase
 class CoverCall : public actuator::ActuatorCallBase {
  public:
-  explicit CoverCall(Cover *parent);
+  CoverCall(Cover *parent);
 
   // Covariant wrappers — return CoverCall& for fluent chaining compatibility
   CoverCall &set_command(const char *command);
