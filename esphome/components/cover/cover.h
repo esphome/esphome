@@ -131,4 +131,37 @@ class Cover : public actuator::ActuatorBase, public actuator::IActuator {
   optional<CoverRestoreState> restore_state_() { return ActuatorBase::restore_state_<CoverRestoreState>(); }
 };
 
+// Inline definitions placed after Cover's full declaration so the Cover* → ActuatorBase* upcast
+// in the constructor is well-formed. Defining these inline allows the compiler to fold the
+// covariant wrappers and constructor into the call site (make_call().set_*().perform()).
+inline CoverCall::CoverCall(Cover *parent) : actuator::ActuatorCallBase(parent) {}
+inline CoverCall &CoverCall::set_command_open() {
+  actuator::ActuatorCallBase::set_command_open();
+  return *this;
+}
+inline CoverCall &CoverCall::set_command_close() {
+  actuator::ActuatorCallBase::set_command_close();
+  return *this;
+}
+inline CoverCall &CoverCall::set_command_stop() {
+  actuator::ActuatorCallBase::set_command_stop();
+  return *this;
+}
+inline CoverCall &CoverCall::set_command_toggle() {
+  actuator::ActuatorCallBase::set_command_toggle();
+  return *this;
+}
+inline CoverCall &CoverCall::set_position(float position) {
+  actuator::ActuatorCallBase::set_position(position);
+  return *this;
+}
+inline CoverCall &CoverCall::set_tilt(float tilt) {
+  this->tilt_ = tilt;
+  return *this;
+}
+inline CoverCall &CoverCall::set_stop(bool stop) {
+  actuator::ActuatorCallBase::set_stop(stop);
+  return *this;
+}
+
 }  // namespace esphome::cover

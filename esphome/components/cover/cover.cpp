@@ -25,39 +25,9 @@ Cover::Cover() { this->position = COVER_OPEN; }
 // CoverCall
 //
 
-CoverCall::CoverCall(Cover *parent) : actuator::ActuatorCallBase(parent) {}
-
-// Covariant wrappers — call parent method, return CoverCall& for fluent chaining
+// Covariant wrapper for set_command (the only one with non-trivial base) — others are inline in cover.h
 CoverCall &CoverCall::set_command(const char *command) {
   actuator::ActuatorCallBase::set_command(command);
-  return *this;
-}
-CoverCall &CoverCall::set_command_open() {
-  actuator::ActuatorCallBase::set_command_open();
-  return *this;
-}
-CoverCall &CoverCall::set_command_close() {
-  actuator::ActuatorCallBase::set_command_close();
-  return *this;
-}
-CoverCall &CoverCall::set_command_stop() {
-  actuator::ActuatorCallBase::set_command_stop();
-  return *this;
-}
-CoverCall &CoverCall::set_command_toggle() {
-  actuator::ActuatorCallBase::set_command_toggle();
-  return *this;
-}
-CoverCall &CoverCall::set_position(float position) {
-  actuator::ActuatorCallBase::set_position(position);
-  return *this;
-}
-CoverCall &CoverCall::set_tilt(float tilt) {
-  this->tilt_ = tilt;
-  return *this;
-}
-CoverCall &CoverCall::set_stop(bool stop) {
-  actuator::ActuatorCallBase::set_stop(stop);
   return *this;
 }
 
