@@ -38,30 +38,6 @@ static const uint8_t MS8607_CMD_CONV_D1_OSR_8K = 0x4A;
 /// Request conversion of analog D2 (temperature) with OSR=8192 (highest oversampling ratio). Takes maximum of 17.2ms
 static const uint8_t MS8607_CMD_CONV_D2_OSR_8K = 0x5A;
 
-enum class MS8607Component::ErrorCode {
-  /// Component hasn't failed (yet?)
-  NONE = 0,
-  /// Both the Pressure/Temperature address and the Humidity address failed to reset
-  PTH_RESET_FAILED = 1,
-  /// Asking the Pressure/Temperature sensor to reset failed
-  PT_RESET_FAILED = 2,
-  /// Asking the Humidity sensor to reset failed
-  H_RESET_FAILED = 3,
-  /// Reading the PROM calibration values failed
-  PROM_READ_FAILED = 4,
-  /// The PROM calibration values failed the CRC check
-  PROM_CRC_FAILED = 5,
-};
-
-enum class MS8607Component::SetupStatus {
-  /// This component has not successfully reset the PT & H devices
-  NEEDS_RESET,
-  /// Reset commands succeeded, need to wait >= 15ms to read PROM
-  NEEDS_PROM_READ,
-  /// Successfully read PROM and ready to update sensors
-  SUCCESSFUL,
-};
-
 static uint8_t crc4(uint16_t *buffer, size_t length);
 
 void MS8607Component::setup() {
