@@ -9,50 +9,50 @@
 namespace esphome::ms8607 {
 
 /// TAG used for logging calls
-static const char *const TAG = "ms8607";
+static constexpr char TAG[] = "ms8607";
 
 /// Reset the Pressure/Temperature sensor
-static const uint8_t MS8607_PT_CMD_RESET = 0x1E;
+static constexpr uint8_t MS8607_PT_CMD_RESET = 0x1E;
 
 /// Beginning of PROM register addresses. Same for both i2c addresses. Each address has 16 bits of data, and
 /// PROM addresses step by two, so the LSB is always 0
-static const uint8_t MS8607_PROM_START = 0xA0;
+static constexpr uint8_t MS8607_PROM_START = 0xA0;
 /// Last PROM register address.
-static const uint8_t MS8607_PROM_END = 0xAE;
+static constexpr uint8_t MS8607_PROM_END = 0xAE;
 /// Number of PROM registers.
-static const uint8_t MS8607_PROM_COUNT = (MS8607_PROM_END - MS8607_PROM_START) >> 1;
+static constexpr uint8_t MS8607_PROM_COUNT = (MS8607_PROM_END - MS8607_PROM_START) >> 1;
 
 /// Reset the Humidity sensor
-static const uint8_t MS8607_CMD_H_RESET = 0xFE;
+static constexpr uint8_t MS8607_CMD_H_RESET = 0xFE;
 /// Read relative humidity, without holding i2c master
-static const uint8_t MS8607_CMD_H_MEASURE_NO_HOLD = 0xF5;
+static constexpr uint8_t MS8607_CMD_H_MEASURE_NO_HOLD = 0xF5;
 /// Temperature correction coefficient for Relative Humidity from datasheet
-static const float MS8607_H_TEMP_COEFFICIENT = -0.18;
+static constexpr float MS8607_H_TEMP_COEFFICIENT = -0.18;
 
 /// Read the converted analog value, either D1 (pressure) or D2 (temperature)
-static const uint8_t MS8607_CMD_ADC_READ = 0x00;
+static constexpr uint8_t MS8607_CMD_ADC_READ = 0x00;
 
 // TODO: allow OSR to be turned down for speed and/or lower power consumption via configuration.
 // ms8607 supports 6 different settings
 
 /// Request conversion of analog D1 (pressure) with OSR=8192 (highest oversampling ratio). Takes maximum of 17.2ms
-static const uint8_t MS8607_CMD_CONV_D1_OSR_8K = 0x4A;
+static constexpr uint8_t MS8607_CMD_CONV_D1_OSR_8K = 0x4A;
 /// Request conversion of analog D2 (temperature) with OSR=8192 (highest oversampling ratio). Takes maximum of 17.2ms
-static const uint8_t MS8607_CMD_CONV_D2_OSR_8K = 0x5A;
+static constexpr uint8_t MS8607_CMD_CONV_D2_OSR_8K = 0x5A;
 
 static uint8_t crc4(uint16_t *buffer, size_t length);
 
 // Sanity check Temperature & Pressure Readings, these values are way out of range
 
 /// value below which we consider a temperature reading to be invalid
-const float TEMPERATURE_LOWER_LIMIT = -50.0f;
+static constexpr float TEMPERATURE_LOWER_LIMIT = -50.0f;
 /// value above which we consider a temperature reading to be invalid
-const float TEMPERATURE_UPPER_LIMIT = 100.0f;
+static constexpr float TEMPERATURE_UPPER_LIMIT = 100.0f;
 
 /// value below which we consider a pressure reading to be invalid
-const float PRESSURE_LOWER_LIMIT = 0.0f;
+static constexpr float PRESSURE_LOWER_LIMIT = 0.0f;
 /// value above which we consider a pressure reading to be invalid
-const float PRESSURE_UPPER_LIMIT = 1500.0f;
+static constexpr float PRESSURE_UPPER_LIMIT = 1500.0f;
 
 void MS8607Component::setup() {
   this->reset_interval_ = 5;
