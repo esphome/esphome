@@ -47,10 +47,6 @@ class ValveCall : public actuator::ActuatorCallBase {
 
   void perform();
 
-  const optional<float> &get_position() const { return this->position_; }
-  bool get_stop() const { return this->stop_; }
-  const optional<bool> &get_toggle() const { return this->toggle_; }
-
  private:
   void validate() override;
 };

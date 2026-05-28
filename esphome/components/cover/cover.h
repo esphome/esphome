@@ -48,10 +48,7 @@ class CoverCall : public actuator::ActuatorCallBase {
 
   void perform();
 
-  const optional<float> &get_position() const { return this->position_; }
-  bool get_stop() const { return this->stop_; }
   const optional<float> &get_tilt() const { return this->tilt_; }
-  const optional<bool> &get_toggle() const { return this->toggle_; }
 
  protected:
   optional<float> tilt_{};
