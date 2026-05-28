@@ -108,9 +108,7 @@ def has_high_performance_networking() -> bool:
     return CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING, False)
 
 
-def validate_ipv6(value):
-    value = cv.boolean(value)
-
+def validate_ipv6(value: bool) -> bool:
     if CORE.is_nrf52 and not value:
         raise cv.Invalid("On nRF52, enable_ipv6 must be true")
 
