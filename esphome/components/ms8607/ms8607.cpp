@@ -1,5 +1,7 @@
 #include "ms8607.h"
 
+#include <cmath>
+
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
