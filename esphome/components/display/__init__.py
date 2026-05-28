@@ -205,7 +205,7 @@ def get_display_metadata(display_id: str) -> DisplayMetaData:
         height=0,
         has_hardware_rotation=False,
         byte_order=cv.UNDEFINED,
-        has_writer=disp_config.get(CONF_AUTO_CLEAR_ENABLED, False)
+        has_writer=disp_config.get(CONF_AUTO_CLEAR_ENABLED) is True
         or disp_config.get(CONF_PAGES) is not None
         or disp_config.get(CONF_LAMBDA) is not None,
         rotation=0,
