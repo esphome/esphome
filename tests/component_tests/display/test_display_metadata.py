@@ -78,9 +78,15 @@ def test_get_display_metadata_missing_reads_raw_config():
                 "dimensions": {"width": 320, "height": 240},
                 "byte_order": BYTE_ORDER_LITTLE,
                 "rotation": 90,
-            }
+            },
+            {
+                "id": ID("other_display", True),
+                "auto_clear_enabled": "undefined",
+                "dimensions": (1024, 600),
+            },
         ]
         fc.declare_ids.append((ID("no_such_display", True), ["display", 0, "id"]))
+        fc.declare_ids.append((ID("other_display", True), ["display", 1, "id"]))
         full_config.set(fc)
         data = get_display_metadata("no_such_display")
         assert data.width == 320
@@ -89,6 +95,11 @@ def test_get_display_metadata_missing_reads_raw_config():
         assert data.has_writer is True
         assert data.byte_order == BYTE_ORDER_LITTLE
         assert data.rotation == 90
+
+        data = get_display_metadata("other_display")
+        assert data.width == 1024
+        assert data.height == 600
+        assert data.has_writer is False
 
 
 def test_add_multiple_displays():

@@ -202,16 +202,21 @@ def get_display_metadata(display_id: str) -> DisplayMetaData:
     global_config = full_config.get()
     path = global_config.get_path_for_id(ID(display_id))[:-1]
     disp_config = global_config.get_config_for_path(path)
-    dimensions = disp_config.get(CONF_DIMENSIONS, {})
+    dimensions = disp_config.get(CONF_DIMENSIONS, (0, 0))
+    if isinstance(dimensions, dict):
+        dimensions = (dimensions.get(CONF_WIDTH, 0), dimensions.get(CONF_HEIGHT, 0))
+    elif not isinstance(dimensions, tuple):
+        dimensions = (0, 0)
 
     return DisplayMetaData(
-        width=dimensions.get(CONF_WIDTH, 0),
-        height=dimensions.get(CONF_HEIGHT, 0),
+        width=dimensions[0],
+        height=dimensions[1],
         has_hardware_rotation=False,
         byte_order=disp_config.get(CONF_BYTE_ORDER, cv.UNDEFINED),
         has_writer=disp_config.get(CONF_AUTO_CLEAR_ENABLED) is True
         or disp_config.get(CONF_PAGES) is not None
-        or disp_config.get(CONF_LAMBDA) is not None,
+        or disp_config.get(CONF_LAMBDA) is not None
+        or disp_config.get(CONF_SHOW_TEST_CARD) is True,
         rotation=disp_config.get(CONF_ROTATION, 0),
         draw_rounding=disp_config.get("draw_rounding", 0),
     )
