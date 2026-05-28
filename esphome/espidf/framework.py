@@ -28,7 +28,7 @@ _LOGGER = logging.getLogger(__name__)
 _SCRIPTS_DIR = Path(__file__).parent
 
 
-def _str_to_lst_of_str(a: str | list[str]) -> list[str]:
+def str_to_lst_of_str(a: str | list[str]) -> list[str]:
     """
     Convert a string to a list of string
 
@@ -54,23 +54,23 @@ ESPHOME_STAMP_FILE = ".esphome.stamp.json"
 # Bumping triggers a full reinstall on every user's next run.
 STAMP_SCHEMA_VERSION = "0"
 
-ESPHOME_IDF_DEFAULT_TARGETS = _str_to_lst_of_str(
+ESPHOME_IDF_DEFAULT_TARGETS = str_to_lst_of_str(
     os.environ.get("ESPHOME_IDF_DEFAULT_TARGETS", "all")
 )
 
-ESPHOME_IDF_DEFAULT_TOOLS = _str_to_lst_of_str(
+ESPHOME_IDF_DEFAULT_TOOLS = str_to_lst_of_str(
     os.environ.get("ESPHOME_IDF_DEFAULT_TOOLS", "cmake;ninja")
 )
 
-ESPHOME_IDF_DEFAULT_TOOLS_FORCE = _str_to_lst_of_str(
+ESPHOME_IDF_DEFAULT_TOOLS_FORCE = str_to_lst_of_str(
     os.environ.get("ESPHOME_IDF_DEFAULT_TOOLS_FORCE", "required")
 )
 
-ESPHOME_IDF_DEFAULT_FEATURES = _str_to_lst_of_str(
+ESPHOME_IDF_DEFAULT_FEATURES = str_to_lst_of_str(
     os.environ.get("ESPHOME_IDF_DEFAULT_FEATURES", "core")
 )
 
-ESPHOME_IDF_FRAMEWORK_MIRRORS = _str_to_lst_of_str(
+ESPHOME_IDF_FRAMEWORK_MIRRORS = str_to_lst_of_str(
     os.environ.get("ESPHOME_IDF_FRAMEWORK_MIRRORS")
     or [
         "https://github.com/esphome-libs/esp-idf/releases/download/v{VERSION}/esp-idf-v{VERSION}.tar.xz",
@@ -78,7 +78,7 @@ ESPHOME_IDF_FRAMEWORK_MIRRORS = _str_to_lst_of_str(
     ]
 )
 
-ESP_IDF_CONSTRAINTS_MIRRORS = _str_to_lst_of_str(
+ESP_IDF_CONSTRAINTS_MIRRORS = str_to_lst_of_str(
     os.environ.get(
         "ESP_IDF_CONSTRAINTS_MIRRORS",
         "https://dl.espressif.com/dl/esp-idf/espidf.constraints.v{VERSION}.txt",
@@ -161,7 +161,7 @@ def _get_pythonexe_path() -> str:
     return os.environ.get("PYTHONEXEPATH", os.path.normpath(sys.executable))
 
 
-def _get_python_env_executable_path(root: PathType, binary: str) -> Path:
+def get_python_env_executable_path(root: PathType, binary: str) -> Path:
     """
     Get the path to a Python environment executable file.
 
@@ -274,7 +274,7 @@ def _exec(
         return False, None, None
 
 
-def _exec_ok(*args, **kwargs) -> bool:
+def exec_ok(*args, **kwargs) -> bool:
     """
     Execute a command and return only the success status.
 
@@ -406,7 +406,7 @@ print(".".join([str(x) for x in sys.version_info]))
     return stdout
 
 
-def _create_venv(root: PathType, msg: str | None = None):
+def create_venv(root: PathType, msg: str | None = None):
     """
     Create a Python virtual environment.
 
@@ -421,7 +421,7 @@ def _create_venv(root: PathType, msg: str | None = None):
         Exception: If virtual environment creation fails
     """
     cmd = [_get_pythonexe_path(), "-m", "venv", "--clear", root]
-    if not _exec_ok(cmd, msg=f"Create Python virtual environment for {msg}"):
+    if not exec_ok(cmd, msg=f"Create Python virtual environment for {msg}"):
         raise RuntimeError(f"Can't create Python virtual environment for {msg}")
 
 
@@ -1084,7 +1084,7 @@ def _check_esphome_idf_framework_install(
                 "--non-interactive",
                 "check",
             ]
-            if _exec_ok(cmd, msg=f"ESP-IDF {version} check", env=env):
+            if exec_ok(cmd, msg=f"ESP-IDF {version} check", env=env):
                 install = False
 
     # 4. Install framework tools if not installed or needs update
@@ -1098,7 +1098,7 @@ def _check_esphome_idf_framework_install(
             "install",
             f"--targets={targets_str}",
         ] + tools
-        if not _exec_ok(
+        if not exec_ok(
             cmd,
             msg=f"ESP-IDF {version} framework installation",
             env=env,
@@ -1140,7 +1140,7 @@ def _check_esp_idf_python_env_install(
     framework_path = _get_framework_path(version)
     python_env_path = _get_python_env_path(version)
     env_stamp_file = python_env_path / ESPHOME_STAMP_FILE
-    env_python_path = _get_python_env_executable_path(python_env_path, "python")
+    env_python_path = get_python_env_executable_path(python_env_path, "python")
 
     _LOGGER.info("Checking ESP-IDF %s Python environment ...", version)
     install = force or not python_env_path.is_dir() or not env_python_path.is_file()
@@ -1156,7 +1156,7 @@ def _check_esp_idf_python_env_install(
     if install:
         rmdir(python_env_path, msg=f"Clean up ESP-IDF {version} Python environment")
 
-        _create_venv(python_env_path, msg=f"ESP-IDF {version}")
+        create_venv(python_env_path, msg=f"ESP-IDF {version}")
 
         esp_idf_version = _get_idf_version(framework_path, env=env)
         constraint_file_path = (
@@ -1186,7 +1186,7 @@ def _check_esp_idf_python_env_install(
             "pip",
             "setuptools",
         ]
-        if not _exec_ok(
+        if not exec_ok(
             cmd,
             msg=f"Upgrade ESP-IDF {version} Python environment packages",
             env=env,
@@ -1206,7 +1206,7 @@ def _check_esp_idf_python_env_install(
                 "-r",
                 str(requirements_file),
             ]
-            if not _exec_ok(
+            if not exec_ok(
                 cmd,
                 msg=f"Install ESP-IDF {version} Python dependencies for {feature}",
                 env=env,
@@ -1308,7 +1308,7 @@ def get_framework_env(
 
     # 3. If Python environment path is provided, add it to PATH and set IDF_PYTHON_ENV_PATH
     if python_env_path:
-        python_path = _get_python_env_executable_path(python_env_path, "python")
+        python_path = get_python_env_executable_path(python_env_path, "python")
         path_list.insert(0, str(python_path.parent))
         env["IDF_PYTHON_ENV_PATH"] = str(python_env_path)
 

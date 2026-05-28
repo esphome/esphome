@@ -6,13 +6,13 @@ import tempfile
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
 from esphome.espidf.framework import (
-    _create_venv,
-    _exec_ok,
-    _get_python_env_executable_path,
-    _str_to_lst_of_str,
     archive_extract_all,
+    create_venv,
     download_from_mirrors,
+    exec_ok,
+    get_python_env_executable_path,
     rmdir,
+    str_to_lst_of_str,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ _LOGGER = logging.getLogger(__name__)
 _WEST_VERSION = "1.5.0"
 _TOOLCHAIN_VERSION = "0.17.4"
 
-SDK_NG_TOOLCHAIN_MIRRORS = _str_to_lst_of_str(
+SDK_NG_TOOLCHAIN_MIRRORS = str_to_lst_of_str(
     "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v{VERSION}/toolchain_{sysname}-{machine}_arm-zephyr-eabi.{extension}",
 )
 
@@ -45,17 +45,17 @@ def check_and_install() -> None:
     framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     version = f"v{framework_ver.major}.{framework_ver.minor}.{framework_ver.patch}"
     python_env_path = _get_python_env_path(version)
-    env_python_path = _get_python_env_executable_path(python_env_path, "python")
+    env_python_path = get_python_env_executable_path(python_env_path, "python")
     sentinel = python_env_path / ".ready"
     install_venv = not sentinel.exists()
     if install_venv:
         rmdir(python_env_path, msg=f"Clean up {version} Python environment")
 
-        _create_venv(python_env_path, msg=f"{version}")
+        create_venv(python_env_path, msg=f"{version}")
 
         _LOGGER.info("Installing west %s ...", _WEST_VERSION)
         cmd = [str(env_python_path), "-m", "pip", "install", f"west=={_WEST_VERSION}"]
-        if not _exec_ok(
+        if not exec_ok(
             cmd,
         ):
             raise EsphomeError(f"Upgrade {version} Python environment packages failure")
@@ -77,7 +77,7 @@ def check_and_install() -> None:
             f"{version}",
             str(framework_path),
         ]
-        if not _exec_ok(
+        if not exec_ok(
             cmd,
         ):
             raise EsphomeError(f"Can't initialize nRF Connect SDK {version}")
@@ -90,7 +90,7 @@ def check_and_install() -> None:
             "--narrow",
             "--fetch-opt=--depth=1",
         ]
-        if not _exec_ok(cmd, env={"ZEPHYR_BASE": str(framework_path)}):
+        if not exec_ok(cmd, env={"ZEPHYR_BASE": str(framework_path)}):
             raise EsphomeError(f"Can't update nRF Connect SDK {version}")
         sentinel.touch()
 
