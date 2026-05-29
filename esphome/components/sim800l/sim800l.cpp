@@ -113,10 +113,10 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         return;
       }
     }
-  } else if (ok && (this->state_ != STATE_PARSE_SMS_RESPONSE && this->state_ != STATE_CHECK_CALL &&
-                    this->state_ != STATE_RECEIVE_SMS && this->state_ != STATE_DIALING2 &&
-                    this->state_ != STATE_HTTP_DATA && this->state_ != STATE_HTTP_ACTION_WAIT &&
-                    this->state_ != STATE_HTTP_READ_RESPONSE)) {
+  } else if (ok &&
+             (this->state_ != STATE_PARSE_SMS_RESPONSE && this->state_ != STATE_CHECK_CALL &&
+              this->state_ != STATE_RECEIVE_SMS && this->state_ != STATE_DIALING2 && this->state_ != STATE_HTTP_DATA &&
+              this->state_ != STATE_HTTP_ACTION_WAIT && this->state_ != STATE_HTTP_READ_RESPONSE)) {
     ESP_LOGW(TAG, "Received unexpected OK. Ignoring");
     return;
   }
@@ -509,8 +509,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         size_t first = message.find(',', 12);
         size_t second = message.find(',', first + 1);
         if (first != std::string::npos && second != std::string::npos) {
-          this->http_status_code_ =
-              parse_number<uint16_t>(message.substr(first + 1, second - first - 1)).value_or(0);
+          this->http_status_code_ = parse_number<uint16_t>(message.substr(first + 1, second - first - 1)).value_or(0);
           ESP_LOGD(TAG, "HTTP response status: %u", this->http_status_code_);
         }
         this->http_response_body_.clear();
