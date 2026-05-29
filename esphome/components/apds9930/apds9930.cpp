@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace apds9930 {
+namespace esphome::apds9930 {
 
 static const char *const TAG = "apds9930";
 
@@ -212,5 +211,4 @@ float APDS9930::calculate_lux_(uint16_t ch0, uint16_t ch1) {
 
 float APDS9930::get_setup_priority() const { return setup_priority::DATA; }
 
-}  // namespace apds9930
-}  // namespace esphome
+}  // namespace esphome::apds9930

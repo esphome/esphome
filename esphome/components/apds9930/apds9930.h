@@ -7,8 +7,7 @@
 #include "esphome/components/sensor/sensor.h"
 #endif
 
-namespace esphome {
-namespace apds9930 {
+namespace esphome::apds9930 {
 
 // Register addresses
 static const uint8_t APDS9930_ENABLE = 0x00;
@@ -99,5 +98,4 @@ class APDS9930 : public PollingComponent, public i2c::I2CDevice {
   } error_code_{NONE};
 };
 
-}  // namespace apds9930
-}  // namespace esphome
+}  // namespace esphome::apds9930
