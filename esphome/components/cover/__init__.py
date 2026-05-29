@@ -87,9 +87,9 @@ validate_cover_state = cv.enum(COVER_STATES, upper=True)
 CoverOperation = cover_ns.enum("CoverOperation")
 
 COVER_OPERATIONS = {
-    "IDLE": actuator_component.ActuatorOperation.ACTUATOR_OPERATION_IDLE,
-    "OPENING": actuator_component.ActuatorOperation.ACTUATOR_OPERATION_OPENING,
-    "CLOSING": actuator_component.ActuatorOperation.ACTUATOR_OPERATION_CLOSING,
+    "IDLE": cover_ns.COVER_OPERATION_IDLE,
+    "OPENING": cover_ns.COVER_OPERATION_OPENING,
+    "CLOSING": cover_ns.COVER_OPERATION_CLOSING,
 }
 validate_cover_operation = cv.enum(COVER_OPERATIONS, upper=True)
 
