@@ -3,8 +3,7 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace preferences {
+namespace esphome::preferences {
 
 class IntervalSyncer final : public PollingComponent {
  public:
@@ -14,5 +13,4 @@ class IntervalSyncer final : public PollingComponent {
   float get_setup_priority() const override { return setup_priority::BUS; }
 };
 
-}  // namespace preferences
-}  // namespace esphome
+}  // namespace esphome::preferences

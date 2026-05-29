@@ -4,8 +4,7 @@
 
 #include <algorithm>
 
-namespace esphome {
-namespace xpt2046 {
+namespace esphome::xpt2046 {
 
 static const char *const TAG = "xpt2046";
 
@@ -107,5 +106,4 @@ int16_t XPT2046Component::read_adc_(uint8_t ctrl) {  // NOLINT
   return ((data[0] << 8) | data[1]) >> 3;
 }
 
-}  // namespace xpt2046
-}  // namespace esphome
+}  // namespace esphome::xpt2046

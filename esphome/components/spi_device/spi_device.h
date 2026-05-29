@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/spi/spi.h"
 
-namespace esphome {
-namespace spi_device {
+namespace esphome::spi_device {
 
 class SPIDeviceComponent : public Component,
                            public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
@@ -16,5 +15,4 @@ class SPIDeviceComponent : public Component,
  protected:
 };
 
-}  // namespace spi_device
-}  // namespace esphome
+}  // namespace esphome::spi_device
