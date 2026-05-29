@@ -1,5 +1,8 @@
 import esphome.codegen as cg
-from esphome.components.esp32 import add_idf_component
+from esphome.components.esp32 import (
+    add_idf_component,
+    require_libc_picolibc_newlib_compat,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_BUFFER_SIZE, CONF_ID, CONF_TYPE
 from esphome.types import ConfigType
@@ -51,6 +54,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add(buffer.set_buffer_size(config[CONF_BUFFER_SIZE]))
     if config[CONF_TYPE] == ESP32_CAMERA_ENCODER:
         add_idf_component(name="espressif/esp32-camera", ref="2.1.5")
+        # esp32-camera 2.1.5 needs the Newlib shim on IDF 6.0+; remove when fixed upstream
+        require_libc_picolibc_newlib_compat()
         cg.add_define("USE_ESP32_CAMERA_JPEG_ENCODER")
         var = cg.new_Pvariable(
             config[CONF_ID],
