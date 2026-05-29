@@ -9,7 +9,6 @@
 #include <vector>
 #include <queue>
 
-
 namespace esphome::sx126x {
 
 enum SX126xBw : uint8_t {
@@ -110,7 +109,8 @@ class SX126x : public Component,
   void set_pa_ctx_pin(GPIOPin *pa_ctx_pin) { this->pa_ctx_pin_ = pa_ctx_pin; }
   void set_cad_timeout(uint32_t cad_timeout) { this->cad_timeout_ = cad_timeout; }
   bool scan_channel_clear();
-  SX126xError async_transmit_packet(const std::vector<uint8_t> &packet, optional<uint32_t> cad_timeout = optional<uint32_t>(0));
+  SX126xError async_transmit_packet(const std::vector<uint8_t> &packet,
+                                    optional<uint32_t> cad_timeout = optional<uint32_t>(0));
 
  protected:
   static void IRAM_ATTR gpio_intr(SX126x *arg);

@@ -240,8 +240,8 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PA_CTX_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_CAD_TIMEOUT, default="0s"): cv.All(
                 cv.templatable(cv.positive_time_period_milliseconds),
-                cv.Range(max=TimePeriod(milliseconds=262144000))
-            )
+                cv.Range(max=TimePeriod(milliseconds=262144000)),
+            ),
         },
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -385,12 +385,11 @@ ASYNC_SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
         cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
         cv.Optional(CONF_CAD_TIMEOUT): cv.All(
             cv.templatable(cv.positive_time_period_milliseconds),
-            cv.Range(max=TimePeriod(milliseconds=262144000))
-        )
+            cv.Range(max=TimePeriod(milliseconds=262144000)),
+        ),
     },
     key=CONF_DATA,
 )
-
 
 
 @automation.register_action(
@@ -450,11 +449,15 @@ async def async_send_packet_action_to_code(
     if CONF_CAD_TIMEOUT in config:
         cad_val = config[CONF_CAD_TIMEOUT]
         if cg.is_template(cad_val):
-            cad_templ = await cg.templatable(cad_val, args, cg.optional.template(cg.uint32))
+            cad_templ = await cg.templatable(
+                cad_val, args, cg.optional.template(cg.uint32)
+            )
             cg.add(var.set_cad_timeout(cad_templ))
         else:
             cad_ms = int(cad_val.total_milliseconds)
-            cad_templ = await cg.templatable(cad_ms, args, cg.optional.template(cg.uint32))
+            cad_templ = await cg.templatable(
+                cad_ms, args, cg.optional.template(cg.uint32)
+            )
             cg.add(var.set_cad_timeout(cad_templ))
 
     return var

@@ -67,7 +67,7 @@ template<typename... Ts> class AsyncSendPacketAction : public Action<Ts...>, pub
       data = this->data_.func(x...);
     }
     optional<uint32_t> cad_timeout = this->cad_timeout_.value(x...);
-    
+
     this->parent_->async_transmit_packet(data, cad_timeout);
   }
 
