@@ -11,6 +11,33 @@ namespace esphome::mitsubishi_cn105 {
 
 class MitsubishiCN105VerticalVaneDirectionSelect;
 
+/// Public vertical vane direction enum for ESPHome-facing APIs.
+/// Mirrors MitsubishiCN105::VaneMode to avoid exposing the internal protocol enum
+/// in actions, triggers and lambda expressions.
+enum VerticalVaneMode : uint8_t {
+  VERTICAL_VANE_MODE_AUTO = static_cast<uint8_t>(MitsubishiCN105::VaneMode::AUTO),
+  VERTICAL_VANE_MODE_POSITION_1 = static_cast<uint8_t>(MitsubishiCN105::VaneMode::POSITION_1),
+  VERTICAL_VANE_MODE_POSITION_2 = static_cast<uint8_t>(MitsubishiCN105::VaneMode::POSITION_2),
+  VERTICAL_VANE_MODE_POSITION_3 = static_cast<uint8_t>(MitsubishiCN105::VaneMode::POSITION_3),
+  VERTICAL_VANE_MODE_POSITION_4 = static_cast<uint8_t>(MitsubishiCN105::VaneMode::POSITION_4),
+  VERTICAL_VANE_MODE_POSITION_5 = static_cast<uint8_t>(MitsubishiCN105::VaneMode::POSITION_5),
+  VERTICAL_VANE_MODE_SWING = static_cast<uint8_t>(MitsubishiCN105::VaneMode::SWING),
+  VERTICAL_VANE_MODE_UNKNOWN = static_cast<uint8_t>(MitsubishiCN105::VaneMode::UNKNOWN),
+};
+
+/// Vane state snapshot used by vane.on_state triggers.
+/// The payload contains vane-specific state as well as a reference to the
+/// associated climate entity, allowing automations to inspect additional
+/// climate properties such as mode, fan mode and swing mode.
+struct VaneState {
+  struct Vertical {
+    VerticalVaneMode direction;
+  };
+
+  climate::Climate &climate;
+  Vertical vertical;
+};
+
 class MitsubishiCN105Climate : public climate::Climate, public Component, public uart::UARTDevice {
  public:
   explicit MitsubishiCN105Climate() : hp_(*this) {}
@@ -34,7 +61,11 @@ class MitsubishiCN105Climate : public climate::Climate, public Component, public
     this->vertical_vane_direction_select_ = select;
   }
 
-  void set_vertical_vane_direction(MitsubishiCN105::VaneMode direction);
+  void set_vertical_vane_direction(VerticalVaneMode vane_mode);
+
+  template<typename F> void add_on_vane_state_callback(F &&callback) {
+    this->vane_state_callback_.add(std::forward<F>(callback));
+  }
 
  protected:
   void apply_values_();
@@ -50,6 +81,7 @@ class MitsubishiCN105Climate : public climate::Climate, public Component, public
   MitsubishiCN105::VaneMode last_non_swing_vane_mode_{MitsubishiCN105::VaneMode::AUTO};
   MitsubishiCN105::WideVaneMode last_non_swing_wide_vane_mode_{MitsubishiCN105::WideVaneMode::CENTER};
   MitsubishiCN105VerticalVaneDirectionSelect *vertical_vane_direction_select_{nullptr};
+  LazyCallbackManager<void(const VaneState &)> vane_state_callback_;
 };
 
 template<typename... Ts>

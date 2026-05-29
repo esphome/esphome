@@ -162,4 +162,24 @@ TEST(MitsubishiCN105ClimateTests, ApplyValuesIgnoresUnsupportedHorizontalSwingSt
   EXPECT_EQ(sut.swing_mode, climate::CLIMATE_SWING_OFF);
 }
 
+TEST(MitsubishiCN105ClimateTests, ApplyValuesCallsVaneStateCallbackWithPayload) {
+  TestableMitsubishiCN105Climate sut;
+
+  size_t callback_count = 0;
+  const climate::Climate *callback_climate = nullptr;
+  VerticalVaneMode callback_direction = VERTICAL_VANE_MODE_UNKNOWN;
+  sut.add_on_vane_state_callback([&](const VaneState &state) {
+    callback_count++;
+    callback_climate = &state.climate;
+    callback_direction = state.vertical.direction;
+  });
+
+  sut.status().vane_mode = MitsubishiCN105::VaneMode::POSITION_4;
+  sut.apply_values_();
+
+  EXPECT_EQ(callback_count, 1);
+  EXPECT_EQ(callback_climate, &sut);
+  EXPECT_EQ(callback_direction, VERTICAL_VANE_MODE_POSITION_4);
+}
+
 }  // namespace esphome::mitsubishi_cn105::testing

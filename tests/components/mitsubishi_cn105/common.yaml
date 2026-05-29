@@ -10,6 +10,8 @@ climate:
       vertical:
         direction:
           name: "Vertical Vane"
+      on_state:
+        - logger.log: "TRIGGER: vane on_state"
 
 esphome:
   on_boot:

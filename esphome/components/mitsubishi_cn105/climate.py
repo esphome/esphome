@@ -6,6 +6,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_DIRECTION,
     CONF_ID,
+    CONF_ON_STATE,
     CONF_SUPPORTED_SWING_MODES,
     CONF_TEMPERATURE,
     CONF_UPDATE_INTERVAL,
@@ -31,21 +32,21 @@ MitsubishiCN105Climate = mitsubishi_ns.class_(
     uart.UARTDevice,
 )
 
-MitsubishiCN105 = mitsubishi_ns.class_("MitsubishiCN105")
+VaneState = mitsubishi_ns.struct("VaneState")
 
-VerticalVaneDirection = MitsubishiCN105.enum("VaneMode", True)
+VerticalVaneMode = mitsubishi_ns.enum("VerticalVaneMode")
 
 # NOTE: The insertion order of these options must match the VALUES array in
 # mitsubishi_cn105_vane_select_vertical.cpp. The select uses index-based
 # control/state publishing, which is the preferred ESPHome Select API.
 VERTICAL_VANE_DIRECTIONS = {
-    "Auto": VerticalVaneDirection.AUTO,
-    "1": VerticalVaneDirection.POSITION_1,
-    "2": VerticalVaneDirection.POSITION_2,
-    "3": VerticalVaneDirection.POSITION_3,
-    "4": VerticalVaneDirection.POSITION_4,
-    "5": VerticalVaneDirection.POSITION_5,
-    "Swing": VerticalVaneDirection.SWING,
+    "Auto": VerticalVaneMode.VERTICAL_VANE_MODE_AUTO,
+    "1": VerticalVaneMode.VERTICAL_VANE_MODE_POSITION_1,
+    "2": VerticalVaneMode.VERTICAL_VANE_MODE_POSITION_2,
+    "3": VerticalVaneMode.VERTICAL_VANE_MODE_POSITION_3,
+    "4": VerticalVaneMode.VERTICAL_VANE_MODE_POSITION_4,
+    "5": VerticalVaneMode.VERTICAL_VANE_MODE_POSITION_5,
+    "Swing": VerticalVaneMode.VERTICAL_VANE_MODE_SWING,
 }
 
 MitsubishiCN105VerticalVaneDirectionSelect = mitsubishi_ns.class_(
@@ -87,6 +88,7 @@ CONFIG_SCHEMA = (
                             ),
                         }
                     ),
+                    cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
                 }
             ),
         }
@@ -115,19 +117,25 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_CURRENT_TEMPERATURE_MIN_INTERVAL]
         )
     )
-    if (
-        (vane := config.get(CONF_VANE))
-        and (vertical := vane.get(CONF_VERTICAL))
-        and (direction_conf := vertical.get(CONF_DIRECTION))
-    ):
-        sel = cg.new_Pvariable(direction_conf[CONF_ID])
-        await select.register_select(
-            sel,
-            direction_conf,
-            options=list(VERTICAL_VANE_DIRECTIONS),
-        )
-        await cg.register_parented(sel, var)
-        cg.add(var.set_vertical_vane_direction_select(sel))
+    if vane := config.get(CONF_VANE):
+        if (vertical := vane.get(CONF_VERTICAL)) and (
+            direction_conf := vertical.get(CONF_DIRECTION)
+        ):
+            sel = cg.new_Pvariable(direction_conf[CONF_ID])
+            await select.register_select(
+                sel,
+                direction_conf,
+                options=list(VERTICAL_VANE_DIRECTIONS),
+            )
+            await cg.register_parented(sel, var)
+            cg.add(var.set_vertical_vane_direction_select(sel))
+        for conf in vane.get(CONF_ON_STATE, []):
+            await automation.build_callback_automation(
+                var,
+                "add_on_vane_state_callback",
+                [(VaneState.operator("const").operator("ref"), "x")],
+                conf,
+            )
 
 
 @automation.register_action(

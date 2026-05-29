@@ -25,6 +25,14 @@ static constexpr std::array FAN_MODE_MAP{
     std::pair{MitsubishiCN105::FanMode::SPEED_4, climate::CLIMATE_FAN_HIGH},
 };
 
+static VerticalVaneMode to_vertical_vane_mode(MitsubishiCN105::VaneMode mode) {
+  return static_cast<VerticalVaneMode>(mode);
+}
+
+static MitsubishiCN105::VaneMode from_vertical_vane_mode(VerticalVaneMode mode) {
+  return static_cast<MitsubishiCN105::VaneMode>(mode);
+}
+
 template<typename A, typename B, std::size_t N>
 static bool map_lookup(const std::array<std::pair<A, B>, N> &map, A key, B &out) {
   for (const auto &[from, to] : map) {
@@ -209,10 +217,18 @@ void MitsubishiCN105Climate::apply_values_() {
   }
 
   if (this->vertical_vane_direction_select_ != nullptr) {
-    this->vertical_vane_direction_select_->publish_vane_state(status.vane_mode);
+    this->vertical_vane_direction_select_->publish_vane_state(to_vertical_vane_mode(status.vane_mode));
   }
 
   this->publish_state();
+
+  this->vane_state_callback_.call(VaneState{
+      .climate = *this,
+      .vertical =
+          {
+              .direction = to_vertical_vane_mode(status.vane_mode),
+          },
+  });
 }
 
 void MitsubishiCN105Climate::set_supported_swing_mode(climate::ClimateSwingMode mode) {
@@ -241,8 +257,8 @@ void MitsubishiCN105Climate::set_supported_swing_mode(climate::ClimateSwingMode 
   }
 }
 
-void MitsubishiCN105Climate::set_vertical_vane_direction(MitsubishiCN105::VaneMode direction) {
-  this->hp_.set_vane_mode(direction);
+void MitsubishiCN105Climate::set_vertical_vane_direction(VerticalVaneMode vane_mode) {
+  this->hp_.set_vane_mode(from_vertical_vane_mode(vane_mode));
   this->apply_values_if_initialized_();
 }
 
