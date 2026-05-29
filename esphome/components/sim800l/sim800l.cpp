@@ -34,6 +34,15 @@ void Sim800LComponent::update() {
     } else if (this->registered_ && this->send_ussd_pending_) {
       this->send_cmd_("AT+CSCS=\"GSM\"");
       this->state_ = STATE_SEND_USSD1;
+    } else if (this->registered_ && this->http_pending_) {
+      if (!this->bearer_open_) {
+        this->send_cmd_("AT+SAPBR=3,1,\"Contype\",\"GPRS\"");
+        this->state_ = STATE_GPRS_SET_BEARER_TYPE;
+      } else {
+        this->send_cmd_("AT+HTTPINIT");
+        this->state_ = STATE_HTTP_INIT;
+      }
+      this->expect_ack_ = true;
     } else if (this->registered_ && this->disconnect_pending_) {
       this->disconnect_pending_ = false;
       ESP_LOGI(TAG, "Disconnecting");
@@ -95,12 +104,19 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         this->expect_ack_ = true;
       } else {
         ESP_LOGW(TAG, "Not ack. %d %s", this->state_, message.c_str());
+        if (this->http_pending_) {
+          ESP_LOGW(TAG, "HTTP request failed in state %d", this->state_);
+          this->http_pending_ = false;
+          this->bearer_open_ = false;
+        }
         this->state_ = STATE_IDLE;  // Let it timeout
         return;
       }
     }
   } else if (ok && (this->state_ != STATE_PARSE_SMS_RESPONSE && this->state_ != STATE_CHECK_CALL &&
-                    this->state_ != STATE_RECEIVE_SMS && this->state_ != STATE_DIALING2)) {
+                    this->state_ != STATE_RECEIVE_SMS && this->state_ != STATE_DIALING2 &&
+                    this->state_ != STATE_HTTP_DATA && this->state_ != STATE_HTTP_ACTION_WAIT &&
+                    this->state_ != STATE_HTTP_READ_RESPONSE)) {
     ESP_LOGW(TAG, "Received unexpected OK. Ignoring");
     return;
   }
@@ -414,6 +430,113 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       }
       this->state_ = STATE_INIT;
       break;
+    case STATE_GPRS_SET_BEARER_TYPE:
+      this->send_cmd_("AT+SAPBR=3,1,\"APN\",\"" + this->apn_ + "\"");
+      this->state_ = STATE_GPRS_SET_BEARER_APN;
+      this->expect_ack_ = true;
+      break;
+    case STATE_GPRS_SET_BEARER_APN:
+      if (!this->apn_username_.empty()) {
+        this->send_cmd_("AT+SAPBR=3,1,\"USER\",\"" + this->apn_username_ + "\"");
+        this->state_ = STATE_GPRS_SET_BEARER_USER;
+      } else {
+        this->send_cmd_("AT+SAPBR=1,1");
+        this->state_ = STATE_GPRS_OPEN_BEARER;
+      }
+      this->expect_ack_ = true;
+      break;
+    case STATE_GPRS_SET_BEARER_USER:
+      this->send_cmd_("AT+SAPBR=3,1,\"PWD\",\"" + this->apn_password_ + "\"");
+      this->state_ = STATE_GPRS_SET_BEARER_PWD;
+      this->expect_ack_ = true;
+      break;
+    case STATE_GPRS_SET_BEARER_PWD:
+      this->send_cmd_("AT+SAPBR=1,1");
+      this->state_ = STATE_GPRS_OPEN_BEARER;
+      this->expect_ack_ = true;
+      break;
+    case STATE_GPRS_OPEN_BEARER:
+      ESP_LOGD(TAG, "GPRS bearer opened");
+      this->bearer_open_ = true;
+      this->send_cmd_("AT+HTTPINIT");
+      this->state_ = STATE_HTTP_INIT;
+      this->expect_ack_ = true;
+      break;
+    case STATE_HTTP_INIT:
+      this->send_cmd_("AT+HTTPPARA=\"CID\",1");
+      this->state_ = STATE_HTTP_SET_CID;
+      this->expect_ack_ = true;
+      break;
+    case STATE_HTTP_SET_CID:
+      this->send_cmd_("AT+HTTPPARA=\"URL\",\"" + this->http_url_ + "\"");
+      this->state_ = STATE_HTTP_SET_URL;
+      this->expect_ack_ = true;
+      break;
+    case STATE_HTTP_SET_URL:
+      if (this->http_is_post_) {
+        this->send_cmd_("AT+HTTPPARA=\"CONTENT\",\"" + this->http_content_type_ + "\"");
+        this->state_ = STATE_HTTP_SET_CONTENT;
+        this->expect_ack_ = true;
+      } else {
+        this->send_cmd_("AT+HTTPACTION=0");
+        this->state_ = STATE_HTTP_ACTION_WAIT;
+        this->expect_ack_ = true;
+      }
+      break;
+    case STATE_HTTP_SET_CONTENT: {
+      char httpdata_cmd[40];
+      buf_append_printf(httpdata_cmd, sizeof(httpdata_cmd), 0, "AT+HTTPDATA=%u,10000",
+                        (unsigned) this->http_body_.size());
+      this->send_cmd_(httpdata_cmd);
+      this->state_ = STATE_HTTP_DATA;
+      break;
+    }
+    case STATE_HTTP_DATA:
+      if (message == "DOWNLOAD") {
+        this->write_str(this->http_body_.c_str());
+        this->state_ = STATE_HTTP_DOWNLOAD;
+        this->expect_ack_ = true;
+      }
+      break;
+    case STATE_HTTP_DOWNLOAD:
+      this->send_cmd_("AT+HTTPACTION=1");
+      this->state_ = STATE_HTTP_ACTION_WAIT;
+      this->expect_ack_ = true;
+      break;
+    case STATE_HTTP_ACTION_WAIT:
+      if (message.starts_with("+HTTPACTION:")) {
+        // Format: +HTTPACTION:<method>,<status_code>,<data_len>
+        size_t first = message.find(',', 12);
+        size_t second = message.find(',', first + 1);
+        if (first != std::string::npos && second != std::string::npos) {
+          this->http_status_code_ =
+              parse_number<uint16_t>(message.substr(first + 1, second - first - 1)).value_or(0);
+          ESP_LOGD(TAG, "HTTP response status: %u", this->http_status_code_);
+        }
+        this->http_response_body_.clear();
+        this->send_cmd_("AT+HTTPREAD");
+        this->state_ = STATE_HTTP_READ_RESPONSE;
+      }
+      break;
+    case STATE_HTTP_READ_RESPONSE:
+      if (message.starts_with("+HTTPREAD:")) {
+        // Header line — body follows on subsequent lines
+      } else if (ok) {
+        ESP_LOGD(TAG, "HTTP response body: %s", this->http_response_body_.c_str());
+        this->http_response_callback_.call(this->http_status_code_, this->http_response_body_);
+        this->http_pending_ = false;
+        this->send_cmd_("AT+HTTPTERM");
+        this->state_ = STATE_HTTP_TERM;
+        this->expect_ack_ = true;
+      } else {
+        if (!this->http_response_body_.empty())
+          this->http_response_body_ += '\n';
+        this->http_response_body_ += message;
+      }
+      break;
+    case STATE_HTTP_TERM:
+      this->state_ = STATE_INIT;
+      break;
     default:
       ESP_LOGW(TAG, "Unhandled: %s - %d", message.c_str(), this->state_);
       break;
@@ -450,7 +573,8 @@ void Sim800LComponent::loop() {
   }
   if (state_ == STATE_INIT && this->registered_ &&
       (this->call_state_ != 6  // A call is in progress
-       || this->send_pending_ || this->dial_pending_ || this->connect_pending_ || this->disconnect_pending_)) {
+       || this->send_pending_ || this->dial_pending_ || this->connect_pending_ || this->disconnect_pending_ ||
+       this->http_pending_)) {
     this->update();
   }
 }
@@ -467,8 +591,26 @@ void Sim800LComponent::send_ussd(const std::string &ussd_code) {
   this->send_ussd_pending_ = true;
   this->update();
 }
+void Sim800LComponent::http_get(const std::string &url) {
+  ESP_LOGD(TAG, "HTTP GET: %s", url.c_str());
+  this->http_url_ = url;
+  this->http_is_post_ = false;
+  this->http_pending_ = true;
+}
+
+void Sim800LComponent::http_post(const std::string &url, const std::string &body, const std::string &content_type) {
+  ESP_LOGD(TAG, "HTTP POST: %s", url.c_str());
+  this->http_url_ = url;
+  this->http_body_ = body;
+  this->http_content_type_ = content_type;
+  this->http_is_post_ = true;
+  this->http_pending_ = true;
+}
+
 void Sim800LComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SIM800L:");
+  if (!this->apn_.empty())
+    ESP_LOGCONFIG(TAG, "  APN: %s", this->apn_.c_str());
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Registered", this->registered_binary_sensor_);
 #endif

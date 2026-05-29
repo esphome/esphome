@@ -6,12 +6,19 @@ esphome:
           message: Hello there
       - sim800l.dial:
           recipient: '+15551234567'
+      - sim800l.http_get:
+          url: "http://example.com/api/status"
+      - sim800l.http_post:
+          url: "http://example.com/api/data"
+          body: '{"temp": 22.5}'
+          content_type: "application/json"
       - sim800l.connect
       - sim800l.disconnect
       - sim800l.send_ussd:
           ussd: test_ussd
 
 sim800l:
+  apn: "internet"
   on_sms_received:
     - lambda: |-
         std::string str;
@@ -29,3 +36,6 @@ sim800l:
     - sim800l.disconnect
   on_ussd_received:
     - logger.log: "ussd_received"
+  on_http_response:
+    - lambda: |-
+        ESP_LOGI("test", "HTTP %d: %s", status_code, body.c_str());
