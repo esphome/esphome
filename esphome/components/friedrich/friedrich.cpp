@@ -4,8 +4,7 @@
 
 #include "esphome/components/remote_base/aeha_protocol.h"
 
-namespace esphome {
-namespace friedrich {
+namespace esphome::friedrich {
 // clang-format off
 /*
 * MW12Y3H - Currently the only supported model. Model field is retained to allow future per-model code differentiation.
@@ -245,7 +244,7 @@ bool FriedrichClimate::on_receive(remote_base::RemoteReceiveData src) {
   bool received = false;
   optional<remote_base::AEHAData> odata = remote_base::AEHAProtocol().decode(src);
   if (odata.has_value()) {
-    remote_base::AEHAData data = odata.value();
+    const remote_base::AEHAData &data = odata.value();
     if (data.data.size() == STATE_MESSAGE_LENGTH_UTIL &&
         data.data.at(STATE_MESSAGE_LENGTH_UTIL - 1) == checksum_util_(data.data.data())) {
       // Not looking for other types of messages
@@ -324,5 +323,4 @@ bool FriedrichClimate::on_receive(remote_base::RemoteReceiveData src) {
   return received;
 }
 
-}  // namespace friedrich
-}  // namespace esphome
+}  // namespace esphome::friedrich

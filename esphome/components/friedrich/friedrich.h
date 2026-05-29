@@ -2,8 +2,7 @@
 
 #include "esphome/components/climate_ir/climate_ir.h"
 
-namespace esphome {
-namespace friedrich {
+namespace esphome::friedrich {
 
 // Simple enum to represent models.
 // Stub for future development of other models, currently nothing depends upon Model.
@@ -57,5 +56,4 @@ class FriedrichClimate : public climate_ir::ClimateIR {
   Model model_;
 };
 
-}  // namespace friedrich
-}  // namespace esphome
+}  // namespace esphome::friedrich
