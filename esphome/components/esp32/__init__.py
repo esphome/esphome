@@ -482,8 +482,8 @@ def set_core_data(config):
     # The esp-idf toolchain doesn't use pioarduino's packaging revision; PIO does.
     if CORE.using_toolchain_esp_idf:
         idf_ver = _strip_pioarduino_revision(idf_ver)
-    CORE.data[KEY_ESP32][KEY_IDF_VERSION] = idf_ver
 
+    CORE.data[KEY_ESP32][KEY_IDF_VERSION] = idf_ver
     CORE.data[KEY_ESP32][KEY_BOARD] = config[CONF_BOARD]
     CORE.data[KEY_ESP32][KEY_FLASH_SIZE] = config[CONF_FLASH_SIZE]
     CORE.data[KEY_ESP32][KEY_VARIANT] = variant
