@@ -35,6 +35,9 @@ MitsubishiCN105 = mitsubishi_ns.class_("MitsubishiCN105")
 
 VerticalVaneDirection = MitsubishiCN105.enum("VaneMode", True)
 
+# NOTE: The insertion order of these options must match the VALUES array in
+# mitsubishi_cn105_vane_select_vertical.cpp. The select uses index-based
+# control/state publishing, which is the preferred ESPHome Select API.
 VERTICAL_VANE_DIRECTIONS = {
     "Auto": VerticalVaneDirection.AUTO,
     "1": VerticalVaneDirection.POSITION_1,

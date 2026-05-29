@@ -4,6 +4,9 @@
 
 namespace esphome::mitsubishi_cn105 {
 
+// NOTE: This order must match VERTICAL_VANE_DIRECTIONS in climate.py.
+// MitsubishiCN105VerticalVaneDirectionSelect uses the preferred index-based
+// Select API, so Python option order and this array must stay aligned.
 static constexpr std::array VALUES{
     MitsubishiCN105::VaneMode::AUTO,       MitsubishiCN105::VaneMode::POSITION_1, MitsubishiCN105::VaneMode::POSITION_2,
     MitsubishiCN105::VaneMode::POSITION_3, MitsubishiCN105::VaneMode::POSITION_4, MitsubishiCN105::VaneMode::POSITION_5,
