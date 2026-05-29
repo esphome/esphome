@@ -42,7 +42,6 @@ class OpenThreadComponent : public Component {
   bool is_lock_initialized() const { return this->lock_initialized_; }
   network::IPAddresses get_ip_addresses();
   std::optional<otIp6Address> get_omr_address();
-  void ot_main();
 #ifdef USE_OPENTHREAD_GRACEFUL_DETACH_ON_SHUTDOWN
   static void detach_callback(void *context);
 #endif
