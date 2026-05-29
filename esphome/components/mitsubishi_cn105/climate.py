@@ -1,9 +1,10 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import climate, uart
+from esphome.components import climate, select, uart
 from esphome.components.climate import validate_climate_swing_mode
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DIRECTION,
     CONF_ID,
     CONF_SUPPORTED_SWING_MODES,
     CONF_TEMPERATURE,
@@ -14,10 +15,12 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType, TemplateArgsType
 
 DEPENDENCIES = ["uart"]
-AUTO_LOAD = ["climate"]
+AUTO_LOAD = ["select"]
 CODEOWNERS = ["@crnjan"]
 
 CONF_CURRENT_TEMPERATURE_MIN_INTERVAL = "current_temperature_min_interval"
+CONF_VANE = "vane"
+CONF_VERTICAL = "vertical"
 
 mitsubishi_ns = cg.esphome_ns.namespace("mitsubishi_cn105")
 
@@ -26,6 +29,25 @@ MitsubishiCN105Climate = mitsubishi_ns.class_(
     climate.Climate,
     cg.Component,
     uart.UARTDevice,
+)
+
+MitsubishiCN105 = mitsubishi_ns.class_("MitsubishiCN105")
+
+VerticalVaneDirection = MitsubishiCN105.enum("VaneMode", True)
+
+VERTICAL_VANE_DIRECTIONS = {
+    "Auto": VerticalVaneDirection.AUTO,
+    "1": VerticalVaneDirection.POSITION_1,
+    "2": VerticalVaneDirection.POSITION_2,
+    "3": VerticalVaneDirection.POSITION_3,
+    "4": VerticalVaneDirection.POSITION_4,
+    "5": VerticalVaneDirection.POSITION_5,
+    "Swing": VerticalVaneDirection.SWING,
+}
+
+MitsubishiCN105VerticalVaneDirectionSelect = mitsubishi_ns.class_(
+    "MitsubishiCN105VerticalVaneDirectionSelect",
+    select.Select,
 )
 
 SetRemoteTemperatureAction = mitsubishi_ns.class_(
@@ -52,6 +74,18 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_SUPPORTED_SWING_MODES, default="OFF"
             ): validate_climate_swing_mode,
+            cv.Optional(CONF_VANE): cv.Schema(
+                {
+                    cv.Optional(CONF_VERTICAL): cv.Schema(
+                        {
+                            cv.Optional(CONF_DIRECTION): select.select_schema(
+                                MitsubishiCN105VerticalVaneDirectionSelect,
+                                icon="mdi:arrow-up-down",
+                            ),
+                        }
+                    ),
+                }
+            ),
         }
     )
 )
@@ -78,6 +112,19 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_CURRENT_TEMPERATURE_MIN_INTERVAL]
         )
     )
+    if (
+        (vane := config.get(CONF_VANE))
+        and (vertical := vane.get(CONF_VERTICAL))
+        and (direction_conf := vertical.get(CONF_DIRECTION))
+    ):
+        sel = cg.new_Pvariable(direction_conf[CONF_ID])
+        await select.register_select(
+            sel,
+            direction_conf,
+            options=[option.capitalize() for option in VERTICAL_VANE_DIRECTIONS],
+        )
+        await cg.register_parented(sel, var)
+        cg.add(var.set_vertical_vane_direction_select(sel))
 
 
 @automation.register_action(

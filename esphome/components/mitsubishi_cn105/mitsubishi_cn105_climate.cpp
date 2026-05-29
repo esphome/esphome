@@ -1,5 +1,7 @@
-#include <cinttypes>
 #include "mitsubishi_cn105_climate.h"
+#include "mitsubishi_cn105_vane_select_vertical.h"
+
+#include <cinttypes>
 #include "esphome/core/log.h"
 
 namespace esphome::mitsubishi_cn105 {
@@ -207,6 +209,10 @@ void MitsubishiCN105Climate::apply_values_() {
     }
   }
 
+  if (this->vertical_vane_direction_select_ != nullptr) {
+    this->vertical_vane_direction_select_->publish_vane_state(this->hp_.status().vane_mode);
+  }
+
   this->publish_state();
 }
 
@@ -234,6 +240,11 @@ void MitsubishiCN105Climate::set_supported_swing_mode(climate::ClimateSwingMode 
     default:
       break;
   }
+}
+
+void MitsubishiCN105Climate::set_vertical_vane_direction(MitsubishiCN105::VaneMode direction) {
+  this->hp_.set_vane_mode(direction);
+  this->apply_values_();
 }
 
 }  // namespace esphome::mitsubishi_cn105
