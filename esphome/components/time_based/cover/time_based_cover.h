@@ -10,7 +10,6 @@ namespace esphome::time_based {
 class TimeBasedCover : public TimeBasedActuatorBase, public cover::Cover {
  public:
   TimeBasedCover() { this->set_actuator(this); }
-  void setup() override;
   cover::CoverTraits get_traits() override;
   void dump_config() override;
 

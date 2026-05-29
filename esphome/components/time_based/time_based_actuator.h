@@ -10,7 +10,7 @@ namespace esphome::time_based {
 class TimeBasedActuatorBase : public Component {
  public:
   void set_actuator(actuator::IActuator *actuator) { this->actuator_ = actuator; }
-  void setup() override {}
+  void setup() override;
   void loop() override;
 
   Trigger<> *get_open_trigger() { return &this->open_trigger_; }
