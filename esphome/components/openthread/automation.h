@@ -27,8 +27,11 @@ class OpenThreadComponentBaseAction : public Parented<OpenThreadComponent> {
   /** Fetch OT lock and then call @a apply_locked_ */
   void lock_and_apply_();
 
+  /** Log a warning that this action has no effect on FTD devices */
+  void warn_ftd_no_op_();
+
   /** Timeout (ms) for acquiring OT lock */
-  static constexpr int LOCK_ACQUIRE_TIMEOUT_MS = 100;
+  static constexpr uint32_t LOCK_ACQUIRE_TIMEOUT_MS = 100;
 };
 
 /** Action to set single poll period parameter */
@@ -46,6 +49,8 @@ class OpenThreadComponentPollPeriodAction final : public Action<Ts...>, public O
     this->parent_->set_poll_period(this->poll_period_.value(x...));
 
     this->lock_and_apply_();
+#else
+    this->warn_ftd_no_op_();
 #endif
   }
 

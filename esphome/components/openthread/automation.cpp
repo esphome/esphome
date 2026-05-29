@@ -9,6 +9,10 @@ namespace esphome::openthread {
 
 static const char *const TAG = "openthread.automation";
 
+void OpenThreadComponentBaseAction::warn_ftd_no_op_() {
+  ESP_LOGW(TAG, "openthread.pollperiod has no effect on FTD devices");
+}
+
 void OpenThreadComponentBaseAction::lock_and_apply_() {
   if (this->parent_->is_ready()) {
     if (auto lock = InstanceLock::try_acquire(LOCK_ACQUIRE_TIMEOUT_MS); lock.has_value()) {

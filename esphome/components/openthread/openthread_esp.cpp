@@ -44,6 +44,8 @@ void OpenThreadComponent::setup() {
 
 #if CONFIG_OPENTHREAD_CLI
   ot_console_start();
+#endif
+#if CONFIG_OPENTHREAD_CLI_ESP_EXTENSION
   ot_register_external_commands();
 #endif
 
@@ -134,7 +136,7 @@ int OpenThreadComponent::openthread_stop_() {
   // Clean up - reset lock flag before deinit destroys the semaphore
   this->lock_initialized_ = false;
   int error = esp_openthread_stop();
-  this->teardown_stage = OtcTeardownStage::OTC_TEARDOWN_COMPLETED;
+  this->teardown_stage_ = OtcTeardownStage::OTC_TEARDOWN_COMPLETED;
   return error;
 }
 
