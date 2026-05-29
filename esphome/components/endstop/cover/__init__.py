@@ -9,6 +9,10 @@ from .. import (
     endstop_ns,
 )
 
+# Auto-load the parent endstop component so its source files
+# (endstop_actuator.cpp/.h) are picked up by the build.
+AUTO_LOAD = ["endstop"]
+
 EndstopCover = endstop_ns.class_("EndstopCover", EndstopActuatorBase, cover.Cover)
 
 CONFIG_SCHEMA = (
