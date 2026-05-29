@@ -65,3 +65,40 @@ class TestTimeBasedCoverInheritance:
         assert TimeBasedCover.inherits_from(cg.Component), (
             "TimeBasedCover must have Component reachable via TimeBasedActuatorBase"
         )
+
+
+class TestTimeBasedValveInheritance:
+    """TimeBasedValve inherits TimeBasedActuatorBase and Valve."""
+
+    def test_time_based_valve_inherits_actuator_base(self):
+        """Verify TimeBasedValve inherits TimeBasedActuatorBase."""
+        from esphome.components.time_based import TimeBasedActuatorBase
+        from esphome.components.time_based.valve import TimeBasedValve
+
+        assert TimeBasedValve.inherits_from(TimeBasedActuatorBase), (
+            f"TimeBasedValve does not inherit from TimeBasedActuatorBase. "
+            f"TimeBasedValve parents: {getattr(TimeBasedValve, '_parents', 'N/A')}"
+        )
+
+    def test_time_based_valve_inherits_valve(self):
+        """The TimeBasedValve must inherit from Valve."""
+        from esphome.components.time_based.valve import TimeBasedValve
+        from esphome.components.valve import Valve
+
+        assert TimeBasedValve.inherits_from(Valve), (
+            f"TimeBasedValve does not inherit from Valve. "
+            f"TimeBasedValve parents: {getattr(TimeBasedValve, '_parents', 'N/A')}"
+        )
+
+    def test_time_based_valve_component_reachable_transitively(self):
+        """Component is reachable via TimeBasedActuatorBase, not as a direct parent of TimeBasedValve.
+
+        TimeBasedValve's direct parents are TimeBasedActuatorBase and Valve.
+        Component lifecycle flows through TimeBasedActuatorBase.
+        """
+        import esphome.codegen as cg
+        from esphome.components.time_based.valve import TimeBasedValve
+
+        assert TimeBasedValve.inherits_from(cg.Component), (
+            "TimeBasedValve must have Component reachable via TimeBasedActuatorBase"
+        )

@@ -2,12 +2,14 @@ import esphome.codegen as cg
 from esphome.components import valve
 import esphome.config_validation as cv
 
-from . import (
+from .. import (
     TIME_BASED_ACTUATOR_SCHEMA,
     TimeBasedActuatorBase,
     apply_time_based_actuator_config,
     time_based_ns,
 )
+
+AUTO_LOAD = ["time_based"]
 
 TimeBasedValve = time_based_ns.class_(
     "TimeBasedValve", TimeBasedActuatorBase, valve.Valve

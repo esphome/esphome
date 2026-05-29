@@ -15,16 +15,6 @@ void TimeBasedValve::dump_config() {
                 this->open_duration_ / 1e3f, this->close_duration_ / 1e3f);
 }
 
-void TimeBasedValve::setup() {
-  auto restore = this->restore_state_();
-  if (restore.has_value()) {
-    restore->apply(this);
-  } else {
-    this->position = 0.5f;
-    this->publish_state();
-  }
-}
-
 ValveTraits TimeBasedValve::get_traits() {
   auto traits = ValveTraits();
   traits.set_supports_stop(true);
