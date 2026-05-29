@@ -52,6 +52,16 @@ _load_listeners: list[Callable[[Path], None]] = []
 DocumentPath = list[str | int]
 
 
+class SensitiveStr(str):
+    """Marker subclass for validated strings that should be masked in
+    user-visible YAML output. ``cv.sensitive`` wraps validated values in this
+    type so ``dump()`` can render them with ANSI conceal codes without
+    needing a post-process regex.
+    """
+
+    __slots__ = ()
+
+
 @contextmanager
 def track_yaml_loads() -> Generator[list[Path]]:
     """Context manager that records every file loaded by the YAML loader.
@@ -763,15 +773,40 @@ def parse_yaml(file_name: Path, file_handle: TextIOWrapper, yaml_loader=None) ->
 
 
 def _load_yaml_internal_with_type(
-    loader_type: type[ESPHomeLoader] | type[ESPHomePurePythonLoader],
+    loader_type: type[ESPHomeLoader | ESPHomePurePythonLoader],
     fname: Path,
     content: TextIOWrapper,
     yaml_loader: Callable[[Path], dict[str, Any]],
 ) -> Any:
-    """Load a YAML file."""
+    """Load a YAML file.
+
+    Supports an optional leading YAML frontmatter document: when the file
+    contains two YAML documents separated by ``---``, the first document is
+    treated as metadata and stored in :attr:`CORE.frontmatter` keyed by the
+    resolved file path, while the second document is returned as the actual
+    configuration. Frontmatter is ignored by config validation and code
+    generation.
+    """
     loader = loader_type(content, fname, yaml_loader)
     try:
-        return loader.get_single_data() or OrderedDict()
+        documents: list[Any] = []
+        while loader.check_data():
+            documents.append(loader.get_data())
+        if len(documents) > 2:
+            raise EsphomeError(
+                f"YAML file '{fname}' contains {len(documents)} documents but "
+                f"at most two are supported (an optional frontmatter document "
+                f"followed by the configuration)."
+            )
+        if len(documents) == 2:
+            frontmatter = documents[0]
+            config = documents[1]
+            if frontmatter is not None:
+                CORE.frontmatter[Path(fname).resolve()] = frontmatter
+            return config if config is not None else OrderedDict()
+        if len(documents) == 1:
+            return documents[0] or OrderedDict()
+        return OrderedDict()
     except yaml.YAMLError as exc:
         raise EsphomeError(exc) from exc
     finally:
@@ -783,11 +818,18 @@ def dump(dict_, show_secrets=False, sort_keys=False):
     if show_secrets:
         _SECRET_VALUES.clear()
         _SECRET_CACHE.clear()
+
+    # Per-call subclass so the redaction flag doesn't leak across calls.
+    # (``_SECRET_VALUES`` / ``_SECRET_CACHE`` remain module globals; YAML
+    # processing is single-threaded today, so this isolates only the flag.)
+    class _Dumper(ESPHomeDumper):
+        _redact_sensitive = not show_secrets
+
     return yaml.dump(
         dict_,
         default_flow_style=False,
         allow_unicode=True,
-        Dumper=ESPHomeDumper,
+        Dumper=_Dumper,
         sort_keys=sort_keys,
     )
 
@@ -933,6 +975,10 @@ def format_path(path: DocumentPath, current_obj: Any) -> str:
 
 
 class ESPHomeDumper(yaml.SafeDumper):
+    # Default for the base class; per-call subclass in ``dump()`` overrides.
+    # When True, ``represent_sensitive`` wraps values in ANSI conceal codes.
+    _redact_sensitive: bool = False
+
     def represent_mapping(self, tag, mapping, flow_style=None):
         value = []
         node = yaml.MappingNode(tag, value, flow_style=flow_style)
@@ -966,6 +1012,20 @@ class ESPHomeDumper(yaml.SafeDumper):
         if is_secret(value):
             return self.represent_secret(value)
         return self.represent_scalar(tag="tag:yaml.org,2002:str", value=str(value))
+
+    def represent_sensitive(self, value: SensitiveStr) -> yaml.ScalarNode:
+        # Only the redact-and-not-a-secret branch is unique to sensitive
+        # values; otherwise let ``represent_stringify`` handle ``!secret``
+        # precedence and the plain-str fallthrough. Conceal sequence is
+        # emitted as literal ``\033`` text (not actual ESC bytes) so the
+        # output matches the prior regex format and device-builder's
+        # ``\033[8m...\033[28m`` parser keeps working.
+        if self._redact_sensitive and not is_secret(value):
+            return self.represent_scalar(
+                tag="tag:yaml.org,2002:str",
+                value=f"\\033[8m{value}\\033[28m",
+            )
+        return self.represent_stringify(value)
 
     # pylint: disable=arguments-renamed
     def represent_bool(self, value):
@@ -1038,6 +1098,8 @@ ESPHomeDumper.add_multi_representer(
 )
 ESPHomeDumper.add_multi_representer(bool, ESPHomeDumper.represent_bool)
 ESPHomeDumper.add_multi_representer(str, ESPHomeDumper.represent_stringify)
+# MRO-walked dispatch; SensitiveStr's own entry wins over the str one.
+ESPHomeDumper.add_multi_representer(SensitiveStr, ESPHomeDumper.represent_sensitive)
 ESPHomeDumper.add_multi_representer(int, ESPHomeDumper.represent_int)
 ESPHomeDumper.add_multi_representer(float, ESPHomeDumper.represent_float)
 ESPHomeDumper.add_multi_representer(_BaseAddress, ESPHomeDumper.represent_stringify)
