@@ -259,6 +259,36 @@ class DriverChip:
         name = name.upper()
         self.name = name
         self.initsequence = initsequence
+        if CONF_NATIVE_WIDTH in defaults:
+            if CONF_WIDTH not in defaults:
+                defaults[CONF_WIDTH] = (
+                    defaults[CONF_NATIVE_WIDTH]
+                    - defaults.get(CONF_OFFSET_WIDTH, 0)
+                    - defaults.get(CONF_PAD_WIDTH, 0)
+                )
+        else:
+            native_width = (
+                defaults.get(CONF_WIDTH, 0)
+                + defaults.get(CONF_OFFSET_WIDTH, 0)
+                + defaults.get(CONF_PAD_WIDTH, 0)
+            )
+            if native_width != 0:
+                defaults[CONF_NATIVE_WIDTH] = native_width
+        if CONF_NATIVE_HEIGHT in defaults:
+            if CONF_HEIGHT not in defaults:
+                defaults[CONF_HEIGHT] = (
+                    defaults[CONF_NATIVE_HEIGHT]
+                    - defaults.get(CONF_OFFSET_HEIGHT, 0)
+                    - defaults.get(CONF_PAD_HEIGHT, 0)
+                )
+        else:
+            native_height = (
+                defaults.get(CONF_HEIGHT, 0)
+                + defaults.get(CONF_OFFSET_HEIGHT, 0)
+                + defaults.get(CONF_PAD_HEIGHT, 0)
+            )
+            if native_height != 0:
+                defaults[CONF_NATIVE_HEIGHT] = native_height
         self.defaults = defaults
         DriverChip.models[name] = self
 
@@ -284,18 +314,6 @@ class DriverChip:
         initsequence = list(kwargs.pop("initsequence", self.initsequence))
         initsequence.extend(kwargs.pop("add_init_sequence", ()))
         defaults = self.defaults.copy()
-        if (
-            CONF_WIDTH in defaults
-            and CONF_OFFSET_WIDTH in kwargs
-            and CONF_NATIVE_WIDTH not in defaults
-        ):
-            defaults[CONF_NATIVE_WIDTH] = defaults[CONF_WIDTH]
-        if (
-            CONF_HEIGHT in defaults
-            and CONF_OFFSET_HEIGHT in kwargs
-            and CONF_NATIVE_HEIGHT not in defaults
-        ):
-            defaults[CONF_NATIVE_HEIGHT] = defaults[CONF_HEIGHT]
         defaults.update(kwargs)
         return self.__class__(name, initsequence=tuple(initsequence), **defaults)
 
@@ -376,16 +394,36 @@ class DriverChip:
             if isinstance(dimensions, dict):
                 width = dimensions[CONF_WIDTH]
                 height = dimensions[CONF_HEIGHT]
-                native_width = self.get_native_width(width)
-                native_height = self.get_native_height(height)
                 offset_width = dimensions[CONF_OFFSET_WIDTH]
                 offset_height = dimensions[CONF_OFFSET_HEIGHT]
-                pad_width = dimensions.get(
-                    CONF_PAD_WIDTH, native_width - width - offset_width
-                )
-                pad_height = dimensions.get(
-                    CONF_PAD_HEIGHT, native_height - height - offset_height
-                )
+                if CONF_PAD_WIDTH in dimensions:
+                    pad_width = dimensions[CONF_PAD_WIDTH]
+                    native_width = width + offset_width + pad_width
+                else:
+                    native_width = self.get_default(CONF_NATIVE_WIDTH, 0)
+                    if native_width == 0:
+                        pad_width = 0
+                        native_width = width + offset_width
+                    else:
+                        pad_width = native_width - width - offset_width
+                if CONF_PAD_HEIGHT in dimensions:
+                    pad_height = dimensions[CONF_PAD_HEIGHT]
+                    native_height = height + offset_height + pad_height
+                else:
+                    native_height = self.get_default(CONF_NATIVE_HEIGHT, 0)
+                    if native_height == 0:
+                        pad_height = 0
+                        native_height = height + offset_height
+                    else:
+                        pad_height = native_height - height - offset_height
+                if (
+                    pad_width + offset_width >= native_width
+                    or pad_height + offset_height >= native_height
+                ):
+                    raise cv.Invalid("Dimensions exceed native size", [CONF_DIMENSIONS])
+                if pad_width < 0 or pad_height < 0:
+                    raise cv.Invalid("Invalid offsets", [CONF_DIMENSIONS])
+
                 return width, height, offset_width, offset_height, pad_width, pad_height
 
             # Must be a tuple
@@ -397,8 +435,8 @@ class DriverChip:
 
         width = self.get_default(CONF_WIDTH)
         height = self.get_default(CONF_HEIGHT)
-        native_width = self.get_native_width(width)
-        native_height = self.get_native_height(height)
+        native_width = self.get_default(CONF_NATIVE_WIDTH, 0)
+        native_height = self.get_default(CONF_NATIVE_HEIGHT, 0)
         offset_width = self.get_default(CONF_OFFSET_WIDTH, 0)
         offset_height = self.get_default(CONF_OFFSET_HEIGHT, 0)
         pad_width = self.get_default(
@@ -407,6 +445,11 @@ class DriverChip:
         pad_height = self.get_default(
             CONF_PAD_HEIGHT, native_height - height - offset_height
         )
+
+        if width > native_width or height > native_height:
+            raise cv.Invalid("Dimensions exceed native size", [CONF_DIMENSIONS])
+        if pad_width < 0 or pad_height < 0:
+            raise cv.Invalid("Offsets exceed native size", [CONF_DIMENSIONS])
 
         # if mirroring axes and there are offsets, also mirror the offsets to cater for situations where
         # the offset is asymmetric
