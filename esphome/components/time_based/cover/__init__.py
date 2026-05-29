@@ -2,12 +2,16 @@ import esphome.codegen as cg
 from esphome.components import cover
 import esphome.config_validation as cv
 
-from . import (
+from .. import (
     TIME_BASED_ACTUATOR_SCHEMA,
     TimeBasedActuatorBase,
     apply_time_based_actuator_config,
     time_based_ns,
 )
+
+# Auto-load the parent time_based component so its source files
+# (time_based_actuator.cpp/.h) are picked up by the build.
+AUTO_LOAD = ["time_based"]
 
 TimeBasedCover = time_based_ns.class_(
     "TimeBasedCover", TimeBasedActuatorBase, cover.Cover
