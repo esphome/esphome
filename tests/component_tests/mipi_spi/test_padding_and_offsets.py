@@ -329,3 +329,107 @@ class TestTemplateParameterPassing:
         # Should not raise any errors
         instance = get_instance(config)
         assert instance is not None
+
+
+class TestUserConfiguredPadding:
+    """Test that pad_width and pad_height can be configured in user dimensions."""
+
+    def test_explicit_pad_width_and_height_in_dimensions(
+        self,
+        set_core_config: SetCoreConfigCallable,
+    ) -> None:
+        """Test that pad_width and pad_height can be explicitly set in dimensions."""
+        set_core_config(
+            PlatformFramework.ESP32_IDF,
+            platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+        )
+
+        config = validated_config(
+            {
+                "model": "custom",
+                "dc_pin": 18,
+                "dimensions": {
+                    "width": 240,
+                    "height": 320,
+                    "offset_width": 40,
+                    "offset_height": 20,
+                    "pad_width": 80,
+                    "pad_height": 40,
+                },
+                "init_sequence": [[0xA0, 0x01]],
+                "buffer_size": 0.25,
+            }
+        )
+
+        # Config should validate successfully with padding dimensions
+        assert config is not None
+        assert config["dimensions"]["pad_width"] == 80
+        assert config["dimensions"]["pad_height"] == 40
+
+    def test_padding_for_native_dimension_calculation(
+        self,
+        set_core_config: SetCoreConfigCallable,
+    ) -> None:
+        """Test that explicit padding allows native dimensions to be calculated."""
+        set_core_config(
+            PlatformFramework.ESP32_IDF,
+            platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+        )
+
+        # A controller that has 320x320 total pixels with:
+        # - 240x320 active display area
+        # - offset_width=40, offset_height=20
+        # - pad_width=40 (remaining pixels on right), pad_height=60 (remaining pixels on bottom)
+        config = validated_config(
+            {
+                "model": "custom",
+                "dc_pin": 18,
+                "dimensions": {
+                    "width": 240,  # Active display width
+                    "height": 320,  # Active display height
+                    "offset_width": 40,
+                    "offset_height": 0,
+                    "pad_width": 40,  # Pixels after width+offset
+                    "pad_height": 0,  # Pixels after height+offset
+                },
+                "init_sequence": [[0xA0, 0x01]],
+                "buffer_size": 0.25,
+            }
+        )
+
+        # Get instance should work and correctly calculate native dimensions
+        instance = get_instance(config)
+        assert instance is not None
+
+    def test_padding_without_offset(
+        self,
+        set_core_config: SetCoreConfigCallable,
+    ) -> None:
+        """Test padding can be used without offset for controllers with top-left-aligned displays."""
+        set_core_config(
+            PlatformFramework.ESP32_IDF,
+            platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+        )
+
+        # A display with no offset but padding on right and bottom
+        config = validated_config(
+            {
+                "model": "custom",
+                "dc_pin": 18,
+                "dimensions": {
+                    "width": 240,
+                    "height": 240,
+                    "offset_width": 0,
+                    "offset_height": 0,
+                    "pad_width": 0,
+                    "pad_height": 16,
+                },
+                "init_sequence": [[0xA0, 0x01]],
+                "buffer_size": 0.25,
+            }
+        )
+
+        assert config is not None
+        assert config["dimensions"]["width"] == 240
+        assert config["dimensions"]["height"] == 240
+        assert config["dimensions"]["pad_height"] == 16

@@ -198,6 +198,8 @@ def dimension_schema(rounding):
                     rounding
                 ),
                 cv.Optional(CONF_OFFSET_WIDTH, default=0): validate_dimension(rounding),
+                cv.Optional(CONF_PAD_WIDTH): validate_dimension(rounding),
+                cv.Optional(CONF_PAD_HEIGHT): validate_dimension(rounding),
             }
         ),
     )
