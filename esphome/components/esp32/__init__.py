@@ -1748,12 +1748,16 @@ async def _set_libc_picolibc_newlib_compat() -> None:
 
     IDF 6.0 switched from Newlib to PicolibC; the shim is disabled by default.
     Runs at FINAL priority so every require_libc_picolibc_newlib_compat() call
-    (default priority) is seen before the option is written.
+    (default priority) is seen before the option is written. A user-supplied
+    sdkconfig_options value takes precedence.
     """
     if idf_version() < cv.Version(6, 0, 0):
         return
+    option = "CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY"
+    if option in CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]:
+        return
     add_idf_sdkconfig_option(
-        "CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY",
+        option,
         CORE.data[KEY_ESP32].get(KEY_LIBC_PICOLIBC_NEWLIB_COMPAT_REQUIRED, False),
     )
 
