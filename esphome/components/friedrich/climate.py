@@ -23,6 +23,16 @@ CONFIG_SCHEMA = climate_ir.climate_ir_with_receiver_schema(FriedrichClimate).ext
 )
 
 
+def final_validate(config):
+    if not config[CONF_USE_FAHRENHEIT]:
+        raise cv.Invalid(
+            "use_fahrenheit: false is not yet implemented for the Friedrich climate component"
+        )
+
+
+FINAL_VALIDATE_SCHEMA = final_validate
+
+
 async def to_code(config):
     var = await climate_ir.new_climate_ir(config)
     cg.add(var.set_model(config[CONF_MODEL]))
