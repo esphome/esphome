@@ -766,6 +766,7 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
   const auto &media_url = call.get_media_url();
   if (media_url.has_value()) {
 #ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+    this->is_turn_off_ = false;  // Cancel any pending turn-off when new playback is requested
     if (this->state == media_player::MEDIA_PLAYER_STATE_OFF) {
       this->state = media_player::MEDIA_PLAYER_STATE_ON;
       publish_state();
@@ -815,11 +816,13 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
         break;
 #ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
       case media_player::MEDIA_PLAYER_COMMAND_TURN_ON:
+        this->is_turn_off_ = false;  // Cancel any pending turn-off
         if (this->state == media_player::MEDIA_PLAYER_STATE_OFF) {
           this->state = media_player::MEDIA_PLAYER_STATE_ON;
         }
         break;
       case media_player::MEDIA_PLAYER_COMMAND_PLAY:
+        this->is_turn_off_ = false;  // Cancel any pending turn-off when new playback is requested
         if (this->state == media_player::MEDIA_PLAYER_STATE_OFF) {
           this->state = media_player::MEDIA_PLAYER_STATE_ON;
           publish_state();

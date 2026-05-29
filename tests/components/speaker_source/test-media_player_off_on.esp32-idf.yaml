@@ -1,0 +1,38 @@
+substitutions:
+  scl_pin: GPIO16
+  sda_pin: GPIO17
+  i2s_bclk_pin: GPIO27
+  i2s_lrclk_pin: GPIO26
+  i2s_mclk_pin: GPIO25
+  i2s_dout_pin: GPIO23
+
+<<: !include common.yaml
+
+media_player:
+  - platform: speaker_source
+    id: media_player_id
+    name: Media Player
+    volume_increment: 0.02
+    volume_initial: 0.75
+    volume_max: 0.95
+    volume_min: 0.0
+    announcement_pipeline:
+      speaker: announcement_mixer_speaker_id
+      format: FLAC
+      num_channels: 1
+      sample_rate: 48000
+      sources:
+        - announcement_audio_file_source
+    media_pipeline:
+      speaker: media_mixer_speaker_id
+      format: FLAC
+      num_channels: 1
+      sample_rate: 48000
+      sources:
+        - media_audio_file_source
+    on_turn_on:
+      then:
+        - logger.log: "Turn On Media Player"
+    on_turn_off:
+      then:
+        - logger.log: "Turn Off Media Player"
