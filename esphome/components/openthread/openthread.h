@@ -27,6 +27,7 @@ enum class OtcTeardownStage : uint8_t {
   OTC_TEARDOWN_STOP_IN_PROCESS,
   OTC_TEARDOWN_COMPLETED
 };
+
 class OpenThreadComponent : public Component {
  public:
   OpenThreadComponent();
@@ -61,9 +62,9 @@ class OpenThreadComponent : public Component {
    * @pre Call while holding InstanceLock
    */
   void apply_linkmode(otInstance *instance);
-  OtcTeardownStage teardown_stage{OtcTeardownStage::OTC_TEARDOWN_NOT_STARTED};
 
  protected:
+  OtcTeardownStage teardown_stage_{OtcTeardownStage::OTC_TEARDOWN_NOT_STARTED};
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
   static void on_state_changed_(otChangedFlags flags, void *context);
   otInstance *get_openthread_instance_();
