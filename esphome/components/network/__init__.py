@@ -165,14 +165,14 @@ CONFIG_SCHEMA = cv.Schema(
 
 def _final_validate(config):
     full_config = fv.full_config.get()
-    enable_ipv4 = config.get(CONF_ENABLE_IPV4, None)
-    if enable_ipv4 is None:
-        enable_ipv4 = True
+    enable_ipv4 = config[CONF_ENABLE_IPV4]
     if not enable_ipv4:
+        if not CORE.is_esp32:
+            raise cv.Invalid("Disabling IPv4 is only supported on ESP32")
         for comp in _DISABLE_IPV4_DENY_LIST:
-            if full_config.get(comp, None) is not None:
+            if comp in full_config:
                 raise cv.Invalid(
-                    f"Disabling IPV4 is not currently compatible with component {comp}"
+                    f"Disabling IPv4 is not currently compatible with component {comp}"
                 )
 
 
@@ -282,9 +282,7 @@ async def to_code(config):
     if CORE.is_esp32:
         CORE.add_job(network_component_to_code, config)
 
-    enable_ipv4 = config.get(CONF_ENABLE_IPV4, None)
-    if enable_ipv4 is None:
-        enable_ipv4 = True
+    enable_ipv4 = config[CONF_ENABLE_IPV4]
     cg.add_define("USE_NETWORK_IPV4", enable_ipv4)
     if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_LWIP_IPV4", enable_ipv4)
