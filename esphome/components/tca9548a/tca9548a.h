@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace tca9548a {
+namespace esphome::tca9548a {
 
 static const uint8_t TCA9548A_DISABLE_CHANNELS_COMMAND = 0x00;
 
@@ -35,5 +34,4 @@ class TCA9548AComponent : public Component, public i2c::I2CDevice {
  protected:
   friend class TCA9548AChannel;
 };
-}  // namespace tca9548a
-}  // namespace esphome
+}  // namespace esphome::tca9548a

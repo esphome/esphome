@@ -5,6 +5,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "w5500_custom_spi.h"
 
 #include <lwip/dns.h>
 #include <cinttypes>
@@ -158,21 +159,12 @@ void EthernetComponent::setup() {
       .intr_flags = 0,
   };
 
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C5) || defined(USE_ESP32_VARIANT_ESP32C6) || \
-    defined(USE_ESP32_VARIANT_ESP32C61) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
-  auto host = SPI2_HOST;
-#else
-  auto host = SPI3_HOST;
-#endif
+  auto host = this->interface_;
 
   err = spi_bus_initialize(host, &buscfg, SPI_DMA_CH_AUTO);
   ESPHL_ERROR_CHECK(err, "SPI bus initialize error");
 #endif
-
-  err = esp_netif_init();
-  ESPHL_ERROR_CHECK(err, "ETH netif init error");
-  err = esp_event_loop_create_default();
-  ESPHL_ERROR_CHECK(err, "ETH event loop error");
+  // Network interface setup handled by network component
 
   esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
   this->eth_netif_ = esp_netif_new(&cfg);
@@ -212,6 +204,10 @@ void EthernetComponent::setup() {
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   w5500_config.poll_period_ms = this->polling_interval_;
 #endif
+  // Install the custom SPI driver that offloads the bulk RX/TX frame transfers off the busy-wait
+  // path. w5500_config (and the devcfg it references) outlives esp_eth_mac_new_w5500() below, which
+  // runs the driver's init().
+  install_w5500_async_spi(w5500_config);
 #elif defined(USE_ETHERNET_DM9051)
   dm9051_config.int_gpio_num = this->interrupt_pin_;
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
@@ -458,6 +454,11 @@ void EthernetComponent::dump_config() {
                 "  MOSI Pin: %u\n"
                 "  CS Pin: %u",
                 this->clk_pin_, this->miso_pin_, this->mosi_pin_, this->cs_pin_);
+  const char *spi_interface = "spi3";
+  if (this->interface_ == SPI2_HOST) {
+    spi_interface = "spi2";
+  }
+  ESP_LOGCONFIG(TAG, "  Interface: %s", spi_interface);
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   if (this->polling_interval_ != 0) {
     ESP_LOGCONFIG(TAG, "  Polling Interval: %" PRIu32 " ms", this->polling_interval_);
@@ -760,6 +761,7 @@ void EthernetComponent::set_cs_pin(uint8_t cs_pin) { this->cs_pin_ = cs_pin; }
 void EthernetComponent::set_interrupt_pin(uint8_t interrupt_pin) { this->interrupt_pin_ = interrupt_pin; }
 void EthernetComponent::set_reset_pin(uint8_t reset_pin) { this->reset_pin_ = reset_pin; }
 void EthernetComponent::set_clock_speed(int clock_speed) { this->clock_speed_ = clock_speed; }
+void EthernetComponent::set_interface(spi_host_device_t interface) { this->interface_ = interface; }
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
 void EthernetComponent::set_polling_interval(uint32_t polling_interval) { this->polling_interval_ = polling_interval; }
 #endif

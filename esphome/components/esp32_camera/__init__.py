@@ -2,8 +2,12 @@ import logging
 
 from esphome import automation, pins
 import esphome.codegen as cg
-from esphome.components import i2c, socket
-from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
+from esphome.components import i2c
+from esphome.components.esp32 import (
+    add_idf_component,
+    add_idf_sdkconfig_option,
+    require_libc_picolibc_newlib_compat,
+)
 from esphome.components.psram import DOMAIN as psram_domain
 import esphome.config_validation as cv
 from esphome.const import (
@@ -29,7 +33,7 @@ from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
-AUTO_LOAD = ["camera", "socket"]
+AUTO_LOAD = ["camera"]
 DEPENDENCIES = ["esp32"]
 
 esp32_camera_ns = cg.esphome_ns.namespace("esp32_camera")
@@ -370,7 +374,6 @@ SETTERS = {
 
 async def to_code(config):
     cg.add_define("USE_CAMERA")
-    socket.require_wake_loop_threadsafe()
     var = cg.new_Pvariable(config[CONF_ID])
     await setup_entity(var, config, "camera")
     await cg.register_component(var, config)
@@ -403,6 +406,8 @@ async def to_code(config):
     add_idf_component(name="espressif/esp32-camera", ref="2.1.5")
     add_idf_sdkconfig_option("CONFIG_SCCB_HARDWARE_I2C_DRIVER_NEW", True)
     add_idf_sdkconfig_option("CONFIG_SCCB_HARDWARE_I2C_DRIVER_LEGACY", False)
+    # esp32-camera 2.1.5 needs the Newlib shim on IDF 6.0+; remove when fixed upstream
+    require_libc_picolibc_newlib_compat()
 
     for conf in config.get(CONF_ON_STREAM_START, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

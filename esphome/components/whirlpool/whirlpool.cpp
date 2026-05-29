@@ -1,8 +1,7 @@
 #include "whirlpool.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace whirlpool {
+namespace esphome::whirlpool {
 
 static const char *const TAG = "whirlpool.climate";
 
@@ -307,5 +306,4 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
   return true;
 }
 
-}  // namespace whirlpool
-}  // namespace esphome
+}  // namespace esphome::whirlpool

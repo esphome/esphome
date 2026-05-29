@@ -10,11 +10,7 @@ AUTO_LOAD = ["esp32_ble"]
 DEPENDENCIES = ["esp32"]
 
 esp32_ble_beacon_ns = cg.esphome_ns.namespace("esp32_ble_beacon")
-ESP32BLEBeacon = esp32_ble_beacon_ns.class_(
-    "ESP32BLEBeacon",
-    cg.Component,
-    cg.Parented.template(esp32_ble.ESP32BLE),
-)
+ESP32BLEBeacon = esp32_ble_beacon_ns.class_("ESP32BLEBeacon", cg.Component)
 CONF_MAJOR = "major"
 CONF_MINOR = "minor"
 CONF_MIN_INTERVAL = "min_interval"

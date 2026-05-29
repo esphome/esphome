@@ -1,8 +1,7 @@
 #include "esphome/core/helpers.h"  // for clamp() and lerp()
 #include "opentherm_output.h"
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
 static const char *const TAG = "opentherm.output";
 
@@ -14,5 +13,4 @@ void opentherm::OpenthermOutput::write_state(float state) {
   this->has_state_ = true;
   ESP_LOGD(TAG, "Output %s set to %.2f", this->id_, this->state);
 }
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm

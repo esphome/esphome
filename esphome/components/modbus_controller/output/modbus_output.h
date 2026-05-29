@@ -6,8 +6,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace modbus_controller {
+namespace esphome::modbus_controller {
 
 class ModbusFloatOutput : public output::FloatOutput, public Component, public SensorItem {
  public:
@@ -72,5 +71,4 @@ class ModbusBinaryOutput : public output::BinaryOutput, public Component, public
   bool use_write_multiple_{false};
 };
 
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller

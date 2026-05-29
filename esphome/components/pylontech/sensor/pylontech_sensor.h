@@ -3,10 +3,9 @@
 #include "../pylontech.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace pylontech {
+namespace esphome::pylontech {
 
-class PylontechSensor : public PylontechListener, public Component {
+class PylontechSensor : public PylontechListener {
  public:
   PylontechSensor(int8_t bat_num);
   void dump_config() override;
@@ -28,5 +27,4 @@ class PylontechSensor : public PylontechListener, public Component {
   int8_t bat_num_;
 };
 
-}  // namespace pylontech
-}  // namespace esphome
+}  // namespace esphome::pylontech

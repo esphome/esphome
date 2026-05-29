@@ -333,15 +333,7 @@ climate::ClimateTraits ThermostatClimate::traits() {
     traits.add_supported_preset(entry.preset);
   }
 
-  // Extract custom preset names from the custom_preset_config_ vector
-  if (!this->custom_preset_config_.empty()) {
-    std::vector<const char *> custom_preset_names;
-    custom_preset_names.reserve(this->custom_preset_config_.size());
-    for (const auto &entry : this->custom_preset_config_) {
-      custom_preset_names.push_back(entry.name);
-    }
-    traits.set_supported_custom_presets(custom_preset_names);
-  }
+  // Custom presets are stored on Climate base class and wired via get_traits()
 
   return traits;
 }
@@ -514,8 +506,10 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action, bool pu
     case climate::CLIMATE_ACTION_IDLE:
       if (this->idle_action_ready_()) {
         this->start_timer_(thermostat::THERMOSTAT_TIMER_IDLE_ON);
-        if (this->action == climate::CLIMATE_ACTION_COOLING)
+        if (this->action == climate::CLIMATE_ACTION_COOLING) {
           this->start_timer_(thermostat::THERMOSTAT_TIMER_COOLING_OFF);
+          this->cancel_timer_(thermostat::THERMOSTAT_TIMER_COOLING_MAX_RUN_TIME);
+        }
         if (this->action == climate::CLIMATE_ACTION_FAN) {
           if (this->supports_fan_only_action_uses_fan_mode_timer_) {
             this->start_timer_(thermostat::THERMOSTAT_TIMER_FAN_MODE);
@@ -523,8 +517,10 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action, bool pu
             this->start_timer_(thermostat::THERMOSTAT_TIMER_FANNING_OFF);
           }
         }
-        if (this->action == climate::CLIMATE_ACTION_HEATING)
+        if (this->action == climate::CLIMATE_ACTION_HEATING) {
           this->start_timer_(thermostat::THERMOSTAT_TIMER_HEATING_OFF);
+          this->cancel_timer_(thermostat::THERMOSTAT_TIMER_HEATING_MAX_RUN_TIME);
+        }
         // trig = this->idle_action_trigger_;
         ESP_LOGVV(TAG, "Switching to IDLE/OFF action");
         this->cooling_max_runtime_exceeded_ = false;
@@ -607,16 +603,6 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action, bool pu
 }
 
 void ThermostatClimate::switch_to_supplemental_action_(climate::ClimateAction action) {
-  // Always cancel max-runtime timers and clear exceeded flags when transitioning to idle/off,
-  // even if supplemental_action_ is already idle (early-return path). This prevents a stale
-  // heating_max_runtime_exceeded_ flag from triggering supplemental on the next heating cycle
-  // when HEATING_MAX_RUN_TIME fires while the main action is already IDLE.
-  if (action == climate::CLIMATE_ACTION_OFF || action == climate::CLIMATE_ACTION_IDLE) {
-    this->cancel_timer_(thermostat::THERMOSTAT_TIMER_COOLING_MAX_RUN_TIME);
-    this->cancel_timer_(thermostat::THERMOSTAT_TIMER_HEATING_MAX_RUN_TIME);
-    this->cooling_max_runtime_exceeded_ = false;
-    this->heating_max_runtime_exceeded_ = false;
-  }
   // setup_complete_ helps us ensure an action is called immediately after boot
   if ((action == this->supplemental_action_) && this->setup_complete_) {
     // already in target mode
@@ -1306,6 +1292,13 @@ void ThermostatClimate::set_preset_config(std::initializer_list<PresetEntry> pre
 
 void ThermostatClimate::set_custom_preset_config(std::initializer_list<CustomPresetEntry> presets) {
   this->custom_preset_config_ = presets;
+  // Populate Climate base class custom presets vector
+  std::vector<const char *> names;
+  names.reserve(presets.size());
+  for (const auto &entry : this->custom_preset_config_) {
+    names.push_back(entry.name);
+  }
+  this->set_supported_custom_presets(names);
 }
 
 ThermostatClimate::ThermostatClimate() = default;

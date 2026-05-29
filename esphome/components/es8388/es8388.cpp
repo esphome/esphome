@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace es8388 {
+namespace esphome::es8388 {
 
 static const char *const TAG = "es8388";
 
@@ -284,5 +283,4 @@ optional<AdcInputMicLine> ES8388::get_mic_input() {
   };
 }
 
-}  // namespace es8388
-}  // namespace esphome
+}  // namespace esphome::es8388

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import ast
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from functools import cache
 import hashlib
 import json
@@ -15,12 +17,10 @@ from typing import Any
 
 import colorama
 
-from esphome.loader import get_platform
-
-root_path = os.path.abspath(os.path.normpath(os.path.join(__file__, "..", "..")))
-basepath = os.path.join(root_path, "esphome")
-temp_folder = os.path.join(root_path, ".temp")
-temp_header_file = os.path.join(temp_folder, "all-include.cpp")
+root_path = str(Path(__file__).resolve().parent.parent)
+basepath = str(Path(root_path) / "esphome")
+temp_folder = str(Path(root_path) / ".temp")
+temp_header_file = str(Path(temp_folder) / "all-include.cpp")
 
 # C++ file extensions used for clang-tidy and clang-format checks
 CPP_FILE_EXTENSIONS = (".cpp", ".h", ".hpp", ".cc", ".cxx", ".c", ".tcc")
@@ -103,9 +103,7 @@ def get_component_from_path(file_path: str) -> str | None:
     Returns:
         Component name if path is in components or tests directory, None otherwise
     """
-    if file_path.startswith(ESPHOME_COMPONENTS_PATH) or file_path.startswith(
-        ESPHOME_TESTS_COMPONENTS_PATH
-    ):
+    if file_path.startswith((ESPHOME_COMPONENTS_PATH, ESPHOME_TESTS_COMPONENTS_PATH)):
         parts = file_path.split("/")
         if len(parts) >= 3 and parts[2]:
             # Verify that parts[2] is actually a component directory, not a file
@@ -117,7 +115,7 @@ def get_component_from_path(file_path: str) -> str | None:
 
 
 def get_component_test_files(
-    component: str, *, all_variants: bool = False
+    component: str, *, all_variants: bool = False, include_validate: bool = False
 ) -> list[Path]:
     """Get test files for a component.
 
@@ -125,6 +123,10 @@ def get_component_test_files(
         component: Component name (e.g., "wifi")
         all_variants: If True, returns all test files including variants (test-*.yaml).
                      If False, returns only base test files (test.*.yaml).
+                     Default is False.
+        include_validate: If True, also returns config-only files (validate.*.yaml,
+                     and validate-*.yaml when all_variants is True). These files
+                     are validated with `esphome config` but never compiled.
                      Default is False.
 
     Returns:
@@ -136,9 +138,130 @@ def get_component_test_files(
 
     if all_variants:
         # Match both test.*.yaml and test-*.yaml patterns
-        return list(tests_dir.glob("test[.-]*.yaml"))
+        files = list(tests_dir.glob("test[.-]*.yaml"))
+        if include_validate:
+            files.extend(tests_dir.glob("validate[.-]*.yaml"))
+        return files
     # Match only test.*.yaml (base tests)
-    return list(tests_dir.glob("test.*.yaml"))
+    files = list(tests_dir.glob("test.*.yaml"))
+    if include_validate:
+        files.extend(tests_dir.glob("validate.*.yaml"))
+    return files
+
+
+def is_validate_only_file(test_file: Path) -> bool:
+    """Return True if the given path is a config-only validate file.
+
+    Validate files follow the same grammar as test files but with a
+    ``validate`` prefix instead of ``test``: ``validate.<platform>.yaml``
+    or ``validate-<variant>.<platform>.yaml``. They are exercised with
+    ``esphome config`` only and skipped during compile.
+    """
+    name = test_file.name
+    return name.startswith(("validate.", "validate-"))
+
+
+@dataclass(frozen=True)
+class ComponentMetadata:
+    """Statically-parsed AUTO_LOAD and CONFLICTS_WITH declarations."""
+
+    auto_load: frozenset[str] = field(default_factory=frozenset)
+    conflicts_with: frozenset[str] = field(default_factory=frozenset)
+
+
+@cache
+def parse_component_metadata(name: str) -> ComponentMetadata:
+    """Return the AUTO_LOAD / CONFLICTS_WITH declarations for a component.
+
+    Parses the component's ``esphome/components/<name>/__init__.py`` statically.
+    Callable forms (``def AUTO_LOAD():``) require runtime imports and are
+    reported as empty -- safe for conflict detection since they cannot be
+    evaluated without executing the module.
+    """
+    init_file = Path(root_path) / ESPHOME_COMPONENTS_PATH / name / "__init__.py"
+    if not init_file.exists():
+        return ComponentMetadata()
+    try:
+        tree = ast.parse(init_file.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError, UnicodeError):
+        return ComponentMetadata()
+    fields: dict[str, frozenset[str]] = {
+        "AUTO_LOAD": frozenset(),
+        "CONFLICTS_WITH": frozenset(),
+    }
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.List):
+            continue
+        for target in node.targets:
+            if not isinstance(target, ast.Name) or target.id not in fields:
+                continue
+            fields[target.id] = frozenset(
+                e.value
+                for e in node.value.elts
+                if isinstance(e, ast.Constant) and isinstance(e.value, str)
+            )
+    return ComponentMetadata(
+        auto_load=fields["AUTO_LOAD"],
+        conflicts_with=fields["CONFLICTS_WITH"],
+    )
+
+
+@dataclass
+class _ConflictWalk:
+    loaded: set[str]
+    rejects: set[str]
+
+
+def split_conflicting_groups(
+    grouped_components: dict[tuple[str, str], list[str]],
+) -> dict[tuple[str, str], list[str]]:
+    """Split groups so components declaring mutual CONFLICTS_WITH end up in separate builds.
+
+    A conflict propagates through AUTO_LOAD: if X declares CONFLICTS_WITH=[Y]
+    and Z auto-loads Y, then X and Z conflict (e.g. bme680_bsec vs.
+    bme68x_bsec2_i2c which auto-loads bme68x_bsec2). Only components that
+    appear in the batch (and their AUTO_LOAD closures) are parsed. The
+    conflict relation is treated as symmetric even when only one side
+    declares it (e.g. ethernet rejects wifi but wifi does not declare the
+    reverse).
+    """
+    batch = {c for comps in grouped_components.values() for c in comps}
+
+    walks: dict[str, _ConflictWalk] = {}
+    for comp in batch:
+        walk = _ConflictWalk(loaded={comp}, rejects=set())
+        stack = [comp]
+        while stack:
+            metadata = parse_component_metadata(stack.pop())
+            walk.rejects |= metadata.conflicts_with
+            new = metadata.auto_load - walk.loaded
+            walk.loaded |= new
+            stack.extend(new)
+        walks[comp] = walk
+
+    def conflicts(a: str, b: str) -> bool:
+        wa, wb = walks[a], walks[b]
+        return not wa.rejects.isdisjoint(wb.loaded) or not wb.rejects.isdisjoint(
+            wa.loaded
+        )
+
+    result: dict[tuple[str, str], list[str]] = {}
+    for (platform, signature), components in grouped_components.items():
+        buckets: list[list[str]] = []
+        for comp in components:
+            for bucket in buckets:
+                if not any(conflicts(comp, other) for other in bucket):
+                    bucket.append(comp)
+                    break
+            else:
+                buckets.append([comp])
+        if len(buckets) == 1:
+            result[(platform, signature)] = buckets[0]
+            continue
+        for index, bucket in enumerate(buckets):
+            key = signature if index == 0 else f"{signature}__conflict{index}"
+            result[(platform, key)] = bucket
+    return result
 
 
 def styled(color: str | tuple[str, ...], msg: str, reset: bool = True) -> str:
@@ -176,7 +299,12 @@ def build_all_include(header_files: list[str] | None = None) -> None:
             if line
         ]
 
-    headers = [f'#include "{h}"' for h in header_files]
+    from esphome.writer import ENTITY_TYPES_H_TARGET
+
+    # X-macro files are included multiple times with different macro definitions
+    # and must not be included bare in the all-include header
+    exclude = {ENTITY_TYPES_H_TARGET}
+    headers = [f'#include "{h}"' for h in header_files if h not in exclude]
     headers.sort()
     headers.append("")
     content = "\n".join(headers)
@@ -209,8 +337,8 @@ def _get_github_event_data() -> dict | None:
         Parsed event data dictionary, or None if not available
     """
     github_event_path = os.environ.get("GITHUB_EVENT_PATH")
-    if github_event_path and os.path.exists(github_event_path):
-        with open(github_event_path) as f:
+    if github_event_path and Path(github_event_path).exists():
+        with Path(github_event_path).open() as f:
             return json.load(f)
     return None
 
@@ -334,7 +462,8 @@ def _get_changed_files_from_command(command: list[str]) -> list[str]:
         raise Exception(f"Command failed: {' '.join(command)}\nstderr: {proc.stderr}")
 
     changed_files = splitlines_no_ends(proc.stdout)
-    changed_files = [os.path.relpath(f, os.getcwd()) for f in changed_files if f]
+    cwd = Path.cwd()
+    changed_files = [os.path.relpath(f, cwd) for f in changed_files if f]  # noqa: PTH109
     changed_files.sort()
     return changed_files
 
@@ -369,7 +498,7 @@ def get_changed_components() -> list[str] | None:
         return None
 
     # Use list-components.py to get changed components
-    script_path = os.path.join(root_path, "script", "list-components.py")
+    script_path = str(Path(root_path) / "script" / "list-components.py")
     cmd = [script_path, "--changed"]
 
     try:
@@ -489,7 +618,7 @@ def filter_changed(files: list[str]) -> list[str]:
 def filter_grep(files: list[str], value: list[str]) -> list[str]:
     matched = []
     for file in files:
-        with open(file, encoding="utf-8") as handle:
+        with Path(file).open(encoding="utf-8") as handle:
             contents = handle.read()
         if any(v in contents for v in value):
             matched.append(file)
@@ -644,7 +773,7 @@ def get_all_dependencies(
         PLATFORM_HOST,
     )
     from esphome.core import CORE
-    from esphome.loader import get_component
+    from esphome.loader import get_component, get_platform
 
     all_components: set[str] = set(component_names)
 

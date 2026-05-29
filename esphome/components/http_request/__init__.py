@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32
@@ -63,7 +65,7 @@ CONF_JSON = "json"
 
 def validate_url(value):
     value = cv.url(value)
-    if value.startswith("http://") or value.startswith("https://"):
+    if value.startswith(("http://", "https://")):
         return value
     raise cv.Invalid("URL must start with 'http://' or 'https://'")
 
@@ -174,7 +176,7 @@ async def to_code(config):
 
         if config.get(CONF_VERIFY_SSL):
             if ca_cert_path := config.get(CONF_CA_CERTIFICATE_PATH):
-                with open(ca_cert_path, encoding="utf-8") as f:
+                with Path(ca_cert_path).open(encoding="utf-8") as f:
                     ca_cert_content = f.read()
                 cg.add(var.set_ca_certificate(ca_cert_content))
             else:
@@ -302,11 +304,13 @@ async def http_request_action_to_code(config, action_id, template_arg, args):
 
     template_ = await cg.templatable(config[CONF_URL], args, cg.std_string)
     cg.add(var.set_url(template_))
-    cg.add(var.set_method(config[CONF_METHOD]))
+    template_ = await cg.templatable(config[CONF_METHOD], args, cg.const_char_ptr)
+    cg.add(var.set_method(template_))
 
     capture_response = config[CONF_CAPTURE_RESPONSE]
     if capture_response:
-        cg.add(var.set_capture_response(capture_response))
+        template_ = await cg.templatable(capture_response, args, cg.bool_)
+        cg.add(var.set_capture_response(template_))
         cg.add_define("USE_HTTP_REQUEST_RESPONSE")
 
     cg.add(var.set_max_response_buffer_size(config[CONF_MAX_RESPONSE_BUFFER_SIZE]))

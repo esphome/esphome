@@ -56,8 +56,8 @@ static void SensorFilter_Chain3(benchmark::State &state) {
   Sensor sensor;
 
   sensor.add_filters({
-      new OffsetFilter(1.0f),
-      new MultiplyFilter(2.0f),
+      new OffsetFilter([]() -> float { return 1.0f; }),
+      new MultiplyFilter([]() -> float { return 2.0f; }),
       new SlidingWindowMovingAverageFilter(5, 1, 1),
   });
 

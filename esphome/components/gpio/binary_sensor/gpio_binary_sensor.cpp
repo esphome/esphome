@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
-namespace esphome {
-namespace gpio {
+namespace esphome::gpio {
 
 static const char *const TAG = "gpio.binary_sensor";
 
@@ -46,11 +45,6 @@ void GPIOBinarySensorStore::setup(InternalGPIOPin *pin, Component *component) {
 }
 
 void GPIOBinarySensor::setup() {
-  if (this->store_.use_interrupt_ && !this->pin_->is_internal()) {
-    ESP_LOGD(TAG, "GPIO is not internal, falling back to polling mode");
-    this->store_.use_interrupt_ = false;
-  }
-
   if (this->store_.use_interrupt_) {
     auto *internal_pin = static_cast<InternalGPIOPin *>(this->pin_);
     this->store_.setup(internal_pin, this);
@@ -91,5 +85,4 @@ void GPIOBinarySensor::loop() {
 
 float GPIOBinarySensor::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-}  // namespace gpio
-}  // namespace esphome
+}  // namespace esphome::gpio
