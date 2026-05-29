@@ -1220,6 +1220,7 @@ KEY_MBEDTLS_PKCS7_REQUIRED = "mbedtls_pkcs7_required"
 KEY_FATFS_REQUIRED = "fatfs_required"
 KEY_MBEDTLS_SHA512_REQUIRED = "mbedtls_sha512_required"
 KEY_ADC_ONESHOT_IRAM_REQUIRED = "adc_oneshot_iram_required"
+KEY_LIBC_PICOLIBC_NEWLIB_COMPAT_REQUIRED = "libc_picolibc_newlib_compat_required"
 
 
 def require_vfs_select() -> None:
@@ -1326,6 +1327,15 @@ def require_adc_oneshot_iram() -> None:
     This sets CONFIG_ADC_ONESHOT_CTRL_FUNC_IN_IRAM.
     """
     CORE.data[KEY_ESP32][KEY_ADC_ONESHOT_IRAM_REQUIRED] = True
+
+
+def require_libc_picolibc_newlib_compat() -> None:
+    """Keep CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY enabled on IDF 6.0+.
+
+    Call this from components that link against precompiled Newlib binaries
+    referencing types/symbols the shim provides (e.g. esp32-camera).
+    """
+    CORE.data[KEY_ESP32][KEY_LIBC_PICOLIBC_NEWLIB_COMPAT_REQUIRED] = True
 
 
 def _parse_idf_component(value: str) -> ConfigType:
@@ -1730,6 +1740,22 @@ async def _write_arduino_libraries_sdkconfig() -> None:
     for lib in ARDUINO_DISABLED_LIBRARIES:
         # Enable if explicitly requested, disable otherwise
         add_idf_sdkconfig_option(f"CONFIG_ARDUINO_SELECTIVE_{lib}", lib in enabled_libs)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _set_libc_picolibc_newlib_compat() -> None:
+    """Apply the PicolibC Newlib compatibility shim option on IDF 6.0+.
+
+    IDF 6.0 switched from Newlib to PicolibC; the shim is disabled by default.
+    Runs at FINAL priority so every require_libc_picolibc_newlib_compat() call
+    (default priority) is seen before the option is written.
+    """
+    if idf_version() < cv.Version(6, 0, 0):
+        return
+    add_idf_sdkconfig_option(
+        "CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY",
+        CORE.data[KEY_ESP32].get(KEY_LIBC_PICOLIBC_NEWLIB_COMPAT_REQUIRED, False),
+    )
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -2265,17 +2291,8 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_SHA384_C", False)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_SHA512_C", False)
 
-    # Disable PicolibC Newlib compatibility shim on IDF 6.0+
-    # IDF 6.0 switched from Newlib to PicolibC. The shim provides thread-local
-    # stdin/stdout/stderr and getreent() for code compiled against Newlib.
-    # ESPHome doesn't link against Newlib-built libraries that use stdio.
-    # If a component needs it (e.g. precompiled Newlib binaries), re-enable via:
-    #   esp32:
-    #     framework:
-    #       sdkconfig_options:
-    #         CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY: "y"
-    if idf_version() >= cv.Version(6, 0, 0):
-        add_idf_sdkconfig_option("CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY", False)
+    # FINAL priority: runs after every require_libc_picolibc_newlib_compat() call
+    CORE.add_job(_set_libc_picolibc_newlib_compat)
 
     # Disable regi2c control functions in IRAM
     # Only needed if using analog peripherals (ADC, DAC, etc.) from ISRs while cache is disabled
