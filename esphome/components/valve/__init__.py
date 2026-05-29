@@ -62,9 +62,9 @@ validate_valve_state = cv.enum(VALVE_STATES, upper=True)
 ValveOperation = valve_ns.enum("ValveOperation")
 
 VALVE_OPERATIONS = {
-    "IDLE": actuator_component.ActuatorOperation.ACTUATOR_OPERATION_IDLE,
-    "OPENING": actuator_component.ActuatorOperation.ACTUATOR_OPERATION_OPENING,
-    "CLOSING": actuator_component.ActuatorOperation.ACTUATOR_OPERATION_CLOSING,
+    "IDLE": valve_ns.VALVE_OPERATION_IDLE,
+    "OPENING": valve_ns.VALVE_OPERATION_OPENING,
+    "CLOSING": valve_ns.VALVE_OPERATION_CLOSING,
 }
 validate_valve_operation = cv.enum(VALVE_OPERATIONS, upper=True)
 
