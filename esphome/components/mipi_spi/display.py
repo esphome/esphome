@@ -118,7 +118,9 @@ def denominator(config):
     """
     model = MODELS[config[CONF_MODEL]]
     frac = config.get(CONF_BUFFER_SIZE)
-    _width, height, _offset_width, _offset_height = model.get_dimensions(config)
+    _width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
+        model.get_dimensions(config)
+    )
     if frac is None or frac > 0.75 or height < 32:
         return 1
     try:
@@ -293,7 +295,9 @@ def _final_validate(config):
             return  # No need to pick a size
         color_depth = get_color_depth(config)
         frac = denominator(config)
-        width, height, _offset_width, _offset_height = model.get_dimensions(config)
+        width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
+            model.get_dimensions(config)
+        )
 
         buffer_size = color_depth // 8 * width * height // frac
         # Target a buffer size of 20kB, except for large displays, which shouldn't end up here
@@ -321,8 +325,8 @@ def get_instance(config):
         CONF_MIRROR_Y,
         CONF_SWAP_XY,
     }
-    width, height, offset_width, offset_height = model.get_dimensions(
-        config, not has_hardware_transform
+    width, height, offset_width, offset_height, pad_width, pad_height = (
+        model.get_dimensions(config, not has_hardware_transform)
     )
 
     color_depth = int(config[CONF_COLOR_DEPTH].removesuffix("bit"))
@@ -349,6 +353,8 @@ def get_instance(config):
         height,
         offset_width,
         offset_height,
+        pad_width,
+        pad_height,
         madctl,
         has_hardware_transform,
     ]

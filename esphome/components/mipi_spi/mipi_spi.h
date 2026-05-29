@@ -339,7 +339,7 @@ class MipiSpi : public display::Display,
     if constexpr (HAS_HARDWARE_ROTATION) {
       switch (this->rotation_) {
         case display::DISPLAY_ROTATION_90_DEGREES:
-          return PAD_HEIGHT;
+          return OFFSET_HEIGHT;
         case display::DISPLAY_ROTATION_180_DEGREES:
           return PAD_WIDTH;
         case display::DISPLAY_ROTATION_270_DEGREES:
@@ -523,11 +523,11 @@ class MipiSpi : public display::Display,
  * @tparam ROUNDING The alignment requirement for drawing operations (e.g. 2 means that x coordinates must be even)
  */
 template<typename BUFFERTYPE, PixelMode BUFFERPIXEL, bool IS_BIG_ENDIAN, PixelMode DISPLAYPIXEL, BusType BUS_TYPE,
-         uint16_t WIDTH, uint16_t HEIGHT, int PAD_WIDTH, int PAD_HEIGHT, int OFFSET_WIDTH, int OFFSET_HEIGHT,
+         uint16_t WIDTH, uint16_t HEIGHT, int OFFSET_WIDTH, int OFFSET_HEIGHT, int PAD_WIDTH, int PAD_HEIGHT,
          uint16_t MADCTL, bool HAS_HARDWARE_ROTATION, int FRACTION, unsigned ROUNDING>
 class MipiSpiBuffer
-    : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DISPLAYPIXEL, BUS_TYPE, WIDTH, HEIGHT, PAD_WIDTH,
-                     PAD_HEIGHT, OFFSET_WIDTH, OFFSET_HEIGHT, MADCTL, HAS_HARDWARE_ROTATION> {
+    : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DISPLAYPIXEL, BUS_TYPE, WIDTH, HEIGHT, OFFSET_WIDTH,
+                     OFFSET_HEIGHT, PAD_WIDTH, PAD_HEIGHT, MADCTL, HAS_HARDWARE_ROTATION> {
  public:
   // these values define the buffer size needed to write in accordance with the chip pixel alignment
   // requirements. If the required rounding does not divide the width and height, we round up to the next multiple and

@@ -300,24 +300,34 @@ class DriverChip:
         return self.__class__(name, initsequence=tuple(initsequence), **defaults)
 
     def get_default(self, key, fallback: Any = False) -> Any:
-        if key not in self.defaults:
-            if key == CONF_NATIVE_WIDTH:
-                width = self.get_default(CONF_WIDTH, 0)
-                if width == 0:
-                    return fallback
-                offset_width = self.get_default(CONF_OFFSET_WIDTH, 0)
-                pad_width = self.get_default(CONF_PAD_WIDTH, offset_width)
-                return width + offset_width + pad_width
-
-            if key == CONF_NATIVE_HEIGHT:
-                height = self.get_default(CONF_HEIGHT, 0)
-                if height == 0:
-                    return fallback
-                offset_height = self.get_default(CONF_OFFSET_HEIGHT, 0)
-                pad_height = self.get_default(CONF_PAD_HEIGHT, offset_height)
-                return height + offset_height + pad_height
-
         return self.defaults.get(key, fallback)
+
+    # The "native" size is the size as determined by the controller chip's number of rows and columns
+    # Some displays use a subset of those, which may not start at 0
+    # The resulting smaller rectangle is defined by the width, height, offsets and padding.
+    def get_native_width(self, fallback: int) -> int:
+        """
+        Get the native width of the driver chip model, which should represent the max number of columns supported
+        by the driver chip.
+        """
+        if CONF_NATIVE_WIDTH in self.defaults:
+            return self.defaults[CONF_NATIVE_WIDTH]
+        width = self.get_default(CONF_WIDTH, 0)
+        if width == 0:
+            return fallback
+        offset_width = self.get_default(CONF_OFFSET_WIDTH, 0)
+        pad_width = self.get_default(CONF_PAD_WIDTH, offset_width)
+        return width + offset_width + pad_width
+
+    def get_native_height(self, fallback: int) -> int:
+        if CONF_NATIVE_HEIGHT in self.defaults:
+            return self.defaults[CONF_NATIVE_HEIGHT]
+        height = self.get_default(CONF_HEIGHT, 0)
+        if height == 0:
+            return fallback
+        offset_height = self.get_default(CONF_OFFSET_HEIGHT, 0)
+        pad_height = self.get_default(CONF_PAD_HEIGHT, offset_height)
+        return height + offset_height + pad_height
 
     @property
     def transforms(self) -> set[str]:
@@ -350,46 +360,66 @@ class DriverChip:
             return CONF_SWAP_XY in transforms and CONF_MIRROR_X in transforms
         return CONF_SWAP_XY in transforms and CONF_MIRROR_Y in transforms
 
-    def get_dimensions(self, config, swap: bool = True) -> tuple[int, int, int, int]:
+    def get_dimensions(
+        self, config, swap: bool = True
+    ) -> tuple[int, int, int, int, int, int]:
         """
         Return the dimensions of the current model.
         :param config: The current configuration
         :param swap: If width/height should be swapped when axes are swapped.
-        :return:
+        :return: A tuple (width, height, offset_width, offset_height, pad_width, pad_height).
         """
+
         if CONF_DIMENSIONS in config:
             # Explicit dimensions, just use as is
             dimensions = config[CONF_DIMENSIONS]
             if isinstance(dimensions, dict):
                 width = dimensions[CONF_WIDTH]
                 height = dimensions[CONF_HEIGHT]
+                native_width = self.get_native_width(width)
+                native_height = self.get_native_height(height)
                 offset_width = dimensions[CONF_OFFSET_WIDTH]
                 offset_height = dimensions[CONF_OFFSET_HEIGHT]
-                return width, height, offset_width, offset_height
-            (width, height) = dimensions
-            return width, height, 0, 0
+                pad_width = dimensions.get(
+                    CONF_PAD_WIDTH, native_width - width - offset_width
+                )
+                pad_height = dimensions.get(
+                    CONF_PAD_HEIGHT, native_height - height - offset_height
+                )
+                return width, height, offset_width, offset_height, pad_width, pad_height
+
+            # Must be a tuple
+            width, height = dimensions
+            return width, height, 0, 0, 0, 0
 
         # Default dimensions, use model defaults
         transform = self.get_transform(config)
 
         width = self.get_default(CONF_WIDTH)
         height = self.get_default(CONF_HEIGHT)
+        native_width = self.get_native_width(width)
+        native_height = self.get_native_height(height)
         offset_width = self.get_default(CONF_OFFSET_WIDTH, 0)
         offset_height = self.get_default(CONF_OFFSET_HEIGHT, 0)
+        pad_width = self.get_default(
+            CONF_PAD_WIDTH, native_width - width - offset_width
+        )
+        pad_height = self.get_default(
+            CONF_PAD_HEIGHT, native_height - height - offset_height
+        )
 
         # if mirroring axes and there are offsets, also mirror the offsets to cater for situations where
         # the offset is asymmetric
         if transform.get(CONF_MIRROR_X):
-            native_width = self.get_default(CONF_NATIVE_WIDTH, 0)
-            offset_width = native_width - width - offset_width
+            offset_width, pad_width = pad_width, offset_width
         if transform.get(CONF_MIRROR_Y):
-            native_height = self.get_default(CONF_NATIVE_HEIGHT, 0)
-            offset_height = native_height - height - offset_height
-        # Swap default dimensions if swap_xy is set, or if rotation is 90/270 and we are not using a buffer
+            offset_height, pad_height = pad_height, offset_height
+        # Swap default dimensions if swap_xy is set, or if rotation is 90/270, and we are not using a buffer
         if swap and transform.get(CONF_SWAP_XY) is True:
             width, height = height, width
             offset_height, offset_width = offset_width, offset_height
-        return width, height, offset_width, offset_height
+            pad_width, pad_height = pad_height, pad_width
+        return width, height, offset_width, offset_height, pad_width, pad_height
 
     def get_base_transform(self, config):
         transform = config.get(
