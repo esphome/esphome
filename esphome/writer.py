@@ -200,8 +200,8 @@ ESPHome automatically populates the build directory, and any
 changes to this directory will be removed the next time esphome is
 run.
 
-For modifying esphome's core files, please use a development esphome install,
-the custom_components folder or the external_components feature.
+For modifying esphome's core files, please use a development esphome install
+or the external_components feature.
 """
 
 
@@ -358,7 +358,7 @@ def copy_src_tree():
     platform = "esphome.components." + CORE.target_platform
     try:
         module = importlib.import_module(platform)
-        copy_files = getattr(module, "copy_files")
+        copy_files = module.copy_files
         copy_files()
     except AttributeError:
         pass

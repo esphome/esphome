@@ -1,6 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
-#ifdef USE_NETWORK
+#if defined(USE_NETWORK) && !defined(USE_ZEPHYR)
 #include "esphome/components/button/button.h"
 #include "esphome/core/component.h"
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
@@ -32,4 +32,4 @@ class WakeOnLanButton : public button::Button, public Component {
 
 }  // namespace esphome::wake_on_lan
 
-#endif
+#endif  // USE_NETWORK && !USE_ZEPHYR

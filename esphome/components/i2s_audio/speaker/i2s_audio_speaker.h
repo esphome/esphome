@@ -19,7 +19,6 @@
 namespace esphome::i2s_audio {
 
 // Shared constants used by both standard and SPDIF speaker implementations
-static constexpr uint32_t DMA_BUFFER_DURATION_MS = 15;
 static constexpr size_t TASK_STACK_SIZE = 4096;
 static constexpr ssize_t TASK_PRIORITY = 19;
 

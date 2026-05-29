@@ -1,4 +1,5 @@
 rp2040:
+  variant: rp2040
   enable_full_printf: false
 
 logger:

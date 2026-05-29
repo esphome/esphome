@@ -295,7 +295,7 @@ def main() -> int:
     # Sort groups by signature for readability
     groupable_groups = []
     isolated_groups = []
-    for (platform, signature), group_comps in sorted(signature_groups.items()):
+    for (_platform, signature), group_comps in sorted(signature_groups.items()):
         if signature.startswith(ISOLATED_SIGNATURE_PREFIX):
             isolated_groups.append((signature, group_comps))
         else:
