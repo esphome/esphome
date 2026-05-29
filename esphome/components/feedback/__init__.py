@@ -105,14 +105,14 @@ async def apply_feedback_actuator_config(var, config):
     )
     cg.add(var.set_open_duration(config[CONF_OPEN_DURATION]))
     if CONF_OPEN_ENDSTOP in config:
-        bin = await cg.get_variable(config[CONF_OPEN_ENDSTOP])
-        cg.add(var.set_open_endstop(bin))
+        open_endstop = await cg.get_variable(config[CONF_OPEN_ENDSTOP])
+        cg.add(var.set_open_endstop(open_endstop))
     if CONF_OPEN_SENSOR in config:
-        bin = await cg.get_variable(config[CONF_OPEN_SENSOR])
-        cg.add(var.set_open_sensor(bin))
+        open_sensor = await cg.get_variable(config[CONF_OPEN_SENSOR])
+        cg.add(var.set_open_sensor(open_sensor))
     if CONF_OPEN_OBSTACLE_SENSOR in config:
-        bin = await cg.get_variable(config[CONF_OPEN_OBSTACLE_SENSOR])
-        cg.add(var.set_open_obstacle_sensor(bin))
+        open_obstacle = await cg.get_variable(config[CONF_OPEN_OBSTACLE_SENSOR])
+        cg.add(var.set_open_obstacle_sensor(open_obstacle))
 
     # CLOSE
     await automation.build_automation(
@@ -120,14 +120,14 @@ async def apply_feedback_actuator_config(var, config):
     )
     cg.add(var.set_close_duration(config[CONF_CLOSE_DURATION]))
     if CONF_CLOSE_ENDSTOP in config:
-        bin = await cg.get_variable(config[CONF_CLOSE_ENDSTOP])
-        cg.add(var.set_close_endstop(bin))
+        close_endstop = await cg.get_variable(config[CONF_CLOSE_ENDSTOP])
+        cg.add(var.set_close_endstop(close_endstop))
     if CONF_CLOSE_SENSOR in config:
-        bin = await cg.get_variable(config[CONF_CLOSE_SENSOR])
-        cg.add(var.set_close_sensor(bin))
+        close_sensor = await cg.get_variable(config[CONF_CLOSE_SENSOR])
+        cg.add(var.set_close_sensor(close_sensor))
     if CONF_CLOSE_OBSTACLE_SENSOR in config:
-        bin = await cg.get_variable(config[CONF_CLOSE_OBSTACLE_SENSOR])
-        cg.add(var.set_close_obstacle_sensor(bin))
+        close_obstacle = await cg.get_variable(config[CONF_CLOSE_OBSTACLE_SENSOR])
+        cg.add(var.set_close_obstacle_sensor(close_obstacle))
 
     # OTHER
     if CONF_MAX_DURATION in config:
