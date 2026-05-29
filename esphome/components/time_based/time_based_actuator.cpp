@@ -7,6 +7,14 @@ namespace esphome::time_based {
 
 using namespace esphome::actuator;
 
+void TimeBasedActuatorBase::setup() {
+  auto restored_pos = this->actuator_->do_restore_state();
+  if (!restored_pos.has_value()) {
+    this->actuator_->set_position(0.5f);
+    this->actuator_->do_publish_state(true);
+  }
+}
+
 void TimeBasedActuatorBase::loop() {
   if (this->actuator_->get_operation() == ACTUATOR_OPERATION_IDLE)
     return;
