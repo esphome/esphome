@@ -9,8 +9,11 @@ DEPENDENCIES = ["uart"]
 CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS = "ignore_mcu_update_on_datapoints"
 
 CONF_ON_DATAPOINT_UPDATE = "on_datapoint_update"
+CONF_ON_WIFI_RESET = "on_wifi_reset"
+CONF_ON_WIFI_SELECT = "on_wifi_select"
 CONF_DATAPOINT_TYPE = "datapoint_type"
 CONF_STATUS_PIN = "status_pin"
+CONF_WIFI_RESET = "wifi_reset"
 
 tuya_ns = cg.esphome_ns.namespace("tuya")
 TuyaDatapointType = tuya_ns.enum("TuyaDatapointType", is_class=True)
@@ -90,6 +93,9 @@ CONFIG_SCHEMA = (
                 cv.uint8_t
             ),
             cv.Optional(CONF_STATUS_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_WIFI_RESET, default=False): cv.boolean,
+            cv.Optional(CONF_ON_WIFI_RESET): automation.validate_automation({}),
+            cv.Optional(CONF_ON_WIFI_SELECT): automation.validate_automation({}),
             cv.Optional(CONF_ON_DATAPOINT_UPDATE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -122,6 +128,8 @@ async def to_code(config):
     if CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS in config:
         for dp in config[CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS]:
             cg.add(var.add_ignore_mcu_update_on_datapoints(dp))
+    if config[CONF_WIFI_RESET]:
+        cg.add(var.set_wifi_reset_enabled(True))
     for conf in config.get(CONF_ON_DATAPOINT_UPDATE, []):
         trigger = cg.new_Pvariable(
             conf[CONF_TRIGGER_ID], var, conf[CONF_SENSOR_DATAPOINT]
@@ -129,3 +137,17 @@ async def to_code(config):
         await automation.build_automation(
             trigger, [(DATAPOINT_TYPES[conf[CONF_DATAPOINT_TYPE]], "x")], conf
         )
+
+    _CALLBACK_AUTOMATIONS = (
+        automation.CallbackAutomation(
+            CONF_ON_WIFI_RESET,
+            "add_on_wifi_reset_callback",
+            [],
+        ),
+        automation.CallbackAutomation(
+            CONF_ON_WIFI_SELECT,
+            "add_on_wifi_select_callback",
+            [],
+        ),
+    )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)

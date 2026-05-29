@@ -114,6 +114,13 @@ class Tuya : public Component, public uart::UARTDevice {
   template<typename F> void add_on_initialized_callback(F &&callback) {
     this->initialized_callback_.add(std::forward<F>(callback));
   }
+  void set_wifi_reset_enabled(bool enabled) { this->wifi_reset_enabled_ = enabled; }
+  template<typename F> void add_on_wifi_reset_callback(F &&callback) {
+    this->wifi_reset_callback_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_on_wifi_select_callback(F &&callback) {
+    this->wifi_select_callback_.add(std::forward<F>(callback));
+  }
 
  protected:
   void handle_char_(uint8_t c);
@@ -158,6 +165,9 @@ class Tuya : public Component, public uart::UARTDevice {
   std::vector<TuyaCommand> command_queue_;
   optional<TuyaCommandType> expected_response_{};
   uint8_t wifi_status_ = -1;
+  bool wifi_reset_enabled_{false};
+  CallbackManager<void()> wifi_reset_callback_;
+  CallbackManager<void()> wifi_select_callback_;
   CallbackManager<void()> initialized_callback_{};
 };
 

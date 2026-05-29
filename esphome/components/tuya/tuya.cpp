@@ -1,5 +1,8 @@
 #include "tuya.h"
+#ifdef USE_NETWORK
 #include "esphome/components/network/util.h"
+#endif
+#include "esphome/core/application.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -231,35 +234,77 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
         this->send_empty_command_(TuyaCommandType::DATAPOINT_QUERY);
       }
       break;
-    case TuyaCommandType::WIFI_SELECT:
     case TuyaCommandType::WIFI_RESET: {
-      const bool is_select = (len >= 1);
-      // Send WIFI_SELECT ACK
+      // Send ACK immediately via send_raw_command_ to bypass the command queue.
+      // Using send_command_() would queue the ACK, but process_command_queue_() won't
+      // flush it when expected_response_ is set (e.g. waiting for DP response during init).
       TuyaCommand ack;
-      ack.cmd = is_select ? TuyaCommandType::WIFI_SELECT : TuyaCommandType::WIFI_RESET;
+      ack.cmd = TuyaCommandType::WIFI_RESET;
       ack.payload.clear();
-      this->send_command_(ack);
-      // Establish pairing mode for correct first WIFI_STATE byte, EZ (0x00) default
-      uint8_t first = 0x00;
-      const char *mode_str = "EZ";
-      if (is_select && buffer[0] == 0x01) {
-        first = 0x01;
-        mode_str = "AP";
+      this->send_raw_command_(ack);
+      this->flush();
+
+      this->wifi_reset_callback_.call();
+
+      if (this->wifi_reset_enabled_) {
+        ESP_LOGI(TAG, "WIFI_RESET received, clearing WiFi credentials and rebooting");
+#ifdef USE_WIFI
+        wifi::global_wifi_component->save_wifi_sta("", "");
+#endif
+        App.safe_reboot();
+      } else {
+        // Legacy behavior: fake WIFI_STATE progression for MCU compatibility
+        TuyaCommand st;
+        st.cmd = TuyaCommandType::WIFI_STATE;
+        st.payload.resize(1);
+        st.payload[0] = 0x00;
+        this->send_command_(st);
+        st.payload[0] = 0x02;
+        this->send_command_(st);
+        st.payload[0] = 0x03;
+        this->send_command_(st);
+        st.payload[0] = 0x04;
+        this->send_command_(st);
+        ESP_LOGI(TAG, "WIFI_RESET received (EZ), replied with WIFI_STATE confirming connection established");
       }
-      // Send WIFI_STATE response, MCU exits pairing mode
-      TuyaCommand st;
-      st.cmd = TuyaCommandType::WIFI_STATE;
-      st.payload.resize(1);
-      st.payload[0] = first;
-      this->send_command_(st);
-      st.payload[0] = 0x02;
-      this->send_command_(st);
-      st.payload[0] = 0x03;
-      this->send_command_(st);
-      st.payload[0] = 0x04;
-      this->send_command_(st);
-      ESP_LOGI(TAG, "%s received (%s), replied with WIFI_STATE confirming connection established",
-               is_select ? "WIFI_SELECT" : "WIFI_RESET", mode_str);
+      break;
+    }
+    case TuyaCommandType::WIFI_SELECT: {
+      TuyaCommand ack;
+      ack.cmd = TuyaCommandType::WIFI_SELECT;
+      ack.payload.clear();
+      this->send_raw_command_(ack);
+      this->flush();
+
+      this->wifi_select_callback_.call();
+
+      if (this->wifi_reset_enabled_) {
+        ESP_LOGI(TAG, "WIFI_SELECT received, clearing WiFi credentials and rebooting");
+#ifdef USE_WIFI
+        wifi::global_wifi_component->save_wifi_sta("", "");
+#endif
+        App.safe_reboot();
+      } else {
+        uint8_t first = 0x00;
+        const char *mode_str = "EZ";
+        if (len >= 1 && buffer[0] == 0x01) {
+          first = 0x01;
+          mode_str = "AP";
+        }
+        TuyaCommand st;
+        st.cmd = TuyaCommandType::WIFI_STATE;
+        st.payload.resize(1);
+        st.payload[0] = first;
+        this->send_command_(st);
+        st.payload[0] = 0x02;
+        this->send_command_(st);
+        st.payload[0] = 0x03;
+        this->send_command_(st);
+        st.payload[0] = 0x04;
+        this->send_command_(st);
+        ESP_LOGI(TAG, "WIFI_SELECT received (%s), replied with WIFI_STATE confirming connection established",
+                 mode_str);
+      }
       break;
     }
     case TuyaCommandType::DATAPOINT_DELIVER:
@@ -538,13 +583,18 @@ void Tuya::send_empty_command_(TuyaCommandType command) {
 }
 
 void Tuya::set_status_pin_() {
+#ifdef USE_NETWORK
   bool is_network_ready = network::is_connected() && remote_is_connected();
+#else
+  bool is_network_ready = false;
+#endif
   this->status_pin_->digital_write(is_network_ready);
 }
 
 uint8_t Tuya::get_wifi_status_code_() {
   uint8_t status = 0x02;
 
+#ifdef USE_NETWORK
   if (network::is_connected()) {
     status = 0x03;
 
@@ -559,6 +609,7 @@ uint8_t Tuya::get_wifi_status_code_() {
     }
 #endif
   };
+#endif
 
   return status;
 }

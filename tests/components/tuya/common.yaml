@@ -6,6 +6,11 @@ tuya:
   status_pin:
     number: ${status_pin}
     inverted: true
+  wifi_reset: true
+  on_wifi_reset:
+    - logger.log: "WiFi reset triggered (EZ mode)"
+  on_wifi_select:
+    - logger.log: "WiFi select triggered (AP mode)"
   on_datapoint_update:
     - sensor_datapoint: 6
       datapoint_type: raw
