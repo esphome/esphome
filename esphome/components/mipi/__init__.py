@@ -443,20 +443,8 @@ class DriverChip:
 
     def get_transform(self, config) -> dict[str, bool]:
         transform = self.get_base_transform(config)
-        can_transform = self.rotation_as_transform(config)
         # Can we use the MADCTL register to set the rotation?
-        if can_transform and CONF_TRANSFORM not in config:
-            rotation = config[CONF_ROTATION]
-            if rotation == 180:
-                transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
-                transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
-            elif rotation == 90:
-                transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
-                transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
-            else:
-                transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
-                transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
-            transform[CONF_TRANSFORM] = True
+        transform[CONF_TRANSFORM] = self.rotation_as_transform(config)
         return transform
 
     def swap_xy_schema(self):
@@ -491,8 +479,8 @@ class DriverChip:
         return madctl
 
     def add_madctl(self, sequence: list, config: dict):
-        # Add the MADCTL command to the sequence based on the configuration.
-        # This takes into account rotation if it can be implemented in the transform
+        # Add the MADCTL command to the sequence based on the base configuration.
+        # Rotation is not applied here, it will be done at runtime.
         transform = self.get_transform(config)
         madctl = self.get_madctl(transform, config)
         sequence.append((MADCTL, madctl & 0xFF))
