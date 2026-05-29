@@ -5,6 +5,14 @@
 # Runs the NGINX proxy
 # ==============================================================================
 
+# The new device builder handles HA ingress itself, so nginx is bypassed.
+# Block the longrun forever so s6 keeps the dependency satisfied and does
+# not respawn it.
+if bashio::config.true 'use_new_device_builder'; then
+    bashio::log.info "NGINX bypassed: new device builder serves ingress directly."
+    exec sleep infinity
+fi
+
 bashio::log.info "Waiting for ESPHome dashboard to come up..."
 
 while [[ ! -S /var/run/esphome.sock ]]; do

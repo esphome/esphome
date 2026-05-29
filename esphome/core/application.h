@@ -9,6 +9,10 @@
 #include <vector>
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+
+#if defined(USE_LWIP_FAST_SELECT) && defined(ESPHOME_THREAD_MULTI_ATOMICS)
+#include <atomic>  // for std::atomic_thread_fence in Application::loop()
+#endif
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
@@ -229,11 +233,10 @@ class Application {
   /// loops and scheduler items still feed after every op, so any op exceeding
   /// this threshold triggers a real feed naturally.
   /// Safety margins vs. platform watchdog timeouts:
-  ///   - ESP32 task WDT (user-configurable):  ~5x  <-- auto-scaled below
-  ///   - ESP8266 soft WDT (~1.6 s):           ~5x  <-- floor case; any future change
-  ///                                                   must keep comfortable margin here
-  ///   - ESP8266 HW WDT (~6 s):               ~20x
-  ///   - BK72xx HW WDT (10 s):                ~5x  <-- platform override below
+  ///   - ESP32 task WDT (user-configurable):  ~5x   <-- auto-scaled below
+  ///   - ESP8266 soft WDT (~1.6 s):           ~16x  <-- 100 ms feed (see USE_ESP8266 below)
+  ///   - ESP8266 HW WDT (~6 s):               ~60x
+  ///   - BK72xx HW WDT (10 s):                ~5x   <-- platform override below
 #ifdef USE_BK72XX
   // BDK busy-waits 200us per WDT reload (sctrl_dpll_delay200us). LibreTiny
   // sets HW WDT to 10s; 2000ms keeps ~5x margin. See wdt_ctrl WCMD_RELOAD_PERIOD:
@@ -253,6 +256,15 @@ class Application {
   static_assert(CONFIG_ESP_TASK_WDT_TIMEOUT_S >= 5,
                 "CONFIG_ESP_TASK_WDT_TIMEOUT_S must be at least 5s for a safe WDT feed interval");
   static constexpr uint32_t WDT_FEED_INTERVAL_MS = (CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000U) / 5U;
+#elif defined(USE_ESP8266)
+  // ESP8266 needs a tighter feed cadence than the other targets: the soft WDT
+  // is ~1.6 s and the HW WDT ~6 s, but a single long iteration (mDNS reply,
+  // wifi scan, OTA verify, lwIP TCP retransmit storm) can push the loop past
+  // a few hundred ms without giving the SDK a chance to feed. 100 ms keeps a
+  // ~16x margin to the soft WDT and ~60x to the HW WDT while still avoiding
+  // the per-iteration arch_feed_wdt() cost (this is the rate limit; component
+  // loops and scheduler items still feed after every op).
+  static constexpr uint32_t WDT_FEED_INTERVAL_MS = 100;
 #else
   static constexpr uint32_t WDT_FEED_INTERVAL_MS = 300;
 #endif
@@ -370,6 +382,9 @@ class Application {
 #elif defined(USE_ESP8266)
   /// Wake from ISR (ESP8266). No task_woken arg — no FreeRTOS. Caller must be IRAM_ATTR.
   static void IRAM_ATTR ESPHOME_ALWAYS_INLINE wake_loop_isrsafe() { esphome::wake_loop_isrsafe(); }
+#elif defined(USE_ZEPHYR)
+  /// Wake from ISR (Zephyr). No task_woken arg — k_sem_give() handles ISR scheduling internally.
+  static void wake_loop_isrsafe() { esphome::wake_loop_isrsafe(); }
 #endif
 
   /// Wake from any context (ISR, thread, callback).
@@ -377,11 +392,15 @@ class Application {
 
  protected:
   friend Component;
+  friend class Scheduler;
 #ifdef USE_RUNTIME_STATS
   friend class runtime_stats::RuntimeStatsCollector;
 #endif
   friend void ::setup();
   friend void ::original_setup();
+
+  /// Freshen the cached loop component start time. Called by Scheduler before each dispatch.
+  void set_loop_component_start_time_(uint32_t now) { this->loop_component_start_time_ = now; }
 
   /// Walk all registered components looking for any whose component_state_
   /// has the given flag set. Used by Component::status_clear_*_slow_path_()
@@ -573,6 +592,15 @@ inline ESPHOME_ALWAYS_INLINE Application::ComponentPhaseGuard::ComponentPhaseGua
 }
 
 inline void ESPHOME_ALWAYS_INLINE Application::loop() {
+#if defined(USE_LWIP_FAST_SELECT) && defined(ESPHOME_THREAD_MULTI_ATOMICS)
+  // Pairs with the TCP/IP thread's SYS_ARCH_UNPROTECT release on rcvevent so
+  // subsequent Socket::ready() checks in this iter observe the published state
+  // without a per-call memw. Wake is independent (xTaskNotifyGive/
+  // ulTaskNotifyTake), so non-losing. Skipped on MULTI_NO_ATOMICS (e.g.
+  // BK72xx) — that path keeps `volatile` in esphome_lwip_socket_has_data()
+  // instead.
+  std::atomic_thread_fence(std::memory_order_acquire);
+#endif
 #ifdef USE_RUNTIME_STATS
   // Capture the start of the active (non-sleeping) portion of this iteration.
   // Used to derive main-loop overhead = active time − Σ(component time) −
@@ -617,10 +645,12 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // flag preserves it. wake_request_take() exchange-clears the flag; wakes
   // that arrive during Phase B re-set it and run Phase B again on the next
   // iteration.
-  const bool high_frequency = HighFrequencyLoopRequester::is_high_frequency();
-  const uint32_t elapsed = now - this->last_loop_;
-  const bool woke = esphome::wake_request_take();
-  const bool do_component_phase = high_frequency || woke || (elapsed >= this->loop_interval_);
+  //
+  // wake_request_take() must always be called first since it does an
+  // atomic exchange to clear the flag, and we want to run the component phase
+  // if either the flag was set or the scheduler requested a high-frequency loop.
+  const bool do_component_phase = esphome::wake_request_take() || HighFrequencyLoopRequester::is_high_frequency() ||
+                                  (now - this->last_loop_ >= this->loop_interval_);
 
   if (do_component_phase) {
     ComponentPhaseGuard phase_guard{*this};

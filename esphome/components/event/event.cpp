@@ -3,8 +3,7 @@
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace event {
+namespace esphome::event {
 
 static const char *const TAG = "event";
 
@@ -45,5 +44,4 @@ void Event::set_event_types(const std::vector<const char *> &event_types) {
   this->last_event_type_ = nullptr;  // Reset when types change
 }
 
-}  // namespace event
-}  // namespace esphome
+}  // namespace esphome::event

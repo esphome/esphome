@@ -6,8 +6,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/preferences.h"
 
-namespace esphome {
-namespace sen5x {
+namespace esphome::sen5x {
 
 enum ERRORCODE : uint8_t {
   COMMUNICATION_FAILED,
@@ -130,5 +129,4 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   ESPPreferenceObject pref_;
 };
 
-}  // namespace sen5x
-}  // namespace esphome
+}  // namespace esphome::sen5x

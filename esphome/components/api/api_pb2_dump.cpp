@@ -487,6 +487,10 @@ template<> const char *proto_enum_to_string<enums::LockState>(enums::LockState v
       return ESPHOME_PSTR("LOCK_STATE_LOCKING");
     case enums::LOCK_STATE_UNLOCKING:
       return ESPHOME_PSTR("LOCK_STATE_UNLOCKING");
+    case enums::LOCK_STATE_OPENING:
+      return ESPHOME_PSTR("LOCK_STATE_OPENING");
+    case enums::LOCK_STATE_OPEN:
+      return ESPHOME_PSTR("LOCK_STATE_OPEN");
     default:
       return ESPHOME_PSTR("UNKNOWN");
   }
@@ -2170,6 +2174,7 @@ const char *VoiceAssistantAudio::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("VoiceAssistantAudio"));
   dump_bytes_field(out, ESPHOME_PSTR("data"), this->data, this->data_len);
   dump_field(out, ESPHOME_PSTR("end"), this->end);
+  dump_bytes_field(out, ESPHOME_PSTR("data2"), this->data2, this->data2_len);
   return out.c_str();
 }
 const char *VoiceAssistantTimerEventResponse::dump_to(DumpBuffer &out) const {

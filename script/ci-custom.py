@@ -14,7 +14,7 @@ import time
 import colorama
 from helpers import filter_changed, git_ls_files, print_error_for_file, styled
 
-sys.path.append(os.path.dirname(__file__))
+sys.path.append(str(Path(__file__).parent))
 
 
 def find_all(a_str, sub):
@@ -250,7 +250,7 @@ def lint_ext_check(fname):
     ]
 )
 def lint_executable_bit(fname: Path) -> str | None:
-    ex = EXECUTABLE_BIT[str(fname)]
+    ex = EXECUTABLE_BIT[fname.as_posix()]
     if ex != 100644:
         return (
             f"File has invalid executable bit {ex}. If running from a windows machine please "
@@ -341,9 +341,9 @@ def lint_const_ordered(fname, content):
         matching = [
             (i + 1, line) for i, line in enumerate(lines) if line.startswith(start)
         ]
-        ordered = list(sorted(matching, key=lambda x: x[1].replace("_", " ")))
-        ordered = [(mi, ol) for (mi, _), (_, ol) in zip(matching, ordered)]
-        for (mi, mline), (_, ol) in zip(matching, ordered):
+        ordered = sorted(matching, key=lambda x: x[1].replace("_", " "))
+        ordered = [(mi, ol) for (mi, _), (_, ol) in zip(matching, ordered, strict=True)]
+        for (mi, mline), (_, ol) in zip(matching, ordered, strict=True):
             if mline == ol:
                 continue
             target = next(i for i, line in ordered if line == mline)
@@ -511,6 +511,40 @@ def lint_no_std_string_view(fname, match):
     )
 
 
+@lint_re_check(
+    r"(?:"
+    # `from esphome.components.const import ...`
+    r"from\s+esphome\.components\.const\s+import"
+    r"|"
+    # `import esphome.components.const` (with optional `as` alias)
+    r"import\s+esphome\.components\.const\b"
+    r"|"
+    # `from esphome.components import [(] ... const ... [)]`
+    # Handles parenthesized + multiline import lists by allowing newlines inside
+    # the parens via [^)]*. Single-line form falls back to the [^#\n]* branch.
+    r"from\s+esphome\.components\s+import\s*"
+    r"(?:\([^)]*\bconst\b[^)]*\)|(?:[^#\n]*[\s,])?\bconst\b)"
+    r")",
+    include=["*.py"],
+    exclude=[
+        "esphome/components/*",
+        "tests/*",
+        "script/ci-custom.py",
+    ],
+)
+def lint_no_components_const_outside_components(fname, match):
+    return (
+        f"Constants in {highlight('esphome/components/const/__init__.py')} are intended "
+        f"to be shared only between components in {highlight('esphome/components/')}. "
+        f"Code outside this folder must not import from "
+        f"{highlight('esphome.components.const')}.\n"
+        f"For core code (used outside {highlight('esphome/components/')}), define the "
+        f"constant in {highlight('esphome/const.py')} instead. When adding a new "
+        f"{highlight('CONF_')} constant there, bump {highlight('CONST_PY_MAX_CONF')} "
+        f"in this file accordingly (see {highlight('lint_const_py_frozen')})."
+    )
+
+
 @lint_post_check
 def lint_constants_usage():
     errs = []
@@ -528,7 +562,7 @@ def lint_constants_usage():
 # Maximum allowed CONF_ constants in esphome/const.py.
 # This file is frozen — new constants go in esphome/components/const/__init__.py.
 # Decrease this number when constants are moved out of const.py.
-CONST_PY_MAX_CONF = 1011
+CONST_PY_MAX_CONF = 1013
 
 
 @lint_content_check(include=["esphome/const.py"])
@@ -656,19 +690,6 @@ def lint_esphome_h(fname, line, col, content):
         "File contains reference to 'esphome.h' - This file is "
         "auto-generated and should only be used for *custom* "
         "components. Please replace with references to the direct files."
-    )
-
-
-@lint_content_find_check(
-    "CORE.using_esp_idf",
-    include=py_include,
-    exclude=["esphome/core/__init__.py", "script/ci-custom.py"],
-)
-def lint_using_esp_idf_deprecated(fname, line, col, content):
-    return (
-        f"{highlight('CORE.using_esp_idf')} is deprecated and will change behavior in 2026.6. "
-        "ESP32 Arduino builds on top of ESP-IDF, so ESP-IDF features are available in both frameworks. "
-        f"Please use {highlight('CORE.is_esp32')} and/or {highlight('CORE.using_arduino')} instead."
     )
 
 
@@ -1034,7 +1055,12 @@ PACKAGE_BUS_RE = re.compile(
 )
 
 
-@lint_content_check(include=["tests/components/*/test.*.yaml"])
+@lint_content_check(
+    include=[
+        "tests/components/*/test.*.yaml",
+        "tests/components/*/validate.*.yaml",
+    ]
+)
 def lint_test_package_key_matches_bus(fname, content):
     """Ensure package keys match the common bus directory name.
 

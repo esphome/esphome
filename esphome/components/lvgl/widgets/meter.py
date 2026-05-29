@@ -41,10 +41,10 @@ from ..defines import (
     LV_OBJ_FLAG,
     LV_PART,
     LV_SCALE_MODE,
+    add_lv_use,
     get_remapped_uses,
     get_warnings,
 )
-from ..helpers import add_lv_use
 from ..lv_validation import (
     LV_OPA,
     LV_RADIUS,
@@ -61,7 +61,6 @@ from ..lv_validation import (
     padding,
     pixels,
     pixels_or_percent,
-    requires_component,
     size,
 )
 from ..lvcode import LambdaContext, LocalVariable, lv, lv_add, lv_expr, lv_obj
@@ -185,6 +184,7 @@ INDICATOR_ARC_SCHEMA = cv.Schema(
         cv.Optional(CONF_START_VALUE): lv_float,
         cv.Optional(CONF_END_VALUE): lv_float,
         cv.Optional(CONF_OPA, default=1.0): opacity,
+        cv.Optional(CONF_ROUNDED, default=False): cv.boolean,
     }
 ).add_extra(cv.has_at_most_one_key(CONF_VALUE, CONF_START_VALUE))
 
@@ -214,7 +214,7 @@ INDICATOR_SCHEMA = cv.Schema(
                     cv.GenerateID(CONF_IMAGE_ID): cv.declare_id(lv_image_t),
                 }
             ),
-            requires_component("image"),
+            cv.requires_component("image"),
         ),
         cv.Exclusive(CONF_ARC, CONF_INDICATORS): INDICATOR_ARC_SCHEMA.extend(
             {
@@ -418,7 +418,7 @@ class MeterType(WidgetType):
                         "arc_width": v[CONF_WIDTH],
                         "arc_color": v[CONF_COLOR],
                         "arc_opa": v[CONF_OPA],
-                        "arc_rounded": v.get("arc_rounded", False),
+                        "arc_rounded": v[CONF_ROUNDED],
                     }
                     if CONF_R_MOD in v:
                         get_warnings().add(
