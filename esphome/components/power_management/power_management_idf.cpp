@@ -1,7 +1,6 @@
 #include "power_management.h"
 #ifdef USE_ESP32
 #include "esphome/core/log.h"
-#include <cstdio>
 #ifdef CONFIG_OPENTHREAD_MTD
 #include "esphome/components/openthread/openthread.h"
 #endif
@@ -28,7 +27,7 @@ void PowerManagement::setup() {
   ESP_LOGI(TAG, "PM Light Sleep Enable: %s", pm_config.light_sleep_enable ? "true" : "false");
 
   rc = esp_pm_configure(&pm_config);
-  if (rc != 0) {
+  if (rc != ESP_OK) {
     ESP_LOGE(TAG, "Failed esp_pm_configure %d", rc);
     this->mark_failed();
     return;
@@ -49,7 +48,12 @@ void PowerManagement::setup() {
     if (rc != ESP_OK) {
       esp_pm_lock_delete(this->pm_lock_handles_[i]);
       this->pm_lock_handles_[i] = NULL;
+      for (uint8_t j = 0; j < i; j++) {
+        esp_pm_lock_delete(this->pm_lock_handles_[j]);
+        this->pm_lock_handles_[j] = NULL;
+      }
       ESP_LOGE(TAG, "Failed esp_pm_lock_create %s %d", power_manager_type_to_string((PowerManagementLockType) i), rc);
+      this->mark_failed();
       return;
     }
   }
@@ -107,47 +111,6 @@ void PowerManagement::dump_config() {
   ESP_LOGCONFIG(TAG, "  PM Trace Enabled");
 #endif
 #endif
-}
-
-static const size_t PM_BUF_SIZE = 1024;
-// Todo: use pm function esp_pm_get_lock_stats_all when it is available.
-bool PowerManagement::ready_to_sleep_() {
-  char pm_buffer[PM_BUF_SIZE];
-  int32_t acquired = 0;
-
-  FILE *f = fmemopen(pm_buffer, PM_BUF_SIZE, "w");
-  if (f == NULL) {
-    ESP_LOGE(TAG, "count_pm_locks, fmemopen failed %d", errno);
-    return false;
-  }
-
-  esp_pm_dump_locks(f);
-  fclose(f);
-
-  if (pm_buffer[0] == '\0') {
-    ESP_LOGE(TAG, "esp_pm_dump_locks produced no output");
-    return false;
-  }
-
-  char *line_saveptr;
-  char *word_saveptr;
-  char *line = strtok_r(pm_buffer, "\n", &line_saveptr);  // NOLINT(clang-analyzer-deadcode.DeadStores)
-  while ((line = strtok_r(NULL, "\n", &line_saveptr)) != NULL) {
-    if (strncmp(line, "Mode", 4) == 0) {
-      break;
-    }
-    if (strncmp(line, "Name", 4) != 0 && strncmp(line, "Lock", 4) != 0) {
-      char *word = strtok_r(line, " ", &word_saveptr);
-      for (int i = 0; i < 3; i++) {
-        word = strtok_r(NULL, " ", &word_saveptr);
-      }
-      // at 4th word
-      if (word != NULL) {
-        acquired += strtol(word, NULL, 10);
-      }
-    }
-  }
-  return (acquired < 2);
 }
 
 }  // namespace esphome::power_management

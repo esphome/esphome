@@ -38,6 +38,13 @@ PowerManagement = power_management_ns.class_("PowerManagement", cg.Component)
 AcquireLockAction = power_management_ns.class_("AcquireLockAction", automation.Action)
 ReleaseLockAction = power_management_ns.class_("ReleaseLockAction", automation.Action)
 
+PowerManagementLockType = power_management_ns.enum("PowerManagementLockType")
+LOCK_TYPES = {
+    "CPU": PowerManagementLockType.CPU,
+    "APB": PowerManagementLockType.APB,
+    "SLP": PowerManagementLockType.SLP,
+}
+
 PM_ACTION_SCHEMA = automation.maybe_conf(
     CONF_LOCK_TYPE,
     cv.Schema(
@@ -66,8 +73,10 @@ PM_ACTION_SCHEMA = automation.maybe_conf(
 async def power_management_lock_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    if (lock_type := config.get(CONF_LOCK_TYPE)) is not None:
-        cg.add(var.set_lock_type(lock_type))
+    lock_type = await cg.templatable(
+        config[CONF_LOCK_TYPE], args, PowerManagementLockType, LOCK_TYPES
+    )
+    cg.add(var.set_lock_type(lock_type))
     return var
 
 
@@ -104,7 +113,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.frequency, cv.int_range(min=10000000)
             ),
             cv.Optional(CONF_ENABLE_LIGHT_SLEEP): cv.boolean,
-            cv.Optional(CONF_IDLE_TIME_BEFORE_SLEEP, default=3): cv.int_range(
+            cv.Optional(CONF_IDLE_TIME_BEFORE_SLEEP): cv.int_range(
                 min=2, max=4294967295
             ),
             cv.Optional(CONF_POWER_DOWN_PERIPHERALS): cv.boolean,
@@ -123,7 +132,6 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     add_idf_sdkconfig_option("CONFIG_PM_ENABLE", True)
-    add_idf_sdkconfig_option("CONFIG_ESP_PHY_MAC_BB_PD", True)
 
     if config.get(CONF_ESPHOME_LOCKS):
         cg.add_define("USE_POWER_MANAGEMENT")
@@ -139,6 +147,7 @@ async def to_code(config):
     if config.get(CONF_ENABLE_LIGHT_SLEEP):
         # this causes automatic light sleep if no tasks are pending
         add_idf_sdkconfig_option("CONFIG_FREERTOS_USE_TICKLESS_IDLE", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_PHY_MAC_BB_PD", True)
         if config.get(CONF_POWER_DOWN_PERIPHERALS):
             # There is a defined set of peripheral's that work with PM
             add_idf_sdkconfig_option(
@@ -147,8 +156,10 @@ async def to_code(config):
         if config.get(CONF_POWER_DOWN_FLASH):
             # There is a defined set of peripheral's that work with PM
             add_idf_sdkconfig_option("CONFIG_ESP_SLEEP_POWER_DOWN_FLASH", True)
-        if (itbs := config.get(CONF_IDLE_TIME_BEFORE_SLEEP)) is not None:
-            add_idf_sdkconfig_option("CONFIG_FREERTOS_IDLE_TIME_BEFORE_SLEEP", itbs)
+        add_idf_sdkconfig_option(
+            "CONFIG_FREERTOS_IDLE_TIME_BEFORE_SLEEP",
+            config.get(CONF_IDLE_TIME_BEFORE_SLEEP, 3),
+        )
 
 
 def _pm_recursive_validator(value):
@@ -195,6 +206,10 @@ def _pm_final_validate(config):
             raise cv.Invalid(
                 f"{CONF_POWER_DOWN_FLASH}: True not allowed when {CONF_ENABLE_LIGHT_SLEEP} not set to True"
             )
+        if CONF_IDLE_TIME_BEFORE_SLEEP in config:
+            raise cv.Invalid(
+                f"{CONF_IDLE_TIME_BEFORE_SLEEP} not allowed when {CONF_ENABLE_LIGHT_SLEEP} not set to True"
+            )
 
     # c5,c6,c61,h2,h21,h4,p4
     if pdp := config.get(CONF_POWER_DOWN_PERIPHERALS):
@@ -208,7 +223,7 @@ def _pm_final_validate(config):
                 # VARIANT_ESP32H4,
                 VARIANT_ESP32P4,
             ],
-            msg_prefix="Power Down Peripherials",
+            msg_prefix="Power Down Peripherals",
         )(pdp)
 
     if not (

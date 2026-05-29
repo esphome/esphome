@@ -13,12 +13,13 @@
 
 namespace esphome::power_management {
 
-#ifdef USE_POWER_MANAGEMENT
 enum PowerManagementLockType {
   CPU = 0,
   APB = 1,
   SLP = 2,
 };
+
+#ifdef USE_POWER_MANAGEMENT
 const char *power_manager_type_to_string(PowerManagementLockType type);
 #endif
 
@@ -32,21 +33,13 @@ class PowerManagement : public Component {
 #ifdef USE_POWER_MANAGEMENT
   void acquire_lock(PowerManagementLockType lt);
   void release_lock(PowerManagementLockType lt);
-#ifdef USE_ESP32
-  static const uint8_t PM_LOCK_ARRAY_SIZE = 3;
-#endif
-#endif
-#ifdef USE_ESP32
-  TaskHandle_t task_handle{nullptr};
-  bool is_delay_aborted{false};
 #endif
  protected:
 #ifdef USE_ESP32
-  bool ready_to_sleep_();
 #ifdef USE_POWER_MANAGEMENT
-  mutable std::mutex pm_lock_mutex_;
-  esp_pm_lock_handle_t pm_lock_handles_[PM_LOCK_ARRAY_SIZE];
-  // match with PowerManagementLockType
+  static constexpr uint8_t PM_LOCK_ARRAY_SIZE = static_cast<uint8_t>(SLP) + 1;
+  std::mutex pm_lock_mutex_;
+  esp_pm_lock_handle_t pm_lock_handles_[PM_LOCK_ARRAY_SIZE] = {};
   esp_pm_lock_type_t pm_lock_types_[PM_LOCK_ARRAY_SIZE] = {ESP_PM_CPU_FREQ_MAX, ESP_PM_APB_FREQ_MAX,
                                                            ESP_PM_NO_LIGHT_SLEEP};
 #endif

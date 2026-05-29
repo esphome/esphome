@@ -5,34 +5,25 @@
 
 namespace esphome::power_management {
 
-template<typename... Ts> class AcquireLockAction : public Action<Ts...>, public Parented<PowerManagement> {
+template<typename... Ts> class LockActionBase : public Action<Ts...>, public Parented<PowerManagement> {
  public:
-  TEMPLATABLE_VALUE(std::string, lock_type)
+  TEMPLATABLE_VALUE(PowerManagementLockType, lock_type)
+};
+
+template<typename... Ts> class AcquireLockAction : public LockActionBase<Ts...> {
+ public:
   void play(Ts... x) override {
 #ifdef USE_POWER_MANAGEMENT
-    if (this->lock_type_.value(x...) == "CPU") {
-      this->parent_->acquire_lock(PowerManagementLockType::CPU);
-    } else if (this->lock_type_.value(x...) == "APB") {
-      this->parent_->acquire_lock(PowerManagementLockType::APB);
-    } else if (this->lock_type_.value(x...) == "SLP") {
-      this->parent_->acquire_lock(PowerManagementLockType::SLP);
-    }
+    this->parent_->acquire_lock(this->lock_type_.value(x...));
 #endif
   }
 };
 
-template<typename... Ts> class ReleaseLockAction : public Action<Ts...>, public Parented<PowerManagement> {
+template<typename... Ts> class ReleaseLockAction : public LockActionBase<Ts...> {
  public:
-  TEMPLATABLE_VALUE(std::string, lock_type)
   void play(Ts... x) override {
 #ifdef USE_POWER_MANAGEMENT
-    if (this->lock_type_.value(x...) == "CPU") {
-      this->parent_->release_lock(PowerManagementLockType::CPU);
-    } else if (this->lock_type_.value(x...) == "APB") {
-      this->parent_->release_lock(PowerManagementLockType::APB);
-    } else if (this->lock_type_.value(x...) == "SLP") {
-      this->parent_->release_lock(PowerManagementLockType::SLP);
-    }
+    this->parent_->release_lock(this->lock_type_.value(x...));
 #endif
   }
 };
