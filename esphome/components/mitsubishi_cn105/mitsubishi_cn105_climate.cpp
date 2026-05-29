@@ -211,7 +211,7 @@ void MitsubishiCN105Climate::apply_values_() {
   }
 
   if (this->vertical_vane_direction_select_ != nullptr) {
-    this->vertical_vane_direction_select_->publish_vane_state(this->hp_.status().vane_mode);
+    this->vertical_vane_direction_select_->publish_vane_state(status.vane_mode);
   }
 
   this->publish_state();
