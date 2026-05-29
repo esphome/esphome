@@ -9,6 +9,10 @@ from .. import (
     time_based_ns,
 )
 
+# Auto-load the parent time_based component so its source files
+# (time_based_actuator.cpp/.h) are picked up by the build.
+AUTO_LOAD = ["time_based"]
+
 TimeBasedCover = time_based_ns.class_(
     "TimeBasedCover", TimeBasedActuatorBase, cover.Cover
 )
