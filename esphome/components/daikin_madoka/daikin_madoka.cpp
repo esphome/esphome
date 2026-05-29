@@ -5,8 +5,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace daikin_madoka {
+namespace esphome::daikin_madoka {
 
 using namespace esphome::climate;
 
@@ -235,7 +234,7 @@ void DaikinMadoka::process_incoming_chunk_(std::vector<uint8_t> chk) {
     this->parse_cb_(stripped);
     return;
   }
-  if (this->pending_chunks_.count(chunk_id)) {
+  if (this->pending_chunks_.contains(chunk_id)) {
     ESP_LOGE(TAG, "Another packet with the same chunk ID is already in the buffer.");
     ESP_LOGD(TAG, "Chunk ID: %d.", chunk_id);
     return;
@@ -436,7 +435,6 @@ void DaikinMadoka::parse_cb_(std::vector<uint8_t> msg) {
   this->publish_state();
 }
 
-}  // namespace daikin_madoka
-}  // namespace esphome
+}  // namespace esphome::daikin_madoka
 
 #endif

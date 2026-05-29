@@ -16,8 +16,7 @@
 static const uint8_t MAX_CHUNK_SIZE = 20;
 static const uint8_t BLE_SEND_MAX_RETRIES = 5;
 
-namespace esphome {
-namespace daikin_madoka {
+namespace esphome::daikin_madoka {
 
 static const char *const TAG = "daikin_madoka";
 
@@ -101,7 +100,6 @@ class DaikinMadoka : public climate::Climate, public esphome::ble_client::BLECli
   }
 };
 
-}  // namespace daikin_madoka
-}  // namespace esphome
+}  // namespace esphome::daikin_madoka
 
 #endif
