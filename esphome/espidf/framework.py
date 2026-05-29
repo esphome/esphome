@@ -8,6 +8,7 @@ import logging
 import os
 from pathlib import Path
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -39,7 +40,7 @@ def _str_to_lst_of_str(a: str | list[str]) -> list[str]:
     """
     if isinstance(a, list):
         return a
-    return list(f.strip() for f in a.split(";") if f.strip())
+    return [f.strip() for f in a.split(";") if f.strip()]
 
 
 ESPHOME_STAMP_FILE = ".esphome.stamp.json"
@@ -137,7 +138,7 @@ def rmdir(directory: PathType, msg: str | None = None):
     Raises:
         RuntimeError: If directory removal fails
     """
-    if os.path.isdir(directory):
+    if Path(directory).is_dir():
         try:
             if msg:
                 _LOGGER.debug(msg)
@@ -191,7 +192,7 @@ def _check_stamp(file: PathType, data: dict[str, str]) -> bool:
         return False
 
     try:
-        with open(file, encoding="utf-8") as f:
+        with Path(file).open(encoding="utf-8") as f:
             return json.load(f) == data
     except (json.JSONDecodeError, OSError):
         return False
@@ -205,7 +206,7 @@ def _write_stamp(file: PathType, data: dict[str, str]):
         file: Path to the stamp file to write
         data: Dictionary containing data to write
     """
-    with open(file, "w", encoding="utf8") as fp:
+    with Path(file).open("w", encoding="utf8") as fp:
         json.dump(data, fp)
 
 
@@ -470,8 +471,12 @@ def _tar_extract_all(
     import stat
     import tarfile
 
+    # Tar extraction safety: os.path.realpath / commonpath / normpath have no
+    # pathlib equivalents and Path.resolve() would follow symlinks unsafely.
+    # Use os.path for the security-sensitive parts; the simple checks move to
+    # Path.
     extract_dir = os.fspath(extract_dir)
-    abs_dest = os.path.abspath(extract_dir)
+    abs_dest = os.path.abspath(extract_dir)  # noqa: PTH100
 
     with tarfile.open(fileobj=data, mode="r") as tar_ref:
         all_members = tar_ref.getmembers()
@@ -490,8 +495,8 @@ def _tar_extract_all(
             name = name.lstrip("/" + os.sep)
 
             # 2. Reject absolute paths (incl. Windows drive)
-            if os.path.isabs(name) or (
-                os.name == "nt" and ":" in name.split(os.sep)[0]
+            if Path(name).is_absolute() or (
+                os.name == "nt" and ":" in name.split(os.sep)[0]  # noqa: PTH206
             ):
                 continue
 
@@ -505,7 +510,7 @@ def _tar_extract_all(
                 name = norm[len(strip_prefix) :]
 
             # 4. Compute final path
-            target_path = os.path.realpath(os.path.join(abs_dest, name))
+            target_path = os.path.realpath(os.path.join(abs_dest, name))  # noqa: PTH118
             if os.path.commonpath([abs_dest, target_path]) != abs_dest:
                 continue
 
@@ -514,18 +519,20 @@ def _tar_extract_all(
                 linkname = member.linkname
 
                 # Reject absolute link targets
-                if os.path.isabs(linkname):
+                if Path(linkname).is_absolute():
                     continue
 
                 # Strip leading slashes
                 linkname = os.path.normpath(linkname)
 
                 if member.issym():
-                    link_target = os.path.join(
-                        abs_dest, os.path.dirname(name), linkname
+                    link_target = os.path.join(  # noqa: PTH118
+                        abs_dest,
+                        os.path.dirname(name),  # noqa: PTH120
+                        linkname,
                     )
                 else:
-                    link_target = os.path.join(abs_dest, linkname)
+                    link_target = os.path.join(abs_dest, linkname)  # noqa: PTH118
                 link_target = os.path.realpath(link_target)
 
                 if os.path.commonpath([abs_dest, link_target]) != abs_dest:
@@ -597,7 +604,9 @@ def _zip_extract_all(
     """
     import zipfile
 
-    extract_dir = os.path.abspath(extract_dir)
+    # See note in archive_extract_all_tar: os.path is used intentionally for
+    # the security-sensitive abspath/commonpath checks below.
+    extract_dir = os.path.abspath(extract_dir)  # noqa: PTH100
 
     with zipfile.ZipFile(data, "r") as zip_ref:
         all_members = zip_ref.infolist()
@@ -617,8 +626,8 @@ def _zip_extract_all(
             name = member.filename.lstrip("/\\")
 
             # 2. Reject absolute paths / Windows drives
-            if os.path.isabs(name) or (
-                os.name == "nt" and ":" in name.split(os.sep)[0]
+            if Path(name).is_absolute() or (
+                os.name == "nt" and ":" in name.split(os.sep)[0]  # noqa: PTH206
             ):
                 continue
 
@@ -632,7 +641,7 @@ def _zip_extract_all(
                 name = norm[len(strip_prefix) :]
 
             # 4. Compute safe target path
-            target_path = os.path.abspath(os.path.join(extract_dir, name))
+            target_path = os.path.abspath(os.path.join(extract_dir, name))  # noqa: PTH100, PTH118
 
             if os.path.commonpath([extract_dir, target_path]) != extract_dir:
                 raise ValueError(f"Unsafe path detected: {member.filename}")
@@ -679,7 +688,7 @@ def archive_extract_all(
     with ExitStack() as stack:
         archive_ref: io.BufferedIOBase
         if isinstance(archive, (str, os.PathLike)):
-            archive_ref = stack.enter_context(open(archive, "rb"))
+            archive_ref = stack.enter_context(Path(archive).open("rb"))
         elif isinstance(archive, (io.BufferedReader, io.BufferedRandom)):
             archive_ref = archive
         elif isinstance(archive, io.RawIOBase):
@@ -726,7 +735,7 @@ def download_from_mirrors(
     # 1. Open target file for writing if path given
     with ExitStack() as stack:
         if isinstance(target, (str, os.PathLike)):
-            f = stack.enter_context(open(target, "wb"))
+            f = stack.enter_context(Path(target).open("wb"))
         elif isinstance(target, (io.RawIOBase, io.IOBase)):
             f = target
         else:
@@ -774,7 +783,7 @@ def download_from_mirrors(
                 f.seek(0)
                 return url
 
-            except Exception as e:  # pylint: disable=broad-exception-caught
+            except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
                 _LOGGER.debug("Failed to download %s: %s", url, str(e))
                 last_exception = e
 
@@ -782,6 +791,77 @@ def download_from_mirrors(
         if last_exception:
             raise last_exception
         return None
+
+
+_GITHUB_SHORTHAND_RE = re.compile(
+    r"^github://([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+?)(?:@([a-zA-Z0-9\-_.\./]+))?$"
+)
+_GITHUB_HTTPS_RE = re.compile(
+    r"^(https://github\.com/[a-zA-Z0-9\-]+/[a-zA-Z0-9\-\._]+?\.git)(?:@([a-zA-Z0-9\-_.\./]+))?$"
+)
+
+
+def _parse_git_source(source_url: str) -> tuple[str, str | None] | None:
+    """Return ``(url, ref)`` for ``github://owner/repo[@ref]`` or
+    ``https://github.com/owner/repo.git[@ref]``, else ``None``."""
+    if m := _GITHUB_SHORTHAND_RE.match(source_url):
+        owner, repo, ref = m.group(1), m.group(2), m.group(3)
+        # Tolerate a trailing ".git" on the shorthand repo so the
+        # github://owner/repo.git form doesn't silently become repo.git.git.
+        repo = repo.removesuffix(".git")
+        return f"https://github.com/{owner}/{repo}.git", ref
+    if m := _GITHUB_HTTPS_RE.match(source_url):
+        return m.group(1), m.group(2)
+    return None
+
+
+def _clone_idf_with_submodules(
+    framework_path: Path, git_url: str, ref: str | None
+) -> None:
+    """Shallow-clone ESP-IDF with submodules into ``framework_path``.
+
+    GitHub's archive zip strips submodules, so vendored components
+    (mbedtls, openthread, esptool, ...) come down empty and CMake fails.
+
+    Uses clone + ``fetch FETCH_HEAD`` + ``reset --hard`` instead of
+    ``--branch``: ``--branch`` only accepts branch or tag names, but a
+    user can also point at a commit SHA. The fetch-then-reset pattern
+    handles branches, tags, and SHAs uniformly (mirrors the approach in
+    ``esphome.git.clone_or_update``).
+    """
+    from esphome.git import run_git_command
+
+    _LOGGER.info("Cloning ESP-IDF from %s%s", git_url, f"@{ref}" if ref else "")
+    run_git_command(["git", "clone", "--depth=1", "--", git_url, str(framework_path)])
+    if ref:
+        run_git_command(
+            ["git", "fetch", "--depth=1", "--", "origin", ref],
+            git_dir=framework_path,
+        )
+        run_git_command(
+            ["git", "reset", "--hard", "FETCH_HEAD"],
+            git_dir=framework_path,
+        )
+    run_git_command(
+        [
+            "git",
+            "submodule",
+            "update",
+            "--init",
+            "--recursive",
+            "--depth=1",
+        ],
+        git_dir=framework_path,
+    )
+
+    # Sanity-check the resulting tree. run_git_command only raises when
+    # stderr is non-empty, so a clone that silently produces no working
+    # tree would otherwise be marked extracted and stuck until
+    # ``esphome clean``.
+    if not (framework_path / "tools" / "idf_tools.py").is_file():
+        raise RuntimeError(
+            f"Clone of {git_url} produced no usable ESP-IDF tree at {framework_path}"
+        )
 
 
 def _write_idf_version_txt(framework_path: Path, version: str) -> None:
@@ -845,7 +925,7 @@ def _patch_tools_json_for_linux_arm64(framework_path: Path) -> None:
         return
 
     try:
-        with open(tools_json, encoding="utf-8") as f:
+        with tools_json.open(encoding="utf-8") as f:
             data = json.load(f)
     except (json.JSONDecodeError, OSError) as e:
         _LOGGER.warning(
@@ -939,27 +1019,34 @@ def _check_esphome_idf_framework_install(
     if install:
         rmdir(framework_path, msg=f"Clean up ESP-IDF {version} framework")
 
-        # Download in temporary file
-        with tempfile.NamedTemporaryFile() as tmp:
-            _LOGGER.info("Downloading ESP-IDF %s framework ...", version)
+        git_source = _parse_git_source(source_url) if source_url else None
+        if git_source is not None:
+            git_url, ref = git_source
+            _clone_idf_with_submodules(framework_path, git_url, ref)
+        else:
+            # Download in temporary file
+            with tempfile.NamedTemporaryFile() as tmp:
+                _LOGGER.info("Downloading ESP-IDF %s framework ...", version)
 
-            # Create substitutions for the URLs
-            substitutions = {"VERSION": version}
-            try:
-                ver = Version.parse(version)
-                substitutions["MAJOR"] = str(ver.major)
-                substitutions["MINOR"] = str(ver.minor)
-                substitutions["PATCH"] = str(ver.patch)
-                substitutions["EXTRA"] = ver.extra
-            except ValueError:
-                pass
+                # Create substitutions for the URLs
+                substitutions = {"VERSION": version}
+                try:
+                    ver = Version.parse(version)
+                    substitutions["MAJOR"] = str(ver.major)
+                    substitutions["MINOR"] = str(ver.minor)
+                    substitutions["PATCH"] = str(ver.patch)
+                    substitutions["EXTRA"] = ver.extra
+                except ValueError:
+                    pass
 
-            mirrors = [source_url] if source_url else ESPHOME_IDF_FRAMEWORK_MIRRORS
-            download_from_mirrors(mirrors, substitutions, tmp.file)
+                mirrors = [source_url] if source_url else ESPHOME_IDF_FRAMEWORK_MIRRORS
+                download_from_mirrors(mirrors, substitutions, tmp.file)
 
-            _LOGGER.info("Extracting ESP-IDF %s framework ...", version)
-            archive_extract_all(tmp.file, framework_path, progress_header="Extracting")
-            extracted_marker.touch()
+                _LOGGER.info("Extracting ESP-IDF %s framework ...", version)
+                archive_extract_all(
+                    tmp.file, framework_path, progress_header="Extracting"
+                )
+        extracted_marker.touch()
 
     # Idempotent post-extract patch: written every invocation so a build
     # dir extracted before this fix gets the file too, without forcing a

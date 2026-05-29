@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 import logging
 import os
 from pathlib import Path
+import time
 
 import requests
 
@@ -141,9 +142,11 @@ def has_remote_file_changed(
 
 def is_file_recent(file_path: Path, refresh: TimePeriodSeconds) -> bool:
     if file_path.exists():
-        creation_time = file_path.stat().st_ctime
-        current_time = datetime.now().timestamp()
-        return current_time - creation_time <= refresh.total_seconds
+        # st_mtime, not st_ctime: ctime is inode-change time on POSIX
+        # (bumped by chmod/chown/rename) so a metadata touch would make
+        # the file look fresh.
+        modification_time = file_path.stat().st_mtime
+        return time.time() - modification_time <= refresh.total_seconds
     return False
 
 
