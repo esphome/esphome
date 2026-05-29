@@ -1,7 +1,7 @@
-CONF_GRACEFUL_DETACH_ON_SHUTDOWN = "graceful_detach_on_shutdown"
 CONF_DEVICE_TYPE = "device_type"
 CONF_EXT_PAN_ID = "ext_pan_id"
 CONF_FORCE_DATASET = "force_dataset"
+CONF_GRACEFUL_DETACH_ON_SHUTDOWN = "graceful_detach_on_shutdown"
 CONF_MDNS_ID = "mdns_id"
 CONF_MESH_LOCAL_PREFIX = "mesh_local_prefix"
 CONF_NETWORK_NAME = "network_name"

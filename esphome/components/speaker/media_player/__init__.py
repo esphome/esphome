@@ -7,7 +7,6 @@ import esphome.codegen as cg
 from esphome.components import (
     audio,
     audio_file,
-    esp32,
     media_player,
     network,
     ota,
@@ -155,9 +154,7 @@ CONFIG_SCHEMA = cv.All(
             # Remove before 2026.10.0
             cv.Optional(CONF_CODEC_SUPPORT_ENABLED): cv.Any(cv.boolean, cv.string),
             cv.Optional(CONF_FILES): audio_file.audio_files_schema(),
-            cv.Optional(CONF_TASK_STACK_IN_PSRAM): cv.All(
-                cv.boolean, cv.requires_component(psram.DOMAIN)
-            ),
+            cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
             cv.Optional(CONF_VOLUME_INCREMENT, default=0.05): cv.percentage,
             cv.Optional(CONF_VOLUME_INITIAL, default=0.5): cv.percentage,
             cv.Optional(CONF_VOLUME_MAX, default=1.0): cv.percentage,
@@ -198,9 +195,7 @@ async def to_code(config):
 
     if config.get(CONF_TASK_STACK_IN_PSRAM):
         cg.add(var.set_task_stack_in_psram(True))
-        esp32.add_idf_sdkconfig_option(
-            "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True
-        )
+        psram.request_external_task_stack()
 
     cg.add(var.set_volume_increment(config[CONF_VOLUME_INCREMENT]))
     cg.add(var.set_volume_initial(config[CONF_VOLUME_INITIAL]))

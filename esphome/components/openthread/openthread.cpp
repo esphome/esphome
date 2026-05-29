@@ -218,10 +218,10 @@ void *OpenThreadSrpComponent::pool_alloc_(size_t size) {
 void OpenThreadSrpComponent::set_mdns(esphome::mdns::MDNSComponent *mdns) { this->mdns_ = mdns; }
 
 bool OpenThreadComponent::teardown() {
-  switch (this->teardown_stage) {
+  switch (this->teardown_stage_) {
     case OtcTeardownStage::OTC_TEARDOWN_NOT_STARTED: {
       // start tearing down
-      this->teardown_stage = OtcTeardownStage::OTC_TEARDOWN_STARTED;
+      this->teardown_stage_ = OtcTeardownStage::OTC_TEARDOWN_STARTED;
       ESP_LOGV(TAG, "Clear Srp");
       auto lock = InstanceLock::try_acquire(100);
       if (!lock) {
@@ -235,14 +235,14 @@ bool OpenThreadComponent::teardown() {
       otThreadDetachGracefully(instance, OpenThreadComponent::detach_callback, this);
 #else
       // skip graceful detach, parent will not remove child from its child table
-      this->teardown_stage = OtcTeardownStage::OTC_TEARDOWN_DETACH_COMPLETED;
+      this->teardown_stage_ = OtcTeardownStage::OTC_TEARDOWN_DETACH_COMPLETED;
 #endif
     } break;
     case OtcTeardownStage::OTC_TEARDOWN_STARTED:
       // waiting on callback
       break;
     case OtcTeardownStage::OTC_TEARDOWN_DETACH_COMPLETED: {
-      this->teardown_stage = OtcTeardownStage::OTC_TEARDOWN_STOP_STARTED;
+      this->teardown_stage_ = OtcTeardownStage::OTC_TEARDOWN_STOP_STARTED;
       auto lock = InstanceLock::try_acquire(100);
       if (!lock) {
         ESP_LOGW(TAG, "Failed to acquire OpenThread lock during teardown, leaking memory");
@@ -254,7 +254,7 @@ bool OpenThreadComponent::teardown() {
     } break;
     case OtcTeardownStage::OTC_TEARDOWN_STOP_STARTED: {
       // stop openthread
-      this->teardown_stage = OtcTeardownStage::OTC_TEARDOWN_STOP_IN_PROCESS;
+      this->teardown_stage_ = OtcTeardownStage::OTC_TEARDOWN_STOP_IN_PROCESS;
       global_openthread_component = nullptr;
       ESP_LOGV(TAG, "Stop Openthread");
       int error = this->openthread_stop_();
@@ -276,7 +276,7 @@ bool OpenThreadComponent::teardown() {
 #ifdef USE_OPENTHREAD_GRACEFUL_DETACH_ON_SHUTDOWN
 void OpenThreadComponent::detach_callback(void *context) {
   OpenThreadComponent *obj = (OpenThreadComponent *) context;
-  obj->teardown_stage = OtcTeardownStage::OTC_TEARDOWN_DETACH_COMPLETED;
+  obj->teardown_stage_ = OtcTeardownStage::OTC_TEARDOWN_DETACH_COMPLETED;
 }
 #endif
 

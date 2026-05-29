@@ -27,6 +27,7 @@ enum class OtcTeardownStage : uint8_t {
   OTC_TEARDOWN_STOP_IN_PROCESS,
   OTC_TEARDOWN_COMPLETED
 };
+
 class OpenThreadComponent : public Component {
  public:
   OpenThreadComponent();
@@ -52,17 +53,18 @@ class OpenThreadComponent : public Component {
   void set_use_address(const char *use_address) { this->use_address_ = use_address; }
 #if CONFIG_OPENTHREAD_MTD
   void set_poll_period(uint32_t poll_period) { this->poll_period_ = poll_period; }
-  bool is_sed() { return (this->poll_period_ > 0); }
+  /** Returns true if this device is a Sleepy End Device (poll period > 0) */
+  bool is_sed() const { return (this->poll_period_ > 0); }
 #endif
   void set_output_power(int8_t output_power) { this->output_power_ = output_power; }
 
-  /** Internal: Apply settings for Link Mode incl poll period
-   * @pre Call while holding lock
+  /** Apply settings for Link Mode incl poll period. Called by automation actions under lock.
+   * @pre Call while holding InstanceLock
    */
   void apply_linkmode(otInstance *instance);
-  OtcTeardownStage teardown_stage{OtcTeardownStage::OTC_TEARDOWN_NOT_STARTED};
 
  protected:
+  OtcTeardownStage teardown_stage_{OtcTeardownStage::OTC_TEARDOWN_NOT_STARTED};
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
   static void on_state_changed_(otChangedFlags flags, void *context);
   otInstance *get_openthread_instance_();
