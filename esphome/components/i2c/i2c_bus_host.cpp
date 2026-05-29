@@ -11,6 +11,7 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <cerrno>
+#include <cstdint>
 #include <cstring>
 
 namespace esphome {
@@ -55,7 +56,8 @@ void HostI2CBus::setup() {
 void HostI2CBus::dump_config() {
   ESP_LOGCONFIG(TAG, "I2C Bus:");
   ESP_LOGCONFIG(TAG, "  Device: %s", this->device_.c_str());
-  ESP_LOGCONFIG(TAG, "  Frequency: %u Hz", this->frequency_);
+  // Bus frequency cannot be set from userspace via i2c-dev; report it as informational only
+  ESP_LOGCONFIG(TAG, "  Frequency: %u Hz (informational; not applied on host)", this->frequency_);
 
   if (!this->first_error_.empty()) {
     ESP_LOGE(TAG, "  Setup Error: %s", this->first_error_.c_str());
@@ -118,6 +120,13 @@ ErrorCode HostI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, 
       return this->map_errno_to_error_code_(err);
     }
     return ERROR_OK;
+  }
+
+  // i2c_msg.len is a 16-bit field; reject transfers that would silently truncate
+  if (write_count > UINT16_MAX || read_count > UINT16_MAX) {
+    ESP_LOGE(TAG, "I2C transfer too large: write=%zu read=%zu (max %u)", write_count, read_count,
+             (unsigned) UINT16_MAX);
+    return ERROR_TOO_LARGE;
   }
 
   // Prepare messages for combined write-read transaction
@@ -226,6 +235,12 @@ ErrorCode HostI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, 
             if (ret < 0) {
               ESP_LOGV(TAG, "I2C_SMBUS read failed: %s", strerror(errno));
               return this->map_errno_to_error_code_(errno);
+            }
+            // I2C_SMBUS_I2C_BLOCK_DATA returns the actual byte count in block[0];
+            // a short read means we did not receive all requested bytes
+            if (data.block[0] < read_count) {
+              ESP_LOGV(TAG, "I2C_SMBUS short read: got %u, expected %zu", data.block[0], read_count);
+              return ERROR_NOT_ACKNOWLEDGED;
             }
             // Copy data from SMBus buffer to output buffer
             memcpy(read_buffer, &data.block[1], read_count);

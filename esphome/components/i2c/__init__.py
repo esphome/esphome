@@ -89,8 +89,8 @@ MULTI_CONF = True
 
 
 def validate_device(value):
-    if not re.match(r"^/(?:[^/]+/)[^/]+$", value):
-        raise cv.Invalid("Device must be a valid device path (e.g., /dev/i2c-0)")
+    if not re.match(r"^/(?:[^/]+/)*[^/]+$", value):
+        raise cv.Invalid("Device must be an absolute device path (e.g., /dev/i2c-0)")
     return value
 
 
