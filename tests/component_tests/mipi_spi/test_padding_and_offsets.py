@@ -163,7 +163,6 @@ class TestModelWithPaddingDimensions:
         # Call get_dimensions - should return 6 values (width, height, offset_x, offset_y, pad_width, pad_height)
         dimensions = model.get_dimensions(config)
         assert len(dimensions) == 6
-        width, height, offset_x, offset_y, pad_width, pad_height = dimensions
         assert all(isinstance(v, int) for v in dimensions)
 
     def test_custom_model_padding_values(
