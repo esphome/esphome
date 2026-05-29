@@ -786,3 +786,16 @@ ST7796.extend(
     dc_pin=0,
     invert_colors=True,
 )
+
+ST7789V.extend(
+    "GEEKMAGIC-SMALLTV",
+    data_rate="40MHz",
+    height=240,
+    width=240,
+    offset_width=0,
+    offset_height=0,
+    invert_colors=True,
+    buffer_size=0.125,
+    reset_pin=2,
+    dc_pin=0,
+)

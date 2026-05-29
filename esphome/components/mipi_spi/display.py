@@ -26,7 +26,7 @@ from esphome.components.mipi import (
     requires_buffer,
 )
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
-from esphome.components.spi import TYPE_OCTAL, TYPE_QUAD, TYPE_SINGLE
+from esphome.components.spi import CONF_SPI_MODE, TYPE_OCTAL, TYPE_QUAD, TYPE_SINGLE
 import esphome.config_validation as cv
 from esphome.config_validation import ALLOW_EXTRA
 from esphome.const import (
@@ -168,11 +168,22 @@ def model_schema(config):
     ]
     if bus_mode == TYPE_SINGLE:
         other_options.append(CONF_SPI_16)
+    # Calculate default SPI mode. Mode3 for octal bus or single bus with no cs pin, mode0 otherwise.
+    spi_mode = model.get_default(CONF_SPI_MODE)
+    if not spi_mode:
+        if bus_mode == TYPE_OCTAL or (
+            bus_mode == TYPE_SINGLE
+            and not config.get(CONF_CS_PIN, model.get_default(CONF_CS_PIN))
+        ):
+            spi_mode = "MODE3"
+        else:
+            spi_mode = "MODE0"
+
     schema = (
         display.FULL_DISPLAY_SCHEMA.extend(
             spi.spi_device_schema(
                 cs_pin_required=False,
-                default_mode="MODE3" if bus_mode == TYPE_OCTAL else "MODE0",
+                default_mode=spi_mode,
                 default_data_rate=model.get_default(CONF_DATA_RATE, 10_000_000),
                 mode=bus_mode,
             )
