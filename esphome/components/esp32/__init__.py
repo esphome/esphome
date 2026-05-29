@@ -470,20 +470,23 @@ def set_core_data(config):
     framework_ver = cv.Version.parse(config[CONF_FRAMEWORK][CONF_VERSION])
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = framework_ver
 
-    # Store the underlying IDF version for framework-agnostic checks
+    # Store the underlying IDF version for framework-agnostic checks.
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
-        CORE.data[KEY_ESP32][KEY_IDF_VERSION] = framework_ver
-    elif (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is not None:
-        if CORE.using_toolchain_esp_idf:
-            # Official ESP-IDF frameworks don't use extra
-            idf_ver = cv.Version(idf_ver.major, idf_ver.minor, idf_ver.patch)
-        CORE.data[KEY_ESP32][KEY_IDF_VERSION] = idf_ver
-    else:
+        idf_ver = framework_ver
+    elif (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is None:
         raise cv.Invalid(
             f"Arduino version {framework_ver} has no known ESP-IDF version mapping. "
             "Please update ARDUINO_IDF_VERSION_LOOKUP.",
             path=[CONF_FRAMEWORK, CONF_VERSION],
         )
+    # The official ESP-IDF toolchain doesn't use pioarduino's numeric packaging
+    # revision (e.g. 5.5.3-1), so drop it for clean idf_version() comparisons; the
+    # PlatformIO toolchain keeps it. Upstream prerelease tags (e.g. 6.0.0-rc1) are
+    # kept either way. The framework version always keeps its extra since it is the
+    # ARDUINO_IDF_VERSION_LOOKUP key and the framework download ref.
+    if CORE.using_toolchain_esp_idf:
+        idf_ver = _strip_pioarduino_revision(idf_ver)
+    CORE.data[KEY_ESP32][KEY_IDF_VERSION] = idf_ver
 
     CORE.data[KEY_ESP32][KEY_BOARD] = config[CONF_BOARD]
     CORE.data[KEY_ESP32][KEY_FLASH_SIZE] = config[CONF_FLASH_SIZE]
@@ -668,8 +671,6 @@ def add_extra_build_file(filename: str, path: Path) -> bool:
 
 
 def _format_framework_arduino_version(ver: cv.Version) -> str:
-    if ver >= cv.Version(4, 0, 0):
-        return f"{ARDUINO_FRAMEWORK_PKG}@https://github.com/espressif/arduino-esp32/archive/master.zip"
     # 3.3.6+ changed filename from esp32-{ver}.zip to esp32-core-{ver}.tar.xz
     if ver >= cv.Version(3, 3, 6):
         filename = f"esp32-core-{ver}.tar.xz"
@@ -718,13 +719,13 @@ def _is_framework_url(source: str) -> bool:
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(4, 0, 0),
+    "recommended": cv.Version(4, 0, 0, "alpha1"),
     "latest": cv.Version(3, 3, 8),
     "dev": cv.Version(3, 3, 8),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
-        4, 0, 0
+        4, 0, 0, "alpha1"
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
     cv.Version(3, 3, 8): cv.Version(55, 3, 38, "1"),
     cv.Version(3, 3, 7): cv.Version(55, 3, 37),
@@ -746,7 +747,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # These versions correspond to pioarduino/esp-idf releases
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
-    cv.Version(4, 0, 0): cv.Version(6, 0, 1),
+    cv.Version(4, 0, 0, "alpha1"): cv.Version(6, 0, 1),
     cv.Version(3, 3, 8): cv.Version(5, 5, 4),
     cv.Version(3, 3, 7): cv.Version(5, 5, 3, "1"),
     cv.Version(3, 3, 6): cv.Version(5, 5, 2),
@@ -841,6 +842,18 @@ def _resolve_framework_version(value: ConfigType) -> cv.Version:
     return version
 
 
+def _strip_pioarduino_revision(ver: cv.Version) -> cv.Version:
+    """Drop a purely numeric 'extra' semver component (pioarduino packaging revision).
+
+    pioarduino tags its esp-idf packages with a numeric suffix (e.g. "5.5.3-1")
+    that the official ESP-IDF toolchain doesn't use. Upstream prerelease extras
+    (e.g. "6.0.0-rc1") are alphanumeric and are preserved.
+    """
+    if ver.extra.isdigit():
+        return cv.Version(ver.major, ver.minor, ver.patch)
+    return ver
+
+
 def _check_pio_versions(config: ConfigType) -> ConfigType:
     config = config.copy()
     value = config[CONF_FRAMEWORK]
@@ -909,8 +922,13 @@ def _check_esp_idf_versions(config: ConfigType) -> ConfigType:
             "If there are connectivity or build issues please remove the manual source."
         )
 
-    # Official ESP-IDF frameworks don't use the 'extra' semver component.
-    value[CONF_VERSION] = str(cv.Version(version.major, version.minor, version.patch))
+    # The official ESP-IDF toolchain doesn't use pioarduino's numeric packaging
+    # revision (e.g. the "-1" in "5.5.3-1"), so drop it from the esp-idf framework
+    # version for both the resolved config and the download. Upstream prerelease
+    # tags (e.g. "6.0.0-rc1") are kept. The Arduino framework is left untouched
+    # ("4.0.0-alpha1" is the arduino-esp32 release tag / lookup key).
+    if value[CONF_TYPE] == FRAMEWORK_ESP_IDF:
+        value[CONF_VERSION] = str(_strip_pioarduino_revision(version))
 
     return config
 
@@ -2665,8 +2683,7 @@ def _write_idf_component_yml():
         if CORE.using_toolchain_esp_idf:
             add_idf_component(
                 name=ARDUINO_ESP32_COMPONENT_NAME,
-                repo="https://github.com/espressif/arduino-esp32.git",
-                ref="master",
+                ref=str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
             )
 
     if CORE.using_toolchain_esp_idf:

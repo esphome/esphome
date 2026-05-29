@@ -74,7 +74,9 @@ ESPHOME_IDF_FRAMEWORK_MIRRORS = _str_to_lst_of_str(
     os.environ.get("ESPHOME_IDF_FRAMEWORK_MIRRORS")
     or [
         "https://github.com/esphome-libs/esp-idf/releases/download/v{VERSION}/esp-idf-v{VERSION}.tar.xz",
-        "https://github.com/esphome-libs/esp-idf/releases/download/v{MAJOR}.{MINOR}/esp-idf-v{MAJOR}.{MINOR}.tar.xz",
+        # {EXTRA} carries its leading "-" (e.g. "-rc1") or is empty, so this matches
+        # both stable "v6.0" and prerelease "v6.0-rc1" patch-less tags.
+        "https://github.com/esphome-libs/esp-idf/releases/download/v{MAJOR}.{MINOR}{EXTRA}/esp-idf-v{MAJOR}.{MINOR}{EXTRA}.tar.xz",
     ]
 )
 
@@ -979,8 +981,9 @@ def _check_esphome_idf_framework_install(
         env: Optional dictionary of environment variables to set
         source_url: Optional override URL for the framework tarball. Supports
             the same ``{VERSION}`` / ``{MAJOR}`` / ``{MINOR}`` / ``{PATCH}`` /
-            ``{EXTRA}`` substitutions as ESPHOME_IDF_FRAMEWORK_MIRRORS. When
-            set, it replaces the default mirror list — no implicit fallback,
+            ``{EXTRA}`` substitutions as ESPHOME_IDF_FRAMEWORK_MIRRORS
+            (``{EXTRA}`` includes its leading ``-``, e.g. ``-rc1``, or is empty).
+            When set, it replaces the default mirror list — no implicit fallback,
             so a misspelled URL fails loudly.
 
     Returns:
@@ -1035,7 +1038,9 @@ def _check_esphome_idf_framework_install(
                     substitutions["MAJOR"] = str(ver.major)
                     substitutions["MINOR"] = str(ver.minor)
                     substitutions["PATCH"] = str(ver.patch)
-                    substitutions["EXTRA"] = ver.extra
+                    # Includes the leading "-" (e.g. "-rc1") so URL templates can
+                    # append it directly; empty when there is no extra component.
+                    substitutions["EXTRA"] = f"-{ver.extra}" if ver.extra else ""
                 except ValueError:
                     pass
 
