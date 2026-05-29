@@ -15,7 +15,7 @@ from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType, TemplateArgsType
 
 DEPENDENCIES = ["uart"]
-AUTO_LOAD = ["select"]
+AUTO_LOAD = ["climate", "select"]
 CODEOWNERS = ["@crnjan"]
 
 CONF_CURRENT_TEMPERATURE_MIN_INTERVAL = "current_temperature_min_interval"
@@ -121,7 +121,7 @@ async def to_code(config: ConfigType) -> None:
         await select.register_select(
             sel,
             direction_conf,
-            options=[option.capitalize() for option in VERTICAL_VANE_DIRECTIONS],
+            options=list(VERTICAL_VANE_DIRECTIONS),
         )
         await cg.register_parented(sel, var)
         cg.add(var.set_vertical_vane_direction_select(sel))

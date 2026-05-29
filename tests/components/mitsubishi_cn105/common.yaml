@@ -6,6 +6,10 @@ climate:
     update_interval: 30s
     current_temperature_min_interval: 120s
     supported_swing_modes: BOTH
+    vane:
+      vertical:
+        direction:
+          name: "Vertical Vane"
 
 esphome:
   on_boot:
