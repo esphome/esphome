@@ -37,3 +37,29 @@ cover:
       - logger.log: Close Action
     stop_action:
       - logger.log: Stop Action
+
+valve:
+  - platform: feedback
+    name: Feedback Valve
+    id: feedback_valve
+    device_class: water
+    infer_endstop_from_movement: false
+    has_built_in_endstop: false
+    max_duration: 30s
+    direction_change_wait_time: 300ms
+    acceleration_wait_time: 150ms
+    obstacle_rollback: 10%
+    open_duration: 22.1s
+    open_endstop: open_endstop_sensor
+    open_sensor: open_sensor
+    open_obstacle_sensor: open_obstacle_sensor
+    close_duration: 22.4s
+    close_endstop: close_endstop_sensor
+    close_sensor: close_sensor
+    close_obstacle_sensor: close_obstacle_sensor
+    open_action:
+      - logger.log: Valve Open Action
+    close_action:
+      - logger.log: Valve Close Action
+    stop_action:
+      - logger.log: Valve Stop Action

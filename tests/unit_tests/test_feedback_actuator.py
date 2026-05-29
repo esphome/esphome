@@ -23,3 +23,15 @@ def test_feedback_actuator_class_exported():
     import esphome.components.feedback as feedback_mod
 
     assert hasattr(feedback_mod, "FeedbackActuatorBase")
+
+
+def test_feedback_valve_inherits_actuator_base():
+    """Verify FeedbackValve inherits FeedbackActuatorBase."""
+    from esphome.components.feedback import FeedbackActuatorBase
+    from esphome.components.feedback.valve import FeedbackValve
+    from esphome.components.valve import Valve
+
+    assert FeedbackValve.inherits_from(FeedbackActuatorBase), (
+        "FeedbackValve does not inherit FeedbackActuatorBase"
+    )
+    assert FeedbackValve.inherits_from(Valve), "FeedbackValve does not inherit Valve"
