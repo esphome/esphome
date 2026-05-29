@@ -34,7 +34,7 @@ class Valve;
 // Inheritance: ValveCall -> ActuatorCallBase
 class ValveCall : public actuator::ActuatorCallBase {
  public:
-  explicit ValveCall(Valve *parent);
+  ValveCall(Valve *parent);
 
   // Covariant wrappers — return ValveCall& for fluent chaining compatibility
   ValveCall &set_command(const char *command);
@@ -47,11 +47,7 @@ class ValveCall : public actuator::ActuatorCallBase {
 
   void perform();
 
-  const optional<float> &get_position() const { return this->position_; }
-  bool get_stop() const { return this->stop_; }
-  const optional<bool> &get_toggle() const { return this->toggle_; }
-
- protected:
+ private:
   void validate() override;
 };
 
@@ -107,11 +103,6 @@ class Valve : public actuator::ActuatorBase, public actuator::IActuator {
 
   virtual ValveTraits get_traits() = 0;
 
-  /// Helper method to check if the valve is fully open. Equivalent to comparing .position against 1.0
-  bool is_fully_open() const;
-  /// Helper method to check if the valve is fully closed. Equivalent to comparing .position against 0.0
-  bool is_fully_closed() const;
-
   // IActuator implementation
   float get_position() const override { return this->position; }
   void set_position(float p) override { this->position = p; }
@@ -126,10 +117,37 @@ class Valve : public actuator::ActuatorBase, public actuator::IActuator {
 
   virtual void control(const ValveCall &call) = 0;
 
-  // Bridge from ActuatorBase — safe cast because Valve::make_call() always constructs a ValveCall
-  void control(const actuator::ActuatorCallBase &call) final { this->control(static_cast<const ValveCall &>(call)); }
-
   optional<ValveRestoreState> restore_state_() { return ActuatorBase::restore_state_<ValveRestoreState>(); }
 };
+
+// Inline definitions placed after Valve's full declaration so the Valve* → ActuatorBase* upcast
+// in the constructor is well-formed. Defining these inline allows the compiler to fold the
+// covariant wrappers and constructor into the call site (make_call().set_*().perform()).
+inline ValveCall::ValveCall(Valve *parent) : actuator::ActuatorCallBase(parent) {}
+inline ValveCall &ValveCall::set_command_open() {
+  actuator::ActuatorCallBase::set_command_open();
+  return *this;
+}
+inline ValveCall &ValveCall::set_command_close() {
+  actuator::ActuatorCallBase::set_command_close();
+  return *this;
+}
+inline ValveCall &ValveCall::set_command_stop() {
+  actuator::ActuatorCallBase::set_command_stop();
+  return *this;
+}
+inline ValveCall &ValveCall::set_command_toggle() {
+  actuator::ActuatorCallBase::set_command_toggle();
+  return *this;
+}
+inline ValveCall &ValveCall::set_position(float position) {
+  actuator::ActuatorCallBase::set_position(position);
+  return *this;
+}
+inline ValveCall &ValveCall::set_stop(bool stop) {
+  actuator::ActuatorCallBase::set_stop(stop);
+  return *this;
+}
+inline ValveCall Valve::make_call() { return ValveCall(this); }
 
 }  // namespace esphome::valve

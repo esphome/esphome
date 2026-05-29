@@ -34,7 +34,7 @@ class Cover;
 // Inheritance: CoverCall -> ActuatorCallBase
 class CoverCall : public actuator::ActuatorCallBase {
  public:
-  explicit CoverCall(Cover *parent);
+  CoverCall(Cover *parent);
 
   // Covariant wrappers — return CoverCall& for fluent chaining compatibility
   CoverCall &set_command(const char *command);
@@ -48,15 +48,13 @@ class CoverCall : public actuator::ActuatorCallBase {
 
   void perform();
 
-  const optional<float> &get_position() const { return this->position_; }
-  bool get_stop() const { return this->stop_; }
   const optional<float> &get_tilt() const { return this->tilt_; }
-  const optional<bool> &get_toggle() const { return this->toggle_; }
 
  protected:
-  void validate() override;
-
   optional<float> tilt_{};
+
+ private:
+  void validate() override;
 };
 
 /// Struct used to store the restored state of a cover
@@ -116,11 +114,6 @@ class Cover : public actuator::ActuatorBase, public actuator::IActuator {
 
   virtual CoverTraits get_traits() = 0;
 
-  /// Helper method to check if the cover is fully open. Equivalent to comparing .position against 1.0
-  bool is_fully_open() const;
-  /// Helper method to check if the cover is fully closed. Equivalent to comparing .position against 0.0
-  bool is_fully_closed() const;
-
   // IActuator implementation
   float get_position() const override { return this->position; }
   void set_position(float p) override { this->position = p; }
@@ -135,10 +128,41 @@ class Cover : public actuator::ActuatorBase, public actuator::IActuator {
 
   virtual void control(const CoverCall &call) = 0;
 
-  // Bridge from ActuatorBase — safe cast because Cover::make_call() always constructs a CoverCall
-  void control(const actuator::ActuatorCallBase &call) final { this->control(static_cast<const CoverCall &>(call)); }
-
-  optional<CoverRestoreState> restore_state_();
+  optional<CoverRestoreState> restore_state_() { return ActuatorBase::restore_state_<CoverRestoreState>(); }
 };
+
+// Inline definitions placed after Cover's full declaration so the Cover* → ActuatorBase* upcast
+// in the constructor is well-formed. Defining these inline allows the compiler to fold the
+// covariant wrappers and constructor into the call site (make_call().set_*().perform()).
+inline CoverCall::CoverCall(Cover *parent) : actuator::ActuatorCallBase(parent) {}
+inline CoverCall &CoverCall::set_command_open() {
+  actuator::ActuatorCallBase::set_command_open();
+  return *this;
+}
+inline CoverCall &CoverCall::set_command_close() {
+  actuator::ActuatorCallBase::set_command_close();
+  return *this;
+}
+inline CoverCall &CoverCall::set_command_stop() {
+  actuator::ActuatorCallBase::set_command_stop();
+  return *this;
+}
+inline CoverCall &CoverCall::set_command_toggle() {
+  actuator::ActuatorCallBase::set_command_toggle();
+  return *this;
+}
+inline CoverCall &CoverCall::set_position(float position) {
+  actuator::ActuatorCallBase::set_position(position);
+  return *this;
+}
+inline CoverCall &CoverCall::set_tilt(float tilt) {
+  this->tilt_ = tilt;
+  return *this;
+}
+inline CoverCall &CoverCall::set_stop(bool stop) {
+  actuator::ActuatorCallBase::set_stop(stop);
+  return *this;
+}
+inline CoverCall Cover::make_call() { return CoverCall(this); }
 
 }  // namespace esphome::cover

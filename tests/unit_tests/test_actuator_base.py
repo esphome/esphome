@@ -111,15 +111,18 @@ class TestCoverActuatorBackwardCompat:
         deps = getattr(cover_mod, "DEPENDENCIES", [])
         assert "actuator" in deps, f"'actuator' not in cover DEPENDENCIES: {deps}"
 
-    def test_cover_operation_is_actuator_operation(self):
-        """Cover IDLE operation value must match ActuatorOperation IDLE integer value."""
-        from esphome.components import actuator
+    def test_cover_operations_render_as_cover_constants(self):
+        """COVER_OPERATIONS must render as the cover-namespaced backward-compat constants."""
         import esphome.components.cover as cover_mod
 
-        cover_idle = cover_mod.COVER_OPERATIONS["IDLE"]
-        actuator_idle = actuator.ActuatorOperation.ACTUATOR_OPERATION_IDLE
-        assert str(cover_idle) == str(actuator_idle), (
-            f"COVER_OPERATION_IDLE ({cover_idle}) != ACTUATOR_OPERATION_IDLE ({actuator_idle})"
+        assert str(cover_mod.COVER_OPERATIONS["IDLE"]) == "cover::COVER_OPERATION_IDLE"
+        assert (
+            str(cover_mod.COVER_OPERATIONS["OPENING"])
+            == "cover::COVER_OPERATION_OPENING"
+        )
+        assert (
+            str(cover_mod.COVER_OPERATIONS["CLOSING"])
+            == "cover::COVER_OPERATION_CLOSING"
         )
 
 
@@ -133,14 +136,16 @@ class TestValveActuatorBackwardCompat:
         deps = getattr(valve_mod, "DEPENDENCIES", [])
         assert "actuator" in deps, f"'actuator' not in valve DEPENDENCIES: {deps}"
 
-    def test_valve_operation_is_actuator_operation(self):
-        """Valve IDLE operation value must match ActuatorOperation IDLE integer value."""
-        from esphome.components import actuator
+    def test_valve_operations_render_as_valve_constants(self):
+        """VALVE_OPERATIONS must render as the valve-namespaced backward-compat constants."""
         import esphome.components.valve as valve_mod
 
-        # Verify ValveOperation members match actuator enum integer values
-        valve_idle = valve_mod.VALVE_OPERATIONS["IDLE"]
-        actuator_idle = actuator.ActuatorOperation.ACTUATOR_OPERATION_IDLE
-        assert str(valve_idle) == str(actuator_idle), (
-            f"VALVE_OPERATION_IDLE ({valve_idle}) != ACTUATOR_OPERATION_IDLE ({actuator_idle})"
+        assert str(valve_mod.VALVE_OPERATIONS["IDLE"]) == "valve::VALVE_OPERATION_IDLE"
+        assert (
+            str(valve_mod.VALVE_OPERATIONS["OPENING"])
+            == "valve::VALVE_OPERATION_OPENING"
+        )
+        assert (
+            str(valve_mod.VALVE_OPERATIONS["CLOSING"])
+            == "valve::VALVE_OPERATION_CLOSING"
         )

@@ -25,35 +25,9 @@ Valve::Valve() { this->position = VALVE_OPEN; }
 // ValveCall
 //
 
-ValveCall::ValveCall(Valve *parent) : actuator::ActuatorCallBase(parent) {}
-
-// Covariant wrappers — call parent method, return ValveCall& for fluent chaining
+// Covariant wrapper for set_command (the only one with non-trivial base) — others are inline in valve.h
 ValveCall &ValveCall::set_command(const char *command) {
   actuator::ActuatorCallBase::set_command(command);
-  return *this;
-}
-ValveCall &ValveCall::set_command_open() {
-  actuator::ActuatorCallBase::set_command_open();
-  return *this;
-}
-ValveCall &ValveCall::set_command_close() {
-  actuator::ActuatorCallBase::set_command_close();
-  return *this;
-}
-ValveCall &ValveCall::set_command_stop() {
-  actuator::ActuatorCallBase::set_command_stop();
-  return *this;
-}
-ValveCall &ValveCall::set_command_toggle() {
-  actuator::ActuatorCallBase::set_command_toggle();
-  return *this;
-}
-ValveCall &ValveCall::set_position(float position) {
-  actuator::ActuatorCallBase::set_position(position);
-  return *this;
-}
-ValveCall &ValveCall::set_stop(bool stop) {
-  actuator::ActuatorCallBase::set_stop(stop);
   return *this;
 }
 
@@ -86,7 +60,7 @@ void ValveCall::validate() {
       ESP_LOGW(TAG, "'%s' - This valve device does not support setting position!", this->parent_->get_name().c_str());
       this->position_.reset();
     } else if (pos < 0.0f || pos > 1.0f) {
-      ESP_LOGW(TAG, "'%s': position %.2f out of range [0.0 - 1.0]", this->parent_->get_name().c_str(), pos);
+      ESP_LOGW(TAG, "'%s' - Position %.2f is out of range [0.0 - 1.0]", this->parent_->get_name().c_str(), pos);
       this->position_ = clamp(pos, 0.0f, 1.0f);
     }
   }
@@ -97,15 +71,16 @@ void ValveCall::validate() {
     }
   }
   if (this->stop_) {
-    if (this->position_.has_value() || this->toggle_.has_value()) {
-      ESP_LOGW(TAG, "'%s': cannot set position/toggle when stopping", this->parent_->get_name().c_str());
+    if (this->position_.has_value()) {
+      ESP_LOGW(TAG, "Cannot set position when stopping a valve!");
       this->position_.reset();
+    }
+    if (this->toggle_.has_value()) {
+      ESP_LOGW(TAG, "Cannot set toggle when stopping a valve!");
       this->toggle_.reset();
     }
   }
 }
-
-ValveCall Valve::make_call() { return ValveCall(this); }
 
 void Valve::publish_state(bool save) {
   this->position = clamp(this->position, 0.0f, 1.0f);
@@ -137,9 +112,6 @@ void Valve::publish_state(bool save) {
     this->rtc_.save(&restore);
   }
 }
-
-bool Valve::is_fully_open() const { return this->position == VALVE_OPEN; }
-bool Valve::is_fully_closed() const { return this->position == VALVE_CLOSED; }
 
 optional<float> Valve::do_restore_state() {
   auto restore = this->restore_state_();
