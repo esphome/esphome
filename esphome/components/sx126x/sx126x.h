@@ -125,7 +125,7 @@ class SX126x : public Component,
   void read_register_(uint16_t reg, uint8_t *data, uint8_t size);
   void call_listeners_(const std::vector<uint8_t> &packet, float rssi, float snr);
   void wait_busy_();
-  void maybe_transmit_queued_packet();
+  void maybe_transmit_queued_packet_();
   Trigger<std::vector<uint8_t>, float, float> packet_trigger_;
   std::vector<SX126xListener *> listeners_;
   std::vector<uint8_t> packet_;

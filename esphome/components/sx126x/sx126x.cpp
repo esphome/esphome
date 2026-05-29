@@ -388,11 +388,11 @@ SX126xError SX126x::async_transmit_packet(const std::vector<uint8_t> &packet, op
   uint32_t cadto = cad_timeout.value_or(this->cad_timeout_);
   AsyncPacket ap = AsyncPacket(packet, cadto);
 
-  ESP_LOGD(TAG, "async_transmit_packet: packet queued size=%d, cad_timeout=%lu", packet.size(), ap.cad_timeout);
+  ESP_LOGD(TAG, "async_transmit_packet: packet queued size=%zu, cad_timeout=%u", packet.size(), ap.cad_timeout);
   this->async_tx_queue_.push(ap);
 
   // schedule the next send loop only 1ms out
-  this->set_timeout("maybe_transmit_queued_packet", 1, [this]() { this->maybe_transmit_queued_packet(); });
+  this->set_timeout("maybe_transmit_queued_packet", 1, [this]() { this->maybe_transmit_queued_packet_(); });
 
   return SX126xError::NONE;
 }
@@ -400,7 +400,7 @@ SX126xError SX126x::async_transmit_packet(const std::vector<uint8_t> &packet, op
 // transmit a packet if there is one to send
 // will first invoke channel activity detection if configured, maintain and check per-packet timeout values
 // and then transmit the packet if the air is clear or the cad_timeout has been exceeded
-void SX126x::maybe_transmit_queued_packet() {
+void SX126x::maybe_transmit_queued_packet_() {
   if (this->async_tx_queue_.empty()) {
     return;
   }
@@ -424,7 +424,7 @@ void SX126x::maybe_transmit_queued_packet() {
     // perform channel activity detection and record result
     uint32_t start = millis();
     cad = this->scan_channel_clear();
-    ESP_LOGD(TAG, "TX CAD duration=%lu ms, result=%s", millis() - start, cad ? "clear" : "busy");
+    ESP_LOGD(TAG, "TX CAD duration=%u ms, result=%s", millis() - start, cad ? "clear" : "busy");
   }
 
   if (cad) {  // cad == true means that the channel is clear
@@ -437,7 +437,7 @@ void SX126x::maybe_transmit_queued_packet() {
                                         // here - which may be hardware error
       ESP_LOGD(TAG, "TX packet size=%d", ap.packet.size());
     } else {
-      ESP_LOGW(TAG, "TX ERROR TRANSMITTING PACKET, PACKET DROPPED size=%s", ap.packet.size());
+      ESP_LOGW(TAG, "TX ERROR TRANSMITTING PACKET, PACKET DROPPED size=%zu", ap.packet.size());
     }
 
     // the only error types are essentially fatal for the packet, so pop it from the queue no matter what so we don't
@@ -447,12 +447,12 @@ void SX126x::maybe_transmit_queued_packet() {
     // if there are still items in the queue, try to send the next 100ms later.
     if (!this->async_tx_queue_.empty()) {
       ESP_LOGD(TAG, "TX more packets in queue, setting timeout to send the next in 100ms");
-      this->set_timeout("maybe_transmit_queued_packet", 100, [this]() { this->maybe_transmit_queued_packet(); });
+      this->set_timeout("maybe_transmit_queued_packet", 100, [this]() { this->maybe_transmit_queued_packet_(); });
     }
 
   } else {  // cad == false -- the channel is busy
     ESP_LOGD(TAG, "CAD channel not clear , deferring tx for 20ms");
-    this->set_timeout("maybe_transmit_queued_packet", 20, [this]() { this->maybe_transmit_queued_packet(); });
+    this->set_timeout("maybe_transmit_queued_packet", 20, [this]() { this->maybe_transmit_queued_packet_(); });
   }
 }
 
