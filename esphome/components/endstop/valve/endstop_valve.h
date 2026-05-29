@@ -1,6 +1,6 @@
 #pragma once
 
-#include "endstop_actuator.h"
+#include "../endstop_actuator.h"
 #include "esphome/components/valve/valve.h"
 
 namespace esphome::endstop {

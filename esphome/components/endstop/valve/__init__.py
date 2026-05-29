@@ -2,12 +2,16 @@ import esphome.codegen as cg
 from esphome.components import valve
 import esphome.config_validation as cv
 
-from . import (
+from .. import (
     ENDSTOP_ACTUATOR_SCHEMA,
     EndstopActuatorBase,
     apply_endstop_actuator_config,
     endstop_ns,
 )
+
+# Auto-load the parent endstop component so its source files
+# (endstop_actuator.cpp/.h) are picked up by the build.
+AUTO_LOAD = ["endstop"]
 
 EndstopValve = endstop_ns.class_("EndstopValve", EndstopActuatorBase, valve.Valve)
 

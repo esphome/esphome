@@ -4,6 +4,7 @@ These tests verify:
 1. esphome.components.endstop.EndstopActuatorBase can be imported
 2. EndstopActuatorBase is exported from the endstop __init__.py
 3. The endstop cover Python class inherits from both EndstopActuatorBase and Cover
+4. The endstop valve Python class inherits from both EndstopActuatorBase and Valve
 """
 
 
@@ -67,4 +68,37 @@ class TestEndstopCoverInheritance:
 
         assert EndstopCover.inherits_from(cg.Component), (
             "EndstopCover must have Component reachable via EndstopActuatorBase"
+        )
+
+
+class TestEndstopValveInheritance:
+    """EndstopValve inherits EndstopActuatorBase and Valve."""
+
+    def test_endstop_valve_inherits_actuator_base(self):
+        """Verify EndstopValve inherits EndstopActuatorBase."""
+        from esphome.components.endstop import EndstopActuatorBase
+        from esphome.components.endstop.valve import EndstopValve
+
+        assert EndstopValve.inherits_from(EndstopActuatorBase), (
+            f"EndstopValve does not inherit from EndstopActuatorBase. "
+            f"EndstopValve parents: {getattr(EndstopValve, '_parents', 'N/A')}"
+        )
+
+    def test_endstop_valve_inherits_valve(self):
+        """The EndstopValve must inherit from Valve."""
+        from esphome.components.endstop.valve import EndstopValve
+        from esphome.components.valve import Valve
+
+        assert EndstopValve.inherits_from(Valve), (
+            f"EndstopValve does not inherit from Valve. "
+            f"EndstopValve parents: {getattr(EndstopValve, '_parents', 'N/A')}"
+        )
+
+    def test_endstop_valve_component_reachable_transitively(self):
+        """Component is reachable via EndstopActuatorBase, not as a direct parent of EndstopValve."""
+        import esphome.codegen as cg
+        from esphome.components.endstop.valve import EndstopValve
+
+        assert EndstopValve.inherits_from(cg.Component), (
+            "EndstopValve must have Component reachable via EndstopActuatorBase"
         )
