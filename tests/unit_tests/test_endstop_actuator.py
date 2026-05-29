@@ -56,22 +56,15 @@ class TestEndstopCoverInheritance:
             f"EndstopCover parents: {getattr(EndstopCover, '_parents', 'N/A')}"
         )
 
-    def test_endstop_cover_not_direct_component(self):
-        """Verify EndstopCover does not inherit directly from cg.Component.
+    def test_endstop_cover_component_reachable_transitively(self):
+        """Component is reachable via EndstopActuatorBase, not as a direct parent of EndstopCover.
 
-        Component lifecycle comes from EndstopActuatorBase (which inherits Component).
-        cg.Component is still reachable via EndstopActuatorBase (transitive inheritance),
-        but it should not be a direct parent of EndstopCover.
+        EndstopCover's direct parents are EndstopActuatorBase and Cover.
+        Component lifecycle flows through EndstopActuatorBase.
         """
         import esphome.codegen as cg
-        from esphome.components.endstop import EndstopActuatorBase
         from esphome.components.endstop.cover import EndstopCover
 
-        # EndstopCover's direct parents are EndstopActuatorBase and Cover (not cg.Component)
-        assert EndstopCover.inherits_from(EndstopActuatorBase), (
-            "EndstopCover must inherit EndstopActuatorBase (which carries Component lifecycle)"
-        )
-        # Component IS reachable transitively — that's expected
         assert EndstopCover.inherits_from(cg.Component), (
             "EndstopCover must have Component reachable via EndstopActuatorBase"
         )

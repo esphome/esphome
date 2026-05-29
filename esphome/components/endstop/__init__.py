@@ -39,14 +39,14 @@ async def apply_endstop_actuator_config(var, config):
     await automation.build_automation(
         var.get_stop_trigger(), [], config[CONF_STOP_ACTION]
     )
-    bin = await cg.get_variable(config[CONF_OPEN_ENDSTOP])
-    cg.add(var.set_open_endstop(bin))
+    open_bin = await cg.get_variable(config[CONF_OPEN_ENDSTOP])
+    cg.add(var.set_open_endstop(open_bin))
     cg.add(var.set_open_duration(config[CONF_OPEN_DURATION]))
     await automation.build_automation(
         var.get_open_trigger(), [], config[CONF_OPEN_ACTION]
     )
-    bin = await cg.get_variable(config[CONF_CLOSE_ENDSTOP])
-    cg.add(var.set_close_endstop(bin))
+    close_bin = await cg.get_variable(config[CONF_CLOSE_ENDSTOP])
+    cg.add(var.set_close_endstop(close_bin))
     cg.add(var.set_close_duration(config[CONF_CLOSE_DURATION]))
     await automation.build_automation(
         var.get_close_trigger(), [], config[CONF_CLOSE_ACTION]
