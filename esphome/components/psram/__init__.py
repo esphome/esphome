@@ -1,5 +1,6 @@
 import logging
 import textwrap
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components.const import CONF_IGNORE_NOT_FOUND
@@ -92,6 +93,27 @@ def is_guaranteed() -> bool:
         bool: True if PSRAM is guaranteed, False otherwise
     """
     return CORE.data.get(KEY_PSRAM_GUARANTEED, False)
+
+
+def request_external_task_stack() -> None:
+    """Allow FreeRTOS task stacks to be allocated in external RAM (PSRAM).
+
+    Components that expose a ``task_stack_in_psram`` option should call this from their
+    ``to_code`` when the option is enabled. The sdkconfig option only permits external
+    stacks; it does not move any stack into PSRAM on its own, so it stays opt-in per task.
+    """
+    add_idf_sdkconfig_option("CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True)
+
+
+def validate_task_stack_in_psram(value: Any) -> bool:
+    """Validate a ``task_stack_in_psram`` boolean, requiring the psram component only when enabled.
+
+    Validating the boolean first means an explicit ``false`` does not pull in the psram
+    requirement, so the option can still be set to false on devices without PSRAM.
+    """
+    if value := cv.boolean(value):
+        return cv.requires_component(DOMAIN)(value)
+    return value
 
 
 def validate_psram_mode(config):

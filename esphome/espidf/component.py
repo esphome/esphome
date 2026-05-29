@@ -55,7 +55,7 @@ ESPHOME_DATA_EXTRA_CMAKE_KEY = "EXTRA_CMAKE"
 
 class Source:
     def download(self, dir_suffix: str, force: bool = False) -> Path:
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class URLSource(Source):
@@ -317,24 +317,26 @@ def _collect_filtered_files(src_dir: PathType, src_filters: list[str]) -> list[s
         if pattern.endswith("/"):
             pattern = pattern.rstrip("/") + "/**"
 
-        full_pattern = os.path.join(glob.escape(str(src_dir)), pattern)
+        # glob.escape has no pathlib equivalent and the matcher works on raw
+        # path strings, so PTH118/PTH207 don't apply here.
+        full_pattern = os.path.join(glob.escape(str(src_dir)), pattern)  # noqa: PTH118
 
         matched = []
-        for item in glob.glob(full_pattern, recursive=True):
-            if not os.path.isdir(item):
+        for item in glob.glob(full_pattern, recursive=True):  # noqa: PTH207
+            if not Path(item).is_dir():
                 matched.append(item)
             else:
                 # PlatformIO quirk: a directory matched with "*" should include all its
                 # nested files and subdirectories, not just the directory itself.
                 for root, _, files in os.walk(item):
-                    matched.extend([os.path.join(root, f) for f in files])
+                    matched.extend([str(Path(root) / f) for f in files])
 
         if sign == "+":
             selected.update(matched)
         elif sign == "-":
             selected.difference_update(matched)
 
-    return [r for r in selected if os.path.isfile(r)]
+    return [r for r in selected if Path(r).is_file()]
 
 
 def _convert_library_to_component(library: Library) -> IDFComponent:
@@ -486,7 +488,7 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     # Only keep sources
     build_src_files = [os.path.relpath(p, component.path) for p in build_src_files]
     build_src_files = [
-        f for f in build_src_files if os.path.splitext(f)[1] in SRC_FILE_EXTENSIONS
+        f for f in build_src_files if Path(f).suffix in SRC_FILE_EXTENSIONS
     ]
 
     # Handle build flags
@@ -610,11 +612,17 @@ def _check_library_data(data: dict):
     """
     Check if a library data is compatible with the ESP-IDF framework.
 
+    A platform mismatch (e.g. an AVR-only library on ESP32) raises
+    ``InvalidIDFComponent`` so the caller skips the library. A framework
+    mismatch only logs a warning — PIO manifests often understate the
+    frameworks they actually compile under, and IDF (unlike PIO's
+    ``lib_compat_mode``) has no opt-out, so we include the library anyway.
+
     Args:
-        component: IDFComponent object being processed
+        data: PIO library manifest dict being processed.
 
     Raises:
-        ValueError: If library has unsupported platforms or frameworks
+        InvalidIDFComponent: If the library does not support the ESP32 platform.
     """
     platforms = data.get("platforms", "*")
     if isinstance(platforms, str):
@@ -632,12 +640,21 @@ def _check_library_data(data: dict):
         frameworks = [a.strip() for a in frameworks.split(",")]
     frameworks = _ensure_list(frameworks)
 
-    # Check if library supports ESP-IDF framework
+    # Check if library declares the active framework. PIO library manifests
+    # often list only "arduino" even when the library actually compiles fine
+    # under ESP-IDF, and IDF (unlike PIO with `lib_compat_mode`) has no way to
+    # opt out of the check. Warn instead of failing so the user isn't forced to
+    # fork the library to fix the manifest.
     framework = "arduino" if CORE.using_arduino else "espidf"
     valid_framework = "*" in frameworks or framework in frameworks
 
     if not valid_framework:
-        raise InvalidIDFComponent(f"Unsupported library frameworks: {frameworks}")
+        _LOGGER.warning(
+            "Library %s declares frameworks %s that do not include '%s'; including anyway",
+            data.get("name", "<unknown>"),
+            frameworks,
+            framework,
+        )
 
 
 def _process_dependencies(component: IDFComponent):
@@ -725,7 +742,7 @@ def _parse_library_json(library_json_path: PathType):
     Returns:
         dict: Parsed JSON content as a Python dictionary.
     """
-    with open(library_json_path, encoding="utf8") as fp:
+    with Path(library_json_path).open(encoding="utf8") as fp:
         return json.load(fp)
 
 
@@ -739,7 +756,7 @@ def _parse_library_properties(library_properties_path: PathType):
     Returns:
         dict[str, str]: Mapping of parsed property keys to values.
     """
-    with open(library_properties_path, encoding="utf8") as fp:
+    with Path(library_properties_path).open(encoding="utf8") as fp:
         data = {}
         for line in fp.read().splitlines():
             line = line.strip()
