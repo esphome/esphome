@@ -2,6 +2,8 @@
 
 from unittest.mock import patch
 
+import pytest
+
 from esphome.components.display import (
     DisplayMetaData,
     add_metadata,
@@ -74,8 +76,5 @@ def test_add_metadata_overwrites_existing():
 def test_metadata_is_frozen():
     """Test that DisplayMetaData instances are immutable (frozen dataclass)."""
     meta = DisplayMetaData(320, 240, True, False)
-    try:
+    with pytest.raises(AttributeError):
         meta.width = 640
-        assert False, "Expected FrozenInstanceError"
-    except AttributeError:
-        pass

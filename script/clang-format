@@ -2,6 +2,7 @@
 
 import argparse
 import os
+from pathlib import Path
 import queue
 import re
 import subprocess
@@ -70,7 +71,7 @@ def main():
     )
     args = parser.parse_args()
 
-    cwd = os.getcwd()
+    cwd = Path.cwd()
     files = [
         os.path.relpath(path, cwd) for path in git_ls_files(["*.cpp", "*.h", "*.tcc"])
     ]

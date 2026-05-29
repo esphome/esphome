@@ -2,8 +2,7 @@
 #include "modbus_sensor.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace modbus_controller {
+namespace esphome::modbus_controller {
 
 static const char *const TAG = "modbus_controller.sensor";
 
@@ -27,5 +26,4 @@ void ModbusSensor::parse_and_publish(const std::vector<uint8_t> &data) {
   this->publish_state(result);
 }
 
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller

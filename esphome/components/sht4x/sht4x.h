@@ -6,8 +6,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace sht4x {
+namespace esphome::sht4x {
 
 enum SHT4XPRECISION { SHT4X_PRECISION_HIGH = 0, SHT4X_PRECISION_MED, SHT4X_PRECISION_LOW };
 
@@ -45,5 +44,4 @@ class SHT4XComponent : public PollingComponent, public sensirion_common::Sensiri
   sensor::Sensor *humidity_sensor_{nullptr};
 };
 
-}  // namespace sht4x
-}  // namespace esphome
+}  // namespace esphome::sht4x

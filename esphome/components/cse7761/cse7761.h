@@ -4,8 +4,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace cse7761 {
+namespace esphome::cse7761 {
 
 struct CSE7761DataStruct {
   uint32_t frequency = 0;
@@ -45,5 +44,4 @@ class CSE7761Component : public PollingComponent, public uart::UARTDevice {
   void get_data_();
 };
 
-}  // namespace cse7761
-}  // namespace esphome
+}  // namespace esphome::cse7761

@@ -11,7 +11,7 @@ import shutil
 import stat
 import sys
 import tempfile
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TextIO
 from urllib.parse import urlparse
 
 from esphome.const import __version__ as ESPHOME_VERSION
@@ -385,7 +385,7 @@ def rmtree(path: Path | str) -> None:
     def _onerror(func, path, exc_info):
         if os.access(path, os.W_OK):
             raise exc_info[1].with_traceback(exc_info[2])
-        os.chmod(path, stat.S_IWUSR | stat.S_IRUSR)
+        Path(path).chmod(stat.S_IWUSR | stat.S_IRUSR)
         func(path)
 
     # ``onerror`` is deprecated in 3.12 in favour of ``onexc`` (different
@@ -465,6 +465,12 @@ def _write_file(
 
 
 def write_file(path: Path, text: str | bytes, private: bool = False) -> None:
+    """Atomically write text or bytes to path. Wraps OSError as EsphomeError.
+
+    Used by esphome-device-builder for in-place YAML rewrites; the
+    atomicity (sibling tempfile + shutil.move) and EsphomeError
+    wrapping are part of the public contract.
+    """
     try:
         _write_file(path, text, private=private)
     except OSError as err:
@@ -506,7 +512,7 @@ def copy_file_if_changed(src: Path, dst: Path) -> bool:
             # -> delete file (it would be overwritten anyway), and try again
             # if that fails, use normal error handler
             with suppress(OSError):
-                os.unlink(dst)
+                Path(dst).unlink()
                 shutil.copyfile(src, dst)
                 return True
 
@@ -611,10 +617,24 @@ def sanitize(value):
 class ProgressBar:
     """A simple terminal progress bar for upload operations."""
 
-    def __init__(self) -> None:
+    def __init__(self, header: str, stream: TextIO | None = None) -> None:
+        # Local import to avoid a top-level cycle with esphome.core.
+        from esphome.core import CORE
+
+        self.header = header
+        self.stream = stream or sys.stderr
         self.last_progress: int | None = None
+        # Enable when writing to an interactive TTY *or* when running under
+        # ``--dashboard``. The dashboard captures our stderr via
+        # ``stdout=PIPE, stderr=STDOUT`` and parses the ``\rUploading: NN%``
+        # frames to drive its own progress UI -- gating purely on ``isatty()``
+        # silently disables every dashboard-side flash-progress indicator.
+        is_tty = hasattr(self.stream, "isatty") and self.stream.isatty()
+        self.enabled = is_tty or CORE.dashboard
 
     def update(self, progress: float) -> None:
+        if not self.enabled:
+            return
         bar_length = 60
         status = ""
         if progress >= 1:
@@ -625,11 +645,13 @@ class ProgressBar:
             return
         self.last_progress = new_progress
         block = int(round(bar_length * progress))
-        text = f"\rUploading: [{'=' * block + ' ' * (bar_length - block)}] {new_progress}% {status}"
+        text = f"\r{self.header}: [{'=' * block + ' ' * (bar_length - block)}] {new_progress}% {status}"
         sys.stderr.write(text)
         sys.stderr.flush()
 
     def done(self) -> None:
+        if not self.enabled:
+            return
         sys.stderr.write("\n")
         sys.stderr.flush()
 
