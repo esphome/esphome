@@ -7,6 +7,8 @@
 #include "sx126x_reg.h"
 #include <utility>
 #include <vector>
+#include <queue>
+
 
 namespace esphome::sx126x {
 
@@ -47,6 +49,13 @@ enum SX126xBw : uint8_t {
 };
 
 enum class SX126xError { NONE = 0, TIMEOUT, INVALID_PARAMS };
+
+struct AsyncPacket {
+  std::vector<uint8_t> packet;
+  uint32_t cad_timeout;
+  uint32_t start_time = 0;
+  AsyncPacket(const std::vector<uint8_t> &p, uint32_t cad) : packet(p), cad_timeout(cad) {}
+};
 
 class SX126xListener {
  public:
@@ -98,6 +107,10 @@ class SX126x : public Component,
   SX126xError transmit_packet(const std::vector<uint8_t> &packet);
   void register_listener(SX126xListener *listener) { this->listeners_.push_back(listener); }
   Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
+  void set_pa_ctx_pin(GPIOPin *pa_ctx_pin) { this->pa_ctx_pin_ = pa_ctx_pin; }
+  void set_cad_timeout(uint32_t cad_timeout) { this->cad_timeout_ = cad_timeout; }
+  bool scan_channel_clear();
+  SX126xError async_transmit_packet(const std::vector<uint8_t> &packet, optional<uint32_t> cad_timeout = optional<uint32_t>(0));
 
  protected:
   static void IRAM_ATTR gpio_intr(SX126x *arg);
@@ -112,6 +125,7 @@ class SX126x : public Component,
   void read_register_(uint16_t reg, uint8_t *data, uint8_t size);
   void call_listeners_(const std::vector<uint8_t> &packet, float rssi, float snr);
   void wait_busy_();
+  void maybe_transmit_queued_packet();
   Trigger<std::vector<uint8_t>, float, float> packet_trigger_;
   std::vector<SX126xListener *> listeners_;
   std::vector<uint8_t> packet_;
@@ -119,6 +133,7 @@ class SX126x : public Component,
   GPIOPin *busy_pin_{nullptr};
   GPIOPin *dio1_pin_{nullptr};
   GPIOPin *rst_pin_{nullptr};
+  GPIOPin *pa_ctx_pin_{nullptr};
   std::string hw_version_;
   char version_[16];
   SX126xBw bandwidth_{SX126X_BW_125000};
@@ -143,6 +158,8 @@ class SX126x : public Component,
   int8_t pa_power_{0};
   bool rx_start_{false};
   bool rf_switch_{false};
+  uint32_t cad_timeout_{0};
+  std::queue<AsyncPacket> async_tx_queue_;
 };
 
 }  // namespace esphome::sx126x

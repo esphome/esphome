@@ -41,6 +41,8 @@ CONF_SPREADING_FACTOR = "spreading_factor"
 CONF_SYNC_VALUE = "sync_value"
 CONF_TCXO_VOLTAGE = "tcxo_voltage"
 CONF_TCXO_DELAY = "tcxo_delay"
+CONF_PA_CTX_PIN = "pa_ctx_pin"
+CONF_CAD_TIMEOUT = "cad_timeout"
 
 sx126x_ns = cg.esphome_ns.namespace("sx126x")
 SX126x = sx126x_ns.class_("SX126x", cg.Component, spi.SPIDevice)
@@ -134,6 +136,9 @@ RunImageCalAction = sx126x_ns.class_(
 )
 SendPacketAction = sx126x_ns.class_(
     "SendPacketAction", automation.Action, cg.Parented.template(SX126x)
+)
+AsyncSendPacketAction = sx126x_ns.class_(
+    "AsyncSendPacketAction", automation.Action, cg.Parented.template(SX126x)
 )
 SetModeTxAction = sx126x_ns.class_(
     "SetModeTxAction", automation.Action, cg.Parented.template(SX126x)
@@ -232,6 +237,11 @@ CONFIG_SCHEMA = (
                 cv.positive_time_period_microseconds,
                 cv.Range(max=TimePeriod(microseconds=262144000)),
             ),
+            cv.Optional(CONF_PA_CTX_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_CAD_TIMEOUT, default="0s"): cv.All(
+                cv.templatable(cv.positive_time_period_milliseconds),
+                cv.Range(max=TimePeriod(milliseconds=262144000))
+            )
         },
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -285,6 +295,11 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_rf_switch(config[CONF_RF_SWITCH]))
     cg.add(var.set_tcxo_voltage(config[CONF_TCXO_VOLTAGE]))
     cg.add(var.set_tcxo_delay(config[CONF_TCXO_DELAY]))
+
+    if CONF_PA_CTX_PIN in config:
+        pa_ctx_pin = await cg.gpio_pin_expression(config[CONF_PA_CTX_PIN])
+        cg.add(var.set_pa_ctx_pin(pa_ctx_pin))
+    cg.add(var.set_cad_timeout(int(config[CONF_CAD_TIMEOUT].total_milliseconds)))
 
 
 NO_ARGS_ACTION_SCHEMA = automation.maybe_simple_id(
@@ -364,6 +379,19 @@ SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
     key=CONF_DATA,
 )
 
+ASYNC_SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(SX126x),
+        cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
+        cv.Optional(CONF_CAD_TIMEOUT): cv.All(
+            cv.templatable(cv.positive_time_period_milliseconds),
+            cv.Range(max=TimePeriod(milliseconds=262144000))
+        )
+    },
+    key=CONF_DATA,
+)
+
+
 
 @automation.register_action(
     "sx126x.send_packet",
@@ -390,4 +418,43 @@ async def send_packet_action_to_code(
         arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
         arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
         cg.add(var.set_data_static(arr, len(data)))
+    return var
+
+
+@automation.register_action(
+    "sx126x.async_send_packet",
+    AsyncSendPacketAction,
+    ASYNC_SEND_PACKET_ACTION_SCHEMA,
+    synchronous=False,
+)
+async def async_send_packet_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    data = config[CONF_DATA]
+    if isinstance(data, bytes):
+        data = list(data)
+    if cg.is_template(data):
+        templ = await cg.templatable(data, args, cg.std_vector.template(cg.uint8))
+        cg.add(var.set_data_template(templ))
+    else:
+        # Generate static array in flash to avoid RAM copy
+        arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
+        arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
+        cg.add(var.set_data_static(arr, len(data)))
+
+    if CONF_CAD_TIMEOUT in config:
+        cad_val = config[CONF_CAD_TIMEOUT]
+        if cg.is_template(cad_val):
+            cad_templ = await cg.templatable(cad_val, args, cg.optional.template(cg.uint32))
+            cg.add(var.set_cad_timeout(cad_templ))
+        else:
+            cad_ms = int(cad_val.total_milliseconds)
+            cad_templ = await cg.templatable(cad_ms, args, cg.optional.template(cg.uint32))
+            cg.add(var.set_cad_timeout(cad_templ))
+
     return var
