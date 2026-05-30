@@ -1,5 +1,13 @@
 esphome:
   name: uart-mock-kamstrup-test
+  # As this is a PollingComponent, it will start automaticly running its
+  # update() and therefore quering uart_mock before the scenario started,
+  # creating havoc in the state change detection. So we suspend
+  # immediately and only do a one-time update when the test starts.
+  on_boot:
+    - priority: -100.0
+      then:
+        - component.suspend: sut
 
 host:
 api:
@@ -11,14 +19,16 @@ external_components:
       type: local
       path: EXTERNAL_COMPONENT_PATH
 
+# Dummy uart entry to satisfy modbus's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
 uart:
   baud_rate: 1200
   port: /dev/null
-  stop_bits: 2
 
 uart_mock:
   - id: virtual_uart_kamstrup
     baud_rate: 1200
+    stop_bits: 2
     rx_full_threshold: 120
     rx_timeout: 2
     auto_start: false
@@ -54,6 +64,7 @@ uart_mock:
 
 sensor:
   - platform: kamstrup_kmp
+    id: sut
     uart_id: virtual_uart_kamstrup
     update_interval: 60s
     heat_energy:
@@ -78,3 +89,5 @@ button:
     id: start_scenario_btn
     on_press:
       - lambda: "id(virtual_uart_kamstrup).start_scenario();"
+      # Run the sensor once.
+      - component.update: sut
