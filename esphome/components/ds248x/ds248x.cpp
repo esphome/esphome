@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace ds248x {
+namespace esphome::ds248x {
 
 static const char *const TAG = "ds248x";
 
@@ -72,11 +71,7 @@ bool DS248xComponent::wait_busy_() {
   uint32_t start = millis();
   do {
     uint8_t status;
-    if (this->read(&status, 1) != i2c::ERROR_OK) {
-      delayMicroseconds(100);
-      continue;
-    }
-    if (!(status & DS248X_STATUS_BUSY))
+    if (this->read(&status, 1) == i2c::ERROR_OK && !(status & DS248X_STATUS_BUSY))
       return true;
     delayMicroseconds(100);
   } while (millis() - start < BUSY_TIMEOUT_MS);
@@ -364,5 +359,4 @@ bool DS248xComponent::search_triplet(bool search_direction, uint8_t &status) {
   return true;
 }
 
-}  // namespace ds248x
-}  // namespace esphome
+}  // namespace esphome::ds248x

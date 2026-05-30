@@ -2,8 +2,7 @@
 #include "ds248x.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ds248x {
+namespace esphome::ds248x {
 
 static const char *const TAG = "ds248x.one_wire";
 
@@ -169,5 +168,4 @@ uint64_t DS248xOneWireBus::search_int() {
   return address;
 }
 
-}  // namespace ds248x
-}  // namespace esphome
+}  // namespace esphome::ds248x

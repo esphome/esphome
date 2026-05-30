@@ -9,8 +9,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace ds248x {
+namespace esphome::ds248x {
 
 // DS248x I2C Commands
 static constexpr uint8_t DS248X_COMMAND_RESET = 0xF0;
@@ -136,5 +135,4 @@ class DS248xComponent : public Component, public i2c::I2CDevice {
   bool set_strong_pullup_mode_(bool enable);
 };
 
-}  // namespace ds248x
-}  // namespace esphome
+}  // namespace esphome::ds248x

@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/one_wire/one_wire_bus.h"
 
-namespace esphome {
-namespace ds248x {
+namespace esphome::ds248x {
 
 class DS248xComponent;
 
@@ -55,5 +54,4 @@ class DS248xOneWireBus : public one_wire::OneWireBus, public Component {
   bool search_last_device_flag_{false};
 };
 
-}  // namespace ds248x
-}  // namespace esphome
+}  // namespace esphome::ds248x
