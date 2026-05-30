@@ -24,12 +24,10 @@ from esphome.components.motion.sensor import (
     CONF_PITCH,
     CONF_ROLL,
     CONFIG_SCHEMA,
-    FINAL_VALIDATE_SCHEMA,
     build_sensor_expr,
 )
 from esphome.const import CONF_ID, CONF_ON_ERROR, CONF_ON_SUCCESS
 from esphome.cpp_generator import MockObj
-import esphome.final_validate as fv
 
 # --- Axis map validation ---
 
