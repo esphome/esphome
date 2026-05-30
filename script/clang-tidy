@@ -52,6 +52,10 @@ def clang_options(idedata):
         "-mfix-esp32-psram-cache-issue",
         "-mfix-esp32-psram-cache-strategy=memw",
         "-fno-tree-switch-conversion",
+        # GCC-only flags emitted by the native ESP-IDF toolchain build
+        "-freorder-blocks",
+        "-fno-jump-tables",
+        "-fno-shrink-wrap",
     )
 
     if "zephyr" in triplet:
