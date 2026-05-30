@@ -25,10 +25,15 @@ class MitsubishiCN105Climate : public climate::Climate, public Component, public
   void set_remote_temperature(float temperature) { this->hp_.set_remote_temperature(temperature); }
   void clear_remote_temperature() { this->hp_.clear_remote_temperature(); }
 
+  void set_supported_swing_mode(climate::ClimateSwingMode mode);
+
  protected:
   void apply_values_();
 
   MitsubishiCN105 hp_;
+  climate::ClimateSwingModeMask supported_swing_modes_{};
+  MitsubishiCN105::VaneMode last_non_swing_vane_mode_{MitsubishiCN105::VaneMode::AUTO};
+  MitsubishiCN105::WideVaneMode last_non_swing_wide_vane_mode_{MitsubishiCN105::WideVaneMode::CENTER};
 };
 
 template<typename... Ts>

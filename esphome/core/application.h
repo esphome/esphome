@@ -294,7 +294,7 @@ class Application {
   /// WDT_FEED_INTERVAL_MS. The two rate limits are independent so raising
   /// WDT_FEED_INTERVAL_MS does not distort the LED cadence.
   void ESPHOME_ALWAYS_INLINE feed_wdt_with_time(uint32_t time) {
-#if not defined(USE_ESP32) || defined(USE_WATCHDOG)
+#if !defined(USE_ESP32) || defined(USE_WATCHDOG)
     if (static_cast<uint32_t>(time - this->last_wdt_feed_) > WDT_FEED_INTERVAL_MS) [[unlikely]] {
       this->feed_wdt_slow_(time);
     }
@@ -467,7 +467,7 @@ class Application {
   /// Caller must ensure dump_config_at_ < components_.size().
   void __attribute__((noinline)) process_dump_config_();
 
-#if not defined(USE_ESP32) || defined(USE_WATCHDOG)
+#if !defined(USE_ESP32) || defined(USE_WATCHDOG)
   /// Slow path for feed_wdt(): actually calls arch_feed_wdt() and updates
   /// last_wdt_feed_. Out of line so the inline wrapper stays tiny. Does NOT
   /// touch status_led — that's gated separately via service_status_led_slow_
@@ -515,7 +515,8 @@ class Application {
   // 4-byte members
   uint32_t last_loop_{0};
   uint32_t loop_component_start_time_{0};
-#if not defined(USE_ESP32) || defined(USE_WATCHDOG)
+  uint32_t loop_interval_{16};  // Loop interval in ms (max 3600000ms = 1 hour)
+#if !defined(USE_ESP32) || defined(USE_WATCHDOG)
   uint32_t last_wdt_feed_{0};  // millis() of most recent arch_feed_wdt(); rate-limits feed_wdt() hot path
 #endif
 #ifdef USE_STATUS_LED
@@ -525,7 +526,6 @@ class Application {
 
   // 2-byte members (grouped together for alignment)
   uint16_t dump_config_at_{std::numeric_limits<uint16_t>::max()};  // Index into components_ for dump_config progress
-  uint32_t loop_interval_{16};                                     // Loop interval in ms (max 3600000ms = 1 hour)
   uint16_t looping_components_active_end_{0};  // Index marking end of active components in looping_components_
   uint16_t current_loop_index_{0};             // For safe reentrant modifications during iteration
 

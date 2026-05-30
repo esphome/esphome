@@ -335,7 +335,7 @@ TYPE_NONE = "none"
 
 DIRECTIONS = LvConstant("LV_DIR_", "LEFT", "RIGHT", "BOTTOM", "TOP")
 
-LV_FONTS = list(f"montserrat_{s}" for s in range(8, 50, 2)) + [
+LV_FONTS = [f"montserrat_{s}" for s in range(8, 50, 2)] + [
     "dejavu_16_persian_hebrew",
     "simsun_16_cjk",
     "unscii_8",
