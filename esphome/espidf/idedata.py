@@ -74,9 +74,11 @@ def _parse_entry(entry: dict) -> tuple[str, list[str], list[str], list[str]]:
         if tok in ("-c", "-o"):
             next(it, None)  # drop the flag and its argument (input/output)
         elif tok.startswith("-D"):
-            defines.append(tok[2:] if len(tok) > 2 else next(it, ""))
+            # ``.strip()`` handles tokens like ``-D CONFIGURED=1`` (a single
+            # quoted arg with a space after -D) that some flags arrive as.
+            defines.append(tok[2:].strip() if len(tok) > 2 else next(it, "").strip())
         elif tok.startswith("-I"):
-            includes.append(tok[2:] if len(tok) > 2 else next(it, ""))
+            includes.append(tok[2:].strip() if len(tok) > 2 else next(it, "").strip())
         elif tok == "-isystem":
             includes.append(next(it, ""))
         elif tok.startswith("-isystem"):
