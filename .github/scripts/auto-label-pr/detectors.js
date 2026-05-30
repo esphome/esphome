@@ -116,9 +116,11 @@ async function detectNewPlatforms(github, context, prFiles, apiData) {
       const platform = match[2];
       if (!apiData.platformComponents.includes(platform)) break;
 
-      // Skip if this is a restructure: <component>/<platform>.py -> <component>/<platform>/__init__.py
+      // Skip if this is a restructure between flat and subdirectory forms (either direction):
+      //   <component>/<platform>.py  <->  <component>/<platform>/__init__.py
       const flatEquivalent = `esphome/components/${match[1]}/${platform}.py`;
-      if (removedFiles.has(flatEquivalent)) break;
+      const subdirEquivalent = `esphome/components/${match[1]}/${platform}/__init__.py`;
+      if (removedFiles.has(flatEquivalent) || removedFiles.has(subdirEquivalent)) break;
 
       labels.add('new-platform');
       const content = await fetchPrFileContent(github, context, file);
