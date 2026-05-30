@@ -9,8 +9,6 @@ Run with:
 
 from __future__ import annotations
 
-import asyncio
-
 import pytest
 
 from .state_utils import SensorTracker
@@ -20,13 +18,13 @@ from .types import APIClientConnectedFactory, RunCompiledFunction
 # Each sensor receives exactly one update per scenario run.
 # Tolerance accounts for float precision in C++ → API conversion.
 EXPECTED: dict[str, float] = {
-    "heat_energy": 216.34,       # 0x003C — energy counter
-    "power": 0.3,                # 0x0050 — instantaneous power
-    "temperature_1": 51.76,     # 0x0056 — supply temperature
-    "temperature_diff": 5.88,   # 0x0059 — delta T
-    "flow": 33.0,               # 0x004A — flow rate
-    "volume": 1422.53,          # 0x0044 — total volume
-    "custom_59": 5.88,          # 0x0059 — custom sensor (same frame as temperature_diff)
+    "heat_energy": 216.34,  # 0x003C — energy counter
+    "power": 0.3,  # 0x0050 — instantaneous power
+    "temperature_1": 51.76,  # 0x0056 — supply temperature
+    "temperature_diff": 5.88,  # 0x0059 — delta T
+    "flow": 33.0,  # 0x004A — flow rate
+    "volume": 1422.53,  # 0x0044 — total volume
+    "custom_59": 5.88,  # 0x0059 — custom sensor (same frame as temperature_diff)
 }
 ATOL = 0.001  # tolerance for float comparison
 
