@@ -121,13 +121,6 @@ def register_player_config(config: ConfigType) -> None:
     data.player_config = config
 
 
-def _validate_task_stack_in_psram(value):
-    value = cv.boolean(value)
-    if value:
-        return cv.requires_component(psram.DOMAIN)(value)
-    return value
-
-
 def _request_high_performance_networking(config: ConfigType) -> ConfigType:
     """Request high performance networking for Sendspin streaming.
 
@@ -152,7 +145,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SendspinHub),
-            cv.Optional(CONF_TASK_STACK_IN_PSRAM): _validate_task_stack_in_psram,
+            cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
         }
     ),
     cv.only_on_esp32,
@@ -201,16 +194,17 @@ async def to_code(config: ConfigType) -> None:
 
     if config.get(CONF_TASK_STACK_IN_PSRAM):
         cg.add(var.set_task_stack_in_psram(True))
-        esp32.add_idf_sdkconfig_option(
-            "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True
-        )
+        psram.request_external_task_stack()
 
     # sendspin-cpp library
-    esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.4.0")
+    esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.6.1")
 
     cg.add_define("USE_SENDSPIN", True)  # for MDNS
 
     data = _get_data()
+
+    # The color role is not yet wired up in ESPHome; disable it in the library for now.
+    esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_COLOR", False)
 
     # Configure Sendspin roles based on requested features (ESPHome internally via USE_SENDSPIN_*)
     # and disable building unused code paths in the sendspin-cpp library (IDF SDKConfig via CONFIG_SENDSPIN_ENABLE_*).
@@ -258,13 +252,11 @@ async def to_code(config: ConfigType) -> None:
 
         psram_stack = player_cfg.get(CONF_TASK_STACK_IN_PSRAM, False)
         if psram_stack:
-            esp32.add_idf_sdkconfig_option(
-                "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True
-            )
+            psram.request_external_task_stack()
 
         # Library defaults: priority 18 (one above httpd_priority 17 so the decoder is not
         # starved by the HTTP server during the initial encoded-audio burst at stream start),
-        # interpolation/decode buffer locations PREFER_EXTERNAL.
+        # decode buffer location PREFER_EXTERNAL.
         player_struct_fields = [
             ("audio_formats", audio_format_structs),
             ("audio_buffer_capacity", player_cfg[CONF_BUFFER_SIZE]),

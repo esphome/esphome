@@ -75,7 +75,7 @@ def _validate_firmware(config: dict[str, Any]) -> None:
         return
 
     path = CORE.relative_config_path(config[CONF_PATH])
-    with open(path, "rb") as f:
+    with path.open("rb") as f:
         firmware_data = f.read()
     calculated = hashlib.sha256(firmware_data).hexdigest()
     expected = config[CONF_SHA256].lower()
@@ -93,7 +93,7 @@ async def to_code(config: dict[str, Any]) -> None:
 
     if config[CONF_TYPE] == TYPE_EMBEDDED:
         path = config[CONF_PATH]
-        with open(CORE.relative_config_path(path), "rb") as f:
+        with CORE.relative_config_path(path).open("rb") as f:
             firmware_data = f.read()
         rhs = [HexInt(x) for x in firmware_data]
         arr_id = ID(f"{config[CONF_ID]}_data", is_declaration=True, type=cg.uint8)
