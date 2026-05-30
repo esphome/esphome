@@ -20,7 +20,7 @@ void DS248xOneWireBus::setup() {
   // Perform device search on this channel
   this->search();
 
-  ESP_LOGCONFIG(TAG, "Found %d devices on channel %d", this->devices_.size(), this->channel_);
+  ESP_LOGCONFIG(TAG, "Found %zu devices on channel %d", this->devices_.size(), this->channel_);
 }
 
 void DS248xOneWireBus::dump_config() {
