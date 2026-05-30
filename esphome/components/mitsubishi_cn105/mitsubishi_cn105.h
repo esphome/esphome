@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <optional>
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/finite_set_mask.h"

@@ -220,10 +220,10 @@ void *OpenThreadSrpComponent::pool_alloc_(size_t size) {
 void OpenThreadSrpComponent::set_mdns(esphome::mdns::MDNSComponent *mdns) { this->mdns_ = mdns; }
 
 bool OpenThreadComponent::teardown() {
-  switch (this->teardown_stage) {
+  switch (this->teardown_stage_) {
     case OtcTeardownStage::OTC_TEARDOWN_NOT_STARTED: {
       // start tearing down
-      this->teardown_stage = OtcTeardownStage::OTC_TEARDOWN_STARTED;
+      this->teardown_stage_ = OtcTeardownStage::OTC_TEARDOWN_STARTED;
       ESP_LOGV(TAG, "Clear Srp");
       auto lock = InstanceLock::try_acquire(100);
       if (!lock) {
@@ -237,14 +237,14 @@ bool OpenThreadComponent::teardown() {
       otThreadDetachGracefully(instance, OpenThreadComponent::detach_callback, this);
 #else
       // skip graceful detach, parent will not remove child from its child table
-      this->teardown_stage = OtcTeardownStage::OTC_TEARDOWN_DETACH_COMPLETED;
+      this->teardown_stage_ = OtcTeardownStage::OTC_TEARDOWN_DETACH_COMPLETED;
 #endif
     } break;
     case OtcTeardownStage::OTC_TEARDOWN_STARTED:
       // waiting on callback
       break;
     case OtcTeardownStage::OTC_TEARDOWN_DETACH_COMPLETED: {
-      this->teardown_stage = OtcTeardownStage::OTC_TEARDOWN_STOP_STARTED;
+      this->teardown_stage_ = OtcTeardownStage::OTC_TEARDOWN_STOP_STARTED;
       auto lock = InstanceLock::try_acquire(100);
       if (!lock) {
         ESP_LOGW(TAG, "Failed to acquire OpenThread lock during teardown, leaking memory");
@@ -256,7 +256,7 @@ bool OpenThreadComponent::teardown() {
     } break;
     case OtcTeardownStage::OTC_TEARDOWN_STOP_STARTED: {
       // stop openthread
-      this->teardown_stage = OtcTeardownStage::OTC_TEARDOWN_STOP_IN_PROCESS;
+      this->teardown_stage_ = OtcTeardownStage::OTC_TEARDOWN_STOP_IN_PROCESS;
       global_openthread_component = nullptr;
       ESP_LOGV(TAG, "Stop Openthread");
       int error = this->openthread_stop_();
@@ -278,7 +278,7 @@ bool OpenThreadComponent::teardown() {
 #ifdef USE_OPENTHREAD_GRACEFUL_DETACH_ON_SHUTDOWN
 void OpenThreadComponent::detach_callback(void *context) {
   OpenThreadComponent *obj = (OpenThreadComponent *) context;
-  obj->teardown_stage = OtcTeardownStage::OTC_TEARDOWN_DETACH_COMPLETED;
+  obj->teardown_stage_ = OtcTeardownStage::OTC_TEARDOWN_DETACH_COMPLETED;
 }
 #endif
 
@@ -312,9 +312,14 @@ void OpenThreadComponent::apply_linkmode(otInstance *instance) {
   }
 
   uint16_t poll_period_sec = (this->poll_period_ + 500) / 1000;
+  // Minimums match OpenThread defaults: src/core/config/mle.h OPENTHREAD_CONFIG_MLE_CHILD_TIMEOUT_DEFAULT
   otThreadSetChildTimeout(instance, std::max(poll_period_sec * 4, 240));
+  // Minimums match OpenThread defaults: src/core/config/child_supervision.h
+  // OPENTHREAD_CONFIG_CHILD_SUPERVISION_CHECK_TIMEOUT
   otChildSupervisionSetCheckTimeout(instance, std::max(poll_period_sec * 2, 190));
-  otChildSupervisionSetInterval(instance, std::max((uint16_t) (poll_period_sec * 1.5), (uint16_t) 129));
+  // Minimums match OpenThread defaults: src/core/config/child_supervision.h
+  // OPENTHREAD_CONFIG_CHILD_SUPERVISION_INTERVAL
+  otChildSupervisionSetInterval(instance, std::max((uint16_t) (poll_period_sec * 3 / 2), (uint16_t) 129));
   ESP_LOGD(TAG, "Child Timeout: %d sec, Child Supervision Check Timeout: %d sec, Child Supervision Interval: %d sec",
            otThreadGetChildTimeout(instance), otChildSupervisionGetCheckTimeout(instance),
            otChildSupervisionGetInterval(instance));

@@ -1,6 +1,8 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.const import CONF_ON_STATE_CHANGE
+from esphome.components.const import (
+    CONF_ON_STATE_CHANGE,  # not in esphome.const; shared across components
+)
 from esphome.components.esp32 import (
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,

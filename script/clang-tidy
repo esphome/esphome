@@ -2,6 +2,7 @@
 
 import argparse
 import os
+from pathlib import Path
 import queue
 import re
 import shutil
@@ -32,7 +33,7 @@ def clang_options(idedata):
     cmd = []
 
     # extract target architecture from triplet in g++ filename
-    triplet = os.path.basename(idedata["cxx_path"])[:-4]
+    triplet = Path(idedata["cxx_path"]).name[:-4]
     if triplet.startswith("xtensa-"):
         # clang doesn't support Xtensa (yet?), so compile in 32-bit mode and pretend we're the Xtensa compiler
         cmd.append("-m32")
@@ -153,8 +154,8 @@ def run_tidy(executable, args, options, tmpdir, path_queue, lock, failed_files):
         if sys.stdout.isatty():
             invocation.append("--use-color")
 
-        invocation.append(f"--header-filter={os.path.abspath(basepath)}/.*")
-        invocation.append(os.path.abspath(path))
+        invocation.append(f"--header-filter={Path(basepath).resolve()}/.*")
+        invocation.append(str(Path(path).resolve()))
         invocation.append("--")
         invocation.extend(options)
 
@@ -229,7 +230,7 @@ def main():
     )
     args = parser.parse_args()
 
-    cwd = os.getcwd()
+    cwd = Path.cwd()
     files = [os.path.relpath(path, cwd) for path in git_ls_files(["*.cpp"])]
     # Exclude benchmark files — they require google benchmark headers not
     # available in the ESP32 toolchain and use different naming conventions.

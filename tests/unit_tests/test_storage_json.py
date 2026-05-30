@@ -576,8 +576,8 @@ def test_esphome_storage_json_last_update_check_property() -> None:
     assert result.hour == 10
     assert result.minute == 30
 
-    # Test setter
-    new_date = datetime(2024, 2, 20, 15, 45, 30)
+    # Test setter — naive datetime matches the storage round-trip format.
+    new_date = datetime(2024, 2, 20, 15, 45, 30)  # noqa: DTZ001
     storage.last_update_check = new_date
     assert storage.last_update_check_str == "2024-02-20T15:45:30"
 
