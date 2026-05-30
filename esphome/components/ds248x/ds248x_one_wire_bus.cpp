@@ -130,7 +130,7 @@ uint64_t DS248xOneWireBus::search_int() {
     // Perform triplet operation
     uint8_t status = 0;
     if (!this->parent_->search_triplet(search_direction, status)) {
-      // Error during triplet
+      ESP_LOGW(TAG, "1-Wire triplet failed at bit %d on channel %d - aborting search", bit_number, this->channel_);
       this->reset_search();
       return 0;
     }

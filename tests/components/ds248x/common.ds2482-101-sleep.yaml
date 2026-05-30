@@ -9,6 +9,8 @@ ds248x:
   sleep_pin:
     number: GPIO4
     inverted: false
+  bus_sleep: true
+  hub_sleep: true
 
 one_wire:
   - platform: ds248x

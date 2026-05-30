@@ -12,6 +12,7 @@ ds248x:
   master_sample_time: 8     # tMSP: Master sample point
   write_0_low_time: 8       # tW0L: Write-0 low time
   recovery_time: 8          # tREC0: Recovery time
+  active_pullup_resistance: 1000ohm  # RWPU: weak pullup resistor selection
 
 one_wire:
   - platform: ds248x

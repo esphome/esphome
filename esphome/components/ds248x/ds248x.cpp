@@ -143,20 +143,14 @@ bool DS248xComponent::configure_ds2484_port_(uint8_t param, uint8_t val) {
   // Control Byte format (DS2484 Table 6): P[2:0] in bits 7:5, OD in bit 4, VAL[3:0] in bits 3:0
   uint8_t data = ((param & 0x07) << 5) | (val & 0x0F);
 
+  // The DS2484 always acknowledges the Adjust 1-Wire Port control byte (datasheet "Adjust
+  // 1-Wire Port"), so a successful write confirms the update. We deliberately do not read
+  // back to verify: a single read of the Port Configuration register always returns the
+  // fixed 8-byte report starting at Byte 1 (tRSTL standard speed), not the parameter that
+  // was just written, so a per-parameter readback comparison would spuriously fail for
+  // tMSP/tW0L/tREC0/RWPU.
   if (!this->write_byte(cmd, data)) {
     ESP_LOGW(TAG, "DS2484 port config failed (param %d)", param);
-    return false;
-  }
-
-  uint8_t read_config;
-  if (this->read(&read_config, 1) != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "Failed to read back DS2484 port config for param %d", param);
-    return false;
-  }
-
-  if ((read_config & 0x0F) != (val & 0x0F)) {
-    ESP_LOGW(TAG, "DS2484 port config mismatch for param %d: wrote 0x%01x, read 0x%01x", param, val & 0x0F,
-             read_config & 0x0F);
     return false;
   }
 
