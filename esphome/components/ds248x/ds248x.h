@@ -45,7 +45,6 @@ static constexpr uint8_t DS248X_POINTER_CONFIG = 0xC3;
 
 // DS248x Configuration Bits
 static constexpr uint8_t DS248X_CONFIG_ACTIVE_PULLUP = 0x01;
-static constexpr uint8_t DS248X_CONFIG_STRONG_PULLUP = 0x04;
 
 /**
  * @brief DS248x I2C-to-1-Wire Bridge Component.
@@ -69,7 +68,6 @@ class DS248xComponent : public Component, public i2c::I2CDevice {
   void set_hub_sleep(bool enabled) { this->hub_sleep_ = enabled; }
   void set_channel_count(uint8_t count) { this->channel_count_ = count; }
   void set_active_pullup(bool enabled) { this->active_pullup_ = enabled; }
-  void set_strong_pullup(bool enabled) { this->strong_pullup_enabled_ = enabled; }
 
   // DS2484 Timing Parameters
   void set_val_trstl(uint8_t val) {
@@ -99,7 +97,7 @@ class DS248xComponent : public Component, public i2c::I2CDevice {
   // --- Core 1-Wire API (used by DS248xOneWireBus) ---
   bool select_channel(uint8_t channel);
   bool ow_reset(bool &presence);
-  bool ow_write_byte(uint8_t byte, bool keep_strong_pullup = false);
+  bool ow_write_byte(uint8_t byte);
   bool ow_read_byte(uint8_t &byte);
 
   // --- Search support (used by DS248xOneWireBus) ---
@@ -111,7 +109,6 @@ class DS248xComponent : public Component, public i2c::I2CDevice {
   bool bus_sleep_{false};
   bool hub_sleep_{false};
   bool active_pullup_ = false;
-  bool strong_pullup_enabled_ = false;
 
   // DS2484 Config
   bool ds2484_mode_ = false;
@@ -123,8 +120,6 @@ class DS248xComponent : public Component, public i2c::I2CDevice {
   uint8_t ds2484_rwpu_{DS2484_PARAM_UNSET};
 
   int8_t current_channel_{-1};
-  bool strong_pullup_active_{false};
-  uint8_t last_config_byte_{0xFF};
 
   // Internal helpers
   bool set_read_pointer_(uint8_t ptr);
@@ -132,7 +127,7 @@ class DS248xComponent : public Component, public i2c::I2CDevice {
   bool device_reset_();
   bool device_configure_();
   bool configure_ds2484_port_(uint8_t param, uint8_t val);
-  bool set_strong_pullup_mode_(bool enable);
+  bool write_config_();
 };
 
 }  // namespace esphome::ds248x

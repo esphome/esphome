@@ -54,7 +54,6 @@ void DS248xComponent::dump_config() {
   LOG_I2C_DEVICE(this);
   ESP_LOGCONFIG(TAG, "  Channel Count: %d", this->channel_count_);
   ESP_LOGCONFIG(TAG, "  Active Pullup: %s", YESNO(this->active_pullup_));
-  ESP_LOGCONFIG(TAG, "  Strong Pullup: %s", YESNO(this->strong_pullup_enabled_));
   if (this->ds2484_mode_) {
     ESP_LOGCONFIG(TAG, "  DS2484 Mode: enabled");
   }
@@ -101,15 +100,13 @@ bool DS248xComponent::device_reset_() {
   }
 
   this->current_channel_ = -1;
-  this->last_config_byte_ = 0xFF;
-  this->strong_pullup_active_ = false;
   return true;
 }
 
 bool DS248xComponent::device_configure_() {
   ESP_LOGD(TAG, "Configuring device...");
 
-  if (!this->set_strong_pullup_mode_(false)) {
+  if (!this->write_config_()) {
     ESP_LOGW(TAG, "Config write/verify failed");
     return false;
   }
@@ -157,17 +154,13 @@ bool DS248xComponent::configure_ds2484_port_(uint8_t param, uint8_t val) {
   return this->set_read_pointer_(DS248X_POINTER_STATUS);
 }
 
-bool DS248xComponent::set_strong_pullup_mode_(bool enable) {
+bool DS248xComponent::write_config_() {
   uint8_t config = 0;
   if (this->active_pullup_)
     config |= DS248X_CONFIG_ACTIVE_PULLUP;
-  if (enable && this->strong_pullup_enabled_)
-    config |= DS248X_CONFIG_STRONG_PULLUP;
 
+  // The DS248x only accepts the config byte if the upper nibble is the one's-complement of the lower nibble.
   uint8_t config_byte = (config & 0x0F) | ((~config & 0x0F) << 4);
-  if (!enable && !this->strong_pullup_active_ && config_byte == this->last_config_byte_) {
-    return this->set_read_pointer_(DS248X_POINTER_STATUS);
-  }
 
   if (!this->write_byte(DS248X_COMMAND_WRITECONFIG, config_byte)) {
     ESP_LOGW(TAG, "Failed to write config byte");
@@ -189,8 +182,6 @@ bool DS248xComponent::set_strong_pullup_mode_(bool enable) {
     return false;
   }
 
-  this->last_config_byte_ = config_byte;
-  this->strong_pullup_active_ = enable && this->strong_pullup_enabled_;
   return this->set_read_pointer_(DS248X_POINTER_STATUS);
 }
 
@@ -236,11 +227,6 @@ bool DS248xComponent::select_channel(uint8_t channel) {
 // --- 1-Wire Bus Operations ---
 
 bool DS248xComponent::ow_reset(bool &presence) {
-  if (this->strong_pullup_active_ && !this->set_strong_pullup_mode_(false)) {
-    ESP_LOGW(TAG, "Failed to restore config before reset");
-    return false;
-  }
-
   if (!this->set_read_pointer_(DS248X_POINTER_STATUS))
     return false;
 
@@ -268,25 +254,9 @@ bool DS248xComponent::ow_reset(bool &presence) {
   return true;
 }
 
-bool DS248xComponent::ow_write_byte(uint8_t byte, bool keep_strong_pullup) {
-  if (!keep_strong_pullup && this->strong_pullup_active_) {
-    if (!this->set_strong_pullup_mode_(false)) {
-      ESP_LOGW(TAG, "Failed to restore config before writing byte 0x%02x", byte);
-      return false;
-    }
-  }
-
+bool DS248xComponent::ow_write_byte(uint8_t byte) {
   if (!this->set_read_pointer_(DS248X_POINTER_STATUS))
     return false;
-
-  // DS248x strong pullup is armed for the next 1-Wire slot. When strong_pullup is enabled for the bus we
-  // re-arm it before each write, while keep_strong_pullup keeps the pullup active across the next operation.
-  if (keep_strong_pullup || this->strong_pullup_enabled_) {
-    if (!this->set_strong_pullup_mode_(true)) {
-      ESP_LOGW(TAG, "Failed to arm strong pullup for byte 0x%02x", byte);
-      return false;
-    }
-  }
 
   if (!this->wait_busy_()) {
     ESP_LOGW(TAG, "Device busy before writing byte 0x%02x", byte);
@@ -308,9 +278,6 @@ bool DS248xComponent::ow_write_byte(uint8_t byte, bool keep_strong_pullup) {
 }
 
 bool DS248xComponent::ow_read_byte(uint8_t &byte) {
-  if (this->strong_pullup_active_ && !this->set_strong_pullup_mode_(false))
-    return false;
-
   if (!this->set_read_pointer_(DS248X_POINTER_STATUS))
     return false;
 
@@ -331,9 +298,6 @@ bool DS248xComponent::ow_read_byte(uint8_t &byte) {
 }
 
 bool DS248xComponent::search_triplet(bool search_direction, uint8_t &status) {
-  if (this->strong_pullup_active_ && !this->set_strong_pullup_mode_(false))
-    return false;
-
   if (!this->set_read_pointer_(DS248X_POINTER_STATUS))
     return false;
 

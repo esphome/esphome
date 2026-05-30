@@ -12,7 +12,6 @@ CONF_DS248X_ID = "ds248x_id"
 CONF_BUS_SLEEP = "bus_sleep"
 CONF_HUB_SLEEP = "hub_sleep"
 CONF_ACTIVE_PULLUP = "active_pullup"
-CONF_STRONG_PULLUP = "strong_pullup"
 
 CONF_RESET_LOW_TIME = "reset_low_time"
 CONF_MASTER_SAMPLE_TIME = "master_sample_time"
@@ -41,7 +40,6 @@ def _component_schema(*extras):
         {
             cv.GenerateID(): cv.declare_id(DS248xComponent),
             cv.Optional(CONF_ACTIVE_PULLUP, default=False): cv.boolean,
-            cv.Optional(CONF_STRONG_PULLUP, default=False): cv.boolean,
         }
     )
     for extra in extras:
@@ -91,7 +89,6 @@ async def to_code(config):
     await i2c.register_i2c_device(var, config)
 
     cg.add(var.set_active_pullup(config[CONF_ACTIVE_PULLUP]))
-    cg.add(var.set_strong_pullup(config[CONF_STRONG_PULLUP]))
     cg.add(var.set_channel_count(get_channel_count(config)))
 
     if CONF_BUS_SLEEP in config:
