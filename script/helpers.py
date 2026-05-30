@@ -669,7 +669,16 @@ def load_idedata(environment: str) -> dict[str, Any]:
     # ensure temp directory exists before running pio, as it writes sdkconfig to it
     Path(temp_folder).mkdir(exist_ok=True)
 
-    if "nrf" in environment:
+    if "idf" in environment and (
+        os.environ.get("ESPHOME_IDF_COMPILE_COMMANDS")
+        or os.environ.get("ESPHOME_TIDY_CONFIG")
+    ):
+        # Native ESP-IDF toolchain path (opt-in): derive idedata from the IDF
+        # build's compile_commands.json instead of PlatformIO's idedata target.
+        from helpers_idf import load_idedata as idf_load_idedata
+
+        data = idf_load_idedata(environment, temp_folder, platformio_ini)
+    elif "nrf" in environment:
         from helpers_zephyr import load_idedata as zephyr_load_idedata
 
         data = zephyr_load_idedata(environment, temp_folder, platformio_ini)
