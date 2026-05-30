@@ -91,6 +91,18 @@ class KamstrupKMPComponent : public PollingComponent, public uart::UARTDevice {
   }
 
  protected:
+  // State machine
+  enum State {
+    STATE_IDLE,
+    STATE_SEARCHING,
+    STATE_READING,
+    STATE_READ_ESCAPE,
+  };
+  State state_{STATE_IDLE};
+  std::vector<uint8_t> rx_buffer_;
+  uint32_t last_read_time_{0};
+  uint16_t current_command_;
+
   // Sensors
   sensor::Sensor *heat_energy_sensor_{nullptr};
   sensor::Sensor *power_sensor_{nullptr};
@@ -111,12 +123,8 @@ class KamstrupKMPComponent : public PollingComponent, public uart::UARTDevice {
 
   // Sends a command to the meter and receives its response
   void send_command_(uint16_t command);
-  // Sends a message to the meter. A prefix/suffix and CRC are added
-  void send_message_(const uint8_t *msg, int msg_len);
   // Clears and data that might be in the UART Rx buffer
   void clear_uart_rx_buffer_();
-  // Reads and validates the response to a send command
-  void read_command_(uint16_t command);
   // Parses a received message
   void parse_command_message_(uint16_t command, const uint8_t *msg, int msg_len);
   // Sets the received value to the correct sensor

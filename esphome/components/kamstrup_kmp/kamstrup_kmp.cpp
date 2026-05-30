@@ -65,60 +65,93 @@ void KamstrupKMPComponent::update() {
 }
 
 void KamstrupKMPComponent::loop() {
-  if (!this->command_queue_.empty()) {
-    uint16_t command = this->command_queue_.front();
-    this->send_command_(command);
-    this->command_queue_.pop();
+  switch (this->state_) {
+    case STATE_IDLE:
+      if (!this->command_queue_.empty()) {
+        this->current_command_ = this->command_queue_.front();
+        this->command_queue_.pop();
+        this->clear_uart_rx_buffer_();
+        this->send_command_(current_command_);
+        this->state_ = STATE_SEARCHING;
+        this->last_read_time_ = millis();
+      }
+      break;
+
+    case STATE_SEARCHING:
+    case STATE_READING:
+    case STATE_READ_ESCAPE:
+      // Handle RX non-blockingly
+      while (this->available()) {
+        uint8_t data = this->read();
+        this->last_read_time_ = millis();  // Reset timeout on new data
+
+        // 0x40 always restarts the current frame.
+        if (data == 0x40) {
+          this->rx_buffer_.clear();
+          this->state_ = STATE_READING;
+          continue;
+        }
+        if (this->state_ == STATE_SEARCHING) {
+          continue;
+        }
+
+        if (this->state_ == STATE_READ_ESCAPE) {
+          this->rx_buffer_.push_back(data ^ 0xFF);
+          this->state_ = STATE_READING;
+        } else if (data == 0x1B) {  // ESCape
+          this->state_ = STATE_READ_ESCAPE;
+        } else if (data == 0x0D) {  // End of Message
+          this->parse_command_message_(current_command_, rx_buffer_.data(), rx_buffer_.size());
+          this->state_ = STATE_IDLE;
+          return;
+        } else if (this->rx_buffer_.size() > 32) {
+          ESP_LOGW(TAG, "Buffer overflow, resetting.");
+          this->rx_buffer_.clear();
+          this->state_ = STATE_SEARCHING;
+        } else {
+          this->rx_buffer_.push_back(data);
+        }
+      }
+
+      // Handle Timeout
+      if (millis() - this->last_read_time_ > 250) {
+        ESP_LOGE(TAG, "Timeout waiting for Kamstrup response");
+        this->state_ = STATE_IDLE;
+      }
+      break;
   }
 }
 
 void KamstrupKMPComponent::send_command_(uint16_t command) {
-  uint32_t msg_len = 5;
-  uint8_t msg[msg_len];
+  // 1. Prepare the raw frame for CRC calculation (5 bytes msg + 2 bytes for CRC padding)
+  // Total 7 bytes. We initialize the last two to 0 for the CCITT augmentation.
+  uint8_t frame[7];
 
-  msg[0] = 0x3F;
-  msg[1] = 0x10;
-  msg[2] = 0x01;
-  msg[3] = command >> 8;
-  msg[4] = command & 0xFF;
+  frame[0] = 0x3F;
+  frame[1] = 0x10;
+  frame[2] = 0x01;
+  frame[3] = command >> 8;
+  frame[4] = command & 0xFF;
 
-  this->clear_uart_rx_buffer_();
-  this->send_message_(msg, msg_len);
-  this->read_command_(command);
-}
+  // 2. Calculate CRC over the frame
+  uint16_t crc = crc16be(frame, sizeof(frame) - 2);
+  frame[5] = crc >> 8;
+  frame[6] = crc & 0xFF;
 
-void KamstrupKMPComponent::send_message_(const uint8_t *msg, int msg_len) {
-  int buffer_len = msg_len + 2;
-  uint8_t buffer[buffer_len];
-
-  // Prepare the basic message and appand CRC
-  for (int i = 0; i < msg_len; i++) {
-    buffer[i] = msg[i];
-  }
-
-  uint16_t crc = crc16be(buffer, buffer_len - 2);
-  buffer[buffer_len - 2] = crc >> 8;
-  buffer[buffer_len - 1] = crc & 0xFF;
-
-  // Prepare actual TX message
-  uint8_t tx_msg[20];
+  // 3. Prepare actual TX message
+  // Max size: 1 (PREFIX) + 7 (payload+crc) * 2 (worst-case stuffing) + 1 (EOM) = 16 bytes.
+  uint8_t tx_msg[16];
   int tx_msg_len = 1;
-  tx_msg[0] = 0x80;  // prefix
 
-  for (int i = 0; i < buffer_len; i++) {
-    if (buffer[i] == 0x06 || buffer[i] == 0x0d || buffer[i] == 0x1b || buffer[i] == 0x40 || buffer[i] == 0x80) {
-      if (tx_msg_len + 2 >= static_cast<int>(sizeof(tx_msg))) {
-        ESP_LOGE(TAG, "TX message overflow");
-        return;
-      }
+  tx_msg[0] = 0x80;  // PREFIX
+
+  // 4. Single-pass stuffing: move from 'frame' to 'tx_msg'
+  for (unsigned char ch : frame) {
+    if (ch == 0x06 || ch == 0x0d || ch == 0x1b || ch == 0x40 || ch == 0x80) {
       tx_msg[tx_msg_len++] = 0x1b;
-      tx_msg[tx_msg_len++] = buffer[i] ^ 0xff;
+      tx_msg[tx_msg_len++] = ch ^ 0xff;
     } else {
-      if (tx_msg_len + 1 >= static_cast<int>(sizeof(tx_msg))) {
-        ESP_LOGE(TAG, "TX message overflow");
-        return;
-      }
-      tx_msg[tx_msg_len++] = buffer[i];
+      tx_msg[tx_msg_len++] = ch;
     }
   }
 
@@ -134,72 +167,13 @@ void KamstrupKMPComponent::clear_uart_rx_buffer_() {
   }
 }
 
-void KamstrupKMPComponent::read_command_(uint16_t command) {
-  uint8_t buffer[20] = {0};
-  size_t buffer_len = 0;
-  int data;
-  int timeout = 250;  // ms
-
-  // Read the data from the UART
-  while (timeout > 0 && buffer_len < sizeof(buffer)) {
-    if (this->available()) {
-      data = this->read();
-      if (data > -1) {
-        if (data == 0x40) {  // start of message
-          buffer_len = 0;
-        }
-        buffer[buffer_len++] = (uint8_t) data;
-        if (data == 0x0D) {
-          break;
-        }
-      } else {
-        ESP_LOGE(TAG, "Error while reading from UART");
-      }
-    } else {
-      delay(1);
-      timeout--;
-    }
-  }
-
-  if (timeout == 0 || buffer_len == 0) {
-    ESP_LOGE(TAG, "Request timed out");
-    return;
-  }
-
-  // Validate message (prefix and suffix)
-  if (buffer[0] != 0x40) {
-    ESP_LOGE(TAG, "Received invalid message (prefix mismatch received 0x%02X, expected 0x40)", buffer[0]);
-    return;
-  }
-
-  if (buffer[buffer_len - 1] != 0x0D) {
-    ESP_LOGE(TAG, "Received invalid message (EOM mismatch received 0x%02X, expected 0x0D)", buffer[buffer_len - 1]);
-    return;
-  }
-
-  // Decode
-  uint8_t msg[20] = {0};
-  int msg_len = 0;
-  for (size_t i = 1; i < buffer_len - 1; i++) {
-    if (buffer[i] == 0x1B) {
-      msg[msg_len++] = buffer[i + 1] ^ 0xFF;
-      i++;
-    } else {
-      msg[msg_len++] = buffer[i];
-    }
-  }
-
+void KamstrupKMPComponent::parse_command_message_(uint16_t command, const uint8_t *msg, int msg_len) {
   // Validate CRC
   if (crc16be(msg, msg_len - 2) != encode_uint16(msg[msg_len - 2], msg[msg_len - 1])) {
     ESP_LOGE(TAG, "Received invalid message (CRC mismatch)");
     return;
   }
 
-  // All seems good. Now parse the message
-  this->parse_command_message_(command, msg, msg_len);
-}
-
-void KamstrupKMPComponent::parse_command_message_(uint16_t command, const uint8_t *msg, int msg_len) {
   // Validate the message
   if (msg_len < 8) {
     ESP_LOGE(TAG, "Received invalid message (message too small)");
