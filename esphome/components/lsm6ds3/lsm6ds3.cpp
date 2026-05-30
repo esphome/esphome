@@ -10,6 +10,7 @@ static const char *const TAG = "lsm6ds3";
 
 void LSM6DS3TRCComponent::setup() {
   // 1. Verify chip identity
+  MotionComponent::setup();
   uint8_t who_am_i = 0;
   if (this->read_register(LSM6DS3TRC_REG_WHO_AM_I, &who_am_i, 1) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Failed to read WHO_AM_I — check wiring and I2C address");
