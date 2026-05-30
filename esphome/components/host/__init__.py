@@ -14,7 +14,7 @@ from esphome.core import CORE
 from .const import KEY_HOST
 
 # force import gpio to register pin schema
-from .gpio import host_pin_to_code  # noqa
+from .gpio import host_pin_to_code  # noqa: F401
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
 AUTO_LOAD = ["network", "preferences"]

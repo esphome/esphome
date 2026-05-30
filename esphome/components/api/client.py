@@ -119,7 +119,7 @@ async def async_run_logs(
 
     def on_log(msg: SubscribeLogsResponse) -> None:
         """Handle a new log message."""
-        time_ = datetime.now()
+        time_ = datetime.now().astimezone()
         message: bytes = msg.message
         text = message.decode("utf8", "backslashreplace")
         nanoseconds = time_.microsecond // 1000

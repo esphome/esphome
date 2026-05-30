@@ -65,7 +65,7 @@ CONF_JSON = "json"
 
 def validate_url(value):
     value = cv.url(value)
-    if value.startswith("http://") or value.startswith("https://"):
+    if value.startswith(("http://", "https://")):
         return value
     raise cv.Invalid("URL must start with 'http://' or 'https://'")
 
