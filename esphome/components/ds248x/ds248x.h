@@ -23,6 +23,13 @@ static constexpr uint8_t DS248X_COMMAND_READBYTE = 0x96;
 static constexpr uint8_t DS248X_COMMAND_TRIPLET = 0x78;
 static constexpr uint8_t DS2484_COMMAND_ADJUSTPORT = 0xC3;
 
+// DS2484 "Adjust 1-Wire Port" parameter codes (datasheet Table 6, control byte P[2:0])
+static constexpr uint8_t DS2484_PORT_PARAM_TRSTL = 0x0;
+static constexpr uint8_t DS2484_PORT_PARAM_TMSP = 0x1;
+static constexpr uint8_t DS2484_PORT_PARAM_TW0L = 0x2;
+static constexpr uint8_t DS2484_PORT_PARAM_TREC0 = 0x3;
+static constexpr uint8_t DS2484_PORT_PARAM_RWPU = 0x4;
+
 // DS248x Status Register Bits
 static constexpr uint8_t DS248X_STATUS_BUSY = 0x01;
 static constexpr uint8_t DS248X_STATUS_PPD = 0x02;

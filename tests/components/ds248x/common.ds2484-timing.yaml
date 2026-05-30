@@ -8,10 +8,10 @@ ds248x:
   active_pullup: true
   strong_pullup: true
   # DS2484-specific timing parameters (optional fine-tuning)
-  ds2484_reset_low_time: 8        # tRSTL: Reset low time
-  ds2484_master_sample_time: 8    # tMSP: Master sample point
-  ds2484_write_0_low_time: 8      # tW0L: Write-0 low time
-  ds2484_recovery_time: 8         # tREC0: Recovery time
+  reset_low_time: 8         # tRSTL: Reset low time
+  master_sample_time: 8     # tMSP: Master sample point
+  write_0_low_time: 8       # tW0L: Write-0 low time
+  recovery_time: 8          # tREC0: Recovery time
 
 one_wire:
   - platform: ds248x

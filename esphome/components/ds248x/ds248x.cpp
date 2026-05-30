@@ -70,7 +70,7 @@ bool DS248xComponent::set_read_pointer_(uint8_t ptr) { return this->write_byte(D
 
 bool DS248xComponent::wait_busy_() {
   uint32_t start = millis();
-  while (millis() - start < BUSY_TIMEOUT_MS) {
+  do {
     uint8_t status;
     if (this->read(&status, 1) != i2c::ERROR_OK) {
       delayMicroseconds(100);
@@ -79,7 +79,7 @@ bool DS248xComponent::wait_busy_() {
     if (!(status & DS248X_STATUS_BUSY))
       return true;
     delayMicroseconds(100);
-  }
+  } while (millis() - start < BUSY_TIMEOUT_MS);
   ESP_LOGW(TAG, "DS248x busy timeout");
   bool recovered = this->device_reset_() && this->device_configure_();
   this->current_channel_ = -1;
@@ -123,15 +123,20 @@ bool DS248xComponent::device_configure_() {
 
   // DS2484 Configuration
   if (this->ds2484_mode_) {
-    if (this->ds2484_trstl_ != DS2484_PARAM_UNSET && !this->configure_ds2484_port_(0x0, this->ds2484_trstl_))
+    if (this->ds2484_trstl_ != DS2484_PARAM_UNSET &&
+        !this->configure_ds2484_port_(DS2484_PORT_PARAM_TRSTL, this->ds2484_trstl_))
       return false;
-    if (this->ds2484_tmsp_ != DS2484_PARAM_UNSET && !this->configure_ds2484_port_(0x1, this->ds2484_tmsp_))
+    if (this->ds2484_tmsp_ != DS2484_PARAM_UNSET &&
+        !this->configure_ds2484_port_(DS2484_PORT_PARAM_TMSP, this->ds2484_tmsp_))
       return false;
-    if (this->ds2484_tw0l_ != DS2484_PARAM_UNSET && !this->configure_ds2484_port_(0x2, this->ds2484_tw0l_))
+    if (this->ds2484_tw0l_ != DS2484_PARAM_UNSET &&
+        !this->configure_ds2484_port_(DS2484_PORT_PARAM_TW0L, this->ds2484_tw0l_))
       return false;
-    if (this->ds2484_trec0_ != DS2484_PARAM_UNSET && !this->configure_ds2484_port_(0x3, this->ds2484_trec0_))
+    if (this->ds2484_trec0_ != DS2484_PARAM_UNSET &&
+        !this->configure_ds2484_port_(DS2484_PORT_PARAM_TREC0, this->ds2484_trec0_))
       return false;
-    if (this->ds2484_rwpu_ != DS2484_PARAM_UNSET && !this->configure_ds2484_port_(0x4, this->ds2484_rwpu_))
+    if (this->ds2484_rwpu_ != DS2484_PARAM_UNSET &&
+        !this->configure_ds2484_port_(DS2484_PORT_PARAM_RWPU, this->ds2484_rwpu_))
       return false;
   }
 
