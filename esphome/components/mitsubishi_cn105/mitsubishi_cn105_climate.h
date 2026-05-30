@@ -2,13 +2,17 @@
 
 #include "mitsubishi_cn105.h"
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/uart/uart.h"
 
+#include <optional>
+#include <utility>
+
 namespace esphome::mitsubishi_cn105 {
 
+class MitsubishiCN105Climate;
 class MitsubishiCN105VerticalVaneDirectionSelect;
 
 /// Public vertical vane direction enum for ESPHome-facing APIs.
@@ -26,9 +30,9 @@ enum VerticalVaneMode : uint8_t {
 };
 
 /// Vane state snapshot used by vane.on_state triggers.
-/// The payload contains vane-specific state as well as a reference to the
-/// associated climate entity, allowing automations to inspect additional
-/// climate properties such as mode, fan mode and swing mode.
+/// Contains vane-specific state as well as a reference to the associated
+/// climate entity, allowing automations to inspect additional climate
+/// properties such as mode, fan mode and swing mode.
 struct VaneState {
   struct Vertical {
     VerticalVaneMode direction;
@@ -36,6 +40,27 @@ struct VaneState {
 
   climate::Climate &climate;
   Vertical vertical;
+};
+
+/// Vane control request used by vane.control actions.
+/// Contains the desired vane state to apply to the associated climate entity.
+struct VaneCall {
+  struct Vertical {
+    void set_direction(VerticalVaneMode direction) { this->direction_ = direction; }
+    const std::optional<VerticalVaneMode> &get_direction() const { return this->direction_; }
+
+   protected:
+    std::optional<VerticalVaneMode> direction_;
+  };
+
+  explicit VaneCall(MitsubishiCN105Climate *parent) : parent_(parent) {}
+
+  Vertical vertical;
+
+  void perform();
+
+ protected:
+  MitsubishiCN105Climate *parent_;
 };
 
 class MitsubishiCN105Climate : public climate::Climate, public Component, public uart::UARTDevice {
@@ -82,20 +107,6 @@ class MitsubishiCN105Climate : public climate::Climate, public Component, public
   MitsubishiCN105::WideVaneMode last_non_swing_wide_vane_mode_{MitsubishiCN105::WideVaneMode::CENTER};
   MitsubishiCN105VerticalVaneDirectionSelect *vertical_vane_direction_select_{nullptr};
   LazyCallbackManager<void(const VaneState &)> vane_state_callback_;
-};
-
-template<typename... Ts>
-class SetRemoteTemperatureAction : public Action<Ts...>, public Parented<MitsubishiCN105Climate> {
- public:
-  TEMPLATABLE_VALUE(float, temperature)
-
-  void play(const Ts &...x) override { this->parent_->set_remote_temperature(this->temperature_.value(x...)); }
-};
-
-template<typename... Ts>
-class ClearRemoteTemperatureAction : public Action<Ts...>, public Parented<MitsubishiCN105Climate> {
- public:
-  void play(const Ts &...x) override { this->parent_->clear_remote_temperature(); }
 };
 
 }  // namespace esphome::mitsubishi_cn105

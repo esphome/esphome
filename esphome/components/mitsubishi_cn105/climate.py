@@ -11,8 +11,8 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_UPDATE_INTERVAL,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj
+from esphome.core import ID, Lambda
+from esphome.cpp_generator import LambdaExpression, MockObj
 from esphome.types import ConfigType, TemplateArgsType
 
 DEPENDENCIES = ["uart"]
@@ -34,24 +34,31 @@ MitsubishiCN105Climate = mitsubishi_ns.class_(
 
 VaneState = mitsubishi_ns.struct("VaneState")
 
+VaneCall = mitsubishi_ns.class_("VaneCall")
+
 VerticalVaneMode = mitsubishi_ns.enum("VerticalVaneMode")
 
 # NOTE: The insertion order of these options must match the VALUES array in
 # mitsubishi_cn105_vane_select_vertical.cpp. The select uses index-based
 # control/state publishing, which is the preferred ESPHome Select API.
 VERTICAL_VANE_DIRECTIONS = {
-    "Auto": VerticalVaneMode.VERTICAL_VANE_MODE_AUTO,
+    "AUTO": VerticalVaneMode.VERTICAL_VANE_MODE_AUTO,
     "1": VerticalVaneMode.VERTICAL_VANE_MODE_POSITION_1,
     "2": VerticalVaneMode.VERTICAL_VANE_MODE_POSITION_2,
     "3": VerticalVaneMode.VERTICAL_VANE_MODE_POSITION_3,
     "4": VerticalVaneMode.VERTICAL_VANE_MODE_POSITION_4,
     "5": VerticalVaneMode.VERTICAL_VANE_MODE_POSITION_5,
-    "Swing": VerticalVaneMode.VERTICAL_VANE_MODE_SWING,
+    "SWING": VerticalVaneMode.VERTICAL_VANE_MODE_SWING,
 }
 
 MitsubishiCN105VerticalVaneDirectionSelect = mitsubishi_ns.class_(
     "MitsubishiCN105VerticalVaneDirectionSelect",
     select.Select,
+)
+
+VaneControlAction = mitsubishi_ns.class_(
+    "VaneControlAction",
+    automation.Action,
 )
 
 SetRemoteTemperatureAction = mitsubishi_ns.class_(
@@ -125,7 +132,7 @@ async def to_code(config: ConfigType) -> None:
             await select.register_select(
                 sel,
                 direction_conf,
-                options=list(VERTICAL_VANE_DIRECTIONS),
+                options=[option.capitalize() for option in VERTICAL_VANE_DIRECTIONS],
             )
             await cg.register_parented(sel, var)
             cg.add(var.set_vertical_vane_direction_select(sel))
@@ -136,6 +143,79 @@ async def to_code(config: ConfigType) -> None:
                 [(VaneState.operator("const").operator("ref"), "x")],
                 conf,
             )
+
+
+VANE_CONTROL_FIELDS = (
+    (
+        (CONF_VERTICAL, CONF_DIRECTION),
+        "vertical.set_direction",
+        VerticalVaneMode,
+    ),
+)
+
+VANE_CONTROL_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(MitsubishiCN105Climate),
+        cv.Optional(CONF_VERTICAL): cv.Schema(
+            {
+                cv.Optional(CONF_DIRECTION): cv.templatable(
+                    cv.enum(VERTICAL_VANE_DIRECTIONS, upper=True)
+                ),
+            }
+        ),
+    }
+)
+
+
+@automation.register_action(
+    "climate.mitsubishi_cn105.vane.control",
+    VaneControlAction,
+    VANE_CONTROL_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def vane_control_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    parent = await cg.get_variable(config[CONF_ID])
+
+    normalized_args = [
+        (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), n)
+        for t, n in args
+    ]
+
+    fwd_args = ", ".join(name for _, name in args)
+    body_lines: list[str] = []
+
+    for path, setter, type_ in VANE_CONTROL_FIELDS:
+        if (section := config.get(path[0])) is None:
+            continue
+        if (value := section.get(path[1])) is None:
+            continue
+        if isinstance(value, Lambda):
+            inner = await cg.process_lambda(
+                value,
+                normalized_args,
+                return_type=type_,
+            )
+            body_lines.append(f"call.{setter}(({inner})({fwd_args}));")
+        else:
+            body_lines.append(f"call.{setter}({cg.safe_exp(value)});")
+
+    apply_args = [
+        (VaneCall.operator("ref"), "call"),
+        *normalized_args,
+    ]
+    apply_lambda = LambdaExpression(
+        ["\n".join(body_lines)],
+        apply_args,
+        capture="",
+        return_type=cg.void,
+    )
+
+    return cg.new_Pvariable(action_id, template_arg, parent, apply_lambda)
 
 
 @automation.register_action(

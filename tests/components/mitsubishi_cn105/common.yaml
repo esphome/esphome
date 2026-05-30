@@ -21,3 +21,11 @@ esphome:
           temperature: 22.0
       - climate.mitsubishi_cn105.clear_remote_temperature:
           id: ac
+      - climate.mitsubishi_cn105.vane.control:
+          id: ac
+          vertical:
+            direction: SWING
+      - climate.mitsubishi_cn105.vane.control:
+          id: ac
+          vertical:
+            direction: !lambda return esphome::mitsubishi_cn105::VERTICAL_VANE_MODE_SWING;

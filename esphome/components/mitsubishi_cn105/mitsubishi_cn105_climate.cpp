@@ -1,8 +1,9 @@
 #include "mitsubishi_cn105_climate.h"
 #include "mitsubishi_cn105_vane_select_vertical.h"
 
-#include <cinttypes>
 #include "esphome/core/log.h"
+
+#include <cinttypes>
 
 namespace esphome::mitsubishi_cn105 {
 
@@ -260,6 +261,12 @@ void MitsubishiCN105Climate::set_supported_swing_mode(climate::ClimateSwingMode 
 void MitsubishiCN105Climate::set_vertical_vane_direction(VerticalVaneMode vane_mode) {
   this->hp_.set_vane_mode(from_vertical_vane_mode(vane_mode));
   this->apply_values_if_initialized_();
+}
+
+void VaneCall::perform() {
+  if (const auto &direction = this->vertical.get_direction()) {
+    this->parent_->set_vertical_vane_direction(*direction);
+  }
 }
 
 }  // namespace esphome::mitsubishi_cn105

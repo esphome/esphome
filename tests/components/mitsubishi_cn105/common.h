@@ -8,6 +8,7 @@
 #include <vector>
 #include "esphome/components/uart/uart_component.h"
 #include "esphome/components/mitsubishi_cn105/mitsubishi_cn105.h"
+#include "esphome/components/mitsubishi_cn105/mitsubishi_cn105_automations.h"
 #include "esphome/components/mitsubishi_cn105/mitsubishi_cn105_climate.h"
 #include "esphome/components/mitsubishi_cn105/mitsubishi_cn105_vane_select_vertical.h"
 
