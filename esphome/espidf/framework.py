@@ -74,8 +74,6 @@ ESPHOME_IDF_FRAMEWORK_MIRRORS = _str_to_lst_of_str(
     os.environ.get("ESPHOME_IDF_FRAMEWORK_MIRRORS")
     or [
         "https://github.com/esphome-libs/esp-idf/releases/download/v{VERSION}/esp-idf-v{VERSION}.tar.xz",
-        # {EXTRA} carries its leading "-" (e.g. "-rc1") or is empty, so this matches
-        # both stable "v6.0" and prerelease "v6.0-rc1" patch-less tags.
         "https://github.com/esphome-libs/esp-idf/releases/download/v{MAJOR}.{MINOR}{EXTRA}/esp-idf-v{MAJOR}.{MINOR}{EXTRA}.tar.xz",
     ]
 )
@@ -1038,8 +1036,6 @@ def _check_esphome_idf_framework_install(
                     substitutions["MAJOR"] = str(ver.major)
                     substitutions["MINOR"] = str(ver.minor)
                     substitutions["PATCH"] = str(ver.patch)
-                    # Includes the leading "-" (e.g. "-rc1") so URL templates can
-                    # append it directly; empty when there is no extra component.
                     substitutions["EXTRA"] = f"-{ver.extra}" if ver.extra else ""
                 except ValueError:
                     pass

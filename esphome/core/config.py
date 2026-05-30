@@ -722,6 +722,7 @@ async def to_code(config: ConfigType) -> None:
     # Process areas
     all_areas: list[dict[str, str | core.ID]] = []
     if CONF_AREA in config:
+        CORE.area = config[CONF_AREA][CONF_NAME]
         all_areas.append(config[CONF_AREA])
     all_areas.extend(config[CONF_AREAS])
 

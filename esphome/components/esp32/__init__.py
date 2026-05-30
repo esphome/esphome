@@ -479,15 +479,11 @@ def set_core_data(config):
             "Please update ARDUINO_IDF_VERSION_LOOKUP.",
             path=[CONF_FRAMEWORK, CONF_VERSION],
         )
-    # The official ESP-IDF toolchain doesn't use pioarduino's numeric packaging
-    # revision (e.g. 5.5.3-1), so drop it for clean idf_version() comparisons; the
-    # PlatformIO toolchain keeps it. Upstream prerelease tags (e.g. 6.0.0-rc1) are
-    # kept either way. The framework version always keeps its extra since it is the
-    # ARDUINO_IDF_VERSION_LOOKUP key and the framework download ref.
+    # The esp-idf toolchain doesn't use pioarduino's packaging revision; PIO does.
     if CORE.using_toolchain_esp_idf:
         idf_ver = _strip_pioarduino_revision(idf_ver)
-    CORE.data[KEY_ESP32][KEY_IDF_VERSION] = idf_ver
 
+    CORE.data[KEY_ESP32][KEY_IDF_VERSION] = idf_ver
     CORE.data[KEY_ESP32][KEY_BOARD] = config[CONF_BOARD]
     CORE.data[KEY_ESP32][KEY_FLASH_SIZE] = config[CONF_FLASH_SIZE]
     CORE.data[KEY_ESP32][KEY_VARIANT] = variant
@@ -843,11 +839,9 @@ def _resolve_framework_version(value: ConfigType) -> cv.Version:
 
 
 def _strip_pioarduino_revision(ver: cv.Version) -> cv.Version:
-    """Drop a purely numeric 'extra' semver component (pioarduino packaging revision).
+    """Drop a numeric 'extra' (pioarduino packaging revision, e.g. "5.5.3-1").
 
-    pioarduino tags its esp-idf packages with a numeric suffix (e.g. "5.5.3-1")
-    that the official ESP-IDF toolchain doesn't use. Upstream prerelease extras
-    (e.g. "6.0.0-rc1") are alphanumeric and are preserved.
+    Alphanumeric prerelease extras (e.g. "6.0.0-rc1") are kept.
     """
     if ver.extra.isdigit():
         return cv.Version(ver.major, ver.minor, ver.patch)
@@ -922,11 +916,8 @@ def _check_esp_idf_versions(config: ConfigType) -> ConfigType:
             "If there are connectivity or build issues please remove the manual source."
         )
 
-    # The official ESP-IDF toolchain doesn't use pioarduino's numeric packaging
-    # revision (e.g. the "-1" in "5.5.3-1"), so drop it from the esp-idf framework
-    # version for both the resolved config and the download. Upstream prerelease
-    # tags (e.g. "6.0.0-rc1") are kept. The Arduino framework is left untouched
-    # ("4.0.0-alpha1" is the arduino-esp32 release tag / lookup key).
+    # esp-idf framework only: drop pioarduino's packaging revision (config + download).
+    # Arduino keeps its extra (it's the arduino-esp32 release tag / lookup key).
     if value[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         value[CONF_VERSION] = str(_strip_pioarduino_revision(version))
 
