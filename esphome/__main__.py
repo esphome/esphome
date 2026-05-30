@@ -760,9 +760,6 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
         toolchain.create_factory_bin()
         toolchain.create_ota_bin()
         toolchain.create_elf_copy()
-
-        # Generate idedata from the build's compile_commands.json for IDE
-        # integration / tooling (best-effort; the IDF build doesn't need it).
         toolchain.get_idedata()
     else:
         from esphome.platformio import toolchain
