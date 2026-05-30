@@ -302,8 +302,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
         this->send_command_(st);
         st.payload[0] = 0x04;
         this->send_command_(st);
-        ESP_LOGI(TAG, "WIFI_SELECT received (%s), replied with WIFI_STATE confirming connection established",
-                 mode_str);
+        ESP_LOGI(TAG, "WIFI_SELECT received (%s), replied with WIFI_STATE confirming connection established", mode_str);
       }
       break;
     }
