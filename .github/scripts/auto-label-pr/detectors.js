@@ -107,12 +107,18 @@ async function detectNewPlatforms(github, context, prFiles, apiData) {
     /^esphome\/components\/([^\/]+)\/([^\/]+)\/__init__\.py$/,
   ];
 
+  const removedFiles = new Set(prFiles.filter(file => file.status === 'removed').map(file => file.filename));
+
   for (const file of addedFiles) {
     for (const re of platformPathPatterns) {
       const match = file.match(re);
       if (!match) continue;
       const platform = match[2];
       if (!apiData.platformComponents.includes(platform)) break;
+
+      // Skip if this is a restructure: <component>/<platform>.py -> <component>/<platform>/__init__.py
+      const flatEquivalent = `esphome/components/${match[1]}/${platform}.py`;
+      if (removedFiles.has(flatEquivalent)) break;
 
       labels.add('new-platform');
       const content = await fetchPrFileContent(github, context, file);
