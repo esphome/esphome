@@ -21,6 +21,8 @@ void MotionComponent::setup() {
       memcpy(this->matrix_, saved, sizeof(this->matrix_));
       ESP_LOGI(TAG, "Restored calibration from NVS");
       log_matrix(this->matrix_);
+    } else {
+      ESP_LOGW(TAG, "Calibration matrix: no preference key set");
     }
   }
 }
@@ -31,6 +33,7 @@ void MotionComponent::save_calibration() {
     return;
   }
   this->pref_.save(&this->matrix_);
+  global_preferences->sync();
   ESP_LOGI(TAG, "Saved calibration to NVS");
 }
 void MotionComponent::update() {
