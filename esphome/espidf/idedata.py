@@ -12,6 +12,7 @@ expect:
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import shlex
 import subprocess
@@ -64,6 +65,15 @@ def _parse_entry(entry: dict) -> tuple[str, list[str], list[str], list[str]]:
     directory = Path(entry["directory"])
     tokens = _expand_response_files(shlex.split(entry["command"]), directory)
 
+    def _include(raw: str) -> str:
+        # Include paths in compile_commands are interpreted relative to the
+        # entry's ``directory`` (e.g. build-local ``-Iconfig``); resolve them
+        # so the cached idedata is usable regardless of the consumer's cwd.
+        raw = raw.strip()
+        if raw and not Path(raw).is_absolute():
+            raw = os.path.normpath(directory / raw)
+        return raw
+
     cxx_path = tokens[0]
     defines: list[str] = []
     includes: list[str] = []
@@ -78,11 +88,11 @@ def _parse_entry(entry: dict) -> tuple[str, list[str], list[str], list[str]]:
             # quoted arg with a space after -D) that some flags arrive as.
             defines.append(tok[2:].strip() if len(tok) > 2 else next(it, "").strip())
         elif tok.startswith("-I"):
-            includes.append(tok[2:].strip() if len(tok) > 2 else next(it, "").strip())
+            includes.append(_include(tok[2:] if len(tok) > 2 else next(it, "")))
         elif tok == "-isystem":
-            includes.append(next(it, ""))
+            includes.append(_include(next(it, "")))
         elif tok.startswith("-isystem"):
-            includes.append(tok[len("-isystem") :])
+            includes.append(_include(tok[len("-isystem") :]))
         elif tok in ("-MT", "-MF", "-MQ"):
             next(it, None)  # dependency-file flag + its argument
         elif tok.startswith(("-MD", "-MMD", "-MP", "-MM")):
