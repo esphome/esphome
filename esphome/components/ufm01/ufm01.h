@@ -14,7 +14,7 @@
 
 namespace esphome::ufm01 {
 
-class UFM01Component : public uart::UARTDevice, public sensor::Sensor, public Component {
+class UFM01Component : public uart::UARTDevice, public Component {
   SUB_SENSOR(volume)
   SUB_SENSOR(flow)
   SUB_SENSOR(temperature)
