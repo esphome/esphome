@@ -20,6 +20,14 @@ import subprocess
 
 _LOGGER = logging.getLogger(__name__)
 
+# C++ translation-unit suffixes used to identify ESPHome source files.
+_CXX_SUFFIXES = (".cpp", ".cc")
+# Suffixes of input/output files that appear bare on the command line (and so
+# must not be mistaken for compiler flags).
+_INPUT_FILE_SUFFIXES = (*_CXX_SUFFIXES, ".c", ".o", ".S", ".s")
+# Path marker identifying an ESPHome source translation unit.
+_ESPHOME_SRC_MARKER = "/src/esphome/"
+
 
 def _expand_response_files(tokens: list[str], directory: Path) -> list[str]:
     """Inline any ``@response-file`` arguments (paths relative to ``directory``).
@@ -57,10 +65,10 @@ def _pick_entry(entries: list[dict]) -> dict:
     """
     for entry in entries:
         f = entry["file"]
-        if "/src/esphome/" in f and f.endswith((".cpp", ".cc")):
+        if _ESPHOME_SRC_MARKER in f and f.endswith(_CXX_SUFFIXES):
             return entry
     for entry in entries:
-        if entry["file"].endswith((".cpp", ".cc")):
+        if entry["file"].endswith(_CXX_SUFFIXES):
             return entry
     raise ValueError("no C++ translation unit found in compile_commands.json")
 
@@ -102,7 +110,7 @@ def _parse_entry(entry: dict) -> tuple[str, list[str], list[str], list[str]]:
             next(it, None)  # dependency-file flag + its argument
         elif tok.startswith(("-MD", "-MMD", "-MP", "-MM")):
             pass  # dependency-generation flags, no argument
-        elif tok.endswith((".cpp", ".cc", ".c", ".o", ".S", ".s")):
+        elif tok.endswith(_INPUT_FILE_SUFFIXES):
             pass  # input/output files
         else:
             cxx_flags.append(tok)
@@ -118,6 +126,7 @@ def _get_toolchain_includes(cxx_path: str) -> list[str]:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
         check=False,
+        close_fds=False,
     )
     includes: list[str] = []
     capture = False
@@ -153,7 +162,7 @@ def idedata_from_build(compile_commands: Path) -> dict:
     build_includes: dict[str, None] = {}
     for entry in entries:
         f = entry["file"]
-        if "/src/esphome/" not in f or not f.endswith((".cpp", ".cc")):
+        if _ESPHOME_SRC_MARKER not in f or not f.endswith(_CXX_SUFFIXES):
             continue
         for inc in _parse_entry(entry)[2]:
             build_includes.setdefault(inc, None)
