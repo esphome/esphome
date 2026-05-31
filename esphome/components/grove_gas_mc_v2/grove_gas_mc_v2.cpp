@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace grove_gas_mc_v2 {
+namespace esphome::grove_gas_mc_v2 {
 
 static const char *const TAG = "grove_gas_mc_v2";
 
@@ -82,5 +81,4 @@ void GroveGasMultichannelV2Component::dump_config() {
   }
 }
 
-}  // namespace grove_gas_mc_v2
-}  // namespace esphome
+}  // namespace esphome::grove_gas_mc_v2

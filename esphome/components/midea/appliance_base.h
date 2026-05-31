@@ -15,8 +15,7 @@
 #include "esphome/components/climate/climate.h"
 #include "ir_transmitter.h"
 
-namespace esphome {
-namespace midea {
+namespace esphome::midea {
 
 /* Stream from UART component */
 class UARTStream : public Stream {
@@ -59,7 +58,7 @@ template<typename T> class ApplianceBase : public Component {
  public:
   ApplianceBase() {
     this->base_.setStream(&this->stream_);
-    this->base_.addOnStateCallback(std::bind(&ApplianceBase::on_status_change, this));
+    this->base_.addOnStateCallback([this]() { this->on_status_change(); });
     dudanov::midea::ApplianceBase::setLogger(
         [](int level, const char *tag, int line, const String &format, va_list args) {
           esp_log_vprintf_(level, tag, line, format.c_str(), args);
@@ -98,7 +97,6 @@ template<typename T> class ApplianceBase : public Component {
 #endif
 };
 
-}  // namespace midea
-}  // namespace esphome
+}  // namespace esphome::midea
 
 #endif  // USE_ARDUINO

@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace tsl2561 {
+namespace esphome::tsl2561 {
 
 /** Enum listing all conversion/integration time settings for the TSL2561
  *
@@ -82,5 +81,4 @@ class TSL2561Sensor : public sensor::Sensor, public PollingComponent, public i2c
   bool package_cs_{false};
 };
 
-}  // namespace tsl2561
-}  // namespace esphome
+}  // namespace esphome::tsl2561

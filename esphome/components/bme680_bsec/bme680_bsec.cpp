@@ -3,8 +3,7 @@
 #include "esphome/core/log.h"
 #include <string>
 
-namespace esphome {
-namespace bme680_bsec {
+namespace esphome::bme680_bsec {
 #ifdef USE_BSEC
 static const char *const TAG = "bme680_bsec.sensor";
 
@@ -162,7 +161,7 @@ void BME680BSECComponent::dump_config() {
                 "  IAQ Mode: %s\n"
                 "  Supply Voltage: %sV\n"
                 "  Sample Rate: %s\n"
-                "  State Save Interval: %ims",
+                "  State Save Interval: %" PRIu32 "ms",
                 this->temperature_offset_, this->iaq_mode_ == IAQ_MODE_STATIC ? "Static" : "Mobile",
                 this->supply_voltage_ == SUPPLY_VOLTAGE_3V3 ? "3.3" : "1.8",
                 BME680_BSEC_SAMPLE_RATE_LOG(this->sample_rate_), this->state_save_interval_ms_);
@@ -462,7 +461,7 @@ int8_t BME680BSECComponent::write_bytes_wrapper(uint8_t devid, uint8_t a_registe
 }
 
 void BME680BSECComponent::delay_ms(uint32_t period) {
-  ESP_LOGV(TAG, "Delaying for %ums", period);
+  ESP_LOGV(TAG, "Delaying for %" PRIu32 "ms", period);
   delay(period);
 }
 
@@ -521,7 +520,7 @@ int BME680BSECComponent::reinit_bsec_lib_() {
 }
 
 void BME680BSECComponent::load_state_() {
-  uint32_t hash = fnv1_hash("bme680_bsec_state_" + this->device_id_);
+  uint32_t hash = fnv1_hash_extend(fnv1_hash("bme680_bsec_state_"), this->device_id_);
   this->bsec_state_ = global_preferences->make_preference<uint8_t[BSEC_MAX_STATE_BLOB_SIZE]>(hash, true);
 
   if (!this->bsec_state_.load(&this->bsec_state_data_)) {
@@ -565,5 +564,4 @@ void BME680BSECComponent::save_state_(uint8_t accuracy) {
   ESP_LOGI(TAG, "Saved state");
 }
 #endif
-}  // namespace bme680_bsec
-}  // namespace esphome
+}  // namespace esphome::bme680_bsec

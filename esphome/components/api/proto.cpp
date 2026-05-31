@@ -145,14 +145,15 @@ uint32_t ProtoDecodableMessage::count_repeated_field(const uint8_t *buffer, size
 //   [tag][v1][v2][body ..... body]
 //                                ^-- pos_ = element end, within buffer
 void ProtoWriteBuffer::encode_sub_message(uint32_t field_id, const void *value,
-                                          void (*encode_fn)(const void *, ProtoWriteBuffer &)) {
+                                          uint8_t *(*encode_fn)(const void *,
+                                                                ProtoWriteBuffer &PROTO_ENCODE_DEBUG_PARAM)) {
   this->encode_field_raw(field_id, 2);
   // Reserve 1 byte for length varint (optimistic: submessage < 128 bytes)
   uint8_t *len_pos = this->pos_;
   this->debug_check_bounds_(1);
   this->pos_++;
   uint8_t *body_start = this->pos_;
-  encode_fn(value, *this);
+  this->pos_ = encode_fn(value, *this PROTO_ENCODE_DEBUG_INIT(this->buffer_));
   uint32_t body_size = static_cast<uint32_t>(this->pos_ - body_start);
   if (body_size < 128) [[likely]] {
     // Common case: 1-byte varint, just backpatch
@@ -173,22 +174,27 @@ void ProtoWriteBuffer::encode_sub_message(uint32_t field_id, const void *value,
 
 // Non-template core for encode_optional_sub_message.
 void ProtoWriteBuffer::encode_optional_sub_message(uint32_t field_id, uint32_t nested_size, const void *value,
-                                                   void (*encode_fn)(const void *, ProtoWriteBuffer &)) {
+                                                   uint8_t *(*encode_fn)(const void *,
+                                                                         ProtoWriteBuffer &PROTO_ENCODE_DEBUG_PARAM)) {
   if (nested_size == 0)
     return;
   this->encode_field_raw(field_id, 2);
   this->encode_varint_raw(nested_size);
 #ifdef ESPHOME_DEBUG_API
   uint8_t *start = this->pos_;
-  encode_fn(value, *this);
+  this->pos_ = encode_fn(value, *this PROTO_ENCODE_DEBUG_INIT(this->buffer_));
   if (static_cast<uint32_t>(this->pos_ - start) != nested_size)
     this->debug_check_encode_size_(field_id, nested_size, this->pos_ - start);
 #else
-  encode_fn(value, *this);
+  this->pos_ = encode_fn(value, *this PROTO_ENCODE_DEBUG_INIT(this->buffer_));
 #endif
 }
 
 #ifdef ESPHOME_DEBUG_API
+void proto_check_bounds_failed(const uint8_t *pos, size_t bytes, const uint8_t *end, const char *caller) {
+  ESP_LOGE(TAG, "Proto encode bounds check failed in %s: need %zu bytes, %td available", caller, bytes, end - pos);
+  abort();
+}
 void ProtoWriteBuffer::debug_check_bounds_(size_t bytes, const char *caller) {
   if (this->pos_ + bytes > this->buffer_->data() + this->buffer_->size()) {
     ESP_LOGE(TAG, "ProtoWriteBuffer bounds check failed in %s: bytes=%zu offset=%td buf_size=%zu", caller, bytes,
@@ -201,6 +207,7 @@ void ProtoWriteBuffer::debug_check_encode_size_(uint32_t field_id, uint32_t expe
            expected, actual);
   abort();
 }
+
 #endif
 
 void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
@@ -257,7 +264,13 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
           ESP_LOGV(TAG, "Out-of-bounds Fixed32-bit at offset %ld", (long) (ptr - buffer));
           return;
         }
-        uint32_t val = encode_uint32(ptr[3], ptr[2], ptr[1], ptr[0]);
+        uint32_t val;
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+        // Protobuf fixed32 is little-endian — direct load on LE platforms
+        memcpy(&val, ptr, 4);
+#else
+        val = encode_uint32(ptr[3], ptr[2], ptr[1], ptr[0]);
+#endif
         if (!this->decode_32bit(field_id, Proto32Bit(val))) {
           ESP_LOGV(TAG, "Cannot decode 32-bit field %" PRIu32 " with value %" PRIu32 "!", field_id, val);
         }

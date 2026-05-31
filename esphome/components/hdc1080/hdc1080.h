@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace hdc1080 {
+namespace esphome::hdc1080 {
 
 class HDC1080Component : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -21,5 +20,4 @@ class HDC1080Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *humidity_{nullptr};
 };
 
-}  // namespace hdc1080
-}  // namespace esphome
+}  // namespace esphome::hdc1080

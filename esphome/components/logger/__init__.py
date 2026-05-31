@@ -11,9 +11,12 @@ from esphome.components.esp32 import (
     VARIANT_ESP32C6,
     VARIANT_ESP32C61,
     VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
     add_idf_sdkconfig_option,
     get_esp32_variant,
     require_usb_serial_jtag_secondary,
@@ -56,6 +59,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 logger_ns = cg.esphome_ns.namespace("logger")
@@ -112,9 +116,12 @@ UART_SELECTION_ESP32 = {
     VARIANT_ESP32C6: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32C61: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32H2: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+    VARIANT_ESP32H4: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+    VARIANT_ESP32H21: [UART0, UART1, USB_SERIAL_JTAG],
     VARIANT_ESP32P4: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32S2: [UART0, UART1, USB_CDC],
     VARIANT_ESP32S3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
+    VARIANT_ESP32S31: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
 }
 
 UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]
@@ -269,9 +276,12 @@ CONFIG_SCHEMA = cv.All(
                 esp32_c6=USB_SERIAL_JTAG,
                 esp32_c61=USB_SERIAL_JTAG,
                 esp32_h2=USB_SERIAL_JTAG,
+                esp32_h4=USB_SERIAL_JTAG,
+                esp32_h21=USB_SERIAL_JTAG,
                 esp32_p4=USB_SERIAL_JTAG,
                 esp32_s2=USB_CDC,
                 esp32_s3=USB_SERIAL_JTAG,
+                esp32_s31=USB_SERIAL_JTAG,
                 rp2040=USB_CDC,
                 bk72xx=DEFAULT,
                 ln882x=DEFAULT,
@@ -323,19 +333,28 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(CoroPriority.DIAGNOSTICS)
-async def to_code(config):
-    baud_rate = config[CONF_BAUD_RATE]
+@coroutine_with_priority(CoroPriority.EARLY_INIT)
+async def to_code(config: ConfigType) -> None:
+    baud_rate: int = config[CONF_BAUD_RATE]
     level = config[CONF_LEVEL]
     CORE.data.setdefault(CONF_LOGGER, {})[CONF_LEVEL] = level
-    initial_level = LOG_LEVELS[config.get(CONF_INITIAL_LEVEL, level)]
     tx_buffer_size = config[CONF_TX_BUFFER_SIZE]
     cg.add_define("ESPHOME_LOGGER_TX_BUFFER_SIZE", tx_buffer_size)
+    # Determine task log buffer size. The buffer is a direct member of Logger
+    # (no separate heap allocation).
+    task_log_buffer_size = 0
+    if CORE.is_esp32 or CORE.is_libretiny or CORE.is_nrf52:
+        task_log_buffer_size = config[CONF_TASK_LOG_BUFFER_SIZE]
+    elif CORE.is_host:
+        task_log_buffer_size = 64  # Fixed 64 slots for host
+    if task_log_buffer_size > 0:
+        cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
+        cg.add_define("ESPHOME_TASK_LOG_BUFFER_SIZE", task_log_buffer_size)
     log = cg.new_Pvariable(
         config[CONF_ID],
         baud_rate,
     )
-    if CORE.is_esp32:
+    if CORE.is_esp32 or CORE.is_host:
         cg.add(log.create_pthread_key())
     # set_uart_selection() must be called before pre_setup() because
     # pre_setup() switches on uart_ to decide which hardware to initialize
@@ -347,23 +366,27 @@ async def to_code(config):
                 HARDWARE_UART_TO_UART_SELECTION[config[CONF_HARDWARE_UART]]
             )
         )
-    # pre_setup() must be called before init_log_buffer() because
-    # init_log_buffer() calls disable_loop() which may log at VV level,
-    # and global_logger must be set before any logging occurs.
+    # pre_setup() sets global_logger and must run before any other code
+    # that may call ESP_LOG* (e.g. setup_preferences contains ESP_LOGVV).
     cg.add(log.pre_setup())
-    if CORE.is_esp32 or CORE.is_libretiny or CORE.is_nrf52:
-        task_log_buffer_size = config[CONF_TASK_LOG_BUFFER_SIZE]
-        if task_log_buffer_size > 0:
-            cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
-            cg.add(log.init_log_buffer(task_log_buffer_size))
-            if CORE.using_zephyr:
-                zephyr_add_prj_conf("MPSC_PBUF", True)
-    elif CORE.is_host:
-        cg.add(log.create_pthread_key())
-        cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
-        cg.add(log.init_log_buffer(64))  # Fixed 64 slots for host
-
+    initial_level = LOG_LEVELS[config.get(CONF_INITIAL_LEVEL, level)]
     cg.add(log.set_log_level(initial_level))
+
+    # Schedule the rest of logger setup at DIAGNOSTICS priority, after
+    # Application is constructed (CORE priority) but before most components.
+    CORE.add_job(_late_logger_init, config)
+
+
+@coroutine_with_priority(CoroPriority.DIAGNOSTICS)
+async def _late_logger_init(config: ConfigType) -> None:
+    """Finish logger setup after Application is constructed."""
+    log = await cg.get_variable(config[CONF_ID])
+    level = config[CONF_LEVEL]
+    baud_rate: int = config[CONF_BAUD_RATE]
+    if CORE.using_zephyr:
+        task_log_buffer_size = config.get(CONF_TASK_LOG_BUFFER_SIZE, 0)
+        if task_log_buffer_size > 0:
+            zephyr_add_prj_conf("MPSC_PBUF", True)
 
     # Enable runtime tag levels if logs are configured or explicitly enabled
     logs_config = config[CONF_LOGS]
@@ -458,14 +481,15 @@ async def to_code(config):
         # esphome implement own fatal error handler which save PC/LR before reset
         zephyr_add_prj_conf("RESET_ON_FATAL_ERROR", False)
         zephyr_add_prj_conf("THREAD_LOCAL_STORAGE", True)
-        if config[CONF_HARDWARE_UART] == UART0:
-            zephyr_add_overlay("""&uart0 { status = "okay";};""")
-        if config[CONF_HARDWARE_UART] == UART1:
-            zephyr_add_overlay("""&uart1 { status = "okay";};""")
-        if config[CONF_HARDWARE_UART] == USB_CDC:
-            cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
-            zephyr_add_prj_conf("UART_LINE_CTRL", True)
-            zephyr_add_cdc_acm(config, 0)
+        if has_serial_logging:
+            if config[CONF_HARDWARE_UART] == UART0:
+                zephyr_add_overlay("""&uart0 { status = "okay";};""")
+            if config[CONF_HARDWARE_UART] == UART1:
+                zephyr_add_overlay("""&uart1 { status = "okay";};""")
+            if config[CONF_HARDWARE_UART] == USB_CDC:
+                cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
+                zephyr_add_prj_conf("UART_LINE_CTRL", True)
+                zephyr_add_cdc_acm(config, 0)
 
     # Register at end for safe mode
     await cg.register_component(log, config)
@@ -491,15 +515,15 @@ async def to_code(config):
 def validate_printf(value):
     # https://stackoverflow.com/questions/30011379/how-can-i-parse-a-c-format-string-in-python
     cfmt = r"""
-    (                                  # start of capture group 1
-    %                                  # literal "%"
-    (?:[-+0 #]{0,5})                   # optional flags
-    (?:\d+|\*)?                        # width
-    (?:\.(?:\d+|\*))?                  # precision
-    (?:h|l|ll|w|I|I32|I64)?            # size
-    [cCdiouxXeEfgGaAnpsSZ]             # type
+    (                                   # start of capture group 1
+    %                                   # literal "%"
+    (?:[-+0 #]{0,5})                    # optional flags
+    (?:\d+|\*)?                         # width
+    (?:\.(?:\d+|\*))?                   # precision
+    (?:hh|h|ll|l|j|z|t|L|w|I|I32|I64)?  # size
+    [cCdiouxXeEfgGaAnpsSZ]              # type
     )
-    """  # noqa
+    """
     matches = re.findall(cfmt, value[CONF_FORMAT], flags=re.VERBOSE)
     if len(matches) != len(value[CONF_ARGS]):
         raise cv.Invalid(
@@ -594,6 +618,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
         },
+        "task_log_buffer_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
     }
 )
 

@@ -5,6 +5,7 @@ namespace esphome::packet_transport::testing {
 TEST(PacketTransportBinarySensorTest, AddBinarySensor) {
   TestablePacketTransport transport;
   binary_sensor::BinarySensor bs;
+  transport.set_binary_sensor_count(1);
   transport.add_binary_sensor("motion", &bs);
   ASSERT_EQ(transport.binary_sensors_.size(), 1u);
   EXPECT_STREQ(transport.binary_sensors_[0].id, "motion");
@@ -24,6 +25,7 @@ TEST(PacketTransportBinarySensorTest, UnencryptedBinarySensorRoundTrip) {
   encoder.init_for_test("sender");
   binary_sensor::BinarySensor local_bs;
   local_bs.state = true;
+  encoder.set_binary_sensor_count(1);
   encoder.add_binary_sensor("motion", &local_bs);
 
   encoder.send_data_(true);
@@ -46,11 +48,13 @@ TEST(PacketTransportBinarySensorTest, MultipleSensorsRoundTrip) {
   sensor::Sensor s1, s2;
   s1.state = 10.0f;
   s2.state = 20.0f;
+  encoder.set_sensor_count(2);
   encoder.add_sensor("s1", &s1);
   encoder.add_sensor("s2", &s2);
 
   binary_sensor::BinarySensor bs1;
   bs1.state = true;
+  encoder.set_binary_sensor_count(1);
   encoder.add_binary_sensor("bs1", &bs1);
 
   encoder.send_data_(true);

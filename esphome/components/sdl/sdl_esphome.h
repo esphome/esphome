@@ -9,8 +9,7 @@
 #include "SDL.h"
 #include <map>
 
-namespace esphome {
-namespace sdl {
+namespace esphome::sdl {
 
 constexpr static const char *const TAG = "sdl";
 
@@ -33,15 +32,15 @@ class Sdl : public display::Display {
     this->pos_x_ = pos_x;
     this->pos_y_ = pos_y;
   }
-  int get_width() override { return this->width_; }
-  int get_height() override { return this->height_; }
+  int get_width() override;
+  int get_height() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void dump_config() override { LOG_DISPLAY("", "SDL", this); }
-  void add_key_listener(int32_t keycode, std::function<void(bool)> &&callback) {
+  template<typename F> void add_key_listener(int32_t keycode, F &&callback) {
     if (!this->key_callbacks_.count(keycode)) {
       this->key_callbacks_[keycode] = CallbackManager<void(bool)>();
     }
-    this->key_callbacks_[keycode].add(std::move(callback));
+    this->key_callbacks_[keycode].add(std::forward<F>(callback));
   }
 
   int mouse_x{};
@@ -66,7 +65,6 @@ class Sdl : public display::Display {
   uint16_t y_high_{0};
   std::map<int32_t, CallbackManager<void(bool)>> key_callbacks_{};
 };
-}  // namespace sdl
-}  // namespace esphome
+}  // namespace esphome::sdl
 
 #endif

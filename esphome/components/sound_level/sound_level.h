@@ -4,14 +4,13 @@
 
 #include "esphome/components/audio/audio_transfer_buffer.h"
 #include "esphome/components/microphone/microphone_source.h"
+#include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/components/sensor/sensor.h"
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
-#include "esphome/core/ring_buffer.h"
 
-namespace esphome {
-namespace sound_level {
+namespace esphome::sound_level {
 
 class SoundLevelComponent : public Component {
  public:
@@ -37,11 +36,12 @@ class SoundLevelComponent : public Component {
   void stop();
 
  protected:
-  /// @brief Internal start command that, if necessary, allocates ``audio_buffer_`` and a ring buffer which
-  /// ``audio_buffer_`` owns and ``ring_buffer_`` points to. Returns true if allocations were successful.
+  /// @brief Internal start command that, if necessary, allocates a ring buffer and a zero-copy
+  /// ``RingBufferAudioSource`` that reads directly from it. ``ring_buffer_`` weakly references the
+  /// ring buffer owned by ``audio_source_``. Returns true if allocations were successful.
   bool start_();
 
-  /// @brief Internal stop command the deallocates ``audio_buffer_`` (which automatically deallocates its ring buffer)
+  /// @brief Internal stop command that deallocates ``audio_source_`` (which releases its ring buffer)
   void stop_();
 
   microphone::MicrophoneSource *microphone_source_{nullptr};
@@ -49,8 +49,8 @@ class SoundLevelComponent : public Component {
   sensor::Sensor *peak_sensor_{nullptr};
   sensor::Sensor *rms_sensor_{nullptr};
 
-  std::unique_ptr<audio::AudioSourceTransferBuffer> audio_buffer_;
-  std::weak_ptr<RingBuffer> ring_buffer_;
+  std::unique_ptr<audio::RingBufferAudioSource> audio_source_;
+  std::weak_ptr<ring_buffer::RingBuffer> ring_buffer_;
 
   int32_t squared_peak_{0};
   uint64_t squared_samples_sum_{0};
@@ -69,6 +69,6 @@ template<typename... Ts> class StopAction : public Action<Ts...>, public Parente
   void play(const Ts &...x) override { this->parent_->stop(); }
 };
 
-}  // namespace sound_level
-}  // namespace esphome
+}  // namespace esphome::sound_level
+
 #endif

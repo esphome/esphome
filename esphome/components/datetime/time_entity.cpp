@@ -26,7 +26,7 @@ void TimeEntity::publish_state() {
     return;
   }
   this->set_has_state(true);
-  ESP_LOGD(TAG, "'%s' >> %02d:%02d:%02d", this->get_name().c_str(), this->hour_, this->minute_, this->second_);
+  ESP_LOGV(TAG, "'%s' >> %02d:%02d:%02d", this->get_name().c_str(), this->hour_, this->minute_, this->second_);
   this->state_callback_.call();
 #if defined(USE_DATETIME_TIME) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_time_update(this);
@@ -52,15 +52,15 @@ void TimeCall::validate_() {
 
 void TimeCall::perform() {
   this->validate_();
-  ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   if (this->hour_.has_value()) {
-    ESP_LOGD(TAG, " Hour: %d", *this->hour_);
+    ESP_LOGV(TAG, " Hour: %d", *this->hour_);
   }
   if (this->minute_.has_value()) {
-    ESP_LOGD(TAG, " Minute: %d", *this->minute_);
+    ESP_LOGV(TAG, " Minute: %d", *this->minute_);
   }
   if (this->second_.has_value()) {
-    ESP_LOGD(TAG, " Second: %d", *this->second_);
+    ESP_LOGV(TAG, " Second: %d", *this->second_);
   }
   this->parent_->control(*this);
 }
