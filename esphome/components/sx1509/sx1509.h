@@ -51,7 +51,7 @@ class SX1509Component : public Component,
     this->cols_ = cols;
     this->has_keypad_ = true;
   };
-  void set_keys(std::string keys) { this->keys_ = std::move(keys); };
+  void set_keys(std::string keys) { this->keys_ = std::move(keys); };  // NOLINT(performance-unnecessary-value-param)
   void set_sleep_time(uint16_t sleep_time) { this->sleep_time_ = sleep_time; };
   void set_scan_time(uint8_t scan_time) { this->scan_time_ = scan_time; };
   void set_debounce_time(uint8_t debounce_time = 1) { this->debounce_time_ = debounce_time; };
@@ -62,10 +62,10 @@ class SX1509Component : public Component,
   void setup_led_driver(uint8_t pin);
 
  protected:
-  // Virtual methods from CachedGpioExpander
-  bool digital_read_hw(uint8_t pin) override;
-  bool digital_read_cache(uint8_t pin) override;
-  void digital_write_hw(uint8_t pin, bool value) override;
+  // Virtual methods from CachedGpioExpander — names come from base class
+  bool digital_read_hw(uint8_t pin) override;               // NOLINT(readability-identifier-naming)
+  bool digital_read_cache(uint8_t pin) override;            // NOLINT(readability-identifier-naming)
+  void digital_write_hw(uint8_t pin, bool value) override;  // NOLINT(readability-identifier-naming)
 
   uint32_t clk_x_ = 2000000;
   uint8_t frequency_ = 0;

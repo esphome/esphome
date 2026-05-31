@@ -634,9 +634,6 @@ void WiFiComponent::setup() {
   if (this->enable_on_boot_) {
     this->start();
   } else {
-#ifdef USE_ESP32
-    esp_netif_init();
-#endif
     this->state_ = WIFI_COMPONENT_STATE_DISABLED;
   }
 }
