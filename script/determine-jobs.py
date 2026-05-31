@@ -312,7 +312,7 @@ def _is_clang_tidy_full_scan() -> bool:
         )
         # Exit 0 means hash changed (full scan needed)
         return result.returncode == 0
-    except Exception:
+    except Exception:  # noqa: BLE001
         # If hash check fails, run full scan to be safe
         return True
 

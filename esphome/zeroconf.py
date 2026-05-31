@@ -342,7 +342,7 @@ async def async_discover_mdns_devices(
     )
     try:
         aiozc = AsyncEsphomeZeroconf()
-    except Exception as err:  # pylint: disable=broad-except
+    except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
         # Zeroconf init can raise OSError, NonUniqueNameException, etc.
         # Any failure here just means we can't discover — log and move on.
         _LOGGER.warning("mDNS discovery failed to initialize: %s", err)

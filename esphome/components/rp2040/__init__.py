@@ -50,7 +50,7 @@ from .const import (
 )
 
 # force import gpio to register pin schema
-from .gpio import rp2040_pin_to_code  # noqa
+from .gpio import rp2040_pin_to_code  # noqa: F401
 
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@jesserockz"]
