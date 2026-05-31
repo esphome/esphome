@@ -5,8 +5,7 @@
 #include <cstdlib>
 #include "esphome/components/display/display.h"
 
-namespace esphome {
-namespace graphical_display_menu {
+namespace esphome::graphical_display_menu {
 
 static const char *const TAG = "graphical_display_menu";
 
@@ -246,5 +245,4 @@ void GraphicalDisplayMenu::draw_item(const display_menu_base::MenuItem *item, co
 
 void GraphicalDisplayMenu::update() { this->on_redraw_callbacks_.call(); }
 
-}  // namespace graphical_display_menu
-}  // namespace esphome
+}  // namespace esphome::graphical_display_menu

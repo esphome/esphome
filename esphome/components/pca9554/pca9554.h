@@ -5,8 +5,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/gpio_expander/cached_gpio.h"
 
-namespace esphome {
-namespace pca9554 {
+namespace esphome::pca9554 {
 
 class PCA9554Component : public Component,
                          public i2c::I2CDevice,
@@ -89,5 +88,4 @@ class PCA9554GPIOPin : public GPIOPin {
   uint8_t drive_strength_;
 };
 
-}  // namespace pca9554
-}  // namespace esphome
+}  // namespace esphome::pca9554

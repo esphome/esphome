@@ -4,8 +4,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct NexaData {
   uint32_t device;
@@ -50,5 +49,4 @@ template<typename... Ts> class NexaAction : public RemoteTransmitterActionBase<T
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

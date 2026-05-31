@@ -278,7 +278,18 @@ def _push_context(
         """Resolve a variable, recursively resolving any dependencies it references."""
         value = unresolved_vars.pop(key, Missing)
         if value is Missing:
-            return Missing
+            # Either already resolved (in resolved_vars) or currently being
+            # resolved (self-reference from inside a dict-valued substitution).
+            # Returning what we have lets sibling references inside a dict
+            # value, e.g. ``${device.manufacturer}`` inside ``device.name``,
+            # see literal sibling values during their own resolution.
+            return resolved_vars.get(key, Missing)
+        if isinstance(value, dict):
+            # Dict-valued substitutions form a namespace; eagerly publish the
+            # original mapping so its members can reference each other while
+            # the dict's own substitution pass is still running. The entry is
+            # replaced with the fully-substituted dict once recursion returns.
+            resolved_vars[key] = value
         try:
             value = substitute(value, [], resolver_context, True)
         except UndefinedError as err:

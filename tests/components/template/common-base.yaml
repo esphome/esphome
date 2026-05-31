@@ -202,6 +202,11 @@ sensor:
           value: last
       - timeout:
           timeout: 1d
+      - to_ntc_temperature:
+          calibration:
+            b_constant: 3950
+            reference_temperature: 25.0°C
+            reference_resistance: 10kOhm
       - to_ntc_resistance:
           calibration:
             - 10.0kOhm -> 25°C
@@ -270,8 +275,6 @@ cover:
     stop_action:
       - logger.log: stop_action
     optimistic: true
-    on_open:
-      - logger.log: "Cover on_open (deprecated)"
     on_opened:
       - logger.log: "Cover fully opened"
     on_closed:
@@ -356,6 +359,32 @@ number:
     min_value: 0
     max_value: 100
     step: 1
+  # Exercise valve.control inside a trigger with non-empty Ts (number on_value
+  # passes float).
+  - platform: template
+    id: template_valve_position_number
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+    on_value:
+      then:
+        - valve.control:
+            id: template_valve
+            position: !lambda "return x / 100.0f;"
+  # Same regression test for cover.control: forces the apply-lambda
+  # codegen to handle a non-empty trigger Ts (float).
+  - platform: template
+    id: template_cover_position_number
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+    on_value:
+      then:
+        - cover.control:
+            id: template_cover_with_triggers
+            position: !lambda "return x / 100.0f;"
 
 select:
   - platform: template
@@ -442,6 +471,20 @@ valve:
           state: CLOSED
     stop_action:
       - logger.log: stop_action
+      # Exercise valve.control with various field combinations so the
+      # ControlAction codegen paths get build coverage.
+      - valve.control:
+          id: template_valve
+          stop: true
+      - valve.control:
+          id: template_valve
+          position: 50%
+      - valve.control:
+          id: template_valve
+          state: OPEN
+      - valve.control:
+          id: template_valve
+          position: !lambda 'return 0.25f;'
     optimistic: true
 
 text:
