@@ -126,7 +126,7 @@ def _try_upload(
         _LOGGER.info("Connecting to %s port %s...", ip, port)
 
         try:
-            with open(filename, "rb") as fh:
+            with filename.open("rb") as fh:
                 streamer = _MultipartStreamer(fh, file_size, filename.name)
                 try:
                     response = requests.post(

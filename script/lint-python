@@ -2,6 +2,7 @@
 
 import argparse
 import os
+from pathlib import Path
 import re
 import sys
 
@@ -66,11 +67,12 @@ def main():
     args = parser.parse_args()
 
     files = []
+    cwd = Path.cwd()
     for path in git_ls_files():
         filetypes = (".py",)
-        ext = os.path.splitext(path)[1]
+        ext = Path(path).suffix
         if ext in filetypes and path.startswith("esphome"):
-            path = os.path.relpath(path, os.getcwd())
+            path = os.path.relpath(path, cwd)
             files.append(path)
     # Match against re
     file_name_re = re.compile("|".join(args.files))
