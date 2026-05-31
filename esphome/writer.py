@@ -509,10 +509,6 @@ def clean_build(clear_pio_cache: bool = True):
     if dependencies_lock.is_file():
         _LOGGER.info("Deleting %s", dependencies_lock)
         dependencies_lock.unlink()
-    # The idedata cache is derived from the build but lives under the data
-    # dir (.esphome/idedata/<name>.json), not the build path, so it survives
-    # a build-tree wipe. Drop it too: its contents are toolchain-specific, so
-    # a stale cache must not outlive the build it describes.
     idedata_cache = CORE.relative_internal_path("idedata", f"{CORE.name}.json")
     if idedata_cache.is_file():
         _LOGGER.info("Deleting %s", idedata_cache)
