@@ -87,7 +87,10 @@ float UFM01Component::get_setup_priority() const { return setup_priority::IO; }
 
 void UFM01Component::setup() {
   ESP_LOGI(TAG, "Setting up UFM-01...");
-  this->set_active_mode_();
+  if (!this->set_active_mode_()) {
+    ESP_LOGW(TAG, "Failed to set active mode (no ACK from device)");
+    this->mark_failed();
+  }
 }
 
 void UFM01Component::on_data_(uint8_t data[32]) {
