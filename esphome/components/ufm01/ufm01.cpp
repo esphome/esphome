@@ -3,13 +3,11 @@
 #include "esphome/core/log.h"
 
 #include <array>
-#include <limits>
 
 namespace esphome::ufm01 {
 
 static const char *const TAG = "ufm_01";
 
-static constexpr float UNKNOWN = std::numeric_limits<float>::quiet_NaN();
 static constexpr float L_PER_M3 = 1000.0f;
 static constexpr float M3_PER_L = 1.0f / L_PER_M3;
 
@@ -58,7 +56,7 @@ static void log_hex(const uint8_t *data, size_t len) {
 static float read_temperature(uint8_t data[32]) {
   if (  // happens sometimes before getting real reading
       data[27] == 0X00 && (data[26] == 0x00 || data[26] == 0x70) && data[25] == 0X00) {
-    return UNKNOWN;
+    return NAN;
   } else {
     return to_float(data[27]) * 100.0 + to_float(data[26]) + to_float(data[25]) * 0.01;
   }
@@ -111,9 +109,9 @@ void UFM01Component::on_data_(uint8_t data[32]) {
 
   if (empty_tube) {
     if (this->flow_sensor_ != nullptr)
-      this->flow_sensor_->publish_state(UNKNOWN);
+      this->flow_sensor_->publish_state(NAN);
     if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(UNKNOWN);
+      this->temperature_sensor_->publish_state(NAN);
   } else {
     if (this->flow_sensor_ != nullptr)
       this->flow_sensor_->publish_state(read_flow(data));
