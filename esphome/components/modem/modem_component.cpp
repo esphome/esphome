@@ -107,22 +107,12 @@ void ModemComponent::setup() {
              CONFIG_ESP_TASK_WDT_TIMEOUT_S);
   }
 
-  esp_err_t err;
-
-  // This section should be removed once #14012 is merged.
-  ESP_LOGV(TAG, "PPP netif init.");
-  err = esp_netif_init();
-  ESPHL_ERROR_CHECK(err, "PPP netif init failed");
-  err = esp_event_loop_create_default();
-  ESPHL_ERROR_CHECK(err, "PPP event loop init failed");
-  // end of section to remove
-
   esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
   this->modem_handler->ppp_netif = esp_netif_new(&netif_ppp_config);
   assert(this->modem_handler->ppp_netif);
 
-  err = esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &ModemHandler::ip_event_handler,
-                                   this->modem_handler.get());
+  esp_err_t err = esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, &ModemHandler::ip_event_handler,
+                                             this->modem_handler.get());
   ESPHL_ERROR_CHECK(err, "IP event handler register failed");
 
   this->modem_handler->modem_create_dte_dce(this->modem_handler->baud_rate);
