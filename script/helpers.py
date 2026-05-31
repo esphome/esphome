@@ -675,7 +675,7 @@ def load_idedata(environment: str) -> dict[str, Any]:
         # idedata target. Needs no config -- the managed deps come from
         # ESPHome's idf_component.yml. ESPHOME_IDF_COMPILE_COMMANDS may point at
         # an existing build's compile_commands.json to skip generation.
-        from helpers_idf import load_idedata as idf_load_idedata
+        from esphome.espidf.clang_tidy import load_idedata as idf_load_idedata
 
         data = idf_load_idedata(environment, temp_folder, platformio_ini)
     elif "nrf" in environment:
