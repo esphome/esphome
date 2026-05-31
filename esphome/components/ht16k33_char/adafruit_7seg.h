@@ -4,7 +4,6 @@
 
 namespace esphome::ht16k33_char {
 
-
 class Adafruit7Seg : public HT16k33CharComponent {
  public:
   Adafruit7Seg() {
