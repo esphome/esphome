@@ -66,7 +66,7 @@ def _recommended_idf_version() -> str:
 
 def _setup_core(work_dir: Path, version: str) -> None:
     """Point CORE at the tidy project + IDF version, without any YAML config."""
-    from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION
+    from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION, KEY_VARIANT
     import esphome.config_validation as cv
     from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
     from esphome.core import CORE
@@ -77,7 +77,9 @@ def _setup_core(work_dir: Path, version: str) -> None:
     # project dir so clearing the project doesn't force an IDF re-download.
     CORE.config_path = work_dir.parent / "tidy.yaml"
     CORE.build_path = work_dir
-    CORE.data.setdefault(KEY_ESP32, {})[KEY_IDF_VERSION] = cv.Version.parse(version)
+    esp32 = CORE.data.setdefault(KEY_ESP32, {})
+    esp32[KEY_IDF_VERSION] = cv.Version.parse(version)
+    esp32[KEY_VARIANT] = "ESP32"
     # The PlatformIO-library -> IDF-component converter reads the target.
     CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = "esp32"
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "espidf"
@@ -120,13 +122,8 @@ def _parse_lib_deps(platformio_ini: Path):
     seen: set[str] = set()
     for token in tokens:
         token = token.split(";", 1)[0].strip()  # drop trailing ; comment
-        # Skip blanks, ${...} cross-refs, +<...> source filters, and the
-        # unit-test-only googletest dependency.
-        if (
-            not token
-            or token.startswith(("${", "+<", "google/googletest"))
-            or token in seen
-        ):
+        # Skip blanks, ${...} cross-refs, and +<...> source filters.
+        if not token or token.startswith(("${", "+<")) or token in seen:
             continue
         seen.add(token)
         if "://" in token or ".git" in token:
@@ -188,6 +185,14 @@ def _write_tidy_project(
     manifest.setdefault("dependencies", {}).update(extra_deps)
     (main_dir / "idf_component.yml").write_text(
         yaml.safe_dump(manifest, sort_keys=False), encoding="utf-8"
+    )
+
+    # ESPHome's static-analysis sdkconfig: enables the flags any component sets
+    # (e.g. CONFIG_BT_ENABLED) so sdkconfig-gated IDF components register and
+    # expose their includes. IDF reads ``sdkconfig.defaults`` from the project.
+    (work_dir / "sdkconfig.defaults").write_text(
+        (esphome_root / "sdkconfig.defaults").read_text(encoding="utf-8"),
+        encoding="utf-8",
     )
 
 
