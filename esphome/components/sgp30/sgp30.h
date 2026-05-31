@@ -8,8 +8,7 @@
 #include <cinttypes>
 #include <cmath>
 
-namespace esphome {
-namespace sgp30 {
+namespace esphome::sgp30 {
 
 struct SGP30Baselines {
   uint16_t eco2;
@@ -67,5 +66,4 @@ class SGP30Component : public PollingComponent, public sensirion_common::Sensiri
   sensor::Sensor *temperature_sensor_{nullptr};
 };
 
-}  // namespace sgp30
-}  // namespace esphome
+}  // namespace esphome::sgp30

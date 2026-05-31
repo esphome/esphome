@@ -22,13 +22,13 @@ from esphome.bundle import (
     _add_bytes_to_tar,
     _default_target_dir,
     _find_used_secret_keys,
-    _force_load_include_files,
     extract_bundle,
     is_bundle_path,
     prepare_bundle_for_compile,
     read_bundle_manifest,
 )
 from esphome.core import CORE, EsphomeError
+from esphome.yaml_util import force_load_include_files
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -168,6 +168,23 @@ def test_find_used_secret_keys_deduplicates(tmp_path: Path) -> None:
 
     keys = _find_used_secret_keys([yaml1])
     assert keys == {"key1"}
+
+
+def test_find_used_secret_keys_quoted(tmp_path: Path) -> None:
+    """Quoted !secret keys should resolve to the same key as unquoted form.
+
+    YAML strips surrounding quotes during parsing, so the secrets.yaml
+    lookup uses the unquoted key. The bundle scan must do the same.
+    """
+    yaml1 = tmp_path / "a.yaml"
+    yaml1.write_text(
+        "single: !secret 'wifi_ssid'\n"
+        'double: !secret "wifi_pw"\n'
+        "bare: !secret api_key\n"
+    )
+
+    keys = _find_used_secret_keys([yaml1])
+    assert keys == {"wifi_ssid", "wifi_pw", "api_key"}
 
 
 # ---------------------------------------------------------------------------
@@ -930,7 +947,7 @@ def test_discover_files_nested_include_load_failure(
     paths = [f.path for f in files]
     assert "test.yaml" in paths
     assert any(
-        "failed to load !include" in r.message and "missing.yaml" in r.message
+        "failed to load !include" in r.message.lower() and "missing.yaml" in r.message
         for r in caplog.records
     )
 
@@ -957,8 +974,8 @@ def test_force_load_skips_duplicate_include_file() -> None:
     # Same instance appears twice — second visit must hit the _seen guard.
     tree = {"a": stub, "b": [stub]}
 
-    with patch("esphome.bundle.yaml_util.IncludeFile", _StubInclude):
-        _force_load_include_files(tree)
+    with patch("esphome.yaml_util.IncludeFile", _StubInclude):
+        force_load_include_files(tree)
 
     assert stub.load_calls == 1
 
@@ -972,8 +989,8 @@ def test_force_load_handles_cyclic_containers() -> None:
     cyclic_list.append(cyclic_list)
 
     # Should return without recursing forever
-    _force_load_include_files(cyclic_dict)
-    _force_load_include_files(cyclic_list)
+    force_load_include_files(cyclic_dict)
+    force_load_include_files(cyclic_list)
 
 
 def test_discover_files_yaml_reload_failure(
@@ -1215,6 +1232,35 @@ def test_create_bundle_filters_secrets(tmp_path: Path) -> None:
     assert "wifi_pw" in secrets_data
     assert "unused" not in secrets_data
     assert "should_not_appear" not in secrets_data
+
+
+def test_create_bundle_filters_secrets_quoted(tmp_path: Path) -> None:
+    """Bundling must include secrets.yaml when !secret keys are quoted.
+
+    Regression test for issue 16259: quoted !secret references previously
+    captured the quotes as part of the key, so no key matched secrets.yaml
+    entries and the secrets file was dropped from the bundle entirely.
+    """
+    config_dir = _setup_config_dir(tmp_path)
+
+    secrets = config_dir / "secrets.yaml"
+    secrets.write_text("ota_password: hunter2\nunused: should_not_appear\n")
+
+    config_yaml = "ota:\n  password: !secret 'ota_password'\n"
+    (config_dir / "test.yaml").write_text(config_yaml)
+
+    creator = ConfigBundleCreator({})
+    result = creator.create_bundle()
+
+    assert result.manifest[ManifestKey.HAS_SECRETS] is True
+
+    buf = io.BytesIO(result.data)
+    with tarfile.open(fileobj=buf, mode="r:gz") as tar:
+        secrets_data = tar.extractfile("secrets.yaml").read().decode()
+
+    assert "ota_password" in secrets_data
+    assert "hunter2" in secrets_data
+    assert "unused" not in secrets_data
 
 
 def test_create_bundle_no_secrets(tmp_path: Path) -> None:

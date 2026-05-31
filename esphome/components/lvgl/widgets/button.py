@@ -2,8 +2,7 @@ from esphome import config_validation as cv
 from esphome.const import CONF_BUTTON, CONF_TEXT
 from esphome.cpp_generator import MockObj
 
-from ..defines import CONF_MAIN, CONF_WIDGETS
-from ..helpers import add_lv_use
+from ..defines import CONF_MAIN, CONF_WIDGETS, add_lv_use
 from ..lv_validation import lv_text
 from ..lvcode import lv, lv_expr
 from ..schemas import TEXT_SCHEMA
