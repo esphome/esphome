@@ -104,11 +104,18 @@ a long transition, e.g. turning slowly off.
 
 | **Frequency** | **Bit depth** | **Available steps for transitions** |
 | ------------- | ------------- | ----------------------------------- |
-| 1220Hz        | 16            | 65536                               |
-| 2441Hz        | 15            | 32768                               |
+| 1220Hz        | 16 / 14\*     | 65536 / 16384\*                    |
+| 2441Hz        | 15 / 14\*     | 32768 / 16384\*                    |
 | 4882Hz        | 14            | 16384                               |
 | 9765Hz        | 13            | 8192                                |
 | 19531Hz       | 12            | 4096                                |
+
+\* ESP32-S2, ESP32-S3, ESP32-C2, and ESP32-C3 support only 14-bit LEDC timers. The
+original ESP32, ESP32-C5, ESP32-C6, ESP32-C61, ESP32-H2, and ESP32-P4 support 20-bit
+LEDC timers, which results in up to 16-bit resolution in the useful LED PWM range
+as shown above.
+{/* For future reference, when ESPHome support is added: ESP32-H21 and ESP32-H4
+also support 20-bit LEDC timers. */}
 
 The ESP8266 for instance has *usually* a frequency of 1000Hz with a resolution of 10 bits.
 This means that there are only 4 steps between each value.
