@@ -36,7 +36,7 @@ static bool validate_data(uint8_t data[32]) {
          (data[31] == 0x16 || !log_problem("bit 31 exception", 0x16, data[31]));
 }
 
-static float read_volume(uint8_t data[32]) {
+static float read_accumulated_flow(uint8_t data[32]) {
   return (data[8] == 0x1A ? L_PER_M3 : 1.0) *
          (to_float(data[14]) * 10000000.0 + to_float(data[13]) * 100000.0 + to_float(data[12]) * 1000.0 +
           to_float(data[11]) * 10.0 + to_float(data[10]) * 0.1 + to_float(data[9]) * 0.001);
@@ -104,8 +104,8 @@ void UFM01Component::on_data_(uint8_t data[32]) {
     this->flow_rate_out_of_range_binary_sensor_->publish_state(read_flow_rate_out_of_range(data));
 #endif
 
-  if (this->volume_sensor_ != nullptr)
-    this->volume_sensor_->publish_state(read_volume(data));
+  if (this->accumulated_flow_sensor_ != nullptr)
+    this->accumulated_flow_sensor_->publish_state(read_accumulated_flow(data));
 
   if (empty_tube) {
     if (this->flow_sensor_ != nullptr)

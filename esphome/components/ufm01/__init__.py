@@ -76,7 +76,7 @@ async def to_code(config):
 
     if CONF_ACCUMULATED_FLOW in config:
         sens = await sensor.new_sensor(config[CONF_ACCUMULATED_FLOW])
-        cg.add(var.set_volume_sensor(sens))
+        cg.add(var.set_accumulated_flow_sensor(sens))
 
     if CONF_FLOW in config:
         sens = await sensor.new_sensor(config[CONF_FLOW])
