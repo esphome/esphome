@@ -74,8 +74,6 @@ async def to_code(config):
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    cg.add_library("UFM01-ESP", None)
-
     if CONF_ACCUMULATED_FLOW in config:
         sens = await sensor.new_sensor(config[CONF_ACCUMULATED_FLOW])
         cg.add(var.set_volume_sensor(sens))
