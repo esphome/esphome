@@ -1,6 +1,8 @@
 #include "hub75_component.h"
 #include "esphome/core/application.h"
 
+#include <cinttypes>
+
 #ifdef USE_ESP32
 
 namespace esphome::hub75 {
@@ -58,7 +60,7 @@ void HUB75Display::dump_config() {
                 config_.pins.oe, config_.pins.clk);
 
   ESP_LOGCONFIG(TAG,
-                "  Clock Speed: %u MHz\n"
+                "  Clock Speed: %" PRIu32 " MHz\n"
                 "  Latch Blanking: %i\n"
                 "  Clock Phase: %s\n"
                 "  Min Refresh Rate: %i Hz\n"

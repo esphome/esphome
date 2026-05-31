@@ -2,30 +2,32 @@ name: Status check labels
 
 on:
   pull_request:
-    types: [labeled, unlabeled]
+    types: [opened, reopened, labeled, unlabeled, synchronize]
+
+permissions:
+  pull-requests: read  # issues.listLabelsOnIssue to detect blocking labels (needs-docs, merge-after-release, chained-pr)
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   check:
-    name: Check ${{ matrix.label }}
+    name: Check blocking labels
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        label:
-          - needs-docs
-          - merge-after-release
-          - chained-pr
     steps:
-      - name: Check for ${{ matrix.label }} label
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+      - name: Check for blocking labels
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
+            const blockingLabels = ['needs-docs', 'merge-after-release', 'chained-pr'];
             const { data: labels } = await github.rest.issues.listLabelsOnIssue({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number
             });
-            const hasLabel = labels.find(label => label.name === '${{ matrix.label }}');
-            if (hasLabel) {
-              core.setFailed('Pull request cannot be merged, it is labeled as ${{ matrix.label }}');
+            const labelNames = labels.map(l => l.name);
+            const found = blockingLabels.filter(bl => labelNames.includes(bl));
+            if (found.length > 0) {
+              core.setFailed(`Pull request cannot be merged, it has blocking label(s): ${found.join(', ')}`);
             }

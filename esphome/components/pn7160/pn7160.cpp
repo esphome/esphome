@@ -7,8 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pn7160 {
+namespace esphome::pn7160 {
 
 static const char *const TAG = "pn7160";
 
@@ -589,9 +588,9 @@ optional<size_t> PN7160::find_tag_uid_(const nfc::NfcTagUid &uid) {
 }
 
 void PN7160::purge_old_tags_() {
-  for (size_t i = 0; i < this->discovered_endpoint_.size(); i++) {
-    if (millis() - this->discovered_endpoint_[i].last_seen > this->tag_ttl_) {
-      this->erase_tag_(i);
+  for (size_t i = this->discovered_endpoint_.size(); i > 0; i--) {
+    if (millis() - this->discovered_endpoint_[i - 1].last_seen > this->tag_ttl_) {
+      this->erase_tag_(i - 1);
     }
   }
 }
@@ -1186,5 +1185,4 @@ uint8_t PN7160::wait_for_irq_(uint16_t timeout, bool pin_state) {
   return nfc::STATUS_FAILED;
 }
 
-}  // namespace pn7160
-}  // namespace esphome
+}  // namespace esphome::pn7160

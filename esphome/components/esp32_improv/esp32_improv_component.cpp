@@ -9,8 +9,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace esp32_improv {
+namespace esphome::esp32_improv {
 
 using namespace bytebuffer;
 
@@ -314,6 +313,8 @@ void ESP32ImprovComponent::dump_config() {
 }
 
 void ESP32ImprovComponent::process_incoming_data_() {
+  if (this->incoming_data_.size() < 3)
+    return;
   uint8_t length = this->incoming_data_[1];
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
@@ -348,8 +349,7 @@ void ESP32ImprovComponent::process_incoming_data_() {
         ESP_LOGD(TAG, "Received Improv Wi-Fi settings ssid=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
                  command.password.c_str());
 
-        auto f = std::bind(&ESP32ImprovComponent::on_wifi_connect_timeout_, this);
-        this->set_timeout("wifi-connect-timeout", 30000, f);
+        this->set_timeout("wifi-connect-timeout", 30000, [this]() { this->on_wifi_connect_timeout_(); });
         this->incoming_data_.clear();
         break;
       }
@@ -489,7 +489,6 @@ improv::State ESP32ImprovComponent::get_initial_state_() const {
 
 ESP32ImprovComponent *global_improv_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace esp32_improv
-}  // namespace esphome
+}  // namespace esphome::esp32_improv
 
 #endif

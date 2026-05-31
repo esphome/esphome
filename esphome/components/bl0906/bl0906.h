@@ -9,8 +9,23 @@
 // https://www.belling.com.cn/media/file_object/bel_product/BL0906/datasheet/BL0906_V1.02_cn.pdf
 // https://www.belling.com.cn/media/file_object/bel_product/BL0906/guide/BL0906%20APP%20Note_V1.02.pdf
 
-namespace esphome {
-namespace bl0906 {
+namespace esphome::bl0906 {
+
+// Stage values for the read state machine. After STAGE_CHANNEL_6 the state machine
+// jumps to the two sentinel stages below, then to STAGE_IDLE which marks the cycle
+// as complete and disables the loop.
+enum BL0906Stage : uint8_t {
+  STAGE_TEMP = 0,       // chip temperature
+  STAGE_CHANNEL_1 = 1,  // per-phase current + power + energy
+  STAGE_CHANNEL_2 = 2,
+  STAGE_CHANNEL_3 = 3,
+  STAGE_CHANNEL_4 = 4,
+  STAGE_CHANNEL_5 = 5,
+  STAGE_CHANNEL_6 = 6,
+  STAGE_FREQ = UINT8_MAX - 2,   // frequency + voltage
+  STAGE_POWER = UINT8_MAX - 1,  // total power + total energy
+  STAGE_IDLE = UINT8_MAX,       // cycle complete
+};
 
 struct DataPacket {  // NOLINT(altera-struct-pack-align)
   uint8_t l{0};
@@ -79,7 +94,8 @@ class BL0906 : public PollingComponent, public uart::UARTDevice {
 
   void bias_correction_(uint8_t address, float measurements, float correction);
 
-  uint8_t current_channel_{0};
+  BL0906Stage current_stage_{STAGE_IDLE};
+  void advance_stage_();
   size_t enqueue_action_(ActionCallbackFuncPtr function);
   void handle_actions_();
 
@@ -92,5 +108,4 @@ template<typename... Ts> class ResetEnergyAction : public Action<Ts...>, public 
   void play(const Ts &...x) override { this->parent_->enqueue_action_(&BL0906::reset_energy_); }
 };
 
-}  // namespace bl0906
-}  // namespace esphome
+}  // namespace esphome::bl0906

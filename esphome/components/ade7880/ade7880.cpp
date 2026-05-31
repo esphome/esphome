@@ -13,8 +13,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace ade7880 {
+namespace esphome::ade7880 {
 
 static const char *const TAG = "ade7880";
 
@@ -121,7 +120,7 @@ void ADE7880::update() {
     this->update_sensor_from_s32_register16_(chan->forward_active_energy, AFWATTHR, [&chan](float val) {
       return chan->forward_active_energy_total += val / 14400.0f;
     });
-    this->update_sensor_from_s32_register16_(chan->reverse_active_energy, AFWATTHR, [&chan](float val) {
+    this->update_sensor_from_s32_register16_(chan->reverse_active_energy, ARWATTHR, [&chan](float val) {
       return chan->reverse_active_energy_total += val / 14400.0f;
     });
   }
@@ -137,7 +136,7 @@ void ADE7880::update() {
     this->update_sensor_from_s32_register16_(chan->forward_active_energy, BFWATTHR, [&chan](float val) {
       return chan->forward_active_energy_total += val / 14400.0f;
     });
-    this->update_sensor_from_s32_register16_(chan->reverse_active_energy, BFWATTHR, [&chan](float val) {
+    this->update_sensor_from_s32_register16_(chan->reverse_active_energy, BRWATTHR, [&chan](float val) {
       return chan->reverse_active_energy_total += val / 14400.0f;
     });
   }
@@ -153,7 +152,7 @@ void ADE7880::update() {
     this->update_sensor_from_s32_register16_(chan->forward_active_energy, CFWATTHR, [&chan](float val) {
       return chan->forward_active_energy_total += val / 14400.0f;
     });
-    this->update_sensor_from_s32_register16_(chan->reverse_active_energy, CFWATTHR, [&chan](float val) {
+    this->update_sensor_from_s32_register16_(chan->reverse_active_energy, CRWATTHR, [&chan](float val) {
       return chan->reverse_active_energy_total += val / 14400.0f;
     });
   }
@@ -313,5 +312,4 @@ void ADE7880::reset_device_() {
   this->store_.reset_pending = true;
 }
 
-}  // namespace ade7880
-}  // namespace esphome
+}  // namespace esphome::ade7880

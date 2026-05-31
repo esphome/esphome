@@ -1,8 +1,15 @@
 gps:
   latitude:
     name: "Latitude"
+    id: gps_lat
+    on_value:
+      then:
+        - logger.log:
+            format: "%.6f, %.6f"
+            args: [id(gps_lat).state, id(gps_long).state]
   longitude:
     name: "Longitude"
+    id: gps_long
   altitude:
     name: "Altitude"
   speed:

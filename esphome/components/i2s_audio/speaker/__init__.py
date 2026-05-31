@@ -18,15 +18,16 @@ from .. import (
     CONF_I2S_DOUT_PIN,
     CONF_I2S_MODE,
     CONF_LEFT,
+    CONF_MCLK_MULTIPLE,
     CONF_MONO,
     CONF_PRIMARY,
     CONF_RIGHT,
     CONF_STEREO,
+    CONF_USE_APLL,
     I2SAudioOut,
     i2s_audio_component_schema,
     i2s_audio_ns,
     register_i2s_audio_component,
-    use_legacy,
     validate_mclk_divisible_by_3,
 )
 
@@ -34,12 +35,24 @@ AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@jesserockz", "@kahrendt"]
 DEPENDENCIES = ["i2s_audio"]
 
-I2SAudioSpeaker = i2s_audio_ns.class_(
-    "I2SAudioSpeaker", cg.Component, speaker.Speaker, I2SAudioOut
+I2SAudioSpeakerBase = i2s_audio_ns.class_(
+    "I2SAudioSpeakerBase", cg.Component, speaker.Speaker, I2SAudioOut
 )
+I2SAudioSpeaker = i2s_audio_ns.class_("I2SAudioSpeaker", I2SAudioSpeakerBase)
 
 CONF_DAC_TYPE = "dac_type"
 CONF_I2S_COMM_FMT = "i2s_comm_fmt"
+CONF_SPDIF_MODE = "spdif_mode"
+
+I2SAudioSpeakerBase = i2s_audio_ns.class_(
+    "I2SAudioSpeakerBase", cg.Component, speaker.Speaker, I2SAudioOut
+)
+I2SAudioSpeaker = i2s_audio_ns.class_("I2SAudioSpeaker", I2SAudioSpeakerBase)
+I2SAudioSpeakerSPDIF = i2s_audio_ns.class_("I2SAudioSpeakerSPDIF", I2SAudioSpeakerBase)
+
+I2SCommFmt = i2s_audio_ns.enum("I2SCommFmt", is_class=True)
+
+I2SCommFmt = i2s_audio_ns.enum("I2SCommFmt", is_class=True)
 
 i2s_dac_mode_t = cg.global_ns.enum("i2s_dac_mode_t")
 INTERNAL_DAC_OPTIONS = {
@@ -75,7 +88,17 @@ def _set_num_channels_from_config(config):
 
 
 def _set_stream_limits(config):
-    if config[CONF_I2S_MODE] == CONF_PRIMARY:
+    if config.get(CONF_SPDIF_MODE, False):
+        # SPDIF mode: 16/24/32-bit audio and stereo at configured sample rate
+        audio.set_stream_limits(
+            min_bits_per_sample=16,
+            max_bits_per_sample=32,
+            min_channels=2,
+            max_channels=2,
+            min_sample_rate=config.get(CONF_SAMPLE_RATE),
+            max_sample_rate=config.get(CONF_SAMPLE_RATE),
+        )(config)
+    elif config[CONF_I2S_MODE] == CONF_PRIMARY:
         # Primary mode has modifiable stream settings
         audio.set_stream_limits(
             min_bits_per_sample=8,
@@ -99,12 +122,24 @@ def _set_stream_limits(config):
     return config
 
 
+def _select_speaker_class(config):
+    """Override ID type when SPDIF mode is enabled."""
+    if config.get(CONF_SPDIF_MODE, False):
+        config[CONF_ID].type = I2SAudioSpeakerSPDIF
+    return config
+
+
 def _validate_esp32_variant(config):
-    if config[CONF_DAC_TYPE] != "internal":
-        return config
     variant = esp32.get_esp32_variant()
-    if variant not in INTERNAL_DAC_VARIANTS:
-        raise cv.Invalid(f"{variant} does not have an internal DAC")
+    if config[CONF_DAC_TYPE] == "internal":
+        if variant not in INTERNAL_DAC_VARIANTS:
+            raise cv.Invalid(f"{variant} does not have an internal DAC")
+    elif (
+        variant == esp32.VARIANT_ESP32
+        and config.get(CONF_BITS_PER_SAMPLE) == 8
+        and config.get(CONF_CHANNEL) in (CONF_MONO, CONF_LEFT, CONF_RIGHT)
+    ):
+        raise cv.Invalid("8-bit mono mode is not supported on ESP32")
     return config
 
 
@@ -148,6 +183,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_I2S_COMM_FMT, default="stand_i2s"): cv.one_of(
                         *I2C_COMM_FMT_OPTIONS, lower=True
                     ),
+                    cv.Optional(CONF_SPDIF_MODE, default=False): cv.boolean,
                 }
             ),
         },
@@ -156,18 +192,37 @@ CONFIG_SCHEMA = cv.All(
     _validate_esp32_variant,
     _set_num_channels_from_config,
     _set_stream_limits,
+    _select_speaker_class,
     validate_mclk_divisible_by_3,
 )
 
 
 def _final_validate(config):
-    if not use_legacy():
-        if config[CONF_DAC_TYPE] == "internal":
-            raise cv.Invalid("Internal DAC is only compatible with legacy i2s driver")
-        if config[CONF_I2S_COMM_FMT] == "stand_max":
+    if config[CONF_DAC_TYPE] == "internal":
+        raise cv.Invalid(
+            "Internal DAC is no longer supported. Use an external I2S DAC instead."
+        )
+    if config[CONF_I2S_COMM_FMT] == "stand_max":
+        raise cv.Invalid("I2S standard max format is no longer supported.")
+
+    if config.get(CONF_SPDIF_MODE, False):
+        # SPDIF mode specific validations
+        if config[CONF_SAMPLE_RATE] not in [44100, 48000]:
             raise cv.Invalid(
-                "I2S standard max format only implemented with legacy i2s driver."
+                "SPDIF mode only supports 44100 Hz or 48000 Hz sample rates"
             )
+        if config[CONF_CHANNEL] != CONF_STEREO:
+            raise cv.Invalid("SPDIF mode only supports stereo channel configuration")
+        if not config[CONF_USE_APLL]:
+            raise cv.Invalid(
+                "SPDIF mode requires 'use_apll: true' for accurate clock generation"
+            )
+        if config[CONF_I2S_MODE] != CONF_PRIMARY:
+            raise cv.Invalid("SPDIF mode requires 'i2s_mode: primary'")
+        if config[CONF_I2S_COMM_FMT] != "stand_i2s":
+            raise cv.Invalid("SPDIF mode requires 'i2s_comm_fmt: stand_i2s'")
+        if config[CONF_MCLK_MULTIPLE] != 256:
+            raise cv.Invalid("SPDIF mode requires 'mclk_multiple: 256'")
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -179,21 +234,19 @@ async def to_code(config):
     await register_i2s_audio_component(var, config)
     await speaker.register_speaker(var, config)
 
-    if config[CONF_DAC_TYPE] == "internal":
-        cg.add(var.set_internal_dac_mode(config[CONF_MODE]))
+    cg.add(var.set_dout_pin(config[CONF_I2S_DOUT_PIN]))
+
+    is_spdif = config.get(CONF_SPDIF_MODE, False)
+    if is_spdif:
+        cg.add_define("USE_I2S_AUDIO_SPDIF_MODE")
     else:
-        cg.add(var.set_dout_pin(config[CONF_I2S_DOUT_PIN]))
-        if use_legacy():
-            cg.add(
-                var.set_i2s_comm_fmt(I2C_COMM_FMT_OPTIONS[config[CONF_I2S_COMM_FMT]])
-            )
-        else:
-            fmt = "std"  # equals stand_i2s, stand_pcm_long, i2s_msb, pcm_long
-            if config[CONF_I2S_COMM_FMT] in ["stand_msb", "i2s_lsb"]:
-                fmt = "msb"
-            elif config[CONF_I2S_COMM_FMT] in ["stand_pcm_short", "pcm_short", "pcm"]:
-                fmt = "pcm"
-            cg.add(var.set_i2s_comm_fmt(fmt))
+        fmt = I2SCommFmt.STANDARD  # equals stand_i2s, stand_pcm_long, i2s_msb, pcm_long
+        if config[CONF_I2S_COMM_FMT] in ["stand_msb", "i2s_lsb"]:
+            fmt = I2SCommFmt.MSB
+        elif config[CONF_I2S_COMM_FMT] in ["stand_pcm_short", "pcm_short", "pcm"]:
+            fmt = I2SCommFmt.PCM
+        cg.add(var.set_i2s_comm_fmt(fmt))
+
     if config[CONF_TIMEOUT] != CONF_NEVER:
         cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     cg.add(var.set_buffer_duration(config[CONF_BUFFER_DURATION]))

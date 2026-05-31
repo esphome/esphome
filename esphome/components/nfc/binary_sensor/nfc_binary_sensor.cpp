@@ -3,8 +3,7 @@
 #include "../nfc_helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
 static const char *const TAG = "nfc.binary_sensor";
 
@@ -112,5 +111,4 @@ void NfcTagBinarySensor::tag_on(NfcTag &tag) {
   }
 }
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

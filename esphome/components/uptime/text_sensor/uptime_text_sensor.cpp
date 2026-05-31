@@ -1,6 +1,6 @@
 #include "uptime_text_sensor.h"
 
-#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -19,7 +19,7 @@ static void append_unit(char *buf, size_t buf_size, size_t &pos, const char *sep
 void UptimeTextSensor::setup() { this->update(); }
 
 void UptimeTextSensor::update() {
-  uint32_t uptime = static_cast<uint32_t>(App.scheduler.millis_64() / 1000);
+  uint32_t uptime = static_cast<uint32_t>(millis_64() / 1000);
   unsigned interval = this->get_update_interval() / 1000;
 
   // Calculate all time units
@@ -70,7 +70,7 @@ void UptimeTextSensor::update() {
   if (show_seconds)
     append_unit(buf, sizeof(buf), pos, this->separator_, seconds, this->seconds_text_);
 
-  this->publish_state(buf);
+  this->publish_state(buf, pos);
 }
 
 float UptimeTextSensor::get_setup_priority() const { return setup_priority::HARDWARE; }

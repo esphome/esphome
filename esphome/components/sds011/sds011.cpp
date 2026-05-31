@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace sds011 {
+namespace esphome::sds011 {
 
 static const char *const TAG = "sds011";
 
@@ -184,5 +183,4 @@ void SDS011Component::set_update_interval_min(uint8_t update_interval_min) {
   this->update_interval_min_ = update_interval_min;
 }
 
-}  // namespace sds011
-}  // namespace esphome
+}  // namespace esphome::sds011

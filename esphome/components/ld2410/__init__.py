@@ -97,7 +97,10 @@ BLUETOOTH_PASSWORD_SET_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "bluetooth_password.set", BluetoothPasswordSetAction, BLUETOOTH_PASSWORD_SET_SCHEMA
+    "bluetooth_password.set",
+    BluetoothPasswordSetAction,
+    BLUETOOTH_PASSWORD_SET_SCHEMA,
+    synchronous=True,
 )
 async def bluetooth_password_set_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

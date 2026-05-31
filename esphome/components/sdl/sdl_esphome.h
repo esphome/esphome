@@ -10,8 +10,7 @@
 #include <map>
 #include <vector>
 
-namespace esphome {
-namespace sdl {
+namespace esphome::sdl {
 
 class SdlEncoder;  // forward declaration
 
@@ -37,15 +36,15 @@ class Sdl : public display::Display {
     this->pos_x_ = pos_x;
     this->pos_y_ = pos_y;
   }
-  int get_width() override { return this->width_; }
-  int get_height() override { return this->height_; }
+  int get_width() override;
+  int get_height() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void dump_config() override { LOG_DISPLAY("", "SDL", this); }
-  void add_key_listener(int32_t keycode, std::function<void(bool)> &&callback) {
+  template<typename F> void add_key_listener(int32_t keycode, F &&callback) {
     if (!this->key_callbacks_.count(keycode)) {
       this->key_callbacks_[keycode] = CallbackManager<void(bool)>();
     }
-    this->key_callbacks_[keycode].add(std::move(callback));
+    this->key_callbacks_[keycode].add(std::forward<F>(callback));
   }
 
   void add_mouse_button_listener(uint8_t button, std::function<void(bool)> &&callback) {
@@ -83,7 +82,6 @@ class Sdl : public display::Display {
   std::vector<SdlEncoder *> encoders_{};
   bool has_touchscreen_{false};
 };
-}  // namespace sdl
-}  // namespace esphome
+}  // namespace esphome::sdl
 
 #endif

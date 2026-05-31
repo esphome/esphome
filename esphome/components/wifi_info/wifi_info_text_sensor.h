@@ -23,7 +23,7 @@ class IPAddressWiFiInfo final : public Component, public text_sensor::TextSensor
                    const network::IPAddress &dns2) override;
 
  protected:
-  std::array<text_sensor::TextSensor *, 5> ip_sensors_;
+  std::array<text_sensor::TextSensor *, 5> ip_sensors_{};
 };
 
 class DNSAddressWifiInfo final : public Component, public text_sensor::TextSensor, public wifi::WiFiIPStateListener {

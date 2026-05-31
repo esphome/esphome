@@ -180,13 +180,22 @@ SPS30_ACTION_SCHEMA = maybe_simple_id(
 
 
 @automation.register_action(
-    "sps30.start_fan_autoclean", StartFanAction, SPS30_ACTION_SCHEMA
+    "sps30.start_fan_autoclean",
+    StartFanAction,
+    SPS30_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "sps30.start_measurement", StartMeasurementAction, SPS30_ACTION_SCHEMA
+    "sps30.start_measurement",
+    StartMeasurementAction,
+    SPS30_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "sps30.stop_measurement", StopMeasurementAction, SPS30_ACTION_SCHEMA
+    "sps30.stop_measurement",
+    StopMeasurementAction,
+    SPS30_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def sps30_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

@@ -110,7 +110,7 @@ GRAPH_SCHEMA = cv.Schema(
         cv.Optional(CONF_MIN_RANGE): cv.float_range(min=0, min_included=False),
         cv.Optional(CONF_MAX_RANGE): cv.float_range(min=0, min_included=False),
         cv.Optional(CONF_TRACES): cv.ensure_list(GRAPH_TRACE_SCHEMA),
-        cv.Optional(CONF_LEGEND): cv.ensure_list(GRAPH_LEGEND_SCHEMA),
+        cv.Optional(CONF_LEGEND): GRAPH_LEGEND_SCHEMA,
     }
 )
 
@@ -192,7 +192,7 @@ async def to_code(config):
         cg.add(var.add_trace(tr))
     # Add legend
     if CONF_LEGEND in config:
-        lgd = config[CONF_LEGEND][0]
+        lgd = config[CONF_LEGEND]
         legend = cg.new_Pvariable(lgd[CONF_ID], GraphLegend())
         if CONF_NAME_FONT in lgd:
             font = await cg.get_variable(lgd[CONF_NAME_FONT])

@@ -8,8 +8,6 @@
 #include <sys/ioctl.h>
 #endif
 #include <unistd.h>
-#include <limits>
-#include <random>
 
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
@@ -17,13 +15,6 @@
 namespace esphome {
 
 static const char *const TAG = "helpers.host";
-
-uint32_t random_uint32() {
-  std::random_device dev;
-  std::mt19937 rng(dev());
-  std::uniform_int_distribution<uint32_t> dist(0, std::numeric_limits<uint32_t>::max());
-  return dist(rng);
-}
 
 bool random_bytes(uint8_t *data, size_t len) {
   FILE *fp = fopen("/dev/urandom", "r");
