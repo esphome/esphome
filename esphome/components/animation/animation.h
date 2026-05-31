@@ -3,8 +3,7 @@
 
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace animation {
+namespace esphome::animation {
 
 class Animation : public image::Image {
  public:
@@ -64,5 +63,4 @@ template<typename... Ts> class AnimationSetFrameAction : public Action<Ts...> {
   Animation *parent_;
 };
 
-}  // namespace animation
-}  // namespace esphome
+}  // namespace esphome::animation

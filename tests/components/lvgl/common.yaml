@@ -38,7 +38,7 @@ number:
   - platform: lvgl
     widget: slider_id
     name: LVGL Slider Number
-    update_on_release: true
+    trigger: on_release
     restore_value: true
   - platform: lvgl
     widget: lv_arc

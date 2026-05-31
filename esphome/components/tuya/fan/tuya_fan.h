@@ -4,8 +4,7 @@
 #include "esphome/components/tuya/tuya.h"
 #include "esphome/components/fan/fan.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 class TuyaFan : public Component, public fan::Fan {
  public:
@@ -32,5 +31,4 @@ class TuyaFan : public Component, public fan::Fan {
   TuyaDatapointType oscillation_type_{};
 };
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

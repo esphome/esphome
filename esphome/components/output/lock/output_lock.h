@@ -4,8 +4,7 @@
 #include "esphome/components/lock/lock.h"
 #include "esphome/components/output/binary_output.h"
 
-namespace esphome {
-namespace output {
+namespace esphome::output {
 
 class OutputLock : public lock::Lock, public Component {
  public:
@@ -20,5 +19,4 @@ class OutputLock : public lock::Lock, public Component {
   output::BinaryOutput *output_;
 };
 
-}  // namespace output
-}  // namespace esphome
+}  // namespace esphome::output

@@ -58,7 +58,7 @@ from .effects import (
     RGB_EFFECTS,
     validate_effects,
 )
-from .types import (  # noqa
+from .types import (  # noqa: F401
     AddressableLight,
     AddressableLightState,
     ColorMode,
@@ -87,9 +87,21 @@ class EffectRef:
 
 
 @dataclass
+class EffectCycleRef:
+    """A pending light.effect.next/previous action to validate.
+
+    Records that the referenced light needs at least one effect configured.
+    """
+
+    light_id: ID
+    component_path: list[str | int]
+
+
+@dataclass
 class LightData:
     gamma_tables: dict = field(default_factory=dict)  # gamma_value -> fwd_arr
     effect_refs: list[EffectRef] = field(default_factory=list)
+    effect_cycle_refs: list[EffectCycleRef] = field(default_factory=list)
 
 
 def _get_data() -> LightData:
@@ -160,13 +172,15 @@ def _final_validate(config: ConfigType) -> ConfigType:
     this never runs — but the ID validator will catch the missing light ID separately.
     """
     data = _get_data()
-    if not data.effect_refs:
+    if not data.effect_refs and not data.effect_cycle_refs:
         return config
 
-    # Drain the list so we only validate once even though
+    # Drain the lists so we only validate once even though
     # FINAL_VALIDATE_SCHEMA runs for each light platform instance.
     refs = data.effect_refs
     data.effect_refs = []
+    cycle_refs = data.effect_cycle_refs
+    data.effect_cycle_refs = []
 
     fconf = fv.full_config.get()
 
@@ -185,6 +199,21 @@ def _final_validate(config: ConfigType) -> ConfigType:
                 f"Effect '{ref.effect_name}' not found for light "
                 f"'{ref.light_id}'. "
                 f"Available effects: {available_effects_str(effects)}",
+                path=[cv.ROOT_CONFIG_PATH] + ref.component_path,
+            )
+
+    for ref in cycle_refs:
+        try:
+            light_path = fconf.get_path_for_id(ref.light_id)[:-1]
+            light_config = fconf.get_config_for_path(light_path)
+        except KeyError:
+            continue
+
+        if not light_config.get(CONF_EFFECTS):
+            raise cv.FinalExternalInvalid(
+                f"Light '{ref.light_id}' has no effects configured, but a "
+                f"'light.effect.next' or 'light.effect.previous' action "
+                f"references it. Add at least one effect to the light.",
                 path=[cv.ROOT_CONFIG_PATH] + ref.component_path,
             )
 

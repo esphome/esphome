@@ -9,8 +9,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace esp32_improv {
+namespace esphome::esp32_improv {
 
 using namespace bytebuffer;
 
@@ -490,7 +489,6 @@ improv::State ESP32ImprovComponent::get_initial_state_() const {
 
 ESP32ImprovComponent *global_improv_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace esp32_improv
-}  // namespace esphome
+}  // namespace esphome::esp32_improv
 
 #endif

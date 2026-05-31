@@ -7,9 +7,10 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/ring_buffer.h"
 
 #include "esphome/components/api/api_connection.h"
+#include "esphome/components/audio/audio_transfer_buffer.h"
+#include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/microphone/microphone_source.h"
 #ifdef USE_MEDIA_PLAYER
@@ -26,8 +27,7 @@
 #include <span>
 #include <vector>
 
-namespace esphome {
-namespace voice_assistant {
+namespace esphome::voice_assistant {
 
 // Version 1: Initial version
 // Version 2: Adds raw speaker support
@@ -41,6 +41,7 @@ enum VoiceAssistantFeature : uint32_t {
   FEATURE_TIMERS = 1 << 3,
   FEATURE_ANNOUNCE = 1 << 4,
   FEATURE_START_CONVERSATION = 1 << 5,
+  FEATURE_MULTI_CHANNEL_AUDIO = 1 << 6,
 };
 
 enum class State {
@@ -121,6 +122,7 @@ class VoiceAssistant : public Component {
   void failed_to_start();
 
   void set_microphone_source(microphone::MicrophoneSource *mic_source) { this->mic_source_ = mic_source; }
+  void set_microphone_source2(microphone::MicrophoneSource *mic_source2) { this->mic_source2_ = mic_source2; }
 #ifdef USE_MICRO_WAKE_WORD
   void set_micro_wake_word(micro_wake_word::MicroWakeWord *mww) { this->micro_wake_word_ = mww; }
 #endif
@@ -150,6 +152,9 @@ class VoiceAssistant : public Component {
     uint32_t flags = 0;
     flags |= VoiceAssistantFeature::FEATURE_VOICE_ASSISTANT;
     flags |= VoiceAssistantFeature::FEATURE_API_AUDIO;
+    if (this->mic_source2_ != nullptr) {
+      flags |= VoiceAssistantFeature::FEATURE_MULTI_CHANNEL_AUDIO;
+    }
 #ifdef USE_SPEAKER
     if (this->speaker_ != nullptr) {
       flags |= VoiceAssistantFeature::FEATURE_SPEAKER;
@@ -239,6 +244,12 @@ class VoiceAssistant : public Component {
   void signal_stop_();
   void start_playback_timeout_();
 
+  // Drains the exposed microphone audio and sends it to Home Assistant over the API in one loop() pass.
+  void stream_api_audio_();
+  // Handles a pass where at least one configured channel has no audio exposed, timing out a channel that
+  // stalls. See audio_channel_stall_start_.
+  void handle_channel_stall_(size_t available, size_t available2);
+
   std::unique_ptr<socket::Socket> socket_ = nullptr;
   struct sockaddr_storage dest_addr_;
 
@@ -277,6 +288,7 @@ class VoiceAssistant : public Component {
   bool timer_tick_running_{false};
 
   microphone::MicrophoneSource *mic_source_{nullptr};
+  microphone::MicrophoneSource *mic_source2_{nullptr};
 #ifdef USE_SPEAKER
   void write_speaker_();
   speaker::Speaker *speaker_{nullptr};
@@ -289,7 +301,7 @@ class VoiceAssistant : public Component {
 #endif
 #ifdef USE_MEDIA_PLAYER
   media_player::MediaPlayer *media_player_{nullptr};
-  std::string tts_response_url_{""};
+  std::string tts_response_url_;
   bool started_streaming_tts_{false};
 
   MediaPlayerResponseState media_player_response_state_{MediaPlayerResponseState::IDLE};
@@ -297,19 +309,30 @@ class VoiceAssistant : public Component {
 
   bool local_output_{false};
 
-  std::string conversation_id_{""};
+  std::string conversation_id_;
 
-  std::string wake_word_{""};
+  std::string wake_word_;
 
-  std::shared_ptr<RingBuffer> ring_buffer_;
+  // Zero-copy sources that read directly from each microphone channel's ring buffer internal storage.
+  // Each source owns its ring buffer; the matching ``ring_buffer_``/``ring_buffer2_`` weak_ptr is used by
+  // the microphone callback (a different thread) to write into it.
+  std::unique_ptr<audio::RingBufferAudioSource> audio_source_;
+  std::unique_ptr<audio::RingBufferAudioSource> audio_source2_;
+  std::weak_ptr<ring_buffer::RingBuffer> ring_buffer_;
+  std::weak_ptr<ring_buffer::RingBuffer> ring_buffer2_;
+
+  // When streaming multiple channels, the send loop holds an exposed chunk on one channel until the other
+  // channel also has audio so the channels are always sent together (an empty payload looks like
+  // end-of-stream to Home Assistant). Home Assistant has no stream timeout, so a channel that stops
+  // producing entirely would hang streaming forever. This records when such an imbalance began so a
+  // prolonged one can be detected and stopped; 0 means no imbalance is currently being timed.
+  uint32_t audio_channel_stall_start_{0};
 
   bool use_wake_word_;
   uint8_t noise_suppression_level_;
   uint8_t auto_gain_;
   float volume_multiplier_;
   uint32_t conversation_timeout_;
-
-  uint8_t *send_buffer_{nullptr};
 
   bool continuous_{false};
   bool silence_detection_;
@@ -367,7 +390,6 @@ template<typename... Ts> class ConnectedCondition : public Condition<Ts...>, pub
 
 extern VoiceAssistant *global_voice_assistant;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace voice_assistant
-}  // namespace esphome
+}  // namespace esphome::voice_assistant
 
 #endif  // USE_VOICE_ASSISTANT

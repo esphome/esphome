@@ -4,8 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace demo {
+namespace esphome::demo {
 
 class DemoSensor : public sensor::Sensor, public PollingComponent {
  public:
@@ -25,5 +24,4 @@ class DemoSensor : public sensor::Sensor, public PollingComponent {
   }
 };
 
-}  // namespace demo
-}  // namespace esphome
+}  // namespace esphome::demo
