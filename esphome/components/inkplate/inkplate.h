@@ -7,8 +7,7 @@
 
 #include <array>
 
-namespace esphome {
-namespace inkplate {
+namespace esphome::inkplate {
 
 enum InkplateModel : uint8_t {
   INKPLATE_6 = 0,
@@ -210,5 +209,4 @@ class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
   GPIOPin *wakeup_pin_;
 };
 
-}  // namespace inkplate
-}  // namespace esphome
+}  // namespace esphome::inkplate

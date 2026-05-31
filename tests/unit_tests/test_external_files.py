@@ -120,7 +120,7 @@ def test_is_file_recent_with_old_file(setup_core: Path) -> None:
 
     old_time = time.time() - 7200
     mock_stat = MagicMock()
-    mock_stat.st_ctime = old_time
+    mock_stat.st_mtime = old_time
 
     with patch.object(Path, "stat", return_value=mock_stat):
         refresh = TimePeriod(seconds=3600)
@@ -147,7 +147,7 @@ def test_is_file_recent_with_zero_refresh(setup_core: Path) -> None:
 
     # Mock stat to return a time 10 seconds ago
     mock_stat = MagicMock()
-    mock_stat.st_ctime = time.time() - 10
+    mock_stat.st_mtime = time.time() - 10
     with patch.object(Path, "stat", return_value=mock_stat):
         refresh = TimePeriod(seconds=0)
         result = external_files.is_file_recent(test_file, refresh)
@@ -467,6 +467,69 @@ def test_download_content_with_network_error_no_cache_fails(
 
     with pytest.raises(Invalid, match="Could not download from.*Network error"):
         external_files.download_content(url, test_file)
+
+
+class _BodyReadErrorResponse:
+    """Stand-in for `requests.Response` whose `.content` raises on access.
+
+    A small dedicated stub avoids mutating `MagicMock`'s class with a
+    `property` (which would leak across every other MagicMock-based test
+    in this file).
+    """
+
+    def __init__(self, exc: Exception) -> None:
+        self._exc = exc
+        self.headers: dict[str, str] = {}
+
+    def raise_for_status(self) -> None:
+        return None
+
+    @property
+    def content(self) -> bytes:
+        raise self._exc
+
+
+def test_download_content_with_body_read_error_uses_cache(
+    mock_has_remote_file_changed: MagicMock,
+    mock_requests_get: MagicMock,
+    setup_core: Path,
+) -> None:
+    """Body-read errors (chunked-decode/gzip-decode/mid-stream connection
+    drop) raise RequestException subclasses on `.content` access, not from
+    `requests.get` itself. They must follow the same fall-back-to-cache
+    path as a connect-time failure.
+    """
+    test_file = setup_core / "cached.txt"
+    cached_content = b"cached content"
+    test_file.write_bytes(cached_content)
+
+    mock_has_remote_file_changed.return_value = True
+    mock_requests_get.return_value = _BodyReadErrorResponse(
+        requests.exceptions.ChunkedEncodingError("body truncated")
+    )
+
+    result = external_files.download_content("https://example.com/file.txt", test_file)
+
+    assert result == cached_content
+
+
+def test_download_content_with_body_read_error_no_cache_fails(
+    mock_has_remote_file_changed: MagicMock,
+    mock_requests_get: MagicMock,
+    setup_core: Path,
+) -> None:
+    """A body-read failure with no cache available must surface as a
+    cv.Invalid, same as a connect-time failure with no cache.
+    """
+    test_file = setup_core / "nonexistent.txt"
+
+    mock_has_remote_file_changed.return_value = True
+    mock_requests_get.return_value = _BodyReadErrorResponse(
+        requests.exceptions.ChunkedEncodingError("body truncated")
+    )
+
+    with pytest.raises(Invalid, match="Could not download from.*body truncated"):
+        external_files.download_content("https://example.com/file.txt", test_file)
 
 
 def test_download_content_skip_external_update_uses_cache(

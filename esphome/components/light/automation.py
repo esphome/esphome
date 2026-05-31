@@ -26,8 +26,8 @@ from esphome.const import (
     CONF_WARM_WHITE,
     CONF_WHITE,
 )
-from esphome.core import CORE, EsphomeError, Lambda
-from esphome.cpp_generator import LambdaExpression
+from esphome.core import CORE, ID, EsphomeError, Lambda
+from esphome.cpp_generator import LambdaExpression, MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 from .types import (
@@ -37,12 +37,16 @@ from .types import (
     AddressableSet,
     ColorMode,
     DimRelativeAction,
+    LightCall,
     LightControlAction,
+    LightEffectCycleAction,
     LightIsOffCondition,
     LightIsOnCondition,
     LightState,
     ToggleAction,
 )
+
+CONF_INCLUDE_NONE = "include_none"
 
 
 @automation.register_action(
@@ -181,8 +185,8 @@ def _resolve_effect_index(config: ConfigType) -> int:
 async def light_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
 
-    # Order/bits must match LIGHT_CONTROL_FIELDS in automation.h.
-    # EFFECT has special handling below; setter=None skips the generic loop.
+    # All configured fields are folded into a single stateless lambda whose
+    # constants live in flash; the action stores only a function pointer.
     FIELDS = (
         (CONF_COLOR_MODE, "set_color_mode", ColorMode),
         (CONF_STATE, "set_state", cg.bool_),
@@ -197,48 +201,127 @@ async def light_control_to_code(config, action_id, template_arg, args):
         (CONF_COLOR_TEMPERATURE, "set_color_temperature", cg.float_),
         (CONF_COLD_WHITE, "set_cold_white", cg.float_),
         (CONF_WARM_WHITE, "set_warm_white", cg.float_),
-        (CONF_EFFECT, None, cg.uint32),
     )
-    # Bitmask is passed as uint16_t in C++ — must stay within 16 bits.
-    assert len(FIELDS) <= 16, "LightControlAction Fields bitmask exceeds uint16_t"
 
-    field_mask = sum(1 << i for i, (k, _, _) in enumerate(FIELDS) if k in config)
-    control_template_arg = cg.TemplateArguments(
-        cg.RawExpression(f"static_cast<uint16_t>({field_mask})"), *template_arg
-    )
-    var = cg.new_Pvariable(action_id, control_template_arg, paren)
+    # Normalize trigger args to `const std::remove_cvref_t<T> &` so the
+    # apply lambda and any inner field lambdas (generated below via
+    # `process_lambda`) share one parameter spelling that's well-formed for
+    # any T (value, ref, or const-ref). Matches LightControlAction::ApplyFn.
+    normalized_args = [
+        (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), n)
+        for t, n in args
+    ]
+
+    fwd_args = ", ".join(name for _, name in args)
+    body_lines: list[str] = []
 
     for conf_key, setter, type_ in FIELDS:
-        if conf_key in config and setter is not None:
-            template_ = await cg.templatable(config[conf_key], args, type_)
-            cg.add(getattr(var, setter)(template_))
+        if conf_key not in config:
+            continue
+        value = config[conf_key]
+        if isinstance(value, Lambda):
+            inner = await cg.process_lambda(value, normalized_args, return_type=type_)
+            body_lines.append(f"call.{setter}(({inner})({fwd_args}));")
+        else:
+            body_lines.append(f"call.{setter}({cg.safe_exp(value)});")
 
     if CONF_EFFECT in config:
         if isinstance(config[CONF_EFFECT], Lambda):
-            # Lambda returns a string — wrap in a C++ lambda that resolves
-            # the effect name to its uint32_t index at runtime
             inner_lambda = await cg.process_lambda(
-                config[CONF_EFFECT], args, return_type=cg.std_string
+                config[CONF_EFFECT], normalized_args, return_type=cg.std_string
             )
-            fwd_args = ", ".join(n for _, n in args)
-            # capture="" is correct: paren is a global variable name
-            # string-interpolated into the body at codegen time, not a
-            # C++ runtime capture.
-            wrapper = LambdaExpression(
-                f"auto __effect_s = ({inner_lambda})({fwd_args});\n"
-                f"return {paren}->get_effect_index("
-                f"__effect_s.c_str(), __effect_s.size());",
-                args,
-                capture="",
-                return_type=cg.uint32,
+            body_lines.append(
+                f"{{ auto __effect_s = ({inner_lambda})({fwd_args});\n"
+                f"call.set_effect(parent->get_effect_index("
+                f"__effect_s.c_str(), __effect_s.size())); }}"
             )
-            cg.add(var.set_effect(wrapper))
         else:
-            # Static string — resolve effect name to index at codegen time
-            template_ = await cg.templatable(
-                _resolve_effect_index(config), args, cg.uint32
+            # Cast disambiguates between set_effect(uint32_t) and
+            # set_effect(optional<uint32_t>) when the literal is an int.
+            body_lines.append(
+                f"call.set_effect(static_cast<uint32_t>({_resolve_effect_index(config)}));"
             )
-            cg.add(var.set_effect(template_))
+
+    apply_args = [
+        (LightState.operator("ptr"), "parent"),
+        (LightCall.operator("ref"), "call"),
+        *normalized_args,
+    ]
+    apply_lambda = LambdaExpression(
+        ["\n".join(body_lines)],
+        apply_args,
+        capture="",
+        return_type=cg.void,
+    )
+    return cg.new_Pvariable(action_id, template_arg, paren, apply_lambda)
+
+
+def _record_effect_cycle_ref(config: ConfigType) -> ConfigType:
+    """Record a cycle-action reference for later validation against the target light."""
+    from . import EffectCycleRef, _get_data
+
+    _get_data().effect_cycle_refs.append(
+        EffectCycleRef(
+            light_id=config[CONF_ID],
+            component_path=path_context.get(),
+        )
+    )
+    return config
+
+
+LIGHT_EFFECT_CYCLE_ACTION_BASE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(LightState),
+        cv.Optional(CONF_INCLUDE_NONE, default=False): cv.boolean,
+    }
+)
+LIGHT_EFFECT_CYCLE_ACTION_BASE_SCHEMA.add_extra(_record_effect_cycle_ref)
+
+LIGHT_EFFECT_CYCLE_ACTION_SCHEMA = automation.maybe_simple_id(
+    LIGHT_EFFECT_CYCLE_ACTION_BASE_SCHEMA
+)
+
+
+@automation.register_action(
+    "light.effect.next",
+    LightEffectCycleAction,
+    LIGHT_EFFECT_CYCLE_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def light_effect_next_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    return await _light_effect_cycle_to_code(config, action_id, template_arg, True)
+
+
+@automation.register_action(
+    "light.effect.previous",
+    LightEffectCycleAction,
+    LIGHT_EFFECT_CYCLE_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def light_effect_previous_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    return await _light_effect_cycle_to_code(config, action_id, template_arg, False)
+
+
+async def _light_effect_cycle_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    forward: bool,
+) -> MockObj:
+    paren = await cg.get_variable(config[CONF_ID])
+    cycle_template_arg = cg.TemplateArguments(forward, *template_arg)
+    var = cg.new_Pvariable(action_id, cycle_template_arg, paren)
+    cg.add(var.set_include_none(config[CONF_INCLUDE_NONE]))
     return var
 
 

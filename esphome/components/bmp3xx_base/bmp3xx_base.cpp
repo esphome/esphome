@@ -11,8 +11,7 @@
 #include "esphome/core/progmem.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace bmp3xx_base {
+namespace esphome::bmp3xx_base {
 
 static const char *const TAG = "bmp3xx.sensor";
 
@@ -356,5 +355,4 @@ float BMP3XXComponent::bmp388_compensate_pressure_(float uncomp_press, float t_l
   return partial_out1 + partial_out2 + partial_data4;
 }
 
-}  // namespace bmp3xx_base
-}  // namespace esphome
+}  // namespace esphome::bmp3xx_base

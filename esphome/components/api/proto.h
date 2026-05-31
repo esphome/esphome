@@ -424,6 +424,7 @@ class ProtoEncode {
     if (len == 0 && !force)
       return;
     encode_field_raw(pos PROTO_ENCODE_DEBUG_ARG, field_id, 2);  // type 2: Length-delimited string
+    // NOLINTNEXTLINE(readability-inconsistent-ifelse-braces) -- false positive on [[likely]] attribute
     if (len < VARINT_MAX_1_BYTE) [[likely]] {
       PROTO_ENCODE_CHECK_BOUNDS(pos, 1 + len);
       *pos++ = static_cast<uint8_t>(len);

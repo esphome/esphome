@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace ens210 {
+namespace esphome::ens210 {
 
 /// This class implements support for the ENS210 relative humidity and temperature i2c sensor.
 class ENS210Component : public PollingComponent, public i2c::I2CDevice {
@@ -34,5 +33,4 @@ class ENS210Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *humidity_sensor_{nullptr};
 };
 
-}  // namespace ens210
-}  // namespace esphome
+}  // namespace esphome::ens210

@@ -3,8 +3,7 @@
 #include <cinttypes>
 #include <cmath>
 
-namespace esphome {
-namespace qmp6988 {
+namespace esphome::qmp6988 {
 
 static const uint8_t QMP6988_CHIP_ID = 0x5C;
 
@@ -351,5 +350,4 @@ void QMP6988Component::update() {
     this->pressure_sensor_->publish_state(pressurehectopascals);
 }
 
-}  // namespace qmp6988
-}  // namespace esphome
+}  // namespace esphome::qmp6988
