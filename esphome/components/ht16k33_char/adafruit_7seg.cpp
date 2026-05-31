@@ -25,8 +25,7 @@
  *        implement it.
  *****************************************************************************/
 
-namespace esphome {
-namespace ht16k33_char {
+namespace esphome::ht16k33_char {
 
 void Adafruit7Seg::write_to_buffer(uint16_t char_to_write, uint8_t char_position) {
   this->buffer_[this->digit_map_[char_position]] |= (uint8_t) ((char_to_write) &0x7F);
@@ -60,5 +59,4 @@ uint8_t Adafruit7Seg::handle_special_char(char char_to_find, uint8_t position) {
   return SPECIAL_CHAR_NOT_FOUND;
 }
 
-}  // namespace ht16k33_char
-}  // namespace esphome
+}  // namespace esphome::ht16k33_char

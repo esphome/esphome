@@ -4,8 +4,7 @@
 #include "esphome/core/time.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace ht16k33_char {
+namespace esphome::ht16k33_char {
 
 static const uint8_t HT16K33_DISPLAY_DATA_ADDRESS = 0x00;
 static const uint8_t HT16K33_SYSTEM_SETUP = 0x20;
@@ -122,5 +121,4 @@ class HT16k33CharComponent : public PollingComponent, public i2c::I2CDevice {
   optional<ht16k33_char_writer_t> writer_{};
 };
 
-}  // namespace ht16k33_char
-}  // namespace esphome
+}  // namespace esphome::ht16k33_char

@@ -2,8 +2,8 @@
 
 #include "ht16k33_char.h"
 
-namespace esphome {
-namespace ht16k33_char {
+namespace esphome::ht16k33_char {
+
 
 class Adafruit7Seg : public HT16k33CharComponent {
  public:
@@ -28,5 +28,4 @@ class Adafruit7Seg : public HT16k33CharComponent {
   void write_to_buffer(uint16_t char_to_write, uint8_t char_position) override;
 };
 
-}  // namespace ht16k33_char
-}  // namespace esphome
+}  // namespace esphome::ht16k33_char

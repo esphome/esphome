@@ -18,8 +18,7 @@
  *      -Implement a `void write_to_buffer(uint16_t char_to_write, uint8_t char_position)'
  */
 
-namespace esphome {
-namespace ht16k33_char {
+namespace esphome::ht16k33_char {
 
 static const char *const TAG = "ht16k33_char";
 
@@ -572,5 +571,4 @@ uint8_t HT16k33CharComponent::clock_display(uint16_t start_pos, bool clear_buffe
   return this->print(start_pos, clear_buffer, buffer);
 }
 
-}  // namespace ht16k33_char
-}  // namespace esphome
+}  // namespace esphome::ht16k33_char
