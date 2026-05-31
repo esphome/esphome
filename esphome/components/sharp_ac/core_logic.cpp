@@ -155,23 +155,23 @@ void SharpAcCore::process_update_(SharpFrame &frame) {
   }
 
   if (frame.get_size() == 18) {
-    SharpStatusFrame *status = static_cast<SharpStatusFrame *>(&frame);
-    this->current_temperature_ = status->get_temperature();
+    SharpStatusFrame status(frame.get_data());
+    this->current_temperature_ = status.get_temperature();
     this->hardware_->log_debug(TAG, "Current temp: %.1f C", this->current_temperature_);
     this->publish_update();
   } else if (frame.get_size() >= 14) {
-    SharpModeFrame *status = static_cast<SharpModeFrame *>(&frame);
-    this->state_.fan = status->get_fan_mode();
-    this->state_.mode = status->get_power_mode();
-    this->state_.state = status->get_state();
-    this->state_.swingH = status->get_swing_horizontal();
-    this->state_.swingV = status->get_swing_vertical();
-    this->state_.preset = status->get_preset();
-    this->state_.ion = status->get_ion();
+    SharpModeFrame status(frame.get_data());
+    this->state_.fan = status.get_fan_mode();
+    this->state_.mode = status.get_power_mode();
+    this->state_.state = status.get_state();
+    this->state_.swingH = status.get_swing_horizontal();
+    this->state_.swingV = status.get_swing_vertical();
+    this->state_.preset = status.get_preset();
+    this->state_.ion = status.get_ion();
 
     if (this->state_.state) {
       if (this->state_.mode == PowerMode::COOL || this->state_.mode == PowerMode::HEAT) {
-        this->state_.temperature = status->get_temperature();
+        this->state_.temperature = status.get_temperature();
       }
     }
 

@@ -36,6 +36,42 @@ SharpFrame::SharpFrame(const SharpFrame &other) : size_(other.size_) {
   memcpy(data_, other.data_, size_);
 }
 
+SharpFrame &SharpFrame::operator=(const SharpFrame &other) {
+  if (this == &other) {
+    return *this;
+  }
+
+  uint8_t *new_data = nullptr;
+  if (other.size_ > 0) {
+    new_data = new uint8_t[other.size_];
+    memcpy(new_data, other.data_, other.size_);
+  }
+
+  delete[] this->data_;
+  this->data_ = new_data;
+  this->size_ = other.size_;
+  return *this;
+}
+
+SharpFrame::SharpFrame(SharpFrame &&other) noexcept : data_(other.data_), size_(other.size_) {
+  other.data_ = nullptr;
+  other.size_ = 0;
+}
+
+SharpFrame &SharpFrame::operator=(SharpFrame &&other) noexcept {
+  if (this == &other) {
+    return *this;
+  }
+
+  delete[] this->data_;
+  this->data_ = other.data_;
+  this->size_ = other.size_;
+
+  other.data_ = nullptr;
+  other.size_ = 0;
+  return *this;
+}
+
 uint8_t *SharpFrame::get_data() const { return data_; }
 
 size_t SharpFrame::get_size() const { return size_; }
@@ -206,6 +242,10 @@ void SharpCommandFrame::set_data(SharpState *state) {
   } else {
     this->data_[11] = 0x10;
   }
+
+  // Reset preset bytes so previous commands do not leak into this frame.
+  this->data_[7] = 0x00;
+  this->data_[10] = 0x00;
 
   // Preset handling
   // From working example

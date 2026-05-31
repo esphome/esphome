@@ -20,9 +20,9 @@ class SharpFrame {
   SharpFrame(const uint8_t *arr, size_t sz, bool append_checksum);
   ~SharpFrame();
   SharpFrame(const SharpFrame &other);
-  SharpFrame &operator=(const SharpFrame &other) = delete;
-  SharpFrame(SharpFrame &&other) = delete;
-  SharpFrame &operator=(SharpFrame &&other) = delete;
+  SharpFrame &operator=(const SharpFrame &other);
+  SharpFrame(SharpFrame &&other) noexcept;
+  SharpFrame &operator=(SharpFrame &&other) noexcept;
   uint8_t *get_data() const;
   size_t get_size() const;
   int set_size(size_t sz);
