@@ -22,16 +22,27 @@ bit depth which means the output is not that accurate for frequencies above ~300
 
 Advanced options:
 
-- **channel** (*Optional*, int): Manually set the [LEDC channel](https://docs.espressif.com/projects/esp-idf/en/latest/api-reference/peripherals/ledc.html#configure-channel)
-  to use. Two adjacent channels share the same timer. Defaults to an automatic selection.
-
-Note: When configuring custom frequencies for two or more outputs, ensure that you manually specify
-channel 0, 2, 4, 6 for each output. This will prevent issues that arise from automatic selection,
-which chooses adjacent channels with shared timers. See
-[issues#3114](https://github.com/esphome/issues/issues/3114) for more details.
-
 - **phase_angle** (*Optional*, float): Set a phase angle to the other channel of this timer.
   Range 0-360°, defaults to 0°
+
+- **channel** (*Optional*, int): Manually set the [LEDC channel](https://docs.espressif.com/projects/esp-idf/en/latest/api-reference/peripherals/ledc.html#configure-channel)
+  to use. Defaults to an automatic selection. The valid channel range depends on the ESP32 variant:
+
+| ESP32 variant | Valid channels |
+| ------------- | -------------- |
+| ESP32 | `0`-`15` |
+| ESP32-S2, ESP32-S3, ESP32-P4 | `0`-`7` |
+| ESP32-C2, ESP32-C3, ESP32-C5, ESP32-C6, ESP32-C61, ESP32-H2 | `0`-`5` |
+
+{/* For future reference, when ESPHome support is added: ESP32-H21 and ESP32-H4
+ support LEDC channels 0-5. */}
+
+> [!NOTE]
+> Two adjacent channels share the same hardware timer. They can still use different
+> duty cycles (light output can differ) and use different phases, but not different PWM
+> frequencies. If you need light channels to use different frequencies, manually assign
+> them to unused LEDC outputs, and avoid selecting adjacent channel pairs, such as
+> `0`/`1`, `2`/`3` and so on.
 
 ### Example Usage For a Light
 
