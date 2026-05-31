@@ -25,6 +25,7 @@ CONF_TRANSFORM_MATRIX = "transform_matrix"
 
 CalibrateLevelAction = motion_ns.class_("CalibrateLevelAction", automation.Action)
 CalibrateHeadingAction = motion_ns.class_("CalibrateHeadingAction", automation.Action)
+ClearCalibrationAction = motion_ns.class_("ClearCalibrationAction", automation.Action)
 
 KEY_ACCELEROMETER = "accelerometer"
 KEY_GYROSCOPE = "gyroscope"
@@ -200,3 +201,25 @@ async def calibrate_level_to_code(config, action_id, template_arg, args):
 )
 async def calibrate_heading_to_code(config, action_id, template_arg, args):
     return await _build_calibrate_action(config, action_id, template_arg, args)
+
+
+CLEAR_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(MotionComponent),
+        cv.Optional(CONF_SAVE, default=False): cv.boolean,
+    }
+)
+
+
+@automation.register_action(
+    "motion.clear_calibration",
+    ClearCalibrationAction,
+    CLEAR_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def clear_calibration_to_code(config, action_id, template_arg, args):
+    parent = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, parent)
+    if config.get(CONF_SAVE):
+        cg.add(var.set_save(True))
+    return var

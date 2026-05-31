@@ -13,18 +13,32 @@ static void log_matrix(const float m[9]) {
   ESP_LOGCONFIG(TAG, "    - [%9.6f, %9.6f, %9.6f]", m[6], m[7], m[8]);
 }
 
-void MotionComponent::setup() {
-  if (this->pref_key_ != 0) {
-    this->pref_ = global_preferences->make_preference<float[9]>(this->pref_key_);
-    float saved[9];
-    if (this->pref_.load(&saved)) {
-      memcpy(this->matrix_, saved, sizeof(this->matrix_));
-      ESP_LOGI(TAG, "Restored calibration from NVS");
-      log_matrix(this->matrix_);
-    } else {
-      ESP_LOGW(TAG, "Calibration matrix: no preference key set");
-    }
+// FNV-1a over the raw bytes of the matrix. Identical axis maps always yield
+// bit-identical matrices, so this is a stable fingerprint of the build-time base.
+static uint32_t hash_matrix(const float m[9]) {
+  const uint8_t *bytes = reinterpret_cast<const uint8_t *>(m);
+  uint32_t hash = 2166136261UL;
+  for (size_t i = 0; i < sizeof(float) * 9; i++) {
+    hash ^= bytes[i];
+    hash *= 16777619UL;
   }
+  return hash;
+}
+
+void MotionComponent::setup() {
+  if (this->pref_key_ == 0)
+    return;
+  // matrix_ currently holds the build-time base (set_matrix ran during codegen).
+  this->base_hash_ = hash_matrix(this->base_matrix_);
+  this->pref_ = global_preferences->make_preference<CalibrationPref>(this->pref_key_);
+  CalibrationPref saved;
+  if (this->pref_.load(&saved) && saved.base_hash == this->base_hash_) {
+    memcpy(this->matrix_, saved.matrix, sizeof(this->matrix_));
+    ESP_LOGI(TAG, "Restored calibration from NVS");
+  } else {
+    ESP_LOGD(TAG, "No matching saved calibration; using build-time matrix");
+  }
+  log_matrix(this->matrix_);
 }
 void MotionComponent::dump_config() { log_matrix(this->matrix_); }
 void MotionComponent::save_calibration() {
@@ -32,9 +46,16 @@ void MotionComponent::save_calibration() {
     ESP_LOGW(TAG, "Cannot save calibration: no preference key set");
     return;
   }
-  this->pref_.save(&this->matrix_);
+  CalibrationPref pref{this->base_hash_, {}};
+  memcpy(pref.matrix, this->matrix_, sizeof(pref.matrix));
+  this->pref_.save(&pref);
   global_preferences->sync();
   ESP_LOGI(TAG, "Saved calibration to NVS");
+}
+void MotionComponent::clear_calibration() {
+  memcpy(this->matrix_, this->base_matrix_, sizeof(this->matrix_));
+  ESP_LOGI(TAG, "Calibration reset to build-time matrix");
+  log_matrix(this->matrix_);
 }
 void MotionComponent::update() {
   if (this->is_failed())
