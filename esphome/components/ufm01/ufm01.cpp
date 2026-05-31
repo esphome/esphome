@@ -1,4 +1,5 @@
 #include "ufm01.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -7,6 +8,9 @@
 namespace esphome::ufm01 {
 
 static const char *const TAG = "ufm_01";
+
+static constexpr uint8_t COMMAND_ACK = 0xE5;
+static constexpr uint32_t COMMAND_ACK_TIMEOUT_MS = 200;
 
 static constexpr float L_PER_M3 = 1000.0f;
 static constexpr float M3_PER_L = 1.0f / L_PER_M3;
@@ -72,7 +76,20 @@ static bool read_flow_rate_out_of_range(const uint8_t data[32]) { return data[29
 
 bool UFM01Component::send_command_(const std::array<uint8_t, 7> &command) {
   this->write_array(command);
-  return 0xE5 == this->read();
+  this->flush();
+  const uint32_t start = millis();
+  while (millis() - start < COMMAND_ACK_TIMEOUT_MS) {
+    if (this->available()) {
+      uint8_t byte;
+      if (this->read_byte(&byte)) {
+        if (byte == COMMAND_ACK)
+          return true;
+        ESP_LOGV(TAG, "Unexpected byte while waiting for command ACK: 0x%02X", byte);
+      }
+    }
+    delay(1);
+  }
+  return false;
 }
 
 bool UFM01Component::reset_device_() { return this->send_command_(RESET_DEVICE); }
@@ -121,6 +138,7 @@ void UFM01Component::on_data_(uint8_t data[32]) {
     this->flow_rate_out_of_range_binary_sensor_->publish_state(read_flow_rate_out_of_range(data));
 #endif
 
+  // Total volume remains valid when the tube is dry; flow and temperature are not.
   if (this->accumulated_flow_sensor_ != nullptr)
     this->accumulated_flow_sensor_->publish_state(read_accumulated_flow(data));
 

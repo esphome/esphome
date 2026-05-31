@@ -10,7 +10,7 @@
 
 #include <array>
 
-// component API deifinition at https://www.sciosense.com/wp-content/uploads/2025/06/UFM-01-Datasheet-1.pdf
+// component API definition at https://www.sciosense.com/wp-content/uploads/2025/06/UFM-01-Datasheet-1.pdf
 
 namespace esphome::ufm01 {
 
