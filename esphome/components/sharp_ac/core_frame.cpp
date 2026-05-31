@@ -72,7 +72,9 @@ SharpFrame &SharpFrame::operator=(SharpFrame &&other) noexcept {
   return *this;
 }
 
-uint8_t *SharpFrame::get_data() const { return data_; }
+uint8_t *SharpFrame::get_data() { return data_; }
+
+const uint8_t *SharpFrame::get_data() const { return data_; }
 
 size_t SharpFrame::get_size() const { return size_; }
 
@@ -87,11 +89,25 @@ int SharpFrame::set_size(size_t sz) {
 
 void SharpFrame::print() {}
 
-void SharpFrame::set_checksum() { this->data_[size_ - 1] = calc_checksum(); }
+void SharpFrame::set_checksum() {
+  if (this->size_ < 2 || this->data_ == nullptr) {
+    return;
+  }
+  this->data_[size_ - 1] = calc_checksum();
+}
 
-bool SharpFrame::validate_checksum() { return this->data_[size_ - 1] == calc_checksum(); }
+bool SharpFrame::validate_checksum() {
+  if (this->size_ < 2 || this->data_ == nullptr) {
+    return false;
+  }
+  return this->data_[size_ - 1] == calc_checksum();
+}
 
 uint8_t SharpFrame::calc_checksum() {
+  if (this->size_ < 2 || this->data_ == nullptr) {
+    return 0;
+  }
+
   uint16_t sum = 0;
   for (size_t i = 1; i < this->size_ - 1; i++) {
     sum += this->data_[i];

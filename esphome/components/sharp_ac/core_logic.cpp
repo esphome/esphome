@@ -94,7 +94,7 @@ SharpFrame SharpAcCore::read_msg_() {
   uint8_t msg[18];
   uint8_t msg_id = this->hardware_->peek();
 
-  if (msg_id == 0x06 || msg_id == 0x00) {
+  if (msg_id == 0x06) {
     uint8_t single_byte = this->hardware_->read();
     SharpFrame frame(single_byte);
 
@@ -104,12 +104,19 @@ SharpFrame SharpAcCore::read_msg_() {
     return frame;
   }
 
+  if (msg_id == 0x00) {
+    uint8_t single_byte = this->hardware_->read();
+    SharpFrame frame(single_byte);
+    this->hardware_->log_debug(TAG, "RX: 00 (ignored)");
+    return frame;
+  }
+
   int size = 8;
 
   if (this->hardware_->available() < 8) {
     if (this->err_counter_ < 5) {
       this->err_counter_++;
-      return SharpFrame(msg, 0);
+      return SharpFrame();
     }
 
     this->err_counter_ = 0;
@@ -138,8 +145,24 @@ SharpFrame SharpAcCore::read_msg_() {
     }
   }
 
-  if (size > 8) {
-    this->hardware_->read_array(msg + 8, size - 8);
+  if (size < 8 || size > static_cast<int>(sizeof(msg))) {
+    this->hardware_->log_debug(TAG, "RX: invalid frame size %d", size);
+    return SharpFrame();
+  }
+
+  const size_t remaining_size = static_cast<size_t>(size - 8);
+  if (remaining_size > 0) {
+    if (this->hardware_->available() < remaining_size) {
+      this->hardware_->log_debug(TAG, "RX: incomplete frame (%u/%u bytes)",
+                                 static_cast<unsigned int>(this->hardware_->available()),
+                                 static_cast<unsigned int>(remaining_size));
+      return SharpFrame();
+    }
+
+    if (this->hardware_->read_array(msg + 8, remaining_size) != remaining_size) {
+      this->hardware_->log_debug(TAG, "RX: short read while receiving frame payload");
+      return SharpFrame();
+    }
   }
 
   SharpFrame frame(msg, size);

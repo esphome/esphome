@@ -23,7 +23,8 @@ class SharpFrame {
   SharpFrame &operator=(const SharpFrame &other);
   SharpFrame(SharpFrame &&other) noexcept;
   SharpFrame &operator=(SharpFrame &&other) noexcept;
-  uint8_t *get_data() const;
+  uint8_t *get_data();
+  const uint8_t *get_data() const;
   size_t get_size() const;
   int set_size(size_t sz);
   void print();
