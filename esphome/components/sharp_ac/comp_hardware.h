@@ -52,7 +52,7 @@ class ESPHomeHardwareInterface : public SharpAcHardwareInterface {
   void log_debug(const char *tag, const char *format, ...) override {
     va_list args;
     va_start(args, format);
-    esp_log_vprintf_(ESPHOME_LOG_LEVEL_DEBUG, tag, __LINE__, format, args);
+    esp_log_vprintf_(ESPHOME_LOG_LEVEL_DEBUG, tag, 0, format, args);
     va_end(args);
   }
 

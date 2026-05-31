@@ -24,12 +24,12 @@ void SharpAcCore::start_init_() {
     this->connection_start_ = this->hardware_->get_millis();
   }
 
-  SharpFrame frame(INIT_MSG, sizeof(INIT_MSG) + 1);
+  SharpFrame frame(INIT_MSG, sizeof(INIT_MSG), true);
   this->write_frame_(frame);
 }
 
 void SharpAcCore::send_init_msg_(const uint8_t *arr, size_t size) {
-  SharpFrame frame(arr, size);
+  SharpFrame frame(arr, size, true);
   this->write_frame_(frame);
   this->status_++;
 
@@ -65,23 +65,23 @@ void SharpAcCore::init_(SharpFrame &frame) {
       break;
     case 0x02:
       if (this->status_ == 0) {
-        this->send_init_msg_(INIT_MSG2, sizeof(INIT_MSG2) + 1);
+        this->send_init_msg_(INIT_MSG2, sizeof(INIT_MSG2));
       } else if (this->status_ == 1) {
-        this->send_init_msg_(SUBSCRIBE_MSG, sizeof(SUBSCRIBE_MSG) + 1);
+        this->send_init_msg_(SUBSCRIBE_MSG, sizeof(SUBSCRIBE_MSG));
       }
       break;
     case 0x03:
       if (this->status_ == 3) {
-        this->send_init_msg_(SUBSCRIBE_MSG2, sizeof(SUBSCRIBE_MSG2) + 1);
+        this->send_init_msg_(SUBSCRIBE_MSG2, sizeof(SUBSCRIBE_MSG2));
       } else if (this->status_ == 4) {
-        this->send_init_msg_(GET_STATE, sizeof(GET_STATE) + 1);
+        this->send_init_msg_(GET_STATE, sizeof(GET_STATE));
       }
       break;
     case 0xDC:
       if (this->status_ == 5) {
-        this->send_init_msg_(GET_STATUS, sizeof(GET_STATUS) + 1);
+        this->send_init_msg_(GET_STATUS, sizeof(GET_STATUS));
       } else if (this->status_ == 6) {
-        this->send_init_msg_(CONNECTED_MSG, sizeof(CONNECTED_MSG) + 1);
+        this->send_init_msg_(CONNECTED_MSG, sizeof(CONNECTED_MSG));
       }
       this->process_update_(frame);
       break;
@@ -289,7 +289,7 @@ void SharpAcCore::loop() {
     this->start_init_();
   } else if (current_millis - this->previous_millis_ >= INTERVAL) {
     this->previous_millis_ = current_millis;
-    SharpFrame frame(GET_STATUS, sizeof(GET_STATUS) + 1);
+    SharpFrame frame(GET_STATUS, sizeof(GET_STATUS), true);
     this->write_frame_(frame);
   }
 }

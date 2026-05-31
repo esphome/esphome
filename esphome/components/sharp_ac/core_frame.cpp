@@ -16,6 +16,19 @@ SharpFrame::SharpFrame(const uint8_t *arr, size_t sz) : size_(sz) {
   memcpy(data_, arr, sz);
 }
 
+SharpFrame::SharpFrame(const uint8_t *arr, size_t sz, bool append_checksum) {
+  if (append_checksum) {
+    this->size_ = sz + 1;
+    this->data_ = new uint8_t[this->size_];
+    memcpy(this->data_, arr, sz);
+    this->data_[sz] = 0;
+  } else {
+    this->size_ = sz;
+    this->data_ = new uint8_t[this->size_];
+    memcpy(this->data_, arr, sz);
+  }
+}
+
 SharpFrame::~SharpFrame() { delete[] data_; }
 
 SharpFrame::SharpFrame(const SharpFrame &other) : size_(other.size_) {

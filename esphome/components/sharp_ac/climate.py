@@ -11,10 +11,10 @@ sharp_ac_ns = cg.esphome_ns.namespace("sharp_ac")
 SharpAc = sharp_ac_ns.class_("SharpAc", climate.Climate, uart.UARTDevice, cg.Component)
 
 VaneSelectVertical = sharp_ac_ns.class_(
-    "VaneSelectVertical", select.Select, cg.Component
+    "VaneSelectVertical", select.Select
 )
 VaneSelectHorizontal = sharp_ac_ns.class_(
-    "VaneSelectHorizontal", select.Select, cg.Component
+    "VaneSelectHorizontal", select.Select
 )
 
 IonSwitch = sharp_ac_ns.class_("IonSwitch", switch.Switch)

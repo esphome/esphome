@@ -10,7 +10,6 @@ ota:
 wifi:
   ssid: "test-ssid"
   password: "test-password"
-  min_auth_mode: WPA2
 
 uart:
   tx_pin: 1
