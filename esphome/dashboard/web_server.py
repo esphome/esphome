@@ -41,6 +41,7 @@ import yaml
 from yaml.nodes import Node
 
 from esphome import const, yaml_util
+from esphome.components.const import CONF_PUBLISH_SHELL_COMMAND
 from esphome.helpers import get_bool_env, mkdir_p, sort_ip_addresses
 from esphome.platformio import toolchain
 from esphome.storage_json import (
@@ -788,6 +789,21 @@ class SerialPortRequestHandler(BaseHandler):
                 desc = split_desc[0]
             data.append({"port": port.path, "desc": desc})
         data.append({"port": "OTA", "desc": "Over-The-Air"})
+        configuration = self.get_argument("configuration", default=None)
+        if configuration:
+            try:
+                config = yaml_util.load_yaml(settings.rel_path(configuration))
+                if isinstance(
+                    config, dict
+                ) and CONF_PUBLISH_SHELL_COMMAND in config.get(const.CONF_ESPHOME, {}):
+                    data.append(
+                        {
+                            "port": "PUBLISH",
+                            "desc": "Publish",
+                        }
+                    )
+            except Exception:  # noqa: BLE001
+                pass
         data.sort(key=lambda x: x["port"], reverse=True)
         self.set_header("content-type", "application/json")
         self.write(json.dumps(data))

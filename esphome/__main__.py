@@ -22,6 +22,7 @@ import argcomplete
 # cause them to be loaded before external components are processed, resulting
 # in the built-in version being used instead of the external component one.
 from esphome import const
+from esphome.components.const import CONF_PUBLISH_SHELL_COMMAND
 import esphome.codegen as cg
 from esphome.config import iter_component_configs, read_config, strip_default_ids
 from esphome.const import (
@@ -1099,6 +1100,29 @@ def upload_program(
     config: ConfigType, args: ArgsProtocol, devices: list[str]
 ) -> tuple[int, str | None]:
     host = devices[0]
+
+    if host == "PUBLISH":
+        publish_shell_command = config[CONF_ESPHOME].get(CONF_PUBLISH_SHELL_COMMAND)
+        if not publish_shell_command:
+            raise EsphomeError("No publish_shell_command configured under esphome:")
+        env = os.environ.copy()
+        env["ESPHOME_DEVICE_NAME"] = CORE.name
+        env["ESPHOME_FIRMWARE_BIN"] = str(CORE.firmware_bin)
+        if CONF_MQTT in config:
+            mqtt = config[CONF_MQTT]
+            env["ESPHOME_MQTT_BROKER"] = str(mqtt.get(CONF_BROKER, ""))
+            env["ESPHOME_MQTT_PORT"] = str(mqtt.get(CONF_PORT, 1883))
+            env["ESPHOME_MQTT_USERNAME"] = str(mqtt.get(CONF_USERNAME, ""))
+            env["ESPHOME_MQTT_PASSWORD"] = str(mqtt.get(CONF_PASSWORD, ""))
+            env["ESPHOME_MQTT_TOPIC_PREFIX"] = str(mqtt.get("topic_prefix", CORE.name))
+        _LOGGER.info("Running publish command: %s", publish_shell_command)
+        return subprocess.call(
+            publish_shell_command,
+            shell=True,
+            env=env,
+            cwd=Path(CORE.config_path).parent,
+        ), None
+
     try:
         module = importlib.import_module("esphome.components." + CORE.target_platform)
         if module.upload_program(config, args, host):

@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 from esphome import automation, core
+from esphome.components.const import CONF_PUBLISH_SHELL_COMMAND
 import esphome.codegen as cg
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -344,6 +345,7 @@ CONFIG_SCHEMA = cv.All(
             ): cv.int_range(min=1, max=get_usable_cpu_count()),
             cv.Optional(CONF_AREAS, default=[]): cv.ensure_list(AREA_SCHEMA),
             cv.Optional(CONF_DEVICES, default=[]): cv.ensure_list(DEVICE_SCHEMA),
+            cv.Optional(CONF_PUBLISH_SHELL_COMMAND): cv.string,
         }
     ),
     validate_hostname,

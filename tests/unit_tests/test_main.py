@@ -62,6 +62,7 @@ from esphome.address_cache import AddressCache
 from esphome.bundle import BUNDLE_EXTENSION, BundleFile, BundleResult
 from esphome.components import esp32
 from esphome.components.esp32 import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
+from esphome.components.const import CONF_PUBLISH_SHELL_COMMAND
 from esphome.const import (
     CONF_API,
     CONF_AUTH,
@@ -219,6 +220,13 @@ def mock_upload_using_platformio() -> Generator[Mock]:
 def mock_upload_using_picotool() -> Generator[Mock]:
     """Mock upload_using_picotool for testing."""
     with patch("esphome.__main__.upload_using_picotool") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_subprocess_call() -> Generator[Mock]:
+    """Mock subprocess.call for testing publish command."""
+    with patch("esphome.__main__.subprocess.call") as mock:
         yield mock
 
 
@@ -2470,6 +2478,88 @@ def test_upload_program_only_unrelated_ota_platforms(
 
     with pytest.raises(EsphomeError, match="Cannot upload Over the Air"):
         upload_program(config, args, devices)
+
+
+def test_upload_program_publish_success(
+    mock_subprocess_call: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test upload_program with PUBLISH host runs the configured shell command."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_subprocess_call.return_value = 0
+
+    config = {
+        CONF_ESPHOME: {CONF_PUBLISH_SHELL_COMMAND: "python3 publish.py"},
+    }
+
+    exit_code, host = upload_program(config, MockArgs(), ["PUBLISH"])
+
+    assert exit_code == 0
+    assert host is None
+    mock_subprocess_call.assert_called_once()
+    call_kwargs = mock_subprocess_call.call_args
+    assert call_kwargs.args[0] == "python3 publish.py"
+    assert call_kwargs.kwargs["shell"] is True
+    assert call_kwargs.kwargs["env"]["ESPHOME_DEVICE_NAME"] == "test"
+
+
+def test_upload_program_publish_sets_mqtt_env(
+    mock_subprocess_call: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test upload_program with PUBLISH host passes MQTT config as env vars."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_subprocess_call.return_value = 0
+
+    config = {
+        CONF_ESPHOME: {CONF_PUBLISH_SHELL_COMMAND: "python3 publish.py"},
+        CONF_MQTT: {
+            CONF_BROKER: "mqtt.local",
+            CONF_PORT: 1883,
+            CONF_USERNAME: "user",
+            CONF_PASSWORD: "pass",
+            "topic_prefix": "esphome/test",
+        },
+    }
+
+    upload_program(config, MockArgs(), ["PUBLISH"])
+
+    env = mock_subprocess_call.call_args.kwargs["env"]
+    assert env["ESPHOME_MQTT_BROKER"] == "mqtt.local"
+    assert env["ESPHOME_MQTT_PORT"] == "1883"
+    assert env["ESPHOME_MQTT_USERNAME"] == "user"
+    assert env["ESPHOME_MQTT_PASSWORD"] == "pass"
+    assert env["ESPHOME_MQTT_TOPIC_PREFIX"] == "esphome/test"
+
+
+def test_upload_program_publish_no_command(
+    tmp_path: Path,
+) -> None:
+    """Test upload_program with PUBLISH host raises when publish_shell_command is absent."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+
+    config = {CONF_ESPHOME: {}}
+
+    with pytest.raises(EsphomeError, match="No publish_shell_command"):
+        upload_program(config, MockArgs(), ["PUBLISH"])
+
+
+def test_upload_program_publish_command_fails(
+    mock_subprocess_call: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test upload_program with PUBLISH host propagates non-zero exit code."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_subprocess_call.return_value = 1
+
+    config = {
+        CONF_ESPHOME: {CONF_PUBLISH_SHELL_COMMAND: "python3 publish.py"},
+    }
+
+    exit_code, host = upload_program(config, MockArgs(), ["PUBLISH"])
+
+    assert exit_code == 1
+    assert host is None
 
 
 def test_upload_program_ota_with_mqtt_resolution(
