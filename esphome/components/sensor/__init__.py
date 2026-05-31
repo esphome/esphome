@@ -96,6 +96,7 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_TEMPERATURE_DELTA,
     DEVICE_CLASS_TIMESTAMP,
+    DEVICE_CLASS_UPTIME,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     DEVICE_CLASS_VOLTAGE,
@@ -174,6 +175,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_TEMPERATURE_DELTA,
     DEVICE_CLASS_TIMESTAMP,
+    DEVICE_CLASS_UPTIME,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     DEVICE_CLASS_VOLTAGE,
@@ -1190,7 +1192,7 @@ def _std(x):
 
 def _correlation_coeff(x, y):
     m_x, m_y = _mean(x), _mean(y)
-    s_xy = sum((x_ - m_x) * (y_ - m_y) for x_, y_ in zip(x, y))
+    s_xy = sum((x_ - m_x) * (y_ - m_y) for x_, y_ in zip(x, y, strict=True))
     s_sq_x = sum((x_ - m_x) ** 2 for x_ in x)
     s_sq_y = sum((y_ - m_y) ** 2 for y_ in y)
     return s_xy / math.sqrt(s_sq_x * s_sq_y)
@@ -1226,7 +1228,7 @@ def _mat_copy(m):
 
 
 def _mat_transpose(m):
-    return _mat_copy(zip(*m))
+    return _mat_copy(zip(*m, strict=True))
 
 
 def _mat_identity(n):
@@ -1235,7 +1237,10 @@ def _mat_identity(n):
 
 def _mat_dot(a, b):
     b_t = _mat_transpose(b)
-    return [[sum(x * y for x, y in zip(row_a, col_b)) for col_b in b_t] for row_a in a]
+    return [
+        [sum(x * y for x, y in zip(row_a, col_b, strict=True)) for col_b in b_t]
+        for row_a in a
+    ]
 
 
 def _mat_inverse(m):

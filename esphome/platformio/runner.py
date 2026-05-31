@@ -1,6 +1,6 @@
 """Subprocess entry point that applies ESPHome's PlatformIO patches.
 
-Invoked via ``python -m esphome.platformio_runner`` instead of
+Invoked via ``python -m esphome.platformio.runner`` instead of
 ``python -m platformio`` so that the patches (incremental rebuild
 preservation, download retries) apply inside the subprocess. Running
 PlatformIO in a subprocess keeps its ``sys.path`` mutations and other
@@ -51,9 +51,13 @@ def patch_file_downloader() -> None:
     """Retry PlatformIO package downloads with exponential backoff.
 
     PlatformIO's ``FileDownloader`` uses an ``HTTPSession`` without built-in
-    retry for 502/503 errors. We wrap ``__init__`` to retry on
-    ``PackageException`` and close the session between attempts so a new
-    TCP connection can route to a different CDN edge node.
+    retry. We wrap ``__init__`` to retry on transient failures and close the
+    session between attempts so a new TCP connection can route to a different
+    CDN edge node. We catch both ``PackageException`` (raised when the server
+    returns a non-200 status such as 502/503) and ``OSError`` -- which covers
+    ``requests.exceptions.ConnectionError``, ``ReadTimeout``, and
+    ``ChunkedEncodingError`` (all subclasses of ``OSError``) that get raised
+    when the connection is aborted before a response is parsed.
     """
     from platformio.package.download import FileDownloader
     from platformio.package.exception import PackageException
@@ -70,7 +74,7 @@ def patch_file_downloader() -> None:
             try:
                 original_init(self, *args, **kwargs)
                 return
-            except PackageException as e:
+            except (PackageException, OSError) as e:
                 if attempt < max_retries - 1:
                     delay = 2 ** (attempt + 1)
                     _LOGGER.warning(
@@ -90,7 +94,7 @@ def patch_file_downloader() -> None:
                             self._http_response.close()
                         if hasattr(self, "_http_session"):
                             self._http_session.close()
-                    except Exception:
+                    except Exception:  # noqa: BLE001
                         pass
                     # pylint: enable=protected-access,broad-except
                     time.sleep(delay)

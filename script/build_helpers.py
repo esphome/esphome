@@ -23,7 +23,7 @@ from esphome.config import validate_config
 from esphome.const import CONF_PLATFORM
 from esphome.core import CORE
 from esphome.loader import get_component, get_platform
-from esphome.platformio_api import get_idedata
+from esphome.platformio.toolchain import get_idedata
 from tests.testing_helpers import ComponentManifestOverride, set_testing_manifest
 
 # This must coincide with the version in /platformio.ini
@@ -195,7 +195,7 @@ def load_component_yaml_configs(components: list[str], tests_dir: Path) -> dict:
         yaml_path = tests_dir / component / BENCHMARK_YAML_FILENAME
         if not yaml_path.is_file():
             continue
-        with open(yaml_path) as f:
+        with yaml_path.open() as f:
             component_config = yaml.safe_load(f)
         if component_config and isinstance(component_config, dict):
             for key, value in component_config.items():
@@ -392,7 +392,7 @@ def compile_and_get_binary(
         if exit_code != 0:
             print(f"Error compiling {label} for {', '.join(components)}")
             return exit_code, None
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error compiling {label} for {', '.join(components)}: {e}")
         return EXIT_COMPILE_ERROR, None
 

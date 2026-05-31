@@ -134,13 +134,13 @@ def read_config(args):
         try:
             config = loader(file_name)
             res = validate_config(config, command_line_substitutions)
-        except Exception as err:  # pylint: disable=broad-except
+        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
             vs.add_yaml_error(str(err))
         else:
             for err in res.errors:
                 try:
                     range_ = _get_invalid_range(res, err)
                     vs.add_validation_error(range_, _format_vol_invalid(err, res))
-                except Exception:  # pylint: disable=broad-except
+                except Exception:  # noqa: BLE001  # pylint: disable=broad-except
                     continue
         print(vs.dump())

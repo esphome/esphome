@@ -2,6 +2,7 @@
 
 #ifdef USE_ESP32
 
+#include <driver/gpio.h>
 #include <driver/i2s_std.h>
 
 #include "esphome/components/audio/audio.h"
@@ -69,6 +70,17 @@ void I2SAudioSpeakerBase::loop() {
   }
   if (event_group_bits & SpeakerEventGroupBits::TASK_STOPPING) {
     ESP_LOGV(TAG, "Stopping");
+    // Lockstep-breaking error bits are latched by the task and cleared along with all other bits
+    // when TASK_STOPPED is processed; log them here, exactly once, as the task winds down.
+    if (event_group_bits & SpeakerEventGroupBits::ERR_DROPPED_EVENT) {
+      ESP_LOGE(TAG, "ISR event queue overflow, restarting speaker task to recover timestamp sync");
+    }
+    if (event_group_bits & SpeakerEventGroupBits::ERR_PARTIAL_WRITE) {
+      ESP_LOGE(TAG, "Partial DMA write broke buffer alignment, restarting speaker task");
+    }
+    if (event_group_bits & SpeakerEventGroupBits::ERR_LOCKSTEP_DESYNC) {
+      ESP_LOGE(TAG, "Event/record queues desynced, restarting speaker task");
+    }
     xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::TASK_STOPPING);
     this->state_ = speaker::STATE_STOPPING;
   }
@@ -87,16 +99,9 @@ void I2SAudioSpeakerBase::loop() {
     this->state_ = speaker::STATE_STOPPED;
   }
 
-  // Log any errors encountered by the task
   if (event_group_bits & SpeakerEventGroupBits::ERR_ESP_NO_MEM) {
-    ESP_LOGE(TAG, "Not enough memory");
+    ESP_LOGE(TAG, "Speaker task setup failed (allocation, preload, or channel enable)");
     xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ERR_ESP_NO_MEM);
-  }
-
-  // Warn if any playback timestamp events are dropped, which drastically reduces synced playback accuracy
-  if (event_group_bits & SpeakerEventGroupBits::WARN_DROPPED_EVENT) {
-    ESP_LOGW(TAG, "Event dropped, synchronized playback accuracy is reduced");
-    xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::WARN_DROPPED_EVENT);
   }
 
   // Handle the speaker's state
@@ -257,7 +262,7 @@ esp_err_t I2SAudioSpeakerBase::init_i2s_channel_(const i2s_chan_config_t &chan_c
 
   err = i2s_channel_init_std_mode(this->tx_handle_, &std_cfg);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to initialize channel");
+    ESP_LOGE(TAG, "Failed to initialize I2S channel");
     i2s_del_channel(this->tx_handle_);
     this->tx_handle_ = nullptr;
     this->parent_->unlock();
@@ -271,6 +276,22 @@ esp_err_t I2SAudioSpeakerBase::init_i2s_channel_(const i2s_chan_config_t &chan_c
     xQueueReset(this->i2s_event_queue_);
   }
 
+  // Lockstep records queue. One record per in-flight DMA buffer; sized to match the I2S event queue
+  // so a fully-saturated DMA pipeline cannot overflow either side before drain.
+  if (this->write_records_queue_ == nullptr) {
+    this->write_records_queue_ = xQueueCreate(event_queue_size, sizeof(uint32_t));
+  } else {
+    xQueueReset(this->write_records_queue_);
+  }
+
+  if (this->i2s_event_queue_ == nullptr || this->write_records_queue_ == nullptr) {
+    ESP_LOGE(TAG, "Failed to allocate I2S event queue(s)");
+    i2s_del_channel(this->tx_handle_);
+    this->tx_handle_ = nullptr;
+    this->parent_->unlock();
+    return ESP_ERR_NO_MEM;
+  }
+
   return ESP_OK;
 }
 
@@ -279,6 +300,15 @@ void I2SAudioSpeakerBase::stop_i2s_driver_() {
     i2s_channel_disable(this->tx_handle_);
     i2s_del_channel(this->tx_handle_);
     this->tx_handle_ = nullptr;
+
+    // i2s_del_channel() leaves dout wired to this port's data-out signal in the GPIO matrix: it only
+    // clears an internal reservation mask, never the esp_rom_gpio_connect_out_signal() routing that
+    // setup installed. If another speaker reuses this port (shared bus), its audio still reaches our
+    // dout. Detach the pin and drive it low so a stale output stops driving downstream hardware: a
+    // SPDIF optical transmitter would otherwise stay lit, and an analog DAC would emit noise.
+    gpio_reset_pin(this->dout_pin_);
+    gpio_set_direction(this->dout_pin_, GPIO_MODE_OUTPUT);
+    gpio_set_level(this->dout_pin_, 0);
   }
   this->parent_->unlock();
 }
@@ -293,10 +323,16 @@ bool IRAM_ATTR I2SAudioSpeakerBase::i2s_on_sent_cb(i2s_chan_handle_t handle, i2s
   I2SAudioSpeakerBase *this_speaker = (I2SAudioSpeakerBase *) user_ctx;
 
   if (xQueueIsQueueFullFromISR(this_speaker->i2s_event_queue_)) {
-    // Queue is full, so discard the oldest event and set the warning flag to inform the user
+    // Queue is full, so discard the oldest event. Once we drop a completion event, ``i2s_event_queue_``
+    // and any per-buffer record queue maintained by the task are permanently desynced, so the task
+    // must restart to recover. Set both ERR_DROPPED_EVENT (so loop() can log it) and COMMAND_STOP
+    // (so the task bails immediately, closing the race where loop() could clear the error bit
+    // before the task observes it).
     int64_t dummy;
     xQueueReceiveFromISR(this_speaker->i2s_event_queue_, &dummy, &need_yield1);
-    xEventGroupSetBitsFromISR(this_speaker->event_group_, SpeakerEventGroupBits::WARN_DROPPED_EVENT, &need_yield2);
+    xEventGroupSetBitsFromISR(this_speaker->event_group_,
+                              SpeakerEventGroupBits::ERR_DROPPED_EVENT | SpeakerEventGroupBits::COMMAND_STOP,
+                              &need_yield2);
   }
 
   xQueueSendToBackFromISR(this_speaker->i2s_event_queue_, &now, &need_yield3);
