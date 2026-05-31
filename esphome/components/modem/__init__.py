@@ -100,7 +100,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BAUD_RATE): cv.positive_int,
             cv.Required(CONF_MODEL): cv.one_of(*MODEM_MODELS, upper=True),
             cv.Required(CONF_APN): cv.string,
-            cv.Optional(CONF_PIN_CODE): cv.string_strict,
+            cv.Optional(CONF_PIN_CODE): cv.sensitive(cv.string_strict),
             cv.Optional(CONF_USE_ADDRESS): cv.string,
             cv.Optional(CONF_INIT_AT): cv.All(cv.ensure_list(cv.string)),
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
