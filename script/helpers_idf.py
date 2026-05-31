@@ -21,7 +21,6 @@ converted to IDF components via ``esphome.espidf.component.generate_idf_componen
 
 import os
 from pathlib import Path
-import shutil
 
 TIDY_PROJECT_NAME = "esphome_tidy"
 
@@ -69,6 +68,7 @@ def _setup_core(work_dir: Path, version: str) -> None:
     """Point CORE at the tidy project + IDF version, without any YAML config."""
     from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION
     import esphome.config_validation as cv
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
     from esphome.core import CORE
 
     CORE.name = TIDY_PROJECT_NAME
@@ -78,6 +78,9 @@ def _setup_core(work_dir: Path, version: str) -> None:
     CORE.config_path = work_dir.parent / "tidy.yaml"
     CORE.build_path = work_dir
     CORE.data.setdefault(KEY_ESP32, {})[KEY_IDF_VERSION] = cv.Version.parse(version)
+    # The PlatformIO-library -> IDF-component converter reads the target.
+    CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = "esp32"
+    CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "espidf"
 
 
 # Special IDF "components" that are tools/subprojects, not requirable by an app
@@ -88,7 +91,73 @@ _NON_REQUIRABLE_COMPONENTS = frozenset(
 )
 
 
-def _write_tidy_project(work_dir: Path, requires: list[str]) -> None:
+def _parse_lib_deps(platformio_ini: Path):
+    """Parse the esp32-idf ``lib_deps`` from platformio.ini into Library specs.
+
+    These are the PlatformIO libraries ESPHome components pull in via
+    ``cg.add_library`` (qr-code, mlx90393, noise-c, ...). The esp32-idf build
+    aggregates ``[common] lib_deps`` (which expands ``lib_deps_base``) plus the
+    ``[common:esp32-idf]`` additions; we read those sections directly and skip
+    the ``${...}`` cross-references and non-library entries.
+    """
+    import configparser
+
+    from esphome.core import Library
+
+    parser = configparser.ConfigParser(interpolation=None, strict=False)
+    parser.read(platformio_ini)
+
+    tokens: list[str] = []
+    for section, key in (
+        ("common", "lib_deps_base"),
+        ("common", "lib_deps"),
+        ("common:esp32-idf", "lib_deps"),
+    ):
+        if parser.has_option(section, key):
+            tokens += parser.get(section, key).splitlines()
+
+    libs: list[Library] = []
+    seen: set[str] = set()
+    for token in tokens:
+        token = token.split(";", 1)[0].strip()  # drop trailing ; comment
+        # Skip blanks, ${...} cross-refs, +<...> source filters, and the
+        # unit-test-only googletest dependency.
+        if (
+            not token
+            or token.startswith(("${", "+<", "google/googletest"))
+            or token in seen
+        ):
+            continue
+        seen.add(token)
+        if "://" in token or ".git" in token:
+            libs.append(Library(token, None, token))  # git repository (with #ref)
+        elif "@" in token:
+            name, _, version = token.partition("@")
+            libs.append(Library(name, version))
+        else:
+            libs.append(Library(token, None))
+    return libs
+
+
+def _convert_pio_libs(platformio_ini: Path) -> dict[str, dict[str, str]]:
+    """Convert each PlatformIO lib to an IDF component; return manifest deps.
+
+    Returns a mapping suitable for an ``idf_component.yml`` ``dependencies``
+    block (``{name: {"override_path": <converted component dir>}}``), reusing
+    ESPHome's own PlatformIO->IDF converter (registry/git resolution, no pio).
+    """
+    from esphome.espidf.component import generate_idf_component
+
+    deps: dict[str, dict[str, str]] = {}
+    for library in _parse_lib_deps(platformio_ini):
+        name, _version, path = generate_idf_component(library)
+        deps[name] = {"override_path": str(path)}
+    return deps
+
+
+def _write_tidy_project(
+    work_dir: Path, requires: list[str], extra_deps: dict[str, dict[str, str]]
+) -> None:
     """Generate the minimal IDF CMake project (top + main + idf_component.yml)."""
     main_dir = work_dir / "main"
     main_dir.mkdir(parents=True, exist_ok=True)
@@ -106,17 +175,25 @@ def _write_tidy_project(work_dir: Path, requires: list[str]) -> None:
     )
     (main_dir / "tidy.cpp").write_text(_TIDY_MAIN_CPP, encoding="utf-8")
 
-    # Managed components: ESPHome's own manifest (arduinojson, lvgl, mdns, ...).
-    # Placing it in main/ makes every dep a requirement of the main component,
-    # so its public includes land on the tidy translation unit.
+    # Managed components: ESPHome's own manifest (arduinojson, lvgl, mdns, ...),
+    # plus the converted PlatformIO libs as local (override_path) deps. Placing
+    # it in main/ makes every dep a requirement of the main component, so their
+    # public includes land on the tidy translation unit.
+    import yaml
+
     esphome_root = Path(__file__).resolve().parent.parent
-    shutil.copyfile(
-        esphome_root / "esphome" / "idf_component.yml",
-        main_dir / "idf_component.yml",
+    manifest = yaml.safe_load(
+        (esphome_root / "esphome" / "idf_component.yml").read_text(encoding="utf-8")
+    )
+    manifest.setdefault("dependencies", {}).update(extra_deps)
+    (main_dir / "idf_component.yml").write_text(
+        yaml.safe_dump(manifest, sort_keys=False), encoding="utf-8"
     )
 
 
-def _generate_compile_commands(work_dir: Path, version: str) -> Path:
+def _generate_compile_commands(
+    work_dir: Path, version: str, platformio_ini: Path
+) -> Path:
     """Generate the tidy project and run ``idf.py reconfigure`` (no build).
 
     Two-phase, like a real ESPHome build: a first configure with no builtin
@@ -129,8 +206,11 @@ def _generate_compile_commands(work_dir: Path, version: str) -> Path:
 
     _setup_core(work_dir, version)
 
+    # PlatformIO libs -> local IDF components, added to the manifest as deps.
+    extra_deps = _convert_pio_libs(platformio_ini)
+
     # Phase 1: discover the components available for this target.
-    _write_tidy_project(work_dir, requires=[])
+    _write_tidy_project(work_dir, requires=[], extra_deps=extra_deps)
     if toolchain.run_reconfigure() != 0:
         raise RuntimeError("idf.py reconfigure (discovery) failed")
 
@@ -139,7 +219,7 @@ def _generate_compile_commands(work_dir: Path, version: str) -> Path:
     )
 
     # Phase 2: require every available builtin component.
-    _write_tidy_project(work_dir, requires)
+    _write_tidy_project(work_dir, requires, extra_deps=extra_deps)
     if toolchain.run_reconfigure() != 0:
         raise RuntimeError("idf.py reconfigure failed")
 
@@ -178,7 +258,7 @@ def load_idedata(environment: str, temp_folder: str, platformio_ini: str) -> dic
     else:
         work_dir = Path(temp_folder) / "idf-tidy"
         compile_commands = _generate_compile_commands(
-            work_dir, _recommended_idf_version()
+            work_dir, _recommended_idf_version(), Path(platformio_ini)
         )
 
     if not compile_commands.is_file():
