@@ -1,8 +1,6 @@
 #include "ufm01.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include <cstdio>
-#include <iomanip>
-#include <sstream>
 
 namespace esphome::ufm01 {
 
@@ -50,17 +48,9 @@ static float read_flow(uint8_t data[32]) {
          M3_PER_L;
 }
 
-static void log_hex(uint8_t data[32]) {
-  std::string res;
-  char buf[8];
-  for (size_t i = 0; i < 32; i++) {
-    if (i > 0) {
-      res += " ";
-    }
-    snprintf(buf, sizeof(buf), "%02u:0x%02X", static_cast<unsigned int>(i), data[i]);
-    res += buf;
-  }
-  ESP_LOGD(TAG, "%s", res.c_str());
+static void log_hex(const uint8_t *data, size_t len) {
+  char hex_buf[format_hex_pretty_size(32)];
+  ESP_LOGD(TAG, "%s", format_hex_pretty_to(hex_buf, data, len, ' '));
 }
 
 static float read_temperature(uint8_t data[32]) {
@@ -131,7 +121,7 @@ void UFM01Component::loop() {
     this->read_index_ = 0;
   }
   if (this->read_index_ == 32) {
-    log_hex(this->data_);
+    log_hex(this->data_, sizeof(this->data_));
     ESP_LOGE(TAG, "unable to read data");
     for (int i = 2; i < 31 && this->read_index_ == 32; ++i) {
       if ((this->data_[i] == 0x3C) && (this->data_[i + 1] == 0x32)) {
