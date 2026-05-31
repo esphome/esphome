@@ -91,6 +91,23 @@ void UFM01Component::setup() {
   }
 }
 
+void UFM01Component::dump_config() {
+  ESP_LOGCONFIG(TAG, "UFM-01:");
+  LOG_SENSOR("  ", "Accumulated Flow", this->accumulated_flow_sensor_);
+  LOG_SENSOR("  ", "Flow", this->flow_sensor_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+#ifdef USE_BINARY_SENSOR
+  LOG_BINARY_SENSOR("  ", "UFP Chip Error", this->ufp_chip_error_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Flow Direction Wrong", this->flow_direction_wrong_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Empty Tube", this->empty_tube_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Flow Rate Out Of Range", this->flow_rate_out_of_range_binary_sensor_);
+#endif
+  this->check_uart_settings(2400, 1, uart::UART_CONFIG_PARITY_EVEN, 8);
+  if (this->is_failed()) {
+    ESP_LOGW(TAG, "Setup failed: active mode not acknowledged by device");
+  }
+}
+
 void UFM01Component::on_data_(uint8_t data[32]) {
   bool empty_tube = read_empty_tube(data);
 #ifdef USE_BINARY_SENSOR
