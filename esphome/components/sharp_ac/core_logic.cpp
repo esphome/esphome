@@ -152,15 +152,10 @@ SharpFrame SharpAcCore::read_msg_() {
 
   const size_t remaining_size = static_cast<size_t>(size - 8);
   if (remaining_size > 0) {
-    if (this->hardware_->available() < remaining_size) {
+    if (this->hardware_->read_array(msg + 8, remaining_size) != remaining_size) {
       this->hardware_->log_debug(TAG, "RX: incomplete frame (%u/%u bytes)",
                                  static_cast<unsigned int>(this->hardware_->available()),
                                  static_cast<unsigned int>(remaining_size));
-      return SharpFrame();
-    }
-
-    if (this->hardware_->read_array(msg + 8, remaining_size) != remaining_size) {
-      this->hardware_->log_debug(TAG, "RX: short read while receiving frame payload");
       return SharpFrame();
     }
   }
