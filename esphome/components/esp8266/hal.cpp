@@ -72,22 +72,25 @@ uint32_t IRAM_ATTR HOT millis() {
   return result;
 }
 
-// Delegate to Arduino's 1-arg esp_delay(), which uses os_timer + esp_suspend to
-// suspend the cont task for `ms` milliseconds without polling millis(). This
-// matches pre-2026.5.0 behavior (when esphome::delay() forwarded to ::delay())
-// and lets the SDK run freely while we wait, which timing-sensitive
-// interrupt-driven code (e.g. ESP8266 software-serial RX in components like
-// fingerprint_grow) depends on. The poll-based busy-wait that this replaced
-// rarely yielded inside short waits like delay(1), starving WiFi/SDK tasks and
-// extending interrupt latency. Unlike ::delay(), esp_delay()'s 1-arg form does
-// not call millis(), so the slow Arduino millis() body is not pulled into IRAM
-// by this path (the --wrap=millis goal of #15662 is preserved).
+// Wait at least `ms` milliseconds while letting the SDK run. The 1-arg esp_delay()
+// suspends the cont task via os_timer + esp_suspend so WiFi/SDK tasks run freely
+// (which timing-sensitive interrupt-driven code like ESP8266 software-serial RX in
+// fingerprint_grow depends on), but it is a single suspend: esp_suspend() resumes
+// on ANY esp_schedule() (not just our delay timer) and no-ops entirely when the
+// cont can't suspend, so a lone esp_delay(ms) can return well before `ms` elapses.
+// Loop on the wrapped fast millis() until the full interval has actually passed so
+// callers get at least the delay they asked for, matching Arduino ::delay(). Using
+// the wrapped millis() keeps the slow Arduino millis() body out of IRAM (the
+// --wrap=millis goal of #15662 is preserved); millis() is hardware-backed, so it
+// still advances on the rare path where esp_delay() can't suspend and busy-waits.
 void HOT delay(uint32_t ms) {
   if (ms == 0) {
     optimistic_yield(1000);
     return;
   }
-  esp_delay(ms);
+  uint32_t start = millis();
+  for (uint32_t elapsed = 0; elapsed < ms; elapsed = millis() - start)
+    esp_delay(ms - elapsed);
 }
 
 void arch_restart() {
