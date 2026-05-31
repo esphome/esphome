@@ -3,12 +3,18 @@
 # pylint: disable=protected-access
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from esphome.espidf import idedata
+
+# An absolute, forward-slash (shlex-safe) path prefix valid on the host OS, so
+# tests exercise the same is-absolute / normalize behavior as a real compile DB
+# (a drive-qualified path on Windows, a leading slash elsewhere).
+ABS = "C:/" if os.name == "nt" else "/"
 
 
 def _entry(directory: str, file: str, command: str) -> dict:
@@ -18,10 +24,10 @@ def _entry(directory: str, file: str, command: str) -> dict:
 def test_parse_entry_extracts_fields() -> None:
     """cxx_path, defines, includes and remaining flags are split apart."""
     entry = _entry(
-        "/build",
-        "/build/src/esphome/core/application.cpp",
-        "/tools/xtensa-esp32-elf-g++ -DUSE_ESP32 -DESPHOME_LOG_LEVEL=5 "
-        "-I/inc/a -isystem /sys/b -std=gnu++20 -c app.cpp -o app.cpp.o",
+        f"{ABS}build",
+        f"{ABS}build/src/esphome/core/application.cpp",
+        f"/tools/xtensa-esp32-elf-g++ -DUSE_ESP32 -DESPHOME_LOG_LEVEL=5 "
+        f"-I{ABS}inc/a -isystem {ABS}sys/b -std=gnu++20 -c app.cpp -o app.cpp.o",
     )
 
     cxx_path, defines, includes, cxx_flags = idedata._parse_entry(entry)
@@ -29,8 +35,8 @@ def test_parse_entry_extracts_fields() -> None:
     assert cxx_path == "/tools/xtensa-esp32-elf-g++"
     assert "USE_ESP32" in defines
     assert "ESPHOME_LOG_LEVEL=5" in defines
-    assert "/inc/a" in includes
-    assert "/sys/b" in includes
+    assert f"{ABS}inc/a" in includes
+    assert f"{ABS}sys/b" in includes
     assert "-std=gnu++20" in cxx_flags
     # input/output files and their flags are not treated as flags
     assert "-c" not in cxx_flags
@@ -42,31 +48,35 @@ def test_parse_entry_extracts_fields() -> None:
 def test_parse_entry_space_separated_args() -> None:
     """``-D X`` / ``-I path`` (separate arg) and ``-isystem<path>`` (joined)."""
     entry = _entry(
-        "/build",
-        "/build/src/esphome/x.cpp",
-        "g++ -D FOO=1 -I /inc/sep -isystem/sys/joined -c x.cpp",
+        f"{ABS}build",
+        f"{ABS}build/src/esphome/x.cpp",
+        f"g++ -D FOO=1 -I {ABS}inc/sep -isystem{ABS}sys/joined -c x.cpp",
     )
 
     _, defines, includes, _ = idedata._parse_entry(entry)
 
     assert "FOO=1" in defines
-    assert "/inc/sep" in includes
-    assert "/sys/joined" in includes
+    assert f"{ABS}inc/sep" in includes
+    assert f"{ABS}sys/joined" in includes
 
 
 def test_parse_entry_resolves_relative_includes() -> None:
     """Relative includes are resolved against the entry's ``directory``."""
+    directory = f"{ABS}build/proj"
     entry = _entry(
-        "/build/proj",
-        "/build/proj/src/esphome/x.cpp",
+        directory,
+        f"{directory}/src/esphome/x.cpp",
         "g++ -Iconfig -I../shared -isystem rel/sys -c x.cpp",
     )
 
     _, _, includes, _ = idedata._parse_entry(entry)
 
-    assert "/build/proj/config" in includes
-    assert "/build/shared" in includes  # ../ normalized away
-    assert "/build/proj/rel/sys" in includes
+    def resolved(rel: str) -> str:
+        return os.path.normpath(Path(directory) / rel)
+
+    assert resolved("config") in includes
+    assert resolved("../shared") in includes  # ../ normalized away
+    assert resolved("rel/sys") in includes
     # nothing is left relative
     assert all(Path(inc).is_absolute() for inc in includes)
 
@@ -119,17 +129,21 @@ def test_idedata_from_build(tmp_path: Path) -> None:
     compile_commands = tmp_path / "compile_commands.json"
     entries = [
         _entry(
-            "/b",
-            "/b/src/esphome/core/app.cpp",
-            "g++ -DUSE_ESP32 -I/inc/core -std=gnu++20 -c app.cpp -o app.cpp.o",
+            f"{ABS}b",
+            f"{ABS}b/src/esphome/core/app.cpp",
+            f"g++ -DUSE_ESP32 -I{ABS}inc/core -std=gnu++20 -c app.cpp -o app.cpp.o",
         ),
         _entry(
-            "/b",
-            "/b/src/esphome/sensor/s.cpp",
-            "g++ -DUSE_ESP32 -I/inc/sensor -c s.cpp -o s.cpp.o",
+            f"{ABS}b",
+            f"{ABS}b/src/esphome/sensor/s.cpp",
+            f"g++ -DUSE_ESP32 -I{ABS}inc/sensor -c s.cpp -o s.cpp.o",
         ),
         # non-esphome TU: its includes must not leak into the union
-        _entry("/b", "/b/managed_components/x/x.c", "gcc -I/inc/managed -c x.c"),
+        _entry(
+            f"{ABS}b",
+            f"{ABS}b/managed_components/x/x.c",
+            f"gcc -I{ABS}inc/managed -c x.c",
+        ),
     ]
     compile_commands.write_text(json.dumps(entries))
 
@@ -151,10 +165,10 @@ def test_idedata_from_build(tmp_path: Path) -> None:
     assert "USE_ESP32" in data["defines"]
     assert "-std=gnu++20" in data["cxx_flags"]
     # include dirs unioned across all esphome TUs
-    assert "/inc/core" in data["includes"]["build"]
-    assert "/inc/sensor" in data["includes"]["build"]
+    assert f"{ABS}inc/core" in data["includes"]["build"]
+    assert f"{ABS}inc/sensor" in data["includes"]["build"]
     # the non-esphome TU is excluded from the union
-    assert "/inc/managed" not in data["includes"]["build"]
+    assert f"{ABS}inc/managed" not in data["includes"]["build"]
     # toolchain search dirs parsed from the compiler's -v output
     assert data["includes"]["toolchain"] == ["/tc/inc/c++", "/tc/inc"]
 
