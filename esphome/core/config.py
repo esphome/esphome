@@ -37,6 +37,7 @@ from esphome.const import (
     CONF_PLATFORMIO_OPTIONS,
     CONF_PRIORITY,
     CONF_PROJECT,
+    CONF_PUBLISH_SHELL_COMMAND,
     CONF_TRIGGER_ID,
     CONF_VERSION,
     KEY_CORE,
@@ -344,6 +345,7 @@ CONFIG_SCHEMA = cv.All(
             ): cv.int_range(min=1, max=get_usable_cpu_count()),
             cv.Optional(CONF_AREAS, default=[]): cv.ensure_list(AREA_SCHEMA),
             cv.Optional(CONF_DEVICES, default=[]): cv.ensure_list(DEVICE_SCHEMA),
+            cv.Optional(CONF_PUBLISH_SHELL_COMMAND): cv.string,
         }
     ),
     validate_hostname,

@@ -46,8 +46,10 @@ from esphome.const import (
     CONF_PLATFORM,
     CONF_PLATFORMIO_OPTIONS,
     CONF_PORT,
+    CONF_PUBLISH_SHELL_COMMAND,
     CONF_SUBSTITUTIONS,
     CONF_TOPIC,
+    CONF_TOPIC_PREFIX,
     CONF_USERNAME,
     CONF_WEB_SERVER,
     CONF_WIFI,
@@ -1099,6 +1101,31 @@ def upload_program(
     config: ConfigType, args: ArgsProtocol, devices: list[str]
 ) -> tuple[int, str | None]:
     host = devices[0]
+
+    # "PUBLISH" is a special device keyword (like "OTA") that runs the
+    # configured publish_shell_command instead of a normal firmware upload.
+    if host == "PUBLISH":
+        publish_shell_command = config[CONF_ESPHOME].get(CONF_PUBLISH_SHELL_COMMAND)
+        if not publish_shell_command:
+            raise EsphomeError("No publish_shell_command configured under esphome:")
+        env = os.environ.copy()
+        env["ESPHOME_DEVICE_NAME"] = CORE.name
+        env["ESPHOME_FIRMWARE_BIN"] = str(CORE.firmware_bin)
+        if CONF_MQTT in config:
+            mqtt = config[CONF_MQTT]
+            env["ESPHOME_MQTT_BROKER"] = str(mqtt.get(CONF_BROKER, ""))
+            env["ESPHOME_MQTT_PORT"] = str(mqtt.get(CONF_PORT, 1883))
+            env["ESPHOME_MQTT_USERNAME"] = str(mqtt.get(CONF_USERNAME, ""))
+            env["ESPHOME_MQTT_PASSWORD"] = str(mqtt.get(CONF_PASSWORD, ""))
+            env["ESPHOME_MQTT_TOPIC_PREFIX"] = str(mqtt.get(CONF_TOPIC_PREFIX, CORE.name))
+        _LOGGER.info("Running publish command: %s", publish_shell_command)
+        return subprocess.call(
+            publish_shell_command,
+            shell=True,
+            env=env,
+            cwd=Path(CORE.config_path).parent,
+        ), None
+
     try:
         module = importlib.import_module("esphome.components." + CORE.target_platform)
         if module.upload_program(config, args, host):
