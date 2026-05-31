@@ -100,6 +100,7 @@ class StorageJSON:
         framework: str | None = None,
         core_platform: str | None = None,
         toolchain: str | None = None,
+        area: str | None = None,
     ) -> None:
         # Version of the storage JSON schema
         assert storage_version is None or isinstance(storage_version, int)
@@ -138,6 +139,8 @@ class StorageJSON:
         self.core_platform = core_platform
         # The toolchain used for the build ("platformio" / "esp-idf")
         self.toolchain = toolchain
+        # The area of the node
+        self.area = area
 
     def as_dict(self):
         return {
@@ -158,6 +161,7 @@ class StorageJSON:
             "framework": self.framework,
             "core_platform": self.core_platform,
             "toolchain": self.toolchain,
+            "area": self.area,
         }
 
     def to_json(self):
@@ -195,6 +199,7 @@ class StorageJSON:
             framework=esph.target_framework,
             core_platform=esph.target_platform,
             toolchain=esph.toolchain.value if esph.toolchain is not None else None,
+            area=esph.area,
         )
 
     @staticmethod
@@ -243,6 +248,7 @@ class StorageJSON:
         framework = storage.get("framework")
         core_platform = storage.get("core_platform")
         toolchain = storage.get("toolchain")
+        area = storage.get("area")
         return StorageJSON(
             storage_version,
             name,
@@ -261,6 +267,7 @@ class StorageJSON:
             framework,
             core_platform,
             toolchain,
+            area,
         )
 
     @staticmethod
