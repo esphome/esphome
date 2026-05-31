@@ -9,13 +9,16 @@ from voluptuous import Invalid, MultipleInvalid
 
 from esphome.components.motion import (
     CALIBRATE_ACTION_SCHEMA,
+    CLEAR_ACTION_SCHEMA,
     CONF_AXIS_MAP,
+    CONF_SAVE,
     CONF_TRANSFORM_MATRIX,
     _axis_map,
     _axis_map_to_matrix,
     _build_calibrate_action,
     _transform_matrix,
     _validate_matrix_options,
+    clear_calibration_to_code,
 )
 from esphome.components.motion.sensor import (
     _ACCELERATIONS,
@@ -765,6 +768,105 @@ async def test_build_calibrate_action_with_both_triggers(mock_codegen):
         [],
         on_error_config,
     )
+
+
+# --- Clear calibration action ---
+
+
+class TestClearActionSchema:
+    """Tests for CLEAR_ACTION_SCHEMA."""
+
+    def test_schema_has_save_key(self):
+        schema_keys = {str(k) for k in CLEAR_ACTION_SCHEMA.schema}
+        assert CONF_SAVE in schema_keys
+
+    def test_save_defaults_to_false(self):
+        result = CLEAR_ACTION_SCHEMA({CONF_ID: "x"})
+        assert result[CONF_SAVE] is False
+
+
+@pytest.fixture
+def mock_clear_codegen():
+    """Mock cg functions used by clear_calibration_to_code."""
+    mock_var = MagicMock()
+    mock_parent = MagicMock()
+    with (
+        patch(
+            "esphome.components.motion.cg.get_variable",
+            new_callable=AsyncMock,
+            return_value=mock_parent,
+        ),
+        patch(
+            "esphome.components.motion.cg.new_Pvariable",
+            return_value=mock_var,
+        ) as mock_new_pvar,
+        patch("esphome.components.motion.cg.add") as mock_add,
+    ):
+        yield {"new_Pvariable": mock_new_pvar, "add": mock_add, "var": mock_var}
+
+
+@pytest.mark.asyncio
+async def test_clear_action_without_save(mock_clear_codegen):
+    """With save=False, set_save should not be emitted."""
+    config = {CONF_ID: MagicMock(), CONF_SAVE: False}
+    result = await clear_calibration_to_code(config, MagicMock(), MagicMock(), [])
+    assert result is mock_clear_codegen["var"]
+    mock_clear_codegen["add"].assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_clear_action_with_save(mock_clear_codegen):
+    """With save=True, set_save(True) should be emitted exactly once."""
+    config = {CONF_ID: MagicMock(), CONF_SAVE: True}
+    await clear_calibration_to_code(config, MagicMock(), MagicMock(), [])
+    mock_clear_codegen["var"].set_save.assert_called_once_with(True)
+    mock_clear_codegen["add"].assert_called_once()
+
+
+# --- Calibration persistence invalidation ---
+#
+# The C++ side stores a hash of the build-time base matrix alongside the saved
+# calibration so a changed axis_map invalidates stale NVS data without orphaning
+# storage (the pref key stays ID-stable). These tests pin the design properties
+# of that base-matrix fingerprint: deterministic for identical maps, distinct
+# for different ones.
+
+
+def _hash_matrix(matrix: list[float]) -> int:
+    """Python port of the C++ hash_matrix() (FNV-1a over the float bytes)."""
+    import struct
+
+    data = struct.pack("<9f", *matrix)
+    h = 2166136261
+    for b in data:
+        h ^= b
+        h = (h * 16777619) & 0xFFFFFFFF
+    return h
+
+
+class TestBaseMatrixHash:
+    """Properties of the base-matrix fingerprint used for NVS invalidation."""
+
+    def test_identical_axis_maps_hash_equal(self):
+        a = _axis_map_to_matrix({"x": "x", "y": "y", "z": "z"})
+        b = _axis_map_to_matrix({"x": "x", "y": "y", "z": "z"})
+        assert _hash_matrix([float(v) for v in a]) == _hash_matrix(
+            [float(v) for v in b]
+        )
+
+    def test_different_axis_maps_hash_differ(self):
+        identity = _axis_map_to_matrix({"x": "x", "y": "y", "z": "z"})
+        swapped = _axis_map_to_matrix({"x": "y", "y": "x", "z": "z"})
+        assert _hash_matrix([float(v) for v in identity]) != _hash_matrix(
+            [float(v) for v in swapped]
+        )
+
+    def test_sign_change_hashes_differ(self):
+        pos = _axis_map_to_matrix({"x": "x", "y": "y", "z": "z"})
+        neg = _axis_map_to_matrix({"x": "-x", "y": "y", "z": "z"})
+        assert _hash_matrix([float(v) for v in pos]) != _hash_matrix(
+            [float(v) for v in neg]
+        )
 
 
 # --- Sensor config schema type validation ---
