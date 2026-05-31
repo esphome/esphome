@@ -111,6 +111,7 @@ def create_storage() -> Callable[..., StorageJSON]:
             no_mdns=kwargs.get("no_mdns", False),
             framework=kwargs.get("framework", "arduino"),
             core_platform=kwargs.get("core_platform", "esp32"),
+            toolchain=kwargs.get("toolchain", "platformio"),
         )
 
     return _create
@@ -139,6 +140,20 @@ def test_storage_should_clean_when_build_path_changes(
     """Test that clean is triggered when build_path changes."""
     old = create_storage(loaded_integrations=["api", "wifi"], build_path="/build1")
     new = create_storage(loaded_integrations=["api", "wifi"], build_path="/build2")
+    assert storage_should_clean(old, new) is True
+
+
+def test_storage_should_clean_when_toolchain_changes(
+    create_storage: Callable[..., StorageJSON],
+) -> None:
+    """Test that clean is triggered when the build toolchain changes.
+
+    Switching between the PlatformIO and native ESP-IDF toolchains produces
+    incompatible build trees (and toolchain-specific idedata), so the build
+    must be wiped.
+    """
+    old = create_storage(loaded_integrations=["api", "wifi"], toolchain="platformio")
+    new = create_storage(loaded_integrations=["api", "wifi"], toolchain="esp-idf")
     assert storage_should_clean(old, new) is True
 
 
@@ -479,6 +494,11 @@ def test_clean_build(
     dependencies_lock = tmp_path / "dependencies.lock"
     dependencies_lock.write_text("lock file")
 
+    # idedata cache lives under the data dir, not the build path.
+    idedata_cache = tmp_path / "idedata" / "test.json"
+    idedata_cache.parent.mkdir()
+    idedata_cache.write_text("{}")
+
     # Native ESP-IDF toolchain artifacts.
     idf_build_dir = tmp_path / "build"
     idf_build_dir.mkdir()
@@ -499,11 +519,14 @@ def test_clean_build(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.name = "test"
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
 
     # Verify all exist before
     assert pioenvs_dir.exists()
     assert piolibdeps_dir.exists()
     assert dependencies_lock.exists()
+    assert idedata_cache.exists()
     assert idf_build_dir.exists()
     assert managed_components_dir.exists()
     assert platformio_cache_dir.exists()
@@ -528,6 +551,7 @@ def test_clean_build(
     assert not pioenvs_dir.exists()
     assert not piolibdeps_dir.exists()
     assert not dependencies_lock.exists()
+    assert not idedata_cache.exists()
     assert not idf_build_dir.exists()
     assert not managed_components_dir.exists()
     assert not platformio_cache_dir.exists()
@@ -537,6 +561,7 @@ def test_clean_build(
     assert ".pioenvs" in caplog.text
     assert ".piolibdeps" in caplog.text
     assert "dependencies.lock" in caplog.text
+    assert str(idedata_cache) in caplog.text
     assert str(idf_build_dir) in caplog.text
     assert str(managed_components_dir) in caplog.text
     assert "PlatformIO cache" in caplog.text

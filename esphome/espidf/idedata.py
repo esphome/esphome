@@ -12,9 +12,21 @@ expect:
 from __future__ import annotations
 
 import json
+import logging
+import os
 from pathlib import Path
 import shlex
 import subprocess
+
+_LOGGER = logging.getLogger(__name__)
+
+# C++ translation-unit suffixes used to identify ESPHome source files.
+_CXX_SUFFIXES = (".cpp", ".cc")
+# Suffixes of input/output files that appear bare on the command line (and so
+# must not be mistaken for compiler flags).
+_INPUT_FILE_SUFFIXES = (*_CXX_SUFFIXES, ".c", ".o", ".S", ".s")
+# Path marker identifying an ESPHome source translation unit.
+_ESPHOME_SRC_MARKER = "/src/esphome/"
 
 
 def _expand_response_files(tokens: list[str], directory: Path) -> list[str]:
@@ -37,8 +49,10 @@ def _expand_response_files(tokens: list[str], directory: Path) -> list[str]:
                     )
                 )
                 continue
-            except OSError:
-                pass  # keep the literal token if the file can't be read
+            except OSError as err:
+                # Keep the literal token if the file can't be read, but log it
+                # so the (otherwise opaque) downstream clang failure is traceable.
+                _LOGGER.warning("Could not read response file %s: %s", rf, err)
         out.append(tok)
     return out
 
@@ -51,10 +65,10 @@ def _pick_entry(entries: list[dict]) -> dict:
     """
     for entry in entries:
         f = entry["file"]
-        if "/src/esphome/" in f and f.endswith((".cpp", ".cc")):
+        if _ESPHOME_SRC_MARKER in f and f.endswith(_CXX_SUFFIXES):
             return entry
     for entry in entries:
-        if entry["file"].endswith((".cpp", ".cc")):
+        if entry["file"].endswith(_CXX_SUFFIXES):
             return entry
     raise ValueError("no C++ translation unit found in compile_commands.json")
 
@@ -63,6 +77,15 @@ def _parse_entry(entry: dict) -> tuple[str, list[str], list[str], list[str]]:
     """Parse one compile_commands entry -> (cxx_path, defines, includes, cxx_flags)."""
     directory = Path(entry["directory"])
     tokens = _expand_response_files(shlex.split(entry["command"]), directory)
+
+    def _include(raw: str) -> str:
+        # Include paths in compile_commands are interpreted relative to the
+        # entry's ``directory`` (e.g. build-local ``-Iconfig``); resolve them
+        # so the cached idedata is usable regardless of the consumer's cwd.
+        raw = raw.strip()
+        if raw and not Path(raw).is_absolute():
+            raw = os.path.normpath(directory / raw)
+        return raw
 
     cxx_path = tokens[0]
     defines: list[str] = []
@@ -78,16 +101,16 @@ def _parse_entry(entry: dict) -> tuple[str, list[str], list[str], list[str]]:
             # quoted arg with a space after -D) that some flags arrive as.
             defines.append(tok[2:].strip() if len(tok) > 2 else next(it, "").strip())
         elif tok.startswith("-I"):
-            includes.append(tok[2:].strip() if len(tok) > 2 else next(it, "").strip())
+            includes.append(_include(tok[2:] if len(tok) > 2 else next(it, "")))
         elif tok == "-isystem":
-            includes.append(next(it, ""))
+            includes.append(_include(next(it, "")))
         elif tok.startswith("-isystem"):
-            includes.append(tok[len("-isystem") :])
+            includes.append(_include(tok[len("-isystem") :]))
         elif tok in ("-MT", "-MF", "-MQ"):
             next(it, None)  # dependency-file flag + its argument
         elif tok.startswith(("-MD", "-MMD", "-MP", "-MM")):
             pass  # dependency-generation flags, no argument
-        elif tok.endswith((".cpp", ".cc", ".c", ".o", ".S", ".s")):
+        elif tok.endswith(_INPUT_FILE_SUFFIXES):
             pass  # input/output files
         else:
             cxx_flags.append(tok)
@@ -103,6 +126,7 @@ def _get_toolchain_includes(cxx_path: str) -> list[str]:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
         check=False,
+        close_fds=False,
     )
     includes: list[str] = []
     capture = False
@@ -114,10 +138,15 @@ def _get_toolchain_includes(cxx_path: str) -> list[str]:
             break
         if capture:
             includes.append(line.strip())
+    if result.returncode != 0 or not includes:
+        raise RuntimeError(
+            f"Could not query builtin include dirs from {cxx_path} "
+            f"(return code {result.returncode}); stderr:\n{result.stderr.strip()}"
+        )
     return includes
 
 
-def idedata_from_compile_commands(compile_commands: Path) -> dict:
+def idedata_from_build(compile_commands: Path) -> dict:
     """Parse compile_commands.json into the idedata fields consumers expect.
 
     A single ESP-IDF compile entry only carries its own component's REQUIRES
@@ -133,7 +162,7 @@ def idedata_from_compile_commands(compile_commands: Path) -> dict:
     build_includes: dict[str, None] = {}
     for entry in entries:
         f = entry["file"]
-        if "/src/esphome/" not in f or not f.endswith((".cpp", ".cc")):
+        if _ESPHOME_SRC_MARKER not in f or not f.endswith(_CXX_SUFFIXES):
             continue
         for inc in _parse_entry(entry)[2]:
             build_includes.setdefault(inc, None)

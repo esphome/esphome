@@ -24,7 +24,7 @@ all ``USE_*``.
 import os
 from pathlib import Path
 
-from esphome.espidf.idedata import idedata_from_compile_commands
+from esphome.espidf.idedata import idedata_from_build
 
 
 def _generate_and_reconfigure(config: str) -> Path:
@@ -74,4 +74,4 @@ def load_idedata(environment: str, temp_folder: str, platformio_ini: str) -> dic
         )
     if not compile_commands.is_file():
         raise RuntimeError(f"compile_commands.json not found: {compile_commands}")
-    return idedata_from_compile_commands(compile_commands)
+    return idedata_from_build(compile_commands)
