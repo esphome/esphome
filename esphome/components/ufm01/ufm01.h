@@ -8,7 +8,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/sensor/sensor.h"
 
-#include <vector>
+#include <array>
 
 // component API deifinition at https://www.sciosense.com/wp-content/uploads/2025/06/UFM-01-Datasheet-1.pdf
 
@@ -39,7 +39,7 @@ class UFM01Component : public uart::UARTDevice, public sensor::Sensor, public Co
   bool reset_device_();
 
  private:
-  bool send_command_(const std::vector<uint8_t> &command);
+  bool send_command_(const std::array<uint8_t, 7> &command);
 
   int read_index_ = 0;
   uint8_t data_[32];

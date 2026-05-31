@@ -2,18 +2,20 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <array>
+#include <limits>
+
 namespace esphome::ufm01 {
 
 static const char *const TAG = "ufm_01";
 
-static const float UNKNOWN = std::numeric_limits<float>::quiet_NaN();
-static const float L_PER_M3 = 1000.0;
-static const float M3_PER_L = 1.0 / L_PER_M3;
+static constexpr float UNKNOWN = std::numeric_limits<float>::quiet_NaN();
+static constexpr float L_PER_M3 = 1000.0f;
+static constexpr float M3_PER_L = 1.0f / L_PER_M3;
 
-static const std::vector<uint8_t> ACTIVE_MODE = std::vector<uint8_t>{0xFE, 0xFE, 0x11, 0x5C, 0x00, 0x5C, 0x16};
-static const std::vector<uint8_t> CLEAR_ACCUMULATED_FLOW =
-    std::vector<uint8_t>{0xFE, 0xFE, 0x11, 0x5A, 0xFD, 0x57, 0x16};
-static const std::vector<uint8_t> RESET_DEVICE = std::vector<uint8_t>{0xFE, 0xFE, 0x11, 0x5D, 0xFD, 0x5A, 0x16};
+static constexpr std::array<uint8_t, 7> ACTIVE_MODE = {0xFE, 0xFE, 0x11, 0x5C, 0x00, 0x5C, 0x16};
+static constexpr std::array<uint8_t, 7> CLEAR_ACCUMULATED_FLOW = {0xFE, 0xFE, 0x11, 0x5A, 0xFD, 0x57, 0x16};
+static constexpr std::array<uint8_t, 7> RESET_DEVICE = {0xFE, 0xFE, 0x11, 0x5D, 0xFD, 0x5A, 0x16};
 
 static float to_float(uint8_t data) { return (data >> 4) * 10 + (data & 0x0F); }
 
@@ -70,7 +72,7 @@ static bool read_empty_tube(const uint8_t data[32]) { return data[28] & 0x20; }
 
 static bool read_flow_rate_out_of_range(const uint8_t data[32]) { return data[29] & 0x04; }
 
-bool UFM01Component::send_command_(const std::vector<uint8_t> &command) {
+bool UFM01Component::send_command_(const std::array<uint8_t, 7> &command) {
   this->write_array(command);
   return 0xE5 == this->read();
 }
