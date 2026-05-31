@@ -91,15 +91,17 @@ void UFM01Component::setup() {
 }
 
 void UFM01Component::on_data_(uint8_t data[32]) {
+  bool empty_tube = read_empty_tube(data);
+#ifdef USE_BINARY_SENSOR
   if (this->ufp_chip_error_binary_sensor_ != nullptr)
     this->ufp_chip_error_binary_sensor_->publish_state(read_ufp_chip_error(data));
   if (this->flow_direction_wrong_binary_sensor_ != nullptr)
     this->flow_direction_wrong_binary_sensor_->publish_state(read_flow_direction_wrong(data));
-  bool empty_tube = read_empty_tube(data);
   if (this->empty_tube_binary_sensor_ != nullptr)
     this->empty_tube_binary_sensor_->publish_state(empty_tube);
   if (this->flow_rate_out_of_range_binary_sensor_ != nullptr)
     this->flow_rate_out_of_range_binary_sensor_->publish_state(read_flow_rate_out_of_range(data));
+#endif
 
   if (this->volume_sensor_ != nullptr)
     this->volume_sensor_->publish_state(read_volume(data));
