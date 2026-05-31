@@ -163,7 +163,7 @@ _IDF6_ETHERNET_COMPONENTS: dict[str, IDFRegistryComponent] = {
     "KSZ8081": IDFRegistryComponent("espressif/ksz80xx", "1.0.0"),
     "KSZ8081RNA": IDFRegistryComponent("espressif/ksz80xx", "1.0.0"),
     "W5500": IDFRegistryComponent("espressif/w5500", "1.0.1"),
-    "DM9051": IDFRegistryComponent("espressif/dm9051", "1.0.0"),
+    "DM9051": IDFRegistryComponent("espressif/dm9051", "1.1.0"),
     "ENC28J60": IDFRegistryComponent("espressif/enc28j60", "1.0.1"),
     "LAN8670": IDFRegistryComponent("espressif/lan867x", "2.0.0"),
 }
