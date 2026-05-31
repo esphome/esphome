@@ -669,12 +669,12 @@ def load_idedata(environment: str) -> dict[str, Any]:
     # ensure temp directory exists before running pio, as it writes sdkconfig to it
     Path(temp_folder).mkdir(exist_ok=True)
 
-    if "idf" in environment:
-        # Native ESP-IDF toolchain: derive idedata from a generated minimal IDF
-        # project's compile_commands.json instead of PlatformIO's idedata
-        # target. Needs no config -- the managed deps come from ESPHome's
-        # idf_component.yml. ESPHOME_IDF_COMPILE_COMMANDS may point at an
-        # existing build's compile_commands.json to skip generation.
+    if "esp32" in environment:
+        # Native ESP-IDF toolchain (esp32): derive idedata from a generated
+        # minimal IDF project's compile_commands.json instead of PlatformIO's
+        # idedata target. Needs no config -- the managed deps come from
+        # ESPHome's idf_component.yml. ESPHOME_IDF_COMPILE_COMMANDS may point at
+        # an existing build's compile_commands.json to skip generation.
         from helpers_idf import load_idedata as idf_load_idedata
 
         data = idf_load_idedata(environment, temp_folder, platformio_ini)
