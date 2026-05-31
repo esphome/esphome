@@ -83,7 +83,7 @@ def test_get_idedata_generates_and_caches(setup_core: Path) -> None:
     compile_commands.write_text("[]")
 
     with patch(
-        "esphome.espidf.idedata.idedata_from_compile_commands",
+        "esphome.espidf.idedata.idedata_from_build",
         return_value={"cxx_path": "g++"},
     ) as mock_transform:
         result = toolchain.get_idedata()
@@ -103,9 +103,7 @@ def test_get_idedata_uses_cache_when_valid(setup_core: Path) -> None:
     cc_mtime = compile_commands.stat().st_mtime
     os.utime(cache, (cc_mtime + 1, cc_mtime + 1))
 
-    with patch(
-        "esphome.espidf.idedata.idedata_from_compile_commands"
-    ) as mock_transform:
+    with patch("esphome.espidf.idedata.idedata_from_build") as mock_transform:
         result = toolchain.get_idedata()
 
     mock_transform.assert_not_called()
@@ -123,7 +121,7 @@ def test_get_idedata_regenerates_when_compile_commands_newer(setup_core: Path) -
     os.utime(compile_commands, (cache_mtime + 1, cache_mtime + 1))
 
     with patch(
-        "esphome.espidf.idedata.idedata_from_compile_commands",
+        "esphome.espidf.idedata.idedata_from_build",
         return_value={"cxx_path": "fresh"},
     ) as mock_transform:
         result = toolchain.get_idedata()
@@ -143,7 +141,7 @@ def test_get_idedata_regenerates_on_corrupted_cache(setup_core: Path) -> None:
     os.utime(cache, (cc_mtime + 1, cc_mtime + 1))
 
     with patch(
-        "esphome.espidf.idedata.idedata_from_compile_commands",
+        "esphome.espidf.idedata.idedata_from_build",
         return_value={"cxx_path": "regen"},
     ) as mock_transform:
         result = toolchain.get_idedata()

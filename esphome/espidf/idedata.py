@@ -12,10 +12,13 @@ expect:
 from __future__ import annotations
 
 import json
+import logging
 import os
 from pathlib import Path
 import shlex
 import subprocess
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _expand_response_files(tokens: list[str], directory: Path) -> list[str]:
@@ -38,8 +41,10 @@ def _expand_response_files(tokens: list[str], directory: Path) -> list[str]:
                     )
                 )
                 continue
-            except OSError:
-                pass  # keep the literal token if the file can't be read
+            except OSError as err:
+                # Keep the literal token if the file can't be read, but log it
+                # so the (otherwise opaque) downstream clang failure is traceable.
+                _LOGGER.warning("Could not read response file %s: %s", rf, err)
         out.append(tok)
     return out
 
@@ -124,10 +129,15 @@ def _get_toolchain_includes(cxx_path: str) -> list[str]:
             break
         if capture:
             includes.append(line.strip())
+    if result.returncode != 0 or not includes:
+        raise RuntimeError(
+            f"Could not query builtin include dirs from {cxx_path} "
+            f"(return code {result.returncode}); stderr:\n{result.stderr.strip()}"
+        )
     return includes
 
 
-def idedata_from_compile_commands(compile_commands: Path) -> dict:
+def idedata_from_build(compile_commands: Path) -> dict:
     """Parse compile_commands.json into the idedata fields consumers expect.
 
     A single ESP-IDF compile entry only carries its own component's REQUIRES

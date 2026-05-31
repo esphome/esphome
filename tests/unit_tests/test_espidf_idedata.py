@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from esphome.espidf import idedata
 
 
@@ -112,7 +114,7 @@ def test_pick_entry_prefers_esphome_tu() -> None:
     assert idedata._pick_entry(entries)["file"].endswith("app.cpp")
 
 
-def test_idedata_from_compile_commands(tmp_path: Path) -> None:
+def test_idedata_from_build(tmp_path: Path) -> None:
     """Full transform: representative entry + include union + toolchain dirs."""
     compile_commands = tmp_path / "compile_commands.json"
     entries = [
@@ -132,6 +134,7 @@ def test_idedata_from_compile_commands(tmp_path: Path) -> None:
     compile_commands.write_text(json.dumps(entries))
 
     fake_proc = MagicMock(
+        returncode=0,
         stderr=(
             "ignored\n"
             "#include <...> search starts here:\n"
@@ -139,10 +142,10 @@ def test_idedata_from_compile_commands(tmp_path: Path) -> None:
             " /tc/inc\n"
             "End of search list.\n"
             "more ignored\n"
-        )
+        ),
     )
     with patch.object(idedata.subprocess, "run", return_value=fake_proc):
-        data = idedata.idedata_from_compile_commands(compile_commands)
+        data = idedata.idedata_from_build(compile_commands)
 
     assert data["cxx_path"] == "g++"
     assert "USE_ESP32" in data["defines"]
@@ -154,3 +157,26 @@ def test_idedata_from_compile_commands(tmp_path: Path) -> None:
     assert "/inc/managed" not in data["includes"]["build"]
     # toolchain search dirs parsed from the compiler's -v output
     assert data["includes"]["toolchain"] == ["/tc/inc/c++", "/tc/inc"]
+
+
+def test_get_toolchain_includes_raises_on_probe_failure() -> None:
+    """A failed compiler probe is a hard error, not a silent empty list."""
+    fake_proc = MagicMock(returncode=1, stderr="xtensa-esp32-elf-g++: not found")
+    with (
+        patch.object(idedata.subprocess, "run", return_value=fake_proc),
+        pytest.raises(RuntimeError, match="builtin include dirs"),
+    ):
+        idedata._get_toolchain_includes("/bad/compiler")
+
+
+def test_get_toolchain_includes_raises_when_no_dirs_found() -> None:
+    """Markers present but no dirs (anomalous output) also raises."""
+    fake_proc = MagicMock(
+        returncode=0,
+        stderr="#include <...> search starts here:\nEnd of search list.\n",
+    )
+    with (
+        patch.object(idedata.subprocess, "run", return_value=fake_proc),
+        pytest.raises(RuntimeError, match="builtin include dirs"),
+    ):
+        idedata._get_toolchain_includes("/some/compiler")

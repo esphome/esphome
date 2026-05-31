@@ -451,10 +451,11 @@ def get_idedata() -> dict | None:
     idedata fields IDE integrations and clang-tidy expect, cached alongside the
     PlatformIO idedata path. Returns None if the compile DB doesn't exist yet.
     """
-    from esphome.espidf.idedata import idedata_from_compile_commands
+    from esphome.espidf.idedata import idedata_from_build
 
     compile_commands = CORE.relative_build_path("build", "compile_commands.json")
     if not compile_commands.is_file():
+        _LOGGER.debug("No %s yet; skipping idedata generation", compile_commands)
         return None
 
     cache = CORE.relative_internal_path("idedata", f"{CORE.name}.json")
@@ -464,7 +465,7 @@ def get_idedata() -> dict | None:
         except ValueError:
             pass
 
-    data = idedata_from_compile_commands(compile_commands)
+    data = idedata_from_build(compile_commands)
     cache.parent.mkdir(parents=True, exist_ok=True)
     cache.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     return data
