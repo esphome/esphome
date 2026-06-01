@@ -322,33 +322,6 @@ class DriverChip:
     def get_default(self, key, fallback: Any = False) -> Any:
         return self.defaults.get(key, fallback)
 
-    # The "native" size is the size as determined by the controller chip's number of rows and columns
-    # Some displays use a subset of those, which may not start at 0
-    # The resulting smaller rectangle is defined by the width, height, offsets and padding.
-    def get_native_width(self, fallback: int) -> int:
-        """
-        Get the native width of the driver chip model, which should represent the max number of columns supported
-        by the driver chip.
-        """
-        if CONF_NATIVE_WIDTH in self.defaults:
-            return self.defaults[CONF_NATIVE_WIDTH]
-        width = self.get_default(CONF_WIDTH, 0)
-        if width == 0:
-            return fallback
-        offset_width = self.get_default(CONF_OFFSET_WIDTH, 0)
-        pad_width = self.get_default(CONF_PAD_WIDTH, offset_width)
-        return width + offset_width + pad_width
-
-    def get_native_height(self, fallback: int) -> int:
-        if CONF_NATIVE_HEIGHT in self.defaults:
-            return self.defaults[CONF_NATIVE_HEIGHT]
-        height = self.get_default(CONF_HEIGHT, 0)
-        if height == 0:
-            return fallback
-        offset_height = self.get_default(CONF_OFFSET_HEIGHT, 0)
-        pad_height = self.get_default(CONF_PAD_HEIGHT, offset_height)
-        return height + offset_height + pad_height
-
     @property
     def transforms(self) -> set[str]:
         """
@@ -448,8 +421,6 @@ class DriverChip:
             CONF_PAD_HEIGHT, native_height - height - offset_height
         )
 
-        if width > native_width or height > native_height:
-            raise cv.Invalid("Dimensions exceed native size", [CONF_DIMENSIONS])
         if pad_width < 0 or pad_height < 0:
             raise cv.Invalid("Offsets exceed native size", [CONF_DIMENSIONS])
 
