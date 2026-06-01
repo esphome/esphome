@@ -1,0 +1,8 @@
+# Extra managed components for the arduino-framework clang-tidy build. These are
+# merged on top of esphome/idf_component.yml -- i.e. the arduino tidy manifest
+# "includes" the idf one and adds arduino-esp32 (which provides Arduino.h and the
+# arduino libraries). The arduino-esp32 version is filled in by clang_tidy.py from
+# ARDUINO_FRAMEWORK_VERSION_LOOKUP so it stays in sync with ESPHome's recommended
+# arduino framework version.
+dependencies:
+  espressif/arduino-esp32:

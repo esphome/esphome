@@ -19,6 +19,7 @@ component's recommended version.
 ``compile_commands.json`` to skip generation (fast iteration).
 """
 
+from dataclasses import dataclass
 import os
 from pathlib import Path
 
@@ -30,20 +31,92 @@ TIDY_PROJECT_NAME = "esphome_tidy"
 _TIDY_MAIN_CPP = 'extern "C" void app_main() {}\n'
 
 
-def _platform_defines(variant: str) -> tuple[str, ...]:
-    """Return the platform defines a real ESPHome build adds via cg.add_define.
+@dataclass(frozen=True)
+class _Settings:
+    """Per-environment build settings derived from the tidy env name.
 
-    defines.h only *consumes* these (it provides the feature USE_* flags and the
-    ESPHOME_LOG_LEVEL default). Without them, esphome/core/hal.h errors with
-    "not implemented for this platform". Mirrors the esp32-idf-tidy -D set.
-    ``variant`` is the upper-case esp32 variant (ESP32, ESP32S3, ...).
+    The platform defines below are what a real ESPHome build adds via
+    cg.add_define; defines.h only *consumes* them, so without them
+    esphome/core/hal.h errors with "not implemented for this platform".
     """
-    return (
-        "USE_ESP32",
-        "USE_ESP_IDF",
-        "USE_ESP32_FRAMEWORK_ESP_IDF",
-        f"USE_ESP32_VARIANT_{variant}",
+
+    idf_target: str  # esp32, esp32s3, ...
+    variant: str  # ESP32, ESP32S3, ...
+    idf_version: str  # ESP-IDF version to build with
+    target_framework: str  # "espidf" or "arduino"
+    platform_defines: tuple[str, ...]
+    # Extra idf_component.yml deps the framework needs (e.g. arduino-esp32).
+    framework_deps: dict[str, dict]
+
+
+def _settings_for(environment: str) -> _Settings:
+    """Derive build settings from a ``<target>-<framework>-tidy`` env name.
+
+    Arduino on esp32 is itself a native ESP-IDF build with the
+    ``espressif/arduino-esp32`` component added, so both frameworks use this
+    path -- only the defines, IDF version, and that one component differ.
+    """
+    from esphome.components.esp32 import (
+        ARDUINO_FRAMEWORK_VERSION_LOOKUP,
+        ARDUINO_IDF_VERSION_LOOKUP,
+        ESP_IDF_FRAMEWORK_VERSION_LOOKUP,
     )
+
+    parts = environment.split("-")
+    idf_target = parts[0]
+    framework = parts[1] if len(parts) > 2 else "idf"
+    variant = idf_target.upper()
+    variant_define = f"USE_ESP32_VARIANT_{variant}"
+
+    if framework == "arduino":
+        fw_version = ARDUINO_FRAMEWORK_VERSION_LOOKUP["recommended"]
+        return _Settings(
+            idf_target=idf_target,
+            variant=variant,
+            idf_version=str(ARDUINO_IDF_VERSION_LOOKUP[fw_version]),
+            target_framework="arduino",
+            platform_defines=(
+                "USE_ESP32",
+                "USE_ARDUINO",
+                "USE_ESP32_FRAMEWORK_ARDUINO",
+                variant_define,
+            ),
+            framework_deps=_arduino_framework_deps(str(fw_version)),
+        )
+    return _Settings(
+        idf_target=idf_target,
+        variant=variant,
+        idf_version=str(ESP_IDF_FRAMEWORK_VERSION_LOOKUP["recommended"]),
+        target_framework="espidf",
+        platform_defines=(
+            "USE_ESP32",
+            "USE_ESP_IDF",
+            "USE_ESP32_FRAMEWORK_ESP_IDF",
+            variant_define,
+        ),
+        framework_deps={},
+    )
+
+
+def _arduino_framework_deps(version: str) -> dict[str, dict]:
+    """Arduino-only managed deps from ``clang_tidy_arduino.yml``.
+
+    The manifest lists arduino-esp32 without a version (so the file isn't tied to
+    a release); we fill it from the recommended arduino framework version here so
+    the two stay in sync. These are merged on top of esphome/idf_component.yml.
+    """
+    import yaml
+
+    from esphome.components.esp32 import ARDUINO_ESP32_COMPONENT_NAME
+
+    manifest = yaml.safe_load(
+        (Path(__file__).resolve().parent / "clang_tidy_arduino.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+    deps = manifest.get("dependencies") or {}
+    deps[ARDUINO_ESP32_COMPONENT_NAME] = {"version": version}
+    return deps
 
 
 _TOP_CMAKELISTS = """\
@@ -64,13 +137,7 @@ idf_component_register(
 """
 
 
-def _recommended_idf_version() -> str:
-    from esphome.components.esp32 import ESP_IDF_FRAMEWORK_VERSION_LOOKUP
-
-    return str(ESP_IDF_FRAMEWORK_VERSION_LOOKUP["recommended"])
-
-
-def _setup_core(work_dir: Path, version: str, variant: str) -> None:
+def _setup_core(work_dir: Path, settings: _Settings) -> None:
     """Point CORE at the tidy project + IDF version, without any YAML config."""
     from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION, KEY_VARIANT
     import esphome.config_validation as cv
@@ -84,11 +151,12 @@ def _setup_core(work_dir: Path, version: str, variant: str) -> None:
     CORE.config_path = work_dir.parent / "tidy.yaml"
     CORE.build_path = work_dir
     esp32 = CORE.data.setdefault(KEY_ESP32, {})
-    esp32[KEY_IDF_VERSION] = cv.Version.parse(version)
-    esp32[KEY_VARIANT] = variant
-    # The PlatformIO-library -> IDF-component converter reads the target.
+    esp32[KEY_IDF_VERSION] = cv.Version.parse(settings.idf_version)
+    esp32[KEY_VARIANT] = settings.variant
+    # The target framework drives the PlatformIO-library -> IDF-component
+    # converter and ESPHome's CORE.using_arduino / using_esp_idf helpers.
     CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = "esp32"
-    CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "espidf"
+    CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = settings.target_framework
 
 
 # Special IDF "components" that are tools/subprojects, not requirable by an app
@@ -158,12 +226,42 @@ def _convert_pio_libs(platformio_ini: Path) -> dict[str, dict[str, str]]:
     return deps
 
 
+def _arduino_excluded_stubs(work_dir: Path) -> dict[str, dict]:
+    """Stub the arduino-bundled IDF components ESPHome doesn't use.
+
+    arduino-esp32 declares deps (libsodium, RainMaker, modbus, ...) that ESPHome
+    replaces with its own library (noise-c) or doesn't use; point each at an
+    empty override_path component so the IDF manager doesn't resolve/download
+    them -- notably so ``espressif/libsodium`` doesn't clash with the converted
+    noise-c's ``libsodium``. Mirrors esp32's ``_write_idf_component_yml``.
+    """
+    from esphome.components.esp32 import (
+        ARDUINO_EXCLUDED_IDF_COMPONENTS,
+        _idf_component_dep_name,
+        _idf_component_stub_name,
+    )
+
+    stubs_dir = work_dir / "component_stubs"
+    stubs_dir.mkdir(parents=True, exist_ok=True)
+    deps: dict[str, dict] = {}
+    for component in sorted(ARDUINO_EXCLUDED_IDF_COMPONENTS):
+        stub_path = stubs_dir / _idf_component_stub_name(component)
+        stub_path.mkdir(exist_ok=True)
+        (stub_path / "CMakeLists.txt").write_text(
+            "idf_component_register()\n", encoding="utf-8"
+        )
+        deps[_idf_component_dep_name(component)] = {
+            "version": "*",
+            "override_path": str(stub_path),
+        }
+    return deps
+
+
 def _write_tidy_project(
     work_dir: Path,
     requires: list[str],
     extra_deps: dict[str, dict[str, str]],
-    idf_target: str,
-    variant: str,
+    settings: _Settings,
 ) -> None:
     """Generate the minimal IDF CMake project (top + main + idf_component.yml)."""
     main_dir = work_dir / "main"
@@ -171,13 +269,13 @@ def _write_tidy_project(
 
     compile_options = "\n".join(
         f'idf_build_set_property(COMPILE_OPTIONS "-D{define}" APPEND)'
-        for define in _platform_defines(variant)
+        for define in settings.platform_defines
     )
     (work_dir / "CMakeLists.txt").write_text(
         _TOP_CMAKELISTS.format(
             name=TIDY_PROJECT_NAME,
             compile_options=compile_options,
-            idf_target=idf_target,
+            idf_target=settings.idf_target,
         ),
         encoding="utf-8",
     )
@@ -212,7 +310,7 @@ def _write_tidy_project(
 
 
 def _generate_compile_commands(
-    work_dir: Path, version: str, platformio_ini: Path, idf_target: str, variant: str
+    work_dir: Path, settings: _Settings, platformio_ini: Path
 ) -> Path:
     """Generate the tidy project and run ``idf.py reconfigure`` (no build).
 
@@ -231,13 +329,19 @@ def _generate_compile_commands(
     # script otherwise leaves at WARNING so the first-run downloads look silent.
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
-    _setup_core(work_dir, version, variant)
+    _setup_core(work_dir, settings)
 
-    # PlatformIO libs -> local IDF components, added to the manifest as deps.
-    extra_deps = _convert_pio_libs(platformio_ini)
+    # Framework deps (e.g. arduino-esp32) + PlatformIO libs converted to local
+    # IDF components, all added to the manifest as deps.
+    extra_deps = dict(settings.framework_deps)
+    extra_deps.update(_convert_pio_libs(platformio_ini))
+    if settings.target_framework == "arduino":
+        # Stub the arduino-bundled components ESPHome doesn't use (avoids the
+        # libsodium clash with noise-c and ~26 unused heavy downloads).
+        extra_deps.update(_arduino_excluded_stubs(work_dir))
 
     # Phase 1: discover the components available for this target.
-    _write_tidy_project(work_dir, [], extra_deps, idf_target, variant)
+    _write_tidy_project(work_dir, [], extra_deps, settings)
     if toolchain.run_reconfigure() != 0:
         raise RuntimeError("idf.py reconfigure (discovery) failed")
 
@@ -246,7 +350,7 @@ def _generate_compile_commands(
     )
 
     # Phase 2: require every available builtin component.
-    _write_tidy_project(work_dir, requires, extra_deps, idf_target, variant)
+    _write_tidy_project(work_dir, requires, extra_deps, settings)
     if toolchain.run_reconfigure() != 0:
         raise RuntimeError("idf.py reconfigure failed")
 
@@ -283,17 +387,15 @@ def load_idedata(environment: str, temp_folder: str, platformio_ini: str) -> dic
     if explicit := os.environ.get("ESPHOME_IDF_COMPILE_COMMANDS"):
         compile_commands = Path(explicit)
     else:
-        # The tidy env is ``<target>-idf-tidy`` (esp32, esp32s3, esp32c6, ...);
-        # the IDF target is that prefix and the esp32 variant its upper-case.
-        idf_target = environment.split("-", 1)[0]
-        variant = idf_target.upper()
-        work_dir = Path(temp_folder) / f"idf-tidy-{idf_target}"
+        # The tidy env is ``<target>-<framework>-tidy`` (e.g. esp32-idf-tidy,
+        # esp32s3-arduino-tidy); derive the target, variant and framework.
+        settings = _settings_for(environment)
+        work_dir = (
+            Path(temp_folder)
+            / f"idf-tidy-{settings.idf_target}-{settings.target_framework}"
+        )
         compile_commands = _generate_compile_commands(
-            work_dir,
-            _recommended_idf_version(),
-            Path(platformio_ini),
-            idf_target,
-            variant,
+            work_dir, settings, Path(platformio_ini)
         )
 
     if not compile_commands.is_file():
