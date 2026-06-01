@@ -47,11 +47,11 @@ class Sdl : public display::Display {
     this->key_callbacks_[keycode].add(std::forward<F>(callback));
   }
 
-  void add_mouse_button_listener(uint8_t button, std::function<void(bool)> &&callback) {
+  template<typename F> void add_mouse_button_listener(uint8_t button, F &&callback) {
     if (!this->mouse_button_callbacks_.count(button)) {
       this->mouse_button_callbacks_[button] = CallbackManager<void(bool)>();
     }
-    this->mouse_button_callbacks_[button].add(std::move(callback));
+    this->mouse_button_callbacks_[button].add(std::forward<F>(callback));
   }
 
   void register_encoder(SdlEncoder *encoder) { this->encoders_.push_back(encoder); }

@@ -14,12 +14,13 @@ SdlEncoder = sdl_ns.class_("SdlEncoder", RotaryEncoderSensor)
 
 
 def validate_min_max_value(config):
-    min_val = config.get(CONF_MIN_VALUE, 0)
-    max_val = config.get(CONF_MAX_VALUE, 0xFFFFFFFF)
-    if min_val >= max_val:
-        raise cv.Invalid(
-            f"Max value {max_val} must be greater than min value {min_val}"
-        )
+    if CONF_MIN_VALUE in config and CONF_MAX_VALUE in config:
+        min_val = config[CONF_MIN_VALUE]
+        max_val = config[CONF_MAX_VALUE]
+        if min_val >= max_val:
+            raise cv.Invalid(
+                f"Max value {max_val} must be greater than min value {min_val}"
+            )
     return config
 
 
@@ -50,7 +51,7 @@ async def to_code(config):
     parent = await cg.get_variable(config[CONF_SDL_ID])
     cg.add(var.set_parent(parent))
     cg.add(var.set_wrap(config[CONF_WRAP]))
-    if min := config.get(CONF_MIN_VALUE):
-        cg.add(var.set_min_value(min))
-    if max := config.get(CONF_MAX_VALUE):
-        cg.add(var.set_max_value(max))
+    if CONF_MIN_VALUE in config:
+        cg.add(var.set_min_value(config[CONF_MIN_VALUE]))
+    if CONF_MAX_VALUE in config:
+        cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
