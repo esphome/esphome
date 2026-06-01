@@ -184,6 +184,7 @@ INDICATOR_ARC_SCHEMA = cv.Schema(
         cv.Optional(CONF_START_VALUE): lv_float,
         cv.Optional(CONF_END_VALUE): lv_float,
         cv.Optional(CONF_OPA, default=1.0): opacity,
+        cv.Optional(CONF_ROUNDED, default=False): cv.boolean,
     }
 ).add_extra(cv.has_at_most_one_key(CONF_VALUE, CONF_START_VALUE))
 
@@ -417,7 +418,7 @@ class MeterType(WidgetType):
                         "arc_width": v[CONF_WIDTH],
                         "arc_color": v[CONF_COLOR],
                         "arc_opa": v[CONF_OPA],
-                        "arc_rounded": v.get("arc_rounded", False),
+                        "arc_rounded": v[CONF_ROUNDED],
                     }
                     if CONF_R_MOD in v:
                         get_warnings().add(

@@ -46,7 +46,7 @@ from esphome.const import (
     Toolchain,
     __version__,
 )
-from esphome.core import CORE, HexInt, Library
+from esphome.core import CORE, EsphomeError, HexInt, Library
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
 from esphome.espidf.component import generate_idf_component
@@ -56,7 +56,7 @@ from esphome.types import ConfigType
 from esphome.writer import clean_build, clean_cmake_cache
 
 from .boards import BOARDS, STANDARD_BOARDS
-from .const import (  # noqa
+from .const import (
     KEY_ARDUINO_LIBRARIES,
     KEY_BOARD,
     KEY_COMPONENTS,
@@ -78,15 +78,18 @@ from .const import (  # noqa
     VARIANT_ESP32C6,
     VARIANT_ESP32C61,
     VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
     VARIANT_FRIENDLY,
     VARIANTS,
 )
 
 # force import gpio to register pin schema
-from .gpio import esp32_pin_to_code  # noqa
+from .gpio import esp32_pin_to_code  # noqa: F401
 
 _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["preferences"]
@@ -403,9 +406,12 @@ CPU_FREQUENCIES = {
     VARIANT_ESP32C6: get_cpu_frequencies(80, 120, 160),
     VARIANT_ESP32C61: get_cpu_frequencies(80, 120, 160),
     VARIANT_ESP32H2: get_cpu_frequencies(16, 32, 48, 64, 96),
+    VARIANT_ESP32H4: get_cpu_frequencies(48, 64, 96),
+    VARIANT_ESP32H21: get_cpu_frequencies(48, 64, 96),
     VARIANT_ESP32P4: get_cpu_frequencies(40, 360, 400),
     VARIANT_ESP32S2: get_cpu_frequencies(80, 160, 240),
     VARIANT_ESP32S3: get_cpu_frequencies(80, 160, 240),
+    VARIANT_ESP32S31: get_cpu_frequencies(240, 320),
 }
 
 # Make sure not missed here if a new variant added.
@@ -464,21 +470,20 @@ def set_core_data(config):
     framework_ver = cv.Version.parse(config[CONF_FRAMEWORK][CONF_VERSION])
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = framework_ver
 
-    # Store the underlying IDF version for framework-agnostic checks
+    # Store the underlying IDF version for framework-agnostic checks.
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
-        CORE.data[KEY_ESP32][KEY_IDF_VERSION] = framework_ver
-    elif (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is not None:
-        if CORE.using_toolchain_esp_idf:
-            # Official ESP-IDF frameworks don't use extra
-            idf_ver = cv.Version(idf_ver.major, idf_ver.minor, idf_ver.patch)
-        CORE.data[KEY_ESP32][KEY_IDF_VERSION] = idf_ver
-    else:
+        idf_ver = framework_ver
+    elif (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is None:
         raise cv.Invalid(
             f"Arduino version {framework_ver} has no known ESP-IDF version mapping. "
             "Please update ARDUINO_IDF_VERSION_LOOKUP.",
             path=[CONF_FRAMEWORK, CONF_VERSION],
         )
+    # The esp-idf toolchain doesn't use pioarduino's packaging revision; PIO does.
+    if CORE.using_toolchain_esp_idf:
+        idf_ver = _strip_pioarduino_revision(idf_ver)
 
+    CORE.data[KEY_ESP32][KEY_IDF_VERSION] = idf_ver
     CORE.data[KEY_ESP32][KEY_BOARD] = config[CONF_BOARD]
     CORE.data[KEY_ESP32][KEY_FLASH_SIZE] = config[CONF_FLASH_SIZE]
     CORE.data[KEY_ESP32][KEY_VARIANT] = variant
@@ -715,6 +720,9 @@ ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
     "dev": cv.Version(3, 3, 8),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(
+        4, 0, 0, "alpha1"
+    ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
     cv.Version(3, 3, 8): cv.Version(55, 3, 38, "1"),
     cv.Version(3, 3, 7): cv.Version(55, 3, 37),
     cv.Version(3, 3, 6): cv.Version(55, 3, 36),
@@ -735,6 +743,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # These versions correspond to pioarduino/esp-idf releases
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
+    cv.Version(4, 0, 0, "alpha1"): cv.Version(6, 0, 1),
     cv.Version(3, 3, 8): cv.Version(5, 5, 4),
     cv.Version(3, 3, 7): cv.Version(5, 5, 3, "1"),
     cv.Version(3, 3, 6): cv.Version(5, 5, 2),
@@ -829,6 +838,16 @@ def _resolve_framework_version(value: ConfigType) -> cv.Version:
     return version
 
 
+def _strip_pioarduino_revision(ver: cv.Version) -> cv.Version:
+    """Drop a numeric 'extra' (pioarduino packaging revision, e.g. "5.5.3-1").
+
+    Alphanumeric prerelease extras (e.g. "6.0.0-rc1") are kept.
+    """
+    if ver.extra.isdigit():
+        return cv.Version(ver.major, ver.minor, ver.patch)
+    return ver
+
+
 def _check_pio_versions(config: ConfigType) -> ConfigType:
     config = config.copy()
     value = config[CONF_FRAMEWORK]
@@ -897,8 +916,10 @@ def _check_esp_idf_versions(config: ConfigType) -> ConfigType:
             "If there are connectivity or build issues please remove the manual source."
         )
 
-    # Official ESP-IDF frameworks don't use the 'extra' semver component.
-    value[CONF_VERSION] = str(cv.Version(version.major, version.minor, version.patch))
+    # esp-idf framework only: drop pioarduino's packaging revision (config + download).
+    # Arduino keeps its extra (it's the arduino-esp32 release tag / lookup key).
+    if value[CONF_TYPE] == FRAMEWORK_ESP_IDF:
+        value[CONF_VERSION] = str(_strip_pioarduino_revision(version))
 
     return config
 
@@ -907,11 +928,16 @@ def _validate_toolchain(value) -> Toolchain:
     return Toolchain(cv.one_of(*(t.value for t in Toolchain), lower=True)(value))
 
 
-def _check_versions(config):
+def _resolve_toolchain(value: ConfigType) -> ConfigType:
     # Resolve toolchain: CLI (already on CORE.toolchain) > YAML > default.
+    # Runs before _detect_variant so downstream validators can rely on
+    # CORE.toolchain instead of re-resolving it from the config dict.
     if CORE.toolchain is None:
-        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.PLATFORMIO)
+        CORE.toolchain = value.get(CONF_TOOLCHAIN, Toolchain.PLATFORMIO)
+    return value
 
+
+def _check_versions(config: ConfigType) -> ConfigType:
     if CORE.using_toolchain_esp_idf:
         return _check_esp_idf_versions(config)
     return _check_pio_versions(config)
@@ -933,7 +959,21 @@ def _detect_variant(value):
     variant = value.get(CONF_VARIANT)
     if variant and board is None:
         # If variant is set, we can derive the board from it
-        # variant has already been validated against the known set
+        # variant has already been validated against the known set.
+        # PlatformIO needs a real board name to find its board file; the
+        # ESP-IDF toolchain only uses CONF_BOARD as the informational
+        # ESPHOME_BOARD string, so synthesize one from the friendly variant
+        # name rather than carrying a PIO board name through the IDF build.
+        if CORE.using_toolchain_esp_idf:
+            value = value.copy()
+            value[CONF_BOARD] = VARIANT_FRIENDLY[variant].lower()
+            return value
+        if variant not in STANDARD_BOARDS:
+            raise cv.Invalid(
+                f"No default board is known for {variant}. "
+                f"Please specify the `board:` option explicitly.",
+                path=[CONF_VARIANT],
+            )
         value = value.copy()
         value[CONF_BOARD] = STANDARD_BOARDS[variant]
         if variant == VARIANT_ESP32P4:
@@ -1220,6 +1260,7 @@ KEY_MBEDTLS_PKCS7_REQUIRED = "mbedtls_pkcs7_required"
 KEY_FATFS_REQUIRED = "fatfs_required"
 KEY_MBEDTLS_SHA512_REQUIRED = "mbedtls_sha512_required"
 KEY_ADC_ONESHOT_IRAM_REQUIRED = "adc_oneshot_iram_required"
+KEY_LIBC_PICOLIBC_NEWLIB_COMPAT_REQUIRED = "libc_picolibc_newlib_compat_required"
 
 
 def require_vfs_select() -> None:
@@ -1326,6 +1367,15 @@ def require_adc_oneshot_iram() -> None:
     This sets CONFIG_ADC_ONESHOT_CTRL_FUNC_IN_IRAM.
     """
     CORE.data[KEY_ESP32][KEY_ADC_ONESHOT_IRAM_REQUIRED] = True
+
+
+def require_libc_picolibc_newlib_compat() -> None:
+    """Keep CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY enabled on IDF 6.0+.
+
+    Call this from components that link against precompiled Newlib binaries
+    referencing types/symbols the shim provides (e.g. esp32-camera).
+    """
+    CORE.data[KEY_ESP32][KEY_LIBC_PICOLIBC_NEWLIB_COMPAT_REQUIRED] = True
 
 
 def _parse_idf_component(value: str) -> ConfigType:
@@ -1606,6 +1656,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ),
+    _resolve_toolchain,
     _detect_variant,
     _set_default_framework,
     _check_versions,
@@ -1730,6 +1781,26 @@ async def _write_arduino_libraries_sdkconfig() -> None:
     for lib in ARDUINO_DISABLED_LIBRARIES:
         # Enable if explicitly requested, disable otherwise
         add_idf_sdkconfig_option(f"CONFIG_ARDUINO_SELECTIVE_{lib}", lib in enabled_libs)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _set_libc_picolibc_newlib_compat() -> None:
+    """Apply the PicolibC Newlib compatibility shim option on IDF 6.0+.
+
+    IDF 6.0 switched from Newlib to PicolibC; the shim is disabled by default.
+    Runs at FINAL priority so every require_libc_picolibc_newlib_compat() call
+    (default priority) is seen before the option is written. A user-supplied
+    sdkconfig_options value takes precedence.
+    """
+    if idf_version() < cv.Version(6, 0, 0):
+        return
+    option = "CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY"
+    if option in CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]:
+        return
+    add_idf_sdkconfig_option(
+        option,
+        CORE.data[KEY_ESP32].get(KEY_LIBC_PICOLIBC_NEWLIB_COMPAT_REQUIRED, False),
+    )
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -2265,17 +2336,8 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_SHA384_C", False)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_SHA512_C", False)
 
-    # Disable PicolibC Newlib compatibility shim on IDF 6.0+
-    # IDF 6.0 switched from Newlib to PicolibC. The shim provides thread-local
-    # stdin/stdout/stderr and getreent() for code compiled against Newlib.
-    # ESPHome doesn't link against Newlib-built libraries that use stdio.
-    # If a component needs it (e.g. precompiled Newlib binaries), re-enable via:
-    #   esp32:
-    #     framework:
-    #       sdkconfig_options:
-    #         CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY: "y"
-    if idf_version() >= cv.Version(6, 0, 0):
-        add_idf_sdkconfig_option("CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY", False)
+    # FINAL priority: runs after every require_libc_picolibc_newlib_compat() call
+    CORE.add_job(_set_libc_picolibc_newlib_compat)
 
     # Disable regi2c control functions in IRAM
     # Only needed if using analog peripherals (ADC, DAC, etc.) from ISRs while cache is disabled
@@ -2583,6 +2645,26 @@ def _write_idf_component_yml():
                 "override_path": str(stub_path),
             }
 
+        # On the PlatformIO toolchain, framework-arduinoespressif32 already
+        # ships arduino-esp32. Stub the managed component so anything that
+        # `REQUIRES arduino-esp32` (e.g. third-party FastLED) resolves to a
+        # CMake target that re-exports the framework's INTERFACE properties
+        # (INCLUDE_DIRS, public compile options like -DESP32, transitive
+        # REQUIRES) instead of triggering a duplicate download/rebuild.
+        if CORE.using_toolchain_platformio:
+            arduino_stub = stubs_dir / "arduino-esp32"
+            arduino_stub.mkdir(exist_ok=True)
+            write_file_if_changed(
+                arduino_stub / "CMakeLists.txt",
+                "idf_component_register()\n"
+                "target_link_libraries(${COMPONENT_LIB} "
+                f"INTERFACE idf::{ARDUINO_FRAMEWORK_NAME})\n",
+            )
+            dependencies[ARDUINO_ESP32_COMPONENT_NAME] = {
+                "version": "*",
+                "override_path": str(arduino_stub),
+            }
+
         # Remove stubs for components that are now required by enabled libraries
         for component_name in required_idf_components:
             stub_path = stubs_dir / _idf_component_stub_name(component_name)
@@ -2658,16 +2740,32 @@ def copy_files():
 
 
 def _decode_pc(config, addr):
-    from esphome.platformio import toolchain
+    # _decode_pc runs from the api log processor's asyncio callback, which
+    # only catches EsphomeError. Any other exception escaping here tears down
+    # the protocol and triggers an infinite reconnect/replay loop. Convert
+    # toolchain-resolution errors (e.g. missing build dir / cmake cache) into
+    # EsphomeError so the caller can disable decoding cleanly.
+    if CORE.using_toolchain_esp_idf:
+        from esphome.espidf import toolchain as idf_toolchain
 
-    idedata = toolchain.get_idedata(config)
-    if not idedata.addr2line_path or not idedata.firmware_elf_path:
+        try:
+            addr2line_path = idf_toolchain.get_addr2line_path()
+            firmware_elf_path = idf_toolchain.get_elf_path()
+        except RuntimeError as err:
+            raise EsphomeError(f"ESP-IDF toolchain not available: {err}") from err
+    else:
+        from esphome.platformio import toolchain
+
+        idedata = toolchain.get_idedata(config)
+        addr2line_path = idedata.addr2line_path
+        firmware_elf_path = idedata.firmware_elf_path
+    if not addr2line_path or not firmware_elf_path:
         _LOGGER.debug("decode_pc no addr2line")
         return
-    command = [idedata.addr2line_path, "-pfiaC", "-e", idedata.firmware_elf_path, addr]
+    command = [str(addr2line_path), "-pfiaC", "-e", str(firmware_elf_path), addr]
     try:
         translation = subprocess.check_output(command, close_fds=False).decode().strip()
-    except Exception:  # pylint: disable=broad-except
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-except
         _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
         return
 
