@@ -517,7 +517,7 @@ def run_ota_impl_(
             continue
 
         _LOGGER.info("Connected to %s", sa[0])
-        with open(filename, "rb") as file_handle:
+        with Path(filename).open("rb") as file_handle:
             try:
                 perform_ota(sock, password, file_handle, filename, ota_type)
             except OTAError as err:
