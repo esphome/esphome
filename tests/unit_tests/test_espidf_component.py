@@ -551,3 +551,49 @@ def test_generate_idf_components_dedupes_shared_dependency(
     generated = (a_dep.path / "CMakeLists.txt").read_text()
     assert "TRIPWIRE" not in generated
     assert "idf_component_register" in generated
+
+
+def test_generate_idf_components_handles_dependency_cycle(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    esp32_idf_core: None,
+) -> None:
+    # A -> B -> A. Must terminate (not recurse forever) and wire the cycle with
+    # a single instance per component.
+    manifests = {
+        "esphome/A": {
+            "name": "A",
+            "dependencies": [{"owner": "esphome", "name": "B", "version": "1.0.0"}],
+        },
+        "esphome/B": {
+            "name": "B",
+            "dependencies": [{"owner": "esphome", "name": "A", "version": "1.0.0"}],
+        },
+    }
+
+    def fake_download(self, force=False):
+        self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
+        (self.path / "src").mkdir(parents=True, exist_ok=True)
+        (self.path / "src" / "x.c").write_text("int x;")
+        (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
+
+    monkeypatch.setattr(IDFComponent, "download", fake_download)
+    monkeypatch.setattr(
+        esphome.espidf.component,
+        "_resolve_registry_version",
+        lambda owner, pkgname, requirements: (
+            owner,
+            pkgname,
+            "1.0.0",
+            f"http://x/{pkgname}.tar.gz",
+        ),
+    )
+
+    top = generate_idf_components([Library("esphome/A", "1.0.0", None)])
+
+    assert [c.name for c in top] == ["esphome/A"]
+    component_a = top[0]
+    component_b = component_a.dependencies[0]
+    assert component_b.name == "esphome/B"
+    # The cycle is wired back to the same A instance, not a duplicate.
+    assert component_b.dependencies[0] is component_a
