@@ -35,7 +35,7 @@ void SdlEncoder::handle_wheel_event(int32_t wheel_delta) {
       }
       // else stay at max
     } else {
-      this->store_.counter++;  // NOLINT(clang-diagnostic-deprecated-volatile)
+      this->store_.counter += 1;
     }
   } else if (wheel_delta < 0) {
     if (current_value <= min_val) {
@@ -44,7 +44,7 @@ void SdlEncoder::handle_wheel_event(int32_t wheel_delta) {
       }
       // else stay at min
     } else {
-      this->store_.counter--;  // NOLINT(clang-diagnostic-deprecated-volatile)
+      this->store_.counter -= 1;
     }
   }
 

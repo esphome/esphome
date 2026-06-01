@@ -49,7 +49,6 @@ sensor:
     sdl_id: sdl_display
     id: mouse_encoder
     name: "Mouse Wheel Encoder"
-    wheel_button: 1
     min_value: 0
     max_value: 100
     wrap: true
@@ -59,7 +58,6 @@ sensor:
     sdl_id: sdl_display
     id: mouse_encoder_no_wrap
     name: "Mouse Encoder No Wrap"
-    wheel_button: 2
     min_value: 10
     max_value: 50
     wrap: false
