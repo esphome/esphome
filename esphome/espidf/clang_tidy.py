@@ -66,7 +66,15 @@ def _settings_for(environment: str) -> _Settings:
     idf_target = parts[0]
     framework = parts[1] if len(parts) > 2 else "idf"
     variant = idf_target.upper()
-    variant_define = f"USE_ESP32_VARIANT_{variant}"
+    # Defines shared by both frameworks. ESPHOME_LOG_LEVEL must be set up front
+    # (as the PlatformIO tidy build_flags do) -- otherwise log.h's ``#ifndef``
+    # sets it to NONE before defines.h redefines it, a macro-redefined warning
+    # across nearly every source.
+    common_defines = (
+        "USE_ESP32",
+        f"USE_ESP32_VARIANT_{variant}",
+        "ESPHOME_LOG_LEVEL=ESPHOME_LOG_LEVEL_VERY_VERBOSE",
+    )
 
     if framework == "arduino":
         fw_version = ARDUINO_FRAMEWORK_VERSION_LOOKUP["recommended"]
@@ -76,10 +84,9 @@ def _settings_for(environment: str) -> _Settings:
             idf_version=str(ARDUINO_IDF_VERSION_LOOKUP[fw_version]),
             target_framework="arduino",
             platform_defines=(
-                "USE_ESP32",
+                *common_defines,
                 "USE_ARDUINO",
                 "USE_ESP32_FRAMEWORK_ARDUINO",
-                variant_define,
             ),
             framework_deps=_arduino_framework_deps(str(fw_version)),
         )
@@ -89,10 +96,9 @@ def _settings_for(environment: str) -> _Settings:
         idf_version=str(ESP_IDF_FRAMEWORK_VERSION_LOOKUP["recommended"]),
         target_framework="espidf",
         platform_defines=(
-            "USE_ESP32",
+            *common_defines,
             "USE_ESP_IDF",
             "USE_ESP32_FRAMEWORK_ESP_IDF",
-            variant_define,
         ),
         framework_deps={},
     )
