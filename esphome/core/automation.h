@@ -1,7 +1,9 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/preferences.h"
 #include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 #include <concepts>
