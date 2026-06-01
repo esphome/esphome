@@ -239,10 +239,9 @@ def final_validation(config_list):
             display_order = next(iter(display_byte_orders))
             if CONF_BYTE_ORDER in config:
                 if config[CONF_BYTE_ORDER] != display_order:
-                    LOGGER.warning(
-                        "LVGL byte_order '%s' does not match display byte_order '%s'",
-                        config[CONF_BYTE_ORDER],
-                        display_order,
+                    raise cv.Invalid(
+                        "LVGL byte order must match the display byte order",
+                        [CONF_BYTE_ORDER],
                     )
             else:
                 config[CONF_BYTE_ORDER] = display_order
