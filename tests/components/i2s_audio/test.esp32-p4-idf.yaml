@@ -1,0 +1,15 @@
+substitutions:
+  i2s_bclk_pin: GPIO12
+  i2s_lrclk_pin: GPIO10
+  i2s_mclk_pin: GPIO13
+
+<<: !include common.yaml
+
+speaker:
+  - platform: i2s_audio
+    dac_type: external
+    i2s_dout_pin: GPIO9
+    sample_rate: 16000
+    bits_per_sample: 16bit
+    channel: left
+    keep_alive: true

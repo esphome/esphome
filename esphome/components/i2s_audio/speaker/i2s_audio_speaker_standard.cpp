@@ -293,8 +293,6 @@ void I2SAudioSpeaker::run_speaker_task() {
 }
 
 esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream_info) {
-  this->current_stream_info_ = audio_stream_info;
-
   if ((this->i2s_role_ & I2S_ROLE_SLAVE) && (this->sample_rate_ != audio_stream_info.get_sample_rate())) {  // NOLINT
     // Can't reconfigure I2S bus, so the sample rate must match the configured value
     ESP_LOGE(TAG, "Incompatible stream settings");
@@ -312,6 +310,22 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
     ESP_LOGE(TAG, "Parent bus is busy");
     return ESP_ERR_INVALID_STATE;
   }
+
+  // Keep-alive fast path: if the channel survived the previous session and the stream info hasn't
+  // changed, reuse it as-is. The channel is in READY state (left there by stop_i2s_driver_'s
+  // disable), with queues and callbacks reset, ready for the task to preload and enable.
+  if (this->tx_handle_ != nullptr) {
+    if (this->current_stream_info_ == audio_stream_info) {
+      return ESP_OK;
+    }
+    // Stream info changed since the channel was allocated. Tear it down so we can rebuild with the
+    // new config; the bus lock acquired above is held across the teardown into the fresh init. The
+    // channel is in READY state here (left there by stop_i2s_driver_'s disable, or never enabled
+    // after pre-warm), so no disable call is needed before delete_channel_().
+    this->delete_channel_();
+  }
+
+  this->current_stream_info_ = audio_stream_info;
 
   uint32_t dma_buffer_length = audio_stream_info.ms_to_frames(DMA_BUFFER_DURATION_MS);
 

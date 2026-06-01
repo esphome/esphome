@@ -54,6 +54,7 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
 
   void set_buffer_duration(uint32_t buffer_duration_ms) { this->buffer_duration_ms_ = buffer_duration_ms; }
   void set_timeout(uint32_t ms) { this->timeout_ = ms; }
+  void set_keep_alive(bool keep_alive) { this->keep_alive_ = keep_alive; }
   void set_dout_pin(uint8_t pin) { this->dout_pin_ = (gpio_num_t) pin; }
 
   /// @brief Get the I2S TX channel handle
@@ -125,6 +126,11 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   /// @brief Stops the I2S driver and unlocks the I2S port
   void stop_i2s_driver_();
 
+  /// @brief Tears down the I2S channel: disables it, deletes the channel, clears tx_handle_, and
+  /// detaches the dout pin from the GPIO matrix while driving it low. Used by both the normal stop
+  /// path and the keep-alive stream-info-changed path. Caller is responsible for the bus lock.
+  void delete_channel_();
+
   /// @brief Called in loop() when the task has stopped. Override for mode-specific cleanup.
   virtual void on_task_stopped() {}
 
@@ -153,6 +159,7 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   optional<uint32_t> timeout_;
 
   bool pause_state_{false};
+  bool keep_alive_{false};
 
   int32_t q31_volume_factor_{INT32_MAX};
 
