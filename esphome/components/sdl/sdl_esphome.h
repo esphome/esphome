@@ -41,16 +41,10 @@ class Sdl : public display::Display {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void dump_config() override { LOG_DISPLAY("", "SDL", this); }
   template<typename F> void add_key_listener(int32_t keycode, F &&callback) {
-    if (!this->key_callbacks_.count(keycode)) {
-      this->key_callbacks_[keycode] = CallbackManager<void(bool)>();
-    }
     this->key_callbacks_[keycode].add(std::forward<F>(callback));
   }
 
   template<typename F> void add_mouse_button_listener(uint8_t button, F &&callback) {
-    if (!this->mouse_button_callbacks_.count(button)) {
-      this->mouse_button_callbacks_[button] = CallbackManager<void(bool)>();
-    }
     this->mouse_button_callbacks_[button].add(std::forward<F>(callback));
   }
 

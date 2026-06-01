@@ -6,8 +6,7 @@
 #include "esphome/components/rotary_encoder/rotary_encoder.h"
 #include "sdl_esphome.h"
 
-namespace esphome {
-namespace sdl {
+namespace esphome::sdl {
 
 class SdlEncoder : public rotary_encoder::RotaryEncoderSensor {
  public:
@@ -24,7 +23,6 @@ class SdlEncoder : public rotary_encoder::RotaryEncoderSensor {
   bool wrap_{true};
 };
 
-}  // namespace sdl
-}  // namespace esphome
+}  // namespace esphome::sdl
 
 #endif
