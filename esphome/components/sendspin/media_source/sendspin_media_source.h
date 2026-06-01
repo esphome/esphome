@@ -49,9 +49,6 @@ class SendspinMediaSource : public SendspinChild,
   /// @brief Called when the audio stream ends (main loop thread).
   void on_stream_end() override;
 
-  /// @brief Called when the audio stream is cleared (main loop thread).
-  void on_stream_clear() override;
-
   /// @brief Called when volume changes (main loop thread).
   void on_volume_changed(uint8_t volume) override;
 
