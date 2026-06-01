@@ -1,4 +1,3 @@
-import glob
 import logging
 from pathlib import Path
 from typing import Any
@@ -106,7 +105,7 @@ REMOTES = {
 # Collect all input YAML files for test_substitutions_fixtures parametrized tests:
 HERE = Path(__file__).parent
 BASE_DIR = HERE / "fixtures" / "substitutions"
-SOURCES = sorted(glob.glob(str(BASE_DIR / "*.input.yaml")))
+SOURCES = sorted(str(p) for p in BASE_DIR.glob("*.input.yaml"))
 assert SOURCES, f"test_substitutions_fixtures: No input YAML files found in {BASE_DIR}"
 
 
@@ -654,12 +653,12 @@ def test_resolve_package_max_depth_exceeded(tmp_path: Path) -> None:
     package_config = yaml_util.IncludeFile(
         parent, "test.yaml", None, always_returns_include
     )
-    processor = _PackageProcessor({}, None, False)
+    processor = _PackageProcessor({}, None)
     with pytest.raises(
         cv.Invalid,
         match=f"Maximum include nesting depth \\({MAX_INCLUDE_DEPTH}\\) exceeded",
     ):
-        processor.resolve_package(package_config, substitutions.ContextVars())
+        processor.resolve_package(package_config, substitutions.ContextVars(), [])
 
 
 def test_include_filename_substitution_undefined_var(tmp_path: Path) -> None:
@@ -690,7 +689,7 @@ def test_raise_first_undefined_logs_extras_at_debug(
         caplog.at_level(logging.DEBUG, logger="esphome.components.substitutions"),
         pytest.raises(cv.Invalid) as exc_info,
     ):
-        substitutions.raise_first_undefined(errors, None, "package definition")
+        substitutions.raise_first_undefined(errors, "package definition")
 
     # First error is surfaced as the cv.Invalid message.
     raised = str(exc_info.value)
@@ -706,7 +705,7 @@ def test_raise_first_undefined_logs_extras_at_debug(
 
 def test_raise_first_undefined_noop_on_empty() -> None:
     """An empty errors list is a no-op — no exception, no log."""
-    substitutions.raise_first_undefined([], None, "package definition")
+    substitutions.raise_first_undefined([], "package definition")
 
 
 def test_do_substitution_pass_included_substitutions_must_be_mapping(
@@ -776,6 +775,148 @@ def test_resolve_package_undefined_var_in_include_filename(tmp_path: Path) -> No
     package_config = yaml_util.IncludeFile(
         parent, "${undefined_var}.yaml", None, loader
     )
-    processor = _PackageProcessor({}, None, False)
+    processor = _PackageProcessor({}, None)
     with pytest.raises(cv.Invalid, match="unresolved substitutions"):
-        processor.resolve_package(package_config, substitutions.ContextVars())
+        processor.resolve_package(package_config, substitutions.ContextVars(), [])
+
+
+def test_resolve_include_error_shows_expanded_from_when_substituted(
+    tmp_path: Path,
+) -> None:
+    """When a substituted filename fails to load, the error includes '(expanded from ...)'."""
+    parent = tmp_path / "main.yaml"
+    parent.write_text("")
+
+    def failing_loader(_path: Path) -> None:
+        raise EsphomeError("File not found")
+
+    include = yaml_util.IncludeFile(parent, "${device}.yaml", None, failing_loader)
+    context = substitutions.ContextVars({"device": "my_device"})
+
+    with pytest.raises(cv.Invalid) as exc_info:
+        substitutions.resolve_include(include, [], context)
+
+    msg = str(exc_info.value)
+    assert "my_device.yaml" in msg
+    assert "expanded from '${device}.yaml'" in msg
+
+
+def test_resolve_include_error_no_expanded_from_for_literal_filename(
+    tmp_path: Path,
+) -> None:
+    """When a literal filename fails to load, the error has no 'expanded from' clause."""
+    parent = tmp_path / "main.yaml"
+    parent.write_text("")
+
+    def failing_loader(_path: Path) -> None:
+        raise EsphomeError("File not found")
+
+    include = yaml_util.IncludeFile(parent, "literal.yaml", None, failing_loader)
+
+    with pytest.raises(cv.Invalid) as exc_info:
+        substitutions.resolve_include(include, [], substitutions.ContextVars())
+
+    assert "expanded from" not in str(exc_info.value)
+
+
+def test_include_vars_applied_to_lambda_value(tmp_path: Path) -> None:
+    """!include vars: must substitute into a top-level !lambda value in the included file.
+
+    Regression test for the case where the included file's root is a Lambda;
+    add_context() previously only tagged dict/list/str, so the include's vars
+    never reached the substitution pass for Lambda content.
+    """
+    included = tmp_path / "lambda.yaml"
+    included.write_text('!lambda |-\n  return "${foo}";\n')
+
+    include = yaml_util.IncludeFile(
+        tmp_path / "main.yaml", "lambda.yaml", {"foo": "bar"}, yaml_util.load_yaml
+    )
+    config = OrderedDict({"value": include.load()})
+    result = substitutions.do_substitution_pass(config)
+
+    assert isinstance(result["value"], Lambda)
+    assert result["value"].value == 'return "bar";'
+
+
+@patch("esphome.git.resolve_symlink_stub")
+@patch("esphome.git.clone_or_update")
+def test_remote_package_symlink_stub_is_followed(
+    mock_clone_or_update: MagicMock,
+    mock_resolve_symlink_stub: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """When a package YAML is a scalar (symlink stub) and resolve_symlink_stub
+    returns a target, the loader follows the target and uses its content."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    (repo_dir / "static").mkdir()
+
+    # Stub file: content is the target path string (simulating Windows behavior).
+    stub = repo_dir / "file1.yaml"
+    stub.write_text("static/file1.yaml")
+
+    # Real target with valid YAML mapping.
+    target = repo_dir / "static" / "file1.yaml"
+    target.write_text("substitutions:\n  hello: world\n")
+
+    mock_clone_or_update.return_value = (repo_dir, None)
+    mock_resolve_symlink_stub.return_value = target
+
+    config: dict[str, Any] = {
+        "packages": {
+            "test_package": {
+                "url": "https://github.com/esphome/repo1",
+                "ref": "main",
+                "files": ["file1.yaml"],
+            }
+        }
+    }
+
+    # Must succeed (does not raise the helpful cv.Invalid) because the stub
+    # was followed and a valid mapping was loaded from the target.
+    do_packages_pass(config)
+    assert mock_resolve_symlink_stub.called
+
+
+@patch("esphome.git.clone_or_update")
+def test_remote_package_scalar_yaml_raises_helpful_error(
+    mock_clone_or_update: MagicMock, tmp_path: Path
+) -> None:
+    """A remote package YAML that is a top-level scalar (e.g. an unmaterialized
+    git symlink on Windows) raises a clear cv.Invalid, not AttributeError.
+
+    Regression test for the case where a repo containing a YAML symlink,
+    checked out on Windows without symlink privilege, lands as a short text
+    file containing the symlink target path. PyYAML parses that as a bare
+    string scalar; the package loader must reject it with a human-readable
+    error instead of dying inside ``.get()``.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    # Simulate the broken-symlink state: a YAML file whose entire content is
+    # the symlink target string. PyYAML parses this as a top-level scalar.
+    (repo_dir / "file1.yaml").write_text("static/file1.yaml")
+
+    mock_clone_or_update.return_value = (repo_dir, None)
+
+    config: dict[str, Any] = {
+        "packages": {
+            "test_package": {
+                "url": "https://github.com/esphome/repo1",
+                "ref": "main",
+                "files": ["file1.yaml"],
+            }
+        }
+    }
+
+    with pytest.raises(cv.Invalid) as exc_info:
+        do_packages_pass(config)
+
+    msg = str(exc_info.value)
+    assert "mapping at the top level" in msg
+    assert "file1.yaml" in msg

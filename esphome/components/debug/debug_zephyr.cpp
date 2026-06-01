@@ -17,11 +17,13 @@ constexpr std::uintptr_t MBR_PARAM_PAGE_ADDR = 0xFFC;
 constexpr std::uintptr_t MBR_BOOTLOADER_ADDR = 0xFF8;
 
 static inline uint32_t read_mem_u32(uintptr_t addr) {
-  return *reinterpret_cast<volatile uint32_t *>(addr);  // NOLINT(performance-no-int-to-ptr)
+  // NOLINTNEXTLINE(performance-no-int-to-ptr,clang-analyzer-core.FixedAddressDereference)
+  return *reinterpret_cast<volatile uint32_t *>(addr);
 }
 
 static inline uint8_t read_mem_u8(uintptr_t addr) {
-  return *reinterpret_cast<volatile uint8_t *>(addr);  // NOLINT(performance-no-int-to-ptr)
+  // NOLINTNEXTLINE(performance-no-int-to-ptr,clang-analyzer-core.FixedAddressDereference)
+  return *reinterpret_cast<volatile uint8_t *>(addr);
 }
 
 // defines from https://github.com/adafruit/Adafruit_nRF52_Bootloader which prints those information
@@ -98,6 +100,7 @@ void DebugComponent::log_partition_info_() {
 #define NRF_PERIPH_ENABLED(periph, reg) \
   YESNO(((reg)->ENABLE & periph##_ENABLE_ENABLE_Msk) == (periph##_ENABLE_ENABLE_Enabled << periph##_ENABLE_ENABLE_Pos))
 
+// NOLINTBEGIN(clang-analyzer-core.FixedAddressDereference) -- nRF peripheral registers are MMIO at fixed addresses
 static void log_peripherals_info() {
   // most peripherals are enabled only when in use so ESP_LOGV is enough
   ESP_LOGV(TAG, "Peripherals status:");
@@ -131,6 +134,7 @@ static void log_peripherals_info() {
            YESNO((NRF_CRYPTOCELL->ENABLE & CRYPTOCELL_ENABLE_ENABLE_Msk) ==
                  (CRYPTOCELL_ENABLE_ENABLE_Enabled << CRYPTOCELL_ENABLE_ENABLE_Pos)));
 }
+// NOLINTEND(clang-analyzer-core.FixedAddressDereference)
 #undef NRF_PERIPH_ENABLED
 #endif
 
@@ -159,17 +163,22 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   char *buf = buffer.data();
 
   // Main supply status
-  const char *supply_status =
-      (nrf_power_mainregstatus_get(NRF_POWER) == NRF_POWER_MAINREGSTATUS_NORMAL) ? "Normal voltage." : "High voltage.";
+  // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) -- NRF_POWER is MMIO at a fixed address
+  auto regstatus = nrf_power_mainregstatus_get(NRF_POWER);
+  const char *supply_status = (regstatus == NRF_POWER_MAINREGSTATUS_NORMAL) ? "Normal voltage." : "High voltage.";
   ESP_LOGD(TAG, "Main supply status: %s", supply_status);
-  pos = buf_append_printf(buf, size, pos, "|Main supply status: %s", supply_status);
+  pos = buf_append_str(buf, size, pos, "|Main supply status: ");
+  pos = buf_append_str(buf, size, pos, supply_status);
 
   // Regulator stage 0
   if (nrf_power_mainregstatus_get(NRF_POWER) == NRF_POWER_MAINREGSTATUS_HIGH) {
     const char *reg0_type = nrf_power_dcdcen_vddh_get(NRF_POWER) ? "DC/DC" : "LDO";
     const char *reg0_voltage = regout0_to_str((NRF_UICR->REGOUT0 & UICR_REGOUT0_VOUT_Msk) >> UICR_REGOUT0_VOUT_Pos);
     ESP_LOGD(TAG, "Regulator stage 0: %s, %s", reg0_type, reg0_voltage);
-    pos = buf_append_printf(buf, size, pos, "|Regulator stage 0: %s, %s", reg0_type, reg0_voltage);
+    pos = buf_append_str(buf, size, pos, "|Regulator stage 0: ");
+    pos = buf_append_str(buf, size, pos, reg0_type);
+    pos = buf_append_str(buf, size, pos, ", ");
+    pos = buf_append_str(buf, size, pos, reg0_voltage);
 #ifdef USE_NRF52_REG0_VOUT
     if ((NRF_UICR->REGOUT0 & UICR_REGOUT0_VOUT_Msk) >> UICR_REGOUT0_VOUT_Pos != USE_NRF52_REG0_VOUT) {
       ESP_LOGE(TAG, "Regulator stage 0: expected %s", regout0_to_str(USE_NRF52_REG0_VOUT));
@@ -177,13 +186,14 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
 #endif
   } else {
     ESP_LOGD(TAG, "Regulator stage 0: disabled");
-    pos = buf_append_printf(buf, size, pos, "|Regulator stage 0: disabled");
+    pos = buf_append_str(buf, size, pos, "|Regulator stage 0: disabled");
   }
 
   // Regulator stage 1
   const char *reg1_type = nrf_power_dcdcen_get(NRF_POWER) ? "DC/DC" : "LDO";
   ESP_LOGD(TAG, "Regulator stage 1: %s", reg1_type);
-  pos = buf_append_printf(buf, size, pos, "|Regulator stage 1: %s", reg1_type);
+  pos = buf_append_str(buf, size, pos, "|Regulator stage 1: ");
+  pos = buf_append_str(buf, size, pos, reg1_type);
 
   // USB power state
   const char *usb_state;
@@ -197,7 +207,8 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
     usb_state = "disconnected";
   }
   ESP_LOGD(TAG, "USB power state: %s", usb_state);
-  pos = buf_append_printf(buf, size, pos, "|USB power state: %s", usb_state);
+  pos = buf_append_str(buf, size, pos, "|USB power state: ");
+  pos = buf_append_str(buf, size, pos, usb_state);
 
   // Power-fail comparator
   bool enabled;
@@ -302,14 +313,18 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
           break;
       }
       ESP_LOGD(TAG, "Power-fail comparator: %s, VDDH: %s", pof_voltage, vddh_voltage);
-      pos = buf_append_printf(buf, size, pos, "|Power-fail comparator: %s, VDDH: %s", pof_voltage, vddh_voltage);
+      pos = buf_append_str(buf, size, pos, "|Power-fail comparator: ");
+      pos = buf_append_str(buf, size, pos, pof_voltage);
+      pos = buf_append_str(buf, size, pos, ", VDDH: ");
+      pos = buf_append_str(buf, size, pos, vddh_voltage);
     } else {
       ESP_LOGD(TAG, "Power-fail comparator: %s", pof_voltage);
-      pos = buf_append_printf(buf, size, pos, "|Power-fail comparator: %s", pof_voltage);
+      pos = buf_append_str(buf, size, pos, "|Power-fail comparator: ");
+      pos = buf_append_str(buf, size, pos, pof_voltage);
     }
   } else {
     ESP_LOGD(TAG, "Power-fail comparator: disabled");
-    pos = buf_append_printf(buf, size, pos, "|Power-fail comparator: disabled");
+    pos = buf_append_str(buf, size, pos, "|Power-fail comparator: disabled");
   }
 
   auto package = [](uint32_t value) {
@@ -386,7 +401,6 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
 #endif
   auto uicr = [](volatile uint32_t *data, uint8_t size) {
     std::string res;
-    char buf[sizeof(uint32_t) * 2 + 1];
     for (size_t i = 0; i < size; i++) {
       if (i > 0) {
         res += ' ';

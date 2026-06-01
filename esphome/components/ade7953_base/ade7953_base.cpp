@@ -3,8 +3,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace ade7953_base {
+namespace esphome::ade7953_base {
 
 static const char *const TAG = "ade7953";
 
@@ -160,5 +159,4 @@ void ADE7953::update() {
   ADE_PUBLISH(frequency, 223750.0f, 1 + val_16);
 }
 
-}  // namespace ade7953_base
-}  // namespace esphome
+}  // namespace esphome::ade7953_base

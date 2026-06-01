@@ -4,8 +4,7 @@
 #include "esphome/components/output/binary_output.h"
 #include "esphome/components/fan/fan.h"
 
-namespace esphome {
-namespace binary {
+namespace esphome::binary {
 
 class BinaryFan : public Component, public fan::Fan {
  public:
@@ -27,5 +26,4 @@ class BinaryFan : public Component, public fan::Fan {
   output::BinaryOutput *direction_{nullptr};
 };
 
-}  // namespace binary
-}  // namespace esphome
+}  // namespace esphome::binary

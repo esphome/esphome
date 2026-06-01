@@ -91,6 +91,7 @@ from esphome.core import (
     TimePeriodNanoseconds,
     TimePeriodSeconds,
 )
+from esphome.enum import StrEnum
 from esphome.expression import SUBSTITUTION_VARIABLE_PROG as VARIABLE_PROG
 from esphome.helpers import add_class_to_obj, docs_url, list_starts_with
 from esphome.schema_extractors import (
@@ -102,7 +103,7 @@ from esphome.schema_extractors import (
 )
 from esphome.util import parse_esphome_version
 from esphome.voluptuous_schema import _Schema
-from esphome.yaml_util import make_data_base
+from esphome.yaml_util import SensitiveStr, make_data_base
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -283,6 +284,54 @@ RESERVED_IDS = [
 ]
 
 
+class Visibility(StrEnum):
+    """Schema-driven UI hint for visual editors.
+
+    The values describe how a schema-aware editor (e.g. the
+    device-builder dashboard catalog via
+    ``script/build_language_schema.py``) should render the field.
+    They do NOT affect validation — the YAML still accepts the key
+    the same way. ESPHome itself ignores the value at runtime;
+    consumers downstream of the schema dump act on it.
+
+    A field with no ``visibility`` set (the default) renders on the
+    editor's main form. The two values below are points along a
+    single axis of "how prominently to surface this":
+
+    - ``ADVANCED`` — render under the editor's "advanced settings"
+      disclosure. Use for fields whose default is right for ~all
+      users (e.g. ``update_interval`` on time platforms — 15 min is
+      universally correct, but power users can still tune the YAML
+      directly).
+    - ``YAML_ONLY`` — never render in a visual editor. Use for
+      knobs that are dangerous to expose in a UI even as advanced
+      (``setup_priority`` is the canonical example — casual UI
+      tweaks can break boot). The YAML escape hatch stays
+      available for the rare power-user override.
+
+    The single-axis shape encodes "yaml-only is strictly stronger
+    than advanced" at the type level — there's no way to ask for
+    both at once, and no way to set a contradictory state like
+    "advanced=False, yaml_only=True".
+
+    Per-field; the dumper walks recursively into nested schemas
+    and emits each field's setting independently. Cascading
+    semantics — "a stricter parent makes its descendants at-least
+    as strict" — belong on the consumer side: the schema marker
+    is faithfully what the field author wrote, and a consumer that
+    cares about effective visibility walks the parent chain and
+    takes the strictest setting. ``YAML_ONLY`` is strictly stronger
+    than ``ADVANCED``, which is strictly stronger than no setting.
+    Inner fields can declare their own visibility; an inner
+    ``YAML_ONLY`` under an ``ADVANCED`` parent stays ``YAML_ONLY``,
+    and the consumer's cascade keeps siblings under the parent at
+    ``ADVANCED`` regardless of their own (less-strict) setting.
+    """
+
+    ADVANCED = "advanced"
+    YAML_ONLY = "yaml_only"
+
+
 class Optional(vol.Optional):
     """Mark a field as optional and optionally define a default for the field.
 
@@ -297,22 +346,45 @@ class Optional(vol.Optional):
     In ESPHome, all configuration defaults should be defined with the Optional class
     during config validation - specifically *not* in the C++ code or the code generation
     phase.
+
+    See :class:`Visibility` for the ``visibility`` kwarg — a UI
+    hint for schema-driven editors that doesn't affect validation.
     """
 
-    def __init__(self, key, default=UNDEFINED):
+    def __init__(
+        self,
+        key,
+        default=UNDEFINED,
+        *,
+        visibility: Visibility | None = None,
+    ):
         super().__init__(key, default=default)
+        self.visibility: Visibility | None = visibility
 
 
 class Required(vol.Required):
     """Define a field to be required to be set. The validated configuration is guaranteed
     to contain this key.
 
-    All required values should be acceessed with the `config[CONF_<KEY>]` syntax in code
+    All required values should be accessed with the `config[CONF_<KEY>]` syntax in code
     - *not* the `config.get(CONF_<KEY>)` syntax.
+
+    See :class:`Visibility` for the ``visibility`` kwarg — a UI
+    hint for schema-driven editors that doesn't affect validation.
+    Required fields rarely need it (a required field by definition
+    needs the user's attention) but the kwarg is exposed for
+    symmetry so consumers can apply uniform logic across key markers.
     """
 
-    def __init__(self, key, msg=None):
+    def __init__(
+        self,
+        key,
+        msg=None,
+        *,
+        visibility: Visibility | None = None,
+    ):
         super().__init__(key, msg=msg)
+        self.visibility: Visibility | None = visibility
 
 
 class FinalExternalInvalid(Invalid):
@@ -415,6 +487,59 @@ def string_strict(value):
     raise Invalid(
         f"Must be string, got {type(value)}. did you forget putting quotes around the value?"
     )
+
+
+# Substring fallbacks for fields whose validator isn't explicitly wrapped in
+# ``cv.sensitive``. Frontends and dump tooling should prefer the explicit
+# marker; this list exists so we still mask obvious leaks in unmigrated or
+# third-party schemas. Kept here as the single source of truth.
+SENSITIVE_KEY_FRAGMENTS: frozenset[str] = frozenset(
+    {
+        "password",
+        "passcode",
+        "secret",
+        "token",
+        "api_key",
+        "apikey",
+        "psk",
+    }
+)
+
+
+class SensitiveValidator:
+    """Marker wrapper that flags a field as containing sensitive data (passwords,
+    encryption keys, PSKs, tokens). Frontends and dump tooling detect this marker
+    to mask the value; validation behavior is delegated to the inner validator.
+    """
+
+    def __init__(self, inner: Callable[[typing.Any], typing.Any]) -> None:
+        self.inner = inner
+
+    def __call__(self, value: typing.Any) -> typing.Any:
+        validated = self.inner(value)
+        # Tag string results so yaml_util.dump can mask them. Non-string
+        # results pass through unchanged; already-tagged values are not
+        # re-wrapped to keep nested cv.sensitive applications idempotent.
+        if isinstance(validated, str) and not isinstance(validated, SensitiveStr):
+            return SensitiveStr(validated)
+        return validated
+
+    def __repr__(self) -> str:
+        # Mirror the inner validator's repr so ``build_language_schema``'s
+        # ``known_schemas``/``extended_schemas`` dedup (keyed on ``repr(schema)``)
+        # treats two wrappers around the same inner as identical, and so
+        # voluptuous error messages stay readable.
+        return repr(self.inner)
+
+
+def sensitive(
+    inner: Callable[[typing.Any], typing.Any] = string,
+) -> SensitiveValidator:
+    """Mark a field as sensitive so that frontends mask it and dump tooling redacts it.
+
+    Validation behavior is identical to ``inner`` (defaults to ``cv.string``).
+    """
+    return SensitiveValidator(inner)
 
 
 def icon(value):
@@ -766,16 +891,6 @@ only_on_rp2040 = only_on(PLATFORM_RP2040)
 only_with_arduino = only_with_framework(Framework.ARDUINO)
 
 
-def only_with_esp_idf(obj):
-    """Deprecated: use only_on_esp32 instead."""
-    _LOGGER.warning(
-        "cv.only_with_esp_idf was deprecated in 2026.1, will change behavior in 2026.6. "
-        "ESP32 Arduino builds on top of ESP-IDF, so ESP-IDF features are available in both frameworks. "
-        "Use cv.only_on_esp32 and/or cv.only_with_arduino instead."
-    )
-    return only_with_framework(Framework.ESP_IDF)(obj)
-
-
 # Adapted from:
 # https://github.com/alecthomas/voluptuous/issues/115#issuecomment-144464666
 def has_at_least_one_key(*keys):
@@ -1092,7 +1207,9 @@ def date_time(date: bool, time: bool):
                 format += "%p"
 
         try:
-            date_obj = datetime.strptime(value, format)
+            # The generated format never includes %z/%Z, so this parses a
+            # naive wall-clock date/time by design.
+            date_obj = datetime.strptime(value, format)  # noqa: DTZ007
         except ValueError as err:
             raise Invalid(f"Invalid {exc_message}: {err}") from err
 
@@ -1823,7 +1940,7 @@ def extract_keys(schema):
         elif isinstance(skey, vol.Marker) and isinstance(skey.schema, str):
             keys.append(skey.schema)
         else:
-            raise ValueError()
+            raise ValueError
     keys.sort()
     return keys
 
@@ -2195,16 +2312,45 @@ ENTITY_BASE_SCHEMA = Schema(
 
 ENTITY_BASE_SCHEMA.add_extra(_entity_base_validator)
 
-COMPONENT_SCHEMA = Schema({Optional(CONF_SETUP_PRIORITY): float_})
+COMPONENT_SCHEMA = Schema(
+    {
+        # ``setup_priority`` controls the relative order in which
+        # components are brought up at boot. Wrong values can break
+        # the boot sequence in subtle ways (e.g. an i2c device set
+        # to higher priority than the bus). Mark it ``YAML_ONLY`` so
+        # visual editors never render it — the YAML escape hatch
+        # stays available for the rare component author who really
+        # needs to override the default.
+        Optional(CONF_SETUP_PRIORITY, visibility=Visibility.YAML_ONLY): float_,
+    }
+)
 
 
-def polling_component_schema(default_update_interval):
+def polling_component_schema(
+    default_update_interval, *, visibility: Visibility | None = None
+):
     """Validate that this component represents a PollingComponent with a configurable
     update_interval.
 
     :param default_update_interval: The default update interval to set for the integration.
+    :param visibility: When set, propagate to the inherited
+        ``update_interval`` field's :class:`Visibility` UI hint. Set
+        this for components whose default cadence is already correct
+        for ~all users (e.g. time platforms — pass
+        ``Visibility.ADVANCED``).
+
+        Only honoured on the optional-default branch. When
+        ``default_update_interval`` is ``None`` the field becomes
+        ``Required`` (the component has no sensible default cadence and
+        needs the user to choose), and hiding a Required field behind
+        an advanced disclosure would be a UX hazard — collapsed-by-default
+        editors could let the user submit without realising the form has
+        an unfilled required field. The kwarg is silently ignored on that
+        path so callers can pass it unconditionally.
     """
     if default_update_interval is None:
+        # Required → don't honour ``visibility``.
+        # See the docstring for the UX rationale.
         return COMPONENT_SCHEMA.extend(
             {
                 Required(CONF_UPDATE_INTERVAL): update_interval,
@@ -2214,7 +2360,9 @@ def polling_component_schema(default_update_interval):
     return COMPONENT_SCHEMA.extend(
         {
             Optional(
-                CONF_UPDATE_INTERVAL, default=default_update_interval
+                CONF_UPDATE_INTERVAL,
+                default=default_update_interval,
+                visibility=visibility,
             ): update_interval,
         }
     )

@@ -8,8 +8,7 @@
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace heatpumpir {
+namespace esphome::heatpumpir {
 
 // IRSenderESPHome - bridge between ESPHome's remote_transmitter and HeatpumpIR library
 // Defined here (not in a header) to isolate HeatpumpIR's headers from the rest of ESPHome,
@@ -243,7 +242,6 @@ void HeatpumpIRClimate::transmit_state() {
                      swing_h_cmd);
 }
 
-}  // namespace heatpumpir
-}  // namespace esphome
+}  // namespace esphome::heatpumpir
 
 #endif
