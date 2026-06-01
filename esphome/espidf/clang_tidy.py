@@ -205,17 +205,10 @@ def _write_tidy_project(
     # component sets (e.g. CONFIG_BT_ENABLED) so sdkconfig-gated IDF components
     # register and expose their includes. IDF reads ``sdkconfig.defaults`` from
     # the project root.
-    sdkconfig = (esphome_dir.parent / "sdkconfig.defaults").read_text(encoding="utf-8")
-    # That file selects a custom partition table (partitions.csv) which a real
-    # ESPHome build generates via codegen; the tidy build runs no codegen and is
-    # never flashed, so override to IDF's built-in single-app table -- otherwise
-    # the partition_table component errors on the missing partitions.csv.
-    sdkconfig += (
-        "\n# clang-tidy tidy project (configure-only, never flashed)\n"
-        "CONFIG_PARTITION_TABLE_CUSTOM=n\n"
-        "CONFIG_PARTITION_TABLE_SINGLE_APP=y\n"
+    (work_dir / "sdkconfig.defaults").write_text(
+        (esphome_dir.parent / "sdkconfig.defaults").read_text(encoding="utf-8"),
+        encoding="utf-8",
     )
-    (work_dir / "sdkconfig.defaults").write_text(sdkconfig, encoding="utf-8")
 
 
 def _generate_compile_commands(
