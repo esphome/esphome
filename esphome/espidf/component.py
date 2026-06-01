@@ -9,13 +9,16 @@ import os
 from pathlib import Path
 import re
 import tempfile
-from typing import TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 from urllib.parse import urlparse, urlsplit, urlunsplit
 
 from esphome import git, yaml_util
 from esphome.core import CORE, Library
 from esphome.espidf.framework import archive_extract_all, download_from_mirrors, rmdir
 from esphome.helpers import write_file_if_changed
+
+if TYPE_CHECKING:
+    from platformio.package.manager._registry import PackageManagerRegistryMixin
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -561,7 +564,7 @@ def _parse_library_properties(library_properties_path: PathType):
         return data
 
 
-def _make_registry_client():
+def _make_registry_client() -> "PackageManagerRegistryMixin":
     """Create a minimal PlatformIO registry client with no system filtering.
 
     ``is_system_compatible`` is forced True so version selection is driven purely
@@ -571,12 +574,12 @@ def _make_registry_client():
     from platformio.package.manager._registry import PackageManagerRegistryMixin
 
     class _Registry(PackageManagerRegistryMixin):
-        def __init__(self):
+        def __init__(self) -> None:
             self._registry_client = None
             self.pkg_type = "library"
 
         @staticmethod
-        def is_system_compatible(value, custom_system=None):
+        def is_system_compatible(value: Any, custom_system: Any = None) -> bool:
             return True
 
     return _Registry()
@@ -619,7 +622,7 @@ def _resolve_registry_version(
     return owner, name, best["name"], pkgfile["download_url"]
 
 
-def _normalize_dependencies(dependencies) -> list[dict]:
+def _normalize_dependencies(dependencies: Any) -> list[dict]:
     """Normalize a library manifest's ``dependencies`` to a list of dicts.
 
     PIO's library.json accepts both the list-of-dicts form and the shorthand
@@ -661,7 +664,7 @@ class _LibNode:
 
 def _node_key(
     name: str | None, version: str | None, repository: str | None
-) -> tuple[str, bool, tuple]:
+) -> tuple[str, bool, tuple[str | None, str | None]]:
     """Return ``(key, is_git, locator)`` for a library or dependency spec."""
     if repository:
         split_result = urlsplit(repository)
@@ -694,7 +697,7 @@ def generate_idf_components(libraries: list[Library]) -> list[IDFComponent]:
     """
     nodes: dict[str, _LibNode] = {}
 
-    def add_spec(name, version, repository) -> str:
+    def add_spec(name: str | None, version: str | None, repository: str | None) -> str:
         key, is_git, locator = _node_key(name, version, repository)
         node = nodes.get(key) or _LibNode(key=key, is_git=is_git)
         nodes[key] = node
