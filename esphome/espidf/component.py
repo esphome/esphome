@@ -822,6 +822,13 @@ def _generate_idf_component(library: Library, force: bool = False) -> IDFCompone
     # Download the library
     component.download(force)
 
+    # Register now -- before recursing into dependencies -- so a dependency
+    # cycle (A -> B -> A) resolves to this already-downloaded instance instead
+    # of recursing forever. download() has set .path, which is all a referrer's
+    # manifest needs (override_path); the component's own deps finish resolving
+    # as the stack unwinds.
+    registry[sanitized_name] = component
+
     # Paths to component metadata and build files
     library_json_path = component.path / "library.json"
     library_properties_path = component.path / "library.properties"
@@ -867,7 +874,6 @@ def _generate_idf_component(library: Library, force: bool = False) -> IDFCompone
         generate_idf_component_yml(component),
     )
 
-    registry[sanitized_name] = component
     return component
 
 
