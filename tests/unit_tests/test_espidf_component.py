@@ -657,3 +657,31 @@ def test_generate_idf_components_git_overrides_registry_warns(
     assert isinstance(shared.source, GitSource)
     assert "using the git source" in caplog.text
     assert "==1.0.0" in caplog.text
+
+
+def test_generate_idf_components_missing_manifest_raises(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    esp32_idf_core: None,
+) -> None:
+    # A library with neither library.json nor library.properties is invalid;
+    # fail loudly rather than silently generating build files for it.
+    def fake_download(self, force=False):
+        self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
+        (self.path / "src").mkdir(parents=True, exist_ok=True)
+        # no library.json / library.properties written
+
+    monkeypatch.setattr(IDFComponent, "download", fake_download)
+    monkeypatch.setattr(
+        esphome.espidf.component,
+        "_resolve_registry_version",
+        lambda owner, pkgname, requirements: (
+            owner,
+            pkgname,
+            "1.0.0",
+            f"http://x/{pkgname}.tar.gz",
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="missing library.json"):
+        generate_idf_components([Library("esphome/A", "1.0.0", None)])

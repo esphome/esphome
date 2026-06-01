@@ -739,6 +739,11 @@ def generate_idf_components(libraries: list[Library]) -> list[IDFComponent]:
             component.data = _parse_library_json(library_json_path)
         elif library_properties_path.is_file():
             component.data = _parse_library_properties(library_properties_path)
+        else:
+            raise RuntimeError(
+                f"Invalid PIO library {key}: missing library.json and "
+                "library.properties"
+            )
 
         try:
             _check_library_data(component.data)
