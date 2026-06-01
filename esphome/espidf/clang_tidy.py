@@ -105,24 +105,15 @@ def _settings_for(environment: str) -> _Settings:
 
 
 def _arduino_framework_deps(version: str) -> dict[str, dict]:
-    """Arduino-only managed deps from ``clang_tidy_arduino.yml``.
+    """Arduino-only managed deps merged on top of esphome/idf_component.yml.
 
-    The manifest lists arduino-esp32 without a version (so the file isn't tied to
-    a release); we fill it from the recommended arduino framework version here so
-    the two stay in sync. These are merged on top of esphome/idf_component.yml.
+    arduino-esp32 provides Arduino.h and the arduino libraries; its version is
+    the recommended arduino framework version so the tidy build matches what
+    ESPHome ships.
     """
-    import yaml
-
     from esphome.components.esp32 import ARDUINO_ESP32_COMPONENT_NAME
 
-    manifest = yaml.safe_load(
-        (Path(__file__).resolve().parent / "clang_tidy_arduino.yml").read_text(
-            encoding="utf-8"
-        )
-    )
-    deps = manifest.get("dependencies") or {}
-    deps[ARDUINO_ESP32_COMPONENT_NAME] = {"version": version}
-    return deps
+    return {ARDUINO_ESP32_COMPONENT_NAME: {"version": version}}
 
 
 _TOP_CMAKELISTS = """\
