@@ -196,7 +196,10 @@ def _parse_lib_deps(platformio_ini: Path, framework: str):
             ("common:esp32-arduino", "lib_deps"),
         ]
     else:
-        sections.append(("common:esp32-idf", "lib_deps"))
+        sections += [
+            ("common:idf", "lib_deps"),
+            ("common:esp32-idf", "lib_deps"),
+        ]
 
     tokens: list[str] = []
     for section, key in sections:
