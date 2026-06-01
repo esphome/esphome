@@ -173,14 +173,14 @@ _NON_REQUIRABLE_COMPONENTS = frozenset(
 )
 
 
-def _parse_lib_deps(platformio_ini: Path):
-    """Parse the esp32-idf ``lib_deps`` from platformio.ini into Library specs.
+def _parse_lib_deps(platformio_ini: Path, framework: str):
+    """Parse the framework's ``lib_deps`` from platformio.ini into Library specs.
 
     These are the PlatformIO libraries ESPHome components pull in via
-    ``cg.add_library`` (qr-code, mlx90393, noise-c, ...). The esp32-idf build
-    aggregates ``[common] lib_deps`` (which expands ``lib_deps_base``) plus the
-    ``[common:esp32-idf]`` additions; we read those sections directly and skip
-    the ``${...}`` cross-references and non-library entries.
+    ``cg.add_library``. The set is framework-specific: the arduino envs add
+    libs (FastLED, NeoPixelBus, MideaUART, ...) the idf envs don't. We read the
+    relevant ``[common*]`` sections directly (resolving the env's ``extends``
+    chain) and skip the ``${...}`` cross-references and non-library entries.
     """
     import configparser
 
@@ -189,12 +189,17 @@ def _parse_lib_deps(platformio_ini: Path):
     parser = configparser.ConfigParser(interpolation=None, strict=False)
     parser.read(platformio_ini)
 
+    sections = [("common", "lib_deps_base"), ("common", "lib_deps")]
+    if framework == "arduino":
+        sections += [
+            ("common:arduino", "lib_deps"),
+            ("common:esp32-arduino", "lib_deps"),
+        ]
+    else:
+        sections.append(("common:esp32-idf", "lib_deps"))
+
     tokens: list[str] = []
-    for section, key in (
-        ("common", "lib_deps_base"),
-        ("common", "lib_deps"),
-        ("common:esp32-idf", "lib_deps"),
-    ):
+    for section, key in sections:
         if parser.has_option(section, key):
             tokens += parser.get(section, key).splitlines()
 
@@ -211,12 +216,15 @@ def _parse_lib_deps(platformio_ini: Path):
         elif "@" in token:
             name, _, version = token.partition("@")
             libs.append(Library(name, version))
-        else:
-            libs.append(Library(token, None))
+        # A bare name (SPI, Wire, WiFi, Networking, "ESP32 Async UDP", ...) is an
+        # Arduino framework built-in provided by arduino-esp32, not a convertible
+        # registry library (no owner/version), so skip it.
     return libs
 
 
-def _convert_pio_libs(platformio_ini: Path) -> dict[str, dict[str, str]]:
+def _convert_pio_libs(
+    platformio_ini: Path, framework: str
+) -> dict[str, dict[str, str]]:
     """Convert each PlatformIO lib to an IDF component; return manifest deps.
 
     Returns a mapping suitable for an ``idf_component.yml`` ``dependencies``
@@ -226,7 +234,7 @@ def _convert_pio_libs(platformio_ini: Path) -> dict[str, dict[str, str]]:
     from esphome.espidf.component import generate_idf_component
 
     deps: dict[str, dict[str, str]] = {}
-    for library in _parse_lib_deps(platformio_ini):
+    for library in _parse_lib_deps(platformio_ini, framework):
         name, _version, path = generate_idf_component(library)
         deps[name] = {"override_path": str(path)}
     return deps
@@ -240,17 +248,31 @@ def _arduino_excluded_stubs(work_dir: Path) -> dict[str, dict]:
     empty override_path component so the IDF manager doesn't resolve/download
     them -- notably so ``espressif/libsodium`` doesn't clash with the converted
     noise-c's ``libsodium``. Mirrors esp32's ``_write_idf_component_yml``.
+
+    Components ESPHome's own idf_component.yml provides (e.g. lan867x for
+    ethernet) are NOT stubbed -- those are real deps we need, and arduino-esp32
+    resolves to the same component rather than conflicting.
     """
+    import yaml
+
     from esphome.components.esp32 import (
         ARDUINO_EXCLUDED_IDF_COMPONENTS,
         _idf_component_dep_name,
         _idf_component_stub_name,
     )
 
+    esphome_dir = Path(__file__).resolve().parent.parent
+    base_manifest = yaml.safe_load(
+        (esphome_dir / "idf_component.yml").read_text(encoding="utf-8")
+    )
+    esphome_deps = set(base_manifest.get("dependencies") or {})
+
     stubs_dir = work_dir / "component_stubs"
     stubs_dir.mkdir(parents=True, exist_ok=True)
     deps: dict[str, dict] = {}
     for component in sorted(ARDUINO_EXCLUDED_IDF_COMPONENTS):
+        if _idf_component_dep_name(component) in esphome_deps:
+            continue  # ESPHome needs this one for real (don't stub it away)
         stub_path = stubs_dir / _idf_component_stub_name(component)
         stub_path.mkdir(exist_ok=True)
         (stub_path / "CMakeLists.txt").write_text(
@@ -340,7 +362,7 @@ def _generate_compile_commands(
     # Framework deps (e.g. arduino-esp32) + PlatformIO libs converted to local
     # IDF components, all added to the manifest as deps.
     extra_deps = dict(settings.framework_deps)
-    extra_deps.update(_convert_pio_libs(platformio_ini))
+    extra_deps.update(_convert_pio_libs(platformio_ini, settings.target_framework))
     if settings.target_framework == "arduino":
         # Stub the arduino-bundled components ESPHome doesn't use (avoids the
         # libsodium clash with noise-c and ~26 unused heavy downloads).
@@ -396,10 +418,14 @@ def load_idedata(environment: str, temp_folder: str, platformio_ini: str) -> dic
         # The tidy env is ``<target>-<framework>-tidy`` (e.g. esp32-idf-tidy,
         # esp32s3-arduino-tidy); derive the target, variant and framework.
         settings = _settings_for(environment)
+        # Resolve to an absolute path: ``override_path`` entries in the generated
+        # component manifests are interpreted by the IDF component manager relative
+        # to the manifest's own directory, so a relative work dir would be
+        # mis-resolved (doubled under ``main/``).
         work_dir = (
             Path(temp_folder)
             / f"idf-tidy-{settings.idf_target}-{settings.target_framework}"
-        )
+        ).resolve()
         compile_commands = _generate_compile_commands(
             work_dir, settings, Path(platformio_ini)
         )

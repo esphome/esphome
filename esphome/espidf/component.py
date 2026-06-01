@@ -792,6 +792,21 @@ def _generate_idf_component(library: Library, force: bool = False) -> IDFCompone
     component = _convert_library_to_component(library)
     name, version = component.name, component.version
 
+    # Deduplicate by component name across the whole conversion run. Different
+    # libraries can pull in the same transitive dependency under different
+    # version specs (e.g. both noise-c and esp_wireguard depend on
+    # esphome/libsodium). Each would otherwise be downloaded to its own
+    # content-hashed cache dir, yielding two override_path entries for the same
+    # component name -- which the IDF component manager rejects ("Already
+    # defined root local requirement"). Reuse the first conversion so every
+    # reference resolves to a single canonical path.
+    registry: dict[str, IDFComponent] = CORE.data.setdefault(DOMAIN, {}).setdefault(
+        "converted", {}
+    )
+    sanitized_name = component.get_sanitized_name()
+    if not force and (existing := registry.get(sanitized_name)) is not None:
+        return existing
+
     # Download the library
     component.download(force)
 
@@ -840,6 +855,7 @@ def _generate_idf_component(library: Library, force: bool = False) -> IDFCompone
         generate_idf_component_yml(component),
     )
 
+    registry[sanitized_name] = component
     return component
 
 
