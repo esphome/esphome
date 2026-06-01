@@ -17,6 +17,7 @@ from esphome.components.touchscreen import (
 )
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_FILE,
     CONF_ID,
     CONF_INTERRUPT_PIN,
     CONF_MIRROR_X,
@@ -41,13 +42,13 @@ GSL3670Touchscreen = gsl3670_ns.class_(
     i2c.I2CDevice,
 )
 
-CONF_FIRMWARE_FILE = "firmware_file"
+CONF_FIRMWARE = "firmware"
 CONF_SHA256 = "sha256"
 
 # Firmware blobs are published as release assets of the companion repository
 # rather than vendored into the ESPHome source tree. The default URL/SHA-256
 # for each model point at a pinned release artifact; users may override them
-# (or supply a local file via `firmware_file`).
+# (or supply a local file via `firmware: { file: ... }`).
 FIRMWARE_RELEASE = "v1.0.0"
 FIRMWARE_BASE_URL = f"https://github.com/esphome-libs/gsl3670-firmware/releases/download/{FIRMWARE_RELEASE}"
 
@@ -62,8 +63,10 @@ MODELS = {
         CONF_Y_MAX: 1644,
         CONF_RESET_PIN: {"xl9535": None, "number": 14},
         CONF_INTERRUPT_PIN: 16,
-        CONF_URL: f"{FIRMWARE_BASE_URL}/seeed-d1001-fw.bin",
-        CONF_SHA256: "2e50501ad83656fb6fa3d92591f9f31add4d442c8e8a79f29f5c4d335bd127a4",
+        CONF_FIRMWARE: {
+            CONF_URL: f"{FIRMWARE_BASE_URL}/seeed-d1001-fw.bin",
+            CONF_SHA256: "2e50501ad83656fb6fa3d92591f9f31add4d442c8e8a79f29f5c4d335bd127a4",
+        },
     },
     "CUSTOM": {},
 }
@@ -84,7 +87,7 @@ def _validate_firmware_data(data: bytes, source: str) -> None:
 
 
 def _local_firmware_path(value: str) -> Path:
-    """Resolve a `firmware_file` value to an existing local path."""
+    """Resolve a `firmware: { file: ... }` value to an existing local path."""
     path = Path(value)
     if not path.exists():
         path = Path(__file__).parent / path.name
@@ -97,30 +100,31 @@ def _cache_path(url: str) -> Path:
     return external_files.compute_local_file_dir(DOMAIN) / key
 
 
-def firmware_path(config: dict) -> Path:
+def firmware_path(firmware: dict) -> Path:
     """Return the path the firmware bytes will be read from at codegen time."""
-    if CONF_FIRMWARE_FILE in config:
-        return _local_firmware_path(config[CONF_FIRMWARE_FILE])
-    return _cache_path(config[CONF_URL])
+    if CONF_FILE in firmware:
+        return _local_firmware_path(firmware[CONF_FILE])
+    return _cache_path(firmware[CONF_URL])
 
 
-def _download_and_validate_firmware(config: dict) -> dict:
-    """Download (with caching) or read the firmware, verify and validate it."""
-    if CONF_FIRMWARE_FILE in config:
-        path = _local_firmware_path(config[CONF_FIRMWARE_FILE])
+def _validate_firmware(firmware: dict) -> dict:
+    """Require a single source, download (with caching), verify and validate."""
+    if (CONF_FILE in firmware) == (CONF_URL in firmware):
+        raise cv.Invalid(
+            f"Exactly one of '{CONF_URL}' or '{CONF_FILE}' must be provided"
+        )
+
+    if CONF_FILE in firmware:
+        path = _local_firmware_path(firmware[CONF_FILE])
         if not path.exists():
-            raise cv.Invalid(
-                f"Firmware file not found: {path.absolute()}", [CONF_FIRMWARE_FILE]
-            )
-        data = path.read_bytes()
-        _validate_firmware_data(data, str(path.absolute()))
-        return config
+            raise cv.Invalid(f"Firmware file not found: {path.absolute()}", [CONF_FILE])
+        _validate_firmware_data(path.read_bytes(), str(path.absolute()))
+        return firmware
 
-    url = config[CONF_URL]
-    path = _cache_path(url)
-    data = external_files.download_content(url, path)
+    url = firmware[CONF_URL]
+    data = external_files.download_content(url, _cache_path(url))
 
-    if expected := config.get(CONF_SHA256):
+    if expected := firmware.get(CONF_SHA256):
         actual = hashlib.sha256(data).hexdigest()
         if actual.lower() != expected.lower():
             raise cv.Invalid(
@@ -129,16 +133,19 @@ def _download_and_validate_firmware(config: dict) -> dict:
                 [CONF_SHA256],
             )
     _validate_firmware_data(data, url)
-    return config
+    return firmware
 
 
-def _require_firmware_source(config: dict) -> dict:
-    if CONF_FIRMWARE_FILE not in config and CONF_URL not in config:
-        raise cv.Invalid(
-            f"Either '{CONF_URL}' or '{CONF_FIRMWARE_FILE}' must be provided "
-            f"(or use a known '{CONF_MODEL}' that supplies a default URL)"
-        )
-    return config
+FIRMWARE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_URL): cv.url,
+            cv.Optional(CONF_SHA256): cv.string_strict,
+            cv.Optional(CONF_FILE): cv.string_strict,
+        }
+    ),
+    _validate_firmware,
+)
 
 
 def _config_schema(config):
@@ -159,15 +166,13 @@ def _config_schema(config):
                     CONF_RESET_PIN, defaults
                 ): pins.gpio_output_pin_schema,
                 **model_option,
-                option_with_default(CONF_URL, defaults): cv.url,
-                option_with_default(CONF_SHA256, defaults): cv.string_strict,
-                cv.Optional(CONF_FIRMWARE_FILE): cv.string_strict,
+                option_with_default(
+                    CONF_FIRMWARE, defaults, required=True
+                ): FIRMWARE_SCHEMA,
             }
         )
         .extend(i2c.i2c_device_schema(0x40))
         .extend(cv.COMPONENT_SCHEMA)
-        .add_extra(_require_firmware_source)
-        .add_extra(_download_and_validate_firmware)
     )
     return schema(config)
 
@@ -176,7 +181,7 @@ CONFIG_SCHEMA = _config_schema
 
 
 def _read_firmware(config) -> bytes:
-    path = firmware_path(config)
+    path = firmware_path(config[CONF_FIRMWARE])
     data = path.read_bytes()
     LOGGER.info(
         "Read gsl3670 touchscreen firmware file %s: %d bytes, %d blocks",
