@@ -7,6 +7,7 @@ from pathlib import Path
 from esphome import external_files, pins
 import esphome.codegen as cg
 from esphome.components import i2c, touchscreen
+from esphome.components.const import CONF_SHA256
 from esphome.components.touchscreen import (
     CONF_X_MAX,
     CONF_X_MIN,
@@ -43,7 +44,6 @@ GSL3670Touchscreen = gsl3670_ns.class_(
 )
 
 CONF_FIRMWARE = "firmware"
-CONF_SHA256 = "sha256"
 
 # Firmware blobs are published as release assets of the companion repository
 # rather than vendored into the ESPHome source tree. The default URL/SHA-256
