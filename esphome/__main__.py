@@ -760,6 +760,7 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
         toolchain.create_factory_bin()
         toolchain.create_ota_bin()
         toolchain.create_elf_copy()
+        toolchain.get_idedata()
     else:
         from esphome.platformio import toolchain
 
