@@ -8,10 +8,21 @@ namespace esphome::mipi_dsi {
 // Maximum bytes to log for init commands (truncated if larger)
 static constexpr size_t MIPI_DSI_MAX_CMD_LOG_BYTES = 64;
 
-static bool notify_refresh_ready(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata, void *user_ctx) {
-  SemaphoreHandle_t sem = static_cast<SemaphoreHandle_t>(user_ctx);
+static bool IRAM_ATTR notify_color_trans_ready(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata,
+                                               void *user_ctx) {
+  auto *ctx = static_cast<MipiDsiCallbackContext *>(user_ctx);
   BaseType_t need_yield = pdFALSE;
-  xSemaphoreGiveFromISR(sem, &need_yield);
+  if (ctx != nullptr && ctx->color_trans_done != nullptr)
+    xSemaphoreGiveFromISR(ctx->color_trans_done, &need_yield);
+  return (need_yield == pdTRUE);
+}
+
+static bool IRAM_ATTR notify_refresh_done(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata,
+                                          void *user_ctx) {
+  auto *ctx = static_cast<MipiDsiCallbackContext *>(user_ctx);
+  BaseType_t need_yield = pdFALSE;
+  if (ctx != nullptr && ctx->refresh_done != nullptr)
+    xSemaphoreGiveFromISR(ctx->refresh_done, &need_yield);
   return (need_yield == pdTRUE);
 }
 
@@ -173,17 +184,29 @@ void MipiDsi::setup() {
     }
   }
   this->io_lock_ = xSemaphoreCreateBinary();
+  this->refresh_lock_ = xSemaphoreCreateBinary();
+  this->callback_context_.color_trans_done = this->io_lock_;
+  this->callback_context_.refresh_done = this->refresh_lock_;
   esp_lcd_dpi_panel_event_callbacks_t cbs = {
-      .on_color_trans_done = notify_refresh_ready,
+      .on_color_trans_done = notify_color_trans_ready,
+      .on_refresh_done = notify_refresh_done,
   };
 
-  err = (esp_lcd_dpi_panel_register_event_callbacks(this->handle_, &cbs, this->io_lock_));
+  err = (esp_lcd_dpi_panel_register_event_callbacks(this->handle_, &cbs, &this->callback_context_));
   if (err != ESP_OK) {
     this->smark_failed(LOG_STR("Failed to register callbacks"), err);
     return;
   }
 
   ESP_LOGCONFIG(TAG, "MIPI DSI setup complete");
+}
+
+bool MipiDsi::wait_for_refresh_done(uint32_t timeout_ms) {
+  if (this->refresh_lock_ == nullptr)
+    return false;
+  while (xSemaphoreTake(this->refresh_lock_, 0) == pdTRUE) {
+  }
+  return xSemaphoreTake(this->refresh_lock_, pdMS_TO_TICKS(timeout_ms)) == pdTRUE;
 }
 
 void MipiDsi::update() {

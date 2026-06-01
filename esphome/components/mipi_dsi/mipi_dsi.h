@@ -35,6 +35,11 @@ const uint8_t MADCTL_MV = 0x20;     // row/column swap
 const uint8_t MADCTL_XFLIP = 0x02;  // Mirror the display horizontally
 const uint8_t MADCTL_YFLIP = 0x01;  // Mirror the display vertically
 
+struct MipiDsiCallbackContext {
+  SemaphoreHandle_t color_trans_done{};
+  SemaphoreHandle_t refresh_done{};
+};
+
 class MipiDsi : public display::Display {
  public:
   MipiDsi(size_t width, size_t height, display::ColorBitness color_depth, uint8_t pixel_mode)
@@ -63,6 +68,7 @@ class MipiDsi : public display::Display {
   uint8_t *get_frame_buffer(size_t index) const { return index < 2 ? this->frame_buffers_[index] : nullptr; }
   size_t get_frame_buffer_size() const { return this->width_ * this->height_ * this->get_bytes_per_pixel_(); }
   size_t get_bytes_per_pixel() const { return this->get_bytes_per_pixel_(); }
+  bool wait_for_refresh_done(uint32_t timeout_ms = 50);
 
   void smark_failed(const LogString *message, esp_err_t err);
 
@@ -110,6 +116,8 @@ class MipiDsi : public display::Display {
   esp_lcd_dsi_bus_handle_t bus_handle_{};
   esp_lcd_panel_io_handle_t io_handle_{};
   SemaphoreHandle_t io_lock_{};
+  SemaphoreHandle_t refresh_lock_{};
+  MipiDsiCallbackContext callback_context_{};
   uint8_t *frame_buffers_[2]{nullptr, nullptr};
   uint8_t *buffer_{nullptr};
   uint16_t x_low_{1};
