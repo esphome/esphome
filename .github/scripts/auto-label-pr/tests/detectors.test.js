@@ -88,8 +88,7 @@ describe('detectNewPlatforms', () => {
       const prFiles = [
         { filename: 'esphome/components/my_sensor/sensor.py', status: 'added' },
       ];
-      // 'sensor' is not in platformComponents as a *platform* name here — but actually
-      // it IS in our test API_DATA. Let's use a name that isn't a platform component.
+      // Override platformComponents so 'sensor' is not a recognized platform -> no label expected.
       const nonPlatformApiData = { ...API_DATA, platformComponents: ['cover'] };
       const result = await detectNewPlatforms(makeGithub(WITH_SCHEMA), CONTEXT, prFiles, nonPlatformApiData);
       assert.equal(result.labels.size, 0);
