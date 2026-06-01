@@ -1306,8 +1306,8 @@ void APIConnection::on_voice_assistant_announce_request(const VoiceAssistantAnno
 bool APIConnection::send_voice_assistant_get_configuration_response_(const VoiceAssistantConfigurationRequest &msg) {
   VoiceAssistantConfigurationResponse resp;
   if (!this->check_voice_assistant_api_connection_()) {
-    static const std::vector<std::string> empty_wake_words;
-    resp.active_wake_words = &empty_wake_words;
+    static const std::vector<std::string> EMPTY_WAKE_WORDS;
+    resp.active_wake_words = &EMPTY_WAKE_WORDS;
     return this->send_message(resp);
   }
 
