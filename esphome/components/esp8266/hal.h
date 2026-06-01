@@ -42,8 +42,8 @@ __attribute__((always_inline)) inline bool in_isr_context() { return false; }
 
 __attribute__((always_inline)) inline void yield() { ::yield(); }
 __attribute__((always_inline)) inline uint32_t micros() { return static_cast<uint32_t>(::micros()); }
-void delay(uint32_t ms);
-uint32_t millis();
+__attribute__((always_inline)) inline void delay(uint32_t ms) { ::delay(ms); }
+__attribute__((always_inline)) inline uint32_t millis() { return static_cast<uint32_t>(::millis()); }
 __attribute__((always_inline)) inline uint64_t millis_64() { return Millis64Impl::compute(millis()); }
 
 // ESP8266: pgm_read_* does aligned 32-bit flash reads on Harvard architecture.
