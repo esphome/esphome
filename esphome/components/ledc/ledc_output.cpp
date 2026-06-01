@@ -53,7 +53,11 @@ static_assert(
     "re-evaluate for this target");
 
 static bool ledc_duty_update_pending(ledc_mode_t speed_mode, ledc_channel_t chan_num) {
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+  auto *hw = LEDC_LL_GET_HW(0);
+#else
   auto *hw = LEDC_LL_GET_HW();
+#endif
   return hw->channel_group[speed_mode].channel[chan_num].conf1.duty_start != 0;
 }
 #endif
@@ -161,7 +165,9 @@ void LEDCOutput::write_state(float state) {
 void LEDCOutput::setup() {
   if (!ledc_peripheral_reset_done) {
     ESP_LOGV(TAG, "Resetting LEDC peripheral to clear stale state after reboot");
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 1, 0)
+    PERIPH_RCC_ATOMIC() { ledc_ll_reset_register(0); }
+#elif ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
     PERIPH_RCC_ATOMIC() {
       ledc_ll_enable_reset_reg(true);
       ledc_ll_enable_reset_reg(false);

@@ -60,7 +60,7 @@ class _MultipartStreamer:
         self._idx = 0
         self._total = len(prefix) + file_size + len(suffix)
         self._sent = 0
-        self.progress = ProgressBar()
+        self.progress = ProgressBar("Uploading")
 
     def __len__(self) -> int:
         return self._total
@@ -126,7 +126,7 @@ def _try_upload(
         _LOGGER.info("Connecting to %s port %s...", ip, port)
 
         try:
-            with open(filename, "rb") as fh:
+            with filename.open("rb") as fh:
                 streamer = _MultipartStreamer(fh, file_size, filename.name)
                 try:
                     response = requests.post(
