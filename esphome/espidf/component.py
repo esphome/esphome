@@ -797,6 +797,22 @@ def generate_idf_components(libraries: list[Library]) -> list[IDFComponent]:
                 sorted(node.requirements),
             )
 
+    # Two graph nodes that resolve to the same component name (e.g. a package
+    # referenced both bare and as ``owner/name``) are not deduplicated and can
+    # produce conflicting component definitions. Warn so it's not silent.
+    canonical_keys: dict[str, str] = {}
+    for node_key, component in components.items():
+        canonical = component.get_sanitized_name()
+        if canonical_keys.setdefault(canonical, node_key) != node_key:
+            _LOGGER.warning(
+                "Library %s is referenced under multiple names (%s and %s); these "
+                "are not deduplicated. Reference it consistently as %s.",
+                canonical,
+                canonical_keys[canonical],
+                node_key,
+                canonical,
+            )
+
     # Wire each component's dependencies to the single resolved instances, then
     # regenerate build files.
     for key, component in components.items():

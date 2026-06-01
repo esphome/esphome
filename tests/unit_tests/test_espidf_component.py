@@ -685,3 +685,50 @@ def test_generate_idf_components_missing_manifest_raises(
 
     with pytest.raises(RuntimeError, match="missing library.json"):
         generate_idf_components([Library("esphome/A", "1.0.0", None)])
+
+
+def test_generate_idf_components_warns_on_noncanonical_duplicate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    esp32_idf_core: None,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # A references "shared" (bare) and B references "owner/shared"; both resolve
+    # to the same canonical name but as distinct graph nodes, so they aren't
+    # deduplicated -- warn about it.
+    manifests = {
+        "esphome/A": {
+            "name": "A",
+            "dependencies": [{"name": "shared", "version": "1.0.0"}],
+        },
+        "esphome/B": {
+            "name": "B",
+            "dependencies": [{"owner": "owner", "name": "shared", "version": "1.0.0"}],
+        },
+        "owner/shared": {"name": "shared"},
+    }
+
+    def fake_download(self, force=False):
+        self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
+        (self.path / "src").mkdir(parents=True, exist_ok=True)
+        (self.path / "src" / "x.c").write_text("int x;")
+        (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
+
+    monkeypatch.setattr(IDFComponent, "download", fake_download)
+    # Bare "shared" and "owner/shared" both resolve to canonical owner/shared.
+    monkeypatch.setattr(
+        esphome.espidf.component,
+        "_resolve_registry_version",
+        lambda owner, pkgname, requirements: (
+            owner or "owner",
+            pkgname,
+            "1.0.0",
+            f"http://x/{pkgname}.tar.gz",
+        ),
+    )
+
+    generate_idf_components(
+        [Library("esphome/A", "1.0.0", None), Library("esphome/B", "1.0.0", None)]
+    )
+
+    assert "referenced under multiple names" in caplog.text
