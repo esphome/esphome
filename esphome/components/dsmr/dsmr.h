@@ -16,9 +16,14 @@
 #include <span>
 #include <vector>
 
+// On ESP8266 Arduino, BearSSL is the native crypto. The mbedtls headers can
+// still be in scope when a sibling component (e.g. wireguard) pulls in
+// esp_mbedtls_esp8266, but that build leaves MBEDTLS_GCM_C disabled so the
+// gcm.h symbols are unresolved at link time. Force BearSSL on ESP8266 to
+// avoid that linker error.
 #if __has_include(<psa/crypto.h>)
 #include <dsmr_parser/decryption/aes128gcm_tfpsa.h>
-#elif __has_include(<mbedtls/gcm.h>)
+#elif !defined(USE_ESP8266) && __has_include(<mbedtls/gcm.h>)
 #if __has_include(<mbedtls/esp_config.h>)
 #include <mbedtls/esp_config.h>
 #endif
@@ -33,7 +38,7 @@ namespace esphome::dsmr {
 
 #if __has_include(<psa/crypto.h>)
 using Aes128GcmDecryptorImpl = dsmr_parser::Aes128GcmTfPsa;
-#elif __has_include(<mbedtls/gcm.h>)
+#elif !defined(USE_ESP8266) && __has_include(<mbedtls/gcm.h>)
 using Aes128GcmDecryptorImpl = dsmr_parser::Aes128GcmMbedTls;
 #else
 using Aes128GcmDecryptorImpl = dsmr_parser::Aes128GcmBearSsl;

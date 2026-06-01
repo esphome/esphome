@@ -140,6 +140,33 @@ def test_multiple_areas_and_devices(yaml_file: Callable[[str], str]) -> None:
     }
 
 
+@pytest.mark.asyncio
+@pytest.mark.filterwarnings("ignore::RuntimeWarning")
+@pytest.mark.parametrize(
+    ("fixture", "expected_area"),
+    [
+        ("legacy_string_area.yaml", "Living Room"),
+        ("multiple_areas_devices.yaml", "Main Area"),
+    ],
+)
+async def test_to_code_records_core_area(
+    yaml_file: Callable[[str], Path],
+    fixture: str,
+    expected_area: str,
+) -> None:
+    """``to_code`` records the node's area name on CORE for StorageJSON."""
+    result = load_config_from_fixture(yaml_file, fixture, FIXTURES_DIR)
+    assert result is not None
+    assert CORE.area is None
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
+        mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
+        await config.to_code(result[CONF_ESPHOME])
+
+    assert CORE.area == expected_area
+
+
 def test_legacy_string_area(
     yaml_file: Callable[[str], str], caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -486,7 +513,7 @@ def test_preload_core_config_basic(setup_core: Path) -> None:
     assert CONF_BUILD_PATH in config[CONF_ESPHOME]
     # Verify default build path is "build/<device_name>"
     build_path = config[CONF_ESPHOME][CONF_BUILD_PATH]
-    assert build_path.endswith(os.path.join("build", "test_device"))
+    assert build_path.endswith(str(Path("build") / "test_device"))
 
 
 def test_preload_core_config_with_build_path(setup_core: Path) -> None:
@@ -523,7 +550,7 @@ def test_preload_core_config_env_build_path(setup_core: Path) -> None:
     assert "test_device" in config[CONF_ESPHOME][CONF_BUILD_PATH]
     # Verify it uses the env var path with device name appended
     build_path = config[CONF_ESPHOME][CONF_BUILD_PATH]
-    expected_path = os.path.join("/env/build", "test_device")
+    expected_path = str(Path("/env/build") / "test_device")
     assert build_path == expected_path or build_path == expected_path.replace(
         "/", os.sep
     )
@@ -739,7 +766,7 @@ async def test_add_includes_with_single_file(
     """Test add_includes copies a single header file to build directory."""
     CORE.config_path = tmp_path / "config.yaml"
     CORE.build_path = tmp_path / "build"
-    os.makedirs(CORE.build_path, exist_ok=True)
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
 
     # Create include file
     include_file = tmp_path / "my_header.h"
@@ -769,7 +796,7 @@ async def test_add_includes_with_directory_unix(
     """Test add_includes copies all files from a directory on Unix."""
     CORE.config_path = tmp_path / "config.yaml"
     CORE.build_path = tmp_path / "build"
-    os.makedirs(CORE.build_path, exist_ok=True)
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
 
     # Create include directory with files
     include_dir = tmp_path / "includes"
@@ -814,7 +841,7 @@ async def test_add_includes_with_directory_windows(
     """Test add_includes copies all files from a directory on Windows."""
     CORE.config_path = tmp_path / "config.yaml"
     CORE.build_path = tmp_path / "build"
-    os.makedirs(CORE.build_path, exist_ok=True)
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
 
     # Create include directory with files
     include_dir = tmp_path / "includes"
@@ -856,7 +883,7 @@ async def test_add_includes_with_multiple_sources(
     """Test add_includes with multiple files and directories."""
     CORE.config_path = tmp_path / "config.yaml"
     CORE.build_path = tmp_path / "build"
-    os.makedirs(CORE.build_path, exist_ok=True)
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
 
     # Create various include sources
     single_file = tmp_path / "single.h"
@@ -884,7 +911,7 @@ async def test_add_includes_empty_directory(
     """Test add_includes with an empty directory doesn't fail."""
     CORE.config_path = tmp_path / "config.yaml"
     CORE.build_path = tmp_path / "build"
-    os.makedirs(CORE.build_path, exist_ok=True)
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
 
     # Create empty directory
     empty_dir = tmp_path / "empty"
@@ -906,7 +933,7 @@ async def test_add_includes_preserves_directory_structure_unix(
     """Test that add_includes preserves relative directory structure on Unix."""
     CORE.config_path = tmp_path / "config.yaml"
     CORE.build_path = tmp_path / "build"
-    os.makedirs(CORE.build_path, exist_ok=True)
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
 
     # Create nested directory structure
     lib_dir = tmp_path / "lib"
@@ -940,7 +967,7 @@ async def test_add_includes_preserves_directory_structure_windows(
     """Test that add_includes preserves relative directory structure on Windows."""
     CORE.config_path = tmp_path / "config.yaml"
     CORE.build_path = tmp_path / "build"
-    os.makedirs(CORE.build_path, exist_ok=True)
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
 
     # Create nested directory structure
     lib_dir = tmp_path / "lib"
@@ -973,7 +1000,7 @@ async def test_add_includes_overwrites_existing_files(
     """Test that add_includes overwrites existing files in build directory."""
     CORE.config_path = tmp_path / "config.yaml"
     CORE.build_path = tmp_path / "build"
-    os.makedirs(CORE.build_path, exist_ok=True)
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
 
     # Create include file
     include_file = tmp_path / "header.h"
