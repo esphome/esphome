@@ -26,6 +26,10 @@ from . import (
 
 MotionData = motion_ns.class_("MotionData")
 
+CONF_PITCH = "pitch"
+CONF_ROLL = "roll"
+ICON_SEESAW = "mdi:seesaw"
+
 
 def _accel_sensor_schema():
     return sensor.sensor_schema(
@@ -53,10 +57,6 @@ def _level_sensor_schema():
         state_class=STATE_CLASS_MEASUREMENT,
     ).extend(SENSOR_SCHEMA)
 
-
-CONF_PITCH = "pitch"
-CONF_ROLL = "roll"
-ICON_SEESAW = "mdi:seesaw"
 
 _ACCELERATIONS = ["acceleration_" + a for a in AXES]
 _GYROSCOPES = ["gyroscope_" + g for g in AXES]
