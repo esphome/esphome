@@ -833,10 +833,13 @@ void EthernetComponent::add_phy_register(PHYRegister register_value) { this->phy
 
 void EthernetComponent::get_eth_mac_address_raw(uint8_t *mac) {
   if (!this->ethernet_initialized_) {
-    // External callers (sendspin, ethernet_info, mdns, etc.) may ask for the MAC
-    // before/regardless of whether ethernet is enabled. Fall back to the system MAC
-    // assigned to the ETH interface — same value the driver would have returned.
-    esp_read_mac(mac, ESP_MAC_ETH);
+    // External callers (mdns, ethernet_info, etc.) may ask for the MAC before/regardless
+    // of whether ethernet is enabled. Use the configured MAC if set, else the system ETH MAC.
+    if (this->fixed_mac_.has_value()) {
+      memcpy(mac, this->fixed_mac_->data(), 6);
+    } else {
+      esp_read_mac(mac, ESP_MAC_ETH);
+    }
     return;
   }
   esp_err_t err;
