@@ -1351,6 +1351,19 @@ def _validate_bootloader_binary(binary: Path) -> None:
         )
 
 
+def _should_subscribe_states(args: ArgsProtocol) -> bool:
+    """Determine whether entity state changes should be shown in log output.
+
+    The ``--states``/``--no-states`` command line flags take precedence. When
+    neither is given, the ``ESPHOME_LOG_STATES`` environment variable controls
+    the behavior, defaulting to showing states.
+    """
+    states = getattr(args, "states", None)
+    if states is not None:
+        return states
+    return get_bool_env("ESPHOME_LOG_STATES", True)
+
+
 def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int | None:
     try:
         module = importlib.import_module("esphome.components." + CORE.target_platform)
@@ -1380,7 +1393,7 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
         return run_logs(
             config,
             network_devices,
-            subscribe_states=not getattr(args, "no_states", False),
+            subscribe_states=_should_subscribe_states(args),
         )
 
     if port_type in (PortType.NETWORK, PortType.MQTT) and has_mqtt_logging():
@@ -2019,6 +2032,29 @@ SIMPLE_CONFIG_ACTIONS = [
 ]
 
 
+def _add_states_args(parser: argparse.ArgumentParser) -> None:
+    """Add mutually exclusive ``--states``/``--no-states`` flags to a parser.
+
+    When neither flag is given, the ``ESPHOME_LOG_STATES`` environment variable
+    controls whether entity state changes are shown (defaulting to showing them).
+    """
+    states_group = parser.add_mutually_exclusive_group()
+    states_group.add_argument(
+        "--states",
+        dest="states",
+        action="store_true",
+        default=None,
+        help="Show entity state changes in log output (overrides ESPHOME_LOG_STATES).",
+    )
+    states_group.add_argument(
+        "--no-states",
+        dest="states",
+        action="store_false",
+        default=None,
+        help="Do not show entity state changes in log output.",
+    )
+
+
 def parse_args(argv):
     options_parser = argparse.ArgumentParser(add_help=False)
     options_parser.add_argument(
@@ -2195,11 +2231,7 @@ def parse_args(argv):
         help="Reset the device before starting serial logs.",
         default=os.getenv("ESPHOME_SERIAL_LOGGING_RESET"),
     )
-    parser_logs.add_argument(
-        "--no-states",
-        action="store_true",
-        help="Do not show entity state changes in log output.",
-    )
+    _add_states_args(parser_logs)
 
     parser_discover = subparsers.add_parser(
         "discover",
@@ -2231,11 +2263,7 @@ def parse_args(argv):
         "--no-logs", help="Disable starting logs.", action="store_true"
     )
 
-    parser_run.add_argument(
-        "--no-states",
-        action="store_true",
-        help="Do not show entity state changes in log output.",
-    )
+    _add_states_args(parser_run)
 
     parser_run.add_argument(
         "--reset",
