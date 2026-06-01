@@ -44,6 +44,42 @@ from esphome.writer import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _isolate_platformio_paths(tmp_path_factory: pytest.TempPathFactory) -> Any:
+    """Sandbox PlatformIO path lookups so tests never touch ~/.platformio.
+
+    `clean_all` and `clean_build` both query ProjectConfig for paths like
+    `cache_dir` and `core_dir` and `rmtree` anything that exists. By
+    default `core_dir` resolves to ~/.platformio, which is global state
+    shared across pytest-xdist workers — multiple workers can each pass
+    `is_dir()` and then race inside `shutil.rmtree`, producing
+    FileNotFoundError flakes (and trashing developers' local PIO state
+    when the suite is run outside CI).
+
+    14 of the 18 `clean_*` tests in this file invoke `clean_all` /
+    `clean_build` without installing their own ProjectConfig mock, so
+    making the fixture autouse is simpler than tagging each test
+    individually.
+
+    Patch ProjectConfig.get_instance to point every PIO dir at a unique
+    tmp directory that doesn't actually exist on disk — `is_dir()`
+    returns False, so the rmtree loop is skipped entirely. Tests that
+    want to verify the PIO-cleanup branch (e.g. test_clean_all,
+    test_clean_all_partial_exists) install their own inner patch which
+    stacks on top of this one and wins for the duration of their block.
+    """
+    pio_root = tmp_path_factory.mktemp("isolated_pio") / "nonexistent"
+    mock_cfg = MagicMock()
+    mock_cfg.get.side_effect = lambda section, option: (
+        str(pio_root / option) if section == "platformio" else ""
+    )
+    with patch(
+        "platformio.project.config.ProjectConfig.get_instance",
+        return_value=mock_cfg,
+    ):
+        yield
+
+
 @pytest.fixture
 def mock_copy_src_tree():
     """Mock copy_src_tree to avoid side effects during tests."""
@@ -75,6 +111,7 @@ def create_storage() -> Callable[..., StorageJSON]:
             no_mdns=kwargs.get("no_mdns", False),
             framework=kwargs.get("framework", "arduino"),
             core_platform=kwargs.get("core_platform", "esp32"),
+            toolchain=kwargs.get("toolchain", "platformio"),
         )
 
     return _create
@@ -103,6 +140,20 @@ def test_storage_should_clean_when_build_path_changes(
     """Test that clean is triggered when build_path changes."""
     old = create_storage(loaded_integrations=["api", "wifi"], build_path="/build1")
     new = create_storage(loaded_integrations=["api", "wifi"], build_path="/build2")
+    assert storage_should_clean(old, new) is True
+
+
+def test_storage_should_clean_when_toolchain_changes(
+    create_storage: Callable[..., StorageJSON],
+) -> None:
+    """Test that clean is triggered when the build toolchain changes.
+
+    Switching between the PlatformIO and native ESP-IDF toolchains produces
+    incompatible build trees (and toolchain-specific idedata), so the build
+    must be wiped.
+    """
+    old = create_storage(loaded_integrations=["api", "wifi"], toolchain="platformio")
+    new = create_storage(loaded_integrations=["api", "wifi"], toolchain="esp-idf")
     assert storage_should_clean(old, new) is True
 
 
@@ -443,6 +494,11 @@ def test_clean_build(
     dependencies_lock = tmp_path / "dependencies.lock"
     dependencies_lock.write_text("lock file")
 
+    # idedata cache lives under the data dir, not the build path.
+    idedata_cache = tmp_path / "idedata" / "test.json"
+    idedata_cache.parent.mkdir()
+    idedata_cache.write_text("{}")
+
     # Native ESP-IDF toolchain artifacts.
     idf_build_dir = tmp_path / "build"
     idf_build_dir.mkdir()
@@ -463,11 +519,14 @@ def test_clean_build(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.name = "test"
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
 
     # Verify all exist before
     assert pioenvs_dir.exists()
     assert piolibdeps_dir.exists()
     assert dependencies_lock.exists()
+    assert idedata_cache.exists()
     assert idf_build_dir.exists()
     assert managed_components_dir.exists()
     assert platformio_cache_dir.exists()
@@ -492,6 +551,7 @@ def test_clean_build(
     assert not pioenvs_dir.exists()
     assert not piolibdeps_dir.exists()
     assert not dependencies_lock.exists()
+    assert not idedata_cache.exists()
     assert not idf_build_dir.exists()
     assert not managed_components_dir.exists()
     assert not platformio_cache_dir.exists()
@@ -501,6 +561,7 @@ def test_clean_build(
     assert ".pioenvs" in caplog.text
     assert ".piolibdeps" in caplog.text
     assert "dependencies.lock" in caplog.text
+    assert str(idedata_cache) in caplog.text
     assert str(idf_build_dir) in caplog.text
     assert str(managed_components_dir) in caplog.text
     assert "PlatformIO cache" in caplog.text
@@ -1358,7 +1419,7 @@ def test_clean_build_handles_readonly_files(
     # Create a read-only file (simulating git pack files on Windows)
     readonly_file = git_dir / "pack-abc123.pack"
     readonly_file.write_text("pack data")
-    os.chmod(readonly_file, stat.S_IRUSR)  # Read-only
+    readonly_file.chmod(stat.S_IRUSR)  # Read-only
 
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
@@ -1393,7 +1454,7 @@ def test_clean_all_handles_readonly_files(
     subdir.mkdir()
     readonly_file = subdir / "readonly.txt"
     readonly_file.write_text("content")
-    os.chmod(readonly_file, stat.S_IRUSR)  # Read-only
+    readonly_file.chmod(stat.S_IRUSR)  # Read-only
 
     # Verify file is read-only
     assert not os.access(readonly_file, os.W_OK)
@@ -1422,7 +1483,7 @@ def test_clean_build_reraises_for_other_errors(
     test_file.write_text("content")
 
     # Make subdir read-only so files inside can't be deleted
-    os.chmod(subdir, stat.S_IRUSR | stat.S_IXUSR)
+    subdir.chmod(stat.S_IRUSR | stat.S_IXUSR)
 
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
@@ -1440,7 +1501,7 @@ def test_clean_build_reraises_for_other_errors(
             clean_build()
     finally:
         # Cleanup - restore write permission so tmp_path cleanup works
-        os.chmod(subdir, stat.S_IRWXU)
+        subdir.chmod(stat.S_IRWXU)
 
 
 # Tests for get_build_info()
