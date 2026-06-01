@@ -9,16 +9,13 @@ import os
 from pathlib import Path
 import re
 import tempfile
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import Any, TypeVar
 from urllib.parse import urlparse, urlsplit, urlunsplit
 
 from esphome import git, yaml_util
 from esphome.core import CORE, Library
 from esphome.espidf.framework import archive_extract_all, download_from_mirrors, rmdir
 from esphome.helpers import write_file_if_changed
-
-if TYPE_CHECKING:
-    from platformio.package.manager._registry import PackageManagerRegistryMixin
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -564,7 +561,7 @@ def _parse_library_properties(library_properties_path: PathType):
         return data
 
 
-def _make_registry_client() -> "PackageManagerRegistryMixin":
+def _make_registry_client() -> Any:
     """Create a minimal PlatformIO registry client with no system filtering.
 
     ``is_system_compatible`` is forced True so version selection is driven purely
