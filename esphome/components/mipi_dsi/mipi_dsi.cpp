@@ -73,7 +73,7 @@ void MipiDsi::setup() {
                                            .dpi_clock_freq_mhz = this->pclk_frequency_,
                                            .pixel_format = pixel_format,
 #endif
-                                           .num_fbs = 1,  // number of frame buffers to allocate
+                                           .num_fbs = 2,  // number of frame buffers to allocate
                                            .video_timing =
                                                {
                                                    .h_size = this->width_,
@@ -95,6 +95,17 @@ void MipiDsi::setup() {
   if (err != ESP_OK) {
     this->smark_failed(LOG_STR("esp_lcd_new_panel_dpi failed"), err);
     return;
+  }
+  void *fb0 = nullptr;
+  void *fb1 = nullptr;
+  err = esp_lcd_dpi_panel_get_frame_buffer(this->handle_, 2, &fb0, &fb1);
+  if (err == ESP_OK && fb0 != nullptr && fb1 != nullptr) {
+    this->frame_buffers_[0] = static_cast<uint8_t *>(fb0);
+    this->frame_buffers_[1] = static_cast<uint8_t *>(fb1);
+    ESP_LOGI(TAG, "DPI framebuffers exposed at %p / %p (%zu bytes each)", this->frame_buffers_[0],
+             this->frame_buffers_[1], this->get_frame_buffer_size());
+  } else {
+    ESP_LOGW(TAG, "DPI framebuffer unavailable: %s", esp_err_to_name(err));
   }
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
   err = esp_lcd_dpi_panel_enable_dma2d(this->handle_);
@@ -219,7 +230,7 @@ void MipiDsi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
 void MipiDsi::write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
                                 int x_pad) {
   esp_err_t err = ESP_OK;
-  auto bytes_per_pixel = 3 - this->color_depth_;
+  auto bytes_per_pixel = this->get_bytes_per_pixel_();
   auto stride = (x_offset + w + x_pad) * bytes_per_pixel;
   ptr += y_offset * stride + x_offset * bytes_per_pixel;  // skip to the first pixel
   // x_ and y_offset are offsets into the source buffer, unrelated to our own offsets into the display.

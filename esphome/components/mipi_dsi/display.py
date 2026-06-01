@@ -201,6 +201,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):
+    cg.add_define("USE_MIPI_DSI")
     model = MODELS[config[CONF_MODEL].upper()]
     color_depth = COLOR_DEPTHS[get_color_depth(config)]
     pixel_mode = int(config[CONF_PIXEL_MODE].removesuffix("bit"))
