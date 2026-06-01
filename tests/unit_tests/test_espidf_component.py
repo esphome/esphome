@@ -732,3 +732,72 @@ def test_generate_idf_components_warns_on_noncanonical_duplicate(
     )
 
     assert "referenced under multiple names" in caplog.text
+
+
+def test_generate_idf_components_incompatible_top_level_raises(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    esp32_idf_core: None,
+) -> None:
+    # A top-level library that isn't ESP-IDF/esp32 compatible must fail fast,
+    # not be silently dropped.
+    def fake_download(self, force=False):
+        self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
+        (self.path / "src").mkdir(parents=True, exist_ok=True)
+        (self.path / "library.json").write_text(
+            json.dumps({"name": "A", "platforms": ["espressif8266"]})
+        )
+
+    monkeypatch.setattr(IDFComponent, "download", fake_download)
+    monkeypatch.setattr(
+        esphome.espidf.component,
+        "_resolve_registry_version",
+        lambda owner, pkgname, requirements: (
+            owner,
+            pkgname,
+            "1.0.0",
+            f"http://x/{pkgname}.tar.gz",
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="not compatible with ESP-IDF"):
+        generate_idf_components([Library("esphome/A", "1.0.0", None)])
+
+
+def test_generate_idf_components_incompatible_dependency_skipped(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    esp32_idf_core: None,
+) -> None:
+    # An incompatible *transitive* dependency is skipped (not fatal): A is fine,
+    # its esp8266-only dep B is dropped and not wired.
+    manifests = {
+        "esphome/A": {
+            "name": "A",
+            "dependencies": [{"owner": "esphome", "name": "B", "version": "1.0.0"}],
+        },
+        "esphome/B": {"name": "B", "platforms": ["espressif8266"]},
+    }
+
+    def fake_download(self, force=False):
+        self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
+        (self.path / "src").mkdir(parents=True, exist_ok=True)
+        (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
+
+    monkeypatch.setattr(IDFComponent, "download", fake_download)
+    monkeypatch.setattr(
+        esphome.espidf.component,
+        "_resolve_registry_version",
+        lambda owner, pkgname, requirements: (
+            owner,
+            pkgname,
+            "1.0.0",
+            f"http://x/{pkgname}.tar.gz",
+        ),
+    )
+
+    top = generate_idf_components([Library("esphome/A", "1.0.0", None)])
+
+    assert [c.name for c in top] == ["esphome/A"]
+    # The incompatible dependency was dropped, not wired in.
+    assert top[0].dependencies == []

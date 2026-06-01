@@ -1,3 +1,4 @@
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 import glob
@@ -717,9 +718,10 @@ def generate_idf_components(libraries: list[Library]) -> list[IDFComponent]:
     # so every requirement in the graph is accounted for before conversion.
     components: dict[str, IDFComponent] = {}
     expanded_version: dict[str, str] = {}
-    worklist = list(dict.fromkeys(top_level))
+    top_level_keys = set(top_level)
+    worklist = deque(dict.fromkeys(top_level))
     while worklist:
-        key = worklist.pop(0)
+        key = worklist.popleft()
         node = nodes[key]
 
         if node.is_git:
@@ -748,7 +750,13 @@ def generate_idf_components(libraries: list[Library]) -> list[IDFComponent]:
         try:
             _check_library_data(component.data)
         except InvalidIDFComponent as e:
-            _LOGGER.debug("Skip incompatible library %s: %s", key, str(e))
+            # Skip an incompatible transitive dependency, but fail fast if a
+            # top-level library the build explicitly requested is incompatible.
+            if key in top_level_keys:
+                raise RuntimeError(
+                    f"Requested library {key} is not compatible with ESP-IDF: {e}"
+                ) from e
+            _LOGGER.debug("Skip incompatible dependency %s: %s", key, str(e))
             continue
         components[key] = component
 
