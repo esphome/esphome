@@ -6,8 +6,8 @@ import os
 from pathlib import Path
 
 from esphome import automation, core
-from esphome.components.const import CONF_PUBLISH_SHELL_COMMAND
 import esphome.codegen as cg
+from esphome.components.const import CONF_PUBLISH_SHELL_COMMAND
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (

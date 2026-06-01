@@ -22,8 +22,8 @@ import argcomplete
 # cause them to be loaded before external components are processed, resulting
 # in the built-in version being used instead of the external component one.
 from esphome import const
-from esphome.components.const import CONF_PUBLISH_SHELL_COMMAND
 import esphome.codegen as cg
+from esphome.components.const import CONF_PUBLISH_SHELL_COMMAND
 from esphome.config import iter_component_configs, read_config, strip_default_ids
 from esphome.const import (
     ALLOWED_NAME_CHARS,
