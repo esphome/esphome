@@ -117,6 +117,8 @@ template<typename... Ts> class CalibrateHeadingAction : public Action<Ts...> {
   void set_save(bool save) { this->save_ = save; }
   Trigger<> *get_success_trigger() { return &this->success_trigger_; }
   Trigger<> *get_error_trigger() { return &this->error_trigger_; }
+
+ protected:
   void play(const Ts &...) override {
     if (this->parent_->calibrate_heading()) {
       // if not saving, calibration success is enough. If save required only report success after that succeeds too.
@@ -128,7 +130,6 @@ template<typename... Ts> class CalibrateHeadingAction : public Action<Ts...> {
     this->error_trigger_.trigger();
   }
 
- protected:
   MotionComponent *parent_;
   Trigger<> success_trigger_;
   Trigger<> error_trigger_;
@@ -139,13 +140,14 @@ template<typename... Ts> class ClearCalibrationAction : public Action<Ts...> {
  public:
   explicit ClearCalibrationAction(MotionComponent *parent) : parent_(parent) {}
   void set_save(bool save) { this->save_ = save; }
+
+ protected:
   void play(const Ts &...) override {
     this->parent_->clear_calibration();
     if (this->save_)
       this->parent_->save_calibration();
   }
 
- protected:
   MotionComponent *parent_;
   bool save_{false};
 };
