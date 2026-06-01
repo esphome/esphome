@@ -525,8 +525,10 @@ def test_generate_idf_components_dedupes_shared_dependency(
     monkeypatch.setattr(IDFComponent, "download", fake_download)
 
     captured: dict[str, set[str]] = {}
+    resolve_calls: list[str] = []
 
     def fake_resolve(owner, pkgname, requirements):
+        resolve_calls.append(pkgname)
         captured[f"{owner}/{pkgname}"] = set(requirements)
         version = "1.10021.0" if pkgname == "C" else "1.0.0"
         return owner, pkgname, version, f"http://x/{pkgname}.tar.gz"
@@ -539,8 +541,9 @@ def test_generate_idf_components_dedupes_shared_dependency(
         [Library("esphome/A", "1.0.0", None), Library("esphome/B", "1.0.0", None)]
     )
 
-    # C resolved once with BOTH requirements gathered across A and B.
+    # C resolved once (not once per consumer) with BOTH requirements gathered.
     assert captured["esphome/C"] == {"==1.10021.0", "^1.10018.1"}
+    assert resolve_calls.count("C") == 1
     # Top-level components returned in request order.
     assert [c.name for c in top] == ["esphome/A", "esphome/B"]
     # A and B reference the SAME single C instance (deduped).

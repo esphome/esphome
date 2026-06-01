@@ -663,7 +663,14 @@ class _LibNode:
 def _node_key(
     name: str | None, version: str | None, repository: str | None
 ) -> tuple[str, bool, tuple[str | None, str | None]]:
-    """Return ``(key, is_git, locator)`` for a library or dependency spec."""
+    """Return ``(key, is_git, locator)`` for a library or dependency spec.
+
+    The key is derived from the *input* spec (the registry name as written, or
+    the git URL path), not the resolved canonical name. So a package referenced
+    inconsistently -- bare ``name`` vs ``owner/name``, or git vs registry -- maps
+    to distinct keys and isn't deduplicated; ``generate_idf_components`` warns
+    about that after resolution rather than merging the nodes.
+    """
     if repository:
         split_result = urlsplit(repository)
         key = str(split_result.path).strip("/").removesuffix(".git")
@@ -713,16 +720,25 @@ def generate_idf_components(libraries: list[Library]) -> list[IDFComponent]:
         for library in libraries
     ]
 
-    # Collect + resolve to a fixpoint: a name is (re)expanded whenever its
-    # resolved version changes (e.g. a later consumer narrows the constraint),
-    # so every requirement in the graph is accounted for before conversion.
+    # Collect + resolve to a fixpoint: a node is (re)resolved whenever its
+    # requirement set has grown since the last time, so every requirement in the
+    # graph is accounted for before conversion.
     components: dict[str, IDFComponent] = {}
-    expanded_version: dict[str, str] = {}
+    resolved_requirements: dict[str, frozenset[str]] = {}
     top_level_keys = set(top_level)
     worklist = deque(dict.fromkeys(top_level))
     while worklist:
         key = worklist.popleft()
         node = nodes[key]
+
+        # A node is queued once per referring edge; skip the (uncached) registry
+        # lookup + download + dependency walk unless its requirement set grew
+        # since the last resolve. Requirements only ever grow, so this still
+        # converges the fixpoint and terminates dependency cycles.
+        requirements = frozenset(node.requirements)
+        if resolved_requirements.get(key) == requirements:
+            continue
+        resolved_requirements[key] = requirements
 
         if node.is_git:
             component = IDFComponent(key, "*", GitSource(node.url, node.ref))
@@ -760,12 +776,8 @@ def generate_idf_components(libraries: list[Library]) -> list[IDFComponent]:
             continue
         components[key] = component
 
-        # Only (re)walk a component's dependencies when its resolved version
-        # changed since we last did, which also terminates dependency cycles.
-        if expanded_version.get(key) == str(component.version):
-            continue
-        expanded_version[key] = str(component.version)
-
+        # Requirements changed (we got past the short-circuit above), so
+        # (re)walk this component's dependencies.
         node.edges = set()
         for dependency in _normalize_dependencies(component.data.get("dependencies")):
             if "name" not in dependency or "version" not in dependency:
