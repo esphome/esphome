@@ -101,8 +101,16 @@ def clang_options(idedata):
         ]
     )
 
-    # copy compiler flags, except those clang doesn't understand.
-    cmd.extend(flag for flag in idedata["cxx_flags"] if flag not in omit_flags)
+    # copy compiler flags, except those clang doesn't understand and the
+    # build's -Werror* flags. clang-tidy applies its own error policy via
+    # .clang-tidy's WarningsAsErrors; a build -Werror (e.g. the native ESP-IDF
+    # build's -Werror=all) would instead promote warnings to compile errors that
+    # bypass the -clang-diagnostic-* suppressions configured in .clang-tidy.
+    cmd.extend(
+        flag
+        for flag in idedata["cxx_flags"]
+        if flag not in omit_flags and not flag.startswith("-Werror")
+    )
 
     # defines
     cmd.extend(f"-D{define}" for define in idedata["defines"])
