@@ -48,6 +48,7 @@ void I2SAudioSpeakerBase::dump_config() {
   if (this->timeout_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Timeout: %" PRIu32 " ms", this->timeout_.value());
   }
+  ESP_LOGCONFIG(TAG, "  Keep alive: %s", YESNO(this->keep_alive_));
 }
 
 void I2SAudioSpeakerBase::loop() {
@@ -298,19 +299,39 @@ esp_err_t I2SAudioSpeakerBase::init_i2s_channel_(const i2s_chan_config_t &chan_c
 void I2SAudioSpeakerBase::stop_i2s_driver_() {
   if (this->tx_handle_ != nullptr) {
     i2s_channel_disable(this->tx_handle_);
-    i2s_del_channel(this->tx_handle_);
-    this->tx_handle_ = nullptr;
-
-    // i2s_del_channel() leaves dout wired to this port's data-out signal in the GPIO matrix: it only
-    // clears an internal reservation mask, never the esp_rom_gpio_connect_out_signal() routing that
-    // setup installed. If another speaker reuses this port (shared bus), its audio still reaches our
-    // dout. Detach the pin and drive it low so a stale output stops driving downstream hardware: a
-    // SPDIF optical transmitter would otherwise stay lit, and an analog DAC would emit noise.
-    gpio_reset_pin(this->dout_pin_);
-    gpio_set_direction(this->dout_pin_, GPIO_MODE_OUTPUT);
-    gpio_set_level(this->dout_pin_, 0);
+    if (this->keep_alive_) {
+      // Keep-alive mode: leave the channel allocated and configured so the next start cycle can
+      // reuse it without re-running i2s_new_channel / i2s_channel_init_std_mode, which trigger the
+      // GPIO routing and DAC PLL re-lock transients that cause the audible pop. Reset the on_sent
+      // callback (must be done while channel is disabled per ESP-IDF) and drain both queues so the
+      // next task setup's preload pushes begin from a known-empty state.
+      const i2s_event_callbacks_t callbacks = {.on_sent = nullptr};
+      i2s_channel_register_event_callback(this->tx_handle_, &callbacks, this);
+      if (this->i2s_event_queue_ != nullptr) {
+        xQueueReset(this->i2s_event_queue_);
+      }
+      if (this->write_records_queue_ != nullptr) {
+        xQueueReset(this->write_records_queue_);
+      }
+    } else {
+      this->delete_channel_();
+    }
   }
   this->parent_->unlock();
+}
+
+void I2SAudioSpeakerBase::delete_channel_() {
+  i2s_del_channel(this->tx_handle_);
+  this->tx_handle_ = nullptr;
+
+  // i2s_del_channel() leaves dout wired to this port's data-out signal in the GPIO matrix: it only
+  // clears an internal reservation mask, never the esp_rom_gpio_connect_out_signal() routing that
+  // setup installed. If another speaker reuses this port (shared bus), its audio still reaches our
+  // dout. Detach the pin and drive it low so a stale output stops driving downstream hardware: a
+  // SPDIF optical transmitter would otherwise stay lit, and an analog DAC would emit noise.
+  gpio_reset_pin(this->dout_pin_);
+  gpio_set_direction(this->dout_pin_, GPIO_MODE_OUTPUT);
+  gpio_set_level(this->dout_pin_, 0);
 }
 
 bool IRAM_ATTR I2SAudioSpeakerBase::i2s_on_sent_cb(i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx) {
