@@ -702,9 +702,39 @@ def generate_idf_components(libraries: list[Library]) -> list[IDFComponent]:
         node = nodes.get(key) or _LibNode(key=key, is_git=is_git)
         nodes[key] = node
         if is_git:
+            url, _ref = locator
+            # A git source overrides registry version requirements for the same
+            # component (and a differing git URL overrides the previous one).
+            # That's intentional, but log it so a dropped registry pin isn't a
+            # silent surprise.
+            if node.requirements and not node.is_git:
+                _LOGGER.warning(
+                    "Library %s is requested both from a git source (%s) and as "
+                    "registry version(s) %s; using the git source.",
+                    key,
+                    url,
+                    sorted(node.requirements),
+                )
+            elif node.is_git and node.url not in (None, url):
+                _LOGGER.warning(
+                    "Library %s is requested from two git sources (%s and %s); "
+                    "using %s.",
+                    key,
+                    node.url,
+                    url,
+                    url,
+                )
             node.is_git = True
             node.url, node.ref = locator
         else:
+            if node.is_git and version:
+                _LOGGER.warning(
+                    "Library %s is requested as registry version %s but also from "
+                    "a git source (%s); using the git source.",
+                    key,
+                    version,
+                    node.url,
+                )
             node.owner, node.pkgname = locator
             if version:
                 node.requirements.add(version)

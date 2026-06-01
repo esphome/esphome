@@ -15,6 +15,7 @@ from esphome.const import (
 from esphome.core import CORE, Library
 import esphome.espidf.component
 from esphome.espidf.component import (
+    GitSource,
     IDFComponent,
     InvalidIDFComponent,
     URLSource,
@@ -597,3 +598,62 @@ def test_generate_idf_components_handles_dependency_cycle(
     assert component_b.name == "esphome/B"
     # The cycle is wired back to the same A instance, not a duplicate.
     assert component_b.dependencies[0] is component_a
+
+
+def test_generate_idf_components_git_overrides_registry_warns(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    esp32_idf_core: None,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # A pulls shared as a registry pin; B pulls the same component from a git
+    # source. The git source wins, but the dropped registry pin must be warned
+    # about (not silently discarded).
+    manifests = {
+        "esphome/A": {
+            "name": "A",
+            "dependencies": [
+                {"owner": "esphome", "name": "shared", "version": "==1.0.0"}
+            ],
+        },
+        "esphome/B": {
+            "name": "B",
+            "dependencies": [
+                {
+                    "owner": "esphome",
+                    "name": "shared",
+                    "version": "https://github.com/esphome/shared.git#main",
+                }
+            ],
+        },
+        "esphome/shared": {"name": "shared"},
+    }
+
+    def fake_download(self, force=False):
+        self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
+        (self.path / "src").mkdir(parents=True, exist_ok=True)
+        (self.path / "src" / "x.c").write_text("int x;")
+        (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
+
+    monkeypatch.setattr(IDFComponent, "download", fake_download)
+    monkeypatch.setattr(
+        esphome.espidf.component,
+        "_resolve_registry_version",
+        lambda owner, pkgname, requirements: (
+            owner,
+            pkgname,
+            "1.0.0",
+            f"http://x/{pkgname}.tar.gz",
+        ),
+    )
+
+    top = generate_idf_components(
+        [Library("esphome/A", "1.0.0", None), Library("esphome/B", "1.0.0", None)]
+    )
+
+    # shared resolved from the git source (version "*"), not the registry pin.
+    shared = top[0].dependencies[0]
+    assert shared.name == "esphome/shared"
+    assert isinstance(shared.source, GitSource)
+    assert "using the git source" in caplog.text
+    assert "==1.0.0" in caplog.text
