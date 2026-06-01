@@ -6,8 +6,6 @@
 #include "esphome/core/preferences.h"
 #include <array>
 #include <cmath>
-#include <functional>
-#include <numbers>
 
 namespace esphome::motion {
 
@@ -53,7 +51,7 @@ class MotionComponent : public PollingComponent {
   /// Assuming Y-axis rotation only, correct the heading so X/Y align correctly.
   bool calibrate_heading();
   /// Save the current matrix to NVS.
-  void save_calibration();
+  bool save_calibration();
   /// Restore the build-time (axis_map / transform_matrix) base, discarding calibration.
   void clear_calibration();
 
@@ -95,12 +93,13 @@ template<typename... Ts> class CalibrateLevelAction : public Action<Ts...> {
   Trigger<> *get_error_trigger() { return &this->error_trigger_; }
   void play(const Ts &...) override {
     if (this->parent_->calibrate_level()) {
-      if (this->save_)
-        this->parent_->save_calibration();
-      this->success_trigger_.trigger();
-    } else {
-      this->error_trigger_.trigger();
+      // if not saving, calibration success is enough. If save required only report success after that succeeds too.
+      if (!this->save_ || this->parent_->save_calibration()) {
+        this->success_trigger_.trigger();
+        return;
+      }
     }
+    this->error_trigger_.trigger();
   }
 
  protected:
@@ -116,17 +115,19 @@ template<typename... Ts> class CalibrateHeadingAction : public Action<Ts...> {
   void set_save(bool save) { this->save_ = save; }
   Trigger<> *get_success_trigger() { return &this->success_trigger_; }
   Trigger<> *get_error_trigger() { return &this->error_trigger_; }
-  void play(const Ts &...) override {
-    if (this->parent_->calibrate_heading()) {
-      if (this->save_)
-        this->parent_->save_calibration();
-      this->success_trigger_.trigger();
-    } else {
-      this->error_trigger_.trigger();
-    }
-  }
 
  protected:
+  void play(const Ts &...) override {
+    if (this->parent_->calibrate_heading()) {
+      // if not saving, calibration success is enough. If save required only report success after that succeeds too.
+      if (!this->save_ || this->parent_->save_calibration()) {
+        this->success_trigger_.trigger();
+        return;
+      }
+    }
+    this->error_trigger_.trigger();
+  }
+
   MotionComponent *parent_;
   Trigger<> success_trigger_;
   Trigger<> error_trigger_;
@@ -137,13 +138,14 @@ template<typename... Ts> class ClearCalibrationAction : public Action<Ts...> {
  public:
   explicit ClearCalibrationAction(MotionComponent *parent) : parent_(parent) {}
   void set_save(bool save) { this->save_ = save; }
+
+ protected:
   void play(const Ts &...) override {
     this->parent_->clear_calibration();
     if (this->save_)
       this->parent_->save_calibration();
   }
 
- protected:
   MotionComponent *parent_;
   bool save_{false};
 };

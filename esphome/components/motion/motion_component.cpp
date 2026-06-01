@@ -41,16 +41,20 @@ void MotionComponent::setup() {
   log_matrix(this->matrix_);
 }
 void MotionComponent::dump_config() { log_matrix(this->matrix_); }
-void MotionComponent::save_calibration() {
+bool MotionComponent::save_calibration() {
   if (this->pref_key_ == 0) {
     ESP_LOGW(TAG, "Cannot save calibration: no preference key set");
-    return;
+    return false;
   }
   CalibrationPref pref{this->base_hash_, {}};
   memcpy(pref.matrix, this->matrix_, sizeof(pref.matrix));
-  this->pref_.save(&pref);
-  global_preferences->sync();
-  ESP_LOGI(TAG, "Saved calibration to NVS");
+  if (this->pref_.save(&pref)) {
+    global_preferences->sync();
+    ESP_LOGI(TAG, "Saved calibration to NVS");
+    return true;
+  }
+  ESP_LOGW(TAG, "Calibration save failed");
+  return false;
 }
 void MotionComponent::clear_calibration() {
   memcpy(this->matrix_, this->base_matrix_, sizeof(this->matrix_));
