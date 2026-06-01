@@ -222,8 +222,15 @@ def _generate_compile_commands(
     ``esp_tee`` only registers on c5/c6/h2), then a second configure requires
     that discovered set so their public includes reach the tidy TU.
     """
+    import logging
+
     from esphome.build_gen.espidf import get_available_components
     from esphome.espidf import toolchain
+
+    # Surface ESPHome's INFO logs (ESP-IDF framework download/extract/install,
+    # git-library clones) -- they go through logging, which the clang-tidy
+    # script otherwise leaves at WARNING so the first-run downloads look silent.
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     _setup_core(work_dir, version, variant)
 
