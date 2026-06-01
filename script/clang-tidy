@@ -101,18 +101,12 @@ def clang_options(idedata):
         ]
     )
 
-    # copy compiler flags, except those clang doesn't understand and the
-    # build's -Werror* flags. clang-tidy applies its own error policy via
-    # .clang-tidy's WarningsAsErrors; a build -Werror (e.g. the native ESP-IDF
-    # build's -Werror=all) would instead promote warnings to compile errors that
-    # bypass the -clang-diagnostic-* suppressions configured in .clang-tidy.
-    #
-    # Also drop any -std= flag: the native ESP-IDF build leaves its default
-    # -std=gnu++2b (C++23) in the flags, but ESPHome actually compiles with
-    # -std=gnu++20 (platformio.ini forces it and unflags the rest). Analyzing as
-    # C++23 surfaces modernizations that don't compile under gnu++20 (e.g.
-    # readability-container-contains -> std::string::contains). Force gnu++20 so
-    # clang-tidy sees the same language level as the real build.
+    # Copy compiler flags, dropping: ones clang doesn't understand; -Werror*
+    # (clang-tidy enforces .clang-tidy's WarningsAsErrors, and a build -Werror
+    # would bypass the -clang-diagnostic-* suppressions); and -std= (the native
+    # ESP-IDF build defaults to gnu++2b, but ESPHome compiles with gnu++20 per
+    # platformio.ini -- analyzing as C++23 flags code that doesn't build under
+    # gnu++20). Force gnu++20 to match the real build.
     cmd.extend(
         flag
         for flag in idedata["cxx_flags"]
