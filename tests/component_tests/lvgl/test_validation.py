@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import logging
-
 import pytest
 
 from esphome.components.const import BYTE_ORDER_BIG, BYTE_ORDER_LITTLE, CONF_BYTE_ORDER
@@ -80,25 +78,23 @@ class TestByteOrderAutoConfig:
         assert configs[0][CONF_BYTE_ORDER] == BYTE_ORDER_BIG
 
 
-class TestByteOrderExplicitMismatchWarning:
-    """Test that LVGL warns when explicit byte_order doesn't match display."""
+class TestByteOrderExplicitMismatchError:
+    """Test that LVGL rejects explicit byte_order mismatch with display."""
 
-    def test_warns_on_mismatch(self, caplog) -> None:
-        """Explicit LVGL byte_order different from display should warn."""
+    def test_raises_on_mismatch(self) -> None:
+        """Explicit LVGL byte_order different from display should raise."""
         add_metadata(ID("my_disp"), 320, 240, byte_order=BYTE_ORDER_LITTLE)
         configs = [_make_lvgl_config(["my_disp"], byte_order=BYTE_ORDER_BIG)]
-        with caplog.at_level(logging.WARNING):
+        with pytest.raises(
+            Invalid, match="LVGL byte order must match the display byte order"
+        ):
             final_validation(configs)
-        assert any("does not match" in msg for msg in caplog.messages)
-        assert configs[0][CONF_BYTE_ORDER] == BYTE_ORDER_BIG
 
-    def test_no_warning_when_matching(self, caplog) -> None:
-        """Explicit LVGL byte_order matching display should not warn."""
+    def test_no_error_when_matching(self) -> None:
+        """Explicit LVGL byte_order matching display should pass."""
         add_metadata(ID("my_disp"), 320, 240, byte_order=BYTE_ORDER_BIG)
         configs = [_make_lvgl_config(["my_disp"], byte_order=BYTE_ORDER_BIG)]
-        with caplog.at_level(logging.WARNING):
-            final_validation(configs)
-        assert not any("does not match" in msg for msg in caplog.messages)
+        final_validation(configs)
 
 
 class TestByteOrderMultipleDisplays:
