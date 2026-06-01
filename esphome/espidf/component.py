@@ -861,3 +861,98 @@ def generate_idf_component(
     """
     component = _generate_idf_component(library, force)
     return component.get_sanitized_name(), component.version, component.path
+
+
+def _library_to_pio_spec(library: Library) -> str:
+    """Build a PlatformIO package spec string from a Library."""
+    if library.repository:
+        # git/archive URL (optionally with a #ref fragment) -- PlatformIO
+        # accepts it directly as a package spec.
+        return library.repository
+    if library.version:
+        return f"{library.name}@{library.version}"
+    return library.name
+
+
+def generate_idf_components(libraries: list[Library]) -> list[IDFComponent]:
+    """Resolve and convert a batch of PlatformIO libraries to IDF components.
+
+    Unlike the per-library ``generate_idf_component``, this installs the whole
+    set through PlatformIO's package manager in a single pass so PlatformIO
+    resolves the transitive dependency tree, deduplicates by name and picks one
+    version that satisfies every consumer's constraint. (e.g. ``esphome/libsodium``,
+    pulled by both ``noise-c`` and ``esp_wireguard`` under different specs,
+    resolves to one component instead of two clashing ``override_path`` entries.)
+
+    Build files (CMakeLists.txt / idf_component.yml) are regenerated for every
+    resolved package. The returned list holds the *top-level* components (those
+    directly requested); their transitive dependencies are converted too and
+    wired into each component's generated manifest by name.
+    """
+    from platformio.package.manager.library import LibraryPackageManager
+
+    libdeps_dir = Path(CORE.data_dir) / DOMAIN / "libdeps"
+    libdeps_dir.mkdir(parents=True, exist_ok=True)
+    lpm = LibraryPackageManager(str(libdeps_dir))
+
+    # Pass 1: install every requested library. PlatformIO pulls each library's
+    # transitive dependencies, deduplicates by name and resolves a single
+    # compatible version across the whole set.
+    top_level_paths: list[str] = []
+    for library in libraries:
+        pkg = lpm.install(_library_to_pio_spec(library))
+        if pkg is not None:
+            top_level_paths.append(pkg.path)
+
+    installed = lpm.get_installed()
+
+    # Build one IDFComponent per resolved package.
+    by_name: dict[str, IDFComponent] = {}
+    by_path: dict[str, IDFComponent] = {}
+    for pkg in installed:
+        spec = pkg.metadata.spec
+        owner = spec.owner if spec else None
+        name = _owner_pkgname_to_name(owner, pkg.metadata.name)
+        component = IDFComponent(name, str(pkg.metadata.version), source=None)
+        component.path = Path(pkg.path)
+
+        library_json_path = component.path / "library.json"
+        library_properties_path = component.path / "library.properties"
+        if library_json_path.is_file():
+            component.data = _parse_library_json(library_json_path)
+        elif library_properties_path.is_file():
+            component.data = _parse_library_properties(library_properties_path)
+
+        try:
+            _check_library_data(component.data)
+        except InvalidIDFComponent as e:
+            _LOGGER.debug("Skip %s: %s", name, str(e))
+            continue
+
+        by_name[pkg.metadata.name] = component
+        by_path[pkg.path] = component
+
+    # Wire dependencies from PlatformIO's resolved graph. Because each name maps
+    # to a single installed package, every reference resolves to one path.
+    for pkg in installed:
+        component = by_path.get(pkg.path)
+        if component is None:
+            continue
+        for dependency in lpm.get_pkg_dependencies(pkg) or []:
+            dep = by_name.get(dependency.get("name"))
+            if dep is not None and dep is not component:
+                component.dependencies.append(dep)
+
+    # Regenerate build files for every resolved component.
+    for component in by_path.values():
+        _apply_extra_script(component)
+        write_file_if_changed(
+            component.path / "CMakeLists.txt",
+            generate_cmakelists_txt(component),
+        )
+        write_file_if_changed(
+            component.path / "idf_component.yml",
+            generate_idf_component_yml(component),
+        )
+
+    return [by_path[path] for path in top_level_paths if path in by_path]
