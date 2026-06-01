@@ -153,7 +153,6 @@ def _convert_pio_libs(platformio_ini: Path) -> dict[str, dict[str, str]]:
 
     deps: dict[str, dict[str, str]] = {}
     for library in _parse_lib_deps(platformio_ini):
-        print(f"Converting PlatformIO library {library.name} to an IDF component...")
         name, _version, path = generate_idf_component(library)
         deps[name] = {"override_path": str(path)}
     return deps
