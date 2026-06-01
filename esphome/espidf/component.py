@@ -805,6 +805,18 @@ def _generate_idf_component(library: Library, force: bool = False) -> IDFCompone
     )
     sanitized_name = component.get_sanitized_name()
     if not force and (existing := registry.get(sanitized_name)) is not None:
+        # override_path ignores the version field, so reusing the first
+        # conversion is safe -- but a differing version means two consumers
+        # disagree on what they want, so surface it rather than swallow it.
+        if existing.version != version:
+            _LOGGER.info(
+                "Component %s requested as version %s but already converted as "
+                "%s; reusing the first conversion (a single local component must "
+                "back both references).",
+                sanitized_name,
+                version,
+                existing.version,
+            )
         return existing
 
     # Download the library
