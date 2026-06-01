@@ -6,8 +6,7 @@
 #include "esphome/core/log.h"
 #include "i2c_bus.h"
 
-namespace esphome {
-namespace i2c {
+namespace esphome::i2c {
 
 class HostI2CBus : public I2CBus, public Component {
  public:
@@ -37,7 +36,6 @@ class HostI2CBus : public I2CBus, public Component {
   std::string first_error_;
 };
 
-}  // namespace i2c
-}  // namespace esphome
+}  // namespace esphome::i2c
 
 #endif  // USE_HOST

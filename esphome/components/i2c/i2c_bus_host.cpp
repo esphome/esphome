@@ -14,8 +14,7 @@
 #include <cstdint>
 #include <cstring>
 
-namespace esphome {
-namespace i2c {
+namespace esphome::i2c {
 
 static const char *const TAG = "i2c.host";
 
@@ -290,8 +289,7 @@ void HostI2CBus::update_error_(const std::string &error) {
   ESP_LOGE(TAG, "[%s] %s", this->device_.c_str(), error.c_str());
 }
 
-}  // namespace i2c
-}  // namespace esphome
+}  // namespace esphome::i2c
 
 #else
 #error "HostI2CBus is only supported on Linux"
