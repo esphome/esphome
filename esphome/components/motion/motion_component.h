@@ -53,7 +53,7 @@ class MotionComponent : public PollingComponent {
   /// Assuming Y-axis rotation only, correct the heading so X/Y align correctly.
   bool calibrate_heading();
   /// Save the current matrix to NVS.
-  void save_calibration();
+  bool save_calibration();
   /// Restore the build-time (axis_map / transform_matrix) base, discarding calibration.
   void clear_calibration();
 
@@ -95,12 +95,13 @@ template<typename... Ts> class CalibrateLevelAction : public Action<Ts...> {
   Trigger<> *get_error_trigger() { return &this->error_trigger_; }
   void play(const Ts &...) override {
     if (this->parent_->calibrate_level()) {
-      if (this->save_)
-        this->parent_->save_calibration();
-      this->success_trigger_.trigger();
-    } else {
-      this->error_trigger_.trigger();
+      // if not saving, calibration success is enough. If save required only report success after that succeeds too.
+      if (!this->save_ || this->parent_->save_calibration()) {
+        this->success_trigger_.trigger();
+        return;
+      }
     }
+    this->error_trigger_.trigger();
   }
 
  protected:
@@ -118,12 +119,13 @@ template<typename... Ts> class CalibrateHeadingAction : public Action<Ts...> {
   Trigger<> *get_error_trigger() { return &this->error_trigger_; }
   void play(const Ts &...) override {
     if (this->parent_->calibrate_heading()) {
-      if (this->save_)
-        this->parent_->save_calibration();
-      this->success_trigger_.trigger();
-    } else {
-      this->error_trigger_.trigger();
+      // if not saving, calibration success is enough. If save required only report success after that succeeds too.
+      if (!this->save_ || this->parent_->save_calibration()) {
+        this->success_trigger_.trigger();
+        return;
+      }
     }
+    this->error_trigger_.trigger();
   }
 
  protected:

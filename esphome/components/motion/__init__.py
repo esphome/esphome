@@ -143,7 +143,7 @@ async def register_motion_component(var: MockObj, config) -> None:
     obj_id = config[CONF_ID].id
     if isinstance(obj_id, str):
         obj_id = obj_id.encode()
-    pref_hash = int(hashlib.md5(obj_id).hexdigest()[:8], 16)
+    pref_hash = int(hashlib.md5(obj_id, usedforsecurity=False).hexdigest()[:8], 16)
     cg.add(var.set_calibration_key(pref_hash))
     if axis_map := config.get(CONF_AXIS_MAP):
         cg.add(var.set_matrix(_axis_map_to_matrix(axis_map)))
