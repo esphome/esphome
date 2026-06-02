@@ -1343,10 +1343,13 @@ def require_mbedtls_sha512() -> None:
 def _idf_version_from_config() -> cv.Version:
     """Derive the underlying ESP-IDF version from the (validated) config.
 
-    Fallback for code paths that run without validation populating CORE.data --
-    notably ``esphome logs``/``upload``, which can load the compiled-config cache
-    and skip validation, so set_core_data never runs (e.g. the native ESP-IDF
-    stack-trace decoder needs the version when decoding a crash dump).
+    Last-resort fallback for code paths that run without validation populating
+    CORE.data -- notably ``esphome logs``/``upload``, which can load the
+    compiled-config cache and skip validation, so set_core_data never runs (e.g.
+    the native ESP-IDF stack-trace decoder needs the version when decoding a
+    crash dump). The fast path normally gets the version restored from the
+    storage sidecar (StorageJSON.apply_to_core); this only kicks in for older
+    sidecars written before that field existed.
     """
     framework = CORE.config[KEY_ESP32][CONF_FRAMEWORK]
     framework_ver = cv.Version.parse(framework[CONF_VERSION])
