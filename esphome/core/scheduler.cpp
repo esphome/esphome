@@ -642,8 +642,10 @@ uint32_t HOT Scheduler::call(uint32_t now) {
       // Not reached timeout yet, done for this call
       break;
     }
-    // Don't run on failed components
-    if (item->component != nullptr && item->component->is_failed()) {
+    // Don't run on failed components.
+    // SELF_POINTER items (e.g. DelayAction) store the component for log attribution only and
+    // must always fire regardless of that component's failed state, so skip the check for them.
+    if (item->component != nullptr && item->get_name_type() != NameType::SELF_POINTER && item->component->is_failed()) {
       LockGuard guard{this->lock_};
       this->recycle_item_main_loop_(this->pop_raw_locked_());
       continue;

@@ -326,7 +326,7 @@ class Component {
     return component_source_lookup(this->component_source_index_);
   }
 
-  bool should_warn_of_blocking(uint32_t blocking_time);
+  bool should_warn_of_blocking(uint32_t blocking_time, uint32_t &threshold_ms_out);
 
  protected:
   friend class Application;

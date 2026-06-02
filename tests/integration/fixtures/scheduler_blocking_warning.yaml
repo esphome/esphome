@@ -1,0 +1,21 @@
+esphome:
+  name: scheduler-blocking-warning
+
+host:
+api:
+logger:
+  level: DEBUG
+
+# An interval fires via the scheduler (so the current component is the interval),
+# defers through a delay, then busy-blocks well over the 50 ms warn threshold inside
+# the deferred continuation. The blocking warning must be attributed to the interval
+# component (captured at schedule time) instead of "<null>".
+interval:
+  - interval: 500ms
+    then:
+      - delay: 10ms
+      - lambda: |-
+          const uint32_t start = millis();
+          // Spin for longer than WARN_IF_BLOCKING_OVER_MS (50 ms) to trip the warning.
+          while (millis() - start < 80) {
+          }

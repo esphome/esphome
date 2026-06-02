@@ -402,7 +402,7 @@ class Scheduler {
     // Fixes: https://github.com/esphome/esphome/issues/11940
     if (item == nullptr)
       return false;
-    if (item->component != component || item->type != type || (skip_removed && this->is_item_removed_locked_(item)) ||
+    if (item->type != type || (skip_removed && this->is_item_removed_locked_(item)) ||
         (match_retry && !item->is_retry)) {
       return false;
     }
@@ -411,11 +411,17 @@ class Scheduler {
       return false;
     // STATIC_STRING: compare string content. SELF_POINTER: raw pointer equality (no strcmp).
     // Other types: compare hash/ID value.
+    if (name_type == NameType::SELF_POINTER) {
+      // SELF_POINTER keys are globally unique (the caller's `this`), so the stored component is
+      // log-attribution only (e.g. DelayAction records the current component for blocking
+      // warnings) and must NOT participate in matching. Match by pointer equality alone.
+      return item->name_.static_name == static_name;
+    }
+    // All other name types must also match on component identity.
+    if (item->component != component)
+      return false;
     if (name_type == NameType::STATIC_STRING) {
       return this->names_match_static_(item->get_name(), static_name);
-    }
-    if (name_type == NameType::SELF_POINTER) {
-      return item->name_.static_name == static_name;
     }
     return item->get_name_hash_or_id() == hash_or_id;
   }

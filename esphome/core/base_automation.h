@@ -198,7 +198,12 @@ template<typename... Ts> class DelayAction : public Action<Ts...> {
     // to avoid overhead from capturing arguments by value
     if constexpr (sizeof...(Ts) == 0) {
       App.scheduler.set_timer_common_(
-          /* component= */ nullptr, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::SELF_POINTER,
+          // The component is stored for blocking-warning log attribution only (SELF_POINTER items
+          // match by `this`, so it does not affect cancellation). Capturing the current component
+          // lets the warning name the source instead of "<null>"; it propagates across chained
+          // delays because the scheduler restores it as the current component before each callback.
+          /* component= */ App.get_current_component(), Scheduler::SchedulerItem::TIMEOUT,
+          Scheduler::NameType::SELF_POINTER,
           /* static_name= */ reinterpret_cast<const char *>(this), /* hash_or_id= */ 0, this->delay_.value(),
           [this]() { this->play_next_(); },
           /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
@@ -209,7 +214,9 @@ template<typename... Ts> class DelayAction : public Action<Ts...> {
       // are passed as non-const lvalues to play_next_(const Ts&...) where Ts may be `T&`
       auto f = [this, x...]() mutable { this->play_next_(x...); };
       App.scheduler.set_timer_common_(
-          /* component= */ nullptr, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::SELF_POINTER,
+          // See the no-argument branch above: component is captured for log attribution only.
+          /* component= */ App.get_current_component(), Scheduler::SchedulerItem::TIMEOUT,
+          Scheduler::NameType::SELF_POINTER,
           /* static_name= */ reinterpret_cast<const char *>(this), /* hash_or_id= */ 0, this->delay_.value(x...),
           std::move(f),
           /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
