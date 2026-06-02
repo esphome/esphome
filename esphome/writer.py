@@ -93,9 +93,12 @@ def storage_should_clean(old: StorageJSON | None, new: StorageJSON) -> bool:
     ``src_version`` differs, ``build_path`` differs, the build
     ``toolchain`` differs (e.g. switching between the PlatformIO and
     native ESP-IDF toolchains, which produce incompatible build trees),
-    or a previously loaded integration was removed in *new*. Adding
-    integrations or changing unrelated fields (friendly name, esphome
-    version, etc.) does not trigger a clean.
+    the ``framework`` or ``framework_version`` differs (e.g. switching
+    arduino <-> esp-idf, or bumping the ESP-IDF version, which also
+    produce incompatible build trees), or a previously loaded
+    integration was removed in *new*. Adding integrations or changing
+    unrelated fields (friendly name, esphome version, etc.) does not
+    trigger a clean.
 
     Used by esphome-device-builder (esphome/device-builder) to gate
     its remote-build artifact materialiser so a local → remote → local
@@ -112,6 +115,10 @@ def storage_should_clean(old: StorageJSON | None, new: StorageJSON) -> bool:
     if old.build_path != new.build_path:
         return True
     if old.toolchain != new.toolchain:
+        return True
+    if old.framework != new.framework:
+        return True
+    if old.framework_version != new.framework_version:
         return True
     # Check if any components have been removed
     return bool(old.loaded_integrations - new.loaded_integrations)
