@@ -19,7 +19,6 @@
 namespace esphome::i2s_audio {
 
 // Shared constants used by both standard and SPDIF speaker implementations
-static constexpr uint32_t DMA_BUFFER_DURATION_MS = 15;
 static constexpr size_t TASK_STACK_SIZE = 4096;
 static constexpr ssize_t TASK_PRIORITY = 19;
 
@@ -36,9 +35,7 @@ enum SpeakerEventGroupBits : uint32_t {
   ERR_ESP_NO_MEM = (1 << 19),
 
   ERR_DROPPED_EVENT = (1 << 20),    // ISR overflowed the event queue, dropping a completion event
-  ERR_PARTIAL_WRITE = (1 << 21),    // a DMA write returned fewer bytes than requested (or the encoder
-                                    // failed to commit a complete block), which breaks the lockstep
-                                    // invariant for every subsequent event
+  ERR_PARTIAL_WRITE = (1 << 21),    // i2s_channel_write returned fewer bytes than requested
   ERR_LOCKSTEP_DESYNC = (1 << 22),  // i2s_event_queue_ and write_records_queue_ fell out of sync
 
   ALL_BITS = 0x00FFFFFF,  // All valid FreeRTOS event group bits
