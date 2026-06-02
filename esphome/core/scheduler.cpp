@@ -798,11 +798,19 @@ Scheduler::SchedulerItem *HOT Scheduler::pop_raw_locked_() {
 
 // Helper to execute a scheduler item
 uint32_t HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
-  Component *component = item->get_component();
-  // For SELF_POINTER (deferred action) items this is the owning script name; nullptr otherwise. It
-  // is published so a delay chained inside the callback re-captures it, and so the blocking warning
-  // can name the script instead of "<null>".
-  const LogString *source = item->get_source_name();
+  // Resolve the component and (for SELF_POINTER/deferred items) the source name from the shared
+  // union slot with a single name-type check. Self-keyed items have no owning component; their slot
+  // holds the source name (e.g. the owning script), published so deferred work chained inside the
+  // callback re-captures it and the blocking warning can name the script instead of "<null>".
+  Component *component;
+  const LogString *source;
+  if (item->get_name_type() == NameType::SELF_POINTER) {
+    component = nullptr;
+    source = item->source_name;
+  } else {
+    component = item->component;
+    source = nullptr;
+  }
   App.set_current_component(component);
   App.set_current_source(source);
   // Freshen so callbacks reading App.get_loop_component_start_time() see this item's dispatch time.

@@ -309,8 +309,6 @@ class Scheduler {
     // All component accesses go through this so SELF_POINTER items behave as component-less, exactly
     // as before source_name shared the slot.
     Component *get_component() const { return name_type_ == NameType::SELF_POINTER ? nullptr : component; }
-    // The source name for SELF_POINTER (deferred action) items, else nullptr.
-    const LogString *get_source_name() const { return name_type_ == NameType::SELF_POINTER ? source_name : nullptr; }
     const LogString *get_source() const {
       if (name_type_ == NameType::SELF_POINTER)
         return source_name != nullptr ? source_name : LOG_STR("scheduled task");
