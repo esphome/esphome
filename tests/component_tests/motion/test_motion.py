@@ -20,6 +20,14 @@ from esphome.components.motion import (
     _validate_matrix_options,
     clear_calibration_to_code,
 )
+from esphome.components.motion.binary_sensor import (
+    CONFIG_SCHEMA as BINARY_SENSOR_CONFIG_SCHEMA,
+    to_code as binary_sensor_to_code,
+)
+from esphome.components.motion.event import (
+    CONFIG_SCHEMA as EVENT_CONFIG_SCHEMA,
+    to_code as event_to_code,
+)
 from esphome.components.motion.sensor import (
     _ACCELERATIONS,
     _ANGULAR_RATES,
@@ -897,3 +905,174 @@ class TestSensorConfigSchema:
             assert "Unknown value" not in str(e), (
                 f"Type '{sensor_type}' was rejected as unknown"
             )
+
+
+# --- Binary sensor & Event platform tests ---
+
+
+class TestBinarySensorSchema:
+    def test_valid_types(self):
+        res = BINARY_SENSOR_CONFIG_SCHEMA(
+            {
+                "type": "face_up",
+                "motion_id": "my_motion_component",
+                "name": "LSM6DS3 Face Up",
+            }
+        )
+        assert res["type"] == "face_up"
+        assert str(res["motion_id"]) == "my_motion_component"
+        assert res["threshold"] == pytest.approx(0.85)
+
+    def test_free_fall_defaults(self):
+        res = BINARY_SENSOR_CONFIG_SCHEMA(
+            {
+                "type": "free_fall",
+                "motion_id": "my_motion_component",
+                "name": "LSM6DS3 Free Fall",
+            }
+        )
+        assert res["threshold"] == pytest.approx(0.15)
+        assert res["duration"].total_milliseconds == 100
+
+    def test_invalid_type(self):
+        with pytest.raises((Invalid, MultipleInvalid)):
+            BINARY_SENSOR_CONFIG_SCHEMA(
+                {
+                    "type": "invalid_type",
+                    "motion_id": "my_motion_component",
+                    "name": "Test",
+                }
+            )
+
+
+class TestEventSchema:
+    def test_valid_event(self):
+        res = EVENT_CONFIG_SCHEMA(
+            {"motion_id": "my_motion_component", "name": "LSM6DS3 Shake"}
+        )
+        assert str(res["motion_id"]) == "my_motion_component"
+        assert res["threshold"] == pytest.approx(0.5)
+        assert res["cooldown"].total_milliseconds == 500
+
+
+@pytest.fixture
+def mock_binary_sensor_codegen():
+    mock_var = MagicMock()
+    mock_parent = MagicMock()
+    with (
+        patch(
+            "esphome.components.motion.binary_sensor.cg.get_variable",
+            new_callable=AsyncMock,
+            return_value=mock_parent,
+        ) as mock_get_var,
+        patch(
+            "esphome.components.motion.binary_sensor.cg.new_Pvariable",
+            return_value=mock_var,
+        ) as mock_new_pvar,
+        patch(
+            "esphome.components.motion.binary_sensor.binary_sensor.register_binary_sensor",
+            new_callable=AsyncMock,
+        ) as mock_reg_bin,
+        patch(
+            "esphome.components.motion.binary_sensor.cg.register_component",
+            new_callable=AsyncMock,
+        ) as mock_reg_comp,
+        patch(
+            "esphome.components.motion.binary_sensor.cg.add",
+        ) as mock_add,
+    ):
+        yield {
+            "get_variable": mock_get_var,
+            "new_Pvariable": mock_new_pvar,
+            "register_binary_sensor": mock_reg_bin,
+            "register_component": mock_reg_comp,
+            "add": mock_add,
+            "var": mock_var,
+            "parent": mock_parent,
+        }
+
+
+@pytest.mark.asyncio
+async def test_binary_sensor_to_code(mock_binary_sensor_codegen):
+    from esphome.core import TimePeriod
+
+    config = {
+        "id": "my_binary_sensor_id",
+        "type": "face_up",
+        "motion_id": "my_motion_component",
+        "threshold": 0.85,
+        "duration": TimePeriod(milliseconds=100),
+    }
+    await binary_sensor_to_code(config)
+    mock_binary_sensor_codegen["get_variable"].assert_called_once_with(
+        "my_motion_component"
+    )
+    mock_binary_sensor_codegen["new_Pvariable"].assert_called_once()
+    mock_binary_sensor_codegen["register_binary_sensor"].assert_called_once_with(
+        mock_binary_sensor_codegen["var"], config
+    )
+    mock_binary_sensor_codegen["register_component"].assert_called_once_with(
+        mock_binary_sensor_codegen["var"], config
+    )
+    assert mock_binary_sensor_codegen["add"].call_count == 2
+
+
+@pytest.fixture
+def mock_event_codegen():
+    mock_var = MagicMock()
+    mock_parent = MagicMock()
+    with (
+        patch(
+            "esphome.components.motion.event.cg.get_variable",
+            new_callable=AsyncMock,
+            return_value=mock_parent,
+        ) as mock_get_var,
+        patch(
+            "esphome.components.motion.event.cg.new_Pvariable",
+            return_value=mock_var,
+        ) as mock_new_pvar,
+        patch(
+            "esphome.components.motion.event.event.register_event",
+            new_callable=AsyncMock,
+        ) as mock_reg_event,
+        patch(
+            "esphome.components.motion.event.cg.register_component",
+            new_callable=AsyncMock,
+        ) as mock_reg_comp,
+        patch(
+            "esphome.components.motion.event.cg.add",
+        ) as mock_add,
+    ):
+        yield {
+            "get_variable": mock_get_var,
+            "new_Pvariable": mock_new_pvar,
+            "register_event": mock_reg_event,
+            "register_component": mock_reg_comp,
+            "add": mock_add,
+            "var": mock_var,
+            "parent": mock_parent,
+        }
+
+
+@pytest.mark.asyncio
+async def test_event_to_code(mock_event_codegen):
+    from esphome.core import TimePeriod
+
+    config = {
+        "id": "my_event_id",
+        "motion_id": "my_motion_component",
+        "threshold": 0.5,
+        "cooldown": TimePeriod(milliseconds=500),
+    }
+    await event_to_code(config)
+    mock_event_codegen["get_variable"].assert_called_once_with("my_motion_component")
+    mock_event_codegen["new_Pvariable"].assert_called_once_with(
+        "my_event_id", mock_event_codegen["parent"]
+    )
+    mock_event_codegen["register_event"].assert_called_once_with(
+        mock_event_codegen["var"], config, event_types=["shake"]
+    )
+    mock_event_codegen["register_component"].assert_called_once_with(
+        mock_event_codegen["var"], config
+    )
+    assert mock_event_codegen["add"].call_count == 2
