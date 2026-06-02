@@ -592,6 +592,12 @@ class ScopedSourceGuard {
 // blocks the main loop and warns if it exceeds the threshold. It is coupled to App: the constructor
 // publishes the running unit's identity + dispatch time to App, and finish() / the cold warning path
 // read them back, so the guard stores no copy of them.
+//
+// INVARIANT: guards must not nest. The constructor publishes the execution context to App but does
+// not restore it on destruction, so a guard built while another is still timing would clobber the
+// outer one's component/source/start-time. This holds because the only two dispatch sites — the
+// Application::loop() component phase and Scheduler::execute_item_ — run units strictly sequentially
+// and are never re-entered from within a timed callback.
 class WarnIfComponentBlockingGuard {
  public:
   // Publishes the running unit's identity (component + deferred source) and dispatch time to App,
