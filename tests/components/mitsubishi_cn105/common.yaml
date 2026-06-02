@@ -3,6 +3,9 @@ climate:
     id: ac
     name: "AC Test"
     uart_id: uart_bus
+    update_interval: 30s
+    current_temperature_min_interval: 120s
+    supported_swing_modes: BOTH
 
 esphome:
   on_boot:
