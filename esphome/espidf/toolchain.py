@@ -35,9 +35,6 @@ def _cache() -> _CacheData:
 
 
 def _get_core_framework_version():
-    # Use the esp32 getter, which falls back to deriving the version from the
-    # config -- the logs/upload compiled-config cache skips validation, so
-    # CORE.data may not be populated (e.g. when decoding a crash stack trace).
     from esphome.components.esp32 import idf_version
 
     return str(idf_version())
