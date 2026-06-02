@@ -811,11 +811,10 @@ uint32_t HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
     component = item->component;
     source = nullptr;
   }
-  // Publish the running item's identity (component + deferred source) to App in one call.
-  App.set_current_execution_context_(component, source);
-  // Freshen so callbacks reading App.get_loop_component_start_time() see this item's dispatch time;
-  // the blocking guard reads this as its start time too.
-  App.set_loop_component_start_time_(now);
+  // Publish the running item's identity (component + deferred source) and dispatch time to App in
+  // one call: callbacks read App.get_loop_component_start_time(), and the blocking guard reads all
+  // of it back (start time + component/source) since it is constructed with no arguments.
+  App.set_current_execution_context_(component, source, now);
   WarnIfComponentBlockingGuard guard{};
   item->callback();
   uint32_t end = guard.finish();

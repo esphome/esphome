@@ -408,12 +408,15 @@ class Application {
   /// Freshen the cached loop component start time. Called by Scheduler before each dispatch.
   void set_loop_component_start_time_(uint32_t now) { this->loop_component_start_time_ = now; }
 
-  // The component and deferred source together identify what the scheduler is currently running, so
-  // it publishes both in one call when dispatching an item (a SELF_POINTER item has component
-  // nullptr + a source; a component item has a component + nullptr source). Friend-only (Scheduler).
-  void set_current_execution_context_(Component *component, const LogString *source) {
+  // Publish everything the scheduler must set before dispatching an item — the running unit's
+  // identity (component + deferred source; a SELF_POINTER item has component nullptr + a source, a
+  // component item has a component + nullptr source) and its dispatch time. Bundled into one call
+  // (which also freshens the loop start time) so a dispatch site can't set one without the others.
+  // Friend-only (Scheduler).
+  void set_current_execution_context_(Component *component, const LogString *source, uint32_t now) {
     this->current_component_ = component;
     this->current_source_ = source;
+    this->set_loop_component_start_time_(now);
   }
 
   /// Walk all registered components looking for any whose component_state_
