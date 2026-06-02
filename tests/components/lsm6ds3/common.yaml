@@ -49,6 +49,7 @@ sensor:
 
 motion:
   - platform: lsm6ds3
+    id: my_lsm6ds3
   # Accelerometer full-scale range: 2G | 4G | 8G | 16G
     accelerometer_range: 4G
 
@@ -61,3 +62,26 @@ motion:
       x: y
       y: x
       z: -z
+
+binary_sensor:
+  - platform: motion
+    motion_id: my_lsm6ds3
+    type: face_up
+    name: "LSM6DS3 Face Up"
+  - platform: motion
+    motion_id: my_lsm6ds3
+    type: face_down
+    name: "LSM6DS3 Face Down"
+  - platform: motion
+    motion_id: my_lsm6ds3
+    type: free_fall
+    name: "LSM6DS3 Free Fall"
+  - platform: motion
+    motion_id: my_lsm6ds3
+    type: moving
+    name: "LSM6DS3 Moving"
+
+event:
+  - platform: motion
+    motion_id: my_lsm6ds3
+    name: "LSM6DS3 Shake"
