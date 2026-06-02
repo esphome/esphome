@@ -7,6 +7,7 @@ static const char *const TAG = "remote.rc5";
 
 static constexpr uint32_t BIT_TIME_US = 889;
 static constexpr uint8_t NBITS = 14;
+static constexpr uint8_t NHALFBITS = NBITS * 2;
 
 void RC5Protocol::encode(RemoteTransmitData *dst, const RC5Data &data) {
   static bool toggle = false;
@@ -35,54 +36,98 @@ void RC5Protocol::encode(RemoteTransmitData *dst, const RC5Data &data) {
   }
   toggle = !toggle;
 }
-optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
-  RC5Data out{
-      .address = 0,
-      .command = 0,
+
+namespace {
+// Turn 28 Manchester half-bit levels (true = mark) into an RC5 frame.
+//
+// RC5 is bi-phase: each bit always transitions at its midpoint -- low->high is
+// a '1', high->low a '0'. The first start bit S1 is always 1, so if it decodes
+// as 0 the capture polarity was inverted (every bit flips) and we invert all 14
+// bits. This is what lets the same decoder handle a signal received at either
+// polarity (leading mark or leading space).
+optional<RC5Data> decode_halfbits(const bool *halfbits) {
+  uint16_t bits = 0;
+  for (uint8_t i = 0; i < NBITS; i++) {
+    const bool first = halfbits[2 * i];
+    const bool second = halfbits[2 * i + 1];
+    if (first == second)
+      return {};  // no midpoint transition -> not a valid Manchester bit
+    bits = (bits << 1) | (!first && second ? 1 : 0);
+  }
+
+  // S1 (MSB) is always 1; invert the whole frame if the polarity was flipped.
+  if (!(bits & (1 << 13)))
+    bits = static_cast<uint16_t>(~bits) & 0x3FFF;
+  if (!(bits & (1 << 13)))
+    return {};
+
+  const bool field_bit = bits & (1 << 12);  // S2: the inverted 7th command bit
+  return RC5Data{
+      .address = static_cast<uint8_t>((bits >> 6) & 0x1F),
+      .command = static_cast<uint8_t>((bits & 0x3F) | (field_bit ? 0 : 0x40)),
+      .toggle = static_cast<bool>(bits & (1 << 11)),
   };
-  uint8_t field_bit;
+}
+}  // namespace
 
-  if (src.expect_space(BIT_TIME_US) && src.expect_mark(BIT_TIME_US)) {
-    field_bit = 1;
-  } else if (src.expect_space(2 * BIT_TIME_US)) {
-    field_bit = 0;
-  } else {
-    return {};
-  }
-
-  if (!(((src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US)) ||
-         (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US))) &&
-        (((src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) &&
-          (src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US))) ||
-         ((src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) &&
-          (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US)))))) {
-    return {};
-  }
-
-  uint32_t out_data = 0;
-  for (int bit = NBITS - 4; bit >= 1; bit--) {
-    if ((src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) &&
-        (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US))) {
-      out_data |= 0 << bit;
-    } else if ((src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) &&
-               (src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US))) {
-      out_data |= 1 << bit;
+optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
+  // Expand the runs into half-bit levels (true = mark). Each run is exactly one
+  // half-bit (BIT_TIME_US) or two (2 * BIT_TIME_US); stop at anything else.
+  bool halfbits[NHALFBITS + 2];
+  uint8_t n = 0;
+  for (uint32_t i = 0; n <= NHALFBITS && src.is_valid(i); i++) {
+    if (src.peek_mark(BIT_TIME_US, i)) {
+      halfbits[n++] = true;
+    } else if (src.peek_space(BIT_TIME_US, i)) {
+      halfbits[n++] = false;
+    } else if (src.peek_mark(2 * BIT_TIME_US, i)) {
+      halfbits[n++] = true;
+      halfbits[n++] = true;
+    } else if (src.peek_space(2 * BIT_TIME_US, i)) {
+      halfbits[n++] = false;
+      halfbits[n++] = false;
     } else {
-      return {};
+      break;
     }
   }
-  if (src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) {
-    out_data |= 0;
-  } else if (src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) {
-    out_data |= 1;
-  }
 
-  out.command = (uint8_t) (out_data & 0x3F) + (1 - field_bit) * 64u;
-  out.address = (out_data >> 6) & 0x1F;
-  return out;
+  // A full frame is 28 half-bits, but the leading and/or trailing half-bit
+  // equals the idle level and can be absorbed (never captured), so 26-28 show
+  // up. A Manchester bit always transitions at its midpoint, so a missing edge
+  // half-bit is just the inverse of its partner -- reconstruct it. With a single
+  // missing half-bit we can't tell whether it was the leading or trailing one,
+  // so try both.
+  bool frame[NHALFBITS];
+  if (n == NHALFBITS) {
+    return decode_halfbits(halfbits);
+  }
+  if (n == NHALFBITS - 1) {
+    // leading half-bit absorbed: prepend the inverse of the first half-bit
+    frame[0] = !halfbits[0];
+    for (uint8_t i = 0; i < n; i++)
+      frame[i + 1] = halfbits[i];
+    if (auto result = decode_halfbits(frame))
+      return result;
+    // trailing half-bit absorbed: append the inverse of the last half-bit
+    for (uint8_t i = 0; i < n; i++)
+      frame[i] = halfbits[i];
+    frame[n] = !halfbits[n - 1];
+    return decode_halfbits(frame);
+  }
+  if (n == NHALFBITS - 2) {
+    // both leading and trailing half-bits absorbed
+    frame[0] = !halfbits[0];
+    for (uint8_t i = 0; i < n; i++)
+      frame[i + 1] = halfbits[i];
+    frame[NHALFBITS - 1] = !halfbits[n - 1];
+    return decode_halfbits(frame);
+  }
+  return {};
 }
+
 void RC5Protocol::dump(const RC5Data &data) {
-  ESP_LOGI(TAG, "Received RC5: address=0x%02X, command=0x%02X", data.address, data.command);
+  ESP_LOGI(TAG, "Received RC5: address=0x%02X, command=0x%02X, toggle=%s", data.address, data.command,
+           YESNO(data.toggle));
 }
 
 }  // namespace esphome::remote_base
