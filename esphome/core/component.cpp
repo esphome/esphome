@@ -493,7 +493,7 @@ uint32_t PollingComponent::get_update_interval() const { return this->update_int
 uint64_t ComponentRuntimeStats::global_recorded_us = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #endif
 
-void __attribute__((noinline, cold)) WarnIfComponentBlockingGuard::warn_blocking(uint32_t blocking_time) {
+void __attribute__((noinline, cold)) LoopBlockingGuard::warn_blocking(uint32_t blocking_time) {
   // Identity is published on App by the caller before the guard is built; read it back here.
   Component *component = App.get_current_component();
   // Component-less path always warns (the caller already checked the constant threshold).

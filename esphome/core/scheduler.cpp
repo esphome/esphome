@@ -810,7 +810,7 @@ uint32_t HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
     source = nullptr;
   }
   // Guard publishes the item's identity + dispatch time, then times the callback.
-  WarnIfComponentBlockingGuard guard{component, source, now};
+  LoopBlockingGuard guard{component, source, now};
   item->callback();
   uint32_t end = guard.finish();
   // Feed the watchdog after each scheduled item (both main heap and defer

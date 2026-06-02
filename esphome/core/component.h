@@ -118,7 +118,7 @@ struct ComponentRuntimeStats {
 
   // Cumulative sum of every record_time() duration since boot, across all
   // components. Used by Application::loop() to snapshot time spent inside
-  // WarnIfComponentBlockingGuard (including guards constructed by the
+  // LoopBlockingGuard (including guards constructed by the
   // scheduler at scheduler.cpp) so main-loop overhead accounting can
   // subtract scheduled-callback time from the before_loop_tasks_ wall time.
   static uint64_t global_recorded_us;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -571,7 +571,7 @@ class Component {
   volatile bool pending_enable_loop_{false};  ///< ISR-safe flag for enable_loop_soon_any_context
 #ifdef USE_RUNTIME_STATS
   friend class runtime_stats::RuntimeStatsCollector;
-  friend class WarnIfComponentBlockingGuard;
+  friend class LoopBlockingGuard;
   ComponentRuntimeStats runtime_stats_;
 #endif
 };
@@ -619,7 +619,7 @@ class PollingComponent : public Component {
   uint32_t update_interval_;
 };
 
-// WarnIfComponentBlockingGuard lives in application.h because it reads its state from App.
+// LoopBlockingGuard lives in application.h because it reads its state from App.
 
 // Function to clear setup priority overrides after all components are set up
 // Only has an implementation when USE_SETUP_PRIORITY_OVERRIDE is defined

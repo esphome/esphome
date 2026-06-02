@@ -397,7 +397,7 @@ class Application {
  protected:
   friend Component;
   friend class Scheduler;
-  friend class WarnIfComponentBlockingGuard;
+  friend class LoopBlockingGuard;
 #ifdef USE_RUNTIME_STATS
   friend class runtime_stats::RuntimeStatsCollector;
 #endif
@@ -590,11 +590,11 @@ class ScopedSourceGuard {
 // Guards must not nest: the constructor publishes to App but never restores on destruction, so a
 // nested guard would clobber the outer's context. Safe because the two dispatch sites (component
 // loop phase, execute_item_) run strictly sequentially and aren't re-entered from a timed callback.
-class WarnIfComponentBlockingGuard {
+class LoopBlockingGuard {
  public:
   // Publish the unit's identity + dispatch time, then start timing. The millis start lives in App,
   // so only the runtime-stats micros stamp is kept here.
-  WarnIfComponentBlockingGuard(Component *component, const LogString *source, uint32_t now) {
+  LoopBlockingGuard(Component *component, const LogString *source, uint32_t now) {
     App.set_current_execution_context_(component, source, now);
 #ifdef USE_RUNTIME_STATS
     this->started_us_ = micros();
@@ -626,7 +626,7 @@ class WarnIfComponentBlockingGuard {
     return curr_time;
   }
 
-  ~WarnIfComponentBlockingGuard() = default;
+  ~LoopBlockingGuard() = default;
 
 #ifdef USE_RUNTIME_STATS
  protected:
@@ -691,7 +691,7 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // before/tail splits recorded below.
   uint32_t loop_active_start_us = micros();
   // Snapshot the cumulative component-recorded time so we can subtract the
-  // slice that the scheduler spends inside its own WarnIfComponentBlockingGuard
+  // slice that the scheduler spends inside its own LoopBlockingGuard
   // (scheduler.cpp) — that time is already counted in per-component stats,
   // so charging it again to "before" would double-count.
   uint64_t loop_recorded_snap = ComponentRuntimeStats::global_recorded_us;
@@ -746,7 +746,7 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
 
       {
         // Guard publishes this component (no script source) + dispatch time, then times loop().
-        WarnIfComponentBlockingGuard guard{component, nullptr, last_op_end_time};
+        LoopBlockingGuard guard{component, nullptr, last_op_end_time};
         component->loop();
         // Use the finish method to get the current time as the end time
         last_op_end_time = guard.finish();
