@@ -48,15 +48,17 @@ TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, PublishesIncomingVaneModes
     SCOPED_TRACE(i);
     ctx.climate.status().vane_mode = modes[i];
     ctx.climate.apply_values_();
-    ASSERT_TRUE(ctx.select.active_index().has_value());
-    EXPECT_EQ(*ctx.select.active_index(), i);
+    const auto active_index = ctx.select.active_index();
+    ASSERT_TRUE(active_index.has_value());
+    EXPECT_EQ(*active_index, i);
     EXPECT_EQ(publish_count, i + 1);
   }
 
   ctx.climate.status().vane_mode = MitsubishiCN105::VaneMode::UNKNOWN;
   ctx.climate.apply_values_();
-  ASSERT_TRUE(ctx.select.active_index().has_value());
-  EXPECT_EQ(*ctx.select.active_index(), modes.size() - 1);
+  const auto active_index = ctx.select.active_index();
+  ASSERT_TRUE(active_index.has_value());
+  EXPECT_EQ(*active_index, modes.size() - 1);
 }
 
 TEST(MitsubishiCN105VerticalVaneDirectionSelectTests, BeforeInitializationDoesNotPublishClimateState) {
