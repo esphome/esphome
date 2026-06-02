@@ -429,10 +429,16 @@ class Scheduler {
   // Helper to execute a scheduler item
   uint32_t execute_item_(SchedulerItem *item, uint32_t now);
 
-  // Helper to check if item should be skipped
-  bool should_skip_item_(SchedulerItem *item) const {
-    return is_item_removed_(item) || (item->component != nullptr && item->component->is_failed());
+  // True if the item belongs to a failed component and should therefore not run.
+  // SELF_POINTER items (e.g. DelayAction) store the component for log attribution only, so they
+  // must always fire regardless of that component's failed state and are never skipped here.
+  bool is_item_failed_(SchedulerItem *item) const {
+    return item->component != nullptr && item->get_name_type() != NameType::SELF_POINTER &&
+           item->component->is_failed();
   }
+
+  // Helper to check if item should be skipped
+  bool should_skip_item_(SchedulerItem *item) const { return is_item_removed_(item) || this->is_item_failed_(item); }
 
   // Helper to recycle a SchedulerItem back to the pool.
   // Takes a raw pointer — caller transfers ownership. The item is either added to the
