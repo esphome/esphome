@@ -150,9 +150,7 @@ void MitsubishiCN105Climate::control(const climate::ClimateCall &call) {
     }
   }
 
-  if (this->hp_.is_status_initialized()) {
-    this->apply_values_();
-  }
+  this->apply_values_if_initialized_();
 }
 
 void MitsubishiCN105Climate::apply_values_() {
@@ -245,7 +243,7 @@ void MitsubishiCN105Climate::set_supported_swing_mode(climate::ClimateSwingMode 
 
 void MitsubishiCN105Climate::set_vertical_vane_direction(MitsubishiCN105::VaneMode direction) {
   this->hp_.set_vane_mode(direction);
-  this->apply_values_();
+  this->apply_values_if_initialized_();
 }
 
 }  // namespace esphome::mitsubishi_cn105

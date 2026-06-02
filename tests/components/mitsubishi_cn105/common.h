@@ -9,6 +9,7 @@
 #include "esphome/components/uart/uart_component.h"
 #include "esphome/components/mitsubishi_cn105/mitsubishi_cn105.h"
 #include "esphome/components/mitsubishi_cn105/mitsubishi_cn105_climate.h"
+#include "esphome/components/mitsubishi_cn105/mitsubishi_cn105_vane_select_vertical.h"
 
 namespace esphome::mitsubishi_cn105::testing {
 
@@ -67,6 +68,10 @@ class TestableMitsubishiCN105Climate : public MitsubishiCN105Climate {
   using MitsubishiCN105Climate::last_non_swing_wide_vane_mode_;
 
   MitsubishiCN105::Status &status() { return static_cast<TestableMitsubishiCN105 &>(this->hp_).status_; }
+  bool is_vane_update_pending() const {
+    return static_cast<const TestableMitsubishiCN105 &>(this->hp_).pending_updates_.contains(
+        TestableMitsubishiCN105::UpdateFlag::VANE);
+  }
 };
 
 }  // namespace esphome::mitsubishi_cn105::testing

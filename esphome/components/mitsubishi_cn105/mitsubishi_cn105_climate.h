@@ -39,6 +39,12 @@ class MitsubishiCN105Climate : public climate::Climate, public Component, public
  protected:
   void apply_values_();
 
+  void apply_values_if_initialized_() {
+    if (this->hp_.is_status_initialized()) {
+      this->apply_values_();
+    }
+  }
+
   MitsubishiCN105 hp_;
   climate::ClimateSwingModeMask supported_swing_modes_{};
   MitsubishiCN105::VaneMode last_non_swing_vane_mode_{MitsubishiCN105::VaneMode::AUTO};
