@@ -67,11 +67,13 @@ optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
   // is dropped too (n == 27). A dropped edge half is the inverse of its partner
   // (a Manchester bit always transitions mid-bit), so reconstruct the leading
   // half (always) and the trailing half (only when it was dropped).
-  if (n != NHALFBITS && n != NHALFBITS - 1)
+  if (n != NHALFBITS && n != NHALFBITS - 1) {
     return {};
+  }
   halfbits[0] = !halfbits[1];
-  if (n == NHALFBITS - 1)
+  if (n == NHALFBITS - 1) {
     halfbits[n] = !halfbits[n - 1];
+  }
 
   // Pair the 28 half-bits into 14 Manchester bits: low->high is a '1', high->low
   // a '0'. S1 (the MSB) is always 1, so if it decodes as 0 the capture polarity
@@ -81,14 +83,17 @@ optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
   for (uint8_t i = 0; i < NBITS; i++) {
     const bool first = halfbits[2 * i];
     const bool second = halfbits[2 * i + 1];
-    if (first == second)
+    if (first == second) {
       return {};  // no midpoint transition -> not a valid Manchester bit
+    }
     bits = (bits << 1) | (!first && second ? 1 : 0);
   }
-  if (!(bits & (1 << 13)))
+  if (!(bits & (1 << 13))) {
     bits = static_cast<uint16_t>(~bits) & 0x3FFF;
-  if (!(bits & (1 << 13)))
+  }
+  if (!(bits & (1 << 13))) {
     return {};
+  }
 
   const bool field_bit = bits & (1 << 12);  // S2: the inverted 7th command bit
   return RC5Data{
