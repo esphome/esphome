@@ -91,31 +91,21 @@ optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
     }
   }
 
-  // A full frame is 28 half-bits, but edge half-bits at the idle level are never
-  // captured (they merge into idle), so fewer show up. The leading half is
-  // always dropped: S1's first half is the idle level (the "off" half of the
-  // '1' start bit) at either polarity. The trailing half is also dropped when
-  // the final bit ends on the idle level. A dropped edge half is the inverse of
-  // its partner (a Manchester bit always transitions mid-bit), so reconstruct
-  // it to recover the full 28-half-bit frame.
+  // The leading half-bit is always dropped: S1 is 1, so its first half is the
+  // idle level (at either polarity) and merges into the pre-frame idle, giving
+  // 27 captured halves -- or 26 when the final bit also ends on idle and its
+  // trailing half is dropped too. A dropped edge half is the inverse of its
+  // partner (a Manchester bit always transitions mid-bit), so reconstruct the
+  // missing half-bits to recover the full 28-half-bit frame.
+  if (n != NHALFBITS - 1 && n != NHALFBITS - 2)
+    return {};
   bool frame[NHALFBITS];
-  if (n == NHALFBITS) {  // nothing dropped (not expected in practice)
-    return decode_halfbits(halfbits);
-  }
-  if (n == NHALFBITS - 1) {  // leading half dropped
-    frame[0] = !halfbits[0];
-    for (uint8_t i = 0; i < n; i++)
-      frame[i + 1] = halfbits[i];
-    return decode_halfbits(frame);
-  }
-  if (n == NHALFBITS - 2) {  // leading and trailing halves dropped
-    frame[0] = !halfbits[0];
-    for (uint8_t i = 0; i < n; i++)
-      frame[i + 1] = halfbits[i];
+  frame[0] = !halfbits[0];  // leading half (always dropped)
+  for (uint8_t i = 0; i < n; i++)
+    frame[i + 1] = halfbits[i];
+  if (n == NHALFBITS - 2)  // final bit ended on idle -> trailing half dropped too
     frame[NHALFBITS - 1] = !halfbits[n - 1];
-    return decode_halfbits(frame);
-  }
-  return {};
+  return decode_halfbits(frame);
 }
 
 void RC5Protocol::dump(const RC5Data &data) {
