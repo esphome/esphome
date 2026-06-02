@@ -72,7 +72,7 @@ def _file_schema(value: ConfigType | str) -> ConfigType:
 
 def _validate_file_shorthand(value: str) -> ConfigType:
     value = cv.string_strict(value)
-    if value.startswith("http://") or value.startswith("https://"):
+    if value.startswith(("http://", "https://")):
         return _file_schema(
             {
                 CONF_TYPE: TYPE_WEB,
@@ -98,7 +98,7 @@ def read_audio_file_and_type(file_config: ConfigType) -> tuple[bytes, MockObj]:
     else:
         raise cv.Invalid("Unsupported file source")
 
-    with open(path, "rb") as f:
+    with path.open("rb") as f:
         data = f.read()
 
     try:

@@ -129,9 +129,8 @@ def final_validate_esp32(config: ConfigType) -> ConfigType:
     if CONF_PARTITIONS in fv.full_config.get() and not isinstance(
         fv.full_config.get()[CONF_PARTITIONS], list
     ):
-        with open(
-            CORE.relative_config_path(fv.full_config.get()[CONF_PARTITIONS]),
-            encoding="utf8",
+        with CORE.relative_config_path(fv.full_config.get()[CONF_PARTITIONS]).open(
+            encoding="utf8"
         ) as f:
             partitions_tab = f.read()
             for partition, types in [

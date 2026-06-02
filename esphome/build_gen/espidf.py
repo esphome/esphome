@@ -24,7 +24,7 @@ def get_available_components() -> list[str] | None:
         return None
 
     try:
-        with open(project_desc, encoding="utf-8") as f:
+        with project_desc.open(encoding="utf-8") as f:
             data = json.load(f)
 
         component_info = data.get("build_component_info", {})
