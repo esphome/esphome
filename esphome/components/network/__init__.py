@@ -32,7 +32,11 @@ CONF_ENABLE_HIGH_PERFORMANCE = "enable_high_performance"
 # {"interface": "ethernet"}, in user-declared order.
 KEY_NETWORK_PRIORITY = "network_priority"
 
-VALID_NETWORK_TYPES = ["ethernet", "openthread", "wifi", "modem"]
+# Only interfaces whose component already calls get_network_priority() are
+# accepted in the priority list. openthread and modem will be added here when
+# they wire up their setup-priority consumer in their own to_code — see
+# NETWORK_PLAN.md for the full multi-interface roadmap.
+VALID_NETWORK_TYPES = ["ethernet", "wifi"]
 
 # Setup priority base values — first in list gets the highest priority.
 #
@@ -180,6 +184,32 @@ def get_network_priority(iface: str) -> float | None:
         if entry["interface"] == iface_lower:
             return NETWORK_PRIORITY_BASE - (idx * NETWORK_PRIORITY_STEP)
     return None
+
+
+def get_priority_interfaces() -> set[str]:
+    """Return the set of interface names declared in ``network: priority:``.
+
+    Reads from ``CORE.data[KEY_NETWORK_PRIORITY]`` and is intended for use
+    inside ``to_code`` (after the ``network`` coroutine has populated the
+    list). For final-validation use see
+    ``get_priority_interfaces_from_full_config``.  Returns an empty set if
+    no priority list was configured.
+    """
+    return {entry["interface"] for entry in CORE.data.get(KEY_NETWORK_PRIORITY, [])}
+
+
+def get_priority_interfaces_from_full_config(full_config) -> set[str]:
+    """Return the set of interface names declared in ``network: priority:``.
+
+    Reads from the full validated config (``fv.full_config.get()``) and is
+    intended for use inside ``FINAL_VALIDATE_SCHEMA`` hooks, before
+    ``to_code`` has run and ``CORE.data`` has been populated.  Returns an
+    empty set if no priority list was configured.
+    """
+    return {
+        entry["interface"]
+        for entry in full_config.get("network", {}).get(CONF_PRIORITY, [])
+    }
 
 
 def _validate_priority_list(value):

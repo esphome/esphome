@@ -4,6 +4,7 @@ import pytest
 from voluptuous import Invalid
 
 from esphome.components.network import (
+    KEY_NETWORK_PRIORITY,
     NETWORK_PRIORITY_BASE,
     NETWORK_PRIORITY_STEP,
     _validate_priority_list,
@@ -33,13 +34,20 @@ def test_normalizes_mixed_case_to_lowercase() -> None:
 
 
 def test_accepts_all_supported_interface_types() -> None:
-    result = _validate_priority_list(["ethernet", "wifi", "openthread", "modem"])
-    assert [e["interface"] for e in result] == [
-        "ethernet",
-        "wifi",
-        "openthread",
-        "modem",
-    ]
+    # Only ethernet and wifi are currently accepted. Other interface types
+    # (openthread, modem) will be added when their setup-priority consumers
+    # land — see NETWORK_PLAN.md.
+    result = _validate_priority_list(["ethernet", "wifi"])
+    assert [e["interface"] for e in result] == ["ethernet", "wifi"]
+
+
+def test_rejects_not_yet_supported_interface() -> None:
+    # openthread / modem are in the long-term roadmap but no setup-priority
+    # consumer is wired yet, so VALID_NETWORK_TYPES excludes them today.
+    with pytest.raises(Invalid):
+        _validate_priority_list(["ethernet", "openthread"])
+    with pytest.raises(Invalid):
+        _validate_priority_list(["wifi", "modem"])
 
 
 def test_single_interface_is_valid() -> None:
@@ -77,20 +85,20 @@ def test_get_network_priority_returns_none_when_unset() -> None:
 
 
 def test_get_network_priority_assigns_base_to_first_entry() -> None:
-    CORE.data["network_priority"] = _validate_priority_list(["ethernet", "wifi"])
+    CORE.data[KEY_NETWORK_PRIORITY] = _validate_priority_list(["ethernet", "wifi"])
     assert get_network_priority("ethernet") == NETWORK_PRIORITY_BASE
 
 
 def test_get_network_priority_steps_down_by_step_per_position() -> None:
-    CORE.data["network_priority"] = _validate_priority_list(["ethernet", "wifi"])
+    CORE.data[KEY_NETWORK_PRIORITY] = _validate_priority_list(["ethernet", "wifi"])
     assert get_network_priority("wifi") == NETWORK_PRIORITY_BASE - NETWORK_PRIORITY_STEP
 
 
 def test_get_network_priority_is_case_insensitive_on_query() -> None:
-    CORE.data["network_priority"] = _validate_priority_list(["ethernet"])
+    CORE.data[KEY_NETWORK_PRIORITY] = _validate_priority_list(["ethernet"])
     assert get_network_priority("Ethernet") == NETWORK_PRIORITY_BASE
 
 
 def test_get_network_priority_returns_none_for_unlisted_interface() -> None:
-    CORE.data["network_priority"] = _validate_priority_list(["ethernet"])
+    CORE.data[KEY_NETWORK_PRIORITY] = _validate_priority_list(["ethernet"])
     assert get_network_priority("wifi") is None

@@ -5,9 +5,9 @@ from esphome import automation, pins
 from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.network import (
-    CONF_PRIORITY,
-    KEY_NETWORK_PRIORITY,
     get_network_priority,
+    get_priority_interfaces,
+    get_priority_interfaces_from_full_config,
     ip_address_literal,
 )
 from esphome.config_helpers import filter_source_files_from_platform
@@ -597,11 +597,7 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
 
     # Disable WiFi when using Ethernet alone to save memory.
     # When network: priority: lists both interfaces, WiFi must remain enabled.
-    # CORE.data[KEY_NETWORK_PRIORITY] is a list of dicts, so check the
-    # 'interface' key on each entry rather than the dicts themselves.
-    priority_ifaces = {
-        entry["interface"] for entry in CORE.data.get(KEY_NETWORK_PRIORITY, [])
-    }
+    priority_ifaces = get_priority_interfaces()
     running_with_wifi = "wifi" in priority_ifaces and "ethernet" in priority_ifaces
     if not running_with_wifi:
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENABLED", False)
@@ -692,11 +688,8 @@ def _final_validate_rmii_pins(config: ConfigType) -> None:
 def _final_validate(config: ConfigType) -> ConfigType:
     """Final validation for Ethernet component."""
     # Allow ethernet + wifi coexistence only when both are declared in network: priority:.
-    # The priority list is a list of dicts ({"interface": str, "timeout": int|None}),
-    # so check the 'interface' key on each entry rather than the dicts themselves.
     full = fv.full_config.get()
-    net_priority = full.get("network", {}).get(CONF_PRIORITY, [])
-    priority_ifaces = {entry["interface"] for entry in net_priority}
+    priority_ifaces = get_priority_interfaces_from_full_config(full)
     has_priority_config = "ethernet" in priority_ifaces and "wifi" in priority_ifaces
     if "wifi" in full and not has_priority_config:
         raise cv.Invalid(
