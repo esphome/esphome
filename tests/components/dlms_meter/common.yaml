@@ -1,5 +1,6 @@
 dlms_meter:
   id: dlms_meter_hub
+  receive_timeout: 50ms
   decryption_key: "36C66639E48A8CA4D6BC8B282A793BBB"
   auth_key: "11223344556677889900AABBCCDDEEFF"
   skip_crc: true
