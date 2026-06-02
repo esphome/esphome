@@ -7,6 +7,12 @@ namespace esphome::bmi270 {
 
 static const char *const TAG = "bmi270";
 
+#if defined(USE_ARDUINO) && !defined(USE_ESP32)
+static const size_t MAX_I2C_BUFFER_SIZE = 32;
+#else
+static const size_t MAX_I2C_BUFFER_SIZE = 256;
+#endif
+
 //  Configuration blob upload
 // The BMI270 requires a firmware config blob to be written to its internal
 // memory after every power-on before sensors can be used.
@@ -21,12 +27,12 @@ bool BMI270Component::load_config_file_() {
   if (!this->write_byte(BMI270_REG_INIT_CTRL, 0x00))
     return false;
 
-  // 3. Burst-write the config in 256-byte pages
+  // 3. Burst-write the config in pages
   const uint8_t *cfg = BMI270_CONFIG_FILE;
   constexpr size_t cfg_len = sizeof(BMI270_CONFIG_FILE);
   size_t index = 0;
 
-  while (index < cfg_len) {
+  while (index != cfg_len) {
     // Set the page address in INIT_ADDR registers
     uint8_t addr_lsb = (uint8_t) ((index / 2) & 0x0F);
     uint8_t addr_msb = (uint8_t) ((index / 2) >> 4);
@@ -35,8 +41,8 @@ bool BMI270Component::load_config_file_() {
     if (!this->write_byte(BMI270_REG_INIT_ADDR_0 + 1, addr_msb))
       return false;
 
-    // Write a burst of up to 256 bytes
-    size_t burst = (cfg_len - index < 256) ? (cfg_len - index) : 256;
+    // Write a burst of up to the maximum allowed size
+    size_t burst = clamp_at_most(cfg_len - index, MAX_I2C_BUFFER_SIZE);
     if (this->write_register(BMI270_REG_INIT_DATA, cfg + index, burst) != i2c::ERROR_OK)
       return false;
 

@@ -24,7 +24,7 @@ CONFIG_SCHEMA = sensor.sensor_schema(
     device_class=DEVICE_CLASS_TEMPERATURE,
 ).extend(
     {
-        cv.Optional(CONF_TYPE): CONF_TEMPERATURE,
+        cv.Optional(CONF_TYPE): cv.one_of(CONF_TEMPERATURE),
         cv.GenerateID(CONF_BMI270_ID): cv.use_id(BMI270Component),
     }
 )
