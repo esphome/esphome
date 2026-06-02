@@ -40,8 +40,12 @@ void RC5Protocol::encode(RemoteTransmitData *dst, const RC5Data &data) {
 optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
   // Expand the runs into half-bit levels (true = mark). Each run is exactly one
   // half-bit (BIT_TIME_US) or two (2 * BIT_TIME_US); stop at anything else.
+  //
+  // halfbits[0] is reserved for the leading half-bit, which is always dropped --
+  // S1 is 1, so its first half sits at the idle level (at either polarity) and
+  // merges into the pre-frame idle. Captured half-bits start at index 1.
   bool halfbits[NHALFBITS + 2];
-  uint8_t n = 0;
+  uint8_t n = 1;
   for (uint32_t i = 0; n <= NHALFBITS && src.is_valid(i); i++) {
     if (src.peek_mark(BIT_TIME_US, i)) {
       halfbits[n++] = true;
@@ -58,20 +62,16 @@ optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
     }
   }
 
-  // The leading half-bit is always dropped: S1 is 1, so its first half is the
-  // idle level (at either polarity) and merges into the pre-frame idle, giving
-  // 27 captured halves -- or 26 when the final bit also ends on idle and its
-  // trailing half is dropped too. A dropped edge half is the inverse of its
-  // partner (a Manchester bit always transitions mid-bit), so reconstruct the
-  // missing half-bits to recover the full 28-half-bit frame.
-  if (n != NHALFBITS - 1 && n != NHALFBITS - 2)
+  // Expect a full frame once the leading half is restored: 27 captured halves
+  // (n == 28) or 26 when the final bit also ends on idle and its trailing half
+  // is dropped too (n == 27). A dropped edge half is the inverse of its partner
+  // (a Manchester bit always transitions mid-bit), so reconstruct the leading
+  // half (always) and the trailing half (only when it was dropped).
+  if (n != NHALFBITS && n != NHALFBITS - 1)
     return {};
-  bool frame[NHALFBITS];
-  frame[0] = !halfbits[0];  // leading half (always dropped)
-  for (uint8_t i = 0; i < n; i++)
-    frame[i + 1] = halfbits[i];
-  if (n == NHALFBITS - 2)  // final bit ended on idle -> trailing half dropped too
-    frame[NHALFBITS - 1] = !halfbits[n - 1];
+  halfbits[0] = !halfbits[1];
+  if (n == NHALFBITS - 1)
+    halfbits[n] = !halfbits[n - 1];
 
   // Pair the 28 half-bits into 14 Manchester bits: low->high is a '1', high->low
   // a '0'. S1 (the MSB) is always 1, so if it decodes as 0 the capture polarity
@@ -79,8 +79,8 @@ optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
   // lets one decoder handle a signal received at either polarity.
   uint16_t bits = 0;
   for (uint8_t i = 0; i < NBITS; i++) {
-    const bool first = frame[2 * i];
-    const bool second = frame[2 * i + 1];
+    const bool first = halfbits[2 * i];
+    const bool second = halfbits[2 * i + 1];
     if (first == second)
       return {};  // no midpoint transition -> not a valid Manchester bit
     bits = (bits << 1) | (!first && second ? 1 : 0);
