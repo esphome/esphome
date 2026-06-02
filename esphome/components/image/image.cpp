@@ -3,8 +3,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace image {
+namespace esphome::image {
 
 void Image::draw(int x, int y, display::Display *display, Color color_on, Color color_off) {
   int img_x0 = 0;
@@ -189,7 +188,7 @@ Color Image::get_rgb_pixel_(int x, int y) const {
 }
 Color Image::get_rgb565_pixel_(int x, int y) const {
   const uint8_t *pos = this->data_start_ + (x + y * this->width_) * this->bpp_ / 8;
-  uint16_t rgb565 = encode_uint16(progmem_read_byte(pos), progmem_read_byte(pos + 1));
+  uint16_t rgb565 = encode_uint16(progmem_read_byte(pos + 1), progmem_read_byte(pos));
   auto r = (rgb565 & 0xF800) >> 11;
   auto g = (rgb565 & 0x07E0) >> 5;
   auto b = rgb565 & 0x001F;
@@ -243,5 +242,4 @@ Image::Image(const uint8_t *data_start, int width, int height, ImageType type, T
   }
 }
 
-}  // namespace image
-}  // namespace esphome
+}  // namespace esphome::image

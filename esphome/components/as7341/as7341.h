@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace as7341 {
+namespace esphome::as7341 {
 
 static const uint8_t AS7341_CHIP_ID = 0x09;
 
@@ -139,5 +138,4 @@ class AS7341Component : public PollingComponent, public i2c::I2CDevice {
   uint16_t channel_readings_[12];
 };
 
-}  // namespace as7341
-}  // namespace esphome
+}  // namespace esphome::as7341

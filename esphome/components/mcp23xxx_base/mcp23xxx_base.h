@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace mcp23xxx_base {
+namespace esphome::mcp23xxx_base {
 
 enum MCP23XXXInterruptMode : uint8_t { MCP23XXX_NO_INTERRUPT = 0, MCP23XXX_CHANGE, MCP23XXX_RISING, MCP23XXX_FALLING };
 
@@ -21,7 +20,10 @@ template<uint8_t N> class MCP23XXXBase : public Component, public gpio_expander:
 
   void loop() override {
     this->reset_pin_cache_();
-    if (this->interrupt_pin_ != nullptr) {
+    // Only disable the loop once INT has actually gone HIGH. Input transitions that straddle the
+    // I2C read leave INT asserted without re-firing a falling edge, which would strand us with
+    // stale state forever; keep looping until the line is released so we self-heal.
+    if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read()) {
       this->disable_loop();
     }
   }
@@ -78,5 +80,4 @@ template<uint8_t N> class MCP23XXXGPIOPin : public GPIOPin {
   MCP23XXXInterruptMode interrupt_mode_;
 };
 
-}  // namespace mcp23xxx_base
-}  // namespace esphome
+}  // namespace esphome::mcp23xxx_base

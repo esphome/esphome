@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/pid/pid_climate.h"
 
-namespace esphome {
-namespace pid {
+namespace esphome::pid {
 
 enum PIDClimateSensorType {
   PID_SENSOR_TYPE_RESULT,
@@ -33,5 +32,4 @@ class PIDClimateSensor : public sensor::Sensor, public Component {
   PIDClimateSensorType type_;
 };
 
-}  // namespace pid
-}  // namespace esphome
+}  // namespace esphome::pid

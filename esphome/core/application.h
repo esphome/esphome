@@ -9,6 +9,10 @@
 #include <vector>
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+
+#if defined(USE_LWIP_FAST_SELECT) && defined(ESPHOME_THREAD_MULTI_ATOMICS)
+#include <atomic>  // for std::atomic_thread_fence in Application::loop()
+#endif
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
@@ -17,6 +21,10 @@
 #include "esphome/core/string_ref.h"
 #include "esphome/core/version.h"
 
+#ifdef USE_ESP32
+#include <sdkconfig.h>  // for CONFIG_ESP_TASK_WDT_TIMEOUT_S (drives WDT_FEED_INTERVAL_MS)
+#endif
+
 #ifdef USE_DEVICES
 #include "esphome/core/device.h"
 #endif
@@ -24,29 +32,11 @@
 #include "esphome/core/area.h"
 #endif
 
-#ifdef USE_LWIP_FAST_SELECT
-#include "esphome/core/lwip_fast_select.h"
-#endif
-#ifdef USE_HOST
-#include <sys/select.h>
-#include <sys/socket.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#endif
 #ifdef USE_RUNTIME_STATS
 #include "esphome/components/runtime_stats/runtime_stats.h"
 #endif
 #include "esphome/core/wake.h"
 #include "esphome/core/entity_includes.h"
-
-namespace esphome::socket {
-#ifdef USE_HOST
-/// Shared ready() helper for fd-based socket implementations.
-bool socket_ready_fd(int fd, bool loop_monitored);  // NOLINT(readability-redundant-declaration)
-#endif
-}  // namespace esphome::socket
 
 #ifdef USE_RUNTIME_STATS
 namespace esphome::runtime_stats {
@@ -82,11 +72,9 @@ class Application {
   void pre_setup(char *name, size_t name_len, char *friendly_name, size_t friendly_name_len) {
     arch_init();
     this->name_add_mac_suffix_ = true;
-    // MAC address length: 12 hex chars + null terminator
-    constexpr size_t mac_address_len = 13;
     // MAC address suffix length (last 6 characters of 12-char MAC address string)
     constexpr size_t mac_address_suffix_len = 6;
-    char mac_addr[mac_address_len];
+    char mac_addr[MAC_ADDRESS_BUFFER_SIZE];
     get_mac_address_into_buffer(mac_addr);
     // Overwrite the placeholder suffix in the mutable static buffers with actual MAC
     // name is always non-empty (validated by validate_hostname in Python config)
@@ -119,10 +107,19 @@ class Application {
   void set_current_component(Component *component) { this->current_component_ = component; }
   Component *get_current_component() { return this->current_component_; }
 
-// Entity register methods (generated from entity_types.h)
+// Entity register methods (generated from entity_types.h).
+// Each entity type gets two overloads:
+//   - register_<entity>(obj)                              — bare push_back
+//   - register_<entity>(obj, name, hash, fields)          — configure_entity_ + push_back
+// The 4-arg form lets codegen collapse `App.register_<entity>(obj); obj->configure_entity_(...);`
+// into a single call site, saving flash and a `main.cpp` line per entity.
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper) \
-  void register_##singular(type *obj) { this->plural##_.push_back(obj); }
+  void register_##singular(type *obj) { this->plural##_.push_back(obj); } \
+  void register_##singular(type *obj, const char *name, uint32_t object_id_hash, uint32_t entity_fields) { \
+    obj->configure_entity_(name, object_id_hash, entity_fields); \
+    this->plural##_.push_back(obj); \
+  }
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
   ENTITY_TYPE_(type, singular, plural, count, upper)
 #include "esphome/core/entity_types.h"
@@ -229,23 +226,80 @@ class Application {
 
   void schedule_dump_config() { this->dump_config_at_ = 0; }
 
-  /// Minimum interval between real arch_feed_wdt() calls. Chosen to keep the
-  /// rate of HAL pokes low while still being small enough that any plausible
-  /// watchdog timeout (seconds) has orders of magnitude of safety margin.
-  static constexpr uint32_t WDT_FEED_INTERVAL_MS = 3;
+  /// Minimum interval between real arch_feed_wdt() calls. Sized so the outer
+  /// feed in Application::loop() is effectively rate-limited across both the
+  /// normal ~62 Hz cadence and worst-case wake-storm scenarios (e.g. external
+  /// stacks like OpenThread posting frequent wake notifications). Component
+  /// loops and scheduler items still feed after every op, so any op exceeding
+  /// this threshold triggers a real feed naturally.
+  /// Safety margins vs. platform watchdog timeouts:
+  ///   - ESP32 task WDT (user-configurable):  ~5x   <-- auto-scaled below
+  ///   - ESP8266 soft WDT (~1.6 s):           ~16x  <-- 100 ms feed (see USE_ESP8266 below)
+  ///   - ESP8266 HW WDT (~6 s):               ~60x
+  ///   - BK72xx HW WDT (10 s):                ~5x   <-- platform override below
+#ifdef USE_BK72XX
+  // BDK busy-waits 200us per WDT reload (sctrl_dpll_delay200us). LibreTiny
+  // sets HW WDT to 10s; 2000ms keeps ~5x margin. See wdt_ctrl WCMD_RELOAD_PERIOD:
+  // https://github.com/libretiny-eu/framework-beken-bdk/blob/44800e7451ea30fbcbd3bb6e905315de59349fee/beken378/driver/wdt/wdt.c#L75-L87
+  static constexpr uint32_t WDT_FEED_INTERVAL_MS = 2000;
+#elif defined(USE_ESP32)
+  // Auto-scale to 1/5 of the configured ESP32 task WDT timeout so the safety
+  // margin stays constant when the user raises esp32.watchdog_timeout (default
+  // 5 s → 1000 ms feed; 10 s → 2000 ms; 60 s → 12000 ms). The esp32 component
+  // writes CONFIG_ESP_TASK_WDT_TIMEOUT_S into sdkconfig (range is validated
+  // to ≥ 5 s in esp32/__init__.py), giving us the value at compile time.
+  // esp_task_wdt_reset() takes a spinlock and walks the WDT task list, so
+  // each call costs tens of microseconds; longer intervals materially reduce
+  // the main-loop's wdt bucket. Component loops and scheduler items still
+  // feed after every op, so any op exceeding this threshold triggers a real
+  // feed naturally regardless of the rate-limit.
+  static_assert(CONFIG_ESP_TASK_WDT_TIMEOUT_S >= 5,
+                "CONFIG_ESP_TASK_WDT_TIMEOUT_S must be at least 5s for a safe WDT feed interval");
+  static constexpr uint32_t WDT_FEED_INTERVAL_MS = (CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000U) / 5U;
+#elif defined(USE_ESP8266)
+  // ESP8266 needs a tighter feed cadence than the other targets: the soft WDT
+  // is ~1.6 s and the HW WDT ~6 s, but a single long iteration (mDNS reply,
+  // wifi scan, OTA verify, lwIP TCP retransmit storm) can push the loop past
+  // a few hundred ms without giving the SDK a chance to feed. 100 ms keeps a
+  // ~16x margin to the soft WDT and ~60x to the HW WDT while still avoiding
+  // the per-iteration arch_feed_wdt() cost (this is the rate limit; component
+  // loops and scheduler items still feed after every op).
+  static constexpr uint32_t WDT_FEED_INTERVAL_MS = 100;
+#else
+  static constexpr uint32_t WDT_FEED_INTERVAL_MS = 300;
+#endif
 
   /// Feed the task watchdog. Cold entry — callers without a millis()
   /// timestamp in hand. Out of line to keep call sites tiny.
   void feed_wdt();
 
+#ifdef USE_STATUS_LED
+  /// Dispatch interval for the status LED update. Deliberately shorter than
+  /// WDT_FEED_INTERVAL_MS because the status LED error blink has a 250 ms
+  /// period (status_led.cpp:ERROR_PERIOD_MS) and a 150 ms on-window; the
+  /// dispatch cadence must be short enough to render that blink without
+  /// aliasing. Sampling every 100 ms yields an on/off observation inside
+  /// every error period with headroom for the 250 ms warning on-window.
+  static constexpr uint32_t STATUS_LED_DISPATCH_INTERVAL_MS = 100;
+#endif
+
   /// Feed the task watchdog, hot entry. Callers that already have a
   /// millis() timestamp pay only a load + sub + branch on the common
-  /// (no-op) path. The actual arch feed + status LED update live in
-  /// feed_wdt_slow_.
+  /// (no-op) path. The actual arch feed lives in feed_wdt_slow_.
+  /// When USE_STATUS_LED is compiled in, also gates a separate (shorter)
+  /// interval for dispatching status_led so the LED blink pattern stays
+  /// readable even though arch_feed_wdt pokes are now rate-limited at
+  /// WDT_FEED_INTERVAL_MS. The two rate limits are independent so raising
+  /// WDT_FEED_INTERVAL_MS does not distort the LED cadence.
   void ESPHOME_ALWAYS_INLINE feed_wdt_with_time(uint32_t time) {
     if (static_cast<uint32_t>(time - this->last_wdt_feed_) > WDT_FEED_INTERVAL_MS) [[unlikely]] {
       this->feed_wdt_slow_(time);
     }
+#ifdef USE_STATUS_LED
+    if (static_cast<uint32_t>(time - this->last_status_led_service_) > STATUS_LED_DISPATCH_INTERVAL_MS) [[unlikely]] {
+      this->service_status_led_slow_(time);
+    }
+#endif
   }
 
   void reboot();
@@ -318,28 +372,19 @@ class Application {
 
   Scheduler scheduler;
 
-  /// Register/unregister a socket to be monitored for read events.
-  /// WARNING: These functions are NOT thread-safe. They must only be called from the main loop.
-#ifdef USE_LWIP_FAST_SELECT
-  /// Fast select path: hooks netconn callback and registers for monitoring.
-  /// @return true if registration was successful, false if sock is null
-  bool register_socket(struct lwip_sock *sock);
-  void unregister_socket(struct lwip_sock *sock);
-#elif defined(USE_HOST)
-  /// Fallback select() path: monitors file descriptors.
-  /// NOTE: File descriptors >= FD_SETSIZE (typically 10 on ESP) will be rejected with an error.
-  /// @return true if registration was successful, false if fd exceeds limits
-  bool register_socket_fd(int fd);
-  void unregister_socket_fd(int fd);
-#endif
-
   /// Wake the main event loop from another thread or callback.
   /// @see esphome::wake_loop_threadsafe() in wake.h for platform details.
   void wake_loop_threadsafe() { esphome::wake_loop_threadsafe(); }
 
-#ifdef USE_ESP32
-  /// Wake from ISR (ESP32 only).
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  /// Wake from ISR (ESP32 and LibreTiny).
   static void IRAM_ATTR wake_loop_isrsafe(BaseType_t *px) { esphome::wake_loop_isrsafe(px); }
+#elif defined(USE_ESP8266)
+  /// Wake from ISR (ESP8266). No task_woken arg — no FreeRTOS. Caller must be IRAM_ATTR.
+  static void IRAM_ATTR ESPHOME_ALWAYS_INLINE wake_loop_isrsafe() { esphome::wake_loop_isrsafe(); }
+#elif defined(USE_ZEPHYR)
+  /// Wake from ISR (Zephyr). No task_woken arg — k_sem_give() handles ISR scheduling internally.
+  static void wake_loop_isrsafe() { esphome::wake_loop_isrsafe(); }
 #endif
 
   /// Wake from any context (ISR, thread, callback).
@@ -347,21 +392,15 @@ class Application {
 
  protected:
   friend Component;
-#ifdef USE_HOST
-  friend bool socket::socket_ready_fd(int fd, bool loop_monitored);
-#endif
+  friend class Scheduler;
 #ifdef USE_RUNTIME_STATS
   friend class runtime_stats::RuntimeStatsCollector;
 #endif
   friend void ::setup();
   friend void ::original_setup();
-#ifdef USE_HOST
-  friend void wake_loop_threadsafe();  // Host platform accesses wake_socket_fd_
-#endif
 
-#ifdef USE_HOST
-  bool is_socket_ready_(int fd) const { return FD_ISSET(fd, &this->read_fds_); }
-#endif
+  /// Freshen the cached loop component start time. Called by Scheduler before each dispatch.
+  void set_loop_component_start_time_(uint32_t now) { this->loop_component_start_time_ = now; }
 
   /// Walk all registered components looking for any whose component_state_
   /// has the given flag set. Used by Component::status_clear_*_slow_path_()
@@ -371,7 +410,11 @@ class Application {
 
   /// Register a component, detecting loop() override at compile time.
   /// Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance.
-  template<typename T> void register_component_(T *comp) {
+  /// Optionally sets the component source index in the same call to avoid emitting
+  /// a separate set_component_source_() line in generated code.
+  template<typename T> void register_component_(T *comp, uint8_t source_index = 0) {
+    if (source_index != 0)
+      comp->set_component_source_(source_index);
     this->register_component_impl_(comp, HasLoopOverride<T>::value);
   }
 
@@ -399,30 +442,40 @@ class Application {
   void enable_component_loop_(Component *component);
   void enable_pending_loops_();
   void activate_looping_component_(uint16_t index);
-  inline void ESPHOME_ALWAYS_INLINE before_loop_tasks_(uint32_t loop_start_time);
-  inline void ESPHOME_ALWAYS_INLINE after_loop_tasks_() { this->in_loop_ = false; }
+  inline uint32_t ESPHOME_ALWAYS_INLINE scheduler_tick_(uint32_t now);
+
+  // RAII guard for a component loop phase. Constructor processes any pending
+  // enable_loop requests from ISRs and marks in_loop_ so reentrant
+  // modifications during component.loop() are safe; destructor clears in_loop_.
+  class ComponentPhaseGuard {
+   public:
+    inline ESPHOME_ALWAYS_INLINE explicit ComponentPhaseGuard(Application &app);
+    inline ESPHOME_ALWAYS_INLINE ~ComponentPhaseGuard() { this->app_.in_loop_ = false; }
+    ComponentPhaseGuard(const ComponentPhaseGuard &) = delete;
+    ComponentPhaseGuard &operator=(const ComponentPhaseGuard &) = delete;
+
+   private:
+    Application &app_;
+  };
 
   /// Process dump_config output one component per loop iteration.
   /// Extracted from loop() to keep cold startup/reconnect logging out of the hot path.
   /// Caller must ensure dump_config_at_ < components_.size().
   void __attribute__((noinline)) process_dump_config_();
 
-  /// Slow path for feed_wdt(): actually calls arch_feed_wdt(), updates
-  /// last_wdt_feed_, and re-dispatches the status LED. Out of line so the
-  /// inline wrapper stays tiny.
+  /// Slow path for feed_wdt(): actually calls arch_feed_wdt() and updates
+  /// last_wdt_feed_. Out of line so the inline wrapper stays tiny. Does NOT
+  /// touch status_led — that's gated separately via service_status_led_slow_
+  /// because the two rate limits have very different safe ranges (~ seconds
+  /// for WDT, < 250 ms for LED blink rendering).
   void feed_wdt_slow_(uint32_t time);
 
-  /// Perform a delay while also monitoring socket file descriptors for readiness
-#ifdef USE_HOST
-  // select() fallback path is too complex to inline (host platform)
-  void yield_with_select_(uint32_t delay_ms);
-#else
-  inline void ESPHOME_ALWAYS_INLINE yield_with_select_(uint32_t delay_ms);
-#endif
-
-#ifdef USE_HOST
-  void setup_wake_loop_threadsafe_();       // Create wake notification socket
-  inline void drain_wake_notifications_();  // Read pending wake notifications in main loop (hot path - inlined)
+#ifdef USE_STATUS_LED
+  /// Slow path for the status_led dispatch rate limit. Runs the status_led
+  /// component's loop() based on its state (LOOP / LOOP_DONE with status
+  /// bits set), and updates last_status_led_service_. Out of line to keep
+  /// the feed_wdt_with_time hot path a couple of load+branch sequences.
+  void service_status_led_slow_(uint32_t time);
 #endif
 
   // === Member variables ordered by size to minimize padding ===
@@ -448,14 +501,6 @@ class Application {
   //   and active_end_ is incremented
   // - This eliminates branch mispredictions from flag checking in the hot loop
   FixedVector<Component *> looping_components_{};
-#ifdef USE_LWIP_FAST_SELECT
-  std::vector<struct lwip_sock *> monitored_sockets_;  // Cached lwip_sock pointers for direct rcvevent read
-#elif defined(USE_HOST)
-  std::vector<int> socket_fds_;  // Vector of all monitored socket file descriptors
-#endif
-#ifdef USE_HOST
-  int wake_socket_fd_{-1};  // Shared wake notification socket for waking main loop from tasks
-#endif
 
   // StringRef members (8 bytes each: pointer + size)
   StringRef name_;
@@ -465,9 +510,9 @@ class Application {
   uint32_t last_loop_{0};
   uint32_t loop_component_start_time_{0};
   uint32_t last_wdt_feed_{0};  // millis() of most recent arch_feed_wdt(); rate-limits feed_wdt() hot path
-
-#ifdef USE_HOST
-  int max_fd_{-1};  // Highest file descriptor number for select()
+#ifdef USE_STATUS_LED
+  // millis() of most recent status_led dispatch; rate-limits independently of last_wdt_feed_
+  uint32_t last_status_led_service_{0};
 #endif
 
   // 2-byte members (grouped together for alignment)
@@ -481,16 +526,6 @@ class Application {
   bool name_add_mac_suffix_;
   bool in_loop_{false};
   volatile bool has_pending_enable_loop_requests_{false};
-
-#ifdef USE_HOST
-  bool socket_fds_changed_{false};  // Flag to rebuild base_read_fds_ when socket_fds_ changes
-#endif
-
-#ifdef USE_HOST
-  // Variable-sized members (not needed with fast select — is_socket_ready_ reads rcvevent directly)
-  fd_set read_fds_{};       // Working fd_set: populated by select()
-  fd_set base_read_fds_{};  // Cached fd_set rebuilt only when socket_fds_ changes
-#endif
 
   // StaticVectors (largest members - contain actual array data inline)
   StaticVector<Component *, ESPHOME_COMPONENT_COUNT> components_{};
@@ -519,46 +554,28 @@ class Application {
 /// Global storage of Application pointer - only one Application can exist.
 extern Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+// Phase A: drain wake notifications and run the scheduler. Invoked on every
+// Application::loop() tick regardless of whether a component phase runs, so
+// scheduler items fire at their requested cadence even when the caller has
+// raised loop_interval_ for power savings (see Application::loop()).
+// Returns the timestamp of the last scheduler item that ran (or `now`
+// unchanged if none ran), so the caller's WDT feed stays monotonic with the
+// per-item feeds inside scheduler.call() without an extra millis().
+inline uint32_t ESPHOME_ALWAYS_INLINE Application::scheduler_tick_(uint32_t now) {
 #ifdef USE_HOST
-// Inline implementations for hot-path functions
-// drain_wake_notifications_() is called on every loop iteration
-
-// Small buffer for draining wake notification bytes (1 byte sent per wake)
-// Size allows draining multiple notifications per recvfrom() without wasting stack
-static constexpr size_t WAKE_NOTIFY_DRAIN_BUFFER_SIZE = 16;
-
-inline void Application::drain_wake_notifications_() {
-  // Called from main loop to drain any pending wake notifications
-  // Must check is_socket_ready_() to avoid blocking on empty socket
-  if (this->wake_socket_fd_ >= 0 && this->is_socket_ready_(this->wake_socket_fd_)) {
-    char buffer[WAKE_NOTIFY_DRAIN_BUFFER_SIZE];
-    // Drain all pending notifications with non-blocking reads
-    // Multiple wake events may have triggered multiple writes, so drain until EWOULDBLOCK
-    // We control both ends of this loopback socket (always write 1 byte per wake),
-    // so no error checking needed - any errors indicate catastrophic system failure
-    while (::recvfrom(this->wake_socket_fd_, buffer, sizeof(buffer), 0, nullptr, nullptr) > 0) {
-      // Just draining, no action needed - wake has already occurred
-    }
-  }
-}
-#endif  // USE_HOST
-
-inline void ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_start_time) {
-#ifdef USE_HOST
-  // Drain wake notifications first to clear socket for next wake
-  this->drain_wake_notifications_();
+  // Drain wake notifications first to clear socket for next wake.
+  wake_drain_notifications();
 #endif
+  return this->scheduler.call(now);
+}
 
-  // Process scheduled tasks. Scheduler::call now feeds the watchdog itself
-  // after each scheduled item that actually runs, so we no longer need an
-  // unconditional feed here — when Scheduler::call has no work to do, the
-  // only elapsed time is a sleep wake + a few instructions, and when it does
-  // have work, it fed the wdt as it went.
-  this->scheduler.call(loop_start_time);
-
+// Phase B entry: only invoked when a component loop phase is about to run.
+// Processes pending enable_loop requests from ISRs and marks in_loop_ so
+// reentrant modifications during component.loop() are safe.
+inline ESPHOME_ALWAYS_INLINE Application::ComponentPhaseGuard::ComponentPhaseGuard(Application &app) : app_(app) {
   // Process any pending enable_loop requests from ISRs
   // This must be done before marking in_loop_ = true to avoid race conditions
-  if (this->has_pending_enable_loop_requests_) {
+  if (this->app_.has_pending_enable_loop_requests_) {
     // Clear flag BEFORE processing to avoid race condition
     // If ISR sets it during processing, we'll catch it next loop iteration
     // This is safe because:
@@ -566,93 +583,157 @@ inline void ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_
     // 2. If we can't process a component (wrong state), enable_pending_loops_()
     //    will set this flag back to true
     // 3. Any new ISR requests during processing will set the flag again
-    this->has_pending_enable_loop_requests_ = false;
-    this->enable_pending_loops_();
+    this->app_.has_pending_enable_loop_requests_ = false;
+    this->app_.enable_pending_loops_();
   }
 
   // Mark that we're in the loop for safe reentrant modifications
-  this->in_loop_ = true;
+  this->app_.in_loop_ = true;
 }
 
 inline void ESPHOME_ALWAYS_INLINE Application::loop() {
-  // Get the initial loop time at the start
-  uint32_t last_op_end_time = millis();
-
-  this->before_loop_tasks_(last_op_end_time);
-
-  for (this->current_loop_index_ = 0; this->current_loop_index_ < this->looping_components_active_end_;
-       this->current_loop_index_++) {
-    Component *component = this->looping_components_[this->current_loop_index_];
-
-    // Update the cached time before each component runs
-    this->loop_component_start_time_ = last_op_end_time;
-
-    {
-      this->set_current_component(component);
-      WarnIfComponentBlockingGuard guard{component, last_op_end_time};
-      component->loop();
-      // Use the finish method to get the current time as the end time
-      last_op_end_time = guard.finish();
-    }
-    this->feed_wdt_with_time(last_op_end_time);
-  }
-
-  this->after_loop_tasks_();
+#if defined(USE_LWIP_FAST_SELECT) && defined(ESPHOME_THREAD_MULTI_ATOMICS)
+  // Pairs with the TCP/IP thread's SYS_ARCH_UNPROTECT release on rcvevent so
+  // subsequent Socket::ready() checks in this iter observe the published state
+  // without a per-call memw. Wake is independent (xTaskNotifyGive/
+  // ulTaskNotifyTake), so non-losing. Skipped on MULTI_NO_ATOMICS (e.g.
+  // BK72xx) — that path keeps `volatile` in esphome_lwip_socket_has_data()
+  // instead.
+  std::atomic_thread_fence(std::memory_order_acquire);
+#endif
+#ifdef USE_RUNTIME_STATS
+  // Capture the start of the active (non-sleeping) portion of this iteration.
+  // Used to derive main-loop overhead = active time − Σ(component time) −
+  // before/tail splits recorded below.
+  uint32_t loop_active_start_us = micros();
+  // Snapshot the cumulative component-recorded time so we can subtract the
+  // slice that the scheduler spends inside its own WarnIfComponentBlockingGuard
+  // (scheduler.cpp) — that time is already counted in per-component stats,
+  // so charging it again to "before" would double-count.
+  uint64_t loop_recorded_snap = ComponentRuntimeStats::global_recorded_us;
+#endif
+  // Phase A: always service the scheduler. Decouples scheduler cadence from
+  // loop_interval_ so raised intervals (for power savings) don't drag scheduled
+  // items forward. A tick that only runs the scheduler is cheap.
+  // scheduler_tick_ returns the timestamp of the last scheduler item that ran
+  // (advanced by its per-item feeds) or `now` unchanged. We adopt it as `now`
+  // so the gate check and WDT feed both reflect actual elapsed time after
+  // scheduler dispatch, without an extra millis() call.
+  uint32_t now = this->scheduler_tick_(MillisInternal::get());
+  // Guarantee one WDT feed per tick even when the scheduler had nothing to
+  // dispatch and the component phase is gated out — covers configs with no
+  // looping components and no scheduler work (setup() has its own
+  // per-component feed_wdt calls, so only do this here, not in scheduler_tick_).
+  this->feed_wdt_with_time(now);
 
 #ifdef USE_RUNTIME_STATS
-  // Process any pending runtime stats printing after all components have run
-  // This ensures stats printing doesn't affect component timing measurements
+  uint32_t loop_before_end_us = micros();
+  uint64_t loop_before_scheduled_us = ComponentRuntimeStats::global_recorded_us - loop_recorded_snap;
+  // Only meaningful when do_component_phase is true; initialized to 0 so the
+  // tail bucket receives 0 on Phase A-only ticks (no component tail happened,
+  // the gate-check / stats-prefix overhead belongs to "residual", not "tail").
+  uint32_t loop_tail_start_us = 0;
+#endif
+
+  // Gate the component phase on loop_interval_, an active high-frequency
+  // request, or an explicit wake from a background producer. A scheduler-only
+  // wake (e.g. set_interval firing under a raised loop_interval_) leaves the
+  // component phase gated; an external producer that called wake_loop_*
+  // (MQTT RX, USB RX, BLE event, etc.) needs the component phase to actually
+  // run so its component's loop() can drain the queued work — that is the
+  // long-standing semantic of wake_loop_threadsafe(), and the wake_request
+  // flag preserves it. wake_request_take() exchange-clears the flag; wakes
+  // that arrive during Phase B re-set it and run Phase B again on the next
+  // iteration.
+  //
+  // wake_request_take() must always be called first since it does an
+  // atomic exchange to clear the flag, and we want to run the component phase
+  // if either the flag was set or the scheduler requested a high-frequency loop.
+  const bool do_component_phase = esphome::wake_request_take() || HighFrequencyLoopRequester::is_high_frequency() ||
+                                  (now - this->last_loop_ >= this->loop_interval_);
+
+  if (do_component_phase) {
+    ComponentPhaseGuard phase_guard{*this};
+
+    uint32_t last_op_end_time = now;
+    for (this->current_loop_index_ = 0; this->current_loop_index_ < this->looping_components_active_end_;
+         this->current_loop_index_++) {
+      Component *component = this->looping_components_[this->current_loop_index_];
+
+      // Update the cached time before each component runs
+      this->loop_component_start_time_ = last_op_end_time;
+
+      {
+        this->set_current_component(component);
+        WarnIfComponentBlockingGuard guard{component, last_op_end_time};
+        component->loop();
+        // Use the finish method to get the current time as the end time
+        last_op_end_time = guard.finish();
+      }
+      this->feed_wdt_with_time(last_op_end_time);
+    }
+
+#ifdef USE_RUNTIME_STATS
+    loop_tail_start_us = micros();
+#endif
+    this->last_loop_ = last_op_end_time;
+    now = last_op_end_time;
+    // phase_guard destructor clears in_loop_ at scope exit
+  }
+
+#ifdef USE_RUNTIME_STATS
+  // Record per-tick timing on every loop, not just component-phase ticks.
+  // record_loop_active is a small accumulator; process_pending_stats is an
+  // inline gate check that early-outs unless now >= next_log_time_.
   if (global_runtime_stats != nullptr) {
-    global_runtime_stats->process_pending_stats(last_op_end_time);
+    uint32_t loop_now_us = micros();
+    // Subtract scheduled-component time from the "before" bucket so it is
+    // not double-counted (it is already attributed to per-component stats).
+    uint32_t loop_before_wall_us = loop_before_end_us - loop_active_start_us;
+    uint32_t loop_before_overhead_us = loop_before_wall_us > loop_before_scheduled_us
+                                           ? loop_before_wall_us - static_cast<uint32_t>(loop_before_scheduled_us)
+                                           : 0;
+    // tail_us is only defined when Phase B ran; 0 on Phase A-only ticks so the
+    // stats bucket keeps its "component-phase trailing overhead" meaning.
+    uint32_t loop_tail_us = do_component_phase ? (loop_now_us - loop_tail_start_us) : 0;
+    global_runtime_stats->record_loop_active(loop_now_us - loop_active_start_us, loop_before_overhead_us, loop_tail_us);
+    global_runtime_stats->process_pending_stats(now);
   }
 #endif
 
-  // Use the last component's end time instead of calling millis() again
+  // Compute sleep: bounded by time-until-next-component-phase and the
+  // scheduler's next deadline. When a scheduler timer fires it re-enters
+  // loop(), Phase A services it, and the component phase stays gated by
+  // loop_interval_. When a background producer calls wake_loop_threadsafe()
+  // it sets the wake_request flag and wakes select() / the task notification;
+  // the gate above sees the flag and runs Phase B too so the producer's
+  // component can drain its queued work without waiting up to loop_interval_.
+  //
+  // Re-read HighFrequencyLoopRequester::is_high_frequency() here instead of
+  // reusing the cached `high_frequency` captured above: a component calling
+  // HighFrequencyLoopRequester::start() from within its loop() would
+  // otherwise sit under the stale value and sleep for up to loop_interval_
+  // before the request took effect. That was fine pre-decoupling (the old
+  // main loop also called the function fresh at the sleep point) but now
+  // matters much more — loop_interval_ is a power-saving knob documented
+  // to accept multi-second values, so the stale path could add seconds of
+  // latency on an HF request. The call is a trivial atomic read.
   uint32_t delay_time = 0;
-  auto elapsed = last_op_end_time - this->last_loop_;
-  if (elapsed < this->loop_interval_ && !HighFrequencyLoopRequester::is_high_frequency()) {
-    delay_time = this->loop_interval_ - elapsed;
-    uint32_t next_schedule = this->scheduler.next_schedule_in(last_op_end_time).value_or(delay_time);
-    // next_schedule is max 0.5*delay_time
-    // otherwise interval=0 schedules result in constant looping with almost no sleep
-    next_schedule = std::max(next_schedule, delay_time / 2);
-    delay_time = std::min(next_schedule, delay_time);
+  if (!HighFrequencyLoopRequester::is_high_frequency()) {
+    const uint32_t elapsed_since_phase = now - this->last_loop_;
+    const uint32_t until_phase =
+        (elapsed_since_phase >= this->loop_interval_) ? 0 : (this->loop_interval_ - elapsed_since_phase);
+    const uint32_t until_sched = this->scheduler.next_schedule_in(now).value_or(until_phase);
+    delay_time = std::min(until_phase, until_sched);
   }
-  this->yield_with_select_(delay_time);
-  this->last_loop_ = last_op_end_time;
+  // All platforms route loop yields through the platform wake primitive.
+  // On host this drains the loopback wake socket via select(); on FreeRTOS
+  // targets it uses task notifications; on ESP8266/RP2040 it uses esp_delay/WFE.
+  esphome::internal::wakeable_delay(delay_time);
 
   if (this->dump_config_at_ < this->components_.size()) {
     this->process_dump_config_();
   }
 }
-
-// Inline yield_with_select_ for all paths except the select() fallback
-#ifndef USE_HOST
-inline void ESPHOME_ALWAYS_INLINE Application::yield_with_select_(uint32_t delay_ms) {
-#ifdef USE_LWIP_FAST_SELECT
-  // Fast path (ESP32/LibreTiny): reads rcvevent directly from cached lwip_sock pointers.
-  // Safe because this runs on the main loop which owns socket lifetime (create, read, close).
-  if (delay_ms == 0) [[unlikely]] {
-    yield();
-    return;
-  }
-
-  // Check if any socket already has pending data before sleeping.
-  // If a socket still has unread data (rcvevent > 0) but the task notification was already
-  // consumed, ulTaskNotifyTake would block until timeout — adding up to delay_ms latency.
-  // This scan preserves select() semantics: return immediately when any fd is ready.
-  for (struct lwip_sock *sock : this->monitored_sockets_) {
-    if (esphome_lwip_socket_has_data(sock)) {
-      yield();
-      return;
-    }
-  }
-
-  // Sleep with instant wake via FreeRTOS task notification.
-  // Woken by: callback wrapper (socket data), wake_loop_threadsafe() (background tasks), or timeout.
-#endif
-  esphome::internal::wakeable_delay(delay_ms);
-}
-#endif  // !USE_HOST
 
 }  // namespace esphome

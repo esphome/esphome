@@ -451,7 +451,7 @@ class SPIDevice : public SPIClient {
 
   uint8_t read_byte() { return this->delegate_->transfer(0); }
 
-  void read_array(uint8_t *data, size_t length) { return this->delegate_->read_array(data, length); }
+  void read_array(uint8_t *data, size_t length) { this->delegate_->read_array(data, length); }
 
   /**
    * Write a single data item, up to 32 bits.

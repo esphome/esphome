@@ -5,8 +5,7 @@
 #include <cinttypes>
 #include <cstring>
 
-namespace esphome {
-namespace rf_bridge {
+namespace esphome::rf_bridge {
 
 static const char *const TAG = "rf_bridge";
 
@@ -243,5 +242,4 @@ void RFBridgeComponent::beep(uint16_t ms) {
   this->flush();
 }
 
-}  // namespace rf_bridge
-}  // namespace esphome
+}  // namespace esphome::rf_bridge
