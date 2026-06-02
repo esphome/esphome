@@ -153,7 +153,7 @@ template<uint32_t OPERANDS> bool Decoder::do_operand_() {
   }
 }
 
-#define APPEND_LINE(...) (length_ = buf_append_printf(line_.data(), line_.size(), length_, __VA_ARGS__))
+#define APPEND_LINE(...) (length_ = buf_append_printf(line_, size_, length_, __VA_ARGS__))
 
 /**
  * List of specialised operand decode functions, one function per operand type.
@@ -441,16 +441,19 @@ const char *Decoder::find_opcode_name_(uint32_t opcode) const {
 bool Decoder::append_operand_(const char *word, uint8_t offset_incr /* default 1 */) {
   APPEND_LINE("[%s]", word);
   offset_ += offset_incr;
-  return (length_ < line_.size()) && (offset_ < frame_.size());
+  return (length_ < size_) && (offset_ < frame_.size());
 }
 
 /**
  * Entry function 'decode' to call for full decode of a CEC frame
  */
-const char *Decoder::decode() {
-  // prepare text buffer as empty
-  length_ = 0;         // currently accumulated length of text of operands
-  line_[length_] = 0;  // initialise operand text to empty string
+int Decoder::decode() {
+  // prepare text buffer state variables for an empty line
+  length_ = 0;            // currently accumulated length of text of operands
+  line_[length_] = '\0';  // initialise output text to empty string
+
+  if (!line_ || !size_)
+    return 0;
 
   // print src and dest fields into 'line_'
   address_decode_();
@@ -473,7 +476,7 @@ const char *Decoder::decode() {
     OperandDecode_f f = frametype->decode_f_;
     (this->*f)();  // call one of the above 'do_operand_<xx>' methods
   }
-  return line_.data();
+  return length_;
 }
 
 }  // namespace hdmi_cec

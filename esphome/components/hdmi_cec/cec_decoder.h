@@ -53,8 +53,15 @@ template<typename KeyT, typename ValueT, unsigned int SIZE> class LookupTable {
  */
 class Decoder {
  public:
-  Decoder(const Frame &frame) : frame_(frame), length_(0), offset_(2) {}
-  const char *decode();
+  Decoder(const Frame &frame, char *line, unsigned int size)
+      : frame_(frame), line_(line), size_(size), length_(0), offset_(2) {}
+
+  /**
+   * Create a one-line textual representation of the Frame content for logging and debugging
+   * Store the text in the earlier provided 'line' buffer
+   * @return the length of the written text, excluding the terminating null character
+   */
+  int decode();
 
  protected:
   const char *find_opcode_name_(uint32_t opcode) const;
@@ -80,9 +87,10 @@ class Decoder {
   using VendorIdTable = LookupTable<uint32_t, const char *, 28>;
 
   const Frame &frame_;
-  std::array<char, 256> line_;  // to hold the text of the decoded frame
-  unsigned int length_;         // currently accumulated length of output text in 'line'
-  unsigned int offset_;  // current offset in frame to process next operand byte(s) (frame[0] and [1] are skipped)
+  char *const line_;         // buffer to hold the text of the decoded frame
+  const unsigned int size_;  // size of the 'line_' buffer
+  unsigned int length_;      // currently accumulated length of output text in 'line'
+  unsigned int offset_;      // current offset in frame to process next operand byte(s) (frame[0] and [1] are skipped)
 
   /**
    * The HDMI CEC standard specifies a set of distinct operand (parameter) types,

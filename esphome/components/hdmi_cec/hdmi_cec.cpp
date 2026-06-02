@@ -46,25 +46,22 @@ void Frame::set_header(uint8_t initiator_addr, uint8_t target_addr) {
     size_ = 1;
 }
 
-std::string Frame::to_string() const {
-  static constexpr unsigned int HEX_LINE_SIZE = Frame::MAX_LENGTH * 3 + 1;
-  char hex_line[HEX_LINE_SIZE];
+int Frame::to_text(char *line, unsigned int size) const {
   unsigned int offset = 0;
   for (int i = 0; i < size_; i++) {
-    offset = buf_append_printf(hex_line, HEX_LINE_SIZE, offset, "%02X:", data_[i]);
+    offset = buf_append_printf(line, size, offset, "%02X:", data_[i]);
   }
   // clear last printed ':'
   if (offset > 0)
-    hex_line[offset - 1] = '\0';
-  std::string result{hex_line};
+    line[--offset] = '\0';
 
 #ifdef HDMI_CEC_USE_DECODER
-  Decoder decoder(*this);
-  result += " => ";
-  result += decoder.decode();
+  offset = buf_append_printf(line, size, offset, " => ");
+  Decoder decoder(*this, line + offset, size - offset);
+  offset += decoder.decode();
 #endif
 
-  return result;
+  return offset;
 }
 
 void HDMICEC::setup() {
@@ -110,8 +107,11 @@ void HDMICEC::handle_received_message_(const Frame *frame) {
     return;
   }
 
-  auto frame_str = frame->to_string();
-  ESP_LOGD(TAG, "Received: %s", frame_str.c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+  std::array<char, 256> line;
+  frame->to_text(line.data(), (unsigned int) (line.size()));
+  ESP_LOGD(TAG, "Received: %s", line.data());
+#endif
 
   std::vector<uint8_t> data(frame->size() - 1);
   for (int i = 1; i < frame->size(); i++)
@@ -362,9 +362,15 @@ void CECTransmit::transmit_message() {
   // Launch the transmit of the frame that is on the front of the queue
   transmit_state_ = TransmitState::BUSY;
   transmit_attempts_++;
+
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
   if (transmit_attempts_ <= 1) {
-    ESP_LOGD(TAG, "Sending: %s", (frame->to_string()).c_str());
+    std::array<char, 256> line;
+    frame->to_text(line.data(), (unsigned int) (line.size()));
+    ESP_LOGD(TAG, "Sending: %s", line.data());
   }
+#endif
+
   // Reset info from receiver on progress of this transmit
   // (The receiver will see this transmit and keep track of acknowledge bits.)
   n_bytes_received_ = 0;
@@ -573,7 +579,7 @@ void IRAM_ATTR CECTransmit::got_byte_eom_ack(bool eom, bool ack) {
   if (eom) {
     // some bus transfer ended. When the bus is free for a little while, we are allowed to transmit.
     required_idle_period_ = SIGNAL_FREE_TIME_AFTER_RECEIVE;
-    ATOMIC_SET(receiver_is_busy_, false);
+    ATOMIC_SET(receiver_is_busy_, false);  // unblock the transmitter
     ATOMIC_SET(eom_received_, true);  // atomic write to synchronize/commit above increments to the transmitter thread
   }
 }

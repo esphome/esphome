@@ -57,7 +57,15 @@ class Frame {
       data_[size_++] = data;
     }
   }
-  std::string to_string() const;  // NOLINT
+
+  /**
+   * Create a one-line textual representation of the Frame content for logging and debugging
+   * @param line: a buffer in which the text is to be written
+   * @param size: The size of this buffer not to exceed with text
+   * @return the length of the written text, excluding the terminating null character
+   */
+  int to_text(char *line, unsigned int size) const;
+
   constexpr static unsigned int MAX_LENGTH = 16;
   constexpr static unsigned int MAX_PAYLOAD_LENGTH = MAX_LENGTH - 1;  // subtract 1 byte for the src&dst field
 
