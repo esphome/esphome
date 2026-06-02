@@ -619,65 +619,8 @@ class PollingComponent : public Component {
   uint32_t update_interval_;
 };
 
-// millis() and micros() are available via hal.h
-
-class WarnIfComponentBlockingGuard {
- public:
-  // `source` overrides the logged name when set (e.g. the owning script of a deferred action); it
-  // is stored as a cheap pointer and only resolved on the cold warning path, so the hot path that
-  // constructs a guard per component loop pays nothing extra.
-  WarnIfComponentBlockingGuard(Component *component, uint32_t start_time, const LogString *source = nullptr)
-      : started_(start_time),
-        component_(component),
-        source_(source)
-#ifdef USE_RUNTIME_STATS
-        ,
-        started_us_(micros())
-#endif
-  {
-  }
-
-  // Finish the timing operation and return the current time (millis)
-  // Inlined: the fast path is just millis() + subtract + compare
-  inline uint32_t HOT finish() {
-#ifdef USE_RUNTIME_STATS
-    uint32_t elapsed_us = micros() - this->started_us_;
-    // component_ is nullptr for self-keyed scheduler items (set_timeout/set_interval(self, ...))
-    if (this->component_ != nullptr) {
-      this->component_->runtime_stats_.record_time(elapsed_us);
-    } else {
-      // Still accumulate into the global counter so Application::loop() can subtract
-      // this time from before_loop_tasks_ wall time.
-      ComponentRuntimeStats::global_recorded_us += elapsed_us;
-    }
-#endif
-    uint32_t curr_time = MillisInternal::get();
-#ifndef USE_BENCHMARK
-    // Fast path: compare against constant threshold in ms (computed at compile time from centiseconds)
-    static constexpr uint32_t WARN_IF_BLOCKING_OVER_MS = static_cast<uint32_t>(WARN_IF_BLOCKING_OVER_CS) * 10U;
-    uint32_t blocking_time = curr_time - this->started_;
-    if (blocking_time > WARN_IF_BLOCKING_OVER_MS) [[unlikely]] {
-      warn_blocking(this->component_, this->source_, blocking_time);
-    }
-#endif
-    return curr_time;
-  }
-
-  ~WarnIfComponentBlockingGuard() = default;
-
- protected:
-  uint32_t started_;
-  Component *component_;
-  const LogString *source_;
-#ifdef USE_RUNTIME_STATS
-  uint32_t started_us_;
-#endif
-
- private:
-  // Cold path for blocking warning - defined in component.cpp
-  static void __attribute__((noinline, cold))
-  warn_blocking(Component *component, const LogString *source, uint32_t blocking_time);
-};
+// WarnIfComponentBlockingGuard lives in application.h: it reads the running unit's identity
+// (current component / source / dispatch time) directly from App, which is not visible here.
 
 // Function to clear setup priority overrides after all components are set up
 // Only has an implementation when USE_SETUP_PRIORITY_OVERRIDE is defined

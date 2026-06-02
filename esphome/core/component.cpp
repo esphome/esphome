@@ -493,23 +493,25 @@ uint32_t PollingComponent::get_update_interval() const { return this->update_int
 uint64_t ComponentRuntimeStats::global_recorded_us = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #endif
 
-void __attribute__((noinline, cold))
-WarnIfComponentBlockingGuard::warn_blocking(Component *component, const LogString *source, uint32_t blocking_time) {
-  // Default threshold for the source/null path (no component to consult); the caller already
-  // checked blocking_time > WARN_IF_BLOCKING_OVER_MS, so always warn in that case.
+void __attribute__((noinline, cold)) WarnIfComponentBlockingGuard::warn_blocking(uint32_t blocking_time) {
+  // The currently-running unit's identity is published on App by the caller (component loop or
+  // scheduler dispatch) before the guard is constructed; read it back here on the cold path.
+  Component *component = App.get_current_component();
+  // Default threshold for the component-less path; the caller already checked
+  // blocking_time > WARN_IF_BLOCKING_OVER_MS, so always warn in that case.
   uint32_t threshold_ms = WARN_IF_BLOCKING_OVER_MS;
   if (component != nullptr && !component->should_warn_of_blocking(blocking_time, threshold_ms)) {
     return;  // Component's (possibly ratcheted) threshold not exceeded yet
   }
-  // Prefer an explicit source (e.g. the owning script of a deferred action), then the component
-  // name, then a generic label for component-less scheduled work.
+  // Prefer the component name; for component-less deferred work fall back to the published source
+  // (e.g. the owning script), then a generic label.
   const LogString *name;
-  if (source != nullptr) {
-    name = source;
-  } else if (component != nullptr) {
+  if (component != nullptr) {
     name = component->get_component_log_str();
   } else {
-    name = LOG_STR("a scheduled task");
+    name = App.get_current_source();
+    if (name == nullptr)
+      name = LOG_STR("a scheduled task");
   }
   ESP_LOGW(TAG, "%s took a long time for an operation (%" PRIu32 " ms), max is %" PRIu32 " ms", LOG_STR_ARG(name),
            blocking_time, threshold_ms);

@@ -113,14 +113,6 @@ class Application {
   void set_current_source(const LogString *source) { this->current_source_ = source; }
   const LogString *get_current_source() { return this->current_source_; }
 
-  // The component and deferred source together identify what the scheduler is currently running, so
-  // it publishes both in one call when dispatching an item (a SELF_POINTER item has component
-  // nullptr + a source; a component item has a component + nullptr source).
-  void set_current_execution_context(Component *component, const LogString *source) {
-    this->current_component_ = component;
-    this->current_source_ = source;
-  }
-
 // Entity register methods (generated from entity_types.h).
 // Each entity type gets two overloads:
 //   - register_<entity>(obj)                              — bare push_back
@@ -416,6 +408,14 @@ class Application {
   /// Freshen the cached loop component start time. Called by Scheduler before each dispatch.
   void set_loop_component_start_time_(uint32_t now) { this->loop_component_start_time_ = now; }
 
+  // The component and deferred source together identify what the scheduler is currently running, so
+  // it publishes both in one call when dispatching an item (a SELF_POINTER item has component
+  // nullptr + a source; a component item has a component + nullptr source). Friend-only (Scheduler).
+  void set_current_execution_context_(Component *component, const LogString *source) {
+    this->current_component_ = component;
+    this->current_source_ = source;
+  }
+
   /// Walk all registered components looking for any whose component_state_
   /// has the given flag set. Used by Component::status_clear_*_slow_path_()
   /// (which is a friend) to decide whether to clear the corresponding bit on
@@ -585,6 +585,62 @@ class ScopedSourceGuard {
   const LogString *prev_;
 };
 
+// RAII guard that measures how long one unit of work (a component loop() or a scheduled callback)
+// blocks the main loop and warns if it exceeds the threshold. It is fully coupled to App: callers
+// publish the running unit's component/source (set_current_component / set_current_execution_context_)
+// and its dispatch time (set_loop_component_start_time_) before constructing the guard, so nothing
+// needs to be passed in — the guard reads them back from App.
+class WarnIfComponentBlockingGuard {
+ public:
+  WarnIfComponentBlockingGuard()
+      : started_(App.get_loop_component_start_time())
+#ifdef USE_RUNTIME_STATS
+        ,
+        started_us_(micros())
+#endif
+  {
+  }
+
+  // Finish the timing operation and return the current time (millis)
+  // Inlined: the fast path is just millis() + subtract + compare
+  inline uint32_t HOT finish() {
+#ifdef USE_RUNTIME_STATS
+    uint32_t elapsed_us = micros() - this->started_us_;
+    // current component is nullptr for self-keyed scheduler items (delays); accumulate those into
+    // the global counter so Application::loop() can subtract them from before_loop_tasks_ wall time.
+    Component *component = App.get_current_component();
+    if (component != nullptr) {
+      component->runtime_stats_.record_time(elapsed_us);
+    } else {
+      ComponentRuntimeStats::global_recorded_us += elapsed_us;
+    }
+#endif
+    uint32_t curr_time = MillisInternal::get();
+#ifndef USE_BENCHMARK
+    // Fast path: compare against constant threshold in ms (computed at compile time from centiseconds)
+    static constexpr uint32_t WARN_IF_BLOCKING_OVER_MS = static_cast<uint32_t>(WARN_IF_BLOCKING_OVER_CS) * 10U;
+    uint32_t blocking_time = curr_time - this->started_;
+    if (blocking_time > WARN_IF_BLOCKING_OVER_MS) [[unlikely]] {
+      warn_blocking(blocking_time);
+    }
+#endif
+    return curr_time;
+  }
+
+  ~WarnIfComponentBlockingGuard() = default;
+
+ protected:
+  uint32_t started_;
+#ifdef USE_RUNTIME_STATS
+  uint32_t started_us_;
+#endif
+
+ private:
+  // Cold path for blocking warning - defined in component.cpp. Reads the current component/source
+  // from App to name what blocked.
+  static void __attribute__((noinline, cold)) warn_blocking(uint32_t blocking_time);
+};
+
 // Phase A: drain wake notifications and run the scheduler. Invoked on every
 // Application::loop() tick regardless of whether a component phase runs, so
 // scheduler items fire at their requested cadence even when the caller has
@@ -700,7 +756,7 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
 
       {
         this->set_current_component(component);
-        WarnIfComponentBlockingGuard guard{component, last_op_end_time};
+        WarnIfComponentBlockingGuard guard{};
         component->loop();
         // Use the finish method to get the current time as the end time
         last_op_end_time = guard.finish();
