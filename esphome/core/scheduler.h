@@ -437,8 +437,6 @@ class Scheduler {
 
   // Helper to execute a scheduler item
   uint32_t execute_item_(SchedulerItem *item, uint32_t now);
-  // Out-of-line handler for SELF_POINTER (deferred) items; keeps execute_item_'s common path lean.
-  uint32_t execute_deferred_item_(SchedulerItem *item, uint32_t now);
 
   // True if the item belongs to a failed component and must not run. Uses get_component() so
   // SELF_POINTER items (which have no owning component) are never skipped — a delay must fire

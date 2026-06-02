@@ -796,31 +796,26 @@ Scheduler::SchedulerItem *HOT Scheduler::pop_raw_locked_() {
   return item;
 }
 
-// Out-of-line handler for SELF_POINTER (deferred, e.g. DelayAction) items. These have no owning
-// component; their union slot holds a source name (the owning script) that is published for
-// blocking-warning attribution and reset afterward. Kept out of line (noinline) so execute_item_'s
-// common component-owned path stays exactly as lean as it was before source attribution existed.
-uint32_t __attribute__((noinline)) Scheduler::execute_deferred_item_(SchedulerItem *item, uint32_t now) {
-  App.set_current_component(nullptr);
-  // Publish the source so a delay chained in the callback re-captures it and the blocking warning
-  // (which reads App.get_current_source() for component-less work) can name the owning script.
-  App.set_current_source(item->source_name);
-  WarnIfComponentBlockingGuard guard{nullptr, now};
-  item->callback();
-  uint32_t end = guard.finish();
-  App.set_current_source(nullptr);  // reset so later items / automations don't inherit this source
-  App.feed_wdt_with_time(end);
-  return end;
-}
-
 // Helper to execute a scheduler item
 uint32_t HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
+  // Resolve the component and (for SELF_POINTER/deferred items) the source name from the shared
+  // union slot with a single name-type check. Self-keyed items have no owning component; their slot
+  // holds the source name (e.g. the owning script), published so deferred work chained inside the
+  // callback re-captures it and the blocking warning can name the script instead of "<null>".
+  Component *component;
+  const LogString *source;
+  if (item->get_name_type() == NameType::SELF_POINTER) {
+    component = nullptr;
+    source = item->source_name;
+  } else {
+    component = item->component;
+    source = nullptr;
+  }
+  App.set_current_component(component);
+  App.set_current_source(source);
   // Freshen so callbacks reading App.get_loop_component_start_time() see this item's dispatch time.
   App.set_loop_component_start_time_(now);
-  if (item->get_name_type() == NameType::SELF_POINTER) [[unlikely]]
-    return this->execute_deferred_item_(item, now);
-  App.set_current_component(item->component);
-  WarnIfComponentBlockingGuard guard{item->component, now};
+  WarnIfComponentBlockingGuard guard{component, now, source};
   item->callback();
   uint32_t end = guard.finish();
   // Feed the watchdog after each scheduled item (both main heap and defer
