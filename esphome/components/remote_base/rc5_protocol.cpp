@@ -75,10 +75,12 @@ optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
     halfbits[n] = !halfbits[n - 1];
   }
 
-  // Pair the 28 half-bits into 14 Manchester bits: low->high is a '1', high->low
-  // a '0'. S1 (the MSB) is always 1, so if it decodes as 0 the capture polarity
-  // was inverted (every bit flips) and we invert all 14 bits -- this is what
-  // lets one decoder handle a signal received at either polarity.
+  // halfbits[1] is S1's "on" half (its leading "off" half was the dropped one),
+  // so it is the carrier level whatever the receive polarity is. Decoding each
+  // Manchester bit relative to the carrier (idle->carrier is a '1', carrier->idle
+  // a '0') makes S1 decode as 1 by construction and handles either polarity with
+  // no inversion step.
+  const bool carrier = halfbits[1];
   uint16_t bits = 0;
   for (uint8_t i = 0; i < NBITS; i++) {
     const bool first = halfbits[2 * i];
@@ -86,13 +88,7 @@ optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
     if (first == second) {
       return {};  // no midpoint transition -> not a valid Manchester bit
     }
-    bits = (bits << 1) | (!first && second ? 1 : 0);
-  }
-  if (!(bits & (1 << 13))) {
-    bits = static_cast<uint16_t>(~bits) & 0x3FFF;
-  }
-  if (!(bits & (1 << 13))) {
-    return {};
+    bits = (bits << 1) | (second == carrier ? 1 : 0);
   }
 
   const bool field_bit = bits & (1 << 12);  // S2: the inverted 7th command bit
