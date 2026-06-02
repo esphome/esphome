@@ -32,9 +32,11 @@ from esphome.components.motion.sensor import (
     _ACCELERATIONS,
     _ANGULAR_RATES,
     _GYROSCOPES,
+    CONF_ORIENTATION,
     CONF_PITCH,
     CONF_ROLL,
     CONFIG_SCHEMA,
+    DEFAULT_FLAT_THRESHOLD,
     build_sensor_expr,
 )
 from esphome.const import CONF_ID, CONF_ON_ERROR, CONF_ON_SUCCESS
@@ -334,6 +336,32 @@ class TestSensorExpressions:
         assert "std::numbers::pi_v<float>" in expr
         # Pitch negates the x component
         assert "(-data.acceleration[0])" in expr
+
+    def test_orientation_expression_default_threshold(self):
+        """Without config, orientation uses the default flat threshold (in degrees),
+        passed to the helper as the sine of the angle."""
+        import math
+
+        expr = _expr_str("orientation")
+        assert "orientation_degrees(data" in expr
+        expected = round(math.sin(math.radians(DEFAULT_FLAT_THRESHOLD)), 6)
+        assert str(expected) in expr
+
+    def test_orientation_expression_custom_threshold(self):
+        """The configured flat_threshold (degrees) is converted to a sine and passed
+        to the helper."""
+        import math
+
+        from esphome.components.motion.sensor import CONF_FLAT_THRESHOLD
+
+        expr = str(
+            build_sensor_expr(
+                CONF_ORIENTATION, MockObj("data"), {CONF_FLAT_THRESHOLD: 45}
+            )
+        )
+        assert "orientation_degrees(data" in expr
+        expected = round(math.sin(math.radians(45)), 6)  # 0.707107
+        assert str(expected) in expr
 
 
 # --- Calibration math ---
@@ -893,7 +921,10 @@ class TestSensorConfigSchema:
 
     @pytest.mark.parametrize(
         "sensor_type",
-        _ACCELERATIONS + _GYROSCOPES + _ANGULAR_RATES + [CONF_PITCH, CONF_ROLL],
+        _ACCELERATIONS
+        + _GYROSCOPES
+        + _ANGULAR_RATES
+        + [CONF_PITCH, CONF_ROLL, CONF_ORIENTATION],
     )
     def test_valid_types_accepted(self, sensor_type):
         """Valid sensor types should pass type validation (errors from missing

@@ -46,6 +46,10 @@ sensor:
   - platform: motion
     type: roll
     name: "Roll"
+  - platform: motion
+    type: orientation
+    name: "Orientation"
+    flat_threshold: 30
 
 motion:
   - platform: lsm6ds3

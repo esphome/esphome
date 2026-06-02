@@ -6,6 +6,7 @@
 #include "esphome/core/preferences.h"
 #include <array>
 #include <cmath>
+#include <numbers>
 
 namespace esphome::motion {
 
@@ -22,6 +23,33 @@ class MotionData {
 static constexpr uint8_t X_AXIS = 0;
 static constexpr uint8_t Y_AXIS = 1;
 static constexpr uint8_t Z_AXIS = 2;
+
+/// Compute the device's in-plane orientation from the gravity vector.
+///
+/// Returns NAN when the device is flat (lying face up or face down), i.e. when the
+/// horizontal component of gravity, normalised by the total acceleration, is below
+/// `flat_threshold` (the sine of the minimum tilt angle). Otherwise returns the
+/// rotation snapped to the nearest of 0, 90, 180 or 270 degrees, derived from the
+/// direction of the horizontal gravity component.
+inline float orientation_degrees(const MotionData &data, float flat_threshold) {
+  float ax = data.acceleration[X_AXIS];
+  float ay = data.acceleration[Y_AXIS];
+  float az = data.acceleration[Z_AXIS];
+  if (std::isnan(ax) || std::isnan(ay) || std::isnan(az))
+    return NAN;
+  float mag = std::sqrt(ax * ax + ay * ay + az * az);
+  if (mag < 0.1f)
+    return NAN;
+  // Horizontal component of gravity; near zero when the device lies flat.
+  float h = std::sqrt(ax * ax + ay * ay);
+  if (h / mag < flat_threshold)
+    return NAN;
+  // Direction of the horizontal component, snapped to the nearest 90°.
+  float angle = std::atan2f(ay, ax) * (180.0f / std::numbers::pi_v<float>);
+  int quadrant = static_cast<int>(std::lroundf(angle / 90.0f));
+  quadrant = ((quadrant % 4) + 4) % 4;  // normalise to 0..3
+  return quadrant * 90.0f;
+}
 
 // Persisted calibration. `base_hash` ties the stored matrix to the build-time
 // (axis_map / transform_matrix) base; if the base changes the saved calibration
