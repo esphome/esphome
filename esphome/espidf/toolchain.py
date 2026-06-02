@@ -9,7 +9,7 @@ import re
 import shutil
 import subprocess
 
-from esphome.components.esp32.const import KEY_ESP32, KEY_FLASH_SIZE
+from esphome.components.esp32.const import KEY_ESP32, KEY_FLASH_SIZE, KEY_IDF_VERSION
 from esphome.const import CONF_FRAMEWORK, CONF_SOURCE
 from esphome.core import CORE, EsphomeError
 from esphome.espidf.framework import check_esp_idf_install, get_framework_env
@@ -35,9 +35,7 @@ def _cache() -> _CacheData:
 
 
 def _get_core_framework_version():
-    from esphome.components.esp32 import idf_version
-
-    return str(idf_version())
+    return str(CORE.data[KEY_ESP32][KEY_IDF_VERSION])
 
 
 def _get_framework_source_override() -> str | None:
