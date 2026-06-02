@@ -494,22 +494,22 @@ uint64_t ComponentRuntimeStats::global_recorded_us = 0;  // NOLINT(cppcoreguidel
 #endif
 
 void __attribute__((noinline, cold))
-WarnIfComponentBlockingGuard::warn_blocking(Component *component, const LogString *source, uint32_t blocking_time) {
-  // Default threshold for the source/null path (no component to consult); the caller already
+WarnIfComponentBlockingGuard::warn_blocking(Component *component, uint32_t blocking_time) {
+  // Default threshold for the null-component path (no component to consult); the caller already
   // checked blocking_time > WARN_IF_BLOCKING_OVER_MS, so always warn in that case.
   uint32_t threshold_ms = WARN_IF_BLOCKING_OVER_MS;
   if (component != nullptr && !component->should_warn_of_blocking(blocking_time, threshold_ms)) {
     return;  // Component's (possibly ratcheted) threshold not exceeded yet
   }
-  // Prefer an explicit source (e.g. the owning script of a deferred action), then the component
-  // name, then a generic label for component-less scheduled work.
+  // For component-less deferred work (e.g. a delay inside a script), the scheduler publishes the
+  // owning source name via App; fall back to a generic label when there is none.
   const LogString *name;
-  if (source != nullptr) {
-    name = source;
-  } else if (component != nullptr) {
+  if (component != nullptr) {
     name = component->get_component_log_str();
   } else {
-    name = LOG_STR("a scheduled task");
+    name = App.get_current_source();
+    if (name == nullptr)
+      name = LOG_STR("a scheduled task");
   }
   ESP_LOGW(TAG, "%s took a long time for an operation (%" PRIu32 " ms), max is %" PRIu32 " ms", LOG_STR_ARG(name),
            blocking_time, threshold_ms);

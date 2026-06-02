@@ -15,6 +15,10 @@ logger:
 script:
   - id: blocking_script
     then:
+      # Two chained delays: the busy-block runs in the SECOND delay's continuation, whose source is
+      # propagated from the first continuation (execute_deferred_item_ republishes it). This verifies
+      # attribution survives chained delays, like the reported while-loop script.
+      - delay: 10ms
       - delay: 10ms
       - lambda: |-
           const uint32_t start = millis();

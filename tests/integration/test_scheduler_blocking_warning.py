@@ -63,6 +63,37 @@ async def test_scheduler_blocking_warning(
 
 
 @pytest.mark.asyncio
+async def test_scheduler_blocking_warning_generic_source(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """A delay in a plain (non-script) automation logs the generic label, not a script name."""
+    loop = asyncio.get_running_loop()
+    warning_future: asyncio.Future[str] = loop.create_future()
+
+    def check_output(line: str) -> None:
+        if WARN_PATTERN.search(line) and not warning_future.done():
+            warning_future.set_result(line)
+
+    async with (
+        run_compiled(yaml_config, line_callback=check_output),
+        api_client_connected() as client,
+    ):
+        assert await client.device_info() is not None
+        warning_line = await asyncio.wait_for(warning_future, timeout=10.0)
+
+    assert "a scheduled task took a long time" in warning_line, (
+        f"Non-script deferred work should log the generic label, got: {warning_line}"
+    )
+    assert "<null>" not in warning_line
+    match = WARN_PATTERN.search(warning_line)
+    assert match is not None and match.group(3) == "50", (
+        f"Expected 'max is 50 ms', got: {warning_line}"
+    )
+
+
+@pytest.mark.asyncio
 async def test_scheduler_delay_runs_on_failed_component(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
