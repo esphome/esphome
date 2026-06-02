@@ -140,6 +140,33 @@ def test_multiple_areas_and_devices(yaml_file: Callable[[str], str]) -> None:
     }
 
 
+@pytest.mark.asyncio
+@pytest.mark.filterwarnings("ignore::RuntimeWarning")
+@pytest.mark.parametrize(
+    ("fixture", "expected_area"),
+    [
+        ("legacy_string_area.yaml", "Living Room"),
+        ("multiple_areas_devices.yaml", "Main Area"),
+    ],
+)
+async def test_to_code_records_core_area(
+    yaml_file: Callable[[str], Path],
+    fixture: str,
+    expected_area: str,
+) -> None:
+    """``to_code`` records the node's area name on CORE for StorageJSON."""
+    result = load_config_from_fixture(yaml_file, fixture, FIXTURES_DIR)
+    assert result is not None
+    assert CORE.area is None
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
+        mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
+        await config.to_code(result[CONF_ESPHOME])
+
+    assert CORE.area == expected_area
+
+
 def test_legacy_string_area(
     yaml_file: Callable[[str], str], caplog: pytest.LogCaptureFixture
 ) -> None:

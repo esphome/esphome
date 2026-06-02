@@ -45,11 +45,20 @@ def test_esp32_config(
     config = CONFIG_SCHEMA(config)
     assert config["variant"] == VARIANT_ESP32
 
-    # Check that defining a variant sets the board name correctly
+    # Check that defining a variant sets the board name correctly.
+    # Run under the ESP-IDF toolchain so variants without an entry in
+    # STANDARD_BOARDS (S31, H4, H21) still derive a board name from
+    # VARIANT_FRIENDLY rather than failing with cv.Invalid. CORE.toolchain
+    # gets pinned by the first CONFIG_SCHEMA() call above (via
+    # _resolve_toolchain) and that pinned value wins over the dict's
+    # CONF_TOOLCHAIN, so clear it between iterations to mirror a fresh
+    # config run.
     for variant in VARIANTS:
+        CORE.toolchain = None
         config = CONFIG_SCHEMA(
             {
                 "variant": variant,
+                "toolchain": Toolchain.ESP_IDF.value,
             }
         )
         assert VARIANT_FRIENDLY[variant].lower() in config["board"]
@@ -72,6 +81,11 @@ def test_esp32_config(
             {"variant": "esp32s3", "board": "esp32dev"},
             r"Option 'variant' does not match selected board. @ data\['variant'\]",
             id="mismatched_board_variant_config",
+        ),
+        pytest.param(
+            {"variant": "esp32s31"},
+            r"No default board is known for ESP32S31\. Please specify the `board:` option explicitly\. @ data\['variant'\]",
+            id="variant_without_default_board_requires_explicit_board_under_platformio",
         ),
         pytest.param(
             {
