@@ -19,7 +19,7 @@ void GSL3670Touchscreen::setup() {
 
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->setup();
-    this->attach_interrupt_(interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
+    this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
   }
 
   if (this->x_raw_max_ == this->x_raw_min_) {
@@ -46,9 +46,9 @@ void GSL3670Touchscreen::dump_config() {
                 "  Y-raw-max: %d\n",
                 this->x_raw_max_, this->y_raw_max_);
   LOG_I2C_DEVICE(this);
-  LOG_PIN("  Reset Pin:     ", reset_pin_);
-  LOG_PIN("  Interrupt Pin: ", interrupt_pin_);
-  ESP_LOGCONFIG(TAG, "  Firmware records: %zu", firmware_len_);
+  LOG_PIN("  Reset Pin:     ", this->reset_pin_);
+  LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
+  ESP_LOGCONFIG(TAG, "  Firmware records: %zu", this->firmware_len_);
 }
 
 // ---------------------------------------------------------------------------
@@ -59,6 +59,7 @@ void GSL3670Touchscreen::update_touches() {
   auto err = this->read_register(0x80, buf, sizeof(buf));
   if (err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "I2C read failed (%d)", err);
+    return;
   }
   uint8_t finger_num = clamp_at_most(buf[0], MAX_TOUCHES);
 
@@ -68,7 +69,7 @@ void GSL3670Touchscreen::update_touches() {
     auto x = (uint16_t) (((buf[(j + 1) * 4 + 3] & 0x0f) << 8) | buf[(j + 1) * 4 + 2]);
     auto y = (uint16_t) ((buf[(j + 1) * 4 + 1] << 8) | buf[(j + 1) * 4 + 0]);
     auto id = (buf[(j + 1) * 4 + 3] >> 4) & 0x0f;
-    ESP_LOGV(TAG, "Touch id=%u, x=%u y=%d", id, x, y);
+    ESP_LOGV(TAG, "Touch id=%u, x=%u y=%u", id, x, y);
     if (x <= 8192 && y <= 8192)
       this->add_raw_touch_position_(id, x, y);
   }
@@ -145,7 +146,7 @@ void GSL3670Touchscreen::load_firmware_() {
 // ---------------------------------------------------------------------------
 void GSL3670Touchscreen::startup_chip_() {
   ESP_LOGD(TAG, "startup_chip");
-  write_reg8_(0xe0, 0x00);
+  this->write_reg8_(0xe0, 0x00);
   delay(5);
 }
 
