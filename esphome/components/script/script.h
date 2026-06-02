@@ -58,11 +58,9 @@ template<typename... Ts> class Script : public ScriptLogger, public Trigger<Ts..
     this->execute(std::get<S>(tuple)...);
   }
 
-  // Run this script's action chain with its name published as the current source, so deferred work
-  // (delays) inside the script is attributed to it in blocking-time warnings. Saves/restores the
-  // previous source so nested script execution composes correctly.
-  // Force-inline to match the always-inlined Trigger->Automation->ActionList forwarding chain so
-  // this wrapper collapses into it and adds no stack frame.
+  // Run the action chain with this script's name published as the current source (RAII save/restore,
+  // so nesting composes), so deferred work inside the script is attributed to it in blocking
+  // warnings. Force-inlined to fold into the always-inlined trigger chain (no extra stack frame).
   inline void run_actions_(const Ts &...x) ESPHOME_ALWAYS_INLINE {
     ScopedSourceGuard source_guard{this->name_};
     this->trigger(x...);

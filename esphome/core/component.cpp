@@ -494,17 +494,14 @@ uint64_t ComponentRuntimeStats::global_recorded_us = 0;  // NOLINT(cppcoreguidel
 #endif
 
 void __attribute__((noinline, cold)) WarnIfComponentBlockingGuard::warn_blocking(uint32_t blocking_time) {
-  // The currently-running unit's identity is published on App by the caller (component loop or
-  // scheduler dispatch) before the guard is constructed; read it back here on the cold path.
+  // Identity is published on App by the caller before the guard is built; read it back here.
   Component *component = App.get_current_component();
-  // Default threshold for the component-less path; the caller already checked
-  // blocking_time > WARN_IF_BLOCKING_OVER_MS, so always warn in that case.
+  // Component-less path always warns (the caller already checked the constant threshold).
   uint32_t threshold_ms = WARN_IF_BLOCKING_OVER_MS;
   if (component != nullptr && !component->should_warn_of_blocking(blocking_time, threshold_ms)) {
     return;  // Component's (possibly ratcheted) threshold not exceeded yet
   }
-  // Prefer the component name; for component-less deferred work fall back to the published source
-  // (e.g. the owning script), then a generic label.
+  // Component name if any, else the published source (owning script), else a generic label.
   const LogString *name;
   if (component != nullptr) {
     name = component->get_component_log_str();

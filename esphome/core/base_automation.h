@@ -202,8 +202,8 @@ template<typename... Ts> class DelayAction : public Action<Ts...> {
           /* static_name= */ reinterpret_cast<const char *>(this), /* hash_or_id= */ 0, this->delay_.value(),
           [this]() { this->play_next_(); },
           /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1,
-          // Record the owning script (if any) so a blocking warning during this delay's continuation
-          // names the script instead of "<null>". Propagates across chained delays via the scheduler.
+          // Record the owning script (if any) so the blocking warning can name it; propagates across
+          // chained delays via the scheduler.
           /* source= */ App.get_current_source());
     } else {
       // For delays with arguments, capture by value to preserve argument values

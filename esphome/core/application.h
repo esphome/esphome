@@ -106,9 +106,8 @@ class Application {
 
   Component *get_current_component() { return this->current_component_; }
 
-  // The source (e.g. owning script) of the action chain currently executing. Used to attribute
-  // blocking-time warnings for deferred work (delays) to the script that scheduled it. nullptr
-  // when no named source is on the stack; component-less deferred work then logs generically.
+  // Owning script of the action chain currently executing (nullptr when none); used to attribute
+  // blocking warnings for deferred work to the script that scheduled it.
   void set_current_source(const LogString *source) { this->current_source_ = source; }
   const LogString *get_current_source() { return this->current_source_; }
 
@@ -408,11 +407,8 @@ class Application {
   /// Freshen the cached loop component start time. Called by Scheduler before each dispatch.
   void set_loop_component_start_time_(uint32_t now) { this->loop_component_start_time_ = now; }
 
-  // Publish everything the scheduler must set before dispatching an item — the running unit's
-  // identity (component + deferred source; a SELF_POINTER item has component nullptr + a source, a
-  // component item has a component + nullptr source) and its dispatch time. Bundled into one call
-  // (which also freshens the loop start time) so a dispatch site can't set one without the others.
-  // Friend-only (Scheduler).
+  // Publish the running unit's identity (component + source) and dispatch time together, so a
+  // dispatch site can't set one without the others. Friend-only (Scheduler).
   void set_current_execution_context_(Component *component, const LogString *source, uint32_t now) {
     this->current_component_ = component;
     this->current_source_ = source;
@@ -572,9 +568,8 @@ class Application {
 /// Global storage of Application pointer - only one Application can exist.
 extern Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-/// RAII guard that publishes a current source (e.g. an executing script's name) for the duration of
-/// a scope and restores the previous value on exit, so deferred work scheduled inside the scope is
-/// attributed to that source in blocking-time warnings.
+/// RAII guard that publishes a current source (e.g. a script name) for a scope and restores the
+/// previous value on exit, attributing deferred work scheduled inside to that source.
 class ScopedSourceGuard {
  public:
   explicit ScopedSourceGuard(const LogString *source) : prev_(App.get_current_source()) {
@@ -588,22 +583,17 @@ class ScopedSourceGuard {
   const LogString *prev_;
 };
 
-// RAII guard that measures how long one unit of work (a component loop() or a scheduled callback)
-// blocks the main loop and warns if it exceeds the threshold. It is coupled to App: the constructor
-// publishes the running unit's identity + dispatch time to App, and finish() / the cold warning path
-// read them back, so the guard stores no copy of them.
+// Times one unit of work (a component loop() or a scheduled callback) and warns if it blocks the
+// main loop too long. The constructor publishes the unit's identity + dispatch time to App;
+// finish()/the cold warning path read them back, so the guard stores no copy.
 //
-// INVARIANT: guards must not nest. The constructor publishes the execution context to App but does
-// not restore it on destruction, so a guard built while another is still timing would clobber the
-// outer one's component/source/start-time. This holds because the only two dispatch sites — the
-// Application::loop() component phase and Scheduler::execute_item_ — run units strictly sequentially
-// and are never re-entered from within a timed callback.
+// Guards must not nest: the constructor publishes to App but never restores on destruction, so a
+// nested guard would clobber the outer's context. Safe because the two dispatch sites (component
+// loop phase, execute_item_) run strictly sequentially and aren't re-entered from a timed callback.
 class WarnIfComponentBlockingGuard {
  public:
-  // Publishes the running unit's identity (component + deferred source) and dispatch time to App,
-  // then starts timing — one object per unit of work (a component loop() or a scheduled callback).
-  // The millis start time lives in App (loop_component_start_time_), so the guard keeps no copy; the
-  // micros stamp is only needed for runtime stats.
+  // Publish the unit's identity + dispatch time, then start timing. The millis start lives in App,
+  // so only the runtime-stats micros stamp is kept here.
   WarnIfComponentBlockingGuard(Component *component, const LogString *source, uint32_t now) {
     App.set_current_execution_context_(component, source, now);
 #ifdef USE_RUNTIME_STATS
@@ -616,8 +606,7 @@ class WarnIfComponentBlockingGuard {
   inline uint32_t HOT finish() {
 #ifdef USE_RUNTIME_STATS
     uint32_t elapsed_us = micros() - this->started_us_;
-    // current component is nullptr for self-keyed scheduler items (delays); accumulate those into
-    // the global counter so Application::loop() can subtract them from before_loop_tasks_ wall time.
+    // Delays have no component; accumulate into the global counter so loop() can subtract them.
     Component *component = App.get_current_component();
     if (component != nullptr) {
       component->runtime_stats_.record_time(elapsed_us);
@@ -645,8 +634,7 @@ class WarnIfComponentBlockingGuard {
 #endif
 
  private:
-  // Cold path for blocking warning - defined in component.cpp. Reads the current component/source
-  // from App to name what blocked.
+  // Cold path; defined in component.cpp. Reads the current component/source from App to name the culprit.
   static void __attribute__((noinline, cold)) warn_blocking(uint32_t blocking_time);
 };
 
@@ -757,9 +745,7 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
       Component *component = this->looping_components_[this->current_loop_index_];
 
       {
-        // The guard publishes this component as the current execution context (no script source, so
-        // a delay scheduled here isn't misattributed to a previously-run script) and the dispatch
-        // time, then times the loop().
+        // Guard publishes this component (no script source) + dispatch time, then times loop().
         WarnIfComponentBlockingGuard guard{component, nullptr, last_op_end_time};
         component->loop();
         // Use the finish method to get the current time as the end time

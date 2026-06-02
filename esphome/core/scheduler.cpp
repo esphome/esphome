@@ -175,8 +175,7 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
 
   // Create and populate the scheduler item
   SchedulerItem *item = this->get_item_from_pool_locked_();
-  // SELF_POINTER items have no owning component; their union slot instead carries the source name
-  // (the owning script) for blocking-time log attribution.
+  // SELF_POINTER items store the source name (owning script) in the union slot instead of a component.
   if (name_type == NameType::SELF_POINTER) {
     item->source_name = source;
   } else {
@@ -649,8 +648,7 @@ uint32_t HOT Scheduler::call(uint32_t now) {
       // Not reached timeout yet, done for this call
       break;
     }
-    // Don't run on failed components (is_item_failed_ exempts SELF_POINTER items, which have no
-    // owning component and must always fire).
+    // Don't run on failed components (is_item_failed_ exempts SELF_POINTER delays).
     if (this->is_item_failed_(item)) {
       LockGuard guard{this->lock_};
       this->recycle_item_main_loop_(this->pop_raw_locked_());
@@ -811,8 +809,7 @@ uint32_t HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
     component = item->component;
     source = nullptr;
   }
-  // The guard publishes the running item's identity (component + deferred source) and dispatch time
-  // to App, then times the callback.
+  // Guard publishes the item's identity + dispatch time, then times the callback.
   WarnIfComponentBlockingGuard guard{component, source, now};
   item->callback();
   uint32_t end = guard.finish();

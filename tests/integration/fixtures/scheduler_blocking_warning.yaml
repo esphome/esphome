@@ -9,15 +9,11 @@ api:
 logger:
   level: DEBUG
 
-# The script defers through a delay, then busy-blocks well over the 50 ms warn threshold inside
-# the deferred continuation. The blocking warning must be attributed to the script by name
-# (captured when the delay was scheduled) instead of "<null>".
+# The busy-block runs in the second delay's continuation; the warning must name the script. Two
+# delays verify the source survives chained delays (the scheduler republishes it each continuation).
 script:
   - id: blocking_script
     then:
-      # Two chained delays: the busy-block runs in the SECOND delay's continuation, whose source is
-      # propagated from the first continuation (execute_deferred_item_ republishes it). This verifies
-      # attribution survives chained delays, like the reported while-loop script.
       - delay: 10ms
       - delay: 10ms
       - lambda: |-

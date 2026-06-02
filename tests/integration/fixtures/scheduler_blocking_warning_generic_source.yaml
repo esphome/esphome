@@ -12,8 +12,8 @@ globals:
     restore_value: false
     initial_value: "false"
 
-# A delay in a plain (non-script) automation has no owning script, so the deferred block must log
-# the generic "a scheduled task" label, not be misattributed to any script.
+# A delay in a plain (non-script) automation has no owning script, so the block must log the
+# generic "a scheduled task" label, not a script name.
 interval:
   - interval: 100ms
     id: gen_interval

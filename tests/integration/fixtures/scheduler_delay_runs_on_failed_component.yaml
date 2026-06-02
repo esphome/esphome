@@ -12,9 +12,8 @@ globals:
     restore_value: false
     initial_value: "false"
 
-# The interval fires with itself as the current component, schedules a delay, then marks itself
-# failed. The delay continuation must still fire: a failed component must not drop an
-# already-scheduled delay, because the SELF_POINTER scheduler item has no owning component.
+# The interval marks itself failed, then schedules a delay. The delay must still fire: a failed
+# component must not drop it, since the SELF_POINTER scheduler item has no owning component.
 interval:
   - interval: 100ms
     id: host_interval

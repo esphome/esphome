@@ -619,8 +619,7 @@ class PollingComponent : public Component {
   uint32_t update_interval_;
 };
 
-// WarnIfComponentBlockingGuard lives in application.h: it reads the running unit's identity
-// (current component / source / dispatch time) directly from App, which is not visible here.
+// WarnIfComponentBlockingGuard lives in application.h because it reads its state from App.
 
 // Function to clear setup priority overrides after all components are set up
 // Only has an implementation when USE_SETUP_PRIORITY_OVERRIDE is defined
