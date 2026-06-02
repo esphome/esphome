@@ -310,8 +310,10 @@ class Scheduler {
     // as before source_name shared the slot.
     Component *get_component() const { return name_type_ == NameType::SELF_POINTER ? nullptr : component; }
     const LogString *get_source() const {
+      // Keep the no-source label identical to WarnIfComponentBlockingGuard::warn_blocking so logs
+      // use one consistent term for component-less deferred work.
       if (name_type_ == NameType::SELF_POINTER)
-        return source_name != nullptr ? source_name : LOG_STR("scheduled task");
+        return source_name != nullptr ? source_name : LOG_STR("a scheduled task");
       return component != nullptr ? component->get_component_log_str() : LOG_STR("unknown");
     }
   };
