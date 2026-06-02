@@ -3,7 +3,6 @@
 from collections.abc import Generator
 import importlib.util
 import json
-import os
 from pathlib import Path
 import sys
 from unittest.mock import Mock, call, patch
@@ -11,9 +10,7 @@ from unittest.mock import Mock, call, patch
 import pytest
 
 # Add the script directory to Python path so we can import the module
-script_dir = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "script")
-)
+script_dir = str((Path(__file__).parent / ".." / ".." / "script").resolve())
 sys.path.insert(0, script_dir)
 
 # Import helpers module for patching
@@ -22,7 +19,7 @@ import helpers  # noqa: E402
 import script.helpers  # noqa: E402
 
 spec = importlib.util.spec_from_file_location(
-    "determine_jobs", os.path.join(script_dir, "determine-jobs.py")
+    "determine_jobs", str(Path(script_dir) / "determine-jobs.py")
 )
 determine_jobs = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(determine_jobs)

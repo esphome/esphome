@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_AREA,
     CONF_AREA_ID,
     CONF_AREAS,
+    CONF_BUILD_FLAGS,
     CONF_BUILD_PATH,
     CONF_COMMENT,
     CONF_COMPILE_PROCESS_LIMIT,
@@ -288,6 +289,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.string_strict: cv.Any([cv.string], cv.string),
                 }
             ),
+            cv.Optional(CONF_BUILD_FLAGS, default=[]): cv.ensure_list(cv.string_strict),
             cv.Optional(CONF_ENVIRONMENT_VARIABLES, default={}): cv.Schema(
                 {
                     cv.string_strict: cv.string,
@@ -511,6 +513,12 @@ async def _add_platformio_options(pio_options):
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
+async def _add_build_flags(flags: list[str]) -> None:
+    for flag in flags:
+        cg.add_build_flag(flag)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
 async def _add_environment_variables(env_vars: dict[str, str]) -> None:
     # Set environment variables for the build process
     os.environ.update(env_vars)
@@ -705,12 +713,16 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_PLATFORMIO_OPTIONS]:
         CORE.add_job(_add_platformio_options, config[CONF_PLATFORMIO_OPTIONS])
 
+    if config[CONF_BUILD_FLAGS]:
+        CORE.add_job(_add_build_flags, config[CONF_BUILD_FLAGS])
+
     if config[CONF_ENVIRONMENT_VARIABLES]:
         CORE.add_job(_add_environment_variables, config[CONF_ENVIRONMENT_VARIABLES])
 
     # Process areas
     all_areas: list[dict[str, str | core.ID]] = []
     if CONF_AREA in config:
+        CORE.area = config[CONF_AREA][CONF_NAME]
         all_areas.append(config[CONF_AREA])
     all_areas.extend(config[CONF_AREAS])
 
