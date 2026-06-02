@@ -24,6 +24,15 @@ display:
       position:
         centered_on_display: 1
 
+  - platform: sdl
+    id: third_display
+    dimensions:
+      width: 450
+      height: 600
+    window_options:
+      position:
+        centered_on_display: 0
+
 binary_sensor:
   - platform: sdl
     sdl_id: sdl_display

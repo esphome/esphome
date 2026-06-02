@@ -51,16 +51,17 @@ def get_window_options():
 
 
 def _validate_position(config: dict) -> dict:
-    if not config:
-        return config
     if CONF_CENTERED_ON_DISPLAY in config:
         if CONF_X in config or CONF_Y in config:
             raise cv.Invalid(
                 f"Cannot specify '{CONF_CENTERED_ON_DISPLAY}' with '{CONF_X}' and '{CONF_Y}' options"
             )
-    elif (CONF_X in config) != (CONF_Y in config):
-        raise cv.Invalid(f"Must specify both '${CONF_X}' and '${CONF_Y}' options")
-    return config
+        return config
+    if CONF_X in config and CONF_Y in config:
+        return config
+    if CONF_X in config or CONF_Y in config:
+        raise cv.Invalid(f"Must specify both '{CONF_X}' and '{CONF_Y}' options")
+    raise cv.Invalid("Must specify either 'x' and 'y' or 'centered_on_display'")
 
 
 CONFIG_SCHEMA = cv.All(
