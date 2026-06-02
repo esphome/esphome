@@ -811,8 +811,8 @@ uint32_t HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
     component = item->component;
     source = nullptr;
   }
-  App.set_current_component(component);
-  App.set_current_source(source);
+  // Publish the running item's identity (component + deferred source) to App in one call.
+  App.set_current_execution_context(component, source);
   // Freshen so callbacks reading App.get_loop_component_start_time() see this item's dispatch time.
   App.set_loop_component_start_time_(now);
   WarnIfComponentBlockingGuard guard{component, now, source};

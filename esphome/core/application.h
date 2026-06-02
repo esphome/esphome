@@ -113,6 +113,14 @@ class Application {
   void set_current_source(const LogString *source) { this->current_source_ = source; }
   const LogString *get_current_source() { return this->current_source_; }
 
+  // The component and deferred source together identify what the scheduler is currently running, so
+  // it publishes both in one call when dispatching an item (a SELF_POINTER item has component
+  // nullptr + a source; a component item has a component + nullptr source).
+  void set_current_execution_context(Component *component, const LogString *source) {
+    this->current_component_ = component;
+    this->current_source_ = source;
+  }
+
 // Entity register methods (generated from entity_types.h).
 // Each entity type gets two overloads:
 //   - register_<entity>(obj)                              — bare push_back
