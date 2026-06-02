@@ -75,11 +75,6 @@ optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
     halfbits[n] = !halfbits[n - 1];
   }
 
-  // halfbits[1] is S1's "on" half (its leading "off" half was the dropped one),
-  // so it is the carrier level whatever the receive polarity is. Decoding each
-  // Manchester bit relative to the carrier (idle->carrier is a '1', carrier->idle
-  // a '0') makes S1 decode as 1 by construction and handles either polarity with
-  // no inversion step.
   const bool carrier = halfbits[1];
   uint16_t bits = 0;
   for (uint8_t i = 0; i < NBITS; i++) {
