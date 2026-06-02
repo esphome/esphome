@@ -157,3 +157,19 @@ def test_get_core_framework_version_from_core_data():
 
     CORE.data = {KEY_ESP32: {KEY_IDF_VERSION: cv.Version(5, 5, 4)}}
     assert toolchain._get_core_framework_version() == "5.5.4"
+
+
+def test_get_core_framework_version_raises_when_missing():
+    """A sidecar missing the version yields an actionable error, not a KeyError.
+
+    The version is absent when the storage sidecar predates the field or held an
+    unparseable value; the user is told to clean and recompile.
+    """
+    import pytest
+
+    from esphome.components.esp32.const import KEY_ESP32
+    from esphome.core import EsphomeError
+
+    CORE.data = {KEY_ESP32: {}}
+    with pytest.raises(EsphomeError, match="clean the build"):
+        toolchain._get_core_framework_version()
