@@ -104,7 +104,6 @@ class Application {
   void register_area(Area *area) { this->areas_.push_back(area); }
 #endif
 
-  void set_current_component(Component *component) { this->current_component_ = component; }
   Component *get_current_component() { return this->current_component_; }
 
   // The source (e.g. owning script) of the action chain currently executing. Used to attribute
@@ -399,6 +398,7 @@ class Application {
  protected:
   friend Component;
   friend class Scheduler;
+  friend class WarnIfComponentBlockingGuard;
 #ifdef USE_RUNTIME_STATS
   friend class runtime_stats::RuntimeStatsCollector;
 #endif
@@ -589,16 +589,17 @@ class ScopedSourceGuard {
 };
 
 // RAII guard that measures how long one unit of work (a component loop() or a scheduled callback)
-// blocks the main loop and warns if it exceeds the threshold. It is fully coupled to App: callers
-// publish the running unit's component/source (set_current_component / set_current_execution_context_)
-// and its dispatch time (set_loop_component_start_time_) before constructing the guard, so nothing
-// needs to be passed in — the guard reads them back from App.
+// blocks the main loop and warns if it exceeds the threshold. It is coupled to App: the constructor
+// publishes the running unit's identity + dispatch time to App, and finish() / the cold warning path
+// read them back, so the guard stores no copy of them.
 class WarnIfComponentBlockingGuard {
  public:
-  // The dispatch start time is read from App (set via set_current_execution_context_ /
-  // set_loop_component_start_time_ right before construction), so the guard holds no millis start of
-  // its own. The micros stamp is only needed for runtime stats.
-  WarnIfComponentBlockingGuard() {
+  // Publishes the running unit's identity (component + deferred source) and dispatch time to App,
+  // then starts timing — one object per unit of work (a component loop() or a scheduled callback).
+  // The millis start time lives in App (loop_component_start_time_), so the guard keeps no copy; the
+  // micros stamp is only needed for runtime stats.
+  WarnIfComponentBlockingGuard(Component *component, const LogString *source, uint32_t now) {
+    App.set_current_execution_context_(component, source, now);
 #ifdef USE_RUNTIME_STATS
     this->started_us_ = micros();
 #endif
@@ -744,21 +745,16 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   if (do_component_phase) {
     ComponentPhaseGuard phase_guard{*this};
 
-    // Component loop()s run outside any script's action chain; clear the current source so a delay
-    // scheduled from a plain automation here isn't misattributed to a previously-run script.
-    this->set_current_source(nullptr);
-
     uint32_t last_op_end_time = now;
     for (this->current_loop_index_ = 0; this->current_loop_index_ < this->looping_components_active_end_;
          this->current_loop_index_++) {
       Component *component = this->looping_components_[this->current_loop_index_];
 
-      // Update the cached time before each component runs
-      this->loop_component_start_time_ = last_op_end_time;
-
       {
-        this->set_current_component(component);
-        WarnIfComponentBlockingGuard guard{};
+        // The guard publishes this component as the current execution context (no script source, so
+        // a delay scheduled here isn't misattributed to a previously-run script) and the dispatch
+        // time, then times the loop().
+        WarnIfComponentBlockingGuard guard{component, nullptr, last_op_end_time};
         component->loop();
         // Use the finish method to get the current time as the end time
         last_op_end_time = guard.finish();
