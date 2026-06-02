@@ -37,39 +37,6 @@ void RC5Protocol::encode(RemoteTransmitData *dst, const RC5Data &data) {
   toggle = !toggle;
 }
 
-namespace {
-// Turn 28 Manchester half-bit levels (true = mark) into an RC5 frame.
-//
-// RC5 is bi-phase: each bit always transitions at its midpoint -- low->high is
-// a '1', high->low a '0'. The first start bit S1 is always 1, so if it decodes
-// as 0 the capture polarity was inverted (every bit flips) and we invert all 14
-// bits. This is what lets the same decoder handle a signal received at either
-// polarity (leading mark or leading space).
-optional<RC5Data> decode_halfbits(const bool *halfbits) {
-  uint16_t bits = 0;
-  for (uint8_t i = 0; i < NBITS; i++) {
-    const bool first = halfbits[2 * i];
-    const bool second = halfbits[2 * i + 1];
-    if (first == second)
-      return {};  // no midpoint transition -> not a valid Manchester bit
-    bits = (bits << 1) | (!first && second ? 1 : 0);
-  }
-
-  // S1 (MSB) is always 1; invert the whole frame if the polarity was flipped.
-  if (!(bits & (1 << 13)))
-    bits = static_cast<uint16_t>(~bits) & 0x3FFF;
-  if (!(bits & (1 << 13)))
-    return {};
-
-  const bool field_bit = bits & (1 << 12);  // S2: the inverted 7th command bit
-  return RC5Data{
-      .address = static_cast<uint8_t>((bits >> 6) & 0x1F),
-      .command = static_cast<uint8_t>((bits & 0x3F) | (field_bit ? 0 : 0x40)),
-      .toggle = static_cast<bool>(bits & (1 << 11)),
-  };
-}
-}  // namespace
-
 optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
   // Expand the runs into half-bit levels (true = mark). Each run is exactly one
   // half-bit (BIT_TIME_US) or two (2 * BIT_TIME_US); stop at anything else.
@@ -105,7 +72,30 @@ optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
     frame[i + 1] = halfbits[i];
   if (n == NHALFBITS - 2)  // final bit ended on idle -> trailing half dropped too
     frame[NHALFBITS - 1] = !halfbits[n - 1];
-  return decode_halfbits(frame);
+
+  // Pair the 28 half-bits into 14 Manchester bits: low->high is a '1', high->low
+  // a '0'. S1 (the MSB) is always 1, so if it decodes as 0 the capture polarity
+  // was inverted (every bit flips) and we invert all 14 bits -- this is what
+  // lets one decoder handle a signal received at either polarity.
+  uint16_t bits = 0;
+  for (uint8_t i = 0; i < NBITS; i++) {
+    const bool first = frame[2 * i];
+    const bool second = frame[2 * i + 1];
+    if (first == second)
+      return {};  // no midpoint transition -> not a valid Manchester bit
+    bits = (bits << 1) | (!first && second ? 1 : 0);
+  }
+  if (!(bits & (1 << 13)))
+    bits = static_cast<uint16_t>(~bits) & 0x3FFF;
+  if (!(bits & (1 << 13)))
+    return {};
+
+  const bool field_bit = bits & (1 << 12);  // S2: the inverted 7th command bit
+  return RC5Data{
+      .address = static_cast<uint8_t>((bits >> 6) & 0x1F),
+      .command = static_cast<uint8_t>((bits & 0x3F) | (field_bit ? 0 : 0x40)),
+      .toggle = static_cast<bool>(bits & (1 << 11)),
+  };
 }
 
 void RC5Protocol::dump(const RC5Data &data) {
