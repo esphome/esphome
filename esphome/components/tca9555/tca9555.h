@@ -27,9 +27,10 @@ class TCA9555Component : public Component,
 
  protected:
   static void IRAM_ATTR gpio_intr(TCA9555Component *arg);
-  bool digital_read_hw(uint8_t pin) override;
-  bool digital_read_cache(uint8_t pin) override;
-  void digital_write_hw(uint8_t pin, bool value) override;
+  // Virtual methods from GpioExpander base class — names come from base
+  bool digital_read_hw(uint8_t pin) override;               // NOLINT(readability-identifier-naming)
+  bool digital_read_cache(uint8_t pin) override;            // NOLINT(readability-identifier-naming)
+  void digital_write_hw(uint8_t pin, bool value) override;  // NOLINT(readability-identifier-naming)
 
   /// Mask for the pin mode - 1 means output, 0 means input
   uint16_t mode_mask_{0x00};

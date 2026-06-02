@@ -437,7 +437,7 @@ def main() -> None:
             tests_dir=args.tests_dir,
             output_file=args.output,
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error merging configs: {e}", file=sys.stderr)
         import traceback
 
