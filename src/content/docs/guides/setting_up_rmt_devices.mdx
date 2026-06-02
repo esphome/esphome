@@ -97,11 +97,16 @@ remote_receiver:
   pin: GPIOXX
   dump: all
   # Settings to optimize recognition of RF devices
-  tolerance: 50%
+  tolerance: 25%
   filter: 250us
   idle: 4ms
   buffer_size: 2kb # only for ESP8266
 ```
+
+The `tolerance` setting defaults to `25%`. If a known protocol fails to decode, raise
+it in small steps. Avoid values close to `50%` — wide windows for adjacent timing slots
+within a protocol start to overlap, and the decoder can match the wrong symbol and emit
+garbage data.
 
 Compile and upload the code. While viewing the log output from the ESP,
 press a button on an RF remote you want to capture (one at a time).

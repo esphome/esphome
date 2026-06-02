@@ -1,4 +1,4 @@
-# ESPHome-Docs
+# ESPHome.io Documentation
 
 [![Netlify Status][netlify-badge]][netlify-link]
 [![Discord Chat][discord-badge]][discord-link]
@@ -25,7 +25,7 @@ This repository contains the source for the documentation site for ESPHome, buil
 The project follows the Astro/Starlight directory structure:
 
 ```text
-esphome-docs/
+esphome.io/
 ├── src/
 │   ├── assets/           # Static assets (logos, etc.)
 │   ├── components/       # Astro components

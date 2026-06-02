@@ -1,12 +1,12 @@
 ---
 name: pr-workflow
-description: Create pull requests for esphome-docs. Use when creating PRs, submitting changes, or preparing contributions.
+description: Create pull requests for esphome.io. Use when creating PRs, submitting changes, or preparing contributions.
 allowed-tools: Read, Bash, Glob, Grep
 ---
 
 # ESPHome Docs PR Workflow
 
-When creating a pull request for esphome-docs, follow these steps:
+When creating a pull request for esphome.io, follow these steps:
 
 ## 1. Create Branch from Upstream
 
@@ -28,6 +28,7 @@ Before creating a PR, read `.github/PULL_REQUEST_TEMPLATE.md` to understand requ
 Use `gh pr create` with the **full template** filled in. Never skip or abbreviate sections.
 
 Required fields:
+
 - **Description**: What changes are being made
 - **Related issue**: Use `fixes <link>` syntax if applicable
 - **Pull request in esphome**: Link if this documents a new feature
@@ -43,7 +44,7 @@ Required fields:
 
 <describe your changes here>
 
-**Related issue (if applicable):** fixes https://github.com/esphome/esphome-docs/issues/XXX
+**Related issue (if applicable):** fixes https://github.com/esphome/esphome.io/issues/XXX
 
 **Pull request in [esphome](https://github.com/esphome/esphome) with YAML changes (if applicable):**
 
@@ -62,7 +63,7 @@ Required fields:
 
 ```bash
 git push -u origin <branch-name>
-gh pr create --repo esphome/esphome-docs --base current --title "[component] Brief description"
+gh pr create --repo esphome/esphome.io --base current --title "[component] Brief description"
 ```
 
 Use `--base next` if documenting a new feature with a matching esphome PR.

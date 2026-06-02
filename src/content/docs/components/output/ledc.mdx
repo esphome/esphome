@@ -13,7 +13,7 @@ bit depth which means the output is not that accurate for frequencies above ~300
 
 ## Configuration variables
 
-- **pin** (**Required**, [Pin](/guides/configuration-types#pin)): The pin to use LEDC on. Can only be GPIO0-GPIO33.
+- **pin** (**Required**, [Pin](/guides/configuration-types#pin)): Must be an output pin.
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The id to use for this output component.
 - **frequency** (*Optional*, frequency): At which frequency to run the LEDC
   channel's timer. Defaults to `1kHz`.
@@ -22,16 +22,27 @@ bit depth which means the output is not that accurate for frequencies above ~300
 
 Advanced options:
 
-- **channel** (*Optional*, int): Manually set the [LEDC channel](https://docs.espressif.com/projects/esp-idf/en/latest/api-reference/peripherals/ledc.html#configure-channel)
-  to use. Two adjacent channels share the same timer. Defaults to an automatic selection.
-
-Note: When configuring custom frequencies for two or more outputs, ensure that you manually specify
-channel 0, 2, 4, 6 for each output. This will prevent issues that arise from automatic selection,
-which chooses adjacent channels with shared timers. See
-[issues#3114](https://github.com/esphome/issues/issues/3114) for more details.
-
 - **phase_angle** (*Optional*, float): Set a phase angle to the other channel of this timer.
   Range 0-360°, defaults to 0°
+
+- **channel** (*Optional*, int): Manually set the [LEDC channel](https://docs.espressif.com/projects/esp-idf/en/latest/api-reference/peripherals/ledc.html#configure-channel)
+  to use. Defaults to an automatic selection. The valid channel range depends on the ESP32 variant:
+
+| ESP32 variant | Valid channels |
+| ------------- | -------------- |
+| ESP32 | `0`-`15` |
+| ESP32-S2, ESP32-S3, ESP32-P4 | `0`-`7` |
+| ESP32-C2, ESP32-C3, ESP32-C5, ESP32-C6, ESP32-C61, ESP32-H2 | `0`-`5` |
+
+{/* For future reference, when ESPHome support is added: ESP32-H21 and ESP32-H4
+ support LEDC channels 0-5. */}
+
+> [!NOTE]
+> Two adjacent channels share the same hardware timer. They can still use different
+> duty cycles (light output can differ) and use different phases, but not different PWM
+> frequencies. If you need light channels to use different frequencies, manually assign
+> them to unused LEDC outputs, and avoid selecting adjacent channel pairs, such as
+> `0`/`1`, `2`/`3` and so on.
 
 ### Example Usage For a Light
 
@@ -93,11 +104,18 @@ a long transition, e.g. turning slowly off.
 
 | **Frequency** | **Bit depth** | **Available steps for transitions** |
 | ------------- | ------------- | ----------------------------------- |
-| 1220Hz        | 16            | 65536                               |
-| 2441Hz        | 15            | 32768                               |
+| 1220Hz        | 16 / 14\*     | 65536 / 16384\*                    |
+| 2441Hz        | 15 / 14\*     | 32768 / 16384\*                    |
 | 4882Hz        | 14            | 16384                               |
 | 9765Hz        | 13            | 8192                                |
 | 19531Hz       | 12            | 4096                                |
+
+\* ESP32-S2, ESP32-S3, ESP32-C2, and ESP32-C3 support only 14-bit LEDC timers. The
+original ESP32, ESP32-C5, ESP32-C6, ESP32-C61, ESP32-H2, and ESP32-P4 support 20-bit
+LEDC timers, which results in up to 16-bit resolution in the useful LED PWM range
+as shown above.
+{/* For future reference, when ESPHome support is added: ESP32-H21 and ESP32-H4
+also support 20-bit LEDC timers. */}
 
 The ESP8266 for instance has *usually* a frequency of 1000Hz with a resolution of 10 bits.
 This means that there are only 4 steps between each value.
