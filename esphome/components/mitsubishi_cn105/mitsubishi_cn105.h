@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <optional>
+#include <span>
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/finite_set_mask.h"
 

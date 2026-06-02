@@ -276,12 +276,12 @@ struct Property {
     Mask &pending_writes;
 
     void ESPHOME_ALWAYS_INLINE encode_settings(const Status &status) {
-      payload[0] = 0x01;
+      this->payload[0] = 0x01;
       this->encode_and_clear_<Power, Temperature::Target, WideVaneMode, VaneMode, Mode, FanMode>(status);
     }
 
     void ESPHOME_ALWAYS_INLINE encode_remote_temperature(uint8_t remote_temperature_half_deg) {
-      payload[0] = 0x07;
+      this->payload[0] = 0x07;
       this->encode_and_clear_<Temperature::Remote>(remote_temperature_half_deg);
     }
 
