@@ -148,3 +148,30 @@ def test_get_idedata_regenerates_on_corrupted_cache(setup_core: Path) -> None:
 
     mock_transform.assert_called_once()
     assert result == {"cxx_path": "regen"}
+
+
+def test_get_core_framework_version_from_core_data():
+    """The version is read from CORE.data when validation populated it."""
+    from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION
+    import esphome.config_validation as cv
+
+    CORE.data = {KEY_ESP32: {KEY_IDF_VERSION: cv.Version(5, 5, 4)}}
+    assert toolchain._get_core_framework_version() == "5.5.4"
+
+
+def test_get_core_framework_version_falls_back_to_config():
+    """When validation was skipped, the version is derived from the config.
+
+    Regression for esphome/issues#16763: decoding a crash stack trace under the
+    native ESP-IDF toolchain raised KeyError 'idf_version' because the
+    logs/upload compiled-config cache skips the validation that populates
+    CORE.data.
+    """
+    from esphome.const import CONF_TYPE, CONF_VERSION, Toolchain
+
+    CORE.data = {}  # set_core_data never ran (validation skipped)
+    CORE.toolchain = Toolchain.ESP_IDF
+    CORE.config = {
+        "esp32": {CONF_FRAMEWORK: {CONF_VERSION: "6.0.1", CONF_TYPE: "esp-idf"}}
+    }
+    assert toolchain._get_core_framework_version() == "6.0.1"

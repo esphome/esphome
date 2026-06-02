@@ -1340,13 +1340,35 @@ def require_mbedtls_sha512() -> None:
     CORE.data[KEY_ESP32][KEY_MBEDTLS_SHA512_REQUIRED] = True
 
 
+def _idf_version_from_config() -> cv.Version:
+    """Derive the underlying ESP-IDF version from the (validated) config.
+
+    Fallback for code paths that run without validation populating CORE.data --
+    notably ``esphome logs``/``upload``, which can load the compiled-config cache
+    and skip validation, so set_core_data never runs (e.g. the native ESP-IDF
+    stack-trace decoder needs the version when decoding a crash dump).
+    """
+    framework = CORE.config[KEY_ESP32][CONF_FRAMEWORK]
+    framework_ver = cv.Version.parse(framework[CONF_VERSION])
+    if framework[CONF_TYPE] == FRAMEWORK_ESP_IDF:
+        idf_ver = framework_ver
+    else:
+        idf_ver = ARDUINO_IDF_VERSION_LOOKUP[framework_ver]
+    if CORE.using_toolchain_esp_idf:
+        idf_ver = _strip_pioarduino_revision(idf_ver)
+    return idf_ver
+
+
 def idf_version() -> cv.Version:
     """Return the underlying ESP-IDF version regardless of framework choice.
 
     For ESP-IDF builds this is the framework version directly.
     For Arduino builds this is the mapped IDF version from ARDUINO_IDF_VERSION_LOOKUP.
     """
-    return CORE.data[KEY_ESP32][KEY_IDF_VERSION]
+    esp32_data = CORE.data.get(KEY_ESP32)
+    if esp32_data is not None and KEY_IDF_VERSION in esp32_data:
+        return esp32_data[KEY_IDF_VERSION]
+    return _idf_version_from_config()
 
 
 def require_fatfs() -> None:
