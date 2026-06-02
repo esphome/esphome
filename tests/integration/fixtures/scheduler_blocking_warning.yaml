@@ -1,0 +1,22 @@
+esphome:
+  name: scheduler-blocking-warning
+  on_boot:
+    then:
+      - script.execute: blocking_script
+
+host:
+api:
+logger:
+  level: DEBUG
+
+# The script defers through a delay, then busy-blocks well over the 50 ms warn threshold inside
+# the deferred continuation. The blocking warning must be attributed to the script by name
+# (captured when the delay was scheduled) instead of "<null>".
+script:
+  - id: blocking_script
+    then:
+      - delay: 10ms
+      - lambda: |-
+          const uint32_t start = millis();
+          while (millis() - start < 80) {
+          }

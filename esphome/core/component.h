@@ -326,7 +326,7 @@ class Component {
     return component_source_lookup(this->component_source_index_);
   }
 
-  bool should_warn_of_blocking(uint32_t blocking_time);
+  bool should_warn_of_blocking(uint32_t blocking_time, uint32_t &threshold_ms_out);
 
  protected:
   friend class Application;
@@ -623,9 +623,13 @@ class PollingComponent : public Component {
 
 class WarnIfComponentBlockingGuard {
  public:
-  WarnIfComponentBlockingGuard(Component *component, uint32_t start_time)
+  // `source` overrides the logged name when set (e.g. the owning script of a deferred action); it
+  // is stored as a cheap pointer and only resolved on the cold warning path, so the hot path that
+  // constructs a guard per component loop pays nothing extra.
+  WarnIfComponentBlockingGuard(Component *component, uint32_t start_time, const LogString *source = nullptr)
       : started_(start_time),
-        component_(component)
+        component_(component),
+        source_(source)
 #ifdef USE_RUNTIME_STATS
         ,
         started_us_(micros())
@@ -653,7 +657,7 @@ class WarnIfComponentBlockingGuard {
     static constexpr uint32_t WARN_IF_BLOCKING_OVER_MS = static_cast<uint32_t>(WARN_IF_BLOCKING_OVER_CS) * 10U;
     uint32_t blocking_time = curr_time - this->started_;
     if (blocking_time > WARN_IF_BLOCKING_OVER_MS) [[unlikely]] {
-      warn_blocking(this->component_, blocking_time);
+      warn_blocking(this->component_, this->source_, blocking_time);
     }
 #endif
     return curr_time;
@@ -664,13 +668,15 @@ class WarnIfComponentBlockingGuard {
  protected:
   uint32_t started_;
   Component *component_;
+  const LogString *source_;
 #ifdef USE_RUNTIME_STATS
   uint32_t started_us_;
 #endif
 
  private:
   // Cold path for blocking warning - defined in component.cpp
-  static void __attribute__((noinline, cold)) warn_blocking(Component *component, uint32_t blocking_time);
+  static void __attribute__((noinline, cold))
+  warn_blocking(Component *component, const LogString *source, uint32_t blocking_time);
 };
 
 // Function to clear setup priority overrides after all components are set up

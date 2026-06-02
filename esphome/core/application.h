@@ -107,6 +107,12 @@ class Application {
   void set_current_component(Component *component) { this->current_component_ = component; }
   Component *get_current_component() { return this->current_component_; }
 
+  // The source (e.g. owning script) of the action chain currently executing. Used to attribute
+  // blocking-time warnings for deferred work (delays) to the script that scheduled it. nullptr
+  // when no named source is on the stack; component-less deferred work then logs generically.
+  void set_current_source(const LogString *source) { this->current_source_ = source; }
+  const LogString *get_current_source() { return this->current_source_; }
+
 // Entity register methods (generated from entity_types.h).
 // Each entity type gets two overloads:
 //   - register_<entity>(obj)                              — bare push_back
@@ -482,6 +488,7 @@ class Application {
 
   // Pointer-sized members first
   Component *current_component_{nullptr};
+  const LogString *current_source_{nullptr};
 
   // std::vector (3 pointers each: begin, end, capacity)
   // Partitioned vector design for looping components
@@ -553,6 +560,22 @@ class Application {
 
 /// Global storage of Application pointer - only one Application can exist.
 extern Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+/// RAII guard that publishes a current source (e.g. an executing script's name) for the duration of
+/// a scope and restores the previous value on exit, so deferred work scheduled inside the scope is
+/// attributed to that source in blocking-time warnings.
+class ScopedSourceGuard {
+ public:
+  explicit ScopedSourceGuard(const LogString *source) : prev_(App.get_current_source()) {
+    App.set_current_source(source);
+  }
+  ~ScopedSourceGuard() { App.set_current_source(this->prev_); }
+  ScopedSourceGuard(const ScopedSourceGuard &) = delete;
+  ScopedSourceGuard &operator=(const ScopedSourceGuard &) = delete;
+
+ private:
+  const LogString *prev_;
+};
 
 // Phase A: drain wake notifications and run the scheduler. Invoked on every
 // Application::loop() tick regardless of whether a component phase runs, so
@@ -654,6 +677,10 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
 
   if (do_component_phase) {
     ComponentPhaseGuard phase_guard{*this};
+
+    // Component loop()s run outside any script's action chain; clear the current source so a delay
+    // scheduled from a plain automation here isn't misattributed to a previously-run script.
+    this->set_current_source(nullptr);
 
     uint32_t last_op_end_time = now;
     for (this->current_loop_index_ = 0; this->current_loop_index_ < this->looping_components_active_end_;

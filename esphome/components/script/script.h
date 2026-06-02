@@ -3,6 +3,7 @@
 #include <list>
 #include <memory>
 #include <tuple>
+#include "esphome/core/application.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -57,6 +58,16 @@ template<typename... Ts> class Script : public ScriptLogger, public Trigger<Ts..
     this->execute(std::get<S>(tuple)...);
   }
 
+  // Run this script's action chain with its name published as the current source, so deferred work
+  // (delays) inside the script is attributed to it in blocking-time warnings. Saves/restores the
+  // previous source so nested script execution composes correctly.
+  // Force-inline to match the always-inlined Trigger->Automation->ActionList forwarding chain so
+  // this wrapper collapses into it and adds no stack frame.
+  inline void run_actions_(const Ts &...x) ESPHOME_ALWAYS_INLINE {
+    ScopedSourceGuard source_guard{this->name_};
+    this->trigger(x...);
+  }
+
   const LogString *name_{nullptr};
 };
 
@@ -74,7 +85,7 @@ template<typename... Ts> class SingleScript : public Script<Ts...> {
       return;
     }
 
-    this->trigger(x...);
+    this->run_actions_(x...);
   }
 };
 
@@ -91,7 +102,7 @@ template<typename... Ts> class RestartScript : public Script<Ts...> {
       this->stop_action();
     }
 
-    this->trigger(x...);
+    this->run_actions_(x...);
   }
 };
 
@@ -136,7 +147,7 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
       return;
     }
 
-    this->trigger(x...);
+    this->run_actions_(x...);
     // Check if the trigger was immediate and we can continue right away.
     this->loop();
   }
@@ -175,7 +186,7 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
   }
 
   template<size_t... S> void trigger_tuple_(const std::tuple<Ts...> &tuple, std::index_sequence<S...> /*unused*/) {
-    this->trigger(std::get<S>(tuple)...);
+    this->run_actions_(std::get<S>(tuple)...);
   }
 
   int num_queued_ = 0;      // Number of queued instances (not including currently running)
@@ -197,7 +208,7 @@ template<typename... Ts> class ParallelScript : public Script<Ts...> {
                       LOG_STR_ARG(this->name_));
       return;
     }
-    this->trigger(x...);
+    this->run_actions_(x...);
   }
   void set_max_runs(int max_runs) { max_runs_ = max_runs; }
 

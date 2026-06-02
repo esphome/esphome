@@ -184,10 +184,13 @@ class Scheduler {
  protected:
   struct SchedulerItem {
     // Ordered by size to minimize padding.
-    // `component` while live; `next_free` while in scheduler_item_pool_head_ (mutually exclusive).
+    // While live the slot holds `component` (or `source_name` for SELF_POINTER items, which have no
+    // owning component); while in scheduler_item_pool_head_ it holds `next_free`. All mutually
+    // exclusive. Access the component via get_component() so SELF_POINTER items read as component-less.
     union {
-      Component *component;
-      SchedulerItem *next_free;
+      Component *component;          // live, non-SELF_POINTER items: the owning component
+      const LogString *source_name;  // live SELF_POINTER items: owning script name (log attribution)
+      SchedulerItem *next_free;      // while pooled
     };
     // Optimized name storage using tagged union - zero heap allocation
     union {
@@ -302,14 +305,26 @@ class Scheduler {
       next_execution_high_ = static_cast<uint16_t>(value >> 32);
     }
     constexpr const char *get_type_str() const { return (type == TIMEOUT) ? "timeout" : "interval"; }
-    const LogString *get_source() const { return component ? component->get_component_log_str() : LOG_STR("unknown"); }
+    // The owning component, or nullptr for SELF_POINTER items (whose union slot holds source_name).
+    // All component accesses go through this so SELF_POINTER items behave as component-less, exactly
+    // as before source_name shared the slot.
+    Component *get_component() const { return name_type_ == NameType::SELF_POINTER ? nullptr : component; }
+    // The source name for SELF_POINTER (deferred action) items, else nullptr.
+    const LogString *get_source_name() const { return name_type_ == NameType::SELF_POINTER ? source_name : nullptr; }
+    const LogString *get_source() const {
+      if (name_type_ == NameType::SELF_POINTER)
+        return source_name != nullptr ? source_name : LOG_STR("scheduled task");
+      return component != nullptr ? component->get_component_log_str() : LOG_STR("unknown");
+    }
   };
 
   // Common implementation for both timeout and interval
   // name_type determines storage type: STATIC_STRING uses static_name, others use hash_or_id
+  // `source` is stored only for SELF_POINTER items (in the source_name union slot) and names the
+  // owning script for blocking-time log attribution; ignored for all other name types.
   void set_timer_common_(Component *component, SchedulerItem::Type type, NameType name_type, const char *static_name,
                          uint32_t hash_or_id, uint32_t delay, std::function<void()> &&func, bool is_retry = false,
-                         bool skip_cancel = false);
+                         bool skip_cancel = false, const LogString *source = nullptr);
 
   // Common implementation for retry - Remove before 2026.8.0
   // name_type determines storage type: STATIC_STRING uses static_name, others use hash_or_id
@@ -402,8 +417,10 @@ class Scheduler {
     // Fixes: https://github.com/esphome/esphome/issues/11940
     if (item == nullptr)
       return false;
-    if (item->component != component || item->type != type || (skip_removed && this->is_item_removed_locked_(item)) ||
-        (match_retry && !item->is_retry)) {
+    // get_component() returns nullptr for SELF_POINTER items, which is exactly what their cancel
+    // paths pass, so they match by the `this` key alone (component is irrelevant for them).
+    if (item->get_component() != component || item->type != type ||
+        (skip_removed && this->is_item_removed_locked_(item)) || (match_retry && !item->is_retry)) {
       return false;
     }
     // Name type must match
@@ -423,10 +440,16 @@ class Scheduler {
   // Helper to execute a scheduler item
   uint32_t execute_item_(SchedulerItem *item, uint32_t now);
 
-  // Helper to check if item should be skipped
-  bool should_skip_item_(SchedulerItem *item) const {
-    return is_item_removed_(item) || (item->component != nullptr && item->component->is_failed());
+  // True if the item belongs to a failed component and must not run. Uses get_component() so
+  // SELF_POINTER items (which have no owning component) are never skipped — a delay must fire
+  // regardless of any component's failed state.
+  bool is_item_failed_(SchedulerItem *item) const {
+    Component *component = item->get_component();
+    return component != nullptr && component->is_failed();
   }
+
+  // Helper to check if item should be skipped
+  bool should_skip_item_(SchedulerItem *item) const { return is_item_removed_(item) || this->is_item_failed_(item); }
 
   // Helper to recycle a SchedulerItem back to the pool.
   // Takes a raw pointer — caller transfers ownership. The item is either added to the
