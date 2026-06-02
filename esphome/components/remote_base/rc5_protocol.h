@@ -8,10 +8,7 @@ namespace esphome::remote_base {
 struct RC5Data {
   uint8_t address;
   uint8_t command;
-  bool toggle;
 
-  // Toggle flips on every keypress, so it's intentionally excluded from
-  // equality -- matching/dumping is by address+command.
   bool operator==(const RC5Data &rhs) const { return address == rhs.address && command == rhs.command; }
 };
 

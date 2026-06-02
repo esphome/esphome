@@ -94,13 +94,11 @@ optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
   return RC5Data{
       .address = static_cast<uint8_t>((bits >> 6) & 0x1F),
       .command = static_cast<uint8_t>((bits & 0x3F) | (field_bit ? 0 : 0x40)),
-      .toggle = static_cast<bool>(bits & (1 << 11)),
   };
 }
 
 void RC5Protocol::dump(const RC5Data &data) {
-  ESP_LOGI(TAG, "Received RC5: address=0x%02X, command=0x%02X, toggle=%s", data.address, data.command,
-           YESNO(data.toggle));
+  ESP_LOGI(TAG, "Received RC5: address=0x%02X, command=0x%02X", data.address, data.command);
 }
 
 }  // namespace esphome::remote_base
