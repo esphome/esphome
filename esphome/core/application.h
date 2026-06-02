@@ -595,13 +595,13 @@ class ScopedSourceGuard {
 // needs to be passed in — the guard reads them back from App.
 class WarnIfComponentBlockingGuard {
  public:
-  WarnIfComponentBlockingGuard()
-      : started_(App.get_loop_component_start_time())
+  // The dispatch start time is read from App (set via set_current_execution_context_ /
+  // set_loop_component_start_time_ right before construction), so the guard holds no millis start of
+  // its own. The micros stamp is only needed for runtime stats.
+  WarnIfComponentBlockingGuard() {
 #ifdef USE_RUNTIME_STATS
-        ,
-        started_us_(micros())
+    this->started_us_ = micros();
 #endif
-  {
   }
 
   // Finish the timing operation and return the current time (millis)
@@ -622,7 +622,7 @@ class WarnIfComponentBlockingGuard {
 #ifndef USE_BENCHMARK
     // Fast path: compare against constant threshold in ms (computed at compile time from centiseconds)
     static constexpr uint32_t WARN_IF_BLOCKING_OVER_MS = static_cast<uint32_t>(WARN_IF_BLOCKING_OVER_CS) * 10U;
-    uint32_t blocking_time = curr_time - this->started_;
+    uint32_t blocking_time = curr_time - App.get_loop_component_start_time();
     if (blocking_time > WARN_IF_BLOCKING_OVER_MS) [[unlikely]] {
       warn_blocking(blocking_time);
     }
@@ -632,9 +632,8 @@ class WarnIfComponentBlockingGuard {
 
   ~WarnIfComponentBlockingGuard() = default;
 
- protected:
-  uint32_t started_;
 #ifdef USE_RUNTIME_STATS
+ protected:
   uint32_t started_us_;
 #endif
 
