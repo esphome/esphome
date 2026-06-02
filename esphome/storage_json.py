@@ -142,10 +142,7 @@ class StorageJSON:
         self.toolchain = toolchain
         # The area of the node
         self.area = area
-        # The underlying framework version the build used -- for esp32 the
-        # resolved ESP-IDF version. Restored on the logs/upload cache path (which
-        # skips validation) so tooling like stack-trace decoding can find the
-        # toolchain that matches the flashed binary.
+        # The framework version the build used (for esp32, the resolved ESP-IDF version)
         self.framework_version = framework_version
 
     def as_dict(self):
