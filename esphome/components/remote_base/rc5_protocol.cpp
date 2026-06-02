@@ -91,31 +91,24 @@ optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
     }
   }
 
-  // A full frame is 28 half-bits, but the leading and/or trailing half-bit
-  // equals the idle level and can be absorbed (never captured), so 26-28 show
-  // up. A Manchester bit always transitions at its midpoint, so a missing edge
-  // half-bit is just the inverse of its partner -- reconstruct it. With a single
-  // missing half-bit we can't tell whether it was the leading or trailing one,
-  // so try both.
+  // A full frame is 28 half-bits, but edge half-bits at the idle level are never
+  // captured (they merge into idle), so fewer show up. The leading half is
+  // always dropped: S1's first half is the idle level (the "off" half of the
+  // '1' start bit) at either polarity. The trailing half is also dropped when
+  // the final bit ends on the idle level. A dropped edge half is the inverse of
+  // its partner (a Manchester bit always transitions mid-bit), so reconstruct
+  // it to recover the full 28-half-bit frame.
   bool frame[NHALFBITS];
-  if (n == NHALFBITS) {
+  if (n == NHALFBITS) {  // nothing dropped (not expected in practice)
     return decode_halfbits(halfbits);
   }
-  if (n == NHALFBITS - 1) {
-    // leading half-bit absorbed: prepend the inverse of the first half-bit
+  if (n == NHALFBITS - 1) {  // leading half dropped
     frame[0] = !halfbits[0];
     for (uint8_t i = 0; i < n; i++)
       frame[i + 1] = halfbits[i];
-    if (auto result = decode_halfbits(frame))
-      return result;
-    // trailing half-bit absorbed: append the inverse of the last half-bit
-    for (uint8_t i = 0; i < n; i++)
-      frame[i] = halfbits[i];
-    frame[n] = !halfbits[n - 1];
     return decode_halfbits(frame);
   }
-  if (n == NHALFBITS - 2) {
-    // both leading and trailing half-bits absorbed
+  if (n == NHALFBITS - 2) {  // leading and trailing halves dropped
     frame[0] = !halfbits[0];
     for (uint8_t i = 0; i < n; i++)
       frame[i + 1] = halfbits[i];
