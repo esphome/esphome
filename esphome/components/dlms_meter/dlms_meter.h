@@ -100,7 +100,8 @@ struct CustomPattern {
 
 class DlmsMeterComponent : public Component, public uart::UARTDevice {
  public:
-  DlmsMeterComponent(bool skip_crc_check, std::optional<std::array<uint8_t, 16>> decryption_key,
+  DlmsMeterComponent(uint32_t receive_timeout_ms, bool skip_crc_check,
+                     std::optional<std::array<uint8_t, 16>> decryption_key,
                      std::optional<std::array<uint8_t, 16>> authentication_key,
                      std::vector<CustomPattern> custom_patterns);
 
@@ -128,7 +129,7 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
   size_t bytes_accumulated_{0};
   uint32_t last_rx_char_time_{0};
 
-  uint32_t receive_timeout_ms_{500};
+  uint32_t receive_timeout_ms_{1000};
   bool skip_crc_check_{false};
 
   std::vector<CustomPattern> custom_patterns_;

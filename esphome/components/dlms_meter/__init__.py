@@ -4,7 +4,13 @@ import re
 import esphome.codegen as cg
 from esphome.components import esp32, uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_NAME, CONF_PATTERN, CONF_PRIORITY
+from esphome.const import (
+    CONF_ID,
+    CONF_NAME,
+    CONF_PATTERN,
+    CONF_PRIORITY,
+    CONF_RECEIVE_TIMEOUT,
+)
 from esphome.core import CORE
 
 _LOGGER = logging.getLogger(__name__)
@@ -109,6 +115,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CUSTOM_PATTERNS): cv.ensure_list(CUSTOM_PATTERN_SCHEMA),
             cv.Optional(CONF_SKIP_CRC, default=False): cv.boolean,
             cv.Optional(CONF_PROVIDER): cv.string,
+            cv.Optional(
+                CONF_RECEIVE_TIMEOUT, default="1000ms"
+            ): cv.positive_time_period_milliseconds,
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
@@ -163,6 +172,7 @@ async def to_code(config):
 
     var = cg.new_Pvariable(
         config[CONF_ID],
+        config[CONF_RECEIVE_TIMEOUT],
         config[CONF_SKIP_CRC],
         dec_key_expr,
         auth_key_expr,

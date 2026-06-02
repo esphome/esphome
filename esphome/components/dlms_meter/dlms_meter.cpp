@@ -31,10 +31,14 @@ static void log_callback(dlms_parser::LogLevel level, const char *fmt, va_list a
   }
 }
 
-DlmsMeterComponent::DlmsMeterComponent(bool skip_crc_check, std::optional<std::array<uint8_t, 16>> decryption_key,
+DlmsMeterComponent::DlmsMeterComponent(uint32_t receive_timeout_ms, bool skip_crc_check,
+                                       std::optional<std::array<uint8_t, 16>> decryption_key,
                                        std::optional<std::array<uint8_t, 16>> authentication_key,
                                        std::vector<CustomPattern> custom_patterns)
-    : skip_crc_check_(skip_crc_check), custom_patterns_(std::move(custom_patterns)), parser_(&decryptor_) {
+    : receive_timeout_ms_(receive_timeout_ms),
+      skip_crc_check_(skip_crc_check),
+      custom_patterns_(std::move(custom_patterns)),
+      parser_(&decryptor_) {
   dlms_parser::Logger::set_log_function(log_callback);
 
   if (decryption_key.has_value()) {
