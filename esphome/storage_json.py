@@ -324,9 +324,6 @@ class StorageJSON:
             from esphome.const import KEY_VARIANT
 
             esp32_data = {KEY_VARIANT: self.target_platform}
-            # Restore the resolved ESP-IDF version so tooling that needs it on
-            # the fast path (e.g. stack-trace decode) doesn't KeyError. Older
-            # sidecars without the field fall back to deriving from config.
             if self.framework_version:
                 import esphome.config_validation as cv
 
