@@ -327,9 +327,6 @@ class StorageJSON:
             if self.framework_version:
                 import esphome.config_validation as cv
 
-                # A malformed value (corrupt sidecar, or a version string from a
-                # newer ESPHome) fails here with an actionable message rather
-                # than a bare KeyError later at one of the CORE.data readers.
                 try:
                     esp32_data[KEY_IDF_VERSION] = cv.Version.parse(
                         self.framework_version
