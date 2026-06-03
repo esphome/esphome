@@ -1,3 +1,5 @@
+import math
+
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
@@ -20,14 +22,22 @@ SENSOR_TYPES = {
     "moving": MotionBinarySensorType.MOTION_BINARY_SENSOR_MOVING,
 }
 
+# face_up / face_down configure their threshold as a maximum tilt angle in degrees;
+# the C++ side compares against the cosine of that angle.
+ANGLE_THRESHOLD_TYPES = ("face_up", "face_down")
 
-def _binary_sensor_schema(default_threshold, default_duration=None):
+
+def _binary_sensor_schema(
+    default_threshold, threshold_validator, default_duration=None
+):
     schema = (
         binary_sensor.binary_sensor_schema(MotionBinarySensor)
         .extend(
             {
                 cv.GenerateID(CONF_MOTION_ID): cv.use_id(MotionComponent),
-                cv.Optional(CONF_THRESHOLD, default=default_threshold): cv.float_,
+                cv.Optional(
+                    CONF_THRESHOLD, default=default_threshold
+                ): threshold_validator,
             }
         )
         .extend(cv.COMPONENT_SCHEMA)
@@ -44,12 +54,15 @@ def _binary_sensor_schema(default_threshold, default_duration=None):
     return schema
 
 
+# Tilt angle in degrees, from horizontal, within which the device counts as face up/down.
+_angle_threshold = cv.float_range(min=0.0, max=90.0)
+
 CONFIG_SCHEMA = cv.typed_schema(
     {
-        "face_up": _binary_sensor_schema(0.85),
-        "face_down": _binary_sensor_schema(0.85),
-        "free_fall": _binary_sensor_schema(0.15, "100ms"),
-        "moving": _binary_sensor_schema(0.05, "2s"),
+        "face_up": _binary_sensor_schema(30.0, _angle_threshold),
+        "face_down": _binary_sensor_schema(30.0, _angle_threshold),
+        "free_fall": _binary_sensor_schema(0.15, cv.float_, "100ms"),
+        "moving": _binary_sensor_schema(0.05, cv.float_, "2s"),
     }
 )
 
@@ -62,6 +75,10 @@ async def to_code(config):
     await binary_sensor.register_binary_sensor(var, config)
     await cg.register_component(var, config)
 
-    cg.add(var.set_threshold(config[CONF_THRESHOLD]))
+    threshold = config[CONF_THRESHOLD]
+    if sensor_type in ANGLE_THRESHOLD_TYPES:
+        # Convert the configured tilt angle (degrees) to the cosine the C++ side expects.
+        threshold = round(math.cos(math.radians(threshold)), 6)
+    cg.add(var.set_threshold(threshold))
     if CONF_DURATION in config:
         cg.add(var.set_duration(config[CONF_DURATION]))

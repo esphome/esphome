@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -952,7 +953,8 @@ class TestBinarySensorSchema:
         )
         assert res["type"] == "face_up"
         assert str(res["motion_id"]) == "my_motion_component"
-        assert res["threshold"] == pytest.approx(0.85)
+        # face_up / face_down configure their threshold as a tilt angle in degrees.
+        assert res["threshold"] == pytest.approx(30.0)
 
     def test_free_fall_defaults(self):
         res = BINARY_SENSOR_CONFIG_SCHEMA(
@@ -1031,7 +1033,7 @@ async def test_binary_sensor_to_code(mock_binary_sensor_codegen):
         "id": "my_binary_sensor_id",
         "type": "face_up",
         "motion_id": "my_motion_component",
-        "threshold": 0.85,
+        "threshold": 30.0,
         "duration": TimePeriod(milliseconds=100),
     }
     await binary_sensor_to_code(config)
@@ -1046,6 +1048,10 @@ async def test_binary_sensor_to_code(mock_binary_sensor_codegen):
         mock_binary_sensor_codegen["var"], config
     )
     assert mock_binary_sensor_codegen["add"].call_count == 2
+    # face_up threshold is configured in degrees and converted to a cosine for C++.
+    mock_binary_sensor_codegen["var"].set_threshold.assert_called_once_with(
+        pytest.approx(math.cos(math.radians(30.0)))
+    )
 
 
 @pytest.fixture

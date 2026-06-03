@@ -48,7 +48,7 @@ void MotionBinarySensor::dump_config() {
   LOG_BINARY_SENSOR("", "Motion Binary Sensor", this);
   ESP_LOGCONFIG(TAG, "  Type: %d", static_cast<int>(this->type_));
   ESP_LOGCONFIG(TAG, "  Threshold: %.3f", this->threshold_);
-  ESP_LOGCONFIG(TAG, "  Duration: %u ms", this->duration_);
+  ESP_LOGCONFIG(TAG, "  Duration: %" PRIu32 " ms", this->duration_);
 }
 
 void MotionBinarySensor::process_motion_data_(const MotionData &data) {
