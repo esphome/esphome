@@ -108,6 +108,8 @@ bool MotionComponent::calibrate_level() {
     // Already aligned with +Z — nothing to compose
     ESP_LOGI(TAG, "Level calibration: already aligned");
     log_matrix(this->matrix_);
+    // returning true here will trigger on_success and a save to NVS, but the save will ultimately be a no-op
+    // since the backend sync will not write unchanged values.
     return true;
   }
 
