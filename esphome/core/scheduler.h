@@ -132,6 +132,12 @@ class Scheduler {
   // @return Timestamp of the last item that ran, or `now` unchanged if none ran.
   uint32_t call(uint32_t now);
 
+  // Reclaim memory held by the post-boot peak. Frees every SchedulerItem in the
+  // recycle freelist and shrinks items_/to_add_/defer_queue_ vector capacity to
+  // their current sizes (std::vector grows by doubling and otherwise retains the
+  // peak). Live items in those vectors are preserved.
+  void trim_freelist();
+
   // Move items from to_add_ into the main heap.
   // IMPORTANT: This method should only be called from the main thread (loop task).
   // Inlined: the fast path (nothing to add) is just an atomic load / empty check.
@@ -146,22 +152,47 @@ class Scheduler {
   }
 
   // Name storage type discriminator for SchedulerItem
-  // Used to distinguish between static strings, hashed strings, numeric IDs, and internal numeric IDs
+  // Used to distinguish between static strings, hashed strings, numeric IDs, internal numeric IDs,
+  // and self-keyed pointers (caller-supplied `void *`, typically `this`).
   enum class NameType : uint8_t {
-    STATIC_STRING = 0,       // const char* pointer to static/flash storage
-    HASHED_STRING = 1,       // uint32_t FNV-1a hash of a runtime string
-    NUMERIC_ID = 2,          // uint32_t numeric identifier (component-level)
-    NUMERIC_ID_INTERNAL = 3  // uint32_t numeric identifier (core/internal, separate namespace)
+    STATIC_STRING = 0,        // const char* pointer to static/flash storage
+    HASHED_STRING = 1,        // uint32_t FNV-1a hash of a runtime string
+    NUMERIC_ID = 2,           // uint32_t numeric identifier (component-level)
+    NUMERIC_ID_INTERNAL = 3,  // uint32_t numeric identifier (core/internal, separate namespace)
+    SELF_POINTER = 4          // void* caller-supplied key (typically `this`); pointer equality
   };
+
+  /** Self-keyed timeout. The cancellation key is `self` (typically the caller's `this`).
+   *
+   * Use this when the caller schedules at most one timer of a single purpose at a time and
+   * does not need a `Component` for `is_failed()` skip or log source attribution. Lets
+   * small classes drop `Component` inheritance entirely when their only Component dependency
+   * was the per-instance scheduler key.
+   *
+   * NOT applied for self-keyed items:
+   *  - `is_failed()` skip — callbacks always fire (no Component to consult).
+   *  - Log source attribution — logs use a generic "self:0x…" label.
+   *
+   * If you need either of those, use the existing `(Component *, id)` overloads.
+   */
+  void set_timeout(const void *self, uint32_t timeout, std::function<void()> &&func);
+  /// Self-keyed interval. See set_timeout(const void *, ...) for semantics.
+  void set_interval(const void *self, uint32_t interval, std::function<void()> &&func);
+  bool cancel_timeout(const void *self);
+  bool cancel_interval(const void *self);
 
  protected:
   struct SchedulerItem {
-    // Ordered by size to minimize padding
-    Component *component;
+    // Ordered by size to minimize padding.
+    // `component` while live; `next_free` while in scheduler_item_pool_head_ (mutually exclusive).
+    union {
+      Component *component;
+      SchedulerItem *next_free;
+    };
     // Optimized name storage using tagged union - zero heap allocation
     union {
-      const char *static_name;  // For STATIC_STRING (string literals, no allocation)
-      uint32_t hash_or_id;      // For HASHED_STRING or NUMERIC_ID
+      const char *static_name;  // For STATIC_STRING (string literals) and SELF_POINTER (caller's `this`)
+      uint32_t hash_or_id;      // For HASHED_STRING, NUMERIC_ID, and NUMERIC_ID_INTERNAL
     } name_;
     uint32_t interval;
     // Split time to handle millis() rollover. The scheduler combines the 32-bit millis()
@@ -182,19 +213,19 @@ class Scheduler {
     // std::atomic<uint8_t> inlines correctly on all platforms.
     std::atomic<uint8_t> remove{0};
 
-    // Bit-packed fields (4 bits used, 4 bits padding in 1 byte)
-    enum Type : uint8_t { TIMEOUT, INTERVAL } type : 1;
-    NameType name_type_ : 2;  // Discriminator for name_ union (0–3, see NameType enum)
-    bool is_retry : 1;        // True if this is a retry timeout
-                              // 4 bits padding
-#else
-    // Single-threaded or multi-threaded without atomics: can pack all fields together
     // Bit-packed fields (5 bits used, 3 bits padding in 1 byte)
     enum Type : uint8_t { TIMEOUT, INTERVAL } type : 1;
-    bool remove : 1;
-    NameType name_type_ : 2;  // Discriminator for name_ union (0–3, see NameType enum)
+    NameType name_type_ : 3;  // Discriminator for name_ union (0–4, see NameType enum)
     bool is_retry : 1;        // True if this is a retry timeout
                               // 3 bits padding
+#else
+    // Single-threaded or multi-threaded without atomics: can pack all fields together
+    // Bit-packed fields (6 bits used, 2 bits padding in 1 byte)
+    enum Type : uint8_t { TIMEOUT, INTERVAL } type : 1;
+    bool remove : 1;
+    NameType name_type_ : 3;  // Discriminator for name_ union (0–4, see NameType enum)
+    bool is_retry : 1;        // True if this is a retry timeout
+                              // 2 bits padding
 #endif
 
     // Constructor
@@ -228,19 +259,26 @@ class Scheduler {
     SchedulerItem(SchedulerItem &&) = delete;
     SchedulerItem &operator=(SchedulerItem &&) = delete;
 
-    // Helper to get the static name (only valid for STATIC_STRING type)
-    const char *get_name() const { return (name_type_ == NameType::STATIC_STRING) ? name_.static_name : nullptr; }
+    // Helper to get the pointer-slot value (valid for STATIC_STRING and SELF_POINTER types).
+    // Both share the same union member, so callers (e.g. log formatters) can read either uniformly.
+    const char *get_name() const {
+      return (name_type_ == NameType::STATIC_STRING || name_type_ == NameType::SELF_POINTER) ? name_.static_name
+                                                                                             : nullptr;
+    }
 
-    // Helper to get the hash or numeric ID (only valid for HASHED_STRING or NUMERIC_ID types)
-    uint32_t get_name_hash_or_id() const { return (name_type_ != NameType::STATIC_STRING) ? name_.hash_or_id : 0; }
+    // Helper to get the hash or numeric ID (only valid for HASHED_STRING / NUMERIC_ID / NUMERIC_ID_INTERNAL types)
+    uint32_t get_name_hash_or_id() const {
+      return (name_type_ != NameType::STATIC_STRING && name_type_ != NameType::SELF_POINTER) ? name_.hash_or_id : 0;
+    }
 
     // Helper to get the name type
     NameType get_name_type() const { return name_type_; }
 
-    // Set name storage: for STATIC_STRING stores the pointer, for all other types stores hash_or_id.
-    // Both union members occupy the same offset, so only one store is needed.
+    // Set name storage. STATIC_STRING/SELF_POINTER use the static_name pointer slot
+    // (both are pointer-width); other types use hash_or_id. Both union members occupy
+    // the same offset, so only one store is needed.
     void set_name(NameType type, const char *static_name, uint32_t hash_or_id) {
-      if (type == NameType::STATIC_STRING) {
+      if (type == NameType::STATIC_STRING || type == NameType::SELF_POINTER) {
         name_.static_name = static_name;
       } else {
         name_.hash_or_id = hash_or_id;
@@ -327,6 +365,10 @@ class Scheduler {
   SchedulerItem *get_item_from_pool_locked_();
 
  private:
+  // Out-of-line helper that shrinks a SchedulerItem* vector's capacity to its current
+  // size. Centralised so trim_freelist() doesn't pay flash cost per call site.
+  void shrink_scheduler_vector_(std::vector<SchedulerItem *> *v);
+
   // Helper to cancel matching items - must be called with lock held.
   // When find_first=true, stops after the first match (used by set_timer_common_ where
   // the cancel-before-add invariant guarantees at most one match).
@@ -367,9 +409,13 @@ class Scheduler {
     // Name type must match
     if (item->get_name_type() != name_type)
       return false;
-    // For static strings, compare the string content; for hash/ID, compare the value
+    // STATIC_STRING: compare string content. SELF_POINTER: raw pointer equality (no strcmp).
+    // Other types: compare hash/ID value.
     if (name_type == NameType::STATIC_STRING) {
       return this->names_match_static_(item->get_name(), static_name);
+    }
+    if (name_type == NameType::SELF_POINTER) {
+      return item->name_.static_name == static_name;
     }
     return item->get_name_hash_or_id() == hash_or_id;
   }
@@ -681,19 +727,15 @@ class Scheduler {
 #endif
   }
 
-  // Memory pool for recycling SchedulerItem objects to reduce heap churn.
-  // Design decisions:
-  // - std::vector is used instead of a fixed array because many systems only need 1-2 scheduler items
-  // - The vector grows dynamically up to MAX_POOL_SIZE (5) only when needed, saving memory on simple setups
-  // - Pool size of 5 matches typical usage (2-4 timers) while keeping memory overhead low (~250 bytes on ESP32)
-  // - The pool significantly reduces heap fragmentation which is critical because heap allocation/deallocation
-  //   can stall the entire system, causing timing issues and dropped events for any components that need
-  //   to synchronize between tasks (see https://github.com/esphome/backlog/issues/52)
-  std::vector<SchedulerItem *> scheduler_item_pool_;
+  // Intrusive freelist threaded through SchedulerItem::next_free. Unbounded so it quiesces at the
+  // app's concurrent-timer high-water mark; the previous fixed cap caused steady-state new/delete
+  // churn on devices with many timers (see https://github.com/esphome/backlog/issues/52).
+  SchedulerItem *scheduler_item_pool_head_{nullptr};
+  size_t scheduler_item_pool_size_{0};
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
   // Leak detection: tracks total live SchedulerItem allocations.
-  // Invariant: debug_live_items_ == items_.size() + to_add_.size() + defer_queue_.size() + scheduler_item_pool_.size()
+  // Invariant: debug_live_items_ == items_.size() + to_add_.size() + defer_queue_.size() + scheduler_item_pool_size_
   // Verified periodically in call() to catch leaks early.
   size_t debug_live_items_{0};
 

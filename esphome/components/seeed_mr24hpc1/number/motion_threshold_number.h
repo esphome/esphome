@@ -3,8 +3,7 @@
 #include "esphome/components/number/number.h"
 #include "../seeed_mr24hpc1.h"
 
-namespace esphome {
-namespace seeed_mr24hpc1 {
+namespace esphome::seeed_mr24hpc1 {
 
 class MotionThresholdNumber : public number::Number, public Parented<MR24HPC1Component> {
  public:
@@ -14,5 +13,4 @@ class MotionThresholdNumber : public number::Number, public Parented<MR24HPC1Com
   void control(float value) override;
 };
 
-}  // namespace seeed_mr24hpc1
-}  // namespace esphome
+}  // namespace esphome::seeed_mr24hpc1

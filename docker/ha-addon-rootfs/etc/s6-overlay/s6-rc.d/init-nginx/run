@@ -4,6 +4,14 @@
 # Community Hass.io Add-ons: ESPHome
 # Configures NGINX for use with ESPHome
 # ==============================================================================
+
+# When the new device builder is enabled it serves HA ingress directly,
+# so nginx is not used at all -- skip configuration.
+if bashio::config.true 'use_new_device_builder'; then
+    bashio::log.info "Skipping NGINX setup: new device builder serves ingress directly."
+    bashio::exit.ok
+fi
+
 mkdir -p /var/log/nginx
 
 # Generate Ingress configuration

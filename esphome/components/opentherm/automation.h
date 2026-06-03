@@ -4,8 +4,7 @@
 #include "hub.h"
 #include "opentherm.h"
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
 class BeforeSendTrigger : public Trigger<OpenthermData &> {
  public:
@@ -21,5 +20,4 @@ class BeforeProcessResponseTrigger : public Trigger<OpenthermData &> {
   }
 };
 
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm

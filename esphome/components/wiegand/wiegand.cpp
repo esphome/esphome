@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace wiegand {
+namespace esphome::wiegand {
 
 static const char *const TAG = "wiegand";
 static const char *const KEYS = "0123456789*#";
@@ -12,7 +11,7 @@ static const char *const KEYS = "0123456789*#";
 void IRAM_ATTR HOT WiegandStore::d0_gpio_intr(WiegandStore *arg) {
   if (arg->d0.digital_read())
     return;
-  arg->count++;  // NOLINT(clang-diagnostic-deprecated-volatile)
+  arg->count += 1;
   arg->value <<= 1;
   arg->last_bit_time = millis();
   arg->done = false;
@@ -21,7 +20,7 @@ void IRAM_ATTR HOT WiegandStore::d0_gpio_intr(WiegandStore *arg) {
 void IRAM_ATTR HOT WiegandStore::d1_gpio_intr(WiegandStore *arg) {
   if (arg->d1.digital_read())
     return;
-  arg->count++;  // NOLINT(clang-diagnostic-deprecated-volatile)
+  arg->count += 1;
   arg->value = (arg->value << 1) | 1;
   arg->last_bit_time = millis();
   arg->done = false;
@@ -127,5 +126,4 @@ void Wiegand::dump_config() {
   LOG_PIN("  D1 pin: ", this->d1_pin_);
 }
 
-}  // namespace wiegand
-}  // namespace esphome
+}  // namespace esphome::wiegand

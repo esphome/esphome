@@ -7,8 +7,7 @@
 #include "esphome/components/power_supply/power_supply.h"
 #endif
 
-namespace esphome {
-namespace st7789v {
+namespace esphome::st7789v {
 
 static const uint8_t ST7789_NOP = 0x00;        // No Operation
 static const uint8_t ST7789_SWRESET = 0x01;    // Software Reset
@@ -168,5 +167,4 @@ class ST7789V : public display::DisplayBuffer,
   const char *model_str_;
 };
 
-}  // namespace st7789v
-}  // namespace esphome
+}  // namespace esphome::st7789v

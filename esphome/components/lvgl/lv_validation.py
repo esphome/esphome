@@ -34,17 +34,15 @@ from .defines import (
     LValidator,
     LvConstant,
     StaticCastExpression,
+    add_lv_use,
     call_lambda,
+    get_esphome_fonts_used,
+    get_lv_fonts_used,
+    get_lv_images_used,
     literal,
 )
-from .helpers import (
-    CONF_IF_NAN,
-    add_lv_use,
-    esphome_fonts_used,
-    lv_fonts_used,
-    requires_component,
-)
-from .types import lv_gradient_t, lv_opa_t
+from .helpers import CONF_IF_NAN
+from .types import lv_coord_t, lv_gradient_t, lv_opa_t
 
 LV_OPA = LvConstant("LV_OPA_", "TRANSP", "COVER")
 
@@ -244,7 +242,7 @@ def color_retmapper(value):
         else:
             r, g, b, _ = from_rgbw(cval)
         return literal(f"lv_color_make({r}, {g}, {b})")
-    assert False
+    raise AssertionError(f"Unhandled lv_color value: {value!r}")
 
 
 def option_string(value):
@@ -280,7 +278,7 @@ def pixels_or_percent_validator(value):
 
 pixels_or_percent = LValidator(
     pixels_or_percent_validator,
-    uint32,
+    lv_coord_t,
     retmapper=lambda x: x if isinstance(x, int) else literal(f"lv_pct({int(x * 100)})"),
 )
 
@@ -373,16 +371,14 @@ def stop_value(value):
     return cv.int_range(0, 255)(value)
 
 
-lv_images_used = set()
-
-
 def _image_validator(value):
     if isinstance(value, dict) and CONF_MAPPING in value:
         from .schemas import MAPPING_IMAGE_SCHEMA
 
         return MAPPING_IMAGE_SCHEMA(value)
     value = cv.use_id(Image_)(value)
-    lv_images_used.add(value)
+    get_lv_images_used().add(value)
+    add_lv_use("label")
     return value
 
 
@@ -545,7 +541,7 @@ class LvFont(LValidator):
     def __init__(self):
         def lv_builtin_font(value):
             fontval = cv.one_of(*LV_FONTS, lower=True)(value)
-            lv_fonts_used.add(fontval)
+            get_lv_fonts_used().add(fontval)
             return fontval
 
         def validator(value):
@@ -555,8 +551,8 @@ class LvFont(LValidator):
                 return lv_builtin_font(value)
             add_lv_use("font")
             fontval = cv.use_id(Font)(value)
-            esphome_fonts_used.add(fontval)
-            return requires_component("font")(fontval)
+            get_esphome_fonts_used().add(fontval)
+            return cv.requires_component("font")(fontval)
 
         # Use font::Font* as return type for lambdas returning ESPHome fonts
         # The inline overloads in lvgl_esphome.h handle conversion to lv_font_t*
