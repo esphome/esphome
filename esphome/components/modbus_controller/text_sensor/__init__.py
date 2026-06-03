@@ -61,7 +61,7 @@ async def to_code(config):
     response_size = config[CONF_RESPONSE_SIZE]
     reg_count = config[CONF_REGISTER_COUNT]
     if reg_count == 0:
-        reg_count = response_size / 2
+        reg_count = response_size // 2
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_REGISTER_TYPE],

@@ -4,8 +4,7 @@
 #include "haier_base.h"
 #include "hon_climate.h"
 
-namespace esphome {
-namespace haier {
+namespace esphome::haier {
 
 template<typename... Ts> class DisplayOnAction : public Action<Ts...> {
  public:
@@ -126,5 +125,4 @@ template<typename... Ts> class PowerToggleAction : public Action<Ts...> {
   HaierClimateBase *parent_;
 };
 
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier

@@ -11,7 +11,8 @@
 #endif
 #include "api_pb2.h"
 #include "api_pb2_service.h"
-#include "api_server.h"
+#include "list_entities.h"
+#include "subscribe_state.h"
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
 #ifdef USE_ESP32_CRASH_HANDLER
@@ -35,6 +36,9 @@ class ComponentIterator;
 }  // namespace esphome
 
 namespace esphome::api {
+
+// Forward-declared to break the api_server.h cycle; full-type inlines are in api_connection_buffer.h.
+class APIServer;
 
 // Keepalive timeout in milliseconds
 static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = 60000;
@@ -223,7 +227,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_water_heater_command_request(const WaterHeaterCommandRequest &msg);
 #endif
 
-#ifdef USE_IR_RF
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
   void on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &msg);
   void send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg);
 #endif
@@ -276,6 +280,7 @@ class APIConnection final : public APIServerConnectionBase {
       App.schedule_dump_config();
 #ifdef USE_ESP32_CRASH_HANDLER
     esp32::crash_handler_log();
+    esp32::crash_handler_clear();
 #endif
 #ifdef USE_RP2040_CRASH_HANDLER
     rp2040::crash_handler_log();
@@ -410,16 +415,25 @@ class APIConnection final : public APIServerConnectionBase {
   // Non-template buffer management for send_message
   bool send_message_(uint32_t payload_size, uint8_t message_type, MessageEncodeFn encode_fn, const void *msg);
 
-  // Non-template buffer management for batch encoding
-  static uint16_t encode_to_buffer(uint32_t calculated_size, MessageEncodeFn encode_fn, const void *msg,
-                                   APIConnection *conn, uint32_t remaining_size);
+  // Core batch encoding logic. ALWAYS_INLINE so encode_fn devirtualizes at hot call sites.
+  // Defined in api_connection_buffer.h (needs APIServer complete).
+  static uint16_t ESPHOME_ALWAYS_INLINE encode_to_buffer(uint32_t calculated_size, MessageEncodeFn encode_fn,
+                                                         const void *msg, APIConnection *conn, uint32_t remaining_size);
 
-  // Thin template wrapper — computes size, delegates buffer work to non-template helper
+  // Noinline version of encode_to_buffer for cold paths (entity info, zero-payload messages).
+  // All cold callers share this single copy instead of each getting an ALWAYS_INLINE expansion.
+  static uint16_t encode_to_buffer_slow(uint32_t calculated_size, MessageEncodeFn encode_fn, const void *msg,
+                                        APIConnection *conn, uint32_t remaining_size);
+
+  // Thin template wrapper — uses noinline encode_to_buffer_slow since
+  // encode_message_to_buffer callers are cold paths (zero-payload control messages).
+  // Hot paths (state/info) go through fill_and_encode_entity_state/info instead.
+  // batch_message_type_ is already set by dispatch_message_ before reaching here.
   template<typename T> static uint16_t encode_message_to_buffer(T &msg, APIConnection *conn, uint32_t remaining_size) {
     if constexpr (T::ESTIMATED_SIZE == 0) {
-      return encode_to_buffer(0, &encode_msg_noop, &msg, conn, remaining_size);
+      return encode_to_buffer_slow(0, &encode_msg_noop, &msg, conn, remaining_size);
     } else {
-      return encode_to_buffer(msg.calculate_size(), &proto_encode_msg<T>, &msg, conn, remaining_size);
+      return encode_to_buffer_slow(msg.calculate_size(), &proto_encode_msg<T>, &msg, conn, remaining_size);
     }
   }
 
@@ -568,6 +582,9 @@ class APIConnection final : public APIServerConnectionBase {
 #ifdef USE_INFRARED
   static uint16_t try_send_infrared_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
 #endif
+#ifdef USE_RADIO_FREQUENCY
+  static uint16_t try_send_radio_frequency_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size);
+#endif
 #ifdef USE_EVENT
   static uint16_t try_send_event_response(event::Event *event, StringRef event_type, APIConnection *conn,
                                           uint32_t remaining_size);
@@ -618,6 +635,7 @@ class APIConnection final : public APIServerConnectionBase {
   // Helper methods for iterator lifecycle management
   void destroy_active_iterator_();
   void begin_iterator_(ActiveIterator type);
+  void finalize_iterator_sync_();
 #ifdef USE_CAMERA
   std::unique_ptr<camera::CameraImageReader> image_reader_;
 #endif
@@ -726,6 +744,7 @@ class APIConnection final : public APIServerConnectionBase {
     uint8_t batch_scheduled : 1;
     uint8_t batch_first_message : 1;          // For batch buffer allocation
     uint8_t should_try_send_immediately : 1;  // True after initial states are sent
+    uint8_t may_have_remaining_data : 1;      // Read loop hit limit, retry without ready check
 #ifdef HAS_PROTO_MESSAGE_DUMP
     uint8_t log_only_mode : 1;
 #endif
@@ -734,11 +753,17 @@ class APIConnection final : public APIServerConnectionBase {
   // 2-byte types immediately after flags_ (no padding between them)
   uint16_t client_api_version_major_{0};
   uint16_t client_api_version_minor_{0};
-  // 1-byte type to fill padding
+  // 1-byte types to fill remaining space before next 4-byte boundary
   ActiveIterator active_iterator_{ActiveIterator::NONE};
-  // Total: 2 (flags) + 2 + 2 + 1 = 7 bytes, then 1 byte padding to next 4-byte boundary
+  uint8_t batch_message_type_{0};  // Current message type during batch encoding
+  // Total: 2 (flags) + 2 + 2 + 1 + 1 = 8 bytes, aligned to 4-byte boundary
 
-  uint32_t get_batch_delay_ms_() const { return this->parent_->get_batch_delay(); }
+  // Actual header size used by encode_to_buffer for the current message.
+  // Read by process_batch_multi_ to pass into MessageInfo.
+  uint8_t batch_header_size_{0};
+
+  // Defined in api_connection_buffer.h (needs APIServer complete).
+  uint32_t get_batch_delay_ms_() const;
   // Message will use 8 more bytes than the minimum size, and typical
   // MTU is 1500. Sometimes users will see as low as 1460 MTU.
   // If its IPv6 the header is 40 bytes, and if its IPv4

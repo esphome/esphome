@@ -4,6 +4,7 @@
 #include <zephyr/settings/settings.h>
 #include <zephyr/storage/flash_map.h>
 #include "esphome/core/hal.h"
+#include "esphome/core/wake.h"
 
 extern "C" {
 #include <zboss_api.h>
@@ -39,7 +40,7 @@ void ZigbeeComponent::zboss_signal_handler_esphome(zb_bufid_t bufid) {
     case ZB_BDB_SIGNAL_DEVICE_REBOOT:
       ESP_LOGD(TAG, "ZB_BDB_SIGNAL_DEVICE_REBOOT, status: %d", status);
       if (status == RET_OK) {
-        on_join_();
+        on_join_(false);
       }
       break;
     case ZB_BDB_SIGNAL_STEERING:
@@ -87,7 +88,7 @@ void ZigbeeComponent::zboss_signal_handler_esphome(zb_bufid_t bufid) {
 
         for (int i = 0; i < addr_len; ++i) {
           if (ieee_addr_buf[i] != '0') {
-            on_join_();
+            on_join_(true);
             break;
           }
         }
@@ -116,6 +117,8 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
   /* Set default response value. */
   p_device_cb_param->status = RET_OK;
 
+  esphome::wake_loop_threadsafe();
+
   // endpoints are enumerated from 1
   if (global_zigbee->callbacks_.size() >= endpoint) {
     const auto &cb = global_zigbee->callbacks_[endpoint - 1];
@@ -127,11 +130,10 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
   p_device_cb_param->status = RET_NOT_IMPLEMENTED;
 }
 
-void ZigbeeComponent::on_join_() {
-  this->defer([this]() {
+void ZigbeeComponent::on_join_(bool factory_new) {
+  this->defer([this, factory_new]() {
     ESP_LOGD(TAG, "Joined the network");
-    this->join_trigger_.trigger();
-    this->join_cb_.call();
+    this->join_cb_.call(factory_new);
   });
 }
 
@@ -181,9 +183,13 @@ void ZigbeeComponent::setup() {
     ESP_LOGE(TAG, "Cannot load settings, err: %d", err);
     return;
   }
+#ifdef CONFIG_ZIGBEE_ROLE_END_DEVICE
+  zigbee_configure_sleepy_behavior(this->sleepy_);
+#endif
   zigbee_enable();
 }
 
+#ifdef ESPHOME_LOG_HAS_CONFIG
 static const char *role() {
   switch (zb_get_network_role()) {
     case ZB_NWK_DEVICE_TYPE_COORDINATOR:
@@ -207,6 +213,7 @@ static const char *get_wipe_on_boot() {
   return "NO";
 #endif
 }
+#endif
 
 void ZigbeeComponent::dump_config() {
   char ieee_addr_buf[IEEE_ADDR_BUF_SIZE] = {0};
@@ -222,6 +229,7 @@ void ZigbeeComponent::dump_config() {
                 "  Wipe on boot: %s\n"
                 "  Device is joined to the network: %s\n"
                 "  Sleep time: %us\n"
+                "  RX ON when idle: %s\n"
                 "  Current channel: %d\n"
                 "  Current page: %d\n"
                 "  Sleep threshold: %ums\n"
@@ -230,9 +238,9 @@ void ZigbeeComponent::dump_config() {
                 "  Short addr: 0x%04X\n"
                 "  Long pan id: 0x%s\n"
                 "  Short pan id: 0x%04X",
-                get_wipe_on_boot(), YESNO(zb_zdo_joined()), this->sleep_time_, zb_get_current_channel(),
-                zb_get_current_page(), zb_get_sleep_threshold(), role(), ieee_addr_buf, zb_get_short_address(),
-                extended_pan_id_buf, zb_get_pan_id());
+                get_wipe_on_boot(), YESNO(zb_zdo_joined()), this->sleep_time_, YESNO(zb_get_rx_on_when_idle()),
+                zb_get_current_channel(), zb_get_current_page(), zb_get_sleep_threshold(), role(), ieee_addr_buf,
+                zb_get_short_address(), extended_pan_id_buf, zb_get_pan_id());
   dump_reporting_();
 }
 
@@ -302,6 +310,12 @@ void ZigbeeComponent::after_reporting_info(zb_zcl_configure_reporting_req_t *con
 
 extern "C" {
 void zboss_signal_handler(zb_uint8_t param) { esphome::zigbee::global_zigbee->zboss_signal_handler_esphome(param); }
+void zb_osif_serial_put_bytes(const zb_uint8_t *buf, zb_short_t len) {
+  (void) buf;
+  (void) len;
+}
+void zb_osif_serial_flush() {}
+void zb_osif_serial_init() {}
 
 // NOLINTBEGIN(readability-identifier-naming,bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 extern zb_ret_t __real_zb_zcl_put_reporting_info_from_req(zb_zcl_configure_reporting_req_t *config_rep_req,

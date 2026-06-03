@@ -18,9 +18,14 @@ static const char *const TAG = "ethernet";
 
 void EthernetComponent::setup() {
   // Configure SPI pins
+#if !defined(USE_ETHERNET_W6300)
   SPI.setRX(this->miso_pin_);
   SPI.setTX(this->mosi_pin_);
   SPI.setSCK(this->clk_pin_);
+#endif
+  // W6300 uses PIO QSPI with hardcoded pins, not Arduino SPI.
+  // SPI pin config is skipped; Wiznet6300lwIPFixed (needsSPI()=false)
+  // prevents LwipIntfDev::begin() from calling SPI.begin().
 
   // Toggle reset pin if configured
   if (this->reset_pin_ >= 0) {
@@ -40,6 +45,10 @@ void EthernetComponent::setup() {
   this->eth_ = new Wiznet5500lwIP(this->cs_pin_, SPI, this->interrupt_pin_);  // NOLINT
 #elif defined(USE_ETHERNET_W5100)
   this->eth_ = new Wiznet5100lwIP(this->cs_pin_, SPI, this->interrupt_pin_);  // NOLINT
+#elif defined(USE_ETHERNET_W6100)
+  this->eth_ = new Wiznet6100lwIP(this->cs_pin_, SPI, this->interrupt_pin_);  // NOLINT
+#elif defined(USE_ETHERNET_W6300)
+  this->eth_ = new Wiznet6300lwIPFixed(this->cs_pin_, SPI, this->interrupt_pin_);  // NOLINT
 #elif defined(USE_ETHERNET_ENC28J60)
   this->eth_ = new ENC28J60lwIP(this->cs_pin_, SPI, this->interrupt_pin_);  // NOLINT
 #endif
@@ -183,9 +192,23 @@ void EthernetComponent::dump_config() {
   type_str = "W5500";
 #elif defined(USE_ETHERNET_W5100)
   type_str = "W5100";
+#elif defined(USE_ETHERNET_W6100)
+  type_str = "W6100";
+#elif defined(USE_ETHERNET_W6300)
+  type_str = "W6300";
 #elif defined(USE_ETHERNET_ENC28J60)
   type_str = "ENC28J60";
 #endif
+#if defined(USE_ETHERNET_W6300)
+  // W6300 uses PIO QSPI with hardcoded pins — SPI pin fields are not used
+  ESP_LOGCONFIG(TAG,
+                "Ethernet:\n"
+                "  Type: %s (PIO QSPI)\n"
+                "  Connected: %s\n"
+                "  IRQ Pin: %d\n"
+                "  Reset Pin: %d",
+                type_str, YESNO(this->is_connected()), this->interrupt_pin_, this->reset_pin_);
+#else
   ESP_LOGCONFIG(TAG,
                 "Ethernet:\n"
                 "  Type: %s\n"
@@ -198,6 +221,7 @@ void EthernetComponent::dump_config() {
                 "  Reset Pin: %d",
                 type_str, YESNO(this->is_connected()), this->clk_pin_, this->miso_pin_, this->mosi_pin_, this->cs_pin_,
                 this->interrupt_pin_, this->reset_pin_);
+#endif
   this->dump_connect_params_();
 }
 
@@ -336,6 +360,23 @@ void EthernetComponent::set_mosi_pin(uint8_t mosi_pin) { this->mosi_pin_ = mosi_
 void EthernetComponent::set_cs_pin(uint8_t cs_pin) { this->cs_pin_ = cs_pin; }
 void EthernetComponent::set_interrupt_pin(int8_t interrupt_pin) { this->interrupt_pin_ = interrupt_pin; }
 void EthernetComponent::set_reset_pin(int8_t reset_pin) { this->reset_pin_ = reset_pin; }
+
+void EthernetComponent::enable() {
+  // RP2040 uses arduino-pico's LwipIntfDev which manages link state internally;
+  // there is no clean enable/disable hook today. The YAML option is accepted on
+  // RP2040 for schema parity but has no effect.
+  if (!this->disabled_)
+    return;
+  ESP_LOGW(TAG, "enable_on_boot/disable not supported");
+  this->disabled_ = false;
+}
+
+void EthernetComponent::disable() {
+  if (this->disabled_)
+    return;
+  ESP_LOGW(TAG, "enable_on_boot/disable not supported");
+  this->disabled_ = true;
+}
 
 }  // namespace esphome::ethernet
 

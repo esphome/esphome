@@ -5,6 +5,29 @@ namespace esphome::modbus::helpers {
 
 static const char *const TAG = "modbus_helpers";
 
+static size_t required_payload_size(SensorValueType sensor_value_type) {
+  switch (sensor_value_type) {
+    case SensorValueType::U_WORD:
+    case SensorValueType::S_WORD:
+      return 2;
+    case SensorValueType::U_DWORD:
+    case SensorValueType::FP32:
+    case SensorValueType::U_DWORD_R:
+    case SensorValueType::FP32_R:
+    case SensorValueType::S_DWORD:
+    case SensorValueType::S_DWORD_R:
+      return 4;
+    case SensorValueType::U_QWORD:
+    case SensorValueType::S_QWORD:
+    case SensorValueType::U_QWORD_R:
+    case SensorValueType::S_QWORD_R:
+      return 8;
+    case SensorValueType::RAW:
+    default:
+      return 0;
+  }
+}
+
 void number_to_payload(std::vector<uint16_t> &data, int64_t value, SensorValueType value_type) {
   switch (value_type) {
     case SensorValueType::U_WORD:
@@ -47,93 +70,70 @@ int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sens
                           uint32_t bitmask) {
   int64_t value = 0;  // int64_t because it can hold signed and unsigned 32 bits
 
-  if (offset > data.size()) {
-    ESP_LOGE(TAG, "not enough data for value");
+  // Validate offset against the buffer for all types, including RAW/unsupported, so
+  // a malformed or misconfigured frame still produces an error log.
+  if (static_cast<size_t>(offset) > data.size()) {
+    ESP_LOGE(TAG, "not enough data for value type=%u offset=%u size=%zu", static_cast<unsigned int>(sensor_value_type),
+             static_cast<unsigned int>(offset), data.size());
     return value;
   }
 
-  size_t size = data.size() - offset;
-  bool error = false;
+  const size_t required_size = required_payload_size(sensor_value_type);
+  if (required_size == 0) {
+    return value;
+  }
+
+  if (data.size() - offset < required_size) {
+    ESP_LOGE(TAG, "not enough data for value type=%u offset=%u size=%zu required=%zu",
+             static_cast<unsigned int>(sensor_value_type), static_cast<unsigned int>(offset), data.size(),
+             required_size);
+    return value;
+  }
+
   switch (sensor_value_type) {
     case SensorValueType::U_WORD:
-      if (size >= 2) {
-        value = mask_and_shift_by_rightbit(get_data<uint16_t>(data, offset),
-                                           bitmask);  // default is 0xFFFF ;
-      } else {
-        error = true;
-      }
+      value = mask_and_shift_by_rightbit(get_data<uint16_t>(data, offset), bitmask);  // default is 0xFFFF ;
       break;
     case SensorValueType::U_DWORD:
     case SensorValueType::FP32:
-      if (size >= 4) {
-        value = get_data<uint32_t>(data, offset);
-        value = mask_and_shift_by_rightbit((uint32_t) value, bitmask);
-      } else {
-        error = true;
-      }
+      value = get_data<uint32_t>(data, offset);
+      value = mask_and_shift_by_rightbit((uint32_t) value, bitmask);
       break;
     case SensorValueType::U_DWORD_R:
     case SensorValueType::FP32_R:
-      if (size >= 4) {
-        value = get_data<uint32_t>(data, offset);
-        value = static_cast<uint32_t>(value & 0xFFFF) << 16 | (value & 0xFFFF0000) >> 16;
-        value = mask_and_shift_by_rightbit((uint32_t) value, bitmask);
-      } else {
-        error = true;
-      }
+      value = get_data<uint32_t>(data, offset);
+      value = static_cast<uint32_t>(value & 0xFFFF) << 16 | (value & 0xFFFF0000) >> 16;
+      value = mask_and_shift_by_rightbit((uint32_t) value, bitmask);
       break;
     case SensorValueType::S_WORD:
-      if (size >= 2) {
-        value = mask_and_shift_by_rightbit(get_data<int16_t>(data, offset),
-                                           bitmask);  // default is 0xFFFF ;
-      } else {
-        error = true;
-      }
+      value = mask_and_shift_by_rightbit(get_data<int16_t>(data, offset), bitmask);  // default is 0xFFFF ;
       break;
     case SensorValueType::S_DWORD:
-      if (size >= 4) {
-        value = mask_and_shift_by_rightbit(get_data<int32_t>(data, offset), bitmask);
-      } else {
-        error = true;
-      }
+      value = mask_and_shift_by_rightbit(get_data<int32_t>(data, offset), bitmask);
       break;
     case SensorValueType::S_DWORD_R: {
-      if (size >= 4) {
-        value = get_data<uint32_t>(data, offset);
-        // Currently the high word is at the low position
-        // the sign bit is therefore at low before the switch
-        uint32_t sign_bit = (value & 0x8000) << 16;
-        value = mask_and_shift_by_rightbit(
-            static_cast<int32_t>(((value & 0x7FFF) << 16 | (value & 0xFFFF0000) >> 16) | sign_bit), bitmask);
-      } else {
-        error = true;
-      }
+      value = get_data<uint32_t>(data, offset);
+      // Currently the high word is at the low position
+      // the sign bit is therefore at low before the switch
+      uint32_t sign_bit = (value & 0x8000) << 16;
+      value = mask_and_shift_by_rightbit(
+          static_cast<int32_t>(((value & 0x7FFF) << 16 | (value & 0xFFFF0000) >> 16) | sign_bit), bitmask);
     } break;
     case SensorValueType::U_QWORD:
     case SensorValueType::S_QWORD:
       // Ignore bitmask for QWORD
-      if (size >= 8) {
-        value = get_data<uint64_t>(data, offset);
-      } else {
-        error = true;
-      }
+      value = get_data<uint64_t>(data, offset);
       break;
     case SensorValueType::U_QWORD_R:
     case SensorValueType::S_QWORD_R: {
       // Ignore bitmask for QWORD
-      if (size >= 8) {
-        uint64_t tmp = get_data<uint64_t>(data, offset);
-        value = (tmp << 48) | (tmp >> 48) | ((tmp & 0xFFFF0000) << 16) | ((tmp >> 16) & 0xFFFF0000);
-      } else {
-        error = true;
-      }
+      uint64_t tmp = get_data<uint64_t>(data, offset);
+      value = (tmp << 48) | (tmp >> 48) | ((tmp & 0xFFFF0000) << 16) | ((tmp >> 16) & 0xFFFF0000);
     } break;
     case SensorValueType::RAW:
     default:
       break;
   }
-  if (error)
-    ESP_LOGE(TAG, "not enough data for value");
   return value;
 }
 }  // namespace esphome::modbus::helpers

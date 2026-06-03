@@ -1,3 +1,5 @@
+import logging
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import display
@@ -38,6 +40,7 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["esp32"]
+LOGGER = logging.getLogger(__name__)
 
 rpi_dpi_rgb_ns = cg.esphome_ns.namespace("rpi_dpi_rgb")
 RPI_DPI_RGB = rpi_dpi_rgb_ns.class_("RpiDpiRgb", display.Display, cg.Component)
@@ -126,6 +129,9 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    LOGGER.warning(
+        "The 'rpi_dpi_rgb' component is deprecated, it is recommended to use 'mipi_rgb' instead."
+    )
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
 
