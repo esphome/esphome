@@ -104,10 +104,12 @@ bool MotionComponent::calibrate_level() {
 
   // Compute rotation matrix R such that R * [nx, ny, nz] = [0, 0, 1]
   // using Rodrigues' rotation formula, then compose with the existing matrix.
-  if (nz > 0.9999f) {
+  if (nz > 0.99999f) {
     // Already aligned with +Z — nothing to compose
     ESP_LOGI(TAG, "Level calibration: already aligned");
     log_matrix(this->matrix_);
+    // returning true here will trigger on_success and a save to NVS, but the save will ultimately be a no-op
+    // since the backend sync will not write unchanged values.
     return true;
   }
 
