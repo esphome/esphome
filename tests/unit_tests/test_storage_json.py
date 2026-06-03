@@ -205,6 +205,7 @@ def test_storage_json_as_dict() -> None:
         no_mdns=True,
         framework="arduino",
         core_platform="esp32",
+        area="Living Room",
     )
 
     result = storage.as_dict()
@@ -233,6 +234,7 @@ def test_storage_json_as_dict() -> None:
     assert result["no_mdns"] is True
     assert result["framework"] == "arduino"
     assert result["core_platform"] == "esp32"
+    assert result["area"] == "Living Room"
 
 
 def test_storage_json_to_json() -> None:
@@ -309,6 +311,7 @@ def test_storage_json_from_esphome_core(setup_core: Path) -> None:
     mock_core.config = {CONF_MDNS: {CONF_DISABLED: True}}
     mock_core.target_framework = "esp-idf"
     mock_core.toolchain = Toolchain.ESP_IDF
+    mock_core.area = "Living Room"
 
     with patch("esphome.components.esp32.get_esp32_variant") as mock_variant:
         mock_variant.return_value = "ESP32-C3"
@@ -329,6 +332,7 @@ def test_storage_json_from_esphome_core(setup_core: Path) -> None:
     assert result.framework == "esp-idf"
     assert result.core_platform == "esp32"
     assert result.toolchain == "esp-idf"
+    assert result.area == "Living Room"
 
 
 def test_storage_json_from_esphome_core_mdns_enabled(setup_core: Path) -> None:
@@ -729,3 +733,37 @@ def test_storage_json_load_legacy_esphomeyaml_version(tmp_path: Path) -> None:
 
     assert result is not None
     assert result.esphome_version == "1.14.0"  # Should map to esphome_version
+
+
+def test_storage_json_load_area(tmp_path: Path) -> None:
+    """``area`` round-trips through load; absence loads as None."""
+    file_path = tmp_path / "with_area.json"
+    file_path.write_text(
+        json.dumps(
+            {
+                "storage_version": 1,
+                "name": "lamp",
+                "friendly_name": "Lamp",
+                "esp_platform": "ESP32",
+                "area": "Living Room",
+            }
+        )
+    )
+    result = storage_json.StorageJSON.load(file_path)
+    assert result is not None
+    assert result.area == "Living Room"
+
+    legacy_path = tmp_path / "no_area.json"
+    legacy_path.write_text(
+        json.dumps(
+            {
+                "storage_version": 1,
+                "name": "lamp",
+                "friendly_name": "Lamp",
+                "esp_platform": "ESP32",
+            }
+        )
+    )
+    legacy = storage_json.StorageJSON.load(legacy_path)
+    assert legacy is not None
+    assert legacy.area is None
