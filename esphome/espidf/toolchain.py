@@ -35,17 +35,7 @@ def _cache() -> _CacheData:
 
 
 def _get_core_framework_version():
-    # On the logs/upload fast path the version is restored from the storage
-    # sidecar (StorageJSON.apply_to_core); it is absent when the sidecar
-    # predates the field or held an unparseable version. Fail with an
-    # actionable message rather than a bare KeyError.
-    esp32_data = CORE.data.get(KEY_ESP32, {})
-    if KEY_IDF_VERSION not in esp32_data:
-        raise EsphomeError(
-            "Could not determine the ESP-IDF version from the build cache. "
-            "Please clean the build files and recompile."
-        )
-    return str(esp32_data[KEY_IDF_VERSION])
+    return str(CORE.data[KEY_ESP32][KEY_IDF_VERSION])
 
 
 def _get_framework_source_override() -> str | None:

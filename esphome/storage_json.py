@@ -16,7 +16,7 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
     Toolchain,
 )
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 from esphome.helpers import write_file_if_changed
 from esphome.types import CoreType
 
@@ -324,22 +324,22 @@ class StorageJSON:
             from esphome.const import KEY_VARIANT
 
             esp32_data = {KEY_VARIANT: self.target_platform}
-            # A malformed value (corrupt sidecar, or a version string written by
-            # a newer ESPHome) just leaves KEY_IDF_VERSION unset rather than
-            # re-breaking the fast path this restore exists to fix.
             if self.framework_version:
                 import esphome.config_validation as cv
 
+                # A malformed value (corrupt sidecar, or a version string from a
+                # newer ESPHome) fails here with an actionable message rather
+                # than a bare KeyError later at one of the CORE.data readers.
                 try:
                     esp32_data[KEY_IDF_VERSION] = cv.Version.parse(
                         self.framework_version
                     )
-                except ValueError:
-                    _LOGGER.debug(
-                        "Ignoring invalid framework_version %r from %s",
-                        self.framework_version,
-                        storage_path(),
-                    )
+                except ValueError as err:
+                    raise EsphomeError(
+                        f"Could not parse the framework version "
+                        f"{self.framework_version!r} from {storage_path()}. "
+                        f"Please clean the build files and recompile."
+                    ) from err
             CORE.data[KEY_ESP32] = esp32_data
 
     def __eq__(self, o) -> bool:

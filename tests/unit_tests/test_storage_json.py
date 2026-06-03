@@ -584,17 +584,17 @@ def test_storage_json_apply_to_core_without_framework_version(
     assert KEY_IDF_VERSION not in CORE.data[KEY_ESP32]
 
 
-def test_storage_json_apply_to_core_ignores_invalid_framework_version(
+def test_storage_json_apply_to_core_raises_on_invalid_framework_version(
     setup_core: Path,
 ) -> None:
-    """A malformed version string is ignored instead of re-breaking the fast path."""
-    from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION
+    """A malformed version string fails with an actionable error at parse time."""
+    from esphome.core import EsphomeError
 
     loaded = _make_storage_with_toolchain("esp-idf")
     loaded.framework_version = "not-a-version"
 
-    loaded.apply_to_core()
-    assert KEY_IDF_VERSION not in CORE.data[KEY_ESP32]
+    with pytest.raises(EsphomeError, match="clean the build"):
+        loaded.apply_to_core()
 
 
 def test_esphome_storage_json_as_dict() -> None:
