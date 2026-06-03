@@ -16,7 +16,7 @@ sys.path.insert(0, str(script_dir))
 
 def read_file_lines(path: Path) -> list[str]:
     """Read lines from a file."""
-    with open(path) as f:
+    with path.open() as f:
         return f.readlines()
 
 
@@ -65,7 +65,7 @@ def get_clang_tidy_version_from_requirements(repo_root: Path | None = None) -> s
 
 def read_file_bytes(path: Path) -> bytes:
     """Read bytes from a file."""
-    with open(path, "rb") as f:
+    with path.open("rb") as f:
         return f.read()
 
 
@@ -120,7 +120,7 @@ def read_stored_hash(repo_root: Path | None = None) -> str | None:
 
 def write_file_content(path: Path, content: str) -> None:
     """Write content to a file."""
-    with open(path, "w") as f:
+    with path.open("w") as f:
         f.write(content)
 
 
