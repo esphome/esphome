@@ -1,8 +1,6 @@
 #pragma once
-#include <cmath>
 #include <gtest/gtest.h>
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/host/preferences.h"
 #include "esphome/components/battery_gauge/sensor/battery_gauge_sensor.h"
 
 namespace esphome::battery_gauge::testing {
@@ -29,14 +27,10 @@ class TestableBatteryGauge : public BatteryGaugeSensor {
   using BatteryGaugeSensor::max_charge_voltage_;
 };
 
-// Fixture that ensures global_preferences is initialised before the gauge is
-// constructed. The constructor calls global_preferences->make_preference(), and
-// publish_() persists the charge percentage, so a valid backend must exist on
-// the host platform.
+// Fixture used by the battery gauge unit tests.
+
 class BatteryGaugeTest : public ::testing::Test {
  protected:
-  void SetUp() override { esphome::host::setup_preferences(); }
-
   // Source sensors are owned by the fixture; the gauge holds pointers to them.
   sensor::Sensor voltage_source_;
   sensor::Sensor current_source_;

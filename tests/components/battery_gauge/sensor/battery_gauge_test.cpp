@@ -1,5 +1,6 @@
 #include "../common.h"
 #include "esphome/core/hal.h"
+#include <cmath>
 
 namespace esphome::battery_gauge::testing {
 
