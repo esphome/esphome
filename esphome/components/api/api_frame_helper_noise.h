@@ -9,19 +9,22 @@ namespace esphome::api {
 
 class APINoiseFrameHelper final : public APIFrameHelper {
  public:
+  // Noise header structure:
+  // Pos 0: indicator (0x01)
+  // Pos 1-2: encrypted payload size (16-bit big-endian)
+  // Pos 3-6: encrypted type (16-bit) + data_len (16-bit)
+  // Pos 7+: actual payload data
+  static constexpr uint8_t HEADER_PADDING = 1 + 2 + 2 + 2;  // indicator + size + type + data_len
+
   APINoiseFrameHelper(std::unique_ptr<socket::Socket> socket, APINoiseContext &ctx)
       : APIFrameHelper(std::move(socket)), ctx_(ctx) {
-    // Noise header structure:
-    // Pos 0: indicator (0x01)
-    // Pos 1-2: encrypted payload size (16-bit big-endian)
-    // Pos 3-6: encrypted type (16-bit) + data_len (16-bit)
-    // Pos 7+: actual payload data
-    frame_header_padding_ = 7;
+    frame_header_padding_ = HEADER_PADDING;
   }
   ~APINoiseFrameHelper() override;
   APIError init() override;
   APIError loop() override;
   APIError read_packet(ReadPacketBuffer *buffer) override;
+  APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) override;
   APIError write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) override;
 
  protected:
@@ -33,6 +36,8 @@ class APINoiseFrameHelper final : public APIFrameHelper {
   APIError state_action_handshake_write_();
   APIError try_read_frame_();
   APIError write_frame_(const uint8_t *data, uint16_t len);
+  APIError encrypt_noise_message_(uint8_t *buf_start, uint16_t payload_size, uint8_t message_type,
+                                  uint16_t &encrypted_len_out);
   APIError init_handshake_();
   APIError check_handshake_finished_();
   void send_explicit_handshake_reject_(const LogString *reason);

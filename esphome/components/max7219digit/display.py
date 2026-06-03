@@ -147,7 +147,8 @@ MAX7219_ON_ACTION_SCHEMA = automation.maybe_simple_id(
 async def max7219digit_invert_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    cg.add(var.set_state(config[CONF_STATE]))
+    template_ = await cg.templatable(config[CONF_STATE], args, cg.bool_)
+    cg.add(var.set_state(template_))
     return var
 
 
@@ -166,7 +167,8 @@ async def max7219digit_invert_to_code(config, action_id, template_arg, args):
 async def max7219digit_visible_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    cg.add(var.set_state(config[CONF_STATE]))
+    template_ = await cg.templatable(config[CONF_STATE], args, cg.bool_)
+    cg.add(var.set_state(template_))
     return var
 
 
@@ -185,7 +187,8 @@ async def max7219digit_visible_to_code(config, action_id, template_arg, args):
 async def max7219digit_reverse_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    cg.add(var.set_state(config[CONF_STATE]))
+    template_ = await cg.templatable(config[CONF_STATE], args, cg.bool_)
+    cg.add(var.set_state(template_))
     return var
 
 

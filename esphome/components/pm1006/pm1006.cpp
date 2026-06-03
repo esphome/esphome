@@ -1,8 +1,7 @@
 #include "pm1006.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pm1006 {
+namespace esphome::pm1006 {
 
 static const char *const TAG = "pm1006";
 
@@ -93,5 +92,4 @@ void PM1006Component::parse_data_() {
   }
 }
 
-}  // namespace pm1006
-}  // namespace esphome
+}  // namespace esphome::pm1006
