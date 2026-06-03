@@ -126,6 +126,13 @@ def storage_should_update_cmake_cache(old: StorageJSON, new: StorageJSON) -> boo
 
 
 def update_storage_json() -> None:
+    """Refresh the storage sidecar and clean an incompatible build.
+
+    Runs at the start of ``write_cpp`` -- BEFORE any source/project files are
+    regenerated -- so the clean below can safely ``full``-wipe the whole build
+    directory (a switch of toolchain/framework/version also drops the stale
+    project scaffolding, not just the compiled objects).
+    """
     path = storage_path()
     old = StorageJSON.load(path)
     new = StorageJSON.from_esphome_core(CORE, old)
@@ -146,7 +153,7 @@ def update_storage_json() -> None:
             )
         else:
             _LOGGER.info("Core config or version changed, cleaning build files...")
-        clean_build(clear_pio_cache=False)
+        clean_build(clear_pio_cache=False, full=True)
     elif storage_should_update_cmake_cache(old, new):
         _LOGGER.info("Integrations changed, cleaning cmake cache...")
         clean_cmake_cache()
@@ -483,47 +490,88 @@ def write_cpp(code_s):
 
 
 def clean_cmake_cache():
-    pioenvs = CORE.relative_pioenvs_path()
-    if pioenvs.is_dir():
-        pioenvs_cmake_path = pioenvs / CORE.name / "CMakeCache.txt"
-        if pioenvs_cmake_path.is_file():
-            _LOGGER.info("Deleting %s", pioenvs_cmake_path)
-            pioenvs_cmake_path.unlink()
+    # Drop the CMake cache so a component-set change forces a reconfigure.
+    # PlatformIO keeps it under .pioenvs/<name>/; the native ESP-IDF toolchain
+    # keeps it under build/ (where espidf's has_outdated_files() treats a
+    # missing CMakeCache.txt as stale). Only one exists for a given build.
+    cmake_cache_paths = (
+        CORE.relative_pioenvs_path(CORE.name, "CMakeCache.txt"),
+        CORE.relative_build_path("build", "CMakeCache.txt"),
+    )
+    for cmake_cache_path in cmake_cache_paths:
+        if cmake_cache_path.is_file():
+            _LOGGER.info("Deleting %s", cmake_cache_path)
+            cmake_cache_path.unlink()
 
 
-def clean_build(clear_pio_cache: bool = True):
+def clean_build(clear_pio_cache: bool = True, *, full: bool = False):
+    """Remove build artifacts.
+
+    By default only the compiled outputs are removed (``.pioenvs`` /
+    ``.piolibdeps`` / the native ESP-IDF ``build`` and ``managed_components``
+    dirs) while the generated ``src/`` and project files are kept. This is what
+    in-build callers need: they regenerate a source/sdkconfig and then force a
+    rebuild without discarding the sources they just wrote.
+
+    ``full=True`` wipes the entire build directory instead. Used by the
+    ``esphome clean`` command and by the pre-build clean in
+    ``update_storage_json`` (which runs before sources are regenerated) -- in
+    both cases nothing is mid-regeneration, so the next compile rebuilds from
+    scratch. It also drops stale project scaffolding the allow-list keeps (e.g. a
+    leftover platformio.ini / CMakeLists.txt from the other toolchain), making a
+    toolchain switch reliable.
+    """
     # Allow skipping cache cleaning for integration tests
     if os.environ.get("ESPHOME_SKIP_CLEAN_BUILD"):
         _LOGGER.warning("Skipping build cleaning (ESPHOME_SKIP_CLEAN_BUILD set)")
         return
 
-    pioenvs = CORE.relative_pioenvs_path()
-    if pioenvs.is_dir():
-        _LOGGER.info("Deleting %s", pioenvs)
-        rmtree(pioenvs)
-    piolibdeps = CORE.relative_piolibdeps_path()
-    if piolibdeps.is_dir():
-        _LOGGER.info("Deleting %s", piolibdeps)
-        rmtree(piolibdeps)
-    dependencies_lock = CORE.relative_build_path("dependencies.lock")
-    if dependencies_lock.is_file():
-        _LOGGER.info("Deleting %s", dependencies_lock)
-        dependencies_lock.unlink()
+    if full:
+        if CORE.build_path is not None:
+            build_path = Path(CORE.build_path)
+            if build_path.is_dir():
+                _LOGGER.info("Deleting %s", build_path)
+                rmtree(build_path)
+    else:
+        pioenvs = CORE.relative_pioenvs_path()
+        if pioenvs.is_dir():
+            _LOGGER.info("Deleting %s", pioenvs)
+            rmtree(pioenvs)
+        piolibdeps = CORE.relative_piolibdeps_path()
+        if piolibdeps.is_dir():
+            _LOGGER.info("Deleting %s", piolibdeps)
+            rmtree(piolibdeps)
+        dependencies_lock = CORE.relative_build_path("dependencies.lock")
+        if dependencies_lock.is_file():
+            _LOGGER.info("Deleting %s", dependencies_lock)
+            dependencies_lock.unlink()
+        # Native ESP-IDF toolchain artifacts: the IDF CMake/ninja build dir
+        # and the Component Manager's fetched managed components live under
+        # the project's build path, not under .pioenvs / .piolibdeps.
+        for name in ("build", "managed_components"):
+            idf_path = CORE.relative_build_path(name)
+            if idf_path.is_dir():
+                _LOGGER.info("Deleting %s", idf_path)
+                rmtree(idf_path)
+
+    # The idedata cache is derived from the build but lives under the data dir,
+    # not the build path, so it must be removed separately in both modes.
     idedata_cache = CORE.relative_internal_path("idedata", f"{CORE.name}.json")
     if idedata_cache.is_file():
         _LOGGER.info("Deleting %s", idedata_cache)
         idedata_cache.unlink()
-    # Native ESP-IDF toolchain artifacts: the IDF CMake/ninja build dir
-    # and the Component Manager's fetched managed components live under
-    # the project's build path, not under .pioenvs / .piolibdeps.
-    for name in ("build", "managed_components"):
-        idf_path = CORE.relative_build_path(name)
-        if idf_path.is_dir():
-            _LOGGER.info("Deleting %s", idf_path)
-            rmtree(idf_path)
 
     if not clear_pio_cache:
         return
+
+    # The native ESP-IDF toolchain caches PlatformIO libraries converted to IDF
+    # components under <data_dir>/pio_components, shared across builds and keyed
+    # by source hash (the analog of PlatformIO's global package cache). Drop it
+    # on an explicit clean so a corrupt/stale converted lib is re-fetched.
+    pio_components = CORE.relative_internal_path("pio_components")
+    if pio_components.is_dir():
+        _LOGGER.info("Deleting %s", pio_components)
+        rmtree(pio_components)
 
     # Clean PlatformIO cache to resolve CMake compiler detection issues
     # This helps when toolchain paths change or get corrupted
