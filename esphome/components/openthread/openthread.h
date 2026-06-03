@@ -64,7 +64,7 @@ class OpenThreadComponent : public Component {
   void apply_linkmode(otInstance *instance);
 
  protected:
-  OtcTeardownStage teardown_stage_{OtcTeardownStage::OTC_TEARDOWN_NOT_STARTED};
+  std::atomic<OtcTeardownStage> teardown_stage_{OtcTeardownStage::OTC_TEARDOWN_NOT_STARTED};
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
   static void on_state_changed_(otChangedFlags flags, void *context);
   otInstance *get_openthread_instance_();
