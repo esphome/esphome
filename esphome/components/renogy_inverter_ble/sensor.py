@@ -4,6 +4,7 @@ import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_POWER,
@@ -24,8 +25,7 @@ CODEOWNERS = ["@emilioaray-dev"]
 
 UNIT_VOLT_AMPS = "VA"
 
-# (config key, setter, unit, accuracy decimals, device_class). Names chosen so the ESPHome MQTT
-# object_id matches the backend ingester's field map (infrastructure/mqtt/inverter_ingester.py).
+# (config key, unit, accuracy decimals, device_class) for each measurement the inverter exposes.
 SENSORS = [
     ("ac_input_voltage", UNIT_VOLT, 1, DEVICE_CLASS_VOLTAGE),
     ("ac_output_voltage", UNIT_VOLT, 1, DEVICE_CLASS_VOLTAGE),
@@ -36,7 +36,7 @@ SENSORS = [
     ("temperature", UNIT_CELSIUS, 1, DEVICE_CLASS_TEMPERATURE),
     ("load_current", UNIT_AMPERE, 2, DEVICE_CLASS_CURRENT),
     ("load_active_power", UNIT_WATT, 0, DEVICE_CLASS_POWER),
-    ("load_apparent_power", UNIT_VOLT_AMPS, 0, DEVICE_CLASS_POWER),
+    ("load_apparent_power", UNIT_VOLT_AMPS, 0, DEVICE_CLASS_APPARENT_POWER),
 ]
 
 CONFIG_SCHEMA = RENOGY_INVERTER_BLE_COMPONENT_SCHEMA.extend(

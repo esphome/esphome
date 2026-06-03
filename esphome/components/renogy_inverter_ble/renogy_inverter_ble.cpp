@@ -23,6 +23,10 @@ static const uint16_t REG_LOAD = 4408;
 static const uint16_t REG_LOAD_WORDS = 6;
 // Largest expected response: 3 header + 2*32 data + 2 CRC = 69 bytes.
 static const size_t MAX_FRAME = 80;
+// Watchdog for one read cycle. A healthy init->main->load exchange finishes well under a second;
+// 3 s is generous headroom. If it elapses the state machine is wedged (silent device, lost
+// notification) and we reset so the next poll retries.
+static const uint32_t CYCLE_TIMEOUT_MS = 3000;
 
 static uint16_t modbus_crc16(const uint8_t *data, uint16_t len) {
   uint16_t crc = 0xFFFF;
@@ -66,6 +70,13 @@ void RenogyInverterBle::reset_frame_() {
   this->expected_len_ = 0;
 }
 
+void RenogyInverterBle::abort_cycle_() {
+  this->cancel_timeout("rng_cycle");
+  this->cancel_timeout("rng_load");
+  this->reset_frame_();
+  this->state_ = State::IDLE;
+}
+
 static bool crc_valid(const uint8_t *data, uint16_t len) {
   if (len < 5) {
     return false;
@@ -94,19 +105,26 @@ void RenogyInverterBle::read_register_(uint16_t start_register, uint16_t word_co
                                req.size(), req.data(), ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
   if (status != ESP_OK) {
     ESP_LOGW(TAG, "write_char (reg %u) failed, status=%d", start_register, status);
-    this->state_ = State::IDLE;
+    this->abort_cycle_();
   }
 }
 
 void RenogyInverterBle::start_cycle_() {
   this->reset_frame_();
+  // Arm the cycle watchdog. The YAML mqtt/wifi reboot_timeout cannot rescue a wedged read cycle:
+  // MQTT stays alive while only this state machine is stuck, so the device would publish stale
+  // values forever. This timer guarantees the cycle always returns to IDLE.
+  this->set_timeout("rng_cycle", CYCLE_TIMEOUT_MS, [this]() {
+    ESP_LOGW(TAG, "Read cycle timed out (state=%u); resetting", static_cast<uint8_t>(this->state_));
+    this->abort_cycle_();
+  });
   if (this->init_handle_ != 0) {
     this->state_ = State::INIT;
     const esp_err_t status = esp_ble_gattc_read_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(),
                                                      this->init_handle_, ESP_GATT_AUTH_REQ_NONE);
     if (status != ESP_OK) {
       ESP_LOGW(TAG, "init read_char failed, status=%d", status);
-      this->state_ = State::IDLE;
+      this->abort_cycle_();
     }
   } else {
     // No init characteristic discovered — try the main read directly (best effort).
@@ -131,8 +149,14 @@ void RenogyInverterBle::on_frame_complete_() {
   const uint16_t len = this->expected_len_;
   if (!crc_valid(this->frame_.data(), len)) {
     ESP_LOGW(TAG, "CRC mismatch (state=%u, len=%u)", static_cast<uint8_t>(this->state_), len);
-    this->reset_frame_();
-    this->state_ = State::IDLE;
+    this->abort_cycle_();
+    return;
+  }
+  // Modbus exception response: the function code echoes back with the high bit set (e.g. 0x83 for
+  // a read). The third byte is the exception code, not a byte count — bail before parsing data.
+  if ((this->frame_[1] & 0x80) != 0) {
+    ESP_LOGW(TAG, "Modbus exception 0x%02X (state=%u)", this->frame_[2], static_cast<uint8_t>(this->state_));
+    this->abort_cycle_();
     return;
   }
   const uint8_t word_count = this->frame_[2] / 2;
@@ -145,8 +169,7 @@ void RenogyInverterBle::on_frame_complete_() {
   if (this->state_ == State::MAIN) {
     if (word_count < 10) {
       ESP_LOGW(TAG, "Main response too short: %u words", word_count);
-      this->reset_frame_();
-      this->state_ = State::IDLE;
+      this->abort_cycle_();
       return;
     }
     publish(this->ac_input_voltage_sensor_, reg16(0) * 0.1f);
@@ -170,11 +193,9 @@ void RenogyInverterBle::on_frame_complete_() {
       publish(this->load_active_power_sensor_, static_cast<float>(reg16(1)));
       publish(this->load_apparent_power_sensor_, static_cast<float>(reg16(2)));
     }
-    this->reset_frame_();
-    this->state_ = State::IDLE;
+    this->abort_cycle_();
   } else {
-    this->reset_frame_();
-    this->state_ = State::IDLE;
+    this->abort_cycle_();
   }
 }
 
@@ -183,11 +204,10 @@ void RenogyInverterBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt
   switch (event) {
     case ESP_GATTC_DISCONNECT_EVT: {
       this->established_ = false;
-      this->state_ = State::IDLE;
       this->notify_handle_ = 0;
       this->write_handle_ = 0;
       this->init_handle_ = 0;
-      this->reset_frame_();
+      this->abort_cycle_();
       this->node_state = espbt::ClientState::IDLE;
       break;
     }
@@ -241,7 +261,9 @@ void RenogyInverterBle::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt
       }
       this->frame_.insert(this->frame_.end(), param->notify.value, param->notify.value + param->notify.value_len);
       if (this->expected_len_ == 0 && this->frame_.size() >= 3) {
-        this->expected_len_ = 3 + this->frame_[2] + 2;
+        // Exception frame ([id][func|0x80][exc][crc][crc]) is 5 bytes; a normal response is
+        // [id][func][byte_count][...data][crc][crc]. Pick the expected length by the function code.
+        this->expected_len_ = ((this->frame_[1] & 0x80) != 0) ? 5 : (3 + this->frame_[2] + 2);
       }
       if (this->expected_len_ != 0 && this->frame_.size() >= this->expected_len_) {
         this->on_frame_complete_();

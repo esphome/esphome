@@ -53,6 +53,8 @@ class RenogyInverterBle :
   void read_register_(uint16_t start_register, uint16_t word_count);
   void on_frame_complete_();
   void reset_frame_();
+  // Cancel the in-flight read cycle (watchdog + load timers), drop the partial frame, go IDLE.
+  void abort_cycle_();
 
   bool established_{false};
   State state_{State::IDLE};

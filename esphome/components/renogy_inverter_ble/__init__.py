@@ -6,7 +6,7 @@ RIV1230PU-126); applies to the RNGRIU family.
 The inverter speaks Modbus-over-BLE but requires a proprietary init read on characteristic
 0xFFD4 before it answers (the reason a generic modbus_controller times out). This hub connects
 via ble_client, performs that init, then reads holding registers 4000 (main) and 4408 (load),
-publishing the values to the configured sensors. Goal v1.31; built PR-ready for ESPHome upstream.
+publishing the values to the configured sensors.
 """
 
 import esphome.codegen as cg
