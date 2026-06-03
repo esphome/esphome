@@ -16,6 +16,7 @@ DFPlayerIsPlayingCondition = dfplayer_ns.class_(
 MULTI_CONF = True
 CONF_FOLDER = "folder"
 CONF_LOOP = "loop"
+CONF_ENABLE = "enable"
 CONF_EQ_PRESET = "eq_preset"
 CONF_ON_FINISHED_PLAYBACK = "on_finished_playback"
 
@@ -50,6 +51,11 @@ PauseAction = dfplayer_ns.class_("PauseAction", automation.Action)
 StopAction = dfplayer_ns.class_("StopAction", automation.Action)
 RandomAction = dfplayer_ns.class_("RandomAction", automation.Action)
 SetDeviceAction = dfplayer_ns.class_("SetDeviceAction", automation.Action)
+SetCurrentTrackRepeatAction = dfplayer_ns.class_(
+    "SetCurrentTrackRepeatAction", automation.Action
+)
+EnableLoopAction = dfplayer_ns.class_("EnableLoopAction", automation.Action)
+DisableLoopAction = dfplayer_ns.class_("DisableLoopAction", automation.Action)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -367,6 +373,27 @@ async def dfplayer_stop_to_code(config, action_id, template_arg, args):
 async def dfplayer_random_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
+    return var
+
+
+@automation.register_action(
+    "dfplayer.set_current_track_repeat",
+    SetCurrentTrackRepeatAction,
+    cv.maybe_simple_value(
+        {
+            cv.GenerateID(): cv.use_id(DFPlayer),
+            cv.Required(CONF_ENABLE): cv.templatable(cv.boolean),
+        },
+        key=CONF_ENABLE,
+    ),
+)
+async def dfplayer_set_current_track_repeat_to_code(
+    config, action_id, template_arg, args
+):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config[CONF_ENABLE], args, bool)
+    cg.add(var.set_enable(template_))
     return var
 
 

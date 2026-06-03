@@ -46,6 +46,7 @@ class DFPlayer : public uart::UARTDevice, public Component {
   void pause();
   void stop();
   void random();
+  void set_current_track_repeat(bool enable);
 
   bool is_playing() { return is_playing_; }
   void dump_config() override;
@@ -153,6 +154,16 @@ template<typename... Ts> class SetEqAction : public Action<Ts...>, public Parent
   void play(const Ts &...x) override {
     auto eq = this->eq_.value(x...);
     this->parent_->set_eq(eq);
+  }
+};
+
+template<typename... Ts> class SetCurrentTrackRepeatAction : public Action<Ts...>, public Parented<DFPlayer> {
+ public:
+  TEMPLATABLE_VALUE(bool, enable)
+
+  void play(const Ts &...x) override {
+    auto enable = this->enable_.value(x...);
+    this->parent_->set_current_track_repeat(enable);
   }
 };
 
