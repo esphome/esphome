@@ -46,8 +46,8 @@ class OpenThreadComponent : public Component {
 #endif
   void set_output_power(int8_t output_power) { this->output_power_ = output_power; }
 
-  /** Apply settings for Link Mode incl poll period. Called by automation actions under lock.
-   * @pre Call while holding InstanceLock
+  /** Apply Link Mode settings (incl poll period).
+   * When called from outside the OpenThread task, call while holding InstanceLock.
    */
   void apply_linkmode(otInstance *instance);
 
