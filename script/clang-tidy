@@ -39,8 +39,10 @@ def clang_options(idedata):
         cmd.append("-m32")
         cmd.append("-D__XTENSA__")
         cmd.append("-D_LIBC")
-    else:
+    elif triplet:
         cmd.append(f"--target={triplet}")
+    # else: native host compiler (e.g. "g++") has no triple prefix; let clang
+    # use its default host target rather than passing an empty --target.
 
     omit_flags = (
         "-free",
