@@ -428,7 +428,6 @@ async def to_code(configs):
                 await build_automation(idle_trigger, [], conf)
             for trigger_name in SIMPLE_TRIGGERS:
                 if conf := config.get(trigger_name):
-                    print("Processing trigger " + trigger_name)
                     trigger_var = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
                     await build_automation(trigger_var, [], conf)
                     cg.add(

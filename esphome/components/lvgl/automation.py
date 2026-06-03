@@ -15,6 +15,7 @@ from .defines import (
     CONF_BOTTOM_LAYER,
     CONF_EDITING,
     CONF_FREEZE,
+    CONF_LAYOUT,
     CONF_LVGL_ID,
     CONF_MAIN,
     CONF_OBJ,
@@ -28,6 +29,7 @@ from .defines import (
     get_options,
     get_refreshed_widgets,
 )
+from .layout import layout_validator
 from .lv_validation import lv_bool, lv_milliseconds, lv_rotation
 from .lvcode import (
     LVGL_COMP_ARG,
@@ -254,6 +256,13 @@ layer_spec = WidgetType(CONF_OBJ, lv_obj_t, (CONF_MAIN, CONF_SCROLLBAR), is_mock
 DISP_PROPS = {str(x) for x in DISP_BG_SCHEMA.schema}
 
 
+def _layer_update_schema() -> cv.Schema:
+    """Schema for updating a display layer's styling and layout options."""
+    return part_schema(layer_spec.parts).extend(
+        {cv.Optional(CONF_LAYOUT): layout_validator}
+    )
+
+
 @automation.register_action(
     "lvgl.update",
     LvglAction,
@@ -262,8 +271,9 @@ DISP_PROPS = {str(x) for x in DISP_BG_SCHEMA.schema}
     .extend(DISP_BG_SCHEMA)
     .extend(
         {
-            cv.Optional(CONF_TOP_LAYER): part_schema(layer_spec.parts),
-            cv.Optional(CONF_BOTTOM_LAYER): part_schema(layer_spec.parts),
+            cv.Optional(CONF_LAYOUT): layout_validator,
+            cv.Optional(CONF_TOP_LAYER): _layer_update_schema(),
+            cv.Optional(CONF_BOTTOM_LAYER): _layer_update_schema(),
         }
     ),
     synchronous=True,
@@ -272,7 +282,12 @@ async def lvgl_update_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config, CONF_LVGL_ID)
     w = widgets[0]
     async with LambdaContext(LVGL_COMP_ARG, where=action_id) as context:
+        # Apply the top-level properties (styles and layout) to the active screen...
+        await set_obj_properties(get_screen_active(w.var), config)
+        # ...the deprecated flat `disp_*` background properties...
         await lvgl_update(w.var, config)
+        # ...and the `top_layer`/`bottom_layer` keys (styling and layout updates).
+        await layers_to_code(w.var, config)
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
     await cg.register_parented(var, w.var)
     return var

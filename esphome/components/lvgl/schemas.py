@@ -48,6 +48,7 @@ from .layout import (
     GRID_CELL_SCHEMA,
     append_layout_schema,
     grid_alignments,
+    layout_validator,
 )
 from .lv_validation import lv_color, lv_font, lv_gradient, lv_image, opacity
 from .lvcode import UPDATE_EVENT, LvglComponent, lv_event_t_ptr
@@ -500,6 +501,7 @@ def base_update_schema(widget_type: WidgetType | LvType, parts):
                 )
             ),
             cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
+            cv.Optional(df.CONF_LAYOUT): layout_validator,
         }
     )
 
