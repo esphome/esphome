@@ -45,7 +45,7 @@ class OpenThreadComponentPollPeriodAction final : public Action<Ts...>, public O
 
  protected:
   void play(const Ts &...x) override {
-#ifdef CONFIG_OPENTHREAD_MTD
+#if CONFIG_OPENTHREAD_MTD
     this->parent_->set_poll_period(this->poll_period_.value(x...));
 
     this->lock_and_apply_();
