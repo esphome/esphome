@@ -8,8 +8,7 @@
 #include "esphome/components/sensor/sensor.h"
 #endif
 
-namespace esphome {
-namespace tas2780 {
+namespace esphome::tas2780 {
 
 static const char *const TAG = "tas2780";
 
@@ -599,5 +598,4 @@ void TAS2780::update_sensors_() {
 }
 #endif
 
-}  // namespace tas2780
-}  // namespace esphome
+}  // namespace esphome::tas2780

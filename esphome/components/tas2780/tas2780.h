@@ -6,13 +6,11 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-
-namespace sensor {
+namespace esphome::sensor {
 class Sensor;
-}
+}  // namespace esphome::sensor
 
-namespace tas2780 {
+namespace esphome::tas2780 {
 
 enum ChannelSelect : uint8_t { MONO_DWN_MIX, LEFT_CHANNEL, RIGHT_CHANNEL };
 
@@ -74,5 +72,4 @@ class TAS2780 : public audio_dac::AudioDac, public PollingComponent, public i2c:
 #endif
 };
 
-}  // namespace tas2780
-}  // namespace esphome
+}  // namespace esphome::tas2780

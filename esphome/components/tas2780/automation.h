@@ -3,8 +3,7 @@
 #include "esphome/core/automation.h"
 #include "tas2780.h"
 
-namespace esphome {
-namespace tas2780 {
+namespace esphome::tas2780 {
 
 template<typename... Ts> class ResetAction : public Action<Ts...>, public Parented<TAS2780> {
  public:
@@ -55,5 +54,4 @@ template<typename... Ts> class DeactivateAction : public Action<Ts...>, public P
   void play(const Ts &...x) override { this->parent_->deactivate(); }
 };
 
-}  // namespace tas2780
-}  // namespace esphome
+}  // namespace esphome::tas2780
