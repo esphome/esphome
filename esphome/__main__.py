@@ -760,6 +760,7 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
         toolchain.create_factory_bin()
         toolchain.create_ota_bin()
         toolchain.create_elf_copy()
+        toolchain.get_idedata()
     else:
         from esphome.platformio import toolchain
 
@@ -1350,6 +1351,19 @@ def _validate_bootloader_binary(binary: Path) -> None:
         )
 
 
+def _should_subscribe_states(args: ArgsProtocol) -> bool:
+    """Determine whether entity state changes should be shown in log output.
+
+    The ``--states``/``--no-states`` command line flags take precedence. When
+    neither is given, the ``ESPHOME_LOG_STATES`` environment variable controls
+    the behavior, defaulting to showing states.
+    """
+    states = getattr(args, "states", None)
+    if states is not None:
+        return states
+    return get_bool_env("ESPHOME_LOG_STATES", True)
+
+
 def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int | None:
     try:
         module = importlib.import_module("esphome.components." + CORE.target_platform)
@@ -1379,7 +1393,7 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
         return run_logs(
             config,
             network_devices,
-            subscribe_states=not getattr(args, "no_states", False),
+            subscribe_states=_should_subscribe_states(args),
         )
 
     if port_type in (PortType.NETWORK, PortType.MQTT) and has_mqtt_logging():
@@ -1412,15 +1426,45 @@ def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
     if not CORE.verbose:
         config = strip_default_ids(config)
     output = yaml_util.dump(config, args.show_secrets)
-    # add the console decoration so the front-end can hide the secrets
     if not args.show_secrets:
-        output = re.sub(
-            r"(password|key|psk|ssid)\: (.+)", r"\1: \\033[8m\2\\033[28m", output
-        )
+        output = _redact_with_legacy_fallback(output)
     if not CORE.quiet:
         safe_print(output)
     _LOGGER.info("Configuration is valid!")
     return 0
+
+
+# Legacy substring redaction fallback for unmigrated schemas; removed in
+# 2026.12.0 once canonical sensitive fields are tagged. The lookahead skips
+# values that already render themselves: ``\033[8m`` (SensitiveStr wrap),
+# ``!secret`` (preserves the user-friendly tag), ``!lambda`` (multi-line
+# block; first line is structural). The fragment must either start the
+# field name or follow ``_`` so the warning names a real field; this avoids
+# false positives like ``monkey:`` matching the ``key`` fragment.
+_LEGACY_REDACTION_RE = re.compile(
+    r"(?P<key>\b(?:\w+_)?(?:password|key|psk|ssid))\: "
+    r"(?!\\033\[8m|!secret\b|!lambda\b)(?P<val>.+)"
+)
+_LEGACY_REDACTION_REMOVAL = "2026.12.0"
+
+
+def _redact_with_legacy_fallback(output: str) -> str:
+    unmarked: set[str] = set()
+
+    def _replace(m: re.Match[str]) -> str:
+        unmarked.add(m.group("key"))
+        return f"{m.group('key')}: \\033[8m{m.group('val')}\\033[28m"
+
+    output = _LEGACY_REDACTION_RE.sub(_replace, output)
+    for key in sorted(unmarked):
+        _LOGGER.warning(
+            "Field '%s' is being redacted by a legacy substring heuristic. "
+            "Mark this field's schema validator with cv.sensitive(...) for "
+            "deterministic redaction; the heuristic will be removed in %s.",
+            key,
+            _LEGACY_REDACTION_REMOVAL,
+        )
+    return output
 
 
 def command_config_hash(args: ArgsProtocol, config: ConfigType) -> int | None:
@@ -1988,6 +2032,29 @@ SIMPLE_CONFIG_ACTIONS = [
 ]
 
 
+def _add_states_args(parser: argparse.ArgumentParser) -> None:
+    """Add mutually exclusive ``--states``/``--no-states`` flags to a parser.
+
+    When neither flag is given, the ``ESPHOME_LOG_STATES`` environment variable
+    controls whether entity state changes are shown (defaulting to showing them).
+    """
+    states_group = parser.add_mutually_exclusive_group()
+    states_group.add_argument(
+        "--states",
+        dest="states",
+        action="store_true",
+        default=None,
+        help="Show entity state changes in log output (overrides ESPHOME_LOG_STATES).",
+    )
+    states_group.add_argument(
+        "--no-states",
+        dest="states",
+        action="store_false",
+        default=None,
+        help="Do not show entity state changes in log output.",
+    )
+
+
 def parse_args(argv):
     options_parser = argparse.ArgumentParser(add_help=False)
     options_parser.add_argument(
@@ -2164,11 +2231,7 @@ def parse_args(argv):
         help="Reset the device before starting serial logs.",
         default=os.getenv("ESPHOME_SERIAL_LOGGING_RESET"),
     )
-    parser_logs.add_argument(
-        "--no-states",
-        action="store_true",
-        help="Do not show entity state changes in log output.",
-    )
+    _add_states_args(parser_logs)
 
     parser_discover = subparsers.add_parser(
         "discover",
@@ -2200,11 +2263,7 @@ def parse_args(argv):
         "--no-logs", help="Disable starting logs.", action="store_true"
     )
 
-    parser_run.add_argument(
-        "--no-states",
-        action="store_true",
-        help="Do not show entity state changes in log output.",
-    )
+    _add_states_args(parser_run)
 
     parser_run.add_argument(
         "--reset",

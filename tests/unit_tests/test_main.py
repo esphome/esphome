@@ -22,6 +22,7 @@ from esphome.__main__ import (
     Purpose,
     _get_configured_xtal_freq,
     _make_crystal_freq_callback,
+    _redact_with_legacy_fallback,
     _resolve_network_devices,
     _validate_bootloader_binary,
     _validate_partition_table_binary,
@@ -29,6 +30,7 @@ from esphome.__main__ import (
     command_analyze_memory,
     command_bundle,
     command_clean_all,
+    command_config,
     command_config_hash,
     command_rename,
     command_run,
@@ -338,6 +340,135 @@ def mock_ram_strings_analyzer() -> Generator[Mock]:
         mock_analyzer.generate_report.return_value = "Mock RAM Strings Report"
         mock_class.return_value = mock_analyzer
         yield mock_class
+
+
+def test_redact_with_legacy_fallback__wraps_unmarked_field(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Unmarked sensitive-shaped fields are redacted; a deprecation warning
+    is emitted naming the field."""
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback("password: hunter2\n")
+    assert "password: \\033[8mhunter2\\033[28m" in out
+    assert any(
+        "password" in rec.message and "cv.sensitive" in rec.message
+        for rec in caplog.records
+    )
+
+
+def test_redact_with_legacy_fallback__skips_already_wrapped(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Values already wrapped by the SensitiveStr representer don't trigger
+    the heuristic or the warning."""
+    wrapped = "password: \\033[8mhunter2\\033[28m\n"
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback(wrapped)
+    assert out == wrapped
+    assert not any("legacy substring" in rec.message for rec in caplog.records)
+
+
+def test_redact_with_legacy_fallback__captures_full_field_name(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The warning names the actual field, not just the matched fragment."""
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        _redact_with_legacy_fallback("encryption_key: abc\n")
+    assert any("encryption_key" in rec.message for rec in caplog.records)
+
+
+def test_redact_with_legacy_fallback__deduplicates_warnings(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """One warning per unique field name even if it appears many times."""
+    text = "password: a\npassword: b\npassword: c\n"
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        _redact_with_legacy_fallback(text)
+    password_warnings = [rec for rec in caplog.records if "'password'" in rec.message]
+    assert len(password_warnings) == 1
+
+
+def test_redact_with_legacy_fallback__skips_lambda_values(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """``!lambda`` first line is structural, body is unreachable by a
+    single-line regex anyway, and tagged fields shouldn't trigger a warning."""
+    text = '          ssid: !lambda |-\n            return "x";\n'
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback(text)
+    assert out == text
+    assert not any("legacy substring" in rec.message for rec in caplog.records)
+
+
+def test_redact_with_legacy_fallback__skips_secret_references(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """``!secret name`` is the dumper's user-friendly representation; the
+    name isn't the secret, so wrapping it would clobber the round-trip."""
+    text = "          password: !secret wifi_password\n"
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback(text)
+    assert out == text
+    assert not any("legacy substring" in rec.message for rec in caplog.records)
+
+
+def test_redact_with_legacy_fallback__does_not_match_fragment_in_middle(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Fragment must end the field name; embedded matches like
+    ``key_value_pair`` are unrelated to a sensitive key and must not be
+    redacted (matching the prior regex's scope)."""
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback("key_value_pair: abc\n")
+    assert "\\033[8m" not in out
+    assert not any("legacy substring" in rec.message for rec in caplog.records)
+
+
+def test_redact_with_legacy_fallback__does_not_match_fragment_as_suffix(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Fragment must start the name or follow ``_``; ``monkey:`` shouldn't
+    fire a 'legacy heuristic' warning because there's no sensitive field
+    here — the user has nothing to migrate."""
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback("monkey: 1234\n")
+    assert "\\033[8m" not in out
+    assert not any("legacy substring" in rec.message for rec in caplog.records)
+
+
+def test_command_config__invokes_legacy_fallback_when_redacting(
+    tmp_path: Path, capfd: CaptureFixture[str]
+) -> None:
+    """``command_config`` runs the legacy fallback on the dumped output when
+    ``--show-secrets`` is off. Cover the wiring (not just the helper).
+    """
+    setup_core(tmp_path=tmp_path, config={"esphome": {"name": "test"}})
+    args = MockArgs()
+    args.show_secrets = False
+
+    result = command_config(args, {"wifi": {"password": "hunter2"}})
+
+    assert result == 0
+    output = capfd.readouterr().out
+    assert "\\033[8mhunter2\\033[28m" in output
+
+
+def test_command_config__show_secrets_skips_redaction(
+    tmp_path: Path, capfd: CaptureFixture[str]
+) -> None:
+    """With ``--show-secrets`` the helper isn't invoked and the value
+    renders raw.
+    """
+    setup_core(tmp_path=tmp_path, config={"esphome": {"name": "test"}})
+    args = MockArgs()
+    args.show_secrets = True
+
+    result = command_config(args, {"wifi": {"password": "hunter2"}})
+
+    assert result == 0
+    output = capfd.readouterr().out
+    assert "hunter2" in output
+    assert "\\033[8m" not in output
 
 
 def test_choose_upload_log_host_with_string_default() -> None:
@@ -1138,6 +1269,7 @@ class MockArgs:
     ota_platform: str | None = None
     partition_table: bool = False
     bootloader: bool = False
+    states: bool | None = None
 
 
 def test_upload_program_serial_esp32(
@@ -2532,7 +2664,7 @@ def test_show_logs_api_no_states(
     mock_run_logs.return_value = 0
 
     args = MockArgs()
-    args.no_states = True
+    args.states = False
     devices = ["192.168.1.100"]
 
     result = show_logs(CORE.config, args, devices)
@@ -5858,19 +5990,68 @@ def test_upload_using_esptool_subprocess_passes_crystal_callback(
 def test_parse_args_run_no_states() -> None:
     """Test that --no-states is parsed for the run command."""
     args = parse_args(["esphome", "run", "--no-states", "device.yaml"])
-    assert args.no_states is True
+    assert args.states is False
 
 
-def test_parse_args_run_no_states_default() -> None:
-    """Test that no_states defaults to False for the run command."""
+def test_parse_args_run_states() -> None:
+    """Test that --states is parsed for the run command."""
+    args = parse_args(["esphome", "run", "--states", "device.yaml"])
+    assert args.states is True
+
+
+def test_parse_args_run_states_default() -> None:
+    """Test that states defaults to None (unset) for the run command."""
     args = parse_args(["esphome", "run", "device.yaml"])
-    assert args.no_states is False
+    assert args.states is None
 
 
 def test_parse_args_logs_no_states() -> None:
     """Test that --no-states is parsed for the logs command."""
     args = parse_args(["esphome", "logs", "--no-states", "device.yaml"])
-    assert args.no_states is True
+    assert args.states is False
+
+
+def test_parse_args_logs_states() -> None:
+    """Test that --states is parsed for the logs command."""
+    args = parse_args(["esphome", "logs", "--states", "device.yaml"])
+    assert args.states is True
+
+
+def test_should_subscribe_states_default() -> None:
+    """Test that states are shown by default when nothing is set."""
+    from esphome.__main__ import _should_subscribe_states
+
+    args = parse_args(["esphome", "logs", "device.yaml"])
+    with patch.dict(os.environ, {}, clear=False):
+        os.environ.pop("ESPHOME_LOG_STATES", None)
+        assert _should_subscribe_states(args) is True
+
+
+def test_should_subscribe_states_env_suppresses() -> None:
+    """Test that ESPHOME_LOG_STATES=false suppresses states by default."""
+    from esphome.__main__ import _should_subscribe_states
+
+    args = parse_args(["esphome", "logs", "device.yaml"])
+    with patch.dict(os.environ, {"ESPHOME_LOG_STATES": "false"}):
+        assert _should_subscribe_states(args) is False
+
+
+def test_should_subscribe_states_flag_overrides_env() -> None:
+    """Test that --states overrides ESPHOME_LOG_STATES=false."""
+    from esphome.__main__ import _should_subscribe_states
+
+    args = parse_args(["esphome", "logs", "--states", "device.yaml"])
+    with patch.dict(os.environ, {"ESPHOME_LOG_STATES": "false"}):
+        assert _should_subscribe_states(args) is True
+
+
+def test_should_subscribe_states_no_flag_overrides_env() -> None:
+    """Test that --no-states overrides ESPHOME_LOG_STATES=true."""
+    from esphome.__main__ import _should_subscribe_states
+
+    args = parse_args(["esphome", "logs", "--no-states", "device.yaml"])
+    with patch.dict(os.environ, {"ESPHOME_LOG_STATES": "true"}):
+        assert _should_subscribe_states(args) is False
 
 
 @patch("esphome.components.api.client.run_logs")
@@ -5889,7 +6070,7 @@ def test_command_run_passes_no_states_to_show_logs(
     mock_run_logs.return_value = 0
 
     args = MockArgs()
-    args.no_states = True
+    args.states = False
     args.no_logs = False
     args.device = None
 

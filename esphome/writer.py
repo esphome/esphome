@@ -90,10 +90,12 @@ def storage_should_clean(old: StorageJSON | None, new: StorageJSON) -> bool:
     """Return True when the build tree must be wiped before reuse.
 
     Predicate is True when *old* is missing (first build),
-    ``src_version`` differs, ``build_path`` differs, or a previously
-    loaded integration was removed in *new*. Adding integrations or
-    changing unrelated fields (friendly name, esphome version, etc.)
-    does not trigger a clean.
+    ``src_version`` differs, ``build_path`` differs, the build
+    ``toolchain`` differs (e.g. switching between the PlatformIO and
+    native ESP-IDF toolchains, which produce incompatible build trees),
+    or a previously loaded integration was removed in *new*. Adding
+    integrations or changing unrelated fields (friendly name, esphome
+    version, etc.) does not trigger a clean.
 
     Used by esphome-device-builder (esphome/device-builder) to gate
     its remote-build artifact materialiser so a local → remote → local
@@ -108,6 +110,8 @@ def storage_should_clean(old: StorageJSON | None, new: StorageJSON) -> bool:
     if old.src_version != new.src_version:
         return True
     if old.build_path != new.build_path:
+        return True
+    if old.toolchain != new.toolchain:
         return True
     # Check if any components have been removed
     return bool(old.loaded_integrations - new.loaded_integrations)
@@ -505,6 +509,10 @@ def clean_build(clear_pio_cache: bool = True):
     if dependencies_lock.is_file():
         _LOGGER.info("Deleting %s", dependencies_lock)
         dependencies_lock.unlink()
+    idedata_cache = CORE.relative_internal_path("idedata", f"{CORE.name}.json")
+    if idedata_cache.is_file():
+        _LOGGER.info("Deleting %s", idedata_cache)
+        idedata_cache.unlink()
     # Native ESP-IDF toolchain artifacts: the IDF CMake/ninja build dir
     # and the Component Manager's fetched managed components live under
     # the project's build path, not under .pioenvs / .piolibdeps.
