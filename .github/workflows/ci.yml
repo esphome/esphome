@@ -489,11 +489,11 @@ jobs:
             ignore_errors: false
           - id: clang-tidy
             name: Run script/clang-tidy for HOST
-            options: --environment host --grep USE_HOST ^esphome/
+            options: --environment host-tidy --grep USE_HOST ^esphome/
             pio_cache_key: tidy-host
           - id: clang-tidy
             name: Run script/clang-tidy for HOST tests
-            options: --environment host ^tests/
+            options: --environment host-tidy ^tests/
             pio_cache_key: tidy-host
 
     steps:

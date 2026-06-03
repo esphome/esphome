@@ -44,6 +44,12 @@ def clang_options(idedata):
     # else: native host compiler (e.g. "g++") has no triple prefix; let clang
     # use its default host target rather than passing an empty --target.
 
+    # The native host compiler supplies no toolchain include dirs via idedata, so
+    # clang's own built-in search paths must be kept. Cross-compilers instead get
+    # their headers from idedata and have the built-in (build machine) paths
+    # stripped with -nostdinc/-nostdinc++.
+    is_native = not triplet
+
     omit_flags = (
         "-free",
         "-fipa-pta",
@@ -62,7 +68,7 @@ def clang_options(idedata):
             "-mfp16-format=ieee",
             "--param=min-pagesize=0",
         )
-    else:
+    elif not is_native:
         cmd.extend(
             [
                 # disable built-in include directories from the host
@@ -70,11 +76,14 @@ def clang_options(idedata):
             ]
         )
 
+    # disable built-in include directories from the host (cross-compilers only;
+    # the native host build relies on clang's default search paths)
+    if not is_native:
+        cmd.append("-nostdinc")
+
     # set flags
     cmd.extend(
         [
-            # disable built-in include directories from the host
-            "-nostdinc",
             # replace pgmspace.h, as it uses GNU extensions clang doesn't support
             # https://github.com/earlephilhower/newlib-xtensa/pull/18
             "-D_PGMSPACE_H_",
