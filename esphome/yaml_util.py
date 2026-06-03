@@ -12,7 +12,6 @@ import os
 from pathlib import Path
 from typing import Any
 import uuid
-from weakref import WeakKeyDictionary
 
 import yaml
 from yaml import SafeLoader as PurePythonLoader
