@@ -1269,6 +1269,7 @@ class MockArgs:
     ota_platform: str | None = None
     partition_table: bool = False
     bootloader: bool = False
+    states: bool | None = None
 
 
 def test_upload_program_serial_esp32(
@@ -2663,7 +2664,7 @@ def test_show_logs_api_no_states(
     mock_run_logs.return_value = 0
 
     args = MockArgs()
-    args.no_states = True
+    args.states = False
     devices = ["192.168.1.100"]
 
     result = show_logs(CORE.config, args, devices)
@@ -5989,19 +5990,68 @@ def test_upload_using_esptool_subprocess_passes_crystal_callback(
 def test_parse_args_run_no_states() -> None:
     """Test that --no-states is parsed for the run command."""
     args = parse_args(["esphome", "run", "--no-states", "device.yaml"])
-    assert args.no_states is True
+    assert args.states is False
 
 
-def test_parse_args_run_no_states_default() -> None:
-    """Test that no_states defaults to False for the run command."""
+def test_parse_args_run_states() -> None:
+    """Test that --states is parsed for the run command."""
+    args = parse_args(["esphome", "run", "--states", "device.yaml"])
+    assert args.states is True
+
+
+def test_parse_args_run_states_default() -> None:
+    """Test that states defaults to None (unset) for the run command."""
     args = parse_args(["esphome", "run", "device.yaml"])
-    assert args.no_states is False
+    assert args.states is None
 
 
 def test_parse_args_logs_no_states() -> None:
     """Test that --no-states is parsed for the logs command."""
     args = parse_args(["esphome", "logs", "--no-states", "device.yaml"])
-    assert args.no_states is True
+    assert args.states is False
+
+
+def test_parse_args_logs_states() -> None:
+    """Test that --states is parsed for the logs command."""
+    args = parse_args(["esphome", "logs", "--states", "device.yaml"])
+    assert args.states is True
+
+
+def test_should_subscribe_states_default() -> None:
+    """Test that states are shown by default when nothing is set."""
+    from esphome.__main__ import _should_subscribe_states
+
+    args = parse_args(["esphome", "logs", "device.yaml"])
+    with patch.dict(os.environ, {}, clear=False):
+        os.environ.pop("ESPHOME_LOG_STATES", None)
+        assert _should_subscribe_states(args) is True
+
+
+def test_should_subscribe_states_env_suppresses() -> None:
+    """Test that ESPHOME_LOG_STATES=false suppresses states by default."""
+    from esphome.__main__ import _should_subscribe_states
+
+    args = parse_args(["esphome", "logs", "device.yaml"])
+    with patch.dict(os.environ, {"ESPHOME_LOG_STATES": "false"}):
+        assert _should_subscribe_states(args) is False
+
+
+def test_should_subscribe_states_flag_overrides_env() -> None:
+    """Test that --states overrides ESPHOME_LOG_STATES=false."""
+    from esphome.__main__ import _should_subscribe_states
+
+    args = parse_args(["esphome", "logs", "--states", "device.yaml"])
+    with patch.dict(os.environ, {"ESPHOME_LOG_STATES": "false"}):
+        assert _should_subscribe_states(args) is True
+
+
+def test_should_subscribe_states_no_flag_overrides_env() -> None:
+    """Test that --no-states overrides ESPHOME_LOG_STATES=true."""
+    from esphome.__main__ import _should_subscribe_states
+
+    args = parse_args(["esphome", "logs", "--no-states", "device.yaml"])
+    with patch.dict(os.environ, {"ESPHOME_LOG_STATES": "true"}):
+        assert _should_subscribe_states(args) is False
 
 
 @patch("esphome.components.api.client.run_logs")
@@ -6020,7 +6070,7 @@ def test_command_run_passes_no_states_to_show_logs(
     mock_run_logs.return_value = 0
 
     args = MockArgs()
-    args.no_states = True
+    args.states = False
     args.no_logs = False
     args.device = None
 
