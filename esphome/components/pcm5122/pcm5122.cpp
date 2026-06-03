@@ -81,7 +81,7 @@ bool PCM5122::write_mute_() {
 
 bool PCM5122::write_volume_() {
   // DVOL register: 0x00 = +24 dB, 0x30 = 0 dB, 0xFF = mute (-0.5 dB/step)
-  const uint8_t dvol_max_volume = 0x44;  // -10 dB at full scale
+  const uint8_t dvol_max_volume = 0x30;  // 0 dB at full scale
   const uint8_t dvol_min_volume = 0x99;  // -52.5 dB at minimum
 
   const uint8_t volume_byte =

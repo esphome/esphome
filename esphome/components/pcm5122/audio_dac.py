@@ -8,8 +8,8 @@ from esphome.const import (
     CONF_INPUT,
     CONF_INVERTED,
     CONF_MODE,
+    CONF_NUMBER,
     CONF_OUTPUT,
-    CONF_PIN,
 )
 
 CODEOWNERS = ["@remcom"]
@@ -38,9 +38,7 @@ CONFIG_SCHEMA = (
 
 
 def _validate_pin_mode(value):
-    if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
-        raise cv.Invalid("Mode must be either input or output")
-    if value[CONF_INPUT] and value[CONF_OUTPUT]:
+    if value[CONF_INPUT] == value[CONF_OUTPUT]:
         raise cv.Invalid("Mode must be either input or output")
     return value
 
@@ -49,7 +47,7 @@ PIN_SCHEMA = cv.All(
     {
         cv.GenerateID(): cv.declare_id(PCMGPIOPin),
         cv.Required(CONF_PCM5122): cv.use_id(PCM5122),
-        cv.Required(CONF_PIN): cv.int_range(min=3, max=6),
+        cv.Required(CONF_NUMBER): cv.int_range(min=3, max=6),
         cv.Optional(CONF_MODE, default={CONF_OUTPUT: True, CONF_INPUT: False}): cv.All(
             {
                 cv.Optional(CONF_INPUT, default=False): cv.boolean,
@@ -67,7 +65,7 @@ async def pcm5122_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_parented(var, config[CONF_PCM5122])
 
-    cg.add(var.set_pin(config[CONF_PIN]))
+    cg.add(var.set_pin(config[CONF_NUMBER]))
     cg.add(var.set_inverted(config[CONF_INVERTED]))
     cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
     return var
