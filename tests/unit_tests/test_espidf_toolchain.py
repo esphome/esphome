@@ -2,6 +2,9 @@
 
 # pylint: disable=protected-access
 
+import json
+import os
+from pathlib import Path
 from unittest.mock import patch
 
 from esphome.const import CONF_FRAMEWORK, CONF_SOURCE
@@ -56,3 +59,92 @@ def test_get_esphome_esp_idf_paths_no_override():
     ) as mock_install:
         toolchain._get_esphome_esp_idf_paths("5.5.4")
     mock_install.assert_called_once_with("5.5.4", source_url=None)
+
+
+def _setup_build(setup_core: Path) -> tuple[Path, Path]:
+    """Point CORE at a build dir; return (compile_commands, idedata cache) paths."""
+    CORE.name = "test"
+    CORE.build_path = setup_core / "build" / "test"
+    compile_commands = CORE.relative_build_path("build", "compile_commands.json")
+    cache = CORE.relative_internal_path("idedata", "test.json")
+    return compile_commands, cache
+
+
+def test_get_idedata_returns_none_without_compile_commands(setup_core: Path) -> None:
+    """No compile DB yet -> None (rather than an error)."""
+    _setup_build(setup_core)
+    assert toolchain.get_idedata() is None
+
+
+def test_get_idedata_generates_and_caches(setup_core: Path) -> None:
+    """Generates from the compile DB and writes the cache."""
+    compile_commands, cache = _setup_build(setup_core)
+    compile_commands.parent.mkdir(parents=True, exist_ok=True)
+    compile_commands.write_text("[]")
+
+    with patch(
+        "esphome.espidf.idedata.idedata_from_build",
+        return_value={"cxx_path": "g++"},
+    ) as mock_transform:
+        result = toolchain.get_idedata()
+
+    mock_transform.assert_called_once()
+    assert result == {"cxx_path": "g++"}
+    assert json.loads(cache.read_text()) == {"cxx_path": "g++"}
+
+
+def test_get_idedata_uses_cache_when_valid(setup_core: Path) -> None:
+    """A cache at least as new as the compile DB is reused without regenerating."""
+    compile_commands, cache = _setup_build(setup_core)
+    compile_commands.parent.mkdir(parents=True, exist_ok=True)
+    compile_commands.write_text("[]")
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text('{"cxx_path": "cached"}')
+    cc_mtime = compile_commands.stat().st_mtime
+    os.utime(cache, (cc_mtime + 1, cc_mtime + 1))
+
+    with patch("esphome.espidf.idedata.idedata_from_build") as mock_transform:
+        result = toolchain.get_idedata()
+
+    mock_transform.assert_not_called()
+    assert result == {"cxx_path": "cached"}
+
+
+def test_get_idedata_regenerates_when_compile_commands_newer(setup_core: Path) -> None:
+    """A compile DB newer than the cache forces regeneration."""
+    compile_commands, cache = _setup_build(setup_core)
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text('{"cxx_path": "stale"}')
+    compile_commands.parent.mkdir(parents=True, exist_ok=True)
+    compile_commands.write_text("[]")
+    cache_mtime = cache.stat().st_mtime
+    os.utime(compile_commands, (cache_mtime + 1, cache_mtime + 1))
+
+    with patch(
+        "esphome.espidf.idedata.idedata_from_build",
+        return_value={"cxx_path": "fresh"},
+    ) as mock_transform:
+        result = toolchain.get_idedata()
+
+    mock_transform.assert_called_once()
+    assert result == {"cxx_path": "fresh"}
+
+
+def test_get_idedata_regenerates_on_corrupted_cache(setup_core: Path) -> None:
+    """An unparseable (but newer) cache falls back to regeneration."""
+    compile_commands, cache = _setup_build(setup_core)
+    compile_commands.parent.mkdir(parents=True, exist_ok=True)
+    compile_commands.write_text("[]")
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text("{not json")
+    cc_mtime = compile_commands.stat().st_mtime
+    os.utime(cache, (cc_mtime + 1, cc_mtime + 1))
+
+    with patch(
+        "esphome.espidf.idedata.idedata_from_build",
+        return_value={"cxx_path": "regen"},
+    ) as mock_transform:
+        result = toolchain.get_idedata()
+
+    mock_transform.assert_called_once()
+    assert result == {"cxx_path": "regen"}
