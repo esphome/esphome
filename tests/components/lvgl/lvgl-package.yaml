@@ -60,6 +60,10 @@ lvgl:
     - lvgl.display.set_rotation:
         rotation: !lambda "return 180;"
         lvgl_id: lvgl_id
+  on_landscape:
+    - logger.log: LVGL display is now landscape
+  on_portrait:
+    - logger.log: LVGL display is now portrait
 
   on_boot:
     - logger.log: LVGL has started

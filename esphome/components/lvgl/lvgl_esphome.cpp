@@ -91,6 +91,7 @@ void LvglComponent::set_rotation(display::DisplayRotation rotation) {
   this->rotation_ = rotation;
   if (this->is_ready()) {
     this->set_resolution_();
+    this->update_orientation_();
     lv_obj_update_layout(this->get_screen_active());
     lv_obj_invalidate(this->get_screen_active());
   }
@@ -728,6 +729,18 @@ void LvglComponent::set_resolution_() const {
   }
   lv_display_set_resolution(this->disp_, width, height);
 }
+
+void LvglComponent::update_orientation_() {
+  // A square display is treated as landscape.
+  auto orientation = this->get_width() >= this->get_height() ? Orientation::LANDSCAPE : Orientation::PORTRAIT;
+  if (orientation == this->orientation_)
+    return;
+  this->orientation_ = orientation;
+  auto *trigger = orientation == Orientation::LANDSCAPE ? this->landscape_callback_ : this->portrait_callback_;
+  if (trigger != nullptr)
+    trigger->trigger();
+}
+
 void LvglComponent::setup() {
   auto *display = this->displays_[0];
   auto rounding = this->draw_rounding;
@@ -766,7 +779,7 @@ void LvglComponent::setup() {
   lv_display_add_event_cb(this->disp_, rounder_cb, LV_EVENT_INVALIDATE_AREA, this);
   lv_display_set_buffers(this->disp_, this->draw_buf_, nullptr, buf_bytes,
                          this->full_refresh_ ? LV_DISPLAY_RENDER_MODE_FULL : LV_DISPLAY_RENDER_MODE_PARTIAL);
-  if (this->rotation_type_ == RotationType::ROTATION_SOFTWARE) {
+  if (this->rotation_type_ == ROTATION_SOFTWARE) {
     this->rotate_buf_ = static_cast<lv_color_t *>(lv_alloc_draw_buf(buf_bytes, false));  // NOLINT
     if (this->rotate_buf_ == nullptr) {
       this->status_set_error(LOG_STR("Memory allocation failure"));
@@ -803,6 +816,7 @@ void LvglComponent::setup() {
 #endif
   this->show_page(0, LV_SCREEN_LOAD_ANIM_NONE, 0);
   lv_display_trigger_activity(this->disp_);
+  this->update_orientation_();
 }
 
 void LvglComponent::update() {
