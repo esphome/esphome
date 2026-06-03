@@ -52,7 +52,9 @@ dsmr:
   thermal_mbus_id: 3
 
   # Optional. Specifies if the CRC check must be done. Default=true.
-  # You must set it to false for older DSMR versions because they do not provide a CRC.
+  # You must set it to false if:
+  #  * You have an old DSMR version that does not provide a CRC.
+  #  * You have a smart meter that uses an incorrect algorithm to calculate the CRC. For example: EON Hungary.
   crc_check: true
 
   # Optional. The size of the buffer used for reading DSMR telegrams.
@@ -164,8 +166,6 @@ sensor:
 
     electricity_threshold:
       name: "Electricity Threshold. OBIS: 0-0:17.0.0"
-    electricity_switch_position:
-      name: "Electricity Switch Position. OBIS: 0-0:96.3.10"
     electricity_failures:
       name: "Electricity Failures. OBIS: 0-0:96.7.21"
     electricity_long_failures:
@@ -364,6 +364,8 @@ sensor:
 
     active_energy_import_maximum_demand_running_month:
       name: "Max Import Demand This Month (Active). OBIS: 1-0:1.6.0"
+
+    # Don't use this sensor if you have an EON Hungary smart meter because it uses an incorrect format for that field.
     active_energy_import_maximum_demand_last_13_months:
       name: "Average of Monthly Max Import (Active, 13 months). OBIS: 0-0:98.1.0"
 
@@ -404,6 +406,9 @@ text_sensor:
       name: "Electricity Tariff. OBIS: 0-0:96.14.0"
     electricity_failure_log:
       name: "Electricity Failure Log. OBIS: 1-0:99.97.0"
+
+    electricity_switch_position:
+      name: "Electricity Switch Position. OBIS: 0-0:96.3.10"
 
     message_short:
       name: "Message Short. OBIS: 0-0:96.13.1"
