@@ -33,7 +33,7 @@ void BatteryGaugeSensor::on_current_(float value) {
     current *= this->efficiency_;
   float interval = (now - previous) / 1000.0f / 3600.0f;
   auto delta = current * interval;
-  ESP_LOGD(TAG, "current: %f, interval: %f, delta: %f, charge state: %f", current, interval, delta,
+  ESP_LOGV(TAG, "current: %f, interval: %f, delta: %f, charge state: %f", current, interval, delta,
            this->charge_state_);
   this->publish_(this->charge_state_ + delta);
 }
@@ -46,7 +46,7 @@ void BatteryGaugeSensor::publish_(float new_state) {
   unsigned new_percentage = std::round(percentage * 10.0);
   if (new_percentage != this->charge_percentage_) {
     this->charge_percentage_ = new_percentage;
-    ESP_LOGD(TAG, "Saving charge percentage: %u", this->charge_percentage_);
+    ESP_LOGV(TAG, "Saving charge percentage: %u", this->charge_percentage_);
     this->saved_percentage_.save(&this->charge_percentage_);
   }
 }
