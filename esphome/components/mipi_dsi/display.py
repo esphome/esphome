@@ -37,6 +37,7 @@ from esphome.components.mipi import (
 )
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AUTO_CLEAR_ENABLED,
     CONF_COLOR_ORDER,
     CONF_DIMENSIONS,
     CONF_DISABLED,
@@ -167,7 +168,21 @@ def _config_schema(config):
         },
         extra=cv.ALLOW_EXTRA,
     )(config)
-    return model_schema(config)(config)
+    config = model_schema(config)(config)
+    model = MODELS[config[CONF_MODEL].upper()]
+    width, height, _offset_width, _offset_height = model.get_dimensions(config)
+    display.add_metadata(
+        config[CONF_ID],
+        width,
+        height,
+        has_hardware_rotation=False,
+        byte_order=config[CONF_BYTE_ORDER],
+        has_writer=requires_buffer(config)
+        or config.get(CONF_AUTO_CLEAR_ENABLED) is True,
+        rotation=config.get(CONF_ROTATION, 0),
+        draw_rounding=config.get(CONF_DRAW_ROUNDING, 0),
+    )
+    return config
 
 
 def _final_validate(config):
