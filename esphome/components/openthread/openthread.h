@@ -57,8 +57,8 @@ class OpenThreadComponent : public Component {
 #endif
   void set_output_power(int8_t output_power) { this->output_power_ = output_power; }
 
-  /** Apply settings for Link Mode incl poll period. Called by automation actions under lock.
-   * @pre Call while holding InstanceLock
+  /** Apply Link Mode settings (incl poll period).
+   * When called from outside the OpenThread task, call while holding InstanceLock.
    */
   void apply_linkmode(otInstance *instance);
 
@@ -71,7 +71,7 @@ class OpenThreadComponent : public Component {
   }
 
  protected:
-  OtcTeardownStage teardown_stage_{OtcTeardownStage::OTC_TEARDOWN_NOT_STARTED};
+  std::atomic<OtcTeardownStage> teardown_stage_{OtcTeardownStage::OTC_TEARDOWN_NOT_STARTED};
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
   static void on_state_changed_(otChangedFlags flags, void *context);
   otInstance *get_openthread_instance_();
