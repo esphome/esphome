@@ -476,17 +476,21 @@ jobs:
         include:
           - id: clang-tidy
             name: Run script/clang-tidy for ESP8266
-            options: --environment esp8266-arduino-tidy --grep USE_ESP8266
+            options: --environment esp8266-arduino-tidy --grep USE_ESP8266 ^esphome/
             pio_cache_key: tidyesp8266
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 IDF
-            options: --environment esp32-idf-tidy --grep USE_ESP_IDF
+            options: --environment esp32-idf-tidy --grep USE_ESP_IDF ^esphome/
             pio_cache_key: tidyesp32-idf
           - id: clang-tidy
             name: Run script/clang-tidy for ZEPHYR
-            options: --environment nrf52-tidy --grep USE_ZEPHYR --grep USE_NRF52
+            options: --environment nrf52-tidy --grep USE_ZEPHYR --grep USE_NRF52 ^esphome/
             pio_cache_key: tidy-zephyr
             ignore_errors: false
+          - id: clang-tidy
+            name: Run script/clang-tidy for HOST
+            options: --environment host --grep USE_HOST
+            pio_cache_key: tidy-host
 
     steps:
       - name: Check out code from GitHub
@@ -628,10 +632,10 @@ jobs:
           . venv/bin/activate
           if [ "${{ steps.check_full_scan.outputs.full_scan }}" = "true" ]; then
             echo "Running FULL clang-tidy scan (reason: ${{ steps.check_full_scan.outputs.reason }})"
-            script/clang-tidy --all-headers --fix --environment esp32-arduino-tidy
+            script/clang-tidy --all-headers --fix --environment esp32-arduino-tidy ^esphome/
           else
             echo "Running clang-tidy on changed files only"
-            script/clang-tidy --all-headers --fix --changed --environment esp32-arduino-tidy
+            script/clang-tidy --all-headers --fix --changed --environment esp32-arduino-tidy ^esphome/
           fi
         env:
           # Also cache libdeps, store them in a ~/.platformio subfolder
@@ -657,16 +661,16 @@ jobs:
         include:
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 Arduino 1/4
-            options: --environment esp32-arduino-tidy --split-num 4 --split-at 1
+            options: --environment esp32-arduino-tidy --split-num 4 --split-at 1 ^esphome/
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 Arduino 2/4
-            options: --environment esp32-arduino-tidy --split-num 4 --split-at 2
+            options: --environment esp32-arduino-tidy --split-num 4 --split-at 2 ^esphome/
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 Arduino 3/4
-            options: --environment esp32-arduino-tidy --split-num 4 --split-at 3
+            options: --environment esp32-arduino-tidy --split-num 4 --split-at 3 ^esphome/
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 Arduino 4/4
-            options: --environment esp32-arduino-tidy --split-num 4 --split-at 4
+            options: --environment esp32-arduino-tidy --split-num 4 --split-at 4 ^esphome/
 
     steps:
       - name: Check out code from GitHub
