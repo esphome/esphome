@@ -46,6 +46,7 @@ CONF_SECONDARY = "secondary"
 
 CONF_USE_APLL = "use_apll"
 CONF_BITS_PER_CHANNEL = "bits_per_channel"
+CONF_SLOT_BIT_WIDTH = "slot_bit_width"
 CONF_MCLK_MULTIPLE = "mclk_multiple"
 CONF_MONO = "mono"
 CONF_LEFT = "left"
@@ -172,6 +173,10 @@ def i2s_audio_component_schema(
             cv.Optional(CONF_BITS_PER_SAMPLE, default=default_bits_per_sample): cv.All(
                 _validate_bits, cv.int_, cv.one_of(*I2S_BITS_PER_SAMPLE)
             ),
+            cv.Optional(CONF_SLOT_BIT_WIDTH, default="default"): cv.Any(
+                cv.one_of("default", lower=True),
+                cv.All(_validate_bits, cv.int_, cv.one_of(*I2S_SLOT_BIT_WIDTH)),
+            ),
             cv.Optional(CONF_I2S_MODE, default=CONF_PRIMARY): cv.one_of(
                 *I2S_MODE_OPTIONS, lower=True
             ),
@@ -192,7 +197,7 @@ async def register_i2s_audio_component(var, config):
         slot_mask = CONF_BOTH
     cg.add(var.set_slot_mode(I2S_SLOT_MODE[slot_mode]))
     cg.add(var.set_std_slot_mask(I2S_STD_SLOT_MASK[slot_mask]))
-    cg.add(var.set_slot_bit_width(I2S_SLOT_BIT_WIDTH[config[CONF_BITS_PER_SAMPLE]]))
+    cg.add(var.set_slot_bit_width(I2S_SLOT_BIT_WIDTH[config[CONF_SLOT_BIT_WIDTH]]))
     cg.add(var.set_sample_rate(config[CONF_SAMPLE_RATE]))
     cg.add(var.set_use_apll(config[CONF_USE_APLL]))
     cg.add(var.set_mclk_multiple(I2S_MCLK_MULTIPLE[config[CONF_MCLK_MULTIPLE]]))
