@@ -4,8 +4,7 @@
 
 #include "pcm5122.h"
 
-namespace esphome {
-namespace pcm5122 {
+namespace esphome::pcm5122 {
 
 class PCMGPIOPin : public GPIOPin, public Parented<PCM5122> {
  public:
@@ -27,5 +26,4 @@ class PCMGPIOPin : public GPIOPin, public Parented<PCM5122> {
   bool value_{false};
 };
 
-}  // namespace pcm5122
-}  // namespace esphome
+}  // namespace esphome::pcm5122

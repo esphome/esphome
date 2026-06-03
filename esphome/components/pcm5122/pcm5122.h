@@ -6,8 +6,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace pcm5122 {
+namespace esphome::pcm5122 {
 
 // Page 0 register addresses
 static const uint8_t PCM5122_REG_PAGE_SELECT = 0x00;
@@ -44,5 +43,4 @@ class PCM5122 : public audio_dac::AudioDac, public Component, public i2c::I2CDev
   float volume_{0.0f};
 };
 
-}  // namespace pcm5122
-}  // namespace esphome
+}  // namespace esphome::pcm5122

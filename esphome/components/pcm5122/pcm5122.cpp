@@ -6,8 +6,7 @@
 
 #include <cmath>
 
-namespace esphome {
-namespace pcm5122 {
+namespace esphome::pcm5122 {
 
 static const char *const TAG = "pcm5122";
 
@@ -97,5 +96,4 @@ bool PCM5122::write_volume_() {
   return true;
 }
 
-}  // namespace pcm5122
-}  // namespace esphome
+}  // namespace esphome::pcm5122

@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pcm5122 {
+namespace esphome::pcm5122 {
 
 static const char *const TAG = "pcm5122.gpio";
 
@@ -48,5 +47,4 @@ size_t PCMGPIOPin::dump_summary(char *buffer, size_t len) const {
   return buf_append_printf(buffer, len, 0, "PCM5122 GPIO%u", this->pin_);
 }
 
-}  // namespace pcm5122
-}  // namespace esphome
+}  // namespace esphome::pcm5122
