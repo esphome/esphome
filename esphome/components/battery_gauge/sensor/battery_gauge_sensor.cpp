@@ -72,11 +72,10 @@ void BatteryGaugeSensor::on_voltage_(float value) {
 }
 
 void BatteryGaugeSensor::setup() {
-  this->saved_percentage_ = global_preferences->make_preference<unsigned>(this->object_id_hash_);
+  this->saved_percentage_ = this->make_entity_preference<unsigned>();
   this->current_source_->add_on_state_callback([this](float value) { this->on_current_(value); });
   this->voltage_source_->add_on_state_callback([this](float value) { this->on_voltage_(value); });
-  this->last_time_ = millis();
-  if (!this->saved_percentage_.load(&this->charge_percentage_) || this->charge_percentage_ == 0) {
+  if (!this->saved_percentage_.load(&this->charge_percentage_)) {
     ESP_LOGD(TAG, "Setting initial charge state to %f", this->initial_state_);
     this->charge_percentage_ = this->initial_state_ * 1000.0f;
     this->saved_percentage_.save(&this->charge_percentage_);
@@ -86,10 +85,12 @@ void BatteryGaugeSensor::setup() {
 
 void BatteryGaugeSensor::dump_config() {
   LOG_SENSOR("", "Battery Gauge", this);
-  ESP_LOGCONFIG(TAG,
-                "  Capacity: %.0f\n"
-                "  Max charge voltage: %.1f",
-                this->capacity_, this->max_charge_voltage_);
+  if (this->capacity_ < 10.0f) {
+    ESP_LOGCONFIG(TAG, "  Capacity: %.0fmAh", this->capacity_ * 1000.0);
+  } else {
+    ESP_LOGCONFIG(TAG, "  Capacity: %.1fAh", this->capacity_);
+  }
+  ESP_LOGCONFIG(TAG, "  Max charge voltage: %.1f", this->max_charge_voltage_);
   unsigned saved_charge;
   if (this->saved_percentage_.load(&saved_charge)) {
     ESP_LOGCONFIG(TAG, "  Saved charge percentage: %.1f", saved_charge / 10.0f);

@@ -7,7 +7,7 @@ namespace esphome::battery_gauge {
 
 class BatteryGaugeSensor : public sensor::Sensor, public Component {
  public:
-  BatteryGaugeSensor(sensor::Sensor *voltage_source, sensor::Sensor *current_source, float capacity, float efficiency,
+  BatteryGaugeSensor(Sensor *voltage_source, Sensor *current_source, float capacity, float efficiency,
                      float max_charge_voltage)
       : voltage_source_(voltage_source),
         current_source_(current_source),
