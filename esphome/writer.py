@@ -527,10 +527,11 @@ def clean_build(clear_pio_cache: bool = True, *, full: bool = False):
         return
 
     if full:
-        build_path = CORE.build_path
-        if build_path is not None and build_path.is_dir():
-            _LOGGER.info("Deleting %s", build_path)
-            rmtree(build_path)
+        if CORE.build_path is not None:
+            build_path = Path(CORE.build_path)
+            if build_path.is_dir():
+                _LOGGER.info("Deleting %s", build_path)
+                rmtree(build_path)
     else:
         pioenvs = CORE.relative_pioenvs_path()
         if pioenvs.is_dir():

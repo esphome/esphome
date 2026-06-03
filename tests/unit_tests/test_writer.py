@@ -569,7 +569,8 @@ def test_clean_build_full_wipes_build_dir(
     survivor = tmp_path / "keep_me.txt"
     survivor.write_text("keep")
 
-    mock_core.build_path = build_dir
+    # build_path may be a str (e.g. set from config); clean_build must coerce.
+    mock_core.build_path = str(build_dir)
     mock_core.name = "test"
     mock_core.relative_internal_path.side_effect = tmp_path.joinpath
 
