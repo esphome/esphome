@@ -66,8 +66,7 @@ void IT8951Display::loop() {
   // (e.g. during reset, HW_RDY is undefined/low until ROM boot completes).
   Op queued_op = this->queue_.front();
   const bool needs_hardware_ready = queued_op.type != OpType::GPIO_RESET_LOW &&
-                                    queued_op.type != OpType::GPIO_RESET_HIGH &&
-                                    queued_op.type != OpType::DELAY_MS;
+                                    queued_op.type != OpType::GPIO_RESET_HIGH && queued_op.type != OpType::DELAY_MS;
   if (needs_hardware_ready && this->busy_pin_low_()) {
     // Signed elapsed: any pending DELAY_MS or scheduled work in the near
     // future shows up as <= 0 elapsed and won't trigger a false timeout.
