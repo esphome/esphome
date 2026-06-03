@@ -341,8 +341,8 @@ def test_update_storage_json_logging_when_old_is_none(
     with caplog.at_level("INFO"):
         update_storage_json()
 
-    # Verify clean_build was called
-    mock_clean_build.assert_called_once()
+    # Verify clean_build was called with a full wipe (runs before src is written)
+    mock_clean_build.assert_called_once_with(clear_pio_cache=False, full=True)
 
     # Verify the correct log message was used (not the component removal message)
     assert "Core config or version changed, cleaning build files..." in caplog.text

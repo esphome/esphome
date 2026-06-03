@@ -126,6 +126,13 @@ def storage_should_update_cmake_cache(old: StorageJSON, new: StorageJSON) -> boo
 
 
 def update_storage_json() -> None:
+    """Refresh the storage sidecar and clean an incompatible build.
+
+    Runs at the start of ``write_cpp`` -- BEFORE any source/project files are
+    regenerated -- so the clean below can safely ``full``-wipe the whole build
+    directory (a switch of toolchain/framework/version also drops the stale
+    project scaffolding, not just the compiled objects).
+    """
     path = storage_path()
     old = StorageJSON.load(path)
     new = StorageJSON.from_esphome_core(CORE, old)
@@ -146,7 +153,7 @@ def update_storage_json() -> None:
             )
         else:
             _LOGGER.info("Core config or version changed, cleaning build files...")
-        clean_build(clear_pio_cache=False)
+        clean_build(clear_pio_cache=False, full=True)
     elif storage_should_update_cmake_cache(old, new):
         _LOGGER.info("Integrations changed, cleaning cmake cache...")
         clean_cmake_cache()
@@ -500,11 +507,13 @@ def clean_build(clear_pio_cache: bool = True, *, full: bool = False):
     in-build callers need: they regenerate a source/sdkconfig and then force a
     rebuild without discarding the sources they just wrote.
 
-    ``full=True`` wipes the entire build directory instead -- used by the
-    ``esphome clean`` command, where nothing is mid-regeneration so the next
-    compile rebuilds everything from scratch. It also drops stale project
-    scaffolding the allow-list keeps (e.g. a leftover platformio.ini /
-    CMakeLists.txt from the other toolchain), making a toolchain switch reliable.
+    ``full=True`` wipes the entire build directory instead. Used by the
+    ``esphome clean`` command and by the pre-build clean in
+    ``update_storage_json`` (which runs before sources are regenerated) -- in
+    both cases nothing is mid-regeneration, so the next compile rebuilds from
+    scratch. It also drops stale project scaffolding the allow-list keeps (e.g. a
+    leftover platformio.ini / CMakeLists.txt from the other toolchain), making a
+    toolchain switch reliable.
     """
     # Allow skipping cache cleaning for integration tests
     if os.environ.get("ESPHOME_SKIP_CLEAN_BUILD"):
