@@ -61,6 +61,7 @@ esphome/components/axs15231/* @clydebarrow
 esphome/components/b_parasite/* @rbaron
 esphome/components/ballu/* @bazuchan
 esphome/components/bang_bang/* @OttoWinter
+esphome/components/battery_gauge/* @clydebarrow
 esphome/components/bedjet/* @jhansche
 esphome/components/bedjet/climate/* @jhansche
 esphome/components/bedjet/fan/* @jhansche
