@@ -37,7 +37,7 @@ class TAS2780 : public audio_dac::AudioDac, public PollingComponent, public i2c:
   void set_power_mode(uint8_t power_mode) { this->power_mode_ = power_mode; }
   void set_vol_range_min(float min_val) { this->vol_range_min_ = min_val; }
   void set_vol_range_max(float max_val) { this->vol_range_max_ = max_val; }
-  void set_selected_channel(uint8_t channel) { this->selected_channel_ = static_cast<ChannelSelect>(channel); }
+  void set_selected_channel(ChannelSelect channel) { this->selected_channel_ = channel; }
 
 #ifdef USE_SENSOR
   void set_pvdd_sensor(sensor::Sensor *sensor) { this->pvdd_sensor_ = sensor; }

@@ -6,7 +6,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANNEL,
     CONF_ID,
-    CONF_MODE,
     CONF_POWER_MODE,
     CONF_TEMPERATURE,
     DEVICE_CLASS_TEMPERATURE,
@@ -22,6 +21,13 @@ AUTO_LOAD = ["sensor"]
 
 tas2780_ns = cg.esphome_ns.namespace("tas2780")
 TAS2780 = tas2780_ns.class_("TAS2780", AudioDac, cg.Component, i2c.I2CDevice)
+ChannelSelect = tas2780_ns.enum("ChannelSelect")
+
+CHANNELS = {
+    "mono": ChannelSelect.MONO_DWN_MIX,
+    "left": ChannelSelect.LEFT_CHANNEL,
+    "right": ChannelSelect.RIGHT_CHANNEL,
+}
 
 ResetAction = tas2780_ns.class_(
     "ResetAction", automation.Action, cg.Parented.template(TAS2780)
@@ -44,7 +50,16 @@ CONF_VOL_RANGE_MAX = "vol_range_max"
 CONF_AMP_LEVEL = "amp_level"
 CONF_PVDD_SENSOR = "pvdd_sensor"
 
-CONFIG_SCHEMA = (
+
+def _validate_vol_range(config):
+    if config[CONF_VOL_RANGE_MIN] >= config[CONF_VOL_RANGE_MAX]:
+        raise cv.Invalid(
+            f"{CONF_VOL_RANGE_MIN} must be less than {CONF_VOL_RANGE_MAX}"
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(TAS2780),
@@ -56,7 +71,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_VOL_RANGE_MAX, default=1.0): cv.float_range(
                 min=0.0, max=1.0
             ),
-            cv.Optional(CONF_CHANNEL, default=0): cv.int_range(min=0, max=2),
+            cv.Optional(CONF_CHANNEL, default="mono"): cv.enum(CHANNELS),
             cv.Optional(CONF_PVDD_SENSOR): sensor.sensor_schema(
                 unit_of_measurement=UNIT_VOLT,
                 accuracy_decimals=2,
@@ -72,7 +87,8 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("5s"))
-    .extend(i2c.i2c_device_schema(0x38))
+    .extend(i2c.i2c_device_schema(0x38)),
+    _validate_vol_range,
 )
 
 
@@ -81,7 +97,9 @@ TAS2780_BASE_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(TAS2780)})
 TAS2780_ACTIVATE_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(TAS2780),
-        cv.Optional(CONF_MODE, default=2): cv.templatable(cv.int_range(min=0, max=3)),
+        cv.Optional(CONF_POWER_MODE, default=2): cv.templatable(
+            cv.int_range(min=0, max=3)
+        ),
     }
 )
 
@@ -110,9 +128,9 @@ async def tas2780_reset_to_code(config, action_id, template_arg, args):
 async def tas2780_activate_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    mode = config.get(CONF_MODE)
-    template = await cg.templatable(mode, args, cg.uint8)
-    cg.add(var.set_mode(template))
+    power_mode = config.get(CONF_POWER_MODE)
+    template = await cg.templatable(power_mode, args, cg.uint8)
+    cg.add(var.set_power_mode(template))
     return var
 
 
@@ -126,7 +144,7 @@ TAS2780_UPDATE_CONFIG_SCHEMA = cv.Schema(
             cv.float_range(min=0.0, max=1.0)
         ),
         cv.Optional(CONF_AMP_LEVEL): cv.templatable(cv.int_range(min=0, max=20)),
-        cv.Optional(CONF_CHANNEL): cv.templatable(cv.int_range(min=0, max=2)),
+        cv.Optional(CONF_CHANNEL): cv.templatable(cv.enum(CHANNELS)),
     }
 )
 
@@ -150,7 +168,7 @@ async def tas2780_update_config_to_code(config, action_id, template_arg, args):
         template = await cg.templatable(config[CONF_AMP_LEVEL], args, cg.uint8)
         cg.add(var.set_amp_level(template))
     if CONF_CHANNEL in config:
-        template = await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)
+        template = await cg.templatable(config[CONF_CHANNEL], args, ChannelSelect)
         cg.add(var.set_channel(template))
     return var
 

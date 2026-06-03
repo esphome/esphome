@@ -12,11 +12,11 @@ template<typename... Ts> class ResetAction : public Action<Ts...>, public Parent
 
 template<typename... Ts> class ActivateAction : public Action<Ts...>, public Parented<TAS2780> {
  public:
-  TEMPLATABLE_VALUE(uint8_t, mode)
+  TEMPLATABLE_VALUE(uint8_t, power_mode)
 
   void play(const Ts &...x) override {
-    if (this->mode_.has_value()) {
-      this->parent_->activate(this->mode_.value(x...));
+    if (this->power_mode_.has_value()) {
+      this->parent_->activate(this->power_mode_.value(x...));
     } else {
       this->parent_->activate();
     }
@@ -28,7 +28,7 @@ template<typename... Ts> class UpdateConfigAction : public Action<Ts...>, public
   TEMPLATABLE_VALUE(uint8_t, amp_level)
   TEMPLATABLE_VALUE(float, vol_range_min)
   TEMPLATABLE_VALUE(float, vol_range_max)
-  TEMPLATABLE_VALUE(uint8_t, channel)
+  TEMPLATABLE_VALUE(ChannelSelect, channel)
 
   void play(const Ts &...x) override {
     if (this->amp_level_.has_value()) {
