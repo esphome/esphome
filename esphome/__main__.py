@@ -1631,7 +1631,7 @@ def command_clean(args: ArgsProtocol, config: ConfigType) -> int | None:
     from esphome import writer
 
     try:
-        writer.clean_build()
+        writer.clean_build(full=True)
     except OSError as err:
         _LOGGER.error("Error deleting build files: %s", err)
         return 1

@@ -568,6 +568,40 @@ def test_clean_build(
 
 
 @patch("esphome.writer.CORE")
+def test_clean_build_full_wipes_build_dir(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """full=True wipes the whole build dir (incl. src/) but keeps siblings."""
+    build_dir = tmp_path / "build" / "test"
+    (build_dir / "src").mkdir(parents=True)
+    (build_dir / "src" / "main.cpp").write_text("// generated")
+    (build_dir / "platformio.ini").write_text("[platformio]")
+    (build_dir / ".pioenvs").mkdir()
+
+    idedata_cache = tmp_path / "idedata" / "test.json"
+    idedata_cache.parent.mkdir()
+    idedata_cache.write_text("{}")
+
+    # A sibling of the build dir (under the data dir) must survive.
+    survivor = tmp_path / "keep_me.txt"
+    survivor.write_text("keep")
+
+    mock_core.build_path = build_dir
+    mock_core.name = "test"
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
+
+    with caplog.at_level("INFO"):
+        clean_build(clear_pio_cache=False, full=True)
+
+    assert not build_dir.exists()
+    assert not idedata_cache.exists()
+    assert survivor.exists()
+    assert str(build_dir) in caplog.text
+
+
+@patch("esphome.writer.CORE")
 def test_clean_build_partial_exists(
     mock_core: MagicMock,
     tmp_path: Path,
