@@ -463,16 +463,16 @@ ESP8266_EXCEPTION_CODES = {
 
 
 def _decode_pc(config, addr):
-    from esphome import platformio_api
+    from esphome.platformio import toolchain
 
-    idedata = platformio_api.get_idedata(config)
+    idedata = toolchain.get_idedata(config)
     if not idedata.addr2line_path or not idedata.firmware_elf_path:
         _LOGGER.debug("decode_pc no addr2line")
         return
     command = [idedata.addr2line_path, "-pfiaC", "-e", idedata.firmware_elf_path, addr]
     try:
         translation = subprocess.check_output(command, close_fds=False).decode().strip()
-    except Exception:  # pylint: disable=broad-except
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-except
         _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
         return
 

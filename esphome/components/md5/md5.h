@@ -29,8 +29,7 @@
 #define MD5_CTX_TYPE LT_MD5_CTX_T
 #endif
 
-namespace esphome {
-namespace md5 {
+namespace esphome::md5 {
 
 class MD5Digest final : public HashBase {
  public:
@@ -59,6 +58,6 @@ class MD5Digest final : public HashBase {
 #endif
 };
 
-}  // namespace md5
-}  // namespace esphome
+}  // namespace esphome::md5
+
 #endif

@@ -6,8 +6,7 @@
 
 #include <functional>
 
-namespace esphome {
-namespace combination {
+namespace esphome::combination {
 
 class CombinationComponent : public Component, public sensor::Sensor {
  public:
@@ -143,5 +142,4 @@ class SumCombinationComponent : public CombinationNoParameterComponent {
   void handle_new_value(float value) override;
 };
 
-}  // namespace combination
-}  // namespace esphome
+}  // namespace esphome::combination

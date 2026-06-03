@@ -3,8 +3,8 @@
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
-namespace esphome {
-namespace pvvx_mithermometer {
+
+namespace esphome::pvvx_mithermometer {
 
 static const char *const TAG = "display.pvvx_mithermometer";
 
@@ -186,7 +186,6 @@ void PVVXDisplay::sync_time_() {
 }
 #endif
 
-}  // namespace pvvx_mithermometer
-}  // namespace esphome
+}  // namespace esphome::pvvx_mithermometer
 
 #endif
