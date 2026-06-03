@@ -234,7 +234,11 @@ bool OpenThreadComponent::teardown() {
       otSrpClientClearHostAndServices(instance);
       otSrpClientBuffersFreeAllServices(instance);
 #ifdef USE_OPENTHREAD_GRACEFUL_DETACH_ON_SHUTDOWN
-      otThreadDetachGracefully(instance, OpenThreadComponent::detach_callback, this);
+      const otError err = otThreadDetachGracefully(instance, OpenThreadComponent::detach_callback, this);
+      if (err != OT_ERROR_NONE) {
+        ESP_LOGW(TAG, "Failed to detach gracefully: %s", otThreadErrorToString(err));
+        this->teardown_stage_ = OtcTeardownStage::OTC_TEARDOWN_DETACH_COMPLETED;
+      }
 #else
       // skip graceful detach, parent will not remove child from its child table
       this->teardown_stage_ = OtcTeardownStage::OTC_TEARDOWN_DETACH_COMPLETED;
@@ -277,7 +281,7 @@ bool OpenThreadComponent::teardown() {
 
 #ifdef USE_OPENTHREAD_GRACEFUL_DETACH_ON_SHUTDOWN
 void OpenThreadComponent::detach_callback(void *context) {
-  OpenThreadComponent *obj = (OpenThreadComponent *) context;
+  auto *obj = static_cast<OpenThreadComponent *>(context);
   obj->teardown_stage_ = OtcTeardownStage::OTC_TEARDOWN_DETACH_COMPLETED;
 }
 #endif
