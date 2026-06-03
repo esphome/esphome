@@ -76,6 +76,8 @@ UPDATE_MODE_OPTIONS = {
 }
 # Validator preserves case as written (matches existing user-facing strings).
 update_mode = cv.one_of(*UPDATE_MODE_OPTIONS, upper=False)
+# Action validator maps YAML mode directly to C++ UpdateMode enum values.
+action_update_mode = cv.enum(UPDATE_MODE_OPTIONS, upper=False)
 
 # Transform flag values mirror the C++ TRANSFORM_* constants.
 _TRANSFORM_NONE = 0
@@ -117,7 +119,7 @@ class IT8951Model:
 IT8951Model("it8951", vcom=2300, sleep_when_done=True, data_rate=12_000_000)
 
 IT8951Model(
-    "M5EPD",
+    "m5stack-m5paper",
     width=960,
     height=540,
     busy_pin=27,
@@ -199,12 +201,13 @@ def _model_schema(config):
             cv.GenerateID(): cv.declare_id(IT8951Display),
             cv.Required(CONF_MODEL): cv.one_of(model.name, upper=True, space="-"),
             cv.Optional(CONF_ROTATION, default=0): validate_rotation,
-            cv.Optional(CONF_UPDATE_INTERVAL, default="1min"): update_interval,
+            cv.Optional(CONF_UPDATE_INTERVAL, default=cv.UNDEFINED): update_interval,
             cv.Optional(CONF_FULL_UPDATE_EVERY, default=30): cv.int_range(0, 255),
             cv.Optional(CONF_TRANSFORM): cv.Schema(
                 {
                     cv.Required(CONF_MIRROR_X): cv.boolean,
                     cv.Required(CONF_MIRROR_Y): cv.boolean,
+                    cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
                 }
             ),
             cv.Optional(
@@ -346,7 +349,7 @@ async def to_code(config):
     automation.maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(IT8951Display),
-            cv.Optional(CONF_MODE): cv.templatable(update_mode),
+            cv.Optional(CONF_MODE): cv.templatable(action_update_mode),
         }
     ),
     synchronous=True,
@@ -355,6 +358,6 @@ async def it8951_update_action_to_code(config, action_id, template_arg, args):
     display_var = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, display_var)
     if CONF_MODE in config:
-        template_ = await cg.templatable(config[CONF_MODE], args, cg.std_string)
+        template_ = await cg.templatable(config[CONF_MODE], args, UpdateMode)
         cg.add(var.set_mode(template_))
     return var

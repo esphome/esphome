@@ -1,9 +1,7 @@
 #include "it8951.h"
 
 #include <array>
-#include <cctype>
 #include <cstring>
-#include <string>
 
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -21,43 +19,28 @@ static constexpr size_t MAX_1BPP_ROW_BYTES = 2048 / 8;
 // loop within one tick budget.
 static constexpr uint32_t MAX_TRANSFER_TIME_MS = 10;
 
-static uint16_t encode_uint16(uint8_t a, uint8_t b) { return static_cast<uint16_t>(a) << 8 | b; }
-
-static UpdateMode parse_update_mode(const std::string &mode) {
-  std::string m;
-  m.reserve(mode.size());
-  for (char c : mode)
-    m.push_back(static_cast<char>(std::toupper(static_cast<unsigned char>(c))));
-  if (m == "DU" || m == "FAST")
-    return UPDATE_MODE_DU;
-  if (m == "GC16" || m == "FULL")
-    return UPDATE_MODE_GC16;
-  if (m == "GL16")
-    return UPDATE_MODE_GL16;
-  if (m == "GLR16")
-    return UPDATE_MODE_GLR16;
-  if (m == "GLD16")
-    return UPDATE_MODE_GLD16;
-  if (m == "DU4")
-    return UPDATE_MODE_DU4;
-  if (m == "A2")
-    return UPDATE_MODE_A2;
-  if (m == "INIT")
-    return UPDATE_MODE_INIT;
-  return UPDATE_MODE_NONE;
+static uint16_t encode_uint16(uint8_t high_byte, uint8_t low_byte) {
+  return static_cast<uint16_t>(high_byte) << 8 | low_byte;
 }
 
 // --- Loop / scheduling -------------------------------------------------------
 
 void IT8951Display::enqueue_(OpType type, uint16_t a, uint16_t b) {
   if (!this->queue_.push_back(Op{type, a, b})) {
-    ESP_LOGE("it8951", "Op queue overflow (cap=%u); dropping op type=%u", static_cast<unsigned>(OP_QUEUE_SIZE),
+    ESP_LOGE(TAG, "Op queue overflow (cap=%u); dropping op type=%u", static_cast<unsigned>(OP_QUEUE_SIZE),
+             static_cast<unsigned>(type));
+  }
+}
+
+void IT8951Display::prepend_(OpType type, uint16_t a, uint16_t b) {
+  if (!this->queue_.push_front(Op{type, a, b})) {
+    ESP_LOGE(TAG, "Op queue overflow (cap=%u); dropping op type=%u", static_cast<unsigned>(OP_QUEUE_SIZE),
              static_cast<unsigned>(type));
   }
 }
 
 bool IT8951Display::busy_pin_low_() const {
-  // IT8951 HRDY: HIGH = ready, LOW = busy.
+  // IT8951 Hardware Ready (HW_RDY): HIGH = ready, LOW = busy.
   return this->busy_pin_ != nullptr && !this->busy_pin_->digital_read();
 }
 
@@ -78,13 +61,14 @@ void IT8951Display::loop() {
       return;
   }
 
-  // Gate SPI ops on HRDY. GPIO/DELAY ops run unconditionally — they're how
+  // Gate SPI ops on HW_RDY. GPIO/DELAY ops run unconditionally — they're how
   // we get the controller out of a stuck-busy state in the first place
-  // (e.g. during reset, HRDY is undefined/low until ROM boot completes).
-  Op op = this->queue_.front();
-  const bool needs_hrdy =
-      op.type != OpType::GPIO_RESET_LOW && op.type != OpType::GPIO_RESET_HIGH && op.type != OpType::DELAY_MS;
-  if (needs_hrdy && this->busy_pin_low_()) {
+  // (e.g. during reset, HW_RDY is undefined/low until ROM boot completes).
+  Op queued_op = this->queue_.front();
+  const bool needs_hardware_ready = queued_op.type != OpType::GPIO_RESET_LOW &&
+                                    queued_op.type != OpType::GPIO_RESET_HIGH &&
+                                    queued_op.type != OpType::DELAY_MS;
+  if (needs_hardware_ready && this->busy_pin_low_()) {
     // Signed elapsed: any pending DELAY_MS or scheduled work in the near
     // future shows up as <= 0 elapsed and won't trigger a false timeout.
     const int32_t elapsed = static_cast<int32_t>(now - this->phase_started_at_);
@@ -96,7 +80,7 @@ void IT8951Display::loop() {
   }
 
   this->queue_.pop_front();
-  this->process_op_(op);
+  this->process_op_(queued_op);
 }
 
 void IT8951Display::process_op_(const Op &op) {
@@ -349,8 +333,8 @@ void IT8951Display::enqueue_init_reset_() {
   this->enqueue_(OpType::GPIO_RESET_LOW);
   this->enqueue_(OpType::DELAY_MS, static_cast<uint16_t>(this->reset_duration_));
   this->enqueue_(OpType::GPIO_RESET_HIGH);
-  // SPI ROM boot. HRDY gating in loop() handles the actual wait, but a small
-  // floor avoids hammering SPI before HRDY has settled high. 300ms matches
+  // SPI ROM boot. HW_RDY gating in loop() handles the actual wait, but a small
+  // floor avoids hammering SPI before HW_RDY has settled high. 300ms matches
   // what most IT8951 reference drivers use for safety.
   this->enqueue_(OpType::DELAY_MS, 300);
   this->enqueue_(OpType::CMD, TCON_SYS_RUN);
@@ -360,8 +344,8 @@ void IT8951Display::enqueue_init_reset_() {
 }
 
 void IT8951Display::enqueue_init_dev_info_() {
-  // CMD triggers the controller to prepare DevInfo. HRDY drops while it works.
-  // The loop-level HRDY gate non-blockingly waits before dispatching READ_DEV_INFO.
+  // CMD triggers the controller to prepare DevInfo. HW_RDY drops while it works.
+  // The loop-level HW_RDY gate non-blockingly waits before dispatching READ_DEV_INFO.
   this->enqueue_(OpType::CMD, I80_CMD_GET_DEV_INFO);
   this->enqueue_(OpType::READ_DEV_INFO);
 }
@@ -443,24 +427,24 @@ void IT8951Display::enqueue_update_sleep_() {
 // the transaction is command (0x6000), write-data (0x0000), or read-data
 // (0x1000).
 //
-// All ops are fully non-blocking at the loop level. The loop-level HRDY gate
+// All ops are fully non-blocking at the loop level. The loop-level HW_RDY gate
 // guarantees the controller is ready before any op is dispatched.
 //
-// Within a single CS-asserted transaction, the IT8951 requires HRDY to be
+// Within a single CS-asserted transaction, the IT8951 requires HW_RDY to be
 // checked after the preamble word before sending the first data word. This
 // is a hardware protocol requirement — the controller needs a few clock
 // cycles to latch the preamble and configure its internal bus direction.
 // In practice this completes in <1µs for write ops; we use a short spin
 // (max ~50µs) that never triggers under normal operation.
 
-static constexpr uint32_t INTRA_CS_HRDY_TIMEOUT_US = 50;
+static constexpr uint32_t INTRA_CS_READY_TIMEOUT_US = 50;
 
-static inline void hrdy_intra_cs_wait(GPIOPin *busy_pin) {
+static inline void wait_for_hardware_ready(GPIOPin *busy_pin) {
   if (busy_pin == nullptr)
     return;
   uint32_t waited = 0;
   while (!busy_pin->digital_read()) {
-    if (waited >= INTRA_CS_HRDY_TIMEOUT_US)
+    if (waited >= INTRA_CS_READY_TIMEOUT_US)
       return;
     delayMicroseconds(1);
     waited += 1;
@@ -470,7 +454,7 @@ static inline void hrdy_intra_cs_wait(GPIOPin *busy_pin) {
 void IT8951Display::spi_cmd_(uint16_t cmd) {
   this->enable();
   this->write_byte16(PACKET_TYPE_CMD);
-  hrdy_intra_cs_wait(this->busy_pin_);
+  wait_for_hardware_ready(this->busy_pin_);
   this->write_byte16(cmd);
   this->disable();
 }
@@ -478,7 +462,7 @@ void IT8951Display::spi_cmd_(uint16_t cmd) {
 void IT8951Display::spi_write_word_(uint16_t value) {
   this->enable();
   this->write_byte16(PACKET_TYPE_WRITE);
-  hrdy_intra_cs_wait(this->busy_pin_);
+  wait_for_hardware_ready(this->busy_pin_);
   this->write_byte16(value);
   this->disable();
 }
@@ -488,7 +472,7 @@ void IT8951Display::spi_write_reg_(uint16_t addr, uint16_t value) {
   // Caller must have already sent CMD(TCON_REG_WR) as a prior op.
   this->enable();
   this->write_byte16(PACKET_TYPE_WRITE);
-  hrdy_intra_cs_wait(this->busy_pin_);
+  wait_for_hardware_ready(this->busy_pin_);
   this->write_byte16(addr);
   this->write_byte16(value);
   this->disable();
@@ -498,20 +482,20 @@ void IT8951Display::spi_write_args_(const uint16_t *args, uint16_t count) {
   // Single CS transaction: WRITE preamble + N data words.
   this->enable();
   this->write_byte16(PACKET_TYPE_WRITE);
-  hrdy_intra_cs_wait(this->busy_pin_);
+  wait_for_hardware_ready(this->busy_pin_);
   for (uint16_t i = 0; i < count; i++)
     this->write_byte16(args[i]);
   this->disable();
 }
 
 uint16_t IT8951Display::spi_read_word_() {
-  // Single CS read transaction. HRDY was confirmed HIGH by the loop gate
+  // Single CS read transaction. HW_RDY was confirmed HIGH by the loop gate
   // before this op was dispatched, so data is ready.
   this->enable();
   this->write_byte16(PACKET_TYPE_READ);
-  hrdy_intra_cs_wait(this->busy_pin_);
+  wait_for_hardware_ready(this->busy_pin_);
   this->write_byte16(0x0000);  // dummy — provides clock cycles for controller
-  hrdy_intra_cs_wait(this->busy_pin_);
+  wait_for_hardware_ready(this->busy_pin_);
   // Read byte-by-byte: a 2-byte transfer_array can lose the low byte on
   // ESP-IDF SPI DMA due to 4-byte alignment requirements.
   const uint8_t hi = this->transfer_byte(0);
@@ -522,13 +506,13 @@ uint16_t IT8951Display::spi_read_word_() {
 
 void IT8951Display::spi_read_dev_info_() {
   // Read DevInfo struct. The CMD(GET_DEV_INFO) was already sent as a prior op,
-  // and the loop HRDY gate waited for the controller to prepare data.
+  // and the loop HW_RDY gate waited for the controller to prepare data.
   std::memset(&this->dev_info_, 0, sizeof(this->dev_info_));
   this->enable();
   this->write_byte16(PACKET_TYPE_READ);
-  hrdy_intra_cs_wait(this->busy_pin_);
+  wait_for_hardware_ready(this->busy_pin_);
   this->write_byte16(0x0000);  // dummy
-  hrdy_intra_cs_wait(this->busy_pin_);
+  wait_for_hardware_ready(this->busy_pin_);
   auto *words = reinterpret_cast<uint16_t *>(&this->dev_info_);
   const uint32_t word_count = sizeof(this->dev_info_) / sizeof(uint16_t);
   for (uint32_t i = 0; i < word_count; i++) {
@@ -544,10 +528,10 @@ void IT8951Display::spi_read_dev_info_() {
 void IT8951Display::op_xfer_lisar_() {
   // Set image-buffer target address. Two register writes = 4 CS transactions.
   // Push to FRONT in reverse order so they execute before the rest of the queue.
-  this->queue_.push_front(Op{OpType::WRITE_REG, LISAR, this->img_buf_addr_l_});
-  this->queue_.push_front(Op{OpType::CMD, TCON_REG_WR, 0});
-  this->queue_.push_front(Op{OpType::WRITE_REG, static_cast<uint16_t>(LISAR + 2), this->img_buf_addr_h_});
-  this->queue_.push_front(Op{OpType::CMD, TCON_REG_WR, 0});
+  this->prepend_(OpType::WRITE_REG, LISAR, this->img_buf_addr_l_);
+  this->prepend_(OpType::CMD, TCON_REG_WR, 0);
+  this->prepend_(OpType::WRITE_REG, static_cast<uint16_t>(LISAR + 2), this->img_buf_addr_h_);
+  this->prepend_(OpType::CMD, TCON_REG_WR, 0);
 }
 
 void IT8951Display::op_xfer_area_args_() {
@@ -578,10 +562,10 @@ bool IT8951Display::op_xfer_rows_() {
   const uint16_t area_w = this->area_w_;
   const uint16_t area_h = this->area_h_;
 
-  // Single CS write transaction — HRDY was confirmed high by the loop gate.
+  // Single CS write transaction — HW_RDY was confirmed high by the loop gate.
   this->enable();
   this->write_byte16(PACKET_TYPE_WRITE);
-  hrdy_intra_cs_wait(this->busy_pin_);
+  wait_for_hardware_ready(this->busy_pin_);
 
   if (this->use_1bpp_) {
     // Pack the row into 16-bit words, LSB-first to match the IT8951's
@@ -660,11 +644,11 @@ void IT8951Display::op_check_lut_idle_() {
   // read_result_ holds LUTAFSR value from the preceding READ_WORD op.
   if (this->read_result_ != 0) {
     // LUT still busy — re-enqueue the full read sequence after a short delay.
-    this->queue_.push_front(Op{OpType::CHECK_LUT_IDLE, 0, 0});
-    this->queue_.push_front(Op{OpType::READ_WORD, 0, 0});
-    this->queue_.push_front(Op{OpType::WRITE_W, LUTAFSR, 0});
-    this->queue_.push_front(Op{OpType::CMD, TCON_REG_RD, 0});
-    this->queue_.push_front(Op{OpType::DELAY_MS, 5, 0});
+    this->prepend_(OpType::CHECK_LUT_IDLE, 0, 0);
+    this->prepend_(OpType::READ_WORD, 0, 0);
+    this->prepend_(OpType::WRITE_W, LUTAFSR, 0);
+    this->prepend_(OpType::CMD, TCON_REG_RD, 0);
+    this->prepend_(OpType::DELAY_MS, 5, 0);
   }
 }
 
@@ -673,17 +657,17 @@ void IT8951Display::op_set_1bpp_() {
   // Push to FRONT in reverse order so they execute before DPY_BUF_CMD/ARGS
   // that are already in the queue.
   const uint16_t modified = static_cast<uint16_t>(this->read_result_ | (1U << 2));
-  this->queue_.push_front(Op{OpType::WRITE_REG, BGVR, static_cast<uint16_t>((uint16_t(0xFF) << 8) | 0x00)});
-  this->queue_.push_front(Op{OpType::CMD, TCON_REG_WR, 0});
-  this->queue_.push_front(Op{OpType::WRITE_REG, static_cast<uint16_t>(UP1SR + 2), modified});
-  this->queue_.push_front(Op{OpType::CMD, TCON_REG_WR, 0});
+  this->prepend_(OpType::WRITE_REG, BGVR, static_cast<uint16_t>((uint16_t(0xFF) << 8) | 0x00));
+  this->prepend_(OpType::CMD, TCON_REG_WR, 0);
+  this->prepend_(OpType::WRITE_REG, static_cast<uint16_t>(UP1SR + 2), modified);
+  this->prepend_(OpType::CMD, TCON_REG_WR, 0);
 }
 
 void IT8951Display::op_clear_1bpp_() {
   // read_result_ holds UP1SR+2 value. Clear bit 2 and write back.
   const uint16_t modified = static_cast<uint16_t>(this->read_result_ & ~(1U << 2));
-  this->queue_.push_front(Op{OpType::WRITE_REG, static_cast<uint16_t>(UP1SR + 2), modified});
-  this->queue_.push_front(Op{OpType::CMD, TCON_REG_WR, 0});
+  this->prepend_(OpType::WRITE_REG, static_cast<uint16_t>(UP1SR + 2), modified);
+  this->prepend_(OpType::CMD, TCON_REG_WR, 0);
 }
 
 // --- Update prep / public API ------------------------------------------------
@@ -772,15 +756,14 @@ void IT8951Display::update() {
   this->start_update_(UPDATE_MODE_GC16);
 }
 
-void IT8951Display::update_mode(const std::string &mode) {
+void IT8951Display::update_mode(UpdateMode mode) {
   if (!this->is_ready())
     return;
-  const UpdateMode hw_mode = parse_update_mode(mode);
-  if (hw_mode == UPDATE_MODE_NONE) {
-    ESP_LOGW(TAG, "Unknown update mode '%s'", mode.c_str());
+  if (mode == UPDATE_MODE_NONE) {
+    ESP_LOGW(TAG, "Unknown update mode");
     return;
   }
-  this->start_update_(hw_mode);
+  this->start_update_(mode);
 }
 
 // --- Recovery ----------------------------------------------------------------
@@ -925,6 +908,7 @@ uint8_t IT8951Display::get_pixel_nibble_(uint16_t x, uint16_t y) {
 
 void IT8951Display::dump_config() {
   LOG_DISPLAY("", "IT8951 E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model preset: %s", this->name_ != nullptr ? this->name_ : "(unknown)");
   ESP_LOGCONFIG(TAG, "  Dimensions: %dx%d", this->get_width_internal(), this->get_height_internal());
   ESP_LOGCONFIG(TAG, "  Buffer: %u bytes in %u segment(s)", static_cast<unsigned>(this->buffer_length_),
                 static_cast<unsigned>(this->buffer_.get_buffer_count()));

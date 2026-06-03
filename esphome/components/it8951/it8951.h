@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstddef>
-#include <string>
 
 #include "esphome/components/display/display.h"
 #include "esphome/components/spi/spi.h"
@@ -73,7 +72,7 @@ static constexpr size_t OP_QUEUE_SIZE = 32;
 
 // --- Op queue ---------------------------------------------------------------
 // Each Op is a single CS-asserted SPI transaction (or a tiny bookkeeping
-// step). The loop processes one Op per iteration after gating on HRDY, so
+// step). The loop processes one Op per iteration after gating on HW_RDY, so
 // the natural ESPHome loop cadence (~8-16 ms) provides inter-op pacing
 // without any blocking waits.
 //
@@ -83,22 +82,22 @@ static constexpr size_t OP_QUEUE_SIZE = 32;
 // they don't break the no-blocking budget.
 //
 // Each write-type op is a SINGLE CS-asserted transaction. The loop-level
-// HRDY gate ensures the controller is ready before dispatching any op, so
+// HW_RDY gate ensures the controller is ready before dispatching any op, so
 // no blocking waits are needed within write ops.
 //
 // Read ops are decomposed: the command/address that triggers data preparation
 // is sent as write ops (CMD, WRITE_W), then a separate read op runs only
-// after the loop confirms HRDY is back HIGH (data ready). No blocking.
+// after the loop confirms HW_RDY is back HIGH (data ready). No blocking.
 enum class OpType : uint8_t {
   CMD,              // single CS: CMD preamble + command word (a)
   WRITE_W,          // single CS: WRITE preamble + data word (a)
   WRITE_REG,        // single CS: WRITE preamble + addr(a) + value(b)
                     //   (caller must enqueue CMD(TCON_REG_WR) before this)
   READ_DEV_INFO,    // single CS: READ preamble + dummy + read DevInfo struct
-                    //   (caller enqueues CMD(GET_DEV_INFO) first; loop HRDY gate
+                    //   (caller enqueues CMD(GET_DEV_INFO) first; loop HW_RDY gate
                     //    ensures data is ready before this op runs)
   READ_WORD,        // single CS: READ preamble + dummy + read one 16-bit word
-                    //   into read_result_. Loop HRDY gate ensures data ready.
+                    //   into read_result_. Loop HW_RDY gate ensures data ready.
   CHECK_LUT_IDLE,   // checks read_result_; if non-zero, re-enqueues read sequence
   SET_1BPP,         // uses read_result_ to set UP1SR bit 2, enqueues writes
   CLEAR_1BPP,       // uses read_result_ to clear UP1SR bit 2, enqueues writes
@@ -121,8 +120,8 @@ struct Op {
 };
 
 // High-level controller phases. Each phase enqueues a sequence of Ops; when
-// the queue drains and a PHASE_DONE Op is reached, advance_phase_() runs the
-// next phase. This separation keeps per-Op work tiny and predictable.
+// the queue drains, advance_phase_() runs the next phase.
+// This separation keeps per-Op work tiny and predictable.
 enum class Phase : uint8_t {
   IDLE,
   // Initialisation
@@ -182,7 +181,7 @@ class IT8951Display : public Display,
 
   // --- Display API ---
   void update() override;
-  void update_mode(const std::string &mode);
+  void update_mode(UpdateMode mode);
   DisplayType get_display_type() override { return DISPLAY_TYPE_GRAYSCALE; }
   void fill(Color color) override;
   void clear() override { this->fill(COLOR_OFF); }
@@ -207,6 +206,7 @@ class IT8951Display : public Display,
 
   // --- Op queue / loop machinery ---
   void enqueue_(OpType type, uint16_t a = 0, uint16_t b = 0);
+  void prepend_(OpType type, uint16_t a = 0, uint16_t b = 0);
   bool busy_pin_low_() const;
   void process_op_(const Op &op);
   void advance_phase_();
@@ -218,8 +218,8 @@ class IT8951Display : public Display,
   void spi_write_word_(uint16_t value);
   void spi_write_reg_(uint16_t addr, uint16_t value);
   void spi_write_args_(const uint16_t *args, uint16_t count);
-  uint16_t spi_read_word_();  // non-blocking: HRDY confirmed by loop gate
-  void spi_read_dev_info_();  // non-blocking: HRDY confirmed by loop gate
+  uint16_t spi_read_word_();  // non-blocking: HW_RDY confirmed by loop gate
+  void spi_read_dev_info_();  // non-blocking: HW_RDY confirmed by loop gate
 
   // --- Compound Ops (small bounded helpers) ---
   void op_xfer_lisar_();
@@ -317,7 +317,7 @@ class IT8951Display : public Display,
 template<typename... Ts> class IT8951UpdateAction : public Action<Ts...> {
  public:
   explicit IT8951UpdateAction(IT8951Display *display) : display_(display) {}
-  TEMPLATABLE_VALUE(std::string, mode)
+  TEMPLATABLE_VALUE(UpdateMode, mode)
 
   void play(const Ts &...x) override {
     if (!this->display_->is_ready())

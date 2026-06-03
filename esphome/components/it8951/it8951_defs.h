@@ -36,7 +36,7 @@ static constexpr uint16_t I80_CMD_DPY_BUF_AREA = 0x0037;
 static constexpr uint16_t I80_CMD_VCOM = 0x0039;
 static constexpr uint16_t I80_CMD_VCOM_READ = 0x0000;
 // VCOM write selectors. Different IT8951-driven panels accept different
-// selector values for the VCOM SET sub-command. Most panels (M5EPD,
+// selector values for the VCOM SET sub-command. Most panels (m5stack-m5paper,
 // generic dev kits) accept 0x0001. Some panels — notably the Seeed
 // reTerminal E1003 — only respond to selector 0x0002 and silently ignore
 // 0x0001, leaving VCOM at its default and making grayscale waveforms
