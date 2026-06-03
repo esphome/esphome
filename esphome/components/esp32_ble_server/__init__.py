@@ -66,7 +66,7 @@ FIRMWARE_VERSION_CHARACTERISTIC_UUID = 0x2A26
 _BASE_UUID_SUFFIX = "-0000-1000-8000-00805F9B34FB"
 
 
-def uuid_is(uuid, uuid16: int) -> bool:
+def uuid_is(uuid: int | str, uuid16: int) -> bool:
     """Return True if a validated UUID refers to the given 16-bit short UUID.
 
     A service/characteristic UUID may be an ``int`` (from ``cv.hex_uint32_t``) or an
@@ -215,7 +215,7 @@ def create_description_cud(char_config):
         return char_config
     # If the config displays a description, there cannot be a descriptor with the CUD UUID
     for desc in char_config[CONF_DESCRIPTORS]:
-        if desc[CONF_UUID] == CUD_DESCRIPTOR_UUID:
+        if uuid_is(desc[CONF_UUID], CUD_DESCRIPTOR_UUID):
             raise cv.Invalid(
                 f"Characteristic {char_config[CONF_UUID]} has a description, but a CUD descriptor is already present"
             )
@@ -238,7 +238,7 @@ def create_notify_cccd(char_config):
         return char_config
     # If the CCCD descriptor is already present, return the config
     for desc in char_config[CONF_DESCRIPTORS]:
-        if desc[CONF_UUID] == CCCD_DESCRIPTOR_UUID:
+        if uuid_is(desc[CONF_UUID], CCCD_DESCRIPTOR_UUID):
             # Check if the WRITE property is set
             if not desc[CONF_WRITE]:
                 raise cv.Invalid(

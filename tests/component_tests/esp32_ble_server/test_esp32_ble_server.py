@@ -2,7 +2,12 @@
 
 import pytest
 
-from esphome.components.esp32_ble_server import DEVICE_INFORMATION_SERVICE_UUID, uuid_is
+from esphome.components.esp32_ble_server import (
+    CCCD_DESCRIPTOR_UUID,
+    CUD_DESCRIPTOR_UUID,
+    DEVICE_INFORMATION_SERVICE_UUID,
+    uuid_is,
+)
 
 
 @pytest.mark.parametrize(
@@ -32,3 +37,11 @@ def test_uuid_is_matches_all_representations(uuid) -> None:
 def test_uuid_is_rejects_other_uuids(uuid) -> None:
     """A different UUID must not be mistaken for the device information service."""
     assert not uuid_is(uuid, DEVICE_INFORMATION_SERVICE_UUID)
+
+
+@pytest.mark.parametrize("uuid16", [CUD_DESCRIPTOR_UUID, CCCD_DESCRIPTOR_UUID])
+def test_uuid_is_matches_descriptor_short_strings(uuid16) -> None:
+    """Reserved descriptor UUIDs match whether given as int or short string."""
+    assert uuid_is(uuid16, uuid16)
+    assert uuid_is(f"{uuid16:04X}", uuid16)
+    assert uuid_is(f"{uuid16:08X}", uuid16)
