@@ -53,9 +53,7 @@ CONF_PVDD_SENSOR = "pvdd_sensor"
 
 def _validate_vol_range(config):
     if config[CONF_VOL_RANGE_MIN] >= config[CONF_VOL_RANGE_MAX]:
-        raise cv.Invalid(
-            f"{CONF_VOL_RANGE_MIN} must be less than {CONF_VOL_RANGE_MAX}"
-        )
+        raise cv.Invalid(f"{CONF_VOL_RANGE_MIN} must be less than {CONF_VOL_RANGE_MAX}")
     return config
 
 
