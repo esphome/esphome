@@ -490,12 +490,18 @@ def write_cpp(code_s):
 
 
 def clean_cmake_cache():
-    pioenvs = CORE.relative_pioenvs_path()
-    if pioenvs.is_dir():
-        pioenvs_cmake_path = pioenvs / CORE.name / "CMakeCache.txt"
-        if pioenvs_cmake_path.is_file():
-            _LOGGER.info("Deleting %s", pioenvs_cmake_path)
-            pioenvs_cmake_path.unlink()
+    # Drop the CMake cache so a component-set change forces a reconfigure.
+    # PlatformIO keeps it under .pioenvs/<name>/; the native ESP-IDF toolchain
+    # keeps it under build/ (where espidf's has_outdated_files() treats a
+    # missing CMakeCache.txt as stale). Only one exists for a given build.
+    cmake_cache_paths = (
+        CORE.relative_pioenvs_path(CORE.name, "CMakeCache.txt"),
+        CORE.relative_build_path("build", "CMakeCache.txt"),
+    )
+    for cmake_cache_path in cmake_cache_paths:
+        if cmake_cache_path.is_file():
+            _LOGGER.info("Deleting %s", cmake_cache_path)
+            cmake_cache_path.unlink()
 
 
 def clean_build(clear_pio_cache: bool = True, *, full: bool = False):

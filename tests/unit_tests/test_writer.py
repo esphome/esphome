@@ -392,60 +392,50 @@ def test_update_storage_json_logging_components_removed(
     new_storage.save.assert_called_once_with("/test/path")
 
 
+def _mock_cmake_cache_paths(mock_core: MagicMock, tmp_path: Path) -> None:
+    """Wire relative_pioenvs_path/relative_build_path to tmp_path subtrees."""
+    mock_core.name = "test_device"
+    mock_core.relative_pioenvs_path.side_effect = (tmp_path / ".pioenvs").joinpath
+    mock_core.relative_build_path.side_effect = tmp_path.joinpath
+
+
 @patch("esphome.writer.CORE")
-def test_clean_cmake_cache(
+def test_clean_cmake_cache_platformio(
     mock_core: MagicMock,
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test clean_cmake_cache removes CMakeCache.txt file."""
-    # Create directory structure
-    pioenvs_dir = tmp_path / ".pioenvs"
-    pioenvs_dir.mkdir()
-    device_dir = pioenvs_dir / "test_device"
-    device_dir.mkdir()
-    cmake_cache_file = device_dir / "CMakeCache.txt"
+    """Test clean_cmake_cache removes the PlatformIO CMakeCache.txt."""
+    _mock_cmake_cache_paths(mock_core, tmp_path)
+    cmake_cache_file = tmp_path / ".pioenvs" / "test_device" / "CMakeCache.txt"
+    cmake_cache_file.parent.mkdir(parents=True)
     cmake_cache_file.write_text("# CMake cache file")
 
-    # Setup mocks
-    mock_core.relative_pioenvs_path.return_value = pioenvs_dir
-    mock_core.name = "test_device"
-
-    # Verify file exists before
-    assert cmake_cache_file.exists()
-
-    # Call the function
     with caplog.at_level("INFO"):
         clean_cmake_cache()
 
-    # Verify file was removed
     assert not cmake_cache_file.exists()
-
-    # Verify logging
     assert "Deleting" in caplog.text
     assert "CMakeCache.txt" in caplog.text
 
 
 @patch("esphome.writer.CORE")
-def test_clean_cmake_cache_no_pioenvs_dir(
+def test_clean_cmake_cache_esp_idf(
     mock_core: MagicMock,
     tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test clean_cmake_cache when pioenvs directory doesn't exist."""
-    # Setup non-existent directory path
-    pioenvs_dir = tmp_path / ".pioenvs"
+    """Test clean_cmake_cache removes the native ESP-IDF build/CMakeCache.txt."""
+    _mock_cmake_cache_paths(mock_core, tmp_path)
+    cmake_cache_file = tmp_path / "build" / "CMakeCache.txt"
+    cmake_cache_file.parent.mkdir(parents=True)
+    cmake_cache_file.write_text("# CMake cache file")
 
-    # Setup mocks
-    mock_core.relative_pioenvs_path.return_value = pioenvs_dir
+    with caplog.at_level("INFO"):
+        clean_cmake_cache()
 
-    # Verify directory doesn't exist
-    assert not pioenvs_dir.exists()
-
-    # Call the function - should not crash
-    clean_cmake_cache()
-
-    # Verify directory still doesn't exist
-    assert not pioenvs_dir.exists()
+    assert not cmake_cache_file.exists()
+    assert str(cmake_cache_file) in caplog.text
 
 
 @patch("esphome.writer.CORE")
@@ -453,26 +443,10 @@ def test_clean_cmake_cache_no_cmake_file(
     mock_core: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """Test clean_cmake_cache when CMakeCache.txt doesn't exist."""
-    # Create directory structure without CMakeCache.txt
-    pioenvs_dir = tmp_path / ".pioenvs"
-    pioenvs_dir.mkdir()
-    device_dir = pioenvs_dir / "test_device"
-    device_dir.mkdir()
-    cmake_cache_file = device_dir / "CMakeCache.txt"
+    """Test clean_cmake_cache when no CMakeCache.txt exists -- should not crash."""
+    _mock_cmake_cache_paths(mock_core, tmp_path)
 
-    # Setup mocks
-    mock_core.relative_pioenvs_path.return_value = pioenvs_dir
-    mock_core.name = "test_device"
-
-    # Verify file doesn't exist
-    assert not cmake_cache_file.exists()
-
-    # Call the function - should not crash
     clean_cmake_cache()
-
-    # Verify file still doesn't exist
-    assert not cmake_cache_file.exists()
 
 
 @patch("esphome.writer.CORE")
