@@ -86,14 +86,6 @@ def _validate_firmware_data(data: bytes, source: str) -> None:
             )
 
 
-def _local_firmware_path(value: str) -> Path:
-    """Resolve a `firmware: { file: ... }` value to an existing local path."""
-    path = Path(value)
-    if not path.exists():
-        path = Path(__file__).parent / path.name
-    return path
-
-
 def _cache_path(url: str) -> Path:
     """Cache path for a downloaded firmware blob, keyed by URL."""
     key = hashlib.sha256(url.encode()).hexdigest()[:8]
@@ -102,8 +94,8 @@ def _cache_path(url: str) -> Path:
 
 def firmware_path(firmware: dict) -> Path:
     """Return the path the firmware bytes will be read from at codegen time."""
-    if CONF_FILE in firmware:
-        return _local_firmware_path(firmware[CONF_FILE])
+    if path := firmware.get(CONF_FILE):
+        return path
     return _cache_path(firmware[CONF_URL])
 
 
@@ -114,10 +106,7 @@ def _validate_firmware(firmware: dict) -> dict:
             f"Exactly one of '{CONF_URL}' or '{CONF_FILE}' must be provided"
         )
 
-    if CONF_FILE in firmware:
-        path = _local_firmware_path(firmware[CONF_FILE])
-        if not path.exists():
-            raise cv.Invalid(f"Firmware file not found: {path.absolute()}", [CONF_FILE])
+    if path := firmware.get(CONF_FILE):
         _validate_firmware_data(path.read_bytes(), str(path.absolute()))
         return firmware
 
@@ -141,7 +130,7 @@ FIRMWARE_SCHEMA = cv.All(
         {
             cv.Optional(CONF_URL): cv.url,
             cv.Optional(CONF_SHA256): cv.string_strict,
-            cv.Optional(CONF_FILE): cv.string_strict,
+            cv.Optional(CONF_FILE): cv.file_,
         }
     ),
     _validate_firmware,
