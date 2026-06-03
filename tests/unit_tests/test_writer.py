@@ -481,6 +481,11 @@ def test_clean_build(
     managed_components_dir.mkdir()
     (managed_components_dir / "espressif__arduino-esp32").mkdir()
 
+    # Converted-PIO-library cache (native ESP-IDF), under the data dir.
+    pio_components_dir = tmp_path / "pio_components"
+    pio_components_dir.mkdir()
+    (pio_components_dir / "abc12345").mkdir()
+
     # Create PlatformIO cache directory
     platformio_cache_dir = tmp_path / ".platformio" / ".cache"
     platformio_cache_dir.mkdir(parents=True)
@@ -503,6 +508,7 @@ def test_clean_build(
     assert idedata_cache.exists()
     assert idf_build_dir.exists()
     assert managed_components_dir.exists()
+    assert pio_components_dir.exists()
     assert platformio_cache_dir.exists()
 
     # Mock PlatformIO's ProjectConfig cache_dir
@@ -528,6 +534,7 @@ def test_clean_build(
     assert not idedata_cache.exists()
     assert not idf_build_dir.exists()
     assert not managed_components_dir.exists()
+    assert not pio_components_dir.exists()
     assert not platformio_cache_dir.exists()
 
     # Verify logging
@@ -594,6 +601,7 @@ def test_clean_build_partial_exists(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
 
     # Verify only pioenvs exists
     assert pioenvs_dir.exists()
@@ -631,6 +639,7 @@ def test_clean_build_nothing_exists(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
 
     # Verify nothing exists
     assert not pioenvs_dir.exists()
@@ -667,6 +676,7 @@ def test_clean_build_platformio_not_available(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
 
     # Verify all exist before
     assert pioenvs_dir.exists()
@@ -705,6 +715,7 @@ def test_clean_build_empty_cache_dir(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
 
     # Verify pioenvs exists before
     assert pioenvs_dir.exists()
@@ -1433,6 +1444,7 @@ def test_clean_build_handles_readonly_files(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
 
     # Verify file is read-only
     assert not os.access(readonly_file, os.W_OK)
@@ -1497,6 +1509,7 @@ def test_clean_build_reraises_for_other_errors(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
 
     try:
         # Mock os.access in writer module to return True (writable)

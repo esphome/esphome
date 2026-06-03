@@ -563,6 +563,15 @@ def clean_build(clear_pio_cache: bool = True, *, full: bool = False):
     if not clear_pio_cache:
         return
 
+    # The native ESP-IDF toolchain caches PlatformIO libraries converted to IDF
+    # components under <data_dir>/pio_components, shared across builds and keyed
+    # by source hash (the analog of PlatformIO's global package cache). Drop it
+    # on an explicit clean so a corrupt/stale converted lib is re-fetched.
+    pio_components = CORE.relative_internal_path("pio_components")
+    if pio_components.is_dir():
+        _LOGGER.info("Deleting %s", pio_components)
+        rmtree(pio_components)
+
     # Clean PlatformIO cache to resolve CMake compiler detection issues
     # This helps when toolchain paths change or get corrupted
     try:
