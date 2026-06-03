@@ -37,7 +37,10 @@ void MotionComponent::setup() {
   }
   log_matrix(this->matrix_);
 }
-void MotionComponent::dump_config() { log_matrix(this->matrix_); }
+void MotionComponent::dump_config() {
+  LOG_UPDATE_INTERVAL(this);
+  log_matrix(this->matrix_);
+}
 bool MotionComponent::save_calibration() {
   if (this->pref_key_ == 0) {
     ESP_LOGW(TAG, "Cannot save calibration: no preference key set");
