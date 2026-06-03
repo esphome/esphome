@@ -6,14 +6,13 @@
 #include "esphome/core/preferences.h"
 #include <array>
 #include <cmath>
-#include <numbers>
+#include <numbers>  // required for generated lambda code
 
 namespace esphome::motion {
 
 // ---Data class
 
-class MotionData {
- public:
+struct MotionData {
   float acceleration[3]{NAN, NAN, NAN};
   float angular_rate[3]{NAN, NAN, NAN};
   // TODO - compass
@@ -119,6 +118,8 @@ template<typename... Ts> class CalibrateLevelAction : public Action<Ts...> {
   void set_save(bool save) { this->save_ = save; }
   Trigger<> *get_success_trigger() { return &this->success_trigger_; }
   Trigger<> *get_error_trigger() { return &this->error_trigger_; }
+
+ protected:
   void play(const Ts &...) override {
     if (this->parent_->calibrate_level()) {
       // if not saving, calibration success is enough. If save required only report success after that succeeds too.
@@ -130,7 +131,6 @@ template<typename... Ts> class CalibrateLevelAction : public Action<Ts...> {
     this->error_trigger_.trigger();
   }
 
- protected:
   MotionComponent *parent_;
   Trigger<> success_trigger_;
   Trigger<> error_trigger_;

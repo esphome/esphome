@@ -1,6 +1,5 @@
 #include "motion_component.h"
 #include "esphome/core/log.h"
-#include "esphome/core/hal.h"
 
 namespace esphome::motion {
 
@@ -26,8 +25,6 @@ static uint32_t hash_matrix(const float m[9]) {
 }
 
 void MotionComponent::setup() {
-  if (this->pref_key_ == 0)
-    return;
   // matrix_ currently holds the build-time base (set_matrix ran during codegen).
   this->base_hash_ = hash_matrix(this->base_matrix_);
   this->pref_ = global_preferences->make_preference<CalibrationPref>(this->pref_key_);
@@ -40,7 +37,10 @@ void MotionComponent::setup() {
   }
   log_matrix(this->matrix_);
 }
-void MotionComponent::dump_config() { log_matrix(this->matrix_); }
+void MotionComponent::dump_config() {
+  LOG_UPDATE_INTERVAL(this);
+  log_matrix(this->matrix_);
+}
 bool MotionComponent::save_calibration() {
   if (this->pref_key_ == 0) {
     ESP_LOGW(TAG, "Cannot save calibration: no preference key set");
