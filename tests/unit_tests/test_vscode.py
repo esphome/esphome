@@ -97,6 +97,39 @@ esp8266:
     assert range["end_col"] == 7
 
 
+def test_component_not_found_marks_key():
+    source_path = str(Path("dir_path", "x.yaml"))
+    output_lines = _run_repl_test(
+        [
+            _validate(source_path),
+            # read_file x.yaml
+            _file_response("""esphome:
+  name: test1
+esp8266:
+  board: esp01_1m
+
+apccci:
+  id: foo
+"""),
+        ]
+    )
+
+    error = json.loads(output_lines[-1])
+    not_found = next(
+        e
+        for e in error["validation_errors"]
+        if e["message"].startswith("Component not found:")
+    )
+    assert not_found["message"] == "Component not found: apccci."
+    # Range covers the ``apccci`` key, not its child mapping.
+    range = not_found["range"]
+    assert range["document"] == source_path
+    assert range["start_line"] == 5
+    assert range["start_col"] == 0
+    assert range["end_line"] == 5
+    assert range["end_col"] == 6
+
+
 def test_shows_correct_loaded_file_error():
     source_path = str(Path("dir_path", "x.yaml"))
     output_lines = _run_repl_test(

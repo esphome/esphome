@@ -13,9 +13,13 @@ from esphome.yaml_util import parse_yaml
 
 
 def _get_invalid_range(res: Config, invalid: cv.Invalid) -> DocumentRange | None:
-    return res.get_deepest_document_range_for_path(
-        invalid.path, invalid.error_message == "extra keys not allowed"
-    )
+    # Errors about the key itself (an unknown option, an unknown component)
+    # mark the key, not its value mapping — otherwise the range lands on the
+    # component's children instead of the offending key.
+    mark_key = invalid.error_message == "extra keys not allowed" or (
+        invalid.error_message or ""
+    ).startswith("Component not found:")
+    return res.get_deepest_document_range_for_path(invalid.path, mark_key)
 
 
 def _dump_range(range: DocumentRange | None) -> dict | None:
