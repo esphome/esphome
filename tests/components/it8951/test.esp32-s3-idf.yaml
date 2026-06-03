@@ -23,11 +23,11 @@ display:
     lambda: |-
       it.circle(64, 64, 50, Color::BLACK);
 
-  # M5EPD (960x540) — model supplies pin defaults
+  # m5stack-m5paper (960x540) — model supplies pin defaults
   - platform: it8951
     id: m5epd_display
     spi_id: spi_bus
-    model: M5EPD
+    model: m5stack-m5paper
     cs_pin:
       allow_other_uses: true
       number: GPIO5
