@@ -39,9 +39,12 @@ display:
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 - **window_options** (*Optional*): Options that affect how the display renders on the host system. All default to false, except position, which defaults to SDL's undefined position
 
-  - **position** (*Optional*):
-    - **x** (**Required**, int): X position of the display window in pixels
-    - **y** (**Required**, int): Y position of the display window in pixels
+  - **position** (*Optional*): Specify the position of the display window on the host system.
+    If not specified, SDL will choose a default position. Either `x` and `y` or `centered_on_display` may be used, but not together.
+    - **x** (*Optional*, int): X position of the display window in pixels
+    - **y** (*Optional*, int): Y position of the display window in pixels
+    - **centered_on_display** (*Optional*, int): For use with multiple display screens.
+      Centers the window on the specified display number. Display numbering starts at 0. May not be used with `x` or `y`.
   - **borderless** (*Optional*, boolean): Whether to draw the display window with or without borders
   - **always_on_top** (*Optional*, boolean): Whether to always draw the display window above other windows or not
   - **fullscreen** (*Optional*, boolean): Whether to draw the display window in fullscreen or not. This may resize the resolution of the host display to match the SDL display dimensions
@@ -50,21 +53,20 @@ display:
 
 > [!NOTE]
 > To build with this display you must have the
-> [SDL2](https://wiki.libsdl.org/SDL2/Installation) package installed. The Sodium encryption library will
-> also be required for any API calls. See below for installation hints.
+> [SDL2](https://wiki.libsdl.org/SDL2/Installation) package installed.
 
 ## MacOS SDL2 Installation
 
 The easiest way to install SDL2 on MacOS is using `homebrew`  :
 
 ```sh
-brew install sdl2 libsodium
+brew install sdl2
 ```
 
 It may also be necessary to run the command:
 
 ```sh
-brew link sdl2 libsodium
+brew link sdl2
 ```
 
 To ensure that the files are symlinked correctly.
@@ -78,7 +80,7 @@ On Debian/Ubuntu derived Linux systems you can install with `apt`  ; also check 
 tools installed, and you must be using a desktop system with a graphic display.
 
 ```sh
-apt install libsdl2-dev libsodium-dev build-essential git
+apt install libsdl2-dev build-essential git
 ```
 
 You can check installation with the command `sdl2-config --libs --cflags`.
