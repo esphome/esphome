@@ -4,7 +4,6 @@ from typing import Any
 from esphome import automation
 from esphome.automation import StatelessLambdaAction
 import esphome.codegen as cg
-from esphome.components.display import validate_rotation
 import esphome.config_validation as cv
 from esphome.const import CONF_ACTION, CONF_GROUP, CONF_ID, CONF_ROTATION, CONF_TIMEOUT
 from esphome.core import Lambda
@@ -29,7 +28,7 @@ from .defines import (
     get_options,
     get_refreshed_widgets,
 )
-from .lv_validation import lv_bool, lv_milliseconds
+from .lv_validation import lv_bool, lv_milliseconds, lv_rotation
 from .lvcode import (
     LVGL_COMP_ARG,
     UPDATE_EVENT,
@@ -199,7 +198,7 @@ async def lvgl_is_idle(config, condition_id, template_arg, args):
 def _validate_rotation(value):
     # Note that we need rotation
     get_options()[CONF_ROTATION] = True
-    return validate_rotation(value)
+    return lv_rotation(value)
 
 
 @automation.register_action(
@@ -218,7 +217,8 @@ def _validate_rotation(value):
 async def lvgl_set_rotation(config, action_id, template_arg, args):
     lv_comp = await cg.get_variable(config[CONF_LVGL_ID])
     async with LambdaContext(args, where=action_id) as context:
-        lv_add(lv_comp.set_rotation(config[CONF_ROTATION]))
+        rotation = await lv_rotation.process(config[CONF_ROTATION])
+        lv_add(lv_comp.set_rotation(rotation))
     return cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
 
 

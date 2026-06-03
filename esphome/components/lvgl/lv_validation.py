@@ -321,6 +321,19 @@ lv_angle = LValidator(angle, uint32, retmapper=lambda x: int(x * 10))
 lv_angle_degrees = LValidator(angle, uint32, retmapper=int)
 
 
+def rotation_degrees(value):
+    """Validate a display rotation, returning the angle in whole degrees.
+
+    Accepts the four supported rotations, optionally suffixed with "°".
+    """
+    value = cv.string(value).removesuffix("°")
+    return cv.one_of(0, 90, 180, 270, int=True)(value)
+
+
+# Validator for a display rotation expressed in whole degrees (templatable)
+lv_rotation = LValidator(rotation_degrees, cg.int_)
+
+
 @schema_extractor("one_of")
 def size_validator(value):
     """A size in one axis - one of "size_content", a number (pixels) or a percentage"""

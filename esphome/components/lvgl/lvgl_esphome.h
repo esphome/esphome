@@ -287,6 +287,8 @@ class LvglComponent : public PollingComponent {
   void set_draw_start_trigger(Trigger<> *trigger) { this->draw_start_callback_ = trigger; }
   void set_draw_end_trigger(Trigger<> *trigger) { this->draw_end_callback_ = trigger; }
   void set_rotation(display::DisplayRotation rotation);
+  /// Set the rotation from an angle in degrees. Must be a multiple of 90.
+  void set_rotation(int angle);
   display::DisplayRotation get_rotation() const { return this->rotation_; }
   void rotate_coordinates(int32_t &x, int32_t &y) const;
 

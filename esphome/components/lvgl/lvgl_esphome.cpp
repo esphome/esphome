@@ -96,6 +96,18 @@ void LvglComponent::set_rotation(display::DisplayRotation rotation) {
   }
 }
 
+void LvglComponent::set_rotation(int angle) {
+  // Normalize to [0, 360). The DisplayRotation enum values are the angles in degrees.
+  angle %= 360;
+  if (angle < 0)
+    angle += 360;
+  if (angle % 90 != 0) {
+    ESP_LOGW(TAG, "Invalid rotation angle %d; must be a multiple of 90 degrees.", angle);
+    return;
+  }
+  this->set_rotation(static_cast<display::DisplayRotation>(angle));
+}
+
 void LvglComponent::rotate_coordinates(int32_t &x, int32_t &y) const {
   switch (this->rotation_) {
     default:

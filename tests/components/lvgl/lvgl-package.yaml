@@ -57,6 +57,9 @@ lvgl:
     - lvgl.display.set_rotation:
         rotation: 0
         lvgl_id: lvgl_id
+    - lvgl.display.set_rotation:
+        rotation: !lambda "return 180;"
+        lvgl_id: lvgl_id
 
   on_boot:
     - logger.log: LVGL has started
