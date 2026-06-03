@@ -168,7 +168,7 @@ std::optional<InstanceLock> InstanceLock::try_acquire(int delay) {
 }
 
 InstanceLock InstanceLock::acquire() {
-  // Wait for the lock to be created by ot_main() before attempting to acquire it.
+  // Wait for the lock to be created before attempting to acquire it.
   // esp_openthread_lock_acquire() will assert-crash if called before esp_openthread_init().
   constexpr uint32_t lock_init_timeout_ms = 10000;
   uint32_t start = millis();
