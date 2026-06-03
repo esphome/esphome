@@ -472,7 +472,7 @@ def _decode_pc(config, addr):
     command = [idedata.addr2line_path, "-pfiaC", "-e", idedata.firmware_elf_path, addr]
     try:
         translation = subprocess.check_output(command, close_fds=False).decode().strip()
-    except Exception:  # pylint: disable=broad-except
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-except
         _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
         return
 

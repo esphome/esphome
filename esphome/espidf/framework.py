@@ -7,6 +7,8 @@ import json
 import logging
 import os
 from pathlib import Path
+import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -17,7 +19,7 @@ import requests
 
 from esphome.config_validation import Version
 from esphome.core import CORE
-from esphome.helpers import ProgressBar, get_str_env, rmtree
+from esphome.helpers import ProgressBar, get_str_env, rmtree, write_file_if_changed
 
 PathType = str | os.PathLike
 
@@ -26,17 +28,19 @@ _LOGGER = logging.getLogger(__name__)
 _SCRIPTS_DIR = Path(__file__).parent
 
 
-def _str_to_lst_of_str(a: str) -> list[str]:
+def _str_to_lst_of_str(a: str | list[str]) -> list[str]:
     """
     Convert a string to a list of string
 
     Args:
-        a: A string containing semicolon-separated values
+        a: A string containing semicolon-separated values, or an already-split list
 
     Returns:
         list of strings
     """
-    return list(f.strip() for f in a.split(";") if f.strip())
+    if isinstance(a, list):
+        return a
+    return [f.strip() for f in a.split(";") if f.strip()]
 
 
 ESPHOME_STAMP_FILE = ".esphome.stamp.json"
@@ -67,10 +71,11 @@ ESPHOME_IDF_DEFAULT_FEATURES = _str_to_lst_of_str(
 )
 
 ESPHOME_IDF_FRAMEWORK_MIRRORS = _str_to_lst_of_str(
-    os.environ.get(
-        "ESPHOME_IDF_FRAMEWORK_MIRRORS",
-        "https://github.com/espressif/esp-idf/releases/download/v{VERSION}/esp-idf-v{VERSION}.zip;https://github.com/espressif/esp-idf/releases/download/v{MAJOR}.{MINOR}/esp-idf-v{MAJOR}.{MINOR}.zip",
-    )
+    os.environ.get("ESPHOME_IDF_FRAMEWORK_MIRRORS")
+    or [
+        "https://github.com/esphome-libs/esp-idf/releases/download/v{VERSION}/esp-idf-v{VERSION}.tar.xz",
+        "https://github.com/esphome-libs/esp-idf/releases/download/v{MAJOR}.{MINOR}{EXTRA}/esp-idf-v{MAJOR}.{MINOR}{EXTRA}.tar.xz",
+    ]
 )
 
 ESP_IDF_CONSTRAINTS_MIRRORS = _str_to_lst_of_str(
@@ -133,7 +138,7 @@ def rmdir(directory: PathType, msg: str | None = None):
     Raises:
         RuntimeError: If directory removal fails
     """
-    if os.path.isdir(directory):
+    if Path(directory).is_dir():
         try:
             if msg:
                 _LOGGER.debug(msg)
@@ -187,7 +192,7 @@ def _check_stamp(file: PathType, data: dict[str, str]) -> bool:
         return False
 
     try:
-        with open(file, encoding="utf-8") as f:
+        with Path(file).open(encoding="utf-8") as f:
             return json.load(f) == data
     except (json.JSONDecodeError, OSError):
         return False
@@ -201,7 +206,7 @@ def _write_stamp(file: PathType, data: dict[str, str]):
         file: Path to the stamp file to write
         data: Dictionary containing data to write
     """
-    with open(file, "w", encoding="utf8") as fp:
+    with Path(file).open("w", encoding="utf8") as fp:
         json.dump(data, fp)
 
 
@@ -466,8 +471,12 @@ def _tar_extract_all(
     import stat
     import tarfile
 
+    # Tar extraction safety: os.path.realpath / commonpath / normpath have no
+    # pathlib equivalents and Path.resolve() would follow symlinks unsafely.
+    # Use os.path for the security-sensitive parts; the simple checks move to
+    # Path.
     extract_dir = os.fspath(extract_dir)
-    abs_dest = os.path.abspath(extract_dir)
+    abs_dest = os.path.abspath(extract_dir)  # noqa: PTH100
 
     with tarfile.open(fileobj=data, mode="r") as tar_ref:
         all_members = tar_ref.getmembers()
@@ -486,8 +495,8 @@ def _tar_extract_all(
             name = name.lstrip("/" + os.sep)
 
             # 2. Reject absolute paths (incl. Windows drive)
-            if os.path.isabs(name) or (
-                os.name == "nt" and ":" in name.split(os.sep)[0]
+            if Path(name).is_absolute() or (
+                os.name == "nt" and ":" in name.split(os.sep)[0]  # noqa: PTH206
             ):
                 continue
 
@@ -501,7 +510,7 @@ def _tar_extract_all(
                 name = norm[len(strip_prefix) :]
 
             # 4. Compute final path
-            target_path = os.path.realpath(os.path.join(abs_dest, name))
+            target_path = os.path.realpath(os.path.join(abs_dest, name))  # noqa: PTH118
             if os.path.commonpath([abs_dest, target_path]) != abs_dest:
                 continue
 
@@ -510,18 +519,20 @@ def _tar_extract_all(
                 linkname = member.linkname
 
                 # Reject absolute link targets
-                if os.path.isabs(linkname):
+                if Path(linkname).is_absolute():
                     continue
 
                 # Strip leading slashes
                 linkname = os.path.normpath(linkname)
 
                 if member.issym():
-                    link_target = os.path.join(
-                        abs_dest, os.path.dirname(name), linkname
+                    link_target = os.path.join(  # noqa: PTH118
+                        abs_dest,
+                        os.path.dirname(name),  # noqa: PTH120
+                        linkname,
                     )
                 else:
-                    link_target = os.path.join(abs_dest, linkname)
+                    link_target = os.path.join(abs_dest, linkname)  # noqa: PTH118
                 link_target = os.path.realpath(link_target)
 
                 if os.path.commonpath([abs_dest, link_target]) != abs_dest:
@@ -546,11 +557,11 @@ def _tar_extract_all(
                     if not (mode & stat.S_IXUSR):
                         mode &= ~(stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
                     mode |= stat.S_IRUSR | stat.S_IWUSR
-                elif member.isdir() or member.issym():
-                    # Ignore mode for directories & symlinks
-                    mode = None
-                else:
-                    # Block special files
+                elif not (member.isdir() or member.issym()):
+                    # Block special files. Directories and symlinks keep
+                    # their masked-original mode — passing None here would
+                    # crash tarfile.extract on Python <3.12 (its chmod
+                    # path calls os.chmod unconditionally).
                     continue
 
                 member.mode = mode
@@ -593,7 +604,9 @@ def _zip_extract_all(
     """
     import zipfile
 
-    extract_dir = os.path.abspath(extract_dir)
+    # See note in archive_extract_all_tar: os.path is used intentionally for
+    # the security-sensitive abspath/commonpath checks below.
+    extract_dir = os.path.abspath(extract_dir)  # noqa: PTH100
 
     with zipfile.ZipFile(data, "r") as zip_ref:
         all_members = zip_ref.infolist()
@@ -613,8 +626,8 @@ def _zip_extract_all(
             name = member.filename.lstrip("/\\")
 
             # 2. Reject absolute paths / Windows drives
-            if os.path.isabs(name) or (
-                os.name == "nt" and ":" in name.split(os.sep)[0]
+            if Path(name).is_absolute() or (
+                os.name == "nt" and ":" in name.split(os.sep)[0]  # noqa: PTH206
             ):
                 continue
 
@@ -628,7 +641,7 @@ def _zip_extract_all(
                 name = norm[len(strip_prefix) :]
 
             # 4. Compute safe target path
-            target_path = os.path.abspath(os.path.join(extract_dir, name))
+            target_path = os.path.abspath(os.path.join(extract_dir, name))  # noqa: PTH100, PTH118
 
             if os.path.commonpath([extract_dir, target_path]) != extract_dir:
                 raise ValueError(f"Unsafe path detected: {member.filename}")
@@ -675,7 +688,7 @@ def archive_extract_all(
     with ExitStack() as stack:
         archive_ref: io.BufferedIOBase
         if isinstance(archive, (str, os.PathLike)):
-            archive_ref = stack.enter_context(open(archive, "rb"))
+            archive_ref = stack.enter_context(Path(archive).open("rb"))
         elif isinstance(archive, (io.BufferedReader, io.BufferedRandom)):
             archive_ref = archive
         elif isinstance(archive, io.RawIOBase):
@@ -722,7 +735,7 @@ def download_from_mirrors(
     # 1. Open target file for writing if path given
     with ExitStack() as stack:
         if isinstance(target, (str, os.PathLike)):
-            f = stack.enter_context(open(target, "wb"))
+            f = stack.enter_context(Path(target).open("wb"))
         elif isinstance(target, (io.RawIOBase, io.IOBase)):
             f = target
         else:
@@ -770,7 +783,7 @@ def download_from_mirrors(
                 f.seek(0)
                 return url
 
-            except Exception as e:  # pylint: disable=broad-exception-caught
+            except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
                 _LOGGER.debug("Failed to download %s: %s", url, str(e))
                 last_exception = e
 
@@ -780,12 +793,180 @@ def download_from_mirrors(
         return None
 
 
+_GITHUB_SHORTHAND_RE = re.compile(
+    r"^github://([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+?)(?:@([a-zA-Z0-9\-_.\./]+))?$"
+)
+_GITHUB_HTTPS_RE = re.compile(
+    r"^(https://github\.com/[a-zA-Z0-9\-]+/[a-zA-Z0-9\-\._]+?\.git)(?:@([a-zA-Z0-9\-_.\./]+))?$"
+)
+
+
+def _parse_git_source(source_url: str) -> tuple[str, str | None] | None:
+    """Return ``(url, ref)`` for ``github://owner/repo[@ref]`` or
+    ``https://github.com/owner/repo.git[@ref]``, else ``None``."""
+    if m := _GITHUB_SHORTHAND_RE.match(source_url):
+        owner, repo, ref = m.group(1), m.group(2), m.group(3)
+        # Tolerate a trailing ".git" on the shorthand repo so the
+        # github://owner/repo.git form doesn't silently become repo.git.git.
+        repo = repo.removesuffix(".git")
+        return f"https://github.com/{owner}/{repo}.git", ref
+    if m := _GITHUB_HTTPS_RE.match(source_url):
+        return m.group(1), m.group(2)
+    return None
+
+
+def _clone_idf_with_submodules(
+    framework_path: Path, git_url: str, ref: str | None
+) -> None:
+    """Shallow-clone ESP-IDF with submodules into ``framework_path``.
+
+    GitHub's archive zip strips submodules, so vendored components
+    (mbedtls, openthread, esptool, ...) come down empty and CMake fails.
+
+    Uses clone + ``fetch FETCH_HEAD`` + ``reset --hard`` instead of
+    ``--branch``: ``--branch`` only accepts branch or tag names, but a
+    user can also point at a commit SHA. The fetch-then-reset pattern
+    handles branches, tags, and SHAs uniformly (mirrors the approach in
+    ``esphome.git.clone_or_update``).
+    """
+    from esphome.git import run_git_command
+
+    _LOGGER.info("Cloning ESP-IDF from %s%s", git_url, f"@{ref}" if ref else "")
+    run_git_command(["git", "clone", "--depth=1", "--", git_url, str(framework_path)])
+    if ref:
+        run_git_command(
+            ["git", "fetch", "--depth=1", "--", "origin", ref],
+            git_dir=framework_path,
+        )
+        run_git_command(
+            ["git", "reset", "--hard", "FETCH_HEAD"],
+            git_dir=framework_path,
+        )
+    run_git_command(
+        [
+            "git",
+            "submodule",
+            "update",
+            "--init",
+            "--recursive",
+            "--depth=1",
+        ],
+        git_dir=framework_path,
+    )
+
+    # Sanity-check the resulting tree. run_git_command only raises when
+    # stderr is non-empty, so a clone that silently produces no working
+    # tree would otherwise be marked extracted and stuck until
+    # ``esphome clean``.
+    if not (framework_path / "tools" / "idf_tools.py").is_file():
+        raise RuntimeError(
+            f"Clone of {git_url} produced no usable ESP-IDF tree at {framework_path}"
+        )
+
+
+def _write_idf_version_txt(framework_path: Path, version: str) -> None:
+    """Write <framework_path>/version.txt if missing.
+
+    IDF's build.cmake picks the version it embeds in the firmware (and
+    stamps onto the bootloader) in this order: ``${IDF_PATH}/version.txt``
+    if present, else ``git describe`` against IDF_PATH, else the
+    ``IDF_VERSION_MAJOR/MINOR/PATCH`` triplet from ``tools/cmake/version.cmake``.
+    On a clean esphome-libs tarball ``.git`` is fully stripped, so
+    git_describe returns ``HEAD-HASH-NOTFOUND`` (falsy) and the triplet
+    wins -- correct by luck. But a *partial* ``.git`` (e.g. a custom
+    framework.source pointed at a real git URL where build artifacts
+    mark the tree dirty) makes git_describe return ``<hash>-dirty``,
+    which is what then gets baked into the bootloader. Dropping
+    version.txt forces the right answer regardless.
+    """
+    version_txt = framework_path / "version.txt"
+    if version_txt.exists():
+        return
+    try:
+        version_txt.write_text(f"v{version}\n", encoding="utf-8")
+    except OSError as e:
+        _LOGGER.warning(
+            "Could not write %s (%s); bootloader version string may be incorrect.",
+            version_txt,
+            e,
+        )
+
+
+# Backport of espressif/esp-idf#18272: every ESPHome-supported IDF release
+# through v6.0 ships a tools.json whose ninja 1.12.1 entry has no
+# ``linux-arm64`` source. ``idf_tools.py`` then either fails to find a
+# matching binary or grabs the x86_64 one, which can't execute on
+# aarch64. cmake is already populated across the same release range; we
+# only need to inject ninja. Values lifted verbatim from the IDF v6.0.1
+# tools.json where the fix landed natively.
+_NINJA_ARM64_BACKPORT: dict[str, dict[str, str | int]] = {
+    "1.12.1": {
+        "rename_dist": "ninja-linux-arm64-v1.12.1.zip",
+        "sha256": "5c25c6570b0155e95fce5918cb95f1ad9870df5768653afe128db822301a05a1",
+        "size": 121787,
+        "url": "https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-linux-aarch64.zip",
+    },
+}
+
+
+def _patch_tools_json_for_linux_arm64(framework_path: Path) -> None:
+    """Inject ninja linux-arm64 entries into the framework's tools.json on aarch64.
+
+    Idempotent: a tools.json that already has the entry, or a host that
+    isn't aarch64, is a no-op. Applied unconditionally on every install
+    check so a build dir extracted before the backport got fixed up
+    without forcing a clean.
+    """
+    if platform.machine() != "aarch64":
+        return
+
+    tools_json = framework_path / "tools" / "tools.json"
+    if not tools_json.is_file():
+        return
+
+    try:
+        with tools_json.open(encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        _LOGGER.warning(
+            "Could not parse %s for linux-arm64 backport (%s); "
+            "skipping. A clean reinstall of the framework directory "
+            "may be needed.",
+            tools_json,
+            e,
+        )
+        return
+
+    changed = False
+    for tool in data.get("tools", []):
+        if tool.get("name") != "ninja":
+            continue
+        for ver in tool.get("versions", []):
+            entry = _NINJA_ARM64_BACKPORT.get(ver.get("name"))
+            if entry is None or ver.get("linux-arm64"):
+                continue
+            ver["linux-arm64"] = entry
+            changed = True
+
+    if changed:
+        # write_file_if_changed stages a tempfile in the destination dir
+        # and atomically replaces — safe against mid-write interruption
+        # and concurrent invocations.
+        write_file_if_changed(tools_json, json.dumps(data, indent=2) + "\n")
+        _LOGGER.info(
+            "Patched %s to add ninja linux-arm64 download "
+            "(espressif/esp-idf#18272 backport).",
+            tools_json,
+        )
+
+
 def _check_esphome_idf_framework_install(
     version: str,
     targets: list[str],
     tools: list[str],
     force: bool = False,
     env: dict[str, str] | None = None,
+    source_url: str | None = None,
 ) -> tuple[Path, bool]:
     """
     Check and install ESP-IDF framework.
@@ -796,6 +977,12 @@ def _check_esphome_idf_framework_install(
         tools: list of tools to install
         force: If True, force reinstallation
         env: Optional dictionary of environment variables to set
+        source_url: Optional override URL for the framework tarball. Supports
+            the same ``{VERSION}`` / ``{MAJOR}`` / ``{MINOR}`` / ``{PATCH}`` /
+            ``{EXTRA}`` substitutions as ESPHOME_IDF_FRAMEWORK_MIRRORS
+            (``{EXTRA}`` includes its leading ``-``, e.g. ``-rc1``, or is empty).
+            When set, it replaces the default mirror list — no implicit fallback,
+            so a misspelled URL fails loudly.
 
     Returns:
         tuple of (framework_path, install_flag)
@@ -817,6 +1004,12 @@ def _check_esphome_idf_framework_install(
     env_stamp_file = framework_path / ESPHOME_STAMP_FILE
     idf_tools_path = framework_path / "tools" / "idf_tools.py"
     _LOGGER.info("Checking ESP-IDF %s framework ...", version)
+    # Logged every invocation (not just on install) so the user can verify the
+    # override. A changed URL needs ``esphome clean-all`` to force a re-download
+    # (``esphome clean`` only wipes the build dir, not the extracted framework
+    # under <data_dir>/idf/frameworks/<version>).
+    if source_url:
+        _LOGGER.info("Using framework source override: %s", source_url)
 
     # 2. Download and extract the framework if not already extracted.
     # The marker is written last after extraction succeeds, so its presence
@@ -829,28 +1022,44 @@ def _check_esphome_idf_framework_install(
     if install:
         rmdir(framework_path, msg=f"Clean up ESP-IDF {version} framework")
 
-        # Download in temporary file
-        with tempfile.NamedTemporaryFile() as tmp:
-            _LOGGER.info("Downloading ESP-IDF %s framework ...", version)
+        git_source = _parse_git_source(source_url) if source_url else None
+        if git_source is not None:
+            git_url, ref = git_source
+            _clone_idf_with_submodules(framework_path, git_url, ref)
+        else:
+            # Download in temporary file
+            with tempfile.NamedTemporaryFile() as tmp:
+                _LOGGER.info("Downloading ESP-IDF %s framework ...", version)
 
-            # Create substitutions for the URLs
-            substitutions = {"VERSION": version}
-            try:
-                ver = Version.parse(version)
-                substitutions["MAJOR"] = str(ver.major)
-                substitutions["MINOR"] = str(ver.minor)
-                substitutions["PATCH"] = str(ver.patch)
-                substitutions["EXTRA"] = ver.extra
-            except ValueError:
-                pass
+                # Create substitutions for the URLs
+                substitutions = {"VERSION": version}
+                try:
+                    ver = Version.parse(version)
+                    substitutions["MAJOR"] = str(ver.major)
+                    substitutions["MINOR"] = str(ver.minor)
+                    substitutions["PATCH"] = str(ver.patch)
+                    substitutions["EXTRA"] = f"-{ver.extra}" if ver.extra else ""
+                except ValueError:
+                    pass
 
-            download_from_mirrors(
-                ESPHOME_IDF_FRAMEWORK_MIRRORS, substitutions, tmp.file
-            )
+                mirrors = [source_url] if source_url else ESPHOME_IDF_FRAMEWORK_MIRRORS
+                download_from_mirrors(mirrors, substitutions, tmp.file)
 
-            _LOGGER.info("Extracting ESP-IDF %s framework ...", version)
-            archive_extract_all(tmp.file, framework_path, progress_header="Extracting")
-            extracted_marker.touch()
+                _LOGGER.info("Extracting ESP-IDF %s framework ...", version)
+                archive_extract_all(
+                    tmp.file, framework_path, progress_header="Extracting"
+                )
+        extracted_marker.touch()
+
+    # Idempotent post-extract patch: written every invocation so a build
+    # dir extracted before this fix gets the file too, without forcing a
+    # clean. Skips when version.txt already exists.
+    _write_idf_version_txt(framework_path, version)
+
+    # Apply the ninja linux-arm64 backport on every invocation, not just on
+    # fresh extracts — idempotent and cheap, and lets a build dir carrying
+    # a pre-patch tools.json get fixed up without forcing a clean.
+    _patch_tools_json_for_linux_arm64(framework_path)
 
     # 3. Check if the framework tools are the same and correctly installed
     if not install:
@@ -1008,6 +1217,7 @@ def check_esp_idf_install(
     tools: list[str] | None = None,
     features: list[str] | None = None,
     force: bool = False,
+    source_url: str | None = None,
 ) -> tuple[Path, Path]:
     """
     Check and install ESP-IDF framework and Python environment.
@@ -1018,6 +1228,10 @@ def check_esp_idf_install(
         tools: list of tools to install
         features: Features to install
         force: If True, force reinstallation
+        source_url: Optional override URL for the framework tarball. When
+            set, it replaces the default mirror list (no fallback). Forwarded
+            to ``_check_esphome_idf_framework_install``; supports the same URL
+            substitutions.
 
     Returns:
         tuple of (framework_path, python_env_path)
@@ -1040,7 +1254,7 @@ def check_esp_idf_install(
 
     # 1) Framework
     framework_path, installed = _check_esphome_idf_framework_install(
-        version, targets, tools, force=force, env=env
+        version, targets, tools, force=force, env=env, source_url=source_url
     )
 
     features = features or ESPHOME_IDF_DEFAULT_FEATURES
