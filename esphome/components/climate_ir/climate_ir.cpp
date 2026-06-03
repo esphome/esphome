@@ -13,11 +13,14 @@ climate::ClimateTraits ClimateIR::traits() {
   if (this->humidity_sensor_ != nullptr) {
     traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY);
   }
-  traits.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_HEAT_COOL});
+  traits.set_supported_modes({climate::CLIMATE_MODE_OFF});
   if (this->supports_cool_)
     traits.add_supported_mode(climate::CLIMATE_MODE_COOL);
   if (this->supports_heat_)
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
+  // HEAT_COOL (auto) switches between heating and cooling, so only offer it when both are supported.
+  if (this->supports_cool_ && this->supports_heat_)
+    traits.add_supported_mode(climate::CLIMATE_MODE_HEAT_COOL);
   if (this->supports_dry_)
     traits.add_supported_mode(climate::CLIMATE_MODE_DRY);
   if (this->supports_fan_only_)
