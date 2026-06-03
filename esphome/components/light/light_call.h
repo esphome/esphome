@@ -195,25 +195,26 @@ class LightCall {
   /// Some color modes also can be set using non-native parameters, transform those calls.
   void transform_parameters_(const LightTraits &traits);
 
-  // Bitfield flags - each flag indicates whether a corresponding value has been set.
+  // Bits 0-7 index unit_fields_[] in validate_(); don't reorder (asserts in light_call.cpp).
   enum FieldFlags : uint16_t {
-    FLAG_HAS_STATE = 1 << 0,
-    FLAG_HAS_TRANSITION = 1 << 1,
-    FLAG_HAS_FLASH = 1 << 2,
-    FLAG_HAS_EFFECT = 1 << 3,
-    FLAG_HAS_BRIGHTNESS = 1 << 4,
-    FLAG_HAS_COLOR_BRIGHTNESS = 1 << 5,
-    FLAG_HAS_RED = 1 << 6,
-    FLAG_HAS_GREEN = 1 << 7,
-    FLAG_HAS_BLUE = 1 << 8,
-    FLAG_HAS_WHITE = 1 << 9,
-    FLAG_HAS_COLOR_TEMPERATURE = 1 << 10,
-    FLAG_HAS_COLD_WHITE = 1 << 11,
-    FLAG_HAS_WARM_WHITE = 1 << 12,
+    FLAG_HAS_BRIGHTNESS = 1 << 0,
+    FLAG_HAS_COLOR_BRIGHTNESS = 1 << 1,
+    FLAG_HAS_RED = 1 << 2,
+    FLAG_HAS_GREEN = 1 << 3,
+    FLAG_HAS_BLUE = 1 << 4,
+    FLAG_HAS_WHITE = 1 << 5,
+    FLAG_HAS_COLD_WHITE = 1 << 6,
+    FLAG_HAS_WARM_WHITE = 1 << 7,
+    FLAG_HAS_COLOR_TEMPERATURE = 1 << 8,
+    FLAG_HAS_STATE = 1 << 9,
+    FLAG_HAS_TRANSITION = 1 << 10,
+    FLAG_HAS_FLASH = 1 << 11,
+    FLAG_HAS_EFFECT = 1 << 12,
     FLAG_HAS_COLOR_MODE = 1 << 13,
     FLAG_PUBLISH = 1 << 14,
     FLAG_SAVE = 1 << 15,
   };
+  static constexpr uint16_t CLAMP_FLAGS_MASK = 0x00FFu;  // bits 0-7
 
   inline bool has_transition_() { return (this->flags_ & FLAG_HAS_TRANSITION) != 0; }
   inline bool has_flash_() { return (this->flags_ & FLAG_HAS_FLASH) != 0; }
@@ -222,7 +223,7 @@ class LightCall {
   inline bool get_save_() { return (this->flags_ & FLAG_SAVE) != 0; }
 
   // Helper to set flag - defaults to true for common case
-  void set_flag_(FieldFlags flag, bool value = true) {
+  void set_flag_(FieldFlags flag, bool value = true) ESPHOME_ALWAYS_INLINE {
     if (value) {
       this->flags_ |= flag;
     } else {
@@ -231,7 +232,7 @@ class LightCall {
   }
 
   // Helper to clear flag - reduces code size for common case
-  void clear_flag_(FieldFlags flag) { this->flags_ &= ~flag; }
+  void clear_flag_(FieldFlags flag) ESPHOME_ALWAYS_INLINE { this->flags_ &= ~flag; }
 
   // Helper to log unsupported feature and clear flag - reduces code duplication
   void log_and_clear_unsupported_(FieldFlags flag, const LogString *feature, bool use_color_mode_log);
@@ -239,19 +240,11 @@ class LightCall {
   LightState *parent_;
 
   // Light state values - use flags_ to check if a value has been set.
-  // Group 4-byte aligned members first
   uint32_t transition_length_;
   uint32_t flash_length_;
   uint32_t effect_;
-  float brightness_;
-  float color_brightness_;
-  float red_;
-  float green_;
-  float blue_;
-  float white_;
+  ESPHOME_LIGHT_UNIT_FIELDS_UNION();
   float color_temperature_;
-  float cold_white_;
-  float warm_white_;
 
   // Smaller members at the end for better packing
   uint16_t flags_{FLAG_PUBLISH | FLAG_SAVE};  // Tracks which values are set

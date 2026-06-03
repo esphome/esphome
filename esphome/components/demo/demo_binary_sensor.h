@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-namespace esphome {
-namespace demo {
+namespace esphome::demo {
 
 class DemoBinarySensor : public binary_sensor::BinarySensor, public PollingComponent {
  public:
@@ -18,5 +17,4 @@ class DemoBinarySensor : public binary_sensor::BinarySensor, public PollingCompo
   bool last_state_ = false;
 };
 
-}  // namespace demo
-}  // namespace esphome
+}  // namespace esphome::demo

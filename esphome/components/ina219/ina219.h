@@ -6,8 +6,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace ina219 {
+namespace esphome::ina219 {
 
 class INA219Component : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -35,5 +34,4 @@ class INA219Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *power_sensor_{nullptr};
 };
 
-}  // namespace ina219
-}  // namespace esphome
+}  // namespace esphome::ina219

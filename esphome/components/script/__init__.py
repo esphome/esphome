@@ -169,6 +169,8 @@ async def script_execute_action_to_code(config, action_id, template_arg, args):
                 return value
             if type == "bool":
                 return cg.RawExpression(str(value).lower())
+            if isinstance(value, (list, tuple)):
+                return cg.ArrayInitializer(*value)
             return cg.RawExpression(str(value))
 
         return converter

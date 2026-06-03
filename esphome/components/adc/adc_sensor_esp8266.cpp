@@ -11,8 +11,7 @@ ADC_MODE(ADC_VCC)
 #include <Arduino.h>
 #endif  // USE_ADC_SENSOR_VCC
 
-namespace esphome {
-namespace adc {
+namespace esphome::adc {
 
 static const char *const TAG = "adc.esp8266";
 
@@ -55,7 +54,6 @@ float ADCSensor::sample() {
   return aggr.aggregate() / 1024.0f;
 }
 
-}  // namespace adc
-}  // namespace esphome
+}  // namespace esphome::adc
 
 #endif  // USE_ESP8266
