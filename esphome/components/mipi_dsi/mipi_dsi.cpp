@@ -98,7 +98,7 @@ void MipiDsi::setup() {
                                                },
                                            .flags = {
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
-                                               .use_dma2d = true,
+                                               .use_dma2d = this->use_dma2d_,
 #endif
                                            }};
   // clang-format on
@@ -119,12 +119,15 @@ void MipiDsi::setup() {
     ESP_LOGW(TAG, "DPI framebuffer unavailable: %s", esp_err_to_name(err));
   }
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-  err = esp_lcd_dpi_panel_enable_dma2d(this->handle_);
-  if (err != ESP_OK) {
-    this->smark_failed(LOG_STR("esp_lcd_dpi_panel_enable_dma2d failed"), err);
-    return;
+  if (this->use_dma2d_) {
+    err = esp_lcd_dpi_panel_enable_dma2d(this->handle_);
+    if (err != ESP_OK) {
+      this->smark_failed(LOG_STR("esp_lcd_dpi_panel_enable_dma2d failed"), err);
+      return;
+    }
   }
 #endif
+  ESP_LOGCONFIG(TAG, "DPI DMA2D draw hook: %s", YESNO(this->use_dma2d_));
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(true);
@@ -436,11 +439,12 @@ void MipiDsi::dump_config() {
                 "\n  Buffer Color Depth: %d bit"
                 "\n  Display Pixel Mode: %d bit"
                 "\n  Invert Colors: %s"
+                "\n  DMA2D: %s"
                 "\n  Pixel Clock: %.1fMHz",
                 this->model_, this->width_, this->height_, this->rotation_, this->lanes_, this->lane_bit_rate_,
                 this->hsync_pulse_width_, this->hsync_back_porch_, this->hsync_front_porch_, this->vsync_pulse_width_,
                 this->vsync_back_porch_, this->vsync_front_porch_, (3 - this->color_depth_) * 8, this->pixel_mode_,
-                YESNO(this->invert_colors_), this->pclk_frequency_);
+                YESNO(this->invert_colors_), YESNO(this->use_dma2d_), this->pclk_frequency_);
   LOG_PIN("  Reset Pin ", this->reset_pin_);
 }
 }  // namespace esphome::mipi_dsi

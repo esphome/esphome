@@ -64,6 +64,7 @@ class MipiDsi : public display::Display {
   void set_model(const char *model) { this->model_ = model; }
   void set_lane_bit_rate(float lane_bit_rate) { this->lane_bit_rate_ = lane_bit_rate; }
   void set_lanes(uint8_t lanes) { this->lanes_ = lanes; }
+  void set_use_dma2d(bool use_dma2d) { this->use_dma2d_ = use_dma2d; }
   uint8_t *get_frame_buffer() const { return this->frame_buffers_[0]; }
   uint8_t *get_frame_buffer(size_t index) const { return index < 2 ? this->frame_buffers_[index] : nullptr; }
   size_t get_frame_buffer_size() const { return this->width_ * this->height_ * this->get_bytes_per_pixel_(); }
@@ -106,6 +107,7 @@ class MipiDsi : public display::Display {
   float pclk_frequency_ = 16;  // in MHz
   float lane_bit_rate_{1500};  // in Mbps
   uint8_t lanes_{2};           // 1, 2, 3 or 4 lanes
+  bool use_dma2d_{true};
 
   bool invert_colors_{};
   display::ColorOrder color_mode_{display::COLOR_ORDER_BGR};
