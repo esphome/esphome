@@ -57,7 +57,7 @@ def _axis_map(config: dict) -> dict:
     return config
 
 
-def _axis_map_to_matrix(config: dict[str, str]) -> list[int]:
+def _axis_map_to_matrix(config: dict[str, str]) -> list[float]:
     matrix = []
     for target_axis in AXES:
         source_axis = config[target_axis].lower()
@@ -82,9 +82,7 @@ def _transform_matrix(value):
         flat = []
         for i, row in enumerate(value):
             if not isinstance(row, list) or len(row) != 3:
-                raise cv.Invalid(
-                    f"Each row must be a list of 3 numbers, row {i} has {len(row)}"
-                )
+                raise cv.Invalid("Each row must be a list of 3 numbers", path=[i])
             flat.extend(cv.float_(v) for v in row)
         return flat
     # Flat list
