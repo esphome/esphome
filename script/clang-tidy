@@ -240,6 +240,12 @@ def main():
         help="only run on files containing value",
     )
     parser.add_argument(
+        "-x",
+        "--exclude-grep",
+        action="append",
+        help="skip files containing value",
+    )
+    parser.add_argument(
         "--split-num", type=int, help="split the files into X jobs.", default=None
     )
     parser.add_argument(
@@ -272,6 +278,10 @@ def main():
 
     if args.grep:
         files = filter_grep(files, args.grep)
+
+    if args.exclude_grep:
+        excluded = set(filter_grep(files, args.exclude_grep))
+        files = [f for f in files if f not in excluded]
 
     files.sort()
 
