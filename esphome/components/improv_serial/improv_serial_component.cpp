@@ -8,8 +8,7 @@
 
 #include "esphome/components/logger/logger.h"
 
-namespace esphome {
-namespace improv_serial {
+namespace esphome::improv_serial {
 
 static const char *const TAG = "improv_serial";
 
@@ -329,6 +328,6 @@ void ImprovSerialComponent::on_wifi_connect_timeout_() {
 ImprovSerialComponent *global_improv_serial_component =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
     nullptr;                                             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace improv_serial
-}  // namespace esphome
+}  // namespace esphome::improv_serial
+
 #endif

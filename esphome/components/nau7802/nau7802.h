@@ -7,8 +7,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace nau7802 {
+namespace esphome::nau7802 {
 
 enum NAU7802Gain {
   NAU7802_GAIN_128 = 0b111,
@@ -114,5 +113,4 @@ template<typename... Ts> class NAU7802CalbrateGainAction : public Action<Ts...>,
   void play(const Ts &...x) override { this->parent_->calibrate_gain(); }
 };
 
-}  // namespace nau7802
-}  // namespace esphome
+}  // namespace esphome::nau7802

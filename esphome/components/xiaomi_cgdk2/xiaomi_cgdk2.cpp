@@ -4,8 +4,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace xiaomi_cgdk2 {
+namespace esphome::xiaomi_cgdk2 {
 
 static const char *const TAG = "xiaomi_cgdk2";
 
@@ -65,7 +64,6 @@ bool XiaomiCGDK2::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
 
 void XiaomiCGDK2::set_bindkey(const char *bindkey) { parse_hex(bindkey, this->bindkey_, sizeof(this->bindkey_)); }
 
-}  // namespace xiaomi_cgdk2
-}  // namespace esphome
+}  // namespace esphome::xiaomi_cgdk2
 
 #endif

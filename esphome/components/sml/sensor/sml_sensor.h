@@ -2,8 +2,7 @@
 #include "esphome/components/sml/sml.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace sml {
+namespace esphome::sml {
 
 class SmlSensor : public SmlListener, public sensor::Sensor, public Component {
  public:
@@ -12,5 +11,4 @@ class SmlSensor : public SmlListener, public sensor::Sensor, public Component {
   void dump_config() override;
 };
 
-}  // namespace sml
-}  // namespace esphome
+}  // namespace esphome::sml

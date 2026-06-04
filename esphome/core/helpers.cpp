@@ -15,7 +15,7 @@
 #include <cstring>
 
 #ifdef USE_ESP32
-#include "rom/crc.h"
+#include "esp_rom_crc.h"
 #endif
 
 namespace esphome {
@@ -47,7 +47,7 @@ static const uint16_t CRC16_8408_LE_LUT_H[] = {0x0000, 0x1081, 0x2102, 0x3183, 0
                                                0x8408, 0x9489, 0xa50a, 0xb58b, 0xc60c, 0xd68d, 0xe70e, 0xf78f};
 #endif
 
-#if !defined(USE_ESP32) || defined(USE_ESP32_VARIANT_ESP32S2)
+#ifndef USE_ESP32
 static const uint16_t CRC16_1021_BE_LUT_L[] = {0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50a5, 0x60c6, 0x70e7,
                                                0x8108, 0x9129, 0xa14a, 0xb16b, 0xc18c, 0xd1ad, 0xe1ce, 0xf1ef};
 static const uint16_t CRC16_1021_BE_LUT_H[] = {0x0000, 0x1231, 0x2462, 0x3653, 0x48c4, 0x5af5, 0x6ca6, 0x7e97,
@@ -86,7 +86,7 @@ uint8_t crc8(const uint8_t *data, uint8_t len, uint8_t crc, uint8_t poly, bool m
 uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t reverse_poly, bool refin, bool refout) {
 #ifdef USE_ESP32
   if (reverse_poly == 0x8408) {
-    crc = crc16_le(refin ? crc : (crc ^ 0xffff), data, len);
+    crc = esp_rom_crc16_le(refin ? crc : (crc ^ 0xffff), data, len);
     return refout ? crc : (crc ^ 0xffff);
   }
 #endif
@@ -124,23 +124,24 @@ uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t reverse
 }
 
 uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t poly, bool refin, bool refout) {
-#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32S2)
+#ifdef USE_ESP32
   if (poly == 0x1021) {
-    crc = crc16_be(refin ? crc : (crc ^ 0xffff), data, len);
+    crc = esp_rom_crc16_be(refin ? crc : (crc ^ 0xffff), data, len);
     return refout ? crc : (crc ^ 0xffff);
   }
 #endif
   if (refin) {
     crc ^= 0xffff;
   }
-#if !defined(USE_ESP32) || defined(USE_ESP32_VARIANT_ESP32S2)
+#ifndef USE_ESP32
   if (poly == 0x1021) {
     while (len--) {
       uint8_t combo = (crc >> 8) ^ *data++;
       crc = (crc << 8) ^ CRC16_1021_BE_LUT_L[combo & 0x0F] ^ CRC16_1021_BE_LUT_H[combo >> 4];
     }
-  } else {
+  } else
 #endif
+  {
     while (len--) {
       crc ^= (((uint16_t) *data++) << 8);
       for (uint8_t i = 0; i < 8; i++) {
@@ -151,9 +152,7 @@ uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t poly,
         }
       }
     }
-#if !defined(USE_ESP32) || defined(USE_ESP32_VARIANT_ESP32S2)
   }
-#endif
   return refout ? (crc ^ 0xffff) : crc;
 }
 
@@ -447,28 +446,58 @@ static inline void normalize_accuracy_decimals(float &value, int8_t &accuracy_de
 
 // value_accuracy_to_string moved to alloc_helpers.cpp
 
+// Fast float-to-string for accuracy_decimals 0-3 (covers virtually all sensor usage).
+// Avoids snprintf("%.*f") which pulls in heavy float formatting machinery.
+// Caller must guarantee value is finite and |value| * mult fits in uint32_t.
+static size_t value_accuracy_to_buf_fast(char *buf, float value, int8_t accuracy_decimals, uint32_t mult) {
+  char *p = buf;
+  if (std::signbit(value)) {
+    *p++ = '-';
+    value = -value;
+  }
+  // Cast to double for the multiply to match snprintf's rounding precision.
+  // float*int loses bits at exact-half boundaries (e.g. 23.45f*10 = 234.5 in float,
+  // but snprintf sees 234.500007... via double promotion and rounds differently).
+  // llrint returns long long so the result fits even on 32-bit targets where
+  // long is 32-bit; caller has already bounded |value * mult| to UINT32_MAX.
+  uint32_t scaled = static_cast<uint32_t>(llrint(static_cast<double>(value) * mult));
+  p = uint32_to_str_unchecked(p, scaled / mult);
+  if (accuracy_decimals > 0) {
+    *p++ = '.';
+    p = frac_to_str_unchecked(p, scaled % mult, mult / 10);
+  }
+  *p = '\0';
+  return static_cast<size_t>(p - buf);
+}
+
 size_t value_accuracy_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float value, int8_t accuracy_decimals) {
   normalize_accuracy_decimals(value, accuracy_decimals);
-  // snprintf returns chars that would be written (excluding null), or negative on error
+
+  // Fast path for accuracy 0-3, finite values whose scaled magnitude fits in uint32_t.
+  // For 3 decimals that's |value| < ~4.29e6; larger totals fall through to snprintf.
+  if (accuracy_decimals <= 3 && std::isfinite(value)) {
+    const uint32_t mult = small_pow10(accuracy_decimals);
+    if (std::fabs(value) < static_cast<float>(UINT32_MAX) / mult) {
+      return value_accuracy_to_buf_fast(buf.data(), value, accuracy_decimals, mult);
+    }
+  }
+
+  // Fallback for NaN/Inf/high accuracy/out-of-range
   int len = snprintf(buf.data(), buf.size(), "%.*f", accuracy_decimals, value);
   if (len < 0)
-    return 0;  // encoding error
-  // On truncation, snprintf returns would-be length; actual written is buf.size() - 1
+    return 0;
   return static_cast<size_t>(len) >= buf.size() ? buf.size() - 1 : static_cast<size_t>(len);
 }
 
 size_t value_accuracy_with_uom_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> buf, float value,
                                       int8_t accuracy_decimals, StringRef unit_of_measurement) {
-  if (unit_of_measurement.empty()) {
-    return value_accuracy_to_buf(buf, value, accuracy_decimals);
+  size_t len = value_accuracy_to_buf(buf, value, accuracy_decimals);
+  if (len == 0 || unit_of_measurement.empty()) {
+    return len;
   }
-  normalize_accuracy_decimals(value, accuracy_decimals);
-  // snprintf returns chars that would be written (excluding null), or negative on error
-  int len = snprintf(buf.data(), buf.size(), "%.*f %s", accuracy_decimals, value, unit_of_measurement.c_str());
-  if (len < 0)
-    return 0;  // encoding error
-  // On truncation, snprintf returns would-be length; actual written is buf.size() - 1
-  return static_cast<size_t>(len) >= buf.size() ? buf.size() - 1 : static_cast<size_t>(len);
+  char *end = buf_append_sep_str(buf.data() + len, buf.size() - len, ' ', unit_of_measurement.c_str(),
+                                 unit_of_measurement.size());
+  return static_cast<size_t>(end - buf.data());
 }
 
 int8_t step_to_accuracy_decimals(float step) {
@@ -633,8 +662,8 @@ float gamma_uncorrect(float value, float gamma) {
 }
 
 void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value) {
-  float max_color_value = std::max(std::max(red, green), blue);
-  float min_color_value = std::min(std::min(red, green), blue);
+  float max_color_value = std::max({red, green, blue});
+  float min_color_value = std::min({red, green, blue});
   float delta = max_color_value - min_color_value;
 
   if (delta == 0) {

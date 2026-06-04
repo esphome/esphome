@@ -1,0 +1,14 @@
+i2s_audio:
+  - id: i2s_output
+
+speaker:
+  - platform: i2s_audio
+    id: speaker_id
+    dac_type: external
+    i2s_dout_pin: ${spdif_data_pin}
+    spdif_mode: true
+    use_apll: true
+    timeout: 2s
+    sample_rate: 48000
+    channel: stereo
+    i2s_mode: primary

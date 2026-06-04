@@ -4,8 +4,7 @@
 #include <thread>
 #include <chrono>
 
-namespace esphome {
-namespace scheduler_string_lifetime_component {
+namespace esphome::scheduler_string_lifetime_component {
 
 static const char *const TAG = "scheduler_string_lifetime";
 
@@ -258,5 +257,4 @@ void SchedulerStringLifetimeComponent::test_lambda_capture_lifetime() {
   });
 }
 
-}  // namespace scheduler_string_lifetime_component
-}  // namespace esphome
+}  // namespace esphome::scheduler_string_lifetime_component
