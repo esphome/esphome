@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace adc {
+namespace esphome::adc {
 
 static const char *const TAG = "adc.esp32";
 
@@ -364,7 +363,6 @@ float ADCSensor::sample_autorange_() {
   return final_result;
 }
 
-}  // namespace adc
-}  // namespace esphome
+}  // namespace esphome::adc
 
 #endif  // USE_ESP32

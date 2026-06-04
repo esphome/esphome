@@ -92,6 +92,11 @@ enum SupportsResponseType : uint32_t {
   SUPPORTS_RESPONSE_STATUS = 100,
 };
 #endif
+enum TemperatureUnit : uint32_t {
+  TEMPERATURE_UNIT_CELSIUS = 0,
+  TEMPERATURE_UNIT_FAHRENHEIT = 1,
+  TEMPERATURE_UNIT_KELVIN = 2,
+};
 #ifdef USE_CLIMATE
 enum ClimateMode : uint32_t {
   CLIMATE_MODE_OFF = 0,
@@ -176,6 +181,8 @@ enum LockState : uint32_t {
   LOCK_STATE_JAMMED = 3,
   LOCK_STATE_LOCKING = 4,
   LOCK_STATE_UNLOCKING = 5,
+  LOCK_STATE_OPENING = 6,
+  LOCK_STATE_OPEN = 7,
 };
 enum LockCommand : uint32_t {
   LOCK_UNLOCK = 0,
@@ -1372,7 +1379,7 @@ class CameraImageRequest final : public ProtoDecodableMessage {
 class ListEntitiesClimateResponse final : public InfoResponseProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 46;
-  static constexpr uint8_t ESTIMATED_SIZE = 150;
+  static constexpr uint8_t ESTIMATED_SIZE = 153;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("list_entities_climate_response"); }
 #endif
@@ -1394,6 +1401,7 @@ class ListEntitiesClimateResponse final : public InfoResponseProtoMessage {
   float visual_min_humidity{0.0f};
   float visual_max_humidity{0.0f};
   uint32_t feature_flags{0};
+  enums::TemperatureUnit temperature_unit{};
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
   uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1471,7 +1479,7 @@ class ClimateCommandRequest final : public CommandProtoMessage {
 class ListEntitiesWaterHeaterResponse final : public InfoResponseProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 132;
-  static constexpr uint8_t ESTIMATED_SIZE = 63;
+  static constexpr uint8_t ESTIMATED_SIZE = 65;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("list_entities_water_heater_response"); }
 #endif
@@ -1480,6 +1488,7 @@ class ListEntitiesWaterHeaterResponse final : public InfoResponseProtoMessage {
   float target_temperature_step{0.0f};
   const water_heater::WaterHeaterModeMask *supported_modes{};
   uint32_t supported_features{0};
+  enums::TemperatureUnit temperature_unit{};
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
   uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -2427,13 +2436,15 @@ class VoiceAssistantEventResponse final : public ProtoDecodableMessage {
 class VoiceAssistantAudio final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 106;
-  static constexpr uint8_t ESTIMATED_SIZE = 21;
+  static constexpr uint8_t ESTIMATED_SIZE = 40;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("voice_assistant_audio"); }
 #endif
   const uint8_t *data{nullptr};
   uint16_t data_len{0};
   bool end{false};
+  const uint8_t *data2{nullptr};
+  uint16_t data2_len{0};
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
   uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -3054,11 +3065,11 @@ class ListEntitiesInfraredResponse final : public InfoResponseProtoMessage {
  protected:
 };
 #endif
-#ifdef USE_IR_RF
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
 class InfraredRFTransmitRawTimingsRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 136;
-  static constexpr uint8_t ESTIMATED_SIZE = 220;
+  static constexpr uint8_t ESTIMATED_SIZE = 224;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("infrared_rf_transmit_raw_timings_request"); }
 #endif
@@ -3071,6 +3082,7 @@ class InfraredRFTransmitRawTimingsRequest final : public ProtoDecodableMessage {
   const uint8_t *timings_data_{nullptr};
   uint16_t timings_length_{0};
   uint16_t timings_count_{0};
+  uint32_t modulation{0};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
@@ -3092,6 +3104,27 @@ class InfraredRFReceiveEvent final : public ProtoMessage {
 #endif
   uint32_t key{0};
   const std::vector<int32_t> *timings{};
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
+  uint32_t calculate_size() const;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
+#endif
+#ifdef USE_RADIO_FREQUENCY
+class ListEntitiesRadioFrequencyResponse final : public InfoResponseProtoMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 148;
+  static constexpr uint8_t ESTIMATED_SIZE = 56;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("list_entities_radio_frequency_response"); }
+#endif
+  uint32_t capabilities{0};
+  uint32_t frequency_min{0};
+  uint32_t frequency_max{0};
+  uint32_t supported_modulations{0};
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
   uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP

@@ -4,8 +4,8 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include <algorithm>
-namespace esphome {
-namespace graph {
+
+namespace esphome::graph {
 
 using namespace display;
 
@@ -397,5 +397,4 @@ void Graph::dump_config() {
   }
 }
 
-}  // namespace graph
-}  // namespace esphome
+}  // namespace esphome::graph

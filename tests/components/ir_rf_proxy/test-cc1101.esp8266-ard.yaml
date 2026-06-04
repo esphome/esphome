@@ -1,0 +1,9 @@
+substitutions:
+  cs_pin: GPIO5
+  gdo0_pin: GPIO4
+  gdo2_pin: GPIO16
+
+packages:
+  common: !include common.yaml
+  spi: !include ../../test_build_components/common/spi/esp8266-ard.yaml
+  cc1101: !include common-cc1101.yaml

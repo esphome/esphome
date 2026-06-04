@@ -4,8 +4,7 @@
 #include "esphome/components/tuya/tuya.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 class TuyaBinarySensor : public binary_sensor::BinarySensor, public Component {
  public:
@@ -20,5 +19,4 @@ class TuyaBinarySensor : public binary_sensor::BinarySensor, public Component {
   uint8_t sensor_id_{0};
 };
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

@@ -6,8 +6,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace ade7953_base {
+namespace esphome::ade7953_base {
 
 static constexpr uint8_t PGA_V_8 =
     0x007;  // PGA_V,  (R/W) Default: 0x00, Unsigned, Voltage channel gain configuration (Bits[2:0])
@@ -131,5 +130,4 @@ class ADE7953 : public PollingComponent, public sensor::Sensor {
   virtual bool ade_read_32(uint16_t reg, uint32_t *value) = 0;
 };
 
-}  // namespace ade7953_base
-}  // namespace esphome
+}  // namespace esphome::ade7953_base

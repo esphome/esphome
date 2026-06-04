@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace crc8_test_component {
+namespace esphome::crc8_test_component {
 
 static const char *const TAG = "crc8_test";
 
@@ -166,5 +165,4 @@ void CRC8TestComponent::log_test_result(const char *test_name, bool passed) {
   }
 }
 
-}  // namespace crc8_test_component
-}  // namespace esphome
+}  // namespace esphome::crc8_test_component
