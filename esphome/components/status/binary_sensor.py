@@ -7,14 +7,14 @@ DEPENDENCIES = ["network"]
 
 status_ns = cg.esphome_ns.namespace("status")
 StatusBinarySensor = status_ns.class_(
-    "StatusBinarySensor", binary_sensor.BinarySensor, cg.Component
+    "StatusBinarySensor", binary_sensor.BinarySensor, cg.PollingComponent
 )
 
 CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(
     StatusBinarySensor,
     device_class=DEVICE_CLASS_CONNECTIVITY,
     entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-).extend(cv.COMPONENT_SCHEMA)
+).extend(cv.polling_component_schema("1s"))
 
 
 async def to_code(config):

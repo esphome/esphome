@@ -6,8 +6,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace modbus_controller {
+namespace esphome::modbus_controller {
 
 class ModbusSensor : public Component, public sensor::Sensor, public SensorItem {
  public:
@@ -25,13 +24,12 @@ class ModbusSensor : public Component, public sensor::Sensor, public SensorItem 
 
   void parse_and_publish(const std::vector<uint8_t> &data) override;
   void dump_config() override;
-  using transform_func_t = std::function<optional<float>(ModbusSensor *, float, const std::vector<uint8_t> &)>;
+  using transform_func_t = optional<float> (*)(ModbusSensor *, float, const std::vector<uint8_t> &);
 
-  void set_template(transform_func_t &&f) { this->transform_func_ = f; }
+  void set_template(transform_func_t f) { this->transform_func_ = f; }
 
  protected:
   optional<transform_func_t> transform_func_{nullopt};
 };
 
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller

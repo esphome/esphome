@@ -1,0 +1,91 @@
+esphome:
+  name: host-logger-thread-test
+host:
+api:
+logger:
+
+button:
+  - platform: template
+    name: "Start Thread Race Test"
+    id: start_test_button
+    on_press:
+      - lambda: |-
+          // Number of threads and messages per thread
+          static const int NUM_THREADS = 3;
+          static const int MESSAGES_PER_THREAD = 100;
+
+          // Counters
+          static std::atomic<int> total_messages_logged{0};
+
+          // Thread function - must be a regular function pointer for pthread
+          struct ThreadTest {
+            static void *thread_func(void *arg) {
+              int thread_id = *static_cast<int *>(arg);
+
+              // Set thread name (different signatures on macOS vs Linux)
+              char thread_name[16];
+              snprintf(thread_name, sizeof(thread_name), "LogThread%d", thread_id);
+              #ifdef __APPLE__
+              pthread_setname_np(thread_name);
+              #else
+              pthread_setname_np(pthread_self(), thread_name);
+              #endif
+
+              // Log messages with different log levels
+              for (int i = 0; i < MESSAGES_PER_THREAD; i++) {
+                switch (i % 4) {
+                  case 0:
+                    ESP_LOGI("thread_test", "THREAD%d_MSG%03d_INFO_MESSAGE_WITH_DATA_%08X",
+                             thread_id, i, i * 12345);
+                    break;
+                  case 1:
+                    ESP_LOGD("thread_test", "THREAD%d_MSG%03d_DEBUG_MESSAGE_WITH_DATA_%08X",
+                             thread_id, i, i * 12345);
+                    break;
+                  case 2:
+                    ESP_LOGW("thread_test", "THREAD%d_MSG%03d_WARN_MESSAGE_WITH_DATA_%08X",
+                             thread_id, i, i * 12345);
+                    break;
+                  case 3:
+                    ESP_LOGE("thread_test", "THREAD%d_MSG%03d_ERROR_MESSAGE_WITH_DATA_%08X",
+                             thread_id, i, i * 12345);
+                    break;
+                }
+                total_messages_logged.fetch_add(1, std::memory_order_relaxed);
+
+                // Small busy loop to vary timing between threads
+                int delay_count = (thread_id + 1) * 10;
+                while (delay_count-- > 0) {
+                  asm volatile("" ::: "memory");  // Prevent optimization
+                }
+              }
+              return nullptr;
+            }
+          };
+
+          ESP_LOGI("thread_test", "RACE_TEST_START: Starting %d threads with %d messages each",
+                   NUM_THREADS, MESSAGES_PER_THREAD);
+
+          // Reset counter for this test run
+          total_messages_logged.store(0, std::memory_order_relaxed);
+
+          pthread_t threads[NUM_THREADS];
+          int thread_ids[NUM_THREADS];
+
+          // Create all threads
+          for (int i = 0; i < NUM_THREADS; i++) {
+            thread_ids[i] = i;
+            int ret = pthread_create(&threads[i], nullptr, ThreadTest::thread_func, &thread_ids[i]);
+            if (ret != 0) {
+              ESP_LOGE("thread_test", "RACE_TEST_ERROR: Failed to create thread %d", i);
+              return;
+            }
+          }
+
+          // Wait for all threads to complete
+          for (int i = 0; i < NUM_THREADS; i++) {
+            pthread_join(threads[i], nullptr);
+          }
+
+          ESP_LOGI("thread_test", "RACE_TEST_COMPLETE: All threads finished, total messages: %d",
+                   total_messages_logged.load(std::memory_order_relaxed));

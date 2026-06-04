@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/button/button.h"
 
-namespace esphome {
-namespace bl0940 {
+namespace esphome::bl0940 {
 
 class BL0940;  // Forward declaration of BL0940 class
 
@@ -15,5 +14,4 @@ class CalibrationResetButton : public button::Button, public Component, public P
   void press_action() override;
 };
 
-}  // namespace bl0940
-}  // namespace esphome
+}  // namespace esphome::bl0940

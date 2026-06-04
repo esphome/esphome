@@ -1,4 +1,4 @@
-substitutions:
-  pin: GPIO6
+packages:
+  remote_transmitter: !include ../../test_build_components/common/remote_transmitter/bk72xx-ard.yaml
 
 <<: !include common.yaml

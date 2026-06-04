@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "gl_r01_i2c.h"
 
-namespace esphome {
-namespace gl_r01_i2c {
+namespace esphome::gl_r01_i2c {
 
 static const char *const TAG = "gl_r01_i2c";
 
@@ -27,8 +26,10 @@ void GLR01I2CComponent::setup() {
 }
 
 void GLR01I2CComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "GL-R01 I2C:");
-  ESP_LOGCONFIG(TAG, " Firmware Version: 0x%04X", this->version_);
+  ESP_LOGCONFIG(TAG,
+                "GL-R01 I2C:\n"
+                "  Firmware Version: 0x%04X",
+                this->version_);
   LOG_I2C_DEVICE(this);
   LOG_SENSOR(" ", "Distance", this);
 }
@@ -63,5 +64,4 @@ void GLR01I2CComponent::read_distance_() {
   }
 }
 
-}  // namespace gl_r01_i2c
-}  // namespace esphome
+}  // namespace esphome::gl_r01_i2c

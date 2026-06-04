@@ -3,8 +3,10 @@ sensor:
     i2c_id: i2c_bus
     address: 0x77
     temperature:
+      id: bmp3xx_i2c_temperature
       name: BMP Temperature
       oversampling: 16x
     pressure:
+      id: bmp3xx_i2c_pressure
       name: BMP Pressure
     iir_filter: 2X

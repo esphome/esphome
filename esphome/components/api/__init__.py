@@ -4,6 +4,7 @@ import logging
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
+from esphome.components.logger import request_log_listener
 from esphome.config_helpers import get_logger_level
 import esphome.config_validation as cv
 from esphome.const import (
@@ -27,12 +28,13 @@ from esphome.const import (
     CONF_SERVICE,
     CONF_SERVICES,
     CONF_TAG,
+    CONF_THEN,
     CONF_TRIGGER_ID,
     CONF_VARIABLES,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
-from esphome.cpp_generator import TemplateArgsType
-from esphome.types import ConfigType
+from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigFragmentType, ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,18 +65,42 @@ HomeAssistantActionResponseTrigger = api_ns.class_(
     "HomeAssistantActionResponseTrigger", automation.Trigger
 )
 APIConnectedCondition = api_ns.class_("APIConnectedCondition", Condition)
+APIRespondAction = api_ns.class_("APIRespondAction", automation.Action)
+APIUnregisterServiceCallAction = api_ns.class_(
+    "APIUnregisterServiceCallAction", automation.Action
+)
 
 UserServiceTrigger = api_ns.class_("UserServiceTrigger", automation.Trigger)
 ListEntitiesServicesArgument = api_ns.class_("ListEntitiesServicesArgument")
-SERVICE_ARG_NATIVE_TYPES = {
-    "bool": bool,
+# Owning element type for each YAML service variable type.  Used to derive both
+# the zero-copy native types and the owning fallback types below.
+_SERVICE_ARG_SCALAR_TYPES: dict[str, MockObj] = {
+    "bool": cg.bool_,
     "int": cg.int32,
-    "float": float,
+    "float": cg.float_,
     "string": cg.std_string,
-    "bool[]": cg.std_vector.template(bool),
-    "int[]": cg.std_vector.template(cg.int32),
-    "float[]": cg.std_vector.template(float),
-    "string[]": cg.std_vector.template(cg.std_string),
+}
+SERVICE_ARG_NATIVE_TYPES: dict[str, MockObj] = {
+    # Scalars are passed by value; string uses a non-owning view into rx_buf_.
+    **_SERVICE_ARG_SCALAR_TYPES,
+    "string": cg.StringRef,
+    # Arrays are passed as non-owning const references into rx_buf_.
+    **{
+        f"{name}[]": cg.FixedVector.template(t).operator("const").operator("ref")
+        for name, t in _SERVICE_ARG_SCALAR_TYPES.items()
+    },
+}
+# Owning fallback types used when the action chain contains non-synchronous actions
+# (delay, wait_until, script.wait, etc.).  The default non-owning types reference
+# storage in the receive buffer, which is reused once the synchronous portion of
+# the chain returns.  FixedVector is also non-copyable, so the deferred lambda
+# capture in DelayAction::play_complex would fail to compile.
+SERVICE_ARG_FALLBACK_TYPES: dict[str, MockObj] = {
+    "string": cg.std_string,
+    **{
+        f"{name}[]": cg.std_vector.template(t)
+        for name, t in _SERVICE_ARG_SCALAR_TYPES.items()
+    },
 }
 CONF_ENCRYPTION = "encryption"
 CONF_BATCH_DELAY = "batch_delay"
@@ -83,6 +109,7 @@ CONF_HOMEASSISTANT_SERVICES = "homeassistant_services"
 CONF_HOMEASSISTANT_STATES = "homeassistant_states"
 CONF_LISTEN_BACKLOG = "listen_backlog"
 CONF_MAX_SEND_QUEUE = "max_send_queue"
+CONF_STATE_SUBSCRIPTION_ONLY = "state_subscription_only"
 
 
 def validate_encryption_key(value):
@@ -99,6 +126,85 @@ def validate_encryption_key(value):
     return value
 
 
+CONF_SUPPORTS_RESPONSE = "supports_response"
+
+# Enum values in api::enums namespace
+enums_ns = api_ns.namespace("enums")
+SUPPORTS_RESPONSE_OPTIONS = {
+    "none": enums_ns.SUPPORTS_RESPONSE_NONE,
+    "optional": enums_ns.SUPPORTS_RESPONSE_OPTIONAL,
+    "only": enums_ns.SUPPORTS_RESPONSE_ONLY,
+    "status": enums_ns.SUPPORTS_RESPONSE_STATUS,
+}
+
+
+def _auto_detect_supports_response(config: ConfigType) -> ConfigType:
+    """Auto-detect supports_response based on api.respond usage in the action's then block.
+
+    - If api.respond with data found: set to "optional" (unless user explicitly set)
+    - If api.respond without data found: set to "status" (unless user explicitly set)
+    - If no api.respond found: set to "none" (unless user explicitly set)
+    """
+
+    def scan_actions(items: ConfigFragmentType) -> tuple[bool, bool]:
+        """Recursively scan actions for api.respond.
+
+        Returns: (found, has_data) tuple - has_data is True if ANY api.respond has data
+        """
+        found_any = False
+        has_data_any = False
+
+        if isinstance(items, list):
+            for item in items:
+                found, has_data = scan_actions(item)
+                if found:
+                    found_any = True
+                    has_data_any = has_data_any or has_data
+        elif isinstance(items, dict):
+            # Check if this is an api.respond action
+            if "api.respond" in items:
+                respond_config = items["api.respond"]
+                has_data = isinstance(respond_config, dict) and "data" in respond_config
+                return True, has_data
+            # Recursively check all values
+            for value in items.values():
+                found, has_data = scan_actions(value)
+                if found:
+                    found_any = True
+                    has_data_any = has_data_any or has_data
+
+        return found_any, has_data_any
+
+    then = config.get(CONF_THEN, [])
+    action_name = config.get(CONF_ACTION)
+    found, has_data = scan_actions(then)
+
+    # If user explicitly set supports_response, validate and use that
+    if CONF_SUPPORTS_RESPONSE in config:
+        user_value = config[CONF_SUPPORTS_RESPONSE]
+        # Validate: "only" requires api.respond with data
+        if user_value == "only" and not has_data:
+            raise cv.Invalid(
+                f"Action '{action_name}' has supports_response=only but no api.respond "
+                "action with 'data:' was found. Use 'status' for responses without data, "
+                "or add 'data:' to your api.respond action."
+            )
+        return config
+
+    # Auto-detect based on api.respond usage
+    if found:
+        config[CONF_SUPPORTS_RESPONSE] = "optional" if has_data else "status"
+    else:
+        config[CONF_SUPPORTS_RESPONSE] = "none"
+
+    return config
+
+
+def _validate_supports_response(value):
+    """Validate supports_response after auto-detection has set the value."""
+    return cv.enum(SUPPORTS_RESPONSE_OPTIONS, lower=True)(value)
+
+
 ACTIONS_SCHEMA = automation.validate_automation(
     {
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UserServiceTrigger),
@@ -109,16 +215,26 @@ ACTIONS_SCHEMA = automation.validate_automation(
                 cv.validate_id_name: cv.one_of(*SERVICE_ARG_NATIVE_TYPES, lower=True),
             }
         ),
+        # No default - auto-detected by _auto_detect_supports_response
+        cv.Optional(CONF_SUPPORTS_RESPONSE): cv.enum(
+            SUPPORTS_RESPONSE_OPTIONS, lower=True
+        ),
     },
     cv.All(
         cv.has_exactly_one_key(CONF_SERVICE, CONF_ACTION),
         cv.rename_key(CONF_SERVICE, CONF_ACTION),
+        _auto_detect_supports_response,
+        # Re-validate supports_response after auto-detection sets it
+        cv.Schema(
+            {cv.Required(CONF_SUPPORTS_RESPONSE): _validate_supports_response},
+            extra=cv.ALLOW_EXTRA,
+        ),
     ),
 )
 
 ENCRYPTION_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_KEY): validate_encryption_key,
+        cv.Optional(CONF_KEY): cv.sensitive(validate_encryption_key),
     }
 )
 
@@ -129,29 +245,14 @@ def _encryption_schema(config):
     return ENCRYPTION_SCHEMA(config)
 
 
-def _validate_api_config(config: ConfigType) -> ConfigType:
-    """Validate API configuration with mutual exclusivity check and deprecation warning."""
-    # Check if both password and encryption are configured
-    has_password = CONF_PASSWORD in config and config[CONF_PASSWORD]
-    has_encryption = CONF_ENCRYPTION in config
+def _consume_api_sockets(config: ConfigType) -> ConfigType:
+    """Register socket needs for API component."""
+    from esphome.components import socket
 
-    if has_password and has_encryption:
-        raise cv.Invalid(
-            "The 'password' and 'encryption' options are mutually exclusive. "
-            "The API client only supports one authentication method at a time. "
-            "Please remove one of them. "
-            "Note: 'password' authentication is deprecated and will be removed in version 2026.1.0. "
-            "We strongly recommend using 'encryption' instead for better security."
-        )
-
-    # Warn about password deprecation
-    if has_password:
-        _LOGGER.warning(
-            "API 'password' authentication has been deprecated since May 2022 and will be removed in version 2026.1.0. "
-            "Please migrate to the 'encryption' configuration. "
-            "See https://esphome.io/components/api.html#configuration-variables"
-        )
-
+    # API needs 1 listening socket + typically 3 concurrent client connections
+    # (not max_connections, which is the upper limit rarely reached)
+    socket.consume_sockets(3, "api")(config)
+    socket.consume_sockets(1, "api", socket.SocketType.TCP_LISTEN)(config)
     return config
 
 
@@ -160,7 +261,17 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(APIServer),
             cv.Optional(CONF_PORT, default=6053): cv.port,
-            cv.Optional(CONF_PASSWORD, default=""): cv.string_strict,
+            # Removed in 2026.1.0 - kept to provide helpful error message
+            cv.Optional(CONF_PASSWORD): cv.invalid(
+                "The 'password' option has been removed in ESPHome 2026.1.0.\n"
+                "Password authentication was deprecated in May 2022.\n"
+                "Please migrate to encryption for secure API communication:\n\n"
+                "api:\n"
+                "  encryption:\n"
+                "    key: !secret api_encryption_key\n\n"
+                "Generate a key with: openssl rand -base64 32\n"
+                "Or visit https://esphome.io/components/api/#configuration-variables"
+            ),
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="15min"
             ): cv.positive_time_period_milliseconds,
@@ -198,22 +309,24 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(
                 CONF_MAX_CONNECTIONS,
                 esp8266=4,  # ~40KB free RAM, each connection uses ~500-1000 bytes
-                esp32=8,  # 520KB RAM available
+                esp32=5,  # 520KB RAM available
                 rp2040=4,  # 264KB RAM but LWIP constraints
-                bk72xx=8,  # Moderate RAM
-                rtl87xx=8,  # Moderate RAM
+                bk72xx=5,  # Moderate RAM
+                rtl87xx=5,  # Moderate RAM
                 host=8,  # Abundant resources
-                ln882x=8,  # Moderate RAM
+                ln882x=5,  # Moderate RAM
             ): cv.int_range(min=1, max=20),
             # Maximum queued send buffers per connection before dropping connection
             # Each buffer uses ~8-12 bytes overhead plus actual message size
             # Platform defaults based on available RAM and typical message rates:
+            # CONF_MAX_SEND_QUEUE defaults are power of 2 for efficient modulo
             cv.SplitDefault(
                 CONF_MAX_SEND_QUEUE,
-                esp8266=5,  # Limited RAM, need to fail fast
+                esp8266=4,  # Limited RAM, need to fail fast
                 esp32=8,  # More RAM, can buffer more
-                rp2040=5,  # Limited RAM
+                rp2040=8,  # Moderate RAM
                 bk72xx=8,  # Moderate RAM
+                nrf52=8,  # Moderate RAM
                 rtl87xx=8,  # Moderate RAM
                 host=16,  # Abundant resources
                 ln882x=8,  # Moderate RAM
@@ -221,30 +334,36 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
-    _validate_api_config,
+    _consume_api_sockets,
 )
 
 
 @coroutine_with_priority(CoroPriority.WEB)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
+    # Track controller registration for StaticVector sizing
+    CORE.register_controller()
+
+    # Request a log listener slot for API log streaming
+    request_log_listener()
+
     cg.add(var.set_port(config[CONF_PORT]))
-    if config[CONF_PASSWORD]:
-        cg.add_define("USE_API_PASSWORD")
-        cg.add(var.set_password(config[CONF_PASSWORD]))
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     cg.add(var.set_batch_delay(config[CONF_BATCH_DELAY]))
     if CONF_LISTEN_BACKLOG in config:
         cg.add(var.set_listen_backlog(config[CONF_LISTEN_BACKLOG]))
-    if CONF_MAX_CONNECTIONS in config:
-        cg.add(var.set_max_connections(config[CONF_MAX_CONNECTIONS]))
+    cg.add_define("MAX_API_CONNECTIONS", config[CONF_MAX_CONNECTIONS])
     cg.add_define("API_MAX_SEND_QUEUE", config[CONF_MAX_SEND_QUEUE])
 
-    # Set USE_API_SERVICES if any services are enabled
+    # Set USE_API_USER_DEFINED_ACTIONS if any services are enabled
     if config.get(CONF_ACTIONS) or config[CONF_CUSTOM_SERVICES]:
-        cg.add_define("USE_API_SERVICES")
+        cg.add_define("USE_API_USER_DEFINED_ACTIONS")
+
+    # Set USE_API_CUSTOM_SERVICES if external components need dynamic service registration
+    if config[CONF_CUSTOM_SERVICES]:
+        cg.add_define("USE_API_CUSTOM_SERVICES")
 
     if config[CONF_HOMEASSISTANT_SERVICES]:
         cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
@@ -253,21 +372,78 @@ async def to_code(config):
         cg.add_define("USE_API_HOMEASSISTANT_STATES")
 
     if actions := config.get(CONF_ACTIONS, []):
+        # Collect all triggers first, then register all at once with initializer_list
+        triggers: list[cg.Pvariable] = []
         for conf in actions:
-            template_args = []
-            func_args = []
-            service_arg_names = []
+            func_args: list[tuple[MockObj, str]] = []
+            service_template_args: list[MockObj] = []  # User service argument types
+
+            # Determine supports_response mode
+            # cv.enum returns the key with enum_value attribute containing the MockObj
+            supports_response_key = conf[CONF_SUPPORTS_RESPONSE]
+            supports_response = supports_response_key.enum_value
+            is_none = supports_response_key == "none"
+            is_optional = supports_response_key == "optional"
+
+            # Add call_id and return_response based on supports_response mode
+            # These must match the C++ Trigger template arguments
+            # - none: no extra args
+            # - status: call_id only (for reporting success/error without data)
+            # - only: call_id only (response always expected with data)
+            # - optional: call_id + return_response (client decides)
+            if not is_none:
+                # call_id is present for "optional", "only", and "status"
+                func_args.append((cg.uint32, "call_id"))
+                # return_response only present for "optional"
+                if is_optional:
+                    func_args.append((cg.bool_, "return_response"))
+
+            # Check if action chain has non-synchronous actions that would make
+            # non-owning args (StringRef, const FixedVector&) dangle once the
+            # rx_buf_ is reused after a delay/wait_until/script.wait/etc.  The
+            # FixedVector references would also fail to compile because they
+            # are non-copyable and DelayAction captures args by value.
+            has_non_synchronous = automation.has_non_synchronous_actions(
+                conf.get(CONF_THEN, [])
+            )
+
+            service_arg_names: list[str] = []
             for name, var_ in conf[CONF_VARIABLES].items():
-                native = SERVICE_ARG_NATIVE_TYPES[var_]
-                template_args.append(native)
+                if has_non_synchronous and var_ in SERVICE_ARG_FALLBACK_TYPES:
+                    native = SERVICE_ARG_FALLBACK_TYPES[var_]
+                else:
+                    native = SERVICE_ARG_NATIVE_TYPES[var_]
+                service_template_args.append(native)
                 func_args.append((native, name))
                 service_arg_names.append(name)
-            templ = cg.TemplateArguments(*template_args)
+            # Template args: supports_response mode, then user service arg types
+            templ = cg.TemplateArguments(supports_response, *service_template_args)
             trigger = cg.new_Pvariable(
-                conf[CONF_TRIGGER_ID], templ, conf[CONF_ACTION], service_arg_names
+                conf[CONF_TRIGGER_ID],
+                templ,
+                conf[CONF_ACTION],
+                service_arg_names,
             )
-            cg.add(var.register_user_service(trigger))
-            await automation.build_automation(trigger, func_args, conf)
+            triggers.append(trigger)
+            auto = await automation.build_automation(trigger, func_args, conf)
+
+            # For non-none response modes, automatically append unregister action
+            # This ensures the call is unregistered after all actions complete (including async ones)
+            if not is_none:
+                arg_types = [arg[0] for arg in func_args]
+                action_templ = cg.TemplateArguments(*arg_types)
+                unregister_id = ID(
+                    f"{conf[CONF_TRIGGER_ID]}__unregister",
+                    is_declaration=True,
+                    type=APIUnregisterServiceCallAction.template(action_templ),
+                )
+                unregister_action = cg.new_Pvariable(
+                    unregister_id,
+                    var,
+                )
+                cg.add(auto.add_actions([unregister_action]))
+        # Register all services at once - single allocation, no reallocations
+        cg.add(var.initialize_user_services(triggers))
 
     if CONF_ON_CLIENT_CONNECTED in config:
         cg.add_define("USE_API_CLIENT_CONNECTED_TRIGGER")
@@ -298,7 +474,10 @@ async def to_code(config):
             # and plaintext disabled. Only a factory reset can remove it.
             cg.add_define("USE_API_PLAINTEXT")
         cg.add_define("USE_API_NOISE")
-        cg.add_library("esphome/noise-c", "0.1.10")
+        cg.add_library("esphome/noise-c", "0.1.11")
+        # Enable optimized memzero/memcmp in libsodium instead of volatile byte loops
+        cg.add_build_flag("-DHAVE_WEAK_SYMBOLS=1")
+        cg.add_build_flag("-DHAVE_INLINE_ASM=1")
     else:
         cg.add_define("USE_API_PLAINTEXT")
 
@@ -363,11 +542,13 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
     "homeassistant.action",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
     "homeassistant.service",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def homeassistant_service_to_code(
     config: ConfigType,
@@ -378,17 +559,31 @@ async def homeassistant_service_to_code(
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, False)
-    templ = await cg.templatable(config[CONF_ACTION], args, None)
+    templ = await cg.templatable(config[CONF_ACTION], args, cg.std_string)
     cg.add(var.set_service(templ))
+
+    # Initialize FixedVectors with exact sizes from config
+    cg.add(var.init_data(len(config[CONF_DATA])))
     for key, value in config[CONF_DATA].items():
+        # output_type=None because lambdas can return non-string types (int,
+        # float, char*) that TemplatableStringValue converts via to_string.
+        # Static strings are manually wrapped for PROGMEM on ESP8266.
         templ = await cg.templatable(value, args, None)
-        cg.add(var.add_data(key, templ))
+        if isinstance(templ, str):
+            templ = cg.FlashStringLiteral(templ)
+        cg.add(var.add_data(cg.FlashStringLiteral(key), templ))
+
+    cg.add(var.init_data_template(len(config[CONF_DATA_TEMPLATE])))
     for key, value in config[CONF_DATA_TEMPLATE].items():
         templ = await cg.templatable(value, args, None)
-        cg.add(var.add_data_template(key, templ))
+        if isinstance(templ, str):
+            templ = cg.FlashStringLiteral(templ)
+        cg.add(var.add_data_template(cg.FlashStringLiteral(key), templ))
+
+    cg.add(var.init_variables(len(config[CONF_VARIABLES])))
     for key, value in config[CONF_VARIABLES].items():
         templ = await cg.templatable(value, args, None)
-        cg.add(var.add_variable(key, templ))
+        cg.add(var.add_variable(cg.FlashStringLiteral(key), templ))
 
     if on_error := config.get(CONF_ON_ERROR):
         cg.add_define("USE_API_HOMEASSISTANT_ACTION_RESPONSES")
@@ -451,22 +646,38 @@ HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema(
     "homeassistant.event",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_EVENT_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def homeassistant_event_to_code(config, action_id, template_arg, args):
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
-    templ = await cg.templatable(config[CONF_EVENT], args, None)
+    templ = await cg.templatable(config[CONF_EVENT], args, cg.std_string)
     cg.add(var.set_service(templ))
+
+    # Initialize FixedVectors with exact sizes from config
+    cg.add(var.init_data(len(config[CONF_DATA])))
     for key, value in config[CONF_DATA].items():
+        # output_type=None because lambdas can return non-string types (int,
+        # float, char*) that TemplatableStringValue converts via to_string.
+        # Static strings are manually wrapped for PROGMEM on ESP8266.
         templ = await cg.templatable(value, args, None)
-        cg.add(var.add_data(key, templ))
+        if isinstance(templ, str):
+            templ = cg.FlashStringLiteral(templ)
+        cg.add(var.add_data(cg.FlashStringLiteral(key), templ))
+
+    cg.add(var.init_data_template(len(config[CONF_DATA_TEMPLATE])))
     for key, value in config[CONF_DATA_TEMPLATE].items():
         templ = await cg.templatable(value, args, None)
-        cg.add(var.add_data_template(key, templ))
+        if isinstance(templ, str):
+            templ = cg.FlashStringLiteral(templ)
+        cg.add(var.add_data_template(cg.FlashStringLiteral(key), templ))
+
+    cg.add(var.init_variables(len(config[CONF_VARIABLES])))
     for key, value in config[CONF_VARIABLES].items():
         templ = await cg.templatable(value, args, None)
-        cg.add(var.add_variable(key, templ))
+        cg.add(var.add_variable(cg.FlashStringLiteral(key), templ))
+
     return var
 
 
@@ -483,20 +694,113 @@ HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA = cv.maybe_simple_value(
     "homeassistant.tag_scanned",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def homeassistant_tag_scanned_to_code(config, action_id, template_arg, args):
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
-    cg.add(var.set_service("esphome.tag_scanned"))
+    cg.add(var.set_service(cg.FlashStringLiteral("esphome.tag_scanned")))
+    # Initialize FixedVector with exact size (1 data field)
+    cg.add(var.init_data(1))
     templ = await cg.templatable(config[CONF_TAG], args, cg.std_string)
-    cg.add(var.add_data("tag_id", templ))
+    cg.add(var.add_data(cg.FlashStringLiteral("tag_id"), templ))
     return var
 
 
-@automation.register_condition("api.connected", APIConnectedCondition, {})
+CONF_SUCCESS = "success"
+CONF_ERROR_MESSAGE = "error_message"
+
+
+def _validate_api_respond_data(config):
+    """Set flag during validation so AUTO_LOAD can include json component."""
+    if CONF_DATA in config:
+        CORE.data.setdefault(DOMAIN, {})[CONF_CAPTURE_RESPONSE] = True
+    return config
+
+
+API_RESPOND_ACTION_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(APIServer),
+            cv.Optional(CONF_SUCCESS, default=True): cv.templatable(cv.boolean),
+            cv.Optional(CONF_ERROR_MESSAGE, default=""): cv.templatable(cv.string),
+            cv.Optional(CONF_DATA): cv.lambda_,
+        }
+    ),
+    _validate_api_respond_data,
+)
+
+
+@automation.register_action(
+    "api.respond",
+    APIRespondAction,
+    API_RESPOND_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def api_respond_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    # Validate that api.respond is used inside an API action context.
+    # We can't easily validate this at config time since the schema validation
+    # doesn't have access to the parent action context. Validating here in to_code
+    # is still much better than a cryptic C++ compile error.
+    has_call_id = any(name == "call_id" for _, name in args)
+    if not has_call_id:
+        raise EsphomeError(
+            "api.respond can only be used inside an API action's 'then:' block. "
+            "The 'call_id' variable is required to send a response."
+        )
+
+    cg.add_define("USE_API_USER_DEFINED_ACTION_RESPONSES")
+    serv = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, serv)
+
+    # Check if we're in optional mode (has return_response arg)
+    is_optional = any(name == "return_response" for _, name in args)
+    if is_optional:
+        cg.add(var.set_is_optional_mode(True))
+
+    templ = await cg.templatable(config[CONF_SUCCESS], args, cg.bool_)
+    cg.add(var.set_success(templ))
+
+    templ = await cg.templatable(config[CONF_ERROR_MESSAGE], args, cg.std_string)
+    cg.add(var.set_error_message(templ))
+
+    if CONF_DATA in config:
+        cg.add_define("USE_API_USER_DEFINED_ACTION_RESPONSES_JSON")
+        # Lambda populates the JsonObject root - no return value needed
+        lambda_ = await cg.process_lambda(
+            config[CONF_DATA],
+            args + [(cg.JsonObject, "root")],
+            return_type=cg.void,
+        )
+        cg.add(var.set_data(lambda_))
+
+    return var
+
+
+API_CONNECTED_CONDITION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(APIServer),
+        cv.Optional(CONF_STATE_SUBSCRIPTION_ONLY, default=False): cv.templatable(
+            cv.boolean
+        ),
+    }
+)
+
+
+@automation.register_condition(
+    "api.connected", APIConnectedCondition, API_CONNECTED_CONDITION_SCHEMA
+)
 async def api_connected_to_code(config, condition_id, template_arg, args):
-    return cg.new_Pvariable(condition_id, template_arg)
+    var = cg.new_Pvariable(condition_id, template_arg)
+    templ = await cg.templatable(config[CONF_STATE_SUBSCRIPTION_ONLY], args, cg.bool_)
+    cg.add(var.set_state_subscription_only(templ))
+    return var
 
 
 def FILTER_SOURCE_FILES() -> list[str]:

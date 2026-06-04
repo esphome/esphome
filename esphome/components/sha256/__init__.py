@@ -12,6 +12,8 @@ CONFIG_SCHEMA = cv.Schema({})
 
 
 async def to_code(config: ConfigType) -> None:
+    cg.add_define("USE_SHA256")
+
     # Add OpenSSL library for host platform
     if not CORE.is_host:
         return

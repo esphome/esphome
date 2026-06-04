@@ -5,6 +5,10 @@
 
 #include "esphome/core/hash_base.h"
 
+#ifdef USE_HOST
+#include <openssl/evp.h>
+#endif
+
 #ifdef USE_ESP32
 #include "esp_rom_md5.h"
 #define MD5_CTX_TYPE md5_context_t
@@ -25,13 +29,12 @@
 #define MD5_CTX_TYPE LT_MD5_CTX_T
 #endif
 
-namespace esphome {
-namespace md5 {
+namespace esphome::md5 {
 
-class MD5Digest : public HashBase {
+class MD5Digest final : public HashBase {
  public:
   MD5Digest() = default;
-  ~MD5Digest() override = default;
+  ~MD5Digest() override;
 
   /// Initialize a new MD5 digest computation.
   void init() override;
@@ -47,9 +50,14 @@ class MD5Digest : public HashBase {
   size_t get_size() const override { return 16; }
 
  protected:
+#ifdef USE_HOST
+  EVP_MD_CTX *ctx_{nullptr};
+  bool calculated_{false};
+#else
   MD5_CTX_TYPE ctx_{};
+#endif
 };
 
-}  // namespace md5
-}  // namespace esphome
+}  // namespace esphome::md5
+
 #endif

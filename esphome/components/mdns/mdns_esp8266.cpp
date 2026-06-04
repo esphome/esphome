@@ -4,23 +4,17 @@
 #include <ESP8266mDNS.h>
 #include "esphome/components/network/ip_address.h"
 #include "esphome/components/network/util.h"
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "mdns_component.h"
+// wifi_component.h is pulled in transitively by mdns_component.h when
+// USE_MDNS_WIFI_LISTENER is defined.
 
-namespace esphome {
-namespace mdns {
+namespace esphome::mdns {
 
-void MDNSComponent::setup() {
-#ifdef USE_MDNS_STORE_SERVICES
-  this->compile_records_(this->services_);
-  const auto &services = this->services_;
-#else
-  StaticVector<MDNSService, MDNS_SERVICE_COUNT> services;
-  this->compile_records_(services);
-#endif
-
-  MDNS.begin(this->hostname_.c_str());
+static void register_esp8266(MDNSComponent *, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services) {
+  MDNS.begin(App.get_name().c_str());
 
   for (const auto &service : services) {
     // Strip the leading underscore from the proto and service_type. While it is
@@ -35,7 +29,7 @@ void MDNSComponent::setup() {
     while (progmem_read_byte((const uint8_t *) service_type) == '_') {
       service_type++;
     }
-    uint16_t port = const_cast<TemplatableValue<uint16_t> &>(service.port).value();
+    uint16_t port = service.port.value();
     MDNS.addService(FPSTR(service_type), FPSTR(proto), port);
     for (const auto &record : service.txt_records) {
       MDNS.addServiceTxt(FPSTR(service_type), FPSTR(proto), FPSTR(MDNS_STR_ARG(record.key)),
@@ -44,14 +38,41 @@ void MDNSComponent::setup() {
   }
 }
 
-void MDNSComponent::loop() { MDNS.update(); }
+#ifdef USE_MDNS_EVENT_DRIVEN_POLLING
+void MDNSComponent::start_polling_window_() {
+  // uint32_t-ID set_interval/set_timeout already does atomic cancel-and-add.
+  this->set_interval(MDNS_POLL_ID, MDNS_UPDATE_INTERVAL_MS, []() { MDNS.update(); });
+  this->set_timeout(MDNS_POLL_STOP_ID, MDNS_POLL_WINDOW_MS, [this]() { this->cancel_interval(MDNS_POLL_ID); });
+}
+#endif
+
+void MDNSComponent::setup() {
+  this->setup_buffers_and_register_(register_esp8266);
+#ifdef USE_MDNS_WIFI_LISTENER
+  // LEAmDNS's own LwipIntf::statusChangeCB drives _restart() on netif changes; we just
+  // arm the window around the initial probe/announce and each reconnect. Unconditional
+  // here is safe: setup_priority::AFTER_CONNECTION guarantees the network is up.
+  wifi::global_wifi_component->add_ip_state_listener(this);
+  this->start_polling_window_();
+#endif
+}
+
+#ifdef USE_MDNS_WIFI_LISTENER
+void MDNSComponent::on_ip_state(const network::IPAddresses &ips, const network::IPAddress &,
+                                const network::IPAddress &) {
+  // IP listener only fires on acquisition (not loss), so any notification is a fresh
+  // IP worth re-arming for. start_polling_window_() is idempotent.
+  if (ips[0].is_set()) {
+    this->start_polling_window_();
+  }
+}
+#endif
 
 void MDNSComponent::on_shutdown() {
   MDNS.close();
   delay(10);
 }
 
-}  // namespace mdns
-}  // namespace esphome
+}  // namespace esphome::mdns
 
 #endif

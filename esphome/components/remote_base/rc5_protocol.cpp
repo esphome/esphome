@@ -1,13 +1,12 @@
 #include "rc5_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.rc5";
 
-static const uint32_t BIT_TIME_US = 889;
-static const uint8_t NBITS = 14;
+static constexpr uint32_t BIT_TIME_US = 889;
+static constexpr uint8_t NBITS = 14;
 
 void RC5Protocol::encode(RemoteTransmitData *dst, const RC5Data &data) {
   static bool toggle = false;
@@ -86,5 +85,4 @@ void RC5Protocol::dump(const RC5Data &data) {
   ESP_LOGI(TAG, "Received RC5: address=0x%02X, command=0x%02X", data.address, data.command);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

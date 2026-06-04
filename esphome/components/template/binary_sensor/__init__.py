@@ -38,8 +38,14 @@ async def to_code(config):
         condition = await automation.build_condition(
             condition, cg.TemplateArguments(), []
         )
+        # Generate a stateless lambda that calls condition.check()
+        # capture="" is safe because condition is a global variable in generated C++ code
+        # and doesn't need to be captured. This allows implicit conversion to function pointer.
         template_ = LambdaExpression(
-            f"return {condition.check()};", [], return_type=cg.optional.template(bool)
+            f"return {condition.check()};",
+            [],
+            return_type=cg.optional.template(bool),
+            capture="",
         )
         cg.add(var.set_template(template_))
 
@@ -53,10 +59,11 @@ async def to_code(config):
             cv.Required(CONF_STATE): cv.templatable(cv.boolean),
         }
     ),
+    synchronous=True,
 )
 async def binary_sensor_template_publish_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_STATE], args, bool)
+    template_ = await cg.templatable(config[CONF_STATE], args, cg.bool_)
     cg.add(var.set_state(template_))
     return var

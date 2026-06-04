@@ -2,8 +2,8 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/color.h"
 #include "nextion_component_base.h"
-namespace esphome {
-namespace nextion {
+
+namespace esphome::nextion {
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
 #define NEXTION_PROTOCOL_LOG
@@ -33,7 +33,9 @@ class NextionBase {
                                                const std::string &variable_name_to_send,
                                                const std::string &state_value) = 0;
 
+#ifdef USE_NEXTION_WAVEFORM
   virtual void add_addt_command_to_queue(NextionComponentBase *component) = 0;
+#endif  // USE_NEXTION_WAVEFORM
 
   virtual void add_to_get_queue(NextionComponentBase *component) = 0;
 
@@ -45,6 +47,7 @@ class NextionBase {
   virtual void set_component_pressed_font_color(const char *component, Color color) = 0;
   virtual void set_component_font(const char *component, uint8_t font_id) = 0;
 
+  virtual void set_component_visibility(const char *component, bool show) = 0;
   virtual void show_component(const char *component) = 0;
   virtual void hide_component(const char *component) = 0;
 
@@ -60,5 +63,4 @@ class NextionBase {
   bool is_detected_ = false;
 };
 
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion

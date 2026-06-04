@@ -17,9 +17,8 @@ lock:
     lambda: |-
       if (millis() > 10000) {
         return LOCK_STATE_LOCKED;
-      } else {
-        return LOCK_STATE_UNLOCKED;
       }
+      return LOCK_STATE_UNLOCKED;
     optimistic: true
     assumed_state: false
     on_unlock:

@@ -1,10 +1,10 @@
 #include "wl_134.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
 
-namespace esphome {
-namespace wl_134 {
+namespace esphome::wl_134 {
 
 static const char *const TAG = "wl_134.sensor";
 static const uint8_t ASCII_CR = 0x0D;
@@ -68,15 +68,19 @@ Wl134Component::Rfid134Error Wl134Component::read_packet_() {
   reading.reserved1 = this->hex_lsb_ascii_to_uint64_(&(packet[RFID134_PACKET_RESERVED1]),
                                                      RFID134_PACKET_CHECKSUM - RFID134_PACKET_RESERVED1);
 
-  ESP_LOGV(TAG, "Tag id:    %012lld", reading.id);
-  ESP_LOGV(TAG, "Country:   %03d", reading.country);
-  ESP_LOGV(TAG, "isData:    %s", reading.isData ? "true" : "false");
-  ESP_LOGV(TAG, "isAnimal:  %s", reading.isAnimal ? "true" : "false");
-  ESP_LOGV(TAG, "Reserved0: %d", reading.reserved0);
-  ESP_LOGV(TAG, "Reserved1: %" PRId32, reading.reserved1);
+  ESP_LOGV(TAG,
+           "RFID134 Tag:\n"
+           "  Tag id:    %012lld\n"
+           "  Country:   %03d\n"
+           "  isData:    %s\n"
+           "  isAnimal:  %s\n"
+           "  Reserved0: %d\n"
+           "  Reserved1: %" PRId32,
+           reading.id, reading.country, reading.isData ? "true" : "false", reading.isAnimal ? "true" : "false",
+           reading.reserved0, reading.reserved1);
 
-  char buf[20];
-  sprintf(buf, "%03d%012lld", reading.country, reading.id);
+  char buf[20];  // "%03d" (3) + "%012" PRId64 (12) + null = 16 max
+  buf_append_printf(buf, sizeof(buf), 0, "%03d%012" PRId64, reading.country, reading.id);
   this->publish_state(buf);
   if (this->do_reset_) {
     this->set_timeout(1000, [this]() { this->publish_state(""); });
@@ -109,5 +113,4 @@ void Wl134Component::dump_config() {
   // As specified in the sensor's data sheet
   this->check_uart_settings(9600, 1, esphome::uart::UART_CONFIG_PARITY_NONE, 8);
 }
-}  // namespace wl_134
-}  // namespace esphome
+}  // namespace esphome::wl_134

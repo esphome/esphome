@@ -23,9 +23,8 @@ binary_sensor:
       - lambda: |-
           if (id(some_binary_sensor).state) {
             return x;
-          } else {
-            return {};
           }
+          return {};
       - settle: 100ms
       - timeout: 10s
 
@@ -38,3 +37,102 @@ binary_sensor:
             format: "New state is %s"
             args: ['x.has_value() ? ONOFF(x) : "Unknown"']
         - binary_sensor.invalidate_state: some_binary_sensor
+
+  # Test autorepeat with default configuration (no timings)
+  - platform: template
+    id: autorepeat_default
+    name: "Autorepeat Default"
+    filters:
+      - autorepeat:
+
+  # Test autorepeat with single timing entry
+  - platform: template
+    id: autorepeat_single
+    name: "Autorepeat Single"
+    filters:
+      - autorepeat:
+          - delay: 2s
+            time_off: 200ms
+            time_on: 800ms
+
+  # Test autorepeat with three timing entries
+  - platform: template
+    id: autorepeat_multiple
+    name: "Autorepeat Multiple"
+    filters:
+      - autorepeat:
+          - delay: 500ms
+            time_off: 50ms
+            time_on: 950ms
+          - delay: 2s
+            time_off: 100ms
+            time_on: 900ms
+          - delay: 10s
+            time_off: 200ms
+            time_on: 800ms
+
+  # Test on_multi_click with single click
+  - platform: template
+    id: multi_click_single
+    name: "Multi Click Single"
+    on_multi_click:
+      - timing:
+          - state: true
+            min_length: 50ms
+            max_length: 350ms
+        then:
+          - logger.log: "Single click detected"
+
+  # Test on_multi_click with double click
+  - platform: template
+    id: multi_click_double
+    name: "Multi Click Double"
+    on_multi_click:
+      - timing:
+          - state: true
+            min_length: 50ms
+            max_length: 350ms
+          - state: false
+            min_length: 50ms
+            max_length: 350ms
+          - state: true
+            min_length: 50ms
+            max_length: 350ms
+        then:
+          - logger.log: "Double click detected"
+
+  # Test on_multi_click with complex pattern (5 events)
+  - platform: template
+    id: multi_click_complex
+    name: "Multi Click Complex"
+    on_multi_click:
+      - timing:
+          - state: true
+            min_length: 50ms
+            max_length: 350ms
+          - state: false
+            min_length: 50ms
+            max_length: 350ms
+          - state: true
+            min_length: 50ms
+            max_length: 350ms
+          - state: false
+            min_length: 50ms
+            max_length: 350ms
+          - state: true
+            min_length: 50ms
+        then:
+          - logger.log: "Complex pattern detected"
+
+  # Test on_multi_click with custom invalid_cooldown
+  - platform: template
+    id: multi_click_cooldown
+    name: "Multi Click Cooldown"
+    on_multi_click:
+      - timing:
+          - state: true
+            min_length: 100ms
+            max_length: 500ms
+        invalid_cooldown: 2s
+        then:
+          - logger.log: "Click with custom cooldown"

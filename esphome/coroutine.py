@@ -63,7 +63,13 @@ class CoroPriority(enum.IntEnum):
     resolution during code generation.
     """
 
-    # Platform initialization - must run first
+    # Early init - runs before platform init and before Application exists.
+    # Currently used only to connect logging so ESP_LOG* calls work
+    # immediately in all subsequent phases.
+    # Examples: logger (1100)
+    EARLY_INIT = 1100
+
+    # Platform initialization
     # Examples: esp32, esp8266, rp2040
     PLATFORM = 1000
 
@@ -83,7 +89,7 @@ class CoroPriority(enum.IntEnum):
     CORE = 100
 
     # Diagnostic and debugging systems
-    # Examples: logger (90)
+    # Examples: debug component (90)
     DIAGNOSTICS = 90
 
     # Status and monitoring systems
@@ -113,6 +119,14 @@ class CoroPriority(enum.IntEnum):
     # Web-based OTA services
     # Examples: web_server_ota (52)
     WEB_SERVER_OTA = 52
+
+    # Preferences - must run before APPLICATION (safe_mode) because safe_mode
+    # uses an early return when entering safe mode, skipping all lower priority
+    # component registration. Without IntervalSyncer registered, preferences
+    # cannot be synced during shutdown in safe mode, causing issues like the
+    # boot counter never being cleared and devices getting stuck in safe mode.
+    # Examples: preferences (51)
+    PREFERENCES = 51
 
     # Application-level services
     # Examples: safe_mode (50)

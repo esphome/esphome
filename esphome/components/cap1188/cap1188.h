@@ -8,8 +8,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace cap1188 {
+namespace esphome::cap1188 {
 
 enum {
   CAP1188_I2CADDR = 0x29,
@@ -49,6 +48,8 @@ class CAP1188Component : public Component, public i2c::I2CDevice {
   void loop() override;
 
  protected:
+  void finish_setup_();
+
   std::vector<CAP1188Channel *> channels_{};
   uint8_t touch_threshold_{0x20};
   uint8_t allow_multiple_touches_{0x80};
@@ -65,5 +66,4 @@ class CAP1188Component : public Component, public i2c::I2CDevice {
   } error_code_{NONE};
 };
 
-}  // namespace cap1188
-}  // namespace esphome
+}  // namespace esphome::cap1188

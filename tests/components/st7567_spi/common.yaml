@@ -1,5 +1,6 @@
 display:
   - platform: st7567_spi
+    id: st7567_spi_display
     cs_pin: ${cs_pin}
     dc_pin: ${dc_pin}
     reset_pin: ${reset_pin}

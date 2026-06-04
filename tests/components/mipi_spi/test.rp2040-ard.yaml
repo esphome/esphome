@@ -1,7 +1,7 @@
 substitutions:
   dc_pin: GPIO14
   cs_pin: GPIO13
-  enable_pin: GPIO16
+  enable_pin: GPIO17
   reset_pin: GPIO20
 
 packages:

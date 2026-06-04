@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools==80.9.0", "wheel>=0.43,<0.46"]
+requires = ["setuptools==82.0.1", "wheel>=0.43,<0.48"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -19,7 +19,8 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: Home Automation",
 ]
-requires-python = ">=3.11.0"
+
+requires-python = ">=3.11.0,<3.15"
 
 dynamic = ["dependencies", "optional-dependencies", "version"]
 
@@ -110,15 +111,37 @@ exclude = ['generated']
 
 [tool.ruff.lint]
 select = [
+  "B",    # flake8-bugbear
+  "BLE",  # flake8-blind-except
+  "C4",   # flake8-comprehensions
+  "DTZ",  # flake8-datetimez
   "E",    # pycodestyle
+  "EXE",  # flake8-executable
   "F",    # pyflakes/autoflake
+  "FA",   # flake8-future-annotations
+  "FLY",  # flynt: convert string formatting to f-strings
   "FURB", # refurb
+  "G",    # flake8-logging-format
   "I",    # isort
+  "ICN",  # flake8-import-conventions
+  "ISC",  # flake8-implicit-str-concat
+  "LOG",  # flake8-logging
+  "NPY",  # numpy-specific rules
   "PERF", # performance
+  "PGH",  # pygrep-hooks
+  "PIE",  # flake8-pie
   "PL",   # pylint
+  "PTH",  # flake8-use-pathlib
+  "PYI",  # flake8-pyi
+  "Q",    # flake8-quotes
+  "RSE",  # flake8-raise
   "SIM",  # flake8-simplify
+  "SLOT", # flake8-slots
   "RET",  # flake8-ret
+  "T10",  # flake8-debugger
   "UP",   # pyupgrade
+  "W",    # pycodestyle warnings
+  "YTT",  # flake8-2020
 ]
 
 ignore = [
@@ -131,7 +154,6 @@ ignore = [
   "PLW1641", # Object does not implement `__hash__` method
   "PLR2004", # Magic value used in comparison, consider replacing {value} with a constant variable
   "PLW2901", # Outer {outer_kind} variable {name} overwritten by inner {inner_kind} target
-  "UP038", # https://github.com/astral-sh/ruff/issues/7871 https://github.com/astral-sh/ruff/pull/16681
 ]
 
 [tool.ruff.lint.isort]

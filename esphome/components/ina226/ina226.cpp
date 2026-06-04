@@ -3,8 +3,7 @@
 #include "esphome/core/hal.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace ina226 {
+namespace esphome::ina226 {
 
 static const char *const TAG = "ina226";
 
@@ -104,8 +103,6 @@ void INA226Component::dump_config() {
   LOG_SENSOR("  ", "Power", this->power_sensor_);
 }
 
-float INA226Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void INA226Component::update() {
   if (this->bus_voltage_sensor_ != nullptr) {
     uint16_t raw_bus_voltage;
@@ -163,5 +160,4 @@ int32_t INA226Component::twos_complement_(int32_t val, uint8_t bits) {
   return val;
 }
 
-}  // namespace ina226
-}  // namespace esphome
+}  // namespace esphome::ina226

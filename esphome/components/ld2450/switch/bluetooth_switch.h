@@ -3,8 +3,7 @@
 #include "esphome/components/switch/switch.h"
 #include "../ld2450.h"
 
-namespace esphome {
-namespace ld2450 {
+namespace esphome::ld2450 {
 
 class BluetoothSwitch : public switch_::Switch, public Parented<LD2450Component> {
  public:
@@ -14,5 +13,4 @@ class BluetoothSwitch : public switch_::Switch, public Parented<LD2450Component>
   void write_state(bool state) override;
 };
 
-}  // namespace ld2450
-}  // namespace esphome
+}  // namespace esphome::ld2450

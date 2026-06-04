@@ -1,8 +1,7 @@
 #include "whynter.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace whynter {
+namespace esphome::whynter {
 
 static const char *const TAG = "climate.whynter";
 
@@ -69,7 +68,7 @@ void Whynter::transmit_state() {
   }
   mode_before_ = this->mode;
 
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_LOW:
       remote_state |= FAN_LOW;
       break;
@@ -177,5 +176,4 @@ void Whynter::transmit_(uint32_t value) {
   transmit.perform();
 }
 
-}  // namespace whynter
-}  // namespace esphome
+}  // namespace esphome::whynter

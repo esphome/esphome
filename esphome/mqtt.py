@@ -1,8 +1,8 @@
 import contextlib
 from datetime import datetime
-import hashlib
 import json
 import logging
+from pathlib import Path
 import ssl
 import tempfile
 import time
@@ -22,14 +22,13 @@ from esphome.const import (
     CONF_PASSWORD,
     CONF_PORT,
     CONF_SKIP_CERT_CN_CHECK,
-    CONF_SSL_FINGERPRINTS,
     CONF_TOPIC,
     CONF_TOPIC_PREFIX,
     CONF_USERNAME,
 )
-from esphome.core import CORE, EsphomeError
+from esphome.core import EsphomeError
 from esphome.helpers import get_int_env, get_str_env
-from esphome.log import AnsiFore, color
+from esphome.types import ConfigType
 from esphome.util import safe_print
 
 _LOGGER = logging.getLogger(__name__)
@@ -101,9 +100,7 @@ def prepare(
     elif username:
         client.username_pw_set(username, password)
 
-    if config[CONF_MQTT].get(CONF_SSL_FINGERPRINTS) or config[CONF_MQTT].get(
-        CONF_CERTIFICATE_AUTHORITY
-    ):
+    if config[CONF_MQTT].get(CONF_CERTIFICATE_AUTHORITY):
         context = ssl.create_default_context(
             cadata=config[CONF_MQTT].get(CONF_CERTIFICATE_AUTHORITY)
         )
@@ -113,14 +110,18 @@ def prepare(
             CONF_CLIENT_CERTIFICATE_KEY
         ):
             with (
-                tempfile.NamedTemporaryFile(mode="w+") as cert_file,
-                tempfile.NamedTemporaryFile(mode="w+") as key_file,
+                tempfile.NamedTemporaryFile(mode="w+", delete=False) as cert_file,
+                tempfile.NamedTemporaryFile(mode="w+", delete=False) as key_file,
             ):
-                cert_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE))
-                cert_file.flush()
-                key_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE_KEY))
-                key_file.flush()
-                context.load_cert_chain(cert_file, key_file)
+                try:
+                    cert_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE))
+                    key_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE_KEY))
+                    cert_file.close()
+                    key_file.close()
+                    context.load_cert_chain(cert_file.name, key_file.name)
+                finally:
+                    Path(cert_file.name).unlink()
+                    Path(key_file.name).unlink()
         client.tls_set_context(context)
 
     try:
@@ -138,7 +139,7 @@ def show_discover(config, username=None, password=None, client_id=None):
     _LOGGER.info("Starting log output from %s", topic)
 
     def on_message(client, userdata, msg):
-        time_ = datetime.now().time().strftime("[%H:%M:%S]")
+        time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
         payload = msg.payload.decode(errors="backslashreplace")
         if len(payload) > 0:
             message = time_ + " " + payload
@@ -154,8 +155,12 @@ def show_discover(config, username=None, password=None, client_id=None):
 
 
 def get_esphome_device_ip(
-    config, username=None, password=None, client_id=None, timeout=25
-):
+    config: ConfigType,
+    username: str | None = None,
+    password: str | None = None,
+    client_id: str | None = None,
+    timeout: float = 25,
+) -> list[str]:
     if CONF_MQTT not in config:
         raise EsphomeError(
             "Cannot discover IP via MQTT as the config does not include the mqtt: "
@@ -166,6 +171,10 @@ def get_esphome_device_ip(
             "Cannot discover IP via MQTT as the config does not include the device name: "
             "component"
         )
+    if not config[CONF_MQTT].get(CONF_BROKER):
+        raise EsphomeError(
+            "Cannot discover IP via MQTT as the broker is not configured"
+        )
 
     dev_name = config[CONF_ESPHOME][CONF_NAME]
     dev_ip = None
@@ -175,7 +184,7 @@ def get_esphome_device_ip(
 
     def on_message(client, userdata, msg):
         nonlocal dev_ip
-        time_ = datetime.now().time().strftime("[%H:%M:%S]")
+        time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
         payload = msg.payload.decode(errors="backslashreplace")
         if len(payload) > 0:
             message = time_ + " " + payload
@@ -183,7 +192,7 @@ def get_esphome_device_ip(
 
             data = json.loads(payload)
             if "name" not in data or data["name"] != dev_name:
-                _LOGGER.Warn("Wrong device answer")
+                _LOGGER.warning("Wrong device answer")
                 return
 
             dev_ip = []
@@ -244,7 +253,7 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
     _LOGGER.info("Starting log output from %s", topic)
 
     def on_message(client, userdata, msg):
-        time_ = datetime.now().time().strftime("[%H:%M:%S]")
+        time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
         payload = msg.payload.decode(errors="backslashreplace")
         message = time_ + payload
         safe_print(message)
@@ -274,23 +283,3 @@ def clear_topic(config, topic, username=None, password=None, client_id=None):
         client.publish(msg.topic, None, retain=True)
 
     return initialize(config, [topic], on_message, None, username, password, client_id)
-
-
-# From marvinroger/async-mqtt-client -> scripts/get-fingerprint/get-fingerprint.py
-def get_fingerprint(config):
-    addr = str(config[CONF_MQTT][CONF_BROKER]), int(config[CONF_MQTT][CONF_PORT])
-    _LOGGER.info("Getting fingerprint from %s:%s", addr[0], addr[1])
-    try:
-        cert_pem = ssl.get_server_certificate(addr)
-    except OSError as err:
-        _LOGGER.error("Unable to connect to server: %s", err)
-        return 1
-    cert_der = ssl.PEM_cert_to_DER_cert(cert_pem)
-
-    sha1 = hashlib.sha1(cert_der).hexdigest()
-
-    safe_print(f"SHA1 Fingerprint: {color(AnsiFore.CYAN, sha1)}")
-    safe_print(
-        f"Copy the string above into mqtt.ssl_fingerprints section of {CORE.config_path}"
-    )
-    return 0

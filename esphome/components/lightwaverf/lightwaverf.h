@@ -11,8 +11,7 @@
 #include "LwRx.h"
 #include "LwTx.h"
 
-namespace esphome {
-namespace lightwaverf {
+namespace esphome::lightwaverf {
 
 #ifdef USE_ESP8266
 
@@ -45,13 +44,9 @@ template<typename... Ts> class SendRawAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(int, inverted);
   TEMPLATABLE_VALUE(int, pulse_length);
   TEMPLATABLE_VALUE(std::vector<uint8_t>, code);
+  void set_code(std::initializer_list<uint8_t> data) { this->code_ = std::vector<uint8_t>(data); }
 
-  void set_repeats(const int &data) { repeat_ = data; }
-  void set_inverted(const int &data) { inverted_ = data; }
-  void set_pulse_length(const int &data) { pulse_length_ = data; }
-  void set_data(const std::vector<uint8_t> &data) { code_ = data; }
-
-  void play(Ts... x) {
+  void play(const Ts &...x) {
     int repeats = this->repeat_.value(x...);
     int inverted = this->inverted_.value(x...);
     int pulse_length = this->pulse_length_.value(x...);
@@ -65,6 +60,5 @@ template<typename... Ts> class SendRawAction : public Action<Ts...> {
 };
 
 #endif
-}  // namespace lightwaverf
-}  // namespace esphome
+}  // namespace esphome::lightwaverf
 #endif

@@ -4,8 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mlx90614 {
+namespace esphome::mlx90614 {
 
 static const uint8_t MLX90614_RAW_IR_1 = 0x04;
 static const uint8_t MLX90614_RAW_IR_2 = 0x05;
@@ -71,8 +70,6 @@ void MLX90614Component::dump_config() {
   LOG_SENSOR("  ", "Object", this->object_sensor_);
 }
 
-float MLX90614Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void MLX90614Component::update() {
   uint8_t emissivity[3];
   if (this->read_register(MLX90614_EMISSIVITY, emissivity, 3) != i2c::ERROR_OK) {
@@ -103,5 +100,4 @@ void MLX90614Component::update() {
   this->status_clear_warning();
 }
 
-}  // namespace mlx90614
-}  // namespace esphome
+}  // namespace esphome::mlx90614

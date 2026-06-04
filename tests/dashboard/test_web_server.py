@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+from argparse import Namespace
 import asyncio
+import base64
 from collections.abc import Generator
 from contextlib import asynccontextmanager
 import gzip
 import json
 import os
 from pathlib import Path
+import sys
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
@@ -17,6 +20,8 @@ from tornado.ioloop import IOLoop
 from tornado.testing import bind_unused_port
 from tornado.websocket import WebSocketClientConnection, websocket_connect
 
+from esphome import yaml_util
+from esphome.core import CORE
 from esphome.dashboard import web_server
 from esphome.dashboard.const import DashboardEvent
 from esphome.dashboard.core import DASHBOARD
@@ -26,10 +31,30 @@ from esphome.dashboard.entries import (
     bool_to_entry_state,
 )
 from esphome.dashboard.models import build_importable_device_dict
-from esphome.dashboard.web_server import DashboardSubscriber
+from esphome.dashboard.web_server import DashboardSubscriber, EsphomeCommandWebSocket
 from esphome.zeroconf import DiscoveredImport
 
 from .common import get_fixture_path
+
+
+def get_build_path(base_path: Path, device_name: str) -> Path:
+    """Get the build directory path for a device.
+
+    This is a test helper that constructs the standard ESPHome build directory
+    structure. Note: This helper does NOT perform path traversal sanitization
+    because it's only used in tests where we control the inputs. The actual
+    web_server.py code handles sanitization in DownloadBinaryRequestHandler.get()
+    via file_name.replace("..", "").lstrip("/").
+
+    Args:
+        base_path: The base temporary path (typically tmp_path from pytest)
+        device_name: The name of the device (should not contain path separators
+                     in production use, but tests may use it for specific scenarios)
+
+    Returns:
+        Path to the build directory (.esphome/build/device_name)
+    """
+    return base_path / ".esphome" / "build" / device_name
 
 
 class DashboardTestHelper:
@@ -103,8 +128,8 @@ def mock_storage_json() -> Generator[MagicMock]:
 
 @pytest.fixture
 def mock_idedata() -> Generator[MagicMock]:
-    """Fixture to mock platformio_api.IDEData."""
-    with patch("esphome.dashboard.web_server.platformio_api.IDEData") as mock:
+    """Fixture to mock platformio toolchain.IDEData."""
+    with patch("esphome.dashboard.web_server.toolchain.IDEData") as mock:
         yield mock
 
 
@@ -398,7 +423,7 @@ async def test_download_binary_handler_idedata_fallback(
 
     # Mock idedata response
     mock_image = Mock()
-    mock_image.path = str(bootloader_file)
+    mock_image.path = bootloader_file
     mock_idedata_instance = Mock()
     mock_idedata_instance.extra_flash_images = [mock_image]
     mock_idedata.return_value = mock_idedata_instance
@@ -412,6 +437,244 @@ async def test_download_binary_handler_idedata_fallback(
     )
     assert response.code == 200
     assert response.body == b"bootloader content"
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_ext_storage_path")
+async def test_download_binary_handler_subdirectory_file(
+    dashboard: DashboardTestHelper,
+    tmp_path: Path,
+    mock_storage_json: MagicMock,
+) -> None:
+    """Test the DownloadBinaryRequestHandler.get with file in subdirectory (nRF52 case).
+
+    This is a regression test for issue #11343 where the Path migration broke
+    downloads for nRF52 firmware files in subdirectories like 'zephyr/zephyr.uf2'.
+
+    The issue was that with_name() doesn't accept path separators:
+    - Before: path = storage_json.firmware_bin_path.with_name(file_name)
+      ValueError: Invalid name 'zephyr/zephyr.uf2'
+    - After: path = storage_json.firmware_bin_path.parent.joinpath(file_name)
+      Works correctly with subdirectory paths
+    """
+    # Create a fake nRF52 build structure with firmware in subdirectory
+    build_dir = get_build_path(tmp_path, "nrf52-device")
+    zephyr_dir = build_dir / "zephyr"
+    zephyr_dir.mkdir(parents=True)
+
+    # Create the main firmware binary (would be in build root)
+    firmware_file = build_dir / "firmware.bin"
+    firmware_file.write_bytes(b"main firmware")
+
+    # Create the UF2 file in zephyr subdirectory (nRF52 specific)
+    uf2_file = zephyr_dir / "zephyr.uf2"
+    uf2_file.write_bytes(b"nRF52 UF2 firmware content")
+
+    # Mock storage JSON
+    mock_storage = Mock()
+    mock_storage.name = "nrf52-device"
+    mock_storage.firmware_bin_path = firmware_file
+    mock_storage_json.load.return_value = mock_storage
+
+    # Request the UF2 file with subdirectory path
+    response = await dashboard.fetch(
+        "/download.bin?configuration=nrf52-device.yaml&file=zephyr/zephyr.uf2",
+        method="GET",
+    )
+    assert response.code == 200
+    assert response.body == b"nRF52 UF2 firmware content"
+    assert response.headers["Content-Type"] == "application/octet-stream"
+    assert "attachment" in response.headers["Content-Disposition"]
+    # Download name should be device-name + full file path
+    assert "nrf52-device-zephyr/zephyr.uf2" in response.headers["Content-Disposition"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_ext_storage_path")
+async def test_download_binary_handler_subdirectory_file_url_encoded(
+    dashboard: DashboardTestHelper,
+    tmp_path: Path,
+    mock_storage_json: MagicMock,
+) -> None:
+    """Test the DownloadBinaryRequestHandler.get with URL-encoded subdirectory path.
+
+    Verifies that URL-encoded paths (e.g., zephyr%2Fzephyr.uf2) are correctly
+    decoded and handled, and that custom download names work with subdirectories.
+    """
+    # Create a fake build structure with firmware in subdirectory
+    build_dir = get_build_path(tmp_path, "test")
+    zephyr_dir = build_dir / "zephyr"
+    zephyr_dir.mkdir(parents=True)
+
+    firmware_file = build_dir / "firmware.bin"
+    firmware_file.write_bytes(b"content")
+
+    uf2_file = zephyr_dir / "zephyr.uf2"
+    uf2_file.write_bytes(b"content")
+
+    # Mock storage JSON
+    mock_storage = Mock()
+    mock_storage.name = "test_device"
+    mock_storage.firmware_bin_path = firmware_file
+    mock_storage_json.load.return_value = mock_storage
+
+    # Request with URL-encoded path and custom download name
+    response = await dashboard.fetch(
+        "/download.bin?configuration=test.yaml&file=zephyr%2Fzephyr.uf2&download=custom_name.bin",
+        method="GET",
+    )
+    assert response.code == 200
+    assert "custom_name.bin" in response.headers["Content-Disposition"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_ext_storage_path")
+@pytest.mark.parametrize(
+    ("attack_path", "expected_code"),
+    [
+        pytest.param("../../../secrets.yaml", 403, id="basic_traversal"),
+        pytest.param("..%2F..%2F..%2Fsecrets.yaml", 403, id="url_encoded"),
+        pytest.param("zephyr/../../../secrets.yaml", 403, id="traversal_with_prefix"),
+        pytest.param("/etc/passwd", 403, id="absolute_path"),
+        pytest.param("//etc/passwd", 403, id="double_slash_absolute"),
+        pytest.param(
+            "....//secrets.yaml",
+            # On Windows, Path.resolve() treats "..." and "...." as parent
+            # traversal (like ".."), so the path escapes base_dir -> 403.
+            # On Unix, "...." is a literal directory name that stays inside
+            # base_dir but doesn't exist -> 404.
+            403 if sys.platform == "win32" else 404,
+            id="multiple_dots",
+        ),
+    ],
+)
+async def test_download_binary_handler_path_traversal_protection(
+    dashboard: DashboardTestHelper,
+    tmp_path: Path,
+    mock_storage_json: MagicMock,
+    attack_path: str,
+    expected_code: int,
+) -> None:
+    """Test that DownloadBinaryRequestHandler prevents path traversal attacks.
+
+    Verifies that attempts to escape the build directory via '..' are rejected
+    using resolve()/relative_to() validation. Tests multiple attack vectors.
+    Real traversals that escape the base directory get 403. Paths like '....'
+    that resolve inside the base directory but don't exist get 404.
+    """
+    # Create build structure
+    build_dir = get_build_path(tmp_path, "test")
+    build_dir.mkdir(parents=True)
+    firmware_file = build_dir / "firmware.bin"
+    firmware_file.write_bytes(b"firmware content")
+
+    # Create a sensitive file outside the build directory that should NOT be accessible
+    sensitive_file = tmp_path / "secrets.yaml"
+    sensitive_file.write_bytes(b"secret: my_secret_password")
+
+    # Mock storage JSON
+    mock_storage = Mock()
+    mock_storage.name = "test_device"
+    mock_storage.firmware_bin_path = firmware_file
+    mock_storage_json.load.return_value = mock_storage
+
+    # Mock async_run_system_command so paths that pass validation but don't exist
+    # return 404 deterministically without spawning a real subprocess.
+    with (
+        patch(
+            "esphome.dashboard.web_server.async_run_system_command",
+            new_callable=AsyncMock,
+            return_value=(2, "", ""),
+        ),
+        pytest.raises(HTTPClientError) as exc_info,
+    ):
+        await dashboard.fetch(
+            f"/download.bin?configuration=test.yaml&file={attack_path}",
+            method="GET",
+        )
+    assert exc_info.value.code == expected_code
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_ext_storage_path")
+async def test_download_binary_handler_no_firmware_bin_path(
+    dashboard: DashboardTestHelper,
+    mock_storage_json: MagicMock,
+) -> None:
+    """Test that download returns 404 when firmware_bin_path is None.
+
+    This covers configs created by StorageJSON.from_wizard() where no
+    firmware has been compiled yet.
+    """
+    mock_storage = Mock()
+    mock_storage.name = "test_device"
+    mock_storage.firmware_bin_path = None
+    mock_storage_json.load.return_value = mock_storage
+
+    with pytest.raises(HTTPClientError) as exc_info:
+        await dashboard.fetch(
+            "/download.bin?configuration=test.yaml&file=firmware.bin",
+            method="GET",
+        )
+    assert exc_info.value.code == 404
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_ext_storage_path")
+@pytest.mark.parametrize("file_value", ["", "%20%20", "%20"])
+async def test_download_binary_handler_empty_file_name(
+    dashboard: DashboardTestHelper,
+    mock_storage_json: MagicMock,
+    file_value: str,
+) -> None:
+    """Test that download returns 400 for empty or whitespace-only file names."""
+    mock_storage = Mock()
+    mock_storage.name = "test_device"
+    mock_storage.firmware_bin_path = Path("/fake/firmware.bin")
+    mock_storage_json.load.return_value = mock_storage
+
+    with pytest.raises(HTTPClientError) as exc_info:
+        await dashboard.fetch(
+            f"/download.bin?configuration=test.yaml&file={file_value}",
+            method="GET",
+        )
+    assert exc_info.value.code == 400
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_ext_storage_path")
+async def test_download_binary_handler_multiple_subdirectory_levels(
+    dashboard: DashboardTestHelper,
+    tmp_path: Path,
+    mock_storage_json: MagicMock,
+) -> None:
+    """Test downloading files from multiple subdirectory levels.
+
+    Verifies that joinpath correctly handles multi-level paths like 'build/output/firmware.bin'.
+    """
+    # Create nested directory structure
+    build_dir = get_build_path(tmp_path, "test")
+    nested_dir = build_dir / "build" / "output"
+    nested_dir.mkdir(parents=True)
+
+    firmware_file = build_dir / "firmware.bin"
+    firmware_file.write_bytes(b"main")
+
+    nested_file = nested_dir / "firmware.bin"
+    nested_file.write_bytes(b"nested firmware content")
+
+    # Mock storage JSON
+    mock_storage = Mock()
+    mock_storage.name = "test_device"
+    mock_storage.firmware_bin_path = firmware_file
+    mock_storage_json.load.return_value = mock_storage
+
+    response = await dashboard.fetch(
+        "/download.bin?configuration=test.yaml&file=build/output/firmware.bin",
+        method="GET",
+    )
+    assert response.code == 200
+    assert response.body == b"nested firmware content"
 
 
 @pytest.mark.asyncio
@@ -1240,13 +1503,18 @@ async def test_websocket_refresh_command(
 ) -> None:
     """Test WebSocket refresh command triggers dashboard update."""
     with patch("esphome.dashboard.web_server.DASHBOARD_SUBSCRIBER") as mock_subscriber:
-        mock_subscriber.request_refresh = Mock()
+        # Signal an asyncio.Event when request_refresh is invoked so the
+        # test can deterministically wait for the server-side handler to run
+        # instead of relying on a fixed sleep (flaky on Windows CI under load).
+        called = asyncio.Event()
+        mock_subscriber.request_refresh = Mock(side_effect=called.set)
 
         # Send refresh command
         await websocket_client.write_message(json.dumps({"event": "refresh"}))
 
-        # Give it a moment to process
-        await asyncio.sleep(0.01)
+        # Wait for the server to process the message and invoke request_refresh
+        async with asyncio.timeout(5):
+            await called.wait()
 
         # Verify request_refresh was called
         mock_subscriber.request_refresh.assert_called_once()
@@ -1302,3 +1570,320 @@ async def test_dashboard_subscriber_refresh_event(
 
         # Give it a moment to clean up
         await asyncio.sleep(0.01)
+
+
+@pytest.mark.asyncio
+async def test_dashboard_yaml_loading_with_packages_and_secrets(
+    tmp_path: Path,
+) -> None:
+    """Test dashboard YAML loading with packages referencing secrets.
+
+    This is a regression test for issue #11280 where binary download failed
+    when using packages with secrets after the Path migration in 2025.10.0.
+
+    This test verifies that CORE.config_path initialization in the dashboard
+    allows yaml_util.load_yaml() to correctly resolve secrets from packages.
+    """
+    # Create test directory structure with secrets and packages
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    # Create secrets.yaml with obviously fake test values
+    secrets_file = config_dir / "secrets.yaml"
+    secrets_file.write_text(
+        "wifi_ssid: TEST-DUMMY-SSID\n"
+        "wifi_password: not-a-real-password-just-for-testing\n"
+    )
+
+    # Create package file that uses secrets
+    package_file = config_dir / "common.yaml"
+    package_file.write_text(
+        "wifi:\n  ssid: !secret wifi_ssid\n  password: !secret wifi_password\n"
+    )
+
+    # Create main device config that includes the package
+    device_config = config_dir / "test-download-secrets.yaml"
+    device_config.write_text(
+        "esphome:\n  name: test-download-secrets\n  platform: ESP32\n  board: esp32dev\n\n"
+        "packages:\n  common: !include common.yaml\n"
+    )
+
+    # Initialize DASHBOARD settings with our test config directory
+    # This is what sets CORE.config_path - the critical code path for the bug
+    args = Namespace(
+        configuration=str(config_dir),
+        password=None,
+        username=None,
+        ha_addon=False,
+        verbose=False,
+    )
+    DASHBOARD.settings.parse_args(args)
+
+    # With the fix: CORE.config_path should be config_dir / "___DASHBOARD_SENTINEL___.yaml"
+    # so CORE.config_path.parent would be config_dir
+    # Without the fix: CORE.config_path is config_dir / "." which normalizes to config_dir
+    # so CORE.config_path.parent would be tmp_path (the parent of config_dir)
+
+    # The fix ensures CORE.config_path.parent points to config_dir
+    assert CORE.config_path.parent == config_dir.resolve(), (
+        f"CORE.config_path.parent should point to config_dir. "
+        f"Got {CORE.config_path.parent}, expected {config_dir.resolve()}. "
+        f"CORE.config_path is {CORE.config_path}"
+    )
+
+    # Now load the YAML with packages that reference secrets
+    # This is where the bug would manifest - yaml_util.load_yaml would fail
+    # to find secrets.yaml because CORE.config_path.parent pointed to the wrong place
+    config = yaml_util.load_yaml(device_config)
+    # If we get here, secret resolution worked!
+    assert "esphome" in config
+    assert config["esphome"]["name"] == "test-download-secrets"
+
+
+@pytest.mark.asyncio
+async def test_websocket_check_origin_default_same_origin(
+    dashboard: DashboardTestHelper,
+) -> None:
+    """Test WebSocket uses default same-origin check when ESPHOME_TRUSTED_DOMAINS not set."""
+    # Ensure ESPHOME_TRUSTED_DOMAINS is not set
+    env = os.environ.copy()
+    env.pop("ESPHOME_TRUSTED_DOMAINS", None)
+    with patch.dict(os.environ, env, clear=True):
+        from tornado.httpclient import HTTPRequest
+
+        url = f"ws://127.0.0.1:{dashboard.port}/events"
+        # Same origin should work (default Tornado behavior)
+        request = HTTPRequest(
+            url, headers={"Origin": f"http://127.0.0.1:{dashboard.port}"}
+        )
+        ws = await websocket_connect(request)
+        try:
+            msg = await ws.read_message()
+            assert msg is not None
+            data = json.loads(msg)
+            assert data["event"] == "initial_state"
+        finally:
+            ws.close()
+
+
+@pytest.mark.asyncio
+async def test_websocket_check_origin_trusted_domain(
+    dashboard: DashboardTestHelper,
+) -> None:
+    """Test WebSocket accepts connections from trusted domains."""
+    with patch.dict(os.environ, {"ESPHOME_TRUSTED_DOMAINS": "trusted.example.com"}):
+        from tornado.httpclient import HTTPRequest
+
+        url = f"ws://127.0.0.1:{dashboard.port}/events"
+        request = HTTPRequest(url, headers={"Origin": "https://trusted.example.com"})
+        ws = await websocket_connect(request)
+        try:
+            # Should receive initial state
+            msg = await ws.read_message()
+            assert msg is not None
+            data = json.loads(msg)
+            assert data["event"] == "initial_state"
+        finally:
+            ws.close()
+
+
+@pytest.mark.asyncio
+async def test_websocket_check_origin_untrusted_domain(
+    dashboard: DashboardTestHelper,
+) -> None:
+    """Test WebSocket rejects connections from untrusted domains."""
+    with patch.dict(os.environ, {"ESPHOME_TRUSTED_DOMAINS": "trusted.example.com"}):
+        from tornado.httpclient import HTTPRequest
+
+        url = f"ws://127.0.0.1:{dashboard.port}/events"
+        request = HTTPRequest(url, headers={"Origin": "https://untrusted.example.com"})
+        with pytest.raises(HTTPClientError) as exc_info:
+            await websocket_connect(request)
+        # Should get HTTP 403 Forbidden due to origin check failure
+        assert exc_info.value.code == 403
+
+
+@pytest.mark.asyncio
+async def test_websocket_check_origin_multiple_trusted_domains(
+    dashboard: DashboardTestHelper,
+) -> None:
+    """Test WebSocket accepts connections from multiple trusted domains."""
+    with patch.dict(
+        os.environ,
+        {"ESPHOME_TRUSTED_DOMAINS": "first.example.com, second.example.com"},
+    ):
+        from tornado.httpclient import HTTPRequest
+
+        url = f"ws://127.0.0.1:{dashboard.port}/events"
+        # Test second domain in list (with space after comma)
+        request = HTTPRequest(url, headers={"Origin": "https://second.example.com"})
+        ws = await websocket_connect(request)
+        try:
+            msg = await ws.read_message()
+            assert msg is not None
+            data = json.loads(msg)
+            assert data["event"] == "initial_state"
+        finally:
+            ws.close()
+
+
+def test_proc_on_exit_calls_close() -> None:
+    """Test _proc_on_exit sends exit event and closes the WebSocket."""
+    handler = Mock(spec=EsphomeCommandWebSocket)
+    handler._is_closed = False
+
+    EsphomeCommandWebSocket._proc_on_exit(handler, 0)
+
+    handler.write_message.assert_called_once_with({"event": "exit", "code": 0})
+    handler.close.assert_called_once()
+
+
+def test_proc_on_exit_skips_when_already_closed() -> None:
+    """Test _proc_on_exit does nothing when WebSocket is already closed."""
+    handler = Mock(spec=EsphomeCommandWebSocket)
+    handler._is_closed = True
+
+    EsphomeCommandWebSocket._proc_on_exit(handler, 0)
+
+    handler.write_message.assert_not_called()
+    handler.close.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_esphome_logs_handler_appends_no_states_when_set() -> None:
+    """Test --no-states is appended when no_states is truthy in the message."""
+    handler = Mock(spec=web_server.EsphomeLogsHandler)
+    handler.build_device_command = AsyncMock(
+        return_value=["esphome", "logs", "device.yaml", "--device", "OTA"]
+    )
+
+    json_message = {
+        "configuration": "device.yaml",
+        "port": "OTA",
+        "no_states": True,
+    }
+    cmd = await web_server.EsphomeLogsHandler.build_command(handler, json_message)
+
+    assert cmd == [
+        "esphome",
+        "logs",
+        "device.yaml",
+        "--device",
+        "OTA",
+        "--no-states",
+    ]
+    handler.build_device_command.assert_awaited_once_with(["logs"], json_message)
+
+
+@pytest.mark.asyncio
+async def test_esphome_logs_handler_omits_no_states_when_missing() -> None:
+    """Test --no-states is not added when no_states is absent from the message."""
+    handler = Mock(spec=web_server.EsphomeLogsHandler)
+    handler.build_device_command = AsyncMock(
+        return_value=["esphome", "logs", "device.yaml", "--device", "OTA"]
+    )
+
+    cmd = await web_server.EsphomeLogsHandler.build_command(
+        handler, {"configuration": "device.yaml", "port": "OTA"}
+    )
+
+    assert "--no-states" not in cmd
+    assert cmd == ["esphome", "logs", "device.yaml", "--device", "OTA"]
+
+
+@pytest.mark.asyncio
+async def test_esphome_logs_handler_omits_no_states_when_false() -> None:
+    """Test --no-states is not added when no_states is explicitly False."""
+    handler = Mock(spec=web_server.EsphomeLogsHandler)
+    handler.build_device_command = AsyncMock(
+        return_value=["esphome", "logs", "device.yaml", "--device", "OTA"]
+    )
+
+    cmd = await web_server.EsphomeLogsHandler.build_command(
+        handler,
+        {"configuration": "device.yaml", "port": "OTA", "no_states": False},
+    )
+
+    assert "--no-states" not in cmd
+
+
+def _make_auth_handler(auth_header: str | None = None) -> Mock:
+    """Create a mock handler with the given Authorization header."""
+    handler = Mock()
+    handler.request = Mock()
+    if auth_header is not None:
+        handler.request.headers = {"Authorization": auth_header}
+    else:
+        handler.request.headers = {}
+    handler.get_secure_cookie = Mock(return_value=None)
+    return handler
+
+
+@pytest.fixture
+def mock_auth_settings(mock_dashboard_settings: MagicMock) -> MagicMock:
+    """Fixture to configure mock dashboard settings with auth enabled."""
+    mock_dashboard_settings.using_auth = True
+    mock_dashboard_settings.on_ha_addon = False
+    return mock_dashboard_settings
+
+
+@pytest.mark.usefixtures("mock_auth_settings")
+def test_is_authenticated_malformed_base64() -> None:
+    """Test that invalid base64 in Authorization header returns False."""
+    handler = _make_auth_handler("Basic !!!not-valid-base64!!!")
+    assert web_server.is_authenticated(handler) is False
+
+
+@pytest.mark.usefixtures("mock_auth_settings")
+def test_is_authenticated_bad_base64_padding() -> None:
+    """Test that incorrect base64 padding (binascii.Error) returns False."""
+    handler = _make_auth_handler("Basic abc")
+    assert web_server.is_authenticated(handler) is False
+
+
+@pytest.mark.usefixtures("mock_auth_settings")
+def test_is_authenticated_invalid_utf8() -> None:
+    """Test that base64 decoding to invalid UTF-8 returns False."""
+    # \xff\xfe is invalid UTF-8
+    bad_payload = base64.b64encode(b"\xff\xfe").decode("ascii")
+    handler = _make_auth_handler(f"Basic {bad_payload}")
+    assert web_server.is_authenticated(handler) is False
+
+
+@pytest.mark.usefixtures("mock_auth_settings")
+def test_is_authenticated_no_colon() -> None:
+    """Test that base64 payload without ':' separator returns False."""
+    no_colon = base64.b64encode(b"nocolonhere").decode("ascii")
+    handler = _make_auth_handler(f"Basic {no_colon}")
+    assert web_server.is_authenticated(handler) is False
+
+
+def test_is_authenticated_valid_credentials(
+    mock_auth_settings: MagicMock,
+) -> None:
+    """Test that valid Basic auth credentials are checked."""
+    creds = base64.b64encode(b"admin:secret").decode("ascii")
+    mock_auth_settings.check_password.return_value = True
+    handler = _make_auth_handler(f"Basic {creds}")
+    assert web_server.is_authenticated(handler) is True
+    mock_auth_settings.check_password.assert_called_once_with("admin", "secret")
+
+
+def test_is_authenticated_wrong_credentials(
+    mock_auth_settings: MagicMock,
+) -> None:
+    """Test that valid Basic auth with wrong credentials returns False."""
+    creds = base64.b64encode(b"admin:wrong").decode("ascii")
+    mock_auth_settings.check_password.return_value = False
+    handler = _make_auth_handler(f"Basic {creds}")
+    assert web_server.is_authenticated(handler) is False
+
+
+def test_is_authenticated_no_auth_configured(
+    mock_dashboard_settings: MagicMock,
+) -> None:
+    """Test that requests pass when auth is not configured."""
+    mock_dashboard_settings.using_auth = False
+    mock_dashboard_settings.on_ha_addon = False
+    handler = _make_auth_handler()
+    assert web_server.is_authenticated(handler) is True

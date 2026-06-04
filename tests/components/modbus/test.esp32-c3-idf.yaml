@@ -1,6 +1,0 @@
-substitutions:
-  flow_control_pin: GPIO3
-packages:
-  uart: !include ../../test_build_components/common/uart/esp32-c3-idf.yaml
-
-<<: !include common.yaml

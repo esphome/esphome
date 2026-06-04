@@ -8,8 +8,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace mpr121 {
+namespace esphome::mpr121 {
 
 enum {
   MPR121_TOUCHSTATUS_L = 0x00,
@@ -109,7 +108,7 @@ class MPR121GPIOPin : public GPIOPin {
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
-  std::string dump_summary() const override;
+  size_t dump_summary(char *buffer, size_t len) const override;
 
   void set_parent(MPR121Component *parent) { this->parent_ = parent; }
   void set_pin(uint8_t pin) { this->pin_ = pin; }
@@ -125,5 +124,4 @@ class MPR121GPIOPin : public GPIOPin {
   gpio::Flags flags_;
 };
 
-}  // namespace mpr121
-}  // namespace esphome
+}  // namespace esphome::mpr121
