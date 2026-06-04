@@ -6,14 +6,12 @@ namespace esphome::lsm6ds {
 
 static const char *const TAG = "lsm6ds";
 
-static struct {
+static const struct {
   uint8_t who_am_i;
   const char *const name;
 } CHIP_IDS[] = {{0x69, "LSMDSO"}, {0x6A, "LSM6DS3"}};
-//  setup()
 
 void LSM6DSComponent::setup() {
-  // 1. Verify chip identity
   MotionComponent::setup();
   uint8_t who_am_i = 0;
   if (this->read_register(LSM6DS_REG_WHO_AM_I, &who_am_i, 1) != i2c::ERROR_OK) {
