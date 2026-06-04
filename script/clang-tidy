@@ -44,17 +44,17 @@ def clang_options(idedata):
         # clang has an Xtensa frontend, but only a generic core -- the esp32 IDF
         # toolchain headers (xtruntime, xtensa/config) need the GCC core config
         # (XCHAL_*) it doesn't ship, so we still compile in 32-bit x86 mode and
-        # just pretend to be Xtensa.
+        # just pretend to be Xtensa. Undefine the host x86 arch macros -m32 sets,
+        # so libraries with x86 SIMD paths (FastLED's fl/math/simd, simd_x86.hpp)
+        # fall back to their scalar implementation instead of an incomplete
+        # host-x86 one, and define the xtensa endianness macro newlib's
+        # machine/ieeefp.h then needs in their place.
         cmd.append("-m32")
-        cmd.append("-D__XTENSA__")
-        cmd.append("-D_LIBC")
-        # Undefine the host x86 arch macros -m32 sets, so libraries with x86 SIMD
-        # paths (FastLED's fl/math/simd, simd_x86.hpp) fall back to their scalar
-        # implementation instead of an incomplete host-x86 one. Define the xtensa
-        # endianness macro newlib's machine/ieeefp.h then needs in their place.
         cmd.append("-U__i386__")
         cmd.append("-U__x86_64__")
+        cmd.append("-D__XTENSA__")
         cmd.append("-D__XTENSA_EL__")
+        cmd.append("-D_LIBC")
     else:
         cmd.append(f"--target={triplet}")
 
