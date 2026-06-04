@@ -12,3 +12,12 @@ output:
       number: 3
       mode:
         output: true
+
+binary_sensor:
+  - platform: gpio
+    id: pcm5122_gpio_input
+    pin:
+      pcm5122: pcm5122_dac
+      number: 4
+      mode:
+        input: true

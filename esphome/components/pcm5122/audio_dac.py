@@ -33,29 +33,26 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
-    .extend(i2c.i2c_device_schema(0x18))
+    .extend(i2c.i2c_device_schema(0x4D))
 )
 
 
 def _validate_pin_mode(value):
-    if value[CONF_INPUT] == value[CONF_OUTPUT]:
+    if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
         raise cv.Invalid("Mode must be either input or output")
+    if value[CONF_INPUT] and value[CONF_OUTPUT]:
+        raise cv.Invalid("Mode must be either input or output, not both")
     return value
 
 
-PIN_SCHEMA = cv.All(
+PIN_SCHEMA = pins.gpio_base_schema(
+    PCMGPIOPin,
+    cv.int_range(min=3, max=6),
+    modes=[CONF_INPUT, CONF_OUTPUT],
+    mode_validator=_validate_pin_mode,
+).extend(
     {
-        cv.GenerateID(): cv.declare_id(PCMGPIOPin),
         cv.Required(CONF_PCM5122): cv.use_id(PCM5122),
-        cv.Required(CONF_NUMBER): cv.int_range(min=3, max=6),
-        cv.Optional(CONF_MODE, default={CONF_OUTPUT: True, CONF_INPUT: False}): cv.All(
-            {
-                cv.Optional(CONF_INPUT, default=False): cv.boolean,
-                cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
-            },
-            _validate_pin_mode,
-        ),
-        cv.Optional(CONF_INVERTED, default=False): cv.boolean,
     }
 )
 
