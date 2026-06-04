@@ -48,13 +48,9 @@ button:
             data: !lambda |-
               return {0x01, 0x02, (uint8_t)id(my_number).state};
 
-i2s_audio:
-  i2s_lrclk_pin: ${i2s_bclk_pin}
-  i2s_bclk_pin: ${i2s_lrclk_pin}
-  i2s_mclk_pin: ${i2s_mclk_pin}
-
 speaker:
   - platform: i2s_audio
     id: speaker_id
+    i2s_audio_id: i2s_audio_bus
     dac_type: external
     i2s_dout_pin: ${i2s_dout_pin}
