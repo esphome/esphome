@@ -680,8 +680,10 @@ light:
 
 This effect allows you to write completely custom light effects yourself using [lambdas](/automations/templates#config-lambda).
 
-Available variable in the lambda:
+Available variables in the lambda:
 
+- **it** - <APIClass text="LightState" path="light::LightState" /> instance for the light running this effect, allowing
+  you to reference the light directly without needing its `id` (see API reference for more info).
 - **initial_run** - A bool which is true on the first execution of the lambda. Useful to reset static variables when
   restarting an effect.
 
@@ -695,7 +697,7 @@ light:
           update_interval: 1s
           lambda: |-
             static int state = 0;
-            auto call = id(my_light).turn_on();
+            auto call = it.turn_on();
             // Transition of 1000ms = 1s
             call.set_transition_length(1000);
             if (state == 0) {
