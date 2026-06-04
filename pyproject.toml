@@ -112,6 +112,7 @@ exclude = ['generated']
 [tool.ruff.lint]
 select = [
   "B",    # flake8-bugbear
+  "BLE",  # flake8-blind-except
   "C4",   # flake8-comprehensions
   "DTZ",  # flake8-datetimez
   "E",    # pycodestyle

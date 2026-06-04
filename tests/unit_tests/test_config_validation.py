@@ -27,6 +27,7 @@ from esphome.const import (
     SCHEDULER_DONT_RUN,
 )
 from esphome.core import CORE, HexInt, Lambda
+from esphome.yaml_util import SensitiveStr
 
 
 def test_check_not_templatable__invalid():
@@ -143,6 +144,42 @@ def test_sensitive__custom_inner_delegates_validation() -> None:
     assert validator("abc") == "abc"
     with pytest.raises(Invalid, match="Must be string, got"):
         validator(123)
+
+
+def test_sensitive__wraps_string_result_in_sensitive_str() -> None:
+    validator = config_validation.sensitive()
+    result = validator("hunter2")
+
+    assert isinstance(result, SensitiveStr)
+    assert isinstance(result, str)
+    assert result == "hunter2"
+
+
+def test_sensitive__does_not_double_tag_already_sensitive() -> None:
+    # If the inner validator already returns a SensitiveStr (e.g., nested
+    # cv.sensitive wrappers), re-tagging is a no-op rather than a new
+    # SensitiveStr around the same value.
+    pre_tagged = SensitiveStr("hunter2")
+
+    def inner(_value):
+        return pre_tagged
+
+    validator = config_validation.sensitive(inner)
+    result = validator("anything")
+
+    assert result is pre_tagged
+
+
+def test_sensitive__non_string_result_passes_through() -> None:
+    # If an inner validator returns something other than a string (e.g., a
+    # Lambda template), the sensitive wrapper must not coerce it.
+    sentinel = object()
+
+    def inner(_value):
+        return sentinel
+
+    validator = config_validation.sensitive(inner)
+    assert validator("anything") is sentinel
 
 
 def test_sensitive__is_detectable_via_isinstance() -> None:

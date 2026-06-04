@@ -535,7 +535,7 @@ def _addr2line(addr2line: str, elf: Path, addr: str) -> str:
             check=True,
         )
         return result.stdout.strip().splitlines()[0]
-    except Exception as err:  # pylint: disable=broad-except
+    except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
         _LOGGER.error("Running command failed: %s", err)
     return ""
 

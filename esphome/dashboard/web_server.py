@@ -1379,7 +1379,7 @@ class LoginHandler(BaseHandler):
         loop = asyncio.get_running_loop()
         try:
             req = await loop.run_in_executor(None, self._make_supervisor_auth_request)
-        except Exception as err:  # pylint: disable=broad-except
+        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
             _LOGGER.warning("Error during Hass.io auth request: %s", err)
             self.set_status(500)
             self.render_login_page(error="Internal server error")
