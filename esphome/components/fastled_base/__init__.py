@@ -42,9 +42,6 @@ async def new_fastled_light(config):
         cg.add(var.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))
 
     if CORE.is_esp32:
-        # Add FastLED as a managed IDF component for the real build. The same dep
-        # is declared in esphome/idf_component.yml for static analysis (clang-tidy
-        # runs no codegen, so this call wouldn't fire there).
         from esphome.components.esp32 import add_idf_component
 
         add_idf_component(
