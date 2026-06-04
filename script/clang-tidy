@@ -38,20 +38,12 @@ os.environ.setdefault("ESPHOME_IDF_DEFAULT_TARGETS", "esp32")
 def clang_options(idedata):
     cmd = []
 
-    # extract target architecture from triplet in g++ filename
+    # Target the real triplet from the g++ filename. clang's frontend (all
+    # clang-tidy needs) supports Xtensa/RISC-V, so it sets __XTENSA__, the correct
+    # endianness (__XTENSA_EL__) and ILP32 sizes itself -- no more faking x86 with
+    # -m32, which mis-set __i386__ (FastLED's x86 SIMD) and broke endianness.
     triplet = Path(idedata["cxx_path"]).name[:-4]
-    if triplet.startswith("xtensa-"):
-        # clang doesn't support Xtensa (yet?), so compile in 32-bit mode and pretend we're the Xtensa compiler
-        cmd.append("-m32")
-        cmd.append("-D__XTENSA__")
-        cmd.append("-D_LIBC")
-        # -m32 advertises host x86 SSE; disable it so libraries that gate SIMD on
-        # it (e.g. FastLED's simd_x86.hpp pulling <emmintrin.h>) take their scalar
-        # path. Keep __i386__ -- the xtensa toolchain's machine/ieeefp.h uses it
-        # to pick endianness.
-        cmd.append("-mno-sse")
-    else:
-        cmd.append(f"--target={triplet}")
+    cmd.append(f"--target={triplet}")
 
     omit_flags = (
         "-free",
