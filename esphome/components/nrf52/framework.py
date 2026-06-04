@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 import platform
 import tempfile
@@ -21,7 +22,10 @@ _WEST_VERSION = "1.5.0"
 _TOOLCHAIN_VERSION = "0.17.4"
 
 SDK_NG_TOOLCHAIN_MIRRORS = str_to_lst_of_str(
-    "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v{VERSION}/toolchain_{sysname}-{machine}_arm-zephyr-eabi.{extension}",
+    os.environ.get(
+        "ESPHOME_SDK_NG_TOOLCHAIN_MIRRORS",
+        "https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v{VERSION}/toolchain_{sysname}-{machine}_arm-zephyr-eabi.{extension}",
+    )
 )
 
 
