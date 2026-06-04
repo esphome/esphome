@@ -53,6 +53,7 @@ BASE_BUS_COMPONENTS = {
     "canbus",
     "remote_transmitter",
     "remote_receiver",
+    "i2s_audio",
 }
 
 # Cache version for components graph
