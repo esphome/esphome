@@ -358,7 +358,7 @@ void crash_handler_log() {
   append_addrs_to_hint(hint, sizeof(hint), pos, s_raw_crash_data.other_backtrace,
                        s_raw_crash_data.other_backtrace_count, s_raw_crash_data.other_reg_frame_count);
 #else
-  (void) pos;  // single-core: pos is only consumed by the second-core append above
+  (void) pos;  // There is no second-core append on single-core targets, so pos would otherwise be unread.
 #endif
   ESP_LOGE(TAG, "%s", hint);
 }
