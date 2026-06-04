@@ -1,0 +1,12 @@
+Import("env")  # noqa: F821
+
+import os  # noqa: E402
+
+# The IDF component manager evaluates idf_component.yml "if" rules during the
+# build. esphome/idf_component.yml gates the FastLED dependency on this env var
+# because a Kconfig symbol can't express the framework (an arduino-only symbol
+# is undefined on esp-idf and hard-errors). Derive it from the active PlatformIO
+# framework so arduino builds pull FastLED and esp-idf builds skip it. Runs as a
+# pre-script so the value is set before the component manager resolves rules.
+frameworks = env.get("PIOFRAMEWORK", [])  # noqa: F821
+os.environ["ESPHOME_ARDUINO"] = "1" if "arduino" in frameworks else "0"
