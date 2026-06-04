@@ -28,6 +28,21 @@ from helpers import (
     temp_header_file,
 )
 
+# Scope the ESP-IDF tool install to a single xtensa target for clang-tidy. Read
+# by esphome.espidf.framework, which load_idedata() imports lazily, so setting it
+# here (before that import) takes effect; setdefault keeps an explicit override
+# (e.g. from CI) intact.
+#
+# clang-tidy generates idedata via ``idf.py reconfigure`` (CMake configure only --
+# the compiler check, no link/flash/debug). All xtensa ESP32 chips (esp32/s2/s3)
+# share the one xtensa-esp-elf toolchain, which bundles every xtensa variant
+# compiler, so selecting just ``esp32`` still reconfigures s2/s3 envs while
+# dropping the large riscv32-esp-elf toolchain (not a supported target for esp32).
+# Keep the default "required" tools metapackage: naming a single tool instead
+# routes idf_tools down a path that never records the target (idf-env.json), so
+# the later tool-path export would fall back to requiring every tool and fail.
+os.environ.setdefault("ESPHOME_IDF_DEFAULT_TARGETS", "esp32")
+
 
 def clang_options(idedata):
     cmd = []
