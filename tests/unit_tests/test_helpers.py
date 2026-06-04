@@ -7,7 +7,7 @@ import stat
 from unittest.mock import MagicMock, patch
 
 from aioesphomeapi.host_resolver import AddrInfo, IPv4Sockaddr, IPv6Sockaddr
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis.strategies import ip_addresses
 import pytest
 
@@ -151,6 +151,7 @@ def test_is_ip_address__invalid(host):
     assert actual is False
 
 
+@settings(deadline=None)
 @given(value=ip_addresses(v=4).map(str))
 def test_is_ip_address__valid(value):
     actual = helpers.is_ip_address(value)

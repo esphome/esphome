@@ -17,10 +17,10 @@ from typing import Any
 
 import colorama
 
-root_path = os.path.abspath(os.path.normpath(os.path.join(__file__, "..", "..")))
-basepath = os.path.join(root_path, "esphome")
-temp_folder = os.path.join(root_path, ".temp")
-temp_header_file = os.path.join(temp_folder, "all-include.cpp")
+root_path = str(Path(__file__).resolve().parent.parent)
+basepath = str(Path(root_path) / "esphome")
+temp_folder = str(Path(root_path) / ".temp")
+temp_header_file = str(Path(temp_folder) / "all-include.cpp")
 
 # C++ file extensions used for clang-tidy and clang-format checks
 CPP_FILE_EXTENSIONS = (".cpp", ".h", ".hpp", ".cc", ".cxx", ".c", ".tcc")
@@ -103,9 +103,7 @@ def get_component_from_path(file_path: str) -> str | None:
     Returns:
         Component name if path is in components or tests directory, None otherwise
     """
-    if file_path.startswith(ESPHOME_COMPONENTS_PATH) or file_path.startswith(
-        ESPHOME_TESTS_COMPONENTS_PATH
-    ):
+    if file_path.startswith((ESPHOME_COMPONENTS_PATH, ESPHOME_TESTS_COMPONENTS_PATH)):
         parts = file_path.split("/")
         if len(parts) >= 3 and parts[2]:
             # Verify that parts[2] is actually a component directory, not a file
@@ -151,6 +149,31 @@ def get_component_test_files(
     return files
 
 
+def get_component_test_platforms(component: str, *, base_only: bool = True) -> set[str]:
+    """Return the set of platforms a component has compilable test files for.
+
+    Uses the same discovery as ``test_build_components.py`` (``get_component_test_files``
+    + ``parse_test_filename``) so callers agree with what the build runner would
+    actually compile. With ``base_only=True`` (the default, matching the
+    memory-impact build's ``--base-only``), only base ``test.<platform>.yaml``
+    files are considered; variant ``test-<variant>.<platform>.yaml`` files are
+    excluded. The ``"all"`` platform sentinel is excluded.
+
+    Args:
+        component: Component name (e.g. "wifi")
+        base_only: If True, only consider base test files (default).
+
+    Returns:
+        Set of platform identifiers (e.g. {"esp32-idf", "esp8266-ard"}).
+    """
+    platforms: set[str] = set()
+    for test_file in get_component_test_files(component, all_variants=not base_only):
+        platform = parse_test_filename(test_file)[1]
+        if platform != "all":
+            platforms.add(platform)
+    return platforms
+
+
 def is_validate_only_file(test_file: Path) -> bool:
     """Return True if the given path is a config-only validate file.
 
@@ -160,7 +183,7 @@ def is_validate_only_file(test_file: Path) -> bool:
     ``esphome config`` only and skipped during compile.
     """
     name = test_file.name
-    return name.startswith("validate.") or name.startswith("validate-")
+    return name.startswith(("validate.", "validate-"))
 
 
 @dataclass(frozen=True)
@@ -339,8 +362,8 @@ def _get_github_event_data() -> dict | None:
         Parsed event data dictionary, or None if not available
     """
     github_event_path = os.environ.get("GITHUB_EVENT_PATH")
-    if github_event_path and os.path.exists(github_event_path):
-        with open(github_event_path) as f:
+    if github_event_path and Path(github_event_path).exists():
+        with Path(github_event_path).open() as f:
             return json.load(f)
     return None
 
@@ -464,7 +487,8 @@ def _get_changed_files_from_command(command: list[str]) -> list[str]:
         raise Exception(f"Command failed: {' '.join(command)}\nstderr: {proc.stderr}")
 
     changed_files = splitlines_no_ends(proc.stdout)
-    changed_files = [os.path.relpath(f, os.getcwd()) for f in changed_files if f]
+    cwd = Path.cwd()
+    changed_files = [os.path.relpath(f, cwd) for f in changed_files if f]  # noqa: PTH109
     changed_files.sort()
     return changed_files
 
@@ -499,7 +523,7 @@ def get_changed_components() -> list[str] | None:
         return None
 
     # Use list-components.py to get changed components
-    script_path = os.path.join(root_path, "script", "list-components.py")
+    script_path = str(Path(root_path) / "script" / "list-components.py")
     cmd = [script_path, "--changed"]
 
     try:
@@ -619,7 +643,7 @@ def filter_changed(files: list[str]) -> list[str]:
 def filter_grep(files: list[str], value: list[str]) -> list[str]:
     matched = []
     for file in files:
-        with open(file, encoding="utf-8") as handle:
+        with Path(file).open(encoding="utf-8") as handle:
             contents = handle.read()
         if any(v in contents for v in value):
             matched.append(file)

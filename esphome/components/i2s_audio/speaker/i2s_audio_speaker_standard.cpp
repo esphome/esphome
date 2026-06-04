@@ -3,6 +3,7 @@
 #ifdef USE_ESP32
 
 #include <driver/i2s_std.h>
+#include <hal/dma_types.h>
 
 #include "esphome/components/audio/audio.h"
 #include "esphome/components/audio/audio_transfer_buffer.h"
@@ -16,8 +17,16 @@ namespace esphome::i2s_audio {
 
 static const char *const TAG = "i2s_audio.speaker.std";
 
-static constexpr uint32_t DMA_BUFFER_DURATION_MS = 15;
-static constexpr size_t DMA_BUFFERS_COUNT = 4;
+static constexpr uint32_t DMA_BUFFER_DURATION_MS = 10;
+static constexpr size_t DMA_BUFFERS_COUNT = 5;
+// ESP-IDF clamps each DMA descriptor to this many bytes when allocating the channel (see i2s_get_buf_size in
+// the I2S driver). Mirror its target-dependent selection so the requested dma_frame_num stays in range; the
+// speaker task reads the size actually allocated back from the driver rather than relying on this value.
+#if SOC_CACHE_INTERNAL_MEM_VIA_L1CACHE
+static constexpr size_t I2S_DMA_BUFFER_MAX_SIZE = DMA_DESCRIPTOR_BUFFER_MAX_SIZE_64B_ALIGNED;
+#else
+static constexpr size_t I2S_DMA_BUFFER_MAX_SIZE = DMA_DESCRIPTOR_BUFFER_MAX_SIZE_4B_ALIGNED;
+#endif
 // Sized to comfortably absorb scheduling jitter: at most DMA_BUFFERS_COUNT events can be in flight,
 // doubled so that a transient backlog never overruns the queue (which would desync the lockstep
 // invariant between i2s_event_queue_ and write_records_queue_).
@@ -26,6 +35,17 @@ static constexpr size_t I2S_EVENT_QUEUE_COUNT = DMA_BUFFERS_COUNT * 2;
 // DMA_BUFFER_DURATION_MS, so a multiple of that gives plenty of slack against scheduling jitter
 // without masking real failures.
 static constexpr TickType_t WRITE_TIMEOUT_TICKS = pdMS_TO_TICKS(DMA_BUFFER_DURATION_MS * (DMA_BUFFERS_COUNT + 1));
+
+// Requested frames per DMA buffer for the given stream, clamped so the byte size stays within the ESP-IDF
+// maximum DMA descriptor size. This is only the value handed to the channel config: ESP-IDF may still adjust
+// it (e.g. cache-line rounding on some targets), so the speaker task reads the size actually allocated back
+// from the driver instead of assuming this value. Clamping here keeps the request in range and avoids a
+// noisy ESP-IDF "dma frame num is out of dma buffer size" warning at high sample rates or bit depths.
+static uint32_t dma_buffer_frames(const audio::AudioStreamInfo &stream_info) {
+  const uint32_t frames_from_duration = stream_info.ms_to_frames(DMA_BUFFER_DURATION_MS);
+  const uint32_t max_frames = I2S_DMA_BUFFER_MAX_SIZE / stream_info.frames_to_bytes(1);
+  return std::min(frames_from_duration, max_frames);
+}
 
 void I2SAudioSpeaker::dump_config() {
   I2SAudioSpeakerBase::dump_config();
@@ -57,8 +77,21 @@ void I2SAudioSpeaker::run_speaker_task() {
   // avoids unnecessary single-frame splices.
   const size_t ring_buffer_size =
       (this->current_stream_info_.ms_to_bytes(ring_buffer_duration) / bytes_per_frame) * bytes_per_frame;
-  const uint32_t frames_per_dma_buffer = this->current_stream_info_.ms_to_frames(DMA_BUFFER_DURATION_MS);
-  const size_t dma_buffer_bytes = this->current_stream_info_.frames_to_bytes(frames_per_dma_buffer);
+  // ESP-IDF may allocate smaller (or cache-line-rounded) DMA buffers than dma_buffer_frames() requested: it
+  // clamps each descriptor to the max DMA descriptor size and, on targets that route internal memory through
+  // the L1 cache (e.g. ESP32-P4), rounds the buffer to the cache line. Read the size the driver actually
+  // allocated so preload, silence padding, and the write/event lockstep all match it exactly. The channel is
+  // in the READY state here because start_i2s_driver() initialized it before this task was created.
+  size_t dma_buffer_bytes;
+  i2s_chan_info_t chan_info;
+  if (i2s_channel_get_info(this->tx_handle_, &chan_info) == ESP_OK && chan_info.total_dma_buf_size > 0) {
+    // total_dma_buf_size spans all DMA_BUFFERS_COUNT descriptors and is an exact multiple of the count.
+    dma_buffer_bytes = chan_info.total_dma_buf_size / DMA_BUFFERS_COUNT;
+  } else {
+    // Should not happen for a READY channel; fall back to the requested size.
+    dma_buffer_bytes = this->current_stream_info_.frames_to_bytes(dma_buffer_frames(this->current_stream_info_));
+  }
+  const uint32_t frames_per_dma_buffer = this->current_stream_info_.bytes_to_frames(dma_buffer_bytes);
 
   bool successful_setup = false;
 
@@ -308,12 +341,24 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
     return ESP_ERR_NOT_SUPPORTED;
   }
 
+#ifdef USE_ESP32_VARIANT_ESP32
+  // The original ESP32 I2S peripheral stores each sample in a whole number of 16-bit words (a 24-bit sample
+  // occupies 4 bytes in the DMA buffer, an 8-bit sample 2 bytes), but ESPHome's audio pipeline packs samples
+  // tightly (3 bytes for 24-bit, 1 for 8-bit). The two layouts only line up when the bit depth is a multiple
+  // of 16, so reject anything else rather than emit corrupted audio.
+  if (audio_stream_info.get_bits_per_sample() % 16 != 0) {
+    ESP_LOGE(TAG, "ESP32 supports only 16- or 32-bit audio, got %u-bit",
+             (unsigned) audio_stream_info.get_bits_per_sample());
+    return ESP_ERR_NOT_SUPPORTED;
+  }
+#endif  // USE_ESP32_VARIANT_ESP32
+
   if (!this->parent_->try_lock()) {
     ESP_LOGE(TAG, "Parent bus is busy");
     return ESP_ERR_INVALID_STATE;
   }
 
-  uint32_t dma_buffer_length = audio_stream_info.ms_to_frames(DMA_BUFFER_DURATION_MS);
+  uint32_t dma_buffer_length = dma_buffer_frames(audio_stream_info);
 
   i2s_role_t i2s_role = this->i2s_role_;
   i2s_clock_src_t clk_src = I2S_CLK_SRC_DEFAULT;

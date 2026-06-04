@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import ast
+import importlib.util
 from pathlib import Path
+
+from esphome import config_validation as cv
 
 SCRIPT_PATH = (
     Path(__file__).resolve().parent.parent.parent
@@ -12,10 +15,16 @@ SCRIPT_PATH = (
 )
 
 
+def _load_script_module():
+    spec = importlib.util.spec_from_file_location("build_language_schema", SCRIPT_PATH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def _extract_sort_obj():
-    # build_language_schema.py runs argparse, loads every component, and
-    # calls build_schema() at import time, so a plain import isn't viable
-    # in a unit test. Pull just the pure helper out via AST instead.
+    # ``sort_obj`` is pure and self-contained; pulling it via AST avoids
+    # exercising the module-level component-loading state for these tests.
     tree = ast.parse(SCRIPT_PATH.read_text())
     for node in tree.body:
         if isinstance(node, ast.FunctionDef) and node.name == "sort_obj":
@@ -27,6 +36,7 @@ def _extract_sort_obj():
 
 
 sort_obj = _extract_sort_obj()
+_bls = _load_script_module()
 
 
 def test_sort_obj_sorts_dict_keys() -> None:
@@ -96,3 +106,56 @@ def test_sort_obj_passes_through_scalars() -> None:
     assert sort_obj(42) == 42
     assert sort_obj(None) is None
     assert sort_obj(True) is True
+
+
+def test_convert_emits_explicit_sensitive_marker() -> None:
+    config_var: dict = {}
+    _bls.convert(cv.sensitive(cv.string), config_var, "/test")
+
+    assert config_var["sensitive"] is True
+    assert config_var["sensitive_source"] == "explicit"
+    assert config_var["type"] == "string"
+
+
+def test_convert_keys_emits_heuristic_sensitive_marker() -> None:
+    converted: dict = {}
+    _bls.convert_keys(converted, {cv.Optional("password"): cv.string}, "/root")
+
+    entry = converted["schema"]["config_vars"]["password"]
+    assert entry["sensitive"] is True
+    assert entry["sensitive_source"] == "heuristic"
+    assert entry["type"] == "string"
+
+
+def test_convert_keys_explicit_beats_heuristic() -> None:
+    # Key name matches a fragment but the validator is explicitly wrapped;
+    # the explicit branch should win and emit ``sensitive_source: explicit``.
+    converted: dict = {}
+    _bls.convert_keys(
+        converted, {cv.Optional("password"): cv.sensitive(cv.string)}, "/root"
+    )
+
+    entry = converted["schema"]["config_vars"]["password"]
+    assert entry["sensitive"] is True
+    assert entry["sensitive_source"] == "explicit"
+
+
+def test_convert_keys_no_heuristic_for_non_string_leaves() -> None:
+    # Even though the key contains a fragment, a non-string leaf must not
+    # be flagged. Prevents false positives on unrelated fields whose name
+    # happens to embed a substring like "token".
+    converted: dict = {}
+    _bls.convert_keys(converted, {cv.Optional("password"): cv.boolean}, "/root")
+
+    entry = converted["schema"]["config_vars"]["password"]
+    assert "sensitive" not in entry
+    assert "sensitive_source" not in entry
+
+
+def test_convert_keys_no_marker_for_non_sensitive_field() -> None:
+    converted: dict = {}
+    _bls.convert_keys(converted, {cv.Optional("hostname"): cv.string}, "/root")
+
+    entry = converted["schema"]["config_vars"]["hostname"]
+    assert "sensitive" not in entry
+    assert "sensitive_source" not in entry
