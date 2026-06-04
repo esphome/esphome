@@ -101,8 +101,10 @@ void ZWaveProxy::loop() {
   this->status_clear_warning();
 }
 
-void ZWaveProxy::process_uart_() {
-  while (this->available()) {
+void ZWaveProxy::process_uart_slow_() {
+  // Caller (inline process_uart_) has already confirmed available() > 0, so use do/while to
+  // drain bytes — available() is still checked at the tail, but not redundantly on entry.
+  do {
     uint8_t byte;
     if (!this->read_byte(&byte)) {
       this->status_set_warning(LOG_STR("UART read failed"));
@@ -137,7 +139,7 @@ void ZWaveProxy::process_uart_() {
         this->api_connection_->send_message(this->outgoing_proto_msg_);
       }
     }
-  }
+  } while (this->available());
 }
 
 void ZWaveProxy::dump_config() {
@@ -414,7 +416,7 @@ void ZWaveProxy::parse_start_(uint8_t byte) {
   }
 }
 
-bool ZWaveProxy::response_handler_() {
+bool ZWaveProxy::response_handler_slow_() {
   switch (this->parsing_state_) {
     case ZWAVE_PARSING_STATE_SEND_ACK:
       this->last_response_ = ZWAVE_FRAME_TYPE_ACK;

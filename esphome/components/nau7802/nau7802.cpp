@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace nau7802 {
+namespace esphome::nau7802 {
 
 static const char *const TAG = "nau7802";
 
@@ -313,5 +312,4 @@ void NAU7802Sensor::update() {
 
 bool NAU7802Sensor::is_data_ready_() { return this->reg(PU_CTRL_REG).get() & PU_CTRL_CYCLE_READY; }
 
-}  // namespace nau7802
-}  // namespace esphome
+}  // namespace esphome::nau7802

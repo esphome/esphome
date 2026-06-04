@@ -5,8 +5,7 @@
 #include "esphome/core/component.h"
 #include "mcp2515_defs.h"
 
-namespace esphome {
-namespace mcp2515 {
+namespace esphome::mcp2515 {
 static const uint32_t SPI_CLOCK = 10000000;  // 10MHz
 
 static const int N_TXBUFFERS = 3;
@@ -108,5 +107,4 @@ class MCP2515 : public canbus::Canbus,
   void clear_merr_();
   void clear_errif_();
 };
-}  // namespace mcp2515
-}  // namespace esphome
+}  // namespace esphome::mcp2515

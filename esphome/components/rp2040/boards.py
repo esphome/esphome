@@ -457,6 +457,19 @@ RP2040_BOARD_PINS = {
         "SS": 17,
         "TX": 12,
     },
+    "challenger_2350_nbiot": {
+        "LED": 15,
+        "MISO": 16,
+        "MOSI": 19,
+        "RX": 13,
+        "SCK": 18,
+        "SCL": 21,
+        "SCL1": 31,
+        "SDA": 20,
+        "SDA1": 31,
+        "SS": 17,
+        "TX": 12,
+    },
     "challenger_2350_wifi6_ble5": {
         "LED": 7,
         "MISO": 16,
@@ -1708,6 +1721,11 @@ BOARDS = {
     },
     "challenger_2350_bconnect": {
         "name": "iLabs Challenger 2350 BConnect",
+        "mcu": "rp2350",
+        "max_pin": 47,
+    },
+    "challenger_2350_nbiot": {
+        "name": "iLabs Challenger 2350 NB-IoT",
         "mcu": "rp2350",
         "max_pin": 47,
     },

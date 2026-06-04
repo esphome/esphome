@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace xgzp68xx {
+namespace esphome::xgzp68xx {
 
 /// Enum listing all oversampling options for the XGZP68XX.
 enum XGZP68XXOversampling : uint8_t {
@@ -43,5 +42,4 @@ class XGZP68XXComponent : public PollingComponent, public sensor::Sensor, public
   XGZP68XXOversampling last_pressure_oversampling_{XGZP68XX_OVERSAMPLING_UNKNOWN};
 };
 
-}  // namespace xgzp68xx
-}  // namespace esphome
+}  // namespace esphome::xgzp68xx

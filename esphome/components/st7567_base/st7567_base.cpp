@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace st7567_base {
+namespace esphome::st7567_base {
 
 static const char *const TAG = "st7567";
 
@@ -157,5 +156,4 @@ void ST7567::init_reset_() {
 
 const char *ST7567::model_str_() { return "ST7567 128x64"; }
 
-}  // namespace st7567_base
-}  // namespace esphome
+}  // namespace esphome::st7567_base

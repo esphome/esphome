@@ -41,10 +41,10 @@ from ..defines import (
     LV_OBJ_FLAG,
     LV_PART,
     LV_SCALE_MODE,
+    add_lv_use,
     get_remapped_uses,
     get_warnings,
 )
-from ..helpers import add_lv_use
 from ..lv_validation import (
     LV_OPA,
     LV_RADIUS,
@@ -61,7 +61,6 @@ from ..lv_validation import (
     padding,
     pixels,
     pixels_or_percent,
-    requires_component,
     size,
 )
 from ..lvcode import LambdaContext, LocalVariable, lv, lv_add, lv_expr, lv_obj
@@ -185,6 +184,7 @@ INDICATOR_ARC_SCHEMA = cv.Schema(
         cv.Optional(CONF_START_VALUE): lv_float,
         cv.Optional(CONF_END_VALUE): lv_float,
         cv.Optional(CONF_OPA, default=1.0): opacity,
+        cv.Optional(CONF_ROUNDED, default=False): cv.boolean,
     }
 ).add_extra(cv.has_at_most_one_key(CONF_VALUE, CONF_START_VALUE))
 
@@ -214,7 +214,7 @@ INDICATOR_SCHEMA = cv.Schema(
                     cv.GenerateID(CONF_IMAGE_ID): cv.declare_id(lv_image_t),
                 }
             ),
-            requires_component("image"),
+            cv.requires_component("image"),
         ),
         cv.Exclusive(CONF_ARC, CONF_INDICATORS): INDICATOR_ARC_SCHEMA.extend(
             {
@@ -418,7 +418,7 @@ class MeterType(WidgetType):
                         "arc_width": v[CONF_WIDTH],
                         "arc_color": v[CONF_COLOR],
                         "arc_opa": v[CONF_OPA],
-                        "arc_rounded": v.get("arc_rounded", False),
+                        "arc_rounded": v[CONF_ROUNDED],
                     }
                     if CONF_R_MOD in v:
                         get_warnings().add(
@@ -430,7 +430,8 @@ class MeterType(WidgetType):
                         tvar, LV_PART.MAIN, await arc_style.get_var()
                     )
                     lw = Widget.create(iid, tvar, arc_indicator_type)
-                    await set_indicator_values(lw, v)
+                    lw.parent = scale_var
+                    await set_indicator_values(scale_var, lw, v)
 
                 if t == CONF_TICK_STYLE:
                     # No object created for this
@@ -482,7 +483,8 @@ class MeterType(WidgetType):
                         if option in v:
                             props["line_" + option] = v[option]
                     lw = await widget_to_code(props, line_indicator_type, scale_var)
-                    await set_indicator_values(lw, v)
+                    lw.parent = scale_var
+                    await set_indicator_values(scale_var, lw, v)
 
                 if t == CONF_IMAGE:
                     add_lv_use(CONF_IMAGE)
@@ -501,7 +503,8 @@ class MeterType(WidgetType):
                     }
                     iw = await widget_to_code(props, image_indicator_type, scale_var)
                     await iw.set_property(CONF_SRC, await lv_image.process(src))
-                    await set_indicator_values(iw, v)
+                    iw.parent = scale_var
+                    await set_indicator_values(scale_var, iw, v)
 
             # Hide the scale line
             lv.obj_set_style_arc_opa(scale_var, LV_OPA.TRANSP, LV_PART.MAIN)
@@ -607,27 +610,27 @@ async def indicator_update_to_code(config, action_id, template_arg, args):
     widget = await get_widgets(config)
 
     async def set_value(w: Widget):
-        await set_indicator_values(w, config)
+        await set_indicator_values(w.parent, w, config)
 
     return await action_to_code(
         widget, set_value, action_id, template_arg, args, config
     )
 
 
-async def set_indicator_values(indicator: Widget, config):
+async def set_indicator_values(scale: MockObj, indicator: Widget, config):
     """Update scale section values (replaces meter indicator values)"""
     start_value = await get_start_value(config)
     end_value = await get_end_value(config)
     if indicator.type is arc_indicator_type:
         # For scale sections, we update the range
         if start_value is not None and end_value is not None:
-            lv.scale_section_set_range(indicator.obj, start_value, end_value)
+            lv.scale_set_section_range(scale, indicator.obj, start_value, end_value)
         elif start_value is not None:
             # If only start value, use it as both start and end (single point)
-            lv.scale_section_set_range(indicator.obj, start_value, start_value)
+            lv.scale_set_section_range(scale, indicator.obj, start_value, start_value)
         elif end_value is not None:
             # If only end value, assume range from 0 to end_value
-            lv.scale_section_set_range(indicator.obj, 0, end_value)
+            lv.scale_set_section_range(scale, indicator.obj, 0, end_value)
         return
 
     if start_value is None:
