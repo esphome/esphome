@@ -121,8 +121,8 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
 
   void stop() { this->state_ = AnimationState::STOPPED; }
 
-  std::enable_if_t<AUTO_START> setup() override {
-    if (AUTO_START)
+  void setup() override {
+    if constexpr (AUTO_START)
       this->start();
   }
 

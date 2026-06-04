@@ -245,19 +245,11 @@ def color_retmapper(value):
     return get_component_colors(value)
 
 
-lv_color = LValidator(color, ty.lv_color_t, retmapper=color_retmapper, animatable=True)
-
-
-def option_string(value):
-    value = cv.string(value).strip()
-    if value.find("\n") != -1:
-        raise cv.Invalid("Options strings must not contain newlines")
-    return value
-
-
 class LvColor(LValidator):
     def __init__(self):
-        super().__init__(color, ty.lv_color_t, retmapper=color_retmapper)
+        super().__init__(
+            color, ty.lv_color_t, retmapper=color_retmapper, animatable=True
+        )
 
     def __getattr__(self, item):
         if item in COLOR_NAMES:
@@ -266,6 +258,13 @@ class LvColor(LValidator):
 
 
 lv_color = LvColor()
+
+
+def option_string(value):
+    value = cv.string(value).strip()
+    if value.find("\n") != -1:
+        raise cv.Invalid("Options strings must not contain newlines")
+    return value
 
 
 def pixels_or_percent_validator(value):
@@ -417,7 +416,10 @@ class TextValidator(LValidator):
         return super().__call__(value)
 
     async def process(
-        self, value: Any, args: list[tuple[SafeExpType, str]] | None = None
+        self,
+        value: Any,
+        args: list[tuple[SafeExpType, str]] | None = None,
+        raw_lambda: bool = False,
     ) -> Expression:
         # Local import to avoid circular import at module level
         from .lvcode import get_lambda_context_args
@@ -462,7 +464,7 @@ class TextValidator(LValidator):
                 return value
             # Either a std::string or a lambda call returning that. We need const char*
             return MockObj(f"({value}).c_str()")
-        return await super().process(value, args)
+        return await super().process(value, args, raw_lambda)
 
 
 lv_text = TextValidator()
@@ -520,12 +522,17 @@ class LvFont(LValidator):
         # The inline overloads in lvgl_esphome.h handle conversion to lv_font_t*
         super().__init__(validator, Font.operator("ptr"))
 
-    async def process(self, value, args=()):
+    async def process(
+        self,
+        value: Any,
+        args: list[tuple[SafeExpType, str]] | None = None,
+        raw_lambda: bool = False,
+    ):
         if is_lv_font(value):
             return literal(f"&lv_font_{value}")
         if isinstance(value, str):
             return literal(f"{value}")
-        return await super().process(value, args)
+        return await super().process(value, args, raw_lambda)
 
 
 lv_font = LvFont()
