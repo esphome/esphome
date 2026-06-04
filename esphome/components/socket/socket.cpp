@@ -45,6 +45,19 @@ static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t
   return lwip_inet_ntop(AF_INET6, addr, buf, size);
 }
 #endif
+#elif defined(USE_ZEPHYR)
+// Zephyr BSD sockets — use Zephyr native address formatting via POSIX-subset wrappers.
+// <zephyr/net/socket.h> is already included transitively through <sys/socket.h>.
+static inline const char *esphome_inet_ntop4(const void *addr, char *buf, size_t size) {
+  zsock_inet_ntop(AF_INET, addr, buf, size);
+  return buf;
+}
+#if USE_NETWORK_IPV6
+static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t size) {
+  zsock_inet_ntop(AF_INET6, addr, buf, size);
+  return buf;
+}
+#endif
 #else
 // BSD sockets (host, ESP32-IDF)
 static inline const char *esphome_inet_ntop4(const void *addr, char *buf, size_t size) {
@@ -130,11 +143,19 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
     server->sin6_port = htons(port);
 
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
+#if defined(USE_ZEPHYR)
+    // Zephyr BSD sockets: use native address conversion
+    if (zsock_inet_pton(AF_INET6, ip_address, &server->sin6_addr) != 1) {
+      errno = EINVAL;
+      return 0;
+    }
+#else
     // Use standard inet_pton for BSD sockets
     if (inet_pton(AF_INET6, ip_address, &server->sin6_addr) != 1) {
       errno = EINVAL;
       return 0;
     }
+#endif
 #else
     // Use LWIP-specific functions
     ip6_addr_t ip6;
@@ -151,7 +172,15 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
   auto *server = reinterpret_cast<sockaddr_in *>(addr);
   memset(server, 0, sizeof(sockaddr_in));
   server->sin_family = AF_INET;
+#if defined(USE_ZEPHYR)
+  // Zephyr BSD sockets: use native address conversion
+  if (zsock_inet_pton(AF_INET, ip_address, &server->sin_addr) != 1) {
+    errno = EINVAL;
+    return 0;
+  }
+#else
   server->sin_addr.s_addr = inet_addr(ip_address);
+#endif
   server->sin_port = htons(port);
   return sizeof(sockaddr_in);
 }
