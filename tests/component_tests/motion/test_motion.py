@@ -317,7 +317,7 @@ class TestSensorExpressions:
 
     def test_roll_expression(self):
         expr = _expr_str("roll")
-        assert "atan2" in expr
+        assert "std::atan2" in expr
         assert "data.acceleration[1]" in expr
         assert "data.acceleration[2]" in expr
         assert "180.0f" in expr
@@ -327,7 +327,7 @@ class TestSensorExpressions:
 
     def test_pitch_expression(self):
         expr = _expr_str("pitch")
-        assert "atan2" in expr
+        assert "std::atan2" in expr
         assert "std::sqrt" in expr
         # All three axes used
         assert "data.acceleration[0]" in expr
