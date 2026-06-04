@@ -1,3 +1,5 @@
+// DNM: do not merge. Trivial touch to mark daikin changed; this is the working
+// esp8266-ard component that should generate memory impact (see PR #16788).
 #include "daikin.h"
 #include "esphome/components/remote_base/remote_base.h"
 

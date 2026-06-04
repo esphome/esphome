@@ -1,0 +1,7 @@
+# DNM proof: this is a VARIANT test (test-display.*) with no base test.*.yaml.
+# The memory-impact build runs --base-only, so const has nothing buildable and
+# must be excluded; it only contributes an esp32-s3-idf platform hint.
+packages:
+  qspi: !include ../../test_build_components/common/qspi/esp32-s3-idf.yaml
+
+<<: !include common.yaml

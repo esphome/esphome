@@ -1,3 +1,5 @@
+// DNM: do not merge. Trivial touch to mark shelly_dimmer changed so the
+// memory-impact CI job exercises the no-common-platform fix (see PR #16788).
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
