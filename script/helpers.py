@@ -329,13 +329,6 @@ def build_all_include(header_files: list[str] | None = None) -> None:
     # X-macro files are included multiple times with different macro definitions
     # and must not be included bare in the all-include header
     exclude = {ENTITY_TYPES_H_TARGET}
-
-    # fastled_base pulls in the full FastLED library, whose fft::Window::BLACKMAN_HARRIS
-    # enumerator collides with a `#define BLACKMAN_HARRIS` leaked by esp-audio-libs
-    # (audio_resampler.h). The two never share a translation unit in a real build, only
-    # in this unity header. fastled_light.cpp already covers fastled_light.h, so dropping
-    # it here loses no clang-tidy coverage.
-    exclude.add("esphome/components/fastled_base/fastled_light.h")
     headers = [f'#include "{h}"' for h in header_files if h not in exclude]
     headers.sort()
     headers.append("")
