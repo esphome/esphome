@@ -2,12 +2,15 @@
 
 # pylint: disable=protected-access
 
+import io
 from pathlib import Path
+import tarfile
 from unittest.mock import patch
 
 import pytest
 
 from esphome.espidf.framework import _clone_idf_with_submodules, _parse_git_source
+from esphome.framework_helpers import _tar_extract_all
 
 
 @pytest.mark.parametrize(
@@ -154,3 +157,102 @@ def test_clone_idf_with_submodules_raises_when_tree_missing(
             "https://github.com/espressif/esp-idf.git",
             None,
         )
+
+
+# ---------------------------------------------------------------------------
+# Helpers for _tar_extract_all hard-link prefix-stripping tests
+# ---------------------------------------------------------------------------
+
+
+def _make_tar(
+    members: list[tarfile.TarInfo], file_contents: dict[str, bytes]
+) -> io.BytesIO:
+    """Build an in-memory tar archive from a list of TarInfo objects."""
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w") as tf:
+        for info in members:
+            if info.isreg() and info.name in file_contents:
+                data = file_contents[info.name]
+                info.size = len(data)
+                tf.addfile(info, io.BytesIO(data))
+            else:
+                tf.addfile(info)
+    buf.seek(0)
+    return buf
+
+
+def _regular(name: str) -> tarfile.TarInfo:
+    info = tarfile.TarInfo(name=name)
+    info.type = tarfile.REGTYPE
+    info.size = 0
+    info.mode = 0o644
+    return info
+
+
+def _hardlink(name: str, linkname: str) -> tarfile.TarInfo:
+    info = tarfile.TarInfo(name=name)
+    info.type = tarfile.LNKTYPE
+    info.linkname = linkname
+    info.size = 0
+    info.mode = 0o644
+    return info
+
+
+class TestTarExtractHardLinkPrefixStripping:
+    """
+    Covers the hard-link prefix-stripping block in _tar_extract_all (L528-541).
+
+    Archive layout used by every test:
+
+        wrapper/                   ← single top-level wrapper dir (stripped)
+        wrapper/target.txt         ← regular file; becomes target.txt in dest
+        wrapper/link_good          ← hard link to wrapper/target.txt  (kept, linkname stripped)
+        wrapper/link_exact_root    ← hard link to "wrapper"            (skipped – equals strip_root)
+        wrapper/link_exact_prefix  ← hard link to "wrapper/"           (skipped – equals strip_prefix)
+        wrapper/link_outside       ← hard link to "other/target.txt"   (skipped – not under prefix)
+    """
+
+    WRAPPER = "wrapper"
+
+    def _build_archive(self) -> io.BytesIO:
+        members = [
+            _regular(f"{self.WRAPPER}/"),
+            _regular(f"{self.WRAPPER}/target.txt"),
+            _hardlink(f"{self.WRAPPER}/link_good", f"{self.WRAPPER}/target.txt"),
+            _hardlink(f"{self.WRAPPER}/link_exact_root", self.WRAPPER),
+            _hardlink(f"{self.WRAPPER}/link_exact_prefix", f"{self.WRAPPER}/"),
+            _hardlink(f"{self.WRAPPER}/link_outside", "other/target.txt"),
+        ]
+        return _make_tar(members, {f"{self.WRAPPER}/target.txt": b"hello"})
+
+    def test_good_hardlink_is_extracted_with_stripped_linkname(
+        self, tmp_path: Path
+    ) -> None:
+        """Hard link whose linkname starts with wrapper/ is extracted and its
+        linkname has the prefix removed so tarfile can resolve the target."""
+        _tar_extract_all(self._build_archive(), tmp_path)
+        link = tmp_path / "link_good"
+        assert link.exists(), "link_good should have been extracted"
+        assert link.read_bytes() == b"hello"
+
+    def test_hardlink_equal_to_strip_root_is_skipped(self, tmp_path: Path) -> None:
+        """Hard link whose linkname equals strip_root exactly must be dropped."""
+        _tar_extract_all(self._build_archive(), tmp_path)
+        assert not (tmp_path / "link_exact_root").exists()
+
+    def test_hardlink_equal_to_strip_prefix_is_skipped(self, tmp_path: Path) -> None:
+        """Hard link whose linkname equals strip_prefix (strip_root + '/') must be dropped."""
+        _tar_extract_all(self._build_archive(), tmp_path)
+        assert not (tmp_path / "link_exact_prefix").exists()
+
+    def test_hardlink_outside_prefix_is_skipped(self, tmp_path: Path) -> None:
+        """Hard link whose linkname does not start with wrapper/ must be dropped."""
+        _tar_extract_all(self._build_archive(), tmp_path)
+        assert not (tmp_path / "link_outside").exists()
+
+    def test_regular_file_and_no_spurious_files(self, tmp_path: Path) -> None:
+        """Sanity check: target.txt is extracted and no unexpected files appear."""
+        _tar_extract_all(self._build_archive(), tmp_path)
+        assert (tmp_path / "target.txt").read_bytes() == b"hello"
+        extracted = {p.name for p in tmp_path.iterdir()}
+        assert extracted == {"target.txt", "link_good"}
