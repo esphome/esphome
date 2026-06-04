@@ -66,6 +66,8 @@ def get_system_python_path() -> str:
     Returns:
         Path to Python executable as string
     """
+    # Try to get PYTHONEXEPATH environment variable
+    # Fallback to sys.executable if not set
     return os.environ.get("PYTHONEXEPATH", os.path.normpath(sys.executable))
 
 
@@ -186,14 +188,14 @@ def create_venv(root: PathType, msg: str | None = None):
 
 
 def _detect_archive_root(names: Iterable[str]) -> str | None:
-    """
-    Detect a single common top-level directory in an archive.
+    """Detect a single top-level directory shared by all archive entries.
 
-    Args:
-        names: Iterable of archive member name strings
-
-    Returns:
-        The common top-level directory name if one exists, otherwise None
+    Returns the directory name if every non-empty entry sits under the same
+    top-level directory, else ``None``. Extraction helpers use this to strip
+    the wrapper directory commonly found in source archives during extraction
+    rather than renaming it afterwards — post-extraction renames are
+    unreliable on Windows because antivirus and the search indexer briefly
+    hold handles on freshly written files.
     """
     root: str | None = None
     has_descendant = False
