@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -20,14 +21,15 @@ from esphome.espidf.component import (
     URLSource,
     _check_library_data,
     _collect_filtered_files,
-    _convert_library_to_component,
-    _detect_requires,
+    _node_key,
+    _normalize_dependencies,
     _parse_library_json,
     _parse_library_properties,
-    _process_dependencies,
+    _resolve_registry_version,
     _split_list_by_condition,
     generate_cmakelists_txt,
     generate_idf_component_yml,
+    generate_idf_components,
 )
 
 
@@ -83,19 +85,6 @@ def test_collect_filtered_files_exclude(tmp_path):
     assert str(f2) not in result
 
 
-def test_detect_requires(tmp_path):
-    f = tmp_path / "main.c"
-    f.write_text('#include "mbedtls/foo.h"')
-
-    result = _detect_requires([str(f)])
-    assert "mbedtls" in result
-
-
-def test_detect_requires_ignores_invalid_file(tmp_path):
-    result = _detect_requires([str(tmp_path / "missing.c")])
-    assert result == set()
-
-
 def test_split_list_by_condition():
     items = ["-Iinclude", "-Llib", "-Wall"]
 
@@ -142,7 +131,7 @@ def test_generate_cmakelists_txt_with_flags(tmp_component, tmp_path):
         == f"""idf_component_register(
   SRCS "src{sep}main.c"
   INCLUDE_DIRS "src"
-  REQUIRES dep
+  REQUIRES dep ${{ESPHOME_PROJECT_MANAGED_COMPONENTS}} ${{ESPHOME_PROJECT_BUILTIN_COMPONENTS}}
 )
 target_compile_options(${{COMPONENT_LIB}} PUBLIC
   "-DTEST"
@@ -160,11 +149,26 @@ target_link_libraries(${{COMPONENT_LIB}} INTERFACE
     )
 
 
+def test_generate_cmakelists_txt_references_project_managed_components_variable(
+    tmp_component: IDFComponent,
+) -> None:
+    # The CMakeLists is cached under pio_components/<hash>/ and shared
+    # across projects, so the project-managed REQUIRES list is exposed via
+    # a CMake variable expanded at configure time rather than baked here.
+    src_dir = tmp_component.path / "src"
+    src_dir.mkdir()
+    (src_dir / "main.c").write_text("int main() {}")
+    tmp_component.data = {}
+
+    content = generate_cmakelists_txt(tmp_component)
+    assert "${ESPHOME_PROJECT_MANAGED_COMPONENTS}" in content
+
+
 def test_generate_idf_component_yml_basic(tmp_component):
     tmp_component.data = {"description": "test", "repository": {"url": "http://aaa"}}
     result = generate_idf_component_yml(tmp_component)
 
-    assert result == "description: test\nversion: 1.0.0\nrepository: http://aaa\n"
+    assert result == "description: test\nrepository: http://aaa\n"
 
 
 def test_generate_idf_component_yml_with_dependencies(tmp_component, tmp_path):
@@ -178,39 +182,16 @@ def test_generate_idf_component_yml_with_dependencies(tmp_component, tmp_path):
 
     assert (
         result
-        == f"""version: 1.0.0
-dependencies:
+        == f"""dependencies:
   dep:
-    version: '1.0'
     override_path: {dep.path}
 """
     )
 
 
-def test_generate_idf_component_yml_arduino_registry_dep(tmp_component):
-    # Synthetic arduino-esp32 dep with no source / no path: should emit a
-    # version-only entry so the IDF component manager resolves it from the
-    # registry instead of via git.
-    dep = IDFComponent("espressif/arduino-esp32", "3.3.8", source=None)
-
-    tmp_component.dependencies = [dep]
-    tmp_component.data = {}
-
-    result = generate_idf_component_yml(tmp_component)
-
-    assert (
-        result
-        == """version: 1.0.0
-dependencies:
-  espressif/arduino-esp32:
-    version: 3.3.8
-"""
-    )
-
-
-def test_generate_idf_component_yml_missing_path_reraises(tmp_component):
-    # A dep without a path and without a recognised source should re-raise
-    # the underlying RuntimeError instead of silently producing a bad manifest.
+def test_generate_idf_component_yml_missing_path_raises(tmp_component):
+    # A dep without a path is a contract violation — every dep is expected
+    # to have been downloaded before YAML generation. Raise loudly.
     dep = IDFComponent("foo/bar", "1.0", source=None)
 
     tmp_component.dependencies = [dep]
@@ -245,19 +226,136 @@ def test_check_library_data_invalid_platform(esp32_idf_core):
         _check_library_data({"platforms": ["other"], "frameworks": "*"})
 
 
-def test_check_library_data_invalid_framework(esp32_idf_core):
-    with pytest.raises(InvalidIDFComponent):
-        _check_library_data({"platforms": "*", "frameworks": ["other"]})
+def test_check_library_data_invalid_framework(
+    esp32_idf_core: None, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Framework mismatch is a warning, not a hard skip: the library is still
+    # included so that PIO manifests that only list "arduino" (but actually
+    # compile under IDF) can be used without forking them.
+    _check_library_data({"name": "lib", "platforms": "*", "frameworks": ["other"]})
+    assert "do not include 'espidf'" in caplog.text
 
 
-def test_extra_script_logs_warning(caplog, esp32_idf_core):
-    extra_script = "myscript.sh"
+def test_extra_script_captures_libpath_libs_and_defines(tmp_path):
+    from esphome.espidf.extra_script import captured_as_build_flags, run_extra_script
+
+    (tmp_path / "src" / "esp32").mkdir(parents=True)
+    script = tmp_path / "extra_script.py"
+    script.write_text(
+        "Import('env')\n"
+        "mcu = env.get('BOARD_MCU')\n"
+        "env.Append(\n"
+        "    LIBPATH=[join('src', mcu)],\n"
+        "    LIBS=['algobsec'],\n"
+        "    CPPDEFINES=['FOO', ('BAR', '1')],\n"
+        "    LINKFLAGS=['-Wl,--gc-sections'],\n"
+        ")\n"
+    )
+    # The script uses bare ``join`` (PIO's extra-scripts run inside SCons
+    # where this is in scope). Inject it via the script header so the
+    # shim's exec namespace can resolve it.
+    script.write_text("from os.path import join\n" + script.read_text())
+
+    result = run_extra_script(script, library_dir=tmp_path, idf_target="esp32")
+
+    assert result.libpath == [str(Path("src") / "esp32")]
+    assert result.libs == ["algobsec"]
+    assert ("BAR", "1") in result.cppdefines
+    assert "FOO" in result.cppdefines
+    assert result.linkflags == ["-Wl,--gc-sections"]
+
+    flags = captured_as_build_flags(result, library_dir=tmp_path)
+    sep = os.sep
+    assert f"-Lsrc{sep}esp32" in flags
+    assert "-lalgobsec" in flags
+    assert "-DFOO" in flags
+    assert "-DBAR=1" in flags
+    assert "-Wl,--gc-sections" in flags
+
+
+def test_extra_script_libpath_relative_resolves_against_library_dir(
+    tmp_path, monkeypatch
+):
+    """Relative LIBPATH entries must resolve against ``library_dir``, not the
+    caller's CWD (the shim restores CWD before ``captured_as_build_flags``
+    runs)."""
+    from esphome.espidf.extra_script import ExtraScriptResult, captured_as_build_flags
+
+    (tmp_path / "lib" / "esp32").mkdir(parents=True)
+    elsewhere = tmp_path.parent / "not_the_library_dir"
+    elsewhere.mkdir(exist_ok=True)
+    monkeypatch.chdir(elsewhere)
+
+    result = ExtraScriptResult(libpath=["lib/esp32"])
+    flags = captured_as_build_flags(result, library_dir=tmp_path)
+
+    sep = os.sep
+    assert flags == [f"-Llib{sep}esp32"]
+
+
+def test_extra_script_libpath_absolute_outside_library_dir(tmp_path):
+    from esphome.espidf.extra_script import ExtraScriptResult, captured_as_build_flags
+
+    outside = tmp_path.parent / "system_lib"
+    outside.mkdir(exist_ok=True)
+    result = ExtraScriptResult(libpath=[str(outside)])
+
+    flags = captured_as_build_flags(result, library_dir=tmp_path)
+    assert flags == [f"-L{outside.resolve()}"]
+
+
+def test_extra_script_failure_returns_empty_result(tmp_path, caplog):
+    from esphome.espidf.extra_script import run_extra_script
+
+    script = tmp_path / "broken.py"
+    script.write_text("raise RuntimeError('boom')\n")
 
     with caplog.at_level("WARNING"):
-        _check_library_data({"build": {"extraScript": extra_script}})
+        result = run_extra_script(script, library_dir=tmp_path, idf_target="esp32")
 
-    assert "not supported" in caplog.text
-    assert "myscript.sh" in caplog.text
+    assert result.libpath == []
+    assert result.libs == []
+    assert "broken.py" in caplog.text
+
+
+def test_apply_extra_script_path_traversal_is_rejected(tmp_path):
+    from esphome.espidf.component import _apply_extra_script
+
+    library_dir = tmp_path / "lib"
+    library_dir.mkdir()
+    outside = tmp_path / "evil.py"
+    outside.write_text("env.Append(LIBS=['pwned'])\n")
+
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = library_dir
+    c.data = {"build": {"extraScript": "../evil.py"}}
+
+    _apply_extra_script(c)
+
+    # Nothing was folded into flags: the traversal was rejected before
+    # the script could run.
+    assert "flags" not in c.data["build"]
+
+
+def test_apply_extra_script_merges_into_existing_flags(tmp_path, monkeypatch):
+    from esphome.components import esp32 as esp32_module
+
+    monkeypatch.setattr(esp32_module, "get_esp32_variant", lambda: "ESP32")
+
+    from esphome.espidf.component import _apply_extra_script
+
+    (tmp_path / "src").mkdir()
+    script = tmp_path / "extra.py"
+    script.write_text("env.Append(LIBS=['algobsec'])\n")
+
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"build": {"extraScript": "extra.py", "flags": ["-DEXISTING"]}}
+
+    _apply_extra_script(c)
+
+    assert "-DEXISTING" in c.data["build"]["flags"]
+    assert "-lalgobsec" in c.data["build"]["flags"]
 
 
 def test_parse_library_json(tmp_path):
@@ -286,72 +384,423 @@ empty=
     assert "empty" not in result
 
 
-def test_convert_library_with_repository():
-    lib = Library("name", None, "https://github.com/foo/bar.git#v1.2.3")
-
-    result = _convert_library_to_component(lib)
-
-    assert result.name == "foo/bar"
-    assert result.version == "1.2.3"
-    assert isinstance(result.source, GitSource)
-
-
-def test_convert_library_missing_ref():
-    lib = Library("name", None, "https://github.com/foo/bar.git")
-
-    with pytest.raises(ValueError):
-        _convert_library_to_component(lib)
+def test_node_key_git_with_ref():
+    key, is_git, locator = _node_key(
+        "name", None, "https://github.com/foo/bar.git#v1.2.3"
+    )
+    assert key == "foo/bar"
+    assert is_git is True
+    assert locator == ("https://github.com/foo/bar.git", "v1.2.3")
 
 
-def test_convert_library_registry(monkeypatch):
-    lib = Library("foo/bar", "^1.0.0", None)
+def test_node_key_git_branch_ref():
+    key, is_git, locator = _node_key(
+        "name", None, "https://github.com/foo/bar.git#some-branch"
+    )
+    assert (key, is_git, locator[1]) == ("foo/bar", True, "some-branch")
 
+
+def test_node_key_git_no_ref():
+    _key, is_git, locator = _node_key("name", None, "https://github.com/foo/bar.git")
+    assert is_git is True
+    assert locator == ("https://github.com/foo/bar.git", None)
+
+
+def test_node_key_registry_owner_name():
+    key, is_git, locator = _node_key("foo/bar", "^1.0.0", None)
+    assert (key, is_git, locator) == ("foo/bar", False, ("foo", "bar"))
+
+
+def test_node_key_registry_bare_name():
+    key, is_git, locator = _node_key("bar", "1.0", None)
+    assert (key, is_git, locator) == ("bar", False, (None, "bar"))
+
+
+def test_normalize_dependencies_none():
+    assert _normalize_dependencies(None) == []
+
+
+def test_normalize_dependencies_list_form():
+    deps = [{"name": "foo", "version": "1.0"}]
+    assert _normalize_dependencies(deps) == [{"name": "foo", "version": "1.0"}]
+
+
+def test_normalize_dependencies_dict_form():
+    out = _normalize_dependencies({"nanopb/Nanopb": "^0.4.91", "BareName": "1.2.3"})
+    assert {"name": "Nanopb", "owner": "nanopb", "version": "^0.4.91"} in out
+    assert {"name": "BareName", "owner": None, "version": "1.2.3"} in out
+
+
+def test_normalize_dependencies_dict_form_nested_spec():
+    out = _normalize_dependencies(
+        {"nanopb/Nanopb": {"version": "^0.4.91", "platforms": "espidf"}}
+    )
+    assert out == [
+        {
+            "name": "Nanopb",
+            "owner": "nanopb",
+            "version": "^0.4.91",
+            "platforms": "espidf",
+        }
+    ]
+
+
+def _patch_registry(monkeypatch, versions):
+    """Patch the registry client to serve a canned version list (no network).
+
+    Only ``fetch_registry_package`` is faked; the real
+    ``get_compatible_registry_versions`` / ``pick_best_registry_version`` run on
+    the canned data so the intersection logic is exercised for real.
+    """
+    registry = esphome.espidf.component._make_registry_client()
     monkeypatch.setattr(
-        esphome.espidf.component,
-        "_get_package_from_pio_registry",
-        lambda o, n, r: ("foo", "bar", "1.2.3", "http://example.com/pkg.zip"),
+        registry,
+        "fetch_registry_package",
+        lambda spec: {
+            "owner": {"username": spec.owner or "owner"},
+            "name": spec.name,
+            "versions": [
+                {"name": v, "files": [{"download_url": f"http://x/{v}.tar.gz"}]}
+                for v in versions
+            ],
+        },
+    )
+    monkeypatch.setattr(
+        esphome.espidf.component, "_make_registry_client", lambda: registry
     )
 
-    result = _convert_library_to_component(lib)
 
-    assert result.name == "foo/bar"
-    assert result.version == "1.2.3"
-    assert isinstance(result.source, URLSource)
+def test_resolve_registry_version_intersects_constraints(monkeypatch):
+    _patch_registry(monkeypatch, ["1.10018.1", "1.10021.0", "1.10021.1"])
+    owner, name, version, url = _resolve_registry_version(
+        "esphome", "libsodium", {"==1.10021.0", "^1.10018.1"}
+    )
+    assert (owner, name, version) == ("esphome", "libsodium", "1.10021.0")
+    assert url == "http://x/1.10021.0.tar.gz"
 
 
-def test_process_dependencies_adds_valid_dependency(tmp_component, monkeypatch):
-    tmp_component.data = {
-        "dependencies": [
-            {
-                "name": "foo",
-                "version": "1.0",
-            }
-        ]
+def test_resolve_registry_version_picks_highest_satisfying(monkeypatch):
+    _patch_registry(monkeypatch, ["1.0.0", "1.5.0", "2.0.0"])
+    _owner, _name, version, _url = _resolve_registry_version("o", "p", {"^1.0.0"})
+    assert version == "1.5.0"
+
+
+def test_resolve_registry_version_conflict_raises(monkeypatch):
+    _patch_registry(monkeypatch, ["1.0.0", "2.0.0"])
+    with pytest.raises(RuntimeError, match="satisfies all requirements"):
+        _resolve_registry_version("o", "p", {"==1.0.0", "==2.0.0"})
+
+
+def test_generate_idf_components_dedupes_shared_dependency(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    esp32_idf_core: None,
+) -> None:
+    # A and B both depend on shared C under different version specs. The batch
+    # must resolve C once with BOTH requirements collected, wire a single C
+    # instance into both, and regenerate (overwrite) each library's build files.
+    manifests = {
+        "esphome/A": {
+            "name": "A",
+            "dependencies": [
+                {"owner": "esphome", "name": "C", "version": "==1.10021.0"}
+            ],
+        },
+        "esphome/B": {
+            "name": "B",
+            "dependencies": [
+                {"owner": "esphome", "name": "C", "version": "^1.10018.1"}
+            ],
+        },
+        "esphome/C": {"name": "C"},
     }
 
+    def fake_download(self, force=False):
+        self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
+        (self.path / "src").mkdir(parents=True, exist_ok=True)
+        (self.path / "src" / "x.c").write_text("int x;")
+        (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
+        (self.path / "CMakeLists.txt").write_text("# TRIPWIRE\n")
+
+    monkeypatch.setattr(IDFComponent, "download", fake_download)
+
+    captured: dict[str, set[str]] = {}
+    resolve_calls: list[str] = []
+
+    def fake_resolve(owner, pkgname, requirements):
+        resolve_calls.append(pkgname)
+        captured[f"{owner}/{pkgname}"] = set(requirements)
+        version = "1.10021.0" if pkgname == "C" else "1.0.0"
+        return owner, pkgname, version, f"http://x/{pkgname}.tar.gz"
+
+    monkeypatch.setattr(
+        esphome.espidf.component, "_resolve_registry_version", fake_resolve
+    )
+
+    top = generate_idf_components(
+        [Library("esphome/A", "1.0.0", None), Library("esphome/B", "1.0.0", None)]
+    )
+
+    # C resolved once (not once per consumer) with BOTH requirements gathered.
+    assert captured["esphome/C"] == {"==1.10021.0", "^1.10018.1"}
+    assert resolve_calls.count("C") == 1
+    # Top-level components returned in request order.
+    assert [c.name for c in top] == ["esphome/A", "esphome/B"]
+    # A and B reference the SAME single C instance (deduped).
+    a_dep = top[0].dependencies[0]
+    b_dep = top[1].dependencies[0]
+    assert a_dep.name == "esphome/C"
+    assert a_dep is b_dep
+    # The bundled CMakeLists was overwritten with generated content.
+    generated = (a_dep.path / "CMakeLists.txt").read_text()
+    assert "TRIPWIRE" not in generated
+    assert "idf_component_register" in generated
+
+
+def test_generate_idf_components_handles_dependency_cycle(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    esp32_idf_core: None,
+) -> None:
+    # A -> B -> A. Must terminate (not recurse forever) and wire the cycle with
+    # a single instance per component.
+    manifests = {
+        "esphome/A": {
+            "name": "A",
+            "dependencies": [{"owner": "esphome", "name": "B", "version": "1.0.0"}],
+        },
+        "esphome/B": {
+            "name": "B",
+            "dependencies": [{"owner": "esphome", "name": "A", "version": "1.0.0"}],
+        },
+    }
+
+    def fake_download(self, force=False):
+        self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
+        (self.path / "src").mkdir(parents=True, exist_ok=True)
+        (self.path / "src" / "x.c").write_text("int x;")
+        (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
+
+    monkeypatch.setattr(IDFComponent, "download", fake_download)
     monkeypatch.setattr(
         esphome.espidf.component,
-        "_generate_idf_component",
-        lambda lib: esphome.espidf.component.IDFComponent(
-            lib.name, lib.version, source=URLSource("http://dummy.com")
+        "_resolve_registry_version",
+        lambda owner, pkgname, requirements: (
+            owner,
+            pkgname,
+            "1.0.0",
+            f"http://x/{pkgname}.tar.gz",
         ),
     )
 
-    monkeypatch.setattr(esphome.espidf.component, "_check_library_data", lambda x: None)
+    top = generate_idf_components([Library("esphome/A", "1.0.0", None)])
 
-    _process_dependencies(tmp_component)
+    assert [c.name for c in top] == ["esphome/A"]
+    component_a = top[0]
+    component_b = component_a.dependencies[0]
+    assert component_b.name == "esphome/B"
+    # The cycle is wired back to the same A instance, not a duplicate.
+    assert component_b.dependencies[0] is component_a
 
-    assert len(tmp_component.dependencies) == 1
 
-
-def test_process_dependencies_skips_invalid(tmp_component):
-    tmp_component.data = {
-        "dependencies": [
-            {"name": "foo", "version": "1.0", "platforms": ["arduino"]},
-            {"invalid": "entry"},
-        ]
+def test_generate_idf_components_git_overrides_registry_warns(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    esp32_idf_core: None,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # A pulls shared as a registry pin; B pulls the same component from a git
+    # source. The git source wins, but the dropped registry pin must be warned
+    # about (not silently discarded).
+    manifests = {
+        "esphome/A": {
+            "name": "A",
+            "dependencies": [
+                {"owner": "esphome", "name": "shared", "version": "==1.0.0"}
+            ],
+        },
+        "esphome/B": {
+            "name": "B",
+            "dependencies": [
+                {
+                    "owner": "esphome",
+                    "name": "shared",
+                    "version": "https://github.com/esphome/shared.git#main",
+                }
+            ],
+        },
+        "esphome/shared": {"name": "shared"},
     }
 
-    _process_dependencies(tmp_component)
+    def fake_download(self, force=False):
+        self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
+        (self.path / "src").mkdir(parents=True, exist_ok=True)
+        (self.path / "src" / "x.c").write_text("int x;")
+        (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
 
-    assert tmp_component.dependencies == []
+    monkeypatch.setattr(IDFComponent, "download", fake_download)
+    monkeypatch.setattr(
+        esphome.espidf.component,
+        "_resolve_registry_version",
+        lambda owner, pkgname, requirements: (
+            owner,
+            pkgname,
+            "1.0.0",
+            f"http://x/{pkgname}.tar.gz",
+        ),
+    )
+
+    top = generate_idf_components(
+        [Library("esphome/A", "1.0.0", None), Library("esphome/B", "1.0.0", None)]
+    )
+
+    # shared resolved from the git source (version "*"), not the registry pin.
+    shared = top[0].dependencies[0]
+    assert shared.name == "esphome/shared"
+    assert isinstance(shared.source, GitSource)
+    assert "using the git source" in caplog.text
+    assert "==1.0.0" in caplog.text
+
+
+def test_generate_idf_components_missing_manifest_raises(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    esp32_idf_core: None,
+) -> None:
+    # A library with neither library.json nor library.properties is invalid;
+    # fail loudly rather than silently generating build files for it.
+    def fake_download(self, force=False):
+        self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
+        (self.path / "src").mkdir(parents=True, exist_ok=True)
+        # no library.json / library.properties written
+
+    monkeypatch.setattr(IDFComponent, "download", fake_download)
+    monkeypatch.setattr(
+        esphome.espidf.component,
+        "_resolve_registry_version",
+        lambda owner, pkgname, requirements: (
+            owner,
+            pkgname,
+            "1.0.0",
+            f"http://x/{pkgname}.tar.gz",
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="missing library.json"):
+        generate_idf_components([Library("esphome/A", "1.0.0", None)])
+
+
+def test_generate_idf_components_warns_on_noncanonical_duplicate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    esp32_idf_core: None,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # A references "shared" (bare) and B references "owner/shared"; both resolve
+    # to the same canonical name but as distinct graph nodes, so they aren't
+    # deduplicated -- warn about it.
+    manifests = {
+        "esphome/A": {
+            "name": "A",
+            "dependencies": [{"name": "shared", "version": "1.0.0"}],
+        },
+        "esphome/B": {
+            "name": "B",
+            "dependencies": [{"owner": "owner", "name": "shared", "version": "1.0.0"}],
+        },
+        "owner/shared": {"name": "shared"},
+    }
+
+    def fake_download(self, force=False):
+        self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
+        (self.path / "src").mkdir(parents=True, exist_ok=True)
+        (self.path / "src" / "x.c").write_text("int x;")
+        (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
+
+    monkeypatch.setattr(IDFComponent, "download", fake_download)
+    # Bare "shared" and "owner/shared" both resolve to canonical owner/shared.
+    monkeypatch.setattr(
+        esphome.espidf.component,
+        "_resolve_registry_version",
+        lambda owner, pkgname, requirements: (
+            owner or "owner",
+            pkgname,
+            "1.0.0",
+            f"http://x/{pkgname}.tar.gz",
+        ),
+    )
+
+    generate_idf_components(
+        [Library("esphome/A", "1.0.0", None), Library("esphome/B", "1.0.0", None)]
+    )
+
+    assert "referenced under multiple names" in caplog.text
+
+
+def test_generate_idf_components_incompatible_top_level_raises(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    esp32_idf_core: None,
+) -> None:
+    # A top-level library that isn't ESP-IDF/esp32 compatible must fail fast,
+    # not be silently dropped.
+    def fake_download(self, force=False):
+        self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
+        (self.path / "src").mkdir(parents=True, exist_ok=True)
+        (self.path / "library.json").write_text(
+            json.dumps({"name": "A", "platforms": ["espressif8266"]})
+        )
+
+    monkeypatch.setattr(IDFComponent, "download", fake_download)
+    monkeypatch.setattr(
+        esphome.espidf.component,
+        "_resolve_registry_version",
+        lambda owner, pkgname, requirements: (
+            owner,
+            pkgname,
+            "1.0.0",
+            f"http://x/{pkgname}.tar.gz",
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="not compatible with ESP-IDF"):
+        generate_idf_components([Library("esphome/A", "1.0.0", None)])
+
+
+def test_generate_idf_components_incompatible_dependency_skipped(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    esp32_idf_core: None,
+) -> None:
+    # An incompatible *transitive* dependency is skipped (not fatal): A is fine,
+    # its esp8266-only dep B is dropped and not wired.
+    manifests = {
+        "esphome/A": {
+            "name": "A",
+            "dependencies": [{"owner": "esphome", "name": "B", "version": "1.0.0"}],
+        },
+        "esphome/B": {"name": "B", "platforms": ["espressif8266"]},
+    }
+
+    def fake_download(self, force=False):
+        self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
+        (self.path / "src").mkdir(parents=True, exist_ok=True)
+        (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
+
+    monkeypatch.setattr(IDFComponent, "download", fake_download)
+    monkeypatch.setattr(
+        esphome.espidf.component,
+        "_resolve_registry_version",
+        lambda owner, pkgname, requirements: (
+            owner,
+            pkgname,
+            "1.0.0",
+            f"http://x/{pkgname}.tar.gz",
+        ),
+    )
+
+    top = generate_idf_components([Library("esphome/A", "1.0.0", None)])
+
+    assert [c.name for c in top] == ["esphome/A"]
+    # The incompatible dependency was dropped, not wired in.
+    assert top[0].dependencies == []
