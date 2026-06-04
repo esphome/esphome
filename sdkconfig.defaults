@@ -1,5 +1,5 @@
 # ESP-IDF sdkconfig defaults used for development purposes only, not used during runtime. Used for static analysis
-# (clang-tidy) -- by both the PlatformIO and the native ESP-IDF toolchain paths -- and when PlatformIO is ran directly
+# (clang-tidy) -- by both the PlatformIO and the native ESP-IDF toolchain paths -- and when PlatformIO is run directly
 # from the source directory (e.g. by IDEs). This should enable all flags that are set by any component.
 
 # esp32

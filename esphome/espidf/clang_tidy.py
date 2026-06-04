@@ -409,7 +409,7 @@ def _idedata_from_tidy_project(compile_commands: Path) -> dict:
     }
 
 
-def load_idedata(environment: str, temp_folder: str, platformio_ini: str) -> dict:
+def load_idedata(environment: str, temp_folder: str, platformio_ini: Path) -> dict:
     if explicit := os.environ.get("ESPHOME_IDF_COMPILE_COMMANDS"):
         compile_commands = Path(explicit)
     else:
@@ -425,7 +425,7 @@ def load_idedata(environment: str, temp_folder: str, platformio_ini: str) -> dic
             / f"idf-tidy-{settings.idf_target}-{settings.target_framework}"
         ).resolve()
         compile_commands = _generate_compile_commands(
-            work_dir, settings, Path(platformio_ini)
+            work_dir, settings, platformio_ini
         )
 
     if not compile_commands.is_file():
