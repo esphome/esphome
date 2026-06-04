@@ -73,8 +73,8 @@ def _get_idf_path(version: str | None = None) -> Path | None:
 def _get_idf_env(version: str | None = None) -> dict[str, str]:
     """Get environment variables needed for ESP-IDF build."""
     # Lets idf_component.yml "if" rules gate managed deps on the framework (a
-    # Kconfig symbol can't express it). See set_arduino_env.py.script for the
-    # PlatformIO-toolchain equivalent.
+    # Kconfig symbol can't express it: an arduino-only symbol is undefined on
+    # esp-idf and the component manager hard-errors).
     os.environ["ESPHOME_ARDUINO"] = "1" if CORE.using_arduino else "0"
     version = version or _get_core_framework_version()
     env_cache = _cache().env

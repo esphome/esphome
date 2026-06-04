@@ -44,10 +44,6 @@ def _strip_win_long_path_prefix(path: str) -> str:
 
 
 def run_platformio_cli(*args, **kwargs) -> str | int:
-    # Lets idf_component.yml "if" rules gate managed deps on the framework (a
-    # Kconfig symbol can't express it). Mirrors set_arduino_env.py.script, which
-    # covers the repo platformio.ini (clang-tidy / IDE) builds.
-    os.environ["ESPHOME_ARDUINO"] = "1" if CORE.using_arduino else "0"
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = str(CORE.relative_pioenvs_path().absolute())
     os.environ.setdefault(
