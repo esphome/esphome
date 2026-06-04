@@ -28,12 +28,6 @@ from helpers import (
     temp_header_file,
 )
 
-# Limit the ESP-IDF tool install to esp32 for clang-tidy: the one xtensa-esp-elf
-# toolchain bundles the s2/s3 compilers too, so all xtensa tidy envs still
-# reconfigure while the large riscv32-esp-elf toolchain is skipped. Must be set
-# before esphome.espidf.framework is imported (lazily, via load_idedata).
-os.environ.setdefault("ESPHOME_IDF_DEFAULT_TARGETS", "esp32")
-
 
 def clang_options(idedata):
     cmd = []
@@ -46,7 +40,14 @@ def clang_options(idedata):
         cmd.append("-D__XTENSA__")
         cmd.append("-D_LIBC")
     else:
+        # RISC-V (and other non-Xtensa targets) have a real clang backend, so
+        # compile for the actual triplet. Espressif's RISC-V GCC -march adds
+        # vendor extensions (xesploop, xespv) upstream clang doesn't know; those
+        # are stripped from the copied cxx_flags below.
         cmd.append(f"--target={triplet}")
+        # The GCC build passes flags (e.g. -fno-plt) that clang accepts for some
+        # targets but not others; don't error on the ones unused for this target.
+        cmd.append("-Qunused-arguments")
 
     omit_flags = (
         "-free",
@@ -113,8 +114,15 @@ def clang_options(idedata):
     # ESP-IDF build defaults to gnu++2b, but ESPHome compiles with gnu++20 per
     # platformio.ini -- analyzing as C++23 flags code that doesn't build under
     # gnu++20). Force gnu++20 to match the real build.
+    # Strip Espressif's non-standard RISC-V -march extensions (e.g. xesploop,
+    # xespv); clang rejects the whole arch string otherwise.
+    def strip_esp_march(flag):
+        if flag.startswith("-march=") and triplet.startswith("riscv"):
+            return re.sub(r"_xesp\w+", "", flag)
+        return flag
+
     cmd.extend(
-        flag
+        strip_esp_march(flag)
         for flag in idedata["cxx_flags"]
         if flag not in omit_flags
         and not flag.startswith("-Werror")
