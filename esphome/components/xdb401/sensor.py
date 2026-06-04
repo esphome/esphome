@@ -34,7 +34,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(XDB401Component),
-            cv.Optional(CONF_TEMPERATURE_UNIT, default="F"): cv.one_of(
+            cv.Optional(CONF_TEMPERATURE_UNIT, default="C"): cv.one_of(
                 "C", "F", upper=True
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
