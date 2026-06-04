@@ -189,9 +189,12 @@ jobs:
       - name: Run device-builder pytest
         # ``-n auto`` runs under pytest-xdist (matches device-builder's
         # own CI). No ``--cov`` here -- this is purely a downstream
-        # smoke check against this PR's esphome code.
+        # smoke check against this PR's esphome code. ``tests/e2e/slow``
+        # is excluded: those are real multi-minute toolchain compiles
+        # (LibreTiny SDK clone, native ESP-IDF install) that device-builder
+        # runs in its own dedicated jobs, not this smoke check.
         working-directory: device-builder
-        run: pytest -q -n auto --maxfail=5 --durations=30 --no-cov --ignore=tests/benchmarks
+        run: pytest -q -n auto --maxfail=5 --durations=30 --no-cov --ignore=tests/benchmarks --ignore=tests/e2e/slow
 
   pytest:
     name: Run pytest
