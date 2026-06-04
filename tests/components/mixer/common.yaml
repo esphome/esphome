@@ -8,14 +8,14 @@ esphome:
 
 speaker:
   - platform: i2s_audio
-    id: mixer_speaker_id
+    id: mixer_output_speaker_id
     i2s_audio_id: i2s_audio_bus
     dac_type: external
     i2s_dout_pin: ${dout_pin}
     bits_per_sample: 32bit
     channel: stereo
   - platform: mixer
-    output_speaker: mixer_speaker_id
+    output_speaker: mixer_output_speaker_id
     bits_per_sample: 32
     num_channels: 2
     source_speakers:
