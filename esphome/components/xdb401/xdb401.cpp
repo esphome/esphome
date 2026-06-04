@@ -1,7 +1,6 @@
-#include "xdb401.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/hal.h"
+#include "xdb401.h"
 
 namespace esphome::xdb401 {
 
@@ -57,7 +56,7 @@ void XDB401Component::handle_comm_failure_(const char *message) {
 i2c::ErrorCode XDB401Component::start_measurement_() {
   i2c::ErrorCode err_code = this->write_register(REG_MAKE_MEASURE, &CMD_MAKE_MEASURE, sizeof(CMD_MAKE_MEASURE));
   if (err_code != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Error writing config to device, code: %u", err_code);
+    ESP_LOGE(TAG, "Error starting measurement, code: %u", err_code);
     return err_code;
   }
 
@@ -68,8 +67,8 @@ void XDB401Component::check_measurement_ready_(uint8_t attempt) {
   uint8_t meas_resp[1] = {};
   i2c::ErrorCode err_code = this->read_register(REG_MAKE_MEASURE, meas_resp, sizeof(meas_resp));
   if (err_code != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Error reading config from device, code: %u", err_code);
-    this->handle_comm_failure_("I2C Communication Failed");
+    ESP_LOGE(TAG, "Error reading measurement status, code: %u", err_code);
+    this->handle_comm_failure_("I2C communication failed");
     return;
   }
 
@@ -162,7 +161,7 @@ i2c::ErrorCode XDB401Component::read_temperature_(float &temperature) {
   int16_t raw_temperature = static_cast<int16_t>(encode_uint16(t_data[0], t_data[1]));
   ESP_LOGD(TAG, "Temperature data raw %i", raw_temperature);
 
-  temperature = static_cast<float>(raw_temperature) / 100.0f;
+  temperature = static_cast<float>(raw_temperature) / SCALE_TEMPERATURE;
 
   return err_code;
 }
@@ -175,7 +174,7 @@ void XDB401Component::update() {
 
   i2c::ErrorCode err_code = this->start_measurement_();
   if (err_code != i2c::ERROR_OK) {
-    this->handle_comm_failure_("I2C Communication Failed");
+    this->handle_comm_failure_("I2C communication failed");
     return;
   }
 
