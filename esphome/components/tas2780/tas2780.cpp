@@ -4,19 +4,19 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_SENSOR
-#include "esphome/components/sensor/sensor.h"
-#endif
-
 namespace esphome::tas2780 {
 
 static const char *const TAG = "tas2780";
 
 static const uint8_t TAS2780_PAGE_SELECT = 0x00;  // Page Select
+static const uint8_t TAS2780_PAGE_0 = 0x00;       // Page 0
+static const uint8_t TAS2780_PAGE_1 = 0x01;       // Page 1
+static const uint8_t TAS2780_PAGE_FD = 0xFD;      // Page 0xFD
 
 /* PAGE 0*/
-static const uint8_t TAS2780_SW_RESET = 0x01;   // Software Reset
-static const uint8_t TAS2780_MODE_CTRL = 0x02;  // Device operational mode
+static const uint8_t TAS2780_SW_RESET = 0x01;      // Software Reset
+static const uint8_t TAS2780_SW_RESET_CMD = 0x01;  // Trigger software reset
+static const uint8_t TAS2780_MODE_CTRL = 0x02;     // Device operational mode
 static const uint8_t TAS2780_MODE_CTRL_BOP_SRC_PVDD_UVLO = 0x80;
 static const uint8_t TAS2780_MODE_CTRL_MODE_MASK = 0x07;
 static const uint8_t TAS2780_MODE_CTRL_MODE_ACTIVE = 0x00;
@@ -51,23 +51,26 @@ static const uint8_t TAS2780_TDM_CFG2_RX_WLEN_32BIT = (3 << TAS2780_TDM_CFG2_RX_
 static const uint8_t TAS2780_TDM_CFG2_RX_SLEN_MASK = (3 << 0);
 static const uint8_t TAS2780_TDM_CFG2_RX_SLEN_32BIT = 2;
 
-static const uint8_t TAS2780_LIM_MAX_ATTN = 0x0B;  // Limiter
-static const uint8_t TAS2780_TDM_CFG3 = 0x0C;      // TDM Configuration 3
-static const uint8_t TAS2780_TDM_CFG4 = 0x0D;      // TDM Configuration 4
-static const uint8_t TAS2780_TDM_CFG5 = 0x0E;      // TDM Configuration 5
-static const uint8_t TAS2780_TDM_CFG6 = 0x0F;      // TDM Configuration 6
-static const uint8_t TAS2780_TDM_CFG7 = 0x10;      // TDM Configuration 7
-static const uint8_t TAS2780_TDM_CFG8 = 0x11;      // TDM Configuration 8
-static const uint8_t TAS2780_TDM_CFG9 = 0x12;      // TDM Configuration 9
-static const uint8_t TAS2780_TDM_CFG10 = 0x13;     // TDM Configuration 10
-static const uint8_t TAS2780_TDM_CFG11 = 0x14;     // TDM Configuration 11
-static const uint8_t TAS2780_ICC_CNFG2 = 0x15;     // ICC Mode
-static const uint8_t TAS2780_TDM_CFG12 = 0x16;     // TDM Configuration 12
-static const uint8_t TAS2780_ICLA_CFG0 = 0x17;     // Inter Chip Limiter Alignment 0
-static const uint8_t TAS2780_ICLA_CFG1 = 0x18;     // Inter Chip Gain Alignment 1
-static const uint8_t TAS2780_DG_0 = 0x19;          // Diagnostic Signal
+static const uint8_t TAS2780_LIM_MAX_ATTN = 0x0B;               // Limiter
+static const uint8_t TAS2780_TDM_CFG3 = 0x0C;                   // TDM Configuration 3
+static const uint8_t TAS2780_TDM_CFG4 = 0x0D;                   // TDM Configuration 4
+static const uint8_t TAS2780_TDM_CFG5 = 0x0E;                   // TDM Configuration 5
+static const uint8_t TAS2780_TDM_CFG5_TX_VSNS_EN_SLOT4 = 0x44;  // vsns TX enable, slot 4
+static const uint8_t TAS2780_TDM_CFG6 = 0x0F;                   // TDM Configuration 6
+static const uint8_t TAS2780_TDM_CFG6_TX_ISNS_EN_SLOT0 = 0x40;  // isns TX enable, slot 0
+static const uint8_t TAS2780_TDM_CFG7 = 0x10;                   // TDM Configuration 7
+static const uint8_t TAS2780_TDM_CFG8 = 0x11;                   // TDM Configuration 8
+static const uint8_t TAS2780_TDM_CFG9 = 0x12;                   // TDM Configuration 9
+static const uint8_t TAS2780_TDM_CFG10 = 0x13;                  // TDM Configuration 10
+static const uint8_t TAS2780_TDM_CFG11 = 0x14;                  // TDM Configuration 11
+static const uint8_t TAS2780_ICC_CNFG2 = 0x15;                  // ICC Mode
+static const uint8_t TAS2780_TDM_CFG12 = 0x16;                  // TDM Configuration 12
+static const uint8_t TAS2780_ICLA_CFG0 = 0x17;                  // Inter Chip Limiter Alignment 0
+static const uint8_t TAS2780_ICLA_CFG1 = 0x18;                  // Inter Chip Gain Alignment 1
+static const uint8_t TAS2780_DG_0 = 0x19;                       // Diagnostic Signal
 
 static const uint8_t TAS2780_DVC = 0x1A;        // Digital Volume Control
+static const uint8_t TAS2780_DVC_MUTE = 0xC9;   // DVC mute (one step past -100 dB max attenuation)
 static const uint8_t TAS2780_LIM_CFG0 = 0x1B;   // Limiter Configuration 0
 static const uint8_t TAS2780_LIM_CFG1 = 0x1C;   // Limiter Configuration 1
 static const uint8_t TAS2780_BOP_CFG0 = 0x1D;   // Brown Out Prevention 0
@@ -100,66 +103,73 @@ static const uint8_t TAS2780_LVS_CFG0 = 0x37;   // Low Voltage Signaling
 static const uint8_t TAS2780_DIN_PD = 0x38;     // Digital Input Pin Pull Down
 
 /* Interrupts */
-static const uint8_t TAS2780_INT_MASK0 = 0x3B;    // Interrupt Mask 0
-static const uint8_t TAS2780_INT_MASK1 = 0x3C;    // Interrupt Mask 1
-static const uint8_t TAS2780_INT_MASK4 = 0x3D;    // Interrupt Mask 4
-static const uint8_t TAS2780_INT_MASK2 = 0x40;    // Interrupt Mask 2
-static const uint8_t TAS2780_INT_MASK3 = 0x41;    // Interrupt Mask 3
-static const uint8_t TAS2780_INT_LIVE0 = 0x42;    // Live Interrupt Read-back 0
-static const uint8_t TAS2780_INT_LIVE1 = 0x43;    // Live Interrupt Read-back 1
-static const uint8_t TAS2780_INT_LIVE1_0 = 0x44;  // Live Interrupt Read-back 1_0
-static const uint8_t TAS2780_INT_LIVE2 = 0x47;    // Live Interrupt Read-back 2
-static const uint8_t TAS2780_INT_LIVE3 = 0x48;    // Live Interrupt Read-back 3
-static const uint8_t TAS2780_INT_LTCH0 = 0x49;    // Latched Interrupt Read-back 0
-static const uint8_t TAS2780_INT_LTCH1 = 0x4A;    // Latched Interrupt Read-back 1
-static const uint8_t TAS2780_INT_LTCH1_0 = 0x4B;  // Latched Interrupt Read-back 1_0
-static const uint8_t TAS2780_INT_LTCH2 = 0x4F;    // Latched Interrupt Read-back 2
-static const uint8_t TAS2780_INT_LTCH3 = 0x50;    // Latched Interrupt Read-back 3
-static const uint8_t TAS2780_INT_LTCH4 = 0x51;    // Latched Interrupt Read-back 4
+static const uint8_t TAS2780_INT_MASK_ALL = 0xFF;  // Mask all interrupts
+static const uint8_t TAS2780_INT_MASK0 = 0x3B;     // Interrupt Mask 0
+static const uint8_t TAS2780_INT_MASK1 = 0x3C;     // Interrupt Mask 1
+static const uint8_t TAS2780_INT_MASK4 = 0x3D;     // Interrupt Mask 4
+static const uint8_t TAS2780_INT_MASK2 = 0x40;     // Interrupt Mask 2
+static const uint8_t TAS2780_INT_MASK3 = 0x41;     // Interrupt Mask 3
+static const uint8_t TAS2780_INT_LIVE0 = 0x42;     // Live Interrupt Read-back 0
+static const uint8_t TAS2780_INT_LIVE1 = 0x43;     // Live Interrupt Read-back 1
+static const uint8_t TAS2780_INT_LIVE1_0 = 0x44;   // Live Interrupt Read-back 1_0
+static const uint8_t TAS2780_INT_LIVE2 = 0x47;     // Live Interrupt Read-back 2
+static const uint8_t TAS2780_INT_LIVE3 = 0x48;     // Live Interrupt Read-back 3
+static const uint8_t TAS2780_INT_LTCH0 = 0x49;     // Latched Interrupt Read-back 0
+static const uint8_t TAS2780_INT_LTCH1 = 0x4A;     // Latched Interrupt Read-back 1
+static const uint8_t TAS2780_INT_LTCH1_0 = 0x4B;   // Latched Interrupt Read-back 1_0
+static const uint8_t TAS2780_INT_LTCH2 = 0x4F;     // Latched Interrupt Read-back 2
+static const uint8_t TAS2780_INT_LTCH3 = 0x50;     // Latched Interrupt Read-back 3
+static const uint8_t TAS2780_INT_LTCH4 = 0x51;     // Latched Interrupt Read-back 4
 
-static const uint8_t TAS2780_VBAT_MSB = 0x52;        // SAR VBAT1S 0
-static const uint8_t TAS2780_VBAT_LSB = 0x53;        // SAR VBAT1S 1
-static const uint8_t TAS2780_PVDD_MSB = 0x54;        // SAR PVDD 0
-static const uint8_t TAS2780_PVDD_LSB = 0x55;        // SAR PVDD 1
-static const uint8_t TAS2780_TEMP = 0x56;            // SAR ADC Conversion 2
-static const uint8_t TAS2780_INT_CLK_CFG = 0x5C;     // Clock Setting and IRQZ
-static const uint8_t TAS2780_MISC_CFG3 = 0x5D;       // Misc Configuration 3
-static const uint8_t TAS2780_CLOCK_CFG = 0x60;       // Clock Configuration
-static const uint8_t TAS2780_IDLE_IND = 0x63;        // Idle channel current optimization
-static const uint8_t TAS2780_SAR_SAMP = 0x64;        // SAR Sampling Time
-static const uint8_t TAS2780_MISC_CFG4 = 0x65;       // Misc Configuration 4
-static const uint8_t TAS2780_TG_CFG0 = 0x67;         // Tone Generator
-static const uint8_t TAS2780_CLK_CFG = 0x68;         // Detect Clock Ration and Sample Rate
-static const uint8_t TAS2780_LV_EN_CFG = 0x6A;       // Class-D and LVS Delays
-static const uint8_t TAS2780_NG_CFG2 = 0x6B;         // Noise Gate 2
-static const uint8_t TAS2780_NG_CFG3 = 0x6C;         // Noise Gate 3
-static const uint8_t TAS2780_NG_CFG4 = 0x6D;         // Noise Gate 4
-static const uint8_t TAS2780_NG_CFG5 = 0x6E;         // Noise Gate 5
-static const uint8_t TAS2780_NG_CFG6 = 0x6F;         // Noise Gate 6
-static const uint8_t TAS2780_NG_CFG7 = 0x70;         // Noise Gate 7
-static const uint8_t TAS2780_PVDD_UVLO = 0x71;       // UVLO Threshold
-static const uint8_t TAS2780_DMD = 0x73;             // DAC Modulator Dither
-static const uint8_t TAS2780_I2C_CKSUM = 0x7E;       // I2C Checksum
-static const uint8_t TAS2780_BOOK = 0x7F;            // Device Book
-static const uint8_t TAS2780_PAGE_FD_ACCESS = 0x0D;  // Page 0xFD access unlock/lock register
+static const uint8_t TAS2780_INT_CLK_CFG = 0x5C;                // Clock Setting and IRQZ
+static const uint8_t TAS2780_INT_CLK_CFG_DEFAULT = 0x19;        // Default clock detect count and IRQZ pin config
+static const uint8_t TAS2780_INT_CLK_CFG_CLR_LATCH = (1 << 2);  // Clear interrupt latches
+static const uint8_t TAS2780_INT_CLK_CFG_MODE_MASK = 0x03;      // Trigger mode field mask
+static const uint8_t TAS2780_INT_CLK_CFG_MODE_LIVE = 0x00;      // Trigger on any unmasked live interrupt
+static const uint8_t TAS2780_MISC_CFG3 = 0x5D;                  // Misc Configuration 3
+static const uint8_t TAS2780_CLOCK_CFG = 0x60;                  // Clock Configuration
+static const uint8_t TAS2780_IDLE_IND = 0x63;                   // Idle channel current optimization
+static const uint8_t TAS2780_SAR_SAMP = 0x64;                   // SAR Sampling Time
+static const uint8_t TAS2780_MISC_CFG4 = 0x65;                  // Misc Configuration 4
+static const uint8_t TAS2780_TG_CFG0 = 0x67;                    // Tone Generator
+static const uint8_t TAS2780_CLK_CFG = 0x68;                    // Detect Clock Ration and Sample Rate
+static const uint8_t TAS2780_LV_EN_CFG = 0x6A;                  // Class-D and LVS Delays
+static const uint8_t TAS2780_NG_CFG2 = 0x6B;                    // Noise Gate 2
+static const uint8_t TAS2780_NG_CFG3 = 0x6C;                    // Noise Gate 3
+static const uint8_t TAS2780_NG_CFG4 = 0x6D;                    // Noise Gate 4
+static const uint8_t TAS2780_NG_CFG5 = 0x6E;                    // Noise Gate 5
+static const uint8_t TAS2780_NG_CFG6 = 0x6F;                    // Noise Gate 6
+static const uint8_t TAS2780_NG_CFG7 = 0x70;                    // Noise Gate 7
+static const uint8_t TAS2780_PVDD_UVLO = 0x71;                  // UVLO Threshold
+static const uint8_t TAS2780_PVDD_UVLO_2V76 = 0x03;             // PVDD UVLO threshold = 2.76V
+static const uint8_t TAS2780_DMD = 0x73;                        // DAC Modulator Dither
+static const uint8_t TAS2780_I2C_CKSUM = 0x7E;                  // I2C Checksum
+static const uint8_t TAS2780_BOOK = 0x7F;                       // Device Book
+static const uint8_t TAS2780_PAGE_FD_ACCESS = 0x0D;             // Page 0xFD access unlock/lock register
+static const uint8_t TAS2780_PAGE_FD_ACCESS_UNLOCK = 0x0D;      // Unlock page 0xFD access
+static const uint8_t TAS2780_PAGE_FD_ACCESS_LOCK = 0x00;        // Lock page 0xFD access
 
 /* PAGE 0x01*/
-static const uint8_t TAS2780_INIT_0 = 0x17;       // Initialization
-static const uint8_t TAS2780_LSR = 0x19;          // Modulation
-static const uint8_t TAS2780_INIT_1 = 0x21;       // Initialization
-static const uint8_t TAS2780_INIT_2 = 0x35;       // Initialization
-static const uint8_t TAS2780_INT_LDO = 0x36;      // Internal LDO Setting
-static const uint8_t TAS2780_SDOUT_HIZ_1 = 0x3D;  // Slots Control
-static const uint8_t TAS2780_SDOUT_HIZ_2 = 0x3E;  // Slots Control
-static const uint8_t TAS2780_SDOUT_HIZ_3 = 0x3F;  // Slots Control
-static const uint8_t TAS2780_SDOUT_HIZ_4 = 0x40;  // Slots Control
-static const uint8_t TAS2780_SDOUT_HIZ_5 = 0x41;  // Slots Control
-static const uint8_t TAS2780_SDOUT_HIZ_6 = 0x42;  // Slots Control
-static const uint8_t TAS2780_SDOUT_HIZ_7 = 0x43;  // Slots Control
-static const uint8_t TAS2780_SDOUT_HIZ_8 = 0x44;  // Slots Control
-static const uint8_t TAS2780_SDOUT_HIZ_9 = 0x45;  // Slots Control
-static const uint8_t TAS2780_TG_EN = 0x47;        // Thermal Detection Enable
-static const uint8_t TAS2780_EDGE_CTRL = 0x4C;    // Slew rate control
+static const uint8_t TAS2780_INIT_0 = 0x17;        // Initialization
+static const uint8_t TAS2780_INIT_0_VAL = 0xC8;    // SARBurstMask=0, CMP_HYST_LP=1
+static const uint8_t TAS2780_LSR = 0x19;           // Modulation
+static const uint8_t TAS2780_LSR_PWM_MODE = 0x00;  // PWM modulation mode
+static const uint8_t TAS2780_INIT_1 = 0x21;        // Initialization
+static const uint8_t TAS2780_INIT_1_VAL = 0x00;    // Disable comparator hysteresis
+static const uint8_t TAS2780_INIT_2 = 0x35;        // Initialization
+static const uint8_t TAS2780_INIT_2_VAL = 0x74;    // Noise minimized
+static const uint8_t TAS2780_INT_LDO = 0x36;       // Internal LDO Setting
+static const uint8_t TAS2780_SDOUT_HIZ_1 = 0x3D;   // Slots Control
+static const uint8_t TAS2780_SDOUT_HIZ_2 = 0x3E;   // Slots Control
+static const uint8_t TAS2780_SDOUT_HIZ_3 = 0x3F;   // Slots Control
+static const uint8_t TAS2780_SDOUT_HIZ_4 = 0x40;   // Slots Control
+static const uint8_t TAS2780_SDOUT_HIZ_5 = 0x41;   // Slots Control
+static const uint8_t TAS2780_SDOUT_HIZ_6 = 0x42;   // Slots Control
+static const uint8_t TAS2780_SDOUT_HIZ_7 = 0x43;   // Slots Control
+static const uint8_t TAS2780_SDOUT_HIZ_8 = 0x44;   // Slots Control
+static const uint8_t TAS2780_SDOUT_HIZ_9 = 0x45;   // Slots Control
+static const uint8_t TAS2780_TG_EN = 0x47;         // Thermal Detection Enable
+static const uint8_t TAS2780_EDGE_CTRL = 0x4C;     // Slew rate control
 
 /* PAGE 0x04*/
 static const uint8_t TAS2780_DG_DC_VAL1 = 0x08;    // Diagnostic DC Level
@@ -220,7 +230,8 @@ static const uint8_t TAS2780_LDG_RES3 = 0x4E;      // Load Diagnostics Resistanc
 static const uint8_t TAS2780_LDG_RES4 = 0x4F;      // Load Diagnostics Resistance Value
 
 /* PAGE 0x0FD*/
-static const uint8_t TAS2780_INIT_3 = 0x3E;  // Initialization
+static const uint8_t TAS2780_INIT_3 = 0x3E;      // Initialization
+static const uint8_t TAS2780_INIT_3_VAL = 0x4A;  // Optimal Dmin
 
 static const uint8_t TAS2780_INT_LTCH0_IR_OT = (1 << 0);     // over temp error
 static const uint8_t TAS2780_INT_LTCH0_IR_OC = (1 << 1);     // over current error
@@ -265,6 +276,8 @@ static uint8_t get_channel_select_reg_val(ChannelSelect channel) {
 
 void TAS2780::setup() {
   this->init_();
+  if (this->is_failed())
+    return;
   // set to software shutdown
   this->reg(TAS2780_MODE_CTRL) =
       (TAS2780_MODE_CTRL_BOP_SRC_PVDD_UVLO & ~TAS2780_MODE_CTRL_MODE_MASK) | TAS2780_MODE_CTRL_MODE_SFTW_SHTDWN;
@@ -272,10 +285,10 @@ void TAS2780::setup() {
 
 void TAS2780::init_() {
   // select page 0
-  this->reg(TAS2780_PAGE_SELECT) = 0x00;
+  this->reg(TAS2780_PAGE_SELECT) = TAS2780_PAGE_0;
 
   // software reset
-  this->reg(TAS2780_SW_RESET) = 0x01;
+  this->reg(TAS2780_SW_RESET) = TAS2780_SW_RESET_CMD;
 
   uint8_t chd1 = this->reg(TAS2780_DC_BLK1).get();
   uint8_t chd2 = this->reg(TAS2780_CLK_CFG).get();
@@ -285,60 +298,61 @@ void TAS2780::init_() {
   // since TAS2780 has no dedicated WHO_AM_I register
   static const uint8_t TAS2780_DC_BLK1_RESET_VAL = 0x41;
   if (chd1 == TAS2780_DC_BLK1_RESET_VAL) {
-    ESP_LOGD(TAG, "TAS2780 chip found.");
-    ESP_LOGD(TAG, "Reg 0x68: %d.", chd2);
-    ESP_LOGD(TAG, "Reg 0x02: %d.", chd3);
+    ESP_LOGV(TAG, "TChip found");
+    ESP_LOGV(TAG, "Reg 0x68: %d", chd2);
+    ESP_LOGV(TAG, "Reg 0x02: %d", chd3);
   } else {
-    ESP_LOGE(TAG, "TAS2780 chip not found (DC_BLK1=0x%02X, expected 0x%02X).", chd1, TAS2780_DC_BLK1_RESET_VAL);
+    ESP_LOGE(TAG, "Init failed (DC_BLK1=0x%02X, expected 0x%02X)", chd1, TAS2780_DC_BLK1_RESET_VAL);
     this->mark_failed();
     return;
   }
 
-  this->reg(TAS2780_PAGE_SELECT) = 0x00;
-  this->reg(TAS2780_TDM_CFG5) = 0x44;  // TDM tx vsns transmit enable with slot 4
-  this->reg(TAS2780_TDM_CFG6) = 0x40;  // TDM tx isns transmit enable with slot 0
+  this->reg(TAS2780_PAGE_SELECT) = TAS2780_PAGE_0;
+  this->reg(TAS2780_TDM_CFG5) = TAS2780_TDM_CFG5_TX_VSNS_EN_SLOT4;
+  this->reg(TAS2780_TDM_CFG6) = TAS2780_TDM_CFG6_TX_ISNS_EN_SLOT0;
 
-  this->reg(TAS2780_PAGE_SELECT) = 0x01;
-  this->reg(TAS2780_LSR) = 0x00;     // LSR Mode
-  this->reg(TAS2780_INIT_0) = 0xC8;  // SARBurstMask=0, CMP_HYST_LP=1
-  this->reg(TAS2780_INIT_1) = 0x00;  // Disable Comparator Hysterisis
-  this->reg(TAS2780_INIT_2) = 0x74;  // Noise minimized
+  this->reg(TAS2780_PAGE_SELECT) = TAS2780_PAGE_1;
+  this->reg(TAS2780_LSR) = TAS2780_LSR_PWM_MODE;
+  this->reg(TAS2780_INIT_0) = TAS2780_INIT_0_VAL;
+  this->reg(TAS2780_INIT_1) = TAS2780_INIT_1_VAL;
+  this->reg(TAS2780_INIT_2) = TAS2780_INIT_2_VAL;
 
-  this->reg(TAS2780_PAGE_SELECT) = 0xFD;
-  this->reg(TAS2780_PAGE_FD_ACCESS) = 0x0D;  // Access Page 0xFD
-  this->reg(TAS2780_INIT_3) = 0x4a;          // Optimal Dmin
-  this->reg(TAS2780_PAGE_FD_ACCESS) = 0x00;  // Remove access Page 0xFD
+  this->reg(TAS2780_PAGE_SELECT) = TAS2780_PAGE_FD;
+  this->reg(TAS2780_PAGE_FD_ACCESS) = TAS2780_PAGE_FD_ACCESS_UNLOCK;
+  this->reg(TAS2780_INIT_3) = TAS2780_INIT_3_VAL;
+  this->reg(TAS2780_PAGE_FD_ACCESS) = TAS2780_PAGE_FD_ACCESS_LOCK;
 
-  this->reg(TAS2780_PAGE_SELECT) = 0x00;
+  this->reg(TAS2780_PAGE_SELECT) = TAS2780_PAGE_0;
   this->set_power_mode_(this->power_mode_);
 
   // When Y bridge is used (eg. PWR_MODE1) PVDD UVLO threshold needs to be set 2.5 V above VBAT1S level.
   //  UVLO = 1.753V + val * 0.332V
-  // this->reg(TAS2780_PVDD_UVLO) = 0x12; //PVDD UVLO set to 7.73V
-  this->reg(TAS2780_PVDD_UVLO) = 0x03;  // PVDD UVLO set to 2.76V
+  this->reg(TAS2780_PVDD_UVLO) = TAS2780_PVDD_UVLO_2V76;
 
   // Set interrupt masks
-  this->reg(TAS2780_PAGE_SELECT) = 0x00;
+  this->reg(TAS2780_PAGE_SELECT) = TAS2780_PAGE_0;
   // mask VBAT1S Under Voltage
-  this->reg(TAS2780_INT_MASK4) = 0xFF;
+  this->reg(TAS2780_INT_MASK4) = TAS2780_INT_MASK_ALL;
   // mask all PVDD and VBAT1S interrupts
-  this->reg(TAS2780_INT_MASK2) = 0xFF;
-  this->reg(TAS2780_INT_MASK3) = 0xFF;
-  this->reg(TAS2780_INT_MASK1) = 0xFF;
+  this->reg(TAS2780_INT_MASK2) = TAS2780_INT_MASK_ALL;
+  this->reg(TAS2780_INT_MASK3) = TAS2780_INT_MASK_ALL;
+  this->reg(TAS2780_INT_MASK1) = TAS2780_INT_MASK_ALL;
 
-  // set interrupt to trigger For
-  // 0h : On any unmasked live interrupts
-  // 3h : 2 - 4 ms every 4 ms on any unmasked latched
+  // set interrupt to trigger on any unmasked live interrupts
   uint8_t reg_0x5c = this->reg(TAS2780_INT_CLK_CFG).get();
-  this->reg(TAS2780_INT_CLK_CFG) = (reg_0x5c & ~0x03) | 0x00;
+  this->reg(TAS2780_INT_CLK_CFG) = (reg_0x5c & ~TAS2780_INT_CLK_CFG_MODE_MASK) | TAS2780_INT_CLK_CFG_MODE_LIVE;
 
-  this->update_register();
+  this->apply_amp_and_channel_config();
 }
 
 void TAS2780::activate(uint8_t power_mode) {
-  ESP_LOGD(TAG, "Activating TAS2780 (PWR_MODE:%d)", power_mode);
+  if (power_mode >= 4) {
+    ESP_LOGE(TAG, "Invalid power mode %u, must be 0-3", power_mode);
+    return;
+  }
+  ESP_LOGD(TAG, "Activating (PWR_MODE:%d)", power_mode);
   // clear interrupt latches
-  this->reg(TAS2780_INT_CLK_CFG) = 0x19 | (1 << 2);
+  this->reg(TAS2780_INT_CLK_CFG) = TAS2780_INT_CLK_CFG_DEFAULT | TAS2780_INT_CLK_CFG_CLR_LATCH;
   if (power_mode != this->power_mode_) {
     this->power_mode_ = power_mode;
     this->init_();
@@ -350,7 +364,7 @@ void TAS2780::activate(uint8_t power_mode) {
 }
 
 void TAS2780::deactivate() {
-  ESP_LOGD(TAG, "Deactivating TAS2780");
+  ESP_LOGD(TAG, "Deactivating");
   // set to software shutdown
   this->reg(TAS2780_MODE_CTRL) =
       (TAS2780_MODE_CTRL_BOP_SRC_PVDD_UVLO & ~TAS2780_MODE_CTRL_MODE_MASK) | TAS2780_MODE_CTRL_MODE_SFTW_SHTDWN;
@@ -386,101 +400,98 @@ void TAS2780::log_error_states_() {
   const uint8_t latched_its = this->reg(TAS2780_INT_LTCH0).get();
   // Temperature
   if (latched_its & TAS2780_INT_LTCH0_IR_OT) {
-    ESP_LOGE(TAG, "Over temperature error!");
+    ESP_LOGE(TAG, "Over temperature error");
   }
   // Over Current
   if (latched_its & TAS2780_INT_LTCH0_IR_OC) {
-    ESP_LOGE(TAG, "Over current error!");
+    ESP_LOGE(TAG, "Over current error");
   }
 
   // TDM CLOCK
   if (latched_its & TAS2780_INT_LTCH0_IR_TDMCE) {
-    ESP_LOGE(TAG, "TDM Clock Error!");
+    ESP_LOGE(TAG, "TDM Clock Error");
   }
 
   if (latched_its & TAS2780_INT_LTCH0_IR_LIMA) {
-    ESP_LOGE(TAG, "Limiter active error!");
+    ESP_LOGE(TAG, "Limiter active error");
   }
 
   if (latched_its & TAS2780_INT_LTCH0_IR_PBIP) {
-    ESP_LOGE(TAG, "PVDD below limiter inflection point!");
+    ESP_LOGE(TAG, "PVDD below limiter inflection point");
   }
 
   if (latched_its & TAS2780_INT_LTCH0_IR_LIMMA) {
-    ESP_LOGE(TAG, "Limiter max attenuation!");
+    ESP_LOGE(TAG, "Limiter max attenuation");
   }
 
   if (latched_its & TAS2780_INT_LTCH0_IR_BOPIH) {
-    ESP_LOGE(TAG, "BOP infinite hold!");
+    ESP_LOGE(TAG, "BOP infinite hold");
   }
 
   if (latched_its & TAS2780_INT_LTCH0_IR_BOPM) {
-    ESP_LOGE(TAG, "BOP Mute!");
+    ESP_LOGE(TAG, "BOP Mute");
   }
 
   const uint8_t latched1_its = this->reg(TAS2780_INT_LTCH1).get();
 
   if (latched1_its & TAS2780_INT_LTCH1_IR_VBATLIM) {
-    ESP_LOGE(TAG, "Gain Limiter interrupt!");
+    ESP_LOGE(TAG, "Gain Limiter interrupt");
   }
 
   if (latched1_its & TAS2780_INT_LTCH1_IR_LDMODE) {
-    ESP_LOGE(TAG, "Load Diagnostic mode fault status!");
+    ESP_LOGE(TAG, "Load Diagnostic mode fault status");
   }
 
   if (latched1_its & TAS2780_INT_LTCH1_IR_LDC) {
-    ESP_LOGE(TAG, "Load diagnostic completion!");
+    ESP_LOGE(TAG, "Load diagnostic completion");
   }
 
   if (latched1_its & TAS2780_INT_LTCH1_IR_OTPCRC) {
-    ESP_LOGE(TAG, "OTP CRC error flag!");
+    ESP_LOGE(TAG, "OTP CRC error flag");
   }
 
   const uint8_t latched1_0_its = this->reg(TAS2780_INT_LTCH1_0).get();
   if (latched1_0_its & TAS2780_INT_LTCH1_0_IR_VBAT1S_UVLO) {
-    ESP_LOGE(TAG, "VBAT1S Under Voltage!");
+    ESP_LOGE(TAG, "VBAT1S Under Voltage");
   }
 
   if (latched1_0_its & TAS2780_INT_LTCH1_0_IR_PLL_CLK) {
-    ESP_LOGE(TAG, "Internal PLL Clock Error!");
+    ESP_LOGE(TAG, "Internal PLL Clock Error");
   }
 
   const uint8_t latched2_its = this->reg(TAS2780_INT_LTCH2).get();
   if (latched2_its & TAS2780_INT_LTCH2_IR_PUVLO) {
-    ESP_LOGE(TAG, "PVDD UVLO!");
+    ESP_LOGE(TAG, "PVDD UVLO");
   }
   if (latched2_its & TAS2780_INT_LTCH2_IR_LDO_OL) {
-    ESP_LOGE(TAG, "Internal VBAT1S LDO Over Load!");
+    ESP_LOGE(TAG, "Internal VBAT1S LDO Over Load");
   }
   if (latched2_its & TAS2780_INT_LTCH2_IR_LDO_OV) {
-    ESP_LOGE(TAG, "Internal VBAT1S LDO Over Voltage!");
+    ESP_LOGE(TAG, "Internal VBAT1S LDO Over Voltage");
   }
   if (latched2_its & TAS2780_INT_LTCH2_IR_LDO_UV) {
-    ESP_LOGE(TAG, "Internal VBAT1S LDO Under Voltage!");
+    ESP_LOGE(TAG, "Internal VBAT1S LDO Under Voltage");
   }
 }
 
-void TAS2780::update() {
-#ifdef USE_SENSOR
-  this->update_sensors_();
-#endif
-  this->log_error_states_();
-}
+void TAS2780::update() { this->log_error_states_(); }
 
 void TAS2780::dump_config() {
-  ESP_LOGCONFIG(TAG, "TAS2780 Audio Amplifier:");
+  ESP_LOGCONFIG(TAG, "Audio Amplifier:");
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-  ESP_LOGCONFIG(TAG, "  Power Mode: %u", this->power_mode_);
-  ESP_LOGCONFIG(TAG, "  Amp Level: %u", this->amp_level_);
-  ESP_LOGCONFIG(TAG, "  Volume Range: %.2f - %.2f", this->vol_range_min_, this->vol_range_max_);
   const char *channel_str = "Mono Downmix";
   if (this->selected_channel_ == LEFT_CHANNEL) {
     channel_str = "Left";
   } else if (this->selected_channel_ == RIGHT_CHANNEL) {
     channel_str = "Right";
   }
-  ESP_LOGCONFIG(TAG, "  Channel: %s", channel_str);
+  ESP_LOGCONFIG(TAG,
+                "  Power Mode: %u\n"
+                "  Amp Level: %u\n"
+                "  Volume Range: %.2f - %.2f\n"
+                "  Channel: %s",
+                this->power_mode_, this->amp_level_, this->vol_range_min_, this->vol_range_max_, channel_str);
 }
 
 bool TAS2780::set_mute_off() {
@@ -504,7 +515,7 @@ float TAS2780::volume() { return this->volume_; }
 
 bool TAS2780::write_mute_() {
   if (this->is_muted_) {
-    this->reg(TAS2780_DVC) = 0xC9;
+    this->reg(TAS2780_DVC) = TAS2780_DVC_MUTE;
   } else {
     this->write_volume_();
   }
@@ -512,7 +523,7 @@ bool TAS2780::write_mute_() {
 }
 
 bool TAS2780::write_volume_() {
-  // Don't overwrite the DVC register while muted - the mute value (0xC9) would be lost.
+  // Don't overwrite the DVC register while muted - the mute value (TAS2780_DVC_MUTE) would be lost.
   // The correct volume will be applied when unmuting via write_mute_() -> write_volume_().
   if (this->is_muted_) {
     return true;
@@ -528,9 +539,10 @@ bool TAS2780::write_volume_() {
   DVC_LVL[7:0] :            0dB to -100dB [0x00, 0xC8] c8 = 200
   AMP_LEVEL[4:0] : @48ksps 11dBV - 21dBV  [0x00, 0x14]
   */
-  float range_len = this->vol_range_max_ - this->vol_range_min_;
-  float volume = this->volume_ * range_len + this->vol_range_min_;
-  float attenuation = (1. - volume) * 100.f;
+  float range_min = std::min(this->vol_range_min_, this->vol_range_max_);
+  float range_max = std::max(this->vol_range_min_, this->vol_range_max_);
+  float volume = this->volume_ * (range_max - range_min) + range_min;
+  float attenuation = (1. - volume) * 200.f;
   ESP_LOGD(TAG, "Setting attenuation to: %4.2f", attenuation);
   uint8_t dvc = clamp<uint8_t>(attenuation, 0, 0xC8);
   this->reg(TAS2780_DVC) = dvc;
@@ -538,7 +550,7 @@ bool TAS2780::write_volume_() {
   return true;
 }
 
-void TAS2780::update_register() {
+void TAS2780::apply_amp_and_channel_config() {
   // AMP_LEVEL
   uint8_t reg_val = this->reg(TAS2780_CHNL_0).get();
   reg_val &= ~TAS2780_CHNL_0_AMP_LEVEL_MASK;
@@ -550,52 +562,5 @@ void TAS2780::update_register() {
   this->reg(TAS2780_TDM_CFG2) = (get_channel_select_reg_val(this->selected_channel_) | TAS2780_TDM_CFG2_RX_WLEN_32BIT |
                                  TAS2780_TDM_CFG2_RX_SLEN_32BIT);
 }
-
-#ifdef USE_SENSOR
-uint16_t TAS2780::read_sar_adc_(uint8_t msb_reg, uint8_t lsb_reg) {
-  // Read MSB and LSB from ADC registers
-  uint8_t msb = this->reg(msb_reg).get();
-  uint8_t lsb = this->reg(lsb_reg).get();
-
-  // Combine into 16-bit value (10-bit ADC, MSB aligned)
-  uint16_t adc_value = (msb << 2) | (lsb >> 6);
-
-  return adc_value;
-}
-
-float TAS2780::get_pvdd_voltage() {
-  uint16_t adc_value = this->read_sar_adc_(TAS2780_PVDD_MSB, TAS2780_PVDD_LSB);
-
-  // TAS2780 PVDD ADC conversion formula:
-  // PVDD = ADC_VALUE * 22.8V / 1024
-  // This assumes 10-bit ADC with ~22.8V full scale for PVDD
-  float voltage = (adc_value * 22.8f) / 1024.0f;
-
-  return voltage;
-}
-
-float TAS2780::get_temperature() {
-  uint8_t temp_raw = this->reg(TAS2780_TEMP).get();
-
-  // TAS2780 temperature conversion formula:
-  // Temperature (°C) = (TEMP_VALUE - 93) * 1 + 25
-  // This formula may need adjustment based on datasheet
-  float temperature = ((float) temp_raw - 93.0f) + 25.0f;
-
-  return temperature;
-}
-
-void TAS2780::update_sensors_() {
-  if (this->pvdd_sensor_ != nullptr) {
-    float pvdd = this->get_pvdd_voltage();
-    this->pvdd_sensor_->publish_state(pvdd);
-  }
-
-  if (this->temperature_sensor_ != nullptr) {
-    float temp = this->get_temperature();
-    this->temperature_sensor_->publish_state(temp);
-  }
-}
-#endif
 
 }  // namespace esphome::tas2780

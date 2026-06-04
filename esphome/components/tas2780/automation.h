@@ -44,7 +44,7 @@ template<typename... Ts> class UpdateConfigAction : public Action<Ts...>, public
       this->parent_->set_selected_channel(this->channel_.value(x...));
     }
     if (this->amp_level_.has_value() || this->channel_.has_value()) {
-      this->parent_->update_register();
+      this->parent_->apply_amp_and_channel_config();
     }
   }
 };

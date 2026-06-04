@@ -8,13 +8,12 @@ audio_dac:
     vol_range_min: 0.3
     vol_range_max: 1.0
     channel: mono
-    pvdd_sensor:
-      name: "TAS2780 PVDD Voltage"
-    temperature:
-      name: "TAS2780 Temperature"
 
 esphome:
   on_boot:
+    - tas2780.activate:
+        id: tas2780_amp
+        power_mode: 2
     - tas2780.activate:
         id: tas2780_amp
         power_mode: 2

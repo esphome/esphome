@@ -1,23 +1,11 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import i2c, sensor
+from esphome.components import i2c
 from esphome.components.audio_dac import AudioDac
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_CHANNEL,
-    CONF_ID,
-    CONF_POWER_MODE,
-    CONF_TEMPERATURE,
-    DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_VOLTAGE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_VOLT,
-)
+from esphome.const import CONF_CHANNEL, CONF_ID, CONF_POWER_MODE
 
-CODEOWNERS = ["@remcom"]
 DEPENDENCIES = ["i2c"]
-AUTO_LOAD = ["sensor"]
 
 tas2780_ns = cg.esphome_ns.namespace("tas2780")
 TAS2780 = tas2780_ns.class_("TAS2780", AudioDac, cg.Component, i2c.I2CDevice)
@@ -48,7 +36,6 @@ DeactivateAction = tas2780_ns.class_(
 CONF_VOL_RANGE_MIN = "vol_range_min"
 CONF_VOL_RANGE_MAX = "vol_range_max"
 CONF_AMP_LEVEL = "amp_level"
-CONF_PVDD_SENSOR = "pvdd_sensor"
 
 
 def _validate_vol_range(config):
@@ -70,18 +57,6 @@ CONFIG_SCHEMA = cv.All(
                 min=0.0, max=1.0
             ),
             cv.Optional(CONF_CHANNEL, default="mono"): cv.enum(CHANNELS),
-            cv.Optional(CONF_PVDD_SENSOR): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
         }
     )
     .extend(cv.polling_component_schema("5s"))
@@ -181,11 +156,3 @@ async def to_code(config):
     cg.add(var.set_vol_range_min(config[CONF_VOL_RANGE_MIN]))
     cg.add(var.set_vol_range_max(config[CONF_VOL_RANGE_MAX]))
     cg.add(var.set_selected_channel(config[CONF_CHANNEL]))
-
-    if CONF_PVDD_SENSOR in config:
-        sens = await sensor.new_sensor(config[CONF_PVDD_SENSOR])
-        cg.add(var.set_pvdd_sensor(sens))
-
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature_sensor(sens))
