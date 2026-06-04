@@ -17,6 +17,14 @@
 #include "esphome/core/lwip_fast_select.h"
 #endif
 
+#ifdef USE_ZEPHYR
+// Zephyr does not provide <sys/uio.h>; define the subset we need locally.
+struct iovec {
+  void *iov_base;
+  size_t iov_len;
+};
+#endif
+
 namespace esphome::socket {
 
 class BSDSocketImpl {
@@ -85,6 +93,18 @@ class BSDSocketImpl {
   ssize_t readv(const struct iovec *iov, int iovcnt) {
 #if defined(USE_ESP32)
     return ::lwip_readv(this->fd_, iov, iovcnt);
+#elif defined(USE_ZEPHYR)
+    // Zephyr does not provide readv(); emulate with a read() loop.
+    ssize_t total = 0;
+    for (int i = 0; i < iovcnt; i++) {
+      ssize_t n = ::read(this->fd_, iov[i].iov_base, iov[i].iov_len);
+      if (n < 0)
+        return total > 0 ? total : n;
+      total += n;
+      if (static_cast<size_t>(n) < iov[i].iov_len)
+        break;
+    }
+    return total;
 #else
     return ::readv(this->fd_, iov, iovcnt);
 #endif
@@ -100,6 +120,16 @@ class BSDSocketImpl {
   ssize_t writev(const struct iovec *iov, int iovcnt) {
 #if defined(USE_ESP32)
     return ::lwip_writev(this->fd_, iov, iovcnt);
+#elif defined(USE_ZEPHYR)
+    // Zephyr does not provide writev(); emulate with a write() loop.
+    ssize_t total = 0;
+    for (int i = 0; i < iovcnt; i++) {
+      ssize_t n = ::write(this->fd_, iov[i].iov_base, iov[i].iov_len);
+      if (n < 0)
+        return total > 0 ? total : n;
+      total += n;
+    }
+    return total;
 #else
     return ::writev(this->fd_, iov, iovcnt);
 #endif
