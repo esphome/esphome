@@ -360,9 +360,7 @@ def _generate_compile_commands(
     # script otherwise leaves at WARNING so the first-run downloads look silent.
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
-    # Gates the FastLED managed dep in esphome/idf_component.yml on the framework
-    # (a Kconfig symbol can't: an arduino-only symbol is undefined on esp-idf and
-    # the component manager hard-errors).
+    # Gates arduino-only components in esphome/idf_component.yml.
     os.environ["ESPHOME_ARDUINO"] = (
         "1" if settings.target_framework == "arduino" else "0"
     )
