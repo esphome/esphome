@@ -148,3 +148,12 @@ def test_get_idedata_regenerates_on_corrupted_cache(setup_core: Path) -> None:
 
     mock_transform.assert_called_once()
     assert result == {"cxx_path": "regen"}
+
+
+def test_get_core_framework_version_from_core_data():
+    """The version is read from CORE.data when validation populated it."""
+    from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION
+    import esphome.config_validation as cv
+
+    CORE.data = {KEY_ESP32: {KEY_IDF_VERSION: cv.Version(5, 5, 4)}}
+    assert toolchain._get_core_framework_version() == "5.5.4"

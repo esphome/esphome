@@ -219,18 +219,22 @@ def _parse_lib_deps(platformio_ini: Path, framework: str):
 def _convert_pio_libs(
     platformio_ini: Path, framework: str
 ) -> dict[str, dict[str, str]]:
-    """Convert each PlatformIO lib to an IDF component; return manifest deps.
+    """Convert the PlatformIO libs to IDF components; return manifest deps.
 
     Returns a mapping suitable for an ``idf_component.yml`` ``dependencies``
     block (``{name: {"override_path": <converted component dir>}}``), reusing
     ESPHome's own PlatformIO->IDF converter (registry/git resolution, no pio).
-    """
-    from esphome.espidf.component import generate_idf_component
 
+    The whole library set is resolved as a single batch so a shared transitive
+    dependency (e.g. esphome/libsodium pulled by both noise-c and esp_wireguard)
+    is deduplicated to one component instead of clashing override_path entries.
+    """
+    from esphome.espidf.component import generate_idf_components
+
+    libraries = _parse_lib_deps(platformio_ini, framework)
     deps: dict[str, dict[str, str]] = {}
-    for library in _parse_lib_deps(platformio_ini, framework):
-        name, _version, path = generate_idf_component(library)
-        deps[name] = {"override_path": str(path)}
+    for component in generate_idf_components(libraries):
+        deps[component.get_sanitized_name()] = {"override_path": str(component.path)}
     return deps
 
 
