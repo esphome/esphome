@@ -46,10 +46,10 @@ from esphome.const import (
     Toolchain,
     __version__,
 )
-from esphome.core import CORE, EsphomeError, HexInt, Library
+from esphome.core import CORE, EsphomeError, HexInt
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
-from esphome.espidf.component import generate_idf_component
+from esphome.espidf.component import generate_idf_components
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
 from esphome.types import ConfigType
@@ -2598,13 +2598,6 @@ def _write_sdkconfig():
         clean_build(clear_pio_cache=False)
 
 
-def _platformio_library_to_dependency(library: Library) -> tuple[str, dict[str, str]]:
-    dependency: dict[str, str] = {}
-    name, _version, path = generate_idf_component(library)
-    dependency["override_path"] = str(path)
-    return name, dependency
-
-
 def _write_idf_component_yml():
     yml_path = CORE.relative_build_path("src/idf_component.yml")
     dependencies: dict[str, dict] = {}
@@ -2678,13 +2671,21 @@ def _write_idf_component_yml():
             )
 
     if CORE.using_toolchain_esp_idf:
-        # Try to convert PlatformIO library to ESP-IDF components
-        for name, library in CORE.platformio_libraries.items():
+        # Convert the PlatformIO libraries to ESP-IDF components as a batch so
+        # PlatformIO resolves the whole dependency tree at once -- deduplicating
+        # shared transitive deps (e.g. esphome/libsodium pulled by both noise-c
+        # and esp_wireguard) to a single version instead of clashing
+        # override_path entries.
+        libraries = [
+            library
+            for name, library in CORE.platformio_libraries.items()
             # Don't process arduino libraries
-            if name in ARDUINO_DISABLED_LIBRARIES:
-                continue
-            dependency_name, dependency = _platformio_library_to_dependency(library)
-            dependencies[dependency_name] = dependency
+            if name not in ARDUINO_DISABLED_LIBRARIES
+        ]
+        for component in generate_idf_components(libraries):
+            dependencies[component.get_sanitized_name()] = {
+                "override_path": str(component.path)
+            }
 
     if CORE.data[KEY_ESP32][KEY_COMPONENTS]:
         components: dict = CORE.data[KEY_ESP32][KEY_COMPONENTS]
