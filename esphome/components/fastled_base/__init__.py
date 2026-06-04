@@ -42,8 +42,16 @@ async def new_fastled_light(config):
         cg.add(var.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))
 
     if CORE.is_esp32:
-        # FastLED is pulled as a managed IDF component (esphome/idf_component.yml,
-        # gated on the arduino framework); only the Arduino SPI library is needed.
+        # Add FastLED as a managed IDF component for the real build. The same dep
+        # is declared in esphome/idf_component.yml for static analysis (clang-tidy
+        # runs no codegen, so this call wouldn't fire there).
+        from esphome.components.esp32 import add_idf_component
+
+        add_idf_component(
+            name="FastLED",
+            repo="https://github.com/FastLED/FastLED.git",
+            ref="d44c800a9e876a8394caefc2ce4915dd96dac77b",
+        )
         cg.add_library("SPI", None)
     else:
         cg.add_library("fastled/FastLED", "3.9.16")
