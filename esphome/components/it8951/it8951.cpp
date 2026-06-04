@@ -5,6 +5,7 @@
 
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::it8951 {
@@ -18,10 +19,6 @@ static constexpr size_t MAX_1BPP_ROW_BYTES = 2048 / 8;
 // Soft cap for time spent in a single XFER_ROWS Op so we yield back to the
 // loop within one tick budget.
 static constexpr uint32_t MAX_TRANSFER_TIME_MS = 10;
-
-static uint16_t encode_uint16(uint8_t high_byte, uint8_t low_byte) {
-  return static_cast<uint16_t>(high_byte) << 8 | low_byte;
-}
 
 // --- Loop / scheduling -------------------------------------------------------
 

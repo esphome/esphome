@@ -312,9 +312,9 @@ async def to_code(config):
     await display.register_display(var, config)
     await spi.register_spi_device(var, config, write_only=False)
 
-    if CONF_LAMBDA in config:
+    if lambda_config := config.get(CONF_LAMBDA):
         lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
+            lambda_config, [(display.DisplayRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))
     if reset_pin := config.get(CONF_RESET_PIN):
