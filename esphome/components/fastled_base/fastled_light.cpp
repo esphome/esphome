@@ -3,8 +3,7 @@
 #include "fastled_light.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace fastled_base {
+namespace esphome::fastled_base {
 
 static const char *const TAG = "fastled";
 
@@ -20,7 +19,7 @@ void FastLEDLightOutput::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "FastLED light:\n"
                 "  Num LEDs: %u\n"
-                "  Max refresh rate: %u",
+                "  Max refresh rate: %" PRIu32,
                 this->num_leds_, this->max_refresh_rate_.value_or(0));
 }
 void FastLEDLightOutput::write_state(light::LightState *state) {
@@ -39,7 +38,6 @@ void FastLEDLightOutput::write_state(light::LightState *state) {
   this->controller_->showLeds(this->state_parent_->current_values.get_brightness() * 255);
 }
 
-}  // namespace fastled_base
-}  // namespace esphome
+}  // namespace esphome::fastled_base
 
 #endif  // USE_ARDUINO

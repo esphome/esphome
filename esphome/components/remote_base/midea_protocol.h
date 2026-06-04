@@ -7,8 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "remote_base.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 class MideaData {
  public:
@@ -88,5 +87,4 @@ template<typename... Ts> class MideaAction : public RemoteTransmitterActionBase<
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

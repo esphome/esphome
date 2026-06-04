@@ -39,10 +39,11 @@ class ZigbeeAttribute;
 class ZigbeeComponent : public Component {
  public:
   void setup() override;
+  void loop() override;
   void dump_config() override;
   esp_err_t create_endpoint(uint8_t endpoint_id, zb_ha_standard_devs_e device_id,
                             esp_zb_cluster_list_t *esp_zb_cluster_list);
-  void set_basic_cluster(const char *model, const char *manufacturer);
+  void set_basic_cluster(const char *model, const char *manufacturer, uint8_t power_source);
   void add_cluster(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role);
   void create_default_cluster(uint8_t endpoint_id, zb_ha_standard_devs_e device_id);
 
@@ -59,17 +60,23 @@ class ZigbeeComponent : public Component {
     esp_zb_lock_release();
   }
 
+  template<typename F> void add_on_join_callback(F &&cb) { this->join_cb_.add(std::forward<F>(cb)); }
+
+  bool is_battery_powered() { return this->basic_cluster_data_.power_source == ESP_ZB_ZCL_BASIC_POWER_SOURCE_BATTERY; }
   bool is_started() { return this->started; }
-  bool is_connected() { return this->connected; }
-  std::atomic<bool> connected = false;
+  bool is_connected() { return this->connected_; }
   std::atomic<bool> started = false;
+  std::atomic<bool> joined = false;
+  std::atomic<bool> factory_new = false;
 
  protected:
   struct {
     uint8_t *model;
     uint8_t *manufacturer;
     uint8_t *date;
+    uint8_t power_source;
   } basic_cluster_data_;
+  bool connected_ = false;
 #ifdef ZB_ED_ROLE
   esp_zb_nwk_device_type_t device_role_ = ESP_ZB_DEVICE_TYPE_ED;
 #else
@@ -89,6 +96,7 @@ class ZigbeeComponent : public Component {
   // key tuple could be replaced by single 64 (48) bit int with bit fields for endpoint, cluster, role and attr_id
   std::map<std::tuple<uint8_t, uint16_t, uint8_t, uint16_t>, ZigbeeAttribute *> attributes_;
   esp_zb_ep_list_t *esp_zb_ep_list_ = esp_zb_ep_list_create();
+  CallbackManager<void(bool)> join_cb_{};
 };
 
 extern "C" void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct);

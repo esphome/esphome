@@ -4,8 +4,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace es8156 {
+namespace esphome::es8156 {
 
 class ES8156 : public audio_dac::AudioDac, public Component, public i2c::I2CDevice {
  public:
@@ -46,5 +45,4 @@ class ES8156 : public audio_dac::AudioDac, public Component, public i2c::I2CDevi
   bool set_mute_state_(bool mute_state);
 };
 
-}  // namespace es8156
-}  // namespace esphome
+}  // namespace esphome::es8156

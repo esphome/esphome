@@ -17,8 +17,7 @@
 #include "mbedtls/ccm.h"
 #endif
 
-namespace esphome {
-namespace bthome_mithermometer {
+namespace esphome::bthome_mithermometer {
 
 static const char *const TAG = "bthome_mithermometer";
 static constexpr size_t BTHOME_BINDKEY_SIZE = 16;
@@ -434,7 +433,6 @@ bool BTHomeMiThermometer::handle_service_data_(const esp32_ble_tracker::ServiceD
   return reported;
 }
 
-}  // namespace bthome_mithermometer
-}  // namespace esphome
+}  // namespace esphome::bthome_mithermometer
 
 #endif

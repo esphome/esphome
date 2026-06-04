@@ -64,7 +64,7 @@ SERIES_MODIFY_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(lv_chart_series_t),
         cv.Exclusive(CONF_VALUE, CONF_VALUES): lv_int,
-        cv.Exclusive(CONF_VALUES, CONF_VALUES): cv.ensure_list(lv_int),
+        cv.Exclusive(CONF_VALUES, CONF_VALUE): cv.ensure_list(lv_int),
     }
 )
 
@@ -187,15 +187,16 @@ chart_spec = ChartType()
     cv.maybe_simple_value(
         SERIES_MODIFY_SCHEMA.add_extra(validate_series_update), key=CONF_ID
     ),
+    synchronous=True,
 )
 async def chart_series_update_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config)
 
     async def do_update(w: Widget):
         if values := config.get(CONF_VALUES):
-            await set_series_values(w.var, w.obj, values)
+            await set_series_values(w.obj, w.var, values)
         if (value := await lv_int.process(config.get(CONF_VALUE))) is not None:
-            lv.chart_set_next_value(w.var, w.obj, value)
-        lv.chart_refresh(w.var)
+            lv.chart_set_next_value(w.obj, w.var, value)
+        lv.chart_refresh(w.obj)
 
     return await action_to_code(widgets, do_update, action_id, template_arg, args)

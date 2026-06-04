@@ -4,8 +4,7 @@
 #include "esphome/components/switch/switch.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
 class OpenthermSwitch : public switch_::Switch, public Component {
  protected:
@@ -16,5 +15,4 @@ class OpenthermSwitch : public switch_::Switch, public Component {
   void dump_config() override;
 };
 
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm
