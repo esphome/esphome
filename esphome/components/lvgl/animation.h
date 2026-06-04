@@ -119,7 +119,14 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
     this->start_callback_.call();
   }
 
-  void stop() { this->state_ = AnimationState::STOPPED; }
+  void stop() {
+    // Only fire the stop callback on a genuine running -> stopped transition, so that
+    // repeated stop() calls (e.g. start() pre-clearing a stopped animation) don't re-fire it.
+    if (this->state_ == AnimationState::STOPPED)
+      return;
+    this->state_ = AnimationState::STOPPED;
+    this->stop_callback_.call();
+  }
 
   void setup() override {
     if constexpr (AUTO_START)
@@ -143,7 +150,6 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
         if (progress >= 1.0f) {
           progress = 1.0f;
           this->stop();
-          this->stop_callback_.call();
           if (this->loop_)
             this->start();
         }

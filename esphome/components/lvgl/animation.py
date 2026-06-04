@@ -265,3 +265,26 @@ async def start_animation(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
     await cg.register_parented(var, config[CONF_LVGL_ID])
     return var
+
+
+@automation.register_action(
+    "lvgl.animation.stop",
+    LvglAction,
+    cv.maybe_simple_value(
+        {
+            cv.Required(CONF_ID): cv.ensure_list(cv.use_id(LvAnimation)),
+            cv.GenerateID(CONF_LVGL_ID): cv.use_id(LvglComponent),
+        },
+        key=CONF_ID,
+    ),
+    synchronous=True,
+)
+async def stop_animation(config, action_id, template_arg, args):
+    animations = config[CONF_ID]
+    async with LambdaContext(LVGL_COMP_ARG, where=action_id) as context:
+        for animation in animations:
+            anim_var = await cg.get_variable(animation)
+            context.add(anim_var.stop())
+    var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
+    await cg.register_parented(var, config[CONF_LVGL_ID])
+    return var
