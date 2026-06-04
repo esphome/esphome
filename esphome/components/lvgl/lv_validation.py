@@ -235,14 +235,15 @@ def get_component_colors(value):
             r, g, b = cval[CONF_HEX]
         else:
             r, g, b, _ = from_rgbw(cval)
-        return literal(f"lv_color_make({r}, {g}, {b})")
+        return r, g, b
     raise AssertionError(f"Unhandled lv_color value: {value!r}")
 
 
 def color_retmapper(value):
     if isinstance(value, cv.Lambda):
         return cv.returning_lambda(value)
-    return get_component_colors(value)
+    r, g, b = get_component_colors(value)
+    return literal(f"lv_color_make({r}, {g}, {b})")
 
 
 class LvColor(LValidator):

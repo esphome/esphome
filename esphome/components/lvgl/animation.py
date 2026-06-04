@@ -79,9 +79,22 @@ TIMING_SCHEMA = cv.maybe_simple_value(
 
 CONF_START_DELAY = "start_delay"
 
-literal_color = LValidator(
-    color, lv_color_t, retmapper=get_component_colors, animatable=True
-)
+
+class LiteralColorValidator(LValidator):
+    def __init__(self):
+        super().__init__(
+            color, lv_color_t, retmapper=get_component_colors, animatable=True
+        )
+
+    def __call__(self, value):
+        if isinstance(value, cv.Lambda):
+            raise cv.Invalid(
+                "An animated color may not be set with a lambda, only a literal color value."
+            )
+        return super().__call__(value)
+
+
+literal_color = LiteralColorValidator()
 
 
 def from_to(validator):
@@ -108,14 +121,11 @@ ANIMABLE_STYLES = {
 
 ANIMATION_SCHEMA = cv.Schema(
     {
-        cv.Optional(
-            CONF_START_DELAY, default="0s"
-        ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_AUTO_START, default=False): cv.boolean,
         cv.Optional(CONF_LOOP, default=False): cv.boolean,
         cv.Optional(CONF_DURATION, default="5s"): lv_milliseconds,
         cv.Optional(CONF_START_DELAY, default="0s"): lv_milliseconds,
-        cv.Optional(CONF_TIMING, default={}): cv.ensure_list(TIMING_SCHEMA),
+        cv.Optional(CONF_TIMING, default=[]): cv.ensure_list(TIMING_SCHEMA),
         cv.Required(CONF_ID): cv.declare_id(LvAnimation),
         cv.Optional(CONF_ON_START): automation.validate_automation(
             {
@@ -138,23 +148,13 @@ ANIMATION_SCHEMA = cv.Schema(
 ).extend(COMPONENT_SCHEMA)
 
 
-async def process_arg(validator, arg) -> list:
-    if validator == literal_color:
-        value = get_component_colors(arg)
-    else:
-        # from/to values are evaluated at animation start with no arguments, so the
-        # generated lambda must be parameterless rather than inheriting the enclosing
-        # update-callback's `values` parameter.
-        value = [await validator.process(arg, args=[], raw_lambda=True)]
+async def _process_arg(validator, arg) -> list:
+    # from/to values are evaluated at animation start with no arguments, so the
+    # generated lambda must be parameterless rather than inheriting the enclosing
+    # update-callback's `values` parameter.
+    value = await validator.process(arg, args=[], raw_lambda=True)
+    value = list(value) if isinstance(value, tuple) else [value]
     return [literal(f"TemplatableValue<lv_coord_t>({v})") for v in value]
-
-
-def process_value(validator, index):
-    if validator != literal_color:
-        return literal(f"values[{index}]")
-    return literal(
-        f"lv_color_make(values[{index}+0], values[{index}+1], values[{index}+2])"
-    )
 
 
 async def animations_to_code(config):
@@ -169,12 +169,20 @@ async def animations_to_code(config):
             for widget in widgets:
                 w = (await get_widgets(widget))[0]
                 props = [(k, v) for k, v in widget.items() if k in ANIMABLE_STYLES]
-                for prop, limits in props:
+                for prop, value_range in props:
+                    # prop is the style property, value_range is a dict with from: and to: values
                     validator = ANIMABLE_STYLES[prop]
-                    value = process_value(validator, len(froms))
-                    w.set_style(prop, value, 0)
-                    froms.extend(await process_arg(validator, limits[CONF_FROM]))
-                    tos.extend(await process_arg(validator, limits[CONF_TO]))
+                    from_value = await _process_arg(validator, value_range[CONF_FROM])
+                    to_value = await _process_arg(validator, value_range[CONF_TO])
+                    index = len(froms)
+                    if len(from_value) == 1:
+                        value = f"values[{index}]"
+                    else:
+                        value = f"lv_color_make(values[{index}+0], values[{index}+1], values[{index}+2])"
+                    w.set_style(prop, literal(value), 0)
+                    # The value arrays are extended by 1 item for scalar properties, 3 for colors
+                    froms.extend(from_value)
+                    tos.extend(to_value)
 
         data_size = len(froms)
         loop = animation[CONF_LOOP]
@@ -201,11 +209,6 @@ async def animations_to_code(config):
             cg.add(var.set_loop(loop))
         cg.add(
             var.set_duration(await lv_milliseconds.process(animation[CONF_DURATION]))
-        )
-        cg.add(
-            var.set_start_delay(
-                await lv_milliseconds.process(animation[CONF_START_DELAY])
-            )
         )
         await cg.register_component(var, animation)
 

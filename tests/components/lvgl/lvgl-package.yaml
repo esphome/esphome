@@ -159,7 +159,7 @@ lvgl:
         - id: anim_label
           text_color:
             from: 0xFF0000
-            to: 0x00FF00
+            to: color_id
   theme:
     dark_mode: true
     obj:
