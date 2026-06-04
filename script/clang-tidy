@@ -28,6 +28,12 @@ from helpers import (
     temp_header_file,
 )
 
+# Limit the ESP-IDF tool install to esp32 for clang-tidy: the one xtensa-esp-elf
+# toolchain bundles the s2/s3 compilers too, so all xtensa tidy envs still
+# reconfigure while the large riscv32-esp-elf toolchain is skipped. Must be set
+# before esphome.espidf.framework is imported (lazily, via load_idedata).
+os.environ.setdefault("ESPHOME_IDF_DEFAULT_TARGETS", "esp32")
+
 
 def clang_options(idedata):
     cmd = []
@@ -52,6 +58,10 @@ def clang_options(idedata):
         "-mfix-esp32-psram-cache-issue",
         "-mfix-esp32-psram-cache-strategy=memw",
         "-fno-tree-switch-conversion",
+        # GCC-only flags emitted by the native ESP-IDF toolchain build
+        "-freorder-blocks",
+        "-fno-jump-tables",
+        "-fno-shrink-wrap",
     )
 
     if "zephyr" in triplet:
@@ -97,8 +107,20 @@ def clang_options(idedata):
         ]
     )
 
-    # copy compiler flags, except those clang doesn't understand.
-    cmd.extend(flag for flag in idedata["cxx_flags"] if flag not in omit_flags)
+    # Copy compiler flags, dropping: ones clang doesn't understand; -Werror*
+    # (clang-tidy enforces .clang-tidy's WarningsAsErrors, and a build -Werror
+    # would bypass the -clang-diagnostic-* suppressions); and -std= (the native
+    # ESP-IDF build defaults to gnu++2b, but ESPHome compiles with gnu++20 per
+    # platformio.ini -- analyzing as C++23 flags code that doesn't build under
+    # gnu++20). Force gnu++20 to match the real build.
+    cmd.extend(
+        flag
+        for flag in idedata["cxx_flags"]
+        if flag not in omit_flags
+        and not flag.startswith("-Werror")
+        and not flag.startswith("-std=")
+    )
+    cmd.append("-std=gnu++20")
 
     # defines
     cmd.extend(f"-D{define}" for define in idedata["defines"])

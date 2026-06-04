@@ -105,6 +105,12 @@ def calculate_clang_tidy_hash(repo_root: Path | None = None) -> str:
         sdkconfig_content = read_file_bytes(sdkconfig_path)
         hasher.update(sdkconfig_content)
 
+    # Hash esphome/idf_component.yml: its managed deps drive the ESP-IDF
+    # build's include set, which clang-tidy analyzes.
+    idf_component_path = repo_root / "esphome" / "idf_component.yml"
+    if idf_component_path.exists():
+        hasher.update(read_file_bytes(idf_component_path))
+
     return hasher.hexdigest()
 
 
