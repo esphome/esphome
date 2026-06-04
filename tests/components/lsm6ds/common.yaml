@@ -1,6 +1,6 @@
 sensor:
-  - platform: lsm6ds3
-    name: "lsm6ds3 Temperature"
+  - platform: lsm6ds
+    name: "lsm6ds Temperature"
 
   - platform: motion
     type: acceleration_x
@@ -48,7 +48,7 @@ sensor:
     name: "Roll"
 
 motion:
-  - platform: lsm6ds3
+  - platform: lsm6ds
   # Accelerometer full-scale range: 2G | 4G | 8G | 16G
     accelerometer_range: 4G
 

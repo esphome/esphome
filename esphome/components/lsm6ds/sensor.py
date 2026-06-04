@@ -12,9 +12,9 @@ from esphome.const import (
 )
 from esphome.cpp_generator import MockObj
 
-from . import CONF_LSM6DS3_ID, LSM6DS3TRCComponent
+from . import CONF_LSM6DS_ID, LSM6DSComponent
 
-AUTO_LOAD = ["lsm6ds3"]
+AUTO_LOAD = ["lsm6ds"]
 
 CONFIG_SCHEMA = sensor.sensor_schema(
     unit_of_measurement=UNIT_CELSIUS,
@@ -25,14 +25,14 @@ CONFIG_SCHEMA = sensor.sensor_schema(
 ).extend(
     {
         cv.Optional(CONF_TYPE): CONF_TEMPERATURE,
-        cv.GenerateID(CONF_LSM6DS3_ID): cv.use_id(LSM6DS3TRCComponent),
+        cv.GenerateID(CONF_LSM6DS_ID): cv.use_id(LSM6DSComponent),
     }
 )
 
 
 async def to_code(config):
     var = await sensor.new_sensor(config)
-    parent = await cg.get_variable(config[CONF_LSM6DS3_ID])
+    parent = await cg.get_variable(config[CONF_LSM6DS_ID])
     data = MockObj("data")
     value_lambda = await cg.process_lambda(
         var.publish_state(data),
