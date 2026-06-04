@@ -10,8 +10,10 @@ import shutil
 import subprocess
 
 from esphome.components.esp32.const import KEY_ESP32, KEY_FLASH_SIZE, KEY_IDF_VERSION
+from esphome.const import CONF_FRAMEWORK, CONF_SOURCE
 from esphome.core import CORE, EsphomeError
 from esphome.espidf.framework import check_esp_idf_install, get_framework_env
+from esphome.espidf.size_summary import print_summary
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,13 +38,27 @@ def _get_core_framework_version():
     return str(CORE.data[KEY_ESP32][KEY_IDF_VERSION])
 
 
+def _get_framework_source_override() -> str | None:
+    """Return the user-supplied esp32.framework.source override, if any.
+
+    The override lets a user point the IDF tarball download at a custom URL
+    (mirror, fork, local server). Substitutions like ``{VERSION}`` /
+    ``{MAJOR}`` etc. work the same as in the default mirror list.
+    """
+    if CORE.config is None:
+        return None
+    return CORE.config.get(KEY_ESP32, {}).get(CONF_FRAMEWORK, {}).get(CONF_SOURCE)
+
+
 def _get_esphome_esp_idf_paths(
     version: str | None = None,
 ) -> tuple[os.PathLike, os.PathLike]:
     version = version or _get_core_framework_version()
     paths = _cache().paths
     if version not in paths:
-        paths[version] = check_esp_idf_install(version)
+        paths[version] = check_esp_idf_install(
+            version, source_url=_get_framework_source_override()
+        )
     return paths[version]
 
 
@@ -190,42 +206,58 @@ def run_reconfigure() -> int:
 def has_outdated_files():
     """Check if the build configuration is stale.
 
-    Returns True if required build files are missing or if configuration inputs
-    are newer than the generated CMake/Ninja build artifacts.
+    Returns True if required build files are missing or if ESPHome's
+    resolved build inputs are newer than CMakeCache.txt:
+
+    - ``sdkconfig.<name>.esphomeinternal`` -- the canonical "what state
+      did ESPHome resolve the YAML to" snapshot. Any change in build
+      flags, enabled components, framework version, or target ends up
+      rewriting it (we embed a ``# ESPHOME_IDF_VERSION=`` comment line
+      for the version case where the option set would otherwise be
+      identical).
+    - ``src/idf_component.yml`` -- the project manifest. Managed
+      component additions/removals (e.g. via ``add_idf_component``) can
+      happen without any sdkconfig impact, and ``_write_idf_component_yml``
+      already deletes ``dependencies.lock`` on a change but that signal
+      gets lost as soon as the lock is missing.
+
+    We deliberately don't watch:
+    - The top-level/src ``CMakeLists.txt`` -- ESPHome owns those, and
+      ninja already tracks them as configure-time deps. Including them
+      causes a perpetual reconfigure loop because CMake doesn't restamp
+      ``CMakeCache.txt`` when only ``idf_build_set_property`` values
+      change between configures.
+    - ``$IDF_PATH`` and CMake's ``build/config/`` -- both have mtime
+      semantics that fire after the wrong configure (or not at all in
+      common cases like in-place IDF version replacement). The sdkconfig
+      and manifest hashes subsume the meaningful signal.
     """
     cmakecache_txt_path = CORE.relative_build_path("build/CMakeCache.txt")
-
-    cmakelists_txt_build_path = CORE.relative_build_path("CMakeLists.txt")
-    cmakelists_txt_src_path = CORE.relative_src_path("CMakeLists.txt")
     build_config_path = CORE.relative_build_path("build/config")
     sdkconfig_internal_path = CORE.relative_build_path(
         f"sdkconfig.{CORE.name}.esphomeinternal"
     )
+    idf_component_yml_path = CORE.relative_build_path("src/idf_component.yml")
     dependency_lock_path = CORE.relative_build_path("dependencies.lock")
     build_ninja_path = CORE.relative_build_path("build/build.ninja")
 
-    if not os.path.isdir(build_config_path) or not os.listdir(build_config_path):
+    if not build_config_path.is_dir() or not any(build_config_path.iterdir()):
         return True
-    if not os.path.isfile(cmakecache_txt_path):
+    if not cmakecache_txt_path.is_file():
         return True
-    if not os.path.isfile(build_ninja_path):
+    if not build_ninja_path.is_file():
         return True
-    if os.path.isfile(dependency_lock_path) and os.path.getmtime(
-        dependency_lock_path
-    ) > os.path.getmtime(build_ninja_path):
+    if (
+        dependency_lock_path.is_file()
+        and dependency_lock_path.stat().st_mtime > build_ninja_path.stat().st_mtime
+    ):
         return True
 
-    cmakecache_txt_mtime = os.path.getmtime(cmakecache_txt_path)
+    cmakecache_txt_mtime = cmakecache_txt_path.stat().st_mtime
     return any(
-        os.path.getmtime(f) > cmakecache_txt_mtime
-        for f in [
-            _get_idf_path(),
-            cmakelists_txt_build_path,
-            cmakelists_txt_src_path,
-            sdkconfig_internal_path,
-            build_config_path,
-        ]
-        if f and os.path.exists(f)
+        f.stat().st_mtime > cmakecache_txt_mtime
+        for f in [sdkconfig_internal_path, idf_component_yml_path]
+        if f.exists()
     )
 
 
@@ -302,9 +334,12 @@ def run_compile(config, verbose: bool) -> int:
         _LOGGER.info("Regenerating CMakeLists.txt with discovered components...")
         write_project(minimal=False)
         if CORE.testing_mode:
-            # Reconfigure again so cmake is up to date with the full component
-            # list. This ensures idf.py build won't re-run cmake, which would
-            # regenerate memory.ld and wipe the DRAM/IRAM patches applied below.
+            # Reconfigure again so cmake is up to date with the full
+            # component list before the build's idf.py invocation runs --
+            # idf.py build would otherwise re-run cmake and regenerate
+            # memory.ld, wiping the DRAM/IRAM patches applied below.
+            # Outside testing mode ninja's own configure-time dep on
+            # CMakeLists.txt handles the re-run as part of the build step.
             rc = run_reconfigure()
             if rc != 0:
                 _LOGGER.error("Reconfigure with discovered components failed")
@@ -341,8 +376,14 @@ def run_compile(config, verbose: bool) -> int:
 
     args.extend(_get_sdkconfig_args())
     args.append("build")
+    args.append("size")
 
-    return run_idf_py(*args)
+    rc = run_idf_py(*args)
+    if rc == 0:
+        size_json = CORE.relative_build_path("build", "esp_idf_size.json")
+        partitions = CORE.relative_build_path("partitions.csv")
+        print_summary(size_json, partitions if partitions.is_file() else None)
+    return rc
 
 
 def get_firmware_path() -> Path:
@@ -402,6 +443,34 @@ def get_addr2line_path() -> Path:
     return _get_cmake_tool_path("CMAKE_ADDR2LINE")
 
 
+def get_idedata() -> dict | None:
+    """Derive idedata from the build's compile_commands.json.
+
+    The native ESP-IDF toolchain has no ``pio run -t idedata`` equivalent, but
+    its CMake build emits ``build/compile_commands.json``. Parse that into the
+    idedata fields IDE integrations and clang-tidy expect, cached alongside the
+    PlatformIO idedata path. Returns None if the compile DB doesn't exist yet.
+    """
+    from esphome.espidf.idedata import idedata_from_build
+
+    compile_commands = CORE.relative_build_path("build", "compile_commands.json")
+    if not compile_commands.is_file():
+        _LOGGER.debug("No %s yet; skipping idedata generation", compile_commands)
+        return None
+
+    cache = CORE.relative_internal_path("idedata", f"{CORE.name}.json")
+    if cache.is_file() and cache.stat().st_mtime >= compile_commands.stat().st_mtime:
+        try:
+            return json.loads(cache.read_text(encoding="utf-8"))
+        except ValueError:
+            pass
+
+    data = idedata_from_build(compile_commands)
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    return data
+
+
 def create_factory_bin() -> bool:
     """Create factory.bin by merging bootloader, partition table, and app."""
     build_dir = CORE.relative_build_path("build")
@@ -412,7 +481,7 @@ def create_factory_bin() -> bool:
         return False
 
     try:
-        with open(flasher_args_path, encoding="utf-8") as f:
+        with flasher_args_path.open(encoding="utf-8") as f:
             flash_data = json.load(f)
     except (json.JSONDecodeError, OSError) as e:
         _LOGGER.error("Failed to read flasher_args.json: %s", e)

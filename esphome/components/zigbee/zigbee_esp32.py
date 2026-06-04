@@ -28,6 +28,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.coroutine import CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -35,9 +36,11 @@ from .const import (
     ANALOG_INPUT_APPTYPE,
     BACNET_UNIT_NO_UNITS,
     BACNET_UNITS,
+    CONF_POWER_SOURCE,
     CONF_REPORT,
     CONF_ROUTER,
     KEY_ZIGBEE,
+    POWER_SOURCE,
     REPORT,
     ZigbeeAttribute,
 )
@@ -114,15 +117,11 @@ def final_validate_esp32(config: ConfigType) -> ConfigType:
     if not CORE.is_esp32:
         return config
     if CONF_WIFI in fv.full_config.get():
-        if config[CONF_ROUTER] and CONF_AP in fv.full_config.get()[CONF_WIFI]:
-            raise cv.Invalid(
-                "Only Zigbee End Device can be used together with a Wifi Access Point."
-            )
         if CONF_AP in fv.full_config.get()[CONF_WIFI]:
-            _LOGGER.warning(
-                "Wifi Access Point might be unstable while Zigbee is active, use only as fallback."
+            raise cv.Invalid(
+                "A Wifi Access Point can not be used together with Zigbee."
             )
-        elif config[CONF_ROUTER]:
+        if config[CONF_ROUTER]:
             _LOGGER.warning(
                 "The Zigbee Router might miss packets while Wifi is active and could destabilize "
                 "your network. Use only if Wifi is off most of the time."
@@ -130,9 +129,8 @@ def final_validate_esp32(config: ConfigType) -> ConfigType:
     if CONF_PARTITIONS in fv.full_config.get() and not isinstance(
         fv.full_config.get()[CONF_PARTITIONS], list
     ):
-        with open(
-            CORE.relative_config_path(fv.full_config.get()[CONF_PARTITIONS]),
-            encoding="utf8",
+        with CORE.relative_config_path(fv.full_config.get()[CONF_PARTITIONS]).open(
+            encoding="utf8"
         ) as f:
             partitions_tab = f.read()
             for partition, types in [
@@ -289,7 +287,7 @@ async def attributes_to_code(
             cg.add(attr_var.connect(template_arg, device))
 
 
-async def esp32_to_code(config: ConfigType) -> None:
+async def esp32_to_code(config: ConfigType) -> "MockObj":
     add_idf_component(
         name="espressif/esp-zboss-lib",
         ref="1.6.4",
@@ -319,6 +317,7 @@ async def esp32_to_code(config: ConfigType) -> None:
         var.set_basic_cluster(
             config[CONF_MODEL],
             "esphome",
+            cg.RawExpression(POWER_SOURCE[config[CONF_POWER_SOURCE]]),
         )
     )
     for ep in ep_list:
@@ -332,3 +331,4 @@ async def esp32_to_code(config: ConfigType) -> None:
                 )
             )
             await attributes_to_code(var, ep[CONF_NUM], cl)
+    return var

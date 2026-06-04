@@ -3,7 +3,11 @@ import logging
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import i2c
-from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
+from esphome.components.esp32 import (
+    add_idf_component,
+    add_idf_sdkconfig_option,
+    require_libc_picolibc_newlib_compat,
+)
 from esphome.components.psram import DOMAIN as psram_domain
 import esphome.config_validation as cv
 from esphome.const import (
@@ -402,6 +406,8 @@ async def to_code(config):
     add_idf_component(name="espressif/esp32-camera", ref="2.1.5")
     add_idf_sdkconfig_option("CONFIG_SCCB_HARDWARE_I2C_DRIVER_NEW", True)
     add_idf_sdkconfig_option("CONFIG_SCCB_HARDWARE_I2C_DRIVER_LEGACY", False)
+    # esp32-camera 2.1.5 needs the Newlib shim on IDF 6.0+; remove when fixed upstream
+    require_libc_picolibc_newlib_compat()
 
     for conf in config.get(CONF_ON_STREAM_START, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

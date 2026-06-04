@@ -398,12 +398,22 @@ This document provides essential context for AI models interacting with this pro
         │       ├── i2c/         # I2C bus
         │       └── spi/         # SPI bus
         └── components/[component]/
-            ├── common.yaml      # Component-only config (no bus definitions)
-            ├── test.esp32-idf.yaml
-            ├── test.esp8266-ard.yaml
-            └── test.rp2040-ard.yaml
+            ├── common.yaml          # Component-only config (no bus definitions)
+            ├── test.esp32-idf.yaml      # config + compile
+            ├── test.esp8266-ard.yaml    # config + compile
+            ├── test-variant.esp32-idf.yaml  # variant test, config + compile
+            ├── validate.esp32-idf.yaml      # config-only (never compiled)
+            └── validate-legacy.esp32-idf.yaml  # config-only variant
         ```
         Run them using `script/test_build_components`. Use `-c <component>` to test specific components and `-t <target>` for specific platforms.
+
+    *   **Config-only test files (`validate.*.yaml`):** Use this prefix when a YAML file only needs to exercise schema/validation paths and does not need to be compiled. CI runs `validate.*.yaml` files with `esphome config` only and skips them during compile. The grammar mirrors `test.*.yaml`:
+        - `validate.<platform>.yaml` — base config-only test
+        - `validate-<variant>.<platform>.yaml` — config-only variant
+
+        Use this for things like deprecated-syntax migration tests, schema edge cases, or platform-specific validation branches where building firmware adds no signal. A component may have any mix of `test.*.yaml` and `validate.*.yaml` files. Validate files never participate in bus-grouping; each one runs as its own `esphome config` invocation.
+
+        When a PR's only edits to a component are `validate.*.yaml` files (no source changes, no `test.*.yaml` changes, and the component isn't pulled in as a dependency of another changed component), CI skips the compile stage for that component entirely and only runs config validation. This is decided in `script/determine-jobs.py` via `_component_change_is_validate_only` and surfaced as the `validate_only_components` output that the `test-build-components-split` job consumes.
 
     *   **Test Grouping with Packages:** Components that use shared bus packages can be grouped together in CI to reduce build count. **Never define buses (uart, i2c, spi, modbus) directly in test YAML files** — always use packages from `test_build_components/common/`:
         ```yaml
@@ -452,7 +462,7 @@ This document provides essential context for AI models interacting with this pro
     6.  **Pull Request:** Submit a PR against the `dev` branch. The Pull Request title should have a prefix of the component being worked on (e.g., `[display] Fix bug`, `[abc123] Add new component`). Update documentation, examples, and add `CODEOWNERS` entries as needed. Pull requests should always be made using the `.github/PULL_REQUEST_TEMPLATE.md` template - fill out all sections completely without removing any parts of the template.
 
 *   **Documentation Contributions:**
-    *   Documentation is hosted in the separate `esphome/esphome-docs` repository.
+    *   Documentation is hosted in the separate `esphome/esphome.io` repository.
     *   The contribution workflow is the same as for the codebase.
     *   When editing a component's documentation page, also update the corresponding component index page to ensure both pages remain in sync.
 
@@ -671,7 +681,7 @@ This document provides essential context for AI models interacting with this pro
     - [ ] Explored non-breaking alternatives
     - [ ] Added deprecation warnings if possible (use `ESPDEPRECATED` macro for C++)
     - [ ] Documented migration path in PR description with before/after examples
-    - [ ] Updated all internal usage and esphome-docs
+    - [ ] Updated all internal usage and esphome.io
     - [ ] Tested backward compatibility during deprecation period
 
 *   **Deprecation Pattern (C++):**

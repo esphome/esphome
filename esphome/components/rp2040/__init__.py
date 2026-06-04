@@ -1,8 +1,10 @@
+from collections.abc import Callable
 import logging
 from pathlib import Path
 import re
 from string import ascii_letters, digits
 import subprocess
+from typing import Any
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -12,6 +14,7 @@ from esphome.const import (
     CONF_FRAMEWORK,
     CONF_PLATFORM_VERSION,
     CONF_SOURCE,
+    CONF_VARIANT,
     CONF_VERSION,
     CONF_WATCHDOG_TIMEOUT,
     KEY_CORE,
@@ -21,15 +24,33 @@ from esphome.const import (
     PLATFORM_RP2040,
     ThreadModel,
 )
-from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
+from esphome.core import (
+    CORE,
+    CoroPriority,
+    EsphomeCore,
+    EsphomeError,
+    coroutine_with_priority,
+)
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed, read_file, write_file_if_changed
+from esphome.types import ConfigType
 
 from . import boards
-from .const import KEY_BOARD, KEY_LWIP_OPTS, KEY_PIO_FILES, KEY_RP2040, rp2040_ns
+from .const import (
+    KEY_BOARD,
+    KEY_LWIP_OPTS,
+    KEY_PIO_FILES,
+    KEY_RP2040,
+    KEY_VARIANT,
+    MCU_TO_VARIANT,
+    STANDARD_BOARDS,
+    VARIANT_FRIENDLY,
+    VARIANTS,
+    rp2040_ns,
+)
 
 # force import gpio to register pin schema
-from .gpio import rp2040_pin_to_code  # noqa
+from .gpio import rp2040_pin_to_code  # noqa: F401
 
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@jesserockz"]
@@ -68,7 +89,7 @@ def board_id_has_wifi(board_id: str) -> bool:
     return board_info.get("wifi", False)
 
 
-def set_core_data(config):
+def set_core_data(config: ConfigType) -> ConfigType:
     CORE.data[KEY_RP2040] = {}
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_RP2040
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "arduino"
@@ -76,10 +97,44 @@ def set_core_data(config):
         config[CONF_FRAMEWORK][CONF_VERSION]
     )
     CORE.data[KEY_RP2040][KEY_BOARD] = config[CONF_BOARD]
+    CORE.data[KEY_RP2040][KEY_VARIANT] = config[CONF_VARIANT]
 
     CORE.data[KEY_RP2040][KEY_PIO_FILES] = {}
 
     return config
+
+
+def get_rp2040_variant(core_obj: EsphomeCore | None = None) -> str:
+    return (core_obj or CORE).data[KEY_RP2040][KEY_VARIANT]
+
+
+def only_on_variant(
+    *,
+    supported: str | list[str] | None = None,
+    unsupported: str | list[str] | None = None,
+    msg_prefix: str = "This feature",
+) -> Callable[[Any], Any]:
+    """Config validator for features only available on some RP2040 variants."""
+    if supported is not None and not isinstance(supported, list):
+        supported = [supported]
+    if unsupported is not None and not isinstance(unsupported, list):
+        unsupported = [unsupported]
+
+    def validator_(obj: Any) -> Any:
+        if not CORE.is_rp2040:
+            raise cv.Invalid(f"{msg_prefix} is only available on RP2040")
+        variant = get_rp2040_variant()
+        if supported is not None and variant not in supported:
+            raise cv.Invalid(
+                f"{msg_prefix} is only available on {', '.join(supported)}"
+            )
+        if unsupported is not None and variant in unsupported:
+            raise cv.Invalid(
+                f"{msg_prefix} is not available on {', '.join(unsupported)}"
+            )
+        return obj
+
+    return validator_
 
 
 def get_download_types(storage_json):
@@ -139,7 +194,7 @@ def _parse_platform_version(value):
 # The default/recommended arduino framework version
 #  - https://github.com/earlephilhower/arduino-pico/releases
 #  - https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(5, 5, 1)
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(5, 6, 0)
 
 # The raspberrypi platform version to use for arduino frameworks
 #  - https://github.com/maxgerhardt/platform-raspberrypi/tags
@@ -149,8 +204,8 @@ RECOMMENDED_ARDUINO_PLATFORM_VERSION = "v1.4.0-gcc14-arduinopico460"
 def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(5, 5, 1), "https://github.com/earlephilhower/arduino-pico"),
-        "latest": (cv.Version(5, 5, 1), None),
+        "dev": (cv.Version(5, 6, 0), "https://github.com/earlephilhower/arduino-pico"),
+        "latest": (cv.Version(5, 6, 0), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 
@@ -192,12 +247,52 @@ ARDUINO_FRAMEWORK_SCHEMA = cv.All(
     _arduino_check_versions,
 )
 
+
+def _detect_variant(value: ConfigType) -> ConfigType:
+    value = value.copy()
+    board: str | None = value.get(CONF_BOARD)
+    variant: str | None = value.get(CONF_VARIANT)
+
+    if board is None:
+        # `cv.has_at_least_one_key` guarantees variant is set here.
+        board = STANDARD_BOARDS[variant]
+        value[CONF_BOARD] = board
+
+    board_info = boards.BOARDS.get(board)
+    if board_info is None:
+        if variant is None:
+            raise cv.Invalid(
+                "This board is unknown; please specify the chip variant using "
+                f"the '{CONF_VARIANT}' option.",
+                path=[CONF_BOARD],
+            )
+        _LOGGER.warning(
+            "This board is unknown; the specified variant '%s' will be used "
+            "but this may not work as expected.",
+            variant,
+        )
+    else:
+        board_variant = MCU_TO_VARIANT[board_info["mcu"]]
+        if variant is None:
+            variant = board_variant
+        elif variant != board_variant:
+            raise cv.Invalid(
+                f"Option '{CONF_VARIANT}' ({variant}) does not match the "
+                f"selected board '{board}' ({board_variant}).",
+                path=[CONF_VARIANT],
+            )
+
+    value[CONF_VARIANT] = variant
+    return value
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Required(CONF_BOARD): cv.All(
+            cv.Optional(CONF_BOARD): cv.All(
                 cv.string_strict, cv.ByteLength(max=BOARD_MAX_LENGTH)
             ),
+            cv.Optional(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
             cv.Optional(CONF_FRAMEWORK, default={}): ARDUINO_FRAMEWORK_SCHEMA,
             cv.Optional(CONF_WATCHDOG_TIMEOUT, default="8388ms"): cv.All(
                 cv.positive_time_period_milliseconds,
@@ -206,6 +301,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENABLE_FULL_PRINTF, default=False): cv.boolean,
         }
     ),
+    cv.has_at_least_one_key(CONF_BOARD, CONF_VARIANT),
+    _detect_variant,
     set_core_data,
 )
 
@@ -223,7 +320,9 @@ async def to_code(config):
     cg.add_define("USE_NATIVE_64BIT_TIME")
     cg.set_cpp_standard("gnu++20")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
-    cg.add_define("ESPHOME_VARIANT", "RP2040")
+    variant = config[CONF_VARIANT]
+    cg.add_build_flag(f"-DUSE_RP2040_VARIANT_{variant}")
+    cg.add_define("ESPHOME_VARIANT", VARIANT_FRIENDLY[variant])
     cg.add_define(ThreadModel.SINGLE)
 
     cg.add_platformio_option("extra_scripts", ["post:post_build.py"])
@@ -402,18 +501,21 @@ def _generate_lwipopts_h() -> None:
     in the build directory, and a pre-build script injects this directory
     into the compiler include path before the framework's own include dir.
     """
-    from jinja2 import Environment, FileSystemLoader
+    from jinja2 import Environment
 
     lwip_defines = CORE.data[KEY_RP2040].get(KEY_LWIP_OPTS)
     if not lwip_defines:
         return
 
-    template_dir = Path(__file__).parent
-    jinja_env = Environment(
-        loader=FileSystemLoader(str(template_dir)),
-        keep_trailing_newline=True,
+    # Read the template via pathlib and render from a string rather than using
+    # FileSystemLoader. jinja2's loader joins the search path with posixpath, which
+    # breaks on Windows extended-length paths (\\?\C:\...) where forward slashes are
+    # not accepted, causing a spurious TemplateNotFound (see issue #16732).
+    template_text = (Path(__file__).parent / "lwipopts.h.jinja").read_text(
+        encoding="utf-8"
     )
-    template = jinja_env.get_template("lwipopts.h.jinja")
+    jinja_env = Environment(keep_trailing_newline=True)
+    template = jinja_env.from_string(template_text)
     content = template.render(**lwip_defines)
 
     lwip_dir = CORE.relative_build_path("lwip_override")

@@ -6,30 +6,28 @@ from esphome.const import CONF_ARGS, CONF_FORMAT
 CONF_IF_NAN = "if_nan"
 
 
-# noqa
 f_regex = re.compile(
     r"""
-    (                                  # start of capture group 1
-    %                                  # literal "%"
-    [-+0 #]{0,5}                   # optional flags
-    (?:\d+|\*)?                        # width
-    (?:\.(?:\d+|\*))?                  # precision
-    (?:h|l|ll|w|I|I32|I64)?            # size
-    f                                  # type
+    (                                   # start of capture group 1
+    %                                   # literal "%"
+    [-+0 #]{0,5}                        # optional flags
+    (?:\d+|\*)?                         # width
+    (?:\.(?:\d+|\*))?                   # precision
+    (?:hh|h|ll|l|j|z|t|L|w|I|I32|I64)?  # size
+    f                                   # type
     )
     """,
     flags=re.VERBOSE,
 )
-# noqa
 c_regex = re.compile(
     r"""
-    (                                  # start of capture group 1
-    %                                  # literal "%"
-    [-+0 #]{0,5}                   # optional flags
-    (?:\d+|\*)?                        # width
-    (?:\.(?:\d+|\*))?                  # precision
-    (?:h|l|ll|w|I|I32|I64)?            # size
-    [cCdiouxXeEfgGaAnpsSZ]             # type
+    (                                   # start of capture group 1
+    %                                   # literal "%"
+    [-+0 #]{0,5}                        # optional flags
+    (?:\d+|\*)?                         # width
+    (?:\.(?:\d+|\*))?                   # precision
+    (?:hh|h|ll|l|j|z|t|L|w|I|I32|I64)?  # size
+    [cCdiouxXeEfgGaAnpsSZ]              # type
     )
     """,
     flags=re.VERBOSE,

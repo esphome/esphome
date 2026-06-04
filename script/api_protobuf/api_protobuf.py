@@ -84,12 +84,7 @@ def indent_list(text: str, padding: str = "  ") -> list[str]:
     """Indent each line of the given text with the specified padding."""
     lines = []
     for line in text.splitlines():
-        if (
-            line == ""
-            or line.startswith("#ifdef")
-            or line.startswith("#if ")
-            or line.startswith("#endif")
-        ):
+        if line == "" or line.startswith(("#ifdef", "#if ", "#endif")):
             p = ""
         else:
             p = padding
@@ -1283,11 +1278,11 @@ class PackedBufferTypeInfo(TypeInfo):
         """Dump shows buffer info but not decoded values."""
         return (
             f'out.append(2, \' \').append_p(ESPHOME_PSTR("{self.name}")).append(": ");\n'
-            + 'out.append_p(ESPHOME_PSTR("packed buffer ["));\n'
-            + f"append_uint(out, this->{self.field_name}_count_);\n"
-            + 'out.append_p(ESPHOME_PSTR(" values, "));\n'
-            + f"append_uint(out, this->{self.field_name}_length_);\n"
-            + 'out.append_p(ESPHOME_PSTR(" bytes]\\n"));'
+            'out.append_p(ESPHOME_PSTR("packed buffer ["));\n'
+            f"append_uint(out, this->{self.field_name}_count_);\n"
+            'out.append_p(ESPHOME_PSTR(" values, "));\n'
+            f"append_uint(out, this->{self.field_name}_length_);\n"
+            'out.append_p(ESPHOME_PSTR(" bytes]\\n"));'
         )
 
     def dump(self, name: str) -> str:
@@ -3163,7 +3158,7 @@ def main() -> None:
         defines_content += "\n"
     defines_content += "\nnamespace esphome::api {}  // namespace esphome::api\n"
 
-    with open(root / "api_pb2_defines.h", "w", encoding="utf-8") as f:
+    with (root / "api_pb2_defines.h").open("w", encoding="utf-8") as f:
         f.write(defines_content)
 
     content = FILE_HEADER
@@ -3448,13 +3443,13 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
 #endif  // HAS_PROTO_MESSAGE_DUMP
 """
 
-    with open(root / "api_pb2.h", "w", encoding="utf-8") as f:
+    with (root / "api_pb2.h").open("w", encoding="utf-8") as f:
         f.write(content)
 
-    with open(root / "api_pb2.cpp", "w", encoding="utf-8") as f:
+    with (root / "api_pb2.cpp").open("w", encoding="utf-8") as f:
         f.write(cpp)
 
-    with open(root / "api_pb2_dump.cpp", "w", encoding="utf-8") as f:
+    with (root / "api_pb2_dump.cpp").open("w", encoding="utf-8") as f:
         f.write(dump_cpp)
 
     hpp = FILE_HEADER
@@ -3551,7 +3546,7 @@ static const char *const TAG = "api.service";
         if id_ is not None and not mt.options.deprecated:
             id_to_msg_name[id_] = mt.name
 
-    for id_, (_, _, case_label) in cases:
+    for id_, (_, _, _case_label) in cases:
         msg_name = id_to_msg_name.get(id_, "")
         if msg_name in message_auth_map:
             needs_auth = message_auth_map[msg_name]
@@ -3614,7 +3609,7 @@ static const char *const TAG = "api.service";
 
     # Dispatch switch
     out += "  switch (msg_type) {\n"
-    for i, (case, ifdef, case_label) in cases:
+    for _i, (case, ifdef, case_label) in cases:
         if ifdef is not None:
             out += _make_ifdef_line(ifdef) + "\n"
 
@@ -3641,10 +3636,10 @@ static const char *const TAG = "api.service";
 }  // namespace esphome::api
 """
 
-    with open(root / "api_pb2_service.h", "w", encoding="utf-8") as f:
+    with (root / "api_pb2_service.h").open("w", encoding="utf-8") as f:
         f.write(hpp)
 
-    with open(root / "api_pb2_service.cpp", "w", encoding="utf-8") as f:
+    with (root / "api_pb2_service.cpp").open("w", encoding="utf-8") as f:
         f.write(cpp)
 
     prot_file.unlink()
