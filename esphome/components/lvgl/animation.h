@@ -97,8 +97,8 @@ class LvAnimationTimingEaseInOut : public LvAnimationTiming {
 
 template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public Component {
  public:
-  LvAnimation(std::function<void(const uint32_t *data)> update_callback, std::vector<TemplatableValue<uint32_t>> from,
-              std::vector<TemplatableValue<uint32_t>> to)
+  LvAnimation(std::function<void(const lv_coord_t *data)> update_callback,
+              std::vector<TemplatableValue<lv_coord_t>> from, std::vector<TemplatableValue<lv_coord_t>> to)
       : update_callback_(std::move(update_callback)) {
     std::copy(from.begin(), from.end(), this->from_);
     std::copy(to.begin(), to.end(), this->to_);
@@ -151,13 +151,13 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
         return;
     }
 
-    for (auto timing : this->timings_) {
+    for (auto *timing : this->timings_) {
       progress = timing->map_progress(progress);
     }
-    uint32_t data[DATA_SIZE];
+    lv_coord_t data[DATA_SIZE];
     for (size_t i = 0; i < DATA_SIZE; i++) {
       data[i] =
-          (uint32_t) (roundf(this->data_from_[i] + (int32_t) (this->data_to_[i] - this->data_from_[i]) * progress));
+          (lv_coord_t) (roundf(this->data_from_[i] + (int32_t) (this->data_to_[i] - this->data_from_[i]) * progress));
     }
     this->update_callback_(data);
   }
@@ -169,14 +169,14 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
   void set_loop(bool loop) { this->loop_ = loop; }
 
  protected:
-  std::function<void(const uint32_t *)> update_callback_;
-  TemplatableValue<uint32_t> from_[DATA_SIZE]{};
-  TemplatableValue<uint32_t> to_[DATA_SIZE]{};
+  std::function<void(const lv_coord_t *)> update_callback_;
+  TemplatableValue<lv_coord_t> from_[DATA_SIZE]{};
+  TemplatableValue<lv_coord_t> to_[DATA_SIZE]{};
   uint32_t duration_{0};
   uint32_t start_delay_{0};
   uint32_t start_time_{0};
-  uint32_t data_from_[DATA_SIZE]{0};
-  uint32_t data_to_[DATA_SIZE]{0};
+  lv_coord_t data_from_[DATA_SIZE]{0};
+  lv_coord_t data_to_[DATA_SIZE]{0};
   AnimationState state_{AnimationState::STOPPED};
   std::vector<LvAnimationTiming *> timings_{};
   bool loop_{false};

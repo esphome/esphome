@@ -36,7 +36,7 @@ from .lv_validation import (
 )
 from .lvcode import LVGL_COMP_ARG, LambdaContext, LvglComponent
 from .schemas import STYLE_PROPS
-from .types import LvAnimation, LvglAction, lv_color_t, lv_obj_t, lvgl_ns
+from .types import LvAnimation, LvglAction, lv_color_t, lv_coord_t, lv_obj_t, lvgl_ns
 from .widgets import get_widgets
 
 LvAnimationTimingRoundTrip = lvgl_ns.class_("LvAnimationTimingRoundTrip")
@@ -143,8 +143,11 @@ async def process_arg(validator, arg) -> list:
     if validator == literal_color:
         value = get_component_colors(arg)
     else:
-        value = [await validator.process(arg, raw_lambda=True)]
-    return [literal(f"TemplatableValue<uint32_t>({v})") for v in value]
+        # from/to values are evaluated at animation start with no arguments, so the
+        # generated lambda must be parameterless rather than inheriting the enclosing
+        # update-callback's `values` parameter.
+        value = [await validator.process(arg, args=[], raw_lambda=True)]
+    return [literal(f"TemplatableValue<lv_coord_t>({v})") for v in value]
 
 
 def process_value(validator, index):
@@ -160,7 +163,7 @@ async def animations_to_code(config):
         add_define("USE_LVGL_ANIMATION")
         widgets = animation[CONF_WIDGETS]
         async with LambdaContext(
-            [(cg.uint32.operator("const").operator("ptr"), "values")]
+            [(lv_coord_t.operator("const").operator("ptr"), "values")]
         ) as ctx:
             froms = []
             tos = []

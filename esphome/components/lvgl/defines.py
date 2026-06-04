@@ -231,7 +231,10 @@ class LValidator:
         return self.validator(value)
 
     async def process(
-        self, value: Any, args: list[tuple[SafeExpType, str]] | None = None
+        self,
+        value: Any,
+        args: list[tuple[SafeExpType, str]] | None = None,
+        raw_lambda: bool = False,
     ) -> Expression:
         if value is None:
             return None
@@ -239,11 +242,15 @@ class LValidator:
             # Local import to avoid circular import
             from .lvcode import get_lambda_context_args
 
-            args = args or get_lambda_context_args()
+            # `args is None` means "inherit the enclosing lambda context"; an explicit
+            # empty list means "no parameters" and must be preserved as-is.
+            if args is None:
+                args = get_lambda_context_args()
 
-            return call_lambda(
-                await cg.process_lambda(value, args, return_type=self.rtype)
-            )
+            lamb = await cg.process_lambda(value, args, return_type=self.rtype)
+            if raw_lambda:
+                return lamb
+            return call_lambda(lamb)
         if self.retmapper is not None:
             return self.retmapper(value)
         if isinstance(value, ID):
