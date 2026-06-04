@@ -111,6 +111,8 @@ def create_storage() -> Callable[..., StorageJSON]:
             no_mdns=kwargs.get("no_mdns", False),
             framework=kwargs.get("framework", "arduino"),
             core_platform=kwargs.get("core_platform", "esp32"),
+            toolchain=kwargs.get("toolchain", "platformio"),
+            framework_version=kwargs.get("framework_version"),
         )
 
     return _create
@@ -139,6 +141,46 @@ def test_storage_should_clean_when_build_path_changes(
     """Test that clean is triggered when build_path changes."""
     old = create_storage(loaded_integrations=["api", "wifi"], build_path="/build1")
     new = create_storage(loaded_integrations=["api", "wifi"], build_path="/build2")
+    assert storage_should_clean(old, new) is True
+
+
+def test_storage_should_clean_when_toolchain_changes(
+    create_storage: Callable[..., StorageJSON],
+) -> None:
+    """Test that clean is triggered when the build toolchain changes.
+
+    Switching between the PlatformIO and native ESP-IDF toolchains produces
+    incompatible build trees (and toolchain-specific idedata), so the build
+    must be wiped.
+    """
+    old = create_storage(loaded_integrations=["api", "wifi"], toolchain="platformio")
+    new = create_storage(loaded_integrations=["api", "wifi"], toolchain="esp-idf")
+    assert storage_should_clean(old, new) is True
+
+
+def test_storage_should_clean_when_framework_changes(
+    create_storage: Callable[..., StorageJSON],
+) -> None:
+    """Test that clean is triggered when the framework changes.
+
+    Switching between arduino and esp-idf produces incompatible build trees
+    even on the same toolchain, so the build must be wiped.
+    """
+    old = create_storage(loaded_integrations=["api", "wifi"], framework="arduino")
+    new = create_storage(loaded_integrations=["api", "wifi"], framework="esp-idf")
+    assert storage_should_clean(old, new) is True
+
+
+def test_storage_should_clean_when_framework_version_changes(
+    create_storage: Callable[..., StorageJSON],
+) -> None:
+    """Test that clean is triggered when the framework version changes.
+
+    A different framework/ESP-IDF version compiles against a different SDK, so
+    the stale build tree must be wiped.
+    """
+    old = create_storage(loaded_integrations=["api", "wifi"], framework_version="5.3.1")
+    new = create_storage(loaded_integrations=["api", "wifi"], framework_version="5.4.0")
     assert storage_should_clean(old, new) is True
 
 
@@ -326,8 +368,8 @@ def test_update_storage_json_logging_when_old_is_none(
     with caplog.at_level("INFO"):
         update_storage_json()
 
-    # Verify clean_build was called
-    mock_clean_build.assert_called_once()
+    # Verify clean_build was called with a full wipe (runs before src is written)
+    mock_clean_build.assert_called_once_with(clear_pio_cache=False, full=True)
 
     # Verify the correct log message was used (not the component removal message)
     assert "Core config or version changed, cleaning build files..." in caplog.text
@@ -377,60 +419,50 @@ def test_update_storage_json_logging_components_removed(
     new_storage.save.assert_called_once_with("/test/path")
 
 
+def _mock_cmake_cache_paths(mock_core: MagicMock, tmp_path: Path) -> None:
+    """Wire relative_pioenvs_path/relative_build_path to tmp_path subtrees."""
+    mock_core.name = "test_device"
+    mock_core.relative_pioenvs_path.side_effect = (tmp_path / ".pioenvs").joinpath
+    mock_core.relative_build_path.side_effect = tmp_path.joinpath
+
+
 @patch("esphome.writer.CORE")
-def test_clean_cmake_cache(
+def test_clean_cmake_cache_platformio(
     mock_core: MagicMock,
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test clean_cmake_cache removes CMakeCache.txt file."""
-    # Create directory structure
-    pioenvs_dir = tmp_path / ".pioenvs"
-    pioenvs_dir.mkdir()
-    device_dir = pioenvs_dir / "test_device"
-    device_dir.mkdir()
-    cmake_cache_file = device_dir / "CMakeCache.txt"
+    """Test clean_cmake_cache removes the PlatformIO CMakeCache.txt."""
+    _mock_cmake_cache_paths(mock_core, tmp_path)
+    cmake_cache_file = tmp_path / ".pioenvs" / "test_device" / "CMakeCache.txt"
+    cmake_cache_file.parent.mkdir(parents=True)
     cmake_cache_file.write_text("# CMake cache file")
 
-    # Setup mocks
-    mock_core.relative_pioenvs_path.return_value = pioenvs_dir
-    mock_core.name = "test_device"
-
-    # Verify file exists before
-    assert cmake_cache_file.exists()
-
-    # Call the function
     with caplog.at_level("INFO"):
         clean_cmake_cache()
 
-    # Verify file was removed
     assert not cmake_cache_file.exists()
-
-    # Verify logging
     assert "Deleting" in caplog.text
     assert "CMakeCache.txt" in caplog.text
 
 
 @patch("esphome.writer.CORE")
-def test_clean_cmake_cache_no_pioenvs_dir(
+def test_clean_cmake_cache_esp_idf(
     mock_core: MagicMock,
     tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test clean_cmake_cache when pioenvs directory doesn't exist."""
-    # Setup non-existent directory path
-    pioenvs_dir = tmp_path / ".pioenvs"
+    """Test clean_cmake_cache removes the native ESP-IDF build/CMakeCache.txt."""
+    _mock_cmake_cache_paths(mock_core, tmp_path)
+    cmake_cache_file = tmp_path / "build" / "CMakeCache.txt"
+    cmake_cache_file.parent.mkdir(parents=True)
+    cmake_cache_file.write_text("# CMake cache file")
 
-    # Setup mocks
-    mock_core.relative_pioenvs_path.return_value = pioenvs_dir
+    with caplog.at_level("INFO"):
+        clean_cmake_cache()
 
-    # Verify directory doesn't exist
-    assert not pioenvs_dir.exists()
-
-    # Call the function - should not crash
-    clean_cmake_cache()
-
-    # Verify directory still doesn't exist
-    assert not pioenvs_dir.exists()
+    assert not cmake_cache_file.exists()
+    assert str(cmake_cache_file) in caplog.text
 
 
 @patch("esphome.writer.CORE")
@@ -438,26 +470,10 @@ def test_clean_cmake_cache_no_cmake_file(
     mock_core: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """Test clean_cmake_cache when CMakeCache.txt doesn't exist."""
-    # Create directory structure without CMakeCache.txt
-    pioenvs_dir = tmp_path / ".pioenvs"
-    pioenvs_dir.mkdir()
-    device_dir = pioenvs_dir / "test_device"
-    device_dir.mkdir()
-    cmake_cache_file = device_dir / "CMakeCache.txt"
+    """Test clean_cmake_cache when no CMakeCache.txt exists -- should not crash."""
+    _mock_cmake_cache_paths(mock_core, tmp_path)
 
-    # Setup mocks
-    mock_core.relative_pioenvs_path.return_value = pioenvs_dir
-    mock_core.name = "test_device"
-
-    # Verify file doesn't exist
-    assert not cmake_cache_file.exists()
-
-    # Call the function - should not crash
     clean_cmake_cache()
-
-    # Verify file still doesn't exist
-    assert not cmake_cache_file.exists()
 
 
 @patch("esphome.writer.CORE")
@@ -479,6 +495,11 @@ def test_clean_build(
     dependencies_lock = tmp_path / "dependencies.lock"
     dependencies_lock.write_text("lock file")
 
+    # idedata cache lives under the data dir, not the build path.
+    idedata_cache = tmp_path / "idedata" / "test.json"
+    idedata_cache.parent.mkdir()
+    idedata_cache.write_text("{}")
+
     # Native ESP-IDF toolchain artifacts.
     idf_build_dir = tmp_path / "build"
     idf_build_dir.mkdir()
@@ -486,6 +507,11 @@ def test_clean_build(
     managed_components_dir = tmp_path / "managed_components"
     managed_components_dir.mkdir()
     (managed_components_dir / "espressif__arduino-esp32").mkdir()
+
+    # Converted-PIO-library cache (native ESP-IDF), under the data dir.
+    pio_components_dir = tmp_path / "pio_components"
+    pio_components_dir.mkdir()
+    (pio_components_dir / "abc12345").mkdir()
 
     # Create PlatformIO cache directory
     platformio_cache_dir = tmp_path / ".platformio" / ".cache"
@@ -499,13 +525,17 @@ def test_clean_build(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.name = "test"
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
 
     # Verify all exist before
     assert pioenvs_dir.exists()
     assert piolibdeps_dir.exists()
     assert dependencies_lock.exists()
+    assert idedata_cache.exists()
     assert idf_build_dir.exists()
     assert managed_components_dir.exists()
+    assert pio_components_dir.exists()
     assert platformio_cache_dir.exists()
 
     # Mock PlatformIO's ProjectConfig cache_dir
@@ -528,8 +558,10 @@ def test_clean_build(
     assert not pioenvs_dir.exists()
     assert not piolibdeps_dir.exists()
     assert not dependencies_lock.exists()
+    assert not idedata_cache.exists()
     assert not idf_build_dir.exists()
     assert not managed_components_dir.exists()
+    assert not pio_components_dir.exists()
     assert not platformio_cache_dir.exists()
 
     # Verify logging
@@ -537,9 +569,45 @@ def test_clean_build(
     assert ".pioenvs" in caplog.text
     assert ".piolibdeps" in caplog.text
     assert "dependencies.lock" in caplog.text
+    assert str(idedata_cache) in caplog.text
     assert str(idf_build_dir) in caplog.text
     assert str(managed_components_dir) in caplog.text
     assert "PlatformIO cache" in caplog.text
+
+
+@patch("esphome.writer.CORE")
+def test_clean_build_full_wipes_build_dir(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """full=True wipes the whole build dir (incl. src/) but keeps siblings."""
+    build_dir = tmp_path / "build" / "test"
+    (build_dir / "src").mkdir(parents=True)
+    (build_dir / "src" / "main.cpp").write_text("// generated")
+    (build_dir / "platformio.ini").write_text("[platformio]")
+    (build_dir / ".pioenvs").mkdir()
+
+    idedata_cache = tmp_path / "idedata" / "test.json"
+    idedata_cache.parent.mkdir()
+    idedata_cache.write_text("{}")
+
+    # A sibling of the build dir (under the data dir) must survive.
+    survivor = tmp_path / "keep_me.txt"
+    survivor.write_text("keep")
+
+    # build_path may be a str (e.g. set from config); clean_build must coerce.
+    mock_core.build_path = str(build_dir)
+    mock_core.name = "test"
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
+
+    with caplog.at_level("INFO"):
+        clean_build(clear_pio_cache=False, full=True)
+
+    assert not build_dir.exists()
+    assert not idedata_cache.exists()
+    assert survivor.exists()
+    assert str(build_dir) in caplog.text
 
 
 @patch("esphome.writer.CORE")
@@ -561,6 +629,7 @@ def test_clean_build_partial_exists(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
 
     # Verify only pioenvs exists
     assert pioenvs_dir.exists()
@@ -598,6 +667,7 @@ def test_clean_build_nothing_exists(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
 
     # Verify nothing exists
     assert not pioenvs_dir.exists()
@@ -634,6 +704,7 @@ def test_clean_build_platformio_not_available(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
 
     # Verify all exist before
     assert pioenvs_dir.exists()
@@ -672,6 +743,7 @@ def test_clean_build_empty_cache_dir(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
 
     # Verify pioenvs exists before
     assert pioenvs_dir.exists()
@@ -1400,6 +1472,7 @@ def test_clean_build_handles_readonly_files(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
 
     # Verify file is read-only
     assert not os.access(readonly_file, os.W_OK)
@@ -1464,6 +1537,7 @@ def test_clean_build_reraises_for_other_errors(
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
     mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
 
     try:
         # Mock os.access in writer module to return True (writable)
