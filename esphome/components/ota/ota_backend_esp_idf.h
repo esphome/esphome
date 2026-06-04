@@ -54,9 +54,11 @@ class IDFOTABackend final {
 #endif
 
  private:
+  // md5_ first: on esp32 variants with DMA hardware SHA its digest_ buffer is alignas(32), so
+  // leading it avoids a large alignment gap (and md5_set_ stays last so buf_ below packs tightly).
+  md5::MD5Digest md5_{};
   esp_ota_handle_t update_handle_{0};
   const esp_partition_t *partition_;
-  md5::MD5Digest md5_{};
   char expected_bin_md5_[32];
   bool md5_set_{false};
 #ifdef USE_OTA_PARTITIONS
