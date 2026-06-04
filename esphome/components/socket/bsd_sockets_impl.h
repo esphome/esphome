@@ -17,14 +17,6 @@
 #include "esphome/core/lwip_fast_select.h"
 #endif
 
-#ifdef USE_ZEPHYR
-// Zephyr does not provide <sys/uio.h>; define the subset we need locally.
-struct iovec {
-  void *iov_base;
-  size_t iov_len;
-};
-#endif
-
 namespace esphome::socket {
 
 class BSDSocketImpl {
