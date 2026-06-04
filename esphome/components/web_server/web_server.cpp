@@ -1106,6 +1106,7 @@ json::SerializationBuffer<> WebServer::cover_json_(cover::Cover *obj, JsonDetail
   if (obj->get_traits().get_supports_tilt())
     root[ESPHOME_F("tilt")] = obj->tilt;
   if (start_config == DETAIL_ALL) {
+    root[ESPHOME_F("assumed_state")] = obj->get_traits().get_is_assumed_state();
     this->add_sorting_info_(root, obj);
   }
 
