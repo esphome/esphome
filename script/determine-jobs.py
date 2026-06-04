@@ -70,6 +70,7 @@ from helpers import (
     get_changed_components,
     get_component_from_path,
     get_component_test_files,
+    get_component_test_platforms,
     get_components_with_dependencies,
     get_cpp_changed_components,
     get_fixture_to_test_files,
@@ -77,7 +78,6 @@ from helpers import (
     get_target_branch,
     git_ls_files,
     is_validate_only_file,
-    parse_test_filename,
     root_path,
 )
 from split_components_for_ci import create_intelligent_batches
@@ -168,24 +168,6 @@ class Platform(StrEnum):
 MEMORY_IMPACT_FALLBACK_COMPONENT = "api"  # Representative component for core changes
 MEMORY_IMPACT_FALLBACK_PLATFORM = Platform.ESP32_IDF  # Most representative platform
 MEMORY_IMPACT_MAX_COMPONENTS = 40  # Max components before results become nonsensical
-
-# Platform-specific components that can only be built on their respective platforms
-# These components contain platform-specific code and cannot be cross-compiled
-# Regular components (wifi, logger, api, etc.) are cross-platform and not listed here
-PLATFORM_SPECIFIC_COMPONENTS = frozenset(
-    {
-        "esp32",  # ESP32 platform implementation
-        "esp8266",  # ESP8266 platform implementation
-        "rp2040",  # Raspberry Pi Pico / RP2040 platform implementation
-        "libretiny",  # LibreTiny base platform implementation
-        "bk72xx",  # Beken BK72xx platform implementation (uses LibreTiny)
-        "rtl87xx",  # Realtek RTL87xx platform implementation (uses LibreTiny)
-        "ln882x",  # Winner Micro LN882x platform implementation (uses LibreTiny)
-        "host",  # Host platform (for testing on development machine)
-        "nrf52",  # Nordic nRF52 platform implementation (uses Zephyr)
-        "zephyr",  # Zephyr RTOS platform implementation
-    }
-)
 
 # Platform preference order for memory impact analysis
 # This order is used when no platform-specific hints are detected from filenames
@@ -306,13 +288,13 @@ def _is_clang_tidy_full_scan() -> bool:
     """
     try:
         result = subprocess.run(
-            [os.path.join(root_path, "script", "clang_tidy_hash.py"), "--check"],
+            [str(Path(root_path) / "script" / "clang_tidy_hash.py"), "--check"],
             capture_output=True,
             check=False,
         )
         # Exit 0 means hash changed (full scan needed)
         return result.returncode == 0
-    except Exception:
+    except Exception:  # noqa: BLE001
         # If hash check fails, run full scan to be safe
         return True
 
@@ -483,9 +465,7 @@ def should_run_device_builder(branch: str | None = None) -> bool:
         True if the device-builder downstream tests should run, False otherwise.
     """
     target_branch = get_target_branch()
-    if target_branch and (
-        target_branch.startswith("release") or target_branch.startswith("beta")
-    ):
+    if target_branch and (target_branch.startswith(("release", "beta"))):
         return False
 
     for file in changed_files(branch):
@@ -955,9 +935,7 @@ def detect_memory_impact_config(
     # all components at once would produce nonsensical memory impact results.
     # Memory impact analysis is most useful for focused PRs targeting dev.
     target_branch = get_target_branch()
-    if target_branch and (
-        target_branch.startswith("release") or target_branch.startswith("beta")
-    ):
+    if target_branch and (target_branch.startswith(("release", "beta"))):
         print(
             f"Memory impact: Skipping analysis for target branch {target_branch} "
             f"(would try to build all components at once, giving nonsensical results)",
@@ -1010,23 +988,24 @@ def detect_memory_impact_config(
     ] = {}  # Track which platforms each component supports
 
     for component in sorted(changed_component_set):
-        # Look for test files on preferred platforms
-        test_files = get_component_test_files(component, all_variants=True)
-        if not test_files:
-            continue
-
-        # Check if component has tests for any preferred platform
-        available_platforms = [
-            platform
-            for test_file in test_files
-            if (platform := parse_test_filename(test_file)[1]) != "all"
-            and platform in MEMORY_IMPACT_PLATFORM_PREFERENCE
-        ]
+        # Discover the platforms this component has BASE tests for, using the
+        # same logic as the build runner (get_component_test_platforms wraps the
+        # shared get_component_test_files + parse_test_filename helpers). Base
+        # tests only: the memory impact CI build runs test_build_components.py
+        # with --base-only, which compiles base test.<platform>.yaml files but
+        # never variant test-<variant>.<platform>.yaml files. Counting
+        # variant-only platforms here would let us select a platform the build
+        # then has nothing to compile for, producing no memory output.
+        available_platforms = {
+            Platform(platform)
+            for platform in get_component_test_platforms(component)
+            if platform in MEMORY_IMPACT_PLATFORM_PREFERENCE
+        }
 
         if not available_platforms:
             continue
 
-        component_platforms_map[component] = set(available_platforms)
+        component_platforms_map[component] = available_platforms
         components_with_tests.append(component)
 
     # If no components have tests, don't run memory impact
@@ -1047,7 +1026,7 @@ def detect_memory_impact_config(
     # Find common platforms supported by ALL components
     # This ensures we can build all components together in a merged config
     common_platforms = set(MEMORY_IMPACT_PLATFORM_PREFERENCE)
-    for component, platforms in component_platforms_map.items():
+    for platforms in component_platforms_map.values():
         common_platforms &= platforms
 
     # Select the most preferred platform from the common set
@@ -1088,19 +1067,56 @@ def detect_memory_impact_config(
         )
         platform = _select_platform_by_count(platform_counts)
 
-    # Filter out platform-specific components that are incompatible with selected platform
-    # Platform components (esp32, esp8266, rp2040, etc.) can only build on their own platform
-    # Other components (wifi, logger, etc.) are cross-platform and can build anywhere
-    compatible_components = [
-        component
-        for component in components_with_tests
-        if component not in PLATFORM_SPECIFIC_COMPONENTS
-        or platform in component_platforms_map.get(component, set())
-    ]
+    # Keep only components that have a base test on the selected platform.
+    # The merged build runs test_build_components.py -t <platform> --base-only,
+    # so a component without a base test.<platform>.yaml compiles nothing and
+    # contributes no memory output. This also covers platform-specific
+    # components (esp32, esp8266, etc.), which only have tests on their own
+    # platform. When components don't share a common platform we build the
+    # largest subset that does, dropping the rest.
+    def components_supporting(target: Platform) -> list[str]:
+        return [
+            component
+            for component in components_with_tests
+            if target in component_platforms_map.get(component, set())
+        ]
 
-    # If no components are compatible with the selected platform, don't run
+    compatible_components = components_supporting(platform)
+
+    # A platform hint (or no-common-platform fallback) can pick a platform that
+    # no changed component actually has a base test for, leaving nothing to
+    # build. In that case fall back to the platform supported by the most
+    # components. component_platforms_map is non-empty (guarded above) and every
+    # value is a non-empty platform set (components with no supported platform
+    # are skipped at discovery), so this always yields a buildable platform with
+    # at least one compatible component.
+    if not compatible_components:
+        platform = _select_platform_by_count(
+            Counter(
+                p for platforms in component_platforms_map.values() for p in platforms
+            )
+        )
+        compatible_components = components_supporting(platform)
+
+    # Defensive backstop: unreachable given the invariant above, but guards
+    # against a future regression in platform selection silently passing an
+    # empty component list to the build.
     if not compatible_components:
         return {"should_run": "false"}
+
+    # Log components dropped because they lack a base test on the selected
+    # platform so partial-subset builds are visible in CI logs.
+    dropped_components = [
+        component
+        for component in components_with_tests
+        if component not in compatible_components
+    ]
+    if dropped_components:
+        print(
+            f"Memory impact: Dropping components without a base test on "
+            f"{platform}: {dropped_components}",
+            file=sys.stderr,
+        )
 
     # Debug output
     print("Memory impact analysis:", file=sys.stderr)
@@ -1311,7 +1327,7 @@ def main() -> None:
         # (no isolation, all components are groupable)
         target_branch = get_target_branch()
         is_release_branch = target_branch and (
-            target_branch.startswith("release") or target_branch.startswith("beta")
+            target_branch.startswith(("release", "beta"))
         )
 
         if is_release_branch:
