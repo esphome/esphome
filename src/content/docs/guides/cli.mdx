@@ -142,6 +142,18 @@ for details. The default can be set with the environment variable `ESPHOME_LOG_S
 
 The `esphome config <CONFIG>` validates the configuration and displays the validation result.
 
+#### Options
+
+**`--show-secrets`**
+: Show secret values in the output instead of redacting them.
+
+
+**`--no-defaults`**
+: Only output the configuration the user wrote, without the values that schema validation fills in from defaults.
+Useful for sharing a minimal reproduction or diffing two configurations without hundreds of defaulted keys in the way.
+Substitutions, packages, and `!extend` / `!remove` are resolved in the output.
+
+
 ### `config-hash` Command
 
 The `esphome config-hash <CONFIG>` loads the configuration and calculates the hash that you can compare
