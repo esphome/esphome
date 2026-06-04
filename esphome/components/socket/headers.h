@@ -158,9 +158,7 @@ using socklen_t = uint32_t;
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#ifndef USE_ZEPHYR
 #include <sys/uio.h>
-#endif
 #include <unistd.h>
 
 #ifdef USE_HOST

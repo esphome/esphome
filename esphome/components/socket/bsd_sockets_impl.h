@@ -76,7 +76,7 @@ class BSDSocketImpl {
 #endif
   }
   ssize_t recvfrom(void *buf, size_t len, sockaddr *addr, socklen_t *addr_len) {
-#if defined(USE_ESP32) || defined(USE_HOST)
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_ZEPHYR)
     return ::recvfrom(this->fd_, buf, len, 0, addr, addr_len);
 #else
     return ::lwip_recvfrom(this->fd_, buf, len, 0, addr, addr_len);
