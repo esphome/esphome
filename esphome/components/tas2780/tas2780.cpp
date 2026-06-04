@@ -290,13 +290,17 @@ void TAS2780::init_() {
   // software reset
   this->reg(TAS2780_SW_RESET) = TAS2780_SW_RESET_CMD;
 
-  uint8_t chd1 = this->reg(TAS2780_DC_BLK1).get();
-  uint8_t chd2 = this->reg(TAS2780_CLK_CFG).get();
-  uint8_t chd3 = this->reg(TAS2780_MODE_CTRL).get();
-
   // DC_BLK1 (0x05) reads 0x41 after reset on TAS2780; used as chip presence check
   // since TAS2780 has no dedicated WHO_AM_I register
   static const uint8_t TAS2780_DC_BLK1_RESET_VAL = 0x41;
+  uint8_t chd1;
+  if (!this->read_byte(TAS2780_DC_BLK1, &chd1)) {
+    ESP_LOGE(TAG, "I2C read failed during init");
+    this->mark_failed();
+    return;
+  }
+  uint8_t chd2 = this->reg(TAS2780_CLK_CFG).get();
+  uint8_t chd3 = this->reg(TAS2780_MODE_CTRL).get();
   if (chd1 == TAS2780_DC_BLK1_RESET_VAL) {
     ESP_LOGV(TAG, "TChip found");
     ESP_LOGV(TAG, "Reg 0x68: %d", chd2);
@@ -515,11 +519,9 @@ float TAS2780::volume() { return this->volume_; }
 
 bool TAS2780::write_mute_() {
   if (this->is_muted_) {
-    this->reg(TAS2780_DVC) = TAS2780_DVC_MUTE;
-  } else {
-    this->write_volume_();
+    return this->write_byte(TAS2780_DVC, TAS2780_DVC_MUTE);
   }
-  return true;
+  return this->write_volume_();
 }
 
 bool TAS2780::write_volume_() {
@@ -545,9 +547,7 @@ bool TAS2780::write_volume_() {
   float attenuation = (1. - volume) * 200.f;
   ESP_LOGD(TAG, "Setting attenuation to: %4.2f", attenuation);
   uint8_t dvc = clamp<uint8_t>(attenuation, 0, 0xC8);
-  this->reg(TAS2780_DVC) = dvc;
-
-  return true;
+  return this->write_byte(TAS2780_DVC, dvc);
 }
 
 void TAS2780::apply_amp_and_channel_config() {
