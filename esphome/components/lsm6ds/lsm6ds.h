@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/motion/motion_component.h"
 
@@ -22,8 +21,6 @@ static const uint8_t LSM6DS_REG_OUTX_L_XL = 0x28;   // Accel X LSB
 // Burst read from 0x22 to 0x2D inclusive: gyro XYZ (6 bytes) + accel XYZ (6 bytes)
 static const uint8_t LSM6DS_BURST_LEN = 12;
 static const uint8_t LSM6DS_ACCEL_OFFSET = 6;  // 0x28 - 0x22
-
-static const uint8_t LSM6DS_WHO_AM_I_VALUE = 0x6A;
 
 // ── CTRL3_C bit fields ───────────────────────────────────────────────────────
 static const uint8_t CTRL3_C_SW_RESET = (1 << 0);
@@ -100,6 +97,7 @@ class LSM6DSComponent : public motion::MotionComponent, public i2c::I2CDevice {
   template<typename F> void add_temperature_listener(F &&cb) { this->temperature_callback_.add(std::forward<F>(cb)); }
 
  protected:
+  const char *chip_name_{"Unknown"};
   bool update_data(motion::MotionData &data) override;
 
   LSM6DSAccelRange accel_range_{LSM6DS_ACCEL_RANGE_4G};

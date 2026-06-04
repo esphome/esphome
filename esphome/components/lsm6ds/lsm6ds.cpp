@@ -6,6 +6,10 @@ namespace esphome::lsm6ds {
 
 static const char *const TAG = "lsm6ds";
 
+static struct {
+  uint8_t who_am_i;
+  const char *const name;
+} CHIP_IDS[] = {{0x69, "LSMDSO"}, {0x6A, "LSM6DS3"}};
 //  setup()
 
 void LSM6DSComponent::setup() {
@@ -17,20 +21,28 @@ void LSM6DSComponent::setup() {
     this->mark_failed();
     return;
   }
-  if (who_am_i != LSM6DS_WHO_AM_I_VALUE) {
-    ESP_LOGE(TAG, "Wrong WHO_AM_I: 0x%02X (expected 0x%02X)", who_am_i, LSM6DS_WHO_AM_I_VALUE);
-    this->mark_failed(LOG_STR("Wrong WHO_AM_I value"));
+  const char *chip_name = nullptr;
+  for (const auto &chip : CHIP_IDS) {
+    if (chip.who_am_i == who_am_i) {
+      chip_name = chip.name;
+      break;
+    }
+  }
+  if (chip_name == nullptr) {
+    ESP_LOGE(TAG, "Unknown WHO_AM_I: 0x%02X", who_am_i);
+    this->mark_failed(LOG_STR("Unknown WHO_AM_I value"));
     return;
   }
-  ESP_LOGV(TAG, "Whoami = 0x%02X", who_am_i);
+  ESP_LOGD(TAG, "Found %s (WHO_AM_I = 0x%02X)", chip_name, who_am_i);
+  this->chip_name_ = chip_name;
 
   // 2. Software reset — clears all registers to defaults
   if (this->write_register(LSM6DS_REG_CTRL3_C, &CTRL3_C_SW_RESET, 1) != i2c::ERROR_OK) {
     this->mark_failed(LOG_STR("Software reset failed"));
     return;
   }
-  // Datasheet: reset bit self-clears after boot (typ. 50 µs); 5 ms is safe
-  delay(5);
+  // Datasheet: reset bit self-clears after boot (typ. 50 µs);
+  delay(2);
 
   // 3. Enable auto-increment and block data update (BDU).
   //    BDU prevents reading a high-byte from one sample and a low-byte from the next.
@@ -69,14 +81,13 @@ void LSM6DSComponent::setup() {
     this->mark_failed();
     return;
   }
-
-  // 7. Wait one ODR cycle for the first valid sample.
-  //    At 104 Hz (default) this is ~10 ms; 20 ms covers slower ODR settings too.
-  delay(20);
 }
 
 void LSM6DSComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "LSM6DS IMU:");
+  ESP_LOGCONFIG(TAG,
+                "LSM6DS IMU:\n"
+                "  Chip type: %s\n",
+                this->chip_name_);
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
 
