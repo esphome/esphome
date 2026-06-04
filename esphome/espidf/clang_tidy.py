@@ -63,8 +63,13 @@ def _settings_for(environment: str) -> _Settings:
     )
 
     parts = environment.split("-")
-    idf_target = parts[0]
-    framework = parts[1] if len(parts) > 2 else "idf"
+    if len(parts) != 3 or parts[2] != "tidy" or parts[1] not in ("idf", "arduino"):
+        raise ValueError(
+            f"Unsupported clang-tidy environment {environment!r}: expected "
+            "<target>-<framework>-tidy with framework 'idf' or 'arduino' "
+            "(e.g. esp32-idf-tidy, esp32s3-arduino-tidy)"
+        )
+    idf_target, framework, _ = parts
     variant = idf_target.upper()
     # Defines shared by both frameworks. ESPHOME_LOG_LEVEL must be set up front
     # (as the PlatformIO tidy build_flags do) -- otherwise log.h's ``#ifndef``
@@ -395,7 +400,9 @@ def _idedata_from_tidy_project(compile_commands: Path) -> dict:
     from esphome.espidf.idedata import _get_toolchain_includes, _parse_entry
 
     entries = json.loads(Path(compile_commands).read_text(encoding="utf-8"))
-    entry = next(e for e in entries if e["file"].endswith("tidy.cpp"))
+    entry = next((e for e in entries if e["file"].endswith("tidy.cpp")), None)
+    if entry is None:
+        raise RuntimeError(f"tidy.cpp not found in {compile_commands}")
     cxx_path, defines, includes, cxx_flags = _parse_entry(entry)
 
     return {
