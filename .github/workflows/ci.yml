@@ -113,6 +113,7 @@ jobs:
           script/build_language_schema.py --check
           script/generate-esp32-boards.py --check
           script/generate-rp2040-boards.py --check
+          script/ci_check_duplicate_test_ids.py
 
   import-time:
     name: Check import esphome.__main__ time

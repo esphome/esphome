@@ -1,6 +1,6 @@
 display:
   - platform: ili9xxx
-    id: main_lcd
+    id: display_main_lcd
     model: ili9342
     cs_pin: 12
     dc_pin: 13

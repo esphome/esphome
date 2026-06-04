@@ -5,7 +5,7 @@ packages:
 display:
   spi_id: spi_bus
   platform: mipi_spi
-  id: main_lcd
+  id: mapping_main_lcd
   model: ili9342
   cs_pin: 12
   dc_pin: 13

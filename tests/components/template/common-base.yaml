@@ -52,7 +52,7 @@ esphome:
 
 binary_sensor:
   - platform: template
-    id: some_binary_sensor
+    id: template_some_binary_sensor
     name: "Garage Door Open"
     lambda: |-
       if (id(template_sens).state > 30) {
@@ -108,7 +108,7 @@ sensor:
     name: "Template Sensor"
     id: template_sens
     lambda: |-
-      if (id(some_binary_sensor).state) {
+      if (id(template_some_binary_sensor).state) {
         return 42.0;
       }
       return 0.0;
@@ -230,7 +230,7 @@ switch:
     id: test_switch
     name: "Template Switch"
     lambda: |-
-      if (id(some_binary_sensor).state) {
+      if (id(template_some_binary_sensor).state) {
         return true;
       }
       return false;
@@ -249,7 +249,7 @@ cover:
   - platform: template
     name: "Template Cover"
     lambda: |-
-      if (id(some_binary_sensor).state) {
+      if (id(template_some_binary_sensor).state) {
         return COVER_OPEN;
       }
       return COVER_CLOSED;
@@ -264,7 +264,7 @@ cover:
     name: "Template Cover with Triggers"
     id: template_cover_with_triggers
     lambda: |-
-      if (id(some_binary_sensor).state) {
+      if (id(template_some_binary_sensor).state) {
         return COVER_OPEN;
       }
       return COVER_CLOSED;
@@ -442,7 +442,7 @@ lock:
   - platform: template
     name: "Template Lock"
     lambda: |-
-      if (id(some_binary_sensor).state) {
+      if (id(template_some_binary_sensor).state) {
         return LOCK_STATE_LOCKED;
       }
       return LOCK_STATE_UNLOCKED;
@@ -458,7 +458,7 @@ valve:
     id: template_valve
     name: "Template Valve"
     lambda: |-
-      if (id(some_binary_sensor).state) {
+      if (id(template_some_binary_sensor).state) {
         return VALVE_OPEN;
       }
       return VALVE_CLOSED;

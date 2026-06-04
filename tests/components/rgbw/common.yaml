@@ -1,9 +1,9 @@
 output:
   - platform: ${light_platform}
-    id: light_output_1
+    id: rgbw_light_output_1
     pin: ${pin1}
   - platform: ${light_platform}
-    id: light_output_2
+    id: rgbw_light_output_2
     pin: ${pin2}
   - platform: ${light_platform}
     id: light_output_3
@@ -15,8 +15,8 @@ output:
 light:
   - platform: rgbw
     name: RGBW Light
-    red: light_output_1
-    green: light_output_2
+    red: rgbw_light_output_1
+    green: rgbw_light_output_2
     blue: light_output_3
     white: light_output_4
     color_interlock: true
