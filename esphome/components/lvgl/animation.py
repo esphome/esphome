@@ -12,11 +12,10 @@ from esphome.const import (
     CONF_TYPE,
     CONF_WEIGHT,
 )
-from esphome.cpp_generator import TemplateArguments
+from esphome.cpp_generator import MockObj, TemplateArguments
 
-from ...automation import Trigger
+from ...automation import Trigger, build_automation
 from .defines import (
-    CONF_ANIMATIONS,
     CONF_AUTO_START,
     CONF_LOOP,
     CONF_LVGL_ID,
@@ -34,7 +33,7 @@ from .lv_validation import (
     lv_positive_float,
     lv_zero_to_one_float,
 )
-from .lvcode import LVGL_COMP_ARG, LambdaContext, LvglComponent
+from .lvcode import LVGL_COMP_ARG, LambdaContext, LvglComponent, lv_add
 from .schemas import STYLE_PROPS
 from .types import LvAnimation, LvglAction, lv_color_t, lv_coord_t, lv_obj_t, lvgl_ns
 from .widgets import get_widgets
@@ -159,7 +158,7 @@ def process_value(validator, index):
 
 
 async def animations_to_code(config):
-    for animation in config.get(CONF_ANIMATIONS, []):
+    for animation in config:
         add_define("USE_LVGL_ANIMATION")
         widgets = animation[CONF_WIDGETS]
         async with LambdaContext(
@@ -209,6 +208,26 @@ async def animations_to_code(config):
             )
         )
         await cg.register_component(var, animation)
+
+
+async def add_animation_triggers(config):
+    async def add_triggers(animation: MockObj, event: str, config: dict) -> None:
+        for conf in config:
+            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
+            await build_automation(trigger, [], conf)
+            async with LambdaContext([]) as context:
+                lv_add(trigger.trigger())
+            lv_add(
+                getattr(
+                    animation,
+                    f"add_{event}_callback",
+                )(await context.get_lambda())
+            )
+
+    for animation in config:
+        var = await cg.get_variable(animation[CONF_ID])
+        await add_triggers(var, CONF_ON_START, animation.get(CONF_ON_START, []))
+        await add_triggers(var, CONF_ON_STOP, animation.get(CONF_ON_STOP, []))
 
 
 @automation.register_action(

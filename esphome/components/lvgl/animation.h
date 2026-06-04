@@ -4,7 +4,6 @@
 #ifdef USE_LVGL_ANIMATION
 #include "lvgl_esphome.h"
 #include "esphome/core/hal.h"
-#include <functional>
 
 namespace esphome::lvgl {
 
@@ -58,17 +57,17 @@ class LvAnimationTimingGravity : public LvAnimationTiming {
   }
 
  protected:
-  float calc_pos_(float value) {
+  float calc_pos_(float value) const {
     value -= this->initial_time_;
     return (0.5 * value * this->acceleration_ + this->initial_speed_) * value + this->initial_position_;
   }
 
-  float calc_speed_(float value) {
+  float calc_speed_(float value) const {
     value -= this->initial_time_;
     return this->acceleration_ * value + this->initial_speed_;
   }
 
-  float calc_end_time_() {
+  float calc_end_time_() const {
     return (-this->initial_speed_ + std::sqrt(this->initial_speed_ * this->initial_speed_ -
                                               4.0f * this->acceleration_ / 2.0 * (this->initial_position_ - 1.0f))) /
                this->acceleration_ +
@@ -97,9 +96,9 @@ class LvAnimationTimingEaseInOut : public LvAnimationTiming {
 
 template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public Component {
  public:
-  LvAnimation(std::function<void(const lv_coord_t *data)> update_callback,
-              std::vector<TemplatableValue<lv_coord_t>> from, std::vector<TemplatableValue<lv_coord_t>> to)
-      : update_callback_(std::move(update_callback)) {
+  LvAnimation(void (*update_callback)(const lv_coord_t *data), std::vector<TemplatableValue<lv_coord_t>> from,
+              std::vector<TemplatableValue<lv_coord_t>> to)
+      : update_callback_(update_callback) {
     std::copy(from.begin(), from.end(), this->from_);
     std::copy(to.begin(), to.end(), this->to_);
   }
@@ -117,6 +116,7 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
     this->start_time_ = millis();
     this->state_ = AnimationState::STARTED;
     this->loop();
+    this->start_callback_.call();
   }
 
   void stop() { this->state_ = AnimationState::STOPPED; }
@@ -143,6 +143,7 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
         if (progress >= 1.0f) {
           progress = 1.0f;
           this->stop();
+          this->stop_callback_.call();
           if (this->loop_)
             this->start();
         }
@@ -155,9 +156,9 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
       progress = timing->map_progress(progress);
     }
     lv_coord_t data[DATA_SIZE];
-    for (size_t i = 0; i < DATA_SIZE; i++) {
-      data[i] =
-          (lv_coord_t) (roundf(this->data_from_[i] + (int32_t) (this->data_to_[i] - this->data_from_[i]) * progress));
+    for (size_t i = 0; i != DATA_SIZE; i++) {
+      data[i] = static_cast<lv_coord_t>(
+          roundf(this->data_from_[i] + static_cast<lv_coord_t>(this->data_to_[i] - this->data_from_[i]) * progress));
     }
     this->update_callback_(data);
   }
@@ -168,8 +169,15 @@ template<size_t DATA_SIZE, bool AUTO_START = false> class LvAnimation : public C
   void add_timing(LvAnimationTiming *timing) { this->timings_.push_back(timing); }
   void set_loop(bool loop) { this->loop_ = loop; }
 
+  template<typename F> void add_on_start_callback(F &&callback) {
+    this->start_callback_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_on_stop_callback(F &&callback) { this->stop_callback_.add(std::forward<F>(callback)); }
+
  protected:
-  std::function<void(const lv_coord_t *)> update_callback_;
+  void (*const update_callback_)(const lv_coord_t *data);
+  LazyCallbackManager<void()> start_callback_{};
+  LazyCallbackManager<void()> stop_callback_{};
   TemplatableValue<lv_coord_t> from_[DATA_SIZE]{};
   TemplatableValue<lv_coord_t> to_[DATA_SIZE]{};
   uint32_t duration_{0};
