@@ -107,7 +107,7 @@ void XDB401Component::read_measurement_() {
     return;
   }
 
-  // Sensor reports temperature in Fahrenheit.
+  // Convert sensor temperature data to Celsius.
   if (this->temperature_unit_ == TEMPERATURE_UNIT_C) {
     temperature = (temperature - 32.0f) * 5.0f / 9.0f;
   }
