@@ -1,4 +1,5 @@
 from esphome import automation, codegen as cg, config_validation as cv
+from esphome.automation import Trigger, build_automation
 from esphome.config_validation import COMPONENT_SCHEMA
 from esphome.const import (
     CONF_ACCELERATION,
@@ -14,10 +15,9 @@ from esphome.const import (
 )
 from esphome.cpp_generator import MockObj, TemplateArguments
 
-from ...automation import Trigger, build_automation
+from ..const import CONF_LOOP
 from .defines import (
     CONF_AUTO_START,
-    CONF_LOOP,
     CONF_LVGL_ID,
     CONF_ON_STOP,
     CONF_WIDGETS,
