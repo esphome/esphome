@@ -148,16 +148,36 @@ This document provides essential context for AI models interacting with this pro
         ```
 
 *   **Component Structure:**
+    *   **Terminology**: A *component* is the concrete implementation (e.g., `aht10`, `bedjet`).
+        A *platform* is the abstract entity type it exposes (e.g., `sensor`, `binary_sensor`, `switch`).
+        Note: in YAML, `platform:` names the **component**, not the platform — `sensor: - platform: aht10`
+        means "use the aht10 component as a sensor entity".
+
     *   **Standard Files:**
+
+        **Single-platform component** (Python-only platform file — most common):
         ```
         components/[component_name]/
-        ├── __init__.py          # Component configuration schema and code generation
+        ├── __init__.py          # Component metadata (CODEOWNERS, etc.) — often nearly empty
         ├── [component].h        # C++ header file (if needed)
         ├── [component].cpp      # C++ implementation (if needed)
-        └── [platform]/          # Platform-specific implementations
-            ├── __init__.py      # Platform-specific configuration
-            ├── [platform].h     # Platform C++ header
-            └── [platform].cpp   # Platform C++ implementation
+        └── [platform].py        # Full config schema + code generation (e.g. sensor.py, binary_sensor.py)
+        ```
+
+        **Multi-platform or hub component** (subdirectory per platform):
+        ```
+        components/[component_name]/
+        ├── __init__.py                          # Hub/core config schema and code generation
+        ├── [component].h                        # C++ header
+        ├── [component].cpp                      # C++ implementation
+        ├── [platform_a]/                        # Platform-specific implementation
+        │   ├── __init__.py                      # Platform config schema and code generation
+        │   ├── [component]_[platform_a].h       # C++ header (named component_platform)
+        │   └── [component]_[platform_a].cpp     # C++ implementation
+        └── [platform_b]/
+            ├── __init__.py
+            ├── [component]_[platform_b].h
+            └── [component]_[platform_b].cpp
         ```
 
     *   **Component Metadata:**
@@ -214,7 +234,12 @@ This document provides essential context for AI models interacting with this pro
         ```
 
     *   **Common Component Examples:**
-        - **Sensor:**
+
+        The code below belongs in the platform file: `[platform].py` (single-platform) or
+        `[platform]/__init__.py` (multi-platform hub). Replace `MySensor`/`MySwitch` etc.
+        with the C++ class defined in your component's namespace.
+
+        - **Sensor** (`sensor.py` or `sensor/__init__.py`):
           ```python
           from esphome.components import sensor
           CONFIG_SCHEMA = sensor.sensor_schema(MySensor).extend(cv.polling_component_schema("60s"))
@@ -223,7 +248,7 @@ This document provides essential context for AI models interacting with this pro
               await cg.register_component(var, config)
           ```
 
-        - **Binary Sensor:**
+        - **Binary Sensor** (`binary_sensor.py` or `binary_sensor/__init__.py`):
           ```python
           from esphome.components import binary_sensor
           CONFIG_SCHEMA = binary_sensor.binary_sensor_schema().extend({ ... })
@@ -231,7 +256,7 @@ This document provides essential context for AI models interacting with this pro
               var = await binary_sensor.new_binary_sensor(config)
           ```
 
-        - **Switch:**
+        - **Switch** (`switch.py` or `switch/__init__.py`):
           ```python
           from esphome.components import switch
           CONFIG_SCHEMA = switch.switch_schema().extend({ ... })
