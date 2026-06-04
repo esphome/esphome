@@ -103,12 +103,12 @@ def build_sensor_expr(sensor_type: str, data: MockObj) -> MockObj:
     if sensor_type == CONF_ROLL:
         ay = data.acceleration[1]
         az = data.acceleration[2]
-        return std_ns.atan2f(ay, az) * (180.0 / pif)
+        return std_ns.atan2(ay, az) * (180.0 / pif)
     if sensor_type == CONF_PITCH:
         ax = data.acceleration[0]
         ay = data.acceleration[1]
         az = data.acceleration[2]
-        return std_ns.atan2f(-ax, std_ns.sqrtf(ay * ay + az * az)) * (180.0 / pif)
+        return std_ns.atan2(-ax, std_ns.sqrt(ay * ay + az * az)) * (180.0 / pif)
     sensor_offset = AXES.index(sensor_type[-1:])
     if sensor_type in _GYROSCOPES:
         sensor_type = _ANGULAR_RATES[sensor_offset]
