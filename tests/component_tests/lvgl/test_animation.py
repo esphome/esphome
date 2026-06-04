@@ -10,8 +10,10 @@ from esphome.components.lvgl.animation import (
     ANIMATION_SCHEMA,
     TIMING_SCHEMA,
     from_to,
+    literal_color,
 )
 from esphome.components.lvgl.defines import LValidator
+from esphome.core import Lambda
 
 
 def _animation(**overrides) -> dict:
@@ -98,6 +100,51 @@ class TestAnimationSchema:
             ANIMATION_SCHEMA(
                 _animation(widgets=[{"id": "w1", "not_a_style": {"from": 0, "to": 1}}])
             )
+
+
+class TestAnimatedColorLiteral:
+    """A color animated via from/to must be a literal, not a lambda."""
+
+    def test_color_lambda_rejected_directly(self) -> None:
+        with pytest.raises(Invalid, match="lambda"):
+            literal_color(Lambda("return lv_color_hex(0xFF0000);"))
+
+    def test_color_literal_accepted_directly(self) -> None:
+        # A literal color value validates without error.
+        literal_color(0xFF0000)
+
+    def test_color_lambda_rejected_in_animation(self) -> None:
+        with pytest.raises((Invalid, MultipleInvalid), match="lambda"):
+            ANIMATION_SCHEMA(
+                _animation(
+                    widgets=[
+                        {
+                            "id": "w1",
+                            "text_color": {
+                                "from": Lambda("return lv_color_hex(0xFF0000);"),
+                                "to": 0x00FF00,
+                            },
+                        }
+                    ]
+                )
+            )
+
+    def test_color_literals_accepted_in_animation(self) -> None:
+        config = ANIMATION_SCHEMA(
+            _animation(
+                widgets=[{"id": "w1", "text_color": {"from": 0xFF0000, "to": 0x00FF00}}]
+            )
+        )
+        assert config["widgets"][0]["id"].id == "w1"
+
+    def test_non_color_property_allows_lambda(self) -> None:
+        # Only colors are restricted; numeric properties may use lambdas.
+        config = ANIMATION_SCHEMA(
+            _animation(
+                widgets=[{"id": "w1", "x": {"from": Lambda("return 5;"), "to": 100}}]
+            )
+        )
+        assert config["widgets"][0]["id"].id == "w1"
 
 
 class TestFromTo:
