@@ -94,7 +94,7 @@ def patch_file_downloader() -> None:
                             self._http_response.close()
                         if hasattr(self, "_http_session"):
                             self._http_session.close()
-                    except Exception:
+                    except Exception:  # noqa: BLE001
                         pass
                     # pylint: enable=protected-access,broad-except
                     time.sleep(delay)
