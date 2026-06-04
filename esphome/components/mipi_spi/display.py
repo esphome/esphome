@@ -290,8 +290,8 @@ def customise_schema(config):
         CONF_MIRROR_Y,
         CONF_SWAP_XY,
     }
-    width, height, _offset_width, _offset_height = model.get_dimensions(
-        config, not has_hardware_transform
+    width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
+        model.get_dimensions(config, not has_hardware_transform)
     )
     display.add_metadata(
         config[CONF_ID],

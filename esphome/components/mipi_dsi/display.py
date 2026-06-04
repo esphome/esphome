@@ -170,7 +170,9 @@ def _config_schema(config):
     )(config)
     config = model_schema(config)(config)
     model = MODELS[config[CONF_MODEL].upper()]
-    width, height, _offset_width, _offset_height = model.get_dimensions(config)
+    width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
+        model.get_dimensions(config)
+    )
     display.add_metadata(
         config[CONF_ID],
         width,
