@@ -1086,7 +1086,10 @@ def detect_memory_impact_config(
     # A platform hint (or no-common-platform fallback) can pick a platform that
     # no changed component actually has a base test for, leaving nothing to
     # build. In that case fall back to the platform supported by the most
-    # components, which by construction is backed by at least one base test.
+    # components. component_platforms_map is non-empty (guarded above) and every
+    # value is a non-empty platform set (components with no supported platform
+    # are skipped at discovery), so this always yields a buildable platform with
+    # at least one compatible component.
     if not compatible_components:
         platform = _select_platform_by_count(
             Counter(
@@ -1095,7 +1098,9 @@ def detect_memory_impact_config(
         )
         compatible_components = components_supporting(platform)
 
-    # If no components are compatible with the selected platform, don't run
+    # Defensive backstop: unreachable given the invariant above, but guards
+    # against a future regression in platform selection silently passing an
+    # empty component list to the build.
     if not compatible_components:
         return {"should_run": "false"}
 
