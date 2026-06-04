@@ -182,6 +182,9 @@ light:
             state += 1;
             if (state == 4)
               state = 0;
+            if (initial_run) {
+              ESP_LOGD("custom_effect", "Effect %s started", it.get_name().c_str());
+            }
       - pulse:
           transition_length: 10s
           update_interval: 20s
