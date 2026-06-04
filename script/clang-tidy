@@ -45,11 +45,11 @@ def clang_options(idedata):
         cmd.append("-m32")
         cmd.append("-D__XTENSA__")
         cmd.append("-D_LIBC")
-        # -m32 makes clang define the host x86 arch macros; undefine them so
-        # libraries that switch on them (e.g. FastLED's simd_x86.hpp pulling
-        # <emmintrin.h>) take their portable path, not the host-x86 SIMD one.
-        cmd.append("-U__i386__")
-        cmd.append("-U__x86_64__")
+        # -m32 advertises host x86 SSE; disable it so libraries that gate SIMD on
+        # it (e.g. FastLED's simd_x86.hpp pulling <emmintrin.h>) take their scalar
+        # path. Keep __i386__ -- the xtensa toolchain's machine/ieeefp.h uses it
+        # to pick endianness.
+        cmd.append("-mno-sse")
     else:
         cmd.append(f"--target={triplet}")
 
