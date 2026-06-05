@@ -1,0 +1,19 @@
+#pragma once
+#include "epaper_weact_3c.h"
+
+namespace esphome::epaper_spi {
+
+/**
+ * Waveshare (B) series BWR e-paper displays using SSD1680-compatible controllers.
+ * Waveshare use 0=red, 1=no-red, the inverse of EPaperWeAct3C
+ */
+class EpaperWaveshareB : public EPaperWeAct3C {
+ public:
+  using EPaperWeAct3C::EPaperWeAct3C;
+
+ protected:
+  bool reset() override;
+  uint8_t transform_red_byte_(uint8_t byte) const override { return ~byte; }
+};
+
+}  // namespace esphome::epaper_spi
