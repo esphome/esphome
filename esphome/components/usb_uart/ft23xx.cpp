@@ -125,7 +125,7 @@ static int ftdi_convert_baudrate(int baudrate, uint8_t chip_type, uint8_t channe
       best_baud = ftdi_to_clkbits(baudrate, H_CLK, 10, &encoded_divisor);
       encoded_divisor |= 0x20000; /* switch on CLK/10*/
     } else {
-      { best_baud = ftdi_to_clkbits(baudrate, C_CLK, 16, &encoded_divisor); }
+      best_baud = ftdi_to_clkbits(baudrate, C_CLK, 16, &encoded_divisor);
     }
   } else if ((chip_type == TYPE_BM) || (chip_type == TYPE_2232C) || (chip_type == TYPE_R) || (chip_type == TYPE_230X)) {
     best_baud = ftdi_to_clkbits(baudrate, C_CLK, 16, &encoded_divisor);
@@ -139,7 +139,7 @@ static int ftdi_convert_baudrate(int baudrate, uint8_t chip_type, uint8_t channe
     *index &= 0xFF00;
     *index |= (channel_index + 1);
   } else {
-    { *index = (uint16_t) (encoded_divisor >> 16); }
+    *index = (uint16_t) (encoded_divisor >> 16);
   }
 
   return best_baud;
