@@ -43,7 +43,7 @@ usb_uart:
         debug: true
         debug_prefix: "[CP210X] "
   - id: uart_6
-    type: ft23xx
+    type: ft2232
     channels:
       - id: channel_6_1
         baud_rate: 115200
