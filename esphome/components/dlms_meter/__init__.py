@@ -81,11 +81,51 @@ def validate_custom_pattern(value):
 
 def validate_provider_deprecation(config):
     if CONF_PROVIDER in config:
-        _LOGGER.warning(
-            "The 'provider' option is deprecated and will be removed in 2026.11.0. "
-            "The dlms_parser library now handles quirks dynamically. "
-            "Please remove this option from your configuration."
-        )
+        provider = config[CONF_PROVIDER]
+        if provider == "netznoe":
+            _LOGGER.warning(
+                "The 'provider: netznoe' option is deprecated and will be removed in 2026.11.0. "
+                "The required custom patterns have been added automatically for this release, but you must update your configuration.\n"
+                "Please remove the 'provider' key and explicitly replace it with the following:\n\n"
+                "custom_patterns:\n"
+                '  - pattern: "L, TSTR"\n'
+                '    name: "MeterID"\n'
+                '    default_obis: "0.0.96.1.0.255"\n'
+                '  - pattern: "F, TDTM"\n'
+                '    name: "DateTime"\n'
+                '    default_obis: "0.0.1.0.0.255"\n'
+            )
+            patterns = config.get(CONF_CUSTOM_PATTERNS, [])
+
+            # Ensure "L, TSTR" for MeterID is present
+            if not any(p.get(CONF_PATTERN) == "L, TSTR" for p in patterns):
+                patterns.append(
+                    {
+                        CONF_PATTERN: "L, TSTR",
+                        CONF_NAME: "MeterID",
+                        CONF_DEFAULT_OBIS: [0, 0, 96, 1, 0, 255],
+                        CONF_PRIORITY: 0,
+                    }
+                )
+
+            # Ensure "F, TDTM" for DateTime is present
+            if not any(p.get(CONF_PATTERN) == "F, TDTM" for p in patterns):
+                patterns.append(
+                    {
+                        CONF_PATTERN: "F, TDTM",
+                        CONF_NAME: "DateTime",
+                        CONF_DEFAULT_OBIS: [0, 0, 1, 0, 0, 255],
+                        CONF_PRIORITY: 0,
+                    }
+                )
+
+            config[CONF_CUSTOM_PATTERNS] = patterns
+        else:
+            _LOGGER.warning(
+                "The 'provider' option is deprecated and will be removed in 2026.11.0. "
+                "The dlms_parser library now handles quirks dynamically. "
+                "Please remove this option from your configuration."
+            )
     return config
 
 
