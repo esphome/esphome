@@ -486,8 +486,6 @@ jobs:
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 Arduino
             options: --environment esp32-arduino-tidy --grep USE_ARDUINO
-            # esp32-arduino-tidy installs ESP-IDF natively; gate the Cache ESP-IDF
-            # step to this entry (ESP8266/Zephyr don't install IDF).
             cache_idf: true
           - id: clang-tidy
             name: Run script/clang-tidy for ZEPHYR
