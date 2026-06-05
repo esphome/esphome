@@ -283,20 +283,21 @@ void QMP6988Component::calculate_altitude_(float pressure, float temp) {
   this->qmp6988_data_.altitude = altitude;
 }
 
-void QMP6988Component::calculate_pressure_() {
+bool QMP6988Component::calculate_pressure_() {
   uint8_t err = 0;
   uint32_t p_read, t_read;
   int32_t p_raw, t_raw;
   uint8_t a_data_uint8_tr[6] = {0};
   int32_t t_int, p_int;
-  this->qmp6988_data_.temperature = 0;
-  this->qmp6988_data_.pressure = 0;
 
   err = this->read_register(QMP6988_PRESSURE_MSB_REG, a_data_uint8_tr, 6);
   if (err != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Error reading raw pressure/temp values");
-    return;
+    this->status_set_warning();
+    return false;
   }
+  this->status_clear_warning();
+
   p_read = encode_uint24(a_data_uint8_tr[0], a_data_uint8_tr[1], a_data_uint8_tr[2]);
   p_raw = (int32_t) (p_read - SUBTRACTOR);
 
@@ -308,6 +309,7 @@ void QMP6988Component::calculate_pressure_() {
 
   this->qmp6988_data_.temperature = (float) t_int / 256.0f;
   this->qmp6988_data_.pressure = (float) p_int / 16.0f;
+  return true;
 }
 
 void QMP6988Component::setup() {
@@ -339,7 +341,10 @@ void QMP6988Component::dump_config() {
 }
 
 void QMP6988Component::update() {
-  this->calculate_pressure_();
+  if (!this->calculate_pressure_()) {
+    return;
+  }
+
   float pressurehectopascals = this->qmp6988_data_.pressure / 100;
   float temperature = this->qmp6988_data_.temperature;
 
