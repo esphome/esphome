@@ -81,7 +81,7 @@ float PCM5122::volume() { return this->volume_; }
 
 bool PCM5122::write_mute_() {
   uint8_t mute_byte = this->is_muted() ? 0x11 : 0x00;
-  if (!this->select_page(0) || !this->write_byte(PCM5122_REG_MUTE, mute_byte)) {
+  if (!this->select_page_(0) || !this->write_byte(PCM5122_REG_MUTE, mute_byte)) {
     ESP_LOGE(TAG, "Writing mute failed");
     return false;
   }
@@ -100,7 +100,7 @@ bool PCM5122::write_volume_() {
 
   ESP_LOGV(TAG, "Setting volume to 0x%.2x", volume_byte);
 
-  if (!this->select_page(0) || !this->write_byte(PCM5122_REG_DVOL_LEFT, volume_byte) ||
+  if (!this->select_page_(0) || !this->write_byte(PCM5122_REG_DVOL_LEFT, volume_byte) ||
       !this->write_byte(PCM5122_REG_DVOL_RIGHT, volume_byte)) {
     ESP_LOGE(TAG, "Writing volume failed");
     return false;

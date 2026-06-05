@@ -11,7 +11,7 @@ void PCMGPIOPin::setup() { this->pin_mode(this->flags_); }
 
 void PCMGPIOPin::pin_mode(gpio::Flags flags) {
   this->flags_ = flags;
-  if (!this->parent_->select_page(0)) {
+  if (!this->parent_->select_page_(0)) {
     ESP_LOGE(TAG, "Failed to select page 0");
     return;
   }
@@ -39,7 +39,7 @@ void PCMGPIOPin::pin_mode(gpio::Flags flags) {
 }
 
 void PCMGPIOPin::digital_write(bool value) {
-  if (!this->parent_->select_page(0))
+  if (!this->parent_->select_page_(0))
     return;
   optional<uint8_t> curr = this->parent_->read_byte(PCM5122_REG_GPIO_OUTPUT);
   if (!curr.has_value())
@@ -52,7 +52,7 @@ void PCMGPIOPin::digital_write(bool value) {
 }
 
 bool PCMGPIOPin::digital_read() {
-  if (!this->parent_->select_page(0))
+  if (!this->parent_->select_page_(0))
     return this->value_;
   optional<uint8_t> read = this->parent_->read_byte(PCM5122_REG_GPIO_INPUT);
   if (read.has_value()) {

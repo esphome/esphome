@@ -44,9 +44,10 @@ class PCM5122 : public audio_dac::AudioDac, public Component, public i2c::I2CDev
   bool is_muted() override;
   float volume() override;
 
-  bool select_page(uint8_t page) { return this->write_byte(PCM5122_REG_PAGE_SELECT, page); }
+  friend class PCMGPIOPin;
 
  protected:
+  bool select_page_(uint8_t page) { return this->write_byte(PCM5122_REG_PAGE_SELECT, page); }
   bool write_mute_();
   bool write_volume_();
 
