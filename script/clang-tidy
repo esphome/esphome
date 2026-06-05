@@ -65,6 +65,8 @@ def clang_options(idedata):
         "-fstrict-volatile-bitfields",
         "-mlongcalls",
         "-mtext-section-literals",
+        # GCC-only Xtensa alignment flag emitted by the IDF 6 toolchain
+        "-mno-target-align",
         "-mdisable-hardware-atomics",
         "-mfix-esp32-psram-cache-issue",
         "-mfix-esp32-psram-cache-strategy=memw",
