@@ -6,8 +6,7 @@
 #include "esphome/core/time.h"
 #include "esphome/components/json/json_util.h"
 
-namespace esphome {
-namespace loki {
+namespace esphome::loki {
 
 static const char *const TAG = "loki";
 
@@ -104,7 +103,10 @@ void Loki::send_to_loki_(const std::string &json_payload) {
 std::string Loki::get_full_url_() const {
   std::string full_url = this->url_;
   if (this->port_ != 80) {
-    full_url += ":" + std::to_string(this->port_);
+    char port_buf[UINT32_MAX_STR_SIZE];
+    uint32_to_str(port_buf, this->port_);
+    full_url += ":";
+    full_url += port_buf;
   }
   if (full_url.back() != '/') {
     full_url += "/";
@@ -210,5 +212,4 @@ void Loki::set_http_timeout_() {
 }
 #endif  // USE_ESP32
 
-}  // namespace loki
-}  // namespace esphome
+}  // namespace esphome::loki

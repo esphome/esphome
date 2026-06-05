@@ -17,8 +17,7 @@
 #endif
 
 #ifdef USE_NETWORK
-namespace esphome {
-namespace loki {
+namespace esphome::loki {
 
 #ifdef USE_ESP32
 struct QueueElement {
@@ -141,6 +140,5 @@ class Loki : public Component, public Parented<http_request::HttpRequestComponen
   void set_http_timeout_();
 #endif
 };
-}  // namespace loki
-}  // namespace esphome
+}  // namespace esphome::loki
 #endif

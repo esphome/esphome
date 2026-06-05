@@ -1,7 +1,6 @@
 #include "logs_enabled.h"
 
-namespace esphome {
-namespace loki {
+namespace esphome::loki {
 
 void LogsEnabledSwitch::write_state(bool state) {
   if (this->parent_->is_enabled() != state) {
@@ -10,5 +9,4 @@ void LogsEnabledSwitch::write_state(bool state) {
   this->publish_state(state);
 }
 
-}  // namespace loki
-}  // namespace esphome
+}  // namespace esphome::loki

@@ -3,8 +3,7 @@
 #include "esphome/components/switch/switch.h"
 #include "../loki.h"
 
-namespace esphome {
-namespace loki {
+namespace esphome::loki {
 
 class LogsEnabledSwitch : public switch_::Switch, public Parented<Loki> {
  public:
@@ -14,5 +13,4 @@ class LogsEnabledSwitch : public switch_::Switch, public Parented<Loki> {
   void write_state(bool state) override;
 };
 
-}  // namespace loki
-}  // namespace esphome
+}  // namespace esphome::loki
