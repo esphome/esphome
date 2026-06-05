@@ -472,6 +472,9 @@ jobs:
     if: needs.determine-jobs.outputs.clang-tidy == 'true'
     env:
       GH_TOKEN: ${{ github.token }}
+      # The esp32-idf-tidy entry installs ESP-IDF natively; point it at a stable,
+      # cacheable location (other entries ignore this -- see Cache ESP-IDF below).
+      ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -485,6 +488,11 @@ jobs:
             name: Run script/clang-tidy for ESP32 IDF
             options: --environment esp32-idf-tidy --grep USE_ESP_IDF
             pio_cache_key: tidyesp32-idf
+            # esp32-idf-tidy installs ESP-IDF natively. The install carries all
+            # target toolchains (ESPHOME_IDF_DEFAULT_TARGETS=all), so a single
+            # version-keyed cache is reused by every native-IDF tidy target.
+            # This flag gates the Resolve/Cache ESP-IDF steps to this entry only.
+            cache_idf: true
           - id: clang-tidy
             name: Run script/clang-tidy for ZEPHYR
             options: --environment nrf52-tidy --grep USE_ZEPHYR --grep USE_NRF52
@@ -517,6 +525,30 @@ jobs:
         with:
           path: ~/.platformio
           key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
+
+      - name: Resolve ESP-IDF version for cache key
+        # The native-IDF tidy version is pinned in code, not in any cache-key
+        # input file; resolve it so the IDF cache invalidates on a version bump.
+        if: matrix.cache_idf
+        id: idf_version
+        run: |
+          . venv/bin/activate
+          version=$(python -c 'from esphome.components.esp32 import ESP_IDF_FRAMEWORK_VERSION_LOOKUP as L; print(L["recommended"])')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Cache ESP-IDF
+        if: matrix.cache_idf && github.ref == 'refs/heads/dev'
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.esphome-idf
+          key: ${{ runner.os }}-esphome-idf-tidy-idf${{ steps.idf_version.outputs.version }}
+
+      - name: Cache ESP-IDF
+        if: matrix.cache_idf && github.ref != 'refs/heads/dev'
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.esphome-idf
+          key: ${{ runner.os }}-esphome-idf-tidy-idf${{ steps.idf_version.outputs.version }}
 
       - name: Register problem matchers
         run: |
