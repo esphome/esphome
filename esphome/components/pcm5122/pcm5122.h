@@ -23,6 +23,14 @@ static const uint8_t PCM5122_REG_GPIO_OUTPUT = 0x56;
 static const uint8_t PCM5122_REG_GPIO_INVERT = 0x57;
 static const uint8_t PCM5122_REG_GPIO_INPUT = 0x77;
 
+// Register values for init sequence
+static const uint8_t PCM5122_RESET_MODULES = 0x10;           // RSTM: reset audio modules
+static const uint8_t PCM5122_AUDIO_FORMAT_I2S_32BIT = 0x03;  // AFMT=I2S, ALEN=32-bit
+static const uint8_t PCM5122_ERROR_DETECT_IGNORE_CLKHALT = (1 << 3);
+static const uint8_t PCM5122_ERROR_DETECT_DISABLE_DIV_AUTOSET = (1 << 1);
+static const uint8_t PCM5122_PLL_REF_MASK = (7 << 4);        // SREF bits [6:4]
+static const uint8_t PCM5122_PLL_REF_SOURCE_BCK = (1 << 4);  // SREF = 001 (BCK)
+
 class PCM5122 : public audio_dac::AudioDac, public Component, public i2c::I2CDevice {
  public:
   void setup() override;

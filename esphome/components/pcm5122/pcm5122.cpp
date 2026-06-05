@@ -18,25 +18,37 @@ void PCM5122::setup() {
     return;
   }
 
-  // Reset
-  this->reg(PCM5122_REG_RESET) = 0x10;
+  // Reset audio modules
+  this->reg(PCM5122_REG_RESET) = PCM5122_RESET_MODULES;
   delay(20);
   this->reg(PCM5122_REG_RESET) = 0x00;
 
   // Ignore clock halt detection; enable clock divider autoset
-  uint8_t err_detect = this->reg(PCM5122_REG_ERROR_DETECT).get();
-  err_detect |= (1 << 3);   // ignore clock halt
-  err_detect &= ~(1 << 1);  // enable clock divider autoset
-  this->reg(PCM5122_REG_ERROR_DETECT) = err_detect;
+  optional<uint8_t> err_detect = this->read_byte(PCM5122_REG_ERROR_DETECT);
+  if (!err_detect.has_value()) {
+    ESP_LOGE(TAG, "Failed to read ERROR_DETECT");
+    this->mark_failed();
+    return;
+  }
+  uint8_t err_detect_val = err_detect.value();
+  err_detect_val |= PCM5122_ERROR_DETECT_IGNORE_CLKHALT;
+  err_detect_val &= ~PCM5122_ERROR_DETECT_DISABLE_DIV_AUTOSET;
+  this->reg(PCM5122_REG_ERROR_DETECT) = err_detect_val;
 
   // 32-bit I2S
-  this->reg(PCM5122_REG_AUDIO_FORMAT) = 3;
+  this->reg(PCM5122_REG_AUDIO_FORMAT) = PCM5122_AUDIO_FORMAT_I2S_32BIT;
 
-  // PLL reference clock: BCK (001)
-  uint8_t pll_ref = this->reg(PCM5122_REG_PLL_REF).get();
-  pll_ref &= ~(7 << 4);
-  pll_ref |= (1 << 4);
-  this->reg(PCM5122_REG_PLL_REF) = pll_ref;
+  // PLL reference clock: BCK
+  optional<uint8_t> pll_ref = this->read_byte(PCM5122_REG_PLL_REF);
+  if (!pll_ref.has_value()) {
+    ESP_LOGE(TAG, "Failed to read PLL_REF");
+    this->mark_failed();
+    return;
+  }
+  uint8_t pll_ref_val = pll_ref.value();
+  pll_ref_val &= ~PCM5122_PLL_REF_MASK;
+  pll_ref_val |= PCM5122_PLL_REF_SOURCE_BCK;
+  this->reg(PCM5122_REG_PLL_REF) = pll_ref_val;
 
   this->set_volume(this->volume_);
   this->set_mute_on();
@@ -77,14 +89,16 @@ bool PCM5122::write_mute_() {
 }
 
 bool PCM5122::write_volume_() {
-  // DVOL register: 0x00 = +24 dB, 0x30 = 0 dB, 0xFF = mute (-0.5 dB/step)
+  // DVOL register: 0x00 = +24 dB, 0x30 = 0 dB, 0xFF = mute (-0.5 dB/step).
+  // Note: volume=0.0 maps to -52.5 dB (still audible), not true silence.
+  // Use set_mute_on() for silence.
   const uint8_t dvol_max_volume = 0x30;  // 0 dB at full scale
   const uint8_t dvol_min_volume = 0x99;  // -52.5 dB at minimum
 
   const uint8_t volume_byte =
       dvol_max_volume + static_cast<uint8_t>(lroundf((1.0f - this->volume_) * (dvol_min_volume - dvol_max_volume)));
 
-  ESP_LOGD(TAG, "Setting volume to 0x%.2x", volume_byte);
+  ESP_LOGV(TAG, "Setting volume to 0x%.2x", volume_byte);
 
   if (!this->select_page(0) || !this->write_byte(PCM5122_REG_DVOL_LEFT, volume_byte) ||
       !this->write_byte(PCM5122_REG_DVOL_RIGHT, volume_byte)) {
