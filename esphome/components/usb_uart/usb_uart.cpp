@@ -142,12 +142,11 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
 #ifdef USE_UART_DEBUGGER
   if (this->debug_) {
     constexpr size_t batch = 16;
-    char buf[4 + format_hex_pretty_size(batch) + 1];  // ">>> " + "XX,XX,...,XX\0"
+    char buf[format_hex_pretty_size(batch)];  // "XX,XX,...,XX\0"
     for (size_t off = 0; off < len; off += batch) {
       size_t n = std::min(len - off, batch);
-      strcpy(buf, ">>> ");
-      format_hex_pretty_to(buf + 4, sizeof(buf) - 4, data + off, n, ',');
-      ESP_LOGD(TAG, "%s%s", this->debug_prefix_.c_str(), buf);
+      format_hex_pretty_to(buf, data + off, n, ',');
+      ESP_LOGD(TAG, "%s>>> %s", this->debug_prefix_.c_str(), buf);
     }
   }
 #endif
@@ -222,10 +221,9 @@ void USBUartComponent::loop() {
 
 #ifdef USE_UART_DEBUGGER
     if (channel->debug_) {
-      char buf[4 + format_hex_pretty_size(usb_host::USB_MAX_PACKET_SIZE) + 1];  // "<<< " + hex
-      strcpy(buf, "<<< ");
-      format_hex_pretty_to(buf + 4, sizeof(buf) - 4, chunk->data, chunk->length, ',');
-      ESP_LOGD(TAG, "%s%s", channel->debug_prefix_.c_str(), buf);
+      char buf[format_hex_pretty_size(usb_host::USB_MAX_PACKET_SIZE)];  // "XX,XX,...,XX\0"
+      format_hex_pretty_to(buf, chunk->data, chunk->length, ',');
+      ESP_LOGD(TAG, "%s<<< %s", channel->debug_prefix_.c_str(), buf);
     }
 #endif
 
