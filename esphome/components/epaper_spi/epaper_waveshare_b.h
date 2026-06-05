@@ -13,7 +13,7 @@ class EpaperWaveshareB : public EPaperWeAct3C {
 
  protected:
   bool reset() override;
-  uint8_t transform_red_byte_(uint8_t byte) const override { return ~byte; }
+  uint8_t transform_red_byte(uint8_t byte) const override { return ~byte; }
 };
 
 }  // namespace esphome::epaper_spi

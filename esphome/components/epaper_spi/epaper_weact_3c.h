@@ -36,7 +36,7 @@ class EPaperWeAct3C : public EPaperBase {
   bool transfer_data() override;
 
   // Hook for subclasses to transform red plane bytes before they go on the wire.
-  virtual uint8_t transform_red_byte_(uint8_t byte) const { return byte; }
+  virtual uint8_t transform_red_byte(uint8_t byte) const { return byte; }
 };
 
 }  // namespace esphome::epaper_spi
