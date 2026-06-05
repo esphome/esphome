@@ -44,6 +44,8 @@ async def new_fastled_light(config):
     if CORE.is_esp32:
         from esphome.components.esp32 import add_idf_component
 
+        # Keep ``ref`` in sync with the fastled/FastLED version in
+        # esphome/idf_component.yml (used by the clang-tidy manifest).
         add_idf_component(
             name="fastled/FastLED",
             repo="https://github.com/FastLED/FastLED.git",
