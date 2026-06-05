@@ -409,13 +409,28 @@ def test_read_aliases_returns_empty_for_missing_declaration(tmp_path: Path) -> N
     assert removal is None
 
 
-def test_read_aliases_handles_syntax_error(tmp_path: Path) -> None:
+def test_read_aliases_handles_syntax_error(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     """A broken __init__.py shouldn't crash the alias scanner — it'll
-    surface as an ImportError elsewhere, but the scanner just yields
-    nothing so other components keep working."""
+    surface as an ImportError elsewhere, but the scanner logs a warning and
+    yields nothing so other components keep working. The substring pre-filter
+    only skips files with no ``ALIASES`` token, so this file (which has one)
+    still reaches the parse."""
     init = tmp_path / "__init__.py"
-    init.write_text("def broken( :\n")
+    init.write_text("ALIASES = ['x']\ndef broken( :\n")
     assert _read_aliases(init, ast) == ([], None)
+    assert "Could not parse" in caplog.text
+
+
+def test_read_aliases_handles_read_error(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unreadable __init__.py logs a warning and yields nothing rather
+    than aborting the whole component scan."""
+    missing = tmp_path / "nope" / "__init__.py"
+    assert _read_aliases(missing, ast) == ([], None)
+    assert "Could not read" in caplog.text
 
 
 def test_build_alias_map_aggregates_components(tmp_path: Path) -> None:
@@ -679,6 +694,27 @@ def test_resolve_component_aliases_rejects_canonical_key_after_legacy(
         _resolve_component_aliases(config)
 
 
+def test_resolve_component_aliases_rejects_multiple_aliases_of_one_component(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two different deprecated aliases of the same canonical component is
+    ambiguous — silently keeping one would hide a misconfiguration."""
+    from esphome.config import _ALIAS_WARNED_KEY, _resolve_component_aliases
+    from esphome.core import CORE
+
+    _patch_alias_metadata(
+        monkeypatch,
+        {
+            "oldcomp": AliasMeta(canonical="newcomp", removal_version=None),
+            "legacycomp": AliasMeta(canonical="newcomp", removal_version=None),
+        },
+    )
+    CORE.data.pop(_ALIAS_WARNED_KEY, None)
+    config = {"oldcomp": {"board": "x"}, "legacycomp": {"board": "y"}}
+    with pytest.raises(vol.Invalid, match=r"Multiple deprecated aliases of 'newcomp:'"):
+        _resolve_component_aliases(config)
+
+
 def test_resolve_component_aliases_preserves_key_position(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -811,11 +847,30 @@ def test_read_aliases_ignores_non_assignment_and_complex_targets(
 def test_alias_finder_returns_none_when_canonical_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """If an alias points at a canonical module that fails to import, the
-    finder declines (returns None) rather than raising."""
+    """If an alias points at a canonical *target* that doesn't exist, the
+    finder declines (returns None) and lets normal import machinery report
+    the missing module."""
     _patch_alias_map(monkeypatch, {"broken_alias": "definitely_not_a_real_component"})
     finder = _AliasFinder()
     assert finder.find_spec("esphome.components.broken_alias", None) is None
+
+
+def test_alias_finder_reraises_when_canonical_dependency_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If the canonical module exists but fails to import one of its own
+    dependencies, the finder surfaces that real error instead of masking it
+    as an unresolved alias (which would silently fall through to a confusing
+    'no module named <alias>')."""
+    _patch_alias_map(monkeypatch, {"some_alias": "real_canonical"})
+
+    def boom(name: str) -> None:
+        raise ModuleNotFoundError("No module named 'missing_dep'", name="missing_dep")
+
+    monkeypatch.setattr("esphome.loader.importlib.import_module", boom)
+    finder = _AliasFinder()
+    with pytest.raises(ModuleNotFoundError, match="missing_dep"):
+        finder.find_spec("esphome.components.some_alias", None)
 
 
 def test_install_alias_finder_is_idempotent() -> None:

@@ -435,8 +435,29 @@ def _read_aliases(
     static so this scanner can see them.
     """
     try:
-        tree = ast_module.parse(init_path.read_text(encoding="utf-8"))
-    except (OSError, SyntaxError):
+        source = init_path.read_text(encoding="utf-8")
+    except OSError as err:
+        _LOGGER.warning(
+            "Could not read %s while scanning for component aliases: %s",
+            init_path,
+            err,
+        )
+        return [], None
+
+    # Cheap substring pre-filter: almost no component declares ALIASES, and
+    # parsing every component __init__.py with ast is comparatively expensive.
+    # Skip the parse entirely unless the token appears in the file at all.
+    if "ALIASES" not in source:
+        return [], None
+
+    try:
+        tree = ast_module.parse(source)
+    except SyntaxError as err:
+        _LOGGER.warning(
+            "Could not parse %s while scanning for component aliases: %s",
+            init_path,
+            err,
+        )
         return [], None
 
     aliases: list[str] = []
@@ -495,8 +516,15 @@ class _AliasFinder(importlib.abc.MetaPathFinder):
         canonical_fullname = ".".join(parts)
         try:
             canonical_module = importlib.import_module(canonical_fullname)
-        except ImportError:
-            return None
+        except ModuleNotFoundError as err:
+            # Only treat a missing *canonical target* as "no alias to
+            # resolve" (let the normal import machinery report it). If some
+            # other module is missing, the canonical exists but failed to
+            # import one of its own dependencies — surface that real error
+            # rather than masking it as an unresolved alias.
+            if err.name == canonical_fullname:
+                return None
+            raise
         # Do NOT pre-populate ``sys.modules[fullname]`` here. Python's
         # ``_find_spec`` (in importlib._bootstrap) has an optimization that
         # detects ``name in sys.modules`` after a finder returns and prefers

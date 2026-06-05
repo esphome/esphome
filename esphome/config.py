@@ -152,9 +152,11 @@ def _resolve_component_aliases(config: dict[str, Any]) -> None:
     one-shot deprecation warning is logged (per alias, per run — deduped
     via ``CORE.data``).
 
-    Conflicts — the user wrote both the legacy and the canonical key in
-    the same config — raise ``cv.Invalid``: silently dropping one would
-    hide a real misconfiguration.
+    Ambiguous configurations raise ``cv.Invalid`` rather than silently
+    keeping one entry — that would hide a real misconfiguration. Two cases
+    are rejected: the canonical key together with one of its deprecated
+    aliases, and two or more different aliases of the same canonical
+    component.
 
     The rest of the validator chain (dependency resolution, schema
     validation, codegen) sees only canonical names, so component
@@ -165,21 +167,36 @@ def _resolve_component_aliases(config: dict[str, Any]) -> None:
     if not alias_meta_map:
         return
 
-    legacy_keys = [k for k in config if k in alias_meta_map]
-    if not legacy_keys:
+    # Group every legacy alias key present in the config by the canonical
+    # component it resolves to, preserving config order within each group.
+    legacy_by_canonical: dict[str, list[str]] = {}
+    for key in config:
+        meta = alias_meta_map.get(key)
+        if meta is not None:
+            legacy_by_canonical.setdefault(meta.canonical, []).append(key)
+
+    if not legacy_by_canonical:
         return
 
-    # Reject conflicts (both the legacy and canonical key present) before
-    # rewriting anything — checking up front means a conflict is caught
-    # regardless of which key comes first in the user's config.
-    for legacy in legacy_keys:
-        canonical = alias_meta_map[legacy].canonical
+    # Reject ambiguous configurations up front — checking before rewriting
+    # means a conflict is caught regardless of key order.
+    for canonical, legacies in legacy_by_canonical.items():
         if canonical in config:
+            # The canonical key and (at least) one deprecated alias are both
+            # present.
             raise vol.Invalid(
-                f"Both '{legacy}:' (deprecated alias of '{canonical}:') and "
-                f"'{canonical}:' are present in the configuration. Remove "
-                f"the deprecated '{legacy}:' key.",
-                path=[legacy],
+                f"Both '{legacies[0]}:' (deprecated alias of '{canonical}:') "
+                f"and '{canonical}:' are present in the configuration. Remove "
+                f"the deprecated '{legacies[0]}:' key.",
+                path=[legacies[0]],
+            )
+        if len(legacies) > 1:
+            # Several different deprecated aliases of the same component.
+            listed = ", ".join(f"'{alias}:'" for alias in legacies)
+            raise vol.Invalid(
+                f"Multiple deprecated aliases of '{canonical}:' are present "
+                f"({listed}). Use only '{canonical}:'.",
+                path=[legacies[0]],
             )
 
     warned: set[str] = CORE.data.setdefault(_ALIAS_WARNED_KEY, set())
