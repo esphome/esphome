@@ -9,7 +9,7 @@ namespace esphome::mipi_dsi {
 static constexpr size_t MIPI_DSI_MAX_CMD_LOG_BYTES = 64;
 
 static bool notify_refresh_ready(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata, void *user_ctx) {
-  auto *sem = static_cast<SemaphoreHandle_t>(user_ctx);
+  SemaphoreHandle_t sem = static_cast<SemaphoreHandle_t>(user_ctx);
   BaseType_t need_yield = pdFALSE;
   xSemaphoreGiveFromISR(sem, &need_yield);
   return (need_yield == pdTRUE);
