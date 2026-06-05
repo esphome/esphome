@@ -1376,7 +1376,7 @@ def require_libc_picolibc_newlib_compat() -> None:
 
     Call this from components that link against precompiled Newlib binaries
     referencing types/symbols the shim provides (e.g. zigbee). No-op on
-    IDF < 6.0.0, where the option does not exist.
+    IDF < 6.0.0.
     """
     if idf_version() < cv.Version(6, 0, 0):
         return
