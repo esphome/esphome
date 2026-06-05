@@ -214,7 +214,7 @@ class USBUartTypeCdcAcm : public USBUartComponent {
   /// Resets per-channel transfer flags and posts the first bulk IN transfer.
   /// Called by enable_channels() and by vendor-specific subclass overrides that
   /// handle their own line-coding setup before starting data flow.
-  void start_channels();
+  void start_channels_();
 };
 
 class USBUartTypeCP210X : public USBUartTypeCdcAcm {
@@ -251,10 +251,10 @@ class USBUartTypeFT23XX : public USBUartTypeCdcAcm {
   std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
   void enable_channels() override;
 
-  int reset(USBUartChannel *channel);
-  int set_baudrate(USBUartChannel *channel, uint32_t baudrate = 0);
-  int set_line_properties(USBUartChannel *channel);
-  int set_dtr_rts(USBUartChannel *channel);
+  int reset_(USBUartChannel *channel);
+  int set_baudrate_(USBUartChannel *channel, uint32_t baudrate = 0);
+  int set_line_properties_(USBUartChannel *channel);
+  int set_dtr_rts_(USBUartChannel *channel);
 
   uint8_t chip_type_{255};
 };
