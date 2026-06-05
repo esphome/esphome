@@ -42,8 +42,6 @@ static void bdb_start_top_level_commissioning_cb(uint8_t mode_mask) {
   }
 }
 
-// Defined with C linkage: the ESP Zigbee stack calls this as a weak C symbol.
-// (The redundant extern "C" forward declaration was removed; keep the linkage here.)
 extern "C" void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
   static uint8_t steering_retry_count = 0;
   uint32_t *p_sg_p = signal_struct->p_app_signal;
