@@ -583,6 +583,7 @@ esphome/components/weikai_spi/* @DrCoolZic
 esphome/components/whirlpool/* @glmnet
 esphome/components/whynter/* @aeonsablaze
 esphome/components/wiegand/* @ssieb
+esphome/components/wifi_twt/* @rwrozelle
 esphome/components/wireguard/* @droscy @lhoracek @thomas0bernard
 esphome/components/wk2132_i2c/* @DrCoolZic
 esphome/components/wk2132_spi/* @DrCoolZic
