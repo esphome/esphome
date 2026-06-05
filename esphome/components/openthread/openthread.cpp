@@ -242,7 +242,7 @@ bool OpenThreadComponent::teardown() {
 }
 
 void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
-  factory_reset_external_callback_ = std::move(callback);
+  this->factory_reset_external_callback_ = std::move(callback);
   ESP_LOGD(TAG, "Start Removal SRP Host and Services");
   otError error;
   InstanceLock lock = InstanceLock::acquire();
