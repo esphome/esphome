@@ -10,6 +10,8 @@ namespace esphome::usb_uart {
 
 using namespace bytebuffer;
 
+// FTDI chip family identifiers. These map to USB device bcdDevice values
+// and determine how baudrate divisors and clock sources are calculated.
 enum ftdi_chip_type {
   TYPE_AM = 0,
   TYPE_BM = 1,
@@ -265,8 +267,14 @@ int USBUartTypeFT23XX::reset(USBUartChannel *channel) {
       this->set_baudrate(channel);
     }
   };
-  return this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x00, 0x00,
-                                channel->cdc_dev_.bulk_interface_number + 1, callback);
+  bool ok = this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x00, 0x00,
+                                   channel->cdc_dev_.bulk_interface_number + 1, callback);
+  if (!ok) {
+    ESP_LOGE(TAG, "Reset control_transfer submit failed");
+    channel->initialised_.store(false);
+    return -1;
+  }
+  return 0;
 }
 
 int USBUartTypeFT23XX::set_baudrate(USBUartChannel *channel, uint32_t baudrate) {
@@ -286,7 +294,13 @@ int USBUartTypeFT23XX::set_baudrate(USBUartChannel *channel, uint32_t baudrate) 
   ftdi_convert_baudrate(baudrate, this->chip_type_, channel->index_, &value, &ftdi_index);
   ESP_LOGD(TAG, "Baudrate: %d, value=0x%04X, ftdi_index=0x%04X", baudrate, value, ftdi_index);
   uint16_t usb_index = (ftdi_index & 0xFF00) | (channel->cdc_dev_.bulk_interface_number + 1);
-  return this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x03, value, usb_index, callback);
+  bool ok = this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x03, value, usb_index, callback);
+  if (!ok) {
+    ESP_LOGE(TAG, "Set baudrate control_transfer submit failed");
+    channel->initialised_.store(false);
+    return -1;
+  }
+  return 0;
 }
 
 int USBUartTypeFT23XX::set_line_properties(USBUartChannel *channel) {
@@ -334,8 +348,14 @@ int USBUartTypeFT23XX::set_line_properties(USBUartChannel *channel) {
 
   value |= (0x00 << 14);
 
-  return this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x04, value,
-                                channel->cdc_dev_.bulk_interface_number + 1, callback);
+  bool ok = this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x04, value,
+                                   channel->cdc_dev_.bulk_interface_number + 1, callback);
+  if (!ok) {
+    ESP_LOGE(TAG, "Set line properties control_transfer submit failed");
+    channel->initialised_.store(false);
+    return -1;
+  }
+  return 0;
 }
 
 int USBUartTypeFT23XX::set_dtr_rts(USBUartChannel *channel) {
@@ -359,8 +379,14 @@ int USBUartTypeFT23XX::set_dtr_rts(USBUartChannel *channel) {
     }
   };
 
-  return this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x01, 0x0000,
-                                channel->cdc_dev_.bulk_interface_number + 1, callback);
+  bool ok = this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x01, 0x0000,
+                                   channel->cdc_dev_.bulk_interface_number + 1, callback);
+  if (!ok) {
+    ESP_LOGE(TAG, "Set modem control control_transfer submit failed");
+    channel->initialised_.store(false);
+    return -1;
+  }
+  return 0;
 }
 
 void USBUartTypeFT23XX::start_input(USBUartChannel *channel) {
@@ -381,13 +407,16 @@ void USBUartTypeFT23XX::start_input(USBUartChannel *channel) {
     if (uart_data_len > 0) {
       ESP_LOGV(TAG, "RX callback: Received %zu bytes, channel=%d", uart_data_len, channel->index_);
       if (!channel->dummy_receiver_) {
-        for (size_t i = 0; i < uart_data_len; i++) {
-          channel->input_buffer_.push(status.data[2 + i]);
-        }
+        // Copy the entire received UART payload into the ring buffer in one
+        // operation to avoid per-byte overhead and reduce the chance of
+        // heap activity in hot paths.
+        channel->input_buffer_.push(status.data + 2, uart_data_len);
 #ifdef USE_UART_DEBUGGER
         if (channel->debug_) {
+          // Debug path creates a temporary vector for logging only; this is
+          // acceptable because debug mode is opt-in and not used in release.
           uart::UARTDebug::log_hex(uart::UART_DIRECTION_RX,
-                                   std::vector<uint8_t>(status.data + 2, status.data + status.data_len), ',',
+                                   std::vector<uint8_t>(status.data + 2, status.data + 2 + uart_data_len), ',',
                                    channel->debug_prefix_);
         }
 #endif
