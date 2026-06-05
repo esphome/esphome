@@ -502,9 +502,6 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
 
-      # Only the PlatformIO-based env (esp8266) populates ~/.platformio; the esp32*
-      # and zephyr envs go through the native ESP-IDF / west generators, so they
-      # have no pio_cache_key and skip these steps.
       - name: Cache platformio
         if: github.ref == 'refs/heads/dev' && matrix.pio_cache_key
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
