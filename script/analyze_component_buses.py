@@ -59,6 +59,7 @@ DIRECT_BUS_TYPES = (
     "modbus",
     "remote_transmitter",
     "remote_receiver",
+    "i2s_audio",
 )
 
 # Signature for components with no bus requirements
