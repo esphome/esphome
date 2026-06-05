@@ -138,6 +138,10 @@ def clang_options(idedata):
         if flag not in omit_flags
         and not flag.startswith("-Werror")
         and not flag.startswith("-std=")
+        # -specs=...picolibc.specs is a GCC link spec clang ignores when
+        # compiling (the IDF 6 toolchain emits it); drop it to avoid
+        # clang-diagnostic-unused-command-line-argument.
+        and not flag.startswith("-specs=")
     )
     cmd.append("-std=gnu++20")
 
