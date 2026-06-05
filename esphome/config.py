@@ -165,14 +165,15 @@ def _resolve_component_aliases(config: dict[str, Any]) -> None:
     if not alias_meta_map:
         return
 
-    warned: set[str] = CORE.data.setdefault(_ALIAS_WARNED_KEY, set())
+    legacy_keys = [k for k in config if k in alias_meta_map]
+    if not legacy_keys:
+        return
 
-    # Preserve insertion order while we move legacy keys to canonical
-    # names — top-level key order matters for some downstream passes
-    # (e.g. auto-load ordering).
-    for legacy in [k for k in config if k in alias_meta_map]:
-        meta = alias_meta_map[legacy]
-        canonical = meta.canonical
+    # Reject conflicts (both the legacy and canonical key present) before
+    # rewriting anything — checking up front means a conflict is caught
+    # regardless of which key comes first in the user's config.
+    for legacy in legacy_keys:
+        canonical = alias_meta_map[legacy].canonical
         if canonical in config:
             raise vol.Invalid(
                 f"Both '{legacy}:' (deprecated alias of '{canonical}:') and "
@@ -180,18 +181,33 @@ def _resolve_component_aliases(config: dict[str, Any]) -> None:
                 f"the deprecated '{legacy}:' key.",
                 path=[legacy],
             )
-        config[canonical] = config.pop(legacy)
-        if legacy not in warned:
-            warned.add(legacy)
+
+    warned: set[str] = CORE.data.setdefault(_ALIAS_WARNED_KEY, set())
+
+    # Rebuild in place so each canonical key keeps the legacy key's original
+    # position — top-level key order matters for some downstream passes
+    # (e.g. auto-load ordering). A plain `config[canonical] = config.pop(...)`
+    # would instead move the renamed key to the end.
+    rewritten: dict[str, Any] = {}
+    for key, value in config.items():
+        meta = alias_meta_map.get(key)
+        if meta is None:
+            rewritten[key] = value
+            continue
+        rewritten[meta.canonical] = value
+        if key not in warned:
+            warned.add(key)
             removal = (
                 f" Removed in {meta.removal_version}." if meta.removal_version else ""
             )
             _LOGGER.warning(
                 "The '%s:' top-level key is deprecated; rename it to '%s:'.%s",
-                legacy,
-                canonical,
+                key,
+                meta.canonical,
                 removal,
             )
+    config.clear()
+    config.update(rewritten)
 
 
 @functools.total_ordering

@@ -338,11 +338,22 @@ class AliasMeta:
     removal_version: str | None
 
 
+def _ensure_alias_caches() -> None:
+    """Populate both alias caches from a single directory scan.
+
+    ``_build_alias_map`` returns both maps together, so building them in one
+    shot avoids scanning every component's ``__init__.py`` twice when a run
+    needs both the canonical map (loader) and the metadata map (config
+    pre-pass).
+    """
+    global _ALIAS_MAP_CACHE, _ALIAS_META_CACHE
+    if _ALIAS_MAP_CACHE is None or _ALIAS_META_CACHE is None:
+        _ALIAS_MAP_CACHE, _ALIAS_META_CACHE = _build_alias_map()
+
+
 def _get_alias_map() -> dict[str, str]:
     """Return the legacy-name → canonical-name map, building it lazily."""
-    global _ALIAS_MAP_CACHE
-    if _ALIAS_MAP_CACHE is None:
-        _ALIAS_MAP_CACHE, _ = _build_alias_map()
+    _ensure_alias_caches()
     return _ALIAS_MAP_CACHE
 
 
@@ -351,9 +362,7 @@ def get_alias_metadata() -> dict[str, AliasMeta]:
 
     Used by the YAML pre-pass to format a per-alias deprecation warning.
     """
-    global _ALIAS_META_CACHE
-    if _ALIAS_META_CACHE is None:
-        _, _ALIAS_META_CACHE = _build_alias_map()
+    _ensure_alias_caches()
     return _ALIAS_META_CACHE
 
 
@@ -367,7 +376,10 @@ def _build_alias_map() -> tuple[dict[str, str], dict[str, AliasMeta]]:
 
     Raises if the same alias is claimed by two canonical components, since
     silently picking one would cause non-deterministic routing depending on
-    directory-iteration order.
+    directory-iteration order. Also raises if an alias shadows an existing
+    component package: that would hijack a live component domain and, in the
+    self-alias case (alias == canonical), send ``_lookup_module`` into
+    infinite recursion redirecting a domain to itself.
     """
     import ast
 
@@ -388,6 +400,14 @@ def _build_alias_map() -> tuple[dict[str, str], dict[str, AliasMeta]]:
             continue
         canonical = child.name
         for alias in aliases:
+            if (CORE_COMPONENTS_PATH / alias / "__init__.py").is_file():
+                from esphome.core import EsphomeError
+
+                raise EsphomeError(
+                    f"Component alias '{alias}' (declared by '{canonical}') "
+                    "shadows an existing component package of the same name. "
+                    "An alias may only name a component that no longer exists."
+                )
             if alias in alias_to_canonical:
                 from esphome.core import EsphomeError
 

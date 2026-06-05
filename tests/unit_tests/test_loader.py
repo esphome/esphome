@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 import sys
 import textwrap
+from types import ModuleType
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
@@ -459,15 +460,31 @@ def test_build_alias_map_rejects_duplicate_alias(tmp_path: Path) -> None:
         _build_alias_map()
 
 
-def test_build_alias_map_handles_missing_dir() -> None:
+def test_build_alias_map_handles_missing_dir(tmp_path: Path) -> None:
     """If the components directory doesn't exist (unlikely in production,
     but possible in some test contexts), we want an empty map rather than
     a crash — the rest of the loader can still function."""
-    fake = Path("/nonexistent-components-dir-for-test")
+    fake = tmp_path / "does-not-exist"
     with patch("esphome.loader.CORE_COMPONENTS_PATH", fake):
         alias_map, meta_map = _build_alias_map()
     assert alias_map == {}
     assert meta_map == {}
+
+
+def test_build_alias_map_rejects_alias_shadowing_component(tmp_path: Path) -> None:
+    """An alias that names an existing component package is refused: it would
+    hijack a live domain, and a self-alias (alias == canonical) would send
+    ``_lookup_module`` into infinite recursion."""
+    # `newcomp` declares itself as an alias — its own package already exists.
+    _write_component(tmp_path, "newcomp", "ALIASES = ['newcomp']\n")
+
+    from esphome.core import EsphomeError
+
+    with (
+        patch("esphome.loader.CORE_COMPONENTS_PATH", tmp_path),
+        pytest.raises(EsphomeError, match="shadows an existing component"),
+    ):
+        _build_alias_map()
 
 
 # ---- Integration against a synthetic alias map (fake legacy -> esp32) ----
@@ -643,6 +660,45 @@ def test_resolve_component_aliases_rejects_both_keys_present(
         _resolve_component_aliases(config)
 
 
+def test_resolve_component_aliases_rejects_canonical_key_after_legacy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The both-keys conflict must be detected even when the canonical key
+    appears *after* the legacy key in the config (the up-front conflict
+    scan, not a position-dependent check)."""
+    from esphome.config import _ALIAS_WARNED_KEY, _resolve_component_aliases
+    from esphome.core import CORE
+
+    _patch_alias_metadata(
+        monkeypatch,
+        {"oldcomp": AliasMeta(canonical="newcomp", removal_version=None)},
+    )
+    CORE.data.pop(_ALIAS_WARNED_KEY, None)
+    config = {"oldcomp": {"board": "x"}, "newcomp": {"board": "x"}}
+    with pytest.raises(vol.Invalid, match="Both 'oldcomp:'"):
+        _resolve_component_aliases(config)
+
+
+def test_resolve_component_aliases_preserves_key_position(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The renamed canonical key keeps the legacy key's original position
+    rather than being moved to the end of the config."""
+    from esphome.config import _ALIAS_WARNED_KEY, _resolve_component_aliases
+    from esphome.core import CORE
+
+    _patch_alias_metadata(
+        monkeypatch,
+        {"oldcomp": AliasMeta(canonical="newcomp", removal_version=None)},
+    )
+    CORE.data.pop(_ALIAS_WARNED_KEY, None)
+    config = {"esphome": {"name": "t"}, "oldcomp": {"board": "x"}, "logger": {}}
+
+    _resolve_component_aliases(config)
+
+    assert list(config) == ["esphome", "newcomp", "logger"]
+
+
 def test_resolve_component_aliases_no_op_when_no_legacy_keys(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -673,10 +729,12 @@ def test_resolve_component_aliases_no_op_when_no_legacy_keys(
 
 def test_component_manifest_alias_properties_default_empty() -> None:
     """``aliases`` / ``alias_removal_version`` fall back to ``[]`` / ``None``
-    when the component module declares neither."""
-    mod = MagicMock()
-    del mod.ALIASES
-    del mod.ALIAS_REMOVAL_VERSION
+    when the component module declares neither.
+
+    Uses a real ``ModuleType`` rather than a ``MagicMock`` so that the
+    ``getattr(..., default)`` fallback is actually exercised — a bare mock
+    auto-creates any attribute on access and would never hit the default."""
+    mod = ModuleType("fake_component")
     manifest = ComponentManifest(mod)
     assert manifest.aliases == []
     assert manifest.alias_removal_version is None
