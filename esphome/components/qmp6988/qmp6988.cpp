@@ -216,10 +216,7 @@ int32_t QMP6988Component::get_compensated_pressure_(qmp6988_ik_data_t *ik, int32
 }
 
 void QMP6988Component::software_reset_() {
-  uint8_t ret = 0;
-
-  ret = this->write_byte(QMP6988_RESET_REG, 0xe6);
-  if (ret != i2c::ERROR_OK) {
+  if (!this->write_byte(QMP6988_RESET_REG, 0xe6)) {
     ESP_LOGE(TAG, "Software Reset (0xe6) failed");
   }
   delay(10);
