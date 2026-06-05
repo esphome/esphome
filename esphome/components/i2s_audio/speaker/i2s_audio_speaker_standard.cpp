@@ -66,8 +66,10 @@ void I2SAudioSpeaker::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Communication format: %s", fmt_str);
   if (this->slot_bit_width_ != I2S_SLOT_BIT_WIDTH_AUTO) {
-    // Streams wider than this are narrowed to it before being clocked out.
-    ESP_LOGCONFIG(TAG, "  Output bits per sample: %u", (unsigned) static_cast<uint32_t>(this->slot_bit_width_));
+    // The width of each I2S slot. It is also the narrowing ceiling: streams wider than this are narrowed to
+    // it. A stream narrower than the slot is left at its own width and clocked into the wider slot, so this
+    // is not necessarily the sample data width (which depends on the incoming stream).
+    ESP_LOGCONFIG(TAG, "  Slot bit width: %u", (unsigned) static_cast<uint32_t>(this->slot_bit_width_));
   }
 }
 
