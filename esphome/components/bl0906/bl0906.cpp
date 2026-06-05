@@ -3,8 +3,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace bl0906 {
+namespace esphome::bl0906 {
 
 static const char *const TAG = "bl0906";
 
@@ -262,5 +261,4 @@ void BL0906::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
 }
 
-}  // namespace bl0906
-}  // namespace esphome
+}  // namespace esphome::bl0906

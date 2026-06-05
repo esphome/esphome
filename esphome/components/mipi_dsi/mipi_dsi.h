@@ -16,8 +16,7 @@
 
 #include "esp_lcd_mipi_dsi.h"
 
-namespace esphome {
-namespace mipi_dsi {
+namespace esphome::mipi_dsi {
 
 constexpr static const char *const TAG = "display.mipi_dsi";
 const uint8_t SW_RESET_CMD = 0x01;
@@ -113,6 +112,5 @@ class MIPI_DSI : public display::Display {
   uint16_t y_high_{0};
 };
 
-}  // namespace mipi_dsi
-}  // namespace esphome
+}  // namespace esphome::mipi_dsi
 #endif

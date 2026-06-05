@@ -309,6 +309,18 @@ bool CompactString::operator==(const StringRef &other) const {
 /// └──────────────────────────────────────────────────────────────────────┘
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_INFO
+#ifdef USE_WIFI_PHY_MODE
+// Use if-chain instead of switch to avoid jump table in RODATA (wastes RAM on ESP8266)
+static const LogString *phy_mode_to_log_string(WiFi8266PhyMode mode) {
+  if (mode == WIFI_8266_PHY_MODE_11B)
+    return LOG_STR("11B");
+  if (mode == WIFI_8266_PHY_MODE_11G)
+    return LOG_STR("11G");
+  if (mode == WIFI_8266_PHY_MODE_11N)
+    return LOG_STR("11N");
+  return LOG_STR("Auto");
+}
+#endif
 // Use if-chain instead of switch to avoid jump table in RODATA (wastes RAM on ESP8266)
 static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
   if (phase == WiFiRetryPhase::INITIAL_CONNECT)
@@ -620,11 +632,11 @@ void WiFiComponent::setup() {
 #endif
 
   if (this->enable_on_boot_) {
+#ifdef USE_ESP32
+    this->wifi_lazy_init_();
+#endif
     this->start();
   } else {
-#ifdef USE_ESP32
-    esp_netif_init();
-#endif
     this->state_ = WIFI_COMPONENT_STATE_DISABLED;
   }
 }
@@ -1099,9 +1111,9 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
   }
 
 #ifdef USE_WIFI_WPA2_EAP
-  auto eap_opt = ap.get_eap();
+  const auto &eap_opt = ap.get_eap();
   if (eap_opt.has_value()) {
-    EAPAuth eap_config = *eap_opt;
+    const EAPAuth &eap_config = *eap_opt;
     // clang-format off
     ESP_LOGV(
         TAG,
@@ -1266,6 +1278,11 @@ void WiFiComponent::enable() {
 
   ESP_LOGD(TAG, "Enabling");
   this->state_ = WIFI_COMPONENT_STATE_OFF;
+#ifdef USE_ESP32
+  // Idempotent — only allocates DMA buffers + netifs on the first call. After this,
+  // start() can safely run.
+  this->wifi_lazy_init_();
+#endif
   this->start();
 }
 
@@ -1535,6 +1552,9 @@ void WiFiComponent::dump_config() {
       break;
   }
   ESP_LOGCONFIG(TAG, "  Band Mode: %s", band_mode_s);
+#endif
+#ifdef USE_WIFI_PHY_MODE
+  ESP_LOGCONFIG(TAG, "  PHY Mode: %s", LOG_STR_ARG(phy_mode_to_log_string(this->phy_mode_)));
 #endif
   if (this->is_connected()) {
     this->print_connect_params_();
@@ -2178,7 +2198,15 @@ bool WiFiComponent::request_high_performance() {
   }
 
   // Give the semaphore (non-blocking). This increments the count.
-  return xSemaphoreGive(this->high_performance_semaphore_) == pdTRUE;
+  bool success = xSemaphoreGive(this->high_performance_semaphore_) == pdTRUE;
+
+  // Wake the main loop so the switch to high-performance mode is applied on the
+  // next tick instead of waiting up to loop_interval.
+  if (success) {
+    App.wake_loop_threadsafe();
+  }
+
+  return success;
 }
 
 bool WiFiComponent::release_high_performance() {

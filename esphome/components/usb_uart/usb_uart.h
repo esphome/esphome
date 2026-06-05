@@ -106,20 +106,19 @@ class RingBuffer {
 
 // Structure for queuing received USB data chunks
 struct UsbDataChunk {
-  static constexpr size_t MAX_CHUNK_SIZE = 64;  // USB packet size
-  uint8_t data[MAX_CHUNK_SIZE];
-  uint8_t length;  // Max 64 bytes, so uint8_t is sufficient
+  uint8_t data[usb_host::USB_MAX_PACKET_SIZE];
+  uint16_t length;
   USBUartChannel *channel;
 
   // Required for EventPool - no cleanup needed for POD types
   void release() {}
 };
 
-// Structure for queuing outgoing USB data chunks (one per USB FS packet)
+// Structure for queuing outgoing USB data chunks (one per USB packet)
 struct UsbOutputChunk {
-  static constexpr size_t MAX_CHUNK_SIZE = 64;  // USB FS MPS
+  static constexpr size_t MAX_CHUNK_SIZE = usb_host::USB_MAX_PACKET_SIZE;
   uint8_t data[MAX_CHUNK_SIZE];
-  uint8_t length;
+  uint16_t length;
 
   // Required for EventPool - no cleanup needed for POD types
   void release() {}
@@ -130,13 +129,14 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   friend class USBUartTypeCdcAcm;
   friend class USBUartTypeCP210X;
   friend class USBUartTypeCH34X;
+  friend class USBUartTypeFT23XX;
 
  public:
   // Number of output chunk slots per channel, derived from buffer_size config.
   // Computed as ceil(buffer_size / 64) + 1 in Python codegen; defaults to 5 (256 / 64 + 1).
   static constexpr uint8_t USB_OUTPUT_CHUNK_COUNT = USB_UART_OUTPUT_CHUNK_COUNT;
 
-  USBUartChannel(uint8_t index, uint16_t buffer_size) : index_(index), input_buffer_(RingBuffer(buffer_size)) {}
+  USBUartChannel(uint8_t index, uint16_t buffer_size) : input_buffer_(RingBuffer(buffer_size)), index_(index) {}
   void write_array(const uint8_t *data, size_t len) override;
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
@@ -239,6 +239,24 @@ class USBUartTypeCH34X : public USBUartTypeCdcAcm {
   CH34xChipType chiptype_{CHIP_UNKNOWN};
   const char *chip_name_{"unknown"};
   uint8_t num_ports_{1};
+};
+
+class USBUartTypeFT23XX : public USBUartTypeCdcAcm {
+ public:
+  USBUartTypeFT23XX(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {}
+
+  void start_input(USBUartChannel *channel);
+
+ protected:
+  std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
+  void enable_channels() override;
+
+  int reset(USBUartChannel *channel);
+  int set_baudrate(USBUartChannel *channel, uint32_t baudrate = 0);
+  int set_line_properties(USBUartChannel *channel);
+  int set_dtr_rts(USBUartChannel *channel);
+
+  uint8_t chip_type_{255};
 };
 
 }  // namespace esphome::usb_uart

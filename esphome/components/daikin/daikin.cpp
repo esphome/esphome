@@ -1,8 +1,7 @@
 #include "daikin.h"
 #include "esphome/components/remote_base/remote_base.h"
 
-namespace esphome {
-namespace daikin {
+namespace esphome::daikin {
 
 static const char *const TAG = "daikin.climate";
 
@@ -251,5 +250,4 @@ bool DaikinClimate::on_receive(remote_base::RemoteReceiveData data) {
   return this->parse_state_frame_(state_frame);
 }
 
-}  // namespace daikin
-}  // namespace esphome
+}  // namespace esphome::daikin

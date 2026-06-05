@@ -4,8 +4,7 @@
 #include "esphome/components/switch/switch.h"
 #include "../tm1638.h"
 
-namespace esphome {
-namespace tm1638 {
+namespace esphome::tm1638 {
 
 class TM1638SwitchLed : public switch_::Switch, public Component {
  public:
@@ -19,5 +18,4 @@ class TM1638SwitchLed : public switch_::Switch, public Component {
   TM1638Component *tm1638_;
   int led_;
 };
-}  // namespace tm1638
-}  // namespace esphome
+}  // namespace esphome::tm1638

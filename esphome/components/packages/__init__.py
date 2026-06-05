@@ -112,7 +112,7 @@ def expand_file_to_files(config: dict):
 def validate_yaml_filename(value):
     value = cv.string(value)
 
-    if not (value.endswith(".yaml") or value.endswith(".yml")):
+    if not value.endswith((".yaml", ".yml")):
         raise cv.Invalid("Only YAML (.yaml / .yml) files are supported.")
 
     return value
@@ -205,7 +205,7 @@ CONFIG_SCHEMA = cv.Any(  # under `packages:` we can have either:
 )
 
 
-def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
+def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
     """Clone/update a git repo and load the YAML files listed in the package definition.
 
     Returns ``{"packages": {<filename>: <loaded_yaml>, ...}}`` so the caller
@@ -215,17 +215,20 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
     If loading fails after cloning, attempts a revert and retry in case
     a prior cached checkout is stale.
     """
-    actual_refresh = git.NEVER_REFRESH if skip_update else config[CONF_REFRESH]
-    repo_dir, revert = git.clone_or_update(
+    repo_root, revert = git.clone_or_update(
         url=config[CONF_URL],
         ref=config.get(CONF_REF),
-        refresh=actual_refresh,
+        refresh=config[CONF_REFRESH],
         domain=DOMAIN,
         username=config.get(CONF_USERNAME),
         password=config.get(CONF_PASSWORD),
     )
     files: list[dict[str, Any]] = []
 
+    # ``repo_root`` is the directory containing ``.git`` and must be passed
+    # to git for symlink-stub resolution. ``repo_dir`` may be narrowed to a
+    # subdirectory via the user's CONF_PATH and is used for file lookups.
+    repo_dir = repo_root
     if base_path := config.get(CONF_PATH):
         repo_dir = repo_dir / base_path
 
@@ -237,13 +240,37 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
 
     def _load_package_yaml(yaml_file: Path, filename: str) -> dict:
         """Load a YAML file from a remote package, validating min_version."""
-        try:
-            new_yaml = yaml_util.load_yaml(yaml_file)
-        except EsphomeError as e:
+
+        def _load(path: Path) -> dict | str | None:
+            try:
+                return yaml_util.load_yaml(path)
+            except EsphomeError as e:
+                raise cv.Invalid(
+                    f"{filename} is not a valid YAML file."
+                    f" Please check the file contents.\n{e}"
+                ) from e
+
+        new_yaml = _load(yaml_file)
+        if not isinstance(new_yaml, dict):
+            # On Windows, git defaults to core.symlinks=false unless the user
+            # has Developer Mode enabled or is running elevated. Files stored
+            # in the repo as symlinks (tree mode 120000) are then checked out
+            # as plain text files containing the symlink target path, so
+            # parsing them as YAML yields a bare scalar instead of a mapping.
+            # Best-effort: follow the symlink target ourselves and re-load.
+            target = git.resolve_symlink_stub(repo_root, yaml_file)
+            if target is not None:
+                new_yaml = _load(target)
+        if not isinstance(new_yaml, dict):
             raise cv.Invalid(
-                f"{filename} is not a valid YAML file."
-                f" Please check the file contents.\n{e}"
-            ) from e
+                f"{filename} does not contain a YAML mapping at the top level "
+                f"(got {type(new_yaml).__name__}). "
+                f"If this file is a git symlink in the source repository, it "
+                f"may not have been materialized correctly on your platform "
+                f"(this is a known issue with git on Windows without Developer "
+                f"Mode enabled). Try pointing your package at the real file "
+                f"path instead."
+            )
         esphome_config = new_yaml.get(CONF_ESPHOME) or {}
         min_version = esphome_config.get(CONF_MIN_VERSION)
         if min_version is not None and cv.Version.parse(min_version) > cv.Version.parse(
@@ -415,25 +442,39 @@ def _substitute_package_definition(
 def _update_substitutions_context(
     parent_context: UserDict,
     package_substitutions: dict[str, Any],
+    eval_context: ContextVars | None = None,
 ) -> None:
     """Resolve and add new substitutions to the parent context.
 
     Skips keys already present (higher-priority sources win).
-    String values are substituted against the current context so that
-    cross-references between substitutions are expanded when possible.
+    String values are substituted against *eval_context* (or *parent_context*
+    if not provided) so that cross-references between substitutions are
+    expanded when possible. Resolved values are written into *parent_context*
+    and back into *package_substitutions* so that subsequent merges into the
+    consolidated ``substitutions:`` block carry the resolved value (the
+    package's ``!include vars`` are no longer in scope after this function
+    returns).
+
+    *eval_context* may layer additional vars (e.g. a package's own ``!include
+    vars``) on top of *parent_context* so that a package's substitutions can
+    reference vars passed in by the parent file.
     """
+    if eval_context is None:
+        eval_context = ContextVars(parent_context)
     for key, value in package_substitutions.items():
         if key in parent_context:
             continue
         if not isinstance(value, str):
             parent_context[key] = value
             continue
-        parent_context[key] = substitute(
+        resolved = substitute(
             item=value,
             path=[CONF_SUBSTITUTIONS, key],
-            parent_context=ContextVars(parent_context),
+            parent_context=eval_context,
             strict_undefined=False,
         )
+        parent_context[key] = resolved
+        package_substitutions[key] = resolved
 
 
 class _PackageProcessor:
@@ -456,11 +497,9 @@ class _PackageProcessor:
         self,
         substitutions: UserDict,
         command_line_substitutions: dict[str, Any] | None,
-        skip_update: bool,
     ) -> None:
         self.substitutions = substitutions
         self.parent_context = UserDict(command_line_substitutions or {})
-        self.skip_update = skip_update
 
     def resolve_package(
         self,
@@ -508,14 +547,39 @@ class _PackageProcessor:
             )
 
         if is_remote_package(package_config):
-            package_config = _process_remote_package(package_config, self.skip_update)
+            package_config = _process_remote_package(package_config)
         return package_config
 
-    def collect_substitutions(self, package_config: dict) -> None:
-        """Extract substitutions from a package and merge into the shared context."""
+    def collect_substitutions(
+        self,
+        package_config: dict,
+        context_vars: ContextVars | None,
+    ) -> ContextVars:
+        """Extract substitutions from a package and merge into the shared context.
+
+        Returns the context updated with the package's ``!include vars`` (or
+        an equivalent of *context_vars* if the package has none) so the caller
+        can reuse it when recursing into nested packages. ``None`` inputs are
+        normalized to an empty :class:`ContextVars`, so the result is always
+        non-``None``.
+        """
+        # Push the package's own !include vars before evaluating its
+        # substitutions so they can reference vars passed in by the parent
+        # (e.g. ``vars: {my_variable: ...}`` on the include entry).
+        package_context = push_context(
+            package_config, context_vars if context_vars is not None else ContextVars()
+        )
         if subs := package_config.pop(CONF_SUBSTITUTIONS, {}):
+            # Resolve before merging so that values referencing the package's
+            # ``!include vars`` are baked into the consolidated substitutions
+            # block; once we return, the package vars are no longer in scope.
+            # ``package_context`` is a ChainMap whose chain already terminates
+            # in ``self.parent_context`` (set up by ``do_packages_pass``), so
+            # ``parent_context`` mutations from ``_update_substitutions_context``
+            # remain visible to evaluation reads.
+            _update_substitutions_context(self.parent_context, subs, package_context)
             self.substitutions.data = merge_config(subs, self.substitutions.data)
-            _update_substitutions_context(self.parent_context, subs)
+        return package_context
 
     def process_package(
         self,
@@ -528,13 +592,13 @@ class _PackageProcessor:
             package_config
         )
         package_config = self.resolve_package(package_config, context_vars, path)
-        self.collect_substitutions(package_config)
+        context_vars = self.collect_substitutions(package_config, context_vars)
 
         if CONF_PACKAGES not in package_config:
             return package_config
 
-        # Push context from !include vars on the package root and on the packages key
-        context_vars = push_context(package_config, context_vars)
+        # Push context from !include vars on the packages key (the package root
+        # was already pushed in collect_substitutions above).
         context_vars = push_context(package_config[CONF_PACKAGES], context_vars)
         # Disable the deprecated single-package fallback for remote
         # packages.  _process_remote_package returns dicts with
@@ -552,11 +616,10 @@ class _PackageProcessor:
 
 
 def do_packages_pass(
-    config: dict,
+    config: dict[str, Any],
     *,
     command_line_substitutions: dict[str, Any] | None = None,
-    skip_update: bool = False,
-) -> dict:
+) -> dict[str, Any]:
     """Load, validate, and flatten all packages in the config.
 
     Returns the config with all packages loaded in-place (but not yet merged)
@@ -571,9 +634,7 @@ def do_packages_pass(
                 config.pop(CONF_SUBSTITUTIONS, {}), command_line_substitutions
             )
         )
-    processor = _PackageProcessor(
-        substitutions, command_line_substitutions, skip_update
-    )
+    processor = _PackageProcessor(substitutions, command_line_substitutions)
     _update_substitutions_context(processor.parent_context, substitutions)
 
     context_vars = push_context(
@@ -617,3 +678,62 @@ def merge_packages(config: dict) -> dict:
     config = reduce(lambda new, old: merge_config(old, new), merge_list, config)
     del config[CONF_PACKAGES]
     return config
+
+
+def resolve_packages(
+    config: dict[str, Any],
+    *,
+    command_line_substitutions: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Load and merge ``packages:`` in one call; return the flattened config.
+
+    Convenience wrapper around :func:`do_packages_pass` followed by
+    :func:`merge_packages`. External tools that want the package-
+    merged dict (without going through full schema validation via
+    :func:`esphome.config.read_config`) get one stable seam to call
+    instead of having to chain the two functions and stay in sync
+    with the pipeline order.
+
+    Note: the full :func:`esphome.config.validate_config` pipeline
+    runs two extra passes around the merge that this wrapper
+    deliberately skips:
+
+    1. :func:`esphome.components.substitutions.do_substitution_pass`
+       runs BETWEEN :func:`do_packages_pass` and
+       :func:`merge_packages`, so ``${var}`` placeholders inside
+       package content are NOT resolved here. Callers that need
+       substitution should invoke ``do_substitution_pass``
+       themselves between calls, or go through the full
+       ``validate_config``.
+    2. :func:`esphome.config.resolve_extend_remove` runs AFTER
+       :func:`merge_packages`, so top-level ``!remove`` / ``!extend``
+       markers are NOT applied here. A package-contributed block
+       paired with a top-level ``key: !remove`` will still appear
+       in the returned dict (the marker just sits next to it).
+
+    The wrapper exists for the "what blocks did packages
+    contribute?" question — metadata callers that just need to
+    see merged top-level keys. It is NOT a stand-in for
+    :func:`esphome.config.validate_config` and the two passes
+    above are the reasons why.
+
+    Used by:
+
+    - ``esphome/device-builder`` — the new WebSocket dashboard
+      backend reads device metadata (api / wifi / target-platform
+      flags) off the merged config so packages contribute the same
+      blocks the compiler sees, not just whatever sits at the top
+      of the user's YAML. See
+      https://github.com/esphome/device-builder/issues/288 for the
+      bug this fixes.
+
+    Returns *config* unchanged when ``packages:`` isn't present, so
+    callers can apply this unconditionally without having to peek
+    at the config first.
+    """
+    if CONF_PACKAGES not in config:
+        return config
+    config = do_packages_pass(
+        config, command_line_substitutions=command_line_substitutions
+    )
+    return merge_packages(config)

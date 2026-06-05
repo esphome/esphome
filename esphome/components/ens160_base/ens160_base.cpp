@@ -5,16 +5,26 @@
 // Implementation based on:
 //   https://github.com/sciosense/ENS160_driver
 
+// For best performance, the sensor shall be operated in normal indoor air in the range -5 to 60°C
+// (typical: 25°C); relative humidity: 20 to 80%RH (typical: 50%RH), non-condensing with no aggressive
+// or poisonous gases present. Prolonged exposure to environments outside these conditions can affect
+// performance and lifetime of the sensor.
+// The sensor is designed for indoor use and is not waterproof or dustproof. It should be protected from
+// water, condensation, dust, and aggressive gases. Note that the status will only be stored in non-volatile
+// memory after an initial 24 h of continuous operation. If unpowered before the conclusion of that period,
+// the ENS160 will resume "Initial Start-up" mode after re-powering.
+
 #include "ens160_base.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace ens160_base {
+namespace esphome::ens160_base {
 
 static const char *const TAG = "ens160";
 
-static const uint8_t ENS160_BOOTING = 10;
+// Datasheet specifies 10ms, but some users report that 10ms is not sufficient for the
+// sensor to boot and be ready for commands. 11ms seems to be a safe value.
+static const uint8_t ENS160_BOOTING = 11;
 
 static const uint16_t ENS160_PART_ID = 0x0160;
 
@@ -91,6 +101,8 @@ void ENS160Component::setup() {
     this->mark_failed();
     return;
   }
+  delay(ENS160_BOOTING);
+
   // clear command
   if (!this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_NOP)) {
     this->error_code_ = WRITE_FAILED;
@@ -102,6 +114,7 @@ void ENS160Component::setup() {
     this->mark_failed();
     return;
   }
+  delay(ENS160_BOOTING);
 
   // read firmware version
   if (!this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_GET_APPVER)) {
@@ -109,6 +122,8 @@ void ENS160Component::setup() {
     this->mark_failed();
     return;
   }
+  delay(ENS160_BOOTING);
+
   uint8_t version_data[3];
   if (!this->read_bytes(ENS160_REG_GPR_READ_4, version_data, 3)) {
     this->error_code_ = READ_FAILED;
@@ -223,7 +238,6 @@ void ENS160Component::update() {
   if (this->aqi_ != nullptr) {
     // remove reserved bits, just in case they are used in future
     data_aqi = ENS160_DATA_AQI & data_aqi;
-
     this->aqi_->publish_state(data_aqi);
   }
 
@@ -317,5 +331,4 @@ void ENS160Component::dump_config() {
   }
 }
 
-}  // namespace ens160_base
-}  // namespace esphome
+}  // namespace esphome::ens160_base
