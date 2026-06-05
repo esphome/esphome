@@ -68,7 +68,7 @@ optional<uint8_t> ImprovSerialComponent::read_byte_() {
   switch (logger::global_logger->get_uart()) {
     case logger::UART_SELECTION_UART0:
     case logger::UART_SELECTION_UART1:
-#ifdef USE_ESP32_VARIANT_ESP32
+#if defined(USE_LIBRETINY) || defined(USE_ESP32_VARIANT_ESP32)
     case logger::UART_SELECTION_UART2:
 #endif
       if (this->uart_num_ >= 0) {
@@ -134,7 +134,7 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
   switch (logger::global_logger->get_uart()) {
     case logger::UART_SELECTION_UART0:
     case logger::UART_SELECTION_UART1:
-#ifdef USE_ESP32_VARIANT_ESP32
+#if defined(USE_LIBRETINY) || defined(USE_ESP32_VARIANT_ESP32)
     case logger::UART_SELECTION_UART2:
 #endif
       uart_write_bytes(this->uart_num_, this->tx_header_, header_tx_len);
