@@ -105,12 +105,14 @@ class IT8951Model:
     def get_default(self, key, fallback=None):
         return self.defaults.get(key, fallback)
 
-    def get_dimensions(self, config) -> tuple[int | None, int | None]:
+    def get_dimensions(self, config) -> tuple[int, int]:
+        # If dimensions are in config, use them; otherwise fall back to model defaults.
         if CONF_DIMENSIONS in config:
             dimensions = config[CONF_DIMENSIONS]
             if isinstance(dimensions, dict):
                 return dimensions[CONF_WIDTH], dimensions[CONF_HEIGHT]
             return tuple(dimensions)
+        # Model must have defaults if dimensions not in config.
         return self.get_default(CONF_WIDTH), self.get_default(CONF_HEIGHT)
 
 
@@ -188,7 +190,12 @@ def _model_pin_option(model, key, schema):
 
 def _model_schema(config):
     model = IT8951Model.models[config[CONF_MODEL]]
-    cv_dimensions = cv.Optional if model.get_default(CONF_WIDTH) else cv.Required
+    has_default_dimensions = model.get_default(CONF_WIDTH) is not None and model.get_default(CONF_HEIGHT) is not None
+    dimensions_key = (
+        cv.Optional(CONF_DIMENSIONS, default={CONF_WIDTH: model.get_default(CONF_WIDTH), CONF_HEIGHT: model.get_default(CONF_HEIGHT)})
+        if has_default_dimensions
+        else cv.Required(CONF_DIMENSIONS)
+    )
 
     schema = display.FULL_DISPLAY_SCHEMA.extend(
         spi.spi_device_schema(
@@ -246,7 +253,7 @@ def _model_schema(config):
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=core.TimePeriod(milliseconds=500)),
             ),
-            cv_dimensions(CONF_DIMENSIONS): DIMENSION_SCHEMA,
+            dimensions_key: DIMENSION_SCHEMA,
         }
     )
 
@@ -272,7 +279,21 @@ def _customise_schema(config):
         },
         extra=cv.ALLOW_EXTRA,
     )(config)
-    return _model_schema(config)(config)
+
+    model_config = _model_schema(config)(config)
+
+    model = IT8951Model.models[config[CONF_MODEL].upper()]
+    width, height = model.get_dimensions(model_config)
+
+    display.add_metadata(
+        config[CONF_ID],
+        width,
+        height,
+        has_hardware_rotation=True,
+        has_writer=any(config.get(key) for key in (CONF_LAMBDA, CONF_PAGES, CONF_SHOW_TEST_CARD)),
+    )
+
+    return model_config
 
 
 CONFIG_SCHEMA = _customise_schema
@@ -302,11 +323,6 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config):
     model = IT8951Model.models[config[CONF_MODEL]]
     width, height = model.get_dimensions(config)
-    if width is None or height is None:
-        # Generic model with no explicit dimensions: pass 0; the controller
-        # overwrites width_/height_ from DevInfo during async setup.
-        width = width or 0
-        height = height or 0
 
     var = cg.new_Pvariable(config[CONF_ID], model.name, width, height)
     await display.register_display(var, config)

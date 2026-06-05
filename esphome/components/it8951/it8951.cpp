@@ -194,9 +194,17 @@ void IT8951Display::advance_phase_() {
         this->set_phase_(Phase::IDLE);
         return;
       }
+
+      if (this->dev_info_.panel_width != this->width_ || this->dev_info_.panel_height != this->height_) {
+        ESP_LOGE(TAG,
+                 "Panel dimension mismatch: configured=%ux%u, DevInfo=%ux%u. Check model/dimensions settings.",
+                 this->width_, this->height_, this->dev_info_.panel_width, this->dev_info_.panel_height);
+        this->mark_failed(LOG_STR("IT8951 panel dimensions do not match DevInfo"));
+        this->set_phase_(Phase::IDLE);
+        return;
+      }
+
       this->dev_info_attempts_ = 0;
-      this->width_ = this->dev_info_.panel_width;
-      this->height_ = this->dev_info_.panel_height;
       this->row_width_ = static_cast<uint16_t>((static_cast<uint32_t>(this->width_) + 1) / 2);
       this->buffer_length_ = static_cast<size_t>(this->row_width_) * static_cast<size_t>(this->height_);
       this->img_buf_addr_l_ = this->dev_info_.img_buf_addr_l;
