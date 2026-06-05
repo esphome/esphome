@@ -56,7 +56,8 @@ bool PCMGPIOPin::digital_read() {
     return this->value_;
   optional<uint8_t> read = this->parent_->read_byte(PCM5122_REG_GPIO_INPUT);
   if (read.has_value()) {
-    this->value_ = !!(read.value() & (1 << (this->pin_ - 1))) != this->inverted_;
+    // GPIO input register has RSV at bit 0; GPIN_N is at bit N (unlike other GPIO registers)
+    this->value_ = !!(read.value() & (1 << this->pin_)) != this->inverted_;
   }
   return this->value_;
 }

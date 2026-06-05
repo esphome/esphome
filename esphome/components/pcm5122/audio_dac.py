@@ -45,15 +45,24 @@ def _validate_pin_mode(value):
     return value
 
 
-PIN_SCHEMA = pins.gpio_base_schema(
-    PCMGPIOPin,
-    cv.int_range(min=3, max=6),
-    modes=[CONF_INPUT, CONF_OUTPUT],
-    mode_validator=_validate_pin_mode,
-).extend(
-    {
-        cv.Required(CONF_PCM5122): cv.use_id(PCM5122),
-    }
+def _validate_pin(value):
+    if value[CONF_MODE][CONF_INPUT] and value[CONF_NUMBER] == 6:
+        raise cv.Invalid("GPIO6 cannot be used as input on the PCM5122")
+    return value
+
+
+PIN_SCHEMA = cv.All(
+    pins.gpio_base_schema(
+        PCMGPIOPin,
+        cv.int_range(min=3, max=6),
+        modes=[CONF_INPUT, CONF_OUTPUT],
+        mode_validator=_validate_pin_mode,
+    ).extend(
+        {
+            cv.Required(CONF_PCM5122): cv.use_id(PCM5122),
+        }
+    ),
+    _validate_pin,
 )
 
 
