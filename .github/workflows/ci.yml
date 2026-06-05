@@ -758,7 +758,10 @@ jobs:
             options: --environment esp32s3-idf-tidy --grep USE_ESP32_VARIANT_ESP32S3
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 P4
-            options: --environment esp32p4-idf-tidy --grep USE_ESP32_VARIANT_ESP32P4
+            # P4 has no native Wi-Fi/BLE; those run over the hosted co-processor,
+            # so their code paths differ -- lint them under the P4 build too.
+            # yamllint disable-line rule:line-length
+            options: --environment esp32p4-idf-tidy --grep USE_ESP32_VARIANT_ESP32P4 --grep USE_ESP32_HOSTED --grep USE_WIFI --grep USE_BLE
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 C6
             # yamllint disable-line rule:line-length
