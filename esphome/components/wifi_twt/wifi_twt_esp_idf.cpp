@@ -92,8 +92,8 @@ void WiFiTWT::setup() {
     return;
   }
 
-  auto register_handler = [&](int32_t event_id, const char *name) -> bool {
-    esp_err_t err = esp_event_handler_instance_register(WIFI_EVENT, event_id, &itwt_event_handler, this, nullptr);
+  auto register_handler = [&](int32_t event_id, esp_event_handler_instance_t *handle, const char *name) -> bool {
+    esp_err_t err = esp_event_handler_instance_register(WIFI_EVENT, event_id, &itwt_event_handler, this, handle);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "Failed to register %s handler: %s", name, esp_err_to_name(err));
       return false;
@@ -101,10 +101,19 @@ void WiFiTWT::setup() {
     return true;
   };
 
-  if (!register_handler(WIFI_EVENT_ITWT_SETUP, "ITWT_SETUP") ||
-      !register_handler(WIFI_EVENT_ITWT_TEARDOWN, "ITWT_TEARDOWN") ||
-      !register_handler(WIFI_EVENT_TWT_WAKEUP, "TWT_WAKEUP") ||
-      !register_handler(WIFI_EVENT_ITWT_PROBE, "ITWT_PROBE")) {
+  auto unregister_handler = [](esp_event_handler_instance_t handle, int32_t event_id) {
+    if (handle != nullptr)
+      esp_event_handler_instance_unregister(WIFI_EVENT, event_id, handle);
+  };
+
+  if (!register_handler(WIFI_EVENT_ITWT_SETUP, &this->itwt_setup_handle_, "ITWT_SETUP") ||
+      !register_handler(WIFI_EVENT_ITWT_TEARDOWN, &this->itwt_teardown_handle_, "ITWT_TEARDOWN") ||
+      !register_handler(WIFI_EVENT_TWT_WAKEUP, &this->twt_wakeup_handle_, "TWT_WAKEUP") ||
+      !register_handler(WIFI_EVENT_ITWT_PROBE, &this->itwt_probe_handle_, "ITWT_PROBE")) {
+    unregister_handler(this->itwt_setup_handle_, WIFI_EVENT_ITWT_SETUP);
+    unregister_handler(this->itwt_teardown_handle_, WIFI_EVENT_ITWT_TEARDOWN);
+    unregister_handler(this->twt_wakeup_handle_, WIFI_EVENT_TWT_WAKEUP);
+    unregister_handler(this->itwt_probe_handle_, WIFI_EVENT_ITWT_PROBE);
     this->mark_failed();
   }
 }

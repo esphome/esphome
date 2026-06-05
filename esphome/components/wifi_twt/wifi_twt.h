@@ -53,6 +53,13 @@ class WiFiTWT : public Component, public wifi::WiFiIPStateListener, public wifi:
   // Written by event task (twt_setup_success / twt_teardown_received), read by main task.
   std::atomic<uint8_t> active_flow_id_{UINT8_MAX};
 
+  // esp_event_handler_instance_t handles (void * per ESP-IDF typedef); stored to allow
+  // unregistering on partial setup failure.
+  void *itwt_setup_handle_{nullptr};
+  void *itwt_teardown_handle_{nullptr};
+  void *twt_wakeup_handle_{nullptr};
+  void *itwt_probe_handle_{nullptr};
+
   LazyCallbackManager<void()> start_callback_;
   LazyCallbackManager<void()> stop_callback_;
   LazyCallbackManager<void()> wakeup_callback_;

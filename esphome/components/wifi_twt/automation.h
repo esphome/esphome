@@ -1,8 +1,9 @@
 #pragma once
 
-#include "wifi_twt.h"
+#include "esphome/core/defines.h"
 #ifdef USE_WIFI_TWT
 
+#include "wifi_twt.h"
 #include "esphome/core/automation.h"
 
 namespace esphome::wifi_twt {

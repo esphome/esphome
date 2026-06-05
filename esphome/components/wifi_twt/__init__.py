@@ -89,12 +89,13 @@ def _validate_native_api_conflict(config):
     if (
         CORE.config is not None
         and "native_api" in CORE.config
-        and config[CONF_WAKE_INTERVAL].total_milliseconds > 10000
+        and config[CONF_WAKE_INTERVAL].total_milliseconds > 60000
     ):
         raise cv.Invalid(
-            "native_api is configured alongside wifi_twt with wake_interval > 10 s. "
-            "The native API keepalive will likely drop the connection during sleep periods. "
-            "Use MQTT or coap_server instead, or reduce wake_interval to ≤ 10 s."
+            "native_api is configured alongside wifi_twt with wake_interval > 60 s. "
+            "The native API sends a keepalive ping every 60 s and disconnects at 150 s; "
+            "the device must wake within each 60 s window to respond. "
+            "Use MQTT or coap_server instead, or reduce wake_interval to ≤ 60 s."
         )
     return config
 
