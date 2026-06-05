@@ -844,5 +844,15 @@ class APIConnection final : public APIServerConnectionBase {
   }
 };
 
+#ifdef USE_API_CONNECTION_TEST_HOOKS
+// Integration-test seam: invoked at the very start of ~APIConnection(). Used by the
+// api_connection_destroy_light test component to reproduce the teardown reentrancy in
+// issue #16798 (publishing entity state while a client slot is mid-removal). The pointer
+// is never set in production builds, and the whole hook compiles out unless a test
+// component defines USE_API_CONNECTION_TEST_HOOKS.
+using ConnectionDestroyTestHook = void (*)(APIConnection *conn);
+extern ConnectionDestroyTestHook api_connection_destroy_test_hook;
+#endif
+
 }  // namespace esphome::api
 #endif

@@ -1,0 +1,34 @@
+esphome:
+  name: api-disconnect-reentrant-light
+host:
+
+logger:
+  level: DEBUG
+
+api:
+
+# Reproduces issue #16798: when an API client is torn down, ~APIConnection() runs
+# while the client's slot is mid-removal. This test component publishes a light
+# from inside that destructor (see the component for why voice_assistant can't be
+# used on host), reentering APIServer::on_light_update() over the half-removed slot.
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [api_connection_destroy_light]
+
+output:
+  - platform: template
+    id: test_output
+    type: binary
+    write_action:
+      - logger.log: "test_output write"
+
+light:
+  - platform: binary
+    id: test_light
+    name: Test Light
+    output: test_output
+
+api_connection_destroy_light:
+  light_id: test_light
