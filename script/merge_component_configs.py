@@ -161,18 +161,42 @@ def prefix_substitutions_in_dict(
     return data
 
 
+# Ids that several components intentionally share. ESPHome treats these as a
+# single instance when merged (e.g. multiple components each declaring the same
+# `sntp_time` clock collapse into one), so duplicates with differing content are
+# expected and must not be flagged as accidental collisions.
+INTENTIONALLY_SHARED_IDS = frozenset(
+    {
+        # Several components each declare an `sntp_time` clock; ESPHome merges
+        # them into one time source.
+        "sntp_time",
+        # esp_ldo and mipi_dsi both configure the channel-3 internal LDO on the
+        # ESP32-P4; only one LDO per channel may exist, so the shared id lets the
+        # merge collapse them into a single LDO.
+        "ldo_id",
+    }
+)
+
+
 def deduplicate_by_id(data: dict) -> dict:
     """Deduplicate list items with the same ID.
 
-    Keeps only the first occurrence of each ID. If items with the same ID
-    are identical, this silently deduplicates. If they differ, the first
-    one is kept (ESPHome's validation will catch if this causes issues).
+    Identical items sharing an ID (e.g. a shared bus from a common package pulled
+    in by several components) are collapsed to the first occurrence. Two items that
+    share an ID but differ in content are a real conflict: when merged, the first
+    one silently wins and the others are dropped, which can make cross-references
+    resolve to an incompatible entity. Rather than defer that to downstream
+    validation (where it surfaces as a confusing, order-dependent failure), raise
+    immediately so the offending ID is named.
 
     Args:
         data: Parsed config dictionary
 
     Returns:
         Config with deduplicated lists
+
+    Raises:
+        ValueError: If two items share an ID but have different content.
     """
     if not isinstance(data, dict):
         return data
@@ -181,16 +205,26 @@ def deduplicate_by_id(data: dict) -> dict:
     for key, value in data.items():
         if isinstance(value, list):
             # Check for items with 'id' field
-            seen_ids = set()
+            seen_items = {}
             deduped_list = []
 
             for item in value:
                 if isinstance(item, dict) and "id" in item:
                     item_id = item["id"]
-                    if item_id not in seen_ids:
-                        seen_ids.add(item_id)
+                    if item_id not in seen_items:
+                        seen_items[item_id] = item
                         deduped_list.append(item)
-                    # else: skip duplicate ID (keep first occurrence)
+                    elif item_id in INTENTIONALLY_SHARED_IDS:
+                        # Designed singleton shared by several components (e.g. an
+                        # `sntp_time` clock); ESPHome collapses these, so keep first.
+                        pass
+                    elif item != seen_items[item_id]:
+                        raise ValueError(
+                            f"Conflicting definitions for id '{item_id}' under "
+                            f"'{key}' when merging test configs; give each "
+                            f"component a unique id"
+                        )
+                    # else: identical duplicate (e.g. shared bus package) -> skip
                 else:
                     # No ID, just add it
                     deduped_list.append(item)

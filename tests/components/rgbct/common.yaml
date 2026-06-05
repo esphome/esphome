@@ -1,9 +1,9 @@
 output:
   - platform: ${light_platform}
-    id: light_output_1
+    id: rgbct_light_output_1
     pin: ${pin1}
   - platform: ${light_platform}
-    id: light_output_2
+    id: rgbct_light_output_2
     pin: ${pin2}
   - platform: ${light_platform}
     id: light_output_3
@@ -18,8 +18,8 @@ output:
 light:
   - platform: rgbct
     name: RGBCT Light
-    red: light_output_1
-    green: light_output_2
+    red: rgbct_light_output_1
+    green: rgbct_light_output_2
     blue: light_output_3
     color_temperature: light_output_4
     white_brightness: light_output_5

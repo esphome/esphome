@@ -129,6 +129,7 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   friend class USBUartTypeCdcAcm;
   friend class USBUartTypeCP210X;
   friend class USBUartTypeCH34X;
+  friend class USBUartTypeFT23XX;
 
  public:
   // Number of output chunk slots per channel, derived from buffer_size config.
@@ -213,7 +214,7 @@ class USBUartTypeCdcAcm : public USBUartComponent {
   /// Resets per-channel transfer flags and posts the first bulk IN transfer.
   /// Called by enable_channels() and by vendor-specific subclass overrides that
   /// handle their own line-coding setup before starting data flow.
-  void start_channels();
+  void start_channels_();
 };
 
 class USBUartTypeCP210X : public USBUartTypeCdcAcm {
@@ -238,6 +239,24 @@ class USBUartTypeCH34X : public USBUartTypeCdcAcm {
   CH34xChipType chiptype_{CHIP_UNKNOWN};
   const char *chip_name_{"unknown"};
   uint8_t num_ports_{1};
+};
+
+class USBUartTypeFT23XX : public USBUartTypeCdcAcm {
+ public:
+  USBUartTypeFT23XX(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {}
+
+  void start_input(USBUartChannel *channel);
+
+ protected:
+  std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
+  void enable_channels() override;
+
+  int reset_(USBUartChannel *channel);
+  int set_baudrate_(USBUartChannel *channel, uint32_t baudrate = 0);
+  int set_line_properties_(USBUartChannel *channel);
+  int set_dtr_rts_(USBUartChannel *channel);
+
+  uint8_t chip_type_{255};
 };
 
 }  // namespace esphome::usb_uart

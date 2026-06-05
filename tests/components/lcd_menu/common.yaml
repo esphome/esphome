@@ -1,6 +1,6 @@
 number:
   - platform: template
-    id: test_number
+    id: lcd_menu_test_number
     min_value: 0
     step: 1
     max_value: 10
@@ -83,7 +83,7 @@ lcd_menu:
           lambda: 'ESP_LOGI("lcd_menu", "select value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
     - type: number
       text: Number
-      number: test_number
+      number: lcd_menu_test_number
       on_enter:
         then:
           lambda: 'ESP_LOGI("lcd_menu", "number enter: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'

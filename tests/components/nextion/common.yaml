@@ -1,6 +1,6 @@
 esphome:
   on_boot:
-    - lambda: 'ESP_LOGD("display","is_connected(): %s", YESNO(id(main_lcd).is_connected()));'
+    - lambda: 'ESP_LOGD("display","is_connected(): %s", YESNO(id(nextion_main_lcd).is_connected()));'
 
     - display.nextion.set_brightness: 80%
 
@@ -272,7 +272,7 @@ text_sensor:
 
 display:
   - platform: nextion
-    id: main_lcd
+    id: nextion_main_lcd
     auto_wake_on_touch: true
     brightness: 80%
     command_spacing: 5ms
