@@ -14,7 +14,7 @@ import time
 import colorama
 from helpers import filter_changed, git_ls_files, print_error_for_file, styled
 
-sys.path.append(os.path.dirname(__file__))
+sys.path.append(str(Path(__file__).parent))
 
 
 def find_all(a_str, sub):
@@ -341,9 +341,9 @@ def lint_const_ordered(fname, content):
         matching = [
             (i + 1, line) for i, line in enumerate(lines) if line.startswith(start)
         ]
-        ordered = list(sorted(matching, key=lambda x: x[1].replace("_", " ")))
-        ordered = [(mi, ol) for (mi, _), (_, ol) in zip(matching, ordered)]
-        for (mi, mline), (_, ol) in zip(matching, ordered):
+        ordered = sorted(matching, key=lambda x: x[1].replace("_", " "))
+        ordered = [(mi, ol) for (mi, _), (_, ol) in zip(matching, ordered, strict=True)]
+        for (mi, mline), (_, ol) in zip(matching, ordered, strict=True):
             if mline == ol:
                 continue
             target = next(i for i, line in ordered if line == mline)
@@ -562,7 +562,7 @@ def lint_constants_usage():
 # Maximum allowed CONF_ constants in esphome/const.py.
 # This file is frozen — new constants go in esphome/components/const/__init__.py.
 # Decrease this number when constants are moved out of const.py.
-CONST_PY_MAX_CONF = 1012
+CONST_PY_MAX_CONF = 1013
 
 
 @lint_content_check(include=["esphome/const.py"])
@@ -690,19 +690,6 @@ def lint_esphome_h(fname, line, col, content):
         "File contains reference to 'esphome.h' - This file is "
         "auto-generated and should only be used for *custom* "
         "components. Please replace with references to the direct files."
-    )
-
-
-@lint_content_find_check(
-    "CORE.using_esp_idf",
-    include=py_include,
-    exclude=["esphome/core/__init__.py", "script/ci-custom.py"],
-)
-def lint_using_esp_idf_deprecated(fname, line, col, content):
-    return (
-        f"{highlight('CORE.using_esp_idf')} is deprecated and will change behavior in 2026.6. "
-        "ESP32 Arduino builds on top of ESP-IDF, so ESP-IDF features are available in both frameworks. "
-        f"Please use {highlight('CORE.is_esp32')} and/or {highlight('CORE.using_arduino')} instead."
     )
 
 

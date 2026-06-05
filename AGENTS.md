@@ -462,7 +462,7 @@ This document provides essential context for AI models interacting with this pro
     6.  **Pull Request:** Submit a PR against the `dev` branch. The Pull Request title should have a prefix of the component being worked on (e.g., `[display] Fix bug`, `[abc123] Add new component`). Update documentation, examples, and add `CODEOWNERS` entries as needed. Pull requests should always be made using the `.github/PULL_REQUEST_TEMPLATE.md` template - fill out all sections completely without removing any parts of the template.
 
 *   **Documentation Contributions:**
-    *   Documentation is hosted in the separate `esphome/esphome-docs` repository.
+    *   Documentation is hosted in the separate `esphome/esphome.io` repository.
     *   The contribution workflow is the same as for the codebase.
     *   When editing a component's documentation page, also update the corresponding component index page to ensure both pages remain in sync.
 
@@ -681,7 +681,7 @@ This document provides essential context for AI models interacting with this pro
     - [ ] Explored non-breaking alternatives
     - [ ] Added deprecation warnings if possible (use `ESPDEPRECATED` macro for C++)
     - [ ] Documented migration path in PR description with before/after examples
-    - [ ] Updated all internal usage and esphome-docs
+    - [ ] Updated all internal usage and esphome.io
     - [ ] Tested backward compatibility during deprecation period
 
 *   **Deprecation Pattern (C++):**

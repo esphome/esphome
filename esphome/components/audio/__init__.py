@@ -335,7 +335,7 @@ async def to_code(config):
 
     add_idf_component(
         name="esphome/esp-audio-libs",
-        ref="3.0.0",
+        ref="3.2.1",
     )
 
     data = _get_data()
