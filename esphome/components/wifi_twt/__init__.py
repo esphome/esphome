@@ -106,7 +106,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(WiFiTWT),
             cv.Required(CONF_WAKE_INTERVAL): cv.positive_time_period_milliseconds,
             cv.Required(CONF_WAKE_DURATION): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_SETUP_CMD, default="request"): cv.one_of(
+            cv.Optional(CONF_SETUP_CMD, default="demand"): cv.one_of(
                 *SETUP_CMDS, lower=True
             ),
             cv.Optional(CONF_FLOW_TYPE, default="announced"): cv.one_of(
