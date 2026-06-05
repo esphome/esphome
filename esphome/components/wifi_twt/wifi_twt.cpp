@@ -5,8 +5,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/wake.h"
 
-namespace esphome {
-namespace wifi_twt {
+namespace esphome::wifi_twt {
 
 static const char *const TAG = "wifi_twt";
 
@@ -58,8 +57,7 @@ void WiFiTWT::twt_wakeup_received() {
   wake_loop_threadsafe();
 }
 
-}  // namespace wifi_twt
-}  // namespace esphome
+}  // namespace esphome::wifi_twt
 
 #ifndef USE_ESP32
 // Stub for platforms where no implementation exists; Python validation prevents this path.

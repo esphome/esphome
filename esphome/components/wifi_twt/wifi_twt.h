@@ -6,8 +6,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/wifi/wifi_component.h"
 
-namespace esphome {
-namespace wifi_twt {
+namespace esphome::wifi_twt {
 
 class WiFiTWT : public Component, public wifi::WiFiIPStateListener, public wifi::WiFiConnectStateListener {
  public:
@@ -56,7 +55,6 @@ class WiFiTWT : public Component, public wifi::WiFiIPStateListener, public wifi:
   LazyCallbackManager<void()> wakeup_callback_;
 };
 
-}  // namespace wifi_twt
-}  // namespace esphome
+}  // namespace esphome::wifi_twt
 
 #include "automation.h"

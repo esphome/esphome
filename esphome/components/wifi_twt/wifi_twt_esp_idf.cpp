@@ -9,8 +9,7 @@
 #include "esp_wifi_he.h"
 #include "esp_event.h"
 
-namespace esphome {
-namespace wifi_twt {
+namespace esphome::wifi_twt {
 
 static const char *const TAG = "wifi_twt";
 
@@ -18,7 +17,7 @@ static const char *const TAG = "wifi_twt";
 // Wire format (IEEE 802.11ax): interval_µs = mant × 2^expn.
 // Start at expn=10 (2^10=1024µs=1TU, the minimum useful granularity), then shift up
 // until mantissa fits in uint16_t.
-static void compute_interval_params_(uint32_t interval_ms, uint16_t &mant, uint8_t &expn) {
+static void compute_interval_params(uint32_t interval_ms, uint16_t &mant, uint8_t &expn) {
   expn = 10;
   uint32_t m = (uint32_t) (((uint64_t) interval_ms * 1000 + 512) >> 10);
   if (m < 1)
@@ -33,7 +32,7 @@ static void compute_interval_params_(uint32_t interval_ms, uint16_t &mant, uint8
 // Convert duration_ms to TWT min_wake_dura.
 // The 802.11ax on-air format uses 256 µs/unit always (unit=0); wake_duration_unit in the
 // config struct is ignored by the ESP-IDF firmware when building the frame. Max = 255×256µs = 65ms.
-static void compute_duration_params_(uint32_t duration_ms, uint8_t &dura) {
+static void compute_duration_params(uint32_t duration_ms, uint8_t &dura) {
   uint32_t d = (duration_ms * 1000 + 128) / 256;
   if (d < 1)
     d = 1;
@@ -44,7 +43,7 @@ static void compute_duration_params_(uint32_t duration_ms, uint8_t &dura) {
   dura = static_cast<uint8_t>(d);
 }
 
-static void itwt_event_handler_(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
+static void itwt_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data) {
   auto *self = static_cast<WiFiTWT *>(arg);
 
   if (event_id == WIFI_EVENT_ITWT_SETUP) {
@@ -94,7 +93,7 @@ void WiFiTWT::setup() {
   }
 
   auto register_handler = [&](int32_t event_id, const char *name) -> bool {
-    esp_err_t err = esp_event_handler_instance_register(WIFI_EVENT, event_id, &itwt_event_handler_, this, nullptr);
+    esp_err_t err = esp_event_handler_instance_register(WIFI_EVENT, event_id, &itwt_event_handler, this, nullptr);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "Failed to register %s handler: %s", name, esp_err_to_name(err));
       return false;
@@ -136,8 +135,8 @@ void WiFiTWT::start_twt() {
 
   uint16_t mant;
   uint8_t expn, dura;
-  compute_interval_params_(this->wake_interval_ms_, mant, expn);
-  compute_duration_params_(this->wake_duration_ms_, dura);
+  compute_interval_params(this->wake_interval_ms_, mant, expn);
+  compute_duration_params(this->wake_duration_ms_, dura);
 
   uint64_t sp_us = (uint64_t) mant * (1u << expn);
   uint32_t actual_interval_ms = (uint32_t) (sp_us / 1000);
@@ -186,8 +185,7 @@ void WiFiTWT::stop_twt() {
   }
 }
 
-}  // namespace wifi_twt
-}  // namespace esphome
+}  // namespace esphome::wifi_twt
 
 #endif  // USE_ESP32
 #endif  // USE_WIFI_TWT

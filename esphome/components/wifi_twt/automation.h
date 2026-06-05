@@ -1,10 +1,8 @@
 #pragma once
 
 #include "esphome/core/automation.h"
-#include "wifi_twt.h"
 
-namespace esphome {
-namespace wifi_twt {
+namespace esphome::wifi_twt {
 
 template<typename... Ts> class WiFiTWTStartAction : public Action<Ts...> {
  public:
@@ -40,5 +38,4 @@ template<typename... Ts> class WiFiTWTStopAction : public Action<Ts...> {
   WiFiTWT *parent_;
 };
 
-}  // namespace wifi_twt
-}  // namespace esphome
+}  // namespace esphome::wifi_twt
