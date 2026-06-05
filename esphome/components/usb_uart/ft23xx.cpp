@@ -247,7 +247,7 @@ std::vector<CdcEps> USBUartTypeFT23XX::parse_descriptors(usb_device_handle_t dev
     type_string = "230x chip";
   }
 
-  ESP_LOGV(TAG, "Found FTDI %s based device", type_string.c_str());
+  ESP_LOGD(TAG, "Found FTDI %s based device", type_string.c_str());
   for (uint8_t intf_idx = 0; intf_idx < this->channels_.size(); intf_idx++) {
     if (auto eps = get_uart(config_desc, intf_idx)) {
       cdc_devs.push_back(*eps);
