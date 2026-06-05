@@ -1523,6 +1523,19 @@ def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
     return 0
 
 
+def command_compile_all(args: ArgsProtocol) -> int | None:
+    files = list_yaml_files(args.configuration)
+
+    def build_command(f):
+        dashboard = ["--dashboard"] if CORE.dashboard else []
+        command = [*ESPHOME_COMMAND, *dashboard, "compile", f]
+        if args.only_generate:
+            command.append("--only-generate")
+        return command
+
+    return run_multiple_configs(files, build_command)
+
+
 def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
     # Get devices, resolving special identifiers like OTA
     devices = choose_upload_log_host(
@@ -1556,7 +1569,6 @@ def command_logs(args: ArgsProtocol, config: ConfigType) -> int | None:
         purpose=Purpose.LOGGING,
     )
     return show_logs(config, args, devices)
-
 
 def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
     exit_code = write_cpp(config)
@@ -2019,6 +2031,7 @@ PRE_CONFIG_ACTIONS = {
     "version": command_version,
     "dashboard": command_dashboard,
     "vscode": command_vscode,
+    "compile-all": command_compile_all,
     "update-all": command_update_all,
     "clean-all": command_clean_all,
 }
@@ -2182,6 +2195,18 @@ def parse_args(argv):
         "configuration", help="Your YAML configuration file(s).", nargs="+"
     )
     parser_compile.add_argument(
+        "--only-generate",
+        help="Only generate source code, do not compile.",
+        action="store_true",
+    )
+
+    parser_compile_all = subparsers.add_parser(
+        "compile-all", help="Compile ."
+    )
+    parser_compile_all.add_argument(
+        "configuration", help="Your YAML file or configuration directory.", nargs="*"
+    )
+    parser_compile_all.add_argument(
         "--only-generate",
         help="Only generate source code, do not compile.",
         action="store_true",

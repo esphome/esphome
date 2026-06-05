@@ -491,6 +491,13 @@ class EsphomeCompileHandler(EsphomeCommandWebSocket):
         command.append(config_file)
         return command
 
+class EsphomeCompileAllHandler(EsphomeCommandWebSocket):
+    async def build_command(self, json_message: dict[str, Any]) -> list[str]:
+        command = [*DASHBOARD_COMMAND, "compile-all", settings.config_dir]
+        if json_message.get("only_generate", False):
+            command.append("--only-generate")
+        return command
+
 
 class EsphomeValidateHandler(EsphomeCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
@@ -1109,22 +1116,22 @@ class DownloadBinaryRequestHandler(BaseHandler):
             return
 
         # fallback to type=, but prioritize file=
-        file_name = self.get_argument("type", None)
-        file_name = self.get_argument("file", file_name)
-        if file_name is None or not file_name.strip():
+        request_file_name = self.get_argument("type", None)
+        request_file_name = self.get_argument("file", request_file_name)
+        if request_file_name is None or not request_file_name.strip():
             self.send_error(400)
             return
 
-        is_md5sum = file_name.endswith(".md5sum")
-        request_file_name = file_name[:-7] if is_md5sum else file_name
-        if is_md5sum and not request_file_name:
+        is_md5sum = request_file_name.endswith(".md5sum")
+        source_file_name = request_file_name[:-7] if is_md5sum else request_file_name
+        if is_md5sum and not source_file_name:
             self.send_error(400)
             return
 
         # get requested download name, or build it based on filename
         download_name = self.get_argument(
             "download",
-            f"{storage_json.name}-{file_name}",
+            f"{storage_json.name}-{request_file_name}",
         )
 
         if storage_json.firmware_bin_path is None:
@@ -1132,7 +1139,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
             return
 
         base_dir = storage_json.firmware_bin_path.parent.resolve()
-        path = base_dir.joinpath(request_file_name).resolve()
+        path = base_dir.joinpath(source_file_name).resolve()
         try:
             path.relative_to(base_dir)
         except ValueError:
@@ -1151,9 +1158,9 @@ class DownloadBinaryRequestHandler(BaseHandler):
 
             found = False
             for image in idedata.extra_flash_images:
-                if image.path.as_posix().endswith(request_file_name):
+                if image.path.as_posix().endswith(source_file_name):
                     path = image.path
-                    download_name = file_name if is_md5sum else file_name
+                    download_name = request_file_name if is_md5sum else request_file_name
                     found = True
                     break
 
@@ -1170,7 +1177,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
             )
             self.set_header("Cache-Control", "no-cache")
             data = await loop.run_in_executor(
-                None, self._generate_md5sum, path, request_file_name, compressed
+                None, self._generate_md5sum, path, source_file_name, compressed
             )
             self.write(data)
             self.finish()
@@ -1645,6 +1652,7 @@ def make_app(debug: bool | None = None) -> tornado.web.Application:
             (f"{rel}upload", EsphomeUploadHandler),
             (f"{rel}run", EsphomeRunHandler),
             (f"{rel}compile", EsphomeCompileHandler),
+            (f"{rel}compile-all", EsphomeCompileAllHandler),
             (f"{rel}validate", EsphomeValidateHandler),
             (f"{rel}clean-mqtt", EsphomeCleanMqttHandler),
             (f"{rel}clean-all", EsphomeCleanAllHandler),
