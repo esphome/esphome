@@ -19,7 +19,7 @@ void WiFiTWT::dump_config() {
   ESP_LOGCONFIG(TAG, "  Setup Cmd: %s", cmd_str);
   ESP_LOGCONFIG(TAG, "  Flow Type: %s", this->flow_type_ == 0 ? "announced" : "unannounced");
   if (this->active_flow_id_ != UINT8_MAX) {
-    ESP_LOGCONFIG(TAG, "  Active Flow ID: %u", this->active_flow_id_);
+    ESP_LOGCONFIG(TAG, "  Active Flow ID: %u", this->active_flow_id_.load());
   } else {
     ESP_LOGCONFIG(TAG, "  Status: not negotiated");
   }
