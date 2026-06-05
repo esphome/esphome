@@ -812,9 +812,6 @@ jobs:
             echo "Running clang-tidy on changed files only"
             script/clang-tidy --fix --changed ${{ matrix.options }}
           fi
-        env:
-          # Also cache libdeps, store them in a ~/.platformio subfolder
-          PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
 
       - name: Suggested changes
         run: script/ci-suggest-changes
