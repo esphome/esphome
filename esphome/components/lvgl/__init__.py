@@ -1,3 +1,4 @@
+import functools
 import importlib
 from pathlib import Path
 import pkgutil
@@ -6,6 +7,7 @@ import re
 from esphome.automation import Trigger, build_automation, validate_automation
 import esphome.codegen as cg
 from esphome.components.const import (
+    BYTE_ORDER_BIG,
     CONF_BYTE_ORDER,
     CONF_COLOR_DEPTH,
     CONF_DRAW_ROUNDING,
@@ -29,12 +31,10 @@ from esphome.components.image import (
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_AUTO_CLEAR_ENABLED,
     CONF_BUFFER_SIZE,
     CONF_ESPHOME,
     CONF_GROUP,
     CONF_ID,
-    CONF_LAMBDA,
     CONF_LOG_LEVEL,
     CONF_ON_IDLE,
     CONF_PAGES,
@@ -79,7 +79,7 @@ from .schemas import (
     WIDGET_TYPES,
     any_widget_schema,
     container_schema,
-    obj_schema,
+    obj_dict,
 )
 from .styles import styles_to_code, theme_to_code
 from .touchscreens import touchscreen_schema, touchscreens_to_code
@@ -173,7 +173,7 @@ def generate_lv_conf_h():
     if clashes:
         LOGGER.warning(
             "Some defines are set both by ESPHome build flags and by LVGL configuration which may lead to unexpected behavior: %s",
-            sorted(list(clashes)),
+            sorted(clashes),
         )
     unused_defines = all_defines - lv_defines.keys() - defines_from_flags
 
@@ -213,61 +213,73 @@ def multi_conf_validate(configs: list[dict]):
 
 
 def final_validation(config_list):
-    if len(config_list) != 1:
-        multi_conf_validate(config_list)
     global_config = full_config.get()
+    # Resolve byte_order from display metadata before multi-config validation
     for config in config_list:
+        metas = [get_display_metadata(disp) for disp in config[df.CONF_DISPLAYS]]
+        if any(m.has_writer for m in metas):
+            raise cv.Invalid(
+                "Using lambda:, pages:, auto_clear_enabled: true, or show_test_card: true in display config is not compatible with LVGL"
+            )
+        if any(m.rotation != 0 for m in metas):
+            raise cv.Invalid(
+                "use of 'rotation' in the display config is not compatible with LVGL, please set rotation in the LVGL config instead"
+            )
+        config[CONF_DRAW_ROUNDING] = max(
+            [m.draw_rounding for m in metas] + [config[CONF_DRAW_ROUNDING]]
+        )
+        display_byte_orders = {
+            m.byte_order for m in metas if m.byte_order is not cv.UNDEFINED
+        }
+        if len(display_byte_orders) > 1:
+            raise cv.Invalid(
+                "All displays configured for an LVGL instance must use the same byte_order"
+            )
+        if display_byte_orders:
+            display_order = next(iter(display_byte_orders))
+            if CONF_BYTE_ORDER in config:
+                if config[CONF_BYTE_ORDER] != display_order:
+                    raise cv.Invalid(
+                        "LVGL byte order must match the display byte order",
+                        [CONF_BYTE_ORDER],
+                    )
+            else:
+                config[CONF_BYTE_ORDER] = display_order
+        if CONF_BYTE_ORDER not in config:
+            config[CONF_BYTE_ORDER] = BYTE_ORDER_BIG
+
         if (pages := config.get(CONF_PAGES)) and all(p[df.CONF_SKIP] for p in pages):
             raise cv.Invalid("At least one page must not be skipped")
-        for display_id in config[df.CONF_DISPLAYS]:
-            path = global_config.get_path_for_id(display_id)[:-1]
-            display = global_config.get_config_for_path(path)
-            if CONF_LAMBDA in display or CONF_PAGES in display:
-                raise cv.Invalid(
-                    "Using lambda: or pages: in display config is not compatible with LVGL"
-                )
-            # treating 0 as false is intended here.
-            if display.get(CONF_ROTATION):
-                raise cv.Invalid(
-                    "use of 'rotation' in the display config is not compatible with LVGL, please set rotation in the LVGL config instead"
-                )
-            if display.get(CONF_AUTO_CLEAR_ENABLED) is True:
-                raise cv.Invalid(
-                    "Using auto_clear_enabled: true in display config not compatible with LVGL"
-                )
-            if draw_rounding := display.get(CONF_DRAW_ROUNDING):
-                config[CONF_DRAW_ROUNDING] = max(
-                    draw_rounding, config[CONF_DRAW_ROUNDING]
-                )
         buffer_frac = config[CONF_BUFFER_SIZE]
         if CORE.is_esp32 and buffer_frac > 0.5 and PSRAM_DOMAIN not in global_config:
             df.LOGGER.warning("buffer_size: may need to be reduced without PSRAM")
-        for w in get_focused_widgets():
-            path = global_config.get_path_for_id(w)
-            widget_conf = global_config.get_config_for_path(path[:-1])
-            if (
-                df.CONF_ADJUSTABLE in widget_conf
-                and not widget_conf[df.CONF_ADJUSTABLE]
-            ):
-                raise cv.Invalid(
-                    "A non adjustable arc may not be focused",
-                    path,
-                )
-        for w in get_refreshed_widgets():
-            path = global_config.get_path_for_id(w)
-            widget_conf = global_config.get_config_for_path(path[:-1])
-            if not any(isinstance(v, (Lambda, dict)) for v in widget_conf.values()):
-                raise cv.Invalid(
-                    f"Widget '{w}' does not have any dynamic properties to refresh",
-                )
-        # Do per-widget type final validation for update actions
-        for widget_type, update_configs in df.get_updated_widgets().items():
-            for conf in update_configs:
-                for id_conf in conf.get(CONF_ID, ()):
-                    name = id_conf[CONF_ID]
-                    path = global_config.get_path_for_id(name)
-                    widget_conf = global_config.get_config_for_path(path[:-1])
-                    widget_type.final_validate(name, conf, widget_conf, path[1:])
+
+    if len(config_list) != 1:
+        multi_conf_validate(config_list)
+
+    for w in get_focused_widgets():
+        path = global_config.get_path_for_id(w)
+        widget_conf = global_config.get_config_for_path(path[:-1])
+        if df.CONF_ADJUSTABLE in widget_conf and not widget_conf[df.CONF_ADJUSTABLE]:
+            raise cv.Invalid(
+                "A non adjustable arc may not be focused",
+                path,
+            )
+    for w in get_refreshed_widgets():
+        path = global_config.get_path_for_id(w)
+        widget_conf = global_config.get_config_for_path(path[:-1])
+        if not any(isinstance(v, (Lambda, dict)) for v in widget_conf.values()):
+            raise cv.Invalid(
+                f"Widget '{w}' does not have any dynamic properties to refresh",
+            )
+    # Do per-widget type final validation for update actions
+    for widget_type, update_configs in df.get_updated_widgets().items():
+        for conf in update_configs:
+            for id_conf in conf.get(CONF_ID, ()):
+                name = id_conf[CONF_ID]
+                path = global_config.get_path_for_id(name)
+                widget_conf = global_config.get_config_for_path(path[:-1])
+                widget_type.final_validate(name, conf, widget_conf, path[1:])
 
 
 async def to_code(configs):
@@ -366,8 +378,7 @@ async def to_code(configs):
         # options will have CONF_ROTATION true if rotation is changed in an automation.
         if CONF_ROTATION in config or df.get_options().get(CONF_ROTATION) is True:
             if all(
-                get_display_metadata(str(disp)).has_hardware_rotation
-                for disp in displays
+                get_display_metadata(disp).has_hardware_rotation for disp in displays
             ):
                 rotation_type = RotationType.ROTATION_HARDWARE
                 df.LOGGER.info("LVGL will use hardware rotation via display driver")
@@ -518,16 +529,32 @@ def add_hello_world(config):
     return config
 
 
-def _theme_schema(value):
+@functools.cache
+def _build_theme_schema(
+    widget_types: tuple[tuple[str, widgets.WidgetType], ...],
+) -> cv.Schema:
+    # The theme schema is value-independent: it depends only on the set of
+    # registered widget types. Key the cache on a snapshot of WIDGET_TYPES so
+    # that an external component registering a new widget after the first
+    # validation (legal per any_widget_schema's lazy-evaluation contract)
+    # produces a fresh tuple, a cache miss, and a rebuilt schema -- the cache
+    # self-heals instead of stale-rejecting valid themes. See obj_dict() in
+    # schemas.py for why chained .extend() is avoided here.
     return cv.Schema(
         {
             cv.Optional(df.CONF_DARK_MODE, default=False): cv.boolean,
             **{
-                cv.Optional(name): obj_schema(w).extend(FULL_STYLE_SCHEMA)
-                for name, w in WIDGET_TYPES.items()
+                cv.Optional(name): cv.Schema(
+                    {**obj_dict(w), **FULL_STYLE_SCHEMA.schema}
+                )
+                for name, w in widget_types
             },
         }
-    )(value)
+    )
+
+
+def _theme_schema(value: dict) -> dict:
+    return _build_theme_schema(tuple(WIDGET_TYPES.items()))(value)
 
 
 FINAL_VALIDATE_SCHEMA = final_validation
@@ -566,7 +593,7 @@ LVGL_SCHEMA = cv.All(
                 cv.Optional(CONF_LOG_LEVEL, default="WARN"): cv.one_of(
                     *df.LV_LOG_LEVELS, upper=True
                 ),
-                cv.Optional(CONF_BYTE_ORDER, default="big_endian"): cv.one_of(
+                cv.Optional(CONF_BYTE_ORDER): cv.one_of(
                     "big_endian", "little_endian", lower=True
                 ),
                 cv.Optional(df.CONF_STYLE_DEFINITIONS): cv.ensure_list(

@@ -67,7 +67,7 @@ def test_iter_component_configs_with_multi_conf(mock_get_component: Mock) -> Non
     configs = list(config.iter_component_configs(test_config))
     assert len(configs) == 2
 
-    for domain, component, conf in configs:
+    for domain, _component, conf in configs:
         assert domain == "switch"
         assert "name" in conf
 
