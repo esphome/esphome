@@ -202,8 +202,8 @@ void MipiRgb::update() {
   ESP_LOGV(TAG, "x_low %d, y_low %d, x_high %d, y_high %d", this->x_low_, this->y_low_, this->x_high_, this->y_high_);
   int w = this->x_high_ - this->x_low_ + 1;
   int h = this->y_high_ - this->y_low_ + 1;
-  this->write_to_display(this->x_low_, this->y_low_, w, h, reinterpret_cast<const uint8_t *>(this->buffer_),
-                         this->x_low_, this->y_low_, this->width_ - w - this->x_low_);
+  this->write_to_display_(this->x_low_, this->y_low_, w, h, reinterpret_cast<const uint8_t *>(this->buffer_),
+                          this->x_low_, this->y_low_, this->width_ - w - this->x_low_);
   // invalidate watermarks
   this->x_low_ = this->width_;
   this->y_low_ = this->height_;
@@ -219,15 +219,15 @@ void MipiRgb::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
   // note that endianness is not considered here - it is assumed to match!
   if (bitness != display::COLOR_BITNESS_565) {
     Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
-    this->write_to_display(x_start, y_start, w, h, reinterpret_cast<const uint8_t *>(this->buffer_), x_start, y_start,
-                           this->width_ - w - x_start);
+    this->write_to_display_(x_start, y_start, w, h, reinterpret_cast<const uint8_t *>(this->buffer_), x_start, y_start,
+                            this->width_ - w - x_start);
   } else {
-    this->write_to_display(x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
+    this->write_to_display_(x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
   }
 }
 
-void MipiRgb::write_to_display(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
-                               int x_pad) {
+void MipiRgb::write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
+                                int x_pad) {
   esp_err_t err = ESP_OK;
   auto stride = (x_offset + w + x_pad) * 2;
   ptr += y_offset * stride + x_offset * 2;  // skip to the first pixel
@@ -247,7 +247,7 @@ void MipiRgb::write_to_display(int x_start, int y_start, int w, int h, const uin
     ESP_LOGE(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
 }
 
-bool MipiRgb::check_buffer() {
+bool MipiRgb::check_buffer_() {
   if (this->is_failed())
     return false;
   if (this->buffer_ != nullptr)
@@ -285,7 +285,7 @@ void MipiRgb::draw_pixel_at(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) {
     return;
   }
-  if (!this->check_buffer())
+  if (!this->check_buffer_())
     return;
   size_t pos = (y * this->width_) + x;
   uint16_t new_color = convert_big_endian(display::ColorUtil::color_to_565(color));
@@ -303,7 +303,7 @@ void MipiRgb::draw_pixel_at(int x, int y, Color color) {
     this->y_high_ = y;
 }
 void MipiRgb::fill(Color color) {
-  if (!this->check_buffer())
+  if (!this->check_buffer_())
     return;
 
   // If clipping is active, fall back to base implementation
@@ -352,7 +352,7 @@ static const char *get_pin_name(GPIOPin *pin, std::span<char, GPIO_SUMMARY_MAX_L
   return buffer.data();
 }
 
-void MipiRgb::dump_pins(uint8_t start, uint8_t end, const char *name, uint8_t offset) {
+void MipiRgb::dump_pins_(uint8_t start, uint8_t end, const char *name, uint8_t offset) {
   char pin_summary[GPIO_SUMMARY_MAX_LEN];
   for (uint8_t i = start; i != end; i++) {
     this->data_pins_[i]->dump_summary(pin_summary, sizeof(pin_summary));
@@ -393,10 +393,10 @@ void MipiRgb::dump_config() {
                 get_pin_name(this->de_pin_, de_buf), get_pin_name(this->pclk_pin_, pclk_buf),
                 get_pin_name(this->hsync_pin_, hsync_buf), get_pin_name(this->vsync_pin_, vsync_buf));
 
-  this->dump_pins(8, 13, "Blue", 0);
-  this->dump_pins(13, 16, "Green", 0);
-  this->dump_pins(0, 3, "Green", 3);
-  this->dump_pins(3, 8, "Red", 0);
+  this->dump_pins_(8, 13, "Blue", 0);
+  this->dump_pins_(13, 16, "Green", 0);
+  this->dump_pins_(0, 3, "Green", 3);
+  this->dump_pins_(3, 8, "Red", 0);
 }
 
 }  // namespace esphome::mipi_rgb
