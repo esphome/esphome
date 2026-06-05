@@ -935,7 +935,7 @@ def _resolve_toolchain(value: ConfigType) -> ConfigType:
     # Runs before _detect_variant so downstream validators can rely on
     # CORE.toolchain instead of re-resolving it from the config dict.
     if CORE.toolchain is None:
-        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.ESP_IDF)
+        CORE.toolchain = value.get(CONF_TOOLCHAIN, Toolchain.ESP_IDF)
     return value
 
 
