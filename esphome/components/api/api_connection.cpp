@@ -169,16 +169,7 @@ void APIConnection::start() {
   this->helper_->set_client_name(this->helper_->get_peername_to(peername), strlen(peername));
 }
 
-#ifdef USE_API_CONNECTION_TEST_HOOKS
-ConnectionDestroyTestHook api_connection_destroy_test_hook = nullptr;
-#endif
-
 APIConnection::~APIConnection() {
-#ifdef USE_API_CONNECTION_TEST_HOOKS
-  if (api_connection_destroy_test_hook != nullptr) {
-    api_connection_destroy_test_hook(this);
-  }
-#endif
   this->destroy_active_iterator_();
 #ifdef USE_BLUETOOTH_PROXY
   if (bluetooth_proxy::global_bluetooth_proxy->get_api_connection() == this) {
