@@ -525,13 +525,6 @@ jobs:
           echo "::add-matcher::.github/workflows/matchers/gcc.json"
           echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
 
-      - name: Run 'pio run --list-targets -e esp32-idf-tidy'
-        if: matrix.name == 'Run script/clang-tidy for ESP32 IDF'
-        run: |
-          . venv/bin/activate
-          mkdir -p .temp
-          pio run --list-targets -e esp32-idf-tidy
-
       - name: Check if full clang-tidy scan needed
         id: check_full_scan
         run: |
