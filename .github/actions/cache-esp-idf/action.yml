@@ -28,8 +28,19 @@ runs:
           version=$(python -c 'from esphome.components.esp32 import ESP_IDF_FRAMEWORK_VERSION_LOOKUP as L; print(L["recommended"])')
         fi
         echo "version=$version" >> "$GITHUB_OUTPUT"
-    - name: Cache ESP-IDF install
+    # Mirror the adjacent PlatformIO cache: only dev-branch runs write the
+    # shared cache (so it lives in the default-branch scope readable by all
+    # PRs), and PRs are restore-only -- they never push multi-GB artifacts into
+    # their own scope / the repo quota (e.g. on a version-bump PR).
+    - name: Cache ESP-IDF install (write on dev)
+      if: github.ref == 'refs/heads/dev'
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: ~/.esphome-idf
+        key: ${{ runner.os }}-esphome-idf-${{ steps.version.outputs.version }}
+    - name: Cache ESP-IDF install (restore-only off dev)
+      if: github.ref != 'refs/heads/dev'
+      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: ~/.esphome-idf
         key: ${{ runner.os }}-esphome-idf-${{ steps.version.outputs.version }}
