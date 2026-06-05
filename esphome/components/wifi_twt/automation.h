@@ -1,7 +1,9 @@
 #pragma once
 
-#include "esphome/core/automation.h"
 #include "wifi_twt.h"
+#ifdef USE_WIFI_TWT
+
+#include "esphome/core/automation.h"
 
 namespace esphome::wifi_twt {
 
@@ -40,3 +42,5 @@ template<typename... Ts> class WiFiTWTStopAction : public Action<Ts...> {
 };
 
 }  // namespace esphome::wifi_twt
+
+#endif  // USE_WIFI_TWT
