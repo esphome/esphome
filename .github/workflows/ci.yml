@@ -49,7 +49,7 @@ jobs:
         # detects the activated venv via ``VIRTUAL_ENV`` so downstream jobs
         # that ``. venv/bin/activate`` see an identical layout.
         if: steps.cache-venv.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           enable-cache: true
           # Pin uv version so the action does not have to fetch the
@@ -170,7 +170,7 @@ jobs:
         # install step (order-of-magnitude faster on cold boots,
         # with its own wheel cache). actions/setup-python still
         # provides the interpreter.
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           enable-cache: true
           # Pin uv version so the action does not have to fetch the
@@ -189,9 +189,12 @@ jobs:
       - name: Run device-builder pytest
         # ``-n auto`` runs under pytest-xdist (matches device-builder's
         # own CI). No ``--cov`` here -- this is purely a downstream
-        # smoke check against this PR's esphome code.
+        # smoke check against this PR's esphome code. ``tests/e2e/slow``
+        # is excluded: those are real multi-minute toolchain compiles
+        # (LibreTiny SDK clone, native ESP-IDF install) that device-builder
+        # runs in its own dedicated jobs, not this smoke check.
         working-directory: device-builder
-        run: pytest -q -n auto --maxfail=5 --durations=30 --no-cov --ignore=tests/benchmarks
+        run: pytest -q -n auto --maxfail=5 --durations=30 --no-cov --ignore=tests/benchmarks --ignore=tests/e2e/slow
 
   pytest:
     name: Run pytest
@@ -368,7 +371,7 @@ jobs:
       - name: Set up uv
         # Only needed on cache miss to populate the venv.
         if: steps.cache-venv.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           enable-cache: true
           # Pin uv version so the action does not have to fetch the
