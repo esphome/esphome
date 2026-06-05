@@ -7,7 +7,6 @@ from esphome.components.esp32 import get_esp32_variant, idf_version
 import esphome.config_validation as cv
 from esphome.core import CORE
 from esphome.helpers import mkdir_p, write_file_if_changed
-from esphome.writer import update_storage_json
 
 
 def get_available_components() -> list[str] | None:
@@ -213,11 +212,6 @@ target_link_options(${{COMPONENT_LIB}} PUBLIC
 
 def write_project(minimal: bool = False) -> None:
     """Write ESP-IDF project files."""
-    # Refresh <data_dir>/storage/<name>.yaml.json so the dashboard's
-    # /info and /downloads endpoints can locate the build (they 404
-    # otherwise). This mirrors the PlatformIO build-gen path's call
-    # in build_gen/platformio.py:write_ini().
-    update_storage_json()
     mkdir_p(CORE.build_path)
     mkdir_p(CORE.relative_src_path())
 

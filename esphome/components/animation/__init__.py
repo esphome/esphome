@@ -2,6 +2,7 @@ import logging
 
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.const import CONF_LOOP
 import esphome.components.image as espImage
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_REPEAT
@@ -14,7 +15,6 @@ DEPENDENCIES = ["display"]
 MULTI_CONF = True
 MULTI_CONF_NO_DEFAULT = True
 
-CONF_LOOP = "loop"
 CONF_START_FRAME = "start_frame"
 CONF_END_FRAME = "end_frame"
 CONF_FRAME = "frame"
