@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/automation.h"
+#include "wifi_twt.h"
 
 namespace esphome::wifi_twt {
 

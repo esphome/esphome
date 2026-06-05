@@ -56,5 +56,3 @@ class WiFiTWT : public Component, public wifi::WiFiIPStateListener, public wifi:
 };
 
 }  // namespace esphome::wifi_twt
-
-#include "automation.h"
