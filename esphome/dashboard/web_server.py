@@ -1046,7 +1046,50 @@ class DownloadBinaryRequestHandler(BaseHandler):
                 return gzip.compress(data, 9)
             return data
 
-    @authenticated
+    def _generate_md5sum(self, path: Path, filename: str, compressed: bool) -> bytes:
+        """Generate a .md5sum payload for the requested file."""
+        hash_md5 = hashlib.md5()
+        with path.open("rb") as f:
+            for chunk in iter(lambda: f.read(8192), b""):
+                hash_md5.update(chunk)
+        data = f"{hash_md5.hexdigest()}  {filename}\n".encode("ascii")
+        if compressed:
+            return gzip.compress(data, 9)
+        return data
+
+    def _require_auth(self) -> None:
+        self.set_status(401)
+        self.set_header("WWW-Authenticate", 'Basic realm="ESPHome"')
+        self.finish("Unauthorized")
+
+    def _check_config_basic_auth(
+        self, configuration: str | None, storage_json: StorageJSON | None
+    ) -> bool:
+        auth_header = self.request.headers.get("Authorization")
+        if not isinstance(auth_header, str) or not auth_header.startswith("Basic "):
+            return False
+        try:
+            auth_decoded = base64.b64decode(auth_header[6:]).decode()
+            username, password = auth_decoded.split(":", 1)
+        except (binascii.Error, ValueError, UnicodeDecodeError):
+            return False
+
+        if configuration is None or storage_json is None:
+            return False
+
+        if username != Path(configuration).stem:
+            return False
+
+        try:
+            config = yaml_util.load_yaml(settings.rel_path(configuration))
+        except (vol.Invalid, OSError, yaml.YAMLError):
+            return False
+
+        ota_config = config.get("ota", [])
+        if not isinstance(ota_config, list):
+            return False
+        return any(ota_config.get("password") == password for ota_config in ota_config if isinstance(ota_config, dict))
+
     @bind_config
     async def get(self, configuration: str | None = None) -> None:
         """Download a binary file."""
@@ -1059,12 +1102,25 @@ class DownloadBinaryRequestHandler(BaseHandler):
             self.send_error(404)
             return
 
+        if not is_authenticated(self) and not self._check_config_basic_auth(
+            configuration, storage_json
+        ):
+            self._require_auth()
+            return
+
         # fallback to type=, but prioritize file=
         file_name = self.get_argument("type", None)
         file_name = self.get_argument("file", file_name)
         if file_name is None or not file_name.strip():
             self.send_error(400)
             return
+
+        is_md5sum = file_name.endswith(".md5sum")
+        request_file_name = file_name[:-7] if is_md5sum else file_name
+        if is_md5sum and not request_file_name:
+            self.send_error(400)
+            return
+
         # get requested download name, or build it based on filename
         download_name = self.get_argument(
             "download",
@@ -1076,7 +1132,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
             return
 
         base_dir = storage_json.firmware_bin_path.parent.resolve()
-        path = base_dir.joinpath(file_name).resolve()
+        path = base_dir.joinpath(request_file_name).resolve()
         try:
             path.relative_to(base_dir)
         except ValueError:
@@ -1095,9 +1151,9 @@ class DownloadBinaryRequestHandler(BaseHandler):
 
             found = False
             for image in idedata.extra_flash_images:
-                if image.path.as_posix().endswith(file_name):
+                if image.path.as_posix().endswith(request_file_name):
                     path = image.path
-                    download_name = file_name
+                    download_name = file_name if is_md5sum else file_name
                     found = True
                     break
 
@@ -1106,6 +1162,19 @@ class DownloadBinaryRequestHandler(BaseHandler):
                 return
 
         download_name = download_name + ".gz" if compressed else download_name
+
+        if is_md5sum:
+            self.set_header("Content-Type", "text/plain")
+            self.set_header(
+                "Content-Disposition", f'attachment; filename="{download_name}"'
+            )
+            self.set_header("Cache-Control", "no-cache")
+            data = await loop.run_in_executor(
+                None, self._generate_md5sum, path, request_file_name, compressed
+            )
+            self.write(data)
+            self.finish()
+            return
 
         self.set_header("Content-Type", "application/octet-stream")
         self.set_header(

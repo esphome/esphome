@@ -6,6 +6,7 @@ import base64
 from collections.abc import Generator
 from contextlib import asynccontextmanager
 import gzip
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -365,6 +366,37 @@ async def test_download_binary_handler_compressed(
     assert decompressed == original_content
     assert response.headers["Content-Type"] == "application/octet-stream"
     assert "firmware.bin.gz" in response.headers["Content-Disposition"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_ext_storage_path")
+async def test_download_binary_handler_md5sum_file(
+    dashboard: DashboardTestHelper,
+    tmp_path: Path,
+    mock_storage_json: MagicMock,
+) -> None:
+    """Test auto-generation of .md5sum files for a firmware download."""
+    build_dir = tmp_path / ".esphome" / "build" / "test"
+    build_dir.mkdir(parents=True)
+    firmware_file = build_dir / "firmware.bin"
+    content = b"fake firmware content"
+    firmware_file.write_bytes(content)
+
+    mock_storage = Mock()
+    mock_storage.name = "test_device"
+    mock_storage.firmware_bin_path = firmware_file
+    mock_storage_json.load.return_value = mock_storage
+
+    response = await dashboard.fetch(
+        "/download.bin?configuration=test.yaml&file=firmware.bin.md5sum",
+        method="GET",
+    )
+    assert response.code == 200
+    assert response.headers["Content-Type"] == "text/plain"
+    expected_md5 = hashlib.md5(content).hexdigest().encode("ascii")
+    assert response.body == expected_md5 + b"  firmware.bin\n"
+    assert "attachment" in response.headers["Content-Disposition"]
+    assert "test_device-firmware.bin.md5sum" in response.headers["Content-Disposition"]
 
 
 @pytest.mark.asyncio
@@ -1877,6 +1909,31 @@ def test_is_authenticated_wrong_credentials(
     mock_auth_settings.check_password.return_value = False
     handler = _make_auth_handler(f"Basic {creds}")
     assert web_server.is_authenticated(handler) is False
+
+
+def test_download_binary_handler_config_basic_auth(
+    tmp_path: Path,
+    mock_dashboard_settings: MagicMock,
+    mock_storage_json: MagicMock,
+) -> None:
+    """Basic auth should be accepted for the matching configuration and OTA password."""
+    config_path = tmp_path / "test.yaml"
+    config_path.write_text("ota:\n  password: my_ota_password\n")
+    mock_dashboard_settings.rel_path.side_effect = lambda filename: tmp_path / filename
+
+    mock_storage = Mock()
+    mock_storage.name = "test"
+    mock_storage.firmware_bin_path = tmp_path / ".esphome" / "build" / "test" / "firmware.bin"
+    mock_storage_json.load.return_value = mock_storage
+
+    auth_header = base64.b64encode(b"test:my_ota_password").decode("ascii")
+    handler = Mock(spec=web_server.DownloadBinaryRequestHandler)
+    handler.request = Mock()
+    handler.request.headers = {"Authorization": f"Basic {auth_header}"}
+
+    assert web_server.DownloadBinaryRequestHandler._check_config_basic_auth(
+        handler, "test.yaml", mock_storage
+    ) is True
 
 
 def test_is_authenticated_no_auth_configured(
