@@ -731,6 +731,8 @@ jobs:
     if: needs.determine-jobs.outputs.clang-tidy == 'true'
     env:
       GH_TOKEN: ${{ github.token }}
+      # The variant tidy envs install ESP-IDF natively; share the native IDF cache.
+      ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -762,6 +764,10 @@ jobs:
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
+
+      - name: Cache ESP-IDF install
+        # Shared with the IDF/Arduino clang-tidy jobs + native-IDF build (same install).
+        uses: ./.github/actions/cache-esp-idf
 
       - name: Register problem matchers
         run: |
