@@ -1,0 +1,31 @@
+wifi:
+  ssid: "MySSID"
+  password: "MyPassword"
+  # below is just for compilation testing, not the expected use pattern
+  on_connect:
+    - wifi_twt.start:
+        id: my_twt
+        wake_interval: 30s
+        wake_duration: 10ms
+        setup_cmd: request
+        flow_type: unannounced
+    - delay: 2s
+    - wifi_twt.stop: my_twt
+    - delay: 2s
+    - wifi_twt.start:
+        id: my_twt
+        wake_interval: !lambda return 45000;
+        wake_duration: !lambda return 8;
+
+wifi_twt:
+  id: my_twt
+  wake_interval: 60s
+  wake_duration: 5ms
+  setup_cmd: suggest
+  flow_type: announced
+  on_twt_start:
+    - logger.log: "TWT started"
+  on_twt_stop:
+    - logger.log: "TWT stopped"
+  on_twt_wakeup:
+    - logger.log: "TWT awake"
