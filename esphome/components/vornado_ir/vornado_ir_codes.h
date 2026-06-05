@@ -2,8 +2,7 @@
 
 #include "esphome/components/remote_base/remote_base.h"
 
-namespace esphome {
-namespace vornado_ir {
+namespace esphome::vornado_ir {
 
 // Power Toggle
 const remote_base::RawTimings VORNADO_IR_POWER_TOGGLE_TIMINGS = {
@@ -49,5 +48,4 @@ const remote_base::RawTimings VORNADO_IR_DECREASE_TIMINGS = {
     424,  -1261, 424,  -1261, 424, -1262, 423,  -1263, 1267, -443,  398, -8106, 1271, -442,  1242, -419,  422, -1261,
     1268, -443,  1242, -443,  397, -1262, 423,  -1263, 423,  -1263, 422, -1261, 424,  -1262, 1268, -443,  397};
 
-}  // namespace vornado_ir
-}  // namespace esphome
+}  // namespace esphome::vornado_ir

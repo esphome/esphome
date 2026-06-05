@@ -3,8 +3,7 @@
 #include "vornado_ir_codes.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace vornado_ir {
+namespace esphome::vornado_ir {
 
 static const char *const TAG = "vornado_ir";
 
@@ -43,5 +42,4 @@ void VornadoIR::transmit_(const RawTimings &ir_code) {
   transmit.perform();
 }
 
-}  // namespace vornado_ir
-}  // namespace esphome
+}  // namespace esphome::vornado_ir

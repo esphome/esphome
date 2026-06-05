@@ -5,8 +5,7 @@
 #include "esphome/components/remote_transmitter/remote_transmitter.h"
 #include <functional>
 
-namespace esphome {
-namespace vornado_ir {
+namespace esphome::vornado_ir {
 
 using remote_base::RemoteTransmitterBase;
 using remote_base::RawTimings;
@@ -23,5 +22,4 @@ class VornadoIR : public Component, public remote_base::RemoteTransmittable {
   void send_decrease();
 };
 
-}  // namespace vornado_ir
-}  // namespace esphome
+}  // namespace esphome::vornado_ir

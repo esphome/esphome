@@ -3,8 +3,7 @@
 #include "esphome/components/button/button.h"
 #include "../vornado_ir.h"
 
-namespace esphome {
-namespace vornado_ir {
+namespace esphome::vornado_ir {
 
 class PowerButton : public button::Button, public Parented<VornadoIR> {
  public:
@@ -14,5 +13,4 @@ class PowerButton : public button::Button, public Parented<VornadoIR> {
   void press_action() override;
 };
 
-}  // namespace vornado_ir
-}  // namespace esphome
+}  // namespace esphome::vornado_ir
