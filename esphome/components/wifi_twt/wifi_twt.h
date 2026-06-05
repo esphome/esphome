@@ -1,5 +1,8 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_WIFI_TWT
+
 #include <atomic>
 
 #include "esphome/core/component.h"
@@ -56,3 +59,5 @@ class WiFiTWT : public Component, public wifi::WiFiIPStateListener, public wifi:
 };
 
 }  // namespace esphome::wifi_twt
+
+#endif  // USE_WIFI_TWT
