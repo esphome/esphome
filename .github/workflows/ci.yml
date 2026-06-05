@@ -488,10 +488,8 @@ jobs:
             name: Run script/clang-tidy for ESP32 IDF
             options: --environment esp32-idf-tidy --grep USE_ESP_IDF
             pio_cache_key: tidyesp32-idf
-            # esp32-idf-tidy installs ESP-IDF natively. The install carries all
-            # target toolchains (ESPHOME_IDF_DEFAULT_TARGETS=all), so a single
-            # version-keyed cache is reused by every native-IDF tidy target.
-            # This flag gates the Resolve/Cache ESP-IDF steps to this entry only.
+            # esp32-idf-tidy installs ESP-IDF natively; this flag gates the
+            # Cache ESP-IDF step to this entry (ESP8266/Zephyr don't install IDF).
             cache_idf: true
           - id: clang-tidy
             name: Run script/clang-tidy for ZEPHYR
@@ -526,29 +524,10 @@ jobs:
           path: ~/.platformio
           key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
 
-      - name: Resolve ESP-IDF version for cache key
-        # The native-IDF tidy version is pinned in code, not in any cache-key
-        # input file; resolve it so the IDF cache invalidates on a version bump.
+      - name: Cache ESP-IDF install
+        # Shared with the Arduino tidy jobs and the native-IDF build (same install).
         if: matrix.cache_idf
-        id: idf_version
-        run: |
-          . venv/bin/activate
-          version=$(python -c 'from esphome.components.esp32 import ESP_IDF_FRAMEWORK_VERSION_LOOKUP as L; print(L["recommended"])')
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
-      - name: Cache ESP-IDF
-        if: matrix.cache_idf && github.ref == 'refs/heads/dev'
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: ~/.esphome-idf
-          key: ${{ runner.os }}-esphome-idf-tidy-idf${{ steps.idf_version.outputs.version }}
-
-      - name: Cache ESP-IDF
-        if: matrix.cache_idf && github.ref != 'refs/heads/dev'
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: ~/.esphome-idf
-          key: ${{ runner.os }}-esphome-idf-tidy-idf${{ steps.idf_version.outputs.version }}
+        uses: ./.github/actions/cache-esp-idf
 
       - name: Register problem matchers
         run: |
@@ -608,6 +587,8 @@ jobs:
     if: needs.determine-jobs.outputs.clang-tidy-mode == 'nosplit'
     env:
       GH_TOKEN: ${{ github.token }}
+      # esp32-arduino-tidy builds on ESP-IDF; share the native IDF install cache.
+      ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -634,6 +615,12 @@ jobs:
         with:
           path: ~/.platformio
           key: platformio-tidyesp32-${{ hashFiles('platformio.ini') }}
+
+      - name: Cache ESP-IDF install
+        # Shared with the IDF tidy job and the native-IDF build (same install).
+        uses: ./.github/actions/cache-esp-idf
+        with:
+          framework: arduino
 
       - name: Register problem matchers
         run: |
@@ -685,6 +672,8 @@ jobs:
     if: needs.determine-jobs.outputs.clang-tidy-mode == 'split'
     env:
       GH_TOKEN: ${{ github.token }}
+      # esp32-arduino-tidy builds on ESP-IDF; share the native IDF install cache.
+      ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -729,6 +718,12 @@ jobs:
         with:
           path: ~/.platformio
           key: platformio-tidyesp32-${{ hashFiles('platformio.ini') }}
+
+      - name: Cache ESP-IDF install
+        # Shared with the IDF tidy job and the native-IDF build (same install).
+        uses: ./.github/actions/cache-esp-idf
+        with:
+          framework: arduino
 
       - name: Register problem matchers
         run: |
@@ -932,33 +927,20 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
 
-      - name: Cache ESPHome
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: ~/.esphome-idf
-          key: ${{ runner.os }}-esphome-${{ needs.common.outputs.cache-key }}
-
-      - name: Run native ESP-IDF compile test
+      - name: Prepare build storage on /mnt
+        # Bind-mount the larger /mnt disk over the IDF install + build dirs BEFORE
+        # restoring the cache, so the ~4.5GB restore lands on the roomier volume
+        # instead of being shadowed by a mount set up later in the run step.
         run: |
-          . venv/bin/activate
-
-          # Check if /mnt has more free space than / before bind mounting
-          # Extract available space in KB for comparison
           root_avail=$(df -k / | awk 'NR==2 {print $4}')
           mnt_avail=$(df -k /mnt 2>/dev/null | awk 'NR==2 {print $4}')
-
           echo "Available space: / has ${root_avail}KB, /mnt has ${mnt_avail}KB"
-
-          # Only use /mnt if it has more space than /
           if [ -n "$mnt_avail" ] && [ "$mnt_avail" -gt "$root_avail" ]; then
             echo "Using /mnt for build files (more space available)"
-            # Bind mount PlatformIO directory to /mnt (tools, packages, build cache all go there)
             sudo mkdir -p /mnt/esphome-idf
             sudo chown $USER:$USER /mnt/esphome-idf
             mkdir -p ~/.esphome-idf
             sudo mount --bind /mnt/esphome-idf ~/.esphome-idf
-
-            # Bind mount test build directory to /mnt
             sudo mkdir -p /mnt/test_build_components_build
             sudo chown $USER:$USER /mnt/test_build_components_build
             mkdir -p tests/test_build_components/build
@@ -967,10 +949,19 @@ jobs:
             echo "Using / for build files (more space available than /mnt or /mnt unavailable)"
           fi
 
+      - name: Cache ESP-IDF install
+        # Shared with the IDF/Arduino clang-tidy jobs (same install); restores
+        # into the /mnt bind-mount prepared above when present.
+        uses: ./.github/actions/cache-esp-idf
+
+      - name: Run native ESP-IDF compile test
+        run: |
+          . venv/bin/activate
+
           echo "Testing components: $TEST_COMPONENTS"
           echo ""
 
-          # Show disk space before validation (after bind mounts setup)
+          # Show disk space before validation
           echo "Disk space before config validation:"
           df -h
           echo ""
