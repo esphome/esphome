@@ -300,7 +300,8 @@ def _customise_schema(config):
         height,
         has_hardware_rotation=True,
         has_writer=any(
-            model_config.get(key) for key in (CONF_LAMBDA, CONF_PAGES, CONF_SHOW_TEST_CARD)
+            model_config.get(key)
+            for key in (CONF_LAMBDA, CONF_PAGES, CONF_SHOW_TEST_CARD)
         ),
     )
 
