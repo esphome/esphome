@@ -45,9 +45,9 @@ async def new_fastled_light(config):
         from esphome.components.esp32 import add_idf_component
 
         add_idf_component(
-            name="FastLED",
+            name="fastled/FastLED",
             repo="https://github.com/FastLED/FastLED.git",
-            ref="49f46c96ec0bec5cc0e94b100e5f6da02529b7ac",
+            ref="d44c800a9e876a8394caefc2ce4915dd96dac77b",
         )
         cg.add_library("SPI", None)
     else:

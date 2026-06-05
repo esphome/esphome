@@ -103,6 +103,8 @@ dependencies:
     version: 0.6.1
   lvgl/lvgl:
     version: 9.5.0
-  FastLED:
+  fastled/FastLED:
     git: https://github.com/FastLED/FastLED.git
-    version: 49f46c96ec0bec5cc0e94b100e5f6da02529b7ac
+    version: d44c800a9e876a8394caefc2ce4915dd96dac77b
+    rules:
+      - if: "$ESPHOME_ARDUINO == 1"
