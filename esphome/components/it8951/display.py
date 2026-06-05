@@ -190,9 +190,18 @@ def _model_pin_option(model, key, schema):
 
 def _model_schema(config):
     model = IT8951Model.models[config[CONF_MODEL]]
-    has_default_dimensions = model.get_default(CONF_WIDTH) is not None and model.get_default(CONF_HEIGHT) is not None
+    has_default_dimensions = (
+        model.get_default(CONF_WIDTH) is not None
+        and model.get_default(CONF_HEIGHT) is not None
+    )
     dimensions_key = (
-        cv.Optional(CONF_DIMENSIONS, default={CONF_WIDTH: model.get_default(CONF_WIDTH), CONF_HEIGHT: model.get_default(CONF_HEIGHT)})
+        cv.Optional(
+            CONF_DIMENSIONS,
+            default={
+                CONF_WIDTH: model.get_default(CONF_WIDTH),
+                CONF_HEIGHT: model.get_default(CONF_HEIGHT),
+            },
+        )
         if has_default_dimensions
         else cv.Required(CONF_DIMENSIONS)
     )
@@ -290,7 +299,9 @@ def _customise_schema(config):
         width,
         height,
         has_hardware_rotation=True,
-        has_writer=any(config.get(key) for key in (CONF_LAMBDA, CONF_PAGES, CONF_SHOW_TEST_CARD)),
+        has_writer=any(
+            config.get(key) for key in (CONF_LAMBDA, CONF_PAGES, CONF_SHOW_TEST_CARD)
+        ),
     )
 
     return model_config

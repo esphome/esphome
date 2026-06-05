@@ -196,8 +196,7 @@ void IT8951Display::advance_phase_() {
       }
 
       if (this->dev_info_.panel_width != this->width_ || this->dev_info_.panel_height != this->height_) {
-        ESP_LOGE(TAG,
-                 "Panel dimension mismatch: configured=%ux%u, DevInfo=%ux%u. Check model/dimensions settings.",
+        ESP_LOGE(TAG, "Panel dimension mismatch: configured=%ux%u, DevInfo=%ux%u. Check model/dimensions settings.",
                  this->width_, this->height_, this->dev_info_.panel_width, this->dev_info_.panel_height);
         this->mark_failed(LOG_STR("IT8951 panel dimensions do not match DevInfo"));
         this->set_phase_(Phase::IDLE);
