@@ -484,11 +484,9 @@ jobs:
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 Arduino
             options: --environment esp32-arduino-tidy --grep USE_ARDUINO
-            pio_cache_key: tidyesp32-arduino
           - id: clang-tidy
             name: Run script/clang-tidy for ZEPHYR
             options: --environment nrf52-tidy --grep USE_ZEPHYR --grep USE_NRF52
-            pio_cache_key: tidy-zephyr
             ignore_errors: false
 
     steps:
@@ -504,15 +502,18 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
 
+      # Only the PlatformIO-based env (esp8266) populates ~/.platformio; the esp32*
+      # and zephyr envs go through the native ESP-IDF / west generators, so they
+      # have no pio_cache_key and skip these steps.
       - name: Cache platformio
-        if: github.ref == 'refs/heads/dev'
+        if: github.ref == 'refs/heads/dev' && matrix.pio_cache_key
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.platformio
           key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
 
       - name: Cache platformio
-        if: github.ref != 'refs/heads/dev'
+        if: github.ref != 'refs/heads/dev' && matrix.pio_cache_key
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.platformio
