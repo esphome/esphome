@@ -1375,7 +1375,7 @@ def require_libc_picolibc_newlib_compat() -> None:
     """Keep CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY enabled on IDF 6.0+.
 
     Call this from components that link against precompiled Newlib binaries
-    referencing types/symbols the shim provides (e.g. esp32-camera).
+    referencing types/symbols the shim provides (e.g. zigbee).
     """
     CORE.data[KEY_ESP32][KEY_LIBC_PICOLIBC_NEWLIB_COMPAT_REQUIRED] = True
 
