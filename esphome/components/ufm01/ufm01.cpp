@@ -30,14 +30,14 @@ static bool validate_data(uint8_t data[32]) {
   uint8_t sum = 0;
   for (int i = 0; i < 30; ++i)
     sum += data[i];
-  return (data[0] == 0x3C || !log_problem("bit 0 exception", 0x3C, data[0])) &&
-         (data[1] == 0x32 || !log_problem("bit 1 exception", 0x32, data[1])) &&
-         (data[7] == 0x01 || !log_problem("bit 7 exception", 0x01, data[7])) &&
-         (data[15] == 0x0B || !log_problem("bit 15 exception", 0x0B, data[15])) &&
-         (data[21] == 0x0C || !log_problem("bit 21 exception", 0x0C, data[21])) &&
-         (data[24] == 0x0D || !log_problem("bit 24 exception", 0x0D, data[24])) &&
-         (data[30] == (sum & 0xFF) || !log_problem("checksum (bit 30) exception", sum, data[30])) &&
-         (data[31] == 0x16 || !log_problem("bit 31 exception", 0x16, data[31]));
+  return (data[0] == 0x3C || !log_problem("byte 0 exception", 0x3C, data[0])) &&
+         (data[1] == 0x32 || !log_problem("byte 1 exception", 0x32, data[1])) &&
+         (data[7] == 0x01 || !log_problem("byte 7 exception", 0x01, data[7])) &&
+         (data[15] == 0x0B || !log_problem("byte 15 exception", 0x0B, data[15])) &&
+         (data[21] == 0x0C || !log_problem("byte 21 exception", 0x0C, data[21])) &&
+         (data[24] == 0x0D || !log_problem("byte 24 exception", 0x0D, data[24])) &&
+         (data[30] == (sum & 0xFF) || !log_problem("checksum (byte 30) exception", sum, data[30])) &&
+         (data[31] == 0x16 || !log_problem("byte 31 exception", 0x16, data[31]));
 }
 
 static float read_accumulated_flow(uint8_t data[32]) {
