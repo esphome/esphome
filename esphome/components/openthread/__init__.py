@@ -10,7 +10,8 @@ from esphome.components.esp32 import (
     require_vfs_select,
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
-from esphome.components.zephyr import zephyr_add_prj_conf
+from esphome.components.zephyr import zephyr_add_prj_conf, zephyr_data
+from esphome.components.zephyr.const import KEY_PRJ_CONF
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -288,7 +289,8 @@ async def to_code(config):
         zephyr_add_prj_conf(f"OPENTHREAD_{config.get(CONF_DEVICE_TYPE)}", True)
         zephyr_add_prj_conf("OPENTHREAD_SRP_CLIENT", True)
         zephyr_add_prj_conf("OPENTHREAD_SLAAC", True)
-        zephyr_add_prj_conf("MAIN_STACK_SIZE", 16384)
+        # Override MAIN_STACK_SIZE: default 2048 is too small for CC310 crypto init.
+        zephyr_data()[KEY_PRJ_CONF][""]["CONFIG_MAIN_STACK_SIZE"] = (16384, True)
         if config.get(CONF_FORCE_DATASET):
             cg.add_define("USE_OPENTHREAD_FORCE_DATASET")
         if tlv := config.get(CONF_TLV):
