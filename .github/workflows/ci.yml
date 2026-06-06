@@ -974,14 +974,14 @@ jobs:
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.platformio
-          key: platformio-test-esp32-platformio-${{ hashFiles('platformio.ini') }}
+          key: platformio-test-esp32-platformio-${{ hashFiles('esphome/components/esp32/__init__.py') }}
 
       - name: Cache platformio
         if: github.ref != 'refs/heads/dev'
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.platformio
-          key: platformio-test-esp32-platformio-${{ hashFiles('platformio.ini') }}
+          key: platformio-test-esp32-platformio-${{ hashFiles('esphome/components/esp32/__init__.py') }}
 
       - name: Run PlatformIO compile test
         run: |
