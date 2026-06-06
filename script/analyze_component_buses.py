@@ -59,6 +59,7 @@ DIRECT_BUS_TYPES = (
     "modbus",
     "remote_transmitter",
     "remote_receiver",
+    "i2s_audio",
 )
 
 # Signature for components with no bus requirements
@@ -128,7 +129,7 @@ def uses_local_file_references(component_dir: Path) -> bool:
 
     try:
         content = common_yaml.read_text()
-    except Exception:  # pylint: disable=broad-exception-caught
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         return False
 
     # Pattern to match $component_dir or ${component_dir} references
@@ -164,7 +165,7 @@ def is_platform_component(component_dir: Path) -> bool:
     try:
         content = comp_init.read_text()
         return "IS_PLATFORM_COMPONENT = True" in content
-    except Exception:  # pylint: disable=broad-exception-caught
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         return False
 
 
@@ -222,7 +223,7 @@ def analyze_yaml_file(yaml_file: Path) -> dict[str, Any]:
     try:
         data = yaml_util.load_yaml(yaml_file)
         result["loaded"] = True
-    except Exception:  # pylint: disable=broad-exception-caught
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         return result
 
     # Check for Extend/Remove objects

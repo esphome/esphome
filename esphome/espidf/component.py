@@ -1,4 +1,6 @@
+from collections import deque
 from collections.abc import Callable
+from dataclasses import dataclass, field
 import glob
 import hashlib
 import itertools
@@ -8,7 +10,7 @@ import os
 from pathlib import Path
 import re
 import tempfile
-from typing import TypeVar
+from typing import Any, TypeVar
 from urllib.parse import urlparse, urlsplit, urlunsplit
 
 from esphome import git, yaml_util
@@ -55,7 +57,7 @@ ESPHOME_DATA_EXTRA_CMAKE_KEY = "EXTRA_CMAKE"
 
 class Source:
     def download(self, dir_suffix: str, force: bool = False) -> Path:
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class URLSource(Source):
@@ -152,72 +154,6 @@ class IDFComponent:
         @see https://docs.espressif.com/projects/idf-component-manager/en/latest/reference/manifest_file.html
         """
         self.path = self.source.download(self.get_sanitized_name(), force=force)
-
-
-def _get_package_from_pio_registry(
-    username: str | None, pkgname: str, requirements: str
-) -> tuple[str, str, str | None, str | None]:
-    """
-    Fetch package information from PlatformIO registry.
-
-    This function queries the PlatformIO registry to find a library package
-    that matches the given criteria and returns its metadata including version
-    and download URL.
-
-    Args:
-        username: The owner/username of the package (can be None)
-        pkgname: The name of the package
-        requirements: Version requirements (e.g., "^1.0.0")
-
-    Returns:
-        tuple[str, str, str | None, str | None]:
-        A tuple containing (owner, name, version, download_url)
-        where version and download_url can be None if not found
-    """
-
-    from platformio.package.manager._registry import PackageManagerRegistryMixin
-    from platformio.package.meta import PackageSpec
-
-    # Create a minimal PackageManagerRegistry class
-    class PackageManagerRegistry(PackageManagerRegistryMixin):
-        def __init__(self):
-            self._registry_client = None
-            self.pkg_type = "library"
-
-        @staticmethod
-        def is_system_compatible(value, custom_system=None):
-            return True
-
-    pio_registry = PackageManagerRegistry()
-
-    # Fetch package metadata from registry
-    package = pio_registry.fetch_registry_package(
-        PackageSpec(
-            owner=username,
-            name=pkgname,
-        )
-    )
-    owner = package["owner"]["username"]
-    name = package["name"]
-
-    # Find the best matching version based on requirements
-    version = pio_registry.pick_best_registry_version(
-        package.get("versions"),
-        PackageSpec(owner=username, name=pkgname, requirements=requirements),
-    )
-
-    #  If no version found, return with None for version and URL
-    if not version:
-        return owner, name, None, None
-
-    # Find the compatible package file for this version
-    pkgfile = pio_registry.pick_compatible_pkg_file(version["files"])
-
-    #  If no package file found, return with None for URL but valid version
-    if not pkgfile:
-        return owner, name, version["name"], None
-
-    return owner, name, version["name"], pkgfile["download_url"]
 
 
 def _apply_extra_script(component: IDFComponent) -> None:
@@ -317,95 +253,26 @@ def _collect_filtered_files(src_dir: PathType, src_filters: list[str]) -> list[s
         if pattern.endswith("/"):
             pattern = pattern.rstrip("/") + "/**"
 
-        full_pattern = os.path.join(glob.escape(str(src_dir)), pattern)
+        # glob.escape has no pathlib equivalent and the matcher works on raw
+        # path strings, so PTH118/PTH207 don't apply here.
+        full_pattern = os.path.join(glob.escape(str(src_dir)), pattern)  # noqa: PTH118
 
         matched = []
-        for item in glob.glob(full_pattern, recursive=True):
-            if not os.path.isdir(item):
+        for item in glob.glob(full_pattern, recursive=True):  # noqa: PTH207
+            if not Path(item).is_dir():
                 matched.append(item)
             else:
                 # PlatformIO quirk: a directory matched with "*" should include all its
                 # nested files and subdirectories, not just the directory itself.
                 for root, _, files in os.walk(item):
-                    matched.extend([os.path.join(root, f) for f in files])
+                    matched.extend([str(Path(root) / f) for f in files])
 
         if sign == "+":
             selected.update(matched)
         elif sign == "-":
             selected.difference_update(matched)
 
-    return [r for r in selected if os.path.isfile(r)]
-
-
-def _convert_library_to_component(library: Library) -> IDFComponent:
-    """
-    Convert a Library object to an IDFComponent object by resolving its metadata.
-
-    This function handles the conversion of library specifications to component
-    objects, resolving versions through PlatformIO registry when needed or
-    parsing direct repository URLs.
-
-    Args:
-        library: The Library object containing name, version, and/or repository information
-
-    Returns:
-        IDFComponent: The resolved component with name, version, and URL
-
-    Raises:
-        RuntimeError: If no artifact can be found for the library
-    """
-    name = None
-    version = None
-    source = None
-
-    #  Repository is provided directly
-    if library.repository:
-        # Parse repository URL: path becomes the component name, fragment
-        # (if any) becomes the git ref stored on GitSource. A missing
-        # fragment is fine -- clone_or_update leaves the depth-1 clone on
-        # the remote's default branch, matching PIO's lib_deps behavior
-        # and external_components handling.
-        split_result = urlsplit(library.repository)
-
-        # Sanitize name
-        name = str(split_result.path).strip("/")
-        name = name.removesuffix(".git")
-
-        # IDF Component Manager only accepts "*", a 40-char commit hash, or
-        # semver here. The actual git ref is preserved in GitSource.ref;
-        # override_path makes this field cosmetic at build time.
-        version = "*"
-        repository = urlunsplit(split_result._replace(fragment=""))
-
-        ref = split_result.fragment.strip() or None
-        source = GitSource(str(repository), ref)
-
-    # Version is provided - resolve using PlatformIO registry
-    elif library.version:
-        name = library.name
-        if "/" not in name:
-            owner, pkgname = None, name
-        else:
-            owner, pkgname = name.split("/", 1)
-
-        owner, pkgname, version, url = _get_package_from_pio_registry(
-            owner, pkgname, library.version
-        )
-        if url is None:
-            raise RuntimeError(
-                f"Can't find an pkg file from PlatformIO registry for library {library}"
-            )
-
-        name = _owner_pkgname_to_name(owner, pkgname)
-        source = URLSource(url)
-
-    if source is None:
-        raise RuntimeError(f"Can't find an artifact associated to library {library}")
-
-    assert name, "Missing library name"
-    assert version, "Missing library version"
-
-    return IDFComponent(name, version, source)
+    return [r for r in selected if Path(r).is_file()]
 
 
 def _split_list_by_condition(
@@ -486,7 +353,7 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     # Only keep sources
     build_src_files = [os.path.relpath(p, component.path) for p in build_src_files]
     build_src_files = [
-        f for f in build_src_files if os.path.splitext(f)[1] in SRC_FILE_EXTENSIONS
+        f for f in build_src_files if Path(f).suffix in SRC_FILE_EXTENSIONS
     ]
 
     # Handle build flags
@@ -597,8 +464,8 @@ def generate_idf_component_yml(component: IDFComponent) -> str:
         if "dependencies" not in data:
             data["dependencies"] = {}
 
-        # Every dependency goes through _generate_idf_component →
-        # component.download() before this runs, so .path is always set.
+        # Every dependency has been resolved and downloaded before this runs,
+        # so .path is always set.
         data["dependencies"][dependency.get_sanitized_name()] = {
             "override_path": str(dependency.path),
         }
@@ -610,11 +477,17 @@ def _check_library_data(data: dict):
     """
     Check if a library data is compatible with the ESP-IDF framework.
 
+    A platform mismatch (e.g. an AVR-only library on ESP32) raises
+    ``InvalidIDFComponent`` so the caller skips the library. A framework
+    mismatch only logs a warning — PIO manifests often understate the
+    frameworks they actually compile under, and IDF (unlike PIO's
+    ``lib_compat_mode``) has no opt-out, so we include the library anyway.
+
     Args:
-        component: IDFComponent object being processed
+        data: PIO library manifest dict being processed.
 
     Raises:
-        ValueError: If library has unsupported platforms or frameworks
+        InvalidIDFComponent: If the library does not support the ESP32 platform.
     """
     platforms = data.get("platforms", "*")
     if isinstance(platforms, str):
@@ -632,86 +505,20 @@ def _check_library_data(data: dict):
         frameworks = [a.strip() for a in frameworks.split(",")]
     frameworks = _ensure_list(frameworks)
 
-    # Check if library supports ESP-IDF framework
+    # Check if library declares the active framework. PIO library manifests
+    # often list only "arduino" even when the library actually compiles fine
+    # under ESP-IDF, and IDF (unlike PIO with `lib_compat_mode`) has no way to
+    # opt out of the check. Warn instead of failing so the user isn't forced to
+    # fork the library to fix the manifest.
     framework = "arduino" if CORE.using_arduino else "espidf"
     valid_framework = "*" in frameworks or framework in frameworks
 
     if not valid_framework:
-        raise InvalidIDFComponent(f"Unsupported library frameworks: {frameworks}")
-
-
-def _process_dependencies(component: IDFComponent):
-    """
-    Process library dependencies and generate ESP-IDF components.
-
-    Args:
-        component: IDFComponent object being processed
-
-    Returns:
-        None
-    """
-
-    name, version = component.name, component.version
-    dependencies = component.data.get("dependencies")
-    if not dependencies:
-        return
-
-    # PIO's library.json accepts both the list-of-dicts form and the
-    # shorthand dict form ``{"owner/Name": "version_spec"}``. Normalize
-    # the dict form so the loop below sees a uniform list. Iterating a
-    # dict gives string keys, which would silently fail the
-    # ``"name" in dependency`` substring check and skip every entry.
-    if isinstance(dependencies, dict):
-        normalized = []
-        for raw_name, spec in dependencies.items():
-            if "/" in raw_name:
-                owner, pkgname = raw_name.split("/", 1)
-            else:
-                owner, pkgname = None, raw_name
-            entry = {"name": pkgname, "owner": owner}
-            if isinstance(spec, dict):
-                entry.update(spec)
-            else:
-                entry["version"] = spec
-            normalized.append(entry)
-        dependencies = normalized
-
-    _LOGGER.info("Processing %s@%s component dependencies...", name, version)
-    for dependency in dependencies:
-        # Validate dependency structure
-        if not all(k in dependency for k in ("name", "version")):
-            _LOGGER.debug("Ignore invalid library: %s", dependency)
-            continue
-
-        try:
-            _check_library_data(dependency)
-        except InvalidIDFComponent as e:
-            _LOGGER.debug(
-                "Skip %s@%s: %s", dependency["name"], dependency["version"], str(e)
-            )
-            continue
-
-        # The version field may actually contain a URL
-        version = dependency["version"]
-        url = None
-        try:
-            result = urlparse(version)
-            if all([result.scheme, result.netloc]):
-                url, version = version, None
-        except (TypeError, ValueError):
-            pass
-
-        # Generate ESP-IDF component from PlatformIO library
-        component.dependencies.append(
-            _generate_idf_component(
-                Library(
-                    _owner_pkgname_to_name(
-                        dependency.get("owner", None), dependency.get("name")
-                    ),
-                    version,
-                    url,
-                )
-            )
+        _LOGGER.warning(
+            "Library %s declares frameworks %s that do not include '%s'; including anyway",
+            data.get("name", "<unknown>"),
+            frameworks,
+            framework,
         )
 
 
@@ -725,7 +532,7 @@ def _parse_library_json(library_json_path: PathType):
     Returns:
         dict: Parsed JSON content as a Python dictionary.
     """
-    with open(library_json_path, encoding="utf8") as fp:
+    with Path(library_json_path).open(encoding="utf8") as fp:
         return json.load(fp)
 
 
@@ -739,7 +546,7 @@ def _parse_library_properties(library_properties_path: PathType):
     Returns:
         dict[str, str]: Mapping of parsed property keys to values.
     """
-    with open(library_properties_path, encoding="utf8") as fp:
+    with Path(library_properties_path).open(encoding="utf8") as fp:
         data = {}
         for line in fp.read().splitlines():
             line = line.strip()
@@ -755,92 +562,294 @@ def _parse_library_properties(library_properties_path: PathType):
         return data
 
 
-def _generate_idf_component(library: Library, force: bool = False) -> IDFComponent:
+def _make_registry_client() -> Any:
+    """Create a minimal PlatformIO registry client with no system filtering.
+
+    ``is_system_compatible`` is forced True so version selection is driven purely
+    by the requested version requirements -- ESP-IDF/target compatibility is
+    handled elsewhere, not by the PlatformIO registry.
     """
-    Generate an ESP-IDF component from a library specification.
+    from platformio.package.manager._registry import PackageManagerRegistryMixin
 
-    This function resolves the library, downloads it, processes metadata files,
-    and generates necessary ESP-IDF build files (CMakeLists.txt, idf_component.yml).
+    class _Registry(PackageManagerRegistryMixin):
+        def __init__(self) -> None:
+            self._registry_client = None
+            self.pkg_type = "library"
 
-    Args:
-        library: The library specification containing name, version, and repository URL
-        force: If True, forces re-download of the library even if it exists locally
+        @staticmethod
+        def is_system_compatible(value: Any, custom_system: Any = None) -> bool:
+            return True
 
-    Returns:
-        IDFComponent: The generated component object with resolved metadata
+    return _Registry()
+
+
+def _resolve_registry_version(
+    owner: str | None, pkgname: str, requirements: set[str]
+) -> tuple[str, str, str, str]:
+    """Resolve a registry package to the single highest version satisfying ALL
+    the given requirements; return ``(owner, name, version, download_url)``.
+
+    Intersecting every requirement (rather than resolving each consumer in
+    isolation) makes the result independent of processing order and guarantees
+    no stated constraint is violated -- e.g. ``esphome/libsodium`` requested as
+    both ``==1.10021.0`` and ``^1.10018.1`` resolves to ``1.10021.0``.
     """
-    _LOGGER.info("Generate IDF component for %s library ...", library)
+    from platformio.package.meta import PackageSpec
 
-    # Resolve component name, version and url
-    component = _convert_library_to_component(library)
-    name, version = component.name, component.version
+    registry = _make_registry_client()
+    package = registry.fetch_registry_package(PackageSpec(owner=owner, name=pkgname))
+    owner = package["owner"]["username"]
+    name = package["name"]
 
-    # Download the library
-    component.download(force)
-
-    # Paths to component metadata and build files
-    library_json_path = component.path / "library.json"
-    library_properties_path = component.path / "library.properties"
-    cmakelists_txt_path = component.path / "CMakeLists.txt"
-    idf_component_yml_path = component.path / "idf_component.yml"
-
-    # Bundled CMakeLists.txt / idf_component.yml are ignored -- library
-    # authors' IDF support is frequently broken (bogus REQUIRES, hard-coded
-    # arduino-esp32, etc.). We always regenerate.
-
-    if library_json_path.is_file():
-        component.data = _parse_library_json(library_json_path)
-    elif library_properties_path.is_file():
-        component.data = _parse_library_properties(library_properties_path)
-    else:
+    # Chaining the per-requirement filter intersects all constraints.
+    versions = package.get("versions") or []
+    for requirement in sorted(requirements):
+        versions = registry.get_compatible_registry_versions(
+            versions, PackageSpec(owner=owner, name=name, requirements=requirement)
+        )
+    if not versions:
         raise RuntimeError(
-            "Invalid PIO library: missing library.json and/or library.properties"
+            f"No version of {owner}/{name} satisfies all requirements "
+            f"{sorted(requirements)} requested across the library tree"
         )
 
-    # Check if the component is usable with ESP-IDF before executing any
-    # third-party Python from the library (``_apply_extra_script`` below).
-    _check_library_data(component.data)
-
-    # If the library declares a PIO ``extraScript``, run it against a
-    # fake SCons env so we can fold its captured LIBPATH/LIBS/etc into
-    # the build-flag pipeline ``generate_cmakelists_txt`` consumes
-    # below. Without this, libraries that wire per-MCU archive linking
-    # via extraScript fail to link under native ESP-IDF.
-    _apply_extra_script(component)
-
-    # Handle the dependencies (convert PlatformIO library to ESP-IDF component if needed)
-    _process_dependencies(component)
-
-    _LOGGER.debug("Generating CMakeLists.txt for %s@%s  ...", name, version)
-    write_file_if_changed(
-        cmakelists_txt_path,
-        generate_cmakelists_txt(component),
-    )
-
-    _LOGGER.debug("Generating idf_component.yml for %s@%s  ...", name, version)
-    write_file_if_changed(
-        idf_component_yml_path,
-        generate_idf_component_yml(component),
-    )
-
-    return component
+    best = registry.pick_best_registry_version(versions)
+    pkgfile = registry.pick_compatible_pkg_file(best["files"])
+    if not pkgfile:
+        raise RuntimeError(f"No package file for {owner}/{name}@{best['name']}")
+    return owner, name, best["name"], pkgfile["download_url"]
 
 
-def generate_idf_component(
-    library: Library, force: bool = False
-) -> tuple[str, str, Path]:
+def _normalize_dependencies(dependencies: Any) -> list[dict]:
+    """Normalize a library manifest's ``dependencies`` to a list of dicts.
+
+    PIO's library.json accepts both the list-of-dicts form and the shorthand
+    dict form (``{"owner/Name": "version_spec"}``); normalize the latter so
+    callers see a uniform list.
     """
-    Generate an ESP-IDF component and return its name, version, and path.
+    if not dependencies:
+        return []
+    if isinstance(dependencies, dict):
+        normalized = []
+        for raw_name, spec in dependencies.items():
+            if "/" in raw_name:
+                owner, pkgname = raw_name.split("/", 1)
+            else:
+                owner, pkgname = None, raw_name
+            entry = {"name": pkgname, "owner": owner}
+            if isinstance(spec, dict):
+                entry.update(spec)
+            else:
+                entry["version"] = spec
+            normalized.append(entry)
+        return normalized
+    return [d for d in dependencies if isinstance(d, dict)]
 
-    This is a wrapper function that calls _generate_idf_component and returns
-    the standardized tuple format (name, version, path).
 
-    Args:
-        library: The library specification containing name, version, and repository URL
-        force: If True, forces re-download of the library even if it exists locally
+@dataclass
+class _LibNode:
+    """A node in the library dependency graph being resolved as a batch."""
 
-    Returns:
-        tuple[str, str, Path]: A tuple containing (component_name, component_version, component_path)
+    key: str
+    is_git: bool
+    owner: str | None = None
+    pkgname: str | None = None
+    requirements: set[str] = field(default_factory=set)
+    url: str | None = None
+    ref: str | None = None
+    edges: set[str] = field(default_factory=set)
+
+
+def _node_key(
+    name: str | None, version: str | None, repository: str | None
+) -> tuple[str, bool, tuple[str | None, str | None]]:
+    """Return ``(key, is_git, locator)`` for a library or dependency spec.
+
+    The key is derived from the *input* spec (the registry name as written, or
+    the git URL path), not the resolved canonical name. So a package referenced
+    inconsistently -- bare ``name`` vs ``owner/name``, or git vs registry -- maps
+    to distinct keys and isn't deduplicated; ``generate_idf_components`` warns
+    about that after resolution rather than merging the nodes.
     """
-    component = _generate_idf_component(library, force)
-    return component.get_sanitized_name(), component.version, component.path
+    if repository:
+        split_result = urlsplit(repository)
+        key = str(split_result.path).strip("/").removesuffix(".git")
+        ref = split_result.fragment.strip() or None
+        url = urlunsplit(split_result._replace(fragment=""))
+        return key, True, (url, ref)
+    if name and "/" in name:
+        owner, pkgname = name.split("/", 1)
+    else:
+        owner, pkgname = None, name
+    return name, False, (owner, pkgname)
+
+
+def generate_idf_components(libraries: list[Library]) -> list[IDFComponent]:
+    """Resolve and convert a batch of PlatformIO libraries to IDF components.
+
+    Resolves the whole set together rather than each library independently: it
+    walks the dependency graph collecting every version *requirement* per
+    component name, then resolves each name once to a single version satisfying
+    all of them. So a transitive dependency shared under
+    different specs (e.g. ``esphome/libsodium``, pulled by both ``noise-c`` and
+    ``esp_wireguard``) becomes one component instead of two clashing
+    ``override_path`` entries -- order-independently, and without ever violating
+    a stated constraint.
+
+    The returned list holds the top-level components (those directly requested);
+    transitive dependencies are converted too and wired into each component's
+    generated manifest.
+    """
+    nodes: dict[str, _LibNode] = {}
+
+    def add_spec(name: str | None, version: str | None, repository: str | None) -> str:
+        key, is_git, locator = _node_key(name, version, repository)
+        node = nodes.get(key) or _LibNode(key=key, is_git=is_git)
+        nodes[key] = node
+        if is_git:
+            node.is_git = True
+            node.url, node.ref = locator
+        else:
+            node.owner, node.pkgname = locator
+            if version:
+                node.requirements.add(version)
+        return key
+
+    top_level = [
+        add_spec(library.name, library.version, library.repository)
+        for library in libraries
+    ]
+
+    # Collect + resolve to a fixpoint: a node is (re)resolved whenever its
+    # requirement set has grown since the last time, so every requirement in the
+    # graph is accounted for before conversion.
+    components: dict[str, IDFComponent] = {}
+    resolved_requirements: dict[str, frozenset[str]] = {}
+    top_level_keys = set(top_level)
+    worklist = deque(dict.fromkeys(top_level))
+    while worklist:
+        key = worklist.popleft()
+        node = nodes[key]
+
+        # A node is queued once per referring edge; skip the (uncached) registry
+        # lookup + download + dependency walk unless its requirement set grew
+        # since the last resolve. Requirements only ever grow, so this still
+        # converges the fixpoint and terminates dependency cycles.
+        requirements = frozenset(node.requirements)
+        if resolved_requirements.get(key) == requirements:
+            continue
+        resolved_requirements[key] = requirements
+
+        if node.is_git:
+            component = IDFComponent(key, "*", GitSource(node.url, node.ref))
+        else:
+            owner, name, version, url = _resolve_registry_version(
+                node.owner, node.pkgname, node.requirements
+            )
+            component = IDFComponent(
+                _owner_pkgname_to_name(owner, name), version, URLSource(url)
+            )
+        component.download()
+
+        library_json_path = component.path / "library.json"
+        library_properties_path = component.path / "library.properties"
+        if library_json_path.is_file():
+            component.data = _parse_library_json(library_json_path)
+        elif library_properties_path.is_file():
+            component.data = _parse_library_properties(library_properties_path)
+        else:
+            raise RuntimeError(
+                f"Invalid PIO library {key}: missing library.json and "
+                "library.properties"
+            )
+
+        try:
+            _check_library_data(component.data)
+        except InvalidIDFComponent as e:
+            # Skip an incompatible transitive dependency, but fail fast if a
+            # top-level library the build explicitly requested is incompatible.
+            if key in top_level_keys:
+                raise RuntimeError(
+                    f"Requested library {key} is not compatible with ESP-IDF: {e}"
+                ) from e
+            _LOGGER.debug("Skip incompatible dependency %s: %s", key, str(e))
+            continue
+        components[key] = component
+
+        # Requirements changed (we got past the short-circuit above), so
+        # (re)walk this component's dependencies.
+        node.edges = set()
+        for dependency in _normalize_dependencies(component.data.get("dependencies")):
+            if "name" not in dependency or "version" not in dependency:
+                continue
+            try:
+                _check_library_data(dependency)
+            except InvalidIDFComponent as e:
+                _LOGGER.debug("Skip dependency %s: %s", dependency.get("name"), str(e))
+                continue
+            # The version field may actually be a URL (git/archive dependency).
+            dep_version = dependency["version"]
+            dep_url = None
+            try:
+                parsed = urlparse(dep_version)
+                if all([parsed.scheme, parsed.netloc]):
+                    dep_url, dep_version = dep_version, None
+            except (TypeError, ValueError):
+                pass
+            dep_key = add_spec(
+                _owner_pkgname_to_name(dependency.get("owner"), dependency.get("name")),
+                dep_version,
+                dep_url,
+            )
+            node.edges.add(dep_key)
+            worklist.append(dep_key)
+
+    # A git source wins over any registry version requested for the same
+    # component. That's intentional, but warn so a dropped registry pin isn't a
+    # silent surprise.
+    for node in nodes.values():
+        if node.is_git and node.requirements:
+            _LOGGER.warning(
+                "Library %s is requested both from a git source (%s) and as "
+                "registry version(s) %s; using the git source.",
+                node.key,
+                node.url,
+                sorted(node.requirements),
+            )
+
+    # Two graph nodes that resolve to the same component name (e.g. a package
+    # referenced both bare and as ``owner/name``) are not deduplicated and can
+    # produce conflicting component definitions. Warn so it's not silent.
+    canonical_keys: dict[str, str] = {}
+    for node_key, component in components.items():
+        canonical = component.get_sanitized_name()
+        if canonical_keys.setdefault(canonical, node_key) != node_key:
+            _LOGGER.warning(
+                "Library %s is referenced under multiple names (%s and %s); these "
+                "are not deduplicated. Reference it consistently as %s.",
+                canonical,
+                canonical_keys[canonical],
+                node_key,
+                canonical,
+            )
+
+    # Wire each component's dependencies to the single resolved instances, then
+    # regenerate build files.
+    for key, component in components.items():
+        component.dependencies = [
+            components[dep_key]
+            for dep_key in sorted(nodes[key].edges)
+            if dep_key in components
+        ]
+    for component in components.values():
+        _apply_extra_script(component)
+        write_file_if_changed(
+            component.path / "CMakeLists.txt",
+            generate_cmakelists_txt(component),
+        )
+        write_file_if_changed(
+            component.path / "idf_component.yml",
+            generate_idf_component_yml(component),
+        )
+
+    return [components[key] for key in top_level if key in components]

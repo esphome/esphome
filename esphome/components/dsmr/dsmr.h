@@ -16,9 +16,14 @@
 #include <span>
 #include <vector>
 
+// On ESP8266 Arduino, BearSSL is the native crypto. The mbedtls headers can
+// still be in scope when a sibling component (e.g. wireguard) pulls in
+// esp_mbedtls_esp8266, but that build leaves MBEDTLS_GCM_C disabled so the
+// gcm.h symbols are unresolved at link time. Force BearSSL on ESP8266 to
+// avoid that linker error.
 #if __has_include(<psa/crypto.h>)
 #include <dsmr_parser/decryption/aes128gcm_tfpsa.h>
-#elif __has_include(<mbedtls/gcm.h>)
+#elif !defined(USE_ESP8266) && __has_include(<mbedtls/gcm.h>)
 #if __has_include(<mbedtls/esp_config.h>)
 #include <mbedtls/esp_config.h>
 #endif
@@ -33,7 +38,7 @@ namespace esphome::dsmr {
 
 #if __has_include(<psa/crypto.h>)
 using Aes128GcmDecryptorImpl = dsmr_parser::Aes128GcmTfPsa;
-#elif __has_include(<mbedtls/gcm.h>)
+#elif !defined(USE_ESP8266) && __has_include(<mbedtls/gcm.h>)
 using Aes128GcmDecryptorImpl = dsmr_parser::Aes128GcmMbedTls;
 #else
 using Aes128GcmDecryptorImpl = dsmr_parser::Aes128GcmBearSsl;
@@ -69,7 +74,8 @@ class Dsmr : public Component, public uart::UARTDevice {
         receive_timeout_(receive_timeout),
         request_pin_(request_pin),
         buffer_(max_telegram_length),
-        packet_accumulator_(buffer_, crc_check) {
+        packet_accumulator_(buffer_, crc_check),
+        dlms_decryptor_(gcm_decryptor_, crc_check) {
     this->set_decryption_key_(decryption_key);
   }
 
@@ -92,7 +98,11 @@ class Dsmr : public Component, public uart::UARTDevice {
 
   // Remove before 2026.8.0
   ESPDEPRECATED("Use 'decryption_key' configuration parameter. This method will be removed in 2026.8.0", "2026.2.0")
-  void set_decryption_key(const std::string &decryption_key) { this->set_decryption_key_(decryption_key.c_str()); }
+  void set_decryption_key(const std::string &decryption_key) {
+    // Some YAML configs pass a string longer than 32 symbols. We only need the first 32 symbols,
+    // otherwise `Aes128GcmDecryptionKey::from_hex` will fail.
+    this->set_decryption_key_(std::string(decryption_key, 0, 32).c_str());
+  }
 
 // Sensor setters
 #define DSMR_SET_SENSOR(s) \
@@ -138,7 +148,7 @@ class Dsmr : public Component, public uart::UARTDevice {
   std::vector<uint8_t> buffer_;
   dsmr_parser::PacketAccumulator packet_accumulator_;
   Aes128GcmDecryptorImpl gcm_decryptor_;
-  dsmr_parser::DlmsPacketDecryptor dlms_decryptor_{gcm_decryptor_};
+  dsmr_parser::DlmsPacketDecryptor dlms_decryptor_;
   std::array<uint8_t, 256> uart_chunk_reading_buf_;
 };
 }  // namespace esphome::dsmr

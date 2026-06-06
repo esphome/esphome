@@ -394,7 +394,7 @@ void SX126x::run_image_cal() {
     buf[1] = 0xE9;
   } else if (this->frequency_ > 850000000) {
     buf[0] = 0xD7;
-    buf[1] = 0xD8;
+    buf[1] = 0xDB;
   } else if (this->frequency_ > 770000000) {
     buf[0] = 0xC1;
     buf[1] = 0xC5;
