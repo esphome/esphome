@@ -68,13 +68,13 @@ def mock_should_run_device_builder() -> Generator[Mock, None, None]:
 
 
 @pytest.fixture
-def mock_native_idf_components_to_test() -> Generator[Mock, None, None]:
-    """Mock native_idf_components_to_test from determine_jobs.
+def mock_platformio_components_to_test() -> Generator[Mock, None, None]:
+    """Mock platformio_components_to_test from determine_jobs.
 
-    main() drives both the ``native_idf`` boolean output and the
-    ``native_idf_components`` CSV from this one function.
+    main() drives both the ``platformio`` boolean output and the
+    ``platformio_components`` CSV from this one function.
     """
-    with patch.object(determine_jobs, "native_idf_components_to_test") as mock:
+    with patch.object(determine_jobs, "platformio_components_to_test") as mock:
         yield mock
 
 
@@ -115,7 +115,7 @@ def test_main_all_tests_should_run(
     mock_should_run_python_linters: Mock,
     mock_should_run_import_time: Mock,
     mock_should_run_device_builder: Mock,
-    mock_native_idf_components_to_test: Mock,
+    mock_platformio_components_to_test: Mock,
     mock_changed_files: Mock,
     mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
@@ -131,7 +131,7 @@ def test_main_all_tests_should_run(
     mock_should_run_python_linters.return_value = True
     mock_should_run_import_time.return_value = True
     mock_should_run_device_builder.return_value = True
-    mock_native_idf_components_to_test.return_value = ["api", "esp32"]
+    mock_platformio_components_to_test.return_value = ["api", "esp32"]
     mock_determine_cpp_unit_tests.return_value = (False, ["wifi", "api", "sensor"])
 
     # Mock changed_files to return non-component files (to avoid memory impact)
@@ -213,8 +213,8 @@ def test_main_all_tests_should_run(
     assert output["python_linters"] is True
     assert output["import_time"] is True
     assert output["device_builder"] is True
-    assert output["native_idf"] is True
-    assert output["native_idf_components"] == "api,esp32"
+    assert output["platformio"] is True
+    assert output["platformio_components"] == "api,esp32"
     assert output["changed_components"] == ["wifi", "api", "sensor"]
     # changed_components_with_tests will only include components that actually have test files
     assert "changed_components_with_tests" in output
@@ -248,7 +248,7 @@ def test_main_no_tests_should_run(
     mock_should_run_python_linters: Mock,
     mock_should_run_import_time: Mock,
     mock_should_run_device_builder: Mock,
-    mock_native_idf_components_to_test: Mock,
+    mock_platformio_components_to_test: Mock,
     mock_changed_files: Mock,
     mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
@@ -264,7 +264,7 @@ def test_main_no_tests_should_run(
     mock_should_run_python_linters.return_value = False
     mock_should_run_import_time.return_value = False
     mock_should_run_device_builder.return_value = False
-    mock_native_idf_components_to_test.return_value = []
+    mock_platformio_components_to_test.return_value = []
     mock_determine_cpp_unit_tests.return_value = (False, [])
 
     # Mock changed_files to return no component files
@@ -305,8 +305,8 @@ def test_main_no_tests_should_run(
     assert output["python_linters"] is False
     assert output["import_time"] is False
     assert output["device_builder"] is False
-    assert output["native_idf"] is False
-    assert output["native_idf_components"] == ""
+    assert output["platformio"] is False
+    assert output["platformio_components"] == ""
     assert output["changed_components"] == []
     assert output["changed_components_with_tests"] == []
     assert output["component_test_count"] == 0
@@ -329,7 +329,7 @@ def test_main_with_branch_argument(
     mock_should_run_python_linters: Mock,
     mock_should_run_import_time: Mock,
     mock_should_run_device_builder: Mock,
-    mock_native_idf_components_to_test: Mock,
+    mock_platformio_components_to_test: Mock,
     mock_changed_files: Mock,
     mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
@@ -345,7 +345,7 @@ def test_main_with_branch_argument(
     mock_should_run_python_linters.return_value = True
     mock_should_run_import_time.return_value = True
     mock_should_run_device_builder.return_value = True
-    mock_native_idf_components_to_test.return_value = ["esp32"]
+    mock_platformio_components_to_test.return_value = ["esp32"]
     mock_determine_cpp_unit_tests.return_value = (False, ["mqtt"])
 
     # Mock changed_files to return non-component files (to avoid memory impact)
@@ -384,7 +384,7 @@ def test_main_with_branch_argument(
     mock_should_run_python_linters.assert_called_once_with("main")
     mock_should_run_import_time.assert_called_once_with("main")
     mock_should_run_device_builder.assert_called_once_with("main")
-    mock_native_idf_components_to_test.assert_called_once_with("main")
+    mock_platformio_components_to_test.assert_called_once_with("main")
 
     # Check output
     captured = capsys.readouterr()
@@ -398,8 +398,8 @@ def test_main_with_branch_argument(
     assert output["python_linters"] is True
     assert output["import_time"] is True
     assert output["device_builder"] is True
-    assert output["native_idf"] is True
-    assert output["native_idf_components"] == "esp32"
+    assert output["platformio"] is True
+    assert output["platformio_components"] == "esp32"
     assert output["changed_components"] == ["mqtt"]
     # changed_components_with_tests will only include components that actually have test files
     assert "changed_components_with_tests" in output
@@ -930,23 +930,21 @@ def test_should_run_device_builder_skips_beta_release(target_branch: str) -> Non
         mock_changed.assert_not_called()
 
 
-_NATIVE_IDF_FULL_LIST_FILES = [
+_PLATFORMIO_FULL_LIST_FILES = [
     # Core C++/Python changes -- caught by core_changed()
     ["esphome/core/component.cpp"],
     ["esphome/core/config.py"],
-    # Native IDF infrastructure paths
-    ["esphome/espidf/framework.py"],
-    ["esphome/espidf/component.py"],
-    ["esphome/espidf/api.py"],
-    ["esphome/build_gen/espidf.py"],
+    # PlatformIO infrastructure files
+    ["esphome/build_gen/platformio.py"],
+    ["platformio.ini"],
     # Workflow / harness files
     ["script/test_build_components.py"],
     [".github/workflows/ci.yml"],
 ]
 
 
-@pytest.mark.parametrize("changed_files", _NATIVE_IDF_FULL_LIST_FILES)
-def test_native_idf_components_to_test_returns_full_list_on_infrastructure(
+@pytest.mark.parametrize("changed_files", _PLATFORMIO_FULL_LIST_FILES)
+def test_platformio_components_to_test_returns_full_list_on_infrastructure(
     changed_files: list[str],
 ) -> None:
     """Infrastructure / core / harness changes fall back to the full component list."""
@@ -958,8 +956,8 @@ def test_native_idf_components_to_test_returns_full_list_on_infrastructure(
             determine_jobs, "get_components_with_dependencies", return_value=["wifi"]
         ),
     ):
-        result = determine_jobs.native_idf_components_to_test()
-        assert result == sorted(determine_jobs.NATIVE_IDF_TEST_COMPONENTS)
+        result = determine_jobs.platformio_components_to_test()
+        assert result == sorted(determine_jobs.PLATFORMIO_TEST_COMPONENTS)
 
 
 @pytest.mark.parametrize(
@@ -979,7 +977,7 @@ def test_native_idf_components_to_test_returns_full_list_on_infrastructure(
             ["ble_scanner", "esp32_ble", "esp32_ble_tracker"],
         ),
         # api in the test set -- narrow to [api] even though the closure
-        # has other (unrelated to native-IDF coverage) entries.
+        # has other (unrelated to PlatformIO coverage) entries.
         (
             ["esphome/components/api/api_connection.cpp"],
             ["api", "logger"],
@@ -993,15 +991,15 @@ def test_native_idf_components_to_test_returns_full_list_on_infrastructure(
         ),
         # Pure Python-only change outside trigger paths -> empty.
         (["esphome/yaml_util.py"], [], []),
-        # Non-IDF files in esphome/build_gen/ do NOT trigger the full
-        # list -- only esphome/build_gen/espidf.py is a trigger.
-        (["esphome/build_gen/platformio.py"], [], []),
+        # Non-PlatformIO files in esphome/build_gen/ do NOT trigger the
+        # full list -- only esphome/build_gen/platformio.py is a trigger.
+        (["esphome/build_gen/espidf.py"], [], []),
         # Docs / unrelated files -> empty.
         (["README.md"], [], []),
         ([], [], []),
     ],
 )
-def test_native_idf_components_to_test_narrowing(
+def test_platformio_components_to_test_narrowing(
     changed_files: list[str],
     dependency_closure: list[str],
     expected: list[str],
@@ -1015,12 +1013,12 @@ def test_native_idf_components_to_test_narrowing(
             return_value=dependency_closure,
         ),
     ):
-        result = determine_jobs.native_idf_components_to_test()
+        result = determine_jobs.platformio_components_to_test()
         assert result == expected
 
 
-def test_native_idf_components_to_test_with_branch() -> None:
-    """native_idf_components_to_test passes branch argument through.
+def test_platformio_components_to_test_with_branch() -> None:
+    """platformio_components_to_test passes branch argument through.
 
     Regression test: an earlier version called ``get_changed_components()``,
     which silently ignored the branch argument because that helper re-runs
@@ -1035,7 +1033,7 @@ def test_native_idf_components_to_test_with_branch() -> None:
         ),
     ):
         mock_changed.return_value = []
-        determine_jobs.native_idf_components_to_test("release")
+        determine_jobs.platformio_components_to_test("release")
         mock_changed.assert_called_once_with("release")
 
 
@@ -1047,22 +1045,22 @@ def test_native_idf_components_to_test_with_branch() -> None:
         (["esp32", "api"], True),
     ],
 )
-def test_should_run_native_idf(components_to_test: list[str], expected: bool) -> None:
-    """should_run_native_idf is a thin wrapper around the component list."""
+def test_should_run_platformio(components_to_test: list[str], expected: bool) -> None:
+    """should_run_platformio is a thin wrapper around the component list."""
     with patch.object(
         determine_jobs,
-        "native_idf_components_to_test",
+        "platformio_components_to_test",
         return_value=components_to_test,
     ):
-        assert determine_jobs.should_run_native_idf() is expected
+        assert determine_jobs.should_run_platformio() is expected
 
 
-def test_should_run_native_idf_with_branch() -> None:
-    """Test should_run_native_idf passes branch argument through."""
+def test_should_run_platformio_with_branch() -> None:
+    """Test should_run_platformio passes branch argument through."""
     with patch.object(
-        determine_jobs, "native_idf_components_to_test", return_value=[]
+        determine_jobs, "platformio_components_to_test", return_value=[]
     ) as mock_inner:
-        determine_jobs.should_run_native_idf("release")
+        determine_jobs.should_run_platformio("release")
         mock_inner.assert_called_once_with("release")
 
 
@@ -2764,7 +2762,7 @@ def test_main_force_all_overrides_detection(
     mock_should_run_python_linters: Mock,
     mock_should_run_import_time: Mock,
     mock_should_run_device_builder: Mock,
-    mock_native_idf_components_to_test: Mock,
+    mock_platformio_components_to_test: Mock,
     mock_determine_cpp_unit_tests: Mock,
     mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
@@ -2785,7 +2783,7 @@ def test_main_force_all_overrides_detection(
     mock_should_run_python_linters.return_value = False
     mock_should_run_import_time.return_value = False
     mock_should_run_device_builder.return_value = False
-    mock_native_idf_components_to_test.return_value = []
+    mock_platformio_components_to_test.return_value = []
     mock_determine_cpp_unit_tests.return_value = (False, [])
     mock_changed_files.return_value = []
 
@@ -2826,9 +2824,9 @@ def test_main_force_all_overrides_detection(
     assert output["python_linters"] is True
     assert output["import_time"] is True
     assert output["device_builder"] is True
-    assert output["native_idf"] is True
-    # native_idf_components is a CSV of NATIVE_IDF_TEST_COMPONENTS
-    assert "esp32" in output["native_idf_components"].split(",")
+    assert output["platformio"] is True
+    # platformio_components is a CSV of PLATFORMIO_TEST_COMPONENTS
+    assert "esp32" in output["platformio_components"].split(",")
     assert output["cpp_unit_tests_run_all"] is True
     assert output["cpp_unit_tests_components"] == []
     assert output["benchmarks"] is True
@@ -2839,7 +2837,7 @@ def test_main_force_all_overrides_detection(
     mock_should_run_python_linters.assert_not_called()
     mock_should_run_import_time.assert_not_called()
     mock_should_run_device_builder.assert_not_called()
-    mock_native_idf_components_to_test.assert_not_called()
+    mock_platformio_components_to_test.assert_not_called()
     mock_determine_cpp_unit_tests.assert_not_called()
     # Component matrix is populated from disk (tests/components/ in the repo)
     assert output["component_test_count"] > 0
@@ -2853,7 +2851,7 @@ def test_main_force_all_off_uses_detection(
     mock_should_run_python_linters: Mock,
     mock_should_run_import_time: Mock,
     mock_should_run_device_builder: Mock,
-    mock_native_idf_components_to_test: Mock,
+    mock_platformio_components_to_test: Mock,
     mock_determine_cpp_unit_tests: Mock,
     mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
@@ -2868,7 +2866,7 @@ def test_main_force_all_off_uses_detection(
     mock_should_run_python_linters.return_value = False
     mock_should_run_import_time.return_value = False
     mock_should_run_device_builder.return_value = False
-    mock_native_idf_components_to_test.return_value = []
+    mock_platformio_components_to_test.return_value = []
     mock_determine_cpp_unit_tests.return_value = (False, [])
     mock_changed_files.return_value = []
 
@@ -2899,7 +2897,7 @@ def test_main_force_all_off_uses_detection(
     assert output["clang_tidy"] is False
     assert output["clang_format"] is False
     assert output["python_linters"] is False
-    assert output["native_idf"] is False
+    assert output["platformio"] is False
     assert output["component_test_count"] == 0
     mock_determine_integration_tests.assert_called_once()
     mock_should_run_clang_tidy.assert_called_once()
