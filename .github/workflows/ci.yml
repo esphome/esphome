@@ -269,8 +269,8 @@ jobs:
       python-linters: ${{ steps.determine.outputs.python-linters }}
       import-time: ${{ steps.determine.outputs.import-time }}
       device-builder: ${{ steps.determine.outputs.device-builder }}
-      platformio: ${{ steps.determine.outputs.platformio }}
-      platformio-components: ${{ steps.determine.outputs.platformio-components }}
+      esp32-platformio: ${{ steps.determine.outputs.esp32-platformio }}
+      esp32-platformio-components: ${{ steps.determine.outputs.esp32-platformio-components }}
       changed-components: ${{ steps.determine.outputs.changed-components }}
       changed-components-with-tests: ${{ steps.determine.outputs.changed-components-with-tests }}
       directly-changed-components-with-tests: ${{ steps.determine.outputs.directly-changed-components-with-tests }}
@@ -323,8 +323,8 @@ jobs:
           echo "python-linters=$(echo "$output" | jq -r '.python_linters')" >> $GITHUB_OUTPUT
           echo "import-time=$(echo "$output" | jq -r '.import_time')" >> $GITHUB_OUTPUT
           echo "device-builder=$(echo "$output" | jq -r '.device_builder')" >> $GITHUB_OUTPUT
-          echo "platformio=$(echo "$output" | jq -r '.platformio')" >> $GITHUB_OUTPUT
-          echo "platformio-components=$(echo "$output" | jq -r '.platformio_components')" >> $GITHUB_OUTPUT
+          echo "esp32-platformio=$(echo "$output" | jq -r '.esp32_platformio')" >> $GITHUB_OUTPUT
+          echo "esp32-platformio-components=$(echo "$output" | jq -r '.esp32_platformio_components')" >> $GITHUB_OUTPUT
           echo "changed-components=$(echo "$output" | jq -c '.changed_components')" >> $GITHUB_OUTPUT
           echo "changed-components-with-tests=$(echo "$output" | jq -c '.changed_components_with_tests')" >> $GITHUB_OUTPUT
           echo "directly-changed-components-with-tests=$(echo "$output" | jq -c '.directly_changed_components_with_tests')" >> $GITHUB_OUTPUT
@@ -946,19 +946,19 @@ jobs:
             echo "All components in this batch are validate-only -- skipping compile stage."
           fi
 
-  test-platformio:
-    name: Test components with PlatformIO
+  test-esp32-platformio:
+    name: Test esp32 components with PlatformIO
     runs-on: ubuntu-24.04
     needs:
       - common
       - determine-jobs
-    if: github.event_name == 'pull_request' && needs.determine-jobs.outputs.platformio == 'true'
+    if: github.event_name == 'pull_request' && needs.determine-jobs.outputs.esp32-platformio == 'true'
     env:
-      # Comma-joined subset of the PlatformIO representative component list,
-      # computed by script/determine-jobs.py (platformio_components_to_test).
+      # Comma-joined subset of the esp32 PlatformIO representative component list,
+      # computed by script/determine-jobs.py (esp32_platformio_components_to_test).
       # Single source of truth -- the full list lives in
-      # script/determine-jobs.py::PLATFORMIO_TEST_COMPONENTS.
-      TEST_COMPONENTS: ${{ needs.determine-jobs.outputs.platformio-components }}
+      # script/determine-jobs.py::ESP32_PLATFORMIO_TEST_COMPONENTS.
+      TEST_COMPONENTS: ${{ needs.determine-jobs.outputs.esp32-platformio-components }}
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -974,14 +974,14 @@ jobs:
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.platformio
-          key: platformio-test-platformio-${{ hashFiles('platformio.ini') }}
+          key: platformio-test-esp32-platformio-${{ hashFiles('platformio.ini') }}
 
       - name: Cache platformio
         if: github.ref != 'refs/heads/dev'
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.platformio
-          key: platformio-test-platformio-${{ hashFiles('platformio.ini') }}
+          key: platformio-test-esp32-platformio-${{ hashFiles('platformio.ini') }}
 
       - name: Run PlatformIO compile test
         run: |
@@ -1333,7 +1333,7 @@ jobs:
       - determine-jobs
       - device-builder
       - test-build-components-split
-      - test-platformio
+      - test-esp32-platformio
       - pre-commit-ci-lite
       - memory-impact-target-branch
       - memory-impact-pr-branch

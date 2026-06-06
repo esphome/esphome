@@ -485,7 +485,7 @@ def should_run_device_builder(branch: str | None = None) -> bool:
 # single source of truth: the workflow reads the comma-joined list from the
 # `platformio-components` output of `determine-jobs` and uses it as the
 # `TEST_COMPONENTS` env on the `test-platformio` job.
-PLATFORMIO_TEST_COMPONENTS = frozenset(
+ESP32_PLATFORMIO_TEST_COMPONENTS = frozenset(
     {
         "esp32",
         "api",
@@ -508,14 +508,14 @@ PLATFORMIO_TEST_COMPONENTS = frozenset(
 # Path prefixes whose changes always trigger the PlatformIO compile test.
 # There's no dedicated PlatformIO subsystem directory (the toolchain is
 # spread across esphome/), so the triggers are the standalone files below.
-PLATFORMIO_TRIGGER_PATH_PREFIXES: tuple[str, ...] = ()
+ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES: tuple[str, ...] = ()
 
 # Standalone files that, when changed, trigger the PlatformIO compile test:
 #   - esphome/build_gen/platformio.py -- the PlatformIO build generator
 #   - platformio.ini -- platform/package pins shared by every PlatformIO build
 #   - script/test_build_components.py -- the harness the job invokes
 #   - .github/workflows/ci.yml -- the job's own definition
-PLATFORMIO_TRIGGER_FILES = frozenset(
+ESP32_PLATFORMIO_TRIGGER_FILES = frozenset(
     {
         "esphome/build_gen/platformio.py",
         "platformio.ini",
@@ -525,25 +525,27 @@ PLATFORMIO_TRIGGER_FILES = frozenset(
 )
 
 
-def _platformio_path_or_file_trigger(files: list[str]) -> bool:
+def _esp32_platformio_path_or_file_trigger(files: list[str]) -> bool:
     """Whether any changed file is a PlatformIO infrastructure / harness trigger."""
     for file in files:
-        if file in PLATFORMIO_TRIGGER_FILES:
+        if file in ESP32_PLATFORMIO_TRIGGER_FILES:
             return True
-        if any(file.startswith(prefix) for prefix in PLATFORMIO_TRIGGER_PATH_PREFIXES):
+        if any(
+            file.startswith(prefix) for prefix in ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES
+        ):
             return True
     return False
 
 
-def platformio_components_to_test(branch: str | None = None) -> list[str]:
-    """Subset of ``PLATFORMIO_TEST_COMPONENTS`` the job needs to compile.
+def esp32_platformio_components_to_test(branch: str | None = None) -> list[str]:
+    """Subset of ``ESP32_PLATFORMIO_TEST_COMPONENTS`` the job needs to compile.
 
     The job builds components with the PlatformIO toolchain. When only a
     specific component (or something it depends on) changed, there's no
     value in re-building every other unrelated component in the test list --
     the regular ``component-test`` matrix already covers them via the
     default toolchain. So we narrow to the intersection of
-    ``PLATFORMIO_TEST_COMPONENTS`` and the changed-component dependency
+    ``ESP32_PLATFORMIO_TEST_COMPONENTS`` and the changed-component dependency
     closure.
 
     Returns the full list (sorted) when we can't safely narrow:
@@ -572,19 +574,19 @@ def platformio_components_to_test(branch: str | None = None) -> list[str]:
     """
     files = changed_files(branch)
 
-    if core_changed(files) or _platformio_path_or_file_trigger(files):
-        return sorted(PLATFORMIO_TEST_COMPONENTS)
+    if core_changed(files) or _esp32_platformio_path_or_file_trigger(files):
+        return sorted(ESP32_PLATFORMIO_TEST_COMPONENTS)
 
     component_files = [f for f in files if filter_component_and_test_files(f)]
     changed = get_components_with_dependencies(component_files, True)
 
-    return sorted(PLATFORMIO_TEST_COMPONENTS & set(changed))
+    return sorted(ESP32_PLATFORMIO_TEST_COMPONENTS & set(changed))
 
 
-def should_run_platformio(branch: str | None = None) -> bool:
+def should_run_esp32_platformio(branch: str | None = None) -> bool:
     """Determine if the `test-platformio` compile-test job should run.
 
-    Runs whenever ``platformio_components_to_test()`` returns a non-empty
+    Runs whenever ``esp32_platformio_components_to_test()`` returns a non-empty
     list. Skipping the job on unrelated Python-only PRs avoids ~5 min of
     CI per PR (worse on cold caches). The regular ``component-test``
     matrix still exercises the same components through the default
@@ -596,7 +598,7 @@ def should_run_platformio(branch: str | None = None) -> bool:
     Returns:
         True if the PlatformIO compile test should run, False otherwise.
     """
-    return bool(platformio_components_to_test(branch))
+    return bool(esp32_platformio_components_to_test(branch))
 
 
 def determine_cpp_unit_tests(
@@ -1176,8 +1178,8 @@ def main() -> None:
         run_python_linters = True
         run_import_time = True
         run_device_builder = True
-        platformio_components = sorted(PLATFORMIO_TEST_COMPONENTS)
-        run_platformio = True
+        esp32_platformio_components = sorted(ESP32_PLATFORMIO_TEST_COMPONENTS)
+        run_esp32_platformio = True
     else:
         integration_run_all, integration_test_files = determine_integration_tests(
             args.branch
@@ -1187,8 +1189,8 @@ def main() -> None:
         run_python_linters = should_run_python_linters(args.branch)
         run_import_time = should_run_import_time(args.branch)
         run_device_builder = should_run_device_builder(args.branch)
-        platformio_components = platformio_components_to_test(args.branch)
-        run_platformio = bool(platformio_components)
+        esp32_platformio_components = esp32_platformio_components_to_test(args.branch)
+        run_esp32_platformio = bool(esp32_platformio_components)
     run_integration, integration_test_buckets = _compute_integration_test_buckets(
         integration_run_all, integration_test_files
     )
@@ -1359,8 +1361,8 @@ def main() -> None:
         "python_linters": run_python_linters,
         "import_time": run_import_time,
         "device_builder": run_device_builder,
-        "platformio": run_platformio,
-        "platformio_components": ",".join(platformio_components),
+        "esp32_platformio": run_esp32_platformio,
+        "esp32_platformio_components": ",".join(esp32_platformio_components),
         "changed_components": changed_components,
         "changed_components_with_tests": changed_components_with_tests,
         "directly_changed_components_with_tests": list(directly_changed_with_tests),
