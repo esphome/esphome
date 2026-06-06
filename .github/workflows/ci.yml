@@ -722,6 +722,93 @@ jobs:
         run: script/ci-suggest-changes
         if: always()
 
+  clang-tidy-esp32-variants:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+    if: needs.determine-jobs.outputs.clang-tidy == 'true'
+    env:
+      GH_TOKEN: ${{ github.token }}
+      # The variant tidy envs install ESP-IDF natively; share the native IDF cache.
+      ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 S3
+            options: --environment esp32s3-idf-tidy --grep USE_ESP32_VARIANT_ESP32S3
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 P4
+            # P4 has no native Wi-Fi/BLE; those run over the hosted co-processor,
+            # so their code paths differ -- lint them under the P4 build too.
+            # yamllint disable-line rule:line-length
+            options: --environment esp32p4-idf-tidy --grep USE_ESP32_VARIANT_ESP32P4 --grep USE_ESP32_HOSTED --grep USE_WIFI --grep USE_BLE
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 C6
+            # yamllint disable-line rule:line-length
+            options: --environment esp32c6-idf-tidy --grep USE_ESP32_VARIANT_ESP32C6 --grep USE_OPENTHREAD --grep USE_ZIGBEE
+
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          # Need history for HEAD~1 to work for checking changed files
+          fetch-depth: 2
+
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+
+      - name: Cache ESP-IDF install
+        # Shared with the IDF/Arduino clang-tidy jobs + native-IDF build (same install).
+        uses: ./.github/actions/cache-esp-idf
+
+      - name: Register problem matchers
+        run: |
+          echo "::add-matcher::.github/workflows/matchers/gcc.json"
+          echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
+
+      - name: Check if full clang-tidy scan needed
+        id: check_full_scan
+        run: |
+          . venv/bin/activate
+          # determine-jobs.clang-tidy-full-scan is true when core C++ changed
+          # OR the ci-run-all label forced --force-all. Independent of the
+          # hash check, both must produce a full scan in the job itself.
+          if [ "${{ needs.determine-jobs.outputs.clang-tidy-full-scan }}" = "true" ]; then
+            echo "full_scan=true" >> $GITHUB_OUTPUT
+            echo "reason=determine_jobs" >> $GITHUB_OUTPUT
+          elif python script/clang_tidy_hash.py --check; then
+            echo "full_scan=true" >> $GITHUB_OUTPUT
+            echo "reason=hash_changed" >> $GITHUB_OUTPUT
+          else
+            echo "full_scan=false" >> $GITHUB_OUTPUT
+            echo "reason=normal" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run clang-tidy
+        # Limited variant scan: only the files carrying that variant's code paths
+        # (no --all-headers; the comprehensive esp32-idf pass covers the shared tree).
+        run: |
+          . venv/bin/activate
+          if [ "${{ steps.check_full_scan.outputs.full_scan }}" = "true" ]; then
+            echo "Running FULL clang-tidy scan (reason: ${{ steps.check_full_scan.outputs.reason }})"
+            script/clang-tidy --fix ${{ matrix.options }}
+          else
+            echo "Running clang-tidy on changed files only"
+            script/clang-tidy --fix --changed ${{ matrix.options }}
+          fi
+
+      - name: Suggested changes
+        run: script/ci-suggest-changes
+        if: always()
+
   test-build-components-split:
     name: Test components batch (${{ matrix.components }})
     runs-on: ubuntu-24.04
@@ -1273,6 +1360,7 @@ jobs:
       - clang-tidy-single
       - clang-tidy-nosplit
       - clang-tidy-split
+      - clang-tidy-esp32-variants
       - determine-jobs
       - device-builder
       - test-build-components-split
