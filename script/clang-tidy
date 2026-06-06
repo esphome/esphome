@@ -35,9 +35,19 @@ def clang_options(idedata):
     # extract target architecture from triplet in g++ filename
     triplet = Path(idedata["cxx_path"]).name[:-4]
     if triplet.startswith("xtensa-"):
-        # clang doesn't support Xtensa (yet?), so compile in 32-bit mode and pretend we're the Xtensa compiler
+        # clang has an Xtensa frontend, but only a generic core -- the esp32 IDF
+        # toolchain headers (xtruntime, xtensa/config) need the GCC core config
+        # (XCHAL_*) it doesn't ship, so we still compile in 32-bit x86 mode and
+        # just pretend to be Xtensa. Undefine the host x86 arch macros -m32 sets,
+        # so libraries with x86 SIMD paths (FastLED's fl/math/simd, simd_x86.hpp)
+        # fall back to their scalar implementation instead of an incomplete
+        # host-x86 one, and define the xtensa endianness macro newlib's
+        # machine/ieeefp.h then needs in their place.
         cmd.append("-m32")
+        cmd.append("-U__i386__")
+        cmd.append("-U__x86_64__")
         cmd.append("-D__XTENSA__")
+        cmd.append("-D__XTENSA_EL__")
         cmd.append("-D_LIBC")
     else:
         # RISC-V (and other non-Xtensa targets) have a real clang backend, so

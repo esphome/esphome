@@ -5,14 +5,14 @@ esphome:
 
 output:
   - platform: gpio
-    id: light_test_binary
+    id: test_binary
     pin: 0
 
 light:
   - platform: binary
     id: test_binary_light
     name: Binary Light
-    output: light_test_binary
+    output: test_binary
     effects:
       - strobe:
     on_state:

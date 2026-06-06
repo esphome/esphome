@@ -1,8 +1,8 @@
 sensor:
   - platform: adc
-    id: integration_my_sensor
+    id: my_sensor
     pin: VCC
   - platform: integration
-    sensor: integration_my_sensor
+    sensor: my_sensor
     name: Integration Sensor
     time_unit: s
