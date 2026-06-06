@@ -189,11 +189,14 @@ void OpenThreadSrpComponent::setup() {
     for (size_t i = 0; i < service.txt_records.size(); i++) {
       const auto &txt = service.txt_records[i];
       // Value is either a compile-time string literal in flash or a pointer to dynamic_txt_values_
-      // OpenThread SRP client expects the data to persist, so we strdup it
+      // OpenThread SRP client expects the data to persist, so we copy it
       const char *value_str = MDNS_STR_ARG(txt.value);
       txt_entries[i].mKey = MDNS_STR_ARG(txt.key);
-      txt_entries[i].mValue = reinterpret_cast<const uint8_t *>(strdup(value_str));
-      txt_entries[i].mValueLength = strlen(value_str);
+      size_t value_len = strlen(value_str);
+      char *value_copy = reinterpret_cast<char *>(this->pool_alloc_(value_len + 1));
+      memcpy(value_copy, value_str, value_len + 1);
+      txt_entries[i].mValue = reinterpret_cast<const uint8_t *>(value_copy);
+      txt_entries[i].mValueLength = value_len;
     }
     entry->mService.mTxtEntries = txt_entries;
     entry->mService.mNumTxtEntries = service.txt_records.size();
@@ -231,12 +234,17 @@ bool OpenThreadComponent::teardown() {
     otSrpClientClearHostAndServices(instance);
     otSrpClientBuffersFreeAllServices(instance);
     global_openthread_component = nullptr;
+#ifdef USE_ESP32
     ESP_LOGD(TAG, "Exit main loop ");
     int error = this->openthread_stop_();
     if (error != ESP_OK) {
       ESP_LOGW(TAG, "Failed attempt to stop main loop %d", error);
       this->teardown_complete_ = true;
     }
+#else
+    this->lock_initialized_ = false;
+    this->teardown_complete_ = true;
+#endif
   }
   return this->teardown_complete_;
 }

@@ -43,6 +43,7 @@ class OpenThreadComponent : public Component {
   void set_poll_period(uint32_t poll_period) { this->poll_period_ = poll_period; }
 #endif
   void set_output_power(int8_t output_power) { this->output_power_ = output_power; }
+  void set_connected(bool connected) { this->connected_ = connected; }
 
  protected:
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
