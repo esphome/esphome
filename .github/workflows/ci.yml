@@ -521,7 +521,6 @@ jobs:
           key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
 
       - name: Cache ESP-IDF install
-        # Shared with the other clang-tidy jobs (same install).
         if: matrix.cache_idf
         uses: ./.github/actions/cache-esp-idf
         with:
@@ -594,7 +593,6 @@ jobs:
           cache-key: ${{ needs.common.outputs.cache-key }}
 
       - name: Cache ESP-IDF install
-        # Shared with the other clang-tidy jobs (same install).
         uses: ./.github/actions/cache-esp-idf
 
       - name: Register problem matchers
@@ -678,7 +676,6 @@ jobs:
           cache-key: ${{ needs.common.outputs.cache-key }}
 
       - name: Cache ESP-IDF install
-        # Shared with the other clang-tidy jobs (same install).
         uses: ./.github/actions/cache-esp-idf
 
       - name: Register problem matchers
@@ -766,7 +763,6 @@ jobs:
           cache-key: ${{ needs.common.outputs.cache-key }}
 
       - name: Cache ESP-IDF install
-        # Shared with the other clang-tidy jobs (same install).
         uses: ./.github/actions/cache-esp-idf
 
       - name: Register problem matchers
