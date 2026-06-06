@@ -934,9 +934,10 @@ _ESP32_PLATFORMIO_FULL_LIST_FILES = [
     # Core C++/Python changes -- caught by core_changed()
     ["esphome/core/component.cpp"],
     ["esphome/core/config.py"],
-    # PlatformIO infrastructure files
+    # PlatformIO subsystem (path-prefix trigger) + build generator
+    ["esphome/platformio/runner.py"],
+    ["esphome/platformio/toolchain.py"],
     ["esphome/build_gen/platformio.py"],
-    ["platformio.ini"],
     # Workflow / harness files
     ["script/test_build_components.py"],
     [".github/workflows/ci.yml"],

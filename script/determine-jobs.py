@@ -505,20 +505,20 @@ ESP32_PLATFORMIO_TEST_COMPONENTS = frozenset(
     }
 )
 
-# Path prefixes whose changes always trigger the PlatformIO compile test.
-# There's no dedicated PlatformIO subsystem directory (the toolchain is
-# spread across esphome/), so the triggers are the standalone files below.
-ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES: tuple[str, ...] = ()
+# Path prefixes whose changes always trigger the PlatformIO compile test:
+# anything under esphome/platformio/ (the PlatformIO runner / toolchain that
+# drives every PlatformIO build). The esp32 platform component is already in
+# ESP32_PLATFORMIO_TEST_COMPONENTS, so its changes are covered by the normal
+# component-narrowing path.
+ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES = ("esphome/platformio/",)
 
 # Standalone files that, when changed, trigger the PlatformIO compile test:
 #   - esphome/build_gen/platformio.py -- the PlatformIO build generator
-#   - platformio.ini -- platform/package pins shared by every PlatformIO build
 #   - script/test_build_components.py -- the harness the job invokes
 #   - .github/workflows/ci.yml -- the job's own definition
 ESP32_PLATFORMIO_TRIGGER_FILES = frozenset(
     {
         "esphome/build_gen/platformio.py",
-        "platformio.ini",
         "script/test_build_components.py",
         ".github/workflows/ci.yml",
     }
@@ -551,8 +551,8 @@ def esp32_platformio_components_to_test(branch: str | None = None) -> list[str]:
     Returns the full list (sorted) when we can't safely narrow:
 
     1. Core C++/Python files changed (``esphome/core/*``).
-    2. PlatformIO infrastructure changed (``esphome/build_gen/platformio.py``
-       or ``platformio.ini``).
+    2. PlatformIO infrastructure changed (``esphome/platformio/*`` or
+       ``esphome/build_gen/platformio.py``).
     3. The test harness or workflow itself changed
        (``script/test_build_components.py``, ``.github/workflows/ci.yml``).
 
