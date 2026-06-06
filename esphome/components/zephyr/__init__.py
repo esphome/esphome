@@ -76,7 +76,11 @@ def zephyr_data() -> ZephyrData:
 
 
 def zephyr_add_prj_conf(
-    name: str, value: PrjConfValueType, required: bool = True, image: str = "", override: bool = False
+    name: str,
+    value: PrjConfValueType,
+    required: bool = True,
+    image: str = "",
+    override: bool = False,
 ) -> None:
     """Set an zephyr prj conf value."""
     if not name.startswith("CONFIG_"):
