@@ -169,6 +169,7 @@ void LEDCOutput::setup() {
     PERIPH_RCC_ATOMIC() { ledc_ll_reset_register(0); }
 #elif ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
     PERIPH_RCC_ATOMIC() {
+      // NOLINTNEXTLINE(clang-analyzer-core.FixedAddressDereference) - HAL writes a fixed MMIO register
       ledc_ll_enable_reset_reg(true);
       ledc_ll_enable_reset_reg(false);
     }
