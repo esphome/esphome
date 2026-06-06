@@ -2,6 +2,14 @@
 # (clang-tidy) -- by both the PlatformIO and the native ESP-IDF toolchain paths -- and when PlatformIO is run directly
 # from the source directory (e.g. by IDEs). This should enable all flags that are set by any component.
 
+# clang-tidy analyzes with clang, and IDF 6 only offers newlib under clang
+# (picolibc's Kconfig depends on !IDF_TOOLCHAIN_CLANG). The idedata is generated
+# with GCC, whose default is picolibc -- but clang-tidy uses the toolchain's
+# newlib headers, so a picolibc build config mismatches them (IDF's hal/assert.h
+# redeclares abort()/__assert_func() with [[noreturn]] after newlib's stdlib.h,
+# tripping clang-diagnostic-error). Pin newlib to match the analyzed headers.
+CONFIG_LIBC_NEWLIB=y
+
 # esp32
 CONFIG_COMPILER_OPTIMIZATION_SIZE=y
 CONFIG_FREERTOS_HZ=1000
