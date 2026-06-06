@@ -1923,7 +1923,9 @@ def test_download_binary_handler_config_basic_auth(
 
     mock_storage = Mock()
     mock_storage.name = "test"
-    mock_storage.firmware_bin_path = tmp_path / ".esphome" / "build" / "test" / "firmware.bin"
+    mock_storage.firmware_bin_path = (
+        tmp_path / ".esphome" / "build" / "test" / "firmware.bin"
+    )
     mock_storage_json.load.return_value = mock_storage
 
     auth_header = base64.b64encode(b"test:my_ota_password").decode("ascii")
@@ -1931,9 +1933,12 @@ def test_download_binary_handler_config_basic_auth(
     handler.request = Mock()
     handler.request.headers = {"Authorization": f"Basic {auth_header}"}
 
-    assert web_server.DownloadBinaryRequestHandler._check_config_basic_auth(
-        handler, "test.yaml", mock_storage
-    ) is True
+    assert (
+        web_server.DownloadBinaryRequestHandler._check_config_basic_auth(
+            handler, "test.yaml", mock_storage
+        )
+        is True
+    )
 
 
 def test_is_authenticated_no_auth_configured(

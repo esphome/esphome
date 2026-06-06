@@ -491,6 +491,7 @@ class EsphomeCompileHandler(EsphomeCommandWebSocket):
         command.append(config_file)
         return command
 
+
 class EsphomeCompileAllHandler(EsphomeCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         command = [*DASHBOARD_COMMAND, "compile-all", settings.config_dir]
@@ -1095,7 +1096,11 @@ class DownloadBinaryRequestHandler(BaseHandler):
         ota_config = config.get("ota", [])
         if not isinstance(ota_config, list):
             return False
-        return any(ota_config.get("password") == password for ota_config in ota_config if isinstance(ota_config, dict))
+        return any(
+            ota_config.get("password") == password
+            for ota_config in ota_config
+            if isinstance(ota_config, dict)
+        )
 
     @bind_config
     async def get(self, configuration: str | None = None) -> None:
@@ -1160,7 +1165,9 @@ class DownloadBinaryRequestHandler(BaseHandler):
             for image in idedata.extra_flash_images:
                 if image.path.as_posix().endswith(source_file_name):
                     path = image.path
-                    download_name = request_file_name if is_md5sum else request_file_name
+                    download_name = (
+                        request_file_name if is_md5sum else request_file_name
+                    )
                     found = True
                     break
 

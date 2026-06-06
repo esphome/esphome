@@ -1570,6 +1570,7 @@ def command_logs(args: ArgsProtocol, config: ConfigType) -> int | None:
     )
     return show_logs(config, args, devices)
 
+
 def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
     exit_code = write_cpp(config)
     if exit_code != 0:
@@ -2200,9 +2201,7 @@ def parse_args(argv):
         action="store_true",
     )
 
-    parser_compile_all = subparsers.add_parser(
-        "compile-all", help="Compile ."
-    )
+    parser_compile_all = subparsers.add_parser("compile-all", help="Compile .")
     parser_compile_all.add_argument(
         "configuration", help="Your YAML file or configuration directory.", nargs="*"
     )
