@@ -483,8 +483,8 @@ def should_run_device_builder(branch: str | None = None) -> bool:
 
 # Components tested by the PlatformIO compile-test job. This is the
 # single source of truth: the workflow reads the comma-joined list from the
-# `platformio-components` output of `determine-jobs` and uses it as the
-# `TEST_COMPONENTS` env on the `test-platformio` job.
+# `esp32-platformio-components` output of `determine-jobs` and uses it as the
+# `TEST_COMPONENTS` env on the `test-esp32-platformio` job.
 ESP32_PLATFORMIO_TEST_COMPONENTS = frozenset(
     {
         "esp32",
@@ -584,7 +584,7 @@ def esp32_platformio_components_to_test(branch: str | None = None) -> list[str]:
 
 
 def should_run_esp32_platformio(branch: str | None = None) -> bool:
-    """Determine if the `test-platformio` compile-test job should run.
+    """Determine if the `test-esp32-platformio` compile-test job should run.
 
     Runs whenever ``esp32_platformio_components_to_test()`` returns a non-empty
     list. Skipping the job on unrelated Python-only PRs avoids ~5 min of
