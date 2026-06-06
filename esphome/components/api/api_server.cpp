@@ -186,8 +186,12 @@ void APIServer::remove_client_(uint8_t client_index) {
   if (client_index < last_index) {
     std::swap(this->clients_[client_index], this->clients_[last_index]);
   }
-  this->clients_[last_index].reset();
+  // Drop the count before resetting the slot. reset() runs ~APIConnection(), which can reenter the
+  // server (e.g. voice_assistant unsubscribes in its disconnect trigger, publishing entity state ->
+  // on_*_update iterating active_clients()). Excluding the dying slot from the active range first
+  // keeps that reentrant iteration from dereferencing the now-null slot.
   this->api_connection_count_--;
+  this->clients_[last_index].reset();
 
   // Last client disconnected - set warning and start tracking for reboot timeout
   if (this->api_connection_count_ == 0 && this->reboot_timeout_ != 0) {
