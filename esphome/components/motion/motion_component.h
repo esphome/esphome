@@ -44,7 +44,7 @@ inline float orientation_degrees(const MotionData &data, float flat_threshold) {
   if (h / mag < flat_threshold)
     return NAN;
   // Direction of the horizontal component, snapped to the nearest 90°.
-  float angle = std::atan2f(ay, ax) * (180.0f / std::numbers::pi_v<float>);
+  float angle = std::atan2(ay, ax) * (180.0f / std::numbers::pi_v<float>);
   int quadrant = static_cast<int>(std::lroundf(angle / 90.0f));
   quadrant = ((quadrant % 4) + 4) % 4;  // normalise to 0..3
   return quadrant * 90.0f;
