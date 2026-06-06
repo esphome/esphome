@@ -68,58 +68,58 @@ void OpenThreadComponent::setup() {
     }
     dataset.mLength = len;
 #endif
-  if (dataset.mLength > 0) {
-    otError error = otDatasetSetActiveTlvs(context->instance, &dataset);
-    if (error != OT_ERROR_NONE) {
-      ESP_LOGE(TAG, "Failed to set active dataset: %s", otThreadErrorToString(error));
-      return;
+    if (dataset.mLength > 0) {
+      otError error = otDatasetSetActiveTlvs(context->instance, &dataset);
+      if (error != OT_ERROR_NONE) {
+        ESP_LOGE(TAG, "Failed to set active dataset: %s", otThreadErrorToString(error));
+        return;
+      }
     }
+    openthread_state_changed_cb_register(context, &ot_state_changed_cb);
+    openthread_start(context);
   }
-  openthread_state_changed_cb_register(context, &ot_state_changed_cb);
-  openthread_start(context);
-}
 
-void OpenThreadComponent::ot_main() {}
+  void OpenThreadComponent::ot_main() {}
 
-network::IPAddresses OpenThreadComponent::get_ip_addresses() {
-  network::IPAddresses addresses;
-  size_t addr_count = 0;
-  for (const otNetifAddress *addr = otIp6GetUnicastAddresses(openthread_get_default_instance());
-       addr != nullptr && addr_count + 1 < addresses.size(); addr = addr->mNext) {
-    addresses[addr_count + 1] = network::IPAddress(reinterpret_cast<const struct in6_addr *>(&addr->mAddress));
-    addr_count++;
+  network::IPAddresses OpenThreadComponent::get_ip_addresses() {
+    network::IPAddresses addresses;
+    size_t addr_count = 0;
+    for (const otNetifAddress *addr = otIp6GetUnicastAddresses(openthread_get_default_instance());
+         addr != nullptr && addr_count + 1 < addresses.size(); addr = addr->mNext) {
+      addresses[addr_count + 1] = network::IPAddress(reinterpret_cast<const struct in6_addr *>(&addr->mAddress));
+      addr_count++;
+    }
+    return addresses;
   }
-  return addresses;
-}
 
-std::optional<InstanceLock> InstanceLock::try_acquire(int delay) {
-  if (global_openthread_component == nullptr || !global_openthread_component->is_lock_initialized()) {
+  std::optional<InstanceLock> InstanceLock::try_acquire(int delay) {
+    if (global_openthread_component == nullptr || !global_openthread_component->is_lock_initialized()) {
+      return {};
+    }
+    struct openthread_context *ot_context = openthread_get_default_context();
+    if (k_mutex_lock(&ot_context->api_lock, K_MSEC(delay)) == 0) {
+      return InstanceLock();
+    }
     return {};
   }
-  struct openthread_context *ot_context = openthread_get_default_context();
-  if (k_mutex_lock(&ot_context->api_lock, K_MSEC(delay)) == 0) {
+
+  InstanceLock InstanceLock::acquire() {
+    if (global_openthread_component == nullptr || !global_openthread_component->is_lock_initialized()) {
+      ESP_LOGE(TAG, "OpenThread lock not initialized, aborting");
+      abort();
+    }
+    struct openthread_context *ot_context = openthread_get_default_context();
+    while (k_mutex_lock(&ot_context->api_lock, K_MSEC(100)) != 0) {
+    }
     return InstanceLock();
   }
-  return {};
-}
 
-InstanceLock InstanceLock::acquire() {
-  if (global_openthread_component == nullptr || !global_openthread_component->is_lock_initialized()) {
-    ESP_LOGE(TAG, "OpenThread lock not initialized, aborting");
-    abort();
+  otInstance *InstanceLock::get_instance() { return openthread_get_default_instance(); }
+
+  InstanceLock::~InstanceLock() {
+    struct openthread_context *ot_context = openthread_get_default_context();
+    k_mutex_unlock(&ot_context->api_lock);
   }
-  struct openthread_context *ot_context = openthread_get_default_context();
-  while (k_mutex_lock(&ot_context->api_lock, K_MSEC(100)) != 0) {
-  }
-  return InstanceLock();
-}
-
-otInstance *InstanceLock::get_instance() { return openthread_get_default_instance(); }
-
-InstanceLock::~InstanceLock() {
-  struct openthread_context *ot_context = openthread_get_default_context();
-  k_mutex_unlock(&ot_context->api_lock);
-}
 
 }  // namespace esphome::openthread
 #endif
