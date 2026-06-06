@@ -28,6 +28,7 @@ void WiFiTWT::on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> 
   if (ssid.empty() && this->active_flow_id_ != UINT8_MAX) {
     ESP_LOGD(TAG, "WiFi disconnected — resetting active TWT flow_id");
     this->active_flow_id_ = UINT8_MAX;
+    this->reconfigure_pending_ = true;
     // AP-side teardown event will not arrive after disconnect; fire stop callback directly.
     this->defer([this]() { this->stop_callback_.call(); });
   }

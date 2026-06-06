@@ -122,7 +122,12 @@ void WiFiTWT::on_ip_state(const network::IPAddresses &ips, const network::IPAddr
                           const network::IPAddress &dns2) {
   if (!ips[0].is_set())
     return;
-  if (this->auto_setup_)
+  // Renegotiate on reconnect if either auto_setup is on, or TWT was active when WiFi dropped
+  // (e.g. negotiated manually via wifi_twt.start). A flow that was never negotiated, or was
+  // stopped manually before the drop, is left alone.
+  bool reconfigure = this->reconfigure_pending_;
+  this->reconfigure_pending_ = false;
+  if (this->auto_setup_ || reconfigure)
     this->start_twt();
 }
 

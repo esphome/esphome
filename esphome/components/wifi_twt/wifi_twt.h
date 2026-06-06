@@ -50,6 +50,11 @@ class WiFiTWT : public Component, public wifi::WiFiIPStateListener, public wifi:
   uint8_t flow_type_{0};  // 0=announced, 1=unannounced
   bool auto_setup_{true};
 
+  // Set on disconnect when TWT was active; tells on_ip_state to renegotiate on reconnect
+  // even if auto_setup_ is false. Left clear when TWT was never negotiated (or was stopped
+  // manually before the drop), so a stopped/never-started agreement is not revived.
+  bool reconfigure_pending_{false};
+
   // Written by event task (twt_setup_success / twt_teardown_received), read by main task.
   std::atomic<uint8_t> active_flow_id_{UINT8_MAX};
 
