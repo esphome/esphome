@@ -94,7 +94,7 @@ class InstanceLock {
   InstanceLock(InstanceLock &&other) noexcept : moved_from_(false) { other.moved_from_ = true; }
   InstanceLock(const InstanceLock &) = delete;
   InstanceLock &operator=(const InstanceLock &) = delete;
-  InstanceLock &operator=(InstanceLock &&) = default;
+  InstanceLock &operator=(InstanceLock &&) = delete;
   ~InstanceLock();
 
   // Returns the global openthread instance guarded by this lock
