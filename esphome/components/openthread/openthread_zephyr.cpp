@@ -56,7 +56,7 @@ void OpenThreadComponent::setup() {
     }
     size_t parsed = parse_hex(USE_OPENTHREAD_TLVS, sizeof(USE_OPENTHREAD_TLVS) - 1, dataset.mTlvs, len);
     if (parsed != 2 * len) {
-      ESP_LOGE(TAG, "Invalid OpenThread TLV hex string (expected %d hex chars, got %d)", 2 * len, parsed);
+      ESP_LOGE(TAG, "Invalid OpenThread TLV hex string (expected %zu hex chars, got %zu)", 2 * len, parsed);
       return;
     }
     dataset.mLength = len;
@@ -87,7 +87,7 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
 }
 
 std::optional<InstanceLock> InstanceLock::try_acquire(int delay) {
-  if (!global_openthread_component->is_lock_initialized()) {
+  if (global_openthread_component == nullptr || !global_openthread_component->is_lock_initialized()) {
     return {};
   }
   struct openthread_context *ot_context = openthread_get_default_context();
@@ -98,7 +98,7 @@ std::optional<InstanceLock> InstanceLock::try_acquire(int delay) {
 }
 
 InstanceLock InstanceLock::acquire() {
-  if (!global_openthread_component->is_lock_initialized()) {
+  if (global_openthread_component == nullptr || !global_openthread_component->is_lock_initialized()) {
     ESP_LOGE(TAG, "OpenThread lock not initialized, aborting");
     abort();
   }
