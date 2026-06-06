@@ -122,6 +122,9 @@ InstanceLock InstanceLock::acquire() {
 otInstance *InstanceLock::get_instance() { return openthread_get_default_instance(); }
 
 InstanceLock::~InstanceLock() {
+  if (this->moved_from_) {
+    return;
+  }
   struct openthread_context *ot_context = openthread_get_default_context();
   k_mutex_unlock(&ot_context->api_lock);
 }
