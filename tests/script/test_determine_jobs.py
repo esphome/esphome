@@ -322,6 +322,65 @@ def test_main_no_tests_should_run(
     assert output["component_test_batches"] == []
 
 
+def test_main_esp_idf_infra_change_folds_esp32(
+    mock_determine_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_should_run_import_time: Mock,
+    mock_should_run_device_builder: Mock,
+    mock_esp32_platformio_components_to_test: Mock,
+    mock_changed_files: Mock,
+    mock_determine_cpp_unit_tests: Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An ESP-IDF infra-only change folds the `esp32` component into the matrix,
+    so the default native-IDF build path is still compiled."""
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+    mock_determine_integration_tests.return_value = (False, [])
+    mock_should_run_clang_tidy.return_value = False
+    mock_should_run_clang_format.return_value = False
+    mock_should_run_python_linters.return_value = False
+    mock_should_run_import_time.return_value = False
+    mock_should_run_device_builder.return_value = False
+    mock_esp32_platformio_components_to_test.return_value = []
+    mock_determine_cpp_unit_tests.return_value = (False, [])
+
+    # IDF build generator changed; no component changed.
+    mock_changed_files.return_value = ["esphome/build_gen/espidf.py"]
+
+    with (
+        patch("sys.argv", ["determine-jobs.py"]),
+        patch.object(determine_jobs, "get_changed_components", return_value=[]),
+        patch.object(
+            determine_jobs, "filter_component_and_test_files", return_value=False
+        ),
+        patch.object(
+            determine_jobs, "get_components_with_dependencies", return_value=[]
+        ),
+        # esp32 has tests on disk, but pin it so the fold-in isn't coupled to layout.
+        patch.object(determine_jobs, "_component_has_tests", return_value=True),
+        patch.object(
+            determine_jobs,
+            "detect_memory_impact_config",
+            return_value={"should_run": "false"},
+        ),
+        patch.object(
+            determine_jobs, "create_intelligent_batches", return_value=([], {})
+        ),
+    ):
+        determine_jobs.main()
+
+    output = json.loads(capsys.readouterr().out)
+    # Only `esp32` is folded in (not the whole representative set), and it's
+    # grouped, not isolated (infra changed, not the component).
+    assert output["changed_components_with_tests"] == ["esp32"]
+    assert output["directly_changed_components_with_tests"] == []
+    assert output["component_test_count"] == 1
+
+
 def test_main_with_branch_argument(
     mock_determine_integration_tests: Mock,
     mock_should_run_clang_tidy: Mock,
@@ -1065,6 +1124,25 @@ def test_should_run_esp32_platformio_with_branch() -> None:
     ) as mock_inner:
         determine_jobs.should_run_esp32_platformio("release")
         mock_inner.assert_called_once_with("release")
+
+
+@pytest.mark.parametrize(
+    ("changed_files", "expected"),
+    [
+        # ESP-IDF runner / framework / build generator -> trigger
+        (["esphome/espidf/runner.py"], True),
+        (["esphome/espidf/framework.py"], True),
+        (["esphome/build_gen/espidf.py"], True),
+        # PlatformIO build gen and esp32 component are NOT IDF-infra triggers
+        (["esphome/build_gen/platformio.py"], False),
+        (["esphome/components/esp32/__init__.py"], False),
+        (["README.md"], False),
+        ([], False),
+    ],
+)
+def test_esp_idf_infra_changed(changed_files: list[str], expected: bool) -> None:
+    """ESP-IDF build/runner infra paths are detected; other paths are not."""
+    assert determine_jobs._esp_idf_infra_changed(changed_files) is expected
 
 
 @pytest.mark.parametrize(

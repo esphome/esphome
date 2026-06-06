@@ -537,6 +537,27 @@ def _esp32_platformio_path_or_file_trigger(files: list[str]) -> bool:
     return False
 
 
+# ESP-IDF infra: changes under esphome/espidf/ or to the IDF build generator
+# affect every esp32 IDF build (now the default toolchain) but aren't
+# components, so the component matrix wouldn't otherwise force any esp32
+# compile. When they change we fold the `esp32` component into the matrix so
+# the default native-IDF build path is still compiled on an infra-only PR.
+ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES = ("esphome/espidf/",)
+ESP_IDF_INFRA_TRIGGER_FILES = frozenset({"esphome/build_gen/espidf.py"})
+
+
+def _esp_idf_infra_changed(files: list[str]) -> bool:
+    """Whether any changed file is ESP-IDF build/runner infrastructure."""
+    for file in files:
+        if file in ESP_IDF_INFRA_TRIGGER_FILES:
+            return True
+        if any(
+            file.startswith(prefix) for prefix in ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES
+        ):
+            return True
+    return False
+
+
 def esp32_platformio_components_to_test(branch: str | None = None) -> list[str]:
     """Subset of ``ESP32_PLATFORMIO_TEST_COMPONENTS`` the job needs to compile.
 
@@ -1243,6 +1264,18 @@ def main() -> None:
             for component in changed_components
             if _component_has_tests(component)
         ]
+
+    # ESP-IDF build-gen/runner changed but no component pulled esp32 in: fold the
+    # `esp32` component into the matrix so the default native-IDF build path is
+    # still compiled on an infra-only PR. force_all/core already test everything,
+    # so skip there. Runs grouped (not added to directly-changed).
+    if (
+        not is_core_change
+        and _esp_idf_infra_changed(changed)
+        and "esp32" not in changed_components_with_tests
+        and _component_has_tests("esp32")
+    ):
+        changed_components_with_tests.append("esp32")
 
     # Get directly changed components with tests (for isolated testing)
     # These will be tested WITHOUT --testing-mode in CI to enable full validation
