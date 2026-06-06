@@ -6,7 +6,7 @@
 
 namespace esphome::tinyusb {
 
-static const char *TAG = "tinyusb";
+static const char *const TAG = "tinyusb";
 
 void TinyUSB::setup() {
   // Use the device's MAC address as its serial number if no serial number is defined

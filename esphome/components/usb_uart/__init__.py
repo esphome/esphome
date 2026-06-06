@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
+from esphome.components.esp32 import VARIANT_ESP32P4, get_esp32_variant
 from esphome.components.uart import CONF_DEBUG_PREFIX, CONF_FLUSH_TIMEOUT, UARTComponent
 from esphome.components.usb_host import (
     get_max_packet_size,
@@ -15,6 +16,7 @@ from esphome.const import (
     CONF_DUMMY_RECEIVER,
     CONF_ID,
 )
+from esphome.core import CORE
 from esphome.cpp_types import Component
 
 AUTO_LOAD = ["uart", "usb_host", "bytebuffer"]
@@ -55,16 +57,24 @@ class Type:
 
 
 uart_types = (
-    Type("CH34X", 0x1A86, 0x55D5, "CH34X", 3),
-    Type("CH340", 0x1A86, 0x7523, "CH34X", 1),
-    Type("ESP_JTAG", 0x303A, 0x1001, "CdcAcm", 1, baud_rate_required=False),
-    Type("STM32_VCP", 0x0483, 0x5740, "CdcAcm", 1, baud_rate_required=False),
     Type("CDC_ACM", 0, 0, "CdcAcm", 1, baud_rate_required=False),
     Type("CP210X", 0x10C4, 0xEA60, "CP210X", 3),
+    Type("CH34X", 0x1A86, 0x55D5, "CH34X", 4),
+    Type("CH340", 0x1A86, 0x7523, "CH34X", 1),
+    Type("ESP_JTAG", 0x303A, 0x1001, "CdcAcm", 1, baud_rate_required=False),
+    Type("FT232", 0x0403, 0x6001, "FT23XX", 1),
+    Type("FT2232", 0x0403, 0x6010, "FT23XX", 2),
+    Type("FT4232", 0x0403, 0x6011, "FT23XX", 4),
+    Type("STM32_VCP", 0x0483, 0x5740, "CdcAcm", 1, baud_rate_required=False),
 )
 
 
 def channel_schema(channels, baud_rate_required):
+    # For now S3 is restricted to 3 channels since each needs 2 endpoints, plus the control endpoint, and
+    # there are only a total of 8 endpoints available.
+    # This will need updating when the 8 channel devices that multiplex over an endpoint are added.
+    if CORE.is_esp32 and get_esp32_variant() != VARIANT_ESP32P4 and channels > 3:
+        channels = 3
     return cv.Schema(
         {
             cv.Required(CONF_CHANNELS): cv.All(
