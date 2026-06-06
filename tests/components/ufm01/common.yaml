@@ -24,7 +24,7 @@ binary_sensor:
       name: "Flow direction wrong"
     empty_tube:
       id: empty_tube
-      name: "Empty_tube"
+      name: "Empty tube"
     flow_rate_out_of_range:
       id: flow_rate_out_of_range
       name: "Flow rate out of range"
