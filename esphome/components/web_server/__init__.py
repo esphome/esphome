@@ -194,7 +194,7 @@ CONFIG_SCHEMA = cv.All(
                         cv.templatable(cv.string_strict), cv.Length(min=1)
                     ),
                     cv.Required(CONF_PASSWORD): cv.All(
-                        cv.templatable(cv.string_strict), cv.Length(min=1)
+                        cv.templatable(cv.sensitive(cv.string_strict)), cv.Length(min=1)
                     ),
                 }
             ),
