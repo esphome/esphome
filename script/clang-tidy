@@ -138,7 +138,6 @@ def clang_options(idedata):
         if flag not in omit_flags
         and not flag.startswith("-Werror")
         and not flag.startswith("-std=")
-        and not flag.startswith("-specs=")
     )
     cmd.append("-std=gnu++20")
 
