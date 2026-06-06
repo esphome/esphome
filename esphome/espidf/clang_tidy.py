@@ -339,11 +339,18 @@ def _write_tidy_project(
     # ESPHome's static-analysis sdkconfig (repo root): enables the flags any
     # component sets (e.g. CONFIG_BT_ENABLED) so sdkconfig-gated IDF components
     # register and expose their includes. IDF reads ``sdkconfig.defaults`` from
-    # the project root.
+    # the project root, plus a per-target ``sdkconfig.defaults.<idf_target>``
+    # for variant-only components (e.g. openthread on c6/h2).
+    repo_root = esphome_dir.parent
     (work_dir / "sdkconfig.defaults").write_text(
-        (esphome_dir.parent / "sdkconfig.defaults").read_text(encoding="utf-8"),
+        (repo_root / "sdkconfig.defaults").read_text(encoding="utf-8"),
         encoding="utf-8",
     )
+    target_defaults = repo_root / f"sdkconfig.defaults.{settings.idf_target}"
+    if target_defaults.is_file():
+        (work_dir / target_defaults.name).write_text(
+            target_defaults.read_text(encoding="utf-8"), encoding="utf-8"
+        )
 
 
 def _generate_compile_commands(
