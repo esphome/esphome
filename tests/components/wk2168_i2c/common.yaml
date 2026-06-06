@@ -23,7 +23,7 @@ wk2168_i2c:
 sensor:
   - platform: a02yyuw
     uart_id: wk2168_i2c_uart3
-    id: wk2168_i2c_distance_sensor
+    id: distance_sensor
 
 # individual binary_sensor inputs
 binary_sensor:

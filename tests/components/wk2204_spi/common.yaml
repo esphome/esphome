@@ -25,4 +25,4 @@ wk2204_spi:
 sensor:
   - platform: a02yyuw
     uart_id: wk2204_spi_uart3
-    id: wk2204_spi_distance_sensor
+    id: distance_sensor

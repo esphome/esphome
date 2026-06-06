@@ -4,7 +4,7 @@ packages:
 
 display:
   - platform: ili9xxx
-    id: animation_main_lcd
+    id: main_lcd
     spi_id: spi_bus
     model: ili9342
     cs_pin: 20

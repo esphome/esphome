@@ -6,7 +6,7 @@ packages:
 display:
   - platform: ili9xxx
     spi_id: spi_bus
-    id: online_image_main_lcd
+    id: main_lcd
     model: ili9342
     data_rate: 20MHz
     cs_pin: 20
