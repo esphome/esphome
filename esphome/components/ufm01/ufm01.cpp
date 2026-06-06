@@ -7,7 +7,7 @@
 
 namespace esphome::ufm01 {
 
-static const char *const TAG = "ufm_01";
+static const char *const TAG = "ufm01";
 
 static constexpr uint8_t COMMAND_ACK = 0xE5;
 static constexpr uint32_t COMMAND_ACK_TIMEOUT_MS = 200;
