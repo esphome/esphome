@@ -138,6 +138,8 @@ def clang_options(idedata):
         if flag not in omit_flags
         and not flag.startswith("-Werror")
         and not flag.startswith("-std=")
+        # IDF 6 adds -mtune=esp-base on RISC-V; clang rejects the unknown CPU
+        and not flag.startswith("-mtune=esp")
     )
     cmd.append("-std=gnu++20")
 
