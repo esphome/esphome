@@ -253,9 +253,7 @@ void MipiDsi::start_async_flush_task_() {
   ESP_LOGCONFIG(TAG, "Async LVGL flush ready task enabled on core %d", (int) flush_core);
 }
 
-void MipiDsi::async_flush_task_trampoline_(void *arg) {
-  static_cast<MipiDsi *>(arg)->async_flush_task_();
-}
+void MipiDsi::async_flush_task_trampoline_(void *arg) { static_cast<MipiDsi *>(arg)->async_flush_task_(); }
 
 void MipiDsi::async_flush_task_() {
   while (true) {
@@ -354,9 +352,9 @@ void MipiDsi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
 }
 
 bool MipiDsi::draw_pixels_at_async(int x_start, int y_start, int w, int h, const uint8_t *ptr,
-                                    display::ColorOrder order, display::ColorBitness bitness, bool big_endian,
-                                    int x_offset, int y_offset, int x_pad, AsyncFlushReadyCallback ready_callback,
-                                    void *ready_arg) {
+                                   display::ColorOrder order, display::ColorBitness bitness, bool big_endian,
+                                   int x_offset, int y_offset, int x_pad, AsyncFlushReadyCallback ready_callback,
+                                   void *ready_arg) {
   if (!this->async_lvgl_flush_ || this->async_flush_done_ == nullptr || this->async_flush_task_handle_ == nullptr ||
       ready_callback == nullptr)
     return false;
@@ -508,7 +506,7 @@ bool MipiDsi::present_frame_buffer(uint8_t *frame_buffer, int y_start, int y_end
 }
 
 void MipiDsi::write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
-                                 int x_pad) {
+                                int x_pad) {
   esp_err_t err = ESP_OK;
   auto bytes_per_pixel = this->get_bytes_per_pixel_();
   auto stride = (x_offset + w + x_pad) * bytes_per_pixel;

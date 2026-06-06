@@ -1,7 +1,7 @@
 import importlib
 import logging
-import pkgutil
 from pathlib import Path
+import pkgutil
 
 from esphome import pins
 import esphome.codegen as cg

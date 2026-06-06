@@ -17,12 +17,20 @@ def main() -> None:
     if not framework_dir:
         raise RuntimeError("framework-espidf package directory not found")
 
-    target = Path(framework_dir) / "components" / "esp_lcd" / "dsi" / "esp_lcd_panel_dpi.c"
+    target = (
+        Path(framework_dir) / "components" / "esp_lcd" / "dsi" / "esp_lcd_panel_dpi.c"
+    )
     text = target.read_text(encoding="utf-8")
 
-    for include in ('#include "esp_memory_utils.h"', '#include "hal/cache_ll.h"', '#include "soc/soc_caps.h"'):
+    for include in (
+        '#include "esp_memory_utils.h"',
+        '#include "hal/cache_ll.h"',
+        '#include "soc/soc_caps.h"',
+    ):
         if include not in text:
-            text = text.replace('#include "esp_cache.h"\n', f'#include "esp_cache.h"\n{include}\n')
+            text = text.replace(
+                '#include "esp_cache.h"\n', f'#include "esp_cache.h"\n{include}\n'
+            )
 
     helper = """
 static bool dpi_panel_skip_draw_buffer_msync(const void *draw_buffer)
@@ -45,7 +53,9 @@ static bool dpi_panel_skip_draw_buffer_msync(const void *draw_buffer)
             "int x_end, int y_end, const void *color_data);\n"
         )
         if anchor not in text:
-            raise RuntimeError("ESP-IDF DSI draw_bitmap declaration not found; patch needs review")
+            raise RuntimeError(
+                "ESP-IDF DSI draw_bitmap declaration not found; patch needs review"
+            )
         text = text.replace(anchor, f"{anchor}{helper}", 1)
 
     old = (
@@ -66,14 +76,18 @@ static bool dpi_panel_skip_draw_buffer_msync(const void *draw_buffer)
     )
 
     if new in text:
-        print("MIPI DSI patch: ESP-IDF DMA2D internal-buffer cache sync guard already present")
+        print(
+            "MIPI DSI patch: ESP-IDF DMA2D internal-buffer cache sync guard already present"
+        )
         return
     if old_guard in text:
         text = text.replace(old_guard, new)
     elif old in text:
         text = text.replace(old, new)
     else:
-        raise RuntimeError("ESP-IDF DSI DMA2D cache sync line not found; patch needs review")
+        raise RuntimeError(
+            "ESP-IDF DSI DMA2D cache sync line not found; patch needs review"
+        )
 
     target.write_text(text, encoding="utf-8")
     print("MIPI DSI patch: applied ESP-IDF DMA2D internal-buffer cache sync guard")
