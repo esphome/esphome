@@ -1,5 +1,4 @@
 from collections.abc import Callable
-import hashlib
 import re
 
 from esphome import automation
@@ -7,6 +6,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_ON_ERROR, CONF_ON_SUCCESS
 from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.helpers import fnv1_hash_object_id
 
 CODEOWNERS = ["@esphome/core"]
 
@@ -57,14 +57,14 @@ def _axis_map(config: dict) -> dict:
     return config
 
 
-def _axis_map_to_matrix(config: dict[str, str]) -> list[int]:
+def _axis_map_to_matrix(config: dict[str, str]) -> list[float]:
     matrix = []
     for target_axis in AXES:
         source_axis = config[target_axis].lower()
-        sign = -1 if source_axis.startswith("-") else 1
+        sign = -1.0 if source_axis.startswith("-") else 1.0
         source_axis = source_axis.removeprefix("+").removeprefix("-")
 
-        row = [0, 0, 0]
+        row = [0.0, 0.0, 0.0]
         row[AXES.index(source_axis)] = sign
         matrix.extend(row)
 
@@ -82,9 +82,7 @@ def _transform_matrix(value):
         flat = []
         for i, row in enumerate(value):
             if not isinstance(row, list) or len(row) != 3:
-                raise cv.Invalid(
-                    f"Each row must be a list of 3 numbers, row {i} has {len(row)}"
-                )
+                raise cv.Invalid("Each row must be a list of 3 numbers", path=[i])
             flat.extend(cv.float_(v) for v in row)
         return flat
     # Flat list
@@ -141,9 +139,7 @@ async def register_motion_component(var: MockObj, config) -> None:
     await cg.register_component(var, config)
     # Set preference key for NVS save/restore (based on component ID)
     obj_id = config[CONF_ID].id
-    if isinstance(obj_id, str):
-        obj_id = obj_id.encode()
-    pref_hash = int(hashlib.md5(obj_id, usedforsecurity=False).hexdigest()[:8], 16)
+    pref_hash = fnv1_hash_object_id(obj_id)
     cg.add(var.set_calibration_key(pref_hash))
     if axis_map := config.get(CONF_AXIS_MAP):
         cg.add(var.set_matrix(_axis_map_to_matrix(axis_map)))
