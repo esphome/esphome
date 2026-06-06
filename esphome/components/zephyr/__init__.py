@@ -76,7 +76,7 @@ def zephyr_data() -> ZephyrData:
 
 
 def zephyr_add_prj_conf(
-    name: str, value: PrjConfValueType, required: bool = True, image: str = ""
+    name: str, value: PrjConfValueType, required: bool = True, image: str = "", override: bool = False
 ) -> None:
     """Set an zephyr prj conf value."""
     if not name.startswith("CONFIG_"):
@@ -88,6 +88,9 @@ def zephyr_add_prj_conf(
         prj_conf[name] = (value, required)
         return
     old_value, old_required = prj_conf[name]
+    if override:
+        prj_conf[name] = (value, required)
+        return
     if old_value != value and old_required:
         raise ValueError(
             f"{name} already set with value '{old_value}', cannot set again to '{value}'"
