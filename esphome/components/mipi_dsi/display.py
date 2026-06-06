@@ -1,6 +1,7 @@
 import importlib
 import logging
 import pkgutil
+from pathlib import Path
 
 from esphome import pins
 import esphome.codegen as cg
@@ -206,6 +207,10 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 async def to_code(config):
     cg.add_define("USE_MIPI_DSI")
+    if config[CONF_ASYNC_LVGL_FLUSH]:
+        patch_script = Path(__file__).with_name("patch_espidf_dsi_dma2d.py")
+        cg.add_platformio_option("extra_scripts", [f"pre:{patch_script.as_posix()}"])
+
     model = MODELS[config[CONF_MODEL].upper()]
     color_depth = COLOR_DEPTHS[get_color_depth(config)]
     pixel_mode = int(config[CONF_PIXEL_MODE].removesuffix("bit"))
