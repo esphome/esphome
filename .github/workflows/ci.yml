@@ -816,6 +816,10 @@ jobs:
       - common
       - determine-jobs
     if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.component-test-count) > 0
+    env:
+      # esp32 component builds use the native ESP-IDF toolchain (default), so
+      # share the tidy jobs' install location -- the restore below lands here.
+      ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
     strategy:
       fail-fast: false
       max-parallel: ${{ (startsWith(github.base_ref, 'beta') || startsWith(github.base_ref, 'release')) && 8 || 4 }}
@@ -843,6 +847,12 @@ jobs:
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Cache ESP-IDF install (restore-only)
+        # A batch may contain no esp32 build, so never save -- just reuse the
+        # shared install the dev tidy jobs already cached when present.
+        uses: ./.github/actions/cache-esp-idf
+        with:
+          restore-only: true
       - name: Validate and compile components with intelligent grouping
         run: |
           . venv/bin/activate
