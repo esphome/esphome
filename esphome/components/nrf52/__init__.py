@@ -570,7 +570,7 @@ def run_compile(args, config: ConfigType) -> bool:
         return False
     if not CORE.using_toolchain_sdk_nrf:
         raise EsphomeError(
-            "Unsupported toolchain for nRF52."
+            "Unsupported toolchain for nRF52. "
             "Supported toolchains are 'platformio' and 'sdk-nrf'."
         )
     check_and_install()

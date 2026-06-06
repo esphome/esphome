@@ -6,7 +6,7 @@ import tempfile
 
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
-from esphome.espidf.framework import (
+from esphome.framework_helpers import (
     archive_extract_all,
     create_venv,
     download_from_mirrors,
@@ -45,6 +45,21 @@ def _get_toolchain_path(version: str) -> Path:
     return _get_tools_path() / "toolchains" / f"{version}"
 
 
+def _get_toolchain_platform_info() -> tuple[str, str, str]:
+    """Return (sysname, machine, extension) for the current host."""
+    extension = "tar.xz"
+    sysname = platform.system().lower()
+    machine = platform.machine()
+    if machine == "arm64":
+        machine = "aarch64"
+    if sysname == "darwin":
+        sysname = "macos"
+    elif sysname == "windows":
+        machine = "x86_64"
+        extension = "7z"
+    return sysname, machine, extension
+
+
 def check_and_install() -> None:
     framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     version = f"v{framework_ver.major}.{framework_ver.minor}.{framework_ver.patch}"
@@ -62,7 +77,7 @@ def check_and_install() -> None:
         if not run_command_ok(
             cmd,
         ):
-            raise EsphomeError(f"Upgrade {version} Python environment packages failure")
+            raise EsphomeError(f"Install west for {version} Python environment failure")
         sentinel.touch()
 
     framework_path = _get_framework_path(version)
@@ -107,16 +122,7 @@ def check_and_install() -> None:
         with tempfile.NamedTemporaryFile() as tmp:
             _LOGGER.info("Downloading %s toolchain ...", _TOOLCHAIN_VERSION)
 
-            extension = "tar.xz"
-            sysname = platform.system().lower()
-            machine = platform.machine()
-            if machine == "arm64":
-                machine = "aarch64"
-            if sysname == "darwin":
-                sysname = "macos"
-            elif sysname == "windows":
-                machine = "x86_64"
-                extension = "7z"
+            sysname, machine, extension = _get_toolchain_platform_info()
 
             download_from_mirrors(
                 SDK_NG_TOOLCHAIN_MIRRORS,
