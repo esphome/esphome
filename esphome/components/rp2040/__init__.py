@@ -501,18 +501,21 @@ def _generate_lwipopts_h() -> None:
     in the build directory, and a pre-build script injects this directory
     into the compiler include path before the framework's own include dir.
     """
-    from jinja2 import Environment, FileSystemLoader
+    from jinja2 import Environment
 
     lwip_defines = CORE.data[KEY_RP2040].get(KEY_LWIP_OPTS)
     if not lwip_defines:
         return
 
-    template_dir = Path(__file__).parent
-    jinja_env = Environment(
-        loader=FileSystemLoader(str(template_dir)),
-        keep_trailing_newline=True,
+    # Read the template via pathlib and render from a string rather than using
+    # FileSystemLoader. jinja2's loader joins the search path with posixpath, which
+    # breaks on Windows extended-length paths (\\?\C:\...) where forward slashes are
+    # not accepted, causing a spurious TemplateNotFound (see issue #16732).
+    template_text = (Path(__file__).parent / "lwipopts.h.jinja").read_text(
+        encoding="utf-8"
     )
-    template = jinja_env.get_template("lwipopts.h.jinja")
+    jinja_env = Environment(keep_trailing_newline=True)
+    template = jinja_env.from_string(template_text)
     content = template.render(**lwip_defines)
 
     lwip_dir = CORE.relative_build_path("lwip_override")
