@@ -73,6 +73,7 @@ def clang_options(idedata):
         "-freorder-blocks",
         "-fno-jump-tables",
         "-fno-shrink-wrap",
+        "-mno-target-align",
     )
 
     if "zephyr" in triplet:
@@ -137,6 +138,7 @@ def clang_options(idedata):
         if flag not in omit_flags
         and not flag.startswith("-Werror")
         and not flag.startswith("-std=")
+        and not flag.startswith("-mtune=esp")
     )
     cmd.append("-std=gnu++20")
 
