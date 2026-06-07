@@ -287,8 +287,6 @@ async def to_code(config):
             f"OPENTHREAD_NORDIC_LIBRARY_{config.get(CONF_DEVICE_TYPE)}", True
         )
         zephyr_add_prj_conf(f"OPENTHREAD_{config.get(CONF_DEVICE_TYPE)}", True)
-        zephyr_add_prj_conf("OPENTHREAD_SRP_CLIENT", True)
-        zephyr_add_prj_conf("OPENTHREAD_SLAAC", True)
         zephyr_add_prj_conf("MAIN_STACK_SIZE", 4096)
         if config.get(CONF_FORCE_DATASET):
             cg.add_define("USE_OPENTHREAD_FORCE_DATASET")
