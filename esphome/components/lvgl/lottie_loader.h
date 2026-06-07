@@ -87,8 +87,14 @@ inline void lottie_sync_canvas_buffer(LottieContext *ctx) {
     return;
   }
 
-  esp_cache_msync(data, len,
-                  ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_TYPE_DATA | ESP_CACHE_MSYNC_FLAG_UNALIGNED);
+  uintptr_t start = reinterpret_cast<uintptr_t>(data) & ~(lottie_cache_align - 1);
+  uintptr_t end = lottie_align_up(reinterpret_cast<uintptr_t>(data) + len, lottie_cache_align);
+  if (end <= start) {
+    return;
+  }
+
+  esp_cache_msync(reinterpret_cast<void *>(start), end - start,
+                  ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_TYPE_DATA);
 }
 
 inline uint8_t *lottie_alloc_pixel_buffer(size_t alloc_bytes, bool *internal) {
