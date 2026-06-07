@@ -22,9 +22,9 @@ class OpenThreadComponentBaseAction : public Parented<OpenThreadComponent> {
 
  protected:
   /** Handler to implement in subclass for applying action parts that need lock */
-  virtual void apply_locked_(otInstance *instance) = 0;
+  virtual void apply_locked(otInstance *instance) = 0;
 
-  /** Fetch OT lock and then call @a apply_locked_ */
+  /** Fetch OT lock and then call @a apply_locked */
   void lock_and_apply_();
 
   /** Log a warning that this action has no effect on FTD devices */
@@ -54,7 +54,7 @@ class OpenThreadComponentPollPeriodAction final : public Action<Ts...>, public O
 #endif
   }
 
-  void apply_locked_(otInstance *instance) override { this->parent_->apply_linkmode(instance); }
+  void apply_locked(otInstance *instance) override { this->parent_->apply_linkmode(instance); }
 };
 
 /// Callback forwarder that triggers an Automation<> only when a specific role is entered.
