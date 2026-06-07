@@ -143,7 +143,7 @@ class MipiDsi : public display::Display {
   float pclk_frequency_ = 16;  // in MHz
   float lane_bit_rate_{1500};  // in Mbps
   uint8_t lanes_{2};           // 1, 2, 3 or 4 lanes
-  bool use_dma2d_{true};
+  bool use_dma2d_{false};
   bool async_lvgl_flush_{false};
 
   bool invert_colors_{};

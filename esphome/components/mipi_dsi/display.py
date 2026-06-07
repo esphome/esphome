@@ -145,7 +145,7 @@ def model_schema(config):
             model.option(CONF_LANE_BIT_RATE, None): cv.All(
                 cv.bps, cv.Range(min=100e6, max=3200e6)
             ),
-            model.option(CONF_USE_DMA2D, True): cv.boolean,
+            model.option(CONF_USE_DMA2D, False): cv.boolean,
             model.option(CONF_ASYNC_LVGL_FLUSH, False): cv.boolean,
             iseqconf: cv.ensure_list(map_sequence),
             model.option(CONF_BYTE_ORDER, BYTE_ORDER_LITTLE): cv.one_of(
