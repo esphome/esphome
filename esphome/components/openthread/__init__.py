@@ -203,7 +203,7 @@ def _validate_tlv_hex(value):
     try:
         raw = bytes.fromhex(s)
     except ValueError as e:
-        raise cv.Invalid(f"TLV must be valid hex: {e}")
+        raise cv.Invalid(f"TLV must be valid hex: {e}") from e
     if len(raw) > 254:  # sizeof(otOperationalDatasetTlvs::mTlvs)
         raise cv.Invalid(f"TLV too long ({len(raw)} bytes, max 254)")
     return s
