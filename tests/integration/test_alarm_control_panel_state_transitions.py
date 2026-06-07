@@ -270,6 +270,14 @@ async def test_alarm_control_panel_state_transitions(
         # The chime_sensor has chime: true, so opening it while disarmed
         # should trigger on_chime callback
 
+        # Set up future for the on_ready from opening the chime sensor
+        # (alarm becomes "not ready" when chime sensor opens).
+        # We must wait for this BEFORE creating the close future, otherwise
+        # the open event's log can arrive late and resolve the close future,
+        # causing the test to proceed before the chime close is processed.
+        ready_after_chime_open: asyncio.Future[bool] = loop.create_future()
+        ready_futures.append(ready_after_chime_open)
+
         # We're currently DISARMED - open the chime sensor
         client.switch_command(chime_switch_info.key, True)
 
@@ -279,11 +287,18 @@ async def test_alarm_control_panel_state_transitions(
         except TimeoutError:
             pytest.fail(f"on_chime callback not fired. Log lines: {log_lines[-20:]}")
 
-        # Close the chime sensor and wait for alarm to become ready again
-        # We need to wait for this transition before testing door sensor,
-        # otherwise there's a race where the door sensor state change could
-        # arrive before the chime sensor state change, leaving the alarm in
-        # a continuous "not ready" state with no on_ready callback fired.
+        # Wait for the on_ready from the chime sensor opening
+        try:
+            await asyncio.wait_for(ready_after_chime_open, timeout=2.0)
+        except TimeoutError:
+            pytest.fail(
+                f"on_ready callback not fired when chime sensor opened. "
+                f"Log lines: {log_lines[-20:]}"
+            )
+
+        # Now create the future for the close event and close the sensor.
+        # Since we waited for the open event above, the close event's
+        # on_ready log cannot be confused with the open event's.
         ready_after_chime_close: asyncio.Future[bool] = loop.create_future()
         ready_futures.append(ready_after_chime_close)
 

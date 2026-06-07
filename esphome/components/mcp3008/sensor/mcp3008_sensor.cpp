@@ -2,12 +2,9 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp3008 {
+namespace esphome::mcp3008 {
 
 static const char *const TAG = "mcp3008.sensor";
-
-float MCP3008Sensor::get_setup_priority() const { return setup_priority::DATA; }
 
 void MCP3008Sensor::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -25,5 +22,4 @@ float MCP3008Sensor::sample() {
 
 void MCP3008Sensor::update() { this->publish_state(this->sample()); }
 
-}  // namespace mcp3008
-}  // namespace esphome
+}  // namespace esphome::mcp3008

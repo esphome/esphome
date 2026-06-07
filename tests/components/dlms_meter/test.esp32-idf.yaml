@@ -1,0 +1,4 @@
+packages:
+  uart_2400: !include ../../test_build_components/common/uart_2400/esp32-idf.yaml
+
+<<: !include common-netznoe.yaml

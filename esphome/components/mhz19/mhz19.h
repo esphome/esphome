@@ -22,8 +22,6 @@ enum MHZ19DetectionRange {
 
 class MHZ19Component : public PollingComponent, public uart::UARTDevice {
  public:
-  float get_setup_priority() const override;
-
   void setup() override;
   void update() override;
   void dump_config() override;

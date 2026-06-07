@@ -1,43 +1,14 @@
-from datetime import datetime
+import datetime
 import random
 
-from esphome import automation
 import esphome.codegen as cg
 from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
+    CONF_MODEL,
     CONF_NAME,
     CONF_UNIT_OF_MEASUREMENT,
-    UNIT_AMPERE,
-    UNIT_CELSIUS,
-    UNIT_CENTIMETER,
-    UNIT_DECIBEL,
-    UNIT_HECTOPASCAL,
-    UNIT_HERTZ,
-    UNIT_HOUR,
-    UNIT_KELVIN,
-    UNIT_KILOMETER,
-    UNIT_KILOWATT,
-    UNIT_KILOWATT_HOURS,
-    UNIT_LUX,
-    UNIT_METER,
-    UNIT_MICROGRAMS_PER_CUBIC_METER,
-    UNIT_MILLIAMP,
-    UNIT_MILLIGRAMS_PER_CUBIC_METER,
-    UNIT_MILLIMETER,
-    UNIT_MILLISECOND,
-    UNIT_MILLIVOLT,
-    UNIT_MINUTE,
-    UNIT_OHM,
-    UNIT_PARTS_PER_BILLION,
-    UNIT_PARTS_PER_MILLION,
-    UNIT_PASCAL,
-    UNIT_PERCENT,
-    UNIT_SECOND,
-    UNIT_VOLT,
-    UNIT_WATT,
-    UNIT_WATT_HOURS,
     __version__,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -48,69 +19,43 @@ from esphome.cpp_generator import (
 )
 from esphome.types import ConfigType
 
+from .const import (
+    BACNET_UNIT_NO_UNITS,
+    BACNET_UNITS,
+    CONF_POWER_SOURCE,
+    CONF_ROUTER,
+    CONF_WIPE_ON_BOOT,
+    KEY_ZIGBEE,
+    POWER_SOURCE,
+    AnalogAttrs,
+    AnalogAttrsOutput,
+    BinaryAttrs,
+    ZigbeeComponent,
+    zigbee_ns,
+)
 from .const_zephyr import (
     CONF_IEEE802154_VENDOR_OUI,
-    CONF_ON_JOIN,
-    CONF_POWER_SOURCE,
-    CONF_WIPE_ON_BOOT,
+    CONF_SLEEPY,
     CONF_ZIGBEE_BINARY_SENSOR,
     CONF_ZIGBEE_ID,
+    CONF_ZIGBEE_NUMBER,
     CONF_ZIGBEE_SENSOR,
     CONF_ZIGBEE_SWITCH,
     KEY_EP_NUMBER,
-    KEY_ZIGBEE,
-    POWER_SOURCE,
     ZB_ZCL_BASIC_ATTRS_EXT_T,
     ZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
+    ZB_ZCL_CLUSTER_ID_ANALOG_OUTPUT,
     ZB_ZCL_CLUSTER_ID_BASIC,
     ZB_ZCL_CLUSTER_ID_BINARY_INPUT,
     ZB_ZCL_CLUSTER_ID_BINARY_OUTPUT,
     ZB_ZCL_CLUSTER_ID_IDENTIFY,
     ZB_ZCL_IDENTIFY_ATTRS_T,
-    AnalogAttrs,
-    BinaryAttrs,
-    ZigbeeComponent,
-    zigbee_ns,
 )
 
 ZigbeeBinarySensor = zigbee_ns.class_("ZigbeeBinarySensor", cg.Component)
 ZigbeeSensor = zigbee_ns.class_("ZigbeeSensor", cg.Component)
 ZigbeeSwitch = zigbee_ns.class_("ZigbeeSwitch", cg.Component)
-
-# BACnet engineering units mapping (ZCL uses BACnet unit codes)
-# See: https://github.com/zigpy/zha/blob/dev/zha/application/platforms/number/bacnet.py
-BACNET_UNITS = {
-    UNIT_CELSIUS: 62,
-    UNIT_KELVIN: 63,
-    UNIT_VOLT: 5,
-    UNIT_MILLIVOLT: 124,
-    UNIT_AMPERE: 3,
-    UNIT_MILLIAMP: 2,
-    UNIT_OHM: 4,
-    UNIT_WATT: 47,
-    UNIT_KILOWATT: 48,
-    UNIT_WATT_HOURS: 18,
-    UNIT_KILOWATT_HOURS: 19,
-    UNIT_PASCAL: 53,
-    UNIT_HECTOPASCAL: 133,
-    UNIT_HERTZ: 27,
-    UNIT_MILLIMETER: 30,
-    UNIT_CENTIMETER: 118,
-    UNIT_METER: 31,
-    UNIT_KILOMETER: 193,
-    UNIT_MILLISECOND: 159,
-    UNIT_SECOND: 73,
-    UNIT_MINUTE: 72,
-    UNIT_HOUR: 71,
-    UNIT_PARTS_PER_MILLION: 96,
-    UNIT_PARTS_PER_BILLION: 97,
-    UNIT_MICROGRAMS_PER_CUBIC_METER: 219,
-    UNIT_MILLIGRAMS_PER_CUBIC_METER: 218,
-    UNIT_LUX: 37,
-    UNIT_DECIBEL: 199,
-    UNIT_PERCENT: 98,
-}
-BACNET_UNIT_NO_UNITS = 95
+ZigbeeNumber = zigbee_ns.class_("ZigbeeNumber", cg.Component)
 
 zephyr_binary_sensor = cv.Schema(
     {
@@ -139,11 +84,23 @@ zephyr_switch = cv.Schema(
     }
 )
 
+zephyr_number = cv.Schema(
+    {
+        cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(ZigbeeComponent),
+        cv.OnlyWith(CONF_ZIGBEE_NUMBER, ["nrf52", "zigbee"]): cv.declare_id(
+            ZigbeeNumber
+        ),
+    }
+)
 
-async def zephyr_to_code(config: ConfigType) -> None:
+
+async def zephyr_to_code(config: ConfigType) -> "MockObj":
     zephyr_add_prj_conf("ZIGBEE", True)
     zephyr_add_prj_conf("ZIGBEE_APP_UTILS", True)
-    zephyr_add_prj_conf("ZIGBEE_ROLE_END_DEVICE", True)
+    if config[CONF_ROUTER]:
+        zephyr_add_prj_conf("ZIGBEE_ROLE_ROUTER", True)
+    else:
+        zephyr_add_prj_conf("ZIGBEE_ROLE_END_DEVICE", True)
 
     zephyr_add_prj_conf("ZIGBEE_CHANNEL_SELECTION_MODE_MULTI", True)
 
@@ -152,6 +109,13 @@ async def zephyr_to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("NET_IPV6", False)
     zephyr_add_prj_conf("NET_IP_ADDR_CHECK", False)
     zephyr_add_prj_conf("NET_UDP", False)
+
+    # disable all extra to reduce power and save flash
+    zephyr_add_prj_conf("ZIGBEE_HAVE_SERIAL", False)
+    zephyr_add_prj_conf("ZBOSS_ERROR_PRINT_TO_LOG", False)
+    zephyr_add_prj_conf("DK_LIBRARY", False)
+
+    cg.add_build_flag("-Wl,--wrap=zb_zcl_put_reporting_info_from_req")
 
     if CONF_IEEE802154_VENDOR_OUI in config:
         zephyr_add_prj_conf("IEEE802154_VENDOR_OUI_ENABLE", True)
@@ -166,15 +130,22 @@ async def zephyr_to_code(config: ConfigType) -> None:
                 "USE_ZIGBEE_WIPE_ON_BOOT_MAGIC", random.randint(0x000001, 0xFFFFFF)
             )
         cg.add_define("USE_ZIGBEE_WIPE_ON_BOOT")
-    var = cg.new_Pvariable(config[CONF_ID])
 
-    if on_join_config := config.get(CONF_ON_JOIN):
-        await automation.build_automation(var.get_join_trigger(), [], on_join_config)
+    # Generate attribute lists before any await that could yield (e.g., build_automation
+    # waiting for variables from other components). If the hub's priority decays while
+    # yielding, deferred entity jobs may add cluster list globals that reference these
+    # attribute lists before they're declared.
+    await _attr_to_code(config)
+
+    var = cg.new_Pvariable(config[CONF_ID])
 
     await cg.register_component(var, config)
 
-    await _attr_to_code(config)
     CORE.add_job(_ctx_to_code, config)
+
+    cg.add(var.set_sleepy(config[CONF_SLEEPY]))
+
+    return var
 
 
 async def _attr_to_code(config: ConfigType) -> None:
@@ -188,9 +159,12 @@ async def _attr_to_code(config: ConfigType) -> None:
         zigbee_assign(basic_attrs.stack_version, 0),
         zigbee_assign(basic_attrs.hw_version, 0),
         zigbee_set_string(basic_attrs.mf_name, "esphome"),
-        zigbee_set_string(basic_attrs.model_id, CORE.name),
+        zigbee_set_string(basic_attrs.model_id, config[CONF_MODEL]),
         zigbee_set_string(
-            basic_attrs.date_code, datetime.now().strftime("%d/%m/%y %H:%M")
+            basic_attrs.date_code,
+            # Local build time, matching the esp32 implementation
+            # (App.get_build_time() in C++).
+            datetime.datetime.now().astimezone().strftime("%Y%m%d %H%M%S"),
         ),
         zigbee_assign(
             basic_attrs.power_source,
@@ -344,6 +318,16 @@ async def zephyr_setup_switch(entity: cg.MockObj, config: ConfigType) -> None:
     CORE.add_job(_add_switch, entity, config)
 
 
+async def zephyr_setup_number(
+    entity: cg.MockObj,
+    config: ConfigType,
+    min_value: float,
+    max_value: float,
+    step: float,
+) -> None:
+    CORE.add_job(_add_number, entity, config, min_value, max_value, step)
+
+
 def get_slot_index() -> int:
     """Find the next available endpoint slot."""
     slot = next(
@@ -450,4 +434,32 @@ async def _add_switch(entity: cg.MockObj, config: ConfigType) -> None:
         "ESPHOME_ZB_ZCL_DECLARE_BINARY_OUTPUT_ATTRIB_LIST",
         ZB_ZCL_CLUSTER_ID_BINARY_OUTPUT,
         "ZB_HA_CUSTOM_ATTR_DEVICE_ID",
+    )
+
+
+async def _add_number(
+    entity: cg.MockObj,
+    config: ConfigType,
+    min_value: float,
+    max_value: float,
+    step: float,
+) -> None:
+    # Get BACnet engineering unit from unit_of_measurement
+    unit = config.get(CONF_UNIT_OF_MEASUREMENT, "")
+    bacnet_unit = BACNET_UNITS.get(unit, BACNET_UNIT_NO_UNITS)
+
+    await _add_zigbee_ep(
+        entity,
+        config,
+        CONF_ZIGBEE_NUMBER,
+        AnalogAttrsOutput,
+        "ESPHOME_ZB_ZCL_DECLARE_ANALOG_OUTPUT_ATTRIB_LIST",
+        ZB_ZCL_CLUSTER_ID_ANALOG_OUTPUT,
+        "ZB_HA_CUSTOM_ATTR_DEVICE_ID",
+        extra_field_values={
+            "max_present_value": max_value,
+            "min_present_value": min_value,
+            "resolution": step,
+            "engineering_units": bacnet_unit,
+        },
     )

@@ -1,7 +1,14 @@
+import logging
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import light
-from esphome.components.esp32 import VARIANT_ESP32C3, VARIANT_ESP32S3, get_esp32_variant
+from esphome.components.esp32 import (
+    VARIANT_ESP32C3,
+    VARIANT_ESP32S3,
+    get_esp32_variant,
+    include_builtin_idf_component,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANNEL,
@@ -17,6 +24,7 @@ from esphome.const import (
     Framework,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 from ._methods import (
     METHOD_BIT_BANG,
@@ -28,6 +36,8 @@ from ._methods import (
     METHODS,
 )
 from .const import CHIP_TYPES, CONF_ASYNC, CONF_BUS, ONE_WIRE_CHIPS
+
+_LOGGER = logging.getLogger(__name__)
 
 neopixelbus_ns = cg.esphome_ns.namespace("neopixelbus")
 NeoPixelBusLightOutputBase = neopixelbus_ns.class_(
@@ -129,6 +139,17 @@ def _validate(config):
     return config
 
 
+def _warn_esp32_deprecated(config: ConfigType) -> ConfigType:
+    if CORE.is_esp32:
+        _LOGGER.warning(
+            "'neopixelbus' on ESP32 is deprecated. The upstream library "
+            "(makuna/NeoPixelBus) is no longer actively maintained. Migrate "
+            "to 'esp32_rmt_led_strip'. Removal is targeted for 2027.1 but "
+            "may happen sooner once ESPHome moves to ESP-IDF 6."
+        )
+    return config
+
+
 def _validate_method(value):
     if value is None:
         # default method is determined afterwards because it depends on the chip type chosen
@@ -190,6 +211,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     _choose_default_method,
     _validate,
+    _warn_esp32_deprecated,
 )
 
 
@@ -204,6 +226,10 @@ async def to_code(config):
 
     has_white = "W" in config[CONF_TYPE]
     method = config[CONF_METHOD]
+
+    # Re-enable ESP-IDF's RMT driver if using RMT method (excluded by default)
+    if CORE.is_esp32 and method[CONF_TYPE] == METHOD_ESP32_RMT:
+        include_builtin_idf_component("esp_driver_rmt")
 
     method_template = METHODS[method[CONF_TYPE]].to_code(
         method, config[CONF_VARIANT], config[CONF_INVERT]
@@ -235,6 +261,7 @@ async def to_code(config):
         # disable built in rgb support as it uses the new RMT drivers and will
         # conflict with NeoPixelBus which uses the legacy drivers
         cg.add_build_flag("-DESP32_ARDUINO_NO_RGB_BUILTIN")
+        cg.add_library("SPI", None)
         cg.add_library("makuna/NeoPixelBus", "2.8.0")
     else:
         cg.add_library("makuna/NeoPixelBus", "2.7.3")

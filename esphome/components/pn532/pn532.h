@@ -10,8 +10,7 @@
 #include <cinttypes>
 #include <vector>
 
-namespace esphome {
-namespace pn532 {
+namespace esphome::pn532 {
 
 static const uint8_t PN532_COMMAND_VERSION_DATA = 0x02;
 static const uint8_t PN532_COMMAND_SAMCONFIGURATION = 0x14;
@@ -35,7 +34,6 @@ class PN532 : public PollingComponent {
   void dump_config() override;
 
   void update() override;
-  float get_setup_priority() const override;
 
   void loop() override;
   void on_powerdown() override { powerdown(); }
@@ -44,8 +42,8 @@ class PN532 : public PollingComponent {
   void register_ontag_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
   void register_ontagremoved_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
 
-  void add_on_finished_write_callback(std::function<void()> callback) {
-    this->on_finished_write_callback_.add(std::move(callback));
+  template<typename F> void add_on_finished_write_callback(F &&callback) {
+    this->on_finished_write_callback_.add(std::forward<F>(callback));
   }
 
   bool is_writing() { return this->next_task_ != READ; };
@@ -77,7 +75,7 @@ class PN532 : public PollingComponent {
 
   std::unique_ptr<nfc::NfcTag> read_mifare_classic_tag_(nfc::NfcTagUid &uid);
   bool read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data);
-  bool write_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data);
+  bool write_mifare_classic_block_(uint8_t block_num, const uint8_t *data, size_t len);
   bool auth_mifare_classic_block_(nfc::NfcTagUid &uid, uint8_t block_num, uint8_t key_num, const uint8_t *key);
   bool format_mifare_classic_mifare_(nfc::NfcTagUid &uid);
   bool format_mifare_classic_ndef_(nfc::NfcTagUid &uid);
@@ -89,7 +87,7 @@ class PN532 : public PollingComponent {
   uint16_t read_mifare_ultralight_capacity_();
   bool find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_3_to_6, uint8_t &message_length,
                                     uint8_t &message_start_index);
-  bool write_mifare_ultralight_page_(uint8_t page_num, std::vector<uint8_t> &write_data);
+  bool write_mifare_ultralight_page_(uint8_t page_num, const uint8_t *write_data, size_t len);
   bool write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message);
   bool clean_mifare_ultralight_();
 
@@ -100,7 +98,7 @@ class PN532 : public PollingComponent {
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
   nfc::NfcTagUid current_uid_;
   nfc::NdefMessage *next_task_message_to_write_;
-  uint32_t rd_start_time_{0};
+  optional<uint32_t> rd_start_time_{};
   enum PN532ReadReady rd_ready_ { WOULDBLOCK };
   enum NfcTask {
     READ = 0,
@@ -134,17 +132,9 @@ class PN532BinarySensor : public binary_sensor::BinarySensor {
   bool found_{false};
 };
 
-class PN532OnFinishedWriteTrigger : public Trigger<> {
- public:
-  explicit PN532OnFinishedWriteTrigger(PN532 *parent) {
-    parent->add_on_finished_write_callback([this]() { this->trigger(); });
-  }
-};
-
 template<typename... Ts> class PN532IsWritingCondition : public Condition<Ts...>, public Parented<PN532> {
  public:
   bool check(const Ts &...x) override { return this->parent_->is_writing(); }
 };
 
-}  // namespace pn532
-}  // namespace esphome
+}  // namespace esphome::pn532

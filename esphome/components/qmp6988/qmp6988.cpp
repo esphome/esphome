@@ -1,8 +1,9 @@
 #include "qmp6988.h"
+
+#include <cinttypes>
 #include <cmath>
 
-namespace esphome {
-namespace qmp6988 {
+namespace esphome::qmp6988 {
 
 static const uint8_t QMP6988_CHIP_ID = 0x5C;
 
@@ -128,15 +129,14 @@ bool QMP6988Component::get_calibration_data_() {
   qmp6988_data_.qmp6988_cali.COE_bp3 = (int16_t) encode_uint16(a_data_uint8_tr[16], a_data_uint8_tr[17]);
 
   ESP_LOGV(TAG,
-           "<-----------calibration data-------------->\n"
-           "COE_a0[%d] COE_a1[%d] COE_a2[%d] COE_b00[%d]",
+           "Calibration data:\n"
+           "  COE_a0[%" PRId32 "] COE_a1[%d] COE_a2[%d] COE_b00[%" PRId32 "]\n"
+           "  COE_bt1[%d] COE_bt2[%d] COE_bp1[%d] COE_b11[%d]\n"
+           "  COE_bp2[%d] COE_b12[%d] COE_b21[%d] COE_bp3[%d]",
            qmp6988_data_.qmp6988_cali.COE_a0, qmp6988_data_.qmp6988_cali.COE_a1, qmp6988_data_.qmp6988_cali.COE_a2,
-           qmp6988_data_.qmp6988_cali.COE_b00);
-  ESP_LOGV(TAG, "COE_bt1[%d] COE_bt2[%d] COE_bp1[%d] COE_b11[%d]\r\n", qmp6988_data_.qmp6988_cali.COE_bt1,
-           qmp6988_data_.qmp6988_cali.COE_bt2, qmp6988_data_.qmp6988_cali.COE_bp1, qmp6988_data_.qmp6988_cali.COE_b11);
-  ESP_LOGV(TAG, "COE_bp2[%d] COE_b12[%d] COE_b21[%d] COE_bp3[%d]\r\n", qmp6988_data_.qmp6988_cali.COE_bp2,
+           qmp6988_data_.qmp6988_cali.COE_b00, qmp6988_data_.qmp6988_cali.COE_bt1, qmp6988_data_.qmp6988_cali.COE_bt2,
+           qmp6988_data_.qmp6988_cali.COE_bp1, qmp6988_data_.qmp6988_cali.COE_b11, qmp6988_data_.qmp6988_cali.COE_bp2,
            qmp6988_data_.qmp6988_cali.COE_b12, qmp6988_data_.qmp6988_cali.COE_b21, qmp6988_data_.qmp6988_cali.COE_bp3);
-  ESP_LOGV(TAG, "<-----------calibration data-------------->\r\n");
 
   qmp6988_data_.ik.a0 = qmp6988_data_.qmp6988_cali.COE_a0;    // 20Q4
   qmp6988_data_.ik.b00 = qmp6988_data_.qmp6988_cali.COE_b00;  // 20Q4
@@ -153,14 +153,13 @@ bool QMP6988Component::get_calibration_data_() {
   qmp6988_data_.ik.b21 = 13836L * (int64_t) qmp6988_data_.qmp6988_cali.COE_b21 + 79333336L;    // 29Q60
   qmp6988_data_.ik.bp3 = 2915L * (int64_t) qmp6988_data_.qmp6988_cali.COE_bp3 + 157155561L;    // 28Q65
   ESP_LOGV(TAG,
-           "<----------- int calibration data -------------->\n"
-           "a0[%d] a1[%d] a2[%d] b00[%d]",
-           qmp6988_data_.ik.a0, qmp6988_data_.ik.a1, qmp6988_data_.ik.a2, qmp6988_data_.ik.b00);
-  ESP_LOGV(TAG, "bt1[%lld] bt2[%lld] bp1[%lld] b11[%lld]\r\n", qmp6988_data_.ik.bt1, qmp6988_data_.ik.bt2,
-           qmp6988_data_.ik.bp1, qmp6988_data_.ik.b11);
-  ESP_LOGV(TAG, "bp2[%lld] b12[%lld] b21[%lld] bp3[%lld]\r\n", qmp6988_data_.ik.bp2, qmp6988_data_.ik.b12,
+           "Int calibration data:\n"
+           "  a0[%" PRId32 "] a1[%" PRId32 "] a2[%" PRId32 "] b00[%" PRId32 "]\n"
+           "  bt1[%lld] bt2[%lld] bp1[%lld] b11[%lld]\n"
+           "  bp2[%lld] b12[%lld] b21[%lld] bp3[%lld]",
+           qmp6988_data_.ik.a0, qmp6988_data_.ik.a1, qmp6988_data_.ik.a2, qmp6988_data_.ik.b00, qmp6988_data_.ik.bt1,
+           qmp6988_data_.ik.bt2, qmp6988_data_.ik.bp1, qmp6988_data_.ik.b11, qmp6988_data_.ik.bp2, qmp6988_data_.ik.b12,
            qmp6988_data_.ik.b21, qmp6988_data_.ik.bp3);
-  ESP_LOGV(TAG, "<----------- int calibration data -------------->\r\n");
   return true;
 }
 
@@ -217,10 +216,7 @@ int32_t QMP6988Component::get_compensated_pressure_(qmp6988_ik_data_t *ik, int32
 }
 
 void QMP6988Component::software_reset_() {
-  uint8_t ret = 0;
-
-  ret = this->write_byte(QMP6988_RESET_REG, 0xe6);
-  if (ret != i2c::ERROR_OK) {
+  if (!this->write_byte(QMP6988_RESET_REG, 0xe6)) {
     ESP_LOGE(TAG, "Software Reset (0xe6) failed");
   }
   delay(10);
@@ -253,7 +249,7 @@ void QMP6988Component::set_power_mode_(uint8_t power_mode) {
 void QMP6988Component::write_filter_(QMP6988IIRFilter filter) {
   uint8_t data;
 
-  data = (filter & 0x03);
+  data = (filter & QMP6988_CONFIG_REG_FILTER_MSK);
   this->write_byte(QMP6988_CONFIG_REG, data);
   delay(10);
 }
@@ -284,20 +280,21 @@ void QMP6988Component::calculate_altitude_(float pressure, float temp) {
   this->qmp6988_data_.altitude = altitude;
 }
 
-void QMP6988Component::calculate_pressure_() {
+bool QMP6988Component::calculate_pressure_() {
   uint8_t err = 0;
   uint32_t p_read, t_read;
   int32_t p_raw, t_raw;
   uint8_t a_data_uint8_tr[6] = {0};
   int32_t t_int, p_int;
-  this->qmp6988_data_.temperature = 0;
-  this->qmp6988_data_.pressure = 0;
 
   err = this->read_register(QMP6988_PRESSURE_MSB_REG, a_data_uint8_tr, 6);
   if (err != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Error reading raw pressure/temp values");
-    return;
+    this->status_set_warning();
+    return false;
   }
+  this->status_clear_warning();
+
   p_read = encode_uint24(a_data_uint8_tr[0], a_data_uint8_tr[1], a_data_uint8_tr[2]);
   p_raw = (int32_t) (p_read - SUBTRACTOR);
 
@@ -309,6 +306,7 @@ void QMP6988Component::calculate_pressure_() {
 
   this->qmp6988_data_.temperature = (float) t_int / 256.0f;
   this->qmp6988_data_.pressure = (float) p_int / 16.0f;
+  return true;
 }
 
 void QMP6988Component::setup() {
@@ -340,7 +338,10 @@ void QMP6988Component::dump_config() {
 }
 
 void QMP6988Component::update() {
-  this->calculate_pressure_();
+  if (!this->calculate_pressure_()) {
+    return;
+  }
+
   float pressurehectopascals = this->qmp6988_data_.pressure / 100;
   float temperature = this->qmp6988_data_.temperature;
 
@@ -351,5 +352,4 @@ void QMP6988Component::update() {
     this->pressure_sensor_->publish_state(pressurehectopascals);
 }
 
-}  // namespace qmp6988
-}  // namespace esphome
+}  // namespace esphome::qmp6988

@@ -190,7 +190,7 @@ void AcDimmer::setup() {
     this->zero_cross_pin_->setup();
     this->store_.zero_cross_pin = this->zero_cross_pin_->to_isr();
     this->zero_cross_pin_->attach_interrupt(&AcDimmerDataStore::s_gpio_intr, &this->store_,
-                                            gpio::INTERRUPT_FALLING_EDGE);
+                                            this->zero_cross_interrupt_type_);
   }
 
 #ifdef USE_ESP8266
@@ -199,12 +199,19 @@ void AcDimmer::setup() {
   setTimer1Callback(&timer_interrupt);
 #endif
 #ifdef USE_ESP32
-  dimmer_timer = timer_begin(TIMER_FREQUENCY_HZ);
-  timer_attach_interrupt(dimmer_timer, &AcDimmerDataStore::s_timer_intr);
-  // For ESP32, we can't use dynamic interval calculation because the timerX functions
-  // are not callable from ISR (placed in flash storage).
-  // Here we just use an interrupt firing every 50 µs.
-  timer_alarm(dimmer_timer, TIMER_INTERVAL_US, true, 0);
+  if (dimmer_timer == nullptr) {
+    dimmer_timer = timer_begin(TIMER_FREQUENCY_HZ);
+    if (dimmer_timer == nullptr) {
+      ESP_LOGE(TAG, "Failed to create GPTimer for AC dimmer");
+      this->mark_failed();
+      return;
+    }
+    timer_attach_interrupt(dimmer_timer, &AcDimmerDataStore::s_timer_intr);
+    // For ESP32, we can't use dynamic interval calculation because the timerX functions
+    // are not callable from ISR (placed in flash storage).
+    // Here we just use an interrupt firing every 50 µs.
+    timer_alarm(dimmer_timer, TIMER_INTERVAL_US, true, 0);
+  }
 #endif
 }
 
@@ -219,19 +226,25 @@ void AcDimmer::write_state(float state) {
 void AcDimmer::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "AcDimmer:\n"
-                "   Min Power: %.1f%%\n"
-                "   Init with half cycle: %s",
+                "  Min Power: %.1f%%\n"
+                "  Init with half cycle: %s",
                 this->store_.min_power / 10.0f, YESNO(this->init_with_half_cycle_));
   LOG_PIN("  Output Pin: ", this->gate_pin_);
   LOG_PIN("  Zero-Cross Pin: ", this->zero_cross_pin_);
-  if (method_ == DIM_METHOD_LEADING_PULSE) {
-    ESP_LOGCONFIG(TAG, "   Method: leading pulse");
-  } else if (method_ == DIM_METHOD_LEADING) {
-    ESP_LOGCONFIG(TAG, "   Method: leading");
+  if (this->zero_cross_interrupt_type_ == gpio::INTERRUPT_RISING_EDGE) {
+    ESP_LOGCONFIG(TAG, "  Interrupt Type: rising");
+  } else if (this->zero_cross_interrupt_type_ == gpio::INTERRUPT_FALLING_EDGE) {
+    ESP_LOGCONFIG(TAG, "  Interrupt Type: falling");
   } else {
-    ESP_LOGCONFIG(TAG, "   Method: trailing");
+    ESP_LOGCONFIG(TAG, "  Interrupt Type: any");
   }
-
+  if (method_ == DIM_METHOD_LEADING_PULSE) {
+    ESP_LOGCONFIG(TAG, "  Method: leading pulse");
+  } else if (method_ == DIM_METHOD_LEADING) {
+    ESP_LOGCONFIG(TAG, "  Method: leading");
+  } else {
+    ESP_LOGCONFIG(TAG, "  Method: trailing");
+  }
   LOG_FLOAT_OUTPUT(this);
   ESP_LOGV(TAG, "  Estimated Frequency: %.3fHz", 1e6f / this->store_.cycle_time_us / 2);
 }

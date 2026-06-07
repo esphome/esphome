@@ -7,9 +7,7 @@
 #include <cmath>
 #include <cstdint>
 
-namespace esphome {
-namespace midea {
-namespace ac {
+namespace esphome::midea::ac {
 
 static void set_sensor(Sensor *sensor, float value) {
   if (sensor != nullptr && (!sensor->has_state() || sensor->get_raw_state() != value))
@@ -24,6 +22,26 @@ template<typename T> void update_property(T &property, const T &value, bool &fla
 }
 
 void AirConditioner::on_status_change() {
+  // Add frost protection custom preset once when autoconf completes
+  if (this->base_.getAutoconfStatus() == dudanov::midea::AUTOCONF_OK &&
+      this->base_.getCapabilities().supportFrostProtectionPreset() && !this->frost_protection_set_) {
+    // Read existing presets (set by codegen), append frost protection, write back
+    auto traits = this->get_traits();
+    const auto &existing = traits.get_supported_custom_presets();
+    bool found = false;
+    for (const char *p : existing) {
+      if (strcmp(p, Constants::FREEZE_PROTECTION) == 0) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      std::vector<const char *> merged(existing.begin(), existing.end());
+      merged.push_back(Constants::FREEZE_PROTECTION);
+      this->set_supported_custom_presets(merged);
+    }
+    this->frost_protection_set_ = true;
+  }
   bool need_publish = false;
   update_property(this->target_temperature, this->base_.getTargetTemp(), need_publish);
   update_property(this->current_temperature, this->base_.getIndoorTemp(), need_publish);
@@ -56,20 +74,25 @@ void AirConditioner::on_status_change() {
 
 void AirConditioner::control(const ClimateCall &call) {
   dudanov::midea::ac::Control ctrl{};
-  if (call.get_target_temperature().has_value())
-    ctrl.targetTemp = call.get_target_temperature().value();
-  if (call.get_swing_mode().has_value())
-    ctrl.swingMode = Converters::to_midea_swing_mode(call.get_swing_mode().value());
-  if (call.get_mode().has_value())
-    ctrl.mode = Converters::to_midea_mode(call.get_mode().value());
-  if (call.get_preset().has_value()) {
-    ctrl.preset = Converters::to_midea_preset(call.get_preset().value());
+  auto target_temp_val = call.get_target_temperature();
+  if (target_temp_val.has_value())
+    ctrl.targetTemp = *target_temp_val;
+  auto swing_mode_val = call.get_swing_mode();
+  if (swing_mode_val.has_value())
+    ctrl.swingMode = Converters::to_midea_swing_mode(*swing_mode_val);
+  auto mode_val = call.get_mode();
+  if (mode_val.has_value())
+    ctrl.mode = Converters::to_midea_mode(*mode_val);
+  auto preset_val = call.get_preset();
+  if (preset_val.has_value()) {
+    ctrl.preset = Converters::to_midea_preset(*preset_val);
   } else if (call.has_custom_preset()) {
     // get_custom_preset() returns StringRef pointing to null-terminated string literals from codegen
     ctrl.preset = Converters::to_midea_preset(call.get_custom_preset().c_str());
   }
-  if (call.get_fan_mode().has_value()) {
-    ctrl.fanMode = Converters::to_midea_fan_mode(call.get_fan_mode().value());
+  auto fan_mode_val = call.get_fan_mode();
+  if (fan_mode_val.has_value()) {
+    ctrl.fanMode = Converters::to_midea_fan_mode(*fan_mode_val);
   } else if (call.has_custom_fan_mode()) {
     // get_custom_fan_mode() returns StringRef pointing to null-terminated string literals from codegen
     ctrl.fanMode = Converters::to_midea_fan_mode(call.get_custom_fan_mode().c_str());
@@ -86,17 +109,15 @@ ClimateTraits AirConditioner::traits() {
   traits.set_supported_modes(this->supported_modes_);
   traits.set_supported_swing_modes(this->supported_swing_modes_);
   traits.set_supported_presets(this->supported_presets_);
-  if (!this->supported_custom_presets_.empty())
-    traits.set_supported_custom_presets(this->supported_custom_presets_);
-  if (!this->supported_custom_fan_modes_.empty())
-    traits.set_supported_custom_fan_modes(this->supported_custom_fan_modes_);
+  // Custom fan modes and presets are stored on Climate base class and wired via get_traits()
   /* + MINIMAL SET OF CAPABILITIES */
   traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_AUTO);
   traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_LOW);
   traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_MEDIUM);
   traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_HIGH);
-  if (this->base_.getAutoconfStatus() == dudanov::midea::AUTOCONF_OK)
+  if (this->base_.getAutoconfStatus() == dudanov::midea::AUTOCONF_OK) {
     Converters::to_climate_traits(traits, this->base_.getCapabilities());
+  }
   if (!traits.get_supported_modes().empty())
     traits.add_supported_mode(ClimateMode::CLIMATE_MODE_OFF);
   if (!traits.get_supported_swing_modes().empty())
@@ -109,8 +130,8 @@ ClimateTraits AirConditioner::traits() {
 void AirConditioner::dump_config() {
   ESP_LOGCONFIG(Constants::TAG,
                 "MideaDongle:\n"
-                "  [x] Period: %dms\n"
-                "  [x] Response timeout: %dms\n"
+                "  [x] Period: %" PRIu32 "ms\n"
+                "  [x] Response timeout: %" PRIu32 "ms\n"
                 "  [x] Request attempts: %d",
                 this->base_.getPeriod(), this->base_.getTimeout(), this->base_.getNumAttempts());
 #ifdef USE_REMOTE_TRANSMITTER
@@ -174,8 +195,6 @@ void AirConditioner::do_display_toggle() {
   }
 }
 
-}  // namespace ac
-}  // namespace midea
-}  // namespace esphome
+}  // namespace esphome::midea::ac
 
 #endif  // USE_ARDUINO

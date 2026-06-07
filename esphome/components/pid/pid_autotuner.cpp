@@ -6,8 +6,7 @@
 #define M_PI 3.1415926535897932384626433
 #endif
 
-namespace esphome {
-namespace pid {
+namespace esphome::pid {
 
 static const char *const TAG = "pid.autotune";
 
@@ -97,14 +96,14 @@ PIDAutotuner::PIDAutotuneResult PIDAutotuner::update(float setpoint, float proce
   }
 
   bool zc_symmetrical = this->frequency_detector_.is_increase_decrease_symmetrical();
-  bool amplitude_convergent = this->frequency_detector_.is_increase_decrease_symmetrical();
+  bool amplitude_convergent = this->amplitude_detector_.is_amplitude_convergent();
   if (!zc_symmetrical || !amplitude_convergent) {
     // The frequency/amplitude is not fully accurate yet, try to wait
     // until the fault clears, or terminate after a while anyway
-    if (zc_symmetrical) {
+    if (!zc_symmetrical) {
       ESP_LOGVV(TAG, "%s:   ZC is not symmetrical", this->id_.c_str());
     }
-    if (amplitude_convergent) {
+    if (!amplitude_convergent) {
       ESP_LOGVV(TAG, "%s:   Amplitude is not convergent", this->id_.c_str());
     }
     uint32_t phase = this->relay_function_.phase_count;
@@ -362,11 +361,10 @@ bool PIDAutotuner::OscillationAmplitudeDetector::is_amplitude_convergent() const
   for (auto v : this->phase_mins)
     global_min = std::min(global_min, v);
   for (auto v : this->phase_maxs)
-    global_max = std::min(global_max, v);
+    global_max = std::max(global_max, v);
   float global_amplitude = (global_max - global_min) / 2.0f;
   float mean_amplitude = this->get_mean_oscillation_amplitude();
   return (mean_amplitude - global_amplitude) / (global_amplitude) < 0.05f;
 }
 
-}  // namespace pid
-}  // namespace esphome
+}  // namespace esphome::pid

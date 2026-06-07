@@ -6,8 +6,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace ble_presence {
+namespace esphome::ble_presence {
 
 class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
                           public esp32_ble_tracker::ESPBTDeviceListener,
@@ -76,11 +75,12 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
         }
         break;
       case MATCH_BY_IBEACON_UUID:
-        if (!device.get_ibeacon().has_value()) {
+        auto maybe_ibeacon = device.get_ibeacon();
+        if (!maybe_ibeacon.has_value()) {
           return false;
         }
 
-        auto ibeacon = device.get_ibeacon().value();
+        auto ibeacon = *maybe_ibeacon;
 
         if (this->ibeacon_uuid_ != ibeacon.get_uuid()) {
           return false;
@@ -101,7 +101,7 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
   }
 
   void loop() override {
-    if (this->found_ && this->last_seen_ + this->timeout_ < millis())
+    if (this->found_ && millis() - this->last_seen_ > this->timeout_)
       this->set_found_(false);
   }
   void dump_config() override;
@@ -136,7 +136,6 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
   uint32_t timeout_{};
 };
 
-}  // namespace ble_presence
-}  // namespace esphome
+}  // namespace esphome::ble_presence
 
 #endif

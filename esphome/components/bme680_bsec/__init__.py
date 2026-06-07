@@ -6,6 +6,7 @@ from esphome.const import CONF_ID, CONF_SAMPLE_RATE, CONF_TEMPERATURE_OFFSET, Fr
 CODEOWNERS = ["@trvrnrth"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensor", "text_sensor"]
+CONFLICTS_WITH = ["bme68x_bsec2"]
 MULTI_CONF = True
 
 CONF_BME680_BSEC_ID = "bme680_bsec_id"
@@ -89,8 +90,9 @@ async def to_code(config):
         var.set_state_save_interval(config[CONF_STATE_SAVE_INTERVAL].total_milliseconds)
     )
 
-    # Although this component does not use SPI, the BSEC library requires the SPI library
+    # Although this component does not use SPI/Wire directly, the BSEC library requires them
     cg.add_library("SPI", None)
+    cg.add_library("Wire", None)
 
     cg.add_define("USE_BSEC")
     cg.add_library("boschsensortec/BSEC Software Library", "1.6.1480")

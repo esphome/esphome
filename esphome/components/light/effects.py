@@ -51,6 +51,7 @@ from .types import (
     FlickerLightEffect,
     LambdaLightEffect,
     LightColorValues,
+    LightStateRef,
     PulseLightEffect,
     RandomLightEffect,
     StrobeLightEffect,
@@ -175,7 +176,9 @@ def register_addressable_effect(
 )
 async def lambda_effect_to_code(config, effect_id):
     lambda_ = await cg.process_lambda(
-        config[CONF_LAMBDA], [(bool, "initial_run")], return_type=cg.void
+        config[CONF_LAMBDA],
+        [(LightStateRef, "it"), (bool, "initial_run")],
+        return_type=cg.void,
     )
     return cg.new_Pvariable(
         effect_id, config[CONF_NAME], lambda_, config[CONF_UPDATE_INTERVAL]
@@ -392,7 +395,7 @@ async def addressable_lambda_effect_to_code(config, effect_id):
     "Rainbow",
     {
         cv.Optional(CONF_SPEED, default=10): cv.uint32_t,
-        cv.Optional(CONF_WIDTH, default=50): cv.uint32_t,
+        cv.Optional(CONF_WIDTH, default=50): cv.int_range(min=1, max=65535),
     },
 )
 async def addressable_rainbow_effect_to_code(config, effect_id):

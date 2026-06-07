@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace ch422g {
+namespace esphome::ch422g {
 
 class CH422GComponent : public Component, public i2c::I2CDevice {
  public:
@@ -23,7 +22,6 @@ class CH422GComponent : public Component, public i2c::I2CDevice {
   void pin_mode(uint8_t pin, gpio::Flags flags);
 
   float get_setup_priority() const override;
-  float get_loop_priority() const override;
   void dump_config() override;
 
  protected:
@@ -66,5 +64,4 @@ class CH422GGPIOPin : public GPIOPin {
   gpio::Flags flags_{};
 };
 
-}  // namespace ch422g
-}  // namespace esphome
+}  // namespace esphome::ch422g

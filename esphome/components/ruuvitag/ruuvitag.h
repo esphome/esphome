@@ -7,8 +7,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace ruuvitag {
+namespace esphome::ruuvitag {
 
 class RuuviTag : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
@@ -77,7 +76,6 @@ class RuuviTag : public Component, public esp32_ble_tracker::ESPBTDeviceListener
   sensor::Sensor *measurement_sequence_number_{nullptr};
 };
 
-}  // namespace ruuvitag
-}  // namespace esphome
+}  // namespace esphome::ruuvitag
 
 #endif

@@ -10,8 +10,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
 
-namespace esphome {
-namespace event {
+namespace esphome::event {
 
 #define LOG_EVENT(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -20,7 +19,7 @@ namespace event {
     LOG_ENTITY_DEVICE_CLASS(TAG, prefix, *(obj)); \
   }
 
-class Event : public EntityBase, public EntityBase_DeviceClass {
+class Event : public EntityBase {
  public:
   void trigger(const std::string &event_type);
 
@@ -66,7 +65,9 @@ class Event : public EntityBase, public EntityBase_DeviceClass {
   /// Check if an event has been triggered.
   bool has_event() const { return this->last_event_type_ != nullptr; }
 
-  void add_on_event_callback(std::function<void(StringRef event_type)> &&callback);
+  template<typename F> void add_on_event_callback(F &&callback) {
+    this->event_callback_.add(std::forward<F>(callback));
+  }
 
  protected:
   LazyCallbackManager<void(StringRef event_type)> event_callback_;
@@ -78,5 +79,4 @@ class Event : public EntityBase, public EntityBase_DeviceClass {
   const char *last_event_type_{nullptr};
 };
 
-}  // namespace event
-}  // namespace esphome
+}  // namespace esphome::event

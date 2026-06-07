@@ -50,7 +50,7 @@ void ZigbeeSwitch::zcl_device_cb_(zb_bufid_t bufid) {
         if (attr_id == ZB_ZCL_ATTR_BINARY_OUTPUT_PRESENT_VALUE_ID) {
           this->defer([this, value]() {
             this->cluster_attributes_->present_value = value ? ZB_TRUE : ZB_FALSE;
-            this->switch_->publish_state(value);
+            this->switch_->control(value);
           });
         }
       } else {

@@ -8,8 +8,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace mcp3221 {
+namespace esphome::mcp3221 {
 
 class MCP3221Sensor : public sensor::Sensor,
                       public PollingComponent,
@@ -24,5 +23,4 @@ class MCP3221Sensor : public sensor::Sensor,
   float reference_voltage_;
 };
 
-}  // namespace mcp3221
-}  // namespace esphome
+}  // namespace esphome::mcp3221

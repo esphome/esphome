@@ -5,13 +5,10 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace cm1106 {
+namespace esphome::cm1106 {
 
 class CM1106Component : public PollingComponent, public uart::UARTDevice {
  public:
-  float get_setup_priority() const override { return esphome::setup_priority::DATA; }
-
   void setup() override;
   void update() override;
   void dump_config() override;
@@ -36,5 +33,4 @@ template<typename... Ts> class CM1106CalibrateZeroAction : public Action<Ts...> 
   CM1106Component *cm1106_;
 };
 
-}  // namespace cm1106
-}  // namespace esphome
+}  // namespace esphome::cm1106

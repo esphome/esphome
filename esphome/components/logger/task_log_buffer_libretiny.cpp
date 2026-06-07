@@ -1,40 +1,31 @@
 #ifdef USE_LIBRETINY
 
 #include "task_log_buffer_libretiny.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
 
 namespace esphome::logger {
 
-TaskLogBufferLibreTiny::TaskLogBufferLibreTiny(size_t total_buffer_size) {
-  this->size_ = total_buffer_size;
-  // Allocate memory for the circular buffer using ESPHome's RAM allocator
-  RAMAllocator<uint8_t> allocator;
-  this->storage_ = allocator.allocate(this->size_);
+TaskLogBuffer::TaskLogBuffer() {
   // Create mutex for thread-safe access
+  // Storage is a member array (embedded in Logger), no heap allocation needed
   this->mutex_ = xSemaphoreCreateMutex();
 }
 
-TaskLogBufferLibreTiny::~TaskLogBufferLibreTiny() {
+TaskLogBuffer::~TaskLogBuffer() {
   if (this->mutex_ != nullptr) {
     vSemaphoreDelete(this->mutex_);
     this->mutex_ = nullptr;
   }
-  if (this->storage_ != nullptr) {
-    RAMAllocator<uint8_t> allocator;
-    allocator.deallocate(this->storage_, this->size_);
-    this->storage_ = nullptr;
-  }
 }
 
-size_t TaskLogBufferLibreTiny::available_contiguous_space() const {
+size_t TaskLogBuffer::available_contiguous_space() const {
   if (this->head_ >= this->tail_) {
     // head is ahead of or equal to tail
     // Available space is from head to end, plus from start to tail
     // But for contiguous, just from head to end (minus 1 to avoid head==tail ambiguity)
-    size_t space_to_end = this->size_ - this->head_;
+    size_t space_to_end = ESPHOME_TASK_LOG_BUFFER_SIZE - this->head_;
     if (this->tail_ == 0) {
       // Can't use the last byte or head would equal tail
       return space_to_end > 0 ? space_to_end - 1 : 0;
@@ -47,13 +38,9 @@ size_t TaskLogBufferLibreTiny::available_contiguous_space() const {
   }
 }
 
-bool TaskLogBufferLibreTiny::borrow_message_main_loop(LogMessage **message, const char **text) {
-  if (message == nullptr || text == nullptr) {
-    return false;
-  }
-
-  // Check if buffer was initialized successfully
-  if (this->mutex_ == nullptr || this->storage_ == nullptr) {
+bool TaskLogBuffer::borrow_message_main_loop(LogMessage *&message, uint16_t &text_length) {
+  // Check if mutex was initialized successfully
+  if (this->mutex_ == nullptr) {
     return false;
   }
 
@@ -77,20 +64,20 @@ bool TaskLogBufferLibreTiny::borrow_message_main_loop(LogMessage **message, cons
     this->tail_ = 0;
     msg = reinterpret_cast<LogMessage *>(this->storage_);
   }
-  *message = msg;
-  *text = msg->text_data();
+  message = msg;
+  text_length = msg->text_length;
   this->current_message_size_ = message_total_size(msg->text_length);
 
   // Keep mutex held until release_message_main_loop()
   return true;
 }
 
-void TaskLogBufferLibreTiny::release_message_main_loop() {
+void TaskLogBuffer::release_message_main_loop() {
   // Advance tail past the current message
   this->tail_ += this->current_message_size_;
 
   // Handle wrap-around if we've reached the end
-  if (this->tail_ >= this->size_) {
+  if (this->tail_ >= ESPHOME_TASK_LOG_BUFFER_SIZE) {
     this->tail_ = 0;
   }
 
@@ -100,8 +87,8 @@ void TaskLogBufferLibreTiny::release_message_main_loop() {
   xSemaphoreGive(this->mutex_);
 }
 
-bool TaskLogBufferLibreTiny::send_message_thread_safe(uint8_t level, const char *tag, uint16_t line,
-                                                      TaskHandle_t task_handle, const char *format, va_list args) {
+bool TaskLogBuffer::send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, const char *thread_name,
+                                             const char *format, va_list args) {
   // First, calculate the exact length needed using a null buffer (no actual writing)
   va_list args_copy;
   va_copy(args_copy, args);
@@ -119,9 +106,9 @@ bool TaskLogBufferLibreTiny::send_message_thread_safe(uint8_t level, const char 
   // Calculate total size needed (header + text length + null terminator)
   size_t total_size = message_total_size(text_length);
 
-  // Check if buffer was initialized successfully
-  if (this->mutex_ == nullptr || this->storage_ == nullptr) {
-    return false;  // Buffer not initialized, fall back to direct output
+  // Check if mutex was initialized successfully
+  if (this->mutex_ == nullptr) {
+    return false;  // Mutex not initialized, fall back to direct output
   }
 
   // Try to acquire mutex without blocking - don't block logging tasks
@@ -162,7 +149,6 @@ bool TaskLogBufferLibreTiny::send_message_thread_safe(uint8_t level, const char 
   msg->line = line;
 
   // Store the thread name now to avoid crashes if task is deleted before processing
-  const char *thread_name = pcTaskGetTaskName(task_handle);
   if (thread_name != nullptr) {
     strncpy(msg->thread_name, thread_name, sizeof(msg->thread_name) - 1);
     msg->thread_name[sizeof(msg->thread_name) - 1] = '\0';
@@ -190,7 +176,7 @@ bool TaskLogBufferLibreTiny::send_message_thread_safe(uint8_t level, const char 
   this->head_ += total_size;
 
   // Handle wrap-around (shouldn't happen due to contiguous space check, but be safe)
-  if (this->head_ >= this->size_) {
+  if (this->head_ >= ESPHOME_TASK_LOG_BUFFER_SIZE) {
     this->head_ = 0;
   }
 
