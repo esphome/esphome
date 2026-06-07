@@ -255,9 +255,9 @@ def final_validation(config_list):
         # keep RGB565 available for smaller memory footprints and experiments.
         user_set_depth = CONF_COLOR_DEPTH in config
         has_mipi = any(
-            global_config.get_config_for_path(global_config.get_path_for_id(did)[:-1]).get(
-                "platform", ""
-            )
+            global_config.get_config_for_path(
+                global_config.get_path_for_id(did)[:-1]
+            ).get("platform", "")
             == "mipi_dsi"
             for did in config[df.CONF_DISPLAYS]
         )

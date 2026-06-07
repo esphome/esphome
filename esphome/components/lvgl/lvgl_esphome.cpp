@@ -54,9 +54,7 @@ namespace esphome::lvgl {
 static const char *const TAG = "lvgl";
 
 #ifdef USE_MIPI_DSI
-static void lvgl_mipi_async_flush_ready(void *arg) {
-  lv_display_flush_ready(static_cast<lv_display_t *>(arg));
-}
+static void lvgl_mipi_async_flush_ready(void *arg) { lv_display_flush_ready(static_cast<lv_display_t *>(arg)); }
 #endif
 
 // Published CPU% (real work, flush wait excluded) for the LVGL sysmon
@@ -128,9 +126,7 @@ static uint64_t profiler_tick_us() {
 #endif
 }
 
-static int profiler_tid_get() {
-  return 1;
-}
+static int profiler_tid_get() { return 1; }
 
 static int profiler_cpu_get() {
 #ifdef USE_ESP32
@@ -289,11 +285,8 @@ static void profiler_print_summary() {
     return;
   uint64_t window_us = s_profiler_last_us > s_profiler_first_us ? s_profiler_last_us - s_profiler_first_us : 0;
   ESP_LOGI("lvgl.prof", "SUMMARY window=%lluus unique=%u drops=%u stack_overflow=%u open=%u",
-           (unsigned long long) window_us,
-           (unsigned) s_profiler_agg_count,
-           (unsigned) s_profiler_parse_drops,
-           (unsigned) s_profiler_stack_overflow,
-           (unsigned) s_profiler_stack_depth);
+           (unsigned long long) window_us, (unsigned) s_profiler_agg_count, (unsigned) s_profiler_parse_drops,
+           (unsigned) s_profiler_stack_overflow, (unsigned) s_profiler_stack_depth);
 
   bool selected[PROFILER_MAX_AGG] = {};
   const size_t limit = std::min<size_t>(12, s_profiler_agg_count);
@@ -310,12 +303,8 @@ static void profiler_print_summary() {
     selected[best] = true;
     const ProfilerAggEntry *entry = &s_profiler_aggs[best];
     uint32_t avg_us = entry->count == 0 ? 0 : (uint32_t) (entry->total_us / entry->count);
-    ESP_LOGI("lvgl.prof", "COST rank=%u total=%lluus avg=%uus max=%uus count=%u name=%s",
-             (unsigned) (rank + 1),
-             (unsigned long long) entry->total_us,
-             (unsigned) avg_us,
-             (unsigned) entry->max_us,
-             (unsigned) entry->count,
+    ESP_LOGI("lvgl.prof", "COST rank=%u total=%lluus avg=%uus max=%uus count=%u name=%s", (unsigned) (rank + 1),
+             (unsigned long long) entry->total_us, (unsigned) avg_us, (unsigned) entry->max_us, (unsigned) entry->count,
              entry->name);
   }
 }
@@ -341,24 +330,16 @@ static void profiler_print_manual_summary() {
 #endif
   ESP_LOGI("lvgl.prof",
            "PROFILE_COST window=%lluus loop_calls=%u loop_total=%lluus loop_avg=%uus loop_max=%uus loop_over_30ms=%u",
-           (unsigned long long) window_us,
-           (unsigned) s_profiler_manual.loop_calls,
-           (unsigned long long) s_profiler_manual.loop_total_us,
-           (unsigned) loop_avg_us,
-           (unsigned) s_profiler_manual.loop_max_us,
-           (unsigned) s_profiler_manual.loop_over_30ms);
-  ESP_LOGI("lvgl.prof",
-           "PROFILE_COST flush_calls=%u flush_total=%lluus flush_avg=%uus flush_max=%uus flush_px=%llukpx",
-           (unsigned) s_profiler_manual.flush_calls,
-           (unsigned long long) s_profiler_manual.flush_total_us,
-           (unsigned) flush_avg_us,
-           (unsigned) s_profiler_manual.flush_max_us,
+           (unsigned long long) window_us, (unsigned) s_profiler_manual.loop_calls,
+           (unsigned long long) s_profiler_manual.loop_total_us, (unsigned) loop_avg_us,
+           (unsigned) s_profiler_manual.loop_max_us, (unsigned) s_profiler_manual.loop_over_30ms);
+  ESP_LOGI("lvgl.prof", "PROFILE_COST flush_calls=%u flush_total=%lluus flush_avg=%uus flush_max=%uus flush_px=%llukpx",
+           (unsigned) s_profiler_manual.flush_calls, (unsigned long long) s_profiler_manual.flush_total_us,
+           (unsigned) flush_avg_us, (unsigned) s_profiler_manual.flush_max_us,
            (unsigned long long) (s_profiler_manual.flush_px / 1000ULL));
-  ESP_LOGI("lvgl.prof",
-           "PROFILE_COST invalidated=%u areas/%llukpx ppa_delta=%u/%u",
+  ESP_LOGI("lvgl.prof", "PROFILE_COST invalidated=%u areas/%llukpx ppa_delta=%u/%u",
            (unsigned) s_profiler_manual.invalidated_areas,
-           (unsigned long long) (s_profiler_manual.invalidated_px / 1000ULL),
-           (unsigned) ppa_fill_delta,
+           (unsigned long long) (s_profiler_manual.invalidated_px / 1000ULL), (unsigned) ppa_fill_delta,
            (unsigned) ppa_img_delta);
 }
 
@@ -485,24 +466,16 @@ static void profiler_print_manual_summary() {
 #endif
   ESP_LOGI("lvgl.prof",
            "PROFILE_COST window=%lluus loop_calls=%u loop_total=%lluus loop_avg=%uus loop_max=%uus loop_over_30ms=%u",
-           (unsigned long long) window_us,
-           (unsigned) s_profiler_manual.loop_calls,
-           (unsigned long long) s_profiler_manual.loop_total_us,
-           (unsigned) loop_avg_us,
-           (unsigned) s_profiler_manual.loop_max_us,
-           (unsigned) s_profiler_manual.loop_over_30ms);
-  ESP_LOGI("lvgl.prof",
-           "PROFILE_COST flush_calls=%u flush_total=%lluus flush_avg=%uus flush_max=%uus flush_px=%llukpx",
-           (unsigned) s_profiler_manual.flush_calls,
-           (unsigned long long) s_profiler_manual.flush_total_us,
-           (unsigned) flush_avg_us,
-           (unsigned) s_profiler_manual.flush_max_us,
+           (unsigned long long) window_us, (unsigned) s_profiler_manual.loop_calls,
+           (unsigned long long) s_profiler_manual.loop_total_us, (unsigned) loop_avg_us,
+           (unsigned) s_profiler_manual.loop_max_us, (unsigned) s_profiler_manual.loop_over_30ms);
+  ESP_LOGI("lvgl.prof", "PROFILE_COST flush_calls=%u flush_total=%lluus flush_avg=%uus flush_max=%uus flush_px=%llukpx",
+           (unsigned) s_profiler_manual.flush_calls, (unsigned long long) s_profiler_manual.flush_total_us,
+           (unsigned) flush_avg_us, (unsigned) s_profiler_manual.flush_max_us,
            (unsigned long long) (s_profiler_manual.flush_px / 1000ULL));
-  ESP_LOGI("lvgl.prof",
-           "PROFILE_COST invalidated=%u areas/%llukpx ppa_delta=%u/%u",
+  ESP_LOGI("lvgl.prof", "PROFILE_COST invalidated=%u areas/%llukpx ppa_delta=%u/%u",
            (unsigned) s_profiler_manual.invalidated_areas,
-           (unsigned long long) (s_profiler_manual.invalidated_px / 1000ULL),
-           (unsigned) ppa_fill_delta,
+           (unsigned long long) (s_profiler_manual.invalidated_px / 1000ULL), (unsigned) ppa_fill_delta,
            (unsigned) ppa_img_delta);
 }
 
@@ -519,33 +492,19 @@ extern "C" uint32_t lvgl_esphome_get_cpu_pct(void) {
   return cpu > 100 ? 100 : cpu;
 }
 
-extern "C" uint32_t lvgl_esphome_get_flush_ms(void) {
-  return esphome::lvgl::s_flush_ms;
-}
+extern "C" uint32_t lvgl_esphome_get_flush_ms(void) { return esphome::lvgl::s_flush_ms; }
 
-extern "C" uint32_t lvgl_esphome_get_direct_mode_active(void) {
-  return esphome::lvgl::s_direct_mode_active;
-}
+extern "C" uint32_t lvgl_esphome_get_direct_mode_active(void) { return esphome::lvgl::s_direct_mode_active; }
 
-extern "C" uint32_t lvgl_esphome_get_loop_max_ms(void) {
-  return esphome::lvgl::s_loop_max_ms;
-}
+extern "C" uint32_t lvgl_esphome_get_loop_max_ms(void) { return esphome::lvgl::s_loop_max_ms; }
 
-extern "C" uint32_t lvgl_esphome_get_flush_max_ms(void) {
-  return esphome::lvgl::s_flush_max_ms;
-}
+extern "C" uint32_t lvgl_esphome_get_flush_max_ms(void) { return esphome::lvgl::s_flush_max_ms; }
 
-extern "C" uint32_t lvgl_esphome_get_invalidated_kpx(void) {
-  return esphome::lvgl::s_invalidated_kpx;
-}
+extern "C" uint32_t lvgl_esphome_get_invalidated_kpx(void) { return esphome::lvgl::s_invalidated_kpx; }
 
-extern "C" uint32_t lvgl_esphome_get_perf_logging_enabled(void) {
-  return esphome::lvgl::s_perf_logging_enabled;
-}
+extern "C" uint32_t lvgl_esphome_get_perf_logging_enabled(void) { return esphome::lvgl::s_perf_logging_enabled; }
 
-extern "C" uint32_t lvgl_esphome_get_swipe_logging_enabled(void) {
-  return esphome::lvgl::s_swipe_logging_enabled;
-}
+extern "C" uint32_t lvgl_esphome_get_swipe_logging_enabled(void) { return esphome::lvgl::s_swipe_logging_enabled; }
 
 extern "C" void lvgl_esphome_set_perf_logging_enabled(bool enabled) {
   esphome::lvgl::s_perf_logging_enabled = enabled ? 1 : 0;
@@ -555,9 +514,7 @@ extern "C" void lvgl_esphome_set_swipe_logging_enabled(bool enabled) {
   esphome::lvgl::s_swipe_logging_enabled = enabled ? 1 : 0;
 }
 
-extern "C" uint32_t lvgl_esphome_get_profiler_enabled(void) {
-  return esphome::lvgl::s_profiler_enabled;
-}
+extern "C" uint32_t lvgl_esphome_get_profiler_enabled(void) { return esphome::lvgl::s_profiler_enabled; }
 
 extern "C" void lvgl_esphome_set_profiler_enabled(bool enabled) {
   if (!esphome::lvgl::s_profiler_initialized)
@@ -594,9 +551,7 @@ extern "C" void lvgl_esphome_profiler_flush(void) {
 extern "C" void lvgl_esphome_profiler_mark(const char *name) {
   if (!esphome::lvgl::s_profiler_initialized || !esphome::lvgl::s_profiler_enabled || name == nullptr)
     return;
-  ESP_LOGI("lvgl.prof", "PROFILE_MARK t=%lluus name=%s",
-           (unsigned long long) esphome::lvgl::profiler_tick_us(),
-           name);
+  ESP_LOGI("lvgl.prof", "PROFILE_MARK t=%lluus name=%s", (unsigned long long) esphome::lvgl::profiler_tick_us(), name);
 }
 
 // Linker wrap (PlatformIO LDFLAGs -Wl,--wrap=lv_timer_get_idle and
@@ -607,13 +562,15 @@ extern "C" void lvgl_esphome_profiler_mark(const char *name) {
 // of the OS mode. Returns 100 - cpu, the "idle %" sysmon expects.
 extern "C" uint32_t __wrap_lv_timer_get_idle(void) {
   uint32_t cpu = esphome::lvgl::s_cpu_pct;
-  if (cpu > 100) cpu = 100;
+  if (cpu > 100)
+    cpu = 100;
   return 100 - cpu;
 }
 
 extern "C" uint32_t __wrap_lv_os_get_idle_percent(void) {
   uint32_t cpu = esphome::lvgl::s_cpu_pct;
-  if (cpu > 100) cpu = 100;
+  if (cpu > 100)
+    cpu = 100;
   return 100 - cpu;
 }
 
@@ -635,8 +592,7 @@ static size_t s_compositor_srm_alignment = 0;
  *   180 deg    -> PPA_SRM_ROTATION_ANGLE_180
  *   270 deg CW -> PPA_SRM_ROTATION_ANGLE_90  (90 deg CCW)
  */
-static bool ppa_rotate_display_buf(const void *src, void *dst, int32_t w, int32_t h,
-                                   display::DisplayRotation rot) {
+static bool ppa_rotate_display_buf(const void *src, void *dst, int32_t w, int32_t h, display::DisplayRotation rot) {
   if (s_display_srm_client == nullptr || w < 2 || h < 2)
     return false;
 
@@ -958,7 +914,8 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
   auto *dst = reinterpret_cast<lv_color_data *>(this->rotate_buf_);
   const auto *src8 = reinterpret_cast<const uint8_t *>(ptr);
   const bool direct_full_buffer =
-      this->direct_mode_active_ && (src8 == this->draw_buf_ || (this->draw_buf2_ != nullptr && src8 == this->draw_buf2_));
+      this->direct_mode_active_ &&
+      (src8 == this->draw_buf_ || (this->draw_buf2_ != nullptr && src8 == this->draw_buf2_));
 
 #ifdef USE_LVGL_PPA
   // Try PPA hardware rotation first (zero CPU cost, ~10x faster than SW loops).
@@ -1000,19 +957,19 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
   switch (this->rotation) {
     case display::DISPLAY_ROTATION_90_DEGREES:
 #if LV_COLOR_DEPTH == 32
-      {
-        // RGB888: 3 bytes per pixel
-        auto *dst8 = reinterpret_cast<uint8_t *>(this->rotate_buf_);
-        auto *ptr8 = reinterpret_cast<const uint8_t *>(ptr);
-        for (lv_coord_t x = height; x-- != 0;) {
-          for (lv_coord_t y = 0; y != width; y++) {
-            size_t out = (size_t(y) * height_rounded + x) * 3;
-            dst8[out + 0] = *ptr8++;
-            dst8[out + 1] = *ptr8++;
-            dst8[out + 2] = *ptr8++;
-          }
+    {
+      // RGB888: 3 bytes per pixel
+      auto *dst8 = reinterpret_cast<uint8_t *>(this->rotate_buf_);
+      auto *ptr8 = reinterpret_cast<const uint8_t *>(ptr);
+      for (lv_coord_t x = height; x-- != 0;) {
+        for (lv_coord_t y = 0; y != width; y++) {
+          size_t out = (size_t(y) * height_rounded + x) * 3;
+          dst8[out + 0] = *ptr8++;
+          dst8[out + 1] = *ptr8++;
+          dst8[out + 2] = *ptr8++;
         }
       }
+    }
 #else
       for (lv_coord_t x = height; x-- != 0;) {
         for (lv_coord_t y = 0; y != width; y++) {
@@ -1028,19 +985,19 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
 
     case display::DISPLAY_ROTATION_180_DEGREES:
 #if LV_COLOR_DEPTH == 32
-      {
-        // RGB888: 3 bytes per pixel
-        auto *dst8 = reinterpret_cast<uint8_t *>(this->rotate_buf_);
-        auto *ptr8 = reinterpret_cast<const uint8_t *>(ptr);
-        for (lv_coord_t y = height; y-- != 0;) {
-          for (lv_coord_t x = width; x-- != 0;) {
-            size_t out = (size_t(y) * width + x) * 3;
-            dst8[out + 0] = *ptr8++;
-            dst8[out + 1] = *ptr8++;
-            dst8[out + 2] = *ptr8++;
-          }
+    {
+      // RGB888: 3 bytes per pixel
+      auto *dst8 = reinterpret_cast<uint8_t *>(this->rotate_buf_);
+      auto *ptr8 = reinterpret_cast<const uint8_t *>(ptr);
+      for (lv_coord_t y = height; y-- != 0;) {
+        for (lv_coord_t x = width; x-- != 0;) {
+          size_t out = (size_t(y) * width + x) * 3;
+          dst8[out + 0] = *ptr8++;
+          dst8[out + 1] = *ptr8++;
+          dst8[out + 2] = *ptr8++;
         }
       }
+    }
 #else
       for (lv_coord_t y = height; y-- != 0;) {
         for (lv_coord_t x = width; x-- != 0;) {
@@ -1054,19 +1011,19 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
 
     case display::DISPLAY_ROTATION_270_DEGREES:
 #if LV_COLOR_DEPTH == 32
-      {
-        // RGB888: 3 bytes per pixel
-        auto *dst8 = reinterpret_cast<uint8_t *>(this->rotate_buf_);
-        auto *ptr8 = reinterpret_cast<const uint8_t *>(ptr);
-        for (lv_coord_t x = 0; x != height; x++) {
-          for (lv_coord_t y = width; y-- != 0;) {
-            size_t out = (size_t(y) * height_rounded + x) * 3;
-            dst8[out + 0] = *ptr8++;
-            dst8[out + 1] = *ptr8++;
-            dst8[out + 2] = *ptr8++;
-          }
+    {
+      // RGB888: 3 bytes per pixel
+      auto *dst8 = reinterpret_cast<uint8_t *>(this->rotate_buf_);
+      auto *ptr8 = reinterpret_cast<const uint8_t *>(ptr);
+      for (lv_coord_t x = 0; x != height; x++) {
+        for (lv_coord_t y = width; y-- != 0;) {
+          size_t out = (size_t(y) * height_rounded + x) * 3;
+          dst8[out + 0] = *ptr8++;
+          dst8[out + 1] = *ptr8++;
+          dst8[out + 2] = *ptr8++;
         }
       }
+    }
 #else
       for (lv_coord_t x = 0; x != height; x++) {
         for (lv_coord_t y = width; y-- != 0;) {
@@ -1152,7 +1109,7 @@ void LvglComponent::flush_cb_(lv_display_t *disp_drv, const lv_area_t *area, uin
     // CPU%% - the synchronous DMA push isn't real CPU work.
     this->perf_flush_us_ += dt;
     ESP_LOGV(TAG, "flush_cb, area=%d/%d, %d/%d took %llu us", area->x1, area->y1, lv_area_get_width(area),
-             lv_area_get_height(area), (unsigned long long)dt);
+             lv_area_get_height(area), (unsigned long long) dt);
   }
   lv_display_flush_ready(disp_drv);
 }
@@ -1328,7 +1285,8 @@ bool LvglComponent::start_partial_compositor_() {
   ESP_LOGI(TAG, "LVGL partial framebuffer compositor disabled; using native MIPI DSI async flush");
   return false;
 
-  if (this->rotation != display::DISPLAY_ROTATION_0_DEGREES || this->displays_.size() != 1 || this->draw_buf2_ == nullptr)
+  if (this->rotation != display::DISPLAY_ROTATION_0_DEGREES || this->displays_.size() != 1 ||
+      this->draw_buf2_ == nullptr)
     return false;
   auto *mipi_display = static_cast<mipi_dsi::MipiDsi *>(this->displays_[0]);
   if (mipi_display == nullptr || mipi_display->get_frame_buffer(0) == nullptr ||
@@ -1559,7 +1517,8 @@ void LvglComponent::partial_compositor_copy_area_(uint8_t *dst, const lv_area_t 
     static uint32_t ppa_warn_count = 0;
     if (ppa_warn_count < 8) {
       ESP_LOGW(TAG,
-               "LVGL partial compositor PPA copy failed (%s): area=%d,%d-%d,%d src_fb=%d src_pic=%dx%d src_off=%d,%d align=%u dst=%p fb=%u",
+               "LVGL partial compositor PPA copy failed (%s): area=%d,%d-%d,%d src_fb=%d src_pic=%dx%d src_off=%d,%d "
+               "align=%u dst=%p fb=%u",
                esp_err_to_name(ret), (int) x1, (int) y1, (int) x2, (int) y2, src_is_framebuffer ? 1 : 0,
                (int) src_pic_w, (int) src_pic_h, (int) src_off_x, (int) src_off_y, (unsigned) align, dst,
                (unsigned) framebuffer_bytes);
@@ -1568,10 +1527,9 @@ void LvglComponent::partial_compositor_copy_area_(uint8_t *dst, const lv_area_t 
   }
 #endif
 
-  const uint8_t *src_row = src_is_framebuffer
-                               ? src + ((size_t) y1 * row_bytes) + ((size_t) x1 * BYTES_PER_PIXEL)
-                               : src + ((size_t) (y1 - area.y1) * src_stride) +
-                                     ((size_t) (x1 - area.x1) * BYTES_PER_PIXEL);
+  const uint8_t *src_row =
+      src_is_framebuffer ? src + ((size_t) y1 * row_bytes) + ((size_t) x1 * BYTES_PER_PIXEL)
+                         : src + ((size_t) (y1 - area.y1) * src_stride) + ((size_t) (x1 - area.x1) * BYTES_PER_PIXEL);
   uint8_t *dst_row = dst + ((size_t) y1 * row_bytes) + ((size_t) x1 * BYTES_PER_PIXEL);
   for (int32_t y = y1; y <= y2; y++) {
     memcpy(dst_row, src_row, copy_bytes);
@@ -1662,8 +1620,8 @@ bool LvglComponent::snapshot_swipe_direct_render(lv_draw_buf_t *current, lv_draw
     return false;
   if (current->header.cf != LV_COLOR_FORMAT_RGB888 || next->header.cf != LV_COLOR_FORMAT_RGB888)
     return false;
-  if (current->header.w < this->width_ || next->header.w < this->width_ ||
-      current->header.h < this->height_ || next->header.h < this->height_)
+  if (current->header.w < this->width_ || next->header.w < this->width_ || current->header.h < this->height_ ||
+      next->header.h < this->height_)
     return false;
 
   constexpr size_t BYTES_PER_PIXEL = 3;
@@ -1855,8 +1813,8 @@ bool LvglComponent::snapshot_swipe_direct_render_panorama(const uint8_t *panoram
     uint32_t fps = (uint32_t) ((uint64_t) frames * 1000000ULL / (now_us - last_log_us));
     if (s_swipe_logging_enabled) {
       ESP_LOGI(TAG, "snapshot panorama: fps=%u avg=%lluus max=%uus scale=%dx src=%uKB dst=%uKB", (unsigned) fps,
-               (unsigned long long) (frames == 0 ? 0 : total_us / frames), (unsigned) max_us,
-               scale, (unsigned) (((size_t) panorama_width * source_height * IN_BYTES_PER_PIXEL) / 1024),
+               (unsigned long long) (frames == 0 ? 0 : total_us / frames), (unsigned) max_us, scale,
+               (unsigned) (((size_t) panorama_width * source_height * IN_BYTES_PER_PIXEL) / 1024),
                (unsigned) (fb_bytes / 1024));
     }
     last_log_us = now_us;
@@ -1878,8 +1836,7 @@ bool LvglComponent::snapshot_scroll_direct_render(lv_draw_buf_t *content, int sc
     return false;
   if (viewport_w != this->width_ || viewport_h != this->height_ || viewport_w <= 0 || viewport_h <= 0)
     return false;
-  if (content->header.cf != LV_COLOR_FORMAT_RGB888 || content->header.w < viewport_w ||
-      content->header.h < viewport_h)
+  if (content->header.cf != LV_COLOR_FORMAT_RGB888 || content->header.w < viewport_w || content->header.h < viewport_h)
     return false;
 
   scroll_y = std::clamp(scroll_y, 0, std::max(0, (int) content->header.h - viewport_h));
@@ -2280,7 +2237,7 @@ void LvglComponent::setup() {
   this->rotation = display->get_rotation();
   if (frac == 0)
     frac = 1;
-  // LV_COLOR_FORMAT_RGB888 uses 3 bytes/pixel even when LV_COLOR_DEPTH=32
+    // LV_COLOR_FORMAT_RGB888 uses 3 bytes/pixel even when LV_COLOR_DEPTH=32
 #if LV_COLOR_DEPTH == 32
   constexpr size_t BYTES_PER_PIXEL = 3;  // RGB888
 #else
@@ -2378,7 +2335,8 @@ void LvglComponent::setup() {
 #ifdef USE_ESP32
   ESP_LOGI(TAG, "LVGL draw buffer 1: %p %zu bytes in %s", this->draw_buf_, buf_bytes, memory_region(this->draw_buf_));
   if (this->draw_buf2_ != nullptr)
-    ESP_LOGI(TAG, "LVGL draw buffer 2: %p %zu bytes in %s", this->draw_buf2_, buf_bytes, memory_region(this->draw_buf2_));
+    ESP_LOGI(TAG, "LVGL draw buffer 2: %p %zu bytes in %s", this->draw_buf2_, buf_bytes,
+             memory_region(this->draw_buf2_));
 #endif
   lv_display_set_resolution(this->disp_, this->width_, this->height_);
 #if LV_COLOR_DEPTH == 32
@@ -2439,11 +2397,10 @@ void LvglComponent::setup() {
 
   // CRITICAL: Configure buffers at the VERY END of setup()
   // This avoids deadlock while ensuring buffers are ready before any callbacks execute
-  lv_display_set_buffers(this->disp_, this->draw_buf_, this->draw_buf2_,
-                         this->buf_bytes_,
-                         this->direct_mode_active_ ? LV_DISPLAY_RENDER_MODE_DIRECT
-                                                   : (this->full_refresh_ ? LV_DISPLAY_RENDER_MODE_FULL
-                                                                         : LV_DISPLAY_RENDER_MODE_PARTIAL));
+  lv_display_set_buffers(this->disp_, this->draw_buf_, this->draw_buf2_, this->buf_bytes_,
+                         this->direct_mode_active_
+                             ? LV_DISPLAY_RENDER_MODE_DIRECT
+                             : (this->full_refresh_ ? LV_DISPLAY_RENDER_MODE_FULL : LV_DISPLAY_RENDER_MODE_PARTIAL));
   this->buffers_configured_ = true;
 
 #ifdef USE_LVGL_PPA
@@ -2508,11 +2465,10 @@ void LvglComponent::loop() {
       this->perf_window_start_us_ = now_us;
     uint64_t elapsed_us = now_us - this->perf_window_start_us_;
     if (elapsed_us >= 1000000) {
-      uint64_t cpu_us = (this->perf_busy_us_ > this->perf_flush_us_)
-                            ? (this->perf_busy_us_ - this->perf_flush_us_)
-                            : 0;
-      uint32_t cpu_pct = (uint32_t)((cpu_us * 100ULL) / elapsed_us);
-      if (cpu_pct > 100) cpu_pct = 100;
+      uint64_t cpu_us = (this->perf_busy_us_ > this->perf_flush_us_) ? (this->perf_busy_us_ - this->perf_flush_us_) : 0;
+      uint32_t cpu_pct = (uint32_t) ((cpu_us * 100ULL) / elapsed_us);
+      if (cpu_pct > 100)
+        cpu_pct = 100;
       s_cpu_pct = cpu_pct;  // publish to __wrap_lv_timer_get_idle / sysmon overlay
       s_flush_ms = (uint32_t) (this->perf_flush_us_ / 1000ULL);
       s_loop_max_ms = this->perf_loop_max_us_ / 1000U;
@@ -2575,51 +2531,32 @@ void LvglComponent::loop() {
 #endif
       if (s_perf_logging_enabled) {
         ESP_LOGI(TAG,
-                 "perf1s: cpu=%u%% loop=%lluus flush=%lluus dsi_sync=%lluus max=%ums dsi_copy=%lluus/%u max=%ums dsi_submit=%lluus max=%ums dsi_done=%lluus/%u max=%ums zc=%u stage=%u/%u unsafe=%u/%u/%u %lluKB comp=%lluus ready=%lluus/%u jobs max_comp=%ums max_ready=%ums max_loop=%ums max_flush=%ums inv=%lu areas/%lu kpx flush_px=%llu kpx comp_px=%llu kpx free=%uK/%uK dir=%u ppa=%u/%u",
-                 (unsigned)cpu_pct,
-                 (unsigned long long)cpu_us,
-                 (unsigned long long)this->perf_flush_us_,
-                 (unsigned long long)dsi_stats.sync_us,
-                 (unsigned)(dsi_stats.sync_max_us / 1000U),
-                 (unsigned long long)dsi_stats.copy_us,
-                 (unsigned)dsi_stats.staged_flushes,
-                 (unsigned)(dsi_stats.copy_max_us / 1000U),
-                 (unsigned long long)dsi_stats.submit_us,
-                 (unsigned)(dsi_stats.submit_max_us / 1000U),
-                 (unsigned long long)dsi_stats.done_us,
-                 (unsigned)dsi_stats.done_flushes,
-                 (unsigned)(dsi_stats.done_max_us / 1000U),
-                 (unsigned)dsi_stats.zero_copy_flushes,
-                 (unsigned)dsi_stats.staged_flushes,
-                 (unsigned)dsi_stats.flushes,
-                 (unsigned)dsi_stats.unsafe_addr_flushes,
-                 (unsigned)dsi_stats.unsafe_row_flushes,
-                 (unsigned)dsi_stats.unsafe_size_flushes,
-                 (unsigned long long)(dsi_stats.staged_bytes / 1024ULL),
-                 (unsigned long long)compositor_us,
-                 (unsigned long long)compositor_ready_us,
-                 (unsigned)compositor_jobs,
-                 (unsigned)compositor_max_ms,
-                 (unsigned)compositor_ready_max_ms,
-                 (unsigned)(this->perf_loop_max_us_ / 1000U),
-                 (unsigned)(this->perf_flush_max_us_ / 1000U),
-                 (unsigned long)this->perf_invalidated_areas_,
-                 (unsigned long)(this->perf_invalidated_px_ / 1000ULL),
-                 (unsigned long long)(this->perf_flush_px_ / 1000ULL),
-                 (unsigned long long)(compositor_px / 1000ULL),
-                 (unsigned)free_psram_kb,
-                 (unsigned)free_internal_kb,
-                 (unsigned)s_direct_mode_active,
-                 (unsigned)ppa_fill_tasks,
-                 (unsigned)ppa_img_tasks);
+                 "perf1s: cpu=%u%% loop=%lluus flush=%lluus dsi_sync=%lluus max=%ums dsi_copy=%lluus/%u max=%ums "
+                 "dsi_submit=%lluus max=%ums dsi_done=%lluus/%u max=%ums zc=%u stage=%u/%u unsafe=%u/%u/%u %lluKB "
+                 "comp=%lluus ready=%lluus/%u jobs max_comp=%ums max_ready=%ums max_loop=%ums max_flush=%ums inv=%lu "
+                 "areas/%lu kpx flush_px=%llu kpx comp_px=%llu kpx free=%uK/%uK dir=%u ppa=%u/%u",
+                 (unsigned) cpu_pct, (unsigned long long) cpu_us, (unsigned long long) this->perf_flush_us_,
+                 (unsigned long long) dsi_stats.sync_us, (unsigned) (dsi_stats.sync_max_us / 1000U),
+                 (unsigned long long) dsi_stats.copy_us, (unsigned) dsi_stats.staged_flushes,
+                 (unsigned) (dsi_stats.copy_max_us / 1000U), (unsigned long long) dsi_stats.submit_us,
+                 (unsigned) (dsi_stats.submit_max_us / 1000U), (unsigned long long) dsi_stats.done_us,
+                 (unsigned) dsi_stats.done_flushes, (unsigned) (dsi_stats.done_max_us / 1000U),
+                 (unsigned) dsi_stats.zero_copy_flushes, (unsigned) dsi_stats.staged_flushes,
+                 (unsigned) dsi_stats.flushes, (unsigned) dsi_stats.unsafe_addr_flushes,
+                 (unsigned) dsi_stats.unsafe_row_flushes, (unsigned) dsi_stats.unsafe_size_flushes,
+                 (unsigned long long) (dsi_stats.staged_bytes / 1024ULL), (unsigned long long) compositor_us,
+                 (unsigned long long) compositor_ready_us, (unsigned) compositor_jobs, (unsigned) compositor_max_ms,
+                 (unsigned) compositor_ready_max_ms, (unsigned) (this->perf_loop_max_us_ / 1000U),
+                 (unsigned) (this->perf_flush_max_us_ / 1000U), (unsigned long) this->perf_invalidated_areas_,
+                 (unsigned long) (this->perf_invalidated_px_ / 1000ULL),
+                 (unsigned long long) (this->perf_flush_px_ / 1000ULL), (unsigned long long) (compositor_px / 1000ULL),
+                 (unsigned) free_psram_kb, (unsigned) free_internal_kb, (unsigned) s_direct_mode_active,
+                 (unsigned) ppa_fill_tasks, (unsigned) ppa_img_tasks);
       }
       // Verbose-only log: enable via 'logs: lvgl: VERBOSE' in YAML if you
       // need the breakdown. Default DEBUG/INFO levels stay silent.
-      ESP_LOGV(TAG, "perf: CPU %u%% (render %llu us, flush %llu us / wall %llu us)",
-               (unsigned)cpu_pct,
-               (unsigned long long)cpu_us,
-               (unsigned long long)this->perf_flush_us_,
-               (unsigned long long)elapsed_us);
+      ESP_LOGV(TAG, "perf: CPU %u%% (render %llu us, flush %llu us / wall %llu us)", (unsigned) cpu_pct,
+               (unsigned long long) cpu_us, (unsigned long long) this->perf_flush_us_, (unsigned long long) elapsed_us);
       this->perf_busy_us_ = 0;
       this->perf_flush_us_ = 0;
       this->perf_invalidated_px_ = 0;
@@ -2837,8 +2774,8 @@ SnapshotPanoramaCacheEntry *snapshot_panorama_cache_prepare(lv_obj_t *left_obj, 
     slot = &snapshot_panorama_cache[0];
   snapshot_panorama_free_entry(*slot);
 
-  auto *panorama = static_cast<uint8_t *>(
-      heap_caps_aligned_alloc(CACHE_ALIGN, aligned_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+  auto *panorama =
+      static_cast<uint8_t *>(heap_caps_aligned_alloc(CACHE_ALIGN, aligned_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
   if (panorama == nullptr) {
     ESP_LOGW(TAG, "snapshot panorama: allocation failed (%u bytes)", (unsigned) aligned_size);
     return nullptr;
@@ -2852,7 +2789,7 @@ SnapshotPanoramaCacheEntry *snapshot_panorama_cache_prepare(lv_obj_t *left_obj, 
     uint8_t *dst_row = panorama + (size_t) y * panorama_stride;
     snapshot_swipe_copy_rgb888_scaled_row(left_row, dst_row, scaled_width, scale);
     snapshot_swipe_copy_rgb888_scaled_row(right_row, dst_row + (size_t) scaled_width * BYTES_PER_PIXEL, scaled_width,
-                                         scale);
+                                          scale);
   }
   esp_cache_msync(panorama, aligned_size, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
 
@@ -2863,9 +2800,8 @@ SnapshotPanoramaCacheEntry *snapshot_panorama_cache_prepare(lv_obj_t *left_obj, 
   slot->width = width;
   slot->scale = scale;
   if (s_swipe_logging_enabled) {
-    ESP_LOGI(TAG, "snapshot panorama: cached RGB888 %dx%d scale=%dx (%u KB) in %lluus", panorama_width,
-             scaled_height, scale, (unsigned) (aligned_size / 1024),
-             (unsigned long long) (esp_timer_get_time() - t0));
+    ESP_LOGI(TAG, "snapshot panorama: cached RGB888 %dx%d scale=%dx (%u KB) in %lluus", panorama_width, scaled_height,
+             scale, (unsigned) (aligned_size / 1024), (unsigned long long) (esp_timer_get_time() - t0));
   }
   return slot;
 #else
@@ -2879,12 +2815,11 @@ bool snapshot_swipe_render_direct_frame(int current_x, int next_x) {
     return false;
   if (state.panorama_render && state.panorama_buf != nullptr &&
       state.component->snapshot_swipe_direct_render_panorama(state.panorama_buf, current_x, state.width,
-                                                            state.panorama_scale,
-                                                            state.panorama_next_x)) {
+                                                             state.panorama_scale, state.panorama_next_x)) {
     return true;
   }
   return state.component->snapshot_swipe_direct_render(state.current_buf, state.next_buf, current_x, next_x,
-                                                      state.width);
+                                                       state.width);
 }
 
 void snapshot_swipe_cleanup() {
@@ -3316,10 +3251,12 @@ extern "C" bool lvgl_esphome_snapshot_scroll_begin(lv_obj_t *obj, int viewport_w
 #if defined(USE_ESP32)
   {
     constexpr uintptr_t CACHE_ALIGN = 128;
-    const size_t content_size =
-        content_buf->data_size != 0 ? content_buf->data_size : (size_t) content_buf->header.stride * content_buf->header.h;
+    const size_t content_size = content_buf->data_size != 0
+                                    ? content_buf->data_size
+                                    : (size_t) content_buf->header.stride * content_buf->header.h;
     uintptr_t start = reinterpret_cast<uintptr_t>(content_buf->data) & ~(CACHE_ALIGN - 1);
-    uintptr_t end = (reinterpret_cast<uintptr_t>(content_buf->data) + content_size + CACHE_ALIGN - 1) & ~(CACHE_ALIGN - 1);
+    uintptr_t end =
+        (reinterpret_cast<uintptr_t>(content_buf->data) + content_size + CACHE_ALIGN - 1) & ~(CACHE_ALIGN - 1);
     if (end > start)
       esp_cache_msync(reinterpret_cast<void *>(start), end - start, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
   }
@@ -3358,9 +3295,9 @@ extern "C" void lvgl_esphome_snapshot_scroll_update(int scroll_y) {
       snapshot_scroll_state.content_buf == nullptr)
     return;
   const int clamped_y = snapshot_scroll_clamp_y(scroll_y);
-  if (snapshot_scroll_state.component->snapshot_scroll_direct_render(
-          snapshot_scroll_state.content_buf, clamped_y, snapshot_scroll_state.viewport_w,
-          snapshot_scroll_state.viewport_h)) {
+  if (snapshot_scroll_state.component->snapshot_scroll_direct_render(snapshot_scroll_state.content_buf, clamped_y,
+                                                                     snapshot_scroll_state.viewport_w,
+                                                                     snapshot_scroll_state.viewport_h)) {
     snapshot_scroll_state.current_scroll_y = clamped_y;
   }
 }
@@ -3374,8 +3311,8 @@ extern "C" void lvgl_esphome_snapshot_scroll_finish(int scroll_y) {
   if (snapshot_scroll_state.direct_render && snapshot_scroll_state.component != nullptr &&
       snapshot_scroll_state.content_buf != nullptr) {
     snapshot_scroll_state.component->snapshot_scroll_direct_render(snapshot_scroll_state.content_buf, clamped_y,
-                                                                  snapshot_scroll_state.viewport_w,
-                                                                  snapshot_scroll_state.viewport_h);
+                                                                   snapshot_scroll_state.viewport_w,
+                                                                   snapshot_scroll_state.viewport_h);
     snapshot_scroll_state.component->wait_for_direct_frame_presented(50);
     snapshot_scroll_state.component->realign_direct_buffer_after_manual_present();
   }
@@ -3579,9 +3516,9 @@ void *lv_realloc_core(void *ptr, size_t size) {
   if (new_ptr == nullptr)
     return nullptr;
 
-  // We don't know the old size exactly, so copy min(new_size, old_usable_size).
-  // On most platforms, malloc_usable_size() returns the actual allocated size.
-  // Fall back to new size if unavailable (safe: reads at most what was allocated).
+    // We don't know the old size exactly, so copy min(new_size, old_usable_size).
+    // On most platforms, malloc_usable_size() returns the actual allocated size.
+    // Fall back to new size if unavailable (safe: reads at most what was allocated).
 #if defined(__GLIBC__) || defined(__ANDROID__)
   size_t old_size = malloc_usable_size(reinterpret_cast<void **>(ptr)[-1]);
   // Subtract alignment overhead to get usable size from aligned pointer
