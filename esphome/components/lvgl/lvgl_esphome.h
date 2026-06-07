@@ -46,16 +46,6 @@ extern "C" uint32_t lvgl_esphome_get_profiler_enabled(void);
 extern "C" void lvgl_esphome_set_profiler_enabled(bool enabled);
 extern "C" void lvgl_esphome_profiler_flush(void);
 extern "C" void lvgl_esphome_profiler_mark(const char *name);
-extern "C" bool lvgl_esphome_snapshot_cache_page(lv_obj_t *obj);
-extern "C" bool lvgl_esphome_snapshot_cache_pair(lv_obj_t *left, lv_obj_t *right, int width);
-extern "C" bool lvgl_esphome_snapshot_swipe_begin(lv_obj_t *current, lv_obj_t *next, int width, int next_x);
-extern "C" void lvgl_esphome_snapshot_swipe_update(int current_x, int next_x);
-extern "C" void lvgl_esphome_snapshot_swipe_finish(int current_x, int next_x, uint32_t duration_ms, bool commit);
-extern "C" void lvgl_esphome_snapshot_swipe_end(void);
-extern "C" bool lvgl_esphome_snapshot_scroll_begin(lv_obj_t *obj, int viewport_w, int viewport_h);
-extern "C" void lvgl_esphome_snapshot_scroll_update(int scroll_y);
-extern "C" void lvgl_esphome_snapshot_scroll_finish(int scroll_y);
-extern "C" void lvgl_esphome_snapshot_scroll_end(void);
 
 #ifdef USE_FONT
 #include "esphome/components/font/font.h"
@@ -321,10 +311,6 @@ class LvglComponent : public PollingComponent {
   // Check if loop() has started - safe to perform LVGL operations
   bool is_loop_started() const { return this->loop_started_; }
   void record_invalidated_area(const lv_area_t *area);
-  bool snapshot_swipe_direct_render(lv_draw_buf_t *current, lv_draw_buf_t *next, int current_x, int next_x, int width);
-  bool snapshot_swipe_direct_render_panorama(const uint8_t *panorama, int current_x, int width, int scale,
-                                             int initial_next_x);
-  bool snapshot_scroll_direct_render(lv_draw_buf_t *content, int scroll_y, int viewport_w, int viewport_h);
   bool wait_for_direct_frame_presented(uint32_t timeout_ms);
   void realign_direct_buffer_after_manual_present();
 
@@ -338,11 +324,9 @@ class LvglComponent : public PollingComponent {
   void write_random_();
   void draw_buffer_(const lv_area_t *area, lv_color_data *ptr);
   void sync_direct_framebuffer_area_(const lv_area_t *area, uint8_t *color_p);
-  void sync_direct_other_buffer_(const lv_area_t *area, uint8_t *color_p);
+  void sync_direct_other_buffer_(const lv_area_t *area, const uint8_t *color_p);
   uint8_t *next_direct_render_buffer_() const;
   void present_direct_render_buffer_(uint8_t *buffer);
-  uint8_t *next_snapshot_render_buffer_();
-  bool present_snapshot_render_buffer_(uint8_t *buffer);
 #ifdef USE_ESP32
   struct PartialCompositorJob {
     lv_display_t *disp{};
@@ -353,7 +337,7 @@ class LvglComponent : public PollingComponent {
   };
   bool start_partial_compositor_();
   bool partial_compositor_flush_(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *color_p, uint64_t t0);
-  static void partial_compositor_task_trampoline_(void *arg);
+  static void partial_compositor_task_trampoline(void *arg);
   void partial_compositor_task_();
   void partial_compositor_copy_area_(uint8_t *dst, const lv_area_t &area, const uint8_t *src,
                                      bool src_is_framebuffer = false);
@@ -373,7 +357,6 @@ class LvglComponent : public PollingComponent {
   uint8_t *draw_buf_{};
   uint8_t *draw_buf2_{};
   uint8_t *direct_last_flushed_buf_{};
-  uint8_t *snapshot_last_presented_buf_{};
   bool direct_mode_active_{false};
 #ifdef USE_ESP32
   static constexpr size_t PARTIAL_COMPOSITOR_MAX_DIRTY_AREAS = 48;
