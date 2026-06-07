@@ -46,6 +46,9 @@ template<typename... Ts> class UpdateConfigAction : public Action<Ts...>, public
     if (this->amp_level_.has_value() || this->channel_.has_value()) {
       this->parent_->apply_amp_and_channel_config();
     }
+    if (this->vol_range_min_.has_value() || this->vol_range_max_.has_value()) {
+      this->parent_->set_volume(this->parent_->volume());
+    }
   }
 };
 

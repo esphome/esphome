@@ -1,6 +1,5 @@
 #include "tas2780.h"
 
-#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -70,7 +69,6 @@ static const uint8_t TAS2780_ICLA_CFG1 = 0x18;                  // Inter Chip Ga
 static const uint8_t TAS2780_DG_0 = 0x19;                       // Diagnostic Signal
 
 static const uint8_t TAS2780_DVC = 0x1A;        // Digital Volume Control
-static const uint8_t TAS2780_DVC_MUTE = 0xC9;   // DVC mute (one step past -100 dB max attenuation)
 static const uint8_t TAS2780_LIM_CFG0 = 0x1B;   // Limiter Configuration 0
 static const uint8_t TAS2780_LIM_CFG1 = 0x1C;   // Limiter Configuration 1
 static const uint8_t TAS2780_BOP_CFG0 = 0x1D;   // Brown Out Prevention 0
@@ -106,7 +104,7 @@ static const uint8_t TAS2780_DIN_PD = 0x38;     // Digital Input Pin Pull Down
 static const uint8_t TAS2780_INT_MASK_ALL = 0xFF;  // Mask all interrupts
 static const uint8_t TAS2780_INT_MASK0 = 0x3B;     // Interrupt Mask 0
 static const uint8_t TAS2780_INT_MASK1 = 0x3C;     // Interrupt Mask 1
-static const uint8_t TAS2780_INT_MASK4 = 0x3D;     // Interrupt Mask 4
+static const uint8_t TAS2780_INT_MASK1_0 = 0x3D;   // Interrupt Mask 1_0 (INT_LTCH1_0 group)
 static const uint8_t TAS2780_INT_MASK2 = 0x40;     // Interrupt Mask 2
 static const uint8_t TAS2780_INT_MASK3 = 0x41;     // Interrupt Mask 3
 static const uint8_t TAS2780_INT_LIVE0 = 0x42;     // Live Interrupt Read-back 0
@@ -278,9 +276,7 @@ void TAS2780::setup() {
   this->init_();
   if (this->is_failed())
     return;
-  // set to software shutdown
-  this->reg(TAS2780_MODE_CTRL) =
-      (TAS2780_MODE_CTRL_BOP_SRC_PVDD_UVLO & ~TAS2780_MODE_CTRL_MODE_MASK) | TAS2780_MODE_CTRL_MODE_SFTW_SHTDWN;
+  this->write_mode_ctrl_(TAS2780_MODE_CTRL_MODE_SFTW_SHTDWN);
 }
 
 void TAS2780::init_() {
@@ -289,6 +285,7 @@ void TAS2780::init_() {
 
   // software reset
   this->reg(TAS2780_SW_RESET) = TAS2780_SW_RESET_CMD;
+  delay(1);  // wait for reset to complete before accessing registers
 
   // DC_BLK1 (0x05) reads 0x41 after reset on TAS2780; used as chip presence check
   // since TAS2780 has no dedicated WHO_AM_I register
@@ -333,17 +330,21 @@ void TAS2780::init_() {
   //  UVLO = 1.753V + val * 0.332V
   this->reg(TAS2780_PVDD_UVLO) = TAS2780_PVDD_UVLO_2V76;
 
-  // Set interrupt masks
+  // Mask all interrupt groups on the IRQZ pin — events are polled via update()
   this->reg(TAS2780_PAGE_SELECT) = TAS2780_PAGE_0;
-  // mask VBAT1S Under Voltage
-  this->reg(TAS2780_INT_MASK4) = TAS2780_INT_MASK_ALL;
-  // mask all PVDD and VBAT1S interrupts
+  this->reg(TAS2780_INT_MASK0) = TAS2780_INT_MASK_ALL;
+  this->reg(TAS2780_INT_MASK1) = TAS2780_INT_MASK_ALL;
+  this->reg(TAS2780_INT_MASK1_0) = TAS2780_INT_MASK_ALL;
   this->reg(TAS2780_INT_MASK2) = TAS2780_INT_MASK_ALL;
   this->reg(TAS2780_INT_MASK3) = TAS2780_INT_MASK_ALL;
-  this->reg(TAS2780_INT_MASK1) = TAS2780_INT_MASK_ALL;
 
   // set interrupt to trigger on any unmasked live interrupts
-  uint8_t reg_0x5c = this->reg(TAS2780_INT_CLK_CFG).get();
+  uint8_t reg_0x5c;
+  if (!this->read_byte(TAS2780_INT_CLK_CFG, &reg_0x5c)) {
+    ESP_LOGE(TAG, "Read failed");
+    this->status_set_error(LOG_STR("Read failed"));
+    return;
+  }
   this->reg(TAS2780_INT_CLK_CFG) = (reg_0x5c & ~TAS2780_INT_CLK_CFG_MODE_MASK) | TAS2780_INT_CLK_CFG_MODE_LIVE;
 
   this->apply_amp_and_channel_config();
@@ -355,23 +356,22 @@ void TAS2780::activate(uint8_t power_mode) {
     return;
   }
   ESP_LOGD(TAG, "Activating (PWR_MODE:%d)", power_mode);
-  // clear interrupt latches
-  this->reg(TAS2780_INT_CLK_CFG) = TAS2780_INT_CLK_CFG_DEFAULT | TAS2780_INT_CLK_CFG_CLR_LATCH;
+  // clear interrupt latches without disturbing other INT_CLK_CFG bits
+  uint8_t int_clk_cfg;
+  if (this->read_byte(TAS2780_INT_CLK_CFG, &int_clk_cfg)) {
+    this->reg(TAS2780_INT_CLK_CFG) = int_clk_cfg | TAS2780_INT_CLK_CFG_CLR_LATCH;
+  }
   if (power_mode != this->power_mode_) {
     this->power_mode_ = power_mode;
     this->init_();
-    this->write_mute_();
   }
-  // activate
-  this->reg(TAS2780_MODE_CTRL) =
-      (TAS2780_MODE_CTRL_BOP_SRC_PVDD_UVLO & ~TAS2780_MODE_CTRL_MODE_MASK) | TAS2780_MODE_CTRL_MODE_ACTIVE;
+  uint8_t mode = this->is_muted_ ? TAS2780_MODE_CTRL_MODE_ACTIVE_MUTED : TAS2780_MODE_CTRL_MODE_ACTIVE;
+  this->write_mode_ctrl_(mode);
 }
 
 void TAS2780::deactivate() {
   ESP_LOGD(TAG, "Deactivating");
-  // set to software shutdown
-  this->reg(TAS2780_MODE_CTRL) =
-      (TAS2780_MODE_CTRL_BOP_SRC_PVDD_UVLO & ~TAS2780_MODE_CTRL_MODE_MASK) | TAS2780_MODE_CTRL_MODE_SFTW_SHTDWN;
+  this->write_mode_ctrl_(TAS2780_MODE_CTRL_MODE_SFTW_SHTDWN);
 }
 
 void TAS2780::reset() {
@@ -392,10 +392,20 @@ void TAS2780::set_power_mode_(uint8_t power_mode) {
     ESP_LOGE(TAG, "Invalid power mode %u, must be 0-3", power_mode);
     return;
   }
-  uint8_t chnl_0 = this->reg(TAS2780_CHNL_0).get();
+  uint8_t chnl_0;
+  if (!this->read_byte(TAS2780_CHNL_0, &chnl_0)) {
+    ESP_LOGE(TAG, "Read failed");
+    this->status_set_error(LOG_STR("Read failed"));
+    return;
+  }
   this->reg(TAS2780_CHNL_0) =
       (chnl_0 & ~TAS2780_CHNL_0_CDS_MODE_MASK) | (POWER_MODES[power_mode][0] << TAS2780_CHNL_0_CDS_MODE_SHIFT);
-  uint8_t dc_blk0 = this->reg(TAS2780_DC_BLK0).get();
+  uint8_t dc_blk0;
+  if (!this->read_byte(TAS2780_DC_BLK0, &dc_blk0)) {
+    ESP_LOGE(TAG, "Read failed");
+    this->status_set_error(LOG_STR("Read failed"));
+    return;
+  }
   this->reg(TAS2780_DC_BLK0) = (dc_blk0 & ~(1 << TAS2780_DC_BLK0_VBAT1S_MODE_SHIFT)) |
                                (POWER_MODES[power_mode][1] << TAS2780_DC_BLK0_VBAT1S_MODE_SHIFT);
 }
@@ -417,7 +427,7 @@ void TAS2780::log_error_states_() {
   }
 
   if (latched_its & TAS2780_INT_LTCH0_IR_LIMA) {
-    ESP_LOGE(TAG, "Limiter active error");
+    ESP_LOGW(TAG, "Limiter active");
   }
 
   if (latched_its & TAS2780_INT_LTCH0_IR_PBIP) {
@@ -447,7 +457,7 @@ void TAS2780::log_error_states_() {
   }
 
   if (latched1_its & TAS2780_INT_LTCH1_IR_LDC) {
-    ESP_LOGE(TAG, "Load diagnostic completion");
+    ESP_LOGD(TAG, "Load diagnostic complete");
   }
 
   if (latched1_its & TAS2780_INT_LTCH1_IR_OTPCRC) {
@@ -498,6 +508,16 @@ void TAS2780::dump_config() {
                 this->power_mode_, this->amp_level_, this->vol_range_min_, this->vol_range_max_, channel_str);
 }
 
+bool TAS2780::write_mode_ctrl_(uint8_t mode) {
+  uint8_t mode_ctrl;
+  if (!this->read_byte(TAS2780_MODE_CTRL, &mode_ctrl)) {
+    ESP_LOGE(TAG, "Read failed");
+    return false;
+  }
+  this->reg(TAS2780_MODE_CTRL) = (mode_ctrl & ~TAS2780_MODE_CTRL_MODE_MASK) | mode;
+  return true;
+}
+
 bool TAS2780::set_mute_off() {
   this->is_muted_ = false;
   return this->write_mute_();
@@ -518,18 +538,21 @@ bool TAS2780::is_muted() { return this->is_muted_; }
 float TAS2780::volume() { return this->volume_; }
 
 bool TAS2780::write_mute_() {
-  if (this->is_muted_) {
-    return this->write_byte(TAS2780_DVC, TAS2780_DVC_MUTE);
+  uint8_t mode_ctrl;
+  if (!this->read_byte(TAS2780_MODE_CTRL, &mode_ctrl)) {
+    ESP_LOGE(TAG, "Read failed");
+    return false;
   }
-  return this->write_volume_();
+  uint8_t current_mode = mode_ctrl & TAS2780_MODE_CTRL_MODE_MASK;
+  // Only switch between active/muted if device is active; don't wake from shutdown
+  if (current_mode == TAS2780_MODE_CTRL_MODE_ACTIVE || current_mode == TAS2780_MODE_CTRL_MODE_ACTIVE_MUTED) {
+    uint8_t new_mode = this->is_muted_ ? TAS2780_MODE_CTRL_MODE_ACTIVE_MUTED : TAS2780_MODE_CTRL_MODE_ACTIVE;
+    this->reg(TAS2780_MODE_CTRL) = (mode_ctrl & ~TAS2780_MODE_CTRL_MODE_MASK) | new_mode;
+  }
+  return true;
 }
 
 bool TAS2780::write_volume_() {
-  // Don't overwrite the DVC register while muted - the mute value (TAS2780_DVC_MUTE) would be lost.
-  // The correct volume will be applied when unmuting via write_mute_() -> write_volume_().
-  if (this->is_muted_) {
-    return true;
-  }
   /*
   V_{AMP} = INPUT + A_{DVC} + A_{AMP}
 
@@ -552,9 +575,13 @@ bool TAS2780::write_volume_() {
 
 void TAS2780::apply_amp_and_channel_config() {
   // AMP_LEVEL
-  uint8_t reg_val = this->reg(TAS2780_CHNL_0).get();
-  reg_val &= ~TAS2780_CHNL_0_AMP_LEVEL_MASK;
-  reg_val |= this->amp_level_ << TAS2780_CHNL_0_AMP_LEVEL_SHIFT;
+  uint8_t reg_val;
+  if (!this->read_byte(TAS2780_CHNL_0, &reg_val)) {
+    ESP_LOGE(TAG, "Read failed");
+    this->status_set_error(LOG_STR("Read failed"));
+    return;
+  }
+  reg_val = (reg_val & ~TAS2780_CHNL_0_AMP_LEVEL_MASK) | (this->amp_level_ << TAS2780_CHNL_0_AMP_LEVEL_SHIFT);
   this->reg(TAS2780_CHNL_0) = reg_val;
   ESP_LOGD(TAG, "Update amp to level idx: %d", this->amp_level_);
 

@@ -3,7 +3,6 @@
 #include "esphome/components/audio_dac/audio_dac.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
-#include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 
 namespace esphome::tas2780 {
@@ -38,6 +37,7 @@ class TAS2780 : public audio_dac::AudioDac, public PollingComponent, public i2c:
  protected:
   void init_();
   void set_power_mode_(uint8_t power_mode);
+  bool write_mode_ctrl_(uint8_t mode);
   bool write_mute_();
   bool write_volume_();
   void log_error_states_();
