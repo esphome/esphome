@@ -207,17 +207,17 @@ export default defineConfig({
         {
           label: "Automations",
           collapsed: true,
-          autogenerate: { directory: "automations" },
+          items: [{ autogenerate: { directory: "automations", collapsed: true } }],
         },
         {
           label: "Guides",
           collapsed: true,
-          autogenerate: { directory: "guides" },
+          items: [{ autogenerate: { directory: "guides", collapsed: true } }],
         },
         {
           label: "Cookbook",
           collapsed: true,
-          autogenerate: { directory: "cookbook" },
+          items: [{ autogenerate: { directory: "cookbook", collapsed: true } }],
         },
         {
           label: "Keeping Up",

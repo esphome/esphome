@@ -11,7 +11,7 @@
     "lint": "node lint.mjs"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.38.5",
+    "@astrojs/starlight": "^0.39.3",
     "astro": "^6.4.4",
     "katex": "^0.16.47",
     "micromark": "^4.0.2",
