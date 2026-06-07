@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace pn7150_i2c {
+namespace esphome::pn7150_i2c {
 
 static const char *const TAG = "pn7150_i2c";
 
@@ -46,5 +45,4 @@ void PN7150I2C::dump_config() {
   LOG_I2C_DEVICE(this);
 }
 
-}  // namespace pn7150_i2c
-}  // namespace esphome
+}  // namespace esphome::pn7150_i2c

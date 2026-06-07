@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace hrxl_maxsonar_wr {
+namespace esphome::hrxl_maxsonar_wr {
 
 class HrxlMaxsonarWrComponent : public sensor::Sensor, public Component, public uart::UARTDevice {
  public:
@@ -21,5 +20,4 @@ class HrxlMaxsonarWrComponent : public sensor::Sensor, public Component, public 
   std::string buffer_;
 };
 
-}  // namespace hrxl_maxsonar_wr
-}  // namespace esphome
+}  // namespace esphome::hrxl_maxsonar_wr

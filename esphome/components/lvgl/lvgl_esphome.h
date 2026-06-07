@@ -50,7 +50,6 @@ using lv_color_data = uint16_t;
 using lv_color_data = uint32_t;
 #endif
 
-extern lv_event_code_t lv_api_event;     // NOLINT
 extern lv_event_code_t lv_update_event;  // NOLINT
 extern std::string lv_event_code_name_for(lv_event_t *event);
 
@@ -75,11 +74,11 @@ inline void lv_style_set_text_font(lv_style_t *style, const font::Font *font) {
   lv_style_set_text_font(style, font->get_lv_font());
 }
 #endif
-#if defined(USE_LVGL_IMAGE) && defined(USE_IMAGE)
-#if LV_USE_IMAGE
+
+#ifdef USE_IMAGE
+#ifdef USE_LVGL_IMAGE
 // Shortcut / overload, so that the source of an image widget can easily be updated from within a lambda.
 inline void lv_image_set_src(lv_obj_t *obj, image::Image *image) { ::lv_image_set_src(obj, image->get_lv_image_dsc()); }
-#endif  // LV_USE_IMAGE
 
 inline void lv_obj_set_style_bitmap_mask_src(lv_obj_t *obj, image::Image *image, lv_style_selector_t selector) {
   ::lv_obj_set_style_bitmap_mask_src(obj, image->get_lv_image_dsc(), selector);
@@ -94,7 +93,8 @@ inline void lv_style_set_bg_image_src(lv_style_t *style, image::Image *image) {
 inline void lv_style_set_bitmap_mask_src(lv_style_t *style, image::Image *image) {
   ::lv_style_set_bitmap_mask_src(style, image->get_lv_image_dsc());
 }
-#endif  // USE_LVGL_IMAGE
+#endif
+
 #ifdef USE_LVGL_ANIMIMG
 inline void lv_animimg_set_src(lv_obj_t *img, std::vector<image::Image *> images) {
   auto *dsc = static_cast<std::vector<lv_image_dsc_t *> *>(lv_obj_get_user_data(img));
@@ -110,6 +110,7 @@ inline void lv_animimg_set_src(lv_obj_t *img, std::vector<image::Image *> images
   lv_animimg_set_src(img, (const void **) dsc->data(), dsc->size());
 }
 #endif  // USE_LVGL_ANIMIMG
+#endif  // USE_IMAGE
 
 #ifdef USE_LVGL_METER
 int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int32_t value);
@@ -227,10 +228,42 @@ class LvglComponent : public PollingComponent {
    * Initialize the LVGL library and register custom events.
    */
   static void esphome_lvgl_init();
+
+  //  Convenience overloads for adding a callback for one or more events
   static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event);
   static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2);
   static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2,
                            lv_event_code_t event3);
+
+  // change the state of a widget and fire an event if changed (only needed for CHECKED)
+
+  static void lv_obj_set_state_value(lv_obj_t *obj, lv_state_t state, bool value) {
+    if (value != lv_obj_has_state(obj, state)) {
+      if (value) {
+        lv_obj_add_state(obj, state);
+      } else {
+        lv_obj_remove_state(obj, state);
+      }
+      if (state == LV_STATE_CHECKED)
+        lv_obj_send_event(obj, lv_update_event, nullptr);
+    }
+  }
+
+  // change the state of a buttonmatrix button and fire an event if changed (only needed for CHECKED)
+#ifdef USE_LVGL_BUTTONMATRIX
+  static void lv_buttonmatrix_set_button_ctrl_value(lv_obj_t *obj, uint32_t index, lv_buttonmatrix_ctrl_t ctrl,
+                                                    bool value) {
+    if (value != lv_buttonmatrix_has_button_ctrl(obj, index, ctrl)) {
+      if (value) {
+        lv_buttonmatrix_set_button_ctrl(obj, index, ctrl);
+      } else {
+        lv_buttonmatrix_clear_button_ctrl(obj, index, ctrl);
+      }
+      if (ctrl == LV_BUTTONMATRIX_CTRL_CHECKED)
+        lv_obj_send_event(obj, lv_update_event, nullptr);
+    }
+  }
+#endif
 
   void add_page(LvPageType *page);
   void show_page(size_t index, lv_screen_load_anim_t anim, uint32_t time);

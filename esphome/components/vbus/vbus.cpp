@@ -4,8 +4,7 @@
 #include <algorithm>
 #include <cinttypes>
 
-namespace esphome {
-namespace vbus {
+namespace esphome::vbus {
 
 static const char *const TAG = "vbus";
 
@@ -131,5 +130,4 @@ void VBusListener::on_message(uint16_t command, uint16_t source, uint16_t dest, 
   this->handle_message(message);
 }
 
-}  // namespace vbus
-}  // namespace esphome
+}  // namespace esphome::vbus

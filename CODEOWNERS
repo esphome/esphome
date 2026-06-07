@@ -351,6 +351,7 @@ esphome/components/modbus_server/* @exciton
 esphome/components/mopeka_ble/* @Fabian-Schmidt @spbrogan
 esphome/components/mopeka_pro_check/* @spbrogan
 esphome/components/mopeka_std_check/* @Fabian-Schmidt
+esphome/components/motion/* @esphome/core
 esphome/components/mpl3115a2/* @kbickar
 esphome/components/mpu6886/* @fabaff
 esphome/components/ms8607/* @e28eta
@@ -416,6 +417,8 @@ esphome/components/resampler/speaker/* @kahrendt
 esphome/components/restart/* @esphome/core
 esphome/components/rf_bridge/* @jesserockz
 esphome/components/rgbct/* @jesserockz
+esphome/components/ring_buffer/* @kahrendt
+esphome/components/router/speaker/* @kahrendt
 esphome/components/rp2040/* @jesserockz
 esphome/components/rp2040_ble/* @bdraco
 esphome/components/rp2040_pio_led_strip/* @Papa-DMan
