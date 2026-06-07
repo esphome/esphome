@@ -208,12 +208,18 @@ template<typename... Ts> class ObjUpdateAction : public Action<Ts...> {
 void lv_animimg_stop(lv_obj_t *obj);
 #endif  // USE_LVGL_ANIMIMG
 
+enum RotationType : uint8_t {
+  ROTATION_UNUSED,
+  ROTATION_SOFTWARE,
+  ROTATION_HARDWARE,
+};
+
 class LvglComponent : public PollingComponent {
   constexpr static const char *const TAG = "lvgl";
 
  public:
   LvglComponent(std::vector<display::Display *> displays, float buffer_frac, bool full_refresh, bool direct_mode,
-                int draw_rounding, bool resume_on_input, bool update_when_display_idle);
+                int draw_rounding, bool resume_on_input, bool update_when_display_idle, RotationType rotation_type);
   static void static_flush_cb(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *color_p);
   /**
    *
@@ -310,6 +316,8 @@ class LvglComponent : public PollingComponent {
   void set_resume_trigger(Trigger<> *trigger) { this->resume_callback_ = trigger; }
   void set_draw_start_trigger(Trigger<> *trigger) { this->draw_start_callback_ = trigger; }
   void set_draw_end_trigger(Trigger<> *trigger) { this->draw_end_callback_ = trigger; }
+  void set_rotation(display::DisplayRotation rotation);
+  display::DisplayRotation get_rotation() const { return this->rotation; }
   // Check if loop() has started - safe to perform LVGL operations
   bool is_loop_started() const { return this->loop_started_; }
   void record_invalidated_area(const lv_area_t *area);
@@ -322,6 +330,7 @@ class LvglComponent : public PollingComponent {
 
  protected:
   void draw_end_();
+  void set_resolution_() const;
   // Not checking for non-null callback since the
   // LVGL callback that calls it is not set in that case
   void draw_start_() const { this->draw_start_callback_->trigger(); }
@@ -359,6 +368,7 @@ class LvglComponent : public PollingComponent {
   bool direct_mode_{};
   bool resume_on_input_{};
   bool update_when_display_idle_{};
+  RotationType rotation_type_{ROTATION_UNUSED};
 
   uint8_t *draw_buf_{};
   uint8_t *draw_buf2_{};

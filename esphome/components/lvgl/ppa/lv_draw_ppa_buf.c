@@ -20,7 +20,7 @@
 /**********************
  *   GLOBAL FUNCTIONS
  **********************/
-void lv_draw_buf_ppa_init_handlers(void) { /* Intentionally empty - see file header comment */ }
+void lv_draw_buf_ppa_init_handlers() { /* Intentionally empty - see file header comment */ }
 
 void lv_draw_ppa_cache_sync(lv_draw_buf_t *buf) {
   if (buf == NULL || buf->data == NULL || buf->data_size == 0)

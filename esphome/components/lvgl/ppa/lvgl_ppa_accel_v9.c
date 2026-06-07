@@ -49,9 +49,9 @@ static uint32_t s_ppa_sw_fallback = 0;
 static uint32_t s_ppa_stats_last_log_ms = 0;
 
 #include "esp_timer.h"
-static inline uint32_t ppa_now_ms(void) { return (uint32_t) (esp_timer_get_time() / 1000); }
+static inline uint32_t ppa_now_ms() { return (uint32_t) (esp_timer_get_time() / 1000); }
 
-static void ppa_stats_maybe_log(void) {
+static void ppa_stats_maybe_log() {
 #if PPA_STATS_INTERVAL_MS > 0
   uint32_t now = ppa_now_ms();
   if (!lvgl_esphome_get_perf_logging_enabled()) {
@@ -96,7 +96,7 @@ static lv_draw_sw_custom_blend_handler_t s_custom_handler_rgb888 = {
     .handler = lv_draw_ppa_v9_handler,
 };
 
-static size_t ppa_align(void) {
+static size_t ppa_align() {
   if (s_cache_align == 0) {
     esp_cache_get_alignment(MALLOC_CAP_SPIRAM, &s_cache_align);
     if (s_cache_align == 0 || (s_cache_align & (s_cache_align - 1)) != 0) {

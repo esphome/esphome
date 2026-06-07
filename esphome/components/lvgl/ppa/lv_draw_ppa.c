@@ -58,7 +58,7 @@ static int32_t ppa_delete(lv_draw_unit_t *draw_unit);
  *   GLOBAL FUNCTIONS
  **********************/
 
-void lv_draw_ppa_init(void) {
+void lv_draw_ppa_init() {
   lv_draw_ppa_unit_t *draw_ppa_unit = (lv_draw_ppa_unit_t *) lv_draw_create_unit(sizeof(lv_draw_ppa_unit_t));
   draw_ppa_unit->base_unit.evaluate_cb = ppa_evaluate;
   draw_ppa_unit->base_unit.dispatch_cb = ppa_dispatch;
@@ -104,11 +104,11 @@ void lv_draw_ppa_init(void) {
   }
 }
 
-void lv_draw_ppa_deinit(void) {}
+void lv_draw_ppa_deinit() {}
 
-uint32_t lv_draw_ppa_get_fill_task_count(void) { return s_ppa_fill_tasks; }
+uint32_t lv_draw_ppa_get_fill_task_count() { return s_ppa_fill_tasks; }
 
-uint32_t lv_draw_ppa_get_img_task_count(void) { return s_ppa_img_tasks; }
+uint32_t lv_draw_ppa_get_img_task_count() { return s_ppa_img_tasks; }
 
 /**********************
  *   STATIC FUNCTIONS
