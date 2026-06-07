@@ -814,6 +814,62 @@ CONF_WIDGET = "widget"
 CONF_WIDGETS = "widgets"
 CONF_ZOOM = "zoom"
 
+# LVGL 9.5 blur / frosted glass properties
+CONF_BLUR_RADIUS = "blur_radius"
+CONF_BLUR_BACKDROP = "blur_backdrop"
+CONF_BLUR_QUALITY = "blur_quality"
+
+# LVGL 9.5 gradient opacity properties
+CONF_BG_MAIN_OPA = "bg_main_opa"
+CONF_BG_GRAD_OPA = "bg_grad_opa"
+
+# LVGL 9.5 image properties
+CONF_IMAGE_OPA = "image_opa"
+
+# LVGL 9.5 bitmap mask
+CONF_BITMAP_MASK_SRC = "bitmap_mask_src"
+
+# LVGL 9.5 margin properties (for flex/grid layouts)
+CONF_MARGIN_TOP = "margin_top"
+CONF_MARGIN_BOTTOM = "margin_bottom"
+CONF_MARGIN_LEFT = "margin_left"
+CONF_MARGIN_RIGHT = "margin_right"
+
+# LVGL 9.5 text outline stroke properties
+CONF_TEXT_OUTLINE_STROKE_COLOR = "text_outline_stroke_color"
+CONF_TEXT_OUTLINE_STROKE_OPA = "text_outline_stroke_opa"
+CONF_TEXT_OUTLINE_STROKE_WIDTH = "text_outline_stroke_width"
+
+# LVGL 9.5 drop shadow properties
+CONF_DROP_SHADOW_RADIUS = "drop_shadow_radius"
+CONF_DROP_SHADOW_OFFSET_X = "drop_shadow_offset_x"
+CONF_DROP_SHADOW_OFFSET_Y = "drop_shadow_offset_y"
+CONF_DROP_SHADOW_COLOR = "drop_shadow_color"
+CONF_DROP_SHADOW_OPA = "drop_shadow_opa"
+CONF_DROP_SHADOW_QUALITY = "drop_shadow_quality"
+
+# LVGL 9.5 additional image properties
+CONF_IMAGE_COLORKEY = "image_colorkey"
+CONF_ARC_IMAGE_SRC = "arc_image_src"
+
+# LVGL 9.5 rotary encoder sensitivity
+CONF_ROTARY_SENSITIVITY = "rotary_sensitivity"
+
+# Transition properties for animated state changes
+CONF_STYLE_TRANSITION_TIME = "style_transition_time"
+CONF_STYLE_TRANSITION_DELAY = "style_transition_delay"
+CONF_STYLE_TRANSITION_PATH = "style_transition_path"
+
+ANIM_PATHS = {
+    "linear": "lv_anim_path_linear",
+    "ease_in": "lv_anim_path_ease_in",
+    "ease_out": "lv_anim_path_ease_out",
+    "ease_in_out": "lv_anim_path_ease_in_out",
+    "overshoot": "lv_anim_path_overshoot",
+    "bounce": "lv_anim_path_bounce",
+    "step": "lv_anim_path_step",
+}
+
 # Keypad keys
 
 LV_KEYS = LvConstant(
