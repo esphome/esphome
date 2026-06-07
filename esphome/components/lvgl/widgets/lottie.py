@@ -61,8 +61,7 @@ from ..lvcode import lv
 from ..types import LvType, ObjUpdateAction
 from . import Widget, WidgetType, get_widgets
 
-# Global flag to track if include has been added
-_lottie_include_added = False
+_LOTTIE_INCLUDES_ADDED: set[str] = set()
 
 CONF_LOTTIE = "lottie"
 CONF_LOOP = "loop"
@@ -112,17 +111,17 @@ def validate_lottie_source(config):
         )
 
     # For src method, width and height are required
-    if has_src:
-        if CONF_WIDTH not in config or CONF_HEIGHT not in config:
-            raise cv.Invalid(
-                "'width' and 'height' are required when using 'src' (filesystem path). Cannot auto-detect dimensions at compile time."
-            )
+    if has_src and (CONF_WIDTH not in config or CONF_HEIGHT not in config):
+        raise cv.Invalid(
+            "'width' and 'height' are required when using 'src' (filesystem path). Cannot auto-detect dimensions at compile time."
+        )
 
     # For file method, auto-detect dimensions from JSON (unless user specified width/height for resize)
     if has_file:
         file_path = config[CONF_FILE]
+        path = Path(file_path)
         try:
-            with open(file_path, encoding="utf-8") as f:
+            with path.open(encoding="utf-8") as f:
                 lottie_data = json.load(f)
                 # Extract dimensions from Lottie JSON
                 lottie_width = lottie_data.get("w")
@@ -136,10 +135,10 @@ def validate_lottie_source(config):
                     config[CONF_LOTTIE_WIDTH] = int(lottie_width)
                     config[CONF_LOTTIE_HEIGHT] = int(lottie_height)
                 # else: user specified width/height for resize - those will be used
-        except json.JSONDecodeError as e:
-            raise cv.Invalid(f"Invalid JSON in Lottie file {file_path}: {e}")
-        except Exception as e:
-            raise cv.Invalid(f"Error reading Lottie file {file_path}: {e}")
+        except json.JSONDecodeError as err:
+            raise cv.Invalid(f"Invalid JSON in Lottie file {file_path}: {err}") from err
+        except (OSError, UnicodeDecodeError) as err:
+            raise cv.Invalid(f"Error reading Lottie file {file_path}: {err}") from err
 
     return config
 
@@ -178,8 +177,6 @@ class LottieType(WidgetType):
         return ("LOTTIE", "THORVG_INTERNAL", "VECTOR_GRAPHIC")
 
     async def to_code(self, w: Widget, config):
-        global _lottie_include_added
-
         add_lv_use("LOTTIE")
         add_lv_use("THORVG_INTERNAL")
         add_lv_use("VECTOR_GRAPHIC")
@@ -204,8 +201,8 @@ class LottieType(WidgetType):
         # (user's 'hidden' config is saved and restored after rendering)
 
         # Add include for lottie loader helper (once)
-        if not _lottie_include_added:
-            _lottie_include_added = True
+        if CONF_LOTTIE not in _LOTTIE_INCLUDES_ADDED:
+            _LOTTIE_INCLUDES_ADDED.add(CONF_LOTTIE)
             cg.add_global(
                 cg.RawStatement('#include "esphome/components/lvgl/lottie_loader.h"')
             )
@@ -224,7 +221,7 @@ class LottieType(WidgetType):
             )
         elif file_path := config.get(CONF_FILE):
             # Embedded data
-            with open(file_path, "rb") as f:
+            with Path(file_path).open("rb") as f:
                 json_data = f.read()
 
             # Add null terminator

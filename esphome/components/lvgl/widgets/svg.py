@@ -49,8 +49,7 @@ from ..lvcode import lv_obj
 from ..types import LvType
 from . import Widget, WidgetType
 
-# Global flag - add the #include once
-_svg_include_added = False
+_SVG_INCLUDES_ADDED: set[str] = set()
 
 CONF_SVG = "svg"
 
@@ -128,22 +127,22 @@ def validate_svg_source(config):
         )
 
     # For src method, width and height are required
-    if has_src:
-        if CONF_WIDTH not in config or CONF_HEIGHT not in config:
-            raise cv.Invalid(
-                "'width' and 'height' are required when using 'src' "
-                "(filesystem path). Cannot auto-detect dimensions at compile time."
-            )
+    if has_src and (CONF_WIDTH not in config or CONF_HEIGHT not in config):
+        raise cv.Invalid(
+            "'width' and 'height' are required when using 'src' "
+            "(filesystem path). Cannot auto-detect dimensions at compile time."
+        )
 
     # For file method, auto-detect dimensions from SVG
     if has_file:
         file_path = config[CONF_FILE]
+        path = Path(file_path)
         try:
-            with open(file_path, encoding="utf-8") as f:
+            with path.open(encoding="utf-8") as f:
                 svg_text = f.read()
             svg_w, svg_h = _parse_svg_dimensions(svg_text)
-        except Exception as e:
-            raise cv.Invalid(f"Error reading SVG file {file_path}: {e}")
+        except (OSError, UnicodeDecodeError) as err:
+            raise cv.Invalid(f"Error reading SVG file {file_path}: {err}") from err
 
         # Use auto-detected dimensions unless the user explicitly provided them
         if CONF_WIDTH not in config and CONF_HEIGHT not in config:
@@ -192,8 +191,6 @@ class SvgType(WidgetType):
         return ("CANVAS", "SVG", "THORVG_INTERNAL", "VECTOR_GRAPHIC")
 
     async def to_code(self, w: Widget, config):
-        global _svg_include_added
-
         add_lv_use("CANVAS")
         add_lv_use("SVG")
         add_lv_use("THORVG_INTERNAL")
@@ -216,8 +213,8 @@ class SvgType(WidgetType):
         # (user's 'hidden' config is saved and restored after rendering)
 
         # Add include once
-        if not _svg_include_added:
-            _svg_include_added = True
+        if CONF_SVG not in _SVG_INCLUDES_ADDED:
+            _SVG_INCLUDES_ADDED.add(CONF_SVG)
             cg.add_global(
                 cg.RawStatement('#include "esphome/components/lvgl/svg_loader.h"')
             )
@@ -236,7 +233,7 @@ class SvgType(WidgetType):
 
         elif file_path := config.get(CONF_FILE):
             # ------- Embedded SVG -------
-            with open(file_path, "rb") as f:
+            with Path(file_path).open("rb") as f:
                 svg_data = f.read()
 
             # Ensure null-terminated (ThorVG expects C string)
