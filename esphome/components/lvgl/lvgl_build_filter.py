@@ -47,6 +47,7 @@ create_piolibdeps_atomic_shim()
 # Parse build flags from ESPHome's __init__.py
 _build_flags = " ".join(env.get("BUILD_FLAGS", []))
 _thorvg_enabled = "LVGL_USE_THORVG=1" in _build_flags
+_sysmon_enabled = "LVGL_USE_SYSMON=1" in _build_flags
 
 # Extract used widgets list from build flags
 # Format: -DLVGL_WIDGETS_USED=\"label,button,slider,...\"
