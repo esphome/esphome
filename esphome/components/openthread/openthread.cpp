@@ -189,14 +189,19 @@ void OpenThreadSrpComponent::setup() {
     for (size_t i = 0; i < service.txt_records.size(); i++) {
       const auto &txt = service.txt_records[i];
       // Value is either a compile-time string literal in flash or a pointer to dynamic_txt_values_
-      // OpenThread SRP client expects the data to persist, so we copy it
+      // OpenThread SRP client expects the data to persist, so we strdup it
       const char *value_str = MDNS_STR_ARG(txt.value);
       txt_entries[i].mKey = MDNS_STR_ARG(txt.key);
+#ifndef USE_ZEPHYR
+      txt_entries[i].mValue = reinterpret_cast<const uint8_t *>(strdup(value_str));
+      txt_entries[i].mValueLength = strlen(value_str);
+#else
       size_t value_len = strlen(value_str);
       char *value_copy = reinterpret_cast<char *>(this->pool_alloc_(value_len + 1));
       memcpy(value_copy, value_str, value_len + 1);
       txt_entries[i].mValue = reinterpret_cast<const uint8_t *>(value_copy);
       txt_entries[i].mValueLength = value_len;
+#endif
     }
     entry->mService.mTxtEntries = txt_entries;
     entry->mService.mNumTxtEntries = service.txt_records.size();
