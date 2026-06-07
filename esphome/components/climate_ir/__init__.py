@@ -2,6 +2,7 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components import climate, remote_base, sensor
+from esphome.components.const import CONF_SUPPORTS_AUTO
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_HUMIDITY_SENSOR,
@@ -36,6 +37,7 @@ def climate_ir_schema(
             {
                 cv.Optional(CONF_SUPPORTS_COOL, default=True): cv.boolean,
                 cv.Optional(CONF_SUPPORTS_HEAT, default=True): cv.boolean,
+                cv.Optional(CONF_SUPPORTS_AUTO): cv.boolean,
                 cv.Optional(CONF_SENSOR): cv.use_id(sensor.Sensor),
                 cv.Optional(CONF_HUMIDITY_SENSOR): cv.use_id(sensor.Sensor),
             }
@@ -62,6 +64,8 @@ async def register_climate_ir(var, config):
     await remote_base.register_transmittable(var, config)
     cg.add(var.set_supports_cool(config[CONF_SUPPORTS_COOL]))
     cg.add(var.set_supports_heat(config[CONF_SUPPORTS_HEAT]))
+    if CONF_SUPPORTS_AUTO in config:
+        cg.add(var.set_supports_auto(config[CONF_SUPPORTS_AUTO]))
     if remote_base.CONF_RECEIVER_ID in config:
         await remote_base.register_listener(var, config)
     if sensor_id := config.get(CONF_SENSOR):
