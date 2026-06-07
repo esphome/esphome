@@ -65,6 +65,38 @@ def test_esp32_config(
 
 
 @pytest.mark.parametrize(
+    ("config_toolchain", "expected"),
+    [
+        # No `toolchain:` set -> the new default for esp32.
+        (None, Toolchain.ESP_IDF),
+        # An explicit `toolchain:` still wins over the default.
+        (Toolchain.PLATFORMIO.value, Toolchain.PLATFORMIO),
+        (Toolchain.ESP_IDF.value, Toolchain.ESP_IDF),
+    ],
+)
+def test_esp32_default_toolchain_is_esp_idf(
+    set_core_config: SetCoreConfigCallable,
+    config_toolchain: str | None,
+    expected: Toolchain,
+) -> None:
+    """With no `toolchain:` set (and nothing pinned via the CLI), esp32 resolves
+    to the ESP-IDF toolchain; an explicit `toolchain:` still wins."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    from esphome.components.esp32 import CONFIG_SCHEMA
+
+    # Fresh run: no --toolchain CLI and no prior config pinned CORE.toolchain.
+    CORE.toolchain = None
+    config: dict[str, Any] = {"variant": VARIANT_ESP32}
+    if config_toolchain is not None:
+        config["toolchain"] = config_toolchain
+
+    CONFIG_SCHEMA(config)
+
+    assert CORE.toolchain == expected
+
+
+@pytest.mark.parametrize(
     ("config", "error_match"),
     [
         pytest.param(
