@@ -48,9 +48,6 @@ void lvgl_esphome_note_frame(void);
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#if defined(__GLIBC__) || defined(__ANDROID__)
-#include <malloc.h>
-#endif
 #include <numeric>
 
 namespace esphome::lvgl {
@@ -63,6 +60,7 @@ static void lvgl_mipi_async_flush_ready(void *arg) { lv_display_flush_ready(stat
 // Published CPU% (real work, flush wait excluded) for the LVGL sysmon
 // overlay. Updated each second by loop(). Read by __wrap_lv_timer_get_idle
 // below to override lv_sysmon's broken FreeRTOS-mode CPU calculation.
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 static volatile uint32_t s_cpu_pct = 0;
 static volatile uint32_t s_flush_ms = 0;
 static volatile uint32_t s_direct_mode_active = 0;
@@ -485,6 +483,7 @@ static void profiler_init_custom() {
   s_profiler_initialized = true;
 }
 #endif
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome::lvgl
 
@@ -561,6 +560,7 @@ extern "C" void lvgl_esphome_profiler_mark(const char *name) {
 // when LV_USE_OS=LV_OS_FREERTOS (and via lv_timer_get_idle() under
 // LV_OS_NONE). Wrap both so the overlay reads our s_cpu_pct regardless
 // of the OS mode. Returns 100 - cpu, the "idle %" sysmon expects.
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 extern "C" uint32_t __wrap_lv_timer_get_idle(void) {
   uint32_t cpu = esphome::lvgl::s_cpu_pct;
   if (cpu > 100)
@@ -568,6 +568,7 @@ extern "C" uint32_t __wrap_lv_timer_get_idle(void) {
   return 100 - cpu;
 }
 
+// NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 extern "C" uint32_t __wrap_lv_os_get_idle_percent(void) {
   uint32_t cpu = esphome::lvgl::s_cpu_pct;
   if (cpu > 100)
@@ -1151,7 +1152,7 @@ void LvglComponent::flush_cb_(lv_display_t *disp_drv, const lv_area_t *area, uin
   lv_display_flush_ready(disp_drv);
 }
 
-void LvglComponent::sync_direct_framebuffer_area_(const lv_area_t *area, uint8_t *color_p) {
+void LvglComponent::sync_direct_framebuffer_area_(const lv_area_t *area, const uint8_t *color_p) {
 #ifdef USE_ESP32
 #if LV_COLOR_DEPTH == 32
   constexpr size_t bytes_per_pixel = 3;
@@ -1399,6 +1400,10 @@ void LvglComponent::partial_compositor_task_() {
         sync_dirty_areas[i] = this->partial_compositor_dirty_areas_[i];
       }
 
+#ifndef USE_MIPI_DSI
+      LV_UNUSED(y_start);
+      LV_UNUSED(y_end);
+#endif
 #ifdef USE_MIPI_DSI
       auto *mipi_display = static_cast<mipi_dsi::MipiDsi *>(this->displays_[0]);
       mipi_display->present_frame_buffer(this->partial_compositor_back_buffer_, y_start, y_end);
@@ -2386,74 +2391,15 @@ void lv_mem_init() {}
 void lv_mem_deinit() {}
 
 #if defined(USE_HOST) || defined(USE_RP2040) || defined(USE_ESP8266)
-// Memory alignment for draw buffers on non-ESP32 platforms.
-// We use 64-byte alignment for optimal performance even though LV_DRAW_BUF_ALIGN
-// is set to 4 (to avoid warnings from LVGL's internal stack/static buffers).
-// Standard malloc() only guarantees 8-16 byte alignment, so we implement
-// our own aligned allocation.
-static constexpr size_t lvgl_alignment = 64;
-
-// Store original pointer before aligned address for proper freeing
 void *lv_malloc_core(size_t size) {
-  if (size == 0)
-    return nullptr;
-
-  // Allocate extra space for alignment and to store original pointer
-  size_t total_size = size + lvgl_alignment + sizeof(void *);
-  void *raw = malloc(total_size);  // NOLINT
-  if (raw == nullptr) {
+  auto *ptr = malloc(size);  // NOLINT
+  if (ptr == nullptr) {
     ESP_LOGE(esphome::lvgl::TAG, "Failed to allocate %zu bytes", size);
-    return nullptr;
   }
-
-  // Calculate aligned pointer (leaving space for original pointer storage)
-  uintptr_t raw_addr = reinterpret_cast<uintptr_t>(raw);
-  uintptr_t aligned_addr = (raw_addr + sizeof(void *) + lvgl_alignment - 1) & ~(lvgl_alignment - 1);
-  void *aligned = reinterpret_cast<void *>(aligned_addr);
-
-  // Store original pointer just before aligned address
-  reinterpret_cast<void **>(aligned)[-1] = raw;
-
-  return aligned;
+  return ptr;
 }
-
-void lv_free_core(void *ptr) {
-  if (ptr == nullptr)
-    return;
-  // Retrieve and free the original pointer
-  void *raw = reinterpret_cast<void **>(ptr)[-1];
-  free(raw);  // NOLINT
-}
-
-void *lv_realloc_core(void *ptr, size_t size) {
-  if (ptr == nullptr)
-    return lv_malloc_core(size);
-  if (size == 0) {
-    lv_free_core(ptr);
-    return nullptr;
-  }
-
-  // Allocate new aligned buffer and copy data
-  void *new_ptr = lv_malloc_core(size);
-  if (new_ptr == nullptr)
-    return nullptr;
-
-    // We don't know the old size exactly, so copy min(new_size, old_usable_size).
-    // On most platforms, malloc_usable_size() returns the actual allocated size.
-    // Fall back to new size if unavailable (safe: reads at most what was allocated).
-#if defined(__GLIBC__) || defined(__ANDROID__)
-  size_t old_size = malloc_usable_size(reinterpret_cast<void **>(ptr)[-1]);
-  // Subtract alignment overhead to get usable size from aligned pointer
-  size_t overhead = reinterpret_cast<uintptr_t>(ptr) - reinterpret_cast<uintptr_t>(reinterpret_cast<void **>(ptr)[-1]);
-  old_size = (old_size > overhead) ? old_size - overhead : 0;
-#else
-  size_t old_size = size;  // conservative fallback: may read less than available
-#endif
-  memcpy(new_ptr, ptr, (size < old_size) ? size : old_size);
-  lv_free_core(ptr);
-
-  return new_ptr;
-}
+void lv_free_core(void *ptr) { return free(ptr); }                            // NOLINT
+void *lv_realloc_core(void *ptr, size_t size) { return realloc(ptr, size); }  // NOLINT
 
 void lv_mem_monitor_core(lv_mem_monitor_t *mon_p) { memset(mon_p, 0, sizeof(lv_mem_monitor_t)); }
 
