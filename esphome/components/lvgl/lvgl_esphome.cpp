@@ -780,8 +780,7 @@ void LvglComponent::dump_config() {
                 this->width_, this->height_, 100 / this->buffer_frac_, this->rotation, (int) this->draw_rounding);
   if (this->rotation_type_ != ROTATION_UNUSED) {
     ESP_LOGCONFIG(TAG, "  Rotation type: %s",
-                  this->rotation_type_ == RotationType::ROTATION_HARDWARE ? "hardware via display driver"
-                                                                          : "software");
+                  this->rotation_type_ == RotationType::ROTATION_HARDWARE ? "hardware via display driver" : "software");
   }
 #ifdef USE_LVGL_PPA
   ESP_LOGCONFIG(TAG, "  PPA SRM (display rotation): %s",
