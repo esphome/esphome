@@ -118,10 +118,6 @@ std::optional<InstanceLock> InstanceLock::try_acquire(int delay) {
 }
 
 InstanceLock InstanceLock::acquire() {
-  if (global_openthread_component == nullptr || !global_openthread_component->is_lock_initialized()) {
-    ESP_LOGE(TAG, "OpenThread lock not initialized, aborting");
-    abort();
-  }
   struct openthread_context *ot_context = openthread_get_default_context();
   while (k_mutex_lock(&ot_context->api_lock, K_MSEC(100)) != 0) {
   }
