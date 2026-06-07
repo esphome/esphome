@@ -452,6 +452,7 @@ async def to_code(configs):
     if any(BASE_PROPS.get(x) is lvalid.lv_image for x in styles_used):
         add_lv_use(CONF_IMAGE)
     lv_uses = df.get_lv_uses()
+    upper_lv_uses = {use.upper() for use in lv_uses}
 
     _to_canonical = {
         "BTN": "BUTTON",
@@ -486,12 +487,41 @@ async def to_code(configs):
     # not create a button matrix widget, so keep that source available.
     used_canonical_widgets.add("BUTTONMATRIX")
     lv_uses.add("buttonmatrix")
+    if "LOTTIE" in upper_lv_uses:
+        used_canonical_widgets.update({"CANVAS", "IMAGE"})
 
     for widget in _canonical_widgets:
         df.add_define(f"LV_USE_{widget}", "1" if widget in used_canonical_widgets else "0")
 
     widget_names = ",".join(sorted(use.lower() for use in lv_uses))
     cg.add_build_flag(f'-DLVGL_WIDGETS_USED=\\"{widget_names}\\"')
+
+    needs_thorvg = bool(
+        {"THORVG_INTERNAL", "SVG", "LOTTIE", "VECTOR_GRAPHIC"} & upper_lv_uses
+    )
+    if needs_thorvg:
+        df.add_define("LV_USE_DRAW_SW", "1")
+        df.add_define("LV_DRAW_SW_DRAW_UNIT_CNT", "1")
+        df.add_define("LV_USE_FLOAT", "1")
+        df.add_define("LV_USE_MATRIX", "1")
+        df.add_define("LV_USE_VECTOR_GRAPHIC", "1")
+        df.add_define("LV_USE_THORVG", "1")
+        df.add_define("LV_USE_THORVG_INTERNAL", "1")
+        df.add_define("LV_USE_SVG", "1" if "SVG" in upper_lv_uses else "0")
+        df.add_define("LV_USE_LOTTIE", "1" if "LOTTIE" in upper_lv_uses else "0")
+        df.add_define("LV_VG_LITE_THORVG_16PIXELS_ALIGN", "1")
+        df.add_define("LV_DRAW_THREAD_STACK_SIZE", "(48 * 1024)")
+        cg.add_library("pngdec", "1.0.1")
+        cg.add_build_flag("-DLVGL_USE_THORVG=1")
+    else:
+        df.add_define("LV_USE_FLOAT", "0")
+        df.add_define("LV_USE_MATRIX", "0")
+        df.add_define("LV_USE_VECTOR_GRAPHIC", "0")
+        df.add_define("LV_USE_THORVG", "0")
+        df.add_define("LV_USE_THORVG_INTERNAL", "0")
+        df.add_define("LV_USE_SVG", "0")
+        df.add_define("LV_USE_LOTTIE", "0")
+        df.add_define("LV_DRAW_THREAD_STACK_SIZE", "(8 * 1024)")
 
     if {
         "transform_rotation",
