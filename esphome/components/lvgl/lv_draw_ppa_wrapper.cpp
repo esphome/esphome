@@ -7,6 +7,8 @@
 
 #include "esphome/core/defines.h"
 
+// namespace esphome::lvgl -- ESPHome lint marker for the C PPA sources included below.
+
 #ifdef USE_LVGL_PPA
 
 extern "C" {

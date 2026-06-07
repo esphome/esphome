@@ -8,6 +8,9 @@
  * gradients-after-rasterize, rect edges, etc.).
  */
 
+#pragma once
+// namespace esphome::lvgl -- ESPHome lint marker; this header exposes C linkage.
+
 #ifndef LVGL_PPA_ACCEL_V9_H
 #define LVGL_PPA_ACCEL_V9_H
 
