@@ -283,8 +283,7 @@ async def to_code(config):
         set_sdkconfig_options(config)
     elif CORE.is_nrf52:
         zephyr_add_prj_conf("NET_L2_OPENTHREAD", True)
-        if config.get(CONF_DEVICE_TYPE) == "FTD":
-            zephyr_add_prj_conf("OPENTHREAD_NORDIC_LIBRARY_FTD", True)
+        zephyr_add_prj_conf(f"OPENTHREAD_NORDIC_LIBRARY_{config.get(CONF_DEVICE_TYPE)}", True)
         zephyr_add_prj_conf(f"OPENTHREAD_{config.get(CONF_DEVICE_TYPE)}", True)
         zephyr_add_prj_conf("OPENTHREAD_SRP_CLIENT", True)
         zephyr_add_prj_conf("OPENTHREAD_SLAAC", True)
