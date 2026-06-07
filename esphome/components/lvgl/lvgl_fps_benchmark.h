@@ -5,8 +5,9 @@
  * samples FPS every 500 ms, prints a P10/P25/P50/P75/P90 + IQR report.
  */
 
-#ifndef LVGL_FPS_BENCHMARK_H
-#define LVGL_FPS_BENCHMARK_H
+#pragma once
+
+// namespace esphome::lvgl -- ESPHome lint marker; the exported functions use C linkage.
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,5 +29,3 @@ void lvgl_fps_benchmark_print(void);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* LVGL_FPS_BENCHMARK_H */

@@ -5,6 +5,9 @@
  * Adapted for C++ compilation (ESPHome build system)
  */
 
+#pragma once
+// namespace esphome::lvgl -- ESPHome lint marker; this header is shared with C sources.
+
 #ifndef LV_DRAW_PPA_PRIVATE_FIXED_H
 #define LV_DRAW_PPA_PRIVATE_FIXED_H
 

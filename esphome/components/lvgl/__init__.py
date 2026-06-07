@@ -126,9 +126,9 @@ CODEOWNERS = ["@clydebarrow"]
 HELLO_WORLD_FILE = "hello_world.yaml"
 CONF_USE_PPA = "use_ppa"
 CONF_USE_PPA_IMG = "use_ppa_img"
-CONF_USE_FPS_BENCHMARK = "fps_benchmark"
-CONF_USE_PERF_MONITOR = "perf_monitor"
-CONF_USE_PROFILER = "profiler"
+CONF_FPS_BENCHMARK = "fps_benchmark"
+CONF_PERF_MONITOR = "perf_monitor"
+CONF_PROFILER = "profiler"
 
 
 SIMPLE_TRIGGERS = (
@@ -348,9 +348,9 @@ async def to_code(configs):
         cg.add_build_flag(f"-I{ppa_dir.as_posix()}")
     if use_ppa_img:
         cg.add_define("LV_USE_PPA_IMG")
-    use_fps_benchmark = _config_bool(config_0.get(CONF_USE_FPS_BENCHMARK, False))
-    use_perf_monitor = _config_bool(config_0.get(CONF_USE_PERF_MONITOR, False))
-    use_profiler = _config_bool(config_0.get(CONF_USE_PROFILER, False))
+    use_fps_benchmark = _config_bool(config_0.get(CONF_FPS_BENCHMARK, False))
+    use_perf_monitor = _config_bool(config_0.get(CONF_PERF_MONITOR, False))
+    use_profiler = _config_bool(config_0.get(CONF_PROFILER, False))
     if use_fps_benchmark:
         cg.add_define("USE_LVGL_FPS_BENCHMARK")
     if use_perf_monitor:
@@ -698,9 +698,9 @@ LVGL_SCHEMA = cv.All(
                 cv.Optional(df.CONF_RESUME_ON_INPUT, default=True): cv.boolean,
                 cv.Optional(CONF_USE_PPA, default=False): cv.boolean,
                 cv.Optional(CONF_USE_PPA_IMG, default=False): cv.boolean,
-                cv.Optional(CONF_USE_FPS_BENCHMARK, default=False): cv.boolean,
-                cv.Optional(CONF_USE_PERF_MONITOR, default=False): cv.boolean,
-                cv.Optional(CONF_USE_PROFILER, default=False): cv.boolean,
+                cv.Optional(CONF_FPS_BENCHMARK, default=False): cv.boolean,
+                cv.Optional(CONF_PERF_MONITOR, default=False): cv.boolean,
+                cv.Optional(CONF_PROFILER, default=False): cv.boolean,
             }
         )
         .extend(DISP_BG_SCHEMA),

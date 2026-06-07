@@ -45,6 +45,7 @@ void lvgl_esphome_note_frame(void);
 #endif
 
 #include <algorithm>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <numeric>
@@ -773,7 +774,9 @@ std::string lv_event_code_name_for(lv_event_t *event) {
   if (event_code < sizeof(EVENT_NAMES) / sizeof(EVENT_NAMES[0])) {
     return EVENT_NAMES[event_code];
   }
-  return str_sprintf("%2d", event_code);
+  char buffer[8];
+  snprintf(buffer, sizeof(buffer), "%2u", static_cast<unsigned>(event_code));
+  return buffer;
 }
 
 static void rounder_cb(lv_event_t *event) {

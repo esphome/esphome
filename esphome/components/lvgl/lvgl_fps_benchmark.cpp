@@ -15,6 +15,8 @@
 #include "esphome/core/defines.h"
 #include "lvgl_fps_benchmark.h"
 
+// namespace esphome::lvgl -- ESPHome lint marker; the benchmark exports C-linkage helpers.
+
 #ifdef USE_LVGL_FPS_BENCHMARK
 
 #include "esp_log.h"
@@ -36,14 +38,14 @@ static const char *TAG_FPS = "lvgl";  /* reuse the lvgl tag - known to pass user
         if (lvgl_esphome_get_perf_logging_enabled()) ESP_LOGI(__VA_ARGS__); \
     } while (0)
 
-#define FPS_STARTUP_DELAY_MS         5000
-#define FPS_SAMPLE_PERIOD_MS         500
-#define FPS_MAX_SAMPLES              200
-#define FPS_STARTUP_THRESHOLD        30
-#define FPS_STABLE_COUNT_REQUIRED    3
-#define FPS_END_DETECTION_RATIO      0.3f
-#define FPS_CONSECUTIVE_END_REQUIRED 10
-#define FPS_ABSOLUTE_MIN_THRESHOLD   3
+static constexpr uint32_t FPS_STARTUP_DELAY_MS = 5000;
+static constexpr uint32_t FPS_SAMPLE_PERIOD_MS = 500;
+static constexpr uint32_t FPS_MAX_SAMPLES = 200;
+static constexpr uint32_t FPS_STARTUP_THRESHOLD = 30;
+static constexpr uint32_t FPS_STABLE_COUNT_REQUIRED = 3;
+static constexpr float FPS_END_DETECTION_RATIO = 0.3f;
+static constexpr uint32_t FPS_CONSECUTIVE_END_REQUIRED = 10;
+static constexpr uint32_t FPS_ABSOLUTE_MIN_THRESHOLD = 3;
 
 typedef enum {
     FPS_STATE_STARTUP = 0,

@@ -24,7 +24,6 @@ from .defines import (
     StaticCastExpression,
     add_warning,
     get_focused_widgets,
-    get_options,
     get_refreshed_widgets,
 )
 from .lv_validation import lv_bool, lv_milliseconds
