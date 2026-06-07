@@ -197,7 +197,15 @@ void OpenThreadComponent::ot_main() {
   vTaskDelete(NULL);
 }
 
-int OpenThreadComponent::openthread_stop_() { return esp_openthread_mainloop_exit(); }
+int OpenThreadComponent::openthread_stop_() {
+  ESP_LOGD(TAG, "Exit main loop ");
+  int error = esp_openthread_mainloop_exit();
+  if (error != ESP_OK) {
+    ESP_LOGW(TAG, "Failed attempt to stop main loop %d", error);
+    this->teardown_complete_ = true;
+  }
+  return error;
+}
 
 network::IPAddresses OpenThreadComponent::get_ip_addresses() {
   network::IPAddresses addresses;

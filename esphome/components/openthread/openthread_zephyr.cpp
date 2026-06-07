@@ -82,6 +82,12 @@ void OpenThreadComponent::setup() {
 
 void OpenThreadComponent::ot_main() {}
 
+int OpenThreadComponent::openthread_stop_() {
+  this->lock_initialized_ = false;
+  this->teardown_complete_ = true;
+  return 0;
+}
+
 network::IPAddresses OpenThreadComponent::get_ip_addresses() {
   network::IPAddresses addresses;
   auto lock = InstanceLock::try_acquire(100);
