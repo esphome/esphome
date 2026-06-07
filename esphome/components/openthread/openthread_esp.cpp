@@ -43,7 +43,7 @@ void OpenThreadComponent::setup() {
   ESP_ERROR_CHECK(esp_vfs_eventfd_register(&eventfd_config));
 
 #if CONFIG_OPENTHREAD_CLI
-  ot_console_start();
+  esp_openthread_cli_init();
 #endif
 #if CONFIG_OPENTHREAD_CLI_ESP_EXTENSION
   ot_register_external_commands();

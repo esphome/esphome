@@ -256,8 +256,12 @@ bool OpenThreadComponent::teardown() {
         return true;
       }
       otInstance *instance = lock->get_instance();
-      otThreadSetEnabled(instance, false);
-      otIp6SetEnabled(instance, false);
+      if (otThreadSetEnabled(instance, false) != OT_ERROR_NONE) {
+        ESP_LOGW(TAG, "Failed to disable Thread during teardown");
+      }
+      if (otIp6SetEnabled(instance, false) != OT_ERROR_NONE) {
+        ESP_LOGW(TAG, "Failed to disable IPv6 during teardown");
+      }
     } break;
     case OtcTeardownStage::OTC_TEARDOWN_STOP_STARTED: {
       // stop openthread
