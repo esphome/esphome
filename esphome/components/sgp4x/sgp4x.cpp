@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include <cinttypes>
+#include <cmath>
 
 namespace esphome::sgp4x {
 
@@ -199,7 +200,7 @@ void SGP4xComponent::measure_raw_() {
       response_words = 2;
     }
   }
-  uint16_t rhticks = (uint16_t) llround((humidity * 65535) / 100);
+  uint16_t rhticks = (uint16_t) std::llround((humidity * 65535) / 100);
   uint16_t tempticks = (uint16_t) (((temperature + 45) * 65535) / 175);
   // first parameter are the relative humidity ticks
   data[0] = rhticks;
