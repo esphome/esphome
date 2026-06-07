@@ -493,7 +493,7 @@ def download_from_mirrors(
     substitutions: dict[str, str],
     target: io.RawIOBase | IO[bytes] | PathType,
     timeout: int = 30,
-) -> str | None:
+) -> str:
     """
     Download file from multiple mirrors with substitution support.
 
@@ -507,7 +507,8 @@ def download_from_mirrors(
         The source URL.
 
     Raises:
-        Exception: If all download attempts fail
+        ValueError: If mirrors list is empty.
+        Exception: If all download attempts fail.
     """
     # 1. Open target file for writing if path given
     with ExitStack() as stack:
@@ -567,4 +568,4 @@ def download_from_mirrors(
         # 7. Raise last exception if all mirrors failed
         if last_exception:
             raise last_exception
-        return None
+        raise ValueError("download_from_mirrors called with an empty mirrors list")
