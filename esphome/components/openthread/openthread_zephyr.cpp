@@ -119,8 +119,7 @@ std::optional<InstanceLock> InstanceLock::try_acquire(int delay) {
 
 InstanceLock InstanceLock::acquire() {
   struct openthread_context *ot_context = openthread_get_default_context();
-  while (k_mutex_lock(&ot_context->api_lock, K_MSEC(100)) != 0) {
-  }
+  k_mutex_lock(&ot_context->api_lock, K_FOREVER);
   return InstanceLock();
 }
 
