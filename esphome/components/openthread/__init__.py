@@ -196,6 +196,19 @@ def _validate_platform(config):
     )(config)
 
 
+def _validate_tlv_hex(value):
+    s = cv.string_strict(value)
+    if len(s) % 2 != 0:
+        raise cv.Invalid("TLV must have an even number of hex characters")
+    try:
+        raw = bytes.fromhex(s)
+    except ValueError as e:
+        raise cv.Invalid(f"TLV must be valid hex: {e}")
+    if len(raw) > 254:  # sizeof(otOperationalDatasetTlvs::mTlvs)
+        raise cv.Invalid(f"TLV too long ({len(raw)} bytes, max 254)")
+    return s
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -206,7 +219,7 @@ CONFIG_SCHEMA = cv.All(
                 *CONF_DEVICE_TYPES, upper=True
             ),
             cv.Optional(CONF_FORCE_DATASET): cv.boolean,
-            cv.Optional(CONF_TLV): cv.string_strict,
+            cv.Optional(CONF_TLV): cv.All(cv.string_strict, _validate_tlv_hex),
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
             cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_OUTPUT_POWER): cv.All(
