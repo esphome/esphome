@@ -1,0 +1,10 @@
+packages:
+  remote_transmitter: !include ../../test_build_components/common/remote_transmitter/esp32-idf.yaml
+
+climate:
+  - platform: gree
+    name: GREE
+    transmitter_id: xmitr
+    model: YAN
+    supports_heat: false
+    supports_auto: true
