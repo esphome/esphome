@@ -501,7 +501,6 @@ async def to_code(configs):
     for use in lv_uses:
         upper = use.upper()
         cg.add_define(f"USE_LVGL_{upper}")
-        cg.add_define(f"USE_{upper}")
         canonical = _to_canonical.get(upper, upper)
         if canonical in _canonical_widgets:
             used_canonical_widgets.add(canonical)
