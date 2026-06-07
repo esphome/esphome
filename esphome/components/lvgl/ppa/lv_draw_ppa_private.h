@@ -24,9 +24,7 @@
 /* The ppa driver depends heavily on the esp-idf headers */
 #include "sdkconfig.h"
 
-#ifndef CONFIG_SOC_PPA_SUPPORTED
-#error "This SoC does not support PPA"
-#endif
+#ifdef CONFIG_SOC_PPA_SUPPORTED
 
 #include "driver/ppa.h"
 #include "esp_heap_caps.h"
@@ -57,7 +55,7 @@
  * the cache line, mirroring what esp_lvgl_port (common/ppa/lcd_ppa.c) does
  * via ALIGN_UP(size, CONFIG_CACHE_L2_CACHE_LINE_SIZE).
  */
-static inline uint32_t lv_draw_ppa_cache_align(void) {
+static inline uint32_t lv_draw_ppa_cache_align() {
   size_t alignment = 0;
   esp_err_t err = esp_cache_get_alignment(MALLOC_CAP_SPIRAM, &alignment);
   if (err != ESP_OK || alignment == 0 || (alignment & (alignment - 1U)) != 0) {
@@ -75,14 +73,16 @@ static inline bool lv_draw_ppa_buf_cache_aligned(const void *p) {
   return ((uintptr_t) p % lv_draw_ppa_cache_align()) == 0;
 }
 
-typedef struct lv_draw_ppa_unit {
+struct LvDrawPpaUnit {
   lv_draw_unit_t base_unit;
   lv_draw_task_t *task_act;
   ppa_client_handle_t srm_client;
   ppa_client_handle_t fill_client;
   ppa_client_handle_t blend_client;
   uint8_t *buf;
-} lv_draw_ppa_unit_t;
+};
+
+using lv_draw_ppa_unit_t = LvDrawPpaUnit;
 
 /**********************
  *   STATIC FUNCTIONS
@@ -149,5 +149,7 @@ static inline ppa_srm_color_mode_t lv_color_format_to_ppa_srm(lv_color_format_t 
       return PPA_SRM_COLOR_MODE_RGB565;
   }
 }
+
+#endif /* CONFIG_SOC_PPA_SUPPORTED */
 
 #endif /* LV_DRAW_PPA_PRIVATE_FIXED_H */
