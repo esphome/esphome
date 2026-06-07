@@ -15,7 +15,8 @@ Communication from ESPHome (__init__.py) via build flags:
 from pathlib import Path
 import re
 
-Import("env")
+Import("env")  # noqa: F821 - provided by PlatformIO/SCons at runtime
+env = globals()["env"]
 
 ATOMIC_SHIM_TEXT = """#pragma once
 
