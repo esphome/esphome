@@ -100,7 +100,9 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
   size_t addr_count = 0;
   for (const otNetifAddress *addr = otIp6GetUnicastAddresses(openthread_get_default_instance());
        addr != nullptr && addr_count + 1 < addresses.size(); addr = addr->mNext) {
-    addresses[addr_count + 1] = network::IPAddress(reinterpret_cast<const struct in6_addr *>(&addr->mAddress));
+    struct in6_addr ip6;
+    memcpy(&ip6, addr->mAddress.mFields.m8, sizeof(ip6));
+    addresses[addr_count + 1] = network::IPAddress(&ip6);
     addr_count++;
   }
   return addresses;
