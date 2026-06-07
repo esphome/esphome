@@ -21,8 +21,11 @@
 #include "src/display/lv_display_private.h"
 #include "src/misc/lv_area_private.h"
 
-/* The ppa driver depends heavily on the esp-idf headers */
+/* The PPA driver depends heavily on ESP-IDF headers.  clang-tidy also runs
+ * all-include checks for non-IDF targets where sdkconfig.h is not present. */
+#if defined(ESP_PLATFORM) && __has_include("sdkconfig.h")
 #include "sdkconfig.h"
+#endif
 
 #ifdef CONFIG_SOC_PPA_SUPPORTED
 
