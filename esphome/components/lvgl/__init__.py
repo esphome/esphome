@@ -367,10 +367,16 @@ async def to_code(configs):
             frac = 1
         elif frac >= 0.375:
             frac = 2
-        elif frac > 0.19:
+        elif frac >= 0.19:
             frac = 4
-        elif frac != 0:
+        elif frac >= 0.095:
             frac = 8
+        elif frac >= 0.0475:
+            frac = 16
+        elif frac >= 0.023:
+            frac = 32
+        elif frac != 0:
+            frac = 64
         displays = [
             await cg.get_variable(display) for display in config[df.CONF_DISPLAYS]
         ]
