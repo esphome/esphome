@@ -52,18 +52,21 @@ void OpenThreadComponent::setup() {
     const size_t tlv_chars = sizeof(USE_OPENTHREAD_TLVS) - 1;
     if ((tlv_chars % 2) != 0) {
       ESP_LOGE(TAG, "Invalid OpenThread TLV hex string length (must be even, got %zu)", tlv_chars);
+      this->mark_failed();
       return;
     }
 
     size_t len = tlv_chars / 2;
     if (len > sizeof(dataset.mTlvs)) {
       ESP_LOGE(TAG, "OpenThread TLV too long (max %zu bytes, got %zu bytes)", sizeof(dataset.mTlvs), len);
+      this->mark_failed();
       return;
     }
 
     size_t parsed = parse_hex(USE_OPENTHREAD_TLVS, tlv_chars, dataset.mTlvs, len);
     if (parsed != tlv_chars) {
       ESP_LOGE(TAG, "Invalid OpenThread TLV hex string (expected %zu hex chars, got %zu)", tlv_chars, parsed);
+      this->mark_failed();
       return;
     }
     dataset.mLength = len;
@@ -73,6 +76,7 @@ void OpenThreadComponent::setup() {
     otError error = otDatasetSetActiveTlvs(context->instance, &dataset);
     if (error != OT_ERROR_NONE) {
       ESP_LOGE(TAG, "Failed to set active dataset: %s", otThreadErrorToString(error));
+      this->mark_failed();
       return;
     }
   }
