@@ -131,7 +131,7 @@ if "lottie" in _used_widgets:
     _needed_widget_files.add("image")
 
 
-def lvgl_src_filter(env, node):
+def lvgl_src_filter(_build_env, node):
     """Skip compilation of LVGL source files not needed for ESP32."""
     path = str(node.get_path()).replace("\\", "/")
 
