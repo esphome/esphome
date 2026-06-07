@@ -400,8 +400,8 @@ class LvglComponent : public PollingComponent {
   Trigger<> *draw_end_callback_{};
   lv_color_t *rotate_buf_{};
   bool buffers_configured_{false};  // Track if lv_display_set_buffers() has been called
-  size_t buf_bytes_{0};              // Store buffer size for delayed configuration
-  bool loop_started_{false};  // safe to perform LVGL ops only after loop() starts
+  size_t buf_bytes_{0};             // Store buffer size for delayed configuration
+  bool loop_started_{false};        // safe to perform LVGL ops only after loop() starts
   // Sliding 1s perf window: time spent inside lv_timer_handler() vs wall,
   // minus the synchronous flush wait (DMA blocking, not CPU work).
   uint64_t perf_window_start_us_{0};
