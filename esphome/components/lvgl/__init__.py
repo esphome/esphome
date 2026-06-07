@@ -307,8 +307,10 @@ async def to_code(configs):
     df.add_define("LV_USE_STDLIB_MALLOC", "LV_STDLIB_CUSTOM")
     df.add_define("LV_DEF_REFR_PERIOD", "16")
     cg.add_define("USE_LVGL")
+    build_filter_script = Path(__file__).parent / "lvgl_build_filter.py"
+    cg.add_platformio_option("extra_scripts", [f"pre:{build_filter_script}"])
     # suppress default enabling of extra widgets
-    # cg.add_define("LV_KCONFIG_PRESENT")
+    df.add_define("_LV_KCONFIG_PRESENT")
     # Always enable - lots of things use it.
     df.add_define("LV_DRAW_SW_COMPLEX", "1")
 
@@ -449,9 +451,47 @@ async def to_code(configs):
     styles_used = df.get_styles_used()
     if any(BASE_PROPS.get(x) is lvalid.lv_image for x in styles_used):
         add_lv_use(CONF_IMAGE)
-    for use in df.get_lv_uses():
-        df.add_define(f"LV_USE_{use.upper()}")
-        cg.add_define(f"USE_LVGL_{use.upper()}")
+    lv_uses = df.get_lv_uses()
+
+    _to_canonical = {
+        "BTN": "BUTTON",
+        "BTNMATRIX": "BUTTONMATRIX",
+        "IMG": "IMAGE",
+        "IMGBTN": "IMAGEBUTTON",
+        "ANIMIMAGE": "ANIMIMG",
+        "SPANGROUP": "SPAN",
+        "METER": "SCALE",
+    }
+    _canonical_widgets = {
+        "ANIMIMG", "ARC", "BAR", "BUTTON", "BUTTONMATRIX",
+        "CALENDAR", "CANVAS", "CHART", "CHECKBOX", "DROPDOWN",
+        "IMAGE", "IMAGEBUTTON", "KEYBOARD", "LABEL", "LED",
+        "LINE", "LIST", "MENU", "MSGBOX", "ROLLER", "SCALE",
+        "SLIDER", "SPAN", "SPINBOX", "SPINNER", "SWITCH",
+        "TABLE", "TABVIEW", "TEXTAREA", "TILEVIEW", "WIN",
+    }
+
+    used_canonical_widgets = set()
+    for use in lv_uses:
+        upper = use.upper()
+        cg.add_define(f"USE_LVGL_{upper}")
+        cg.add_define(f"USE_{upper}")
+        canonical = _to_canonical.get(upper, upper)
+        if canonical in _canonical_widgets:
+            used_canonical_widgets.add(canonical)
+        else:
+            df.add_define(f"LV_USE_{upper}")
+
+    # lv_theme_default.c references the button matrix class even when YAML does
+    # not create a button matrix widget, so keep that source available.
+    used_canonical_widgets.add("BUTTONMATRIX")
+    lv_uses.add("buttonmatrix")
+
+    for widget in _canonical_widgets:
+        df.add_define(f"LV_USE_{widget}", "1" if widget in used_canonical_widgets else "0")
+
+    widget_names = ",".join(sorted(use.lower() for use in lv_uses))
+    cg.add_build_flag(f'-DLVGL_WIDGETS_USED=\\"{widget_names}\\"')
 
     if {
         "transform_rotation",
