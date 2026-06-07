@@ -12,7 +12,7 @@
 #include "lv_draw_ppa.h"
 
 #ifndef LV_PPA_BURST_LENGTH
-#define LV_PPA_BURST_LENGTH 128
+#define LV_PPA_BURST_LENGTH (128)
 #endif
 
 #if LV_PPA_BURST_LENGTH == 128
@@ -32,7 +32,7 @@
 /*********************
  *      DEFINES
  *********************/
-#define PPA_BUF_ALIGN     16  /* PPA needs at least 16-byte aligned buffers (128-bit burst) */
+#define PPA_BUF_ALIGN     (16)  /* PPA needs at least 16-byte aligned buffers (128-bit burst) */
 
 static const char * TAG = "ppa_draw";
 static uint32_t s_ppa_fill_tasks = 0;

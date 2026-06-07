@@ -4,6 +4,9 @@
  * Based on https://github.com/lvgl/lvgl/pull/9162 (included in LVGL 9.5+)
  */
 
+#pragma once
+// namespace esphome::lvgl -- ESPHome lint marker; this header exposes C linkage.
+
 #ifndef LV_DRAW_PPA_FIXED_H
 #define LV_DRAW_PPA_FIXED_H
 

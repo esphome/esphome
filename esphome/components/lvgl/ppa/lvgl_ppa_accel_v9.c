@@ -32,16 +32,16 @@
 
 uint32_t lvgl_esphome_get_perf_logging_enabled(void);
 
-#define LVGL_PORT_PPA_ALIGNMENT       64
+#define LVGL_PORT_PPA_ALIGNMENT       (64)
 #define LVGL_PORT_PPA_ALIGN_UP(s, a)  (((s) + ((a) - 1)) & ~((a) - 1))
-#define LVGL_PORT_PPA_MIN_AREA_PX     100
+#define LVGL_PORT_PPA_MIN_AREA_PX     (100)
 
 static const char *TAG_V9 = "lvgl";  /* reuse the lvgl tag used by the component */
 
 /* Instrumentation: how many ops landed on hardware vs the SW fallback,
    reported once every PPA_STATS_INTERVAL_MS to confirm acceleration is
    live. Set PPA_STATS_INTERVAL_MS to 0 to silence. */
-#define PPA_STATS_INTERVAL_MS 2000
+#define PPA_STATS_INTERVAL_MS (2000)
 
 static uint32_t s_ppa_hw_fills   = 0;
 static uint32_t s_ppa_hw_blends  = 0;
