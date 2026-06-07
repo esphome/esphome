@@ -123,7 +123,7 @@ class MipiDsi : public display::Display {
   void write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
                          int x_pad);
   void start_async_flush_task_();
-  static void async_flush_task_trampoline_(void *arg);
+  static void async_flush_task_trampoline(void *arg);
   void async_flush_task_();
   bool ensure_async_staging_buffer_(size_t size);
   bool check_buffer_();

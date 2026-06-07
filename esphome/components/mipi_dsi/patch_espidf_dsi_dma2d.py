@@ -9,9 +9,12 @@
 
 # ruff: noqa: F821
 # pylint: disable=undefined-variable
+from contextlib import suppress
 from pathlib import Path
 
-Import("env")  # type: ignore[name-defined]
+env = None
+with suppress(NameError):
+    Import("env")  # noqa: F821  # type: ignore[name-defined]
 
 
 def main() -> None:
@@ -95,4 +98,5 @@ static bool dpi_panel_skip_draw_buffer_msync(const void *draw_buffer)
     print("MIPI DSI patch: applied ESP-IDF DMA2D internal-buffer cache sync guard")
 
 
-main()
+if env is not None:
+    main()

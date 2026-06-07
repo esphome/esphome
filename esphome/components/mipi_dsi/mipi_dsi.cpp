@@ -15,7 +15,7 @@ namespace esphome::mipi_dsi {
 static constexpr size_t MIPI_DSI_MAX_CMD_LOG_BYTES = 64;
 static constexpr size_t DMA2D_SAFE_ALIGN_BYTES = 4;
 
-static bool is_aligned_(uintptr_t value, size_t alignment) { return (value & (alignment - 1U)) == 0; }
+static bool is_aligned(uintptr_t value, size_t alignment) { return (value & (alignment - 1U)) == 0; }
 
 static bool IRAM_ATTR notify_color_trans_ready(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata,
                                                void *user_ctx) {
@@ -242,7 +242,7 @@ void MipiDsi::start_async_flush_task_() {
   constexpr BaseType_t flush_core = 0;
 #endif
   TaskHandle_t task_handle = nullptr;
-  const BaseType_t ok = xTaskCreatePinnedToCore(&MipiDsi::async_flush_task_trampoline_, "mipi_flush_ready", 4096, this,
+  const BaseType_t ok = xTaskCreatePinnedToCore(&MipiDsi::async_flush_task_trampoline, "mipi_flush_ready", 4096, this,
                                                 6, &task_handle, flush_core);
   if (ok != pdPASS) {
     ESP_LOGW(TAG, "Async LVGL flush task allocation failed");
@@ -253,7 +253,7 @@ void MipiDsi::start_async_flush_task_() {
   ESP_LOGCONFIG(TAG, "Async LVGL flush ready task enabled on core %d", (int) flush_core);
 }
 
-void MipiDsi::async_flush_task_trampoline_(void *arg) { static_cast<MipiDsi *>(arg)->async_flush_task_(); }
+void MipiDsi::async_flush_task_trampoline(void *arg) { static_cast<MipiDsi *>(arg)->async_flush_task_(); }
 
 void MipiDsi::async_flush_task_() {
   while (true) {
@@ -371,9 +371,9 @@ bool MipiDsi::draw_pixels_at_async(int x_start, int y_start, int w, int h, const
   const size_t row_bytes = static_cast<size_t>(w) * this->get_bytes_per_pixel_();
   const uintptr_t ptr_addr = reinterpret_cast<uintptr_t>(ptr);
   const bool src_internal = esp_ptr_internal(ptr);
-  const bool unsafe_addr = !is_aligned_(ptr_addr, DMA2D_SAFE_ALIGN_BYTES);
-  const bool unsafe_row = !is_aligned_(row_bytes, DMA2D_SAFE_ALIGN_BYTES);
-  const bool unsafe_size = !is_aligned_(payload_size, DMA2D_SAFE_ALIGN_BYTES);
+  const bool unsafe_addr = !is_aligned(ptr_addr, DMA2D_SAFE_ALIGN_BYTES);
+  const bool unsafe_row = !is_aligned(row_bytes, DMA2D_SAFE_ALIGN_BYTES);
+  const bool unsafe_size = !is_aligned(payload_size, DMA2D_SAFE_ALIGN_BYTES);
   const bool can_zero_copy = src_internal && !unsafe_addr && !unsafe_row && !unsafe_size;
   const uint8_t *flush_ptr = ptr;
   bool staged = false;
