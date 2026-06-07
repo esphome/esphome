@@ -17,7 +17,7 @@ void OpenThreadComponentBaseAction::lock_and_apply_() {
   if (this->parent_->is_ready()) {
     if (auto lock = InstanceLock::try_acquire(LOCK_ACQUIRE_TIMEOUT_MS); lock.has_value()) {
       if (auto *instance = lock->get_instance(); instance != nullptr) {
-        this->apply_locked_(instance);
+        this->apply_locked(instance);
       }
     } else {
       ESP_LOGW(TAG, "Failed to acquire lock in action");
