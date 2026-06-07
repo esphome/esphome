@@ -151,7 +151,7 @@ void OpenThreadSrpComponent::setup() {
     return;
   }
 
-  // Get mdns services and copy their data (strings are copied below via pool_alloc_)
+  // Get mdns services and copy their data (strdup on ESP32, pool_alloc_ on Zephyr)
   const auto &mdns_services = this->mdns_->get_services();
   ESP_LOGD(TAG, "Setting up SRP services. count = %d\n", mdns_services.size());
   for (const auto &service : mdns_services) {
@@ -189,7 +189,7 @@ void OpenThreadSrpComponent::setup() {
     for (size_t i = 0; i < service.txt_records.size(); i++) {
       const auto &txt = service.txt_records[i];
       // Value is either a compile-time string literal in flash or a pointer to dynamic_txt_values_
-      // OpenThread SRP client expects the data to persist, so we strdup it
+      // OpenThread SRP client expects the data to persist, so we copy it
       const char *value_str = MDNS_STR_ARG(txt.value);
       txt_entries[i].mKey = MDNS_STR_ARG(txt.key);
 #ifndef USE_ZEPHYR
