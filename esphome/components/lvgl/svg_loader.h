@@ -19,7 +19,7 @@
 namespace esphome {
 namespace lvgl {
 
-static constexpr size_t SVG_TASK_STACK_SIZE = 64 * 1024;
+static constexpr size_t svg_task_stack_size = 64 * 1024;
 
 // Persistent context for each SVG widget - tracks all PSRAM allocations
 // so they can be freed on screen unload and re-created on screen load.
@@ -48,7 +48,7 @@ struct SvgContext {
 // the stack/TCB can be safely freed afterwards.
 // --------------------------------------------------------------------------
 inline void svg_render_task(void *param) {
-  SvgContext *ctx = (SvgContext *) param;
+  SvgContext *ctx = static_cast<SvgContext *>(param);
 
   vTaskDelay(pdMS_TO_TICKS(500));
 
@@ -60,7 +60,7 @@ inline void svg_render_task(void *param) {
   if (svg_data == nullptr && ctx->file_path != nullptr) {
     LV_LOG_TRACE("Reading SVG from %s ...", ctx->file_path);
     FILE *f = fopen(ctx->file_path, "r");
-    if (!f) {
+    if (f == nullptr) {
       LV_LOG_ERROR("Cannot open: %s", ctx->file_path);
       goto done;
     }
@@ -71,8 +71,8 @@ inline void svg_render_task(void *param) {
       fclose(f);
       goto done;
     }
-    file_buf = (char *) heap_caps_malloc(sz + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (!file_buf) {
+    file_buf = static_cast<char *>(heap_caps_malloc(sz + 1, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    if (file_buf == nullptr) {
       fclose(f);
       goto done;
     }
@@ -83,13 +83,13 @@ inline void svg_render_task(void *param) {
     svg_data_size = nread;
   }
 
-  if (!svg_data || svg_data_size == 0) {
+  if (svg_data == nullptr || svg_data_size == 0) {
     LV_LOG_ERROR("No SVG data");
     goto done;
   }
 
-  LV_LOG_TRACE("Rendering SVG (%u bytes) to %ux%u ...", (unsigned) svg_data_size, (unsigned) ctx->width,
-               (unsigned) ctx->height);
+  LV_LOG_TRACE("Rendering SVG (%u bytes) to %ux%u ...", static_cast<unsigned>(svg_data_size),
+               static_cast<unsigned>(ctx->width), static_cast<unsigned>(ctx->height));
 
   memset(ctx->pixel_buffer, 0, ctx->width * ctx->height * sizeof(uint32_t));
 
@@ -97,7 +97,7 @@ inline void svg_render_task(void *param) {
     tvg_engine_init(TVG_ENGINE_SW, 0);
 
     Tvg_Canvas *tc = tvg_swcanvas_create();
-    if (!tc) {
+    if (tc == nullptr) {
       LV_LOG_ERROR("swcanvas_create failed");
       goto done;
     }
@@ -109,12 +109,13 @@ inline void svg_render_task(void *param) {
     }
 
     Tvg_Paint *pic = tvg_picture_new();
-    if (!pic) {
+    if (pic == nullptr) {
       tvg_canvas_destroy(tc);
       goto done;
     }
 
-    if (tvg_picture_load_data(pic, svg_data, (uint32_t) svg_data_size, "svg", true) != TVG_RESULT_SUCCESS) {
+    if (tvg_picture_load_data(pic, svg_data, static_cast<uint32_t>(svg_data_size), "svg", true) !=
+        TVG_RESULT_SUCCESS) {
       LV_LOG_ERROR("picture_load_data failed");
       tvg_paint_del(pic);
       tvg_canvas_destroy(tc);
@@ -123,8 +124,9 @@ inline void svg_render_task(void *param) {
 
     float ow = 0, oh = 0;
     tvg_picture_get_size(pic, &ow, &oh);
-    LV_LOG_TRACE("SVG %.0fx%.0f -> %ux%u", ow, oh, (unsigned) ctx->width, (unsigned) ctx->height);
-    tvg_picture_set_size(pic, (float) ctx->width, (float) ctx->height);
+    LV_LOG_TRACE("SVG %.0fx%.0f -> %ux%u", ow, oh, static_cast<unsigned>(ctx->width),
+                 static_cast<unsigned>(ctx->height));
+    tvg_picture_set_size(pic, static_cast<float>(ctx->width), static_cast<float>(ctx->height));
 
     if (tvg_canvas_push(tc, pic) != TVG_RESULT_SUCCESS) {
       tvg_paint_del(pic);
@@ -148,12 +150,13 @@ inline void svg_render_task(void *param) {
   lv_unlock();
 
 done:
-  if (file_buf)
+  if (file_buf != nullptr) {
     heap_caps_free(file_buf);
+  }
   ctx->task_done = true;
   // Suspend - do NOT vTaskDelete; the cleanup callback will delete us
   // so it can safely free stack + TCB afterwards.
-  vTaskSuspend(NULL);
+  vTaskSuspend(nullptr);
 }
 
 // --------------------------------------------------------------------------
@@ -184,8 +187,8 @@ inline void svg_free_resources(SvgContext *ctx) {
   }
   ctx->task_done = false;
 
-  LV_LOG_TRACE("SVG PSRAM freed (%ux%u = %u KB)", (unsigned) ctx->width, (unsigned) ctx->height,
-               (unsigned) (ctx->width * ctx->height * 4 / 1024));
+  LV_LOG_TRACE("SVG PSRAM freed (%ux%u = %u KB)", static_cast<unsigned>(ctx->width),
+               static_cast<unsigned>(ctx->height), static_cast<unsigned>(ctx->width * ctx->height * 4 / 1024));
 }
 
 // --------------------------------------------------------------------------
@@ -195,17 +198,18 @@ inline void svg_free_resources(SvgContext *ctx) {
 // --------------------------------------------------------------------------
 inline bool svg_launch(SvgContext *ctx) {
   // Allocate pixel buffer in PSRAM
-  size_t buf_bytes = (size_t) ctx->width * ctx->height * sizeof(uint32_t);
-  ctx->pixel_buffer = (uint32_t *) heap_caps_malloc(buf_bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  if (!ctx->pixel_buffer) {
-    LV_LOG_ERROR("PSRAM alloc failed (%u bytes)", (unsigned) buf_bytes);
+  size_t buf_bytes = static_cast<size_t>(ctx->width) * ctx->height * sizeof(uint32_t);
+  ctx->pixel_buffer = static_cast<uint32_t *>(heap_caps_malloc(buf_bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+  if (ctx->pixel_buffer == nullptr) {
+    LV_LOG_ERROR("PSRAM alloc failed (%u bytes)", static_cast<unsigned>(buf_bytes));
     return false;
   }
   memset(ctx->pixel_buffer, 0, buf_bytes);
 
   // Create draw-buf and attach to canvas
-  ctx->draw_buf = (lv_draw_buf_t *) heap_caps_malloc(sizeof(lv_draw_buf_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-  if (!ctx->draw_buf) {
+  ctx->draw_buf =
+      static_cast<lv_draw_buf_t *>(heap_caps_malloc(sizeof(lv_draw_buf_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+  if (ctx->draw_buf == nullptr) {
     heap_caps_free(ctx->pixel_buffer);
     ctx->pixel_buffer = nullptr;
     return false;
@@ -218,24 +222,26 @@ inline bool svg_launch(SvgContext *ctx) {
   lv_obj_add_flag(ctx->canvas_obj, LV_OBJ_FLAG_HIDDEN);
 
   // Allocate task stack + TCB
-  ctx->task_stack = (StackType_t *) heap_caps_malloc(SVG_TASK_STACK_SIZE, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  ctx->task_tcb = (StaticTask_t *) heap_caps_malloc(sizeof(StaticTask_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-  if (!ctx->task_stack || !ctx->task_tcb) {
+  ctx->task_stack =
+      static_cast<StackType_t *>(heap_caps_malloc(svg_task_stack_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+  ctx->task_tcb =
+      static_cast<StaticTask_t *>(heap_caps_malloc(sizeof(StaticTask_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+  if (ctx->task_stack == nullptr || ctx->task_tcb == nullptr) {
     LV_LOG_ERROR("Task alloc failed");
     svg_free_resources(ctx);
     return false;
   }
 
   ctx->task_done = false;
-  ctx->task_handle = xTaskCreateStatic(svg_render_task, "svg_render", SVG_TASK_STACK_SIZE / sizeof(StackType_t), ctx, 5,
+  ctx->task_handle = xTaskCreateStatic(svg_render_task, "svg_render", svg_task_stack_size / sizeof(StackType_t), ctx, 5,
                                        ctx->task_stack, ctx->task_tcb);
 
-  if (!ctx->task_handle) {
+  if (ctx->task_handle == nullptr) {
     svg_free_resources(ctx);
     return false;
   }
 
-  LV_LOG_TRACE("SVG render task launched (%u KB PSRAM)", (unsigned) (SVG_TASK_STACK_SIZE / 1024));
+  LV_LOG_TRACE("SVG render task launched (%u KB PSRAM)", static_cast<unsigned>(svg_task_stack_size / 1024));
   return true;
 }
 
@@ -248,7 +254,7 @@ inline bool svg_launch(SvgContext *ctx) {
 //   SCREEN_LOADED        -> re-allocate and re-launch
 // --------------------------------------------------------------------------
 inline void svg_screen_unload_start_cb(lv_event_t *e) {
-  SvgContext *ctx = (SvgContext *) lv_event_get_user_data(e);
+  SvgContext *ctx = static_cast<SvgContext *>(lv_event_get_user_data(e));
 
   // Stop the render task immediately
   if (ctx->task_handle) {
@@ -263,7 +269,7 @@ inline void svg_screen_unload_start_cb(lv_event_t *e) {
 }
 
 inline void svg_screen_unloaded_cb(lv_event_t *e) {
-  SvgContext *ctx = (SvgContext *) lv_event_get_user_data(e);
+  SvgContext *ctx = static_cast<SvgContext *>(lv_event_get_user_data(e));
 
   // Now safe to free - screen is no longer visible
   if (ctx->task_stack) {
@@ -284,12 +290,12 @@ inline void svg_screen_unloaded_cb(lv_event_t *e) {
   }
   ctx->task_done = false;
 
-  LV_LOG_TRACE("SVG PSRAM freed (%ux%u = %u KB)", (unsigned) ctx->width, (unsigned) ctx->height,
-               (unsigned) (ctx->width * ctx->height * 4 / 1024));
+  LV_LOG_TRACE("SVG PSRAM freed (%ux%u = %u KB)", static_cast<unsigned>(ctx->width),
+               static_cast<unsigned>(ctx->height), static_cast<unsigned>(ctx->width * ctx->height * 4 / 1024));
 }
 
 inline void svg_screen_loaded_cb(lv_event_t *e) {
-  SvgContext *ctx = (SvgContext *) lv_event_get_user_data(e);
+  SvgContext *ctx = static_cast<SvgContext *>(lv_event_get_user_data(e));
   if (ctx->pixel_buffer == nullptr) {
     svg_launch(ctx);
   }
@@ -300,9 +306,11 @@ inline void svg_screen_loaded_cb(lv_event_t *e) {
 // --------------------------------------------------------------------------
 inline bool svg_setup_and_render(lv_obj_t *canvas_obj, const char *svg_data, size_t svg_data_size, uint32_t width,
                                  uint32_t height, bool user_wants_hidden) {
-  SvgContext *ctx = (SvgContext *) heap_caps_malloc(sizeof(SvgContext), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-  if (!ctx)
+  SvgContext *ctx =
+      static_cast<SvgContext *>(heap_caps_malloc(sizeof(SvgContext), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+  if (ctx == nullptr) {
     return false;
+  }
   memset(ctx, 0, sizeof(SvgContext));
 
   ctx->canvas_obj = canvas_obj;
@@ -327,9 +335,11 @@ inline bool svg_setup_and_render(lv_obj_t *canvas_obj, const char *svg_data, siz
 // --------------------------------------------------------------------------
 inline bool svg_setup_and_render_file(lv_obj_t *canvas_obj, const char *file_path, uint32_t width, uint32_t height,
                                       bool user_wants_hidden) {
-  SvgContext *ctx = (SvgContext *) heap_caps_malloc(sizeof(SvgContext), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-  if (!ctx)
+  SvgContext *ctx =
+      static_cast<SvgContext *>(heap_caps_malloc(sizeof(SvgContext), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+  if (ctx == nullptr) {
     return false;
+  }
   memset(ctx, 0, sizeof(SvgContext));
 
   ctx->canvas_obj = canvas_obj;
