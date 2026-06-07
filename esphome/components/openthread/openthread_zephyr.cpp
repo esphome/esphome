@@ -15,7 +15,17 @@ static void on_thread_state_changed(otChangedFlags flags, struct openthread_cont
   if (flags & OT_CHANGED_THREAD_ROLE) {
     otDeviceRole role = otThreadGetDeviceRole(ot_context->instance);
     if (global_openthread_component != nullptr) {
-      global_openthread_component->set_connected(role >= OT_DEVICE_ROLE_CHILD);
+      switch (role) {
+        case OT_DEVICE_ROLE_CHILD:
+        case OT_DEVICE_ROLE_ROUTER:
+        case OT_DEVICE_ROLE_LEADER:
+          global_openthread_component->set_connected(true);
+          break;
+        case OT_DEVICE_ROLE_DISABLED:
+        case OT_DEVICE_ROLE_DETACHED:
+          global_openthread_component->set_connected(false);
+          break;
+      }
     }
     ESP_LOGI(TAG, "Thread role changed to %s", otThreadDeviceRoleToString(role));
   }
