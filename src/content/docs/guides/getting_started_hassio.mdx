@@ -1,5 +1,5 @@
 ---
-description: "Getting Started guide for installing ESPHome Device Builder as a Home Assistant add-on and creating a basic configuration."
+description: "Getting Started guide for installing ESPHome Device Builder as a Home Assistant app and creating a basic configuration."
 title: "Getting Started with ESPHome and Home Assistant"
 ---
 
@@ -9,7 +9,7 @@ import dashboardEmptyImg from './images/dashboard_empty.png';
 import dashboardStatesImg from './images/dashboard_states.png';
 
 In this guide, we'll walk you through how to install ESPHome onto a device/microcontroller using the ESPHome Device
-Builder, installed as a Home Assistant add-on.
+Builder, installed as a Home Assistant app.
 
 This is generally the easiest way to get started with ESPHome.
 
@@ -37,19 +37,19 @@ device configurations onto your devices.
 
 To install the ESPHome Device Builder in Home Assistant, click the following button:
 
-[![Open your Home Assistant instance and show the dashboard of an add-on.][my-badge]][my-url]
+[![Open your Home Assistant instance and show the dashboard of an app.][my-badge]][my-url]
 
 [my-badge]: https://my.home-assistant.io/badges/supervisor_addon.svg
 [my-url]: https://my.home-assistant.io/redirect/supervisor_addon/?addon=5c53de3b_esphome&repository_url=https%3A%2F%2Fgithub.com%2Fesphome%2Fhome-assistant-addon
 
-This should open the ESPHome add-on page; once you're there, just click the INSTALL button:
+This should open the ESPHome app page; once you're there, just click the INSTALL button:
 
 <Image src={addonImg} layout="constrained" alt="" />
 
-Installation of the add-on may take a moment or two. Once done, click "Start" and then click "Open Web UI".
+Installation of the app may take a moment or two. Once done, click "Start" and then click "Open Web UI".
 
 > [!NOTE]
-> If you're running Home Assistant in a way that does not provide access to add-ons, you may
+> If you're running Home Assistant in a way that does not provide access to apps, you may
 > [run the ESPHome Device Builder independently in Docker](/guides/getting_started_command_line#esphome-device-builder-docker).
 
 The web UI will present a wizard which will walk you through creating your first configuration:
@@ -90,7 +90,7 @@ The main page displays a list of all configuration files for nodes you've create
 actions you can perform:
 
 - **UPDATE**: This button appears when the device is running an ESPHome version which is older than that available in
-  the ESPHome Device Builder add-on.
+  the ESPHome Device Builder app.
 
 - **EDIT**: This will open the configuration editor.
 - **LOGS**: This allows you to view logs emitted by the device. If a device is connected via USB, you can choose to use
@@ -111,9 +111,9 @@ The configuration files for ESPHome are stored in the `<HOME_ASSISTANT_CONFIG>/e
 configuration for the "Bedroom Light" node in the picture above can be found in `/config/esphome/bedroom-light.yaml`.
 
 > [!NOTE]
-> Home Assistant add-ons run as individual containers; this can make accessing your configuration files/logs a bit
+> Home Assistant apps run as individual containers; this can make accessing your configuration files/logs a bit
 > challenging. If you wish to do so, you'll need to install Home Assistant's
-> [SSH add-on](https://www.home-assistant.io/common-tasks/os/#installing-and-using-the-ssh-add-on), configure it
+> [SSH app](https://www.home-assistant.io/common-tasks/os/#installing-and-using-the-ssh-add-on), configure it
 > with a username and password and also disable "Protection Mode" (please assess the risks associated with doing so).
 >
 > Finally, to access the logs from a device through an SSH client, you can log in and use a command like
