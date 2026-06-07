@@ -48,6 +48,9 @@ void lvgl_esphome_note_frame(void);
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#if defined(__GLIBC__) || defined(__ANDROID__)
+#include <malloc.h>
+#endif
 #include <numeric>
 
 namespace esphome::lvgl {
@@ -1091,7 +1094,7 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
 
 void LvglComponent::flush_cb_(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *color_p) {
   if (!this->is_paused()) {
-    uint64_t t0 = esp_timer_get_time();
+    uint64_t t0 = profiler_tick_us();
 #ifdef USE_MIPI_DSI
 #ifdef USE_ESP32
     if (this->partial_compositor_flush_(disp_drv, area, color_p, t0)) {
@@ -1106,7 +1109,7 @@ void LvglComponent::flush_cb_(lv_display_t *disp_drv, const lv_area_t *area, uin
       if (mipi_display->draw_pixels_at_async(area->x1, area->y1, width, height, color_p, display::COLOR_ORDER_RGB,
                                              LV_BITNESS, this->big_endian_, 0, 0, 0, lvgl_mipi_async_flush_ready,
                                              disp_drv)) {
-        const uint32_t flush_us = (uint32_t) (esp_timer_get_time() - t0);
+        const uint32_t flush_us = (uint32_t) (profiler_tick_us() - t0);
         if (flush_us > this->perf_flush_max_us_)
           this->perf_flush_max_us_ = flush_us;
         const uint32_t flush_px = (uint32_t) width * (uint32_t) height;
@@ -1134,7 +1137,7 @@ void LvglComponent::flush_cb_(lv_display_t *disp_drv, const lv_area_t *area, uin
     } else {
       this->draw_buffer_(area, reinterpret_cast<lv_color_data *>(color_p));
     }
-    uint64_t dt = esp_timer_get_time() - t0;
+    uint64_t dt = profiler_tick_us() - t0;
     uint32_t flush_us = (uint32_t) dt;
     if (flush_us > this->perf_flush_max_us_)
       this->perf_flush_max_us_ = flush_us;
@@ -1397,7 +1400,7 @@ bool LvglComponent::partial_compositor_flush_(lv_display_t *disp_drv, const lv_a
     return false;
   }
 
-  const uint32_t schedule_us = (uint32_t) (esp_timer_get_time() - t0);
+  const uint32_t schedule_us = (uint32_t) (profiler_tick_us() - t0);
   if (schedule_us > this->perf_flush_max_us_)
     this->perf_flush_max_us_ = schedule_us;
   const uint32_t flush_px = (uint32_t) lv_area_get_width(area) * (uint32_t) lv_area_get_height(area);
@@ -1417,7 +1420,7 @@ void LvglComponent::partial_compositor_task_() {
     if (xQueueReceive(this->partial_compositor_queue_, &job, portMAX_DELAY) != pdTRUE)
       continue;
 
-    const uint64_t start_us = esp_timer_get_time();
+    const uint64_t start_us = profiler_tick_us();
     this->partial_compositor_copy_area_(this->partial_compositor_back_buffer_, job.area, job.color_p);
     this->partial_compositor_record_dirty_(job.area);
 
@@ -1452,7 +1455,7 @@ void LvglComponent::partial_compositor_task_() {
       frame_presented = true;
     }
 
-    const uint32_t ready_dt_us = (uint32_t) (esp_timer_get_time() - start_us);
+    const uint32_t ready_dt_us = (uint32_t) (profiler_tick_us() - start_us);
     this->perf_compositor_ready_us_ += ready_dt_us;
     this->perf_compositor_jobs_++;
     if (ready_dt_us > this->perf_compositor_ready_max_us_)
@@ -1478,7 +1481,7 @@ void LvglComponent::partial_compositor_task_() {
       }
     }
 
-    const uint32_t dt_us = (uint32_t) (esp_timer_get_time() - start_us);
+    const uint32_t dt_us = (uint32_t) (profiler_tick_us() - start_us);
     this->perf_compositor_us_ += dt_us;
     if (dt_us > this->perf_compositor_max_us_)
       this->perf_compositor_max_us_ = dt_us;
@@ -1647,7 +1650,7 @@ void LvglComponent::realign_direct_buffer_after_manual_present() {
 bool LvglComponent::snapshot_swipe_direct_render(lv_draw_buf_t *current, lv_draw_buf_t *next, int current_x, int next_x,
                                                  int width) {
 #if LV_COLOR_DEPTH == 32 && defined(USE_ESP32)
-  uint64_t t0 = esp_timer_get_time();
+  uint64_t t0 = profiler_tick_us();
   if (current == nullptr || next == nullptr)
     return false;
   if (width != this->width_ || this->width_ <= 0 || this->height_ <= 0)
@@ -1742,12 +1745,12 @@ bool LvglComponent::snapshot_swipe_direct_render(lv_draw_buf_t *current, lv_draw
 #ifdef USE_LVGL_FPS_BENCHMARK
   lvgl_esphome_note_frame();
 #endif
-  uint32_t frame_us = (uint32_t) (esp_timer_get_time() - t0);
+  uint32_t frame_us = (uint32_t) (profiler_tick_us() - t0);
   static uint64_t last_log_us = 0;
   static uint32_t frames = 0;
   static uint64_t total_us = 0;
   static uint32_t max_us = 0;
-  uint64_t now_us = esp_timer_get_time();
+  uint64_t now_us = profiler_tick_us();
   frames++;
   total_us += frame_us;
   if (frame_us > max_us)
@@ -1774,7 +1777,7 @@ bool LvglComponent::snapshot_swipe_direct_render(lv_draw_buf_t *current, lv_draw
 bool LvglComponent::snapshot_swipe_direct_render_panorama(const uint8_t *panorama, int current_x, int width, int scale,
                                                           int initial_next_x) {
 #if LV_COLOR_DEPTH == 32 && defined(USE_ESP32) && defined(USE_LVGL_PPA)
-  uint64_t t0 = esp_timer_get_time();
+  uint64_t t0 = profiler_tick_us();
   if (panorama == nullptr || s_display_srm_client == nullptr)
     return false;
   if (width != this->width_ || this->width_ <= 0 || this->height_ <= 0 || initial_next_x == 0 || scale <= 0)
@@ -1833,12 +1836,12 @@ bool LvglComponent::snapshot_swipe_direct_render_panorama(const uint8_t *panoram
 #ifdef USE_LVGL_FPS_BENCHMARK
   lvgl_esphome_note_frame();
 #endif
-  uint32_t frame_us = (uint32_t) (esp_timer_get_time() - t0);
+  uint32_t frame_us = (uint32_t) (profiler_tick_us() - t0);
   static uint64_t last_log_us = 0;
   static uint32_t frames = 0;
   static uint64_t total_us = 0;
   static uint32_t max_us = 0;
-  uint64_t now_us = esp_timer_get_time();
+  uint64_t now_us = profiler_tick_us();
   frames++;
   total_us += frame_us;
   if (frame_us > max_us)
@@ -1867,7 +1870,7 @@ bool LvglComponent::snapshot_swipe_direct_render_panorama(const uint8_t *panoram
 bool LvglComponent::snapshot_scroll_direct_render(lv_draw_buf_t *content, int scroll_y, int viewport_w,
                                                   int viewport_h) {
 #if LV_COLOR_DEPTH == 32 && defined(USE_ESP32)
-  uint64_t t0 = esp_timer_get_time();
+  uint64_t t0 = profiler_tick_us();
   if (content == nullptr || content->data == nullptr)
     return false;
   if (viewport_w != this->width_ || viewport_h != this->height_ || viewport_w <= 0 || viewport_h <= 0)
@@ -1940,12 +1943,12 @@ bool LvglComponent::snapshot_scroll_direct_render(lv_draw_buf_t *content, int sc
 #ifdef USE_LVGL_FPS_BENCHMARK
   lvgl_esphome_note_frame();
 #endif
-  uint32_t frame_us = (uint32_t) (esp_timer_get_time() - t0);
+  uint32_t frame_us = (uint32_t) (profiler_tick_us() - t0);
   static uint64_t last_log_us = 0;
   static uint32_t frames = 0;
   static uint64_t total_us = 0;
   static uint32_t max_us = 0;
-  uint64_t now_us = esp_timer_get_time();
+  uint64_t now_us = profiler_tick_us();
   frames++;
   total_us += frame_us;
   if (frame_us > max_us)
@@ -2489,9 +2492,9 @@ void LvglComponent::loop() {
     // DMA wait into perf_flush_us_; subtract it so the reported CPU%%
     // counts only real render work (matches lvgl_camera_display's
     // approach: cpu_time / frame_interval).
-    uint64_t t0 = esp_timer_get_time();
+    uint64_t t0 = profiler_tick_us();
     lv_timer_handler();
-    uint64_t t1 = esp_timer_get_time();
+    uint64_t t1 = profiler_tick_us();
     uint64_t loop_dt = t1 - t0;
     profiler_note_loop(loop_dt > UINT32_MAX ? UINT32_MAX : (uint32_t) loop_dt);
     this->perf_busy_us_ += loop_dt;
@@ -2818,7 +2821,7 @@ SnapshotPanoramaCacheEntry *snapshot_panorama_cache_prepare(lv_obj_t *left_obj, 
     return nullptr;
   }
 
-  const uint64_t t0 = esp_timer_get_time();
+  const uint64_t t0 = profiler_tick_us();
   for (int y = 0; y < scaled_height; y++) {
     const int src_y = y * scale;
     const uint8_t *left_row = left->data + (size_t) src_y * left->header.stride;
@@ -2838,7 +2841,7 @@ SnapshotPanoramaCacheEntry *snapshot_panorama_cache_prepare(lv_obj_t *left_obj, 
   slot->scale = scale;
   if (s_swipe_logging_enabled) {
     ESP_LOGI(TAG, "snapshot panorama: cached RGB888 %dx%d scale=%dx (%u KB) in %lluus", panorama_width, scaled_height,
-             scale, (unsigned) (aligned_size / 1024), (unsigned long long) (esp_timer_get_time() - t0));
+             scale, (unsigned) (aligned_size / 1024), (unsigned long long) (profiler_tick_us() - t0));
   }
   return slot;
 #else
@@ -2942,14 +2945,19 @@ void snapshot_swipe_direct_animate_to(int current_x, int next_x, uint32_t durati
     return;
   int start_current_x = snapshot_swipe_state.current_x;
   int start_next_x = snapshot_swipe_state.next_x;
-  uint64_t start_us = esp_timer_get_time();
+  uint64_t start_us = profiler_tick_us();
   uint64_t next_frame_us = start_us;
   while (true) {
-    uint64_t now_us = esp_timer_get_time();
+    uint64_t now_us = profiler_tick_us();
     if (now_us < next_frame_us) {
       uint32_t wait_ms = (uint32_t) ((next_frame_us - now_us) / 1000ULL);
-      if (wait_ms > 0)
+      if (wait_ms > 0) {
+#ifdef USE_ESP32
         vTaskDelay(pdMS_TO_TICKS(wait_ms));
+#else
+        delay(wait_ms);
+#endif
+      }
       continue;
     }
     uint32_t elapsed_ms = (uint32_t) ((now_us - start_us) / 1000ULL);
