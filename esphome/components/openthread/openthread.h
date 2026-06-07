@@ -91,7 +91,7 @@ class InstanceLock {
  public:
   static std::optional<InstanceLock> try_acquire(int delay);
   static InstanceLock acquire();
-  InstanceLock(InstanceLock &&other) noexcept : moved_from_(false) { other.moved_from_ = true; }
+  InstanceLock(InstanceLock &&other) = default;
   InstanceLock(const InstanceLock &) = delete;
   InstanceLock &operator=(const InstanceLock &) = delete;
   InstanceLock &operator=(InstanceLock &&) = delete;
@@ -104,7 +104,6 @@ class InstanceLock {
   // Use a private constructor in order to force the handling
   // of acquisition failure
   InstanceLock() {}
-  bool moved_from_{false};
 };
 
 }  // namespace esphome::openthread
