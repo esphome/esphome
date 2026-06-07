@@ -83,7 +83,6 @@ void OpenThreadComponent::setup() {
 void OpenThreadComponent::ot_main() {}
 
 int OpenThreadComponent::openthread_stop_() {
-  this->lock_initialized_ = false;
   this->teardown_complete_ = true;
   return 0;
 }
