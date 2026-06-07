@@ -68,6 +68,7 @@ lv_page_t = LvType("LvPageType", parents=(LvCompound,))
 lv_image_t = LvType("lv_image_t")
 lv_gradient_t = LvType("lv_grad_dsc_t")
 lv_event_t = LvType("lv_event_t")
+RotationType = lvgl_ns.enum("RotationType")
 lv_point_t = cg.global_ns.struct("lv_point_t")
 lv_point_precise_t = cg.global_ns.struct("lv_point_precise_t")
 

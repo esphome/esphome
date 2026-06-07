@@ -778,6 +778,11 @@ void LvglComponent::dump_config() {
                 "  Rotation: %d\n"
                 "  Draw rounding: %d",
                 this->width_, this->height_, 100 / this->buffer_frac_, this->rotation, (int) this->draw_rounding);
+  if (this->rotation_type_ != ROTATION_UNUSED) {
+    ESP_LOGCONFIG(TAG, "  Rotation type: %s",
+                  this->rotation_type_ == RotationType::ROTATION_HARDWARE ? "hardware via display driver"
+                                                                          : "software");
+  }
 #ifdef USE_LVGL_PPA
   ESP_LOGCONFIG(TAG, "  PPA SRM (display rotation): %s",
                 s_display_srm_client != nullptr ? "registered (HW)" : "failed (SW fallback)");
@@ -786,6 +791,36 @@ void LvglComponent::dump_config() {
 #else
   ESP_LOGCONFIG(TAG, "  PPA acceleration: disabled (use_ppa: false)");
 #endif
+}
+
+void LvglComponent::set_rotation(display::DisplayRotation rotation) {
+  if (this->rotation_type_ == RotationType::ROTATION_UNUSED) {
+    ESP_LOGW(TAG, "Display rotation cannot be changed unless rotation was enabled during setup.");
+    return;
+  }
+  this->rotation = rotation;
+  if (this->is_ready()) {
+    this->set_resolution_();
+    lv_obj_update_layout(this->get_screen_active());
+    lv_obj_invalidate(this->get_screen_active());
+  }
+}
+
+void LvglComponent::set_resolution_() const {
+  int32_t width = this->width_;
+  int32_t height = this->height_;
+  if (this->rotation == display::DISPLAY_ROTATION_90_DEGREES ||
+      this->rotation == display::DISPLAY_ROTATION_270_DEGREES) {
+    std::swap(width, height);
+  }
+  if (this->rotation_type_ == RotationType::ROTATION_HARDWARE) {
+    for (auto *disp : this->displays_)
+      disp->set_rotation(this->rotation);
+  } else if (this->rotation_type_ == RotationType::ROTATION_SOFTWARE) {
+    for (auto *disp : this->displays_)
+      disp->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
+  }
+  lv_display_set_resolution(this->disp_, width, height);
 }
 
 void LvglComponent::set_paused(bool paused, bool show_snow) {
@@ -920,7 +955,8 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
 #ifdef USE_LVGL_PPA
   // Try PPA hardware rotation first (zero CPU cost, ~10x faster than SW loops).
   // Falls back to software automatically if PPA rejects the operation.
-  if (s_display_srm_client != nullptr && this->rotation != display::DISPLAY_ROTATION_0_DEGREES) {
+  if (this->rotation_type_ == RotationType::ROTATION_SOFTWARE && s_display_srm_client != nullptr &&
+      this->rotation != display::DISPLAY_ROTATION_0_DEGREES) {
     if (ppa_rotate_display_buf(ptr, this->rotate_buf_, width, height, this->rotation)) {
       // dst already points to rotate_buf_ (initialized above)
       // Coordinate update: identical geometry to the software path
@@ -954,7 +990,8 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
   }
 #endif  // USE_LVGL_PPA
 
-  switch (this->rotation) {
+  switch (this->rotation_type_ == RotationType::ROTATION_SOFTWARE ? this->rotation
+                                                                  : display::DISPLAY_ROTATION_0_DEGREES) {
     case display::DISPLAY_ROTATION_90_DEGREES:
 #if LV_COLOR_DEPTH == 32
     {
@@ -2214,14 +2251,16 @@ void LvglComponent::write_random_() {
  *                         presses a key or clicks on the screen.
  */
 LvglComponent::LvglComponent(std::vector<display::Display *> displays, float buffer_frac, bool full_refresh,
-                             bool direct_mode, int draw_rounding, bool resume_on_input, bool update_when_display_idle)
+                             bool direct_mode, int draw_rounding, bool resume_on_input, bool update_when_display_idle,
+                             RotationType rotation_type)
     : draw_rounding(draw_rounding),
       displays_(std::move(displays)),
       buffer_frac_(buffer_frac),
       full_refresh_(full_refresh),
       direct_mode_(direct_mode),
       resume_on_input_(resume_on_input),
-      update_when_display_idle_(update_when_display_idle) {
+      update_when_display_idle_(update_when_display_idle),
+      rotation_type_(rotation_type) {
   this->disp_ = lv_display_create(240, 240);
 }
 
@@ -2234,7 +2273,8 @@ void LvglComponent::setup() {
   auto width = (display->get_width() + rounding - 1) / rounding * rounding;
   auto height = (display->get_height() + rounding - 1) / rounding * rounding;
   auto frac = this->buffer_frac_;
-  this->rotation = display->get_rotation();
+  if (this->rotation_type_ == RotationType::ROTATION_UNUSED)
+    this->rotation = display->get_rotation();
   if (frac == 0)
     frac = 1;
     // LV_COLOR_FORMAT_RGB888 uses 3 bytes/pixel even when LV_COLOR_DEPTH=32
@@ -2338,7 +2378,7 @@ void LvglComponent::setup() {
     ESP_LOGI(TAG, "LVGL draw buffer 2: %p %zu bytes in %s", this->draw_buf2_, buf_bytes,
              memory_region(this->draw_buf2_));
 #endif
-  lv_display_set_resolution(this->disp_, this->width_, this->height_);
+  this->set_resolution_();
 #if LV_COLOR_DEPTH == 32
   // RGB888: 3 bytes per pixel, fully supported by PPA as destination
   lv_display_set_color_format(this->disp_, LV_COLOR_FORMAT_RGB888);
@@ -2352,7 +2392,7 @@ void LvglComponent::setup() {
   // Store buf_bytes - lv_display_set_buffers() is called at the END of setup()
   // to avoid triggering rendering before all callbacks and pages are configured.
   this->buf_bytes_ = buf_bytes;
-  if (this->rotation != display::DISPLAY_ROTATION_0_DEGREES) {
+  if (this->rotation_type_ == RotationType::ROTATION_SOFTWARE) {
     this->rotate_buf_ = static_cast<lv_color_t *>(alloc_draw_buf(buf_bytes));
     if (this->rotate_buf_ == nullptr) {
       this->status_set_error(LOG_STR("Memory allocation failure"));
@@ -2383,9 +2423,7 @@ void LvglComponent::setup() {
     esp_log_printf_(LOG_LEVEL_MAP[level], TAG, 0, "%.*s", (int) strlen(buf) - 1, buf);
   });
 #endif
-  // Rotation will be handled by our drawing function, so reset the display rotation.
-  for (auto *disp : this->displays_)
-    disp->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
+  this->set_resolution_();
   this->show_page(0, LV_SCREEN_LOAD_ANIM_NONE, 0);
   lv_display_trigger_activity(this->disp_);
 
