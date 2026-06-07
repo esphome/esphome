@@ -10,6 +10,7 @@ Communication from ESPHome (__init__.py) via build flags:
   -DLVGL_USE_THORVG=1        -> compile ThorVG sources
   -DLVGL_WIDGETS_USED="..."  -> comma-separated list of used widget/feature names
 """
+# pylint: disable=undefined-variable
 import re
 from pathlib import Path
 
@@ -143,7 +144,7 @@ def lvgl_src_filter(env, node):
             src = Path(node.get_path())
             write_atomic_shim(src.parent / "atomic.h")
 
-        except Exception as err:
+        except OSError as err:
             print("WARNING: failed to create LVGL osal atomic.h shim:", err)
 
     # Only filter files inside the LVGL library
