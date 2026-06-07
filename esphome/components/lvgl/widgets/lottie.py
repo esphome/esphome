@@ -103,26 +103,34 @@ def validate_lottie_source(config):
     has_file = CONF_FILE in config
 
     if has_src and has_file:
-        raise cv.Invalid("Cannot specify both 'src' and 'file'. Use 'src' for filesystem path or 'file' for embedded.")
+        raise cv.Invalid(
+            "Cannot specify both 'src' and 'file'. Use 'src' for filesystem path or 'file' for embedded."
+        )
     if not has_src and not has_file:
-        raise cv.Invalid("Must specify either 'src' (filesystem path) or 'file' (embedded in firmware).")
+        raise cv.Invalid(
+            "Must specify either 'src' (filesystem path) or 'file' (embedded in firmware)."
+        )
 
     # For src method, width and height are required
     if has_src:
         if CONF_WIDTH not in config or CONF_HEIGHT not in config:
-            raise cv.Invalid("'width' and 'height' are required when using 'src' (filesystem path). Cannot auto-detect dimensions at compile time.")
+            raise cv.Invalid(
+                "'width' and 'height' are required when using 'src' (filesystem path). Cannot auto-detect dimensions at compile time."
+            )
 
     # For file method, auto-detect dimensions from JSON (unless user specified width/height for resize)
     if has_file:
         file_path = config[CONF_FILE]
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 lottie_data = json.load(f)
                 # Extract dimensions from Lottie JSON
                 lottie_width = lottie_data.get("w")
                 lottie_height = lottie_data.get("h")
                 if lottie_width is None or lottie_height is None:
-                    raise cv.Invalid(f"Lottie JSON file missing 'w' or 'h' dimensions: {file_path}")
+                    raise cv.Invalid(
+                        f"Lottie JSON file missing 'w' or 'h' dimensions: {file_path}"
+                    )
                 # Only use auto-detected dimensions if user didn't specify custom size
                 if CONF_WIDTH not in config or CONF_HEIGHT not in config:
                     config[CONF_LOTTIE_WIDTH] = int(lottie_width)
@@ -176,7 +184,7 @@ class LottieType(WidgetType):
         add_lv_use("THORVG_INTERNAL")
         add_lv_use("VECTOR_GRAPHIC")
 
-        from ..lvcode import lv_obj, lv_add
+        from ..lvcode import lv_add, lv_obj
 
         # Get dimensions - user-specified override auto-detected from JSON
         if CONF_WIDTH in config and CONF_HEIGHT in config:
@@ -198,7 +206,9 @@ class LottieType(WidgetType):
         # Add include for lottie loader helper (once)
         if not _lottie_include_added:
             _lottie_include_added = True
-            cg.add_global(cg.RawStatement('#include "esphome/components/lvgl/lottie_loader.h"'))
+            cg.add_global(
+                cg.RawStatement('#include "esphome/components/lvgl/lottie_loader.h"')
+            )
 
         # Get loop, auto_start, and hidden config
         do_loop = "true" if config.get(CONF_LOOP, True) else "false"
@@ -208,21 +218,25 @@ class LottieType(WidgetType):
         # Use lottie_init() which handles PSRAM allocation, screen events, and task launch
         if src := config.get(CONF_SRC):
             # File from filesystem
-            lv_add(cg.RawStatement(f"""
-    esphome::lvgl::lottie_init({w.obj}, nullptr, 0, "{src}", {width}, {height}, {do_loop}, {do_auto_start}, {user_wants_hidden});"""))
+            lv_add(
+                cg.RawStatement(f"""
+    esphome::lvgl::lottie_init({w.obj}, nullptr, 0, "{src}", {width}, {height}, {do_loop}, {do_auto_start}, {user_wants_hidden});""")
+            )
         elif file_path := config.get(CONF_FILE):
             # Embedded data
             with open(file_path, "rb") as f:
                 json_data = f.read()
 
             # Add null terminator
-            json_data_with_null = json_data + b'\x00'
+            json_data_with_null = json_data + b"\x00"
 
             raw_data_id = config[CONF_RAW_DATA_ID]
             prog_arr = cg.progmem_array(raw_data_id, list(json_data_with_null))
 
-            lv_add(cg.RawStatement(f"""
-    esphome::lvgl::lottie_init({w.obj}, {prog_arr}, {len(json_data)}, nullptr, {width}, {height}, {do_loop}, {do_auto_start}, {user_wants_hidden});"""))
+            lv_add(
+                cg.RawStatement(f"""
+    esphome::lvgl::lottie_init({w.obj}, {prog_arr}, {len(json_data)}, nullptr, {width}, {height}, {do_loop}, {do_auto_start}, {user_wants_hidden});""")
+            )
 
 
 lottie_spec = LottieType()

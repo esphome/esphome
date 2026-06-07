@@ -36,8 +36,8 @@ Note: ThorVG rendering requires a large stack (32 KB+). The rendering is
 deferred to a FreeRTOS task with stack allocated in PSRAM to avoid overflow.
 """
 
-import re
 from pathlib import Path
+import re
 
 from esphome import codegen as cg, config_validation as cv
 from esphome.const import CONF_FILE, CONF_HEIGHT, CONF_RAW_DATA_ID, CONF_WIDTH
@@ -66,9 +66,7 @@ def svg_path_validator(value):
             f"Example: '/sdcard/icons/home.svg'"
         )
     if not value.lower().endswith(".svg"):
-        raise cv.Invalid(
-            f"SVG src must be an .svg file, got: '{value}'"
-        )
+        raise cv.Invalid(f"SVG src must be an .svg file, got: '{value}'")
     return value
 
 
@@ -141,7 +139,7 @@ def validate_svg_source(config):
     if has_file:
         file_path = config[CONF_FILE]
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 svg_text = f.read()
             svg_w, svg_h = _parse_svg_dimensions(svg_text)
         except Exception as e:
@@ -161,7 +159,9 @@ def validate_svg_source(config):
             # User specified both - use those
             pass
         else:
-            raise cv.Invalid("Specify both 'width' and 'height', or neither (for auto-detect).")
+            raise cv.Invalid(
+                "Specify both 'width' and 'height', or neither (for auto-detect)."
+            )
 
     return config
 
@@ -229,8 +229,10 @@ class SvgType(WidgetType):
             # ------- Filesystem SVG -------
             # The file is read inside the async render task (on the large
             # PSRAM stack).  We only pass the path string here.
-            lv_add(cg.RawStatement(f"""
-    esphome::lvgl::svg_setup_and_render_file({w.obj}, "{src}", {width}, {height}, {user_wants_hidden});"""))
+            lv_add(
+                cg.RawStatement(f"""
+    esphome::lvgl::svg_setup_and_render_file({w.obj}, "{src}", {width}, {height}, {user_wants_hidden});""")
+            )
 
         elif file_path := config.get(CONF_FILE):
             # ------- Embedded SVG -------
@@ -238,13 +240,15 @@ class SvgType(WidgetType):
                 svg_data = f.read()
 
             # Ensure null-terminated (ThorVG expects C string)
-            svg_data_with_null = svg_data + b'\x00'
+            svg_data_with_null = svg_data + b"\x00"
 
             raw_data_id = config[CONF_RAW_DATA_ID]
             prog_arr = cg.progmem_array(raw_data_id, list(svg_data_with_null))
 
-            lv_add(cg.RawStatement(f"""
-    esphome::lvgl::svg_setup_and_render({w.obj}, (const char *){prog_arr}, {len(svg_data)}, {width}, {height}, {user_wants_hidden});"""))
+            lv_add(
+                cg.RawStatement(f"""
+    esphome::lvgl::svg_setup_and_render({w.obj}, (const char *){prog_arr}, {len(svg_data)}, {width}, {height}, {user_wants_hidden});""")
+            )
 
 
 svg_spec = SvgType()
