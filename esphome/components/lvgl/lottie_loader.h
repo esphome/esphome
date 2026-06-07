@@ -12,7 +12,6 @@
 #include "esp_heap_caps.h"
 #include "esp_cache.h"
 #include "esp_memory_utils.h"
-#include "esp_log.h"
 #include "esp_timer.h"
 #include <cstring>
 
@@ -24,7 +23,6 @@
 namespace esphome {
 namespace lvgl {
 
-static const char *const LOTTIE_TAG = "lottie";
 static constexpr size_t LOTTIE_TASK_STACK_SIZE = 64 * 1024;
 static constexpr size_t LOTTIE_CACHE_ALIGN = 128;
 static constexpr size_t LOTTIE_INTERNAL_BUFFER_MAX_BYTES = 256 * 1024;
@@ -137,7 +135,7 @@ inline void lottie_load_task(void *param) {
 
     if (!ctx->data_loaded) {
         // ===== FIRST LOAD =====
-        ESP_LOGD(LOTTIE_TAG, "First load: parsing lottie data...");
+        LV_LOG_TRACE("First load: parsing lottie data...");
 
         // Set pixel buffer - this calls anim_exec_cb internally but since
         // no data is loaded yet ThorVG has nothing to render (safe).
@@ -146,10 +144,10 @@ inline void lottie_load_task(void *param) {
         // Parse lottie data (heavy ThorVG work - needs 64 KB stack)
         if (ctx->data != nullptr) {
             lv_lottie_set_src_data(ctx->obj, ctx->data, ctx->data_size);
-            ESP_LOGD(LOTTIE_TAG, "Data loaded from embedded source (%d bytes)", (int)ctx->data_size);
+            LV_LOG_TRACE("Data loaded from embedded source (%d bytes)", (int)ctx->data_size);
         } else if (ctx->file_path != nullptr) {
             lv_lottie_set_src_file(ctx->obj, ctx->file_path);
-            ESP_LOGD(LOTTIE_TAG, "Data loaded from file: %s", ctx->file_path);
+            LV_LOG_TRACE("Data loaded from file: %s", ctx->file_path);
         }
 
         // Capture animation parameters before deleting the LVGL animation
@@ -161,7 +159,7 @@ inline void lottie_load_task(void *param) {
             ctx->end_frame   = anim->end_value;
             ctx->duration_ms = (uint32_t)lv_anim_get_time(anim);
 
-            ESP_LOGD(LOTTIE_TAG, "Anim: frames %d..%d, duration %u ms",
+            LV_LOG_TRACE("Anim: frames %d..%d, duration %u ms",
                      (int)ctx->start_frame, (int)ctx->end_frame, (unsigned)ctx->duration_ms);
 
             // Delete the LVGL animation - we drive rendering ourselves
@@ -175,9 +173,9 @@ inline void lottie_load_task(void *param) {
             lottie->anim = NULL;
 
             ctx->data_loaded = true;
-            ESP_LOGD(LOTTIE_TAG, "LVGL anim removed - rendering from PSRAM task");
+            LV_LOG_TRACE("LVGL anim removed - rendering from PSRAM task");
         } else {
-            ESP_LOGE(LOTTIE_TAG, "Animation INVALID - parsing may have failed!");
+            LV_LOG_ERROR("Animation INVALID - parsing may have failed!");
         }
     } else {
         // ===== RE-LOAD (screen came back) =====
@@ -187,7 +185,7 @@ inline void lottie_load_task(void *param) {
         // tvg_canvas_clear removes the paint from the canvas without
         // deleting it (false), so lv_lottie_set_buffer can push it again
         // without a double-push.
-        ESP_LOGD(LOTTIE_TAG, "Re-load: updating buffer (no re-parse)");
+        LV_LOG_TRACE("Re-load: updating buffer (no re-parse)");
 
         lv_lottie_t *lottie = (lv_lottie_t *)ctx->obj;
         tvg_canvas_clear(lottie->tvg_canvas, false);
@@ -229,12 +227,12 @@ inline void lottie_load_task(void *param) {
     // Validate animation parameters
     if (!ctx->data_loaded || ctx->exec_cb == nullptr ||
         ctx->duration_ms == 0 || ctx->end_frame <= ctx->start_frame) {
-        ESP_LOGW(LOTTIE_TAG, "No valid animation, task suspending");
+        LV_LOG_WARN("No valid animation, task suspending");
         vTaskSuspend(NULL);
         return;
     }
     if (!ctx->auto_start) {
-        ESP_LOGD(LOTTIE_TAG, "auto_start=false, task suspending");
+        LV_LOG_TRACE("auto_start=false, task suspending");
         vTaskSuspend(NULL);
         return;
     }
@@ -245,7 +243,7 @@ inline void lottie_load_task(void *param) {
     if (frame_delay_ms < 16)  frame_delay_ms = 16;   // Cap at ~60 fps
     if (frame_delay_ms > 100) frame_delay_ms = 100;
 
-    ESP_LOGD(LOTTIE_TAG, "Render loop: %u ms/frame, loop=%d",
+    LV_LOG_TRACE("Render loop: %u ms/frame, loop=%d",
              (unsigned)frame_delay_ms, (int)ctx->loop);
 
     ctx->start_tick = xTaskGetTickCount();  // Store in context for restart capability
@@ -275,7 +273,7 @@ inline void lottie_load_task(void *param) {
         if (ctx->restart_requested) {
             ctx->start_tick = xTaskGetTickCount();
             ctx->restart_requested = false;
-            ESP_LOGD(LOTTIE_TAG, "Animation restarted from frame 0");
+            LV_LOG_TRACE("Animation restarted from frame 0");
         }
 
         uint32_t elapsed_ms = (uint32_t)((xTaskGetTickCount() - ctx->start_tick) * portTICK_PERIOD_MS);
@@ -290,7 +288,7 @@ inline void lottie_load_task(void *param) {
                 ctx->exec_cb(ctx->anim_var, ctx->end_frame);
                 lottie_sync_canvas_buffer(ctx);
                 lv_unlock();
-                ESP_LOGD(LOTTIE_TAG, "Animation complete");
+                LV_LOG_TRACE("Animation complete");
                 break;
             }
             frame = ctx->start_frame + (int32_t)((int64_t)total_frames * elapsed_ms / ctx->duration_ms);
@@ -316,8 +314,7 @@ inline void lottie_load_task(void *param) {
 
             int64_t now_us = sync_end_us;
             if (now_us - perf_last_log_us >= 2000000 && perf_frames > 0) {
-                ESP_LOGD(LOTTIE_TAG,
-                         "perf2s: frames=%u render_avg=%lluus render_max=%uus sync_avg=%lluus sync_max=%uus",
+                LV_LOG_TRACE("perf2s: frames=%u render_avg=%lluus render_max=%uus sync_avg=%lluus sync_max=%uus",
                          (unsigned)perf_frames,
                          (unsigned long long)(perf_render_us / perf_frames),
                          (unsigned)perf_render_max_us,
@@ -343,7 +340,7 @@ inline void lottie_load_task(void *param) {
     }
 
     if (ctx->stop_requested) {
-        ESP_LOGD(LOTTIE_TAG, "Stop requested - task suspending");
+        LV_LOG_TRACE("Stop requested - task suspending");
     }
 
     // Suspend (NOT delete) - cleanup callback will delete us safely
@@ -364,7 +361,7 @@ inline void lottie_free_resources(LottieContext *ctx) {
     if (ctx->pixel_buffer)  { heap_caps_free(ctx->pixel_buffer);  ctx->pixel_buffer = nullptr; }
     ctx->stop_requested = false;
 
-    ESP_LOGD(LOTTIE_TAG, "Lottie freed (%ux%u = %u KB %s buf + 64 KB stack)",
+    LV_LOG_TRACE("Lottie freed (%ux%u = %u KB %s buf + 64 KB stack)",
              (unsigned)ctx->width, (unsigned)ctx->height,
              (unsigned)(ctx->width * ctx->height * 4 / 1024),
              ctx->pixel_buffer_internal ? "SRAM" : "PSRAM");
@@ -394,7 +391,7 @@ inline bool lottie_launch(LottieContext *ctx) {
     ctx->pixel_buffer_internal = false;
     ctx->pixel_buffer = lottie_alloc_pixel_buffer(alloc_bytes, &ctx->pixel_buffer_internal);
     if (!ctx->pixel_buffer) {
-        ESP_LOGE(LOTTIE_TAG, "Pixel buffer alloc failed (%u bytes)", (unsigned)alloc_bytes);
+        LV_LOG_ERROR("Pixel buffer alloc failed (%u bytes)", (unsigned)alloc_bytes);
         return false;
     }
     memset(ctx->pixel_buffer, 0, alloc_bytes);
@@ -408,7 +405,7 @@ inline bool lottie_launch(LottieContext *ctx) {
     ctx->task_tcb = (StaticTask_t *)heap_caps_malloc(
         sizeof(StaticTask_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
     if (!ctx->task_stack || !ctx->task_tcb) {
-        ESP_LOGE(LOTTIE_TAG, "Task alloc failed");
+        LV_LOG_ERROR("Task alloc failed");
         lottie_free_resources(ctx);
         return false;
     }
@@ -424,7 +421,7 @@ inline bool lottie_launch(LottieContext *ctx) {
         return false;
     }
 
-    ESP_LOGD(LOTTIE_TAG, "Lottie launched (runtime_hidden=%d, %s: %u KB buf + 64 KB stack, free PSRAM: %u KB, free SRAM: %u KB, largest SRAM: %u KB)",
+    LV_LOG_TRACE("Lottie launched (runtime_hidden=%d, %s: %u KB buf + 64 KB stack, free PSRAM: %u KB, free SRAM: %u KB, largest SRAM: %u KB)",
              (int)ctx->runtime_hidden,
              ctx->pixel_buffer_internal ? "SRAM" : "PSRAM",
              (unsigned)(buf_bytes / 1024),
@@ -459,7 +456,7 @@ inline void lottie_screen_unload_start_cb(lv_event_t *e) {
     // Hide widget so LVGL won't try to draw the image during transition
     lv_obj_add_flag(ctx->obj, LV_OBJ_FLAG_HIDDEN);
 
-    ESP_LOGD(LOTTIE_TAG, "Lottie task stopped, widget hidden (was_hidden=%d)", (int)ctx->runtime_hidden);
+    LV_LOG_TRACE("Lottie task stopped, widget hidden (was_hidden=%d)", (int)ctx->runtime_hidden);
 }
 
 inline void lottie_screen_unloaded_cb(lv_event_t *e) {
@@ -471,7 +468,7 @@ inline void lottie_screen_unloaded_cb(lv_event_t *e) {
     if (ctx->pixel_buffer)  { heap_caps_free(ctx->pixel_buffer);  ctx->pixel_buffer = nullptr; }
     ctx->stop_requested = false;
 
-    ESP_LOGD(LOTTIE_TAG, "Lottie FREED (%ux%u = %u KB %s buf + 64 KB stack) -> free PSRAM: %u KB, free SRAM: %u KB",
+    LV_LOG_TRACE("Lottie FREED (%ux%u = %u KB %s buf + 64 KB stack) -> free PSRAM: %u KB, free SRAM: %u KB",
              (unsigned)ctx->width, (unsigned)ctx->height,
              (unsigned)(ctx->width * ctx->height * 4 / 1024),
              ctx->pixel_buffer_internal ? "SRAM" : "PSRAM",
@@ -494,7 +491,7 @@ inline void lottie_screen_loaded_cb(lv_event_t *e) {
 inline void lottie_restart(LottieContext *ctx) {
     if (ctx && ctx->task_handle) {
         ctx->restart_requested = true;
-        ESP_LOGD(LOTTIE_TAG, "Restart requested (will reset on next frame)");
+        LV_LOG_TRACE("Restart requested (will reset on next frame)");
     }
 }
 
@@ -539,7 +536,7 @@ inline bool lottie_init(lv_obj_t *obj, const void *data, size_t data_size,
     lv_obj_add_event_cb(screen, lottie_screen_loaded_cb,
                         LV_EVENT_SCREEN_LOADED, ctx);
 
-    ESP_LOGD(LOTTIE_TAG, "Lottie registered (%ux%u), waiting for page load to allocate",
+    LV_LOG_TRACE("Lottie registered (%ux%u), waiting for page load to allocate",
              (unsigned)width, (unsigned)height);
     return true;
 }

@@ -10,7 +10,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_heap_caps.h"
-#include "esp_log.h"
 #include <cstdio>
 #include <cstring>
 
@@ -20,7 +19,6 @@
 namespace esphome {
 namespace lvgl {
 
-static const char *const SVG_TAG = "svg";
 static constexpr size_t SVG_TASK_STACK_SIZE = 64 * 1024;
 
 // Persistent context for each SVG widget - tracks all PSRAM allocations
@@ -60,10 +58,10 @@ inline void svg_render_task(void *param) {
     char *file_buf = nullptr;
 
     if (svg_data == nullptr && ctx->file_path != nullptr) {
-        ESP_LOGD(SVG_TAG, "Reading SVG from %s ...", ctx->file_path);
+        LV_LOG_TRACE("Reading SVG from %s ...", ctx->file_path);
         FILE *f = fopen(ctx->file_path, "r");
         if (!f) {
-            ESP_LOGE(SVG_TAG, "Cannot open: %s", ctx->file_path);
+            LV_LOG_ERROR("Cannot open: %s", ctx->file_path);
             goto done;
         }
         fseek(f, 0, SEEK_END);
@@ -80,11 +78,11 @@ inline void svg_render_task(void *param) {
     }
 
     if (!svg_data || svg_data_size == 0) {
-        ESP_LOGE(SVG_TAG, "No SVG data");
+        LV_LOG_ERROR("No SVG data");
         goto done;
     }
 
-    ESP_LOGD(SVG_TAG, "Rendering SVG (%u bytes) to %ux%u ...",
+    LV_LOG_TRACE("Rendering SVG (%u bytes) to %ux%u ...",
              (unsigned)svg_data_size, (unsigned)ctx->width, (unsigned)ctx->height);
 
     memset(ctx->pixel_buffer, 0, ctx->width * ctx->height * sizeof(uint32_t));
@@ -93,7 +91,7 @@ inline void svg_render_task(void *param) {
         tvg_engine_init(TVG_ENGINE_SW, 0);
 
         Tvg_Canvas *tc = tvg_swcanvas_create();
-        if (!tc) { ESP_LOGE(SVG_TAG, "swcanvas_create failed"); goto done; }
+        if (!tc) { LV_LOG_ERROR("swcanvas_create failed"); goto done; }
 
         if (tvg_swcanvas_set_target(tc, ctx->pixel_buffer, ctx->width,
                                      ctx->width, ctx->height,
@@ -106,13 +104,13 @@ inline void svg_render_task(void *param) {
 
         if (tvg_picture_load_data(pic, svg_data, (uint32_t)svg_data_size,
                                    "svg", true) != TVG_RESULT_SUCCESS) {
-            ESP_LOGE(SVG_TAG, "picture_load_data failed");
+            LV_LOG_ERROR("picture_load_data failed");
             tvg_paint_del(pic); tvg_canvas_destroy(tc); goto done;
         }
 
         float ow = 0, oh = 0;
         tvg_picture_get_size(pic, &ow, &oh);
-        ESP_LOGD(SVG_TAG, "SVG %.0fx%.0f -> %ux%u", ow, oh,
+        LV_LOG_TRACE("SVG %.0fx%.0f -> %ux%u", ow, oh,
                  (unsigned)ctx->width, (unsigned)ctx->height);
         tvg_picture_set_size(pic, (float)ctx->width, (float)ctx->height);
 
@@ -124,7 +122,7 @@ inline void svg_render_task(void *param) {
         tvg_canvas_sync(tc);
         tvg_canvas_destroy(tc);
 
-        ESP_LOGD(SVG_TAG, "SVG rendered OK");
+        LV_LOG_TRACE("SVG rendered OK");
     }
 
     // Restore user's 'hidden' configuration (only show if user didn't set hidden: true)
@@ -159,7 +157,7 @@ inline void svg_free_resources(SvgContext *ctx) {
     if (ctx->draw_buf)     { heap_caps_free(ctx->draw_buf);     ctx->draw_buf = nullptr; }
     ctx->task_done = false;
 
-    ESP_LOGD(SVG_TAG, "SVG PSRAM freed (%ux%u = %u KB)",
+    LV_LOG_TRACE("SVG PSRAM freed (%ux%u = %u KB)",
              (unsigned)ctx->width, (unsigned)ctx->height,
              (unsigned)(ctx->width * ctx->height * 4 / 1024));
 }
@@ -175,7 +173,7 @@ inline bool svg_launch(SvgContext *ctx) {
     ctx->pixel_buffer = (uint32_t *)heap_caps_malloc(
         buf_bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!ctx->pixel_buffer) {
-        ESP_LOGE(SVG_TAG, "PSRAM alloc failed (%u bytes)", (unsigned)buf_bytes);
+        LV_LOG_ERROR("PSRAM alloc failed (%u bytes)", (unsigned)buf_bytes);
         return false;
     }
     memset(ctx->pixel_buffer, 0, buf_bytes);
@@ -202,7 +200,7 @@ inline bool svg_launch(SvgContext *ctx) {
     ctx->task_tcb = (StaticTask_t *)heap_caps_malloc(
         sizeof(StaticTask_t), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
     if (!ctx->task_stack || !ctx->task_tcb) {
-        ESP_LOGE(SVG_TAG, "Task alloc failed");
+        LV_LOG_ERROR("Task alloc failed");
         svg_free_resources(ctx);
         return false;
     }
@@ -218,7 +216,7 @@ inline bool svg_launch(SvgContext *ctx) {
         return false;
     }
 
-    ESP_LOGD(SVG_TAG, "SVG render task launched (%u KB PSRAM)",
+    LV_LOG_TRACE("SVG render task launched (%u KB PSRAM)",
              (unsigned)(SVG_TASK_STACK_SIZE / 1024));
     return true;
 }
@@ -243,7 +241,7 @@ inline void svg_screen_unload_start_cb(lv_event_t *e) {
     // Hide widget so LVGL won't try to draw the canvas during transition
     lv_obj_add_flag(ctx->canvas_obj, LV_OBJ_FLAG_HIDDEN);
 
-    ESP_LOGD(SVG_TAG, "SVG task stopped, widget hidden (transition starting)");
+    LV_LOG_TRACE("SVG task stopped, widget hidden (transition starting)");
 }
 
 inline void svg_screen_unloaded_cb(lv_event_t *e) {
@@ -256,7 +254,7 @@ inline void svg_screen_unloaded_cb(lv_event_t *e) {
     if (ctx->draw_buf)     { heap_caps_free(ctx->draw_buf);     ctx->draw_buf = nullptr; }
     ctx->task_done = false;
 
-    ESP_LOGD(SVG_TAG, "SVG PSRAM freed (%ux%u = %u KB)",
+    LV_LOG_TRACE("SVG PSRAM freed (%ux%u = %u KB)",
              (unsigned)ctx->width, (unsigned)ctx->height,
              (unsigned)(ctx->width * ctx->height * 4 / 1024));
 }

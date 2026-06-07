@@ -11,6 +11,8 @@
 
 #pragma once
 
+// namespace esphome::lvgl -- ESPHome lint marker; this shim is included by LVGL C sources.
+
 #ifdef ESP_PLATFORM
 #include "freertos/atomic.h"
 #endif
