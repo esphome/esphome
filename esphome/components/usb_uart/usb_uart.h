@@ -149,6 +149,10 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   void set_dummy_receiver(bool dummy_receiver) { this->dummy_receiver_ = dummy_receiver; }
   void set_debug_prefix(const char *prefix) { this->debug_prefix_ = StringRef(prefix); }
   void set_flush_timeout(uint32_t flush_timeout_ms) override { this->flush_timeout_ms_ = flush_timeout_ms; }
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+  void load_settings(bool dump_config) override;
+  void load_settings() override;
+#endif
 
   /// Register a callback invoked immediately after data is pushed to the input ring buffer.
   /// Called from USBUartComponent::loop() in the main loop context.
@@ -188,6 +192,7 @@ class USBUartComponent : public usb_host::USBClient {
   std::vector<USBUartChannel *> get_channels() { return this->channels_; }
 
   void add_channel(USBUartChannel *channel) { this->channels_.push_back(channel); }
+  virtual void load_settings(USBUartChannel *channel, bool dump_config);
 
   void start_input(USBUartChannel *channel);
   void start_output(USBUartChannel *channel);
@@ -224,6 +229,7 @@ class USBUartTypeCP210X : public USBUartTypeCdcAcm {
  protected:
   std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
   void enable_channels() override;
+  void load_settings(USBUartChannel *channel, bool dump_config) override;
 };
 class USBUartTypeCH34X : public USBUartTypeCdcAcm {
  public:

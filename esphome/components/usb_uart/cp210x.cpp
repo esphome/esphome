@@ -120,6 +120,32 @@ void USBUartTypeCP210X::enable_channels() {
   }
   this->start_channels_();
 }
+
+void USBUartTypeCP210X::load_settings(USBUartChannel *channel, bool dump_config) {
+  if (channel == nullptr || !channel->initialised_.load())
+    return;
+
+  usb_host::transfer_cb_t callback = [channel](const usb_host::TransferStatus &status) {
+    if (!status.success) {
+      ESP_LOGE(TAG, "Control transfer failed, status=%s", esp_err_to_name(status.error_code));
+      channel->initialised_.store(false);
+    }
+  };
+
+  uint16_t line_control = channel->stop_bits_;
+  line_control |= static_cast<uint8_t>(channel->parity_) << 4;
+  line_control |= channel->data_bits_ << 8;
+  this->control_transfer(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_LINE_CTL, line_control, channel->index_,
+                         callback);
+
+  auto baud = ByteBuffer::wrap(channel->baud_rate_, LITTLE);
+  this->control_transfer(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_BAUDRATE, 0, channel->index_, callback,
+                         baud.get_data());
+
+  if (dump_config) {
+    ESP_LOGCONFIG(TAG, "UART settings reloaded for CP210X channel %u", channel->index_);
+  }
+}
 }  // namespace esphome::usb_uart
 
 #endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
