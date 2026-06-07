@@ -4,7 +4,7 @@ packages:
 binary_sensor:
   - platform: template
     name: "Garage Door Open 10"
-    report: "enable"
+    report: "default"
   - platform: template
     name: "Garage Door Open 12"
     report: "force"
