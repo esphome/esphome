@@ -7,6 +7,8 @@
 #
 # Remove this once the framework package contains the same guard upstream.
 
+# ruff: noqa: F821
+# pylint: disable=undefined-variable
 from pathlib import Path
 
 Import("env")  # type: ignore[name-defined]
