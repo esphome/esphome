@@ -161,3 +161,24 @@ display:
     busy_pin:
       allow_other_uses: true
       number: GPIO4
+
+  # Soldered Inkplate 2 3-color e-paper (104x212, BWR)
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: inkplate2
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+    lambda: |-
+      it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color::WHITE);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 20, Color::BLACK);
+      it.circle(it.get_width() / 2, it.get_height() / 2, 15, Color(255, 0, 0));
