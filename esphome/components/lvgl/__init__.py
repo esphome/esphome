@@ -12,7 +12,7 @@ from esphome.components.const import (
     CONF_COLOR_DEPTH,
     CONF_DRAW_ROUNDING,
 )
-from esphome.components.display import Display, get_display_metadata, validate_rotation
+from esphome.components.display import Display, get_display_metadata
 from esphome.components.esp32 import (
     VARIANT_ESP32P4,
     add_idf_component,
@@ -39,7 +39,6 @@ from esphome.const import (
     CONF_ON_IDLE,
     CONF_PAGES,
     CONF_PLATFORMIO_OPTIONS,
-    CONF_ROTATION,
     CONF_TIMEOUT,
     CONF_TRIGGER_ID,
 )
@@ -87,7 +86,6 @@ from .trigger import generate_align_tos, generate_triggers
 from .types import (
     IdleTrigger,
     PlainTrigger,
-    RotationType,
     lv_font_t,
     lv_group_t,
     lv_lambda_t,
@@ -408,33 +406,17 @@ async def to_code(configs):
         displays = [
             await cg.get_variable(display) for display in config[df.CONF_DISPLAYS]
         ]
-        rotation_type = RotationType.ROTATION_UNUSED
-        # options will have CONF_ROTATION true if rotation is changed in an automation.
-        if CONF_ROTATION in config or df.get_options().get(CONF_ROTATION) is True:
-            if all(
-                get_display_metadata(disp).has_hardware_rotation for disp in displays
-            ):
-                rotation_type = RotationType.ROTATION_HARDWARE
-                df.LOGGER.info("LVGL will use hardware rotation via display driver")
-            else:
-                rotation_type = RotationType.ROTATION_SOFTWARE
-                if CORE.is_esp32 and get_esp32_variant() == VARIANT_ESP32P4:
-                    df.LOGGER.info("LVGL will use software rotation (PPA accelerated)")
-                else:
-                    df.LOGGER.info("LVGL will use software rotation")
         lv_component = cg.new_Pvariable(
             config[CONF_ID],
             displays,
             frac,
             config[df.CONF_FULL_REFRESH],
+            config[df.CONF_DIRECT_MODE],
             config[CONF_DRAW_ROUNDING],
             config[df.CONF_RESUME_ON_INPUT],
             config[df.CONF_UPDATE_WHEN_DISPLAY_IDLE],
-            rotation_type,
         )
         await cg.register_component(lv_component, config)
-        if rotation := config.get(CONF_ROTATION):
-            cg.add(lv_component.set_rotation(rotation))
         Widget.create(config[CONF_ID], lv_component, LvScrActType(), config)
 
         lv_scr_act = get_screen_active(lv_component)
@@ -618,12 +600,12 @@ LVGL_SCHEMA = cv.All(
                     df.CONF_DEFAULT_FONT, default="montserrat_14"
                 ): lvalid.lv_font,
                 cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
+                cv.Optional(df.CONF_DIRECT_MODE, default=False): cv.boolean,
                 cv.Optional(
                     df.CONF_UPDATE_WHEN_DISPLAY_IDLE, default=False
                 ): cv.boolean,
                 cv.Optional(CONF_DRAW_ROUNDING, default=2): cv.positive_int,
                 cv.Optional(CONF_BUFFER_SIZE, default=0): cv.percentage,
-                cv.Optional(CONF_ROTATION): validate_rotation,
                 cv.Optional(CONF_LOG_LEVEL, default="WARN"): cv.one_of(
                     *df.LV_LOG_LEVELS, upper=True
                 ),
