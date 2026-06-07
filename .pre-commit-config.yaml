@@ -63,7 +63,7 @@ repos:
         name: Update clang-tidy hash
         entry: python script/clang_tidy_hash.py --update-if-changed
         language: python
-        files: ^(\.clang-tidy|platformio\.ini|requirements_dev\.txt)$
+        files: ^(\.clang-tidy|platformio\.ini|requirements_dev\.txt|sdkconfig\.defaults|esphome/idf_component\.yml)$
         pass_filenames: false
         additional_dependencies: []
       - id: ci-custom

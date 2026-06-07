@@ -49,7 +49,7 @@ jobs:
         # detects the activated venv via ``VIRTUAL_ENV`` so downstream jobs
         # that ``. venv/bin/activate`` see an identical layout.
         if: steps.cache-venv.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           enable-cache: true
           # Pin uv version so the action does not have to fetch the
@@ -170,7 +170,7 @@ jobs:
         # install step (order-of-magnitude faster on cold boots,
         # with its own wheel cache). actions/setup-python still
         # provides the interpreter.
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           enable-cache: true
           # Pin uv version so the action does not have to fetch the
@@ -189,9 +189,12 @@ jobs:
       - name: Run device-builder pytest
         # ``-n auto`` runs under pytest-xdist (matches device-builder's
         # own CI). No ``--cov`` here -- this is purely a downstream
-        # smoke check against this PR's esphome code.
+        # smoke check against this PR's esphome code. ``tests/e2e/slow``
+        # is excluded: those are real multi-minute toolchain compiles
+        # (LibreTiny SDK clone, native ESP-IDF install) that device-builder
+        # runs in its own dedicated jobs, not this smoke check.
         working-directory: device-builder
-        run: pytest -q -n auto --maxfail=5 --durations=30 --no-cov --ignore=tests/benchmarks
+        run: pytest -q -n auto --maxfail=5 --durations=30 --no-cov --ignore=tests/benchmarks --ignore=tests/e2e/slow
 
   pytest:
     name: Run pytest
@@ -368,7 +371,7 @@ jobs:
       - name: Set up uv
         # Only needed on cache miss to populate the venv.
         if: steps.cache-venv.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           enable-cache: true
           # Pin uv version so the action does not have to fetch the
@@ -469,6 +472,8 @@ jobs:
     if: needs.determine-jobs.outputs.clang-tidy == 'true'
     env:
       GH_TOKEN: ${{ github.token }}
+      # esp32-arduino-tidy installs ESP-IDF natively; share the native IDF cache.
+      ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -479,9 +484,9 @@ jobs:
             options: --environment esp8266-arduino-tidy --grep USE_ESP8266
             pio_cache_key: tidyesp8266
           - id: clang-tidy
-            name: Run script/clang-tidy for ESP32 IDF
-            options: --environment esp32-idf-tidy --grep USE_ESP_IDF
-            pio_cache_key: tidyesp32-idf
+            name: Run script/clang-tidy for ESP32 Arduino
+            options: --environment esp32-arduino-tidy --grep USE_ARDUINO
+            cache_idf: true
           - id: clang-tidy
             name: Run script/clang-tidy for ZEPHYR
             options: --environment nrf52-tidy --grep USE_ZEPHYR --grep USE_NRF52
@@ -502,30 +507,30 @@ jobs:
           cache-key: ${{ needs.common.outputs.cache-key }}
 
       - name: Cache platformio
-        if: github.ref == 'refs/heads/dev'
+        if: github.ref == 'refs/heads/dev' && matrix.pio_cache_key
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.platformio
           key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
 
       - name: Cache platformio
-        if: github.ref != 'refs/heads/dev'
+        if: github.ref != 'refs/heads/dev' && matrix.pio_cache_key
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.platformio
           key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
 
+      - name: Cache ESP-IDF install
+        # Shared with the IDF tidy + native-IDF build jobs (same install).
+        if: matrix.cache_idf
+        uses: ./.github/actions/cache-esp-idf
+        with:
+          framework: arduino
+
       - name: Register problem matchers
         run: |
           echo "::add-matcher::.github/workflows/matchers/gcc.json"
           echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
-
-      - name: Run 'pio run --list-targets -e esp32-idf-tidy'
-        if: matrix.name == 'Run script/clang-tidy for ESP32 IDF'
-        run: |
-          . venv/bin/activate
-          mkdir -p .temp
-          pio run --list-targets -e esp32-idf-tidy
 
       - name: Check if full clang-tidy scan needed
         id: check_full_scan
@@ -565,7 +570,7 @@ jobs:
         if: always()
 
   clang-tidy-nosplit:
-    name: Run script/clang-tidy for ESP32 Arduino
+    name: Run script/clang-tidy for ESP32 IDF
     runs-on: ubuntu-24.04
     needs:
       - common
@@ -573,6 +578,8 @@ jobs:
     if: needs.determine-jobs.outputs.clang-tidy-mode == 'nosplit'
     env:
       GH_TOKEN: ${{ github.token }}
+      # esp32-idf-tidy installs ESP-IDF natively; share the native IDF cache.
+      ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -586,19 +593,9 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
 
-      - name: Cache platformio
-        if: github.ref == 'refs/heads/dev'
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: ~/.platformio
-          key: platformio-tidyesp32-${{ hashFiles('platformio.ini') }}
-
-      - name: Cache platformio
-        if: github.ref != 'refs/heads/dev'
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: ~/.platformio
-          key: platformio-tidyesp32-${{ hashFiles('platformio.ini') }}
+      - name: Cache ESP-IDF install
+        # Shared with the Arduino tidy + native-IDF build jobs (same install).
+        uses: ./.github/actions/cache-esp-idf
 
       - name: Register problem matchers
         run: |
@@ -628,10 +625,10 @@ jobs:
           . venv/bin/activate
           if [ "${{ steps.check_full_scan.outputs.full_scan }}" = "true" ]; then
             echo "Running FULL clang-tidy scan (reason: ${{ steps.check_full_scan.outputs.reason }})"
-            script/clang-tidy --all-headers --fix --environment esp32-arduino-tidy
+            script/clang-tidy --all-headers --fix --environment esp32-idf-tidy
           else
             echo "Running clang-tidy on changed files only"
-            script/clang-tidy --all-headers --fix --changed --environment esp32-arduino-tidy
+            script/clang-tidy --all-headers --fix --changed --environment esp32-idf-tidy
           fi
         env:
           # Also cache libdeps, store them in a ~/.platformio subfolder
@@ -650,23 +647,22 @@ jobs:
     if: needs.determine-jobs.outputs.clang-tidy-mode == 'split'
     env:
       GH_TOKEN: ${{ github.token }}
+      # esp32-idf-tidy installs ESP-IDF natively; share the native IDF cache.
+      ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 3
       matrix:
         include:
           - id: clang-tidy
-            name: Run script/clang-tidy for ESP32 Arduino 1/4
-            options: --environment esp32-arduino-tidy --split-num 4 --split-at 1
+            name: Run script/clang-tidy for ESP32 IDF 1/3
+            options: --environment esp32-idf-tidy --split-num 3 --split-at 1
           - id: clang-tidy
-            name: Run script/clang-tidy for ESP32 Arduino 2/4
-            options: --environment esp32-arduino-tidy --split-num 4 --split-at 2
+            name: Run script/clang-tidy for ESP32 IDF 2/3
+            options: --environment esp32-idf-tidy --split-num 3 --split-at 2
           - id: clang-tidy
-            name: Run script/clang-tidy for ESP32 Arduino 3/4
-            options: --environment esp32-arduino-tidy --split-num 4 --split-at 3
-          - id: clang-tidy
-            name: Run script/clang-tidy for ESP32 Arduino 4/4
-            options: --environment esp32-arduino-tidy --split-num 4 --split-at 4
+            name: Run script/clang-tidy for ESP32 IDF 3/3
+            options: --environment esp32-idf-tidy --split-num 3 --split-at 3
 
     steps:
       - name: Check out code from GitHub
@@ -681,19 +677,9 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
 
-      - name: Cache platformio
-        if: github.ref == 'refs/heads/dev'
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: ~/.platformio
-          key: platformio-tidyesp32-${{ hashFiles('platformio.ini') }}
-
-      - name: Cache platformio
-        if: github.ref != 'refs/heads/dev'
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: ~/.platformio
-          key: platformio-tidyesp32-${{ hashFiles('platformio.ini') }}
+      - name: Cache ESP-IDF install
+        # Shared with the Arduino tidy + native-IDF build jobs (same install).
+        uses: ./.github/actions/cache-esp-idf
 
       - name: Register problem matchers
         run: |
@@ -731,6 +717,93 @@ jobs:
         env:
           # Also cache libdeps, store them in a ~/.platformio subfolder
           PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
+
+      - name: Suggested changes
+        run: script/ci-suggest-changes
+        if: always()
+
+  clang-tidy-esp32-variants:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+    if: needs.determine-jobs.outputs.clang-tidy == 'true'
+    env:
+      GH_TOKEN: ${{ github.token }}
+      # The variant tidy envs install ESP-IDF natively; share the native IDF cache.
+      ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 S3
+            options: --environment esp32s3-idf-tidy --grep USE_ESP32_VARIANT_ESP32S3
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 P4
+            # P4 has no native Wi-Fi/BLE; those run over the hosted co-processor,
+            # so their code paths differ -- lint them under the P4 build too.
+            # yamllint disable-line rule:line-length
+            options: --environment esp32p4-idf-tidy --grep USE_ESP32_VARIANT_ESP32P4 --grep USE_ESP32_HOSTED --grep USE_WIFI --grep USE_BLE
+          - id: clang-tidy
+            name: Run script/clang-tidy for ESP32 C6
+            # yamllint disable-line rule:line-length
+            options: --environment esp32c6-idf-tidy --grep USE_ESP32_VARIANT_ESP32C6 --grep USE_OPENTHREAD --grep USE_ZIGBEE
+
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          # Need history for HEAD~1 to work for checking changed files
+          fetch-depth: 2
+
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+
+      - name: Cache ESP-IDF install
+        # Shared with the IDF/Arduino clang-tidy jobs + native-IDF build (same install).
+        uses: ./.github/actions/cache-esp-idf
+
+      - name: Register problem matchers
+        run: |
+          echo "::add-matcher::.github/workflows/matchers/gcc.json"
+          echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
+
+      - name: Check if full clang-tidy scan needed
+        id: check_full_scan
+        run: |
+          . venv/bin/activate
+          # determine-jobs.clang-tidy-full-scan is true when core C++ changed
+          # OR the ci-run-all label forced --force-all. Independent of the
+          # hash check, both must produce a full scan in the job itself.
+          if [ "${{ needs.determine-jobs.outputs.clang-tidy-full-scan }}" = "true" ]; then
+            echo "full_scan=true" >> $GITHUB_OUTPUT
+            echo "reason=determine_jobs" >> $GITHUB_OUTPUT
+          elif python script/clang_tidy_hash.py --check; then
+            echo "full_scan=true" >> $GITHUB_OUTPUT
+            echo "reason=hash_changed" >> $GITHUB_OUTPUT
+          else
+            echo "full_scan=false" >> $GITHUB_OUTPUT
+            echo "reason=normal" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run clang-tidy
+        # Limited variant scan: only the files carrying that variant's code paths
+        # (no --all-headers; the comprehensive esp32-idf pass covers the shared tree).
+        run: |
+          . venv/bin/activate
+          if [ "${{ steps.check_full_scan.outputs.full_scan }}" = "true" ]; then
+            echo "Running FULL clang-tidy scan (reason: ${{ steps.check_full_scan.outputs.reason }})"
+            script/clang-tidy --fix ${{ matrix.options }}
+          else
+            echo "Running clang-tidy on changed files only"
+            script/clang-tidy --fix --changed ${{ matrix.options }}
+          fi
 
       - name: Suggested changes
         run: script/ci-suggest-changes
@@ -821,7 +894,7 @@ jobs:
           fi
           echo ""
 
-          # Show disk space before validation (after bind mounts setup)
+          # Show disk space before validation
           echo "Disk space before config validation:"
           df -h
           echo ""
@@ -897,33 +970,20 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
 
-      - name: Cache ESPHome
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: ~/.esphome-idf
-          key: ${{ runner.os }}-esphome-${{ needs.common.outputs.cache-key }}
-
-      - name: Run native ESP-IDF compile test
+      - name: Prepare build storage on /mnt
+        # Bind-mount the larger /mnt disk over the IDF install + build dirs BEFORE
+        # restoring the cache, so the ~4.5GB restore lands on the roomier volume
+        # instead of being shadowed by a mount set up later in the run step.
         run: |
-          . venv/bin/activate
-
-          # Check if /mnt has more free space than / before bind mounting
-          # Extract available space in KB for comparison
           root_avail=$(df -k / | awk 'NR==2 {print $4}')
           mnt_avail=$(df -k /mnt 2>/dev/null | awk 'NR==2 {print $4}')
-
           echo "Available space: / has ${root_avail}KB, /mnt has ${mnt_avail}KB"
-
-          # Only use /mnt if it has more space than /
           if [ -n "$mnt_avail" ] && [ "$mnt_avail" -gt "$root_avail" ]; then
             echo "Using /mnt for build files (more space available)"
-            # Bind mount PlatformIO directory to /mnt (tools, packages, build cache all go there)
             sudo mkdir -p /mnt/esphome-idf
             sudo chown $USER:$USER /mnt/esphome-idf
             mkdir -p ~/.esphome-idf
             sudo mount --bind /mnt/esphome-idf ~/.esphome-idf
-
-            # Bind mount test build directory to /mnt
             sudo mkdir -p /mnt/test_build_components_build
             sudo chown $USER:$USER /mnt/test_build_components_build
             mkdir -p tests/test_build_components/build
@@ -932,10 +992,19 @@ jobs:
             echo "Using / for build files (more space available than /mnt or /mnt unavailable)"
           fi
 
+      - name: Cache ESP-IDF install
+        # Shared with the IDF/Arduino clang-tidy jobs (same install); restores
+        # into the /mnt bind-mount prepared above when present.
+        uses: ./.github/actions/cache-esp-idf
+
+      - name: Run native ESP-IDF compile test
+        run: |
+          . venv/bin/activate
+
           echo "Testing components: $TEST_COMPONENTS"
           echo ""
 
-          # Show disk space before validation (after bind mounts setup)
+          # Show disk space before validation
           echo "Disk space before config validation:"
           df -h
           echo ""
@@ -1291,6 +1360,7 @@ jobs:
       - clang-tidy-single
       - clang-tidy-nosplit
       - clang-tidy-split
+      - clang-tidy-esp32-variants
       - determine-jobs
       - device-builder
       - test-build-components-split
