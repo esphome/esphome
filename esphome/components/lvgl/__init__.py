@@ -463,12 +463,37 @@ async def to_code(configs):
         "METER": "SCALE",
     }
     _canonical_widgets = {
-        "ANIMIMG", "ARC", "BAR", "BUTTON", "BUTTONMATRIX",
-        "CALENDAR", "CANVAS", "CHART", "CHECKBOX", "DROPDOWN",
-        "IMAGE", "IMAGEBUTTON", "KEYBOARD", "LABEL", "LED",
-        "LINE", "LIST", "MENU", "MSGBOX", "ROLLER", "SCALE",
-        "SLIDER", "SPAN", "SPINBOX", "SPINNER", "SWITCH",
-        "TABLE", "TABVIEW", "TEXTAREA", "TILEVIEW", "WIN",
+        "ANIMIMG",
+        "ARC",
+        "BAR",
+        "BUTTON",
+        "BUTTONMATRIX",
+        "CALENDAR",
+        "CANVAS",
+        "CHART",
+        "CHECKBOX",
+        "DROPDOWN",
+        "IMAGE",
+        "IMAGEBUTTON",
+        "KEYBOARD",
+        "LABEL",
+        "LED",
+        "LINE",
+        "LIST",
+        "MENU",
+        "MSGBOX",
+        "ROLLER",
+        "SCALE",
+        "SLIDER",
+        "SPAN",
+        "SPINBOX",
+        "SPINNER",
+        "SWITCH",
+        "TABLE",
+        "TABVIEW",
+        "TEXTAREA",
+        "TILEVIEW",
+        "WIN",
     }
 
     used_canonical_widgets = set()
@@ -488,7 +513,9 @@ async def to_code(configs):
     lv_uses.add("buttonmatrix")
 
     for widget in _canonical_widgets:
-        df.add_define(f"LV_USE_{widget}", "1" if widget in used_canonical_widgets else "0")
+        df.add_define(
+            f"LV_USE_{widget}", "1" if widget in used_canonical_widgets else "0"
+        )
 
     widget_names = ",".join(sorted(use.lower() for use in lv_uses))
     cg.add_build_flag(f'-DLVGL_WIDGETS_USED=\\"{widget_names}\\"')
