@@ -93,7 +93,7 @@ int OpenThreadComponent::openthread_stop_() {
 
 network::IPAddresses OpenThreadComponent::get_ip_addresses() {
   network::IPAddresses addresses;
-  auto lock = InstanceLock::try_acquire(100);
+  auto lock = InstanceLock::try_acquire(0);
   if (!lock) {
     return addresses;
   }
