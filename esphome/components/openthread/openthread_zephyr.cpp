@@ -103,10 +103,7 @@ int OpenThreadComponent::openthread_stop_() {
 
 network::IPAddresses OpenThreadComponent::get_ip_addresses() {
   network::IPAddresses addresses;
-  auto lock = InstanceLock::try_acquire(0);
-  if (!lock) {
-    return addresses;
-  }
+  auto lock = InstanceLock::acquire();
   size_t addr_count = 0;
   for (const otNetifAddress *addr = otIp6GetUnicastAddresses(openthread_get_default_instance());
        addr != nullptr && addr_count + 1 < addresses.size(); addr = addr->mNext) {
