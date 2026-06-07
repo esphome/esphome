@@ -122,8 +122,9 @@ void USBUartTypeCP210X::enable_channels() {
 }
 
 void USBUartTypeCP210X::load_settings(USBUartChannel *channel, bool dump_config) {
-  if (channel == nullptr || !channel->initialised_.load())
+  if (channel == nullptr || !channel->initialised_.load()) {
     return;
+  }
 
   usb_host::transfer_cb_t callback = [channel](const usb_host::TransferStatus &status) {
     if (!status.success) {
@@ -132,9 +133,11 @@ void USBUartTypeCP210X::load_settings(USBUartChannel *channel, bool dump_config)
     }
   };
 
+  static constexpr uint8_t CP210X_PARITY_SHIFT = 4;
+  static constexpr uint8_t CP210X_DATA_BITS_SHIFT = 8;
   uint16_t line_control = channel->stop_bits_;
-  line_control |= static_cast<uint8_t>(channel->parity_) << 4;
-  line_control |= channel->data_bits_ << 8;
+  line_control |= static_cast<uint8_t>(channel->parity_) << CP210X_PARITY_SHIFT;
+  line_control |= channel->data_bits_ << CP210X_DATA_BITS_SHIFT;
   this->control_transfer(USB_VENDOR_IFC | usb_host::USB_DIR_OUT, SET_LINE_CTL, line_control, channel->index_,
                          callback);
 

@@ -211,8 +211,9 @@ bool USBUartChannel::read_array(uint8_t *data, size_t len) {
 }
 #if defined(USE_ESP8266) || defined(USE_ESP32)
 void USBUartChannel::load_settings(bool dump_config) {
-  if (this->parent_ == nullptr || !this->initialised_.load())
+  if (this->parent_ == nullptr || !this->initialised_.load()) {
     return;
+  }
   this->parent_->load_settings(this, dump_config);
 }
 
@@ -221,8 +222,8 @@ void USBUartChannel::load_settings() { this->load_settings(true); }
 
 void USBUartComponent::setup() { USBClient::setup(); }
 void USBUartComponent::load_settings(USBUartChannel *channel, bool dump_config) {
-  (void) channel;
-  (void) dump_config;
+  static_cast<void>(channel);
+  static_cast<void>(dump_config);
 }
 void USBUartComponent::loop() {
   bool had_work = this->process_usb_events_();
