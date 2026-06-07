@@ -309,6 +309,11 @@ async def to_code(configs):
     cg.add_define("USE_LVGL")
     # suppress default enabling of extra widgets
     # cg.add_define("LV_KCONFIG_PRESENT")
+    df.add_define("LV_USE_ASSERT_NULL", "0")
+    df.add_define("LV_USE_ASSERT_MALLOC", "0")
+    df.add_define("LV_USE_ASSERT_STYLE", "0")
+    df.add_define("LV_USE_ASSERT_MEM_INTEGRITY", "0")
+    df.add_define("LV_USE_ASSERT_OBJ", "0")
     # Always enable - lots of things use it.
     df.add_define("LV_DRAW_SW_COMPLEX", "1")
 
