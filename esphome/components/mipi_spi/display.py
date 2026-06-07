@@ -22,6 +22,7 @@ from esphome.components.mipi import (
     dimension_schema,
     get_color_depth,
     map_sequence,
+    model_schema_extractor,
     power_of_two,
     requires_buffer,
 )
@@ -227,6 +228,7 @@ def model_schema(config):
     return schema
 
 
+@model_schema_extractor(MODELS, model_schema, extra={CONF_BUS_MODE: TYPE_SINGLE})
 def customise_schema(config):
     """
     Create a customised config schema for a specific model and validate the configuration.
