@@ -245,8 +245,7 @@ inline void lottie_load_task(void *param) {
     frame_delay_ms = 100;
   }
 
-  LV_LOG_TRACE("Render loop: %u ms/frame, loop=%d", static_cast<unsigned>(frame_delay_ms),
-               static_cast<int>(ctx->loop));
+  LV_LOG_TRACE("Render loop: %u ms/frame, loop=%d", static_cast<unsigned>(frame_delay_ms), static_cast<int>(ctx->loop));
 
   ctx->start_tick = xTaskGetTickCount();  // Store in context for restart capability
   uint32_t perf_frames = 0;
@@ -293,8 +292,8 @@ inline void lottie_load_task(void *param) {
         LV_LOG_TRACE("Animation complete");
         break;
       }
-      frame = ctx->start_frame +
-              static_cast<int32_t>(static_cast<int64_t>(total_frames) * elapsed_ms / ctx->duration_ms);
+      frame =
+          ctx->start_frame + static_cast<int32_t>(static_cast<int64_t>(total_frames) * elapsed_ms / ctx->duration_ms);
     }
 
     lv_lock();
@@ -322,8 +321,7 @@ inline void lottie_load_task(void *param) {
       int64_t now_us = sync_end_us;
       if (now_us - perf_last_log_us >= 2000000 && perf_frames > 0) {
         LV_LOG_TRACE("perf2s: frames=%u render_avg=%lluus render_max=%uus sync_avg=%lluus sync_max=%uus",
-                     static_cast<unsigned>(perf_frames),
-                     static_cast<unsigned long long>(perf_render_us / perf_frames),
+                     static_cast<unsigned>(perf_frames), static_cast<unsigned long long>(perf_render_us / perf_frames),
                      static_cast<unsigned>(perf_render_max_us),
                      static_cast<unsigned long long>(perf_sync_us / perf_frames),
                      static_cast<unsigned>(perf_sync_max_us));

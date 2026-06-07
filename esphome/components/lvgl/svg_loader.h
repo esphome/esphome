@@ -114,8 +114,7 @@ inline void svg_render_task(void *param) {
       goto done;
     }
 
-    if (tvg_picture_load_data(pic, svg_data, static_cast<uint32_t>(svg_data_size), "svg", true) !=
-        TVG_RESULT_SUCCESS) {
+    if (tvg_picture_load_data(pic, svg_data, static_cast<uint32_t>(svg_data_size), "svg", true) != TVG_RESULT_SUCCESS) {
       LV_LOG_ERROR("picture_load_data failed");
       tvg_paint_del(pic);
       tvg_canvas_destroy(tc);
@@ -187,8 +186,8 @@ inline void svg_free_resources(SvgContext *ctx) {
   }
   ctx->task_done = false;
 
-  LV_LOG_TRACE("SVG PSRAM freed (%ux%u = %u KB)", static_cast<unsigned>(ctx->width),
-               static_cast<unsigned>(ctx->height), static_cast<unsigned>(ctx->width * ctx->height * 4 / 1024));
+  LV_LOG_TRACE("SVG PSRAM freed (%ux%u = %u KB)", static_cast<unsigned>(ctx->width), static_cast<unsigned>(ctx->height),
+               static_cast<unsigned>(ctx->width * ctx->height * 4 / 1024));
 }
 
 // --------------------------------------------------------------------------
@@ -290,8 +289,8 @@ inline void svg_screen_unloaded_cb(lv_event_t *e) {
   }
   ctx->task_done = false;
 
-  LV_LOG_TRACE("SVG PSRAM freed (%ux%u = %u KB)", static_cast<unsigned>(ctx->width),
-               static_cast<unsigned>(ctx->height), static_cast<unsigned>(ctx->width * ctx->height * 4 / 1024));
+  LV_LOG_TRACE("SVG PSRAM freed (%ux%u = %u KB)", static_cast<unsigned>(ctx->width), static_cast<unsigned>(ctx->height),
+               static_cast<unsigned>(ctx->width * ctx->height * 4 / 1024));
 }
 
 inline void svg_screen_loaded_cb(lv_event_t *e) {
