@@ -52,5 +52,11 @@ jobs:
         config_file: ".markdownlintrc"
         files: .
 
+    - name: Prettier
+      run: npm run format:check
+
+    - name: ESLint
+      run: npm run lint:js
+
     - name: Lint
       run: npm run lint

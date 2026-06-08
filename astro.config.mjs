@@ -29,8 +29,7 @@ function getChangelogItems() {
       const match = f.match(/^v(\d+)\.(\d+)\.(\d+)\.mdx$/);
       if (match) {
         const [, major, minor, patch] = match;
-        const sortValue =
-          parseInt(major) * 10000 + parseInt(minor) * 100 + parseInt(patch);
+        const sortValue = parseInt(major) * 10000 + parseInt(minor) * 100 + parseInt(patch);
         const slug = `v${major}.${minor}.${patch}`;
         return { label, slug, sortValue };
       }
@@ -38,8 +37,7 @@ function getChangelogItems() {
       const match2 = f.match(/^(\d{4})\.(\d+)\.(\d+)\.mdx$/);
       if (match2) {
         const [, year, month, patch] = match2;
-        const sortValue =
-          parseInt(year) * 10000 + parseInt(month) * 100 + parseInt(patch);
+        const sortValue = parseInt(year) * 10000 + parseInt(month) * 100 + parseInt(patch);
         const slug = `${year}.${month}.${patch}`;
         return { label, slug, sortValue };
       }
@@ -80,18 +78,14 @@ function getComponentItems() {
       const dirPath = path.join(componentsDir, entry.name);
       const indexPath = path.join(dirPath, "index.mdx");
 
-      let groupLabel = entry.name
-        .replace(/_/g, " ")
-        .replace(/\b\w/g, (c) => c.toUpperCase());
+      let groupLabel = entry.name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
       if (fs.existsSync(indexPath)) {
         const content = fs.readFileSync(indexPath, "utf-8");
         const titleMatch = content.match(/^title:\s*["']?([^"'\n]+)["']?/m);
         if (titleMatch) groupLabel = titleMatch[1];
       }
 
-      const subFiles = fs
-        .readdirSync(dirPath)
-        .filter((f) => f.endsWith(".mdx"));
+      const subFiles = fs.readdirSync(dirPath).filter((f) => f.endsWith(".mdx"));
       const subItems = [];
       for (const f of subFiles) {
         const subPath = path.join(dirPath, f);

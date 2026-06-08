@@ -18,9 +18,9 @@ interface Props {
 const { items } = Astro.props;
 
 // Helper function to resolve image paths
-function resolveImagePath(image: string, currentPath: string): string {
+function resolveImagePath(image: string): string {
   // If it's already an absolute path or URL, use as-is
-  if (image.startsWith('/') || image.startsWith('http://') || image.startsWith('https://')) {
+  if (image.startsWith("/") || image.startsWith("http://") || image.startsWith("https://")) {
     return image;
   }
 
@@ -31,40 +31,40 @@ function resolveImagePath(image: string, currentPath: string): string {
 
 // Helper to add word break opportunities after non-alphabetic characters
 function addWordBreaks(text: string): string {
-  return text.replace(/([^a-zA-Z])/g, '$1\u200B');
+  return text.replace(/([^a-zA-Z])/g, "$1\u200B");
 }
 ---
 
 <div class="component-grid not-content">
-  {items.map((item) => {
-    const [title, link, image, ...rest] = item;
-    let caption = '';
-    let cssClass = '';
+  {
+    items.map((item) => {
+      const [title, link, image, ...rest] = item;
+      let caption = "";
+      let cssClass = "";
 
-    // Parse optional parameters
-    for (const param of rest) {
-      if (param === 'dark-invert') {
-        cssClass = param;
-      } else if (param && param !== '') {
-        caption = caption ? `${caption} & ${param}` : param;
+      // Parse optional parameters
+      for (const param of rest) {
+        if (param === "dark-invert") {
+          cssClass = param;
+        } else if (param && param !== "") {
+          caption = caption ? `${caption} & ${param}` : param;
+        }
       }
-    }
 
-    const resolvedLink = link.endsWith('/') ? link : `${link}/`;
-    const resolvedImage = resolveImagePath(image, Astro.url.pathname);
+      const resolvedLink = link.endsWith("/") ? link : `${link}/`;
+      const resolvedImage = resolveImagePath(image);
 
-    return (
-      <div class="component-card">
-        <a href={resolvedLink}>
-          <div class={`component-icon ${cssClass}`}>
-            <img src={resolvedImage} alt="" loading="lazy" />
-          </div>
-          <div class="component-name">{addWordBreaks(title)}</div>
-          {caption && (
-            <div class="component-caption">{addWordBreaks(caption)}</div>
-          )}
-        </a>
-      </div>
-    );
-  })}
+      return (
+        <div class="component-card">
+          <a href={resolvedLink}>
+            <div class={`component-icon ${cssClass}`}>
+              <img src={resolvedImage} alt="" loading="lazy" />
+            </div>
+            <div class="component-name">{addWordBreaks(title)}</div>
+            {caption && <div class="component-caption">{addWordBreaks(caption)}</div>}
+          </a>
+        </div>
+      );
+    })
+  }
 </div>

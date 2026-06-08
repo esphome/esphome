@@ -49,9 +49,7 @@ function getName(line) {
  * @returns {string} Keyword for matching
  */
 function sectionKeyword(parentHeading) {
-  return parentHeading
-    .replace(/\s+Components$/i, "")
-    .replace(/\s+Hardware\s+Platforms$/i, "");
+  return parentHeading.replace(/\s+Components$/i, "").replace(/\s+Hardware\s+Platforms$/i, "");
 }
 
 /**
@@ -88,9 +86,7 @@ function identifyCoreItem(lines, parentHeading) {
   // e.g. keyword "Display" matches "Display Core" over "Display Menu Core".
   const keyword = sectionKeyword(parentHeading).toLowerCase();
   const expected = `${keyword} core`;
-  const exactMatch = candidates.find(
-    (c) => c.name.toLowerCase() === expected,
-  );
+  const exactMatch = candidates.find((c) => c.name.toLowerCase() === expected);
   if (exactMatch) return exactMatch.index;
 
   // Fallback: first candidate (shouldn't normally happen)
@@ -134,99 +130,73 @@ function processFile(content, path) {
   const results = []; // { section, startLine, endLine, original, fixed }
   let tableIndex = 0;
 
-  const replaced = after.replace(
-    tableRe,
-    (match, prefix, itemsText, suffix, offset) => {
-      tableIndex++;
+  const replaced = after.replace(tableRe, (match, prefix, itemsText, suffix, offset) => {
+    tableIndex++;
 
-      // Section heading for context
-      const textBefore = after.slice(0, offset);
-      const headingMatch = textBefore.match(/^(#{2,3}) (.+)$/gm);
-      const sectionName = headingMatch
-        ? headingMatch[headingMatch.length - 1].replace(/^#+\s*/, "")
-        : `table #${tableIndex}`;
+    // Section heading for context
+    const textBefore = after.slice(0, offset);
+    const headingMatch = textBefore.match(/^(#{2,3}) (.+)$/gm);
+    const sectionName = headingMatch
+      ? headingMatch[headingMatch.length - 1].replace(/^#+\s*/, "")
+      : `table #${tableIndex}`;
 
-      // Extract the nearest ## (parent) heading for Core item disambiguation
-      const h2Headings = headingMatch
-        ? headingMatch.filter((h) => h.startsWith("## ") && !h.startsWith("### "))
-        : [];
-      const parentHeading = h2Headings.length > 0
-        ? h2Headings[h2Headings.length - 1].replace(/^#+\s*/, "")
-        : sectionName;
+    // Extract the nearest ## (parent) heading for Core item disambiguation
+    const h2Headings = headingMatch ? headingMatch.filter((h) => h.startsWith("## ") && !h.startsWith("### ")) : [];
+    const parentHeading = h2Headings.length > 0 ? h2Headings[h2Headings.length - 1].replace(/^#+\s*/, "") : sectionName;
 
-      // Parse item lines (skip blanks)
-      const allItemLines = itemsText.split("\n");
-      const lines = allItemLines.filter((l) => l.trim().length > 0);
+    // Parse item lines (skip blanks)
+    const allItemLines = itemsText.split("\n");
+    const lines = allItemLines.filter((l) => l.trim().length > 0);
 
-      if (lines.length <= 1) return match;
+    if (lines.length <= 1) return match;
 
-      // Core item stays first (at most one), then Template items, then the rest sorted
-      const coreIdx = identifyCoreItem(lines, parentHeading);
-      const coreLines = coreIdx >= 0 ? [lines[coreIdx]] : [];
-      const templateLines = lines.filter(
-        (_, i) => i !== coreIdx && isTemplateItem(getName(lines[i])),
-      );
-      const restLines = lines.filter(
-        (_, i) => i !== coreIdx && !isTemplateItem(getName(lines[i])),
-      );
+    // Core item stays first (at most one), then Template items, then the rest sorted
+    const coreIdx = identifyCoreItem(lines, parentHeading);
+    const coreLines = coreIdx >= 0 ? [lines[coreIdx]] : [];
+    const templateLines = lines.filter((_, i) => i !== coreIdx && isTemplateItem(getName(lines[i])));
+    const restLines = lines.filter((_, i) => i !== coreIdx && !isTemplateItem(getName(lines[i])));
 
-      const sorted = [...restLines].sort((a, b) =>
-        getName(a).toLowerCase().localeCompare(getName(b).toLowerCase()),
-      );
+    const sorted = [...restLines].sort((a, b) => getName(a).toLowerCase().localeCompare(getName(b).toLowerCase()));
 
-      const expectedOrder = [...coreLines, ...templateLines, ...sorted];
-      const isFullyOrdered = lines.every(
-        (line, i) => getName(line) === getName(expectedOrder[i]),
-      );
+    const expectedOrder = [...coreLines, ...templateLines, ...sorted];
+    const isFullyOrdered = lines.every((line, i) => getName(line) === getName(expectedOrder[i]));
 
-      if (!isFullyOrdered) {
-        // Compute 1-indexed line numbers in the original file.
-        // offset is the position within `after`; the items text starts
-        // after the prefix (<ImgTable items={[\n).
-        const prefixLines = prefix.split("\n").length - 1; // lines consumed by prefix
-        const linesBeforeInAfter = after.slice(0, offset).split("\n").length - 1;
-        const startLine = afterStartLine + linesBeforeInAfter + prefixLines;
-        const endLine = startLine + allItemLines.filter((l) => l.trim().length > 0).length - 1;
+    if (!isFullyOrdered) {
+      // Compute 1-indexed line numbers in the original file.
+      // offset is the position within `after`; the items text starts
+      // after the prefix (<ImgTable items={[\n).
+      const prefixLines = prefix.split("\n").length - 1; // lines consumed by prefix
+      const linesBeforeInAfter = after.slice(0, offset).split("\n").length - 1;
+      const startLine = afterStartLine + linesBeforeInAfter + prefixLines;
+      const endLine = startLine + allItemLines.filter((l) => l.trim().length > 0).length - 1;
 
-        const originalBlock = lines.map(normalizeLine).join("\n");
-        const fixedBlock = [...coreLines, ...templateLines, ...sorted]
-          .map(normalizeLine)
-          .join("\n");
+      const originalBlock = lines.map(normalizeLine).join("\n");
+      const fixedBlock = [...coreLines, ...templateLines, ...sorted].map(normalizeLine).join("\n");
 
-        results.push({
-          section: sectionName,
-          startLine,
-          endLine,
-          original: originalBlock,
-          fixed: fixedBlock,
-        });
-      }
+      results.push({
+        section: sectionName,
+        startLine,
+        endLine,
+        original: originalBlock,
+        fixed: fixedBlock,
+      });
+    }
 
-      // Build the fixed version (used by --fix)
-      const fixedResult = [...coreLines, ...templateLines, ...sorted]
-        .map(normalizeLine)
-        .join("\n");
+    // Build the fixed version (used by --fix)
+    const fixedResult = [...coreLines, ...templateLines, ...sorted].map(normalizeLine).join("\n");
 
-      return `${prefix}${fixedResult}\n${suffix}`;
-    },
-  );
+    return `${prefix}${fixedResult}\n${suffix}`;
+  });
 
   return { before, after: replaced, results };
 }
 
 // ── entry point ──────────────────────────────────────────────────────────────
 
-const mode = process.argv.includes("--fix")
-  ? "fix"
-  : process.argv.includes("--suggestions")
-    ? "suggestions"
-    : "check";
+const mode = process.argv.includes("--fix") ? "fix" : process.argv.includes("--suggestions") ? "suggestions" : "check";
 
 const fileArgIdx = process.argv.indexOf("--file");
-const filePath =
-  fileArgIdx >= 0 && process.argv[fileArgIdx + 1]
-    ? process.argv[fileArgIdx + 1]
-    : INDEX_PATH;
+const filePath = fileArgIdx >= 0 && process.argv[fileArgIdx + 1] ? process.argv[fileArgIdx + 1] : INDEX_PATH;
 
 const content = readFileSync(filePath, "utf-8");
 const { before, after, results } = processFile(content, filePath);
@@ -261,14 +231,10 @@ switch (mode) {
     break;
 
   default:
-    console.error(
-      "Component index ImgTable blocks are not sorted correctly:\n",
-    );
+    console.error("Component index ImgTable blocks are not sorted correctly:\n");
     for (const r of results) {
       console.error(`  ${r.section} (lines ${r.startLine}-${r.endLine})`);
     }
-    console.error(
-      "\nRun `node script/check_component_index.mjs --fix` to fix automatically.",
-    );
+    console.error("\nRun `node script/check_component_index.mjs --fix` to fix automatically.");
     process.exit(1);
 }
