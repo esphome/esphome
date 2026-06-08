@@ -45,6 +45,34 @@ def _get_toolchain_path(version: str) -> Path:
     return _get_tools_path() / "toolchains" / f"{version}"
 
 
+def _install_sitecustomize(python_env_path: Path) -> None:
+    """Patch shutil.rmtree inside the penv to handle read-only files.
+
+    west init's shutil.move falls back to copytree+rmtree on Windows, and
+    rmtree dies on the read-only .idx/.pack files git just wrote into
+    manifest-tmp. Dropping a sitecustomize.py into the venv applies the
+    same fix esphome.helpers.rmtree uses, but inside the subprocess.
+    """
+    if os.name != "nt":
+        return
+    site_packages = python_env_path / "Lib" / "site-packages"
+    site_packages.mkdir(parents=True, exist_ok=True)
+    (site_packages / "sitecustomize.py").write_text(
+        "import os, stat, shutil\n"
+        "_orig = shutil.rmtree\n"
+        "def _onexc(func, path, exc):\n"
+        "    os.chmod(path, stat.S_IWRITE); func(path)\n"
+        "def _rmtree(path, ignore_errors=False, onerror=None,"
+        " *, onexc=None, dir_fd=None):\n"
+        "    if onerror is None and onexc is None:\n"
+        "        onexc = _onexc\n"
+        "    return _orig(path, ignore_errors=ignore_errors,"
+        " onerror=onerror, onexc=onexc, dir_fd=dir_fd)\n"
+        "shutil.rmtree = _rmtree\n",
+        encoding="utf-8",
+    )
+
+
 def _get_toolchain_platform_info() -> tuple[str, str, str]:
     """Return (sysname, machine, extension) for the current host."""
     extension = "tar.xz"
@@ -71,6 +99,8 @@ def check_and_install() -> None:
         rmdir(python_env_path, msg=f"Clean up {version} Python environment")
 
         create_venv(python_env_path, msg=f"{version}")
+
+        _install_sitecustomize(python_env_path)
 
         _LOGGER.info("Installing west %s ...", _WEST_VERSION)
         cmd = [str(env_python_path), "-m", "pip", "install", f"west=={_WEST_VERSION}"]
