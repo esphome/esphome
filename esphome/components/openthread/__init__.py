@@ -259,7 +259,6 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
         "openthread_esp.cpp": {
-            PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
         "openthread_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
