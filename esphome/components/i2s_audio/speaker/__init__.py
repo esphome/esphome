@@ -15,6 +15,7 @@ from esphome.const import (
 )
 
 from .. import (
+    CONF_I2S_AUDIO_ID,
     CONF_I2S_DOUT_PIN,
     CONF_I2S_MODE,
     CONF_LEFT,
@@ -242,6 +243,8 @@ async def to_code(config):
     await speaker.register_speaker(var, config)
 
     cg.add(var.set_dout_pin(config[CONF_I2S_DOUT_PIN]))
+    parent = await cg.get_variable(config[CONF_I2S_AUDIO_ID])
+    cg.add(parent.set_dout_pin(config[CONF_I2S_DOUT_PIN]))
 
     is_spdif = config.get(CONF_SPDIF_MODE, False)
     if is_spdif:

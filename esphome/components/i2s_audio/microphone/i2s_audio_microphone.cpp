@@ -95,6 +95,72 @@ void I2SAudioMicrophone::start() {
 }
 
 bool I2SAudioMicrophone::start_driver_() {
+  if (this->parent_->is_full_duplex()) {
+    if (this->pdm_) {
+      ESP_LOGE(TAG, "Full duplex I2S microphone does not support PDM mode");
+      return false;
+    }
+
+    esp_err_t err;
+    i2s_chan_config_t chan_cfg = {
+        .id = this->parent_->get_port(),
+        .role = this->i2s_role_,
+        .dma_desc_num = 4,
+        .dma_frame_num = 256,
+        .auto_clear = false,
+        .intr_priority = 3,
+    };
+
+    i2s_clock_src_t clk_src = I2S_CLK_SRC_DEFAULT;
+#if SOC_CLK_APLL_SUPPORTED
+    if (this->use_apll_) {
+      clk_src = i2s_clock_src_t::I2S_CLK_SRC_APLL;
+    }
+#endif
+
+    i2s_std_gpio_config_t pin_config = this->parent_->get_full_duplex_pin_config();
+    pin_config.din = this->din_pin_;
+
+    i2s_std_clk_config_t clk_cfg = {
+        .sample_rate_hz = this->sample_rate_,
+        .clk_src = clk_src,
+        .mclk_multiple = this->mclk_multiple_,
+    };
+    i2s_std_slot_config_t std_slot_cfg =
+        I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG((i2s_data_bit_width_t) this->slot_bit_width_, this->slot_mode_);
+    std_slot_cfg.slot_bit_width = this->slot_bit_width_;
+    std_slot_cfg.slot_mask = this->std_slot_mask_;
+
+    i2s_std_config_t std_cfg = {
+        .clk_cfg = clk_cfg,
+        .slot_cfg = std_slot_cfg,
+        .gpio_cfg = pin_config,
+    };
+
+    err = this->parent_->setup_full_duplex_rx_channel(chan_cfg, std_cfg, &this->rx_handle_);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Error setting up full duplex RX channel: %s", esp_err_to_name(err));
+      return false;
+    }
+
+    err = this->parent_->ensure_full_duplex_tx_running();
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Error starting full duplex TX clock: %s", esp_err_to_name(err));
+      return false;
+    }
+
+    err = i2s_channel_enable(this->rx_handle_);
+    if (err == ESP_OK || err == ESP_ERR_INVALID_STATE) {
+      this->parent_->mark_full_duplex_rx_running();
+    } else {
+      ESP_LOGE(TAG, "Enabling full duplex RX failed: %s", esp_err_to_name(err));
+      return false;
+    }
+
+    this->configure_stream_settings_();
+    return true;
+  }
+
   if (!this->parent_->try_lock()) {
     return false;  // Waiting for another i2s to return lock
   }
@@ -211,6 +277,14 @@ void I2SAudioMicrophone::stop_driver_() {
   // ensures that we stop/unload the driver when it only partially starts.
 
   esp_err_t err;
+  if (this->parent_->is_full_duplex()) {
+    if (this->rx_handle_ != nullptr) {
+      this->parent_->release_full_duplex_rx_channel(this->rx_handle_);
+      this->rx_handle_ = nullptr;
+    }
+    return;
+  }
+
   if (this->rx_handle_ != nullptr) {
     /* Have to stop the channel before deleting it */
     err = i2s_channel_disable(this->rx_handle_);

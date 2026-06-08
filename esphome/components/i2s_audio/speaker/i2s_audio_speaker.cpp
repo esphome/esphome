@@ -253,20 +253,30 @@ void I2SAudioSpeakerBase::stop_(bool wait_on_empty) {
 
 esp_err_t I2SAudioSpeakerBase::init_i2s_channel_(const i2s_chan_config_t &chan_cfg, const i2s_std_config_t &std_cfg,
                                                  size_t event_queue_size) {
-  esp_err_t err = i2s_new_channel(&chan_cfg, &this->tx_handle_, NULL);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "I2S channel allocation failed: %s", esp_err_to_name(err));
-    this->parent_->unlock();
-    return err;
-  }
+  esp_err_t err = ESP_OK;
+  if (this->parent_->is_full_duplex()) {
+    err = this->parent_->setup_full_duplex_tx_channel(chan_cfg, std_cfg, &this->tx_handle_);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Full duplex TX setup failed: %s", esp_err_to_name(err));
+      this->tx_handle_ = nullptr;
+      return err;
+    }
+  } else {
+    err = i2s_new_channel(&chan_cfg, &this->tx_handle_, NULL);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "I2S channel allocation failed: %s", esp_err_to_name(err));
+      this->parent_->unlock();
+      return err;
+    }
 
-  err = i2s_channel_init_std_mode(this->tx_handle_, &std_cfg);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to initialize I2S channel");
-    i2s_del_channel(this->tx_handle_);
-    this->tx_handle_ = nullptr;
-    this->parent_->unlock();
-    return err;
+    err = i2s_channel_init_std_mode(this->tx_handle_, &std_cfg);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to initialize I2S channel");
+      i2s_del_channel(this->tx_handle_);
+      this->tx_handle_ = nullptr;
+      this->parent_->unlock();
+      return err;
+    }
   }
 
   if (this->i2s_event_queue_ == nullptr) {
@@ -286,9 +296,13 @@ esp_err_t I2SAudioSpeakerBase::init_i2s_channel_(const i2s_chan_config_t &chan_c
 
   if (this->i2s_event_queue_ == nullptr || this->write_records_queue_ == nullptr) {
     ESP_LOGE(TAG, "Failed to allocate I2S event queue(s)");
-    i2s_del_channel(this->tx_handle_);
+    if (this->parent_->is_full_duplex()) {
+      this->parent_->release_full_duplex_tx_channel(this->tx_handle_);
+    } else {
+      i2s_del_channel(this->tx_handle_);
+      this->parent_->unlock();
+    }
     this->tx_handle_ = nullptr;
-    this->parent_->unlock();
     return ESP_ERR_NO_MEM;
   }
 
@@ -297,6 +311,12 @@ esp_err_t I2SAudioSpeakerBase::init_i2s_channel_(const i2s_chan_config_t &chan_c
 
 void I2SAudioSpeakerBase::stop_i2s_driver_() {
   if (this->tx_handle_ != nullptr) {
+    if (this->parent_->is_full_duplex()) {
+      this->parent_->release_full_duplex_tx_channel(this->tx_handle_);
+      this->tx_handle_ = nullptr;
+      return;
+    }
+
     i2s_channel_disable(this->tx_handle_);
     i2s_del_channel(this->tx_handle_);
     this->tx_handle_ = nullptr;
