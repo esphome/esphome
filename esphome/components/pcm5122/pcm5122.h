@@ -47,12 +47,13 @@ class PCM5122 : public audio_dac::AudioDac, public Component, public i2c::I2CDev
   friend class PCMGPIOPin;
 
  protected:
-  bool select_page_(uint8_t page) { return this->write_byte(PCM5122_REG_PAGE_SELECT, page); }
+  bool select_page_(uint8_t page);
   bool write_mute_();
   bool write_volume_();
 
+  float volume_{1.0f};        // Matches chip post-reset DVOL default (0x30 = 0 dB)
+  int16_t current_page_{-1};  // -1 = unknown; cached to skip redundant page-select writes
   bool is_muted_{false};
-  float volume_{1.0f};  // Matches chip post-reset DVOL default (0x30 = 0 dB)
 };
 
 }  // namespace esphome::pcm5122

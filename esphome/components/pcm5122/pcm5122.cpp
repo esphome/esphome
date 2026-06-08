@@ -11,7 +11,7 @@ static const char *const TAG = "pcm5122";
 
 void PCM5122::setup() {
   // Select page 0 and verify chip presence via I2C ACK
-  if (!this->write_byte(PCM5122_REG_PAGE_SELECT, 0x00)) {
+  if (!this->select_page_(0)) {
     ESP_LOGE(TAG, "Write failed");
     this->status_set_error(LOG_STR("Write failed"));
     this->mark_failed();
@@ -78,6 +78,17 @@ bool PCM5122::set_volume(float volume) {
 bool PCM5122::is_muted() { return this->is_muted_; }
 
 float PCM5122::volume() { return this->volume_; }
+
+bool PCM5122::select_page_(uint8_t page) {
+  if (this->current_page_ == page)
+    return true;
+  if (!this->write_byte(PCM5122_REG_PAGE_SELECT, page)) {
+    this->current_page_ = -1;
+    return false;
+  }
+  this->current_page_ = page;
+  return true;
+}
 
 bool PCM5122::write_mute_() {
   uint8_t mute_byte = this->is_muted() ? 0x11 : 0x00;
