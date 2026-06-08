@@ -12,6 +12,10 @@ wifi:
     - delay: 2s
     - wifi_twt.stop: my_twt
     - delay: 2s
+    - wifi_twt.disable: my_twt
+    - delay: 2s
+    - wifi_twt.enable: my_twt
+    - delay: 2s
     - wifi_twt.start:
         id: my_twt
         wake_interval: !lambda return 45000;
@@ -29,3 +33,8 @@ wifi_twt:
     - logger.log: "TWT stopped"
   on_twt_wakeup:
     - logger.log: "TWT awake"
+    - if:
+        condition:
+          lambda: 'return id(my_twt)->is_active();'
+        then:
+          - logger.log: "TWT is active"
