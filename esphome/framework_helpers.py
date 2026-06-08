@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import time
 from typing import IO
 
 import requests
@@ -435,11 +436,114 @@ def _zip_extract_all(
             progress.update(1)
 
 
+def _rename_with_retry(src: Path, dst: Path, attempts: int = 5) -> None:
+    """Rename ``src`` to ``dst`` with backoff retries on Windows sharing violations.
+
+    Antivirus/indexer handles on freshly-written files can briefly block
+    ``os.rename`` with ERROR_SHARING_VIOLATION / ERROR_ACCESS_DENIED. The
+    handle is released within tens of ms in practice, so exponential backoff
+    works.
+    """
+    for i in range(attempts):
+        try:
+            src.rename(dst)
+            return
+        except PermissionError:
+            if i == attempts - 1:
+                raise
+            time.sleep(0.1 * (2**i))
+
+
+def _7z_extract_all(
+    data: io.BufferedIOBase,
+    extract_dir: PathType = ".",
+    progress_header: str | None = None,
+):
+    """
+    Extract a 7z archive to the specified directory.
+
+    py7zr only supports bulk extraction (no per-member rename hook like
+    tarfile/zipfile), so we extract into a unique staging subdir of
+    ``extract_dir`` and then move children up. This keeps everything on
+    the same volume and sidesteps wrapper-vs-child name collisions
+    (e.g. ``arm-zephyr-eabi/`` containing another ``arm-zephyr-eabi/``).
+
+    Args:
+        data: File-like object containing the 7z archive (must be seekable)
+        extract_dir: Directory to extract contents to
+        progress_header: If set, show a progress bar with this header
+    """
+    import py7zr
+
+    extract_dir = os.path.abspath(extract_dir)  # noqa: PTH100
+    Path(extract_dir).mkdir(parents=True, exist_ok=True)
+
+    suffix = 0
+    while True:
+        staging = Path(extract_dir) / f".extract_tmp_{suffix}"
+        if not staging.exists():
+            break
+        suffix += 1
+    staging.mkdir()
+
+    try:
+        with py7zr.SevenZipFile(data, "r") as z:
+            all_names = z.getnames()
+
+            # Detect a single common top-level directory to flatten.
+            strip_root = _detect_archive_root(all_names)
+
+            # Validate names: reject absolute paths, Windows drives, and
+            # path traversal. Filter via targets= since py7zr can't rename
+            # per-member.
+            safe_targets: list[str] = []
+            for raw in all_names:
+                name = raw.lstrip("/\\")
+                if not name:
+                    continue
+                if Path(name).is_absolute() or (
+                    os.name == "nt" and ":" in name.split(os.sep)[0]  # noqa: PTH206
+                ):
+                    continue
+                target_path = os.path.abspath(os.path.join(staging, name))  # noqa: PTH100, PTH118
+                if os.path.commonpath([str(staging), target_path]) != str(staging):
+                    continue
+                safe_targets.append(raw)
+
+            progress = (
+                ProgressBar(progress_header)
+                if progress_header and safe_targets
+                else None
+            )
+
+            if len(safe_targets) == len(all_names):
+                z.extractall(path=staging)
+            else:
+                z.extract(path=staging, targets=safe_targets)
+
+            if progress is not None:
+                progress.update(1)
+
+        src_root = staging / strip_root if strip_root else staging
+        for item in src_root.iterdir():
+            dest = Path(extract_dir) / item.name
+            if dest.exists():
+                if dest.is_dir():
+                    rmtree(dest)
+                else:
+                    dest.unlink()
+            _rename_with_retry(item, dest)
+    finally:
+        if staging.exists():
+            rmtree(staging)
+
+
 _ARCHIVE_MAGIC_MAP = {
     b"\x1f\x8b\x08": _tar_extract_all,
     b"\x42\x5a\x68": _tar_extract_all,
     b"\xfd\x37\x7a\x58\x5a\x00": _tar_extract_all,
     b"\x50\x4b\x03\x04": _zip_extract_all,
+    b"\x37\x7a\xbc\xaf\x27\x1c": _7z_extract_all,
 }
 
 
