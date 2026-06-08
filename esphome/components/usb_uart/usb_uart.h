@@ -131,6 +131,7 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   friend class USBUartTypeCP210X;
   friend class USBUartTypeCH34X;
   friend class USBUartTypeFT23XX;
+  friend class USBUartTypePL2303;
 
  public:
   // Number of output chunk slots per channel, derived from buffer_size config.

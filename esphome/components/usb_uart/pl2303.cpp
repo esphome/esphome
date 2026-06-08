@@ -137,9 +137,7 @@ std::vector<CdcEps> USBUartTypePL2303::parse_descriptors(usb_device_handle_t dev
   uint8_t bmax_packet = device_desc->bMaxPacketSize0;
   uint8_t bdev_class = device_desc->bDeviceClass;
 
-  if (bdev_class == 0x02) {
-    this->chip_type_ = PL2303_TYPE_H;
-  } else if (bmax_packet != 0x40) {
+  if (bdev_class == 0x02 || bmax_packet != 0x40) {
     this->chip_type_ = PL2303_TYPE_H;
   } else {
     switch (bcd_usb) {
@@ -148,16 +146,9 @@ std::vector<CdcEps> USBUartTypePL2303::parse_descriptors(usb_device_handle_t dev
         this->chip_type_ = (bcd_device == 0x0400) ? PL2303_TYPE_HXD : PL2303_TYPE_HX;
         break;
       case 0x0200:
-        switch (bcd_device) {
-          case 0x0300:
-          case 0x0500:
-            // TA/TB need HX-status probe — skip for embedded, treat as HXN
-            this->chip_type_ = PL2303_TYPE_HXN;
-            break;
-          default:
-            this->chip_type_ = PL2303_TYPE_HXN;
-            break;
-        }
+        // TA (0x0300) and TB (0x0500) need an HX-status probe to distinguish
+        // from HXN — skip the probe on embedded, treat all USB2 as HXN.
+        this->chip_type_ = PL2303_TYPE_HXN;
         break;
       default:
         this->chip_type_ = PL2303_TYPE_HXN;
@@ -188,10 +179,11 @@ std::vector<CdcEps> USBUartTypePL2303::parse_descriptors(usb_device_handle_t dev
       if (!ep)
         break;
       if (ep->bmAttributes == USB_BM_ATTRIBUTES_XFER_BULK) {
-        if (ep->bEndpointAddress & usb_host::USB_DIR_IN)
+        if (ep->bEndpointAddress & usb_host::USB_DIR_IN) {
           in_ep = ep;
-        else
+        } else {
           out_ep = ep;
+        }
       } else if (ep->bmAttributes == USB_BM_ATTRIBUTES_XFER_INT) {
         notify_ep = ep;
       }
