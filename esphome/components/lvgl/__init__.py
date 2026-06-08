@@ -302,6 +302,13 @@ async def to_code(configs):
         cg.add_library("lvgl/lvgl", LVGL_VERSION)
     df.add_define("LV_DRAW_BUF_STRIDE_ALIGN", "1")
     df.add_define("LV_USE_DRAW_SW", "1")
+    if CORE.is_esp32:
+        # Lottie/SVG rendering is driven from ESPHome helper tasks on ESP32.
+        # Use LVGL's FreeRTOS lock backend so lv_lock()/lv_unlock() actually
+        # serialize ThorVG and canvas access with the main LVGL task.
+        df.add_define("LV_USE_OS", "LV_OS_FREERTOS")
+    else:
+        df.add_define("LV_USE_OS", "LV_OS_NONE")
     df.add_define("LV_USE_STDLIB_SPRINTF", "LV_STDLIB_CLIB")
     df.add_define("LV_USE_STDLIB_STRING", "LV_STDLIB_CLIB")
     df.add_define("LV_USE_STDLIB_MALLOC", "LV_STDLIB_CUSTOM")
