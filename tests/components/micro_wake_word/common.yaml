@@ -12,6 +12,7 @@ microphone:
 
 micro_wake_word:
   microphone: echo_microphone
+  ring_buffer_duration: 500ms
   task_stack_in_psram: true
   on_wake_word_detected:
     - logger.log: "Wake word detected"

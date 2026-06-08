@@ -54,6 +54,10 @@ class MicroWakeWord : public Component
 
   void set_features_step_size(uint8_t step_size) { this->features_step_size_ = step_size; }
 
+  void set_ring_buffer_duration(uint32_t ring_buffer_duration_ms) {
+    this->ring_buffer_duration_ms_ = ring_buffer_duration_ms;
+  }
+
   void set_microphone_source(microphone::MicrophoneSource *microphone_source) {
     this->microphone_source_ = microphone_source;
   }
@@ -99,6 +103,7 @@ class MicroWakeWord : public Component
   bool task_stack_in_psram_{false};
 
   uint8_t features_step_size_;
+  uint32_t ring_buffer_duration_ms_{120};
 
   // Audio frontend handles generating spectrogram features
   struct FrontendConfig frontend_config_;
