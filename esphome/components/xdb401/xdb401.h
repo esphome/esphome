@@ -6,17 +6,11 @@
 
 namespace esphome::xdb401 {
 
-enum TemperatureUnit : uint8_t {
-  TEMPERATURE_UNIT_C = 0,
-  TEMPERATURE_UNIT_F = 1,
-};
-
 class XDB401Component : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { this->pressure_sensor_ = pressure_sensor; }
   void set_pressure_range_bar(uint8_t pressure_range_bar) { this->pressure_range_bar_ = pressure_range_bar; }
-  void set_temperature_unit(TemperatureUnit temperature_unit) { this->temperature_unit_ = temperature_unit; }
 
   void setup() override;
   void dump_config() override;
@@ -35,7 +29,6 @@ class XDB401Component : public PollingComponent, public i2c::I2CDevice {
   uint8_t comm_err_counter_{0};
   bool measurement_in_progress_{false};
   uint8_t pressure_range_bar_{10};
-  TemperatureUnit temperature_unit_{TEMPERATURE_UNIT_C};
 
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *pressure_sensor_{nullptr};
