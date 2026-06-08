@@ -161,7 +161,7 @@ _CONNECTION_SCHEMA = cv.Schema(
 def _validate(config: ConfigType) -> ConfigType:
     if CONF_USE_ADDRESS not in config:
         config[CONF_USE_ADDRESS] = f"{CORE.name}.local"
-    if CORE.is_nrf52 and CONF_TLV not in config:
+    if CORE.using_zephyr and CONF_TLV not in config:
         raise cv.Invalid(
             "On nRF52, OpenThread credentials must be provided via 'tlv'. "
             "Individual parameters (network_key, pan_id, channel, etc.) are not yet supported on this platform."
@@ -189,7 +189,7 @@ def _require_vfs_select(config):
 
 
 def _validate_platform(config):
-    if CORE.is_nrf52:
+    if CORE.using_zephyr:
         return config
     return only_on_variant(
         supported=[VARIANT_ESP32C5, VARIANT_ESP32C6, VARIANT_ESP32H2]
@@ -294,7 +294,7 @@ async def to_code(config):
 
     if CORE.is_esp32:
         set_sdkconfig_options(config)
-    elif CORE.is_nrf52:
+    elif CORE.using_zephyr:
         zephyr_add_prj_conf("NET_L2_OPENTHREAD", True)
         zephyr_add_prj_conf(
             f"OPENTHREAD_NORDIC_LIBRARY_{config.get(CONF_DEVICE_TYPE)}", True
