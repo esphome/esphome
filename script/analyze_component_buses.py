@@ -39,8 +39,13 @@ from helpers import BASE_BUS_COMPONENTS, is_validate_only_file
 from esphome import yaml_util
 from esphome.config_helpers import Extend, Remove
 
-# Path to common bus configs
-COMMON_BUS_PATH = Path("tests/test_build_components/common")
+# Path to common bus configs (resolved relative to this file, not the CWD)
+COMMON_BUS_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "tests"
+    / "test_build_components"
+    / "common"
+)
 
 # Package dependencies - maps packages to the packages they include
 # When a component uses a package on the left, it automatically gets
