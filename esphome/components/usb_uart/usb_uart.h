@@ -271,13 +271,13 @@ class USBUartTypeCH934X : public USBUartComponent {
  protected:
   void on_connected() override;
   void on_disconnected() override;
-  void enable_channels();
+  void enable_channels_();
 
-  bool parse_descriptors(usb_device_handle_t dev_hdl);
+  bool parse_descriptors_(usb_device_handle_t dev_hdl);
   void configure_device_();
   void configure_channels_after_detection_();
   bool configure_channel_(USBUartChannel *channel);
-  bool set_uart_mode(USBUartChannel *channel);
+  bool set_uart_mode_(USBUartChannel *channel);
   bool configure_uart_parameters_(USBUartChannel *channel);
   uint8_t get_reg_address_(uint8_t portnum);
 

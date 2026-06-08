@@ -20,7 +20,7 @@ static constexpr size_t RX_BLOCK_SIZE = 32;
 static constexpr size_t RX_HEADER_SIZE = 2;
 static constexpr size_t RX_MAX_DATA = 30;
 
-static StringRef get_chiptype_string_(uint8_t enum_value) {
+static StringRef get_chiptype_string(uint8_t enum_value) {
   switch (enum_value) {
     case CHIP_CH9344L:
       return StringRef::from_lit("CH9344L");
@@ -126,7 +126,8 @@ void USBUartTypeCH934X::configure_device_() {
       return;
     }
 
-    ESP_LOGI(TAG, "Found chip type %s with %u ports", get_chiptype_string_(this->chiptype_).c_str(), this->num_ports_);
+    ESP_LOGI(TAG, "Found chip type %s with %u ports", get_chiptype_string(this->chiptype_).c_str(),
+             this->num_ports_);
 
     this->defer([this]() { this->configure_channels_after_detection_(); });
   };
@@ -197,7 +198,7 @@ void USBUartTypeCH934X::configure_channels_after_detection_() {
 }
 
 bool USBUartTypeCH934X::configure_channel_(USBUartChannel *channel) {
-  if (!this->set_uart_mode(channel)) {
+  if (!this->set_uart_mode_(channel)) {
     ESP_LOGE(TAG, "Failed to set UART mode for channel %d", channel->index_);
     return false;
   }
@@ -235,7 +236,7 @@ bool USBUartTypeCH934X::configure_channel_(USBUartChannel *channel) {
   return true;
 }
 
-bool USBUartTypeCH934X::set_uart_mode(USBUartChannel *channel) {
+bool USBUartTypeCH934X::set_uart_mode_(USBUartChannel *channel) {
   uint8_t portnum = channel->index_;
   uint8_t rgadd = this->get_reg_address_(portnum);
   uint8_t buffer[3];
@@ -386,7 +387,7 @@ bool USBUartTypeCH934X::configure_uart_parameters_(USBUartChannel *channel) {
   return true;
 }
 
-bool USBUartTypeCH934X::parse_descriptors(usb_device_handle_t dev_hdl) {
+bool USBUartTypeCH934X::parse_descriptors_(usb_device_handle_t dev_hdl) {
   const usb_config_desc_t *config_desc;
   const usb_device_desc_t *device_desc;
   int desc_offset = 0;
@@ -419,7 +420,7 @@ bool USBUartTypeCH934X::parse_descriptors(usb_device_handle_t dev_hdl) {
   return false;
 }
 
-void USBUartTypeCH934X::enable_channels() { this->configure_device_(); }
+void USBUartTypeCH934X::enable_channels_() { this->configure_device_(); }
 
 void USBUartTypeCH934X::start_rx_reader_() {
   if (this->rx_running_.load())
@@ -427,7 +428,7 @@ void USBUartTypeCH934X::start_rx_reader_() {
 
   const auto *ep = this->uart_host_dev_.in_ep;
 
-  auto callback = [this, ep](const usb_host::TransferStatus &status) {
+  auto callback = [this](const usb_host::TransferStatus &status) {
     if (!status.success) {
       ESP_LOGE(TAG, "RX transfer failed, status=%s", esp_err_to_name(status.error_code));
       this->rx_running_.store(false);
@@ -493,7 +494,7 @@ void USBUartTypeCH934X::start_command_reader_() {
 
   const auto *ep = this->uart_host_dev_.ep_cmd_read;
 
-  auto callback = [this, ep](const usb_host::TransferStatus &status) {
+  auto callback = [this](const usb_host::TransferStatus &status) {
     if (!status.success) {
       ESP_LOGW(TAG, "CMD transfer failed, status=%s", esp_err_to_name(status.error_code));
       this->cmd_running_.store(false);
@@ -523,11 +524,11 @@ void CH934XChannel::write_array(const uint8_t *data, size_t len) {
 
 #ifdef USE_UART_DEBUGGER
   if (this->debug_) {
-    constexpr size_t BATCH = 16;
-    char buf[4 + format_hex_pretty_size(BATCH)];
-    for (size_t off = 0; off < len; off += BATCH) {
-      size_t n = std::min(len - off, BATCH);
-      memcpy(buf, ">>> ", 4);
+    constexpr size_t batch = 16;
+    char buf[4 + format_hex_pretty_size(batch)];
+    for (size_t off = 0; off < len; off += batch) {
+      size_t n = std::min(len - off, batch);
+      strcpy(buf, ">>> ");
       format_hex_pretty_to(buf + 4, sizeof(buf) - 4, data + off, n, ',');
       ESP_LOGD(TAG, "%s%s", this->debug_prefix_.c_str(), buf);
     }
@@ -584,8 +585,8 @@ static void fix_mps(const usb_ep_desc_t *ep) {
 void USBUartTypeCH934X::on_connected() {
   ESP_LOGI(TAG, "CH934X connected (VID=%04X, PID=%04X)", this->vid_, this->pid_);
 
-  if (!this->parse_descriptors(this->device_handle_)) {
-    ESP_LOGE(TAG, "CH934X parse_descriptors failed");
+  if (!this->parse_descriptors_(this->device_handle_)) {
+    ESP_LOGE(TAG, "CH934X parse_descriptors_ failed");
     this->status_set_error(LOG_STR("No UART-Serial-Hub device found"));
     this->disconnect();
     return;
@@ -596,9 +597,9 @@ void USBUartTypeCH934X::on_connected() {
   fix_mps(this->uart_host_dev_.ep_cmd_read);
   fix_mps(this->uart_host_dev_.ep_cmd_write);
 
-  for (size_t i = 0; i < USB_HOST_MAX_REQUESTS; i++) {
-    usb_host_transfer_alloc(esphome::usb_host::USB_MAX_PACKET_SIZE, 0, &this->requests_[i].transfer);
-    this->requests_[i].client = this;
+  for (auto &request : this->requests_) {
+    usb_host_transfer_alloc(esphome::usb_host::USB_MAX_PACKET_SIZE, 0, &request.transfer);
+    request.client = this;
   }
 
   auto err = usb_host_interface_claim(this->handle_, this->device_handle_, this->uart_host_dev_.data_interface, 0);
@@ -610,7 +611,7 @@ void USBUartTypeCH934X::on_connected() {
     return;
   }
 
-  this->enable_channels();
+  this->enable_channels_();
 }
 
 void USBUartTypeCH934X::on_disconnected() {
