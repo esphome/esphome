@@ -263,7 +263,112 @@ export default defineConfig({
                 firstResult.click();
               }
             }
-          });`,
+          });
+
+          function fallbackCopyText(text) {
+            return new Promise(function(resolve, reject) {
+              try {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.setAttribute('readonly', '');
+                textarea.style.position = 'fixed';
+                textarea.style.top = '-9999px';
+                textarea.style.left = '-9999px';
+                document.body.appendChild(textarea);
+                textarea.focus();
+                textarea.select();
+
+                const copied = document.execCommand('copy');
+                textarea.remove();
+
+                if (copied) {
+                  resolve();
+                } else {
+                  reject(new Error('Fallback copy failed'));
+                }
+              } catch (err) {
+                reject(err);
+              }
+            });
+          }
+
+          function copyText(text) {
+            if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+              return navigator.clipboard.writeText(text).catch(function() {
+                return fallbackCopyText(text);
+              });
+            }
+
+            return fallbackCopyText(text);
+          }
+
+          document.addEventListener('click', function(e) {
+            if (!(e.target instanceof Element)) return;
+            const anchor = e.target.closest('a.sl-anchor-link');
+            if (!anchor) return;
+            if (
+              e.button !== 0 ||
+              e.metaKey ||
+              e.ctrlKey ||
+              e.shiftKey ||
+              e.altKey
+            ) {
+              return;
+            }
+            e.preventDefault();
+            const url = anchor.href;
+            copyText(url).then(function() {
+              showLinkCopiedToast(anchor);
+            }).catch(function() {
+              const targetUrl = new URL(anchor.href, window.location.href);
+              if (targetUrl.hash) {
+                window.location.hash = targetUrl.hash;
+              } else {
+                window.location.assign(anchor.href);
+              }
+            });
+          });
+
+          function showLinkCopiedToast(anchor) {
+            const existing = document.getElementById('sl-link-toast');
+            if (existing) existing.remove();
+            const rect = anchor.getBoundingClientRect();
+
+            const toast = document.createElement('div');
+            toast.id = 'sl-link-toast';
+            toast.setAttribute('role', 'status');
+            toast.setAttribute('aria-live', 'polite');
+            toast.setAttribute('aria-atomic', 'true');
+            toast.textContent = 'Link copied to clipboard';
+            toast.style.cssText = [
+              'position:fixed',
+              'top:' + (rect.top + rect.height / 2 - 14) + 'px',
+              'left:' + (rect.right + 8) + 'px',
+              'background:var(--sl-color-gray-1)',
+              'color:var(--sl-color-gray-6)',
+              'padding:0.25rem 0.75rem',
+              'border-radius:999px',
+              'font-size:0.8rem',
+              'white-space:nowrap',
+              'box-shadow:0 2px 8px rgba(0,0,0,0.2)',
+              'z-index:9999',
+              'opacity:1',
+              'transition:opacity 0.4s ease',
+              'pointer-events:none',
+            ].join(';');
+            document.body.appendChild(toast);
+
+            // If it overflows the right edge, flip it to the left of the icon
+            const toastRect = toast.getBoundingClientRect();
+            if (toastRect.right > window.innerWidth - 8) {
+              toast.style.left = (rect.left - toastRect.width - 8) + 'px';
+            }
+
+            setTimeout(function() {
+              toast.style.opacity = '0';
+              setTimeout(function() { toast.remove(); }, 400);
+            }, 2000);
+          }`,
         },
         {
           tag: "meta",
