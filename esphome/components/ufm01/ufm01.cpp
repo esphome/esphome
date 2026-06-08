@@ -28,7 +28,7 @@ static bool log_problem(const char *log, uint8_t expected, uint8_t real) {
 
 static bool validate_data(uint8_t data[32]) {
   uint8_t sum = 0;
-  for (int i = 0; i < 30; ++i)
+  for (int32_t i = 0; i < 30; ++i)
     sum += data[i];
   return (data[0] == 0x3C || !log_problem("byte 0 exception", 0x3C, data[0])) &&
          (data[1] == 0x32 || !log_problem("byte 1 exception", 0x32, data[1])) &&
@@ -36,7 +36,7 @@ static bool validate_data(uint8_t data[32]) {
          (data[15] == 0x0B || !log_problem("byte 15 exception", 0x0B, data[15])) &&
          (data[21] == 0x0C || !log_problem("byte 21 exception", 0x0C, data[21])) &&
          (data[24] == 0x0D || !log_problem("byte 24 exception", 0x0D, data[24])) &&
-         (data[30] == (sum & 0xFF) || !log_problem("checksum (byte 30) exception", sum, data[30])) &&
+         (data[30] == sum || !log_problem("checksum (byte 30) exception", sum, data[30])) &&
          (data[31] == 0x16 || !log_problem("byte 31 exception", 0x16, data[31]));
 }
 
@@ -59,12 +59,11 @@ static void log_hex(const uint8_t *data, size_t len) {
 }
 
 static float read_temperature(uint8_t data[32]) {
-  if (  // happens sometimes before getting real reading
-      data[27] == 0X00 && (data[26] == 0x00 || data[26] == 0x70) && data[25] == 0X00) {
+  // happens sometimes before getting a real reading
+  if (data[27] == 0x00 && (data[26] == 0x00 || data[26] == 0x70) && data[25] == 0x00) {
     return NAN;
-  } else {
-    return to_float(data[27]) * 100.0f + to_float(data[26]) + to_float(data[25]) * 0.01f;
   }
+  return to_float(data[27]) * 100.0f + to_float(data[26]) + to_float(data[25]) * 0.01f;
 }
 
 static bool read_ufp_chip_error(const uint8_t data[32]) { return data[29] & 0x20; }
@@ -164,9 +163,9 @@ void UFM01Component::loop() {
   if (this->read_index_ == 32) {
     log_hex(this->data_, sizeof(this->data_));
     ESP_LOGE(TAG, "unable to read data");
-    for (int i = 2; i < 31 && this->read_index_ == 32; ++i) {
+    for (int32_t i = 2; i < 31 && this->read_index_ == 32; ++i) {
       if ((this->data_[i] == 0x3C) && (this->data_[i + 1] == 0x32)) {
-        for (int j = i; j < 32; ++j)
+        for (int32_t j = i; j < 32; ++j)
           this->data_[j - i] = this->data_[j];
         this->read_index_ = 32 - i;
       }
@@ -180,7 +179,6 @@ void UFM01Component::loop() {
   }
   if (this->read_index_ < 32 && this->available()) {
     if (this->read_byte(&this->data_[this->read_index_])) {
-      // ESP_LOGD(TAG, "%2d GOT %02X", this->read_index, this->data[this->read_index]);
       if ((this->read_index_ == 0 && this->data_[0] != 0x3C) || (this->read_index_ == 1 && this->data_[1] != 0x32)) {
         ESP_LOGW(TAG, "not start of data at %d (is 0x%02X)", this->read_index_, this->data_[this->read_index_]);
         this->read_index_ = 0;

@@ -43,7 +43,7 @@ class UFM01Component : public uart::UARTDevice, public Component {
  private:
   bool send_command_(const std::array<uint8_t, 7> &command);
 
-  int read_index_ = 0;
+  int32_t read_index_ = 0;
   uint8_t data_[32];
   void on_data_(uint8_t data[32]);
 };
