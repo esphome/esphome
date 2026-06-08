@@ -62,9 +62,9 @@ CONFIG_SCHEMA = cv.All(
 
 FINAL_VALIDATE_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_MICROPHONE): microphone.final_validate_microphone_source_schema(
-            "resampler_microphone"
-        ),
+        cv.Required(
+            CONF_MICROPHONE
+        ): microphone.final_validate_microphone_source_schema("resampler_microphone"),
     },
     extra=cv.ALLOW_EXTRA,
 )

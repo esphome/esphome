@@ -191,9 +191,8 @@ esp_err_t ResamplerMicrophone::start_task_() {
 
 void ResamplerMicrophone::configure_stream_settings_() {
   audio::AudioStreamInfo source_stream_info = this->microphone_source_->get_audio_stream_info();
-  this->audio_stream_info_ =
-      audio::AudioStreamInfo(source_stream_info.get_bits_per_sample(), source_stream_info.get_channels(),
-                             this->target_sample_rate_);
+  this->audio_stream_info_ = audio::AudioStreamInfo(source_stream_info.get_bits_per_sample(),
+                                                    source_stream_info.get_channels(), this->target_sample_rate_);
 }
 
 bool ResamplerMicrophone::requires_resampling_() const {
@@ -205,9 +204,9 @@ void ResamplerMicrophone::resample_task(void *params) {
   xEventGroupSetBits(this_resampler->event_group_, ResamplingEventGroupBits::TASK_STARTING);
 
   audio::AudioStreamInfo source_stream_info = this_resampler->microphone_source_->get_audio_stream_info();
-  std::unique_ptr<audio::AudioResampler> resampler = make_unique<audio::AudioResampler>(
-      source_stream_info.ms_to_bytes(TRANSFER_BUFFER_DURATION_MS),
-      this_resampler->audio_stream_info_.ms_to_bytes(TRANSFER_BUFFER_DURATION_MS));
+  std::unique_ptr<audio::AudioResampler> resampler =
+      make_unique<audio::AudioResampler>(source_stream_info.ms_to_bytes(TRANSFER_BUFFER_DURATION_MS),
+                                         this_resampler->audio_stream_info_.ms_to_bytes(TRANSFER_BUFFER_DURATION_MS));
 
   esp_err_t err = resampler->start(source_stream_info, this_resampler->audio_stream_info_, this_resampler->taps_,
                                    this_resampler->filters_);
