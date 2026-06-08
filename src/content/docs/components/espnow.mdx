@@ -2,19 +2,14 @@
 description: "Instructions for setting up the basic ESPNow component in ESPHome."
 title: "ESPNow communication Component"
 ---
-
 import APIStruct from '@components/APIStruct.astro';
 import APIRef from '@components/APIRef.astro';
 
-The ESPNow component allows ESPHome to communicate with esp32 devices in a simple and unrestricted way.
-It enables the option to interact with other esp32 devices over the Espressif's ESP-NOW protocol, see
+The ESPNow component allows ESPHome to communicate with ESP32 devices in a simple and unrestricted way.
+It enables the option to interact with other ESP32 devices over Espressif's ESP-NOW protocol, see
 [documentation](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/network/esp_now.html).
-It can be used with the [Packet Transport Component](/components/packet_transport) to broadcast
-sensor data, see [ESP-NOW Packet Transport Platform](/components/packet_transport/espnow).
-
-> [!NOTE]
-> Broadcasting data is not recommended, this will also reach devices not controlled by you that use the esp-now protocol.
-> The best solution is to minimize the broadcasting as much as possible and use it only for identification purposes.
+It can be used with the [Packet Transport Component](/components/packet_transport) to share
+sensor data; see [ESP-NOW Packet Transport Platform](/components/packet_transport/espnow).
 
 ```yaml
 # Example configuration entry
@@ -22,78 +17,136 @@ espnow:
 ```
 
 ## Configuration variables
-
-- **channel** (*Optional*, int): The Wi-Fi channel that the esp-now communication will use to send/receive data packets.
-  Cannot be set when the [Wifi](/components/wifi/) is used, as it will use the same channel as the wifi network.
-
-- **auto_add_peer** (*Optional*, boolean): This will allow the esp-now component to automatically add any new incoming device as a peer.
-  See [Peers](#espnow-peers) below. Defaults to `false`.
-
-- **enable_on_boot** (*Optional*, boolean): Enable the esp-now component on boot. Defaults to `true`.
-- **peers** (*Optional*, list): A peer is the name for devices that use esp-now. The list will have all MAC addresses from
-  the devices where this device may communicate with. See [Peers](#espnow-peers) below.
+- **channel** (*Optional*, int): The Wi-Fi channel that the ESP-NOW communication will use to send/receive data packets.
+  Cannot be set when [Wi-Fi](/components/wifi/) is used, as ESP-NOW will use the same channel as the Wi-Fi network.
+- **auto_add_peer** (*Optional*, boolean): When set to `true`, the ESP-NOW component will automatically add any new incoming
+  device as a peer. See [Peers](#espnow-peers) below. Defaults to `false`.
+- **enable_on_boot** (*Optional*, boolean): Enable the ESP-NOW component on boot. Defaults to `true`.
+- **peers** (*Optional*, list of MAC Address): The list of MAC addresses of the devices that this device is allowed to
+  communicate with. See [Peers](#espnow-peers) below.
 
 Automations:
-
-- **on_receive** (*Optional*, [Automation](/automations)): An automation to perform when data is received. See [`on_receive`](#espnow-on_receive).
-- **on_unknown_peer** (*Optional*, [Automation](/automations)): An automation to perform when data is received from an unknown peer. See [`on_unknown_peer`](#espnow-on_unknown_peer).
+- **on_receive** (*Optional*, [Automation](/automations)): An automation to perform when a directed (non-broadcast) packet is
+  received from a registered peer. May be specified multiple times. See [`on_receive`](#espnow-on_receive).
+- **on_unknown_peer** (*Optional*, [Automation](/automations)): An automation to perform when a packet is received from a
+  device that is not registered as a peer. See [`on_unknown_peer`](#espnow-on_unknown_peer).
 - **on_broadcast** (*Optional*, [Automation](/automations)): An automation to perform when a broadcast packet is received.
-  See [`on_broadcast`](#espnow-on_broadcast).
+  May be specified multiple times. See [`on_broadcast`](#espnow-on_broadcast).
 
 ## Automations
+All three triggers (`on_receive`, `on_unknown_peer`, and `on_broadcast`) expose the same three lambda variables describing
+the received packet:
 
-There will be 3 variables available to automations. Their memory will be cleaned up after the automation is
-done and will not be available if there are any `delay` actions or others that do work "asynchronously" in the automation.
+- **info** (<APIStruct text="espnow::ESPNowRecvInfo" path="espnow::ESPNowRecvInfo" />): Information about the received
+  packet. The most useful members are:
+  - `info.src_addr` — `uint8_t[6]` source MAC address of the packet.
+  - `info.des_addr` — `uint8_t[6]` destination MAC address (will be `FF:FF:FF:FF:FF:FF` for broadcasts).
+  - `info.rx_ctrl` — pointer to a Wi-Fi `wifi_pkt_rx_ctrl_t` structure containing low-level reception details such as
+    `info.rx_ctrl->rssi` (signal strength in dBm).
+- **data**: A `const uint8_t *` pointer to the received payload.
+- **size**: A `uint8_t` giving the length of the payload in bytes.
 
-- **info**: <APIStruct text="espnow::ESPNowRecvInfo" path="espnow::ESPNowRecvInfo" /> with information about the received packet.
-- **data**: A `const uint8_t *` - pointer to the data.
-- **size**: The size of the data in bytes.
+These variables are only valid for the duration of the synchronous part of the automation. If the automation
+includes any asynchronous actions (such as `delay`), the underlying memory may have been recycled by the time the
+automation resumes; copy the values into your own buffer first if they are needed later.
 
 ```yaml
 espnow:
-  on_...:
+  on_receive:
     - lambda: |-
         char des_mac[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
         char src_mac[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
         char hex[256];
-        ESP_LOGD("espnow", "Sent to %s from %s: %s RSSI: %ddBm",
-                 format_mac_addr_upper(info.des_addr, des_mac),
+        ESP_LOGD("espnow", "Received from %s to %s: %s RSSI: %ddBm",
                  format_mac_addr_upper(info.src_addr, src_mac),
+                 format_mac_addr_upper(info.des_addr, des_mac),
                  format_hex_pretty_to(hex, data, size),
                  info.rx_ctrl->rssi);
 ```
 
 <span id="espnow-on_receive"></span>
-
 ### `on_receive`
+This automation is triggered when a directed (non-broadcast) packet is received from a peer that is registered in the
+internal peer list. Broadcast packets are dispatched to [`on_broadcast`](#espnow-on_broadcast) instead, and packets
+from unregistered peers are dispatched to [`on_unknown_peer`](#espnow-on_unknown_peer).
 
-This automation will be triggered when data is received from a registered peer.
+Multiple `on_receive` automations may be configured; each can optionally filter on the source address. They are
+evaluated in the order they are declared.
 
 #### Configuration variables
+- **address** (*Optional*, MAC Address): Only fire this trigger when the packet's source address matches. If not set,
+  the trigger fires for any source address.
 
-- **address** (*Optional*, MAC Address): Filter this trigger to packets where the source address matches. If not set, it will match any device.
+#### Example
+```yaml
+espnow:
+  peers:
+    - 11:22:33:44:55:66
+  on_receive:
+    # Fires for any registered peer
+    - lambda: |-
+        ESP_LOGD("espnow", "Got %u bytes", size);
+    # Fires only for packets from this specific peer
+    - address: 11:22:33:44:55:66
+      then:
+        - logger.log: "Message from the kitchen sensor"
+```
 
 <span id="espnow-on_unknown_peer"></span>
-
 ### `on_unknown_peer`
+This automation is triggered when a packet is received from a device whose MAC address is not in the registered peer
+list. It gives the configuration an opportunity to inspect the packet and decide whether to register the sender as a
+peer (typically by calling the [`espnow.peer.add`](#espnow-peer_add-action) action). If the peer is added during the
+trigger, the same packet is then delivered to `on_receive` (or `on_broadcast`) before the next packet is processed.
 
-This automation will be triggered when data is received from a peer that is not in the list of known peers. This trigger gives you one possibility to decide if the unknown peer can be added or not.
+If no `on_unknown_peer` automation is configured, the packet is silently dropped unless `auto_add_peer` is set to
+`true`, in which case the sender is added to the peer list and the packet is delivered to `on_receive` or
+`on_broadcast` as appropriate. Only one `on_unknown_peer` automation may be configured, and it does not accept an
+`address` filter.
+
+#### Example
+```yaml
+espnow:
+  on_unknown_peer:
+    then:
+      # Accept the new peer only if the payload starts with a known magic byte.
+      - if:
+          condition:
+            lambda: "return size >= 1 && data[0] == 0x42;"
+          then:
+            - espnow.peer.add:
+                address: !lambda |-
+                  return {info.src_addr[0], info.src_addr[1], info.src_addr[2],
+                          info.src_addr[3], info.src_addr[4], info.src_addr[5]};
+```
 
 <span id="espnow-on_broadcast"></span>
-
 ### `on_broadcast`
+This automation is triggered when a packet sent to the broadcast address (`FF:FF:FF:FF:FF:FF`) is received from a
+registered peer. Broadcasts from devices that are not registered peers are dispatched to
+[`on_unknown_peer`](#espnow-on_unknown_peer) first; once the peer has been added, broadcasts from it will
+reach this trigger.
 
-This automation will be triggered when a broadcast packet is received.
+Multiple `on_broadcast` automations may be configured; each can optionally filter on the source address.
 
 #### Configuration variables
+- **address** (*Optional*, MAC Address): Only fire this trigger when the packet's source address matches. If not set,
+  the trigger fires for any source address.
 
-- **address** (*Optional*, MAC Address): Filter this trigger to packets where the source address matches. If not set, it will match any device.
+#### Example
+```yaml
+espnow:
+  auto_add_peer: true
+  on_broadcast:
+    - lambda: |-
+        ESP_LOGD("espnow", "Broadcast of %u bytes received, RSSI %ddBm",
+                 size, info.rx_ctrl->rssi);
+```
 
 <span id="espnow-send-action"></span>
-
 ### `espnow.send` Action
-
-This is an [Action](/automations/actions#all-actions) for sending a data packet over the espnow protocol.
+This is an [Action](/automations/actions#all-actions) for sending a data packet over the ESP-NOW protocol to a
+specific peer.
 
 ```yaml
 on_...:
@@ -112,26 +165,27 @@ on_...:
 ```
 
 #### Configuration variables
-
-- **address** (**Required**, MAC Address, [templatable](/automations/templates)): The MAC address of the receiving device to send to.
-- **data** (**Required**, string or list of bytes, [templatable](/automations/templates)): The data to be sent.
-- **wait_for_sent** (*Optional*, boolean): The automation will wait for the data to be sent and for the `on_sent` or `on_error`
-  actions to be finished before continuing with the next action.
-  Defaults to `true`.
-
-- **continue_on_error** (*Optional*, boolean): If set to `false`, the next action will not be triggered if the data could not be sent.
-  Defaults to `true`.
+- **address** (**Required**, MAC Address, [templatable](/automations/templates)): The MAC address of the receiving
+  device to send to. Must already be registered as a peer, or `auto_add_peer` must be set to `true`.
+- **data** (**Required**, string or list of bytes, [templatable](/automations/templates)): The data to be sent. The
+  maximum payload size is 250 bytes.
+- **wait_for_sent** (*Optional*, boolean): If `true`, the automation will wait for the underlying send operation to
+  complete (and for any `on_sent` or `on_error` actions to finish) before continuing with the next action. Defaults
+  to `true`.
+- **continue_on_error** (*Optional*, boolean): If set to `false`, the surrounding automation will be aborted if the
+  send fails. Cannot be `false` when `wait_for_sent` is `false`. Defaults to `true`.
 
 Automations:
-
-- **on_sent** (*Optional*, [Automation](/automations)): An automation to perform when the data is sent successfully.
+- **on_sent** (*Optional*, [Automation](/automations)): An automation to perform when the data is sent successfully
+  (the receiver has acknowledged the packet).
 - **on_error** (*Optional*, [Automation](/automations)): An automation to perform when the data could not be sent.
 
 <span id="espnow-broadcast-action"></span>
-
 ### `espnow.broadcast` Action
-
-This is an [Action](/automations/actions#all-actions) for sending a data packet over the espnow protocol to any device that is listening.
+This is an [Action](/automations/actions#all-actions) for sending a data packet over the ESP-NOW protocol to every
+device on the same Wi-Fi channel that is listening for ESP-NOW broadcasts. It is equivalent to using `espnow.send`
+with the address `FF:FF:FF:FF:FF:FF`. See [Broadcasting](#espnow-broadcasting) below for a discussion of when
+broadcasts are appropriate.
 
 ```yaml
 on_...:
@@ -144,13 +198,13 @@ on_...:
 ```
 
 #### Configuration variables
-
-- **data** (**Required**, string or list of bytes, [templatable](/automations/templates)): The data to be sent.
+- **data** (**Required**, string or list of bytes, [templatable](/automations/templates)): The data to be sent. The
+  maximum payload size is 250 bytes.
+- All other options from [`espnow.send`](#espnow-send-action) (`wait_for_sent`, `continue_on_error`, `on_sent`,
+  `on_error`) are also accepted.
 
 <span id="espnow-peer_add-action"></span>
-
 ### `espnow.peer.add` Action
-
 This is an [Action](/automations/actions#all-actions) to add a new peer to the internal allowed peers list.
 
 ```yaml
@@ -162,13 +216,11 @@ on_...:
 ```
 
 #### Configuration variables
-
-- **address** (**Required**, MAC Address, [templatable](/automations/templates)): The Peer address that needs to be added to the list of allowed peers.
+- **address** (**Required**, MAC Address, [templatable](/automations/templates)): The peer address to add to the list
+  of allowed peers.
 
 <span id="espnow-peer_delete-action"></span>
-
 ### `espnow.peer.delete` Action
-
 This is an [Action](/automations/actions#all-actions) to remove a known peer from the internal allowed peers list.
 
 ```yaml
@@ -180,14 +232,14 @@ on_...:
 ```
 
 #### Configuration variables
-
-- **address** (**Required**, MAC Address, [templatable](/automations/templates)): The Peer address that needs to be removed from the list of allowed peers.
+- **address** (**Required**, MAC Address, [templatable](/automations/templates)): The peer address to remove from the
+  list of allowed peers.
 
 <span id="espnow-set_channel-action"></span>
-
 ### `espnow.set_channel` Action
-
-This is an [Action](/automations/actions#all-actions) to change the channel that espnow is sending and receiving on.
+This is an [Action](/automations/actions#all-actions) to change the Wi-Fi channel that ESP-NOW is sending and receiving
+on. It has no effect when the [Wi-Fi](/components/wifi/) component is enabled, since the channel is then determined by
+the associated Wi-Fi network.
 
 ```yaml
 on_...:
@@ -197,23 +249,55 @@ on_...:
 ```
 
 #### Configuration variables
-
-- **channel** (**Required**, int, [templatable](/automations/templates)): This can be a value between `0` and `15`. The maximum channel number depends on the country or region where you are using the device (for example, channels 1-11 are allowed in the US and most of Europe, 1-13 in many other countries, and 1-14 in Japan). For details, see the [Wi-Fi channel regulations by country](https://en.wikipedia.org/wiki/List_of_WLAN_channels) or consult the [Espressif ESP-NOW documentation](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/network/esp_now.html). `0` means that espnow will set the channel number itself (most of the time it would be `1`  ).
+- **channel** (**Required**, int, [templatable](/automations/templates)): The Wi-Fi channel to switch to. Valid values
+  are `1` to `14`; the highest channel actually allowed depends on the country or region where the device is being
+  used (for example, channels 1-11 are allowed in the US and most of Europe, 1-13 in many other countries, and 1-14
+  in Japan). For details, see the [Wi-Fi channel regulations by country](https://en.wikipedia.org/wiki/List_of_WLAN_channels)
+  or consult the [Espressif ESP-NOW documentation](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/network/esp_now.html).
+  Both peers must be on the same channel for ESP-NOW packets to be exchanged.
 
 <span id="espnow-peers"></span>
-
 ## Peers
-
 A peer is a device that this device is allowed to send to. Broadcast and unencrypted unicast data can be received from
-any device without explicitly adding it as a peer.
+any device without explicitly adding it as a peer; however, only packets whose source address is in the registered peer
+list are delivered to the [`on_receive`](#espnow-on_receive) and [`on_broadcast`](#espnow-on_broadcast) triggers.
+Packets from any other device are first offered to [`on_unknown_peer`](#espnow-on_unknown_peer).
 
 If `auto_add_peer` is set to `false` and you have not added any peers, then only broadcasts can be sent and there
-will be an error when trying to send data to a peer.
+will be an error when trying to send data to a non-broadcast address.
 
-Setting `auto_add_peer` to `true` will allow the component to automatically add any incoming device as a peer, and will
-automatically add any peer that data is sent to.
+Setting `auto_add_peer` to `true` will allow the component to automatically add any incoming device as a peer, and
+will automatically add any peer that data is sent to.
+
+<span id="espnow-broadcasting"></span>
+## Broadcasting
+The ESP-NOW protocol supports both directed (unicast) frames addressed to a specific peer and broadcast frames sent to
+the special address `FF:FF:FF:FF:FF:FF`. Each style has different trade-offs:
+
+Benefits of broadcasting:
+- A single broadcast frame can deliver the same data to any number of listening devices, instead of repeating the
+  transmission once per peer.
+- Broadcast frames are not acknowledged by receivers, which means they use less radio airtime than directed messages
+  of the same length and never trigger retransmissions.
+- No prior pairing is required between sender and receiver, which simplifies one-to-many designs such as sensor
+  beacons.
+- It is not necessary to know the MAC addresses of the receiving devices in advance, which can be an advantage when
+  devices are frequently added or removed.
+
+Drawbacks of broadcasting:
+- Every ESP-NOW capable device on the same Wi-Fi channel will receive and partially process each broadcast frame,
+  even if it ultimately discards the payload. This wakes the radio and CPU on those devices and can noticeably
+  increase power consumption on battery-powered nodes that share the channel.
+- Because there is no acknowledgement, there is no built-in delivery confirmation; the application must accept
+  occasional packet loss or implement its own retransmission/heartbeat scheme on top.
+
+There are no additional security implications to using broadcasts: directed ESP-NOW packets sent in clear text can be
+captured by any device within range just as easily as broadcast packets, and ESPHome's `espnow` component does not
+implement ESP-NOW's optional link-layer encryption. If you need encryption, use the
+[ESP-NOW Packet Transport Platform](/components/packet_transport/espnow), which layers the
+[Packet Transport](/components/packet_transport) component's encryption on top of `espnow` and works equally well
+over unicast and broadcast.
 
 ## See Also
-
 - [ESP-NOW Packet Transport Platform](/components/packet_transport/espnow/)
 - <APIRef text="espnow.h" path="espnow/espnow.h" />
