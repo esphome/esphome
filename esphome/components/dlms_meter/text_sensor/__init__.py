@@ -56,11 +56,11 @@ def track_text_sensor_count(config):
     hub_sensors = counts_dict.setdefault(hub_id, set())
 
     if CONF_OBIS_CODE in config:
-        hub_sensors.add(config[CONF_ID].id)
+        hub_sensors.add(id(config[CONF_ID]))
     else:
         for key in TEXT_KEYS:
             if key in config:
-                hub_sensors.add(config[key][CONF_ID].id)
+                hub_sensors.add(id(config[key][CONF_ID]))
 
     return config
 

@@ -17,7 +17,7 @@ DEPENDENCIES = ["dlms_meter"]
 def track_binary_sensor_count(config):
     hub_id = config[CONF_DLMS_METER_ID].id
     counts_dict = get_data()["binary_sensor_counts"]
-    counts_dict.setdefault(hub_id, set()).add(config[CONF_ID].id)
+    counts_dict.setdefault(hub_id, set()).add(id(config[CONF_ID]))
     return config
 
 
