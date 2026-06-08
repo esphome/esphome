@@ -243,6 +243,136 @@ void HeatpumpIRClimate::transmit_state() {
                      swing_h_cmd);
 }
 
+static const uint16_t MITSUBISHI_HEAVY_ZJ_HDR_MARK = 3200;
+static const uint16_t MITSUBISHI_HEAVY_ZJ_HDR_SPACE = 1600;
+static const uint16_t MITSUBISHI_HEAVY_ZJ_BIT_MARK = 400;
+static const uint16_t MITSUBISHI_HEAVY_ZJ_ONE_SPACE = 1200;
+static const uint16_t MITSUBISHI_HEAVY_ZJ_ZERO_SPACE = 400;
+static const uint8_t MITSUBISHI_HEAVY_ZJ_STATE_LENGTH = 11;
+
+static const uint8_t MITSUBISHI_HEAVY_ZJ_BYTE0 = 0x52;
+static const uint8_t MITSUBISHI_HEAVY_ZJ_BYTE1 = 0xAE;
+static const uint8_t MITSUBISHI_HEAVY_ZJ_BYTE2 = 0xC3;
+static const uint8_t MITSUBISHI_HEAVY_ZJ_BYTE3 = 0x26;
+static const uint8_t MITSUBISHI_HEAVY_ZJ_BYTE4 = 0xD9;
+
+static const uint8_t MITSUBISHI_HEAVY_ZJ_MODE_AUTO = 0x07;
+static const uint8_t MITSUBISHI_HEAVY_ZJ_MODE_HEAT = 0x03;
+static const uint8_t MITSUBISHI_HEAVY_ZJ_MODE_COOL = 0x06;
+static const uint8_t MITSUBISHI_HEAVY_ZJ_MODE_DRY = 0x05;
+static const uint8_t MITSUBISHI_HEAVY_ZJ_MODE_FAN = 0x04;
+static const uint8_t MITSUBISHI_HEAVY_ZJ_POWER_OFF = 0x08;
+
+static const uint8_t MITSUBISHI_HEAVY_ZJ_FAN_AUTO = 0xE0;
+static const uint8_t MITSUBISHI_HEAVY_ZJ_FAN1 = 0xA0;
+static const uint8_t MITSUBISHI_HEAVY_ZJ_FAN2 = 0x80;
+static const uint8_t MITSUBISHI_HEAVY_ZJ_FAN3 = 0x60;
+static const uint8_t MITSUBISHI_HEAVY_ZJ_HIPOWER = 0x40;
+static const uint8_t MITSUBISHI_HEAVY_ZJ_ECONO = 0x00;
+
+static const uint8_t MITSUBISHI_HEAVY_ZJ_HS_SWING = 0x4C;
+static const uint8_t MITSUBISHI_HEAVY_ZJ_VS_SWING = 0x0A;
+
+bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
+  if (this->protocol_ != PROTOCOL_MITSUBISHI_HEAVY_ZJ)
+    return false;
+
+  uint8_t frame[11] = {};
+
+  if (!data.expect_item(MITSUBISHI_HEAVY_ZJ_HDR_MARK, MITSUBISHI_HEAVY_ZJ_HDR_SPACE)) {
+    return false;
+  }
+
+  for (uint8_t pos = 0; pos < MITSUBISHI_HEAVY_ZJ_STATE_LENGTH; pos++) {
+    uint8_t byte = 0;
+    for (int8_t bit = 0; bit < 8; bit++) {
+      if (data.expect_item(MITSUBISHI_HEAVY_ZJ_BIT_MARK, MITSUBISHI_HEAVY_ZJ_ONE_SPACE)) {
+        byte |= 1 << bit;
+      } else if (!data.expect_item(MITSUBISHI_HEAVY_ZJ_BIT_MARK, MITSUBISHI_HEAVY_ZJ_ZERO_SPACE)) {
+        return false;
+      }
+    }
+    frame[pos] = byte;
+
+    if ((pos == 0 && byte != MITSUBISHI_HEAVY_ZJ_BYTE0) || (pos == 1 && byte != MITSUBISHI_HEAVY_ZJ_BYTE1) ||
+        (pos == 2 && byte != MITSUBISHI_HEAVY_ZJ_BYTE2) || (pos == 3 && byte != MITSUBISHI_HEAVY_ZJ_BYTE3) ||
+        (pos == 4 && byte != MITSUBISHI_HEAVY_ZJ_BYTE4)) {
+      return false;
+    }
+  }
+
+  if ((uint8_t) (frame[5] ^ frame[6]) != 0xFF || (uint8_t) (frame[7] ^ frame[8]) != 0xFF ||
+      (uint8_t) (frame[9] ^ frame[10]) != 0xFF) {
+    return false;
+  }
+
+  if (frame[9] & MITSUBISHI_HEAVY_ZJ_POWER_OFF) {
+    this->mode = climate::CLIMATE_MODE_OFF;
+  } else {
+    uint8_t opmode = frame[9] & 0x07;
+    switch (opmode) {
+      case MITSUBISHI_HEAVY_ZJ_MODE_AUTO:
+        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
+        break;
+      case MITSUBISHI_HEAVY_ZJ_MODE_HEAT:
+        this->mode = climate::CLIMATE_MODE_HEAT;
+        break;
+      case MITSUBISHI_HEAVY_ZJ_MODE_COOL:
+        this->mode = climate::CLIMATE_MODE_COOL;
+        break;
+      case MITSUBISHI_HEAVY_ZJ_MODE_DRY:
+        this->mode = climate::CLIMATE_MODE_DRY;
+        break;
+      case MITSUBISHI_HEAVY_ZJ_MODE_FAN:
+        this->mode = climate::CLIMATE_MODE_FAN_ONLY;
+        break;
+      default:
+        return false;
+    }
+  }
+
+  uint8_t temp_nibble = (frame[9] >> 4) & 0x0F;
+  this->target_temperature = 17 + ((~temp_nibble) & 0x0F);
+
+  uint8_t fan = frame[7] & 0xE0;
+  if (fan == MITSUBISHI_HEAVY_ZJ_FAN_AUTO) {
+    this->fan_mode = climate::CLIMATE_FAN_AUTO;
+    this->preset = climate::CLIMATE_PRESET_NONE;
+  } else if (fan == MITSUBISHI_HEAVY_ZJ_FAN1) {
+    this->fan_mode = climate::CLIMATE_FAN_LOW;
+    this->preset = climate::CLIMATE_PRESET_NONE;
+  } else if (fan == MITSUBISHI_HEAVY_ZJ_FAN2) {
+    this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
+    this->preset = climate::CLIMATE_PRESET_NONE;
+  } else if (fan == MITSUBISHI_HEAVY_ZJ_FAN3) {
+    this->fan_mode = climate::CLIMATE_FAN_HIGH;
+    this->preset = climate::CLIMATE_PRESET_NONE;
+  } else if (fan == MITSUBISHI_HEAVY_ZJ_HIPOWER) {
+    this->preset = climate::CLIMATE_PRESET_BOOST;
+  } else if (fan == MITSUBISHI_HEAVY_ZJ_ECONO) {
+    this->preset = climate::CLIMATE_PRESET_ECO;
+  }
+
+  uint8_t swing_h = frame[5] & 0xDC;
+  uint8_t swing_v = (frame[5] & 0x02) | (frame[7] & 0x18);
+
+  bool h_swing = (swing_h == MITSUBISHI_HEAVY_ZJ_HS_SWING);
+  bool v_swing = (swing_v == MITSUBISHI_HEAVY_ZJ_VS_SWING);
+
+  if (h_swing && v_swing) {
+    this->swing_mode = climate::CLIMATE_SWING_BOTH;
+  } else if (h_swing) {
+    this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
+  } else if (v_swing) {
+    this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+  } else {
+    this->swing_mode = climate::CLIMATE_SWING_OFF;
+  }
+
+  this->publish_state();
+  return true;
+}
+
 }  // namespace esphome::heatpumpir
 
 #endif
