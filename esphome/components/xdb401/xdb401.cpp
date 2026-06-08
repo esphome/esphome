@@ -132,7 +132,7 @@ i2c::ErrorCode XDB401Component::read_pressure_(float &pressure) {
   ESP_LOGD(TAG, "Pressure data raw %i", raw_pressure);
 
   pressure = (static_cast<float>(raw_pressure) / CONVERT_PRESSURE) *
-           XDB401Component::full_scale_pressure_pa(this->pressure_range_bar_);
+             XDB401Component::full_scale_pressure_pa(this->pressure_range_bar_);
 
   return err_code;
 }
