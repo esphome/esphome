@@ -24,18 +24,30 @@ static const uint8_t PCM5122_REG_GPIO_INVERT = 0x57;
 static const uint8_t PCM5122_REG_GPIO_INPUT = 0x77;
 
 // Register values for init sequence
-static const uint8_t PCM5122_RESET_MODULES = 0x10;           // RSTM: reset audio modules
-static const uint8_t PCM5122_AUDIO_FORMAT_I2S_32BIT = 0x03;  // AFMT=I2S, ALEN=32-bit
+static const uint8_t PCM5122_RESET_MODULES = 0x10;     // RSTM: reset audio modules
+static const uint8_t PCM5122_AUDIO_FORMAT_I2S = 0x00;  // AFMT = I2S (bits [5:4] = 00)
+// ALEN (word length) occupies bits [1:0] of the audio format register
+static const uint8_t PCM5122_AUDIO_FORMAT_ALEN_16BIT = 0x00;
+static const uint8_t PCM5122_AUDIO_FORMAT_ALEN_24BIT = 0x02;
+static const uint8_t PCM5122_AUDIO_FORMAT_ALEN_32BIT = 0x03;
 static const uint8_t PCM5122_ERROR_DETECT_IGNORE_CLKHALT = (1 << 3);
 static const uint8_t PCM5122_ERROR_DETECT_DISABLE_DIV_AUTOSET = (1 << 1);
 static const uint8_t PCM5122_PLL_REF_MASK = (7 << 4);        // SREF bits [6:4]
 static const uint8_t PCM5122_PLL_REF_SOURCE_BCK = (1 << 4);  // SREF = 001 (BCK)
+
+enum PCM5122BitsPerSample : uint8_t {
+  PCM5122_BITS_PER_SAMPLE_16 = 16,
+  PCM5122_BITS_PER_SAMPLE_24 = 24,
+  PCM5122_BITS_PER_SAMPLE_32 = 32,
+};
 
 class PCM5122 : public audio_dac::AudioDac, public Component, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::IO; }
+
+  void set_bits_per_sample(PCM5122BitsPerSample bits_per_sample) { this->bits_per_sample_ = bits_per_sample; }
 
   bool set_mute_off() override;
   bool set_mute_on() override;
@@ -54,6 +66,7 @@ class PCM5122 : public audio_dac::AudioDac, public Component, public i2c::I2CDev
   float volume_{1.0f};        // Matches chip post-reset DVOL default (0x30 = 0 dB)
   int16_t current_page_{-1};  // -1 = unknown; cached to skip redundant page-select writes
   bool is_muted_{false};
+  PCM5122BitsPerSample bits_per_sample_{PCM5122_BITS_PER_SAMPLE_16};
 };
 
 }  // namespace esphome::pcm5122

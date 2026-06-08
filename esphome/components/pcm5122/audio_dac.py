@@ -4,6 +4,7 @@ from esphome.components import i2c
 from esphome.components.audio_dac import AudioDac
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BITS_PER_SAMPLE,
     CONF_ID,
     CONF_INPUT,
     CONF_INVERTED,
@@ -19,6 +20,15 @@ pcm5122_ns = cg.esphome_ns.namespace("pcm5122")
 PCM5122 = pcm5122_ns.class_("PCM5122", AudioDac, cg.Component, i2c.I2CDevice)
 CONF_PCM5122 = "pcm5122"
 
+pcm5122_bits_per_sample = pcm5122_ns.enum("PCM5122BitsPerSample")
+PCM5122_BITS_PER_SAMPLE_ENUM = {
+    16: pcm5122_bits_per_sample.PCM5122_BITS_PER_SAMPLE_16,
+    24: pcm5122_bits_per_sample.PCM5122_BITS_PER_SAMPLE_24,
+    32: pcm5122_bits_per_sample.PCM5122_BITS_PER_SAMPLE_32,
+}
+
+_validate_bits = cv.float_with_unit("bits", "bit")
+
 
 PCMGPIOPin = pcm5122_ns.class_(
     "PCMGPIOPin",
@@ -30,6 +40,9 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PCM5122),
+            cv.Optional(CONF_BITS_PER_SAMPLE, default="16bit"): cv.All(
+                _validate_bits, cv.enum(PCM5122_BITS_PER_SAMPLE_ENUM)
+            ),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -81,3 +94,5 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
+
+    cg.add(var.set_bits_per_sample(config[CONF_BITS_PER_SAMPLE]))

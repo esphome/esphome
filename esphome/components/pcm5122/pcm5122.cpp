@@ -35,8 +35,21 @@ void PCM5122::setup() {
   err_detect_val &= ~PCM5122_ERROR_DETECT_DISABLE_DIV_AUTOSET;
   this->reg(PCM5122_REG_ERROR_DETECT) = err_detect_val;
 
-  // 32-bit I2S
-  this->reg(PCM5122_REG_AUDIO_FORMAT) = PCM5122_AUDIO_FORMAT_I2S_32BIT;
+  // I2S format with the configured word length
+  uint8_t alen;
+  switch (this->bits_per_sample_) {
+    case PCM5122_BITS_PER_SAMPLE_16:
+      alen = PCM5122_AUDIO_FORMAT_ALEN_16BIT;
+      break;
+    case PCM5122_BITS_PER_SAMPLE_24:
+      alen = PCM5122_AUDIO_FORMAT_ALEN_24BIT;
+      break;
+    case PCM5122_BITS_PER_SAMPLE_32:
+    default:
+      alen = PCM5122_AUDIO_FORMAT_ALEN_32BIT;
+      break;
+  }
+  this->reg(PCM5122_REG_AUDIO_FORMAT) = PCM5122_AUDIO_FORMAT_I2S | alen;
 
   // PLL reference clock: BCK
   optional<uint8_t> pll_ref = this->read_byte(PCM5122_REG_PLL_REF);
@@ -57,7 +70,10 @@ void PCM5122::setup() {
 void PCM5122::dump_config() {
   ESP_LOGCONFIG(TAG, "Audio DAC:");
   LOG_I2C_DEVICE(this);
-  ESP_LOGCONFIG(TAG, "  Muted: %s", YESNO(this->is_muted_));
+  ESP_LOGCONFIG(TAG,
+                "  Bits per sample: %u\n"
+                "  Muted: %s",
+                this->bits_per_sample_, YESNO(this->is_muted_));
 }
 
 bool PCM5122::set_mute_off() {

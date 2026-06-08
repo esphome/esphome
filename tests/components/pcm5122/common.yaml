@@ -3,6 +3,7 @@ audio_dac:
     id: pcm5122_dac
     i2c_id: i2c_bus
     address: 0x4D
+    bits_per_sample: 32bit
 
 output:
   - platform: gpio
