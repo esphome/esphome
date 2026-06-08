@@ -3,15 +3,8 @@ import logging
 import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
 
-from .. import (
-    CONF_DLMS_METER_ID,
-    CONF_OBIS_CODE,
-    DlmsMeterComponent,
-    get_data,
-    obis_code,
-)
+from .. import CONF_DLMS_METER_ID, CONF_OBIS_CODE, DlmsMeterComponent, obis_code
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,22 +43,7 @@ OLD_SCHEMA = cv.All(
 )
 
 
-def track_text_sensor_count(config):
-    hub_id = config[CONF_DLMS_METER_ID].id
-    counts_dict = get_data()["text_sensor_counts"]
-    hub_sensors = counts_dict.setdefault(hub_id, set())
-
-    if CONF_OBIS_CODE in config:
-        hub_sensors.add(id(config[CONF_ID]))
-    else:
-        for key in TEXT_KEYS:
-            if key in config:
-                hub_sensors.add(id(config[key][CONF_ID]))
-
-    return config
-
-
-CONFIG_SCHEMA = cv.All(cv.Any(DYNAMIC_SCHEMA, OLD_SCHEMA), track_text_sensor_count)
+CONFIG_SCHEMA = cv.Any(DYNAMIC_SCHEMA, OLD_SCHEMA)
 
 
 async def to_code(config):

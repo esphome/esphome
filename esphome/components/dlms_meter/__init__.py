@@ -33,16 +33,6 @@ DlmsMeterComponent = dlms_meter_component_ns.class_(
 )
 
 
-def get_data() -> dict:
-    if "dlms_meter" not in CORE.data:
-        CORE.data["dlms_meter"] = {
-            "sensor_counts": {},
-            "text_sensor_counts": {},
-            "binary_sensor_counts": {},
-        }
-    return CORE.data["dlms_meter"]
-
-
 def obis_code(value):
     # Normalize the OBIS code to the strict A.B.C.D.E.F format
     bytes_list = parse_obis_code_bytes(value)
@@ -219,18 +209,45 @@ async def to_code(config):
         patterns_expr,
     )
 
-    data = get_data()
-    sensor_counts = data["sensor_counts"]
-    text_sensor_counts = data["text_sensor_counts"]
-    binary_sensor_counts = data["binary_sensor_counts"]
+    hub_id = config[CONF_ID].id
 
-    max_sensors = max((len(v) for v in sensor_counts.values()), default=0)
-    max_text_sensors = max((len(v) for v in text_sensor_counts.values()), default=0)
-    max_binary_sensors = max((len(v) for v in binary_sensor_counts.values()), default=0)
+    sensor_count = 0
+    for sens_conf in CORE.config.get("sensor", []):
+        if (
+            sens_conf.get("platform") == "dlms_meter"
+            and sens_conf.get(CONF_DLMS_METER_ID).id == hub_id
+        ):
+            if CONF_OBIS_CODE in sens_conf:
+                sensor_count += 1
+            else:
+                from .sensor import NUMERIC_KEYS
 
-    cg.add_define("DLMS_MAX_SENSORS", max_sensors)
-    cg.add_define("DLMS_MAX_TEXT_SENSORS", max_text_sensors)
-    cg.add_define("DLMS_MAX_BINARY_SENSORS", max_binary_sensors)
+                sensor_count += sum(1 for key in NUMERIC_KEYS if key in sens_conf)
+
+    text_sensor_count = 0
+    for sens_conf in CORE.config.get("text_sensor", []):
+        if (
+            sens_conf.get("platform") == "dlms_meter"
+            and sens_conf.get(CONF_DLMS_METER_ID).id == hub_id
+        ):
+            if CONF_OBIS_CODE in sens_conf:
+                text_sensor_count += 1
+            else:
+                from .text_sensor import TEXT_KEYS
+
+                text_sensor_count += sum(1 for key in TEXT_KEYS if key in sens_conf)
+
+    binary_sensor_count = 0
+    for sens_conf in CORE.config.get("binary_sensor", []):
+        if (
+            sens_conf.get("platform") == "dlms_meter"
+            and sens_conf.get(CONF_DLMS_METER_ID).id == hub_id
+        ):
+            binary_sensor_count += 1
+
+    cg.add_define("DLMS_MAX_SENSORS", sensor_count)
+    cg.add_define("DLMS_MAX_TEXT_SENSORS", text_sensor_count)
+    cg.add_define("DLMS_MAX_BINARY_SENSORS", binary_sensor_count)
 
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
