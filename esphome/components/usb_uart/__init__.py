@@ -96,7 +96,11 @@ def channel_schema(type_: "Type", baud_rate_required):
         # For now S3 is restricted to 3 channels since each needs 2 endpoints, plus the control endpoint, and
         # there are only a total of 8 endpoints available.
         # This will need updating when the 8 channel devices that multiplex over an endpoint are added.
-        if CORE.is_esp32 and get_esp32_variant() != VARIANT_ESP32P4 and max_channels > 3:
+        if (
+            CORE.is_esp32
+            and get_esp32_variant() != VARIANT_ESP32P4
+            and max_channels > 3
+        ):
             max_channels = 3
         return cv.Length(max=max_channels)(value)
 
