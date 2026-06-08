@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
+from esphome.components.esp32 import VARIANT_ESP32P4, get_esp32_variant
 from esphome.components.uart import CONF_DEBUG_PREFIX, CONF_FLUSH_TIMEOUT, UARTComponent
 from esphome.components.usb_host import (
     get_max_packet_size,
@@ -15,6 +16,7 @@ from esphome.const import (
     CONF_DUMMY_RECEIVER,
     CONF_ID,
 )
+from esphome.core import CORE
 from esphome.cpp_types import Component
 
 AUTO_LOAD = ["uart", "usb_host", "bytebuffer"]
@@ -92,6 +94,17 @@ uart_types = (
 
 
 def channel_schema(type_: "Type", baud_rate_required):
+    max_channels = type_.get_max_channels()
+    # S3 is restricted to 3 channels since each needs 2 endpoints plus the control endpoint,
+    # and there are only 8 endpoints available. CH934X is exempt as it multiplexes all ports
+    # over a single shared endpoint pair.
+    if (
+        type_.cls_name != "CH934X"
+        and CORE.is_esp32
+        and get_esp32_variant() != VARIANT_ESP32P4
+        and max_channels > 3
+    ):
+        max_channels = 3
     return cv.Schema(
         {
             cv.Required(CONF_CHANNELS): cv.All(
@@ -127,7 +140,7 @@ def channel_schema(type_: "Type", baud_rate_required):
                         }
                     )
                 ),
-                cv.Length(max=type_.get_max_channels()),
+                cv.Length(max=max_channels),
             )
         }
     )
