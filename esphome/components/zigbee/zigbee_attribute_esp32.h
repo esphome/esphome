@@ -23,6 +23,8 @@ namespace esphome::zigbee {
 
 enum ZigbeeReportT {
   ZIGBEE_REPORT_DEFAULT,
+  ZIGBEE_REPORT_COORDINATOR,
+  ZIGBEE_REPORT_ENABLE,
   ZIGBEE_REPORT_FORCE,
 };
 

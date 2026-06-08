@@ -52,12 +52,22 @@ CODEOWNERS = ["@luar123", "@tomaszduda23"]
 
 CONFLICTS_WITH = ["openthread"]
 
+
+def _check_report_deprecation(value: str) -> str:
+    if value in ("coordinator", "enable"):
+        _LOGGER.warning(
+            "Report options 'coordinator' and 'enable' are deprecated and will be removed in a future release. Use 'default' instead."
+        )
+    return value
+
+
 BASE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_REPORT): cv.All(
             cv.requires_component("zigbee"),
             cv.requires_component("esp32"),
             cv.enum(REPORT, lower=True),
+            _check_report_deprecation,
         )
     }
 )
