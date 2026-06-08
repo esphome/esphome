@@ -118,7 +118,7 @@ DriverChip(
     hsync_back_porch=20,
     hsync_pulse_width=20,
     hsync_front_porch=40,
-    vsync_back_porch=8,
+    vsync_back_porch=12,
     vsync_pulse_width=4,
     vsync_front_porch=20,
     pclk_frequency="60MHz",
