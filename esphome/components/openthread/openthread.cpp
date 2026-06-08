@@ -241,7 +241,12 @@ bool OpenThreadComponent::teardown() {
     otSrpClientClearHostAndServices(instance);
     otSrpClientBuffersFreeAllServices(instance);
     global_openthread_component = nullptr;
-    this->openthread_stop_();
+    ESP_LOGD(TAG, "Exit main loop ");
+    int error = this->openthread_stop_();
+    if (error != 0) {
+      ESP_LOGW(TAG, "Failed attempt to stop main loop %d", error);
+      this->teardown_complete_ = true;
+    }
   }
   return this->teardown_complete_;
 }
