@@ -633,6 +633,11 @@ def test_get_python_env_executable_path_nt() -> None:
 
 
 class TestTarExtractAllBranches:
+    @pytest.mark.skipif(
+        sys.version_info < (3, 12),
+        reason="patching os.name makes pathlib build a WindowsPath, which only "
+        "instantiates on POSIX in 3.12+",
+    )
     def test_windows_drive_path_skipped(self, tmp_path: Path) -> None:
         """Windows-style drive path (C:/...) is skipped when os.name == 'nt'."""
         info = tarfile.TarInfo(name="C:/secret.txt")
@@ -725,6 +730,11 @@ class TestTarExtractAllBranches:
 
 
 class TestZipExtractAllBranches:
+    @pytest.mark.skipif(
+        sys.version_info < (3, 12),
+        reason="patching os.name makes pathlib build a WindowsPath, which only "
+        "instantiates on POSIX in 3.12+",
+    )
     def test_windows_drive_path_skipped(self, tmp_path: Path) -> None:
         """Windows-style drive path (C:/...) is skipped when os.name == 'nt'."""
         buf = _make_zip([("C:/secret.txt", "bad")])
@@ -926,8 +936,10 @@ class TestSevenZipExtractAll:
             patch.object(Path, "is_absolute", patched_is_absolute),
         ):
             _7z_extract_all(buf, out)
-        assert not (out / "C:").exists()
-        assert (out / "file.txt").exists()
+        # Avoid `out / "C:"` here: pathlib treats "C:" as a drive (always
+        # "exists" on Windows). Assert on the actual extracted files instead.
+        extracted = sorted(p.name for p in out.rglob("*") if p.is_file())
+        assert extracted == ["file.txt"]
 
     def test_dispatched_via_archive_extract_all(self, tmp_path: Path) -> None:
         """archive_extract_all dispatches 7z archives to _7z_extract_all."""
