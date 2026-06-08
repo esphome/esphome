@@ -151,9 +151,9 @@
     const sensor_power = parseFloat((document.getElementById("sensor-power") as HTMLInputElement).value.replace(",", "."));
     const sensor_current = parseFloat((document.getElementById("sensor-current") as HTMLInputElement).value.replace(",", "."));
 
-    const calc_voltage = (document.getElementById("real-voltage") as HTMLInputElement).value !== "" || (document.getElementById("sensor-voltage") as HTMLInputElement).value !== "";
-    const calc_power = (document.getElementById("real-power") as HTMLInputElement).value !== "" || (document.getElementById("sensor-power") as HTMLInputElement).value !== "";
-    const calc_current = (document.getElementById("real-current") as HTMLInputElement).value !== "" || (document.getElementById("sensor-current") as HTMLInputElement).value !== "";
+    const calc_voltage = Number.isFinite(real_voltage) && Number.isFinite(sensor_voltage);
+    const calc_power = Number.isFinite(real_power) && Number.isFinite(sensor_power);
+    const calc_current = Number.isFinite(real_current) && Number.isFinite(sensor_current);
 
     let voltage_divider_new = voltage_divider;
     let current_resistor_new = current_resistor;

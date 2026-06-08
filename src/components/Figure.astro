@@ -15,7 +15,8 @@ interface Props {
 
 const { src, alt, caption: rawCaption, layout = 'constrained', style, width, height } = Astro.props;
 
-// Render caption as inline markdown (handles links, escaping, XSS)
+// Render caption as inline markdown (e.g. links). micromark does not sanitize HTML;
+// captions are trusted, maintainer-authored content.
 const caption = rawCaption
   ? micromark(rawCaption).replace(/^<p>|<\/p>\n?$/g, '')
   : undefined;

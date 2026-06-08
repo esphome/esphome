@@ -1,7 +1,6 @@
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 import sitemap from "@astrojs/sitemap";
-import starlightBlog from "starlight-blog";
 import { fileURLToPath } from "url";
 import path from "path";
 import fs from "fs";
@@ -144,11 +143,7 @@ export default defineConfig({
       titleDelimiter: "-",
       favicon: "/favicon.ico",
       pagination: false,
-      plugins: [
-        //starlightBlog({
-        //  title: 'Blog',
-        //}),
-      ],
+      plugins: [],
       logo: {
         light: "./src/assets/logo-dark.svg",
         dark: "./src/assets/logo-light.svg",

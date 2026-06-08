@@ -59,9 +59,9 @@ function addWordBreaks(text: string): string {
           <div class={`component-icon ${cssClass}`}>
             <img src={resolvedImage} alt="" loading="lazy" />
           </div>
-          <div class="component-name" set:html={addWordBreaks(title)} />
+          <div class="component-name">{addWordBreaks(title)}</div>
           {caption && (
-            <div class="component-caption" set:html={addWordBreaks(caption)} />
+            <div class="component-caption">{addWordBreaks(caption)}</div>
           )}
         </a>
       </div>
