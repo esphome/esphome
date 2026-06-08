@@ -156,11 +156,29 @@ void UFM01Component::on_data_(uint8_t data[32]) {
 }
 
 void UFM01Component::loop() {
-  if (this->read_index_ == 32 && validate_data(this->data_)) {
-    this->on_data_(this->data_);
-    this->read_index_ = 0;
-  }
-  if (this->read_index_ == 32) {
+  // Drain the UART buffer each loop, reading one byte at a time into the frame
+  while (this->available()) {
+    if (!this->read_byte(&this->data_[this->read_index_])) {
+      ESP_LOGW(TAG, "unable to read byte");
+      this->read_index_ = 0;
+      continue;
+    }
+    if ((this->read_index_ == 0 && this->data_[0] != 0x3C) || (this->read_index_ == 1 && this->data_[1] != 0x32)) {
+      ESP_LOGW(TAG, "not start of data at %d (is 0x%02X)", this->read_index_, this->data_[this->read_index_]);
+      this->read_index_ = 0;
+      continue;
+    }
+    if (++this->read_index_ < 32)
+      continue;
+
+    // Full frame received
+    if (validate_data(this->data_)) {
+      this->on_data_(this->data_);
+      this->read_index_ = 0;
+      continue;
+    }
+
+    // Invalid frame: try to resync on the next start marker within the buffer
     log_hex(this->data_, sizeof(this->data_));
     ESP_LOGE(TAG, "unable to read data");
     for (int32_t i = 2; i < 31 && this->read_index_ == 32; ++i) {
@@ -172,23 +190,6 @@ void UFM01Component::loop() {
     }
     if (this->read_index_ == 32)
       this->read_index_ = 0;
-  }
-  if (this->read_index_ > 32) {  // NOT EXPECTED
-    ESP_LOGE(TAG, "Read more than 32 bytes into array");
-    this->read_index_ = 0;
-  }
-  if (this->read_index_ < 32 && this->available()) {
-    if (this->read_byte(&this->data_[this->read_index_])) {
-      if ((this->read_index_ == 0 && this->data_[0] != 0x3C) || (this->read_index_ == 1 && this->data_[1] != 0x32)) {
-        ESP_LOGW(TAG, "not start of data at %d (is 0x%02X)", this->read_index_, this->data_[this->read_index_]);
-        this->read_index_ = 0;
-      } else {
-        this->read_index_++;
-      }
-    } else {
-      ESP_LOGW(TAG, "unable to read byte");
-      this->read_index_ = 0;
-    }
   }
 }
 
