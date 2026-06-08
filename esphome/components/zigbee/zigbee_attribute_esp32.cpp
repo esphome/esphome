@@ -32,7 +32,7 @@ void ZigbeeAttribute::report_(bool has_lock) {
     return;
   }
   if (has_lock or esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
-    ezb_zcl_report_attr_cmd_t cmd = {{0}};
+    ezb_zcl_report_attr_cmd_t cmd = {};
     cmd.cmd_ctrl.fc.direction = EZB_ZCL_CMD_DIRECTION_TO_CLI;
     cmd.cmd_ctrl.fc.dis_default_rsp = 1;
     cmd.cmd_ctrl.dst_addr.addr_mode = EZB_ADDR_MODE_SHORT;
