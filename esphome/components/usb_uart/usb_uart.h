@@ -267,8 +267,6 @@ class USBUartTypeCH934X : public USBUartComponent {
   USBUartTypeCH934X(uint16_t vid, uint16_t pid) : USBUartComponent(vid, pid) {}
 
   void start_input(USBUartChannel *channel);
-  void start_output(USBUartChannel *channel);
-  uint8_t get_port_offset() const { return this->port_offset_; }
 
  protected:
   void on_connected() override;
@@ -284,17 +282,14 @@ class USBUartTypeCH934X : public USBUartComponent {
   uint8_t get_reg_address_(uint8_t portnum);
 
   void start_rx_reader_();
-  void handle_rx_data_(const uint8_t *data, size_t len);
   void demux_rx_data_(const uint8_t *data, size_t len);
   void start_command_reader_();
   void handle_command_data_(const uint8_t *data, size_t len);
 
   Ch934xEps uart_host_dev_{};
   CH934xChipType chiptype_{CHIP_CH934X_UNKNOWN};
-  uint8_t chipversion_{0};
   uint8_t num_ports_{0};
   uint8_t port_offset_{0};
-  bool bpackload_{false};
   std::atomic<bool> rx_running_{false};
   std::atomic<bool> cmd_running_{false};
 };
@@ -313,6 +308,7 @@ class CH934XChannel : public USBUartChannel {
 
  protected:
   USBUartChannel *tx_shared_channel_{nullptr};
+  uint8_t tx_port_byte_{0};
 };
 
 class USBUartTypeFT23XX : public USBUartTypeCdcAcm {
