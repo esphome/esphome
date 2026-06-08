@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
+from esphome.const import CONF_ID
 
 from .. import (
     CONF_DLMS_METER_ID,
@@ -16,7 +17,7 @@ DEPENDENCIES = ["dlms_meter"]
 def track_binary_sensor_count(config):
     hub_id = config[CONF_DLMS_METER_ID].id
     counts_dict = get_data()["binary_sensor_counts"]
-    counts_dict[hub_id] = counts_dict.get(hub_id, 0) + 1
+    counts_dict.setdefault(hub_id, set()).add(config[CONF_ID].id)
     return config
 
 

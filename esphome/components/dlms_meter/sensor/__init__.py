@@ -4,6 +4,7 @@ import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ID,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_POWER,
@@ -150,13 +151,16 @@ OLD_SCHEMA = cv.All(
 
 def track_sensor_count(config):
     hub_id = config[CONF_DLMS_METER_ID].id
-    if CONF_OBIS_CODE in config:
-        count = 1
-    else:
-        count = sum(1 for key in NUMERIC_KEYS if key in config)
-
     counts_dict = get_data()["sensor_counts"]
-    counts_dict[hub_id] = counts_dict.get(hub_id, 0) + count
+    hub_sensors = counts_dict.setdefault(hub_id, set())
+
+    if CONF_OBIS_CODE in config:
+        hub_sensors.add(config[CONF_ID].id)
+    else:
+        for key in NUMERIC_KEYS:
+            if key in config:
+                hub_sensors.add(config[key][CONF_ID].id)
+
     return config
 
 

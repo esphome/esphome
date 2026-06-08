@@ -81,7 +81,7 @@ def validate_custom_pattern(value):
 
 def validate_provider_deprecation(config):
     if CONF_PROVIDER in config:
-        provider = config[CONF_PROVIDER]
+        provider = str(config[CONF_PROVIDER]).lower()
         if provider == "netznoe":
             _LOGGER.warning(
                 "The 'provider: netznoe' option is deprecated and will be removed in 2026.11.0. "
@@ -224,11 +224,9 @@ async def to_code(config):
     text_sensor_counts = data["text_sensor_counts"]
     binary_sensor_counts = data["binary_sensor_counts"]
 
-    max_sensors = max(sensor_counts.values()) if sensor_counts else 0
-    max_text_sensors = max(text_sensor_counts.values()) if text_sensor_counts else 0
-    max_binary_sensors = (
-        max(binary_sensor_counts.values()) if binary_sensor_counts else 0
-    )
+    max_sensors = max((len(v) for v in sensor_counts.values()), default=0)
+    max_text_sensors = max((len(v) for v in text_sensor_counts.values()), default=0)
+    max_binary_sensors = max((len(v) for v in binary_sensor_counts.values()), default=0)
 
     cg.add_define("DLMS_MAX_SENSORS", max_sensors)
     cg.add_define("DLMS_MAX_TEXT_SENSORS", max_text_sensors)
