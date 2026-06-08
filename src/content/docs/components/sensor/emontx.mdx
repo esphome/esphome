@@ -40,8 +40,8 @@ As the communication with the EmonTx is done using UART, you need to have an [UA
 # Example configuration entry
 uart:
   id: emontx_uart # using UART2
-  rx_pin: GPIO16
-  tx_pin: GPIO17
+  rx_pin: GPIOXX  # GPIO20 when using emonWifi
+  tx_pin: GPIOXX  # GPIO21 when using emonWifi
   baud_rate: 115200
   rx_buffer_size: 2048
 
@@ -92,8 +92,8 @@ Here is a minimal working configuration to get started with basic sensor reading
 ```yaml
 uart:
   id: emontx_uart
-  rx_pin: GPIO16
-  tx_pin: GPIO17
+  rx_pin: GPIOXX  # GPIO20 when using emonWifi
+  tx_pin: GPIOXX  # GPIO21 when using emonWifi
   baud_rate: 115200
   rx_buffer_size: 2048
 
