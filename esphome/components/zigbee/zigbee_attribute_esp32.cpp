@@ -32,7 +32,7 @@ void ZigbeeAttribute::report_(bool has_lock) {
     return;
   }
   if (has_lock or esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
-    ezb_zcl_report_attr_cmd_t cmd = {0};
+    ezb_zcl_report_attr_cmd_t cmd = {{0}};
     cmd.cmd_ctrl.fc.direction = EZB_ZCL_CMD_DIRECTION_TO_CLI;
     cmd.cmd_ctrl.fc.dis_default_rsp = 1;
     cmd.cmd_ctrl.dst_addr.addr_mode = EZB_ADDR_MODE_SHORT;
@@ -63,7 +63,7 @@ void ZigbeeAttribute::setup_reporting() {
     ezb_zcl_attr_variable_t delta = {.u64 = 0};
     ezb_zcl_reporting_info_update_default_interval(reporting_info, 0, 65000);
     ezb_zcl_reporting_info_update(reporting_info, 0, 65000, &delta);
-    if (ezb_zcl_reporting_start_attr_report(reporting_info) != ESP_OK) {
+    if (ezb_zcl_reporting_start_attr_report(reporting_info) != EZB_ERR_NONE) {
       ESP_LOGE(TAG, "Could not start reporting for attribute");
     }
   }

@@ -47,7 +47,6 @@ void ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(ezb_bdb_comm_mode_mask_
 
 bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
   static uint8_t steering_retry_count = 0;
-  ezb_zdo_signal_leave_params_t *leave_params = NULL;
   ezb_app_signal_type_t signal_type = ezb_app_signal_get_type(app_signal);
   switch (signal_type) {
     case EZB_ZDO_SIGNAL_SKIP_STARTUP:
@@ -137,7 +136,7 @@ static void zb_action_handler(ezb_zcl_core_action_callback_id_t callback_id, voi
       ESP_LOGD(TAG, "Received ZCL Default Response: 0x%02x", default_rsp->in.status_code);
     } break;
     default:
-      ESP_LOGD(TAG, "Receive Zigbee action(0x%04lx) callback", callback_id);
+      ESP_LOGD(TAG, "Receive Zigbee action(0x%04x) callback", callback_id);
       break;
   }
 }
@@ -213,7 +212,7 @@ void ZigbeeComponent::setup_reporting() {
   esp_zigbee_lock_release();
 }
 
-static void ezb_task_(void *pv_parameters) {
+static void ezb_task(void *pv_parameters) {
   if (esp_zigbee_start(false) != ESP_OK) {
     ESP_LOGE(TAG, "Could not setup Zigbee");
     vTaskDelete(NULL);
@@ -264,12 +263,11 @@ void ZigbeeComponent::setup() {
   }
 #endif
   ezb_aps_secur_enable_distributed_security(false);
-  if (ezb_app_signal_add_handler(this->app_signal_handler) != ESP_OK) {
+  if (ezb_app_signal_add_handler(ZigbeeComponent::app_signal_handler) != ESP_OK) {
     ESP_LOGE(TAG, "Could not set application signal handler");
     this->mark_failed();
     return;
   }
-  ezb_err_t ret;
 
   if (ezb_af_device_desc_register(this->dev_desc_) != EZB_ERR_NONE) {
     ESP_LOGE(TAG, "Could not register the endpoint list");
@@ -285,17 +283,17 @@ void ZigbeeComponent::setup() {
     return;
   }
 
+  uint8_t power_source = static_cast<uint8_t>(this->is_battery_powered() ? EZB_AF_NODE_POWER_SOURCE_RECHARGEABLE_BATTERY
+                                                                         : EZB_AF_NODE_POWER_SOURCE_CONSTANT_POWER);
   ezb_af_node_power_desc_t desc = {
       .current_power_mode = EZB_AF_NODE_POWER_MODE_SYNC_ON_WHEN_IDLE,
-      .available_power_sources = this->is_battery_powered() ? EZB_AF_NODE_POWER_SOURCE_RECHARGEABLE_BATTERY
-                                                            : EZB_AF_NODE_POWER_SOURCE_CONSTANT_POWER,
-      .current_power_source = this->is_battery_powered() ? EZB_AF_NODE_POWER_SOURCE_RECHARGEABLE_BATTERY
-                                                         : EZB_AF_NODE_POWER_SOURCE_CONSTANT_POWER,
+      .available_power_sources = power_source,
+      .current_power_source = power_source,
       .current_power_source_level = EZB_AF_NODE_POWER_SOURCE_LEVEL_100_PERCENT,
   };
   ezb_af_set_node_power_desc(&desc);
 
-  xTaskCreate(ezb_task_, "Zigbee_main", 4096, NULL, 24, NULL);
+  xTaskCreate(ezb_task, "Zigbee_main", 4096, NULL, 24, NULL);
   this->disable_loop();  // loop is only needed for processing events, so disable until we join a network
 }
 

@@ -13,10 +13,9 @@ CONF_ATTRIBUTE_ID = "attribute_id"
 KEY_BS_EP = "binary_sensor_ep"
 KEY_SENSOR_EP = "sensor_ep"
 
-ha_standard_devices = cg.esphome_ns.enum("None")
 DEVICE_ID = {
-    "RANGE_EXTENDER": ha_standard_devices.EZB_ZHA_RANGE_EXTENDER_DEVICE_ID,
-    "SIMPLE_SENSOR": ha_standard_devices.EZB_ZHA_SIMPLE_SENSOR_DEVICE_ID,
+    "RANGE_EXTENDER": cg.RawExpression("EZB_ZHA_RANGE_EXTENDER_DEVICE_ID"),
+    "SIMPLE_SENSOR": cg.RawExpression("EZB_ZHA_SIMPLE_SENSOR_DEVICE_ID"),
     "CUSTOM_ATTR": 0xFFF2,
 }
 cluster_id = cg.esphome_ns.enum("ezb_zcl_cluster_id_e")

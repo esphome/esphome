@@ -43,7 +43,7 @@ class ZigbeeAttribute : public Component {
   void setup_reporting();
   template<typename T> void set_attr(const T &value);
   uint8_t attr_type() { return attr_type_; }
-  void set_report(ZigbeeReportT force);
+  void set_report(ZigbeeReportT report);
 #ifdef USE_SENSOR
   template<typename T> void connect(sensor::Sensor *sensor);
 #endif

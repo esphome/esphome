@@ -5,8 +5,6 @@
 #include "zigbee_helpers_esp32.h"
 #include "ezbee/zha.h"
 
-static const char *TAG = "zigbee_helpers";
-
 ezb_err_t esphome_zb_cluster_add_or_update_attr(uint16_t cluster_id, ezb_zcl_cluster_desc_t cluster_desc,
                                                 uint16_t attr_id, void *value_p) {
   ezb_zcl_attr_desc_t attr_desc = ezb_zcl_cluster_get_attr_desc(cluster_desc, attr_id, EZB_ZCL_STD_MANUF_CODE);
@@ -18,7 +16,7 @@ ezb_err_t esphome_zb_cluster_add_or_update_attr(uint16_t cluster_id, ezb_zcl_clu
 
 ezb_err_t esphome_zb_add_or_update_cluster(uint16_t cluster_id, ezb_af_ep_desc_t ep_desc, uint8_t role_mask) {
   if (ezb_af_endpoint_get_cluster_desc(ep_desc, cluster_id, role_mask) != NULL) {
-    // CLuster already exists, nothing to do
+    // Cluster already exists, nothing to do
     return EZB_ERR_NONE;
   }
   ezb_zcl_cluster_desc_t cluster_desc;

@@ -126,6 +126,9 @@ void ZigbeeComponent::add_attr_(ZigbeeAttribute *attr, uint8_t endpoint_id, uint
     return;
   }
   ezb_zcl_cluster_desc_t cluster_desc = ezb_af_endpoint_get_cluster_desc(ep_desc, cluster_id, role);
+  if (cluster_desc == NULL) {
+    return;
+  }
   esphome_zb_cluster_add_or_update_attr(cluster_id, cluster_desc, attr_id, value_p);
 
   if (attr != nullptr) {
