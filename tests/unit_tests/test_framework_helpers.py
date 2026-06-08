@@ -2,6 +2,7 @@
 
 # pylint: disable=protected-access
 
+import importlib.util
 import io
 import logging
 import os
@@ -16,7 +17,9 @@ import pytest
 import requests as req
 
 from esphome.framework_helpers import (
+    _7z_extract_all,
     _detect_archive_root,
+    _rename_with_retry,
     _tar_extract_all,
     _zip_extract_all,
     archive_extract_all,
@@ -29,6 +32,8 @@ from esphome.framework_helpers import (
     run_command_ok,
     str_to_lst_of_str,
 )
+
+_HAS_PY7ZR = importlib.util.find_spec("py7zr") is not None
 
 # ---------------------------------------------------------------------------
 # str_to_lst_of_str
@@ -286,6 +291,14 @@ def _special(name: str) -> tarfile.TarInfo:
     info = tarfile.TarInfo(name=name)
     info.type = tarfile.CHRTYPE
     info.mode = 0o600
+    return info
+
+
+def _hlnk(name: str, target: str) -> tarfile.TarInfo:
+    info = tarfile.TarInfo(name=name)
+    info.type = tarfile.LNKTYPE
+    info.linkname = target
+    info.mode = 0o644
     return info
 
 
@@ -581,3 +594,349 @@ class TestDownloadFromMirrors:
             download_from_mirrors(["https://example.com/f"], {}, tmp_path / "out.bin")
         mock_pb.assert_called_once_with("Downloading")
         mock_pb.return_value.update.assert_called()
+
+    def test_empty_chunk_not_written(self, tmp_path: Path) -> None:
+        """Empty chunks yielded by iter_content are skipped without writing."""
+        r = MagicMock()
+        r.__enter__.return_value = r
+        r.__exit__.return_value = False
+        r.raise_for_status.return_value = None
+        r.headers = {"content-length": "0"}
+        r.iter_content.return_value = [b""]  # one empty chunk
+        target = tmp_path / "out.bin"
+        with patch("esphome.framework_helpers.requests.get", return_value=r):
+            download_from_mirrors(["https://example.com/f"], {}, target)
+        assert target.exists()
+        assert target.read_bytes() == b""
+
+
+# ---------------------------------------------------------------------------
+# get_python_env_executable_path — Windows branch
+# ---------------------------------------------------------------------------
+
+
+def test_get_python_env_executable_path_nt() -> None:
+    """Windows path uses Scripts/ and .exe suffix."""
+    from pathlib import PurePosixPath
+
+    with (
+        patch.object(os, "name", "nt"),
+        patch("esphome.framework_helpers.Path", PurePosixPath),
+    ):
+        result = get_python_env_executable_path("/env", "python")
+    assert str(result) == "/env/Scripts/python.exe"
+
+
+# ---------------------------------------------------------------------------
+# _tar_extract_all — additional branch coverage
+# ---------------------------------------------------------------------------
+
+
+class TestTarExtractAllBranches:
+    def test_windows_drive_path_skipped(self, tmp_path: Path) -> None:
+        """Windows-style drive path (C:/...) is skipped when os.name == 'nt'."""
+        info = tarfile.TarInfo(name="C:/secret.txt")
+        info.type = tarfile.REGTYPE
+        info.size = 0
+        info.mode = 0o644
+        buf = io.BytesIO()
+        with tarfile.open(fileobj=buf, mode="w") as tf:
+            tf.addfile(info)
+        buf.seek(0)
+        with patch.object(os, "name", "nt"):
+            _tar_extract_all(buf, tmp_path)
+        assert not list(tmp_path.rglob("*"))
+
+    def test_strip_root_exact_match_skipped(self, tmp_path: Path) -> None:
+        """Member whose name equals strip_root exactly (no trailing slash) is skipped."""
+        # "wrapper" (file entry) + "wrapper/file.txt" causes _detect_archive_root
+        # to return "wrapper"; the bare "wrapper" entry matches strip_root exactly.
+        buf = _make_tar(
+            [_reg("wrapper"), _reg("wrapper/file.txt")],
+            {"wrapper/file.txt": b"content"},
+        )
+        _tar_extract_all(buf, tmp_path)
+        assert not (tmp_path / "wrapper").exists()
+        assert (tmp_path / "file.txt").read_bytes() == b"content"
+
+    def test_member_not_under_strip_prefix_skipped(self, tmp_path: Path) -> None:
+        """Member whose name doesn't start with strip_prefix is silently skipped."""
+        buf = _make_tar([_reg("other/file.txt")], {"other/file.txt": b"data"})
+        with patch("esphome.framework_helpers._detect_archive_root", return_value="w"):
+            _tar_extract_all(buf, tmp_path)
+        assert not list(tmp_path.rglob("*"))
+
+    def test_hardlink_prefix_stripped(self, tmp_path: Path) -> None:
+        """Hard-link linkname has wrapper prefix stripped along with its entry name."""
+        buf = _make_tar(
+            [_reg("wrapper/file.txt"), _hlnk("wrapper/link.txt", "wrapper/file.txt")],
+            {"wrapper/file.txt": b"data"},
+        )
+        _tar_extract_all(buf, tmp_path)
+        assert (tmp_path / "file.txt").read_bytes() == b"data"
+        assert (tmp_path / "link.txt").exists()
+
+    def test_hardlink_linkname_equals_strip_root_skipped(self, tmp_path: Path) -> None:
+        """Hard link whose linkname equals strip_root is silently skipped."""
+        buf = _make_tar(
+            [_reg("wrapper/file.txt"), _hlnk("wrapper/link.txt", "wrapper")],
+            {"wrapper/file.txt": b"data"},
+        )
+        _tar_extract_all(buf, tmp_path)
+        assert not (tmp_path / "link.txt").exists()
+
+    def test_hardlink_linkname_outside_prefix_skipped(self, tmp_path: Path) -> None:
+        """Hard link whose linkname doesn't start with strip_prefix is skipped."""
+        buf = _make_tar(
+            [_reg("wrapper/file.txt"), _hlnk("wrapper/link.txt", "other/file.txt")],
+            {"wrapper/file.txt": b"data"},
+        )
+        _tar_extract_all(buf, tmp_path)
+        assert not (tmp_path / "link.txt").exists()
+
+    def test_member_mode_none_skips_sanitization(self, tmp_path: Path) -> None:
+        """Member with mode=None bypasses the sanitization block without error."""
+        info = _reg("file.txt")
+        buf = _make_tar([info], {"file.txt": b"data"})
+        buf.seek(0)
+        with tarfile.open(fileobj=buf) as tf:
+            members = tf.getmembers()
+        for m in members:
+            m.mode = None
+        buf.seek(0)
+        with (
+            patch("tarfile.TarFile.getmembers", return_value=members),
+            patch("tarfile.TarFile.extract"),
+        ):
+            _tar_extract_all(buf, tmp_path)
+
+    def test_progress_bar_shown(self, tmp_path: Path) -> None:
+        """A non-empty progress_header causes ProgressBar to be created and updated."""
+        buf = _make_tar([_reg("file.txt")], {"file.txt": b"x"})
+        with patch("esphome.framework_helpers.ProgressBar") as mock_pb:
+            _tar_extract_all(buf, tmp_path, progress_header="Extracting")
+        mock_pb.assert_called_once_with("Extracting")
+        mock_pb.return_value.update.assert_called()
+
+
+# ---------------------------------------------------------------------------
+# _zip_extract_all — additional branch coverage
+# ---------------------------------------------------------------------------
+
+
+class TestZipExtractAllBranches:
+    def test_windows_drive_path_skipped(self, tmp_path: Path) -> None:
+        """Windows-style drive path (C:/...) is skipped when os.name == 'nt'."""
+        buf = _make_zip([("C:/secret.txt", "bad")])
+        with patch.object(os, "name", "nt"):
+            _zip_extract_all(buf, tmp_path)
+        assert not list(tmp_path.rglob("*"))
+
+    def test_member_not_under_strip_prefix_skipped(self, tmp_path: Path) -> None:
+        """Member whose name doesn't start with strip_prefix is silently skipped."""
+        buf = _make_zip([("other/file.txt", "data")])
+        with patch("esphome.framework_helpers._detect_archive_root", return_value="w"):
+            _zip_extract_all(buf, tmp_path)
+        assert not list(tmp_path.rglob("*"))
+
+    def test_progress_bar_shown(self, tmp_path: Path) -> None:
+        """A non-empty progress_header causes ProgressBar to be created and updated."""
+        buf = _make_zip([("file.txt", "hello")])
+        with patch("esphome.framework_helpers.ProgressBar") as mock_pb:
+            _zip_extract_all(buf, tmp_path, progress_header="Unzipping")
+        mock_pb.assert_called_once_with("Unzipping")
+        mock_pb.return_value.update.assert_called()
+
+
+# ---------------------------------------------------------------------------
+# _rename_with_retry
+# ---------------------------------------------------------------------------
+
+
+class TestRenameWithRetry:
+    def test_success_on_first_attempt(self, tmp_path: Path) -> None:
+        src = tmp_path / "src.txt"
+        src.write_text("data")
+        dst = tmp_path / "dst.txt"
+        _rename_with_retry(src, dst)
+        assert dst.read_text() == "data"
+        assert not src.exists()
+
+    def test_retries_on_permission_error_then_succeeds(self, tmp_path: Path) -> None:
+        src = tmp_path / "src.txt"
+        src.write_text("data")
+        dst = tmp_path / "dst.txt"
+        call_count = 0
+        original_rename = Path.rename
+
+        def flaky_rename(self, target):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise PermissionError("locked")
+            return original_rename(self, target)
+
+        with (
+            patch.object(Path, "rename", flaky_rename),
+            patch("esphome.framework_helpers.time.sleep"),
+        ):
+            _rename_with_retry(src, dst, attempts=3)
+        assert dst.read_text() == "data"
+
+    def test_raises_after_all_attempts_fail(self, tmp_path: Path) -> None:
+        src = tmp_path / "src.txt"
+        src.write_text("data")
+        dst = tmp_path / "dst.txt"
+        with (
+            patch.object(Path, "rename", side_effect=PermissionError("locked")),
+            patch("esphome.framework_helpers.time.sleep"),
+            pytest.raises(PermissionError),
+        ):
+            _rename_with_retry(src, dst, attempts=3)
+
+    def test_attempts_zero_is_noop(self, tmp_path: Path) -> None:
+        """Zero attempts means the for-loop body never runs; src is untouched."""
+        src = tmp_path / "src.txt"
+        src.write_text("data")
+        dst = tmp_path / "dst.txt"
+        _rename_with_retry(src, dst, attempts=0)
+        assert src.exists()
+        assert not dst.exists()
+
+
+# ---------------------------------------------------------------------------
+# _7z_extract_all
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(not _HAS_PY7ZR, reason="py7zr not installed")
+class TestSevenZipExtractAll:
+    @staticmethod
+    def _make_7z(entries: dict[str, bytes]) -> io.BytesIO:
+        import py7zr
+
+        buf = io.BytesIO()
+        with py7zr.SevenZipFile(buf, "w") as sz:
+            for name, content in entries.items():
+                sz.writef(io.BytesIO(content), name)
+        buf.seek(0)
+        return buf
+
+    def test_basic_extraction_no_wrapper(self, tmp_path: Path) -> None:
+        buf = self._make_7z({"a.txt": b"aaa", "b.txt": b"bbb"})
+        out = tmp_path / "out"
+        out.mkdir()
+        _7z_extract_all(buf, out)
+        assert (out / "a.txt").exists()
+        assert (out / "b.txt").exists()
+
+    def test_strips_wrapper_directory(self, tmp_path: Path) -> None:
+        buf = self._make_7z({"wrapper/file.txt": b"data"})
+        out = tmp_path / "out"
+        out.mkdir()
+        _7z_extract_all(buf, out)
+        assert (out / "file.txt").exists()
+        assert not (out / "wrapper").exists()
+
+    def test_staging_suffix_collision(self, tmp_path: Path) -> None:
+        """When .extract_tmp_0 already exists, suffix is incremented to find a free slot."""
+        out = tmp_path / "out"
+        out.mkdir()
+        (out / ".extract_tmp_0").mkdir()
+        buf = self._make_7z({"file.txt": b"hi"})
+        _7z_extract_all(buf, out)
+        assert (out / "file.txt").exists()
+        # .extract_tmp_1 should be cleaned up after extraction
+        assert not (out / ".extract_tmp_1").exists()
+
+    def test_overwrites_existing_directory(self, tmp_path: Path) -> None:
+        """Pre-existing destination directory is replaced."""
+        out = tmp_path / "out"
+        out.mkdir()
+        existing_dir = out / "file.txt"
+        existing_dir.mkdir()
+        buf = self._make_7z({"file.txt": b"new"})
+        _7z_extract_all(buf, out)
+        assert (out / "file.txt").is_file()
+
+    def test_overwrites_existing_file(self, tmp_path: Path) -> None:
+        """Pre-existing destination file is replaced."""
+        out = tmp_path / "out"
+        out.mkdir()
+        (out / "file.txt").write_bytes(b"old")
+        buf = self._make_7z({"file.txt": b"new"})
+        _7z_extract_all(buf, out)
+        assert (out / "file.txt").exists()
+
+    def test_empty_name_skipped(self, tmp_path: Path) -> None:
+        """Archive entries with empty names are silently skipped."""
+        import py7zr
+
+        buf = self._make_7z({"file.txt": b"data"})
+        out = tmp_path / "out"
+        out.mkdir()
+        with patch.object(
+            py7zr.SevenZipFile, "getnames", return_value=["", "file.txt"]
+        ):
+            _7z_extract_all(buf, out)
+        assert (out / "file.txt").exists()
+
+    def test_path_traversal_skipped(self, tmp_path: Path) -> None:
+        """Entries whose resolved path exits extract_dir are skipped."""
+        import py7zr
+
+        buf = self._make_7z({"file.txt": b"safe"})
+        out = tmp_path / "out"
+        out.mkdir()
+        with patch.object(
+            py7zr.SevenZipFile, "getnames", return_value=["../escape.txt", "file.txt"]
+        ):
+            _7z_extract_all(buf, out)
+        assert not (tmp_path / "escape.txt").exists()
+        assert (out / "file.txt").exists()
+
+    def test_progress_bar_shown(self, tmp_path: Path) -> None:
+        buf = self._make_7z({"file.txt": b"x"})
+        out = tmp_path / "out"
+        out.mkdir()
+        with patch("esphome.framework_helpers.ProgressBar") as mock_pb:
+            _7z_extract_all(buf, out, progress_header="Unpacking 7z")
+        mock_pb.assert_called_once_with("Unpacking 7z")
+        mock_pb.return_value.update.assert_called()
+
+    def test_absolute_path_in_names_skipped(self, tmp_path: Path) -> None:
+        """Names that resolve as absolute are silently skipped."""
+        import py7zr
+
+        buf = self._make_7z({"file.txt": b"safe"})
+        out = tmp_path / "out"
+        out.mkdir()
+
+        original_is_absolute = Path.is_absolute
+
+        def patched_is_absolute(self: Path) -> bool:
+            if str(self).startswith("C:"):
+                return True
+            return original_is_absolute(self)
+
+        with (
+            patch.object(
+                py7zr.SevenZipFile, "getnames", return_value=["C:/evil.txt", "file.txt"]
+            ),
+            patch.object(Path, "is_absolute", patched_is_absolute),
+        ):
+            _7z_extract_all(buf, out)
+        assert not (out / "C:").exists()
+        assert (out / "file.txt").exists()
+
+    def test_dispatched_via_archive_extract_all(self, tmp_path: Path) -> None:
+        """archive_extract_all dispatches 7z archives to _7z_extract_all."""
+        buf = self._make_7z({"hello.txt": b"world"})
+        data = buf.read()
+        assert data[:6] == b"\x37\x7a\xbc\xaf\x27\x1c"
+        archive = tmp_path / "test.7z"
+        archive.write_bytes(data)
+        out = tmp_path / "out"
+        out.mkdir()
+        archive_extract_all(archive, out)
+        assert (out / "hello.txt").exists()
