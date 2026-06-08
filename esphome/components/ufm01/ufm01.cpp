@@ -41,14 +41,15 @@ static bool validate_data(uint8_t data[32]) {
 }
 
 static float read_accumulated_flow(uint8_t data[32]) {
-  return (data[8] == 0x1A ? L_PER_M3 : 1.0) *
-         (to_float(data[14]) * 10000000.0 + to_float(data[13]) * 100000.0 + to_float(data[12]) * 1000.0 +
-          to_float(data[11]) * 10.0 + to_float(data[10]) * 0.1 + to_float(data[9]) * 0.001);
+  return (data[8] == 0x1A ? L_PER_M3 : 1.0f) *
+         (to_float(data[14]) * 10000000.0f + to_float(data[13]) * 100000.0f + to_float(data[12]) * 1000.0f +
+          to_float(data[11]) * 10.0f + to_float(data[10]) * 0.1f + to_float(data[9]) * 0.001f);
 }
 
 static float read_flow(uint8_t data[32]) {
-  return (data[20] == 0x80 ? -1.0 : 1.0) *
-         (to_float(data[19]) * 10000.0 + to_float(data[18]) * 100.0 + to_float(data[17]) + to_float(data[16]) * 0.01) *
+  return (data[20] == 0x80 ? -1.0f : 1.0f) *
+         (to_float(data[19]) * 10000.0f + to_float(data[18]) * 100.0f + to_float(data[17]) +
+          to_float(data[16]) * 0.01f) *
          M3_PER_L;
 }
 
@@ -62,7 +63,7 @@ static float read_temperature(uint8_t data[32]) {
       data[27] == 0X00 && (data[26] == 0x00 || data[26] == 0x70) && data[25] == 0X00) {
     return NAN;
   } else {
-    return to_float(data[27]) * 100.0 + to_float(data[26]) + to_float(data[25]) * 0.01;
+    return to_float(data[27]) * 100.0f + to_float(data[26]) + to_float(data[25]) * 0.01f;
   }
 }
 
