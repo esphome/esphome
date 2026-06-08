@@ -27,9 +27,8 @@ static constexpr uint8_t VENDOR_READ_NREQUEST = 0x81;
 
 // Supported standard baud rates for direct encoding (TYPE_H, TYPE_HX, TYPE_HXD, TYPE_HXN)
 static const uint32_t SUPPORTED_BAUD_RATES[] = {
-    75,     150,    300,    600,    1200,   1800,   2400,   3600,
-    4800,   7200,   9600,   14400,  19200,  28800,  38400,  57600,
-    115200, 230400, 460800, 614400, 921600, 1228800, 2457600, 3000000, 6000000,
+    75,    150,   300,   600,    1200,   1800,   2400,   3600,   4800,    7200,    9600,    14400,   19200,
+    28800, 38400, 57600, 115200, 230400, 460800, 614400, 921600, 1228800, 2457600, 3000000, 6000000,
 };
 
 static const char *pl2303_type_name(Pl2303ChipType type) {
@@ -166,8 +165,8 @@ std::vector<CdcEps> USBUartTypePL2303::parse_descriptors(usb_device_handle_t dev
     }
   }
 
-  ESP_LOGI(TAG, "PL2303 chip type: %s (bcdUSB=0x%04X bcdDevice=0x%04X bMaxPkt=%u)",
-           pl2303_type_name(this->chip_type_), bcd_usb, bcd_device, bmax_packet);
+  ESP_LOGI(TAG, "PL2303 chip type: %s (bcdUSB=0x%04X bcdDevice=0x%04X bMaxPkt=%u)", pl2303_type_name(this->chip_type_),
+           bcd_usb, bcd_device, bmax_packet);
 
   // PL2303 is single-port: find first interface with 2 bulk endpoints
   int conf_offset = 0;

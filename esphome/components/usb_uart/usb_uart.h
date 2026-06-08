@@ -261,12 +261,12 @@ class USBUartTypeFT23XX : public USBUartTypeCdcAcm {
 };
 
 enum Pl2303ChipType : uint8_t {
-  PL2303_TYPE_H = 0,    // Legacy, max 1.2Mbaud
-  PL2303_TYPE_HX,       // max 6Mbaud, divisor encoding
-  PL2303_TYPE_TA,       // max 6Mbaud, alt divisor encoding
-  PL2303_TYPE_TB,       // max 12Mbaud, alt divisor encoding
-  PL2303_TYPE_HXD,      // max 12Mbaud, divisor encoding
-  PL2303_TYPE_HXN,      // G-series, max 12Mbaud, direct encoding only
+  PL2303_TYPE_H = 0,  // Legacy, max 1.2Mbaud
+  PL2303_TYPE_HX,     // max 6Mbaud, divisor encoding
+  PL2303_TYPE_TA,     // max 6Mbaud, alt divisor encoding
+  PL2303_TYPE_TB,     // max 12Mbaud, alt divisor encoding
+  PL2303_TYPE_HXD,    // max 12Mbaud, divisor encoding
+  PL2303_TYPE_HXN,    // G-series, max 12Mbaud, direct encoding only
   PL2303_TYPE_UNKNOWN = 0xFF,
 };
 
