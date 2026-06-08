@@ -45,6 +45,26 @@ def _get_toolchain_path(version: str) -> Path:
     return _get_tools_path() / "toolchains" / f"{version}"
 
 
+# onexc/dir_fd were added to shutil.rmtree in 3.12; the 3.11 branch uses onerror.
+_SITECUSTOMIZE = """\
+import os, stat, shutil, sys
+_orig = shutil.rmtree
+def _handler(func, path, exc):
+    os.chmod(path, stat.S_IWRITE); func(path)
+if sys.version_info >= (3, 12):
+    def _rmtree(path, ignore_errors=False, onerror=None, *, onexc=None, dir_fd=None):
+        if onerror is None and onexc is None:
+            onexc = _handler
+        return _orig(path, ignore_errors=ignore_errors, onerror=onerror, onexc=onexc, dir_fd=dir_fd)
+else:
+    def _rmtree(path, ignore_errors=False, onerror=None):
+        if onerror is None:
+            onerror = _handler
+        return _orig(path, ignore_errors=ignore_errors, onerror=onerror)
+shutil.rmtree = _rmtree
+"""
+
+
 def _install_sitecustomize(python_env_path: Path) -> None:
     """Patch shutil.rmtree inside the penv to handle read-only files.
 
@@ -57,27 +77,7 @@ def _install_sitecustomize(python_env_path: Path) -> None:
         return
     site_packages = python_env_path / "Lib" / "site-packages"
     site_packages.mkdir(parents=True, exist_ok=True)
-    (site_packages / "sitecustomize.py").write_text(
-        "import os, stat, shutil, sys\n"
-        "_orig = shutil.rmtree\n"
-        "def _handler(func, path, exc):\n"
-        "    os.chmod(path, stat.S_IWRITE); func(path)\n"
-        # onexc/dir_fd were added in 3.12; on 3.11 rmtree only accepts onerror
-        "if sys.version_info >= (3, 12):\n"
-        "    def _rmtree(path, ignore_errors=False, onerror=None,"
-        " *, onexc=None, dir_fd=None):\n"
-        "        if onerror is None and onexc is None:\n"
-        "            onexc = _handler\n"
-        "        return _orig(path, ignore_errors=ignore_errors,"
-        " onerror=onerror, onexc=onexc, dir_fd=dir_fd)\n"
-        "else:\n"
-        "    def _rmtree(path, ignore_errors=False, onerror=None):\n"
-        "        if onerror is None:\n"
-        "            onerror = _handler\n"
-        "        return _orig(path, ignore_errors=ignore_errors, onerror=onerror)\n"
-        "shutil.rmtree = _rmtree\n",
-        encoding="utf-8",
-    )
+    (site_packages / "sitecustomize.py").write_text(_SITECUSTOMIZE, encoding="utf-8")
 
 
 def _get_toolchain_platform_info() -> tuple[str, str, str]:
