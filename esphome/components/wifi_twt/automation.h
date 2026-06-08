@@ -42,6 +42,24 @@ template<typename... Ts> class WiFiTWTStopAction : public Action<Ts...> {
   WiFiTWT *parent_;
 };
 
+template<typename... Ts> class WiFiTWTDisableAction : public Action<Ts...> {
+ public:
+  explicit WiFiTWTDisableAction(WiFiTWT *parent) : parent_(parent) {}
+  void play(Ts... x) override { this->parent_->disable_twt(); }
+
+ protected:
+  WiFiTWT *parent_;
+};
+
+template<typename... Ts> class WiFiTWTEnableAction : public Action<Ts...> {
+ public:
+  explicit WiFiTWTEnableAction(WiFiTWT *parent) : parent_(parent) {}
+  void play(Ts... x) override { this->parent_->enable_twt(); }
+
+ protected:
+  WiFiTWT *parent_;
+};
+
 }  // namespace esphome::wifi_twt
 
 #endif  // USE_WIFI_TWT

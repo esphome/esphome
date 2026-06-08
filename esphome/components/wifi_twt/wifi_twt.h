@@ -8,10 +8,20 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/wifi/wifi_component.h"
+#ifdef USE_OTA_STATE_LISTENER
+#include "esphome/components/ota/ota_backend.h"
+#endif
 
 namespace esphome::wifi_twt {
 
-class WiFiTWT : public Component, public wifi::WiFiIPStateListener, public wifi::WiFiConnectStateListener {
+class WiFiTWT : public Component,
+                public wifi::WiFiIPStateListener,
+                public wifi::WiFiConnectStateListener
+#ifdef USE_OTA_STATE_LISTENER
+    ,
+                public ota::OTAGlobalStateListener
+#endif
+{
  public:
   void setup() override;
   void dump_config() override;
@@ -23,12 +33,19 @@ class WiFiTWT : public Component, public wifi::WiFiIPStateListener, public wifi:
 
   void start_twt();
   void stop_twt();
+  void disable_twt();
+  void enable_twt();
 
   // Platform event notification interface — called from the ESP-IDF event task.
   // Each method defers callback dispatch to the main loop via defer().
   void twt_setup_success(uint8_t flow_id);
+  void twt_setup_failed();
   void twt_teardown_received(uint8_t flow_id);
   void twt_wakeup_received();
+
+#ifdef USE_OTA_STATE_LISTENER
+  void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *component) override;
+#endif
 
   // Configuration setters
   void set_wake_interval_ms(uint32_t ms) { this->wake_interval_ms_ = ms; }
@@ -36,6 +53,8 @@ class WiFiTWT : public Component, public wifi::WiFiIPStateListener, public wifi:
   void set_setup_cmd(uint8_t cmd) { this->setup_cmd_ = cmd; }
   void set_flow_type(uint8_t flow_type) { this->flow_type_ = flow_type; }
   void set_auto_setup(bool auto_setup) { this->auto_setup_ = auto_setup; }
+
+  bool is_active() const { return this->active_flow_id_.load() != UINT8_MAX; }
 
   // Callback registration — templated to accept both std::function and forwarder structs
   template<typename F> void add_on_start_callback(F &&cb) { this->start_callback_.add(std::forward<F>(cb)); }
@@ -54,6 +73,20 @@ class WiFiTWT : public Component, public wifi::WiFiIPStateListener, public wifi:
   // even if auto_setup_ is false. Left clear when TWT was never negotiated (or was stopped
   // manually before the drop), so a stopped/never-started agreement is not revived.
   bool reconfigure_pending_{false};
+
+  // Set when esp_wifi_sta_itwt_setup() is called, cleared on success or failure.
+  // Guards against duplicate calls before the async event fires.
+  bool setup_pending_{false};
+
+  // When true, blocks auto-setup and reconnect restart; explicit start_twt() logs a warning and overrides.
+  bool disabled_{false};
+  // Tracks whether TWT was active when disable_twt() was called, so enable_twt() can resume it.
+  bool was_active_before_disable_{false};
+
+#ifdef USE_OTA_STATE_LISTENER
+  // Tracks whether TWT was active when an OTA started, so it can be restarted on completion.
+  bool twt_active_before_ota_{false};
+#endif
 
   // Written by event task (twt_setup_success / twt_teardown_received), read by main task.
   std::atomic<uint8_t> active_flow_id_{UINT8_MAX};

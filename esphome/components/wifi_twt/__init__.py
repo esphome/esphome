@@ -21,6 +21,7 @@ from .const import (
 
 DEPENDENCIES = ["wifi"]
 CODEOWNERS = ["@rwrozelle"]
+CONFLICTS_WITH = ["deep_sleep", "espnow"]
 
 # Ordinals match wifi_twt_setup_cmds_t in esp_wifi_he_types.h
 SETUP_CMDS = {
@@ -33,6 +34,8 @@ wifi_twt_ns = cg.esphome_ns.namespace("wifi_twt")
 WiFiTWT = wifi_twt_ns.class_("WiFiTWT", cg.Component)
 WiFiTWTStartAction = wifi_twt_ns.class_("WiFiTWTStartAction", automation.Action)
 WiFiTWTStopAction = wifi_twt_ns.class_("WiFiTWTStopAction", automation.Action)
+WiFiTWTDisableAction = wifi_twt_ns.class_("WiFiTWTDisableAction", automation.Action)
+WiFiTWTEnableAction = wifi_twt_ns.class_("WiFiTWTEnableAction", automation.Action)
 
 
 def _validate(config):
@@ -226,12 +229,39 @@ async def wifi_twt_start_action_to_code(config, action_id, template_arg, args):
     return var
 
 
+_SIMPLE_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(WiFiTWT)})
+
+
+async def _simple_action_to_code(config, action_id, template_arg, args):
+    parent = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, parent)
+
+
 @automation.register_action(
     "wifi_twt.stop",
     WiFiTWTStopAction,
-    cv.Schema({cv.GenerateID(): cv.use_id(WiFiTWT)}),
+    _SIMPLE_ACTION_SCHEMA,
     synchronous=True,
 )
 async def wifi_twt_stop_action_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, parent)
+    return await _simple_action_to_code(config, action_id, template_arg, args)
+
+
+@automation.register_action(
+    "wifi_twt.disable",
+    WiFiTWTDisableAction,
+    _SIMPLE_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def wifi_twt_disable_action_to_code(config, action_id, template_arg, args):
+    return await _simple_action_to_code(config, action_id, template_arg, args)
+
+
+@automation.register_action(
+    "wifi_twt.enable",
+    WiFiTWTEnableAction,
+    _SIMPLE_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def wifi_twt_enable_action_to_code(config, action_id, template_arg, args):
+    return await _simple_action_to_code(config, action_id, template_arg, args)

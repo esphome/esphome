@@ -8,6 +8,9 @@
 #include "esp_wifi.h"
 #include "esp_wifi_he.h"
 #include "esp_event.h"
+#ifdef USE_OTA_STATE_LISTENER
+#include "esphome/components/ota/ota_backend.h"
+#endif
 
 namespace esphome::wifi_twt {
 
@@ -60,6 +63,7 @@ static void itwt_event_handler(void *arg, esp_event_base_t event_base, int32_t e
       self->twt_setup_success(setup->config.flow_id);
     } else {
       ESP_LOGW(TAG, "iTWT setup failed: status=%d, cmd=%d", setup->status, setup->config.setup_cmd);
+      self->twt_setup_failed();
     }
 
   } else if (event_id == WIFI_EVENT_ITWT_TEARDOWN) {
@@ -83,6 +87,10 @@ static void itwt_event_handler(void *arg, esp_event_base_t event_base, int32_t e
 void WiFiTWT::setup() {
   wifi::global_wifi_component->add_ip_state_listener(this);
   wifi::global_wifi_component->add_connect_state_listener(this);
+
+#ifdef USE_OTA_STATE_LISTENER
+  ota::get_global_ota_callback()->add_global_state_listener(this);
+#endif
 
   wifi_twt_config_t twt_cfg = {};
   twt_cfg.post_wakeup_event = true;
@@ -127,14 +135,22 @@ void WiFiTWT::on_ip_state(const network::IPAddresses &ips, const network::IPAddr
   // stopped manually before the drop, is left alone.
   bool reconfigure = this->reconfigure_pending_;
   this->reconfigure_pending_ = false;
-  if (this->auto_setup_ || reconfigure)
+  if (!this->disabled_ && (this->auto_setup_ || reconfigure))
     this->start_twt();
 }
 
 void WiFiTWT::start_twt() {
+  if (this->disabled_) {
+    ESP_LOGW(TAG, "wifi_twt.start called while TWT is disabled — call wifi_twt.enable first");
+    return;
+  }
   uint8_t flow_id = this->active_flow_id_;
   if (flow_id != UINT8_MAX) {
     ESP_LOGD(TAG, "iTWT already active on flow_id=%u, skipping setup", flow_id);
+    return;
+  }
+  if (this->setup_pending_) {
+    ESP_LOGD(TAG, "iTWT setup already in progress, skipping duplicate request");
     return;
   }
   wifi_phy_mode_t phymode;
@@ -183,6 +199,7 @@ void WiFiTWT::start_twt() {
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "iTWT setup request failed: %s", esp_err_to_name(err));
   } else {
+    this->setup_pending_ = true;
     ESP_LOGD(TAG, "iTWT setup request sent");
   }
 }
@@ -193,6 +210,8 @@ void WiFiTWT::stop_twt() {
     ESP_LOGW(TAG, "stop_twt() called but no active TWT agreement");
     return;
   }
+  // Explicit stop clears the pending flag so the agreement is not revived on reconnect.
+  this->reconfigure_pending_ = false;
   esp_err_t err = esp_wifi_sta_itwt_teardown(flow_id);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "iTWT teardown failed: %s", esp_err_to_name(err));
