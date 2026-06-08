@@ -58,16 +58,23 @@ def _install_sitecustomize(python_env_path: Path) -> None:
     site_packages = python_env_path / "Lib" / "site-packages"
     site_packages.mkdir(parents=True, exist_ok=True)
     (site_packages / "sitecustomize.py").write_text(
-        "import os, stat, shutil\n"
+        "import os, stat, shutil, sys\n"
         "_orig = shutil.rmtree\n"
-        "def _onexc(func, path, exc):\n"
+        "def _handler(func, path, exc):\n"
         "    os.chmod(path, stat.S_IWRITE); func(path)\n"
-        "def _rmtree(path, ignore_errors=False, onerror=None,"
+        # onexc/dir_fd were added in 3.12; on 3.11 rmtree only accepts onerror
+        "if sys.version_info >= (3, 12):\n"
+        "    def _rmtree(path, ignore_errors=False, onerror=None,"
         " *, onexc=None, dir_fd=None):\n"
-        "    if onerror is None and onexc is None:\n"
-        "        onexc = _onexc\n"
-        "    return _orig(path, ignore_errors=ignore_errors,"
+        "        if onerror is None and onexc is None:\n"
+        "            onexc = _handler\n"
+        "        return _orig(path, ignore_errors=ignore_errors,"
         " onerror=onerror, onexc=onexc, dir_fd=dir_fd)\n"
+        "else:\n"
+        "    def _rmtree(path, ignore_errors=False, onerror=None):\n"
+        "        if onerror is None:\n"
+        "            onerror = _handler\n"
+        "        return _orig(path, ignore_errors=ignore_errors, onerror=onerror)\n"
         "shutil.rmtree = _rmtree\n",
         encoding="utf-8",
     )
