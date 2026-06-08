@@ -2,7 +2,11 @@
 # Various configuration constants for MIPI displays
 # Various utility functions for MIPI DBI configuration
 
+from collections.abc import Callable
+import functools
 from typing import Any, Self
+
+import voluptuous as vol
 
 from esphome.components.const import CONF_COLOR_DEPTH
 from esphome.components.display import CONF_SHOW_TEST_CARD, display_ns
@@ -18,6 +22,7 @@ from esphome.const import (
     CONF_LAMBDA,
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
+    CONF_MODEL,
     CONF_OFFSET_HEIGHT,
     CONF_OFFSET_WIDTH,
     CONF_PAGES,
@@ -27,6 +32,7 @@ from esphome.const import (
     CONF_WIDTH,
 )
 from esphome.core import TimePeriod
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
 LOGGER = cv.logging.getLogger(__name__)
 
@@ -237,6 +243,54 @@ def flatten_sequence(sequence: tuple | list):
 
 def delay(ms):
     return DELAY_FLAG, ms
+
+
+# Generic placeholder model present in every DriverChip registry; skipped when
+# choosing a representative model for schema extraction.
+_CUSTOM_MODEL = "CUSTOM"
+
+
+def model_schema_extractor(
+    models: dict[str, Any],
+    model_schema: Callable[[dict[str, Any]], Any],
+    extra: dict[str, Any] | None = None,
+) -> Callable[[Callable[[Any], Any]], Callable[[Any], Any]]:
+    """
+    Decorate a model-driven display CONFIG_SCHEMA so the language-schema dumper
+    can extract it.
+
+    The schema is generated per ``model`` at validation time, so the static
+    dumper has nothing to walk. When the dumper passes SCHEMA_EXTRACT, resolve a
+    representative schema for a real model (the generic "CUSTOM" placeholder
+    over-constrains fields like init_sequence) plus any *extra* keys the model
+    needs, e.g. a bus mode, and hand that back; runtime validation is untouched.
+    """
+
+    def decorate(config_schema: Callable[[Any], Any]) -> Callable[[Any], Any]:
+        @schema_extractor("schema")
+        @functools.wraps(config_schema)
+        def wrapper(config: Any) -> Any:
+            if config is not SCHEMA_EXTRACT:
+                return config_schema(config)
+            names = sorted(models)
+            representative = next((n for n in names if n != _CUSTOM_MODEL), names[0])
+            schema = model_schema({CONF_MODEL: representative, **(extra or {})})
+            if isinstance(schema, vol.All):
+                schema = next(
+                    (v for v in schema.validators if isinstance(v, vol.Schema)),
+                    schema,
+                )
+            if isinstance(schema, vol.Schema):
+                # The resolved schema pins ``model`` to the representative; expose
+                # the full model list so the dumped enum offers every model.
+                schema = schema.extend(
+                    {cv.Required(CONF_MODEL): cv.one_of(*names, upper=True)}
+                )
+            return schema
+
+        return wrapper
+
+    return decorate
 
 
 class DriverChip:
