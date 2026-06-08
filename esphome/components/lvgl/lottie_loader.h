@@ -521,6 +521,33 @@ inline void lottie_restart(LottieContext *ctx) {
   }
 }
 
+inline void lottie_show(LottieContext *ctx, bool restart) {
+  if (ctx == nullptr || ctx->obj == nullptr) {
+    return;
+  }
+  const bool was_hidden = ctx->runtime_hidden || lv_obj_has_flag(ctx->obj, LV_OBJ_FLAG_HIDDEN);
+  ctx->runtime_hidden = false;
+  if (ctx->pixel_buffer == nullptr) {
+    lottie_launch(ctx);
+    return;
+  }
+  lv_obj_remove_flag(ctx->obj, LV_OBJ_FLAG_HIDDEN);
+  if (restart && was_hidden) {
+    lottie_restart(ctx);
+  }
+  lv_obj_invalidate(ctx->obj);
+}
+
+inline void lottie_hide(LottieContext *ctx) {
+  if (ctx == nullptr || ctx->obj == nullptr) {
+    return;
+  }
+  ctx->runtime_hidden = true;
+  lv_obj_add_flag(ctx->obj, LV_OBJ_FLAG_HIDDEN);
+  lv_obj_invalidate(ctx->obj);
+  lottie_free_resources(ctx);
+}
+
 // --------------------------------------------------------------------------
 // Public API: initialise Lottie widget - allocate buffer, register screen
 // events, and launch the load/render task.
