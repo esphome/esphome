@@ -126,8 +126,7 @@ void USBUartTypeCH934X::configure_device_() {
       return;
     }
 
-    ESP_LOGI(TAG, "Found chip type %s with %u ports", get_chiptype_string_(this->chiptype_).c_str(),
-             this->num_ports_);
+    ESP_LOGI(TAG, "Found chip type %s with %u ports", get_chiptype_string_(this->chiptype_).c_str(), this->num_ports_);
 
     this->defer([this]() { this->configure_channels_after_detection_(); });
   };
