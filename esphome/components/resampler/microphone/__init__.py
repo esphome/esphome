@@ -13,7 +13,7 @@ from esphome.const import (
 )
 
 AUTO_LOAD = ["audio"]
-CODEOWNERS = ["@kahrendt"]
+CODEOWNERS = ["@kyvaith"]
 
 resampler_ns = cg.esphome_ns.namespace("resampler")
 ResamplerMicrophone = resampler_ns.class_(
