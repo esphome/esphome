@@ -145,12 +145,9 @@ std::vector<CdcEps> USBUartTypePL2303::parse_descriptors(usb_device_handle_t dev
       case 0x0110:
         this->chip_type_ = (bcd_device == 0x0400) ? PL2303_TYPE_HXD : PL2303_TYPE_HX;
         break;
-      case 0x0200:
-        // TA (0x0300) and TB (0x0500) need an HX-status probe to distinguish
-        // from HXN — skip the probe on embedded, treat all USB2 as HXN.
-        this->chip_type_ = PL2303_TYPE_HXN;
-        break;
       default:
+        // TA (bcdDevice=0x0300) and TB (0x0500) would need an HX-status probe to distinguish
+        // from HXN — skip the probe on embedded and treat all remaining USB2/USB3 as HXN.
         this->chip_type_ = PL2303_TYPE_HXN;
         break;
     }
