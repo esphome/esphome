@@ -57,6 +57,13 @@ class Type:
 
 
 uart_types = (
+    Type("PL2303", 0x067B, 0x2303, "PL2303", 1),
+    Type("PL2303GC", 0x067B, 0x23A3, "PL2303", 1),
+    Type("PL2303GB", 0x067B, 0x23B3, "PL2303", 1),
+    Type("PL2303GT", 0x067B, 0x23C3, "PL2303", 1),
+    Type("PL2303GL", 0x067B, 0x23D3, "PL2303", 1),
+    Type("PL2303GE", 0x067B, 0x23E3, "PL2303", 1),
+    Type("PL2303GS", 0x067B, 0x23F3, "PL2303", 1),
     Type("CDC_ACM", 0, 0, "CdcAcm", 1, baud_rate_required=False),
     Type("CP210X", 0x10C4, 0xEA60, "CP210X", 3),
     Type("CH34X", 0x1A86, 0x55D5, "CH34X", 4),
