@@ -75,9 +75,12 @@ class Type:
 
 
 uart_types = (
-    Type("CH934X", 0x1A86, 0x55D9, "CH934X", 8, channel_cls=CH934XChannel),
     Type("CH9344", 0x1A86, 0xE018, "CH934X", 4, channel_cls=CH934XChannel),
+    Type("CH9344L", 0x1A86, 0xE018, "CH934X", 4, channel_cls=CH934XChannel),
+    Type("CH9344Q", 0x1A86, 0xE018, "CH934X", 4, channel_cls=CH934XChannel),
     Type("CH348", 0x1A86, 0x55D9, "CH934X", 8, channel_cls=CH934XChannel),
+    Type("CH348L", 0x1A86, 0x55D9, "CH934X", 8, channel_cls=CH934XChannel),
+    Type("CH348Q", 0x1A86, 0x55D9, "CH934X", 8, channel_cls=CH934XChannel),
     Type("CDC_ACM", 0, 0, "CdcAcm", 1, baud_rate_required=False),
     Type("CP210X", 0x10C4, 0xEA60, "CP210X", 3),
     Type("CH34X", 0x1A86, 0x55D5, "CH34X", 4),

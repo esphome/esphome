@@ -43,7 +43,7 @@ usb_uart:
         debug: true
         debug_prefix: "[CP210X] "
   - id: uart_6
-    type: ch934x
+    type: ch9344
     channels:
       - id: channel_6_1
         baud_rate: 115200
@@ -52,6 +52,13 @@ usb_uart:
         stop_bits: 2
         data_bits: 7
         parity: even
+  - id: uart_8
+    type: ch348
+    channels:
+      - id: channel_8_1
+        baud_rate: 115200
+      - id: channel_8_2
+        baud_rate: 9600
   - id: uart_7
     type: ft2232
     channels:
