@@ -353,6 +353,9 @@ class TestTarExtractAllSecurity:
         _tar_extract_all(buf, tmp_path)
         assert not (tmp_path / "chardev").exists()
 
+    @pytest.mark.skipif(
+        os.name == "nt", reason="Windows has no POSIX executable permission bit"
+    )
     def test_executable_bit_preserved(self, tmp_path: Path) -> None:
         """User-executable bit is kept for explicitly executable files."""
         info = _reg("script.sh")
