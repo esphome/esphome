@@ -46,10 +46,10 @@ from esphome.const import (
     Toolchain,
     __version__,
 )
-from esphome.core import CORE, EsphomeError, HexInt, Library
+from esphome.core import CORE, EsphomeError, HexInt
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
-from esphome.espidf.component import generate_idf_component
+from esphome.espidf.component import generate_idf_components
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
 from esphome.types import ConfigType
@@ -715,14 +715,15 @@ def _is_framework_url(source: str) -> bool:
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(3, 3, 8),
-    "latest": cv.Version(3, 3, 8),
-    "dev": cv.Version(3, 3, 8),
+    "recommended": cv.Version(3, 3, 9),
+    "latest": cv.Version(3, 3, 9),
+    "dev": cv.Version(3, 3, 9),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
         4, 0, 0, "alpha1"
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
+    cv.Version(3, 3, 9): cv.Version(55, 3, 39),
     cv.Version(3, 3, 8): cv.Version(55, 3, 38, "1"),
     cv.Version(3, 3, 7): cv.Version(55, 3, 37),
     cv.Version(3, 3, 6): cv.Version(55, 3, 36),
@@ -744,6 +745,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
     cv.Version(4, 0, 0, "alpha1"): cv.Version(6, 0, 1),
+    cv.Version(3, 3, 9): cv.Version(5, 5, 4),
     cv.Version(3, 3, 8): cv.Version(5, 5, 4),
     cv.Version(3, 3, 7): cv.Version(5, 5, 3, "1"),
     cv.Version(3, 3, 6): cv.Version(5, 5, 2),
@@ -776,7 +778,7 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
         6, 0, 0
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
-    cv.Version(5, 5, 4): cv.Version(55, 3, 38, "1"),
+    cv.Version(5, 5, 4): cv.Version(55, 3, 39),
     cv.Version(5, 5, 3, "1"): cv.Version(55, 3, 37),
     cv.Version(5, 5, 3): cv.Version(55, 3, 37),
     cv.Version(5, 5, 2): cv.Version(55, 3, 37),
@@ -796,8 +798,8 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": cv.Version(55, 3, 38, "1"),
-    "latest": cv.Version(55, 3, 38, "1"),
+    "recommended": cv.Version(55, 3, 39),
+    "latest": cv.Version(55, 3, 39),
     "dev": "https://github.com/pioarduino/platform-espressif32.git#develop",
 }
 
@@ -1373,8 +1375,11 @@ def require_libc_picolibc_newlib_compat() -> None:
     """Keep CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY enabled on IDF 6.0+.
 
     Call this from components that link against precompiled Newlib binaries
-    referencing types/symbols the shim provides (e.g. esp32-camera).
+    referencing types/symbols the shim provides (e.g. zigbee). No-op on
+    IDF < 6.0.0.
     """
+    if idf_version() < cv.Version(6, 0, 0):
+        return
     CORE.data[KEY_ESP32][KEY_LIBC_PICOLIBC_NEWLIB_COMPAT_REQUIRED] = True
 
 
@@ -2598,13 +2603,6 @@ def _write_sdkconfig():
         clean_build(clear_pio_cache=False)
 
 
-def _platformio_library_to_dependency(library: Library) -> tuple[str, dict[str, str]]:
-    dependency: dict[str, str] = {}
-    name, _version, path = generate_idf_component(library)
-    dependency["override_path"] = str(path)
-    return name, dependency
-
-
 def _write_idf_component_yml():
     yml_path = CORE.relative_build_path("src/idf_component.yml")
     dependencies: dict[str, dict] = {}
@@ -2678,13 +2676,21 @@ def _write_idf_component_yml():
             )
 
     if CORE.using_toolchain_esp_idf:
-        # Try to convert PlatformIO library to ESP-IDF components
-        for name, library in CORE.platformio_libraries.items():
+        # Convert the PlatformIO libraries to ESP-IDF components as a batch so
+        # PlatformIO resolves the whole dependency tree at once -- deduplicating
+        # shared transitive deps (e.g. esphome/libsodium pulled by both noise-c
+        # and esp_wireguard) to a single version instead of clashing
+        # override_path entries.
+        libraries = [
+            library
+            for name, library in CORE.platformio_libraries.items()
             # Don't process arduino libraries
-            if name in ARDUINO_DISABLED_LIBRARIES:
-                continue
-            dependency_name, dependency = _platformio_library_to_dependency(library)
-            dependencies[dependency_name] = dependency
+            if name not in ARDUINO_DISABLED_LIBRARIES
+        ]
+        for component in generate_idf_components(libraries):
+            dependencies[component.get_sanitized_name()] = {
+                "override_path": str(component.path)
+            }
 
     if CORE.data[KEY_ESP32][KEY_COMPONENTS]:
         components: dict = CORE.data[KEY_ESP32][KEY_COMPONENTS]

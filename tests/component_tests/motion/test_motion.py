@@ -33,6 +33,7 @@ from esphome.components.motion.sensor import (
     _ACCELERATIONS,
     _ANGULAR_RATES,
     _GYROSCOPES,
+    CONF_FLAT_THRESHOLD,
     CONF_ORIENTATION,
     CONF_PITCH,
     CONF_ROLL,
@@ -341,7 +342,6 @@ class TestSensorExpressions:
     def test_orientation_expression_default_threshold(self):
         """Without config, orientation uses the default flat threshold (in degrees),
         passed to the helper as the sine of the angle."""
-        import math
 
         expr = _expr_str("orientation")
         assert "orientation_degrees(data" in expr
@@ -351,9 +351,6 @@ class TestSensorExpressions:
     def test_orientation_expression_custom_threshold(self):
         """The configured flat_threshold (degrees) is converted to a sine and passed
         to the helper."""
-        import math
-
-        from esphome.components.motion.sensor import CONF_FLAT_THRESHOLD
 
         expr = str(
             build_sensor_expr(
@@ -410,7 +407,6 @@ def _calibrate_level(
 
     Composes the correction with *matrix* (defaults to identity).
     """
-    import math
 
     if matrix is None:
         matrix = list(IDENTITY)
@@ -448,7 +444,6 @@ def _calibrate_level(
 
 def _calibrate_heading(matrix: list[float], raw: list[float]) -> list[float]:
     """Python port of MotionComponent::calibrate_heading."""
-    import math
 
     mapped = _mat_vec(matrix, raw)
     mx, my = mapped[0], mapped[1]
@@ -476,7 +471,6 @@ class TestCalibrateLevel:
 
     def _assert_maps_to_z(self, raw: list[float]) -> list[float]:
         """Assert that the calibration matrix maps raw to [0, 0, 1]."""
-        import math
 
         m = _calibrate_level(raw)
         mag = math.sqrt(sum(v * v for v in raw))
@@ -499,7 +493,6 @@ class TestCalibrateLevel:
 
     def test_composes_with_existing_matrix(self):
         """Level calibration should correct tilt while preserving an existing axis swap."""
-        import math
 
         swap = [0, 1, 0, 1, 0, 0, 0, 0, 1]  # swap X↔Y
         # Tilted raw: gravity has X component in raw frame
@@ -533,7 +526,6 @@ class TestCalibrateLevel:
         self._assert_maps_to_z([0, 1.0, 0])
 
     def test_tilted_45_degrees(self):
-        import math
 
         self._assert_maps_to_z(
             [math.sin(math.radians(45)), 0, math.cos(math.radians(45))]
@@ -572,7 +564,6 @@ class TestCalibrateHeading:
 
     def test_y_axis_tilt_no_heading_error(self):
         """Device tilted purely around Y — heading should already be correct."""
-        import math
 
         flat_raw = [0, 0, 1.0]
         level_m = _calibrate_level(flat_raw)
@@ -585,7 +576,6 @@ class TestCalibrateHeading:
 
     def test_corrects_heading_rotation(self):
         """After level+heading calibration, mapped Y should be ~0 when tilted."""
-        import math
 
         # Simulate a sensor whose chip is rotated 30° around Z relative to enclosure
         angle = math.radians(30)
@@ -611,7 +601,6 @@ class TestCalibrateHeading:
 
     def test_full_calibration_sequence(self):
         """End-to-end: level then heading produces correct frame alignment."""
-        import math
 
         # Chip is mounted tilted 15° around Y and 25° around Z
         # Build the chip-to-enclosure rotation: Rz(25°) * Ry(15°)
