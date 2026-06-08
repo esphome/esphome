@@ -361,11 +361,31 @@ inline void lottie_load_task(void *param) {
 // --------------------------------------------------------------------------
 // Free all PSRAM/internal-RAM resources for one Lottie widget.
 // --------------------------------------------------------------------------
-inline void lottie_free_resources(LottieContext *ctx) {
+inline bool lottie_stop_task(LottieContext *ctx) {
+  if (ctx == nullptr || ctx->task_handle == nullptr) {
+    return true;
+  }
   ctx->stop_requested = true;
-  if (ctx->task_handle) {
-    vTaskDelete(ctx->task_handle);
-    ctx->task_handle = nullptr;
+  TaskHandle_t task = ctx->task_handle;
+  if (task == xTaskGetCurrentTaskHandle()) {
+    return false;
+  }
+  for (uint32_t waited_ms = 0; waited_ms < 250; waited_ms += 5) {
+    eTaskState state = eTaskGetState(task);
+    if (state == eSuspended || state == eDeleted) {
+      vTaskDelete(task);
+      ctx->task_handle = nullptr;
+      return true;
+    }
+    vTaskDelay(pdMS_TO_TICKS(5));
+  }
+  LV_LOG_WARN("Lottie task did not stop in time; keeping resources allocated");
+  return false;
+}
+
+inline void lottie_free_resources(LottieContext *ctx) {
+  if (!lottie_stop_task(ctx)) {
+    return;
   }
   if (ctx->task_stack) {
     heap_caps_free(ctx->task_stack);
@@ -463,12 +483,10 @@ inline void lottie_screen_unload_start_cb(lv_event_t *e) {
   // show/hide from user scripts (e.g. weather widget selection).
   ctx->runtime_hidden = lv_obj_has_flag(ctx->obj, LV_OBJ_FLAG_HIDDEN);
 
-  // Stop the render task immediately
+  // Ask the render task to stop, but do not delete it from inside the LVGL
+  // unload-start callback.  The task can be holding lv_lock() while rendering;
+  // deleting it at that moment leaves LVGL locked and trips the watchdog.
   ctx->stop_requested = true;
-  if (ctx->task_handle) {
-    vTaskDelete(ctx->task_handle);
-    ctx->task_handle = nullptr;
-  }
 
   // Hide widget so LVGL won't try to draw the image during transition
   lv_obj_add_flag(ctx->obj, LV_OBJ_FLAG_HIDDEN);
