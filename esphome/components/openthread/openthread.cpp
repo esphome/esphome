@@ -196,6 +196,8 @@ void OpenThreadSrpComponent::setup() {
       txt_entries[i].mValue = reinterpret_cast<const uint8_t *>(strdup(value_str));
       txt_entries[i].mValueLength = strlen(value_str);
 #else
+      # strdup is not available on zephyr
+      # https://github.com/zephyrproject-rtos/zephyr/issues/22464
       size_t value_len = strlen(value_str);
       char *value_copy = reinterpret_cast<char *>(this->pool_alloc_(value_len + 1));
       memcpy(value_copy, value_str, value_len + 1);
