@@ -8,6 +8,7 @@ sidebar:
 import APIClass from '@components/APIClass.astro';
 import APIStruct from '@components/APIStruct.astro';
 import APIRef from '@components/APIRef.astro';
+import LightEffectPreview from '@components/LightEffectPreview.astro';
 
 In ESPHome, `light` components allow you to create lights usable from Home Assistant's frontend and have many
 features such as colors, transitions and even effects.
@@ -497,6 +498,44 @@ light:
 > [!NOTE]
 > After setting a light effect, it is possible to reset the in-use effect back to a static light by setting the
 > `effect` to `none` when it is being called through Home Assistant or directly on the device.
+
+### Basic Animations
+
+These effects work on any light platform.
+
+| Preview | Effect | Description | Parameters |
+| --- | --- | --- | --- |
+| <LightEffectPreview type="pulse" label="Animated preview of the Pulse effect" /> | [Pulse](#pulse-effect) | Smooth brightness pulse | `name`, `transition_length`, `update_interval`, `min_brightness`, `max_brightness` |
+| <LightEffectPreview type="random" label="Animated preview of the Random effect" /> | [Random](#random-effect) | Random colors at fixed intervals | `name`, `transition_length`, `update_interval` |
+| <LightEffectPreview type="strobe" label="Animated preview of the Strobe effect" /> | [Strobe](#strobe-effect) | Cycle through a list of colors with set durations | `name`, `colors` |
+| <LightEffectPreview type="flicker" label="Animated preview of the Flicker effect" /> | [Flicker](#flicker-effect) | Candle-like brightness variation | `name`, `alpha`, `intensity` |
+| <LightEffectPreview type="lambda" label="Lambda effect runs user code; no canonical visual" /> | [Lambda](#lambda-effect) | Run custom C++ on each update | `name`, `update_interval`, `lambda` |
+
+### Strip Animations
+
+These effects require an addressable light (LED strip).
+
+| Preview | Effect | Description | Parameters |
+| --- | --- | --- | --- |
+| <LightEffectPreview type="rainbow" label="Animated preview of the Addressable Rainbow effect" /> | [Addressable Rainbow](#addressable-rainbow-effect) | Hue sweeps the length of the strip | `name`, `speed`, `width` |
+| <LightEffectPreview type="color-wipe" label="Animated preview of the Addressable Color Wipe effect" /> | [Addressable Color Wipe](#addressable-color-wipe-effect) | New colors shift in at the start of the strip | `name`, `colors`, `add_led_interval`, `reverse` |
+| <LightEffectPreview type="scan" label="Animated preview of the Addressable Scan effect" /> | [Addressable Scan](#addressable-scan-effect) | Single dot slides back and forth across the strip | `name`, `move_interval`, `scan_width` |
+| <LightEffectPreview type="twinkle" label="Animated preview of the Addressable Twinkle effect" /> | [Addressable Twinkle](#addressable-twinkle-effect) | Random pixels brighten and fade | `name`, `twinkle_probability`, `progress_interval` |
+| <LightEffectPreview type="random-twinkle" label="Animated preview of the Addressable Random Twinkle effect" /> | [Addressable Random Twinkle](#addressable-random-twinkle-effect) | Twinkle, but each pixel gets a random color | `name`, `twinkle_probability`, `progress_interval` |
+| <LightEffectPreview type="fireworks" label="Animated preview of the Addressable Fireworks effect" /> | [Addressable Fireworks](#addressable-fireworks-effect) | Sparks burst from random pixels | `name`, `update_interval`, `spark_probability`, `use_random_color`, `fade_out_rate` |
+| <LightEffectPreview type="addr-flicker" label="Animated preview of the Addressable Flicker effect" /> | [Addressable Flicker](#addressable-flicker-effect) | Per-pixel candle flicker | `name`, `update_interval`, `intensity` |
+| <LightEffectPreview type="addr-lambda" label="Addressable Lambda effect runs user code; no canonical visual" /> | [Addressable Lambda](#addressable-lambda-effect) | Run custom C++ per LED | `name`, `update_interval`, `lambda` |
+
+### External Control
+
+These effects receive frames from an external source instead of generating animation locally.
+
+| Effect | Description | Parameters |
+| --- | --- | --- |
+| [Automation](#automation-light-effect) | Run ESPHome automation actions on a loop | `name`, `sequence` |
+| [E1.31](#e131-effect) | Receive sACN / E1.31 frames over the network | `universe`, `channels` |
+| [Adalight](#adalight-effect) | Receive Adalight protocol over UART | `uart_id` |
+| [WLED](#wled-effect) | Receive WLED UDP sync protocol | `port`, `blank_on_start`, `sync_group_mask` |
 
 ### Pulse Effect
 
