@@ -52,3 +52,13 @@ usb_uart:
         stop_bits: 2
         data_bits: 7
         parity: even
+  - id: uart_7
+    type: ft2232
+    channels:
+      - id: channel_7_1
+        baud_rate: 115200
+      - id: channel_7_2
+        baud_rate: 9600
+        stop_bits: 2
+        data_bits: 7
+        parity: odd
