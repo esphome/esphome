@@ -360,3 +360,80 @@ def test_check_esp_idf_install_feature_failure(espidf_mocks: SimpleNamespace) ->
     espidf_mocks.run_ok.side_effect = [True, True, False]
     with pytest.raises(RuntimeError, match="Python dependencies for"):
         check_esp_idf_install(_IDF_VERSION, force=True, features=["fb"])
+
+
+def _mark_installed() -> None:
+    """Create the extracted marker and python-env interpreter so the install
+    check takes the already-installed path rather than force-installing."""
+    (_get_framework_path(_IDF_VERSION) / ".esphome_extracted").touch()
+    env_python = get_python_env_executable_path(
+        _get_python_env_path(_IDF_VERSION), "python"
+    )
+    env_python.parent.mkdir(parents=True, exist_ok=True)
+    env_python.touch()
+
+
+def test_check_esp_idf_install_stamp_mismatch_reinstalls(
+    espidf_mocks: SimpleNamespace,
+) -> None:
+    """A stamp mismatch reinstalls tools (marker present, so no re-extract)."""
+    _mark_installed()
+    with patch("esphome.espidf.framework._check_stamp", return_value=False):
+        check_esp_idf_install(_IDF_VERSION)
+
+    espidf_mocks.extract.assert_not_called()  # marker present -> no re-extract
+    espidf_mocks.venv.assert_called_once()  # tools reinstall -> venv rebuilt
+
+
+def test_check_esp_idf_install_check_command_failure_reinstalls(
+    espidf_mocks: SimpleNamespace,
+) -> None:
+    """A failing idf_tools check reinstalls tools (marker present, no re-extract)."""
+    _mark_installed()
+    # idf_tools check fails -> install stays True; the later installs succeed.
+    espidf_mocks.run_ok.side_effect = [False, True, True, True]
+    check_esp_idf_install(_IDF_VERSION, features=["fb"])
+
+    espidf_mocks.extract.assert_not_called()
+    espidf_mocks.venv.assert_called_once()
+
+
+def test_check_esp_idf_install_unknown_python_version_reinstalls(
+    espidf_mocks: SimpleNamespace,
+) -> None:
+    """An undeterminable python version rebuilds the venv (framework stamp still ok)."""
+    _mark_installed()
+    with patch("esphome.espidf.framework._get_python_version", return_value=None):
+        check_esp_idf_install(_IDF_VERSION)
+
+    espidf_mocks.extract.assert_not_called()  # framework stamp matched
+    espidf_mocks.venv.assert_called_once()  # python env rebuilt
+
+
+def test_check_esp_idf_install_python_stamp_mismatch_rebuilds_venv(
+    espidf_mocks: SimpleNamespace,
+) -> None:
+    """Framework stamp matches but the python-env stamp does not -> venv rebuilt."""
+
+    # _check_stamp passes for the framework (no python_version key) and fails
+    # for the python env (carries python_version), so only the venv rebuilds.
+    def stamp_ok(_stamp_file, info: dict) -> bool:
+        return "python_version" not in info
+
+    _mark_installed()
+    with patch("esphome.espidf.framework._check_stamp", side_effect=stamp_ok):
+        check_esp_idf_install(_IDF_VERSION)
+
+    espidf_mocks.extract.assert_not_called()
+    espidf_mocks.venv.assert_called_once()
+
+
+def test_check_esp_idf_install_unparseable_version(
+    espidf_mocks: SimpleNamespace,
+) -> None:
+    """A non-semver version skips the MAJOR/MINOR substitutions without erroring."""
+    bad_version = "main"
+    _get_framework_path(bad_version).mkdir(parents=True, exist_ok=True)
+    check_esp_idf_install(bad_version, force=True)
+
+    espidf_mocks.extract.assert_called_once()
