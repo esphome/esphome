@@ -29,7 +29,7 @@ template<typename... Ts> class VaneControlAction : public Action<Ts...> {
   VaneControlAction(MitsubishiCN105Climate *parent, ApplyFn apply) : parent_(parent), apply_(apply) {}
 
   void play(const Ts &...x) override {
-    VaneCall call(this->parent_);
+    auto call = this->parent_->make_vane_call();
     this->apply_(call, x...);
     call.perform();
   }

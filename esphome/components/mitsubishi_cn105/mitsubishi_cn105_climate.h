@@ -55,6 +55,11 @@ struct VaneCall {
 
   explicit VaneCall(MitsubishiCN105Climate *parent) : parent_(parent) {}
 
+  VaneCall &set_vertical_direction(VerticalVaneMode direction) {
+    this->vertical.set_direction(direction);
+    return *this;
+  }
+
   Vertical vertical;
 
   void perform();
@@ -87,6 +92,7 @@ class MitsubishiCN105Climate : public climate::Climate, public Component, public
   }
 
   void set_vertical_vane_direction(VerticalVaneMode vane_mode);
+  VaneCall make_vane_call() { return VaneCall(this); }
 
   template<typename F> void add_on_vane_state_callback(F &&callback) {
     this->vane_state_callback_.add(std::forward<F>(callback));

@@ -184,12 +184,12 @@ TEST(MitsubishiCN105ClimateTests, ApplyValuesCallsVaneStateCallbackWithPayload) 
 
 TEST(MitsubishiCN105ClimateTests, VaneCallAppliesVerticalDirection) {
   TestableMitsubishiCN105Climate sut;
-  VaneCall call(&sut);
 
   EXPECT_EQ(sut.status().vane_mode, MitsubishiCN105::VaneMode::UNKNOWN);
   EXPECT_FALSE(sut.is_vane_update_pending());
 
-  call.vertical.set_direction(VERTICAL_VANE_MODE_POSITION_5);
+  auto call = sut.make_vane_call();
+  call.set_vertical_direction(VERTICAL_VANE_MODE_POSITION_5);
   call.perform();
 
   EXPECT_EQ(sut.status().vane_mode, MitsubishiCN105::VaneMode::POSITION_5);
