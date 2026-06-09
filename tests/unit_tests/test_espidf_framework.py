@@ -5,6 +5,7 @@
 import io
 from pathlib import Path
 import tarfile
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -264,37 +265,97 @@ class TestTarExtractHardLinkPrefixStripping:
         assert extracted == {"target.txt", "link_good"}
 
 
-def test_check_esp_idf_install_fresh(setup_core: Path) -> None:
-    """A forced install drives the download/extract, venv, and pip-install path."""
-    version = "5.1.2"
+_IDF_VERSION = "5.1.2"
+
+
+@pytest.fixture
+def espidf_mocks(setup_core: Path):
+    """Patch the heavy I/O of check_esp_idf_install and pre-create the framework dir."""
     # archive_extract_all is mocked, so pre-create the framework dir that the
     # extracted-marker touch writes into.
-    _get_framework_path(version).mkdir(parents=True, exist_ok=True)
-
+    _get_framework_path(_IDF_VERSION).mkdir(parents=True, exist_ok=True)
     with (
         patch("esphome.espidf.framework.rmdir"),
         patch(
             "esphome.espidf.framework.download_from_mirrors",
             return_value="https://example.com/idf.tar.xz",
-        ) as mock_download,
-        patch("esphome.espidf.framework.archive_extract_all") as mock_extract,
-        patch("esphome.espidf.framework.create_venv") as mock_venv,
-        patch(
-            "esphome.espidf.framework.run_command_ok", return_value=True
-        ) as mock_run_ok,
+        ) as download,
+        patch("esphome.espidf.framework.archive_extract_all") as extract,
+        patch("esphome.espidf.framework.create_venv") as venv,
+        patch("esphome.espidf.framework.run_command_ok", return_value=True) as run_ok,
+        patch("esphome.espidf.framework._clone_idf_with_submodules") as clone,
         patch("esphome.espidf.framework._write_idf_version_txt"),
         patch("esphome.espidf.framework._patch_tools_json_for_linux_arm64"),
         patch("esphome.espidf.framework._write_stamp"),
-        patch("esphome.espidf.framework._get_idf_version", return_value=version),
+        patch("esphome.espidf.framework._check_stamp", return_value=True),
+        patch("esphome.espidf.framework._get_idf_version", return_value=_IDF_VERSION),
         patch("esphome.espidf.framework._get_python_version", return_value="3.11.0"),
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
     ):
-        framework_path, python_env_path = check_esp_idf_install(version, force=True)
+        yield SimpleNamespace(
+            download=download, extract=extract, venv=venv, run_ok=run_ok, clone=clone
+        )
 
-    assert framework_path == _get_framework_path(version)
-    assert python_env_path == _get_python_env_path(version)
+
+def test_check_esp_idf_install_fresh(espidf_mocks: SimpleNamespace) -> None:
+    """A forced install drives download/extract, venv creation, and pip installs."""
+    framework_path, python_env_path = check_esp_idf_install(_IDF_VERSION, force=True)
+
+    assert framework_path == _get_framework_path(_IDF_VERSION)
+    assert python_env_path == _get_python_env_path(_IDF_VERSION)
     # framework tarball + python-env constraints file are both downloaded
-    assert mock_download.call_count == 2
-    mock_extract.assert_called_once()
-    mock_venv.assert_called_once()
-    assert mock_run_ok.called
+    assert espidf_mocks.download.call_count == 2
+    espidf_mocks.extract.assert_called_once()
+    espidf_mocks.venv.assert_called_once()
+    espidf_mocks.clone.assert_not_called()
+
+
+def test_check_esp_idf_install_git_source(espidf_mocks: SimpleNamespace) -> None:
+    """A git source_url clones instead of downloading; explicit tools skip discovery."""
+    check_esp_idf_install(
+        _IDF_VERSION,
+        force=True,
+        source_url="https://github.com/espressif/esp-idf.git",
+        tools=["xtensa-esp-elf"],
+    )
+
+    espidf_mocks.clone.assert_called_once()
+    # framework is cloned, so only the python-env constraints file is downloaded
+    assert espidf_mocks.download.call_count == 1
+
+
+def test_check_esp_idf_install_already_installed(espidf_mocks: SimpleNamespace) -> None:
+    """Marker + matching stamps + existing python env → nothing is re-installed."""
+    framework_path = _get_framework_path(_IDF_VERSION)
+    (framework_path / ".esphome_extracted").touch()
+    python_env_path = _get_python_env_path(_IDF_VERSION)
+    (python_env_path / "bin").mkdir(parents=True, exist_ok=True)
+    (python_env_path / "bin" / "python").touch()
+
+    check_esp_idf_install(_IDF_VERSION)
+
+    espidf_mocks.extract.assert_not_called()
+    espidf_mocks.venv.assert_not_called()
+
+
+def test_check_esp_idf_install_framework_failure(espidf_mocks: SimpleNamespace) -> None:
+    """A failing idf_tools install raises."""
+    espidf_mocks.run_ok.side_effect = [False]
+    with pytest.raises(RuntimeError, match="framework installation failure"):
+        check_esp_idf_install(_IDF_VERSION, force=True)
+
+
+def test_check_esp_idf_install_pip_upgrade_failure(
+    espidf_mocks: SimpleNamespace,
+) -> None:
+    """A failing pip upgrade in the python env raises (framework install ok)."""
+    espidf_mocks.run_ok.side_effect = [True, False]
+    with pytest.raises(RuntimeError, match="Python environment packages failure"):
+        check_esp_idf_install(_IDF_VERSION, force=True)
+
+
+def test_check_esp_idf_install_feature_failure(espidf_mocks: SimpleNamespace) -> None:
+    """A failing feature requirements install raises."""
+    espidf_mocks.run_ok.side_effect = [True, True, False]
+    with pytest.raises(RuntimeError, match="Python dependencies for"):
+        check_esp_idf_install(_IDF_VERSION, force=True, features=["fb"])
