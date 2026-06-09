@@ -41,6 +41,15 @@ static const char *const TAG = "usb_host";
 // Forward declarations
 struct TransferRequest;
 class USBClient;
+class USBClassRouter;
+
+class USBClassDriver {
+ public:
+  virtual bool claim_interface(const usb_intf_desc_t *intf_desc, const usb_device_desc_t *dev_desc) = 0;
+  virtual void on_interface_claimed(uint8_t addr, uint8_t interface_num) = 0;
+  virtual void on_device_disconnected(uint8_t addr) = 0;
+  virtual ~USBClassDriver() = default;
+};
 
 // constants for setup packet type
 static constexpr uint8_t USB_RECIP_DEVICE = 0;
@@ -191,6 +200,29 @@ class USBHost : public Component {
 
  protected:
   std::vector<USBClient *> clients_{};
+};
+
+// Wildcard USBClient that opens every new device, walks its interface descriptors,
+// and dispatches to registered USBClassDriver instances. Each driver claims at most
+// one interface per device. After probing, the router closes its own handle so the
+// driver can open the device independently via its own client handle (e.g. MSC host).
+class USBClassRouter : public USBClient {
+ public:
+  USBClassRouter() : USBClient(0, 0) {}
+
+  void register_driver(USBClassDriver *driver) { this->drivers_.push_back(driver); }
+
+ protected:
+  void on_connected() override;
+  void on_removed(usb_device_handle_t handle) override;
+
+  std::vector<USBClassDriver *> drivers_{};
+  struct ClaimedIface {
+    uint8_t addr;
+    usb_device_handle_t handle;
+    USBClassDriver *driver;
+  };
+  std::vector<ClaimedIface> claimed_{};
 };
 
 }  // namespace esphome::usb_host
