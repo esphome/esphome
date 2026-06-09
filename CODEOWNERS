@@ -401,6 +401,7 @@ esphome/components/psram/* @esphome/core
 esphome/components/pulse_meter/* @cstaahl @stevebaxter @TrentHouliston
 esphome/components/pvvx_mithermometer/* @pasiz
 esphome/components/pylontech/* @functionpointer
+esphome/components/qmi8658/* @clydebarrow
 esphome/components/qmp6988/* @andrewpc
 esphome/components/qr_code/* @wjtje
 esphome/components/qspi_dbi/* @clydebarrow
