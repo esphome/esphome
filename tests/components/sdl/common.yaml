@@ -3,7 +3,7 @@ host:
 
 display:
   - platform: sdl
-    id: sdl_display
+    id: sdl_sdl_display
     update_interval: 1s
     auto_clear_enabled: false
     show_test_card: true
@@ -35,14 +35,14 @@ display:
 
 binary_sensor:
   - platform: sdl
-    sdl_id: sdl_display
+    sdl_id: sdl_sdl_display
     id: key_up
     key: SDLK_UP
   - platform: sdl
-    sdl_id: sdl_display
+    sdl_id: sdl_sdl_display
     id: key_down
     key: SDLK_DOWN
   - platform: sdl
-    sdl_id: sdl_display
+    sdl_id: sdl_sdl_display
     id: key_enter
     key: SDLK_RETURN

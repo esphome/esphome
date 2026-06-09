@@ -5,7 +5,11 @@ from esphome import core, pins
 import esphome.codegen as cg
 from esphome.components import display, spi
 from esphome.components.display import CONF_SHOW_TEST_CARD, validate_rotation
-from esphome.components.mipi import flatten_sequence, map_sequence
+from esphome.components.mipi import (
+    flatten_sequence,
+    map_sequence,
+    model_schema_extractor,
+)
 import esphome.config_validation as cv
 from esphome.config_validation import update_interval
 from esphome.const import (
@@ -111,6 +115,7 @@ def model_schema(config):
     )
 
 
+@model_schema_extractor(MODELS, model_schema)
 def customise_schema(config):
     """
     Create a customised config schema for a specific model and validate the configuration.
