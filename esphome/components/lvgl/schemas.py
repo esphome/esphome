@@ -22,7 +22,11 @@ from esphome.const import (
 )
 from esphome.core import TimePeriod
 from esphome.core.config import StartupTrigger
-from esphome.schema_extractors import EnableSchemaExtraction
+from esphome.schema_extractors import (
+    SCHEMA_EXTRACT,
+    EnableSchemaExtraction,
+    schema_extractor,
+)
 
 from . import defines as df, lv_validation as lvalid
 from .defines import (
@@ -692,7 +696,23 @@ def any_widget_schema(extras=None):
     :return: A validator for the Widgets key
     """
 
+    @schema_extractor("schema")
     def validator(value):
+        if value is SCHEMA_EXTRACT:
+            # The widgets: list is built per-value at validation time, so the
+            # language-schema dumper sees nothing. Enumerate every registered
+            # widget type as an optional key (a widget item is really a
+            # single-key mapping; over-listing them lets editors complete any
+            # widget — `esphome config` enforces exactly one). extras carries the
+            # layout child options where applicable.
+            return cv.ensure_list(
+                cv.Schema(
+                    {
+                        cv.Optional(name): container_schema_value(widget_type, extras)
+                        for name, widget_type in WIDGET_TYPES.items()
+                    }
+                )
+            )
         if isinstance(value, dict):
             # Convert to list
             is_dict = True

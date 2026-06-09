@@ -665,9 +665,13 @@ def lvgl_config_schema(config):
         # CONFIG_SCHEMA is this callable wrapping `cv.All` over a container_schema
         # closure, so the language-schema dumper can't see the top-level `lvgl:`
         # fields (it would emit an empty schema). Hand it the same composed
-        # obj + top-level schema the runtime validates against; validation of
-        # real configs (the branches below) is unchanged.
-        return container_schema_value(obj_spec, LVGL_TOP_LEVEL_SCHEMA)
+        # obj + top-level schema the runtime validates against, plus the
+        # `widgets:` key (added per-value by append_layout_schema at runtime, so
+        # otherwise invisible to the dumper). Validation of real configs (the
+        # branches below) is unchanged.
+        return container_schema_value(obj_spec, LVGL_TOP_LEVEL_SCHEMA).extend(
+            {cv.Optional(df.CONF_WIDGETS): any_widget_schema()}
+        )
     if not config or isinstance(config, dict):
         return [LVGL_SCHEMA(config)]
     return cv.Schema([LVGL_SCHEMA])(config)
