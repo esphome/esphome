@@ -27,7 +27,7 @@ void CST9220Touchscreen::continue_setup_() {
   }
 
   // Enter command mode so the configuration registers can be read.
-  if (this->write_register16(REG_CMD_MODE, nullptr, 0) != i2c::ERROR_OK) {
+  if (this->write_register16(REG_CMD_MODE, buffer, 0) != i2c::ERROR_OK) {
     this->status_set_error(LOG_STR("Failed to enter command mode"));
     this->mark_failed();
     return;
@@ -81,6 +81,8 @@ void CST9220Touchscreen::continue_setup_() {
 }
 
 void CST9220Touchscreen::update_touches() {
+  if (!this->setup_complete_)
+    return;
   uint8_t data[CST9220_DATA_LENGTH];
   // Only an actual I2C failure should skip the update; a successful read with no
   // touches is a real "all fingers lifted" state that must flow through so the
