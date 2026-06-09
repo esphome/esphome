@@ -894,6 +894,13 @@ class TestEsphomeCore:
             "foo/build/.pioenvs/test-device/bootloader.bin"
         )
 
+    def test_using_toolchain_sdk_nrf(self, target):
+        """using_toolchain_sdk_nrf is True only for the SDK_NRF toolchain."""
+        target.toolchain = const.Toolchain.SDK_NRF
+        assert target.using_toolchain_sdk_nrf is True
+        target.toolchain = const.Toolchain.ESP_IDF
+        assert target.using_toolchain_sdk_nrf is False
+
     def test_add_library__extracts_short_name_from_path(self, target):
         """Test add_library extracts short name from library paths like owner/lib."""
         target.data[const.KEY_CORE] = {
