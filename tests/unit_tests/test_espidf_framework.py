@@ -12,12 +12,20 @@ from unittest.mock import patch
 import pytest
 
 from esphome.espidf.framework import (
+    _check_stamp,
     _clone_idf_with_submodules,
     _get_framework_path,
+    _get_idf_tool_paths,
+    _get_idf_tools_path,
+    _get_idf_version,
     _get_python_env_path,
+    _get_python_version,
     _parse_git_source,
     _patch_tools_json_for_linux_arm64,
+    _write_idf_version_txt,
+    _write_stamp,
     check_esp_idf_install,
+    get_framework_env,
 )
 from esphome.framework_helpers import _tar_extract_all, get_python_env_executable_path
 
@@ -511,3 +519,166 @@ def test_patch_tools_json_already_patched_is_noop(tmp_path: Path) -> None:
     with patch("esphome.espidf.framework.platform.machine", return_value="aarch64"):
         _patch_tools_json_for_linux_arm64(tmp_path)
     assert tools_json.read_text(encoding="utf-8") == before
+
+
+# ---------------------------------------------------------------------------
+# Subprocess-backed helpers (_exec -> run_command rename) and get_framework_env
+# ---------------------------------------------------------------------------
+
+
+def test_get_idf_version_parses_stdout(tmp_path: Path) -> None:
+    with patch(
+        "esphome.espidf.framework.run_command", return_value=(True, "5.1.2\n", "")
+    ):
+        assert _get_idf_version(tmp_path) == "5.1.2"
+
+
+def test_get_idf_version_raises_on_failure(tmp_path: Path) -> None:
+    with (
+        patch("esphome.espidf.framework.run_command", return_value=(False, "", "boom")),
+        pytest.raises(RuntimeError, match="Can't get ESP-IDF version"),
+    ):
+        _get_idf_version(tmp_path)
+
+
+def test_get_idf_tool_paths_parses_json(tmp_path: Path) -> None:
+    payload = json.dumps({"paths_to_export": ["/a", "/b"], "export_vars": {"X": "1"}})
+    with patch(
+        "esphome.espidf.framework.run_command", return_value=(True, payload, "")
+    ):
+        paths, export_vars = _get_idf_tool_paths(tmp_path)
+    assert paths == ["/a", "/b"]
+    assert export_vars == {"X": "1"}
+
+
+def test_get_idf_tool_paths_raises_on_bad_json(tmp_path: Path) -> None:
+    with (
+        patch(
+            "esphome.espidf.framework.run_command", return_value=(True, "not json", "")
+        ),
+        pytest.raises(RuntimeError, match="Can't extract ESP-IDF tool paths"),
+    ):
+        _get_idf_tool_paths(tmp_path)
+
+
+def test_get_idf_tool_paths_raises_on_failure(tmp_path: Path) -> None:
+    with (
+        patch("esphome.espidf.framework.run_command", return_value=(False, "", "err")),
+        pytest.raises(RuntimeError, match="Can't get ESP-IDF tool paths"),
+    ):
+        _get_idf_tool_paths(tmp_path)
+
+
+def test_get_python_version_parses_stdout(tmp_path: Path) -> None:
+    with patch(
+        "esphome.espidf.framework.run_command", return_value=(True, "3.11.0\n", "")
+    ):
+        assert _get_python_version(tmp_path / "python") == "3.11.0"
+
+
+def test_get_python_version_returns_falsy_on_failure(tmp_path: Path) -> None:
+    with patch("esphome.espidf.framework.run_command", return_value=(False, "", "")):
+        # non-throwing failure returns the (empty) stdout as-is
+        assert not _get_python_version(tmp_path / "python")
+
+
+def test_get_python_version_raises_when_requested(tmp_path: Path) -> None:
+    with (
+        patch("esphome.espidf.framework.run_command", return_value=(False, "", "")),
+        pytest.raises(RuntimeError, match="Can't get Python version"),
+    ):
+        _get_python_version(tmp_path / "python", throw_exception=True)
+
+
+def test_write_stamp_writes_json(tmp_path: Path) -> None:
+    stamp = tmp_path / "stamp.json"
+    _write_stamp(stamp, {"a": "1", "b": "2"})
+    assert json.loads(stamp.read_text(encoding="utf-8")) == {"a": "1", "b": "2"}
+
+
+def test_get_framework_env_with_python_env(tmp_path: Path) -> None:
+    with (
+        patch(
+            "esphome.espidf.framework._get_idf_tools_path",
+            return_value=tmp_path / "tools",
+        ),
+        patch("esphome.espidf.framework._get_idf_version", return_value="5.1.2"),
+        patch(
+            "esphome.espidf.framework._get_idf_tool_paths",
+            return_value=(["/tool/bin"], {"IDF_X": "1"}),
+        ),
+    ):
+        env = get_framework_env(
+            tmp_path / "fw", tmp_path / "penv", {"PATH": "/usr/bin"}
+        )
+
+    assert env["IDF_PATH"] == str(tmp_path / "fw")
+    assert env["ESP_IDF_VERSION"] == "5.1.2"
+    assert env["IDF_X"] == "1"
+    assert env["IDF_PYTHON_ENV_PATH"] == str(tmp_path / "penv")
+    assert "/tool/bin" in env["PATH"]
+
+
+def test_get_framework_env_without_python_env_uses_os_path(tmp_path: Path) -> None:
+    with (
+        patch(
+            "esphome.espidf.framework._get_idf_tools_path",
+            return_value=tmp_path / "tools",
+        ),
+        patch("esphome.espidf.framework._get_idf_version", return_value="5.1.2"),
+        patch("esphome.espidf.framework._get_idf_tool_paths", return_value=([], {})),
+    ):
+        env = get_framework_env(tmp_path / "fw")
+
+    assert "IDF_PYTHON_ENV_PATH" not in env
+    assert env["PATH"]  # taken from os.environ
+
+
+# ---------------------------------------------------------------------------
+# _check_stamp / _write_idf_version_txt / _get_idf_tools_path
+# ---------------------------------------------------------------------------
+
+
+def test_check_stamp_matches(tmp_path: Path) -> None:
+    f = tmp_path / "s.json"
+    f.write_text(json.dumps({"a": "1"}), encoding="utf-8")
+    assert _check_stamp(f, {"a": "1"}) is True
+
+
+def test_check_stamp_mismatch(tmp_path: Path) -> None:
+    f = tmp_path / "s.json"
+    f.write_text(json.dumps({"a": "1"}), encoding="utf-8")
+    assert _check_stamp(f, {"a": "2"}) is False
+
+
+def test_check_stamp_missing_file(tmp_path: Path) -> None:
+    assert _check_stamp(tmp_path / "nope.json", {"a": "1"}) is False
+
+
+def test_check_stamp_corrupt_file(tmp_path: Path) -> None:
+    f = tmp_path / "s.json"
+    f.write_text("{ not json", encoding="utf-8")
+    assert _check_stamp(f, {"a": "1"}) is False
+
+
+def test_write_idf_version_txt_writes_when_missing(tmp_path: Path) -> None:
+    _write_idf_version_txt(tmp_path, "5.1.2")
+    assert (tmp_path / "version.txt").read_text(encoding="utf-8") == "v5.1.2\n"
+
+
+def test_write_idf_version_txt_skips_when_present(tmp_path: Path) -> None:
+    (tmp_path / "version.txt").write_text("existing\n", encoding="utf-8")
+    _write_idf_version_txt(tmp_path, "5.1.2")
+    assert (tmp_path / "version.txt").read_text(encoding="utf-8") == "existing\n"
+
+
+def test_get_idf_tools_path_env_override(tmp_path: Path) -> None:
+    override = str(tmp_path / "custom-idf")
+    with patch.dict("os.environ", {"ESPHOME_ESP_IDF_PREFIX": override}):
+        assert _get_idf_tools_path() == Path(override)
+
+
+def test_write_idf_version_txt_warns_on_write_error(tmp_path: Path) -> None:
+    with patch("pathlib.Path.write_text", side_effect=OSError("denied")):
+        # write failure is caught and warned, not raised
+        _write_idf_version_txt(tmp_path, "5.1.2")
