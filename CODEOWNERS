@@ -138,7 +138,7 @@ esphome/components/dfplayer/* @glmnet
 esphome/components/dfrobot_sen0395/* @niklasweber
 esphome/components/dht/* @OttoWinter
 esphome/components/display_menu_base/* @numo68
-esphome/components/dlms_meter/* @SimonFischer04
+esphome/components/dlms_meter/* @latonita @PolarGoose @SimonFischer04 @Tomer27cz
 esphome/components/dps310/* @kbx81
 esphome/components/ds1307/* @badbadc0ffee
 esphome/components/ds2484/* @mrk-its
@@ -379,6 +379,7 @@ esphome/components/pca6416a/* @Mat931
 esphome/components/pca9554/* @bdraco @clydebarrow @hwstar
 esphome/components/pcf85063/* @brogon
 esphome/components/pcf8563/* @KoenBreeman
+esphome/components/pcm5122/* @remcom
 esphome/components/pi4ioe5v6408/* @jesserockz
 esphome/components/pid/* @OttoWinter
 esphome/components/pipsolar/* @andreashergert1984

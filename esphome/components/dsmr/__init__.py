@@ -87,7 +87,7 @@ async def to_code(config):
     cg.add_build_flag("-DDSMR_WATER_MBUS_ID=" + str(config[CONF_WATER_MBUS_ID]))
     cg.add_build_flag("-DDSMR_THERMAL_MBUS_ID=" + str(config[CONF_THERMAL_MBUS_ID]))
 
-    cg.add_library("esphome/dsmr_parser", "1.8.0")
+    cg.add_library("esphome/dsmr_parser", "1.9.0")
 
 
 def final_validate(config: ConfigType) -> ConfigType:
