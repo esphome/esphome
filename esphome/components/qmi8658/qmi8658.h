@@ -8,32 +8,33 @@
 namespace esphome::qmi8658 {
 
 //  Register map
-static const uint8_t QMI8658_REG_WHO_AM_I = 0x00;
-static const uint8_t QMI8658_REG_REVISION = 0x01;
-static const uint8_t QMI8658_REG_CTRL1 = 0x02;  // serial interface / auto-increment
-static const uint8_t QMI8658_REG_CTRL2 = 0x03;  // accelerometer ODR / range
-static const uint8_t QMI8658_REG_CTRL3 = 0x04;  // gyroscope ODR / range
-static const uint8_t QMI8658_REG_CTRL5 = 0x06;  // low-pass filter
-static const uint8_t QMI8658_REG_CTRL7 = 0x08;  // sensor enable
-static const uint8_t QMI8658_REG_STATUS0 = 0x2E;
-static const uint8_t QMI8658_REG_TEMP_L = 0x33;  // start of the data block
-static const uint8_t QMI8658_REG_AX_L = 0x35;
-static const uint8_t QMI8658_REG_GX_L = 0x3B;
-static const uint8_t QMI8658_REG_RESET = 0x60;
+static constexpr uint8_t QMI8658_REG_WHO_AM_I = 0x00;
+static constexpr uint8_t QMI8658_REG_REVISION = 0x01;
+static constexpr uint8_t QMI8658_REG_CTRL1 = 0x02;  // serial interface / auto-increment
+static constexpr uint8_t QMI8658_REG_CTRL2 = 0x03;  // accelerometer ODR / range
+static constexpr uint8_t QMI8658_REG_CTRL3 = 0x04;  // gyroscope ODR / range
+static constexpr uint8_t QMI8658_REG_CTRL5 = 0x06;  // low-pass filter
+static constexpr uint8_t QMI8658_REG_CTRL7 = 0x08;  // sensor enable
+static constexpr uint8_t QMI8658_REG_STATUS0 = 0x2E;
+static constexpr uint8_t QMI8658_REG_TEMP_BASE = 0x33;  // start of the data block
+static constexpr uint8_t QMI8658_REG_TEMP_L = 0x33;     // Low byte of temperature
+static constexpr uint8_t QMI8658_REG_AX_L = 0x35;
+static constexpr uint8_t QMI8658_REG_GX_L = 0x3B;
+static constexpr uint8_t QMI8658_REG_RESET = 0x60;
 
 // One contiguous read covers temperature (2) + accel (6) + gyro (6) starting at TEMP_L.
-static constexpr uint8_t REG_READ_LEN = QMI8658_REG_GX_L + 6 - QMI8658_REG_TEMP_L;  // 0x41 - 0x33 = 14
-static constexpr uint8_t TEMP_OFFS = QMI8658_REG_TEMP_L - QMI8658_REG_TEMP_L;       // 0
-static constexpr uint8_t ACC_OFFS = QMI8658_REG_AX_L - QMI8658_REG_TEMP_L;          // 2
-static constexpr uint8_t GYR_OFFS = QMI8658_REG_GX_L - QMI8658_REG_TEMP_L;          // 8
+static constexpr uint8_t REG_READ_LEN = QMI8658_REG_GX_L + 6 - QMI8658_REG_TEMP_BASE;  // 0x41 - 0x33 = 14
+static constexpr uint8_t TEMP_OFFS = QMI8658_REG_TEMP_L - QMI8658_REG_TEMP_BASE;       // 0
+static constexpr uint8_t ACC_OFFS = QMI8658_REG_AX_L - QMI8658_REG_TEMP_BASE;          // 2
+static constexpr uint8_t GYR_OFFS = QMI8658_REG_GX_L - QMI8658_REG_TEMP_BASE;          // 8
 
-static const uint8_t QMI8658_WHO_AM_I_VALUE = 0x05;
-static const uint8_t QMI8658_RESET_CMD = 0xB0;
+static constexpr uint8_t QMI8658_WHO_AM_I_VALUE = 0x05;
+static constexpr uint8_t QMI8658_RESET_CMD = 0xB0;
 // CTRL1: bit6 ADDR_AI (register address auto-increment); little-endian, 4-wire SPI
-static const uint8_t QMI8658_CTRL1_VALUE = 0x40;
+static constexpr uint8_t QMI8658_CTRL1_VALUE = 0x40;
 // CTRL7: aEN (bit0) | gEN (bit1)
-static const uint8_t QMI8658_CTRL7_ACC_EN = 0x01;
-static const uint8_t QMI8658_CTRL7_GYR_EN = 0x02;
+static constexpr uint8_t QMI8658_CTRL7_ACC_EN = 0x01;
+static constexpr uint8_t QMI8658_CTRL7_GYR_EN = 0x02;
 
 // Accelerometer range options (CTRL2 bits 6:4)
 enum QMI8658AccelRange : uint8_t {
