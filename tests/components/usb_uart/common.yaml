@@ -74,20 +74,10 @@ usb_uart:
     channels:
       - id: channel_9_1
         baud_rate: 115200
-      - id: channel_9_2
-        baud_rate: 9600
-        stop_bits: 2
-        data_bits: 7
-        parity: odd
-  - id: uart_7
-    type: pl2303
-    channels:
-      - id: channel_7_1
-        baud_rate: 115200
-  - id: uart_8
+  - id: uart_10
     type: pl2303gc
     channels:
-      - id: channel_8_1
+      - id: channel_10_1
         baud_rate: 9600
         stop_bits: 2
         data_bits: 7
