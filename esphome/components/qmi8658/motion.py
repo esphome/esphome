@@ -11,8 +11,6 @@ from ..const import (
 )
 from . import QMI8658Component, qmi8658_ns
 
-AUTO_LOAD = ["qmi8658"]
-
 #  Enum proxies (must match the C++ enum values exactly)
 QMI8658AccelRange = qmi8658_ns.enum("QMI8658AccelRange")
 ACCEL_RANGE_OPTIONS = {

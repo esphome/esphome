@@ -14,8 +14,6 @@ from esphome.cpp_generator import MockObj
 
 from . import CONF_QMI8658_ID, QMI8658Component
 
-AUTO_LOAD = ["qmi8658"]
-
 CONFIG_SCHEMA = sensor.sensor_schema(
     unit_of_measurement=UNIT_CELSIUS,
     icon=ICON_THERMOMETER,
