@@ -85,6 +85,8 @@ void USBClassRouter::on_connected() {
                                                    &offset)) != nullptr) {
     const auto *intf = reinterpret_cast<const usb_intf_desc_t *>(desc);
     for (auto *driver : this->drivers_) {
+      if (driver->interface_class() != intf->bInterfaceClass)
+        continue;
       if (driver->claim_interface(intf, dev_desc)) {
         ESP_LOGD(TAG, "Class driver claimed interface %d on device %d", intf->bInterfaceNumber, addr);
         this->claimed_.push_back({addr, this->device_handle_, driver});

@@ -45,6 +45,7 @@ class USBClassRouter;
 
 class USBClassDriver {
  public:
+  virtual uint8_t interface_class() = 0;
   virtual bool claim_interface(const usb_intf_desc_t *intf_desc, const usb_device_desc_t *dev_desc) = 0;
   virtual void on_interface_claimed(uint8_t addr, uint8_t interface_num) = 0;
   virtual void on_device_disconnected(uint8_t addr) = 0;
