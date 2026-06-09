@@ -41,7 +41,7 @@ bool MotionBinarySensor::is_stationary_(const MotionData &data) const {
 }
 
 void MotionBinarySensor::setup() {
-  this->parent_->add_listener([this](MotionData &data) { this->process_motion_data_(data); });
+  this->parent_->add_listener([this](MotionData const &data) { this->process_motion_data_(data); });
 }
 
 void MotionBinarySensor::dump_config() {

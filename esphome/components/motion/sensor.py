@@ -164,6 +164,6 @@ async def to_code(config):
     expr = build_sensor_expr(sensor_type, data, config)
     value_lambda = await cg.process_lambda(
         var.publish_state(expr),
-        [(MotionData.operator("ref"), str(data))],
+        [(MotionData.operator("const").operator("ref"), str(data))],
     )
     cg.add(parent.add_listener(value_lambda))

@@ -1,4 +1,4 @@
-#include "../motion_event.h"
+#include "motion_event.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
@@ -9,13 +9,13 @@ static const char *const TAG = "motion.event";
 MotionEvent::MotionEvent(MotionComponent *parent) : parent_(parent) {}
 
 void MotionEvent::setup() {
-  this->parent_->add_listener([this](MotionData &data) { this->process_motion_data_(data); });
+  this->parent_->add_listener([this](MotionData const &data) { this->process_motion_data_(data); });
 }
 
 void MotionEvent::dump_config() {
   LOG_EVENT("", "Motion Event", this);
   ESP_LOGCONFIG(TAG, "  Threshold: %.3f", this->threshold_);
-  ESP_LOGCONFIG(TAG, "  Cooldown: %u ms", this->cooldown_);
+  ESP_LOGCONFIG(TAG, "  Cooldown: %u ms", (unsigned) this->cooldown_);
 }
 
 void MotionEvent::process_motion_data_(const MotionData &data) {

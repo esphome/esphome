@@ -104,7 +104,7 @@ class MotionComponent : public PollingComponent {
     output[2] = input[X_AXIS] * this->matrix_[6] + input[Y_AXIS] * this->matrix_[7] + input[Z_AXIS] * this->matrix_[8];
   }
 
-  LazyCallbackManager<void(MotionData &)> motion_data_callback_{};
+  LazyCallbackManager<void(MotionData const &)> motion_data_callback_{};
   uint32_t pref_key_{0};
   uint32_t base_hash_{0};  // hash of base_matrix_, captured in setup()
   ESPPreferenceObject pref_{};
