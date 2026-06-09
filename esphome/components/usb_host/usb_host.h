@@ -149,6 +149,8 @@ class USBClient : public Component {
   void dump_config() override;
   void release_trq(TransferRequest *trq);
   trq_bitmask_t get_trq_in_use() const { return trq_in_use_; }
+  int get_device_addr() const { return this->device_addr_; }
+  int get_state() const { return this->state_; }
   bool control_transfer(uint8_t type, uint8_t request, uint16_t value, uint16_t index, const transfer_cb_t &callback,
                         const std::vector<uint8_t> &data = {});
 
@@ -197,6 +199,7 @@ class USBHost : public Component {
   float get_setup_priority() const override { return setup_priority::BUS; }
   void loop() override;
   void setup() override;
+  std::vector<USBClient *> &get_clients() { return this->clients_; }
 
  protected:
   std::vector<USBClient *> clients_{};
@@ -206,17 +209,20 @@ class USBHost : public Component {
 // and dispatches to registered USBClassDriver instances. Each driver claims at most
 // one interface per device. After probing, the router closes its own handle so the
 // driver can open the device independently via its own client handle (e.g. MSC host).
+// Devices already claimed by a VID/PID-matched USBClient are skipped.
 class USBClassRouter : public USBClient {
  public:
   USBClassRouter() : USBClient(0, 0) {}
 
   void register_driver(USBClassDriver *driver) { this->drivers_.push_back(driver); }
+  void set_host(USBHost *host) { this->clients_ = &host->get_clients(); }
 
  protected:
   void on_connected() override;
   void on_removed(usb_device_handle_t handle) override;
 
   std::vector<USBClassDriver *> drivers_{};
+  std::vector<USBClient *> *clients_{nullptr};
   struct ClaimedIface {
     uint8_t addr;
     usb_device_handle_t handle;

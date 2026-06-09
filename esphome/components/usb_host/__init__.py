@@ -110,6 +110,7 @@ async def to_code(config: ConfigType) -> None:
     CORE.data.setdefault(DOMAIN, {})[CONF_CLASS_ROUTER_ID] = config[CONF_CLASS_ROUTER_ID]
     router = cg.new_Pvariable(config[CONF_CLASS_ROUTER_ID])
     await cg.register_component(router, {})
+    cg.add(router.set_host(var))
 
     for device in config.get(CONF_DEVICES) or ():
         await register_usb_client(device)
