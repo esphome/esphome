@@ -140,71 +140,6 @@ def _get_idf_tool(name: str) -> str:
     return executable
 
 
-# Child programs the gcc driver spawns (assembler, compiler proper). These live
-# in nested toolchain directories (<target>/bin/as, libexec/gcc/.../cc1) that
-# ESP-IDF's own ``idf_tools.py check`` does NOT verify -- it only confirms the
-# top-level tool directory exists. Antivirus on Windows routinely quarantines
-# these inner binaries after install, which then surfaces as a cryptic
-# "cannot execute 'as'" failure deep inside cmake's compiler check.
-_TOOLCHAIN_CHILD_PROGRAMS: tuple[str, ...] = ("as", "cc1", "cc1plus")
-
-
-def _verify_toolchain_integrity() -> None:
-    """Verify each cross-compiler's child programs (as, cc1, cc1plus) exist.
-
-    gcc resolves these relative to its own location; ``-print-prog-name`` echoes
-    a full path when the program is found and the bare name when it is not. A
-    bare name therefore means the binary is missing -- almost always antivirus
-    quarantine on Windows. Raise with actionable guidance rather than letting it
-    fail cryptically inside cmake.
-    """
-    env = _get_idf_env()
-
-    # One bare gcc driver per toolchain bin dir is enough: arch variants
-    # (xtensa-esp32s3-elf-gcc, ...) share the same lib/libexec tree.
-    drivers: dict[Path, Path] = {}
-    for entry in env.get("PATH", "").split(os.pathsep):
-        bin_dir = Path(entry)
-        if not bin_dir.is_dir():
-            continue
-        for gcc in sorted(bin_dir.glob("*-elf-gcc*")):
-            if gcc.stem.endswith("-elf-gcc"):  # skip gcc-ar/-nm/-ranlib/-<ver>
-                drivers.setdefault(bin_dir, gcc)
-                break
-
-    missing: list[str] = []
-    for gcc in drivers.values():
-        for prog in _TOOLCHAIN_CHILD_PROGRAMS:
-            result = subprocess.run(
-                [str(gcc), f"-print-prog-name={prog}"],
-                env=env,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            resolved = result.stdout.strip()
-            if os.sep not in resolved:  # bare name -> gcc could not find it
-                missing.append(f"{prog} (for {gcc.name})")
-
-    if not missing:
-        return
-
-    listing = "\n  ".join(missing)
-    hint = ""
-    if os.name == "nt":
-        hint = (
-            "\n\nOn Windows this is almost always antivirus quarantining "
-            "toolchain files after installation. Add an exclusion for your "
-            "ESPHome project folder (the one containing the .esphome directory) "
-            "under Windows Security > Virus & threat protection > Exclusions, "
-            "delete the .esphome\\idf folder, then recompile."
-        )
-    raise EsphomeError(
-        "The ESP-IDF toolchain is incomplete -- gcc cannot find these required "
-        f"programs:\n  {listing}{hint}"
-    )
-
-
 def run_idf_py(
     *args, cwd: Path | None = None, capture_output: bool = False
 ) -> int | str:
@@ -390,10 +325,6 @@ def run_compile(config, verbose: bool) -> int:
 
     # Check if we need to do discovery phase
     if need_reconfigure():
-        # Fail fast with a clear message if the toolchain is incomplete (e.g.
-        # antivirus quarantined the assembler) rather than letting cmake's
-        # compiler check fail cryptically with "cannot execute 'as'".
-        _verify_toolchain_integrity()
         _LOGGER.info("Discovering available ESP-IDF components...")
         write_project(minimal=True)
         rc = run_reconfigure()
