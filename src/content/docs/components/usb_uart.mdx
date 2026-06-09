@@ -22,6 +22,13 @@ Currently supported devices are listed in the table below:
 | FT232     | 0x0403 | 0x6001 | FTDI USB to serial adapter single port |
 | FT2232     | 0x0403 | 0x6010 | FTDI USB to serial adapter dual port |
 | FT4232     | 0x0403 | 0x6011 | FTDI USB to serial adapter dual port |
+| PL2303     | 0x067B | 0x2303 | Prolific USB to serial adapter |
+| PL2303GC   | 0x067B | 0x23A3 | Prolific PL2303 G-series (GC) |
+| PL2303GB   | 0x067B | 0x23B3 | Prolific PL2303 G-series (GB) |
+| PL2303GT   | 0x067B | 0x23C3 | Prolific PL2303 G-series (GT) |
+| PL2303GL   | 0x067B | 0x23D3 | Prolific PL2303 G-series (GL) |
+| PL2303GE   | 0x067B | 0x23E3 | Prolific PL2303 G-series (GE) |
+| PL2303GS   | 0x067B | 0x23F3 | Prolific PL2303 G-series (GS) |
 | STM32_VCP | 0x0483 | 0x5740 | STM32 Virtual COM Port |
 
 
@@ -41,7 +48,7 @@ usb_uart:
 ## Configuration variables
 
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): The id to use for this component.
-- **type** (**Required**, string): The type of USB-serial device to connect to. One of `ft23xx`, `ch34x`, `ch340`, `esp_jtag`, `stm32_vcp`, `cdc_acm`, `cp210x`.
+- **type** (**Required**, string): The type of USB-serial device to connect to. One of `ft23xx`, `ch34x`, `ch340`, `esp_jtag`, `stm32_vcp`, `cdc_acm`, `cp210x`, `pl2303`, `pl2303gc`, `pl2303gb`, `pl2303gt`, `pl2303gl`, `pl2303ge`, `pl2303gs`.
 - **channels** (**Required**, list): A list of channels to configure.
 - **vid** (*Optional*, int): The vendor ID of the device. Use 0 as a wildcard. Each type has a default VID which will be overridden if this is set.
 - **pid** (*Optional*, int): The product ID of the device. Use 0 as a wildcard. Each type has a default PID which will be overridden if this is set.
