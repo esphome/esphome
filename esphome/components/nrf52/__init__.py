@@ -63,9 +63,10 @@ from .const import (
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
 )
+from .framework import check_and_install
 
 # force import gpio to register pin schema
-from .gpio import nrf52_pin_to_code  # noqa
+from .gpio import nrf52_pin_to_code  # noqa: F401
 
 CODEOWNERS = ["@tomaszduda23"]
 AUTO_LOAD = ["zephyr", "preferences"]
@@ -535,7 +536,7 @@ def _addr2line(addr2line: str, elf: Path, addr: str) -> str:
             check=True,
         )
         return result.stdout.strip().splitlines()[0]
-    except Exception as err:  # pylint: disable=broad-except
+    except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
         _LOGGER.error("Running command failed: %s", err)
     return ""
 
@@ -562,3 +563,15 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
             _LOGGER.error("LR: %s", _addr2line(addr2line, elf, lr))
 
     return False
+
+
+def run_compile(args, config: ConfigType) -> bool:
+    if CORE.using_toolchain_platformio:
+        return False
+    if not CORE.using_toolchain_sdk_nrf:
+        raise EsphomeError(
+            "Unsupported toolchain for nRF52. "
+            "Supported toolchains are 'platformio' and 'sdk-nrf'."
+        )
+    check_and_install()
+    raise EsphomeError("Native build for nRF52 is not implemented yet")
