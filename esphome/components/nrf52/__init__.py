@@ -52,6 +52,7 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.core.config import BOARD_MAX_LENGTH
 import esphome.final_validate as fv
+from esphome.framework_helpers import run_command_ok
 from esphome.helpers import write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
@@ -63,7 +64,7 @@ from .const import (
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
 )
-from .framework import check_and_install
+from .framework import check_and_install, get_build_env, get_build_paths
 
 # force import gpio to register pin schema
 from .gpio import nrf52_pin_to_code  # noqa: F401
@@ -147,6 +148,12 @@ BOOTLOADERS = [
 ]
 
 
+def _validate_toolchain(value) -> Toolchain:
+    return Toolchain(
+        cv.one_of(Toolchain.PLATFORMIO, Toolchain.SDK_NRF, lower=True)(value)
+    )
+
+
 def _detect_bootloader(config: ConfigType) -> ConfigType:
     """Detect the bootloader for the given board."""
     config = config.copy()
@@ -200,7 +207,6 @@ def _dfu_schema(value: bool | ConfigType) -> ConfigType:
 
 CONFIG_SCHEMA = cv.All(
     _detect_bootloader,
-    set_core_data,
     cv.Schema(
         {
             cv.Required(CONF_BOARD): cv.All(
@@ -233,9 +239,11 @@ CONFIG_SCHEMA = cv.All(
                     ),
                 }
             ),
+            cv.Optional(CONF_TOOLCHAIN): _validate_toolchain,
             cv.GenerateID(CONF_CDC_ACM): cv.declare_id(CdcAcm),
         }
     ),
+    set_core_data,
     set_framework,
 )
 
@@ -565,6 +573,54 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
     return False
 
 
+def _generate_cmake_lists() -> None:
+    """Generate CMakeLists.txt for the native Zephyr build.
+
+    Follows the same structure as the PlatformIO build script template so the
+    two code paths stay easy to compare.
+    """
+    src_dir = CORE.relative_src_path()
+
+    # Separate link flags (-Wl,...) from compile flags so they go to the right
+    # cmake targets.
+    compile_flags = " ".join(
+        flag.replace('"', '\\"')
+        for flag in CORE.build_flags
+        if not flag.startswith("-Wl,")
+    )
+    link_flags = " ".join(flag for flag in CORE.build_flags if flag.startswith("-Wl,"))
+
+    lines = [
+        "cmake_minimum_required(VERSION 3.20.0)",
+        "",
+        'set(Zephyr_DIR "$ENV{ZEPHYR_BASE}/share/zephyr-package/cmake/")',
+        "",
+        "find_package(Zephyr REQUIRED)",
+        "",
+        f"project({CORE.name})",
+        "",
+        f'file(GLOB_RECURSE APP_SOURCES "{src_dir}/*.cpp")',
+        "",
+        f'SET(CMAKE_CXX_FLAGS "${{CMAKE_CXX_FLAGS}} {compile_flags}")',
+        f'SET(CMAKE_C_FLAGS "${{CMAKE_C_FLAGS}} {compile_flags}")',
+        "",
+        "target_sources(app PRIVATE ${APP_SOURCES})",
+        f'target_include_directories(app PRIVATE "{src_dir}")',
+    ]
+
+    if link_flags:
+        lines += [
+            "",
+            f"zephyr_ld_options({link_flags})",
+            f"target_link_options(app INTERFACE {link_flags})",
+        ]
+
+    write_file_if_changed(
+        CORE.relative_build_path("zephyr", "CMakeLists.txt"),
+        "\n".join(lines) + "\n",
+    )
+
+
 def run_compile(args, config: ConfigType) -> bool:
     if CORE.using_toolchain_platformio:
         return False
@@ -574,4 +630,35 @@ def run_compile(args, config: ConfigType) -> bool:
             "Supported toolchains are 'platformio' and 'sdk-nrf'."
         )
     check_and_install()
-    raise EsphomeError("Native build for nRF52 is not implemented yet")
+
+    paths = get_build_paths()
+    env = get_build_env()
+
+    _generate_cmake_lists()
+
+    board = zephyr_data()[KEY_BOARD]
+    build_dir = CORE.relative_pioenvs_path(CORE.name)
+    source_dir = CORE.relative_build_path("zephyr")
+
+    west_cmd = [
+        str(paths["python_executable"]),
+        "-m",
+        "west",
+        "build",
+        "--pristine=auto",
+        "-b",
+        board,
+        "-d",
+        str(build_dir),
+        str(source_dir),
+    ]
+
+    if not run_command_ok(
+        west_cmd,
+        env=env,
+        stream_output=True,
+        cwd=str(paths["framework_path"]),
+    ):
+        raise EsphomeError("nRF52 native build failed")
+
+    return True
