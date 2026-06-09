@@ -58,6 +58,9 @@ def nrf52_dirs(setup_core: Path) -> SimpleNamespace:
     toolchain_dir = tools / "toolchains" / _TOOLCHAIN_VERSION
     for d in (python_env, framework, toolchain_dir):
         d.mkdir(parents=True, exist_ok=True)
+    zephyr_scripts = framework / "zephyr" / "scripts"
+    zephyr_scripts.mkdir(parents=True, exist_ok=True)
+    (zephyr_scripts / "requirements.txt").touch()
     return SimpleNamespace(
         python_env=python_env,
         framework=framework,
@@ -102,6 +105,7 @@ class TestCheckAndInstall:
     ) -> None:
         """All three sentinels present → nothing downloaded or compiled."""
         (nrf52_dirs.python_env / ".ready").touch()
+        (nrf52_dirs.python_env / ".zephyr_reqs_ready").touch()
         (nrf52_dirs.framework / ".ready").touch()
         (nrf52_dirs.toolchain / ".ready").touch()
 
@@ -121,11 +125,13 @@ class TestCheckAndInstall:
         check_and_install()
 
         mock_nrf52_ops.create_venv.assert_called_once()
-        # pip install west, west init, west update
-        assert mock_nrf52_ops.run_command_ok.call_count == 3
-        mock_nrf52_ops.download_from_mirrors.assert_called_once()
-        mock_nrf52_ops.archive_extract_all.assert_called_once()
+        # pip install requirements, west init, west update, pip install zephyr reqs
+        assert mock_nrf52_ops.run_command_ok.call_count == 4
+        # minimal SDK + per-arch toolchain
+        assert mock_nrf52_ops.download_from_mirrors.call_count == 2
+        assert mock_nrf52_ops.archive_extract_all.call_count == 2
         assert (nrf52_dirs.python_env / ".ready").exists()
+        assert (nrf52_dirs.python_env / ".zephyr_reqs_ready").exists()
         assert (nrf52_dirs.framework / ".ready").exists()
         assert (nrf52_dirs.toolchain / ".ready").exists()
 
@@ -140,9 +146,10 @@ class TestCheckAndInstall:
         check_and_install()
 
         mock_nrf52_ops.create_venv.assert_not_called()
-        # west init + west update only (no pip install)
-        assert mock_nrf52_ops.run_command_ok.call_count == 2
-        mock_nrf52_ops.download_from_mirrors.assert_called_once()
+        # west init, west update, pip install zephyr reqs
+        assert mock_nrf52_ops.run_command_ok.call_count == 3
+        # minimal SDK + per-arch toolchain
+        assert mock_nrf52_ops.download_from_mirrors.call_count == 2
 
     def test_toolchain_only_missing(
         self,
@@ -151,14 +158,16 @@ class TestCheckAndInstall:
     ) -> None:
         """Venv and framework ready → only toolchain downloaded and extracted."""
         (nrf52_dirs.python_env / ".ready").touch()
+        (nrf52_dirs.python_env / ".zephyr_reqs_ready").touch()
         (nrf52_dirs.framework / ".ready").touch()
 
         check_and_install()
 
         mock_nrf52_ops.create_venv.assert_not_called()
         mock_nrf52_ops.run_command_ok.assert_not_called()
-        mock_nrf52_ops.download_from_mirrors.assert_called_once()
-        mock_nrf52_ops.archive_extract_all.assert_called_once()
+        # minimal SDK + per-arch toolchain
+        assert mock_nrf52_ops.download_from_mirrors.call_count == 2
+        assert mock_nrf52_ops.archive_extract_all.call_count == 2
 
     def test_west_install_failure_raises(
         self,

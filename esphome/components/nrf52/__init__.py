@@ -100,9 +100,6 @@ FAKE_BOARD_MANIFEST = """
 
 
 def set_core_data(config: ConfigType) -> ConfigType:
-    # Resolve toolchain: CLI (already on CORE.toolchain) > YAML > default.
-    if CORE.toolchain is None:
-        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.PLATFORMIO)
     zephyr_set_core_data(config)
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_NRF52
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
@@ -110,6 +107,12 @@ def set_core_data(config: ConfigType) -> ConfigType:
     if config[KEY_BOOTLOADER] in BOOTLOADER_CONFIG:
         zephyr_add_pm_static(BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]])
 
+    return config
+
+
+def _resolve_toolchain(config: ConfigType) -> ConfigType:
+    if CORE.toolchain is None:
+        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.PLATFORMIO)
     return config
 
 
@@ -207,6 +210,7 @@ def _dfu_schema(value: bool | ConfigType) -> ConfigType:
 
 CONFIG_SCHEMA = cv.All(
     _detect_bootloader,
+    set_core_data,
     cv.Schema(
         {
             cv.Required(CONF_BOARD): cv.All(
@@ -243,7 +247,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_CDC_ACM): cv.declare_id(CdcAcm),
         }
     ),
-    set_core_data,
+    _resolve_toolchain,
     set_framework,
 )
 
@@ -573,22 +577,25 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
     return False
 
 
-def _generate_cmake_lists() -> None:
-    """Generate CMakeLists.txt for the native Zephyr build.
+def _cmake_escape(flag: str) -> str:
+    """Escape a flag for safe interpolation into a CMake string literal."""
+    return (
+        flag.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("$", "\\$")
+        .replace(";", "\\;")
+    )
 
-    Follows the same structure as the PlatformIO build script template so the
-    two code paths stay easy to compare.
-    """
+
+def _generate_cmake_lists() -> None:
     src_dir = CORE.relative_src_path()
 
-    # Separate link flags (-Wl,...) from compile flags so they go to the right
-    # cmake targets.
     compile_flags = " ".join(
-        flag.replace('"', '\\"')
-        for flag in CORE.build_flags
-        if not flag.startswith("-Wl,")
+        _cmake_escape(flag) for flag in CORE.build_flags if not flag.startswith("-Wl,")
     )
-    link_flags = " ".join(flag for flag in CORE.build_flags if flag.startswith("-Wl,"))
+    link_flags = " ".join(
+        _cmake_escape(flag) for flag in CORE.build_flags if flag.startswith("-Wl,")
+    )
 
     lines = [
         "cmake_minimum_required(VERSION 3.20.0)",
