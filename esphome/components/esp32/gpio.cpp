@@ -87,7 +87,13 @@ void ESP32InternalGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpi
   gpio_set_intr_type(this->get_pin_num(), idf_type);
   gpio_intr_enable(this->get_pin_num());
   if (!isr_service_installed) {
-    auto res = gpio_install_isr_service(ESP_INTR_FLAG_LEVEL3);
+    // Install the shared GPIO ISR at the default (lowest) priority, matching the ESP-IDF driver
+    // default. The dispatched per-pin handlers may wake the main loop via vTaskNotifyGiveFromISR(),
+    // which takes the FreeRTOS kernel spinlock. A higher-priority (e.g. level 3) GPIO ISR can
+    // preempt a lower-priority driver ISR/critical section that already holds that lock and then
+    // spin on it forever -> Interrupt WDT reboot (see issue #16886, RMT + pcf8574 interrupt).
+    // At the lowest level the GPIO ISR cannot preempt another lock holder on the core.
+    auto res = gpio_install_isr_service(0);
     if (res != ESP_OK) {
       ESP_LOGE(TAG, "attach_interrupt(): call to gpio_install_isr_service() failed, error code: %d", res);
       return;
