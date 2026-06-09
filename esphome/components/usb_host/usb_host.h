@@ -143,7 +143,7 @@ class USBClient : public Component {
   // setup must happen after the host bus has been setup
   float get_setup_priority() const override { return setup_priority::IO; }
   void on_opened(uint8_t addr);
-  void on_removed(usb_device_handle_t handle);
+  virtual void on_removed(usb_device_handle_t handle);
   bool transfer_in(uint8_t ep_address, const transfer_cb_t &callback, uint16_t length);
   bool transfer_out(uint8_t ep_address, const transfer_cb_t &callback, const uint8_t *data, uint16_t length);
   void dump_config() override;
