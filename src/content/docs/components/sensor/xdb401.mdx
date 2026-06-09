@@ -1,0 +1,55 @@
+---
+description: "Instructions for setting up the XDB401 Pressure sensor."
+title: "XIDIBEI XDB401 Pressure Sensor"
+---
+
+import Figure from '@components/Figure.astro';
+
+The XIDIBEI XDB401 is available with either I²C or analog output; this ESPHome platform supports the I²C variant.
+The sensor is sold in several maximum pressure ranges (1 to 100 bar), see `pressure_range_bar` below. Pressure is
+reported in Pascal (Pa) and temperature in °C.
+
+<Figure
+  src="/images/xdb401.jpg"
+  alt="XDB401 Pressure Sensor"
+  caption="XDB401 Pressure Sensor. (Credit: [XIDIBEI](https://xdbsensor.com/product/xdb401-pro-ss316l-pressure-transducer-for-coffee-machine/), image cropped and compressed)"
+  layout="constrained"
+  width={300}
+  height={300}
+/>
+
+To use the sensor, set up an [I²C Bus](/components/i2c) and connect the sensor to the specified pins.
+
+```yaml
+# Example configuration entry
+# Pressure is reported in Pa; the filter converts it to bar
+sensor:
+  - platform: xdb401
+    update_interval: 1s
+    temperature:
+      id: temperature
+      name: "Temperature"
+      accuracy_decimals: 2
+    pressure_range_bar: 10
+    pressure:
+      id: pressure_bar
+      name: "Pressure"
+      unit_of_measurement: "bar"
+      accuracy_decimals: 2
+      filters:
+        - multiply: 0.00001   # Pa -> bar
+```
+
+## Configuration variables
+
+- **temperature** (*Optional*): The measured temperature in °C. All options from [Sensor](/components/sensor).
+- **pressure** (*Optional*): The measured pressure in Pascal (Pa). All options from [Sensor](/components/sensor).
+- **pressure_range_bar** (*Optional*, int): The maximum pressure range of your sensor model in bar. One of `1`, `2`,
+  `5`, `10`, `20`, `50`, `100`. Defaults to `10`.
+- **address** (*Optional*, int): Manually specify the I²C address of the sensor. Defaults to `0x7F`.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the sensor. Defaults to `60s`.
+
+## See Also
+
+- [esphome-pressure device](https://github.com/gcormier/esphome-pressure/)
+- [Sensor Filters](/components/sensor#sensor-filters)
