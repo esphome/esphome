@@ -534,7 +534,9 @@ def _7z_extract_all(
                     dest.unlink()
             _rename_with_retry(item, dest)
     finally:
-        if staging.exists():
+        # staging is created before the try, so it always exists here; the
+        # guard is defensive cleanup and its False branch is unreachable.
+        if staging.exists():  # pragma: no cover
             rmtree(staging)
 
 

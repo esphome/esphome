@@ -9,7 +9,13 @@ from unittest.mock import patch
 
 import pytest
 
-from esphome.espidf.framework import _clone_idf_with_submodules, _parse_git_source
+from esphome.espidf.framework import (
+    _clone_idf_with_submodules,
+    _get_framework_path,
+    _get_python_env_path,
+    _parse_git_source,
+    check_esp_idf_install,
+)
 from esphome.framework_helpers import _tar_extract_all
 
 
@@ -256,3 +262,39 @@ class TestTarExtractHardLinkPrefixStripping:
         assert (tmp_path / "target.txt").read_bytes() == b"hello"
         extracted = {p.name for p in tmp_path.iterdir()}
         assert extracted == {"target.txt", "link_good"}
+
+
+def test_check_esp_idf_install_fresh(setup_core: Path) -> None:
+    """A forced install drives the download/extract, venv, and pip-install path."""
+    version = "5.1.2"
+    # archive_extract_all is mocked, so pre-create the framework dir that the
+    # extracted-marker touch writes into.
+    _get_framework_path(version).mkdir(parents=True, exist_ok=True)
+
+    with (
+        patch("esphome.espidf.framework.rmdir"),
+        patch(
+            "esphome.espidf.framework.download_from_mirrors",
+            return_value="https://example.com/idf.tar.xz",
+        ) as mock_download,
+        patch("esphome.espidf.framework.archive_extract_all") as mock_extract,
+        patch("esphome.espidf.framework.create_venv") as mock_venv,
+        patch(
+            "esphome.espidf.framework.run_command_ok", return_value=True
+        ) as mock_run_ok,
+        patch("esphome.espidf.framework._write_idf_version_txt"),
+        patch("esphome.espidf.framework._patch_tools_json_for_linux_arm64"),
+        patch("esphome.espidf.framework._write_stamp"),
+        patch("esphome.espidf.framework._get_idf_version", return_value=version),
+        patch("esphome.espidf.framework._get_python_version", return_value="3.11.0"),
+        patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
+    ):
+        framework_path, python_env_path = check_esp_idf_install(version, force=True)
+
+    assert framework_path == _get_framework_path(version)
+    assert python_env_path == _get_python_env_path(version)
+    # framework tarball + python-env constraints file are both downloaded
+    assert mock_download.call_count == 2
+    mock_extract.assert_called_once()
+    mock_venv.assert_called_once()
+    assert mock_run_ok.called
