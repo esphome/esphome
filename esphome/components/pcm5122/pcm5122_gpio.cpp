@@ -1,4 +1,4 @@
-#include "pcm_gpio.h"
+#include "pcm5122_gpio.h"
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -7,9 +7,9 @@ namespace esphome::pcm5122 {
 
 static const char *const TAG = "pcm5122.gpio";
 
-void PCMGPIOPin::setup() { this->pin_mode(this->flags_); }
+void PCM5122GPIOPin::setup() { this->pin_mode(this->flags_); }
 
-void PCMGPIOPin::pin_mode(gpio::Flags flags) {
+void PCM5122GPIOPin::pin_mode(gpio::Flags flags) {
   this->flags_ = flags;
   if (!this->parent_->select_page_(0)) {
     ESP_LOGE(TAG, "Failed to select page 0");
@@ -38,7 +38,7 @@ void PCMGPIOPin::pin_mode(gpio::Flags flags) {
   }
 }
 
-void PCMGPIOPin::digital_write(bool value) {
+void PCM5122GPIOPin::digital_write(bool value) {
   if (!this->parent_->select_page_(0))
     return;
   optional<uint8_t> curr = this->parent_->read_byte(PCM5122_REG_GPIO_OUTPUT);
@@ -51,7 +51,7 @@ void PCMGPIOPin::digital_write(bool value) {
   }
 }
 
-bool PCMGPIOPin::digital_read() {
+bool PCM5122GPIOPin::digital_read() {
   if (!this->parent_->select_page_(0))
     return this->value_;
   optional<uint8_t> read = this->parent_->read_byte(PCM5122_REG_GPIO_INPUT);
@@ -62,7 +62,7 @@ bool PCMGPIOPin::digital_read() {
   return this->value_;
 }
 
-size_t PCMGPIOPin::dump_summary(char *buffer, size_t len) const {
+size_t PCM5122GPIOPin::dump_summary(char *buffer, size_t len) const {
   return buf_append_printf(buffer, len, 0, "PCM5122 GPIO%u", this->pin_);
 }
 

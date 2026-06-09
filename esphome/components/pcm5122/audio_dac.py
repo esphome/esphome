@@ -30,8 +30,8 @@ PCM5122_BITS_PER_SAMPLE_ENUM = {
 _validate_bits = cv.float_with_unit("bits", "bit")
 
 
-PCMGPIOPin = pcm5122_ns.class_(
-    "PCMGPIOPin",
+PCM5122GPIOPin = pcm5122_ns.class_(
+    "PCM5122GPIOPin",
     cg.GPIOPin,
     cg.Parented.template(PCM5122),
 )
@@ -66,7 +66,7 @@ def _validate_pin(value):
 
 PIN_SCHEMA = cv.All(
     pins.gpio_base_schema(
-        PCMGPIOPin,
+        PCM5122GPIOPin,
         cv.int_range(min=3, max=6),
         modes=[CONF_INPUT, CONF_OUTPUT],
         mode_validator=_validate_pin_mode,

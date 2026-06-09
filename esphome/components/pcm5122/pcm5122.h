@@ -56,7 +56,7 @@ class PCM5122 : public audio_dac::AudioDac, public Component, public i2c::I2CDev
   bool is_muted() override;
   float volume() override;
 
-  friend class PCMGPIOPin;
+  friend class PCM5122GPIOPin;
 
  protected:
   bool select_page_(uint8_t page);
