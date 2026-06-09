@@ -49,7 +49,7 @@ class ResamplerSpeaker : public Component, public speaker::Speaker {
   }
   void set_target_sample_rate(uint32_t target_sample_rate) { this->target_sample_rate_ = target_sample_rate; }
 
-  /// @brief When enabled, the input bits per sample is passed through to the output speaker unchanged instead of being
+  /// @brief When enabled, the input bits per sample are passed through to the output speaker unchanged instead of being
   /// converted to a fixed target. Only the sample rate is resampled if it differs from the target.
   void set_passthrough_bits_per_sample(bool passthrough_bits_per_sample) {
     this->passthrough_bits_per_sample_ = passthrough_bits_per_sample;
