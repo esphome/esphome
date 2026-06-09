@@ -1,4 +1,4 @@
-#include "motion_event.h"
+#include "../motion_event.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 

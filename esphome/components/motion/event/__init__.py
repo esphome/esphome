@@ -3,7 +3,7 @@ from esphome.components import event
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_THRESHOLD
 
-from . import CONF_MOTION_ID, MotionComponent, motion_ns
+from .. import CONF_MOTION_ID, MotionComponent, motion_ns
 
 DEPENDENCIES = ["motion"]
 

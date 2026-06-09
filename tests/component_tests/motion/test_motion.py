@@ -21,11 +21,11 @@ from esphome.components.motion import (
     _validate_matrix_options,
     clear_calibration_to_code,
 )
-from esphome.components.motion.binary_sensor import (
+from esphome.components.motion.binary_sensor.__init__ import (
     CONFIG_SCHEMA as BINARY_SENSOR_CONFIG_SCHEMA,
     to_code as binary_sensor_to_code,
 )
-from esphome.components.motion.event import (
+from esphome.components.motion.event.__init__ import (
     CONFIG_SCHEMA as EVENT_CONFIG_SCHEMA,
     to_code as event_to_code,
 )

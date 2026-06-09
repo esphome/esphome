@@ -2,7 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/event/event.h"
-#include "motion_component.h"
+#include "../motion_component.h"
 
 namespace esphome::motion {
 

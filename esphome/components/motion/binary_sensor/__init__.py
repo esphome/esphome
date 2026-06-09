@@ -5,7 +5,7 @@ from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_DURATION, CONF_ID, CONF_THRESHOLD, CONF_TYPE
 
-from . import CONF_MOTION_ID, MotionComponent, motion_ns
+from .. import CONF_MOTION_ID, MotionComponent, motion_ns
 
 DEPENDENCIES = ["motion"]
 

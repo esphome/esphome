@@ -2,7 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
-#include "motion_component.h"
+#include "../motion_component.h"
 
 namespace esphome::motion {
 
