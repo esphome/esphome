@@ -126,6 +126,15 @@ def test_pick_entry_prefers_esphome_tu() -> None:
     assert idedata._pick_entry(entries)["file"].endswith("app.cpp")
 
 
+def test_pick_entry_falls_back_to_any_cxx_tu() -> None:
+    """With no ``/src/esphome/`` TU present, the first C++ entry is the fallback."""
+    entries = [
+        _entry("/b", "/b/managed_components/foo/foo.c", "gcc -c foo.c"),
+        _entry("/b", "/b/components/x/x.cpp", "g++ -c x.cpp"),
+    ]
+    assert idedata._pick_entry(entries)["file"].endswith("x.cpp")
+
+
 def test_is_esphome_src_handles_backslash_paths() -> None:
     r"""The src marker must match Windows ``\src\esphome\`` paths too.
 
@@ -225,6 +234,17 @@ def test_split_command_preserves_paths_and_unescapes_quotes() -> None:
     assert tokens[0] == r"C:\esp\bin\riscv32-esp-elf-g++.exe"
     assert '-DVER="1.2.3"' in tokens
     assert "-IC:/inc/a" in tokens
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows argv tokenization")
+def test_split_command_empty_returns_empty() -> None:
+    """An empty or blank command tokenizes to ``[]`` (e.g. an empty response file).
+
+    Guards against ``CommandLineToArgvW("")`` returning the current process name
+    instead of an empty list.
+    """
+    assert idedata._split_command("") == []
+    assert idedata._split_command("   ") == []
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows argv tokenization")

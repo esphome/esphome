@@ -69,7 +69,7 @@ def _split_command(command: str) -> list[str]:
     CommandLineToArgvW.restype = ctypes.POINTER(wintypes.LPWSTR)
     argc = ctypes.c_int()
     argv = CommandLineToArgvW(command, ctypes.byref(argc))
-    if not argv:
+    if not argv:  # pragma: no cover
         raise ctypes.WinError()
     try:
         return [argv[i] for i in range(argc.value)]
