@@ -27,18 +27,44 @@ void USBHost::loop() {
   }
 }
 
-void USBClassRouter::on_connected() {
-  // Skip if another USBClient already claimed this device address.
-  if (this->clients_ != nullptr) {
-    for (auto *client : *this->clients_) {
-      if (client != this && client->get_device_addr() == this->device_addr_ &&
-          client->get_state() == USB_CLIENT_CONNECTED) {
-        this->disconnect();
-        return;
+void USBClassRouter::on_opened(uint8_t addr) {
+  // Defer opening — stash addr and let other USBClients process EVENT_DEVICE_NEW first.
+  this->pending_addrs_.push_back(addr);
+}
+
+void USBClassRouter::loop() {
+  // Process base USB events (EVENT_DEVICE_GONE etc.) but our on_opened override defers new devices.
+  this->process_usb_events_();
+
+  // Now process any pending addresses deferred from on_opened().
+  // By this point all other USBClients have already processed EVENT_DEVICE_NEW and
+  // may have opened the device. Skip addresses already claimed by another client.
+  for (auto it = this->pending_addrs_.begin(); it != this->pending_addrs_.end();) {
+    uint8_t addr = *it;
+    bool claimed = false;
+    if (this->clients_ != nullptr) {
+      for (auto *client : *this->clients_) {
+        if (client != this && client->get_device_addr() == static_cast<int>(addr) &&
+            client->get_state() >= USB_CLIENT_OPEN) {
+          claimed = true;
+          break;
+        }
       }
     }
+    if (!claimed && this->state_ == USB_CLIENT_INIT) {
+      this->device_addr_ = addr;
+      this->state_ = USB_CLIENT_OPEN;
+      this->handle_open_state_();
+    }
+    it = this->pending_addrs_.erase(it);
   }
 
+  if (this->pending_addrs_.empty() && this->state_ == USB_CLIENT_INIT) {
+    this->disable_loop();
+  }
+}
+
+void USBClassRouter::on_connected() {
   const usb_device_desc_t *dev_desc;
   if (usb_host_get_device_descriptor(this->device_handle_, &dev_desc) != ESP_OK) {
     this->disconnect();
