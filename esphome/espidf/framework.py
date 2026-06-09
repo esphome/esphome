@@ -85,6 +85,59 @@ def _get_idf_tools_path() -> Path:
     return CORE.data_dir / "idf"
 
 
+# Windows' default MAX_PATH is 260 characters. ESP-IDF toolchains contain very
+# deeply nested files -- the longest (picolibc C++ headers) runs ~209 characters
+# below the IDF tools directory. If that directory's own path is long, those
+# files exceed the limit and the toolchain extracts only partially (e.g. the
+# assembler goes missing), which later surfaces as a cryptic "cannot execute
+# 'as'" build failure. Warn up front so the user can pick a shorter path.
+_WINDOWS_MAX_PATH = 260
+_TOOLCHAIN_NESTED_PATH_LEN = 210
+
+
+def _windows_long_paths_enabled() -> bool:
+    """Return True if Windows long path support is enabled in the registry."""
+    try:
+        import winreg  # pylint: disable=import-error  # Windows-only module
+
+        with winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE,
+            r"SYSTEM\CurrentControlSet\Control\FileSystem",
+        ) as key:
+            value, _ = winreg.QueryValueEx(key, "LongPathsEnabled")
+            return value == 1
+    except OSError:
+        return False
+
+
+def _check_windows_path_length() -> None:
+    """Warn when the install path is too long for Windows' MAX_PATH limit.
+
+    No-op off Windows or when long path support is enabled. Otherwise warns if
+    the deepest toolchain file would exceed the 260-character limit, which makes
+    ESP-IDF toolchains extract incompletely and fail to build.
+    """
+    if platform.system() != "Windows" or _windows_long_paths_enabled():
+        return
+    tools_path = str(_get_idf_tools_path())
+    projected = len(tools_path) + _TOOLCHAIN_NESTED_PATH_LEN
+    if projected <= _WINDOWS_MAX_PATH:
+        return
+    _LOGGER.warning(
+        "ESPHome install path is %d characters long (%s). ESP-IDF toolchain "
+        "files nest up to ~%d characters deeper, exceeding the Windows %d-"
+        "character path limit (projected ~%d). The toolchain may extract "
+        "incompletely and cause build errors such as \"cannot execute 'as'\". "
+        "Move your ESPHome project to a shorter path (e.g. C:\\esphome) or "
+        "enable Windows long path support.",
+        len(tools_path),
+        tools_path,
+        _TOOLCHAIN_NESTED_PATH_LEN,
+        _WINDOWS_MAX_PATH,
+        projected,
+    )
+
+
 def _get_framework_path(version: str) -> Path:
     """
     Get the path to the ESPHome ESP-IDF framework directory for a specific version.
@@ -705,6 +758,8 @@ def check_esp_idf_install(
     Returns:
         tuple of (framework_path, python_env_path)
     """
+    _check_windows_path_length()
+
     env = {}
     env["IDF_TOOLS_PATH"] = str(_get_idf_tools_path())
     env["IDF_PATH"] = ""
