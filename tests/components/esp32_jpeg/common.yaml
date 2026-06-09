@@ -1,0 +1,2 @@
+esp32_jpeg:
+  apply_idf_patches: true

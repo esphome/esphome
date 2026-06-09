@@ -1,0 +1,156 @@
+# pylint: disable=E0602
+
+from pathlib import Path
+
+try:
+    Import("env")  # noqa: F821
+except NameError:
+    env = None
+
+
+def _patch_jpeg_decode_csc(framework_dir: Path) -> None:
+    target = framework_dir / "components" / "esp_driver_jpeg" / "jpeg_decode.c"
+    if not target.exists():
+        return
+
+    text = target.read_text(encoding="utf-8")
+    helper = """
+static dma2d_csc_rx_option_t jpeg_dec_select_rgb_csc(jpeg_down_sampling_type_t sample_method,
+                                                     jpeg_dec_output_format_t output_format,
+                                                     jpeg_yuv_rgb_conv_std_t conv_std)
+{
+    bool bt709 = conv_std == JPEG_YUV_RGB_CONV_STD_BT709;
+    bool rgb565 = output_format == JPEG_DECODE_OUT_FORMAT_RGB565;
+    switch (sample_method) {
+    case JPEG_DOWN_SAMPLING_YUV444:
+        return rgb565 ? (bt709 ? DMA2D_CSC_RX_YUV444_TO_RGB565_709 : DMA2D_CSC_RX_YUV444_TO_RGB565_601)
+                      : (bt709 ? DMA2D_CSC_RX_YUV444_TO_RGB888_709 : DMA2D_CSC_RX_YUV444_TO_RGB888_601);
+    case JPEG_DOWN_SAMPLING_YUV422:
+        return rgb565 ? (bt709 ? DMA2D_CSC_RX_YUV422_TO_RGB565_709 : DMA2D_CSC_RX_YUV422_TO_RGB565_601)
+                      : (bt709 ? DMA2D_CSC_RX_YUV422_TO_RGB888_709 : DMA2D_CSC_RX_YUV422_TO_RGB888_601);
+    case JPEG_DOWN_SAMPLING_YUV420:
+        return rgb565 ? (bt709 ? DMA2D_CSC_RX_YUV420_TO_RGB565_709 : DMA2D_CSC_RX_YUV420_TO_RGB565_601)
+                      : (bt709 ? DMA2D_CSC_RX_YUV420_TO_RGB888_709 : DMA2D_CSC_RX_YUV420_TO_RGB888_601);
+    default:
+        return DMA2D_CSC_RX_NONE;
+    }
+}
+"""
+    if "jpeg_dec_select_rgb_csc" not in text:
+        anchor = (
+            "static void jpeg_dec_config_dma_csc(jpeg_decoder_handle_t decoder_engine, "
+            "dma2d_channel_handle_t rx_chan)\n"
+        )
+        if anchor not in text:
+            raise RuntimeError(
+                "ESP-IDF JPEG decode CSC function not found; patch needs review"
+            )
+        text = text.replace(anchor, f"{helper}\n{anchor}", 1)
+
+    old = """    if (decoder_engine->output_format == JPEG_DECODE_OUT_FORMAT_RGB565) {
+        if (decoder_engine->conv_std == JPEG_YUV_RGB_CONV_STD_BT601) {
+            rx_csc_option = DMA2D_CSC_RX_YUV420_TO_RGB565_601;
+        } else if (decoder_engine->conv_std == JPEG_YUV_RGB_CONV_STD_BT709) {
+            rx_csc_option = DMA2D_CSC_RX_YUV420_TO_RGB565_709;
+        }
+    } else if (decoder_engine->output_format == JPEG_DECODE_OUT_FORMAT_RGB888) {
+        if (decoder_engine->conv_std == JPEG_YUV_RGB_CONV_STD_BT601) {
+            rx_csc_option = DMA2D_CSC_RX_YUV420_TO_RGB888_601;
+        } else if (decoder_engine->conv_std == JPEG_YUV_RGB_CONV_STD_BT709) {
+            rx_csc_option = DMA2D_CSC_RX_YUV420_TO_RGB888_709;
+        }
+    } else if (decoder_engine->output_format == JPEG_DECODE_OUT_FORMAT_YUV444) {"""
+    new = """    if (decoder_engine->output_format == JPEG_DECODE_OUT_FORMAT_RGB565 ||
+        decoder_engine->output_format == JPEG_DECODE_OUT_FORMAT_RGB888) {
+        rx_csc_option = jpeg_dec_select_rgb_csc(decoder_engine->sample_method, decoder_engine->output_format,
+                                                decoder_engine->conv_std);
+    } else if (decoder_engine->output_format == JPEG_DECODE_OUT_FORMAT_YUV444) {"""
+    if new in text:
+        print("ESP32 JPEG patch: ESP-IDF JPEG decode RGB CSC selection already present")
+        return
+    if old not in text:
+        raise RuntimeError(
+            "ESP-IDF JPEG decode RGB CSC block not found; patch needs review"
+        )
+
+    text = text.replace(old, new, 1)
+    target.write_text(text, encoding="utf-8")
+    print("ESP32 JPEG patch: applied ESP-IDF JPEG decode RGB CSC selection")
+
+
+def _patch_dma2d_yuv2rgb_full_range(framework_dir: Path) -> None:
+    target = (
+        framework_dir
+        / "components"
+        / "esp_hal_dma"
+        / "include"
+        / "hal"
+        / "dma2d_types.h"
+    )
+    if not target.exists():
+        return
+
+    text = target.read_text(encoding="utf-8")
+
+    limited_bt601 = """#define DMA2D_COLOR_SPACE_CONV_PARAM_YUV2RGB_BT601 \\
+{                                                  \\
+    { 298,     0,   409,  -56906},                 \\
+    { 298,  -100,  -208,   34707},                 \\
+    { 298,   516,     0,  -70836},                 \\
+}"""
+    full_bt601 = """#define DMA2D_COLOR_SPACE_CONV_PARAM_YUV2RGB_BT601 \\
+{                                                  \\
+    { 256,     0,   359,  -45952},                 \\
+    { 256,   -88,  -183,   34688},                 \\
+    { 256,   454,     0,  -58112},                 \\
+}"""
+
+    limited_bt709 = """#define DMA2D_COLOR_SPACE_CONV_PARAM_YUV2RGB_BT709 \\
+{                                                  \\
+    { 298,     0,   459,  -63367},                 \\
+    { 298,   -55,  -136,   19681},                 \\
+    { 298,   541,     0,  -73918},                 \\
+}"""
+    full_bt709 = """#define DMA2D_COLOR_SPACE_CONV_PARAM_YUV2RGB_BT709 \\
+{                                                  \\
+    { 256,     0,   403,  -51584},                 \\
+    { 256,   -48,  -120,   21504},                 \\
+    { 256,   475,     0,  -60800},                 \\
+}"""
+
+    changed = False
+    if full_bt601 not in text:
+        if limited_bt601 not in text:
+            raise RuntimeError(
+                "ESP-IDF DMA2D BT.601 YUV->RGB matrix not found; patch needs review"
+            )
+        text = text.replace(limited_bt601, full_bt601, 1)
+        changed = True
+    if full_bt709 not in text:
+        if limited_bt709 not in text:
+            raise RuntimeError(
+                "ESP-IDF DMA2D BT.709 YUV->RGB matrix not found; patch needs review"
+            )
+        text = text.replace(limited_bt709, full_bt709, 1)
+        changed = True
+
+    if changed:
+        target.write_text(text, encoding="utf-8")
+        print("ESP32 JPEG patch: applied ESP-IDF DMA2D full-range YUV->RGB matrices")
+    else:
+        print(
+            "ESP32 JPEG patch: ESP-IDF DMA2D full-range YUV->RGB matrices already present"
+        )
+
+
+def main(build_env) -> None:
+    framework_dir = build_env.PioPlatform().get_package_dir("framework-espidf")
+    if not framework_dir:
+        return
+    framework_path = Path(framework_dir)
+    _patch_jpeg_decode_csc(framework_path)
+    _patch_dma2d_yuv2rgb_full_range(framework_path)
+
+
+if env is not None:
+    main(env)
