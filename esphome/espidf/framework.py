@@ -85,14 +85,20 @@ def _get_idf_tools_path() -> Path:
     return CORE.data_dir / "idf"
 
 
-# Windows' default MAX_PATH is 260 characters. ESP-IDF toolchains contain very
-# deeply nested files -- the longest (picolibc C++ headers) runs ~209 characters
-# below the IDF tools directory. If that directory's own path is long, those
-# files exceed the limit and the toolchain extracts only partially (e.g. the
-# assembler goes missing), which later surfaces as a cryptic "cannot execute
-# 'as'" build failure. Warn up front so the user can pick a shorter path.
+# Windows' default MAX_PATH is 260 characters. ESP-IDF toolchains nest deeply
+# below the IDF tools directory: the longest file on disk (picolibc C++
+# headers) sits ~209 characters down, but the operative number is worse -- gcc
+# probes its multilib include dirs via un-normalized self-relative paths
+# ("bin/../lib/gcc/<target>/<ver>/../../../../<target>/include/..."), and
+# Windows checks the path string as given, before collapsing "..". Measured
+# worst case (riscv32, esp-15.2.0, longest multilib + no-rtti, probing
+# bits/c++config.h): ~243 characters below the tools directory. Exceeding the
+# limit surfaces as cryptic build failures -- missing headers ("fatal error:
+# bits/c++config.h: No such file or directory") or partial extraction
+# ("cannot execute 'as'"). Warn up front so the user can shorten the path or
+# enable long path support.
 _WINDOWS_MAX_PATH = 260
-_TOOLCHAIN_NESTED_PATH_LEN = 210
+_TOOLCHAIN_NESTED_PATH_LEN = 245
 
 
 def _windows_long_paths_enabled() -> bool:
@@ -125,11 +131,15 @@ def _check_windows_path_length() -> None:
         return
     _LOGGER.warning(
         "ESPHome install path is %d characters long (%s). ESP-IDF toolchain "
-        "files nest up to ~%d characters deeper, exceeding the Windows %d-"
-        "character path limit (projected ~%d). The toolchain may extract "
-        "incompletely and cause build errors such as \"cannot execute 'as'\". "
-        "Move your ESPHome project to a shorter path (e.g. C:\\esphome) or "
-        "enable Windows long path support.",
+        "paths reach up to ~%d characters deeper (including the compiler's "
+        "internal 'bin/../lib/...' relative paths), exceeding the Windows "
+        "%d-character path limit (projected ~%d). This causes cryptic build "
+        'failures such as "fatal error: bits/c++config.h: No such file or '
+        'directory" or "cannot execute \'as\'". Enable Windows long path '
+        "support (set HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem\\"
+        "LongPathsEnabled to 1 and reboot), or move your ESPHome project to "
+        "a shorter path. After fixing, delete the .esphome\\idf directory so "
+        "the toolchain reinstalls cleanly.",
         len(tools_path),
         tools_path,
         _TOOLCHAIN_NESTED_PATH_LEN,
