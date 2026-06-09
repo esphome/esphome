@@ -30,6 +30,7 @@ from esphome.components.mipi import (
     DriverChip,
     dimension_schema,
     map_sequence,
+    model_schema_extractor,
     power_of_two,
     requires_buffer,
 )
@@ -219,6 +220,7 @@ def model_schema(config):
     return schema
 
 
+@model_schema_extractor(MODELS, model_schema)
 def _config_schema(config):
     config = cv.Schema(
         {
