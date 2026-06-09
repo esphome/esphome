@@ -52,19 +52,29 @@ usb_uart:
         stop_bits: 2
         data_bits: 7
         parity: even
-  - id: uart_8
+  - id: uart_7
     type: ch348
+    channels:
+      - id: channel_7_1
+        baud_rate: 115200
+      - id: channel_7_2
+        baud_rate: 9600
+  - id: uart_8
+    type: ft2232
     channels:
       - id: channel_8_1
         baud_rate: 115200
       - id: channel_8_2
         baud_rate: 9600
-  - id: uart_7
-    type: ft2232
+        stop_bits: 2
+        data_bits: 7
+        parity: odd
+  - id: uart_9
+    type: pl2303
     channels:
-      - id: channel_7_1
+      - id: channel_9_1
         baud_rate: 115200
-      - id: channel_7_2
+      - id: channel_9_2
         baud_rate: 9600
         stop_bits: 2
         data_bits: 7
