@@ -41,16 +41,6 @@ static const char *const TAG = "usb_host";
 // Forward declarations
 struct TransferRequest;
 class USBClient;
-class USBClassRouter;
-
-class USBClassDriver {
- public:
-  virtual uint8_t interface_class() = 0;
-  virtual bool claim_interface(const usb_intf_desc_t *intf_desc, const usb_device_desc_t *dev_desc) = 0;
-  virtual void on_interface_claimed(uint8_t addr, uint8_t interface_num) = 0;
-  virtual void on_device_disconnected(uint8_t addr) = 0;
-  virtual ~USBClassDriver() = default;
-};
 
 // constants for setup packet type
 static constexpr uint8_t USB_RECIP_DEVICE = 0;
@@ -81,6 +71,9 @@ static constexpr size_t USB_MAX_PACKET_SIZE =
 static constexpr size_t USB_EVENT_QUEUE_SIZE = 32;   // Size of event queue between USB task and main loop
 static constexpr size_t USB_TASK_STACK_SIZE = 4096;  // Stack size for USB task (same as ESP-IDF USB examples)
 static constexpr UBaseType_t USB_TASK_PRIORITY = 5;  // Higher priority than main loop (tskIDLE_PRIORITY + 5)
+
+// USB_INTERFACE_CLASS_ANY: USBClient matches any interface class (default for VID/PID-only drivers)
+static constexpr uint8_t USB_INTERFACE_CLASS_ANY = 0xFF;
 
 // used to report a transfer status
 struct TransferStatus {
@@ -124,8 +117,6 @@ struct UsbEvent {
   void release() {}
 };
 
-// callback function type.
-
 enum ClientState {
   USB_CLIENT_INIT = 0,
   USB_CLIENT_OPEN,
@@ -134,6 +125,7 @@ enum ClientState {
   USB_CLIENT_GET_INFO,
   USB_CLIENT_CONNECTED,
 };
+
 class USBClient : public Component {
   friend class USBHost;
 
@@ -141,98 +133,57 @@ class USBClient : public Component {
   USBClient(uint16_t vid, uint16_t pid) : trq_in_use_(0), vid_(vid), pid_(pid) {}
   void setup() override;
   void loop() override;
-  // setup must happen after the host bus has been setup
   float get_setup_priority() const override { return setup_priority::IO; }
-  virtual void on_opened(uint8_t addr);
+  void on_opened(uint8_t addr);
   virtual void on_removed(usb_device_handle_t handle);
   bool transfer_in(uint8_t ep_address, const transfer_cb_t &callback, uint16_t length);
   bool transfer_out(uint8_t ep_address, const transfer_cb_t &callback, const uint8_t *data, uint16_t length);
   void dump_config() override;
   void release_trq(TransferRequest *trq);
   trq_bitmask_t get_trq_in_use() const { return trq_in_use_; }
-  int get_device_addr() const { return this->device_addr_; }
-  int get_state() const { return this->state_; }
   bool control_transfer(uint8_t type, uint8_t request, uint16_t value, uint16_t index, const transfer_cb_t &callback,
                         const std::vector<uint8_t> &data = {});
+
+  // Returns the USB interface class this driver handles.
+  // USB_INTERFACE_CLASS_ANY (0xFF) means match by VID/PID only (default for UART drivers).
+  // Override to declare a specific class (e.g. USB_CLASS_MASS_STORAGE for MSC drivers).
+  virtual uint8_t get_interface_class() const { return USB_INTERFACE_CLASS_ANY; }
 
   // Lock-free event queue and pool for USB task to main loop communication
   // Must be public for access from static callbacks
   LockFreeQueue<UsbEvent, USB_EVENT_QUEUE_SIZE> event_queue;
-  // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
-  // buffer that holds N-1 elements. This guarantees allocate() returns nullptr
-  // before push() can fail, preventing a pool slot leak.
   EventPool<UsbEvent, USB_EVENT_QUEUE_SIZE - 1> event_pool;
 
  protected:
-  // Process USB events from the queue. Returns true if any work was done.
-  // Subclasses should call this instead of USBClient::loop() to combine
-  // with their own work check for a single disable_loop() decision.
   bool process_usb_events_();
   void handle_open_state_();
-  TransferRequest *get_trq_();  // Lock-free allocation using atomic bitmask (multi-consumer safe)
+  TransferRequest *get_trq_();
   virtual void disconnect();
   virtual void on_connected() {}
-  virtual void on_disconnected() {
-    // Reset all requests to available (all bits to 0)
-    this->trq_in_use_.store(0);
-  }
+  virtual void on_disconnected() { this->trq_in_use_.store(0); }
 
-  // USB task management
   static void usb_task_fn(void *arg);
   [[noreturn]] void usb_task_loop_() const;
 
-  // Members ordered to minimize struct padding on 32-bit platforms
   TransferRequest requests_[MAX_REQUESTS]{};
   TaskHandle_t usb_task_handle_{nullptr};
   usb_host_client_handle_t handle_{};
   usb_device_handle_t device_handle_{};
   int device_addr_{-1};
   int state_{USB_CLIENT_INIT};
-  // Lock-free pool management using atomic bitmask (no dynamic allocation)
-  // Bit i = 1: requests_[i] is in use, Bit i = 0: requests_[i] is available
-  // Supports multiple concurrent consumers and producers (both threads can allocate/deallocate)
   std::atomic<trq_bitmask_t> trq_in_use_;
   uint16_t vid_{};
   uint16_t pid_{};
 };
+
 class USBHost : public Component {
  public:
   float get_setup_priority() const override { return setup_priority::BUS; }
   void loop() override;
   void setup() override;
-  std::vector<USBClient *> &get_clients() { return this->clients_; }
 
  protected:
   std::vector<USBClient *> clients_{};
-};
-
-// Wildcard USBClient that opens every new device, walks its interface descriptors,
-// and dispatches to registered USBClassDriver instances. Each driver claims at most
-// one interface per device. After probing, the router closes its own handle so the
-// driver can open the device independently via its own client handle (e.g. MSC host).
-// Devices already claimed by a VID/PID-matched USBClient are skipped.
-class USBClassRouter : public USBClient {
- public:
-  USBClassRouter() : USBClient(0, 0) {}
-
-  void register_driver(USBClassDriver *driver) { this->drivers_.push_back(driver); }
-  void set_host(USBHost *host) { this->clients_ = &host->get_clients(); }
-  void on_opened(uint8_t addr) override;
-  void loop() override;
-
- protected:
-  void on_connected() override;
-  void on_removed(usb_device_handle_t handle) override;
-
-  std::vector<USBClassDriver *> drivers_{};
-  std::vector<USBClient *> *clients_{nullptr};
-  std::vector<uint8_t> pending_addrs_{};
-  struct ClaimedIface {
-    uint8_t addr;
-    usb_device_handle_t handle;
-    USBClassDriver *driver;
-  };
-  std::vector<ClaimedIface> claimed_{};
 };
 
 }  // namespace esphome::usb_host

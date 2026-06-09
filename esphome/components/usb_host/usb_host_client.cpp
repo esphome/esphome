@@ -308,6 +308,30 @@ void USBClient::handle_open_state_() {
       return;
     }
   }
+  // If this driver declares a specific interface class, verify the device has a matching interface.
+  uint8_t required_class = this->get_interface_class();
+  if (required_class != USB_INTERFACE_CLASS_ANY) {
+    const usb_config_desc_t *cfg_desc;
+    if (usb_host_get_active_config_descriptor(this->device_handle_, &cfg_desc) != ESP_OK) {
+      this->disconnect();
+      return;
+    }
+    bool found = false;
+    int offset = 0;
+    const usb_standard_desc_t *next = reinterpret_cast<const usb_standard_desc_t *>(cfg_desc);
+    while ((next = usb_parse_next_descriptor_of_type(next, cfg_desc->wTotalLength, USB_W_VALUE_DT_INTERFACE,
+                                                     &offset)) != nullptr) {
+      if (reinterpret_cast<const usb_intf_desc_t *>(next)->bInterfaceClass == required_class) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      ESP_LOGD(TAG, "Device has no interface class 0x%02X, closing", required_class);
+      this->disconnect();
+      return;
+    }
+  }
   usb_device_info_t dev_info;
   err = usb_host_device_info(this->device_handle_, &dev_info);
   if (err != ESP_OK) {

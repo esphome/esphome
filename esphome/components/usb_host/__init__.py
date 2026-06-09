@@ -20,15 +20,12 @@ DEPENDENCIES = ["esp32"]
 usb_host_ns = cg.esphome_ns.namespace("usb_host")
 USBHost = usb_host_ns.class_("USBHost", Component)
 USBClient = usb_host_ns.class_("USBClient", Component)
-USBClassDriver = usb_host_ns.class_("USBClassDriver")
-USBClassRouter = usb_host_ns.class_("USBClassRouter", USBClient)
 DOMAIN = "usb_host"
 CONF_VID = "vid"
 CONF_PID = "pid"
 CONF_ENABLE_HUBS = "enable_hubs"
 CONF_MAX_TRANSFER_REQUESTS = "max_transfer_requests"
 CONF_MAX_PACKET_SIZE = "max_packet_size"
-CONF_CLASS_ROUTER_ID = "class_router_id"
 
 
 def usb_device_schema(cls=USBClient, vid: int = None, pid: int = None) -> cv.Schema:
@@ -63,7 +60,6 @@ CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(USBHost),
-            cv.GenerateID(CONF_CLASS_ROUTER_ID): cv.declare_id(USBClassRouter),
             cv.Optional(CONF_ENABLE_HUBS, default=False): cv.boolean,
             cv.Optional(CONF_MAX_TRANSFER_REQUESTS, default=16): cv.int_range(
                 min=1, max=32
@@ -85,13 +81,6 @@ async def register_usb_client(config):
     return var
 
 
-async def register_usb_class_driver(driver_var):
-    """Register a USBClassDriver with the singleton USBClassRouter."""
-    router_id = CORE.data[DOMAIN][CONF_CLASS_ROUTER_ID]
-    router = await cg.get_variable(router_id)
-    cg.add(router.register_driver(driver_var))
-
-
 async def to_code(config: ConfigType) -> None:
     # IDF 6.0 moved USB host to an external component
     if idf_version() >= cv.Version(6, 0, 0):
@@ -105,12 +94,6 @@ async def to_code(config: ConfigType) -> None:
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-
-    # Always instantiate the class router so class-based drivers can register with it.
-    CORE.data.setdefault(DOMAIN, {})[CONF_CLASS_ROUTER_ID] = config[CONF_CLASS_ROUTER_ID]
-    router = cg.new_Pvariable(config[CONF_CLASS_ROUTER_ID])
-    await cg.register_component(router, {})
-    cg.add(router.set_host(var))
 
     for device in config.get(CONF_DEVICES) or ():
         await register_usb_client(device)
