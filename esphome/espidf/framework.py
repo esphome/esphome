@@ -98,6 +98,7 @@ def _get_idf_tools_path() -> Path:
 # ("cannot execute 'as'"). Warn up front so the user can shorten the path or
 # enable long path support.
 _WINDOWS_MAX_PATH = 260
+# Measured 243 plus a small safety margin for future toolchain growth.
 _TOOLCHAIN_NESTED_PATH_LEN = 245
 
 
@@ -130,7 +131,7 @@ def _check_windows_path_length() -> None:
     if projected <= _WINDOWS_MAX_PATH:
         return
     _LOGGER.warning(
-        "ESPHome install path is too long for the default Windows path limit:\n"
+        "ESP-IDF tools path is too long for the default Windows path limit:\n"
         "  %s (%d characters)\n"
         "ESP-IDF toolchain paths reach up to ~%d characters deeper (including the\n"
         "compiler's internal 'bin/../lib/...' relative paths), projecting to ~%d\n"
@@ -143,8 +144,8 @@ def _check_windows_path_length() -> None:
         "    HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem\\LongPathsEnabled\n"
         "    to 1 and reboot, or\n"
         "  - Move your ESPHome project to a shorter path\n"
-        "Then delete the .esphome\\idf directory so the toolchain reinstalls "
-        "cleanly.",
+        "Then delete the ESP-IDF tools directory above so the toolchain "
+        "reinstalls cleanly.",
         tools_path,
         len(tools_path),
         _TOOLCHAIN_NESTED_PATH_LEN,
