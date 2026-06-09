@@ -111,9 +111,7 @@ def check_and_install() -> None:
 
         _LOGGER.info("Installing west %s ...", _WEST_VERSION)
         cmd = [str(env_python_path), "-m", "pip", "install", f"west=={_WEST_VERSION}"]
-        if not run_command_ok(
-            cmd,
-        ):
+        if not run_command_ok(cmd):
             raise EsphomeError(f"Install west for {version} Python environment failure")
         sentinel.touch()
 
@@ -133,9 +131,7 @@ def check_and_install() -> None:
             f"{version}",
             str(framework_path),
         ]
-        if not run_command_ok(
-            cmd,
-        ):
+        if not run_command_ok(cmd):
             raise EsphomeError(f"Can't initialize nRF Connect SDK {version}")
         _LOGGER.info("Updating nRF Connect SDK %s (this may take a while) ...", version)
         cmd = [

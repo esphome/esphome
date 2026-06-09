@@ -93,7 +93,7 @@ def run_command(
     msg: str | None = None,
     env: dict[str, str] | None = None,
     stream_output: bool = False,
-    cwd: str | None = None,
+    cwd: PathType | None = None,
 ) -> tuple[bool, str | None, str | None]:
     """
     Execute a command and return results.
