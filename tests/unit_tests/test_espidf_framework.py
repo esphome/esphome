@@ -3,6 +3,7 @@
 # pylint: disable=protected-access
 
 import io
+import json
 from pathlib import Path
 import tarfile
 from types import SimpleNamespace
@@ -15,6 +16,7 @@ from esphome.espidf.framework import (
     _get_framework_path,
     _get_python_env_path,
     _parse_git_source,
+    _patch_tools_json_for_linux_arm64,
     check_esp_idf_install,
 )
 from esphome.framework_helpers import _tar_extract_all, get_python_env_executable_path
@@ -437,3 +439,75 @@ def test_check_esp_idf_install_unparseable_version(
     check_esp_idf_install(bad_version, force=True)
 
     espidf_mocks.extract.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# _patch_tools_json_for_linux_arm64 (arm64-only ninja backport)
+# ---------------------------------------------------------------------------
+
+
+def _write_tools_json(framework_path: Path, data: dict) -> Path:
+    tools_dir = framework_path / "tools"
+    tools_dir.mkdir(parents=True, exist_ok=True)
+    tools_json = tools_dir / "tools.json"
+    tools_json.write_text(json.dumps(data), encoding="utf-8")
+    return tools_json
+
+
+def test_patch_tools_json_non_aarch64_is_noop(tmp_path: Path) -> None:
+    tools_json = _write_tools_json(
+        tmp_path, {"tools": [{"name": "ninja", "versions": [{"name": "1.12.1"}]}]}
+    )
+    before = tools_json.read_text(encoding="utf-8")
+    with patch("esphome.espidf.framework.platform.machine", return_value="x86_64"):
+        _patch_tools_json_for_linux_arm64(tmp_path)
+    assert tools_json.read_text(encoding="utf-8") == before
+
+
+def test_patch_tools_json_missing_file_is_noop(tmp_path: Path) -> None:
+    with patch("esphome.espidf.framework.platform.machine", return_value="aarch64"):
+        _patch_tools_json_for_linux_arm64(tmp_path)  # no tools/tools.json present
+
+
+def test_patch_tools_json_corrupt_file_warns_and_skips(tmp_path: Path) -> None:
+    (tmp_path / "tools").mkdir()
+    (tmp_path / "tools" / "tools.json").write_text("{ not json", encoding="utf-8")
+    with patch("esphome.espidf.framework.platform.machine", return_value="aarch64"):
+        _patch_tools_json_for_linux_arm64(tmp_path)  # JSONDecodeError -> skip
+
+
+def test_patch_tools_json_injects_ninja_arm64(tmp_path: Path) -> None:
+    tools_json = _write_tools_json(
+        tmp_path,
+        {
+            "tools": [
+                {"name": "ninja", "versions": [{"name": "1.12.1"}]},
+                {"name": "cmake", "versions": [{"name": "3.24.0"}]},
+            ]
+        },
+    )
+    with patch("esphome.espidf.framework.platform.machine", return_value="aarch64"):
+        _patch_tools_json_for_linux_arm64(tmp_path)
+
+    data = json.loads(tools_json.read_text(encoding="utf-8"))
+    ninja = next(t for t in data["tools"] if t["name"] == "ninja")
+    assert "linux-arm64" in ninja["versions"][0]
+    assert ninja["versions"][0]["linux-arm64"]["size"] == 121787
+
+
+def test_patch_tools_json_already_patched_is_noop(tmp_path: Path) -> None:
+    tools_json = _write_tools_json(
+        tmp_path,
+        {
+            "tools": [
+                {
+                    "name": "ninja",
+                    "versions": [{"name": "1.12.1", "linux-arm64": {"url": "x"}}],
+                }
+            ]
+        },
+    )
+    before = tools_json.read_text(encoding="utf-8")
+    with patch("esphome.espidf.framework.platform.machine", return_value="aarch64"):
+        _patch_tools_json_for_linux_arm64(tmp_path)
+    assert tools_json.read_text(encoding="utf-8") == before
