@@ -130,21 +130,26 @@ def _check_windows_path_length() -> None:
     if projected <= _WINDOWS_MAX_PATH:
         return
     _LOGGER.warning(
-        "ESPHome install path is %d characters long (%s). ESP-IDF toolchain "
-        "paths reach up to ~%d characters deeper (including the compiler's "
-        "internal 'bin/../lib/...' relative paths), exceeding the Windows "
-        "%d-character path limit (projected ~%d). This causes cryptic build "
-        'failures such as "fatal error: bits/c++config.h: No such file or '
-        'directory" or "cannot execute \'as\'". Enable Windows long path '
-        "support (set HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem\\"
-        "LongPathsEnabled to 1 and reboot), or move your ESPHome project to "
-        "a shorter path. After fixing, delete the .esphome\\idf directory so "
-        "the toolchain reinstalls cleanly.",
-        len(tools_path),
+        "ESPHome install path is too long for the default Windows path limit:\n"
+        "  %s (%d characters)\n"
+        "ESP-IDF toolchain paths reach up to ~%d characters deeper (including the\n"
+        "compiler's internal 'bin/../lib/...' relative paths), projecting to ~%d\n"
+        "characters -- over the %d-character limit. This causes cryptic build\n"
+        "failures such as:\n"
+        "  fatal error: bits/c++config.h: No such file or directory\n"
+        "  cannot execute 'as': CreateProcess: No such file or directory\n"
+        "To fix, either:\n"
+        "  - Enable Windows long path support: set\n"
+        "    HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem\\LongPathsEnabled\n"
+        "    to 1 and reboot, or\n"
+        "  - Move your ESPHome project to a shorter path\n"
+        "Then delete the .esphome\\idf directory so the toolchain reinstalls "
+        "cleanly.",
         tools_path,
+        len(tools_path),
         _TOOLCHAIN_NESTED_PATH_LEN,
-        _WINDOWS_MAX_PATH,
         projected,
+        _WINDOWS_MAX_PATH,
     )
 
 
