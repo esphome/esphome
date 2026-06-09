@@ -14,16 +14,11 @@ static constexpr uint8_t SET_CONTROL_REQUEST = 0x22;
 static constexpr uint8_t CONTROL_DTR = 0x01;
 static constexpr uint8_t CONTROL_RTS = 0x02;
 
-static constexpr uint8_t GET_LINE_REQUEST_TYPE = 0xa1;
-static constexpr uint8_t GET_LINE_REQUEST = 0x21;
-
 static constexpr uint8_t VENDOR_WRITE_REQUEST_TYPE = 0x40;
 static constexpr uint8_t VENDOR_WRITE_REQUEST = 0x01;
-static constexpr uint8_t VENDOR_WRITE_NREQUEST = 0x80;
 
 static constexpr uint8_t VENDOR_READ_REQUEST_TYPE = 0xc0;
 static constexpr uint8_t VENDOR_READ_REQUEST = 0x01;
-static constexpr uint8_t VENDOR_READ_NREQUEST = 0x81;
 
 // Supported standard baud rates for direct encoding (TYPE_H, TYPE_HX, TYPE_HXD, TYPE_HXN)
 static const uint32_t SUPPORTED_BAUD_RATES[] = {
@@ -146,9 +141,14 @@ std::vector<CdcEps> USBUartTypePL2303::parse_descriptors(usb_device_handle_t dev
         this->chip_type_ = (bcd_device == 0x0400) ? PL2303_TYPE_HXD : PL2303_TYPE_HX;
         break;
       default:
-        // TA (bcdDevice=0x0300) and TB (0x0500) would need an HX-status probe to distinguish
-        // from HXN — skip the probe on embedded and treat all remaining USB2/USB3 as HXN.
-        this->chip_type_ = PL2303_TYPE_HXN;
+        // TA and TB are distinguishable by bcdDevice without any USB probe.
+        if (bcd_device == 0x0300) {
+          this->chip_type_ = PL2303_TYPE_TA;
+        } else if (bcd_device == 0x0500) {
+          this->chip_type_ = PL2303_TYPE_TB;
+        } else {
+          this->chip_type_ = PL2303_TYPE_HXN;
+        }
         break;
     }
   }
@@ -187,7 +187,7 @@ std::vector<CdcEps> USBUartTypePL2303::parse_descriptors(usb_device_handle_t dev
     }
 
     if (in_ep && out_ep) {
-      cdc_devs.push_back(CdcEps{notify_ep, in_ep, out_ep, i, i});
+      cdc_devs.push_back(CdcEps{notify_ep, in_ep, out_ep, intf->bInterfaceNumber, intf->bInterfaceNumber});
       break;  // PL2303 is single-port
     }
   }
@@ -219,15 +219,16 @@ void USBUartTypePL2303::enable_channels() {
     uint8_t req = VENDOR_READ_REQUEST;
     uint8_t wreq = VENDOR_WRITE_REQUEST;
 
-    // These are fire-and-forget vendor reads (result discarded, chip needs the sequence)
-    this->control_transfer(VENDOR_READ_REQUEST_TYPE, req, 0x8484, 0, nop_cb);
+    // Fire-and-forget vendor reads: result discarded, chip requires this sequence.
+    // Pass a 1-byte buffer to set wLength=1 so the IN data stage is performed.
+    this->control_transfer(VENDOR_READ_REQUEST_TYPE, req, 0x8484, 0, nop_cb, {0});
     this->control_transfer(VENDOR_WRITE_REQUEST_TYPE, wreq, 0x0404, 0, nop_cb);
-    this->control_transfer(VENDOR_READ_REQUEST_TYPE, req, 0x8484, 0, nop_cb);
-    this->control_transfer(VENDOR_READ_REQUEST_TYPE, req, 0x8383, 0, nop_cb);
-    this->control_transfer(VENDOR_READ_REQUEST_TYPE, req, 0x8484, 0, nop_cb);
+    this->control_transfer(VENDOR_READ_REQUEST_TYPE, req, 0x8484, 0, nop_cb, {0});
+    this->control_transfer(VENDOR_READ_REQUEST_TYPE, req, 0x8383, 0, nop_cb, {0});
+    this->control_transfer(VENDOR_READ_REQUEST_TYPE, req, 0x8484, 0, nop_cb, {0});
     this->control_transfer(VENDOR_WRITE_REQUEST_TYPE, wreq, 0x0404, 1, nop_cb);
-    this->control_transfer(VENDOR_READ_REQUEST_TYPE, req, 0x8484, 0, nop_cb);
-    this->control_transfer(VENDOR_READ_REQUEST_TYPE, req, 0x8383, 0, nop_cb);
+    this->control_transfer(VENDOR_READ_REQUEST_TYPE, req, 0x8484, 0, nop_cb, {0});
+    this->control_transfer(VENDOR_READ_REQUEST_TYPE, req, 0x8383, 0, nop_cb, {0});
     this->control_transfer(VENDOR_WRITE_REQUEST_TYPE, wreq, 0, 1, nop_cb);
     this->control_transfer(VENDOR_WRITE_REQUEST_TYPE, wreq, 1, 0, nop_cb);
     this->control_transfer(VENDOR_WRITE_REQUEST_TYPE, wreq, 2, is_legacy ? 0x24 : 0x44, nop_cb);
@@ -284,10 +285,11 @@ void USBUartTypePL2303::enable_channels() {
            line_coding[6]);
 
   std::vector<uint8_t> lc_vec(line_coding, line_coding + 7);
-  this->control_transfer(SET_LINE_REQUEST_TYPE, SET_LINE_REQUEST, 0, 0, nop_cb, lc_vec);
+  uint16_t iface = channel->cdc_dev_.bulk_interface_number;
+  this->control_transfer(SET_LINE_REQUEST_TYPE, SET_LINE_REQUEST, 0, iface, nop_cb, lc_vec);
 
   // Assert DTR + RTS
-  this->control_transfer(SET_CONTROL_REQUEST_TYPE, SET_CONTROL_REQUEST, CONTROL_DTR | CONTROL_RTS, 0, nop_cb);
+  this->control_transfer(SET_CONTROL_REQUEST_TYPE, SET_CONTROL_REQUEST, CONTROL_DTR | CONTROL_RTS, iface, nop_cb);
 
   this->start_channels_();
 }
