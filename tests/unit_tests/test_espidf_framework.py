@@ -17,7 +17,7 @@ from esphome.espidf.framework import (
     _parse_git_source,
     check_esp_idf_install,
 )
-from esphome.framework_helpers import _tar_extract_all
+from esphome.framework_helpers import _tar_extract_all, get_python_env_executable_path
 
 
 @pytest.mark.parametrize(
@@ -329,8 +329,9 @@ def test_check_esp_idf_install_already_installed(espidf_mocks: SimpleNamespace) 
     framework_path = _get_framework_path(_IDF_VERSION)
     (framework_path / ".esphome_extracted").touch()
     python_env_path = _get_python_env_path(_IDF_VERSION)
-    (python_env_path / "bin").mkdir(parents=True, exist_ok=True)
-    (python_env_path / "bin" / "python").touch()
+    env_python = get_python_env_executable_path(python_env_path, "python")
+    env_python.parent.mkdir(parents=True, exist_ok=True)
+    env_python.touch()
 
     check_esp_idf_install(_IDF_VERSION)
 
