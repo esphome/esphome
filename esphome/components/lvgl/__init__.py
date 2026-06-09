@@ -76,7 +76,10 @@ from .schemas import (
     BASE_PROPS,
     DISP_BG_SCHEMA,
     FULL_STYLE_SCHEMA,
+    SET_STATE_SCHEMA,
+    STATE_SCHEMA,
     STYLE_REMAP,
+    STYLE_SCHEMA,
     WIDGET_TYPES,
     any_widget_schema,
     container_schema,
@@ -114,6 +117,14 @@ from .widgets.page import (  # page_spec used in LVGL_SCHEMA
     generate_page_triggers,
     page_spec,
 )
+
+# These style schemas live in .schemas but are imported here so they land in
+# this module's namespace, where script/build_language_schema.py registers them
+# as *named* schemas and emits `extends` references — instead of inlining the
+# ~80-property STYLE_SCHEMA at every widget x part x state, which bloated the
+# dumped lvgl schema ~23x (17 MB vs ~750 KB). They are not otherwise used in
+# this file; this tuple keeps the imports live (and self-documents why).
+_SCHEMA_DUMPER_NAMED_SCHEMAS = (STYLE_SCHEMA, STATE_SCHEMA, SET_STATE_SCHEMA)
 
 # Widget registration happens via WidgetType.__init__ in individual widget files
 # The imports below trigger creation of the widget types
