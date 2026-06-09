@@ -47,6 +47,7 @@ from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import MockObj
 from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.writer import clean_build
 from esphome.yaml_util import load_yaml
 
@@ -79,6 +80,7 @@ from .schemas import (
     WIDGET_TYPES,
     any_widget_schema,
     container_schema,
+    container_schema_value,
     obj_dict,
 )
 from .styles import styles_to_code, theme_to_code
@@ -559,94 +561,102 @@ def _theme_schema(value: dict) -> dict:
 
 FINAL_VALIDATE_SCHEMA = final_validation
 
-LVGL_SCHEMA = cv.All(
-    container_schema(
-        obj_spec,
-        cv.polling_component_schema("1s")
-        .extend(
-            {
-                **{
-                    cv.Optional(event): validate_automation(
-                        {
-                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                                Trigger.template(lv_obj_t_ptr, lv_event_t_ptr)
-                            ),
-                        }
-                    )
-                    for event in df.LV_SCREEN_EVENT_TRIGGERS
-                    + df.LV_DISPLAY_EVENT_TRIGGERS
-                },
-                cv.GenerateID(CONF_ID): cv.declare_id(LvglComponent),
-                cv.GenerateID(CONF_ALIGN_TO_LAMBDA_ID): cv.declare_id(lv_lambda_t),
-                cv.GenerateID(df.CONF_DISPLAYS): display_schema,
-                cv.Optional(CONF_COLOR_DEPTH, default=16): cv.one_of(16),
-                cv.Optional(
-                    df.CONF_DEFAULT_FONT, default="montserrat_14"
-                ): lvalid.lv_font,
-                cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
-                cv.Optional(
-                    df.CONF_UPDATE_WHEN_DISPLAY_IDLE, default=False
-                ): cv.boolean,
-                cv.Optional(CONF_DRAW_ROUNDING, default=2): cv.positive_int,
-                cv.Optional(CONF_BUFFER_SIZE, default=0): cv.percentage,
-                cv.Optional(CONF_ROTATION): validate_rotation,
-                cv.Optional(CONF_LOG_LEVEL, default="WARN"): cv.one_of(
-                    *df.LV_LOG_LEVELS, upper=True
-                ),
-                cv.Optional(CONF_BYTE_ORDER): cv.one_of(
-                    "big_endian", "little_endian", lower=True
-                ),
-                cv.Optional(df.CONF_STYLE_DEFINITIONS): cv.ensure_list(
-                    cv.Schema({cv.Required(CONF_ID): cv.declare_id(lv_style_t)}).extend(
-                        FULL_STYLE_SCHEMA
-                    )
-                ),
-                cv.Optional(CONF_ON_IDLE): validate_automation(
+# The options accepted at the top level of an `lvgl:` block, on top of the base
+# object schema that `container_schema(obj_spec, ...)` supplies. Held in a
+# module-level name (rather than inline) so the schema-extractor wrapper on
+# CONFIG_SCHEMA below can hand the language-schema dumper the same composed
+# schema the runtime validates against.
+LVGL_TOP_LEVEL_SCHEMA = (
+    cv.polling_component_schema("1s")
+    .extend(
+        {
+            **{
+                cv.Optional(event): validate_automation(
                     {
-                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(IdleTrigger),
-                        cv.Required(CONF_TIMEOUT): cv.templatable(
-                            cv.positive_time_period_milliseconds
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                            Trigger.template(lv_obj_t_ptr, lv_event_t_ptr)
                         ),
                     }
-                ),
-                cv.Optional(CONF_PAGES): cv.ensure_list(container_schema(page_spec)),
-                **{
-                    cv.Optional(x): validate_automation(
-                        {
-                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PlainTrigger),
-                        },
-                        single=True,
-                    )
-                    for x in SIMPLE_TRIGGERS
-                },
-                cv.Optional(df.CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
-                cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
-                cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),
-                cv.Optional(df.CONF_BOTTOM_LAYER): container_schema(obj_spec),
-                cv.Optional(
-                    df.CONF_TRANSPARENCY_KEY, default=0x000400
-                ): lvalid.lv_color,
-                cv.Optional(df.CONF_THEME): _theme_schema,
-                cv.Optional(df.CONF_GRADIENTS): GRADIENT_SCHEMA,
-                cv.Optional(df.CONF_TOUCHSCREENS, default=None): touchscreen_schema,
-                cv.Optional(df.CONF_ENCODERS, default=None): ENCODERS_CONFIG,
-                cv.Optional(df.CONF_KEYPADS, default=None): KEYPADS_CONFIG,
-                cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t),
-                cv.Optional(df.CONF_RESUME_ON_INPUT, default=True): cv.boolean,
-            }
-        )
-        .extend(DISP_BG_SCHEMA),
-    ),
+                )
+                for event in df.LV_SCREEN_EVENT_TRIGGERS + df.LV_DISPLAY_EVENT_TRIGGERS
+            },
+            cv.GenerateID(CONF_ID): cv.declare_id(LvglComponent),
+            cv.GenerateID(CONF_ALIGN_TO_LAMBDA_ID): cv.declare_id(lv_lambda_t),
+            cv.GenerateID(df.CONF_DISPLAYS): display_schema,
+            cv.Optional(CONF_COLOR_DEPTH, default=16): cv.one_of(16),
+            cv.Optional(df.CONF_DEFAULT_FONT, default="montserrat_14"): lvalid.lv_font,
+            cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
+            cv.Optional(df.CONF_UPDATE_WHEN_DISPLAY_IDLE, default=False): cv.boolean,
+            cv.Optional(CONF_DRAW_ROUNDING, default=2): cv.positive_int,
+            cv.Optional(CONF_BUFFER_SIZE, default=0): cv.percentage,
+            cv.Optional(CONF_ROTATION): validate_rotation,
+            cv.Optional(CONF_LOG_LEVEL, default="WARN"): cv.one_of(
+                *df.LV_LOG_LEVELS, upper=True
+            ),
+            cv.Optional(CONF_BYTE_ORDER): cv.one_of(
+                "big_endian", "little_endian", lower=True
+            ),
+            cv.Optional(df.CONF_STYLE_DEFINITIONS): cv.ensure_list(
+                cv.Schema({cv.Required(CONF_ID): cv.declare_id(lv_style_t)}).extend(
+                    FULL_STYLE_SCHEMA
+                )
+            ),
+            cv.Optional(CONF_ON_IDLE): validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(IdleTrigger),
+                    cv.Required(CONF_TIMEOUT): cv.templatable(
+                        cv.positive_time_period_milliseconds
+                    ),
+                }
+            ),
+            cv.Optional(CONF_PAGES): cv.ensure_list(container_schema(page_spec)),
+            **{
+                cv.Optional(x): validate_automation(
+                    {
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PlainTrigger),
+                    },
+                    single=True,
+                )
+                for x in SIMPLE_TRIGGERS
+            },
+            cv.Optional(df.CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
+            cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
+            cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),
+            cv.Optional(df.CONF_BOTTOM_LAYER): container_schema(obj_spec),
+            cv.Optional(df.CONF_TRANSPARENCY_KEY, default=0x000400): lvalid.lv_color,
+            cv.Optional(df.CONF_THEME): _theme_schema,
+            cv.Optional(df.CONF_GRADIENTS): GRADIENT_SCHEMA,
+            cv.Optional(df.CONF_TOUCHSCREENS, default=None): touchscreen_schema,
+            cv.Optional(df.CONF_ENCODERS, default=None): ENCODERS_CONFIG,
+            cv.Optional(df.CONF_KEYPADS, default=None): KEYPADS_CONFIG,
+            cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t),
+            cv.Optional(df.CONF_RESUME_ON_INPUT, default=True): cv.boolean,
+        }
+    )
+    .extend(DISP_BG_SCHEMA)
+)
+
+
+LVGL_SCHEMA = cv.All(
+    container_schema(obj_spec, LVGL_TOP_LEVEL_SCHEMA),
     cv.has_at_most_one_key(CONF_PAGES, df.CONF_LAYOUT),
     add_hello_world,
 )
 
 
+@schema_extractor("schema")
 def lvgl_config_schema(config):
     """
     Can't use cv.ensure_list here because it converts an empty config to an empty list,
     rather than a default config.
     """
+    if config is SCHEMA_EXTRACT:
+        # CONFIG_SCHEMA is this callable wrapping `cv.All` over a container_schema
+        # closure, so the language-schema dumper can't see the top-level `lvgl:`
+        # fields (it would emit an empty schema). Hand it the same composed
+        # obj + top-level schema the runtime validates against; validation of
+        # real configs (the branches below) is unchanged.
+        return container_schema_value(obj_spec, LVGL_TOP_LEVEL_SCHEMA)
     if not config or isinstance(config, dict):
         return [LVGL_SCHEMA(config)]
     return cv.Schema([LVGL_SCHEMA])(config)
