@@ -63,8 +63,10 @@ void PCM5122::setup() {
   pll_ref_val |= PCM5122_PLL_REF_SOURCE_BCK;
   this->reg(PCM5122_REG_PLL_REF) = pll_ref_val;
 
-  this->set_mute_on();
-  this->set_volume(this->volume_);
+  if (!this->set_mute_on() || !this->set_volume(this->volume_)) {
+    this->mark_failed();
+    return;
+  }
 }
 
 void PCM5122::dump_config() {
