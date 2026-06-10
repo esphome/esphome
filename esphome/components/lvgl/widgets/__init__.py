@@ -290,6 +290,7 @@ class Widget:
         # Properties for linear equations
         self.slope = None
         self.y_int = None
+        self.parent = None
 
     @staticmethod
     def create(name, var, wtype: WidgetType, config: dict = None):

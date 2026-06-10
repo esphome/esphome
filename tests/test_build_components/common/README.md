@@ -145,6 +145,15 @@ Same pin allocations as standard I2C, but with 10kHz frequency for components re
 Same UART pins as above, plus:
 - **flow_control_pin**: GPIO4 (all platforms)
 
+### I2S Audio
+Provides a shared `i2s_audio_bus` (clock pins only); ESP32 family only:
+- **ESP32 IDF / ESP32-S3 IDF**: BCLK=GPIO5, LRCLK=GPIO4, MCLK=GPIO15
+
+Each consumer keeps its own `i2s_dout_pin`/`i2s_din_pin` substitution and must use a
+unique data pin, since several speakers/microphones can share one bus when grouped.
+The `i2s_audio` component itself (and the isolated PDM `microphone`) keep defining the
+bus inline and are not grouped.
+
 ### BLE
 - **ESP32**: Shared `esp32_ble_tracker` infrastructure
 - Each component defines unique `ble_client` with different MAC addresses
