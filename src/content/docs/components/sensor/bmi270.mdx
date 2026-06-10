@@ -1,0 +1,30 @@
+---
+description: "Instructions for setting up BMI270 temperature sensor."
+title: "BMI270 Temperature Sensor"
+---
+
+The `bmi270` sensor platform provides access to the temperature sensor in a BMI270 Accelerometer/Gyroscope
+([datasheet](https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bmi270-ds000.pdf)) with ESPHome.
+It requires a [`motion`](/components/motion) component to be configured with the `bmi270` platform,
+which handles the accelerometer and gyroscope data processing and configures the device. See that component for more information.
+
+```yaml
+# Example configuration entry
+motion:
+  - platform: bmi270
+
+sensor:
+  - platform: bmi270
+    type: temperature # Optional, temperature is the only supported type for this platform
+    name: "BMI270 Temperature"
+```
+
+## Configuration variables
+
+- **type** (*Optional*, string): Must be set to `temperature`, or simply omitted.
+- All other options from [Sensor](/components/sensor).
+
+## See Also
+
+- [Sensor Filters](/components/sensor#sensor-filters)
+- [BMI270 Accelerometer/Gyroscope platform](/components/motion/bmi270/)
