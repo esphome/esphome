@@ -165,8 +165,6 @@ esp_err_t encode(const EncodeConfig &config, const uint8_t *input, size_t input_
   if (input_size < expected_input_size)
     return ESP_ERR_INVALID_SIZE;
 
-  output->release();
-
   jpeg_encoder_handle_t encoder = nullptr;
   jpeg_encode_engine_cfg_t engine_cfg = {
       .intr_priority = 0,

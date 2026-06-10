@@ -1,2 +1,1 @@
-esp32_jpeg:
-  apply_idf_patches: true
+esp32_jpeg: {}

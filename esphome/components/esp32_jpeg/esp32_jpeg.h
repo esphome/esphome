@@ -50,7 +50,8 @@ class JpegBuffer {
   JpegBuffer(JpegBuffer &&other) noexcept;
   JpegBuffer &operator=(JpegBuffer &&other) noexcept;
 
-  uint8_t *data() const { return this->data_; }
+  uint8_t *data() { return this->data_; }
+  const uint8_t *data() const { return this->data_; }
   size_t size() const { return this->size_; }
   size_t capacity() const { return this->capacity_; }
   bool empty() const { return this->data_ == nullptr || this->size_ == 0; }
