@@ -48,6 +48,9 @@ Advanced options:
 - **platformio_options** (*Optional*, mapping): Additional options to pass over to PlatformIO in the
   platformio.ini file. See [`platformio_options`](#esphome-platformio_options).
 
+- **build_flags** (*Optional*, list of strings): Extra compiler flags to add to the build. Works on
+  both the PlatformIO and native ESP-IDF backends. See [`build_flags`](#build_flags).
+
 - **environment_variables** (*Optional*, mapping): Environment variables to set during the build process.
   See [`environment_variables`](#esphome-environment_variables).
 
@@ -190,6 +193,29 @@ esphome:
     upload_speed: 115200
     board_build.f_flash: 80000000L
 ```
+
+## `build_flags`
+
+The `build_flags` option lets you add extra compiler flags to the build. Unlike
+`platformio_options.build_flags`, this option also works on the native ESP-IDF build (for variants
+that use it, such as ESP32-P4 and ESP32-H2), and is the recommended way to pass extra flags when
+you want a configuration that works on both backends.
+
+```yaml
+# Example configuration entry
+esphome:
+  # ...
+  build_flags:
+    - "-DMY_CUSTOM_DEFINE"
+    - "-Wno-error=maybe-uninitialized"
+```
+
+Flags are processed as follows:
+
+- `-D...` and `-W...` (non-linker warning) flags are applied project-wide on the IDF backend so
+  they reach every component, including managed ones.
+- `-Wl,...` linker flags are applied to the link step.
+- On the PlatformIO backend, flags are written to `build_flags` in `platformio.ini`.
 
 <span id="esphome-environment_variables"></span>
 
