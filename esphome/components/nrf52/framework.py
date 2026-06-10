@@ -157,7 +157,9 @@ def check_and_install() -> None:
             str(_REQUIREMENTS),
         ]
         if not run_command_ok(cmd):
-            raise EsphomeError(f"Install west for {version} Python environment failure")
+            raise EsphomeError(
+                f"Install requirements for {version} Python environment failure"
+            )
         sentinel.touch()
 
     framework_path = _get_framework_path(version)

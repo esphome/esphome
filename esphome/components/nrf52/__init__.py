@@ -606,7 +606,7 @@ def _generate_cmake_lists() -> None:
         "",
         f"project({CORE.name})",
         "",
-        f'file(GLOB_RECURSE APP_SOURCES "{src_dir}/*.cpp")',
+        f'file(GLOB_RECURSE APP_SOURCES CONFIGURE_DEPENDS "{src_dir}/*.cpp")',
         "",
         f'SET(CMAKE_CXX_FLAGS "${{CMAKE_CXX_FLAGS}} {compile_flags}")',
         f'SET(CMAKE_C_FLAGS "${{CMAKE_C_FLAGS}} {compile_flags}")',
