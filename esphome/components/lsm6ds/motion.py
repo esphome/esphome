@@ -12,7 +12,7 @@ import esphome.config_validation as cv
 from . import LSM6DSComponent, lsm6ds_ns
 
 # ── Dependency declarations ──────────────────────────────────────────────────
-DEPENDENCIES = ["i2c", "motion"]
+DEPENDENCIES = ["i2c"]
 DOMAIN = "lsm6ds"
 
 # ── C++ namespace / class ────────────────────────────────────────────────────

@@ -3,7 +3,6 @@ from esphome.components import i2c
 from esphome.components.motion import MotionComponent
 
 CODEOWNERS = ["@clydebarrow"]
-DEPENDENCIES = ["i2c", "motion"]
 
 CONF_LSM6DS_ID = "lsm6ds_id"
 #  C++ namespace / class
@@ -14,5 +13,3 @@ LSM6DSComponent = lsm6ds_ns.class_(
     MotionComponent,
     i2c.I2CDevice,
 )
-
-CONFIG_SCHEMA = {}

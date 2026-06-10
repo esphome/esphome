@@ -14,8 +14,6 @@ from esphome.cpp_generator import MockObj
 
 from . import CONF_LSM6DS_ID, LSM6DSComponent
 
-AUTO_LOAD = ["lsm6ds"]
-
 CONFIG_SCHEMA = sensor.sensor_schema(
     unit_of_measurement=UNIT_CELSIUS,
     icon=ICON_THERMOMETER,
