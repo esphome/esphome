@@ -81,7 +81,7 @@ void BMI270Component::setup() {
     this->mark_failed();
     return;
   }
-  ESP_LOGD(TAG, "Chip ID: 0x%02X ✓", chip_id);
+  ESP_LOGD(TAG, "Chip ID: 0x%02X", chip_id);
 
   // 2. Soft-reset via CMD register (0x7E = 0xB6)
   if (!this->write_byte(0x7E, 0xB6)) {

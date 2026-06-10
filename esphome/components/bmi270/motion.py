@@ -11,7 +11,7 @@ import esphome.config_validation as cv
 
 from . import BMI270Component, bmi270_ns
 
-AUTO_LOAD = ["bmi270"]
+DEPENDENCIES = ["i2c"]
 
 #  Enum proxies (must match the C++ enum values exactly)
 BMI270AccelRange = bmi270_ns.enum("BMI270AccelRange")
