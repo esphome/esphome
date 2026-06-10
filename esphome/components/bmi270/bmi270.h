@@ -19,7 +19,7 @@ static const uint8_t BMI270_REG_TEMP_MSB = 0x23;  // temperature (2 bytes big-en
 
 static constexpr uint8_t REG_READ_LEN =
     BMI270_REG_TEMP_MSB - BMI270_REG_DATA_8 +
-    1;  // 0x23 - 0x0C + 1 = 18 bytes total for accel(6) + gyro(6) + temp(2) + padding(4)
+    1;  // 0x23 - 0x0C + 1 = 0x18 bytes total for accel(6) + gyro(6) + temp(2) + padding(4)
 
 static const uint8_t BMI270_REG_PWR_CONF = 0x7C;
 static const uint8_t BMI270_REG_PWR_CTRL = 0x7D;
