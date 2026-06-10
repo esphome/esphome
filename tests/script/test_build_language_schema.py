@@ -234,18 +234,28 @@ def test_lvgl_top_level_schema_is_exposed(lvgl_schema: dict) -> None:
 
 def test_lvgl_widgets_key_enumerated(lvgl_schema: dict) -> None:
     config_vars = _lvgl_config_vars(lvgl_schema)
-    # The widgets: list is assembled per-value at runtime; the extractor now
-    # enumerates every registered widget type so editors get completion.
+    # The widgets: list is assembled per-value at runtime; the extractor
+    # enumerates every registered widget type into a named WIDGET_TYPES schema
+    # which the widgets: list references (recursive, so widgets can nest).
     assert "widgets" in config_vars
     widgets = config_vars["widgets"]
     assert widgets["is_list"] is True
-    widget_types = widgets["schema"]["config_vars"]
+    assert widgets["schema"]["extends"] == ["lvgl.WIDGET_TYPES"]
+
+    widget_types = lvgl_schema["lvgl"]["schemas"]["WIDGET_TYPES"]["schema"][
+        "config_vars"
+    ]
     # Every registered widget type should appear as an optional key.
     for name in ("obj", "label", "button", "slider", "switch", "arc"):
         assert name in widget_types, f"widget type not enumerated: {name}"
     # Each enumerated widget carries its own property schema, not an empty stub.
     assert widget_types["label"]["type"] == "schema"
     assert len(widget_types["label"]["schema"]["config_vars"]) > 0
+    # Each widget can contain child widgets, via the same named ref — so the
+    # tree is recursive and the dump stays finite.
+    nested = widget_types["obj"]["schema"]["config_vars"]["widgets"]
+    assert nested["is_list"] is True
+    assert nested["schema"]["extends"] == ["lvgl.WIDGET_TYPES"]
 
 
 def test_lvgl_style_schemas_are_named_and_deduped(lvgl_schema: dict) -> None:
