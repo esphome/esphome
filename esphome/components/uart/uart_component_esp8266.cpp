@@ -4,6 +4,9 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#ifdef USE_UART_WAKE_LOOP_ON_RX
+#include "esphome/core/wake.h"
+#endif
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -149,7 +152,11 @@ void ESP8266UartComponent::dump_config() {
   if (this->hw_serial_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Using hardware serial interface.");
   } else {
-    ESP_LOGCONFIG(TAG, "  Using software serial");
+    ESP_LOGCONFIG(TAG, "  Using software serial"
+#ifdef USE_UART_WAKE_LOOP_ON_RX
+                       "\n  Wake on data RX: ENABLED"
+#endif
+    );
   }
   this->check_logger_conflict();
 }
@@ -266,6 +273,12 @@ void IRAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg) {
   arg->rx_in_pos_ = (arg->rx_in_pos_ + 1) % arg->rx_buffer_size_;
   // Clear RX pin so that the interrupt doesn't re-trigger right away again.
   arg->rx_pin_.clear_interrupt();
+#ifdef USE_UART_WAKE_LOOP_ON_RX
+  // Wake the main loop so the consuming component drains the byte promptly
+  // instead of waiting for the next loop_interval_ tick. Important for timing
+  // sensitive setups that poll read() in a tight loop (e.g. fingerprint_grow).
+  wake_loop_isrsafe();
+#endif
 }
 void IRAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
   if (this->gpio_tx_pin_ == nullptr) {

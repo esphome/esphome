@@ -177,6 +177,20 @@ CO5300.extend(
     reset_pin=39,
 )
 
+# Waveshare ESP32-S3 Touch AMOLED 2.16" (CO5300 controller)
+# Pin assignments are the same as the 1.75" devkit: CS=12, RESET=39. Width/height set to 480x480.
+CO5300.extend(
+    "WAVESHARE-ESP32-S3-TOUCH-AMOLED-2.16",
+    width=480,
+    height=480,
+    pixel_mode="16bit",
+    offset_height=0,
+    offset_width=0,
+    cs_pin=12,
+    reset_pin=39,
+    data_rate="40MHz",
+)
+
 AXS15231.extend(
     "WAVESHARE-ESP32-S3-TOUCH-LCD-3.49",
     width=172,

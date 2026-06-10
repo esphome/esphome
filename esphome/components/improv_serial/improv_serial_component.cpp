@@ -8,8 +8,7 @@
 
 #include "esphome/components/logger/logger.h"
 
-namespace esphome {
-namespace improv_serial {
+namespace esphome::improv_serial {
 
 static const char *const TAG = "improv_serial";
 
@@ -69,11 +68,9 @@ optional<uint8_t> ImprovSerialComponent::read_byte_() {
   switch (logger::global_logger->get_uart()) {
     case logger::UART_SELECTION_UART0:
     case logger::UART_SELECTION_UART1:
-#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
-    !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32)
     case logger::UART_SELECTION_UART2:
-#endif  // !USE_ESP32_VARIANT_ESP32C3 && !USE_ESP32_VARIANT_ESP32C6 && !USE_ESP32_VARIANT_ESP32C61 &&
-        // !USE_ESP32_VARIANT_ESP32S2 && !USE_ESP32_VARIANT_ESP32S3
+#endif
       if (this->uart_num_ >= 0) {
         size_t available;
         uart_get_buffered_data_len(this->uart_num_, &available);
@@ -137,8 +134,7 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
   switch (logger::global_logger->get_uart()) {
     case logger::UART_SELECTION_UART0:
     case logger::UART_SELECTION_UART1:
-#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
-    !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32)
     case logger::UART_SELECTION_UART2:
 #endif
       uart_write_bytes(this->uart_num_, this->tx_header_, header_tx_len);
@@ -329,6 +325,6 @@ void ImprovSerialComponent::on_wifi_connect_timeout_() {
 ImprovSerialComponent *global_improv_serial_component =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
     nullptr;                                             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace improv_serial
-}  // namespace esphome
+}  // namespace esphome::improv_serial
+
 #endif

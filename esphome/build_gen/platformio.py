@@ -1,7 +1,7 @@
 from esphome.const import __version__
 from esphome.core import CORE
 from esphome.helpers import mkdir_p, read_file, write_file_if_changed
-from esphome.writer import find_begin_end, update_storage_json
+from esphome.writer import find_begin_end
 
 INI_AUTO_GENERATE_BEGIN = "; ========== AUTO GENERATED CODE BEGIN ==========="
 INI_AUTO_GENERATE_END = "; =========== AUTO GENERATED CODE END ============"
@@ -58,7 +58,6 @@ def get_ini_content():
 
 
 def write_ini(content):
-    update_storage_json()
     path = CORE.relative_build_path("platformio.ini")
 
     if path.is_file():

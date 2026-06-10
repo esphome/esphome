@@ -35,9 +35,8 @@ void OpenThreadComponent::setup() {
   esp_vfs_eventfd_config_t eventfd_config = {
       .max_fds = 3,
   };
+  // Network interface setup handled by network component
   ESP_ERROR_CHECK(nvs_flash_init());
-  ESP_ERROR_CHECK(esp_event_loop_create_default());
-  ESP_ERROR_CHECK(esp_netif_init());
   ESP_ERROR_CHECK(esp_vfs_eventfd_register(&eventfd_config));
 
   xTaskCreate(
@@ -180,7 +179,10 @@ void OpenThreadComponent::ot_main() {
   ESP_ERROR_CHECK(esp_openthread_auto_start(dataset.mLength > 0 ? &dataset : nullptr));
 
   // Register state change callback to update connected_ reactively instead of polling
-  otSetStateChangedCallback(instance, OpenThreadComponent::on_state_changed_, this);
+  otError ot_err = otSetStateChangedCallback(instance, OpenThreadComponent::on_state_changed, this);
+  if (ot_err != OT_ERROR_NONE) {
+    ESP_LOGW(TAG, "Failed to register state change callback: %d", ot_err);
+  }
 
   esp_openthread_launch_mainloop();
 

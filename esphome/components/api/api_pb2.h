@@ -181,6 +181,8 @@ enum LockState : uint32_t {
   LOCK_STATE_JAMMED = 3,
   LOCK_STATE_LOCKING = 4,
   LOCK_STATE_UNLOCKING = 5,
+  LOCK_STATE_OPENING = 6,
+  LOCK_STATE_OPEN = 7,
 };
 enum LockCommand : uint32_t {
   LOCK_UNLOCK = 0,
@@ -2434,13 +2436,15 @@ class VoiceAssistantEventResponse final : public ProtoDecodableMessage {
 class VoiceAssistantAudio final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 106;
-  static constexpr uint8_t ESTIMATED_SIZE = 21;
+  static constexpr uint8_t ESTIMATED_SIZE = 40;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("voice_assistant_audio"); }
 #endif
   const uint8_t *data{nullptr};
   uint16_t data_len{0};
   bool end{false};
+  const uint8_t *data2{nullptr};
+  uint16_t data2_len{0};
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
   uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP

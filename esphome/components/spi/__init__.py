@@ -16,12 +16,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S3,
     only_on_variant,
 )
-from esphome.components.zephyr import (
-    zephyr_add_overlay,
-    zephyr_add_prj_conf,
-    zephyr_data,
-)
-from esphome.components.zephyr.const import KEY_BOARD
+from esphome.components.zephyr import zephyr_add_overlay, zephyr_add_prj_conf
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -461,7 +456,9 @@ async def to_code(configs):
                 """
             )
             var = cg.new_Pvariable(spi[CONF_ID])
-            cg.add(var.set_interface(cg.RawExpression("DEVICE_DT_GET(DT_NODELABEL(spi2))")))
+            cg.add(
+                var.set_interface(cg.RawExpression("DEVICE_DT_GET(DT_NODELABEL(spi2))"))
+            )
             cg.add(var.set_interface_name("spi2"))
         else:
             var = cg.new_Pvariable(spi[CONF_ID])
@@ -474,15 +471,17 @@ async def to_code(configs):
             cg.add(var.set_mosi(await cg.gpio_pin_expression(mosi)))
         if data_pins := spi.get(CONF_DATA_PINS):
             cg.add(var.set_data_pins(data_pins))
-        if not CORE.using_zephyr:
-            if (index := spi.get(CONF_INTERFACE_INDEX)) is not None:
-                interface = get_spi_interface(index)
-                cg.add(var.set_interface(cg.RawExpression(interface)))
-                cg.add(
-                    var.set_interface_name(
-                        re.sub(r"\W", "", interface.replace("new SPIClass", ""))
-                    )
+        if (
+            not CORE.using_zephyr
+            and (index := spi.get(CONF_INTERFACE_INDEX)) is not None
+        ):
+            interface = get_spi_interface(index)
+            cg.add(var.set_interface(cg.RawExpression(interface)))
+            cg.add(
+                var.set_interface_name(
+                    re.sub(r"\W", "", interface.replace("new SPIClass", ""))
                 )
+            )
 
 
 def spi_device_schema(

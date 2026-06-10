@@ -345,6 +345,17 @@ enum WifiMinAuthMode : uint8_t {
   WIFI_MIN_AUTH_MODE_WPA3,
 };
 
+#ifdef USE_WIFI_PHY_MODE
+// Values 1-3 match ESP8266 SDK phy_mode_t (PHY_MODE_11B=1, PHY_MODE_11G=2, PHY_MODE_11N=3).
+// AUTO leaves the SDK at its default (no wifi_set_phy_mode() call).
+enum WiFi8266PhyMode : uint8_t {
+  WIFI_8266_PHY_MODE_AUTO = 0,
+  WIFI_8266_PHY_MODE_11B = 1,
+  WIFI_8266_PHY_MODE_11G = 2,
+  WIFI_8266_PHY_MODE_11N = 3,
+};
+#endif
+
 #ifdef USE_ESP32
 struct IDFWiFiEvent;
 #endif
@@ -454,6 +465,9 @@ class WiFiComponent final : public Component {
   void set_output_power(float output_power) { output_power_ = output_power; }
 #if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
   void set_band_mode(wifi_band_mode_t band_mode) { this->band_mode_ = band_mode; }
+#endif
+#ifdef USE_WIFI_PHY_MODE
+  void set_phy_mode(WiFi8266PhyMode phy_mode) { this->phy_mode_ = phy_mode; }
 #endif
 
   void set_passive_scan(bool passive);
@@ -673,10 +687,19 @@ class WiFiComponent final : public Component {
 #if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
   bool wifi_apply_band_mode_();
 #endif
+#ifdef USE_WIFI_PHY_MODE
+  bool wifi_apply_phy_mode_();
+#endif
   bool wifi_sta_ip_config_(const optional<ManualIP> &manual_ip);
   bool wifi_apply_hostname_();
   bool wifi_sta_connect_(const WiFiAP &ap);
   void wifi_pre_setup_();
+#ifdef USE_ESP32
+  // ESP-IDF only: defers esp_wifi_init() + netif creation (which allocate ~15-30KB of
+  // DMA-capable internal SRAM) until wifi actually needs to come up. Idempotent.
+  // Called from setup() only when enable_on_boot_=true, and from enable() on first use.
+  void wifi_lazy_init_();
+#endif
   WiFiSTAConnectStatus wifi_sta_connect_status_() const;
   bool is_connected_() const {
     return this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED &&
@@ -811,6 +834,9 @@ class WiFiComponent final : public Component {
 #if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
   wifi_band_mode_t band_mode_{WIFI_BAND_MODE_AUTO};
 #endif
+#ifdef USE_WIFI_PHY_MODE
+  WiFi8266PhyMode phy_mode_{WIFI_8266_PHY_MODE_AUTO};
+#endif
   WifiMinAuthMode min_auth_mode_{WIFI_MIN_AUTH_MODE_WPA2};
   WiFiRetryPhase retry_phase_{WiFiRetryPhase::INITIAL_CONNECT};
   uint8_t num_retried_{0};
@@ -869,6 +895,12 @@ class WiFiComponent final : public Component {
   bool rrm_{false};
 #endif
   bool enable_on_boot_{true};
+#ifdef USE_ESP32
+  // Tracks whether esp_wifi_init() + netif creation has happened. Allows enable()
+  // to be called at runtime without re-allocating, and ensures the heavy init is
+  // skipped entirely when enable_on_boot_ is false until first enable().
+  bool wifi_initialized_{false};
+#endif
   bool got_ipv4_address_{false};
   bool keep_scan_results_{false};
   bool has_completed_scan_after_captive_portal_start_{

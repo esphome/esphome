@@ -4,8 +4,7 @@
 // Datasheet:
 // - https://nl.mouser.com/datasheet/2/302/PCF8563-1127619.pdf
 
-namespace esphome {
-namespace pcf8563 {
+namespace esphome::pcf8563 {
 
 static const char *const TAG = "PCF8563";
 
@@ -99,5 +98,4 @@ bool PCF8563Component::write_rtc_() {
            pcf8563_.reg.day, ONOFF(!pcf8563_.reg.stop), pcf8563_.reg.clkout_enabled);
   return true;
 }
-}  // namespace pcf8563
-}  // namespace esphome
+}  // namespace esphome::pcf8563

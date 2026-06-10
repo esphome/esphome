@@ -53,8 +53,8 @@ void ZephyrSPIDelegate::do_transceive_(const uint8_t *tx, uint8_t *rx, size_t le
     rx_set.count = 1;
   }
 
-  int err = spi_transceive(this->dev_, &this->cfg_, tx != nullptr ? &tx_set : nullptr,
-                           rx != nullptr ? &rx_set : nullptr);
+  int err =
+      spi_transceive(this->dev_, &this->cfg_, tx != nullptr ? &tx_set : nullptr, rx != nullptr ? &rx_set : nullptr);
   if (err != 0) {
     ESP_LOGE(TAG, "spi_transceive failed: %d", err);
   }

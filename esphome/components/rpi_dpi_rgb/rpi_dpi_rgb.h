@@ -14,8 +14,7 @@
 
 #include "esp_lcd_panel_rgb.h"
 
-namespace esphome {
-namespace rpi_dpi_rgb {
+namespace esphome::rpi_dpi_rgb {
 
 constexpr static const char *const TAG = "rpi_dpi_rgb";
 
@@ -92,6 +91,5 @@ class RpiDpiRgb : public display::Display {
   esp_lcd_panel_handle_t handle_{};
 };
 
-}  // namespace rpi_dpi_rgb
-}  // namespace esphome
+}  // namespace esphome::rpi_dpi_rgb
 #endif  // USE_ESP32_VARIANT_ESP32S3
