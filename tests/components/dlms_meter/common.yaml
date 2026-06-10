@@ -1,4 +1,16 @@
+dlms_meter:
+  id: dlms_meter_hub
+  receive_timeout: 50ms
+  decryption_key: "36C66639E48A8CA4D6BC8B282A793BBB"
+  auth_key: "11223344556677889900AABBCCDDEEFF"
+  skip_crc: true
+  provider: "netznoe"
+  custom_patterns:
+    - "custom_pattern_1"
+    - "custom_pattern_2"
+
 sensor:
+  # Old Schema tests
   - platform: dlms_meter
     voltage_l1:
       name: "Voltage L1"
@@ -20,8 +32,36 @@ sensor:
       name: "Active energy taken from grid"
     active_energy_minus:
       name: "Active energy put into grid"
+    reactive_energy_plus:
+      name: "Reactive energy taken from grid"
+    reactive_energy_minus:
+      name: "Reactive energy put into grid"
+    power_factor:
+      name: "Power factor"
+
+  # Dynamic Schema tests
+  - platform: dlms_meter
+    dlms_meter_id: dlms_meter_hub
+    obis_code: "1-0:99.99.9"
+    name: "Custom Dynamic Sensor"
 
 text_sensor:
+  # Old Schema tests
   - platform: dlms_meter
     timestamp:
       name: "timestamp"
+    meternumber:
+      name: "Meter Number"
+
+  # Dynamic Schema tests
+  - platform: dlms_meter
+    dlms_meter_id: dlms_meter_hub
+    obis_code: "0-0:99.99.9"
+    name: "Custom Dynamic Text Sensor"
+
+binary_sensor:
+  # Dynamic Schema tests (Binary sensors only use the dynamic schema)
+  - platform: dlms_meter
+    dlms_meter_id: dlms_meter_hub
+    obis_code: "0-1:2.3.4"
+    name: "Custom Binary Sensor"
