@@ -2,9 +2,12 @@
 
 # pylint: disable=protected-access
 
+from contextlib import contextmanager
 import io
 import json
+import logging
 from pathlib import Path
+import sys
 import tarfile
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -13,6 +16,7 @@ import pytest
 
 from esphome.espidf.framework import (
     _check_stamp,
+    _check_windows_path_length,
     _clone_idf_with_submodules,
     _get_framework_path,
     _get_idf_tool_paths,
@@ -22,6 +26,7 @@ from esphome.espidf.framework import (
     _get_python_version,
     _parse_git_source,
     _patch_tools_json_for_linux_arm64,
+    _windows_long_paths_enabled,
     _write_idf_version_txt,
     _write_stamp,
     check_esp_idf_install,
@@ -682,3 +687,116 @@ def test_write_idf_version_txt_warns_on_write_error(tmp_path: Path) -> None:
     with patch("pathlib.Path.write_text", side_effect=OSError("denied")):
         # write failure is caught and warned, not raised
         _write_idf_version_txt(tmp_path, "5.1.2")
+
+
+def _fake_winreg(
+    query_result: int | None = None, query_error: OSError | None = None
+) -> SimpleNamespace:
+    """Build a minimal winreg stand-in (the real module is Windows-only)."""
+
+    @contextmanager
+    def open_key(root, path):
+        yield "hkey"
+
+    def query_value_ex(key, name):
+        if query_error is not None:
+            raise query_error
+        return query_result, 4  # (value, REG_DWORD)
+
+    return SimpleNamespace(
+        HKEY_LOCAL_MACHINE=object(),
+        OpenKey=open_key,
+        QueryValueEx=query_value_ex,
+    )
+
+
+@pytest.mark.parametrize(("reg_value", "expected"), [(1, True), (0, False)])
+def test_windows_long_paths_enabled_reads_registry(
+    reg_value: int, expected: bool
+) -> None:
+    with patch.dict(sys.modules, {"winreg": _fake_winreg(query_result=reg_value)}):
+        assert _windows_long_paths_enabled() is expected
+
+
+def test_windows_long_paths_enabled_missing_value() -> None:
+    """A missing registry value (FileNotFoundError is an OSError) reads as disabled."""
+    fake = _fake_winreg(query_error=FileNotFoundError("no such value"))
+    with patch.dict(sys.modules, {"winreg": fake}):
+        assert _windows_long_paths_enabled() is False
+
+
+# 8 chars -> projected well under the 260 limit even with the ~245-char reserve
+_SHORT_IDF_PATH = "C:\\e\\idf"
+# 25 chars -> projected over the limit
+_LONG_IDF_PATH = "C:\\Users\\bob\\.esphome\\idf"
+
+
+def test_check_windows_path_length_noop_off_windows(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Off Windows the check returns before touching the registry or the path."""
+    with (
+        patch("esphome.espidf.framework.platform.system", return_value="Linux"),
+        patch(
+            "esphome.espidf.framework._windows_long_paths_enabled"
+        ) as long_paths_mock,
+        caplog.at_level(logging.WARNING),
+    ):
+        _check_windows_path_length()
+    long_paths_mock.assert_not_called()
+    assert not caplog.records
+
+
+def test_check_windows_path_length_noop_when_long_paths_enabled(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with (
+        patch("esphome.espidf.framework.platform.system", return_value="Windows"),
+        patch(
+            "esphome.espidf.framework._windows_long_paths_enabled", return_value=True
+        ),
+        patch("esphome.espidf.framework._get_idf_tools_path") as get_path_mock,
+        caplog.at_level(logging.WARNING),
+    ):
+        _check_windows_path_length()
+    get_path_mock.assert_not_called()
+    assert not caplog.records
+
+
+def test_check_windows_path_length_short_path_silent(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with (
+        patch("esphome.espidf.framework.platform.system", return_value="Windows"),
+        patch(
+            "esphome.espidf.framework._windows_long_paths_enabled", return_value=False
+        ),
+        patch(
+            "esphome.espidf.framework._get_idf_tools_path",
+            return_value=_SHORT_IDF_PATH,
+        ),
+        caplog.at_level(logging.WARNING),
+    ):
+        _check_windows_path_length()
+    assert not caplog.records
+
+
+def test_check_windows_path_length_long_path_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with (
+        patch("esphome.espidf.framework.platform.system", return_value="Windows"),
+        patch(
+            "esphome.espidf.framework._windows_long_paths_enabled", return_value=False
+        ),
+        patch(
+            "esphome.espidf.framework._get_idf_tools_path",
+            return_value=_LONG_IDF_PATH,
+        ),
+        caplog.at_level(logging.WARNING),
+    ):
+        _check_windows_path_length()
+    assert len(caplog.records) == 1
+    message = caplog.records[0].getMessage()
+    assert _LONG_IDF_PATH in message
+    assert "long path support" in message
