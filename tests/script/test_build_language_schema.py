@@ -117,6 +117,23 @@ def test_convert_emits_explicit_sensitive_marker() -> None:
     assert config_var["type"] == "string"
 
 
+def test_convert_walks_callable_schema_extractor() -> None:
+    """A callable schema tagged for "schema" extraction is resolved and walked."""
+    from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+
+    @schema_extractor("schema")
+    def dynamic_schema(value):
+        if value is SCHEMA_EXTRACT:
+            return cv.Schema({cv.Required("foo"): cv.string})
+        return value
+
+    config_var: dict = {}
+    _bls.convert(dynamic_schema, config_var, "/test")
+
+    assert config_var["type"] == "schema"
+    assert "foo" in config_var["schema"]["config_vars"]
+
+
 def test_convert_keys_emits_heuristic_sensitive_marker() -> None:
     converted: dict = {}
     _bls.convert_keys(converted, {cv.Optional("password"): cv.string}, "/root")

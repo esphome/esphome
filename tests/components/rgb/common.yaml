@@ -6,7 +6,7 @@ output:
     id: rgb_light_output_2
     pin: ${pin2}
   - platform: ${light_platform}
-    id: light_output_3
+    id: rgb_light_output_3
     pin: ${pin3}
 
 light:
@@ -15,4 +15,4 @@ light:
     id: rgb_light
     red: rgb_light_output_1
     green: rgb_light_output_2
-    blue: light_output_3
+    blue: rgb_light_output_3

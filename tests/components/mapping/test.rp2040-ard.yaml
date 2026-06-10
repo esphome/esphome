@@ -5,7 +5,7 @@ packages:
 display:
   spi_id: spi_bus
   platform: mipi_spi
-  id: mapping_main_lcd
+  id: main_lcd
   model: ili9342
   data_rate: 31.25MHz
   cs_pin: 20

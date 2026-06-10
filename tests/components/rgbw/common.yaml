@@ -6,10 +6,10 @@ output:
     id: rgbw_light_output_2
     pin: ${pin2}
   - platform: ${light_platform}
-    id: light_output_3
+    id: rgbw_light_output_3
     pin: ${pin3}
   - platform: ${light_platform}
-    id: light_output_4
+    id: rgbw_light_output_4
     pin: ${pin4}
 
 light:
@@ -17,6 +17,6 @@ light:
     name: RGBW Light
     red: rgbw_light_output_1
     green: rgbw_light_output_2
-    blue: light_output_3
-    white: light_output_4
+    blue: rgbw_light_output_3
+    white: rgbw_light_output_4
     color_interlock: true

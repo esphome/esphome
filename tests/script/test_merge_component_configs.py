@@ -38,17 +38,30 @@ def test_conflicting_duplicate_ids_raise() -> None:
 
 
 def test_intentionally_shared_id_does_not_raise() -> None:
-    """Allowlisted singleton ids may differ across components and collapse."""
-    shared = next(iter(merge_component_configs.INTENTIONALLY_SHARED_IDS))
+    """An allowlisted (section, id) may differ across components and collapse."""
+    section, id_ = "time", "sntp_time"
+    assert (section, id_) in merge_component_configs.INTENTIONALLY_SHARED_IDS
     data = {
-        "time": [
-            {"id": shared, "platform": "sntp"},
-            {"id": shared, "platform": "sntp", "servers": ["a"]},
+        section: [
+            {"id": id_, "platform": "sntp"},
+            {"id": id_, "platform": "sntp", "servers": ["a"]},
         ]
     }
     result = deduplicate_by_id(data)
     # First occurrence wins, no error raised
-    assert result["time"] == [{"id": shared, "platform": "sntp"}]
+    assert result[section] == [{"id": id_, "platform": "sntp"}]
+
+
+def test_allowlisted_id_in_other_section_still_raises() -> None:
+    """The allowlist is keyed on (section, id): the same id elsewhere conflicts."""
+    data = {
+        "sensor": [
+            {"id": "sntp_time", "platform": "a"},
+            {"id": "sntp_time", "platform": "b"},
+        ]
+    }
+    with pytest.raises(ValueError, match="sntp_time"):
+        deduplicate_by_id(data)
 
 
 def test_items_without_id_are_preserved() -> None:
@@ -56,6 +69,22 @@ def test_items_without_id_are_preserved() -> None:
     data = {"binary_sensor": [{"platform": "gpio"}, {"platform": "gpio"}]}
     result = deduplicate_by_id(data)
     assert result["binary_sensor"] == [{"platform": "gpio"}, {"platform": "gpio"}]
+
+
+def test_comparison_is_type_sensitive() -> None:
+    """Comparison matches the merge exactly: 5 and "5" are a conflict.
+
+    The duplicate-id CI guard reuses this function, so a looser (e.g. string
+    normalized) comparison would let the guard disagree with the build.
+    """
+    data = {
+        "sensor": [
+            {"id": "dup", "platform": "adc", "pin": 5},
+            {"id": "dup", "platform": "adc", "pin": "5"},
+        ]
+    }
+    with pytest.raises(ValueError, match="dup"):
+        deduplicate_by_id(data)
 
 
 def test_nested_lists_are_checked() -> None:
