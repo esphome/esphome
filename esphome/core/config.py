@@ -504,7 +504,26 @@ async def add_includes(includes: list[str], is_c_header: bool = False) -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def _add_platformio_options(pio_options):
+async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> None:
+    if CORE.using_toolchain_esp_idf:
+        # The native ESP-IDF build doesn't read platformio.ini; honor build_flags
+        # by routing them through the regular build flag mechanism and warn about
+        # any other option, which would otherwise be silently ignored.
+        for key, val in pio_options.items():
+            if key == CONF_BUILD_FLAGS:
+                for flag in [val] if isinstance(val, str) else val:
+                    cg.add_build_flag(flag)
+            elif key == "upload_speed":
+                # Read from the raw config at upload time (upload_using_esptool),
+                # so it works on the native toolchain too.
+                pass
+            else:
+                _LOGGER.warning(
+                    "esphome->platformio_options->%s is ignored when building with "
+                    "the native ESP-IDF toolchain",
+                    key,
+                )
+        return
     # Add includes at the very end, so that they override everything
     for key, val in pio_options.items():
         if key in ["build_flags", "lib_ignore"] and not isinstance(val, list):
