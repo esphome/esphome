@@ -232,6 +232,68 @@ std::vector<WakeWordModel *> MicroWakeWord::get_wake_words() {
 
 void MicroWakeWord::add_wake_word_model(WakeWordModel *model) { this->wake_word_models_.push_back(model); }
 
+void MicroWakeWord::add_runtime_model(std::unique_ptr<WakeWordModel> model) {
+  if (!model) {
+    ESP_LOGE(TAG, "Cannot add null runtime model");
+    return;
+  }
+
+  // Check if model with same ID already exists
+  const std::string &model_id = model->get_id();
+  for (const auto &existing : this->runtime_models_) {
+    if (existing->get_id() == model_id) {
+      ESP_LOGW(TAG, "Runtime model with ID '%s' already exists", model_id.c_str());
+      return;
+    }
+  }
+
+  // Add to wake_word_models_ for inference
+  this->wake_word_models_.push_back(model.get());
+
+  // Transfer ownership to runtime_models_
+  this->runtime_models_.push_back(std::move(model));
+
+  ESP_LOGI(TAG, "Added runtime model: %s", model_id.c_str());
+}
+
+void MicroWakeWord::remove_runtime_model(const std::string &model_id) {
+  // Find and remove from runtime_models_
+  auto runtime_it =
+      std::find_if(this->runtime_models_.begin(), this->runtime_models_.end(),
+                   [&model_id](const std::unique_ptr<WakeWordModel> &model) { return model->get_id() == model_id; });
+
+  if (runtime_it == this->runtime_models_.end()) {
+    ESP_LOGW(TAG, "Runtime model '%s' not found", model_id.c_str());
+    return;
+  }
+
+  // Get raw pointer before removing
+  WakeWordModel *raw_ptr = runtime_it->get();
+
+  // Remove from wake_word_models_
+  auto models_it = std::find(this->wake_word_models_.begin(), this->wake_word_models_.end(), raw_ptr);
+  if (models_it != this->wake_word_models_.end()) {
+    this->wake_word_models_.erase(models_it);
+  }
+
+  // Disable the model first to ensure it's unloaded
+  (*runtime_it)->disable();
+
+  // Remove from runtime_models_ (destructor will handle cleanup)
+  this->runtime_models_.erase(runtime_it);
+
+  ESP_LOGI(TAG, "Removed runtime model: %s", model_id.c_str());
+}
+
+WakeWordModel *MicroWakeWord::get_model_by_id(const std::string &model_id) {
+  for (auto *model : this->wake_word_models_) {
+    if (model->get_id() == model_id) {
+      return model;
+    }
+  }
+  return nullptr;
+}
+
 #ifdef USE_MICRO_WAKE_WORD_VAD
 void MicroWakeWord::add_vad_model(const uint8_t *model_start, uint8_t probability_cutoff, size_t sliding_window_size,
                                   size_t tensor_arena_size) {

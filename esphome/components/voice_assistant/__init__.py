@@ -2,6 +2,7 @@ from esphome import automation
 from esphome.automation import register_action, register_condition
 import esphome.codegen as cg
 from esphome.components import media_player, micro_wake_word, microphone, speaker
+from esphome.components.http_request import CONF_HTTP_REQUEST_ID, HttpRequestComponent
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -44,6 +45,7 @@ CONF_VOLUME_MULTIPLIER = "volume_multiplier"
 
 CONF_MICRO_WAKE_WORD = "micro_wake_word"
 CONF_WAKE_WORD = "wake_word"
+CONF_HTTP_REQUEST = "http_request"
 
 CONF_CONVERSATION_TIMEOUT = "conversation_timeout"
 
@@ -113,6 +115,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Exclusive(CONF_SPEAKER, "output"): cv.use_id(speaker.Speaker),
             cv.Optional(CONF_USE_WAKE_WORD, default=False): cv.boolean,
             cv.Optional(CONF_MICRO_WAKE_WORD): cv.use_id(micro_wake_word.MicroWakeWord),
+            cv.Optional(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
             cv.Optional(CONF_VAD_THRESHOLD): cv.invalid(
                 "VAD threshold is no longer supported, as it requires the deprecated esp_adf external component. Use an i2s_audio microphone/speaker instead. Additionally, you may need to configure the audio_adc and audio_dac components depending on your hardware."
             ),
@@ -214,6 +217,13 @@ async def to_code(config):
     if CONF_MICRO_WAKE_WORD in config:
         mww = await cg.get_variable(config[CONF_MICRO_WAKE_WORD])
         cg.add(var.set_micro_wake_word(mww))
+
+    if CONF_HTTP_REQUEST_ID in config:
+        http_req = await cg.get_variable(config[CONF_HTTP_REQUEST_ID])
+        cg.add(var.set_http_request(http_req))
+        cg.add_define("USE_VOICE_ASSISTANT_RUNTIME_MODEL")
+        # Enable SHA256 for model validation
+        cg.add_define("USE_SHA256")
 
     if CONF_MEDIA_PLAYER in config:
         mp = await cg.get_variable(config[CONF_MEDIA_PLAYER])

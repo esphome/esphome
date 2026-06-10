@@ -18,12 +18,23 @@
 #endif
 #ifdef USE_MICRO_WAKE_WORD
 #include "esphome/components/micro_wake_word/micro_wake_word.h"
+#ifdef USE_VOICE_ASSISTANT_RUNTIME_MODEL
+#include "esphome/components/micro_wake_word/model_data.h"
+#include "esphome/components/http_request/http_request.h"
+#include "esphome/components/json/json_util.h"
+#include "esphome/components/sha256/sha256.h"
+#ifdef USE_ESP32
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#endif
+#endif
 #endif
 #ifdef USE_SPEAKER
 #include "esphome/components/speaker/speaker.h"
 #endif
 #include "esphome/components/socket/socket.h"
 
+#include <set>
 #include <span>
 #include <vector>
 
@@ -42,6 +53,7 @@ enum VoiceAssistantFeature : uint32_t {
   FEATURE_ANNOUNCE = 1 << 4,
   FEATURE_START_CONVERSATION = 1 << 5,
   FEATURE_MULTI_CHANNEL_AUDIO = 1 << 6,
+  FEATURE_EXTERNAL_WAKE_WORDS = 1 << 7,
 };
 
 enum class State {
@@ -110,6 +122,28 @@ enum class MediaPlayerResponseState {
 };
 #endif
 
+#if defined(USE_MICRO_WAKE_WORD) && defined(USE_VOICE_ASSISTANT_RUNTIME_MODEL)
+class VoiceAssistant;
+
+// Owning copy of VoiceAssistantExternalWakeWord. The protobuf message uses StringRef
+// which points into the receive buffer and becomes dangling once the API handler returns,
+// so any data that needs to outlive the handler (cache, async task) is copied into this struct.
+struct CachedExternalWakeWord {
+  std::string id;
+  std::string wake_word;
+  std::vector<std::string> trained_languages;
+  std::string model_type;
+  uint32_t model_size{0};
+  std::string model_hash;
+  std::string url;
+};
+
+struct ModelLoadTaskParams {
+  VoiceAssistant *voice_assistant;
+  std::vector<CachedExternalWakeWord> models_to_load;
+};
+#endif
+
 class VoiceAssistant : public Component {
  public:
   VoiceAssistant();
@@ -125,6 +159,9 @@ class VoiceAssistant : public Component {
   void set_microphone_source2(microphone::MicrophoneSource *mic_source2) { this->mic_source2_ = mic_source2; }
 #ifdef USE_MICRO_WAKE_WORD
   void set_micro_wake_word(micro_wake_word::MicroWakeWord *mww) { this->micro_wake_word_ = mww; }
+#ifdef USE_VOICE_ASSISTANT_RUNTIME_MODEL
+  void set_http_request(http_request::HttpRequestComponent *http_request) { this->http_request_ = http_request; }
+#endif
 #endif
 #ifdef USE_SPEAKER
   void set_speaker(speaker::Speaker *speaker) {
@@ -172,6 +209,11 @@ class VoiceAssistant : public Component {
     }
 #endif
 
+#if defined(USE_MICRO_WAKE_WORD) && defined(USE_VOICE_ASSISTANT_RUNTIME_MODEL)
+    // Indicate support for external wake word models that can be downloaded at runtime
+    flags |= VoiceAssistantFeature::FEATURE_EXTERNAL_WAKE_WORDS;
+#endif
+
     return flags;
   }
 
@@ -183,7 +225,7 @@ class VoiceAssistant : public Component {
   void on_timer_event(const api::VoiceAssistantTimerEventResponse &msg);
   void on_announce(const api::VoiceAssistantAnnounceRequest &msg);
   void on_set_configuration(const std::vector<std::string> &active_wake_words);
-  const Configuration &get_configuration();
+  const Configuration &get_configuration(const std::vector<api::VoiceAssistantExternalWakeWord> &external_wake_words);
 
   bool is_running() const { return this->state_ != State::IDLE; }
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
@@ -350,6 +392,27 @@ class VoiceAssistant : public Component {
 
 #ifdef USE_MICRO_WAKE_WORD
   micro_wake_word::MicroWakeWord *micro_wake_word_{nullptr};
+#ifdef USE_VOICE_ASSISTANT_RUNTIME_MODEL
+  /* Runtime model management */
+  std::map<std::string, std::shared_ptr<micro_wake_word::ModelData>> runtime_models_;
+  std::map<std::string, CachedExternalWakeWord> external_wake_words_cache_;
+  // Wake word IDs that HA asked us to activate but whose model isn't loaded yet.
+  // We report these as active in get_configuration so HA's UI reflects the user's
+  // request immediately; entries are removed when the load succeeds or fails.
+  std::set<std::string> pending_active_wake_words_;
+
+  void cache_external_wake_words(const std::vector<api::VoiceAssistantExternalWakeWord> &wake_words);
+  void restore_runtime_models_();
+  bool validate_model_hash_(const uint8_t *data, size_t size, const std::string &expected_hash);
+  void remove_runtime_model_(const std::string &model_id);
+
+  // Async model loading via FreeRTOS task
+  static void model_load_task(void *params);
+  void launch_model_load_task_(std::vector<CachedExternalWakeWord> models);
+  TaskHandle_t model_load_task_handle_{nullptr};
+
+  http_request::HttpRequestComponent *http_request_{nullptr};
+#endif
 #endif
 };
 

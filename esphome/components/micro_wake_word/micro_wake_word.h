@@ -65,6 +65,9 @@ class MicroWakeWord : public Component
   Trigger<std::string> *get_wake_word_detected_trigger() { return &this->wake_word_detected_trigger_; }
 
   void add_wake_word_model(WakeWordModel *model);
+  void add_runtime_model(std::unique_ptr<WakeWordModel> model);
+  void remove_runtime_model(const std::string &model_id);
+  WakeWordModel *get_model_by_id(const std::string &model_id);
 
 #ifdef USE_MICRO_WAKE_WORD_VAD
   void add_vad_model(const uint8_t *model_start, uint8_t probability_cutoff, size_t sliding_window_size,
@@ -85,6 +88,7 @@ class MicroWakeWord : public Component
 
   std::weak_ptr<ring_buffer::RingBuffer> ring_buffer_;
   std::vector<WakeWordModel *> wake_word_models_;
+  std::vector<std::unique_ptr<WakeWordModel>> runtime_models_;
 
 #ifdef USE_MICRO_WAKE_WORD_VAD
   std::unique_ptr<VADModel> vad_model_;

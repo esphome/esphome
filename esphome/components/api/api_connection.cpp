@@ -1302,7 +1302,7 @@ bool APIConnection::send_voice_assistant_get_configuration_response_(const Voice
     return this->send_message(resp);
   }
 
-  auto &config = voice_assistant::global_voice_assistant->get_configuration();
+  auto &config = voice_assistant::global_voice_assistant->get_configuration(msg.external_wake_words);
   for (auto &wake_word : config.available_wake_words) {
     resp.available_wake_words.emplace_back();
     auto &resp_wake_word = resp.available_wake_words.back();

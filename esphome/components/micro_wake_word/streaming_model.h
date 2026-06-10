@@ -3,9 +3,11 @@
 #ifdef USE_ESP32
 
 #include "preprocessor_settings.h"
+#include "model_data.h"
 
 #include "esphome/core/preferences.h"
 
+#include <memory>
 #include <tensorflow/lite/core/c/common.h>
 #include <tensorflow/lite/micro/micro_interpreter.h>
 #include <tensorflow/lite/micro/micro_mutable_op_resolver.h>
@@ -40,7 +42,7 @@ class StreamingModel {
   void reset_probabilities();
 
   /// @brief Destroys the TFLite interpreter and frees the tensor and variable arenas' memory
-  void unload_model();
+  virtual void unload_model();
 
   /// @brief Enable the model. The next performing_streaming_inference call will load it.
   virtual void enable() { this->enabled_ = true; }
@@ -61,7 +63,7 @@ class StreamingModel {
  protected:
   /// @brief Allocates tensor and variable arenas and sets up the model interpreter
   /// @return True if successful, false otherwise
-  bool load_model_();
+  virtual bool load_model_();
   /// @brief Probes the actual required tensor arena size by trial allocation.
   /// Tries the manifest size first, then 2x if that fails.
   /// @return The required arena size rounded up to 16-byte alignment, or 0 on failure.
@@ -86,7 +88,8 @@ class StreamingModel {
   size_t tensor_arena_size_;
   std::vector<uint8_t> recent_streaming_probabilities_;
 
-  const uint8_t *model_start_;
+  const uint8_t *model_start_{nullptr};
+  bool is_runtime_model_{false};
   uint8_t *tensor_arena_{nullptr};
   uint8_t *var_arena_{nullptr};
   std::unique_ptr<tflite::MicroInterpreter> interpreter_;
@@ -96,7 +99,7 @@ class StreamingModel {
 
 class WakeWordModel final : public StreamingModel {
  public:
-  /// @brief Constructs a wake word model object
+  /// @brief Constructs a wake word model object with compile-time model data
   /// @param id (std::string) identifier for this model
   /// @param model_start (const uint8_t *) pointer to the start of the model's TFLite FlatBuffer
   /// @param default_probability_cutoff (uint8_t) probability cutoff for acceping the wake word has been said
@@ -109,6 +112,19 @@ class WakeWordModel final : public StreamingModel {
   WakeWordModel(const std::string &id, const uint8_t *model_start, uint8_t default_probability_cutoff,
                 size_t sliding_window_average_size, const std::string &wake_word, size_t tensor_arena_size,
                 bool default_enabled, bool internal_only);
+
+  /// @brief Constructs a wake word model object with runtime model data
+  /// @param id (std::string) identifier for this model
+  /// @param model_data (std::weak_ptr<ModelData>) weak pointer to the model data
+  /// @param default_probability_cutoff (uint8_t) probability cutoff for acceping the wake word has been said
+  /// @param sliding_window_average_size (size_t) the length of the sliding window computing the mean rolling
+  ///                                    probability
+  /// @param wake_word (std::string) Friendly name of the wake word
+  /// @param tensor_arena_size (size_t) Size in bytes for allocating the tensor arena
+  /// @param default_enabled (bool) If true, it will be enabled by default on first boot
+  WakeWordModel(const std::string &id, std::weak_ptr<ModelData> model_data, uint8_t default_probability_cutoff,
+                size_t sliding_window_average_size, const std::string &wake_word, size_t tensor_arena_size,
+                bool default_enabled);
 
   void log_model_config() override;
 
@@ -130,8 +146,16 @@ class WakeWordModel final : public StreamingModel {
   void disable() override;
 
   bool get_internal_only() { return this->internal_only_; }
+  bool is_runtime_model() const { return this->is_runtime_model_; }
+  void unload_model() override;
 
  protected:
+  bool load_model_() override;
+
+  // For runtime models
+  std::weak_ptr<ModelData> dynamic_model_weak_;
+  std::shared_ptr<ModelData> dynamic_model_strong_;
+
   std::string id_;
   std::string wake_word_;
   std::vector<std::string> trained_languages_;

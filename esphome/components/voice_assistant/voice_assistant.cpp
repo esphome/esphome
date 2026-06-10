@@ -6,6 +6,7 @@
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/preferences.h"
 
 #include <cinttypes>
 #include <cstdio>
@@ -1088,22 +1089,83 @@ void VoiceAssistant::on_set_configuration(const std::vector<std::string> &active
     // Disable all wake words first
     for (auto &model : this->micro_wake_word_->get_wake_words()) {
       model->disable();
+
+#ifdef USE_VOICE_ASSISTANT_RUNTIME_MODEL
+      // For runtime models, save disabled state to flash
+      if (model->is_runtime_model()) {
+        auto pref = global_preferences->make_preference<bool>(fnv1_hash(model->get_id()));
+        bool enabled = false;
+        pref.save(&enabled);
+      }
+#endif
     }
 
-    // Enable only active wake words
+#ifdef USE_VOICE_ASSISTANT_RUNTIME_MODEL
+    // Build list of models that need to be downloaded
+    std::vector<CachedExternalWakeWord> models_to_download;
+    // Reset the optimistic pending list -- it tracks the most recent request only.
+    this->pending_active_wake_words_.clear();
+#endif
+
+    // Enable active wake words
     for (const auto &ww_id : active_wake_words) {
+      bool found = false;
+
+      // Check if model is already loaded (built-in or previously downloaded)
       for (auto &model : this->micro_wake_word_->get_wake_words()) {
         if (model->get_id() == ww_id) {
           model->enable();
           ESP_LOGD(TAG, "Enabled wake word: %s (id=%s)", model->get_wake_word().c_str(), model->get_id().c_str());
+
+#ifdef USE_VOICE_ASSISTANT_RUNTIME_MODEL
+          // For runtime models, save enabled state to flash
+          if (model->is_runtime_model()) {
+            auto pref = global_preferences->make_preference<bool>(fnv1_hash(ww_id));
+            bool enabled = true;
+            pref.save(&enabled);
+          }
+#endif
+          found = true;
+          break;
         }
       }
+
+      if (found) {
+        continue;
+      }
+
+#ifdef USE_VOICE_ASSISTANT_RUNTIME_MODEL
+      // Not loaded - check if it's in the cache (external model)
+      auto cache_it = this->external_wake_words_cache_.find(ww_id);
+      if (cache_it == this->external_wake_words_cache_.end()) {
+        ESP_LOGE(TAG, "Unknown wake word ID: %s", ww_id.c_str());
+        continue;
+      }
+
+      // Add to download list for async loading
+      ESP_LOGD(TAG, "Model %s not loaded, adding to download list", ww_id.c_str());
+      models_to_download.push_back(cache_it->second);
+      // Optimistically report it as active until load succeeds or fails.
+      this->pending_active_wake_words_.insert(ww_id);
+#else
+      // No runtime model support, just log error
+      ESP_LOGE(TAG, "Unknown wake word ID: %s (runtime model loading not enabled)", ww_id.c_str());
+#endif
     }
+
+#ifdef USE_VOICE_ASSISTANT_RUNTIME_MODEL
+    // Launch async task to download and enable models
+    if (!models_to_download.empty()) {
+      ESP_LOGD(TAG, "Launching async task to download %zu model(s)", models_to_download.size());
+      this->launch_model_load_task_(std::move(models_to_download));
+    }
+#endif
   }
 #endif
 };
 
-const Configuration &VoiceAssistant::get_configuration() {
+const Configuration &VoiceAssistant::get_configuration(
+    const std::vector<api::VoiceAssistantExternalWakeWord> &external_wake_words) {
   this->config_.available_wake_words.clear();
   this->config_.active_wake_words.clear();
 
@@ -1111,6 +1173,7 @@ const Configuration &VoiceAssistant::get_configuration() {
   if (this->micro_wake_word_) {
     this->config_.max_active_wake_words = 1;
 
+    // Add built-in wake words (already loaded models)
     for (auto &model : this->micro_wake_word_->get_wake_words()) {
       if (model->is_enabled()) {
         this->config_.active_wake_words.push_back(model->get_id());
@@ -1124,6 +1187,38 @@ const Configuration &VoiceAssistant::get_configuration() {
       }
       this->config_.available_wake_words.push_back(std::move(wake_word));
     }
+
+#ifdef USE_VOICE_ASSISTANT_RUNTIME_MODEL
+    // Cache external wake words for later activation
+    this->cache_external_wake_words(external_wake_words);
+
+    // Launch async task to restore previously enabled runtime models from flash
+    // Models will be loaded in the background and become active asynchronously
+    this->restore_runtime_models_();
+
+    // Add cached external wake words (available for download on activation)
+    for (const auto &[ww_id, cached_ww] : this->external_wake_words_cache_) {
+      if (cached_ww.model_type != "micro") {
+        continue;  // microWakeWord only
+      }
+
+      WakeWord wake_word;
+      wake_word.id = cached_ww.id;
+      wake_word.wake_word = cached_ww.wake_word;
+      for (const auto &lang : cached_ww.trained_languages) {
+        wake_word.trained_languages.push_back(lang);
+      }
+      this->config_.available_wake_words.push_back(std::move(wake_word));
+    }
+
+    // Optimistically include pending (queued but not yet loaded) wake words as active.
+    for (const auto &pending_id : this->pending_active_wake_words_) {
+      if (std::find(this->config_.active_wake_words.begin(), this->config_.active_wake_words.end(), pending_id) ==
+          this->config_.active_wake_words.end()) {
+        this->config_.active_wake_words.push_back(pending_id);
+      }
+    }
+#endif
   } else {
 #endif
     // No microWakeWord
@@ -1134,6 +1229,361 @@ const Configuration &VoiceAssistant::get_configuration() {
 
   return this->config_;
 };
+
+#if defined(USE_MICRO_WAKE_WORD) && defined(USE_VOICE_ASSISTANT_RUNTIME_MODEL)
+void VoiceAssistant::cache_external_wake_words(const std::vector<api::VoiceAssistantExternalWakeWord> &wake_words) {
+  for (const auto &ww : wake_words) {
+    if (ww.model_type != "micro") {
+      continue;
+    }
+    // Copy StringRef contents into owning std::strings -- StringRefs in the proto message
+    // point into the receive buffer and become dangling once this handler returns.
+    std::string id = ww.id.str();
+    CachedExternalWakeWord &entry = this->external_wake_words_cache_[id];
+    entry.id = id;
+    entry.wake_word = ww.wake_word.str();
+    entry.trained_languages = ww.trained_languages;
+    entry.model_type = ww.model_type.str();
+    entry.model_size = ww.model_size;
+    entry.model_hash = ww.model_hash.str();
+    entry.url = ww.url.str();
+    ESP_LOGD(TAG, "Cached external wake word: %s (manifest: %s)", entry.id.c_str(), entry.url.c_str());
+  }
+}
+
+void VoiceAssistant::restore_runtime_models_() {
+  if (!this->http_request_ || !this->micro_wake_word_) {
+    return;  // Required components not configured
+  }
+
+  // Build list of models to restore
+  std::vector<CachedExternalWakeWord> models_to_restore;
+
+  for (const auto &[model_id, cached_ww] : this->external_wake_words_cache_) {
+    auto pref = global_preferences->make_preference<bool>(fnv1_hash(model_id));
+    bool enabled = false;
+
+    // If preference exists and is true, add to restore list
+    if (pref.load(&enabled) && enabled) {
+      ESP_LOGD(TAG, "Model %s marked for restoration", model_id.c_str());
+      models_to_restore.push_back(cached_ww);
+    }
+  }
+
+  // Launch async task to download and enable models
+  if (!models_to_restore.empty()) {
+    ESP_LOGD(TAG, "Launching async task to restore %zu model(s)", models_to_restore.size());
+    this->launch_model_load_task_(std::move(models_to_restore));
+  }
+}
+
+void VoiceAssistant::model_load_task(void *params) {
+  ModelLoadTaskParams *task_params = (ModelLoadTaskParams *) params;
+  VoiceAssistant *this_va = task_params->voice_assistant;
+
+  ESP_LOGD(TAG, "Model load task started for %zu model(s)", task_params->models_to_load.size());
+
+  // Process each model sequentially
+  for (const auto &cached_ww : task_params->models_to_load) {
+    ESP_LOGD(TAG, "Processing model: %s", cached_ww.id.c_str());
+
+    // Check if model is already loaded (thread-safe via defer)
+    bool already_loaded = false;
+    this_va->defer([this_va, &cached_ww, &already_loaded]() {
+      already_loaded = (this_va->runtime_models_.find(cached_ww.id) != this_va->runtime_models_.end());
+    });
+    // Wait for defer to complete
+    delay(10);
+
+    if (already_loaded) {
+      ESP_LOGD(TAG, "Model %s already loaded, skipping download", cached_ww.id.c_str());
+      continue;
+    }
+
+    // Download manifest
+    auto manifest_container = this_va->http_request_->get(cached_ww.url);
+    if (!manifest_container || manifest_container->status_code != 200) {
+      ESP_LOGW(TAG, "Failed to download manifest from %s", cached_ww.url.c_str());
+      // Clear preference to prevent retry loops
+      this_va->defer([this_va, &cached_ww]() {
+        auto pref = global_preferences->make_preference<bool>(fnv1_hash(cached_ww.id));
+        bool enabled = false;
+        pref.save(&enabled);
+        // Load failed -- drop from optimistic list so HA sees the real (inactive) state.
+        this_va->pending_active_wake_words_.erase(cached_ww.id);
+      });
+      continue;
+    }
+
+    // Read manifest data
+    size_t manifest_size = manifest_container->content_length;
+    std::string manifest_str;
+    manifest_str.resize(manifest_size);
+    manifest_container->read((uint8_t *) manifest_str.data(), manifest_size);
+    manifest_container->end();
+
+    // Parse manifest JSON
+    std::string model_url;
+    std::string wake_word;
+    float probability_cutoff = 0;
+    int sliding_window_size = 0;
+    int tensor_arena_size = 0;
+
+    bool parse_success = json::parse_json(manifest_str, [&](JsonObject root) -> bool {
+      if (!root["model"].is<const char *>() || !root["wake_word"].is<const char *>() ||
+          !root["micro"].is<JsonObject>()) {
+        ESP_LOGE(TAG, "Manifest does not contain required fields");
+        return false;
+      }
+
+      model_url = root["model"].as<std::string>();
+      wake_word = root["wake_word"].as<std::string>();
+
+      JsonObject micro = root["micro"];
+      if (!micro["probability_cutoff"].is<float>() || !micro["sliding_window_size"].is<int>() ||
+          !micro["tensor_arena_size"].is<int>()) {
+        ESP_LOGE(TAG, "Manifest micro section does not contain required fields");
+        return false;
+      }
+
+      probability_cutoff = micro["probability_cutoff"];
+      sliding_window_size = micro["sliding_window_size"];
+      tensor_arena_size = micro["tensor_arena_size"];
+
+      return true;
+    });
+
+    if (!parse_success) {
+      ESP_LOGW(TAG, "Failed to parse manifest JSON for %s", cached_ww.id.c_str());
+      this_va->defer([this_va, &cached_ww]() {
+        auto pref = global_preferences->make_preference<bool>(fnv1_hash(cached_ww.id));
+        bool enabled = false;
+        pref.save(&enabled);
+        // Load failed -- drop from optimistic list so HA sees the real (inactive) state.
+        this_va->pending_active_wake_words_.erase(cached_ww.id);
+      });
+      continue;
+    }
+
+    // Download model
+    auto container = this_va->http_request_->get(model_url);
+    if (!container || container->status_code != 200) {
+      ESP_LOGW(TAG, "Failed to connect to model URL for %s", cached_ww.id.c_str());
+      this_va->defer([this_va, &cached_ww]() {
+        auto pref = global_preferences->make_preference<bool>(fnv1_hash(cached_ww.id));
+        bool enabled = false;
+        pref.save(&enabled);
+        // Load failed -- drop from optimistic list so HA sees the real (inactive) state.
+        this_va->pending_active_wake_words_.erase(cached_ww.id);
+      });
+      continue;
+    }
+
+    size_t model_size = container->content_length;
+    if (model_size == 0) {
+      ESP_LOGW(TAG, "Invalid model size: 0 bytes for %s", cached_ww.id.c_str());
+      container->end();
+      this_va->defer([this_va, &cached_ww]() {
+        auto pref = global_preferences->make_preference<bool>(fnv1_hash(cached_ww.id));
+        bool enabled = false;
+        pref.save(&enabled);
+        // Load failed -- drop from optimistic list so HA sees the real (inactive) state.
+        this_va->pending_active_wake_words_.erase(cached_ww.id);
+      });
+      continue;
+    }
+
+    // Create ModelData and allocate memory
+    auto model_data = std::make_shared<micro_wake_word::ModelData>();
+    if (!model_data->allocate(model_size)) {
+      ESP_LOGW(TAG, "Failed to allocate %zu bytes for model %s", model_size, cached_ww.id.c_str());
+      container->end();
+      this_va->defer([this_va, &cached_ww]() {
+        auto pref = global_preferences->make_preference<bool>(fnv1_hash(cached_ww.id));
+        bool enabled = false;
+        pref.save(&enabled);
+        // Load failed -- drop from optimistic list so HA sees the real (inactive) state.
+        this_va->pending_active_wake_words_.erase(cached_ww.id);
+      });
+      continue;
+    }
+
+    // Read model data
+    size_t bytes_read = container->read(model_data->get_write_pointer(), model_size);
+    container->end();
+
+    if (bytes_read != model_size) {
+      ESP_LOGW(TAG, "Model size mismatch: expected %zu, got %zu for %s", model_size, bytes_read, cached_ww.id.c_str());
+      this_va->defer([this_va, &cached_ww]() {
+        auto pref = global_preferences->make_preference<bool>(fnv1_hash(cached_ww.id));
+        bool enabled = false;
+        pref.save(&enabled);
+        // Load failed -- drop from optimistic list so HA sees the real (inactive) state.
+        this_va->pending_active_wake_words_.erase(cached_ww.id);
+      });
+      continue;
+    }
+
+    // Validate hash
+    if (!this_va->validate_model_hash_(model_data->get_write_pointer(), bytes_read, cached_ww.model_hash)) {
+      ESP_LOGW(TAG, "SHA256 validation failed for model %s", cached_ww.id.c_str());
+      this_va->defer([this_va, &cached_ww]() {
+        auto pref = global_preferences->make_preference<bool>(fnv1_hash(cached_ww.id));
+        bool enabled = false;
+        pref.save(&enabled);
+        // Load failed -- drop from optimistic list so HA sees the real (inactive) state.
+        this_va->pending_active_wake_words_.erase(cached_ww.id);
+      });
+      continue;
+    }
+
+    // Validate TFLite format
+    if (!model_data->validate_and_mark_ready()) {
+      ESP_LOGW(TAG, "TFLite validation failed for model %s", cached_ww.id.c_str());
+      this_va->defer([this_va, &cached_ww]() {
+        auto pref = global_preferences->make_preference<bool>(fnv1_hash(cached_ww.id));
+        bool enabled = false;
+        pref.save(&enabled);
+        // Load failed -- drop from optimistic list so HA sees the real (inactive) state.
+        this_va->pending_active_wake_words_.erase(cached_ww.id);
+      });
+      continue;
+    }
+
+    // Model loaded successfully - now add to micro_wake_word and enable it (thread-safe via defer)
+    ESP_LOGI(TAG, "Successfully loaded model %s (%zu bytes), adding to micro_wake_word", cached_ww.id.c_str(),
+             model_size);
+
+    this_va->defer(
+        [this_va, cached_ww, model_data, probability_cutoff, sliding_window_size, wake_word, tensor_arena_size]() {
+          // Create WakeWordModel
+          auto wake_model = make_unique<micro_wake_word::WakeWordModel>(
+              cached_ww.id, std::weak_ptr<micro_wake_word::ModelData>(model_data),
+              static_cast<uint8_t>(probability_cutoff * 255), static_cast<size_t>(sliding_window_size), wake_word,
+              static_cast<size_t>(tensor_arena_size), false);
+
+          // Add to micro_wake_word
+          this_va->micro_wake_word_->add_runtime_model(std::move(wake_model));
+
+          // Store model data
+          this_va->runtime_models_[cached_ww.id] = model_data;
+
+          // Enable the model
+          for (auto &model : this_va->micro_wake_word_->get_wake_words()) {
+            if (model->get_id() == cached_ww.id) {
+              model->enable();
+              ESP_LOGI(TAG, "Enabled model: %s", cached_ww.id.c_str());
+              break;
+            }
+          }
+
+          // Save preference
+          auto pref = global_preferences->make_preference<bool>(fnv1_hash(cached_ww.id));
+          bool enabled = true;
+          pref.save(&enabled);
+
+          // Real loaded model now covers this id -- no longer optimistic.
+          this_va->pending_active_wake_words_.erase(cached_ww.id);
+        });
+
+    // Give main loop time to process the defer
+    delay(10);
+  }
+
+  ESP_LOGD(TAG, "Model load task completed");
+
+  // Clear task handle (thread-safe via defer)
+  this_va->defer([this_va]() { this_va->model_load_task_handle_ = nullptr; });
+
+  // Clean up params
+  delete task_params;
+
+  // Delete this task
+#ifdef USE_ESP32
+  vTaskDelete(nullptr);
+#endif
+}
+
+void VoiceAssistant::launch_model_load_task_(std::vector<CachedExternalWakeWord> models) {
+  if (models.empty()) {
+    ESP_LOGD(TAG, "No models to load, skipping task launch");
+    return;
+  }
+
+  // Check if task is already running
+  if (this->model_load_task_handle_ != nullptr) {
+    ESP_LOGW(TAG, "Model load task already running, ignoring new request");
+    return;
+  }
+
+  // Allocate params on heap
+  auto *params = new ModelLoadTaskParams();
+  params->voice_assistant = this;
+  params->models_to_load = std::move(models);
+
+#ifdef USE_ESP32
+  // Launch task
+  BaseType_t result =
+      xTaskCreate(VoiceAssistant::model_load_task, "model_load", 8192, params, 1, &this->model_load_task_handle_);
+
+  if (result != pdPASS || this->model_load_task_handle_ == nullptr) {
+    ESP_LOGE(TAG, "Failed to create model load task");
+    delete params;
+    this->model_load_task_handle_ = nullptr;
+    return;
+  }
+
+  ESP_LOGD(TAG, "Model load task launched for %zu model(s)", params->models_to_load.size());
+#else
+  // For non-ESP32 platforms, run synchronously (fallback)
+  ESP_LOGW(TAG, "FreeRTOS not available, loading models synchronously");
+  VoiceAssistant::model_load_task(params);
+#endif
+}
+
+bool VoiceAssistant::validate_model_hash_(const uint8_t *data, size_t size, const std::string &expected_hash) {
+  sha256::SHA256 hasher;
+  hasher.init();
+  hasher.add(data, size);
+  hasher.calculate();
+
+  bool valid = hasher.equals_hex(expected_hash.c_str());
+  if (!valid) {
+    ESP_LOGE(TAG, "Model hash validation failed!");
+    char actual_hash[65];
+    hasher.get_hex(actual_hash);
+    actual_hash[64] = '\0';
+    ESP_LOGE(TAG, "Expected: %s", expected_hash.c_str());
+    ESP_LOGE(TAG, "Actual:   %s", actual_hash);
+  }
+  return valid;
+}
+
+void VoiceAssistant::remove_runtime_model_(const std::string &model_id) {
+  if (!this->micro_wake_word_) {
+    return;
+  }
+
+  // 1. Disable and remove from micro_wake_word
+  // This disables the model and removes it from wake_word_models_
+  this->micro_wake_word_->remove_runtime_model(model_id);
+
+  // 2. Get our shared_ptr
+  auto it = this->runtime_models_.find(model_id);
+  if (it == this->runtime_models_.end()) {
+    return;  // Not a runtime model we're tracking
+  }
+
+  // 3. Remove from map immediately
+  // The shared_ptr reference counting handles deallocation safely:
+  // - If the inference task still holds a reference, the ModelData stays alive
+  // - When the inference task unloads the model, the last reference is released and memory is freed
+  // - No busy-wait needed thanks to shared_ptr's automatic memory management
+  this->runtime_models_.erase(it);
+
+  ESP_LOGI(TAG, "Removed runtime model: %s", model_id.c_str());
+}
+#endif  // USE_MICRO_WAKE_WORD
 
 VoiceAssistant *global_voice_assistant = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

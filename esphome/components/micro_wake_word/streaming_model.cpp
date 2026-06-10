@@ -248,6 +248,7 @@ WakeWordModel::WakeWordModel(const std::string &id, const uint8_t *model_start, 
                              bool default_enabled, bool internal_only) {
   this->id_ = id;
   this->model_start_ = model_start;
+  this->is_runtime_model_ = false;
   this->default_probability_cutoff_ = default_probability_cutoff;
   this->probability_cutoff_ = default_probability_cutoff;
   this->sliding_window_size_ = sliding_window_average_size;
@@ -269,16 +270,77 @@ WakeWordModel::WakeWordModel(const std::string &id, const uint8_t *model_start, 
   }
 };
 
+WakeWordModel::WakeWordModel(const std::string &id, std::weak_ptr<ModelData> model_data,
+                             uint8_t default_probability_cutoff, size_t sliding_window_average_size,
+                             const std::string &wake_word, size_t tensor_arena_size, bool default_enabled) {
+  this->id_ = id;
+  this->dynamic_model_weak_ = model_data;
+  this->is_runtime_model_ = true;
+  this->default_probability_cutoff_ = default_probability_cutoff;
+  this->probability_cutoff_ = default_probability_cutoff;
+  this->sliding_window_size_ = sliding_window_average_size;
+  this->recent_streaming_probabilities_.resize(sliding_window_average_size, 0);
+  this->wake_word_ = wake_word;
+  this->tensor_arena_size_ = tensor_arena_size;
+  this->register_streaming_ops_(this->streaming_op_resolver_);
+  this->current_stride_step_ = 0;
+  this->internal_only_ = false;  // Runtime models are always visible
+  this->enabled_ = default_enabled;
+  // Runtime models don't save enable state to preferences
+};
+
+bool WakeWordModel::load_model_() {
+  // Handle runtime models
+  if (this->is_runtime_model_) {
+    if (auto model_data = this->dynamic_model_weak_.lock()) {
+      if (!model_data->is_valid()) {
+        ESP_LOGE(TAG, "Runtime model data is not valid for '%s'", this->id_.c_str());
+        return false;
+      }
+
+      // Keep strong reference during use
+      this->dynamic_model_strong_ = model_data;
+      this->model_start_ = model_data->get_model_pointer();
+
+      if (!this->model_start_) {
+        ESP_LOGE(TAG, "Failed to get model pointer for '%s'", this->id_.c_str());
+        this->dynamic_model_strong_.reset();
+        return false;
+      }
+      ESP_LOGI(TAG, "Loaded runtime model '%s'", this->id_.c_str());
+    } else {
+      ESP_LOGE(TAG, "Runtime model data has been deallocated for '%s'", this->id_.c_str());
+      return false;
+    }
+  }
+
+  // Continue with normal loading
+  return StreamingModel::load_model_();
+}
+
+void WakeWordModel::unload_model() {
+  // Release strong reference when unloading runtime models
+  if (this->is_runtime_model_) {
+    this->dynamic_model_strong_.reset();
+    this->model_start_ = nullptr;
+    ESP_LOGI(TAG, "Unloaded runtime model '%s'", this->id_.c_str());
+  }
+
+  StreamingModel::unload_model();
+}
+
 void WakeWordModel::enable() {
   this->enabled_ = true;
-  if (!this->internal_only_) {
+  if (!this->internal_only_ && !this->is_runtime_model_) {
+    // Only save to preferences for non-runtime models
     this->pref_.save(&this->enabled_);
   }
 }
 
 void WakeWordModel::disable() {
   this->enabled_ = false;
-  if (!this->internal_only_) {
+  if (!this->internal_only_ && !this->is_runtime_model_) {
+    // Only save to preferences for non-runtime models
     this->pref_.save(&this->enabled_);
   }
 }
