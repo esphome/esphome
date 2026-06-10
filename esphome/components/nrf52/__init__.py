@@ -584,8 +584,8 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
 def _generate_cmake_lists() -> None:
     src_dir = CORE.relative_src_path()
 
-    compile_flags = get_project_compile_flags(CORE.build_flags)
-    link_flags = get_project_link_flags(CORE.build_flags)
+    compile_flags = get_project_compile_flags()
+    link_flags = get_project_link_flags()
 
     lines = [
         "cmake_minimum_required(VERSION 3.20.0)",
@@ -614,9 +614,6 @@ def _generate_cmake_lists() -> None:
         lines += [
             "",
             "zephyr_ld_options(",
-            *[f"  {flag}" for flag in link_flags],
-            ")",
-            "target_link_options(app INTERFACE",
             *[f"  {flag}" for flag in link_flags],
             ")",
         ]

@@ -74,7 +74,7 @@ def get_project_cmakelists(minimal: bool = False) -> str:
     # esphome__micro-mp3) rather than just src/. Required so suppressions
     # like ``-Wno-error=maybe-uninitialized`` actually silence warnings in
     # third-party components we don't author.
-    project_compile_opts = get_project_compile_flags(CORE.build_flags)
+    project_compile_opts = get_project_compile_flags()
     extra_compile_options = "\n".join(
         f'idf_build_set_property(COMPILE_OPTIONS "{flag}" APPEND)'
         for flag in project_compile_opts
@@ -165,7 +165,7 @@ def get_component_cmakelists() -> str:
     # Extract linker options (-Wl, flags). Compile flags (-D, -W) are
     # emitted project-wide via idf_build_set_property in
     # get_project_cmakelists so they reach every component, not just src/.
-    link_opts = get_project_link_flags(CORE.build_flags)
+    link_opts = get_project_link_flags()
     link_opts_str = "\n    ".join(link_opts) if link_opts else ""
 
     return f"""\

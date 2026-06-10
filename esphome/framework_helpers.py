@@ -20,20 +20,20 @@ PathType = str | os.PathLike
 _LOGGER = logging.getLogger(__name__)
 
 
-def get_project_link_flags(build_flags: Iterable[str]) -> list[str]:
-    """Return the sorted subset of build_flags that are linker options (-Wl, flags)."""
-    return sorted(flag for flag in build_flags if flag.startswith("-Wl,"))
+def get_project_link_flags() -> list[str]:
+    """Return the sorted -Wl, linker flags from the current build."""
+    from esphome.core import CORE  # local import to avoid circular dependency
+
+    return sorted(flag for flag in CORE.build_flags if flag.startswith("-Wl,"))
 
 
-def get_project_compile_flags(build_flags: Iterable[str]) -> list[str]:
-    """Return the sorted subset of build_flags suitable for project-wide compiler options.
+def get_project_compile_flags() -> list[str]:
+    """Return the sorted -D and -W (non-linker) flags from the current build."""
+    from esphome.core import CORE  # local import to avoid circular dependency
 
-    Keeps -D (preprocessor defines) and -W (warning) flags. Excludes -Wl,
-    linker flags, which must be passed via a separate linker-options mechanism.
-    """
     return [
         flag
-        for flag in sorted(build_flags)
+        for flag in sorted(CORE.build_flags)
         if flag.startswith("-D")
         or (flag.startswith("-W") and not flag.startswith("-Wl,"))
     ]
