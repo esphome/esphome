@@ -5,8 +5,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace ags10 {
+namespace esphome::ags10 {
 
 class AGS10Component : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -136,5 +135,4 @@ template<typename... Ts> class AGS10SetZeroPointAction : public Action<Ts...>, p
     }
   }
 };
-}  // namespace ags10
-}  // namespace esphome
+}  // namespace esphome::ags10

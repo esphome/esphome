@@ -1,8 +1,7 @@
 #include "lg_protocol.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.lg";
 
@@ -54,5 +53,4 @@ void LGProtocol::dump(const LGData &data) {
   ESP_LOGI(TAG, "Received LG: data=0x%08" PRIX32 ", nbits=%d", data.data, data.nbits);
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

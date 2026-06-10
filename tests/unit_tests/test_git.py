@@ -1,10 +1,10 @@
 """Tests for git.py module."""
 
-from datetime import datetime, timedelta
 import os
 from pathlib import Path
+import time
 from typing import Any
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -34,9 +34,9 @@ def _setup_old_repo(repo_dir: Path, days_old: int = 2) -> None:
     # Create FETCH_HEAD file with old timestamp
     fetch_head = git_dir / "FETCH_HEAD"
     fetch_head.write_text("test")
-    old_time = datetime.now() - timedelta(days=days_old)
+    old_time = time.time() - days_old * 86400
     fetch_head.touch()
-    os.utime(fetch_head, (old_time.timestamp(), old_time.timestamp()))
+    os.utime(fetch_head, (old_time, old_time))
 
 
 def _get_git_command_type(cmd: list[str]) -> str | None:
@@ -236,6 +236,35 @@ def test_clone_or_update_with_never_refresh(
     assert revert is None
 
 
+def test_clone_or_update_skips_when_core_skip_external_update(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """CORE.skip_external_update short-circuits the refresh for existing repos."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    ref = None
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, ref, domain)
+
+    repo_dir.mkdir(parents=True)
+    git_dir = repo_dir / ".git"
+    git_dir.mkdir()
+    (git_dir / "FETCH_HEAD").write_text("test")
+
+    CORE.skip_external_update = True
+    result_dir, revert = git.clone_or_update(
+        url=url,
+        ref=ref,
+        refresh=TimePeriodSeconds(days=1),
+        domain=domain,
+    )
+
+    mock_run_git_command.assert_not_called()
+    assert result_dir == repo_dir
+    assert revert is None
+
+
 def test_clone_or_update_with_refresh_updates_old_repo(
     tmp_path: Path, mock_run_git_command: Mock
 ) -> None:
@@ -256,10 +285,10 @@ def test_clone_or_update_with_refresh_updates_old_repo(
     # Create FETCH_HEAD file with old timestamp (2 days ago)
     fetch_head = git_dir / "FETCH_HEAD"
     fetch_head.write_text("test")
-    old_time = datetime.now() - timedelta(days=2)
+    old_time = time.time() - 2 * 86400
     fetch_head.touch()  # Create the file
     # Set modification time to 2 days ago
-    os.utime(fetch_head, (old_time.timestamp(), old_time.timestamp()))
+    os.utime(fetch_head, (old_time, old_time))
 
     # Mock git command responses
     mock_run_git_command.return_value = "abc123"  # SHA for rev-parse
@@ -304,10 +333,10 @@ def test_clone_or_update_with_refresh_skips_fresh_repo(
     # Create FETCH_HEAD file with recent timestamp (1 hour ago)
     fetch_head = git_dir / "FETCH_HEAD"
     fetch_head.write_text("test")
-    recent_time = datetime.now() - timedelta(hours=1)
+    recent_time = time.time() - 3600
     fetch_head.touch()  # Create the file
     # Set modification time to 1 hour ago
-    os.utime(fetch_head, (recent_time.timestamp(), recent_time.timestamp()))
+    os.utime(fetch_head, (recent_time, recent_time))
 
     # Call with refresh=1d (1 day)
     refresh = TimePeriodSeconds(days=1)
@@ -380,10 +409,10 @@ def test_clone_or_update_with_none_refresh_always_updates(
     # Create FETCH_HEAD file with very recent timestamp (1 second ago)
     fetch_head = git_dir / "FETCH_HEAD"
     fetch_head.write_text("test")
-    recent_time = datetime.now() - timedelta(seconds=1)
+    recent_time = time.time() - 1
     fetch_head.touch()  # Create the file
     # Set modification time to 1 second ago
-    os.utime(fetch_head, (recent_time.timestamp(), recent_time.timestamp()))
+    os.utime(fetch_head, (recent_time, recent_time))
 
     # Mock git command responses
     mock_run_git_command.return_value = "abc123"  # SHA for rev-parse
@@ -782,3 +811,494 @@ def test_clone_or_update_stale_clone_is_retried_after_cleanup(
     assert repo_dir.exists()
     assert call_count["clone"] == 2
     assert call_count["fetch"] == 2
+
+
+def test_clone_with_ref_uses_shallow_fetch(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Clone with a ref should use --depth=1 on both clone and fetch."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    ref = "pull/123/head"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, ref, domain)
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "clone":
+            repo_dir.mkdir(parents=True, exist_ok=True)
+            (repo_dir / ".git").mkdir(exist_ok=True)
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    git.clone_or_update(url=url, ref=ref, refresh=None, domain=domain)
+
+    call_list = mock_run_git_command.call_args_list
+
+    clone_calls = [c for c in call_list if "clone" in c[0][0]]
+    assert len(clone_calls) == 1
+    assert "--depth=1" in clone_calls[0][0][0]
+
+    fetch_calls = [c for c in call_list if "fetch" in c[0][0]]
+    assert len(fetch_calls) == 1
+    assert "--depth=1" in fetch_calls[0][0][0]
+    # Ref must still be passed so the requested commit/branch is fetched.
+    assert ref in fetch_calls[0][0][0]
+
+
+def test_clone_with_submodules_uses_shallow_submodule_update(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Submodule init on a fresh clone should use --depth=1."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        if _get_git_command_type(cmd) == "clone":
+            repo_dir.mkdir(parents=True, exist_ok=True)
+            (repo_dir / ".git").mkdir(exist_ok=True)
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    git.clone_or_update(
+        url=url,
+        ref=None,
+        refresh=None,
+        domain=domain,
+        submodules=["components/foo"],
+    )
+
+    submodule_calls = [
+        c for c in mock_run_git_command.call_args_list if "submodule" in c[0][0]
+    ]
+    assert len(submodule_calls) == 1
+    cmd = submodule_calls[0][0][0]
+    assert "--depth=1" in cmd
+    assert "components/foo" in cmd
+    # The `--` terminator must precede the submodule paths so a path
+    # beginning with `-` cannot be parsed as an option.
+    assert cmd.index("--") < cmd.index("components/foo")
+
+
+def test_refresh_fetch_is_shallow(tmp_path: Path, mock_run_git_command: Mock) -> None:
+    """The refresh-path fetch should use --depth=1."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    ref = "main"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, ref, domain)
+
+    _setup_old_repo(repo_dir)
+    mock_run_git_command.return_value = "abc123"
+
+    git.clone_or_update(
+        url=url, ref=ref, refresh=TimePeriodSeconds(days=1), domain=domain
+    )
+
+    fetch_calls = [c for c in mock_run_git_command.call_args_list if "fetch" in c[0][0]]
+    assert len(fetch_calls) == 1
+    cmd = fetch_calls[0][0][0]
+    assert "--depth=1" in cmd
+    # Ref must still be in the refresh fetch so the right tip is updated.
+    assert cmd[-1] == ref
+
+
+def test_refresh_submodule_update_is_shallow(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """The refresh-path submodule update should use --depth=1."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+
+    _setup_old_repo(repo_dir)
+    mock_run_git_command.return_value = "abc123"
+
+    git.clone_or_update(
+        url=url,
+        ref=None,
+        refresh=TimePeriodSeconds(days=1),
+        domain=domain,
+        submodules=["components/foo"],
+    )
+
+    submodule_calls = [
+        c for c in mock_run_git_command.call_args_list if "submodule" in c[0][0]
+    ]
+    assert len(submodule_calls) == 1
+    cmd = submodule_calls[0][0][0]
+    assert "--depth=1" in cmd
+    assert "components/foo" in cmd
+    assert cmd.index("--") < cmd.index("components/foo")
+
+
+def test_refresh_picks_up_new_remote_commits(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Shallow fetch must still pull new commits when the remote tip moves.
+
+    Simulates a stale local repo at SHA "old" while the remote has advanced
+    to SHA "new". The refresh path must run fetch (with --depth=1) followed
+    by reset --hard FETCH_HEAD so the working tree advances to the new tip.
+    """
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    ref = "main"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, ref, domain)
+
+    _setup_old_repo(repo_dir)
+
+    # rev-parse is called once before fetch to record the pre-update SHA.
+    rev_parse_calls = {"count": 0}
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        cmd_type = _get_git_command_type(cmd)
+        if cmd_type == "rev-parse":
+            rev_parse_calls["count"] += 1
+            return "old_sha"
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    _, revert = git.clone_or_update(
+        url=url, ref=ref, refresh=TimePeriodSeconds(days=1), domain=domain
+    )
+
+    # Verify the refresh sequence: rev-parse -> stash -> fetch (depth=1) -> reset
+    call_list = mock_run_git_command.call_args_list
+    cmd_sequence = [_get_git_command_type(c[0][0]) for c in call_list]
+    assert cmd_sequence == ["rev-parse", "stash", "fetch", "reset"]
+
+    fetch_cmd = call_list[2][0][0]
+    assert "--depth=1" in fetch_cmd
+    assert fetch_cmd[-1] == ref
+
+    reset_cmd = call_list[3][0][0]
+    assert reset_cmd[-1] == "FETCH_HEAD"
+
+    # revert callback should reset back to the recorded pre-update SHA.
+    assert revert is not None
+    revert()
+    assert mock_run_git_command.call_args_list[-1][0][0] == [
+        "git",
+        "reset",
+        "--hard",
+        "old_sha",
+    ]
+
+
+def test_resolve_symlink_stub_returns_none_on_non_windows(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """On non-Windows, resolve_symlink_stub returns None without calling git."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    stub = repo_dir / "file.yaml"
+    stub.write_text("static/file.yaml")
+
+    with patch("esphome.git.sys.platform", "linux"):
+        result = git.resolve_symlink_stub(repo_dir, stub)
+
+    assert result is None
+    mock_run_git_command.assert_not_called()
+
+
+def test_resolve_symlink_stub_returns_target_for_mode_120000(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A mode-120000 file is recognised as a stub; its target Path is returned."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    (repo_dir / "static").mkdir()
+
+    target = repo_dir / "static" / "real.yaml"
+    target.write_text("esphome:\n  name: real\n")
+
+    stub = repo_dir / "real.yaml"
+    stub.write_text("static/real.yaml")
+
+    mock_run_git_command.return_value = "120000 abc123 0\treal.yaml"
+
+    with patch("esphome.git.sys.platform", "win32"):
+        result = git.resolve_symlink_stub(repo_dir, stub)
+
+    assert result == target.resolve()
+    # Stub file itself was not modified — only inspected.
+    assert stub.read_text() == "static/real.yaml"
+
+
+def test_resolve_symlink_stub_resolves_relative_parent_paths(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Symlink targets with ``..`` segments resolve correctly within the repo."""
+    repo_dir = tmp_path / "repo"
+    (repo_dir / "subdir").mkdir(parents=True)
+    (repo_dir / "static").mkdir()
+
+    target = repo_dir / "static" / "shared.yaml"
+    target.write_text("shared content")
+
+    stub = repo_dir / "subdir" / "shared.yaml"
+    stub.write_text("../static/shared.yaml")
+
+    mock_run_git_command.return_value = "120000 abc123 0\tsubdir/shared.yaml"
+
+    with patch("esphome.git.sys.platform", "win32"):
+        result = git.resolve_symlink_stub(repo_dir, stub)
+
+    assert result == target.resolve()
+
+
+def test_resolve_symlink_stub_refuses_escape_outside_repo(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A symlink pointing outside the repository is not followed."""
+    outside = tmp_path / "outside.yaml"
+    outside.write_text("sensitive")
+
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+
+    stub = repo_dir / "escape.yaml"
+    stub.write_text("../outside.yaml")
+
+    mock_run_git_command.return_value = "120000 abc123 0\tescape.yaml"
+
+    with patch("esphome.git.sys.platform", "win32"):
+        result = git.resolve_symlink_stub(repo_dir, stub)
+
+    assert result is None
+
+
+def test_resolve_symlink_stub_returns_none_for_real_symlink(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A real symlink already opens transparently, so the helper short-circuits.
+
+    Skipped on Windows where symlink creation requires
+    SeCreateSymbolicLinkPrivilege.
+    """
+    if os.name == "nt":
+        pytest.skip("Requires symlink-creation privilege on Windows")
+
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    target = repo_dir / "real.yaml"
+    target.write_text("real content")
+
+    real_link = repo_dir / "link.yaml"
+    real_link.symlink_to("real.yaml")
+
+    with patch("esphome.git.sys.platform", "win32"):
+        result = git.resolve_symlink_stub(repo_dir, real_link)
+
+    assert result is None
+    # No git call needed for real symlinks.
+    mock_run_git_command.assert_not_called()
+
+
+def test_resolve_symlink_stub_returns_none_for_regular_file(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A regular file (mode 100644) whose content looks path-shaped is not
+    followed."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+
+    regular = repo_dir / "looks_like_path.txt"
+    regular.write_text("static/something.yaml")
+
+    mock_run_git_command.return_value = "100644 abc123 0\tlooks_like_path.txt"
+
+    with patch("esphome.git.sys.platform", "win32"):
+        result = git.resolve_symlink_stub(repo_dir, regular)
+
+    assert result is None
+
+
+def test_resolve_symlink_stub_returns_none_when_git_fails(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """If ``git ls-files`` fails (e.g. not a repo), the helper returns None."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+
+    stub = repo_dir / "real.yaml"
+    stub.write_text("static/real.yaml")
+
+    mock_run_git_command.side_effect = GitCommandError("ls-files exploded")
+
+    with patch("esphome.git.sys.platform", "win32"):
+        result = git.resolve_symlink_stub(repo_dir, stub)
+
+    assert result is None
+
+
+def test_resolve_symlink_stub_returns_none_for_non_utf8_content(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A file whose bytes are not valid UTF-8 must not raise — return None."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+
+    stub = repo_dir / "binary.bin"
+    stub.write_bytes(b"\xff\xfe\x00\xff")
+
+    mock_run_git_command.return_value = "120000 abc123 0\tbinary.bin"
+
+    with patch("esphome.git.sys.platform", "win32"):
+        result = git.resolve_symlink_stub(repo_dir, stub)
+
+    assert result is None
+
+
+def test_resolve_symlink_stub_preserves_whitespace_in_target(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Only trailing CR/LF is stripped — internal whitespace is preserved."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    target_dir = repo_dir / "dir with spaces"
+    target_dir.mkdir()
+    target = target_dir / "real.yaml"
+    target.write_text("hello")
+
+    stub = repo_dir / "link.yaml"
+    # Trailing newline (as git's checkout may append) is stripped, but
+    # whitespace inside the target path itself must survive.
+    stub.write_bytes(b"dir with spaces/real.yaml\n")
+
+    mock_run_git_command.return_value = "120000 abc123 0\tlink.yaml"
+
+    with patch("esphome.git.sys.platform", "win32"):
+        result = git.resolve_symlink_stub(repo_dir, stub)
+
+    assert result == target.resolve()
+
+
+def test_resolve_symlink_stub_returns_none_for_directory_target(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A symlink pointing at a directory has no file content to load."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    (repo_dir / "dir_target").mkdir()
+
+    stub = repo_dir / "link_to_dir"
+    stub.write_text("dir_target")
+
+    mock_run_git_command.return_value = "120000 abc123 0\tlink_to_dir"
+
+    with patch("esphome.git.sys.platform", "win32"):
+        result = git.resolve_symlink_stub(repo_dir, stub)
+
+    assert result is None
+
+
+def test_resolve_symlink_stub_returns_none_when_resolve_raises(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Path.resolve() raising (e.g. on a malformed target) must not propagate."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+
+    stub = repo_dir / "broken.yaml"
+    stub.write_text("ignored")
+
+    mock_run_git_command.return_value = "120000 abc123 0\tbroken.yaml"
+
+    with (
+        patch("esphome.git.sys.platform", "win32"),
+        patch.object(Path, "resolve", side_effect=OSError("bad path")),
+    ):
+        result = git.resolve_symlink_stub(repo_dir, stub)
+
+    assert result is None
+
+
+def test_resolve_symlink_stub_returns_none_when_file_missing(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A file path that doesn't exist is rejected before git is consulted."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+
+    missing = repo_dir / "ghost.yaml"  # not created
+
+    with patch("esphome.git.sys.platform", "win32"):
+        result = git.resolve_symlink_stub(repo_dir, missing)
+
+    assert result is None
+    mock_run_git_command.assert_not_called()
+
+
+def test_resolve_symlink_stub_returns_none_when_path_outside_repo(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A file path that isn't under repo_dir is rejected (ValueError from relative_to)."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+
+    outside = tmp_path / "stray.yaml"
+    outside.write_text("something")
+
+    with patch("esphome.git.sys.platform", "win32"):
+        result = git.resolve_symlink_stub(repo_dir, outside)
+
+    assert result is None
+    mock_run_git_command.assert_not_called()
+
+
+def test_resolve_symlink_stub_returns_none_when_untracked(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """Empty `git ls-files` output (untracked file) makes the helper return None."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+
+    stub = repo_dir / "untracked.yaml"
+    stub.write_text("static/foo.yaml")
+
+    mock_run_git_command.return_value = ""
+
+    with patch("esphome.git.sys.platform", "win32"):
+        result = git.resolve_symlink_stub(repo_dir, stub)
+
+    assert result is None
+
+
+def test_resolve_symlink_stub_returns_none_when_read_bytes_raises(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """An OSError from read_bytes() (e.g. file vanished mid-call) must not propagate."""
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+
+    stub = repo_dir / "racy.yaml"
+    stub.write_text("static/racy.yaml")
+
+    mock_run_git_command.return_value = "120000 abc123 0\tracy.yaml"
+
+    with (
+        patch("esphome.git.sys.platform", "win32"),
+        patch.object(Path, "read_bytes", side_effect=OSError("vanished")),
+    ):
+        result = git.resolve_symlink_stub(repo_dir, stub)
+
+    assert result is None

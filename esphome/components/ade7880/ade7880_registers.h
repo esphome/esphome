@@ -4,8 +4,7 @@
 
 // Source: https://www.analog.com/media/en/technical-documentation/application-notes/AN-1127.pdf
 
-namespace esphome {
-namespace ade7880 {
+namespace esphome::ade7880 {
 
 // DSP Data Memory RAM registers
 constexpr uint16_t AIGAIN = 0x4380;
@@ -85,9 +84,7 @@ constexpr uint16_t CWATTHR = 0xE402;
 constexpr uint16_t AFWATTHR = 0xE403;
 constexpr uint16_t BFWATTHR = 0xE404;
 constexpr uint16_t CFWATTHR = 0xE405;
-constexpr uint16_t ARWATTHR = 0xE406;
-constexpr uint16_t BRWATTHR = 0xE407;
-constexpr uint16_t CRWATTHR = 0xE408;
+// 0xE406-0xE408 are reserved on the ADE7880 (it does not implement total reactive energy accumulation)
 constexpr uint16_t AFVARHR = 0xE409;
 constexpr uint16_t BFVARHR = 0xE40A;
 constexpr uint16_t CFVARHR = 0xE40B;
@@ -242,5 +239,4 @@ constexpr uint8_t DSPWP_SET_RO = (1 << 7);
 // DSPWP_SEL Register Bits
 constexpr uint8_t DSPWP_SEL_SET = 0xAD;
 
-}  // namespace ade7880
-}  // namespace esphome
+}  // namespace esphome::ade7880

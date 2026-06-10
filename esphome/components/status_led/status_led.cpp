@@ -2,10 +2,14 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace status_led {
+namespace esphome::status_led {
 
 static const char *const TAG = "status_led";
+
+static constexpr uint32_t ERROR_PERIOD_MS = 250;
+static constexpr uint32_t ERROR_ON_MS = 150;
+static constexpr uint32_t WARNING_PERIOD_MS = 1500;
+static constexpr uint32_t WARNING_ON_MS = 250;
 
 StatusLED *global_status_led = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -19,15 +23,20 @@ void StatusLED::dump_config() {
   LOG_PIN("  Pin: ", this->pin_);
 }
 void StatusLED::loop() {
-  if ((App.get_app_state() & STATUS_LED_ERROR) != 0u) {
-    this->pin_->digital_write(millis() % 250u < 150u);
-  } else if ((App.get_app_state() & STATUS_LED_WARNING) != 0u) {
-    this->pin_->digital_write(millis() % 1500u < 250u);
+  const uint32_t app_state = App.get_app_state();
+  // Use millis() rather than App.get_loop_component_start_time() because this loop is also
+  // dispatched from Application::feed_wdt() during long blocking operations, where the cached
+  // per-component timestamp doesn't advance and would freeze the blink pattern.
+  const uint32_t now = millis();
+  if ((app_state & STATUS_LED_ERROR) != 0u) {
+    this->pin_->digital_write(now % ERROR_PERIOD_MS < ERROR_ON_MS);
+  } else if ((app_state & STATUS_LED_WARNING) != 0u) {
+    this->pin_->digital_write(now % WARNING_PERIOD_MS < WARNING_ON_MS);
   } else {
     this->pin_->digital_write(false);
+    this->disable_loop();
   }
 }
 float StatusLED::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-}  // namespace status_led
-}  // namespace esphome
+}  // namespace esphome::status_led

@@ -4,8 +4,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace xiaomi_miscale {
+namespace esphome::xiaomi_miscale {
 
 static const char *const TAG = "xiaomi_miscale";
 
@@ -167,7 +166,6 @@ bool XiaomiMiscale::report_results_(const optional<ParseResult> &result, const c
   return true;
 }
 
-}  // namespace xiaomi_miscale
-}  // namespace esphome
+}  // namespace esphome::xiaomi_miscale
 
 #endif

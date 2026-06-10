@@ -217,7 +217,7 @@ void USBClient::setup() {
   // Pre-allocate USB transfer buffers for all slots at startup
   // This avoids any dynamic allocation during runtime
   for (auto &request : this->requests_) {
-    usb_host_transfer_alloc(64, 0, &request.transfer);
+    usb_host_transfer_alloc(USB_MAX_PACKET_SIZE, 0, &request.transfer);
     request.client = this;  // Set once, never changes
   }
 
@@ -236,9 +236,9 @@ void USBClient::setup() {
 
 void USBClient::usb_task_fn(void *arg) {
   auto *client = static_cast<USBClient *>(arg);
-  client->usb_task_loop();
+  client->usb_task_loop_();
 }
-void USBClient::usb_task_loop() const {
+void USBClient::usb_task_loop_() const {
   while (true) {
     usb_host_client_handle_events(this->handle_, portMAX_DELAY);
   }
