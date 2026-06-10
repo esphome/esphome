@@ -7,3 +7,18 @@ speaker:
   - platform: resampler
     id: resampler_speaker_id
     output_speaker: resampler_i2s_speaker_id
+
+microphone:
+  - platform: i2s_audio
+    id: resampler_i2s_microphone_id
+    i2s_audio_id: i2s_audio_bus
+    adc_type: external
+    i2s_din_pin: ${din_pin}
+    pdm: false
+    bits_per_sample: 16bit
+  - platform: resampler
+    id: resampler_microphone_id
+    microphone:
+      microphone: resampler_i2s_microphone_id
+      channels: [0]
+    sample_rate: 16000

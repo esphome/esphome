@@ -1,4 +1,5 @@
 substitutions:
+  din_pin: GPIO17
   dout_pin: GPIO16
 
 packages:

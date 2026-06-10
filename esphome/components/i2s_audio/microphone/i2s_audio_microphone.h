@@ -55,7 +55,7 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
   TaskHandle_t task_handle_{nullptr};
 
   gpio_num_t din_pin_{I2S_GPIO_UNUSED};
-  i2s_chan_handle_t rx_handle_;
+  i2s_chan_handle_t rx_handle_{nullptr};
   bool pdm_{false};
 
   bool correct_dc_offset_;

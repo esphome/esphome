@@ -41,6 +41,7 @@ CONF_I2S_AUDIO = "i2s_audio"
 CONF_I2S_AUDIO_ID = "i2s_audio_id"
 
 CONF_I2S_MODE = "i2s_mode"
+CONF_FULL_DUPLEX = "full_duplex"
 CONF_PRIMARY = "primary"
 CONF_SECONDARY = "secondary"
 
@@ -204,6 +205,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_I2S_LRCLK_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_I2S_BCLK_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_I2S_MCLK_PIN): pins.internal_gpio_output_pin_number,
+        cv.Optional(CONF_FULL_DUPLEX, default=False): cv.boolean,
     },
 )
 
@@ -296,3 +298,4 @@ async def to_code(config):
         cg.add(var.set_bclk_pin(config[CONF_I2S_BCLK_PIN]))
     if CONF_I2S_MCLK_PIN in config:
         cg.add(var.set_mclk_pin(config[CONF_I2S_MCLK_PIN]))
+    cg.add(var.set_full_duplex(config[CONF_FULL_DUPLEX]))

@@ -11,8 +11,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-#include "esp_timer.h"
-
 namespace esphome::i2s_audio {
 
 static const char *const TAG = "i2s_audio.speaker.std";
@@ -67,6 +65,7 @@ void I2SAudioSpeaker::dump_config() {
 void I2SAudioSpeaker::run_speaker_task() {
   xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::TASK_STARTING);
 
+  const bool full_duplex = this->parent_->is_full_duplex();
   const uint32_t dma_buffers_duration_ms = DMA_BUFFER_DURATION_MS * DMA_BUFFERS_COUNT;
   // Ensure ring buffer duration is at least the duration of all DMA buffers
   const uint32_t ring_buffer_duration = std::max(dma_buffers_duration_ms, this->buffer_duration_ms_);
@@ -82,12 +81,18 @@ void I2SAudioSpeaker::run_speaker_task() {
   // the L1 cache (e.g. ESP32-P4), rounds the buffer to the cache line. Read the size the driver actually
   // allocated so preload, silence padding, and the write/event lockstep all match it exactly. The channel is
   // in the READY state here because start_i2s_driver() initialized it before this task was created.
-  size_t dma_buffer_bytes;
+  size_t dma_buffer_bytes = 0;
   i2s_chan_info_t chan_info;
   if (i2s_channel_get_info(this->tx_handle_, &chan_info) == ESP_OK && chan_info.total_dma_buf_size > 0) {
-    // total_dma_buf_size spans all DMA_BUFFERS_COUNT descriptors and is an exact multiple of the count.
-    dma_buffer_bytes = chan_info.total_dma_buf_size / DMA_BUFFERS_COUNT;
-  } else {
+    // total_dma_buf_size spans all descriptors allocated for this channel. In full-duplex mode the microphone can be
+    // the first user of the shared channel, so the real descriptor count may not match this speaker's local default.
+    const size_t dma_desc_num =
+        full_duplex ? this->parent_->get_full_duplex_dma_desc_num() : static_cast<size_t>(DMA_BUFFERS_COUNT);
+    if (dma_desc_num > 0) {
+      dma_buffer_bytes = chan_info.total_dma_buf_size / dma_desc_num;
+    }
+  }
+  if (dma_buffer_bytes == 0) {
     // Should not happen for a READY channel; fall back to the requested size.
     dma_buffer_bytes = this->current_stream_info_.frames_to_bytes(dma_buffer_frames(this->current_stream_info_));
   }
@@ -115,7 +120,22 @@ void I2SAudioSpeaker::run_speaker_task() {
     }
   }
 
-  if (successful_setup) {
+  if (successful_setup && full_duplex) {
+    const size_t dma_desc_num = this->parent_->get_full_duplex_dma_desc_num();
+    for (size_t i = 0; i < dma_desc_num; i++) {
+      uint32_t zero_real_frames = 0;
+      if (xQueueSend(this->write_records_queue_, &zero_real_frames, 0) != pdTRUE) {
+        ESP_LOGV(TAG, "Failed to seed full duplex preload write record");
+        successful_setup = false;
+        break;
+      }
+    }
+    if (successful_setup) {
+      this->parent_->attach_full_duplex_tx_event_queue(
+          this->i2s_event_queue_, this->event_group_,
+          SpeakerEventGroupBits::ERR_DROPPED_EVENT | SpeakerEventGroupBits::COMMAND_STOP);
+    }
+  } else if (successful_setup) {
     // Preload every DMA descriptor with silence and push a matching zero-real-frames record per buffer.
     // This guarantees that every on_sent event has a corresponding write record from the start, so
     // ``i2s_event_queue_`` and ``write_records_queue_`` stay in lockstep for the entire task lifetime.
@@ -141,10 +161,15 @@ void I2SAudioSpeaker::run_speaker_task() {
   if (successful_setup) {
     // Register the on_sent callback BEFORE enabling the channel so the very first transmitted buffer
     // generates a queued event that pairs with the first preloaded silence record.
-    const i2s_event_callbacks_t callbacks = {.on_sent = i2s_on_sent_cb};
-    i2s_channel_register_event_callback(this->tx_handle_, &callbacks, this);
-
-    if (i2s_channel_enable(this->tx_handle_) != ESP_OK) {
+    esp_err_t enable_err = ESP_OK;
+    if (full_duplex) {
+      enable_err = this->parent_->ensure_full_duplex_tx_running();
+    } else {
+      const i2s_event_callbacks_t callbacks = {.on_sent = i2s_on_sent_cb};
+      i2s_channel_register_event_callback(this->tx_handle_, &callbacks, this);
+      enable_err = i2s_channel_enable(this->tx_handle_);
+    }
+    if (enable_err != ESP_OK) {
       ESP_LOGV(TAG, "Failed to enable I2S channel");
       successful_setup = false;
     }
@@ -197,7 +222,8 @@ void I2SAudioSpeaker::run_speaker_task() {
 
       // Drain ISR-stamped completion events. Each event corresponds 1:1 with a write_records_queue_
       // entry by construction (preloaded records at startup, plus exactly one record pushed per
-      // iteration alongside exactly one DMA-buffer-sized write).
+      // iteration alongside exactly one DMA-buffer-sized write). In full-duplex mode the parent bus
+      // owns the callback because TX can already be running to clock the microphone.
       int64_t write_timestamp;
       bool lockstep_broken = false;
       while (xQueueReceive(this->i2s_event_queue_, &write_timestamp, 0)) {
@@ -308,6 +334,10 @@ void I2SAudioSpeaker::run_speaker_task() {
     }
   }
 
+  if (full_duplex) {
+    this->parent_->detach_full_duplex_tx_event_queue(this->i2s_event_queue_);
+  }
+
   xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::TASK_STOPPING);
 
   audio_source.reset();
@@ -353,7 +383,7 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
   }
 #endif  // USE_ESP32_VARIANT_ESP32
 
-  if (!this->parent_->try_lock()) {
+  if (!this->parent_->is_full_duplex() && !this->parent_->try_lock()) {
     ESP_LOGE(TAG, "Parent bus is busy");
     return ESP_ERR_INVALID_STATE;
   }

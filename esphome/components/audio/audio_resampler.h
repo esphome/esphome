@@ -49,6 +49,11 @@ class AudioResampler {
   /// @return ESP_OK if successsful, ESP_ERR_NO_MEM if the transfer buffer wasn't allocated
   esp_err_t add_sink(std::weak_ptr<ring_buffer::RingBuffer> &output_ring_buffer);
 
+  /// @brief Adds a sink callback for resampled audio.
+  /// @param callback pointer to callback implementation
+  /// @return ESP_OK if successsful, ESP_ERR_NO_MEM if the transfer buffer wasn't allocated
+  esp_err_t add_sink(AudioSinkCallback *callback);
+
 #ifdef USE_SPEAKER
   /// @brief Adds a sink speaker for decoded audio.
   /// @param speaker pointer to speaker component

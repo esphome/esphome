@@ -13,6 +13,7 @@ from esphome.const import (
 
 from .. import (
     CONF_ADC_TYPE,
+    CONF_I2S_AUDIO_ID,
     CONF_I2S_DIN_PIN,
     CONF_LEFT,
     CONF_MONO,
@@ -141,6 +142,8 @@ async def to_code(config):
     await microphone.register_microphone(var, config)
 
     cg.add(var.set_din_pin(config[CONF_I2S_DIN_PIN]))
+    parent = await cg.get_variable(config[CONF_I2S_AUDIO_ID])
+    cg.add(parent.set_din_pin(config[CONF_I2S_DIN_PIN]))
     cg.add(var.set_pdm(config[CONF_PDM]))
 
     cg.add(var.set_correct_dc_offset(config[CONF_CORRECT_DC_OFFSET]))
