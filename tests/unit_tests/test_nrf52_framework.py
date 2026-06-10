@@ -169,15 +169,15 @@ class TestCheckAndInstall:
         assert mock_nrf52_ops.download_from_mirrors.call_count == 2
         assert mock_nrf52_ops.archive_extract_all.call_count == 2
 
-    def test_west_install_failure_raises(
+    def test_requirements_install_failure_raises(
         self,
         nrf52_dirs: SimpleNamespace,
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
-        """Failing pip install west raises EsphomeError."""
+        """Failing pip install -r requirements.txt raises EsphomeError."""
         mock_nrf52_ops.run_command_ok.return_value = False
 
-        with pytest.raises(EsphomeError, match="Install west"):
+        with pytest.raises(EsphomeError, match="Install requirements"):
             check_and_install()
 
     def test_framework_init_failure_raises(
