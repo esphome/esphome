@@ -503,6 +503,21 @@ async def add_includes(includes: list[str], is_c_header: bool = False) -> None:
             include_file(path, basename, is_c_header)
 
 
+def _add_library_str(lib: str) -> None:
+    if "@" in lib:
+        name, vers = lib.split("@", 1)
+        cg.add_library(name, vers)
+    elif "://" in lib:
+        # Repository...
+        if "=" in lib:
+            name, repo = lib.split("=", 1)
+            cg.add_library(name, None, repo)
+        else:
+            cg.add_library(None, None, lib)
+    else:
+        cg.add_library(lib, None)
+
+
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> None:
     if CORE.using_toolchain_esp_idf:
@@ -679,19 +694,7 @@ async def to_code(config: ConfigType) -> None:
 
     # Libraries
     for lib in config[CONF_LIBRARIES]:
-        if "@" in lib:
-            name, vers = lib.split("@", 1)
-            cg.add_library(name, vers)
-        elif "://" in lib:
-            # Repository...
-            if "=" in lib:
-                name, repo = lib.split("=", 1)
-                cg.add_library(name, None, repo)
-            else:
-                cg.add_library(None, None, lib)
-
-        else:
-            cg.add_library(lib, None)
+        _add_library_str(lib)
 
     cg.add_build_flag("-Wno-unused-variable")
     cg.add_build_flag("-Wno-unused-but-set-variable")
@@ -734,8 +737,19 @@ async def to_code(config: ConfigType) -> None:
                 trigger, [(cg.std_string, "version")], conf
             )
 
-    if config[CONF_PLATFORMIO_OPTIONS]:
-        CORE.add_job(_add_platformio_options, config[CONF_PLATFORMIO_OPTIONS])
+    if pio_options := dict(config[CONF_PLATFORMIO_OPTIONS]):
+        if CORE.using_toolchain_esp_idf and (
+            lib_deps := pio_options.pop("lib_deps", None)
+        ):
+            # Route lib_deps through the regular library mechanism so the
+            # libraries are converted to IDF components like any other PIO
+            # library. Processed here (like libraries above) rather than in
+            # the FINAL job so FINAL-priority consumers of the library list
+            # (e.g. Arduino selective compilation) see them.
+            for lib in [lib_deps] if isinstance(lib_deps, str) else lib_deps:
+                _add_library_str(lib)
+        if pio_options:
+            CORE.add_job(_add_platformio_options, pio_options)
 
     if config[CONF_BUILD_FLAGS]:
         CORE.add_job(_add_build_flags, config[CONF_BUILD_FLAGS])
