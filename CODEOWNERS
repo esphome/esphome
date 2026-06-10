@@ -596,6 +596,7 @@ esphome/components/wk2212_spi/* @DrCoolZic
 esphome/components/wl_134/* @hobbypunk90
 esphome/components/wts01/* @alepee
 esphome/components/x9c/* @EtienneMD
+esphome/components/xdb401/* @RT530
 esphome/components/xgzp68xx/* @gcormier
 esphome/components/xiaomi_hhccjcy10/* @fariouche
 esphome/components/xiaomi_lywsd02mmc/* @juanluss31
