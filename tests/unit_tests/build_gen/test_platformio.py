@@ -183,16 +183,11 @@ def test_get_ini_content_pins_cpp_standard(
     flags_section = content.split("build_flags =")[1].split("build_unflags =")[0]
     unflags_section = content.split("build_unflags =")[1].split("extra_scripts")[0]
     assert "-std=gnu++20\n" in flags_section
-    for variant in (
-        "gnu++11",
-        "gnu++14",
-        "gnu++17",
-        "gnu++23",
-        "gnu++2a",
-        "gnu++2b",
-        "gnu++2c",
-    ):
-        assert f"-std={variant}\n" in unflags_section
+    # Both the GNU and strict dialects of every other standard are stripped.
+    for year in ("11", "14", "17", "23", "26", "2a", "2b", "2c"):
+        assert f"-std=gnu++{year}\n" in unflags_section
+        assert f"-std=c++{year}\n" in unflags_section
+    assert "-std=c++20\n" in unflags_section
     # The selected standard must not unflag itself.
     assert "-std=gnu++20\n" not in unflags_section
 

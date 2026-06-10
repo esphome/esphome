@@ -33,17 +33,13 @@ def format_ini(data: dict[str, str | list[str]]) -> str:
     return content
 
 
-# All -std= variants a platform/framework may set by default; unflagged so the
-# cg.set_cpp_standard() value is the only standard left in the build.
+# All -std= variants a platform/framework may set by default, in both the GNU
+# and strict dialects; unflagged so the cg.set_cpp_standard() value is the
+# only standard left in the build.
 CPP_STD_VARIANTS = [
-    "gnu++11",
-    "gnu++14",
-    "gnu++17",
-    "gnu++20",
-    "gnu++23",
-    "gnu++2a",
-    "gnu++2b",
-    "gnu++2c",
+    f"{prefix}{year}"
+    for year in ("11", "14", "17", "20", "23", "26", "2a", "2b", "2c")
+    for prefix in ("gnu++", "c++")
 ]
 
 
