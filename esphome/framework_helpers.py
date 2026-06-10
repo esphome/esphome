@@ -20,6 +20,25 @@ PathType = str | os.PathLike
 _LOGGER = logging.getLogger(__name__)
 
 
+def get_project_link_flags(build_flags: Iterable[str]) -> list[str]:
+    """Return the sorted subset of build_flags that are linker options (-Wl, flags)."""
+    return sorted(flag for flag in build_flags if flag.startswith("-Wl,"))
+
+
+def get_project_compile_flags(build_flags: Iterable[str]) -> list[str]:
+    """Return the sorted subset of build_flags suitable for project-wide compiler options.
+
+    Keeps -D (preprocessor defines) and -W (warning) flags. Excludes -Wl,
+    linker flags, which must be passed via a separate linker-options mechanism.
+    """
+    return [
+        flag
+        for flag in sorted(build_flags)
+        if flag.startswith("-D")
+        or (flag.startswith("-W") and not flag.startswith("-Wl,"))
+    ]
+
+
 def str_to_lst_of_str(a: str | list[str]) -> list[str]:
     """
     Convert a string to a list of string

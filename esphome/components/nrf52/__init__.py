@@ -52,7 +52,11 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.core.config import BOARD_MAX_LENGTH
 import esphome.final_validate as fv
-from esphome.framework_helpers import run_command_ok
+from esphome.framework_helpers import (
+    get_project_compile_flags,
+    get_project_link_flags,
+    run_command_ok,
+)
 from esphome.helpers import write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
@@ -577,25 +581,11 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
     return False
 
 
-def _cmake_escape(flag: str) -> str:
-    """Escape a flag for safe interpolation into a CMake string literal."""
-    return (
-        flag.replace("\\", "\\\\")
-        .replace('"', '\\"')
-        .replace("$", "\\$")
-        .replace(";", "\\;")
-    )
-
-
 def _generate_cmake_lists() -> None:
     src_dir = CORE.relative_src_path()
 
-    compile_flags = " ".join(
-        _cmake_escape(flag) for flag in CORE.build_flags if not flag.startswith("-Wl,")
-    )
-    link_flags = " ".join(
-        _cmake_escape(flag) for flag in CORE.build_flags if flag.startswith("-Wl,")
-    )
+    compile_flags = get_project_compile_flags(CORE.build_flags)
+    link_flags = get_project_link_flags(CORE.build_flags)
 
     lines = [
         "cmake_minimum_required(VERSION 3.20.0)",
@@ -608,18 +598,27 @@ def _generate_cmake_lists() -> None:
         "",
         f'file(GLOB_RECURSE APP_SOURCES CONFIGURE_DEPENDS "{src_dir}/*.cpp")',
         "",
-        f'SET(CMAKE_CXX_FLAGS "${{CMAKE_CXX_FLAGS}} {compile_flags}")',
-        f'SET(CMAKE_C_FLAGS "${{CMAKE_C_FLAGS}} {compile_flags}")',
-        "",
         "target_sources(app PRIVATE ${APP_SOURCES})",
         f'target_include_directories(app PRIVATE "{src_dir}")',
     ]
 
+    if compile_flags:
+        lines += [
+            "",
+            "target_compile_options(app PRIVATE",
+            *[f"  {flag}" for flag in compile_flags],
+            ")",
+        ]
+
     if link_flags:
         lines += [
             "",
-            f"zephyr_ld_options({link_flags})",
-            f"target_link_options(app INTERFACE {link_flags})",
+            "zephyr_ld_options(",
+            *[f"  {flag}" for flag in link_flags],
+            ")",
+            "target_link_options(app INTERFACE",
+            *[f"  {flag}" for flag in link_flags],
+            ")",
         ]
 
     write_file_if_changed(
