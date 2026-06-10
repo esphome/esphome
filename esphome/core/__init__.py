@@ -868,6 +868,10 @@ class EsphomeCore:
         return self.toolchain == Toolchain.PLATFORMIO
 
     @property
+    def using_toolchain_sdk_nrf(self):
+        return self.toolchain == Toolchain.SDK_NRF
+
+    @property
     def using_zephyr(self):
         return self.target_framework == "zephyr"
 
