@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import tempfile
 
 import yaml
 
@@ -13,6 +14,11 @@ UICR_EXPECTED = {
     0x10001018: 0x000FF000,
 }
 OUTPUT_NAME = "xiao_ble_mcuboot_updater_input.hex"
+DFU_PACKAGE_NAME = "xiao_ble_mcuboot_updater_dfu.zip"
+# Inner file names of the DFU package derive from this stem
+DFU_BIN_STEM = "xiao_ble_mcuboot"
+# Device type used by official Adafruit nRF52 bootloader update packages
+ADAFRUIT_DFU_DEV_TYPE = 0x0052
 EXPECTED_PARTITIONS = {
     "mcuboot": (BOOTLOADER_START, BOOTLOADER_END),
     "empty_mbr_params_page": (0x000FF000, 0x00100000),
@@ -164,9 +170,45 @@ def _validate_partitions(path: Path) -> None:
             )
 
 
+def _bootloader_region_to_bin(data: dict[int, int]) -> bytes:
+    """Flatten the MCUboot bytes into a position-less binary.
+
+    The Adafruit nRF52 bootloader writes a bootloader DFU image at the
+    address stored in UICR.NRFFW[0] (0xF4000 on the XIAO nRF52840), so the
+    binary must start exactly at BOOTLOADER_START. Gaps are erased flash.
+    """
+    addresses = [
+        address for address in data if BOOTLOADER_START <= address < BOOTLOADER_END
+    ]
+    if BOOTLOADER_START not in data:
+        raise IntelHexError(f"MCUboot image does not start at 0x{BOOTLOADER_START:08X}")
+    end = max(addresses) + 1
+    return bytes(data.get(address, 0xFF) for address in range(BOOTLOADER_START, end))
+
+
+def generate_xiao_ble_mcuboot_updater_dfu_package(
+    data: dict[int, int], output_path: Path
+) -> None:
+    """Package MCUboot as an adafruit-nrfutil bootloader DFU zip.
+
+    The resulting zip can be flashed through the stock Adafruit nRF52
+    bootloader over USB CDC with `adafruit-nrfutil dfu serial`, replacing
+    the bootloader with MCUboot without an SWD debugger.
+    """
+    from nordicsemi.dfu.package import Package
+
+    bootloader_bin = _bootloader_region_to_bin(data)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory() as work_dir:
+        bin_path = Path(work_dir) / f"{DFU_BIN_STEM}.bin"
+        bin_path.write_bytes(bootloader_bin)
+        package = Package(dev_type=ADAFRUIT_DFU_DEV_TYPE, bootloader_fw=str(bin_path))
+        package.generate_package(str(output_path))
+
+
 def filter_xiao_ble_mcuboot_updater_input(
     input_path: Path, output_path: Path, *, inject_uicr: bool = False
-) -> None:
+) -> dict[int, int]:
     source_data = read_intel_hex(input_path)
 
     if inject_uicr:
@@ -192,6 +234,7 @@ def filter_xiao_ble_mcuboot_updater_input(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     write_intel_hex(output_path, filtered)
+    return filtered
 
 
 def _platformio_generate_artifact(source, target, env) -> None:
@@ -201,8 +244,11 @@ def _platformio_generate_artifact(source, target, env) -> None:
     for input_name in ("merged.hex", "zephyr.hex"):
         input_path = zephyr_dir / input_name
         if input_path.is_file():
-            filter_xiao_ble_mcuboot_updater_input(
+            filtered = filter_xiao_ble_mcuboot_updater_input(
                 input_path, zephyr_dir / OUTPUT_NAME, inject_uicr=True
+            )
+            generate_xiao_ble_mcuboot_updater_dfu_package(
+                filtered, zephyr_dir / DFU_PACKAGE_NAME
             )
             return
     raise IntelHexError(

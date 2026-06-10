@@ -469,6 +469,7 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
     HEX_PATH = "zephyr/zephyr.hex"
     HEX_MERGED_PATH = "zephyr/merged.hex"
     APP_IMAGE_PATH = "zephyr/app_update.bin"
+    MCUBOOT_UPDATER_DFU_PATH = "zephyr/xiao_ble_mcuboot_updater_dfu.zip"
     build_dir = Path(storage_json.firmware_bin_path).parent
     if (build_dir / APP_IMAGE_PATH).is_file():
         types = [
@@ -489,6 +490,17 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
                 "download": f"app-{storage_json.name}.img",
             },
         ]
+        if (build_dir / MCUBOOT_UPDATER_DFU_PATH).is_file():
+            types.append(
+                {
+                    "title": "MCUboot bootloader update package",
+                    "description": "One-time MCUboot install through the stock "
+                    "Adafruit bootloader via adafruit-nrfutil using USB CDC. "
+                    "No SWD debugger needed.",
+                    "file": MCUBOOT_UPDATER_DFU_PATH,
+                    "download": f"mcuboot-updater-{storage_json.name}.zip",
+                }
+            )
     elif (build_dir / UF2_PATH).is_file():
         types = [
             {

@@ -24,6 +24,7 @@ freetype-py==2.5.1
 jinja2==3.1.6
 bleak==2.1.1
 smpclient==6.0.0
+adafruit-nrfutil==0.5.3.post16  # nrf52 bootloader DFU packages
 requests==2.34.2
 py7zr==1.1.0
 

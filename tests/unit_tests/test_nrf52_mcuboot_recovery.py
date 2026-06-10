@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 import runpy
+import zipfile
 
 import pytest
 
@@ -227,3 +229,57 @@ def test_filter_xiao_ble_mcuboot_updater_input_injects_expected_uicr(
         0x1000101A: 0x0F,
         0x1000101B: 0x00,
     }
+
+
+def test_generate_xiao_ble_mcuboot_updater_dfu_package(tmp_path: Path) -> None:
+    script = _load_artifact_script()
+    output_path = tmp_path / "xiao_ble_mcuboot_updater_dfu.zip"
+    data = {
+        0x000F4000: 0x11,
+        0x000F4001: 0x22,
+        0x000F4002: 0x33,
+        0x000F4003: 0x44,
+        # gap at 0xF4004..0xF4006 -> erased flash (0xFF)
+        0x000F4007: 0x55,
+        # UICR bytes must not end up in the bootloader binary
+        0x10001014: 0x00,
+    }
+
+    script["generate_xiao_ble_mcuboot_updater_dfu_package"](data, output_path)
+
+    with zipfile.ZipFile(output_path) as package:
+        assert set(package.namelist()) == {
+            "manifest.json",
+            "xiao_ble_mcuboot.bin",
+            "xiao_ble_mcuboot.dat",
+        }
+        manifest = json.loads(package.read("manifest.json"))
+        bootloader = manifest["manifest"]["bootloader"]
+        assert bootloader["bin_file"] == "xiao_ble_mcuboot.bin"
+        assert bootloader["dat_file"] == "xiao_ble_mcuboot.dat"
+        init_packet_data = bootloader["init_packet_data"]
+        assert init_packet_data["device_type"] == 0x0052
+        assert init_packet_data["softdevice_req"] == [0xFFFE]
+        assert package.read("xiao_ble_mcuboot.bin") == (
+            b"\x11\x22\x33\x44\xff\xff\xff\x55"
+        )
+        # legacy init packet: dev_type, dev_rev, app_version,
+        # softdevice count, softdevice list, firmware crc16
+        init_packet = package.read("xiao_ble_mcuboot.dat")
+        assert len(init_packet) == 14
+        assert init_packet[:12] == bytes.fromhex("5200ffffffffffff0100feff")
+        assert (
+            int.from_bytes(init_packet[12:14], "little")
+            == init_packet_data["firmware_crc16"]
+        )
+
+
+def test_generate_xiao_ble_mcuboot_updater_dfu_package_requires_region_start(
+    tmp_path: Path,
+) -> None:
+    script = _load_artifact_script()
+
+    with pytest.raises(script["IntelHexError"], match="does not start"):
+        script["generate_xiao_ble_mcuboot_updater_dfu_package"](
+            {0x000F4001: 0x11}, tmp_path / "updater.zip"
+        )

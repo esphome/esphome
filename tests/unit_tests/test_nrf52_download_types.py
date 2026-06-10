@@ -14,7 +14,7 @@ def _storage_json(build_dir: Path) -> SimpleNamespace:
 
 
 def test_nrf52_download_types_prefers_mcumgr_artifacts(tmp_path: Path) -> None:
-    """MCUBoot builds include UF2 output but need HEX and mcumgr app downloads."""
+    """Verify MCUBoot builds offer HEX and mcumgr app downloads despite UF2 output."""
     zephyr_dir = tmp_path / "zephyr"
     zephyr_dir.mkdir()
     (zephyr_dir / "zephyr.uf2").touch()
@@ -37,6 +37,33 @@ def test_nrf52_download_types_prefers_mcumgr_artifacts(tmp_path: Path) -> None:
             "download": "app-test-device.img",
         },
     ]
+
+
+def test_nrf52_download_types_offers_mcuboot_bootloader_updater(
+    tmp_path: Path,
+) -> None:
+    """XIAO BLE MCUBoot builds also offer the bootloader DFU updater package."""
+    zephyr_dir = tmp_path / "zephyr"
+    zephyr_dir.mkdir()
+    (zephyr_dir / "merged.hex").touch()
+    (zephyr_dir / "app_update.bin").touch()
+    (zephyr_dir / "xiao_ble_mcuboot_updater_dfu.zip").touch()
+
+    downloads = nrf52.get_download_types(_storage_json(tmp_path))
+
+    assert [download["file"] for download in downloads] == [
+        "zephyr/merged.hex",
+        "zephyr/app_update.bin",
+        "zephyr/xiao_ble_mcuboot_updater_dfu.zip",
+    ]
+    assert downloads[2] == {
+        "title": "MCUboot bootloader update package",
+        "description": "One-time MCUboot install through the stock "
+        "Adafruit bootloader via adafruit-nrfutil using USB CDC. "
+        "No SWD debugger needed.",
+        "file": "zephyr/xiao_ble_mcuboot_updater_dfu.zip",
+        "download": "mcuboot-updater-test-device.zip",
+    }
 
 
 def test_nrf52_download_types_keeps_adafruit_uf2_default(tmp_path: Path) -> None:

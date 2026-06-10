@@ -114,7 +114,11 @@ async def _smpmgr_upload_connected(
     try:
         image_state = await smp_client.request(ImageStatesRead(), 2.5)
     except (SMPBadStartDelimiter, TimeoutError) as exc:
-        raise EsphomeError(f"mcumgr is not supported by device ({device})") from exc
+        raise EsphomeError(
+            f"mcumgr is not supported by device ({device}). If this board still "
+            "runs the stock Adafruit bootloader, install MCUboot first - see "
+            "esphome/components/nrf52/README.md"
+        ) from exc
 
     already_uploaded = False
 
