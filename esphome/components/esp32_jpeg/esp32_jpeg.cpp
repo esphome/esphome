@@ -207,8 +207,7 @@ esp_err_t encode(const EncodeConfig &config, const uint8_t *input, size_t input_
     return err == ESP_OK ? ESP_FAIL : err;
   }
 
-  uint8_t *stored_data =
-      static_cast<uint8_t *>(heap_caps_malloc(encoded_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+  uint8_t *stored_data = static_cast<uint8_t *>(heap_caps_malloc(encoded_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
   if (stored_data == nullptr)
     stored_data = static_cast<uint8_t *>(heap_caps_malloc(encoded_size, MALLOC_CAP_8BIT));
   if (stored_data == nullptr) {
