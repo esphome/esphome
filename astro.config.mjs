@@ -128,6 +128,9 @@ export default defineConfig({
     responsiveStyles: true,
   },
   markdown: {
+    // Astro 6 no longer defaults `markdown.gfm` to true, and @astrojs/mdx only applies remark-gfm
+    // to .mdx files when this is explicitly truthy. Without it, GFM tables render as literal text.
+    gfm: true,
     remarkPlugins: [remarkAlert, remarkMath],
     rehypePlugins: [rehypeKatex],
   },
