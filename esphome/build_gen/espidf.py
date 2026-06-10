@@ -8,6 +8,17 @@ import esphome.config_validation as cv
 from esphome.core import CORE
 from esphome.helpers import mkdir_p, write_file_if_changed
 
+# Replaces the IDF default C++ standard (-std=gnu++2b appended to
+# CXX_COMPILE_OPTIONS by project.cmake's __build_init) with the one set via
+# cg.set_cpp_standard(). Emitted between include(project.cmake) and project(),
+# i.e. after IDF appends its default and before the options are consumed, and
+# applies project-wide like PlatformIO build_unflags.
+CPP_STANDARD_TEMPLATE = """\
+idf_build_get_property(esphome_cxx_compile_options CXX_COMPILE_OPTIONS)
+list(FILTER esphome_cxx_compile_options EXCLUDE REGEX "^-std=")
+list(APPEND esphome_cxx_compile_options "-std={standard}")
+idf_build_set_property(CXX_COMPILE_OPTIONS "${{esphome_cxx_compile_options}}")"""
+
 
 def get_available_components() -> list[str] | None:
     """Get list of built-in ESP-IDF components from project_description.json.
@@ -84,18 +95,11 @@ def get_project_cmakelists(minimal: bool = False) -> str:
         for flag in project_compile_opts
     )
 
-    # Replace the IDF default C++ standard (-std=gnu++2b appended to
-    # CXX_COMPILE_OPTIONS by project.cmake's __build_init) with the one set
-    # via cg.set_cpp_standard(). Runs between include(project.cmake) and
-    # project(), i.e. after IDF appends its default and before the options
-    # are consumed, and applies project-wide like PlatformIO build_unflags.
-    cpp_standard_options = ""
-    if CORE.cpp_standard:
-        cpp_standard_options = f"""\
-idf_build_get_property(esphome_cxx_compile_options CXX_COMPILE_OPTIONS)
-list(FILTER esphome_cxx_compile_options EXCLUDE REGEX "^-std=")
-list(APPEND esphome_cxx_compile_options "-std={CORE.cpp_standard}")
-idf_build_set_property(CXX_COMPILE_OPTIONS "${{esphome_cxx_compile_options}}")"""
+    cpp_standard_options = (
+        CPP_STANDARD_TEMPLATE.format(standard=CORE.cpp_standard)
+        if CORE.cpp_standard
+        else ""
+    )
 
     # Per-project list exposed as a CMake variable so converted PIO libs
     # can reference ${ESPHOME_PROJECT_MANAGED_COMPONENTS} without baking
