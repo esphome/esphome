@@ -33,12 +33,31 @@ def format_ini(data: dict[str, str | list[str]]) -> str:
     return content
 
 
+# All -std= variants a platform/framework may set by default; unflagged so the
+# cg.set_cpp_standard() value is the only standard left in the build.
+CPP_STD_VARIANTS = [
+    "gnu++11",
+    "gnu++14",
+    "gnu++17",
+    "gnu++20",
+    "gnu++23",
+    "gnu++2a",
+    "gnu++2b",
+    "gnu++2c",
+]
+
+
 def get_ini_content():
     CORE.add_platformio_option(
         "lib_deps",
         [x.as_lib_dep for x in CORE.platformio_libraries.values()]
         + ["${common.lib_deps}"],
     )
+    if CORE.cpp_standard:
+        for variant in CPP_STD_VARIANTS:
+            if variant != CORE.cpp_standard:
+                CORE.add_build_unflag(f"-std={variant}")
+        CORE.add_build_flag(f"-std={CORE.cpp_standard}")
     # Sort to avoid changing build flags order
     CORE.add_platformio_option("build_flags", sorted(CORE.build_flags))
 

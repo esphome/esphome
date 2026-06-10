@@ -162,3 +162,70 @@ def test_get_project_cmakelists_emits_managed_components_property(
                 "idf_build_set_property(ESPHOME_PROJECT_MANAGED_COMPONENTS"
                 " espressif__esp-dsp APPEND)"
             ) in content
+
+
+def test_get_project_cmakelists_replaces_cpp_standard(tmp_path: Path) -> None:
+    """cg.set_cpp_standard() replaces the IDF default -std in
+    CXX_COMPILE_OPTIONS between include(project.cmake) and project()."""
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(CORE, "cpp_standard", "gnu++20"),
+    ):
+        from esphome.build_gen.espidf import get_project_cmakelists
+
+        content = get_project_cmakelists(minimal=True)
+
+    assert (
+        "idf_build_get_property(esphome_cxx_compile_options CXX_COMPILE_OPTIONS)"
+        in content
+    )
+    assert 'list(FILTER esphome_cxx_compile_options EXCLUDE REGEX "^-std=")' in content
+    assert 'list(APPEND esphome_cxx_compile_options "-std=gnu++20")' in content
+    # The replacement must come after project.cmake (which appends the IDF
+    # default) and before project() (which consumes the options).
+    include_pos = content.index("tools/cmake/project.cmake")
+    replace_pos = content.index("CXX_COMPILE_OPTIONS")
+    project_pos = content.index("project(test)")
+    assert include_pos < replace_pos < project_pos
+
+
+def test_get_project_cmakelists_no_cpp_standard(tmp_path: Path) -> None:
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(CORE, "cpp_standard", None),
+    ):
+        from esphome.build_gen.espidf import get_project_cmakelists
+
+        content = get_project_cmakelists(minimal=True)
+
+    assert "CXX_COMPILE_OPTIONS" not in content
+
+
+@pytest.mark.parametrize(
+    ("standard", "feature"),
+    [
+        ("gnu++20", "20"),
+        ("gnu++2a", "20"),
+        ("gnu++23", "23"),
+        ("gnu++2b", "23"),
+        ("gnu++2c", "26"),
+        (None, "20"),
+    ],
+)
+def test_get_component_cmakelists_cxx_std_feature(
+    standard: str | None, feature: str
+) -> None:
+    with (
+        patch.object(CORE, "cpp_standard", standard),
+        patch.object(CORE, "build_flags", set()),
+    ):
+        from esphome.build_gen.espidf import get_component_cmakelists
+
+        content = get_component_cmakelists()
+
+    assert (
+        f"target_compile_features(${{COMPONENT_LIB}} PUBLIC cxx_std_{feature})"
+        in content
+    )
