@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -515,7 +516,7 @@ def test_generate_idf_components_dedupes_shared_dependency(
         "esphome/C": {"name": "C"},
     }
 
-    def fake_download(self, force=False):
+    def fake_download(self, force=False, salt=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         (self.path / "src" / "x.c").write_text("int x;")
@@ -557,6 +558,60 @@ def test_generate_idf_components_dedupes_shared_dependency(
     assert "idf_component_register" in generated
 
 
+def test_generate_idf_components_lib_ignore_filters_top_level_and_dependencies(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    esp32_idf_core: None,
+) -> None:
+    # lib_ignore must drop B at the top level and C when it is discovered as a
+    # dependency of A during the graph walk -- neither may be resolved,
+    # downloaded, or wired into a manifest. Matching is by lowercase short name.
+    manifests = {
+        "esphome/A": {
+            "name": "A",
+            "dependencies": [
+                {"owner": "esphome", "name": "C", "version": "==1.10021.0"}
+            ],
+        },
+        "esphome/B": {"name": "B"},
+    }
+
+    download_salts: list[str] = []
+
+    def fake_download(self, force=False, salt=""):
+        download_salts.append(salt)
+        self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
+        (self.path / "src").mkdir(parents=True, exist_ok=True)
+        (self.path / "src" / "x.c").write_text("int x;")
+        (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
+
+    monkeypatch.setattr(IDFComponent, "download", fake_download)
+
+    resolve_calls: list[str] = []
+
+    def fake_resolve(owner, pkgname, requirements):
+        resolve_calls.append(pkgname)
+        return owner, pkgname, "1.0.0", f"http://x/{pkgname}.tar.gz"
+
+    monkeypatch.setattr(
+        esphome.espidf.component, "_resolve_registry_version", fake_resolve
+    )
+
+    top = generate_idf_components(
+        [Library("esphome/A", "1.0.0", None), Library("esphome/B", "1.0.0", None)],
+        lib_ignore={"b", "c"},
+    )
+
+    assert [c.name for c in top] == ["esphome/A"]
+    # Ignored libraries were never resolved (and therefore never downloaded).
+    assert resolve_calls == ["A"]
+    # The ignored dependency is not wired into A's manifest.
+    assert top[0].dependencies == []
+    # lib_ignore changes the generated wiring, so the cache path is salted to
+    # keep this conversion separate from ones with a different lib_ignore.
+    assert download_salts == [hashlib.sha256(b"b,c").hexdigest()[:8]]
+
+
 def test_generate_idf_components_handles_dependency_cycle(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -575,7 +630,7 @@ def test_generate_idf_components_handles_dependency_cycle(
         },
     }
 
-    def fake_download(self, force=False):
+    def fake_download(self, force=False, salt=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         (self.path / "src" / "x.c").write_text("int x;")
@@ -632,7 +687,7 @@ def test_generate_idf_components_git_overrides_registry_warns(
         "esphome/shared": {"name": "shared"},
     }
 
-    def fake_download(self, force=False):
+    def fake_download(self, force=False, salt=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         (self.path / "src" / "x.c").write_text("int x;")
@@ -669,7 +724,7 @@ def test_generate_idf_components_missing_manifest_raises(
 ) -> None:
     # A library with neither library.json nor library.properties is invalid;
     # fail loudly rather than silently generating build files for it.
-    def fake_download(self, force=False):
+    def fake_download(self, force=False, salt=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         # no library.json / library.properties written
@@ -711,7 +766,7 @@ def test_generate_idf_components_warns_on_noncanonical_duplicate(
         "owner/shared": {"name": "shared"},
     }
 
-    def fake_download(self, force=False):
+    def fake_download(self, force=False, salt=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         (self.path / "src" / "x.c").write_text("int x;")
@@ -744,7 +799,7 @@ def test_generate_idf_components_incompatible_top_level_raises(
 ) -> None:
     # A top-level library that isn't ESP-IDF/esp32 compatible must fail fast,
     # not be silently dropped.
-    def fake_download(self, force=False):
+    def fake_download(self, force=False, salt=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         (self.path / "library.json").write_text(
@@ -782,7 +837,7 @@ def test_generate_idf_components_incompatible_dependency_skipped(
         "esphome/B": {"name": "B", "platforms": ["espressif8266"]},
     }
 
-    def fake_download(self, force=False):
+    def fake_download(self, force=False, salt=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         (self.path / "library.json").write_text(json.dumps(manifests[self.name]))

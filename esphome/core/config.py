@@ -517,6 +517,11 @@ async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> No
                 # Read from the raw config at upload time (upload_using_esptool),
                 # so it works on the native toolchain too.
                 pass
+            elif key == "lib_ignore":
+                # Stored so the PIO-library-to-IDF-component conversion
+                # (generate_idf_components) can filter both top-level libraries
+                # and dependencies discovered during conversion.
+                cg.add_platformio_option(key, [val] if isinstance(val, str) else val)
             else:
                 _LOGGER.warning(
                     "esphome->platformio_options->%s is ignored when building with "

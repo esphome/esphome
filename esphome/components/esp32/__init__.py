@@ -2687,7 +2687,13 @@ def _write_idf_component_yml():
             # Don't process arduino libraries
             if name not in ARDUINO_DISABLED_LIBRARIES
         ]
-        for component in generate_idf_components(libraries):
+        # lib_ignore from esphome->platformio_options filters both top-level
+        # libraries and dependencies discovered during conversion.
+        lib_ignore = {
+            name.split("/")[-1].lower()
+            for name in CORE.platformio_options.get("lib_ignore", [])
+        }
+        for component in generate_idf_components(libraries, lib_ignore=lib_ignore):
             dependencies[component.get_sanitized_name()] = {
                 "override_path": str(component.path)
             }
