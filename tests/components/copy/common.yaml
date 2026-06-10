@@ -1,17 +1,17 @@
 output:
   - platform: ${pwm_platform}
-    id: fan_output_1
+    id: copy_fan_output_1
     pin: ${pin}
 
 fan:
   - platform: speed
-    id: fan_speed
-    output: fan_output_1
+    id: copy_fan_speed
+    output: copy_fan_output_1
     preset_modes:
       - Eco
       - Turbo
   - platform: copy
-    source_id: fan_speed
+    source_id: copy_fan_speed
     name: Fan Speed Copy
 
 select:

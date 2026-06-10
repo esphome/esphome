@@ -28,7 +28,7 @@ from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed
 from esphome.storage_json import StorageJSON
 
-from . import gpio  # noqa
+from . import gpio  # noqa: F401
 from .const import (
     COMPONENT_BK72XX,
     CONF_GPIO_RECOVER,
