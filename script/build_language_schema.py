@@ -924,9 +924,14 @@ def convert(schema, config_var, path):
             config_var[S_TYPE] = "enum"
             config_var["values"] = dict.fromkeys(list(data.keys()))
         elif schema_type == "maybe":
-            config_var[S_TYPE] = S_SCHEMA
+            # maybe_simple_value: either a scalar shorthand (mapped to the key in
+            # data[1]) or the full wrapped schema. The wrapped schema is usually a
+            # plain Schema (converts to a "schema" config var), but may be something
+            # else, e.g. a typed_schema (converts to a "typed" config var with
+            # "types" and no top-level "schema" key). Merge whatever it produced
+            # rather than assuming a "schema" key is present.
             config_var["maybe"] = data[1]
-            config_var["schema"] = convert_config(data[0], path + "/maybe")["schema"]
+            config_var.update(convert_config(data[0], path + "/maybe"))
         # esphome/on_boot
         elif schema_type == "automation":
             extra_schema = None
@@ -997,6 +1002,10 @@ def convert(schema, config_var, path):
             else:
                 config_var["use_id_type"] = str(data.base)
                 config_var[S_TYPE] = "use_id"
+        elif schema_type == "schema":
+            # A callable CONFIG_SCHEMA that returned a representative schema
+            # for extraction (model-driven components); walk it as usual.
+            convert(data, config_var, path)
         else:
             raise TypeError("Unknown extracted schema type")
     elif config_var.get("key") == "GeneratedID":
