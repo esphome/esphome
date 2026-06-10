@@ -203,29 +203,12 @@ def test_get_project_cmakelists_no_cpp_standard(tmp_path: Path) -> None:
     assert "CXX_COMPILE_OPTIONS" not in content
 
 
-@pytest.mark.parametrize(
-    ("standard", "feature"),
-    [
-        ("gnu++20", "20"),
-        ("gnu++2a", "20"),
-        ("gnu++23", "23"),
-        ("gnu++2b", "23"),
-        ("gnu++2c", "26"),
-        (None, "20"),
-    ],
-)
-def test_get_component_cmakelists_cxx_std_feature(
-    standard: str | None, feature: str
-) -> None:
-    with (
-        patch.object(CORE, "cpp_standard", standard),
-        patch.object(CORE, "build_flags", set()),
-    ):
+def test_get_component_cmakelists_no_compile_features() -> None:
+    """The C++ standard is pinned project-wide via CXX_COMPILE_OPTIONS in the
+    top-level CMakeLists; the src component must not set its own."""
+    with patch.object(CORE, "build_flags", set()):
         from esphome.build_gen.espidf import get_component_cmakelists
 
         content = get_component_cmakelists()
 
-    assert (
-        f"target_compile_features(${{COMPONENT_LIB}} PUBLIC cxx_std_{feature})"
-        in content
-    )
+    assert "target_compile_features" not in content
