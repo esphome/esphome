@@ -603,13 +603,19 @@ bool IT8951Display::op_xfer_rows_() {
       this->disable();
       return true;
     }
-    std::array<uint8_t, MAX_4BPP_ROW_BYTES> row_buffer{};
     while (this->transfer_row_ < area_h) {
       const uint32_t row_y = area_y + this->transfer_row_;
       const uint32_t offset = row_y * this->row_width_ + (full_width ? 0 : (area_x >> 1));
-      for (uint16_t i = 0; i < bytes_per_row; i++)
-        row_buffer[i] = this->buffer_[offset + i];
-      this->write_array(row_buffer.data(), bytes_per_row);
+      if (full_width) {
+        // Full-width rows are contiguous in framebuffer order, so write
+        // directly and avoid an extra memcpy per row.
+        this->write_array(&this->buffer_[offset], bytes_per_row);
+      } else {
+        std::array<uint8_t, MAX_4BPP_ROW_BYTES> row_buffer{};
+        for (uint16_t i = 0; i < bytes_per_row; i++)
+          row_buffer[i] = this->buffer_[offset + i];
+        this->write_array(row_buffer.data(), bytes_per_row);
+      }
       this->transfer_row_++;
       if (millis() - start_time >= MAX_TRANSFER_TIME_MS)
         break;
@@ -849,20 +855,27 @@ bool IT8951Display::rotate_coordinates_(int &x, int &y) {
 // --- Color / drawing ---------------------------------------------------------
 
 uint8_t IT8951Display::color_to_nibble_(const Color &color) const {
+  auto quantize_8bit_to_nibble = [](uint8_t value) -> uint8_t {
+    uint8_t nibble = static_cast<uint8_t>((static_cast<uint16_t>(value) + 8) >> 4);
+    return nibble > 0x0F ? 0x0F : nibble;
+  };
+
+  // Grayscale images are emitted as Color(gray, gray, gray, 0xFF).
+  // Handle this shape first so endpoint values don't alias COLOR_ON/OFF.
+  if (color.w == 0xFF && color.r == color.g && color.g == color.b)
+    return quantize_8bit_to_nibble(color.r);
+
   if (color.raw_32 == 0)
     return 0x00;  // COLOR_OFF -> white (lightest)
   if (color.raw_32 == 0xFFFFFFFF)
     return 0x0F;  // COLOR_ON -> black (darkest)
   if (color.g == 0 && color.b == 0 && color.w == 0 && color.r <= 0x0F)
     return color.r;
+
+  // Derive luminance from RGB.
   uint16_t gray = static_cast<uint16_t>(color.r) + color.g + color.b;
   gray /= 3;
-  if (color.w > gray)
-    gray = color.w;
-  uint8_t nibble = static_cast<uint8_t>((gray + 8) >> 4);
-  if (nibble > 0x0F)
-    nibble = 0x0F;
-  return nibble;
+  return quantize_8bit_to_nibble(static_cast<uint8_t>(gray));
 }
 
 void IT8951Display::fill(Color color) {
@@ -884,6 +897,7 @@ void IT8951Display::fill(Color color) {
 }
 
 void HOT IT8951Display::draw_pixel_at(int x, int y, Color color) {
+  App.feed_wdt();
   if (!this->rotate_coordinates_(x, y))
     return;
   uint8_t internal_color = this->color_to_nibble_(color) & 0x0F;
