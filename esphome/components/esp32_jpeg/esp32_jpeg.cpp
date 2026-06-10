@@ -3,6 +3,7 @@
 #ifdef USE_ESP32_JPEG
 
 #include <algorithm>
+#include <cstring>
 #include <utility>
 
 #include "esp_heap_caps.h"
@@ -206,7 +207,17 @@ esp_err_t encode(const EncodeConfig &config, const uint8_t *input, size_t input_
     return err == ESP_OK ? ESP_FAIL : err;
   }
 
-  output->reset(output_data, encoded_size, output_capacity);
+  uint8_t *stored_data =
+      static_cast<uint8_t *>(heap_caps_malloc(encoded_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+  if (stored_data == nullptr)
+    stored_data = static_cast<uint8_t *>(heap_caps_malloc(encoded_size, MALLOC_CAP_8BIT));
+  if (stored_data == nullptr) {
+    heap_caps_free(output_data);
+    return ESP_ERR_NO_MEM;
+  }
+  std::memcpy(stored_data, output_data, encoded_size);
+  heap_caps_free(output_data);
+  output->reset(stored_data, encoded_size, encoded_size);
   return ESP_OK;
 #else
   return ESP_ERR_NOT_SUPPORTED;
