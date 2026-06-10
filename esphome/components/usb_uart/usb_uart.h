@@ -16,6 +16,7 @@ namespace esphome::usb_uart {
 class USBUartTypeCdcAcm;
 class USBUartComponent;
 class USBUartChannel;
+class USBUartTypePL2303;
 
 static const char *const TAG = "usb_uart";
 
@@ -130,6 +131,7 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   friend class USBUartTypeCP210X;
   friend class USBUartTypeCH34X;
   friend class USBUartTypeFT23XX;
+  friend class USBUartTypePL2303;
 
  public:
   // Number of output chunk slots per channel, derived from buffer_size config.
@@ -257,6 +259,29 @@ class USBUartTypeFT23XX : public USBUartTypeCdcAcm {
   int set_dtr_rts_(USBUartChannel *channel);
 
   uint8_t chip_type_{255};
+};
+
+enum Pl2303ChipType : uint8_t {
+  PL2303_TYPE_H = 0,  // Legacy, max 1.2Mbaud
+  PL2303_TYPE_HX,     // max 6Mbaud, divisor encoding
+  PL2303_TYPE_TA,     // max 6Mbaud, alt divisor encoding
+  PL2303_TYPE_TB,     // max 12Mbaud, alt divisor encoding
+  PL2303_TYPE_HXD,    // max 12Mbaud, divisor encoding
+  PL2303_TYPE_HXN,    // G-series, max 12Mbaud, direct encoding only
+  PL2303_TYPE_UNKNOWN = 0xFF,
+};
+
+class USBUartTypePL2303 : public USBUartTypeCdcAcm {
+  friend class USBUartChannel;
+
+ public:
+  USBUartTypePL2303(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {}
+
+ protected:
+  std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
+  void enable_channels() override;
+
+  Pl2303ChipType chip_type_{PL2303_TYPE_UNKNOWN};
 };
 
 }  // namespace esphome::usb_uart
