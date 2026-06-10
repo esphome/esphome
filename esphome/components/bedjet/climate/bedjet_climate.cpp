@@ -3,8 +3,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace bedjet {
+namespace esphome::bedjet {
 
 using namespace esphome::climate;
 
@@ -61,6 +60,15 @@ void BedJetClimate::dump_config() {
 }
 
 void BedJetClimate::setup() {
+  // Set custom modes once during setup — stored on Climate base class, wired via get_traits()
+  this->set_supported_custom_fan_modes(BEDJET_FAN_STEP_NAMES);
+  this->set_supported_custom_presets({
+      this->heating_mode_ == HEAT_MODE_EXTENDED ? "LTD HT" : "EXT HT",
+      "M1",
+      "M2",
+      "M3",
+  });
+
   // restore set points
   auto restore = this->restore_state_();
   if (restore.has_value()) {
@@ -350,7 +358,6 @@ void BedJetClimate::update() {
   ESP_LOGD(TAG, "[%s] update_status result=%s", this->get_name().c_str(), result ? "true" : "false");
 }
 
-}  // namespace bedjet
-}  // namespace esphome
+}  // namespace esphome::bedjet
 
 #endif

@@ -3,7 +3,7 @@ esphome:
 
 host:
 api:
-  batch_delay: 0ms  # Disable batching to receive all state updates
+  batch_delay: 0ms # Disable batching to receive all state updates
 logger:
   level: DEBUG
 
@@ -18,8 +18,8 @@ sensor:
   # Window of 5, send every 2 values
   - platform: copy
     source_id: source_sensor
-    name: "Sliding Min Sensor"
-    id: sliding_min_sensor
+    name: "Sliding Min"
+    id: sliding_min
     filters:
       - min:
           window_size: 5
@@ -28,8 +28,8 @@ sensor:
 
   - platform: copy
     source_id: source_sensor
-    name: "Sliding Max Sensor"
-    id: sliding_max_sensor
+    name: "Sliding Max"
+    id: sliding_max
     filters:
       - max:
           window_size: 5
@@ -38,8 +38,8 @@ sensor:
 
   - platform: copy
     source_id: source_sensor
-    name: "Sliding Median Sensor"
-    id: sliding_median_sensor
+    name: "Sliding Median"
+    id: sliding_median
     filters:
       - median:
           window_size: 5
@@ -48,8 +48,8 @@ sensor:
 
   - platform: copy
     source_id: source_sensor
-    name: "Sliding Moving Avg Sensor"
-    id: sliding_moving_avg_sensor
+    name: "Sliding Moving Avg"
+    id: sliding_moving_avg
     filters:
       - sliding_window_moving_average:
           window_size: 5

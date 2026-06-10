@@ -8,10 +8,17 @@ from typing import Any
 
 import pytest
 
-from esphome.components.esp32 import VARIANTS
-from esphome.components.esp32.const import KEY_ESP32, KEY_SDKCONFIG_OPTIONS
+from esphome.components.esp32 import VARIANT_ESP32, VARIANTS
+from esphome.components.esp32.const import KEY_ESP32, KEY_SDKCONFIG_OPTIONS, KEY_VARIANT
+from esphome.components.esp32.gpio import validate_gpio_pin
 import esphome.config_validation as cv
-from esphome.const import CONF_ESPHOME, PlatformFramework
+from esphome.const import (
+    CONF_ESPHOME,
+    CONF_IGNORE_PIN_VALIDATION_ERROR,
+    CONF_NUMBER,
+    PlatformFramework,
+    Toolchain,
+)
 from esphome.core import CORE
 from tests.component_tests.types import SetCoreConfigCallable
 
@@ -38,11 +45,20 @@ def test_esp32_config(
     config = CONFIG_SCHEMA(config)
     assert config["variant"] == VARIANT_ESP32
 
-    # Check that defining a variant sets the board name correctly
+    # Check that defining a variant sets the board name correctly.
+    # Run under the ESP-IDF toolchain so variants without an entry in
+    # STANDARD_BOARDS (S31, H4, H21) still derive a board name from
+    # VARIANT_FRIENDLY rather than failing with cv.Invalid. CORE.toolchain
+    # gets pinned by the first CONFIG_SCHEMA() call above (via
+    # _resolve_toolchain) and that pinned value wins over the dict's
+    # CONF_TOOLCHAIN, so clear it between iterations to mirror a fresh
+    # config run.
     for variant in VARIANTS:
+        CORE.toolchain = None
         config = CONFIG_SCHEMA(
             {
                 "variant": variant,
+                "toolchain": Toolchain.ESP_IDF.value,
             }
         )
         assert VARIANT_FRIENDLY[variant].lower() in config["board"]
@@ -65,6 +81,11 @@ def test_esp32_config(
             {"variant": "esp32s3", "board": "esp32dev"},
             r"Option 'variant' does not match selected board. @ data\['variant'\]",
             id="mismatched_board_variant_config",
+        ),
+        pytest.param(
+            {"variant": "esp32s31", "toolchain": Toolchain.PLATFORMIO.value},
+            r"No default board is known for ESP32S31\. Please specify the `board:` option explicitly\. @ data\['variant'\]",
+            id="variant_without_default_board_requires_explicit_board_under_platformio",
         ),
         pytest.param(
             {
@@ -149,6 +170,73 @@ def test_execute_from_psram_p4_sdkconfig(
     assert "CONFIG_SPIRAM_RODATA" not in sdkconfig
 
 
+def test_ignore_pin_validation_error_on_clean_pin_warns(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A pin that passes validation but sets `ignore_pin_validation_error: true`
+    should log a warning nudging the user to remove the flag, and not raise."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: VARIANT_ESP32}
+    )
+
+    pin = {CONF_NUMBER: 4, CONF_IGNORE_PIN_VALIDATION_ERROR: True}
+    with caplog.at_level("WARNING"):
+        result = validate_gpio_pin(pin)
+
+    assert result[CONF_NUMBER] == 4
+    assert "GPIO4 has no validation errors to ignore" in caplog.text
+
+
+def test_ignore_pin_validation_error_on_dirty_pin_suppresses(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A pin that fails validation with `ignore_pin_validation_error: true` should
+    log the suppression warning and not raise (existing behavior)."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: VARIANT_ESP32}
+    )
+
+    # GPIO6 is a flash pin on ESP32 -> pin_validation raises cv.Invalid
+    pin = {CONF_NUMBER: 6, CONF_IGNORE_PIN_VALIDATION_ERROR: True}
+    with caplog.at_level("WARNING"):
+        result = validate_gpio_pin(pin)
+
+    assert result[CONF_NUMBER] == 6
+    assert "Ignoring validation error on pin 6" in caplog.text
+
+
+def test_dirty_pin_without_ignore_flag_raises(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A pin that fails validation without the ignore flag should still raise."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: VARIANT_ESP32}
+    )
+
+    pin = {CONF_NUMBER: 6, CONF_IGNORE_PIN_VALIDATION_ERROR: False}
+    with pytest.raises(cv.Invalid, match="flash interface"):
+        validate_gpio_pin(pin)
+
+
+def test_clean_pin_without_ignore_flag_does_not_warn(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A clean pin without the ignore flag should pass silently."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: VARIANT_ESP32}
+    )
+
+    pin = {CONF_NUMBER: 4, CONF_IGNORE_PIN_VALIDATION_ERROR: False}
+    with caplog.at_level("WARNING"):
+        result = validate_gpio_pin(pin)
+
+    assert result[CONF_NUMBER] == 4
+    assert "has no validation errors to ignore" not in caplog.text
+
+
 def test_execute_from_psram_disabled_sdkconfig(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
@@ -159,3 +247,41 @@ def test_execute_from_psram_disabled_sdkconfig(
     assert "CONFIG_SPIRAM_FETCH_INSTRUCTIONS" not in sdkconfig
     assert "CONFIG_SPIRAM_RODATA" not in sdkconfig
     assert "CONFIG_SPIRAM_XIP_FROM_PSRAM" not in sdkconfig
+
+
+def test_platformio_idf_enables_reproducible_build(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test PlatformIO ESP-IDF builds enable reproducible app metadata."""
+    generate_main(component_config_path("reproducible_build.yaml"))
+
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_APP_REPRODUCIBLE_BUILD") is True
+
+
+def test_platformio_arduino_enables_reproducible_build(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test PlatformIO Arduino builds enable reproducible app metadata."""
+    generate_main(component_config_path("reproducible_build_arduino.yaml"))
+
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_APP_REPRODUCIBLE_BUILD") is True
+
+
+def test_native_idf_enables_reproducible_build(
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test native ESP-IDF builds enable reproducible app metadata."""
+    from esphome.__main__ import generate_cpp_contents
+    from esphome.config import read_config
+
+    CORE.config_path = component_config_path("reproducible_build.yaml")
+    CORE.config = read_config({})
+    CORE.toolchain = Toolchain.ESP_IDF
+    generate_cpp_contents(CORE.config)
+
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_APP_REPRODUCIBLE_BUILD") is True

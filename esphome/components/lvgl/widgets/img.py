@@ -1,18 +1,23 @@
 import esphome.config_validation as cv
-from esphome.const import CONF_ANGLE, CONF_MODE, CONF_OFFSET_X, CONF_OFFSET_Y
+from esphome.const import (
+    CONF_ANGLE,
+    CONF_MODE,
+    CONF_OFFSET_X,
+    CONF_OFFSET_Y,
+    CONF_ROTATION,
+)
 
 from ..defines import (
     CONF_ANTIALIAS,
     CONF_MAIN,
     CONF_PIVOT_X,
     CONF_PIVOT_Y,
+    CONF_SCALE,
     CONF_SRC,
     CONF_ZOOM,
-    LvConstant,
 )
-from ..lv_validation import lv_angle, lv_bool, lv_image, size, zoom
-from ..lvcode import lv
-from ..types import lv_img_t
+from ..lv_validation import lv_angle, lv_bool, lv_image, scale, size
+from ..types import lv_image_t
 from . import Widget, WidgetType
 from .label import CONF_LABEL
 
@@ -22,14 +27,14 @@ BASE_IMG_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_PIVOT_X): size,
         cv.Optional(CONF_PIVOT_Y): size,
-        cv.Optional(CONF_ANGLE): lv_angle,
-        cv.Optional(CONF_ZOOM): zoom,
+        cv.Exclusive(CONF_ANGLE, CONF_ROTATION): lv_angle,
+        cv.Exclusive(CONF_ROTATION, CONF_ROTATION): lv_angle,
+        cv.Exclusive(CONF_ZOOM, CONF_SCALE): scale,
+        cv.Exclusive(CONF_SCALE, CONF_SCALE): scale,
         cv.Optional(CONF_OFFSET_X): size,
         cv.Optional(CONF_OFFSET_Y): size,
         cv.Optional(CONF_ANTIALIAS): lv_bool,
-        cv.Optional(CONF_MODE): LvConstant(
-            "LV_IMG_SIZE_MODE_", "VIRTUAL", "REAL"
-        ).one_of,
+        cv.Optional(CONF_MODE): cv.invalid(f"{CONF_MODE} is not supported in LVGL 9.x"),
     }
 )
 
@@ -50,37 +55,19 @@ class ImgType(WidgetType):
     def __init__(self):
         super().__init__(
             CONF_IMAGE,
-            lv_img_t,
+            lv_image_t,
             (CONF_MAIN,),
             IMG_SCHEMA,
             IMG_MODIFY_SCHEMA,
-            lv_name="img",
         )
 
     def get_uses(self):
-        return "img", CONF_LABEL
+        return CONF_IMAGE, CONF_LABEL
 
     async def to_code(self, w: Widget, config):
-        if src := config.get(CONF_SRC):
-            lv.img_set_src(w.obj, await lv_image.process(src))
-        if (pivot_x := config.get(CONF_PIVOT_X)) and (
-            pivot_y := config.get(CONF_PIVOT_Y)
-        ):
-            lv.img_set_pivot(
-                w.obj, await size.process(pivot_x), await size.process(pivot_y)
-            )
-        if (cf_angle := config.get(CONF_ANGLE)) is not None:
-            lv.img_set_angle(w.obj, await lv_angle.process(cf_angle))
-        if (img_zoom := config.get(CONF_ZOOM)) is not None:
-            lv.img_set_zoom(w.obj, await zoom.process(img_zoom))
-        if (offset := config.get(CONF_OFFSET_X)) is not None:
-            lv.img_set_offset_x(w.obj, await size.process(offset))
-        if (offset := config.get(CONF_OFFSET_Y)) is not None:
-            lv.img_set_offset_y(w.obj, await size.process(offset))
-        if CONF_ANTIALIAS in config:
-            lv.img_set_antialias(w.obj, await lv_bool.process(config[CONF_ANTIALIAS]))
-        if mode := config.get(CONF_MODE):
-            await w.set_property("size_mode", mode)
+        await w.set_property(CONF_SRC, await lv_image.process(config.get(CONF_SRC)))
+        for prop, validator in BASE_IMG_SCHEMA.schema.items():
+            await w.set_property(prop, config, processor=validator)
 
 
 img_spec = ImgType()

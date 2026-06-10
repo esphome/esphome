@@ -57,7 +57,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_KD_MULTIPLIER, default=0.0): cv.float_,
                     cv.Optional(
                         CONF_DEADBAND_OUTPUT_AVERAGING_SAMPLES, default=1
-                    ): cv.int_,
+                    ): cv.positive_not_null_int,
                 }
             ),
             cv.Required(CONF_CONTROL_PARAMETERS): cv.Schema(
@@ -68,8 +68,12 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_STARTING_INTEGRAL_TERM, default=0.0): cv.float_,
                     cv.Optional(CONF_MIN_INTEGRAL, default=-1): cv.float_,
                     cv.Optional(CONF_MAX_INTEGRAL, default=1): cv.float_,
-                    cv.Optional(CONF_DERIVATIVE_AVERAGING_SAMPLES, default=1): cv.int_,
-                    cv.Optional(CONF_OUTPUT_AVERAGING_SAMPLES, default=1): cv.int_,
+                    cv.Optional(
+                        CONF_DERIVATIVE_AVERAGING_SAMPLES, default=1
+                    ): cv.positive_not_null_int,
+                    cv.Optional(
+                        CONF_OUTPUT_AVERAGING_SAMPLES, default=1
+                    ): cv.positive_not_null_int,
                 }
             ),
         }
@@ -102,13 +106,15 @@ async def to_code(config):
     cg.add(var.set_starting_integral_term(params[CONF_STARTING_INTEGRAL_TERM]))
     cg.add(var.set_derivative_samples(params[CONF_DERIVATIVE_AVERAGING_SAMPLES]))
 
-    cg.add(var.set_output_samples(params[CONF_OUTPUT_AVERAGING_SAMPLES]))
+    output_samples = params[CONF_OUTPUT_AVERAGING_SAMPLES]
+    cg.add(var.set_output_samples(output_samples))
 
     if CONF_MIN_INTEGRAL in params:
         cg.add(var.set_min_integral(params[CONF_MIN_INTEGRAL]))
     if CONF_MAX_INTEGRAL in params:
         cg.add(var.set_max_integral(params[CONF_MAX_INTEGRAL]))
 
+    deadband_output_samples = 1
     if CONF_DEADBAND_PARAMETERS in config:
         params = config[CONF_DEADBAND_PARAMETERS]
         cg.add(var.set_threshold_low(params[CONF_THRESHOLD_LOW]))
@@ -116,11 +122,11 @@ async def to_code(config):
         cg.add(var.set_kp_multiplier(params[CONF_KP_MULTIPLIER]))
         cg.add(var.set_ki_multiplier(params[CONF_KI_MULTIPLIER]))
         cg.add(var.set_kd_multiplier(params[CONF_KD_MULTIPLIER]))
-        cg.add(
-            var.set_deadband_output_samples(
-                params[CONF_DEADBAND_OUTPUT_AVERAGING_SAMPLES]
-            )
-        )
+        deadband_output_samples = params[CONF_DEADBAND_OUTPUT_AVERAGING_SAMPLES]
+        cg.add(var.set_deadband_output_samples(deadband_output_samples))
+
+    # Single shared output buffer sized to max of both modes
+    cg.add(var.init_output_buffer(max(output_samples, deadband_output_samples)))
 
     cg.add(var.set_default_target_temperature(config[CONF_DEFAULT_TARGET_TEMPERATURE]))
 
@@ -183,13 +189,13 @@ async def set_control_parameters(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
-    kp_template_ = await cg.templatable(config[CONF_KP], args, float)
+    kp_template_ = await cg.templatable(config[CONF_KP], args, cg.float_)
     cg.add(var.set_kp(kp_template_))
 
-    ki_template_ = await cg.templatable(config[CONF_KI], args, float)
+    ki_template_ = await cg.templatable(config[CONF_KI], args, cg.float_)
     cg.add(var.set_ki(ki_template_))
 
-    kd_template_ = await cg.templatable(config[CONF_KD], args, float)
+    kd_template_ = await cg.templatable(config[CONF_KD], args, cg.float_)
     cg.add(var.set_kd(kd_template_))
 
     return var

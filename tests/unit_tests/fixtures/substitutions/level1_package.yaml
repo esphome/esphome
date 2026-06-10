@@ -1,0 +1,21 @@
+# this file is included by 07-include_hierarchy.input.yaml
+level1:
+  a: ${a}  # top-level substitution
+  b: ${b}  # top-level substitution
+  c: ${c}  # from vars when including
+  d: ${d}  # from vars when including
+  e: ${e}  # undefined at this level
+  f: ${f}  # undefined at this level
+  g: ${g}  # undefined at this level
+  h: ${h}  # undefined at this level
+  i: ${i}  # undefined at this level
+  j: ${j}  # undefined at this level
+  x: ${x}  # from vars when including, calculated
+  y: ${y}  # from vars when including, calculated
+  level2:
+    - !include
+      file: level2_package.yaml
+      vars:
+        e: ${c*2}
+        f: ${d*2}
+        x: ${x+1}

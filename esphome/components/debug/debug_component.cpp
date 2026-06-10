@@ -9,8 +9,7 @@
 #include <cinttypes>
 #include <climits>
 
-namespace esphome {
-namespace debug {
+namespace esphome::debug {
 
 static const char *const TAG = "debug";
 
@@ -30,7 +29,7 @@ void DebugComponent::dump_config() {
 
   char device_info_buffer[DEVICE_INFO_BUFFER_SIZE];
   ESP_LOGD(TAG, "ESPHome version %s", ESPHOME_VERSION);
-  size_t pos = buf_append_printf(device_info_buffer, DEVICE_INFO_BUFFER_SIZE, 0, "%s", ESPHOME_VERSION);
+  size_t pos = buf_append_str(device_info_buffer, DEVICE_INFO_BUFFER_SIZE, 0, ESPHOME_VERSION);
 
   this->free_heap_ = get_free_heap_();
   ESP_LOGD(TAG, "Free Heap Size: %" PRIu32 " bytes", this->free_heap_);
@@ -93,5 +92,4 @@ void DebugComponent::update() {
 
 float DebugComponent::get_setup_priority() const { return setup_priority::LATE; }
 
-}  // namespace debug
-}  // namespace esphome
+}  // namespace esphome::debug

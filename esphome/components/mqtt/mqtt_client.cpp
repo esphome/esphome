@@ -28,6 +28,10 @@ namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt";
 
+// Maximum number of MQTT component resends per loop iteration.
+// Limits work to avoid triggering the task watchdog on reconnect.
+static constexpr uint8_t MAX_RESENDS_PER_LOOP = 8;
+
 // Disconnect reason strings indexed by MQTTClientDisconnectReason enum (0-8)
 PROGMEM_STRING_TABLE(MQTTDisconnectReasonStrings, "TCP disconnected", "Unacceptable Protocol Version",
                      "Identifier Rejected", "Server Unavailable", "Malformed Credentials", "Not Authorized",
@@ -396,9 +400,16 @@ void MQTTClientComponent::loop() {
         this->resubscribe_subscriptions_();
 
         // Process pending resends for all MQTT components centrally
-        // This is more efficient than each component polling in its own loop
-        for (MQTTComponent *component : this->children_) {
-          component->process_resend();
+        // Limit work per loop iteration to avoid triggering task WDT on reconnect
+        {
+          uint8_t resend_count = 0;
+          for (MQTTComponent *component : this->children_) {
+            if (component->is_resend_pending()) {
+              component->process_resend();
+              if (++resend_count >= MAX_RESENDS_PER_LOOP)
+                break;
+            }
+          }
         }
       }
       break;

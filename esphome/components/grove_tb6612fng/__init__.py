@@ -78,13 +78,11 @@ async def grove_tb6612fng_run_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
-    template_channel = await cg.templatable(config[CONF_CHANNEL], args, int)
+    template_channel = await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)
     template_speed = await cg.templatable(config[CONF_SPEED], args, cg.uint16)
-    template_speed = (
-        template_speed if config[CONF_DIRECTION] == "FORWARD" else -template_speed
-    )
     cg.add(var.set_channel(template_channel))
     cg.add(var.set_speed(template_speed))
+    cg.add(var.set_direction(config[CONF_DIRECTION] == "FORWARD"))
     return var
 
 
@@ -103,7 +101,7 @@ async def grove_tb6612fng_break_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
-    template_channel = await cg.templatable(config[CONF_CHANNEL], args, int)
+    template_channel = await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)
     cg.add(var.set_channel(template_channel))
     return var
 
@@ -123,7 +121,7 @@ async def grove_tb6612fng_stop_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
-    template_channel = await cg.templatable(config[CONF_CHANNEL], args, int)
+    template_channel = await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)
     cg.add(var.set_channel(template_channel))
     return var
 
@@ -177,6 +175,6 @@ async def grove_tb6612fng_change_address_to_code(config, action_id, template_arg
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
-    template_channel = await cg.templatable(config[CONF_ADDRESS], args, int)
+    template_channel = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
     cg.add(var.set_address(template_channel))
     return var

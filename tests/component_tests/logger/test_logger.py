@@ -22,6 +22,10 @@ def test_logger_pre_setup_before_other_components(generate_main):
 
     # Find all "new " allocations (component creation)
     new_allocations = list(re.finditer(r"\bnew [\w:]+", main_cpp))
+    # Find all "new(" allocations (component creation) and combine them
+    new_allocations.extend(re.finditer(r"\bnew\([^)]+\) [\w:]+", main_cpp))
+    # Sort allocations by position in the file
+    new_allocations.sort(key=lambda m: m.start())
     assert len(new_allocations) > 0, "No component allocations found"
 
     # Separate logger and non-logger allocations

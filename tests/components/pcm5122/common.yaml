@@ -1,0 +1,24 @@
+audio_dac:
+  - platform: pcm5122
+    id: pcm5122_dac
+    i2c_id: i2c_bus
+    address: 0x4D
+    bits_per_sample: 32bit
+
+output:
+  - platform: gpio
+    id: pcm5122_amp_enable
+    pin:
+      pcm5122: pcm5122_dac
+      number: 3
+      mode:
+        output: true
+
+binary_sensor:
+  - platform: gpio
+    id: pcm5122_gpio_input
+    pin:
+      pcm5122: pcm5122_dac
+      number: 4
+      mode:
+        input: true

@@ -6,6 +6,11 @@ esphome:
           speed: 255
           direction: BACKWARD
           id: test_motor
+      - grove_tb6612fng.run:
+          channel: 0
+          speed: !lambda "return 200;"
+          direction: BACKWARD
+          id: test_motor
       - grove_tb6612fng.stop:
           channel: 1
           id: test_motor
