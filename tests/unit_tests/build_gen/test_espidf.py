@@ -136,6 +136,54 @@ def test_get_project_cmakelists_full_emits_builtin_components_property(
     assert "JPEGDEC APPEND" not in content
 
 
+def test_get_component_cmakelists_no_link_flags() -> None:
+    """With no -Wl, flags the target_link_options block is emitted with an empty body."""
+    CORE.build_flags = set()
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert "target_link_options(${COMPONENT_LIB} PUBLIC\n    \n)" in content
+
+
+def test_get_component_cmakelists_single_link_flag() -> None:
+    """A single -Wl, flag appears indented inside target_link_options."""
+    CORE.build_flags = {"-Wl,--gc-sections"}
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert (
+        "target_link_options(${COMPONENT_LIB} PUBLIC\n    -Wl,--gc-sections\n)"
+        in content
+    )
+
+
+def test_get_component_cmakelists_multiple_link_flags_sorted() -> None:
+    """Multiple -Wl, flags are sorted and joined with the four-space indent."""
+    CORE.build_flags = {"-Wl,-z,noexecstack", "-Wl,--gc-sections", "-Wl,-Map=out.map"}
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    expected = (
+        "target_link_options(${COMPONENT_LIB} PUBLIC\n"
+        "    -Wl,--gc-sections\n"
+        "    -Wl,-Map=out.map\n"
+        "    -Wl,-z,noexecstack\n"
+        ")"
+    )
+    assert expected in content
+
+
+def test_get_component_cmakelists_compile_flags_excluded_from_link_opts() -> None:
+    """-D and -W (non-linker) flags must not appear in target_link_options."""
+    CORE.build_flags = {"-DFOO", "-Wall", "-Wl,--gc-sections"}
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert "-DFOO" not in content.split("target_link_options")[1]
+    assert "-Wall" not in content.split("target_link_options")[1]
+    assert "-Wl,--gc-sections" in content
+
+
 def test_get_project_cmakelists_emits_managed_components_property(
     tmp_path: Path,
 ) -> None:

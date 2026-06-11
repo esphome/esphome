@@ -25,6 +25,8 @@ from esphome.framework_helpers import (
     archive_extract_all,
     create_venv,
     download_from_mirrors,
+    get_project_compile_flags,
+    get_project_link_flags,
     get_python_env_executable_path,
     get_system_python_path,
     rmdir,
@@ -952,3 +954,84 @@ class TestSevenZipExtractAll:
         out.mkdir()
         archive_extract_all(archive, out)
         assert (out / "hello.txt").exists()
+
+
+# ---------------------------------------------------------------------------
+# get_project_compile_flags / get_project_link_flags
+# ---------------------------------------------------------------------------
+
+
+def _make_core(flags: set[str]):
+    core = MagicMock()
+    core.build_flags = flags
+    return core
+
+
+class TestGetProjectCompileFlags:
+    def test_returns_define_flags(self) -> None:
+        with patch("esphome.core.CORE", _make_core({"-DFOO", "-DBAR=1"})):
+            assert get_project_compile_flags() == ["-DBAR=1", "-DFOO"]
+
+    def test_returns_warning_flags(self) -> None:
+        with patch(
+            "esphome.core.CORE",
+            _make_core({"-Wno-error", "-Wall"}),
+        ):
+            assert get_project_compile_flags() == ["-Wall", "-Wno-error"]
+
+    def test_excludes_linker_flags(self) -> None:
+        with patch(
+            "esphome.core.CORE",
+            _make_core({"-DFOO", "-Wl,--gc-sections", "-Wl,-Map=output.map"}),
+        ):
+            assert get_project_compile_flags() == ["-DFOO"]
+
+    def test_excludes_other_flags(self) -> None:
+        with patch(
+            "esphome.core.CORE",
+            _make_core({"-O2", "-std=gnu++20", "-DFOO"}),
+        ):
+            assert get_project_compile_flags() == ["-DFOO"]
+
+    def test_empty_build_flags(self) -> None:
+        with patch("esphome.core.CORE", _make_core(set())):
+            assert get_project_compile_flags() == []
+
+    def test_result_is_sorted(self) -> None:
+        with patch(
+            "esphome.core.CORE",
+            _make_core({"-DZFLAG", "-DAFLAG", "-Wno-unused"}),
+        ):
+            result = get_project_compile_flags()
+            assert result == sorted(result)
+
+
+class TestGetProjectLinkFlags:
+    def test_returns_linker_flags(self) -> None:
+        with patch(
+            "esphome.core.CORE",
+            _make_core({"-Wl,--gc-sections", "-Wl,-Map=output.map"}),
+        ):
+            assert get_project_link_flags() == [
+                "-Wl,--gc-sections",
+                "-Wl,-Map=output.map",
+            ]
+
+    def test_excludes_compile_flags(self) -> None:
+        with patch(
+            "esphome.core.CORE",
+            _make_core({"-DFOO", "-Wall", "-Wl,--gc-sections"}),
+        ):
+            assert get_project_link_flags() == ["-Wl,--gc-sections"]
+
+    def test_empty_build_flags(self) -> None:
+        with patch("esphome.core.CORE", _make_core(set())):
+            assert get_project_link_flags() == []
+
+    def test_result_is_sorted(self) -> None:
+        with patch(
+            "esphome.core.CORE",
+            _make_core({"-Wl,-z", "-Wl,-a", "-Wl,-m"}),
+        ):
+            result = get_project_link_flags()
+            assert result == sorted(result)
