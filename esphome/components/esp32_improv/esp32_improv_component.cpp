@@ -338,6 +338,14 @@ void ESP32ImprovComponent::process_incoming_data_() {
           this->incoming_data_.clear();
           return;
         }
+        if (wifi::global_wifi_component->is_disabled()) {
+          // Wi-Fi is disabled, so we can't provision. Respond immediately
+          // instead of letting the client wait out its provisioning timeout.
+          ESP_LOGW(TAG, "Wi-Fi is disabled; cannot provision");
+          this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
+          this->incoming_data_.clear();
+          return;
+        }
         wifi::WiFiAP sta{};
         sta.set_ssid(command.ssid.c_str());
         sta.set_password(command.password.c_str());
