@@ -593,6 +593,8 @@ class EsphomeCore:
         self.build_flags: set[str] = set()
         # A set of build unflags to set in the platformio project
         self.build_unflags: set[str] = set()
+        # The C++ language standard for the build (e.g. "gnu++20"), set via cg.set_cpp_standard()
+        self.cpp_standard: str | None = None
         # A set of defines to set for the compile process in esphome/core/defines.h
         self.defines: set[Define] = set()
         # A map of all platformio options to apply
@@ -649,6 +651,7 @@ class EsphomeCore:
         self.platformio_libraries = {}
         self.build_flags = set()
         self.build_unflags = set()
+        self.cpp_standard = None
         self.defines = set()
         self.platformio_options = {}
         self.loaded_integrations = set()
