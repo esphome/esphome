@@ -201,9 +201,9 @@ def lvgl_src_filter(_build_env, node):
         "/libs/ffmpeg/",  # FFmpeg video decoding
         "/libs/freetype/",  # FreeType font engine (use tiny_ttf instead)
         "/libs/rlottie/",  # rlottie (use ThorVG Lottie instead)
-        "/libs/libpng/",  # libpng (use pngdec/lodepng instead)
-        "/libs/libjpeg_turbo/",  # libjpeg-turbo (use tjpgd instead)
-        "/libs/libwebp/",  # libwebp (use ThorVG WebP instead)
+        "/libs/libpng/",  # libpng
+        "/libs/libjpeg_turbo/",  # libjpeg-turbo
+        "/libs/libwebp/",  # libwebp
         "/libs/frogfs/",  # FrogFS filesystem
         "/libs/vg_lite_driver/",  # VG-Lite driver library
         "/libs/FT800-FT813/",  # FT800/FT813 EVE library
