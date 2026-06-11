@@ -64,4 +64,21 @@ constexpr NATIVE_COLOR color_to_bwyr(Color color, NATIVE_COLOR hw_black, NATIVE_
   }
 }
 
+/** Map RGB color to discrete BWR (black/white/red) 3 color key
+ *
+ * Convenience wrapper over color_to_bwyr for panels without a yellow ink; the yellow corner is
+ * folded into white.
+ *
+ * @tparam NATIVE_COLOR  Type of native hardware color values
+ * @param color     RGB color to convert from
+ * @param hw_black  Native value for black
+ * @param hw_white  Native value for white
+ * @param hw_red    Native value for red
+ * @return          Converted native hardware color value
+ */
+template<typename NATIVE_COLOR>
+constexpr NATIVE_COLOR color_to_bwr(Color color, NATIVE_COLOR hw_black, NATIVE_COLOR hw_white, NATIVE_COLOR hw_red) {
+  return color_to_bwyr<NATIVE_COLOR>(color, hw_black, hw_white, /*hw_yellow=*/hw_white, hw_red);
+}
+
 }  // namespace esphome::epaper_spi

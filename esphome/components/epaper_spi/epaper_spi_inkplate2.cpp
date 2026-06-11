@@ -8,12 +8,11 @@ namespace esphome::epaper_spi {
 
 static constexpr const char *const TAG = "epaper_spi.inkplate2";
 
-// Map RGB to the panel's black/white/red via the shared converter (no yellow here -> treat as red).
+// Map RGB to the panel's black/white/red via the shared converter.
 enum class Inkplate2Color : uint8_t { BLACK, WHITE, RED };
 
-static Inkplate2Color color_to_bwr(Color color) {
-  return color_to_bwyr<Inkplate2Color>(color, Inkplate2Color::BLACK, Inkplate2Color::WHITE, Inkplate2Color::RED,
-                                       Inkplate2Color::RED);
+static Inkplate2Color to_inkplate2_color(Color color) {
+  return color_to_bwr<Inkplate2Color>(color, Inkplate2Color::BLACK, Inkplate2Color::WHITE, Inkplate2Color::RED);
 }
 
 void EPaperInkplate2::power_on() {
@@ -51,7 +50,7 @@ void EPaperInkplate2::fill(Color color) {
   // Plane encoding: B/W plane 1=white, 0=black; red plane 0=red, 1=no-red.
   uint8_t bw_byte;
   uint8_t red_byte;
-  switch (color_to_bwr(color)) {
+  switch (to_inkplate2_color(color)) {
     case Inkplate2Color::BLACK:
       bw_byte = 0x00;
       red_byte = 0xFF;
@@ -88,7 +87,7 @@ void HOT EPaperInkplate2::draw_pixel_at(int x, int y, Color color) {
   const size_t pos = y * this->row_width_ + x / 8;
   const uint8_t mask = 0x80 >> (x & 0x07);  // MSB first; see fill() for plane encoding
 
-  switch (color_to_bwr(color)) {
+  switch (to_inkplate2_color(color)) {
     case Inkplate2Color::BLACK:
       this->buffer_[pos] &= ~mask;
       this->buffer_[pos + half_buffer] |= mask;
