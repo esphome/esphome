@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@astrojs/starlight": "^0.39.3",
-    "astro": "^6.4.4",
+    "astro": "^6.4.6",
     "katex": "^0.17.0",
     "micromark": "^4.0.2",
     "rehype-katex": "^7.0.1",
