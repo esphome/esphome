@@ -18,9 +18,9 @@ class Inkplate2Model(EpaperModel):
             ),
             (
                 0x61,  # resolution
-                width,
-                height >> 8,
-                height & 0xFF,
+                width,  # width: 1 byte
+                height >> 8,  # height: 2 bytes, high byte first ...
+                height & 0xFF,  # ... then low byte
             ),
             (
                 0x50,  # VCOM and data interval

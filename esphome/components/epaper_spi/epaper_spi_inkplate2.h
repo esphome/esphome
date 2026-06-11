@@ -16,13 +16,13 @@ class EPaperInkplate2 final : public EPaperBase {
 
   void fill(Color color) override;
   void clear() override;
+  void draw_pixel_at(int x, int y, Color color) override;
 
  protected:
   void refresh_screen(bool partial) override;
   void power_on() override;
   void power_off() override;
   void deep_sleep() override;
-  void draw_pixel_at(int x, int y, Color color) override;
 
   bool transfer_data() override;
 

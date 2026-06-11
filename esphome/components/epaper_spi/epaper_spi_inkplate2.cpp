@@ -33,7 +33,6 @@ void EPaperInkplate2::refresh_screen(bool partial) {
   // between them (as the state machine does between states) would add a ~16s stall.
   this->cmd_data(0x11, {0x00});  // stop data transfer
   this->command(0x12);           // display refresh
-  delayMicroseconds(500);        // hardware needs >=200us here
 }
 
 void EPaperInkplate2::deep_sleep() {
