@@ -164,7 +164,8 @@ def check_and_install() -> None:
 
     framework_path = _get_framework_path(version)
     sentinel = framework_path / ".ready"
-    if not sentinel.exists():
+    zephyr_reqs = framework_path / "zephyr" / "scripts" / "requirements.txt"
+    if not sentinel.exists() or not zephyr_reqs.exists():
         rmdir(framework_path, msg=f"Clean up {version} framework environment")
         _LOGGER.info("Initializing nRF Connect SDK %s ...", version)
         cmd = [
@@ -193,7 +194,6 @@ def check_and_install() -> None:
             raise EsphomeError(f"Can't update nRF Connect SDK {version}")
         sentinel.touch()
 
-    zephyr_reqs = framework_path / "zephyr" / "scripts" / "requirements.txt"
     zephyr_sentinel = python_env_path / ".zephyr_reqs_ready"
     if (
         install_venv
