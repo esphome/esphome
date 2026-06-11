@@ -15,8 +15,12 @@ class SPIDelegateHw : public SPIDelegate {
         channel_(channel),
         release_device_(release_device),
         write_only_(write_only) {
-    if (!this->release_device_)
+    if (!this->release_device_) {
       add_device_();
+    } else {
+      ESP_LOGD(TAG, "SPI device with CS pin %d using half-duplex mode (write-only)",
+               Utility::get_pin_no(this->cs_pin_));
+    }
   }
 
   bool is_ready() override { return this->handle_ != nullptr; }
