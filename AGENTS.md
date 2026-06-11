@@ -150,16 +150,19 @@ This document provides essential context for AI models interacting with this pro
 *   **Component Structure:**
     *   **Terminology**: A *component* is the concrete implementation (e.g., `aht10`, `bedjet`).
         A *platform* is the abstract entity type it exposes (e.g., `sensor`, `binary_sensor`, `switch`).
-        Note: in YAML, `platform:` names the **component**, not the platform — `sensor: - platform: aht10`
-        means "use the aht10 component as a sensor entity".
+        Note: in YAML, `platform:` names the **component**, not the platform:
+        ```yaml
+        sensor:
+          - platform: aht10  # "aht10" is the component; "sensor" is the platform
+        ```
 
     *   **Standard Files:**
 
-        **Single-platform component** (Python-only platform file — most common):
+        **Single-platform component** (platform config in a `.py` file — most common):
         ```
         components/[component_name]/
-        ├── __init__.py          # Component metadata (CODEOWNERS, etc.) — often nearly empty
-        ├── [component].h        # C++ header file (if needed)
+        ├── __init__.py          # Often empty or just CODEOWNERS; metadata may live in the platform file
+        ├── [component].h        # C++ header (if needed)
         ├── [component].cpp      # C++ implementation (if needed)
         └── [platform].py        # Full config schema + code generation (e.g. sensor.py, binary_sensor.py)
         ```
@@ -167,12 +170,12 @@ This document provides essential context for AI models interacting with this pro
         **Multi-platform or hub component** (subdirectory per platform):
         ```
         components/[component_name]/
-        ├── __init__.py                          # Hub/core config schema and code generation
-        ├── [component].h                        # C++ header
-        ├── [component].cpp                      # C++ implementation
+        ├── __init__.py                          # Hub config schema and code generation
+        ├── [component].h                        # C++ header (if needed)
+        ├── [component].cpp                      # C++ implementation (if needed)
         ├── [platform_a]/                        # Platform-specific implementation
         │   ├── __init__.py                      # Platform config schema and code generation
-        │   ├── [component]_[platform_a].h       # C++ header (named component_platform)
+        │   ├── [component]_[platform_a].h       # C++ header (named component_platform, e.g. bedjet_climate.h)
         │   └── [component]_[platform_a].cpp     # C++ implementation
         └── [platform_b]/
             ├── __init__.py
