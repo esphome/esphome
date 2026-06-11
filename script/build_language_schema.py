@@ -1002,6 +1002,10 @@ def convert(schema, config_var, path):
             else:
                 config_var["use_id_type"] = str(data.base)
                 config_var[S_TYPE] = "use_id"
+        elif schema_type == "schema":
+            # A callable CONFIG_SCHEMA that returned a representative schema
+            # for extraction (model-driven components); walk it as usual.
+            convert(data, config_var, path)
         else:
             raise TypeError("Unknown extracted schema type")
     elif config_var.get("key") == "GeneratedID":

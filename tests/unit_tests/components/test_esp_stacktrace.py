@@ -45,6 +45,36 @@ def test_process_stacktrace_esp8266_backtrace(
     assert state is False
 
 
+def test_process_stacktrace_esp8266_crash_handler(
+    setup_core: Path, mock_esp8266_decode_pc: Mock
+) -> None:
+    """Test process_stacktrace handles ESP8266 crash handler backtrace lines."""
+    from esphome.components.esp8266 import process_stacktrace
+
+    config = {"name": "test"}
+
+    # Simulate crash handler log lines as they appear from the API/serial
+    line_pc = "[E][esp8266:191]:   PC: 0x40220060"
+    state = process_stacktrace(config, line_pc, False)
+    mock_esp8266_decode_pc.assert_called_once_with(config, "40220060")
+    assert state is False
+
+    mock_esp8266_decode_pc.reset_mock()
+
+    # Near-null data address (wild pointer) is not a code address, must be ignored
+    line_excvaddr = "[E][esp8266:193]:   EXCVADDR: 0x0000008A"
+    state = process_stacktrace(config, line_excvaddr, False)
+    mock_esp8266_decode_pc.assert_not_called()
+    assert state is False
+
+    mock_esp8266_decode_pc.reset_mock()
+
+    line_bt0 = "[E][esp8266:196]:   BT0: 0x40212345"
+    state = process_stacktrace(config, line_bt0, False)
+    mock_esp8266_decode_pc.assert_called_once_with(config, "40212345")
+    assert state is False
+
+
 def test_process_stacktrace_esp32_backtrace(
     setup_core: Path, mock_esp32_decode_pc: Mock
 ) -> None:

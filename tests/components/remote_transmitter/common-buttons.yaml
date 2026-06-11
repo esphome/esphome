@@ -1,6 +1,6 @@
 number:
   - platform: template
-    id: test_number
+    id: remote_transmitter_test_number
     optimistic: true
     min_value: 0
     max_value: 255
@@ -151,7 +151,7 @@ button:
     on_press:
       remote_transmitter.transmit_raw:
         code: !lambda |-
-          return {(int32_t)id(test_number).state * 100, -1000};
+          return {(int32_t)id(remote_transmitter_test_number).state * 100, -1000};
   - platform: template
     name: AEHA
     id: eaha_hitachi_climate_power_on
@@ -253,7 +253,7 @@ button:
         destination_address: 0x5678
         message_type: 0x01
         data: !lambda |-
-          return {(uint8_t)id(test_number).state, 0x20, 0x30};
+          return {(uint8_t)id(remote_transmitter_test_number).state, 0x20, 0x30};
   - platform: template
     name: Digital Write
     on_press:

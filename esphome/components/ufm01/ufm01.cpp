@@ -28,7 +28,7 @@ static bool log_problem(const char *log, uint8_t expected, uint8_t real) {
 
 static bool validate_data(uint8_t data[32]) {
   uint8_t sum = 0;
-  for (int i = 0; i < 30; ++i)
+  for (int32_t i = 0; i < 30; ++i)
     sum += data[i];
   return (data[0] == 0x3C || !log_problem("byte 0 exception", 0x3C, data[0])) &&
          (data[1] == 0x32 || !log_problem("byte 1 exception", 0x32, data[1])) &&
@@ -36,19 +36,20 @@ static bool validate_data(uint8_t data[32]) {
          (data[15] == 0x0B || !log_problem("byte 15 exception", 0x0B, data[15])) &&
          (data[21] == 0x0C || !log_problem("byte 21 exception", 0x0C, data[21])) &&
          (data[24] == 0x0D || !log_problem("byte 24 exception", 0x0D, data[24])) &&
-         (data[30] == (sum & 0xFF) || !log_problem("checksum (byte 30) exception", sum, data[30])) &&
+         (data[30] == sum || !log_problem("checksum (byte 30) exception", sum, data[30])) &&
          (data[31] == 0x16 || !log_problem("byte 31 exception", 0x16, data[31]));
 }
 
 static float read_accumulated_flow(uint8_t data[32]) {
-  return (data[8] == 0x1A ? L_PER_M3 : 1.0) *
-         (to_float(data[14]) * 10000000.0 + to_float(data[13]) * 100000.0 + to_float(data[12]) * 1000.0 +
-          to_float(data[11]) * 10.0 + to_float(data[10]) * 0.1 + to_float(data[9]) * 0.001);
+  return (data[8] == 0x1A ? L_PER_M3 : 1.0f) *
+         (to_float(data[14]) * 10000000.0f + to_float(data[13]) * 100000.0f + to_float(data[12]) * 1000.0f +
+          to_float(data[11]) * 10.0f + to_float(data[10]) * 0.1f + to_float(data[9]) * 0.001f);
 }
 
 static float read_flow(uint8_t data[32]) {
-  return (data[20] == 0x80 ? -1.0 : 1.0) *
-         (to_float(data[19]) * 10000.0 + to_float(data[18]) * 100.0 + to_float(data[17]) + to_float(data[16]) * 0.01) *
+  return (data[20] == 0x80 ? -1.0f : 1.0f) *
+         (to_float(data[19]) * 10000.0f + to_float(data[18]) * 100.0f + to_float(data[17]) +
+          to_float(data[16]) * 0.01f) *
          M3_PER_L;
 }
 
@@ -58,12 +59,11 @@ static void log_hex(const uint8_t *data, size_t len) {
 }
 
 static float read_temperature(uint8_t data[32]) {
-  if (  // happens sometimes before getting real reading
-      data[27] == 0X00 && (data[26] == 0x00 || data[26] == 0x70) && data[25] == 0X00) {
+  // happens sometimes before getting a real reading
+  if (data[27] == 0x00 && (data[26] == 0x00 || data[26] == 0x70) && data[25] == 0x00) {
     return NAN;
-  } else {
-    return to_float(data[27]) * 100.0 + to_float(data[26]) + to_float(data[25]) * 0.01;
   }
+  return to_float(data[27]) * 100.0f + to_float(data[26]) + to_float(data[25]) * 0.01f;
 }
 
 static bool read_ufp_chip_error(const uint8_t data[32]) { return data[29] & 0x20; }
@@ -156,40 +156,40 @@ void UFM01Component::on_data_(uint8_t data[32]) {
 }
 
 void UFM01Component::loop() {
-  if (this->read_index_ == 32 && validate_data(this->data_)) {
-    this->on_data_(this->data_);
-    this->read_index_ = 0;
-  }
-  if (this->read_index_ == 32) {
+  // Drain the UART buffer each loop, reading one byte at a time into the frame
+  while (this->available()) {
+    if (!this->read_byte(&this->data_[this->read_index_])) {
+      ESP_LOGW(TAG, "unable to read byte");
+      this->read_index_ = 0;
+      continue;
+    }
+    if ((this->read_index_ == 0 && this->data_[0] != 0x3C) || (this->read_index_ == 1 && this->data_[1] != 0x32)) {
+      ESP_LOGW(TAG, "not start of data at %d (is 0x%02X)", this->read_index_, this->data_[this->read_index_]);
+      this->read_index_ = 0;
+      continue;
+    }
+    if (++this->read_index_ < 32)
+      continue;
+
+    // Full frame received
+    if (validate_data(this->data_)) {
+      this->on_data_(this->data_);
+      this->read_index_ = 0;
+      continue;
+    }
+
+    // Invalid frame: try to resync on the next start marker within the buffer
     log_hex(this->data_, sizeof(this->data_));
     ESP_LOGE(TAG, "unable to read data");
-    for (int i = 2; i < 31 && this->read_index_ == 32; ++i) {
+    for (int32_t i = 2; i < 31 && this->read_index_ == 32; ++i) {
       if ((this->data_[i] == 0x3C) && (this->data_[i + 1] == 0x32)) {
-        for (int j = i; j < 32; ++j)
+        for (int32_t j = i; j < 32; ++j)
           this->data_[j - i] = this->data_[j];
         this->read_index_ = 32 - i;
       }
     }
     if (this->read_index_ == 32)
       this->read_index_ = 0;
-  }
-  if (this->read_index_ > 32) {  // NOT EXPECTED
-    ESP_LOGE(TAG, "Read more than 32 bytes into array");
-    this->read_index_ = 0;
-  }
-  if (this->read_index_ < 32 && this->available()) {
-    if (this->read_byte(&this->data_[this->read_index_])) {
-      // ESP_LOGD(TAG, "%2d GOT %02X", this->read_index, this->data[this->read_index]);
-      if ((this->read_index_ == 0 && this->data_[0] != 0x3C) || (this->read_index_ == 1 && this->data_[1] != 0x32)) {
-        ESP_LOGW(TAG, "not start of data at %d (is 0x%02X)", this->read_index_, this->data_[this->read_index_]);
-        this->read_index_ = 0;
-      } else {
-        this->read_index_++;
-      }
-    } else {
-      ESP_LOGW(TAG, "unable to read byte");
-      this->read_index_ = 0;
-    }
   }
 }
 
