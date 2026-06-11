@@ -19,6 +19,14 @@ from esphome.platformio import runner, toolchain
 from esphome.util import FlashImage
 
 
+@pytest.fixture(autouse=True)
+def reset_platformio_env_defaults() -> None:
+    """Keep module-level PlatformIO env tracking isolated between tests."""
+    toolchain._PLATFORMIO_ENV_DEFAULTS.clear()
+    yield
+    toolchain._PLATFORMIO_ENV_DEFAULTS.clear()
+
+
 def test_idedata_firmware_elf_path(setup_core: Path) -> None:
     """Test IDEData.firmware_elf_path returns correct path."""
     CORE.build_path = setup_core / "build" / "test"

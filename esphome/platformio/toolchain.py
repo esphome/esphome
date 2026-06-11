@@ -50,6 +50,8 @@ def _unset_platformio_env_default(name: str) -> None:
 def _platformio_toolchain_cache_key() -> str:
     """Return the stable key used for toolchain-scoped PlatformIO state."""
     core_data = CORE.data.get(KEY_CORE, {})
+    # Real Zephyr builds set both fields; these fallbacks keep incomplete test
+    # setup or future call ordering from crashing before PlatformIO reports it.
     platform = core_data.get(KEY_TARGET_PLATFORM) or "unknown"
     framework = core_data.get(KEY_TARGET_FRAMEWORK) or "unknown"
     return re.sub(r"[^a-zA-Z0-9_.-]", "_", f"{platform}-{framework}")
@@ -59,12 +61,16 @@ def _configure_zephyr_ccache() -> None:
     """Scope Zephyr's CMake/Ninja ccache state when it is available."""
     core_data = CORE.data.get(KEY_CORE, {})
     if core_data.get(KEY_TARGET_FRAMEWORK) != "zephyr":
+        # Prevent ESPHome-managed Zephyr ccache defaults from leaking into a
+        # later PlatformIO build for another framework in the same process.
         for name in _ZEPHYR_CCACHE_ENV_DEFAULTS:
             _unset_platformio_env_default(name)
         return
 
     ccache = shutil.which("ccache")
     if ccache is None:
+        # If ccache disappears between mixed build runs, remove only the
+        # Zephyr defaults ESPHome owns and leave user overrides untouched.
         for name in _ZEPHYR_CCACHE_ENV_DEFAULTS:
             _unset_platformio_env_default(name)
         return
