@@ -695,6 +695,11 @@ def _wrap_to_code(name, comp, yaml_util):
 def write_cpp(config: ConfigType) -> int:
     from esphome import writer
 
+    # Refresh the storage sidecar and clean an incompatible previous build
+    # before regenerating any sources. This may full-wipe the build dir, so it
+    # has to run before write_cpp_file writes src/.
+    writer.update_storage_json()
+
     if not get_bool_env(ENV_NOGITIGNORE):
         writer.write_gitignore()
 
@@ -1423,7 +1428,16 @@ def command_wizard(args: ArgsProtocol) -> int | None:
 def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
     from esphome import yaml_util
 
-    if not CORE.verbose:
+    if getattr(args, "no_defaults", False):
+        user_config = getattr(config, "user_config", None)
+        if user_config is None:
+            _LOGGER.warning(
+                "--no-defaults requested but the user-only config snapshot is "
+                "unavailable; falling back to the validated configuration."
+            )
+        else:
+            config = user_config
+    elif not CORE.verbose:
         config = strip_default_ids(config)
     output = yaml_util.dump(config, args.show_secrets)
     if not args.show_secrets:
@@ -1631,7 +1645,7 @@ def command_clean(args: ArgsProtocol, config: ConfigType) -> int | None:
     from esphome import writer
 
     try:
-        writer.clean_build()
+        writer.clean_build(full=True)
     except OSError as err:
         _LOGGER.error("Error deleting build files: %s", err)
         return 1
@@ -2146,6 +2160,12 @@ def parse_args(argv):
     )
     parser_config.add_argument(
         "--show-secrets", help="Show secrets in output.", action="store_true"
+    )
+    parser_config.add_argument(
+        "--no-defaults",
+        help="Only output the user-supplied configuration without "
+        "schema defaults applied.",
+        action="store_true",
     )
 
     parser_config_hash = subparsers.add_parser(
