@@ -72,7 +72,9 @@ def test_parse_entry_resolves_relative_includes() -> None:
     _, _, includes, _ = idedata._parse_entry(entry)
 
     def resolved(rel: str) -> str:
-        return os.path.normpath(Path(directory) / rel)
+        # _parse_entry emits forward slashes for consistency (normpath would
+        # yield backslashes on Windows).
+        return os.path.normpath(Path(directory) / rel).replace("\\", "/")
 
     assert resolved("config") in includes
     assert resolved("../shared") in includes  # ../ normalized away
@@ -122,6 +124,29 @@ def test_pick_entry_prefers_esphome_tu() -> None:
         _entry("/b", "/b/src/esphome/core/app.cpp", "g++ -c app.cpp"),
     ]
     assert idedata._pick_entry(entries)["file"].endswith("app.cpp")
+
+
+def test_pick_entry_falls_back_to_any_cxx_tu() -> None:
+    """With no ``/src/esphome/`` TU present, the first C++ entry is the fallback."""
+    entries = [
+        _entry("/b", "/b/managed_components/foo/foo.c", "gcc -c foo.c"),
+        _entry("/b", "/b/components/x/x.cpp", "g++ -c x.cpp"),
+    ]
+    assert idedata._pick_entry(entries)["file"].endswith("x.cpp")
+
+
+def test_is_esphome_src_handles_backslash_paths() -> None:
+    r"""The src marker must match Windows ``\src\esphome\`` paths too.
+
+    compile_commands ``file`` entries use the OS-native separator; if the
+    marker only matched forward slashes no source would match on Windows and
+    the build-include union would be silently empty.
+    """
+    assert idedata._is_esphome_src(r"C:\b\src\esphome\core\app.cpp")
+    assert idedata._is_esphome_src("/b/src/esphome/core/app.cpp")
+    # non-esphome and non-C++ still rejected regardless of separator
+    assert not idedata._is_esphome_src(r"C:\b\managed_components\x\x.cpp")
+    assert not idedata._is_esphome_src(r"C:\b\src\esphome\core\app.h")
 
 
 def test_idedata_from_build(tmp_path: Path) -> None:
@@ -194,3 +219,46 @@ def test_get_toolchain_includes_raises_when_no_dirs_found() -> None:
         pytest.raises(RuntimeError, match="builtin include dirs"),
     ):
         idedata._get_toolchain_includes("/some/compiler")
+
+
+# ESP-IDF's compile_commands.json on Windows mixes literal backslash path
+# separators in the compiler path with shell ``\"`` quote-escaping in defines,
+# which only the real Windows argv parser handles. These exercise that path.
+@pytest.mark.skipif(os.name != "nt", reason="Windows argv tokenization")
+def test_split_command_preserves_paths_and_unescapes_quotes() -> None:
+    r"""Backslash paths survive while ``\"`` define-quoting is unescaped."""
+    command = r"C:\esp\bin\riscv32-esp-elf-g++.exe -DVER=\"1.2.3\" -IC:/inc/a -c x.cpp"
+
+    tokens = idedata._split_command(command)
+
+    assert tokens[0] == r"C:\esp\bin\riscv32-esp-elf-g++.exe"
+    assert '-DVER="1.2.3"' in tokens
+    assert "-IC:/inc/a" in tokens
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows argv tokenization")
+def test_split_command_empty_returns_empty() -> None:
+    """An empty or blank command tokenizes to ``[]`` (e.g. an empty response file).
+
+    Guards against ``CommandLineToArgvW("")`` returning the current process name
+    instead of an empty list.
+    """
+    assert idedata._split_command("") == []
+    assert idedata._split_command("   ") == []
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows argv tokenization")
+def test_parse_entry_normalizes_windows_cxx_path() -> None:
+    """A backslash compiler path is emitted forward-slashed; define unescaped."""
+    entry = _entry(
+        r"C:\b",
+        r"C:\b\src\esphome\x.cpp",
+        r"C:\esp\bin\g++.exe -DVER=\"1.2.3\" -IC:/inc/a -c x.cpp",
+    )
+
+    cxx_path, defines, includes, _ = idedata._parse_entry(entry)
+
+    assert cxx_path == "C:/esp/bin/g++.exe"
+    assert "\\" not in cxx_path
+    assert 'VER="1.2.3"' in defines
+    assert "C:/inc/a" in includes
