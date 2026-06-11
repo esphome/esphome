@@ -14,12 +14,26 @@ Currently supported devices are listed in the table below:
 
 | Name       | VID    | PID    | Description                                             |
 | ---------- | ------ | ------ | ------------------------------------------------------- |
-| CH34X      | 0x1A86 | 0x55D5 | USB to serial adapter, multi-channel (up to 3 channels) |
-| CH340      | 0x1A86 | 0x7523 | USB to serial adapter, single channel                   |
-| ESP_JTAG | 0x303A | 0x1001 | ESP32 JTAG interface |
-| STM32_VCP | 0x0483 | 0x5740 | STM32 Virtual COM Port |
 | CDC_ACM | 0x0000 | 0x0000 | USB CDC ACM (Abstract Control Model) |
+| CH34X      | 0x1A86 | 0x55D5 | USB to serial adapter, multi-channel |
+| CH340      | 0x1A86 | 0x7523 | USB to serial adapter, single channel |
 | CP210X | 0x10C4 | 0xEA60 | Silicon Labs USB to UART Bridge |
+| ESP_JTAG | 0x303A | 0x1001 | ESP32 JTAG interface |
+| FT232     | 0x0403 | 0x6001 | FTDI USB to serial adapter single port |
+| FT2232     | 0x0403 | 0x6010 | FTDI USB to serial adapter dual port |
+| FT4232     | 0x0403 | 0x6011 | FTDI USB to serial adapter dual port |
+| PL2303     | 0x067B | 0x2303 | Prolific USB to serial adapter |
+| PL2303GC   | 0x067B | 0x23A3 | Prolific PL2303 G-series (GC) |
+| PL2303GB   | 0x067B | 0x23B3 | Prolific PL2303 G-series (GB) |
+| PL2303GT   | 0x067B | 0x23C3 | Prolific PL2303 G-series (GT) |
+| PL2303GL   | 0x067B | 0x23D3 | Prolific PL2303 G-series (GL) |
+| PL2303GE   | 0x067B | 0x23E3 | Prolific PL2303 G-series (GE) |
+| PL2303GS   | 0x067B | 0x23F3 | Prolific PL2303 G-series (GS) |
+| STM32_VCP | 0x0483 | 0x5740 | STM32 Virtual COM Port |
+
+
+Note that devices with 4 channels will only allow 3 channels to be used at any one time on an ESP32-S3 due to
+hardware limitations. The ESP32-P4 is not affected by this limitation and can use all 4 channels.
 
 ```yaml
 # Example minimal configuration entry
@@ -34,7 +48,7 @@ usb_uart:
 ## Configuration variables
 
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): The id to use for this component.
-- **type** (**Required**, string): The type of USB-serial device to connect to. One of `ch34x`, `ch340`, `esp_jtag`, `stm32_vcp`, `cdc_acm`, `cp210x`.
+- **type** (**Required**, string): The type of USB-serial device to connect to. One of `ft23xx`, `ch34x`, `ch340`, `esp_jtag`, `stm32_vcp`, `cdc_acm`, `cp210x`, `pl2303`, `pl2303gc`, `pl2303gb`, `pl2303gt`, `pl2303gl`, `pl2303ge`, `pl2303gs`.
 - **channels** (**Required**, list): A list of channels to configure.
 - **vid** (*Optional*, int): The vendor ID of the device. Use 0 as a wildcard. Each type has a default VID which will be overridden if this is set.
 - **pid** (*Optional*, int): The product ID of the device. Use 0 as a wildcard. Each type has a default PID which will be overridden if this is set.
@@ -52,7 +66,7 @@ Setting both `vid` and `pid` to 0 will match any device.
 - **dummy_receiver** (*Optional*, boolean): If set to true, the channel will consume any data received. This is useful for debugging purposes. Defaults to false.
 - **debug** (*Optional*, boolean): If set to true, the channel will log all data sent and received. Defaults to false.
 - **debug_prefix** (*Optional*, string): A string prepended to every debug log line for this channel.
-  Useful when multiple channels have debugging enabled, to distinguish their output in the log. Defaults to "".
+Useful when multiple channels have debugging enabled, to distinguish their output in the log. Defaults to "".
 - **flush_timeout** (*Optional*, [Time](/guides/configuration-types#time)): The maximum time to wait for the USB output queue to drain when `flush()` is called. If the queue does not drain within this time, `flush()` returns a `TIMEOUT` result. Defaults to `100ms`.
 
 ## Device types
@@ -63,4 +77,4 @@ This driver does not strictly enforce the CDC-ACM configuration specification, s
 ## See Also
 
 - [USB Host Interface](/components/usb_host/)
-- <APIRef text="usb_uart.h" path="usb_uart/usb_uart.h" />
+- <APIRef text="usb_uart.h" path="usb_uart/usb_uart.h"/>

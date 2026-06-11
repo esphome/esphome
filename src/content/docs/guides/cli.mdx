@@ -133,9 +133,26 @@ basis, or set with this option at the time of uploading.
 `ESPHOME_SERIAL_LOGGING_RESET=true`.
 
 
+**`--no-states`** / **`--states`**
+: Control whether entity state changes are shown in log output. See the [`logs` command](#logs-command)
+for details. The default can be set with the environment variable `ESPHOME_LOG_STATES`.
+
+
 ### `config` Command
 
 The `esphome config <CONFIG>` validates the configuration and displays the validation result.
+
+#### Options
+
+**`--show-secrets`**
+: Show secret values in the output instead of redacting them.
+
+
+**`--no-defaults`**
+: Only output the configuration the user wrote, without the values that schema validation fills in from defaults.
+Useful for sharing a minimal reproduction or diffing two configurations without hundreds of defaulted keys in the way.
+Substitutions, packages, and `!extend` / `!remove` are resolved in the output.
+
 
 ### `config-hash` Command
 
@@ -362,10 +379,14 @@ esphome logs my-device.yaml --device 192.168.1.100 --device 2001:db8::1
 : If set, reset the device before starting the logs. May also be configured with the environment variable
 `ESPHOME_SERIAL_LOGGING_RESET=true`.
 
-**`--no-states`**
-: Do not show entity state changes in log output. By default, when using the native API for logging,
-state changes are shown as `[S]` lines (e.g., `[S][sensor]: 'Temperature' >> 22.5 °C`). Use this flag
-to suppress them and only see firmware log messages.
+**`--no-states`** / **`--states`**
+: Control whether entity state changes are shown in log output. By default, when using the native API
+for logging, state changes are shown as `[S]` lines (e.g., `[S][sensor]: 'Temperature' >> 22.5 °C`).
+Pass `--no-states` to suppress them and only see firmware log messages, or `--states` to show them.
+
+The default can be set with the environment variable `ESPHOME_LOG_STATES`: set it to `false` to suppress
+state changes by default, or `true` to show them. The `--states` and `--no-states` flags always take
+precedence over the environment variable.
 
 
 ### `update-all` Command

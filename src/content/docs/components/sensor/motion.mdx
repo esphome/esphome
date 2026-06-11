@@ -1,0 +1,24 @@
+---
+description: "Instructions for setting up motion (IMU) sensors with ESPHome."
+title: "Motion Sensor"
+---
+
+<span id="motion-sensor"></span>
+
+The Motion Sensor platform exposes sensors that read data from inertial measurement units (IMUs) such as accelerometers
+and gyroscopes.
+
+See the [Motion component](/components/motion) documentation for details on supported IMU chips and configuration options.
+
+```yaml
+# Example configuration entry
+sensor:
+  - platform: motion
+    type: acceleration_x
+    name: "Accel X"
+```
+
+## See Also
+
+- [LSM6DS Accelerometer/Gyroscope platform](/components/motion/lsm6ds/)
+- [Sensor Component](/components/sensor/)

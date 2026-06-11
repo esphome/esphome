@@ -44,6 +44,9 @@ level shifting between 5 V and 3.3 V.
 
 See the references below for all the details about te circuit.
 
+> [!WARNING]
+> The RX line requires a pull-up resistor. You can usually configure this on `rx_pin` using Pin Schema (`mode: INPUT_PULLUP` / `pullup: true`); if that is not available on your platform/setup, add an external pull-up resistor.
+
 You can use the 5 V output from the stove to power the ESP module, but you will have to put a voltage regulator in between to
 get 3.3 V.
 

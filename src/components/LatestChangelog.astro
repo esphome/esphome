@@ -5,10 +5,7 @@ const allDocs = await getCollection("docs");
 
 // Filter to changelog entries (excluding the index)
 const changelogs = allDocs.filter(
-  (entry) =>
-    entry.id.startsWith("changelog/") &&
-    entry.id !== "changelog/" &&
-    entry.id !== "changelog/index"
+  (entry) => entry.id.startsWith("changelog/") && entry.id !== "changelog/" && entry.id !== "changelog/index",
 );
 
 // Parse version and find the latest
@@ -18,8 +15,7 @@ for (const entry of changelogs) {
   const match = entry.id.match(/changelog\/(\d{4})\.(\d+)\.(\d+)/);
   if (match) {
     const [, year, month, patch] = match;
-    const sortValue =
-      parseInt(year) * 10000 + parseInt(month) * 100 + parseInt(patch);
+    const sortValue = parseInt(year) * 10000 + parseInt(month) * 100 + parseInt(patch);
     if (sortValue > latest.sortValue) {
       latest = { sortValue, entry };
     }
@@ -32,5 +28,9 @@ const slug = latest.entry?.data.slug ?? latest.entry?.id;
 const redirectUrl = slug ? `/${slug}/` : null;
 ---
 
-{redirectUrl && <script define:vars={{ redirectUrl }}>window.location.replace(redirectUrl + window.location.hash);</script>}
+{
+  redirectUrl && (
+    <script define:vars={{ redirectUrl }}>window.location.replace(redirectUrl + window.location.hash);</script>
+  )
+}
 {Content && <Content />}

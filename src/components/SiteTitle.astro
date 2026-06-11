@@ -1,38 +1,47 @@
 ---
-import Default from '@astrojs/starlight/components/SiteTitle.astro';
-import fs from 'node:fs';
-import path from 'node:path';
+import Default from "@astrojs/starlight/components/SiteTitle.astro";
+import fs from "node:fs";
+import path from "node:path";
 
 // Cache the result so the filesystem scan only runs once per build,
 // not once per page render.
-const cache = globalThis as typeof globalThis & { __esphomeVersion?: { display: string; slug: string } };
+const cache = globalThis as typeof globalThis & {
+  __esphomeVersion?: { display: string; slug: string };
+};
 if (!cache.__esphomeVersion) {
   // Find the latest version at build time.
   // Shows the latest patch version (e.g., 2026.3.3) but links to the base
   // changelog page (2026.3.0), matching how Home Assistant does it.
-  let display = '';
-  let slug = '';
-  const changelogDir = path.join(process.cwd(), 'src/content/docs/changelog');
+  let display = "";
+  let slug = "";
+  const changelogDir = path.join(process.cwd(), "src/content/docs/changelog");
   try {
     let bestFile = 0;
-    let bestFilename = '';
+    let bestFilename = "";
     for (const f of fs.readdirSync(changelogDir)) {
       const m = f.match(/^(\d{4})\.(\d+)\.(\d+)\.mdx$/);
       if (!m) continue;
       const v = parseInt(m[1]) * 10000 + parseInt(m[2]) * 100 + parseInt(m[3]);
-      if (v > bestFile) { bestFile = v; bestFilename = f; slug = `${m[1]}.${m[2]}.${m[3]}`; }
+      if (v > bestFile) {
+        bestFile = v;
+        bestFilename = f;
+        slug = `${m[1]}.${m[2]}.${m[3]}`;
+      }
     }
     if (bestFilename) {
-      const content = fs.readFileSync(path.join(changelogDir, bestFilename), 'utf-8');
+      const content = fs.readFileSync(path.join(changelogDir, bestFilename), "utf-8");
       let bestPatch = 0;
       for (const match of content.matchAll(/^## Release (\d{4}\.\d+\.\d+)/gm)) {
-        const p = parseInt(match[1].split('.')[2]);
-        if (p > bestPatch) { bestPatch = p; display = match[1]; }
+        const p = parseInt(match[1].split(".")[2]);
+        if (p > bestPatch) {
+          bestPatch = p;
+          display = match[1];
+        }
       }
       if (!display) display = slug;
     }
   } catch (e: unknown) {
-    if (e && typeof e === 'object' && 'code' in e && (e as {code: string}).code !== 'ENOENT') throw e;
+    if (e && typeof e === "object" && "code" in e && (e as { code: string }).code !== "ENOENT") throw e;
   }
   cache.__esphomeVersion = { display, slug };
 }
@@ -41,11 +50,13 @@ const { display: displayVersion, slug: changelogSlug } = cache.__esphomeVersion;
 ---
 
 <Default {...Astro.props}><slot /></Default>
-{displayVersion && (
-  <a href={`/changelog/${changelogSlug}/`} class="version-badge" title={`ESPHome ${displayVersion}`} translate="no">
-    {displayVersion}
-  </a>
-)}
+{
+  displayVersion && (
+    <a href={`/changelog/${changelogSlug}/`} class="version-badge" title={`ESPHome ${displayVersion}`} translate="no">
+      {displayVersion}
+    </a>
+  )
+}
 
 <style>
   .version-badge {

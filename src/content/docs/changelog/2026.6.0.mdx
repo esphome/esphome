@@ -1,0 +1,759 @@
+---
+description: "Changelog for ESPHome 2026.6.0."
+title: "ESPHome 2026.6.0 - June 2026"
+pagefind: false
+slug: "changelog/2026.6.0"
+---
+
+import ImgTable from "@components/ImgTable.astro";
+
+{/* MANUAL: Add featured components here */}
+<ImgTable items={[
+  ["Motion (IMU)", "/components/motion/", "imu.svg", "dark-invert"],
+  ["BMI270", "/components/motion/bmi270/", "imu.svg", "Accelerometer & Gyroscope", "dark-invert"],
+  ["LSM6DS", "/components/motion/lsm6ds/", "imu.svg", "Accelerometer & Gyroscope", "dark-invert"],
+  ["Router Speaker", "/components/speaker/router/", "speaker.svg", "dark-invert"],
+  ["PCM5122", "/components/audio_dac/pcm5122/", "pcm5122.svg"],
+  ["XDB401", "/components/sensor/xdb401/", "xdb401.jpg", "Pressure"],
+]} />
+
+## Release Overview
+
+{/* RELEASE_OVERVIEW_START */}
+ESPHome 2026.6.0 raises the default WiFi security mode on ESP8266 to WPA2, finally makes WiFi and ethernet
+`enable_on_boot: false` reclaim the 15–30 KB and 3–8 KB of internal SRAM they were always supposed to, and
+delivers up to 4.5× faster LVGL config validation that the new device builder relies on. A wide audio-stack
+modernization brings zero-copy ring buffers, any-bit-depth mixing, and a new `router` speaker, while a
+multi-PR effort prepares the codebase for ESP-IDF 6 and native RISC-V clang-tidy. The release also adds a new
+`motion` IMU framework with BMI270 and LSM6DS drivers, two USB-serial drivers, a PCM5122 audio DAC, YAML
+frontmatter, and a top-level `build_flags` option that finally works on native IDF.
+{/* RELEASE_OVERVIEW_END */}
+
+## Upgrade Checklist
+
+{/* UPGRADE_CHECKLIST_START */}
+- If you use an ESP8266 on a legacy WPA-only (TKIP) router, pin `min_auth_mode: WPA` under `wifi:` or the device will stop associating
+- If you use the `dsmr` `electricity_switch_position` sensor, move it from `sensor:` to `text_sensor:`
+- If you use the `nextion` display with `dump_device_info: true`, remove that option (device info is always logged now)
+- If you still load components from a `custom_components/` folder, migrate them to `external_components:`
+- If your `time:` component uses `platform: homeassistant` with an explicit `timezone:`, note that Home Assistant will no longer override your configured zone
+- If you use the `dlms_meter` component with the `provider:` option, expect a deprecation warning; the option is now ignored and will be removed in 2026.11.0
+- If you maintain external components calling `mark_failed("...")` or `status_set_error("...")`, switch to `mark_failed(LOG_STR("..."))` / `status_set_error(LOG_STR("..."))`
+- If you maintain external components using `cv.only_with_esp_idf` or `CORE.using_esp_idf`, replace them with `cv.only_on_esp32` / `CORE.is_esp32`
+- If you have lambdas calling `text_sensor->raw_state`, switch to `text_sensor->get_raw_state()`
+- If you have lambdas referencing the `mipi_dsi::MIPI_DSI` C++ type, rename it to `mipi_dsi::MipiDsi`
+{/* UPGRADE_CHECKLIST_END */}
+
+{/* FEATURE_HIGHLIGHTS_START */}
+## ESP8266 Default WiFi Security Raised to WPA2
+
+ESP8266 now defaults to `min_auth_mode: WPA2`, matching the ESP32 default that has shipped for years. ESPHome
+has been printing a deprecation warning on every ESP8266 config without an explicit `min_auth_mode` since 2026.1,
+calling out exactly this flip. With ~40% of ESPHome installs running on ESP8266 hardware, this is the broadest
+platform-wide change in the release ([#16682](https://github.com/esphome/esphome/pull/16682) by
+[@swoboda1337](https://github.com/swoboda1337)).
+
+Configurations connecting to modern WPA2/WPA3 access points need no change. Devices on legacy WPA-only (TKIP)
+routers must pin the old behavior explicitly:
+
+```yaml
+wifi:
+  min_auth_mode: WPA
+```
+
+## WiFi and Ethernet Now Truly Free Their Memory When Disabled at Boot
+
+`enable_on_boot: false` on `wifi:` and `ethernet:` previously skipped only the `start()` call, leaving the entire
+driver resident in DMA-capable internal SRAM. Two PRs by [@kbx81](https://github.com/kbx81) split the heavy
+allocation work into a lazy-init path that only runs when the interface is actually enabled, so a dormant
+interface now costs zero internal RAM.
+
+**Reclaimed memory on ESP32:**
+
+- **WiFi**: roughly **15–30 KB** of DMA-capable internal SRAM freed when `enable_on_boot: false`
+  ([#16606](https://github.com/esphome/esphome/pull/16606)). Field-tested on ESP32-S3 with W5500 SPI ethernet
+  + I2S audio + bluetooth_proxy: free internal SRAM under peak load went from ~14 KB to ~32 KB, with min-free
+  measurements reaching 78 KB in some configurations.
+- **Ethernet**: roughly **3–8 KB** freed when `enable_on_boot: false`, matching parity with the WiFi lifecycle
+  ([#16607](https://github.com/esphome/esphome/pull/16607)). Brings `ethernet.enable` / `ethernet.disable`
+  actions and `ethernet.connected` / `ethernet.enabled` conditions, mirroring the WiFi automation surface.
+
+This is groundwork for running WiFi and ethernet side by side in a single configuration: each interface can now
+be brought up on demand without paying for the one that is not in use.
+
+The W5500 SPI driver also got a CPU win in [#16596](https://github.com/esphome/esphome/pull/16596) by
+[@kahrendt](https://github.com/kahrendt): large frame transfers now go through an interrupt-driven DMA path
+instead of busy-waiting the CPU. Measured streaming 48 kHz 24-bit FLAC over W5500, ethernet task CPU usage
+dropped from ~5% to ~3.8%, roughly a quarter lower.
+
+## LVGL Configuration Validation Up to 4.5× Faster
+
+The new device builder UI revalidates configurations on every save, which made `esphome config` latency a
+direct UX cost. LVGL configs were the worst offender. A five-PR series by
+[@bdraco](https://github.com/bdraco) attacks the hot path in LVGL schema construction:
+
+- **Memoize and lazily build `container_schema`** ([#16567](https://github.com/esphome/esphome/pull/16567)) -
+  repeated validation median dropped from 210 ms to 17 ms on a representative LVGL config.
+- **Build widget update action schemas lazily** ([#16569](https://github.com/esphome/esphome/pull/16569)) -
+  saves roughly 200 ms at lvgl import time.
+- **Merge dict-extend chains** ([#16614](https://github.com/esphome/esphome/pull/16614)) - **2.81× speed-up**
+  on `read_config` (0.246 s → 0.087 s on the `lvtest` `host.yaml`).
+- **Memoize `obj_schema` by widget type** ([#16615](https://github.com/esphome/esphome/pull/16615)) - **2.14×
+  speed-up** stacked on top.
+- **Build `automation_schema` event validators lazily** ([#16633](https://github.com/esphome/esphome/pull/16633))
+  - **4.5× reduction** in per-call cost (281 ms → 63 ms across 29 widget types in a microbench).
+
+The user-visible effect: every save in the device builder is noticeably snappier, especially on configurations
+with large LVGL screens.
+
+## Audio Stack Modernization
+
+[@kahrendt](https://github.com/kahrendt) led a wide-ranging audio rework this cycle, replacing the
+allocate-and-copy `AudioSourceTransferBuffer` pattern with a zero-copy `RingBufferAudioSource` across the
+critical audio paths.
+
+**Zero-copy ring-buffer rollout** eliminates one allocation and one extra copy per chunk of audio processing:
+
+- `resampler` ([#16560](https://github.com/esphome/esphome/pull/16560))
+- `AudioDecoder` for the speaker media player ([#16564](https://github.com/esphome/esphome/pull/16564))
+- `micro_wake_word` ([#16595](https://github.com/esphome/esphome/pull/16595))
+- `voice_assistant` ([#16597](https://github.com/esphome/esphome/pull/16597)) - also drops two 1024-byte send
+  buffers in favor of reading directly from the ring buffer
+
+**Mixer supports any bit depth** ([#16524](https://github.com/esphome/esphome/pull/16524)). The mixer speaker
+now accepts 8, 16, 24, or 32 bits per sample, lifting the last remaining 16-bit-only restriction from the
+audio stack. Backed by `esp-audio-libs` v3.1.0 / v3.2.0, with the upstream library using template
+specializations to keep the new code paths as fast as the old 16-bit-only version.
+
+**Resampler bit-depth pass-through** ([#16892](https://github.com/esphome/esphome/pull/16892)). Now that the
+mixer handles any bit depth, the resampler defaults to passing the input audio's bit depth through unchanged
+rather than auto-converting to match the output speaker. This avoids burning CPU cycles in the resampler when
+the downstream mixer would do a faster conversion anyway.
+
+**New `router` speaker component** ([#16592](https://github.com/esphome/esphome/pull/16592)) for switching
+between output speakers at runtime via the `router.speaker.switch_output` action. A typical use case is
+switching between SPDIF and analog I2S outputs live from a `select` entity, with audio staying in sync after
+the switch. See [router](/components/speaker/router/) for details.
+
+**`micro_wake_word` task stack can live in PSRAM** ([#16632](https://github.com/esphome/esphome/pull/16632)),
+saving roughly **3 KB of internal SRAM** on the ESP32-S3 with no measurable performance impact. Set
+`task_stack_in_psram: true`.
+
+**PSRAM task-stack handling consolidated** ([#16628](https://github.com/esphome/esphome/pull/16628)) so
+`audio_file`, `audio_http`, `mixer`, `resampler`, `sendspin`, and `speaker.media_player` all share the same
+validation pattern, with a bug fix for `task_stack_in_psram: false` on the speaker media player.
+
+## ESP-IDF 6 and Native RISC-V clang-tidy
+
+A multi-PR effort by [@swoboda1337](https://github.com/swoboda1337) makes static analysis substantially better
+at catching real-firmware bugs:
+
+- **`script/clang-tidy` now supports RISC-V targets natively** ([#16809](https://github.com/esphome/esphome/pull/16809))
+  - clang's upstream RISC-V backend can now analyze ESP32-C3/C6/H2/P4 builds instead of falling back to the
+  32-bit x86 stand-in that was used for the Xtensa path.
+- **Native ESP-IDF clang-tidy is now the comprehensive pass** ([#16823](https://github.com/esphome/esphome/pull/16823)).
+  The arduino toolchain has a blind spot where its headers pull `std::` float math overloads into the global
+  namespace, hiding `performance-type-promotion-in-math-fn` findings. The IDF toolchain catches them.
+- **Float-to-double promotion fixed across the codebase**
+  ([#16812](https://github.com/esphome/esphome/pull/16812)) - `display`, `daikin_arc`, `nau7802`, `sgp4x`,
+  `thermopro_ble`, `tuya` all switched from C `<math.h>` to the float-typed `std::` overloads, keeping math
+  in float on 32-bit MCUs instead of needlessly promoting to double.
+- **clang-tidy passes on ESP-IDF 6** ([#16850](https://github.com/esphome/esphome/pull/16850)) - sdkconfig
+  pinned to newlib, GCC-only flags stripped, ledc HAL guard added under static analysis. This is the
+  foundation for upcoming ESP-IDF 6 support.
+- **`arduino-esp32` stub for managed IDF components** ([#16695](https://github.com/esphome/esphome/pull/16695))
+  - on PlatformIO, components like FastLED that declare `REQUIRES arduino-esp32` now resolve to a stub that
+  re-exports the framework via CMake `INTERFACE`, instead of the IDF Component Manager trying to download a
+  duplicate.
+- **100% patch coverage gating** ([#16827](https://github.com/esphome/esphome/pull/16827) by
+  [@jesserockz](https://github.com/jesserockz)) - new PRs must cover every changed line. The project-level
+  coverage stays informational so contributors are not penalized for pre-existing untested code.
+
+## New Components and Hardware Support
+
+[@clydebarrow](https://github.com/clydebarrow) landed a coordinated IMU stack: a generic [`motion`](/components/motion/)
+hub component that provides acceleration, angular rate, and derived pitch/roll values, plus actions for
+automatic pitch/roll calibration ([#16226](https://github.com/esphome/esphome/pull/16226)). Two concrete
+drivers ride on top:
+
+- **Bosch BMI270** ([#16202](https://github.com/esphome/esphome/pull/16202)) - used in M5Stack Tab5 and
+  Espressif's EchoEar
+- **STMicro LSM6DS3TR-C** ([#16232](https://github.com/esphome/esphome/pull/16232)) - used in the Seeed
+  ReTerminal D1001
+
+**New sensors and DACs:**
+
+- **PCM5122 audio DAC** by [@remcom](https://github.com/remcom)
+  ([#15709](https://github.com/esphome/esphome/pull/15709)) - the Texas Instruments stereo I2S DAC popular in
+  Raspberry Pi HATs, with mute, digital volume, and four configurable GPIO pins exposed through the standard
+  pin schema.
+- **XDB401 pressure sensor** by [@RT530](https://github.com/RT530)
+  ([#15108](https://github.com/esphome/esphome/pull/15108)) - I2C pressure and temperature from the XIDIBEI
+  XDB401.
+
+**USB-serial drivers** by [@p1ngb4ck](https://github.com/p1ngb4ck):
+
+- **FTDI FT23XX family** ([#14587](https://github.com/esphome/esphome/pull/14587)) - covers FT232R, FT2232C,
+  FT2232H, FT4232H, FT232H, FT230X, and AM/BM variants; chip type auto-detected from the USB descriptor;
+  multi-channel chips supported as separate channels.
+- **Prolific PL2303 family** ([#16885](https://github.com/esphome/esphome/pull/16885)) - covers the legacy
+  PL2303H/HX through the modern G-series; baud rate encoding selected per chip type.
+
+**New display:** WAVESHARE-ESP32-S3-TOUCH-AMOLED-2.16 added to the `mipi_spi` driver
+([#16887](https://github.com/esphome/esphome/pull/16887) by [@clydebarrow](https://github.com/clydebarrow)).
+
+## DLMS Smart Meter Component Overhaul
+
+[@Tomer27cz](https://github.com/Tomer27cz) refactored the `dlms_meter` component to use the external
+[`dlms_parser`](https://github.com/esphome-libs/dlms_parser) library
+([#15458](https://github.com/esphome/esphome/pull/15458)), substantially broadening smart-meter support:
+
+- **Dynamic OBIS code schema** - define custom sensors, text sensors, or binary sensors by their OBIS code
+  (e.g. `"1-0:99.99.9"`) instead of being limited to the hardcoded property list.
+- **Binary sensor support** is new.
+- **Decryption key now optional** - meters that broadcast plaintext are supported directly.
+- **Flexible UART baud rate** - the 2400-baud requirement is gone; configure the UART to whatever your meter
+  speaks.
+- **New configuration variables** - `auth_key`, `custom_patterns`, `skip_crc`, and `receive_timeout` for
+  meters with non-standard behavior.
+
+The legacy schema continues to work and the `provider` key is now ignored with a deprecation warning, slated
+for removal in 2026.11.0. Existing configurations should still validate without change.
+
+The companion [DSMR](/components/sensor/dsmr/) component also got a fix and feature pass
+([#16561](https://github.com/esphome/esphome/pull/16561) by [@PolarGoose](https://github.com/PolarGoose)),
+including support for EON Hungary meters, custom auth keys, and automatic hex-string detection in equipment
+ID fields. Note that `electricity_switch_position` moved from `sensor` to `text_sensor`, which may need a YAML
+update.
+
+## Networking, Zephyr, and Platform Plumbing
+
+**Zephyr IPv6 networking on nRF52** ([#16336](https://github.com/esphome/esphome/pull/16336) by
+[@Ardumine](https://github.com/Ardumine)) is the first step toward OpenThread support on the nRF52840 via
+Zephyr. Adds a Zephyr-specific `IPAddress` class backed by `struct in6_addr`, networking Kconfig, and three
+new nRF52 network test fixtures. IPv6 defaults to enabled on nRF52.
+
+**RP2350 / RP2040 variant config** ([#16602](https://github.com/esphome/esphome/pull/16602) by
+[@jesserockz](https://github.com/jesserockz)) brings the ESP32-style `variant` option to the `rp2040`
+platform block, so the same platform can target the RP2040 or RP2350 and emits matching
+`USE_RP2040_VARIANT_<VARIANT>` build flags. The variant is auto-derived from the board's MCU; specifying both
+must match.
+
+**`esp32_hosted` PSRAM transport buffers**
+([#16627](https://github.com/esphome/esphome/pull/16627) by [@swoboda1337](https://github.com/swoboda1337)) -
+new `use_psram: true` option moves the esp_hosted transport mempool out of DMA-capable internal RAM and into
+PSRAM, fixing boot-time `sdio_mempool_create` asserts on memory-tight ESP32-P4 + LVGL UI configurations.
+
+## Configuration and Tooling Improvements
+
+**YAML frontmatter** ([#16552](https://github.com/esphome/esphome/pull/16552) by
+[@jesserockz](https://github.com/jesserockz)) - a leading `---`-separated YAML document is now treated as
+opaque metadata, stripped before validation, and captured per-file on `CORE.frontmatter`. Future tooling
+(including the device builder) can consume arbitrary user metadata like author, version, labels:
+
+```yaml
+author: Jesse Hills
+version: 1.0.0
+labels: [office, climate]
+---
+esphome:
+  name: my-node
+```
+
+**`esphome.build_flags` for IDF + PlatformIO**
+([#16629](https://github.com/esphome/esphome/pull/16629) by [@swoboda1337](https://github.com/swoboda1337)) -
+a top-level `esphome.build_flags` list now applies compiler flags on both backends. The existing
+`platformio_options.build_flags` was PlatformIO-only; users on native IDF (ESP32-P4, ESP32-H2) needed this.
+
+**`esphome config --no-defaults`** ([#16718](https://github.com/esphome/esphome/pull/16718) by
+[@jesserockz](https://github.com/jesserockz)) emits only the user-supplied configuration after substitutions
+and packages resolve, without the hundreds of injected schema defaults. Useful for diffing configs, sharing
+minimal reproductions in issues, and sanity-checking what was actually typed.
+
+**Codeberg short-form Git URLs** ([#16501](https://github.com/esphome/esphome/pull/16501) by
+[@Eelviny](https://github.com/Eelviny)) - `codeberg://owner/repo/path/file.yaml` is now a supported source
+for `dashboard_import` and short-form `packages`, alongside `github://` and `gitlab://`.
+
+**`github://` framework source** ([#16639](https://github.com/esphome/esphome/pull/16639) by
+[@swoboda1337](https://github.com/swoboda1337)) - `esp32.framework.source` now accepts
+`github://owner/repo@ref` and `https://github.com/owner/repo.git@ref`, doing a `git clone --depth=1
+--recurse-submodules` instead of downloading an archive. This is needed because GitHub archive URLs strip
+submodules, which ESP-IDF relies on heavily (mbedtls, openthread, tinyusb, …). Primary use case is testing
+against pre-release ESP-IDF before any tagged release ships a new chip.
+
+**Sensitive value redaction** ([#16690](https://github.com/esphome/esphome/pull/16690) by
+[@bdraco](https://github.com/bdraco)) is now driven by `cv.sensitive()` markers in the schema rather than a
+post-dump regex. WiFi SSIDs are now marked sensitive, joining passwords. External components using the new
+marker get redaction automatically; the regex fallback stays as a deprecation bridge through 2026.12.0.
+
+**State reporting CLI control** ([#16746](https://github.com/esphome/esphome/pull/16746) by
+[@clydebarrow](https://github.com/clydebarrow)) - the `logs` command gained a `--states / --no-states` flag
+and an environment variable for the default, restoring control over whether state changes appear in the log
+stream.
+
+## Light Component Enhancements
+
+[@jesserockz](https://github.com/jesserockz) added two light improvements:
+
+- **`light.effect.next` and `light.effect.previous` actions**
+  ([#16491](https://github.com/esphome/esphome/pull/16491)) cycle through a light's configured effects without
+  having to hardcode effect names. An `include_none: true` option lets the cycle pass through the un-effected
+  state. The target light must have at least one effect, checked at config validation time.
+- **Lambda light effects receive the light as `it`**
+  ([#16815](https://github.com/esphome/esphome/pull/16815)) - matches the existing behavior of addressable
+  lambda effects, so simple lambdas can reference the light directly without `id(my_light)`.
+
+[@clydebarrow](https://github.com/clydebarrow) also added a `rounded` property to LVGL meter arcs
+([#16669](https://github.com/esphome/esphome/pull/16669)).
+
+## Other Notable Features
+
+- **Display metadata for LVGL validation** ([#16702](https://github.com/esphome/esphome/pull/16702)) -
+  display drivers now register `byte_order`, `rotation`, `draw_rounding`, `has_writer`, and
+  `has_hardware_rotation` metadata, so LVGL can pick `byte_order` automatically, reject mixed byte orders,
+  and merge `draw_rounding` requirements from the attached display.
+- **Mitsubishi CN105 swing modes** ([#15653](https://github.com/esphome/esphome/pull/15653) by
+  [@crnjan](https://github.com/crnjan)) - vertical / horizontal / both swing for the Mitsubishi CN105 climate
+  component, with last non-swing vane positions tracked and restored when swing is disabled.
+- **SDL display screen selection** ([#16363](https://github.com/esphome/esphome/pull/16363) by
+  [@clydebarrow](https://github.com/clydebarrow)) - the host-platform SDL display can now be centered on a
+  specific display when multiple are attached.
+- **`homeassistant.time` honors explicit timezones** ([#16583](https://github.com/esphome/esphome/pull/16583)
+  by [@clydebarrow](https://github.com/clydebarrow)) - a `timezone:` configured locally is no longer silently
+  overridden by Home Assistant's zone.
+- **I2C host platform support** ([#14489](https://github.com/esphome/esphome/pull/14489) by
+  [@jesserockz](https://github.com/jesserockz)) - basic I2C bus support when running ESPHome on a Linux host
+  platform, useful for testing and host-side integrations.
+
+## Notable Bug Fixes
+
+- **Nextion device info storage rewrite** ([#16059](https://github.com/esphome/esphome/pull/16059) by
+  [@edwardtfn](https://github.com/edwardtfn)) - the `connect_info` parser was replaced with fixed-size field
+  extraction, eliminating all heap allocations from the `comok` response. Device info is now always logged in
+  `dump_config()`; the old `dump_device_info` YAML option is gone.
+{/* FEATURE_HIGHLIGHTS_END */}
+
+## Thank You, Contributors
+
+{/* CONTRIBUTORS_START */}
+This release includes 178 pull requests from over 20 contributors. A huge thank you to everyone who made
+2026.6.0 possible:
+
+- [@swoboda1337](https://github.com/swoboda1337) - 57 PRs including the ESP-IDF 6 / native RISC-V
+  clang-tidy infrastructure, the ESP8266 WPA2 default flip, removal of long-deprecated core APIs, and
+  extensive ESP32 platform plumbing
+- [@kahrendt](https://github.com/kahrendt) - 19 PRs including the audio stack modernization
+  (`RingBufferAudioSource` rollout, any-bit-depth mixer, resampler pass-through, new `router` speaker)
+  and the W5500 ethernet SPI offload
+- [@clydebarrow](https://github.com/clydebarrow) - 16 PRs including the new `motion` IMU hub with
+  BMI270 and LSM6DS drivers, LVGL display-metadata validation, and the Home Assistant timezone fix
+- [@jesserockz](https://github.com/jesserockz) - 9 PRs including YAML frontmatter support,
+  `light.effect.next` / `light.effect.previous` actions, the RP2040/RP2350 variant option,
+  `esphome config --no-defaults`, and 100% patch-coverage enforcement
+- [@kbx81](https://github.com/kbx81) - 4 PRs including the WiFi and ethernet lazy-init RAM
+  reclamation work
+- [@p1ngb4ck](https://github.com/p1ngb4ck) - 2 PRs adding the FTDI FT23XX and Prolific PL2303
+  USB-serial drivers
+- [@PolarGoose](https://github.com/PolarGoose) - 2 PRs on DSMR including EON Hungary meter support
+  and the `dsmr_parser` library update
+- [@tomaszduda23](https://github.com/tomaszduda23) - 2 PRs on the nRF52 native build and network
+  IPv6 enforcement
+- [@rtyle](https://github.com/rtyle) - 2 PRs fixing QMP6988 sensor I2C error handling
+- [@Tomer27cz](https://github.com/Tomer27cz) - the DLMS meter component overhaul using the external
+  `dlms_parser` library
+- [@Ardumine](https://github.com/Ardumine) - Zephyr IPv6 networking support for nRF52
+- [@remcom](https://github.com/remcom) - the new PCM5122 audio DAC component
+- [@RT530](https://github.com/RT530) - the new XDB401 pressure sensor component
+- [@crnjan](https://github.com/crnjan) - swing support for the Mitsubishi CN105 climate component
+- [@edwardtfn](https://github.com/edwardtfn) - the Nextion `connect_info` heap-allocation rewrite
+
+Also thank you to [@bdraco](https://github.com/bdraco), [@Rapsssito](https://github.com/Rapsssito),
+[@burundiocibu](https://github.com/burundiocibu), [@leodrivera](https://github.com/leodrivera),
+[@SoCuul](https://github.com/SoCuul),
+[@david-collett](https://github.com/david-collett), [@chemelli74](https://github.com/chemelli74),
+[@Eelviny](https://github.com/Eelviny), [@gnumpi](https://github.com/gnumpi),
+[@GuzTech](https://github.com/GuzTech), [@rwrozelle](https://github.com/rwrozelle),
+[@exciton](https://github.com/exciton), [@i-am-no-magic](https://github.com/i-am-no-magic), and
+[@kpfleming](https://github.com/kpfleming) for their contributions, and to everyone who reported
+issues, tested pre-releases, and helped in the community.
+{/* CONTRIBUTORS_END */}
+
+## Breaking Changes
+
+{/* BREAKING_CHANGES_USERS_START */}
+### Platform Changes
+
+- **WiFi (ESP8266)**: Default `min_auth_mode` flipped from `WPA` to `WPA2`, matching the ESP32 default. The
+  2026.1 deprecation warning has been calling this out at every config validation. Devices on legacy
+  WPA-only (TKIP) routers must pin `min_auth_mode: WPA` explicitly under `wifi:`
+  [#16682](https://github.com/esphome/esphome/pull/16682)
+
+### Component Changes
+
+- **DSMR**: `electricity_switch_position` moved from `sensor:` to `text_sensor:` because Hungarian meters
+  emit it as a string (e.g. `ON`) rather than a number. Update existing configs to declare the entity
+  under `text_sensor:`
+  [#16561](https://github.com/esphome/esphome/pull/16561)
+- **DLMS Meter**: Refactored to use the external `dlms_parser` library, adding dynamic OBIS-code schema,
+  binary sensor support, optional decryption keys, and a configurable UART baud rate (the 2400-baud
+  requirement is gone). The legacy hardcoded property schema continues to work; the `provider:` option is
+  now ignored with a deprecation warning and will be removed in 2026.11.0
+  [#15458](https://github.com/esphome/esphome/pull/15458)
+- **Nextion**: The `dump_device_info` YAML option has been removed. Device info is now always stored and
+  logged in `dump_config()`. Remove `dump_device_info: true` from any `display:` Nextion configs
+  [#16059](https://github.com/esphome/esphome/pull/16059)
+- **Home Assistant Time**: When a `timezone:` is explicitly configured on a `time:` component with
+  `platform: homeassistant`, the zone reported by Home Assistant no longer overrides it. Configurations
+  that relied on HA silently overriding a stale local timezone should remove the local `timezone:` entry
+  [#16583](https://github.com/esphome/esphome/pull/16583)
+
+### Core Changes
+
+- **`custom_components/` folder removed**: The deprecated `custom_components/` directory auto-loader has
+  been removed. Use [`external_components`](/components/external_components/) instead. The deprecation
+  warning has been printing since 2025.6
+  [#16679](https://github.com/esphome/esphome/pull/16679)
+- **Sensitive value redaction**: `cv.sensitive()` now drives runtime redaction directly via a YAML
+  representer instead of a post-dump regex. WiFi SSIDs are now marked sensitive and will be redacted
+  alongside passwords in `esphome config` output. No YAML change needed; pass `--show-secrets` to bypass
+  redaction as before
+  [#16690](https://github.com/esphome/esphome/pull/16690)
+{/* BREAKING_CHANGES_USERS_END */}
+
+### Undocumented API Changes
+
+{/* UNDOCUMENTED_API_CHANGES_START */}
+Lambda users and external component authors who reference internal C++ types should note the following
+change. The type still behaves the same at runtime, but its name was updated to match the project's
+identifier-naming convention:
+
+- **MIPI DSI display class renamed**: `mipi_dsi::MIPI_DSI` is now `mipi_dsi::MipiDsi`. Any lambda or
+  external component that referenced the old type name must use the new spelling. No behavior change
+  [#16837](https://github.com/esphome/esphome/pull/16837)
+
+  ```cpp
+  // Before
+  auto *display = static_cast<mipi_dsi::MIPI_DSI *>(...);
+
+  // After
+  auto *display = static_cast<mipi_dsi::MipiDsi *>(...);
+  ```
+{/* UNDOCUMENTED_API_CHANGES_END */}
+
+### Breaking Changes for Developers
+
+{/* BREAKING_CHANGES_DEVELOPERS_START */}
+- **`Component::mark_failed` / `status_set_error` `const char *` overloads removed**: use the
+  `const LogString *` overloads via `LOG_STR("...")`
+  [#16680](https://github.com/esphome/esphome/pull/16680)
+- **`cv.only_with_esp_idf` and `CORE.using_esp_idf` removed**: migrate to `cv.only_on_esp32` and
+  `CORE.is_esp32`; use `CORE.using_toolchain_esp_idf` for the rare actual toolchain check
+  [#16681](https://github.com/esphome/esphome/pull/16681)
+- **`text_sensor::TextSensor::raw_state` public member removed**: use `get_raw_state()` instead
+  [#16683](https://github.com/esphome/esphome/pull/16683)
+- **`nfc::format_uid(span)` / `nfc::format_bytes(span)` heap helpers removed**: switch to the stack-buffer
+  variants `nfc::format_uid_to(buf, span)` / `nfc::format_bytes_to(buf, span)` with
+  `FORMAT_UID_BUFFER_SIZE` / `FORMAT_BYTES_BUFFER_SIZE`
+  [#16684](https://github.com/esphome/esphome/pull/16684)
+- **`seq<>` and `gens<>` tuple-unpack templates removed** from `core/automation.h`: use
+  `std::index_sequence` / `std::index_sequence_for`
+  [#16685](https://github.com/esphome/esphome/pull/16685)
+- **`audio::scale_audio_samples` deprecated**: switch to `esp_audio_libs::gain::apply` from the bundled
+  `esp-audio-libs` (Q31 scale factor, byte buffers, explicit `bytes_per_sample`). Scheduled for removal
+  in 2026.12.0
+  [#16831](https://github.com/esphome/esphome/pull/16831)
+- **`cv.sensitive()` schema marker**: external component schemas should now wrap sensitive fields with
+  `cv.sensitive(...)` for redaction in `esphome config` output. The old regex-based fallback stays as a
+  deprecation bridge through 2026.12.0
+  [#16690](https://github.com/esphome/esphome/pull/16690)
+
+For detailed migration guides and API documentation, see the
+[ESPHome Developers Documentation](https://developers.esphome.io/).
+{/* BREAKING_CHANGES_DEVELOPERS_END */}
+
+{/* markdownlint-disable MD013 */}
+
+## Full list of changes
+
+### New Features
+
+- [core] Support YAML frontmatter for arbitrary user metadata [esphome#16552](https://github.com/esphome/esphome/pull/16552) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- [light] Add light.effect.next / light.effect.previous actions [esphome#16491](https://github.com/esphome/esphome/pull/16491) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- [mixer] Support any bit depth audio [esphome#16524](https://github.com/esphome/esphome/pull/16524) by [@kahrendt](https://github.com/kahrendt) (new-feature)
+- [rp2040] Add variant config option for RP2040/RP2350 [esphome#16602](https://github.com/esphome/esphome/pull/16602) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- [core] Add esphome.build_flags option for IDF + PlatformIO [esphome#16629](https://github.com/esphome/esphome/pull/16629) by [@swoboda1337](https://github.com/swoboda1337) (new-feature)
+- [esp32_hosted] Bump esp_hosted to 2.12.8 and add use_psram option [esphome#16627](https://github.com/esphome/esphome/pull/16627) by [@swoboda1337](https://github.com/swoboda1337) (new-feature)
+- [micro_wake_word] Allow task stack to be allocated in PSRAM [esphome#16632](https://github.com/esphome/esphome/pull/16632) by [@kahrendt](https://github.com/kahrendt) (new-feature)
+- [router] Add a router speaker component to runtime choose output speaker [esphome#16592](https://github.com/esphome/esphome/pull/16592) by [@kahrendt](https://github.com/kahrendt) (new-component) (new-feature) (new-platform)
+- [espidf] Support github:// and https://github.com/.../.git framework sources [esphome#16639](https://github.com/esphome/esphome/pull/16639) by [@swoboda1337](https://github.com/swoboda1337) (new-feature)
+- [mitsubishi_cn105] Add basic swing support [esphome#15653](https://github.com/esphome/esphome/pull/15653) by [@crnjan](https://github.com/crnjan) (new-feature)
+- [lvgl] Support `rounded` property for meter arcs [esphome#16669](https://github.com/esphome/esphome/pull/16669) by [@clydebarrow](https://github.com/clydebarrow) (new-feature)
+- [network] Add Zephyr IPv6 networking support for nRF52 [esphome#16336](https://github.com/esphome/esphome/pull/16336) by [@Ardumine](https://github.com/Ardumine) (new-feature)
+- [core] Add Codeberg as a supported git url [esphome#16501](https://github.com/esphome/esphome/pull/16501) by [@Eelviny](https://github.com/Eelviny) (new-feature)
+- [ethernet] Add enable_on_boot lifecycle + lazy-init to reclaim DMA-capable SRAM [esphome#16607](https://github.com/esphome/esphome/pull/16607) by [@kbx81](https://github.com/kbx81) (new-feature)
+- [cli] Allow state reporting control via env [esphome#16746](https://github.com/esphome/esphome/pull/16746) by [@clydebarrow](https://github.com/clydebarrow) (new-feature)
+- [i2c] Add basic host platform support [esphome#14489](https://github.com/esphome/esphome/pull/14489) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- [lvgl][mipi_spi][mipi_rgb][mipi_dsi][display] Metadata  [esphome#16702](https://github.com/esphome/esphome/pull/16702) by [@clydebarrow](https://github.com/clydebarrow) (new-feature)
+- [sdl] Add option to choose display screen [esphome#16363](https://github.com/esphome/esphome/pull/16363) by [@clydebarrow](https://github.com/clydebarrow) (new-feature)
+- [config] Add --no-defaults flag to config command [esphome#16718](https://github.com/esphome/esphome/pull/16718) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- [light] Pass light reference into lambda light effect [esphome#16815](https://github.com/esphome/esphome/pull/16815) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- [usb_uart] Add FTDI FT23XX USB UART driver [esphome#14587](https://github.com/esphome/esphome/pull/14587) by [@p1ngb4ck](https://github.com/p1ngb4ck) (new-feature)
+- [motion] Implement hub component for IMUs [esphome#16226](https://github.com/esphome/esphome/pull/16226) by [@clydebarrow](https://github.com/clydebarrow) (new-component) (new-feature) (new-platform)
+- [mipi_spi] add WAVESHARE-ESP32-S3-TOUCH-AMOLED-2.16 [esphome#16887](https://github.com/esphome/esphome/pull/16887) by [@clydebarrow](https://github.com/clydebarrow) (new-feature)
+- [pcm5122] Add PCM5122 audio DAC component [esphome#15709](https://github.com/esphome/esphome/pull/15709) by [@remcom](https://github.com/remcom) (new-component) (new-feature) (new-platform)
+- [dlms_meter] dlms_parser library [esphome#15458](https://github.com/esphome/esphome/pull/15458) by [@Tomer27cz](https://github.com/Tomer27cz) (new-feature) (breaking-change) (new-platform)
+- [usb_uart] Add Prolific PL2303 USB-serial driver [esphome#16885](https://github.com/esphome/esphome/pull/16885) by [@p1ngb4ck](https://github.com/p1ngb4ck) (new-feature)
+- [xdb401] XDB401 Pressure Sensor [esphome#15108](https://github.com/esphome/esphome/pull/15108) by [@RT530](https://github.com/RT530) (new-component) (new-feature) (new-platform)
+- [bmi270] Support Bosch BMI270 IMU [esphome#16202](https://github.com/esphome/esphome/pull/16202) by [@clydebarrow](https://github.com/clydebarrow) (new-component) (new-feature) (new-platform)
+- [lsm6ds] Add motion platform for STMicro LSM6DS IMU [esphome#16232](https://github.com/esphome/esphome/pull/16232) by [@clydebarrow](https://github.com/clydebarrow) (new-component) (new-feature) (new-platform)
+- [resampler] Allow resampler to passthrough bits per sample instead of converting [esphome#16892](https://github.com/esphome/esphome/pull/16892) by [@kahrendt](https://github.com/kahrendt) (new-feature)
+
+### New Components
+
+- [router] Add a router speaker component to runtime choose output speaker [esphome#16592](https://github.com/esphome/esphome/pull/16592) by [@kahrendt](https://github.com/kahrendt) (new-component) (new-feature) (new-platform)
+- [motion] Implement hub component for IMUs [esphome#16226](https://github.com/esphome/esphome/pull/16226) by [@clydebarrow](https://github.com/clydebarrow) (new-component) (new-feature) (new-platform)
+- [pcm5122] Add PCM5122 audio DAC component [esphome#15709](https://github.com/esphome/esphome/pull/15709) by [@remcom](https://github.com/remcom) (new-component) (new-feature) (new-platform)
+- [xdb401] XDB401 Pressure Sensor [esphome#15108](https://github.com/esphome/esphome/pull/15108) by [@RT530](https://github.com/RT530) (new-component) (new-feature) (new-platform)
+- [bmi270] Support Bosch BMI270 IMU [esphome#16202](https://github.com/esphome/esphome/pull/16202) by [@clydebarrow](https://github.com/clydebarrow) (new-component) (new-feature) (new-platform)
+- [lsm6ds] Add motion platform for STMicro LSM6DS IMU [esphome#16232](https://github.com/esphome/esphome/pull/16232) by [@clydebarrow](https://github.com/clydebarrow) (new-component) (new-feature) (new-platform)
+
+### New Platforms
+
+- [router] Add a router speaker component to runtime choose output speaker [esphome#16592](https://github.com/esphome/esphome/pull/16592) by [@kahrendt](https://github.com/kahrendt) (new-component) (new-feature) (new-platform)
+- [motion] Implement hub component for IMUs [esphome#16226](https://github.com/esphome/esphome/pull/16226) by [@clydebarrow](https://github.com/clydebarrow) (new-component) (new-feature) (new-platform)
+- [pcm5122] Add PCM5122 audio DAC component [esphome#15709](https://github.com/esphome/esphome/pull/15709) by [@remcom](https://github.com/remcom) (new-component) (new-feature) (new-platform)
+- [dlms_meter] dlms_parser library [esphome#15458](https://github.com/esphome/esphome/pull/15458) by [@Tomer27cz](https://github.com/Tomer27cz) (new-feature) (breaking-change) (new-platform)
+- [xdb401] XDB401 Pressure Sensor [esphome#15108](https://github.com/esphome/esphome/pull/15108) by [@RT530](https://github.com/RT530) (new-component) (new-feature) (new-platform)
+- [bmi270] Support Bosch BMI270 IMU [esphome#16202](https://github.com/esphome/esphome/pull/16202) by [@clydebarrow](https://github.com/clydebarrow) (new-component) (new-feature) (new-platform)
+- [lsm6ds] Add motion platform for STMicro LSM6DS IMU [esphome#16232](https://github.com/esphome/esphome/pull/16232) by [@clydebarrow](https://github.com/clydebarrow) (new-component) (new-feature) (new-platform)
+
+### Breaking Changes
+
+- [nextion] Replace `connect_info` vector with fixed-size field parser, always log device info [esphome#16059](https://github.com/esphome/esphome/pull/16059) by [@edwardtfn](https://github.com/edwardtfn) (breaking-change)
+- [time][homeassistant] Fix timezone handling [esphome#16583](https://github.com/esphome/esphome/pull/16583) by [@clydebarrow](https://github.com/clydebarrow) (breaking-change)
+- [core] Remove deprecated custom_components folder loading [esphome#16679](https://github.com/esphome/esphome/pull/16679) by [@swoboda1337](https://github.com/swoboda1337) (breaking-change)
+- [wifi] Default ESP8266 min_auth_mode to WPA2 [esphome#16682](https://github.com/esphome/esphome/pull/16682) by [@swoboda1337](https://github.com/swoboda1337) (breaking-change)
+- [core] Sensitive redaction via yaml_util representer [esphome#16690](https://github.com/esphome/esphome/pull/16690) by [@bdraco](https://github.com/bdraco) (breaking-change)
+- [dmsr] [breaking] Fix decryption that uses custom auth key. Add CRC to telegram sensor. Automatic hex string detection in equipment_id fields. Support EON Hungary smart meters [esphome#16561](https://github.com/esphome/esphome/pull/16561) by [@PolarGoose](https://github.com/PolarGoose) (breaking-change)
+- [dlms_meter] dlms_parser library [esphome#15458](https://github.com/esphome/esphome/pull/15458) by [@Tomer27cz](https://github.com/Tomer27cz) (new-feature) (breaking-change) (new-platform)
+
+### All changes
+
+<details>
+<summary></summary>
+
+- [ci] Prohibit curly braces in PR titles for MDX safety [esphome#16412](https://github.com/esphome/esphome/pull/16412) by [@bdraco](https://github.com/bdraco)
+- [clang-tidy] Enable readability-container-contains [esphome#16438](https://github.com/esphome/esphome/pull/16438) by [@swoboda1337](https://github.com/swoboda1337)
+- [ci] Skip dashboard-deprecation bot on release/beta-bump PRs [esphome#16427](https://github.com/esphome/esphome/pull/16427) by [@swoboda1337](https://github.com/swoboda1337)
+- [ci] Add ci-run-all label to force full CI matrix [esphome#16421](https://github.com/esphome/esphome/pull/16421) by [@swoboda1337](https://github.com/swoboda1337)
+- [nextion] Replace `connect_info` vector with fixed-size field parser, always log device info [esphome#16059](https://github.com/esphome/esphome/pull/16059) by [@edwardtfn](https://github.com/edwardtfn) (breaking-change)
+- [ci] Fix sync-device-classes workflow (failing daily for weeks) [esphome#16448](https://github.com/esphome/esphome/pull/16448) by [@swoboda1337](https://github.com/swoboda1337)
+- [ci] sync-device-classes: use uv for installs and skip pylint [esphome#16449](https://github.com/esphome/esphome/pull/16449) by [@bdraco](https://github.com/bdraco)
+- [ci] sync-device-classes: drop branch-switch hack, skip no-commit-to-branch instead [esphome#16450](https://github.com/esphome/esphome/pull/16450) by [@bdraco](https://github.com/bdraco)
+- Synchronise Device Classes from Home Assistant [esphome#16452](https://github.com/esphome/esphome/pull/16452) by [@esphome[bot]](https://github.com/apps/esphome)
+- [ci] pr-title-check: skip all bot authors, not just dependabot [esphome#16453](https://github.com/esphome/esphome/pull/16453) by [@bdraco](https://github.com/bdraco)
+- [uptime] Update device_class for Uptime sensor [esphome#16434](https://github.com/esphome/esphome/pull/16434) by [@chemelli74](https://github.com/chemelli74)
+- [yaml_util] Promote include-discovery helper, share it with bundle [esphome#16447](https://github.com/esphome/esphome/pull/16447) by [@bdraco](https://github.com/bdraco)
+- [ci] Log top 30 pytest durations [esphome#16455](https://github.com/esphome/esphome/pull/16455) by [@bdraco](https://github.com/bdraco)
+- [ci] Use uv for pip installs across CI workflows [esphome#16451](https://github.com/esphome/esphome/pull/16451) by [@bdraco](https://github.com/bdraco)
+- [esp32_ble_server] Fix incorrect BLECharacteristic read truncation (#16420) [esphome#16422](https://github.com/esphome/esphome/pull/16422) by [@david-collett](https://github.com/david-collett)
+- [tests] Mock determine_cpp_unit_tests in clang_tidy_mode tests [esphome#16456](https://github.com/esphome/esphome/pull/16456) by [@bdraco](https://github.com/bdraco)
+- [espidf] Accept list input in _str_to_lst_of_str helper [esphome#16485](https://github.com/esphome/esphome/pull/16485) by [@jesserockz](https://github.com/jesserockz)
+- [core] Add progmem_memcpy HAL helper [esphome#16470](https://github.com/esphome/esphome/pull/16470) by [@bdraco](https://github.com/bdraco)
+- [esp32_ble_server] Honor client offset and MTU in long reads [esphome#16458](https://github.com/esphome/esphome/pull/16458) by [@bdraco](https://github.com/bdraco)
+- [esp32] Fix sdkconfig int values silently clamped to default [esphome#16515](https://github.com/esphome/esphome/pull/16515) by [@swoboda1337](https://github.com/swoboda1337)
+- [esp32] Use new sdkconfig key names that replaced deprecated ones [esphome#16522](https://github.com/esphome/esphome/pull/16522) by [@swoboda1337](https://github.com/swoboda1337)
+- [ci] Pin uv version in setup-uv to fix Windows manifest fetch flake [esphome#16534](https://github.com/esphome/esphome/pull/16534) by [@bdraco](https://github.com/bdraco)
+- [audio] Bump esp-audio-libs to v3.1.0 [esphome#16519](https://github.com/esphome/esphome/pull/16519) by [@kahrendt](https://github.com/kahrendt)
+- [core] Support YAML frontmatter for arbitrary user metadata [esphome#16552](https://github.com/esphome/esphome/pull/16552) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- [light] Add light.effect.next / light.effect.previous actions [esphome#16491](https://github.com/esphome/esphome/pull/16491) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- [i2s_audio] Reset dout GPIO when stopping speaker driver [esphome#16573](https://github.com/esphome/esphome/pull/16573) by [@kahrendt](https://github.com/kahrendt)
+- [homeassistant] Reduce log spam for sensors [esphome#16555](https://github.com/esphome/esphome/pull/16555) by [@clydebarrow](https://github.com/clydebarrow)
+- [ci] Gate unconditional CI jobs on a single determine-jobs output instead of a path filter [esphome#16580](https://github.com/esphome/esphome/pull/16580) by [@bdraco](https://github.com/bdraco)
+- [lvgl] Memoize and lazily build container_schema [esphome#16567](https://github.com/esphome/esphome/pull/16567) by [@bdraco](https://github.com/bdraco)
+- [lvgl] Build widget update action schemas lazily [esphome#16569](https://github.com/esphome/esphome/pull/16569) by [@bdraco](https://github.com/bdraco)
+- [ci] Fix flash memory overflow on tests [esphome#16587](https://github.com/esphome/esphome/pull/16587) by [@clydebarrow](https://github.com/clydebarrow)
+- [audio] Add `clear_buffered_data` method to RingBufferAudioSource [esphome#16594](https://github.com/esphome/esphome/pull/16594) by [@kahrendt](https://github.com/kahrendt)
+- [wifi] Wake main loop when requesting high performance mode [esphome#16598](https://github.com/esphome/esphome/pull/16598) by [@kahrendt](https://github.com/kahrendt)
+- [ethernet] Offload W5500 bulk SPI transfers from the busy-wait path [esphome#16596](https://github.com/esphome/esphome/pull/16596) by [@kahrendt](https://github.com/kahrendt)
+- [api] Fix uint32_t/int32_t format strings for stricter GCC toolchain [esphome#16603](https://github.com/esphome/esphome/pull/16603) by [@kbx81](https://github.com/kbx81)
+- [espnow, ethernet, network, openthread, wifi] centralize network initialization for ESP32 [esphome#14012](https://github.com/esphome/esphome/pull/14012) by [@Rapsssito](https://github.com/Rapsssito)
+- [voice_assistant] Use RingBufferAudioSource [esphome#16597](https://github.com/esphome/esphome/pull/16597) by [@kahrendt](https://github.com/kahrendt)
+- [mixer] Support any bit depth audio [esphome#16524](https://github.com/esphome/esphome/pull/16524) by [@kahrendt](https://github.com/kahrendt) (new-feature)
+- [audio] Use RingBufferAudioSource for decoding [esphome#16564](https://github.com/esphome/esphome/pull/16564) by [@kahrendt](https://github.com/kahrendt)
+- [audio] Use RingBufferAudioSource for resampling [esphome#16560](https://github.com/esphome/esphome/pull/16560) by [@kahrendt](https://github.com/kahrendt)
+- [micro_wake_word] Use RingBufferAudioSource [esphome#16595](https://github.com/esphome/esphome/pull/16595) by [@kahrendt](https://github.com/kahrendt)
+- Lift dependabot pip open PR limit [esphome#16609](https://github.com/esphome/esphome/pull/16609) by [@bdraco](https://github.com/bdraco)
+- [rp2040] Add variant config option for RP2040/RP2350 [esphome#16602](https://github.com/esphome/esphome/pull/16602) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- [lvgl] Memoize obj_schema by widget_type [esphome#16615](https://github.com/esphome/esphome/pull/16615) by [@bdraco](https://github.com/bdraco)
+- [core] Add esphome.build_flags option for IDF + PlatformIO [esphome#16629](https://github.com/esphome/esphome/pull/16629) by [@swoboda1337](https://github.com/swoboda1337) (new-feature)
+- [espidf] Warn instead of skipping libraries with framework mismatch [esphome#16630](https://github.com/esphome/esphome/pull/16630) by [@swoboda1337](https://github.com/swoboda1337)
+- [lvgl] Merge dict-extend chains to speed up schema construction [esphome#16614](https://github.com/esphome/esphome/pull/16614) by [@bdraco](https://github.com/bdraco)
+- [esp32_hosted] Bump esp_hosted to 2.12.8 and add use_psram option [esphome#16627](https://github.com/esphome/esphome/pull/16627) by [@swoboda1337](https://github.com/swoboda1337) (new-feature)
+- [psram] Consolidate task stack in PSRAM handling [esphome#16628](https://github.com/esphome/esphome/pull/16628) by [@kahrendt](https://github.com/kahrendt)
+- [micro_wake_word] Allow task stack to be allocated in PSRAM [esphome#16632](https://github.com/esphome/esphome/pull/16632) by [@kahrendt](https://github.com/kahrendt) (new-feature)
+- [router] Add a router speaker component to runtime choose output speaker [esphome#16592](https://github.com/esphome/esphome/pull/16592) by [@kahrendt](https://github.com/kahrendt) (new-component) (new-feature) (new-platform)
+- [router] Share a single I2S bus in test [esphome#16637](https://github.com/esphome/esphome/pull/16637) by [@kahrendt](https://github.com/kahrendt)
+- [time][homeassistant] Fix timezone handling [esphome#16583](https://github.com/esphome/esphome/pull/16583) by [@clydebarrow](https://github.com/clydebarrow) (breaking-change)
+- [espidf] Support github:// and https://github.com/.../.git framework sources [esphome#16639](https://github.com/esphome/esphome/pull/16639) by [@swoboda1337](https://github.com/swoboda1337) (new-feature)
+- [espidf] Keep cmake output filter working when IDF writes raw bytes [esphome#16642](https://github.com/esphome/esphome/pull/16642) by [@swoboda1337](https://github.com/swoboda1337)
+- [mitsubishi_cn105] Add basic swing support [esphome#15653](https://github.com/esphome/esphome/pull/15653) by [@crnjan](https://github.com/crnjan) (new-feature)
+- [core] Enable additional zero-violation ruff lint families [esphome#16645](https://github.com/esphome/esphome/pull/16645) by [@bdraco](https://github.com/bdraco)
+- [core] Enable ruff EXE (flake8-executable) lint family [esphome#16648](https://github.com/esphome/esphome/pull/16648) by [@bdraco](https://github.com/bdraco)
+- [core] Enable ruff SLOT (flake8-slots) lint family [esphome#16647](https://github.com/esphome/esphome/pull/16647) by [@bdraco](https://github.com/bdraco)
+- [core] Enable ruff ISC (flake8-implicit-str-concat) lint family [esphome#16646](https://github.com/esphome/esphome/pull/16646) by [@bdraco](https://github.com/bdraco)
+- [core] Enable ruff RSE (flake8-raise) lint family [esphome#16649](https://github.com/esphome/esphome/pull/16649) by [@bdraco](https://github.com/bdraco)
+- [core] Enable ruff C4 (flake8-comprehensions) lint family [esphome#16653](https://github.com/esphome/esphome/pull/16653) by [@bdraco](https://github.com/bdraco)
+- [tests] Disable hypothesis deadline on flaky IP address test [esphome#16652](https://github.com/esphome/esphome/pull/16652) by [@bdraco](https://github.com/bdraco)
+- [core] Enable ruff G (flake8-logging-format) lint family [esphome#16650](https://github.com/esphome/esphome/pull/16650) by [@bdraco](https://github.com/bdraco)
+- [core] Enable ruff PYI (flake8-pyi) lint family [esphome#16654](https://github.com/esphome/esphome/pull/16654) by [@bdraco](https://github.com/bdraco)
+- [core] Enable ruff B (flake8-bugbear) lint family [esphome#16655](https://github.com/esphome/esphome/pull/16655) by [@bdraco](https://github.com/bdraco)
+- [core] Enable ruff PTH (flake8-use-pathlib) lint family [esphome#16661](https://github.com/esphome/esphome/pull/16661) by [@bdraco](https://github.com/bdraco)
+- [core] Enable ruff PIE (flake8-pie) lint family [esphome#16658](https://github.com/esphome/esphome/pull/16658) by [@bdraco](https://github.com/bdraco)
+- [lvgl] Build automation_schema event validators lazily [esphome#16633](https://github.com/esphome/esphome/pull/16633) by [@bdraco](https://github.com/bdraco)
+- [voice_assistant] Never send zero-length audio to Home Assistant [esphome#16634](https://github.com/esphome/esphome/pull/16634) by [@kahrendt](https://github.com/kahrendt)
+- [core] Add cv.sensitive marker for schema-level sensitive fields [esphome#16673](https://github.com/esphome/esphome/pull/16673) by [@bdraco](https://github.com/bdraco)
+- [core] Enable ruff DTZ (flake8-datetimez) lint family [esphome#16660](https://github.com/esphome/esphome/pull/16660) by [@bdraco](https://github.com/bdraco)
+- [core] Enable ruff PGH (pygrep-hooks) lint family [esphome#16651](https://github.com/esphome/esphome/pull/16651) by [@bdraco](https://github.com/bdraco)
+- [lvgl] Support `rounded` property for meter arcs [esphome#16669](https://github.com/esphome/esphome/pull/16669) by [@clydebarrow](https://github.com/clydebarrow) (new-feature)
+- [core] Remove deprecated custom_components folder loading [esphome#16679](https://github.com/esphome/esphome/pull/16679) by [@swoboda1337](https://github.com/swoboda1337) (breaking-change)
+- [core] Remove deprecated const char* mark_failed/status_set_error [esphome#16680](https://github.com/esphome/esphome/pull/16680) by [@swoboda1337](https://github.com/swoboda1337)
+- [core] Remove cv.only_with_esp_idf and CORE.using_esp_idf [esphome#16681](https://github.com/esphome/esphome/pull/16681) by [@swoboda1337](https://github.com/swoboda1337)
+- [wifi] Default ESP8266 min_auth_mode to WPA2 [esphome#16682](https://github.com/esphome/esphome/pull/16682) by [@swoboda1337](https://github.com/swoboda1337) (breaking-change)
+- [nfc] Remove deprecated heap-allocating format helpers [esphome#16684](https://github.com/esphome/esphome/pull/16684) by [@swoboda1337](https://github.com/swoboda1337)
+- [dsmr] Force BearSSL on ESP8266 to avoid mbedtls link failure [esphome#16686](https://github.com/esphome/esphome/pull/16686) by [@swoboda1337](https://github.com/swoboda1337)
+- [core] Remove deprecated seq/gens templates [esphome#16685](https://github.com/esphome/esphome/pull/16685) by [@swoboda1337](https://github.com/swoboda1337)
+- [neopixelbus] Deprecate on ESP32 [esphome#16676](https://github.com/esphome/esphome/pull/16676) by [@swoboda1337](https://github.com/swoboda1337)
+- [text_sensor] Remove deprecated public raw_state member [esphome#16683](https://github.com/esphome/esphome/pull/16683) by [@swoboda1337](https://github.com/swoboda1337)
+- [core] Mark canonical sensitive fields with cv.sensitive [esphome#16677](https://github.com/esphome/esphome/pull/16677) by [@bdraco](https://github.com/bdraco)
+- [network] Add Zephyr IPv6 networking support for nRF52 [esphome#16336](https://github.com/esphome/esphome/pull/16336) by [@Ardumine](https://github.com/Ardumine) (new-feature)
+- [core] Enable ruff BLE (flake8-blind-except) lint family [esphome#16659](https://github.com/esphome/esphome/pull/16659) by [@bdraco](https://github.com/bdraco)
+- [core] Sensitive redaction via yaml_util representer [esphome#16690](https://github.com/esphome/esphome/pull/16690) by [@bdraco](https://github.com/bdraco) (breaking-change)
+- [esp32] Stub arduino-esp32 with INTERFACE re-export to framework [esphome#16695](https://github.com/esphome/esphome/pull/16695) by [@swoboda1337](https://github.com/swoboda1337)
+- [core] Add Codeberg as a supported git url [esphome#16501](https://github.com/esphome/esphome/pull/16501) by [@Eelviny](https://github.com/Eelviny) (new-feature)
+- [midea] fix casing of custom fan modes [esphome#16419](https://github.com/esphome/esphome/pull/16419) by [@SoCuul](https://github.com/SoCuul)
+- [growatt_solar] Replace hard coded register addresses with constexpr [esphome#16581](https://github.com/esphome/esphome/pull/16581) by [@GuzTech](https://github.com/GuzTech)
+- [tests] Sandbox PlatformIO paths in test_writer to fix xdist race [esphome#16619](https://github.com/esphome/esphome/pull/16619) by [@rwrozelle](https://github.com/rwrozelle)
+- [docs] Update esphome-docs references to esphome.io after repo rename [esphome#16705](https://github.com/esphome/esphome/pull/16705) by [@jesserockz](https://github.com/jesserockz)
+- [network] move ipv6 enforcement to validation step [esphome#16701](https://github.com/esphome/esphome/pull/16701) by [@tomaszduda23](https://github.com/tomaszduda23)
+- [gpio][binary_sensor] Fix pin validation for external GPIO pins [esphome#16528](https://github.com/esphome/esphome/pull/16528) by [@gnumpi](https://github.com/gnumpi)
+- [core] Use esp_rom_crc.h public API instead of legacy rom/crc.h [esphome#16698](https://github.com/esphome/esphome/pull/16698) by [@swoboda1337](https://github.com/swoboda1337)
+- [esp32] Add ESP32-S31, ESP32-H4 and ESP32-H21 variant scaffolding [esphome#16700](https://github.com/esphome/esphome/pull/16700) by [@swoboda1337](https://github.com/swoboda1337)
+- [ledc] Adapt to LEDC LL API changes in ESP-IDF 6.1 [esphome#16697](https://github.com/esphome/esphome/pull/16697) by [@swoboda1337](https://github.com/swoboda1337)
+- [esp32_camera] Enable PicolibC Newlib compatibility on IDF 6.0+ [esphome#16703](https://github.com/esphome/esphome/pull/16703) by [@swoboda1337](https://github.com/swoboda1337)
+- [esp32] Refine ESP-IDF framework version suffix handling [esphome#16726](https://github.com/esphome/esphome/pull/16726) by [@swoboda1337](https://github.com/swoboda1337)
+- [ethernet] Bump espressif/dm9051 to 1.1.0 [esphome#16735](https://github.com/esphome/esphome/pull/16735) by [@swoboda1337](https://github.com/swoboda1337)
+- [espidf] Derive idedata from the native ESP-IDF compile_commands.json [esphome#16742](https://github.com/esphome/esphome/pull/16742) by [@swoboda1337](https://github.com/swoboda1337)
+- [const] Move CONF_SHA256 to common code [esphome#16751](https://github.com/esphome/esphome/pull/16751) by [@clydebarrow](https://github.com/clydebarrow)
+- [wifi] Defer esp_wifi_init() to lazy-init so enable_on_boot: false actually saves RAM [esphome#16606](https://github.com/esphome/esphome/pull/16606) by [@kbx81](https://github.com/kbx81)
+- [ethernet] Add enable_on_boot lifecycle + lazy-init to reclaim DMA-capable SRAM [esphome#16607](https://github.com/esphome/esphome/pull/16607) by [@kbx81](https://github.com/kbx81) (new-feature)
+- [cli] Allow state reporting control via env [esphome#16746](https://github.com/esphome/esphome/pull/16746) by [@clydebarrow](https://github.com/clydebarrow) (new-feature)
+- [ci] Fix auto label platform restructure false positive [esphome#16734](https://github.com/esphome/esphome/pull/16734) by [@exciton](https://github.com/exciton)
+- [i2s_audio] Fix speaker DMA buffer sizing and validate bit depth at compile time [esphome#16672](https://github.com/esphome/esphome/pull/16672) by [@kahrendt](https://github.com/kahrendt)
+- [i2c] Add basic host platform support [esphome#14489](https://github.com/esphome/esphome/pull/14489) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- [lvgl][mipi_spi][mipi_rgb][mipi_dsi][display] Metadata  [esphome#16702](https://github.com/esphome/esphome/pull/16702) by [@clydebarrow](https://github.com/clydebarrow) (new-feature)
+- [core] esphome clean wipes the whole build directory [esphome#16772](https://github.com/esphome/esphome/pull/16772) by [@swoboda1337](https://github.com/swoboda1337)
+- [dmsr] [breaking] Fix decryption that uses custom auth key. Add CRC to telegram sensor. Automatic hex string detection in equipment_id fields. Support EON Hungary smart meters [esphome#16561](https://github.com/esphome/esphome/pull/16561) by [@PolarGoose](https://github.com/PolarGoose) (breaking-change)
+- [lvgl] Fix indicator updates [esphome#16780](https://github.com/esphome/esphome/pull/16780) by [@clydebarrow](https://github.com/clydebarrow)
+- [gree] Fix HEAT_COOL advertised when supports_heat is false; restrict YAN swing to vertical [esphome#16199](https://github.com/esphome/esphome/pull/16199) by [@leodrivera](https://github.com/leodrivera)
+- [sdl] Add option to choose display screen [esphome#16363](https://github.com/esphome/esphome/pull/16363) by [@clydebarrow](https://github.com/clydebarrow) (new-feature)
+- [logger] Fix USB JTAG VFS symbols linked when logging is disabled [esphome#15721](https://github.com/esphome/esphome/pull/15721) by [@burundiocibu](https://github.com/burundiocibu)
+- [config] Add --no-defaults flag to config command [esphome#16718](https://github.com/esphome/esphome/pull/16718) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- [ci] Fix memory impact build selecting unbuildable platform [esphome#16788](https://github.com/esphome/esphome/pull/16788) by [@bdraco](https://github.com/bdraco)
+- [mixer] Give mixer test its own speaker id to avoid CI grouping collision [esphome#16792](https://github.com/esphome/esphome/pull/16792) by [@swoboda1337](https://github.com/swoboda1337)
+- [clang-tidy] Hash idf_component.yml and trigger hash hook on more inputs [esphome#16753](https://github.com/esphome/esphome/pull/16753) by [@swoboda1337](https://github.com/swoboda1337)
+- [esp32] Deduplicate PlatformIO library conversion by resolving the batch together [esphome#16756](https://github.com/esphome/esphome/pull/16756) by [@swoboda1337](https://github.com/swoboda1337)
+- [const][animation][dfplayer] Extract CONF_LOOP to const [esphome#16797](https://github.com/esphome/esphome/pull/16797) by [@clydebarrow](https://github.com/clydebarrow)
+- [ci] Exclude device-builder slow e2e tests from downstream CI [esphome#16801](https://github.com/esphome/esphome/pull/16801) by [@bdraco](https://github.com/bdraco)
+- [esp32] Run clang-tidy via the native ESP-IDF toolchain [esphome#16748](https://github.com/esphome/esphome/pull/16748) by [@swoboda1337](https://github.com/swoboda1337)
+- [audio] Bump esp-audio-libs to v3.2.0 [esphome#16806](https://github.com/esphome/esphome/pull/16806) by [@kahrendt](https://github.com/kahrendt)
+- [clang-tidy] Support RISC-V targets natively [esphome#16809](https://github.com/esphome/esphome/pull/16809) by [@swoboda1337](https://github.com/swoboda1337)
+- [clang-tidy] Add --exclude-grep to skip files by content [esphome#16813](https://github.com/esphome/esphome/pull/16813) by [@swoboda1337](https://github.com/swoboda1337)
+- [ota][logger][esp32][internal_temperature] Fix clang-tidy findings surfaced by RISC-V analysis [esphome#16811](https://github.com/esphome/esphome/pull/16811) by [@swoboda1337](https://github.com/swoboda1337)
+- [multiple] Avoid float-to-double promotion in math calls [esphome#16812](https://github.com/esphome/esphome/pull/16812) by [@swoboda1337](https://github.com/swoboda1337)
+- [i2s_audio] Move test bus into a shared package and give fixtures unique ids [esphome#16793](https://github.com/esphome/esphome/pull/16793) by [@bdraco](https://github.com/bdraco)
+- [light] Pass light reference into lambda light effect [esphome#16815](https://github.com/esphome/esphome/pull/16815) by [@jesserockz](https://github.com/jesserockz) (new-feature)
+- [audio] Bump esp-audio-libs to v3.2.1 [esphome#16818](https://github.com/esphome/esphome/pull/16818) by [@swoboda1337](https://github.com/swoboda1337)
+- [usb_uart] Add FTDI FT23XX USB UART driver [esphome#14587](https://github.com/esphome/esphome/pull/14587) by [@p1ngb4ck](https://github.com/p1ngb4ck) (new-feature)
+- [ci] Add codecov.yml to enforce 100% patch coverage on PRs [esphome#16827](https://github.com/esphome/esphome/pull/16827) by [@jesserockz](https://github.com/jesserockz)
+- [api] Fix nullptr deref when client teardown reenters state dispatch [esphome#16834](https://github.com/esphome/esphome/pull/16834) by [@bdraco](https://github.com/bdraco)
+- [usb_host][usb_cdc_acm][tinyusb] Fix clang-tidy findings [esphome#16836](https://github.com/esphome/esphome/pull/16836) by [@swoboda1337](https://github.com/swoboda1337)
+- [mipi_dsi][mipi_rgb][st7701s][rpi_dpi_rgb] Fix clang-tidy findings [esphome#16837](https://github.com/esphome/esphome/pull/16837) by [@swoboda1337](https://github.com/swoboda1337)
+- [ci] Make ESP32 IDF the comprehensive clang-tidy pass [esphome#16823](https://github.com/esphome/esphome/pull/16823) by [@swoboda1337](https://github.com/swoboda1337)
+- [usb_uart] Fix clang-tidy findings [esphome#16835](https://github.com/esphome/esphome/pull/16835) by [@swoboda1337](https://github.com/swoboda1337)
+- [esp32] Bump platform to 55.03.39, Arduino to 3.3.9 [esphome#16803](https://github.com/esphome/esphome/pull/16803) by [@swoboda1337](https://github.com/swoboda1337)
+- [zigbee][openthread][esp32_hosted] Fix clang-tidy findings [esphome#16838](https://github.com/esphome/esphome/pull/16838) by [@swoboda1337](https://github.com/swoboda1337)
+- [qmp6988] fix false report of software reset error [esphome#16843](https://github.com/esphome/esphome/pull/16843) by [@rtyle](https://github.com/rtyle)
+- [qmp6988] fix publishing bogus zero values on i2c error [esphome#16840](https://github.com/esphome/esphome/pull/16840) by [@rtyle](https://github.com/rtyle)
+- [ci] Share a cached native ESP-IDF install across clang-tidy and build jobs [esphome#16841](https://github.com/esphome/esphome/pull/16841) by [@swoboda1337](https://github.com/swoboda1337)
+- [audio] Deprecate unused scale_audio_samples helper [esphome#16831](https://github.com/esphome/esphome/pull/16831) by [@kahrendt](https://github.com/kahrendt)
+- [tuya] Fixed hysteresis bug for Tuya climate [esphome#16832](https://github.com/esphome/esphome/pull/16832) by [@i-am-no-magic](https://github.com/i-am-no-magic)
+- [scripts] Fix build_language_schema [esphome#16816](https://github.com/esphome/esphome/pull/16816) by [@clydebarrow](https://github.com/clydebarrow)
+- [esp32_camera] Bump esp32-camera to 2.1.7 [esphome#16846](https://github.com/esphome/esphome/pull/16846) by [@swoboda1337](https://github.com/swoboda1337)
+- [improv_serial] Fix build on ESP32-C5/P4 and simplify variant guards [esphome#16833](https://github.com/esphome/esphome/pull/16833) by [@swoboda1337](https://github.com/swoboda1337)
+- [tests] Fail component test merge on conflicting duplicate IDs [esphome#16795](https://github.com/esphome/esphome/pull/16795) by [@bdraco](https://github.com/bdraco)
+- Exit nginx bypass placeholder cleanly on SIGTERM [esphome#16845](https://github.com/esphome/esphome/pull/16845) by [@bdraco](https://github.com/bdraco)
+- Revert "[tests] Fail component test merge on conflicting duplicate IDs" [esphome#16848](https://github.com/esphome/esphome/pull/16848) by [@bdraco](https://github.com/bdraco)
+- [fastled_base] Use FastLED IDF component on ESP32 [esphome#16804](https://github.com/esphome/esphome/pull/16804) by [@swoboda1337](https://github.com/swoboda1337)
+- [ci] Add ESP32 Variants clang-tidy run (S3/P4/C6) [esphome#16825](https://github.com/esphome/esphome/pull/16825) by [@swoboda1337](https://github.com/swoboda1337)
+- [motion] Implement hub component for IMUs [esphome#16226](https://github.com/esphome/esphome/pull/16226) by [@clydebarrow](https://github.com/clydebarrow) (new-component) (new-feature) (new-platform)
+- [esp32] Make no-default-board variant test explicit about platformio toolchain [esphome#16847](https://github.com/esphome/esphome/pull/16847) by [@swoboda1337](https://github.com/swoboda1337)
+- [esp32] Fix clang-tidy on ESP-IDF 6 [esphome#16850](https://github.com/esphome/esphome/pull/16850) by [@swoboda1337](https://github.com/swoboda1337)
+- Include model-driven display schemas in the language schema dump [esphome#16872](https://github.com/esphome/esphome/pull/16872) by [@bdraco](https://github.com/bdraco)
+- [ade7880][airthings_wave_base] Remove kpfleming from CODEOWNERS [esphome#16858](https://github.com/esphome/esphome/pull/16858) by [@kpfleming](https://github.com/kpfleming)
+- [tests] Fail component test merge on conflicting duplicate IDs [esphome#16849](https://github.com/esphome/esphome/pull/16849) by [@bdraco](https://github.com/bdraco)
+- [heatpumpir] Bump tonia/HeatpumpIR to 1.0.42 [esphome#16880](https://github.com/esphome/esphome/pull/16880) by [@swoboda1337](https://github.com/swoboda1337)
+- [ade7880] Fix reverse active energy reading from reserved register [esphome#16822](https://github.com/esphome/esphome/pull/16822) by [@swoboda1337](https://github.com/swoboda1337)
+- [mipi_spi] add WAVESHARE-ESP32-S3-TOUCH-AMOLED-2.16 [esphome#16887](https://github.com/esphome/esphome/pull/16887) by [@clydebarrow](https://github.com/clydebarrow) (new-feature)
+- [pcm5122] Add PCM5122 audio DAC component [esphome#15709](https://github.com/esphome/esphome/pull/15709) by [@remcom](https://github.com/remcom) (new-component) (new-feature) (new-platform)
+- [dsmr] Update dsmr_parser library to 1.9.0 [esphome#16881](https://github.com/esphome/esphome/pull/16881) by [@PolarGoose](https://github.com/PolarGoose)
+- [nrf52] native build - download toolchain and sdk in venv [esphome#16388](https://github.com/esphome/esphome/pull/16388) by [@tomaszduda23](https://github.com/tomaszduda23)
+- [dlms_meter] dlms_parser library [esphome#15458](https://github.com/esphome/esphome/pull/15458) by [@Tomer27cz](https://github.com/Tomer27cz) (new-feature) (breaking-change) (new-platform)
+- [usb_uart] Add Prolific PL2303 USB-serial driver [esphome#16885](https://github.com/esphome/esphome/pull/16885) by [@p1ngb4ck](https://github.com/p1ngb4ck) (new-feature)
+- [xdb401] XDB401 Pressure Sensor [esphome#15108](https://github.com/esphome/esphome/pull/15108) by [@RT530](https://github.com/RT530) (new-component) (new-feature) (new-platform)
+- [bmi270] Support Bosch BMI270 IMU [esphome#16202](https://github.com/esphome/esphome/pull/16202) by [@clydebarrow](https://github.com/clydebarrow) (new-component) (new-feature) (new-platform)
+- [espidf] Fix idedata generation on Windows [esphome#16894](https://github.com/esphome/esphome/pull/16894) by [@swoboda1337](https://github.com/swoboda1337)
+- [platformio] De-duplicate non-ESP32 lib_deps into common:idf-component-libs [esphome#16893](https://github.com/esphome/esphome/pull/16893) by [@swoboda1337](https://github.com/swoboda1337)
+- [espidf] Warn when the install path is too long for Windows MAX_PATH [esphome#16896](https://github.com/esphome/esphome/pull/16896) by [@swoboda1337](https://github.com/swoboda1337)
+- [lsm6ds] Add motion platform for STMicro LSM6DS IMU [esphome#16232](https://github.com/esphome/esphome/pull/16232) by [@clydebarrow](https://github.com/clydebarrow) (new-component) (new-feature) (new-platform)
+- [tests] Isolate ESPHOME_LOG_STATES in main logs-states tests [esphome#16905](https://github.com/esphome/esphome/pull/16905) by [@clydebarrow](https://github.com/clydebarrow)
+- [core] Make set_cpp_standard work on the native IDF toolchain [esphome#16907](https://github.com/esphome/esphome/pull/16907) by [@swoboda1337](https://github.com/swoboda1337)
+- [resampler] Allow resampler to passthrough bits per sample instead of converting [esphome#16892](https://github.com/esphome/esphome/pull/16892) by [@kahrendt](https://github.com/kahrendt) (new-feature)
+- [improv_serial] Report stopped state when Wi-Fi is disabled [esphome#16904](https://github.com/esphome/esphome/pull/16904) by [@kbx81](https://github.com/kbx81)
+
+</details>
+
+<details>
+<summary></summary>
+
+- Bump ruff from 0.15.12 to 0.15.13 [esphome#16437](https://github.com/esphome/esphome/pull/16437) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump pytest-codspeed from 5.0.1 to 5.0.2 [esphome#16459](https://github.com/esphome/esphome/pull/16459) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump requests from 2.34.1 to 2.34.2 [esphome#16460](https://github.com/esphome/esphome/pull/16460) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump github/codeql-action from 4.35.4 to 4.35.5 [esphome#16461](https://github.com/esphome/esphome/pull/16461) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump resvg-py from 0.3.1 to 0.3.2 [esphome#16466](https://github.com/esphome/esphome/pull/16466) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump codecov/codecov-action from 6.0.0 to 6.0.1 [esphome#16500](https://github.com/esphome/esphome/pull/16500) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump ruff from 0.15.13 to 0.15.14 [esphome#16543](https://github.com/esphome/esphome/pull/16543) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump actions/stale from 10.2.0 to 10.3.0 [esphome#16544](https://github.com/esphome/esphome/pull/16544) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump docker/build-push-action from 7.1.0 to 7.2.0 in /.github/actions/build-image [esphome#16545](https://github.com/esphome/esphome/pull/16545) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump pytest-codspeed from 5.0.2 to 5.0.3 [esphome#16575](https://github.com/esphome/esphome/pull/16575) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump the docker-actions group across 1 directory with 2 updates [esphome#16578](https://github.com/esphome/esphome/pull/16578) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump github/codeql-action from 4.35.5 to 4.36.0 [esphome#16579](https://github.com/esphome/esphome/pull/16579) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump aioesphomeapi from 45.0.4 to 45.2.2 [esphome#16611](https://github.com/esphome/esphome/pull/16611) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump aioesphomeapi from 45.2.2 to 45.3.1 [esphome#16688](https://github.com/esphome/esphome/pull/16688) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump pytest-asyncio from 1.3.0 to 1.4.0 [esphome#16687](https://github.com/esphome/esphome/pull/16687) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump tornado from 6.5.5 to 6.5.6 [esphome#16704](https://github.com/esphome/esphome/pull/16704) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump ruff from 0.15.14 to 0.15.15 [esphome#16712](https://github.com/esphome/esphome/pull/16712) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump CodSpeedHQ/action from 4.15.1 to 4.17.0 [esphome#16730](https://github.com/esphome/esphome/pull/16730) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump esptool from 5.2.0 to 5.3.0 [esphome#16774](https://github.com/esphome/esphome/pull/16774) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump github/codeql-action from 4.36.0 to 4.36.1 [esphome#16775](https://github.com/esphome/esphome/pull/16775) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump actions/checkout from 6.0.2 to 6.0.3 [esphome#16776](https://github.com/esphome/esphome/pull/16776) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump astral-sh/setup-uv from 8.1.0 to 8.2.0 [esphome#16791](https://github.com/esphome/esphome/pull/16791) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump astral-sh/setup-uv from 8.1.0 to 8.2.0 in /.github/actions/restore-python [esphome#16790](https://github.com/esphome/esphome/pull/16790) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump ruff from 0.15.15 to 0.15.16 [esphome#16807](https://github.com/esphome/esphome/pull/16807) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump github/codeql-action from 4.36.1 to 4.36.2 [esphome#16808](https://github.com/esphome/esphome/pull/16808) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump codecov/codecov-action from 6.0.1 to 7.0.0 [esphome#16884](https://github.com/esphome/esphome/pull/16884) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump tornado from 6.5.6 to 6.5.7 [esphome#16883](https://github.com/esphome/esphome/pull/16883) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump py7zr from 0.22.0 to 1.1.0 [esphome#16901](https://github.com/esphome/esphome/pull/16901) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- Bump cryptography from 48.0.0 to 48.0.1 [esphome#16909](https://github.com/esphome/esphome/pull/16909) by [@dependabot[bot]](https://github.com/apps/dependabot)
+
+</details>

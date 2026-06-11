@@ -26,6 +26,7 @@ micro_wake_word:
 
 - **microphone** (*Optional*, [Microphone Source Configuration](/components/microphone#config-microphone-source)): The [microphone](/components/microphone/) settings to use for audio input.
 - **stop_after_detection** (*Optional*, boolean): Whether to stop the component after detecting a wake word. Defaults to `true`.
+- **task_stack_in_psram** (*Optional*, boolean): If `true`, allocate the inference task stack in PSRAM instead of internal RAM. Requires the [PSRAM](/components/psram/) component. Defaults to `false`.
 - **models** (**Required**, list): The models to use. Only the first model is enabled by default on the first boot. Each model's enabled state is then saved/restored to/from the flash.
 
   - **id** (*Optional*, [ID](/guides/configuration-types#id)): The optional ID used for the model actions below.

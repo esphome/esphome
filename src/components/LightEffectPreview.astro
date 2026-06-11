@@ -1,0 +1,626 @@
+---
+/**
+ * LightEffectPreview Component
+ * Renders a small CSS-animated preview of an ESPHome light effect.
+ *
+ * Usage in MDX:
+ *   <LightEffectPreview type="pulse" label="Animated preview of the Pulse effect" />
+ */
+
+type EffectType =
+  | "pulse"
+  | "random"
+  | "strobe"
+  | "flicker"
+  | "lambda"
+  | "rainbow"
+  | "color-wipe"
+  | "scan"
+  | "twinkle"
+  | "random-twinkle"
+  | "fireworks"
+  | "addr-flicker"
+  | "addr-lambda";
+
+interface Props {
+  type: EffectType;
+  label: string;
+}
+
+const { type, label } = Astro.props;
+
+const STRIP_TYPES: ReadonlySet<EffectType> = new Set([
+  "rainbow",
+  "color-wipe",
+  "scan",
+  "twinkle",
+  "random-twinkle",
+  "fireworks",
+  "addr-flicker",
+  "addr-lambda",
+]);
+
+const isStrip = STRIP_TYPES.has(type);
+const PIXEL_COUNT = 20;
+---
+
+<span class:list={["fx-preview", `fx-${type}`]} role="img" aria-label={label}>
+  {
+    isStrip ? (
+      <span class="fx-strip">
+        {Array.from({ length: PIXEL_COUNT }, () => (
+          <span class="fx-pixel" />
+        ))}
+      </span>
+    ) : (
+      <span class="fx-bulb" />
+    )
+  }
+</span>
+
+<style>
+  .fx-preview {
+    display: inline-flex;
+    align-items: center;
+    background: #111;
+    padding: 4px 6px;
+    border-radius: 4px;
+    line-height: 0;
+    vertical-align: middle;
+  }
+  .fx-bulb {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #ffd24a;
+    display: inline-block;
+  }
+  .fx-strip {
+    display: inline-flex;
+    gap: 1px;
+  }
+  .fx-pixel {
+    width: 6px;
+    height: 14px;
+    background: #000;
+    display: inline-block;
+  }
+
+  /* Single-bulb effects */
+  .fx-pulse .fx-bulb {
+    animation: fx-pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes fx-pulse {
+    0%,
+    100% {
+      opacity: 0.2;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  .fx-random .fx-bulb {
+    animation: fx-random 2.4s steps(1) infinite;
+  }
+  @keyframes fx-random {
+    0% {
+      background: #ff3860;
+    }
+    25% {
+      background: #23d160;
+    }
+    50% {
+      background: #209cee;
+    }
+    75% {
+      background: #ffdd57;
+    }
+    100% {
+      background: #ff3860;
+    }
+  }
+
+  .fx-strobe .fx-bulb {
+    animation: fx-strobe 0.4s steps(1) infinite;
+  }
+  @keyframes fx-strobe {
+    0% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.05;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
+  .fx-flicker .fx-bulb {
+    background: #ffb04a;
+    animation: fx-flicker 1.3s linear infinite;
+  }
+  @keyframes fx-flicker {
+    0% {
+      opacity: 0.9;
+    }
+    13% {
+      opacity: 1;
+    }
+    21% {
+      opacity: 0.65;
+    }
+    34% {
+      opacity: 0.95;
+    }
+    47% {
+      opacity: 0.75;
+    }
+    61% {
+      opacity: 1;
+    }
+    73% {
+      opacity: 0.7;
+    }
+    88% {
+      opacity: 0.9;
+    }
+    100% {
+      opacity: 0.85;
+    }
+  }
+
+  .fx-lambda .fx-bulb {
+    background: #444;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font: bold 14px/1 monospace;
+  }
+  .fx-lambda .fx-bulb::before {
+    content: "\03BB";
+  }
+
+  /* Strip effects */
+  .fx-rainbow .fx-pixel {
+    animation: fx-rainbow 2.2s linear infinite;
+  }
+  .fx-rainbow .fx-pixel:nth-child(1) {
+    animation-delay: 0s;
+  }
+  .fx-rainbow .fx-pixel:nth-child(2) {
+    animation-delay: -0.11s;
+  }
+  .fx-rainbow .fx-pixel:nth-child(3) {
+    animation-delay: -0.22s;
+  }
+  .fx-rainbow .fx-pixel:nth-child(4) {
+    animation-delay: -0.33s;
+  }
+  .fx-rainbow .fx-pixel:nth-child(5) {
+    animation-delay: -0.44s;
+  }
+  .fx-rainbow .fx-pixel:nth-child(6) {
+    animation-delay: -0.55s;
+  }
+  .fx-rainbow .fx-pixel:nth-child(7) {
+    animation-delay: -0.66s;
+  }
+  .fx-rainbow .fx-pixel:nth-child(8) {
+    animation-delay: -0.77s;
+  }
+  .fx-rainbow .fx-pixel:nth-child(9) {
+    animation-delay: -0.88s;
+  }
+  .fx-rainbow .fx-pixel:nth-child(10) {
+    animation-delay: -0.99s;
+  }
+  .fx-rainbow .fx-pixel:nth-child(11) {
+    animation-delay: -1.1s;
+  }
+  .fx-rainbow .fx-pixel:nth-child(12) {
+    animation-delay: -1.21s;
+  }
+  .fx-rainbow .fx-pixel:nth-child(13) {
+    animation-delay: -1.32s;
+  }
+  .fx-rainbow .fx-pixel:nth-child(14) {
+    animation-delay: -1.43s;
+  }
+  .fx-rainbow .fx-pixel:nth-child(15) {
+    animation-delay: -1.54s;
+  }
+  .fx-rainbow .fx-pixel:nth-child(16) {
+    animation-delay: -1.65s;
+  }
+  .fx-rainbow .fx-pixel:nth-child(17) {
+    animation-delay: -1.76s;
+  }
+  .fx-rainbow .fx-pixel:nth-child(18) {
+    animation-delay: -1.87s;
+  }
+  .fx-rainbow .fx-pixel:nth-child(19) {
+    animation-delay: -1.98s;
+  }
+  .fx-rainbow .fx-pixel:nth-child(20) {
+    animation-delay: -2.09s;
+  }
+  @keyframes fx-rainbow {
+    0% {
+      background: hsl(0, 100%, 50%);
+    }
+    17% {
+      background: hsl(60, 100%, 50%);
+    }
+    33% {
+      background: hsl(120, 100%, 50%);
+    }
+    50% {
+      background: hsl(180, 100%, 50%);
+    }
+    67% {
+      background: hsl(240, 100%, 50%);
+    }
+    83% {
+      background: hsl(300, 100%, 50%);
+    }
+    100% {
+      background: hsl(360, 100%, 50%);
+    }
+  }
+
+  .fx-color-wipe .fx-pixel {
+    animation: fx-wipe 4s steps(1) infinite;
+    background: #000;
+  }
+  .fx-color-wipe .fx-pixel:nth-child(1) {
+    animation-delay: 0s;
+  }
+  .fx-color-wipe .fx-pixel:nth-child(2) {
+    animation-delay: 0.1s;
+  }
+  .fx-color-wipe .fx-pixel:nth-child(3) {
+    animation-delay: 0.2s;
+  }
+  .fx-color-wipe .fx-pixel:nth-child(4) {
+    animation-delay: 0.3s;
+  }
+  .fx-color-wipe .fx-pixel:nth-child(5) {
+    animation-delay: 0.4s;
+  }
+  .fx-color-wipe .fx-pixel:nth-child(6) {
+    animation-delay: 0.5s;
+  }
+  .fx-color-wipe .fx-pixel:nth-child(7) {
+    animation-delay: 0.6s;
+  }
+  .fx-color-wipe .fx-pixel:nth-child(8) {
+    animation-delay: 0.7s;
+  }
+  .fx-color-wipe .fx-pixel:nth-child(9) {
+    animation-delay: 0.8s;
+  }
+  .fx-color-wipe .fx-pixel:nth-child(10) {
+    animation-delay: 0.9s;
+  }
+  .fx-color-wipe .fx-pixel:nth-child(11) {
+    animation-delay: 1s;
+  }
+  .fx-color-wipe .fx-pixel:nth-child(12) {
+    animation-delay: 1.1s;
+  }
+  .fx-color-wipe .fx-pixel:nth-child(13) {
+    animation-delay: 1.2s;
+  }
+  .fx-color-wipe .fx-pixel:nth-child(14) {
+    animation-delay: 1.3s;
+  }
+  .fx-color-wipe .fx-pixel:nth-child(15) {
+    animation-delay: 1.4s;
+  }
+  .fx-color-wipe .fx-pixel:nth-child(16) {
+    animation-delay: 1.5s;
+  }
+  .fx-color-wipe .fx-pixel:nth-child(17) {
+    animation-delay: 1.6s;
+  }
+  .fx-color-wipe .fx-pixel:nth-child(18) {
+    animation-delay: 1.7s;
+  }
+  .fx-color-wipe .fx-pixel:nth-child(19) {
+    animation-delay: 1.8s;
+  }
+  .fx-color-wipe .fx-pixel:nth-child(20) {
+    animation-delay: 1.9s;
+  }
+  @keyframes fx-wipe {
+    0%,
+    50% {
+      background: #209cee;
+    }
+    50.01%,
+    100% {
+      background: #000;
+    }
+  }
+
+  .fx-scan .fx-strip {
+    position: relative;
+  }
+  .fx-scan .fx-pixel {
+    background: #000;
+  }
+  .fx-scan .fx-strip::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 6px;
+    height: 100%;
+    background: #ffd24a;
+    animation: fx-scan 1.6s ease-in-out infinite alternate;
+  }
+  @keyframes fx-scan {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(133px);
+    }
+  }
+
+  .fx-twinkle .fx-pixel {
+    background: #000;
+    animation: fx-twinkle 1.8s ease-in-out infinite;
+  }
+  .fx-twinkle .fx-pixel:nth-child(3n) {
+    animation-delay: 0s;
+  }
+  .fx-twinkle .fx-pixel:nth-child(3n + 1) {
+    animation-delay: 0.6s;
+  }
+  .fx-twinkle .fx-pixel:nth-child(3n + 2) {
+    animation-delay: 1.2s;
+  }
+  .fx-twinkle .fx-pixel:nth-child(5n) {
+    animation-delay: 0.3s;
+  }
+  .fx-twinkle .fx-pixel:nth-child(7n) {
+    animation-delay: 0.9s;
+  }
+  @keyframes fx-twinkle {
+    0%,
+    100% {
+      background: #000;
+    }
+    10% {
+      background: #fff;
+    }
+    20% {
+      background: #000;
+    }
+  }
+
+  .fx-random-twinkle .fx-pixel {
+    background: #000;
+    animation: fx-rtwinkle 1.8s ease-in-out infinite;
+  }
+  .fx-random-twinkle .fx-pixel:nth-child(3n) {
+    animation-delay: 0s;
+  }
+  .fx-random-twinkle .fx-pixel:nth-child(3n + 1) {
+    animation-delay: 0.6s;
+  }
+  .fx-random-twinkle .fx-pixel:nth-child(3n + 2) {
+    animation-delay: 1.2s;
+  }
+  .fx-random-twinkle .fx-pixel:nth-child(4n) {
+    animation-name: fx-rtwinkle-alt;
+  }
+  .fx-random-twinkle .fx-pixel:nth-child(5n) {
+    animation-name: fx-rtwinkle-warm;
+  }
+  @keyframes fx-rtwinkle {
+    0%,
+    100% {
+      background: #000;
+    }
+    10% {
+      background: #209cee;
+    }
+    20% {
+      background: #000;
+    }
+  }
+  @keyframes fx-rtwinkle-alt {
+    0%,
+    100% {
+      background: #000;
+    }
+    10% {
+      background: #ff3860;
+    }
+    20% {
+      background: #000;
+    }
+  }
+  @keyframes fx-rtwinkle-warm {
+    0%,
+    100% {
+      background: #000;
+    }
+    10% {
+      background: #ffd24a;
+    }
+    20% {
+      background: #000;
+    }
+  }
+
+  .fx-fireworks .fx-pixel {
+    background: #000;
+    animation: fx-fireworks 2.4s ease-out infinite;
+  }
+  .fx-fireworks .fx-pixel:nth-child(4n) {
+    animation-delay: 0s;
+  }
+  .fx-fireworks .fx-pixel:nth-child(4n + 1) {
+    animation-delay: 0.6s;
+  }
+  .fx-fireworks .fx-pixel:nth-child(4n + 2) {
+    animation-delay: 1.2s;
+  }
+  .fx-fireworks .fx-pixel:nth-child(4n + 3) {
+    animation-delay: 1.8s;
+  }
+  @keyframes fx-fireworks {
+    0% {
+      background: #000;
+    }
+    5% {
+      background: #fff;
+    }
+    100% {
+      background: #000;
+    }
+  }
+
+  .fx-addr-flicker .fx-pixel {
+    background: #ffb04a;
+    animation: fx-flicker 1.3s linear infinite;
+  }
+  .fx-addr-flicker .fx-pixel:nth-child(2n) {
+    animation-delay: -0.4s;
+  }
+  .fx-addr-flicker .fx-pixel:nth-child(3n) {
+    animation-delay: -0.8s;
+  }
+  .fx-addr-flicker .fx-pixel:nth-child(5n) {
+    animation-delay: -0.2s;
+  }
+
+  .fx-addr-lambda .fx-strip {
+    background: #444;
+    color: #fff;
+    font: bold 12px/14px monospace;
+    text-align: center;
+    padding: 0 6px;
+    width: 140px;
+    letter-spacing: 4px;
+  }
+  .fx-addr-lambda .fx-strip::before {
+    content: "\03BB \03BB \03BB";
+  }
+  .fx-addr-lambda .fx-pixel {
+    display: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .fx-preview *,
+    .fx-preview {
+      animation: none !important;
+      transition: none !important;
+    }
+    .fx-pulse .fx-bulb {
+      opacity: 0.7;
+    }
+    .fx-strobe .fx-bulb {
+      opacity: 1;
+    }
+    .fx-random .fx-bulb {
+      background: #23d160;
+    }
+    .fx-flicker .fx-bulb {
+      opacity: 0.9;
+    }
+    .fx-rainbow .fx-pixel:nth-child(1) {
+      background: hsl(0, 100%, 50%);
+    }
+    .fx-rainbow .fx-pixel:nth-child(2) {
+      background: hsl(18, 100%, 50%);
+    }
+    .fx-rainbow .fx-pixel:nth-child(3) {
+      background: hsl(36, 100%, 50%);
+    }
+    .fx-rainbow .fx-pixel:nth-child(4) {
+      background: hsl(54, 100%, 50%);
+    }
+    .fx-rainbow .fx-pixel:nth-child(5) {
+      background: hsl(72, 100%, 50%);
+    }
+    .fx-rainbow .fx-pixel:nth-child(6) {
+      background: hsl(90, 100%, 50%);
+    }
+    .fx-rainbow .fx-pixel:nth-child(7) {
+      background: hsl(108, 100%, 50%);
+    }
+    .fx-rainbow .fx-pixel:nth-child(8) {
+      background: hsl(126, 100%, 50%);
+    }
+    .fx-rainbow .fx-pixel:nth-child(9) {
+      background: hsl(144, 100%, 50%);
+    }
+    .fx-rainbow .fx-pixel:nth-child(10) {
+      background: hsl(162, 100%, 50%);
+    }
+    .fx-rainbow .fx-pixel:nth-child(11) {
+      background: hsl(180, 100%, 50%);
+    }
+    .fx-rainbow .fx-pixel:nth-child(12) {
+      background: hsl(198, 100%, 50%);
+    }
+    .fx-rainbow .fx-pixel:nth-child(13) {
+      background: hsl(216, 100%, 50%);
+    }
+    .fx-rainbow .fx-pixel:nth-child(14) {
+      background: hsl(234, 100%, 50%);
+    }
+    .fx-rainbow .fx-pixel:nth-child(15) {
+      background: hsl(252, 100%, 50%);
+    }
+    .fx-rainbow .fx-pixel:nth-child(16) {
+      background: hsl(270, 100%, 50%);
+    }
+    .fx-rainbow .fx-pixel:nth-child(17) {
+      background: hsl(288, 100%, 50%);
+    }
+    .fx-rainbow .fx-pixel:nth-child(18) {
+      background: hsl(306, 100%, 50%);
+    }
+    .fx-rainbow .fx-pixel:nth-child(19) {
+      background: hsl(324, 100%, 50%);
+    }
+    .fx-rainbow .fx-pixel:nth-child(20) {
+      background: hsl(342, 100%, 50%);
+    }
+    .fx-color-wipe .fx-pixel:nth-child(-n + 10) {
+      background: #209cee;
+    }
+    .fx-scan .fx-strip::after {
+      display: none;
+    }
+    .fx-scan .fx-pixel:nth-child(5),
+    .fx-scan .fx-pixel:nth-child(6) {
+      background: #ffd24a;
+    }
+    .fx-twinkle .fx-pixel:nth-child(3n) {
+      background: #fff;
+    }
+    .fx-random-twinkle .fx-pixel:nth-child(3n) {
+      background: #209cee;
+    }
+    .fx-random-twinkle .fx-pixel:nth-child(3n + 1) {
+      background: #ff3860;
+    }
+    .fx-random-twinkle .fx-pixel:nth-child(3n + 2) {
+      background: #ffd24a;
+    }
+    .fx-fireworks .fx-pixel:nth-child(4n) {
+      background: #fff;
+    }
+    .fx-addr-flicker .fx-pixel {
+      opacity: 0.9;
+    }
+  }
+</style>

@@ -1,0 +1,30 @@
+---
+description: "Instructions for setting up LSM6DS temperature sensor."
+title: "LSM6DS Temperature Sensor"
+---
+
+The `lsm6ds` sensor platform provides access to the temperature sensor in a LSM6DS Accelerometer/Gyroscope
+([datasheet](https://www.st.com/resource/en/datasheet/lsm6ds3tr-c.pdf)) with ESPHome.
+It requires a [`motion`](/components/motion) component to be configured with the `lsm6ds` platform,
+which handles the accelerometer and gyroscope data processing and configures the device. See that component for more information.
+
+```yaml
+# Example configuration entry
+motion:
+  - platform: lsm6ds
+
+sensor:
+  - platform: lsm6ds
+    type: temperature # Optional, temperature is the only supported type for this platform
+    name: "LSM6DS Temperature"
+```
+
+## Configuration variables
+
+- **type** (*Optional*, string): Must be set to `temperature`, or simply omitted.
+- All other options from [Sensor](/components/sensor).
+
+## See Also
+
+- [Sensor Filters](/components/sensor#sensor-filters)
+- [LSM6DS Accelerometer/Gyroscope platform](/components/motion/lsm6ds/)

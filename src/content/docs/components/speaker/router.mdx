@@ -1,0 +1,108 @@
+---
+description: "Instructions for setting up router speakers in ESPHome."
+title: "Router Speaker"
+---
+
+The `router` speaker platform allows you to switch which [speaker component](/components/speaker/) receives audio at
+runtime. The router acts as a single speaker that an audio producer (such as a [media player](/components/media_player/)
+or a [mixer speaker](/components/speaker/mixer/)) sends audio to, and it forwards that audio to whichever output speaker
+is currently active. Use the [switch output action](#router_speaker-switch_output) to change the active output while
+audio is playing, for example to move playback between an I²S speaker and an
+[SPDIF](/components/speaker/i2s_audio/#spdif-mode) output.
+
+Every output speaker must use the same audio format. The format is declared on the router so that the producer can keep
+streaming through a switch without reconfiguring its output.
+
+This platform only works on ESP32 based chips.
+
+```yaml
+# Example configuration entry
+speaker:
+  - platform: router
+    output_speakers:
+      - speaker_a_id
+      - speaker_b_id
+    bits_per_sample: 16
+    num_channels: 2
+    sample_rate: 48000
+```
+
+## Configuration variables
+
+- **output_speakers** (**Required**, list of [IDs](/guides/configuration-types#id)): A list of
+  [speakers](/components/speaker/) the router can output to. Must have at least 2 and at most 8 speakers. The first
+  speaker listed is the active output when the device boots.
+- **bits_per_sample** (**Required**, positive integer): The bit depth of the audio stream. Must be between `8` and `32`.
+  Every output speaker must use this bit depth.
+- **num_channels** (**Required**, positive integer): The number of audio channels. Either `1` or `2`. Every output
+  speaker must use this number of channels.
+- **sample_rate** (**Required**, positive integer): The sample rate of the audio stream in Hz. Must be between `8000`
+  and `96000`. Every output speaker must use this sample rate.
+
+## Automations
+
+<span id="router_speaker-switch_output"></span>
+
+### `router.speaker.switch_output` Action
+
+This action switches the active output to the specified speaker. The target must be one of the configured
+`output_speakers`.
+
+```yaml
+on_...:
+  - router.speaker.switch_output:
+      target_speaker: speaker_b_id
+```
+
+Configuration variables:
+
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): The router speaker to control. Defaults to the only one in
+  your YAML.
+- **target_speaker** (**Required**, [ID](/guides/configuration-types#id), [templatable](/automations/templates)): The
+  output speaker to switch to. Must be one of the configured `output_speakers`.
+
+> [!NOTE]
+> Switching outputs while audio is playing drops any audio still buffered on the previous output. This produces a brief
+> discontinuity at the moment of the switch.
+
+## Example
+
+Pairing the router with a [template select](/components/select/template/) lets the active output be chosen from the
+frontend (such as Home Assistant). The select's `on_value` trigger calls the switch output action, mapping each option
+to one of the configured output speakers. The two referenced speakers are
+[I²S audio speakers](/components/speaker/i2s_audio/) configured elsewhere in your YAML.
+
+```yaml
+speaker:
+  - platform: router
+    id: router_id
+    output_speakers:
+      - spdif_speaker_id
+      - analog_speaker_id
+    bits_per_sample: 16
+    num_channels: 2
+    sample_rate: 48000
+
+select:
+  - platform: template
+    name: "Audio Output"
+    optimistic: true
+    restore_value: true
+    options:
+      - "SPDIF (TOSLINK)"
+      - "Analog (I2S)"
+    on_value:
+      - router.speaker.switch_output:
+          id: router_id
+          target_speaker: !lambda |-
+            if (x == "SPDIF (TOSLINK)") {
+              return id(spdif_speaker_id);
+            }
+            return id(analog_speaker_id);
+```
+
+## See Also
+
+- [Speaker Component](/components/speaker/)
+- [Mixer Speaker](/components/speaker/mixer/)
+- [I²S Audio Speaker](/components/speaker/i2s_audio/)

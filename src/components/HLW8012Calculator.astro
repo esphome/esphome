@@ -141,19 +141,35 @@
 
 <script>
   function calc() {
-    const voltage_divider = parseFloat((document.getElementById("voltage-divider") as HTMLInputElement).value.replace(",", "."));
-    const current_resistor = parseFloat((document.getElementById("current-resistor") as HTMLInputElement).value.replace(",", "."));
-    const current_multiply = parseFloat((document.getElementById("current-multiply") as HTMLInputElement).value.replace(",", "."));
-    const real_voltage = parseFloat((document.getElementById("real-voltage") as HTMLInputElement).value.replace(",", "."));
+    const voltage_divider = parseFloat(
+      (document.getElementById("voltage-divider") as HTMLInputElement).value.replace(",", "."),
+    );
+    const current_resistor = parseFloat(
+      (document.getElementById("current-resistor") as HTMLInputElement).value.replace(",", "."),
+    );
+    const current_multiply = parseFloat(
+      (document.getElementById("current-multiply") as HTMLInputElement).value.replace(",", "."),
+    );
+    const real_voltage = parseFloat(
+      (document.getElementById("real-voltage") as HTMLInputElement).value.replace(",", "."),
+    );
     const real_power = parseFloat((document.getElementById("real-power") as HTMLInputElement).value.replace(",", "."));
-    const real_current = parseFloat((document.getElementById("real-current") as HTMLInputElement).value.replace(",", "."));
-    const sensor_voltage = parseFloat((document.getElementById("sensor-voltage") as HTMLInputElement).value.replace(",", "."));
-    const sensor_power = parseFloat((document.getElementById("sensor-power") as HTMLInputElement).value.replace(",", "."));
-    const sensor_current = parseFloat((document.getElementById("sensor-current") as HTMLInputElement).value.replace(",", "."));
+    const real_current = parseFloat(
+      (document.getElementById("real-current") as HTMLInputElement).value.replace(",", "."),
+    );
+    const sensor_voltage = parseFloat(
+      (document.getElementById("sensor-voltage") as HTMLInputElement).value.replace(",", "."),
+    );
+    const sensor_power = parseFloat(
+      (document.getElementById("sensor-power") as HTMLInputElement).value.replace(",", "."),
+    );
+    const sensor_current = parseFloat(
+      (document.getElementById("sensor-current") as HTMLInputElement).value.replace(",", "."),
+    );
 
-    const calc_voltage = (document.getElementById("real-voltage") as HTMLInputElement).value !== "" || (document.getElementById("sensor-voltage") as HTMLInputElement).value !== "";
-    const calc_power = (document.getElementById("real-power") as HTMLInputElement).value !== "" || (document.getElementById("sensor-power") as HTMLInputElement).value !== "";
-    const calc_current = (document.getElementById("real-current") as HTMLInputElement).value !== "" || (document.getElementById("sensor-current") as HTMLInputElement).value !== "";
+    const calc_voltage = Number.isFinite(real_voltage) && Number.isFinite(sensor_voltage);
+    const calc_power = Number.isFinite(real_power) && Number.isFinite(sensor_power);
+    const calc_current = Number.isFinite(real_current) && Number.isFinite(sensor_current);
 
     let voltage_divider_new = voltage_divider;
     let current_resistor_new = current_resistor;
@@ -164,7 +180,7 @@
     }
     if (calc_power) {
       if (calc_voltage) {
-        current_resistor_new *= (sensor_power / sensor_voltage) / (real_power / real_voltage);
+        current_resistor_new *= sensor_power / sensor_voltage / (real_power / real_voltage);
       } else {
         current_resistor_new *= sensor_power / real_power;
       }
@@ -181,23 +197,31 @@
     (document.getElementById("current-resistor-new") as HTMLInputElement).value = String(current_resistor_new);
     (document.getElementById("current-multiply-new") as HTMLInputElement).value = String(current_multiply_new);
 
-    const sensor_voltage_new = sensor_voltage * voltage_divider_new / voltage_divider;
-    const sensor_power_new = sensor_power * (voltage_divider_new / current_resistor_new) / (voltage_divider / current_resistor);
-    const sensor_current_new = sensor_current * (current_multiply_new / current_resistor_new) / (current_multiply / current_resistor);
+    const sensor_voltage_new = (sensor_voltage * voltage_divider_new) / voltage_divider;
+    const sensor_power_new =
+      (sensor_power * (voltage_divider_new / current_resistor_new)) / (voltage_divider / current_resistor);
+    const sensor_current_new =
+      (sensor_current * (current_multiply_new / current_resistor_new)) / (current_multiply / current_resistor);
 
-    (document.getElementById("sensor-voltage-new") as HTMLInputElement).value = String(Number(sensor_voltage_new.toFixed(8)));
-    (document.getElementById("sensor-power-new") as HTMLInputElement).value = String(Number(sensor_power_new.toFixed(8)));
-    (document.getElementById("sensor-current-new") as HTMLInputElement).value = String(Number(sensor_current_new.toFixed(8)));
+    (document.getElementById("sensor-voltage-new") as HTMLInputElement).value = String(
+      Number(sensor_voltage_new.toFixed(8)),
+    );
+    (document.getElementById("sensor-power-new") as HTMLInputElement).value = String(
+      Number(sensor_power_new.toFixed(8)),
+    );
+    (document.getElementById("sensor-current-new") as HTMLInputElement).value = String(
+      Number(sensor_current_new.toFixed(8)),
+    );
   }
 
   // Add event listeners to all input fields
-  document.querySelectorAll('.hlw8012-calculator input:not([readonly])').forEach(input => {
-    input.addEventListener('input', calc);
+  document.querySelectorAll(".hlw8012-calculator input:not([readonly])").forEach((input) => {
+    input.addEventListener("input", calc);
   });
 
   // Add click-to-select for readonly fields
-  document.querySelectorAll('.hlw8012-calculator input[readonly]').forEach(input => {
-    input.addEventListener('click', (e) => {
+  document.querySelectorAll(".hlw8012-calculator input[readonly]").forEach((input) => {
+    input.addEventListener("click", (e) => {
       (e.target as HTMLInputElement).select();
     });
   });

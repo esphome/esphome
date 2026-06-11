@@ -2,17 +2,16 @@ import { defineRouteMiddleware } from "@astrojs/starlight/route-data";
 import GithubSlugger from "github-slugger";
 
 // Eagerly import all sensor filter MDX files to extract their headings.
-const filterModules = import.meta.glob(
-  "./content/docs/components/sensor/filter/*.mdx",
-  { eager: true },
-);
+const filterModules = import.meta.glob("./content/docs/components/sensor/filter/*.mdx", {
+  eager: true,
+});
 
 // Build the list of filter TOC entries once at module load time.
 const slugger = new GithubSlugger();
 const filterTocEntries = Object.entries(filterModules)
   .sort(([a], [b]) => a.localeCompare(b))
   .map(([, module]) => {
-    const title = (module as any).frontmatter?.title as string | undefined;
+    const title = (module as { frontmatter?: { title?: string } }).frontmatter?.title;
     if (!title) return null;
     return {
       depth: 3 as const,
@@ -31,9 +30,7 @@ export const onRequest = defineRouteMiddleware(async (context, next) => {
   if (!route.toc) return;
 
   // Find the "Sensor Filters" heading in the TOC — only present on the sensor index page.
-  const sensorFiltersEntry = route.toc.items.find(
-    (item) => item.slug === "sensor-filters",
-  );
+  const sensorFiltersEntry = route.toc.items.find((item) => item.slug === "sensor-filters");
   if (!sensorFiltersEntry || sensorFiltersEntry.children.length > 0) return;
 
   // Inject filter headings as children of the "Sensor Filters" TOC entry.
