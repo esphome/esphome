@@ -33,6 +33,8 @@ class RuntimeStatsCollector;
  */
 namespace setup_priority {
 
+/// For power supply components that must be on before buses like i2c can work.
+inline constexpr float POWER = 1200.0f;
 /// For communication buses like i2c/spi
 inline constexpr float BUS = 1000.0f;
 /// For components that represent GPIO pins like PCF8573
