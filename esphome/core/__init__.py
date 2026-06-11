@@ -958,6 +958,13 @@ class EsphomeCore:
         return build_flag
 
     def add_build_unflag(self, build_unflag: str) -> None:
+        if self.using_toolchain_esp_idf:
+            # The native ESP-IDF build generator does not consume build_unflags
+            _LOGGER.warning(
+                "Build unflag %s is ignored when building with the native "
+                "ESP-IDF toolchain",
+                build_unflag,
+            )
         self.build_unflags.add(build_unflag)
         _LOGGER.debug("Adding build unflag: %s", build_unflag)
 
