@@ -22,7 +22,9 @@ void PowerSupply::dump_config() {
 }
 
 float PowerSupply::get_setup_priority() const {
-  return this->enable_on_boot_ ? setup_priority::POWER : setup_priority::IO;
+  if (this->pin_->is_internal() && this->enable_on_boot_)
+    return setup_priority::POWER;
+  return setup_priority::IO;
 }
 
 bool PowerSupply::is_enabled() const { return this->active_requests_ != 0; }
