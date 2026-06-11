@@ -40,11 +40,19 @@ enum ResamplingEventGroupBits : uint32_t {
 };
 
 void ResamplerSpeaker::dump_config() {
-  ESP_LOGCONFIG(TAG,
-                "Resampler Speaker:\n"
-                "  Target Bits Per Sample: %u\n"
-                "  Target Sample Rate: %" PRIu32 " Hz",
-                this->target_bits_per_sample_, this->target_sample_rate_);
+  if (this->passthrough_bits_per_sample_) {
+    ESP_LOGCONFIG(TAG,
+                  "Resampler Speaker:\n"
+                  "  Target Bits Per Sample: passthrough\n"
+                  "  Target Sample Rate: %" PRIu32 " Hz",
+                  this->target_sample_rate_);
+  } else {
+    ESP_LOGCONFIG(TAG,
+                  "Resampler Speaker:\n"
+                  "  Target Bits Per Sample: %" PRIu8 "\n"
+                  "  Target Sample Rate: %" PRIu32 " Hz",
+                  this->target_bits_per_sample_, this->target_sample_rate_);
+  }
 }
 
 void ResamplerSpeaker::setup() {
@@ -253,8 +261,12 @@ void ResamplerSpeaker::send_command_(uint32_t command_bit, bool wake_loop) {
 void ResamplerSpeaker::start() { this->send_command_(ResamplingEventGroupBits::COMMAND_START, true); }
 
 esp_err_t ResamplerSpeaker::start_() {
-  this->target_stream_info_ = audio::AudioStreamInfo(
-      this->target_bits_per_sample_, this->audio_stream_info_.get_channels(), this->target_sample_rate_);
+  // In passthrough mode, the output keeps the input's bits per sample so only the sample rate is resampled.
+  const uint8_t target_bits_per_sample = this->passthrough_bits_per_sample_
+                                             ? this->audio_stream_info_.get_bits_per_sample()
+                                             : this->target_bits_per_sample_;
+  this->target_stream_info_ = audio::AudioStreamInfo(target_bits_per_sample, this->audio_stream_info_.get_channels(),
+                                                     this->target_sample_rate_);
 
   this->output_speaker_->set_audio_stream_info(this->target_stream_info_);
   this->output_speaker_->start();
@@ -305,7 +317,11 @@ void ResamplerSpeaker::set_volume(float volume) {
 }
 
 bool ResamplerSpeaker::requires_resampling_() const {
-  return (this->audio_stream_info_.get_sample_rate() != this->target_sample_rate_) ||
+  if (this->audio_stream_info_.get_sample_rate() != this->target_sample_rate_) {
+    return true;
+  }
+  // In passthrough mode the bits per sample always matches the input, so it never forces resampling.
+  return !this->passthrough_bits_per_sample_ &&
          (this->audio_stream_info_.get_bits_per_sample() != this->target_bits_per_sample_);
 }
 
