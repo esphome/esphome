@@ -7,14 +7,14 @@ from . import CONF_UFM01_ID, UFM01Component
 
 DEPENDENCIES = ["ufm01"]
 
-CONF_UFP_CHIP_ERROR = "ufp_chip_error"
+CONF_UFC_CHIP_ERROR = "ufc_chip_error"
 CONF_FLOW_DIRECTION_WRONG = "flow_direction_wrong"
 CONF_EMPTY_TUBE = "empty_tube"
 CONF_FLOW_RATE_OUT_OF_RANGE = "flow_rate_out_of_range"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_UFM01_ID): cv.use_id(UFM01Component),
-    cv.Optional(CONF_UFP_CHIP_ERROR): binary_sensor.binary_sensor_schema(
+    cv.Optional(CONF_UFC_CHIP_ERROR): binary_sensor.binary_sensor_schema(
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC, device_class=DEVICE_CLASS_PROBLEM
     ),
     cv.Optional(CONF_FLOW_DIRECTION_WRONG): binary_sensor.binary_sensor_schema(
@@ -35,9 +35,9 @@ CONFIG_SCHEMA = {
 async def to_code(config):
     ufm01_component = await cg.get_variable(config[CONF_UFM01_ID])
 
-    if ufp_chip_error_config := config.get(CONF_UFP_CHIP_ERROR):
-        sens = await binary_sensor.new_binary_sensor(ufp_chip_error_config)
-        cg.add(ufm01_component.set_ufp_chip_error_binary_sensor(sens))
+    if ufc_chip_error_config := config.get(CONF_UFC_CHIP_ERROR):
+        sens = await binary_sensor.new_binary_sensor(ufc_chip_error_config)
+        cg.add(ufm01_component.set_ufc_chip_error_binary_sensor(sens))
 
     if flow_direction_wrong_config := config.get(CONF_FLOW_DIRECTION_WRONG):
         sens = await binary_sensor.new_binary_sensor(flow_direction_wrong_config)

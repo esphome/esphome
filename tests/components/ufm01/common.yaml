@@ -16,9 +16,9 @@ sensor:
 
 binary_sensor:
   - platform: ufm01
-    ufp_chip_error:
-      id: ufp_chip_error
-      name: "UFP chip error"
+    ufc_chip_error:
+      id: ufc_chip_error
+      name: "UFC chip error"
     flow_direction_wrong:
       id: flow_direction_wrong
       name: "Flow direction wrong"

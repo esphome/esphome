@@ -22,7 +22,7 @@ class UFM01Component : public uart::UARTDevice, public Component {
   SUB_SENSOR(temperature)
 
 #ifdef USE_BINARY_SENSOR
-  SUB_BINARY_SENSOR(ufp_chip_error)
+  SUB_BINARY_SENSOR(ufc_chip_error)
   SUB_BINARY_SENSOR(flow_direction_wrong)
   SUB_BINARY_SENSOR(empty_tube)
   SUB_BINARY_SENSOR(flow_rate_out_of_range)

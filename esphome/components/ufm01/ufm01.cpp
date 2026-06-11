@@ -94,7 +94,7 @@ static float read_temperature(uint8_t data[FRAME_SIZE]) {
   return to_float(data[27]) * 100.0f + to_float(data[26]) + to_float(data[25]) * 0.01f;
 }
 
-static bool read_ufp_chip_error(const uint8_t data[FRAME_SIZE]) {
+static bool read_ufc_chip_error(const uint8_t data[FRAME_SIZE]) {
   return data[FRAME_ST2_INDEX] & ST2_UFC_ERROR_MASK;
 }
 
@@ -148,7 +148,7 @@ void UFM01Component::dump_config() {
   LOG_SENSOR("  ", "Flow", this->flow_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
 #ifdef USE_BINARY_SENSOR
-  LOG_BINARY_SENSOR("  ", "UFP Chip Error", this->ufp_chip_error_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "UFC Chip Error", this->ufc_chip_error_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Flow Direction Wrong", this->flow_direction_wrong_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Empty Tube", this->empty_tube_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Flow Rate Out Of Range", this->flow_rate_out_of_range_binary_sensor_);
@@ -162,8 +162,8 @@ void UFM01Component::dump_config() {
 void UFM01Component::on_data_(uint8_t data[FRAME_SIZE]) {
   bool empty_tube = read_empty_tube(data);
 #ifdef USE_BINARY_SENSOR
-  if (this->ufp_chip_error_binary_sensor_ != nullptr)
-    this->ufp_chip_error_binary_sensor_->publish_state(read_ufp_chip_error(data));
+  if (this->ufc_chip_error_binary_sensor_ != nullptr)
+    this->ufc_chip_error_binary_sensor_->publish_state(read_ufc_chip_error(data));
   if (this->flow_direction_wrong_binary_sensor_ != nullptr)
     this->flow_direction_wrong_binary_sensor_->publish_state(read_flow_direction_wrong(data));
   if (this->empty_tube_binary_sensor_ != nullptr)
