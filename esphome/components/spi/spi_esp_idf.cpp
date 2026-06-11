@@ -15,9 +15,10 @@ class SPIDelegateHw : public SPIDelegate {
         channel_(channel),
         release_device_(release_device),
         write_only_(write_only) {
-    if (!this->release_device_) {
+    if (!this->release_device_)
       add_device_();
-    } else {
+    
+    if (this->write_only_) {
       ESP_LOGD(TAG, "SPI device with CS pin %d using half-duplex mode (write-only)",
                Utility::get_pin_no(this->cs_pin_));
     }
@@ -199,13 +200,8 @@ class SPIDelegateHw : public SPIDelegate {
     config.post_cb = nullptr;
     if (this->bit_order_ == BIT_ORDER_LSB_FIRST)
       config.flags |= SPI_DEVICE_BIT_LSBFIRST;
-    if (this->write_only_) {
+    if (this->write_only_)
       config.flags |= SPI_DEVICE_HALFDUPLEX | SPI_DEVICE_NO_DUMMY;
-      if (!this->release_device_) {
-        ESP_LOGD(TAG, "SPI device with CS pin %d using half-duplex mode (write-only)",
-                 Utility::get_pin_no(this->cs_pin_));
-      }
-    }
     esp_err_t const err = spi_bus_add_device(this->channel_, &config, &this->handle_);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "Add device failed - err %X", err);
