@@ -532,10 +532,16 @@ async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> No
                 # Read from the raw config at upload time (upload_using_esptool),
                 # so it works on the native toolchain too.
                 pass
+            elif key == "lib_deps":
+                # Routed through the regular library mechanism so the libraries
+                # are converted to IDF components like any other PIO library.
+                for lib in [val] if isinstance(val, str) else val:
+                    _add_library_str(lib)
             elif key == "lib_ignore":
                 # Stored so the PIO-library-to-IDF-component conversion
-                # (generate_idf_components) can filter both top-level libraries
-                # and dependencies discovered during conversion.
+                # (generate_idf_components) can read it; it filters both
+                # top-level libraries and dependencies discovered during
+                # conversion.
                 cg.add_platformio_option(key, [val] if isinstance(val, str) else val)
             else:
                 _LOGGER.warning(
@@ -737,19 +743,8 @@ async def to_code(config: ConfigType) -> None:
                 trigger, [(cg.std_string, "version")], conf
             )
 
-    if pio_options := dict(config[CONF_PLATFORMIO_OPTIONS]):
-        if CORE.using_toolchain_esp_idf and (
-            lib_deps := pio_options.pop("lib_deps", None)
-        ):
-            # Route lib_deps through the regular library mechanism so the
-            # libraries are converted to IDF components like any other PIO
-            # library. Processed here (like libraries above) rather than in
-            # the FINAL job so FINAL-priority consumers of the library list
-            # (e.g. Arduino selective compilation) see them.
-            for lib in [lib_deps] if isinstance(lib_deps, str) else lib_deps:
-                _add_library_str(lib)
-        if pio_options:
-            CORE.add_job(_add_platformio_options, pio_options)
+    if config[CONF_PLATFORMIO_OPTIONS]:
+        CORE.add_job(_add_platformio_options, config[CONF_PLATFORMIO_OPTIONS])
 
     if config[CONF_BUILD_FLAGS]:
         CORE.add_job(_add_build_flags, config[CONF_BUILD_FLAGS])

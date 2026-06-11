@@ -688,9 +688,7 @@ def _node_key(
     return name, False, (owner, pkgname)
 
 
-def generate_idf_components(
-    libraries: list[Library], lib_ignore: set[str] | None = None
-) -> list[IDFComponent]:
+def generate_idf_components(libraries: list[Library]) -> list[IDFComponent]:
     """Resolve and convert a batch of PlatformIO libraries to IDF components.
 
     Resolves the whole set together rather than each library independently: it
@@ -706,11 +704,16 @@ def generate_idf_components(
     transitive dependencies are converted too and wired into each component's
     generated manifest.
 
-    ``lib_ignore`` is a set of lowercase library short names (part after the
-    ``/``) to exclude, matched against both the top-level libraries and every
-    dependency discovered during the graph walk.
+    ``lib_ignore`` from ``esphome->platformio_options`` excludes libraries by
+    short name (part after the ``/``), matched against both the top-level
+    libraries and every dependency discovered during the graph walk.
     """
     nodes: dict[str, _LibNode] = {}
+
+    lib_ignore = {
+        name.split("/")[-1].lower()
+        for name in CORE.platformio_options.get("lib_ignore", [])
+    }
 
     # The generated CMakeLists.txt/idf_component.yml inside the shared cache
     # bake in the dependency wiring, which lib_ignore changes; salt the cache

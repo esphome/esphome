@@ -596,10 +596,12 @@ def test_generate_idf_components_lib_ignore_filters_top_level_and_dependencies(
     monkeypatch.setattr(
         esphome.espidf.component, "_resolve_registry_version", fake_resolve
     )
+    # lib_ignore is read from CORE.platformio_options (stored there by
+    # _add_platformio_options); matched by lowercase short name.
+    monkeypatch.setattr(CORE, "platformio_options", {"lib_ignore": ["B", "esphome/C"]})
 
     top = generate_idf_components(
-        [Library("esphome/A", "1.0.0", None), Library("esphome/B", "1.0.0", None)],
-        lib_ignore={"b", "c"},
+        [Library("esphome/A", "1.0.0", None), Library("esphome/B", "1.0.0", None)]
     )
 
     assert [c.name for c in top] == ["esphome/A"]
