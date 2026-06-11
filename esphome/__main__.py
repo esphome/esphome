@@ -1117,7 +1117,9 @@ def upload_program(
             env["ESPHOME_MQTT_PORT"] = str(mqtt.get(CONF_PORT, 1883))
             env["ESPHOME_MQTT_USERNAME"] = str(mqtt.get(CONF_USERNAME, ""))
             env["ESPHOME_MQTT_PASSWORD"] = str(mqtt.get(CONF_PASSWORD, ""))
-            env["ESPHOME_MQTT_TOPIC_PREFIX"] = str(mqtt.get(CONF_TOPIC_PREFIX, CORE.name))
+            env["ESPHOME_MQTT_TOPIC_PREFIX"] = str(
+                mqtt.get(CONF_TOPIC_PREFIX, CORE.name)
+            )
         _LOGGER.info("Running publish command: %s", publish_shell_command)
         return subprocess.call(
             publish_shell_command,
