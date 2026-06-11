@@ -94,9 +94,7 @@ static float read_temperature(uint8_t data[FRAME_SIZE]) {
   return to_float(data[27]) * 100.0f + to_float(data[26]) + to_float(data[25]) * 0.01f;
 }
 
-static bool read_ufp_chip_error(const uint8_t data[FRAME_SIZE]) {
-  return data[FRAME_ST2_INDEX] & ST2_UFC_ERROR_MASK;
-}
+static bool read_ufp_chip_error(const uint8_t data[FRAME_SIZE]) { return data[FRAME_ST2_INDEX] & ST2_UFC_ERROR_MASK; }
 
 static bool read_flow_direction_wrong(const uint8_t data[FRAME_SIZE]) {
   return data[FRAME_ST2_INDEX] & ST2_FLOW_DIRECTION_WRONG_MASK;
@@ -216,8 +214,8 @@ void UFM01Component::loop() {
     // Invalid frame: try to resync on the next start marker within the buffer
     log_hex(this->data_, sizeof(this->data_));
     ESP_LOGE(TAG, "unable to read data");
-    for (int32_t i = 2; i < static_cast<int32_t>(FRAME_STOP_INDEX) && this->read_index_ == static_cast<int32_t>(FRAME_SIZE);
-         ++i) {
+    for (int32_t i = 2;
+         i < static_cast<int32_t>(FRAME_STOP_INDEX) && this->read_index_ == static_cast<int32_t>(FRAME_SIZE); ++i) {
       if ((this->data_[i] == FRAME_START_BYTE_1) && (this->data_[i + 1] == FRAME_START_BYTE_2)) {
         for (int32_t j = i; j < static_cast<int32_t>(FRAME_SIZE); ++j)
           this->data_[j - i] = this->data_[j];
