@@ -14,6 +14,8 @@
 
 namespace esphome::ufm01 {
 
+static constexpr size_t FRAME_SIZE = 32;
+
 class UFM01Component : public uart::UARTDevice, public Component {
   SUB_SENSOR(accumulated_flow)
   SUB_SENSOR(flow)
@@ -44,8 +46,8 @@ class UFM01Component : public uart::UARTDevice, public Component {
   bool send_command_(const std::array<uint8_t, 7> &command);
 
   int32_t read_index_ = 0;
-  uint8_t data_[32];
-  void on_data_(uint8_t data[32]);
+  uint8_t data_[FRAME_SIZE];
+  void on_data_(uint8_t data[FRAME_SIZE]);
 };
 
 }  // namespace esphome::ufm01
