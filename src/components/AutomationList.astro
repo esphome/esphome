@@ -28,21 +28,14 @@ function collectMdxFiles(dir: string): string[] {
 //   ## `deep_sleep.enter` Action
 //   ### `switch.is_on` / `switch.is_off` Condition
 //   ## `sun.is_above_horizon` / `sun.is_below_horizon` Conditions
-const headingPattern = new RegExp(
-  "^#{2,4}\\s+" +
-  "`([a-z_][a-z0-9_.]*\\.[a-z_][a-z0-9_]*)`" +
-  "(?:\\s+/\\s+`([a-z_][a-z0-9_.]*\\.[a-z_][a-z0-9_]*)`)*" +
-  "\\s+" + type + "s?\\s*$",
-  "mi"
-);
-
-// Also need a global version to find all matches
 const headingPatternGlobal = new RegExp(
   "^#{2,4}\\s+" +
-  "(`[a-z_][a-z0-9_.]*\\.[a-z_][a-z0-9_]*`)" +
-  "(?:\\s+/\\s+`[a-z_][a-z0-9_.]*\\.[a-z_][a-z0-9_]*`)*" +
-  "\\s+" + type + "s?\\s*$",
-  "gmi"
+    "(`[a-z_][a-z0-9_.]*\\.[a-z_][a-z0-9_]*`)" +
+    "(?:\\s+/\\s+`[a-z_][a-z0-9_.]*\\.[a-z_][a-z0-9_]*`)*" +
+    "\\s+" +
+    type +
+    "s?\\s*$",
+  "gmi",
 );
 
 // Extract individual backticked names from a heading line
@@ -88,15 +81,20 @@ const sorted = [...domainMap.entries()]
 
 {/* markdownlint-disable MD013 */}
 <ul>
-  {sorted.map(({ domain, names, url }) => (
-    <li>
-      <strong><a href={url}>{domain}</a>:</strong>{" "}
-      {names.map((name, i) => (
-        <>
-          <code>{name}</code>{i < names.length - 1 ? ", " : ""}
-        </>
-      ))}
-    </li>
-  ))}
+  {
+    sorted.map(({ domain, names, url }) => (
+      <li>
+        <strong>
+          <a href={url}>{domain}</a>:
+        </strong>{" "}
+        {names.map((name, i) => (
+          <>
+            <code>{name}</code>
+            {i < names.length - 1 ? ", " : ""}
+          </>
+        ))}
+      </li>
+    ))
+  }
 </ul>
 {/* markdownlint-enable MD013 */}

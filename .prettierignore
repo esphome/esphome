@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.astro/
+public/pagefind/
+package-lock.json
+
+# Markdown content is owned by markdownlint
+*.md
+*.mdx

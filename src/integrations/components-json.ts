@@ -64,18 +64,10 @@ export default function componentsJson(): AstroIntegration {
       },
       "astro:build:done": async ({ logger }) => {
         const imagesDir = path.join(rootDir, "public/images");
-        const componentsDir = path.join(
-          rootDir,
-          "src/content/docs/components",
-        );
-        const indexImageMap = buildIndexImageMap(
-          path.join(componentsDir, "index.mdx"),
-        );
+        const componentsDir = path.join(rootDir, "src/content/docs/components");
+        const indexImageMap = buildIndexImageMap(path.join(componentsDir, "index.mdx"));
 
-        const components: Record<
-          string,
-          { title: string; url: string; path: string; image?: string }
-        > = {};
+        const components: Record<string, { title: string; url: string; path: string; image?: string }> = {};
 
         const entries = fs.readdirSync(componentsDir, {
           withFileTypes: true,
@@ -92,10 +84,7 @@ export default function componentsJson(): AstroIntegration {
             const slug = entry.name.replace(".mdx", "");
             const seoImage = getSeoImage(filePath);
             const urlPath = `/components/${slug}`;
-            const image =
-              seoImage ||
-              findPublicImage(imagesDir, slug) ||
-              indexImageMap[urlPath];
+            const image = seoImage || findPublicImage(imagesDir, slug) || indexImageMap[urlPath];
 
             components[slug] = {
               title,
@@ -114,10 +103,7 @@ export default function componentsJson(): AstroIntegration {
               if (title) {
                 const seoImage = getSeoImage(indexPath);
                 const urlPath = `/components/${entry.name}`;
-                const image =
-                  seoImage ||
-                  findPublicImage(imagesDir, entry.name) ||
-                  indexImageMap[urlPath];
+                const image = seoImage || findPublicImage(imagesDir, entry.name) || indexImageMap[urlPath];
                 components[entry.name] = {
                   title,
                   url: `${siteURL}/components/${entry.name}/`,
@@ -129,9 +115,7 @@ export default function componentsJson(): AstroIntegration {
               }
             }
 
-            const subFiles = fs
-              .readdirSync(dirPath)
-              .filter((f) => f.endsWith(".mdx"));
+            const subFiles = fs.readdirSync(dirPath).filter((f) => f.endsWith(".mdx"));
             for (const f of subFiles) {
               if (f === "index.mdx") continue;
 
@@ -164,9 +148,7 @@ export default function componentsJson(): AstroIntegration {
 
         const outPath = path.join(outDir, "components.json");
         fs.writeFileSync(outPath, JSON.stringify(components, null, 2));
-        logger.info(
-          `Generated components.json with ${Object.keys(components).length} components`,
-        );
+        logger.info(`Generated components.json with ${Object.keys(components).length} components`);
       },
     },
   };

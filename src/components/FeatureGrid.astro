@@ -29,13 +29,15 @@ function getIconPath(icon: string): string {
 ---
 
 <div class="feature-grid">
-  {items.map((item) => (
-    <div class="feature-card">
-      <div class="feature-icon">
-        <img src={getIconPath(item.icon)} alt="" loading="lazy" />
+  {
+    items.map((item) => (
+      <div class="feature-card">
+        <div class="feature-icon">
+          <img src={getIconPath(item.icon)} alt="" loading="lazy" />
+        </div>
+        <div class="feature-text">{item.title}</div>
+        <p set:html={item.description} />
       </div>
-      <div class="feature-text">{item.title}</div>
-      <p set:html={item.description} />
-    </div>
-  ))}
+    ))
+  }
 </div>

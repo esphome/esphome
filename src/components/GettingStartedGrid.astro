@@ -36,23 +36,27 @@ function getIconPath(icon: string): string {
 ---
 
 <div class="getting-started-grid">
-  {items.map((item) => (
-    <div class="feature-card">
-      <div class="feature-icon">
-        <img src={getIconPath(item.icon)} alt="" loading="lazy" />
+  {
+    items.map((item) => (
+      <div class="feature-card">
+        <div class="feature-icon">
+          <img src={getIconPath(item.icon)} alt="" loading="lazy" />
+        </div>
+        <div class="getting-started-heading">{item.title}</div>
+        <p>{item.description}</p>
+        {item.steps && item.steps.length > 0 && (
+          <ol>
+            {item.steps.map((step) => (
+              <li set:html={step} />
+            ))}
+          </ol>
+        )}
+        {item.url && (
+          <a href={item.url} class="btn btn-primary">
+            {item.button_text}
+          </a>
+        )}
       </div>
-      <div class="getting-started-heading">{item.title}</div>
-      <p>{item.description}</p>
-      {item.steps && item.steps.length > 0 && (
-        <ol>
-          {item.steps.map((step) => (
-            <li set:html={step} />
-          ))}
-        </ol>
-      )}
-      {item.url && (
-        <a href={item.url} class="btn btn-primary">{item.button_text}</a>
-      )}
-    </div>
-  ))}
+    ))
+  }
 </div>

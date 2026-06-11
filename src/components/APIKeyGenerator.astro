@@ -47,40 +47,44 @@
     const bytes = new Uint8Array(32);
     crypto.getRandomValues(bytes);
     // Convert to base64
-    let binary = '';
+    let binary = "";
     for (let i = 0; i < bytes.length; i++) {
       binary += String.fromCharCode(bytes[i]);
     }
     return btoa(binary);
   }
 
-  const output = document.getElementById('api-key-output')!;
-  const copyBtn = document.getElementById('api-key-copy')!;
-  const regenBtn = document.getElementById('api-key-regen')!;
+  const output = document.getElementById("api-key-output")!;
+  const copyBtn = document.getElementById("api-key-copy")!;
+  const regenBtn = document.getElementById("api-key-regen")!;
 
   // Generate initial key
   output.textContent = generateApiKey();
 
-  copyBtn.addEventListener('click', async () => {
-    const key = output.textContent || '';
+  copyBtn.addEventListener("click", async () => {
+    const key = output.textContent || "";
     try {
       await navigator.clipboard.writeText(key);
-      copyBtn.textContent = 'Copied!';
-      setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
+      copyBtn.textContent = "Copied!";
+      setTimeout(() => {
+        copyBtn.textContent = "Copy";
+      }, 2000);
     } catch {
       // Fallback for older browsers
-      const textarea = document.createElement('textarea');
+      const textarea = document.createElement("textarea");
       textarea.value = key;
       document.body.appendChild(textarea);
       textarea.select();
-      document.execCommand('copy');
+      document.execCommand("copy");
       document.body.removeChild(textarea);
-      copyBtn.textContent = 'Copied!';
-      setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
+      copyBtn.textContent = "Copied!";
+      setTimeout(() => {
+        copyBtn.textContent = "Copy";
+      }, 2000);
     }
   });
 
-  regenBtn.addEventListener('click', () => {
+  regenBtn.addEventListener("click", () => {
     output.textContent = generateApiKey();
   });
 </script>

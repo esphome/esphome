@@ -22,16 +22,12 @@ export const onSuccess = async function ({ utils }) {
   const siteUrl = process.env.SITE_URL || process.env.URL;
 
   if (!apiToken || !zoneId) {
-    console.log(
-      "Skipping Cloudflare cache purge: CLOUDFLARE_API_TOKEN or CLOUDFLARE_ZONE_ID not set",
-    );
+    console.log("Skipping Cloudflare cache purge: CLOUDFLARE_API_TOKEN or CLOUDFLARE_ZONE_ID not set");
     return;
   }
 
   if (!siteUrl) {
-    utils.build.failPlugin(
-      "Cannot determine hostname: neither SITE_URL nor URL is set",
-    );
+    utils.build.failPlugin("Cannot determine hostname: neither SITE_URL nor URL is set");
     return;
   }
 
@@ -40,24 +36,19 @@ export const onSuccess = async function ({ utils }) {
 
     console.log(`Purging Cloudflare cache for hostname: ${hostname}`);
 
-    const response = await fetch(
-      `https://api.cloudflare.com/client/v4/zones/${zoneId}/purge_cache`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ hosts: [hostname] }),
+    const response = await fetch(`https://api.cloudflare.com/client/v4/zones/${zoneId}/purge_cache`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        "Content-Type": "application/json",
       },
-    );
+      body: JSON.stringify({ hosts: [hostname] }),
+    });
 
     const result = await response.json();
 
     if (!result.success) {
-      const errors = result.errors
-        .map((e) => `${e.code}: ${e.message}`)
-        .join(", ");
+      const errors = result.errors.map((e) => `${e.code}: ${e.message}`).join(", ");
       utils.build.failPlugin(`Cloudflare cache purge failed: ${errors}`);
       return;
     }

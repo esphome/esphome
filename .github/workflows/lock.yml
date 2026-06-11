@@ -1,27 +1,16 @@
-name: Lock
+name: Lock closed issues and PRs
 
 on:
   schedule:
-    - cron: '30 0 * * *'
+    - cron: "30 0 * * *"  # Run daily at 00:30 UTC
   workflow_dispatch:
 
-permissions:
-  issues: write
-  pull-requests: write
-
-concurrency:
-  group: lock
+# Deny by default; the lock job opts in to exactly what the reusable workflow needs.
+permissions: {}
 
 jobs:
   lock:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: dessant/lock-threads@7266a7ce5c1df01b1c6db85bf8cd86c737dadbe7 # v4
-        with:
-          pr-inactive-days: "1"
-          pr-lock-reason: ""
-          exclude-any-pr-labels: keep-open
-
-          issue-inactive-days: "7"
-          issue-lock-reason: ""
-          exclude-any-issue-labels: keep-open
+    permissions:
+      issues: write         # issues.lock on closed issues
+      pull-requests: write  # issues.lock on closed pull requests
+    uses: esphome/workflows/.github/workflows/lock.yml@025a1e6255610c498ed590403b7e510b69e474df  # 2026.4.1

@@ -182,6 +182,7 @@ If you're just seeing `Connecting....____....` on the screen and installation ("
 - Some devices may require you to keep `GPIO0` and `GND` connected at least until flashing has begun.
 - Some devices may require you to power-cycle them to restart programming mode after erasing flash; they won't
   auto-reset.
+- Some devices may require you to double-click the RST or reset button.  Connecting RST to GND, disconnecting, then reconnecting quickly and disconnecting may also work.
 
 - Last but not least, this could be a sign that your microcontroller is defective, damaged or otherwise cannot be
   programmed. :(
@@ -297,7 +298,7 @@ You can find our issue tracker [on GitHub](https://github.com/esphome/esphome/is
 
 ## How do I update to the latest version?
 
-In Home Assistant, an update notification will appear when there's an update available (as with all add-ons).
+In Home Assistant, an update notification will appear when there's an update available (as with all apps).
 
 If you're running the Docker container independently of Home Assistant, run:
 
@@ -314,7 +315,7 @@ docker pull ghcr.io/esphome/esphome:stable
 ESPHome has a beta release cycle so that new releases can easily be tested before the changes are deployed to the
 stable channel. You can help test ESPHome (and use new features) by installing the beta:
 
-- For Home Assistant supervised installs, search for "ESPHome" in the Add-on Store. Note that the add-ons are named
+- For Home Assistant supervised installs, search for "ESPHome" in the App Store. Note that the apps are named
   accordingly; for the beta version, you'll want "ESPHome Device Builder (beta)".
 
 - If you're running the container in Docker independently of Home Assistant:
@@ -337,7 +338,7 @@ only developers use.
 
 That aside, if you want to install the `dev` version of ESPHome:
 
-- For Home Assistant supervised installs, search for "ESPHome" in the Add-on Store. Note that the add-ons are named
+- For Home Assistant supervised installs, search for "ESPHome" in the App Store. Note that the apps are named
   accordingly; for the dev version, you'll want "ESPHome Device Builder (dev)".
 
 - From `pip`  :

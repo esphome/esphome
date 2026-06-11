@@ -19,8 +19,7 @@
 
   var currentPath = window.location.pathname + window.location.search;
   if (pathSpan) {
-    pathSpan.textContent =
-      currentPath.length > 60 ? currentPath.slice(0, 57) + "..." : currentPath;
+    pathSpan.textContent = currentPath.length > 60 ? currentPath.slice(0, 57) + "..." : currentPath;
   }
 
   // --- Suggestion engine -----------------------------------------------
@@ -85,15 +84,9 @@
         }
 
         if (lastSeg) {
-          var urlSlug = url
-            .replace(/\/$/, "")
-            .split("/")
-            .pop();
+          var urlSlug = url.replace(/\/$/, "").split("/").pop();
           var titleSlug = title.replace(/\s+/g, "-");
-          var best = Math.min(
-            editDistance(lastSeg, urlSlug),
-            editDistance(lastSeg, titleSlug),
-          );
+          var best = Math.min(editDistance(lastSeg, urlSlug), editDistance(lastSeg, titleSlug));
           if (best === 0) score += 10;
           else if (best <= 2) score += 6;
           else if (best <= 4) score += 3;
@@ -221,9 +214,7 @@
 
   var commands = {
     help: function () {
-      appendLine(
-        '<span class="error-404__log-text">Available commands:</span>',
-      );
+      appendLine('<span class="error-404__log-text">Available commands:</span>');
       var list = [
         ["help", "show this message"],
         ["ls [section]", "list sections or pages in a section"],
@@ -250,9 +241,7 @@
             "</span>",
         );
       });
-      appendLine(
-        '<span class="error-404__log-tag">  (plus a handful of easter eggs…)</span>',
-      );
+      appendLine('<span class="error-404__log-tag">  (plus a handful of easter eggs…)</span>');
     },
 
     ls: function (args) {
@@ -264,9 +253,7 @@
           if (parts.length) sections[parts[0]] = true;
         });
         var keys = Object.keys(sections).sort();
-        appendLine(
-          '<span class="error-404__log-text">Top-level sections:</span>',
-        );
+        appendLine('<span class="error-404__log-text">Top-level sections:</span>');
         keys.forEach(function (s) {
           appendLine(
             '<span class="error-404__log-suggest">  →</span> ' +
@@ -277,9 +264,7 @@
               "/</a>",
           );
         });
-        appendLine(
-          '<span class="error-404__log-tag">  Tip: <code>ls components</code> to list components.</span>',
-        );
+        appendLine('<span class="error-404__log-tag">  Tip: <code>ls components</code> to list components.</span>');
         return;
       }
       var prefix = "/" + section + "/";
@@ -291,11 +276,7 @@
         return;
       }
       appendLine(
-        '<span class="error-404__log-text">' +
-          inSection.length +
-          " page(s) in /" +
-          escapeHtml(section) +
-          "/:</span>",
+        '<span class="error-404__log-text">' + inSection.length + " page(s) in /" + escapeHtml(section) + "/:</span>",
       );
       inSection.forEach(function (r) {
         appendLine(
@@ -356,9 +337,7 @@
       if (btn) {
         btn.click();
         setTimeout(function () {
-          var box = document.querySelector(
-            'dialog[open] input[type="search"], dialog[open] input[type="text"]',
-          );
+          var box = document.querySelector('dialog[open] input[type="search"], dialog[open] input[type="text"]');
           if (box) {
             box.value = q;
             box.dispatchEvent(new Event("input", { bubbles: true }));
@@ -375,10 +354,7 @@
     },
 
     pwd: function () {
-      appendText(
-        window.location.pathname + window.location.search,
-        "error-404__log-text",
-      );
+      appendText(window.location.pathname + window.location.search, "error-404__log-text");
     },
 
     clear: function () {
@@ -386,10 +362,7 @@
     },
 
     reboot: function () {
-      appendText(
-        "Rebooting ESPHome in 1 second…",
-        "error-404__log-warn",
-      );
+      appendText("Rebooting ESPHome in 1 second…", "error-404__log-warn");
       setTimeout(function () {
         window.location.reload();
       }, 800);
@@ -416,10 +389,7 @@
       var secs = Math.floor(performance.now() / 1000);
       var m = Math.floor(secs / 60);
       var s = secs % 60;
-      appendText(
-        "up " + m + "m " + s + "s, load average: 0.04, 0.01, 0.00",
-        "error-404__log-text",
-      );
+      appendText("up " + m + "m " + s + "s, load average: 0.04, 0.01, 0.00", "error-404__log-text");
     },
 
     echo: function (args) {
@@ -429,58 +399,31 @@
     cat: function (args) {
       var file = (args[0] || "").toLowerCase();
       if (file === "secrets.yaml") {
-        appendLine(
-          '<span class="error-404__log-err">cat: secrets.yaml: Permission denied</span>',
-        );
-        appendLine(
-          '<span class="error-404__log-tag">  (nice try — secrets stay secret)</span>',
-        );
+        appendLine('<span class="error-404__log-err">cat: secrets.yaml: Permission denied</span>');
+        appendLine('<span class="error-404__log-tag">  (nice try — secrets stay secret)</span>');
       } else if (file === "config.yaml" || file === "esphome.yaml") {
-        appendLine(
-          '<span class="error-404__log-text">esphome:</span>',
-        );
-        appendLine(
-          '<span class="error-404__log-text">  name: docs-server</span>',
-        );
-        appendLine(
-          '<span class="error-404__log-text">  friendly_name: esphome.io</span>',
-        );
-        appendLine(
-          '<span class="error-404__log-text">wifi:</span>',
-        );
-        appendLine(
-          '<span class="error-404__log-text">  ssid: !secret wifi_ssid</span>',
-        );
-        appendLine(
-          '<span class="error-404__log-text">  password: !secret wifi_password</span>',
-        );
-        appendLine(
-          '<span class="error-404__log-text">logger:</span>',
-        );
+        appendLine('<span class="error-404__log-text">esphome:</span>');
+        appendLine('<span class="error-404__log-text">  name: docs-server</span>');
+        appendLine('<span class="error-404__log-text">  friendly_name: esphome.io</span>');
+        appendLine('<span class="error-404__log-text">wifi:</span>');
+        appendLine('<span class="error-404__log-text">  ssid: !secret wifi_ssid</span>');
+        appendLine('<span class="error-404__log-text">  password: !secret wifi_password</span>');
+        appendLine('<span class="error-404__log-text">logger:</span>');
       } else if (file) {
-        appendText(
-          "cat: " + args[0] + ": No such file or directory",
-          "error-404__log-err",
-        );
+        appendText("cat: " + args[0] + ": No such file or directory", "error-404__log-err");
       } else {
         appendText("cat: missing operand", "error-404__log-err");
       }
     },
 
     sudo: function () {
-      appendText(
-        "sudo: permission denied — no root on ESP",
-        "error-404__log-err",
-      );
+      appendText("sudo: permission denied — no root on ESP", "error-404__log-err");
     },
 
     rm: function (args) {
       var joined = args.join(" ");
       if (joined.indexOf("-rf") !== -1 || joined.indexOf("/") !== -1) {
-        appendText(
-          "rm: refusing to remove '/': filesystem is flash, and flash is forever.",
-          "error-404__log-err",
-        );
+        appendText("rm: refusing to remove '/': filesystem is flash, and flash is forever.", "error-404__log-err");
       } else {
         appendText("rm: missing operand", "error-404__log-err");
       }
@@ -510,10 +453,7 @@
       } else if (sub === "logs") {
         commands.blink();
       } else {
-        appendText(
-          "Usage: esphome [run|logs|compile]",
-          "error-404__log-text",
-        );
+        appendText("Usage: esphome [run|logs|compile]", "error-404__log-text");
       }
     },
 
@@ -537,16 +477,7 @@
         }
         i++;
         var t = (Math.random() * 20 + 5).toFixed(1);
-        appendText(
-          "64 bytes from " +
-            host +
-            ": icmp_seq=" +
-            i +
-            " ttl=64 time=" +
-            t +
-            " ms",
-          "error-404__log-text",
-        );
+        appendText("64 bytes from " + host + ": icmp_seq=" + i + " ttl=64 time=" + t + " ms", "error-404__log-text");
         scrollToBottom();
         setTimeout(tick, 320);
       })();
@@ -582,27 +513,16 @@
       try {
         fn(parts);
       } catch (err) {
-        appendText(
-          "internal error: " + (err && err.message ? err.message : err),
-          "error-404__log-err",
-        );
+        appendText("internal error: " + (err && err.message ? err.message : err), "error-404__log-err");
       }
     } else {
       // Bare name: try fuzzy-opening a page
       var hit = fuzzyFindRoute(trimmed);
       if (hit) {
-        appendText(
-          cmd +
-            ": not a command — opening closest match " +
-            hit.url,
-          "error-404__log-text",
-        );
+        appendText(cmd + ": not a command — opening closest match " + hit.url, "error-404__log-text");
         navigate(hit.url);
       } else {
-        appendText(
-          cmd + ": command not found. Try 'help'.",
-          "error-404__log-err",
-        );
+        appendText(cmd + ": command not found. Try 'help'.", "error-404__log-err");
       }
     }
   }

@@ -15,17 +15,14 @@ interface Props {
 const { text, path } = Astro.props;
 
 // Process the path to generate the API docs URL
-const lastPathElement = path.split('/').pop() || path;
+const lastPathElement = path.split("/").pop() || path;
 
-let processedPath = lastPathElement
-  .replace(/_/g, '__')
-  .replace(/\./g, '_8')
-  .replace(/:/g, '_1');
+let processedPath = lastPathElement.replace(/_/g, "__").replace(/\./g, "_8").replace(/:/g, "_1");
 
 // Convert capital letters to lowercase preceded by underscore
 processedPath = processedPath.replace(/([A-Z])/g, (match) => `_${match.toLowerCase()}`);
 
-const baseUrl = 'https://api-docs.esphome.io';
+const baseUrl = "https://api-docs.esphome.io";
 const url = `${baseUrl}/classesphome_1_1${processedPath}`;
 ---
 
