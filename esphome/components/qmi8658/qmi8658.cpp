@@ -46,31 +46,32 @@ void QMI8658Component::setup() {
 
   // 3. Serial interface: enable register address auto-increment
   if (!this->write_byte(QMI8658_REG_CTRL1, QMI8658_CTRL1_VALUE)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to write REG_CTRL1"));
     return;
   }
 
   // 4. Configure accelerometer (CTRL2 = range | ODR)
   if (!this->write_byte(QMI8658_REG_CTRL2, (uint8_t) (this->accel_range_) | (uint8_t) (this->accel_odr_))) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to write REG_CTRL2"));
     return;
   }
 
   // 5. Configure gyroscope (CTRL3 = range | ODR)
   if (!this->write_byte(QMI8658_REG_CTRL3, (uint8_t) (this->gyro_range_) | (uint8_t) (this->gyro_odr_))) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to write REG_CTRL3"));
     return;
   }
 
   // 6. Disable the built-in low-pass filters (leave raw data to the motion pipeline)
   if (!this->write_byte(QMI8658_REG_CTRL5, 0x00)) {
+    this->mark_failed(LOG_STR("Failed to write REG_CTRL5"));
     this->mark_failed();
     return;
   }
 
   // 7. Enable accelerometer and gyroscope
   if (!this->write_byte(QMI8658_REG_CTRL7, QMI8658_CTRL7_ACC_EN | QMI8658_CTRL7_GYR_EN)) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to write REG_CTRL7"));
     return;
   }
   delay(5);
@@ -108,14 +109,22 @@ bool QMI8658Component::update_data(motion::MotionData &data) {
 
   // Data is little-endian (low byte first).
   float scale = ACCEL_SCALE[this->accel_range_ >> 4];
-  data.acceleration[motion::X_AXIS] = (int16_t) ((raw_data[ACC_OFFS + 1] << 8) | raw_data[ACC_OFFS + 0]) * scale;
-  data.acceleration[motion::Y_AXIS] = (int16_t) ((raw_data[ACC_OFFS + 3] << 8) | raw_data[ACC_OFFS + 2]) * scale;
-  data.acceleration[motion::Z_AXIS] = (int16_t) ((raw_data[ACC_OFFS + 5] << 8) | raw_data[ACC_OFFS + 4]) * scale;
+  int16_t raw_x = encode_uint16(raw_data[ACC_OFFS + 1], raw_data[ACC_OFFS + 0]);
+  int16_t raw_y = encode_uint16(raw_data[ACC_OFFS + 3], raw_data[ACC_OFFS + 2]);
+  int16_t raw_z = encode_uint16(raw_data[ACC_OFFS + 5], raw_data[ACC_OFFS + 4]);
+  ESP_LOGV(TAG, "Read raw accel data: %d, %d, %d", raw_x, raw_y, raw_z);
+  data.acceleration[motion::X_AXIS] = raw_x * scale;
+  data.acceleration[motion::Y_AXIS] = raw_y * scale;
+  data.acceleration[motion::Z_AXIS] = raw_z * scale;
 
   scale = GYRO_SCALE[this->gyro_range_ >> 4];
-  data.angular_rate[motion::X_AXIS] = (int16_t) ((raw_data[GYR_OFFS + 1] << 8) | raw_data[GYR_OFFS + 0]) * scale;
-  data.angular_rate[motion::Y_AXIS] = (int16_t) ((raw_data[GYR_OFFS + 3] << 8) | raw_data[GYR_OFFS + 2]) * scale;
-  data.angular_rate[motion::Z_AXIS] = (int16_t) ((raw_data[GYR_OFFS + 5] << 8) | raw_data[GYR_OFFS + 4]) * scale;
+  raw_x = encode_uint16(raw_data[GYR_OFFS + 1], raw_data[GYR_OFFS + 0]);
+  raw_y = encode_uint16(raw_data[GYR_OFFS + 3], raw_data[GYR_OFFS + 2]);
+  raw_z = encode_uint16(raw_data[GYR_OFFS + 5], raw_data[GYR_OFFS + 4]);
+  ESP_LOGV(TAG, "Read raw gyro data: %d, %d, %d", raw_x, raw_y, raw_z);
+  data.angular_rate[motion::X_AXIS] = raw_x * scale;
+  data.angular_rate[motion::Y_AXIS] = raw_y * scale;
+  data.angular_rate[motion::Z_AXIS] = raw_z * scale;
 
   if (this->temperature_callback_.empty())
     return true;

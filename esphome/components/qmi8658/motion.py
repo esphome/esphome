@@ -1,14 +1,14 @@
 import esphome.codegen as cg
 from esphome.components import i2c
-from esphome.components.motion import motion_schema, new_motion_component
-import esphome.config_validation as cv
-
-from ..const import (
+from esphome.components.const import (
     CONF_ACCELEROMETER_ODR,
     CONF_ACCELEROMETER_RANGE,
     CONF_GYROSCOPE_ODR,
     CONF_GYROSCOPE_RANGE,
 )
+from esphome.components.motion import motion_schema, new_motion_component
+import esphome.config_validation as cv
+
 from . import QMI8658Component, qmi8658_ns
 
 #  Enum proxies (must match the C++ enum values exactly)
