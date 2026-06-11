@@ -160,3 +160,43 @@ def test_write_ini_no_change_when_content_same(
     call_args = mock_write_file_if_changed.call_args[0]
     assert call_args[0] == ini_file
     assert content in call_args[1]
+
+
+@pytest.fixture
+def clean_core(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(CORE, "name", "test")
+    monkeypatch.setattr(CORE, "platformio_options", {})
+    monkeypatch.setattr(CORE, "platformio_libraries", {})
+    monkeypatch.setattr(CORE, "build_flags", set())
+    monkeypatch.setattr(CORE, "build_unflags", set())
+
+
+def test_get_ini_content_pins_cpp_standard(
+    clean_core: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """cg.set_cpp_standard() pins -std via build_flags and unflags every other
+    known standard so the platform/framework default is stripped."""
+    monkeypatch.setattr(CORE, "cpp_standard", "gnu++20")
+
+    content = platformio.get_ini_content()
+
+    flags_section = content.split("build_flags =")[1].split("build_unflags =")[0]
+    unflags_section = content.split("build_unflags =")[1].split("extra_scripts")[0]
+    assert "-std=gnu++20\n" in flags_section
+    # Both the GNU and strict dialects of every other standard are stripped.
+    for year in ("11", "14", "17", "23", "26", "2a", "2b", "2c"):
+        assert f"-std=gnu++{year}\n" in unflags_section
+        assert f"-std=c++{year}\n" in unflags_section
+    assert "-std=c++20\n" in unflags_section
+    # The selected standard must not unflag itself.
+    assert "-std=gnu++20\n" not in unflags_section
+
+
+def test_get_ini_content_no_cpp_standard(
+    clean_core: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(CORE, "cpp_standard", None)
+
+    content = platformio.get_ini_content()
+
+    assert "-std=" not in content
