@@ -70,6 +70,8 @@ CONF_LOTTIE_HEIGHT = "lottie_height"
 
 lv_lottie_t = LvType("lv_lottie_t")
 
+LOTTIE_JSON_EXTENSIONS = (".json", ".lot")
+
 
 def lottie_path_validator(value):
     """Validate Lottie source file path (on ESP32 filesystem)."""
@@ -77,11 +79,12 @@ def lottie_path_validator(value):
     if not value.startswith("/"):
         raise cv.Invalid(
             f"Lottie src must be an absolute file path starting with '/', got: '{value}'. "
-            f"Example: '/sdcard/animation.json' or '/littlefs/animation.json'"
+            f"Example: '/sdcard/animation.json' or '/littlefs/animation.lot'"
         )
-    if not value.endswith(".json"):
+    if not value.lower().endswith(LOTTIE_JSON_EXTENSIONS):
         raise cv.Invalid(
-            f"Lottie src must be a JSON file (ending with .json), got: '{value}'"
+            "Lottie src must be a Lottie JSON file ending with .json or .lot; "
+            ".lottie dotLottie archives are not supported"
         )
     return value
 
@@ -89,6 +92,11 @@ def lottie_path_validator(value):
 def lottie_file_validator(value):
     """Validate and resolve local Lottie file path (to embed in firmware)."""
     value = cv.string(value)
+    if not value.lower().endswith(LOTTIE_JSON_EXTENSIONS):
+        raise cv.Invalid(
+            "Lottie file must be a Lottie JSON file ending with .json or .lot; "
+            ".lottie dotLottie archives are not supported"
+        )
     # Resolve relative to config directory
     path = CORE.relative_config_path(value)
     if not Path(path).is_file():
