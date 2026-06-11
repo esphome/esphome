@@ -899,3 +899,16 @@ def test_git_source_salt_scopes_domain(monkeypatch: pytest.MonkeyPatch) -> None:
     source.download("noise-c")
     source.download("noise-c", salt="abcd1234")
     assert domains == ["pio_components", "pio_components/abcd1234"]
+
+
+def test_idf_component_download_passes_salt() -> None:
+    """IDFComponent.download forwards the sanitized name and salt to the
+    source and records the returned path."""
+    source = MagicMock()
+    source.download.return_value = Path("/converted/owner/name")
+
+    c = IDFComponent("owner/name", "1.0", source=source)
+    c.download(force=True, salt="abcd1234")
+
+    source.download.assert_called_once_with("owner/name", force=True, salt="abcd1234")
+    assert c.path == Path("/converted/owner/name")

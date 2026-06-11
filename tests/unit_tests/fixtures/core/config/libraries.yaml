@@ -1,0 +1,8 @@
+esphome:
+  name: test-libraries
+  libraries:
+    - SomeLib
+    - bblanchon/ArduinoJson@7.4.2
+    - noise-c=https://github.com/esphome/noise-c.git
+
+host:

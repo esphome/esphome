@@ -1246,3 +1246,28 @@ async def test_add_platformio_options_platformio() -> None:
         "lib_ignore": ["libsodium"],
         "upload_speed": "115200",
     }
+
+
+def test_add_library_str_bare_url_requires_name() -> None:
+    """A bare repository URL has no library name; CORE.add_library rejects it."""
+    with pytest.raises(ValueError, match="must have a name"):
+        config._add_library_str("https://github.com/esphome/noise-c.git")
+
+
+@pytest.mark.asyncio
+@pytest.mark.filterwarnings("ignore::RuntimeWarning")
+async def test_to_code_adds_libraries(yaml_file: Callable[[str], Path]) -> None:
+    """esphome->libraries entries are parsed and registered via cg.add_library."""
+    result = load_config_from_fixture(yaml_file, "libraries.yaml", FIXTURES_DIR)
+    assert result is not None
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
+        mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
+        await config.to_code(result[CONF_ESPHOME])
+
+    mock_cg.add_library.assert_any_call("SomeLib", None)
+    mock_cg.add_library.assert_any_call("bblanchon/ArduinoJson", "7.4.2")
+    mock_cg.add_library.assert_any_call(
+        "noise-c", None, "https://github.com/esphome/noise-c.git"
+    )
