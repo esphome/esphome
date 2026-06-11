@@ -4,7 +4,7 @@
 #include "esphome/core/gpio.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
+namespace esphome::power_supply::testing {
 
 // Minimal dummy internal GPIO pin implementation for testing
 class DummyInternalPin : public InternalGPIOPin {
@@ -44,4 +44,4 @@ TEST(PowerSupply, FallsBackToIOWhenNotEnableOnBoot) {
   EXPECT_EQ(ps.get_setup_priority(), setup_priority::IO);
 }
 
-}  // namespace esphome
+}  // namespace esphome::power_supply::testing
