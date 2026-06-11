@@ -220,7 +220,7 @@ drivers ride on top:
 The legacy schema continues to work and the `provider` key is now ignored with a deprecation warning, slated
 for removal in 2026.11.0. Existing configurations should still validate without change.
 
-The companion [DSMR](/components/dsmr/) component also got a fix and feature pass
+The companion [DSMR](/components/sensor/dsmr/) component also got a fix and feature pass
 ([#16561](https://github.com/esphome/esphome/pull/16561) by [@PolarGoose](https://github.com/PolarGoose)),
 including support for EON Hungary meters, custom auth keys, and automatic hex-string detection in equipment
 ID fields. Note that `electricity_switch_position` moved from `sensor` to `text_sensor`, which may need a YAML
