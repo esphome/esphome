@@ -521,29 +521,28 @@ def _add_library_str(lib: str) -> None:
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> None:
     if CORE.using_toolchain_esp_idf:
-        # The native ESP-IDF build doesn't read platformio.ini; honor build_flags
-        # by routing them through the regular build flag mechanism and warn about
-        # any other option, which would otherwise be silently ignored.
+        # The native ESP-IDF build doesn't read platformio.ini; honor the
+        # options with a native equivalent and warn about the rest, which
+        # would otherwise be silently ignored.
         for key, val in pio_options.items():
+            vals = [val] if isinstance(val, str) else val
             if key == CONF_BUILD_FLAGS:
-                for flag in [val] if isinstance(val, str) else val:
+                # Routed through the regular build flag mechanism
+                for flag in vals:
                     cg.add_build_flag(flag)
-            elif key == "upload_speed":
-                # Read from the raw config at upload time (upload_using_esptool),
-                # so it works on the native toolchain too.
-                pass
             elif key == "lib_deps":
                 # Routed through the regular library mechanism so the libraries
-                # are converted to IDF components like any other PIO library.
-                for lib in [val] if isinstance(val, str) else val:
+                # are converted to IDF components like any other PIO library
+                for lib in vals:
                     _add_library_str(lib)
             elif key == "lib_ignore":
-                # Stored so the PIO-library-to-IDF-component conversion
-                # (generate_idf_components) can read it; it filters both
-                # top-level libraries and dependencies discovered during
-                # conversion.
-                cg.add_platformio_option(key, [val] if isinstance(val, str) else val)
-            else:
+                # Read by the PIO-library-to-IDF-component conversion
+                # (generate_idf_components); filters both top-level libraries
+                # and dependencies discovered during conversion
+                cg.add_platformio_option(key, vals)
+            elif key != "upload_speed":
+                # upload_speed needs no handling: it is read from the raw
+                # config at upload time (upload_using_esptool)
                 _LOGGER.warning(
                     "esphome->platformio_options->%s is ignored when building with "
                     "the native ESP-IDF toolchain",
