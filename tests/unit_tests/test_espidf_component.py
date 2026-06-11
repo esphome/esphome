@@ -861,3 +861,41 @@ def test_generate_idf_components_incompatible_dependency_skipped(
     assert [c.name for c in top] == ["esphome/A"]
     # The incompatible dependency was dropped, not wired in.
     assert top[0].dependencies == []
+
+
+def test_url_source_salt_changes_cache_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The salt is mixed into the URL hash so salted conversions get their own
+    cache tree. Pre-created extraction markers keep this network-free."""
+    monkeypatch.setattr(CORE, "config_path", tmp_path / "test.yaml")
+    url = "http://example.com/lib.tar.gz"
+    base = tmp_path / ".esphome" / "pio_components"
+    expected = {}
+    for salt in ("", "abcd1234"):
+        digest = hashlib.sha256((url + salt).encode()).hexdigest()[:8]
+        expected[salt] = base / digest / "lib"
+        expected[salt].mkdir(parents=True)
+        (expected[salt] / ".esphome_extracted").touch()
+
+    source = URLSource(url)
+    assert source.download("lib") == expected[""]
+    assert source.download("lib", salt="abcd1234") == expected["abcd1234"]
+
+
+def test_git_source_salt_scopes_domain(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The salt becomes a subdirectory of the git clone domain."""
+    domains: list[str] = []
+
+    def fake_clone_or_update(**kwargs):
+        domains.append(kwargs["domain"])
+        return Path("/cloned"), None
+
+    monkeypatch.setattr(
+        esphome.espidf.component.git, "clone_or_update", fake_clone_or_update
+    )
+
+    source = GitSource("https://github.com/esphome/noise-c.git", "v1.0")
+    source.download("noise-c")
+    source.download("noise-c", salt="abcd1234")
+    assert domains == ["pio_components", "pio_components/abcd1234"]
