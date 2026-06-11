@@ -291,11 +291,13 @@ def test_flash_mode_sets_sdkconfig_and_pio_option(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """flash_mode selects the esptool flash mode on both backends."""
+    """flash_mode/flash_frequency select the esptool flash parameters on both backends."""
     generate_main(component_config_path("flash_mode_idf.yaml"))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_ESPTOOLPY_FLASHMODE_QIO") is True
+    assert sdkconfig.get("CONFIG_ESPTOOLPY_FLASHFREQ_80M") is True
     assert CORE.platformio_options.get("board_build.flash_mode") == "qio"
+    assert CORE.platformio_options.get("board_build.f_flash") == "80000000L"
 
 
 def test_flash_mode_unset_leaves_defaults(
@@ -306,4 +308,6 @@ def test_flash_mode_unset_leaves_defaults(
     generate_main(component_config_path("flash_mode_default.yaml"))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert not any(key.startswith("CONFIG_ESPTOOLPY_FLASHMODE_") for key in sdkconfig)
+    assert not any(key.startswith("CONFIG_ESPTOOLPY_FLASHFREQ_") for key in sdkconfig)
     assert "board_build.flash_mode" not in CORE.platformio_options
+    assert "board_build.f_flash" not in CORE.platformio_options

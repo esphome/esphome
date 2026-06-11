@@ -4,5 +4,6 @@ esphome:
 esp32:
   board: esp32dev
   flash_mode: qio
+  flash_frequency: 80MHz
   framework:
     type: esp-idf
