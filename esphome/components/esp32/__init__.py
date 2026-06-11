@@ -1620,8 +1620,6 @@ CONF_FLASH_FREQUENCY = "flash_frequency"
 CONF_CPU_FREQUENCY = "cpu_frequency"
 CONF_PARTITIONS = "partitions"
 FLASH_MODES = ["qio", "qout", "dio", "dout", "opi"]
-# The full ESP-IDF ESPTOOLPY_FLASHFREQ choice set; which entries are valid
-# depends on the variant and is enforced by the IDF Kconfig at build time.
 FLASH_FREQUENCIES = [
     f"{freq}MHZ" for freq in (120, 80, 64, 60, 48, 40, 32, 30, 26, 24, 20, 16)
 ]
@@ -1638,8 +1636,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FLASH_SIZE, default="4MB"): cv.one_of(
                 *FLASH_SIZES, upper=True
             ),
-            # No default: when unset, the board definition (PlatformIO) or the
-            # sdkconfig default (ESP-IDF) decides, preserving existing builds.
             cv.Optional(CONF_FLASH_MODE): cv.one_of(*FLASH_MODES, lower=True),
             cv.Optional(CONF_FLASH_FREQUENCY): cv.one_of(
                 *FLASH_FREQUENCIES, upper=True
