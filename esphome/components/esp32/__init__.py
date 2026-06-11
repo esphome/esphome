@@ -1615,8 +1615,10 @@ FLASH_SIZES = [
 ]
 
 CONF_FLASH_SIZE = "flash_size"
+CONF_FLASH_MODE = "flash_mode"
 CONF_CPU_FREQUENCY = "cpu_frequency"
 CONF_PARTITIONS = "partitions"
+FLASH_MODES = ["qio", "qout", "dio", "dout", "opi"]
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -1630,6 +1632,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FLASH_SIZE, default="4MB"): cv.one_of(
                 *FLASH_SIZES, upper=True
             ),
+            # No default: when unset, the board definition (PlatformIO) or the
+            # sdkconfig default (ESP-IDF) decides, preserving existing builds.
+            cv.Optional(CONF_FLASH_MODE): cv.one_of(*FLASH_MODES, lower=True),
             cv.Optional(CONF_PARTITIONS): cv.Any(
                 cv.file_,
                 cv.ensure_list(
@@ -1866,6 +1871,8 @@ async def to_code(config):
             "board_upload.maximum_size",
             int(config[CONF_FLASH_SIZE].removesuffix("MB")) * 1024 * 1024,
         )
+        if CONF_FLASH_MODE in config:
+            cg.add_platformio_option("board_build.flash_mode", config[CONF_FLASH_MODE])
 
         if CONF_SOURCE in conf:
             cg.add_platformio_option("platform_packages", [conf[CONF_SOURCE]])
@@ -2016,6 +2023,10 @@ async def to_code(config):
     add_idf_sdkconfig_option(
         f"CONFIG_ESPTOOLPY_FLASHSIZE_{config[CONF_FLASH_SIZE]}", True
     )
+    if CONF_FLASH_MODE in config:
+        add_idf_sdkconfig_option(
+            f"CONFIG_ESPTOOLPY_FLASHMODE_{config[CONF_FLASH_MODE].upper()}", True
+        )
 
     # ESP32-P4: ESP-IDF 5.5.3 changed the default of ESP32P4_SELECTS_REV_LESS_V3
     # from y to n. PlatformIO uses sections.ld.in (for rev <3) or
