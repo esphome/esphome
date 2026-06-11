@@ -42,16 +42,6 @@ CODEOWNERS = ["@esphome/core"]
 DOMAIN = "uart"
 
 
-def AUTO_LOAD() -> list[str]:
-    """Ideally, we would only auto-load socket only when wake_loop_on_rx is requested;
-    however, AUTO_LOAD is examined before wake_loop_on_rx is set, so instead, since ESP32
-    always uses socket select support in the main app, we'll just ensure it's loaded here.
-    """
-    if CORE.is_esp32:
-        return ["socket"]
-    return []
-
-
 uart_ns = cg.esphome_ns.namespace("uart")
 UARTComponent = uart_ns.class_("UARTComponent")
 
@@ -500,6 +490,7 @@ async def register_uart_device(var, config):
         },
         key=CONF_DATA,
     ),
+    synchronous=True,
 )
 async def uart_write_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -522,14 +513,11 @@ async def uart_write_to_code(config, action_id, template_arg, args):
 @coroutine_with_priority(CoroPriority.FINAL)
 async def final_step():
     """Final code generation step to configure optional UART features."""
-    if CORE.is_esp32 and CORE.has_networking:
-        # Wake-on-RX is essentially free on ESP32 (just an ISR function pointer
-        # registration) — enable by default to reduce RX buffer overflow risk
-        # by waking the main loop immediately when data arrives.
-        # Requires networking for the wake_loop_isrsafe() infrastructure.
-        from esphome.components import socket
-
-        socket.require_wake_loop_threadsafe()
+    if (CORE.is_esp32 or CORE.is_esp8266) and CORE.has_networking:
+        # Wake-on-RX is essentially free (just an ISR function pointer
+        # registration on ESP32, an inline flag set on ESP8266 software
+        # serial) — enable by default to reduce RX buffer overflow risk by
+        # waking the main loop immediately when data arrives.
         cg.add_define("USE_UART_WAKE_LOOP_ON_RX")
 
 

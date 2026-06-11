@@ -68,7 +68,10 @@ CALIBRATION_ACTION_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "hc8.calibrate", HC8CalibrateAction, CALIBRATION_ACTION_SCHEMA
+    "hc8.calibrate",
+    HC8CalibrateAction,
+    CALIBRATION_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def hc8_calibration_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

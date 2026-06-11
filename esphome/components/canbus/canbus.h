@@ -7,8 +7,7 @@
 #include <cinttypes>
 #include <vector>
 
-namespace esphome {
-namespace canbus {
+namespace esphome::canbus {
 
 enum Error : uint8_t {
   ERROR_OK = 0,
@@ -91,10 +90,7 @@ class Canbus : public Component {
    * - rtr If this is a remote transmission request
    * - data The message data
    */
-  void add_callback(
-      std::function<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)> callback) {
-    this->callback_manager_.add(std::move(callback));
-  }
+  template<typename F> void add_callback(F &&callback) { this->callback_manager_.add(std::forward<F>(callback)); }
 
  protected:
   template<typename... Ts> friend class CanbusSendAction;
@@ -180,5 +176,4 @@ class CanbusTrigger : public Trigger<std::vector<uint8_t>, uint32_t, bool>, publ
   optional<bool> remote_transmission_request_{};
 };
 
-}  // namespace canbus
-}  // namespace esphome
+}  // namespace esphome::canbus

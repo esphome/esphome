@@ -1,11 +1,12 @@
 #ifdef USE_ESP32
 #include "logger.h"
 
+#include "esphome/components/esp32/crash_handler.h"
 #include <esp_log.h>
 
 #include <driver/uart.h>
 
-#ifdef USE_LOGGER_USB_SERIAL_JTAG
+#ifdef USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG
 #include <driver/usb_serial_jtag.h>
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 3, 0)
 #include <esp_vfs_dev.h>
@@ -28,8 +29,8 @@ namespace esphome::logger {
 
 static const char *const TAG = "logger";
 
-#ifdef USE_LOGGER_USB_SERIAL_JTAG
-static void init_usb_serial_jtag_() {
+#ifdef USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG
+static void init_usb_serial_jtag() {
   setvbuf(stdin, NULL, _IONBF, 0);  // Disable buffering on stdin
 
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 3, 0)
@@ -107,7 +108,9 @@ void Logger::pre_setup() {
 #endif
 #ifdef USE_LOGGER_USB_SERIAL_JTAG
       case UART_SELECTION_USB_SERIAL_JTAG:
-        init_usb_serial_jtag_();
+#ifdef USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG
+        init_usb_serial_jtag();
+#endif
         break;
 #endif
     }
@@ -117,22 +120,8 @@ void Logger::pre_setup() {
   esp_log_set_vprintf(esp_idf_log_vprintf_);
 
   ESP_LOGI(TAG, "Log initialized");
-}
-
-void HOT Logger::write_msg_(const char *msg, uint16_t len) {
-#if defined(USE_LOGGER_UART_SELECTION_USB_CDC) || defined(USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG)
-  // USB CDC/JTAG - single write including newline (already in buffer)
-  // Use fwrite to stdout which goes through VFS to USB console
-  //
-  // Note: These defines indicate the user's YAML configuration choice (hardware_uart: USB_CDC/USB_SERIAL_JTAG).
-  // They are ONLY defined when the user explicitly selects USB as the logger output in their config.
-  // This is compile-time selection, not runtime detection - if USB is configured, it's always used.
-  // There is no fallback to regular UART if "USB isn't connected" - that's the user's responsibility
-  // to configure correctly for their hardware. This approach eliminates runtime overhead.
-  fwrite(msg, 1, len, stdout);
-#else
-  // Regular UART - single write including newline (already in buffer)
-  uart_write_bytes(this->uart_num_, msg, len);
+#ifdef USE_ESP32_CRASH_HANDLER
+  esp32::crash_handler_log();
 #endif
 }
 

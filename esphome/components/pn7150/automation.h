@@ -4,22 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/pn7150/pn7150.h"
 
-namespace esphome {
-namespace pn7150 {
-
-class PN7150OnEmulatedTagScanTrigger : public Trigger<> {
- public:
-  explicit PN7150OnEmulatedTagScanTrigger(PN7150 *parent) {
-    parent->add_on_emulated_tag_scan_callback([this]() { this->trigger(); });
-  }
-};
-
-class PN7150OnFinishedWriteTrigger : public Trigger<> {
- public:
-  explicit PN7150OnFinishedWriteTrigger(PN7150 *parent) {
-    parent->add_on_finished_write_callback([this]() { this->trigger(); });
-  }
-};
+namespace esphome::pn7150 {
 
 template<typename... Ts> class PN7150IsWritingCondition : public Condition<Ts...>, public Parented<PN7150> {
  public:
@@ -78,5 +63,4 @@ template<typename... Ts> class SetWriteModeAction : public Action<Ts...>, public
   void play(const Ts &...x) override { this->parent_->write_mode(); }
 };
 
-}  // namespace pn7150
-}  // namespace esphome
+}  // namespace esphome::pn7150

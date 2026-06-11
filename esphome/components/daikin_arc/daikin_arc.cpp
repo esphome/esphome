@@ -5,8 +5,7 @@
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace daikin_arc {
+namespace esphome::daikin_arc {
 
 static const char *const TAG = "daikin.climate";
 
@@ -91,11 +90,10 @@ void DaikinArcClimate::transmit_state() {
   remote_state[5] = this->operation_mode_() | 0x08;
   remote_state[6] = this->temperature_();
   remote_state[7] = this->humidity_();
-  static uint8_t last_humidity = 0x66;
-  if (remote_state[7] != last_humidity && this->mode != climate::CLIMATE_MODE_OFF) {
+  if (remote_state[7] != this->last_humidity_ && this->mode != climate::CLIMATE_MODE_OFF) {
     ESP_LOGD(TAG, "Set Humditiy: %d, %d\n", (int) this->target_humidity, (int) remote_state[7]);
     remote_header[9] |= 0x10;
-    last_humidity = remote_state[7];
+    this->last_humidity_ = remote_state[7];
   }
   uint16_t fan_speed = this->fan_speed_();
   remote_state[8] = fan_speed >> 8;
@@ -218,7 +216,7 @@ uint8_t DaikinArcClimate::temperature_() {
       return 0xc0;
     default:
       float new_temp = clamp<float>(this->target_temperature, DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX);
-      uint8_t temperature = (uint8_t) floor(new_temp);
+      uint8_t temperature = (uint8_t) std::floor(new_temp);
       return temperature << 1 | (new_temp - temperature > 0 ? 0x01 : 0);
   }
 }
@@ -350,8 +348,9 @@ bool DaikinArcClimate::on_receive(remote_base::RemoteReceiveData data) {
   if (data.expect_item(DAIKIN_HEADER_MARK, DAIKIN_HEADER_SPACE)) {
     valid_daikin_frame = true;
     size_t bytes_count = data.size() / 2 / 8;
-    size_t buf_size = bytes_count * 3 + 1;
-    std::unique_ptr<char[]> buf(new char[buf_size]());  // value-initialize (zero-fill)
+    // Header (20) + state (19) = 39 bytes max; truncates gracefully via buf_append_printf
+    char buf[40 * 3 + 1] = {};
+    constexpr size_t buf_size = sizeof(buf);
     size_t buf_pos = 0;
     for (size_t i = 0; i < bytes_count; i++) {
       uint8_t byte = 0;
@@ -363,9 +362,9 @@ bool DaikinArcClimate::on_receive(remote_base::RemoteReceiveData data) {
           break;
         }
       }
-      buf_pos = buf_append_printf(buf.get(), buf_size, buf_pos, "%02x ", byte);
+      buf_pos = buf_append_printf(buf, buf_size, buf_pos, "%02x ", byte);
     }
-    ESP_LOGD(TAG, "WHOLE FRAME %s  size: %d", buf.get(), data.size());
+    ESP_LOGD(TAG, "WHOLE FRAME %s  size: %d", buf, data.size());
   }
   if (!valid_daikin_frame) {
     char sbuf[16 * 10 + 1] = {0};
@@ -492,5 +491,4 @@ void DaikinArcClimate::control(const climate::ClimateCall &call) {
   climate_ir::ClimateIR::control(call);
 }
 
-}  // namespace daikin_arc
-}  // namespace esphome
+}  // namespace esphome::daikin_arc

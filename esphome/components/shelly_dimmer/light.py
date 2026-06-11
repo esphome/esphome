@@ -7,6 +7,7 @@ import requests
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import light, sensor, uart
+from esphome.components.const import CONF_SHA256
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CURRENT,
@@ -22,6 +23,7 @@ from esphome.const import (
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
+    STATE_CLASS_MEASUREMENT,
     UNIT_AMPERE,
     UNIT_VOLT,
     UNIT_WATT,
@@ -38,7 +40,6 @@ ShellyDimmer = shelly_dimmer_ns.class_(
 )
 
 CONF_FIRMWARE = "firmware"
-CONF_SHA256 = "sha256"
 CONF_UPDATE = "update"
 
 CONF_LEADING_EDGE = "leading_edge"
@@ -66,7 +67,7 @@ KNOWN_FIRMWARE = {
 
 
 def parse_firmware_version(value):
-    match = re.match(r"(\d+).(\d+)", value)
+    match = re.fullmatch(r"(\d+)\.(\d+)", value)
     if match is None:
         raise ValueError(f"Not a valid version number {value}")
     major = int(match[1])
@@ -83,7 +84,7 @@ def get_firmware(value):
             req = requests.get(url, timeout=30)
             req.raise_for_status()
         except requests.exceptions.RequestException as e:
-            raise cv.Invalid(f"Could not download firmware file ({url}): {e}")
+            raise cv.Invalid(f"Could not download firmware file ({url}): {e}") from e
 
         h = hashlib.new("sha256")
         h.update(req.content)
@@ -128,7 +129,7 @@ def validate_firmware(value):
 
 def validate_sha256(value):
     value = cv.string(value)
-    if not value.isalnum() or not len(value) == 64:
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", value):
         raise ValueError(f"Not a valid SHA256 hex string: {value}")
     return value
 
@@ -163,16 +164,19 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_WATT,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_POWER,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_VOLT,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_VOLTAGE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_CURRENT): sensor.sensor_schema(
                 unit_of_measurement=UNIT_AMPERE,
                 device_class=DEVICE_CLASS_CURRENT,
                 accuracy_decimals=2,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             # Change the default gamma_correct setting.
             cv.Optional(CONF_GAMMA_CORRECT, default=1.0): cv.positive_float,

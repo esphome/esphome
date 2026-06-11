@@ -147,6 +147,9 @@ class MQTTComponent : public Component {
   /// Internal method for the MQTT client base to schedule a resend of the state on reconnect.
   void schedule_resend_state();
 
+  /// Check if a resend is pending (called by MQTTClientComponent to rate-limit work)
+  bool is_resend_pending() const { return this->resend_state_; }
+
   /// Process pending resend if needed (called by MQTTClientComponent)
   void process_resend();
 
