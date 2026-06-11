@@ -124,6 +124,17 @@ class EthernetComponent final : public Component {
   void on_powerdown() override { powerdown(); }
   bool is_connected() { return this->state_ == EthernetComponentState::CONNECTED; }
 
+  // Per-interface lifecycle (parallels WiFiComponent::enable/disable/is_disabled).
+  // enable_on_boot defaults to true; when false, setup() runs all the driver/netif
+  // installation but skips esp_eth_start(), keeping the link cold until enable() is
+  // called. This is the primary lever for memory reclamation in multi-interface
+  // configurations where only one interface should carry traffic at a time.
+  void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
+  void enable();
+  void disable();
+  bool is_disabled() { return this->disabled_; }
+  bool is_enabled() { return !this->disabled_; }
+
   void set_type(EthernetType type);
 #ifdef USE_ETHERNET_MANUAL_IP
   void set_manual_ip(const ManualIP &manual_ip);
@@ -193,6 +204,16 @@ class EthernetComponent final : public Component {
   void start_connect_();
   void finish_connect_();
   void dump_connect_params_();
+
+#ifdef USE_ESP32
+  // ESP-IDF only: defers the SPI bus init, netif creation, MAC/PHY install, driver
+  // install, netif attach, and event handler registration (which together allocate
+  // ~3-8KB of DMA-capable internal SRAM via SPI driver state + eth driver RX queue)
+  // until ethernet actually needs to come up. Idempotent — guarded by the
+  // ethernet_initialized_ flag. Called from setup() when enable_on_boot_=true, or
+  // from enable() on first runtime enable. Mirrors wifi_lazy_init_() in WiFi.
+  void ethernet_lazy_init_();
+#endif
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   void notify_ip_state_listeners_();
@@ -287,6 +308,17 @@ class EthernetComponent final : public Component {
   bool started_{false};
   bool connected_{false};
   bool got_ipv4_address_{false};
+  // Codegen-time YAML option. When false, setup() defers esp_eth_start().
+  bool enable_on_boot_{true};
+  // Mirror of "is the link intentionally stopped" — set when setup() honors
+  // enable_on_boot=false, cleared by enable(), set again by disable().
+  bool disabled_{false};
+#ifdef USE_ESP32
+  // Tracks whether ethernet_lazy_init_() has completed successfully. Allows enable()
+  // to be called at runtime after enable_on_boot:false without re-allocating, and
+  // ensures setup() skips the heavy init when enable_on_boot_ is false.
+  bool ethernet_initialized_{false};
+#endif
 #if LWIP_IPV6
   uint8_t ipv6_count_{0};
   bool ipv6_setup_done_{false};

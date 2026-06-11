@@ -39,7 +39,11 @@ parser.add_argument(
 )
 parser.add_argument("--check", action="store_true", help="Check only for CI")
 
-args = parser.parse_args()
+# Module-level ``Namespace`` so helper functions can reference ``args``
+# without threading it through every call. ``main()`` fills it via
+# ``parser.parse_args(namespace=args)``; tests import this module without
+# invoking ``main()`` and rely on the defaults below.
+args = argparse.Namespace(output_path=".", check=False)
 
 DUMP_RAW = False
 DUMP_UNKNOWN = False
@@ -850,6 +854,12 @@ def convert(schema, config_var, path):
             convert(ext, config_var, f"{path}/ext{idx}")
         return
 
+    if isinstance(schema, cv.SensitiveValidator):
+        config_var["sensitive"] = True
+        config_var["sensitive_source"] = "explicit"
+        convert(schema.inner, config_var, f"{path}/sensitive")
+        return
+
     if isinstance(schema, cv.All):
         i = 0
         for inner in schema.validators:
@@ -914,9 +924,14 @@ def convert(schema, config_var, path):
             config_var[S_TYPE] = "enum"
             config_var["values"] = dict.fromkeys(list(data.keys()))
         elif schema_type == "maybe":
-            config_var[S_TYPE] = S_SCHEMA
+            # maybe_simple_value: either a scalar shorthand (mapped to the key in
+            # data[1]) or the full wrapped schema. The wrapped schema is usually a
+            # plain Schema (converts to a "schema" config var), but may be something
+            # else, e.g. a typed_schema (converts to a "typed" config var with
+            # "types" and no top-level "schema" key). Merge whatever it produced
+            # rather than assuming a "schema" key is present.
             config_var["maybe"] = data[1]
-            config_var["schema"] = convert_config(data[0], path + "/maybe")["schema"]
+            config_var.update(convert_config(data[0], path + "/maybe"))
         # esphome/on_boot
         elif schema_type == "automation":
             extra_schema = None
@@ -972,7 +987,7 @@ def convert(schema, config_var, path):
             }
         elif schema_type == "use_id":
             if inspect.ismodule(data):
-                m_attr_obj = getattr(data, "CONFIG_SCHEMA")
+                m_attr_obj = data.CONFIG_SCHEMA
                 use_schema = known_schemas.get(repr(m_attr_obj))
                 if use_schema:
                     [output_module, output_name] = use_schema[0][1].split(".")
@@ -987,6 +1002,10 @@ def convert(schema, config_var, path):
             else:
                 config_var["use_id_type"] = str(data.base)
                 config_var[S_TYPE] = "use_id"
+        elif schema_type == "schema":
+            # A callable CONFIG_SCHEMA that returned a representative schema
+            # for extraction (model-driven components); walk it as usual.
+            convert(data, config_var, path)
         else:
             raise TypeError("Unknown extracted schema type")
     elif config_var.get("key") == "GeneratedID":
@@ -1125,6 +1144,25 @@ def convert_keys(converted, schema, path):
 
         # Do value
         convert(v, result, path + f"/{str(k)}")
+
+        # Heuristic fallback when the field's validator wasn't explicitly
+        # wrapped in ``cv.sensitive``. Only applies to string-typed leaves so
+        # we don't mark unrelated nested schemas. ``sensitive_source`` lets
+        # consumers distinguish explicit markers from heuristic matches. Pull
+        # the field name from ``k.schema`` (voluptuous's stored key) rather
+        # than ``str(k)`` so we don't depend on the marker's ``__str__``
+        # representation.
+        if (
+            "sensitive" not in result
+            and result.get(S_TYPE) == "string"
+            and isinstance(k, (cv.Required, cv.Optional, cv.Inclusive, cv.Exclusive))
+            and isinstance(k.schema, str)
+        ):
+            key_lower = k.schema.lower()
+            if any(frag in key_lower for frag in cv.SENSITIVE_KEY_FRAGMENTS):
+                result["sensitive"] = True
+                result["sensitive_source"] = "heuristic"
+
         if "schema" not in converted:
             converted[S_TYPE] = "schema"
             converted["schema"] = {S_CONFIG_VARS: {}}
@@ -1142,4 +1180,10 @@ def convert_keys(converted, schema, path):
             config_vars["string"] = config_vars.pop(key)
 
 
-build_schema()
+def main() -> None:
+    parser.parse_args(namespace=args)
+    build_schema()
+
+
+if __name__ == "__main__":
+    main()

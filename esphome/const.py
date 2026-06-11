@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2026.6.0-dev"
+__version__ = "2026.7.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -20,6 +20,7 @@ class Toolchain(StrEnum):
 
     PLATFORMIO = "platformio"
     ESP_IDF = "esp-idf"
+    SDK_NRF = "sdk-nrf"
 
 
 class Platform(StrEnum):
@@ -199,6 +200,7 @@ CONF_BROKER = "broker"
 CONF_BSSID = "bssid"
 CONF_BUFFER_DURATION = "buffer_duration"
 CONF_BUFFER_SIZE = "buffer_size"
+CONF_BUILD_FLAGS = "build_flags"
 CONF_BUILD_PATH = "build_path"
 CONF_BUS_VOLTAGE = "bus_voltage"
 CONF_BUSY_PIN = "busy_pin"

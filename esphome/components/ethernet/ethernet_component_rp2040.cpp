@@ -361,6 +361,23 @@ void EthernetComponent::set_cs_pin(uint8_t cs_pin) { this->cs_pin_ = cs_pin; }
 void EthernetComponent::set_interrupt_pin(int8_t interrupt_pin) { this->interrupt_pin_ = interrupt_pin; }
 void EthernetComponent::set_reset_pin(int8_t reset_pin) { this->reset_pin_ = reset_pin; }
 
+void EthernetComponent::enable() {
+  // RP2040 uses arduino-pico's LwipIntfDev which manages link state internally;
+  // there is no clean enable/disable hook today. The YAML option is accepted on
+  // RP2040 for schema parity but has no effect.
+  if (!this->disabled_)
+    return;
+  ESP_LOGW(TAG, "enable_on_boot/disable not supported");
+  this->disabled_ = false;
+}
+
+void EthernetComponent::disable() {
+  if (this->disabled_)
+    return;
+  ESP_LOGW(TAG, "enable_on_boot/disable not supported");
+  this->disabled_ = true;
+}
+
 }  // namespace esphome::ethernet
 
 #endif  // USE_ETHERNET && USE_RP2040
