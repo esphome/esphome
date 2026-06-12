@@ -28,15 +28,15 @@ template<typename... Ts> class PollingOnAction : public Action<Ts...>, public Pa
 };
 
 template<typename... Ts> class SetCleanModeAction : public Action<Ts...>, public Parented<PN7160> {
-  void play(const Ts &...x) override { this->parent_->set_clean_mode(); }
+  void play(const Ts &...x) override { this->parent_->clean_mode(); }
 };
 
 template<typename... Ts> class SetFormatModeAction : public Action<Ts...>, public Parented<PN7160> {
-  void play(const Ts &...x) override { this->parent_->set_format_mode(); }
+  void play(const Ts &...x) override { this->parent_->format_mode(); }
 };
 
 template<typename... Ts> class SetReadModeAction : public Action<Ts...>, public Parented<PN7160> {
-  void play(const Ts &...x) override { this->parent_->set_read_mode(); }
+  void play(const Ts &...x) override { this->parent_->read_mode(); }
 };
 
 template<typename... Ts> class SetEmulationMessageAction : public Action<Ts...>, public Parented<PN7160> {
@@ -60,7 +60,7 @@ template<typename... Ts> class SetWriteMessageAction : public Action<Ts...>, pub
 };
 
 template<typename... Ts> class SetWriteModeAction : public Action<Ts...>, public Parented<PN7160> {
-  void play(const Ts &...x) override { this->parent_->set_write_mode(); }
+  void play(const Ts &...x) override { this->parent_->write_mode(); }
 };
 
 }  // namespace esphome::pn7160

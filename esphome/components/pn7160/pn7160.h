@@ -207,10 +207,6 @@ class PN7160 : public nfc::Nfcc, public Component {
   void set_polling_on();
   bool polling_enabled() { return this->polling_enabled_; }
 
-  void set_clean_mode();
-  void set_format_mode();
-  void set_read_mode();
-  void set_write_mode();
   void clean_mode();
   void format_mode();
   void read_mode();
