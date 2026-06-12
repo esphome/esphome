@@ -7,9 +7,7 @@
 #include "esphome/core/automation.h"
 #include <cstdlib>
 
-namespace esphome {
-
-namespace graphical_display_menu {
+namespace esphome::graphical_display_menu {
 
 const Color COLOR_ON(255, 255, 255, 255);
 const Color COLOR_OFF(0, 0, 0, 0);
@@ -76,5 +74,4 @@ class GraphicalDisplayMenuOnRedrawTrigger : public Trigger<const GraphicalDispla
   GraphicalDisplayMenu *parent_;
 };
 
-}  // namespace graphical_display_menu
-}  // namespace esphome
+}  // namespace esphome::graphical_display_menu

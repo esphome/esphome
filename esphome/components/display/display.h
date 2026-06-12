@@ -19,15 +19,11 @@
 #include "esphome/components/qr_code/qr_code.h"
 #endif
 
-namespace esphome {
-
 #ifdef USE_GRAPHICAL_DISPLAY_MENU
-namespace graphical_display_menu {
+namespace esphome::graphical_display_menu {
 class GraphicalDisplayMenu;
-}  // namespace graphical_display_menu
+}  // namespace esphome::graphical_display_menu
 #endif
-
-}  // namespace esphome
 
 namespace esphome::display {
 
