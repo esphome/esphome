@@ -5,8 +5,7 @@
 
 #include "at581x.h"
 
-namespace esphome {
-namespace at581x {
+namespace esphome::at581x {
 
 template<typename... Ts> class AT581XResetAction : public Action<Ts...>, public Parented<AT581XComponent> {
  public:
@@ -67,5 +66,4 @@ template<typename... Ts> class AT581XSettingsAction : public Action<Ts...>, publ
     }
   }
 };
-}  // namespace at581x
-}  // namespace esphome
+}  // namespace esphome::at581x

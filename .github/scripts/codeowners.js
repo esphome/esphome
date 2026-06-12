@@ -2,7 +2,7 @@
 //
 // Used by:
 //   - codeowner-review-request.yml
-//   - codeowner-approved-label.yml + codeowner-approved-label-update.yml
+//   - codeowner-approved-label-update.yml
 //   - auto-label-pr/detectors.js (detectCodeOwner)
 
 /**

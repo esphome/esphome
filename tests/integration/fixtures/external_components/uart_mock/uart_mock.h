@@ -28,13 +28,14 @@ class MockUartComponent : public uart::UARTComponent, public Component {
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override;
-  void flush() override;
+  uart::UARTFlushResult flush() override;
   void set_rx_full_threshold(size_t rx_full_threshold) override;
   void set_rx_timeout(size_t rx_timeout) override;
 
   // Scenario configuration - called from generated code
   void add_injection(const std::vector<uint8_t> &rx_data, uint32_t delay_ms);
-  void add_response(const std::vector<uint8_t> &expect_tx, const std::vector<uint8_t> &inject_rx);
+  void add_response(const std::vector<uint8_t> &expect_tx, const std::vector<uint8_t> &inject_rx,
+                    uint32_t delay_ms = 0);
   void add_periodic_rx(const std::vector<uint8_t> &data, uint32_t interval_ms);
 
   void start_scenario();
@@ -42,6 +43,8 @@ class MockUartComponent : public uart::UARTComponent, public Component {
   void set_tx_hook(std::function<void(const std::vector<uint8_t> &)> &&cb) { this->tx_hook_ = std::move(cb); }
   void inject_to_rx_buffer(const std::vector<uint8_t> &data);
   void inject_to_rx_buffer(const uint8_t *data, size_t len);
+  // Stage bytes for delayed delivery - simulates transport-level latency (e.g., USB packets)
+  void inject_to_rx_buffer_delayed(const std::vector<uint8_t> &data, uint32_t delay_ms);
 
  protected:
   void check_logger_conflict() override {}
@@ -64,6 +67,8 @@ class MockUartComponent : public uart::UARTComponent, public Component {
   struct Response {
     std::vector<uint8_t> expect_tx;
     std::vector<uint8_t> inject_rx;
+    uint32_t delay_ms;
+    uint32_t last_match_ms{0};
   };
   std::vector<Response> responses_;
   std::vector<uint8_t> tx_buffer_;
@@ -78,6 +83,14 @@ class MockUartComponent : public uart::UARTComponent, public Component {
     uint32_t last_inject_ms{0};
   };
   std::vector<PeriodicRx> periodic_rx_;
+
+  // Staged RX - bytes that are pending delivery after a delay
+  // Simulates transport-level latency (e.g., USB packet delivery)
+  struct StagedRx {
+    std::vector<uint8_t> data;
+    uint32_t available_at_ms;  // millis() time when bytes become available
+  };
+  std::deque<StagedRx> staged_rx_;
 
   // Observability
   uint32_t tx_count_{0};

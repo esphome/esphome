@@ -7,8 +7,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace pzemdc {
+namespace esphome::pzemdc {
 
 class PZEMDC : public PollingComponent, public modbus::ModbusDevice {
  public:
@@ -42,5 +41,4 @@ template<typename... Ts> class ResetEnergyAction : public Action<Ts...> {
   PZEMDC *pzemdc_;
 };
 
-}  // namespace pzemdc
-}  // namespace esphome
+}  // namespace esphome::pzemdc

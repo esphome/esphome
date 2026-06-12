@@ -7,8 +7,7 @@
 
 #include "esphome/components/xxtea/xxtea.h"
 
-namespace esphome {
-namespace packet_transport {
+namespace esphome::packet_transport {
 
 // Maximum bytes to log in hex output (168 * 3 = 504, under TX buffer size of 512)
 static constexpr size_t PACKET_MAX_LOG_BYTES = 168;
@@ -137,6 +136,8 @@ class PacketDecoder {
       return DECODE_EMPTY;
     if (this->buffer_[this->position_] != key)
       return DECODE_UNMATCHED;
+    if (this->position_ + 1 + sizeof(T) > this->len_)
+      return DECODE_ERROR;
     this->position_++;
     T value = 0;
     for (size_t i = 0; i != sizeof(T); ++i) {
@@ -219,16 +220,20 @@ void PacketTransport::setup() {
   }
 #ifdef USE_SENSOR
   for (auto &sensor : this->sensors_) {
-    sensor.sensor->add_on_state_callback([this, &sensor](float x) {
-      this->updated_ = true;
+    // [&sensor] is safe: sensor refers to a FixedVector element that never reallocates,
+    // so the reference remains valid for the component's lifetime.
+    sensor.sensor->add_on_state_callback([&sensor](float x) {
+      sensor.parent->updated_ = true;
       sensor.updated = true;
     });
   }
 #endif
 #ifdef USE_BINARY_SENSOR
   for (auto &sensor : this->binary_sensors_) {
-    sensor.sensor->add_on_state_callback([this, &sensor](bool value) {
-      this->updated_ = true;
+    // [&sensor] is safe: sensor refers to a FixedVector element that never reallocates,
+    // so the reference remains valid for the component's lifetime.
+    sensor.sensor->add_on_state_callback([&sensor](bool value) {
+      sensor.parent->updated_ = true;
       sensor.updated = true;
     });
   }
@@ -330,15 +335,16 @@ void PacketTransport::update() {
   if (!this->ping_pong_enable_) {
     return;
   }
-  auto now = millis() / 1000;
-  if (this->last_key_time_ + this->ping_pong_recyle_time_ < now) {
+  uint32_t now = millis();
+  uint32_t ping_request_age = now - this->last_key_time_;
+  if (ping_request_age > this->ping_pong_recyle_time_ * 1000u) {
     this->resend_ping_key_ = this->ping_pong_enable_;
-    ESP_LOGV(TAG, "Ping request, age %" PRIu32, now - this->last_key_time_);
+    ESP_LOGV(TAG, "Ping request, age %" PRIu32, ping_request_age);
     this->last_key_time_ = now;
   }
   for (const auto &provider : this->providers_) {
     uint32_t key_response_age = now - provider.second.last_key_response_time;
-    if (key_response_age > (this->ping_pong_recyle_time_ * 2u)) {
+    if (key_response_age > (this->ping_pong_recyle_time_ * 2000u)) {
 #ifdef USE_STATUS_SENSOR
       if (provider.second.status_sensor != nullptr && provider.second.status_sensor->state) {
         ESP_LOGI(TAG, "Ping status for %s timeout at %" PRIu32 " with age %" PRIu32, provider.first.c_str(), now,
@@ -496,7 +502,7 @@ void PacketTransport::process_(std::span<const uint8_t> data) {
     if (decoder.decode(PING_KEY, key) == DECODE_OK) {
       if (key == this->ping_key_) {
         ping_key_seen = true;
-        provider.last_key_response_time = millis() / 1000;
+        provider.last_key_response_time = millis();
         ESP_LOGV(TAG, "Found good ping key %X at timestamp %" PRIu32, (unsigned) key, provider.last_key_response_time);
       } else {
         ESP_LOGV(TAG, "Unknown ping key %X", (unsigned) key);
@@ -545,11 +551,11 @@ void PacketTransport::dump_config() {
                 "  Ping-pong: %s",
                 this->platform_name_, YESNO(this->is_encrypted_()), YESNO(this->ping_pong_enable_));
 #ifdef USE_SENSOR
-  for (auto sensor : this->sensors_)
+  for (const auto &sensor : this->sensors_)
     ESP_LOGCONFIG(TAG, "  Sensor: %s", sensor.id);
 #endif
 #ifdef USE_BINARY_SENSOR
-  for (auto sensor : this->binary_sensors_)
+  for (const auto &sensor : this->binary_sensors_)
     ESP_LOGCONFIG(TAG, "  Binary Sensor: %s", sensor.id);
 #endif
   for (const auto &host : this->providers_) {
@@ -602,5 +608,4 @@ void PacketTransport::send_ping_pong_request_() {
   this->resend_ping_key_ = false;
   ESP_LOGV(TAG, "Sent new ping request %08X", (unsigned) this->ping_key_);
 }
-}  // namespace packet_transport
-}  // namespace esphome
+}  // namespace esphome::packet_transport

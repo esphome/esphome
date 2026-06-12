@@ -275,7 +275,7 @@ template<typename... Ts> class APIRespondAction : public Action<Ts...> {
 
  protected:
   APIServer *parent_;
-  TemplatableValue<bool, Ts...> success_{true};
+  TemplatableFn<bool, Ts...> success_{[](Ts...) -> bool { return true; }};
   TemplatableValue<std::string, Ts...> error_message_{""};
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
   std::function<void(Ts..., JsonObject)> json_builder_;

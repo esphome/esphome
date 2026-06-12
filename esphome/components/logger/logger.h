@@ -144,9 +144,6 @@ enum UARTSelection : uint8_t {
 class Logger final : public Component {
  public:
   explicit Logger(uint32_t baud_rate);
-#ifdef USE_ESPHOME_TASK_LOG_BUFFER
-  void init_log_buffer(size_t total_buffer_size);
-#endif
 #if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
   void loop() override;
 #endif
@@ -233,7 +230,11 @@ class Logger final : public Component {
   void cdc_loop_();
 #endif
   void process_messages_();
+#if defined(USE_HOST) || defined(USE_ZEPHYR)
   void write_msg_(const char *msg, uint16_t len);
+#else
+  inline void write_msg_(const char *msg, uint16_t len);  // Defined in platform-specific logger_*.h
+#endif
 
   // Format a log message with printf-style arguments and write it to a buffer with header, footer, and null terminator
   // thread_name: name of the calling thread/task, or nullptr for main task (callers already know which task they're on)
@@ -348,10 +349,6 @@ class Logger final : public Component {
 #ifdef USE_LOGGER_LEVEL_LISTENERS
   std::vector<LoggerLevelListener *> level_listeners_;  // Log level change listeners
 #endif
-#ifdef USE_ESPHOME_TASK_LOG_BUFFER
-  logger::TaskLogBuffer *log_buffer_{nullptr};  // Allocated once, never freed
-#endif
-
   // Group smaller types together at the end
   uint8_t current_level_{ESPHOME_LOG_LEVEL_VERY_VERBOSE};
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_ZEPHYR)
@@ -366,11 +363,14 @@ class Logger final : public Component {
   bool non_main_task_recursion_guard_{false};  // Shared guard for all non-main tasks on LibreTiny
 #endif
 #else
-  bool global_recursion_guard_{false};  // Simple global recursion guard for single-task platforms
+  bool global_recursion_guard_{false};                    // Simple global recursion guard for single-task platforms
 #endif
 
-  // Large buffer placed last to keep frequently-accessed member offsets small
+  // Large buffers placed last to keep frequently-accessed member offsets small
   char tx_buffer_[ESPHOME_LOGGER_TX_BUFFER_SIZE + 1];  // +1 for null terminator
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+  logger::TaskLogBuffer log_buffer_;  // Embedded in Logger (no separate heap allocation)
+#endif
 
   // --- get_thread_name_ overloads (per-platform) ---
 
@@ -498,3 +498,15 @@ class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const c
 };
 
 }  // namespace esphome::logger
+
+// Platform-specific inline implementations of write_msg_()
+// Must be included after the Logger class definition is complete
+#if defined(USE_ESP32)
+#include "logger_esp32.h"
+#elif defined(USE_ESP8266)
+#include "logger_esp8266.h"
+#elif defined(USE_RP2040)
+#include "logger_rp2040.h"
+#elif defined(USE_LIBRETINY)
+#include "logger_libretiny.h"
+#endif

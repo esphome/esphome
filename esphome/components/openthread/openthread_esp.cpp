@@ -8,6 +8,7 @@
 #include "esp_openthread_lock.h"
 
 #include "esp_task_wdt.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -34,9 +35,8 @@ void OpenThreadComponent::setup() {
   esp_vfs_eventfd_config_t eventfd_config = {
       .max_fds = 3,
   };
+  // Network interface setup handled by network component
   ESP_ERROR_CHECK(nvs_flash_init());
-  ESP_ERROR_CHECK(esp_event_loop_create_default());
-  ESP_ERROR_CHECK(esp_netif_init());
   ESP_ERROR_CHECK(esp_vfs_eventfd_register(&eventfd_config));
 
   xTaskCreate(
@@ -81,6 +81,9 @@ void OpenThreadComponent::ot_main() {
   // Initialize the OpenThread stack
   // otLoggingSetLevel(OT_LOG_LEVEL_DEBG);
   ESP_ERROR_CHECK(esp_openthread_init(&config));
+  // Mark lock as initialized so InstanceLock callers know it's safe to acquire.
+  // Must be set after esp_openthread_init() which creates the internal semaphore.
+  this->lock_initialized_ = true;
   // Fetch OT instance once to avoid repeated call into OT stack
   otInstance *instance = esp_openthread_get_instance();
 
@@ -176,11 +179,15 @@ void OpenThreadComponent::ot_main() {
   ESP_ERROR_CHECK(esp_openthread_auto_start(dataset.mLength > 0 ? &dataset : nullptr));
 
   // Register state change callback to update connected_ reactively instead of polling
-  otSetStateChangedCallback(instance, OpenThreadComponent::on_state_changed_, this);
+  otError ot_err = otSetStateChangedCallback(instance, OpenThreadComponent::on_state_changed, this);
+  if (ot_err != OT_ERROR_NONE) {
+    ESP_LOGW(TAG, "Failed to register state change callback: %d", ot_err);
+  }
 
   esp_openthread_launch_mainloop();
 
-  // Clean up
+  // Clean up - reset lock flag before deinit destroys the semaphore
+  this->lock_initialized_ = false;
   esp_openthread_deinit();
   esp_openthread_netif_glue_deinit();
   esp_netif_destroy(openthread_netif);
@@ -190,6 +197,8 @@ void OpenThreadComponent::ot_main() {
   vTaskDelete(NULL);
 }
 
+int OpenThreadComponent::openthread_stop_() { return esp_openthread_mainloop_exit(); }
+
 network::IPAddresses OpenThreadComponent::get_ip_addresses() {
   network::IPAddresses addresses;
   struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
@@ -197,13 +206,20 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
   esp_netif_t *netif = esp_netif_get_default_netif();
   count = esp_netif_get_all_ip6(netif, if_ip6s);
   assert(count <= CONFIG_LWIP_IPV6_NUM_ADDRESSES);
+  assert(count < addresses.size());
   for (int i = 0; i < count; i++) {
     addresses[i + 1] = network::IPAddress(&if_ip6s[i]);
   }
   return addresses;
 }
 
+// not thread safe, only use in read-only use cases
+otInstance *OpenThreadComponent::get_openthread_instance_() { return esp_openthread_get_instance(); }
+
 std::optional<InstanceLock> InstanceLock::try_acquire(int delay) {
+  if (!global_openthread_component->is_lock_initialized()) {
+    return {};
+  }
   if (esp_openthread_lock_acquire(delay)) {
     return InstanceLock();
   }
@@ -211,6 +227,18 @@ std::optional<InstanceLock> InstanceLock::try_acquire(int delay) {
 }
 
 InstanceLock InstanceLock::acquire() {
+  // Wait for the lock to be created by ot_main() before attempting to acquire it.
+  // esp_openthread_lock_acquire() will assert-crash if called before esp_openthread_init().
+  constexpr uint32_t lock_init_timeout_ms = 10000;
+  uint32_t start = millis();
+  while (!global_openthread_component->is_lock_initialized()) {
+    if (millis() - start > lock_init_timeout_ms) {
+      ESP_LOGE(TAG, "OpenThread lock not initialized after %" PRIu32 "ms, aborting", lock_init_timeout_ms);
+      abort();
+    }
+    delay(10);
+    esp_task_wdt_reset();
+  }
   while (!esp_openthread_lock_acquire(100)) {
     esp_task_wdt_reset();
   }

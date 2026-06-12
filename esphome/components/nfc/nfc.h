@@ -9,8 +9,7 @@
 #include <span>
 #include <vector>
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
 static constexpr uint8_t MIFARE_CLASSIC_BLOCK_SIZE = 16;
 static constexpr uint8_t MIFARE_CLASSIC_LONG_TLV_SIZE = 4;
@@ -64,15 +63,8 @@ static constexpr size_t FORMAT_BYTES_BUFFER_SIZE = 192;
 /// Format bytes to buffer with ' ' separator (e.g., "04 11 22 33"). Returns buffer for inline use.
 char *format_bytes_to(char *buffer, std::span<const uint8_t> bytes);
 
-// Remove before 2026.6.0
-ESPDEPRECATED("Use format_uid_to() with stack buffer instead. Removed in 2026.6.0", "2025.12.0")
-std::string format_uid(std::span<const uint8_t> uid);
-// Remove before 2026.6.0
-ESPDEPRECATED("Use format_bytes_to() with stack buffer instead. Removed in 2026.6.0", "2025.12.0")
-std::string format_bytes(std::span<const uint8_t> bytes);
-
 uint8_t guess_tag_type(uint8_t uid_length);
-uint8_t get_mifare_classic_ndef_start_index(std::vector<uint8_t> &data);
+int8_t get_mifare_classic_ndef_start_index(std::vector<uint8_t> &data);
 bool decode_mifare_classic_tlv(std::vector<uint8_t> &data, uint32_t &message_length, uint8_t &message_start_index);
 uint32_t get_mifare_classic_buffer_size(uint32_t message_length);
 
@@ -95,5 +87,4 @@ class Nfcc {
   std::vector<NfcTagListener *> tag_listeners_;
 };
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

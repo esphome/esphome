@@ -3,8 +3,7 @@
 #include "pn7160.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pn7160 {
+namespace esphome::pn7160 {
 
 static const char *const TAG = "pn7160.mifare_classic";
 
@@ -322,5 +321,4 @@ uint8_t PN7160::halt_mifare_classic_tag_() {
   return nfc::STATUS_OK;
 }
 
-}  // namespace pn7160
-}  // namespace esphome
+}  // namespace esphome::pn7160

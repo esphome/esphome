@@ -11,8 +11,7 @@
 
 #include <functional>
 
-namespace esphome {
-namespace pn7160 {
+namespace esphome::pn7160 {
 
 enum PN7160Sensitivity {
   PN7160_SENSITIVITY_LOW = 0,
@@ -224,11 +223,12 @@ class PN7160 : public nfc::Nfcc, public Component {
 
   uint8_t set_test_mode(TestMode test_mode, const std::vector<uint8_t> &data, std::vector<uint8_t> &result);
 
-  void add_on_finished_write_callback(std::function<void()> callback) {
-    this->on_finished_write_callback_.add(std::move(callback));
+  template<typename F> void add_on_emulated_tag_scan_callback(F &&callback) {
+    this->on_emulated_tag_scan_callback_.add(std::forward<F>(callback));
   }
-  void add_on_emulated_tag_scan_callback(std::function<void()> callback) {
-    this->on_emulated_tag_scan_callback_.add(std::move(callback));
+
+  template<typename F> void add_on_finished_write_callback(F &&callback) {
+    this->on_finished_write_callback_.add(std::forward<F>(callback));
   }
 
   void register_ontag_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
@@ -359,5 +359,4 @@ class PN7160 : public nfc::Nfcc, public Component {
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
 };
 
-}  // namespace pn7160
-}  // namespace esphome
+}  // namespace esphome::pn7160

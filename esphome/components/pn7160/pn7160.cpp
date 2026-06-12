@@ -7,8 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pn7160 {
+namespace esphome::pn7160 {
 
 static const char *const TAG = "pn7160";
 
@@ -1294,5 +1293,4 @@ void PN7160::perform_health_check_() {
   ESP_LOGV(TAG, "Health check: NFCC OK (state: %u)", (uint8_t) this->nci_state_);
 }
 
-}  // namespace pn7160
-}  // namespace esphome
+}  // namespace esphome::pn7160

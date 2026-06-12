@@ -8,9 +8,10 @@ namespace esphome::lock {
 
 static const char *const TAG = "lock";
 
-// Lock state strings indexed by LockState enum (0-5): NONE(UNKNOWN), LOCKED, UNLOCKED, JAMMED, LOCKING, UNLOCKING
+// Lock state strings indexed by LockState enum.
 // Index 0 is UNKNOWN (for LOCK_STATE_NONE), also used as fallback for out-of-range
-PROGMEM_STRING_TABLE(LockStateStrings, "UNKNOWN", "LOCKED", "UNLOCKED", "JAMMED", "LOCKING", "UNLOCKING");
+PROGMEM_STRING_TABLE(LockStateStrings, "UNKNOWN", "LOCKED", "UNLOCKED", "JAMMED", "LOCKING", "UNLOCKING", "OPENING",
+                     "OPEN");
 
 const LogString *lock_state_to_string(LockState state) {
   return LockStateStrings::get_log_str(static_cast<uint8_t>(state), 0);
@@ -41,20 +42,18 @@ void Lock::publish_state(LockState state) {
 
   this->state = state;
   this->rtc_.save(&this->state);
-  ESP_LOGD(TAG, "'%s' >> %s", this->name_.c_str(), LOG_STR_ARG(lock_state_to_string(state)));
-  this->state_callback_.call();
+  ESP_LOGV(TAG, "'%s' >> %s", this->name_.c_str(), LOG_STR_ARG(lock_state_to_string(state)));
+  this->state_callback_.call(state);
 #if defined(USE_LOCK) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_lock_update(this);
 #endif
 }
 
-void Lock::add_on_state_callback(std::function<void()> &&callback) { this->state_callback_.add(std::move(callback)); }
-
 void LockCall::perform() {
-  ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   this->validate_();
   if (this->state_.has_value()) {
-    ESP_LOGD(TAG, "  State: %s", LOG_STR_ARG(lock_state_to_string(*this->state_)));
+    ESP_LOGV(TAG, "  State: %s", LOG_STR_ARG(lock_state_to_string(*this->state_)));
   }
   this->parent_->control(*this);
 }
@@ -76,12 +75,16 @@ LockCall &LockCall::set_state(optional<LockState> state) {
   return *this;
 }
 LockCall &LockCall::set_state(const char *state) {
-  if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("LOCKED")) == 0) {
+  if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("OPEN")) == 0) {
+    this->set_state(LOCK_STATE_OPEN);
+  } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("LOCKED")) == 0) {
     this->set_state(LOCK_STATE_LOCKED);
   } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("UNLOCKED")) == 0) {
     this->set_state(LOCK_STATE_UNLOCKED);
   } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("JAMMED")) == 0) {
     this->set_state(LOCK_STATE_JAMMED);
+  } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("OPENING")) == 0) {
+    this->set_state(LOCK_STATE_OPENING);
   } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("LOCKING")) == 0) {
     this->set_state(LOCK_STATE_LOCKING);
   } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("UNLOCKING")) == 0) {

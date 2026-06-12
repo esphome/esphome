@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/output/float_output.h"
 
-namespace esphome {
-namespace slow_pwm {
+namespace esphome::slow_pwm {
 
 class SlowPWMOutput : public output::FloatOutput, public Component {
  public:
@@ -57,5 +56,4 @@ class SlowPWMOutput : public output::FloatOutput, public Component {
   bool restart_cycle_on_state_change_;
 };
 
-}  // namespace slow_pwm
-}  // namespace esphome
+}  // namespace esphome::slow_pwm

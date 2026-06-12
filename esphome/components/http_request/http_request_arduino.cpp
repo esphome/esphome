@@ -18,8 +18,6 @@ namespace esphome::http_request {
 
 static const char *const TAG = "http_request.arduino";
 #ifdef USE_ESP8266
-static constexpr int RX_BUFFER_SIZE = 512;
-static constexpr int TX_BUFFER_SIZE = 512;
 // ESP8266 Arduino core (WiFiClientSecureBearSSL.cpp) returns -1000 on OOM
 static constexpr int ESP8266_SSL_ERR_OOM = -1000;
 #endif
@@ -58,7 +56,7 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
     ESP_LOGV(TAG, "ESP8266 HTTPS connection with WiFiClientSecure");
     stream_ptr = std::make_unique<WiFiClientSecure>();
     WiFiClientSecure *secure_client = static_cast<WiFiClientSecure *>(stream_ptr.get());
-    secure_client->setBufferSizes(RX_BUFFER_SIZE, TX_BUFFER_SIZE);
+    secure_client->setBufferSizes(this->tls_buffer_size_rx_, this->tls_buffer_size_tx_);
     secure_client->setInsecure();
   } else {
     stream_ptr = std::make_unique<WiFiClient>();
@@ -72,12 +70,6 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
   stream_ptr = std::make_unique<WiFiClient>();
 #endif  // USE_HTTP_REQUEST_ESP8266_HTTPS
 
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 1, 0)  // && USE_ARDUINO_VERSION_CODE < VERSION_CODE(?, ?, ?)
-  if (!secure) {
-    ESP_LOGW(TAG, "Using HTTP on Arduino version >= 3.1 is **very** slow. Consider setting framework version to 3.0.2 "
-                  "in your YAML, or use HTTPS");
-  }
-#endif  // USE_ARDUINO_VERSION_CODE
   bool status = container->client_.begin(*stream_ptr, url.c_str());
 
 #elif defined(USE_RP2040)
@@ -138,8 +130,8 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
         }
         ESP_LOGW(TAG, "SSL failure: %s (Code: %d)", LOG_STR_ARG(error_msg), last_error);
         if (last_error == ESP8266_SSL_ERR_OOM) {
-          ESP_LOGW(TAG, "Heap free: %u bytes, configured buffer sizes: %u bytes", ESP.getFreeHeap(),
-                   static_cast<unsigned int>(RX_BUFFER_SIZE + TX_BUFFER_SIZE));
+          ESP_LOGW(TAG, "Configured TLS buffer sizes: %u/%u bytes, check max free heap block using the debug component",
+                   (unsigned int) this->tls_buffer_size_rx_, (unsigned int) this->tls_buffer_size_tx_);
         }
       } else {
         ESP_LOGW(TAG, "Connection failure with no error code");
@@ -163,7 +155,7 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
   container->response_headers_.clear();
   auto header_count = container->client_.headers();
   for (int i = 0; i < header_count; i++) {
-    const std::string header_name = str_lower_case(container->client_.headerName(i).c_str());
+    const std::string header_name = str_lower_case(container->client_.headerName(i).c_str());  // NOLINT
     if (should_collect_header(lower_case_collect_headers, header_name)) {
       std::string header_value = container->client_.header(i).c_str();
       ESP_LOGD(TAG, "Received response header, name: %s, value: %s", header_name.c_str(), header_value.c_str());
@@ -245,7 +237,7 @@ int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
   // Non-chunked path
   int available_data = stream_ptr->available();
   size_t remaining = (this->content_length > 0) ? (this->content_length - this->bytes_read_) : max_len;
-  int bufsize = std::min(max_len, std::min(remaining, (size_t) available_data));
+  int bufsize = std::min({max_len, remaining, (size_t) available_data});
 
   if (bufsize == 0) {
     this->duration_ms += (millis() - start);

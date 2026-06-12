@@ -4,8 +4,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace sensirion_common {
+namespace esphome::sensirion_common {
 
 /**
  * Implementation of I2C functions for Sensirion sensors
@@ -149,5 +148,4 @@ class SensirionI2CDevice : public i2c::I2CDevice {
   i2c::ErrorCode last_error_;
 };
 
-}  // namespace sensirion_common
-}  // namespace esphome
+}  // namespace esphome::sensirion_common

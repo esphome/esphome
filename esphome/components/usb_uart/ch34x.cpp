@@ -8,13 +8,97 @@
 namespace esphome::usb_uart {
 
 using namespace bytebuffer;
-/**
- * CH34x
- */
+
+struct CH34xEntry {
+  const char *name;
+  uint16_t pid;
+  uint8_t byte_idx;  // which status.data[] byte to inspect
+  uint8_t mask;      // bitmask applied before comparison
+  uint8_t match;     // 0xFF = wildcard (default/fallthrough for this PID)
+  CH34xChipType chiptype;
+  uint8_t num_ports;
+};
+
+static const CH34xEntry CH34X_TABLE[] = {
+    {"CH342K", 0x55D2, 1, 0xFF, 0x41, CHIP_CH342K, 2},
+    {"CH342F", 0x55D2, 1, 0xFF, 0xFF, CHIP_CH342F, 2},
+    {"CH343J", 0x55D3, 1, 0xFF, 0x02, CHIP_CH343J, 1},
+    {"CH343K", 0x55D3, 1, 0xFF, 0x01, CHIP_CH343K, 1},
+    {"CH343G_AUTOBAUD", 0x55D3, 1, 0xFF, 0x18, CHIP_CH343G_AUTOBAUD, 1},
+    {"CH343GP", 0x55D3, 1, 0xFF, 0xFF, CHIP_CH343GP, 1},
+    {"CH9102X", 0x55D4, 1, 0xFF, 0x09, CHIP_CH9102X, 1},
+    {"CH9102F", 0x55D4, 1, 0xFF, 0xFF, CHIP_CH9102F, 1},
+    {"CH344L", 0x55D5, 1, 0xFF, 0xC0, CHIP_CH344L, 4},  // CH344L vs CH344L_V2 resolved below
+    {"CH344Q", 0x55D5, 1, 0xFF, 0xFF, CHIP_CH344Q, 4},
+    {"CH9103M", 0x55D7, 1, 0xFF, 0xFF, CHIP_CH9103M, 2},
+    {"CH9101RY", 0x55D8, 1, 0xFF, 0x0A, CHIP_CH9101RY, 1},
+    {"CH9101UH", 0x55D8, 1, 0xFF, 0xFF, CHIP_CH9101UH, 1},
+    {"CH347TF", 0x55DB, 1, 0xFF, 0xFF, CHIP_CH347TF, 1},
+    {"CH347TF", 0x55DD, 1, 0xFF, 0xFF, CHIP_CH347TF, 1},
+    {"CH347TF", 0x55DA, 1, 0xFF, 0xFF, CHIP_CH347TF, 2},
+    {"CH347TF", 0x55DE, 1, 0xFF, 0xFF, CHIP_CH347TF, 2},
+    {"CH339W", 0x55E7, 1, 0xFF, 0xFF, CHIP_CH339W, 1},
+    {"CH9104L", 0x55DF, 1, 0xFF, 0xFF, CHIP_CH9104L, 4},
+    {"CH9111L_M0", 0x55E9, 1, 0xFF, 0xFF, CHIP_CH9111L_M0, 1},
+    {"CH9111L_M1", 0x55EA, 1, 0xFF, 0xFF, CHIP_CH9111L_M1, 1},
+    {"CH9114L", 0x55E8, 2, 0xFF, 0x48, CHIP_CH9114L, 4},
+    {"CH9114W", 0x55E8, 2, 0xFF, 0x49, CHIP_CH9114W, 4},
+    {"CH9114F", 0x55E8, 2, 0xFF, 0x4A, CHIP_CH9114F, 4},
+    {"CH346C_M1", 0x55EB, 4, 0x01, 0x01, CHIP_CH346C_M1, 1},
+    {"CH346C_M0", 0x55EB, 4, 0x01, 0xFF, CHIP_CH346C_M0, 1},
+    {"CH346C_M2", 0x55EC, 1, 0xFF, 0xFF, CHIP_CH346C_M2, 2},
+};
 
 void USBUartTypeCH34X::enable_channels() {
-  // enable the channels
-  for (auto channel : this->channels_) {
+  usb_host::transfer_cb_t cb = [this](const usb_host::TransferStatus &status) {
+    if (!status.success) {
+      this->defer([this, error_code = status.error_code]() {
+        ESP_LOGE(TAG, "CH34x chip detection failed: %s", esp_err_to_name(error_code));
+        this->apply_line_settings_();
+      });
+      return;
+    }
+    CH34xChipType chiptype = CHIP_UNKNOWN;
+    uint8_t num_ports = 1;
+    for (const auto &e : CH34X_TABLE) {
+      if (e.pid != this->pid_)
+        continue;
+      if (e.match != 0xFF && (status.data[e.byte_idx] & e.mask) != e.match)
+        continue;
+      chiptype = e.chiptype;
+      num_ports = e.num_ports;
+      break;
+    }
+    // CH344L vs CH344L_V2 requires chipver (data[0]) in addition to chiptype (data[1])
+    if (chiptype == CHIP_CH344L && (status.data[0] & 0xF0) != 0x40)
+      chiptype = CHIP_CH344L_V2;
+    const char *name = "unknown";
+    for (const auto &e : CH34X_TABLE) {
+      if (e.chiptype == chiptype) {
+        name = e.name;
+        break;
+      }
+    }
+    this->defer([this, chiptype, num_ports, name]() {
+      this->chiptype_ = chiptype;
+      this->chip_name_ = name;
+      this->num_ports_ = num_ports;
+      ESP_LOGD(TAG, "CH34x chip: %s, ports: %u", name, this->num_ports_);
+      this->apply_line_settings_();
+    });
+  };
+  // Vendor-specific GET_CHIP_VERSION request (bRequest=0x5F): returns chip ID bytes
+  // used to distinguish CH34x variants sharing the same PID.
+  this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_IN, 0x5F, 0, 0, cb, {0, 0, 0, 0, 0, 0, 0, 0});
+}
+
+void USBUartTypeCH34X::dump_config() {
+  USBUartTypeCdcAcm::dump_config();
+  ESP_LOGCONFIG(TAG, "  CH34x chip: %s", this->chip_name_);
+}
+
+void USBUartTypeCH34X::apply_line_settings_() {
+  for (auto *channel : this->channels_) {
     if (!channel->initialised_.load())
       continue;
     usb_host::transfer_cb_t callback = [=](const usb_host::TransferStatus &status) {
@@ -73,7 +157,7 @@ void USBUartTypeCH34X::enable_channels() {
     this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, cmd, value, (factor << 8) | divisor, callback);
     this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, cmd + 3, 0x80, 0, callback);
   }
-  this->start_channels();
+  this->start_channels_();
 }
 
 std::vector<CdcEps> USBUartTypeCH34X::parse_descriptors(usb_device_handle_t dev_hdl) {
