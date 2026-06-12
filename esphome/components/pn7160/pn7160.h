@@ -290,7 +290,7 @@ class PN7160 : public nfc::Nfcc, public Component {
 
   uint8_t read_mifare_classic_tag_(nfc::NfcTag &tag);
   uint8_t read_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data);
-  uint8_t write_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &data);
+  uint8_t write_mifare_classic_block_(uint8_t block_num, std::vector<uint8_t> &write_data);
   uint8_t auth_mifare_classic_block_(uint8_t block_num, uint8_t key_num, const uint8_t *key);
   uint8_t sect_to_auth_(uint8_t block_num);
   uint8_t format_mifare_classic_mifare_();
@@ -302,7 +302,7 @@ class PN7160 : public nfc::Nfcc, public Component {
   uint8_t read_mifare_ultralight_tag_(nfc::NfcTagUid &uid, nfc::NfcTag &tag) {
     return read_mifare_ultralight_tag_(tag);
   }
-  uint8_t read_mifare_ultralight_bytes_(uint8_t page_num, uint16_t length, std::vector<uint8_t> &data);
+  uint8_t read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_bytes, std::vector<uint8_t> &data);
   uint32_t read_mifare_ultralight_capacity_();
   bool is_mifare_ultralight_formatted_(const std::vector<uint8_t> &page_3_to_6);
   uint8_t find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_3_to_6, uint8_t &message_length,
