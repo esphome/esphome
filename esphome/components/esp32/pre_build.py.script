@@ -11,9 +11,7 @@ if "espidf.custom_sdkconfig" in board:
         del board._manifest["espidf"]
 
 # Referenced by rules in esphome/idf_component.yml; an unset env var is a
-# fatal error there. Arduino-only managed components (FastLED) are needed
-# whenever the arduino framework is part of the build.
-frameworks = env.get("PIOFRAMEWORK") or []
-os.environ.setdefault(
-    "ESPHOME_ARDUINO_COMPONENT", "1" if "arduino" in frameworks else "0"
-)
+# fatal error there. Always 0: in PlatformIO builds arduino is not a managed
+# IDF component, so deps like FastLED can't resolve their arduino-esp32
+# requirement and must stay disabled.
+os.environ.setdefault("ESPHOME_ARDUINO_COMPONENT", "0")
