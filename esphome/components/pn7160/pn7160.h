@@ -299,7 +299,9 @@ class PN7160 : public nfc::Nfcc, public Component {
   uint8_t halt_mifare_classic_tag_();
 
   uint8_t read_mifare_ultralight_tag_(nfc::NfcTag &tag);
-  uint8_t read_mifare_ultralight_tag_(nfc::NfcTagUid &uid, nfc::NfcTag &tag) { return read_mifare_ultralight_tag_(tag); }
+  uint8_t read_mifare_ultralight_tag_(nfc::NfcTagUid &uid, nfc::NfcTag &tag) {
+    return read_mifare_ultralight_tag_(tag);
+  }
   uint8_t read_mifare_ultralight_bytes_(uint8_t page_num, uint16_t length, std::vector<uint8_t> &data);
   uint32_t read_mifare_ultralight_capacity_();
   bool is_mifare_ultralight_formatted_(const std::vector<uint8_t> &page_3_to_6);
