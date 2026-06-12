@@ -160,6 +160,12 @@ def _setup_core(work_dir: Path, settings: _Settings) -> None:
     CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = "esp32"
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = settings.target_framework
 
+    # Gates arduino-only components in esphome/idf_component.yml (IDF reads it at
+    # reconfigure time). Set here -- before the manifest is written/reconfigured.
+    os.environ["ESPHOME_ARDUINO"] = (
+        "1" if settings.target_framework == "arduino" else "0"
+    )
+
 
 # Special IDF "components" that are tools/subprojects, not requirable by an app
 # (they provide no public includes and break requirement resolution), plus our
