@@ -161,18 +161,46 @@ def prefix_substitutions_in_dict(
     return data
 
 
+# (section, id) pairs that several components intentionally share. ESPHome
+# treats these as a single instance when merged, so duplicates with differing
+# content are expected and must not be flagged as accidental collisions. Keyed on
+# the section as well as the id so a generic name (e.g. `ldo_id`) is only exempt
+# in its intended section -- an accidental collision on the same name elsewhere
+# is still caught.
+INTENTIONALLY_SHARED_IDS = frozenset(
+    {
+        # Several components each declare an `sntp_time` clock; ESPHome merges
+        # them into one time source.
+        ("time", "sntp_time"),
+        # esp_ldo and mipi_dsi both configure the channel-3 internal LDO on the
+        # ESP32-P4; only one LDO per channel may exist, so the shared id lets the
+        # merge collapse them into a single LDO.
+        ("esp_ldo", "ldo_id"),
+    }
+)
+
+
 def deduplicate_by_id(data: dict) -> dict:
     """Deduplicate list items with the same ID.
 
-    Keeps only the first occurrence of each ID. If items with the same ID
-    are identical, this silently deduplicates. If they differ, the first
-    one is kept (ESPHome's validation will catch if this causes issues).
+    Identical items sharing an ID (e.g. a shared bus from a common package pulled
+    in by several components) are collapsed to the first occurrence. Two items
+    that share an ID but differ in content are a real conflict: when merged, the
+    first silently wins and the others are dropped, which can make a
+    cross-reference resolve to an incompatible entity. Rather than defer that to
+    downstream validation (where it surfaces as a confusing, order-dependent
+    failure in an unrelated build), raise immediately so the offending ID is
+    named. Ids in ``INTENTIONALLY_SHARED_IDS`` are deliberately shared singletons
+    and keep their collapse behaviour.
 
     Args:
         data: Parsed config dictionary
 
     Returns:
         Config with deduplicated lists
+
+    Raises:
+        ValueError: If two items share an ID but have different content.
     """
     if not isinstance(data, dict):
         return data
@@ -181,16 +209,25 @@ def deduplicate_by_id(data: dict) -> dict:
     for key, value in data.items():
         if isinstance(value, list):
             # Check for items with 'id' field
-            seen_ids = set()
+            seen_items: dict[str, Any] = {}
             deduped_list = []
 
             for item in value:
                 if isinstance(item, dict) and "id" in item:
                     item_id = item["id"]
-                    if item_id not in seen_ids:
-                        seen_ids.add(item_id)
+                    if item_id not in seen_items:
+                        seen_items[item_id] = item
                         deduped_list.append(item)
-                    # else: skip duplicate ID (keep first occurrence)
+                    elif (key, item_id) in INTENTIONALLY_SHARED_IDS:
+                        # Deliberately shared singleton -> keep first occurrence.
+                        pass
+                    elif item != seen_items[item_id]:
+                        raise ValueError(
+                            f"Conflicting definitions for id '{item_id}' under "
+                            f"'{key}' when merging test configs; give each "
+                            f"component a unique id"
+                        )
+                    # else: identical duplicate (e.g. shared bus package) -> skip
                 else:
                     # No ID, just add it
                     deduped_list.append(item)
@@ -203,6 +240,55 @@ def deduplicate_by_id(data: dict) -> dict:
             result[key] = value
 
     return result
+
+
+def prepare_component_body(comp_data: dict, comp_name: str, comp_dir: Path) -> dict:
+    """Return a component's test body as it enters the merge.
+
+    Expands component-specific package includes inline (common bus packages are
+    left for the merge to re-add once), applies ESPHome's top-level-substitutions
+    -override-package-substitutions rule, then prefixes every substitution
+    reference with the component name. Shared by ``merge_component_configs`` and
+    the duplicate-id guard (``script/ci_check_duplicate_test_ids.py``) so the
+    guard compares exactly what the build merges.
+    """
+    # $component_dir resolves to the component's absolute path.
+    comp_abs_dir = str(comp_dir.absolute())
+
+    # Top-level substitutions override package substitutions, so capture them
+    # before expanding packages can introduce their own.
+    top_level_subs = (
+        comp_data["substitutions"].copy()
+        if isinstance(comp_data.get("substitutions"), dict)
+        else {}
+    )
+
+    packages_value = comp_data.get("packages")
+    if isinstance(packages_value, dict):
+        common_bus_packages = get_common_bus_packages()
+        for pkg_name, pkg_value in list(packages_value.items()):
+            if pkg_name in common_bus_packages:
+                continue
+            if isinstance(pkg_value, yaml_util.IncludeFile):
+                pkg_value = pkg_value.load()
+            if isinstance(pkg_value, dict):
+                comp_data = merge_config(comp_data, pkg_value)
+    elif isinstance(packages_value, list):
+        for pkg_value in packages_value:
+            if isinstance(pkg_value, yaml_util.IncludeFile):
+                pkg_value = pkg_value.load()
+            if isinstance(pkg_value, dict):
+                comp_data = merge_config(comp_data, pkg_value)
+    # Common bus packages are re-added once by the caller; drop them here.
+    comp_data.pop("packages", None)
+
+    subs = comp_data.get("substitutions") or {}
+    subs.update(top_level_subs)
+    prefixed_subs = {f"{comp_name}_{name}": value for name, value in subs.items()}
+    prefixed_subs[f"{comp_name}_component_dir"] = comp_abs_dir
+    comp_data["substitutions"] = prefixed_subs
+
+    return prefix_substitutions_in_dict(comp_data, comp_name)
 
 
 def merge_component_configs(
@@ -266,67 +352,9 @@ def merge_component_configs(
                     # New package type - add it
                     all_packages[pkg_name] = pkg_config
 
-        # Handle $component_dir by replacing with absolute path
-        # This allows components that use local file references to be grouped
-        comp_abs_dir = str(comp_dir.absolute())
-
-        # Save top-level substitutions BEFORE expanding packages
-        # In ESPHome, top-level substitutions override package substitutions
-        top_level_subs = (
-            comp_data["substitutions"].copy()
-            if "substitutions" in comp_data and comp_data["substitutions"] is not None
-            else {}
-        )
-
-        # Expand packages - but we'll restore substitution priority after
-        if "packages" in comp_data:
-            packages_value = comp_data["packages"]
-
-            if isinstance(packages_value, dict):
-                # Dict format - check each package
-                common_bus_packages = get_common_bus_packages()
-                for pkg_name, pkg_value in list(packages_value.items()):
-                    if pkg_name in common_bus_packages:
-                        continue
-                    # Resolve deferred !include files before checking type
-                    if isinstance(pkg_value, yaml_util.IncludeFile):
-                        pkg_value = pkg_value.load()
-                    if not isinstance(pkg_value, dict):
-                        continue
-                    # Component-specific package - expand its content into top level
-                    comp_data = merge_config(comp_data, pkg_value)
-            elif isinstance(packages_value, list):
-                # List format - expand all package includes
-                for pkg_value in packages_value:
-                    # Resolve deferred !include files before checking type
-                    if isinstance(pkg_value, yaml_util.IncludeFile):
-                        pkg_value = pkg_value.load()
-                    if not isinstance(pkg_value, dict):
-                        continue
-                    comp_data = merge_config(comp_data, pkg_value)
-
-            # Remove all packages (common will be re-added at the end)
-            del comp_data["packages"]
-
-        # Restore top-level substitution priority
-        # Top-level substitutions override any from packages
-        if "substitutions" not in comp_data or comp_data["substitutions"] is None:
-            comp_data["substitutions"] = {}
-
-        # Merge: package subs as base, top-level subs override
-        comp_data["substitutions"].update(top_level_subs)
-
-        # Now prefix the final merged substitutions
-        comp_data["substitutions"] = {
-            f"{comp_name}_{sub_name}": sub_value
-            for sub_name, sub_value in comp_data["substitutions"].items()
-        }
-
-        # Add component_dir substitution with absolute path for this component
-        comp_data["substitutions"][f"{comp_name}_component_dir"] = comp_abs_dir
-
-        # Prefix substitution references throughout the config
-        comp_data = prefix_substitutions_in_dict(comp_data, comp_name)
+        # Expand component-specific packages and prefix substitutions, exactly as
+        # the duplicate-id guard does, so both see the same body.
+        comp_data = prepare_component_body(comp_data, comp_name, comp_dir)
 
         # Use ESPHome's merge_config to merge this component into the result
         # merge_config handles list merging with ID-based deduplication automatically
@@ -437,7 +465,7 @@ def main() -> None:
             tests_dir=args.tests_dir,
             output_file=args.output,
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error merging configs: {e}", file=sys.stderr)
         import traceback
 

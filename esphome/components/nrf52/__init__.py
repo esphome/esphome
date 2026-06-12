@@ -9,6 +9,7 @@ import subprocess
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.zephyr import (
+    add_extra_script,
     copy_files as zephyr_copy_files,
     zephyr_add_overlay,
     zephyr_add_pm_static,
@@ -30,18 +31,14 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
     CONF_BOARD,
-    CONF_COMPONENTS,
     CONF_DISABLED,
     CONF_ENABLE_OTA_ROLLBACK,
     CONF_FRAMEWORK,
     CONF_ID,
-    CONF_NAME,
     CONF_OTA,
-    CONF_PLATFORM_VERSION,
     CONF_RESET_PIN,
     CONF_SAFE_MODE,
-    CONF_SOURCE,
-    CONF_VARIANT,
+    CONF_TOOLCHAIN,
     CONF_VERSION,
     CONF_VOLTAGE,
     KEY_CORE,
@@ -50,10 +47,12 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
     PLATFORM_NRF52,
     ThreadModel,
+    Toolchain,
 )
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.core.config import BOARD_MAX_LENGTH
 import esphome.final_validate as fv
+from esphome.helpers import write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
@@ -64,107 +63,45 @@ from .const import (
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
 )
+from .framework import check_and_install
 
 # force import gpio to register pin schema
-from .gpio import nrf52_pin_to_code  # noqa
+from .gpio import nrf52_pin_to_code  # noqa: F401
 
 CODEOWNERS = ["@tomaszduda23"]
 AUTO_LOAD = ["zephyr", "preferences"]
 IS_TARGET_PLATFORM = True
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORM_RECOMMENDED_VERSION = "10.3.0-1"
-FRAMEWORK_RECOMMENDED_VERSION = "2.6.1-7"
-TOOLCHAIN_RECOMMENDED_VERSION = "0.17.4-0"
-
-PLATFORM_SOURCE_TEMPLATE = "https://github.com/tomaszduda23/platform-nordicnrf52/archive/refs/tags/v{release}.zip"
-FRAMEWORK_SOURCE_TEMPLATE = (
-    "https://github.com/tomaszduda23/framework-sdk-nrf/archive/refs/tags/v{release}.zip"
-)
-TOOLCHAIN_SOURCE_TEMPLATE = (
-    "https://github.com/tomaszduda23/toolchain-sdk-ng/archive/refs/tags/v{release}.zip"
-)
-
-
-def _parse_package_version(value, url_template):
-    try:
-        ver = cv.Version.parse(cv.version_number(value))
-        release = f"{ver.major}.{ver.minor}.{ver.patch}"
-        if ver.extra:
-            release += f"-{ver.extra}"
-        return url_template.format(release=release)
-    except cv.Invalid:
-        return value
-
-
-def _parse_platform_version(value):
-    return _parse_package_version(value, PLATFORM_SOURCE_TEMPLATE)
-
-
-def _parse_framework_version(value):
-    return _parse_package_version(value, FRAMEWORK_SOURCE_TEMPLATE)
-
-
-def _parse_toolchain_version(value):
-    return _parse_package_version(value, TOOLCHAIN_SOURCE_TEMPLATE)
-
-
-CONF_TOOLCHAIN_VERSION = "toolchain_version"
-
-
-def _validate_framework_config(config):
-    config = config.copy()
-
-    if CONF_SOURCE in config:
-        if config[CONF_VERSION] == "recommended":
-            raise cv.Invalid("If source is set, version must be set too")
-    else:
-        if config[CONF_VERSION] == "recommended":
-            config[CONF_VERSION] = FRAMEWORK_RECOMMENDED_VERSION
-        config[CONF_SOURCE] = _parse_framework_version(config[CONF_VERSION])
-
-    components = {
-        "platformio/framework-zephyr": config[CONF_SOURCE],
-        "platformio/toolchain-gccarmnoneeabi": config[CONF_TOOLCHAIN_VERSION],
-    }
-
-    for c in config.get(CONF_COMPONENTS, []):
-        name = c[CONF_NAME]
-        if name in components:
-            raise cv.Invalid(f"Component {name} specified multiple times")
-        components[name] = c[CONF_VERSION]
-
-    config[CONF_COMPONENTS] = [f"{k}@{v}" for k, v in components.items() if v]
-
-    return config
-
-
-FRAMEWORK_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
-            cv.Optional(CONF_SOURCE): cv.Any(cv.boolean_false, cv.string_strict),
-            cv.Optional(
-                CONF_PLATFORM_VERSION, default=PLATFORM_RECOMMENDED_VERSION
-            ): _parse_platform_version,
-            cv.Optional(
-                CONF_TOOLCHAIN_VERSION, default=TOOLCHAIN_RECOMMENDED_VERSION
-            ): cv.Any(cv.boolean_false, _parse_toolchain_version),
-            cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
-                cv.Schema(
-                    {
-                        cv.Required(CONF_NAME): cv.string_strict,
-                        cv.Required(CONF_VERSION): cv.string_strict,
-                    }
-                )
-            ),
+FAKE_BOARD_MANIFEST = """
+{
+    "frameworks": [
+        "zephyr"
+    ],
+    "name": "esphome nrf52",
+    "upload": {
+        "maximum_ram_size": 248832,
+        "maximum_size": 815104,
+        "speed": 115200
+    },
+    "url": "https://esphome.io/",
+    "vendor": "esphome",
+    "build": {
+        "bsp": {
+            "name": "adafruit"
+        },
+        "softdevice": {
+            "sd_fwid": "0x00B6"
         }
-    ),
-    _validate_framework_config,
-)
+    }
+}
+"""
 
 
 def set_core_data(config: ConfigType) -> ConfigType:
+    # Resolve toolchain: CLI (already on CORE.toolchain) > YAML > default.
+    if CORE.toolchain is None:
+        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.PLATFORMIO)
     zephyr_set_core_data(config)
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_NRF52
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
@@ -176,15 +113,29 @@ def set_core_data(config: ConfigType) -> ConfigType:
 
 
 def set_framework(config: ConfigType) -> ConfigType:
-    config = config.copy()
-    zephyr_data()[CONF_VARIANT] = config[CONF_BOARD]
-    if "/" in config[CONF_BOARD]:
-        zephyr_data()[KEY_BOARD] = config[CONF_BOARD].split("/")[0]
-    if CONF_FRAMEWORK not in config:
-        config[CONF_FRAMEWORK] = FRAMEWORK_SCHEMA({})
-    version = cv.Version.parse(cv.version_number(config[CONF_FRAMEWORK][CONF_VERSION]))
-    CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = version
-    return config
+    if CONF_VERSION not in config[CONF_FRAMEWORK]:
+        default_version = "2.6.1-b" if CORE.using_toolchain_platformio else "2.9.2"
+        config = {
+            **config,
+            CONF_FRAMEWORK: {**config[CONF_FRAMEWORK], CONF_VERSION: default_version},
+        }
+    framework_ver = cv.Version.parse(
+        cv.version_number(config[CONF_FRAMEWORK][CONF_VERSION])
+    )
+    CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = framework_ver
+    if not CORE.using_toolchain_platformio:
+        return config
+    if framework_ver < cv.Version(2, 9, 2):
+        return cv.require_framework_version(
+            nrf52_zephyr=cv.Version(2, 6, 1, "a"),
+        )(config)
+    if framework_ver < cv.Version(3, 2, 0):
+        return cv.require_framework_version(
+            nrf52_zephyr=cv.Version(2, 9, 2, "2"),
+        )(config)
+    return cv.require_framework_version(
+        nrf52_zephyr=cv.Version(3, 2, 0, "1"),
+    )(config)
 
 
 BOOTLOADERS = [
@@ -267,7 +218,21 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_UICR_ERASE, default=False): cv.boolean,
                 }
             ),
-            cv.Optional(CONF_FRAMEWORK): FRAMEWORK_SCHEMA,
+            cv.Optional(
+                CONF_FRAMEWORK,
+                default={},
+            ): cv.Schema(
+                {
+                    cv.Optional(CONF_VERSION): cv.string_strict,
+                    cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
+                        {
+                            cv.Optional(
+                                CONF_ENABLE_OTA_ROLLBACK, default=True
+                            ): cv.boolean,
+                        }
+                    ),
+                }
+            ),
             cv.GenerateID(CONF_CDC_ACM): cv.declare_id(CdcAcm),
         }
     ),
@@ -290,9 +255,9 @@ def _final_validate(config):
         )
     full_config = fv.full_config.get()
     conf = config[CONF_FRAMEWORK]
-    advanced = conf.get(CONF_ADVANCED, {})
+    advanced = conf[CONF_ADVANCED]
 
-    if advanced.get(CONF_ENABLE_OTA_ROLLBACK):
+    if advanced[CONF_ENABLE_OTA_ROLLBACK]:
         # "disabled: false" means safe mode *is* enabled.
         safe_mode_config = full_config.get(CONF_SAFE_MODE, {CONF_DISABLED: True})
         safe_mode_enabled = not safe_mode_config[CONF_DISABLED]
@@ -314,41 +279,51 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 @coroutine_with_priority(CoroPriority.PLATFORM)
 async def to_code(config: ConfigType) -> None:
     """Convert the configuration to code."""
-    cg.add_platformio_option("board", zephyr_data()[KEY_BOARD])
     cg.add_build_flag("-DUSE_NRF52")
-    cg.add_define("ESPHOME_BOARD", zephyr_data()[KEY_BOARD])
+    cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "NRF52")
     # nRF52 processors are single-core
     cg.add_define(ThreadModel.SINGLE)
-    cg.add_platformio_option(
-        "custom_framework_version", config[CONF_FRAMEWORK][CONF_VERSION]
-    )
-    cg.add_platformio_option(CONF_FRAMEWORK, CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK])
-    cg.add_platformio_option(
-        "platform",
-        config[CONF_FRAMEWORK][CONF_PLATFORM_VERSION],
-    )
-    cg.add_platformio_option(
-        "platform_packages",
-        config[CONF_FRAMEWORK][CONF_COMPONENTS],
-    )
+    if CORE.using_toolchain_platformio:
+        cg.add_platformio_option("board", config[CONF_BOARD])
+        cg.add_platformio_option(
+            CONF_FRAMEWORK, CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK]
+        )
+        cg.add_platformio_option(
+            "platform",
+            "https://github.com/tomaszduda23/platform-nordicnrf52/archive/refs/tags/v10.3.0-5.zip",
+        )
+        cg.add_platformio_option(
+            "platform_packages",
+            [
+                f"platformio/framework-zephyr@https://github.com/tomaszduda23/framework-sdk-nrf/archive/refs/tags/v{CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}.zip",
+            ],
+        )
+        if config[KEY_BOOTLOADER] != BOOTLOADER_MCUBOOT:
+            # make sure that firmware.zip is created
+            # for Adafruit_nRF52_Bootloader
+            cg.add_platformio_option("board_upload.protocol", "nrfutil")
+            cg.add_platformio_option("board_upload.use_1200bps_touch", "true")
+            cg.add_platformio_option("board_upload.require_upload_port", "true")
+            cg.add_platformio_option("board_upload.wait_for_upload_port", "true")
+
+        add_extra_script(
+            "pre",
+            "pre_build.py",
+            Path(__file__).parent / "pre_build.py.script",
+        )
+        # build is done by west so bypass board checking in platformio
+        cg.add_platformio_option("boards_dir", CORE.relative_build_path("boards"))
 
     if config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
         cg.add_define("USE_BOOTLOADER_MCUBOOT")
-    else:
-        if "_sd" in config[KEY_BOOTLOADER]:
-            bootloader = config[KEY_BOOTLOADER].split("_")
-            sd_id = bootloader[2][2:]
-            cg.add_define("USE_SOFTDEVICE_ID", int(sd_id))
-            if (len(bootloader)) > 3:
-                sd_version = bootloader[3][1:]
-                cg.add_define("USE_SOFTDEVICE_VERSION", int(sd_version))
-        # make sure that firmware.zip is created
-        # for Adafruit_nRF52_Bootloader
-        cg.add_platformio_option("board_upload.protocol", "nrfutil")
-        cg.add_platformio_option("board_upload.use_1200bps_touch", "true")
-        cg.add_platformio_option("board_upload.require_upload_port", "true")
-        cg.add_platformio_option("board_upload.wait_for_upload_port", "true")
+    elif "_sd" in config[KEY_BOOTLOADER]:
+        bootloader = config[KEY_BOOTLOADER].split("_")
+        sd_id = bootloader[2][2:]
+        cg.add_define("USE_SOFTDEVICE_ID", int(sd_id))
+        if (len(bootloader)) > 3:
+            sd_version = bootloader[3][1:]
+            cg.add_define("USE_SOFTDEVICE_VERSION", int(sd_version))
 
     zephyr_setup_preferences()
     zephyr_to_code(config)
@@ -374,13 +349,17 @@ async def to_code(config: ConfigType) -> None:
             cg.add_define("USE_NRF52_UICR_ERASE")
 
     conf = config[CONF_FRAMEWORK]
-    advanced = conf.get(CONF_ADVANCED, {})
+    advanced = conf[CONF_ADVANCED]
     # Enable OTA rollback support
-    if advanced.get(CONF_ENABLE_OTA_ROLLBACK):
+    if advanced[CONF_ENABLE_OTA_ROLLBACK]:
         cg.add_define("USE_OTA_ROLLBACK")
     # c++ support
-    zephyr_add_prj_conf("CPP", True)
-    zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
+    if framework_ver < cv.Version(2, 9, 2):
+        zephyr_add_prj_conf("CPLUSPLUS", True)
+        zephyr_add_prj_conf("LIB_CPLUSPLUS", True)
+    else:
+        zephyr_add_prj_conf("CPP", True)
+        zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
     # watchdog
     zephyr_add_prj_conf("WATCHDOG", True)
     zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
@@ -399,22 +378,25 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("USB_DEVICE_STACK", True)
     zephyr_add_prj_conf("USB_CDC_ACM", True)
     # use NFC pins as GPIO
-    zephyr_add_overlay(
-        """
-            &uicr {
-                nfct-pins-as-gpios;
-            };
-        """
-    )
+    if framework_ver < cv.Version(2, 9, 2):
+        zephyr_add_prj_conf("NFCT_PINS_AS_GPIOS", True)
+    else:
+        zephyr_add_overlay(
+            """
+                &uicr {
+                    nfct-pins-as-gpios;
+                };
+            """
+        )
     zephyr_add_prj_conf("REBOOT", True)
     zephyr_add_overlay(
         """
-                / {
-                    chosen {
-                        zephyr,console = &cdc_acm_uart0;
-                    };
+            / {
+                chosen {
+                    zephyr,console = &cdc_acm_uart0;
                 };
-            """
+            };
+        """
     )
 
 
@@ -431,6 +413,16 @@ async def _dfu_to_code(dfu_config):
 
 def copy_files() -> None:
     """Copy files to the build directory."""
+
+    if CORE.using_toolchain_platformio and (
+        zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
+        or zephyr_data()[KEY_BOARD] == "xiao_ble"
+    ):
+        write_file_if_changed(
+            CORE.relative_build_path(f"boards/{zephyr_data()[KEY_BOARD]}.json"),
+            FAKE_BOARD_MANIFEST,
+        )
+
     zephyr_copy_files()
 
 
@@ -487,23 +479,26 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
 def _upload_using_platformio(
     config: ConfigType, port: str, upload_args: list[str]
 ) -> int | str:
-    from esphome import platformio_api
+    from esphome.platformio import toolchain
 
     if port is not None:
         upload_args += ["--upload-port", port]
-    return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
+    return toolchain.run_platformio_cli_run(config, CORE.verbose, *upload_args)
 
 
 def upload_program(config: ConfigType, args, host: str) -> bool:
-    from esphome.__main__ import check_permissions, get_port_type
+    from esphome.__main__ import check_permissions
+    from esphome.upload_targets import PortType, get_port_type
 
     mcumgr_device: str | None = None
 
-    if get_port_type(host) == "SERIAL":
+    if get_port_type(host) == PortType.SERIAL:
         check_permissions(host)
         if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
             mcumgr_device = host
         else:
+            if not CORE.using_toolchain_platformio:
+                raise EsphomeError("Not implemented yet")
             result = _upload_using_platformio(config, host, ["-t", "upload"])
             if result != 0:
                 raise EsphomeError(f"Upload failed with result: {result}")
@@ -567,7 +562,7 @@ def _addr2line(addr2line: str, elf: Path, addr: str) -> str:
             check=True,
         )
         return result.stdout.strip().splitlines()[0]
-    except Exception as err:  # pylint: disable=broad-except
+    except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
         _LOGGER.error("Running command failed: %s", err)
     return ""
 
@@ -594,3 +589,15 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
             _LOGGER.error("LR: %s", _addr2line(addr2line, elf, lr))
 
     return False
+
+
+def run_compile(args, config: ConfigType) -> bool:
+    if CORE.using_toolchain_platformio:
+        return False
+    if not CORE.using_toolchain_sdk_nrf:
+        raise EsphomeError(
+            "Unsupported toolchain for nRF52. "
+            "Supported toolchains are 'platformio' and 'sdk-nrf'."
+        )
+    check_and_install()
+    raise EsphomeError("Native build for nRF52 is not implemented yet")

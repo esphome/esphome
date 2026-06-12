@@ -1,8 +1,9 @@
+#include "esphome/core/defines.h"
+#if defined(USE_ZEPHYR) && defined(USE_MDNS)
+
 #include "mdns_component.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
-
-#ifdef USE_ZEPHYR
 
 namespace esphome::mdns {
 
@@ -31,4 +32,4 @@ void MDNSComponent::on_shutdown() { ESP_LOGD(TAG, "Shutting down mDNS for Zephyr
 
 }  // namespace esphome::mdns
 
-#endif  // USE_ZEPHYR
+#endif  // USE_ZEPHYR && USE_MDNS

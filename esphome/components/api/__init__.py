@@ -234,7 +234,7 @@ ACTIONS_SCHEMA = automation.validate_automation(
 
 ENCRYPTION_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_KEY): validate_encryption_key,
+        cv.Optional(CONF_KEY): cv.sensitive(validate_encryption_key),
     }
 )
 

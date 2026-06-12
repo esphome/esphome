@@ -6,8 +6,9 @@ from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
-from esphome.const import CONF_ENABLE_IPV6, CONF_MIN_IPV6_ADDR_COUNT
+from esphome.const import CONF_ENABLE_IPV6, CONF_ID, CONF_MIN_IPV6_ADDR_COUNT
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["mdns"]
@@ -20,6 +21,7 @@ KEY_HIGH_PERFORMANCE_NETWORKING = "high_performance_networking"
 CONF_ENABLE_HIGH_PERFORMANCE = "enable_high_performance"
 
 network_ns = cg.esphome_ns.namespace("network")
+NetworkComponent = network_ns.class_("NetworkComponent", cg.Component)
 IPAddress = network_ns.class_("IPAddress")
 
 
@@ -106,8 +108,16 @@ def has_high_performance_networking() -> bool:
     return CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING, False)
 
 
+def validate_ipv6(value: bool) -> bool:
+    if CORE.is_nrf52 and not value:
+        raise cv.Invalid("On nRF52, enable_ipv6 must be true")
+
+    return value
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
+        cv.GenerateID(): cv.declare_id(NetworkComponent),
         cv.SplitDefault(
             CONF_ENABLE_IPV6,
             bk72xx=False,
@@ -130,6 +140,7 @@ CONFIG_SCHEMA = cv.Schema(
                 ),
                 cv.boolean_false,
             ),
+            validate_ipv6,
         ),
         cv.Optional(CONF_MIN_IPV6_ADDR_COUNT, default=0): cv.positive_int,
         cv.Optional(CONF_ENABLE_HIGH_PERFORMANCE): cv.All(cv.boolean, cv.only_on_esp32),
@@ -206,9 +217,8 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", 64)
 
     if CORE.is_nrf52:
-        enable_ipv6 = config.get(CONF_ENABLE_IPV6, True)
         zephyr_add_prj_conf("NETWORKING", True)
-        zephyr_add_prj_conf("NET_IPV6", enable_ipv6)
+        zephyr_add_prj_conf("NET_IPV6", True)
         zephyr_add_prj_conf("NET_IPV4", True)
         zephyr_add_prj_conf("NET_TCP", True)
         zephyr_add_prj_conf("NET_UDP", True)
@@ -235,3 +245,15 @@ async def to_code(config):
                 cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
             if CORE.is_rp2040:
                 cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_IPV6")
+    # Pvariable creation lives in a separate coroutine at NETWORK_SERVICES so it
+    # emits after wifi/ethernet at COMMUNICATION. This keeps compile-time config
+    # (above) separate from C++ object lifecycle and allows wiring in interface
+    # pointers via get_variable().
+    if CORE.is_esp32:
+        CORE.add_job(network_component_to_code, config)
+
+
+@coroutine_with_priority(CoroPriority.NETWORK_SERVICES)
+async def network_component_to_code(config: ConfigType) -> None:
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)

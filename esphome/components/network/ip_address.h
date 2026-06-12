@@ -67,31 +67,26 @@ struct IPAddress {
 
   operator struct in6_addr() const { return ip_addr_; }
 
-  bool is_set() const {
-    for (int i = 0; i < 16; i++) {
-      if (ip_addr_.s6_addr[i] != 0)
-        return true;
-    }
-    return false;
-  }
+  bool is_set() const { return !net_ipv6_is_addr_unspecified(&ip_addr_); }
   bool is_ip4() const { return false; }
   bool is_ip6() const { return this->is_set(); }
-  bool is_multicast() const { return ip_addr_.s6_addr[0] == 0xff; }
+  bool is_multicast() const { return net_ipv6_is_addr_mcast(&ip_addr_); }
+  // Remove before 2026.8.0
+  ESPDEPRECATED(
+      "str() is deprecated: use 'char buf[IP_ADDRESS_BUFFER_SIZE]; ip.str_to(buf);' instead. Removed in 2026.8.0",
+      "2026.2.0")
   std::string str() const {
-    char buffer[INET6_ADDRSTRLEN];
-    inet_ntop(AF_INET6, &ip_addr_, buffer, sizeof(buffer));
-    return std::string(buffer);
-  }
-  char *str_to(char *buf) const {
-    inet_ntop(AF_INET6, &ip_addr_, buf, INET6_ADDRSTRLEN);
+    char buf[IP_ADDRESS_BUFFER_SIZE];
+    this->str_to(buf);
     return buf;
   }
-  bool operator==(const IPAddress &other) const { return memcmp(&ip_addr_, &other.ip_addr_, sizeof(ip_addr_)) == 0; }
-  bool operator!=(const IPAddress &other) const { return memcmp(&ip_addr_, &other.ip_addr_, sizeof(ip_addr_)) != 0; }
-  IPAddress &operator+=(uint8_t increase) {
-    ip_addr_.s6_addr[15] += increase;
-    return *this;
+  char *str_to(char *buf) const {
+    if (inet_ntop(AF_INET6, &ip_addr_, buf, IP_ADDRESS_BUFFER_SIZE) == nullptr)
+      buf[0] = '\0';
+    return buf;
   }
+  bool operator==(const IPAddress &other) const { return net_ipv6_addr_cmp(&ip_addr_, &other.ip_addr_); }
+  bool operator!=(const IPAddress &other) const { return !net_ipv6_addr_cmp(&ip_addr_, &other.ip_addr_); }
 
 #elif defined(USE_HOST)
   IPAddress() { ip_addr_.s_addr = 0; }
