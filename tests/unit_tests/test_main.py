@@ -6118,6 +6118,15 @@ def test_should_subscribe_states_env_suppresses() -> None:
         assert _should_subscribe_states(args) is False
 
 
+def test_should_subscribe_states_env_enables() -> None:
+    """Test that ESPHOME_LOG_STATES=true enables states by default."""
+    from esphome.__main__ import _should_subscribe_states
+
+    args = parse_args(["esphome", "logs", "device.yaml"])
+    with patch.dict(os.environ, {"ESPHOME_LOG_STATES": "true"}):
+        assert _should_subscribe_states(args) is True
+
+
 def test_should_subscribe_states_flag_overrides_env() -> None:
     """Test that --states overrides ESPHOME_LOG_STATES=false."""
     from esphome.__main__ import _should_subscribe_states
@@ -6202,7 +6211,11 @@ def test_command_run_defaults_subscribe_states_true(
         ),
         patch("esphome.__main__.upload_program", return_value=(0, "192.168.1.100")),
         patch("esphome.__main__.get_serial_ports", return_value=[]),
+        patch.dict(os.environ, {}, clear=False),
     ):
+        # Ensure the default behavior is not affected by an ambient
+        # ESPHOME_LOG_STATES set in the test runner's environment.
+        os.environ.pop("ESPHOME_LOG_STATES", None)
         result = command_run(args, CORE.config)
 
     assert result == 0
