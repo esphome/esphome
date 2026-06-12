@@ -1,0 +1,14 @@
+# PlatformIO pre-script for the repo's development environments (IDE /
+# devcontainer / clang-tidy compile-DB builds driven directly from
+# platformio.ini).
+#
+# esphome/idf_component.yml gates arduino-only managed components (FastLED)
+# on the ESPHOME_ARDUINO environment variable. ESPHome's build generator and
+# the native clang-tidy flow export it, but a bare `pio run -e esp32-idf`
+# (e.g. switching environments in the VS Code devcontainer) does not, and the
+# IDF component manager fails hard on env vars referenced in manifest rules
+# that are unset. Default it here; an explicit value in the caller's
+# environment still wins.
+import os
+
+os.environ.setdefault("ESPHOME_ARDUINO", "0")
