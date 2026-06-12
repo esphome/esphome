@@ -26,9 +26,26 @@
 #include <utility>
 #include <vector>
 
-#ifdef USE_ESP32_VARIANT_ESP32P4
-#include "driver/ppa.h"
+#ifdef USE_ESP32
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
+#include "freertos/task.h"
 #endif
+
+extern "C" uint32_t lvgl_esphome_get_cpu_pct(void);
+extern "C" uint32_t lvgl_esphome_get_flush_ms(void);
+extern "C" uint32_t lvgl_esphome_get_direct_mode_active(void);
+extern "C" uint32_t lvgl_esphome_get_loop_max_ms(void);
+extern "C" uint32_t lvgl_esphome_get_flush_max_ms(void);
+extern "C" uint32_t lvgl_esphome_get_invalidated_kpx(void);
+extern "C" uint32_t lvgl_esphome_get_perf_logging_enabled(void);
+extern "C" uint32_t lvgl_esphome_get_swipe_logging_enabled(void);
+extern "C" void lvgl_esphome_set_perf_logging_enabled(bool enabled);
+extern "C" void lvgl_esphome_set_swipe_logging_enabled(bool enabled);
+extern "C" uint32_t lvgl_esphome_get_profiler_enabled(void);
+extern "C" void lvgl_esphome_set_profiler_enabled(bool enabled);
+extern "C" void lvgl_esphome_profiler_flush(void);
+extern "C" void lvgl_esphome_profiler_mark(const char *name);
 
 #ifdef USE_FONT
 #include "esphome/components/font/font.h"
@@ -54,10 +71,11 @@ extern lv_event_code_t lv_update_event;  // NOLINT
 extern std::string lv_event_code_name_for(lv_event_t *event);
 
 lv_obj_t *lv_container_create(lv_obj_t *parent);
-#ifdef USE_LVGL_SCALE
-void lv_scale_draw_event_cb(lv_event_t *e, int16_t range_start, int16_t range_end, lv_color_t color_start,
+#if LV_USE_SCALE
+void lv_scale_draw_event_cb(lv_event_t *e, int32_t range_start, int32_t range_end, lv_color_t color_start,
                             lv_color_t color_end, int width, bool local);
-#endif
+void lv_scale_tick_offset_event_cb(lv_event_t *e, uint16_t offset, uint16_t stride);
+#endif  // LV_USE_SCALE
 #if LV_COLOR_DEPTH == 16
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_565;
 #elif LV_COLOR_DEPTH == 32
@@ -179,6 +197,7 @@ template<typename... Ts> class ObjUpdateAction : public Action<Ts...> {
 #ifdef USE_LVGL_ANIMIMG
 void lv_animimg_stop(lv_obj_t *obj);
 #endif  // USE_LVGL_ANIMIMG
+
 enum RotationType : uint8_t {
   ROTATION_UNUSED,
   ROTATION_SOFTWARE,
@@ -189,8 +208,8 @@ class LvglComponent : public PollingComponent {
   constexpr static const char *const TAG = "lvgl";
 
  public:
-  LvglComponent(std::vector<display::Display *> displays, float buffer_frac, bool full_refresh, int draw_rounding,
-                bool resume_on_input, bool update_when_display_idle, RotationType rotation_type);
+  LvglComponent(std::vector<display::Display *> displays, float buffer_frac, bool full_refresh, bool direct_mode,
+                int draw_rounding, bool resume_on_input, bool update_when_display_idle, RotationType rotation_type);
   static void static_flush_cb(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *color_p);
   /**
    *
@@ -282,39 +301,80 @@ class LvglComponent : public PollingComponent {
   // rounding factor to align bounds of update area when drawing
   size_t draw_rounding{2};
 
+  display::DisplayRotation rotation{display::DISPLAY_ROTATION_0_DEGREES};
   void set_pause_trigger(Trigger<> *trigger) { this->pause_callback_ = trigger; }
   void set_resume_trigger(Trigger<> *trigger) { this->resume_callback_ = trigger; }
   void set_draw_start_trigger(Trigger<> *trigger) { this->draw_start_callback_ = trigger; }
   void set_draw_end_trigger(Trigger<> *trigger) { this->draw_end_callback_ = trigger; }
   void set_rotation(display::DisplayRotation rotation);
-  display::DisplayRotation get_rotation() const { return this->rotation_; }
-  void rotate_coordinates(int32_t &x, int32_t &y) const;
-
-  uint16_t get_width() const { return lv_display_get_horizontal_resolution(this->disp_); }
-  uint16_t get_height() const { return lv_display_get_vertical_resolution(this->disp_); }
+  display::DisplayRotation get_rotation() const { return this->rotation; }
+  // Check if loop() has started - safe to perform LVGL operations
+  bool is_loop_started() const { return this->loop_started_; }
+  void record_invalidated_area(const lv_area_t *area);
+  bool wait_for_direct_frame_presented(uint32_t timeout_ms);
+  void realign_direct_buffer_after_manual_present();
 
  protected:
-  void set_resolution_() const;
   void draw_end_();
+  void set_resolution_() const;
   // Not checking for non-null callback since the
   // LVGL callback that calls it is not set in that case
   void draw_start_() const { this->draw_start_callback_->trigger(); }
 
   void write_random_();
   void draw_buffer_(const lv_area_t *area, lv_color_data *ptr);
-#ifdef USE_ESP32_VARIANT_ESP32P4
-  bool ppa_rotate_(const lv_color_data *src, lv_color_data *dst, uint16_t width, uint16_t height,
-                   uint32_t height_rounded);
+  void sync_direct_framebuffer_area_(const lv_area_t *area, const uint8_t *color_p);
+  void sync_direct_other_buffer_(const lv_area_t *area, const uint8_t *color_p);
+  uint8_t *next_direct_render_buffer_() const;
+  void present_direct_render_buffer_(uint8_t *buffer);
+#ifdef USE_ESP32
+  struct PartialCompositorJob {
+    lv_display_t *disp{};
+    lv_area_t area{};
+    uint8_t *color_p{};
+    bool last{};
+    uint64_t t0{};
+  };
+  bool start_partial_compositor_();
+  bool partial_compositor_flush_(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *color_p, uint64_t t0);
+  static void partial_compositor_task_trampoline(void *arg);
+  void partial_compositor_task_();
+  void partial_compositor_copy_area_(uint8_t *dst, const lv_area_t &area, const uint8_t *src,
+                                     bool src_is_framebuffer = false);
+  void partial_compositor_record_dirty_(const lv_area_t &area);
+  void partial_compositor_sync_dirty_to_idle_();
 #endif
   void flush_cb_(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *color_p);
 
   std::vector<display::Display *> displays_{};
   size_t buffer_frac_{1};
   bool full_refresh_{};
+  bool direct_mode_{};
   bool resume_on_input_{};
   bool update_when_display_idle_{};
+  RotationType rotation_type_{ROTATION_UNUSED};
 
   uint8_t *draw_buf_{};
+  uint8_t *draw_buf2_{};
+  uint8_t *direct_last_flushed_buf_{};
+  bool direct_mode_active_{false};
+#ifdef USE_ESP32
+  static constexpr size_t PARTIAL_COMPOSITOR_MAX_DIRTY_AREAS = 48;
+  QueueHandle_t partial_compositor_queue_{};
+  TaskHandle_t partial_compositor_task_handle_{};
+  uint8_t *partial_compositor_front_buffer_{};
+  uint8_t *partial_compositor_back_buffer_{};
+  lv_area_t partial_compositor_dirty_areas_[PARTIAL_COMPOSITOR_MAX_DIRTY_AREAS]{};
+  size_t partial_compositor_dirty_count_{0};
+  bool partial_compositor_full_dirty_{false};
+  bool partial_compositor_active_{false};
+  uint64_t perf_compositor_us_{0};
+  uint64_t perf_compositor_ready_us_{0};
+  uint64_t perf_compositor_px_{0};
+  uint32_t perf_compositor_jobs_{0};
+  uint32_t perf_compositor_max_us_{0};
+  uint32_t perf_compositor_ready_max_us_{0};
+#endif
   lv_display_t *disp_{};
   uint16_t width_{};
   uint16_t height_{};
@@ -331,12 +391,20 @@ class LvglComponent : public PollingComponent {
   Trigger<> *resume_callback_{};
   Trigger<> *draw_start_callback_{};
   Trigger<> *draw_end_callback_{};
-  void *rotate_buf_{};
-  display::DisplayRotation rotation_{display::DISPLAY_ROTATION_0_DEGREES};
-  RotationType rotation_type_;
-#ifdef USE_ESP32_VARIANT_ESP32P4
-  ppa_client_handle_t ppa_client_{};
-#endif
+  lv_color_t *rotate_buf_{};
+  bool buffers_configured_{false};  // Track if lv_display_set_buffers() has been called
+  size_t buf_bytes_{0};             // Store buffer size for delayed configuration
+  bool loop_started_{false};        // safe to perform LVGL ops only after loop() starts
+  // Sliding 1s perf window: time spent inside lv_timer_handler() vs wall,
+  // minus the synchronous flush wait (DMA blocking, not CPU work).
+  uint64_t perf_window_start_us_{0};
+  uint64_t perf_busy_us_{0};
+  uint64_t perf_flush_us_{0};
+  uint64_t perf_invalidated_px_{0};
+  uint32_t perf_invalidated_areas_{0};
+  uint64_t perf_flush_px_{0};
+  uint32_t perf_loop_max_us_{0};
+  uint32_t perf_flush_max_us_{0};
 };
 
 class IdleTrigger : public Trigger<> {
@@ -385,6 +453,9 @@ class LVTouchListener : public touchscreen::TouchListener, public Parented<LvglC
 #endif  // USE_LVGL_TOUCHSCREEN
 
 #ifdef USE_LVGL_METER
+
+void lv_image_set_needle_value(lv_obj_t *obj, int value);
+void lv_arc_set_needle_value(lv_obj_t *obj, int value);
 
 class IndicatorLine : public LvCompound {
  public:
@@ -437,6 +508,9 @@ class LVEncoderListener : public Parented<LvglComponent> {
     }
   }
 
+  // LVGL 9.5: Set rotary encoder sensitivity multiplier
+  void set_sensitivity(float sensitivity) { this->sensitivity_ = sensitivity; }
+
   lv_indev_t *get_drv() { return this->drv_; }
 
  protected:
@@ -445,6 +519,7 @@ class LVEncoderListener : public Parented<LvglComponent> {
   int32_t count_{};
   int32_t last_count_{};
   int key_{};
+  float sensitivity_{1.0f};
 };
 #endif  //  USE_LVGL_KEY_LISTENER
 
@@ -520,4 +595,25 @@ class LvKeyboardType : public key_provider::KeyProvider, public LvCompound {
   void set_obj(lv_obj_t *lv_obj) override;
 };
 #endif  // USE_LVGL_KEYBOARD
+
+#ifdef USE_LVGL_CALENDAR
+class LvCalendarType : public LvCompound {
+ public:
+  uint16_t get_selected_year() {
+    lv_calendar_date_t date;
+    lv_calendar_get_pressed_date(this->obj, &date);
+    return date.year;
+  }
+  uint8_t get_selected_month() {
+    lv_calendar_date_t date;
+    lv_calendar_get_pressed_date(this->obj, &date);
+    return date.month;
+  }
+  uint8_t get_selected_day() {
+    lv_calendar_date_t date;
+    lv_calendar_get_pressed_date(this->obj, &date);
+    return date.day;
+  }
+};
+#endif  // USE_LVGL_CALENDAR
 }  // namespace esphome::lvgl
