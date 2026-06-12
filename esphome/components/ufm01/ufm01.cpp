@@ -142,9 +142,11 @@ void UFM01Component::setup() {
 
 void UFM01Component::dump_config() {
   ESP_LOGCONFIG(TAG, "UFM-01:");
+#ifdef USE_SENSOR
   LOG_SENSOR("  ", "Accumulated Flow", this->accumulated_flow_sensor_);
   LOG_SENSOR("  ", "Flow", this->flow_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+#endif
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "UFC Chip Error", this->ufc_chip_error_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Flow Direction Wrong", this->flow_direction_wrong_binary_sensor_);
@@ -170,6 +172,7 @@ void UFM01Component::on_data_(uint8_t data[FRAME_SIZE]) {
     this->flow_rate_out_of_range_binary_sensor_->publish_state(read_flow_rate_out_of_range(data));
 #endif
 
+#ifdef USE_SENSOR
   // Total volume remains valid when the tube is dry; flow and temperature are not.
   if (this->accumulated_flow_sensor_ != nullptr)
     this->accumulated_flow_sensor_->publish_state(read_accumulated_flow(data));
@@ -185,6 +188,7 @@ void UFM01Component::on_data_(uint8_t data[FRAME_SIZE]) {
     if (this->temperature_sensor_ != nullptr)
       this->temperature_sensor_->publish_state(read_temperature(data));
   }
+#endif
 }
 
 void UFM01Component::loop() {

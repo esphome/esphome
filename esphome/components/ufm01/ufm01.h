@@ -5,8 +5,10 @@
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
-#include "esphome/components/uart/uart.h"
+#ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
+#endif
+#include "esphome/components/uart/uart.h"
 
 #include <array>
 
@@ -17,9 +19,11 @@ namespace esphome::ufm01 {
 static constexpr size_t FRAME_SIZE = 32;
 
 class UFM01Component : public uart::UARTDevice, public Component {
+#ifdef USE_SENSOR
   SUB_SENSOR(accumulated_flow)
   SUB_SENSOR(flow)
   SUB_SENSOR(temperature)
+#endif
 
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(ufc_chip_error)
