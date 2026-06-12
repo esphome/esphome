@@ -13,7 +13,7 @@ class PN7160I2C : public pn7160::PN7160, public i2c::I2CDevice {
   void dump_config() override;
 
  protected:
-  uint8_t read_nfcc(nfc::NciMessage &rx, const uint16_t timeout) override;
+  uint8_t read_nfcc(nfc::NciMessage &rx, uint16_t timeout) override;
   uint8_t write_nfcc(nfc::NciMessage &tx) override;
 };
 
