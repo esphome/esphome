@@ -4,6 +4,7 @@
 
 #include "posix_tz.h"
 #include <cctype>
+#include <cstdio>
 
 namespace esphome::time {
 
@@ -33,25 +34,43 @@ bool is_leap_year(int year) { return (year % 4 == 0 && year % 100 != 0) || (year
 // Get days in year (avoids duplicate is_leap_year calls)
 static inline int days_in_year(int year) { return is_leap_year(year) ? 366 : 365; }
 
-// Convert days since epoch to year, updating days to remainder
-static int __attribute__((noinline)) days_to_year(int64_t &days) {
-  int year = 1970;
-  int diy;
-  while (days >= (diy = days_in_year(year)) && year < 2200) {
-    days -= diy;
+// Count leap years in [1, year] (i.e. up to and including year)
+static constexpr int count_leap_years_up_to(int year) { return year / 4 - year / 100 + year / 400; }
+
+constexpr int EPOCH_YEAR = 1970;
+constexpr int LEAP_YEARS_BEFORE_EPOCH = count_leap_years_up_to(EPOCH_YEAR - 1);
+constexpr int DAYS_PER_YEAR = 365;
+constexpr int SECONDS_PER_DAY = 86400;
+
+// Days from epoch (Jan 1 1970) to Jan 1 of given year — O(1)
+static inline int64_t days_to_year_start(int year) {
+  return static_cast<int64_t>(DAYS_PER_YEAR) * (year - EPOCH_YEAR) +
+         (count_leap_years_up_to(year - 1) - LEAP_YEARS_BEFORE_EPOCH);
+}
+
+// Convert days since epoch to year, updating days to day-of-year remainder.
+// The initial estimate from days/365 can overshoot by multiple years for
+// far-future dates (e.g., year 5000+) due to accumulated leap days,
+// so we use loops rather than single-step correction.
+static int days_to_year(int64_t &days) {
+  int year = static_cast<int>(EPOCH_YEAR + days / DAYS_PER_YEAR);
+  int64_t year_start = days_to_year_start(year);
+  while (days < year_start) {
+    year--;
+    year_start = days_to_year_start(year);
+  }
+  while (days >= year_start + days_in_year(year)) {
+    year_start += days_in_year(year);
     year++;
   }
-  while (days < 0 && year > 1900) {
-    year--;
-    days += days_in_year(year);
-  }
+  days -= year_start;
   return year;
 }
 
-// Extract just the year from a UTC epoch
+// Extract just the year from a UTC epoch — O(1)
 static int epoch_to_year(time_t epoch) {
-  int64_t days = epoch / 86400;
-  if (epoch < 0 && epoch % 86400 != 0)
+  int64_t days = epoch / SECONDS_PER_DAY;
+  if (epoch < 0 && epoch % SECONDS_PER_DAY != 0)
     days--;
   return days_to_year(days);
 }
@@ -86,11 +105,11 @@ int __attribute__((noinline)) day_of_week(int year, int month, int day) {
 
 void __attribute__((noinline)) epoch_to_tm_utc(time_t epoch, struct tm *out_tm) {
   // Days since epoch
-  int64_t days = epoch / 86400;
-  int32_t remaining_secs = epoch % 86400;
+  int64_t days = epoch / SECONDS_PER_DAY;
+  int32_t remaining_secs = epoch % SECONDS_PER_DAY;
   if (remaining_secs < 0) {
     days--;
-    remaining_secs += 86400;
+    remaining_secs += SECONDS_PER_DAY;
   }
 
   out_tm->tm_sec = remaining_secs % 60;
@@ -279,17 +298,6 @@ static int __attribute__((noinline)) days_from_year_start(int year, int month, i
   return days;
 }
 
-// Calculate days from epoch to Jan 1 of given year (for DST transition calculations)
-// Only supports years >= 1970. Timezone is either compiled in from YAML or set by
-// Home Assistant, so pre-1970 dates are not a concern.
-static int64_t __attribute__((noinline)) days_to_year_start(int year) {
-  int64_t days = 0;
-  for (int y = 1970; y < year; y++) {
-    days += days_in_year(y);
-  }
-  return days;
-}
-
 time_t __attribute__((noinline)) calculate_dst_transition(int year, const DSTRule &rule, int32_t base_offset_seconds) {
   int month, day;
 
@@ -338,7 +346,7 @@ time_t __attribute__((noinline)) calculate_dst_transition(int year, const DSTRul
   int64_t days = days_to_year_start(year) + days_from_year_start(year, month, day);
 
   // Convert to epoch and add transition time and base offset
-  return days * 86400 + rule.time_seconds + base_offset_seconds;
+  return days * SECONDS_PER_DAY + rule.time_seconds + base_offset_seconds;
 }
 
 }  // namespace internal
@@ -440,6 +448,18 @@ bool parse_posix_tz(const char *tz_string, ParsedTimezone &result) {
   p++;
   // has_dst() now returns true since dst_start.type was set by parse_dst_rule
   return internal::parse_dst_rule(p, result.dst_end);
+}
+
+// Format a POSIX offset (positive = west) as "+HHMM" / "-HHMM" for display.
+// Convention: negate POSIX sign so east-of-UTC is positive (ISO 8601 / RFC 2822).
+void format_designation(int32_t posix_offset, char *buf, size_t buf_size) {
+  int32_t display = -posix_offset;
+  char sign = display >= 0 ? '+' : '-';
+  if (display < 0)
+    display = -display;
+  int h = display / 3600;
+  int m = (display % 3600) / 60;
+  snprintf(buf, buf_size, "%c%02d%02d", sign, h, m);
 }
 
 bool epoch_to_local_tm(time_t utc_epoch, const ParsedTimezone &tz, struct tm *out_tm) {

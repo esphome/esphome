@@ -243,6 +243,9 @@ void Logger::dump_config() {
 #endif
 #ifdef USE_ZEPHYR
   dump_crash_();
+  if (!device_is_ready(this->uart_dev_)) {
+    ESP_LOGE(TAG, "  %s is not ready.", LOG_STR_ARG(get_uart_selection_()));
+  }
 #endif
   // Warn users that VERBOSE/VERY_VERBOSE logging impacts performance.
   // Only the compiled log level matters — all log calls up to this level

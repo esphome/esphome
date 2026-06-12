@@ -62,6 +62,26 @@ MANUFACTURER_NAME_CHARACTERISTIC_UUID = 0x2A29
 MODEL_CHARACTERISTIC_UUID = 0x2A24
 FIRMWARE_VERSION_CHARACTERISTIC_UUID = 0x2A26
 
+# Suffix of the Bluetooth Base UUID used to expand 16/32 bit UUIDs to 128 bit.
+_BASE_UUID_SUFFIX = "-0000-1000-8000-00805F9B34FB"
+
+
+def uuid_is(uuid: int | str, uuid16: int) -> bool:
+    """Return True if a validated UUID refers to the given 16-bit short UUID.
+
+    A service/characteristic UUID may be an ``int`` (from ``cv.hex_uint32_t``) or an
+    uppercase string in 16, 32 or 128 bit form (from ``bt_uuid``), so every
+    representation of the same UUID must be considered equivalent.
+    """
+    if isinstance(uuid, int):
+        return uuid == uuid16
+    return uuid.upper() in (
+        f"{uuid16:04X}",
+        f"{uuid16:08X}",
+        f"{uuid16:08X}{_BASE_UUID_SUFFIX}",
+    )
+
+
 # Core key to store the global configuration
 KEY_NOTIFY_REQUIRED = "notify_required"
 KEY_SET_VALUE = "set_value"
@@ -72,7 +92,6 @@ BLECharacteristic_ns = esp32_ble_server_ns.namespace("BLECharacteristic")
 BLEServer = esp32_ble_server_ns.class_(
     "BLEServer",
     cg.Component,
-    esp32_ble.GATTsEventHandler,
     cg.Parented.template(esp32_ble.ESP32BLE),
 )
 esp32_ble_server_automations_ns = esp32_ble_server_ns.namespace(
@@ -196,7 +215,7 @@ def create_description_cud(char_config):
         return char_config
     # If the config displays a description, there cannot be a descriptor with the CUD UUID
     for desc in char_config[CONF_DESCRIPTORS]:
-        if desc[CONF_UUID] == CUD_DESCRIPTOR_UUID:
+        if uuid_is(desc[CONF_UUID], CUD_DESCRIPTOR_UUID):
             raise cv.Invalid(
                 f"Characteristic {char_config[CONF_UUID]} has a description, but a CUD descriptor is already present"
             )
@@ -219,7 +238,7 @@ def create_notify_cccd(char_config):
         return char_config
     # If the CCCD descriptor is already present, return the config
     for desc in char_config[CONF_DESCRIPTORS]:
-        if desc[CONF_UUID] == CCCD_DESCRIPTOR_UUID:
+        if uuid_is(desc[CONF_UUID], CCCD_DESCRIPTOR_UUID):
             # Check if the WRITE property is set
             if not desc[CONF_WRITE]:
                 raise cv.Invalid(
@@ -245,7 +264,7 @@ def create_device_information_service(config):
     # If there is already a device information service,
     # there cannot be CONF_MODEL, CONF_MANUFACTURER or CONF_FIRMWARE_VERSION properties
     for service in config[CONF_SERVICES]:
-        if service[CONF_UUID] == DEVICE_INFORMATION_SERVICE_UUID:
+        if uuid_is(service[CONF_UUID], DEVICE_INFORMATION_SERVICE_UUID):
             if (
                 CONF_MODEL in config
                 or CONF_MANUFACTURER in config
@@ -308,24 +327,30 @@ def final_validate_config(config):
     # Check if all characteristics that require notifications have the notify property set
     for char_id in CORE.data.get(DOMAIN, {}).get(KEY_NOTIFY_REQUIRED, set()):
         # Look for the characteristic in the configuration
-        char_config = [
+        matches = [
             char_conf
             for service_conf in config[CONF_SERVICES]
             for char_conf in service_conf[CONF_CHARACTERISTICS]
             if char_conf[CONF_ID] == char_id
-        ][0]
+        ]
+        if not matches:
+            continue
+        char_config = matches[0]
         if not char_config[CONF_NOTIFY]:
             raise cv.Invalid(
                 f"Characteristic {char_config[CONF_UUID]} has notify actions and the {CONF_NOTIFY} property is not set"
             )
     for char_id in CORE.data.get(DOMAIN, {}).get(KEY_SET_VALUE, set()):
         # Look for the characteristic in the configuration
-        char_config = [
+        matches = [
             char_conf
             for service_conf in config[CONF_SERVICES]
             for char_conf in service_conf[CONF_CHARACTERISTICS]
             if char_conf[CONF_ID] == char_id
-        ][0]
+        ]
+        if not matches:
+            continue
+        char_config = matches[0]
         if isinstance(char_config.get(CONF_VALUE, {}).get(CONF_DATA), cv.Lambda):
             raise cv.Invalid(
                 f"Characteristic {char_config[CONF_UUID]} has both a set_value action and a templated value"
@@ -587,7 +612,7 @@ async def to_code(config):
         )
         for char_conf in service_config[CONF_CHARACTERISTICS]:
             await to_code_characteristic(service_var, char_conf)
-        if service_config[CONF_UUID] == DEVICE_INFORMATION_SERVICE_UUID:
+        if uuid_is(service_config[CONF_UUID], DEVICE_INFORMATION_SERVICE_UUID):
             cg.add(var.set_device_information_service(service_var))
         else:
             cg.add(var.enqueue_start_service(service_var))

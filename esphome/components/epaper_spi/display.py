@@ -5,7 +5,11 @@ from esphome import core, pins
 import esphome.codegen as cg
 from esphome.components import display, spi
 from esphome.components.display import CONF_SHOW_TEST_CARD, validate_rotation
-from esphome.components.mipi import flatten_sequence, map_sequence
+from esphome.components.mipi import (
+    flatten_sequence,
+    map_sequence,
+    model_schema_extractor,
+)
 import esphome.config_validation as cv
 from esphome.config_validation import update_interval
 from esphome.const import (
@@ -111,6 +115,7 @@ def model_schema(config):
     )
 
 
+@model_schema_extractor(MODELS, model_schema)
 def customise_schema(config):
     """
     Create a customised config schema for a specific model and validate the configuration.
@@ -175,9 +180,7 @@ async def to_code(config):
         *model.get_constructor_args(config),
     )
 
-    # Rotation is handled by setting the transform
-    display_config = {k: v for k, v in config.items() if k != CONF_ROTATION}
-    await display.register_display(var, display_config)
+    await display.register_display(var, config)
     await spi.register_spi_device(var, config, write_only=True)
 
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
@@ -201,16 +204,6 @@ async def to_code(config):
         transform[CONF_SWAP_XY] = False
     else:
         transform = {x: model.get_default(x, False) for x in TRANSFORM_OPTIONS}
-    rotation = config[CONF_ROTATION]
-    if rotation == 180:
-        transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
-        transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
-    elif rotation == 90:
-        transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
-        transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
-    elif rotation == 270:
-        transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
-        transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
     transform_str = "|".join(
         {
             str(getattr(Transform, x.upper()))

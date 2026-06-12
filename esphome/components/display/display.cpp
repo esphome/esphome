@@ -1,12 +1,12 @@
 #include "display.h"
+#include <cmath>
 #include <utility>
 #include <numbers>
 #include "display_color_utils.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace display {
+namespace esphome::display {
 static const char *const TAG = "display";
 
 // COLOR_OFF and COLOR_ON are now inline constexpr in display.h
@@ -239,7 +239,7 @@ void Display::filled_gauge(int center_x, int center_y, int radius1, int radius2,
       int lhline_width = -(dxmax - dxmin) + 1;
       if (progress >= 50) {
         if (float(dymax) < float(-dxmax) * tan_a) {
-          upd_dxmax = ceil(float(dymax) / tan_a);
+          upd_dxmax = std::ceil(float(dymax) / tan_a);
         } else {
           upd_dxmax = -dxmax;
         }
@@ -254,7 +254,7 @@ void Display::filled_gauge(int center_x, int center_y, int radius1, int radius2,
         }
       } else {
         if (float(dymin) > float(-dxmin) * tan_a) {
-          upd_dxmin = ceil(float(dymin) / tan_a);
+          upd_dxmin = std::ceil(float(dymin) / tan_a);
         } else {
           upd_dxmin = -dxmin;
         }
@@ -269,12 +269,12 @@ void Display::filled_gauge(int center_x, int center_y, int radius1, int radius2,
       int hline_width = 2 * (-dxmax) + 1;
       if (progress >= 50) {
         if (dymax < float(-dxmax) * tan_a) {
-          upd_dxmax = ceil(float(dymax) / tan_a);
+          upd_dxmax = std::ceil(float(dymax) / tan_a);
           hline_width = -dxmax + upd_dxmax + 1;
         }
       } else {
         if (dymax < float(-dxmax) * tan_a) {
-          upd_dxmax = ceil(float(dymax) / tan_a);
+          upd_dxmax = std::ceil(float(dymax) / tan_a);
           hline_width = -dxmax - upd_dxmax + 1;
         } else {
           hline_width = 0;
@@ -453,8 +453,8 @@ void HOT Display::get_regular_polygon_vertex(int vertex_id, int *vertex_x, int *
     rotation_radians -= (variation == VARIATION_FLAT_TOP) ? std::numbers::pi / edges : 0.0;
 
     float vertex_angle = ((float) vertex_id) / edges * 2 * std::numbers::pi + rotation_radians;
-    *vertex_x = (int) round(cos(vertex_angle) * radius) + center_x;
-    *vertex_y = (int) round(sin(vertex_angle) * radius) + center_y;
+    *vertex_x = (int) std::round(std::cos(vertex_angle) * radius) + center_x;
+    *vertex_y = (int) std::round(std::sin(vertex_angle) * radius) + center_y;
   }
 }
 
@@ -927,5 +927,4 @@ const LogString *text_align_to_string(TextAlign textalign) {
       return LOG_STR("UNKNOWN");
   }
 }
-}  // namespace display
-}  // namespace esphome
+}  // namespace esphome::display

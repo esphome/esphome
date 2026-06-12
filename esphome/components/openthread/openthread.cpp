@@ -2,8 +2,6 @@
 #ifdef USE_OPENTHREAD
 #include "openthread.h"
 
-#include <freertos/portmacro.h>
-
 #include <openthread/cli.h>
 #include <openthread/instance.h>
 #include <openthread/logging.h>
@@ -11,6 +9,7 @@
 #include <openthread/tasklet.h>
 
 #include <cstring>
+#include <utility>
 
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
@@ -45,7 +44,7 @@ void OpenThreadComponent::dump_config() {
   }
 }
 
-void OpenThreadComponent::on_state_changed_(otChangedFlags flags, void *context) {
+void OpenThreadComponent::on_state_changed(otChangedFlags flags, void *context) {
   if (flags & OT_CHANGED_THREAD_ROLE) {
     auto *self = static_cast<OpenThreadComponent *>(context);
     // This runs on the OpenThread task thread with the OT lock held,
@@ -181,7 +180,7 @@ void OpenThreadSrpComponent::setup() {
     memcpy(string, host_name.c_str(), host_name_len);
 
     // Set port
-    entry->mService.mPort = const_cast<TemplatableValue<uint16_t> &>(service.port).value();
+    entry->mService.mPort = service.port.value();
 
     otDnsTxtEntry *txt_entries =
         reinterpret_cast<otDnsTxtEntry *>(this->pool_alloc_(sizeof(otDnsTxtEntry) * service.txt_records.size()));
@@ -243,7 +242,7 @@ bool OpenThreadComponent::teardown() {
 }
 
 void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
-  factory_reset_external_callback_ = callback;
+  this->factory_reset_external_callback_ = std::move(callback);
   ESP_LOGD(TAG, "Start Removal SRP Host and Services");
   otError error;
   InstanceLock lock = InstanceLock::acquire();

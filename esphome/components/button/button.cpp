@@ -16,7 +16,7 @@ void log_button(const char *tag, const char *prefix, const char *type, Button *o
 }
 
 void Button::press() {
-  ESP_LOGD(TAG, "'%s' Pressed.", this->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' Pressed.", this->get_name().c_str());
   this->press_action();
   this->press_callback_.call();
 }

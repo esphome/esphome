@@ -8,9 +8,7 @@
 #include "appliance_base.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace midea {
-namespace ac {
+namespace esphome::midea::ac {
 
 using sensor::Sensor;
 using climate::ClimateCall;
@@ -46,8 +44,8 @@ class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner>,
   void set_supported_modes(ClimateModeMask modes) { this->supported_modes_ = modes; }
   void set_supported_swing_modes(ClimateSwingModeMask modes) { this->supported_swing_modes_ = modes; }
   void set_supported_presets(ClimatePresetMask presets) { this->supported_presets_ = presets; }
-  void set_custom_presets(std::initializer_list<const char *> presets) { this->supported_custom_presets_ = presets; }
-  void set_custom_fan_modes(std::initializer_list<const char *> modes) { this->supported_custom_fan_modes_ = modes; }
+  void set_custom_presets(std::initializer_list<const char *> presets) { this->set_supported_custom_presets(presets); }
+  void set_custom_fan_modes(std::initializer_list<const char *> modes) { this->set_supported_custom_fan_modes(modes); }
 
  protected:
   void control(const ClimateCall &call) override;
@@ -55,15 +53,12 @@ class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner>,
   ClimateModeMask supported_modes_{};
   ClimateSwingModeMask supported_swing_modes_{};
   ClimatePresetMask supported_presets_{};
-  std::vector<const char *> supported_custom_presets_{};
-  std::vector<const char *> supported_custom_fan_modes_{};
+  bool frost_protection_set_{false};
   Sensor *outdoor_sensor_{nullptr};
   Sensor *humidity_sensor_{nullptr};
   Sensor *power_sensor_{nullptr};
 };
 
-}  // namespace ac
-}  // namespace midea
-}  // namespace esphome
+}  // namespace esphome::midea::ac
 
 #endif  // USE_ARDUINO

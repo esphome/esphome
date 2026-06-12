@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "remote_base.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct RC5Data {
   uint8_t address;
@@ -35,5 +34,4 @@ template<typename... Ts> class RC5Action : public RemoteTransmitterActionBase<Ts
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

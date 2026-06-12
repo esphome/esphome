@@ -1,8 +1,7 @@
 #include "daikin_brc.h"
 #include "esphome/components/remote_base/remote_base.h"
 
-namespace esphome {
-namespace daikin_brc {
+namespace esphome::daikin_brc {
 
 static const char *const TAG = "daikin_brc.climate";
 
@@ -279,5 +278,4 @@ bool DaikinBrcClimate::on_receive(remote_base::RemoteReceiveData data) {
   return this->parse_state_frame_(state_frame);
 }
 
-}  // namespace daikin_brc
-}  // namespace esphome
+}  // namespace esphome::daikin_brc

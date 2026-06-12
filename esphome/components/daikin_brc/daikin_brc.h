@@ -2,8 +2,7 @@
 
 #include "esphome/components/climate_ir/climate_ir.h"
 
-namespace esphome {
-namespace daikin_brc {
+namespace esphome::daikin_brc {
 
 // Values for Daikin BRC4CXXX IR Controllers
 // Temperature
@@ -81,5 +80,4 @@ class DaikinBrcClimate : public climate_ir::ClimateIR {
   uint8_t sub_unit_{0};
 };
 
-}  // namespace daikin_brc
-}  // namespace esphome
+}  // namespace esphome::daikin_brc

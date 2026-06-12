@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from typing import Any
 
 from esphome import config_validation as cv
 from esphome.automation import Trigger, validate_automation
@@ -10,6 +11,7 @@ from esphome.const import (
     CONF_GROUP,
     CONF_ID,
     CONF_ON_BOOT,
+    CONF_ON_UPDATE,
     CONF_ON_VALUE,
     CONF_STATE,
     CONF_TEXT,
@@ -20,18 +22,27 @@ from esphome.const import (
 )
 from esphome.core import TimePeriod
 from esphome.core.config import StartupTrigger
+from esphome.schema_extractors import EnableSchemaExtraction
 
 from . import defines as df, lv_validation as lvalid
 from .defines import (
+    CONF_EXT_CLICK_AREA,
     CONF_SCROLL_DIR,
     CONF_SCROLL_SNAP_X,
     CONF_SCROLL_SNAP_Y,
     CONF_SCROLLBAR_MODE,
     CONF_TIME_FORMAT,
+    CONF_TRIGGER,
     LV_GRAD_DIR,
+    LV_VALUE_EVENTS,
+    VALUE_ON_CHANGE,
+    VALUE_ON_RELEASE,
+    VALUE_ON_UPDATE,
+    VALUE_ON_VALUE,
     get_remapped_uses,
+    is_press_event,
 )
-from .helpers import CONF_IF_NAN, requires_component, validate_printf
+from .helpers import CONF_IF_NAN, validate_printf
 from .layout import (
     FLEX_OBJ_SCHEMA,
     GRID_CELL_SCHEMA,
@@ -39,12 +50,14 @@ from .layout import (
     grid_alignments,
 )
 from .lv_validation import lv_color, lv_font, lv_gradient, lv_image, opacity
-from .lvcode import LvglComponent, lv_event_t_ptr
+from .lvcode import UPDATE_EVENT, LvglComponent, lv_event_t_ptr
 from .types import (
+    LV_EVENT,
     LVEncoderListener,
     LvType,
     lv_group_t,
     lv_obj_t,
+    lv_point_t,
     lv_pseudo_button_t,
     lv_style_t,
 )
@@ -109,7 +122,7 @@ PRESS_TIME = cv.All(
 ENCODER_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.All(
-            cv.declare_id(LVEncoderListener), requires_component("binary_sensor")
+            cv.declare_id(LVEncoderListener), cv.requires_component("binary_sensor")
         ),
         cv.Optional(CONF_GROUP): cv.declare_id(lv_group_t),
         cv.Optional(df.CONF_INITIAL_FOCUS): cv.All(
@@ -122,8 +135,8 @@ ENCODER_SCHEMA = cv.Schema(
 
 POINT_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_X): cv.templatable(cv.int_),
-        cv.Required(CONF_Y): cv.templatable(cv.int_),
+        cv.Required(CONF_X): lvalid.pixels_or_percent,
+        cv.Required(CONF_Y): lvalid.pixels_or_percent,
     }
 )
 
@@ -136,9 +149,13 @@ def point_schema(value):
     """
     if isinstance(value, dict):
         return POINT_SCHEMA(value)
+    if isinstance(value, list):
+        if len(value) != 2:
+            raise cv.Invalid("Invalid point format, should be <x_int>, <y_int>")
+        return POINT_SCHEMA({CONF_X: value[0], CONF_Y: value[1]})
     try:
-        x, y = map(int, value.split(","))
-        return {CONF_X: x, CONF_Y: y}
+        x, y = str(value).split(",")
+        return POINT_SCHEMA({CONF_X: x, CONF_Y: y})
     except ValueError:
         pass
     # not raising this in the catch block because pylint doesn't like it
@@ -146,26 +163,42 @@ def point_schema(value):
 
 
 # All LVGL styles and their validators
-STYLE_PROPS = {
+BASE_PROPS = {
     "align": df.CHILD_ALIGNMENTS.one_of,
-    "arc_opa": lvalid.opacity,
+    "anim_duration": lvalid.lv_milliseconds,
     "arc_color": lvalid.lv_color,
+    "arc_opa": lvalid.opacity,
     "arc_rounded": lvalid.lv_bool,
     "arc_width": lvalid.pixels,
-    "anim_time": lvalid.lv_milliseconds,
+    "base_dir": df.LvConstant("LV_BASE_DIR_", "LTR", "RTL", "AUTO").one_of,
     "bg_color": lvalid.lv_color,
     "bg_grad": lv_gradient,
     "bg_grad_color": lvalid.lv_color,
-    "bg_dither_mode": df.LvConstant("LV_DITHER_", "NONE", "ORDERED", "ERR_DIFF").one_of,
     "bg_grad_dir": LV_GRAD_DIR.one_of,
+    "bg_grad_opa": lvalid.opacity,
     "bg_grad_stop": lvalid.stop_value,
     "bg_image_opa": lvalid.opacity,
     "bg_image_recolor": lvalid.lv_color,
     "bg_image_recolor_opa": lvalid.opacity,
     "bg_image_src": lvalid.lv_image,
     "bg_image_tiled": lvalid.lv_bool,
+    "bg_main_opa": lvalid.opacity,
     "bg_main_stop": lvalid.stop_value,
     "bg_opa": lvalid.opacity,
+    "bitmap_mask_src": lvalid.lv_image,
+    "blend_mode": df.LvConstant(
+        "LV_BLEND_MODE_",
+        "NORMAL",
+        "ADDITIVE",
+        "SUBTRACTIVE",
+        "MULTIPLY",
+        "DIFFERENCE",
+    ).one_of,
+    "blur_backdrop": lvalid.lv_bool,
+    "blur_quality": df.LvConstant(
+        "LV_BLUR_QUALITY_", "AUTO", "SPEED", "PRECISION"
+    ).one_of,
+    "blur_radius": lvalid.lv_positive_int,
     "border_color": lvalid.lv_color,
     "border_opa": lvalid.opacity,
     "border_post": lvalid.lv_bool,
@@ -175,33 +208,53 @@ STYLE_PROPS = {
     "border_width": lvalid.lv_positive_int,
     "clip_corner": lvalid.lv_bool,
     "color_filter_opa": lvalid.opacity,
+    "drop_shadow_color": lvalid.lv_color,
+    "drop_shadow_offset_x": lvalid.lv_int,
+    "drop_shadow_offset_y": lvalid.lv_int,
+    "drop_shadow_opa": lvalid.opacity,
+    "drop_shadow_quality": df.LvConstant(
+        "LV_BLUR_QUALITY_", "AUTO", "SPEED", "PRECISION"
+    ).one_of,
+    "drop_shadow_radius": lvalid.lv_positive_int,
     "height": lvalid.size,
+    "image_opa": lvalid.opacity,
     "image_recolor": lvalid.lv_color,
     "image_recolor_opa": lvalid.opacity,
+    "length": lvalid.pixels_or_percent,
     "line_color": lvalid.lv_color,
     "line_dash_gap": lvalid.lv_positive_int,
     "line_dash_width": lvalid.lv_positive_int,
     "line_opa": lvalid.opacity,
     "line_rounded": lvalid.lv_bool,
     "line_width": lvalid.lv_positive_int,
+    "margin_bottom": lvalid.padding,
+    "margin_left": lvalid.padding,
+    "margin_right": lvalid.padding,
+    "margin_top": lvalid.padding,
+    "max_height": lvalid.pixels_or_percent,
+    "max_width": lvalid.pixels_or_percent,
+    "min_height": lvalid.pixels_or_percent,
+    "min_width": lvalid.pixels_or_percent,
     "opa": lvalid.opacity,
     "opa_layered": lvalid.opacity,
     "outline_color": lvalid.lv_color,
     "outline_opa": lvalid.opacity,
     "outline_pad": lvalid.padding,
     "outline_width": lvalid.pixels,
-    "length": lvalid.pixels_or_percent,
     "pad_all": lvalid.padding,
     "pad_bottom": lvalid.padding,
     "pad_left": lvalid.padding,
+    "pad_radial": lvalid.padding,
     "pad_right": lvalid.padding,
     "pad_top": lvalid.padding,
     "radial_offset": lvalid.size,
+    "radius": lvalid.lv_fraction,
+    "recolor": lvalid.lv_color,
+    "recolor_opa": lvalid.opacity,
+    "rotary_sensitivity": lvalid.lv_positive_int,
     "shadow_color": lvalid.lv_color,
     "shadow_offset_x": lvalid.lv_int,
     "shadow_offset_y": lvalid.lv_int,
-    "shadow_ofs_x": lvalid.lv_int,
-    "shadow_ofs_y": lvalid.lv_int,
     "shadow_opa": lvalid.opacity,
     "shadow_spread": lvalid.lv_int,
     "shadow_width": lvalid.lv_positive_int,
@@ -216,7 +269,9 @@ STYLE_PROPS = {
     "text_letter_space": lvalid.lv_positive_int,
     "text_line_space": lvalid.lv_positive_int,
     "text_opa": lvalid.opacity,
-    "transform_angle": lvalid.lv_angle,
+    "text_outline_stroke_color": lvalid.lv_color,
+    "text_outline_stroke_opa": lvalid.opacity,
+    "text_outline_stroke_width": lvalid.lv_positive_int,
     "transform_height": lvalid.pixels_or_percent,
     "transform_pivot_x": lvalid.pixels_or_percent,
     "transform_pivot_y": lvalid.pixels_or_percent,
@@ -226,20 +281,17 @@ STYLE_PROPS = {
     "transform_scale_y": lvalid.scale,
     "transform_skew_x": lvalid.lv_angle,
     "transform_skew_y": lvalid.lv_angle,
-    "transform_zoom": lvalid.scale,
+    "transform_width": lvalid.pixels_or_percent,
+    "translate_radial": lvalid.lv_int,
     "translate_x": lvalid.pixels_or_percent,
     "translate_y": lvalid.pixels_or_percent,
-    "max_height": lvalid.pixels_or_percent,
-    "max_width": lvalid.pixels_or_percent,
-    "min_height": lvalid.pixels_or_percent,
-    "min_width": lvalid.pixels_or_percent,
-    "radius": lvalid.lv_fraction,
     "width": lvalid.size,
     "x": lvalid.pixels_or_percent,
     "y": lvalid.pixels_or_percent,
 }
 
 STYLE_REMAP = {
+    "anim_time": "anim_duration",
     "transform_angle": "transform_rotation",
     "transform_zoom": "transform_scale",
     "zoom": "scale",
@@ -247,6 +299,10 @@ STYLE_REMAP = {
     "shadow_ofs_x": "shadow_offset_x",
     "shadow_ofs_y": "shadow_offset_y",
     "r_mod": "length",
+}
+
+STYLE_PROPS = BASE_PROPS | {
+    p: BASE_PROPS[v] for p, v in STYLE_REMAP.items() if v in BASE_PROPS
 }
 
 
@@ -272,6 +328,7 @@ STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).ex
         cv.Optional(df.CONF_SCROLLBAR_MODE): df.LvConstant(
             "LV_SCROLLBAR_MODE_", "OFF", "ON", "ACTIVE", "AUTO"
         ).one_of,
+        cv.Optional(CONF_EXT_CLICK_AREA): lvalid.pixels,
         cv.Optional(CONF_SCROLL_DIR): df.SCROLL_DIRECTIONS.one_of,
         cv.Optional(CONF_SCROLL_SNAP_X): df.SNAP_DIRECTIONS.one_of,
         cv.Optional(CONF_SCROLL_SNAP_Y): df.SNAP_DIRECTIONS.one_of,
@@ -279,6 +336,7 @@ STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).ex
 )
 
 OBJ_PROPERTIES = {
+    CONF_EXT_CLICK_AREA,
     CONF_SCROLL_SNAP_X,
     CONF_SCROLL_SNAP_Y,
     CONF_SCROLL_DIR,
@@ -307,36 +365,101 @@ SET_STATE_SCHEMA = cv.Schema(
 FLAG_SCHEMA = cv.Schema({cv.Optional(flag): lvalid.lv_bool for flag in df.OBJ_FLAGS})
 FLAG_LIST = cv.ensure_list(df.LV_OBJ_FLAG.one_of)
 
+VALUE_TRIGGER_SCHEMA = {
+    cv.Optional(CONF_TRIGGER, default=CONF_ON_VALUE): cv.one_of(
+        *LV_VALUE_EVENTS, lower=True
+    ),
+}
 
-def part_schema(parts):
+TRIGGER_EVENT_MAP = {
+    VALUE_ON_CHANGE: (LV_EVENT.VALUE_CHANGED,),
+    VALUE_ON_UPDATE: (UPDATE_EVENT,),
+    VALUE_ON_VALUE: (LV_EVENT.VALUE_CHANGED, UPDATE_EVENT),
+    VALUE_ON_RELEASE: (LV_EVENT.RELEASED,),
+}
+
+
+def part_dict(parts: tuple[str, ...] | list[str]) -> dict[Any, Any]:
+    """
+    Return the raw mapping used by part_schema, so callers can merge it into a
+    larger dict and avoid chained .extend() calls (each .extend() recompiles the
+    whole mapping, turning the build into O(N^2)).
+
+    Invariant: the source schemas spread here (STATE_SCHEMA, FLAG_SCHEMA, the
+    nested STATE_SCHEMA values) must use the default extra=PREVENT_EXTRA and
+    required=False and must not register any add_extra/prepend_extra
+    validators. Reaching into .schema and rebuilding via cv.Schema(...) keeps
+    only the mapping; non-default extra/required and any _extra_schemas would
+    be silently dropped.
+    """
+    return {
+        **STATE_SCHEMA.schema,
+        **FLAG_SCHEMA.schema,
+        **{cv.Optional(part): STATE_SCHEMA for part in parts},
+    }
+
+
+def part_schema(parts: tuple[str, ...] | list[str]) -> cv.Schema:
     """
     Generate a schema for the various parts (e.g. main:, indicator:) of a widget type
     :param parts:  The parts to include
     :return: The schema
     """
-    return STATE_SCHEMA.extend(FLAG_SCHEMA).extend(
-        {cv.Optional(part): STATE_SCHEMA for part in parts}
-    )
+    return cv.Schema(part_dict(parts))
 
 
-def automation_schema(typ: LvType):
+def _lazy_validate_automation(extra_schema: dict) -> Callable[[Any], Any]:
+    """Return a validator that defers building the validate_automation schema.
+
+    validate_automation() runs AUTOMATION_SCHEMA.extend(extra_schema), which
+    voluptuous compiles eagerly. automation_schema() builds ~60 of these per
+    widget type, and the vast majority of slots are never invoked by a given
+    user config. Deferring the build to first use removes that work from
+    schema-construction time.
+
+    When EnableSchemaExtraction is set (build_language_schema.py), fall back
+    to eager construction so the @schema_extractor("automation") decoration
+    inside validate_automation is registered.
+    """
+    if EnableSchemaExtraction:
+        return validate_automation(extra_schema)
+
+    cached: Callable[[Any], Any] | None = None
+
+    def validator(value: Any) -> Any:
+        nonlocal cached
+        if cached is None:
+            cached = validate_automation(extra_schema)
+        return cached(value)
+
+    return validator
+
+
+def automation_schema(typ: LvType) -> dict[Any, Any]:
     events = df.LV_EVENT_TRIGGERS + df.SWIPE_TRIGGERS
     if typ.has_on_value:
-        events = events + (CONF_ON_VALUE,)
+        events = events + (CONF_ON_VALUE, CONF_ON_UPDATE)
     args = typ.get_arg_type()
-    args.append(lv_event_t_ptr)
+
+    def get_trigger_args(event):
+        result = args.copy()
+        if is_press_event(event):
+            result.append(lv_point_t)
+        result.append(lv_event_t_ptr)
+        return result
+
     return {
         **{
-            cv.Optional(event): validate_automation(
+            cv.Optional(event): _lazy_validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        Trigger.template(*args)
+                        Trigger.template(*get_trigger_args(event))
                     ),
                 }
             )
             for event in events
         },
-        cv.Optional(CONF_ON_BOOT): validate_automation(
+        cv.Optional(CONF_ON_BOOT): _lazy_validate_automation(
             {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupTrigger)}
         ),
     }
@@ -351,7 +474,7 @@ def _update_widget(widget_type: WidgetType) -> Callable[[dict], dict]:
     """
 
     def validator(value: dict) -> dict:
-        df.get_data(df.KEY_UPDATED_WIDGETS).setdefault(widget_type, []).append(value)
+        df.get_updated_widgets().setdefault(widget_type, []).append(value)
         return value
 
     return validator
@@ -385,23 +508,62 @@ def base_update_schema(widget_type: WidgetType | LvType, parts):
     return schema
 
 
-def obj_schema(widget_type: WidgetType):
+# Memoize obj_dict() the same way _OBJ_SCHEMA_CACHE memoizes obj_schema().
+# automation_schema(w.w_type) builds fresh Trigger.template(...) objects on
+# every call, so without this cache _theme_schema pays that cost per widget
+# per validation. Callers must treat the returned dict as immutable. The
+# _theme_schema caller spreads it into a fresh dict, which is safe; the
+# obj_schema caller passes it directly to cv.Schema(...) -- voluptuous stores
+# the mapping by reference but never mutates it (.extend() copies first), so
+# the alias is also safe today. Adding in-place mutation of obj_schema(w).schema
+# would corrupt this cache.
+_OBJ_DICT_CACHE: dict[int, tuple[WidgetType, dict[Any, Any]]] = {}
+
+
+def obj_dict(widget_type: WidgetType) -> dict[Any, Any]:
+    """
+    Return the raw mapping used by obj_schema, so callers can merge it into a
+    larger dict and avoid chained .extend() calls.
+
+    Inherits the same source-schema invariant documented on part_dict: any
+    schema spread into this mapping must use the default extra=PREVENT_EXTRA
+    and required=False and must carry no add_extra/prepend_extra validators.
+
+    The returned mapping is cached and must be treated as immutable by callers.
+    """
+    cached = _OBJ_DICT_CACHE.get(id(widget_type))
+    if cached is not None and cached[0] is widget_type:
+        return cached[1]
+    built = {
+        **part_dict(widget_type.parts),
+        **ALIGN_TO_SCHEMA,
+        **automation_schema(widget_type.w_type),
+        cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
+        cv.Optional(CONF_GROUP): cv.use_id(lv_group_t),
+    }
+    _OBJ_DICT_CACHE[id(widget_type)] = (widget_type, built)
+    return built
+
+
+# Widget types are module-level singletons populated at import time, so we
+# can cache compiled obj_schemas by widget_type identity for the lifetime of
+# the process. The strong reference in the value keeps the key (an id()
+# target) from being recycled.
+_OBJ_SCHEMA_CACHE: dict[int, tuple[WidgetType, cv.Schema]] = {}
+
+
+def obj_schema(widget_type: WidgetType) -> cv.Schema:
     """
     Create a schema for a widget type itself i.e. no allowance for children
     :param widget_type:
     :return:
     """
-    return (
-        part_schema(widget_type.parts)
-        .extend(ALIGN_TO_SCHEMA)
-        .extend(automation_schema(widget_type.w_type))
-        .extend(
-            {
-                cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
-                cv.Optional(CONF_GROUP): cv.use_id(lv_group_t),
-            }
-        )
-    )
+    cached = _OBJ_SCHEMA_CACHE.get(id(widget_type))
+    if cached is not None and cached[0] is widget_type:
+        return cached[1]
+    schema = cv.Schema(obj_dict(widget_type))
+    _OBJ_SCHEMA_CACHE[id(widget_type)] = (widget_type, schema)
+    return schema
 
 
 ALIGN_TO_SCHEMA = {
@@ -458,7 +620,16 @@ def strip_defaults(schema: cv.Schema):
     return cv.Schema({cv.Optional(k): v for k, v in schema.schema.items()})
 
 
-def container_schema(widget_type: WidgetType, extras=None):
+# Keyed by (id(widget_type), id(extras)); strong refs in the value keep both
+# alive so id() can't be recycled.
+_CONTAINER_SCHEMA_CACHE: dict[
+    tuple[int, int], tuple[Any, Any, Callable[[Any], Any]]
+] = {}
+
+
+def container_schema(
+    widget_type: WidgetType, extras: Any = None
+) -> Callable[[Any], Any]:
     """
     Create a schema for a container widget of a given type. All obj properties are available, plus
     the extras passed in, plus any defined for the specific widget being specified.
@@ -466,19 +637,31 @@ def container_schema(widget_type: WidgetType, extras=None):
     :param extras:  Additional options to be made available, e.g. layout properties for children
     :return: The schema for this type of widget.
     """
-    schema = obj_schema(widget_type).extend(
-        {cv.GenerateID(): cv.declare_id(widget_type.w_type)}
-    )
-    if extras:
-        schema = schema.extend(extras)
-    # Delayed evaluation for recursion
+    cache_key = (id(widget_type), id(extras))
+    cached = _CONTAINER_SCHEMA_CACHE.get(cache_key)
+    if cached is not None:
+        cached_widget_type, cached_extras, cached_validator = cached
+        if cached_widget_type is widget_type and cached_extras is extras:
+            return cached_validator
 
-    schema = schema.extend(widget_type.schema)
+    cached_schema: cv.Schema | None = None
 
-    def validator(value):
+    def get_schema() -> cv.Schema:
+        nonlocal cached_schema
+        if cached_schema is None:
+            schema = obj_schema(widget_type).extend(
+                {cv.GenerateID(): cv.declare_id(widget_type.w_type)}
+            )
+            if extras:
+                schema = schema.extend(extras)
+            cached_schema = schema.extend(widget_type.schema)
+        return cached_schema
+
+    def validator(value: Any) -> Any:
         value = value or {}
-        return append_layout_schema(schema, value)(value)
+        return append_layout_schema(get_schema(), value)(value)
 
+    _CONTAINER_SCHEMA_CACHE[cache_key] = (widget_type, extras, validator)
     return validator
 
 
@@ -518,7 +701,7 @@ def any_widget_schema(extras=None):
             container_validator = container_schema(widget_type, extras=extras)
             if required := widget_type.required_component:
                 container_validator = cv.All(
-                    container_validator, requires_component(required)
+                    container_validator, cv.requires_component(required)
                 )
             # Apply custom validation
             path = [key] if is_dict else [index, key]

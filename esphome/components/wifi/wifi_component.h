@@ -6,6 +6,14 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#ifdef USE_ESP32
+#include "esphome/core/lock_free_queue.h"
+#endif
+#if defined(USE_LIBRETINY) && defined(ESPHOME_THREAD_MULTI_ATOMICS)
+#include "esphome/core/lock_free_queue.h"
+#elif defined(USE_LIBRETINY) && defined(ESPHOME_THREAD_MULTI_NO_ATOMICS)
+#include "esphome/core/freertos_queue.h"
+#endif
 #include "esphome/core/string_ref.h"
 
 #include <span>
@@ -337,6 +345,17 @@ enum WifiMinAuthMode : uint8_t {
   WIFI_MIN_AUTH_MODE_WPA3,
 };
 
+#ifdef USE_WIFI_PHY_MODE
+// Values 1-3 match ESP8266 SDK phy_mode_t (PHY_MODE_11B=1, PHY_MODE_11G=2, PHY_MODE_11N=3).
+// AUTO leaves the SDK at its default (no wifi_set_phy_mode() call).
+enum WiFi8266PhyMode : uint8_t {
+  WIFI_8266_PHY_MODE_AUTO = 0,
+  WIFI_8266_PHY_MODE_11B = 1,
+  WIFI_8266_PHY_MODE_11G = 2,
+  WIFI_8266_PHY_MODE_11N = 3,
+};
+#endif
+
 #ifdef USE_ESP32
 struct IDFWiFiEvent;
 #endif
@@ -447,6 +466,9 @@ class WiFiComponent final : public Component {
 #if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
   void set_band_mode(wifi_band_mode_t band_mode) { this->band_mode_ = band_mode; }
 #endif
+#ifdef USE_WIFI_PHY_MODE
+  void set_phy_mode(WiFi8266PhyMode phy_mode) { this->phy_mode_ = phy_mode; }
+#endif
 
   void set_passive_scan(bool passive);
 
@@ -463,10 +485,6 @@ class WiFiComponent final : public Component {
   void restart_adapter();
   /// WIFI setup_priority.
   float get_setup_priority() const override;
-#ifdef USE_LOOP_PRIORITY
-  float get_loop_priority() const override;
-#endif
-
   /// Reconnect WiFi if required.
   void loop() override;
 
@@ -658,7 +676,7 @@ class WiFiComponent final : public Component {
 
   void connect_soon_();
 
-  void wifi_loop_();
+  bool wifi_loop_();
 #ifdef USE_ESP8266
   void process_pending_callbacks_();
 #endif
@@ -669,13 +687,25 @@ class WiFiComponent final : public Component {
 #if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
   bool wifi_apply_band_mode_();
 #endif
+#ifdef USE_WIFI_PHY_MODE
+  bool wifi_apply_phy_mode_();
+#endif
   bool wifi_sta_ip_config_(const optional<ManualIP> &manual_ip);
   bool wifi_apply_hostname_();
   bool wifi_sta_connect_(const WiFiAP &ap);
   void wifi_pre_setup_();
+#ifdef USE_ESP32
+  // ESP-IDF only: defers esp_wifi_init() + netif creation (which allocate ~15-30KB of
+  // DMA-capable internal SRAM) until wifi actually needs to come up. Idempotent.
+  // Called from setup() only when enable_on_boot_=true, and from enable() on first use.
+  void wifi_lazy_init_();
+#endif
   WiFiSTAConnectStatus wifi_sta_connect_status_() const;
-  bool is_connected_() const;
-  void update_connected_state_();
+  bool is_connected_() const {
+    return this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED &&
+           this->wifi_sta_connect_status_() == WiFiSTAConnectStatus::CONNECTED && !this->error_from_callback_;
+  }
+  void update_connected_state_() { this->connected_ = this->is_connected_(); }
   bool wifi_scan_start_(bool passive);
 
 #ifdef USE_WIFI_AP
@@ -728,6 +758,7 @@ class WiFiComponent final : public Component {
 
 #ifdef USE_ESP32
   void wifi_process_event_(IDFWiFiEvent *data);
+  friend void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 #endif
 
 #ifdef USE_RP2040
@@ -803,6 +834,9 @@ class WiFiComponent final : public Component {
 #if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
   wifi_band_mode_t band_mode_{WIFI_BAND_MODE_AUTO};
 #endif
+#ifdef USE_WIFI_PHY_MODE
+  WiFi8266PhyMode phy_mode_{WIFI_8266_PHY_MODE_AUTO};
+#endif
   WifiMinAuthMode min_auth_mode_{WIFI_MIN_AUTH_MODE_WPA2};
   WiFiRetryPhase retry_phase_{WiFiRetryPhase::INITIAL_CONNECT};
   uint8_t num_retried_{0};
@@ -815,6 +849,12 @@ class WiFiComponent final : public Component {
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */
   bool error_from_callback_{false};
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+  // Platform-specific STA state enum, defined in platform cpp file.
+  // On ESP8266, written from SDK system context (wifi_event_callback) —
+  // uint8_t writes are atomic on Xtensa LX106 so no synchronization is needed.
+  uint8_t sta_state_{0};
+#endif
   RetryHiddenMode retry_hidden_mode_{RetryHiddenMode::BLIND_RETRY};
   RoamingState roaming_state_{RoamingState::IDLE};
   bssid_t roaming_target_bssid_{};  // BSSID of the AP we're trying to roam to
@@ -855,6 +895,12 @@ class WiFiComponent final : public Component {
   bool rrm_{false};
 #endif
   bool enable_on_boot_{true};
+#ifdef USE_ESP32
+  // Tracks whether esp_wifi_init() + netif creation has happened. Allows enable()
+  // to be called at runtime without re-allocating, and ensures the heavy init is
+  // skipped entirely when enable_on_boot_ is false until first enable().
+  bool wifi_initialized_{false};
+#endif
   bool got_ipv4_address_{false};
   bool keep_scan_results_{false};
   bool has_completed_scan_after_captive_portal_start_{
@@ -864,6 +910,26 @@ class WiFiComponent final : public Component {
   bool post_connect_roaming_{true};  // Enabled by default
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   bool is_high_performance_mode_{false};
+#endif
+
+#ifdef USE_ESP32
+  // Lock-free SPSC queue for WiFi events from ESP-IDF event handler.
+  // 17 slots = 16 usable (ring buffer reserves one slot). WiFi events are rare.
+  // Placed at end of class to avoid padding between smaller fields.
+  LockFreeQueue<IDFWiFiEvent, 17> event_queue_;
+#endif
+
+#ifdef USE_LIBRETINY
+  // Thread-safe queue for WiFi events from LibreTiny callback thread.
+  // LockFreeQueue on platforms with hardware atomics (RTL87xx, LN882x),
+  // FreeRTOSQueue on platforms without (BK72xx).
+  static constexpr uint8_t LT_EVENT_QUEUE_SIZE = 16;
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+  // Ring buffer reserves one slot, so +1 for 16 usable slots
+  LockFreeQueue<LTWiFiEvent, LT_EVENT_QUEUE_SIZE + 1> event_queue_;
+#else
+  FreeRTOSQueue<LTWiFiEvent, LT_EVENT_QUEUE_SIZE> event_queue_;
+#endif
 #endif
 
  private:
