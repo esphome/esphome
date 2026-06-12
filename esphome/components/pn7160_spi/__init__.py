@@ -7,6 +7,7 @@ from .. import pn7160
 
 DEPENDENCIES = ["spi"]
 AUTO_LOAD = ["pn7160"]
+CODEOWNERS = ["@kbx81", "@jesserockz"]
 
 pn7160_spi_ns = cg.esphome_ns.namespace("pn7160_spi")
 PN7160Spi = pn7160_spi_ns.class_("PN7160Spi", pn7160.PN7160, spi.SPIDevice)

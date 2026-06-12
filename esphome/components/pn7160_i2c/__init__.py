@@ -7,6 +7,7 @@ from .. import pn7160
 
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["pn7160"]
+CODEOWNERS = ["@kbx81", "@jesserockz"]
 
 pn7160_i2c_ns = cg.esphome_ns.namespace("pn7160_i2c")
 PN7160I2C = pn7160_i2c_ns.class_("PN7160I2C", pn7160.PN7160, i2c.I2CDevice)
