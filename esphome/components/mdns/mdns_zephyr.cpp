@@ -8,7 +8,7 @@ namespace esphome::mdns {
 
 static const char *const TAG = "mdns.zephyr";
 
-static void register_zephyr(MDNSComponent *mdns, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services) {
+static void register_zephyr(MDNSComponent *, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &) {
   ESP_LOGD(TAG, "mDNS records compiled");
 }
 
