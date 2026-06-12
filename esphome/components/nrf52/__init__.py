@@ -582,8 +582,6 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
 
 
 def _generate_cmake_lists() -> None:
-    src_dir = CORE.relative_src_path()
-
     compile_flags = get_project_compile_flags()
     link_flags = get_project_link_flags()
 
@@ -596,17 +594,17 @@ def _generate_cmake_lists() -> None:
         "",
         f"project({CORE.name})",
         "",
-        f'file(GLOB_RECURSE APP_SOURCES CONFIGURE_DEPENDS "{src_dir}/*.cpp")',
+        'file(GLOB_RECURSE APP_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/../src/*.cpp" "${CMAKE_CURRENT_LIST_DIR}/../src/*.c")',
         "",
         "target_sources(app PRIVATE ${APP_SOURCES})",
-        f'target_include_directories(app PRIVATE "{src_dir}")',
+        'target_include_directories(app PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../src")',
     ]
 
     if compile_flags:
         lines += [
             "",
             "target_compile_options(app PRIVATE",
-            *[f"  {flag}" for flag in compile_flags],
+            *[f'  "{flag}"' for flag in compile_flags],
             ")",
         ]
 
@@ -614,7 +612,7 @@ def _generate_cmake_lists() -> None:
         lines += [
             "",
             "zephyr_ld_options(",
-            *[f"  {flag}" for flag in link_flags],
+            *[f'  "{flag}"' for flag in link_flags],
             ")",
         ]
 
