@@ -8,7 +8,11 @@ namespace esphome::mdns {
 
 static const char *const TAG = "mdns.zephyr";
 
-void MDNSComponent::setup() { ESP_LOGW(TAG, "mDNS is not implemented for Zephyr"); }
+static void register_zephyr(MDNSComponent *mdns, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services) {
+  ESP_LOGD(TAG, "mDNS records compiled");
+}
+
+void MDNSComponent::setup() { this->setup_buffers_and_register_(register_zephyr); }
 
 void MDNSComponent::on_shutdown() {}
 
