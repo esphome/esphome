@@ -126,6 +126,8 @@ DEPENDENCIES = ["display"]
 AUTO_LOAD = ["key_provider"]
 CODEOWNERS = ["@clydebarrow"]
 HELLO_WORLD_FILE = "hello_world.yaml"
+CONF_USE_PPA = "use_ppa"
+CONF_USE_PPA_IMG = "use_ppa_img"
 
 
 SIMPLE_TRIGGERS = (
@@ -250,6 +252,25 @@ def final_validation(config_list):
 
         if (pages := config.get(CONF_PAGES)) and all(p[df.CONF_SKIP] for p in pages):
             raise cv.Invalid("At least one page must not be skipped")
+
+        # RGB888 is the fastest/default path for MIPI DSI on ESP32-P4, but
+        # keep RGB565 available for smaller memory footprints and experiments.
+        user_set_depth = CONF_COLOR_DEPTH in config
+        has_mipi = any(
+            global_config.get_config_for_path(
+                global_config.get_path_for_id(did)[:-1]
+            ).get("platform", "")
+            == "mipi_dsi"
+            for did in config[df.CONF_DISPLAYS]
+        )
+        if not user_set_depth:
+            config[CONF_COLOR_DEPTH] = 32 if has_mipi else 16
+        elif config[CONF_COLOR_DEPTH] == 16 and has_mipi:
+            df.LOGGER.warning(
+                "color_depth: 16 (RGB565) with MIPI DSI: PPA acceleration may be "
+                "reduced. Consider color_depth: 32 for best performance."
+            )
+
         buffer_frac = config[CONF_BUFFER_SIZE]
         if CORE.is_esp32 and buffer_frac > 0.5 and PSRAM_DOMAIN not in global_config:
             df.LOGGER.warning("buffer_size: may need to be reduced without PSRAM")
@@ -284,15 +305,21 @@ def final_validation(config_list):
 
 async def to_code(configs):
     config_0 = configs[0]
+    use_ppa = config_0.get(CONF_USE_PPA, False)
+    use_ppa_img = config_0.get(CONF_USE_PPA_IMG, False)
+    if use_ppa_img:
+        use_ppa = True
+    ppa_supported = CORE.is_esp32 and get_esp32_variant() == VARIANT_ESP32P4
+    if use_ppa and not ppa_supported:
+        raise cv.Invalid("LVGL PPA acceleration is only supported on ESP32-P4")
     # Global configuration
     if CORE.is_esp32:
         # Skip compiling lvgl examples
         add_idf_sdkconfig_option("CONFIG_LV_BUILD_EXAMPLES", False)
         add_idf_sdkconfig_option("CONFIG_LV_BUILD_DEMOS", False)
-        if get_esp32_variant() == VARIANT_ESP32P4:
+        if ppa_supported:
             add_idf_sdkconfig_option("CONFIG_LV_DRAW_BUF_ALIGN", 64)
-            # disable use of PPA for fills until upstream bugs fixed
-            df.add_define("LV_USE_PPA", "0")
+            df.add_define("LV_USE_PPA", "1" if use_ppa else "0")
             df.add_define("LV_DRAW_BUF_ALIGN", "64")
         else:
             df.add_define("LV_DRAW_BUF_ALIGN", "32")
@@ -307,6 +334,13 @@ async def to_code(configs):
     df.add_define("LV_USE_STDLIB_MALLOC", "LV_STDLIB_CUSTOM")
     df.add_define("LV_DEF_REFR_PERIOD", "16")
     cg.add_define("USE_LVGL")
+    if use_ppa:
+        df.add_define("LV_PPA_BURST_LENGTH", "128")
+        cg.add_define("USE_LVGL_PPA")
+        ppa_dir = Path(__file__).parent / "ppa"
+        cg.add_build_flag(f"-I{ppa_dir.as_posix()}")
+    if use_ppa_img:
+        cg.add_define("LV_USE_PPA_IMG")
     # suppress default enabling of extra widgets
     # cg.add_define("LV_KCONFIG_PRESENT")
     # Always enable - lots of things use it.
@@ -579,7 +613,7 @@ LVGL_SCHEMA = cv.All(
                 cv.GenerateID(CONF_ID): cv.declare_id(LvglComponent),
                 cv.GenerateID(CONF_ALIGN_TO_LAMBDA_ID): cv.declare_id(lv_lambda_t),
                 cv.GenerateID(df.CONF_DISPLAYS): display_schema,
-                cv.Optional(CONF_COLOR_DEPTH, default=16): cv.one_of(16),
+                cv.Optional(CONF_COLOR_DEPTH): cv.one_of(16, 32),
                 cv.Optional(
                     df.CONF_DEFAULT_FONT, default="montserrat_14"
                 ): lvalid.lv_font,
@@ -633,6 +667,8 @@ LVGL_SCHEMA = cv.All(
                 cv.Optional(df.CONF_KEYPADS, default=None): KEYPADS_CONFIG,
                 cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t),
                 cv.Optional(df.CONF_RESUME_ON_INPUT, default=True): cv.boolean,
+                cv.Optional(CONF_USE_PPA, default=False): cv.boolean,
+                cv.Optional(CONF_USE_PPA_IMG, default=False): cv.boolean,
             }
         )
         .extend(DISP_BG_SCHEMA),

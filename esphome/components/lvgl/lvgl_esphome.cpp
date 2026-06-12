@@ -7,6 +7,10 @@
 #include "core/lv_global.h"
 #include "core/lv_obj_class_private.h"
 
+#ifdef USE_LVGL_PPA
+extern "C" void lv_draw_ppa_init(void);
+#endif
+
 #include <numeric>
 
 static void *lv_alloc_draw_buf(size_t size, bool internal);
@@ -184,6 +188,9 @@ void LvglComponent::set_paused(bool paused, bool show_snow) {
 
 void LvglComponent::esphome_lvgl_init() {
   lv_init();
+#ifdef USE_LVGL_PPA
+  lv_draw_ppa_init();
+#endif
   // override draw buf alloc to ensure proper alignment for PPA
   LV_GLOBAL_DEFAULT()->draw_buf_handlers.buf_malloc_cb = draw_buf_alloc_cb;
   LV_GLOBAL_DEFAULT()->draw_buf_handlers.buf_free_cb = lv_free_core;
