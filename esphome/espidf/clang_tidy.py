@@ -114,20 +114,11 @@ def _arduino_framework_deps(version: str) -> dict[str, dict]:
 
     arduino-esp32 provides Arduino.h and the arduino libraries; its version is
     the recommended arduino framework version so the tidy build matches what
-    ESPHome ships. FastLED is what fastled_base's codegen adds on arduino
-    builds (see its add_idf_component call); it lives here rather than in the
-    static manifest so pure-IDF consumers of esphome/idf_component.yml (the
-    platformio.ini dev envs, devcontainer) never see an arduino-only dep.
+    ESPHome ships.
     """
     from esphome.components.esp32 import ARDUINO_ESP32_COMPONENT_NAME
 
-    return {
-        ARDUINO_ESP32_COMPONENT_NAME: {"version": version},
-        "fastled/FastLED": {
-            "git": "https://github.com/FastLED/FastLED.git",
-            "version": "d44c800a9e876a8394caefc2ce4915dd96dac77b",
-        },
-    }
+    return {ARDUINO_ESP32_COMPONENT_NAME: {"version": version}}
 
 
 _TOP_CMAKELISTS = """\
@@ -168,6 +159,12 @@ def _setup_core(work_dir: Path, settings: _Settings) -> None:
     # converter and ESPHome's CORE.using_arduino / using_esp_idf helpers.
     CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = "esp32"
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = settings.target_framework
+
+    # Gates arduino-only components in esphome/idf_component.yml (IDF reads it at
+    # reconfigure time). Set here -- before the manifest is written/reconfigured.
+    os.environ["ESPHOME_ARDUINO"] = (
+        "1" if settings.target_framework == "arduino" else "0"
+    )
 
 
 # Special IDF "components" that are tools/subprojects, not requirable by an app
@@ -217,11 +214,6 @@ def _parse_lib_deps(platformio_ini: Path, framework: str):
         token = token.split(";", 1)[0].strip()  # drop trailing ; comment
         # Skip blanks, ${...} cross-refs, and +<...> source filters.
         if not token or token.startswith(("${", "+<")) or token in seen:
-            continue
-        # FastLED is a managed IDF component in the native flow (see
-        # _arduino_framework_deps); the platformio.ini entry only serves the
-        # IDE/devcontainer envs. Converting it here too would pull it twice.
-        if token.startswith("fastled/FastLED"):
             continue
         seen.add(token)
         if "://" in token or ".git" in token:
