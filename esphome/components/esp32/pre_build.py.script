@@ -10,11 +10,10 @@ if "espidf.custom_sdkconfig" in board:
     if not board._manifest["espidf"]:
         del board._manifest["espidf"]
 
-# esphome/idf_component.yml gates arduino-only managed components (FastLED) on
-# the ESPHOME_ARDUINO environment variable, and the IDF component manager
-# fails hard when a referenced env var is unset. ESPHome's clang-tidy flow
-# exports it, but a direct `pio run` from the repo's platformio.ini (IDE,
-# devcontainer) does not -- default it from the environment's framework list.
-# An explicit value in the caller's environment wins.
-frameworks = env.get("PIOFRAMEWORK") or []
-os.environ.setdefault("ESPHOME_ARDUINO", "1" if "arduino" in frameworks else "0")
+# esphome/idf_component.yml gates managed components that are only needed when
+# arduino is built as an ESP-IDF component (native IDF toolchain) on the
+# ESPHOME_ARDUINO_COMPONENT environment variable, and the IDF component
+# manager fails hard when a referenced env var is unset. PlatformIO builds
+# never use arduino as a managed component (pioarduino ships the framework and
+# FastLED comes from lib_deps), so it is always 0 here.
+os.environ.setdefault("ESPHOME_ARDUINO_COMPONENT", "0")
