@@ -6,7 +6,8 @@ from esphome.core import CORE
 from esphome.types import ConfigType
 
 from .. import consume_endpoint
-from ..const_zephyr import CONF_ZIGBEE_ID, zigbee_ns
+from ..const import zigbee_ns
+from ..const_zephyr import CONF_ZIGBEE_ID
 from ..zigbee_zephyr import (
     ZigbeeClusterDesc,
     ZigbeeComponent,

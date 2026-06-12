@@ -5,8 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace apds9306 {
+namespace esphome::apds9306 {
 
 static const char *const TAG = "apds9306";
 
@@ -147,5 +146,4 @@ void APDS9306::update() {
   this->publish_state(lux);
 }
 
-}  // namespace apds9306
-}  // namespace esphome
+}  // namespace esphome::apds9306

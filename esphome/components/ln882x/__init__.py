@@ -65,3 +65,8 @@ async def to_code(config):
 @pins.PIN_SCHEMA_REGISTRY.register("ln882x", PIN_SCHEMA)
 async def pin_to_code(config):
     return await libretiny.gpio.component_pin_to_code(config)
+
+
+# Called by writer.py; delegates to the shared libretiny implementation.
+def copy_files() -> None:
+    libretiny.copy_files()

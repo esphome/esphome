@@ -7,6 +7,7 @@ import requests
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import light, sensor, uart
+from esphome.components.const import CONF_SHA256
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CURRENT,
@@ -39,7 +40,6 @@ ShellyDimmer = shelly_dimmer_ns.class_(
 )
 
 CONF_FIRMWARE = "firmware"
-CONF_SHA256 = "sha256"
 CONF_UPDATE = "update"
 
 CONF_LEADING_EDGE = "leading_edge"
@@ -84,7 +84,7 @@ def get_firmware(value):
             req = requests.get(url, timeout=30)
             req.raise_for_status()
         except requests.exceptions.RequestException as e:
-            raise cv.Invalid(f"Could not download firmware file ({url}): {e}")
+            raise cv.Invalid(f"Could not download firmware file ({url}): {e}") from e
 
         h = hashlib.new("sha256")
         h.update(req.content)

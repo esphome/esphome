@@ -4,8 +4,7 @@
 #include "esphome/components/tuya/tuya.h"
 #include "esphome/components/cover/cover.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 enum TuyaCoverRestoreMode {
   COVER_NO_RESTORE,
@@ -46,5 +45,4 @@ class TuyaCover : public cover::Cover, public Component {
   bool invert_position_report_;
 };
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

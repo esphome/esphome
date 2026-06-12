@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace tx20 {
+namespace esphome::tx20 {
 
 /// Store data in a class that doesn't use multiple-inheritance (vtables in flash)
 struct Tx20ComponentStore {
@@ -47,5 +46,4 @@ class Tx20Component : public Component {
   Tx20ComponentStore store_;
 };
 
-}  // namespace tx20
-}  // namespace esphome
+}  // namespace esphome::tx20

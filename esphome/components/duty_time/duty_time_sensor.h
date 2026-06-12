@@ -10,8 +10,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 
-namespace esphome {
-namespace duty_time_sensor {
+namespace esphome::duty_time_sensor {
 
 class DutyTimeSensor : public sensor::Sensor, public PollingComponent {
  public:
@@ -71,5 +70,4 @@ template<typename... Ts> class RunningCondition : public Condition<Ts...>, publi
   bool state_;
 };
 
-}  // namespace duty_time_sensor
-}  // namespace esphome
+}  // namespace esphome::duty_time_sensor

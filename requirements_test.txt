@@ -1,6 +1,6 @@
 pylint==4.0.5
 flake8==7.3.0  # also change in .pre-commit-config.yaml when updating
-ruff==0.15.9  # also change in .pre-commit-config.yaml when updating
+ruff==0.15.16  # also change in .pre-commit-config.yaml when updating
 pyupgrade==3.21.2  # also change in .pre-commit-config.yaml when updating
 pre-commit
 
@@ -8,7 +8,15 @@ pre-commit
 pytest==9.0.3
 pytest-cov==7.1.0
 pytest-mock==3.15.1
-pytest-asyncio==1.3.0
+pytest-asyncio==1.4.0
 pytest-xdist==3.8.0
 asyncmock==0.4.2
 hypothesis==6.92.1
+
+# CodSpeed benchmarks under tests/benchmarks/python/
+# (skipped via pytest.importorskip when missing -- only required for the
+# benchmarks job in .github/workflows/ci.yml)
+pytest-codspeed==5.0.3
+
+# Used by the import-time regression check (.github/workflows/ci.yml → import-time job)
+importtime-waterfall==1.0.0

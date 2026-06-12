@@ -1,8 +1,7 @@
 #include "tsl2561.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tsl2561 {
+namespace esphome::tsl2561 {
 
 static const char *const TAG = "tsl2561";
 
@@ -165,5 +164,4 @@ bool TSL2561Sensor::tsl2561_read_byte(uint8_t a_register, uint8_t *value) {
   return this->read_byte(a_register | TSL2561_COMMAND_BIT, value);
 }
 
-}  // namespace tsl2561
-}  // namespace esphome
+}  // namespace esphome::tsl2561
