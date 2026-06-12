@@ -12,21 +12,12 @@ static const char *const TAG = "openthread";
 namespace esphome::openthread {
 
 static void on_thread_state_changed(otChangedFlags flags, struct openthread_context *ot_context, void *user_data) {
+  // Delegate connection status tracking to common callback
+  if (global_openthread_component != nullptr) {
+    OpenThreadComponent::on_state_changed(flags, global_openthread_component);
+  }
   if (flags & OT_CHANGED_THREAD_ROLE) {
     otDeviceRole role = otThreadGetDeviceRole(ot_context->instance);
-    if (global_openthread_component != nullptr) {
-      switch (role) {
-        case OT_DEVICE_ROLE_CHILD:
-        case OT_DEVICE_ROLE_ROUTER:
-        case OT_DEVICE_ROLE_LEADER:
-          global_openthread_component->set_connected(true);
-          break;
-        case OT_DEVICE_ROLE_DISABLED:
-        case OT_DEVICE_ROLE_DETACHED:
-          global_openthread_component->set_connected(false);
-          break;
-      }
-    }
     ESP_LOGI(TAG, "Thread role changed to %s", otThreadDeviceRoleToString(role));
   }
   if (flags & OT_CHANGED_THREAD_NETDATA) {
@@ -95,6 +86,8 @@ void OpenThreadComponent::setup() {
 }
 
 void OpenThreadComponent::ot_main() {}
+
+otInstance *OpenThreadComponent::get_openthread_instance_() { return openthread_get_default_instance(); }
 
 int OpenThreadComponent::openthread_stop_() {
   // OT stack is intentionally left running — no Zephyr stop API. The state callback stays
