@@ -22,11 +22,23 @@ runs:
         python-version: ${{ inputs.python-version }}
     - name: Restore Python virtual environment
       id: cache-venv
-      uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: venv
         # yamllint disable-line rule:line-length
         key: ${{ runner.os }}-${{ steps.python.outputs.python-version }}-venv-${{ inputs.cache-key }}
+    - name: Set up uv
+      # Only needed on cache miss to populate the venv. ``uv pip install``
+      # detects the activated venv via ``VIRTUAL_ENV`` so the venv layout
+      # downstream jobs rely on is preserved.
+      if: steps.cache-venv.outputs.cache-hit != 'true'
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+      with:
+        enable-cache: true
+        # Pin uv version so the action does not have to fetch the
+        # manifest from raw.githubusercontent.com on every cache
+        # miss; that fetch flakes on Windows runners.
+        version: "0.11.15"
     - name: Create Python virtual environment
       if: steps.cache-venv.outputs.cache-hit != 'true' && runner.os != 'Windows'
       shell: bash
@@ -34,8 +46,8 @@ runs:
         python -m venv venv
         source venv/bin/activate
         python --version
-        pip install -r requirements.txt -r requirements_test.txt
-        pip install -e .
+        uv pip install -r requirements.txt -r requirements_test.txt
+        uv pip install -e .
     - name: Create Python virtual environment
       if: steps.cache-venv.outputs.cache-hit != 'true' && runner.os == 'Windows'
       shell: bash
@@ -43,5 +55,5 @@ runs:
         python -m venv venv
         source ./venv/Scripts/activate
         python --version
-        pip install -r requirements.txt -r requirements_test.txt
-        pip install -e .
+        uv pip install -r requirements.txt -r requirements_test.txt
+        uv pip install -e .

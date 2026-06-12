@@ -4,8 +4,7 @@
 
 #include "esphome/components/airthings_wave_base/airthings_wave_base.h"
 
-namespace esphome {
-namespace airthings_wave_mini {
+namespace esphome::airthings_wave_mini {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
@@ -34,7 +33,6 @@ class AirthingsWaveMini : public airthings_wave_base::AirthingsWaveBase {
   };
 };
 
-}  // namespace airthings_wave_mini
-}  // namespace esphome
+}  // namespace esphome::airthings_wave_mini
 
 #endif  // USE_ESP32

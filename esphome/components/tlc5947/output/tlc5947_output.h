@@ -6,8 +6,7 @@
 
 #include "../tlc5947.h"
 
-namespace esphome {
-namespace tlc5947 {
+namespace esphome::tlc5947 {
 
 class TLC5947Channel : public output::FloatOutput, public Parented<TLC5947> {
  public:
@@ -18,5 +17,4 @@ class TLC5947Channel : public output::FloatOutput, public Parented<TLC5947> {
   uint16_t channel_;
 };
 
-}  // namespace tlc5947
-}  // namespace esphome
+}  // namespace esphome::tlc5947

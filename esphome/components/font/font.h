@@ -15,8 +15,7 @@
 #include <lvgl.h>
 #endif
 
-namespace esphome {
-namespace font {
+namespace esphome::font {
 
 class Font;
 
@@ -187,5 +186,4 @@ class PTEFont : public BaseFont {
 };
 #endif
 
-}  // namespace font
-}  // namespace esphome
+}  // namespace esphome::font

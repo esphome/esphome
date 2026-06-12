@@ -4,8 +4,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/cover/cover.h"
 
-namespace esphome {
-namespace time_based {
+namespace esphome::time_based {
 
 class TimeBasedCover : public cover::Cover, public Component {
  public:
@@ -50,5 +49,4 @@ class TimeBasedCover : public cover::Cover, public Component {
   cover::CoverOperation last_operation_{cover::COVER_OPERATION_OPENING};
 };
 
-}  // namespace time_based
-}  // namespace esphome
+}  // namespace esphome::time_based

@@ -21,8 +21,7 @@ int g_pte_max_y;
 }  // namespace
 #endif
 
-namespace esphome {
-namespace font {
+namespace esphome::font {
 
 #ifdef USE_FONT_PTE
 void hw_blend_pixel(int x, int y, int a, int col) {
@@ -837,5 +836,4 @@ void Font::print(int x_start, int y_start, display::Display *display, Color colo
   }
 }
 #endif
-}  // namespace font
-}  // namespace esphome
+}  // namespace esphome::font

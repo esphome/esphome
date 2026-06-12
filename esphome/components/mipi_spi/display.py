@@ -22,6 +22,7 @@ from esphome.components.mipi import (
     dimension_schema,
     get_color_depth,
     map_sequence,
+    model_schema_extractor,
     power_of_two,
     requires_buffer,
 )
@@ -30,6 +31,7 @@ from esphome.components.spi import TYPE_OCTAL, TYPE_QUAD, TYPE_SINGLE
 import esphome.config_validation as cv
 from esphome.config_validation import ALLOW_EXTRA
 from esphome.const import (
+    CONF_AUTO_CLEAR_ENABLED,
     CONF_BRIGHTNESS,
     CONF_BUFFER_SIZE,
     CONF_COLOR_ORDER,
@@ -47,6 +49,7 @@ from esphome.const import (
     CONF_MIRROR_Y,
     CONF_MODEL,
     CONF_RESET_PIN,
+    CONF_ROTATION,
     CONF_SWAP_XY,
     CONF_TRANSFORM,
     CONF_WIDTH,
@@ -195,7 +198,7 @@ def model_schema(config):
                     "big_endian", "little_endian", lower=True
                 ),
                 model.option(CONF_COLOR_DEPTH, 16): cv.one_of(*color_depth, lower=True),
-                model.option(CONF_DRAW_ROUNDING, 2): power_of_two,
+                model.option(CONF_DRAW_ROUNDING, 1): power_of_two,
                 model.option(CONF_PIXEL_MODE, DISPLAY_16BIT): cv.one_of(
                     *pixel_modes, lower=True
                 ),
@@ -225,6 +228,7 @@ def model_schema(config):
     return schema
 
 
+@model_schema_extractor(MODELS, model_schema, extra={CONF_BUS_MODE: TYPE_SINGLE})
 def customise_schema(config):
     """
     Create a customised config schema for a specific model and validate the configuration.
@@ -267,6 +271,28 @@ def customise_schema(config):
     if bus_mode != TYPE_QUAD and CONF_DC_PIN not in config:
         raise cv.Invalid(f"DC pin is required in {bus_mode} mode")
     denominator(config)
+    model = MODELS[config[CONF_MODEL]]
+    has_hardware_transform = config.get(
+        CONF_TRANSFORM
+    ) != CONF_DISABLED and model.transforms == {
+        CONF_MIRROR_X,
+        CONF_MIRROR_Y,
+        CONF_SWAP_XY,
+    }
+    width, height, _offset_width, _offset_height = model.get_dimensions(
+        config, not has_hardware_transform
+    )
+    display.add_metadata(
+        config[CONF_ID],
+        width,
+        height,
+        has_hardware_transform,
+        byte_order=config[CONF_BYTE_ORDER],
+        has_writer=requires_buffer(config)
+        or config.get(CONF_AUTO_CLEAR_ENABLED) is True,
+        rotation=config.get(CONF_ROTATION, 0),
+        draw_rounding=config.get(CONF_DRAW_ROUNDING, 0),
+    )
     return config
 
 
@@ -297,9 +323,9 @@ def _final_validate(config):
 
         buffer_size = color_depth // 8 * width * height // frac
         # Target a buffer size of 20kB, except for large displays, which shouldn't end up here
-        fraction = min(20000.0, buffer_size // 16) / buffer_size
+        fraction = min(20000.0, buffer_size // 4) / buffer_size
         config[CONF_BUFFER_SIZE] = 1.0 / next(
-            x for x in range(2, 17) if fraction >= 1 / x
+            (x for x in range(2, 8) if fraction >= 1 / x), 8
         )
 
 
@@ -338,7 +364,6 @@ def get_instance(config):
     buffer_type = cg.uint8 if color_depth == 8 else cg.uint16
     frac = denominator(config)
     madctl = model.get_madctl(model.get_base_transform(config), config)
-    has_writer = requires_buffer(config)
     templateargs = [
         buffer_type,
         bufferpixels,
@@ -352,9 +377,6 @@ def get_instance(config):
         madctl,
         has_hardware_transform,
     ]
-    display.add_metadata(
-        config[CONF_ID], width, height, has_writer, has_hardware_transform
-    )
     # If a buffer is required, use MipiSpiBuffer, otherwise use MipiSpi
     if requires_buffer(config):
         templateargs.extend(

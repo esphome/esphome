@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/sensirion_common/i2c_sensirion.h"
 
-namespace esphome {
-namespace sht3xd {
+namespace esphome::sht3xd {
 
 /// This class implements support for the SHT3x-DIS family of temperature+humidity i2c sensors.
 class SHT3XDComponent : public PollingComponent, public sensirion_common::SensirionI2CDevice {
@@ -25,5 +24,4 @@ class SHT3XDComponent : public PollingComponent, public sensirion_common::Sensir
   uint32_t serial_number_{0};
 };
 
-}  // namespace sht3xd
-}  // namespace esphome
+}  // namespace esphome::sht3xd

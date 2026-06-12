@@ -7,8 +7,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace rp2040_pwm {
+namespace esphome::rp2040_pwm {
 
 class RP2040PWM : public output::FloatOutput, public Component {
  public:
@@ -53,7 +52,6 @@ template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
   RP2040PWM *parent_;
 };
 
-}  // namespace rp2040_pwm
-}  // namespace esphome
+}  // namespace esphome::rp2040_pwm
 
 #endif  // USE_RP2040

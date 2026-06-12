@@ -3,14 +3,12 @@
 #include "esphome/core/log.h"
 #include "ac_adapter.h"
 
-namespace esphome {
-namespace midea {
-namespace ac {
+namespace esphome::midea::ac {
 
 const char *const Constants::TAG = "midea";
-const char *const Constants::FREEZE_PROTECTION = "freeze protection";
-const char *const Constants::SILENT = "silent";
-const char *const Constants::TURBO = "turbo";
+const char *const Constants::FREEZE_PROTECTION = "Freeze Protection";
+const char *const Constants::SILENT = "Silent";
+const char *const Constants::TURBO = "Turbo";
 
 ClimateMode Converters::to_climate_mode(MideaMode mode) {
   switch (mode) {
@@ -172,8 +170,6 @@ void Converters::to_climate_traits(ClimateTraits &traits, const dudanov::midea::
   // since custom presets are stored on the Climate base class
 }
 
-}  // namespace ac
-}  // namespace midea
-}  // namespace esphome
+}  // namespace esphome::midea::ac
 
 #endif  // USE_ARDUINO

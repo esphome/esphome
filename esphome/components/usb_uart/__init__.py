@@ -1,7 +1,12 @@
 import esphome.codegen as cg
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
+from esphome.components.esp32 import VARIANT_ESP32P4, get_esp32_variant
 from esphome.components.uart import CONF_DEBUG_PREFIX, CONF_FLUSH_TIMEOUT, UARTComponent
-from esphome.components.usb_host import register_usb_client, usb_device_schema
+from esphome.components.usb_host import (
+    get_max_packet_size,
+    register_usb_client,
+    usb_device_schema,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
@@ -11,6 +16,7 @@ from esphome.const import (
     CONF_DUMMY_RECEIVER,
     CONF_ID,
 )
+from esphome.core import CORE
 from esphome.cpp_types import Component
 
 AUTO_LOAD = ["uart", "usb_host", "bytebuffer"]
@@ -51,16 +57,31 @@ class Type:
 
 
 uart_types = (
-    Type("CH34X", 0x1A86, 0x55D5, "CH34X", 3),
-    Type("CH340", 0x1A86, 0x7523, "CH34X", 1),
-    Type("ESP_JTAG", 0x303A, 0x1001, "CdcAcm", 1, baud_rate_required=False),
-    Type("STM32_VCP", 0x0483, 0x5740, "CdcAcm", 1, baud_rate_required=False),
     Type("CDC_ACM", 0, 0, "CdcAcm", 1, baud_rate_required=False),
+    Type("CH34X", 0x1A86, 0x55D5, "CH34X", 4),
+    Type("CH340", 0x1A86, 0x7523, "CH34X", 1),
     Type("CP210X", 0x10C4, 0xEA60, "CP210X", 3),
+    Type("ESP_JTAG", 0x303A, 0x1001, "CdcAcm", 1, baud_rate_required=False),
+    Type("FT232", 0x0403, 0x6001, "FT23XX", 1),
+    Type("FT2232", 0x0403, 0x6010, "FT23XX", 2),
+    Type("FT4232", 0x0403, 0x6011, "FT23XX", 4),
+    Type("PL2303", 0x067B, 0x2303, "PL2303", 1),
+    Type("PL2303GB", 0x067B, 0x23B3, "PL2303", 1),
+    Type("PL2303GC", 0x067B, 0x23A3, "PL2303", 1),
+    Type("PL2303GE", 0x067B, 0x23E3, "PL2303", 1),
+    Type("PL2303GL", 0x067B, 0x23D3, "PL2303", 1),
+    Type("PL2303GS", 0x067B, 0x23F3, "PL2303", 1),
+    Type("PL2303GT", 0x067B, 0x23C3, "PL2303", 1),
+    Type("STM32_VCP", 0x0483, 0x5740, "CdcAcm", 1, baud_rate_required=False),
 )
 
 
 def channel_schema(channels, baud_rate_required):
+    # For now S3 is restricted to 3 channels since each needs 2 endpoints, plus the control endpoint, and
+    # there are only a total of 8 endpoints available.
+    # This will need updating when the 8 channel devices that multiplex over an endpoint are added.
+    if CORE.is_esp32 and get_esp32_variant() != VARIANT_ESP32P4 and channels > 3:
+        channels = 3
     return cv.Schema(
         {
             cv.Required(CONF_CHANNELS): cv.All(
@@ -116,12 +137,23 @@ CONFIG_SCHEMA = cv.ensure_list(
 
 
 async def to_code(config):
+    # The output chunk pool/queue are compile-time-sized templates shared by all
+    # USBUartChannel instances, so use the largest buffer_size across every channel
+    # of every device. Add one extra slot because LockFreeQueue<T,N> is a ring
+    # buffer that wastes one entry.
+    max_buffer_size = max(
+        channel[CONF_BUFFER_SIZE]
+        for device in config
+        for channel in device[CONF_CHANNELS]
+    )
+    output_chunk_count = max(max_buffer_size // get_max_packet_size(), 2) + 1
+    cg.add_define("USB_UART_OUTPUT_CHUNK_COUNT", output_chunk_count)
+
     for device in config:
         var = await register_usb_client(device)
         for index, channel in enumerate(device[CONF_CHANNELS]):
             chvar = cg.new_Pvariable(channel[CONF_ID], index, channel[CONF_BUFFER_SIZE])
             await cg.register_parented(chvar, var)
-            cg.add(chvar.set_rx_buffer_size(channel[CONF_BUFFER_SIZE]))
             cg.add(chvar.set_stop_bits(channel[CONF_STOP_BITS]))
             cg.add(chvar.set_data_bits(channel[CONF_DATA_BITS]))
             cg.add(chvar.set_parity(channel[CONF_PARITY]))

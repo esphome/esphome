@@ -27,7 +27,9 @@ class GraphicalDisplayMenu;
 }  // namespace graphical_display_menu
 #endif
 
-namespace display {
+}  // namespace esphome
+
+namespace esphome::display {
 
 /** TextAlign is used to tell the display class how to position a piece of text. By default
  * the coordinates you enter for the print*() functions take the upper left corner of the text
@@ -889,8 +891,8 @@ class DisplayOnPageChangeTrigger : public Trigger<DisplayPage *, DisplayPage *> 
 
 const LogString *text_align_to_string(TextAlign textalign);
 
-}  // namespace display
+}  // namespace esphome::display
 
+namespace esphome {
 using display::pte_font;
-
 }  // namespace esphome
