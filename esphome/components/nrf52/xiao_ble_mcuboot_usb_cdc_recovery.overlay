@@ -1,6 +1,7 @@
 / {
 	chosen {
 		zephyr,cdc-acm-uart = &cdc_acm_uart0;
+		zephyr,uart-mcumgr = &cdc_acm_uart0;
 	};
 
 	leds {
@@ -14,10 +15,10 @@
 
 &zephyr_udc0 {
 	status = "okay";
+};
 
-	cdc_acm_uart0: cdc_acm_uart0 {
-		compatible = "zephyr,cdc-acm-uart";
-	};
+&usb_cdc_acm_uart {
+	status = "disabled";
 };
 
 &adc {

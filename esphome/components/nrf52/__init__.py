@@ -351,13 +351,30 @@ async def to_code(config: ConfigType) -> None:
                     "xiao_ble_mcuboot_artifact.py",
                     Path(__file__).parent / "xiao_ble_mcuboot_artifact.py.script",
                 )
+                # MCUboot must fit the executable region in the stock
+                # Adafruit bootloader flash map. 0xFD800..0xFDFFF is the
+                # Adafruit bootloader config page and 0xFE000..0xFEFFF is
+                # the MBR params page used during the bootloader swap; keep
+                # both free so a failed update cannot corrupt swap state.
                 zephyr_add_pm_static(
                     [
                         Section("mcuboot_secondary", 0x79000, 0x79000, "flash_primary"),
                         Section("settings_storage", 0xF2000, 0x2000, "flash_primary"),
-                        Section("mcuboot", 0xF4000, 0xB000, "flash_primary"),
+                        Section("mcuboot", 0xF4000, 0x9800, "flash_primary"),
                         Section(
-                            "empty_mbr_params_page", 0xFF000, 0x1000, "flash_primary"
+                            "empty_adafruit_bl_config_page",
+                            0xFD800,
+                            0x800,
+                            "flash_primary",
+                        ),
+                        Section(
+                            "empty_mbr_params_page", 0xFE000, 0x1000, "flash_primary"
+                        ),
+                        Section(
+                            "empty_adafruit_bl_settings_page",
+                            0xFF000,
+                            0x1000,
+                            "flash_primary",
                         ),
                     ]
                 )
@@ -549,9 +566,14 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
 
     mcumgr_device: str | None = None
 
+    # Read the bootloader from the validated config, not zephyr_data():
+    # the upload/logs fast path loads a cached config without running
+    # validators, so CORE.data[KEY_ZEPHYR] is not populated here.
+    bootloader = config[PLATFORM_NRF52][KEY_BOOTLOADER]
+
     if get_port_type(host) == PortType.SERIAL:
         check_permissions(host)
-        if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
+        if bootloader == BOOTLOADER_MCUBOOT:
             mcumgr_device = host
         else:
             if not CORE.using_toolchain_platformio:

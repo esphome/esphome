@@ -6,12 +6,20 @@ import tempfile
 import yaml
 
 BOOTLOADER_START = 0x000F4000
-BOOTLOADER_END = 0x000FF000
+# End of the executable bootloader region in the stock Adafruit nRF52
+# bootloader flash map. The following 0x800-byte page is the Adafruit
+# bootloader config page; do not include it in the replacement bootloader.
+BOOTLOADER_END = 0x000FD800
+BOOTLOADER_CONFIG_START = BOOTLOADER_END
+BOOTLOADER_CONFIG_END = 0x000FE000
+FLASH_END = 0x00100000
 UICR_START = 0x10001014
 UICR_END = 0x1000101C
+# Factory UICR values written by the Adafruit nRF52 bootloader:
+# NRFFW[0] = bootloader start, NRFFW[1] = MBR params page.
 UICR_EXPECTED = {
     0x10001014: 0x000F4000,
-    0x10001018: 0x000FF000,
+    0x10001018: 0x000FE000,
 }
 OUTPUT_NAME = "xiao_ble_mcuboot_updater_input.hex"
 DFU_PACKAGE_NAME = "xiao_ble_mcuboot_updater_dfu.zip"
@@ -19,9 +27,14 @@ DFU_PACKAGE_NAME = "xiao_ble_mcuboot_updater_dfu.zip"
 DFU_BIN_STEM = "xiao_ble_mcuboot"
 # Device type used by official Adafruit nRF52 bootloader update packages
 ADAFRUIT_DFU_DEV_TYPE = 0x0052
+# Unlock code required by the Adafruit nRF52 bootloader before it accepts
+# SoftDevice or bootloader updates on nRF52840 devices.
+ADAFRUIT_NRF52840_DFU_DEV_REV = 52840
 EXPECTED_PARTITIONS = {
     "mcuboot": (BOOTLOADER_START, BOOTLOADER_END),
-    "empty_mbr_params_page": (0x000FF000, 0x00100000),
+    "empty_adafruit_bl_config_page": (BOOTLOADER_CONFIG_START, BOOTLOADER_CONFIG_END),
+    "empty_mbr_params_page": (0x000FE000, 0x000FF000),
+    "empty_adafruit_bl_settings_page": (0x000FF000, 0x00100000),
 }
 
 
@@ -202,7 +215,11 @@ def generate_xiao_ble_mcuboot_updater_dfu_package(
     with tempfile.TemporaryDirectory() as work_dir:
         bin_path = Path(work_dir) / f"{DFU_BIN_STEM}.bin"
         bin_path.write_bytes(bootloader_bin)
-        package = Package(dev_type=ADAFRUIT_DFU_DEV_TYPE, bootloader_fw=str(bin_path))
+        package = Package(
+            dev_type=ADAFRUIT_DFU_DEV_TYPE,
+            dev_rev=ADAFRUIT_NRF52840_DFU_DEV_REV,
+            bootloader_fw=str(bin_path),
+        )
         package.generate_package(str(output_path))
 
 
@@ -220,6 +237,22 @@ def filter_xiao_ble_mcuboot_updater_input(
                 raise IntelHexError(
                     f"UICR 0x{address:08X} is 0x{actual_value:08X}, expected 0x{expected_value:08X}"
                 )
+
+    overflow = [
+        address
+        for address in source_data
+        if BOOTLOADER_END <= address < FLASH_END
+    ]
+    if overflow:
+        raise IntelHexError(
+            f"MCUboot image has {len(overflow)} bytes in "
+            f"0x{min(overflow):08X}..0x{max(overflow):08X}, past the stock "
+            f"bootloader's 0x{BOOTLOADER_END - BOOTLOADER_START:X}-byte "
+            "executable region (the Adafruit bootloader config page at "
+            f"0x{BOOTLOADER_CONFIG_START:08X}..0x{BOOTLOADER_CONFIG_END - 1:08X} "
+            "and MBR params page at 0x000FE000 must stay free). Shrink the "
+            "MCUboot configuration."
+        )
 
     filtered = {
         address: byte
