@@ -6,8 +6,7 @@
 #ifdef USE_ESP_IDF
 #include "driver/i2c_master.h"
 
-namespace esphome {
-namespace esp_video_camera {
+namespace esphome::esp_video_camera {
 
 /// Retrieve the ESP-IDF i2c_master bus handle backing an ESPHome I2CBus.
 ///
@@ -24,7 +23,6 @@ inline i2c_master_bus_handle_t get_i2c_bus_handle(i2c::I2CBus *bus) {
   return nullptr;
 }
 
-}  // namespace esp_video_camera
-}  // namespace esphome
+}  // namespace esphome::esp_video_camera
 
 #endif  // USE_ESP_IDF

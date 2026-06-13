@@ -1,16 +1,19 @@
 #include "esp_video_camera.h"
+
+#ifdef USE_ESP_IDF
+
 #include "i2c_helper.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
 #include "esp_heap_caps.h"
 
+#include <cerrno>
 #include <cstring>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
-#include <errno.h>
 
 extern "C" {
 #include "esp_video_init.h"
@@ -26,8 +29,7 @@ extern "C" {
 #define V4L2_CID_JPEG_COMPRESSION_QUALITY (V4L2_CID_JPEG_CLASS_BASE + 1)
 #endif
 
-namespace esphome {
-namespace esp_video_camera {
+namespace esphome::esp_video_camera {
 
 static const char *const TAG = "esp_video_camera";
 
@@ -74,6 +76,50 @@ esp_err_t init_xclk_ledc(gpio_num_t gpio_num, uint32_t freq_hz) {
   ch_conf.duty = 1;  // 50 % duty cycle
   ch_conf.hpoint = 0;
   return ledc_channel_config(&ch_conf);
+}
+
+// Parse a resolution string into width/height. Accepts the aliases validated by
+// the Python schema or an explicit "WIDTHxHEIGHT". Returns false for "auto".
+bool parse_resolution(const std::string &res, uint32_t &width, uint32_t &height) {
+  if (res.empty() || res == "auto")
+    return false;
+
+  struct ResAlias {
+    const char *name;
+    uint32_t width;
+    uint32_t height;
+  };
+  static constexpr ResAlias ALIASES[] = {
+      {"QVGA", 320, 240}, {"VGA", 640, 480}, {"480P", 640, 480}, {"720P", 1280, 720}, {"1080P", 1920, 1080},
+  };
+  for (const auto &alias : ALIASES) {
+    if (res == alias.name) {
+      width = alias.width;
+      height = alias.height;
+      return true;
+    }
+  }
+
+  // Parse "WIDTHxHEIGHT" (already validated as digits by the Python schema).
+  size_t x_pos = res.find('x');
+  if (x_pos == std::string::npos || x_pos == 0 || x_pos + 1 >= res.size())
+    return false;
+  uint32_t w = 0, h = 0;
+  for (size_t i = 0; i < x_pos; i++) {
+    if (res[i] < '0' || res[i] > '9')
+      return false;
+    w = w * 10 + (res[i] - '0');
+  }
+  for (size_t i = x_pos + 1; i < res.size(); i++) {
+    if (res[i] < '0' || res[i] > '9')
+      return false;
+    h = h * 10 + (res[i] - '0');
+  }
+  if (w == 0 || h == 0)
+    return false;
+  width = w;
+  height = h;
+  return true;
 }
 
 }  // namespace
@@ -138,7 +184,7 @@ void ESPVideoCamera::setup() {
     this->is_hw_jpeg_ = true;
   } else if (d == "uvc") {
     this->resolved_device_ = ESP_VIDEO_USB_UVC_NAME_PREFIX "0";  // /dev/video40
-  } else if (d.rfind("uvc", 0) == 0 && d.size() == 4) {
+  } else if (d.starts_with("uvc") && d.size() == 4) {
     this->resolved_device_ = std::string(ESP_VIDEO_USB_UVC_NAME_PREFIX) + d.substr(3);
   } else if (d == "csi") {
     this->resolved_device_ = ESP_VIDEO_MIPI_CSI_DEVICE_NAME;  // /dev/video0
@@ -309,54 +355,9 @@ void ESPVideoCamera::update_capture_state_() {
     this->start_capture_();
 }
 
-bool ESPVideoCamera::parse_resolution_(const std::string &res, uint32_t &width, uint32_t &height) {
-  if (res.empty() || res == "auto")
-    return false;
-  if (res == "QVGA") {
-    width = 320;
-    height = 240;
-    return true;
-  }
-  if (res == "VGA" || res == "480P") {
-    width = 640;
-    height = 480;
-    return true;
-  }
-  if (res == "720P") {
-    width = 1280;
-    height = 720;
-    return true;
-  }
-  if (res == "1080P") {
-    width = 1920;
-    height = 1080;
-    return true;
-  }
-  // Parse "WIDTHxHEIGHT" (already validated as digits by the Python schema).
-  size_t x_pos = res.find('x');
-  if (x_pos == std::string::npos || x_pos == 0 || x_pos + 1 >= res.size())
-    return false;
-  uint32_t w = 0, h = 0;
-  for (size_t i = 0; i < x_pos; i++) {
-    if (res[i] < '0' || res[i] > '9')
-      return false;
-    w = w * 10 + (res[i] - '0');
-  }
-  for (size_t i = x_pos + 1; i < res.size(); i++) {
-    if (res[i] < '0' || res[i] > '9')
-      return false;
-    h = h * 10 + (res[i] - '0');
-  }
-  if (w == 0 || h == 0)
-    return false;
-  width = w;
-  height = h;
-  return true;
-}
-
 void ESPVideoCamera::configure_format_() {
   uint32_t width = 0, height = 0;
-  bool force_res = parse_resolution_(this->resolution_, width, height);
+  bool force_res = parse_resolution(this->resolution_, width, height);
 
   if (!this->is_hw_jpeg_ || force_res) {
     struct v4l2_format fmt;
@@ -480,5 +481,6 @@ void ESPVideoCamera::dump_config() {
     ESP_LOGCONFIG(TAG, "  State: FAILED");
 }
 
-}  // namespace esp_video_camera
-}  // namespace esphome
+}  // namespace esphome::esp_video_camera
+
+#endif  // USE_ESP_IDF

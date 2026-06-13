@@ -1,5 +1,9 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
+#ifdef USE_ESP_IDF
+
 #include "esphome/core/component.h"
 #include "esphome/components/camera/camera.h"
 #include "esphome/components/i2c/i2c.h"
@@ -10,8 +14,7 @@
 #include <string>
 #include <vector>
 
-namespace esphome {
-namespace esp_video_camera {
+namespace esphome::esp_video_camera {
 
 /// An owned JPEG/MJPEG frame (copied into PSRAM) shared with the API.
 ///
@@ -92,7 +95,6 @@ class ESPVideoCamera : public camera::Camera {
   void stop_capture_();
   void update_capture_state_();
   void configure_format_();
-  static bool parse_resolution_(const std::string &res, uint32_t &width, uint32_t &height);
 
   // Pipeline
   i2c::I2CBus *i2c_bus_{nullptr};
@@ -130,5 +132,6 @@ class ESPVideoCamera : public camera::Camera {
   int num_buffers_{0};
 };
 
-}  // namespace esp_video_camera
-}  // namespace esphome
+}  // namespace esphome::esp_video_camera
+
+#endif  // USE_ESP_IDF
