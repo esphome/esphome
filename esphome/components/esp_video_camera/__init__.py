@@ -119,6 +119,9 @@ async def to_code(config):
     # TODO(upstream): confirm the exact published versions before submitting.
     add_idf_component(name="espressif/esp_video", ref="1.4.0")
     add_idf_component(name="espressif/esp_cam_sensor", ref="1.4.0")
+    # SCCB (camera I2C) interface layer used by esp_video / esp_cam_sensor to
+    # talk to the sensor over the shared I2C bus (init_sccb=false + i2c_handle).
+    add_idf_component(name="espressif/esp_sccb_intf", ref="1.0.0")
     if config[CONF_ENABLE_UVC]:
         add_idf_component(name="espressif/usb_host_uvc", ref="2.4.1")
 
