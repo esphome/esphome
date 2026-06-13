@@ -1,0 +1,26 @@
+# Compile test for the esp_video_camera component (ESP32-P4 / ESP-IDF).
+# TODO(upstream): align pins/board with the esphome test harness conventions
+# (tests usually pull shared buses from a common package).
+
+esp32:
+  board: esp32-p4-function-ev-board
+  framework:
+    type: esp-idf
+
+psram:
+  mode: hex
+  speed: 200MHZ
+
+i2c:
+  - id: i2c_bus
+    sda: GPIO31
+    scl: GPIO32
+    frequency: 400kHz
+
+esp_video_camera:
+  name: Test Camera
+  i2c_id: i2c_bus
+  device: jpeg
+  resolution: auto
+  jpeg_quality: 10
+  max_framerate: 10
