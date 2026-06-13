@@ -24,7 +24,7 @@ static const uint8_t QOI_MASK_VALUE = 0b00111111;
 
 static const size_t QOI_HEADER_SIZE = 14;
 
-inline size_t qoi_color_table_index_(const Color &color) {
+inline size_t qoi_color_table_index(const Color &color) {
   // QOI color hash function: (r * 3 + g * 5 + b * 7 + a * 11) % 64
   return (color.r * 3 + color.g * 5 + color.b * 7 + color.w * 11) &
          63;  // modulo 64 is equivalent to bitwise AND with 63 (0b00111111)
@@ -138,7 +138,7 @@ int HOT QoiDecoder::decode(uint8_t *buffer, size_t size) {
       index++;
     }
     this->last_pixel_ = color;
-    this->color_table_[qoi_color_table_index_(color)] = color;
+    this->color_table_[qoi_color_table_index(color)] = color;
   }
   this->decoded_bytes_ += size;
   return size;
