@@ -168,11 +168,14 @@ const char *message_id_to_str(MessageId id) {
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
 void debug_data(const OpenthermData &data) {
-  ESP_LOGV(TAG, "%s %s %s %s", format_bin(data.type).c_str(), format_bin(data.id).c_str(),
-           format_bin(data.valueHB).c_str(), format_bin(data.valueLB).c_str());
-  ESP_LOGD(TAG, "type: %s; id: %s; HB: %s; LB: %s; uint_16: %s; float: %s",
-           message_type_to_str((MessageType) data.type), to_string(data.id).c_str(), to_string(data.valueHB).c_str(),
-           to_string(data.valueLB).c_str(), to_string(data.u16()).c_str(), to_string(data.f88()).c_str());
+  char type_bin[format_bin_size(sizeof(data.type))];
+  char id_bin[format_bin_size(sizeof(data.id))];
+  char hb_bin[format_bin_size(sizeof(data.valueHB))];
+  char lb_bin[format_bin_size(sizeof(data.valueLB))];
+  ESP_LOGV(TAG, "%s %s %s %s", format_bin_to(type_bin, data.type), format_bin_to(id_bin, data.id),
+           format_bin_to(hb_bin, data.valueHB), format_bin_to(lb_bin, data.valueLB));
+  ESP_LOGD(TAG, "type: %s; id: %u; HB: %u; LB: %u; uint_16: %u; float: %f",
+           message_type_to_str((MessageType) data.type), data.id, data.valueHB, data.valueLB, data.u16(), data.f88());
 }
 #endif
 

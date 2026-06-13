@@ -53,8 +53,10 @@ void OpenTherm::stop() {
 }
 
 void OpenTherm::log_protocol_state() const {
-  ESP_LOGD(TAG, "data: %s; clock: %s; capture: %s; bit_pos: %s", format_hex(this->data_).c_str(),
-           to_string(clock_).c_str(), format_bin(this->capture_).c_str(), to_string(this->bit_pos_).c_str());
+  char data_hex[format_hex_size(sizeof(this->data_))];
+  char capture_bin[format_bin_size(sizeof(this->capture_))];
+  ESP_LOGD(TAG, "data: %s; clock: %u; capture: %s; bit_pos: %u", format_hex_to(data_hex, this->data_), this->clock_,
+           format_bin_to(capture_bin, this->capture_), this->bit_pos_);
 }
 
 void IRAM_ATTR OpenTherm::read_() {

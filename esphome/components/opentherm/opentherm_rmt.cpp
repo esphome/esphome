@@ -354,11 +354,12 @@ void IRAM_ATTR OpenTherm::set_protocol_error_(ProtocolErrorType error_type) {
 }
 
 void OpenTherm::log_protocol_state() const {
+  char data_hex[format_hex_size(sizeof(this->data_))];
   ESP_LOGD(TAG,
            "OpenTherm protocol error: %s\n"
-           "Bit index: %u\n"
-           "Data: %s",
-           protocol_error_to_str(this->error_type_), this->bit_index_, format_hex(this->data_).c_str());
+           "  Bit index: %u\n"
+           "  Data: %s",
+           protocol_error_to_str(this->error_type_), this->bit_index_, format_hex_to(data_hex, this->data_));
 
   if (this->rmt_buffer_symbol_count_ == 0) {
     ESP_LOGD(TAG, "RMT debug: no data available");
