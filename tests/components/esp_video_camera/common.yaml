@@ -1,0 +1,7 @@
+esp_video_camera:
+  name: Test Camera
+  i2c_id: i2c_bus
+  device: jpeg
+  resolution: auto
+  jpeg_quality: 10
+  max_framerate: 10
