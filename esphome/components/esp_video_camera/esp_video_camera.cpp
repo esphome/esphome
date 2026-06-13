@@ -179,18 +179,18 @@ void ESPVideoCamera::setup() {
 
   // Resolve the device alias to a concrete /dev/videoN path.
   const std::string &d = this->device_;
-  if (d == "jpeg" || d.empty()) {
+  this->is_hw_jpeg_ = false;
+  if (d.empty() || d == "jpeg" || d == ESP_VIDEO_JPEG_DEVICE_NAME) {
     this->resolved_device_ = ESP_VIDEO_JPEG_DEVICE_NAME;  // /dev/video10
     this->is_hw_jpeg_ = true;
-  } else if (d == "uvc") {
-    this->resolved_device_ = ESP_VIDEO_USB_UVC_NAME_PREFIX "0";  // /dev/video40
-  } else if (d.starts_with("uvc") && d.size() == 4) {
-    this->resolved_device_ = std::string(ESP_VIDEO_USB_UVC_NAME_PREFIX) + d.substr(3);
   } else if (d == "csi") {
     this->resolved_device_ = ESP_VIDEO_MIPI_CSI_DEVICE_NAME;  // /dev/video0
+  } else if (d.starts_with("uvc")) {
+    // "uvc" -> /dev/video40, "uvcN" -> /dev/video4N (N validated as a digit).
+    const char *index = (d.size() == 4) ? (d.c_str() + 3) : "0";
+    this->resolved_device_ = std::string(ESP_VIDEO_USB_UVC_NAME_PREFIX) + index;
   } else {
     this->resolved_device_ = d;
-    this->is_hw_jpeg_ = (d == ESP_VIDEO_JPEG_DEVICE_NAME);
   }
 
   int test_fd = open(this->resolved_device_.c_str(), O_RDWR | O_NONBLOCK);
