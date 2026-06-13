@@ -359,6 +359,10 @@ def main():
     # Exclude benchmark files — they require google benchmark headers not
     # available in the ESP32 toolchain and use different naming conventions.
     files = [f for f in files if not f.startswith("tests/benchmarks/")]
+    # Exclude esp_video_camera — it uses Linux V4L2 / POSIX mmap headers
+    # (sys/mman.h) that are not part of the clang-tidy analysis sysroot. It only
+    # builds under ESP-IDF on the ESP32-P4.
+    files = [f for f in files if "components/esp_video_camera/" not in f]
 
     # Print initial file count if it's large
     if len(files) > 50:
