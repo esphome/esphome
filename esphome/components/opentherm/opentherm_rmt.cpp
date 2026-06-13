@@ -1,4 +1,6 @@
 #ifdef USE_ESP32
+#include <soc/soc_caps.h>
+#if SOC_RMT_SUPPORTED
 
 #include "opentherm_rmt.h"
 #include "esphome/core/helpers.h"
@@ -376,4 +378,5 @@ void OpenTherm::log_protocol_state() const {
 
 }  // namespace esphome::opentherm
 
-#endif
+#endif  // SOC_RMT_SUPPORTED
+#endif  // USE_ESP32

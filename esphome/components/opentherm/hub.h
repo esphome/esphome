@@ -8,11 +8,18 @@
 
 #include "opentherm_base.h"
 
+// Select the OpenTherm driver backend: RMT on ESP32 variants that have the RMT
+// peripheral, software-timer (gptimer/timer1) everywhere else.
 #ifdef USE_ESP32
+#include <soc/soc_caps.h>
+#if SOC_RMT_SUPPORTED
 #include "opentherm_rmt.h"
+#else
+#include "opentherm_timer.h"
+#endif
 #endif
 #ifdef ESP8266
-#include "opentherm_esp8266.h"
+#include "opentherm_timer.h"
 #endif
 
 #include <functional>

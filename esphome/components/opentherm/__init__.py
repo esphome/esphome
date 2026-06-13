@@ -36,15 +36,6 @@ BeforeProcessResponseTrigger = generate.opentherm_ns.class_(
 )
 
 
-def _validate_rmt_supported(config: dict[str, Any]) -> dict[str, Any]:
-    """On ESP32 the driver uses the RMT peripheral, which a few variants lack."""
-    if CORE.is_esp32 and esp32.get_esp32_variant() in esp32_rmt.VARIANTS_NO_RMT:
-        raise cv.Invalid(
-            f"opentherm is not supported on {esp32.get_esp32_variant()} (no RMT hardware)"
-        )
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -85,13 +76,17 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.COMPONENT_SCHEMA),
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266]),
-    _validate_rmt_supported,
 )
 
 
 async def to_code(config: dict[str, Any]) -> None:
     if CORE.is_esp32:
-        esp32.include_builtin_idf_component("esp_driver_rmt")
+        # RMT capable variants use the RMT driver; the rest fall back to a
+        # gptimer based software implementation.
+        if esp32.get_esp32_variant() in esp32_rmt.VARIANTS_NO_RMT:
+            esp32.include_builtin_idf_component("esp_driver_gptimer")
+        else:
+            esp32.include_builtin_idf_component("esp_driver_rmt")
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)

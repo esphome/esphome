@@ -1,6 +1,8 @@
 #pragma once
 
 #ifdef USE_ESP32
+#include <soc/soc_caps.h>
+#if SOC_RMT_SUPPORTED
 
 #include <string>
 #include "opentherm_base.h"
@@ -61,4 +63,5 @@ class OpenTherm : public OpenThermBase {
 
 }  // namespace esphome::opentherm
 
-#endif
+#endif  // SOC_RMT_SUPPORTED
+#endif  // USE_ESP32

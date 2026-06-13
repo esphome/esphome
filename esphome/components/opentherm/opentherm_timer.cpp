@@ -1,16 +1,20 @@
-#ifdef ESP8266
-#include "opentherm_esp8266.h"
+#ifdef USE_ESP32
+#include <soc/soc_caps.h>
+#endif
+
+#if defined(ESP8266) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
+
+#include "opentherm_timer.h"
 #include "esphome/core/helpers.h"
 #include <string>
 
 namespace esphome::opentherm {
 
-using std::string;
-using std::to_string;
-
 static const char *const TAG = "opentherm";
 
+#ifdef ESP8266
 OpenTherm *OpenTherm::instance = nullptr;
+#endif
 
 OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin) : OpenThermBase(in_pin, out_pin) {
   this->isr_in_pin_ = in_pin->to_isr();
@@ -18,13 +22,17 @@ OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin) : OpenTh
 }
 
 bool OpenTherm::initialize() {
-  auto base_result = OpenThermBase::initialize();
-  if (!base_result)
+  if (!OpenThermBase::initialize())
     return false;
 
-  OpenTherm::instance = this;
   this->out_pin_->digital_write(true);
+#ifdef ESP8266
+  OpenTherm::instance = this;
   return true;
+#endif
+#ifdef USE_ESP32
+  return this->init_esp32_timer_();
+#endif
 }
 
 void OpenTherm::listen() {
@@ -150,8 +158,6 @@ bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
   return false;
 }
 
-void IRAM_ATTR OpenTherm::esp8266_timer_isr() { OpenTherm::timer_isr(OpenTherm::instance); }
-
 void IRAM_ATTR OpenTherm::bit_read_(uint8_t value) {
   this->data_ = (this->data_ << 1) | value;
   this->bit_pos_++;
@@ -172,6 +178,78 @@ void IRAM_ATTR OpenTherm::write_bit_(uint8_t high, uint8_t clock) {
     this->isr_out_pin_.digital_write(high);   // high means logical 0 to protocol
   }
 }
+
+#ifdef USE_ESP32
+
+bool IRAM_ATTR OpenTherm::timer_isr(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_ctx) {
+  return OpenTherm::timer_isr(static_cast<OpenTherm *>(user_ctx));
+}
+
+bool OpenTherm::init_esp32_timer_() {
+  // 80MHz / 80 = 1MHz resolution (1µs per tick)
+  gptimer_config_t config = {
+      .clk_src = GPTIMER_CLK_SRC_DEFAULT,
+      .direction = GPTIMER_COUNT_UP,
+      .resolution_hz = 1000000,
+  };
+
+  esp_err_t result = gptimer_new_timer(&config, &this->timer_handle_);
+  if (result != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to create timer: %s", esp_err_to_name(result));
+    return false;
+  }
+
+  gptimer_event_callbacks_t cbs = {
+      .on_alarm = OpenTherm::timer_isr,
+  };
+  result = gptimer_register_event_callbacks(this->timer_handle_, &cbs, this);
+  if (result != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to register timer callback: %s", esp_err_to_name(result));
+    gptimer_del_timer(this->timer_handle_);
+    this->timer_handle_ = nullptr;
+    return false;
+  }
+
+  result = gptimer_enable(this->timer_handle_);
+  if (result != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to enable timer: %s", esp_err_to_name(result));
+    gptimer_del_timer(this->timer_handle_);
+    this->timer_handle_ = nullptr;
+    return false;
+  }
+
+  return true;
+}
+
+void IRAM_ATTR OpenTherm::start_esp32_timer_(uint64_t alarm_value) {
+  this->alarm_config_.alarm_count = alarm_value;
+  gptimer_set_alarm_action(this->timer_handle_, &this->alarm_config_);
+  gptimer_start(this->timer_handle_);
+}
+
+// 5 kHz timer_
+void IRAM_ATTR OpenTherm::start_read_timer_() {
+  InterruptLock const lock;
+  this->start_esp32_timer_(200);
+}
+
+// 2 kHz timer_
+void IRAM_ATTR OpenTherm::start_write_timer_() {
+  InterruptLock const lock;
+  this->start_esp32_timer_(500);
+}
+
+void IRAM_ATTR OpenTherm::stop_timer_() {
+  InterruptLock const lock;
+  gptimer_stop(this->timer_handle_);
+  gptimer_set_raw_count(this->timer_handle_, 0);
+}
+
+#endif  // USE_ESP32
+
+#ifdef ESP8266
+
+void IRAM_ATTR OpenTherm::esp8266_timer_isr() { OpenTherm::timer_isr(OpenTherm::instance); }
 
 // 5 kHz timer_
 void IRAM_ATTR OpenTherm::start_read_timer_() {
@@ -194,6 +272,8 @@ void IRAM_ATTR OpenTherm::stop_timer_() {
   timer1_disable();
   timer1_detachInterrupt();
 }
+
+#endif  // ESP8266
 
 }  // namespace esphome::opentherm
 
