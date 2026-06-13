@@ -96,7 +96,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    if not CORE.using_esp_idf:
+    if not CORE.using_toolchain_esp_idf:
         raise cv.Invalid("esp_video_camera requires the esp-idf framework.")
 
     cg.add_define("USE_CAMERA")
