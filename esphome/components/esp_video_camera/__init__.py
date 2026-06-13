@@ -122,6 +122,9 @@ async def to_code(config):
     # SCCB (camera I2C) interface layer used by esp_video / esp_cam_sensor to
     # talk to the sensor over the shared I2C bus (init_sccb=false + i2c_handle).
     add_idf_component(name="espressif/esp_sccb_intf", ref="1.0.0")
+    # Image Processing Algorithms (ISP / IPA tuning: AWB, CCM, ...). Required
+    # because the ISP video device is enabled below.
+    add_idf_component(name="espressif/esp_ipa", ref="1.0.0")
     if config[CONF_ENABLE_UVC]:
         add_idf_component(name="espressif/usb_host_uvc", ref="2.4.1")
 
