@@ -29,6 +29,54 @@ _INPUT_FILE_SUFFIXES = (*_CXX_SUFFIXES, ".c", ".o", ".S", ".s")
 _ESPHOME_SRC_MARKER = "/src/esphome/"
 
 
+def _is_esphome_src(file: str) -> bool:
+    """Whether ``file`` is an ESPHome C++ translation unit.
+
+    ``compile_commands.json`` ``file`` paths use the OS-native separator, so on
+    Windows they contain backslashes; normalize to ``/`` before testing the
+    marker, otherwise no source matches and the build-include union is empty.
+    """
+    return _ESPHOME_SRC_MARKER in file.replace("\\", "/") and file.endswith(
+        _CXX_SUFFIXES
+    )
+
+
+def _split_command(command: str) -> list[str]:
+    r"""Tokenize a compile_commands.json / response-file command string.
+
+    On Windows, tokenize per Windows ``argv`` rules via ``CommandLineToArgvW``.
+    ESP-IDF's compile_commands.json there mixes two backslash conventions in one
+    string: literal path separators in the compiler path (``C:\Users\...g++.exe``,
+    no quote follows) and shell quote-escaping in -D defines (``-DVER=\"1.2.3\"``).
+    Only the real Windows parser — where a backslash escapes solely a following
+    quote — handles both, and it is the exact tokenizer the compiler is launched
+    with. ``shlex`` cannot: POSIX mode eats the path separators, and disabling
+    its escape mangles the defines.
+    """
+    if os.name != "nt":
+        return shlex.split(command)
+
+    import ctypes
+    from ctypes import wintypes
+
+    # CommandLineToArgvW("") returns the current process name, not []; guard it
+    # so an empty response file tokenizes the same as it would via shlex.
+    if not command.strip():
+        return []
+
+    CommandLineToArgvW = ctypes.windll.shell32.CommandLineToArgvW
+    CommandLineToArgvW.argtypes = [wintypes.LPCWSTR, ctypes.POINTER(ctypes.c_int)]
+    CommandLineToArgvW.restype = ctypes.POINTER(wintypes.LPWSTR)
+    argc = ctypes.c_int()
+    argv = CommandLineToArgvW(command, ctypes.byref(argc))
+    if not argv:  # pragma: no cover
+        raise ctypes.WinError()
+    try:
+        return [argv[i] for i in range(argc.value)]
+    finally:
+        ctypes.windll.kernel32.LocalFree(argv)
+
+
 def _expand_response_files(tokens: list[str], directory: Path) -> list[str]:
     """Inline any ``@response-file`` arguments (paths relative to ``directory``).
 
@@ -45,7 +93,7 @@ def _expand_response_files(tokens: list[str], directory: Path) -> list[str]:
             try:
                 out.extend(
                     _expand_response_files(
-                        shlex.split(rf.read_text(encoding="utf-8")), directory
+                        _split_command(rf.read_text(encoding="utf-8")), directory
                     )
                 )
                 continue
@@ -64,8 +112,7 @@ def _pick_entry(entries: list[dict]) -> dict:
     them yields the cxx_path / cxx_flags / defines we need.
     """
     for entry in entries:
-        f = entry["file"]
-        if _ESPHOME_SRC_MARKER in f and f.endswith(_CXX_SUFFIXES):
+        if _is_esphome_src(entry["file"]):
             return entry
     for entry in entries:
         if entry["file"].endswith(_CXX_SUFFIXES):
@@ -76,18 +123,22 @@ def _pick_entry(entries: list[dict]) -> dict:
 def _parse_entry(entry: dict) -> tuple[str, list[str], list[str], list[str]]:
     """Parse one compile_commands entry -> (cxx_path, defines, includes, cxx_flags)."""
     directory = Path(entry["directory"])
-    tokens = _expand_response_files(shlex.split(entry["command"]), directory)
+    tokens = _expand_response_files(_split_command(entry["command"]), directory)
 
     def _include(raw: str) -> str:
         # Include paths in compile_commands are interpreted relative to the
         # entry's ``directory`` (e.g. build-local ``-Iconfig``); resolve them
         # so the cached idedata is usable regardless of the consumer's cwd.
+        # Emit forward slashes (``normpath`` yields ``\`` on Windows) so the
+        # paths match the absolute, already-forward-slash entries in the JSON.
         raw = raw.strip()
         if raw and not Path(raw).is_absolute():
             raw = os.path.normpath(directory / raw)
-        return raw
+        return raw.replace("\\", "/")
 
-    cxx_path = tokens[0]
+    # token0 is the compiler path; the rest of the command already uses forward
+    # slashes on Windows, so normalize it too for a consistent idedata file.
+    cxx_path = tokens[0].replace("\\", "/")
     defines: list[str] = []
     includes: list[str] = []
     cxx_flags: list[str] = []
@@ -161,8 +212,7 @@ def idedata_from_build(compile_commands: Path) -> dict:
 
     build_includes: dict[str, None] = {}
     for entry in entries:
-        f = entry["file"]
-        if _ESPHOME_SRC_MARKER not in f or not f.endswith(_CXX_SUFFIXES):
+        if not _is_esphome_src(entry["file"]):
             continue
         for inc in _parse_entry(entry)[2]:
             build_includes.setdefault(inc, None)
