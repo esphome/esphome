@@ -9,10 +9,10 @@ components) — nothing is vendored.
 """
 
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
-from esphome.const import CONF_ID, CONF_I2C_ID
+import esphome.config_validation as cv
+from esphome.const import CONF_I2C_ID, CONF_ID
 from esphome.core import CORE
 from esphome.core.entity_helpers import setup_entity
 
@@ -21,7 +21,9 @@ DEPENDENCIES = ["esp32", "i2c"]
 AUTO_LOAD = ["camera"]
 
 esp_video_camera_ns = cg.esphome_ns.namespace("esp_video_camera")
-ESPVideoCamera = esp_video_camera_ns.class_("ESPVideoCamera", cg.Component, cg.EntityBase)
+ESPVideoCamera = esp_video_camera_ns.class_(
+    "ESPVideoCamera", cg.Component, cg.EntityBase
+)
 
 CONF_DEVICE = "device"
 CONF_RESOLUTION = "resolution"
@@ -79,7 +81,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_DEVICE, default="jpeg"): _validate_device,
             cv.Optional(CONF_RESOLUTION, default="auto"): _validate_resolution,
             cv.Optional(CONF_JPEG_QUALITY, default=10): cv.int_range(min=1, max=63),
-            cv.Optional(CONF_MAX_FRAMERATE, default=10): cv.float_range(min=0.1, max=60.0),
+            cv.Optional(CONF_MAX_FRAMERATE, default=10): cv.float_range(
+                min=0.1, max=60.0
+            ),
             cv.Optional(CONF_XCLK_PIN, default=36): _xclk_pin,
             cv.Optional(CONF_XCLK_FREQUENCY, default=24000000): cv.int_range(
                 min=1000000, max=40000000
@@ -105,7 +109,11 @@ async def to_code(config):
 
     i2c_bus = await cg.get_variable(config[CONF_I2C_ID])
     cg.add(var.set_i2c_bus(i2c_bus))
-    cg.add(var.set_xclk_pin(cg.RawExpression(f"static_cast<gpio_num_t>({config[CONF_XCLK_PIN]})")))
+    cg.add(
+        var.set_xclk_pin(
+            cg.RawExpression(f"static_cast<gpio_num_t>({config[CONF_XCLK_PIN]})")
+        )
+    )
     cg.add(var.set_xclk_freq(config[CONF_XCLK_FREQUENCY]))
     cg.add(var.set_enable_xclk_init(config[CONF_ENABLE_XCLK]))
     cg.add(var.set_enable_uvc(config[CONF_ENABLE_UVC]))

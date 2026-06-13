@@ -313,10 +313,26 @@ void ESPVideoCamera::update_capture_state_() {
 bool ESPVideoCamera::parse_resolution_(const std::string &res, uint32_t &width, uint32_t &height) {
   if (res.empty() || res == "auto")
     return false;
-  if (res == "QVGA") { width = 320; height = 240; return true; }
-  if (res == "VGA" || res == "480P") { width = 640; height = 480; return true; }
-  if (res == "720P") { width = 1280; height = 720; return true; }
-  if (res == "1080P") { width = 1920; height = 1080; return true; }
+  if (res == "QVGA") {
+    width = 320;
+    height = 240;
+    return true;
+  }
+  if (res == "VGA" || res == "480P") {
+    width = 640;
+    height = 480;
+    return true;
+  }
+  if (res == "720P") {
+    width = 1280;
+    height = 720;
+    return true;
+  }
+  if (res == "1080P") {
+    width = 1920;
+    height = 1080;
+    return true;
+  }
   unsigned int w = 0, h = 0;
   if (sscanf(res.c_str(), "%ux%u", &w, &h) == 2 && w > 0 && h > 0) {
     width = w;
@@ -394,8 +410,7 @@ bool ESPVideoCamera::start_capture_() {
       return false;
     }
     this->buffers_[i].length = buf.length;
-    this->buffers_[i].start =
-        mmap(nullptr, buf.length, PROT_READ | PROT_WRITE, MAP_SHARED, this->fd_, buf.m.offset);
+    this->buffers_[i].start = mmap(nullptr, buf.length, PROT_READ | PROT_WRITE, MAP_SHARED, this->fd_, buf.m.offset);
     if (this->buffers_[i].start == MAP_FAILED) {
       ESP_LOGE(TAG, "mmap[%u] failed: %s", i, strerror(errno));
       this->buffers_[i].start = nullptr;
