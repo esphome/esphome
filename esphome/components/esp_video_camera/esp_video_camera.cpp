@@ -5,7 +5,6 @@
 
 #include "esp_heap_caps.h"
 
-#include <cstdio>
 #include <cstring>
 #include <fcntl.h>
 #include <unistd.h>
@@ -333,13 +332,26 @@ bool ESPVideoCamera::parse_resolution_(const std::string &res, uint32_t &width, 
     height = 1080;
     return true;
   }
-  unsigned int w = 0, h = 0;
-  if (sscanf(res.c_str(), "%ux%u", &w, &h) == 2 && w > 0 && h > 0) {
-    width = w;
-    height = h;
-    return true;
+  // Parse "WIDTHxHEIGHT" (already validated as digits by the Python schema).
+  size_t x_pos = res.find('x');
+  if (x_pos == std::string::npos || x_pos == 0 || x_pos + 1 >= res.size())
+    return false;
+  uint32_t w = 0, h = 0;
+  for (size_t i = 0; i < x_pos; i++) {
+    if (res[i] < '0' || res[i] > '9')
+      return false;
+    w = w * 10 + (res[i] - '0');
   }
-  return false;
+  for (size_t i = x_pos + 1; i < res.size(); i++) {
+    if (res[i] < '0' || res[i] > '9')
+      return false;
+    h = h * 10 + (res[i] - '0');
+  }
+  if (w == 0 || h == 0)
+    return false;
+  width = w;
+  height = h;
+  return true;
 }
 
 void ESPVideoCamera::configure_format_() {

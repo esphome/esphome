@@ -12,7 +12,7 @@ import esphome.codegen as cg
 from esphome.components import i2c
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 import esphome.config_validation as cv
-from esphome.const import CONF_I2C_ID, CONF_ID
+from esphome.const import CONF_DEVICE, CONF_I2C_ID, CONF_ID, CONF_RESOLUTION
 from esphome.core import CORE
 from esphome.core.entity_helpers import setup_entity
 
@@ -25,8 +25,6 @@ ESPVideoCamera = esp_video_camera_ns.class_(
     "ESPVideoCamera", cg.Component, cg.EntityBase
 )
 
-CONF_DEVICE = "device"
-CONF_RESOLUTION = "resolution"
 CONF_JPEG_QUALITY = "jpeg_quality"
 CONF_MAX_FRAMERATE = "max_framerate"
 CONF_XCLK_PIN = "xclk_pin"
