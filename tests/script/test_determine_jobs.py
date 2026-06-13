@@ -1470,6 +1470,7 @@ def test_detect_memory_impact_config_no_common_platform(tmp_path: Path) -> None:
     assert result["use_merged_config"] == "true"
 
 
+@pytest.mark.usefixtures("mock_target_branch_dev")
 def test_detect_memory_impact_config_variant_only_platform_excluded(
     tmp_path: Path,
 ) -> None:

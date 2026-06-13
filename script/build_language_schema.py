@@ -428,6 +428,33 @@ def fix_menu():
     menu[S_EXTENDS].append("display_menu_base.MENU_TYPES")
 
 
+def fix_lvgl_widgets():
+    # lvgl's `widgets:` is a recursive tree (a widget can contain widgets). The
+    # dumper has no cycle detection, so — like fix_menu — hoist the inlined
+    # widget-type enumeration into a named schema and reference it for both the
+    # top-level list and each widget's own children, instead of expanding it.
+    if "lvgl" not in output:
+        return
+    schemas = output["lvgl"][S_SCHEMAS]
+    config_vars = schemas["CONFIG_SCHEMA"][S_SCHEMA][S_CONFIG_VARS]
+    widgets = config_vars.get("widgets")
+    if not widgets or S_SCHEMA not in widgets or S_CONFIG_VARS not in widgets[S_SCHEMA]:
+        return
+    # 1. Hoist the (one-level) widget enumeration into a named schema.
+    schemas["WIDGET_TYPES"] = {S_TYPE: S_SCHEMA, S_SCHEMA: widgets[S_SCHEMA]}
+    # 2. Reference it from the top-level widgets: list instead of inlining.
+    widgets[S_SCHEMA] = {S_EXTENDS: ["lvgl.WIDGET_TYPES"]}
+    # 3. Let every widget contain child widgets, via the same named ref.
+    for widget in schemas["WIDGET_TYPES"][S_SCHEMA][S_CONFIG_VARS].values():
+        if widget.get(S_TYPE) == S_SCHEMA and S_SCHEMA in widget:
+            widget[S_SCHEMA].setdefault(S_CONFIG_VARS, {})["widgets"] = {
+                S_TYPE: S_SCHEMA,
+                "is_list": True,
+                "key": "Optional",
+                S_SCHEMA: {S_EXTENDS: ["lvgl.WIDGET_TYPES"]},
+            }
+
+
 def get_logger_tags():
     pattern = re.compile(r'^static const char \*const TAG = "(\w.*)";', re.MULTILINE)
     # tags not in components dir
@@ -740,6 +767,7 @@ def build_schema():
     add_logger_tags()
     shrink()
     fix_menu()
+    fix_lvgl_widgets()
 
     # aggregate components, so all component info is in same file, otherwise we have dallas.json, dallas.sensor.json, etc.
     data = {}
