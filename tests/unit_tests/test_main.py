@@ -471,6 +471,88 @@ def test_command_config__show_secrets_skips_redaction(
     assert "\\033[8m" not in output
 
 
+def test_command_config__no_defaults_dumps_user_snapshot(
+    tmp_path: Path, capfd: CaptureFixture[str]
+) -> None:
+    """``--no-defaults`` dumps ``config.user_config`` instead of the
+    validated config, so schema defaults don't leak into the output."""
+    from esphome.config import Config
+
+    setup_core(tmp_path=tmp_path, config={"esphome": {"name": "test"}})
+    args = MockArgs()
+    args.show_secrets = True
+    args.no_defaults = True
+
+    validated = Config()
+    validated["esphome"] = {"name": "test", "build_path": "build/test"}
+    validated["wifi"] = {"ssid": "MyNet", "reboot_timeout": "15min"}
+    validated.user_config = {
+        "esphome": {"name": "test"},
+        "wifi": {"ssid": "MyNet"},
+    }
+
+    result = command_config(args, validated)
+
+    assert result == 0
+    output = capfd.readouterr().out
+    assert "ssid: MyNet" in output
+    # Defaults present on the validated config must not appear.
+    assert "reboot_timeout" not in output
+    assert "build_path" not in output
+
+
+def test_command_config__no_defaults_warns_when_snapshot_missing(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """If the snapshot is unavailable (e.g. a plain dict was passed in),
+    ``--no-defaults`` logs a warning and falls back to the input config."""
+    setup_core(tmp_path=tmp_path, config={"esphome": {"name": "test"}})
+    args = MockArgs()
+    args.show_secrets = True
+    args.no_defaults = True
+
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        result = command_config(args, {"wifi": {"ssid": "MyNet"}})
+
+    assert result == 0
+    output = capfd.readouterr().out
+    assert "ssid: MyNet" in output
+    assert any(
+        "user-only config snapshot is unavailable" in rec.message
+        for rec in caplog.records
+    )
+
+
+def test_command_config__no_defaults_skips_strip_default_ids(
+    tmp_path: Path, capfd: CaptureFixture[str]
+) -> None:
+    """When ``--no-defaults`` is set, ``strip_default_ids`` isn't run --
+    the user snapshot is already free of schema-injected IDs."""
+    from esphome.config import Config
+
+    setup_core(tmp_path=tmp_path, config={"esphome": {"name": "test"}})
+    args = MockArgs()
+    args.show_secrets = True
+    args.no_defaults = True
+
+    validated = Config()
+    validated["sensor"] = [{"name": "x", "id": "auto_generated"}]
+    validated.user_config = {"sensor": [{"name": "x"}]}
+
+    with patch(
+        "esphome.__main__.strip_default_ids", side_effect=AssertionError
+    ) as mock_strip:
+        result = command_config(args, validated)
+
+    assert result == 0
+    mock_strip.assert_not_called()
+    output = capfd.readouterr().out
+    assert "name: x" in output
+    assert "auto_generated" not in output
+
+
 def test_choose_upload_log_host_with_string_default() -> None:
     """Test with a single string default device."""
     setup_core()
@@ -6036,6 +6118,15 @@ def test_should_subscribe_states_env_suppresses() -> None:
         assert _should_subscribe_states(args) is False
 
 
+def test_should_subscribe_states_env_enables() -> None:
+    """Test that ESPHOME_LOG_STATES=true enables states by default."""
+    from esphome.__main__ import _should_subscribe_states
+
+    args = parse_args(["esphome", "logs", "device.yaml"])
+    with patch.dict(os.environ, {"ESPHOME_LOG_STATES": "true"}):
+        assert _should_subscribe_states(args) is True
+
+
 def test_should_subscribe_states_flag_overrides_env() -> None:
     """Test that --states overrides ESPHOME_LOG_STATES=false."""
     from esphome.__main__ import _should_subscribe_states
@@ -6120,7 +6211,11 @@ def test_command_run_defaults_subscribe_states_true(
         ),
         patch("esphome.__main__.upload_program", return_value=(0, "192.168.1.100")),
         patch("esphome.__main__.get_serial_ports", return_value=[]),
+        patch.dict(os.environ, {}, clear=False),
     ):
+        # Ensure the default behavior is not affected by an ambient
+        # ESPHOME_LOG_STATES set in the test runner's environment.
+        os.environ.pop("ESPHOME_LOG_STATES", None)
         result = command_run(args, CORE.config)
 
     assert result == 0
