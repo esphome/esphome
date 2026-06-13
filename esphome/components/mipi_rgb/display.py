@@ -11,7 +11,7 @@ from esphome.components.const import (
     CONF_DRAW_ROUNDING,
 )
 from esphome.components.display import CONF_SHOW_TEST_CARD
-from esphome.components.esp32 import VARIANT_ESP32S3, only_on_variant
+from esphome.components.esp32 import VARIANT_ESP32P4, VARIANT_ESP32S3, only_on_variant
 from esphome.components.mipi import (
     COLOR_ORDERS,
     CONF_DE_PIN,
@@ -30,6 +30,7 @@ from esphome.components.mipi import (
     DriverChip,
     dimension_schema,
     map_sequence,
+    model_schema_extractor,
     power_of_two,
     requires_buffer,
 )
@@ -39,6 +40,7 @@ from esphome.components.rpi_dpi_rgb.display import (
 )
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_AUTO_CLEAR_ENABLED,
     CONF_BLUE,
     CONF_COLOR_ORDER,
     CONF_CS_PIN,
@@ -194,8 +196,12 @@ def model_schema(config):
                 CONF_DE_PIN, cv.UNDEFINED
             ): pins.internal_gpio_output_pin_schema,
             model.option(CONF_PCLK_PIN): pins.internal_gpio_output_pin_schema,
-            model.option(CONF_HSYNC_PIN): pins.internal_gpio_output_pin_schema,
-            model.option(CONF_VSYNC_PIN): pins.internal_gpio_output_pin_schema,
+            model.option(
+                CONF_HSYNC_PIN, cv.UNDEFINED
+            ): pins.internal_gpio_output_pin_schema,
+            model.option(
+                CONF_VSYNC_PIN, cv.UNDEFINED
+            ): pins.internal_gpio_output_pin_schema,
             model.option(CONF_RESET_PIN, cv.UNDEFINED): pins.gpio_output_pin_schema,
         }
     )
@@ -214,6 +220,7 @@ def model_schema(config):
     return schema
 
 
+@model_schema_extractor(MODELS, model_schema)
 def _config_schema(config):
     config = cv.Schema(
         {
@@ -222,11 +229,25 @@ def _config_schema(config):
         extra=cv.ALLOW_EXTRA,
     )(config)
     schema = model_schema(config)
-    return cv.All(
+    config = cv.All(
         schema,
-        only_on_variant(supported=[VARIANT_ESP32S3]),
-        cv.only_with_esp_idf,
+        cv.only_on_esp32,
+        only_on_variant(supported=[VARIANT_ESP32S3, VARIANT_ESP32P4]),
     )(config)
+    model = MODELS[config[CONF_MODEL].upper()]
+    width, height, _offset_width, _offset_height = model.get_dimensions(config)
+    display.add_metadata(
+        config[CONF_ID],
+        width,
+        height,
+        model.rotation_as_transform(config),
+        byte_order=config[CONF_BYTE_ORDER],
+        has_writer=requires_buffer(config)
+        or config.get(CONF_AUTO_CLEAR_ENABLED) is True,
+        rotation=config.get(CONF_ROTATION, 0),
+        draw_rounding=config.get(CONF_DRAW_ROUNDING, 0),
+    )
+    return config
 
 
 CONFIG_SCHEMA = _config_schema
@@ -260,10 +281,9 @@ async def to_code(config):
         cg.add(var.set_enable_pins(enable))
 
     if CONF_SPI_ID in config:
-        await spi.register_spi_device(var, config)
-        sequence, madctl = model.get_sequence(config)
+        await spi.register_spi_device(var, config, write_only=True)
+        sequence = model.get_sequence(config)
         cg.add(var.set_init_sequence(sequence))
-        cg.add(var.set_madctl(madctl))
 
     cg.add(var.set_color_mode(COLOR_ORDERS[config[CONF_COLOR_ORDER]]))
     cg.add(var.set_invert_colors(config[CONF_INVERT_COLORS]))
@@ -307,10 +327,12 @@ async def to_code(config):
         cg.add(var.set_de_pin(pin))
     pin = await cg.gpio_pin_expression(config[CONF_PCLK_PIN])
     cg.add(var.set_pclk_pin(pin))
-    pin = await cg.gpio_pin_expression(config[CONF_HSYNC_PIN])
-    cg.add(var.set_hsync_pin(pin))
-    pin = await cg.gpio_pin_expression(config[CONF_VSYNC_PIN])
-    cg.add(var.set_vsync_pin(pin))
+    if hsync_pin := config.get(CONF_HSYNC_PIN):
+        pin = await cg.gpio_pin_expression(hsync_pin)
+        cg.add(var.set_hsync_pin(pin))
+    if vsync_pin := config.get(CONF_VSYNC_PIN):
+        pin = await cg.gpio_pin_expression(vsync_pin)
+        cg.add(var.set_vsync_pin(pin))
 
     await display.register_display(var, config)
     if lamb := config.get(CONF_LAMBDA):

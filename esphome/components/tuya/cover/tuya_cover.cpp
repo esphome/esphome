@@ -1,8 +1,7 @@
 #include "esphome/core/log.h"
 #include "tuya_cover.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 const uint8_t COMMAND_OPEN = 0x00;
 const uint8_t COMMAND_CLOSE = 0x02;
@@ -39,6 +38,9 @@ void TuyaCover::setup() {
     }
   });
 
+  if (!this->position_id_.has_value()) {
+    return;
+  }
   uint8_t report_id = *this->position_id_;
   if (this->position_report_id_.has_value()) {
     // A position report datapoint is configured; listen to that instead.
@@ -60,29 +62,30 @@ void TuyaCover::control(const cover::CoverCall &call) {
   if (call.get_stop()) {
     if (this->control_id_.has_value()) {
       this->parent_->force_set_enum_datapoint_value(*this->control_id_, COMMAND_STOP);
-    } else {
+    } else if (this->position_id_.has_value()) {
       auto pos = this->position;
       pos = this->invert_position_report_ ? pos : 1.0f - pos;
       auto position_int = static_cast<uint32_t>(pos * this->value_range_);
       position_int = position_int + this->min_value_;
 
-      parent_->force_set_integer_datapoint_value(*this->position_id_, position_int);
+      this->parent_->force_set_integer_datapoint_value(*this->position_id_, position_int);
     }
   }
-  if (call.get_position().has_value()) {
-    auto pos = *call.get_position();
+  auto pos_opt = call.get_position();
+  if (pos_opt.has_value()) {
+    auto pos = *pos_opt;
     if (this->control_id_.has_value() && (pos == COVER_OPEN || pos == COVER_CLOSED)) {
       if (pos == COVER_OPEN) {
         this->parent_->force_set_enum_datapoint_value(*this->control_id_, COMMAND_OPEN);
       } else {
         this->parent_->force_set_enum_datapoint_value(*this->control_id_, COMMAND_CLOSE);
       }
-    } else {
+    } else if (this->position_id_.has_value()) {
       pos = this->invert_position_report_ ? pos : 1.0f - pos;
       auto position_int = static_cast<uint32_t>(pos * this->value_range_);
       position_int = position_int + this->min_value_;
 
-      parent_->force_set_integer_datapoint_value(*this->position_id_, position_int);
+      this->parent_->force_set_integer_datapoint_value(*this->position_id_, position_int);
     }
   }
 
@@ -136,5 +139,4 @@ cover::CoverTraits TuyaCover::get_traits() {
   return traits;
 }
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

@@ -16,8 +16,7 @@
 #include "esphome/components/audio_dac/audio_dac.h"
 #endif
 
-namespace esphome {
-namespace speaker {
+namespace esphome::speaker {
 
 enum State : uint8_t {
   STATE_STOPPED = 0,
@@ -106,8 +105,8 @@ class Speaker {
   /// Parameters:
   ///   - Frames played
   ///   - System time in microseconds when the frames were written to the DAC
-  void add_audio_output_callback(std::function<void(uint32_t, int64_t)> &&callback) {
-    this->audio_output_callback_.add(std::move(callback));
+  template<typename F> void add_audio_output_callback(F &&callback) {
+    this->audio_output_callback_.add(std::forward<F>(callback));
   }
 
  protected:
@@ -123,5 +122,4 @@ class Speaker {
   CallbackManager<void(uint32_t, int64_t)> audio_output_callback_{};
 };
 
-}  // namespace speaker
-}  // namespace esphome
+}  // namespace esphome::speaker

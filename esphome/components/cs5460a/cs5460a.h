@@ -7,8 +7,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace cs5460a {
+namespace esphome::cs5460a {
 
 enum CS5460ACommand {
   CMD_SYNC0 = 0xfe,
@@ -76,7 +75,6 @@ class CS5460AComponent : public Component,
   void restart() { restart_(); }
 
   void setup() override;
-  void loop() override {}
   void dump_config() override;
 
  protected:
@@ -120,5 +118,4 @@ template<typename... Ts> class CS5460ARestartAction : public Action<Ts...> {
   CS5460AComponent *cs5460a_;
 };
 
-}  // namespace cs5460a
-}  // namespace esphome
+}  // namespace esphome::cs5460a

@@ -3,8 +3,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
 template<class T> constexpr T read_bit(T value, uint8_t bit) { return (value >> bit) & 0x01; }
 
@@ -271,5 +270,4 @@ class OpenThermBase {
   uint32_t data_{};
 };
 
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm

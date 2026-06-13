@@ -48,11 +48,11 @@ async def to_code(config):
         config[CONF_CHANNEL],
     )
     if not config[CONF_TERMINAL_A]:
-        cg.add(parent.initialize_terminal_disabled(config[CONF_CHANNEL], "a"))
+        cg.add(parent.initialize_terminal_disabled(config[CONF_CHANNEL], ord("a")))
     if not config[CONF_TERMINAL_B]:
-        cg.add(parent.initialize_terminal_disabled(config[CONF_CHANNEL], "b"))
+        cg.add(parent.initialize_terminal_disabled(config[CONF_CHANNEL], ord("b")))
     if not config[CONF_TERMINAL_W]:
-        cg.add(parent.initialize_terminal_disabled(config[CONF_CHANNEL], "w"))
+        cg.add(parent.initialize_terminal_disabled(config[CONF_CHANNEL], ord("w")))
     if CONF_INITIAL_VALUE in config:
         cg.add(
             parent.set_initial_value(config[CONF_CHANNEL], config[CONF_INITIAL_VALUE])

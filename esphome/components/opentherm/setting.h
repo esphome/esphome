@@ -2,8 +2,7 @@
 
 #include "hub.h"
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
 /*
  * A setting is a message with a fixed value.
@@ -31,5 +30,4 @@ template<typename T> class OpenthermSetting : public MessageProcessor {
   typename T::ValueType value_{};
 };
 
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm

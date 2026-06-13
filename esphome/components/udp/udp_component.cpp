@@ -5,8 +5,7 @@
 #include "esphome/components/network/util.h"
 #include "udp_component.h"
 
-namespace esphome {
-namespace udp {
+namespace esphome::udp {
 
 static const char *const TAG = "udp";
 
@@ -65,11 +64,14 @@ void UDPComponent::setup() {
     server.sin_port = htons(this->listen_port_);
 
     if (this->listen_address_.has_value()) {
+      // Only 16 bytes needed for IPv4, but use standard size for consistency
+      char addr_buf[network::IP_ADDRESS_BUFFER_SIZE];
+      this->listen_address_.value().str_to(addr_buf);
       struct ip_mreq imreq = {};
       imreq.imr_interface.s_addr = ESPHOME_INADDR_ANY;
-      inet_aton(this->listen_address_.value().str().c_str(), &imreq.imr_multiaddr);
+      inet_aton(addr_buf, &imreq.imr_multiaddr);
       server.sin_addr.s_addr = imreq.imr_multiaddr.s_addr;
-      ESP_LOGD(TAG, "Join multicast %s", this->listen_address_.value().str().c_str());
+      ESP_LOGD(TAG, "Join multicast %s", addr_buf);
       err = this->listen_socket_->setsockopt(IPPROTO_IP, IP_ADD_MEMBERSHIP, &imreq, sizeof(imreq));
       if (err < 0) {
         ESP_LOGE(TAG, "Failed to set IP_ADD_MEMBERSHIP. Error %d", errno);
@@ -92,7 +94,7 @@ void UDPComponent::setup() {
   // 8266 and RP2040 `Duino
   for (const auto &address : this->addresses_) {
     auto ipaddr = IPAddress();
-    ipaddr.fromString(address.c_str());
+    ipaddr.fromString(address);
     this->ipaddrs_.push_back(ipaddr);
   }
   if (this->should_listen_)
@@ -101,8 +103,8 @@ void UDPComponent::setup() {
 }
 
 void UDPComponent::loop() {
-  auto buf = std::vector<uint8_t>(MAX_PACKET_SIZE);
   if (this->should_listen_) {
+    std::array<uint8_t, MAX_PACKET_SIZE> buf;
     for (;;) {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
       auto len = this->listen_socket_->read(buf.data(), buf.size());
@@ -114,9 +116,9 @@ void UDPComponent::loop() {
 #endif
       if (len <= 0)
         break;
-      buf.resize(len);
-      ESP_LOGV(TAG, "Received packet of length %zu", len);
-      this->packet_listeners_.call(buf);
+      size_t packet_len = static_cast<size_t>(len);
+      ESP_LOGV(TAG, "Received packet of length %zu", packet_len);
+      this->packet_listeners_.call(std::span<const uint8_t>(buf.data(), packet_len));
     }
   }
 }
@@ -127,10 +129,11 @@ void UDPComponent::dump_config() {
                 "  Listen Port: %u\n"
                 "  Broadcast Port: %u",
                 this->listen_port_, this->broadcast_port_);
-  for (const auto &address : this->addresses_)
-    ESP_LOGCONFIG(TAG, "  Address: %s", address.c_str());
+  for (const char *address : this->addresses_)
+    ESP_LOGCONFIG(TAG, "  Address: %s", address);
   if (this->listen_address_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Listen address: %s", this->listen_address_.value().str().c_str());
+    char addr_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    ESP_LOGCONFIG(TAG, "  Listen address: %s", this->listen_address_.value().str_to(addr_buf));
   }
   ESP_LOGCONFIG(TAG,
                 "  Broadcasting: %s\n"
@@ -158,7 +161,6 @@ void UDPComponent::send_packet(const uint8_t *data, size_t size) {
   }
 #endif
 }
-}  // namespace udp
-}  // namespace esphome
+}  // namespace esphome::udp
 
 #endif

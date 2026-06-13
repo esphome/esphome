@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # pylint: disable=wrong-import-position
 from esphome.analyze_memory import MemoryAnalyzer
-from esphome.platformio_api import IDEData
+from esphome.platformio.toolchain import IDEData
 from script.ci_helpers import write_github_output
 
 # Regex patterns for extracting memory usage from PlatformIO output
@@ -92,18 +92,23 @@ def run_detailed_analysis(build_dir: str) -> dict | None:
         print(f"Build directory not found: {build_dir}", file=sys.stderr)
         return None
 
-    # Find firmware.elf
+    # Find firmware.elf (or raw_firmware.elf for LibreTiny)
     elf_path = None
     for elf_candidate in [
         build_path / "firmware.elf",
         build_path / ".pioenvs" / build_path.name / "firmware.elf",
+        # LibreTiny uses raw_firmware.elf
+        build_path / "raw_firmware.elf",
+        build_path / ".pioenvs" / build_path.name / "raw_firmware.elf",
     ]:
         if elf_candidate.exists():
             elf_path = str(elf_candidate)
             break
 
     if not elf_path:
-        print(f"firmware.elf not found in {build_dir}", file=sys.stderr)
+        print(
+            f"firmware.elf/raw_firmware.elf not found in {build_dir}", file=sys.stderr
+        )
         return None
 
     # Find idedata.json - check multiple locations
@@ -122,7 +127,7 @@ def run_detailed_analysis(build_dir: str) -> dict | None:
         if not idedata_path.exists():
             continue
         try:
-            with open(idedata_path, encoding="utf-8") as f:
+            with idedata_path.open(encoding="utf-8") as f:
                 raw_data = json.load(f)
             idedata = IDEData(raw_data)
             print(f"Loaded idedata from: {idedata_path}", file=sys.stderr)
@@ -259,7 +264,7 @@ def main() -> int:
 
         output_path = Path(args.output_json)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, "w", encoding="utf-8") as f:
+        with output_path.open("w", encoding="utf-8") as f:
             json.dump(output_data, f, indent=2)
         print(f"Saved analysis to {args.output_json}", file=sys.stderr)
 

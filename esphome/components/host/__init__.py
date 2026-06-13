@@ -14,7 +14,7 @@ from esphome.core import CORE
 from .const import KEY_HOST
 
 # force import gpio to register pin schema
-from .gpio import host_pin_to_code  # noqa
+from .gpio import host_pin_to_code  # noqa: F401
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
 AUTO_LOAD = ["network", "preferences"]
@@ -41,6 +41,7 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     cg.add_build_flag("-DUSE_HOST")
+    cg.add_define("USE_NATIVE_64BIT_TIME")
     cg.add_define("USE_ESPHOME_HOST_MAC_ADDRESS", config[CONF_MAC_ADDRESS].parts)
     cg.add_build_flag("-std=gnu++20")
     cg.add_define("ESPHOME_BOARD", "host")

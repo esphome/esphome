@@ -1,6 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
-#ifdef USE_NETWORK
+#if defined(USE_NETWORK) && !defined(USE_ZEPHYR)
 #include <map>
 #include <utility>
 
@@ -12,8 +12,7 @@
 #include "esphome/core/log.h"
 #endif
 
-namespace esphome {
-namespace prometheus {
+namespace esphome::prometheus {
 
 class PrometheusHandler : public AsyncWebHandler, public Component {
  public:
@@ -41,12 +40,14 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   void add_label_name(EntityBase *obj, const std::string &value) { relabel_map_name_.insert({obj, value}); }
 
   bool canHandle(AsyncWebServerRequest *request) const override {
-    if (request->method() == HTTP_GET) {
-      if (request->url() == "/metrics")
-        return true;
-    }
-
-    return false;
+    if (request->method() != HTTP_GET)
+      return false;
+#ifdef USE_ESP32
+    char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
+    return request->url_to(url_buf) == "/metrics";
+#else
+    return request->url() == ESPHOME_F("/metrics");
+#endif
   }
 
   void handleRequest(AsyncWebServerRequest *req) override;
@@ -207,7 +208,7 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   void climate_setting_row_(AsyncResponseStream *stream, climate::Climate *obj, std::string &area, std::string &node,
                             std::string &friendly_name, std::string &setting, const LogString *setting_value);
   void climate_value_row_(AsyncResponseStream *stream, climate::Climate *obj, std::string &area, std::string &node,
-                          std::string &friendly_name, std::string &category, std::string &climate_value);
+                          std::string &friendly_name, std::string &category, const char *climate_value);
 #endif
 
   web_server_base::WebServerBase *base_;
@@ -216,6 +217,6 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   std::map<EntityBase *, std::string> relabel_map_name_;
 };
 
-}  // namespace prometheus
-}  // namespace esphome
-#endif
+}  // namespace esphome::prometheus
+
+#endif  // USE_NETWORK && !USE_ZEPHYR

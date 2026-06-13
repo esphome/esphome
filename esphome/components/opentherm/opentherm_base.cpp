@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include <string>
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
 using std::string;
 using std::to_string;
@@ -252,5 +251,4 @@ bool OpenThermBase::get_message(OpenthermData &data) {
 
 void OpenThermBase::stop() { this->mode_ = OperationMode::IDLE; }
 
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm

@@ -11,11 +11,11 @@ esphome:
 
 sensor:
   - platform: template
-    id: test_sensor
+    id: ufire_ise_test_sensor
     lambda: "return 21;"
   - platform: ufire_ise
     i2c_id: i2c_bus
     id: ufire_ise_sensor
-    temperature_sensor: test_sensor
+    temperature_sensor: ufire_ise_test_sensor
     ph:
       name: Ufire pH

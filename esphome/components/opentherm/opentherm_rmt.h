@@ -13,8 +13,7 @@
 #include <esp_err.h>
 #include <driver/gpio.h>
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
 class OpenTherm : public OpenThermBase {
  public:
@@ -60,7 +59,6 @@ class OpenTherm : public OpenThermBase {
   bool decode_rmt_symbols_(size_t num_symbols);
 };
 
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm
 
 #endif

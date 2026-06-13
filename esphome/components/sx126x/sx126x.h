@@ -3,12 +3,12 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "sx126x_reg.h"
 #include <utility>
 #include <vector>
 
-namespace esphome {
-namespace sx126x {
+namespace esphome::sx126x {
 
 enum SX126xBw : uint8_t {
   // FSK
@@ -78,7 +78,7 @@ class SX126x : public Component,
   void set_mode_rx();
   void set_mode_tx();
   void set_mode_standby(SX126xStandbyMode mode);
-  void set_mode_sleep();
+  void set_mode_sleep(bool cold = false);
   void set_modulation(uint8_t modulation) { this->modulation_ = modulation; }
   void set_pa_power(int8_t power) { this->pa_power_ = power; }
   void set_pa_ramp(uint8_t ramp) { this->pa_ramp_ = ramp; }
@@ -97,9 +97,10 @@ class SX126x : public Component,
   void configure();
   SX126xError transmit_packet(const std::vector<uint8_t> &packet);
   void register_listener(SX126xListener *listener) { this->listeners_.push_back(listener); }
-  Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() const { return this->packet_trigger_; };
+  Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 
  protected:
+  static void IRAM_ATTR gpio_intr(SX126x *arg);
   void configure_fsk_ook_();
   void configure_lora_();
   void set_packet_params_(uint8_t payload_length);
@@ -111,7 +112,7 @@ class SX126x : public Component,
   void read_register_(uint16_t reg, uint8_t *data, uint8_t size);
   void call_listeners_(const std::vector<uint8_t> &packet, float rssi, float snr);
   void wait_busy_();
-  Trigger<std::vector<uint8_t>, float, float> *packet_trigger_{new Trigger<std::vector<uint8_t>, float, float>()};
+  Trigger<std::vector<uint8_t>, float, float> packet_trigger_;
   std::vector<SX126xListener *> listeners_;
   std::vector<uint8_t> packet_;
   std::vector<uint8_t> sync_value_;
@@ -144,5 +145,4 @@ class SX126x : public Component,
   bool rf_switch_{false};
 };
 
-}  // namespace sx126x
-}  // namespace esphome
+}  // namespace esphome::sx126x

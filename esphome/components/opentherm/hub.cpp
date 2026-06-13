@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "opentherm_base.h"
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
 static const char *const TAG = "opentherm";
 
@@ -363,10 +362,12 @@ void OpenthermHub::dump_config() {
   this->write_initial_messages_(initial_messages);
   this->write_repeating_messages_(repeating_messages);
 
-  ESP_LOGCONFIG(TAG, "OpenTherm:");
+  ESP_LOGCONFIG(TAG,
+                "OpenTherm:\n"
+                "  Sync mode: %s",
+                YESNO(this->sync_mode_));
   LOG_PIN("  In: ", this->in_pin_);
   LOG_PIN("  Out: ", this->out_pin_);
-  ESP_LOGCONFIG(TAG, "  Sync mode: %s\n", YESNO(this->sync_mode_));
   ESP_LOGCONFIG(TAG, "  Child components (%d):", this->message_processors_.size());
   for (const auto &pair : this->message_processors_) {
     const auto type = pair.first;
@@ -383,5 +384,4 @@ void OpenthermHub::dump_config() {
   }
 }
 
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm

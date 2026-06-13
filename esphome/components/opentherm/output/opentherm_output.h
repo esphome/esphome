@@ -6,8 +6,7 @@
 #include "esphome/components/output/float_output.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
 class OpenthermOutput : public output::FloatOutput, public Component, public OpenthermInput, public MessageProcessor {
  protected:
@@ -35,5 +34,4 @@ class OpenthermOutput : public output::FloatOutput, public Component, public Ope
   float get_max_value() { return this->max_value_; }
 };
 
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm

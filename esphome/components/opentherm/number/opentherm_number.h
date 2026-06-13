@@ -7,8 +7,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
 // Just a simple number, which stores the number
 class OpenthermNumber : public number::Number, public Component, public OpenthermInput, public MessageProcessor {
@@ -36,5 +35,4 @@ class OpenthermNumber : public number::Number, public Component, public Openther
   void set_restore_value(bool restore_value) { this->restore_value_ = restore_value; }
 };
 
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm

@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace smt100 {
+namespace esphome::smt100 {
 
 class SMT100Component : public PollingComponent, public uart::UARTDevice {
   static const uint16_t MAX_LINE_LENGTH = 31;
@@ -16,8 +15,6 @@ class SMT100Component : public PollingComponent, public uart::UARTDevice {
   void dump_config() override;
   void loop() override;
   void update() override;
-
-  float get_setup_priority() const override;
 
   void set_counts_sensor(sensor::Sensor *counts_sensor) { this->counts_sensor_ = counts_sensor; }
   void set_permittivity_sensor(sensor::Sensor *permittivity_sensor) {
@@ -30,6 +27,9 @@ class SMT100Component : public PollingComponent, public uart::UARTDevice {
  protected:
   int readline_(int readch, char *buffer, int len);
 
+  char readline_buffer_[MAX_LINE_LENGTH]{};
+  int readline_pos_{0};
+
   sensor::Sensor *counts_sensor_{nullptr};
   sensor::Sensor *permittivity_sensor_{nullptr};
   sensor::Sensor *moisture_sensor_{nullptr};
@@ -39,5 +39,4 @@ class SMT100Component : public PollingComponent, public uart::UARTDevice {
   uint32_t last_transmission_{0};
 };
 
-}  // namespace smt100
-}  // namespace esphome
+}  // namespace esphome::smt100

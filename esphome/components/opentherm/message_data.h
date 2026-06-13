@@ -2,9 +2,7 @@
 
 #include "opentherm_base.h"
 
-namespace esphome {
-namespace opentherm {
-namespace message_data {
+namespace esphome::opentherm::message_data {
 
 /*
  * Accessor templates to get and set values in the OpenthermData structure.
@@ -80,6 +78,4 @@ using u16 = MethodAccessor<uint16_t, &OpenthermData::u16, &OpenthermData::u16>;
 using s16 = MethodAccessor<int16_t, &OpenthermData::s16, &OpenthermData::s16>;
 using f88 = MethodAccessor<float, &OpenthermData::f88, &OpenthermData::f88>;
 
-}  // namespace message_data
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm::message_data

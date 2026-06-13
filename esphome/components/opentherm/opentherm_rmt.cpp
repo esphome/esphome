@@ -8,8 +8,7 @@
 #include <esp_err.h>
 #include <string>
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
 using std::string;
 
@@ -374,7 +373,6 @@ void OpenTherm::log_protocol_state() const {
   ESP_LOGD(TAG, "RX raw end =======================================");
 }
 
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm
 
 #endif

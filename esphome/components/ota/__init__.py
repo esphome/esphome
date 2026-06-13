@@ -16,7 +16,16 @@ from esphome.coroutine import CoroPriority
 OTA_STATE_LISTENER_KEY = "ota_state_listener"
 
 CODEOWNERS = ["@esphome/core"]
-AUTO_LOAD = ["md5", "safe_mode"]
+
+
+def AUTO_LOAD() -> list[str]:
+    components = ["safe_mode"]
+    if not CORE.using_zephyr:
+        components.extend(["md5"])
+    if CORE.is_esp32:
+        components.extend(["watchdog"])
+    return components
+
 
 IS_PLATFORM_COMPONENT = True
 
@@ -148,12 +157,13 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
-        "ota_backend_arduino_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
+        "ota_backend_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
         "ota_backend_arduino_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
         "ota_backend_arduino_libretiny.cpp": {
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
         },
+        "ota_backend_host.cpp": {PlatformFramework.HOST_NATIVE},
     }
 )

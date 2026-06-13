@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace ina219 {
+namespace esphome::ina219 {
 
 static const char *const TAG = "ina219";
 
@@ -151,8 +150,6 @@ void INA219Component::dump_config() {
   LOG_SENSOR("  ", "Power", this->power_sensor_);
 }
 
-float INA219Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void INA219Component::update() {
   if (this->bus_voltage_sensor_ != nullptr) {
     uint16_t raw_bus_voltage;
@@ -198,5 +195,4 @@ void INA219Component::update() {
   this->status_clear_warning();
 }
 
-}  // namespace ina219
-}  // namespace esphome
+}  // namespace esphome::ina219

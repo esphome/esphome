@@ -3,8 +3,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/opentherm/hub.h"
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
 // A simple true/false sensor
 template<typename T> class OpenthermSensor : public sensor::Sensor, public MessageProcessor {
@@ -14,5 +13,4 @@ template<typename T> class OpenthermSensor : public sensor::Sensor, public Messa
   const char *get_type_name() const override { return "sensor"; }
 };
 
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm

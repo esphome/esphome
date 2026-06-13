@@ -3,8 +3,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/opentherm/hub.h"
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
 // A simple true/false sensor
 template<typename T> class OpenthermBinarySensor : public binary_sensor::BinarySensor, public MessageProcessor {
@@ -16,5 +15,4 @@ template<typename T> class OpenthermBinarySensor : public binary_sensor::BinaryS
   const char *get_type_name() const override { return "binary_sensor"; }
 };
 
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm

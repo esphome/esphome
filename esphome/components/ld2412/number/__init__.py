@@ -31,6 +31,7 @@ TIMEOUT_GROUP = "timeout"
 
 CONFIG_SCHEMA = cv.Schema(
     {
+        cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
         cv.GenerateID(CONF_LD2412_ID): cv.use_id(LD2412Component),
         cv.Optional(CONF_LIGHT_THRESHOLD): number.number_schema(
             LightThresholdNumber,

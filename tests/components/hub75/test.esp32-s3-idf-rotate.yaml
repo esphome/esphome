@@ -1,0 +1,39 @@
+display:
+  - platform: hub75
+    id: my_hub75
+    board: apollo-automation-rev6
+    panel_width: 64
+    panel_height: 64
+    layout_rows: 1
+    layout_cols: 2
+    rotation: 90
+    bit_depth: 4
+    double_buffer: true
+    auto_clear_enabled: true
+    update_interval: 16ms
+    latch_blanking: 1
+    clock_speed: 20MHz
+    lambda: |-
+      // Test clipping: 8 columns x 4 rows of 16x16 colored squares
+      Color colors[32] = {
+        Color(255, 0, 0),     Color(0, 255, 0),     Color(0, 0, 255),     Color(255, 255, 0),
+        Color(255, 0, 255),   Color(0, 255, 255),   Color(255, 128, 0),   Color(128, 0, 255),
+        Color(0, 128, 255),   Color(255, 0, 128),   Color(128, 255, 0),   Color(0, 255, 128),
+        Color(255, 128, 128), Color(128, 255, 128), Color(128, 128, 255), Color(255, 255, 128),
+        Color(255, 128, 255), Color(128, 255, 255), Color(192, 64, 0),    Color(64, 192, 0),
+        Color(0, 64, 192),    Color(192, 0, 64),    Color(64, 0, 192),    Color(0, 192, 64),
+        Color(128, 64, 64),   Color(64, 128, 64),   Color(64, 64, 128),   Color(128, 128, 64),
+        Color(128, 64, 128),  Color(64, 128, 128),  Color(255, 255, 255), Color(128, 128, 128)
+      };
+      int idx = 0;
+      for (int row = 0; row < 4; row++) {
+        for (int col = 0; col < 8; col++) {
+          // Clipping mode: clip to square bounds, then fill "entire screen"
+          it.start_clipping(col * 16, row * 16, (col + 1) * 16, (row + 1) * 16);
+          it.fill(colors[idx]);
+          it.end_clipping();
+          idx++;
+        }
+      }
+
+<<: !include common.yaml

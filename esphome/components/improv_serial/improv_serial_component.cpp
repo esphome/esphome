@@ -8,8 +8,7 @@
 
 #include "esphome/components/logger/logger.h"
 
-namespace esphome {
-namespace improv_serial {
+namespace esphome::improv_serial {
 
 static const char *const TAG = "improv_serial";
 
@@ -23,7 +22,9 @@ void ImprovSerialComponent::setup() {
 
   if (wifi::global_wifi_component->has_sta()) {
     this->state_ = improv::STATE_PROVISIONED;
-  } else {
+  } else if (!wifi::global_wifi_component->is_disabled()) {
+    // Respect Wi-Fi's disabled state; forcing a scan while disabled throws
+    // the wifi component into an invalid state from which it cannot recover.
     wifi::global_wifi_component->start_scanning();
   }
 }
@@ -69,11 +70,9 @@ optional<uint8_t> ImprovSerialComponent::read_byte_() {
   switch (logger::global_logger->get_uart()) {
     case logger::UART_SELECTION_UART0:
     case logger::UART_SELECTION_UART1:
-#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
-    !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32)
     case logger::UART_SELECTION_UART2:
-#endif  // !USE_ESP32_VARIANT_ESP32C3 && !USE_ESP32_VARIANT_ESP32C6 && !USE_ESP32_VARIANT_ESP32C61 &&
-        // !USE_ESP32_VARIANT_ESP32S2 && !USE_ESP32_VARIANT_ESP32S3
+#endif
       if (this->uart_num_ >= 0) {
         size_t available;
         uart_get_buffered_data_len(this->uart_num_, &available);
@@ -137,8 +136,7 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
   switch (logger::global_logger->get_uart()) {
     case logger::UART_SELECTION_UART0:
     case logger::UART_SELECTION_UART1:
-#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
-    !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32)
     case logger::UART_SELECTION_UART2:
 #endif
       uart_write_bytes(this->uart_num_, this->tx_header_, header_tx_len);
@@ -182,15 +180,23 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
 std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv::Command command) {
   std::vector<std::string> urls;
 #ifdef USE_IMPROV_SERIAL_NEXT_URL
-  if (!this->next_url_.empty()) {
-    urls.push_back(this->get_formatted_next_url_());
+  {
+    char url_buffer[384];
+    size_t len = this->get_formatted_next_url_(url_buffer, sizeof(url_buffer));
+    if (len > 0) {
+      urls.emplace_back(url_buffer, len);
+    }
   }
 #endif
 #ifdef USE_WEBSERVER
   for (auto &ip : wifi::global_wifi_component->wifi_sta_ip_addresses()) {
     if (ip.is_ip4()) {
-      std::string webserver_url = "http://" + ip.str() + ":" + to_string(USE_WEBSERVER_PORT);
-      urls.push_back(webserver_url);
+      char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+      ip.str_to(ip_buf);
+      // "http://" (7) + IP (40) + ":" (1) + port (5) + null (1) = 54
+      char webserver_url[7 + network::IP_ADDRESS_BUFFER_SIZE + 1 + 5 + 1];
+      snprintf(webserver_url, sizeof(webserver_url), "http://%s:%u", ip_buf, USE_WEBSERVER_PORT);
+      urls.emplace_back(webserver_url);
       break;
     }
   }
@@ -226,9 +232,16 @@ bool ImprovSerialComponent::parse_improv_serial_byte_(uint8_t byte) {
 bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command) {
   switch (command.command) {
     case improv::WIFI_SETTINGS: {
+      if (wifi::global_wifi_component->is_disabled()) {
+        // Wi-Fi is disabled, so we can't provision. Respond immediately
+        // instead of letting the client wait out its provisioning timeout.
+        ESP_LOGW(TAG, "Wi-Fi is disabled; cannot provision");
+        this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
+        return true;
+      }
       wifi::WiFiAP sta{};
-      sta.set_ssid(command.ssid);
-      sta.set_password(command.password);
+      sta.set_ssid(command.ssid.c_str());
+      sta.set_password(command.password.c_str());
       this->connecting_sta_ = sta;
 
       wifi::global_wifi_component->set_sta(sta);
@@ -237,11 +250,18 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       ESP_LOGD(TAG, "Received settings: SSID=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
                command.password.c_str());
 
-      auto f = std::bind(&ImprovSerialComponent::on_wifi_connect_timeout_, this);
-      this->set_timeout("wifi-connect-timeout", 30000, f);
+      this->set_timeout("wifi-connect-timeout", 30000, [this]() { this->on_wifi_connect_timeout_(); });
       return true;
     }
     case improv::GET_CURRENT_STATE:
+      if (wifi::global_wifi_component->is_disabled()) {
+        // Wi-Fi is disabled; report the Improv "stopped" state so a client can tell
+        // the user that provisioning is unavailable. Reported transiently without
+        // disturbing our internal provisioning state machine, so a later `wifi.enable`
+        // still reports the correct state.
+        this->send_current_state_(improv::STATE_STOPPED);
+        return true;
+      }
       this->set_state_(this->state_);
       if (this->state_ == improv::STATE_PROVISIONED) {
         std::vector<uint8_t> url = this->build_rpc_settings_response_(improv::GET_CURRENT_STATE);
@@ -259,14 +279,26 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       for (auto &scan : results) {
         if (scan.get_is_hidden())
           continue;
-        const std::string &ssid = scan.get_ssid();
-        if (std::find(networks.begin(), networks.end(), ssid) != networks.end())
+        const char *ssid_cstr = scan.get_ssid().c_str();
+        // Check if we've already sent this SSID
+        bool duplicate = false;
+        for (const auto &seen : networks) {
+          if (strcmp(seen.c_str(), ssid_cstr) == 0) {
+            duplicate = true;
+            break;
+          }
+        }
+        if (duplicate)
           continue;
+        // Only allocate std::string after confirming it's not a duplicate
+        std::string ssid(ssid_cstr);
         // Send each ssid separately to avoid overflowing the buffer
-        std::vector<uint8_t> data = improv::build_rpc_response(
-            improv::GET_WIFI_NETWORKS, {ssid, str_sprintf("%d", scan.get_rssi()), YESNO(scan.get_with_auth())}, false);
+        char rssi_buf[5];  // int8_t: -128 to 127, max 4 chars + null
+        *int8_to_str(rssi_buf, scan.get_rssi()) = '\0';
+        std::vector<uint8_t> data =
+            improv::build_rpc_response(improv::GET_WIFI_NETWORKS, {ssid, rssi_buf, YESNO(scan.get_with_auth())}, false);
         this->send_response_(data);
-        networks.push_back(ssid);
+        networks.push_back(std::move(ssid));
       }
       // Send empty response to signify the end of the list.
       std::vector<uint8_t> data =
@@ -284,6 +316,10 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
 
 void ImprovSerialComponent::set_state_(improv::State state) {
   this->state_ = state;
+  this->send_current_state_(state);
+}
+
+void ImprovSerialComponent::send_current_state_(improv::State state) {
   this->tx_header_[TX_TYPE_IDX] = TYPE_CURRENT_STATE;
   this->tx_header_[TX_DATA_IDX] = state;
   this->write_data_();
@@ -310,6 +346,6 @@ void ImprovSerialComponent::on_wifi_connect_timeout_() {
 ImprovSerialComponent *global_improv_serial_component =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
     nullptr;                                             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace improv_serial
-}  // namespace esphome
+}  // namespace esphome::improv_serial
+
 #endif

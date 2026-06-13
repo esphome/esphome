@@ -591,6 +591,30 @@ class TestEsphomeCore:
         assert target.is_esp32 is False
         assert target.is_esp8266 is True
 
+    def test_firmware_bin__default(self, target):
+        """Default platforms produce <pioenvs>/<name>/firmware.bin."""
+        target.name = "test-device"
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp32"}
+        assert target.firmware_bin == Path(
+            "foo/build/.pioenvs/test-device/firmware.bin"
+        )
+
+    def test_firmware_bin__libretiny(self, target):
+        """The libretiny platform produces firmware.uf2."""
+        target.name = "test-device"
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "bk72xx"}
+        assert target.firmware_bin == Path(
+            "foo/build/.pioenvs/test-device/firmware.uf2"
+        )
+
+    def test_firmware_bin__host(self, target):
+        """Host platform produces a native ELF/Mach-O named `program`,
+        not firmware.bin -- needed for `esphome upload` to find the
+        right artifact for the host OTA backend."""
+        target.name = "test-device"
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "host"}
+        assert target.firmware_bin == Path("foo/build/.pioenvs/test-device/program")
+
     @pytest.mark.skipif(os.name == "nt", reason="Unix-specific test")
     def test_data_dir_default_unix(self, target):
         """Test data_dir returns .esphome in config directory by default on Unix."""
@@ -718,3 +742,176 @@ class TestEsphomeCore:
         # Even though "web_server" is in loaded_integrations due to the platform,
         # web_port must return None because the full web_server component is not configured
         assert target.web_port is None
+
+    def test_has_at_least_one_component__none_configured(self, target):
+        """Test has_at_least_one_component returns False when none of the components are configured."""
+        target.config = {const.CONF_ESPHOME: {"name": "test"}, "logger": {}}
+
+        assert target.has_at_least_one_component("wifi", "ethernet") is False
+
+    def test_has_at_least_one_component__one_configured(self, target):
+        """Test has_at_least_one_component returns True when one component is configured."""
+        target.config = {const.CONF_WIFI: {}, "logger": {}}
+
+        assert target.has_at_least_one_component("wifi", "ethernet") is True
+
+    def test_has_at_least_one_component__multiple_configured(self, target):
+        """Test has_at_least_one_component returns True when multiple components are configured."""
+        target.config = {
+            const.CONF_WIFI: {},
+            const.CONF_ETHERNET: {},
+            "logger": {},
+        }
+
+        assert (
+            target.has_at_least_one_component("wifi", "ethernet", "bluetooth") is True
+        )
+
+    def test_has_at_least_one_component__single_component(self, target):
+        """Test has_at_least_one_component works with a single component."""
+        target.config = {const.CONF_MQTT: {}}
+
+        assert target.has_at_least_one_component("mqtt") is True
+        assert target.has_at_least_one_component("wifi") is False
+
+    def test_has_at_least_one_component__config_not_loaded(self, target):
+        """Test has_at_least_one_component raises ValueError when config is not loaded."""
+        target.config = None
+
+        with pytest.raises(ValueError, match="Config has not been loaded yet"):
+            target.has_at_least_one_component("wifi")
+
+    def test_has_networking__with_wifi(self, target):
+        """Test has_networking returns True when wifi is configured."""
+        target.config = {const.CONF_WIFI: {}}
+
+        assert target.has_networking is True
+
+    def test_has_networking__with_ethernet(self, target):
+        """Test has_networking returns True when ethernet is configured."""
+        target.config = {const.CONF_ETHERNET: {}}
+
+        assert target.has_networking is True
+
+    def test_has_networking__with_openthread(self, target):
+        """Test has_networking returns True when openthread is configured."""
+        target.config = {const.CONF_OPENTHREAD: {}}
+
+        assert target.has_networking is True
+
+    def test_has_networking__without_networking(self, target):
+        """Test has_networking returns False when no networking component is configured."""
+        target.config = {const.CONF_ESPHOME: {"name": "test"}, "logger": {}}
+
+        assert target.has_networking is False
+
+    def test_add_library__esp32_arduino_enables_disabled_library(self, target):
+        """Test add_library auto-enables Arduino libraries on ESP32 Arduino builds."""
+        target.data[const.KEY_CORE] = {
+            const.KEY_TARGET_PLATFORM: "esp32",
+            const.KEY_TARGET_FRAMEWORK: "arduino",
+        }
+
+        library = core.Library("WiFi", None)
+
+        with patch("esphome.components.esp32._enable_arduino_library") as mock_enable:
+            target.add_library(library)
+            mock_enable.assert_called_once_with("WiFi")
+
+        assert "WiFi" in target.platformio_libraries
+
+    def test_add_library__esp32_arduino_ignores_non_arduino_library(self, target):
+        """Test add_library doesn't enable libraries not in ARDUINO_DISABLED_LIBRARIES."""
+        target.data[const.KEY_CORE] = {
+            const.KEY_TARGET_PLATFORM: "esp32",
+            const.KEY_TARGET_FRAMEWORK: "arduino",
+        }
+
+        library = core.Library("SomeOtherLib", "1.0.0")
+
+        with patch("esphome.components.esp32._enable_arduino_library") as mock_enable:
+            target.add_library(library)
+            mock_enable.assert_not_called()
+
+        assert "SomeOtherLib" in target.platformio_libraries
+
+    def test_add_library__esp32_idf_does_not_enable_arduino_library(self, target):
+        """Test add_library doesn't auto-enable Arduino libraries on ESP32 IDF builds."""
+        target.data[const.KEY_CORE] = {
+            const.KEY_TARGET_PLATFORM: "esp32",
+            const.KEY_TARGET_FRAMEWORK: "esp-idf",
+        }
+
+        library = core.Library("WiFi", None)
+
+        with patch("esphome.components.esp32._enable_arduino_library") as mock_enable:
+            target.add_library(library)
+            mock_enable.assert_not_called()
+
+        assert "WiFi" in target.platformio_libraries
+
+    def test_add_library__esp8266_does_not_enable_arduino_library(self, target):
+        """Test add_library doesn't auto-enable Arduino libraries on ESP8266."""
+        target.data[const.KEY_CORE] = {
+            const.KEY_TARGET_PLATFORM: "esp8266",
+            const.KEY_TARGET_FRAMEWORK: "arduino",
+        }
+
+        library = core.Library("WiFi", None)
+
+        with patch("esphome.components.esp32._enable_arduino_library") as mock_enable:
+            target.add_library(library)
+            mock_enable.assert_not_called()
+
+        assert "WiFi" in target.platformio_libraries
+
+    def test_testing_ensure_platform_registered__sets_count(self, target):
+        """Test testing_ensure_platform_registered sets count to 1 for new platform."""
+        assert target.platform_counts["sensor"] == 0
+        target.testing_ensure_platform_registered("sensor")
+        assert target.platform_counts["sensor"] == 1
+
+    def test_testing_ensure_platform_registered__does_not_overwrite(self, target):
+        """Test testing_ensure_platform_registered preserves existing count."""
+        target.platform_counts["sensor"] = 3
+        target.testing_ensure_platform_registered("sensor")
+        assert target.platform_counts["sensor"] == 3
+
+    def test_bootloader_bin__native_idf(self, target):
+        """Native ESP-IDF builds emit the bootloader under build/bootloader/bootloader.bin."""
+        target.toolchain = const.Toolchain.ESP_IDF
+
+        assert target.bootloader_bin == Path(
+            "foo/build/build/bootloader/bootloader.bin"
+        )
+
+    def test_bootloader_bin__platformio(self, target):
+        """For PlatformIO builds bootloader.bin lives in the env-specific .pioenvs directory."""
+        target.name = "test-device"
+        target.toolchain = const.Toolchain.PLATFORMIO
+
+        assert target.bootloader_bin == Path(
+            "foo/build/.pioenvs/test-device/bootloader.bin"
+        )
+
+    def test_using_toolchain_sdk_nrf(self, target):
+        """using_toolchain_sdk_nrf is True only for the SDK_NRF toolchain."""
+        target.toolchain = const.Toolchain.SDK_NRF
+        assert target.using_toolchain_sdk_nrf is True
+        target.toolchain = const.Toolchain.ESP_IDF
+        assert target.using_toolchain_sdk_nrf is False
+
+    def test_add_library__extracts_short_name_from_path(self, target):
+        """Test add_library extracts short name from library paths like owner/lib."""
+        target.data[const.KEY_CORE] = {
+            const.KEY_TARGET_PLATFORM: "esp32",
+            const.KEY_TARGET_FRAMEWORK: "arduino",
+        }
+
+        library = core.Library("arduino/Wire", None)
+
+        with patch("esphome.components.esp32._enable_arduino_library") as mock_enable:
+            target.add_library(library)
+            mock_enable.assert_called_once_with("Wire")
+
+        assert "Wire" in target.platformio_libraries

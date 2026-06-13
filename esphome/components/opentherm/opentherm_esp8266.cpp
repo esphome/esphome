@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include <string>
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
 using std::string;
 using std::to_string;
@@ -194,7 +193,6 @@ void IRAM_ATTR OpenTherm::stop_timer_() {
   timer1_detachInterrupt();
 }
 
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm
 
 #endif

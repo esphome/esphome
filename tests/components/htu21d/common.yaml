@@ -1,5 +1,6 @@
 sensor:
   - platform: htu21d
+    id: htu21d_sensor
     i2c_id: i2c_bus
     model: htu21d
     temperature:
@@ -9,3 +10,14 @@ sensor:
     heater:
       name: Heater
     update_interval: 15s
+
+button:
+  - platform: template
+    name: "Test HTU21D Actions"
+    on_press:
+      - htu21d.set_heater:
+          id: htu21d_sensor
+          status: true
+      - htu21d.set_heater_level:
+          id: htu21d_sensor
+          level: 5

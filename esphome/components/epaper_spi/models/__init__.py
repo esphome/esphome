@@ -32,6 +32,9 @@ class EpaperModel:
             return cv.Required(name)
         return cv.Optional(name, default=self.get_default(name, fallback))
 
+    def get_constructor_args(self, config) -> tuple:
+        return ()
+
     def get_dimensions(self, config) -> tuple[int, int]:
         if CONF_DIMENSIONS in config:
             # Explicit dimensions, just use as is

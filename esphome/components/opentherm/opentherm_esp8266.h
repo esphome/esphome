@@ -8,8 +8,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
 class OpenTherm : public OpenThermBase {
  public:
@@ -51,7 +50,6 @@ class OpenTherm : public OpenThermBase {
   static OpenTherm *instance;
 };
 
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm
 
 #endif

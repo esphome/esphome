@@ -1,0 +1,7 @@
+substitutions:
+  i2s_dout_pin: GPIO13
+
+packages:
+  i2s_audio: !include ../../test_build_components/common/i2s_audio/esp32-idf.yaml
+
+<<: !include common-media_player.yaml

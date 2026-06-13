@@ -5,8 +5,7 @@
 #include "esphome/core/log.h"
 #include "esphome/components/opentherm/hub.h"
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
 class AbstractOpenthermSwitch : public switch_::Switch, public Component, public MessageProcessor {
  protected:
@@ -27,5 +26,4 @@ template<typename T> class OpenthermSwitch : public AbstractOpenthermSwitch {
   const char *get_type_name() const override { return "switch"; }
 };
 
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm

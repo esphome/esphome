@@ -2,8 +2,7 @@
 
 #include "hub.h"
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
 /*
  * An input sensor is a message with a value derived from a Sensor, likely from a different platform.
@@ -36,5 +35,4 @@ template<typename T> class OpenthermInputSensor : public MessageProcessor {
   sensor::Sensor *sensor_{nullptr};
 };
 
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm

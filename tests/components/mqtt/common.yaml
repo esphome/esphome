@@ -57,10 +57,14 @@ mqtt:
     - mqtt.publish:
         topic: some/topic
         payload: Hello
+    - lambda: |-
+        ESP_LOGD("MQTT", "Session present %d", session_present);
   on_disconnect:
     - mqtt.publish:
         topic: some/topic
         payload: Good-bye
+    - lambda: |-
+        ESP_LOGD("MQTT", "Disconnect reason %d", (int) reason);
   publish_nan_as_none: false
 
 binary_sensor:
@@ -70,7 +74,7 @@ binary_sensor:
     state_topic: some/topic/binary_sensor
     qos: 2
     lambda: |-
-      if (id(template_sens).state > 30) {
+      if (id(mqtt_template_sens).state > 30) {
         // Garage Door is open.
         return true;
       }
@@ -87,6 +91,7 @@ button:
   - platform: template
     name: "Template Button"
     state_topic: some/topic/button
+    command_topic: !lambda return "some/topic/button/command";
     qos: 2
     on_press:
       - mqtt.disable
@@ -100,8 +105,8 @@ button:
 climate:
   - platform: thermostat
     name: Test Thermostat
-    sensor: template_sens
-    humidity_sensor: template_sens
+    sensor: mqtt_template_sens
+    humidity_sensor: mqtt_template_sens
     action_state_topic: some/topicaction_state
     current_temperature_state_topic: some/topiccurrent_temperature_state
     current_humidity_state_topic: some/topiccurrent_humidity_state
@@ -214,6 +219,7 @@ cover:
     name: Template Cover
     state_topic: some/topic/cover
     qos: 2
+    mqtt_json_state_payload: true
     lambda: |-
       if (id(some_binary_sensor).state) {
         return COVER_OPEN;
@@ -226,14 +232,61 @@ cover:
     stop_action:
       - logger.log: stop_action
     optimistic: true
+  - platform: template
+    name: Template Cover with Position and Tilt
+    state_topic: some/topic/cover_pt
+    position_state_topic: some/topic/cover_pt/position
+    position_command_topic: some/topic/cover_pt/position/set
+    tilt_state_topic: some/topic/cover_pt/tilt
+    tilt_command_topic: some/topic/cover_pt/tilt/set
+    qos: 2
+    has_position: true
+    lambda: |-
+      if (id(some_binary_sensor).state) {
+        return COVER_OPEN;
+      }
+      return COVER_CLOSED;
+    position_action:
+      - logger.log: position_action
+    tilt_action:
+      - logger.log: tilt_action
+    open_action:
+      - logger.log: open_action
+    close_action:
+      - logger.log: close_action
+    stop_action:
+      - logger.log: stop_action
+    optimistic: true
+  - platform: template
+    name: Template Cover with Position and Tilt JSON
+    state_topic: some/topic/cover_pt_json
+    qos: 2
+    mqtt_json_state_payload: true
+    has_position: true
+    lambda: |-
+      if (id(some_binary_sensor).state) {
+        return COVER_OPEN;
+      }
+      return COVER_CLOSED;
+    position_action:
+      - logger.log: position_action
+    tilt_action:
+      - logger.log: tilt_action
+    open_action:
+      - logger.log: open_action
+    close_action:
+      - logger.log: close_action
+    stop_action:
+      - logger.log: stop_action
+    optimistic: true
 
 datetime:
   - platform: template
     name: Date
-    id: test_date
+    id: mqtt_test_date
     type: date
     state_topic: some/topic/date
-    command_topic: test_date/custom_command_topic
+    command_topic: mqtt_test_date/custom_command_topic
     qos: 2
     subscribe_qos: 2
     set_action:
@@ -247,7 +300,7 @@ datetime:
             - x.day_of_month
   - platform: template
     name: Time
-    id: test_time
+    id: mqtt_test_time
     type: time
     state_topic: some/topic/time
     qos: 2
@@ -262,7 +315,7 @@ datetime:
             - x.second
   - platform: template
     name: DateTime
-    id: test_datetime
+    id: mqtt_test_datetime
     type: datetime
     state_topic: some/topic/datetime
     qos: 2
@@ -291,7 +344,7 @@ event:
 fan:
   - platform: template
     name: Template Fan
-    state_topic: some/topic/fan
+    state_topic: !lambda return "some/topic/fan";
     direction_state_topic: some/topic/direction/state
     direction_command_topic: some/topic/direction/command
     qos: 2
@@ -354,7 +407,7 @@ select:
 sensor:
   - platform: template
     name: Template Sensor
-    id: template_sens
+    id: mqtt_template_sens
     lambda: |-
       if (id(some_binary_sensor).state) {
         return 42.0;
@@ -370,13 +423,13 @@ sensor:
   - platform: mqtt_subscribe
     name: MQTT Subscribe Sensor
     topic: mqtt/topic
-    id: the_sensor
+    id: mqtt_the_sensor
     qos: 2
     on_value:
       - mqtt.publish_json:
           topic: the/topic
           payload: |-
-            root["key"] = id(template_sens).state;
+            root["key"] = id(mqtt_template_sens).state;
             root["greeting"] = "Hello World";
 
 switch:

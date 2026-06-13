@@ -4,8 +4,7 @@
 
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace host {
+namespace esphome::host {
 
 class HostGPIOPin : public InternalGPIOPin {
  public:
@@ -17,7 +16,7 @@ class HostGPIOPin : public InternalGPIOPin {
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
-  std::string dump_summary() const override;
+  size_t dump_summary(char *buffer, size_t len) const override;
   void detach_interrupt() const override;
   ISRInternalGPIOPin to_isr() const override;
   uint8_t get_pin() const override { return pin_; }
@@ -32,7 +31,6 @@ class HostGPIOPin : public InternalGPIOPin {
   gpio::Flags flags_{};
 };
 
-}  // namespace host
-}  // namespace esphome
+}  // namespace esphome::host
 
 #endif  // USE_HOST

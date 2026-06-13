@@ -6,8 +6,7 @@
 #include <cinttypes>
 #include <vector>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 class RawBinarySensor : public RemoteReceiverBinarySensorBase {
  public:
@@ -82,5 +81,4 @@ class RawDumper : public RemoteReceiverDumperBase {
   bool is_secondary() override { return true; }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

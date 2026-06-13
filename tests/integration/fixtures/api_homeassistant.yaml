@@ -108,6 +108,25 @@ text_sensor:
             format: "HA Empty state updated: %s"
             args: ['x.c_str()']
 
+  # Test long attribute handling (>255 characters)
+  # HA states are limited to 255 chars, but attributes are not
+  - platform: homeassistant
+    name: "HA Long Attribute"
+    entity_id: sensor.long_data
+    attribute: long_value
+    id: ha_long_attribute
+    on_value:
+      then:
+        - logger.log:
+            format: "HA Long attribute received, length: %d"
+            args: ['x.size()']
+        # Log the first 50 and last 50 chars to verify no truncation
+        - lambda: |-
+            if (x.size() >= 100) {
+              ESP_LOGI("test", "Long attribute first 50 chars: %.50s", x.c_str());
+              ESP_LOGI("test", "Long attribute last 50 chars: %s", x.c_str() + x.size() - 50);
+            }
+
 # Number component for testing HA number control
 number:
   - platform: template

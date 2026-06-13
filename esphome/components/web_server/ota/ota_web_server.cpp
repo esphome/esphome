@@ -1,7 +1,7 @@
 #include "ota_web_server.h"
 #ifdef USE_WEBSERVER_OTA
 
-#include "esphome/components/ota/ota_backend.h"
+#include "esphome/components/ota/ota_backend_factory.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
@@ -10,9 +10,7 @@
 #endif
 
 #ifdef USE_ARDUINO
-#ifdef USE_ESP8266
-#include <Updater.h>
-#elif defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_LIBRETINY)
 #include <Update.h>
 #endif
 #endif  // USE_ARDUINO
@@ -23,8 +21,7 @@ using PlatformString = std::string;
 using PlatformString = String;
 #endif
 
-namespace esphome {
-namespace web_server {
+namespace esphome::web_server {
 
 static const char *const TAG = "web_server.ota";
 
@@ -35,8 +32,15 @@ class OTARequestHandler : public AsyncWebHandler {
   void handleUpload(AsyncWebServerRequest *request, const PlatformString &filename, size_t index, uint8_t *data,
                     size_t len, bool final) override;
   bool canHandle(AsyncWebServerRequest *request) const override {
-    // Check if this is an OTA update request
-    bool is_ota_request = request->url() == "/update" && request->method() == HTTP_POST;
+    if (request->method() != HTTP_POST)
+      return false;
+      // Check if this is an OTA update request
+#ifdef USE_ESP32
+    char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
+    bool is_ota_request = request->url_to(url_buf) == "/update";
+#else
+    bool is_ota_request = request->url() == ESPHOME_F("/update");
+#endif
 
 #if defined(USE_WEBSERVER_OTA_DISABLED) && defined(USE_CAPTIVE_PORTAL)
     // IMPORTANT: USE_WEBSERVER_OTA_DISABLED only disables OTA for the web_server component
@@ -67,7 +71,7 @@ class OTARequestHandler : public AsyncWebHandler {
   bool ota_success_{false};
 
  private:
-  std::unique_ptr<ota::OTABackend> ota_backend_{nullptr};
+  ota::OTABackendPtr ota_backend_{nullptr};
 };
 
 void OTARequestHandler::report_ota_progress_(AsyncWebServerRequest *request) {
@@ -110,7 +114,25 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
                                      uint8_t *data, size_t len, bool final) {
   ota::OTAResponseTypes error_code = ota::OTA_RESPONSE_OK;
 
-  if (index == 0 && !this->ota_backend_) {
+  // First byte of a new upload: index==0 with actual data. (web_server_idf
+  // fires a separate start-marker call with data==nullptr/len==0 before the
+  // first real chunk; gate on len>0 so we only trigger once per upload.)
+  if (index == 0 && len > 0) {
+    // If a previous upload was interrupted (e.g. client closed the tab, TCP
+    // reset) the backend from that session may still be open. Tear it down
+    // so flash state doesn't get concatenated with the new image (which can
+    // produce a technically-valid-sized but corrupted firmware that bricks
+    // the device once it reboots).
+    if (this->ota_backend_) {
+      ESP_LOGW(TAG, "New OTA upload received while previous session was still open; aborting previous session");
+      this->ota_backend_->abort();
+#ifdef USE_OTA_STATE_LISTENER
+      // Notify listeners that the previous session was aborted before the new one starts.
+      this->parent_->notify_state_deferred_(ota::OTA_ABORT, 0.0f, 0);
+#endif
+      this->ota_backend_.reset();
+    }
+
     // Initialize OTA on first call
     this->ota_init_(filename.c_str());
 
@@ -121,10 +143,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Platf
 
     // Platform-specific pre-initialization
 #ifdef USE_ARDUINO
-#ifdef USE_ESP8266
-    Update.runAsync(true);
-#endif
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_LIBRETINY)
     if (Update.isRunning()) {
       Update.abort();
     }
@@ -236,7 +255,6 @@ void WebServerOTAComponent::setup() {
 
 void WebServerOTAComponent::dump_config() { ESP_LOGCONFIG(TAG, "Web Server OTA"); }
 
-}  // namespace web_server
-}  // namespace esphome
+}  // namespace esphome::web_server
 
 #endif  // USE_WEBSERVER_OTA

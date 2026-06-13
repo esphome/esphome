@@ -8,8 +8,10 @@ from pathlib import Path
 import platform
 import re
 import shutil
+import stat
+import sys
 import tempfile
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TextIO
 from urllib.parse import urlparse
 
 from esphome.const import __version__ as ESPHOME_VERSION
@@ -35,6 +37,10 @@ IS_MACOS = platform.system() == "Darwin"
 IS_WINDOWS = platform.system() == "Windows"
 IS_LINUX = platform.system() == "Linux"
 
+# FNV-1 hash constants (must match C++ in esphome/core/helpers.h)
+FNV1_OFFSET_BASIS = 2166136261
+FNV1_PRIME = 16777619
+
 
 def ensure_unique_string(preferred_string, current_strings):
     test_string = preferred_string
@@ -49,8 +55,17 @@ def ensure_unique_string(preferred_string, current_strings):
     return test_string
 
 
+def fnv1_hash(string: str) -> int:
+    """FNV-1 32-bit hash function (multiply then XOR)."""
+    hash_value = FNV1_OFFSET_BASIS
+    for char in string:
+        hash_value = (hash_value * FNV1_PRIME) & 0xFFFFFFFF
+        hash_value ^= ord(char)
+    return hash_value
+
+
 def fnv1a_32bit_hash(string: str) -> int:
-    """FNV-1a 32-bit hash function.
+    """FNV-1a 32-bit hash function (XOR then multiply).
 
     Note: This uses 32-bit hash instead of 64-bit for several reasons:
     1. ESPHome targets 32-bit microcontrollers with limited RAM (often <320KB)
@@ -63,11 +78,20 @@ def fnv1a_32bit_hash(string: str) -> int:
     a handful of area_ids and device_ids (typically <10 areas and <100
     devices), making collisions virtually impossible.
     """
-    hash_value = 2166136261
+    hash_value = FNV1_OFFSET_BASIS
     for char in string:
         hash_value ^= ord(char)
-        hash_value = (hash_value * 16777619) & 0xFFFFFFFF
+        hash_value = (hash_value * FNV1_PRIME) & 0xFFFFFFFF
     return hash_value
+
+
+def fnv1_hash_object_id(name: str) -> int:
+    """Compute FNV-1 hash of name with snake_case + sanitize transformations.
+
+    IMPORTANT: Must produce same result as C++ fnv1_hash_object_id() in helpers.h.
+    Used for pre-computing entity object_id hashes at code generation time.
+    """
+    return fnv1_hash(sanitize(snake_case(name)))
 
 
 def strip_accents(value: str) -> str:
@@ -94,6 +118,24 @@ def slugify(value: str) -> str:
         .strip("_")
     )
     return "".join(c for c in value if c in ALLOWED_NAME_CHARS)
+
+
+def friendly_name_slugify(value: str) -> str:
+    """Convert a friendly name to a slug with dashes instead of underscores.
+
+    Used by:
+    - esphome.dashboard.web_server (legacy dashboard)
+    - device-builder (esphome/device-builder) — slugifies friendly names
+      into the YAML filename / device name during adoption + wizard flows.
+
+    Lives here rather than in ``esphome.dashboard.util.text`` so it
+    survives the legacy dashboard's eventual removal.
+    The dashboard module re-exports this name as a back-compat shim.
+    Coordinate with the device-builder team before changing the
+    slugification rules — the mapping must stay stable so existing
+    on-disk filenames keep matching across releases.
+    """
+    return slugify(value).replace("_", "-")
 
 
 def indent_all_but_first_and_last(text, padding="  "):
@@ -332,6 +374,27 @@ def is_ha_addon():
     return get_bool_env("ESPHOME_IS_HA_ADDON")
 
 
+def rmtree(path: Path | str) -> None:
+    """Remove a directory tree, handling read-only files on Windows.
+
+    On Windows, git pack files and other files may be marked read-only,
+    causing shutil.rmtree to fail. This handles that by removing the
+    read-only flag and retrying.
+    """
+
+    def _onerror(func, path, exc_info):
+        if os.access(path, os.W_OK):
+            raise exc_info[1].with_traceback(exc_info[2])
+        Path(path).chmod(stat.S_IWUSR | stat.S_IRUSR)
+        func(path)
+
+    # ``onerror`` is deprecated in 3.12 in favour of ``onexc`` (different
+    # callable signature); keep the existing handler shape for now and
+    # silence the lint locally so this PR doesn't bundle an unrelated
+    # migration.
+    shutil.rmtree(path, onerror=_onerror)  # pylint: disable=deprecated-argument
+
+
 def walk_files(path: Path):
     for root, _, files in os.walk(path):
         for name in files:
@@ -402,6 +465,12 @@ def _write_file(
 
 
 def write_file(path: Path, text: str | bytes, private: bool = False) -> None:
+    """Atomically write text or bytes to path. Wraps OSError as EsphomeError.
+
+    Used by esphome-device-builder for in-place YAML rewrites; the
+    atomicity (sibling tempfile + shutil.move) and EsphomeError
+    wrapping are part of the public contract.
+    """
     try:
         _write_file(path, text, private=private)
     except OSError as err:
@@ -443,7 +512,7 @@ def copy_file_if_changed(src: Path, dst: Path) -> bool:
             # -> delete file (it would be overwritten anyway), and try again
             # if that fails, use normal error handler
             with suppress(OSError):
-                os.unlink(dst)
+                Path(dst).unlink()
                 shutil.copyfile(src, dst)
                 return True
 
@@ -459,8 +528,6 @@ def list_starts_with(list_, sub):
 
 def file_compare(path1: Path, path2: Path) -> bool:
     """Return True if the files path1 and path2 have the same contents."""
-    import stat
-
     try:
         stat1, stat2 = path1.stat(), path2.stat()
     except OSError:
@@ -545,6 +612,48 @@ _DISALLOWED_CHARS = re.compile(r"[^a-zA-Z0-9-_]")
 def sanitize(value):
     """Same behaviour as `helpers.cpp` method `str_sanitize`."""
     return _DISALLOWED_CHARS.sub("_", value)
+
+
+class ProgressBar:
+    """A simple terminal progress bar for upload operations."""
+
+    def __init__(self, header: str, stream: TextIO | None = None) -> None:
+        # Local import to avoid a top-level cycle with esphome.core.
+        from esphome.core import CORE
+
+        self.header = header
+        self.stream = stream or sys.stderr
+        self.last_progress: int | None = None
+        # Enable when writing to an interactive TTY *or* when running under
+        # ``--dashboard``. The dashboard captures our stderr via
+        # ``stdout=PIPE, stderr=STDOUT`` and parses the ``\rUploading: NN%``
+        # frames to drive its own progress UI -- gating purely on ``isatty()``
+        # silently disables every dashboard-side flash-progress indicator.
+        is_tty = hasattr(self.stream, "isatty") and self.stream.isatty()
+        self.enabled = is_tty or CORE.dashboard
+
+    def update(self, progress: float) -> None:
+        if not self.enabled:
+            return
+        bar_length = 60
+        status = ""
+        if progress >= 1:
+            progress = 1
+            status = "Done...\r\n"
+        new_progress = int(progress * 100)
+        if new_progress == self.last_progress:
+            return
+        self.last_progress = new_progress
+        block = int(round(bar_length * progress))
+        text = f"\r{self.header}: [{'=' * block + ' ' * (bar_length - block)}] {new_progress}% {status}"
+        sys.stderr.write(text)
+        sys.stderr.flush()
+
+    def done(self) -> None:
+        if not self.enabled:
+            return
+        sys.stderr.write("\n")
+        sys.stderr.flush()
 
 
 def docs_url(path: str) -> str:

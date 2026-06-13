@@ -1,7 +1,12 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import output
-from esphome.components.esp32 import VARIANT_ESP32, VARIANT_ESP32S2, get_esp32_variant
+from esphome.components.esp32 import (
+    VARIANT_ESP32,
+    VARIANT_ESP32S2,
+    get_esp32_variant,
+    include_builtin_idf_component,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_NUMBER, CONF_PIN
 
@@ -38,6 +43,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 
 
 async def to_code(config):
+    include_builtin_idf_component("esp_driver_dac")
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await output.register_output(var, config)

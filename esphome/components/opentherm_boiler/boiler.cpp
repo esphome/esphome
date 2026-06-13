@@ -31,7 +31,7 @@ void Boiler::loop() {
   } else if (this->last_mode_change_ > 0 && (cur_time - this->last_mode_change_) > 5000) {
     ESP_LOGE(TAG, "Stuck in mode %d", mode);
     this->opentherm_->stop();
-    this->status_set_warning("Stuck state machine");
+    this->status_set_warning(LOG_STR("Stuck state machine"));
     return;
   }
 
@@ -62,19 +62,19 @@ void Boiler::loop() {
       ESP_LOGW(TAG, "OpenTherm protocol error: %s", protocol_error_to_str(error_type));
       this->opentherm_->log_protocol_state();
       this->opentherm_->stop();
-      this->status_set_warning("Protocol error");
+      this->status_set_warning(LOG_STR("Protocol error"));
       break;
     }
 
     case OperationMode::ERROR_TIMEOUT:
       this->opentherm_->stop();
-      this->status_set_warning("Timeout error");
+      this->status_set_warning(LOG_STR("Timeout error"));
       break;
 
     case OperationMode::ERROR_RMT:
       ESP_LOGW(TAG, "OpenTherm RMT error");
       this->opentherm_->stop();
-      this->status_set_warning("RMT error");
+      this->status_set_warning(LOG_STR("RMT error"));
       break;
 
     default:
@@ -102,7 +102,7 @@ void Boiler::read_request_() {
   if (!this->opentherm_->get_message(data)) {
     ESP_LOGW(TAG, "Couldn't get the request, but flags indicated success. This is a bug.");
     this->opentherm_->stop();
-    this->status_set_error("BUG");
+    this->status_set_error(LOG_STR("BUG"));
     return;
   }
 
