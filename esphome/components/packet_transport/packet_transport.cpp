@@ -404,13 +404,14 @@ static bool process_rolling_code(Provider &provider, PacketDecoder &decoder) {
     return false;
   }
   if (code1 < provider.last_code[1] || (code1 == provider.last_code[1] && code0 <= provider.last_code[0])) {
-    ESP_LOGW(TAG, "Rolling code for %s %08lX:%08lX is old", provider.name, (unsigned long) code1,
+    ESP_LOGW(TAG, "Rolling code for %s %08lX:%08lX is old", provider.name.c_str(), (unsigned long) code1,
              (unsigned long) code0);
     return false;
   }
   provider.last_code[0] = code0;
   provider.last_code[1] = code1;
-  ESP_LOGV(TAG, "Saw new rolling code for %s %08lX:%08lX", provider.name, (unsigned long) code1, (unsigned long) code0);
+  ESP_LOGV(TAG, "Saw new rolling code for %s %08lX:%08lX", provider.name.c_str(), (unsigned long) code1,
+           (unsigned long) code0);
   return true;
 }
 

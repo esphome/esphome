@@ -12,6 +12,7 @@
 
 #include <map>
 #include <span>
+#include <string>
 #include <vector>
 
 /**
@@ -29,7 +30,7 @@ template<typename T> using string_map_t = std::map<std::string, T, std::less<>>;
 
 struct Provider {
   std::vector<uint8_t> encryption_key;
-  const char *name;
+  std::string name;
   uint32_t last_code[2];
   uint32_t last_key_response_time;
 #ifdef USE_STATUS_SENSOR
