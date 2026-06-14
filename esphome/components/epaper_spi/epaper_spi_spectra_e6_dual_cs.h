@@ -7,7 +7,7 @@ namespace esphome::epaper_spi {
 class EPaperSpectraE6DualCS : public EPaperSpectraE6 {
  public:
   EPaperSpectraE6DualCS(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
-                         size_t init_sequence_length)
+                        size_t init_sequence_length)
       : EPaperSpectraE6(name, width, height, init_sequence, init_sequence_length) {}
 
   void set_cs_slave_pin(GPIOPin *pin) { this->cs_slave_ = pin; }
