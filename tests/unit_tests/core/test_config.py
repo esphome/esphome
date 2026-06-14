@@ -1225,10 +1225,20 @@ async def test_add_platformio_options_native_idf(
     assert CORE.platformio_options == {"lib_ignore": ["libsodium"]}
     assert "esphome->platformio_options->board_build.f_flash is ignored" in caplog.text
     assert "upload_speed" not in caplog.text
+    # build_flags has a first-class esphome equivalent, so it is deprecated.
+    # lib_deps/lib_ignore are kept as valid platformio_options (no warning).
+    assert (
+        "esphome->platformio_options->build_flags is deprecated; use "
+        "esphome->build_flags instead" in caplog.text
+    )
+    assert "lib_deps is deprecated" not in caplog.text
+    assert "lib_ignore is deprecated" not in caplog.text
 
 
 @pytest.mark.asyncio
-async def test_add_platformio_options_platformio() -> None:
+async def test_add_platformio_options_platformio(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """On the PlatformIO toolchain all options pass through to the ini,
     with build_flags/lib_ignore listified."""
     CORE.toolchain = Toolchain.PLATFORMIO
@@ -1246,6 +1256,9 @@ async def test_add_platformio_options_platformio() -> None:
         "lib_ignore": ["libsodium"],
         "upload_speed": "115200",
     }
+    # platformio_options is the correct mechanism on the PlatformIO toolchain,
+    # so the native-equivalent deprecation must not fire here.
+    assert "deprecated" not in caplog.text
 
 
 def test_add_library_str_bare_url_requires_name() -> None:

@@ -527,7 +527,13 @@ async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> No
         for key, val in pio_options.items():
             vals = [val] if isinstance(val, str) else val
             if key == CONF_BUILD_FLAGS:
-                # Routed through the regular build flag mechanism
+                # Deprecated: esphome->build_flags is the native equivalent.
+                # Remove before 2026.12.0
+                _LOGGER.warning(
+                    "esphome->platformio_options->build_flags is deprecated; use "
+                    "esphome->build_flags instead. Support for it will be removed "
+                    "in 2026.12.0."
+                )
                 for flag in vals:
                     cg.add_build_flag(flag)
             elif key == "lib_deps":
