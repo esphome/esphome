@@ -122,15 +122,18 @@ async def to_code(config):
     cg.add(var.set_max_framerate(config[CONF_MAX_FRAMERATE]))
 
     # Managed Espressif components (no vendored sources).
-    # TODO(upstream): confirm the exact published versions before submitting.
-    add_idf_component(name="espressif/esp_video", ref="1.4.0")
-    add_idf_component(name="espressif/esp_cam_sensor", ref="1.4.0")
+    # TODO(upstream): pin to the exact published versions once confirmed on a
+    # real ESP32-P4 build. Using "*" lets the IDF component manager resolve the
+    # latest published version of each managed component instead of failing on a
+    # hard-coded version that may not exist in the registry.
+    add_idf_component(name="espressif/esp_video", ref="*")
+    add_idf_component(name="espressif/esp_cam_sensor", ref="*")
     # SCCB (camera I2C) interface layer used by esp_video / esp_cam_sensor to
     # talk to the sensor over the shared I2C bus (init_sccb=false + i2c_handle).
-    add_idf_component(name="espressif/esp_sccb_intf", ref="1.0.0")
+    add_idf_component(name="espressif/esp_sccb_intf", ref="*")
     # Image Processing Algorithms (ISP / IPA tuning: AWB, CCM, ...). Required
     # because the ISP video device is enabled below.
-    add_idf_component(name="espressif/esp_ipa", ref="1.0.0")
+    add_idf_component(name="espressif/esp_ipa", ref="*")
     if config[CONF_ENABLE_UVC]:
         add_idf_component(name="espressif/usb_host_uvc", ref="2.4.1")
 
