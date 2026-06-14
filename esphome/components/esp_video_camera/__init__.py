@@ -132,9 +132,7 @@ async def to_code(config):
         # USB-UVC host driver, aligned with esp_video 2.2.0's own dependency.
         add_idf_component(name="espressif/usb_host_uvc", ref="2.5.*")
 
-    # Pipeline features. TODO(upstream): confirm these Kconfig keys match the
-    # managed esp_video / esp_cam_sensor components (they mirror the build flags
-    # used by the youkorr external component today).
+    # Pipeline features. Kconfig keys verified against esp_video 2.2.0.
     for opt in (
         "CONFIG_ESP_VIDEO_ENABLE_MIPI_CSI_VIDEO_DEVICE",
         "CONFIG_ESP_VIDEO_ENABLE_ISP",
@@ -146,10 +144,10 @@ async def to_code(config):
     if config[CONF_ENABLE_UVC]:
         add_idf_sdkconfig_option("CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE", True)
 
-    # Auto-detect every supported MIPI-CSI sensor over the shared I2C bus.
-    for sensor in ("SC202CS", "OV5647", "OV02C10", "SC2336"):
+    # Auto-detect the MIPI-CSI sensors shipped with espressif/esp_cam_sensor over
+    # the shared I2C bus. Kconfig keys verified against esp_cam_sensor 2.2.0.
+    for sensor in ("SC202CS", "OV5647", "SC2336"):
         add_idf_sdkconfig_option(f"CONFIG_CAMERA_{sensor}", True)
-        add_idf_sdkconfig_option(f"CONFIG_CAMERA_{sensor}_AUTO_DETECT", True)
         add_idf_sdkconfig_option(
             f"CONFIG_CAMERA_{sensor}_AUTO_DETECT_MIPI_INTERFACE_SENSOR", True
         )

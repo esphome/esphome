@@ -231,8 +231,8 @@ bool ESPVideoCamera::init_pipeline_() {
   csi_config.sccb_config.freq = 400000;
   csi_config.reset_pin = (gpio_num_t) -1;
   csi_config.pwdn_pin = (gpio_num_t) -1;
-  csi_config.xclk_pin = this->xclk_pin_;
-  csi_config.xclk_freq = this->xclk_freq_;
+  // Note: esp_video >= 2.x no longer takes xclk_pin/xclk_freq in the CSI config.
+  // The sensor XCLK is generated separately via LEDC (see init_xclk_ledc above).
 
   esp_video_init_config_t video_config = {};
   video_config.csi = &csi_config;

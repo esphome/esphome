@@ -56,7 +56,7 @@ class ESPVideoCameraImageReader : public camera::CameraImageReader {
 /// optional USB-UVC host) and publishes the stream as a native `camera` entity.
 /// It captures JPEG/MJPEG frames from a V4L2 device:
 ///   - "jpeg": the hardware JPEG encoder (/dev/video10) — works with every
-///     auto-detected MIPI-CSI sensor (SC202CS, OV5647, OV02C10, SC2336, ...).
+///     auto-detected MIPI-CSI sensor (SC202CS, OV5647, SC2336, ...).
 ///   - "uvc":  a USB-UVC camera (/dev/video40+) that streams MJPEG.
 ///   - "/dev/videoN": an explicit V4L2 path.
 class ESPVideoCamera : public camera::Camera {
