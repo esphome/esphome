@@ -8,14 +8,14 @@
     "build": "astro build",
     "preview": "astro preview",
     "serve": "astro build && astro preview --host",
-    "lint": "node lint.mjs",
+    "lint": "node script/lint.mjs",
     "lint:js": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx,js,mjs,cjs,astro,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,cjs,astro,css}\""
   },
   "dependencies": {
     "@astrojs/starlight": "^0.39.3",
-    "astro": "^6.4.4",
+    "astro": "^6.4.6",
     "katex": "^0.17.0",
     "micromark": "^4.0.2",
     "rehype-katex": "^7.0.1",
@@ -39,7 +39,7 @@
     "eslint-plugin-astro": "^1.7.0",
     "globals": "^17.6.0",
     "jsdom": "^29.1.1",
-    "prettier": "^3.8.3",
+    "prettier": "^3.8.4",
     "prettier-plugin-astro": "^0.14.1",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.60.1"
