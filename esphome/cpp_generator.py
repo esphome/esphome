@@ -705,15 +705,8 @@ def add_build_unflag(build_unflag: str) -> None:
 
 
 def set_cpp_standard(standard: str) -> None:
-    """Set C++ standard with compiler flag `-std={standard}`."""
-    CORE.add_build_unflag("-std=gnu++11")
-    CORE.add_build_unflag("-std=gnu++14")
-    CORE.add_build_unflag("-std=gnu++17")
-    CORE.add_build_unflag("-std=gnu++23")
-    CORE.add_build_unflag("-std=gnu++2a")
-    CORE.add_build_unflag("-std=gnu++2b")
-    CORE.add_build_unflag("-std=gnu++2c")
-    CORE.add_build_flag(f"-std={standard}")
+    """Set the C++ language standard for the build (e.g. ``gnu++20``)."""
+    CORE.cpp_standard = standard
 
 
 def add_define(name: str, value: SafeExpType = None):
@@ -893,7 +886,7 @@ class MockObj(Expression):
     def __getattr__(self, attr: str) -> "MockObj":
         # prevent python dunder methods being replaced by mock objects
         if attr.startswith("__"):
-            raise AttributeError()
+            raise AttributeError
         next_op = "."
         if attr.startswith("P") and self.op not in ["::", ""]:
             attr = attr[1:]
@@ -1077,43 +1070,45 @@ class MockObj(Expression):
         op = BinOpExpression(other, "|", self)
         return MockObj(op)
 
-    def __iadd__(self, other: SafeExpType) -> "MockObj":
+    # MockObj operator overloads build a new C++ expression rather than mutating self,
+    # so the PYI034 "augmented assignment returns self" assumption does not apply.
+    def __iadd__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "+=", other)
         return MockObj(op)
 
-    def __isub__(self, other: SafeExpType) -> "MockObj":
+    def __isub__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "-=", other)
         return MockObj(op)
 
-    def __imul__(self, other: SafeExpType) -> "MockObj":
+    def __imul__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "*=", other)
         return MockObj(op)
 
-    def __itruediv__(self, other: SafeExpType) -> "MockObj":
+    def __itruediv__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "/=", other)
         return MockObj(op)
 
-    def __imod__(self, other: SafeExpType) -> "MockObj":
+    def __imod__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "%=", other)
         return MockObj(op)
 
-    def __ilshift__(self, other: SafeExpType) -> "MockObj":
+    def __ilshift__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "<<=", other)
         return MockObj(op)
 
-    def __irshift__(self, other: SafeExpType) -> "MockObj":
+    def __irshift__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, ">>=", other)
         return MockObj(op)
 
-    def __iand__(self, other: SafeExpType) -> "MockObj":
+    def __iand__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "&=", other)
         return MockObj(op)
 
-    def __ixor__(self, other: SafeExpType) -> "MockObj":
+    def __ixor__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "^=", other)
         return MockObj(op)
 
-    def __ior__(self, other: SafeExpType) -> "MockObj":
+    def __ior__(self, other: SafeExpType) -> "MockObj":  # noqa: PYI034
         op = BinOpExpression(self, "|=", other)
         return MockObj(op)
 

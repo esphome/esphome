@@ -5,7 +5,7 @@ import math
 import os
 from pathlib import Path
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from esphome.const import (
     CONF_COMMENT,
@@ -569,6 +569,12 @@ class EsphomeCore:
         self.build_path: Path | None = None
         # The validated configuration, this is None until the config has been validated
         self.config: ConfigType | None = None
+        # YAML frontmatter loaded from user YAML files. Frontmatter is a leading
+        # YAML document separated by `---` from the actual configuration. It is
+        # ignored by config validation and code generation, but kept here so it
+        # can be inspected by callers (tooling, future features). Keyed by the
+        # resolved Path of the source file.
+        self.frontmatter: dict[Path, Any] = {}
         # The pending tasks in the task queue (mostly for C++ generation)
         # This is a priority queue (with heapq)
         # Each item is a tuple of form: (-priority, unique number, task)
@@ -587,6 +593,8 @@ class EsphomeCore:
         self.build_flags: set[str] = set()
         # A set of build unflags to set in the platformio project
         self.build_unflags: set[str] = set()
+        # The C++ language standard for the build (e.g. "gnu++20"), set via cg.set_cpp_standard()
+        self.cpp_standard: str | None = None
         # A set of defines to set for the compile process in esphome/core/defines.h
         self.defines: set[Define] = set()
         # A map of all platformio options to apply
@@ -634,6 +642,7 @@ class EsphomeCore:
         self.config_path = None
         self.build_path = None
         self.config = None
+        self.frontmatter = {}
         self.event_loop = _FakeEventLoop()
         self.task_counter = 0
         self.variables = {}
@@ -642,6 +651,7 @@ class EsphomeCore:
         self.platformio_libraries = {}
         self.build_flags = set()
         self.build_unflags = set()
+        self.cpp_standard = None
         self.defines = set()
         self.platformio_options = {}
         self.loaded_integrations = set()
@@ -853,21 +863,16 @@ class EsphomeCore:
         return self.target_framework == "arduino"
 
     @property
-    def using_esp_idf(self):
-        _LOGGER.warning(
-            "CORE.using_esp_idf was deprecated in 2026.1, will change behavior in 2026.6. "
-            "ESP32 Arduino builds on top of ESP-IDF, so ESP-IDF features are available in both frameworks. "
-            "Use CORE.is_esp32 and/or CORE.using_arduino instead."
-        )
-        return self.target_framework == "esp-idf"
-
-    @property
     def using_toolchain_esp_idf(self):
         return self.toolchain == Toolchain.ESP_IDF
 
     @property
     def using_toolchain_platformio(self):
         return self.toolchain == Toolchain.PLATFORMIO
+
+    @property
+    def using_toolchain_sdk_nrf(self):
+        return self.toolchain == Toolchain.SDK_NRF
 
     @property
     def using_zephyr(self):
@@ -1074,7 +1079,7 @@ class EnumValue:
 
     @enum_value.setter
     def enum_value(self, value):
-        setattr(self, "_enum_value", value)
+        self._enum_value = value
 
 
 CORE = EsphomeCore()
