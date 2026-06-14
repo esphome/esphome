@@ -57,6 +57,7 @@ class ImprovSerialComponent : public Component, public improv_base::ImprovBase {
   bool parse_improv_payload_(improv::ImprovCommand &command);
 
   void set_state_(improv::State state);
+  void send_current_state_(improv::State state);
   void set_error_(improv::Error error);
   void send_response_(std::vector<uint8_t> &response);
   void on_wifi_connect_timeout_();
