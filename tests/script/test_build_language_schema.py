@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import json
 from pathlib import Path
+import subprocess
+import sys
+
+import pytest
 
 from esphome import config_validation as cv
 
@@ -176,3 +181,105 @@ def test_convert_keys_no_marker_for_non_sensitive_field() -> None:
     entry = converted["schema"]["config_vars"]["hostname"]
     assert "sensitive" not in entry
     assert "sensitive_source" not in entry
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for the lvgl schema dump.
+#
+# lvgl's CONFIG_SCHEMA is a callable closure and its widget/style schemas are
+# built lazily at validation time, so the static dumper used to emit an empty
+# `lvgl:` schema, no widget completion, and an inlined ~80-property STYLE_SCHEMA
+# duplicated at every widget x part x state (a 17 MB lvgl.json). These exercise
+# the full `build_schema()` and assert the generated lvgl.json carries the data
+# the schema_extractor hooks added.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def lvgl_schema(tmp_path_factory: pytest.TempPathFactory) -> dict:
+    """Run the full language-schema build once and return parsed lvgl.json.
+
+    The build must run in a fresh interpreter: ``build_language_schema.py``
+    enables schema extraction *before* importing any esphome component, and the
+    extraction hooks are no-ops if the components were already imported (as they
+    are inside the pytest session). Running it as a subprocess mirrors how CI
+    generates the schema and keeps this test isolated from import order.
+    """
+    out_dir = tmp_path_factory.mktemp("language_schema")
+    subprocess.run(
+        [sys.executable, str(SCRIPT_PATH), "--output-path", str(out_dir)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return json.loads((out_dir / "lvgl.json").read_text())
+
+
+def _lvgl_config_vars(lvgl_schema: dict) -> dict:
+    config_schema = lvgl_schema["lvgl"]["schemas"]["CONFIG_SCHEMA"]
+    # Previously empty (`{}`); the schema_extractor on lvgl_config_schema now
+    # hands the dumper the composed top-level schema.
+    assert config_schema["type"] == "schema"
+    return config_schema["schema"]["config_vars"]
+
+
+def test_lvgl_top_level_schema_is_exposed(lvgl_schema: dict) -> None:
+    config_vars = _lvgl_config_vars(lvgl_schema)
+    # Was 0 config_vars before LVGL_TOP_LEVEL_SCHEMA was exposed.
+    assert len(config_vars) > 100
+    # A representative spread of top-level options the runtime validates.
+    for key in ("displays", "pages", "default_font", "on_idle", "touchscreens"):
+        assert key in config_vars, f"missing top-level lvgl option: {key}"
+
+
+def test_lvgl_widgets_key_enumerated(lvgl_schema: dict) -> None:
+    config_vars = _lvgl_config_vars(lvgl_schema)
+    # The widgets: list is assembled per-value at runtime; the extractor
+    # enumerates every registered widget type into a named WIDGET_TYPES schema
+    # which the widgets: list references (recursive, so widgets can nest).
+    assert "widgets" in config_vars
+    widgets = config_vars["widgets"]
+    assert widgets["is_list"] is True
+    assert widgets["schema"]["extends"] == ["lvgl.WIDGET_TYPES"]
+
+    widget_types = lvgl_schema["lvgl"]["schemas"]["WIDGET_TYPES"]["schema"][
+        "config_vars"
+    ]
+    # Every registered widget type should appear as an optional key.
+    for name in ("obj", "label", "button", "slider", "switch", "arc"):
+        assert name in widget_types, f"widget type not enumerated: {name}"
+    # Each enumerated widget carries its own property schema, not an empty stub.
+    assert widget_types["label"]["type"] == "schema"
+    assert len(widget_types["label"]["schema"]["config_vars"]) > 0
+    # Each widget can contain child widgets, via the same named ref — so the
+    # tree is recursive and the dump stays finite.
+    nested = widget_types["obj"]["schema"]["config_vars"]["widgets"]
+    assert nested["is_list"] is True
+    assert nested["schema"]["extends"] == ["lvgl.WIDGET_TYPES"]
+
+
+def test_lvgl_style_schemas_are_named_and_deduped(lvgl_schema: dict) -> None:
+    schemas = lvgl_schema["lvgl"]["schemas"]
+    # Importing these into the lvgl __init__ namespace lets the dumper register
+    # them as named schemas and emit `extends` refs instead of inlining them.
+    for name in ("STYLE_SCHEMA", "STATE_SCHEMA", "SET_STATE_SCHEMA"):
+        assert name in schemas, f"style schema not registered as named: {name}"
+
+    # STYLE_SCHEMA must be referenced via `extends`, not inlined at every use
+    # site. Count the references to prove the dedup actually happened.
+    refs = 0
+
+    def _count(node: object) -> None:
+        nonlocal refs
+        if isinstance(node, dict):
+            extends = node.get("extends")
+            if isinstance(extends, list) and "lvgl.STYLE_SCHEMA" in extends:
+                refs += 1
+            for value in node.values():
+                _count(value)
+        elif isinstance(node, list):
+            for value in node:
+                _count(value)
+
+    _count(lvgl_schema)
+    assert refs > 100, f"STYLE_SCHEMA should be referenced via extends, got {refs}"
