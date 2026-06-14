@@ -7,14 +7,22 @@ from esphome.const import (
     CONF_LAMBDA,
     CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
+    CONF_VALUE,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
+    DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_ILLUMINANCE,
+    DEVICE_CLASS_OCCUPANCY,
+    DEVICE_CLASS_PM25,
     DEVICE_CLASS_PRESSURE,
     DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_VOLUME_FLOW_RATE,
     UNIT_CELSIUS,
     UNIT_HECTOPASCAL,
+    UNIT_LITRE_PER_HOUR,
     UNIT_LUX,
+    UNIT_MICROGRAMS_PER_CUBIC_METER,
+    UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
 from esphome.core import Lambda
@@ -166,6 +174,25 @@ ep_configs: dict[str, dict[str, Any]] = {
             },
         ],
     },
+    DEVICE_CLASS_VOLUME_FLOW_RATE: {
+        CONF_UNIT_OF_MEASUREMENT: UNIT_LITRE_PER_HOUR,
+        DEVICE_TYPE: "FLOW_SENSOR",
+        CONF_CLUSTERS: [
+            {
+                CONF_ID: "FLOW_MEASUREMENT",
+                ROLE: CLUSTER_ROLE["SERVER"],
+                CONF_ATTRIBUTES: [
+                    {
+                        CONF_ATTRIBUTE_ID: 0x0,
+                        CONF_TYPE: "UINT16",
+                        CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
+                        CONF_DEVICE: None,
+                        SCALE: 100,
+                    },
+                ],
+            },
+        ],
+    },
     DEVICE_CLASS_ILLUMINANCE: {
         CONF_UNIT_OF_MEASUREMENT: UNIT_LUX,
         DEVICE_TYPE: "CUSTOM_ATTR",
@@ -185,11 +212,55 @@ ep_configs: dict[str, dict[str, Any]] = {
             },
         ],
     },
-    "on_off": {
-        DEVICE_TYPE: "ON_OFF_OUTPUT",
+    DEVICE_CLASS_PM25: {
+        CONF_UNIT_OF_MEASUREMENT: UNIT_MICROGRAMS_PER_CUBIC_METER,
+        DEVICE_TYPE: "CUSTOM_ATTR",
         CONF_CLUSTERS: [
             {
-                CONF_ID: "ON_OFF",
+                CONF_ID: "PM25_MEASUREMENT",
+                ROLE: CLUSTER_ROLE["SERVER"],
+                CONF_ATTRIBUTES: [
+                    {
+                        CONF_ATTRIBUTE_ID: 0x0,
+                        CONF_TYPE: "SINGLE",
+                        CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
+                        CONF_DEVICE: None,
+                    },
+                    {
+                        CONF_ATTRIBUTE_ID: 0x2,  # maximum value is needed!
+                        CONF_TYPE: "SINGLE",
+                        CONF_VALUE: 9999,
+                    },
+                ],
+            },
+        ],
+    },
+    DEVICE_CLASS_CARBON_DIOXIDE: {
+        CONF_UNIT_OF_MEASUREMENT: UNIT_PARTS_PER_MILLION,
+        DEVICE_TYPE: "CUSTOM_ATTR",
+        CONF_CLUSTERS: [
+            {
+                CONF_ID: "CARBON_DIOXIDE_MEASUREMENT",
+                ROLE: CLUSTER_ROLE["SERVER"],
+                CONF_ATTRIBUTES: [
+                    {
+                        CONF_ATTRIBUTE_ID: 0x0000,
+                        CONF_TYPE: "SINGLE",
+                        CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
+                        CONF_DEVICE: None,
+                        SCALE: 0.000001,
+                    },
+                    {CONF_ATTRIBUTE_ID: 0x0001, CONF_TYPE: "SINGLE", CONF_VALUE: 0.0},
+                    {CONF_ATTRIBUTE_ID: 0x0002, CONF_TYPE: "SINGLE", CONF_VALUE: 0.1},
+                ],
+            },
+        ],
+    },
+    DEVICE_CLASS_OCCUPANCY: {
+        DEVICE_TYPE: "CUSTOM_ATTR",
+        CONF_CLUSTERS: [
+            {
+                CONF_ID: "OCCUPANCY_SENSING",
                 ROLE: CLUSTER_ROLE["SERVER"],
                 CONF_ATTRIBUTES: [
                     {

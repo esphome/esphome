@@ -65,6 +65,8 @@ ezb_zcl_cluster_desc_t esphome_zb_default_cluster_dscr_create(uint16_t cluster_i
       return ezb_zcl_flow_measurement_create_cluster_desc(NULL, role_mask);
     case EZB_ZCL_CLUSTER_ID_REL_HUMIDITY_MEASUREMENT:
       return ezb_zcl_rel_humidity_measurement_create_cluster_desc(NULL, role_mask);
+    case EZB_ZCL_CLUSTER_ID_OCCUPANCY_SENSING:
+      return ezb_zcl_occupancy_sensing_create_cluster_desc(NULL, role_mask);
     case EZB_ZCL_CLUSTER_ID_CARBON_DIOXIDE_MEASUREMENT:
       return ezb_zcl_carbon_dioxide_measurement_create_cluster_desc(NULL, role_mask);
     case EZB_ZCL_CLUSTER_ID_PM2_5_MEASUREMENT:
@@ -97,6 +99,8 @@ ezb_err_t esphome_zb_cluster_add_attr(uint16_t cluster_id, ezb_zcl_cluster_desc_
       return ezb_zcl_flow_measurement_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
     case EZB_ZCL_CLUSTER_ID_REL_HUMIDITY_MEASUREMENT:
       return ezb_zcl_rel_humidity_measurement_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
+    case EZB_ZCL_CLUSTER_ID_OCCUPANCY_SENSING:
+      return ezb_zcl_occupancy_sensing_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
     case EZB_ZCL_CLUSTER_ID_CARBON_DIOXIDE_MEASUREMENT:
       return ezb_zcl_carbon_dioxide_measurement_cluster_desc_add_attr(cluster_desc, attr_id, value_p);
     case EZB_ZCL_CLUSTER_ID_PM2_5_MEASUREMENT:

@@ -226,7 +226,16 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
 
 
 def validate_binary_sensor_esp32(config: ConfigType) -> ConfigType:
-    ep = copy.deepcopy(ep_configs["binary_input"])
+    dev_class = config.get(CONF_DEVICE_CLASS)
+    if config[CONF_CLUSTER] == "default":
+        if dev_class in ep_configs:
+            ep = copy.deepcopy(ep_configs[dev_class])
+        else:
+            raise cv.Invalid(
+                f"Device class '{dev_class}' is not supported as default cluster. Use basic cluster instead."
+            )
+    else:
+        ep = copy.deepcopy(ep_configs["binary_input"])
     setup_attributes(config, ep[CONF_CLUSTERS])
     zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
     binary_sensor_ep: list[dict] = zb_data.setdefault(KEY_BS_EP, [])
