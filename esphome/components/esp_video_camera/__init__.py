@@ -121,21 +121,16 @@ async def to_code(config):
     cg.add(var.set_jpeg_quality(config[CONF_JPEG_QUALITY]))
     cg.add(var.set_max_framerate(config[CONF_MAX_FRAMERATE]))
 
-    # Managed Espressif components (no vendored sources).
-    # TODO(upstream): pin to the exact published versions once confirmed on a
-    # real ESP32-P4 build. Using "*" lets the IDF component manager resolve the
-    # latest published version of each managed component instead of failing on a
-    # hard-coded version that may not exist in the registry.
-    add_idf_component(name="espressif/esp_video", ref="*")
-    add_idf_component(name="espressif/esp_cam_sensor", ref="*")
-    # SCCB (camera I2C) interface layer used by esp_video / esp_cam_sensor to
-    # talk to the sensor over the shared I2C bus (init_sccb=false + i2c_handle).
-    add_idf_component(name="espressif/esp_sccb_intf", ref="*")
-    # Image Processing Algorithms (ISP / IPA tuning: AWB, CCM, ...). Required
-    # because the ISP video device is enabled below.
-    add_idf_component(name="espressif/esp_ipa", ref="*")
+    # Managed Espressif components (no vendored sources). Espressif's esp_video
+    # (V4L2) framework transitively pulls the rest of the camera stack at
+    # compatible versions: esp_cam_sensor (MIPI sensor drivers), esp_sccb_intf
+    # (camera I2C/SCCB), esp_ipa (ISP/IPA tuning) and, on the ESP32-P4, esp_h264.
+    # Versions verified against espressif/esp-video-components. esp_video 2.2.0
+    # requires ESP-IDF >= 5.4.
+    add_idf_component(name="espressif/esp_video", ref="2.2.0")
     if config[CONF_ENABLE_UVC]:
-        add_idf_component(name="espressif/usb_host_uvc", ref="2.4.1")
+        # USB-UVC host driver, aligned with esp_video 2.2.0's own dependency.
+        add_idf_component(name="espressif/usb_host_uvc", ref="2.5.*")
 
     # Pipeline features. TODO(upstream): confirm these Kconfig keys match the
     # managed esp_video / esp_cam_sensor components (they mirror the build flags
