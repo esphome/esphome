@@ -1876,11 +1876,11 @@ async def to_code(config):
             "board_upload.maximum_size",
             int(config[CONF_FLASH_SIZE].removesuffix("MB")) * 1024 * 1024,
         )
-        if CONF_FLASH_MODE in config:
-            cg.add_platformio_option("board_build.flash_mode", config[CONF_FLASH_MODE])
-        if CONF_FLASH_FREQUENCY in config:
+        if flash_mode := config.get(CONF_FLASH_MODE):
+            cg.add_platformio_option("board_build.flash_mode", flash_mode)
+        if flash_frequency := config.get(CONF_FLASH_FREQUENCY):
             cg.add_platformio_option(
-                "board_build.f_flash", f"{config[CONF_FLASH_FREQUENCY][:-3]}000000L"
+                "board_build.f_flash", f"{flash_frequency[:-3]}000000L"
             )
 
         if CONF_SOURCE in conf:
