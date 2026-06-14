@@ -11,7 +11,8 @@
 #endif
 #include "api_pb2.h"
 #include "api_pb2_service.h"
-#include "api_server.h"
+#include "list_entities.h"
+#include "subscribe_state.h"
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
 #ifdef USE_ESP32_CRASH_HANDLER
@@ -35,6 +36,9 @@ class ComponentIterator;
 }  // namespace esphome
 
 namespace esphome::api {
+
+// Forward-declared to break the api_server.h cycle; full-type inlines are in api_connection_buffer.h.
+class APIServer;
 
 // Keepalive timeout in milliseconds
 static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = 60000;
@@ -411,44 +415,10 @@ class APIConnection final : public APIServerConnectionBase {
   // Non-template buffer management for send_message
   bool send_message_(uint32_t payload_size, uint8_t message_type, MessageEncodeFn encode_fn, const void *msg);
 
-  // Core batch encoding logic. Computes header size, checks fit, resizes buffer, encodes.
-  // ALWAYS_INLINE so the compiler can devirtualize encode_fn at hot call sites.
-  static inline uint16_t ESPHOME_ALWAYS_INLINE encode_to_buffer(uint32_t calculated_size, MessageEncodeFn encode_fn,
-                                                                const void *msg, APIConnection *conn,
-                                                                uint32_t remaining_size) {
-#ifdef HAS_PROTO_MESSAGE_DUMP
-    if (conn->flags_.log_only_mode) {
-      auto *proto_msg = static_cast<const ProtoMessage *>(msg);
-      DumpBuffer dump_buf;
-      conn->log_send_message_(proto_msg->message_name(), proto_msg->dump_to(dump_buf));
-      return 1;
-    }
-#endif
-    const uint8_t footer_size = conn->helper_->frame_footer_size();
-
-    // First message uses max padding (already in buffer), subsequent use exact header size
-    size_t to_add;
-    if (conn->flags_.batch_first_message) {
-      conn->flags_.batch_first_message = false;
-      conn->batch_header_size_ = conn->helper_->frame_header_padding();
-      to_add = calculated_size;
-    } else {
-      conn->batch_header_size_ = conn->helper_->frame_header_size(calculated_size, conn->batch_message_type_);
-      to_add = calculated_size + conn->batch_header_size_ + footer_size;
-    }
-
-    // Check if it fits (using actual header size, not max padding)
-    uint16_t total_calculated_size = calculated_size + conn->batch_header_size_ + footer_size;
-    if (total_calculated_size > remaining_size)
-      return 0;
-
-    auto &shared_buf = conn->parent_->get_shared_buffer_ref();
-    shared_buf.resize(shared_buf.size() + to_add);
-    ProtoWriteBuffer buffer{&shared_buf, shared_buf.size() - calculated_size};
-    encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
-
-    return total_calculated_size;
-  }
+  // Core batch encoding logic. ALWAYS_INLINE so encode_fn devirtualizes at hot call sites.
+  // Defined in api_connection_buffer.h (needs APIServer complete).
+  static uint16_t ESPHOME_ALWAYS_INLINE encode_to_buffer(uint32_t calculated_size, MessageEncodeFn encode_fn,
+                                                         const void *msg, APIConnection *conn, uint32_t remaining_size);
 
   // Noinline version of encode_to_buffer for cold paths (entity info, zero-payload messages).
   // All cold callers share this single copy instead of each getting an ALWAYS_INLINE expansion.
@@ -792,7 +762,8 @@ class APIConnection final : public APIServerConnectionBase {
   // Read by process_batch_multi_ to pass into MessageInfo.
   uint8_t batch_header_size_{0};
 
-  uint32_t get_batch_delay_ms_() const { return this->parent_->get_batch_delay(); }
+  // Defined in api_connection_buffer.h (needs APIServer complete).
+  uint32_t get_batch_delay_ms_() const;
   // Message will use 8 more bytes than the minimum size, and typical
   // MTU is 1500. Sometimes users will see as low as 1460 MTU.
   // If its IPv6 the header is 40 bytes, and if its IPv4

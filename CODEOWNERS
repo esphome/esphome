@@ -19,7 +19,6 @@ esphome/components/ac_dimmer/* @glmnet
 esphome/components/adc/* @esphome/core
 esphome/components/adc128s102/* @DeerMaximum
 esphome/components/addressable_light/* @justfalter
-esphome/components/ade7880/* @kpfleming
 esphome/components/ade7953/* @angelnu
 esphome/components/ade7953_base/* @angelnu
 esphome/components/ade7953_i2c/* @angelnu
@@ -28,7 +27,7 @@ esphome/components/ads1118/* @solomondg1
 esphome/components/ags10/* @mak-42
 esphome/components/aic3204/* @kbx81
 esphome/components/airthings_ble/* @jeromelaban
-esphome/components/airthings_wave_base/* @jeromelaban @kpfleming @ncareau
+esphome/components/airthings_wave_base/* @jeromelaban @ncareau
 esphome/components/airthings_wave_mini/* @ncareau
 esphome/components/airthings_wave_plus/* @jeromelaban @precurse
 esphome/components/alarm_control_panel/* @grahambrown11 @hwstar
@@ -84,6 +83,7 @@ esphome/components/bme680_bsec/* @trvrnrth
 esphome/components/bme68x_bsec2/* @kbx81 @neffs
 esphome/components/bme68x_bsec2_i2c/* @kbx81 @neffs
 esphome/components/bmi160/* @flaviut
+esphome/components/bmi270/* @clydebarrow
 esphome/components/bmp280_base/* @ademuri
 esphome/components/bmp280_i2c/* @ademuri
 esphome/components/bmp280_spi/* @ademuri
@@ -139,7 +139,7 @@ esphome/components/dfplayer/* @glmnet
 esphome/components/dfrobot_sen0395/* @niklasweber
 esphome/components/dht/* @OttoWinter
 esphome/components/display_menu_base/* @numo68
-esphome/components/dlms_meter/* @SimonFischer04
+esphome/components/dlms_meter/* @latonita @PolarGoose @SimonFischer04 @Tomer27cz
 esphome/components/dps310/* @kbx81
 esphome/components/ds1307/* @badbadc0ffee
 esphome/components/ds2484/* @mrk-its
@@ -291,6 +291,7 @@ esphome/components/lock/* @esphome/core
 esphome/components/logger/* @esphome/core
 esphome/components/logger/select/* @clydebarrow
 esphome/components/lps22/* @nagisa
+esphome/components/lsm6ds/* @clydebarrow
 esphome/components/ltr390/* @latonita @sjtrny
 esphome/components/ltr501/* @latonita
 esphome/components/ltr_als_ps/* @latonita
@@ -351,6 +352,7 @@ esphome/components/modbus_server/* @exciton
 esphome/components/mopeka_ble/* @Fabian-Schmidt @spbrogan
 esphome/components/mopeka_pro_check/* @spbrogan
 esphome/components/mopeka_std_check/* @Fabian-Schmidt
+esphome/components/motion/* @esphome/core
 esphome/components/mpl3115a2/* @kbickar
 esphome/components/mpu6886/* @fabaff
 esphome/components/ms8607/* @e28eta
@@ -379,6 +381,7 @@ esphome/components/pca6416a/* @Mat931
 esphome/components/pca9554/* @bdraco @clydebarrow @hwstar
 esphome/components/pcf85063/* @brogon
 esphome/components/pcf8563/* @KoenBreeman
+esphome/components/pcm5122/* @remcom
 esphome/components/pi4ioe5v6408/* @jesserockz
 esphome/components/pid/* @OttoWinter
 esphome/components/pipsolar/* @andreashergert1984
@@ -417,6 +420,7 @@ esphome/components/restart/* @esphome/core
 esphome/components/rf_bridge/* @jesserockz
 esphome/components/rgbct/* @jesserockz
 esphome/components/ring_buffer/* @kahrendt
+esphome/components/router/speaker/* @kahrendt
 esphome/components/rp2040/* @jesserockz
 esphome/components/rp2040_ble/* @bdraco
 esphome/components/rp2040_pio_led_strip/* @Papa-DMan
@@ -594,6 +598,7 @@ esphome/components/wk2212_spi/* @DrCoolZic
 esphome/components/wl_134/* @hobbypunk90
 esphome/components/wts01/* @alepee
 esphome/components/x9c/* @EtienneMD
+esphome/components/xdb401/* @RT530
 esphome/components/xgzp68xx/* @gcormier
 esphome/components/xiaomi_hhccjcy10/* @fariouche
 esphome/components/xiaomi_lywsd02mmc/* @juanluss31
