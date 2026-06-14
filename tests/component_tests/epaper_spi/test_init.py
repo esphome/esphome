@@ -1,6 +1,7 @@
 """Tests for epaper_spi configuration validation."""
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -22,6 +23,7 @@ from esphome.const import (
     CONF_CS_PIN,
     CONF_DC_PIN,
     CONF_DIMENSIONS,
+    CONF_ENABLE_PIN,
     CONF_HEIGHT,
     CONF_INIT_SEQUENCE,
     CONF_RESET_PIN,
@@ -342,3 +344,96 @@ def test_busy_pin_input_mode_ssd1677(
     reset_pin_config = result[CONF_RESET_PIN]
     assert "mode" in reset_pin_config
     assert reset_pin_config["mode"]["output"] is True
+
+
+def test_enable_pin_single(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """Test that a single enable_pin is accepted and normalised to a list of output pins."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    # Configure SPI component which is required by epaper_spi
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    result = run_schema_validation(
+        {
+            "id": "test_display",
+            "model": "ssd1677",
+            "dc_pin": 21,
+            "busy_pin": 22,
+            "reset_pin": 23,
+            "cs_pin": 5,
+            "enable_pin": 25,
+            "dimensions": {
+                "width": 200,
+                "height": 200,
+            },
+        }
+    )
+
+    # A single pin is normalised to a list by cv.ensure_list
+    assert CONF_ENABLE_PIN in result
+    enable_pins = result[CONF_ENABLE_PIN]
+    assert isinstance(enable_pins, list)
+    assert len(enable_pins) == 1
+    # enable pins are configured as outputs
+    assert enable_pins[0]["mode"]["output"] is True
+
+
+def test_enable_pin_multiple(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """Test that a list of enable_pins is accepted."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    # Configure SPI component which is required by epaper_spi
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    result = run_schema_validation(
+        {
+            "id": "test_display",
+            "model": "ssd1677",
+            "dc_pin": 21,
+            "busy_pin": 22,
+            "reset_pin": 23,
+            "cs_pin": 5,
+            "enable_pin": [25, 26],
+            "dimensions": {
+                "width": 200,
+                "height": 200,
+            },
+        }
+    )
+
+    assert CONF_ENABLE_PIN in result
+    enable_pins = result[CONF_ENABLE_PIN]
+    assert isinstance(enable_pins, list)
+    assert len(enable_pins) == 2
+    assert all(pin["mode"]["output"] is True for pin in enable_pins)
+
+
+def test_enable_pin_code_generation(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test that enable_pins are wired up in the generated C++ code."""
+    main_cpp = generate_main(component_config_path("enable_pin_test.yaml"))
+
+    # Both configured GPIOs must be set up as output pins
+    assert "set_pin(::GPIO_NUM_25)" in main_cpp
+    assert "set_pin(::GPIO_NUM_26)" in main_cpp
+
+    # Both pin objects must be passed to the display via set_enable_pins() as a
+    # std::vector initializer list, in order.
+    assert (
+        "epaper_display->set_enable_pins({esp32_esp32internalgpiopin_id_7, "
+        "esp32_esp32internalgpiopin_id_8});" in main_cpp
+    )
