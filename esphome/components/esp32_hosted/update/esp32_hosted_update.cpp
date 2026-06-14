@@ -56,7 +56,10 @@ static bool parse_version(const std::string &version_str, int &major, int &minor
   major = minor = patch = 0;
   const char *ptr = version_str.c_str();
 
-  if (!parse_int(ptr, major) || *ptr++ != '.' || !parse_int(ptr, minor))
+  if (!parse_int(ptr, major) || *ptr != '.')
+    return false;
+  ++ptr;
+  if (!parse_int(ptr, minor))
     return false;
   if (*ptr == '.')
     parse_int(++ptr, patch);
