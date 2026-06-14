@@ -29,7 +29,7 @@ class SystaBus : public uart::UARTDevice, public Component {
  protected:
   ParseState state_{ParseState::IDLE};
   uint16_t length_{0};
-  FixedVector<SystaBusListener *> listeners_{};
+  std::vector<SystaBusListener *> listeners_{};
   StaticVector<uint8_t, BUFFER_SIZE> buffer_;
 };
 
