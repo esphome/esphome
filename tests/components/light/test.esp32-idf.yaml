@@ -1,6 +1,6 @@
 output:
   - platform: gpio
-    id: test_binary
+    id: light_test_binary
     pin: 12
   - platform: ledc
     id: test_ledc_1

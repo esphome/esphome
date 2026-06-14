@@ -22,7 +22,11 @@ from esphome.const import (
 )
 from esphome.core import TimePeriod
 from esphome.core.config import StartupTrigger
-from esphome.schema_extractors import EnableSchemaExtraction
+from esphome.schema_extractors import (
+    SCHEMA_EXTRACT,
+    EnableSchemaExtraction,
+    schema_extractor,
+)
 
 from . import defines as df, lv_validation as lvalid
 from .defines import (
@@ -627,6 +631,25 @@ _CONTAINER_SCHEMA_CACHE: dict[
 ] = {}
 
 
+def container_schema_value(widget_type: WidgetType, extras: Any = None) -> cv.Schema:
+    """
+    Build the static schema that :func:`container_schema` validates against, i.e.
+    everything except the value-dependent ``append_layout_schema`` applied at
+    validation time.
+
+    Factored out and exposed so the language-schema dumper can extract a
+    representative schema for a widget — and for the top-level ``lvgl:`` block,
+    whose ``CONFIG_SCHEMA`` is a callable that otherwise hides this behind the
+    :func:`container_schema` validator closure.
+    """
+    schema = obj_schema(widget_type).extend(
+        {cv.GenerateID(): cv.declare_id(widget_type.w_type)}
+    )
+    if extras:
+        schema = schema.extend(extras)
+    return schema.extend(widget_type.schema)
+
+
 def container_schema(
     widget_type: WidgetType, extras: Any = None
 ) -> Callable[[Any], Any]:
@@ -649,12 +672,7 @@ def container_schema(
     def get_schema() -> cv.Schema:
         nonlocal cached_schema
         if cached_schema is None:
-            schema = obj_schema(widget_type).extend(
-                {cv.GenerateID(): cv.declare_id(widget_type.w_type)}
-            )
-            if extras:
-                schema = schema.extend(extras)
-            cached_schema = schema.extend(widget_type.schema)
+            cached_schema = container_schema_value(widget_type, extras)
         return cached_schema
 
     def validator(value: Any) -> Any:
@@ -678,7 +696,23 @@ def any_widget_schema(extras=None):
     :return: A validator for the Widgets key
     """
 
+    @schema_extractor("schema")
     def validator(value):
+        if value is SCHEMA_EXTRACT:
+            # The widgets: list is built per-value at validation time, so the
+            # language-schema dumper sees nothing. Enumerate every registered
+            # widget type as an optional key (a widget item is really a
+            # single-key mapping; over-listing them lets editors complete any
+            # widget — `esphome config` enforces exactly one). extras carries the
+            # layout child options where applicable.
+            return cv.ensure_list(
+                cv.Schema(
+                    {
+                        cv.Optional(name): container_schema_value(widget_type, extras)
+                        for name, widget_type in WIDGET_TYPES.items()
+                    }
+                )
+            )
         if isinstance(value, dict):
             # Convert to list
             is_dict = True
