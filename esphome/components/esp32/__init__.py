@@ -2036,9 +2036,9 @@ async def to_code(config):
         add_idf_sdkconfig_option(
             f"CONFIG_ESPTOOLPY_FLASHMODE_{flash_mode.upper()}", True
         )
-    if CONF_FLASH_FREQUENCY in config:
+    if flash_frequency := config.get(CONF_FLASH_FREQUENCY):
         add_idf_sdkconfig_option(
-            f"CONFIG_ESPTOOLPY_FLASHFREQ_{config[CONF_FLASH_FREQUENCY][:-3]}M", True
+            f"CONFIG_ESPTOOLPY_FLASHFREQ_{flash_frequency[:-3]}M", True
         )
 
     # ESP32-P4: ESP-IDF 5.5.3 changed the default of ESP32P4_SELECTS_REV_LESS_V3
