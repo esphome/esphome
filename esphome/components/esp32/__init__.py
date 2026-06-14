@@ -2032,9 +2032,9 @@ async def to_code(config):
     add_idf_sdkconfig_option(
         f"CONFIG_ESPTOOLPY_FLASHSIZE_{config[CONF_FLASH_SIZE]}", True
     )
-    if CONF_FLASH_MODE in config:
+    if flash_mode := config.get(CONF_FLASH_MODE):
         add_idf_sdkconfig_option(
-            f"CONFIG_ESPTOOLPY_FLASHMODE_{config[CONF_FLASH_MODE].upper()}", True
+            f"CONFIG_ESPTOOLPY_FLASHMODE_{flash_mode.upper()}", True
         )
     if CONF_FLASH_FREQUENCY in config:
         add_idf_sdkconfig_option(
