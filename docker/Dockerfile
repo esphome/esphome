@@ -75,8 +75,6 @@ WORKDIR /config
 # Set entrypoint to esphome (via a script) so that the user doesn't have to type 'esphome'
 # in every docker command twice
 ENTRYPOINT ["/entrypoint.sh"]
-# When no arguments given, start the dashboard in the workdir
-CMD ["dashboard", "/config"]
 
 
 # ======================= ha-addon-type image =======================

@@ -27,4 +27,28 @@ if [[ -d /build ]]; then
     export ESPHOME_BUILD_PATH=/build
 fi
 
+# The image does not hard-code a CMD; the proper default is supplied here based
+# on which version is selected. Any command passed to the container is forwarded
+# verbatim and must be consistent with the selected version.
+case "${USE_NEW_DEVICE_BUILDER,,}" in
+    1 | true | yes | on)
+        # Install the latest prerelease of esphome-device-builder on boot.
+        # This is a temporary install-on-boot step until esphome-device-builder
+        # becomes a direct dependency of esphome.
+        echo "Installing latest prerelease of esphome-device-builder..."
+        uv pip install --system --no-cache-dir --prerelease=allow --upgrade \
+            esphome-device-builder
+
+        # Default to serving the config directory when no command is given.
+        if [[ $# -eq 0 ]]; then
+            set -- /config
+        fi
+        exec esphome-device-builder "$@"
+        ;;
+esac
+
+# Default to the dashboard when no command is given.
+if [[ $# -eq 0 ]]; then
+    set -- dashboard /config
+fi
 exec esphome "$@"
