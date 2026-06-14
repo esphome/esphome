@@ -286,46 +286,115 @@ void ESPVideoCamera::loop() {
   if (!this->streaming_)
     return;
 
+  if (this->is_hw_jpeg_) {
+    this->loop_jpeg_pipeline_();
+  } else {
+    this->loop_direct_capture_();
+  }
+
+  if (this->stream_requesters_ == 0 && this->single_requesters_ == 0)
+    this->stop_capture_();
+}
+
+void ESPVideoCamera::deliver_frame_(const uint8_t *data, size_t length) {
+  if (length == 0)
+    return;
+  uint32_t now = millis();
+  if (this->min_interval_ms_ > 0 && (now - this->last_frame_ms_) < this->min_interval_ms_)
+    return;  // throttled to max_framerate
+  this->last_frame_ms_ = now;
+
+  uint8_t *copy = (uint8_t *) heap_caps_malloc(length, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (copy == nullptr)
+    copy = (uint8_t *) heap_caps_malloc(length, MALLOC_CAP_8BIT);
+  if (copy == nullptr) {
+    ESP_LOGW(TAG, "Failed to allocate %u bytes (frame dropped)", (unsigned) length);
+    return;
+  }
+  memcpy(copy, data, length);
+  this->current_image_ =
+      std::make_shared<ESPVideoCameraImage>(copy, length, this->single_requesters_ | this->stream_requesters_);
+  for (auto *listener : this->listeners_)
+    listener->on_camera_image(this->current_image_);
+  this->single_requesters_ = 0;
+}
+
+void ESPVideoCamera::loop_direct_capture_() {
+  // The device already delivers JPEG/MJPEG frames; one MMAP capture queue.
   struct v4l2_buffer buf;
   memset(&buf, 0, sizeof(buf));
   buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   buf.memory = V4L2_MEMORY_MMAP;
 
-  if (ioctl(this->fd_, VIDIOC_DQBUF, &buf) < 0) {
-    if (errno == EAGAIN)
-      return;
-    ESP_LOGW(TAG, "VIDIOC_DQBUF failed: %s", strerror(errno));
+  if (ioctl(this->capture_fd_, VIDIOC_DQBUF, &buf) < 0) {
+    if (errno != EAGAIN)
+      ESP_LOGW(TAG, "VIDIOC_DQBUF failed: %s", strerror(errno));
     return;
   }
 
-  bool throttled = false;
-  uint32_t now = millis();
-  if (this->min_interval_ms_ > 0 && (now - this->last_frame_ms_) < this->min_interval_ms_)
-    throttled = true;
+  if (buf.index < (uint32_t) this->num_capture_buffers_)
+    this->deliver_frame_((const uint8_t *) this->capture_buffers_[buf.index].start, buf.bytesused);
 
-  if (!throttled && buf.index < (uint32_t) this->num_buffers_ && buf.bytesused > 0) {
-    this->last_frame_ms_ = now;
-    size_t len = buf.bytesused;
-    uint8_t *copy = (uint8_t *) heap_caps_malloc(len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (copy == nullptr)
-      copy = (uint8_t *) heap_caps_malloc(len, MALLOC_CAP_8BIT);
-    if (copy != nullptr) {
-      memcpy(copy, this->buffers_[buf.index].start, len);
-      this->current_image_ =
-          std::make_shared<ESPVideoCameraImage>(copy, len, this->single_requesters_ | this->stream_requesters_);
-      for (auto *listener : this->listeners_)
-        listener->on_camera_image(this->current_image_);
-    } else {
-      ESP_LOGW(TAG, "Failed to allocate %u bytes (frame dropped)", (unsigned) len);
-    }
-    this->single_requesters_ = 0;
+  if (ioctl(this->capture_fd_, VIDIOC_QBUF, &buf) < 0)
+    ESP_LOGW(TAG, "VIDIOC_QBUF failed: %s", strerror(errno));
+}
+
+void ESPVideoCamera::loop_jpeg_pipeline_() {
+  // Dequeue one RGB565 frame from the sensor/ISP device (non-blocking).
+  struct v4l2_buffer cap_buf;
+  memset(&cap_buf, 0, sizeof(cap_buf));
+  cap_buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  cap_buf.memory = V4L2_MEMORY_MMAP;
+  if (ioctl(this->capture_fd_, VIDIOC_DQBUF, &cap_buf) < 0) {
+    if (errno != EAGAIN)
+      ESP_LOGW(TAG, "capture DQBUF failed: %s", strerror(errno));
+    return;
   }
 
-  if (ioctl(this->fd_, VIDIOC_QBUF, &buf) < 0)
-    ESP_LOGW(TAG, "VIDIOC_QBUF failed: %s", strerror(errno));
+  if (cap_buf.index < (uint32_t) this->num_capture_buffers_ && cap_buf.bytesused > 0) {
+    // Feed the raw frame to the encoder OUTPUT queue (USERPTR) and re-arm the
+    // CAPTURE queue (JPEG output). The JPEG fd is blocking, so the DQBUFs below
+    // wait for the (fast) hardware encode to finish.
+    struct v4l2_buffer out_buf;
+    memset(&out_buf, 0, sizeof(out_buf));
+    out_buf.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+    out_buf.memory = V4L2_MEMORY_USERPTR;
+    out_buf.index = 0;
+    out_buf.m.userptr = (unsigned long) this->capture_buffers_[cap_buf.index].start;
+    out_buf.length = this->capture_buffers_[cap_buf.index].length;
+    out_buf.bytesused = cap_buf.bytesused;
 
-  if (this->stream_requesters_ == 0 && this->single_requesters_ == 0)
-    this->stop_capture_();
+    struct v4l2_buffer jpeg_buf;
+    memset(&jpeg_buf, 0, sizeof(jpeg_buf));
+    jpeg_buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    jpeg_buf.memory = V4L2_MEMORY_MMAP;
+    jpeg_buf.index = 0;
+
+    if (ioctl(this->jpeg_fd_, VIDIOC_QBUF, &out_buf) == 0 && ioctl(this->jpeg_fd_, VIDIOC_QBUF, &jpeg_buf) == 0) {
+      // Reclaim the consumed input buffer.
+      struct v4l2_buffer done_buf;
+      memset(&done_buf, 0, sizeof(done_buf));
+      done_buf.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+      done_buf.memory = V4L2_MEMORY_USERPTR;
+      ioctl(this->jpeg_fd_, VIDIOC_DQBUF, &done_buf);
+
+      // Read back the encoded JPEG.
+      memset(&jpeg_buf, 0, sizeof(jpeg_buf));
+      jpeg_buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+      jpeg_buf.memory = V4L2_MEMORY_MMAP;
+      if (ioctl(this->jpeg_fd_, VIDIOC_DQBUF, &jpeg_buf) == 0) {
+        this->deliver_frame_((const uint8_t *) this->jpeg_out_buffer_.start, jpeg_buf.bytesused);
+      } else {
+        ESP_LOGW(TAG, "JPEG DQBUF failed: %s", strerror(errno));
+      }
+    } else {
+      ESP_LOGW(TAG, "JPEG encoder QBUF failed: %s", strerror(errno));
+    }
+  }
+
+  // Return the raw frame to the sensor/ISP device.
+  if (ioctl(this->capture_fd_, VIDIOC_QBUF, &cap_buf) < 0)
+    ESP_LOGW(TAG, "capture QBUF failed: %s", strerror(errno));
 }
 
 camera::CameraImageReader *ESPVideoCamera::create_image_reader() { return new ESPVideoCameraImageReader(); }
@@ -355,34 +424,75 @@ void ESPVideoCamera::update_capture_state_() {
     this->start_capture_();
 }
 
-void ESPVideoCamera::configure_format_() {
+bool ESPVideoCamera::configure_capture_format_(uint32_t pixelformat) {
   uint32_t width = 0, height = 0;
   bool force_res = parse_resolution(this->resolution_, width, height);
 
-  if (!this->is_hw_jpeg_ || force_res) {
-    struct v4l2_format fmt;
-    memset(&fmt, 0, sizeof(fmt));
-    fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    if (ioctl(this->fd_, VIDIOC_G_FMT, &fmt) == 0) {
-      if (!this->is_hw_jpeg_)
-        fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_MJPEG;
-      if (force_res) {
-        fmt.fmt.pix.width = width;
-        fmt.fmt.pix.height = height;
-      }
-      fmt.fmt.pix.field = V4L2_FIELD_NONE;
-      if (ioctl(this->fd_, VIDIOC_S_FMT, &fmt) < 0)
-        ESP_LOGW(TAG, "VIDIOC_S_FMT (best-effort resolution) failed: %s", strerror(errno));
-    }
+  struct v4l2_format fmt;
+  memset(&fmt, 0, sizeof(fmt));
+  fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  ioctl(this->capture_fd_, VIDIOC_G_FMT, &fmt);  // best-effort starting point
+  fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  fmt.fmt.pix.pixelformat = pixelformat;
+  if (force_res) {
+    fmt.fmt.pix.width = width;
+    fmt.fmt.pix.height = height;
+  }
+  fmt.fmt.pix.field = V4L2_FIELD_NONE;
+  if (ioctl(this->capture_fd_, VIDIOC_S_FMT, &fmt) < 0)
+    ESP_LOGW(TAG, "VIDIOC_S_FMT (best-effort resolution) failed: %s", strerror(errno));
+
+  // Read back the resolution actually negotiated by the sensor/ISP.
+  memset(&fmt, 0, sizeof(fmt));
+  fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  if (ioctl(this->capture_fd_, VIDIOC_G_FMT, &fmt) == 0) {
+    this->capture_width_ = fmt.fmt.pix.width;
+    this->capture_height_ = fmt.fmt.pix.height;
+  } else {
+    this->capture_width_ = width;
+    this->capture_height_ = height;
+  }
+  ESP_LOGI(TAG, "Capture resolution: %ux%u", (unsigned) this->capture_width_, (unsigned) this->capture_height_);
+  return true;
+}
+
+bool ESPVideoCamera::setup_capture_buffers_() {
+  struct v4l2_requestbuffers req;
+  memset(&req, 0, sizeof(req));
+  req.count = MAX_BUFFERS;
+  req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  req.memory = V4L2_MEMORY_MMAP;
+  if (ioctl(this->capture_fd_, VIDIOC_REQBUFS, &req) < 0) {
+    ESP_LOGE(TAG, "VIDIOC_REQBUFS failed: %s", strerror(errno));
+    return false;
   }
 
-  if (this->is_hw_jpeg_) {
-    struct v4l2_control ctrl;
-    memset(&ctrl, 0, sizeof(ctrl));
-    ctrl.id = V4L2_CID_JPEG_COMPRESSION_QUALITY;
-    ctrl.value = this->jpeg_quality_;
-    ioctl(this->fd_, VIDIOC_S_CTRL, &ctrl);
+  this->num_capture_buffers_ = 0;
+  for (unsigned int i = 0; i < req.count && i < MAX_BUFFERS; i++) {
+    struct v4l2_buffer buf;
+    memset(&buf, 0, sizeof(buf));
+    buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    buf.memory = V4L2_MEMORY_MMAP;
+    buf.index = i;
+    if (ioctl(this->capture_fd_, VIDIOC_QUERYBUF, &buf) < 0) {
+      ESP_LOGE(TAG, "VIDIOC_QUERYBUF[%u] failed: %s", i, strerror(errno));
+      return false;
+    }
+    this->capture_buffers_[i].length = buf.length;
+    this->capture_buffers_[i].start =
+        mmap(nullptr, buf.length, PROT_READ | PROT_WRITE, MAP_SHARED, this->capture_fd_, buf.m.offset);
+    if (this->capture_buffers_[i].start == MAP_FAILED) {
+      this->capture_buffers_[i].start = nullptr;
+      ESP_LOGE(TAG, "mmap[%u] failed: %s", i, strerror(errno));
+      return false;
+    }
+    this->num_capture_buffers_++;
+    if (ioctl(this->capture_fd_, VIDIOC_QBUF, &buf) < 0) {
+      ESP_LOGE(TAG, "VIDIOC_QBUF[%u] failed: %s", i, strerror(errno));
+      return false;
+    }
   }
+  return true;
 }
 
 bool ESPVideoCamera::start_capture_() {
@@ -391,81 +501,154 @@ bool ESPVideoCamera::start_capture_() {
   if (this->is_failed())
     return false;
 
-  this->fd_ = open(this->resolved_device_.c_str(), O_RDWR | O_NONBLOCK);
-  if (this->fd_ < 0) {
-    ESP_LOGE(TAG, "open(%s) failed: %s", this->resolved_device_.c_str(), strerror(errno));
-    return false;
-  }
-
-  this->configure_format_();
-
-  struct v4l2_requestbuffers req;
-  memset(&req, 0, sizeof(req));
-  req.count = MAX_BUFFERS;
-  req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-  req.memory = V4L2_MEMORY_MMAP;
-  if (ioctl(this->fd_, VIDIOC_REQBUFS, &req) < 0) {
-    ESP_LOGE(TAG, "VIDIOC_REQBUFS failed: %s", strerror(errno));
+  bool ok = this->is_hw_jpeg_ ? this->start_jpeg_pipeline_() : this->start_direct_capture_();
+  if (!ok) {
     this->stop_capture_();
     return false;
   }
-
-  this->num_buffers_ = 0;
-  for (unsigned int i = 0; i < req.count && i < MAX_BUFFERS; i++) {
-    struct v4l2_buffer buf;
-    memset(&buf, 0, sizeof(buf));
-    buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    buf.memory = V4L2_MEMORY_MMAP;
-    buf.index = i;
-    if (ioctl(this->fd_, VIDIOC_QUERYBUF, &buf) < 0) {
-      ESP_LOGE(TAG, "VIDIOC_QUERYBUF[%u] failed: %s", i, strerror(errno));
-      this->stop_capture_();
-      return false;
-    }
-    this->buffers_[i].length = buf.length;
-    this->buffers_[i].start = mmap(nullptr, buf.length, PROT_READ | PROT_WRITE, MAP_SHARED, this->fd_, buf.m.offset);
-    if (this->buffers_[i].start == MAP_FAILED) {
-      ESP_LOGE(TAG, "mmap[%u] failed: %s", i, strerror(errno));
-      this->buffers_[i].start = nullptr;
-      this->stop_capture_();
-      return false;
-    }
-    this->num_buffers_++;
-    if (ioctl(this->fd_, VIDIOC_QBUF, &buf) < 0) {
-      ESP_LOGE(TAG, "VIDIOC_QBUF[%u] failed: %s", i, strerror(errno));
-      this->stop_capture_();
-      return false;
-    }
-  }
-
-  int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-  if (ioctl(this->fd_, VIDIOC_STREAMON, &type) < 0) {
-    ESP_LOGE(TAG, "VIDIOC_STREAMON failed: %s", strerror(errno));
-    this->stop_capture_();
-    return false;
-  }
-
   this->streaming_ = true;
   this->last_frame_ms_ = 0;
   return true;
 }
 
+bool ESPVideoCamera::start_direct_capture_() {
+  this->capture_fd_ = open(this->resolved_device_.c_str(), O_RDWR | O_NONBLOCK);
+  if (this->capture_fd_ < 0) {
+    ESP_LOGE(TAG, "open(%s) failed: %s", this->resolved_device_.c_str(), strerror(errno));
+    return false;
+  }
+  if (!this->configure_capture_format_(V4L2_PIX_FMT_MJPEG))
+    return false;
+  if (!this->setup_capture_buffers_())
+    return false;
+  int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  if (ioctl(this->capture_fd_, VIDIOC_STREAMON, &type) < 0) {
+    ESP_LOGE(TAG, "VIDIOC_STREAMON failed: %s", strerror(errno));
+    return false;
+  }
+  return true;
+}
+
+bool ESPVideoCamera::start_jpeg_pipeline_() {
+  // Stage 1: sensor/ISP capture device producing RGB565 frames.
+  this->capture_fd_ = open(ESP_VIDEO_MIPI_CSI_DEVICE_NAME, O_RDWR | O_NONBLOCK);
+  if (this->capture_fd_ < 0) {
+    ESP_LOGE(TAG, "open(%s) failed: %s", ESP_VIDEO_MIPI_CSI_DEVICE_NAME, strerror(errno));
+    return false;
+  }
+  if (!this->configure_capture_format_(V4L2_PIX_FMT_RGB565))
+    return false;
+  if (!this->setup_capture_buffers_())
+    return false;
+  int ctype = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  if (ioctl(this->capture_fd_, VIDIOC_STREAMON, &ctype) < 0) {
+    ESP_LOGE(TAG, "capture STREAMON failed: %s", strerror(errno));
+    return false;
+  }
+
+  // Stage 2: JPEG hardware encoder (M2M). Blocking so the per-frame DQBUFs wait
+  // for the (fast) hardware encode instead of busy-looping on EAGAIN.
+  this->jpeg_fd_ = open(ESP_VIDEO_JPEG_DEVICE_NAME, O_RDWR);
+  if (this->jpeg_fd_ < 0) {
+    ESP_LOGE(TAG, "open(%s) failed: %s", ESP_VIDEO_JPEG_DEVICE_NAME, strerror(errno));
+    return false;
+  }
+
+  struct v4l2_format fmt;
+  memset(&fmt, 0, sizeof(fmt));
+  fmt.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+  fmt.fmt.pix.width = this->capture_width_;
+  fmt.fmt.pix.height = this->capture_height_;
+  fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_RGB565;
+  if (ioctl(this->jpeg_fd_, VIDIOC_S_FMT, &fmt) < 0) {
+    ESP_LOGE(TAG, "JPEG OUTPUT S_FMT failed: %s", strerror(errno));
+    return false;
+  }
+  memset(&fmt, 0, sizeof(fmt));
+  fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_JPEG;
+  if (ioctl(this->jpeg_fd_, VIDIOC_S_FMT, &fmt) < 0) {
+    ESP_LOGE(TAG, "JPEG CAPTURE S_FMT failed: %s", strerror(errno));
+    return false;
+  }
+
+  struct v4l2_control ctrl;
+  memset(&ctrl, 0, sizeof(ctrl));
+  ctrl.id = V4L2_CID_JPEG_COMPRESSION_QUALITY;
+  ctrl.value = this->jpeg_quality_;
+  ioctl(this->jpeg_fd_, VIDIOC_S_CTRL, &ctrl);
+
+  struct v4l2_requestbuffers req;
+  memset(&req, 0, sizeof(req));
+  req.count = MAX_BUFFERS;
+  req.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+  req.memory = V4L2_MEMORY_USERPTR;
+  if (ioctl(this->jpeg_fd_, VIDIOC_REQBUFS, &req) < 0) {
+    ESP_LOGE(TAG, "JPEG OUTPUT REQBUFS failed: %s", strerror(errno));
+    return false;
+  }
+  memset(&req, 0, sizeof(req));
+  req.count = 1;
+  req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  req.memory = V4L2_MEMORY_MMAP;
+  if (ioctl(this->jpeg_fd_, VIDIOC_REQBUFS, &req) < 0) {
+    ESP_LOGE(TAG, "JPEG CAPTURE REQBUFS failed: %s", strerror(errno));
+    return false;
+  }
+
+  struct v4l2_buffer buf;
+  memset(&buf, 0, sizeof(buf));
+  buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  buf.memory = V4L2_MEMORY_MMAP;
+  buf.index = 0;
+  if (ioctl(this->jpeg_fd_, VIDIOC_QUERYBUF, &buf) < 0) {
+    ESP_LOGE(TAG, "JPEG QUERYBUF failed: %s", strerror(errno));
+    return false;
+  }
+  this->jpeg_out_buffer_.length = buf.length;
+  this->jpeg_out_buffer_.start =
+      mmap(nullptr, buf.length, PROT_READ | PROT_WRITE, MAP_SHARED, this->jpeg_fd_, buf.m.offset);
+  if (this->jpeg_out_buffer_.start == MAP_FAILED) {
+    this->jpeg_out_buffer_.start = nullptr;
+    ESP_LOGE(TAG, "JPEG mmap failed: %s", strerror(errno));
+    return false;
+  }
+
+  int otype = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+  int jtype = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+  if (ioctl(this->jpeg_fd_, VIDIOC_STREAMON, &otype) < 0 || ioctl(this->jpeg_fd_, VIDIOC_STREAMON, &jtype) < 0) {
+    ESP_LOGE(TAG, "JPEG STREAMON failed: %s", strerror(errno));
+    return false;
+  }
+  return true;
+}
+
 void ESPVideoCamera::stop_capture_() {
-  if (this->fd_ >= 0) {
-    if (this->streaming_) {
-      int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-      ioctl(this->fd_, VIDIOC_STREAMOFF, &type);
+  if (this->jpeg_fd_ >= 0) {
+    int otype = V4L2_BUF_TYPE_VIDEO_OUTPUT;
+    int jtype = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    ioctl(this->jpeg_fd_, VIDIOC_STREAMOFF, &otype);
+    ioctl(this->jpeg_fd_, VIDIOC_STREAMOFF, &jtype);
+    if (this->jpeg_out_buffer_.start != nullptr) {
+      munmap(this->jpeg_out_buffer_.start, this->jpeg_out_buffer_.length);
+      this->jpeg_out_buffer_.start = nullptr;
     }
-    for (int i = 0; i < this->num_buffers_; i++) {
-      if (this->buffers_[i].start != nullptr) {
-        munmap(this->buffers_[i].start, this->buffers_[i].length);
-        this->buffers_[i].start = nullptr;
+    close(this->jpeg_fd_);
+    this->jpeg_fd_ = -1;
+  }
+  if (this->capture_fd_ >= 0) {
+    int type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    ioctl(this->capture_fd_, VIDIOC_STREAMOFF, &type);
+    for (int i = 0; i < this->num_capture_buffers_; i++) {
+      if (this->capture_buffers_[i].start != nullptr) {
+        munmap(this->capture_buffers_[i].start, this->capture_buffers_[i].length);
+        this->capture_buffers_[i].start = nullptr;
       }
     }
-    close(this->fd_);
-    this->fd_ = -1;
+    close(this->capture_fd_);
+    this->capture_fd_ = -1;
   }
-  this->num_buffers_ = 0;
+  this->num_capture_buffers_ = 0;
   this->streaming_ = false;
 }
 

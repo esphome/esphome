@@ -94,7 +94,17 @@ class ESPVideoCamera : public camera::Camera {
   bool start_capture_();
   void stop_capture_();
   void update_capture_state_();
-  void configure_format_();
+
+  // Copy a finished JPEG frame into PSRAM and hand it to the listeners.
+  void deliver_frame_(const uint8_t *data, size_t length);
+  bool configure_capture_format_(uint32_t pixelformat);
+  bool setup_capture_buffers_();
+  // Hardware-JPEG path: capture RGB565 (sensor/ISP) -> JPEG M2M encoder.
+  bool start_jpeg_pipeline_();
+  void loop_jpeg_pipeline_();
+  // Direct path: a source that already delivers JPEG/MJPEG (USB-UVC / device).
+  bool start_direct_capture_();
+  void loop_direct_capture_();
 
   // Pipeline
   i2c::I2CBus *i2c_bus_{nullptr};
@@ -120,16 +130,28 @@ class ESPVideoCamera : public camera::Camera {
   uint8_t stream_requesters_{0};
   uint8_t single_requesters_{0};
 
-  // V4L2 state
-  int fd_{-1};
+  // V4L2 state.
+  //
+  // A direct source (USB-UVC, or an explicit /dev/videoN already producing
+  // JPEG/MJPEG) only uses capture_fd_ + capture_buffers_.
+  //
+  // The hardware-JPEG source spans two devices: capture_fd_ is the MIPI-CSI/ISP
+  // device producing RGB565 frames, jpeg_fd_ is the JPEG hardware encoder (an
+  // M2M device) fed RGB565 on its OUTPUT queue and read as JPEG from its CAPTURE
+  // queue (jpeg_out_buffer_).
+  int capture_fd_{-1};
+  int jpeg_fd_{-1};
   bool streaming_{false};
+  uint32_t capture_width_{0};
+  uint32_t capture_height_{0};
   static constexpr int MAX_BUFFERS = 3;
   struct MappedBuffer {
     void *start{nullptr};
     size_t length{0};
   };
-  MappedBuffer buffers_[MAX_BUFFERS];
-  int num_buffers_{0};
+  MappedBuffer capture_buffers_[MAX_BUFFERS];
+  int num_capture_buffers_{0};
+  MappedBuffer jpeg_out_buffer_;
 };
 
 }  // namespace esphome::esp_video_camera
