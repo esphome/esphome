@@ -44,6 +44,7 @@ from . import models
 AUTO_LOAD = ["split_buffer"]
 DEPENDENCIES = ["spi"]
 
+CONF_CS_SLAVE_PIN = "cs_slave_pin"
 CONF_INIT_SEQUENCE_ID = "init_sequence_id"
 CONF_MINIMUM_UPDATE_INTERVAL = "minimum_update_interval"
 
@@ -96,8 +97,9 @@ def model_schema(config):
                 }
             ),
             cv.Optional(CONF_FULL_UPDATE_EVERY, default=1): cv.int_range(1, 255),
-            model.option(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
+            model.option(CONF_BUSY_PIN): model.get_busy_pin_schema(),
             model.option(CONF_CS_PIN): pins.gpio_output_pin_schema,
+            model.option(CONF_CS_SLAVE_PIN): pins.gpio_output_pin_schema,
             model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema,
             model.option(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.GenerateID(): cv.declare_id(class_name),
@@ -183,8 +185,9 @@ async def to_code(config):
     await display.register_display(var, config)
     await spi.register_spi_device(var, config, write_only=True)
 
-    dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
-    cg.add(var.set_dc_pin(dc))
+    if dc_pin_config := config.get(CONF_DC_PIN):
+        dc = await cg.gpio_pin_expression(dc_pin_config)
+        cg.add(var.set_dc_pin(dc))
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
@@ -197,6 +200,15 @@ async def to_code(config):
     if busy_pin := config.get(CONF_BUSY_PIN):
         busy = await cg.gpio_pin_expression(busy_pin)
         cg.add(var.set_busy_pin(busy))
+    if enable_pins := config.get(CONF_ENABLE_PIN):
+        # Power-enable pin(s) (manufacturer "LOAD_SW"/"PWR"): driven high at setup so the
+        # panel's source-driver power comes on before reset.
+        for enable_pin in enable_pins:
+            enable = await cg.gpio_pin_expression(enable_pin)
+            cg.add(var.set_enable_pin(enable))
+    if cs_slave_config := config.get(CONF_CS_SLAVE_PIN):
+        cs_slave = await cg.gpio_pin_expression(cs_slave_config)
+        cg.add(var.set_cs_slave_pin(cs_slave))
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
     if CONF_RESET_DURATION in config:
         cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))

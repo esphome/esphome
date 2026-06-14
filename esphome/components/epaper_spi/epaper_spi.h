@@ -50,6 +50,9 @@ class EPaperBase : public Display,
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
   void set_busy_pin(GPIOPin *busy) { this->busy_pin_ = busy; }
+  // Power-enable ("LOAD_SW"/"PWR") pin: driven HIGH at setup to switch on the panel
+  // source-driver power. Without it the controller never powers up and BUSY never asserts.
+  void set_enable_pin(GPIOPin *enable) { this->enable_pin_ = enable; }
   void set_reset_duration(uint32_t reset_duration) { this->reset_duration_ = reset_duration; }
   void set_transform(uint8_t transform) {
     this->transform_ = transform;
@@ -162,6 +165,18 @@ class EPaperBase : public Display,
 
   void start_data_();
 
+  // D/C control. Some panels (e.g. the dual-CS 13.3" Spectra E6) have no D/C line and
+  // distinguish command from data purely by CS framing; for those dc_pin_ is null and these
+  // are no-ops.
+  void dc_command_() const {
+    if (this->dc_pin_ != nullptr)
+      this->dc_pin_->digital_write(false);
+  }
+  void dc_data_() const {
+    if (this->dc_pin_ != nullptr)
+      this->dc_pin_->digital_write(true);
+  }
+
   // properties initialised in the constructor
   const char *name_;
   uint16_t width_;
@@ -177,6 +192,7 @@ class EPaperBase : public Display,
   GPIOPin *dc_pin_{};
   GPIOPin *busy_pin_{};
   GPIOPin *reset_pin_{};
+  GPIOPin *enable_pin_{};
   bool waiting_for_idle_{};
   uint32_t delay_until_{};  // timestamp until which to delay processing
   uint16_t next_delay_{};   // milliseconds to delay before next state
