@@ -34,20 +34,20 @@ static constexpr uint32_t HALF_FRAME_BYTES = 480000;
 static constexpr uint16_t COLS_PER_IC = 300;  // bytes per row per IC
 
 void EPaperSpectraE6DualCS::setup() {
-  EPaperBase::setup();
-  if (this->cs_slave_ != nullptr) {
-    this->cs_slave_->setup();
-    this->cs_slave_->digital_write(true);
+  EPaperSpectraE6::setup();
+  if (this->cs_secondary_ != nullptr) {
+    this->cs_secondary_->setup();
+    this->cs_secondary_->digital_write(true);
   }
 }
 
 void EPaperSpectraE6DualCS::dump_config() {
   EPaperBase::dump_config();
-  LOG_PIN("  Slave CS Pin: ", this->cs_slave_);
+  LOG_PIN("  Secondary CS Pin: ", this->cs_secondary_);
 }
 
 bool EPaperSpectraE6DualCS::initialise(bool partial) {
-  this->transfer_to_slave_ = false;
+  this->transfer_to_secondary_ = false;
   this->current_data_index_ = 0;
 
   // AN_TM — master only
@@ -114,7 +114,6 @@ bool EPaperSpectraE6DualCS::initialise(bool partial) {
   static constexpr uint8_t tft_vcom_power_data[] = {0x02};
   this->cmd_data(CMD_TFT_VCOM_POWER, tft_vcom_power_data, sizeof tft_vcom_power_data);
 
-  ESP_LOGI(TAG, "Init complete; buffer[0]=0x%02X buffer[300]=0x%02X", this->buffer_[0], this->buffer_[300]);
   return true;
 }
 
@@ -122,7 +121,7 @@ bool HOT EPaperSpectraE6DualCS::transfer_data() {
   const uint32_t start_time = App.get_loop_component_start_time();
   uint8_t bytes_to_send[MAX_TRANSFER_SIZE];
 
-  if (!this->transfer_to_slave_) {
+  if (!this->transfer_to_secondary_) {
     // Phase 1: master IC — left 600px columns (bytes 0..299 of each row, all 1600 rows)
     // CS must remain asserted for the entire DTM command + data stream; pulsing CS between
     // chunks resets the IC's internal data pointer, so we call enable() once here and
@@ -153,19 +152,19 @@ bool HOT EPaperSpectraE6DualCS::transfer_data() {
     this->disable();  // deassert master CS after all data sent
     ESP_LOGI(TAG, "Master IC transfer complete");
     this->current_data_index_ = 0;
-    this->transfer_to_slave_ = true;
+    this->transfer_to_secondary_ = true;
     return false;
   }
 
-  // Phase 2: slave IC — right 600px columns (bytes 300..599 of each row, all 1600 rows)
-  // Same principle: slave CS held low for the entire DTM + data stream.
+  // Phase 2: secondary IC — right 600px columns (bytes 300..599 of each row, all 1600 rows)
+  // Same principle: secondary CS held low for the entire DTM + data stream.
   if (this->current_data_index_ == 0) {
-    ESP_LOGI(TAG, "DTM transfer to slave IC (right half, %u bytes)", HALF_FRAME_BYTES);
+    ESP_LOGI(TAG, "DTM transfer to secondary IC (right half, %u bytes)", HALF_FRAME_BYTES);
     this->dc_command_();
-    this->cs_slave_->digital_write(false);  // assert slave CS — held for entire transfer
-    this->enable();                         // begin_transaction; also asserts master CS briefly
+    this->cs_secondary_->digital_write(false);  // assert secondary CS — held for entire transfer
+    this->enable();                              // begin_transaction; also asserts master CS briefly
     if (this->cs_ != nullptr)
-      this->cs_->digital_write(true);  // deassert master CS; slave CS stays low
+      this->cs_->digital_write(true);           // deassert master CS; secondary CS stays low
     this->write_byte(CMD_DTM);
     this->dc_data_();
   }
@@ -175,48 +174,32 @@ bool HOT EPaperSpectraE6DualCS::transfer_data() {
     bytes_to_send[buf_idx++] = this->buffer_[idx / COLS_PER_IC * (COLS_PER_IC * 2) + COLS_PER_IC + idx % COLS_PER_IC];
 
     if (buf_idx == sizeof bytes_to_send) {
-      this->write_array(bytes_to_send, buf_idx);  // slave CS remains low
+      this->write_array(bytes_to_send, buf_idx);  // secondary CS remains low
       buf_idx = 0;
       if (millis() - start_time > MAX_TRANSFER_TIME) {
-        return false;  // yield; slave CS stays asserted across loop iterations
+        return false;  // yield; secondary CS stays asserted across loop iterations
       }
     }
   }
   if (buf_idx != 0) {
     this->write_array(bytes_to_send, buf_idx);
   }
-  this->cs_slave_->digital_write(true);  // deassert slave CS after all data sent
-  this->disable();                       // end_transaction (master CS already deasserted)
-  ESP_LOGI(TAG, "Slave IC transfer complete — both ICs loaded");
+  this->cs_secondary_->digital_write(true);  // deassert secondary CS after all data sent
+  this->disable();                            // end_transaction (master CS already deasserted)
+  ESP_LOGI(TAG, "Secondary IC transfer complete — both ICs loaded");
   this->current_data_index_ = 0;
-  this->transfer_to_slave_ = false;
+  this->transfer_to_secondary_ = false;
   return true;
 }
 
 void EPaperSpectraE6DualCS::power_on() {
-  // Diagnostic: sample BUSY for 2s after PON to verify pin is wired correctly.
-  // Normal: BUSY goes LOW (active) within ~100ms, then HIGH (idle) after power-on completes.
-  // If BUSY never goes LOW: IC is not responding — check BUSY pin wiring or reset timing.
-  ESP_LOGI(TAG, "PON → both ICs; BUSY before=%s", this->is_idle_() ? "IDLE" : "ACTIVE");
+  ESP_LOGD(TAG, "PON → both ICs");
   this->both_command_(CMD_PON);
-  bool seen_busy = false;
-  uint32_t const deadline = millis() + 2000;
-  while (millis() < deadline) {
-    delay(5);
-    if (!this->is_idle_()) {
-      seen_busy = true;
-      ESP_LOGI(TAG, "BUSY went ACTIVE after PON — IC is responding");
-      break;
-    }
-  }
-  if (!seen_busy) {
-    ESP_LOGE(TAG, "BUSY never went ACTIVE within 2s of PON — check BUSY pin wiring, polarity, or reset timing!");
-  }
+  this->next_delay_ = 30;  // 30ms settling time before DRF per manufacturer spec
 }
 
 void EPaperSpectraE6DualCS::refresh_screen(bool partial) {
-  ESP_LOGD(TAG, "DRF (30ms delay then refresh) → both ICs");
-  delay(30);  // required settling time after PON before DRF per manufacturer spec
+  ESP_LOGD(TAG, "DRF → both ICs");
   static constexpr uint8_t drf_data[] = {0x01};
   this->both_cmd_data_(CMD_DRF, drf_data, sizeof drf_data);
 }
@@ -231,20 +214,16 @@ void EPaperSpectraE6DualCS::deep_sleep() {
   ESP_LOGD(TAG, "DSLP → both ICs");
   static constexpr uint8_t dslp_data[] = {0xA5};
   this->both_cmd_data_(CMD_DSLP, dslp_data, sizeof dslp_data);
+  if (this->enable_pin_ != nullptr) {
+    this->enable_pin_->digital_write(false);
+  }
 }
 
-void EPaperSpectraE6DualCS::both_command_(uint8_t cmd) {
-  this->dc_command_();
-  this->cs_slave_->digital_write(false);
-  this->enable();
-  this->write_byte(cmd);
-  this->disable();
-  this->cs_slave_->digital_write(true);
-}
+void EPaperSpectraE6DualCS::both_command_(uint8_t cmd) { this->both_cmd_data_(cmd, nullptr, 0); }
 
 void EPaperSpectraE6DualCS::both_cmd_data_(uint8_t cmd, const uint8_t *data, size_t len) {
   this->dc_command_();
-  this->cs_slave_->digital_write(false);
+  this->cs_secondary_->digital_write(false);
   this->enable();
   this->write_byte(cmd);
   if (len > 0) {
@@ -252,31 +231,7 @@ void EPaperSpectraE6DualCS::both_cmd_data_(uint8_t cmd, const uint8_t *data, siz
     this->write_array(data, len);
   }
   this->disable();
-  this->cs_slave_->digital_write(true);
-}
-
-void EPaperSpectraE6DualCS::slave_command_(uint8_t cmd) {
-  this->dc_command_();
-  this->cs_slave_->digital_write(false);
-  this->enable();  // begin_transaction + asserts master CS as side effect
-  if (this->cs_ != nullptr)
-    this->cs_->digital_write(true);  // deassert master CS; slave CS remains low
-  this->write_byte(cmd);
-  this->cs_slave_->digital_write(true);
-  this->disable();  // end_transaction; master CS already deasserted
-}
-
-void EPaperSpectraE6DualCS::slave_start_data_() {
-  this->dc_data_();
-  this->cs_slave_->digital_write(false);
-  this->enable();  // begin_transaction + asserts master CS as side effect
-  if (this->cs_ != nullptr)
-    this->cs_->digital_write(true);  // deassert master CS; slave CS remains low
-}
-
-void EPaperSpectraE6DualCS::slave_stop_data_() {
-  this->cs_slave_->digital_write(true);
-  this->disable();  // end_transaction
+  this->cs_secondary_->digital_write(true);
 }
 
 }  // namespace esphome::epaper_spi

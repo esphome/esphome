@@ -10,7 +10,7 @@ class EPaperSpectraE6DualCS : public EPaperSpectraE6 {
                         size_t init_sequence_length)
       : EPaperSpectraE6(name, width, height, init_sequence, init_sequence_length) {}
 
-  void set_cs_slave_pin(GPIOPin *pin) { this->cs_slave_ = pin; }
+  void set_cs_secondary_pin(GPIOPin *pin) { this->cs_secondary_ = pin; }
 
   void setup() override;
   void dump_config() override;
@@ -24,12 +24,9 @@ class EPaperSpectraE6DualCS : public EPaperSpectraE6 {
  protected:
   void both_command_(uint8_t cmd);
   void both_cmd_data_(uint8_t cmd, const uint8_t *data, size_t len);
-  void slave_command_(uint8_t cmd);
-  void slave_start_data_();
-  void slave_stop_data_();
 
-  GPIOPin *cs_slave_{nullptr};
-  bool transfer_to_slave_{false};
+  GPIOPin *cs_secondary_{nullptr};
+  bool transfer_to_secondary_{false};
 };
 
 }  // namespace esphome::epaper_spi

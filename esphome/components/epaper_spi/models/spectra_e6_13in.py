@@ -2,7 +2,7 @@ from esphome import pins
 import esphome.config_validation as cv
 from esphome.const import CONF_DC_PIN
 
-from ..display import CONF_CS_SLAVE_PIN
+from ..display import CONF_CS_SECONDARY_PIN
 from . import EpaperModel
 
 
@@ -16,16 +16,16 @@ def _inverted_busy_schema(config):
 
 
 class SpectraE6DualCSModel(EpaperModel):
-    """Model class for Spectra E6 displays with dual chip-select (master + slave)."""
+    """Model class for Spectra E6 displays with dual chip-select (primary + secondary)."""
 
     def __init__(self, name, **defaults):
         super().__init__(name, "EPaperSpectraE6DualCS", **defaults)
 
     def option(self, name, fallback=cv.UNDEFINED):
-        if name == CONF_CS_SLAVE_PIN:
+        if name == CONF_CS_SECONDARY_PIN:
             return cv.Required(name)
         if name == CONF_DC_PIN:
-            # This panel has no D/C line — command/data is framed by CS. Make it optional.
+            # This panel has no D/C line — command/data is framed by CS.
             return cv.Optional(name)
         return super().option(name, fallback)
 
