@@ -8,8 +8,12 @@ _SET_PAUSED_RE = re.compile(r"->set_paused\((.+?)\);")
 
 
 def _extract_set_paused(main_cpp: str) -> list[str]:
-    """Return the argument text of every set_paused() call found."""
-    return [m.group(1) for m in _SET_PAUSED_RE.finditer(main_cpp)]
+    """Return the normalised argument text of every set_paused() call found.
+
+    Whitespace within and around the arguments is collapsed so unrelated
+    code-generation formatting changes don't break these tests.
+    """
+    return [" ".join(m.group(1).split()) for m in _SET_PAUSED_RE.finditer(main_cpp)]
 
 
 class TestPausedCodeGeneration:
