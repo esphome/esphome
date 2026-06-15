@@ -37,15 +37,18 @@ runs:
     # consume their own scope's quota. restore-keys falls back to the newest
     # cache, so a change still warms from a sibling and only fetches the delta
     # via local-first.
+    # TODO: temporary for CI testing -- write on any branch (drop the
+    # github.ref guards) so the save path runs on the PR. Restore dev-only
+    # write before merge.
     - name: Cache IDF components (write on dev)
-      if: inputs.save == 'true' && github.ref == 'refs/heads/dev'
+      if: inputs.save == 'true'
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: ~/.esphome-idf-components
         key: ${{ runner.os }}-idf-components-${{ steps.meta.outputs.hash }}
         restore-keys: ${{ runner.os }}-idf-components-
     - name: Cache IDF components (restore-only)
-      if: inputs.save != 'true' || github.ref != 'refs/heads/dev'
+      if: inputs.save != 'true'
       uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: ~/.esphome-idf-components
