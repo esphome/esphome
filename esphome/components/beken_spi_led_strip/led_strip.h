@@ -19,7 +19,7 @@ enum RGBOrder : uint8_t {
   ORDER_BRG,
 };
 
-class BekenSPILEDStripLightOutput : public light::AddressableLight {
+class BekenSPILEDStripLightOutput final : public light::AddressableLight {
  public:
   void setup() override;
   void write_state(light::LightState *state) override;
