@@ -113,6 +113,7 @@ jobs:
           script/build_language_schema.py --check
           script/generate-esp32-boards.py --check
           script/generate-rp2040-boards.py --check
+          script/ci_check_duplicate_test_ids.py
 
   import-time:
     name: Check import esphome.__main__ time
@@ -244,7 +245,7 @@ jobs:
           . venv/bin/activate
           pytest -vv --cov-report=xml --tb=native --durations=30 -n auto tests --ignore=tests/integration/
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6.0.1
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
       - name: Save Python virtual environment cache
@@ -455,7 +456,7 @@ jobs:
           echo "binary=$BINARY" >> $GITHUB_OUTPUT
 
       - name: Run CodSpeed benchmarks
-        uses: CodSpeedHQ/action@9d332c4d90b43981c3e55ae8e38e68709996240f # v4.17.0
+        uses: CodSpeedHQ/action@c145068895e045cc725ee76fcd2307624b65c3af # v4.17.5
         with:
           run: |
             . venv/bin/activate

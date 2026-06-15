@@ -1,3 +1,4 @@
+from collections.abc import Callable, Iterable
 import contextlib
 from dataclasses import dataclass
 import itertools
@@ -6,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+from typing import Any
 
 from esphome import yaml_util
 import esphome.codegen as cg
@@ -52,6 +54,7 @@ from esphome.coroutine import CoroPriority, coroutine_with_priority
 from esphome.espidf.component import generate_idf_components
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 from esphome.writer import clean_build, clean_cmake_cache
 
@@ -494,6 +497,32 @@ def set_core_data(config):
 
 def get_esp32_variant(core_obj=None):
     return (core_obj or CORE).data[KEY_ESP32][KEY_VARIANT]
+
+
+def variant_filtered_enum(
+    by_variant: dict[str, Iterable[Any]], **kwargs: Any
+) -> Callable[[Any], Any]:
+    """Build a ``one_of`` validator whose valid set depends on the active variant.
+
+    ``by_variant`` maps each ESP32 variant constant to the iterable of values that
+    are valid on that variant. At validation time the value is checked against the
+    set allowed for the current target variant. For schema extraction the inverted
+    ``{value: [variants, ...]}`` map is returned instead, so the language-schema
+    dump can tag every option with the variants that accept it and frontends can
+    filter to the user's selected variant.
+    """
+    by_value: dict[str, list[str]] = {}
+    for variant, values in by_variant.items():
+        for value in values:
+            by_value.setdefault(str(value), []).append(variant)
+
+    @schema_extractor("variant_enum")
+    def validator(value: Any) -> Any:
+        if value is SCHEMA_EXTRACT:
+            return by_value
+        return cv.one_of(*by_variant.get(get_esp32_variant(), ()), **kwargs)(value)
+
+    return validator
 
 
 def get_board(core_obj=None):
@@ -1615,8 +1644,14 @@ FLASH_SIZES = [
 ]
 
 CONF_FLASH_SIZE = "flash_size"
+CONF_FLASH_MODE = "flash_mode"
+CONF_FLASH_FREQUENCY = "flash_frequency"
 CONF_CPU_FREQUENCY = "cpu_frequency"
 CONF_PARTITIONS = "partitions"
+FLASH_MODES = ["qio", "qout", "dio", "dout", "opi"]
+FLASH_FREQUENCIES = [
+    f"{freq}MHZ" for freq in (120, 80, 64, 60, 48, 40, 32, 30, 26, 24, 20, 16)
+]
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -1629,6 +1664,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENGINEERING_SAMPLE): cv.boolean,
             cv.Optional(CONF_FLASH_SIZE, default="4MB"): cv.one_of(
                 *FLASH_SIZES, upper=True
+            ),
+            cv.Optional(CONF_FLASH_MODE): cv.one_of(*FLASH_MODES, lower=True),
+            cv.Optional(CONF_FLASH_FREQUENCY): cv.one_of(
+                *FLASH_FREQUENCIES, upper=True
             ),
             cv.Optional(CONF_PARTITIONS): cv.Any(
                 cv.file_,
@@ -1866,6 +1905,12 @@ async def to_code(config):
             "board_upload.maximum_size",
             int(config[CONF_FLASH_SIZE].removesuffix("MB")) * 1024 * 1024,
         )
+        if flash_mode := config.get(CONF_FLASH_MODE):
+            cg.add_platformio_option("board_build.flash_mode", flash_mode)
+        if flash_frequency := config.get(CONF_FLASH_FREQUENCY):
+            cg.add_platformio_option(
+                "board_build.f_flash", f"{flash_frequency[:-3]}000000L"
+            )
 
         if CONF_SOURCE in conf:
             cg.add_platformio_option("platform_packages", [conf[CONF_SOURCE]])
@@ -2016,6 +2061,14 @@ async def to_code(config):
     add_idf_sdkconfig_option(
         f"CONFIG_ESPTOOLPY_FLASHSIZE_{config[CONF_FLASH_SIZE]}", True
     )
+    if flash_mode := config.get(CONF_FLASH_MODE):
+        add_idf_sdkconfig_option(
+            f"CONFIG_ESPTOOLPY_FLASHMODE_{flash_mode.upper()}", True
+        )
+    if flash_frequency := config.get(CONF_FLASH_FREQUENCY):
+        add_idf_sdkconfig_option(
+            f"CONFIG_ESPTOOLPY_FLASHFREQ_{flash_frequency[:-3]}M", True
+        )
 
     # ESP32-P4: ESP-IDF 5.5.3 changed the default of ESP32P4_SELECTS_REV_LESS_V3
     # from y to n. PlatformIO uses sections.ld.in (for rev <3) or
