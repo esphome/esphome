@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from esphome import storage_json
+from esphome import config_validation as cv, storage_json
 from esphome.const import CONF_DISABLED, CONF_MDNS, Toolchain
 from esphome.core import CORE
 
@@ -206,6 +206,7 @@ def test_storage_json_as_dict() -> None:
         framework="arduino",
         core_platform="esp32",
         area="Living Room",
+        framework_version="5.3.1",
     )
 
     result = storage.as_dict()
@@ -235,6 +236,7 @@ def test_storage_json_as_dict() -> None:
     assert result["framework"] == "arduino"
     assert result["core_platform"] == "esp32"
     assert result["area"] == "Living Room"
+    assert result["framework_version"] == "5.3.1"
 
 
 def test_storage_json_to_json() -> None:
@@ -313,8 +315,12 @@ def test_storage_json_from_esphome_core(setup_core: Path) -> None:
     mock_core.toolchain = Toolchain.ESP_IDF
     mock_core.area = "Living Room"
 
-    with patch("esphome.components.esp32.get_esp32_variant") as mock_variant:
+    with (
+        patch("esphome.components.esp32.get_esp32_variant") as mock_variant,
+        patch("esphome.components.esp32.idf_version") as mock_idf_version,
+    ):
         mock_variant.return_value = "ESP32-C3"
+        mock_idf_version.return_value = cv.Version(5, 3, 1)
 
         result = storage_json.StorageJSON.from_esphome_core(mock_core, old=None)
 
@@ -333,6 +339,7 @@ def test_storage_json_from_esphome_core(setup_core: Path) -> None:
     assert result.core_platform == "esp32"
     assert result.toolchain == "esp-idf"
     assert result.area == "Living Room"
+    assert result.framework_version == "5.3.1"
 
 
 def test_storage_json_from_esphome_core_mdns_enabled(setup_core: Path) -> None:
@@ -543,6 +550,51 @@ def test_storage_json_apply_to_core_ignores_unknown_toolchain(
     with patch("esphome.components.esp32.get_esp32_variant"):
         loaded.apply_to_core()
     assert CORE.toolchain is None
+
+
+def test_storage_json_framework_version_round_trip(setup_core: Path) -> None:
+    """Sidecar framework_version restores CORE.data[esp32][idf_version]."""
+    from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION
+
+    storage = _make_storage_with_toolchain("esp-idf")
+    storage.framework_version = "5.3.1"
+    path = setup_core / "storage.json"
+    path.write_text(storage.to_json())
+
+    assert json.loads(path.read_text())["framework_version"] == "5.3.1"
+
+    loaded = storage_json.StorageJSON.load(path)
+    assert loaded is not None
+    assert loaded.framework_version == "5.3.1"
+
+    loaded.apply_to_core()
+    assert CORE.data[KEY_ESP32][KEY_IDF_VERSION] == cv.Version(5, 3, 1)
+
+
+def test_storage_json_apply_to_core_without_framework_version(
+    setup_core: Path,
+) -> None:
+    """Older sidecars lacking framework_version don't populate idf_version."""
+    from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION
+
+    loaded = _make_storage_with_toolchain("esp-idf")
+    assert loaded.framework_version is None
+
+    loaded.apply_to_core()
+    assert KEY_IDF_VERSION not in CORE.data[KEY_ESP32]
+
+
+def test_storage_json_apply_to_core_raises_on_invalid_framework_version(
+    setup_core: Path,
+) -> None:
+    """A malformed version string fails with an actionable error at parse time."""
+    from esphome.core import EsphomeError
+
+    loaded = _make_storage_with_toolchain("esp-idf")
+    loaded.framework_version = "not-a-version"
+
+    with pytest.raises(EsphomeError, match="clean the build"):
+        loaded.apply_to_core()
 
 
 def test_esphome_storage_json_as_dict() -> None:
