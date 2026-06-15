@@ -5,7 +5,7 @@
 #include <zephyr/device.h>
 namespace esphome::zephyr {
 
-class ZephyrGPIOPin : public InternalGPIOPin {
+class ZephyrGPIOPin final : public InternalGPIOPin {
  public:
   ZephyrGPIOPin(const device *gpio, int gpio_size, const char *pin_name_prefix) {
     this->gpio_ = gpio;

@@ -16,7 +16,7 @@ struct ParseResult {
   optional<float> impedance;
 };
 
-class XiaomiMiscale : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class XiaomiMiscale final : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; };
 
