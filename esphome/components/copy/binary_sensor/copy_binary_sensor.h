@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-namespace esphome {
-namespace copy {
+namespace esphome::copy {
 
 class CopyBinarySensor : public binary_sensor::BinarySensor, public Component {
  public:
@@ -16,5 +15,4 @@ class CopyBinarySensor : public binary_sensor::BinarySensor, public Component {
   binary_sensor::BinarySensor *source_;
 };
 
-}  // namespace copy
-}  // namespace esphome
+}  // namespace esphome::copy

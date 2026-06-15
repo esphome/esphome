@@ -106,10 +106,15 @@ std::vector<CdcEps> USBUartTypeCdcAcm::parse_descriptors(usb_device_handle_t dev
 }
 
 void RingBuffer::push(uint8_t item) {
+  if (this->get_free_space() == 0)
+    return;
   this->buffer_[this->insert_pos_] = item;
   this->insert_pos_ = (this->insert_pos_ + 1) % this->buffer_size_;
 }
 void RingBuffer::push(const uint8_t *data, size_t len) {
+  size_t free = this->get_free_space();
+  if (len > free)
+    len = free;
   for (size_t i = 0; i != len; i++) {
     this->buffer_[this->insert_pos_] = *data++;
     this->insert_pos_ = (this->insert_pos_ + 1) % this->buffer_size_;
@@ -136,13 +141,12 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
   }
 #ifdef USE_UART_DEBUGGER
   if (this->debug_) {
-    constexpr size_t BATCH = 16;
-    char buf[4 + format_hex_pretty_size(BATCH)];  // ">>> " + "XX,XX,...,XX\0"
-    for (size_t off = 0; off < len; off += BATCH) {
-      size_t n = std::min(len - off, BATCH);
-      memcpy(buf, ">>> ", 4);
-      format_hex_pretty_to(buf + 4, sizeof(buf) - 4, data + off, n, ',');
-      ESP_LOGD(TAG, "%s%s", this->debug_prefix_.c_str(), buf);
+    constexpr size_t batch = 16;
+    char buf[format_hex_pretty_size(batch)];  // "XX,XX,...,XX\0"
+    for (size_t off = 0; off < len; off += batch) {
+      size_t n = std::min(len - off, batch);
+      format_hex_pretty_to(buf, data + off, n, ',');
+      ESP_LOGD(TAG, "%s>>> %s", this->debug_prefix_.c_str(), buf);
     }
   }
 #endif
@@ -152,21 +156,19 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
       ESP_LOGE(TAG, "Output pool full - lost %zu bytes", len);
       break;
     }
-    size_t chunk_len = std::min(len, UsbOutputChunk::MAX_CHUNK_SIZE);
+    uint16_t chunk_len = std::min(len, UsbOutputChunk::MAX_CHUNK_SIZE);
     memcpy(chunk->data, data, chunk_len);
     chunk->length = static_cast<uint8_t>(chunk_len);
-    if (!this->output_queue_.push(chunk)) {
-      this->output_pool_.release(chunk);
-      ESP_LOGE(TAG, "Output queue full - lost %zu bytes", len);
-      break;
-    }
+    // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
+    // allocate() returned non-null, the queue cannot be full.
+    this->output_queue_.push(chunk);
     data += chunk_len;
     len -= chunk_len;
   }
   this->parent_->start_output(this);
 }
 
-uart::FlushResult USBUartChannel::flush() {
+uart::UARTFlushResult USBUartChannel::flush() {
   // Spin until the output queue is drained and the last USB transfer completes.
   // Safe to call from the main loop only.
   // The flush_timeout_ms_ timeout guards against a device that stops responding mid-flush;
@@ -178,8 +180,8 @@ uart::FlushResult USBUartChannel::flush() {
     yield();
   }
   if (!this->output_queue_.empty() || this->output_started_.load())
-    return uart::FlushResult::TIMEOUT;
-  return uart::FlushResult::SUCCESS;
+    return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
+  return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
 }
 
 bool USBUartChannel::peek_byte(uint8_t *data) {
@@ -219,10 +221,9 @@ void USBUartComponent::loop() {
 
 #ifdef USE_UART_DEBUGGER
     if (channel->debug_) {
-      char buf[4 + format_hex_pretty_size(UsbDataChunk::MAX_CHUNK_SIZE)];  // "<<< " + hex
-      memcpy(buf, "<<< ", 4);
-      format_hex_pretty_to(buf + 4, sizeof(buf) - 4, chunk->data, chunk->length, ',');
-      ESP_LOGD(TAG, "%s%s", channel->debug_prefix_.c_str(), buf);
+      char buf[format_hex_pretty_size(usb_host::USB_MAX_PACKET_SIZE)];  // "XX,XX,...,XX\0"
+      format_hex_pretty_to(buf, chunk->data, chunk->length, ',');
+      ESP_LOGD(TAG, "%s<<< %s", channel->debug_prefix_.c_str(), buf);
     }
 #endif
 
@@ -315,16 +316,15 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
       chunk->channel = channel;
 
       // Push to lock-free queue for main loop processing
-      // Push always succeeds because pool size == queue size
+      // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
+      // allocate() returned non-null, the queue cannot be full.
       this->usb_data_queue_.push(chunk);
 
       // Re-enable component loop to process the queued data
       this->enable_loop_soon_any_context();
 
-      // Wake main loop immediately to process USB data instead of waiting for select() timeout
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+      // Wake main loop immediately to process USB data
       App.wake_loop_threadsafe();
-#endif
     }
 
     // On success, restart input immediately from USB task for performance
@@ -375,7 +375,7 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
     this->start_output(channel);
   };
 
-  const uint8_t len = chunk->length;
+  const auto len = chunk->length;
   if (!this->transfer_out(ep->bEndpointAddress, callback, chunk->data, len)) {
     // Transfer submission failed — return chunk and release flag so callers can retry.
     channel->output_pool_.release(chunk);
@@ -392,10 +392,10 @@ void USBUartComponent::start_output(USBUartChannel *channel) {
 static void fix_mps(const usb_ep_desc_t *ep) {
   if (ep != nullptr) {
     auto *ep_mutable = const_cast<usb_ep_desc_t *>(ep);
-    if (ep->wMaxPacketSize > 64) {
-      ESP_LOGW(TAG, "Corrected MPS of EP 0x%02X from %u to 64", static_cast<uint8_t>(ep->bEndpointAddress & 0xFF),
-               ep->wMaxPacketSize);
-      ep_mutable->wMaxPacketSize = 64;
+    if (ep->wMaxPacketSize > usb_host::USB_MAX_PACKET_SIZE) {
+      ESP_LOGW(TAG, "Corrected MPS of EP 0x%02X from %u to %u", static_cast<uint8_t>(ep->bEndpointAddress & 0xFF),
+               ep->wMaxPacketSize, usb_host::USB_MAX_PACKET_SIZE);
+      ep_mutable->wMaxPacketSize = usb_host::USB_MAX_PACKET_SIZE;
     }
   }
 }
@@ -411,7 +411,7 @@ void USBUartTypeCdcAcm::on_connected() {
   for (auto *channel : this->channels_) {
     if (i == cdc_devs.size()) {
       ESP_LOGE(TAG, "No configuration found for channel %d", channel->index_);
-      this->status_set_warning("No configuration found for channel");
+      this->status_set_warning(LOG_STR("No configuration found for channel"));
       break;
     }
     channel->cdc_dev_ = cdc_devs[i++];
@@ -526,10 +526,10 @@ void USBUartTypeCdcAcm::enable_channels() {
                              }
                            });
   }
-  this->start_channels();
+  this->start_channels_();
 }
 
-void USBUartTypeCdcAcm::start_channels() {
+void USBUartTypeCdcAcm::start_channels_() {
   for (auto *channel : this->channels_) {
     if (!channel->initialised_.load())
       continue;

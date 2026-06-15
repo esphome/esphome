@@ -5,8 +5,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/climate_ir/climate_ir.h"
 
-namespace esphome {
-namespace fujitsu_general {
+namespace esphome::fujitsu_general {
 
 const uint8_t FUJITSU_GENERAL_TEMP_MIN = 16;  // Celsius // TODO 16 for heating, 18 for cooling, unsupported in ESPH
 const uint8_t FUJITSU_GENERAL_TEMP_MAX = 30;  // Celsius
@@ -78,5 +77,4 @@ class FujitsuGeneralClimate : public climate_ir::ClimateIR {
   bool power_{false};
 };
 
-}  // namespace fujitsu_general
-}  // namespace esphome
+}  // namespace esphome::fujitsu_general

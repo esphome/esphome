@@ -3,8 +3,7 @@
 #include "esphome/components/matrix_keypad/matrix_keypad.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-namespace esphome {
-namespace matrix_keypad {
+namespace esphome::matrix_keypad {
 
 class MatrixKeypadBinarySensor : public MatrixKeypadListener, public binary_sensor::BinarySensorInitiallyOff {
  public:
@@ -47,5 +46,4 @@ class MatrixKeypadBinarySensor : public MatrixKeypadListener, public binary_sens
   int col_;
 };
 
-}  // namespace matrix_keypad
-}  // namespace esphome
+}  // namespace esphome::matrix_keypad

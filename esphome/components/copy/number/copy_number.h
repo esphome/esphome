@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/number/number.h"
 
-namespace esphome {
-namespace copy {
+namespace esphome::copy {
 
 class CopyNumber : public number::Number, public Component {
  public:
@@ -18,5 +17,4 @@ class CopyNumber : public number::Number, public Component {
   number::Number *source_;
 };
 
-}  // namespace copy
-}  // namespace esphome
+}  // namespace esphome::copy

@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "audio_dac.h"
 
-namespace esphome {
-namespace audio_dac {
+namespace esphome::audio_dac {
 
 template<typename... Ts> class MuteOffAction : public Action<Ts...> {
  public:
@@ -39,5 +38,4 @@ template<typename... Ts> class SetVolumeAction : public Action<Ts...> {
   AudioDac *audio_dac_;
 };
 
-}  // namespace audio_dac
-}  // namespace esphome
+}  // namespace esphome::audio_dac

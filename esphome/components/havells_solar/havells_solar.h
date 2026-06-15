@@ -6,8 +6,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace havells_solar {
+namespace esphome::havells_solar {
 
 class HavellsSolar : public PollingComponent, public modbus::ModbusDevice {
  public:
@@ -113,5 +112,4 @@ class HavellsSolar : public PollingComponent, public modbus::ModbusDevice {
   sensor::Sensor *dci_of_t_sensor_{nullptr};
 };
 
-}  // namespace havells_solar
-}  // namespace esphome
+}  // namespace esphome::havells_solar

@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace scheduler_bulk_cleanup_component {
+namespace esphome::scheduler_bulk_cleanup_component {
 
 static const char *const TAG = "bulk_cleanup";
 
@@ -68,5 +67,4 @@ void SchedulerBulkCleanupComponent::trigger_bulk_cleanup() {
   }
 }
 
-}  // namespace scheduler_bulk_cleanup_component
-}  // namespace esphome
+}  // namespace esphome::scheduler_bulk_cleanup_component

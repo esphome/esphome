@@ -78,7 +78,8 @@ class ActionResponse {
       : success_(success), error_message_(error_message) {
     if (data == nullptr || data_len == 0)
       return;
-    this->json_document_ = json::parse_json(data, data_len);
+    JsonDocument tmp = json::parse_json(data, data_len);
+    swap(this->json_document_, tmp);
   }
 #endif
 

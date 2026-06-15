@@ -3,8 +3,7 @@
 #include "esphome/components/select/select.h"
 #include "../seeed_mr24hpc1.h"
 
-namespace esphome {
-namespace seeed_mr24hpc1 {
+namespace esphome::seeed_mr24hpc1 {
 
 class ExistenceBoundarySelect : public select::Select, public Parented<MR24HPC1Component> {
  public:
@@ -14,5 +13,4 @@ class ExistenceBoundarySelect : public select::Select, public Parented<MR24HPC1C
   void control(size_t index) override;
 };
 
-}  // namespace seeed_mr24hpc1
-}  // namespace esphome
+}  // namespace esphome::seeed_mr24hpc1

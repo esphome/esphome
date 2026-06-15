@@ -17,12 +17,12 @@
 #include <zephyr/drivers/adc.h>
 #endif
 
-namespace esphome {
-namespace adc {
+namespace esphome::adc {
 
 #ifdef USE_ESP32
 // clang-format off
-#if (ESP_IDF_VERSION_MAJOR == 5 && \
+#if ESP_IDF_VERSION_MAJOR >= 6 || \
+    (ESP_IDF_VERSION_MAJOR == 5 && \
      ((ESP_IDF_VERSION_MINOR == 0 && ESP_IDF_VERSION_PATCH >= 5) || \
       (ESP_IDF_VERSION_MINOR == 1 && ESP_IDF_VERSION_PATCH >= 3) || \
       (ESP_IDF_VERSION_MINOR >= 2)) \
@@ -161,5 +161,4 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
 #endif
 };
 
-}  // namespace adc
-}  // namespace esphome
+}  // namespace esphome::adc

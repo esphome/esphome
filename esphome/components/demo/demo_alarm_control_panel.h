@@ -3,8 +3,7 @@
 #include "esphome/components/alarm_control_panel/alarm_control_panel.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace demo {
+namespace esphome::demo {
 
 using namespace alarm_control_panel;
 
@@ -29,11 +28,11 @@ class DemoAlarmControlPanel : public AlarmControlPanel, public Component {
  protected:
   void control(const AlarmControlPanelCall &call) override {
     auto state = call.get_state().value_or(ACP_STATE_DISARMED);
-    auto code = call.get_code();
+    const auto &code = call.get_code();
     switch (state) {
       case ACP_STATE_ARMED_AWAY:
-        if (this->get_requires_code_to_arm() && code.has_value()) {
-          if (*code != "1234") {
+        if (this->get_requires_code_to_arm()) {
+          if (!code.has_value() || *code != "1234") {
             this->status_momentary_error("invalid_code", 5000);
             return;
           }
@@ -41,8 +40,8 @@ class DemoAlarmControlPanel : public AlarmControlPanel, public Component {
         this->publish_state(ACP_STATE_ARMED_AWAY);
         break;
       case ACP_STATE_DISARMED:
-        if (this->get_requires_code() && code.has_value()) {
-          if (*code != "1234") {
+        if (this->get_requires_code()) {
+          if (!code.has_value() || *code != "1234") {
             this->status_momentary_error("invalid_code", 5000);
             return;
           }
@@ -62,5 +61,4 @@ class DemoAlarmControlPanel : public AlarmControlPanel, public Component {
   DemoAlarmControlPanelType type_{};
 };
 
-}  // namespace demo
-}  // namespace esphome
+}  // namespace esphome::demo

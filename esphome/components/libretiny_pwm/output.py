@@ -38,10 +38,11 @@ async def to_code(config):
             cv.Required(CONF_FREQUENCY): cv.templatable(cv.int_),
         }
     ),
+    synchronous=True,
 )
 async def libretiny_pwm_set_frequency_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_FREQUENCY], args, float)
+    template_ = await cg.templatable(config[CONF_FREQUENCY], args, cg.float_)
     cg.add(var.set_frequency(template_))
     return var

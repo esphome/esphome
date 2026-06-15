@@ -7,8 +7,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace tlc5947 {
+namespace esphome::tlc5947 {
 
 class TLC5947 : public Component {
  public:
@@ -42,5 +41,4 @@ class TLC5947 : public Component {
   bool update_{true};
 };
 
-}  // namespace tlc5947
-}  // namespace esphome
+}  // namespace esphome::tlc5947

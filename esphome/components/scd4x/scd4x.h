@@ -5,8 +5,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/sensirion_common/i2c_sensirion.h"
 
-namespace esphome {
-namespace scd4x {
+namespace esphome::scd4x {
 
 enum ErrorCode : uint8_t {
   COMMUNICATION_FAILED,
@@ -59,5 +58,4 @@ class SCD4XComponent : public PollingComponent, public sensirion_common::Sensiri
   MeasurementMode measurement_mode_{PERIODIC};
 };
 
-}  // namespace scd4x
-}  // namespace esphome
+}  // namespace esphome::scd4x

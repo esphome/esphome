@@ -1,0 +1,3 @@
+display:
+  - id: !extend main_lcd
+    tft_upload_watchdog_timeout: 30s

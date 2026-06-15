@@ -52,11 +52,12 @@ bool AsyncClient::connect(const char *host, uint16_t port) {
       connect_cb_(connect_arg_, this);
     return true;
   }
-  if (errno != EINPROGRESS) {
-    ESP_LOGE(TAG, "Connect failed: %d", errno);
+  const int saved_errno = errno;
+  if (saved_errno != EINPROGRESS) {
+    ESP_LOGE(TAG, "Connect failed: %d", saved_errno);
     close();
     if (error_cb_)
-      error_cb_(error_arg_, this, errno);
+      error_cb_(error_arg_, this, saved_errno);
     return false;
   }
 
@@ -79,11 +80,12 @@ size_t AsyncClient::write(const char *data, size_t len) {
 
   ssize_t sent = socket_->write(data, len);
   if (sent < 0) {
-    if (errno != EAGAIN && errno != EWOULDBLOCK) {
-      ESP_LOGE(TAG, "Write error: %d", errno);
+    const int err = errno;
+    if (err != EAGAIN && err != EWOULDBLOCK) {
+      ESP_LOGE(TAG, "Write error: %d", err);
       close();
       if (error_cb_)
-        error_cb_(error_arg_, this, errno);
+        error_cb_(error_arg_, this, err);
     }
     return 0;
   }
@@ -129,10 +131,11 @@ void AsyncClient::loop() {
           error_cb_(error_arg_, this, error);
       }
     } else if (ret < 0) {
-      ESP_LOGE(TAG, "Select error: %d", errno);
+      const int err = errno;
+      ESP_LOGE(TAG, "Select error: %d", err);
       close();
       if (error_cb_)
-        error_cb_(error_arg_, this, errno);
+        error_cb_(error_arg_, this, err);
     }
   } else if (connected_) {
     // For connected sockets, use the Application's select() results
@@ -148,11 +151,14 @@ void AsyncClient::loop() {
     } else if (len > 0) {
       if (data_cb_)
         data_cb_(data_arg_, this, buf, len);
-    } else if (errno != EAGAIN && errno != EWOULDBLOCK) {
-      ESP_LOGW(TAG, "Read error: %d", errno);
-      close();
-      if (error_cb_)
-        error_cb_(error_arg_, this, errno);
+    } else {
+      const int err = errno;
+      if (err != EAGAIN && err != EWOULDBLOCK) {
+        ESP_LOGW(TAG, "Read error: %d", err);
+        close();
+        if (error_cb_)
+          error_cb_(error_arg_, this, err);
+      }
     }
   }
 }

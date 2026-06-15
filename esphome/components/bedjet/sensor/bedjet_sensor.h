@@ -5,8 +5,7 @@
 #include "esphome/components/bedjet/bedjet_child.h"
 #include "esphome/components/bedjet/bedjet_codec.h"
 
-namespace esphome {
-namespace bedjet {
+namespace esphome::bedjet {
 
 class BedjetSensor : public BedJetClient, public Component {
  public:
@@ -28,5 +27,4 @@ class BedjetSensor : public BedJetClient, public Component {
   sensor::Sensor *ambient_temperature_sensor_{nullptr};
 };
 
-}  // namespace bedjet
-}  // namespace esphome
+}  // namespace esphome::bedjet

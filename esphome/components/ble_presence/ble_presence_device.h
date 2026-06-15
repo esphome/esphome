@@ -6,8 +6,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace ble_presence {
+namespace esphome::ble_presence {
 
 class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
                           public esp32_ble_tracker::ESPBTDeviceListener,
@@ -137,7 +136,6 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
   uint32_t timeout_{};
 };
 
-}  // namespace ble_presence
-}  // namespace esphome
+}  // namespace esphome::ble_presence
 
 #endif

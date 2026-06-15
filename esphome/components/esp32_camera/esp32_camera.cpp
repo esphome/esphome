@@ -7,8 +7,7 @@
 
 #include <freertos/task.h>
 
-namespace esphome {
-namespace esp32_camera {
+namespace esphome::esp32_camera {
 
 static const char *const TAG = "esp32_camera";
 static constexpr size_t FRAMEBUFFER_TASK_STACK_SIZE = 1792;
@@ -146,6 +145,10 @@ void ESP32Camera::dump_config() {
   }
 
   sensor_t *s = esp_camera_sensor_get();
+  if (s == nullptr) {
+    ESP_LOGE(TAG, "  Camera sensor not available");
+    return;
+  }
   auto st = s->status;
   ESP_LOGCONFIG(TAG,
                 "  JPEG Quality: %u\n"
@@ -483,6 +486,9 @@ void ESP32Camera::request_image(camera::CameraRequester requester) { this->singl
 camera::CameraImageReader *ESP32Camera::create_image_reader() { return new ESP32CameraImageReader; }
 void ESP32Camera::update_camera_parameters() {
   sensor_t *s = esp_camera_sensor_get();
+  if (s == nullptr) {
+    return;
+  }
   /* update image */
   s->set_vflip(s, this->vertical_flip_);
   s->set_hmirror(s, this->horizontal_mirror_);
@@ -514,11 +520,9 @@ void ESP32Camera::framebuffer_task(void *pv) {
     camera_fb_t *framebuffer = esp_camera_fb_get();
     xQueueSend(that->framebuffer_get_queue_, &framebuffer, portMAX_DELAY);
     // Only wake the main loop if there's a pending request to consume the frame
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
     if (that->has_requested_image_()) {
       App.wake_loop_threadsafe();
     }
-#endif
     // return is no-op for config with 1 fb
     xQueueReceive(that->framebuffer_return_queue_, &framebuffer, portMAX_DELAY);
     esp_camera_fb_return(framebuffer);
@@ -551,7 +555,6 @@ bool ESP32CameraImage::was_requested_by(camera::CameraRequester requester) const
   return (this->requesters_ & (1 << requester)) != 0;
 }
 
-}  // namespace esp32_camera
-}  // namespace esphome
+}  // namespace esphome::esp32_camera
 
 #endif

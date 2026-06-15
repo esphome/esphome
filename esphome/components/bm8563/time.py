@@ -33,6 +33,7 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.use_id(BM8563),
         }
     ),
+    synchronous=True,
 )
 async def bm8563_write_time_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -49,6 +50,7 @@ async def bm8563_write_time_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_DURATION): cv.templatable(cv.positive_time_period_seconds),
         }
     ),
+    synchronous=True,
 )
 async def bm8563_start_timer_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -66,6 +68,7 @@ async def bm8563_start_timer_to_code(config, action_id, template_arg, args):
             cv.GenerateID(): cv.use_id(BM8563),
         }
     ),
+    synchronous=True,
 )
 async def bm8563_read_time_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

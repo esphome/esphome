@@ -7,8 +7,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace honeywellabp2_i2c {
+namespace esphome::honeywellabp2_i2c {
 
 enum ABP2TRANFERFUNCTION { ABP2_TRANS_FUNC_A = 0, ABP2_TRANS_FUNC_B = 1 };
 
@@ -45,8 +44,8 @@ class HONEYWELLABP2Sensor : public PollingComponent, public i2c::I2CDevice {
   const float max_count_b_ = 11744051.2;  // (70% of 2^24 counts or 0xB33333)
   const float min_count_b_ = 5033164.8;   // (30% of 2^24 counts or 0x4CCCCC)
 
-  float max_count_;
-  float min_count_;
+  float max_count_{max_count_a_};
+  float min_count_{min_count_a_};
   bool measurement_running_ = false;
 
   uint8_t raw_data_[7];                      // holds output data
@@ -55,5 +54,4 @@ class HONEYWELLABP2Sensor : public PollingComponent, public i2c::I2CDevice {
   float last_temperature_;
 };
 
-}  // namespace honeywellabp2_i2c
-}  // namespace esphome
+}  // namespace esphome::honeywellabp2_i2c

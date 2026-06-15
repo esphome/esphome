@@ -1,8 +1,7 @@
 #include "pid_climate.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pid {
+namespace esphome::pid {
 
 static const char *const TAG = "pid.climate";
 
@@ -186,5 +185,4 @@ void PIDClimate::start_autotune(std::unique_ptr<PIDAutotuner> &&autotune) {
 
 void PIDClimate::reset_integral_term() { this->controller_.reset_accumulated_integral(); }
 
-}  // namespace pid
-}  // namespace esphome
+}  // namespace esphome::pid

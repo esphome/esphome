@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-namespace esphome {
-namespace homeassistant {
+namespace esphome::homeassistant {
 
 class HomeassistantBinarySensor : public binary_sensor::BinarySensor, public Component {
  public:
@@ -20,5 +19,4 @@ class HomeassistantBinarySensor : public binary_sensor::BinarySensor, public Com
   bool initial_{true};
 };
 
-}  // namespace homeassistant
-}  // namespace esphome
+}  // namespace esphome::homeassistant

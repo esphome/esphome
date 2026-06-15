@@ -12,8 +12,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace bl0940 {
+namespace esphome::bl0940 {
 
 // Caveat: All these values are big endian (low - middle - high)
 struct DataPacket {
@@ -69,10 +68,8 @@ class BL0940 : public PollingComponent, public uart::UARTDevice {
   void set_energy_calibration_number(number::Number *num) { this->energy_calibration_number_ = num; }
 #endif
 
-#ifdef USE_BUTTON
-  // Resets all calibration values to defaults (can be triggered by a button)
+  // Resets all calibration values to defaults
   void reset_calibration();
-#endif
 
   // Core component methods
   void loop() override;
@@ -150,5 +147,4 @@ class BL0940 : public PollingComponent, public uart::UARTDevice {
   void recalibrate_();
 };
 
-}  // namespace bl0940
-}  // namespace esphome
+}  // namespace esphome::bl0940

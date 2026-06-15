@@ -121,8 +121,7 @@ void MQTTFanComponent::setup() {
                     });
   }
 
-  auto f = std::bind(&MQTTFanComponent::publish_state, this);
-  this->state_->add_on_state_callback([this, f]() { this->defer("send", f); });
+  this->state_->add_on_state_callback([this]() { this->defer("send", [this]() { this->publish_state(); }); });
 }
 
 void MQTTFanComponent::dump_config() {

@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 import esphome.config_validation as cv
 from esphome.const import (
@@ -22,12 +23,16 @@ _ESP32_STRAPPING_PINS = {0, 2, 5, 12, 15}
 _LOGGER = logging.getLogger(__name__)
 
 
-def esp32_validate_gpio_pin(value):
+def esp32_validate_gpio_pin(value: int) -> int:
     if value < 0 or value > 39:
         raise cv.Invalid(f"Invalid pin number: {value} (must be 0-39)")
     if value in _ESP_SDIO_PINS:
         raise cv.Invalid(
-            f"This pin cannot be used on ESP32s and is already used by the flash interface (function: {_ESP_SDIO_PINS[value]})"
+            f"This pin cannot be used on ESP32s and is already used by the flash interface"
+            f" (function: {_ESP_SDIO_PINS[value]})."
+            f" If you are using an ESP32 module that uses a different flash pin"
+            f" configuration (e.g. ESP32-PICO-V3-02), you can set"
+            f" 'ignore_pin_validation_error: true' to bypass this check."
         )
     if 9 <= value <= 10:
         _LOGGER.warning(
@@ -41,7 +46,7 @@ def esp32_validate_gpio_pin(value):
     return value
 
 
-def esp32_validate_supports(value):
+def esp32_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
     num = value[CONF_NUMBER]
     mode = value[CONF_MODE]
     is_input = mode[CONF_INPUT]
