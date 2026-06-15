@@ -258,9 +258,11 @@ void Component::call() {
       break;
   }
 }
-bool Component::should_warn_of_blocking(uint32_t blocking_time) {
+bool Component::should_warn_of_blocking(uint32_t blocking_time, uint32_t &threshold_ms_out) {
   // Convert centisecond threshold to milliseconds for comparison
   uint32_t threshold_ms = static_cast<uint32_t>(this->warn_if_blocking_over_) * 10U;
+  // Report the threshold that was exceeded (before any ratcheting below) so the warning is accurate.
+  threshold_ms_out = threshold_ms;
   if (blocking_time > threshold_ms) {
     // Set new threshold: blocking_time + increment, converted back to centiseconds
     uint32_t new_threshold_ms = blocking_time + WARN_IF_BLOCKING_INCREMENT_MS;
@@ -491,19 +493,25 @@ uint32_t PollingComponent::get_update_interval() const { return this->update_int
 uint64_t ComponentRuntimeStats::global_recorded_us = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #endif
 
-void __attribute__((noinline, cold))
-WarnIfComponentBlockingGuard::warn_blocking(Component *component, uint32_t blocking_time) {
-  bool should_warn;
+void __attribute__((noinline, cold)) LoopBlockingGuard::warn_blocking(uint32_t blocking_time) {
+  // Identity is published on App by the caller before the guard is built; read it back here.
+  Component *component = App.get_current_component();
+  // Component-less path always warns (the caller already checked the constant threshold).
+  uint32_t threshold_ms = WARN_IF_BLOCKING_OVER_MS;
+  if (component != nullptr && !component->should_warn_of_blocking(blocking_time, threshold_ms)) {
+    return;  // Component's (possibly ratcheted) threshold not exceeded yet
+  }
+  // Component name if any, else the published source (owning script), else a generic label.
+  const LogString *name;
   if (component != nullptr) {
-    should_warn = component->should_warn_of_blocking(blocking_time);
+    name = component->get_component_log_str();
   } else {
-    should_warn = true;  // Already checked > WARN_IF_BLOCKING_OVER_MS in caller
+    name = App.get_current_source();
+    if (name == nullptr)
+      name = LOG_STR("a scheduled task");
   }
-  if (should_warn) {
-    ESP_LOGW(TAG, "%s took a long time for an operation (%" PRIu32 " ms), max is 30 ms",
-             component == nullptr ? LOG_STR_LITERAL("<null>") : LOG_STR_ARG(component->get_component_log_str()),
-             blocking_time);
-  }
+  ESP_LOGW(TAG, "%s took a long time for an operation (%" PRIu32 " ms), max is %" PRIu32 " ms", LOG_STR_ARG(name),
+           blocking_time, threshold_ms);
 }
 
 #ifdef USE_SETUP_PRIORITY_OVERRIDE
