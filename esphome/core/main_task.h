@@ -20,7 +20,8 @@ extern "C" {
 extern TaskHandle_t esphome_main_task_handle;
 
 /// Wake the main loop task from another FreeRTOS task. NOT ISR-safe.
-static inline void esphome_main_task_notify() {
+/// always_inline so callers placed in IRAM do not reference a flash-resident copy.
+__attribute__((always_inline)) static inline void esphome_main_task_notify() {
   TaskHandle_t task = esphome_main_task_handle;
   if (task != NULL) {
     xTaskNotifyGive(task);
@@ -28,25 +29,13 @@ static inline void esphome_main_task_notify() {
 }
 
 /// Wake the main loop task from an ISR. ISR-safe.
-static inline void esphome_main_task_notify_from_isr(BaseType_t *px_higher_priority_task_woken) {
+__attribute__((always_inline)) static inline void esphome_main_task_notify_from_isr(
+    BaseType_t *px_higher_priority_task_woken) {
   TaskHandle_t task = esphome_main_task_handle;
   if (task != NULL) {
     vTaskNotifyGiveFromISR(task, px_higher_priority_task_woken);
   }
 }
-
-#ifdef USE_ESP32
-/// Wake the main loop from any context (ISR or task). ESP32-only (needs xPortInIsrContext).
-static inline void esphome_main_task_notify_any_context() {
-  if (xPortInIsrContext()) {
-    int px_higher_priority_task_woken = 0;
-    esphome_main_task_notify_from_isr(&px_higher_priority_task_woken);
-    portYIELD_FROM_ISR(px_higher_priority_task_woken);
-  } else {
-    esphome_main_task_notify();
-  }
-}
-#endif
 
 #ifdef __cplusplus
 }

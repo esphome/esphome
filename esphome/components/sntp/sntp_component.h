@@ -4,8 +4,7 @@
 #include "esphome/components/time/real_time_clock.h"
 #include <array>
 
-namespace esphome {
-namespace sntp {
+namespace esphome::sntp {
 
 // Server count is calculated at compile time by Python codegen
 // SNTP_SERVER_COUNT will always be defined
@@ -42,5 +41,4 @@ class SNTPComponent : public time::RealTimeClock {
 #endif
 };
 
-}  // namespace sntp
-}  // namespace esphome
+}  // namespace esphome::sntp

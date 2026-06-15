@@ -70,12 +70,6 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
   stream_ptr = std::make_unique<WiFiClient>();
 #endif  // USE_HTTP_REQUEST_ESP8266_HTTPS
 
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 1, 0)  // && USE_ARDUINO_VERSION_CODE < VERSION_CODE(?, ?, ?)
-  if (!secure) {
-    ESP_LOGW(TAG, "Using HTTP on Arduino version >= 3.1 is **very** slow. Consider setting framework version to 3.0.2 "
-                  "in your YAML, or use HTTPS");
-  }
-#endif  // USE_ARDUINO_VERSION_CODE
   bool status = container->client_.begin(*stream_ptr, url.c_str());
 
 #elif defined(USE_RP2040)
@@ -161,7 +155,7 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
   container->response_headers_.clear();
   auto header_count = container->client_.headers();
   for (int i = 0; i < header_count; i++) {
-    const std::string header_name = str_lower_case(container->client_.headerName(i).c_str());
+    const std::string header_name = str_lower_case(container->client_.headerName(i).c_str());  // NOLINT
     if (should_collect_header(lower_case_collect_headers, header_name)) {
       std::string header_value = container->client_.header(i).c_str();
       ESP_LOGD(TAG, "Received response header, name: %s, value: %s", header_name.c_str(), header_value.c_str());
@@ -243,7 +237,7 @@ int HttpContainerArduino::read(uint8_t *buf, size_t max_len) {
   // Non-chunked path
   int available_data = stream_ptr->available();
   size_t remaining = (this->content_length > 0) ? (this->content_length - this->bytes_read_) : max_len;
-  int bufsize = std::min(max_len, std::min(remaining, (size_t) available_data));
+  int bufsize = std::min({max_len, remaining, (size_t) available_data});
 
   if (bufsize == 0) {
     this->duration_ms += (millis() - start);

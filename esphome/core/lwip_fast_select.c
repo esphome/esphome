@@ -157,6 +157,17 @@ _Static_assert(offsetof(struct lwip_sock, rcvevent) == ESPHOME_LWIP_SOCK_RCVEVEN
 // Saved original event_callback pointer — written once in first hook_socket(), read from TCP/IP task.
 static netconn_callback s_original_callback = NULL;
 
+#ifdef USE_OTA_PLATFORM_ESPHOME
+static struct netconn *s_ota_listener_conn = NULL;
+extern void esphome_wake_ota_component_any_context(void);
+
+void esphome_fast_select_set_ota_listener_sock(struct lwip_sock *sock) {
+  s_ota_listener_conn = (sock != NULL) ? sock->conn : NULL;
+}
+#else
+void esphome_fast_select_set_ota_listener_sock(struct lwip_sock *sock) { (void) sock; }
+#endif
+
 // Wrapper callback: calls original event_callback + notifies main loop task.
 // Called from LwIP's TCP/IP thread when socket events occur (task context, not ISR).
 static void esphome_socket_event_callback(struct netconn *conn, enum netconn_evt evt, u16_t len) {
@@ -171,6 +182,13 @@ static void esphome_socket_event_callback(struct netconn *conn, enum netconn_evt
   // (rcvevent++ with a NULL pbuf or error in recvmbox), so error conditions
   // already wake the main loop through the RCVPLUS path.
   if (evt == NETCONN_EVT_RCVPLUS) {
+#ifdef USE_OTA_PLATFORM_ESPHOME
+    // Mark OTA pending-enable only for events on its listen socket. MUST happen
+    // before xTaskNotifyGive so the flags are visible when the main task wakes.
+    if (conn == s_ota_listener_conn) {
+      esphome_wake_ota_component_any_context();
+    }
+#endif
     TaskHandle_t task = esphome_main_task_handle;
     if (task != NULL) {
       xTaskNotifyGive(task);

@@ -12,8 +12,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace bl0940 {
+namespace esphome::bl0940 {
 
 // Caveat: All these values are big endian (low - middle - high)
 struct DataPacket {
@@ -148,5 +147,4 @@ class BL0940 : public PollingComponent, public uart::UARTDevice {
   void recalibrate_();
 };
 
-}  // namespace bl0940
-}  // namespace esphome
+}  // namespace esphome::bl0940

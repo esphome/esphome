@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/output/float_output.h"
 
-namespace esphome {
-namespace x9c {
+namespace esphome::x9c {
 
 class X9cOutput : public output::FloatOutput, public Component {
  public:
@@ -30,5 +29,4 @@ class X9cOutput : public output::FloatOutput, public Component {
   int step_delay_{0};
 };
 
-}  // namespace x9c
-}  // namespace esphome
+}  // namespace esphome::x9c

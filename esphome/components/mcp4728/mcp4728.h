@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace mcp4728 {
+namespace esphome::mcp4728 {
 
 enum class CMD {
   FAST_WRITE = 0x00,
@@ -63,5 +62,4 @@ class MCP4728Component : public Component, public i2c::I2CDevice {
   bool update_ = false;
 };
 
-}  // namespace mcp4728
-}  // namespace esphome
+}  // namespace esphome::mcp4728

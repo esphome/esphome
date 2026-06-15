@@ -13,8 +13,7 @@
 #include <bsec.h>
 #endif
 
-namespace esphome {
-namespace bme680_bsec {
+namespace esphome::bme680_bsec {
 #ifdef USE_BSEC
 
 enum IAQMode {
@@ -133,5 +132,4 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   sensor::Sensor *breath_voc_equivalent_sensor_{nullptr};
 };
 #endif
-}  // namespace bme680_bsec
-}  // namespace esphome
+}  // namespace esphome::bme680_bsec

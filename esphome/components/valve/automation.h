@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "valve.h"
 
-namespace esphome {
-namespace valve {
+namespace esphome::valve {
 
 template<typename... Ts> class OpenAction : public Action<Ts...> {
  public:
@@ -47,24 +46,32 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
   Valve *valve_;
 };
 
+// All configured fields are baked into a single stateless lambda whose
+// constants live in flash. The action only stores one function pointer
+// plus one parent pointer, regardless of how many fields the user set.
+// Trigger args are forwarded to the apply function so user lambdas
+// (e.g. `position: !lambda "return x;"`) keep working.
+//
+// Trigger args are normalized to `const std::remove_cvref_t<Ts> &...` so
+// the codegen can emit a matching parameter list for both the apply lambda
+// and any inner field lambdas without producing invalid C++ source text
+// (e.g. `const T & &` if Ts already carries a reference, or `const const
+// T &` if Ts already carries a const). This keeps trigger args no-copy
+// regardless of whether the trigger supplies `T`, `T &`, or `const T &`.
 template<typename... Ts> class ControlAction : public Action<Ts...> {
  public:
-  explicit ControlAction(Valve *valve) : valve_(valve) {}
-
-  TEMPLATABLE_VALUE(bool, stop)
-  TEMPLATABLE_VALUE(float, position)
+  using ApplyFn = void (*)(ValveCall &, const std::remove_cvref_t<Ts> &...);
+  ControlAction(Valve *valve, ApplyFn apply) : valve_(valve), apply_(apply) {}
 
   void play(const Ts &...x) override {
     auto call = this->valve_->make_call();
-    if (this->stop_.has_value())
-      call.set_stop(this->stop_.value(x...));
-    if (this->position_.has_value())
-      call.set_position(this->position_.value(x...));
+    this->apply_(call, x...);
     call.perform();
   }
 
  protected:
   Valve *valve_;
+  ApplyFn apply_;
 };
 
 template<typename... Ts> class ValveIsOpenCondition : public Condition<Ts...> {
@@ -113,5 +120,4 @@ class ValveClosedTrigger : public Trigger<> {
   Valve *valve_;
 };
 
-}  // namespace valve
-}  // namespace esphome
+}  // namespace esphome::valve

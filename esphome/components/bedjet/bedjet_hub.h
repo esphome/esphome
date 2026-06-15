@@ -18,8 +18,7 @@
 
 #include <esp_gattc_api.h>
 
-namespace esphome {
-namespace bedjet {
+namespace esphome::bedjet {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
@@ -172,7 +171,6 @@ class BedJetHub : public esphome::ble_client::BLEClientNode, public PollingCompo
   uint8_t write_notify_config_descriptor_(bool enable);
 };
 
-}  // namespace bedjet
-}  // namespace esphome
+}  // namespace esphome::bedjet
 
 #endif

@@ -8,15 +8,17 @@ from .defines import (
     CONF_LONG_PRESS_REPEAT_TIME,
     CONF_LONG_PRESS_TIME,
     CONF_TOUCHSCREENS,
+    add_lv_use,
 )
-from .helpers import lvgl_components_required
 from .schemas import PRESS_TIME
 from .types import LVTouchListener
 
 CONF_TOUCHSCREEN = "touchscreen"
 TOUCHSCREENS_CONFIG = cv.maybe_simple_value(
     {
-        cv.Required(CONF_TOUCHSCREEN_ID): cv.use_id(Touchscreen),
+        cv.Required(CONF_TOUCHSCREEN_ID): cv.All(
+            cv.use_id(Touchscreen), cv.requires_component(CONF_TOUCHSCREEN)
+        ),
         cv.Optional(CONF_LONG_PRESS_TIME, default="400ms"): PRESS_TIME,
         cv.Optional(CONF_LONG_PRESS_REPEAT_TIME, default="100ms"): PRESS_TIME,
         cv.GenerateID(): cv.declare_id(LVTouchListener),
@@ -34,7 +36,7 @@ def touchscreen_schema(config):
 
 async def touchscreens_to_code(lv_component, config):
     for tconf in config[CONF_TOUCHSCREENS]:
-        lvgl_components_required.add(CONF_TOUCHSCREEN)
+        add_lv_use(CONF_TOUCHSCREEN)
         touchscreen = await cg.get_variable(tconf[CONF_TOUCHSCREEN_ID])
         lpt = tconf[CONF_LONG_PRESS_TIME].total_milliseconds
         lprt = tconf[CONF_LONG_PRESS_REPEAT_TIME].total_milliseconds

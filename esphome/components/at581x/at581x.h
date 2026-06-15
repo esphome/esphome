@@ -10,8 +10,7 @@
 #endif
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace at581x {
+namespace esphome::at581x {
 
 class AT581XComponent : public Component, public i2c::I2CDevice {
  public:
@@ -58,5 +57,4 @@ class AT581XComponent : public Component, public i2c::I2CDevice {
   int power_;                /*!< In µA */
 };
 
-}  // namespace at581x
-}  // namespace esphome
+}  // namespace esphome::at581x

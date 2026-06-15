@@ -5,12 +5,13 @@ This script is a centralized way to determine which CI jobs need to run based on
 what files have changed. It outputs JSON with the following structure:
 
 {
+  "core_ci": true/false,
   "integration_tests": true/false,
-  "integration_tests_run_all": true/false,
-  "integration_test_files": ["tests/integration/test_foo.py", ...],
+  "integration_test_buckets": [{"name": "1/3", "tests": ["tests/integration/test_foo.py", ...]}, ...],
   "clang_tidy": true/false,
   "clang_format": true/false,
   "python_linters": true/false,
+  "device_builder": true/false,
   "changed_components": ["component1", "component2", ...],
   "component_test_count": 5,
   "memory_impact": {
@@ -22,12 +23,20 @@ what files have changed. It outputs JSON with the following structure:
 }
 
 The CI workflow uses this information to:
+- Gate the unconditional jobs (ci-custom, pytest, pre-commit-ci-lite) via core_ci;
+  false when a pull_request only touches CI-irrelevant meta paths (other workflow
+  files, .github/actions/build-image/*, .yamllint, .github/dependabot.yml, docker/**)
+  so workflow-only PRs satisfy the required CI Status check without running the
+  unconditional jobs. Always true on non-pull_request events and under --force-all.
 - Skip or run integration tests
 - Skip or run clang-tidy (and whether to do a full scan)
 - Skip or run clang-format
 - Skip or run Python linters (ruff, flake8, pylint, pyupgrade)
+- Skip or run downstream esphome/device-builder tests against the PR's Python code
 - Determine which components to test individually
 - Decide how to split component tests (if there are many)
+- Identify directly-changed components whose only edits are validate.*.yaml files,
+  so CI can skip the compile stage for them and run config validation only
 - Run memory impact analysis whenever there are changed components (merged config), and also for core-only changes
 
 Usage:
@@ -61,13 +70,14 @@ from helpers import (
     get_changed_components,
     get_component_from_path,
     get_component_test_files,
+    get_component_test_platforms,
     get_components_with_dependencies,
     get_cpp_changed_components,
     get_fixture_to_test_files,
     get_integration_test_files_for_components,
     get_target_branch,
     git_ls_files,
-    parse_test_filename,
+    is_validate_only_file,
     root_path,
 )
 from split_components_for_ci import create_intelligent_batches
@@ -80,6 +90,62 @@ CLANG_TIDY_SPLIT_THRESHOLD = 65
 # Component test batch size (weighted)
 # Isolated components count as 10x, groupable components count as 1x
 COMPONENT_TEST_BATCH_SIZE = 40
+
+# Integration test bucketing: when more than the threshold tests are scheduled,
+# fan out across this many parallel jobs. Below the threshold, a single job runs.
+INTEGRATION_TESTS_SPLIT_THRESHOLD = 10
+INTEGRATION_TESTS_SPLIT_BUCKETS = 3
+
+
+def _split_list(items: list[str], n: int) -> list[list[str]]:
+    """Split a list into n roughly-equal contiguous parts (matches script/clang-tidy)."""
+    k, m = divmod(len(items), n)
+    return [items[i * k + min(i, m) : (i + 1) * k + min(i + 1, m)] for i in range(n)]
+
+
+def _all_integration_test_files() -> list[str]:
+    """Return all integration test file paths, sorted, relative to repo root."""
+    return sorted(
+        str(p.relative_to(root_path))
+        for p in (Path(root_path) / "tests" / "integration").glob("test_*.py")
+    )
+
+
+def _compute_integration_test_buckets(
+    integration_run_all: bool,
+    integration_test_files: list[str],
+) -> tuple[bool, list[dict[str, Any]]]:
+    """Compute (run_integration, buckets) from the determine_integration_tests result.
+
+    Pure function for unit testing — no I/O beyond `_all_integration_test_files`
+    when `integration_run_all` is set.
+
+    `buckets` is a list of `{name, tests}` dicts where `tests` is a JSON-friendly
+    list of file paths so the workflow can build a bash array via jq, avoiding
+    shell word-splitting / glob hazards.
+    """
+    if integration_run_all:
+        files = _all_integration_test_files()
+    else:
+        files = sorted(integration_test_files)
+
+    # Empty list (e.g. run_all expansion with no files on disk) would otherwise
+    # cause the workflow to invoke pytest with no path argument and collect
+    # tests outside tests/integration/. Suppress the run instead.
+    if not files:
+        return False, []
+
+    if len(files) > INTEGRATION_TESTS_SPLIT_THRESHOLD:
+        parts = [
+            part for part in _split_list(files, INTEGRATION_TESTS_SPLIT_BUCKETS) if part
+        ]
+        buckets = [
+            {"name": f"{i + 1}/{len(parts)}", "tests": part}
+            for i, part in enumerate(parts)
+        ]
+    else:
+        buckets = [{"name": "1/1", "tests": files}]
+    return True, buckets
 
 
 class Platform(StrEnum):
@@ -102,24 +168,6 @@ class Platform(StrEnum):
 MEMORY_IMPACT_FALLBACK_COMPONENT = "api"  # Representative component for core changes
 MEMORY_IMPACT_FALLBACK_PLATFORM = Platform.ESP32_IDF  # Most representative platform
 MEMORY_IMPACT_MAX_COMPONENTS = 40  # Max components before results become nonsensical
-
-# Platform-specific components that can only be built on their respective platforms
-# These components contain platform-specific code and cannot be cross-compiled
-# Regular components (wifi, logger, api, etc.) are cross-platform and not listed here
-PLATFORM_SPECIFIC_COMPONENTS = frozenset(
-    {
-        "esp32",  # ESP32 platform implementation
-        "esp8266",  # ESP8266 platform implementation
-        "rp2040",  # Raspberry Pi Pico / RP2040 platform implementation
-        "libretiny",  # LibreTiny base platform implementation
-        "bk72xx",  # Beken BK72xx platform implementation (uses LibreTiny)
-        "rtl87xx",  # Realtek RTL87xx platform implementation (uses LibreTiny)
-        "ln882x",  # Winner Micro LN882x platform implementation (uses LibreTiny)
-        "host",  # Host platform (for testing on development machine)
-        "nrf52",  # Nordic nRF52 platform implementation (uses Zephyr)
-        "zephyr",  # Zephyr RTOS platform implementation
-    }
-)
 
 # Platform preference order for memory impact analysis
 # This order is used when no platform-specific hints are detected from filenames
@@ -240,13 +288,13 @@ def _is_clang_tidy_full_scan() -> bool:
     """
     try:
         result = subprocess.run(
-            [os.path.join(root_path, "script", "clang_tidy_hash.py"), "--check"],
+            [str(Path(root_path) / "script" / "clang_tidy_hash.py"), "--check"],
             capture_output=True,
             check=False,
         )
         # Exit 0 means hash changed (full scan needed)
         return result.returncode == 0
-    except Exception:
+    except Exception:  # noqa: BLE001
         # If hash check fails, run full scan to be safe
         return True
 
@@ -349,6 +397,209 @@ def should_run_python_linters(branch: str | None = None) -> bool:
     return _any_changed_file_endswith(branch, PYTHON_FILE_EXTENSIONS)
 
 
+# Files outside esphome/**/*.py whose changes can affect `import esphome.__main__`
+# cost. requirements.txt / pyproject.toml change the dependency graph pulled in
+# by top-level imports; check_import_time.py itself changes the check's behavior.
+IMPORT_TIME_TRIGGER_FILES = frozenset(
+    {
+        "requirements.txt",
+        "requirements_dev.txt",
+        "requirements_test.txt",
+        "pyproject.toml",
+        "script/check_import_time.py",
+        "script/import_time_budget.json",
+    }
+)
+
+
+def should_run_import_time(branch: str | None = None) -> bool:
+    """Determine if the `import esphome.__main__` time regression check should run.
+
+    Runs when any Python file under `esphome/` changes (those modules are
+    loaded transitively from `esphome.__main__`), when dependency
+    declarations change, or when the check script/budget itself changes.
+
+    Args:
+        branch: Branch to compare against. If None, uses default.
+
+    Returns:
+        True if the import-time check should run, False otherwise.
+    """
+    for file in changed_files(branch):
+        if file.startswith("esphome/") and file.endswith(PYTHON_FILE_EXTENSIONS):
+            return True
+        if file in IMPORT_TIME_TRIGGER_FILES:
+            return True
+    return False
+
+
+# Files outside esphome/**/*.py whose changes can affect the downstream
+# device-builder build. requirements.txt / pyproject.toml change the runtime
+# dependency graph that device-builder picks up when it installs esphome.
+DEVICE_BUILDER_TRIGGER_FILES = frozenset(
+    {
+        "requirements.txt",
+        "pyproject.toml",
+    }
+)
+
+
+def should_run_device_builder(branch: str | None = None) -> bool:
+    """Determine if downstream esphome/device-builder tests should run.
+
+    device-builder imports esphome as a library, so whenever the importable
+    Python surface, the runtime dependencies, or any non-C++ file packaged
+    with esphome (pyproject.toml has ``include-package-data = true``, so
+    things like esphome/idf_component.yml ship and can affect installs)
+    changes we re-run its test suite against the PR's code to catch
+    breakage we'd otherwise only see after a release.
+
+    Skipped on beta/release branches: those branches typically lag behind
+    device-builder@main, so a new device-builder API dependency would
+    falsely fail the run without reflecting any problem in the PR itself.
+
+    Args:
+        branch: Branch to compare against. If None, uses default.
+
+    Returns:
+        True if the device-builder downstream tests should run, False otherwise.
+    """
+    target_branch = get_target_branch()
+    if target_branch and (target_branch.startswith(("release", "beta"))):
+        return False
+
+    for file in changed_files(branch):
+        if file in DEVICE_BUILDER_TRIGGER_FILES:
+            return True
+        # Anything under esphome/ that isn't C++ source can change the
+        # importable / packaged surface device-builder consumes
+        # (Python sources, packaged YAML/JSON like idf_component.yml,
+        # etc.). C++ files only affect compiled firmware, not the
+        # Python install device-builder pulls in.
+        if file.startswith("esphome/") and not file.endswith(CPP_FILE_EXTENSIONS):
+            return True
+    return False
+
+
+# Components tested by the native ESP-IDF compile-test job. This is the
+# single source of truth: the workflow reads the comma-joined list from the
+# `native-idf-components` output of `determine-jobs` and uses it as the
+# `TEST_COMPONENTS` env on the `test-native-idf` job.
+NATIVE_IDF_TEST_COMPONENTS = frozenset(
+    {
+        "esp32",
+        "api",
+        "heatpumpir",
+        "bme280_i2c",
+        "bh1750",
+        "aht10",
+        "esp32_ble",
+        "esp32_ble_beacon",
+        "esp32_ble_client",
+        "esp32_ble_server",
+        "esp32_ble_tracker",
+        "ble_client",
+        "ble_presence",
+        "ble_rssi",
+        "ble_scanner",
+    }
+)
+
+# Path prefixes whose changes always trigger the native ESP-IDF compile
+# test: anything under esphome/espidf/ (the native IDF runner / API /
+# framework / component generator).
+NATIVE_IDF_TRIGGER_PATH_PREFIXES = ("esphome/espidf/",)
+
+# Standalone files that, when changed, also trigger the native ESP-IDF
+# compile test:
+#   - esphome/build_gen/espidf.py -- the native IDF build generator
+#     (other files under build_gen/ target PlatformIO and don't affect
+#     the native IDF path)
+#   - script/test_build_components.py -- the harness the job invokes
+#   - .github/workflows/ci.yml -- the job's own definition
+NATIVE_IDF_TRIGGER_FILES = frozenset(
+    {
+        "esphome/build_gen/espidf.py",
+        "script/test_build_components.py",
+        ".github/workflows/ci.yml",
+    }
+)
+
+
+def _native_idf_path_or_file_trigger(files: list[str]) -> bool:
+    """Whether any changed file is a native IDF infrastructure / harness trigger."""
+    for file in files:
+        if file in NATIVE_IDF_TRIGGER_FILES:
+            return True
+        if any(file.startswith(prefix) for prefix in NATIVE_IDF_TRIGGER_PATH_PREFIXES):
+            return True
+    return False
+
+
+def native_idf_components_to_test(branch: str | None = None) -> list[str]:
+    """Subset of ``NATIVE_IDF_TEST_COMPONENTS`` the job needs to compile.
+
+    The job builds components with the native ESP-IDF toolchain (no
+    PlatformIO). When only a specific component (or something it depends
+    on) changed, there's no value in re-building every other unrelated
+    component in the test list -- the regular ``component-test`` matrix
+    already covers them via PlatformIO. So we narrow to the intersection
+    of ``NATIVE_IDF_TEST_COMPONENTS`` and the changed-component dependency
+    closure.
+
+    Returns the full list (sorted) when we can't safely narrow:
+
+    1. Core C++/Python files changed (``esphome/core/*``).
+    2. Native IDF infrastructure changed (``esphome/espidf/*`` or
+       ``esphome/build_gen/espidf.py``).
+    3. The test harness or workflow itself changed
+       (``script/test_build_components.py``, ``.github/workflows/ci.yml``).
+
+    Otherwise returns the intersection (sorted), which may be empty -- an
+    empty list signals the job should be skipped.
+
+    The dependency closure is derived from ``files`` via
+    ``get_components_with_dependencies()`` (the same primitive ``main()``
+    uses) so the result honors ``branch``. ``get_changed_components()``
+    is deliberately not used here: it re-invokes ``changed_files()`` with
+    its own default branch, which would silently ignore our ``branch``
+    argument.
+
+    Args:
+        branch: Branch to compare against. If None, uses default.
+
+    Returns:
+        Sorted list of component names to compile.
+    """
+    files = changed_files(branch)
+
+    if core_changed(files) or _native_idf_path_or_file_trigger(files):
+        return sorted(NATIVE_IDF_TEST_COMPONENTS)
+
+    component_files = [f for f in files if filter_component_and_test_files(f)]
+    changed = get_components_with_dependencies(component_files, True)
+
+    return sorted(NATIVE_IDF_TEST_COMPONENTS & set(changed))
+
+
+def should_run_native_idf(branch: str | None = None) -> bool:
+    """Determine if the `test-native-idf` compile-test job should run.
+
+    Runs whenever ``native_idf_components_to_test()`` returns a non-empty
+    list. Skipping the job on unrelated Python-only PRs avoids ~5 min of
+    CI per PR (worse on cold caches). The regular ``component-test``
+    matrix still exercises the same components through PlatformIO when
+    those components change.
+
+    Args:
+        branch: Branch to compare against. If None, uses default.
+
+    Returns:
+        True if the native ESP-IDF compile test should run, False otherwise.
+    """
+    return bool(native_idf_components_to_test(branch))
+
+
 def determine_cpp_unit_tests(
     branch: str | None = None,
 ) -> tuple[bool, list[str]]:
@@ -402,8 +653,11 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
     Benchmarks run when any of the following conditions are met:
 
     1. Core C++ files changed (esphome/core/*)
-    2. A directly changed component has benchmark files (no dependency expansion)
-    3. Benchmark infrastructure changed (tests/benchmarks/*, script/cpp_benchmark.py,
+    2. The host platform changed (esphome/components/host/*) — benchmarks
+       are built and run on the host platform, so its implementations of
+       ``millis()``/``micros()``/etc. affect every benchmark
+    3. A directly changed component has benchmark files (no dependency expansion)
+    4. Benchmark infrastructure changed (tests/benchmarks/*, script/cpp_benchmark.py,
        script/build_helpers.py, script/setup_codspeed_lib.py)
 
     Unlike unit tests, benchmarks do NOT expand to dependent components.
@@ -418,6 +672,10 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
     """
     files = changed_files(branch)
     if core_changed(files):
+        return True
+
+    # Host platform supplies the runtime that benchmarks execute on
+    if any(f.startswith("esphome/components/host/") for f in files):
         return True
 
     # Check if benchmark infrastructure changed
@@ -440,6 +698,69 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
     return any(get_component_from_path(f) in benchmarked_components for f in files)
 
 
+# Files / path patterns whose changes alone don't warrant running the
+# unconditional CI jobs (`ci-custom`, `pytest`, `pre-commit-ci-lite`).
+# Single source of truth for what we treat as "CI-irrelevant" on
+# pull_request events; ci.yml used to encode this in its own
+# `pull_request.paths` filter, but that hid the required `CI Status`
+# check on PRs that only touched these files (dependabot Action bumps,
+# dependabot.yml edits, docker/ changes, etc.) and forced admin
+# force-merges.
+#
+# ci.yml itself is deliberately *not* ignored — editing the CI workflow
+# must still run CI. Workflows that have their own dedicated triggers
+# (codeql.yml, ci-docker.yml, ...) are matched via the
+# `.github/workflows/*.yml` prefix below and exclude ci.yml explicitly.
+CI_IRRELEVANT_EXACT_FILES = frozenset(
+    {
+        ".yamllint",
+        ".github/dependabot.yml",
+    }
+)
+
+
+def _is_ci_irrelevant_path(path: str) -> bool:
+    """Whether a single changed path is irrelevant to the unconditional CI jobs."""
+    if path in CI_IRRELEVANT_EXACT_FILES:
+        return True
+    # docker/** — all descendants
+    if path.startswith("docker/"):
+        return True
+    # .github/workflows/*.yml — top-level workflow files other than ci.yml
+    # (ci.yml itself must still trigger full CI when edited).
+    if path.startswith(".github/workflows/") and path.endswith(".yml"):
+        if path == ".github/workflows/ci.yml":
+            return False
+        if "/" not in path[len(".github/workflows/") :]:
+            return True
+    # .github/actions/build-image/* — direct children only, matches the
+    # single-star glob the workflow used to encode.
+    if path.startswith(".github/actions/build-image/"):
+        rest = path[len(".github/actions/build-image/") :]
+        if rest and "/" not in rest:
+            return True
+    return False
+
+
+def should_run_core_ci(branch: str | None = None) -> bool:
+    """Determine if the unconditional CI jobs (ci-custom/pytest/pre-commit-ci-lite) should run.
+
+    Returns False only when every changed file is in the CI-irrelevant set
+    above (see ``_is_ci_irrelevant_path``). Empty diffs return True so we
+    never accidentally skip CI when the diff probe fails.
+
+    Args:
+        branch: Branch to compare against. If None, uses default.
+
+    Returns:
+        True if the unconditional CI jobs should run, False otherwise.
+    """
+    files = changed_files(branch)
+    if not files:
+        return True
+    return any(not _is_ci_irrelevant_path(f) for f in files)
+
+
 def _any_changed_file_endswith(branch: str | None, extensions: tuple[str, ...]) -> bool:
     """Check if a changed file ends with any of the specified extensions."""
     return any(file.endswith(extensions) for file in changed_files(branch))
@@ -450,14 +771,41 @@ def _component_has_tests(component: str) -> bool:
     """Check if a component has test files.
 
     Cached to avoid repeated filesystem operations for the same component.
+    Validate files (validate.*.yaml) count -- they exercise schema validation
+    in CI even though they are never compiled.
 
     Args:
         component: Component name to check
 
     Returns:
-        True if the component has test YAML files
+        True if the component has test or validate YAML files
     """
-    return bool(get_component_test_files(component, all_variants=True))
+    return bool(
+        get_component_test_files(component, all_variants=True, include_validate=True)
+    )
+
+
+def _component_change_is_validate_only(component: str, changed: list[str]) -> bool:
+    """Return True if every changed file for this component is a validate.*.yaml.
+
+    Used to decide whether a directly-changed component can skip the compile
+    stage in CI. A component qualifies when:
+    - at least one file under ``tests/components/<component>/`` changed, AND
+    - no source file under ``esphome/components/<component>/`` changed, AND
+    - every changed test file is a ``validate.*.yaml`` or
+      ``validate-*.yaml`` (i.e. no regular ``test.*.yaml`` was touched).
+    """
+    test_prefix = f"tests/components/{component}/"
+    src_prefix = f"esphome/components/{component}/"
+    test_changes: list[Path] = []
+    for path in changed:
+        if path.startswith(src_prefix):
+            return False
+        if path.startswith(test_prefix):
+            test_changes.append(Path(path))
+    if not test_changes:
+        return False
+    return all(is_validate_only_file(p) for p in test_changes)
 
 
 def _select_platform_by_preference(
@@ -587,9 +935,7 @@ def detect_memory_impact_config(
     # all components at once would produce nonsensical memory impact results.
     # Memory impact analysis is most useful for focused PRs targeting dev.
     target_branch = get_target_branch()
-    if target_branch and (
-        target_branch.startswith("release") or target_branch.startswith("beta")
-    ):
+    if target_branch and (target_branch.startswith(("release", "beta"))):
         print(
             f"Memory impact: Skipping analysis for target branch {target_branch} "
             f"(would try to build all components at once, giving nonsensical results)",
@@ -642,23 +988,24 @@ def detect_memory_impact_config(
     ] = {}  # Track which platforms each component supports
 
     for component in sorted(changed_component_set):
-        # Look for test files on preferred platforms
-        test_files = get_component_test_files(component, all_variants=True)
-        if not test_files:
-            continue
-
-        # Check if component has tests for any preferred platform
-        available_platforms = [
-            platform
-            for test_file in test_files
-            if (platform := parse_test_filename(test_file)[1]) != "all"
-            and platform in MEMORY_IMPACT_PLATFORM_PREFERENCE
-        ]
+        # Discover the platforms this component has BASE tests for, using the
+        # same logic as the build runner (get_component_test_platforms wraps the
+        # shared get_component_test_files + parse_test_filename helpers). Base
+        # tests only: the memory impact CI build runs test_build_components.py
+        # with --base-only, which compiles base test.<platform>.yaml files but
+        # never variant test-<variant>.<platform>.yaml files. Counting
+        # variant-only platforms here would let us select a platform the build
+        # then has nothing to compile for, producing no memory output.
+        available_platforms = {
+            Platform(platform)
+            for platform in get_component_test_platforms(component)
+            if platform in MEMORY_IMPACT_PLATFORM_PREFERENCE
+        }
 
         if not available_platforms:
             continue
 
-        component_platforms_map[component] = set(available_platforms)
+        component_platforms_map[component] = available_platforms
         components_with_tests.append(component)
 
     # If no components have tests, don't run memory impact
@@ -679,7 +1026,7 @@ def detect_memory_impact_config(
     # Find common platforms supported by ALL components
     # This ensures we can build all components together in a merged config
     common_platforms = set(MEMORY_IMPACT_PLATFORM_PREFERENCE)
-    for component, platforms in component_platforms_map.items():
+    for platforms in component_platforms_map.values():
         common_platforms &= platforms
 
     # Select the most preferred platform from the common set
@@ -720,19 +1067,56 @@ def detect_memory_impact_config(
         )
         platform = _select_platform_by_count(platform_counts)
 
-    # Filter out platform-specific components that are incompatible with selected platform
-    # Platform components (esp32, esp8266, rp2040, etc.) can only build on their own platform
-    # Other components (wifi, logger, etc.) are cross-platform and can build anywhere
-    compatible_components = [
-        component
-        for component in components_with_tests
-        if component not in PLATFORM_SPECIFIC_COMPONENTS
-        or platform in component_platforms_map.get(component, set())
-    ]
+    # Keep only components that have a base test on the selected platform.
+    # The merged build runs test_build_components.py -t <platform> --base-only,
+    # so a component without a base test.<platform>.yaml compiles nothing and
+    # contributes no memory output. This also covers platform-specific
+    # components (esp32, esp8266, etc.), which only have tests on their own
+    # platform. When components don't share a common platform we build the
+    # largest subset that does, dropping the rest.
+    def components_supporting(target: Platform) -> list[str]:
+        return [
+            component
+            for component in components_with_tests
+            if target in component_platforms_map.get(component, set())
+        ]
 
-    # If no components are compatible with the selected platform, don't run
+    compatible_components = components_supporting(platform)
+
+    # A platform hint (or no-common-platform fallback) can pick a platform that
+    # no changed component actually has a base test for, leaving nothing to
+    # build. In that case fall back to the platform supported by the most
+    # components. component_platforms_map is non-empty (guarded above) and every
+    # value is a non-empty platform set (components with no supported platform
+    # are skipped at discovery), so this always yields a buildable platform with
+    # at least one compatible component.
+    if not compatible_components:
+        platform = _select_platform_by_count(
+            Counter(
+                p for platforms in component_platforms_map.values() for p in platforms
+            )
+        )
+        compatible_components = components_supporting(platform)
+
+    # Defensive backstop: unreachable given the invariant above, but guards
+    # against a future regression in platform selection silently passing an
+    # empty component list to the build.
     if not compatible_components:
         return {"should_run": "false"}
+
+    # Log components dropped because they lack a base test on the selected
+    # platform so partial-subset builds are visible in CI logs.
+    dropped_components = [
+        component
+        for component in components_with_tests
+        if component not in compatible_components
+    ]
+    if dropped_components:
+        print(
+            f"Memory impact: Dropping components without a base test on "
+            f"{platform}: {dropped_components}",
+            file=sys.stderr,
+        )
 
     # Debug output
     print("Memory impact analysis:", file=sys.stderr)
@@ -763,16 +1147,52 @@ def main() -> None:
     parser.add_argument(
         "-b", "--branch", help="Branch to compare changed files against"
     )
+    parser.add_argument(
+        "--force-all",
+        action="store_true",
+        help=(
+            "Force every job to run regardless of what changed. Used by CI "
+            "when the ci-run-all label is applied to a PR (escape hatch for "
+            "changes that need full-matrix validation but don't touch enough "
+            "files to trigger it organically)."
+        ),
+    )
     args = parser.parse_args()
 
     # Determine what should run
-    integration_run_all, integration_test_files = determine_integration_tests(
-        args.branch
+    # core_ci gates the unconditional jobs in ci.yml (ci-custom, pytest,
+    # pre-commit-ci-lite). Non-pull_request events (push to dev/beta/release
+    # and merge_group) always run them so behavior like venv-cache saves on
+    # push to dev is preserved.
+    event_name = os.environ.get("GITHUB_EVENT_NAME", "")
+    run_core_ci = (
+        True
+        if args.force_all or event_name != "pull_request"
+        else should_run_core_ci(args.branch)
     )
-    run_integration = integration_run_all or bool(integration_test_files)
-    run_clang_tidy = should_run_clang_tidy(args.branch)
-    run_clang_format = should_run_clang_format(args.branch)
-    run_python_linters = should_run_python_linters(args.branch)
+    if args.force_all:
+        integration_run_all, integration_test_files = True, []
+        run_clang_tidy = True
+        run_clang_format = True
+        run_python_linters = True
+        run_import_time = True
+        run_device_builder = True
+        native_idf_components = sorted(NATIVE_IDF_TEST_COMPONENTS)
+        run_native_idf = True
+    else:
+        integration_run_all, integration_test_files = determine_integration_tests(
+            args.branch
+        )
+        run_clang_tidy = should_run_clang_tidy(args.branch)
+        run_clang_format = should_run_clang_format(args.branch)
+        run_python_linters = should_run_python_linters(args.branch)
+        run_import_time = should_run_import_time(args.branch)
+        run_device_builder = should_run_device_builder(args.branch)
+        native_idf_components = native_idf_components_to_test(args.branch)
+        run_native_idf = bool(native_idf_components)
+    run_integration, integration_test_buckets = _compute_integration_test_buckets(
+        integration_run_all, integration_test_files
+    )
     changed_cpp_file_count = count_changed_cpp_files(args.branch)
 
     # Get changed components
@@ -801,11 +1221,27 @@ def main() -> None:
         changed_components = changed_components_result
         is_core_change = False
 
-    # Filter to only components that have test files
-    # Components without tests shouldn't generate CI test jobs
-    changed_components_with_tests = [
-        component for component in changed_components if _component_has_tests(component)
-    ]
+    if args.force_all:
+        # Force every component with tests into the CI matrix. Each disk entry
+        # under tests/components/<name> is treated as a component; filtered
+        # below by _component_has_tests so components without YAML tests are
+        # still excluded.
+        tests_root = Path(root_path) / ESPHOME_TESTS_COMPONENTS_PATH
+        all_components = sorted(d.name for d in tests_root.iterdir() if d.is_dir())
+        changed_components_with_tests = [
+            component for component in all_components if _component_has_tests(component)
+        ]
+        # Treat as a core change so downstream logic (clang-tidy full scan,
+        # dep expansion) sees the same world as when esphome/core/ changes.
+        is_core_change = True
+    else:
+        # Filter to only components that have test files
+        # Components without tests shouldn't generate CI test jobs
+        changed_components_with_tests = [
+            component
+            for component in changed_components
+            if _component_has_tests(component)
+        ]
 
     # Get directly changed components with tests (for isolated testing)
     # These will be tested WITHOUT --testing-mode in CI to enable full validation
@@ -823,12 +1259,25 @@ def main() -> None:
         if component not in directly_changed_components
     ]
 
+    # Components whose only changes are validate.*.yaml files can skip the
+    # compile stage in CI -- their source and test fixtures didn't move, so
+    # rebuilding firmware adds no signal. Only directly-changed components
+    # qualify: a component pulled in transitively (because a dependency
+    # changed) still needs the compile to catch regressions.
+    validate_only_components = sorted(
+        component
+        for component in directly_changed_with_tests
+        if _component_change_is_validate_only(component, changed)
+    )
+
     # Detect components for memory impact analysis (merged config)
     memory_impact = detect_memory_impact_config(args.branch)
 
     # Determine clang-tidy mode based on actual files that will be checked
+    is_full_scan = False
     if run_clang_tidy:
         # Full scan needed if: hash changed OR core files changed
+        # (is_core_change is forced True under --force-all)
         is_full_scan = _is_clang_tidy_full_scan() or is_core_change
 
         if is_full_scan:
@@ -861,10 +1310,12 @@ def main() -> None:
 
     # Build output
     # Determine which C++ unit tests to run
-    cpp_run_all, cpp_components = determine_cpp_unit_tests(args.branch)
-
-    # Determine if benchmarks should run
-    run_benchmarks = should_run_benchmarks(args.branch)
+    if args.force_all:
+        cpp_run_all, cpp_components = True, []
+        run_benchmarks = True
+    else:
+        cpp_run_all, cpp_components = determine_cpp_unit_tests(args.branch)
+        run_benchmarks = should_run_benchmarks(args.branch)
 
     # Split components into batches for CI testing
     # This intelligently groups components with similar bus configurations
@@ -876,7 +1327,7 @@ def main() -> None:
         # (no isolation, all components are groupable)
         target_branch = get_target_branch()
         is_release_branch = target_branch and (
-            target_branch.startswith("release") or target_branch.startswith("beta")
+            target_branch.startswith(("release", "beta"))
         )
 
         if is_release_branch:
@@ -899,13 +1350,18 @@ def main() -> None:
         component_test_batches = []
 
     output: dict[str, Any] = {
+        "core_ci": run_core_ci,
         "integration_tests": run_integration,
-        "integration_tests_run_all": integration_run_all,
-        "integration_test_files": integration_test_files,
+        "integration_test_buckets": integration_test_buckets,
         "clang_tidy": run_clang_tidy,
         "clang_tidy_mode": clang_tidy_mode,
+        "clang_tidy_full_scan": is_full_scan,
         "clang_format": run_clang_format,
         "python_linters": run_python_linters,
+        "import_time": run_import_time,
+        "device_builder": run_device_builder,
+        "native_idf": run_native_idf,
+        "native_idf_components": ",".join(native_idf_components),
         "changed_components": changed_components,
         "changed_components_with_tests": changed_components_with_tests,
         "directly_changed_components_with_tests": list(directly_changed_with_tests),
@@ -918,6 +1374,7 @@ def main() -> None:
         "cpp_unit_tests_run_all": cpp_run_all,
         "cpp_unit_tests_components": cpp_components,
         "component_test_batches": component_test_batches,
+        "validate_only_components": validate_only_components,
         "benchmarks": run_benchmarks,
     }
 

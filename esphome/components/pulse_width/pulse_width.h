@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace pulse_width {
+namespace esphome::pulse_width {
 
 /// Store data in a class that doesn't use multiple-inheritance (vtables in flash)
 class PulseWidthSensorStore {
@@ -39,5 +38,4 @@ class PulseWidthSensor : public sensor::Sensor, public PollingComponent {
   InternalGPIOPin *pin_;
 };
 
-}  // namespace pulse_width
-}  // namespace esphome
+}  // namespace esphome::pulse_width

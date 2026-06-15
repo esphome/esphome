@@ -5,8 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/optional.h"
 
-namespace esphome {
-namespace ltr390 {
+namespace esphome::ltr390 {
 
 enum LTR390CTRL {
   LTR390_CTRL_EN = 1,
@@ -85,5 +84,4 @@ class LTR390Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *uv_sensor_{nullptr};
 };
 
-}  // namespace ltr390
-}  // namespace esphome
+}  // namespace esphome::ltr390

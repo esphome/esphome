@@ -7,8 +7,7 @@
 #include <vector>
 #include "constants.h"
 
-namespace esphome {
-namespace sml {
+namespace esphome::sml {
 
 using bytes = std::vector<uint8_t>;
 
@@ -80,5 +79,4 @@ uint64_t bytes_to_uint(const BytesView &buffer);
 int64_t bytes_to_int(const BytesView &buffer);
 
 std::string bytes_to_string(const BytesView &buffer);
-}  // namespace sml
-}  // namespace esphome
+}  // namespace esphome::sml

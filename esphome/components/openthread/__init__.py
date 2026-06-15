@@ -21,7 +21,12 @@ from esphome.const import (
     CONF_USE_ADDRESS,
     PLATFORM_ESP32,
 )
-from esphome.core import CORE, TimePeriodMilliseconds
+from esphome.core import (
+    CORE,
+    CoroPriority,
+    TimePeriodMilliseconds,
+    coroutine_with_priority,
+)
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -223,6 +228,7 @@ def _final_validate(_):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
+@coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config):
     # Re-enable openthread IDF component (excluded by default)
     include_builtin_idf_component("openthread")

@@ -6,8 +6,7 @@
 #include <forward_list>
 #include <vector>
 
-namespace esphome {
-namespace lcd_menu {
+namespace esphome::lcd_menu {
 
 /** Class to display a hierarchical menu.
  *
@@ -41,5 +40,4 @@ class LCDCharacterMenuComponent : public display_menu_base::DisplayMenuComponent
   char mark_back_;
 };
 
-}  // namespace lcd_menu
-}  // namespace esphome
+}  // namespace esphome::lcd_menu

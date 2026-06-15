@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace es7210 {
+namespace esphome::es7210 {
 
 static const char *const TAG = "es7210";
 
@@ -224,5 +223,4 @@ bool ES7210::es7210_update_reg_bit_(uint8_t reg_addr, uint8_t update_bits, uint8
   return this->write_byte(reg_addr, regv);
 }
 
-}  // namespace es7210
-}  // namespace esphome
+}  // namespace esphome::es7210

@@ -4,8 +4,7 @@
 #include "esphome/components/switch/switch.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace pipsolar {
+namespace esphome::pipsolar {
 class Pipsolar;
 class PipsolarSwitch : public switch_::Switch, public Component {
  public:
@@ -24,5 +23,4 @@ class PipsolarSwitch : public switch_::Switch, public Component {
   Pipsolar *parent_;
 };
 
-}  // namespace pipsolar
-}  // namespace esphome
+}  // namespace esphome::pipsolar

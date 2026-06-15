@@ -669,7 +669,7 @@ uint32_t Sprinkler::valve_run_duration_adjusted(const size_t valve_number) {
   // run_duration must not be less than any of these
   if ((run_duration < this->start_delay_) || (run_duration < this->stop_delay_) ||
       (run_duration < this->switching_delay_.value_or(0) * 2)) {
-    return std::max(this->switching_delay_.value_or(0) * 2, std::max(this->start_delay_, this->stop_delay_));
+    return std::max({this->switching_delay_.value_or(0) * 2, this->start_delay_, this->stop_delay_});
   }
   return run_duration;
 }
@@ -897,11 +897,12 @@ void Sprinkler::resume() {
   }
 
   if (this->paused_valve_.has_value() && (this->resume_duration_.has_value())) {
+    const size_t paused_valve = *this->paused_valve_;
+    const uint32_t resume_duration = *this->resume_duration_;
     // Resume only if valve has not been completed yet
-    if (!this->valve_cycle_complete_(this->paused_valve_.value())) {
-      ESP_LOGD(TAG, "Resuming valve %zu with %" PRIu32 " seconds remaining", this->paused_valve_.value_or(0),
-               this->resume_duration_.value_or(0));
-      this->fsm_request_(this->paused_valve_.value(), this->resume_duration_.value());
+    if (!this->valve_cycle_complete_(paused_valve)) {
+      ESP_LOGD(TAG, "Resuming valve %zu with %" PRIu32 " seconds remaining", paused_valve, resume_duration);
+      this->fsm_request_(paused_valve, resume_duration);
     }
     this->reset_resume();
   } else {

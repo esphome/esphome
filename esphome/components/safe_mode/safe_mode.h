@@ -48,16 +48,19 @@ class SafeModeComponent final : public Component {
   uint32_t safe_mode_enable_time_{60000};         ///< The time safe mode should remain active for
   uint32_t safe_mode_rtc_value_{0};
   uint32_t safe_mode_start_time_{0};  ///< stores when safe mode was enabled
+#if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
+  esp_ota_img_states_t ota_state_{ESP_OTA_IMG_UNDEFINED};  // 4-byte enum
+#endif
   // Group 1-byte members together to minimize padding
   bool boot_successful_{false};  ///< set to true after boot is considered successful
   uint8_t safe_mode_num_attempts_{0};
 #if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
-  esp_ota_img_states_t ota_state_{ESP_OTA_IMG_UNDEFINED};
+  bool app_ota_possible_{true};
 #endif
   // Larger objects at the end
   ESPPreferenceObject rtc_;
 #ifdef USE_SAFE_MODE_CALLBACK
-  CallbackManager<void()> safe_mode_callback_{};
+  StaticCallbackManager<ESPHOME_SAFE_MODE_CALLBACK_COUNT, void()> safe_mode_callback_{};
 #endif
 
   static const uint32_t ENTER_SAFE_MODE_MAGIC =

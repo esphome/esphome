@@ -9,8 +9,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace pipsolar {
+namespace esphome::pipsolar {
 
 enum ENUMPollingCommand {
   POLLING_QPIRI = 0,
@@ -246,5 +245,4 @@ class Pipsolar : public uart::UARTDevice, public PollingComponent {
   PollingCommand enabled_polling_commands_[POLLING_COMMANDS_MAX];
 };
 
-}  // namespace pipsolar
-}  // namespace esphome
+}  // namespace esphome::pipsolar

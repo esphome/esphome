@@ -7,8 +7,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace addressable_light {
+namespace esphome::addressable_light {
 
 class AddressableLightDisplay : public display::DisplayBuffer {
  public:
@@ -61,5 +60,4 @@ class AddressableLightDisplay : public display::DisplayBuffer {
   optional<uint32_t> last_effect_index_;
   optional<std::function<int(int, int)>> pixel_mapper_f_;
 };
-}  // namespace addressable_light
-}  // namespace esphome
+}  // namespace esphome::addressable_light

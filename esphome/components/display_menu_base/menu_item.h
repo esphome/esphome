@@ -16,8 +16,7 @@
 #include <vector>
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace display_menu_base {
+namespace esphome::display_menu_base {
 
 enum MenuItemType {
   MENU_ITEM_LABEL,
@@ -187,5 +186,4 @@ class MenuItemCustom : public MenuItemEditable {
   CallbackManager<void()> on_prev_callbacks_{};
 };
 
-}  // namespace display_menu_base
-}  // namespace esphome
+}  // namespace esphome::display_menu_base

@@ -82,8 +82,7 @@
  *
  ***********************************************************************************/
 
-namespace esphome {
-namespace zhlt01 {
+namespace esphome::zhlt01 {
 
 /********************************************************************************
  *  TIMINGS
@@ -163,5 +162,4 @@ class ZHLT01Climate : public climate_ir::ClimateIR {
   bool on_receive(remote_base::RemoteReceiveData data) override;
 };
 
-}  // namespace zhlt01
-}  // namespace esphome
+}  // namespace esphome::zhlt01

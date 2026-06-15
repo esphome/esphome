@@ -4,8 +4,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace bl0939 {
+namespace esphome::bl0939 {
 
 // https://datasheet.lcsc.com/lcsc/2108071830_BL-Shanghai-Belling-BL0939_C2841044.pdf
 // (unfortunately chinese, but the formulas can be easily understood)
@@ -103,5 +102,4 @@ class BL0939 : public PollingComponent, public uart::UARTDevice {
 
   void received_package_(const DataPacket *data) const;
 };
-}  // namespace bl0939
-}  // namespace esphome
+}  // namespace esphome::bl0939

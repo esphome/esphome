@@ -397,12 +397,12 @@ void LD2412Component::handle_periodic_data_() {
   */
 #ifdef USE_SENSOR
   SAFE_PUBLISH_SENSOR(this->moving_target_distance_sensor_,
-                      encode_uint16(this->buffer_data_[MOVING_TARGET_HIGH], this->buffer_data_[MOVING_TARGET_LOW]))
-  SAFE_PUBLISH_SENSOR(this->moving_target_energy_sensor_, this->buffer_data_[MOVING_ENERGY])
+                      encode_uint16(this->buffer_data_[MOVING_TARGET_HIGH], this->buffer_data_[MOVING_TARGET_LOW]));
+  SAFE_PUBLISH_SENSOR(this->moving_target_energy_sensor_, this->buffer_data_[MOVING_ENERGY]);
   SAFE_PUBLISH_SENSOR(this->still_target_distance_sensor_,
-                      encode_uint16(this->buffer_data_[STILL_TARGET_HIGH], this->buffer_data_[STILL_TARGET_LOW]))
-  SAFE_PUBLISH_SENSOR(this->still_target_energy_sensor_, this->buffer_data_[STILL_ENERGY])
-  if (this->detection_distance_sensor_ != nullptr) {
+                      encode_uint16(this->buffer_data_[STILL_TARGET_HIGH], this->buffer_data_[STILL_TARGET_LOW]));
+  SAFE_PUBLISH_SENSOR(this->still_target_energy_sensor_, this->buffer_data_[STILL_ENERGY]);
+  if (this->detection_distance_sensor_.has_sensor()) {
     int new_detect_distance = 0;
     if (target_state != 0x00 && (target_state & MOVE_BITMASK)) {
       new_detect_distance =
@@ -410,7 +410,7 @@ void LD2412Component::handle_periodic_data_() {
     } else if (target_state != 0x00) {
       new_detect_distance = encode_uint16(this->buffer_data_[STILL_TARGET_HIGH], this->buffer_data_[STILL_TARGET_LOW]);
     }
-    this->detection_distance_sensor_->publish_state_if_not_dup(new_detect_distance);
+    this->detection_distance_sensor_.publish_state_if_not_dup(new_detect_distance);
   }
   if (engineering_mode) {
     // Engineering mode needs at least LIGHT_SENSOR + 1 bytes
@@ -423,27 +423,27 @@ void LD2412Component::handle_periodic_data_() {
         Moving energy: 20~28th bytes
       */
       for (uint8_t i = 0; i < TOTAL_GATES; i++) {
-        SAFE_PUBLISH_SENSOR(this->gate_move_sensors_[i], this->buffer_data_[MOVING_SENSOR_START + i])
+        SAFE_PUBLISH_SENSOR(this->gate_move_sensors_[i], this->buffer_data_[MOVING_SENSOR_START + i]);
       }
       /*
         Still energy: 29~37th bytes
       */
       for (uint8_t i = 0; i < TOTAL_GATES; i++) {
-        SAFE_PUBLISH_SENSOR(this->gate_still_sensors_[i], this->buffer_data_[STILL_SENSOR_START + i])
+        SAFE_PUBLISH_SENSOR(this->gate_still_sensors_[i], this->buffer_data_[STILL_SENSOR_START + i]);
       }
       /*
         Light sensor value
       */
-      SAFE_PUBLISH_SENSOR(this->light_sensor_, this->buffer_data_[LIGHT_SENSOR])
+      SAFE_PUBLISH_SENSOR(this->light_sensor_, this->buffer_data_[LIGHT_SENSOR]);
     }
   } else {
     for (auto &gate_move_sensor : this->gate_move_sensors_) {
-      SAFE_PUBLISH_SENSOR_UNKNOWN(gate_move_sensor)
+      SAFE_PUBLISH_SENSOR_UNKNOWN(gate_move_sensor);
     }
     for (auto &gate_still_sensor : this->gate_still_sensors_) {
-      SAFE_PUBLISH_SENSOR_UNKNOWN(gate_still_sensor)
+      SAFE_PUBLISH_SENSOR_UNKNOWN(gate_still_sensor);
     }
-    SAFE_PUBLISH_SENSOR_UNKNOWN(this->light_sensor_)
+    SAFE_PUBLISH_SENSOR_UNKNOWN(this->light_sensor_);
   }
 #endif
   // the radar module won't tell us when it's done, so we just have to keep polling...
@@ -766,32 +766,38 @@ void LD2412Component::get_distance_resolution_() { this->send_command_(CMD_QUERY
 void LD2412Component::query_light_control_() { this->send_command_(CMD_QUERY_LIGHT_CONTROL, nullptr, 0); }
 
 void LD2412Component::set_basic_config() {
+  uint8_t min_gate = 1;
+  uint8_t max_gate = TOTAL_GATES;
+  uint16_t timeout = DEFAULT_PRESENCE_TIMEOUT;
+  uint8_t out_pin_level = 0x01;
+
 #ifdef USE_NUMBER
-  if (!this->min_distance_gate_number_->has_state() || !this->max_distance_gate_number_->has_state() ||
-      !this->timeout_number_->has_state()) {
-    return;
+  if (this->min_distance_gate_number_ != nullptr) {
+    if (!this->min_distance_gate_number_->has_state())
+      return;
+    min_gate = static_cast<int>(this->min_distance_gate_number_->state);
+  }
+  if (this->max_distance_gate_number_ != nullptr) {
+    if (!this->max_distance_gate_number_->has_state())
+      return;
+    max_gate = static_cast<int>(this->max_distance_gate_number_->state) + 1;
+  }
+  if (this->timeout_number_ != nullptr) {
+    if (!this->timeout_number_->has_state())
+      return;
+    timeout = static_cast<int>(this->timeout_number_->state);
   }
 #endif
 #ifdef USE_SELECT
-  if (!this->out_pin_level_select_->has_state()) {
-    return;
+  if (this->out_pin_level_select_ != nullptr) {
+    if (!this->out_pin_level_select_->has_state())
+      return;
+    out_pin_level = find_uint8(OUT_PIN_LEVELS_BY_STR, this->out_pin_level_select_->current_option().c_str());
   }
 #endif
 
   uint8_t value[5] = {
-#ifdef USE_NUMBER
-      lowbyte(static_cast<int>(this->min_distance_gate_number_->state)),
-      lowbyte(static_cast<int>(this->max_distance_gate_number_->state) + 1),
-      lowbyte(static_cast<int>(this->timeout_number_->state)),
-      highbyte(static_cast<int>(this->timeout_number_->state)),
-#else
-      1,    TOTAL_GATES, DEFAULT_PRESENCE_TIMEOUT, 0,
-#endif
-#ifdef USE_SELECT
-      find_uint8(OUT_PIN_LEVELS_BY_STR, this->out_pin_level_select_->current_option().c_str()),
-#else
-      0x01,  // Default value if not using select
-#endif
+      lowbyte(min_gate), lowbyte(max_gate), lowbyte(timeout), highbyte(timeout), out_pin_level,
   };
   this->set_config_mode_(true);
   this->send_command_(CMD_BASIC_CONF, value, sizeof(value));
@@ -846,12 +852,11 @@ void LD2412Component::set_light_out_control() {
 }
 
 #ifdef USE_SENSOR
-// These could leak memory, but they are only set once prior to 'setup()' and should never be used again.
 void LD2412Component::set_gate_move_sensor(uint8_t gate, sensor::Sensor *s) {
-  this->gate_move_sensors_[gate] = new SensorWithDedup<uint8_t>(s);
+  this->gate_move_sensors_[gate].set_sensor(s);
 }
 void LD2412Component::set_gate_still_sensor(uint8_t gate, sensor::Sensor *s) {
-  this->gate_still_sensors_[gate] = new SensorWithDedup<uint8_t>(s);
+  this->gate_still_sensors_[gate].set_sensor(s);
 }
 #endif
 

@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/string_ref.h"
 
-namespace esphome {
-namespace homeassistant {
+namespace esphome::homeassistant {
 
 class HomeassistantNumber : public number::Number, public Component {
  public:
@@ -25,5 +24,4 @@ class HomeassistantNumber : public number::Number, public Component {
 
   const char *entity_id_{nullptr};
 };
-}  // namespace homeassistant
-}  // namespace esphome
+}  // namespace esphome::homeassistant

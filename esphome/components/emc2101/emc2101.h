@@ -3,8 +3,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace emc2101 {
+namespace esphome::emc2101 {
 
 /** Enum listing all DAC conversion rates for the EMC2101.
  *
@@ -111,5 +110,4 @@ class Emc2101Component : public Component, public i2c::I2CDevice {
   Emc2101DACConversionRate dac_conversion_rate_;
 };
 
-}  // namespace emc2101
-}  // namespace esphome
+}  // namespace esphome::emc2101

@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace ina226 {
+namespace esphome::ina226 {
 
 enum AdcTime : uint16_t {
   ADC_TIME_140US = 0,
@@ -73,5 +72,4 @@ class INA226Component : public PollingComponent, public i2c::I2CDevice {
   int32_t twos_complement_(int32_t val, uint8_t bits);
 };
 
-}  // namespace ina226
-}  // namespace esphome
+}  // namespace esphome::ina226

@@ -5,8 +5,7 @@
 #include "esphome/components/output/float_output.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace mcp4728 {
+namespace esphome::mcp4728 {
 
 class MCP4728Channel : public output::FloatOutput {
  public:
@@ -28,5 +27,4 @@ class MCP4728Channel : public output::FloatOutput {
   MCP4728ChannelIdx channel_;
 };
 
-}  // namespace mcp4728
-}  // namespace esphome
+}  // namespace esphome::mcp4728

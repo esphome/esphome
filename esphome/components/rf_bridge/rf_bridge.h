@@ -7,8 +7,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace rf_bridge {
+namespace esphome::rf_bridge {
 
 static const uint8_t RF_MESSAGE_SIZE = 9;
 static const uint8_t RF_CODE_START = 0xAA;
@@ -179,5 +178,4 @@ template<typename... Ts> class RFBridgeBeepAction : public Action<Ts...> {
   RFBridgeComponent *parent_;
 };
 
-}  // namespace rf_bridge
-}  // namespace esphome
+}  // namespace esphome::rf_bridge

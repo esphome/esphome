@@ -9,7 +9,11 @@ from esphome.const import (
     CONF_VISUAL,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    queue_entity_register,
+    setup_entity,
+)
 from esphome.cpp_generator import MockObjClass
 from esphome.types import ConfigType
 
@@ -90,7 +94,7 @@ async def register_water_heater(var: cg.Pvariable, config: ConfigType) -> cg.Pva
 
     cg.add_define("USE_WATER_HEATER")
 
-    cg.add(cg.App.register_water_heater(var))
+    queue_entity_register("water_heater", config)
 
     CORE.register_platform_component("water_heater", var)
     await setup_water_heater_core_(var, config)

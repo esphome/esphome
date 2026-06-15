@@ -94,6 +94,7 @@ class GreeClimate : public climate_ir::ClimateIR {
  protected:
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
+  climate::ClimateTraits traits() override;
 
   uint8_t operation_mode_();
   uint8_t fan_speed_();

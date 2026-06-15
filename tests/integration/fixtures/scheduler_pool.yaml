@@ -221,14 +221,10 @@ script:
   - id: test_full_pool_reuse
     then:
       - lambda: |-
-          ESP_LOGI("test", "Phase 6: Testing pool size limits after Phase 5 items complete");
+          ESP_LOGI("test", "Phase 6: Testing pool reuse after Phase 5 items complete");
 
-          // At this point, all Phase 5 timeouts should have completed and been recycled.
-          // The pool should be at its maximum size (5).
-          // Creating 10 new items tests that:
-          // - First 5 items reuse from the pool
-          // - Remaining 5 items allocate new (pool empty)
-          // - Pool doesn't grow beyond MAX_POOL_SIZE of 5
+          // Phase 5 timeouts have completed and been recycled. The freelist is unbounded;
+          // creating 10 new items reuses from it and only allocates fresh when empty.
 
           auto *component = id(test_sensor);
           int full_reuse_count = 10;

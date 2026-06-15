@@ -8,8 +8,7 @@
 #endif
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace hydreon_rgxx {
+namespace esphome::hydreon_rgxx {
 
 enum RGModel {
   RG9 = 1,
@@ -92,5 +91,4 @@ class HydreonRGxxBinaryComponent : public Component {
   HydreonRGxxBinaryComponent(HydreonRGxxComponent *parent) {}
 };
 
-}  // namespace hydreon_rgxx
-}  // namespace esphome
+}  // namespace esphome::hydreon_rgxx

@@ -5,8 +5,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace uponor_smatrix {
+namespace esphome::uponor_smatrix {
 
 static const char *const TAG = "uponor_smatrix";
 
@@ -155,7 +154,7 @@ bool UponorSmatrixComponent::parse_byte_(uint8_t byte) {
   }
 
   // Log unknown device addresses
-  if (!found && !this->unknown_devices_.count(device_address)) {
+  if (!found && !this->unknown_devices_.contains(device_address)) {
     ESP_LOGI(TAG, "Received packet for unknown device address 0x%08" PRIX32 " ", device_address);
     this->unknown_devices_.insert(device_address);
   }
@@ -221,5 +220,4 @@ bool UponorSmatrixComponent::do_send_time_() {
 }
 #endif
 
-}  // namespace uponor_smatrix
-}  // namespace esphome
+}  // namespace esphome::uponor_smatrix

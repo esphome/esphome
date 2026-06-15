@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/switch/switch.h"
 
-namespace esphome {
-namespace copy {
+namespace esphome::copy {
 
 class CopySwitch : public switch_::Switch, public Component {
  public:
@@ -18,5 +17,4 @@ class CopySwitch : public switch_::Switch, public Component {
   switch_::Switch *source_;
 };
 
-}  // namespace copy
-}  // namespace esphome
+}  // namespace esphome::copy

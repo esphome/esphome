@@ -7,8 +7,7 @@
 #include <string>
 #include <sstream>
 
-namespace esphome {
-namespace scheduler_string_name_stress_component {
+namespace esphome::scheduler_string_name_stress_component {
 
 static const char *const TAG = "scheduler_string_name_stress";
 
@@ -106,5 +105,4 @@ void SchedulerStringNameStressComponent::run_string_name_stress_test() {
   });
 }
 
-}  // namespace scheduler_string_name_stress_component
-}  // namespace esphome
+}  // namespace esphome::scheduler_string_name_stress_component
