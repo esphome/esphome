@@ -35,6 +35,16 @@ esp32:
   `4MB`, `8MB`, `16MB` or `32MB`. Defaults to `4MB`. **Warning: specifying a size larger than that available
   on your board will cause the ESP32 to fail to boot.**
 
+- **flash_mode** (*Optional*, string): The SPI mode used to access the flash chip. One of `qio`, `qout`, `dio`,
+  `dout` or `opi` (octal flash chips only). When not set, the board definition (PlatformIO) or the ESP-IDF
+  default decides. **Warning: specifying a mode your flash chip does not support will cause the ESP32 to fail
+  to boot.**
+
+- **flash_frequency** (*Optional*, string): The SPI frequency used to access the flash chip, for example `80MHz`
+  or `40MHz`. The supported values depend on the variant and are checked at build time. When not set, the board
+  definition (PlatformIO) or the ESP-IDF default decides. **Warning: specifying a frequency your flash chip does
+  not support will cause the ESP32 to fail to boot.**
+
 - **cpu_frequency** (*Optional*, string): The CPU frequency to use. Defaults to the maximum supported
   frequency for the variant. The allowed values depend on the variant:
 
