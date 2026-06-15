@@ -29,7 +29,6 @@ static constexpr uint8_t ST7123_MAX_TOUCHES = 10;
 
 class ST7123Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice {
  public:
-  bool read_register_(uint16_t reg, uint8_t *data, size_t len) const;
   void setup() override;
   void update() override;
   void dump_config() override;
