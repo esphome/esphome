@@ -124,17 +124,17 @@ void HOT Pixoo::draw_pixel_at(int x, int y, Color color) {
     return;
   const int side = static_cast<int>(this->model_);
   switch (this->rotation_) {
-    case DISPLAY_ROTATION_0_DEGREES:
+    case display::DISPLAY_ROTATION_0_DEGREES:
       break;
-    case DISPLAY_ROTATION_90_DEGREES:
+    case display::DISPLAY_ROTATION_90_DEGREES:
       std::swap(x, y);
       x = side - x - 1;
       break;
-    case DISPLAY_ROTATION_180_DEGREES:
+    case display::DISPLAY_ROTATION_180_DEGREES:
       x = side - x - 1;
       y = side - y - 1;
       break;
-    case DISPLAY_ROTATION_270_DEGREES:
+    case display::DISPLAY_ROTATION_270_DEGREES:
       std::swap(x, y);
       y = side - y - 1;
       break;
@@ -144,14 +144,17 @@ void HOT Pixoo::draw_pixel_at(int x, int y, Color color) {
   this->set_pixel_(static_cast<uint32_t>(y) * side + x, color);
 }
 
-void Pixoo::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
-                           ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
+void Pixoo::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
+                           display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
   // Fast path for the common LVGL/image blit: RGB565, RGB order, no rotation, no active clipping.
   // Anything else defers to the base implementation, which decodes per pixel and routes through
   // draw_pixel_at() so rotation, clipping and other color formats stay correct.
-  if (bitness != COLOR_BITNESS_565 || order != COLOR_ORDER_RGB || this->rotation_ != DISPLAY_ROTATION_0_DEGREES ||
-      this->is_clipping()) {
-    Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
+  // NOTE: the stride/index math and 565->888 expansion below mirror Display::draw_pixels_at (the
+  // source of truth) -- keep them in sync if the base ever changes its source layout or decoding.
+  if (bitness != display::COLOR_BITNESS_565 || order != display::COLOR_ORDER_RGB ||
+      this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || this->is_clipping()) {
+    display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
+                                     x_pad);
     return;
   }
   const int side = static_cast<int>(this->model_);
@@ -179,7 +182,7 @@ void Pixoo::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t
 
 void Pixoo::fill(Color color) {
   if (this->is_clipping()) {
-    Display::fill(color);
+    display::Display::fill(color);
     return;
   }
   for (size_t i = 0; i < this->data_size_; i += 3) {

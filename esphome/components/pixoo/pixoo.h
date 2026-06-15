@@ -8,8 +8,6 @@
 
 namespace esphome::pixoo {
 
-using namespace display;
-
 // The Pixoo's main board (where ESPHome runs) talks to a separate LED-driver board (a GD32/AT32
 // MCU) over SPI using Divoom's packet protocol:
 //   0xAA, len_lo, len_hi, cmd, <data...>, 0xBB
@@ -21,7 +19,7 @@ enum PixooModel : uint8_t {
   PIXOO_64 = 64,
 };
 
-class Pixoo : public Display,
+class Pixoo : public display::Display,
               public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                     spi::DATA_RATE_8MHZ> {
  public:
@@ -36,12 +34,12 @@ class Pixoo : public Display,
   // board (brightness 0..1 -> 0..100%).
   void set_panel_brightness(float brightness);
 
-  DisplayType get_display_type() override { return DISPLAY_TYPE_COLOR; }
+  display::DisplayType get_display_type() override { return display::DISPLAY_TYPE_COLOR; }
 
   void fill(Color color) override;
   void draw_pixel_at(int x, int y, Color color) override;
-  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
-                      ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
+  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
+                      display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
 
  protected:
   int get_width_internal() override { return static_cast<int>(this->model_); }
