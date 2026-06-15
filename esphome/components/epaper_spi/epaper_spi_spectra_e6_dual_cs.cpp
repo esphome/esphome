@@ -162,9 +162,9 @@ bool HOT EPaperSpectraE6DualCS::transfer_data() {
     ESP_LOGI(TAG, "DTM transfer to secondary IC (right half, %u bytes)", HALF_FRAME_BYTES);
     this->dc_command_();
     this->cs_secondary_->digital_write(false);  // assert secondary CS — held for entire transfer
-    this->enable();                              // begin_transaction; also asserts master CS briefly
+    this->enable();                             // begin_transaction; also asserts master CS briefly
     if (this->cs_ != nullptr)
-      this->cs_->digital_write(true);           // deassert master CS; secondary CS stays low
+      this->cs_->digital_write(true);  // deassert master CS; secondary CS stays low
     this->write_byte(CMD_DTM);
     this->dc_data_();
   }
@@ -185,7 +185,7 @@ bool HOT EPaperSpectraE6DualCS::transfer_data() {
     this->write_array(bytes_to_send, buf_idx);
   }
   this->cs_secondary_->digital_write(true);  // deassert secondary CS after all data sent
-  this->disable();                            // end_transaction (master CS already deasserted)
+  this->disable();                           // end_transaction (master CS already deasserted)
   ESP_LOGI(TAG, "Secondary IC transfer complete — both ICs loaded");
   this->current_data_index_ = 0;
   this->transfer_to_secondary_ = false;
