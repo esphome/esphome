@@ -13,7 +13,7 @@
 
 namespace esphome::uart {
 
-class RP2040UartComponent : public UARTComponent, public Component {
+class RP2040UartComponent final : public UARTComponent, public Component {
  public:
   void setup() override;
   void dump_config() override;
