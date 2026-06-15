@@ -1961,9 +1961,11 @@ async def to_code(config):
     if conf[CONF_ADVANCED][CONF_IGNORE_EFUSE_CUSTOM_MAC]:
         cg.add_define("USE_ESP32_IGNORE_EFUSE_CUSTOM_MAC")
 
-    # Set the location of the IDF component manager cache
-    os.environ["IDF_COMPONENT_CACHE_PATH"] = str(
-        CORE.relative_internal_path(".espressif")
+    # Set the location of the IDF component manager cache. Use setdefault so an
+    # externally provided IDF_COMPONENT_CACHE_PATH (e.g. CI pointing it at a
+    # cacheable location outside the build dir) is respected.
+    os.environ.setdefault(
+        "IDF_COMPONENT_CACHE_PATH", str(CORE.relative_internal_path(".espressif"))
     )
 
     # Both ESP-IDF and ESP32 Arduino builds generate IDF app metadata. Keep

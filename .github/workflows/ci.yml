@@ -475,6 +475,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       # esp32-arduino-tidy installs ESP-IDF natively; share the native IDF cache.
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
+      IDF_COMPONENT_CACHE_PATH: ~/.esphome-idf-components
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -526,6 +527,14 @@ jobs:
         uses: ./.github/actions/cache-esp-idf
         with:
           framework: arduino
+
+      - name: Cache IDF components
+        # The ESP32 Arduino tidy build pulls the full esphome/idf_component.yml
+        # manifest, so it's the single dev-branch writer of the shared cache.
+        if: matrix.cache_idf
+        uses: ./.github/actions/cache-idf-components
+        with:
+          save: "true"
 
       - name: Register problem matchers
         run: |
@@ -580,6 +589,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       # esp32-idf-tidy installs ESP-IDF natively; share the native IDF cache.
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
+      IDF_COMPONENT_CACHE_PATH: ~/.esphome-idf-components
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -595,6 +605,9 @@ jobs:
 
       - name: Cache ESP-IDF install
         uses: ./.github/actions/cache-esp-idf
+
+      - name: Cache IDF components
+        uses: ./.github/actions/cache-idf-components
 
       - name: Register problem matchers
         run: |
@@ -648,6 +661,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       # esp32-idf-tidy installs ESP-IDF natively; share the native IDF cache.
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
+      IDF_COMPONENT_CACHE_PATH: ~/.esphome-idf-components
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -678,6 +692,9 @@ jobs:
 
       - name: Cache ESP-IDF install
         uses: ./.github/actions/cache-esp-idf
+
+      - name: Cache IDF components
+        uses: ./.github/actions/cache-idf-components
 
       - name: Register problem matchers
         run: |
@@ -731,6 +748,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       # The variant tidy envs install ESP-IDF natively; share the native IDF cache.
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
+      IDF_COMPONENT_CACHE_PATH: ~/.esphome-idf-components
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -765,6 +783,9 @@ jobs:
 
       - name: Cache ESP-IDF install
         uses: ./.github/actions/cache-esp-idf
+
+      - name: Cache IDF components
+        uses: ./.github/actions/cache-idf-components
 
       - name: Register problem matchers
         run: |
@@ -817,6 +838,7 @@ jobs:
       # esp32 component builds use the native ESP-IDF toolchain (default), so
       # share the tidy jobs' install location -- the restore below lands here.
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
+      IDF_COMPONENT_CACHE_PATH: ~/.esphome-idf-components
     strategy:
       fail-fast: false
       max-parallel: ${{ (startsWith(github.base_ref, 'beta') || startsWith(github.base_ref, 'release')) && 8 || 4 }}
@@ -850,6 +872,8 @@ jobs:
         uses: ./.github/actions/cache-esp-idf
         with:
           restore-only: true
+      - name: Cache IDF components (restore-only)
+        uses: ./.github/actions/cache-idf-components
       - name: Validate and compile components with intelligent grouping
         run: |
           . venv/bin/activate
@@ -966,6 +990,7 @@ jobs:
       # Single source of truth -- the full list lives in
       # script/determine-jobs.py::ESP32_PLATFORMIO_TEST_COMPONENTS.
       TEST_COMPONENTS: ${{ needs.determine-jobs.outputs.esp32-platformio-components }}
+      IDF_COMPONENT_CACHE_PATH: ~/.esphome-idf-components
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -975,6 +1000,9 @@ jobs:
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
+
+      - name: Cache IDF components (restore-only)
+        uses: ./.github/actions/cache-idf-components
 
       - name: Run PlatformIO compile test
         run: |

@@ -1,0 +1,39 @@
+name: Cache IDF components
+description: >
+  Cache the ESP-IDF component manager download cache -- the managed components
+  pulled from the registry that are listed in esphome/idf_component.yml (mdns,
+  esp32-camera, lvgl, esp-dsp, ...). Shared by every job that builds ESP-IDF
+  (tidy + component matrix). Keyed on a hash of the committed manifest, so it
+  invalidates only when a component is added or bumped. Written by a single
+  dev-branch job (the ESP32 Arduino tidy build, which materializes the full
+  manifest superset); all other jobs are restore-only. Callers must set env
+  IDF_COMPONENT_CACHE_PATH: ~/.esphome-idf-components.
+inputs:
+  save:
+    description: >
+      Set "true" on the single dev-branch writer (ESP32 Arduino tidy). All
+      other jobs leave the default so they only restore -- they never push a
+      partial component set into the shared key.
+    default: "false"
+runs:
+  using: composite
+  steps:
+    # actions/cache never overwrites an existing key, so a stable manifest hash
+    # means one entry per distinct manifest: the writer's save is a no-op when
+    # unchanged, and a component bump writes a fresh key while the old one ages
+    # out via the 7-day / 10GB-LRU eviction. PRs stay restore-only so they never
+    # consume their own scope's quota.
+    - name: Cache IDF components (write on dev)
+      if: inputs.save == 'true' && github.ref == 'refs/heads/dev'
+      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: ~/.esphome-idf-components
+        key: ${{ runner.os }}-idf-components-${{ hashFiles('esphome/idf_component.yml') }}
+        restore-keys: ${{ runner.os }}-idf-components-
+    - name: Cache IDF components (restore-only)
+      if: inputs.save != 'true' || github.ref != 'refs/heads/dev'
+      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: ~/.esphome-idf-components
+        key: ${{ runner.os }}-idf-components-${{ hashFiles('esphome/idf_component.yml') }}
+        restore-keys: ${{ runner.os }}-idf-components-
