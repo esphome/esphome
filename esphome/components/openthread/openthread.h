@@ -105,7 +105,8 @@ class InstanceLock {
 
   explicit operator bool() const { return this->owns_; }
 
-  // Returns the global openthread instance guarded by this lock
+  // Returns the global openthread instance. Only valid on an owning guard
+  // (operator bool is true); the instance must not be used without the lock held.
   otInstance *get_instance();
 
  private:
