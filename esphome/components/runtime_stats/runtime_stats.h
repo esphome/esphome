@@ -17,7 +17,7 @@ namespace runtime_stats {
 
 static const char *const TAG = "runtime_stats";
 
-class RuntimeStatsCollector {
+class RuntimeStatsCollector final {
  public:
   RuntimeStatsCollector();
 
