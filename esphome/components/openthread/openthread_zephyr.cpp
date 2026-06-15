@@ -111,21 +111,21 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
   return addresses;
 }
 
-std::optional<InstanceLock> InstanceLock::try_acquire(int delay) {
+InstanceLock InstanceLock::try_acquire(int delay) {
   if (global_openthread_component == nullptr || !global_openthread_component->is_lock_initialized()) {
-    return {};
+    return InstanceLock(false);
   }
   struct openthread_context *ot_context = openthread_get_default_context();
   if (k_mutex_lock(&ot_context->api_lock, K_MSEC(delay)) == 0) {
-    return InstanceLock();
+    return InstanceLock(true);
   }
-  return {};
+  return InstanceLock(false);
 }
 
 InstanceLock InstanceLock::acquire() {
   struct openthread_context *ot_context = openthread_get_default_context();
   k_mutex_lock(&ot_context->api_lock, K_FOREVER);
-  return InstanceLock();
+  return InstanceLock(true);
 }
 
 otInstance *InstanceLock::get_instance() { return openthread_get_default_instance(); }
