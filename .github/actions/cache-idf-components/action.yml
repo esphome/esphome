@@ -7,8 +7,8 @@ description: >
   a hash of the committed manifest, so it invalidates when a component (or the
   generated arduino-esp32 dep) is added or bumped. Written by a single
   dev-branch job (the ESP32 Arduino tidy build, which materializes the full
-  manifest superset); all other jobs are restore-only. Callers must set env
-  IDF_COMPONENT_CACHE_PATH: ~/.esphome-idf-components.
+  manifest superset); all other jobs are restore-only. Exports an absolute
+  IDF_COMPONENT_CACHE_PATH to $GITHUB_ENV for the build steps.
 inputs:
   save:
     description: >
@@ -30,6 +30,9 @@ runs:
         version=$(python -c 'from esphome.components.esp32 import ARDUINO_FRAMEWORK_VERSION_LOOKUP as L; print(L["recommended"])')
         hash=$( { printf '%s\n' "$version"; cat esphome/idf_component.yml; } | sha256sum | cut -d' ' -f1)
         echo "hash=$hash" >> "$GITHUB_OUTPUT"
+        # Export an absolute path: the component manager and git use this value
+        # literally (no shell ~ expansion), unlike actions/cache's path: input.
+        echo "IDF_COMPONENT_CACHE_PATH=$HOME/.esphome-idf-components" >> "$GITHUB_ENV"
     # actions/cache never overwrites an existing key, so a stable key means one
     # entry per distinct (arduino version, manifest) pair: the writer's save is a
     # no-op when unchanged, and a bump writes a fresh key while the old one ages

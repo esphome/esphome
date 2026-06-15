@@ -475,7 +475,6 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       # esp32-arduino-tidy installs ESP-IDF natively; share the native IDF cache.
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
-      IDF_COMPONENT_CACHE_PATH: ~/.esphome-idf-components
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -589,7 +588,6 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       # esp32-idf-tidy installs ESP-IDF natively; share the native IDF cache.
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
-      IDF_COMPONENT_CACHE_PATH: ~/.esphome-idf-components
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -661,7 +659,6 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       # esp32-idf-tidy installs ESP-IDF natively; share the native IDF cache.
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
-      IDF_COMPONENT_CACHE_PATH: ~/.esphome-idf-components
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -748,7 +745,6 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       # The variant tidy envs install ESP-IDF natively; share the native IDF cache.
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
-      IDF_COMPONENT_CACHE_PATH: ~/.esphome-idf-components
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -838,7 +834,6 @@ jobs:
       # esp32 component builds use the native ESP-IDF toolchain (default), so
       # share the tidy jobs' install location -- the restore below lands here.
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
-      IDF_COMPONENT_CACHE_PATH: ~/.esphome-idf-components
     strategy:
       fail-fast: false
       max-parallel: ${{ (startsWith(github.base_ref, 'beta') || startsWith(github.base_ref, 'release')) && 8 || 4 }}
@@ -990,7 +985,6 @@ jobs:
       # Single source of truth -- the full list lives in
       # script/determine-jobs.py::ESP32_PLATFORMIO_TEST_COMPONENTS.
       TEST_COMPONENTS: ${{ needs.determine-jobs.outputs.esp32-platformio-components }}
-      IDF_COMPONENT_CACHE_PATH: ~/.esphome-idf-components
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
