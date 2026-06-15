@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import logging
 
 from esphome import automation, pins
+from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.network import ip_address_literal
 from esphome.config_helpers import filter_source_files_from_platform
@@ -13,6 +14,7 @@ from esphome.const import (
     CONF_DNS1,
     CONF_DNS2,
     CONF_DOMAIN,
+    CONF_ENABLE_ON_BOOT,
     CONF_GATEWAY,
     CONF_ID,
     CONF_INTERRUPT_PIN,
@@ -36,7 +38,6 @@ from esphome.const import (
     CONF_VALUE,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
-    KEY_NATIVE_IDF,
     Platform,
     PlatformFramework,
 )
@@ -164,7 +165,7 @@ _IDF6_ETHERNET_COMPONENTS: dict[str, IDFRegistryComponent] = {
     "KSZ8081": IDFRegistryComponent("espressif/ksz80xx", "1.0.0"),
     "KSZ8081RNA": IDFRegistryComponent("espressif/ksz80xx", "1.0.0"),
     "W5500": IDFRegistryComponent("espressif/w5500", "1.0.1"),
-    "DM9051": IDFRegistryComponent("espressif/dm9051", "1.0.0"),
+    "DM9051": IDFRegistryComponent("espressif/dm9051", "1.1.0"),
     "ENC28J60": IDFRegistryComponent("espressif/enc28j60", "1.0.1"),
     "LAN8670": IDFRegistryComponent("espressif/lan867x", "2.0.0"),
 }
@@ -218,6 +219,10 @@ MANUAL_IP_SCHEMA = cv.Schema(
 
 EthernetComponent = ethernet_ns.class_("EthernetComponent", cg.Component)
 ManualIP = ethernet_ns.struct("ManualIP")
+EthernetConnectedCondition = ethernet_ns.class_("EthernetConnectedCondition", Condition)
+EthernetEnabledCondition = ethernet_ns.class_("EthernetEnabledCondition", Condition)
+EthernetEnableAction = ethernet_ns.class_("EthernetEnableAction", automation.Action)
+EthernetDisableAction = ethernet_ns.class_("EthernetDisableAction", automation.Action)
 
 
 def _is_framework_spi_polling_mode_supported() -> bool:
@@ -349,6 +354,7 @@ BASE_SCHEMA = cv.Schema(
         cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
         cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
         cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
+        cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
         cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(single=True),
     }
@@ -495,6 +501,9 @@ async def to_code(config):
 
     cg.add(var.set_type(ETHERNET_TYPES[config[CONF_TYPE]]))
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
+    # enable_on_boot defaults to true in C++ - only set if false
+    if not config[CONF_ENABLE_ON_BOOT]:
+        cg.add(var.set_enable_on_boot(False))
     CORE.data.setdefault(KEY_ETHERNET, {})[ETHERNET_TYPE_KEY] = config[CONF_TYPE]
 
     if CONF_MANUAL_IP in config:
@@ -705,7 +714,7 @@ def _filter_source_files() -> list[str]:
     # and pioarduino doesn't have it builtin (IDF 5.4.2 to 5.x)
     if eth_type != "JL1101":
         excluded.append("esp_eth_phy_jl1101.c")
-    elif CORE.is_esp32 and not CORE.data.get(KEY_NATIVE_IDF, False):
+    elif CORE.is_esp32 and not CORE.using_toolchain_esp_idf:
         from esphome.components.esp32 import idf_version
 
         # pioarduino has JL1101 builtin on IDF 5.4.2-5.x; exclude custom driver
@@ -716,3 +725,21 @@ def _filter_source_files() -> list[str]:
 
 
 FILTER_SOURCE_FILES = _filter_source_files
+
+
+async def _new_pvariable_to_code(config, id_, template_arg, args):
+    return cg.new_Pvariable(id_, template_arg)
+
+
+for _name, _cls in (
+    ("ethernet.connected", EthernetConnectedCondition),
+    ("ethernet.enabled", EthernetEnabledCondition),
+):
+    automation.register_condition(_name, _cls, cv.Schema({}))(_new_pvariable_to_code)
+for _name, _cls in (
+    ("ethernet.enable", EthernetEnableAction),
+    ("ethernet.disable", EthernetDisableAction),
+):
+    automation.register_action(_name, _cls, cv.Schema({}), synchronous=True)(
+        _new_pvariable_to_code
+    )

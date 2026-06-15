@@ -72,17 +72,35 @@ APIUnregisterServiceCallAction = api_ns.class_(
 
 UserServiceTrigger = api_ns.class_("UserServiceTrigger", automation.Trigger)
 ListEntitiesServicesArgument = api_ns.class_("ListEntitiesServicesArgument")
-SERVICE_ARG_NATIVE_TYPES: dict[str, MockObj] = {
+# Owning element type for each YAML service variable type.  Used to derive both
+# the zero-copy native types and the owning fallback types below.
+_SERVICE_ARG_SCALAR_TYPES: dict[str, MockObj] = {
     "bool": cg.bool_,
     "int": cg.int32,
     "float": cg.float_,
+    "string": cg.std_string,
+}
+SERVICE_ARG_NATIVE_TYPES: dict[str, MockObj] = {
+    # Scalars are passed by value; string uses a non-owning view into rx_buf_.
+    **_SERVICE_ARG_SCALAR_TYPES,
     "string": cg.StringRef,
-    "bool[]": cg.FixedVector.template(cg.bool_).operator("const").operator("ref"),
-    "int[]": cg.FixedVector.template(cg.int32).operator("const").operator("ref"),
-    "float[]": cg.FixedVector.template(cg.float_).operator("const").operator("ref"),
-    "string[]": cg.FixedVector.template(cg.std_string)
-    .operator("const")
-    .operator("ref"),
+    # Arrays are passed as non-owning const references into rx_buf_.
+    **{
+        f"{name}[]": cg.FixedVector.template(t).operator("const").operator("ref")
+        for name, t in _SERVICE_ARG_SCALAR_TYPES.items()
+    },
+}
+# Owning fallback types used when the action chain contains non-synchronous actions
+# (delay, wait_until, script.wait, etc.).  The default non-owning types reference
+# storage in the receive buffer, which is reused once the synchronous portion of
+# the chain returns.  FixedVector is also non-copyable, so the deferred lambda
+# capture in DelayAction::play_complex would fail to compile.
+SERVICE_ARG_FALLBACK_TYPES: dict[str, MockObj] = {
+    "string": cg.std_string,
+    **{
+        f"{name}[]": cg.std_vector.template(t)
+        for name, t in _SERVICE_ARG_SCALAR_TYPES.items()
+    },
 }
 CONF_ENCRYPTION = "encryption"
 CONF_BATCH_DELAY = "batch_delay"
@@ -216,7 +234,7 @@ ACTIONS_SCHEMA = automation.validate_automation(
 
 ENCRYPTION_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_KEY): validate_encryption_key,
+        cv.Optional(CONF_KEY): cv.sensitive(validate_encryption_key),
     }
 )
 
@@ -291,12 +309,12 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(
                 CONF_MAX_CONNECTIONS,
                 esp8266=4,  # ~40KB free RAM, each connection uses ~500-1000 bytes
-                esp32=8,  # 520KB RAM available
+                esp32=5,  # 520KB RAM available
                 rp2040=4,  # 264KB RAM but LWIP constraints
-                bk72xx=8,  # Moderate RAM
-                rtl87xx=8,  # Moderate RAM
+                bk72xx=5,  # Moderate RAM
+                rtl87xx=5,  # Moderate RAM
                 host=8,  # Abundant resources
-                ln882x=8,  # Moderate RAM
+                ln882x=5,  # Moderate RAM
             ): cv.int_range(min=1, max=20),
             # Maximum queued send buffers per connection before dropping connection
             # Each buffer uses ~8-12 bytes overhead plus actual message size
@@ -336,8 +354,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_batch_delay(config[CONF_BATCH_DELAY]))
     if CONF_LISTEN_BACKLOG in config:
         cg.add(var.set_listen_backlog(config[CONF_LISTEN_BACKLOG]))
-    if CONF_MAX_CONNECTIONS in config:
-        cg.add(var.set_max_connections(config[CONF_MAX_CONNECTIONS]))
+    cg.add_define("MAX_API_CONNECTIONS", config[CONF_MAX_CONNECTIONS])
     cg.add_define("API_MAX_SEND_QUEUE", config[CONF_MAX_SEND_QUEUE])
 
     # Set USE_API_USER_DEFINED_ACTIONS if any services are enabled
@@ -382,17 +399,20 @@ async def to_code(config: ConfigType) -> None:
                     func_args.append((cg.bool_, "return_response"))
 
             # Check if action chain has non-synchronous actions that would make
-            # non-owning StringRef dangle (rx_buf_ reused after delay)
+            # non-owning args (StringRef, const FixedVector&) dangle once the
+            # rx_buf_ is reused after a delay/wait_until/script.wait/etc.  The
+            # FixedVector references would also fail to compile because they
+            # are non-copyable and DelayAction captures args by value.
             has_non_synchronous = automation.has_non_synchronous_actions(
                 conf.get(CONF_THEN, [])
             )
 
             service_arg_names: list[str] = []
             for name, var_ in conf[CONF_VARIABLES].items():
-                native = SERVICE_ARG_NATIVE_TYPES[var_]
-                # Fall back to std::string for string args if non-synchronous actions exist
-                if has_non_synchronous and native is cg.StringRef:
-                    native = cg.std_string
+                if has_non_synchronous and var_ in SERVICE_ARG_FALLBACK_TYPES:
+                    native = SERVICE_ARG_FALLBACK_TYPES[var_]
+                else:
+                    native = SERVICE_ARG_NATIVE_TYPES[var_]
                 service_template_args.append(native)
                 func_args.append((native, name))
                 service_arg_names.append(name)

@@ -18,8 +18,7 @@
 
 #include <esp_gatts_api.h>
 
-namespace esphome {
-namespace esp32_ble_server {
+namespace esphome::esp32_ble_server {
 
 using namespace esp32_ble;
 using namespace bytebuffer;
@@ -113,7 +112,6 @@ class BLEServer : public Component, public Parented<ESP32BLE> {
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern BLEServer *global_ble_server;
 
-}  // namespace esp32_ble_server
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_server
 
 #endif

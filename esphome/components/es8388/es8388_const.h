@@ -1,8 +1,7 @@
 #pragma once
 #include <cstdint>
 
-namespace esphome {
-namespace es8388 {
+namespace esphome::es8388 {
 
 /* ES8388 register */
 static const uint8_t ES8388_CONTROL1 = 0x00;
@@ -79,5 +78,4 @@ static const uint8_t ES8388_ADC_INPUT_MIC2 = 0x06;
 static const uint8_t ES8388_ADC_INPUT_LINPUT2_RINPUT2 = 0x50;
 static const uint8_t ES8388_ADC_INPUT_DIFFERENCE = 0xf0;
 
-}  // namespace es8388
-}  // namespace esphome
+}  // namespace esphome::es8388

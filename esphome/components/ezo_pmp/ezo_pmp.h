@@ -17,8 +17,7 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
 
-namespace esphome {
-namespace ezo_pmp {
+namespace esphome::ezo_pmp {
 
 class EzoPMP : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -247,5 +246,4 @@ template<typename... Ts> class EzoPMPArbitraryCommandAction : public Action<Ts..
   EzoPMP *ezopmp_;
 };
 
-}  // namespace ezo_pmp
-}  // namespace esphome
+}  // namespace esphome::ezo_pmp

@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/spi/spi.h"
 
-namespace esphome {
-namespace mcp3204 {
+namespace esphome::mcp3204 {
 
 class MCP3204 : public Component,
                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
@@ -24,5 +23,4 @@ class MCP3204 : public Component,
   float reference_voltage_;
 };
 
-}  // namespace mcp3204
-}  // namespace esphome
+}  // namespace esphome::mcp3204

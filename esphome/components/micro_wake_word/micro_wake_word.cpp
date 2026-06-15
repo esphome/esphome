@@ -13,8 +13,7 @@
 #include "esphome/components/ota/ota_backend.h"
 #endif
 
-namespace esphome {
-namespace micro_wake_word {
+namespace esphome::micro_wake_word {
 
 static const char *const TAG = "micro_wake_word";
 
@@ -24,11 +23,18 @@ static const size_t DATA_TIMEOUT_MS = 50;
 
 static const uint32_t RING_BUFFER_DURATION_MS = 120;
 
+#ifdef CONFIG_IDF_TARGET_ESP32P4
+// ESP32-P4 PIE-optimized esp-nn kernels (e.g. depthwise_conv_s8_ch1_pie) require
+// significantly more stack than other variants, causing stack protection faults at 3072.
+static const uint32_t INFERENCE_TASK_STACK_SIZE = 8192;
+#else
 static const uint32_t INFERENCE_TASK_STACK_SIZE = 3072;
+#endif
 static const UBaseType_t INFERENCE_TASK_PRIORITY = 3;
 
 enum EventGroupBits : uint32_t {
-  COMMAND_STOP = (1 << 0),  // Signals the inference task should stop
+  COMMAND_STOP = (1 << 0),               // Signals the inference task should stop
+  COMMAND_RESET_RING_BUFFER = (1 << 1),  // Signals the inference task to discard buffered audio
 
   TASK_STARTING = (1 << 3),
   TASK_RUNNING = (1 << 4),
@@ -107,15 +113,15 @@ void MicroWakeWord::setup() {
     if (this->state_ == State::STOPPED) {
       return;
     }
-    std::shared_ptr<RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
     if (this->ring_buffer_.use_count() > 1) {
-      size_t bytes_free = temp_ring_buffer->free();
-
-      if (bytes_free < data.size()) {
-        xEventGroupSetBits(this->event_group_, EventGroupBits::WARNING_FULL_RING_BUFFER);
-        temp_ring_buffer->reset();
+      // Producer-only write: never touches consumer state. If the buffer is full, ask the inference task
+      // to drain it - reset() is a consumer operation and must run on the inference task's thread.
+      // Disable partial writes so audio chunks are either fully accepted or rejected and handled below.
+      if (temp_ring_buffer->write_without_replacement(data.data(), data.size(), 0, false) == 0) {
+        xEventGroupSetBits(this->event_group_,
+                           EventGroupBits::WARNING_FULL_RING_BUFFER | EventGroupBits::COMMAND_RESET_RING_BUFFER);
       }
-      temp_ring_buffer->write((void *) data.data(), data.size());
     }
   });
 
@@ -141,56 +147,65 @@ void MicroWakeWord::inference_task(void *params) {
 
   {  // Ensures any C++ objects fall out of scope to deallocate before deleting the task
 
-    const size_t new_bytes_to_process =
-        this_mww->microphone_source_->get_audio_stream_info().ms_to_bytes(this_mww->features_step_size_);
-    std::unique_ptr<audio::AudioSourceTransferBuffer> audio_buffer;
+    const auto &stream_info = this_mww->microphone_source_->get_audio_stream_info();
+    const size_t bytes_per_frame = stream_info.frames_to_bytes(1);
+    const size_t max_fill_bytes = stream_info.ms_to_bytes(this_mww->features_step_size_);
+    std::unique_ptr<audio::RingBufferAudioSource> audio_source;
     int8_t features_buffer[PREPROCESSOR_FEATURE_SIZE];
 
     if (!(xEventGroupGetBits(this_mww->event_group_) & ERROR_BITS)) {
-      // Allocate audio transfer buffer
-      audio_buffer = audio::AudioSourceTransferBuffer::create(new_bytes_to_process);
-
-      if (audio_buffer == nullptr) {
+      // Round ring buffer size down to a frame multiple so the wrap boundary never splits an int16 sample.
+      const size_t ring_buffer_size =
+          (stream_info.ms_to_bytes(RING_BUFFER_DURATION_MS) / bytes_per_frame) * bytes_per_frame;
+      std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(ring_buffer_size);
+      if (temp_ring_buffer == nullptr) {
         xEventGroupSetBits(this_mww->event_group_, EventGroupBits::ERROR_MEMORY);
+      } else {
+        audio_source = audio::RingBufferAudioSource::create(temp_ring_buffer, max_fill_bytes,
+                                                            static_cast<uint8_t>(bytes_per_frame));
+        if (audio_source == nullptr) {
+          xEventGroupSetBits(this_mww->event_group_, EventGroupBits::ERROR_MEMORY);
+        } else {
+          this_mww->ring_buffer_ = temp_ring_buffer;
+        }
       }
-    }
-
-    if (!(xEventGroupGetBits(this_mww->event_group_) & ERROR_BITS)) {
-      // Allocate ring buffer
-      std::shared_ptr<RingBuffer> temp_ring_buffer = RingBuffer::create(
-          this_mww->microphone_source_->get_audio_stream_info().ms_to_bytes(RING_BUFFER_DURATION_MS));
-      if (temp_ring_buffer.use_count() == 0) {
-        xEventGroupSetBits(this_mww->event_group_, EventGroupBits::ERROR_MEMORY);
-      }
-      audio_buffer->set_source(temp_ring_buffer);
-      this_mww->ring_buffer_ = temp_ring_buffer;
     }
 
     if (!(xEventGroupGetBits(this_mww->event_group_) & ERROR_BITS)) {
       this_mww->microphone_source_->start();
       xEventGroupSetBits(this_mww->event_group_, EventGroupBits::TASK_RUNNING);
 
-      while (!(xEventGroupGetBits(this_mww->event_group_) & COMMAND_STOP)) {
-        audio_buffer->transfer_data_from_source(pdMS_TO_TICKS(DATA_TIMEOUT_MS));
-
-        if (audio_buffer->available() < new_bytes_to_process) {
-          // Insufficient data to generate new spectrogram features, read more next iteration
-          continue;
+      while (!(xEventGroupGetBits(this_mww->event_group_) & (COMMAND_STOP | ERROR_BITS))) {
+        if (xEventGroupGetBits(this_mww->event_group_) & EventGroupBits::COMMAND_RESET_RING_BUFFER) {
+          // Producer asked us to drain; run the consumer-side reset from this thread.
+          audio_source->clear_buffered_data();
+          xEventGroupClearBits(this_mww->event_group_, EventGroupBits::COMMAND_RESET_RING_BUFFER);
         }
 
-        // Generate new spectrogram features
-        uint32_t processed_samples = this_mww->generate_features_(
-            (int16_t *) audio_buffer->get_buffer_start(), audio_buffer->available() / sizeof(int16_t), features_buffer);
-        audio_buffer->decrease_buffer_length(processed_samples * sizeof(int16_t));
+        audio_source->fill(pdMS_TO_TICKS(DATA_TIMEOUT_MS), false);
 
-        // Run inference using the new spectorgram features
-        if (!this_mww->update_model_probabilities_(features_buffer)) {
-          xEventGroupSetBits(this_mww->event_group_, EventGroupBits::ERROR_INFERENCE);
-          break;
+        // The frontend buffers samples internally and only emits a feature once it has a full window, so we can
+        // hand it whatever the source exposes. The frontend consumes at least one sample per call, so available()
+        // strictly decreases and this loop always terminates.
+        while (audio_source->available() >= sizeof(int16_t)) {
+          const size_t samples_available = audio_source->available() / sizeof(int16_t);
+          const int16_t *audio_data = reinterpret_cast<const int16_t *>(audio_source->data());
+
+          size_t processed_samples = 0;
+          const bool feature_generated =
+              this_mww->generate_features_(audio_data, samples_available, features_buffer, &processed_samples);
+          audio_source->consume(processed_samples * sizeof(int16_t));
+
+          if (feature_generated) {
+            if (!this_mww->update_model_probabilities_(features_buffer)) {
+              xEventGroupSetBits(this_mww->event_group_, EventGroupBits::ERROR_INFERENCE);
+              break;
+            }
+
+            // Process each model's probabilities and possibly send a Detection Event to the queue
+            this_mww->process_probabilities_();
+          }
         }
-
-        // Process each model's probabilities and possibly send a Detection Event to the queue
-        this_mww->process_probabilities_();
       }
     }
   }
@@ -202,10 +217,7 @@ void MicroWakeWord::inference_task(void *params) {
   FrontendFreeStateContents(&this_mww->frontend_state_);
 
   xEventGroupSetBits(this_mww->event_group_, EventGroupBits::TASK_STOPPED);
-  while (true) {
-    // Continuously delay until the main loop deletes the task
-    delay(10);
-  }
+  vTaskSuspend(nullptr);  // Suspend this task indefinitely until the loop method deletes it
 }
 
 std::vector<WakeWordModel *> MicroWakeWord::get_wake_words() {
@@ -228,14 +240,14 @@ void MicroWakeWord::add_vad_model(const uint8_t *model_start, uint8_t probabilit
 #endif
 
 void MicroWakeWord::suspend_task_() {
-  if (this->inference_task_handle_ != nullptr) {
-    vTaskSuspend(this->inference_task_handle_);
+  if (this->inference_task_.is_created()) {
+    vTaskSuspend(this->inference_task_.get_handle());
   }
 }
 
 void MicroWakeWord::resume_task_() {
-  if (this->inference_task_handle_ != nullptr) {
-    vTaskResume(this->inference_task_handle_);
+  if (this->inference_task_.is_created()) {
+    vTaskResume(this->inference_task_.get_handle());
   }
 }
 
@@ -277,8 +289,7 @@ void MicroWakeWord::loop() {
 
   if ((event_group_bits & EventGroupBits::TASK_STOPPED)) {
     ESP_LOGD(TAG, "Inference task is finished, freeing task resources");
-    vTaskDelete(this->inference_task_handle_);
-    this->inference_task_handle_ = nullptr;
+    this->inference_task_.deallocate();
     xEventGroupClearBits(this->event_group_, ALL_BITS);
     xQueueReset(this->detection_queue_);
     this->set_state_(State::STOPPED);
@@ -296,7 +307,7 @@ void MicroWakeWord::loop() {
 
   switch (this->state_) {
     case State::STARTING:
-      if ((this->inference_task_handle_ == nullptr) && !this->status_has_error()) {
+      if (!this->inference_task_.is_created() && !this->status_has_error()) {
         // Setup preprocesor feature generator. If done in the task, it would lock the task to its initial core, as it
         // uses floating point operations.
         if (!FrontendPopulateState(&this->frontend_config_, &this->frontend_state_,
@@ -305,10 +316,8 @@ void MicroWakeWord::loop() {
           return;
         }
 
-        xTaskCreate(MicroWakeWord::inference_task, "mww", INFERENCE_TASK_STACK_SIZE, (void *) this,
-                    INFERENCE_TASK_PRIORITY, &this->inference_task_handle_);
-
-        if (this->inference_task_handle_ == nullptr) {
+        if (!this->inference_task_.create(MicroWakeWord::inference_task, "mww", INFERENCE_TASK_STACK_SIZE,
+                                          (void *) this, INFERENCE_TASK_PRIORITY, this->task_stack_in_psram_)) {
           FrontendFreeStateContents(&this->frontend_state_);  // Deallocate frontend state
           this->status_momentary_error("task_start", 1000);
         }
@@ -381,11 +390,15 @@ void MicroWakeWord::set_state_(State state) {
   }
 }
 
-size_t MicroWakeWord::generate_features_(int16_t *audio_buffer, size_t samples_available,
-                                         int8_t features_buffer[PREPROCESSOR_FEATURE_SIZE]) {
-  size_t processed_samples = 0;
+bool MicroWakeWord::generate_features_(const int16_t *audio_buffer, size_t samples_available,
+                                       int8_t features_buffer[PREPROCESSOR_FEATURE_SIZE], size_t *processed_samples) {
+  *processed_samples = 0;
   struct FrontendOutput frontend_output =
-      FrontendProcessSamples(&this->frontend_state_, audio_buffer, samples_available, &processed_samples);
+      FrontendProcessSamples(&this->frontend_state_, audio_buffer, samples_available, processed_samples);
+
+  if (frontend_output.size == 0) {
+    return false;
+  }
 
   for (size_t i = 0; i < frontend_output.size; ++i) {
     // These scaling values are set to match the TFLite audio frontend int8 output.
@@ -410,7 +423,7 @@ size_t MicroWakeWord::generate_features_(int16_t *audio_buffer, size_t samples_a
     features_buffer[i] = static_cast<int8_t>(clamp<int32_t>(value, INT8_MIN, INT8_MAX));
   }
 
-  return processed_samples;
+  return true;
 }
 
 void MicroWakeWord::process_probabilities_() {
@@ -468,7 +481,6 @@ bool MicroWakeWord::update_model_probabilities_(const int8_t audio_features[PREP
   return success;
 }
 
-}  // namespace micro_wake_word
-}  // namespace esphome
+}  // namespace esphome::micro_wake_word
 
 #endif  // USE_ESP32

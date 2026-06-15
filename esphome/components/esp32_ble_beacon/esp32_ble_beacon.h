@@ -10,8 +10,7 @@
 #endif
 #include <esp_gap_ble_api.h>
 
-namespace esphome {
-namespace esp32_ble_beacon {
+namespace esphome::esp32_ble_beacon {
 
 using esp_ble_ibeacon_head_t = struct {
   uint8_t flags[3];
@@ -69,7 +68,6 @@ class ESP32BLEBeacon : public Component {
   bool advertising_{false};
 };
 
-}  // namespace esp32_ble_beacon
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_beacon
 
 #endif

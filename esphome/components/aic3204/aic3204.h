@@ -6,8 +6,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace aic3204 {
+namespace esphome::aic3204 {
 
 // TLV320AIC3204 Register Addresses
 // Page 0
@@ -83,5 +82,4 @@ class AIC3204 : public audio_dac::AudioDac, public Component, public i2c::I2CDev
   float volume_{0};
 };
 
-}  // namespace aic3204
-}  // namespace esphome
+}  // namespace esphome::aic3204

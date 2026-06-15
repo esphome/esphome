@@ -49,5 +49,12 @@ if bashio::fs.directory_exists '/config/esphome/.esphome'; then
     rm -rf /config/esphome/.esphome
 fi
 
+if bashio::config.true 'use_new_device_builder'; then
+    bashio::log.info "Starting ESPHome Device Builder..."
+    exec esphome-device-builder /config/esphome \
+        --ha-addon \
+        --ingress-port "$(bashio::addon.ingress_port)"
+fi
+
 bashio::log.info "Starting ESPHome dashboard..."
 exec esphome dashboard /config/esphome --socket /var/run/esphome.sock --ha-addon

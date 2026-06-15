@@ -2,8 +2,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace airthings_wave_mini {
+namespace esphome::airthings_wave_mini {
 
 static const char *const TAG = "airthings_wave_mini";
 
@@ -49,7 +48,6 @@ AirthingsWaveMini::AirthingsWaveMini() {
       espbt::ESPBTUUID::from_raw(ACCESS_CONTROL_POINT_CHARACTERISTIC_UUID);
 }
 
-}  // namespace airthings_wave_mini
-}  // namespace esphome
+}  // namespace esphome::airthings_wave_mini
 
 #endif  // USE_ESP32

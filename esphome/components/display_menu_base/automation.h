@@ -3,8 +3,7 @@
 #include "esphome/core/automation.h"
 #include "display_menu_base.h"
 
-namespace esphome {
-namespace display_menu_base {
+namespace esphome::display_menu_base {
 
 template<typename... Ts> class UpAction : public Action<Ts...> {
  public:
@@ -144,5 +143,4 @@ class DisplayMenuOnPrevTrigger : public Trigger<const MenuItem *> {
   MenuItemCustom *parent_;
 };
 
-}  // namespace display_menu_base
-}  // namespace esphome
+}  // namespace esphome::display_menu_base

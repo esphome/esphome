@@ -9,6 +9,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/millis_internal.h"
 #include "esphome/core/optional.h"
 
 // Forward declarations for friend access from codegen-generated setup()
@@ -64,7 +65,6 @@ inline constexpr uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
 /// with component-level NUMERIC_ID values, even if the uint32_t values overlap.
 enum class InternalSchedulerID : uint32_t {
   POLLING_UPDATE = 0,  // PollingComponent interval
-  DELAY_ACTION = 1,    // DelayAction timeout
 };
 
 // Forward declaration
@@ -116,6 +116,13 @@ struct ComponentRuntimeStats {
   uint64_t total_time_us{0};
   uint32_t total_max_time_us{0};
 
+  // Cumulative sum of every record_time() duration since boot, across all
+  // components. Used by Application::loop() to snapshot time spent inside
+  // WarnIfComponentBlockingGuard (including guards constructed by the
+  // scheduler at scheduler.cpp) so main-loop overhead accounting can
+  // subtract scheduled-callback time from the before_loop_tasks_ wall time.
+  static uint64_t global_recorded_us;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
   void record_time(uint32_t duration_us) {
     this->period_count++;
     this->period_time_us += duration_us;
@@ -125,6 +132,7 @@ struct ComponentRuntimeStats {
     this->total_time_us += duration_us;
     if (duration_us > this->total_max_time_us)
       this->total_max_time_us = duration_us;
+    global_recorded_us += duration_us;
   }
   void reset_period() {
     this->period_count = 0;
@@ -212,18 +220,6 @@ class Component {
    */
   void mark_failed();
 
-  // Remove before 2026.6.0
-  ESPDEPRECATED("Use mark_failed(LOG_STR(\"static string literal\")) instead. Do NOT use .c_str() from temporary "
-                "strings. Will stop working in 2026.6.0",
-                "2025.12.0")
-  void mark_failed(const char *message) {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-    this->status_set_error(message);
-#pragma GCC diagnostic pop
-    this->mark_failed();
-  }
-
   void mark_failed(const LogString *message) {
     this->status_set_error(message);
     this->mark_failed();
@@ -288,11 +284,6 @@ class Component {
   void status_set_warning(const LogString *message);
 
   void status_set_error();  // Set error flag without message
-  // Remove before 2026.6.0
-  ESPDEPRECATED("Use status_set_error(LOG_STR(\"static string literal\")) instead. Do NOT use .c_str() from temporary "
-                "strings. Will stop working in 2026.6.0",
-                "2025.12.0")
-  void status_set_error(const char *message);
   void status_set_error(const LogString *message);
 
   void status_clear_warning() {
@@ -593,7 +584,7 @@ class Component {
  */
 class PollingComponent : public Component {
  public:
-  PollingComponent() : PollingComponent(0) {}
+  PollingComponent() : PollingComponent(SCHEDULER_DONT_RUN) {}
 
   /** Initialize this polling component with the given update interval in ms.
    *
@@ -646,9 +637,17 @@ class WarnIfComponentBlockingGuard {
   // Inlined: the fast path is just millis() + subtract + compare
   inline uint32_t HOT finish() {
 #ifdef USE_RUNTIME_STATS
-    this->component_->runtime_stats_.record_time(micros() - this->started_us_);
+    uint32_t elapsed_us = micros() - this->started_us_;
+    // component_ is nullptr for self-keyed scheduler items (set_timeout/set_interval(self, ...))
+    if (this->component_ != nullptr) {
+      this->component_->runtime_stats_.record_time(elapsed_us);
+    } else {
+      // Still accumulate into the global counter so Application::loop() can subtract
+      // this time from before_loop_tasks_ wall time.
+      ComponentRuntimeStats::global_recorded_us += elapsed_us;
+    }
 #endif
-    uint32_t curr_time = millis();
+    uint32_t curr_time = MillisInternal::get();
 #ifndef USE_BENCHMARK
     // Fast path: compare against constant threshold in ms (computed at compile time from centiseconds)
     static constexpr uint32_t WARN_IF_BLOCKING_OVER_MS = static_cast<uint32_t>(WARN_IF_BLOCKING_OVER_CS) * 10U;

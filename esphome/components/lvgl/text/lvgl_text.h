@@ -4,8 +4,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace lvgl {
+namespace esphome::lvgl {
 
 class LVGLText : public text::Text {
  public:
@@ -29,5 +28,4 @@ class LVGLText : public text::Text {
   optional<std::string> initial_state_{};
 };
 
-}  // namespace lvgl
-}  // namespace esphome
+}  // namespace esphome::lvgl

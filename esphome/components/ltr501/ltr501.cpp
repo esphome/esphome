@@ -6,8 +6,7 @@
 
 using esphome::i2c::ErrorCode;
 
-namespace esphome {
-namespace ltr501 {
+namespace esphome::ltr501 {
 
 static const char *const TAG = "ltr501";
 
@@ -542,5 +541,4 @@ void LTRAlsPs501Component::publish_data_part_2_(AlsReadings &data) {
     this->actual_integration_time_sensor_->publish_state(get_itime_ms(data.integration_time));
   }
 }
-}  // namespace ltr501
-}  // namespace esphome
+}  // namespace esphome::ltr501

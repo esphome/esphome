@@ -5,8 +5,7 @@
 #include "esphome/components/output/float_output.h"
 #include "esphome/components/fan/fan.h"
 
-namespace esphome {
-namespace hbridge {
+namespace esphome::hbridge {
 
 enum DecayMode {
   DECAY_MODE_SLOW = 0,
@@ -56,5 +55,4 @@ template<typename... Ts> class BrakeAction : public Action<Ts...> {
   HBridgeFan *parent_;
 };
 
-}  // namespace hbridge
-}  // namespace esphome
+}  // namespace esphome::hbridge

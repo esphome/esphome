@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import CONF_B_CONSTANT
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
@@ -21,8 +22,6 @@ from esphome.const import (
 DEPENDENCIES = ["i2c"]
 
 lc709203f_ns = cg.esphome_ns.namespace("lc709203f")
-
-CONF_B_CONSTANT = "b_constant"
 
 LC709203FBatteryVoltage = lc709203f_ns.enum("LC709203FBatteryVoltage")
 BATTERY_VOLTAGE_OPTIONS = {

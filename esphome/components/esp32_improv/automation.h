@@ -7,8 +7,7 @@
 
 #include <improv.h>
 
-namespace esphome {
-namespace esp32_improv {
+namespace esphome::esp32_improv {
 
 class ESP32ImprovProvisionedTrigger : public Trigger<> {
  public:
@@ -81,7 +80,7 @@ class ESP32ImprovStoppedTrigger : public Trigger<> {
   ESP32ImprovComponent *parent_;
 };
 
-}  // namespace esp32_improv
-}  // namespace esphome
+}  // namespace esphome::esp32_improv
+
 #endif
 #endif

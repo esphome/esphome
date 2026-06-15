@@ -38,6 +38,13 @@ enum ZWaveParsingState : uint8_t {
   ZWAVE_PARSING_STATE_READ_BL_MENU,
 };
 
+// response_handler_()'s inline fast-path relies on SEND_ACK/CAN/NAK being contiguous in this
+// enum so a single range check (state - SEND_ACK < 3) is equivalent to three equality checks.
+static_assert(ZWAVE_PARSING_STATE_SEND_CAN == ZWAVE_PARSING_STATE_SEND_ACK + 1,
+              "SEND_CAN must immediately follow SEND_ACK for response_handler_ fast-path");
+static_assert(ZWAVE_PARSING_STATE_SEND_NAK == ZWAVE_PARSING_STATE_SEND_ACK + 2,
+              "SEND_NAK must immediately follow SEND_CAN for response_handler_ fast-path");
+
 enum ZWaveProxyFeature : uint32_t {
   FEATURE_ZWAVE_PROXY_ENABLED = 1 << 0,
 };
@@ -72,8 +79,31 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
   void send_simple_command_(uint8_t command_id);
   bool parse_byte_(uint8_t byte);  // Returns true if frame parsing was completed (a frame is ready in the buffer)
   void parse_start_(uint8_t byte);
-  bool response_handler_();
-  void process_uart_();  // Process all available UART data
+  // Inline fast-path: most calls happen with parsing_state_ outside the SEND_* range, so skip the
+  // out-of-line call entirely in the hot path (e.g. every loop() tick) and only pay for the real
+  // work when a response is actually pending. ESPHOME_ALWAYS_INLINE is required because with -Os
+  // gcc otherwise clones the wrapper into a shared $isra$ outline and keeps the call8.
+  ESPHOME_ALWAYS_INLINE bool response_handler_() {
+    if (this->parsing_state_ < ZWAVE_PARSING_STATE_SEND_ACK || this->parsing_state_ > ZWAVE_PARSING_STATE_SEND_NAK) {
+      return false;
+    }
+    return this->response_handler_slow_();
+  }
+  bool response_handler_slow_();
+  // Inline fast-path: UART::available() is cheap (ring-buffer head/tail compare on most backends).
+  // On an idle loop tick we want to skip the call to process_uart_ entirely. When bytes are
+  // pending we fall into the slow path, which drains the UART with a do/while so available() is
+  // only checked once per byte — no redundant re-check on entry.
+  ESPHOME_ALWAYS_INLINE void process_uart_() {
+    if (!this->available()) {
+      return;
+    }
+    this->process_uart_slow_();
+  }
+  // Precondition: caller must guarantee available() > 0 before invoking (see inline
+  // process_uart_ above). The slow path uses do/while and would otherwise set a spurious UART
+  // warning on entry if called with no bytes pending.
+  void process_uart_slow_();
 
   // Pre-allocated message - always ready to send
   api::ZWaveProxyFrame outgoing_proto_msg_;

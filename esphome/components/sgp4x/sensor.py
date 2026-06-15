@@ -15,7 +15,6 @@ from esphome.const import (
     CONF_STORE_BASELINE,
     CONF_TEMPERATURE_SOURCE,
     CONF_VOC,
-    DEVICE_CLASS_AQI,
     ICON_RADIATOR,
     STATE_CLASS_MEASUREMENT,
 )
@@ -72,13 +71,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_VOC): sensor.sensor_schema(
                 icon=ICON_RADIATOR,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_AQI,
                 state_class=STATE_CLASS_MEASUREMENT,
             ).extend(VOC_SENSOR),
             cv.Optional(CONF_NOX): sensor.sensor_schema(
                 icon=ICON_RADIATOR,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_AQI,
                 state_class=STATE_CLASS_MEASUREMENT,
             ).extend(NOX_SENSOR),
             cv.Optional(CONF_STORE_BASELINE, default=True): cv.boolean,

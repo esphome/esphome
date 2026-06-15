@@ -6,8 +6,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace chsc6x {
+namespace esphome::chsc6x {
 
 static const char *const TAG = "chsc6x.touchscreen";
 
@@ -30,5 +29,4 @@ class CHSC6XTouchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
   InternalGPIOPin *interrupt_pin_{};
 };
 
-}  // namespace chsc6x
-}  // namespace esphome
+}  // namespace esphome::chsc6x

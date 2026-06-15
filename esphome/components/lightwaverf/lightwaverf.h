@@ -11,8 +11,7 @@
 #include "LwRx.h"
 #include "LwTx.h"
 
-namespace esphome {
-namespace lightwaverf {
+namespace esphome::lightwaverf {
 
 #ifdef USE_ESP8266
 
@@ -61,6 +60,5 @@ template<typename... Ts> class SendRawAction : public Action<Ts...> {
 };
 
 #endif
-}  // namespace lightwaverf
-}  // namespace esphome
+}  // namespace esphome::lightwaverf
 #endif

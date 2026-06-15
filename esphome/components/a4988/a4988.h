@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/stepper/stepper.h"
 
-namespace esphome {
-namespace a4988 {
+namespace esphome::a4988 {
 
 class A4988 : public stepper::Stepper, public Component {
  public:
@@ -25,5 +24,4 @@ class A4988 : public stepper::Stepper, public Component {
   HighFrequencyLoopRequester high_freq_;
 };
 
-}  // namespace a4988
-}  // namespace esphome
+}  // namespace esphome::a4988

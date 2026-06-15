@@ -1,8 +1,7 @@
 #include "dallas_temp.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace dallas_temp {
+namespace esphome::dallas_temp {
 
 static const char *const TAG = "dallas.temp.sensor";
 
@@ -159,5 +158,4 @@ float DallasTemperatureSensor::get_temp_c_() {
   return temp / 16.0f;
 }
 
-}  // namespace dallas_temp
-}  // namespace esphome
+}  // namespace esphome::dallas_temp

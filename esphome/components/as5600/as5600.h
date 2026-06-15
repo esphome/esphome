@@ -6,8 +6,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace as5600 {
+namespace esphome::as5600 {
 
 static const uint16_t POSITION_COUNT = 4096;
 static const float RAW_TO_DEGREES = 360.0 / POSITION_COUNT;
@@ -100,5 +99,4 @@ class AS5600Component : public Component, public i2c::I2CDevice {
   float range_scale_{1.0};
 };
 
-}  // namespace as5600
-}  // namespace esphome
+}  // namespace esphome::as5600

@@ -3,8 +3,7 @@
 #include "../pylontech.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 
-namespace esphome {
-namespace pylontech {
+namespace esphome::pylontech {
 
 class PylontechTextSensor : public PylontechListener {
  public:
@@ -22,5 +21,4 @@ class PylontechTextSensor : public PylontechListener {
   int8_t bat_num_;
 };
 
-}  // namespace pylontech
-}  // namespace esphome
+}  // namespace esphome::pylontech

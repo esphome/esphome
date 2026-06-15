@@ -3,8 +3,7 @@
 
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace http_request {
+namespace esphome::http_request {
 
 template<typename... Ts> class OtaHttpRequestComponentFlashAction : public Action<Ts...> {
  public:
@@ -38,5 +37,4 @@ template<typename... Ts> class OtaHttpRequestComponentFlashAction : public Actio
   OtaHttpRequestComponent *parent_;
 };
 
-}  // namespace http_request
-}  // namespace esphome
+}  // namespace esphome::http_request
