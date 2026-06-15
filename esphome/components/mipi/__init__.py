@@ -139,6 +139,8 @@ MADCTL_FLIP_FLAG = 0x100  # meta-flag to indicate use of axis flips
 # Special constant for delays in command sequences
 DELAY_FLAG = 0xFFF  # Special flag to indicate a delay
 
+CONF_PAD_HEIGHT = "pad_height"
+CONF_PAD_WIDTH = "pad_width"
 CONF_PIXEL_MODE = "pixel_mode"
 CONF_USE_AXIS_FLIPS = "use_axis_flips"
 
@@ -202,6 +204,8 @@ def dimension_schema(rounding):
                     rounding
                 ),
                 cv.Optional(CONF_OFFSET_WIDTH, default=0): validate_dimension(rounding),
+                cv.Optional(CONF_PAD_WIDTH): validate_dimension(rounding),
+                cv.Optional(CONF_PAD_HEIGHT): validate_dimension(rounding),
             }
         ),
     )
@@ -311,6 +315,36 @@ class DriverChip:
         name = name.upper()
         self.name = name
         self.initsequence = initsequence
+        if CONF_NATIVE_WIDTH in defaults:
+            if CONF_WIDTH not in defaults:
+                defaults[CONF_WIDTH] = (
+                    defaults[CONF_NATIVE_WIDTH]
+                    - defaults.get(CONF_OFFSET_WIDTH, 0)
+                    - defaults.get(CONF_PAD_WIDTH, 0)
+                )
+        else:
+            native_width = (
+                defaults.get(CONF_WIDTH, 0)
+                + defaults.get(CONF_OFFSET_WIDTH, 0)
+                + defaults.get(CONF_PAD_WIDTH, 0)
+            )
+            if native_width != 0:
+                defaults[CONF_NATIVE_WIDTH] = native_width
+        if CONF_NATIVE_HEIGHT in defaults:
+            if CONF_HEIGHT not in defaults:
+                defaults[CONF_HEIGHT] = (
+                    defaults[CONF_NATIVE_HEIGHT]
+                    - defaults.get(CONF_OFFSET_HEIGHT, 0)
+                    - defaults.get(CONF_PAD_HEIGHT, 0)
+                )
+        else:
+            native_height = (
+                defaults.get(CONF_HEIGHT, 0)
+                + defaults.get(CONF_OFFSET_HEIGHT, 0)
+                + defaults.get(CONF_PAD_HEIGHT, 0)
+            )
+            if native_height != 0:
+                defaults[CONF_NATIVE_HEIGHT] = native_height
         self.defaults = defaults
         DriverChip.models[name] = self
 
@@ -336,18 +370,6 @@ class DriverChip:
         initsequence = list(kwargs.pop("initsequence", self.initsequence))
         initsequence.extend(kwargs.pop("add_init_sequence", ()))
         defaults = self.defaults.copy()
-        if (
-            CONF_WIDTH in defaults
-            and CONF_OFFSET_WIDTH in kwargs
-            and CONF_NATIVE_WIDTH not in defaults
-        ):
-            defaults[CONF_NATIVE_WIDTH] = defaults[CONF_WIDTH]
-        if (
-            CONF_HEIGHT in defaults
-            and CONF_OFFSET_HEIGHT in kwargs
-            and CONF_NATIVE_HEIGHT not in defaults
-        ):
-            defaults[CONF_NATIVE_HEIGHT] = defaults[CONF_HEIGHT]
         defaults.update(kwargs)
         return self.__class__(name, initsequence=tuple(initsequence), **defaults)
 
@@ -385,13 +407,16 @@ class DriverChip:
             return CONF_SWAP_XY in transforms and CONF_MIRROR_X in transforms
         return CONF_SWAP_XY in transforms and CONF_MIRROR_Y in transforms
 
-    def get_dimensions(self, config, swap: bool = True) -> tuple[int, int, int, int]:
+    def get_dimensions(
+        self, config, swap: bool = True
+    ) -> tuple[int, int, int, int, int, int]:
         """
         Return the dimensions of the current model.
         :param config: The current configuration
         :param swap: If width/height should be swapped when axes are swapped.
-        :return:
+        :return: A tuple (width, height, offset_width, offset_height, pad_width, pad_height).
         """
+
         if CONF_DIMENSIONS in config:
             # Explicit dimensions, just use as is
             dimensions = config[CONF_DIMENSIONS]
@@ -400,33 +425,71 @@ class DriverChip:
                 height = dimensions[CONF_HEIGHT]
                 offset_width = dimensions[CONF_OFFSET_WIDTH]
                 offset_height = dimensions[CONF_OFFSET_HEIGHT]
-                return width, height, offset_width, offset_height
-            (width, height) = dimensions
-            return width, height, 0, 0
+                if CONF_PAD_WIDTH in dimensions:
+                    pad_width = dimensions[CONF_PAD_WIDTH]
+                    native_width = width + offset_width + pad_width
+                else:
+                    native_width = self.get_default(CONF_NATIVE_WIDTH, 0)
+                    if native_width == 0:
+                        pad_width = 0
+                        native_width = width + offset_width
+                    else:
+                        pad_width = native_width - width - offset_width
+                if CONF_PAD_HEIGHT in dimensions:
+                    pad_height = dimensions[CONF_PAD_HEIGHT]
+                    native_height = height + offset_height + pad_height
+                else:
+                    native_height = self.get_default(CONF_NATIVE_HEIGHT, 0)
+                    if native_height == 0:
+                        pad_height = 0
+                        native_height = height + offset_height
+                    else:
+                        pad_height = native_height - height - offset_height
+                if (
+                    pad_width + offset_width >= native_width
+                    or pad_height + offset_height >= native_height
+                ):
+                    raise cv.Invalid("Dimensions exceed native size", [CONF_DIMENSIONS])
+                if pad_width < 0 or pad_height < 0:
+                    raise cv.Invalid("Invalid offsets", [CONF_DIMENSIONS])
+
+                return width, height, offset_width, offset_height, pad_width, pad_height
+
+            # Must be a tuple
+            width, height = dimensions
+            return width, height, 0, 0, 0, 0
 
         # Default dimensions, use model defaults
         transform = self.get_transform(config)
 
         width = self.get_default(CONF_WIDTH)
         height = self.get_default(CONF_HEIGHT)
+        native_width = self.get_default(CONF_NATIVE_WIDTH, 0)
+        native_height = self.get_default(CONF_NATIVE_HEIGHT, 0)
         offset_width = self.get_default(CONF_OFFSET_WIDTH, 0)
         offset_height = self.get_default(CONF_OFFSET_HEIGHT, 0)
+        pad_width = self.get_default(
+            CONF_PAD_WIDTH, native_width - width - offset_width
+        )
+        pad_height = self.get_default(
+            CONF_PAD_HEIGHT, native_height - height - offset_height
+        )
+
+        if pad_width < 0 or pad_height < 0:
+            raise cv.Invalid("Offsets exceed native size", [CONF_DIMENSIONS])
 
         # if mirroring axes and there are offsets, also mirror the offsets to cater for situations where
         # the offset is asymmetric
         if transform.get(CONF_MIRROR_X):
-            native_width = self.get_default(CONF_NATIVE_WIDTH, width + offset_width * 2)
-            offset_width = native_width - width - offset_width
+            offset_width, pad_width = pad_width, offset_width
         if transform.get(CONF_MIRROR_Y):
-            native_height = self.get_default(
-                CONF_NATIVE_HEIGHT, height + offset_height * 2
-            )
-            offset_height = native_height - height - offset_height
-        # Swap default dimensions if swap_xy is set, or if rotation is 90/270 and we are not using a buffer
+            offset_height, pad_height = pad_height, offset_height
+        # Swap default dimensions if swap_xy is set, or if rotation is 90/270, and we are not using a buffer
         if swap and transform.get(CONF_SWAP_XY) is True:
             width, height = height, width
             offset_height, offset_width = offset_width, offset_height
-        return width, height, offset_width, offset_height
+            pad_width, pad_height = pad_height, pad_width
+        return width, height, offset_width, offset_height, pad_width, pad_height
 
     def get_base_transform(self, config):
         transform = config.get(
@@ -450,20 +513,8 @@ class DriverChip:
 
     def get_transform(self, config) -> dict[str, bool]:
         transform = self.get_base_transform(config)
-        can_transform = self.rotation_as_transform(config)
         # Can we use the MADCTL register to set the rotation?
-        if can_transform and CONF_TRANSFORM not in config:
-            rotation = config[CONF_ROTATION]
-            if rotation == 180:
-                transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
-                transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
-            elif rotation == 90:
-                transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
-                transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
-            else:
-                transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
-                transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
-            transform[CONF_TRANSFORM] = True
+        transform[CONF_TRANSFORM] = self.rotation_as_transform(config)
         return transform
 
     def swap_xy_schema(self):
@@ -498,8 +549,8 @@ class DriverChip:
         return madctl
 
     def add_madctl(self, sequence: list, config: dict):
-        # Add the MADCTL command to the sequence based on the configuration.
-        # This takes into account rotation if it can be implemented in the transform
+        # Add the MADCTL command to the sequence based on the base configuration.
+        # Rotation is not applied here, it will be done at runtime.
         transform = self.get_transform(config)
         madctl = self.get_madctl(transform, config)
         sequence.append((MADCTL, madctl & 0xFF))
