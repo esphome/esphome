@@ -3,8 +3,7 @@
 #include "esphome/components/select/select.h"
 #include "../airton.h"
 
-namespace esphome {
-namespace airton {
+namespace esphome::airton {
 
 class VerticalDirectionSelect : public select::Select, public Parented<AirtonClimate> {
  public:
@@ -14,5 +13,4 @@ class VerticalDirectionSelect : public select::Select, public Parented<AirtonCli
   void control(const std::string &value) override;
 };
 
-}  // namespace airton
-}  // namespace esphome
+}  // namespace esphome::airton

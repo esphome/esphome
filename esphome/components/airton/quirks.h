@@ -7,8 +7,7 @@
 #include <string>
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace airton {
+namespace esphome::airton {
 
 // Vertical direction for air outlet flap
 class VerticalDirection {
@@ -72,7 +71,6 @@ class VerticalDirection {
   Direction direction_;
 };
 
-}  // namespace airton
-}  // namespace esphome
+}  // namespace esphome::airton
 
 #endif  // AIRTON_QUIRKS_H

@@ -1,7 +1,6 @@
 #include "sleep.h"
 
-namespace esphome {
-namespace airton {
+namespace esphome::airton {
 
 void SleepSwitch::write_state(bool state) {
   if (this->parent_->get_sleep_mode_state() != state) {
@@ -10,5 +9,4 @@ void SleepSwitch::write_state(bool state) {
   this->publish_state(state);
 }
 
-}  // namespace airton
-}  // namespace esphome
+}  // namespace esphome::airton

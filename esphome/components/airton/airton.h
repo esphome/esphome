@@ -11,8 +11,7 @@
 #include "esphome/components/select/select.h"
 #endif
 
-namespace esphome {
-namespace airton {
+namespace esphome::airton {
 
 // Values for Airton SMVH09B-2A2A3NH IR Controllers
 // Temperature
@@ -120,5 +119,4 @@ class AirtonClimate : public climate_ir::ClimateIR {
   bool parse_state_frame_(uint8_t const frame[]);
 };
 
-}  // namespace airton
-}  // namespace esphome
+}  // namespace esphome::airton

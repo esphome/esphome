@@ -3,8 +3,7 @@
 #include "esphome/components/switch/switch.h"
 #include "../airton.h"
 
-namespace esphome {
-namespace airton {
+namespace esphome::airton {
 
 class SleepSwitch : public switch_::Switch, public Parented<AirtonClimate> {
  public:
@@ -14,5 +13,4 @@ class SleepSwitch : public switch_::Switch, public Parented<AirtonClimate> {
   void write_state(bool state) override;
 };
 
-}  // namespace airton
-}  // namespace esphome
+}  // namespace esphome::airton

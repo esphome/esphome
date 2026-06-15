@@ -1,7 +1,6 @@
 #include "direction.h"
 
-namespace esphome {
-namespace airton {
+namespace esphome::airton {
 
 void VerticalDirectionSelect::control(const std::string &value) {
   if (this->parent_->get_vertical_direction_state().to_string() != value) {
@@ -11,5 +10,4 @@ void VerticalDirectionSelect::control(const std::string &value) {
   this->publish_state(value);
 }
 
-}  // namespace airton
-}  // namespace esphome
+}  // namespace esphome::airton

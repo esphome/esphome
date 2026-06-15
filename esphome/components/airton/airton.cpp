@@ -1,8 +1,7 @@
 #include "airton.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace airton {
+namespace esphome::airton {
 
 static const char *const TAG = "airton.climate";
 
@@ -341,5 +340,4 @@ bool AirtonClimate::on_receive(remote_base::RemoteReceiveData data) {
   return this->parse_state_frame_(remote_state);
 }
 
-}  // namespace airton
-}  // namespace esphome
+}  // namespace esphome::airton
