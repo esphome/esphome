@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 from typing import Any
 
 import pytest
@@ -427,13 +428,19 @@ def test_enable_pin_code_generation(
     """Test that enable_pins are wired up in the generated C++ code."""
     main_cpp = generate_main(component_config_path("enable_pin_test.yaml"))
 
-    # Both configured GPIOs must be set up as output pins
-    assert "set_pin(::GPIO_NUM_25)" in main_cpp
-    assert "set_pin(::GPIO_NUM_26)" in main_cpp
+    # Derive the auto-generated pin variable names from the set_pin() lines
+    # rather than hard-coding them, so the test does not break when unrelated
+    # codegen details shift the generated IDs.
+    def pin_var_for(gpio_num: int) -> str:
+        match = re.search(rf"(\w+)->set_pin\(::GPIO_NUM_{gpio_num}\);", main_cpp)
+        assert match is not None, (
+            f"GPIO_NUM_{gpio_num} pin not set up in generated code"
+        )
+        return match.group(1)
+
+    pin_25 = pin_var_for(25)
+    pin_26 = pin_var_for(26)
 
     # Both pin objects must be passed to the display via set_enable_pins() as a
-    # std::vector initializer list, in order.
-    assert (
-        "epaper_display->set_enable_pins({esp32_esp32internalgpiopin_id_7, "
-        "esp32_esp32internalgpiopin_id_8});" in main_cpp
-    )
+    # std::vector initializer list, in the configured order.
+    assert f"set_enable_pins({{{pin_25}, {pin_26}}});" in main_cpp
