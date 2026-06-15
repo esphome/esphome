@@ -1615,8 +1615,14 @@ FLASH_SIZES = [
 ]
 
 CONF_FLASH_SIZE = "flash_size"
+CONF_FLASH_MODE = "flash_mode"
+CONF_FLASH_FREQUENCY = "flash_frequency"
 CONF_CPU_FREQUENCY = "cpu_frequency"
 CONF_PARTITIONS = "partitions"
+FLASH_MODES = ["qio", "qout", "dio", "dout", "opi"]
+FLASH_FREQUENCIES = [
+    f"{freq}MHZ" for freq in (120, 80, 64, 60, 48, 40, 32, 30, 26, 24, 20, 16)
+]
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -1629,6 +1635,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENGINEERING_SAMPLE): cv.boolean,
             cv.Optional(CONF_FLASH_SIZE, default="4MB"): cv.one_of(
                 *FLASH_SIZES, upper=True
+            ),
+            cv.Optional(CONF_FLASH_MODE): cv.one_of(*FLASH_MODES, lower=True),
+            cv.Optional(CONF_FLASH_FREQUENCY): cv.one_of(
+                *FLASH_FREQUENCIES, upper=True
             ),
             cv.Optional(CONF_PARTITIONS): cv.Any(
                 cv.file_,
@@ -1866,6 +1876,12 @@ async def to_code(config):
             "board_upload.maximum_size",
             int(config[CONF_FLASH_SIZE].removesuffix("MB")) * 1024 * 1024,
         )
+        if flash_mode := config.get(CONF_FLASH_MODE):
+            cg.add_platformio_option("board_build.flash_mode", flash_mode)
+        if flash_frequency := config.get(CONF_FLASH_FREQUENCY):
+            cg.add_platformio_option(
+                "board_build.f_flash", f"{flash_frequency[:-3]}000000L"
+            )
 
         if CONF_SOURCE in conf:
             cg.add_platformio_option("platform_packages", [conf[CONF_SOURCE]])
@@ -2016,6 +2032,14 @@ async def to_code(config):
     add_idf_sdkconfig_option(
         f"CONFIG_ESPTOOLPY_FLASHSIZE_{config[CONF_FLASH_SIZE]}", True
     )
+    if flash_mode := config.get(CONF_FLASH_MODE):
+        add_idf_sdkconfig_option(
+            f"CONFIG_ESPTOOLPY_FLASHMODE_{flash_mode.upper()}", True
+        )
+    if flash_frequency := config.get(CONF_FLASH_FREQUENCY):
+        add_idf_sdkconfig_option(
+            f"CONFIG_ESPTOOLPY_FLASHFREQ_{flash_frequency[:-3]}M", True
+        )
 
     # ESP32-P4: ESP-IDF 5.5.3 changed the default of ESP32P4_SELECTS_REV_LESS_V3
     # from y to n. PlatformIO uses sections.ld.in (for rev <3) or
