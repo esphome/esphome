@@ -131,8 +131,10 @@ InstanceLock InstanceLock::acquire() {
 otInstance *InstanceLock::get_instance() { return openthread_get_default_instance(); }
 
 InstanceLock::~InstanceLock() {
-  struct openthread_context *ot_context = openthread_get_default_context();
-  k_mutex_unlock(&ot_context->api_lock);
+  if (this->owns_) {
+    struct openthread_context *ot_context = openthread_get_default_context();
+    k_mutex_unlock(&ot_context->api_lock);
+  }
 }
 
 }  // namespace esphome::openthread
