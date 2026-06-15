@@ -3,6 +3,7 @@ from __future__ import annotations
 import abc
 from contextlib import contextmanager
 import contextvars
+import copy
 import functools
 import heapq
 import logging
@@ -168,6 +169,11 @@ class Config(OrderedDict, fv.FinalValidateConfig):
         self.output_paths: list[tuple[ConfigPath, str]] = []
         # A list of components ids with the config path
         self.declare_ids: list[tuple[core.ID, ConfigPath]] = []
+        # Snapshot of the user's configuration after substitutions/packages/
+        # extend-remove resolution but before any schema validation defaults
+        # are applied. Populated by validate_config; used by `esphome config
+        # --no-defaults` to emit only the user-supplied keys.
+        self.user_config: ConfigType | None = None
         self._data = {}
         # Store pending validation tasks (in heap order)
         self._validation_tasks: list[_ValidationStepTask] = []
@@ -1005,7 +1011,6 @@ def validate_config(
     CORE.skip_external_update = skip_external_update
 
     loader.clear_component_meta_finders()
-    loader.install_custom_components_meta_finder()
 
     # 0. Load packages
     if CONF_PACKAGES in config:
@@ -1076,6 +1081,15 @@ def validate_config(
             [],
         )
         return result
+
+    # Snapshot the user's config before any schema validation defaults are
+    # applied. preload_core_config and later validation steps rewrite entries
+    # in-place with defaulted values; deep-copying here preserves the
+    # user-supplied keys for `esphome config --no-defaults`.
+    result.user_config = copy.deepcopy(config)
+    if substitutions is not None:
+        result.user_config[CONF_SUBSTITUTIONS] = copy.deepcopy(substitutions)
+        result.user_config.move_to_end(CONF_SUBSTITUTIONS, last=False)
 
     # 2. Load partial core config
     import esphome.core.config as core_config

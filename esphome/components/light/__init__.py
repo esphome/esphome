@@ -58,7 +58,7 @@ from .effects import (
     RGB_EFFECTS,
     validate_effects,
 )
-from .types import (  # noqa
+from .types import (  # noqa: F401
     AddressableLight,
     AddressableLightState,
     ColorMode,

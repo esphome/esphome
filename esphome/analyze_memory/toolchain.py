@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 import subprocess
 from typing import TYPE_CHECKING
@@ -37,7 +36,7 @@ def _find_in_platformio_packages(tool_name: str) -> str | None:
         Full path to the tool or None if not found
     """
     # Get PlatformIO packages directory
-    platformio_home = Path(os.path.expanduser("~/.platformio/packages"))
+    platformio_home = Path("~/.platformio/packages").expanduser()
     if not platformio_home.exists():
         return None
 

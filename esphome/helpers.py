@@ -385,7 +385,7 @@ def rmtree(path: Path | str) -> None:
     def _onerror(func, path, exc_info):
         if os.access(path, os.W_OK):
             raise exc_info[1].with_traceback(exc_info[2])
-        os.chmod(path, stat.S_IWUSR | stat.S_IRUSR)
+        Path(path).chmod(stat.S_IWUSR | stat.S_IRUSR)
         func(path)
 
     # ``onerror`` is deprecated in 3.12 in favour of ``onexc`` (different
@@ -512,7 +512,7 @@ def copy_file_if_changed(src: Path, dst: Path) -> bool:
             # -> delete file (it would be overwritten anyway), and try again
             # if that fails, use normal error handler
             with suppress(OSError):
-                os.unlink(dst)
+                Path(dst).unlink()
                 shutil.copyfile(src, dst)
                 return True
 

@@ -7,7 +7,17 @@ from esphome.components.esp32 import get_esp32_variant, idf_version
 import esphome.config_validation as cv
 from esphome.core import CORE
 from esphome.helpers import mkdir_p, write_file_if_changed
-from esphome.writer import update_storage_json
+
+# Replaces the IDF default C++ standard (-std=gnu++2b appended to
+# CXX_COMPILE_OPTIONS by project.cmake's __build_init) with the one set via
+# cg.set_cpp_standard(). Emitted between include(project.cmake) and project(),
+# i.e. after IDF appends its default and before the options are consumed, and
+# applies project-wide like PlatformIO build_unflags.
+CPP_STANDARD_TEMPLATE = """\
+idf_build_get_property(esphome_cxx_compile_options CXX_COMPILE_OPTIONS)
+list(FILTER esphome_cxx_compile_options EXCLUDE REGEX "^-std=")
+list(APPEND esphome_cxx_compile_options "-std={standard}")
+idf_build_set_property(CXX_COMPILE_OPTIONS "${{esphome_cxx_compile_options}}")"""
 
 
 def get_available_components() -> list[str] | None:
@@ -24,7 +34,7 @@ def get_available_components() -> list[str] | None:
         return None
 
     try:
-        with open(project_desc, encoding="utf-8") as f:
+        with project_desc.open(encoding="utf-8") as f:
             data = json.load(f)
 
         component_info = data.get("build_component_info", {})
@@ -85,6 +95,12 @@ def get_project_cmakelists(minimal: bool = False) -> str:
         for flag in project_compile_opts
     )
 
+    cpp_standard_options = (
+        CPP_STANDARD_TEMPLATE.format(standard=CORE.cpp_standard)
+        if CORE.cpp_standard
+        else ""
+    )
+
     # Per-project list exposed as a CMake variable so converted PIO libs
     # can reference ${ESPHOME_PROJECT_MANAGED_COMPONENTS} without baking
     # project-specific names into their cached CMakeLists.
@@ -140,6 +156,8 @@ set(IDF_TARGET {idf_target})
 set(EXTRA_COMPONENT_DIRS ${{CMAKE_SOURCE_DIR}}/src)
 
 include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
+
+{cpp_standard_options}
 
 {extra_compile_options}
 
@@ -201,9 +219,6 @@ idf_component_register(
     REQUIRES ${{ESPHOME_PROJECT_BUILTIN_COMPONENTS}}
 )
 
-# Apply C++ standard
-target_compile_features(${{COMPONENT_LIB}} PUBLIC cxx_std_20)
-
 # ESPHome linker options
 target_link_options(${{COMPONENT_LIB}} PUBLIC
     {link_opts_str}
@@ -213,11 +228,6 @@ target_link_options(${{COMPONENT_LIB}} PUBLIC
 
 def write_project(minimal: bool = False) -> None:
     """Write ESP-IDF project files."""
-    # Refresh <data_dir>/storage/<name>.yaml.json so the dashboard's
-    # /info and /downloads endpoints can locate the build (they 404
-    # otherwise). This mirrors the PlatformIO build-gen path's call
-    # in build_gen/platformio.py:write_ini().
-    update_storage_json()
     mkdir_p(CORE.build_path)
     mkdir_p(CORE.relative_src_path())
 

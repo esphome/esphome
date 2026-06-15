@@ -96,7 +96,7 @@ def _run_idedata(config):
     try:
         return json.loads(match.group())
     except ValueError:
-        _LOGGER.error("Could not parse idedata", exc_info=True)
+        _LOGGER.exception("Could not parse idedata")
         _LOGGER.error("Stdout: %s", stdout)
         raise
 

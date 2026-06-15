@@ -32,10 +32,7 @@ static const char *const TAG = "component";
 namespace {
 struct ComponentErrorMessage {
   const Component *component;
-  const char *message;
-  // Track if message is flash pointer (needs LOG_STR_ARG) or RAM pointer
-  // Remove before 2026.6.0 when deprecated const char* API is removed
-  bool is_flash_ptr;
+  const LogString *message;
 };
 
 #ifdef USE_SETUP_PRIORITY_OVERRIDE
@@ -56,9 +53,8 @@ std::vector<ComponentPriorityOverride> *setup_priority_overrides = nullptr;
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 std::vector<ComponentErrorMessage> *component_error_messages = nullptr;
 
-// Helper to store error messages - reduces duplication between deprecated and new API
-// Remove before 2026.6.0 when deprecated const char* API is removed
-void store_component_error_message(const Component *component, const char *message, bool is_flash_ptr) {
+// Helper to store error messages
+void store_component_error_message(const Component *component, const LogString *message) {
   // Lazy allocate the error messages vector if needed
   if (!component_error_messages) {
     component_error_messages = new std::vector<ComponentErrorMessage>();
@@ -67,12 +63,11 @@ void store_component_error_message(const Component *component, const char *messa
   for (auto &entry : *component_error_messages) {
     if (entry.component == component) {
       entry.message = message;
-      entry.is_flash_ptr = is_flash_ptr;
       return;
     }
   }
   // Add new error message
-  component_error_messages->emplace_back(ComponentErrorMessage{component, message, is_flash_ptr});
+  component_error_messages->emplace_back(ComponentErrorMessage{component, message});
 }
 }  // namespace
 
@@ -209,21 +204,17 @@ void Component::call_dump_config_() {
   this->dump_config();
   if (this->is_failed()) {
     // Look up error message from global vector
-    const char *error_msg = nullptr;
-    bool is_flash_ptr = false;
+    const LogString *error_msg = nullptr;
     if (component_error_messages) {
       for (const auto &entry : *component_error_messages) {
         if (entry.component == this) {
           error_msg = entry.message;
-          is_flash_ptr = entry.is_flash_ptr;
           break;
         }
       }
     }
-    // Log with appropriate format based on pointer type
     ESP_LOGE(TAG, "  %s is marked FAILED: %s", LOG_STR_ARG(this->get_component_log_str()),
-             error_msg ? (is_flash_ptr ? LOG_STR_ARG((const LogString *) error_msg) : error_msg)
-                       : LOG_STR_LITERAL("unspecified"));
+             error_msg ? LOG_STR_ARG(error_msg) : LOG_STR_LITERAL("unspecified"));
   }
 }
 
@@ -390,23 +381,13 @@ void Component::status_set_warning(const LogString *message) {
            message ? LOG_STR_ARG(message) : LOG_STR_LITERAL("unspecified"));
 }
 void Component::status_set_error() { this->status_set_error((const LogString *) nullptr); }
-void Component::status_set_error(const char *message) {
-  if (!this->set_status_flag_(STATUS_LED_ERROR))
-    return;
-  ESP_LOGE(TAG, "%s set Error flag: %s", LOG_STR_ARG(this->get_component_log_str()),
-           message ? message : LOG_STR_LITERAL("unspecified"));
-  if (message != nullptr) {
-    store_component_error_message(this, message, false);
-  }
-}
 void Component::status_set_error(const LogString *message) {
   if (!this->set_status_flag_(STATUS_LED_ERROR))
     return;
   ESP_LOGE(TAG, "%s set Error flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? LOG_STR_ARG(message) : LOG_STR_LITERAL("unspecified"));
   if (message != nullptr) {
-    // Store the LogString pointer directly (safe because LogString is always in flash/static memory)
-    store_component_error_message(this, LOG_STR_ARG(message), true);
+    store_component_error_message(this, message);
   }
 }
 void Component::status_clear_warning_slow_path_() {

@@ -510,15 +510,9 @@ def test_package_merge_by_missing_id() -> None:
         ],
     }
 
-    error_raised = False
-    try:
+    with pytest.raises(cv.Invalid) as exc_info:
         packages_pass(config)
-        assert False, "Expected validation error for missing ID"
-    except cv.Invalid as err:
-        error_raised = True
-        assert err.path == [CONF_SENSOR, 2]
-
-    assert error_raised
+    assert exc_info.value.path == [CONF_SENSOR, 2]
 
 
 def test_package_list_remove_by_id() -> None:
