@@ -2,6 +2,7 @@
 
 #include "esphome/core/log.h"
 
+#include <cmath>
 #include <cstring>
 #include <utility>
 
@@ -9,9 +10,19 @@ namespace esphome::pixoo {
 
 static const char *const TAG = "pixoo";
 
-float Pixoo::get_setup_priority() const { return setup_priority::PROCESSOR; }
+// Divoom LED-board packet protocol.
+static constexpr uint8_t PACKET_HEAD = 0xAA;
+static constexpr uint8_t PACKET_TAIL = 0xBB;
+static constexpr uint8_t CMD_DATA = 0x00;
+static constexpr uint8_t CMD_LIGHT = 0x01;
+static constexpr uint8_t CMD_UNUSED = 0x21;
+static constexpr uint8_t CMD_SET_RGB_IOUT = 0x22;
+static constexpr size_t PACKET_HEADER_LEN = 4;  // head + len(2) + cmd
+static constexpr size_t PACKET_STATIC_LEN = 5;  // header + tail
+static constexpr uint8_t DEFAULT_IOUT = 75;     // per-channel LED current / white balance default
 
-size_t Pixoo::build_packet_(uint8_t *buf, uint8_t cmd, const uint8_t *data, uint16_t len) {
+// Pack a `0xAA len cmd data 0xBB` packet into buf; returns the packet length.
+static inline size_t build_packet(uint8_t *buf, uint8_t cmd, const uint8_t *data, uint16_t len) {
   buf[0] = PACKET_HEAD;
   buf[1] = static_cast<uint8_t>(len & 0xFF);
   buf[2] = static_cast<uint8_t>((len >> 8) & 0xFF);
@@ -22,7 +33,8 @@ size_t Pixoo::build_packet_(uint8_t *buf, uint8_t cmd, const uint8_t *data, uint
   return len + PACKET_STATIC_LEN;
 }
 
-void Pixoo::pad_unused_(uint8_t *buf, size_t total) {
+// Fill `total` bytes at buf with a single UNUSED padding packet.
+static inline void pad_unused(uint8_t *buf, size_t total) {
   const uint16_t len = static_cast<uint16_t>(total - PACKET_STATIC_LEN);
   buf[0] = PACKET_HEAD;
   buf[1] = static_cast<uint8_t>(len & 0xFF);
@@ -30,6 +42,8 @@ void Pixoo::pad_unused_(uint8_t *buf, size_t total) {
   buf[3] = CMD_UNUSED;
   buf[total - 1] = PACKET_TAIL;
 }
+
+float Pixoo::get_setup_priority() const { return setup_priority::PROCESSOR; }
 
 void Pixoo::setup() {
   const uint32_t num_pixels = static_cast<uint32_t>(this->model_) * this->model_;
@@ -47,6 +61,7 @@ void Pixoo::setup() {
   RAMAllocator<uint8_t> allocator(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
   this->frame_buffer_ = allocator.allocate(this->frame_size_);
   if (this->frame_buffer_ == nullptr) {
+    this->buffer_.free();
     this->mark_failed(LOG_STR("Failed to allocate frame buffer"));
     return;
   }
@@ -57,7 +72,7 @@ void Pixoo::setup() {
   this->frame_buffer_[2] = static_cast<uint8_t>((this->data_size_ >> 8) & 0xFF);
   this->frame_buffer_[3] = CMD_DATA;
   this->frame_buffer_[PACKET_HEADER_LEN + this->data_size_] = PACKET_TAIL;
-  this->pad_unused_(this->frame_buffer_ + this->data_size_ + PACKET_STATIC_LEN, DMA_CHUNK);
+  pad_unused(this->frame_buffer_ + this->data_size_ + PACKET_STATIC_LEN, DMA_CHUNK);
 
   this->spi_setup();
 
@@ -75,16 +90,16 @@ void Pixoo::setup() {
 
 void Pixoo::send_command_(uint8_t cmd, const uint8_t *data, uint16_t len) {
   std::memset(this->cmd_buffer_, 0, DMA_CHUNK);
-  const size_t used = build_packet_(this->cmd_buffer_, cmd, data, len);
-  if (DMA_CHUNK - used > PACKET_STATIC_LEN)
-    pad_unused_(this->cmd_buffer_ + used, DMA_CHUNK - used);
+  const size_t used = build_packet(this->cmd_buffer_, cmd, data, len);
+  if (DMA_CHUNK - used >= PACKET_STATIC_LEN)
+    pad_unused(this->cmd_buffer_ + used, DMA_CHUNK - used);
   this->enable();
   this->write_array(this->cmd_buffer_, DMA_CHUNK);
   this->disable();
 }
 
 void Pixoo::set_panel_brightness(float brightness) {
-  const uint8_t pct = static_cast<uint8_t>(clamp(brightness, 0.0f, 1.0f) * 100.0f + 0.5f);
+  const uint8_t pct = static_cast<uint8_t>(lroundf(clamp(brightness, 0.0f, 1.0f) * 100.0f));
   this->send_command_(CMD_LIGHT, &pct, 1);
 }
 

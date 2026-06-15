@@ -49,22 +49,9 @@ class Pixoo : public Display,
 
   void set_pixel_(uint32_t index, Color color);
   void send_command_(uint8_t cmd, const uint8_t *data, uint16_t len);
-  // Pack a `0xAA len cmd data 0xBB` packet into buf; returns the packet length.
-  static size_t build_packet_(uint8_t *buf, uint8_t cmd, const uint8_t *data, uint16_t len);
-  // Fill `total` bytes at buf with a single UNUSED padding packet.
-  static void pad_unused_(uint8_t *buf, size_t total);
 
-  // Divoom LED-board packet protocol constants.
-  static constexpr uint8_t PACKET_HEAD = 0xAA;
-  static constexpr uint8_t PACKET_TAIL = 0xBB;
-  static constexpr uint8_t CMD_DATA = 0x00;
-  static constexpr uint8_t CMD_LIGHT = 0x01;
-  static constexpr uint8_t CMD_UNUSED = 0x21;
-  static constexpr uint8_t CMD_SET_RGB_IOUT = 0x22;
-  static constexpr size_t PACKET_HEADER_LEN = 4;  // head + len(2) + cmd
-  static constexpr size_t PACKET_STATIC_LEN = 5;  // header + tail
-  static constexpr size_t DMA_CHUNK = 240;        // LED board DMA granularity
-  static constexpr uint8_t DEFAULT_IOUT = 75;     // per-channel LED current / white balance default
+  // Size of the LED board's SPI DMA chunk; the command scratch buffer is one chunk.
+  static constexpr size_t DMA_CHUNK = 240;
 
   PixooModel model_;
 
