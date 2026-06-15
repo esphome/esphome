@@ -29,7 +29,9 @@ static constexpr uint8_t ST7123_MAX_TOUCHES = 10;
 
 class ST7123Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice {
  public:
+  bool read_register_(uint16_t reg, uint8_t *data, size_t len) const;
   void setup() override;
+  void update() override;
   void dump_config() override;
 
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
@@ -37,12 +39,11 @@ class ST7123Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
 
  protected:
   void update_touches() override;
-  void continue_setup_();
-  bool read_register_(uint16_t reg, uint8_t *data, size_t len) const;
 
   InternalGPIOPin *interrupt_pin_{nullptr};
   GPIOPin *reset_pin_{nullptr};
   uint8_t max_touches_{ST7123_MAX_TOUCHES};
+  uint32_t setup_time_{0};
 };
 
 }  // namespace esphome::st7123
