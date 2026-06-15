@@ -42,6 +42,90 @@ const STRIP_TYPES: ReadonlySet<EffectType> = new Set([
 
 const isStrip = STRIP_TYPES.has(type);
 const PIXEL_COUNT = 20;
+
+// The scan and fireworks previews need motion a single shared keyframe cannot express:
+// the scan's dot lights each pixel at two different phases (out and back), and the
+// fireworks sparks bloom into their neighbours. Rather than animate from client-side JS,
+// we generate per-pixel @keyframes here at build time, so the rendered page stays pure CSS.
+// Each scan/fireworks preview injects its own block; the light page uses a single instance of
+// each, so the keyframes appear once. Repeating the same effect on one page would duplicate them.
+
+type Rgb = [number, number, number];
+
+// Bouncing single-pixel sweep: the dot steps 0 -> last -> 0 at a constant rate (no easing).
+function buildScanCss(pixels: number): string {
+  const steps = 2 * (pixels - 1); // one full out-and-back trip
+  const pct = (step: number): string => ((step / steps) * 100).toFixed(3);
+  const frames: string[] = [];
+  const assignments: string[] = [];
+  for (let i = 0; i < pixels; i++) {
+    // The dot covers pixel i on the way out (step i) and on the way back (step steps - i).
+    const onSteps = Array.from(new Set([i, (steps - i) % steps])).sort((a, b) => a - b);
+    const stops = ["0% { background: #000; }"];
+    for (const s of onSteps) {
+      stops.push(`${pct(s)}% { background: #ffd24a; }`);
+      stops.push(`${pct(s + 1)}% { background: #000; }`);
+    }
+    frames.push(`@keyframes fx-scan-${i} { ${stops.join(" ")} }`);
+    assignments.push(`.fx-scan .fx-pixel:nth-child(${i + 1}) { animation: fx-scan-${i} 3s step-end infinite; }`);
+  }
+  return `${frames.join("\n")}\n@media (prefers-reduced-motion: no-preference) {\n${assignments.join("\n")}\n}`;
+}
+
+// Predetermined fireworks: a fixed list of sparks, each blooming outward and fading.
+const FIREWORKS: { time: number; center: number; color: Rgb }[] = [
+  { time: 0.02, center: 4, color: [255, 56, 96] },
+  { time: 0.16, center: 12, color: [255, 210, 74] },
+  { time: 0.3, center: 7, color: [32, 156, 238] },
+  { time: 0.45, center: 16, color: [35, 209, 96] },
+  { time: 0.6, center: 2, color: [180, 120, 255] },
+  { time: 0.74, center: 10, color: [61, 240, 224] },
+  { time: 0.88, center: 18, color: [255, 74, 210] },
+];
+
+// Deterministic jitter in [0.85, 1.15] so each dot in a bloom fades slightly differently.
+function fireworkJitter(pixel: number, spark: number): number {
+  const v = Math.sin((pixel + 1) * 12.9898 + (spark + 1) * 78.233) * 43758.5453;
+  return 0.85 + 0.3 * (v - Math.floor(v));
+}
+
+function buildFireworksCss(pixels: number): string {
+  const bloomRadius = 2;
+  const drop = 0.5; // brightness falloff per pixel away from the spark centre
+  const cascade = 1.2; // % of loop the bloom takes to reach each successive neighbour
+  const fadeBase = 11; // % of loop for a centre dot to fade to black
+  const rise = 0.4; // % of loop for the near-instant flash on
+  const frames: string[] = [];
+  const assignments: string[] = [];
+  for (let p = 0; p < pixels; p++) {
+    const stops: { at: number; color: string }[] = [{ at: 0, color: "#000" }];
+    FIREWORKS.forEach((spark, index) => {
+      const distance = Math.abs(p - spark.center);
+      if (distance > bloomRadius) return;
+      const level = Math.pow(drop, distance);
+      const [r, g, b] = spark.color;
+      const color = `rgb(${Math.round(r * level)}, ${Math.round(g * level)}, ${Math.round(b * level)})`;
+      const onset = spark.time * 100 + distance * cascade;
+      const fade = fadeBase * (1 + distance * 0.5) * fireworkJitter(p, index);
+      stops.push({ at: Math.max(0, onset - rise), color: "#000" });
+      stops.push({ at: onset, color });
+      stops.push({ at: Math.min(100, onset + fade), color: "#000" });
+    });
+    stops.push({ at: 100, color: "#000" });
+    stops.sort((a, b) => a.at - b.at);
+    const body = stops.map((stop) => `${stop.at.toFixed(2)}% { background: ${stop.color}; }`).join(" ");
+    frames.push(`@keyframes fx-fw-${p} { ${body} }`);
+    assignments.push(`.fx-fireworks .fx-pixel:nth-child(${p + 1}) { animation: fx-fw-${p} 5s linear infinite; }`);
+  }
+  return `${frames.join("\n")}\n@media (prefers-reduced-motion: no-preference) {\n${assignments.join("\n")}\n}`;
+}
+
+let dynamicCss = "";
+if (type === "scan") {
+  dynamicCss = buildScanCss(PIXEL_COUNT);
+} else if (type === "fireworks") {
+  dynamicCss = buildFireworksCss(PIXEL_COUNT);
+}
 ---
 
 <span class:list={["fx-preview", `fx-${type}`]} role="img" aria-label={label}>
@@ -57,6 +141,8 @@ const PIXEL_COUNT = 20;
     )
   }
 </span>
+
+{dynamicCss && <style is:inline set:html={dynamicCss} />}
 
 <style>
   .fx-preview {
@@ -345,29 +431,9 @@ const PIXEL_COUNT = 20;
     }
   }
 
-  .fx-scan .fx-strip {
-    position: relative;
-  }
+  /* Scan: a single lit pixel bounced across the strip (keyframes generated in frontmatter). */
   .fx-scan .fx-pixel {
     background: #000;
-  }
-  .fx-scan .fx-strip::after {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 6px;
-    height: 100%;
-    background: #ffd24a;
-    animation: fx-scan 1.6s ease-in-out infinite alternate;
-  }
-  @keyframes fx-scan {
-    from {
-      transform: translateX(0);
-    }
-    to {
-      transform: translateX(133px);
-    }
   }
 
   .fx-twinkle .fx-pixel {
@@ -458,32 +524,9 @@ const PIXEL_COUNT = 20;
     }
   }
 
+  /* Fireworks: blooming/fading sparks (keyframes generated in frontmatter). */
   .fx-fireworks .fx-pixel {
     background: #000;
-    animation: fx-fireworks 2.4s ease-out infinite;
-  }
-  .fx-fireworks .fx-pixel:nth-child(4n) {
-    animation-delay: 0s;
-  }
-  .fx-fireworks .fx-pixel:nth-child(4n + 1) {
-    animation-delay: 0.6s;
-  }
-  .fx-fireworks .fx-pixel:nth-child(4n + 2) {
-    animation-delay: 1.2s;
-  }
-  .fx-fireworks .fx-pixel:nth-child(4n + 3) {
-    animation-delay: 1.8s;
-  }
-  @keyframes fx-fireworks {
-    0% {
-      background: #000;
-    }
-    5% {
-      background: #fff;
-    }
-    100% {
-      background: #000;
-    }
   }
 
   .fx-addr-flicker .fx-pixel {
@@ -597,10 +640,6 @@ const PIXEL_COUNT = 20;
     .fx-color-wipe .fx-pixel:nth-child(-n + 10) {
       background: #209cee;
     }
-    .fx-scan .fx-strip::after {
-      display: none;
-    }
-    .fx-scan .fx-pixel:nth-child(5),
     .fx-scan .fx-pixel:nth-child(6) {
       background: #ffd24a;
     }
@@ -616,8 +655,26 @@ const PIXEL_COUNT = 20;
     .fx-random-twinkle .fx-pixel:nth-child(3n + 2) {
       background: #ffd24a;
     }
-    .fx-fireworks .fx-pixel:nth-child(4n) {
-      background: #fff;
+    .fx-fireworks .fx-pixel:nth-child(5) {
+      background: #ff3860;
+    }
+    .fx-fireworks .fx-pixel:nth-child(4),
+    .fx-fireworks .fx-pixel:nth-child(6) {
+      background: #5e1320;
+    }
+    .fx-fireworks .fx-pixel:nth-child(8) {
+      background: #209cee;
+    }
+    .fx-fireworks .fx-pixel:nth-child(7),
+    .fx-fireworks .fx-pixel:nth-child(9) {
+      background: #0c3a57;
+    }
+    .fx-fireworks .fx-pixel:nth-child(17) {
+      background: #23d160;
+    }
+    .fx-fireworks .fx-pixel:nth-child(16),
+    .fx-fireworks .fx-pixel:nth-child(18) {
+      background: #0d4d24;
     }
     .fx-addr-flicker .fx-pixel {
       opacity: 0.9;

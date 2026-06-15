@@ -346,8 +346,11 @@ class ReleaseNotesGenerator:
         """Extract PR numbers from commits between two refs"""
         print(f"Comparing {base_ref}...{head_ref}")
 
-        # Use --paginate with --jq to get all commit messages across all pages
-        # This automatically handles pagination and extracts just what we need
+        # Use --paginate with --jq to get all commit subjects across all pages.
+        # Only the first line of each commit message is used: GitHub appends the
+        # merged PR number as a trailing "(#1234)" on the subject line. Scanning
+        # the body would wrongly pick up issue references (e.g. "Fixes #16420")
+        # and other PR mentions, which are not PRs merged in this range.
         result = subprocess.run(
             [
                 "gh",
@@ -355,23 +358,26 @@ class ReleaseNotesGenerator:
                 f"repos/esphome/esphome/compare/{base_ref}...{head_ref}",
                 "--paginate",
                 "--jq",
-                ".commits[].commit.message",
+                '.commits[].commit.message | split("\\n")[0]',
             ],
             capture_output=True,
             text=True,
             check=True,
         )
 
-        # Each line is a commit message
-        commit_messages = [line for line in result.stdout.strip().split("\n") if line]
+        # One subject line per commit
+        commit_subjects = [line for line in result.stdout.strip().split("\n") if line]
 
-        print(f"Found {len(commit_messages)} commits")
+        print(f"Found {len(commit_subjects)} commits")
 
         pr_numbers = set()
-        for message in commit_messages:
-            # Extract PR numbers from patterns like (#12345)
-            matches = re.findall(r"\(#(\d+)\)", message)
-            pr_numbers.update(int(m) for m in matches)
+        for subject in commit_subjects:
+            # Take the trailing "(#1234)" that GitHub appends on squash merge.
+            # Using the last match also handles reverts like
+            # 'Revert "[x] foo (#123)" (#456)', where #456 is the actual PR.
+            matches = re.findall(r"\(#(\d+)\)", subject)
+            if matches:
+                pr_numbers.add(int(matches[-1]))
 
         return sorted(pr_numbers)
 
