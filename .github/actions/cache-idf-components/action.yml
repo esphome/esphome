@@ -3,8 +3,9 @@ description: >
   Cache the ESP-IDF component manager download cache -- the managed components
   pulled from the registry that are listed in esphome/idf_component.yml (mdns,
   esp32-camera, lvgl, esp-dsp, ...). Shared by every job that builds ESP-IDF
-  (tidy + component matrix). Keyed on a hash of the committed manifest, so it
-  invalidates only when a component is added or bumped. Written by a single
+  (tidy + component matrix). Keyed on the recommended arduino-esp32 version plus
+  a hash of the committed manifest, so it invalidates when a component (or the
+  generated arduino-esp32 dep) is added or bumped. Written by a single
   dev-branch job (the ESP32 Arduino tidy build, which materializes the full
   manifest superset); all other jobs are restore-only. Callers must set env
   IDF_COMPONENT_CACHE_PATH: ~/.esphome-idf-components.
@@ -18,22 +19,38 @@ inputs:
 runs:
   using: composite
   steps:
-    # actions/cache never overwrites an existing key, so a stable manifest hash
-    # means one entry per distinct manifest: the writer's save is a no-op when
-    # unchanged, and a component bump writes a fresh key while the old one ages
+    - name: Resolve arduino-esp32 version for cache key
+      # The arduino tidy build generates an espressif/arduino-esp32 dependency
+      # that is NOT in the static manifest, so its recommended version is pinned
+      # in code. Fold it into the key so an arduino bump invalidates the cache.
+      id: meta
+      shell: bash
+      run: |
+        . venv/bin/activate
+        version=$(python -c 'from esphome.components.esp32 import ARDUINO_FRAMEWORK_VERSION_LOOKUP as L; print(L["recommended"])')
+        echo "arduino_version=$version" >> "$GITHUB_OUTPUT"
+    # actions/cache never overwrites an existing key, so a stable key means one
+    # entry per distinct (arduino version, manifest) pair: the writer's save is a
+    # no-op when unchanged, and a bump writes a fresh key while the old one ages
     # out via the 7-day / 10GB-LRU eviction. PRs stay restore-only so they never
-    # consume their own scope's quota.
+    # consume their own scope's quota. restore-keys falls back to the newest
+    # cache for the same arduino version first, then any, so a manifest change
+    # still warms from a sibling and only fetches the delta via local-first.
     - name: Cache IDF components (write on dev)
       if: inputs.save == 'true' && github.ref == 'refs/heads/dev'
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: ~/.esphome-idf-components
-        key: ${{ runner.os }}-idf-components-${{ hashFiles('esphome/idf_component.yml') }}
-        restore-keys: ${{ runner.os }}-idf-components-
+        key: ${{ runner.os }}-idf-components-${{ steps.meta.outputs.arduino_version }}-${{ hashFiles('esphome/idf_component.yml') }}
+        restore-keys: |
+          ${{ runner.os }}-idf-components-${{ steps.meta.outputs.arduino_version }}-
+          ${{ runner.os }}-idf-components-
     - name: Cache IDF components (restore-only)
       if: inputs.save != 'true' || github.ref != 'refs/heads/dev'
       uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: ~/.esphome-idf-components
-        key: ${{ runner.os }}-idf-components-${{ hashFiles('esphome/idf_component.yml') }}
-        restore-keys: ${{ runner.os }}-idf-components-
+        key: ${{ runner.os }}-idf-components-${{ steps.meta.outputs.arduino_version }}-${{ hashFiles('esphome/idf_component.yml') }}
+        restore-keys: |
+          ${{ runner.os }}-idf-components-${{ steps.meta.outputs.arduino_version }}-
+          ${{ runner.os }}-idf-components-
