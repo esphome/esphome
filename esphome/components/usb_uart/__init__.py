@@ -203,7 +203,9 @@ async def to_code(config):
             if channel[CONF_DEBUG_PREFIX]:
                 cg.add(chvar.set_debug_prefix(channel[CONF_DEBUG_PREFIX]))
             if channel[CONF_DEBUG_ADD_UART_SETTINGS]:
-                cg.add(chvar.set_debug_add_settings(channel[CONF_DEBUG_ADD_UART_SETTINGS]))
+                cg.add(
+                    chvar.set_debug_add_settings(channel[CONF_DEBUG_ADD_UART_SETTINGS])
+                )
                 cg.add_define("UART_DEBUGGER_ADD_SETTINGS")
             cg.add(var.add_channel(chvar))
             if channel[CONF_DEBUG]:
