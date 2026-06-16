@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "esphome/components/display/display.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/split_buffer/split_buffer.h"
@@ -50,9 +52,7 @@ class EPaperBase : public Display,
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
   void set_busy_pin(GPIOPin *busy) { this->busy_pin_ = busy; }
-  // Power-enable ("LOAD_SW"/"PWR") pin: driven HIGH at setup to switch on the panel
-  // source-driver power. Without it the controller never powers up and BUSY never asserts.
-  void set_enable_pin(GPIOPin *enable) { this->enable_pin_ = enable; }
+  void set_enable_pins(std::vector<GPIOPin *> enable_pins) { this->enable_pins_ = std::move(enable_pins); }
   void set_reset_duration(uint32_t reset_duration) { this->reset_duration_ = reset_duration; }
   void set_transform(uint8_t transform) {
     this->transform_ = transform;
@@ -192,7 +192,7 @@ class EPaperBase : public Display,
   GPIOPin *dc_pin_{};
   GPIOPin *busy_pin_{};
   GPIOPin *reset_pin_{};
-  GPIOPin *enable_pin_{};
+  std::vector<GPIOPin *> enable_pins_{};
   bool waiting_for_idle_{};
   uint32_t delay_until_{};  // timestamp until which to delay processing
   uint16_t next_delay_{};   // milliseconds to delay before next state

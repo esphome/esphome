@@ -40,9 +40,9 @@ bool EPaperBase::init_buffer_(size_t buffer_length) {
 void EPaperBase::setup_pins_() const {
   // Switch on panel power first (matches the manufacturer driving LOAD_SW/PWR high before
   // anything else). Must happen before reset so the controller can power up.
-  if (this->enable_pin_ != nullptr) {
-    this->enable_pin_->setup();  // OUTPUT
-    this->enable_pin_->digital_write(true);
+  for (auto *pin : this->enable_pins_) {
+    pin->setup();  // OUTPUT
+    pin->digital_write(true);
   }
 
   if (this->dc_pin_ != nullptr) {
@@ -356,7 +356,8 @@ void EPaperBase::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
-  LOG_PIN("  Enable Pin: ", this->enable_pin_);
+  for (auto *pin : this->enable_pins_)
+    LOG_PIN("  Enable Pin: ", pin);
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_UPDATE_INTERVAL(this);
 }

@@ -214,9 +214,8 @@ void EPaperSpectraE6DualCS::deep_sleep() {
   ESP_LOGD(TAG, "DSLP → both ICs");
   static constexpr uint8_t DSLP_DATA[] = {0xA5};
   this->both_cmd_data_(CMD_DSLP, DSLP_DATA, sizeof DSLP_DATA);
-  if (this->enable_pin_ != nullptr) {
-    this->enable_pin_->digital_write(false);
-  }
+  for (auto *pin : this->enable_pins_)
+    pin->digital_write(false);
 }
 
 void EPaperSpectraE6DualCS::both_command_(uint8_t cmd) { this->both_cmd_data_(cmd, nullptr, 0); }

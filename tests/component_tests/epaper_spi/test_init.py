@@ -15,7 +15,7 @@ from esphome.components.epaper_spi.display import (
     FINAL_VALIDATE_SCHEMA,
     MODELS,
 )
-from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
+from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32, VARIANT_ESP32S3
 from esphome.const import (
     CONF_BUSY_PIN,
     CONF_CS_PIN,
@@ -38,6 +38,7 @@ _PIN_CONF_KEYS = (
     CONF_RESET_PIN,
     CONF_BUSY_PIN,
     CONF_ENABLE_PIN,
+    CONF_CS_SECONDARY_PIN,
 )
 
 
@@ -218,6 +219,7 @@ def test_individual_models(
     # Configure SPI component which is required by epaper_spi
     set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
 
+    model = MODELS[model_name]
     config: dict[str, Any] = {"model": model_name, "id": "test_display"}
 
     # Add required fields based on model defaults
@@ -252,6 +254,9 @@ def test_individual_models(
             config[CONF_RESET_PIN] = 3
         if CONF_CS_PIN in config:
             config[CONF_CS_PIN] = 10
+
+    # Select an ESP32 variant on which all of this model's pins are valid.
+    choose_variant_with_pins(_pins_for(model, config))
 
     # This should not raise any exceptions
     run_schema_validation(config)

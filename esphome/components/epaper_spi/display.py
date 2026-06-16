@@ -217,9 +217,9 @@ async def to_code(config):
     if busy_pin := config.get(CONF_BUSY_PIN):
         busy = await cg.gpio_pin_expression(busy_pin)
         cg.add(var.set_busy_pin(busy))
-    if enable_pins := config.get(CONF_ENABLE_PIN):
-        enable = await cg.gpio_pin_expression(enable_pins[0])
-        cg.add(var.set_enable_pin(enable))
+    if enable_pin := config.get(CONF_ENABLE_PIN):
+        enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
+        cg.add(var.set_enable_pins(enable))
     if cs_secondary_config := config.get(CONF_CS_SECONDARY_PIN):
         cs_secondary = await cg.gpio_pin_expression(cs_secondary_config)
         cg.add(var.set_cs_secondary_pin(cs_secondary))
