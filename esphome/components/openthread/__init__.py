@@ -10,8 +10,7 @@ from esphome.components.esp32 import (
     require_vfs_select,
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
-from esphome.components.zephyr import zephyr_add_prj_conf, zephyr_data
-from esphome.components.zephyr.const import KEY_PRJ_CONF
+from esphome.components.zephyr import zephyr_add_prj_conf
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -101,9 +100,7 @@ def set_sdkconfig_options(config):
 
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_ENABLED", True)
 
-    if tlv := config.get(CONF_TLV):
-        cg.add_define("USE_OPENTHREAD_TLVS", tlv)
-    else:
+    if not config.get(CONF_TLV):
         if pan_id := config.get(CONF_PAN_ID):
             add_idf_sdkconfig_option("CONFIG_OPENTHREAD_NETWORK_PANID", pan_id)
 
@@ -130,9 +127,6 @@ def set_sdkconfig_options(config):
             add_idf_sdkconfig_option(
                 "CONFIG_OPENTHREAD_NETWORK_PSKC", f"{pskc:X}".lower()
             )
-
-    if config.get(CONF_FORCE_DATASET):
-        cg.add_define("USE_OPENTHREAD_FORCE_DATASET")
 
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_DNS64_CLIENT", True)
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT", True)
@@ -274,6 +268,10 @@ async def to_code(config):
         include_builtin_idf_component("openthread")
 
     cg.add_define("USE_OPENTHREAD")
+    if config.get(CONF_FORCE_DATASET):
+        cg.add_define("USE_OPENTHREAD_FORCE_DATASET")
+    if tlv := config.get(CONF_TLV):
+        cg.add_define("USE_OPENTHREAD_TLVS", tlv)
 
     # OpenThread SRP needs access to mDNS services after setup
     enable_mdns_storage()
@@ -300,8 +298,4 @@ async def to_code(config):
             f"OPENTHREAD_NORDIC_LIBRARY_{config.get(CONF_DEVICE_TYPE)}", True
         )
         zephyr_add_prj_conf(f"OPENTHREAD_{config.get(CONF_DEVICE_TYPE)}", True)
-        zephyr_data()[KEY_PRJ_CONF][""]["CONFIG_MAIN_STACK_SIZE"] = (4096, True)
-        if config.get(CONF_FORCE_DATASET):
-            cg.add_define("USE_OPENTHREAD_FORCE_DATASET")
-        if tlv := config.get(CONF_TLV):
-            cg.add_define("USE_OPENTHREAD_TLVS", tlv)
+        zephyr_add_prj_conf("MAIN_STACK_SIZE", 4096)
