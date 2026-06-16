@@ -37,6 +37,10 @@ static constexpr size_t FRAME_OVERHEAD_BYTES = 8;
 static constexpr size_t MAX_COMMAND_PREAMBLE_LEN = 8;
 static constexpr size_t MAX_COMMAND_POSTAMBLE_LEN = 8;
 
+// Maximum number of command values a single `command:` button entry may carry, serialised
+// back-to-back in one frame; must agree with the Python schema cap (cv.Length(max=...)).
+static constexpr size_t MAX_COMMAND_VALUES = 8;
+
 /// Diagnostic value exposed by the rs485_frame sensor/text_sensor platforms.
 /// These are hub state, not user payload decoding — user decoding is done via on_frame:.
 enum SensorDecode {
@@ -141,16 +145,15 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   void set_tx_fixed_interval(uint32_t interval) { this->tx_fixed_interval_ = interval; }
   void set_queue_policy(QueuePolicy policy) { this->queue_policy_ = policy; }
   void set_max_queue_size(uint32_t size) { this->max_queue_size_ = size; }
-  // Configure the generic command encoder. Preamble bytes are written first, then the
-  // 32-bit command value serialised as command_size bytes (1/2/4) in the requested byte
-  // order, repeated command_repeat times, then the postamble bytes.
-  void set_command_format(const std::vector<uint8_t> &preamble, uint8_t command_size, bool big_endian, uint8_t repeat,
+  // Configure the generic command encoder. Preamble bytes are written first, then each value
+  // serialised as value_element_bytes (1/2/4) in the requested byte order, back-to-back,
+  // then the postamble bytes.
+  void set_command_format(const std::vector<uint8_t> &preamble, uint8_t value_element_bytes, bool big_endian,
                           const std::vector<uint8_t> &postamble) {
     this->cmd_preamble_.assign(preamble.begin(), preamble.end());
     this->cmd_postamble_.assign(postamble.begin(), postamble.end());
-    this->cmd_command_size_ = command_size;
+    this->cmd_value_element_bytes_ = value_element_bytes;
     this->cmd_big_endian_ = big_endian;
-    this->cmd_repeat_ = repeat;
     this->has_command_format_ = true;
   }
   void set_idle_command(uint32_t cmd) {
@@ -193,9 +196,14 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   }
 #endif
 
-  bool queue_command_value(uint32_t command);
-  bool queue_command_with_format(uint32_t command, const std::vector<uint8_t> &preamble, uint8_t command_size,
-                                 bool big_endian, uint8_t repeat, const std::vector<uint8_t> &postamble);
+  bool queue_command_value(uint32_t command) { return this->queue_command_values(&command, 1); }
+  // Queue one or more values encoded back-to-back using this hub's command_format.
+  bool queue_command_values(const uint32_t *commands, size_t count);
+  // Queue values using this hub's preamble/endian/postamble but a per-call element byte width.
+  // Used by buttons with a top-level value_element_bytes: override (not a full command_format).
+  bool queue_command_values_with_element_bytes(const uint32_t *commands, size_t count, uint8_t element_bytes);
+  bool queue_command_with_format(const uint32_t *commands, size_t count, const std::vector<uint8_t> &preamble,
+                                 uint8_t value_element_bytes, bool big_endian, const std::vector<uint8_t> &postamble);
   bool queue_raw_frame(const std::vector<uint8_t> &payload);
   // Assemble frame_type + payload into a pre-reserved buffer and queue it. Used by the
   // send_frame action and the raw-form button so neither allocates a per-call vector.
@@ -222,7 +230,8 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   }
   void escape_dle_(const std::vector<uint8_t> &data, std::vector<uint8_t> &out) const;
   void build_frame_(const std::vector<uint8_t> &payload, std::vector<uint8_t> &out);
-  void build_key_payload_(uint32_t command, std::vector<uint8_t> &out) const;
+  void build_key_payload_(const uint32_t *commands, size_t count, uint8_t element_bytes,
+                          std::vector<uint8_t> &out) const;
   bool enqueue_frame_();
   void maybe_tx_(uint32_t now);
   void send_next_(uint32_t now);
@@ -260,14 +269,13 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   uint32_t tx_fixed_interval_{100};
   QueuePolicy queue_policy_{QUEUE_REPLACE_LATEST};
   uint32_t max_queue_size_{1};
-  // Generic command encoder. Has_command_format_ is false for hubs without command_format:
-  // (generic_rs485_frame with no explicit block). build_key_payload_ is never called in
-  // that case — the button platform's _final_validate rejects `command:` against such hubs.
+  // Generic command encoder. has_command_format_ is false for hubs without command_format:
+  // (generic hubs with no explicit block). build_key_payload_ is never called in that case
+  // — the button platform's _final_validate rejects `value:` against such hubs.
   StaticVector<uint8_t, MAX_COMMAND_PREAMBLE_LEN> cmd_preamble_;
   StaticVector<uint8_t, MAX_COMMAND_POSTAMBLE_LEN> cmd_postamble_;
-  uint8_t cmd_command_size_{4};
+  uint8_t cmd_value_element_bytes_{4};
   bool cmd_big_endian_{true};
-  uint8_t cmd_repeat_{1};
   bool has_command_format_{false};
   uint32_t idle_command_{0};
   bool has_idle_command_{false};

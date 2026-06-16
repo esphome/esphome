@@ -36,10 +36,9 @@ TxGateMode = rs485_frame_ns.enum("TxGateMode")
 
 CONF_RS485_FRAME_ID = "rs485_frame_id"
 CONF_ASCII_STRIP_HIGH_BIT = "ascii_strip_high_bit"
-CONF_COMMAND_ENDIAN = "command_endian"
+CONF_ENDIAN = "endian"
 CONF_COMMAND_FORMAT = "command_format"
-CONF_COMMAND_REPEAT = "command_repeat"
-CONF_COMMAND_SIZE = "command_size"
+CONF_VALUE_ELEMENT_BYTES = "value_element_bytes"
 CONF_CRC = "crc"
 CONF_DECODE = "decode"
 CONF_DLE = "dle"
@@ -117,6 +116,10 @@ SENSOR_DECODES = {
 MAX_COMMAND_PREAMBLE_LEN = 8
 MAX_COMMAND_POSTAMBLE_LEN = 8
 
+# Max values a button's `command:` may carry, serialised back-to-back in one frame. Must agree
+# with MAX_COMMAND_VALUES in rs485_frame.h.
+MAX_COMMAND_VALUES = 8
+
 
 def validate_byte(value):
     value = cv.hex_uint8_t(value)
@@ -167,22 +170,19 @@ def _validate_command_format_bytes(max_len: int):
     return cv.All(cv.ensure_list(validate_byte), cv.Length(max=max_len))
 
 
-# Schema for command_format: — defines how a uint32 `command:` value is serialised into
-# the frame payload. A single data-driven block that can express any protocol variant
-# without touching C++ (preamble bytes, command field size/endianness/repeat, postamble
-# bytes). command_format: is optional: hubs without it can only transmit via the raw
-# `frame_type` + `payload` button form or the rs485_frame.send_frame action — the button
-# platform's _final_validate rejects the `command:` shorthand against a hub that has none.
+# Schema for command_format: — defines how `value:` entries are serialised into the frame
+# payload. A single data-driven block that can express any protocol variant without touching
+# C++ (preamble bytes, per-element byte width, endianness, postamble bytes).
+# command_format: is optional: hubs without it can only transmit via the raw `frame_type` +
+# `payload` button form or the rs485_frame.send_frame action — the button platform's
+# _final_validate rejects the `value:` shorthand against a hub that has none.
 COMMAND_FORMAT_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_PREAMBLE, default=[]): _validate_command_format_bytes(
             MAX_COMMAND_PREAMBLE_LEN
         ),
-        cv.Required(CONF_COMMAND_SIZE): cv.one_of(1, 2, 4, int=True),
-        cv.Optional(CONF_COMMAND_ENDIAN, default="big"): cv.one_of(
-            "big", "little", lower=True
-        ),
-        cv.Optional(CONF_COMMAND_REPEAT, default=1): cv.int_range(min=1, max=4),
+        cv.Required(CONF_VALUE_ELEMENT_BYTES): cv.one_of(1, 2, 3, 4, int=True),
+        cv.Optional(CONF_ENDIAN, default="big"): cv.one_of("big", "little", lower=True),
         cv.Optional(CONF_POSTAMBLE, default=[]): _validate_command_format_bytes(
             MAX_COMMAND_POSTAMBLE_LEN
         ),
@@ -457,7 +457,7 @@ def validate_hub(config):
     # tx.idle_command is a uint32 that the hub serialises via command_format on every gate
     # with an empty queue. Without a command_format there is no defined encoding, so reject
     # the combination rather than silently emitting an undocumented default 4-byte big-endian
-    # encoding (mirrors the button platform's `command:` rule).
+    # encoding (mirrors the button platform's `value:` rule).
     if CONF_IDLE_COMMAND in config[CONF_TX] and CONF_COMMAND_FORMAT not in config:
         raise cv.Invalid(
             "tx.idle_command requires a command_format: on the hub so the value has a "
@@ -556,9 +556,8 @@ async def to_code(config):
         cg.add(
             var.set_command_format(
                 cf[CONF_PREAMBLE],
-                cf[CONF_COMMAND_SIZE],
-                cf[CONF_COMMAND_ENDIAN] == "big",
-                cf[CONF_COMMAND_REPEAT],
+                cf[CONF_VALUE_ELEMENT_BYTES],
+                cf[CONF_ENDIAN] == "big",
                 cf[CONF_POSTAMBLE],
             )
         )

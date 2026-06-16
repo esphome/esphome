@@ -12,10 +12,10 @@ globals:
 rs485_frame:
   # Hub 1 — exercises on_frame: triggers + diagnostic sensors + button + number.
   # crc: is required (it has no default). command_format: is set explicitly so
-  # the `command:`-form button below is accepted (the button platform's _final_validate
-  # rejects `command:` against a hub with no command_format). The default frame_trigger gate
+  # the `value:`-form button below is accepted (the button platform's _final_validate
+  # rejects `value:` against a hub with no command_format). The default frame_trigger gate
   # mode requires an explicit gate.frame_type. A representative non-trivial command_format:
-  # 3-byte preamble, 4-byte command x 2, 1-byte pad.
+  # 3-byte preamble, 4-byte value x 2, 1-byte pad.
   - id: rs485_frame_hub
     uart_id: uart_bus
     framing:
@@ -29,8 +29,7 @@ rs485_frame:
         frame_type: [0x01, 0x01]
     command_format:
       preamble: [0x00, 0x83, 0x01]
-      command_size: 4
-      command_repeat: 2
+      value_element_bytes: 4
       postamble: [0x00]
     dump_frames: true
     frame_timeout: 50ms
@@ -130,7 +129,7 @@ rs485_frame:
     crc:
       type: sum8
     command_format:
-      command_size: 1
+      value_element_bytes: 1
     tx:
       gate:
         mode: idle_gap
@@ -225,11 +224,11 @@ sensor:
     decode: queue_depth
 
 button:
-  # Command-form: encodes via the hub's command_format.
+  # value: form — encodes via the hub's command_format.
   - platform: rs485_frame
     rs485_frame_id: rs485_frame_hub
     name: "Lights Toggle"
-    command: 0x00010000
+    value: 0x00010000
 
   # Raw-form: bypasses command_format entirely — frame_type + payload bytes go out as-is.
   # Targets hub3 (no command_format set) to prove the raw path works when the command-form
