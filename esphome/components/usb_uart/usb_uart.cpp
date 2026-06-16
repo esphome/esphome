@@ -107,12 +107,14 @@ std::vector<CdcEps> USBUartTypeCdcAcm::parse_descriptors(usb_device_handle_t dev
 }
 
 void RingBuffer::push(uint8_t item) {
-  if (this->get_free_space() == 0)
+  if (this->buffer_ == nullptr || this->get_free_space() == 0)
     return;
   this->buffer_[this->insert_pos_] = item;
   this->insert_pos_ = (this->insert_pos_ + 1) % this->buffer_size_;
 }
 void RingBuffer::push(const uint8_t *data, size_t len) {
+  if (this->buffer_ == nullptr)
+    return;
   size_t free = this->get_free_space();
   if (len > free)
     len = free;
@@ -135,6 +137,21 @@ size_t RingBuffer::pop(uint8_t *data, size_t len) {
   }
   return len;
 }
+#if defined(USE_UART_DEBUGGER) && defined(UART_DEBUGGER_ADD_SETTINGS)
+std::string USBUartChannel::get_debug_prefix() const {
+  std::string prefix = "|";
+  prefix += std::to_string(this->baud_rate_);
+  prefix += ':';
+  prefix += std::to_string(this->data_bits_);
+  prefix += ':';
+  prefix += PARITY_NAMES[this->parity_];
+  prefix += ':';
+  prefix += STOP_BITS_NAMES[this->stop_bits_];
+  prefix += '|';
+  return prefix;
+}
+#endif
+
 void USBUartChannel::write_array(const uint8_t *data, size_t len) {
   if (!this->initialised_.load()) {
     ESP_LOGD(TAG, "Channel not initialised - write ignored");
@@ -143,24 +160,16 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
 #ifdef USE_UART_DEBUGGER
   if (this->debug_) {
     constexpr size_t batch = 16;
-    char buf[format_hex_pretty_size(batch)];  // "XX,XX,...,XX\0"
-#ifdef UART_DEBUGGER_ADD_SETTINGS
-    char settings_prefix[48];
-    if (this->debug_add_settings_) {
-      snprintf(settings_prefix, sizeof(settings_prefix), "|%" PRIu32 ":%u:%s:%s|", this->baud_rate_, this->data_bits_,
-               PARITY_NAMES[this->parity_], STOP_BITS_NAMES[this->stop_bits_]);
-    } else {
-      settings_prefix[0] = '\0';
-    }
-#endif
+    char buf[format_hex_pretty_size(batch)];
     for (size_t off = 0; off < len; off += batch) {
       size_t n = std::min(len - off, batch);
       format_hex_pretty_to(buf, data + off, n, ',');
 #ifdef UART_DEBUGGER_ADD_SETTINGS
-      ESP_LOGD(TAG, "%s%s>>> %s", settings_prefix, this->debug_prefix_.c_str(), buf);
-#else
-      ESP_LOGD(TAG, "%s>>> %s", this->debug_prefix_.c_str(), buf);
+      if (this->debug_add_settings_)
+        ESP_LOGD(TAG, "%s%s>>> %s", this->get_debug_prefix().c_str(), this->debug_prefix_.c_str(), buf);
+      else
 #endif
+        ESP_LOGD(TAG, "%s>>> %s", this->debug_prefix_.c_str(), buf);
     }
   }
 #endif
@@ -206,7 +215,7 @@ bool USBUartChannel::peek_byte(uint8_t *data) {
   return true;
 }
 bool USBUartChannel::read_array(uint8_t *data, size_t len) {
-  if (!this->initialised_.load()) {
+  if (!this->initialised_.load() && !this->destroying_.load()) {
     ESP_LOGV(TAG, "Channel not initialised - read ignored");
     return false;
   }
@@ -236,20 +245,14 @@ void USBUartComponent::loop() {
 
 #ifdef USE_UART_DEBUGGER
     if (channel->debug_) {
-      char buf[format_hex_pretty_size(usb_host::USB_MAX_PACKET_SIZE)];  // "XX,XX,...,XX\0"
+      char buf[format_hex_pretty_size(usb_host::USB_MAX_PACKET_SIZE)];
       format_hex_pretty_to(buf, chunk->data, chunk->length, ',');
 #ifdef UART_DEBUGGER_ADD_SETTINGS
-      if (channel->debug_add_settings_) {
-        char settings_prefix[48];
-        snprintf(settings_prefix, sizeof(settings_prefix), "|%" PRIu32 ":%u:%s:%s|", channel->baud_rate_,
-                 channel->data_bits_, PARITY_NAMES[channel->parity_], STOP_BITS_NAMES[channel->stop_bits_]);
-        ESP_LOGD(TAG, "%s%s<<< %s", settings_prefix, channel->debug_prefix_.c_str(), buf);
-      } else {
-        ESP_LOGD(TAG, "%s<<< %s", channel->debug_prefix_.c_str(), buf);
-      }
-#else
-      ESP_LOGD(TAG, "%s<<< %s", channel->debug_prefix_.c_str(), buf);
+      if (channel->debug_add_settings_)
+        ESP_LOGD(TAG, "%s%s<<< %s", channel->get_debug_prefix().c_str(), channel->debug_prefix_.c_str(), buf);
+      else
 #endif
+        ESP_LOGD(TAG, "%s<<< %s", channel->debug_prefix_.c_str(), buf);
     }
 #endif
 
@@ -271,6 +274,17 @@ void USBUartComponent::loop() {
   uint16_t dropped = this->usb_data_queue_.get_and_reset_dropped_count();
   if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u USB data chunks due to buffer overflow", dropped);
+  }
+
+  // Deferred RX buffer free: once the shared queue is empty and a disconnecting channel's
+  // input_buffer_ has been fully consumed by the application, release its backing memory.
+  if (this->usb_data_queue_.empty()) {
+    for (auto *channel : this->channels_) {
+      if (channel->destroying_.load() && channel->input_buffer_.is_empty()) {
+        channel->input_buffer_.free_buffer();
+        channel->destroying_.store(false);
+      }
+    }
   }
 
   // Disable loop when idle. Callbacks re-enable via enable_loop_soon_any_context().
@@ -440,6 +454,15 @@ void USBUartTypeCdcAcm::on_connected() {
       this->status_set_warning(LOG_STR("No configuration found for channel"));
       break;
     }
+    if (!channel->input_buffer_.has_buffer()) {
+      if (!channel->input_buffer_.allocate()) {
+        ESP_LOGE(TAG, "Channel %d: out of memory for RX buffer", channel->index_);
+        this->status_set_error(LOG_STR("Out of memory for RX buffer"));
+        this->disconnect();
+        return;
+      }
+    }
+    channel->destroying_.store(false);
     channel->cdc_dev_ = cdc_devs[i++];
     fix_mps(channel->cdc_dev_.in_ep);
     fix_mps(channel->cdc_dev_.out_ep);
@@ -503,8 +526,9 @@ void USBUartTypeCdcAcm::on_disconnected() {
         channel->output_pool_.release(chunk);
       }
     }
-    channel->input_buffer_.clear();
     channel->initialised_.store(false);
+    // Signal loop() to free the RX buffer once usb_data_queue_ and input_buffer_ are drained.
+    channel->destroying_.store(true);
   }
   USBClient::on_disconnected();
 }

@@ -189,8 +189,10 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   void set_debug(bool debug) { this->debug_ = debug; }
   void set_dummy_receiver(bool dummy_receiver) { this->dummy_receiver_ = dummy_receiver; }
   void set_debug_prefix(const char *prefix) { this->debug_prefix_ = StringRef(prefix); }
+#ifdef USE_UART_DEBUGGER
 #ifdef UART_DEBUGGER_ADD_SETTINGS
   void set_debug_add_settings(bool add) { this->debug_add_settings_ = add; }
+#endif
 #endif
   void set_flush_timeout(uint32_t flush_timeout_ms) override { this->flush_timeout_ms_ = flush_timeout_ms; }
 
@@ -212,8 +214,11 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   std::function<void()> rx_callback_{};
   CdcEps cdc_dev_{};
   StringRef debug_prefix_{};
+#ifdef USE_UART_DEBUGGER
 #ifdef UART_DEBUGGER_ADD_SETTINGS
+  std::string get_debug_prefix() const;
   bool debug_add_settings_{false};
+#endif
 #endif
   // 4-byte fields
   UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};

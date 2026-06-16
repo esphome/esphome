@@ -559,12 +559,16 @@ void CH934XChannel::write_array(const uint8_t *data, size_t len) {
 #ifdef USE_UART_DEBUGGER
   if (this->debug_) {
     constexpr size_t batch = 16;
-    char buf[4 + format_hex_pretty_size(batch)];
+    char buf[format_hex_pretty_size(batch)];
     for (size_t off = 0; off < len; off += batch) {
       size_t n = std::min(len - off, batch);
-      strcpy(buf, ">>> ");
-      format_hex_pretty_to(buf + 4, sizeof(buf) - 4, data + off, n, ',');
-      ESP_LOGD(TAG, "%s%s", this->debug_prefix_.c_str(), buf);
+      format_hex_pretty_to(buf, data + off, n, ',');
+#ifdef UART_DEBUGGER_ADD_SETTINGS
+      if (this->debug_add_settings_)
+        ESP_LOGD(TAG, "%s%s>>> %s", this->get_debug_prefix().c_str(), this->debug_prefix_.c_str(), buf);
+      else
+#endif
+        ESP_LOGD(TAG, "%s>>> %s", this->debug_prefix_.c_str(), buf);
     }
   }
 #endif
@@ -645,6 +649,17 @@ void USBUartTypeCH934X::on_connected() {
     return;
   }
 
+  for (auto *channel : this->channels_) {
+    if (!channel->input_buffer_.has_buffer()) {
+      if (!channel->input_buffer_.allocate()) {
+        ESP_LOGE(TAG, "Channel %d: out of memory for RX buffer", channel->index_);
+        this->status_set_error(LOG_STR("Out of memory for RX buffer"));
+        this->disconnect();
+        return;
+      }
+    }
+    channel->destroying_.store(false);
+  }
   this->enable_channels();
 }
 
@@ -655,7 +670,7 @@ void USBUartTypeCH934X::on_disconnected() {
   for (auto *channel : this->channels_) {
     channel->initialised_.store(false);
     channel->input_started_.store(false);
-    channel->input_buffer_.clear();
+    channel->destroying_.store(true);
   }
   // Shared TX queue lives on channel 0 — drain it on disconnect
   if (!this->channels_.empty()) {
