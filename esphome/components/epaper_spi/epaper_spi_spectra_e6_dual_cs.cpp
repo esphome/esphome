@@ -51,68 +51,68 @@ bool EPaperSpectraE6DualCS::initialise(bool partial) {
   this->current_data_index_ = 0;
 
   // AN_TM — master only
-  static constexpr uint8_t an_tm_data[] = {0xC0, 0x1C, 0x1C, 0xCC, 0xCC, 0xCC, 0x15, 0x15, 0x55};
-  this->cmd_data(CMD_AN_TM, an_tm_data, sizeof an_tm_data);
+  static constexpr uint8_t AN_TM_DATA[] = {0xC0, 0x1C, 0x1C, 0xCC, 0xCC, 0xCC, 0x15, 0x15, 0x55};
+  this->cmd_data(CMD_AN_TM, AN_TM_DATA, sizeof AN_TM_DATA);
 
   // CMD66 — both ICs
-  static constexpr uint8_t cmd66_data[] = {0x49, 0x55, 0x13, 0x5D, 0x05, 0x10};
-  this->both_cmd_data_(CMD_CMD66, cmd66_data, sizeof cmd66_data);
+  static constexpr uint8_t CMD66_DATA[] = {0x49, 0x55, 0x13, 0x5D, 0x05, 0x10};
+  this->both_cmd_data_(CMD_CMD66, CMD66_DATA, sizeof CMD66_DATA);
 
   // PSR — both ICs
-  static constexpr uint8_t psr_data[] = {0xDF, 0x69};
-  this->both_cmd_data_(CMD_PSR, psr_data, sizeof psr_data);
+  static constexpr uint8_t PSR_DATA[] = {0xDF, 0x69};
+  this->both_cmd_data_(CMD_PSR, PSR_DATA, sizeof PSR_DATA);
 
   // CDI — both ICs
-  static constexpr uint8_t cdi_data[] = {0xF7};
-  this->both_cmd_data_(CMD_CDI, cdi_data, sizeof cdi_data);
+  static constexpr uint8_t CDI_DATA[] = {0xF7};
+  this->both_cmd_data_(CMD_CDI, CDI_DATA, sizeof CDI_DATA);
 
   // TCON — both ICs
-  static constexpr uint8_t tcon_data[] = {0x03, 0x03};
-  this->both_cmd_data_(CMD_TCON, tcon_data, sizeof tcon_data);
+  static constexpr uint8_t TCON_DATA[] = {0x03, 0x03};
+  this->both_cmd_data_(CMD_TCON, TCON_DATA, sizeof TCON_DATA);
 
   // AGID — both ICs
-  static constexpr uint8_t agid_data[] = {0x10};
-  this->both_cmd_data_(CMD_AGID, agid_data, sizeof agid_data);
+  static constexpr uint8_t AGID_DATA[] = {0x10};
+  this->both_cmd_data_(CMD_AGID, AGID_DATA, sizeof AGID_DATA);
 
   // PWS — both ICs
-  static constexpr uint8_t pws_data[] = {0x22};
-  this->both_cmd_data_(CMD_PWS, pws_data, sizeof pws_data);
+  static constexpr uint8_t PWS_DATA[] = {0x22};
+  this->both_cmd_data_(CMD_PWS, PWS_DATA, sizeof PWS_DATA);
 
   // CCSET — both ICs
-  static constexpr uint8_t ccset_data[] = {0x01};
-  this->both_cmd_data_(CMD_CCSET, ccset_data, sizeof ccset_data);
+  static constexpr uint8_t CCSET_DATA[] = {0x01};
+  this->both_cmd_data_(CMD_CCSET, CCSET_DATA, sizeof CCSET_DATA);
 
   // TRES — both ICs: encodes per-IC resolution per community implementation
-  static constexpr uint8_t tres_data[] = {0x04, 0xB0, 0x03, 0x20};
-  this->both_cmd_data_(CMD_TRES, tres_data, sizeof tres_data);
+  static constexpr uint8_t TRES_DATA[] = {0x04, 0xB0, 0x03, 0x20};
+  this->both_cmd_data_(CMD_TRES, TRES_DATA, sizeof TRES_DATA);
 
   // PWR_EPD — master only
-  static constexpr uint8_t pwr_epd_data[] = {0x0F, 0x00, 0x28, 0x2C, 0x28, 0x38};
-  this->cmd_data(CMD_PWR_EPD, pwr_epd_data, sizeof pwr_epd_data);
+  static constexpr uint8_t PWR_EPD_DATA[] = {0x0F, 0x00, 0x28, 0x2C, 0x28, 0x38};
+  this->cmd_data(CMD_PWR_EPD, PWR_EPD_DATA, sizeof PWR_EPD_DATA);
 
   // EN_BUF — master only
-  static constexpr uint8_t en_buf_data[] = {0x07};
-  this->cmd_data(CMD_EN_BUF, en_buf_data, sizeof en_buf_data);
+  static constexpr uint8_t EN_BUF_DATA[] = {0x07};
+  this->cmd_data(CMD_EN_BUF, EN_BUF_DATA, sizeof EN_BUF_DATA);
 
   // BTST_P — master only
-  static constexpr uint8_t btst_p_data[] = {0xE8, 0x28};
-  this->cmd_data(CMD_BTST_P, btst_p_data, sizeof btst_p_data);
+  static constexpr uint8_t BTST_P_DATA[] = {0xE8, 0x28};
+  this->cmd_data(CMD_BTST_P, BTST_P_DATA, sizeof BTST_P_DATA);
 
   // BOOST_VDDP_EN — master only
-  static constexpr uint8_t boost_vddp_en_data[] = {0x01};
-  this->cmd_data(CMD_BOOST_VDDP_EN, boost_vddp_en_data, sizeof boost_vddp_en_data);
+  static constexpr uint8_t BOOST_VDDP_EN_DATA[] = {0x01};
+  this->cmd_data(CMD_BOOST_VDDP_EN, BOOST_VDDP_EN_DATA, sizeof BOOST_VDDP_EN_DATA);
 
   // BTST_N — master only
-  static constexpr uint8_t btst_n_data[] = {0xE8, 0x28};
-  this->cmd_data(CMD_BTST_N, btst_n_data, sizeof btst_n_data);
+  static constexpr uint8_t BTST_N_DATA[] = {0xE8, 0x28};
+  this->cmd_data(CMD_BTST_N, BTST_N_DATA, sizeof BTST_N_DATA);
 
   // BUCK_BOOST_VDDN — master only
-  static constexpr uint8_t buck_boost_vddn_data[] = {0x01};
-  this->cmd_data(CMD_BUCK_BOOST_VDDN, buck_boost_vddn_data, sizeof buck_boost_vddn_data);
+  static constexpr uint8_t BUCK_BOOST_VDDN_DATA[] = {0x01};
+  this->cmd_data(CMD_BUCK_BOOST_VDDN, BUCK_BOOST_VDDN_DATA, sizeof BUCK_BOOST_VDDN_DATA);
 
   // TFT_VCOM_POWER — master only
-  static constexpr uint8_t tft_vcom_power_data[] = {0x02};
-  this->cmd_data(CMD_TFT_VCOM_POWER, tft_vcom_power_data, sizeof tft_vcom_power_data);
+  static constexpr uint8_t TFT_VCOM_POWER_DATA[] = {0x02};
+  this->cmd_data(CMD_TFT_VCOM_POWER, TFT_VCOM_POWER_DATA, sizeof TFT_VCOM_POWER_DATA);
 
   return true;
 }
@@ -200,20 +200,20 @@ void EPaperSpectraE6DualCS::power_on() {
 
 void EPaperSpectraE6DualCS::refresh_screen(bool partial) {
   ESP_LOGD(TAG, "DRF → both ICs");
-  static constexpr uint8_t drf_data[] = {0x01};
-  this->both_cmd_data_(CMD_DRF, drf_data, sizeof drf_data);
+  static constexpr uint8_t DRF_DATA[] = {0x01};
+  this->both_cmd_data_(CMD_DRF, DRF_DATA, sizeof DRF_DATA);
 }
 
 void EPaperSpectraE6DualCS::power_off() {
   ESP_LOGD(TAG, "POF → both ICs");
-  static constexpr uint8_t pof_data[] = {0x00};
-  this->both_cmd_data_(CMD_POF, pof_data, sizeof pof_data);
+  static constexpr uint8_t POF_DATA[] = {0x00};
+  this->both_cmd_data_(CMD_POF, POF_DATA, sizeof POF_DATA);
 }
 
 void EPaperSpectraE6DualCS::deep_sleep() {
   ESP_LOGD(TAG, "DSLP → both ICs");
-  static constexpr uint8_t dslp_data[] = {0xA5};
-  this->both_cmd_data_(CMD_DSLP, dslp_data, sizeof dslp_data);
+  static constexpr uint8_t DSLP_DATA[] = {0xA5};
+  this->both_cmd_data_(CMD_DSLP, DSLP_DATA, sizeof DSLP_DATA);
   if (this->enable_pin_ != nullptr) {
     this->enable_pin_->digital_write(false);
   }
