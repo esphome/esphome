@@ -12,7 +12,7 @@ dependencies:
   esphome/micro-flac:
     version: 0.2.0
   esphome/micro-mp3:
-    version: 0.2.1
+    version: 0.2.3
   esphome/micro-opus:
     version: 0.4.1
   esphome/micro-wav:
@@ -109,4 +109,4 @@ dependencies:
     git: https://github.com/FastLED/FastLED.git
     version: d44c800a9e876a8394caefc2ce4915dd96dac77b
     rules:
-      - if: "$ESPHOME_ARDUINO == 1"
+      - if: "$ESPHOME_ARDUINO_COMPONENT == 1"

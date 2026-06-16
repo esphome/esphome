@@ -59,6 +59,19 @@ This document provides essential context for AI models interacting with this pro
         - Protected/private fields: `lower_snake_case_with_trailing_underscore_`
         - Favor descriptive names over abbreviations
 
+*   **Python Idioms:**
+    *   **Assignment expressions (PEP 572):** Prefer the walrus operator (`:=`) wherever it removes a redundant lookup or a throwaway temporary. The most common case in component code is presence-checking a config key and then indexing it separately — fetch once with `.get()` and bind in the condition instead:
+        ```python
+        # Bad - looks up CONF_BLAH twice
+        if CONF_BLAH in config:
+            cg.add(var.set_blah(config[CONF_BLAH]))
+
+        # Good - single lookup, value bound inline
+        if (blah := config.get(CONF_BLAH)) is not None:
+            cg.add(var.set_blah(blah))
+        ```
+        The same applies to `while` loops and comprehensions where it avoids recomputing a value. Don't contort code to use it — reach for `:=` only when it genuinely cuts repetition or an extra assignment line.
+
 *   **C++ Field Visibility:**
     *   **Prefer `protected`:** Use `protected` for most class fields to enable extensibility and testing. Fields should be `lower_snake_case_with_trailing_underscore_`.
     *   **Use `private` for safety-critical cases:** Use `private` visibility when direct field access could introduce bugs or violate invariants:
