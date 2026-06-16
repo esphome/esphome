@@ -58,13 +58,20 @@ class Type:
 
 uart_types = (
     Type("CDC_ACM", 0, 0, "CdcAcm", 1, baud_rate_required=False),
-    Type("CP210X", 0x10C4, 0xEA60, "CP210X", 3),
     Type("CH34X", 0x1A86, 0x55D5, "CH34X", 4),
     Type("CH340", 0x1A86, 0x7523, "CH34X", 1),
+    Type("CP210X", 0x10C4, 0xEA60, "CP210X", 3),
     Type("ESP_JTAG", 0x303A, 0x1001, "CdcAcm", 1, baud_rate_required=False),
     Type("FT232", 0x0403, 0x6001, "FT23XX", 1),
     Type("FT2232", 0x0403, 0x6010, "FT23XX", 2),
     Type("FT4232", 0x0403, 0x6011, "FT23XX", 4),
+    Type("PL2303", 0x067B, 0x2303, "PL2303", 1),
+    Type("PL2303GB", 0x067B, 0x23B3, "PL2303", 1),
+    Type("PL2303GC", 0x067B, 0x23A3, "PL2303", 1),
+    Type("PL2303GE", 0x067B, 0x23E3, "PL2303", 1),
+    Type("PL2303GL", 0x067B, 0x23D3, "PL2303", 1),
+    Type("PL2303GS", 0x067B, 0x23F3, "PL2303", 1),
+    Type("PL2303GT", 0x067B, 0x23C3, "PL2303", 1),
     Type("STM32_VCP", 0x0483, 0x5740, "CdcAcm", 1, baud_rate_required=False),
 )
 

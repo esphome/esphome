@@ -14,6 +14,7 @@ from esphome.const import CONF_FRAMEWORK, CONF_SOURCE
 from esphome.core import CORE, EsphomeError
 from esphome.espidf.framework import check_esp_idf_install, get_framework_env
 from esphome.espidf.size_summary import print_summary
+from esphome.helpers import add_git_ceiling_directory
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -82,6 +83,11 @@ def _get_idf_env(version: str | None = None) -> dict[str, str]:
             env_cache[version] |= get_framework_env(
                 *_get_esphome_esp_idf_paths(version)
             )
+
+        # Cap git's repo search at the config directory so ESP-IDF's
+        # `git describe` for the app version can't error out on an
+        # uninitialized or corrupt git repo in a parent directory.
+        add_git_ceiling_directory(env_cache[version], CORE.config_dir)
     return env_cache[version]
 
 
