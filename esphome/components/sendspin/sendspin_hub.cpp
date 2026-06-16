@@ -153,7 +153,7 @@ bool SendspinHub::save_last_server_hash(uint32_t hash) {
   LastPlayedServerPref pref{.server_id_hash = hash};
   bool ok = this->last_played_server_pref_.save(&pref);
   if (ok) {
-    ESP_LOGD(TAG, "Persisted last played server hash: 0x%08X", hash);
+    ESP_LOGD(TAG, "Persisted last played server hash: 0x%08" PRIX32, hash);
   } else {
     ESP_LOGW(TAG, "Failed to persist last played server hash");
   }
@@ -164,7 +164,7 @@ bool SendspinHub::save_last_server_hash(uint32_t hash) {
 std::optional<uint32_t> SendspinHub::load_last_server_hash() {
   LastPlayedServerPref pref{};
   if (this->last_played_server_pref_.load(&pref)) {
-    ESP_LOGI(TAG, "Loaded last played server hash: 0x%08X", pref.server_id_hash);
+    ESP_LOGI(TAG, "Loaded last played server hash: 0x%08" PRIX32, pref.server_id_hash);
     return pref.server_id_hash;
   }
   return std::nullopt;

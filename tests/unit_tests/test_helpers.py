@@ -7,7 +7,7 @@ import stat
 from unittest.mock import MagicMock, patch
 
 from aioesphomeapi.host_resolver import AddrInfo, IPv4Sockaddr, IPv6Sockaddr
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis.strategies import ip_addresses
 import pytest
 
@@ -151,6 +151,7 @@ def test_is_ip_address__invalid(host):
     assert actual is False
 
 
+@settings(deadline=None)
 @given(value=ip_addresses(v=4).map(str))
 def test_is_ip_address__valid(value):
     actual = helpers.is_ip_address(value)
@@ -193,6 +194,33 @@ def test_is_ha_addon(monkeypatch, value, expected):
     actual = helpers.is_ha_addon()
 
     assert actual == expected
+
+
+def test_add_git_ceiling_directory_sets_when_unset():
+    """An empty env gets GIT_CEILING_DIRECTORIES set to the directory."""
+    env: dict[str, str] = {}
+    directory = Path("/home/user/config")
+    helpers.add_git_ceiling_directory(env, directory)
+    assert env["GIT_CEILING_DIRECTORIES"] == str(directory)
+
+
+def test_add_git_ceiling_directory_appends_to_existing():
+    """An existing value is preserved and the new directory is appended."""
+    env = {"GIT_CEILING_DIRECTORIES": str(Path("/some/ceiling"))}
+    directory = Path("/home/user/config")
+    helpers.add_git_ceiling_directory(env, directory)
+    assert env["GIT_CEILING_DIRECTORIES"].split(os.pathsep) == [
+        str(Path("/some/ceiling")),
+        str(directory),
+    ]
+
+
+def test_add_git_ceiling_directory_skips_duplicate():
+    """A directory already in the list is not appended again."""
+    directory = Path("/home/user/config")
+    env = {"GIT_CEILING_DIRECTORIES": str(directory)}
+    helpers.add_git_ceiling_directory(env, directory)
+    assert env["GIT_CEILING_DIRECTORIES"] == str(directory)
 
 
 def test_walk_files(fixture_path):

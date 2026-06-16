@@ -101,7 +101,7 @@ from esphome.schema_extractors import (
 )
 from esphome.util import parse_esphome_version
 from esphome.voluptuous_schema import _Schema
-from esphome.yaml_util import make_data_base
+from esphome.yaml_util import SensitiveStr, make_data_base
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -487,6 +487,59 @@ def string_strict(value):
     )
 
 
+# Substring fallbacks for fields whose validator isn't explicitly wrapped in
+# ``cv.sensitive``. Frontends and dump tooling should prefer the explicit
+# marker; this list exists so we still mask obvious leaks in unmigrated or
+# third-party schemas. Kept here as the single source of truth.
+SENSITIVE_KEY_FRAGMENTS: frozenset[str] = frozenset(
+    {
+        "password",
+        "passcode",
+        "secret",
+        "token",
+        "api_key",
+        "apikey",
+        "psk",
+    }
+)
+
+
+class SensitiveValidator:
+    """Marker wrapper that flags a field as containing sensitive data (passwords,
+    encryption keys, PSKs, tokens). Frontends and dump tooling detect this marker
+    to mask the value; validation behavior is delegated to the inner validator.
+    """
+
+    def __init__(self, inner: Callable[[typing.Any], typing.Any]) -> None:
+        self.inner = inner
+
+    def __call__(self, value: typing.Any) -> typing.Any:
+        validated = self.inner(value)
+        # Tag string results so yaml_util.dump can mask them. Non-string
+        # results pass through unchanged; already-tagged values are not
+        # re-wrapped to keep nested cv.sensitive applications idempotent.
+        if isinstance(validated, str) and not isinstance(validated, SensitiveStr):
+            return SensitiveStr(validated)
+        return validated
+
+    def __repr__(self) -> str:
+        # Mirror the inner validator's repr so ``build_language_schema``'s
+        # ``known_schemas``/``extended_schemas`` dedup (keyed on ``repr(schema)``)
+        # treats two wrappers around the same inner as identical, and so
+        # voluptuous error messages stay readable.
+        return repr(self.inner)
+
+
+def sensitive(
+    inner: Callable[[typing.Any], typing.Any] = string,
+) -> SensitiveValidator:
+    """Mark a field as sensitive so that frontends mask it and dump tooling redacts it.
+
+    Validation behavior is identical to ``inner`` (defaults to ``cv.string``).
+    """
+    return SensitiveValidator(inner)
+
+
 def icon(value):
     """Validate that a given config value is a valid icon."""
     from esphome.core.config import ICON_MAX_LENGTH
@@ -810,16 +863,6 @@ only_on_rp2040 = only_on(PLATFORM_RP2040)
 only_with_arduino = only_with_framework(Framework.ARDUINO)
 
 
-def only_with_esp_idf(obj):
-    """Deprecated: use only_on_esp32 instead."""
-    _LOGGER.warning(
-        "cv.only_with_esp_idf was deprecated in 2026.1, will change behavior in 2026.6. "
-        "ESP32 Arduino builds on top of ESP-IDF, so ESP-IDF features are available in both frameworks. "
-        "Use cv.only_on_esp32 and/or cv.only_with_arduino instead."
-    )
-    return only_with_framework(Framework.ESP_IDF)(obj)
-
-
 # Adapted from:
 # https://github.com/alecthomas/voluptuous/issues/115#issuecomment-144464666
 def has_at_least_one_key(*keys):
@@ -1136,7 +1179,9 @@ def date_time(date: bool, time: bool):
                 format += "%p"
 
         try:
-            date_obj = datetime.strptime(value, format)
+            # The generated format never includes %z/%Z, so this parses a
+            # naive wall-clock date/time by design.
+            date_obj = datetime.strptime(value, format)  # noqa: DTZ007
         except ValueError as err:
             raise Invalid(f"Invalid {exc_message}: {err}") from err
 
@@ -1862,7 +1907,7 @@ def extract_keys(schema):
         elif isinstance(skey, vol.Marker) and isinstance(skey.schema, str):
             keys.append(skey.schema)
         else:
-            raise ValueError()
+            raise ValueError
     keys.sort()
     return keys
 

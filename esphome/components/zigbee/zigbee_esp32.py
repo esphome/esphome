@@ -9,7 +9,7 @@ from esphome.components.esp32 import (
     add_idf_component,
     add_idf_sdkconfig_option,
     add_partition,
-    idf_version,
+    require_libc_picolibc_newlib_compat,
     require_vfs_select,
 )
 import esphome.config_validation as cv
@@ -117,15 +117,11 @@ def final_validate_esp32(config: ConfigType) -> ConfigType:
     if not CORE.is_esp32:
         return config
     if CONF_WIFI in fv.full_config.get():
-        if config[CONF_ROUTER] and CONF_AP in fv.full_config.get()[CONF_WIFI]:
-            raise cv.Invalid(
-                "Only Zigbee End Device can be used together with a Wifi Access Point."
-            )
         if CONF_AP in fv.full_config.get()[CONF_WIFI]:
-            _LOGGER.warning(
-                "Wifi Access Point might be unstable while Zigbee is active, use only as fallback."
+            raise cv.Invalid(
+                "A Wifi Access Point can not be used together with Zigbee."
             )
-        elif config[CONF_ROUTER]:
+        if config[CONF_ROUTER]:
             _LOGGER.warning(
                 "The Zigbee Router might miss packets while Wifi is active and could destabilize "
                 "your network. Use only if Wifi is off most of the time."
@@ -133,9 +129,8 @@ def final_validate_esp32(config: ConfigType) -> ConfigType:
     if CONF_PARTITIONS in fv.full_config.get() and not isinstance(
         fv.full_config.get()[CONF_PARTITIONS], list
     ):
-        with open(
-            CORE.relative_config_path(fv.full_config.get()[CONF_PARTITIONS]),
-            encoding="utf8",
+        with CORE.relative_config_path(fv.full_config.get()[CONF_PARTITIONS]).open(
+            encoding="utf8"
         ) as f:
             partitions_tab = f.read()
             for partition, types in [
@@ -245,9 +240,8 @@ async def _zigbee_add_sdkconfigs(config: ConfigType) -> None:
     # dynamic log level control to be enabled
     add_idf_sdkconfig_option("CONFIG_LOG_DYNAMIC_LEVEL_CONTROL", True)
     # The pre-built Zigbee library is compiled against newlib which requires newlib
-    # reentrancy to be enabled with picolibc compatibility.
-    if idf_version() >= cv.Version(6, 0, 0):
-        add_idf_sdkconfig_option("CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY", True)
+    # reentrancy to be enabled with picolibc compatibility (IDF 6.0+ only).
+    require_libc_picolibc_newlib_compat()
 
 
 async def attributes_to_code(

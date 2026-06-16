@@ -11,6 +11,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/static_task.h"
 
 #ifdef USE_OTA_STATE_LISTENER
 #include "esphome/components/ota/ota_backend.h"
@@ -59,6 +60,8 @@ class MicroWakeWord : public Component
 
   void set_stop_after_detection(bool stop_after_detection) { this->stop_after_detection_ = stop_after_detection; }
 
+  void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }
+
   Trigger<std::string> *get_wake_word_detected_trigger() { return &this->wake_word_detected_trigger_; }
 
   void add_wake_word_model(WakeWordModel *model);
@@ -93,6 +96,8 @@ class MicroWakeWord : public Component
 
   bool stop_after_detection_;
 
+  bool task_stack_in_psram_{false};
+
   uint8_t features_step_size_;
 
   // Audio frontend handles generating spectrogram features
@@ -105,8 +110,9 @@ class MicroWakeWord : public Component
   // Used to send messages about the models' states to the main loop
   QueueHandle_t detection_queue_;
 
+  StaticTask inference_task_;
+
   static void inference_task(void *params);
-  TaskHandle_t inference_task_handle_{nullptr};
 
   /// @brief Suspends the inference task
   void suspend_task_();
@@ -115,13 +121,16 @@ class MicroWakeWord : public Component
 
   void set_state_(State state);
 
-  /// @brief Generates spectrogram features from an input buffer of audio samples
-  /// @param audio_buffer (int16_t *) Buffer containing input audio samples
-  /// @param samples_available (size_t) Number of samples avaiable in the input buffer
-  /// @param features_buffer (int8_t *) Buffer to store generated features
-  /// @return (size_t) Number of samples processed from the input buffer
-  size_t generate_features_(int16_t *audio_buffer, size_t samples_available,
-                            int8_t features_buffer[PREPROCESSOR_FEATURE_SIZE]);
+  /// @brief Generates a spectrogram feature from an input buffer of audio samples. The frontend buffers samples
+  /// internally, so callers may stream arbitrary-sized chunks; a feature is only emitted once enough samples have
+  /// accumulated to fill a full analysis window.
+  /// @param audio_buffer (const int16_t *) Buffer containing input audio samples
+  /// @param samples_available (size_t) Number of samples available in the input buffer
+  /// @param features_buffer (int8_t *) Buffer to store the generated feature, valid only when the return value is true
+  /// @param processed_samples (size_t *) Set to the number of samples consumed from the input buffer
+  /// @return True if a new feature was generated; false if more samples are required
+  bool generate_features_(const int16_t *audio_buffer, size_t samples_available,
+                          int8_t features_buffer[PREPROCESSOR_FEATURE_SIZE], size_t *processed_samples);
 
   /// @brief Processes any new probabilities for each model. If any wake word is detected, it will send a DetectionEvent
   /// to the detection_queue_.

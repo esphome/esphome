@@ -16,6 +16,55 @@ enum GrowattProtocolVersion {
   RTU2,
 };
 
+// Register addresses for the RTU protocol.
+constexpr size_t RTU_INVERTER_STATUS = 0;           // length = 1
+constexpr size_t RTU_PV_ACTIVE_POWER = 1;           // length = 2
+constexpr size_t RTU_PV1_VOLTAGE = 3;               // length = 1
+constexpr size_t RTU_PV1_CURRENT = 4;               // length = 1
+constexpr size_t RTU_PV1_ACTIVE_POWER = 5;          // length = 2
+constexpr size_t RTU_PV2_VOLTAGE = 7;               // length = 1
+constexpr size_t RTU_PV2_CURRENT = 8;               // length = 1
+constexpr size_t RTU_PV2_ACTIVE_POWER = 9;          // length = 2
+constexpr size_t RTU_GRID_ACTIVE_POWER = 11;        // length = 2
+constexpr size_t RTU_GRID_FREQUENCY = 13;           // length = 1
+constexpr size_t RTU_PHASE1_VOLTAGE = 14;           // length = 1
+constexpr size_t RTU_PHASE1_CURRENT = 15;           // length = 1
+constexpr size_t RTU_PHASE1_ACTIVE_POWER = 16;      // length = 2
+constexpr size_t RTU_PHASE2_VOLTAGE = 18;           // length = 1
+constexpr size_t RTU_PHASE2_CURRENT = 19;           // length = 1
+constexpr size_t RTU_PHASE2_ACTIVE_POWER = 20;      // length = 2
+constexpr size_t RTU_PHASE3_VOLTAGE = 22;           // length = 1
+constexpr size_t RTU_PHASE3_CURRENT = 23;           // length = 1
+constexpr size_t RTU_PHASE3_ACTIVE_POWER = 24;      // length = 2
+constexpr size_t RTU_TODAY_PRODUCTION = 26;         // length = 2
+constexpr size_t RTU_TOTAL_ENERGY_PRODUCTION = 28;  // length = 2
+constexpr size_t RTU_INVERTER_MODULE_TEMP = 32;     // length = 1
+
+// Input register addresses for the RTU2 protocol as described
+// in the "GROWATT INVERTER MODBUS PROTOCOL_II V1.39" document.
+constexpr size_t RTU2_INVERTER_STATUS = 0;           // length = 1
+constexpr size_t RTU2_PV_ACTIVE_POWER = 1;           // length = 2
+constexpr size_t RTU2_PV1_VOLTAGE = 3;               // length = 1
+constexpr size_t RTU2_PV1_CURRENT = 4;               // length = 1
+constexpr size_t RTU2_PV1_ACTIVE_POWER = 5;          // length = 2
+constexpr size_t RTU2_PV2_VOLTAGE = 7;               // length = 1
+constexpr size_t RTU2_PV2_CURRENT = 8;               // length = 1
+constexpr size_t RTU2_PV2_ACTIVE_POWER = 9;          // length = 2
+constexpr size_t RTU2_GRID_ACTIVE_POWER = 35;        // length = 2
+constexpr size_t RTU2_GRID_FREQUENCY = 37;           // length = 1
+constexpr size_t RTU2_PHASE1_VOLTAGE = 38;           // length = 1
+constexpr size_t RTU2_PHASE1_CURRENT = 39;           // length = 1
+constexpr size_t RTU2_PHASE1_ACTIVE_POWER = 40;      // length = 2
+constexpr size_t RTU2_PHASE2_VOLTAGE = 42;           // length = 1
+constexpr size_t RTU2_PHASE2_CURRENT = 43;           // length = 1
+constexpr size_t RTU2_PHASE2_ACTIVE_POWER = 44;      // length = 2
+constexpr size_t RTU2_PHASE3_VOLTAGE = 46;           // length = 1
+constexpr size_t RTU2_PHASE3_CURRENT = 47;           // length = 1
+constexpr size_t RTU2_PHASE3_ACTIVE_POWER = 48;      // length = 2
+constexpr size_t RTU2_TODAY_PRODUCTION = 53;         // length = 2
+constexpr size_t RTU2_TOTAL_ENERGY_PRODUCTION = 55;  // length = 2
+constexpr size_t RTU2_INVERTER_MODULE_TEMP = 93;     // length = 1
+
 class GrowattSolar : public PollingComponent, public modbus::ModbusDevice {
  public:
   void loop() override;

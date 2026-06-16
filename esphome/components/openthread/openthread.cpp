@@ -9,6 +9,7 @@
 #include <openthread/tasklet.h>
 
 #include <cstring>
+#include <utility>
 
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
@@ -43,7 +44,7 @@ void OpenThreadComponent::dump_config() {
   }
 }
 
-void OpenThreadComponent::on_state_changed_(otChangedFlags flags, void *context) {
+void OpenThreadComponent::on_state_changed(otChangedFlags flags, void *context) {
   if (flags & OT_CHANGED_THREAD_ROLE) {
     auto *self = static_cast<OpenThreadComponent *>(context);
     // This runs on the OpenThread task thread with the OT lock held,
@@ -226,7 +227,7 @@ bool OpenThreadComponent::teardown() {
       ESP_LOGW(TAG, "Failed to acquire OpenThread lock during teardown, leaking memory");
       return true;
     }
-    otInstance *instance = lock->get_instance();
+    otInstance *instance = lock.get_instance();
     otSrpClientClearHostAndServices(instance);
     otSrpClientBuffersFreeAllServices(instance);
     global_openthread_component = nullptr;
@@ -241,7 +242,7 @@ bool OpenThreadComponent::teardown() {
 }
 
 void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
-  factory_reset_external_callback_ = callback;
+  this->factory_reset_external_callback_ = std::move(callback);
   ESP_LOGD(TAG, "Start Removal SRP Host and Services");
   otError error;
   InstanceLock lock = InstanceLock::acquire();

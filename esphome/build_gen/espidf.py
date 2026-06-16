@@ -3,24 +3,38 @@
 import json
 from pathlib import Path
 
-from esphome.components.esp32 import get_esp32_variant
+from esphome.components.esp32 import get_esp32_variant, idf_version
+import esphome.config_validation as cv
 from esphome.core import CORE
 from esphome.helpers import mkdir_p, write_file_if_changed
-from esphome.writer import update_storage_json
+
+# Replaces the IDF default C++ standard (-std=gnu++2b appended to
+# CXX_COMPILE_OPTIONS by project.cmake's __build_init) with the one set via
+# cg.set_cpp_standard(). Emitted between include(project.cmake) and project(),
+# i.e. after IDF appends its default and before the options are consumed, and
+# applies project-wide like PlatformIO build_unflags.
+CPP_STANDARD_TEMPLATE = """\
+idf_build_get_property(esphome_cxx_compile_options CXX_COMPILE_OPTIONS)
+list(FILTER esphome_cxx_compile_options EXCLUDE REGEX "^-std=")
+list(APPEND esphome_cxx_compile_options "-std={standard}")
+idf_build_set_property(CXX_COMPILE_OPTIONS "${{esphome_cxx_compile_options}}")"""
 
 
 def get_available_components() -> list[str] | None:
-    """Get list of available ESP-IDF components from project_description.json.
+    """Get list of built-in ESP-IDF components from project_description.json.
 
-    Returns only internal ESP-IDF components, excluding external/managed
-    components (from idf_component.yml).
+    Excludes ``src``, IDF-managed components (``managed_components/``), and
+    converted PIO libs (``pio_components/``). Returns ``None`` if the build
+    dir or ``project_description.json`` isn't ready yet.
     """
+    if CORE.build_path is None:
+        return None
     project_desc = Path(CORE.build_path) / "build" / "project_description.json"
     if not project_desc.exists():
         return None
 
     try:
-        with open(project_desc, encoding="utf-8") as f:
+        with project_desc.open(encoding="utf-8") as f:
             data = json.load(f)
 
         component_info = data.get("build_component_info", {})
@@ -31,9 +45,9 @@ def get_available_components() -> list[str] | None:
             if name == "src":
                 continue
 
-            # Exclude managed/external components
+            # Exclude IDF-managed and converted-PIO components (external).
             comp_dir = info.get("dir", "")
-            if "managed_components" in comp_dir:
+            if "managed_components" in comp_dir or "pio_components" in comp_dir:
                 continue
 
             result.append(name)
@@ -48,11 +62,20 @@ def has_discovered_components() -> bool:
     return get_available_components() is not None
 
 
-def get_project_cmakelists() -> str:
-    """Generate the top-level CMakeLists.txt for ESP-IDF project."""
+def get_project_cmakelists(minimal: bool = False) -> str:
+    """Generate the top-level CMakeLists.txt for ESP-IDF project.
+
+    When ``minimal`` is true, omit ``ESPHOME_PROJECT_BUILTIN_COMPONENTS``
+    since ``project_description.json`` may be stale on the first write.
+    """
     # Get IDF target from ESP32 variant (e.g., ESP32S3 -> esp32s3)
     variant = get_esp32_variant()
     idf_target = variant.lower().replace("-", "")
+
+    # esp_idf_size 2.x (bundled with IDF >=6.0) made NG the default and
+    # removed the --ng flag; on 1.x (IDF 5.5) --ng is required to get
+    # --format=raw because the legacy mode doesn't support it.
+    size_ng_flag = "--ng" if idf_version() < cv.Version(6, 0, 0) else ""
 
     # Project-wide compile options: -D defines and -W warning flags (skip
     # -Wl, linker flags — those go on the src component via
@@ -70,6 +93,43 @@ def get_project_cmakelists() -> str:
     extra_compile_options = "\n".join(
         f'idf_build_set_property(COMPILE_OPTIONS "{flag}" APPEND)'
         for flag in project_compile_opts
+    )
+
+    cpp_standard_options = (
+        CPP_STANDARD_TEMPLATE.format(standard=CORE.cpp_standard)
+        if CORE.cpp_standard
+        else ""
+    )
+
+    # Per-project list exposed as a CMake variable so converted PIO libs
+    # can reference ${ESPHOME_PROJECT_MANAGED_COMPONENTS} without baking
+    # project-specific names into their cached CMakeLists.
+    #
+    # Emit via idf_build_set_property (not plain set()) so the value is
+    # serialised into build_properties.temp.cmake and visible to IDF's
+    # early requirements-expansion pass (component_get_requirements.cmake
+    # runs as a separate CMake script invocation that doesn't load the
+    # project's top-level CMakeLists; without this, ${ESPHOME_PROJECT_
+    # MANAGED_COMPONENTS} in a converted-lib REQUIRES expands to empty).
+    from esphome.components.esp32 import get_managed_component_require_names
+
+    managed_components_property = "\n".join(
+        f"idf_build_set_property(ESPHOME_PROJECT_MANAGED_COMPONENTS {name} APPEND)"
+        for name in get_managed_component_require_names()
+    )
+
+    # Built-in IDF components exposed via our own property (not IDF's
+    # __COMPONENT_REQUIRES_COMMON, which would append them to every
+    # component's REQUIRES including real IDF components). Referenced by
+    # src/CMakeLists and by each converted PIO lib's CMakeLists. Skipped
+    # on minimal writes because project_description.json may be stale.
+    builtin_components_property = (
+        ""
+        if minimal
+        else "\n".join(
+            f"idf_build_set_property(ESPHOME_PROJECT_BUILTIN_COMPONENTS {name} APPEND)"
+            for name in sorted(get_available_components() or [])
+        )
     )
 
     return f"""\
@@ -97,14 +157,20 @@ set(EXTRA_COMPONENT_DIRS ${{CMAKE_SOURCE_DIR}}/src)
 
 include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 
+{cpp_standard_options}
+
 {extra_compile_options}
+
+{managed_components_property}
+
+{builtin_components_property}
 
 project({CORE.name})
 
 # Emit raw JSON size data for ESPHome to read post-build.
 add_custom_command(
     TARGET ${{CMAKE_PROJECT_NAME}}.elf POST_BUILD
-    COMMAND ${{PYTHON}} -m esp_idf_size --ng --format=raw
+    COMMAND ${{PYTHON}} -m esp_idf_size {size_ng_flag} --format=raw
             -o ${{CMAKE_BINARY_DIR}}/esp_idf_size.json
             ${{CMAKE_PROJECT_NAME}}.map
     WORKING_DIRECTORY ${{CMAKE_BINARY_DIR}}
@@ -113,11 +179,12 @@ add_custom_command(
 """
 
 
-def get_component_cmakelists(minimal: bool = False) -> str:
-    """Generate the main component CMakeLists.txt."""
-    idf_requires = [] if minimal else (get_available_components() or [])
-    requires_str = " ".join(idf_requires)
+def get_component_cmakelists() -> str:
+    """Generate the main component CMakeLists.txt.
 
+    REQUIRES pulls in the discovered built-in IDF components via the
+    project-level variables set in the top-level CMakeLists.
+    """
     # Extract linker options (-Wl, flags). Compile flags (-D, -W) are
     # emitted project-wide via idf_build_set_property in
     # get_project_cmakelists so they reach every component, not just src/.
@@ -126,21 +193,31 @@ def get_component_cmakelists(minimal: bool = False) -> str:
 
     return f"""\
 # Auto-generated by ESPHome
-file(GLOB_RECURSE app_sources
-    "${{CMAKE_CURRENT_SOURCE_DIR}}/*.cpp"
-    "${{CMAKE_CURRENT_SOURCE_DIR}}/*.c"
-    "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.cpp"
-    "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.c"
-)
+# CONFIGURE_DEPENDS asks CMake to re-check the glob each build so test
+# runs that reuse the build dir don't compile stale source paths. It's
+# invalid in script mode (cmake -P), which is how IDF's
+# component_get_requirements.cmake includes us, so skip it there.
+if(CMAKE_SCRIPT_MODE_FILE)
+    file(GLOB_RECURSE app_sources
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/*.cpp"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/*.c"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.cpp"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.c"
+    )
+else()
+    file(GLOB_RECURSE app_sources CONFIGURE_DEPENDS
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/*.cpp"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/*.c"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.cpp"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.c"
+    )
+endif()
 
 idf_component_register(
     SRCS ${{app_sources}}
     INCLUDE_DIRS "." "esphome"
-    REQUIRES {requires_str}
+    REQUIRES ${{ESPHOME_PROJECT_BUILTIN_COMPONENTS}}
 )
-
-# Apply C++ standard
-target_compile_features(${{COMPONENT_LIB}} PUBLIC cxx_std_20)
 
 # ESPHome linker options
 target_link_options(${{COMPONENT_LIB}} PUBLIC
@@ -151,22 +228,17 @@ target_link_options(${{COMPONENT_LIB}} PUBLIC
 
 def write_project(minimal: bool = False) -> None:
     """Write ESP-IDF project files."""
-    # Refresh <data_dir>/storage/<name>.yaml.json so the dashboard's
-    # /info and /downloads endpoints can locate the build (they 404
-    # otherwise). This mirrors the PlatformIO build-gen path's call
-    # in build_gen/platformio.py:write_ini().
-    update_storage_json()
     mkdir_p(CORE.build_path)
     mkdir_p(CORE.relative_src_path())
 
     # Write top-level CMakeLists.txt
     write_file_if_changed(
         CORE.relative_build_path("CMakeLists.txt"),
-        get_project_cmakelists(),
+        get_project_cmakelists(minimal=minimal),
     )
 
     # Write component CMakeLists.txt in src/
     write_file_if_changed(
         CORE.relative_src_path("CMakeLists.txt"),
-        get_component_cmakelists(minimal=minimal),
+        get_component_cmakelists(),
     )

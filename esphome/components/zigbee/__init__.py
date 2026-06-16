@@ -50,6 +50,8 @@ _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@luar123", "@tomaszduda23"]
 
+CONFLICTS_WITH = ["openthread"]
+
 BASE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_REPORT): cv.All(

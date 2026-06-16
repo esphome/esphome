@@ -52,6 +52,8 @@ class E131Component : public esphome::Component {
     if (!this->udp_.parsePacket())
       return -1;
     return this->udp_.read(buf, len);
+#else
+    return -1;
 #endif
   }
   bool packet_(const uint8_t *data, size_t len, int &universe, E131Packet &packet);

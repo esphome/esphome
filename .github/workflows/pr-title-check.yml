@@ -16,7 +16,7 @@ jobs:
     name: Validate PR title
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
@@ -29,10 +29,11 @@ jobs:
             } = require('./.github/scripts/detect-tags.js');
 
             const title = context.payload.pull_request.title;
-            const author = context.payload.pull_request.user.login;
+            const user = context.payload.pull_request.user;
 
-            // Skip bot PRs (e.g. dependabot) - they have their own title format
-            if (author === 'dependabot[bot]') {
+            // Skip bot PRs (e.g. dependabot, esphome[bot] device-class sync) -
+            // they have their own title formats.
+            if (user.type === 'Bot') {
               return;
             }
 
@@ -68,14 +69,15 @@ jobs:
               return;
             }
 
-            // Check for angle brackets not wrapped in backticks.
-            // Astro docs MDX treats bare < as JSX component opening tags.
+            // Check for MDX syntax characters not wrapped in backticks.
+            // Astro docs MDX treats bare `<` as JSX component opening tags and
+            // bare `{` as JS expressions, so both must be escaped in changelog entries.
             const stripped = title.replace(/`[^`]*`/g, '');
-            if (/[<>]/.test(stripped)) {
+            if (/[<>{}]/.test(stripped)) {
               core.setFailed(
-                'PR title contains `<` or `>` not wrapped in backticks.\n' +
-                'Astro docs MDX interprets bare `<` as JSX components.\n' +
-                'Please wrap angle brackets with backticks, e.g.: [component] Add `<feature>` support'
+                'PR title contains `<`, `>`, `{`, or `}` not wrapped in backticks.\n' +
+                'Astro docs MDX interprets bare `<` as JSX components and bare `{` as JS expressions.\n' +
+                'Please wrap these characters with backticks, e.g.: [component] Add `<feature>` support'
               );
               return;
             }

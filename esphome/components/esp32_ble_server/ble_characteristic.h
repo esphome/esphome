@@ -79,7 +79,6 @@ class BLECharacteristic {
   esp_gatt_char_prop_t properties_;
   uint16_t handle_{0xFFFF};
 
-  uint16_t value_read_offset_{0};
   std::vector<uint8_t> value_;
   std::vector<BLEDescriptor *> descriptors_;
 

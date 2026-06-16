@@ -16,7 +16,7 @@ sys.path.insert(0, str(script_dir))
 
 def read_file_lines(path: Path) -> list[str]:
     """Read lines from a file."""
-    with open(path) as f:
+    with path.open() as f:
         return f.readlines()
 
 
@@ -65,7 +65,7 @@ def get_clang_tidy_version_from_requirements(repo_root: Path | None = None) -> s
 
 def read_file_bytes(path: Path) -> bytes:
     """Read bytes from a file."""
-    with open(path, "rb") as f:
+    with path.open("rb") as f:
         return f.read()
 
 
@@ -99,11 +99,18 @@ def calculate_clang_tidy_hash(repo_root: Path | None = None) -> str:
     platformio_content = read_file_bytes(platformio_path)
     hasher.update(platformio_content)
 
-    # Hash sdkconfig.defaults file
-    sdkconfig_path = repo_root / "sdkconfig.defaults"
-    if sdkconfig_path.exists():
-        sdkconfig_content = read_file_bytes(sdkconfig_path)
-        hasher.update(sdkconfig_content)
+    # Hash sdkconfig.defaults and any per-target sdkconfig.defaults.<target>:
+    # the per-target files flip CONFIG flags that change which variant code
+    # paths clang-tidy sees. Include the filename so a rename is detected.
+    for sdkconfig_path in sorted(repo_root.glob("sdkconfig.defaults*")):
+        hasher.update(sdkconfig_path.name.encode())
+        hasher.update(read_file_bytes(sdkconfig_path))
+
+    # Hash esphome/idf_component.yml: its managed deps drive the ESP-IDF
+    # build's include set, which clang-tidy analyzes.
+    idf_component_path = repo_root / "esphome" / "idf_component.yml"
+    if idf_component_path.exists():
+        hasher.update(read_file_bytes(idf_component_path))
 
     return hasher.hexdigest()
 
@@ -120,7 +127,7 @@ def read_stored_hash(repo_root: Path | None = None) -> str | None:
 
 def write_file_content(path: Path, content: str) -> None:
     """Write content to a file."""
-    with open(path, "w") as f:
+    with path.open("w") as f:
         f.write(content)
 
 

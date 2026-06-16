@@ -3,6 +3,8 @@
 #include "esphome/core/defines.h"
 #ifdef USE_API
 #include "api_buffer.h"
+// Must precede clients_ so APIConnection is complete for default_delete (libc++).
+#include "api_connection.h"
 #include "api_noise_context.h"
 #include "api_pb2.h"
 #include "api_pb2_service.h"
@@ -12,8 +14,6 @@
 #include "esphome/core/controller.h"
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
-#include "list_entities.h"
-#include "subscribe_state.h"
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
@@ -191,15 +191,9 @@ class APIServer final : public Component,
   bool is_connected_with_state_subscription() const;
 
   // Range-for view over the populated slice [0, api_connection_count_). Read-only with respect
-  // to ownership — callers get `const unique_ptr&` so they can invoke non-const methods on the
+  // to ownership; callers get `const unique_ptr&` so they can invoke non-const methods on the
   // APIConnection but cannot reset/move the slot and break the count invariant.
-  // Custom deleter is defined out-of-line in api_server.cpp so libc++ does not
-  // eagerly instantiate `delete static_cast<APIConnection *>(p)` here, where
-  // only the forward declaration of APIConnection is visible (incomplete type).
-  struct APIConnectionDeleter {
-    void operator()(APIConnection *p) const;
-  };
-  using APIConnectionPtr = std::unique_ptr<APIConnection, APIConnectionDeleter>;
+  using APIConnectionPtr = std::unique_ptr<APIConnection>;
   class ActiveClientsView {
     const APIConnectionPtr *begin_;
     const APIConnectionPtr *end_;

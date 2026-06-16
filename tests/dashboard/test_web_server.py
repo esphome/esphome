@@ -1503,13 +1503,18 @@ async def test_websocket_refresh_command(
 ) -> None:
     """Test WebSocket refresh command triggers dashboard update."""
     with patch("esphome.dashboard.web_server.DASHBOARD_SUBSCRIBER") as mock_subscriber:
-        mock_subscriber.request_refresh = Mock()
+        # Signal an asyncio.Event when request_refresh is invoked so the
+        # test can deterministically wait for the server-side handler to run
+        # instead of relying on a fixed sleep (flaky on Windows CI under load).
+        called = asyncio.Event()
+        mock_subscriber.request_refresh = Mock(side_effect=called.set)
 
         # Send refresh command
         await websocket_client.write_message(json.dumps({"event": "refresh"}))
 
-        # Give it a moment to process
-        await asyncio.sleep(0.01)
+        # Wait for the server to process the message and invoke request_refresh
+        async with asyncio.timeout(5):
+            await called.wait()
 
         # Verify request_refresh was called
         mock_subscriber.request_refresh.assert_called_once()

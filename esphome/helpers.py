@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import MutableMapping
 from contextlib import suppress
 import ipaddress
 import logging
@@ -374,6 +375,26 @@ def is_ha_addon():
     return get_bool_env("ESPHOME_IS_HA_ADDON")
 
 
+def add_git_ceiling_directory(env: MutableMapping[str, str], directory: Path) -> None:
+    """Add ``directory`` to ``env``'s ``GIT_CEILING_DIRECTORIES`` list.
+
+    Git stops walking up the directory tree to find a repository once it reaches
+    a ceiling directory, so this caps the search at ``directory`` (the ESPHome
+    project root). Without it, an uninitialized or corrupt git repo in a parent
+    directory makes the ``git describe`` that build toolchains run for the app
+    version error out and fail the whole build.
+
+    ``GIT_CEILING_DIRECTORIES`` is an ``os.pathsep``-joined list of absolute
+    paths; any existing entries are preserved and duplicates are skipped.
+    """
+    ceiling = str(directory)
+    existing = env.get("GIT_CEILING_DIRECTORIES", "")
+    parts = existing.split(os.pathsep) if existing else []
+    if ceiling not in parts:
+        parts.append(ceiling)
+        env["GIT_CEILING_DIRECTORIES"] = os.pathsep.join(parts)
+
+
 def rmtree(path: Path | str) -> None:
     """Remove a directory tree, handling read-only files on Windows.
 
@@ -385,7 +406,7 @@ def rmtree(path: Path | str) -> None:
     def _onerror(func, path, exc_info):
         if os.access(path, os.W_OK):
             raise exc_info[1].with_traceback(exc_info[2])
-        os.chmod(path, stat.S_IWUSR | stat.S_IRUSR)
+        Path(path).chmod(stat.S_IWUSR | stat.S_IRUSR)
         func(path)
 
     # ``onerror`` is deprecated in 3.12 in favour of ``onexc`` (different
@@ -512,7 +533,7 @@ def copy_file_if_changed(src: Path, dst: Path) -> bool:
             # -> delete file (it would be overwritten anyway), and try again
             # if that fails, use normal error handler
             with suppress(OSError):
-                os.unlink(dst)
+                Path(dst).unlink()
                 shutil.copyfile(src, dst)
                 return True
 

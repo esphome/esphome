@@ -280,5 +280,6 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
         },
+        "mdns_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
     }
 )

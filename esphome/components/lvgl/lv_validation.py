@@ -239,7 +239,7 @@ def color_retmapper(value):
         else:
             r, g, b, _ = from_rgbw(cval)
         return literal(f"lv_color_make({r}, {g}, {b})")
-    assert False
+    raise AssertionError(f"Unhandled lv_color value: {value!r}")
 
 
 def option_string(value):

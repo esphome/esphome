@@ -104,6 +104,47 @@ template<bool HasTransitionLength, typename... Ts> class DimRelativeAction : pub
       transition_length_{};
 };
 
+// Cycle through the light's configured effects. `Forward` selects direction
+// at compile time so the chosen branch is the only one that gets instantiated
+// per action site. `include_none` is runtime so a single set of templates
+// covers both the "wrap through None" and "skip None" variants.
+template<bool Forward, typename... Ts> class LightEffectCycleAction : public Action<Ts...> {
+ public:
+  explicit LightEffectCycleAction(LightState *parent) : parent_(parent) {}
+
+  void set_include_none(bool include_none) { this->include_none_ = include_none; }
+
+  void play(const Ts &...) override {
+    size_t count = this->parent_->get_effect_count();
+    if (count == 0) {
+      return;
+    }
+    uint32_t current = this->parent_->get_current_effect_index();
+    uint32_t next;
+    if (this->include_none_) {
+      uint32_t total = static_cast<uint32_t>(count) + 1;
+      if constexpr (Forward) {
+        next = (current + 1) % total;
+      } else {
+        next = (current + total - 1) % total;
+      }
+    } else {
+      if constexpr (Forward) {
+        next = (current % static_cast<uint32_t>(count)) + 1;
+      } else {
+        next = (current <= 1) ? static_cast<uint32_t>(count) : current - 1;
+      }
+    }
+    auto call = this->parent_->turn_on();
+    call.set_effect(next);
+    call.perform();
+  }
+
+ protected:
+  LightState *parent_;
+  bool include_none_{false};
+};
+
 template<typename... Ts> class LightIsOnCondition : public Condition<Ts...> {
  public:
   explicit LightIsOnCondition(LightState *state) : state_(state) {}

@@ -1,4 +1,6 @@
+from collections.abc import Callable
 import sys
+from typing import Any
 
 from esphome import codegen as cg, config_validation as cv
 from esphome.automation import register_action
@@ -15,6 +17,7 @@ from esphome.const import (
 from esphome.core import ID, EsphomeError, TimePeriod
 from esphome.coroutine import FakeAwaitable
 from esphome.cpp_generator import MockObj
+from esphome.schema_extractors import EnableSchemaExtraction
 from esphome.types import Expression
 
 from ..defines import (
@@ -73,6 +76,34 @@ from ..types import (
 EVENT_LAMB = "event_lamb__"
 
 
+def _build_update_schema(widget_type: "WidgetType") -> Schema:
+    # Local import: ..schemas imports WidgetType from this module.
+    from ..schemas import base_update_schema
+
+    return base_update_schema(widget_type, widget_type.parts).extend(
+        widget_type.modify_schema
+    )
+
+
+def _update_action_schema(
+    widget_type: "WidgetType",
+) -> Schema | Callable[[Any], Any]:
+    # Eager when extracting so build_language_schema.py sees the mapping;
+    # lazy otherwise to skip ~200 ms of import-time voluptuous work.
+    if EnableSchemaExtraction:
+        return _build_update_schema(widget_type)
+
+    cached: Schema | None = None
+
+    def validator(value: Any) -> Any:
+        nonlocal cached
+        if cached is None:
+            cached = _build_update_schema(widget_type)
+        return cached(value)
+
+    return validator
+
+
 class WidgetType:
     """
     Describes a type of Widget, e.g. "bar" or "line"
@@ -113,18 +144,17 @@ class WidgetType:
 
         # Local import to avoid circular import
         from ..automation import update_to_code
-        from ..schemas import WIDGET_TYPES, base_update_schema
+        from ..schemas import WIDGET_TYPES
 
         if not is_mock:
             if self.name in WIDGET_TYPES:
                 raise EsphomeError(f"Duplicate definition of widget type '{self.name}'")
             WIDGET_TYPES[self.name] = self
 
-            # Register the update action automatically, adding widget-specific properties
             register_action(
                 f"lvgl.{self.name}.update",
                 ObjUpdateAction,
-                base_update_schema(self, self.parts).extend(self.modify_schema),
+                _update_action_schema(self),
                 synchronous=True,
             )(update_to_code)
 
@@ -260,6 +290,7 @@ class Widget:
         # Properties for linear equations
         self.slope = None
         self.y_int = None
+        self.parent = None
 
     @staticmethod
     def create(name, var, wtype: WidgetType, config: dict = None):

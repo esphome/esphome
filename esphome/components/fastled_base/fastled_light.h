@@ -143,7 +143,6 @@ class FastLEDLightOutput : public light::AddressableLight {
     }
   }
 
-#ifdef FASTLED_HAS_CLOCKLESS
   template<template<uint8_t DATA_PIN, EOrder RGB_ORDER> class CHIPSET, uint8_t DATA_PIN, EOrder RGB_ORDER>
   CLEDController &add_leds(int num_leds) {
     static CHIPSET<DATA_PIN, RGB_ORDER> controller;
@@ -160,7 +159,6 @@ class FastLEDLightOutput : public light::AddressableLight {
     static CHIPSET<DATA_PIN> controller;
     return add_leds(&controller, num_leds);
   }
-#endif
 
   template<template<EOrder RGB_ORDER> class CHIPSET, EOrder RGB_ORDER> CLEDController &add_leds(int num_leds) {
     static CHIPSET<RGB_ORDER> controller;

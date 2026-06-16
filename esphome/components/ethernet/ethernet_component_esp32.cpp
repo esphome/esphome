@@ -5,6 +5,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "w5500_custom_spi.h"
 
 #include <lwip/dns.h>
 #include <cinttypes>
@@ -137,6 +138,24 @@ void EthernetComponent::setup() {
     delay(300);  // NOLINT
   }
 
+  if (this->enable_on_boot_) {
+    this->ethernet_lazy_init_();
+    if (!this->ethernet_initialized_) {
+      // lazy_init bailed early via ESPHL_ERROR_CHECK or mark_failed; nothing more to do.
+      return;
+    }
+    esp_err_t err = esp_eth_start(this->eth_handle_);
+    ESPHL_ERROR_CHECK(err, "ETH start error");
+  } else {
+    ESP_LOGCONFIG(TAG, "Skipping init (enable_on_boot: false)");
+    this->disabled_ = true;
+  }
+}
+
+void EthernetComponent::ethernet_lazy_init_() {
+  if (this->ethernet_initialized_)
+    return;
+
   esp_err_t err;
 
 #ifdef USE_ETHERNET_SPI
@@ -163,11 +182,7 @@ void EthernetComponent::setup() {
   err = spi_bus_initialize(host, &buscfg, SPI_DMA_CH_AUTO);
   ESPHL_ERROR_CHECK(err, "SPI bus initialize error");
 #endif
-
-  err = esp_netif_init();
-  ESPHL_ERROR_CHECK(err, "ETH netif init error");
-  err = esp_event_loop_create_default();
-  ESPHL_ERROR_CHECK(err, "ETH event loop error");
+  // Network interface setup handled by network component
 
   esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
   this->eth_netif_ = esp_netif_new(&cfg);
@@ -207,6 +222,10 @@ void EthernetComponent::setup() {
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   w5500_config.poll_period_ms = this->polling_interval_;
 #endif
+  // Install the custom SPI driver that offloads the bulk RX/TX frame transfers off the busy-wait
+  // path. w5500_config (and the devcfg it references) outlives esp_eth_mac_new_w5500() below, which
+  // runs the driver's init().
+  install_w5500_async_spi(w5500_config);
 #elif defined(USE_ETHERNET_DM9051)
   dm9051_config.int_gpio_num = this->interrupt_pin_;
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
@@ -370,9 +389,41 @@ void EthernetComponent::setup() {
   ESPHL_ERROR_CHECK(err, "GOT IPv6 event handler register error");
 #endif /* USE_NETWORK_IPV6 */
 
-  /* start Ethernet driver state machine */
-  err = esp_eth_start(this->eth_handle_);
-  ESPHL_ERROR_CHECK(err, "ETH start error");
+  this->ethernet_initialized_ = true;
+}
+
+void EthernetComponent::enable() {
+  if (!this->disabled_)
+    return;
+
+  ESP_LOGD(TAG, "Enabling");
+  this->ethernet_lazy_init_();
+  if (!this->ethernet_initialized_) {
+    ESP_LOGE(TAG, "Cannot enable - init failed");
+    return;
+  }
+  esp_err_t err = esp_eth_start(this->eth_handle_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_eth_start failed: %s", esp_err_to_name(err));
+    return;
+  }
+  this->disabled_ = false;
+  // The ETH_EVENT_START handler will set started_=true; the loop state machine
+  // will then drive the STOPPED -> CONNECTING -> CONNECTED transitions.
+  this->enable_loop();
+}
+
+void EthernetComponent::disable() {
+  if (this->disabled_)
+    return;
+
+  ESP_LOGD(TAG, "Disabling");
+  esp_err_t err = esp_eth_stop(this->eth_handle_);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "esp_eth_stop failed: %s — disabling anyway", esp_err_to_name(err));
+  }
+  this->disabled_ = true;
+  // ETH_EVENT_STOP will clear started_; loop() will transition to STOPPED.
 }
 
 void EthernetComponent::dump_config() {
@@ -486,6 +537,8 @@ void EthernetComponent::dump_config() {
 
 network::IPAddresses EthernetComponent::get_ip_addresses() {
   network::IPAddresses addresses;
+  if (!this->ethernet_initialized_)
+    return addresses;  // all-zero IPs
   esp_netif_ip_info_t ip;
   esp_err_t err = esp_netif_get_ip_info(this->eth_netif_, &ip);
   if (err != ESP_OK) {
@@ -708,6 +761,10 @@ void EthernetComponent::start_connect_() {
 }
 
 void EthernetComponent::dump_connect_params_() {
+  if (!this->ethernet_initialized_) {
+    ESP_LOGCONFIG(TAG, "  uninitialized/disabled");
+    return;
+  }
   esp_netif_ip_info_t ip;
   esp_netif_get_ip_info(this->eth_netif_, &ip);
   const ip_addr_t *dns_ip1;
@@ -775,6 +832,16 @@ void EthernetComponent::add_phy_register(PHYRegister register_value) { this->phy
 #endif
 
 void EthernetComponent::get_eth_mac_address_raw(uint8_t *mac) {
+  if (!this->ethernet_initialized_) {
+    // External callers (mdns, ethernet_info, etc.) may ask for the MAC before/regardless
+    // of whether ethernet is enabled. Use the configured MAC if set, else the system ETH MAC.
+    if (this->fixed_mac_.has_value()) {
+      memcpy(mac, this->fixed_mac_->data(), 6);
+    } else {
+      esp_read_mac(mac, ESP_MAC_ETH);
+    }
+    return;
+  }
   esp_err_t err;
   err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_G_MAC_ADDR, mac);
   ESPHL_ERROR_CHECK(err, "ETH_CMD_G_MAC error");
@@ -794,6 +861,8 @@ const char *EthernetComponent::get_eth_mac_address_pretty_into_buffer(
 }
 
 eth_duplex_t EthernetComponent::get_duplex_mode() {
+  if (!this->ethernet_initialized_)
+    return ETH_DUPLEX_HALF;
   esp_err_t err;
   eth_duplex_t duplex_mode;
   err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_G_DUPLEX_MODE, &duplex_mode);
@@ -802,6 +871,8 @@ eth_duplex_t EthernetComponent::get_duplex_mode() {
 }
 
 eth_speed_t EthernetComponent::get_link_speed() {
+  if (!this->ethernet_initialized_)
+    return ETH_SPEED_10M;
   esp_err_t err;
   eth_speed_t speed;
   err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_G_SPEED, &speed);

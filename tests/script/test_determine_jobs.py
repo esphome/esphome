@@ -3,7 +3,6 @@
 from collections.abc import Generator
 import importlib.util
 import json
-import os
 from pathlib import Path
 import sys
 from unittest.mock import Mock, call, patch
@@ -11,9 +10,7 @@ from unittest.mock import Mock, call, patch
 import pytest
 
 # Add the script directory to Python path so we can import the module
-script_dir = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "script")
-)
+script_dir = str((Path(__file__).parent / ".." / ".." / "script").resolve())
 sys.path.insert(0, script_dir)
 
 # Import helpers module for patching
@@ -22,7 +19,7 @@ import helpers  # noqa: E402
 import script.helpers  # noqa: E402
 
 spec = importlib.util.spec_from_file_location(
-    "determine_jobs", os.path.join(script_dir, "determine-jobs.py")
+    "determine_jobs", str(Path(script_dir) / "determine-jobs.py")
 )
 determine_jobs = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(determine_jobs)
@@ -776,6 +773,88 @@ def test_should_run_import_time_with_branch() -> None:
 
 
 @pytest.mark.parametrize(
+    ("path", "expected_result"),
+    [
+        # Exact-file matches in the CI-irrelevant set.
+        (".yamllint", True),
+        (".github/dependabot.yml", True),
+        # Other top-level workflow files are irrelevant; ci.yml itself is not.
+        (".github/workflows/codeql.yml", True),
+        (".github/workflows/release.yml", True),
+        (".github/workflows/ci.yml", False),
+        # Nested files under workflows/ are not matched by the single-star glob.
+        (".github/workflows/matchers/gcc.json", False),
+        # build-image action: direct children only (single-star glob).
+        (".github/actions/build-image/action.yml", True),
+        (".github/actions/build-image/nested/file.yml", False),
+        # Other actions are CI-relevant.
+        (".github/actions/restore-python/action.yml", False),
+        # docker/** covers everything under docker/.
+        ("docker/Dockerfile", True),
+        ("docker/scripts/run.sh", True),
+        # Regular source files are CI-relevant.
+        ("esphome/__main__.py", False),
+        ("esphome/components/wifi/wifi_component.cpp", False),
+        ("README.md", False),
+        ("tests/script/test_determine_jobs.py", False),
+    ],
+)
+def test_is_ci_irrelevant_path(path: str, expected_result: bool) -> None:
+    """Test _is_ci_irrelevant_path mirrors the historic ci.yml path filter."""
+    assert determine_jobs._is_ci_irrelevant_path(path) == expected_result
+
+
+@pytest.mark.parametrize(
+    ("changed_files", "expected_result"),
+    [
+        # Empty diffs default to True — don't accidentally skip CI on a
+        # broken probe.
+        ([], True),
+        # Any CI-relevant file flips the result to True.
+        (["esphome/__main__.py"], True),
+        (["esphome/components/wifi/wifi_component.cpp"], True),
+        (["README.md"], True),
+        # All-irrelevant diffs return False.
+        ([".github/workflows/codeql.yml"], False),
+        (
+            [".github/workflows/codeql.yml", ".github/workflows/release.yml"],
+            False,
+        ),
+        ([".yamllint"], False),
+        ([".github/dependabot.yml"], False),
+        (["docker/Dockerfile"], False),
+        (
+            [
+                ".github/workflows/codeql.yml",
+                ".github/dependabot.yml",
+                "docker/Dockerfile",
+            ],
+            False,
+        ),
+        # Mixed diffs always trigger CI.
+        (
+            [".github/workflows/codeql.yml", "esphome/__main__.py"],
+            True,
+        ),
+        # ci.yml itself is treated as CI-relevant.
+        ([".github/workflows/ci.yml"], True),
+    ],
+)
+def test_should_run_core_ci(changed_files: list[str], expected_result: bool) -> None:
+    """Test should_run_core_ci function."""
+    with patch.object(determine_jobs, "changed_files", return_value=changed_files):
+        assert determine_jobs.should_run_core_ci() == expected_result
+
+
+def test_should_run_core_ci_with_branch() -> None:
+    """Test should_run_core_ci passes the branch through to changed_files."""
+    with patch.object(determine_jobs, "changed_files") as mock_changed:
+        mock_changed.return_value = []
+        determine_jobs.should_run_core_ci("release")
+        mock_changed.assert_called_once_with("release")
+
+
+@pytest.mark.parametrize(
     ("changed_files", "expected_result"),
     [
         # esphome Python files trigger downstream device-builder tests
@@ -1347,7 +1426,15 @@ def test_detect_memory_impact_config_core_python_only_changes(tmp_path: Path) ->
 
 @pytest.mark.usefixtures("mock_target_branch_dev")
 def test_detect_memory_impact_config_no_common_platform(tmp_path: Path) -> None:
-    """Test memory impact detection when components have no common platform."""
+    """Test memory impact detection when components have no common platform.
+
+    The merged build runs with --base-only on a single platform, so components
+    without a base test on the selected platform cannot be built and must be
+    dropped. We build the largest subset that shares the selected platform
+    rather than handing the runner components it has nothing to compile for
+    (which previously produced "0 passed, 0 failed" and a failed memory
+    extraction).
+    """
     # Create test directory structure
     tests_dir = tmp_path / "tests" / "components"
 
@@ -1374,12 +1461,71 @@ def test_detect_memory_impact_config_no_common_platform(tmp_path: Path) -> None:
 
         result = determine_jobs.detect_memory_impact_config()
 
-    # Should pick the most frequently supported platform
+    # No common platform: pick the most preferred platform among those supported
+    # (esp8266-ard outranks esp32-idf in the preference list) and build only the
+    # components that have a base test on it. wifi (esp32-idf only) is dropped.
     assert result["should_run"] == "true"
-    assert set(result["components"]) == {"wifi", "logger"}
-    # When no common platform, picks most commonly supported
-    # esp8266-ard is preferred over esp32-idf in the preference list
-    assert result["platform"] in ["esp32-idf", "esp8266-ard"]
+    assert result["platform"] == "esp8266-ard"
+    assert result["components"] == ["logger"]
+    assert result["use_merged_config"] == "true"
+
+
+@pytest.mark.usefixtures("mock_target_branch_dev")
+def test_detect_memory_impact_config_variant_only_platform_excluded(
+    tmp_path: Path,
+) -> None:
+    """Regression test for the const + shelly_dimmer memory-impact failure.
+
+    Reproduces https://github.com/esphome/esphome/actions/runs/26746938473
+    where a platform hint selected esp32-idf even though neither changed
+    component had a base test.esp32-idf.yaml. The merged --base-only build then
+    found nothing to compile ("0 passed, 0 failed") and memory extraction
+    failed. Also covers a component whose only esp32-idf test is a *variant*
+    (test-*.esp32-idf.yaml): --base-only never compiles variants, so it must
+    not count toward platform availability.
+    """
+    tests_dir = tmp_path / "tests" / "components"
+
+    # const: base test only on esp32-s3-idf
+    const_dir = tests_dir / "const"
+    const_dir.mkdir(parents=True)
+    (const_dir / "test.esp32-s3-idf.yaml").write_text("test: const")
+
+    # shelly_dimmer: base test only on esp8266-ard
+    shelly_dir = tests_dir / "shelly_dimmer"
+    shelly_dir.mkdir(parents=True)
+    (shelly_dir / "test.esp8266-ard.yaml").write_text("test: shelly_dimmer")
+
+    # mdns: only a VARIANT test on esp32-idf (no base test.esp32-idf.yaml).
+    # --base-only would never build it, so it must be excluded entirely.
+    mdns_dir = tests_dir / "mdns"
+    mdns_dir.mkdir(parents=True)
+    (mdns_dir / "test-min.esp32-idf.yaml").write_text("test: mdns")
+
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+    ):
+        # The "_esp32" filename yields an esp32-idf platform hint, reproducing
+        # the original bug where the hint picked a platform no component could
+        # build as a base test.
+        mock_changed_files.return_value = [
+            "esphome/components/const/const.cpp",
+            "esphome/components/shelly_dimmer/shelly_dimmer_esp32.cpp",
+            "esphome/components/mdns/mdns.cpp",
+        ]
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    # The esp32-idf hint is unbuildable (no base test), so we fall back to the
+    # platform supported by the most components, broken by preference order:
+    # esp8266-ard (shelly_dimmer) outranks esp32-s3-idf (const). Only the
+    # component with a base test on the selected platform is returned; the
+    # variant-only mdns is excluded entirely.
+    assert result["should_run"] == "true"
+    assert result["platform"] == "esp8266-ard"
+    assert result["components"] == ["shelly_dimmer"]
     assert result["use_merged_config"] == "true"
 
 
@@ -1466,12 +1612,16 @@ def test_detect_memory_impact_config_includes_base_bus_components(
 
 
 @pytest.mark.usefixtures("mock_target_branch_dev")
-def test_detect_memory_impact_config_with_variant_tests(tmp_path: Path) -> None:
-    """Test memory impact detection for components with only variant test files.
+def test_detect_memory_impact_config_variant_only_components_skipped(
+    tmp_path: Path,
+) -> None:
+    """Components with only variant tests are skipped for memory impact.
 
-    This verifies that memory impact analysis works correctly for components like
-    improv_serial, ethernet, mdns, etc. which only have variant test files
-    (test-*.yaml) instead of base test files (test.*.yaml).
+    Components like improv_serial and ethernet only have variant test files
+    (test-*.yaml), no base test.<platform>.yaml. The memory-impact build runs
+    test_build_components.py with --base-only, which never compiles variants, so
+    these components have nothing buildable and must not be selected. Selecting
+    them previously produced "0 passed, 0 failed" and a failed memory extraction.
     """
     # Create test directory structure
     tests_dir = tmp_path / "tests" / "components"
@@ -1502,12 +1652,8 @@ def test_detect_memory_impact_config_with_variant_tests(tmp_path: Path) -> None:
 
         result = determine_jobs.detect_memory_impact_config()
 
-    # Should detect both components even though they only have variant tests
-    assert result["should_run"] == "true"
-    assert set(result["components"]) == {"improv_serial", "ethernet"}
-    # Both components support esp32-idf
-    assert result["platform"] == "esp32-idf"
-    assert result["use_merged_config"] == "true"
+    # Neither component has a base test, so nothing is buildable under --base-only
+    assert result["should_run"] == "false"
 
 
 # Tests for clang-tidy split mode logic
@@ -1518,6 +1664,7 @@ def test_clang_tidy_mode_full_scan(
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
+    mock_determine_cpp_unit_tests: Mock,
     mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -1529,6 +1676,9 @@ def test_clang_tidy_mode_full_scan(
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = False
+    # Without this mock, main() runs the real determine_cpp_unit_tests
+    # which loads the full component graph (~5s import of every component).
+    mock_determine_cpp_unit_tests.return_value = (False, [])
 
     # Mock changed_files to return no component files
     mock_changed_files.return_value = []
@@ -1584,6 +1734,7 @@ def test_clang_tidy_mode_targeted_scan(
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
+    mock_determine_cpp_unit_tests: Mock,
     mock_changed_files: Mock,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -1595,6 +1746,9 @@ def test_clang_tidy_mode_targeted_scan(
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = False
+    # Without this mock, main() runs the real determine_cpp_unit_tests
+    # which loads the full component graph (~5s import of every component).
+    mock_determine_cpp_unit_tests.return_value = (False, [])
 
     # Create component names
     components = [f"comp{i}" for i in range(component_count)]
@@ -2602,3 +2756,151 @@ def test_main_validate_only_excludes_transitive_components(
     # Only foo (directly changed, validate-only). bar is a transitive dep
     # and still needs compile despite no source change of its own.
     assert output["validate_only_components"] == ["foo"]
+
+
+def test_main_force_all_overrides_detection(
+    mock_determine_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_should_run_import_time: Mock,
+    mock_should_run_device_builder: Mock,
+    mock_native_idf_components_to_test: Mock,
+    mock_determine_cpp_unit_tests: Mock,
+    mock_changed_files: Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """--force-all bypasses per-feature detection and runs every job.
+
+    Detection mocks all return False/empty (which would normally skip
+    everything) -- the flag must override them. Also verifies clang-tidy
+    goes to ``split`` (full scan) and the component-test matrix is
+    populated from disk rather than from changed-files.
+    """
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+    mock_determine_integration_tests.return_value = (False, [])
+    mock_should_run_clang_tidy.return_value = False
+    mock_should_run_clang_format.return_value = False
+    mock_should_run_python_linters.return_value = False
+    mock_should_run_import_time.return_value = False
+    mock_should_run_device_builder.return_value = False
+    mock_native_idf_components_to_test.return_value = []
+    mock_determine_cpp_unit_tests.return_value = (False, [])
+    mock_changed_files.return_value = []
+
+    with (
+        patch("sys.argv", ["determine-jobs.py", "--force-all"]),
+        patch.object(determine_jobs, "get_changed_components", return_value=[]),
+        patch.object(
+            determine_jobs, "filter_component_and_test_files", return_value=False
+        ),
+        patch.object(
+            determine_jobs, "get_components_with_dependencies", return_value=[]
+        ),
+        patch.object(
+            determine_jobs,
+            "detect_memory_impact_config",
+            return_value={"should_run": "false"},
+        ),
+        patch.object(determine_jobs, "should_run_benchmarks", return_value=False),
+        # create_intelligent_batches scans every tests/components/<name>/*.yaml
+        # under --force-all (~2500 YAML loads, ~10s in CI). This test only
+        # asserts that main() routes to it and returns non-empty -- the
+        # batching logic itself has its own dedicated tests.
+        patch.object(
+            determine_jobs,
+            "create_intelligent_batches",
+            return_value=([["fake_batch"]], None),
+        ),
+    ):
+        determine_jobs.main()
+
+    output = json.loads(capsys.readouterr().out)
+
+    assert output["integration_tests"] is True
+    assert output["clang_tidy"] is True
+    assert output["clang_tidy_mode"] == "split"
+    assert output["clang_tidy_full_scan"] is True
+    assert output["clang_format"] is True
+    assert output["python_linters"] is True
+    assert output["import_time"] is True
+    assert output["device_builder"] is True
+    assert output["native_idf"] is True
+    # native_idf_components is a CSV of NATIVE_IDF_TEST_COMPONENTS
+    assert "esp32" in output["native_idf_components"].split(",")
+    assert output["cpp_unit_tests_run_all"] is True
+    assert output["cpp_unit_tests_components"] == []
+    assert output["benchmarks"] is True
+    # Detection helpers must not be consulted when --force-all is set
+    mock_determine_integration_tests.assert_not_called()
+    mock_should_run_clang_tidy.assert_not_called()
+    mock_should_run_clang_format.assert_not_called()
+    mock_should_run_python_linters.assert_not_called()
+    mock_should_run_import_time.assert_not_called()
+    mock_should_run_device_builder.assert_not_called()
+    mock_native_idf_components_to_test.assert_not_called()
+    mock_determine_cpp_unit_tests.assert_not_called()
+    # Component matrix is populated from disk (tests/components/ in the repo)
+    assert output["component_test_count"] > 0
+    assert len(output["component_test_batches"]) > 0
+
+
+def test_main_force_all_off_uses_detection(
+    mock_determine_integration_tests: Mock,
+    mock_should_run_clang_tidy: Mock,
+    mock_should_run_clang_format: Mock,
+    mock_should_run_python_linters: Mock,
+    mock_should_run_import_time: Mock,
+    mock_should_run_device_builder: Mock,
+    mock_native_idf_components_to_test: Mock,
+    mock_determine_cpp_unit_tests: Mock,
+    mock_changed_files: Mock,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without --force-all, detection helpers drive the decision (regression guard)."""
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+    mock_determine_integration_tests.return_value = (False, [])
+    mock_should_run_clang_tidy.return_value = False
+    mock_should_run_clang_format.return_value = False
+    mock_should_run_python_linters.return_value = False
+    mock_should_run_import_time.return_value = False
+    mock_should_run_device_builder.return_value = False
+    mock_native_idf_components_to_test.return_value = []
+    mock_determine_cpp_unit_tests.return_value = (False, [])
+    mock_changed_files.return_value = []
+
+    with (
+        patch("sys.argv", ["determine-jobs.py"]),
+        patch.object(determine_jobs, "get_changed_components", return_value=[]),
+        patch.object(
+            determine_jobs, "filter_component_and_test_files", return_value=False
+        ),
+        patch.object(
+            determine_jobs, "get_components_with_dependencies", return_value=[]
+        ),
+        patch.object(
+            determine_jobs,
+            "detect_memory_impact_config",
+            return_value={"should_run": "false"},
+        ),
+        patch.object(
+            determine_jobs, "create_intelligent_batches", return_value=([], {})
+        ),
+        patch.object(determine_jobs, "should_run_benchmarks", return_value=False),
+    ):
+        determine_jobs.main()
+
+    output = json.loads(capsys.readouterr().out)
+
+    assert output["integration_tests"] is False
+    assert output["clang_tidy"] is False
+    assert output["clang_format"] is False
+    assert output["python_linters"] is False
+    assert output["native_idf"] is False
+    assert output["component_test_count"] == 0
+    mock_determine_integration_tests.assert_called_once()
+    mock_should_run_clang_tidy.assert_called_once()

@@ -12,9 +12,7 @@ import pytest
 from pytest import MonkeyPatch
 
 # Add the script directory to Python path so we can import helpers
-sys.path.insert(
-    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "script"))
-)
+sys.path.insert(0, str((Path(__file__).parent / ".." / ".." / "script").resolve()))
 
 import helpers  # noqa: E402
 
