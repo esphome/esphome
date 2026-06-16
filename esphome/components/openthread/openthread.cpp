@@ -231,7 +231,7 @@ bool OpenThreadComponent::teardown() {
         ESP_LOGW(TAG, "Failed to acquire OpenThread lock during teardown, leaking memory");
         return true;
       }
-      otInstance *instance = lock->get_instance();
+      otInstance *instance = lock.get_instance();
       otSrpClientClearHostAndServices(instance);
       otSrpClientBuffersFreeAllServices(instance);
 #ifdef USE_OPENTHREAD_GRACEFUL_DETACH_ON_SHUTDOWN
@@ -255,7 +255,7 @@ bool OpenThreadComponent::teardown() {
         ESP_LOGW(TAG, "Failed to acquire OpenThread lock during teardown, leaking memory");
         return true;
       }
-      otInstance *instance = lock->get_instance();
+      otInstance *instance = lock.get_instance();
       if (otThreadSetEnabled(instance, false) != OT_ERROR_NONE) {
         ESP_LOGW(TAG, "Failed to disable Thread during teardown");
       }

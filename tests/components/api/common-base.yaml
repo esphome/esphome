@@ -296,7 +296,7 @@ api:
 event:
   - platform: template
     name: Test Event
-    id: test_event
+    id: api_test_event
     event_types:
       - single_click
       - double_click
