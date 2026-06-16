@@ -147,7 +147,6 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   uart::UARTFlushResult flush() override;
   // Re-apply the current line settings (baud, parity, etc) to this already-open channel.
   void load_settings(bool dump_config) override;
-  void check_logger_conflict() override {}
   void set_parity(UARTParityOptions parity) { this->parity_ = parity; }
   void set_debug(bool debug) { this->debug_ = debug; }
   void set_dummy_receiver(bool dummy_receiver) { this->dummy_receiver_ = dummy_receiver; }
@@ -161,6 +160,7 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   void set_rx_callback(std::function<void()> cb) { this->rx_callback_ = std::move(cb); }
 
  protected:
+  void check_logger_conflict() override {}
   // Larger structures first (8+ bytes)
   RingBuffer input_buffer_;
   LockFreeQueue<UsbOutputChunk, USB_OUTPUT_CHUNK_COUNT> output_queue_;
@@ -233,9 +233,10 @@ class USBUartComponent : public usb_host::USBClient {
   std::vector<USBUartChannel *> channels_{};
 
   // Config state machine
-  USBUartChannel *cfg_single_{nullptr};  // non-null: reload of a single channel
-  std::atomic<bool> cfg_done_{false};    // synchronizes cfg_ok_/cfg_response_ across threads
-  uint8_t cfg_response_[8]{};            // last IN transfer payload (for detection reads)
+  USBUartChannel *cfg_single_{nullptr};          // non-null: reload of a single channel
+  USBUartChannel *cfg_pending_reload_{nullptr};  // reload requested while the machine was busy
+  std::atomic<bool> cfg_done_{false};            // synchronizes cfg_ok_/cfg_response_ across threads
+  uint8_t cfg_response_[8]{};                    // last IN transfer payload (for detection reads)
   uint8_t cfg_channel_idx_{0};
   uint8_t cfg_step_{0};
   bool cfg_active_{false};

@@ -526,11 +526,20 @@ bool USBUartTypeCdcAcm::config_step(USBUartChannel *channel, uint8_t step, bool 
 
 void USBUartComponent::enable_channels() {
   this->cfg_single_ = nullptr;
+  this->cfg_pending_reload_ = nullptr;
   this->cfg_channel_idx_ = 0;
   this->start_config_(false);
 }
 
 void USBUartComponent::apply_channel_settings(USBUartChannel *channel) {
+  if (this->cfg_active_) {
+    // A config sequence is already running. Defer this reload until it finishes to preserve
+    // the one-control-transfer-at-a-time guarantee (restarting mid-flight would let an
+    // in-flight callback complete against fresh state). The pending slot coalesces multiple
+    // requests; the channel's live settings are read when the reload eventually runs.
+    this->cfg_pending_reload_ = channel;
+    return;
+  }
   this->cfg_single_ = channel;
   this->start_config_(true);
 }
@@ -551,7 +560,7 @@ void USBUartComponent::config_transfer_(uint8_t type, uint8_t request, uint16_t 
   this->cfg_done_.store(false);
   // The completion callback runs in the USB-task context: it only records the result and
   // wakes the loop. The next transfer is issued from run_config_machine_() on the loop thread.
-  this->control_transfer(
+  bool submitted = this->control_transfer(
       type, request, value, index,
       [this](const usb_host::TransferStatus &status) {
         this->cfg_ok_ = status.success;
@@ -566,11 +575,16 @@ void USBUartComponent::config_transfer_(uint8_t type, uint8_t request, uint16_t 
         App.wake_loop_threadsafe();
       },
       data);
+  if (!submitted) {
+    // Submission failed (e.g. no free transfer request). No callback will fire, so synthesize
+    // a failed completion here so the state machine advances/aborts instead of hanging.
+    ESP_LOGW(TAG, "Config control transfer submit failed");
+    this->cfg_ok_ = false;
+    this->cfg_done_.store(true, std::memory_order_release);
+  }
 }
 
 bool USBUartComponent::run_config_machine_() {
-  ESP_LOGD(TAG, "Config machine step: device_phase=%d channel_idx=%d step=%d reload=%d ok=%d", this->cfg_device_phase_,
-           this->cfg_channel_idx_, this->cfg_step_, this->cfg_reload_, this->cfg_ok_);
   if (!this->cfg_active_)
     return false;
 
@@ -583,7 +597,12 @@ bool USBUartComponent::run_config_machine_() {
     this->cfg_step_++;
   }
 
-  // One-time device-level phase (init only).
+  // cfg_ok_ is now synchronized (we only get here on the initial entry or after observing
+  // cfg_done_ with acquire ordering), so it is safe to read.
+  ESP_LOGV(TAG, "Config machine: device_phase=%d channel_idx=%d step=%d reload=%d ok=%d", this->cfg_device_phase_,
+           this->cfg_channel_idx_, this->cfg_step_, this->cfg_reload_, this->cfg_ok_);
+
+  // One-time device-level phase (init only). config_device_step() inspects cfg_ok_ itself.
   if (this->cfg_device_phase_) {
     if (this->config_device_step(this->cfg_step_, this->cfg_ok_, this->cfg_response_)) {
       this->cfg_in_flight_ = true;
@@ -599,13 +618,20 @@ bool USBUartComponent::run_config_machine_() {
           ? this->cfg_single_
           : (this->cfg_channel_idx_ < this->channels_.size() ? this->channels_[this->cfg_channel_idx_] : nullptr);
 
-  if (channel != nullptr && channel->initialised_.load() &&
-      this->config_step(channel, this->cfg_step_, this->cfg_reload_, this->cfg_ok_, this->cfg_response_)) {
-    this->cfg_in_flight_ = true;
-    return true;
+  if (channel != nullptr && channel->initialised_.load()) {
+    if (!this->cfg_ok_) {
+      // A previous step in this channel's sequence failed. Abort the rest. On a full init,
+      // mark the channel uninitialised so data flow isn't started on a misconfigured channel;
+      // on a reload, leave the already-working channel as it was.
+      if (!this->cfg_reload_)
+        channel->initialised_.store(false);
+    } else if (this->config_step(channel, this->cfg_step_, this->cfg_reload_, this->cfg_ok_, this->cfg_response_)) {
+      this->cfg_in_flight_ = true;
+      return true;
+    }
   }
 
-  // Channel finished. On full init, kick off data flow for this channel.
+  // Channel finished (or aborted). On full init, kick off data flow if still initialised.
   if (channel != nullptr && !this->cfg_reload_ && channel->initialised_.load()) {
     channel->input_started_.store(false);
     channel->output_started_.store(false);
@@ -620,6 +646,13 @@ bool USBUartComponent::run_config_machine_() {
     this->cfg_single_ = nullptr;
   } else if (++this->cfg_channel_idx_ >= this->channels_.size()) {
     this->cfg_active_ = false;
+  }
+
+  // If the machine just went idle and a reload was requested while it was busy, start it now.
+  if (!this->cfg_active_ && this->cfg_pending_reload_ != nullptr) {
+    this->cfg_single_ = this->cfg_pending_reload_;
+    this->cfg_pending_reload_ = nullptr;
+    this->start_config_(true);
   }
   return true;
 }

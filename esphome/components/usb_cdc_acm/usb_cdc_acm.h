@@ -83,6 +83,11 @@ class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMC
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override;
   uart::UARTFlushResult flush() override;
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+  // No-op: in CDC ACM device mode the host dictates the line coding, so there are no
+  // local UART settings to (re)apply.
+  void load_settings(bool dump_config) override {}
+#endif
 
  protected:
   void check_logger_conflict() override;
