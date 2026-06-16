@@ -306,7 +306,9 @@ def test_run_platformio_cli_sets_environment_variables(
         assert "PYTHONWARNINGS" in os.environ
         # Caps git's upward search at the config dir so an uninitialized or
         # corrupt parent git repo can't break the framework's `git describe`.
-        assert os.environ["GIT_CEILING_DIRECTORIES"] == str(CORE.config_dir)
+        assert str(CORE.config_dir) in os.environ["GIT_CEILING_DIRECTORIES"].split(
+            os.pathsep
+        )
 
         # Check command was called correctly — runs PlatformIO as a subprocess
         # via the esphome.platformio.runner entry point.

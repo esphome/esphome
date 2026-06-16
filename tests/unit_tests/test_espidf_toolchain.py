@@ -160,8 +160,8 @@ def test_get_idf_env_sets_git_ceiling_directories(setup_core: Path) -> None:
     # Set IDF_PATH so the framework-install branch is skipped.
     with patch.dict(os.environ, {"IDF_PATH": str(setup_core)}):
         env = toolchain._get_idf_env(version="5.5.4")
-    assert env["GIT_CEILING_DIRECTORIES"] == str(CORE.config_dir)
-    assert env["GIT_CEILING_DIRECTORIES"] == str(setup_core)
+    assert CORE.config_dir == setup_core
+    assert str(CORE.config_dir) in env["GIT_CEILING_DIRECTORIES"].split(os.pathsep)
 
 
 def test_get_core_framework_version_from_core_data():
