@@ -131,9 +131,9 @@ def channel_schema(type_: "Type", baud_rate_required):
                         cv.Schema(
                             {
                                 cv.GenerateID(): cv.declare_id(type_.channel_cls),
-                                cv.Optional(CONF_BUFFER_SIZE, default=256): cv.int_range(
-                                    min=64, max=8192
-                                ),
+                                cv.Optional(
+                                    CONF_BUFFER_SIZE, default=256
+                                ): cv.int_range(min=64, max=8192),
                                 (
                                     cv.Required(CONF_BAUD_RATE)
                                     if baud_rate_required
@@ -150,7 +150,9 @@ def channel_schema(type_: "Type", baud_rate_required):
                                 cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(
                                     min=5, max=8
                                 ),
-                                cv.Optional(CONF_DUMMY_RECEIVER, default=False): cv.boolean,
+                                cv.Optional(
+                                    CONF_DUMMY_RECEIVER, default=False
+                                ): cv.boolean,
                                 cv.Optional(CONF_DEBUG, default=False): cv.boolean,
                                 cv.Optional(CONF_DEBUG_PREFIX, default=""): cv.string,
                                 cv.Optional(
