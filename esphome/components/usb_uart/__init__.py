@@ -113,44 +113,55 @@ uart_types = (
 )
 
 
+def _validate_debug_add_uart_settings(config):
+    if config.get(CONF_DEBUG_ADD_UART_SETTINGS) and not config.get(CONF_DEBUG):
+        raise cv.Invalid(
+            f"'{CONF_DEBUG_ADD_UART_SETTINGS}' requires '{CONF_DEBUG}' to be true"
+        )
+    return config
+
+
 def channel_schema(type_: "Type", baud_rate_required):
     max_channels = type_.max_channels
     return cv.Schema(
         {
             cv.Required(CONF_CHANNELS): cv.All(
                 cv.ensure_list(
-                    cv.Schema(
-                        {
-                            cv.GenerateID(): cv.declare_id(type_.channel_cls),
-                            cv.Optional(CONF_BUFFER_SIZE, default=256): cv.int_range(
-                                min=64, max=8192
-                            ),
-                            (
-                                cv.Required(CONF_BAUD_RATE)
-                                if baud_rate_required
-                                else cv.Optional(
-                                    CONF_BAUD_RATE, default=DEFAULT_BAUD_RATE
-                                )
-                            ): cv.int_range(min=300, max=1000000),
-                            cv.Optional(CONF_STOP_BITS, default="1"): cv.enum(
-                                UART_STOP_BITS_OPTIONS, upper=True
-                            ),
-                            cv.Optional(CONF_PARITY, default="NONE"): cv.enum(
-                                UART_PARITY_OPTIONS, upper=True
-                            ),
-                            cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(
-                                min=5, max=8
-                            ),
-                            cv.Optional(CONF_DUMMY_RECEIVER, default=False): cv.boolean,
-                            cv.Optional(CONF_DEBUG, default=False): cv.boolean,
-                            cv.Optional(CONF_DEBUG_PREFIX, default=""): cv.string,
-                            cv.Optional(
-                                CONF_DEBUG_ADD_UART_SETTINGS, default=False
-                            ): cv.boolean,
-                            cv.Optional(
-                                CONF_FLUSH_TIMEOUT, default="100ms"
-                            ): cv.positive_time_period_milliseconds,
-                        }
+                    cv.All(
+                        cv.Schema(
+                            {
+                                cv.GenerateID(): cv.declare_id(type_.channel_cls),
+                                cv.Optional(CONF_BUFFER_SIZE, default=256): cv.int_range(
+                                    min=64, max=8192
+                                ),
+                                (
+                                    cv.Required(CONF_BAUD_RATE)
+                                    if baud_rate_required
+                                    else cv.Optional(
+                                        CONF_BAUD_RATE, default=DEFAULT_BAUD_RATE
+                                    )
+                                ): cv.int_range(min=300, max=1000000),
+                                cv.Optional(CONF_STOP_BITS, default="1"): cv.enum(
+                                    UART_STOP_BITS_OPTIONS, upper=True
+                                ),
+                                cv.Optional(CONF_PARITY, default="NONE"): cv.enum(
+                                    UART_PARITY_OPTIONS, upper=True
+                                ),
+                                cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(
+                                    min=5, max=8
+                                ),
+                                cv.Optional(CONF_DUMMY_RECEIVER, default=False): cv.boolean,
+                                cv.Optional(CONF_DEBUG, default=False): cv.boolean,
+                                cv.Optional(CONF_DEBUG_PREFIX, default=""): cv.string,
+                                cv.Optional(
+                                    CONF_DEBUG_ADD_UART_SETTINGS, default=False
+                                ): cv.boolean,
+                                cv.Optional(
+                                    CONF_FLUSH_TIMEOUT, default="100ms"
+                                ): cv.positive_time_period_milliseconds,
+                            }
+                        ),
+                        _validate_debug_add_uart_settings,
                     )
                 ),
                 cv.Length(
@@ -202,11 +213,9 @@ async def to_code(config):
             cg.add(chvar.set_debug(channel[CONF_DEBUG]))
             if channel[CONF_DEBUG_PREFIX]:
                 cg.add(chvar.set_debug_prefix(channel[CONF_DEBUG_PREFIX]))
-            if channel[CONF_DEBUG_ADD_UART_SETTINGS]:
-                cg.add(
-                    chvar.set_debug_add_settings(channel[CONF_DEBUG_ADD_UART_SETTINGS])
-                )
-                cg.add_define("UART_DEBUGGER_ADD_SETTINGS")
             cg.add(var.add_channel(chvar))
             if channel[CONF_DEBUG]:
                 cg.add_define("USE_UART_DEBUGGER")
+                if channel[CONF_DEBUG_ADD_UART_SETTINGS]:
+                    cg.add(chvar.set_debug_add_settings(True))
+                    cg.add_define("UART_DEBUGGER_ADD_SETTINGS")
