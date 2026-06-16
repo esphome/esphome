@@ -15,8 +15,8 @@ void OpenThreadComponentBaseAction::warn_ftd_no_op_() {
 
 void OpenThreadComponentBaseAction::lock_and_apply_() {
   if (this->parent_->is_ready()) {
-    if (auto lock = InstanceLock::try_acquire(LOCK_ACQUIRE_TIMEOUT_MS); lock.has_value()) {
-      if (auto *instance = lock->get_instance(); instance != nullptr) {
+    if (auto lock = InstanceLock::try_acquire(LOCK_ACQUIRE_TIMEOUT_MS); lock) {
+      if (auto *instance = lock.get_instance(); instance != nullptr) {
         this->apply_locked(instance);
       }
     } else {
