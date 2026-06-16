@@ -38,7 +38,7 @@ dependencies:
     rules:
       - if: "target in [esp32h2, esp32p4]"
   espressif/esp_hosted:
-    version: 2.12.8
+    version: 2.12.9
     rules:
       - if: "target in [esp32h2, esp32p4]"
   zorxx/multipart-parser:
