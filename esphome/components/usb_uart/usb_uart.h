@@ -147,6 +147,7 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   uart::UARTFlushResult flush() override;
   // Re-apply the current line settings (baud, parity, etc) to this already-open channel.
   void load_settings(bool dump_config) override;
+  using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
   void set_parity(UARTParityOptions parity) { this->parity_ = parity; }
   void set_debug(bool debug) { this->debug_ = debug; }
   void set_dummy_receiver(bool dummy_receiver) { this->dummy_receiver_ = dummy_receiver; }

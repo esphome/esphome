@@ -87,6 +87,7 @@ class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMC
   // No-op: in CDC ACM device mode the host dictates the line coding, so there are no
   // local UART settings to (re)apply.
   void load_settings(bool dump_config) override {}
+  using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
 #endif
 
  protected:

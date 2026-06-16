@@ -387,6 +387,7 @@ class WeikaiChannel : public uart::UARTComponent {
     this->set_line_param_();
     this->set_baudrate_();
   }
+  using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
 #endif
 
  protected:
