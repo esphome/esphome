@@ -144,10 +144,23 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
   if (this->debug_) {
     constexpr size_t batch = 16;
     char buf[format_hex_pretty_size(batch)];  // "XX,XX,...,XX\0"
+#ifdef UART_DEBUGGER_ADD_SETTINGS
+    char settings_prefix[48];
+    if (this->debug_add_settings_) {
+      snprintf(settings_prefix, sizeof(settings_prefix), "|%" PRIu32 ":%u:%s:%s|",
+               this->baud_rate_, this->data_bits_, PARITY_NAMES[this->parity_], STOP_BITS_NAMES[this->stop_bits_]);
+    } else {
+      settings_prefix[0] = '\0';
+    }
+#endif
     for (size_t off = 0; off < len; off += batch) {
       size_t n = std::min(len - off, batch);
       format_hex_pretty_to(buf, data + off, n, ',');
+#ifdef UART_DEBUGGER_ADD_SETTINGS
+      ESP_LOGD(TAG, "%s%s>>> %s", settings_prefix, this->debug_prefix_.c_str(), buf);
+#else
       ESP_LOGD(TAG, "%s>>> %s", this->debug_prefix_.c_str(), buf);
+#endif
     }
   }
 #endif
@@ -225,7 +238,19 @@ void USBUartComponent::loop() {
     if (channel->debug_) {
       char buf[format_hex_pretty_size(usb_host::USB_MAX_PACKET_SIZE)];  // "XX,XX,...,XX\0"
       format_hex_pretty_to(buf, chunk->data, chunk->length, ',');
+#ifdef UART_DEBUGGER_ADD_SETTINGS
+      if (channel->debug_add_settings_) {
+        char settings_prefix[48];
+        snprintf(settings_prefix, sizeof(settings_prefix), "|%" PRIu32 ":%u:%s:%s|",
+                 channel->baud_rate_, channel->data_bits_, PARITY_NAMES[channel->parity_],
+                 STOP_BITS_NAMES[channel->stop_bits_]);
+        ESP_LOGD(TAG, "%s%s<<< %s", settings_prefix, channel->debug_prefix_.c_str(), buf);
+      } else {
+        ESP_LOGD(TAG, "%s<<< %s", channel->debug_prefix_.c_str(), buf);
+      }
+#else
       ESP_LOGD(TAG, "%s<<< %s", channel->debug_prefix_.c_str(), buf);
+#endif
     }
 #endif
 
@@ -248,6 +273,7 @@ void USBUartComponent::loop() {
   if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u USB data chunks due to buffer overflow", dropped);
   }
+
 
   // Disable loop when idle. Callbacks re-enable via enable_loop_soon_any_context().
   if (!had_work) {
@@ -472,7 +498,6 @@ void USBUartTypeCdcAcm::on_disconnected() {
     // Reset the input and output started flags to their initial state to avoid the possibility of spurious restarts
     channel->input_started_.store(true);
     channel->output_started_.store(true);
-    channel->input_buffer_.clear();
     // Drain any pending output chunks and return them to the pool
     {
       UsbOutputChunk *chunk;
@@ -480,6 +505,7 @@ void USBUartTypeCdcAcm::on_disconnected() {
         channel->output_pool_.release(chunk);
       }
     }
+    channel->input_buffer_.clear();
     channel->initialised_.store(false);
   }
   USBClient::on_disconnected();
