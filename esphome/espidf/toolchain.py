@@ -82,6 +82,13 @@ def _get_idf_env(version: str | None = None) -> dict[str, str]:
             env_cache[version] |= get_framework_env(
                 *_get_esphome_esp_idf_paths(version)
             )
+
+        # Stop git from walking above the config directory when ESP-IDF runs
+        # `git describe` for the app version. An uninitialized or corrupt git
+        # repo in a parent directory would otherwise make git error out and
+        # fail the whole build. GIT_CEILING_DIRECTORIES requires absolute
+        # paths; CORE.config_dir is already absolute.
+        env_cache[version]["GIT_CEILING_DIRECTORIES"] = str(CORE.config_dir)
     return env_cache[version]
 
 
