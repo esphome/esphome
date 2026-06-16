@@ -1,0 +1,9 @@
+esphome:
+  name: docker-test-esp32-arduino
+
+esp32:
+  variant: esp32
+  framework:
+    type: arduino
+
+logger:
