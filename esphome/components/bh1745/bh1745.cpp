@@ -3,8 +3,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace bh1745 {
+namespace esphome::bh1745 {
 
 static const char *const TAG = "bh1745";
 
@@ -276,5 +275,4 @@ void BH1745Component::publish_data_() {
   }
 }
 
-}  // namespace bh1745
-}  // namespace esphome
+}  // namespace esphome::bh1745

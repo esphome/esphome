@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace bh1745 {
+namespace esphome::bh1745 {
 
 enum class Bh1745Registers : uint8_t {
   SYSTEM_CONTROL = 0x40,
@@ -148,5 +147,4 @@ class BH1745Component : public PollingComponent, public i2c::I2CDevice {
   void publish_data_();
 };
 
-}  // namespace bh1745
-}  // namespace esphome
+}  // namespace esphome::bh1745
