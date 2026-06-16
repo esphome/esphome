@@ -109,40 +109,46 @@ static int ftdi_to_clkbits(int baudrate, unsigned int clk, int clk_div, uint32_t
   return best_baud;
 }
 
-static int ftdi_convert_baudrate(int baudrate, uint8_t chip_type, uint8_t channel_index, uint16_t *value,
-                                 uint16_t *index) {
+struct FtdiConfig {
+  uint16_t value;
+  uint16_t ftdi_index;
   int best_baud;
+};
+
+static FtdiConfig ftdi_convert_baudrate(int baudrate, uint8_t chip_type, uint8_t channel_index) {
   uint32_t encoded_divisor;
 
+  FtdiConfig config{};
+
   if (baudrate <= 0) {
-    return -1;
+    return config;
   }
 
   static constexpr uint32_t H_CLK = 120000000;
   static constexpr uint32_t C_CLK = 48000000;
   if ((chip_type == TYPE_2232H) || (chip_type == TYPE_4232H) || (chip_type == TYPE_232H)) {
     if (baudrate * 10 > H_CLK / 0x3fff) {
-      best_baud = ftdi_to_clkbits(baudrate, H_CLK, 10, &encoded_divisor);
+      config.best_baud = ftdi_to_clkbits(baudrate, H_CLK, 10, &encoded_divisor);
       encoded_divisor |= 0x20000; /* switch on CLK/10*/
     } else {
-      best_baud = ftdi_to_clkbits(baudrate, C_CLK, 16, &encoded_divisor);
+      config.best_baud = ftdi_to_clkbits(baudrate, C_CLK, 16, &encoded_divisor);
     }
   } else if ((chip_type == TYPE_BM) || (chip_type == TYPE_2232C) || (chip_type == TYPE_R) || (chip_type == TYPE_230X)) {
-    best_baud = ftdi_to_clkbits(baudrate, C_CLK, 16, &encoded_divisor);
+    config.best_baud = ftdi_to_clkbits(baudrate, C_CLK, 16, &encoded_divisor);
   } else {
-    best_baud = ftdi_to_clkbits_am(baudrate, &encoded_divisor);
+    config.best_baud = ftdi_to_clkbits_am(baudrate, &encoded_divisor);
   }
 
-  *value = (uint16_t) (encoded_divisor & 0xFFFF);
+  config.value = (uint16_t) (encoded_divisor & 0xFFFF);
   if (chip_type == TYPE_2232H || chip_type == TYPE_4232H || chip_type == TYPE_232H) {
-    *index = (uint16_t) (encoded_divisor >> 8);
-    *index &= 0xFF00;
-    *index |= (channel_index + 1);
+    config.ftdi_index = (uint16_t) (encoded_divisor >> 8);
+    config.ftdi_index &= 0xFF00;
+    config.ftdi_index |= (channel_index + 1);
   } else {
-    *index = (uint16_t) (encoded_divisor >> 16);
+    config.ftdi_index = (uint16_t) (encoded_divisor >> 16);
   }
 
-  return best_baud;
+  return config;
 }
 
 static optional<CdcEps> get_uart(const usb_config_desc_t *config_desc, uint8_t intf_idx) {
@@ -182,7 +188,7 @@ static optional<CdcEps> get_uart(const usb_config_desc_t *config_desc, uint8_t i
   for (const auto *ep : endpoints) {
     if (ep1 == nullptr) {
       ep1 = ep;
-    } else if (ep2 == nullptr) {
+    } else {
       ep2 = ep;
       break;
     }
@@ -321,11 +327,11 @@ bool USBUartTypeFT23XX::config_step(USBUartChannel *channel, uint8_t step, bool 
                              channel->cdc_dev_.bulk_interface_number + 1);
       return true;
     case 1: {  // set baudrate
-      uint16_t value, ftdi_index;
-      ftdi_convert_baudrate(channel->baud_rate_, this->chip_type_, channel->index_, &value, &ftdi_index);
-      uint16_t usb_index = (ftdi_index & 0xFF00) | (channel->cdc_dev_.bulk_interface_number + 1);
-      ESP_LOGD(TAG, "Baudrate: %u, value=0x%04X, ftdi_index=0x%04X", (unsigned) channel->baud_rate_, value, ftdi_index);
-      this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x03, value, usb_index);
+      auto config = ftdi_convert_baudrate(channel->baud_rate_, this->chip_type_, channel->index_);
+      uint16_t usb_index = (config.ftdi_index & 0xFF00) | (channel->cdc_dev_.bulk_interface_number + 1);
+      ESP_LOGD(TAG, "Baudrate: %u, value=0x%04X, ftdi_index=0x%04X", (unsigned) channel->baud_rate_, config.value,
+               config.ftdi_index);
+      this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x03, config.value, usb_index);
       return true;
     }
     case 2: {  // set line properties (data bits / parity / stop bits)
@@ -348,7 +354,7 @@ bool USBUartTypeFT23XX::config_step(USBUartChannel *channel, uint8_t step, bool 
           break;
       }
       switch (channel->stop_bits_) {
-        case UART_CONFIG_STOP_BITS_1:
+        default:  // 1 bit
           value |= (0x00 << 11);
           break;
         case UART_CONFIG_STOP_BITS_1_5:
