@@ -18,6 +18,7 @@ class MockUARTComponent : public uart::UARTComponent {
   MOCK_METHOD(size_t, available, (), (override));
   MOCK_METHOD(uart::UARTFlushResult, flush, (), (override));
   MOCK_METHOD(void, check_logger_conflict, (), (override));
+  void load_settings(bool) override {}
 };
 
 // Expose protected members for testing.
