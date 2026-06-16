@@ -125,7 +125,7 @@ def test_all_predefined_models(
     """Test all predefined epaper models validate successfully with appropriate defaults."""
 
     # Test all models, providing default values where necessary
-    for name, model in MODELS.items():
+    for name in MODELS:
         # Some models require ESP32-S3 (SEEED hardware or displays needing PSRAM)
         if name in (
             "SEEED-EE04-MONO-4.26",

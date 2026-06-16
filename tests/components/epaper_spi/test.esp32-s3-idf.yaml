@@ -169,9 +169,7 @@ display:
     cs_pin:
       allow_other_uses: true
       number: GPIO5
-    cs_secondary_pin:
-      allow_other_uses: true
-      number: GPIO7
+    cs_secondary_pin: GPIO7
     reset_pin:
       allow_other_uses: true
       number: GPIO16
