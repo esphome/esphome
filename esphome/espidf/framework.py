@@ -85,6 +85,75 @@ def _get_idf_tools_path() -> Path:
     return CORE.data_dir / "idf"
 
 
+# Windows' default MAX_PATH is 260 characters. ESP-IDF toolchains nest deeply
+# below the IDF tools directory: the longest file on disk (picolibc C++
+# headers) sits ~209 characters down, but the operative number is worse -- gcc
+# probes its multilib include dirs via un-normalized self-relative paths
+# ("bin/../lib/gcc/<target>/<ver>/../../../../<target>/include/..."), and
+# Windows checks the path string as given, before collapsing "..". Measured
+# worst case (riscv32, esp-15.2.0, longest multilib + no-rtti, probing
+# bits/c++config.h): ~243 characters below the tools directory. Exceeding the
+# limit surfaces as cryptic build failures -- missing headers ("fatal error:
+# bits/c++config.h: No such file or directory") or partial extraction
+# ("cannot execute 'as'"). Warn up front so the user can shorten the path or
+# enable long path support.
+_WINDOWS_MAX_PATH = 260
+# Measured 243 plus a small safety margin for future toolchain growth.
+_TOOLCHAIN_NESTED_PATH_LEN = 245
+
+
+def _windows_long_paths_enabled() -> bool:
+    """Return True if Windows long path support is enabled in the registry."""
+    try:
+        import winreg  # pylint: disable=import-error  # Windows-only module
+
+        with winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE,
+            r"SYSTEM\CurrentControlSet\Control\FileSystem",
+        ) as key:
+            value, _ = winreg.QueryValueEx(key, "LongPathsEnabled")
+            return value == 1
+    except OSError:
+        return False
+
+
+def _check_windows_path_length() -> None:
+    """Warn when the install path is too long for Windows' MAX_PATH limit.
+
+    No-op off Windows or when long path support is enabled. Otherwise warns if
+    the deepest toolchain file would exceed the 260-character limit, which makes
+    ESP-IDF toolchains extract incompletely and fail to build.
+    """
+    if platform.system() != "Windows" or _windows_long_paths_enabled():
+        return
+    tools_path = str(_get_idf_tools_path())
+    projected = len(tools_path) + _TOOLCHAIN_NESTED_PATH_LEN
+    if projected <= _WINDOWS_MAX_PATH:
+        return
+    _LOGGER.warning(
+        "ESP-IDF tools path is too long for the default Windows path limit:\n"
+        "  %s (%d characters)\n"
+        "ESP-IDF toolchain paths reach up to ~%d characters deeper (including the\n"
+        "compiler's internal 'bin/../lib/...' relative paths), projecting to ~%d\n"
+        "characters -- over the %d-character limit. This causes cryptic build\n"
+        "failures such as:\n"
+        "  fatal error: bits/c++config.h: No such file or directory\n"
+        "  cannot execute 'as': CreateProcess: No such file or directory\n"
+        "To fix, either:\n"
+        "  - Enable Windows long path support: set\n"
+        "    HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem\\LongPathsEnabled\n"
+        "    to 1 and reboot, or\n"
+        "  - Move your ESPHome project to a shorter path\n"
+        "Then delete the ESP-IDF tools directory above so the toolchain "
+        "reinstalls cleanly.",
+        tools_path,
+        len(tools_path),
+        _TOOLCHAIN_NESTED_PATH_LEN,
+        projected,
+        _WINDOWS_MAX_PATH,
+    )
+
+
 def _get_framework_path(version: str) -> Path:
     """
     Get the path to the ESPHome ESP-IDF framework directory for a specific version.
@@ -705,6 +774,8 @@ def check_esp_idf_install(
     Returns:
         tuple of (framework_path, python_env_path)
     """
+    _check_windows_path_length()
+
     env = {}
     env["IDF_TOOLS_PATH"] = str(_get_idf_tools_path())
     env["IDF_PATH"] = ""

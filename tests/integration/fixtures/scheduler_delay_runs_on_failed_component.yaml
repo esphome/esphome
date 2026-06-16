@@ -1,0 +1,29 @@
+esphome:
+  name: scheduler-delay-failed
+
+host:
+api:
+logger:
+  level: DEBUG
+
+globals:
+  - id: started
+    type: bool
+    restore_value: false
+    initial_value: "false"
+
+# The interval marks itself failed, then schedules a delay. The delay must still fire: a failed
+# component must not drop it, since the SELF_POINTER scheduler item has no owning component.
+interval:
+  - interval: 100ms
+    id: host_interval
+    then:
+      - if:
+          condition:
+            lambda: "return !id(started);"
+          then:
+            - lambda: |-
+                id(started) = true;
+                id(host_interval)->mark_failed();
+            - delay: 200ms
+            - logger.log: "DELAY_FIRED_AFTER_FAIL"
