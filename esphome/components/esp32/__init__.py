@@ -1,3 +1,4 @@
+from collections.abc import Callable, Iterable
 import contextlib
 from dataclasses import dataclass
 import itertools
@@ -6,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+from typing import Any
 
 from esphome import yaml_util
 import esphome.codegen as cg
@@ -52,6 +54,7 @@ from esphome.coroutine import CoroPriority, coroutine_with_priority
 from esphome.espidf.component import generate_idf_components
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 from esphome.writer import clean_build, clean_cmake_cache
 
@@ -494,6 +497,32 @@ def set_core_data(config):
 
 def get_esp32_variant(core_obj=None):
     return (core_obj or CORE).data[KEY_ESP32][KEY_VARIANT]
+
+
+def variant_filtered_enum(
+    by_variant: dict[str, Iterable[Any]], **kwargs: Any
+) -> Callable[[Any], Any]:
+    """Build a ``one_of`` validator whose valid set depends on the active variant.
+
+    ``by_variant`` maps each ESP32 variant constant to the iterable of values that
+    are valid on that variant. At validation time the value is checked against the
+    set allowed for the current target variant. For schema extraction the inverted
+    ``{value: [variants, ...]}`` map is returned instead, so the language-schema
+    dump can tag every option with the variants that accept it and frontends can
+    filter to the user's selected variant.
+    """
+    by_value: dict[str, list[str]] = {}
+    for variant, values in by_variant.items():
+        for value in values:
+            by_value.setdefault(str(value), []).append(variant)
+
+    @schema_extractor("variant_enum")
+    def validator(value: Any) -> Any:
+        if value is SCHEMA_EXTRACT:
+            return by_value
+        return cv.one_of(*by_variant.get(get_esp32_variant(), ()), **kwargs)(value)
+
+    return validator
 
 
 def get_board(core_obj=None):
