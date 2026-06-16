@@ -216,7 +216,6 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   StringRef debug_prefix_{};
 #ifdef USE_UART_DEBUGGER
 #ifdef UART_DEBUGGER_ADD_SETTINGS
-  std::string get_debug_prefix() const;
   bool debug_add_settings_{false};
 #endif
 #endif

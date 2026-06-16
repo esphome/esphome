@@ -137,20 +137,6 @@ size_t RingBuffer::pop(uint8_t *data, size_t len) {
   }
   return len;
 }
-#if defined(USE_UART_DEBUGGER) && defined(UART_DEBUGGER_ADD_SETTINGS)
-std::string USBUartChannel::get_debug_prefix() const {
-  std::string prefix = "|";
-  prefix += std::to_string(this->baud_rate_);
-  prefix += ':';
-  prefix += std::to_string(this->data_bits_);
-  prefix += ':';
-  prefix += PARITY_NAMES[this->parity_];
-  prefix += ':';
-  prefix += STOP_BITS_NAMES[this->stop_bits_];
-  prefix += '|';
-  return prefix;
-}
-#endif
 
 void USBUartChannel::write_array(const uint8_t *data, size_t len) {
   if (!this->initialised_.load()) {
@@ -165,9 +151,12 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
       size_t n = std::min(len - off, batch);
       format_hex_pretty_to(buf, data + off, n, ',');
 #ifdef UART_DEBUGGER_ADD_SETTINGS
-      if (this->debug_add_settings_)
-        ESP_LOGD(TAG, "%s%s>>> %s", this->get_debug_prefix().c_str(), this->debug_prefix_.c_str(), buf);
-      else
+      if (this->debug_add_settings_) {
+        char settings[32];
+        snprintf(settings, sizeof(settings), "|%" PRIu32 ":%u:%s:%s|",
+                 this->baud_rate_, this->data_bits_, PARITY_NAMES[this->parity_], STOP_BITS_NAMES[this->stop_bits_]);
+        ESP_LOGD(TAG, "%s%s>>> %s", settings, this->debug_prefix_.c_str(), buf);
+      } else
 #endif
         ESP_LOGD(TAG, "%s>>> %s", this->debug_prefix_.c_str(), buf);
     }
@@ -248,9 +237,13 @@ void USBUartComponent::loop() {
       char buf[format_hex_pretty_size(usb_host::USB_MAX_PACKET_SIZE)];
       format_hex_pretty_to(buf, chunk->data, chunk->length, ',');
 #ifdef UART_DEBUGGER_ADD_SETTINGS
-      if (channel->debug_add_settings_)
-        ESP_LOGD(TAG, "%s%s<<< %s", channel->get_debug_prefix().c_str(), channel->debug_prefix_.c_str(), buf);
-      else
+      if (channel->debug_add_settings_) {
+        char settings[32];
+        snprintf(settings, sizeof(settings), "|%" PRIu32 ":%u:%s:%s|",
+                 channel->baud_rate_, channel->data_bits_, PARITY_NAMES[channel->parity_],
+                 STOP_BITS_NAMES[channel->stop_bits_]);
+        ESP_LOGD(TAG, "%s%s<<< %s", settings, channel->debug_prefix_.c_str(), buf);
+      } else
 #endif
         ESP_LOGD(TAG, "%s<<< %s", channel->debug_prefix_.c_str(), buf);
     }

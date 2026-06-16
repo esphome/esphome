@@ -564,9 +564,12 @@ void CH934XChannel::write_array(const uint8_t *data, size_t len) {
       size_t n = std::min(len - off, batch);
       format_hex_pretty_to(buf, data + off, n, ',');
 #ifdef UART_DEBUGGER_ADD_SETTINGS
-      if (this->debug_add_settings_)
-        ESP_LOGD(TAG, "%s%s>>> %s", this->get_debug_prefix().c_str(), this->debug_prefix_.c_str(), buf);
-      else
+      if (this->debug_add_settings_) {
+        char settings[32];
+        snprintf(settings, sizeof(settings), "|%" PRIu32 ":%u:%s:%s|",
+                 this->baud_rate_, this->data_bits_, PARITY_NAMES[this->parity_], STOP_BITS_NAMES[this->stop_bits_]);
+        ESP_LOGD(TAG, "%s%s>>> %s", settings, this->debug_prefix_.c_str(), buf);
+      } else
 #endif
         ESP_LOGD(TAG, "%s>>> %s", this->debug_prefix_.c_str(), buf);
     }
