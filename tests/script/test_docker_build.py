@@ -70,13 +70,12 @@ def test_branch_manifest_targets_ghcr_only(
         "manifest",
     )
 
-    create, push = commands
-    assert create == (
-        "docker manifest create ghcr.io/esphome/esphome-hassio:my-branch "
+    assert commands == [
+        "docker buildx imagetools create "
+        "--tag ghcr.io/esphome/esphome-hassio:my-branch "
         "ghcr.io/esphome/esphome-hassio-amd64:my-branch "
         "ghcr.io/esphome/esphome-hassio-aarch64:my-branch"
-    )
-    assert push == "docker manifest push ghcr.io/esphome/esphome-hassio:my-branch"
+    ]
 
 
 def test_release_build_keeps_both_registries_and_cache_to(
@@ -146,7 +145,9 @@ def test_build_dockerhub_only(capsys: pytest.CaptureFixture[str]) -> None:
 
     cmd = commands[0]
     assert "--tag esphome/esphome-amd64:my-branch" in cmd
-    assert "ghcr.io/esphome/esphome-amd64:my-branch" not in cmd
+    assert "ghcr.io" not in cmd
+    # Cache reference falls back to Docker Hub when GHCR isn't selected
+    assert "--cache-from type=registry,ref=esphome/esphome-amd64:cache-dev" in cmd
 
 
 def test_manifest_dockerhub_only(capsys: pytest.CaptureFixture[str]) -> None:
@@ -162,5 +163,7 @@ def test_manifest_dockerhub_only(capsys: pytest.CaptureFixture[str]) -> None:
     )
 
     create = commands[0]
-    assert create.startswith("docker manifest create esphome/esphome:my-branch ")
+    assert create.startswith(
+        "docker buildx imagetools create --tag esphome/esphome:my-branch "
+    )
     assert "ghcr.io" not in create
