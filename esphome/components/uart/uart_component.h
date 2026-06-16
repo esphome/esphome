@@ -197,6 +197,7 @@ class UARTComponent {
   template<typename F> void add_debug_callback(F &&callback) { this->debug_callback_.add(std::forward<F>(callback)); }
 #endif
 
+
  protected:
   virtual void check_logger_conflict() = 0;
   bool check_read_timeout_(size_t len = 1);
@@ -214,7 +215,7 @@ class UARTComponent {
   uint8_t data_bits_{0};
   UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};
 #ifdef USE_UART_DEBUGGER
-  CallbackManager<void(UARTDirection, uint8_t)> debug_callback_{};
+  CallbackManager<void(UARTDirection, uint8_t, StringRef)> debug_callback_{};
 #endif
 };
 
