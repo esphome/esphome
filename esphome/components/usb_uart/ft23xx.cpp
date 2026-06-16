@@ -261,138 +261,6 @@ std::vector<CdcEps> USBUartTypeFT23XX::parse_descriptors(usb_device_handle_t dev
   return cdc_devs;
 }
 
-int USBUartTypeFT23XX::reset_(USBUartChannel *channel) {
-  usb_host::transfer_cb_t callback = [channel, this](const usb_host::TransferStatus &status) {
-    if (!status.success) {
-      ESP_LOGE(TAG, "Reset failed, status=%s", esp_err_to_name(status.error_code));
-      channel->initialised_.store(false);
-    } else {
-      ESP_LOGD(TAG, "Reset successful, setting baudrate...");
-      this->set_baudrate_(channel);
-    }
-  };
-  bool ok = this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x00, 0x00,
-                                   channel->cdc_dev_.bulk_interface_number + 1, callback);
-  if (!ok) {
-    ESP_LOGE(TAG, "Reset control_transfer submit failed");
-    channel->initialised_.store(false);
-    return -1;
-  }
-  return 0;
-}
-
-int USBUartTypeFT23XX::set_baudrate_(USBUartChannel *channel, uint32_t baudrate) {
-  usb_host::transfer_cb_t callback = [channel, this](const usb_host::TransferStatus &status) {
-    if (!status.success) {
-      ESP_LOGE(TAG, "Set baudrate failed, status=%s", esp_err_to_name(status.error_code));
-      channel->initialised_.store(false);
-    } else {
-      ESP_LOGD(TAG, "Baudrate %d set, setting line properties...", channel->baud_rate_);
-      this->set_line_properties_(channel);
-    }
-  };
-  if (baudrate == 0) {
-    baudrate = channel->baud_rate_;
-  }
-  uint16_t value, ftdi_index;
-  ftdi_convert_baudrate(baudrate, this->chip_type_, channel->index_, &value, &ftdi_index);
-  ESP_LOGD(TAG, "Baudrate: %d, value=0x%04X, ftdi_index=0x%04X", baudrate, value, ftdi_index);
-  uint16_t usb_index = (ftdi_index & 0xFF00) | (channel->cdc_dev_.bulk_interface_number + 1);
-  bool ok = this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x03, value, usb_index, callback);
-  if (!ok) {
-    ESP_LOGE(TAG, "Set baudrate control_transfer submit failed");
-    channel->initialised_.store(false);
-    return -1;
-  }
-  return 0;
-}
-
-int USBUartTypeFT23XX::set_line_properties_(USBUartChannel *channel) {
-  usb_host::transfer_cb_t callback = [channel, this](const usb_host::TransferStatus &status) {
-    if (!status.success) {
-      ESP_LOGE(TAG, "Set line properties failed, status=%s", esp_err_to_name(status.error_code));
-      channel->initialised_.store(false);
-      return;
-    }
-    ESP_LOGD(TAG, "Line properties set, setting modem control...");
-    this->set_dtr_rts_(channel);
-  };
-
-  uint16_t value = channel->data_bits_;
-
-  switch (channel->parity_) {
-    case UART_CONFIG_PARITY_NONE:
-      value |= (0x00 << 8);
-      break;
-    case UART_CONFIG_PARITY_ODD:
-      value |= (0x01 << 8);
-      break;
-    case UART_CONFIG_PARITY_EVEN:
-      value |= (0x02 << 8);
-      break;
-    case UART_CONFIG_PARITY_MARK:
-      value |= (0x03 << 8);
-      break;
-    case UART_CONFIG_PARITY_SPACE:
-      value |= (0x04 << 8);
-      break;
-  }
-
-  switch (channel->stop_bits_) {
-    case UART_CONFIG_STOP_BITS_1:
-      value |= (0x00 << 11);
-      break;
-    case UART_CONFIG_STOP_BITS_1_5:
-      value |= (0x01 << 11);
-      break;
-    case UART_CONFIG_STOP_BITS_2:
-      value |= (0x02 << 11);
-      break;
-  }
-
-  value |= (0x00 << 14);
-
-  bool ok = this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x04, value,
-                                   channel->cdc_dev_.bulk_interface_number + 1, callback);
-  if (!ok) {
-    ESP_LOGE(TAG, "Set line properties control_transfer submit failed");
-    channel->initialised_.store(false);
-    return -1;
-  }
-  return 0;
-}
-
-int USBUartTypeFT23XX::set_dtr_rts_(USBUartChannel *channel) {
-  usb_host::transfer_cb_t callback = [channel, this](const usb_host::TransferStatus &status) {
-    if (!status.success) {
-      ESP_LOGE(TAG, "Set modem control failed, status=%s", esp_err_to_name(status.error_code));
-      channel->initialised_.store(false);
-      return;
-    }
-    ESP_LOGD(TAG, "Modem control set for channel %d, starting input...", channel->index_);
-    channel->initialised_.store(true);
-    this->start_input(channel);
-    uint8_t next_index = channel->index_ + 1;
-    if (next_index < this->channels_.size()) {
-      USBUartChannel *next_channel = this->channels_[next_index];
-      ESP_LOGD(TAG, "Configuring next channel %d", next_channel->index_);
-      this->reset_(next_channel);
-      return;
-    } else {
-      ESP_LOGI(TAG, "All channels configured");
-    }
-  };
-
-  bool ok = this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x01, 0x0000,
-                                   channel->cdc_dev_.bulk_interface_number + 1, callback);
-  if (!ok) {
-    ESP_LOGE(TAG, "Set modem control control_transfer submit failed");
-    channel->initialised_.store(false);
-    return -1;
-  }
-  return 0;
-}
-
 void USBUartTypeFT23XX::start_input(USBUartChannel *channel) {
   if (!channel->initialised_.load() || channel->input_started_.load())
     return;
@@ -441,16 +309,68 @@ void USBUartTypeFT23XX::start_input(USBUartChannel *channel) {
   this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize);
 }
 
-void USBUartTypeFT23XX::enable_channels() {
-  if (!this->channels_.empty() && this->channels_[0]->initialised_.load()) {
-    this->reset_(this->channels_[0]);
-  }
-
-  for (auto *channel : this->channels_) {
-    if (!channel->initialised_.load())
-      continue;
-    channel->input_started_.store(false);
-    channel->output_started_.store(false);
+bool USBUartTypeFT23XX::config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok,
+                                    const uint8_t *response) {
+  // On reload (settings change on an open channel) skip the SIO reset; the FTDI set_termios
+  // path only re-applies baud + line properties and does not re-assert DTR/RTS.
+  if (reload)
+    step++;
+  switch (step) {
+    case 0:  // SIO reset (init only)
+      this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x00, 0x00,
+                             channel->cdc_dev_.bulk_interface_number + 1);
+      return true;
+    case 1: {  // set baudrate
+      uint16_t value, ftdi_index;
+      ftdi_convert_baudrate(channel->baud_rate_, this->chip_type_, channel->index_, &value, &ftdi_index);
+      uint16_t usb_index = (ftdi_index & 0xFF00) | (channel->cdc_dev_.bulk_interface_number + 1);
+      ESP_LOGD(TAG, "Baudrate: %u, value=0x%04X, ftdi_index=0x%04X", (unsigned) channel->baud_rate_, value, ftdi_index);
+      this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x03, value, usb_index);
+      return true;
+    }
+    case 2: {  // set line properties (data bits / parity / stop bits)
+      uint16_t value = channel->data_bits_;
+      switch (channel->parity_) {
+        case UART_CONFIG_PARITY_NONE:
+          value |= (0x00 << 8);
+          break;
+        case UART_CONFIG_PARITY_ODD:
+          value |= (0x01 << 8);
+          break;
+        case UART_CONFIG_PARITY_EVEN:
+          value |= (0x02 << 8);
+          break;
+        case UART_CONFIG_PARITY_MARK:
+          value |= (0x03 << 8);
+          break;
+        case UART_CONFIG_PARITY_SPACE:
+          value |= (0x04 << 8);
+          break;
+      }
+      switch (channel->stop_bits_) {
+        case UART_CONFIG_STOP_BITS_1:
+          value |= (0x00 << 11);
+          break;
+        case UART_CONFIG_STOP_BITS_1_5:
+          value |= (0x01 << 11);
+          break;
+        case UART_CONFIG_STOP_BITS_2:
+          value |= (0x02 << 11);
+          break;
+      }
+      value |= (0x00 << 14);
+      this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x04, value,
+                             channel->cdc_dev_.bulk_interface_number + 1);
+      return true;
+    }
+    case 3:  // set modem control DTR+RTS (init only)
+      if (reload)
+        return false;
+      this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x01, 0x0000,
+                             channel->cdc_dev_.bulk_interface_number + 1);
+      return true;
+    default:
+      return false;
   }
 }
 
