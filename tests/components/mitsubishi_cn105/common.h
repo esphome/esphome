@@ -37,7 +37,9 @@ class MockUARTComponent : public uart::UARTComponent {
   MOCK_METHOD(bool, peek_byte, (uint8_t * data), (override));
   MOCK_METHOD(uart::UARTFlushResult, flush, (), (override));
   MOCK_METHOD(void, check_logger_conflict, (), (override));
+#if defined(USE_ESP8266) || defined(USE_ESP32)
   void load_settings(bool) override {}
+#endif
 };
 
 class TestableMitsubishiCN105 : public MitsubishiCN105 {
