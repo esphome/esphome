@@ -63,12 +63,12 @@
 //
 // Shared state and safety rationale:
 //
-//   s_main_loop_task (TaskHandle_t, 4 bytes):
-//     Written once by main loop in init(). Read by TCP/IP thread (in callback)
-//     and background tasks (in wake).
-//     Safe: write-once-then-read pattern. Socket hooks may run before init(),
-//     but the NULL check on s_main_loop_task in the callback provides correct
-//     degraded behavior — notifications are simply skipped until init() completes.
+//   esphome_main_task_handle (TaskHandle_t, 4 bytes, defined in main_task.c):
+//     Written once by main loop in Application::setup(). Read by TCP/IP thread
+//     (in callback) and background tasks (in wake).
+//     Safe: write-once-then-read pattern. Socket hooks may run before setup(),
+//     but the NULL check on esphome_main_task_handle in the callback provides correct
+//     degraded behavior — notifications are simply skipped until setup() completes.
 //
 //   s_original_callback (netconn_callback, 4-byte function pointer):
 //     Written by main loop in hook_socket() (only when NULL — set once).
@@ -112,6 +112,7 @@
 // LwIP headers must come first — they define netconn_callback, struct lwip_sock, etc.
 #include <lwip/api.h>
 #include <lwip/priv/sockets_priv.h>
+#include <lwip/tcp.h>
 // FreeRTOS include paths differ: ESP-IDF uses freertos/ prefix, LibreTiny does not
 #ifdef USE_ESP32
 #include <freertos/FreeRTOS.h>
@@ -122,14 +123,9 @@
 #endif
 
 #include "esphome/core/lwip_fast_select.h"
+#include "esphome/core/main_task.h"
 
 #include <stddef.h>
-
-// IRAM_ATTR is defined by esp_attr.h (included via FreeRTOS headers) on ESP32.
-// On LibreTiny it's not defined — provide a no-op fallback.
-#ifndef IRAM_ATTR
-#define IRAM_ATTR
-#endif
 
 // Compile-time verification of thread safety assumptions.
 // On ESP32 (Xtensa/RISC-V) and LibreTiny (ARM Cortex-M), naturally-aligned
@@ -156,11 +152,21 @@ _Static_assert(offsetof(struct lwip_sock, rcvevent) % sizeof(((struct lwip_sock 
 _Static_assert(offsetof(struct lwip_sock, rcvevent) == ESPHOME_LWIP_SOCK_RCVEVENT_OFFSET,
                "lwip_sock.rcvevent offset changed — update ESPHOME_LWIP_SOCK_RCVEVENT_OFFSET in lwip_fast_select.h");
 
-// Task handle for the main loop — written once in init(), read from TCP/IP and background tasks.
-static TaskHandle_t s_main_loop_task = NULL;
+// Task handle is in main_task.c (esphome_main_task_handle) — shared with wake.h.
 
 // Saved original event_callback pointer — written once in first hook_socket(), read from TCP/IP task.
 static netconn_callback s_original_callback = NULL;
+
+#ifdef USE_OTA_PLATFORM_ESPHOME
+static struct netconn *s_ota_listener_conn = NULL;
+extern void esphome_wake_ota_component_any_context(void);
+
+void esphome_fast_select_set_ota_listener_sock(struct lwip_sock *sock) {
+  s_ota_listener_conn = (sock != NULL) ? sock->conn : NULL;
+}
+#else
+void esphome_fast_select_set_ota_listener_sock(struct lwip_sock *sock) { (void) sock; }
+#endif
 
 // Wrapper callback: calls original event_callback + notifies main loop task.
 // Called from LwIP's TCP/IP thread when socket events occur (task context, not ISR).
@@ -176,14 +182,19 @@ static void esphome_socket_event_callback(struct netconn *conn, enum netconn_evt
   // (rcvevent++ with a NULL pbuf or error in recvmbox), so error conditions
   // already wake the main loop through the RCVPLUS path.
   if (evt == NETCONN_EVT_RCVPLUS) {
-    TaskHandle_t task = s_main_loop_task;
+#ifdef USE_OTA_PLATFORM_ESPHOME
+    // Mark OTA pending-enable only for events on its listen socket. MUST happen
+    // before xTaskNotifyGive so the flags are visible when the main task wakes.
+    if (conn == s_ota_listener_conn) {
+      esphome_wake_ota_component_any_context();
+    }
+#endif
+    TaskHandle_t task = esphome_main_task_handle;
     if (task != NULL) {
       xTaskNotifyGive(task);
     }
   }
 }
-
-void esphome_lwip_fast_select_init(void) { s_main_loop_task = xTaskGetCurrentTaskHandle(); }
 
 // lwip_socket_dbg_get_socket() is a thin wrapper around the static
 // tryget_socket_unconn_nouse() — a direct array lookup without the refcount
@@ -216,35 +227,19 @@ void esphome_lwip_hook_socket(struct lwip_sock *sock) {
   sock->conn->callback = esphome_socket_event_callback;
 }
 
-// Wake the main loop from another FreeRTOS task. NOT ISR-safe.
-void esphome_lwip_wake_main_loop(void) {
-  TaskHandle_t task = s_main_loop_task;
-  if (task != NULL) {
-    xTaskNotifyGive(task);
-  }
-}
-
-// Wake the main loop from an ISR. ISR-safe variant.
-void IRAM_ATTR esphome_lwip_wake_main_loop_from_isr(int *px_higher_priority_task_woken) {
-  TaskHandle_t task = s_main_loop_task;
-  if (task != NULL) {
-    vTaskNotifyGiveFromISR(task, (BaseType_t *) px_higher_priority_task_woken);
-  }
-}
-
-// Wake the main loop from any context (ISR, thread, or main loop).
-// ESP32-only: uses xPortInIsrContext() to detect ISR context.
-// LibreTiny is excluded because it lacks IRAM_ATTR support needed for ISR-safe paths.
-#ifdef USE_ESP32
-void IRAM_ATTR esphome_lwip_wake_main_loop_any_context(void) {
-  if (xPortInIsrContext()) {
-    int px_higher_priority_task_woken = 0;
-    esphome_lwip_wake_main_loop_from_isr(&px_higher_priority_task_woken);
-    portYIELD_FROM_ISR(px_higher_priority_task_woken);
+bool esphome_lwip_set_nodelay(struct lwip_sock *sock, bool enable) {
+  if (sock == NULL || sock->conn == NULL)
+    return false;
+  if (NETCONNTYPE_GROUP(sock->conn->type) != NETCONN_TCP)
+    return false;
+  if (sock->conn->pcb.tcp == NULL)
+    return false;
+  if (enable) {
+    tcp_nagle_disable(sock->conn->pcb.tcp);
   } else {
-    esphome_lwip_wake_main_loop();
+    tcp_nagle_enable(sock->conn->pcb.tcp);
   }
+  return true;
 }
-#endif
 
 #endif  // USE_LWIP_FAST_SELECT

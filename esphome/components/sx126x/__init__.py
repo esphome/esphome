@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import spi
@@ -5,6 +7,8 @@ from esphome.components.const import CONF_CRC_ENABLE, CONF_ON_PACKET
 import esphome.config_validation as cv
 from esphome.const import CONF_BUSY_PIN, CONF_DATA, CONF_FREQUENCY, CONF_ID
 from esphome.core import ID, TimePeriod
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType, TemplateArgsType
 
 MULTI_CONF = True
 CODEOWNERS = ["@swoboda1337"]
@@ -15,6 +19,7 @@ CONF_SX126X_ID = "sx126x_id"
 CONF_BANDWIDTH = "bandwidth"
 CONF_BITRATE = "bitrate"
 CONF_CODING_RATE = "coding_rate"
+CONF_COLD = "cold"
 CONF_CRC_INVERTED = "crc_inverted"
 CONF_CRC_SIZE = "crc_size"
 CONF_CRC_POLYNOMIAL = "crc_polynomial"
@@ -144,7 +149,7 @@ SetModeStandbyAction = sx126x_ns.class_(
 )
 
 
-def validate_raw_data(value):
+def validate_raw_data(value: Any) -> bytes | list[int]:
     if isinstance(value, str):
         return value.encode("utf-8")
     if isinstance(value, list):
@@ -154,7 +159,7 @@ def validate_raw_data(value):
     )
 
 
-def validate_config(config):
+def validate_config(config: ConfigType) -> ConfigType:
     lora_bws = [
         "7_8kHz",
         "10_4kHz",
@@ -200,11 +205,11 @@ CONFIG_SCHEMA = (
                 cv.hex_int, cv.Range(min=0, max=0xFFFF)
             ),
             cv.Optional(CONF_DEVIATION, default="5kHz"): cv.All(
-                cv.frequency, cv.float_range(min=0, max=100000)
+                cv.frequency, cv.int_range(min=0, max=100000)
             ),
             cv.Required(CONF_DIO1_PIN): pins.gpio_input_pin_schema,
             cv.Required(CONF_FREQUENCY): cv.All(
-                cv.frequency, cv.float_range(min=137.0e6, max=1020.0e6)
+                cv.frequency, cv.int_range(min=int(137e6), max=int(1020e6))
             ),
             cv.Required(CONF_HW_VERSION): cv.one_of(
                 "sx1261", "sx1262", "sx1268", "llcc68", lower=True
@@ -235,7 +240,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await spi.register_spi_device(var, config)
@@ -290,23 +295,64 @@ NO_ARGS_ACTION_SCHEMA = automation.maybe_simple_id(
 
 
 @automation.register_action(
-    "sx126x.run_image_cal", RunImageCalAction, NO_ARGS_ACTION_SCHEMA
+    "sx126x.run_image_cal",
+    RunImageCalAction,
+    NO_ARGS_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "sx126x.set_mode_tx", SetModeTxAction, NO_ARGS_ACTION_SCHEMA
+    "sx126x.set_mode_tx",
+    SetModeTxAction,
+    NO_ARGS_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "sx126x.set_mode_rx", SetModeRxAction, NO_ARGS_ACTION_SCHEMA
+    "sx126x.set_mode_rx",
+    SetModeRxAction,
+    NO_ARGS_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "sx126x.set_mode_sleep", SetModeSleepAction, NO_ARGS_ACTION_SCHEMA
+    "sx126x.set_mode_standby",
+    SetModeStandbyAction,
+    NO_ARGS_ACTION_SCHEMA,
+    synchronous=True,
 )
-@automation.register_action(
-    "sx126x.set_mode_standby", SetModeStandbyAction, NO_ARGS_ACTION_SCHEMA
-)
-async def no_args_action_to_code(config, action_id, template_arg, args):
+async def no_args_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
+    return var
+
+
+SET_MODE_SLEEP_ACTION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(SX126x),
+        cv.Optional(CONF_COLD, default=False): cv.templatable(cv.boolean),
+    }
+)
+
+
+@automation.register_action(
+    "sx126x.set_mode_sleep",
+    SetModeSleepAction,
+    SET_MODE_SLEEP_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def set_mode_sleep_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config[CONF_COLD], args, bool)
+    cg.add(var.set_cold(template_))
     return var
 
 
@@ -320,9 +366,17 @@ SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
 
 
 @automation.register_action(
-    "sx126x.send_packet", SendPacketAction, SEND_PACKET_ACTION_SCHEMA
+    "sx126x.send_packet",
+    SendPacketAction,
+    SEND_PACKET_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def send_packet_action_to_code(config, action_id, template_arg, args):
+async def send_packet_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     data = config[CONF_DATA]

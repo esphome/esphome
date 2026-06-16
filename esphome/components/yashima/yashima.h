@@ -7,8 +7,7 @@
 #include "esphome/components/remote_transmitter/remote_transmitter.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace yashima {
+namespace esphome::yashima {
 
 class YashimaClimate : public climate::Climate, public Component {
  public:
@@ -36,5 +35,4 @@ class YashimaClimate : public climate::Climate, public Component {
   sensor::Sensor *sensor_{nullptr};
 };
 
-}  // namespace yashima
-}  // namespace esphome
+}  // namespace esphome::yashima

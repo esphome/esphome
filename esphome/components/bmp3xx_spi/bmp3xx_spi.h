@@ -2,8 +2,7 @@
 #include "esphome/components/bmp3xx_base/bmp3xx_base.h"
 #include "esphome/components/spi/spi.h"
 
-namespace esphome {
-namespace bmp3xx_spi {
+namespace esphome::bmp3xx_spi {
 
 class BMP3XXSPIComponent : public bmp3xx_base::BMP3XXComponent,
                            public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
@@ -15,5 +14,4 @@ class BMP3XXSPIComponent : public bmp3xx_base::BMP3XXComponent,
   bool write_bytes(uint8_t a_register, uint8_t *data, size_t len) override;
 };
 
-}  // namespace bmp3xx_spi
-}  // namespace esphome
+}  // namespace esphome::bmp3xx_spi

@@ -155,44 +155,38 @@ class BLEEvent {
   void release() {
     switch (this->type_) {
       case GAP:
-        // GAP events don't have heap allocations
+        // GAP events never have heap allocations
         break;
       case GATTC:
-        // Param is now stored inline, only delete heap data if it was heap-allocated
         if (!this->event_.gattc.is_inline && this->event_.gattc.data.heap_data != nullptr) {
           delete[] this->event_.gattc.data.heap_data;
+          this->event_.gattc.data.heap_data = nullptr;
         }
-        // Clear critical fields to prevent issues if type changes
-        this->event_.gattc.is_inline = false;
-        this->event_.gattc.data.heap_data = nullptr;
         break;
       case GATTS:
-        // Param is now stored inline, only delete heap data if it was heap-allocated
         if (!this->event_.gatts.is_inline && this->event_.gatts.data.heap_data != nullptr) {
           delete[] this->event_.gatts.data.heap_data;
+          this->event_.gatts.data.heap_data = nullptr;
         }
-        // Clear critical fields to prevent issues if type changes
-        this->event_.gatts.is_inline = false;
-        this->event_.gatts.data.heap_data = nullptr;
         break;
     }
   }
 
   // Load new event data for reuse (replaces previous event data)
+  // Note: release() is NOT called here because EventPool::release() already
+  // calls event->release() before returning to the free list. Every event
+  // from allocate() is already in a clean state.
   void load_gap_event(esp_gap_ble_cb_event_t e, esp_ble_gap_cb_param_t *p) {
-    this->release();
     this->type_ = GAP;
     this->init_gap_data_(e, p);
   }
 
   void load_gattc_event(esp_gattc_cb_event_t e, esp_gatt_if_t i, esp_ble_gattc_cb_param_t *p) {
-    this->release();
     this->type_ = GATTC;
     this->init_gattc_data_(e, i, p);
   }
 
   void load_gatts_event(esp_gatts_cb_event_t e, esp_gatt_if_t i, esp_ble_gatts_cb_param_t *p) {
-    this->release();
     this->type_ = GATTS;
     this->init_gatts_data_(e, i, p);
   }

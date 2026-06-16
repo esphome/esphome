@@ -6,8 +6,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace a01nyub {
+namespace esphome::a01nyub {
 
 class A01nyubComponent : public sensor::Sensor, public Component, public uart::UARTDevice {
  public:
@@ -23,5 +22,4 @@ class A01nyubComponent : public sensor::Sensor, public Component, public uart::U
   std::vector<uint8_t> buffer_;
 };
 
-}  // namespace a01nyub
-}  // namespace esphome
+}  // namespace esphome::a01nyub

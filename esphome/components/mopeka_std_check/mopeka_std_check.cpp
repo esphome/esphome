@@ -5,8 +5,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace mopeka_std_check {
+namespace esphome::mopeka_std_check {
 
 static const char *const TAG = "mopeka_std_check";
 static const uint16_t SERVICE_UUID = 0xADA0;
@@ -126,18 +125,18 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     // Copy measurements over into my array.
     {
       u_int8_t measurements_index = 0;
-      for (u_int8_t i = 0; i < 3; i++) {
-        measurements_time[measurements_index] = mopeka_data->val[i].time_0 + 1;
-        measurements_value[measurements_index] = mopeka_data->val[i].value_0;
+      for (const auto &val : mopeka_data->val) {
+        measurements_time[measurements_index] = val.time_0 + 1;
+        measurements_value[measurements_index] = val.value_0;
         measurements_index++;
-        measurements_time[measurements_index] = mopeka_data->val[i].time_1 + 1;
-        measurements_value[measurements_index] = mopeka_data->val[i].value_1;
+        measurements_time[measurements_index] = val.time_1 + 1;
+        measurements_value[measurements_index] = val.value_1;
         measurements_index++;
-        measurements_time[measurements_index] = mopeka_data->val[i].time_2 + 1;
-        measurements_value[measurements_index] = mopeka_data->val[i].value_2;
+        measurements_time[measurements_index] = val.time_2 + 1;
+        measurements_value[measurements_index] = val.value_2;
         measurements_index++;
-        measurements_time[measurements_index] = mopeka_data->val[i].time_3 + 1;
-        measurements_value[measurements_index] = mopeka_data->val[i].value_3;
+        measurements_time[measurements_index] = val.time_3 + 1;
+        measurements_value[measurements_index] = val.value_3;
         measurements_index++;
       }
     }
@@ -232,7 +231,6 @@ int8_t MopekaStdCheck::parse_temperature_(const mopeka_std_package *message) {
   }
 }
 
-}  // namespace mopeka_std_check
-}  // namespace esphome
+}  // namespace esphome::mopeka_std_check
 
 #endif

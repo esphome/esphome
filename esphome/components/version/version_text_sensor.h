@@ -5,7 +5,7 @@
 
 namespace esphome::version {
 
-class VersionTextSensor : public text_sensor::TextSensor, public Component {
+class VersionTextSensor final : public text_sensor::TextSensor, public Component {
  public:
   void set_hide_hash(bool hide_hash);
   void set_hide_timestamp(bool hide_timestamp);

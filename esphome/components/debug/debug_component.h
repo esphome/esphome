@@ -13,11 +13,11 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
 
-namespace esphome {
-namespace debug {
+namespace esphome::debug {
 
 static constexpr size_t DEVICE_INFO_BUFFER_SIZE = 256;
 static constexpr size_t RESET_REASON_BUFFER_SIZE = 128;
+static constexpr size_t WAKEUP_CAUSE_BUFFER_SIZE = 128;
 
 // buf_append_printf is now provided by esphome/core/helpers.h
 
@@ -94,11 +94,10 @@ class DebugComponent : public PollingComponent {
 #endif  // USE_TEXT_SENSOR
 
   const char *get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer);
-  const char *get_wakeup_cause_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer);
+  const char *get_wakeup_cause_(std::span<char, WAKEUP_CAUSE_BUFFER_SIZE> buffer);
   uint32_t get_free_heap_();
   size_t get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE> buffer, size_t pos);
   void update_platform_();
 };
 
-}  // namespace debug
-}  // namespace esphome
+}  // namespace esphome::debug

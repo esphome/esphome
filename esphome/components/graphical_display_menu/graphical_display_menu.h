@@ -44,7 +44,7 @@ class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
   void set_foreground_color(Color foreground_color);
   void set_background_color(Color background_color);
 
-  void add_on_redraw_callback(std::function<void()> &&cb) { this->on_redraw_callbacks_.add(std::move(cb)); }
+  template<typename F> void add_on_redraw_callback(F &&cb) { this->on_redraw_callbacks_.add(std::forward<F>(cb)); }
 
   void draw(display::Display *display, const display::Rect *bounds);
 
@@ -75,9 +75,12 @@ class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
 
 class GraphicalDisplayMenuOnRedrawTrigger : public Trigger<const GraphicalDisplayMenu *> {
  public:
-  explicit GraphicalDisplayMenuOnRedrawTrigger(GraphicalDisplayMenu *parent) {
-    parent->add_on_redraw_callback([this, parent]() { this->trigger(parent); });
+  explicit GraphicalDisplayMenuOnRedrawTrigger(GraphicalDisplayMenu *parent) : parent_(parent) {
+    parent->add_on_redraw_callback([this]() { this->trigger(this->parent_); });
   }
+
+ protected:
+  GraphicalDisplayMenu *parent_;
 };
 
 }  // namespace graphical_display_menu

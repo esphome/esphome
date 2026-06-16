@@ -11,6 +11,7 @@
 #include <openthread/instance.h>
 #include <openthread/thread.h>
 
+#include <atomic>
 #include <optional>
 #include <vector>
 
@@ -28,14 +29,16 @@ class OpenThreadComponent : public Component {
   float get_setup_priority() const override { return setup_priority::WIFI; }
 
   bool is_connected() const { return this->connected_; }
+  /// Returns true once esp_openthread_init() has completed and the OT lock is usable.
+  bool is_lock_initialized() const { return this->lock_initialized_; }
   network::IPAddresses get_ip_addresses();
   std::optional<otIp6Address> get_omr_address();
   void ot_main();
   void on_factory_reset(std::function<void()> callback);
   void defer_factory_reset_external_callback();
 
-  const char *get_use_address() const;
-  void set_use_address(const char *use_address);
+  const char *get_use_address() const { return this->use_address_; }
+  void set_use_address(const char *use_address) { this->use_address_ = use_address; }
 #if CONFIG_OPENTHREAD_MTD
   void set_poll_period(uint32_t poll_period) { this->poll_period_ = poll_period; }
 #endif
@@ -43,7 +46,7 @@ class OpenThreadComponent : public Component {
 
  protected:
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
-  static void on_state_changed_(otChangedFlags flags, void *context);
+  static void on_state_changed(otChangedFlags flags, void *context);
   otInstance *get_openthread_instance_();
   int openthread_stop_();
   std::function<void()> factory_reset_external_callback_;
@@ -51,6 +54,7 @@ class OpenThreadComponent : public Component {
   uint32_t poll_period_{0};
 #endif
   std::optional<int8_t> output_power_{};
+  std::atomic<bool> lock_initialized_{false};
   bool teardown_started_{false};
   bool teardown_complete_{false};
   bool connected_{false};
@@ -82,19 +86,32 @@ class OpenThreadSrpComponent : public Component {
   void *pool_alloc_(size_t size);
 };
 
+// RAII guard for the OpenThread API lock. Modeled on std::unique_lock: the
+// guard may or may not own the lock (try_acquire can fail), so check it with
+// operator bool before use. Non-copyable and non-movable: the factories return
+// by value via guaranteed copy elision, so a guard is never duplicated and the
+// lock is released exactly once, when the owning guard goes out of scope.
 class InstanceLock {
  public:
-  static std::optional<InstanceLock> try_acquire(int delay);
+  // May fail to acquire within delay ms; check the returned guard with operator bool.
+  static InstanceLock try_acquire(int delay);
+  // Blocks until the lock is held.
   static InstanceLock acquire();
+  InstanceLock(const InstanceLock &) = delete;
+  InstanceLock(InstanceLock &&) = delete;
+  InstanceLock &operator=(const InstanceLock &) = delete;
+  InstanceLock &operator=(InstanceLock &&) = delete;
   ~InstanceLock();
 
-  // Returns the global openthread instance guarded by this lock
+  explicit operator bool() const { return this->owns_; }
+
+  // Returns the global openthread instance. Only valid on an owning guard
+  // (operator bool is true); the instance must not be used without the lock held.
   otInstance *get_instance();
 
  private:
-  // Use a private constructor in order to force the handling
-  // of acquisition failure
-  InstanceLock() {}
+  explicit InstanceLock(bool owns) : owns_(owns) {}
+  bool owns_;
 };
 
 }  // namespace esphome::openthread

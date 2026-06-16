@@ -5,8 +5,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace power_supply {
+namespace esphome::power_supply {
 
 class PowerSupply : public Component {
  public:
@@ -63,5 +62,4 @@ class PowerSupplyRequester {
   bool requested_{false};
 };
 
-}  // namespace power_supply
-}  // namespace esphome
+}  // namespace esphome::power_supply

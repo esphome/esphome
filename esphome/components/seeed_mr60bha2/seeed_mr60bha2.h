@@ -13,8 +13,7 @@
 
 #include <map>
 
-namespace esphome {
-namespace seeed_mr60bha2 {
+namespace esphome::seeed_mr60bha2 {
 static const uint8_t FRAME_HEADER_BUFFER = 0x01;
 static const uint16_t BREATH_RATE_TYPE_BUFFER = 0x0A14;
 static const uint16_t PEOPLE_EXIST_TYPE_BUFFER = 0x0F09;
@@ -46,5 +45,4 @@ class MR60BHA2Component : public Component,
   std::vector<uint8_t> rx_message_;
 };
 
-}  // namespace seeed_mr60bha2
-}  // namespace esphome
+}  // namespace esphome::seeed_mr60bha2

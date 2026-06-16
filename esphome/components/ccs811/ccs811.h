@@ -6,8 +6,7 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace ccs811 {
+namespace esphome::ccs811 {
 
 class CCS811Component : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -51,5 +50,4 @@ class CCS811Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *temperature_{nullptr};
 };
 
-}  // namespace ccs811
-}  // namespace esphome
+}  // namespace esphome::ccs811

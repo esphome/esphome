@@ -6,8 +6,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace max31855 {
+namespace esphome::max31855 {
 
 class MAX31855Sensor : public sensor::Sensor,
                        public PollingComponent,
@@ -26,5 +25,4 @@ class MAX31855Sensor : public sensor::Sensor,
   sensor::Sensor *temperature_reference_{nullptr};
 };
 
-}  // namespace max31855
-}  // namespace esphome
+}  // namespace esphome::max31855

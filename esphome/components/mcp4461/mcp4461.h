@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace mcp4461 {
+namespace esphome::mcp4461 {
 
 struct WiperState {
   bool enabled = true;
@@ -168,5 +167,4 @@ class Mcp4461Component : public Component, public i2c::I2CDevice {
   bool wiper_2_disabled_{false};
   bool wiper_3_disabled_{false};
 };
-}  // namespace mcp4461
-}  // namespace esphome
+}  // namespace esphome::mcp4461

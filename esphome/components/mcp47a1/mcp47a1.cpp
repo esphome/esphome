@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp47a1 {
+namespace esphome::mcp47a1 {
 
 static const char *const TAG = "mcp47a1";
 
@@ -17,5 +16,4 @@ void MCP47A1::write_state(float state) {
   this->write_byte(0, value);
 }
 
-}  // namespace mcp47a1
-}  // namespace esphome
+}  // namespace esphome::mcp47a1

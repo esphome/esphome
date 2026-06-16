@@ -1,8 +1,7 @@
 #include "mcp4725.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp4725 {
+namespace esphome::mcp4725 {
 
 static const char *const TAG = "mcp4725";
 
@@ -30,5 +29,4 @@ void MCP4725::write_state(float state) {
   this->write_byte_16(64, value << 4);
 }
 
-}  // namespace mcp4725
-}  // namespace esphome
+}  // namespace esphome::mcp4725

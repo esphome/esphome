@@ -2,8 +2,7 @@
 
 #include "esphome/components/climate_ir/climate_ir.h"
 
-namespace esphome {
-namespace daikin {
+namespace esphome::daikin {
 
 // Values for Daikin ARC43XXX IR Controllers
 // Temperature
@@ -60,5 +59,4 @@ class DaikinClimate : public climate_ir::ClimateIR {
   bool parse_state_frame_(const uint8_t frame[]);
 };
 
-}  // namespace daikin
-}  // namespace esphome
+}  // namespace esphome::daikin

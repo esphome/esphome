@@ -104,7 +104,15 @@ template<class T, uint8_t SIZE> class LockFreeQueue {
     }
   }
 
-  uint16_t get_and_reset_dropped_count() { return dropped_count_.exchange(0, std::memory_order_relaxed); }
+  uint16_t get_and_reset_dropped_count() {
+    // Fast path: relaxed load is a single instruction on all platforms.
+    // The atomic exchange (especially for uint16_t on Xtensa) compiles to
+    // an expensive sub-word CAS retry loop (~25 instructions + memory barriers).
+    // Since drops are rare, avoid the exchange in the common case.
+    if (dropped_count_.load(std::memory_order_relaxed) == 0)
+      return 0;
+    return dropped_count_.exchange(0, std::memory_order_relaxed);
+  }
 
   void increment_dropped_count() { dropped_count_.fetch_add(1, std::memory_order_relaxed); }
 

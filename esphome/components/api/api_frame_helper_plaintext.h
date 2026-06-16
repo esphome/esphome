@@ -7,13 +7,15 @@ namespace esphome::api {
 
 class APIPlaintextFrameHelper final : public APIFrameHelper {
  public:
+  // Plaintext header structure (worst case):
+  // Pos 0: indicator (0x00)
+  // Pos 1-3: payload size varint (up to 3 bytes)
+  // Pos 4-5: message type varint (up to 2 bytes)
+  // Pos 6+: actual payload data
+  static constexpr uint8_t HEADER_PADDING = 1 + 3 + 2;  // indicator + size varint + type varint
+
   explicit APIPlaintextFrameHelper(std::unique_ptr<socket::Socket> socket) : APIFrameHelper(std::move(socket)) {
-    // Plaintext header structure (worst case):
-    // Pos 0: indicator (0x00)
-    // Pos 1-3: payload size varint (up to 3 bytes)
-    // Pos 4-5: message type varint (up to 2 bytes)
-    // Pos 6+: actual payload data
-    frame_header_padding_ = 6;
+    frame_header_padding_ = HEADER_PADDING;
   }
   ~APIPlaintextFrameHelper() override = default;
   APIError init() override;

@@ -21,6 +21,7 @@ mapping:
     entries:
       clear-night: image_1
       sunny: image_2
+    default_value: image_1
   - id: weather_map_2
     from: string
     to: image
@@ -35,6 +36,7 @@ mapping:
       2: "two"
       3: "three"
       77: "seventy-seven"
+    default_value: unknown
   - id: string_map
     from: string
     to: int

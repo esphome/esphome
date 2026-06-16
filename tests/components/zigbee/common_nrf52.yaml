@@ -1,0 +1,12 @@
+packages:
+  - !include common.yaml
+
+zigbee:
+  model: zigbee_test
+  wipe_on_boot: true
+  on_join:
+    then:
+      - logger.log: "Joined network"
+
+time:
+  - platform: zigbee

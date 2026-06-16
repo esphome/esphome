@@ -84,7 +84,7 @@ template<typename T, uint8_t SZ> class RestoringGlobalStringComponent : public P
     this->rtc_ = global_preferences->make_preference<uint8_t[SZ]>(1944399030U ^ this->name_hash_);
     bool hasdata = this->rtc_.load(&temp);
     if (hasdata) {
-      this->value_.assign(temp + 1, temp[0]);
+      this->value_.assign(temp + 1, static_cast<uint8_t>(temp[0]));
     }
     this->last_checked_value_.assign(this->value_);
   }

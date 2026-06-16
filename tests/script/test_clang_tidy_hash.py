@@ -63,12 +63,36 @@ def test_calculate_clang_tidy_hash_with_sdkconfig(tmp_path: Path) -> None:
     expected_hasher.update(clang_tidy_content)
     expected_hasher.update(requirements_version.encode())
     expected_hasher.update(platformio_content)
+    expected_hasher.update(b"sdkconfig.defaults")
     expected_hasher.update(sdkconfig_content)
     expected_hash = expected_hasher.hexdigest()
 
     result = clang_tidy_hash.calculate_clang_tidy_hash(repo_root=tmp_path)
 
     assert result == expected_hash
+
+
+def test_calculate_clang_tidy_hash_includes_per_target_sdkconfig(
+    tmp_path: Path,
+) -> None:
+    """Per-target sdkconfig.defaults.<target> files must be part of the hash."""
+    (tmp_path / ".clang-tidy").write_bytes(b"Checks: '-*'\n")
+    (tmp_path / "platformio.ini").write_bytes(b"[env:esp32]\n")
+    (tmp_path / "requirements_dev.txt").write_text("clang-tidy==18.1.5\n")
+    (tmp_path / "sdkconfig.defaults").write_bytes(b"CONFIG_BASE=y\n")
+
+    before = clang_tidy_hash.calculate_clang_tidy_hash(repo_root=tmp_path)
+
+    # Adding a per-target file must change the hash.
+    per_target = tmp_path / "sdkconfig.defaults.esp32c6"
+    per_target.write_bytes(b"CONFIG_OPENTHREAD_ENABLED=y\n")
+    after_add = clang_tidy_hash.calculate_clang_tidy_hash(repo_root=tmp_path)
+    assert after_add != before
+
+    # Editing the per-target file must change the hash again.
+    per_target.write_bytes(b"CONFIG_OPENTHREAD_ENABLED=n\n")
+    after_edit = clang_tidy_hash.calculate_clang_tidy_hash(repo_root=tmp_path)
+    assert after_edit != after_add
 
 
 def test_calculate_clang_tidy_hash_without_sdkconfig(tmp_path: Path) -> None:

@@ -90,7 +90,7 @@ class RemoteReceiverComponent : public remote_base::RemoteReceiverBase,
   uint32_t carrier_frequency_{0};
   uint8_t carrier_duty_percent_{100};
   esp_err_t error_code_{ESP_OK};
-  std::string error_string_{""};
+  std::string error_string_;
 #endif
 
 #if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2040) || defined(USE_ESP32)

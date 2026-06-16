@@ -95,10 +95,6 @@ void PMSX003Component::loop() {
         // Just go ahead and read stuff
         break;
     }
-  } else if (now - this->last_update_ < this->update_interval_) {
-    // Otherwise just leave the sensor powered up and come back when we hit the update
-    // time
-    return;
   }
 
   if (now - this->last_transmission_ >= 500) {
@@ -114,10 +110,11 @@ void PMSX003Component::loop() {
     this->read_byte(&this->data_[this->data_index_]);
     auto check = this->check_byte_();
     if (!check.has_value()) {
-      // finished
-      this->parse_data_();
+      if (this->update_interval_ > STABILISING_MS || now - this->last_update_ >= this->update_interval_) {
+        this->parse_data_();
+        this->last_update_ = now;
+      }
       this->data_index_ = 0;
-      this->last_update_ = now;
     } else if (!*check) {
       // wrong data
       this->data_index_ = 0;
@@ -138,7 +135,7 @@ optional<bool> PMSX003Component::check_byte_() {
       return true;
     }
 
-    ESP_LOGW(TAG, "Start character %u mismatch: 0x%02X != 0x%02X", index + 1, byte, START_CHARACTER_1);
+    ESP_LOGW(TAG, "Start character %u mismatch: 0x%02X != 0x%02X", index + 1, byte, start_char);
     return false;
   }
 

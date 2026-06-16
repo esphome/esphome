@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace mcp9808 {
+namespace esphome::mcp9808 {
 
 class MCP9808Sensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
@@ -15,5 +14,4 @@ class MCP9808Sensor : public sensor::Sensor, public PollingComponent, public i2c
   void update() override;
 };
 
-}  // namespace mcp9808
-}  // namespace esphome
+}  // namespace esphome::mcp9808

@@ -1,8 +1,7 @@
 #include "honeywellabp.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace honeywellabp {
+namespace esphome::honeywellabp {
 
 static const char *const TAG = "honeywellabp";
 
@@ -96,5 +95,4 @@ void HONEYWELLABPSensor::set_honeywellabp_max_pressure(float max_pressure) {
   this->honeywellabp_max_pressure_ = max_pressure;
 }
 
-}  // namespace honeywellabp
-}  // namespace esphome
+}  // namespace esphome::honeywellabp

@@ -5,8 +5,7 @@
 #include <chrono>
 #include <sstream>
 
-namespace esphome {
-namespace scheduler_simultaneous_callbacks_component {
+namespace esphome::scheduler_simultaneous_callbacks_component {
 
 static const char *const TAG = "scheduler_simultaneous_callbacks";
 
@@ -105,5 +104,4 @@ void SchedulerSimultaneousCallbacksComponent::run_simultaneous_callbacks_test() 
   });
 }
 
-}  // namespace scheduler_simultaneous_callbacks_component
-}  // namespace esphome
+}  // namespace esphome::scheduler_simultaneous_callbacks_component

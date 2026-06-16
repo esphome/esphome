@@ -14,7 +14,10 @@ CODEOWNERS = ["@Azimath"]
 
 sdp3x_ns = cg.esphome_ns.namespace("sdp3x")
 SDP3XComponent = sdp3x_ns.class_(
-    "SDP3XComponent", cg.PollingComponent, sensirion_common.SensirionI2CDevice
+    "SDP3XComponent",
+    sensor.Sensor,
+    cg.PollingComponent,
+    sensirion_common.SensirionI2CDevice,
 )
 
 

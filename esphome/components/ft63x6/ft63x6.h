@@ -11,8 +11,7 @@
 #include "esphome/components/touchscreen/touchscreen.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace ft63x6 {
+namespace esphome::ft63x6 {
 
 using namespace touchscreen;
 
@@ -47,5 +46,4 @@ class FT63X6Touchscreen : public Touchscreen, public i2c::I2CDevice {
   uint8_t read_byte_(uint8_t addr);
 };
 
-}  // namespace ft63x6
-}  // namespace esphome
+}  // namespace esphome::ft63x6

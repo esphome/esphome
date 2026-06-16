@@ -57,6 +57,7 @@ class LWIPRawCommon {
   // instead use it for determining whether to call lwip_output
   bool nodelay_ = false;
   sa_family_t family_ = 0;
+  uint8_t recv_timeout_cs_ = 0;  // SO_RCVTIMEO in centiseconds (0 = no timeout, max 2.55s)
 };
 
 /// Connected socket implementation for LWIP raw TCP.
@@ -66,7 +67,7 @@ class LWIPRawImpl : public LWIPRawCommon {
   using LWIPRawCommon::LWIPRawCommon;
   ~LWIPRawImpl();
 
-  void init();
+  void init(struct pbuf *initial_rx = nullptr, bool initial_rx_closed = false);
 
   // Non-listening sockets return error
   std::unique_ptr<LWIPRawImpl> accept(struct sockaddr *, socklen_t *) {
@@ -95,18 +96,22 @@ class LWIPRawImpl : public LWIPRawCommon {
     errno = ENOSYS;
     return -1;
   }
+  // Check if the socket has buffered data ready to read.
+  // See the ready() contract in socket.h — callers must drain or track remaining data.
+  // Intentionally unlocked — this is a polling check called every loop iteration.
+  // A stale read at worst delays processing by one loop tick; the actual I/O in
+  // read() holds the lwip lock and re-checks properly. See esphome#10681.
   bool ready() const { return this->rx_buf_ != nullptr || this->rx_closed_ || this->pcb_ == nullptr; }
 
+  // No lock needed — only called during setup before callbacks are registered.
+  // A stale pcb_ read is benign (returns ECONNRESET, which the caller handles).
   int setblocking(bool blocking) {
     if (this->pcb_ == nullptr) {
       errno = ECONNRESET;
       return -1;
     }
-    if (blocking) {
-      // blocking operation not supported
-      errno = EINVAL;
-      return -1;
-    }
+    // Raw TCP doesn't use a blocking flag directly. Blocking behavior
+    // is provided by SO_RCVTIMEO which makes read() wait via wakeable_delay().
     return 0;
   }
   int loop() { return 0; }
@@ -117,6 +122,14 @@ class LWIPRawImpl : public LWIPRawCommon {
   static err_t s_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, err_t err);
 
  protected:
+  // True when the socket could receive data but none has arrived yet.
+  // Safe to call without LWIP_LOCK — only null-checks pointers and reads a bool,
+  // all atomic on ARM/Xtensa. A stale value is harmless: the caller either does
+  // an unnecessary wait (stale true) or skips it (stale false), and the
+  // authoritative recheck happens under LWIP_LOCK afterward.
+  bool waiting_for_data_() const { return this->rx_buf_ == nullptr && !this->rx_closed_ && this->pcb_ != nullptr; }
+  void wait_for_data_();
+  ssize_t read_locked_(void *buf, size_t len);
   ssize_t internal_write_(const void *buf, size_t len);
   int internal_output_();
 
@@ -134,6 +147,7 @@ class LWIPRawListenImpl : public LWIPRawCommon {
 
   void init();
 
+  // Intentionally unlocked — polling check, see LWIPRawImpl::ready() comment.
   bool ready() const { return this->accepted_socket_count_ > 0; }
 
   std::unique_ptr<LWIPRawImpl> accept(struct sockaddr *addr, socklen_t *addrlen);
@@ -176,23 +190,28 @@ class LWIPRawListenImpl : public LWIPRawCommon {
   err_t accept_fn_(struct tcp_pcb *newpcb, err_t err);
   static err_t s_accept_fn(void *arg, struct tcp_pcb *newpcb, err_t err);
 
-  // Accept queue - holds incoming connections briefly until the event loop calls accept()
-  // This is NOT a connection pool - just a temporary queue between LWIP callbacks and the main loop
-  // 3 slots is plenty since connections are pulled out quickly by the event loop
-  //
-  // Memory analysis: std::array<3> vs original std::queue implementation:
-  // - std::queue uses std::deque internally which on 32-bit systems needs:
-  //   24 bytes (deque object) + 32+ bytes (map array) + heap allocations
-  //   Total: ~56+ bytes minimum, plus heap fragmentation
-  // - std::array<3>: 12 bytes fixed (3 pointers × 4 bytes)
-  // Saves ~44+ bytes RAM per listening socket + avoids ALL heap allocations
-  // Used on ESP8266 and RP2040 (platforms using LWIP_TCP implementation)
-  //
-  // By using a separate listening socket class, regular connected sockets save
-  // 16 bytes (12 bytes array + 1 byte count + 3 bytes padding) of memory overhead on 32-bit systems
-  static constexpr size_t MAX_ACCEPTED_SOCKETS = 3;
-  std::array<std::unique_ptr<LWIPRawImpl>, MAX_ACCEPTED_SOCKETS> accepted_sockets_;
-  uint8_t accepted_socket_count_ = 0;  // Number of sockets currently in queue
+  // Temporary callbacks for queued PCBs (between accept_fn_ and accept())
+  static void s_queued_err_fn(void *arg, err_t err);
+  static err_t s_queued_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, err_t err);
+
+  // Accept queue entry — stores a raw tcp_pcb and any data received while queued.
+  // lwip's default tcp_recv_null handler drops data and ACKs it, so we must register
+  // a temporary recv callback to buffer any data that arrives between accept_fn_
+  // (which stores the PCB) and accept() (which creates the LWIPRawImpl).
+  struct QueuedPcb {
+    struct tcp_pcb *pcb{nullptr};
+    struct pbuf *rx_buf{nullptr};  // Data received while queued (before accept() picks it up)
+    bool rx_closed{false};         // Remote sent FIN while queued
+  };
+
+  // Accept queue — stores raw tcp_pcb entries instead of heap-allocated LWIPRawImpl objects.
+  // LWIPRawImpl creation is deferred to the main-loop accept() call. This avoids:
+  // - Heap allocation in the accept callback (unsafe from IRQ context on RP2040)
+  // - Dangling LWIPRawImpl if the connection errors before accept() picks it up
+  // 2 slots is plenty since the main loop drains the queue every iteration.
+  static constexpr size_t MAX_ACCEPTED_SOCKETS = 2;
+  std::array<QueuedPcb, MAX_ACCEPTED_SOCKETS> accepted_pcbs_{};
+  uint8_t accepted_socket_count_ = 0;  // Number of entries currently in queue
 };
 
 }  // namespace esphome::socket

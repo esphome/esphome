@@ -5,8 +5,7 @@
 
 #include "esphome/components/gp8403/gp8403.h"
 
-namespace esphome {
-namespace gp8403 {
+namespace esphome::gp8403 {
 
 class GP8403Output : public Component, public output::FloatOutput, public Parented<GP8403Component> {
  public:
@@ -19,5 +18,4 @@ class GP8403Output : public Component, public output::FloatOutput, public Parent
   uint8_t channel_;
 };
 
-}  // namespace gp8403
-}  // namespace esphome
+}  // namespace esphome::gp8403

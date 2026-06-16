@@ -4,8 +4,7 @@
 #include "esphome/components/tuya/tuya.h"
 #include "esphome/components/climate/climate.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 class TuyaClimate : public climate::Climate, public Component {
  public:
@@ -105,8 +104,8 @@ class TuyaClimate : public climate::Climate, public Component {
   optional<uint8_t> sleep_id_{};
   optional<float> eco_temperature_{};
   TuyaDatapointType eco_type_{};
-  uint8_t active_state_;
-  uint8_t fan_state_;
+  uint8_t active_state_{0};
+  uint8_t fan_state_{0};
   optional<uint8_t> swing_vertical_id_{};
   optional<uint8_t> swing_horizontal_id_{};
   optional<uint8_t> fan_speed_id_{};
@@ -119,11 +118,10 @@ class TuyaClimate : public climate::Climate, public Component {
   bool swing_horizontal_{false};
   bool heating_state_{false};
   bool cooling_state_{false};
-  float manual_temperature_;
-  bool eco_;
-  bool sleep_;
+  float manual_temperature_{NAN};
+  bool eco_{false};
+  bool sleep_{false};
   bool reports_fahrenheit_{false};
 };
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

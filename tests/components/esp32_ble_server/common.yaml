@@ -69,3 +69,11 @@ esp32_ble_server:
               - ble_server.descriptor.set_value:
                   id: test_change_descriptor
                   value: !lambda return bytebuffer::ByteBuffer::wrap({0x03, 0x04, 0x05}).get_data();
+              - ble_server.characteristic.set_value:
+                  id: test_change_characteristic
+                  value:
+                    data: [0xfc, 0xef, 0xfe, 0x86]
+              - ble_server.descriptor.set_value:
+                  id: test_change_descriptor
+                  value:
+                    data: [0x01, 0x02, 0x03]

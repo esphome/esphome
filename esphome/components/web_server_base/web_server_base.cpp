@@ -1,5 +1,5 @@
 #include "web_server_base.h"
-#ifdef USE_NETWORK
+#if defined(USE_NETWORK) && !defined(USE_ZEPHYR)
 
 namespace esphome::web_server_base {
 
@@ -11,6 +11,10 @@ void WebServerBase::add_handler(AsyncWebHandler *handler) {
     handler = new internal::AuthMiddlewareHandler(handler, &credentials_);
   }
 #endif
+  this->add_handler_without_auth(handler);
+}
+
+void WebServerBase::add_handler_without_auth(AsyncWebHandler *handler) {
   this->handlers_.push_back(handler);
   if (this->server_ != nullptr) {
     this->server_->addHandler(handler);

@@ -21,5 +21,9 @@ CONFIG_SCHEMA = cv.Schema(
 @coroutine_with_priority(CoroPriority.PREFERENCES)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    cg.add(var.set_write_interval(config[CONF_FLASH_WRITE_INTERVAL]))
+    write_interval = config[CONF_FLASH_WRITE_INTERVAL]
+    if write_interval.total_milliseconds == 0:
+        cg.add_define("USE_PREFERENCES_SYNC_EVERY_LOOP")
+    else:
+        cg.add(var.set_write_interval(write_interval))
     await cg.register_component(var, config)

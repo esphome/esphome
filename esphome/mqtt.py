@@ -2,6 +2,7 @@ import contextlib
 from datetime import datetime
 import json
 import logging
+from pathlib import Path
 import ssl
 import tempfile
 import time
@@ -109,14 +110,18 @@ def prepare(
             CONF_CLIENT_CERTIFICATE_KEY
         ):
             with (
-                tempfile.NamedTemporaryFile(mode="w+") as cert_file,
-                tempfile.NamedTemporaryFile(mode="w+") as key_file,
+                tempfile.NamedTemporaryFile(mode="w+", delete=False) as cert_file,
+                tempfile.NamedTemporaryFile(mode="w+", delete=False) as key_file,
             ):
-                cert_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE))
-                cert_file.flush()
-                key_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE_KEY))
-                key_file.flush()
-                context.load_cert_chain(cert_file.name, key_file.name)
+                try:
+                    cert_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE))
+                    key_file.write(config[CONF_MQTT].get(CONF_CLIENT_CERTIFICATE_KEY))
+                    cert_file.close()
+                    key_file.close()
+                    context.load_cert_chain(cert_file.name, key_file.name)
+                finally:
+                    Path(cert_file.name).unlink()
+                    Path(key_file.name).unlink()
         client.tls_set_context(context)
 
     try:
@@ -134,7 +139,7 @@ def show_discover(config, username=None, password=None, client_id=None):
     _LOGGER.info("Starting log output from %s", topic)
 
     def on_message(client, userdata, msg):
-        time_ = datetime.now().time().strftime("[%H:%M:%S]")
+        time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
         payload = msg.payload.decode(errors="backslashreplace")
         if len(payload) > 0:
             message = time_ + " " + payload
@@ -154,7 +159,7 @@ def get_esphome_device_ip(
     username: str | None = None,
     password: str | None = None,
     client_id: str | None = None,
-    timeout: int | float = 25,
+    timeout: float = 25,
 ) -> list[str]:
     if CONF_MQTT not in config:
         raise EsphomeError(
@@ -179,7 +184,7 @@ def get_esphome_device_ip(
 
     def on_message(client, userdata, msg):
         nonlocal dev_ip
-        time_ = datetime.now().time().strftime("[%H:%M:%S]")
+        time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
         payload = msg.payload.decode(errors="backslashreplace")
         if len(payload) > 0:
             message = time_ + " " + payload
@@ -248,7 +253,7 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
     _LOGGER.info("Starting log output from %s", topic)
 
     def on_message(client, userdata, msg):
-        time_ = datetime.now().time().strftime("[%H:%M:%S]")
+        time_ = datetime.now().astimezone().time().strftime("[%H:%M:%S]")
         payload = msg.payload.decode(errors="backslashreplace")
         message = time_ + payload
         safe_print(message)

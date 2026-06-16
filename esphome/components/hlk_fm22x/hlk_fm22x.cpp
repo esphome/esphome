@@ -6,6 +6,7 @@
 namespace esphome::hlk_fm22x {
 
 static const char *const TAG = "hlk_fm22x";
+static constexpr uint32_t PAYLOAD_TIMEOUT_MS = 20;
 
 void HlkFm22xComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HLK-FM22X...");
@@ -132,6 +133,21 @@ void HlkFm22xComponent::recv_command_() {
   byte = this->read();
   checksum ^= byte;
   length |= byte;
+
+  // Wait for remaining data (payload + checksum) to arrive.
+  // Header bytes are already consumed, so we must finish reading this message.
+  uint32_t start = millis();
+  while (this->available() < length + 1) {
+    if (millis() - start > PAYLOAD_TIMEOUT_MS) {
+      ESP_LOGE(TAG, "Timeout waiting for payload (%u bytes)", length);
+      // Drain any partial payload bytes to resync the parser
+      while (this->available() > 0) {
+        this->read();
+      }
+      return;
+    }
+    delay(1);
+  }
 
   // Read up to buffer size; discard excess bytes while still computing checksum
   // GET_ALL_FACE_IDS can return all enrolled face data (hundreds of bytes)

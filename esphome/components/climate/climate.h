@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vector>
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
@@ -192,7 +193,9 @@ class Climate : public EntityBase {
    *
    * @param callback The callback to call.
    */
-  void add_on_state_callback(std::function<void(Climate &)> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
   /**
    * Add a callback for the climate device configuration; each time the configuration parameters of a climate device
@@ -200,7 +203,9 @@ class Climate : public EntityBase {
    *
    * @param callback The callback to call.
    */
-  void add_on_control_callback(std::function<void(ClimateCall &)> &&callback);
+  template<typename F> void add_on_control_callback(F &&callback) {
+    this->control_callback_.add(std::forward<F>(callback));
+  }
 
   /** Make a climate device control call, this is used to control the climate device, see the ClimateCall description
    * for more info.
@@ -229,6 +234,28 @@ class Climate : public EntityBase {
   void set_visual_min_humidity_override(float visual_min_humidity_override);
   void set_visual_max_humidity_override(float visual_max_humidity_override);
 #endif
+
+  /// Set the supported custom fan modes (stored on Climate, referenced by ClimateTraits).
+  void set_supported_custom_fan_modes(std::initializer_list<const char *> modes) {
+    this->ensure_custom_fan_modes_().assign(modes.begin(), modes.end());
+  }
+  void set_supported_custom_fan_modes(const std::vector<const char *> &modes) {
+    this->ensure_custom_fan_modes_() = modes;
+  }
+  template<size_t N> void set_supported_custom_fan_modes(const char *const (&modes)[N]) {
+    this->ensure_custom_fan_modes_().assign(modes, modes + N);
+  }
+
+  /// Set the supported custom presets (stored on Climate, referenced by ClimateTraits).
+  void set_supported_custom_presets(std::initializer_list<const char *> presets) {
+    this->ensure_custom_presets_().assign(presets.begin(), presets.end());
+  }
+  void set_supported_custom_presets(const std::vector<const char *> &presets) {
+    this->ensure_custom_presets_() = presets;
+  }
+  template<size_t N> void set_supported_custom_presets(const char *const (&presets)[N]) {
+    this->ensure_custom_presets_().assign(presets, presets + N);
+  }
 
   /// Check if a custom fan mode is currently active.
   bool has_custom_fan_mode() const { return this->custom_fan_mode_ != nullptr; }
@@ -331,13 +358,15 @@ class Climate : public EntityBase {
   /** Internal method to save the state of the climate device to recover memory. This is automatically
    * called from publish_state()
    */
-  void save_state_();
+  void save_state_(const ClimateTraits &traits);
+  void save_state_() { this->save_state_(this->get_traits()); }
 
   void dump_traits_(const char *tag);
 
   LazyCallbackManager<void(Climate &)> state_callback_{};
   LazyCallbackManager<void(ClimateCall &)> control_callback_{};
   ESPPreferenceObject rtc_;
+
 #ifdef USE_CLIMATE_VISUAL_OVERRIDES
   float visual_min_temperature_override_{NAN};
   float visual_max_temperature_override_{NAN};
@@ -348,16 +377,33 @@ class Climate : public EntityBase {
 #endif
 
  private:
+  /// Lazy-allocate custom mode vectors (never freed — entity lives forever).
+  std::vector<const char *> &ensure_custom_fan_modes_() {
+    if (!this->supported_custom_fan_modes_) {
+      this->supported_custom_fan_modes_ = new std::vector<const char *>();  // NOLINT
+    }
+    return *this->supported_custom_fan_modes_;
+  }
+  std::vector<const char *> &ensure_custom_presets_() {
+    if (!this->supported_custom_presets_) {
+      this->supported_custom_presets_ = new std::vector<const char *>();  // NOLINT
+    }
+    return *this->supported_custom_presets_;
+  }
+
+  std::vector<const char *> *supported_custom_fan_modes_{nullptr};
+  std::vector<const char *> *supported_custom_presets_{nullptr};
+
   /** The active custom fan mode (private - enforces use of safe setters).
    *
-   * Points to an entry in traits.supported_custom_fan_modes_ or nullptr.
+   * Points to an entry in supported_custom_fan_modes_ or nullptr.
    * Use get_custom_fan_mode() to read, set_custom_fan_mode_() to modify.
    */
   const char *custom_fan_mode_{nullptr};
 
   /** The active custom preset (private - enforces use of safe setters).
    *
-   * Points to an entry in traits.supported_custom_presets_ or nullptr.
+   * Points to an entry in supported_custom_presets_ or nullptr.
    * Use get_custom_preset() to read, set_custom_preset_() to modify.
    */
   const char *custom_preset_{nullptr};

@@ -1,7 +1,6 @@
 #include "dfrobot_sen0395_switch.h"
 
-namespace esphome {
-namespace dfrobot_sen0395 {
+namespace esphome::dfrobot_sen0395 {
 
 void Sen0395PowerSwitch::write_state(bool state) { this->parent_->enqueue(make_unique<PowerCommand>(state)); }
 
@@ -44,5 +43,4 @@ void Sen0395StartAfterBootSwitch::write_state(bool state) {
   }
 }
 
-}  // namespace dfrobot_sen0395
-}  // namespace esphome
+}  // namespace esphome::dfrobot_sen0395

@@ -7,8 +7,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace rotary_encoder {
+namespace esphome::rotary_encoder {
 
 /// All possible restore modes for the rotary encoder
 enum RotaryEncoderRestoreMode {
@@ -82,15 +81,15 @@ class RotaryEncoderSensor : public sensor::Sensor, public Component {
   void dump_config() override;
   void loop() override;
 
-  void add_on_clockwise_callback(std::function<void()> callback) {
-    this->on_clockwise_callback_.add(std::move(callback));
+  template<typename F> void add_on_clockwise_callback(F &&callback) {
+    this->on_clockwise_callback_.add(std::forward<F>(callback));
   }
 
-  void add_on_anticlockwise_callback(std::function<void()> callback) {
-    this->on_anticlockwise_callback_.add(std::move(callback));
+  template<typename F> void add_on_anticlockwise_callback(F &&callback) {
+    this->on_anticlockwise_callback_.add(std::forward<F>(callback));
   }
 
-  void register_listener(std::function<void(uint32_t)> listener) { this->listeners_.add(std::move(listener)); }
+  template<typename F> void register_listener(F &&listener) { this->listeners_.add(std::forward<F>(listener)); }
 
  protected:
   InternalGPIOPin *pin_a_;
@@ -118,19 +117,4 @@ template<typename... Ts> class RotaryEncoderSetValueAction : public Action<Ts...
   RotaryEncoderSensor *encoder_;
 };
 
-class RotaryEncoderClockwiseTrigger : public Trigger<> {
- public:
-  explicit RotaryEncoderClockwiseTrigger(RotaryEncoderSensor *parent) {
-    parent->add_on_clockwise_callback([this]() { this->trigger(); });
-  }
-};
-
-class RotaryEncoderAnticlockwiseTrigger : public Trigger<> {
- public:
-  explicit RotaryEncoderAnticlockwiseTrigger(RotaryEncoderSensor *parent) {
-    parent->add_on_anticlockwise_callback([this]() { this->trigger(); });
-  }
-};
-
-}  // namespace rotary_encoder
-}  // namespace esphome
+}  // namespace esphome::rotary_encoder

@@ -57,7 +57,7 @@ OTA_HTTP_REQUEST_FLASH_ACTION_SCHEMA = cv.All(
             cv.Optional(CONF_MD5): cv.templatable(
                 cv.All(cv.string, cv.Length(min=32, max=32))
             ),
-            cv.Optional(CONF_PASSWORD): cv.templatable(cv.string),
+            cv.Optional(CONF_PASSWORD): cv.sensitive(cv.templatable(cv.string)),
             cv.Optional(CONF_USERNAME): cv.templatable(cv.string),
             cv.Required(CONF_URL): cv.templatable(cv.url),
         }
@@ -70,6 +70,7 @@ OTA_HTTP_REQUEST_FLASH_ACTION_SCHEMA = cv.All(
     "ota.http_request.flash",
     OtaHttpRequestComponentFlashAction,
     OTA_HTTP_REQUEST_FLASH_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def ota_http_request_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

@@ -3,8 +3,7 @@
 #include "tc74.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace tc74 {
+namespace esphome::tc74 {
 
 static const char *const TAG = "tc74";
 
@@ -50,8 +49,9 @@ void TC74Component::read_temperature_() {
     }
   }
 
-  uint8_t temperature_reg;
-  if (this->read_register(TC74_REGISTER_TEMPERATURE, &temperature_reg, 1) != i2c::ERROR_OK) {
+  int8_t temperature_reg;
+  if (this->read_register(TC74_REGISTER_TEMPERATURE, reinterpret_cast<uint8_t *>(&temperature_reg), 1) !=
+      i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
@@ -61,5 +61,4 @@ void TC74Component::read_temperature_() {
   this->status_clear_warning();
 }
 
-}  // namespace tc74
-}  // namespace esphome
+}  // namespace esphome::tc74

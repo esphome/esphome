@@ -7,8 +7,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/output/float_output.h"
 
-namespace esphome {
-namespace esp8266_pwm {
+namespace esphome::esp8266_pwm {
 
 class ESP8266PWM : public output::FloatOutput, public Component {
  public:
@@ -48,7 +47,6 @@ template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
   ESP8266PWM *parent_;
 };
 
-}  // namespace esp8266_pwm
-}  // namespace esphome
+}  // namespace esphome::esp8266_pwm
 
 #endif

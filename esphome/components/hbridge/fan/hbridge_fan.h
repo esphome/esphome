@@ -5,8 +5,7 @@
 #include "esphome/components/output/float_output.h"
 #include "esphome/components/fan/fan.h"
 
-namespace esphome {
-namespace hbridge {
+namespace esphome::hbridge {
 
 enum DecayMode {
   DECAY_MODE_SLOW = 0,
@@ -20,11 +19,14 @@ class HBridgeFan : public Component, public fan::Fan {
   void set_pin_a(output::FloatOutput *pin_a) { pin_a_ = pin_a; }
   void set_pin_b(output::FloatOutput *pin_b) { pin_b_ = pin_b; }
   void set_enable_pin(output::FloatOutput *enable) { enable_ = enable; }
-  void set_preset_modes(std::initializer_list<const char *> presets) { preset_modes_ = presets; }
+  void set_preset_modes(std::initializer_list<const char *> presets) { this->set_supported_preset_modes(presets); }
 
   void setup() override;
   void dump_config() override;
-  fan::FanTraits get_traits() override { return this->traits_; }
+  fan::FanTraits get_traits() override {
+    this->wire_preset_modes_(this->traits_);
+    return this->traits_;
+  }
 
   fan::FanCall brake();
 
@@ -36,7 +38,6 @@ class HBridgeFan : public Component, public fan::Fan {
   int speed_count_{};
   DecayMode decay_mode_{DECAY_MODE_SLOW};
   fan::FanTraits traits_;
-  std::vector<const char *> preset_modes_{};
 
   void control(const fan::FanCall &call) override;
   void write_state_();
@@ -54,5 +55,4 @@ template<typename... Ts> class BrakeAction : public Action<Ts...> {
   HBridgeFan *parent_;
 };
 
-}  // namespace hbridge
-}  // namespace esphome
+}  // namespace esphome::hbridge

@@ -6,8 +6,7 @@
 #include "esphome/core/optional.h"
 #include "esphome/core/preferences.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 class TuyaNumber : public number::Number, public Component {
  public:
@@ -34,5 +33,4 @@ class TuyaNumber : public number::Number, public Component {
   ESPPreferenceObject pref_;
 };
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

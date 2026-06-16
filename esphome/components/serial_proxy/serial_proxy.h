@@ -74,6 +74,9 @@ class SerialProxy : public uart::UARTDevice, public Component {
   /// @param data_size Number of data bits (5-8)
   void configure(uint32_t baudrate, bool flow_control, uint8_t parity, uint8_t stop_bits, uint8_t data_size);
 
+  /// Get the currently subscribed API connection (nullptr if none)
+  api::APIConnection *get_api_connection() { return this->api_connection_; }
+
   /// Handle a subscribe/unsubscribe request from an API client
   void serial_proxy_request(api::APIConnection *api_connection, api::enums::SerialProxyRequestType type);
 
@@ -89,7 +92,7 @@ class SerialProxy : public uart::UARTDevice, public Component {
   uint32_t get_modem_pins() const;
 
   /// Flush the serial port (block until all TX data is sent)
-  uart::FlushResult flush_port();
+  uart::UARTFlushResult flush_port();
 
   /// Set the RTS GPIO pin (from YAML configuration)
   void set_rts_pin(GPIOPin *pin) { this->rts_pin_ = pin; }
@@ -98,6 +101,11 @@ class SerialProxy : public uart::UARTDevice, public Component {
   void set_dtr_pin(GPIOPin *pin) { this->dtr_pin_ = pin; }
 
  protected:
+#ifdef USE_API
+  /// Read from UART and send to API client (slow path with 256-byte stack buffer)
+  void read_and_send_(size_t available);
+#endif
+
   /// Instance index for identifying this proxy in API messages
   uint32_t instance_index_{0};
 
