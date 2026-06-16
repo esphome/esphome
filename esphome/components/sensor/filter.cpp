@@ -446,7 +446,7 @@ optional<float> RoundMultipleFilter::new_value(float value) {
 
 HighPassFilter::HighPassFilter(float alpha) : alpha_(alpha) {}
 optional<float> HighPassFilter::new_value(float value) {
-  if (std::isnan(value)) {
+  if (!std::isfinite(value)) {
     return {};
   }
 
@@ -464,7 +464,7 @@ void HighPassFilter::set_alpha(float alpha) { this->alpha_ = alpha; }
 
 LowPassFilter::LowPassFilter(float alpha) : alpha_(alpha) {}
 optional<float> LowPassFilter::new_value(float value) {
-  if (std::isnan(value)) {
+  if (!std::isfinite(value)) {
     return {};
   }
 
