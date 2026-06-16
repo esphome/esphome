@@ -44,7 +44,7 @@ UART_STOP_BITS_OPTIONS = {
 }
 
 DEFAULT_BAUD_RATE = 9600
-CONF_DEBUG_ADD_SETTINGS = "debug_add_uart_settings"
+CONF_DEBUG_ADD_UART_SETTINGS = "debug_add_uart_settings"
 
 
 class Type:
@@ -145,7 +145,7 @@ def channel_schema(type_: "Type", baud_rate_required):
                             cv.Optional(CONF_DEBUG, default=False): cv.boolean,
                             cv.Optional(CONF_DEBUG_PREFIX, default=""): cv.string,
                             cv.Optional(
-                                CONF_DEBUG_ADD_SETTINGS, default=False
+                                CONF_DEBUG_ADD_UART_SETTINGS, default=False
                             ): cv.boolean,
                             cv.Optional(
                                 CONF_FLUSH_TIMEOUT, default="100ms"
@@ -202,8 +202,8 @@ async def to_code(config):
             cg.add(chvar.set_debug(channel[CONF_DEBUG]))
             if channel[CONF_DEBUG_PREFIX]:
                 cg.add(chvar.set_debug_prefix(channel[CONF_DEBUG_PREFIX]))
-            if channel[CONF_DEBUG_ADD_SETTINGS]:
-                cg.add(chvar.set_debug_add_settings(channel[CONF_DEBUG_ADD_SETTINGS]))
+            if channel[CONF_DEBUG_ADD_UART_SETTINGS]:
+                cg.add(chvar.set_debug_add_settings(channel[CONF_DEBUG_ADD_UART_SETTINGS]))
                 cg.add_define("UART_DEBUGGER_ADD_SETTINGS")
             cg.add(var.add_channel(chvar))
             if channel[CONF_DEBUG]:
