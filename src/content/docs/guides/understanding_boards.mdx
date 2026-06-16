@@ -1,0 +1,125 @@
+---
+description: "How to identify your board, choose a variant, and change boards in ESPHome."
+title: "Understanding Boards in ESPHome"
+---
+
+import Figure from '@components/Figure.astro';
+import iDontKnowWhatBoardIHaveFig1Img from './images/i-dont-know-what-board-i-have-fig-1.png';
+import iDontKnowWhatBoardIHaveFig2Img from './images/i-dont-know-what-board-i-have-fig-2.png';
+import iDontKnowWhatBoardIHaveFig3Img from './images/i-dont-know-what-board-i-have-fig-3.png';
+import createANewProjectFig1Img from './images/create-a-new-project-fig-1.png';
+import boardVariantsPillListImg from './images/board-variants-pill-list.png';
+import genericBoardsExamplesImg from './images/generic-boards-examples.png';
+import changeBoardPlatformDropdownImg from './images/change-board-platform-dropdown.png';
+import yamlBoardVariantScreenshotImg from './images/yaml-board-variant-screenshot.png';
+
+A board (circuit board) is the base for your ESPHome smart home device. It serves as
+the foundation for connecting electronic components. The main role of a board is to
+provide structure and support for the components. It also facilitates electrical
+connections between these components.
+
+You can find out more basics about circuit boards generally on the
+[Wikipedia page for 'printed circuit board'](https://en.wikipedia.org/wiki/Printed_circuit_board).
+
+Every board has a name it is known as, which is often printed directly on a part of
+the board. This name/board type can be in different places depending on the type/size
+of the board or be absent. If you cannot find the board name either on the board or in
+information about your board then you'll need to either
+[connect your board](/guides/physical_device_connection/) using an appropriate cable
+when building your project in ESPHome Device Builder or choose a board variant to start
+building.
+
+## How to Identify Your Board
+
+- Check each side of your board. You'll be looking for `ESP` `BK` `RP` `RTL` `LN` or
+  `nRF` and other numbers/letters after it. There are other boards that are supported
+  which you can find out more about; for ESP32 see the [ESP32 variants](/components/esp32/#variants).
+
+  <Figure
+    src={iDontKnowWhatBoardIHaveFig1Img}
+    caption="Check every side of the board for the printed name; details can hide on the reverse."
+    layout="constrained"
+    alt="Two opposite sides of an ESP board, showing that you should check every side for the printed name."
+  />
+
+- On your board there is text that tells you the name/variant. To read very small text,
+  use a magnifying lens, or take a photo with a camera and zoom in.
+
+  <Figure
+    src={iDontKnowWhatBoardIHaveFig2Img}
+    caption="Example shows an ESP32-S2 variant; spacing and dashes vary between boards."
+    layout="constrained"
+    alt="Close-up of a board showing the printed variant name ESP32-S2."
+  />
+
+- Alternatively, you can check details from where you purchased the board or any
+  documents enclosed when you received it if you cannot find variant information on
+  your board and connecting your board to auto-detect the details is not an option.
+
+  <Figure
+    src={iDontKnowWhatBoardIHaveFig3Img}
+    caption="An invoice or receipt showing a board variant name, beside the UI for selecting that board."
+    layout="constrained"
+    alt="A purchase receipt listing a board variant name next to the ESPHome board selection interface."
+  />
+
+## I Don't Have a Board Yet
+
+If you want to start a configuration file for a project or explore what the
+possibilities are for building ESPHome smart home devices you can either start an
+empty configuration project which will create a blank YAML file which can be found
+under the advanced setup options.
+
+<Figure
+  src={createANewProjectFig1Img}
+  caption="Expand the advanced options on the create new project screen and select empty configuration."
+  layout="constrained"
+  alt="The create new project screen, with advanced options expanded to reach empty configuration."
+/>
+
+Alternatively you can choose any generic variant of any board (displayed below: ESP32,
+ESP32-S2, ESP32-S3, ESP32-C3, ESP32-C6, ESP32-H2, ESP8266, RP2040/RP2350, BK72xx,
+RTL87xx, LN882x, nRF52 and more board variants may be available) to get started and
+test out what's possible and change the board using the interface or re-define in the
+YAML file at a later date. Be cautious when changing a board.
+
+<Figure
+  src={boardVariantsPillListImg}
+  caption="Example above shows a list of some generic variants. Other generic boards may work with ESPHome."
+  layout="constrained"
+  alt="A list of generic board variants shown as selectable pills in the ESPHome interface."
+/>
+
+<Figure
+  src={genericBoardsExamplesImg}
+  caption="The board selection view when starting a new project; use search and filters to find a variant."
+  layout="constrained"
+  alt="The select-your-board screen in ESPHome showing example generic board variants with search and filters."
+/>
+
+To change a board you selected at setup, you first need to find and select the
+`[Board name] Platform` in the Device navigator menu. Then in the central section with
+input fields and places to type you should find a dropdown that allows you to select
+another variant.
+
+<Figure
+  src={changeBoardPlatformDropdownImg}
+  caption="Select the board platform in the Device navigator, then use the dropdown to pick another variant."
+  layout="constrained"
+  alt="The Device navigator with the board platform selected and the dropdown for choosing another variant."
+/>
+
+The YAML file can also be edited directly to change the platform variant. The YAML and
+the input fields reflect each other so changing one will also change the other.
+
+<Figure
+  src={yamlBoardVariantScreenshotImg}
+  caption="The YAML updates when you select a new variant from the board platform dropdown."
+  layout="constrained"
+  alt="YAML code that changes when you select a new variant from the board platform dropdown."
+/>
+
+## See Also
+
+- [FAQ and Tips](/guides/faq/)
+- [ESP32 Variants](/components/esp32/#variants)
