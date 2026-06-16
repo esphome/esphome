@@ -104,10 +104,9 @@ uint8_t USBUartTypeCH934X::get_reg_address_(uint8_t portnum) {
 bool USBUartTypeCH934X::config_device_step(uint8_t step, bool ok, const uint8_t *response) {
   if (step == 0) {
     ESP_LOGD(TAG, "Starting device setup");
-    // Fetch the chip id. NOTE: this preserves the original request exactly, including the
-    // USB_DIR_OUT direction with no data stage, so the parsing below inspects the setup
-    // packet bytes rather than a device IN response. This looks like a latent bug (a vendor
-    // IN read with a buffer was likely intended) and is left unchanged to preserve behaviour.
+    // Send vendor request 0x96 to the device. USB_DIR_OUT is the bmRequestType direction
+    // bit (host→device for the setup stage); the device still returns data in the control
+    // transfer's data stage, which arrives in cfg_response_ at step 1.
     this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x96, 0, 0);
     return true;
   }
@@ -196,8 +195,45 @@ bool USBUartTypeCH934X::config_device_step(uint8_t step, bool ok, const uint8_t 
 // (baud/parity/stop/data) to an already-open channel.
 bool USBUartTypeCH934X::config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok,
                                     const uint8_t *response) {
-  if (reload && step == 0 && channel->index_ < this->num_ports_)
-    this->configure_uart_parameters_(channel);
+  if (!reload || channel->index_ >= this->num_ports_)
+    return false;
+
+  this->configure_uart_parameters_(channel);
+
+  // configure_channel_() sends these register writes after configure_uart_parameters_()
+  // during full init; they are also required on a runtime reload for the device to apply
+  // the new settings:
+  //   - CMD_W_R → R_C1 | 0x07: re-assert UART enable / control-line bits
+  //   - CMD_W_BR → R_C4 | 0x00 then R_C4 | 0x10 (CH9344 only): commit the new baud config
+  // Without these, calling load_settings() has no visible effect on the device.
+  //
+  // Note: this is an attempt to fix the "reloading settings appears not to be working"
+  // issue observed on CH348 hardware. The post-parameter writes mirror configure_channel_()
+  // exactly. Please verify on actual hardware and adjust if needed.
+  uint8_t portnum = channel->index_;
+  uint8_t rgadd = this->get_reg_address_(portnum);
+  uint8_t buffer[3];
+
+  usb_host::transfer_cb_t callback = [=](const usb_host::TransferStatus &status) {
+    if (!status.success)
+      ESP_LOGE(TAG, "Reload post-param write failed: %s", esp_err_to_name(status.error_code));
+  };
+
+  buffer[0] = CMD_W_R;
+  buffer[1] = rgadd + R_C1;
+  buffer[2] = 0x07;
+  this->transfer_out(this->uart_host_dev_.ep_cmd_write->bEndpointAddress, callback, buffer, 3);
+
+  if (this->chiptype_ == CHIP_CH9344L || this->chiptype_ == CHIP_CH9344Q) {
+    buffer[0] = CMD_W_BR;
+    buffer[1] = rgadd + R_C4;
+    buffer[2] = 0x00;
+    this->transfer_out(this->uart_host_dev_.ep_cmd_write->bEndpointAddress, callback, buffer, 3);
+
+    buffer[2] = 0x10;
+    this->transfer_out(this->uart_host_dev_.ep_cmd_write->bEndpointAddress, callback, buffer, 3);
+  }
+
   return false;
 }
 
