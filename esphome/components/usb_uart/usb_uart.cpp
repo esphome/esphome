@@ -147,8 +147,8 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
 #ifdef UART_DEBUGGER_ADD_SETTINGS
     char settings_prefix[48];
     if (this->debug_add_settings_) {
-      snprintf(settings_prefix, sizeof(settings_prefix), "|%" PRIu32 ":%u:%s:%s|",
-               this->baud_rate_, this->data_bits_, PARITY_NAMES[this->parity_], STOP_BITS_NAMES[this->stop_bits_]);
+      snprintf(settings_prefix, sizeof(settings_prefix), "|%" PRIu32 ":%u:%s:%s|", this->baud_rate_, this->data_bits_,
+               PARITY_NAMES[this->parity_], STOP_BITS_NAMES[this->stop_bits_]);
     } else {
       settings_prefix[0] = '\0';
     }
@@ -241,9 +241,8 @@ void USBUartComponent::loop() {
 #ifdef UART_DEBUGGER_ADD_SETTINGS
       if (channel->debug_add_settings_) {
         char settings_prefix[48];
-        snprintf(settings_prefix, sizeof(settings_prefix), "|%" PRIu32 ":%u:%s:%s|",
-                 channel->baud_rate_, channel->data_bits_, PARITY_NAMES[channel->parity_],
-                 STOP_BITS_NAMES[channel->stop_bits_]);
+        snprintf(settings_prefix, sizeof(settings_prefix), "|%" PRIu32 ":%u:%s:%s|", channel->baud_rate_,
+                 channel->data_bits_, PARITY_NAMES[channel->parity_], STOP_BITS_NAMES[channel->stop_bits_]);
         ESP_LOGD(TAG, "%s%s<<< %s", settings_prefix, channel->debug_prefix_.c_str(), buf);
       } else {
         ESP_LOGD(TAG, "%s<<< %s", channel->debug_prefix_.c_str(), buf);
@@ -273,7 +272,6 @@ void USBUartComponent::loop() {
   if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u USB data chunks due to buffer overflow", dropped);
   }
-
 
   // Disable loop when idle. Callbacks re-enable via enable_loop_soon_any_context().
   if (!had_work) {
