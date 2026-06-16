@@ -9,7 +9,7 @@ import esphome.final_validate as fv
 
 AUTO_LOAD = ["improv_base"]
 CODEOWNERS = ["@esphome/core"]
-DEPENDENCIES = ["logger", "wifi"]
+DEPENDENCIES = ["logger", "network"]
 
 improv_serial_ns = cg.esphome_ns.namespace("improv_serial")
 

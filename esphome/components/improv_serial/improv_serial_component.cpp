@@ -1,5 +1,5 @@
 #include "improv_serial_component.h"
-#ifdef USE_WIFI
+#ifdef USE_IMPROV_SERIAL
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
@@ -7,6 +7,7 @@
 #include "esphome/core/version.h"
 
 #include "esphome/components/logger/logger.h"
+#include "esphome/components/network/util.h"
 
 namespace esphome::improv_serial {
 
@@ -20,13 +21,17 @@ void ImprovSerialComponent::setup() {
   this->hw_serial_ = logger::global_logger->get_hw_serial();
 #endif
 
-  if (wifi::global_wifi_component->has_sta()) {
+  // The Improv state machine tracks Wi-Fi provisioning only. General device
+  // connectivity (e.g. Ethernet) is reported separately via GET_NETWORK_STATE.
+#ifdef USE_WIFI
+  if (wifi::global_wifi_component != nullptr && wifi::global_wifi_component->has_sta()) {
     this->state_ = improv::STATE_PROVISIONED;
-  } else if (!wifi::global_wifi_component->is_disabled()) {
+  } else if (wifi::global_wifi_component != nullptr && !wifi::global_wifi_component->is_disabled()) {
     // Respect Wi-Fi's disabled state; forcing a scan while disabled throws
     // the wifi component into an invalid state from which it cannot recover.
     wifi::global_wifi_component->start_scanning();
   }
+#endif
 }
 
 void ImprovSerialComponent::loop() {
@@ -47,8 +52,14 @@ void ImprovSerialComponent::loop() {
     byte = this->read_byte_();
   }
 
-  if (this->state_ == improv::STATE_PROVISIONING) {
-    if (wifi::global_wifi_component->is_connected()) {
+#ifdef USE_WIFI
+  if (this->state_ == improv::STATE_PROVISIONING && wifi::global_wifi_component != nullptr) {
+    if (!wifi::global_wifi_component->is_connected()) {
+      // Wi-Fi has left any prior connection (or was never connected). Only after observing this
+      // do we trust a later is_connected() to mean we joined the network just requested -- this
+      // prevents reporting the stale old connection as success when changing networks.
+      this->connect_saw_disconnect_ = true;
+    } else if (this->connect_saw_disconnect_) {
       wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(),
                                                  this->connecting_sta_.get_password());
       this->connecting_sta_ = {};
@@ -59,6 +70,7 @@ void ImprovSerialComponent::loop() {
       this->send_response_(url);
     }
   }
+#endif
 }
 
 void ImprovSerialComponent::dump_config() { ESP_LOGCONFIG(TAG, "Improv Serial:"); }
@@ -177,8 +189,7 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
 #endif
 }
 
-std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv::Command command) {
-  std::vector<std::string> urls;
+void ImprovSerialComponent::collect_device_urls_(std::vector<std::string> &urls) {
 #ifdef USE_IMPROV_SERIAL_NEXT_URL
   {
     char url_buffer[384];
@@ -189,7 +200,7 @@ std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv:
   }
 #endif
 #ifdef USE_WEBSERVER
-  for (auto &ip : wifi::global_wifi_component->wifi_sta_ip_addresses()) {
+  for (auto &ip : network::get_ip_addresses()) {
     if (ip.is_ip4()) {
       char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
       ip.str_to(ip_buf);
@@ -201,6 +212,11 @@ std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv:
     }
   }
 #endif
+}
+
+std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv::Command command) {
+  std::vector<std::string> urls;
+  this->collect_device_urls_(urls);
   std::vector<uint8_t> data = improv::build_rpc_response(command, urls, false);
   return data;
 }
@@ -232,7 +248,8 @@ bool ImprovSerialComponent::parse_improv_serial_byte_(uint8_t byte) {
 bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command) {
   switch (command.command) {
     case improv::WIFI_SETTINGS: {
-      if (wifi::global_wifi_component->is_disabled()) {
+#ifdef USE_WIFI
+      if (wifi::global_wifi_component == nullptr || wifi::global_wifi_component->is_disabled()) {
         // Wi-Fi is disabled, so we can't provision. Respond immediately
         // instead of letting the client wait out its provisioning timeout.
         ESP_LOGW(TAG, "Wi-Fi is disabled; cannot provision");
@@ -246,19 +263,31 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
 
       wifi::global_wifi_component->set_sta(sta);
       wifi::global_wifi_component->start_connecting(sta);
+      // Re-arm the gate: don't accept success until Wi-Fi has actually left the prior network.
+      this->connect_saw_disconnect_ = false;
       this->set_state_(improv::STATE_PROVISIONING);
       ESP_LOGD(TAG, "Received settings: SSID=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
                command.password.c_str());
 
-      this->set_timeout("wifi-connect-timeout", 30000, [this]() { this->on_wifi_connect_timeout_(); });
+      // Allow enough time to connect; switching networks on an already-connected device can take
+      // well over 30 s on the first attempt. Matches esp32_improv's default wifi_timeout (90 s).
+      this->set_timeout("wifi-connect-timeout", 90000, [this]() { this->on_wifi_connect_timeout_(); });
+#else
+      // No Wi-Fi support compiled in; there is nothing to provision.
+      ESP_LOGW(TAG, "Wi-Fi not supported; cannot provision");
+      this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
+#endif
       return true;
     }
-    case improv::GET_CURRENT_STATE:
-      if (wifi::global_wifi_component->is_disabled()) {
-        // Wi-Fi is disabled; report the Improv "stopped" state so a client can tell
-        // the user that provisioning is unavailable. Reported transiently without
-        // disturbing our internal provisioning state machine, so a later `wifi.enable`
-        // still reports the correct state.
+    case improv::GET_CURRENT_STATE: {
+      // This state machine tracks Wi-Fi provisioning only. When Wi-Fi is disabled or not
+      // compiled in, provisioning is unavailable -> report STOPPED so the client doesn't
+      // offer a Wi-Fi form. General connectivity (e.g. Ethernet) is reported separately
+      // via GET_NETWORK_STATE.
+#ifdef USE_WIFI
+      if (wifi::global_wifi_component == nullptr || wifi::global_wifi_component->is_disabled()) {
+        // Reported transiently without disturbing our internal provisioning state machine,
+        // so a later `wifi.enable` still reports the correct state.
         this->send_current_state_(improv::STATE_STOPPED);
         return true;
       }
@@ -267,13 +296,18 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
         std::vector<uint8_t> url = this->build_rpc_settings_response_(improv::GET_CURRENT_STATE);
         this->send_response_(url);
       }
+#else
+      this->send_current_state_(improv::STATE_STOPPED);
+#endif
       return true;
+    }
     case improv::GET_DEVICE_INFO: {
       std::vector<uint8_t> info = this->build_version_info_();
       this->send_response_(info);
       return true;
     }
     case improv::GET_WIFI_NETWORKS: {
+#ifdef USE_WIFI
       std::vector<std::string> networks;
       const auto &results = wifi::global_wifi_component->get_scan_result();
       for (auto &scan : results) {
@@ -300,9 +334,39 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
         this->send_response_(data);
         networks.push_back(std::move(ssid));
       }
+#endif  // USE_WIFI
       // Send empty response to signify the end of the list.
       std::vector<uint8_t> data =
           improv::build_rpc_response(improv::GET_WIFI_NETWORKS, std::vector<std::string>{}, false);
+      this->send_response_(data);
+      return true;
+    }
+    case GET_NETWORK_STATE: {
+      // Reports general device connectivity and which network interfaces are present, decoupled
+      // from the Wi-Fi-only provisioning state machine. data[0] is a decimal flags byte;
+      // when online, the reachable device URL(s) follow.
+      uint8_t flags = 0;
+      if (network::is_connected())
+        flags |= NET_IS_ONLINE;
+#ifdef USE_WIFI
+      flags |= NET_SUPPORTS_WIFI;
+#endif
+#ifdef USE_ETHERNET
+      flags |= NET_SUPPORTS_ETHERNET;
+#endif
+#ifdef USE_OPENTHREAD
+      flags |= NET_SUPPORTS_THREAD;
+#endif
+#ifdef USE_MODEM
+      flags |= NET_SUPPORTS_MODEM;
+#endif
+      std::vector<std::string> datum;
+      char flags_buf[4];  // uint8_t: max "255" + null
+      snprintf(flags_buf, sizeof(flags_buf), "%u", flags);
+      datum.emplace_back(flags_buf);
+      if (flags & NET_IS_ONLINE)
+        this->collect_device_urls_(datum);
+      std::vector<uint8_t> data = improv::build_rpc_response(GET_NETWORK_STATE, datum, false);
       this->send_response_(data);
       return true;
     }
@@ -336,12 +400,14 @@ void ImprovSerialComponent::send_response_(std::vector<uint8_t> &response) {
   this->write_data_(response.data(), response.size());
 }
 
+#ifdef USE_WIFI
 void ImprovSerialComponent::on_wifi_connect_timeout_() {
   this->set_error_(improv::ERROR_UNABLE_TO_CONNECT);
   this->set_state_(improv::STATE_AUTHORIZED);
   ESP_LOGW(TAG, "Timed out while connecting to Wi-Fi network");
   wifi::global_wifi_component->clear_sta();
 }
+#endif
 
 ImprovSerialComponent *global_improv_serial_component =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
     nullptr;                                             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
