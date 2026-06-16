@@ -304,16 +304,19 @@ class USBUartTypeCH934X : public USBUartComponent {
  public:
   USBUartTypeCH934X(uint16_t vid, uint16_t pid) : USBUartComponent(vid, pid) {}
 
-  void start_input(USBUartChannel *channel);
+  void start_input(USBUartChannel *channel) override;
 
  protected:
   void on_connected() override;
   void on_disconnected() override;
-  void enable_channels_();
+  // Chip detection + one-time device/channel register setup. The CH934x configures its
+  // ports via fire-and-forget bulk writes on a command endpoint (not control transfers),
+  // so all init work is done here once detection completes; config_step() only re-applies
+  // per-channel settings for load_settings().
+  bool config_device_step(uint8_t step, bool ok, const uint8_t *response) override;
+  bool config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok, const uint8_t *response) override;
 
   bool parse_descriptors_(usb_device_handle_t dev_hdl);
-  void configure_device_();
-  void configure_channels_after_detection_();
   bool configure_channel_(USBUartChannel *channel);
   bool set_uart_mode_(USBUartChannel *channel);
   bool configure_uart_parameters_(USBUartChannel *channel);

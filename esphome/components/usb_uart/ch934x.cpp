@@ -101,47 +101,41 @@ uint8_t USBUartTypeCH934X::get_reg_address_(uint8_t portnum) {
   return rgadd;
 }
 
-void USBUartTypeCH934X::configure_device_() {
-  ESP_LOGD(TAG, "Starting device setup");
+bool USBUartTypeCH934X::config_device_step(uint8_t step, bool ok, const uint8_t *response) {
+  if (step == 0) {
+    ESP_LOGD(TAG, "Starting device setup");
+    // Fetch the chip id. NOTE: this preserves the original request exactly, including the
+    // USB_DIR_OUT direction with no data stage, so the parsing below inspects the setup
+    // packet bytes rather than a device IN response. This looks like a latent bug (a vendor
+    // IN read with a buffer was likely intended) and is left unchanged to preserve behaviour.
+    this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x96, 0, 0);
+    return true;
+  }
 
-  usb_host::transfer_cb_t ctrl_callback = [this](const usb_host::TransferStatus &status) {
-    if (!status.success) {
-      ESP_LOGE(TAG, "Control transfer failed, status=%s", esp_err_to_name(status.error_code));
-      return;
-    }
-
-    ESP_LOGV(TAG, "Received chip id response bytes 0x%02x 0x%02x 0x%02x 0x%02x", status.data[0], status.data[1],
-             status.data[2], status.data[3]);
-
-    if (this->pid_ == 0xE018) {
-      this->chiptype_ = (status.data[0] >= 0x40) ? CHIP_CH9344Q : CHIP_CH9344L;
-      this->num_ports_ = 4;
-      this->port_offset_ = 4;
-    } else if (this->pid_ == 0x55D9) {
-      this->chiptype_ = (status.data[1] & (0x02 << 6)) ? CHIP_CH348Q : CHIP_CH348L;
-      this->num_ports_ = 8;
-      this->port_offset_ = 0;
-    } else {
-      ESP_LOGE(TAG, "Unknown product_id: 0x%04X", this->pid_);
-      return;
-    }
-
-    ESP_LOGI(TAG, "Found chip type %s with %u ports", get_chiptype_string(this->chiptype_).c_str(), this->num_ports_);
-
-    this->defer([this]() { this->configure_channels_after_detection_(); });
-  };
-
-  if (!this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x96, 0, 0, ctrl_callback)) {
+  // step 1: identify the chip and run one-time device + per-channel register setup. The
+  // CH934x configures via fire-and-forget bulk writes, so there is nothing to wait on.
+  if (!ok) {
     ESP_LOGE(TAG, "Fetching chip id failed");
-  }
-}
-
-void USBUartTypeCH934X::configure_channels_after_detection_() {
-  if (this->num_ports_ == 0) {
-    ESP_LOGE(TAG, "Cannot configure channels - chip not detected");
-    return;
+    return false;
   }
 
+  ESP_LOGV(TAG, "Received chip id response bytes 0x%02x 0x%02x 0x%02x 0x%02x", response[0], response[1], response[2],
+           response[3]);
+
+  if (this->pid_ == 0xE018) {
+    this->chiptype_ = (response[0] >= 0x40) ? CHIP_CH9344Q : CHIP_CH9344L;
+    this->num_ports_ = 4;
+    this->port_offset_ = 4;
+  } else if (this->pid_ == 0x55D9) {
+    this->chiptype_ = (response[1] & (0x02 << 6)) ? CHIP_CH348Q : CHIP_CH348L;
+    this->num_ports_ = 8;
+    this->port_offset_ = 0;
+  } else {
+    ESP_LOGE(TAG, "Unknown product_id: 0x%04X", this->pid_);
+    return false;
+  }
+
+  ESP_LOGI(TAG, "Found chip type %s with %u ports", get_chiptype_string(this->chiptype_).c_str(), this->num_ports_);
   ESP_LOGD(TAG, "Configuring device registers for %u ports", this->num_ports_);
 
   usb_host::transfer_cb_t bulk_callback = [=](const usb_host::TransferStatus &status) {
@@ -194,6 +188,17 @@ void USBUartTypeCH934X::configure_channels_after_detection_() {
 
   this->start_rx_reader_();
   this->start_command_reader_();
+  return false;
+}
+
+// Per-channel settings. On full init every channel is already configured by
+// config_device_step(); this is used by load_settings() to re-apply UART parameters
+// (baud/parity/stop/data) to an already-open channel.
+bool USBUartTypeCH934X::config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok,
+                                    const uint8_t *response) {
+  if (reload && step == 0 && channel->index_ < this->num_ports_)
+    this->configure_uart_parameters_(channel);
+  return false;
 }
 
 bool USBUartTypeCH934X::configure_channel_(USBUartChannel *channel) {
@@ -419,8 +424,6 @@ bool USBUartTypeCH934X::parse_descriptors_(usb_device_handle_t dev_hdl) {
   return false;
 }
 
-void USBUartTypeCH934X::enable_channels_() { this->configure_device_(); }
-
 void USBUartTypeCH934X::start_rx_reader_() {
   if (this->rx_running_.load())
     return;
@@ -610,7 +613,7 @@ void USBUartTypeCH934X::on_connected() {
     return;
   }
 
-  this->enable_channels_();
+  this->enable_channels();
 }
 
 void USBUartTypeCH934X::on_disconnected() {
