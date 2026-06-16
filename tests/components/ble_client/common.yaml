@@ -56,7 +56,7 @@ sensor:
 number:
   - platform: template
     name: "Test Number"
-    id: test_number
+    id: ble_client_test_number
     optimistic: true
     min_value: 0
     max_value: 255
@@ -72,5 +72,5 @@ button:
           service_uuid: "abcd1234-abcd-1234-abcd-abcd12345678"
           characteristic_uuid: "abcd1235-abcd-1234-abcd-abcd12345678"
           value: !lambda |-
-            uint8_t val = (uint8_t)id(test_number).state;
+            uint8_t val = (uint8_t)id(ble_client_test_number).state;
             return std::vector<uint8_t>{0xAA, val, 0xBB};
