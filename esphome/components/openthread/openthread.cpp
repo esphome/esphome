@@ -132,7 +132,7 @@ void OpenThreadSrpComponent::setup() {
   char *existing_host_name = otSrpClientBuffersGetHostNameString(instance, &size);
   const auto &host_name = App.get_name();
   uint16_t host_name_len = host_name.size();
-  if (host_name_len > size) {
+  if (host_name_len >= size) {
     ESP_LOGW(TAG, "Hostname is too long, choose a shorter project name");
     return;
   }
@@ -164,7 +164,7 @@ void OpenThreadSrpComponent::setup() {
     // Set service name
     char *string = otSrpClientBuffersGetServiceEntryServiceNameString(entry, &size);
     std::string full_service = std::string(MDNS_STR_ARG(service.service_type)) + "." + MDNS_STR_ARG(service.proto);
-    if (full_service.size() > size) {
+    if (full_service.size() >= size) {
       ESP_LOGW(TAG, "Service name too long: %s", full_service.c_str());
       continue;
     }
@@ -172,7 +172,7 @@ void OpenThreadSrpComponent::setup() {
 
     // Set instance name (using host_name)
     string = otSrpClientBuffersGetServiceEntryInstanceNameString(entry, &size);
-    if (host_name_len > size) {
+    if (host_name_len >= size) {
       ESP_LOGW(TAG, "Instance name too long: %s", host_name.c_str());
       continue;
     }
