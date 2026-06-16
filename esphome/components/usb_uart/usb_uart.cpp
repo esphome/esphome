@@ -153,8 +153,8 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
 #ifdef UART_DEBUGGER_ADD_SETTINGS
       if (this->debug_add_settings_) {
         char settings[32];
-        snprintf(settings, sizeof(settings), "|%" PRIu32 ":%u:%s:%s|",
-                 this->baud_rate_, this->data_bits_, PARITY_NAMES[this->parity_], STOP_BITS_NAMES[this->stop_bits_]);
+        snprintf(settings, sizeof(settings), "|%" PRIu32 ":%u:%s:%s|", this->baud_rate_, this->data_bits_,
+                 PARITY_NAMES[this->parity_], STOP_BITS_NAMES[this->stop_bits_]);
         ESP_LOGD(TAG, "%s%s>>> %s", settings, this->debug_prefix_.c_str(), buf);
       } else
 #endif
@@ -239,9 +239,8 @@ void USBUartComponent::loop() {
 #ifdef UART_DEBUGGER_ADD_SETTINGS
       if (channel->debug_add_settings_) {
         char settings[32];
-        snprintf(settings, sizeof(settings), "|%" PRIu32 ":%u:%s:%s|",
-                 channel->baud_rate_, channel->data_bits_, PARITY_NAMES[channel->parity_],
-                 STOP_BITS_NAMES[channel->stop_bits_]);
+        snprintf(settings, sizeof(settings), "|%" PRIu32 ":%u:%s:%s|", channel->baud_rate_, channel->data_bits_,
+                 PARITY_NAMES[channel->parity_], STOP_BITS_NAMES[channel->stop_bits_]);
         ESP_LOGD(TAG, "%s%s<<< %s", settings, channel->debug_prefix_.c_str(), buf);
       } else
 #endif
