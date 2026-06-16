@@ -15,7 +15,12 @@ from esphome.components.epaper_spi.display import (
     FINAL_VALIDATE_SCHEMA,
     MODELS,
 )
-from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32, VARIANT_ESP32S3
+from esphome.components.esp32 import (
+    KEY_BOARD,
+    KEY_VARIANT,
+    VARIANT_ESP32,
+    VARIANT_ESP32S3,
+)
 from esphome.const import (
     CONF_BUSY_PIN,
     CONF_CS_PIN,
