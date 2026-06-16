@@ -104,9 +104,10 @@ uint8_t USBUartTypeCH934X::get_reg_address_(uint8_t portnum) {
 bool USBUartTypeCH934X::config_device_step(uint8_t step, bool ok, const uint8_t *response) {
   if (step == 0) {
     ESP_LOGD(TAG, "Starting device setup");
-    // Send vendor request 0x96 to the device. USB_DIR_OUT is the bmRequestType direction
-    // bit (host→device for the setup stage); the device still returns data in the control
-    // transfer's data stage, which arrives in cfg_response_ at step 1.
+    // Fetch the chip id. NOTE: this preserves the original request exactly, including the
+    // USB_DIR_OUT direction with no data stage, so the parsing below inspects the setup
+    // packet bytes rather than a device IN response. This looks like a latent bug (a vendor
+    // IN read with a buffer was likely intended) and is left unchanged to preserve behaviour.
     this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x96, 0, 0);
     return true;
   }
