@@ -21,7 +21,7 @@ class EAQICalculator : public AbstractAQICalculator {
     indices[3] = calculate_index(no2, NO2_GRID);
     indices[4] = calculate_index(so2, SO2_GRID);
 
-    float max_index = *std::max_element(indices, indices + 5);   
+    float max_index = *std::max_element(indices, indices + 5);
 
     // Round to nearest integer (1-6)
     return static_cast<uint16_t>(std::lround(max_index));
