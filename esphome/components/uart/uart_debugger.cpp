@@ -82,8 +82,7 @@ void UARTDebugger::fire_trigger_() {
     static const char *const PARITY_NAMES[] = {"NONE", "EVEN", "ODD"};
     char settings[32];
     snprintf(settings, sizeof(settings), "|%" PRIu32 ":%u:%s:%u|", this->parent_->get_baud_rate(),
-             this->parent_->get_data_bits(), PARITY_NAMES[this->parent_->get_parity()],
-             this->parent_->get_stop_bits());
+             this->parent_->get_data_bits(), PARITY_NAMES[this->parent_->get_parity()], this->parent_->get_stop_bits());
     char prefix[48];
     snprintf(prefix, sizeof(prefix), "%s%s", settings, this->debug_prefix_.c_str());
     trigger(this->last_direction_, this->bytes_, StringRef(prefix));
