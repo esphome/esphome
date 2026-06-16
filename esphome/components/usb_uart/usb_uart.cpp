@@ -107,12 +107,14 @@ std::vector<CdcEps> USBUartTypeCdcAcm::parse_descriptors(usb_device_handle_t dev
 }
 
 void RingBuffer::push(uint8_t item) {
-  if (this->get_free_space() == 0)
+  if (this->buffer_ == nullptr || this->get_free_space() == 0)
     return;
   this->buffer_[this->insert_pos_] = item;
   this->insert_pos_ = (this->insert_pos_ + 1) % this->buffer_size_;
 }
 void RingBuffer::push(const uint8_t *data, size_t len) {
+  if (this->buffer_ == nullptr)
+    return;
   size_t free = this->get_free_space();
   if (len > free)
     len = free;
@@ -193,7 +195,7 @@ bool USBUartChannel::peek_byte(uint8_t *data) {
   return true;
 }
 bool USBUartChannel::read_array(uint8_t *data, size_t len) {
-  if (!this->initialised_.load()) {
+  if (!this->initialised_.load() && !this->destroying_.load()) {
     ESP_LOGV(TAG, "Channel not initialised - read ignored");
     return false;
   }
@@ -247,6 +249,17 @@ void USBUartComponent::loop() {
   uint16_t dropped = this->usb_data_queue_.get_and_reset_dropped_count();
   if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u USB data chunks due to buffer overflow", dropped);
+  }
+
+  // Deferred RX buffer free: once the shared queue is empty and a disconnecting channel's
+  // input_buffer_ has been fully consumed by the application, release its backing memory.
+  if (this->usb_data_queue_.empty()) {
+    for (auto *channel : this->channels_) {
+      if (channel->destroying_.load() && channel->input_buffer_.is_empty()) {
+        channel->input_buffer_.free_buffer();
+        channel->destroying_.store(false);
+      }
+    }
   }
 
   // Disable loop when idle. Callbacks re-enable via enable_loop_soon_any_context().
@@ -416,6 +429,15 @@ void USBUartTypeCdcAcm::on_connected() {
       this->status_set_warning(LOG_STR("No configuration found for channel"));
       break;
     }
+    if (!channel->input_buffer_.has_buffer()) {
+      if (!channel->input_buffer_.allocate()) {
+        ESP_LOGE(TAG, "Channel %d: out of memory for RX buffer", channel->index_);
+        this->status_set_error(LOG_STR("Out of memory for RX buffer"));
+        this->disconnect();
+        return;
+      }
+    }
+    channel->destroying_.store(false);
     channel->cdc_dev_ = cdc_devs[i++];
     fix_mps(channel->cdc_dev_.in_ep);
     fix_mps(channel->cdc_dev_.out_ep);
@@ -472,7 +494,6 @@ void USBUartTypeCdcAcm::on_disconnected() {
     // Reset the input and output started flags to their initial state to avoid the possibility of spurious restarts
     channel->input_started_.store(true);
     channel->output_started_.store(true);
-    channel->input_buffer_.clear();
     // Drain any pending output chunks and return them to the pool
     {
       UsbOutputChunk *chunk;
@@ -481,6 +502,8 @@ void USBUartTypeCdcAcm::on_disconnected() {
       }
     }
     channel->initialised_.store(false);
+    // Signal loop() to free the RX buffer once usb_data_queue_ and input_buffer_ are drained.
+    channel->destroying_.store(true);
   }
   USBClient::on_disconnected();
 }

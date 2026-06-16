@@ -201,16 +201,11 @@ bool USBUartTypeCH934X::config_step(USBUartChannel *channel, uint8_t step, bool 
 
   this->configure_uart_parameters_(channel);
 
-  // configure_channel_() sends these register writes after configure_uart_parameters_()
-  // during full init; they are also required on a runtime reload for the device to apply
-  // the new settings:
-  //   - CMD_W_R → R_C1 | 0x07: re-assert UART enable / control-line bits
-  //   - CMD_W_BR → R_C4 | 0x00 then R_C4 | 0x10 (CH9344 only): commit the new baud config
-  // Without these, calling load_settings() has no visible effect on the device.
-  //
-  // Note: this is an attempt to fix the "reloading settings appears not to be working"
-  // issue observed on CH348 hardware. The post-parameter writes mirror configure_channel_()
-  // exactly. Please verify on actual hardware and adjust if needed.
+  // Re-send the post-parameter register writes that configure_channel_() issues after
+  // configure_uart_parameters_() during full init. Without these, the device does not
+  // apply the new settings on a runtime reload:
+  //   - R_C1 | 0x07 (CMD_W_R): re-assert UART enable / control lines
+  //   - R_C4 | 0x00 then R_C4 | 0x10 (CMD_W_BR, CH9344 only): commit the new baud config
   uint8_t portnum = channel->index_;
   uint8_t rgadd = this->get_reg_address_(portnum);
   uint8_t buffer[3];
@@ -650,6 +645,17 @@ void USBUartTypeCH934X::on_connected() {
     return;
   }
 
+  for (auto *channel : this->channels_) {
+    if (!channel->input_buffer_.has_buffer()) {
+      if (!channel->input_buffer_.allocate()) {
+        ESP_LOGE(TAG, "Channel %d: out of memory for RX buffer", channel->index_);
+        this->status_set_error(LOG_STR("Out of memory for RX buffer"));
+        this->disconnect();
+        return;
+      }
+    }
+    channel->destroying_.store(false);
+  }
   this->enable_channels();
 }
 
@@ -660,7 +666,7 @@ void USBUartTypeCH934X::on_disconnected() {
   for (auto *channel : this->channels_) {
     channel->initialised_.store(false);
     channel->input_started_.store(false);
-    channel->input_buffer_.clear();
+    channel->destroying_.store(true);
   }
   // Shared TX queue lives on channel 0 — drain it on disconnect
   if (!this->channels_.empty()) {

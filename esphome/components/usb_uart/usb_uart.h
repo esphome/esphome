@@ -103,12 +103,28 @@ static const char *const STOP_BITS_NAMES[] = {"1", "1.5", "2"};
 
 class RingBuffer {
  public:
-  RingBuffer(uint16_t buffer_size) : buffer_size_(buffer_size), buffer_(new uint8_t[buffer_size]) {}
-  bool is_empty() const { return this->read_pos_ == this->insert_pos_; }
+  RingBuffer(uint16_t buffer_size) : buffer_size_(buffer_size), buffer_(nullptr) {}
+  bool allocate() {
+    this->buffer_ = new (std::nothrow) uint8_t[this->buffer_size_];
+    return this->buffer_ != nullptr;
+  }
+  void free_buffer() {
+    delete[] this->buffer_;
+    this->buffer_ = nullptr;
+    this->read_pos_ = this->insert_pos_ = 0;
+  }
+  bool has_buffer() const { return this->buffer_ != nullptr; }
+  bool is_empty() const { return this->buffer_ == nullptr || this->read_pos_ == this->insert_pos_; }
   size_t get_available() const {
+    if (this->buffer_ == nullptr)
+      return 0;
     return (this->insert_pos_ + this->buffer_size_ - this->read_pos_) % this->buffer_size_;
   };
-  size_t get_free_space() const { return this->buffer_size_ - 1 - this->get_available(); }
+  size_t get_free_space() const {
+    if (this->buffer_ == nullptr)
+      return 0;
+    return this->buffer_size_ - 1 - this->get_available();
+  }
   uint8_t peek() const { return this->buffer_[this->read_pos_]; }
   void push(uint8_t item);
   void push(const uint8_t *data, size_t len);
@@ -199,6 +215,7 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   std::atomic<bool> input_started_{true};
   std::atomic<bool> output_started_{true};
   std::atomic<bool> initialised_{false};
+  std::atomic<bool> destroying_{false};
   const uint8_t index_;
   bool debug_{};
   bool dummy_receiver_{};
