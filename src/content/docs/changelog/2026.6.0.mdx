@@ -20,13 +20,14 @@ import ImgTable from "@components/ImgTable.astro";
 ## Release Overview
 
 {/* RELEASE_OVERVIEW_START */}
-ESPHome 2026.6.0 raises the default WiFi security mode on ESP8266 to WPA2, finally makes WiFi and ethernet
-`enable_on_boot: false` reclaim the 15–30 KB and 3–8 KB of internal SRAM they were always supposed to, and
-delivers up to 4.5× faster LVGL config validation that the new device builder relies on. A wide audio-stack
-modernization brings zero-copy ring buffers, any-bit-depth mixing, and a new `router` speaker, while a
-multi-PR effort prepares the codebase for ESP-IDF 6 and native RISC-V clang-tidy. The release also adds a new
-`motion` IMU framework with BMI270 and LSM6DS drivers, two USB-serial drivers, a PCM5122 audio DAC, YAML
-frontmatter, and a top-level `build_flags` option that finally works on native IDF.
+ESPHome 2026.6.0 retires the legacy in-tree dashboard, replacing it with the new **ESPHome Device Builder**,
+which reached 1.0.0 this release. The release also raises the default WiFi
+security mode on ESP8266 to WPA2 and finally makes WiFi and ethernet `enable_on_boot: false` reclaim the
+15–30 KB and 3–8 KB of internal SRAM they were always supposed to, and delivers up to 4.5× faster LVGL config
+validation. A wide audio-stack modernization brings zero-copy ring buffers, any-bit-depth mixing, and a new
+`router` speaker, while a multi-PR effort prepares the codebase for ESP-IDF 6 and native RISC-V clang-tidy. It
+also adds a new `motion` IMU framework with BMI270 and LSM6DS drivers, two USB-serial drivers, a PCM5122 audio
+DAC, YAML frontmatter, and a top-level `build_flags` option that finally works on native IDF.
 {/* RELEASE_OVERVIEW_END */}
 
 ## Upgrade Checklist
@@ -45,6 +46,42 @@ frontmatter, and a top-level `build_flags` option that finally works on native I
 {/* UPGRADE_CHECKLIST_END */}
 
 {/* FEATURE_HIGHLIGHTS_START */}
+## ESPHome Device Builder Replaces the Legacy Dashboard
+
+The new **ESPHome Device Builder**, shipped as an opt-in public beta in 2026.5.0, reached
+[1.0.0](https://github.com/esphome/device-builder/releases/tag/1.0.0) this release and replaces the legacy
+in-tree dashboard, which is being retired. The Device Builder lives in two repos,
+[device-builder](https://github.com/esphome/device-builder) (Python backend) and
+[device-builder-frontend](https://github.com/esphome/device-builder-frontend) (web UI), and as of 2026.6.0 it
+is the dashboard bundled by default in the official Home Assistant ESPHome add-on.
+
+![The ESPHome Device Builder device list](/images/device-builder-dashboard.png)
+
+What it brings over the legacy dashboard:
+
+- **Visual component and automation builder** alongside a CodeMirror YAML editor, with a left-sidebar device
+  navigator. The legacy dashboard was a plain text editor over a `.yaml` file.
+- **Component catalog with dependency resolution** and a **per-board pin info viewer** that maps GPIO
+  capabilities and shows which component is using each pin.
+- **Firmware job queue** with progress, history, and cancel for compile / install / clean, replacing the
+  legacy one-operation-at-a-time model.
+- **Remote builder:** one Device Builder instance can offload OTA builds to another over a peer-paired link
+  (mDNS discovery, out-of-band fingerprint confirmation, identity rotation, per-peer auto-route).
+- **Labels**, **areas**, an editable **friendly name**, **device cloning**, and **multi-select bulk actions**
+  (update, delete, archive, and label across an arbitrary set of devices).
+- **Out-of-sync detection:** an encryption-state mismatch badge on every device, plus version and config-hash
+  in-sync diagnostics in the device drawer.
+- **YAML diff view**, **cross-config YAML search** with surrounding context, and a **command palette**
+  (⌘K / Ctrl-K).
+- **Card and table views** with configurable columns and faceted filters (platform / status / area / labels).
+- **Real settings UI** with light / dark / system theme and localization underway across multiple languages.
+- **First-run WiFi onboarding** and an expanded install-method dialog: Web Serial flashing, server-side USB
+  (relabeled for the Home Assistant host when running as the add-on), `web.esphome.io` download, and manual
+  `.bin` download.
+
+The 2026.5.0 **Use new Device Builder Preview** opt-in toggle is gone; the Device Builder is simply the
+dashboard now.
+
 ## ESP8266 Default WiFi Security Raised to WPA2
 
 ESP8266 now defaults to `min_auth_mode: WPA2`, matching the ESP32 default that has shipped for years. ESPHome
