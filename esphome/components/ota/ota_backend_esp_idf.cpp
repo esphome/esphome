@@ -57,7 +57,18 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size, ota::OTAType ota_type) 
     return OTA_RESPONSE_ERROR_NO_UPDATE_PARTITION;
   }
 
-  watchdog::WatchdogManager watchdog(15000);
+  // esp_ota_begin() erases the destination region, which blocks loopTask and
+  // scales with the erase size -- a fixed watchdog overruns on large OTA slots.
+  // An unknown size (0, e.g. web_server uploads) erases the whole partition, so
+  // budget against the bytes actually erased. ~10ms/KiB (conservative
+  // ~100 KiB/s erase) over a 15s floor; panic stays on so a stuck erase still
+  // resets rather than hanging forever.
+  size_t erase_size = image_size;
+  if (erase_size == 0 || erase_size > this->partition_->size) {
+    erase_size = this->partition_->size;
+  }
+  const uint32_t erase_budget_ms = 15000 + (erase_size >> 10) * 10;
+  watchdog::WatchdogManager watchdog(erase_budget_ms);
   esp_err_t err = esp_ota_begin(this->partition_, image_size, &this->update_handle_);
 
   if (err != ESP_OK) {

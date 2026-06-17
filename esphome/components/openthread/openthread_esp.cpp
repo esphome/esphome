@@ -35,9 +35,8 @@ void OpenThreadComponent::setup() {
   esp_vfs_eventfd_config_t eventfd_config = {
       .max_fds = 3,
   };
+  // Network interface setup handled by network component
   ESP_ERROR_CHECK(nvs_flash_init());
-  ESP_ERROR_CHECK(esp_event_loop_create_default());
-  ESP_ERROR_CHECK(esp_netif_init());
   ESP_ERROR_CHECK(esp_vfs_eventfd_register(&eventfd_config));
 
   xTaskCreate(
@@ -180,7 +179,10 @@ void OpenThreadComponent::ot_main() {
   ESP_ERROR_CHECK(esp_openthread_auto_start(dataset.mLength > 0 ? &dataset : nullptr));
 
   // Register state change callback to update connected_ reactively instead of polling
-  otSetStateChangedCallback(instance, OpenThreadComponent::on_state_changed_, this);
+  otError ot_err = otSetStateChangedCallback(instance, OpenThreadComponent::on_state_changed, this);
+  if (ot_err != OT_ERROR_NONE) {
+    ESP_LOGW(TAG, "Failed to register state change callback: %d", ot_err);
+  }
 
   esp_openthread_launch_mainloop();
 
@@ -214,14 +216,11 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
 // not thread safe, only use in read-only use cases
 otInstance *OpenThreadComponent::get_openthread_instance_() { return esp_openthread_get_instance(); }
 
-std::optional<InstanceLock> InstanceLock::try_acquire(int delay) {
+InstanceLock InstanceLock::try_acquire(int delay) {
   if (!global_openthread_component->is_lock_initialized()) {
-    return {};
+    return InstanceLock(false);
   }
-  if (esp_openthread_lock_acquire(delay)) {
-    return InstanceLock();
-  }
-  return {};
+  return InstanceLock(esp_openthread_lock_acquire(delay));
 }
 
 InstanceLock InstanceLock::acquire() {
@@ -240,12 +239,16 @@ InstanceLock InstanceLock::acquire() {
   while (!esp_openthread_lock_acquire(100)) {
     esp_task_wdt_reset();
   }
-  return InstanceLock();
+  return InstanceLock(true);
 }
 
 otInstance *InstanceLock::get_instance() { return esp_openthread_get_instance(); }
 
-InstanceLock::~InstanceLock() { esp_openthread_lock_release(); }
+InstanceLock::~InstanceLock() {
+  if (this->owns_) {
+    esp_openthread_lock_release();
+  }
+}
 
 }  // namespace esphome::openthread
 #endif

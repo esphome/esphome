@@ -97,6 +97,54 @@ def test_psram_configuration_valid_supported_variants(
     FINAL_VALIDATE_SCHEMA(config)
 
 
+def test_psram_applies_single_mode_default(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """On a single-mode variant the omitted mode/speed fall back to defaults."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_VARIANT: VARIANT_ESP32},
+        full_config={CONF_ESPHOME: {}},
+    )
+    from esphome.components.psram import CONFIG_SCHEMA
+
+    config = CONFIG_SCHEMA({})
+    assert config["mode"] == "quad"
+    assert config["speed"] == "40MHZ"
+    assert config["disabled"] is False
+    assert config["ignore_not_found"] is True
+
+
+def test_psram_requires_mode_on_multi_mode_variant(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A variant with multiple modes requires an explicit mode selection."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_VARIANT: VARIANT_ESP32S3},
+        full_config={CONF_ESPHOME: {}},
+    )
+    from esphome.components.psram import CONFIG_SCHEMA
+
+    with pytest.raises(cv.Invalid, match=r"requires PSRAM mode selection"):
+        CONFIG_SCHEMA({})
+
+
+def test_psram_rejects_mode_invalid_for_variant(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A mode not supported by the active variant is rejected by the schema."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_VARIANT: VARIANT_ESP32},
+        full_config={CONF_ESPHOME: {}},
+    )
+    from esphome.components.psram import CONFIG_SCHEMA
+
+    with pytest.raises(cv.Invalid, match=r"Unknown value 'octal'"):
+        CONFIG_SCHEMA({"mode": "octal"})
+
+
 def _setup_psram_final_validation_test(
     esp32_config: dict,
     set_core_config: SetCoreConfigCallable,

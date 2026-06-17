@@ -1169,7 +1169,7 @@ void APIConnection::on_camera_image_request(const CameraImageRequest &msg) {
 void APIConnection::on_get_time_response(const GetTimeResponse &value) {
   if (homeassistant::global_homeassistant_time != nullptr) {
     homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
-#ifdef USE_TIME_TIMEZONE
+#if defined(USE_HOMEASSISTANT_TIMEZONE) && defined(USE_TIME_TIMEZONE)
     if (!value.timezone.empty()) {
       // Check if the sender provided pre-parsed timezone data.
       // If std_offset is non-zero or DST rules are present, the parsed data was populated.
@@ -1306,6 +1306,9 @@ void APIConnection::on_voice_assistant_announce_request(const VoiceAssistantAnno
 bool APIConnection::send_voice_assistant_get_configuration_response_(const VoiceAssistantConfigurationRequest &msg) {
   VoiceAssistantConfigurationResponse resp;
   if (!this->check_voice_assistant_api_connection_()) {
+    // send_message encodes synchronously, so this stack local outlives the encode
+    const std::vector<std::string> empty_wake_words;
+    resp.active_wake_words = &empty_wake_words;
     return this->send_message(resp);
   }
 

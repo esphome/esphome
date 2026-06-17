@@ -167,7 +167,7 @@ class USBClient : public Component {
 
   // USB task management
   static void usb_task_fn(void *arg);
-  [[noreturn]] void usb_task_loop() const;
+  [[noreturn]] void usb_task_loop_() const;
 
   // Members ordered to minimize struct padding on 32-bit platforms
   TransferRequest requests_[MAX_REQUESTS]{};

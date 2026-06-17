@@ -12,7 +12,6 @@ from types import ModuleType
 from typing import TYPE_CHECKING, Any
 
 from esphome.const import SOURCE_FILE_EXTENSIONS
-from esphome.core import CORE
 from esphome.types import ConfigType
 
 if TYPE_CHECKING:
@@ -206,18 +205,6 @@ def install_meta_finder(
     sys.meta_path.insert(0, ComponentMetaFinder(components_path, allowed_components))
 
 
-def install_custom_components_meta_finder():
-    # Remove before 2026.6.0
-    custom_components_dir = (Path(CORE.config_dir) / "custom_components").resolve()
-    if custom_components_dir.is_dir() and any(custom_components_dir.iterdir()):
-        _LOGGER.warning(
-            "The 'custom_components' folder is deprecated and will be removed in 2026.6.0. "
-            "Please use 'external_components' instead. "
-            "See https://esphome.io/components/external_components.html for more information."
-        )
-    install_meta_finder(custom_components_dir)
-
-
 def _lookup_module(domain: str, exception: bool) -> ComponentManifest | None:
     if domain in _COMPONENT_CACHE:
         return _COMPONENT_CACHE[domain]
@@ -239,12 +226,12 @@ def _lookup_module(domain: str, exception: bool) -> ComponentManifest | None:
                 "Unable to import component %s: %s", domain, str(e), exc_info=False
             )
         else:
-            _LOGGER.error("Unable to import component %s:", domain, exc_info=True)
+            _LOGGER.exception("Unable to import component %s:", domain)
         return None
     except Exception:  # pylint: disable=broad-except
         if exception:
             raise
-        _LOGGER.error("Unable to load component %s:", domain, exc_info=True)
+        _LOGGER.exception("Unable to load component %s:", domain)
         return None
 
     manif = ComponentManifest(module)

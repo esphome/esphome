@@ -45,7 +45,7 @@ class AsyncThreadRunner(threading.Thread, Generic[_T]):
     async def _runner(self) -> None:
         try:
             self.result = await self._coro_factory()
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-except
             # Capture all exceptions so ``event`` is always set — otherwise a
             # crash would hang the waiter forever.
             self.exception = exc

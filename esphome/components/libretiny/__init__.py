@@ -28,7 +28,7 @@ from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed
 from esphome.storage_json import StorageJSON
 
-from . import gpio  # noqa
+from . import gpio  # noqa: F401
 from .const import (
     COMPONENT_BK72XX,
     CONF_GPIO_RECOVER,
@@ -513,13 +513,13 @@ async def component_to_code(config):
 
     # apply LibreTiny options from framework: block
     # setup LT logger to work nicely with ESPHome logger
-    lt_options = dict(
-        LT_LOGLEVEL="LT_LEVEL_" + framework[CONF_LOGLEVEL],
-        LT_LOGGER_CALLER=0,
-        LT_LOGGER_TASK=0,
-        LT_LOGGER_COLOR=1,
-        LT_USE_TIME=1,
-    )
+    lt_options = {
+        "LT_LOGLEVEL": "LT_LEVEL_" + framework[CONF_LOGLEVEL],
+        "LT_LOGGER_CALLER": 0,
+        "LT_LOGGER_TASK": 0,
+        "LT_LOGGER_COLOR": 1,
+        "LT_USE_TIME": 1,
+    }
     # enable/disable per-module debugging
     for module in framework[CONF_DEBUG]:
         if module == "NONE":

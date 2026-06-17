@@ -6,8 +6,8 @@ section instead of static fields. The script runs under SCons during
 PIO's build and mutates the active ``Environment`` (``env.Append``,
 ``env.Replace``, …) — chiefly to set ``LIBPATH``/``LIBS`` per chip MCU.
 
-ESPHome's PIO→IDF converter (``_generate_idf_component``) doesn't run
-SCons, so these scripts were previously ignored and any library
+ESPHome's PIO→IDF converter doesn't run SCons, so these scripts were
+previously ignored and any library
 relying on them failed to link under ``toolchain: esp-idf``. This
 module provides a small shim that ``exec``s an extra-script with a
 fake ``env`` object, captures the common ``env.Append(...)`` calls,
@@ -108,7 +108,7 @@ def run_extra_script(
     """
     env = _FakeSConsEnv(board_mcu=idf_target, pio_env=f"esphome_{idf_target}")
     code = compile(script_path.read_text(), str(script_path), "exec")
-    old_cwd = os.getcwd()
+    old_cwd = Path.cwd()
     try:
         os.chdir(library_dir)
         exec(  # noqa: S102 pylint: disable=exec-used
@@ -120,7 +120,7 @@ def run_extra_script(
                 "__name__": "__pio_extra_script__",
             },
         )
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         _LOGGER.warning("PIO extra-script %s raised %s; skipping", script_path, e)
         return ExtraScriptResult()
     finally:

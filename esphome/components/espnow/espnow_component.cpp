@@ -149,12 +149,6 @@ bool ESPNowComponent::is_wifi_enabled() {
 }
 
 void ESPNowComponent::setup() {
-#ifndef USE_WIFI
-  // Initialize LwIP stack for wake_loop_threadsafe() socket support
-  // When WiFi component is present, it handles esp_netif_init()
-  ESP_ERROR_CHECK(esp_netif_init());
-#endif
-
   if (this->enable_on_boot_) {
     this->enable_();
   } else {
@@ -174,8 +168,6 @@ void ESPNowComponent::enable() {
 
 void ESPNowComponent::enable_() {
   if (!this->is_wifi_enabled()) {
-    esp_event_loop_create_default();
-
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
