@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "audio_adc.h"
 
-namespace esphome {
-namespace audio_adc {
+namespace esphome::audio_adc {
 
 template<typename... Ts> class SetMicGainAction : public Action<Ts...> {
  public:
@@ -19,5 +18,4 @@ template<typename... Ts> class SetMicGainAction : public Action<Ts...> {
   AudioAdc *audio_adc_;
 };
 
-}  // namespace audio_adc
-}  // namespace esphome
+}  // namespace esphome::audio_adc

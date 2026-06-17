@@ -4,8 +4,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/time/real_time_clock.h"
 
-namespace esphome {
-namespace ds1307 {
+namespace esphome::ds1307 {
 
 class DS1307Component : public time::RealTimeClock, public i2c::I2CDevice {
  public:
@@ -65,5 +64,4 @@ template<typename... Ts> class ReadAction : public Action<Ts...>, public Parente
  public:
   void play(const Ts &...x) override { this->parent_->read_time(); }
 };
-}  // namespace ds1307
-}  // namespace esphome
+}  // namespace esphome::ds1307

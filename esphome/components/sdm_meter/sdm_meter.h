@@ -6,8 +6,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace sdm_meter {
+namespace esphome::sdm_meter {
 
 class SDMMeter : public PollingComponent, public modbus::ModbusDevice {
  public:
@@ -79,5 +78,4 @@ class SDMMeter : public PollingComponent, public modbus::ModbusDevice {
   sensor::Sensor *export_reactive_energy_sensor_{nullptr};
 };
 
-}  // namespace sdm_meter
-}  // namespace esphome
+}  // namespace esphome::sdm_meter

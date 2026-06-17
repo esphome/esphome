@@ -3,6 +3,7 @@ from __future__ import annotations
 import abc
 from contextlib import contextmanager
 import contextvars
+import copy
 import functools
 import heapq
 import logging
@@ -25,7 +26,10 @@ from esphome.const import (
     CONF_SUBSTITUTIONS,
 )
 from esphome.core import CORE, DocumentRange, EsphomeError
-import esphome.core.config as core_config
+
+# `esphome.core.config` is imported lazily at its two use sites below.
+# It pulls in `esphome.automation` and `esphome.config_validation`, which
+# dominate `esphome.__main__` startup cost when loaded eagerly here.
 import esphome.final_validate as fv
 from esphome.helpers import indent
 from esphome.loader import ComponentManifest, get_component, get_platform
@@ -165,6 +169,11 @@ class Config(OrderedDict, fv.FinalValidateConfig):
         self.output_paths: list[tuple[ConfigPath, str]] = []
         # A list of components ids with the config path
         self.declare_ids: list[tuple[core.ID, ConfigPath]] = []
+        # Snapshot of the user's configuration after substitutions/packages/
+        # extend-remove resolution but before any schema validation defaults
+        # are applied. Populated by validate_config; used by `esphome config
+        # --no-defaults` to emit only the user-supplied keys.
+        self.user_config: ConfigType | None = None
         self._data = {}
         # Store pending validation tasks (in heap order)
         self._validation_tasks: list[_ValidationStepTask] = []
@@ -968,6 +977,8 @@ class CoreFinalValidateStep(ConfigValidationStep):
         if result.errors:
             return
 
+        import esphome.core.config as core_config
+
         token = fv.full_config.set(result)
         with result.catch_error([CONF_ESPHOME]):
             if CONF_ESPHOME in result:
@@ -997,8 +1008,9 @@ def validate_config(
 ) -> Config:
     result = Config()
 
+    CORE.skip_external_update = skip_external_update
+
     loader.clear_component_meta_finders()
-    loader.install_custom_components_meta_finder()
 
     # 0. Load packages
     if CONF_PACKAGES in config:
@@ -1009,7 +1021,6 @@ def validate_config(
             config = do_packages_pass(
                 config,
                 command_line_substitutions=command_line_substitutions,
-                skip_update=skip_external_update,
             )
         except vol.Invalid as err:
             result.update(config)
@@ -1050,7 +1061,7 @@ def validate_config(
 
         result.add_output_path([CONF_EXTERNAL_COMPONENTS], CONF_EXTERNAL_COMPONENTS)
         try:
-            do_external_components_pass(config, skip_update=skip_external_update)
+            do_external_components_pass(config)
         except vol.Invalid as err:
             result.update(config)
             result.add_error(err)
@@ -1071,7 +1082,18 @@ def validate_config(
         )
         return result
 
+    # Snapshot the user's config before any schema validation defaults are
+    # applied. preload_core_config and later validation steps rewrite entries
+    # in-place with defaulted values; deep-copying here preserves the
+    # user-supplied keys for `esphome config --no-defaults`.
+    result.user_config = copy.deepcopy(config)
+    if substitutions is not None:
+        result.user_config[CONF_SUBSTITUTIONS] = copy.deepcopy(substitutions)
+        result.user_config.move_to_end(CONF_SUBSTITUTIONS, last=False)
+
     # 2. Load partial core config
+    import esphome.core.config as core_config
+
     result[CONF_ESPHOME] = config[CONF_ESPHOME]
     result.add_output_path([CONF_ESPHOME], CONF_ESPHOME)
     try:
@@ -1341,7 +1363,9 @@ def strip_default_ids(config):
     return config
 
 
-def read_config(command_line_substitutions, skip_external_update=False):
+def read_config(
+    command_line_substitutions: dict[str, Any], skip_external_update: bool = False
+) -> Config | None:
     _LOGGER.info("Reading configuration %s...", CORE.config_path)
     try:
         res = load_config(command_line_substitutions, skip_external_update)

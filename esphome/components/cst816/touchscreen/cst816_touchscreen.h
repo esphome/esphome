@@ -6,8 +6,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace cst816 {
+namespace esphome::cst816 {
 
 static const char *const TAG = "cst816.touchscreen";
 
@@ -57,5 +56,4 @@ class CST816Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
   bool skip_probe_{};  // if set, do not expect to be able to probe the controller on the i2c bus.
 };
 
-}  // namespace cst816
-}  // namespace esphome
+}  // namespace esphome::cst816

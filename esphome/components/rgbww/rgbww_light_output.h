@@ -4,8 +4,7 @@
 #include "esphome/components/output/float_output.h"
 #include "esphome/components/light/light_output.h"
 
-namespace esphome {
-namespace rgbww {
+namespace esphome::rgbww {
 
 class RGBWWLightOutput : public light::LightOutput {
  public:
@@ -51,5 +50,4 @@ class RGBWWLightOutput : public light::LightOutput {
   bool color_interlock_{false};
 };
 
-}  // namespace rgbww
-}  // namespace esphome
+}  // namespace esphome::rgbww

@@ -5,3 +5,10 @@ packages:
   uart: !include ../../test_build_components/common/uart/esp8266-ard.yaml
 
 <<: !include common.yaml
+
+text_sensor:
+  - platform: dsmr
+    identification:
+      name: "DSMR Identification"
+    p1_version:
+      name: "DSMR Version. OBIS: 1-3:0.2.8"

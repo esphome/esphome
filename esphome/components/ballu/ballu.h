@@ -2,8 +2,7 @@
 
 #include "esphome/components/climate_ir/climate_ir.h"
 
-namespace esphome {
-namespace ballu {
+namespace esphome::ballu {
 
 // Support for Ballu air conditioners with YKR-K/002E remote
 
@@ -27,5 +26,4 @@ class BalluClimate : public climate_ir::ClimateIR {
   bool on_receive(remote_base::RemoteReceiveData data) override;
 };
 
-}  // namespace ballu
-}  // namespace esphome
+}  // namespace esphome::ballu

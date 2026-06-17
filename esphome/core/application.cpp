@@ -12,9 +12,6 @@
 #include <esp_ota_ops.h>
 #include <esp_bootloader_desc.h>
 #endif
-#ifdef USE_LWIP_FAST_SELECT
-#include "esphome/core/lwip_fast_select.h"
-#endif  // USE_LWIP_FAST_SELECT
 #include "esphome/core/version.h"
 #include "esphome/core/hal.h"
 #include <algorithm>
@@ -24,17 +21,13 @@
 #include "esphome/components/status_led/status_led.h"
 #endif
 
-#if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
-#include "esphome/components/socket/socket.h"
-#endif
-
-#ifdef USE_HOST
-#include <cerrno>
-#endif
-
 namespace esphome {
 
 static const char *const TAG = "app";
+
+// Delay after setup() finishes before trimming the scheduler freelist of its post-boot peak.
+// 10 s is well past the bulk of post-setup async work (Wi-Fi/MQTT connects, first-read latency).
+static constexpr uint32_t SCHEDULER_FREELIST_TRIM_DELAY_MS = 10000;
 
 // Helper function for insertion sort of components by priority
 // Using insertion sort instead of std::stable_sort saves ~1.3KB of flash
@@ -78,7 +71,7 @@ void Application::setup() {
     Component *component = this->components_[i];
 
     // Update loop_component_start_time_ before calling each component during setup
-    this->loop_component_start_time_ = millis();
+    this->loop_component_start_time_ = MillisInternal::get();
     component->call();
     this->scheduler.process_to_add();
     this->feed_wdt();
@@ -91,19 +84,20 @@ void Application::setup() {
     this->app_state_ |= STATUS_LED_WARNING;
 
     do {
-      uint32_t now = millis();
+      // Service scheduler and process pending loop enables to handle GPIO
+      // interrupts during setup. During setup we always run the component
+      // phase (no loop_interval_ gate), so call both helpers unconditionally.
+      this->scheduler_tick_(MillisInternal::get());
+      {
+        ComponentPhaseGuard phase_guard{*this};
 
-      // Process pending loop enables to handle GPIO interrupts during setup
-      this->before_loop_tasks_(now);
-
-      for (uint32_t j = 0; j <= i; j++) {
-        // Update loop_component_start_time_ right before calling each component
-        this->loop_component_start_time_ = millis();
-        this->components_[j]->call();
-        this->feed_wdt();
+        for (uint32_t j = 0; j <= i; j++) {
+          // Update loop_component_start_time_ right before calling each component
+          this->loop_component_start_time_ = MillisInternal::get();
+          this->components_[j]->call();
+          this->feed_wdt();
+        }
       }
-
-      this->after_loop_tasks_();
       yield();
     } while (!component->can_proceed() && !component->is_failed());
   }
@@ -122,6 +116,9 @@ void Application::setup() {
 
   ESP_LOGI(TAG, "setup() finished successfully!");
 
+  // Trim the scheduler freelist of its post-boot peak once startup churn settles.
+  this->scheduler.set_timeout(this, SCHEDULER_FREELIST_TRIM_DELAY_MS, [this]() { this->scheduler.trim_freelist(); });
+
 #ifdef USE_SETUP_PRIORITY_OVERRIDE
   // Clear setup priority overrides to free memory
   clear_setup_priority_overrides();
@@ -132,8 +129,8 @@ void Application::setup() {
   esphome_main_task_handle = xTaskGetCurrentTaskHandle();
 #endif
 #ifdef USE_HOST
-  // Set up wake socket for waking main loop from tasks (platforms without fast select only)
-  this->setup_wake_loop_threadsafe_();
+  // Set up wake socket for waking main loop from tasks (host platform select() loop).
+  wake_setup();
 #endif
 
   // Ensure all active looping components are in LOOP state.
@@ -211,11 +208,8 @@ void Application::process_dump_config_() {
 
 void Application::feed_wdt() {
   // Cold entry: callers without a millis() timestamp in hand. Fetches the
-  // time and takes the same rate-limit path as feed_wdt_with_time().
-  uint32_t now = millis();
-  if (now - this->last_wdt_feed_ > WDT_FEED_INTERVAL_MS) {
-    this->feed_wdt_slow_(now);
-  }
+  // time and defers to the hot path.
+  this->feed_wdt_with_time(MillisInternal::get());
 }
 
 void HOT Application::feed_wdt_slow_(uint32_t time) {
@@ -223,12 +217,35 @@ void HOT Application::feed_wdt_slow_(uint32_t time) {
   // confirmed the WDT_FEED_INTERVAL_MS rate limit was exceeded.
   arch_feed_wdt();
   this->last_wdt_feed_ = time;
-#ifdef USE_STATUS_LED
-  if (status_led::global_status_led != nullptr) {
-    status_led::global_status_led->call();
-  }
-#endif
 }
+
+#ifdef USE_STATUS_LED
+void HOT Application::service_status_led_slow_(uint32_t time) {
+  // Callers (feed_wdt(), feed_wdt_with_time()) have already confirmed the
+  // STATUS_LED_DISPATCH_INTERVAL_MS rate limit was exceeded. Rate-limited
+  // separately from arch_feed_wdt() so the LED blink pattern stays readable
+  // (status_led error blink period is 250 ms) while HAL watchdog pokes can
+  // still run at the much coarser WDT_FEED_INTERVAL_MS cadence.
+  this->last_status_led_service_ = time;
+  if (status_led::global_status_led == nullptr)
+    return;
+  auto *sl = status_led::global_status_led;
+  uint8_t sl_state = sl->get_component_state() & COMPONENT_STATE_MASK;
+  if (sl_state == COMPONENT_STATE_LOOP_DONE) {
+    // status_led only transitions to LOOP_DONE from inside its own loop() (after the
+    // first idle-path dispatch), so its pin is already initialized by pre_setup() and
+    // its setup() has already run. Re-dispatch only if an error or warning bit has been
+    // set since; otherwise skip entirely.
+    if ((this->app_state_ & STATUS_LED_MASK) == 0)
+      return;
+    sl->enable_loop();
+  } else if (sl_state != COMPONENT_STATE_LOOP) {
+    // CONSTRUCTION/SETUP/FAILED: not our job — App::setup() drives the lifecycle.
+    return;
+  }
+  sl->loop();
+}
+#endif
 
 bool Application::any_component_has_status_flag_(uint8_t flag) const {
   // Walk all components (not just looping ones) so non-looping components'
@@ -274,7 +291,7 @@ void Application::run_powerdown_hooks() {
 }
 
 void Application::teardown_components(uint32_t timeout_ms) {
-  uint32_t start_time = millis();
+  uint32_t start_time = MillisInternal::get();
 
   // Use a StaticVector instead of std::vector to avoid heap allocation
   // since we know the actual size at compile time
@@ -349,11 +366,11 @@ void Application::teardown_components(uint32_t timeout_ms) {
 
     // Give some time for I/O operations if components are still pending
     if (pending_count > 0) {
-      this->yield_with_select_(1);
+      esphome::internal::wakeable_delay(1);
     }
 
     // Update time for next iteration
-    now = millis();
+    now = MillisInternal::get();
   }
 
   if (pending_count > 0) {
@@ -396,7 +413,7 @@ void Application::disable_component_loop_(Component *component) {
           // This prevents integer underflow in timing calculations by ensuring
           // the swapped component starts with a fresh timing reference, avoiding
           // errors caused by stale or wrapped timing values.
-          this->loop_component_start_time_ = millis();
+          this->loop_component_start_time_ = MillisInternal::get();
         }
       }
       return;
@@ -481,130 +498,6 @@ void Application::enable_pending_loops_() {
   }
 }
 
-#ifdef USE_LWIP_FAST_SELECT
-bool Application::register_socket(struct lwip_sock *sock) {
-  // It modifies monitored_sockets_ without locking — must only be called from the main loop.
-  if (sock == nullptr)
-    return false;
-  esphome_lwip_hook_socket(sock);
-  this->monitored_sockets_.push_back(sock);
-  return true;
-}
-
-void Application::unregister_socket(struct lwip_sock *sock) {
-  // It modifies monitored_sockets_ without locking — must only be called from the main loop.
-  for (size_t i = 0; i < this->monitored_sockets_.size(); i++) {
-    if (this->monitored_sockets_[i] != sock)
-      continue;
-
-    // Swap with last element and pop - O(1) removal since order doesn't matter.
-    // No need to unhook the netconn callback — all LwIP sockets share the same
-    // static event_callback, and the socket will be closed by the caller.
-    if (i < this->monitored_sockets_.size() - 1)
-      this->monitored_sockets_[i] = this->monitored_sockets_.back();
-    this->monitored_sockets_.pop_back();
-    return;
-  }
-}
-#elif defined(USE_HOST)
-bool Application::register_socket_fd(int fd) {
-  // WARNING: This function is NOT thread-safe and must only be called from the main loop
-  // It modifies socket_fds_ and related variables without locking
-  if (fd < 0)
-    return false;
-
-  if (fd >= FD_SETSIZE) {
-    ESP_LOGE(TAG, "fd %d exceeds FD_SETSIZE %d", fd, FD_SETSIZE);
-    return false;
-  }
-
-  this->socket_fds_.push_back(fd);
-  this->socket_fds_changed_ = true;
-  if (fd > this->max_fd_) {
-    this->max_fd_ = fd;
-  }
-
-  return true;
-}
-
-void Application::unregister_socket_fd(int fd) {
-  // WARNING: This function is NOT thread-safe and must only be called from the main loop
-  // It modifies socket_fds_ and related variables without locking
-  if (fd < 0)
-    return;
-
-  for (size_t i = 0; i < this->socket_fds_.size(); i++) {
-    if (this->socket_fds_[i] != fd)
-      continue;
-
-    // Swap with last element and pop - O(1) removal since order doesn't matter.
-    if (i < this->socket_fds_.size() - 1)
-      this->socket_fds_[i] = this->socket_fds_.back();
-    this->socket_fds_.pop_back();
-    this->socket_fds_changed_ = true;
-    // Only recalculate max_fd if we removed the current max
-    if (fd == this->max_fd_) {
-      this->max_fd_ = -1;
-      for (int sock_fd : this->socket_fds_) {
-        if (sock_fd > this->max_fd_)
-          this->max_fd_ = sock_fd;
-      }
-    }
-    return;
-  }
-}
-
-#endif
-
-// Only the select() fallback path remains in the .cpp — all other paths are inlined in application.h
-#ifdef USE_HOST
-void Application::yield_with_select_(uint32_t delay_ms) {
-  // Fallback select() path (host platform and any future platforms without fast select).
-  if (!this->socket_fds_.empty()) [[likely]] {
-    // Update fd_set if socket list has changed
-    if (this->socket_fds_changed_) [[unlikely]] {
-      FD_ZERO(&this->base_read_fds_);
-      // fd bounds are validated in register_socket_fd()
-      for (int fd : this->socket_fds_) {
-        FD_SET(fd, &this->base_read_fds_);
-      }
-      this->socket_fds_changed_ = false;
-    }
-
-    // Copy base fd_set before each select
-    this->read_fds_ = this->base_read_fds_;
-
-    // Convert delay_ms to timeval
-    struct timeval tv;
-    tv.tv_sec = delay_ms / 1000;
-    tv.tv_usec = (delay_ms - tv.tv_sec * 1000) * 1000;
-
-    // Call select with timeout
-    int ret = ::select(this->max_fd_ + 1, &this->read_fds_, nullptr, nullptr, &tv);
-
-    // Process select() result:
-    // ret > 0: socket(s) have data ready - normal and expected
-    // ret == 0: timeout occurred - normal and expected
-    if (ret >= 0) [[likely]] {
-      // Yield if zero timeout since select(0) only polls without yielding
-      if (delay_ms == 0) [[unlikely]] {
-        yield();
-      }
-      return;
-    }
-    // ret < 0: error (EINTR is normal, anything else is unexpected)
-    const int err = errno;
-    if (err == EINTR) {
-      return;
-    }
-    // select() error - log and fall through to delay()
-    ESP_LOGW(TAG, "select() failed with errno %d", err);
-  }
-  // No sockets registered or select() failed - use regular delay
-  delay(delay_ms);
-}
-#endif  // USE_HOST
-
 // App storage — asm label shares the linker symbol with "extern Application App".
 // char[] is trivially destructible, so no __cxa_atexit or destructor chain is emitted.
 // Constructed via placement new in the generated setup().
@@ -623,66 +516,6 @@ alignas(Application) char app_storage[sizeof(Application)] asm(
     ESPHOME_STRINGIFY_(__USER_LABEL_PREFIX__) "_ZN7esphome3AppE");
 #undef ESPHOME_STRINGIFY_
 #undef ESPHOME_STRINGIFY_IMPL_
-
-// Host platform wake_loop_threadsafe() and setup — needs wake_socket_fd_
-// ESP32/LibreTiny/ESP8266/RP2040 implementations are in wake.cpp
-#ifdef USE_HOST
-
-void Application::setup_wake_loop_threadsafe_() {
-  // Create UDP socket for wake notifications
-  this->wake_socket_fd_ = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-  if (this->wake_socket_fd_ < 0) {
-    ESP_LOGW(TAG, "Wake socket create failed: %d", errno);
-    return;
-  }
-
-  // Bind to loopback with auto-assigned port
-  struct sockaddr_in addr = {};
-  addr.sin_family = AF_INET;
-  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-  addr.sin_port = 0;  // Auto-assign port
-
-  if (::bind(this->wake_socket_fd_, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
-    ESP_LOGW(TAG, "Wake socket bind failed: %d", errno);
-    ::close(this->wake_socket_fd_);
-    this->wake_socket_fd_ = -1;
-    return;
-  }
-
-  // Get the assigned address and connect to it
-  // Connecting a UDP socket allows using send() instead of sendto() for better performance
-  struct sockaddr_in wake_addr;
-  socklen_t len = sizeof(wake_addr);
-  if (::getsockname(this->wake_socket_fd_, (struct sockaddr *) &wake_addr, &len) < 0) {
-    ESP_LOGW(TAG, "Wake socket address failed: %d", errno);
-    ::close(this->wake_socket_fd_);
-    this->wake_socket_fd_ = -1;
-    return;
-  }
-
-  // Connect to self (loopback) - allows using send() instead of sendto()
-  // After connect(), no need to store wake_addr - the socket remembers it
-  if (::connect(this->wake_socket_fd_, (struct sockaddr *) &wake_addr, sizeof(wake_addr)) < 0) {
-    ESP_LOGW(TAG, "Wake socket connect failed: %d", errno);
-    ::close(this->wake_socket_fd_);
-    this->wake_socket_fd_ = -1;
-    return;
-  }
-
-  // Set non-blocking mode
-  int flags = ::fcntl(this->wake_socket_fd_, F_GETFL, 0);
-  ::fcntl(this->wake_socket_fd_, F_SETFL, flags | O_NONBLOCK);
-
-  // Register with application's select() loop
-  if (!this->register_socket_fd(this->wake_socket_fd_)) {
-    ESP_LOGW(TAG, "Wake socket register failed");
-    ::close(this->wake_socket_fd_);
-    this->wake_socket_fd_ = -1;
-    return;
-  }
-}
-
-#endif  // USE_HOST
 
 void Application::get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buffer) {
   ESPHOME_strncpy_P(buffer.data(), ESPHOME_BUILD_TIME_STR, buffer.size());

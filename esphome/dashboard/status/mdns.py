@@ -115,7 +115,7 @@ class MDNSStatus:
             results = await asyncio.gather(
                 *(self.aiozc.async_resolve_host(name) for name in poll_names)
             )
-            for name, address_list in zip(poll_names, results):
+            for name, address_list in zip(poll_names, results, strict=True):
                 result = bool(address_list)
                 host_mdns_state[name] = result
                 for entry in poll_names[name]:

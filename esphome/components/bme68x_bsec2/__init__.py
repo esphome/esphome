@@ -13,6 +13,7 @@ from esphome.const import (
 )
 
 CODEOWNERS = ["@neffs", "@kbx81"]
+CONFLICTS_WITH = ["bme680_bsec"]
 
 DOMAIN = "bme68x_bsec2"
 
@@ -168,10 +169,12 @@ async def to_code_base(config):
     path = _compute_local_file_path(_compute_url(config))
 
     try:
-        with open(path, encoding="utf-8") as f:
+        with path.open(encoding="utf-8") as f:
             bsec2_iaq_config = f.read()
     except Exception as e:
-        raise core.EsphomeError(f"Could not open binary configuration file {path}: {e}")
+        raise core.EsphomeError(
+            f"Could not open binary configuration file {path}: {e}"
+        ) from e
 
     # Convert retrieved BSEC2 config to an array of ints
     rhs = [int(x) for x in bsec2_iaq_config.split(",")]

@@ -374,7 +374,8 @@ void Climate::save_state_(const ClimateTraits &traits) {
 #define TEMP_IGNORE_MEMACCESS
 #endif
   ClimateDeviceRestoreState state{};
-  // initialize as zero to prevent random data on stack triggering erase
+  // initialize as zero (including padding) to prevent random data on stack triggering erase
+  // NOLINTNEXTLINE(bugprone-raw-memory-call-on-non-trivial-type) -- intentional bytewise zero for RTC save
   memset(&state, 0, sizeof(ClimateDeviceRestoreState));
 #ifdef TEMP_IGNORE_MEMACCESS
 #pragma GCC diagnostic pop

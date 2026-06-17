@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/fan/fan.h"
 
-namespace esphome {
-namespace demo {
+namespace esphome::demo {
 
 enum class DemoFanType {
   TYPE_1,
@@ -66,5 +65,4 @@ class DemoFan : public fan::Fan, public Component {
   DemoFanType type_;
 };
 
-}  // namespace demo
-}  // namespace esphome
+}  // namespace esphome::demo

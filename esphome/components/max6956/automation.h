@@ -4,8 +4,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/max6956/max6956.h"
 
-namespace esphome {
-namespace max6956 {
+namespace esphome::max6956 {
 
 template<typename... Ts> class SetCurrentGlobalAction : public Action<Ts...> {
  public:
@@ -36,5 +35,4 @@ template<typename... Ts> class SetCurrentModeAction : public Action<Ts...> {
  protected:
   MAX6956 *max6956_;
 };
-}  // namespace max6956
-}  // namespace esphome
+}  // namespace esphome::max6956

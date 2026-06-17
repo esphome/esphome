@@ -1,8 +1,7 @@
 #include "modbus_binarysensor.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace modbus_controller {
+namespace esphome::modbus_controller {
 
 static const char *const TAG = "modbus_controller.binary_sensor";
 
@@ -34,5 +33,4 @@ void ModbusBinarySensor::parse_and_publish(const std::vector<uint8_t> &data) {
   this->publish_state(value);
 }
 
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller

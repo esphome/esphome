@@ -6,8 +6,7 @@
 #define M_PI 3.1415926535897932384626433
 #endif
 
-namespace esphome {
-namespace pid {
+namespace esphome::pid {
 
 static const char *const TAG = "pid.autotune";
 
@@ -368,5 +367,4 @@ bool PIDAutotuner::OscillationAmplitudeDetector::is_amplitude_convergent() const
   return (mean_amplitude - global_amplitude) / (global_amplitude) < 0.05f;
 }
 
-}  // namespace pid
-}  // namespace esphome
+}  // namespace esphome::pid

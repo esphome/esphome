@@ -2,6 +2,7 @@ from math import log
 
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import CONF_B_CONSTANT
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CALIBRATION,
@@ -18,7 +19,6 @@ from esphome.const import (
 ntc_ns = cg.esphome_ns.namespace("ntc")
 NTC = ntc_ns.class_("NTC", cg.Component, sensor.Sensor)
 
-CONF_B_CONSTANT = "b_constant"
 CONF_A = "a"
 CONF_B = "b"
 CONF_C = "c"

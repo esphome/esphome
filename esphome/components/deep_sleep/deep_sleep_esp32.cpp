@@ -5,8 +5,7 @@
 #include "esphome/core/log.h"
 #include <esp_idf_version.h>
 
-namespace esphome {
-namespace deep_sleep {
+namespace esphome::deep_sleep {
 
 // Deep Sleep feature support matrix for ESP32 variants:
 //
@@ -165,6 +164,8 @@ void DeepSleepComponent::deep_sleep_() {
   esp_deep_sleep_start();
 }
 
-}  // namespace deep_sleep
-}  // namespace esphome
+bool DeepSleepComponent::should_teardown_() { return true; }
+
+}  // namespace esphome::deep_sleep
+
 #endif  // USE_ESP32

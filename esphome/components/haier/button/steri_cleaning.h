@@ -3,8 +3,7 @@
 #include "esphome/components/button/button.h"
 #include "../hon_climate.h"
 
-namespace esphome {
-namespace haier {
+namespace esphome::haier {
 
 class SteriCleaningButton : public button::Button, public Parented<HonClimate> {
  public:
@@ -14,5 +13,4 @@ class SteriCleaningButton : public button::Button, public Parented<HonClimate> {
   void press_action() override;
 };
 
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier

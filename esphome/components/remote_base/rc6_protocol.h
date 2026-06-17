@@ -2,8 +2,7 @@
 
 #include "remote_base.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct RC6Data {
   uint8_t mode : 3;
@@ -42,5 +41,4 @@ template<typename... Ts> class RC6Action : public RemoteTransmitterActionBase<Ts
   uint8_t toggle_{0};
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

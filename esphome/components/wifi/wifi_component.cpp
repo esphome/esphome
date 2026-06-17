@@ -308,6 +308,19 @@ bool CompactString::operator==(const StringRef &other) const {
 /// │  - Roaming fail (RECONNECTING on other AP): counter preserved        │
 /// └──────────────────────────────────────────────────────────────────────┘
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_INFO
+#ifdef USE_WIFI_PHY_MODE
+// Use if-chain instead of switch to avoid jump table in RODATA (wastes RAM on ESP8266)
+static const LogString *phy_mode_to_log_string(WiFi8266PhyMode mode) {
+  if (mode == WIFI_8266_PHY_MODE_11B)
+    return LOG_STR("11B");
+  if (mode == WIFI_8266_PHY_MODE_11G)
+    return LOG_STR("11G");
+  if (mode == WIFI_8266_PHY_MODE_11N)
+    return LOG_STR("11N");
+  return LOG_STR("Auto");
+}
+#endif
 // Use if-chain instead of switch to avoid jump table in RODATA (wastes RAM on ESP8266)
 static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
   if (phase == WiFiRetryPhase::INITIAL_CONNECT)
@@ -326,6 +339,7 @@ static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
     return LOG_STR("RESTARTING");
   return LOG_STR("UNKNOWN");
 }
+#endif  // ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_INFO
 
 bool WiFiComponent::went_through_explicit_hidden_phase_() const {
   // If first configured network is marked hidden, we went through EXPLICIT_HIDDEN phase
@@ -618,11 +632,11 @@ void WiFiComponent::setup() {
 #endif
 
   if (this->enable_on_boot_) {
+#ifdef USE_ESP32
+    this->wifi_lazy_init_();
+#endif
     this->start();
   } else {
-#ifdef USE_ESP32
-    esp_netif_init();
-#endif
     this->state_ = WIFI_COMPONENT_STATE_DISABLED;
   }
 }
@@ -730,9 +744,16 @@ void WiFiComponent::restart_adapter() {
 }
 
 void WiFiComponent::loop() {
-  this->wifi_loop_();
+  bool events_processed = this->wifi_loop_();
   const uint32_t now = App.get_loop_component_start_time();
-  this->update_connected_state_();
+  // Connection state can only change when events are processed (ESP-IDF/LibreTiny)
+  // or polled (ESP8266/Pico W). Skip the expensive wifi_sta_connect_status_() call
+  // when no events arrived and we're already in steady state.
+  // Must also run when connected_ is false — after state transitions to STA_CONNECTED,
+  // connected_ won't be set until update_connected_state_() runs.
+  if (events_processed || !this->connected_) {
+    this->update_connected_state_();
+  }
 
   if (this->has_sta()) {
 #if defined(USE_WIFI_CONNECT_TRIGGER) || defined(USE_WIFI_DISCONNECT_TRIGGER)
@@ -1090,9 +1111,9 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
   }
 
 #ifdef USE_WIFI_WPA2_EAP
-  auto eap_opt = ap.get_eap();
+  const auto &eap_opt = ap.get_eap();
   if (eap_opt.has_value()) {
-    EAPAuth eap_config = *eap_opt;
+    const EAPAuth &eap_config = *eap_opt;
     // clang-format off
     ESP_LOGV(
         TAG,
@@ -1257,6 +1278,11 @@ void WiFiComponent::enable() {
 
   ESP_LOGD(TAG, "Enabling");
   this->state_ = WIFI_COMPONENT_STATE_OFF;
+#ifdef USE_ESP32
+  // Idempotent — only allocates DMA buffers + netifs on the first call. After this,
+  // start() can safely run.
+  this->wifi_lazy_init_();
+#endif
   this->start();
 }
 
@@ -1527,6 +1553,9 @@ void WiFiComponent::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Band Mode: %s", band_mode_s);
 #endif
+#ifdef USE_WIFI_PHY_MODE
+  ESP_LOGCONFIG(TAG, "  PHY Mode: %s", LOG_STR_ARG(phy_mode_to_log_string(this->phy_mode_)));
+#endif
   if (this->is_connected()) {
     this->print_connect_params_();
   }
@@ -1570,6 +1599,8 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
 #endif
 
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
+    // Refresh is_connected() cache; loop()'s refresh ran before this transition.
+    this->update_connected_state_();
     this->num_retried_ = 0;
     this->print_connect_params_();
 
@@ -2167,7 +2198,15 @@ bool WiFiComponent::request_high_performance() {
   }
 
   // Give the semaphore (non-blocking). This increments the count.
-  return xSemaphoreGive(this->high_performance_semaphore_) == pdTRUE;
+  bool success = xSemaphoreGive(this->high_performance_semaphore_) == pdTRUE;
+
+  // Wake the main loop so the switch to high-performance mode is applied on the
+  // next tick instead of waiting up to loop_interval.
+  if (success) {
+    App.wake_loop_threadsafe();
+  }
+
+  return success;
 }
 
 bool WiFiComponent::release_high_performance() {

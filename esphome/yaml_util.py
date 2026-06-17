@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Generator
 from contextlib import contextmanager, suppress
+from dataclasses import dataclass, field
 import functools
 import inspect
 from io import BytesIO, TextIOBase, TextIOWrapper
@@ -47,6 +48,18 @@ _SECRET_CACHE = {}
 _SECRET_VALUES = {}
 # Not thread-safe — config processing is single-threaded today.
 _load_listeners: list[Callable[[Path], None]] = []
+
+DocumentPath = list[str | int]
+
+
+class SensitiveStr(str):
+    """Marker subclass for validated strings that should be masked in
+    user-visible YAML output. ``cv.sensitive`` wraps validated values in this
+    type so ``dump()`` can render them with ANSI conceal codes without
+    needing a post-process regex.
+    """
+
+    __slots__ = ()
 
 
 @contextmanager
@@ -111,6 +124,15 @@ def make_data_base(
         return value
 
 
+def make_literal(value: Any) -> ESPLiteralValue | Any:
+    """Wrap a value in an ESPLiteralValue object."""
+    try:
+        return add_class_to_obj(value, ESPLiteralValue)
+    except TypeError:
+        # Adding class failed, ignore error
+        return value
+
+
 def add_context(value: Any, context_vars: dict[str, Any] | None) -> Any:
     """Tags a list/string/dict value with context vars that must be applied to it and its children
     during the substitution pass. If no vars are given, no tagging is done.
@@ -128,7 +150,7 @@ def add_context(value: Any, context_vars: dict[str, Any] | None) -> Any:
         value.set_context({**value.vars, **(context_vars or {})})
         return value
 
-    if context_vars and isinstance(value, (dict, list, str)):
+    if context_vars and isinstance(value, (dict, list, str, Lambda)):
         value = add_class_to_obj(value, ConfigContext)
         value.set_context(context_vars)
     return value
@@ -220,6 +242,130 @@ class IncludeFile:
     def has_unresolved_expressions(self) -> bool:
         """Check if the filename contains substitution variables or Jinja expressions."""
         return has_substitution_or_expression(str(self.file))
+
+
+def force_load_include_files(
+    obj: Any,
+    *,
+    warn_on_unresolved: bool = True,
+    _seen: set[int] | None = None,
+) -> None:
+    """Recursively resolve any deferred ``IncludeFile`` instances in a YAML tree.
+
+    Nested ``!include`` returns a deferred ``IncludeFile`` that is only resolved
+    later (substitution / packages pass). Callers that need every referenced
+    file to actually load — bundle discovery, on-device YAML recovery — invoke
+    this while a :func:`track_yaml_loads` listener is active so the underlying
+    loader fires and records every reachable file.
+
+    ``IncludeFile`` instances whose path contains unresolved substitution
+    variables cannot be loaded. By default a warning is logged for each one;
+    pass ``warn_on_unresolved=False`` (used by discovery paths that run on a
+    fresh re-parse where substitutions haven't been applied yet) to demote it
+    to a debug log.
+    """
+    if _seen is None:
+        _seen = set()
+
+    if isinstance(obj, IncludeFile):
+        if id(obj) in _seen:
+            return
+        _seen.add(id(obj))
+        if obj.has_unresolved_expressions():
+            log = _LOGGER.warning if warn_on_unresolved else _LOGGER.debug
+            log(
+                "Cannot resolve !include %s (referenced from %s) with substitutions in path",
+                obj.file,
+                obj.parent_file,
+            )
+            return
+        try:
+            loaded = obj.load()
+        except EsphomeError as err:
+            _LOGGER.warning(
+                "Failed to load !include %s (referenced from %s): %s",
+                obj.file,
+                obj.parent_file,
+                err,
+            )
+            return
+        force_load_include_files(
+            loaded, warn_on_unresolved=warn_on_unresolved, _seen=_seen
+        )
+    elif isinstance(obj, dict):
+        if id(obj) in _seen:
+            return
+        _seen.add(id(obj))
+        for value in obj.values():
+            force_load_include_files(
+                value, warn_on_unresolved=warn_on_unresolved, _seen=_seen
+            )
+    elif isinstance(obj, (list, tuple)):
+        if id(obj) in _seen:
+            return
+        _seen.add(id(obj))
+        for item in obj:
+            force_load_include_files(
+                item, warn_on_unresolved=warn_on_unresolved, _seen=_seen
+            )
+
+
+@dataclass(slots=True)
+class DiscoveredYamlFiles:
+    """Result of :func:`discover_user_yaml_files`.
+
+    ``files`` contains every resolved path the YAML loader touched while we
+    were re-parsing the user's config; ``secrets`` is the subset whose
+    *un-resolved* filename matched :data:`esphome.const.SECRETS_FILES` (so
+    a ``secrets.yaml`` symlinked to a differently-named target is still
+    flagged as secrets).
+    """
+
+    files: list[Path] = field(default_factory=list)
+    secrets: set[Path] = field(default_factory=set)
+
+
+def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
+    """Fresh-re-parse ``config_path`` and report every file the YAML loader
+    pulled in, plus which of them came in under a secrets filename.
+
+    Does NOT run schema validation, substitutions, or package resolution — so
+    component-internal YAML loaded by validators (LVGL helpers, dashboard
+    imports, etc.) is *not* captured. Deferred ``!include`` references whose
+    paths don't depend on substitutions are force-loaded here so they're
+    captured too.
+
+    Must run on a fresh parse because :meth:`IncludeFile.load` caches its
+    result; on an already-resolved tree :meth:`load` returns without invoking
+    the loader and the listener would not fire for the referenced files.
+    """
+    from esphome.const import SECRETS_FILES
+
+    secrets: set[Path] = set()
+
+    def _capture_secret(fname: Path) -> None:
+        if Path(fname).name in SECRETS_FILES:
+            secrets.add(Path(fname).resolve())
+
+    with track_yaml_loads() as loaded:
+        _load_listeners.append(_capture_secret)
+        try:
+            try:
+                data = load_yaml(config_path)
+            except EsphomeError:
+                return DiscoveredYamlFiles(list(loaded), secrets)
+            force_load_include_files(data, warn_on_unresolved=False)
+        finally:
+            _load_listeners.remove(_capture_secret)
+
+    # Deduplicate while preserving first-seen order.
+    seen: set[Path] = set()
+    unique: list[Path] = []
+    for path in loaded:
+        if path not in seen:
+            seen.add(path)
+            unique.append(path)
+    return DiscoveredYamlFiles(unique, secrets)
 
 
 def _add_data_ref(fn):
@@ -338,10 +484,9 @@ class ESPHomeLoaderMixin:
                 try:
                     hash(key)
                 except TypeError:
-                    # pylint: disable=raise-missing-from
                     raise yaml.constructor.ConstructorError(
                         f'Invalid key "{key}" (not hashable)', key_node.start_mark
-                    )
+                    ) from None
 
                 key = make_data_base(str(key))
                 key.from_node(key_node)
@@ -524,7 +669,7 @@ class ESPHomeLoaderMixin:
             obj = self.construct_sequence(node)
         elif isinstance(node, yaml.MappingNode):
             obj = self.construct_mapping(node)
-        return add_class_to_obj(obj, ESPLiteralValue)
+        return make_literal(obj)
 
     @_add_data_ref
     def construct_extend(self, node: yaml.Node) -> Extend:
@@ -628,15 +773,40 @@ def parse_yaml(file_name: Path, file_handle: TextIOWrapper, yaml_loader=None) ->
 
 
 def _load_yaml_internal_with_type(
-    loader_type: type[ESPHomeLoader] | type[ESPHomePurePythonLoader],
+    loader_type: type[ESPHomeLoader | ESPHomePurePythonLoader],
     fname: Path,
     content: TextIOWrapper,
     yaml_loader: Callable[[Path], dict[str, Any]],
 ) -> Any:
-    """Load a YAML file."""
+    """Load a YAML file.
+
+    Supports an optional leading YAML frontmatter document: when the file
+    contains two YAML documents separated by ``---``, the first document is
+    treated as metadata and stored in :attr:`CORE.frontmatter` keyed by the
+    resolved file path, while the second document is returned as the actual
+    configuration. Frontmatter is ignored by config validation and code
+    generation.
+    """
     loader = loader_type(content, fname, yaml_loader)
     try:
-        return loader.get_single_data() or OrderedDict()
+        documents: list[Any] = []
+        while loader.check_data():
+            documents.append(loader.get_data())
+        if len(documents) > 2:
+            raise EsphomeError(
+                f"YAML file '{fname}' contains {len(documents)} documents but "
+                f"at most two are supported (an optional frontmatter document "
+                f"followed by the configuration)."
+            )
+        if len(documents) == 2:
+            frontmatter = documents[0]
+            config = documents[1]
+            if frontmatter is not None:
+                CORE.frontmatter[Path(fname).resolve()] = frontmatter
+            return config if config is not None else OrderedDict()
+        if len(documents) == 1:
+            return documents[0] or OrderedDict()
+        return OrderedDict()
     except yaml.YAMLError as exc:
         raise EsphomeError(exc) from exc
     finally:
@@ -648,11 +818,18 @@ def dump(dict_, show_secrets=False, sort_keys=False):
     if show_secrets:
         _SECRET_VALUES.clear()
         _SECRET_CACHE.clear()
+
+    # Per-call subclass so the redaction flag doesn't leak across calls.
+    # (``_SECRET_VALUES`` / ``_SECRET_CACHE`` remain module globals; YAML
+    # processing is single-threaded today, so this isolates only the flag.)
+    class _Dumper(ESPHomeDumper):
+        _redact_sensitive = not show_secrets
+
     return yaml.dump(
         dict_,
         default_flow_style=False,
         allow_unicode=True,
-        Dumper=ESPHomeDumper,
+        Dumper=_Dumper,
         sort_keys=sort_keys,
     )
 
@@ -680,7 +857,128 @@ def is_secret(value):
         return None
 
 
+def _path_doc(item: Any) -> str | None:
+    """Return the source document name if *item* carries location info."""
+    if isinstance(item, ESPHomeDataBase) and (r := item.esp_range) is not None:
+        return r.start_mark.document
+    return None
+
+
+def _fmt_mark(loc: Any) -> str:
+    """Render a DocumentLocation as a 1-based 'file line:col' string."""
+    return f"{loc.document} {loc.line + 1}:{loc.column + 1}"
+
+
+def _obj_loc(obj: Any) -> str:
+    """Return formatted source location for *obj*, or '' if it has none."""
+    if isinstance(obj, ESPHomeDataBase) and (r := obj.esp_range) is not None:
+        return _fmt_mark(r.start_mark)
+    return ""
+
+
+def _fmt_segment(seg: list) -> str:
+    """Format a path segment, rendering integers as [n] subscripts."""
+    parts: list[str] = []
+    for item in seg:
+        if isinstance(item, int):
+            if parts:
+                parts[-1] = f"{parts[-1]}[{item}]"
+            else:
+                parts.append(f"[{item}]")
+        else:
+            parts.append(str(item))
+    return "->".join(parts)
+
+
+def _split_into_frames(
+    path: DocumentPath,
+) -> list[tuple[list, str]]:
+    """Group *path* into per-file frames at include boundaries.
+
+    A "frame" is the slice of the path that belongs to one source document.
+    Each path item is either:
+
+      * a **located key** — has an ``ESPHomeDataBase`` source mark; this is
+        what tells us which document owns the surrounding keys.
+      * an **integer** — a list subscript; always attaches to the open frame
+        (renders as ``foo[3]`` on the previous name).
+      * an **unlocated string** — a key with no source mark (e.g. constants
+        like ``CONF_PACKAGES``); it describes the parent of the *next* file,
+        so it migrates to the next frame when the document changes.
+
+    Returns a list of ``(items, "file line:col")`` tuples in walk order
+    (outermost frame first).
+    """
+    frames: list[tuple[list, str]] = []
+    open_frame: list = []
+    next_frame_keys: list = []  # unlocated strings buffered for the next frame
+    open_doc: str | None = None
+    open_loc = ""
+
+    for item in path:
+        doc = _path_doc(item)
+        if doc is None:
+            # Ints subscript the open frame's last name; everything else
+            # (strings, or leading ints with no open frame) is buffered for
+            # the next frame.
+            if isinstance(item, int) and open_doc is not None:
+                open_frame.append(item)
+            else:
+                next_frame_keys.append(item)
+            continue
+        if open_doc is not None and doc != open_doc:
+            # Crossed an include boundary: close the open frame.
+            frames.append((open_frame, open_loc))
+            open_frame = []
+        open_frame.extend(next_frame_keys)
+        next_frame_keys.clear()
+        open_frame.append(item)
+        open_doc = doc
+        open_loc = _fmt_mark(item.esp_range.start_mark)
+
+    if open_doc is not None:
+        # Trailing buffered keys belong to the innermost (last) frame.
+        open_frame.extend(next_frame_keys)
+        frames.append((open_frame, open_loc))
+    return frames
+
+
+def format_path(path: DocumentPath, current_obj: Any) -> str:
+    """Build a human-readable include stack from a config path.
+
+    Each YAML key in *path* that carries an ``ESPHomeDataBase`` ``esp_range``
+    reveals which file it came from.  When the source document changes between
+    consecutive such keys, that is an include boundary.  The path is split
+    into per-file frames and formatted innermost-first, e.g.::
+
+        In: packages->roam in common/package/wifi.yaml 26:10
+          Included from packages->net in common/hardware.yaml 44:2
+          Included from packages->device in my_project.yaml 11:2
+
+    The innermost ``In:`` line uses the location from *current_obj* when
+    available (the value that triggered the error) for extra precision.
+    """
+    frames = _split_into_frames(path)
+    obj_loc = _obj_loc(current_obj)
+
+    if not frames:
+        # No source info anywhere in the path: render as a flat path,
+        # using current_obj's location if it happens to have one.
+        suffix = f" in {obj_loc}" if obj_loc else ""
+        return f"In: {_fmt_segment(path)}{suffix}"
+
+    inner_seg, inner_loc = frames[-1]
+    lines = [f"In: {_fmt_segment(inner_seg)} in {obj_loc or inner_loc}"]
+    for seg, loc in reversed(frames[:-1]):
+        lines.append(f"  Included from {_fmt_segment(seg)} in {loc}")
+    return "\n".join(lines)
+
+
 class ESPHomeDumper(yaml.SafeDumper):
+    # Default for the base class; per-call subclass in ``dump()`` overrides.
+    # When True, ``represent_sensitive`` wraps values in ANSI conceal codes.
+    _redact_sensitive: bool = False
+
     def represent_mapping(self, tag, mapping, flow_style=None):
         value = []
         node = yaml.MappingNode(tag, value, flow_style=flow_style)
@@ -714,6 +1012,20 @@ class ESPHomeDumper(yaml.SafeDumper):
         if is_secret(value):
             return self.represent_secret(value)
         return self.represent_scalar(tag="tag:yaml.org,2002:str", value=str(value))
+
+    def represent_sensitive(self, value: SensitiveStr) -> yaml.ScalarNode:
+        # Only the redact-and-not-a-secret branch is unique to sensitive
+        # values; otherwise let ``represent_stringify`` handle ``!secret``
+        # precedence and the plain-str fallthrough. Conceal sequence is
+        # emitted as literal ``\033`` text (not actual ESC bytes) so the
+        # output matches the prior regex format and device-builder's
+        # ``\033[8m...\033[28m`` parser keeps working.
+        if self._redact_sensitive and not is_secret(value):
+            return self.represent_scalar(
+                tag="tag:yaml.org,2002:str",
+                value=f"\\033[8m{value}\\033[28m",
+            )
+        return self.represent_stringify(value)
 
     # pylint: disable=arguments-renamed
     def represent_bool(self, value):
@@ -786,6 +1098,8 @@ ESPHomeDumper.add_multi_representer(
 )
 ESPHomeDumper.add_multi_representer(bool, ESPHomeDumper.represent_bool)
 ESPHomeDumper.add_multi_representer(str, ESPHomeDumper.represent_stringify)
+# MRO-walked dispatch; SensitiveStr's own entry wins over the str one.
+ESPHomeDumper.add_multi_representer(SensitiveStr, ESPHomeDumper.represent_sensitive)
 ESPHomeDumper.add_multi_representer(int, ESPHomeDumper.represent_int)
 ESPHomeDumper.add_multi_representer(float, ESPHomeDumper.represent_float)
 ESPHomeDumper.add_multi_representer(_BaseAddress, ESPHomeDumper.represent_stringify)
