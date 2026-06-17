@@ -8,7 +8,7 @@ from esphome.const import CONF_CHANNEL, CONF_ID, CONF_POWER_MODE
 DEPENDENCIES = ["i2c"]
 
 tas2780_ns = cg.esphome_ns.namespace("tas2780")
-TAS2780 = tas2780_ns.class_("TAS2780", AudioDac, cg.Component, i2c.I2CDevice)
+TAS2780 = tas2780_ns.class_("TAS2780", AudioDac, cg.PollingComponent, i2c.I2CDevice)
 ChannelSelect = tas2780_ns.enum("ChannelSelect")
 
 CHANNELS = {
@@ -131,17 +131,17 @@ TAS2780_UPDATE_CONFIG_SCHEMA = cv.Schema(
 async def tas2780_update_config_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    if CONF_VOL_RANGE_MIN in config:
-        template = await cg.templatable(config[CONF_VOL_RANGE_MIN], args, float)
+    if (val := config.get(CONF_VOL_RANGE_MIN)) is not None:
+        template = await cg.templatable(val, args, float)
         cg.add(var.set_vol_range_min(template))
-    if CONF_VOL_RANGE_MAX in config:
-        template = await cg.templatable(config[CONF_VOL_RANGE_MAX], args, float)
+    if (val := config.get(CONF_VOL_RANGE_MAX)) is not None:
+        template = await cg.templatable(val, args, float)
         cg.add(var.set_vol_range_max(template))
-    if CONF_AMP_LEVEL in config:
-        template = await cg.templatable(config[CONF_AMP_LEVEL], args, cg.uint8)
+    if (val := config.get(CONF_AMP_LEVEL)) is not None:
+        template = await cg.templatable(val, args, cg.uint8)
         cg.add(var.set_amp_level(template))
-    if CONF_CHANNEL in config:
-        template = await cg.templatable(config[CONF_CHANNEL], args, ChannelSelect)
+    if (val := config.get(CONF_CHANNEL)) is not None:
+        template = await cg.templatable(val, args, ChannelSelect)
         cg.add(var.set_channel(template))
     return var
 

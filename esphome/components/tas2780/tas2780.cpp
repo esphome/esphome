@@ -276,18 +276,36 @@ void TAS2780::setup() {
   this->init_();
   if (this->is_failed())
     return;
+  if (!this->write_volume_()) {
+    this->mark_failed();
+    return;
+  }
   this->write_mode_ctrl_(TAS2780_MODE_CTRL_MODE_SFTW_SHTDWN);
 }
 
+bool TAS2780::select_page_(uint8_t page) {
+  if (this->current_page_ == page)
+    return true;
+  if (!this->write_byte(TAS2780_PAGE_SELECT, page)) {
+    this->current_page_ = -1;
+    return false;
+  }
+  this->current_page_ = page;
+  return true;
+}
+
 void TAS2780::init_() {
-  // select page 0
-  this->reg(TAS2780_PAGE_SELECT) = TAS2780_PAGE_0;
-
-  // software reset
+  // Software reset (must select page 0 first; reset invalidates page cache)
+  if (!this->select_page_(TAS2780_PAGE_0)) {
+    ESP_LOGE(TAG, "I2C write failed during init");
+    this->mark_failed();
+    return;
+  }
+  this->current_page_ = -1;
   this->reg(TAS2780_SW_RESET) = TAS2780_SW_RESET_CMD;
-  delay(1);  // wait for reset to complete before accessing registers
+  delay(1);
 
-  // DC_BLK1 (0x05) reads 0x41 after reset on TAS2780; used as chip presence check
+  // DC_BLK1 (0x05) reads 0x41 after reset; used as chip presence check
   // since TAS2780 has no dedicated WHO_AM_I register
   static const uint8_t TAS2780_DC_BLK1_RESET_VAL = 0x41;
   uint8_t chd1;
@@ -296,34 +314,40 @@ void TAS2780::init_() {
     this->mark_failed();
     return;
   }
-  uint8_t chd2 = this->reg(TAS2780_CLK_CFG).get();
-  uint8_t chd3 = this->reg(TAS2780_MODE_CTRL).get();
-  if (chd1 == TAS2780_DC_BLK1_RESET_VAL) {
-    ESP_LOGV(TAG, "TChip found");
-    ESP_LOGV(TAG, "Reg 0x68: %d", chd2);
-    ESP_LOGV(TAG, "Reg 0x02: %d", chd3);
-  } else {
+  if (chd1 != TAS2780_DC_BLK1_RESET_VAL) {
     ESP_LOGE(TAG, "Init failed (DC_BLK1=0x%02X, expected 0x%02X)", chd1, TAS2780_DC_BLK1_RESET_VAL);
     this->mark_failed();
     return;
   }
 
-  this->reg(TAS2780_PAGE_SELECT) = TAS2780_PAGE_0;
+  if (!this->select_page_(TAS2780_PAGE_0)) {
+    this->mark_failed();
+    return;
+  }
   this->reg(TAS2780_TDM_CFG5) = TAS2780_TDM_CFG5_TX_VSNS_EN_SLOT4;
   this->reg(TAS2780_TDM_CFG6) = TAS2780_TDM_CFG6_TX_ISNS_EN_SLOT0;
 
-  this->reg(TAS2780_PAGE_SELECT) = TAS2780_PAGE_1;
+  if (!this->select_page_(TAS2780_PAGE_1)) {
+    this->mark_failed();
+    return;
+  }
   this->reg(TAS2780_LSR) = TAS2780_LSR_PWM_MODE;
   this->reg(TAS2780_INIT_0) = TAS2780_INIT_0_VAL;
   this->reg(TAS2780_INIT_1) = TAS2780_INIT_1_VAL;
   this->reg(TAS2780_INIT_2) = TAS2780_INIT_2_VAL;
 
-  this->reg(TAS2780_PAGE_SELECT) = TAS2780_PAGE_FD;
+  if (!this->select_page_(TAS2780_PAGE_FD)) {
+    this->mark_failed();
+    return;
+  }
   this->reg(TAS2780_PAGE_FD_ACCESS) = TAS2780_PAGE_FD_ACCESS_UNLOCK;
   this->reg(TAS2780_INIT_3) = TAS2780_INIT_3_VAL;
   this->reg(TAS2780_PAGE_FD_ACCESS) = TAS2780_PAGE_FD_ACCESS_LOCK;
 
-  this->reg(TAS2780_PAGE_SELECT) = TAS2780_PAGE_0;
+  if (!this->select_page_(TAS2780_PAGE_0)) {
+    this->mark_failed();
+    return;
+  }
   this->set_power_mode_(this->power_mode_);
 
   // When Y bridge is used (eg. PWR_MODE1) PVDD UVLO threshold needs to be set 2.5 V above VBAT1S level.
@@ -331,7 +355,6 @@ void TAS2780::init_() {
   this->reg(TAS2780_PVDD_UVLO) = TAS2780_PVDD_UVLO_2V76;
 
   // Mask all interrupt groups on the IRQZ pin — events are polled via update()
-  this->reg(TAS2780_PAGE_SELECT) = TAS2780_PAGE_0;
   this->reg(TAS2780_INT_MASK0) = TAS2780_INT_MASK_ALL;
   this->reg(TAS2780_INT_MASK1) = TAS2780_INT_MASK_ALL;
   this->reg(TAS2780_INT_MASK1_0) = TAS2780_INT_MASK_ALL;
@@ -339,16 +362,18 @@ void TAS2780::init_() {
   this->reg(TAS2780_INT_MASK3) = TAS2780_INT_MASK_ALL;
 
   // set interrupt to trigger on any unmasked live interrupts
-  uint8_t reg_0x5c;
-  if (!this->read_byte(TAS2780_INT_CLK_CFG, &reg_0x5c)) {
-    ESP_LOGE(TAG, "Read failed");
+  uint8_t int_clk_cfg;
+  if (!this->read_byte(TAS2780_INT_CLK_CFG, &int_clk_cfg)) {
+    ESP_LOGE(TAG, "Failed to read INT_CLK_CFG");
     this->status_set_error(LOG_STR("Read failed"));
     return;
   }
-  this->reg(TAS2780_INT_CLK_CFG) = (reg_0x5c & ~TAS2780_INT_CLK_CFG_MODE_MASK) | TAS2780_INT_CLK_CFG_MODE_LIVE;
+  this->reg(TAS2780_INT_CLK_CFG) = (int_clk_cfg & ~TAS2780_INT_CLK_CFG_MODE_MASK) | TAS2780_INT_CLK_CFG_MODE_LIVE;
 
   this->apply_amp_and_channel_config();
 }
+
+void TAS2780::activate() { this->activate(this->power_mode_); }
 
 void TAS2780::activate(uint8_t power_mode) {
   if (power_mode >= 4) {
@@ -380,21 +405,13 @@ void TAS2780::reset() {
 }
 
 void TAS2780::set_power_mode_(uint8_t power_mode) {
-  // PWR_MODE0: PVDD is the only supply used to deliver output power. VBAT external
-  // PWR_MODE1: VBAT1S is used to deliver output power based on level and headroom configured.
-  //            When audio signal crosses a programmed threshold Class-D output is switched over PVDD
-  // PWR_MODE2: PVDD is the only supply. VBAT1S is delivered by an internal LDO and used to supply at
-  //            signals close to idle channel levels. When audio signal levels crosses -100dBFS (default),
-  //            Class-D output switches to PVDD.
-  // PWR_MODE3: The device can be forced to work out of a low power rail mode of operation.
-
   if (power_mode >= 4) {
     ESP_LOGE(TAG, "Invalid power mode %u, must be 0-3", power_mode);
     return;
   }
   uint8_t chnl_0;
   if (!this->read_byte(TAS2780_CHNL_0, &chnl_0)) {
-    ESP_LOGE(TAG, "Read failed");
+    ESP_LOGE(TAG, "Failed to read CHNL_0");
     this->status_set_error(LOG_STR("Read failed"));
     return;
   }
@@ -402,7 +419,7 @@ void TAS2780::set_power_mode_(uint8_t power_mode) {
       (chnl_0 & ~TAS2780_CHNL_0_CDS_MODE_MASK) | (POWER_MODES[power_mode][0] << TAS2780_CHNL_0_CDS_MODE_SHIFT);
   uint8_t dc_blk0;
   if (!this->read_byte(TAS2780_DC_BLK0, &dc_blk0)) {
-    ESP_LOGE(TAG, "Read failed");
+    ESP_LOGE(TAG, "Failed to read DC_BLK0");
     this->status_set_error(LOG_STR("Read failed"));
     return;
   }
@@ -411,69 +428,67 @@ void TAS2780::set_power_mode_(uint8_t power_mode) {
 }
 
 void TAS2780::log_error_states_() {
-  const uint8_t latched_its = this->reg(TAS2780_INT_LTCH0).get();
-  // Temperature
+  uint8_t latched_its;
+  if (!this->read_byte(TAS2780_INT_LTCH0, &latched_its))
+    return;
+
   if (latched_its & TAS2780_INT_LTCH0_IR_OT) {
     ESP_LOGE(TAG, "Over temperature error");
   }
-  // Over Current
   if (latched_its & TAS2780_INT_LTCH0_IR_OC) {
     ESP_LOGE(TAG, "Over current error");
   }
-
-  // TDM CLOCK
   if (latched_its & TAS2780_INT_LTCH0_IR_TDMCE) {
     ESP_LOGE(TAG, "TDM Clock Error");
   }
-
   if (latched_its & TAS2780_INT_LTCH0_IR_LIMA) {
     ESP_LOGW(TAG, "Limiter active");
   }
-
   if (latched_its & TAS2780_INT_LTCH0_IR_PBIP) {
     ESP_LOGE(TAG, "PVDD below limiter inflection point");
   }
-
   if (latched_its & TAS2780_INT_LTCH0_IR_LIMMA) {
     ESP_LOGE(TAG, "Limiter max attenuation");
   }
-
   if (latched_its & TAS2780_INT_LTCH0_IR_BOPIH) {
     ESP_LOGE(TAG, "BOP infinite hold");
   }
-
   if (latched_its & TAS2780_INT_LTCH0_IR_BOPM) {
     ESP_LOGE(TAG, "BOP Mute");
   }
 
-  const uint8_t latched1_its = this->reg(TAS2780_INT_LTCH1).get();
+  uint8_t latched1_its;
+  if (!this->read_byte(TAS2780_INT_LTCH1, &latched1_its))
+    return;
 
   if (latched1_its & TAS2780_INT_LTCH1_IR_VBATLIM) {
     ESP_LOGE(TAG, "Gain Limiter interrupt");
   }
-
   if (latched1_its & TAS2780_INT_LTCH1_IR_LDMODE) {
     ESP_LOGE(TAG, "Load Diagnostic mode fault status");
   }
-
   if (latched1_its & TAS2780_INT_LTCH1_IR_LDC) {
     ESP_LOGD(TAG, "Load diagnostic complete");
   }
-
   if (latched1_its & TAS2780_INT_LTCH1_IR_OTPCRC) {
     ESP_LOGE(TAG, "OTP CRC error flag");
   }
 
-  const uint8_t latched1_0_its = this->reg(TAS2780_INT_LTCH1_0).get();
+  uint8_t latched1_0_its;
+  if (!this->read_byte(TAS2780_INT_LTCH1_0, &latched1_0_its))
+    return;
+
   if (latched1_0_its & TAS2780_INT_LTCH1_0_IR_VBAT1S_UVLO) {
     ESP_LOGE(TAG, "VBAT1S Under Voltage");
   }
-
   if (latched1_0_its & TAS2780_INT_LTCH1_0_IR_PLL_CLK) {
     ESP_LOGE(TAG, "Internal PLL Clock Error");
   }
 
-  const uint8_t latched2_its = this->reg(TAS2780_INT_LTCH2).get();
+  uint8_t latched2_its;
+  if (!this->read_byte(TAS2780_INT_LTCH2, &latched2_its))
+    return;
+
   if (latched2_its & TAS2780_INT_LTCH2_IR_PUVLO) {
     ESP_LOGE(TAG, "PVDD UVLO");
   }
@@ -511,7 +526,7 @@ void TAS2780::dump_config() {
 bool TAS2780::write_mode_ctrl_(uint8_t mode) {
   uint8_t mode_ctrl;
   if (!this->read_byte(TAS2780_MODE_CTRL, &mode_ctrl)) {
-    ESP_LOGE(TAG, "Read failed");
+    ESP_LOGE(TAG, "Failed to read MODE_CTRL");
     return false;
   }
   this->reg(TAS2780_MODE_CTRL) = (mode_ctrl & ~TAS2780_MODE_CTRL_MODE_MASK) | mode;
@@ -540,7 +555,7 @@ float TAS2780::volume() { return this->volume_; }
 bool TAS2780::write_mute_() {
   uint8_t mode_ctrl;
   if (!this->read_byte(TAS2780_MODE_CTRL, &mode_ctrl)) {
-    ESP_LOGE(TAG, "Read failed");
+    ESP_LOGE(TAG, "Failed to read MODE_CTRL");
     return false;
   }
   uint8_t current_mode = mode_ctrl & TAS2780_MODE_CTRL_MODE_MASK;
@@ -575,19 +590,27 @@ bool TAS2780::write_volume_() {
 
 void TAS2780::apply_amp_and_channel_config() {
   // AMP_LEVEL
-  uint8_t reg_val;
-  if (!this->read_byte(TAS2780_CHNL_0, &reg_val)) {
-    ESP_LOGE(TAG, "Read failed");
+  uint8_t chnl_0;
+  if (!this->read_byte(TAS2780_CHNL_0, &chnl_0)) {
+    ESP_LOGE(TAG, "Failed to read CHNL_0");
     this->status_set_error(LOG_STR("Read failed"));
     return;
   }
-  reg_val = (reg_val & ~TAS2780_CHNL_0_AMP_LEVEL_MASK) | (this->amp_level_ << TAS2780_CHNL_0_AMP_LEVEL_SHIFT);
-  this->reg(TAS2780_CHNL_0) = reg_val;
+  chnl_0 = (chnl_0 & ~TAS2780_CHNL_0_AMP_LEVEL_MASK) | (this->amp_level_ << TAS2780_CHNL_0_AMP_LEVEL_SHIFT);
+  this->reg(TAS2780_CHNL_0) = chnl_0;
   ESP_LOGD(TAG, "Update amp to level idx: %d", this->amp_level_);
 
-  // CHANNEL_SELECT
-  this->reg(TAS2780_TDM_CFG2) = (get_channel_select_reg_val(this->selected_channel_) | TAS2780_TDM_CFG2_RX_WLEN_32BIT |
-                                 TAS2780_TDM_CFG2_RX_SLEN_32BIT);
+  // CHANNEL_SELECT — read-modify-write to preserve other bits
+  uint8_t tdm_cfg2;
+  if (!this->read_byte(TAS2780_TDM_CFG2, &tdm_cfg2)) {
+    ESP_LOGE(TAG, "Failed to read TDM_CFG2");
+    this->status_set_error(LOG_STR("Read failed"));
+    return;
+  }
+  tdm_cfg2 &= ~(TAS2780_TDM_CFG2_RX_SCFG_MASK | TAS2780_TDM_CFG2_RX_WLEN_MASK | TAS2780_TDM_CFG2_RX_SLEN_MASK);
+  tdm_cfg2 |=
+      get_channel_select_reg_val(this->selected_channel_) | TAS2780_TDM_CFG2_RX_WLEN_32BIT | TAS2780_TDM_CFG2_RX_SLEN_32BIT;
+  this->reg(TAS2780_TDM_CFG2) = tdm_cfg2;
 }
 
 }  // namespace esphome::tas2780
