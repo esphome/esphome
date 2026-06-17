@@ -1,5 +1,6 @@
 ld2410:
   id: my_ld2410
+  background_correction_duration: 60s
 
 binary_sensor:
   - platform: ld2410
@@ -12,6 +13,8 @@ binary_sensor:
       name: still
     out_pin_presence_status:
       name: out pin presence status
+    calibration:
+      name: calibration running
 
 button:
   - platform: ld2410
@@ -22,6 +25,8 @@ button:
       name: restart
     query_params:
       name: query params
+    background_correction:
+      name: calibrate radar
 
 number:
   - platform: ld2410
