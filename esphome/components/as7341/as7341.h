@@ -243,7 +243,7 @@ class AS7341Component : public PollingComponent, public i2c::I2CDevice {
     float lux;
   } calculated_values_;
 
-  float get_gain_multiplier(AS7341Gain gain);
+  float get_gain_multiplier_(AS7341Gain gain);
 
   void calculate_();
   void calculate_basic_counts_();
@@ -257,9 +257,9 @@ class AS7341Component : public PollingComponent, public i2c::I2CDevice {
   uint16_t get_maximum_spectral_adc_();
   uint16_t get_maximum_spectral_adc_(uint16_t atime, uint16_t astep);
 
-  template<typename T, size_t N> T get_highest_value(std::array<T, N> &data);
+  template<typename T, size_t N> T get_highest_value_(std::array<T, N> &data);
 #ifdef USE_SENSOR
-  void publish_sensor(sensor::Sensor *sensor, float value) {
+  void publish_sensor_(sensor::Sensor *sensor, float value) {
     if (sensor != nullptr) {
       sensor->publish_state(value);
     }
@@ -267,23 +267,23 @@ class AS7341Component : public PollingComponent, public i2c::I2CDevice {
 #endif
 
  protected:
-  bool set_smux_command(AS7341SmuxCommand command);
-  void configure_smux_low_channels();
-  void configure_smux_high_channels();
-  bool enable_smux();
+  bool set_smux_command_(AS7341SmuxCommand command);
+  void configure_smux_low_channels_();
+  void configure_smux_high_channels_();
+  bool enable_smux_();
 
-  bool is_data_ready();
-  bool enable_spectral_measurement(bool enable);
+  bool is_data_ready_();
+  bool enable_spectral_measurement_(bool enable);
 
   bool read_low_channels_();
   bool read_high_channels_();
   bool read_and_discard_channels_();
 
-  bool read_register_bit(uint8_t address, uint8_t bit_position);
-  bool write_register_bit(uint8_t address, bool value, uint8_t bit_position);
-  bool set_register_bit(uint8_t address, uint8_t bit_position);
-  bool clear_register_bit(uint8_t address, uint8_t bit_position);
-  uint16_t swap_bytes(uint16_t data);
+  bool read_register_bit_(uint8_t address, uint8_t bit_position);
+  bool write_register_bit_(uint8_t address, bool value, uint8_t bit_position);
+  bool set_register_bit_(uint8_t address, uint8_t bit_position);
+  bool clear_register_bit_(uint8_t address, uint8_t bit_position);
+  uint16_t swap_bytes_(uint16_t data);
 };
 
 }  // namespace esphome::as7341

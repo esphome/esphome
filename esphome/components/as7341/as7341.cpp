@@ -115,7 +115,7 @@ void AS7341Component::setup() {
   // this->write_byte(AS7341_CFG8, cfg8.raw);  // enable AGC
   delay(10);
 
-  this->enable_spectral_measurement(true);
+  this->enable_spectral_measurement_(true);
 
   this->state_ = State::IDLE;
 }
@@ -199,7 +199,7 @@ void AS7341Component::loop() {
         ESP_LOGE(TAG, "START_MEASUREMENT");
         // start measurement
         this->readings_.millis_start = millis();
-        this->enable_spectral_measurement(false);
+        this->enable_spectral_measurement_(false);
 
         this->setup_atime(this->atime_);
         this->setup_astep(this->astep_);
@@ -215,16 +215,16 @@ void AS7341Component::loop() {
       case State::ENABLE_SMUX_LOW: {
         ESP_LOGE(TAG, "ENABLE_SMUX_LOW");
         this->readings_.first_run = true;  // to discard first read
-        this->set_smux_command(AS7341_SMUX_CMD_WRITE);
-        this->configure_smux_low_channels();
-        this->enable_smux();
-        this->enable_spectral_measurement(true);
+        this->set_smux_command_(AS7341_SMUX_CMD_WRITE);
+        this->configure_smux_low_channels_();
+        this->enable_smux_();
+        this->enable_spectral_measurement_(true);
         this->state_ = State::WAIT_SMUX_LOW;
       } break;
 
       case State::WAIT_SMUX_LOW: {
         ESP_LOGE(TAG, "WAIT_SMUX_1");
-        if (this->is_data_ready()) {
+        if (this->is_data_ready_()) {
           if (this->readings_.first_run) {
             this->readings_.first_run = false;
             this->read_and_discard_channels_();  // discard first read, data is unstable
@@ -240,23 +240,23 @@ void AS7341Component::loop() {
       case State::READ_SMUX_LOW: {
         ESP_LOGE(TAG, "READ_SMUX_LOW");
         this->read_low_channels_();
-        this->enable_spectral_measurement(false);
+        this->enable_spectral_measurement_(false);
         this->state_ = State::ENABLE_SMUX_HIGH;
       } break;
 
       case State::ENABLE_SMUX_HIGH: {
         ESP_LOGE(TAG, "ENABLE_SMUX_HIGH");
         this->readings_.first_run = true;  // to discard first read
-        this->set_smux_command(AS7341_SMUX_CMD_WRITE);
-        this->configure_smux_high_channels();
-        this->enable_smux();
-        this->enable_spectral_measurement(true);
+        this->set_smux_command_(AS7341_SMUX_CMD_WRITE);
+        this->configure_smux_high_channels_();
+        this->enable_smux_();
+        this->enable_spectral_measurement_(true);
         this->state_ = State::WAIT_SMUX_HIGH;
       } break;
 
       case State::WAIT_SMUX_HIGH: {
         ESP_LOGE(TAG, "WAIT_SMUX_HIGH");
-        if (this->is_data_ready()) {
+        if (this->is_data_ready_()) {
           if (this->readings_.first_run) {
             this->readings_.first_run = false;
             this->read_and_discard_channels_();  // discard first read, data is unstable
@@ -272,7 +272,7 @@ void AS7341Component::loop() {
       case State::READ_SMUX_HIGH: {
         ESP_LOGE(TAG, "READ_SMUX_2");
         this->read_high_channels_();
-        this->enable_spectral_measurement(false);
+        this->enable_spectral_measurement_(false);
         this->state_ = State::DATA_COLLECTED;
       } break;
 
@@ -286,14 +286,14 @@ void AS7341Component::loop() {
         }
         this->readings_.gain = this->readings_.high_gain;
 
-        this->readings_.gain_x = this->get_gain_multiplier(this->readings_.gain);
+        this->readings_.gain_x = this->get_gain_multiplier_(this->readings_.gain);
         this->readings_.atime = this->get_atime();
         this->readings_.astep = this->get_astep();
         this->readings_.t_int_us = (1.0f + this->readings_.atime) * (1.0f + this->readings_.astep) * 2.78f;
 
         this->calculate_basic_counts_();
         uint16_t max_adc = this->get_maximum_spectral_adc_(this->readings_.atime, this->readings_.astep);
-        uint16_t highest_adc = this->get_highest_value(this->readings_.raw_counts);
+        uint16_t highest_adc = this->get_highest_value_(this->readings_.raw_counts);
         this->calculated_values_.saturation_level = (max_adc == 0) ? 0 : 100.0f * highest_adc / (float) max_adc;
 
         ESP_LOGD(TAG, "Parameters:");
@@ -399,25 +399,25 @@ void AS7341Component::loop() {
 
 void AS7341Component::publish_channel_readings_() {
   for (int i = 0; i < AS7341_NUM_CHANNELS; i++) {
-    this->publish_sensor(this->band_counts_sensors_[i], this->readings_.raw_counts[i]);
+    this->publish_sensor_(this->band_counts_sensors_[i], this->readings_.raw_counts[i]);
   }
 }
 
 void AS7341Component::publish_basic_counts_() {
   for (int i = 0; i < AS7341_NUM_CHANNELS; i++) {
-    this->publish_sensor(this->band_basic_counts_sensors_[i], this->calculated_values_.basic_counts[i]);
+    this->publish_sensor_(this->band_basic_counts_sensors_[i], this->calculated_values_.basic_counts[i]);
   }
 }
 
 void AS7341Component::publish_derived_readings_() {
-  this->publish_sensor(this->illuminance_sensor_, this->calculated_values_.lux);
-  this->publish_sensor(this->irradiance_sensor_, this->calculated_values_.irradiance);
-  this->publish_sensor(this->irradiance_photopic_sensor_, this->calculated_values_.irradiance_photopic);
-  this->publish_sensor(this->irradiance_par_sensor_, this->calculated_values_.irradiance_par);
-  this->publish_sensor(this->ppfd_sensor_, this->calculated_values_.ppfd);
-  this->publish_sensor(this->color_temperature_sensor_, this->calculated_values_.cct);
-  this->publish_sensor(this->saturation_level_sensor_, this->calculated_values_.saturation_level);
-  // this->publish_sensor(this->saturated_, this->readings_.saturated);
+  this->publish_sensor_(this->illuminance_sensor_, this->calculated_values_.lux);
+  this->publish_sensor_(this->irradiance_sensor_, this->calculated_values_.irradiance);
+  this->publish_sensor_(this->irradiance_photopic_sensor_, this->calculated_values_.irradiance_photopic);
+  this->publish_sensor_(this->irradiance_par_sensor_, this->calculated_values_.irradiance_par);
+  this->publish_sensor_(this->ppfd_sensor_, this->calculated_values_.ppfd);
+  this->publish_sensor_(this->color_temperature_sensor_, this->calculated_values_.cct);
+  this->publish_sensor_(this->saturation_level_sensor_, this->calculated_values_.saturation_level);
+  // this->publish_sensor_(this->saturated_, this->readings_.saturated);
 }
 
 uint16_t AS7341Component::get_maximum_spectral_adc_() {
@@ -433,7 +433,7 @@ uint16_t AS7341Component::get_maximum_spectral_adc_(uint16_t atime, uint16_t ast
   return value;
 }
 
-template<typename T, size_t N> T AS7341Component::get_highest_value(std::array<T, N> &data) {
+template<typename T, size_t N> T AS7341Component::get_highest_value_(std::array<T, N> &data) {
   T max = 0;
   for (const auto &v : data) {
     if (v > max) {
@@ -545,7 +545,7 @@ void AS7341Component::calculate_color_(float &cct, float &duv, float &lux) {
   }
 }
 
-float AS7341Component::get_gain_multiplier(AS7341Gain gain) {
+float AS7341Component::get_gain_multiplier_(AS7341Gain gain) {
   float gainx = ((uint16_t) 1 << (uint8_t) gain);
   // The AS7341 sensor's gain values are represented as powers of 2, but the actual gain multiplier
   // is half of this value. This division by 2 adjusts the calculated gain multiplier accordingly.
@@ -568,14 +568,14 @@ uint8_t AS7341Component::get_atime() {
 uint16_t AS7341Component::get_astep() {
   uint16_t data;
   this->read_byte_16(AS7341_ASTEP, &data);
-  return this->swap_bytes(data);
+  return this->swap_bytes_(data);
 }
 
 bool AS7341Component::setup_gain(AS7341Gain gain) { return this->write_byte(AS7341_CFG1, gain); }
 
 bool AS7341Component::setup_atime(uint8_t atime) { return this->write_byte(AS7341_ATIME, atime); }
 
-bool AS7341Component::setup_astep(uint16_t astep) { return this->write_byte_16(AS7341_ASTEP, swap_bytes(astep)); }
+bool AS7341Component::setup_astep(uint16_t astep) { return this->write_byte_16(AS7341_ASTEP, swap_bytes_(astep)); }
 
 bool AS7341Component::read_low_channels_() {
   auto data = this->readings_.raw_counts.data();
@@ -584,7 +584,7 @@ bool AS7341Component::read_low_channels_() {
   this->readings_.low_success = this->read_bytes_16(AS7341_CH0_DATA_L, data, 6);
   this->readings_.low_gain = low_astatus.again_status;
   this->readings_.low_saturated = low_astatus.asat_status;
-  float gainx = this->get_gain_multiplier(low_astatus.again_status);
+  float gainx = this->get_gain_multiplier_(low_astatus.again_status);
   ESP_LOGD(TAG, "read low channels. gainx %.1f, saturated %d", gainx, low_astatus.asat_status);
   ESP_LOGD(TAG, "low_success %d", this->readings_.low_success);
   return this->readings_.low_success;
@@ -597,7 +597,7 @@ bool AS7341Component::read_high_channels_() {
   this->readings_.high_success = this->read_bytes_16(AS7341_CH0_DATA_L, &data[6], 6);
   this->readings_.high_gain = high_astatus.again_status;
   this->readings_.high_saturated = high_astatus.asat_status;
-  float gainx = this->get_gain_multiplier(high_astatus.again_status);
+  float gainx = this->get_gain_multiplier_(high_astatus.again_status);
   ESP_LOGD(TAG, "read high channels. gainx %.1f, saturated %d", gainx, high_astatus.asat_status);
   ESP_LOGD(TAG, "high_success %d", this->readings_.high_success);
   return this->readings_.high_success;
@@ -608,12 +608,12 @@ bool AS7341Component::read_and_discard_channels_() {
   return this->read_bytes_16(AS7341_CH0_DATA_L, data, 6);
 }
 
-bool AS7341Component::set_smux_command(AS7341SmuxCommand command) {
+bool AS7341Component::set_smux_command_(AS7341SmuxCommand command) {
   uint8_t data = command << 3;  // Write to bits 4:3 of the register
   return this->write_byte(AS7341_CFG6, data);
 }
 
-void AS7341Component::configure_smux_low_channels() {
+void AS7341Component::configure_smux_low_channels_() {
   // SMUX Config for F1,F2,F3,F4,NIR,Clear
   this->write_byte(0x00, 0x30);  // F3 left set to ADC2
   this->write_byte(0x01, 0x01);  // F1 left set to ADC0
@@ -637,7 +637,7 @@ void AS7341Component::configure_smux_low_channels() {
   this->write_byte(0x13, 0x06);  // NIR connected to ADC5
 }
 
-void AS7341Component::configure_smux_high_channels() {
+void AS7341Component::configure_smux_high_channels_() {
   // SMUX Config for F5,F6,F7,F8,NIR,Clear
   this->write_byte(0x00, 0x00);  // F3 left disable
   this->write_byte(0x01, 0x00);  // F1 left disable
@@ -661,13 +661,13 @@ void AS7341Component::configure_smux_high_channels() {
   this->write_byte(0x13, 0x06);  // NIR connected to ADC5
 }
 
-bool AS7341Component::enable_smux() {
-  this->set_register_bit(AS7341_ENABLE, 4);
+bool AS7341Component::enable_smux_() {
+  this->set_register_bit_(AS7341_ENABLE, 4);
 
   uint16_t timeout = 1000;
   for (uint16_t time = 0; time < timeout; time++) {
     // The SMUXEN bit is cleared once the SMUX operation is finished
-    bool smuxen = this->read_register_bit(AS7341_ENABLE, 4);
+    bool smuxen = this->read_register_bit_(AS7341_ENABLE, 4);
     if (!smuxen) {
       return true;
     }
@@ -678,7 +678,7 @@ bool AS7341Component::enable_smux() {
   return false;
 }
 
-bool AS7341Component::is_data_ready() {
+bool AS7341Component::is_data_ready_() {
   AS7341RegStatus2 status2{0};
   this->read_byte(AS7341_STATUS2, &status2.raw);
   if (status2.avalid) {
@@ -689,41 +689,41 @@ bool AS7341Component::is_data_ready() {
   return status2.avalid;
 }
 
-bool AS7341Component::enable_power(bool enable) { return this->write_register_bit(AS7341_ENABLE, enable, 0); }
+bool AS7341Component::enable_power(bool enable) { return this->write_register_bit_(AS7341_ENABLE, enable, 0); }
 
-bool AS7341Component::enable_spectral_measurement(bool enable) {
-  return this->write_register_bit(AS7341_ENABLE, enable, 1);
+bool AS7341Component::enable_spectral_measurement_(bool enable) {
+  return this->write_register_bit_(AS7341_ENABLE, enable, 1);
 }
 
-bool AS7341Component::read_register_bit(uint8_t address, uint8_t bit_position) {
+bool AS7341Component::read_register_bit_(uint8_t address, uint8_t bit_position) {
   uint8_t data;
   this->read_byte(address, &data);
   bool bit = (data & (1 << bit_position)) > 0;
   return bit;
 }
 
-bool AS7341Component::write_register_bit(uint8_t address, bool value, uint8_t bit_position) {
+bool AS7341Component::write_register_bit_(uint8_t address, bool value, uint8_t bit_position) {
   if (value) {
-    return this->set_register_bit(address, bit_position);
+    return this->set_register_bit_(address, bit_position);
   }
 
-  return this->clear_register_bit(address, bit_position);
+  return this->clear_register_bit_(address, bit_position);
 }
 
-bool AS7341Component::set_register_bit(uint8_t address, uint8_t bit_position) {
+bool AS7341Component::set_register_bit_(uint8_t address, uint8_t bit_position) {
   uint8_t data;
   this->read_byte(address, &data);
   data |= (1 << bit_position);
   return this->write_byte(address, data);
 }
 
-bool AS7341Component::clear_register_bit(uint8_t address, uint8_t bit_position) {
+bool AS7341Component::clear_register_bit_(uint8_t address, uint8_t bit_position) {
   uint8_t data;
   this->read_byte(address, &data);
   data &= ~(1 << bit_position);
   return this->write_byte(address, data);
 }
 
-uint16_t AS7341Component::swap_bytes(uint16_t data) { return (data >> 8) | (data << 8); }
+uint16_t AS7341Component::swap_bytes_(uint16_t data) { return (data >> 8) | (data << 8); }
 
 }  // namespace esphome::as7341
