@@ -12,6 +12,12 @@ static const char *const TAG = "openthread";
 namespace esphome::openthread {
 
 static void on_thread_state_changed(otChangedFlags flags, struct openthread_context *ot_context, void *user_data) {
+  // Keep the component's connectivity state in sync. network::is_connected() relies on connected_,
+  // and the API server drops every client when it reports "Network down". The shared handler owns
+  // the role criterion so ESP and Zephyr stay consistent.
+  if (global_openthread_component != nullptr) {
+    OpenThreadComponent::on_state_changed(flags, global_openthread_component);
+  }
   if (flags & OT_CHANGED_THREAD_ROLE) {
     otDeviceRole role = otThreadGetDeviceRole(ot_context->instance);
     ESP_LOGI(TAG, "Thread role changed to %s", otThreadDeviceRoleToString(role));
@@ -86,6 +92,8 @@ InstanceLock InstanceLock::acquire() {
 }
 
 otInstance *InstanceLock::get_instance() { return openthread_get_default_instance(); }
+
+otInstance *OpenThreadComponent::get_openthread_instance_() { return openthread_get_default_instance(); }
 
 InstanceLock::~InstanceLock() {
   // Only release if this guard actually owns the lock (try_acquire may have failed).

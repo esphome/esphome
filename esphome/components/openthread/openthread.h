@@ -36,6 +36,9 @@ class OpenThreadComponent : public Component {
   void ot_main();
   void on_factory_reset(std::function<void()> callback);
   void defer_factory_reset_external_callback();
+  // Shared OpenThread state-change handler; owns the connected_ role criterion. Registered directly
+  // as the OT callback on ESP; invoked from the Zephyr state-changed wrapper in openthread_zephyr.cpp.
+  static void on_state_changed(otChangedFlags flags, void *context);
 
   const char *get_use_address() const { return this->use_address_; }
   void set_use_address(const char *use_address) { this->use_address_ = use_address; }
@@ -46,7 +49,6 @@ class OpenThreadComponent : public Component {
 
  protected:
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
-  static void on_state_changed(otChangedFlags flags, void *context);
   otInstance *get_openthread_instance_();
   int openthread_stop_();
   std::function<void()> factory_reset_external_callback_;
