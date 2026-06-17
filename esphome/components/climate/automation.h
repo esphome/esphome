@@ -5,42 +5,32 @@
 
 namespace esphome::climate {
 
+// All configured fields are baked into a single stateless lambda whose
+// constants live in flash. The action only stores one function pointer
+// plus one parent pointer, regardless of how many fields the user set.
+// Trigger args are forwarded to the apply function so user lambdas
+// (e.g. `target_temperature: !lambda "return x;"`) keep working.
+//
+// Trigger args are normalized to `const std::remove_cvref_t<Ts> &...` so
+// the codegen can emit a matching parameter list for both the apply lambda
+// and any inner field lambdas without producing invalid C++ source text
+// (e.g. `const T & &` if Ts already carries a reference, or `const const
+// T &` if Ts already carries a const). This keeps trigger args no-copy
+// regardless of whether the trigger supplies `T`, `T &`, or `const T &`.
 template<typename... Ts> class ControlAction : public Action<Ts...> {
  public:
-  explicit ControlAction(Climate *climate) : climate_(climate) {}
-
-  TEMPLATABLE_VALUE(ClimateMode, mode)
-  TEMPLATABLE_VALUE(float, target_temperature)
-  TEMPLATABLE_VALUE(float, target_temperature_low)
-  TEMPLATABLE_VALUE(float, target_temperature_high)
-  TEMPLATABLE_VALUE(float, target_humidity)
-  TEMPLATABLE_VALUE(bool, away)
-  TEMPLATABLE_VALUE(ClimateFanMode, fan_mode)
-  TEMPLATABLE_VALUE(std::string, custom_fan_mode)
-  TEMPLATABLE_VALUE(ClimatePreset, preset)
-  TEMPLATABLE_VALUE(std::string, custom_preset)
-  TEMPLATABLE_VALUE(ClimateSwingMode, swing_mode)
+  using ApplyFn = void (*)(ClimateCall &, const std::remove_cvref_t<Ts> &...);
+  ControlAction(Climate *climate, ApplyFn apply) : climate_(climate), apply_(apply) {}
 
   void play(const Ts &...x) override {
     auto call = this->climate_->make_call();
-    call.set_mode(this->mode_.optional_value(x...));
-    call.set_target_temperature(this->target_temperature_.optional_value(x...));
-    call.set_target_temperature_low(this->target_temperature_low_.optional_value(x...));
-    call.set_target_temperature_high(this->target_temperature_high_.optional_value(x...));
-    call.set_target_humidity(this->target_humidity_.optional_value(x...));
-    if (away_.has_value()) {
-      call.set_preset(away_.value(x...) ? CLIMATE_PRESET_AWAY : CLIMATE_PRESET_HOME);
-    }
-    call.set_fan_mode(this->fan_mode_.optional_value(x...));
-    call.set_fan_mode(this->custom_fan_mode_.optional_value(x...));
-    call.set_preset(this->preset_.optional_value(x...));
-    call.set_preset(this->custom_preset_.optional_value(x...));
-    call.set_swing_mode(this->swing_mode_.optional_value(x...));
+    this->apply_(call, x...);
     call.perform();
   }
 
  protected:
   Climate *climate_;
+  ApplyFn apply_;
 };
 
 class ControlTrigger : public Trigger<ClimateCall &> {

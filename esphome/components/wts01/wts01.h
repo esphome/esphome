@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace wts01 {
+namespace esphome::wts01 {
 
 constexpr uint8_t PACKET_SIZE = 9;
 
@@ -22,5 +21,4 @@ class WTS01Sensor : public sensor::Sensor, public uart::UARTDevice, public Compo
   void process_packet_();
 };
 
-}  // namespace wts01
-}  // namespace esphome
+}  // namespace esphome::wts01

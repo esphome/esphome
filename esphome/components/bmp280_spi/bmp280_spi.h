@@ -3,8 +3,7 @@
 #include "esphome/components/bmp280_base/bmp280_base.h"
 #include "esphome/components/spi/spi.h"
 
-namespace esphome {
-namespace bmp280_spi {
+namespace esphome::bmp280_spi {
 
 class BMP280SPIComponent : public esphome::bmp280_base::BMP280Component,
                            public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
@@ -16,5 +15,4 @@ class BMP280SPIComponent : public esphome::bmp280_base::BMP280Component,
   bool bmp_read_byte_16(uint8_t a_register, uint16_t *data) override;
 };
 
-}  // namespace bmp280_spi
-}  // namespace esphome
+}  // namespace esphome::bmp280_spi

@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace lps22 {
+namespace esphome::lps22 {
 
 class LPS22Component : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
@@ -24,5 +23,4 @@ class LPS22Component : public sensor::Sensor, public PollingComponent, public i2
   uint8_t read_attempts_remaining_{0};
 };
 
-}  // namespace lps22
-}  // namespace esphome
+}  // namespace esphome::lps22

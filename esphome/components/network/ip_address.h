@@ -5,13 +5,13 @@
 #include <string>
 #include <cstdio>
 #include <array>
+#include <cstring>
 #include "esphome/core/helpers.h"
 #include "esphome/core/macros.h"
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || USE_ARDUINO_VERSION_CODE > VERSION_CODE(3, 0, 0)
 #include <lwip/ip_addr.h>
 #endif
-
 #if USE_ARDUINO
 #include <Arduino.h>
 #include <IPAddress.h>
@@ -24,6 +24,14 @@ using ip4_addr_t = in_addr;
 #define ipaddr_aton(x, y) inet_aton((x), (y))
 #endif
 
+#ifdef USE_ZEPHYR
+#include <zephyr/net/net_ip.h>
+#include <zephyr/net/socket.h>
+#include <zephyr/posix/arpa/inet.h>
+using ip_addr_t = struct in6_addr;
+static inline int ipaddr_aton(const char *cp, ip_addr_t *addr) { return inet_pton(AF_INET6, cp, addr) == 1 ? 1 : 0; }
+#endif
+
 #if USE_ESP32_FRAMEWORK_ARDUINO
 #define arduino_ns Arduino_h
 #elif USE_LIBRETINY
@@ -33,7 +41,6 @@ using ip4_addr_t = in_addr;
 #endif
 
 #ifdef USE_ESP32
-#include <cstring>
 #include <esp_netif.h>
 #endif
 
@@ -52,7 +59,36 @@ inline void lowercase_ip_str(char *buf) {
 
 struct IPAddress {
  public:
-#ifdef USE_HOST
+#ifdef USE_ZEPHYR
+  IPAddress() { memset(&ip_addr_, 0, sizeof(ip_addr_)); }
+  IPAddress(const std::string &in_address) : ip_addr_{} { ipaddr_aton(in_address.c_str(), &ip_addr_); }
+  IPAddress(const struct in6_addr *other_ip) { ip_addr_ = *other_ip; }
+  IPAddress(const struct sockaddr_in6 *addr) { ip_addr_ = addr->sin6_addr; }
+
+  operator struct in6_addr() const { return ip_addr_; }
+
+  bool is_set() const { return !net_ipv6_is_addr_unspecified(&ip_addr_); }
+  bool is_ip4() const { return false; }
+  bool is_ip6() const { return this->is_set(); }
+  bool is_multicast() const { return net_ipv6_is_addr_mcast(&ip_addr_); }
+  // Remove before 2026.8.0
+  ESPDEPRECATED(
+      "str() is deprecated: use 'char buf[IP_ADDRESS_BUFFER_SIZE]; ip.str_to(buf);' instead. Removed in 2026.8.0",
+      "2026.2.0")
+  std::string str() const {
+    char buf[IP_ADDRESS_BUFFER_SIZE];
+    this->str_to(buf);
+    return buf;
+  }
+  char *str_to(char *buf) const {
+    if (inet_ntop(AF_INET6, &ip_addr_, buf, IP_ADDRESS_BUFFER_SIZE) == nullptr)
+      buf[0] = '\0';
+    return buf;
+  }
+  bool operator==(const IPAddress &other) const { return net_ipv6_addr_cmp(&ip_addr_, &other.ip_addr_); }
+  bool operator!=(const IPAddress &other) const { return !net_ipv6_addr_cmp(&ip_addr_, &other.ip_addr_); }
+
+#elif defined(USE_HOST)
   IPAddress() { ip_addr_.s_addr = 0; }
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
     this->ip_addr_.s_addr = htonl((first << 24) | (second << 16) | (third << 8) | fourth);

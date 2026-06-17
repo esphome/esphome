@@ -16,8 +16,7 @@
 
 #include "ade7880_registers.h"
 
-namespace esphome {
-namespace ade7880 {
+namespace esphome::ade7880 {
 
 struct NeutralChannel {
   void set_current(sensor::Sensor *sens) { this->current = sens; }
@@ -106,7 +105,8 @@ class ADE7880 : public i2c::I2CDevice, public PollingComponent {
   // the callable will be passed a 'float' value and is expected to return a 'float'
   template<typename F> void update_sensor_from_s24zp_register16_(sensor::Sensor *sensor, uint16_t a_register, F &&f);
   template<typename F> void update_sensor_from_s16_register16_(sensor::Sensor *sensor, uint16_t a_register, F &&f);
-  template<typename F> void update_sensor_from_s32_register16_(sensor::Sensor *sensor, uint16_t a_register, F &&f);
+
+  void update_active_energy_(PowerChannel *channel, uint16_t a_register);
 
   void reset_device_();
 
@@ -125,5 +125,4 @@ class ADE7880 : public i2c::I2CDevice, public PollingComponent {
   void write_u32_register16_(uint16_t a_register, uint32_t value);
 };
 
-}  // namespace ade7880
-}  // namespace esphome
+}  // namespace esphome::ade7880

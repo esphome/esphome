@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_IGNORE_PIN_VALIDATION_ERROR,
     CONF_NUMBER,
     PlatformFramework,
+    Toolchain,
 )
 from esphome.core import CORE
 from tests.component_tests.types import SetCoreConfigCallable
@@ -44,11 +45,20 @@ def test_esp32_config(
     config = CONFIG_SCHEMA(config)
     assert config["variant"] == VARIANT_ESP32
 
-    # Check that defining a variant sets the board name correctly
+    # Check that defining a variant sets the board name correctly.
+    # Run under the ESP-IDF toolchain so variants without an entry in
+    # STANDARD_BOARDS (S31, H4, H21) still derive a board name from
+    # VARIANT_FRIENDLY rather than failing with cv.Invalid. CORE.toolchain
+    # gets pinned by the first CONFIG_SCHEMA() call above (via
+    # _resolve_toolchain) and that pinned value wins over the dict's
+    # CONF_TOOLCHAIN, so clear it between iterations to mirror a fresh
+    # config run.
     for variant in VARIANTS:
+        CORE.toolchain = None
         config = CONFIG_SCHEMA(
             {
                 "variant": variant,
+                "toolchain": Toolchain.ESP_IDF.value,
             }
         )
         assert VARIANT_FRIENDLY[variant].lower() in config["board"]
@@ -71,6 +81,11 @@ def test_esp32_config(
             {"variant": "esp32s3", "board": "esp32dev"},
             r"Option 'variant' does not match selected board. @ data\['variant'\]",
             id="mismatched_board_variant_config",
+        ),
+        pytest.param(
+            {"variant": "esp32s31", "toolchain": Toolchain.PLATFORMIO.value},
+            r"No default board is known for ESP32S31\. Please specify the `board:` option explicitly\. @ data\['variant'\]",
+            id="variant_without_default_board_requires_explicit_board_under_platformio",
         ),
         pytest.param(
             {
@@ -232,3 +247,67 @@ def test_execute_from_psram_disabled_sdkconfig(
     assert "CONFIG_SPIRAM_FETCH_INSTRUCTIONS" not in sdkconfig
     assert "CONFIG_SPIRAM_RODATA" not in sdkconfig
     assert "CONFIG_SPIRAM_XIP_FROM_PSRAM" not in sdkconfig
+
+
+def test_platformio_idf_enables_reproducible_build(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test PlatformIO ESP-IDF builds enable reproducible app metadata."""
+    generate_main(component_config_path("reproducible_build.yaml"))
+
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_APP_REPRODUCIBLE_BUILD") is True
+
+
+def test_platformio_arduino_enables_reproducible_build(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test PlatformIO Arduino builds enable reproducible app metadata."""
+    generate_main(component_config_path("reproducible_build_arduino.yaml"))
+
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_APP_REPRODUCIBLE_BUILD") is True
+
+
+def test_native_idf_enables_reproducible_build(
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test native ESP-IDF builds enable reproducible app metadata."""
+    from esphome.__main__ import generate_cpp_contents
+    from esphome.config import read_config
+
+    CORE.config_path = component_config_path("reproducible_build.yaml")
+    CORE.config = read_config({})
+    CORE.toolchain = Toolchain.ESP_IDF
+    generate_cpp_contents(CORE.config)
+
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_APP_REPRODUCIBLE_BUILD") is True
+
+
+def test_flash_mode_sets_sdkconfig_and_pio_option(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """flash_mode/flash_frequency select the esptool flash parameters on both backends."""
+    generate_main(component_config_path("flash_mode_idf.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_ESPTOOLPY_FLASHMODE_QIO") is True
+    assert sdkconfig.get("CONFIG_ESPTOOLPY_FLASHFREQ_80M") is True
+    assert CORE.platformio_options.get("board_build.flash_mode") == "qio"
+    assert CORE.platformio_options.get("board_build.f_flash") == "80000000L"
+
+
+def test_flash_mode_unset_leaves_defaults(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Without flash_mode the board/sdkconfig defaults stay untouched."""
+    generate_main(component_config_path("flash_mode_default.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert not any(key.startswith("CONFIG_ESPTOOLPY_FLASHMODE_") for key in sdkconfig)
+    assert not any(key.startswith("CONFIG_ESPTOOLPY_FLASHFREQ_") for key in sdkconfig)
+    assert "board_build.flash_mode" not in CORE.platformio_options
+    assert "board_build.f_flash" not in CORE.platformio_options

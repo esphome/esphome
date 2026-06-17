@@ -12,8 +12,7 @@
 #include <lwip/ip4_addr.h>
 #include <lwip/ip_addr.h>
 
-namespace esphome {
-namespace e131 {
+namespace esphome::e131 {
 
 static const char *const TAG = "e131";
 
@@ -158,6 +157,6 @@ bool E131Component::packet_(const uint8_t *data, size_t len, int &universe, E131
   return true;
 }
 
-}  // namespace e131
-}  // namespace esphome
+}  // namespace esphome::e131
+
 #endif

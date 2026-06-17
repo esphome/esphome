@@ -6,8 +6,7 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace honeywellabp {
+namespace esphome::honeywellabp {
 
 class HONEYWELLABPSensor : public PollingComponent,
                            public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
@@ -41,5 +40,4 @@ class HONEYWELLABPSensor : public PollingComponent,
   float read_temperature_();
 };
 
-}  // namespace honeywellabp
-}  // namespace esphome
+}  // namespace esphome::honeywellabp

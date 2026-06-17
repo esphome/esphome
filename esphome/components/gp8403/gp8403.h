@@ -3,8 +3,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace gp8403 {
+namespace esphome::gp8403 {
 
 enum GP8403Voltage : uint8_t {
   GP8403_VOLTAGE_5V = 0x00,
@@ -30,5 +29,4 @@ class GP8403Component : public Component, public i2c::I2CDevice {
   GP8403Model model_{GP8403Model::GP8403};
 };
 
-}  // namespace gp8403
-}  // namespace esphome
+}  // namespace esphome::gp8403

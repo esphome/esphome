@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sx127x {
+namespace esphome::sx127x {
 
 static const char *const TAG = "sx127x";
 static const uint32_t FXOSC = 32000000u;
@@ -507,5 +506,4 @@ void SX127x::dump_config() {
   }
 }
 
-}  // namespace sx127x
-}  // namespace esphome
+}  // namespace esphome::sx127x

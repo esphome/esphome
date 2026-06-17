@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace ch422g {
+namespace esphome::ch422g {
 
 class CH422GComponent : public Component, public i2c::I2CDevice {
  public:
@@ -65,5 +64,4 @@ class CH422GGPIOPin : public GPIOPin {
   gpio::Flags flags_{};
 };
 
-}  // namespace ch422g
-}  // namespace esphome
+}  // namespace esphome::ch422g

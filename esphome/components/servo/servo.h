@@ -6,8 +6,7 @@
 #include "esphome/core/preferences.h"
 #include "esphome/components/output/float_output.h"
 
-namespace esphome {
-namespace servo {
+namespace esphome::servo {
 
 extern uint32_t global_servo_id;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -73,5 +72,4 @@ template<typename... Ts> class ServoDetachAction : public Action<Ts...> {
   Servo *servo_;
 };
 
-}  // namespace servo
-}  // namespace esphome
+}  // namespace esphome::servo

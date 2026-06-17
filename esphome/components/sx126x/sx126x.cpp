@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sx126x {
+namespace esphome::sx126x {
 
 static const char *const TAG = "sx126x";
 static const uint16_t RAMP[8] = {10, 20, 40, 80, 200, 800, 1700, 3400};
@@ -31,8 +30,8 @@ static constexpr uint8_t OCP_140MA = 0x38;  // 140 mA max current
 static constexpr float LOW_DATA_RATE_OPTIMIZE_THRESHOLD = 16.38f;  // 16.38 ms
 
 uint8_t SX126x::read_fifo_(uint8_t offset, std::vector<uint8_t> &packet) {
-  this->wait_busy_();
   this->enable();
+  this->wait_busy_();
   this->transfer_byte(RADIO_READ_BUFFER);
   this->transfer_byte(offset);
   uint8_t status = this->transfer_byte(0x00);
@@ -44,8 +43,8 @@ uint8_t SX126x::read_fifo_(uint8_t offset, std::vector<uint8_t> &packet) {
 }
 
 void SX126x::write_fifo_(uint8_t offset, const std::vector<uint8_t> &packet) {
-  this->wait_busy_();
   this->enable();
+  this->wait_busy_();
   this->transfer_byte(RADIO_WRITE_BUFFER);
   this->transfer_byte(offset);
   for (const uint8_t &byte : packet) {
@@ -56,8 +55,8 @@ void SX126x::write_fifo_(uint8_t offset, const std::vector<uint8_t> &packet) {
 }
 
 uint8_t SX126x::read_opcode_(uint8_t opcode, uint8_t *data, uint8_t size) {
-  this->wait_busy_();
   this->enable();
+  this->wait_busy_();
   this->transfer_byte(opcode);
   uint8_t status = this->transfer_byte(0x00);
   for (int32_t i = 0; i < size; i++) {
@@ -68,8 +67,8 @@ uint8_t SX126x::read_opcode_(uint8_t opcode, uint8_t *data, uint8_t size) {
 }
 
 void SX126x::write_opcode_(uint8_t opcode, uint8_t *data, uint8_t size) {
-  this->wait_busy_();
   this->enable();
+  this->wait_busy_();
   this->transfer_byte(opcode);
   for (int32_t i = 0; i < size; i++) {
     this->transfer_byte(data[i]);
@@ -79,8 +78,8 @@ void SX126x::write_opcode_(uint8_t opcode, uint8_t *data, uint8_t size) {
 }
 
 void SX126x::read_register_(uint16_t reg, uint8_t *data, uint8_t size) {
-  this->wait_busy_();
   this->enable();
+  this->wait_busy_();
   this->write_byte(RADIO_READ_REGISTER);
   this->write_byte((reg >> 8) & 0xFF);
   this->write_byte((reg >> 0) & 0xFF);
@@ -92,8 +91,8 @@ void SX126x::read_register_(uint16_t reg, uint8_t *data, uint8_t size) {
 }
 
 void SX126x::write_register_(uint16_t reg, uint8_t *data, uint8_t size) {
-  this->wait_busy_();
   this->enable();
+  this->wait_busy_();
   this->write_byte(RADIO_WRITE_REGISTER);
   this->write_byte((reg >> 8) & 0xFF);
   this->write_byte((reg >> 0) & 0xFF);
@@ -395,7 +394,7 @@ void SX126x::run_image_cal() {
     buf[1] = 0xE9;
   } else if (this->frequency_ > 850000000) {
     buf[0] = 0xD7;
-    buf[1] = 0xD8;
+    buf[1] = 0xDB;
   } else if (this->frequency_ > 770000000) {
     buf[0] = 0xC1;
     buf[1] = 0xC5;
@@ -459,9 +458,10 @@ void SX126x::set_mode_tx() {
   this->write_opcode_(RADIO_SET_TX, buf, 3);
 }
 
-void SX126x::set_mode_sleep() {
+void SX126x::set_mode_sleep(bool cold) {
+  // 0x04 = warm start (config retained), 0x00 = cold start (config lost, lowest power)
   uint8_t buf[1];
-  buf[0] = 0x05;
+  buf[0] = cold ? 0x00 : 0x04;
   this->write_opcode_(RADIO_SET_SLEEP, buf, 1);
 }
 
@@ -546,5 +546,4 @@ void SX126x::dump_config() {
   }
 }
 
-}  // namespace sx126x
-}  // namespace esphome
+}  // namespace esphome::sx126x

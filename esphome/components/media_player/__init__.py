@@ -21,6 +21,7 @@ from esphome.core import CORE
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     inherit_property_from,
+    queue_entity_register,
     setup_entity,
 )
 from esphome.coroutine import CoroPriority, coroutine_with_priority
@@ -132,6 +133,7 @@ def request_codecs_for_format_configs(
         audio.request_flac_support()
         audio.request_mp3_support()
         audio.request_opus_support()
+        audio.request_wav_support()
     else:
         if "FLAC" in needed_formats:
             audio.request_flac_support()
@@ -139,6 +141,8 @@ def request_codecs_for_format_configs(
             audio.request_mp3_support()
         if "OPUS" in needed_formats:
             audio.request_opus_support()
+        if "WAV" in needed_formats:
+            audio.request_wav_support()
 
 
 # Local config key constants
@@ -262,7 +266,7 @@ async def setup_media_player_core_(var, config):
 async def register_media_player(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_media_player(var))
+    queue_entity_register("media_player", config)
     CORE.register_platform_component("media_player", var)
     await setup_media_player_core_(var, config)
 

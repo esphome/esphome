@@ -6,8 +6,7 @@
 #include "esphome/core/component.h"
 #include <cfloat>
 
-namespace esphome {
-namespace current_based {
+namespace esphome::current_based {
 
 class CurrentBasedCover : public cover::Cover, public Component {
  public:
@@ -92,5 +91,4 @@ class CurrentBasedCover : public cover::Cover, public Component {
   cover::CoverOperation last_operation_{cover::COVER_OPERATION_OPENING};
 };
 
-}  // namespace current_based
-}  // namespace esphome
+}  // namespace esphome::current_based

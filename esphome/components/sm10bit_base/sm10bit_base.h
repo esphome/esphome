@@ -5,8 +5,7 @@
 #include "esphome/components/output/float_output.h"
 #include <vector>
 
-namespace esphome {
-namespace sm10bit_base {
+namespace esphome::sm10bit_base {
 
 class Sm10BitBase : public Component {
  public:
@@ -59,5 +58,4 @@ class Sm10BitBase : public Component {
   bool update_{true};
 };
 
-}  // namespace sm10bit_base
-}  // namespace esphome
+}  // namespace esphome::sm10bit_base

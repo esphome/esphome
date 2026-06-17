@@ -2,6 +2,8 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 
 #ifdef USE_OUTPUT
 #include "esphome/components/output/float_output.h"
@@ -45,9 +47,11 @@ class Rtttl : public Component {
 
   bool is_playing() { return this->state_ != State::STOPPED; }
 
+#ifdef USE_RTTTL_FINISHED_PLAYBACK_CALLBACK
   template<typename F> void add_on_finished_playback_callback(F &&callback) {
     this->on_finished_playback_callback_.add(std::forward<F>(callback));
   }
+#endif
 
  protected:
   inline uint16_t get_integer_() {
@@ -68,7 +72,7 @@ class Rtttl : public Component {
   void set_state_(State state);
 
   /// The RTTTL string to play.
-  std::string rtttl_{""};
+  std::string rtttl_;
   /// The current position in the RTTTL string.
   size_t position_{0};
   /// The default duration of a note (e.g. 4 for a quarter note).
@@ -106,8 +110,10 @@ class Rtttl : public Component {
   uint32_t samples_gap_{0};
 #endif  // USE_SPEAKER
 
+#ifdef USE_RTTTL_FINISHED_PLAYBACK_CALLBACK
   /// The callback to call when playback is finished.
   CallbackManager<void()> on_finished_playback_callback_;
+#endif
 };
 
 template<typename... Ts> class PlayAction : public Action<Ts...> {

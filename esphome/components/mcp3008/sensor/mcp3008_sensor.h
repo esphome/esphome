@@ -6,8 +6,7 @@
 
 #include "../mcp3008.h"
 
-namespace esphome {
-namespace mcp3008 {
+namespace esphome::mcp3008 {
 
 class MCP3008Sensor : public PollingComponent,
                       public sensor::Sensor,
@@ -26,5 +25,4 @@ class MCP3008Sensor : public PollingComponent,
   float reference_voltage_;
 };
 
-}  // namespace mcp3008
-}  // namespace esphome
+}  // namespace esphome::mcp3008

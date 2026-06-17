@@ -4,8 +4,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace event {
+namespace esphome::event {
 
 template<typename... Ts> class TriggerEventAction : public Action<Ts...>, public Parented<Event> {
  public:
@@ -21,5 +20,4 @@ class EventTrigger : public Trigger<StringRef> {
   }
 };
 
-}  // namespace event
-}  // namespace esphome
+}  // namespace esphome::event

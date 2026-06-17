@@ -4,8 +4,7 @@
 #include "esphome/core/application.h"
 #include <cfloat>
 
-namespace esphome {
-namespace current_based {
+namespace esphome::current_based {
 
 static const char *const TAG = "current_based.cover";
 
@@ -271,5 +270,4 @@ void CurrentBasedCover::recompute_position_() {
   this->last_recompute_time_ = now;
 }
 
-}  // namespace current_based
-}  // namespace esphome
+}  // namespace esphome::current_based

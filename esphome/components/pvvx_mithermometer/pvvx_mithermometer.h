@@ -8,8 +8,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace pvvx_mithermometer {
+namespace esphome::pvvx_mithermometer {
 
 struct ParseResult {
   optional<float> temperature;
@@ -46,7 +45,6 @@ class PVVXMiThermometer : public Component, public esp32_ble_tracker::ESPBTDevic
   bool report_results_(const optional<ParseResult> &result, const char *address);
 };
 
-}  // namespace pvvx_mithermometer
-}  // namespace esphome
+}  // namespace esphome::pvvx_mithermometer
 
 #endif

@@ -13,8 +13,7 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
 
-namespace esphome {
-namespace debug {
+namespace esphome::debug {
 
 static constexpr size_t DEVICE_INFO_BUFFER_SIZE = 256;
 static constexpr size_t RESET_REASON_BUFFER_SIZE = 128;
@@ -101,5 +100,4 @@ class DebugComponent : public PollingComponent {
   void update_platform_();
 };
 
-}  // namespace debug
-}  // namespace esphome
+}  // namespace esphome::debug

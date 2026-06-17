@@ -29,3 +29,8 @@ output:
 
 rtttl:
   output: rtttl_output
+  on_finished_playback:
+    - then:
+        - logger.log: "Playback finished 1"
+    - then:
+        - logger.log: "Playback finished 2"

@@ -1,8 +1,7 @@
 #include "mmc5603.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mmc5603 {
+namespace esphome::mmc5603 {
 
 static const char *const TAG = "mmc5603";
 static const uint8_t MMC5603_ADDRESS = 0x30;
@@ -157,5 +156,4 @@ void MMC5603Component::update() {
     this->heading_sensor_->publish_state(heading);
 }
 
-}  // namespace mmc5603
-}  // namespace esphome
+}  // namespace esphome::mmc5603

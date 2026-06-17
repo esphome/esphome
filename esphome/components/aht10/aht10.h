@@ -6,8 +6,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace aht10 {
+namespace esphome::aht10 {
 
 enum AHT10Variant { AHT10, AHT20 };
 
@@ -31,5 +30,4 @@ class AHT10Component : public PollingComponent, public i2c::I2CDevice {
   uint32_t start_time_{};
 };
 
-}  // namespace aht10
-}  // namespace esphome
+}  // namespace esphome::aht10

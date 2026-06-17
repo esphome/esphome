@@ -7,8 +7,7 @@
 #include "esphome/components/datetime/date_entity.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace demo {
+namespace esphome::demo {
 
 class DemoDate : public datetime::DateEntity, public Component {
  public:
@@ -28,7 +27,6 @@ class DemoDate : public datetime::DateEntity, public Component {
   }
 };
 
-}  // namespace demo
-}  // namespace esphome
+}  // namespace esphome::demo
 
 #endif

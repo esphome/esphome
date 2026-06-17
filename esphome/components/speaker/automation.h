@@ -5,8 +5,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace speaker {
+namespace esphome::speaker {
 
 template<typename... Ts> class PlayAction : public Action<Ts...>, public Parented<Speaker> {
  public:
@@ -84,5 +83,4 @@ template<typename... Ts> class IsStoppedCondition : public Condition<Ts...>, pub
   bool check(const Ts &...x) override { return this->parent_->is_stopped(); }
 };
 
-}  // namespace speaker
-}  // namespace esphome
+}  // namespace esphome::speaker

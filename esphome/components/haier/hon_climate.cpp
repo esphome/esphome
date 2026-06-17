@@ -9,8 +9,7 @@
 using namespace esphome::climate;
 using namespace esphome::uart;
 
-namespace esphome {
-namespace haier {
+namespace esphome::haier {
 
 static const char *const TAG = "haier.climate";
 constexpr size_t SIGNAL_LEVEL_UPDATE_INTERVAL_MS = 10000;
@@ -85,7 +84,7 @@ void HonClimate::set_horizontal_airflow(hon_protocol::HorizontalSwingMode direct
   this->force_send_control_ = true;
 }
 
-std::string HonClimate::get_cleaning_status_text() const {
+const char *HonClimate::get_cleaning_status_text() const {
   switch (this->cleaning_status_) {
     case CleaningState::SELF_CLEAN:
       return "Self clean";
@@ -134,29 +133,22 @@ haier_protocol::HandlerError HonClimate::get_device_version_answer_handler_(haie
     }
     // All OK
     hon_protocol::DeviceVersionAnswer *answr = (hon_protocol::DeviceVersionAnswer *) data;
-    char tmp[9];
-    tmp[8] = 0;
-    strncpy(tmp, answr->protocol_version, 8);
-    this->hvac_hardware_info_ = HardwareInfo();
-    this->hvac_hardware_info_.value().protocol_version_ = std::string(tmp);
-    strncpy(tmp, answr->software_version, 8);
-    this->hvac_hardware_info_.value().software_version_ = std::string(tmp);
-    strncpy(tmp, answr->hardware_version, 8);
-    this->hvac_hardware_info_.value().hardware_version_ = std::string(tmp);
-    strncpy(tmp, answr->device_name, 8);
-    this->hvac_hardware_info_.value().device_name_ = std::string(tmp);
+    HardwareInfo info{};  // zero-init guarantees null-termination
+    strncpy(info.protocol_version_, answr->protocol_version, HARDWARE_INFO_STR_SIZE - 1);
+    strncpy(info.software_version_, answr->software_version, HARDWARE_INFO_STR_SIZE - 1);
+    strncpy(info.hardware_version_, answr->hardware_version, HARDWARE_INFO_STR_SIZE - 1);
+    strncpy(info.device_name_, answr->device_name, HARDWARE_INFO_STR_SIZE - 1);
+    info.functions_[0] = (answr->functions[1] & 0x01) != 0;  // interactive mode support
+    info.functions_[1] = (answr->functions[1] & 0x02) != 0;  // controller-device mode support
+    info.functions_[2] = (answr->functions[1] & 0x04) != 0;  // crc support
+    info.functions_[3] = (answr->functions[1] & 0x08) != 0;  // multiple AC support
+    info.functions_[4] = (answr->functions[1] & 0x20) != 0;  // roles support
+    this->use_crc_ = info.functions_[2];
 #ifdef USE_TEXT_SENSOR
-    this->update_sub_text_sensor_(SubTextSensorType::APPLIANCE_NAME, this->hvac_hardware_info_.value().device_name_);
-    this->update_sub_text_sensor_(SubTextSensorType::PROTOCOL_VERSION,
-                                  this->hvac_hardware_info_.value().protocol_version_);
+    this->update_sub_text_sensor_(SubTextSensorType::APPLIANCE_NAME, info.device_name_);
+    this->update_sub_text_sensor_(SubTextSensorType::PROTOCOL_VERSION, info.protocol_version_);
 #endif
-    this->hvac_hardware_info_.value().functions_[0] = (answr->functions[1] & 0x01) != 0;  // interactive mode support
-    this->hvac_hardware_info_.value().functions_[1] =
-        (answr->functions[1] & 0x02) != 0;  // controller-device mode support
-    this->hvac_hardware_info_.value().functions_[2] = (answr->functions[1] & 0x04) != 0;  // crc support
-    this->hvac_hardware_info_.value().functions_[3] = (answr->functions[1] & 0x08) != 0;  // multiple AC support
-    this->hvac_hardware_info_.value().functions_[4] = (answr->functions[1] & 0x20) != 0;  // roles support
-    this->use_crc_ = this->hvac_hardware_info_.value().functions_[2];
+    this->hvac_hardware_info_ = info;
     this->set_phase(ProtocolPhases::SENDING_INIT_2);
     return result;
   } else {
@@ -347,10 +339,9 @@ void HonClimate::dump_config() {
                   "  Device software version: %s\n"
                   "  Device hardware version: %s\n"
                   "  Device name: %s",
-                  this->hvac_hardware_info_.value().protocol_version_.c_str(),
-                  this->hvac_hardware_info_.value().software_version_.c_str(),
-                  this->hvac_hardware_info_.value().hardware_version_.c_str(),
-                  this->hvac_hardware_info_.value().device_name_.c_str());
+                  this->hvac_hardware_info_.value().protocol_version_,
+                  this->hvac_hardware_info_.value().software_version_,
+                  this->hvac_hardware_info_.value().hardware_version_, this->hvac_hardware_info_.value().device_name_);
     ESP_LOGCONFIG(TAG, "  Device features:%s%s%s%s%s",
                   (this->hvac_hardware_info_.value().functions_[0] ? " interactive" : ""),
                   (this->hvac_hardware_info_.value().functions_[1] ? " controller-device" : ""),
@@ -460,7 +451,7 @@ void HonClimate::process_phase(std::chrono::steady_clock::time_point now) {
       if (this->action_request_.has_value()) {
         if (this->action_request_.value().message.has_value()) {
           this->send_message_(this->action_request_.value().message.value(), this->use_crc_);
-          this->action_request_.value().message.reset();
+          this->action_request_.value().message.reset();  // NOLINT(bugprone-unchecked-optional-access)
         } else {
           // Message already sent, reseting request and return to idle
           this->action_request_.reset();
@@ -796,7 +787,7 @@ void HonClimate::set_sub_text_sensor(SubTextSensorType type, text_sensor::TextSe
   }
 }
 
-void HonClimate::update_sub_text_sensor_(SubTextSensorType type, const std::string &value) {
+void HonClimate::update_sub_text_sensor_(SubTextSensorType type, const char *value) {
   size_t index = (size_t) type;
   if (this->sub_text_sensors_[index] != nullptr)
     this->sub_text_sensors_[index]->publish_state(value);
@@ -1378,5 +1369,4 @@ bool HonClimate::should_get_big_data_() {
   return false;
 }
 
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier
