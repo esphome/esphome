@@ -1279,7 +1279,7 @@ def final_validate(config):
             )
         else:
             _LOGGER.warning(
-                "NVS encryption will burn an HMAC key into eFuse block %d on the "
+                "NVS encryption will burn an HMAC key into eFuse key block %d on the "
                 "first boot of each device. This is PERMANENT and IRREVERSIBLE: "
                 "the block cannot be erased or reused afterwards. Enabling (or "
                 "later disabling) encryption also wipes any previously saved "
