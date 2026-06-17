@@ -235,7 +235,9 @@ void SGP4xComponent::measure_raw_() {
 void SGP4xComponent::take_sample() {
   if (!this->self_test_complete_)
     return;
-  this->seconds_since_last_store_ += 1;
+  if (this->store_baseline_) {
+    this->seconds_since_last_store_ += 1;
+  }
   this->measure_raw_();
 }
 
