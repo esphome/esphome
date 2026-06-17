@@ -5,7 +5,7 @@ paho-mqtt==1.6.1
 colorama==0.4.6
 icmplib==3.0.4
 tornado==6.5.7
-tzlocal==5.3.1    # from time
+tzlocal==5.4.3    # from time
 tzdata>=2026.2  # from time
 pyserial==3.5
 platformio==6.1.19
