@@ -403,11 +403,11 @@ async def to_code(config):
         if counts_config := config.get(CONF_COUNTS):
             if sensor_config := counts_config.get(band):
                 sens = await sensor.new_sensor(sensor_config)
-                cg.add(getattr(var, "set_counts_sensor")(sens, i))
+                cg.add(var.set_counts_sensor(sens, i))
         if basic_counts_config := config.get(CONF_BASIC_COUNTS):
             if sensor_config := basic_counts_config.get(band):
                 sens = await sensor.new_sensor(sensor_config)
-                cg.add(getattr(var, "set_basic_counts_sensor")(sens, i))
+                cg.add(var.set_basic_counts_sensor(sens, i))
 
     for sensor_id in SENSORS_INTEGRAL:
         if sensor_config := config.get(sensor_id):
