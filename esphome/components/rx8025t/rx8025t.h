@@ -11,35 +11,12 @@ class RX8025TComponent : public time::RealTimeClock, public i2c::I2CDevice {
   void setup() override;
   void update() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void read_time();
   void write_time();
 
  protected:
   bool read_rtc_();
   bool write_rtc_();
-
-  // Register addresses
-  static const uint8_t REG_SECONDS = 0x00;
-  static const uint8_t REG_MINUTES = 0x01;
-  static const uint8_t REG_HOURS = 0x02;
-  static const uint8_t REG_WEEKDAY = 0x03;
-  static const uint8_t REG_DAY = 0x04;
-  static const uint8_t REG_MONTH = 0x05;
-  static const uint8_t REG_YEAR = 0x06;
-  static const uint8_t REG_RAM = 0x07;
-  static const uint8_t REG_ALARM_MIN = 0x08;
-  static const uint8_t REG_ALARM_HOUR = 0x09;
-  static const uint8_t REG_ALARM_DAY = 0x0A;
-  static const uint8_t REG_TIMER0 = 0x0B;
-  static const uint8_t REG_TIMER1 = 0x0C;
-  static const uint8_t REG_EXTENSION = 0x0D;
-  static const uint8_t REG_FLAG = 0x0E;
-  static const uint8_t REG_CONTROL = 0x0F;
-
-  // Flag register bits
-  static const uint8_t FLAG_VDET = 0x01;  // Voltage detection flag
-  static const uint8_t FLAG_VLF = 0x02;   // Voltage low flag (oscillator stopped)
 
   union RX8025TReg {
     struct {
@@ -58,9 +35,9 @@ class RX8025TComponent : public time::RealTimeClock, public i2c::I2CDevice {
       uint8_t hour_10 : 2;
       uint8_t unused_2 : 2;
 
-      // 0x03 - Weekday (0-6, Sunday = 0)
-      uint8_t weekday : 3;
-      uint8_t unused_3 : 5;
+      // 0x03 - Weekday (one-hot bitmask: bit 0=Sun, bit 6=Sat)
+      uint8_t weekday : 7;
+      uint8_t unused_3 : 1;
 
       // 0x04 - Day (BCD)
       uint8_t day : 4;
@@ -128,7 +105,7 @@ class RX8025TComponent : public time::RealTimeClock, public i2c::I2CDevice {
       bool uie : 1;      // Update interrupt enable
       uint8_t csel : 2;  // Compensation interval select
     } reg;
-    mutable uint8_t raw[sizeof(reg)];
+    uint8_t raw[sizeof(reg)];
   } rx8025t_;
 };
 
