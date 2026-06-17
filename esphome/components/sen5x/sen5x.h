@@ -6,8 +6,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/preferences.h"
 
-namespace esphome {
-namespace sen5x {
+namespace esphome::sen5x {
 
 enum ERRORCODE : uint8_t {
   COMMUNICATION_FAILED,
@@ -104,12 +103,12 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
 
   char serial_number_[17] = "UNKNOWN";
   uint16_t voc_baseline_state_[4]{0};
-  uint32_t voc_baseline_time_;
-  uint16_t firmware_version_;
+  uint32_t voc_baseline_time_{0};
+  uint16_t firmware_version_{0};
   Sen5xType type_{Sen5xType::UNKNOWN};
-  ERRORCODE error_code_;
+  ERRORCODE error_code_{ERRORCODE::UNKNOWN};
   bool initialized_{false};
-  bool store_baseline_;
+  bool store_baseline_{false};
 
   sensor::Sensor *pm_1_0_sensor_{nullptr};
   sensor::Sensor *pm_2_5_sensor_{nullptr};
@@ -130,5 +129,4 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   ESPPreferenceObject pref_;
 };
 
-}  // namespace sen5x
-}  // namespace esphome
+}  // namespace esphome::sen5x

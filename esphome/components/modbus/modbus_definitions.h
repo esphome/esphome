@@ -2,8 +2,7 @@
 
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace modbus {
+namespace esphome::modbus {
 
 /// Modbus definitions from specs:
 /// https://modbus.org/docs/Modbus_Application_Protocol_V1_1b3.pdf
@@ -81,6 +80,7 @@ const uint8_t MAX_NUM_OF_REGISTERS_TO_WRITE = 123;  // 0x7B
 // 6.3 03 (0x03) Read Holding Registers
 // 6.4 04 (0x04) Read Input Registers
 const uint8_t MAX_NUM_OF_REGISTERS_TO_READ = 125;  // 0x7D
+
+static constexpr uint16_t MAX_FRAME_SIZE = 256;
 /// End of Modbus definitions
-}  // namespace modbus
-}  // namespace esphome
+}  // namespace esphome::modbus

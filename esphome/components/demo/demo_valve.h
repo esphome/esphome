@@ -2,8 +2,7 @@
 
 #include "esphome/components/valve/valve.h"
 
-namespace esphome {
-namespace demo {
+namespace esphome::demo {
 
 enum class DemoValveType {
   TYPE_1,
@@ -26,12 +25,15 @@ class DemoValve : public valve::Valve {
 
  protected:
   void control(const valve::ValveCall &call) override {
-    if (call.get_position().has_value()) {
-      this->position = *call.get_position();
+    auto pos = call.get_position();
+    if (pos.has_value()) {
+      this->position = *pos;
       this->publish_state();
       return;
-    } else if (call.get_toggle().has_value()) {
-      if (call.get_toggle().value()) {
+    }
+    auto toggle = call.get_toggle();
+    if (toggle.has_value()) {
+      if (*toggle) {
         if (this->position == valve::VALVE_OPEN) {
           this->position = valve::VALVE_CLOSED;
           this->publish_state();
@@ -50,5 +52,4 @@ class DemoValve : public valve::Valve {
   DemoValveType type_{};
 };
 
-}  // namespace demo
-}  // namespace esphome
+}  // namespace esphome::demo

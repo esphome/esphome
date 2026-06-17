@@ -4,8 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/switch/switch.h"
 
-namespace esphome {
-namespace demo {
+namespace esphome::demo {
 
 class DemoSwitch : public switch_::Switch, public Component {
  public:
@@ -18,5 +17,4 @@ class DemoSwitch : public switch_::Switch, public Component {
   void write_state(bool state) override { this->publish_state(state); }
 };
 
-}  // namespace demo
-}  // namespace esphome
+}  // namespace esphome::demo

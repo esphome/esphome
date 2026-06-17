@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace dfplayer {
+namespace esphome::dfplayer {
 
 static const char *const TAG = "dfplayer";
 
@@ -260,6 +259,7 @@ void DFPlayer::loop() {
               ESP_LOGV(TAG, "Playback finished (USB drive)");
               this->is_playing_ = false;
               this->on_finished_playback_callback_.call();
+              break;
             case 0x3D:
               ESP_LOGV(TAG, "Playback finished (SD card)");
               this->is_playing_ = false;
@@ -282,5 +282,4 @@ void DFPlayer::dump_config() {
   this->check_uart_settings(9600);
 }
 
-}  // namespace dfplayer
-}  // namespace esphome
+}  // namespace esphome::dfplayer

@@ -3,8 +3,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace anova {
+namespace esphome::anova {
 
 static const char *const TAG = "anova";
 
@@ -24,8 +23,9 @@ void Anova::loop() {
 }
 
 void Anova::control(const ClimateCall &call) {
-  if (call.get_mode().has_value()) {
-    ClimateMode mode = *call.get_mode();
+  auto mode_val = call.get_mode();
+  if (mode_val.has_value()) {
+    ClimateMode mode = *mode_val;
     AnovaPacket *pkt;
     switch (mode) {
       case climate::CLIMATE_MODE_OFF:
@@ -45,8 +45,9 @@ void Anova::control(const ClimateCall &call) {
       ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str(), status);
     }
   }
-  if (call.get_target_temperature().has_value()) {
-    auto *pkt = this->codec_->get_set_target_temp_request(*call.get_target_temperature());
+  auto target_temp = call.get_target_temperature();
+  if (target_temp.has_value()) {
+    auto *pkt = this->codec_->get_set_target_temp_request(*target_temp);
     auto status =
         esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_,
                                  pkt->length, pkt->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
@@ -142,9 +143,12 @@ void Anova::update() {
     return;
 
   if (this->current_request_ < 2) {
-    auto *pkt = this->codec_->get_read_device_status_request();
-    if (this->current_request_ == 0)
-      this->codec_->get_set_unit_request(this->fahrenheit_ ? 'f' : 'c');
+    AnovaPacket *pkt;
+    if (this->current_request_ == 0) {
+      pkt = this->codec_->get_set_unit_request(this->fahrenheit_ ? 'f' : 'c');
+    } else {
+      pkt = this->codec_->get_read_device_status_request();
+    }
     auto status =
         esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_,
                                  pkt->length, pkt->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
@@ -155,7 +159,6 @@ void Anova::update() {
   }
 }
 
-}  // namespace anova
-}  // namespace esphome
+}  // namespace esphome::anova
 
 #endif

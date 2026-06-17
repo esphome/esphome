@@ -18,14 +18,14 @@ class HostUartComponent : public UARTComponent, public Component {
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override;
-  void flush() override;
+  UARTFlushResult flush() override;
   void set_name(std::string port_name) { port_name_ = port_name; };
 
  protected:
   void update_error_(const std::string &error);
   void check_logger_conflict() override {}
   std::string port_name_;
-  std::string first_error_{""};
+  std::string first_error_;
   int file_descriptor_ = -1;
   bool has_peek_{false};
   uint8_t peek_byte_;

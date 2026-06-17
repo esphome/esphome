@@ -3,10 +3,61 @@
 #include "esphome/core/helpers.h"
 #include "color_mode.h"
 #include <cmath>
+#include <cstdint>
+#include <limits>
 
 namespace esphome::light {
 
 inline static uint8_t to_uint8_scale(float x) { return static_cast<uint8_t>(roundf(x * 255.0f)); }
+
+// IEEE 754 bit patterns. Values in [0.0f, 1.0f] have bits <= ONE_F_BITS;
+// negatives have the sign bit set (→ huge unsigned). A single unsigned compare
+// replaces two soft-float __ltsf2/__gtsf2 calls on ESP8266.
+static constexpr uint32_t ONE_F_BITS = 0x3F800000u;       // 1.0f
+static constexpr uint32_t NEG_ZERO_F_BITS = 0x80000000u;  // -0.0f / sign-bit mask
+static_assert(sizeof(float) == sizeof(uint32_t), "float must be 32-bit");
+static_assert(std::numeric_limits<float>::is_iec559, "IEEE 754 float required");
+
+// Union pun — memcpy/bit_cast don't fold on xtensa-gcc (see api/proto.h).
+// -0.0f is numerically zero so it's reported in range (no warning, no clamp).
+inline bool float_out_of_unit_range(float x) {
+  union {
+    float f;
+    uint32_t u;
+  } pun;
+  pun.f = x;
+  return pun.u > ONE_F_BITS && pun.u != NEG_ZERO_F_BITS;
+}
+
+// Clamps to [0.0f, 1.0f] without float compares. Out of range: sign bit set
+// (negatives, -NaN, -Inf) → 0.0f; sign bit clear (>1, +NaN, +Inf) → 1.0f.
+inline float clamp_unit_float(float x) {
+  union {
+    float f;
+    uint32_t u;
+  } pun;
+  pun.f = x;
+  if (pun.u <= ONE_F_BITS)
+    return x;
+  return (pun.u & NEG_ZERO_F_BITS) ? 0.0f : 1.0f;  // sign bit → negative → clamp to 0
+}
+
+// Shared anonymous union: eight unit-range floats alias unit_fields_[8] so
+// LightCall::validate_() can iterate them as a real array. GCC/Clang ext.
+#define ESPHOME_LIGHT_UNIT_FIELDS_UNION() \
+  union { \
+    struct { \
+      float brightness_; \
+      float color_brightness_; \
+      float red_; \
+      float green_; \
+      float blue_; \
+      float white_; \
+      float cold_white_; \
+      float warm_white_; \
+    }; \
+    float unit_fields_[8]; \
+  }
 
 /** This class represents the color state for a light object.
  *
@@ -52,9 +103,9 @@ class LightColorValues {
         green_(1.0f),
         blue_(1.0f),
         white_(1.0f),
-        color_temperature_{0.0f},
         cold_white_{1.0f},
         warm_white_{1.0f},
+        color_temperature_{0.0f},
         color_mode_(ColorMode::UNKNOWN) {}
 
   LightColorValues(ColorMode color_mode, float state, float brightness, float color_brightness, float red, float green,
@@ -104,67 +155,72 @@ class LightColorValues {
         this->green_ = 1.0f;
         this->blue_ = 1.0f;
       } else {
-        this->red_ /= max_value;
-        this->green_ /= max_value;
-        this->blue_ /= max_value;
+        float inv = 1.0f / max_value;
+        this->red_ *= inv;
+        this->green_ *= inv;
+        this->blue_ *= inv;
       }
     }
   }
-
-  // Note that method signature of as_* methods is kept as-is for compatibility reasons, so not all parameters
-  // are always used or necessary. Methods will be deprecated later.
 
   /// Convert these light color values to a binary representation and write them to binary.
   void as_binary(bool *binary) const { *binary = this->state_ == 1.0f; }
 
   /// Convert these light color values to a brightness-only representation and write them to brightness.
-  void as_brightness(float *brightness, float gamma = 0) const {
-    *brightness = gamma_correct(this->state_ * this->brightness_, gamma);
-  }
+  void as_brightness(float *brightness) const { *brightness = this->state_ * this->brightness_; }
 
   /// Convert these light color values to an RGB representation and write them to red, green, blue.
-  void as_rgb(float *red, float *green, float *blue, float gamma = 0, bool color_interlock = false) const {
+  void as_rgb(float *red, float *green, float *blue) const {
     if (this->color_mode_ & ColorCapability::RGB) {
       float brightness = this->state_ * this->brightness_ * this->color_brightness_;
-      *red = gamma_correct(brightness * this->red_, gamma);
-      *green = gamma_correct(brightness * this->green_, gamma);
-      *blue = gamma_correct(brightness * this->blue_, gamma);
+      *red = brightness * this->red_;
+      *green = brightness * this->green_;
+      *blue = brightness * this->blue_;
     } else {
       *red = *green = *blue = 0;
     }
   }
 
   /// Convert these light color values to an RGBW representation and write them to red, green, blue, white.
-  void as_rgbw(float *red, float *green, float *blue, float *white, float gamma = 0,
-               bool color_interlock = false) const {
-    this->as_rgb(red, green, blue, gamma);
+  void as_rgbw(float *red, float *green, float *blue, float *white) const {
+    this->as_rgb(red, green, blue);
     if (this->color_mode_ & ColorCapability::WHITE) {
-      *white = gamma_correct(this->state_ * this->brightness_ * this->white_, gamma);
+      *white = this->state_ * this->brightness_ * this->white_;
     } else {
       *white = 0;
     }
   }
 
   /// Convert these light color values to an RGBWW representation with the given parameters.
-  void as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white, float gamma = 0,
+  void as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white,
                 bool constant_brightness = false) const {
-    this->as_rgb(red, green, blue, gamma);
-    this->as_cwww(cold_white, warm_white, gamma, constant_brightness);
+    this->as_rgb(red, green, blue);
+    this->as_cwww(cold_white, warm_white, constant_brightness);
   }
 
   /// Convert these light color values to an RGB+CT+BR representation with the given parameters.
   void as_rgbct(float color_temperature_cw, float color_temperature_ww, float *red, float *green, float *blue,
-                float *color_temperature, float *white_brightness, float gamma = 0) const {
-    this->as_rgb(red, green, blue, gamma);
-    this->as_ct(color_temperature_cw, color_temperature_ww, color_temperature, white_brightness, gamma);
+                float *color_temperature, float *white_brightness) const {
+    this->as_rgb(red, green, blue);
+    this->as_ct(color_temperature_cw, color_temperature_ww, color_temperature, white_brightness);
   }
 
   /// Convert these light color values to an CWWW representation with the given parameters.
-  void as_cwww(float *cold_white, float *warm_white, float gamma = 0, bool constant_brightness = false) const {
+  ///
+  /// Note on gamma and constant_brightness: This method operates on the raw/internal channel
+  /// values stored in this object. For cold_white_ and warm_white_ specifically, these
+  /// may already be gamma-uncorrected when derived from a color_temperature value.
+  /// For constant_brightness=false, additional gamma for the output can be applied after
+  /// this method since gamma commutes with simple multiplication. For constant_brightness=true,
+  /// the caller (LightState::current_values_as_cwww) must apply gamma to the individual
+  /// channel values BEFORE the balancing formula, because the nonlinear max/sum ratio does
+  /// not commute with gamma. See LightState::current_values_as_cwww() for the correct
+  /// implementation.
+  void as_cwww(float *cold_white, float *warm_white, bool constant_brightness = false) const {
     if (this->color_mode_ & ColorCapability::COLD_WARM_WHITE) {
-      const float cw_level = gamma_correct(this->cold_white_, gamma);
-      const float ww_level = gamma_correct(this->warm_white_, gamma);
-      const float white_level = gamma_correct(this->state_ * this->brightness_, gamma);
+      const float cw_level = this->cold_white_;
+      const float ww_level = this->warm_white_;
+      const float white_level = this->state_ * this->brightness_;
       if (!constant_brightness) {
         *cold_white = white_level * cw_level;
         *warm_white = white_level * ww_level;
@@ -184,13 +240,13 @@ class LightColorValues {
   }
 
   /// Convert these light color values to a CT+BR representation with the given parameters.
-  void as_ct(float color_temperature_cw, float color_temperature_ww, float *color_temperature, float *white_brightness,
-             float gamma = 0) const {
+  void as_ct(float color_temperature_cw, float color_temperature_ww, float *color_temperature,
+             float *white_brightness) const {
     const float white_level = this->color_mode_ & ColorCapability::RGB ? this->white_ : 1;
     if (this->color_mode_ & ColorCapability::COLOR_TEMPERATURE) {
       *color_temperature =
           (this->color_temperature_ - color_temperature_cw) / (color_temperature_ww - color_temperature_cw);
-      *white_brightness = gamma_correct(this->state_ * this->brightness_ * white_level, gamma);
+      *white_brightness = this->state_ * this->brightness_ * white_level;
     } else {  // Probably won't get here but put this here anyway.
       *white_brightness = 0;
     }
@@ -215,39 +271,39 @@ class LightColorValues {
   /// Get the binary true/false state of these light color values.
   bool is_on() const { return this->get_state() != 0.0f; }
   /// Set the state of these light color values. In range from 0.0 (off) to 1.0 (on)
-  void set_state(float state) { this->state_ = clamp(state, 0.0f, 1.0f); }
+  void set_state(float state) { this->state_ = clamp_unit_float(state); }
   /// Set the state of these light color values as a binary true/false.
   void set_state(bool state) { this->state_ = state ? 1.0f : 0.0f; }
 
   /// Get the brightness property of these light color values. In range 0.0 to 1.0
   float get_brightness() const { return this->brightness_; }
   /// Set the brightness property of these light color values. In range 0.0 to 1.0
-  void set_brightness(float brightness) { this->brightness_ = clamp(brightness, 0.0f, 1.0f); }
+  void set_brightness(float brightness) { this->brightness_ = clamp_unit_float(brightness); }
 
   /// Get the color brightness property of these light color values. In range 0.0 to 1.0
   float get_color_brightness() const { return this->color_brightness_; }
   /// Set the color brightness property of these light color values. In range 0.0 to 1.0
-  void set_color_brightness(float brightness) { this->color_brightness_ = clamp(brightness, 0.0f, 1.0f); }
+  void set_color_brightness(float brightness) { this->color_brightness_ = clamp_unit_float(brightness); }
 
   /// Get the red property of these light color values. In range 0.0 to 1.0
   float get_red() const { return this->red_; }
   /// Set the red property of these light color values. In range 0.0 to 1.0
-  void set_red(float red) { this->red_ = clamp(red, 0.0f, 1.0f); }
+  void set_red(float red) { this->red_ = clamp_unit_float(red); }
 
   /// Get the green property of these light color values. In range 0.0 to 1.0
   float get_green() const { return this->green_; }
   /// Set the green property of these light color values. In range 0.0 to 1.0
-  void set_green(float green) { this->green_ = clamp(green, 0.0f, 1.0f); }
+  void set_green(float green) { this->green_ = clamp_unit_float(green); }
 
   /// Get the blue property of these light color values. In range 0.0 to 1.0
   float get_blue() const { return this->blue_; }
   /// Set the blue property of these light color values. In range 0.0 to 1.0
-  void set_blue(float blue) { this->blue_ = clamp(blue, 0.0f, 1.0f); }
+  void set_blue(float blue) { this->blue_ = clamp_unit_float(blue); }
 
   /// Get the white property of these light color values. In range 0.0 to 1.0
   float get_white() const { return white_; }
   /// Set the white property of these light color values. In range 0.0 to 1.0
-  void set_white(float white) { this->white_ = clamp(white, 0.0f, 1.0f); }
+  void set_white(float white) { this->white_ = clamp_unit_float(white); }
 
   /// Get the color temperature property of these light color values in mired.
   float get_color_temperature() const { return this->color_temperature_; }
@@ -272,26 +328,19 @@ class LightColorValues {
   /// Get the cold white property of these light color values. In range 0.0 to 1.0.
   float get_cold_white() const { return this->cold_white_; }
   /// Set the cold white property of these light color values. In range 0.0 to 1.0.
-  void set_cold_white(float cold_white) { this->cold_white_ = clamp(cold_white, 0.0f, 1.0f); }
+  void set_cold_white(float cold_white) { this->cold_white_ = clamp_unit_float(cold_white); }
 
   /// Get the warm white property of these light color values. In range 0.0 to 1.0.
   float get_warm_white() const { return this->warm_white_; }
   /// Set the warm white property of these light color values. In range 0.0 to 1.0.
-  void set_warm_white(float warm_white) { this->warm_white_ = clamp(warm_white, 0.0f, 1.0f); }
+  void set_warm_white(float warm_white) { this->warm_white_ = clamp_unit_float(warm_white); }
 
   friend class LightCall;
 
  protected:
   float state_;  ///< ON / OFF, float for transition
-  float brightness_;
-  float color_brightness_;
-  float red_;
-  float green_;
-  float blue_;
-  float white_;
+  ESPHOME_LIGHT_UNIT_FIELDS_UNION();
   float color_temperature_;  ///< Color Temperature in Mired
-  float cold_white_;
-  float warm_white_;
   ColorMode color_mode_;
 };
 

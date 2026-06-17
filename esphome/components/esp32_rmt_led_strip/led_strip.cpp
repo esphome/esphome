@@ -9,8 +9,7 @@
 #include <esp_attr.h>
 #include <esp_clk_tree.h>
 
-namespace esphome {
-namespace esp32_rmt_led_strip {
+namespace esphome::esp32_rmt_led_strip {
 
 static const char *const TAG = "esp32_rmt_led_strip";
 
@@ -99,8 +98,6 @@ void ESP32RMTLEDStripLightOutput::setup() {
   channel.gpio_num = gpio_num_t(this->pin_);
   channel.mem_block_symbols = this->rmt_symbols_;
   channel.trans_queue_depth = 1;
-  channel.flags.io_loop_back = 0;
-  channel.flags.io_od_mode = 0;
   channel.flags.invert_out = this->invert_out_;
   channel.flags.with_dma = this->use_dma_;
   channel.intr_priority = 0;
@@ -162,7 +159,8 @@ void ESP32RMTLEDStripLightOutput::set_led_params(uint32_t bit0_high, uint32_t bi
 void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
   // protect from refreshing too often
   uint32_t now = micros();
-  if (*this->max_refresh_rate_ != 0 && (now - this->last_refresh_) < *this->max_refresh_rate_) {
+  auto rate = this->max_refresh_rate_.value_or(0);
+  if (rate != 0 && (now - this->last_refresh_) < rate) {
     // try again next loop iteration, so that this change won't get lost
     this->schedule_show();
     return;
@@ -301,12 +299,11 @@ void ESP32RMTLEDStripLightOutput::dump_config() {
                 "  RGB Order: %s\n"
                 "  Max refresh rate: %" PRIu32 "\n"
                 "  Number of LEDs: %u",
-                rgb_order, *this->max_refresh_rate_, this->num_leds_);
+                rgb_order, this->max_refresh_rate_.value_or(0), this->num_leds_);
 }
 
 float ESP32RMTLEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-}  // namespace esp32_rmt_led_strip
-}  // namespace esphome
+}  // namespace esphome::esp32_rmt_led_strip
 
 #endif  // USE_ESP32

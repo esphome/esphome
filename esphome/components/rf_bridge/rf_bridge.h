@@ -7,8 +7,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace rf_bridge {
+namespace esphome::rf_bridge {
 
 static const uint8_t RF_MESSAGE_SIZE = 9;
 static const uint8_t RF_CODE_START = 0xAA;
@@ -30,6 +29,7 @@ static const uint8_t RF_CODE_RFIN_BUCKET = 0xB1;
 static const uint8_t RF_CODE_BEEP = 0xC0;
 static const uint8_t RF_CODE_STOP = 0x55;
 static const uint8_t RF_DEBOUNCE = 200;
+static const size_t MAX_RX_BUFFER_SIZE = 512;
 
 struct RFBridgeData {
   uint16_t sync;
@@ -48,11 +48,11 @@ class RFBridgeComponent : public uart::UARTDevice, public Component {
  public:
   void loop() override;
   void dump_config() override;
-  void add_on_code_received_callback(std::function<void(RFBridgeData)> callback) {
-    this->data_callback_.add(std::move(callback));
+  template<typename F> void add_on_code_received_callback(F &&callback) {
+    this->data_callback_.add(std::forward<F>(callback));
   }
-  void add_on_advanced_code_received_callback(std::function<void(RFBridgeAdvancedData)> callback) {
-    this->advanced_data_callback_.add(std::move(callback));
+  template<typename F> void add_on_advanced_code_received_callback(F &&callback) {
+    this->advanced_data_callback_.add(std::forward<F>(callback));
   }
   void send_code(RFBridgeData data);
   void send_advanced_code(const RFBridgeAdvancedData &data);
@@ -74,20 +74,6 @@ class RFBridgeComponent : public uart::UARTDevice, public Component {
 
   CallbackManager<void(RFBridgeData)> data_callback_;
   CallbackManager<void(RFBridgeAdvancedData)> advanced_data_callback_;
-};
-
-class RFBridgeReceivedCodeTrigger : public Trigger<RFBridgeData> {
- public:
-  explicit RFBridgeReceivedCodeTrigger(RFBridgeComponent *parent) {
-    parent->add_on_code_received_callback([this](RFBridgeData data) { this->trigger(data); });
-  }
-};
-
-class RFBridgeReceivedAdvancedCodeTrigger : public Trigger<RFBridgeAdvancedData> {
- public:
-  explicit RFBridgeReceivedAdvancedCodeTrigger(RFBridgeComponent *parent) {
-    parent->add_on_advanced_code_received_callback([this](const RFBridgeAdvancedData &data) { this->trigger(data); });
-  }
 };
 
 template<typename... Ts> class RFBridgeSendCodeAction : public Action<Ts...> {
@@ -192,5 +178,4 @@ template<typename... Ts> class RFBridgeBeepAction : public Action<Ts...> {
   RFBridgeComponent *parent_;
 };
 
-}  // namespace rf_bridge
-}  // namespace esphome
+}  // namespace esphome::rf_bridge

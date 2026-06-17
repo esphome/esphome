@@ -2,6 +2,7 @@ import logging
 
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.const import CONF_LOOP
 import esphome.components.image as espImage
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_REPEAT
@@ -14,7 +15,6 @@ DEPENDENCIES = ["display"]
 MULTI_CONF = True
 MULTI_CONF_NO_DEFAULT = True
 
-CONF_LOOP = "loop"
 CONF_START_FRAME = "start_frame"
 CONF_END_FRAME = "end_frame"
 CONF_FRAME = "frame"
@@ -69,9 +69,15 @@ SET_FRAME_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action("animation.next_frame", NextFrameAction, NEXT_FRAME_SCHEMA)
-@automation.register_action("animation.prev_frame", PrevFrameAction, PREV_FRAME_SCHEMA)
-@automation.register_action("animation.set_frame", SetFrameAction, SET_FRAME_SCHEMA)
+@automation.register_action(
+    "animation.next_frame", NextFrameAction, NEXT_FRAME_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "animation.prev_frame", PrevFrameAction, PREV_FRAME_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "animation.set_frame", SetFrameAction, SET_FRAME_SCHEMA, synchronous=True
+)
 async def animation_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)

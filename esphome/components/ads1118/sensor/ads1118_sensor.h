@@ -8,8 +8,7 @@
 
 #include "../ads1118.h"
 
-namespace esphome {
-namespace ads1118 {
+namespace esphome::ads1118 {
 
 class ADS1118Sensor : public PollingComponent,
                       public sensor::Sensor,
@@ -32,5 +31,4 @@ class ADS1118Sensor : public PollingComponent,
   bool temperature_mode_;
 };
 
-}  // namespace ads1118
-}  // namespace esphome
+}  // namespace esphome::ads1118

@@ -4,8 +4,7 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display_buffer.h"
 
-namespace esphome {
-namespace st7735 {
+namespace esphome::st7735 {
 
 static const uint8_t ST7735_TFTWIDTH_128 = 128;   // for 1.44 and mini^M
 static const uint8_t ST7735_TFTWIDTH_80 = 80;     // for mini^M
@@ -68,7 +67,6 @@ class ST7735 : public display::DisplayBuffer,
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   void spi_master_write_addr_(uint16_t addr1, uint16_t addr2);
-  void spi_master_write_color_(uint16_t color, uint16_t size);
 
   int get_width_internal() override;
   int get_height_internal() override;
@@ -86,5 +84,4 @@ class ST7735 : public display::DisplayBuffer,
   GPIOPin *dc_pin_{nullptr};
 };
 
-}  // namespace st7735
-}  // namespace esphome
+}  // namespace esphome::st7735

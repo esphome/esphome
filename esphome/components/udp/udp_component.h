@@ -28,9 +28,7 @@ class UDPComponent : public Component {
   void set_broadcast_port(uint16_t port) { this->broadcast_port_ = port; }
   void set_should_broadcast() { this->should_broadcast_ = true; }
   void set_should_listen() { this->should_listen_ = true; }
-  void add_listener(std::function<void(std::span<const uint8_t>)> &&listener) {
-    this->packet_listeners_.add(std::move(listener));
-  }
+  template<typename F> void add_listener(F &&listener) { this->packet_listeners_.add(std::forward<F>(listener)); }
   void setup() override;
   void loop() override;
   void dump_config() override;

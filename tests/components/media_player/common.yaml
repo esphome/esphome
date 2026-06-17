@@ -1,18 +1,18 @@
-wifi:
-  ssid: MySSID
-  password: password1
-
 i2s_audio:
   i2s_lrclk_pin: 13
   i2s_bclk_pin: 14
   i2s_mclk_pin: 15
 
-media_player:
+speaker:
   - platform: i2s_audio
-    name: None
-    dac_type: external
+    id: test_speaker
     i2s_dout_pin: 18
-    mute_pin: 19
+    dac_type: external
+
+media_player:
+  - platform: speaker
+    name: None
+    speaker: test_speaker
     on_state:
       - media_player.play:
       - media_player.play_media: http://localhost/media.mp3
@@ -61,3 +61,8 @@ media_player:
       - media_player.volume_up:
       - media_player.volume_down:
       - media_player.volume_set: 50%
+      - media_player.enqueue: http://localhost/media.mp3
+      - media_player.enqueue: !lambda 'return "http://localhost/media.mp3";'
+      - media_player.enqueue:
+          media_url: http://localhost/media.mp3
+          announcement: true

@@ -21,7 +21,7 @@ CONFIG_SCHEMA = time.TIME_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(pcf8563Component),
     }
-).extend(i2c.i2c_device_schema(0xA3))
+).extend(i2c.i2c_device_schema(0x51))
 
 
 @automation.register_action(
@@ -32,6 +32,7 @@ CONFIG_SCHEMA = time.TIME_SCHEMA.extend(
             cv.GenerateID(): cv.use_id(pcf8563Component),
         }
     ),
+    synchronous=True,
 )
 async def pcf8563_write_time_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -47,6 +48,7 @@ async def pcf8563_write_time_to_code(config, action_id, template_arg, args):
             cv.GenerateID(): cv.use_id(pcf8563Component),
         }
     ),
+    synchronous=True,
 )
 async def pcf8563_read_time_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

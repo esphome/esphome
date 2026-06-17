@@ -1,8 +1,7 @@
 #include "as3935.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace as3935 {
+namespace esphome::as3935 {
 
 static const char *const TAG = "as3935";
 
@@ -320,5 +319,4 @@ uint8_t AS3935Component::read_register_(uint8_t reg, uint8_t mask) {
   return value;
 }
 
-}  // namespace as3935
-}  // namespace esphome
+}  // namespace esphome::as3935

@@ -3,8 +3,7 @@
 #include "esphome/components/ens160_base/ens160_base.h"
 #include "esphome/components/spi/spi.h"
 
-namespace esphome {
-namespace ens160_spi {
+namespace esphome::ens160_spi {
 
 class ENS160SPIComponent : public esphome::ens160_base::ENS160Component,
                            public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
@@ -18,5 +17,4 @@ class ENS160SPIComponent : public esphome::ens160_base::ENS160Component,
   bool write_bytes(uint8_t a_register, uint8_t *data, size_t len) override;
 };
 
-}  // namespace ens160_spi
-}  // namespace esphome
+}  // namespace esphome::ens160_spi

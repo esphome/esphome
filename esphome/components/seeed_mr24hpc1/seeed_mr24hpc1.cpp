@@ -5,8 +5,7 @@
 
 #include <utility>
 
-namespace esphome {
-namespace seeed_mr24hpc1 {
+namespace esphome::seeed_mr24hpc1 {
 
 static const char *const TAG = "seeed_mr24hpc1";
 
@@ -62,8 +61,6 @@ void MR24HPC1Component::dump_config() {
 
 // Initialisation functions
 void MR24HPC1Component::setup() {
-  this->check_uart_settings(115200);
-
 #ifdef USE_NUMBER
   if (this->custom_mode_number_ != nullptr) {
     this->custom_mode_number_->publish_state(0);  // Zero out the custom mode
@@ -297,19 +294,17 @@ void MR24HPC1Component::r24_split_data_frame_(uint8_t value) {
       this->sg_recv_data_state_ = FRAME_DATA_LEN_H;
       break;
     case FRAME_DATA_LEN_H:
-      if (value <= 4) {
-        this->sg_data_len_ = value * 256;
+      if (value == 0) {
         this->sg_frame_buf_[4] = value;
         this->sg_recv_data_state_ = FRAME_DATA_LEN_L;
       } else {
-        this->sg_data_len_ = 0;
         this->sg_recv_data_state_ = FRAME_IDLE;
         ESP_LOGD(TAG, "FRAME_DATA_LEN_H ERROR value:%x", value);
       }
       break;
     case FRAME_DATA_LEN_L:
-      this->sg_data_len_ += value;
-      if (this->sg_data_len_ > 32) {
+      this->sg_data_len_ = value;
+      if (this->sg_data_len_ == 0 || this->sg_data_len_ > 32) {
         ESP_LOGD(TAG, "len=%d, FRAME_DATA_LEN_L ERROR value:%x", this->sg_data_len_, value);
         this->sg_data_len_ = 0;
         this->sg_recv_data_state_ = FRAME_IDLE;
@@ -320,9 +315,8 @@ void MR24HPC1Component::r24_split_data_frame_(uint8_t value) {
       }
       break;
     case FRAME_DATA_BYTES:
-      this->sg_data_len_ -= 1;
       this->sg_frame_buf_[this->sg_frame_len_++] = value;
-      if (this->sg_data_len_ <= 0) {
+      if (--this->sg_data_len_ == 0) {
         this->sg_recv_data_state_ = FRAME_DATA_CRC;
       }
       break;
@@ -452,7 +446,8 @@ void MR24HPC1Component::r24_frame_parse_open_underlying_information_(uint8_t *da
       }
       break;
     case 0x83:
-      if (this->custom_presence_of_detection_sensor_ != nullptr) {
+      if (this->custom_presence_of_detection_sensor_ != nullptr &&
+          data[FRAME_DATA_INDEX] < std::size(S_PRESENCE_OF_DETECTION_RANGE_STR)) {
         this->custom_presence_of_detection_sensor_->publish_state(
             S_PRESENCE_OF_DETECTION_RANGE_STR[data[FRAME_DATA_INDEX]]);
       }
@@ -646,7 +641,7 @@ void MR24HPC1Component::r24_frame_parse_human_information_(uint8_t *data) {
 #ifdef USE_BINARY_SENSOR
     case 0x01:
     case 0x81:
-      if (this->has_target_binary_sensor_ != nullptr) {
+      if (this->has_target_binary_sensor_ != nullptr && data[FRAME_DATA_INDEX] < std::size(S_SOMEONE_EXISTS_STR)) {
         this->has_target_binary_sensor_->publish_state(S_SOMEONE_EXISTS_STR[data[FRAME_DATA_INDEX]]);
       }
       break;
@@ -1006,5 +1001,4 @@ void MR24HPC1Component::set_custom_unman_time(uint16_t value) {
   this->get_custom_unman_time();
 }
 
-}  // namespace seeed_mr24hpc1
-}  // namespace esphome
+}  // namespace esphome::seeed_mr24hpc1

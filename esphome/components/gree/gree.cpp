@@ -1,12 +1,27 @@
 #include "gree.h"
 #include "esphome/components/remote_base/remote_base.h"
 
-namespace esphome {
-namespace gree {
+namespace esphome::gree {
 
 static const char *const TAG = "gree.climate";
 
+climate::ClimateTraits GreeClimate::traits() {
+  auto t = climate_ir::ClimateIR::traits();
+  // ClimateIR unconditionally includes HEAT_COOL in the base mode set; remove it when heat is not supported.
+  if (!this->supports_heat_) {
+    auto modes = t.get_supported_modes();
+    modes.erase(climate::CLIMATE_MODE_HEAT_COOL);
+    t.set_supported_modes(modes);
+  }
+  return t;
+}
+
 void GreeClimate::set_model(Model model) {
+  if (model == GREE_YAN) {
+    // YAN only has a vertical vane; the horizontal swing IR bytes are not defined for this model.
+    this->swing_modes_.erase(climate::CLIMATE_SWING_HORIZONTAL);
+    this->swing_modes_.erase(climate::CLIMATE_SWING_BOTH);
+  }
   if (model == GREE_YX1FF) {
     this->fan_modes_.insert(climate::CLIMATE_FAN_QUIET);   // YX1FF 4 speed
     this->presets_.insert(climate::CLIMATE_PRESET_NONE);   // YX1FF sleep mode
@@ -87,19 +102,12 @@ void GreeClimate::transmit_state() {
   // Calculate the checksum
   if (this->model_ == GREE_YAN || this->model_ == GREE_YX1FF) {
     remote_state[7] = ((remote_state[0] << 4) + (remote_state[1] << 4) + 0xC0);
-  } else if (this->model_ == GREE_YAG) {
+  } else {
     remote_state[7] =
         ((((remote_state[0] & 0x0F) + (remote_state[1] & 0x0F) + (remote_state[2] & 0x0F) + (remote_state[3] & 0x0F) +
            ((remote_state[4] & 0xF0) >> 4) + ((remote_state[5] & 0xF0) >> 4) + ((remote_state[6] & 0xF0) >> 4) + 0x0A) &
           0x0F)
          << 4);
-  } else {
-    remote_state[7] =
-        ((((remote_state[0] & 0x0F) + (remote_state[1] & 0x0F) + (remote_state[2] & 0x0F) + (remote_state[3] & 0x0F) +
-           ((remote_state[5] & 0xF0) >> 4) + ((remote_state[6] & 0xF0) >> 4) + ((remote_state[7] & 0xF0) >> 4) + 0x0A) &
-          0x0F)
-         << 4) |
-        (remote_state[7] & 0x0F);
   }
 
   auto transmit = this->transmitter_->transmit();
@@ -180,7 +188,7 @@ uint8_t GreeClimate::operation_mode_() {
 uint8_t GreeClimate::fan_speed_() {
   // YX1FF has 4 fan speeds -- we treat low as quiet and turbo as high
   if (this->model_ == GREE_YX1FF) {
-    switch (this->fan_mode.value()) {
+    switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
       case climate::CLIMATE_FAN_QUIET:
         return GREE_FAN_1;
       case climate::CLIMATE_FAN_LOW:
@@ -195,7 +203,7 @@ uint8_t GreeClimate::fan_speed_() {
     }
   }
 
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_LOW:
       return GREE_FAN_1;
     case climate::CLIMATE_FAN_MEDIUM:
@@ -235,7 +243,7 @@ uint8_t GreeClimate::temperature_() {
 uint8_t GreeClimate::preset_() {
   // YX1FF has sleep preset
   if (this->model_ == GREE_YX1FF) {
-    switch (this->preset.value()) {
+    switch (this->preset.value_or(climate::CLIMATE_PRESET_NONE)) {
       case climate::CLIMATE_PRESET_NONE:
         return GREE_PRESET_NONE;
       case climate::CLIMATE_PRESET_SLEEP:
@@ -248,5 +256,4 @@ uint8_t GreeClimate::preset_() {
   return GREE_PRESET_NONE;
 }
 
-}  // namespace gree
-}  // namespace esphome
+}  // namespace esphome::gree

@@ -6,8 +6,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace binary_sensor_map {
+namespace esphome::binary_sensor_map {
 
 enum BinarySensorMapType {
   BINARY_SENSOR_MAP_TYPE_GROUP,
@@ -96,5 +95,4 @@ class BinarySensorMap : public sensor::Sensor, public Component {
   float bayesian_predicate_(bool sensor_state, float prior, float prob_given_true, float prob_given_false);
 };
 
-}  // namespace binary_sensor_map
-}  // namespace esphome
+}  // namespace esphome::binary_sensor_map

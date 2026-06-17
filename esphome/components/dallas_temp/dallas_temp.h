@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/one_wire/one_wire.h"
 
-namespace esphome {
-namespace dallas_temp {
+namespace esphome::dallas_temp {
 
 class DallasTemperatureSensor : public PollingComponent, public sensor::Sensor, public one_wire::OneWireDevice {
  public:
@@ -27,5 +26,4 @@ class DallasTemperatureSensor : public PollingComponent, public sensor::Sensor, 
   float get_temp_c_();
 };
 
-}  // namespace dallas_temp
-}  // namespace esphome
+}  // namespace esphome::dallas_temp

@@ -17,8 +17,7 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
 
-namespace esphome {
-namespace ezo_pmp {
+namespace esphome::ezo_pmp {
 
 class EzoPMP : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -85,7 +84,7 @@ class EzoPMP : public PollingComponent, public i2c::I2CDevice {
   bool is_paused_flag_ = false;
   bool is_dosing_flag_ = false;
 
-  const char *arbitrary_command_{nullptr};
+  std::string arbitrary_command_{};
 
   void send_next_command_();
   void read_command_result_();
@@ -247,5 +246,4 @@ template<typename... Ts> class EzoPMPArbitraryCommandAction : public Action<Ts..
   EzoPMP *ezopmp_;
 };
 
-}  // namespace ezo_pmp
-}  // namespace esphome
+}  // namespace esphome::ezo_pmp

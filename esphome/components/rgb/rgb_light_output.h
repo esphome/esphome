@@ -4,8 +4,7 @@
 #include "esphome/components/output/float_output.h"
 #include "esphome/components/light/light_output.h"
 
-namespace esphome {
-namespace rgb {
+namespace esphome::rgb {
 
 class RGBLightOutput : public light::LightOutput {
  public:
@@ -20,7 +19,7 @@ class RGBLightOutput : public light::LightOutput {
   }
   void write_state(light::LightState *state) override {
     float red, green, blue;
-    state->current_values_as_rgb(&red, &green, &blue, false);
+    state->current_values_as_rgb(&red, &green, &blue);
     this->red_->set_level(red);
     this->green_->set_level(green);
     this->blue_->set_level(blue);
@@ -32,5 +31,4 @@ class RGBLightOutput : public light::LightOutput {
   output::FloatOutput *blue_;
 };
 
-}  // namespace rgb
-}  // namespace esphome
+}  // namespace esphome::rgb

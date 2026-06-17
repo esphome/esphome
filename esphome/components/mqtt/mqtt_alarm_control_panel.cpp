@@ -23,27 +23,53 @@ static ProgmemStr alarm_state_to_mqtt_str(AlarmControlPanelState state) {
 
 MQTTAlarmControlPanelComponent::MQTTAlarmControlPanelComponent(AlarmControlPanel *alarm_control_panel)
     : alarm_control_panel_(alarm_control_panel) {}
+
+static bool apply_command(AlarmControlPanelCall &call, const char *state) {
+  if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("ARM_AWAY")) == 0) {
+    call.arm_away();
+  } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("ARM_HOME")) == 0) {
+    call.arm_home();
+  } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("ARM_NIGHT")) == 0) {
+    call.arm_night();
+  } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("ARM_VACATION")) == 0) {
+    call.arm_vacation();
+  } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("ARM_CUSTOM_BYPASS")) == 0) {
+    call.arm_custom_bypass();
+  } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("DISARM")) == 0) {
+    call.disarm();
+  } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("PENDING")) == 0) {
+    call.pending();
+  } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("TRIGGERED")) == 0) {
+    call.triggered();
+  } else {
+    return false;
+  }
+  return true;
+}
+
 void MQTTAlarmControlPanelComponent::setup() {
-  this->alarm_control_panel_->add_on_state_callback([this]() { this->publish_state(); });
+  this->alarm_control_panel_->add_on_state_callback(
+      [this](AlarmControlPanelState /*state*/) { this->publish_state(); });
   this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
     auto call = this->alarm_control_panel_->make_call();
-    if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("ARM_AWAY")) == 0) {
-      call.arm_away();
-    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("ARM_HOME")) == 0) {
-      call.arm_home();
-    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("ARM_NIGHT")) == 0) {
-      call.arm_night();
-    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("ARM_VACATION")) == 0) {
-      call.arm_vacation();
-    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("ARM_CUSTOM_BYPASS")) == 0) {
-      call.arm_custom_bypass();
-    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("DISARM")) == 0) {
-      call.disarm();
-    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("PENDING")) == 0) {
-      call.pending();
-    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("TRIGGERED")) == 0) {
-      call.triggered();
-    } else {
+    if (!payload.empty() && payload[0] == '{') {
+      // JSON payload: {"state": "DISARM", "code": "1234"}
+      JsonDocument doc = json::parse_json(payload);
+      JsonObject root = doc.as<JsonObject>();
+      if (!root.isNull()) {
+        const char *state = root[ESPHOME_F("state")];
+        if (state == nullptr) {
+          ESP_LOGW(TAG, "'%s': JSON payload missing 'state' key", this->friendly_name_().c_str());
+        } else if (!apply_command(call, state)) {
+          ESP_LOGW(TAG, "'%s': Received unknown state in JSON payload: %s", this->friendly_name_().c_str(), state);
+        } else {
+          const char *code = root[ESPHOME_F("code")];
+          if (code != nullptr) {
+            call.set_code(code);
+          }
+        }
+      }
+    } else if (!apply_command(call, payload.c_str())) {
       ESP_LOGW(TAG, "'%s': Received unknown command payload %s", this->friendly_name_().c_str(), payload.c_str());
     }
     call.perform();

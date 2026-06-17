@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/fan/fan.h"
 
-namespace esphome {
-namespace demo {
+namespace esphome::demo {
 
 enum class DemoFanType {
   TYPE_1,
@@ -47,14 +46,18 @@ class DemoFan : public fan::Fan, public Component {
 
  protected:
   void control(const fan::FanCall &call) override {
-    if (call.get_state().has_value())
-      this->state = *call.get_state();
-    if (call.get_oscillating().has_value())
-      this->oscillating = *call.get_oscillating();
-    if (call.get_speed().has_value())
-      this->speed = *call.get_speed();
-    if (call.get_direction().has_value())
-      this->direction = *call.get_direction();
+    auto state = call.get_state();
+    if (state.has_value())
+      this->state = *state;
+    auto oscillating = call.get_oscillating();
+    if (oscillating.has_value())
+      this->oscillating = *oscillating;
+    auto speed = call.get_speed();
+    if (speed.has_value())
+      this->speed = *speed;
+    auto direction = call.get_direction();
+    if (direction.has_value())
+      this->direction = *direction;
 
     this->publish_state();
   }
@@ -62,5 +65,4 @@ class DemoFan : public fan::Fan, public Component {
   DemoFanType type_;
 };
 
-}  // namespace demo
-}  // namespace esphome
+}  // namespace esphome::demo

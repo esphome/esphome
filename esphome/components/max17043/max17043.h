@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace max17043 {
+namespace esphome::max17043 {
 
 class MAX17043Component : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -24,5 +23,4 @@ class MAX17043Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *battery_remaining_sensor_{nullptr};
 };
 
-}  // namespace max17043
-}  // namespace esphome
+}  // namespace esphome::max17043

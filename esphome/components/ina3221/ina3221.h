@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace ina3221 {
+namespace esphome::ina3221 {
 
 class INA3221Component : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -35,5 +34,4 @@ class INA3221Component : public PollingComponent, public i2c::I2CDevice {
   } channels_[3];
 };
 
-}  // namespace ina3221
-}  // namespace esphome
+}  // namespace esphome::ina3221

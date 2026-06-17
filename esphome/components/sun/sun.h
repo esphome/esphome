@@ -7,8 +7,7 @@
 
 #include "esphome/components/time/real_time_clock.h"
 
-namespace esphome {
-namespace sun {
+namespace esphome::sun {
 
 namespace internal {
 
@@ -129,5 +128,4 @@ template<typename... Ts> class SunCondition : public Condition<Ts...>, public Pa
   bool above_;
 };
 
-}  // namespace sun
-}  // namespace esphome
+}  // namespace esphome::sun

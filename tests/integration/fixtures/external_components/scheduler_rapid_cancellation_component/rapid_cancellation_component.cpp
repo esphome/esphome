@@ -6,8 +6,7 @@
 #include <random>
 #include <sstream>
 
-namespace esphome {
-namespace scheduler_rapid_cancellation_component {
+namespace esphome::scheduler_rapid_cancellation_component {
 
 static const char *const TAG = "scheduler_rapid_cancellation";
 
@@ -76,5 +75,4 @@ void SchedulerRapidCancellationComponent::run_rapid_cancellation_test() {
   });
 }
 
-}  // namespace scheduler_rapid_cancellation_component
-}  // namespace esphome
+}  // namespace esphome::scheduler_rapid_cancellation_component

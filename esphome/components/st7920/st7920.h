@@ -4,8 +4,7 @@
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/components/spi/spi.h"
 
-namespace esphome {
-namespace st7920 {
+namespace esphome::st7920 {
 
 class ST7920;
 
@@ -47,5 +46,4 @@ class ST7920 : public display::DisplayBuffer,
   st7920_writer_t writer_local_{};
 };
 
-}  // namespace st7920
-}  // namespace esphome
+}  // namespace esphome::st7920

@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/climate/climate.h"
 
-namespace esphome {
-namespace demo {
+namespace esphome::demo {
 
 enum class DemoClimateType {
   TYPE_1,
@@ -16,6 +15,19 @@ class DemoClimate : public climate::Climate, public Component {
  public:
   void set_type(DemoClimateType type) { type_ = type; }
   void setup() override {
+    // Set custom modes once during setup — stored on Climate base class, wired via get_traits()
+    switch (type_) {
+      case DemoClimateType::TYPE_1:
+        break;
+      case DemoClimateType::TYPE_2:
+        this->set_supported_custom_fan_modes({"Auto Low", "Auto High"});
+        this->set_supported_custom_presets({"My Preset"});
+        break;
+      case DemoClimateType::TYPE_3:
+        this->set_supported_custom_fan_modes({"Auto Low", "Auto High"});
+        break;
+    }
+    // Set initial state
     switch (type_) {
       case DemoClimateType::TYPE_1:
         this->current_temperature = 20.0;
@@ -45,33 +57,31 @@ class DemoClimate : public climate::Climate, public Component {
 
  protected:
   void control(const climate::ClimateCall &call) override {
-    if (call.get_mode().has_value()) {
-      this->mode = *call.get_mode();
-    }
-    if (call.get_target_temperature().has_value()) {
-      this->target_temperature = *call.get_target_temperature();
-    }
-    if (call.get_target_temperature_low().has_value()) {
-      this->target_temperature_low = *call.get_target_temperature_low();
-    }
-    if (call.get_target_temperature_high().has_value()) {
-      this->target_temperature_high = *call.get_target_temperature_high();
-    }
-    if (call.get_fan_mode().has_value()) {
-      this->set_fan_mode_(*call.get_fan_mode());
-    }
-    if (call.get_swing_mode().has_value()) {
-      this->swing_mode = *call.get_swing_mode();
-    }
-    if (call.has_custom_fan_mode()) {
+    auto mode = call.get_mode();
+    if (mode.has_value())
+      this->mode = *mode;
+    auto target_temperature = call.get_target_temperature();
+    if (target_temperature.has_value())
+      this->target_temperature = *target_temperature;
+    auto target_temperature_low = call.get_target_temperature_low();
+    if (target_temperature_low.has_value())
+      this->target_temperature_low = *target_temperature_low;
+    auto target_temperature_high = call.get_target_temperature_high();
+    if (target_temperature_high.has_value())
+      this->target_temperature_high = *target_temperature_high;
+    auto fan_mode = call.get_fan_mode();
+    if (fan_mode.has_value())
+      this->set_fan_mode_(*fan_mode);
+    auto swing_mode = call.get_swing_mode();
+    if (swing_mode.has_value())
+      this->swing_mode = *swing_mode;
+    if (call.has_custom_fan_mode())
       this->set_custom_fan_mode_(call.get_custom_fan_mode());
-    }
-    if (call.get_preset().has_value()) {
-      this->set_preset_(*call.get_preset());
-    }
-    if (call.has_custom_preset()) {
+    auto preset = call.get_preset();
+    if (preset.has_value())
+      this->set_preset_(*preset);
+    if (call.has_custom_preset())
       this->set_custom_preset_(call.get_custom_preset());
-    }
     this->publish_state();
   }
   climate::ClimateTraits traits() override {
@@ -107,14 +117,13 @@ class DemoClimate : public climate::Climate, public Component {
             climate::CLIMATE_FAN_DIFFUSE,
             climate::CLIMATE_FAN_QUIET,
         });
-        traits.set_supported_custom_fan_modes({"Auto Low", "Auto High"});
+        // Custom fan modes and presets are set once in setup()
         traits.set_supported_swing_modes({
             climate::CLIMATE_SWING_OFF,
             climate::CLIMATE_SWING_BOTH,
             climate::CLIMATE_SWING_VERTICAL,
             climate::CLIMATE_SWING_HORIZONTAL,
         });
-        traits.set_supported_custom_presets({"My Preset"});
         break;
       case DemoClimateType::TYPE_3:
         traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE |
@@ -125,7 +134,7 @@ class DemoClimate : public climate::Climate, public Component {
             climate::CLIMATE_MODE_HEAT,
             climate::CLIMATE_MODE_HEAT_COOL,
         });
-        traits.set_supported_custom_fan_modes({"Auto Low", "Auto High"});
+        // Custom fan modes are set once in setup()
         traits.set_supported_swing_modes({
             climate::CLIMATE_SWING_OFF,
             climate::CLIMATE_SWING_HORIZONTAL,
@@ -148,5 +157,4 @@ class DemoClimate : public climate::Climate, public Component {
   DemoClimateType type_;
 };
 
-}  // namespace demo
-}  // namespace esphome
+}  // namespace esphome::demo

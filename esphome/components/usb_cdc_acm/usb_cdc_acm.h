@@ -8,7 +8,7 @@
 
 #include <functional>
 #include "freertos/ringbuf.h"
-#include "tusb_cdc_acm.h"
+#include "tinyusb_cdc_acm.h"
 
 namespace esphome::usb_cdc_acm {
 
@@ -82,7 +82,7 @@ class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMC
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override;
-  void flush() override;
+  uart::UARTFlushResult flush() override;
 
  protected:
   void check_logger_conflict() override;
@@ -102,7 +102,11 @@ class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMC
   LineStateCallback line_state_callback_{nullptr};
 
   // Lock-free queue and event pool for cross-task event passing
-  EventPool<CDCEvent, EVENT_QUEUE_SIZE> event_pool_;
+  // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
+  // buffer that holds N-1 elements. This guarantees allocate() returns nullptr
+  // before push() can fail, preventing both a pool slot leak and an SPSC
+  // violation on the pool's internal free list.
+  EventPool<CDCEvent, EVENT_QUEUE_SIZE - 1> event_pool_;
   LockFreeQueue<CDCEvent, EVENT_QUEUE_SIZE> event_queue_;
 };
 

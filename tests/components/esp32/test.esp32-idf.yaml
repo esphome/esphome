@@ -19,6 +19,8 @@ esp32:
       disable_mbedtls_pkcs7: true
       disable_regi2c_in_iram: true
       disable_fatfs: true
+      sram1_as_iram: true
+  watchdog_timeout: 7s
 
 wifi:
   ssid: MySSID

@@ -5,8 +5,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/cover/cover.h"
 
-namespace esphome {
-namespace he60r {
+namespace esphome::he60r {
 
 class HE60rCover : public cover::Cover, public Component, public uart::UARTDevice {
  public:
@@ -41,5 +40,4 @@ class HE60rCover : public cover::Cover, public Component, public uart::UARTDevic
   uint8_t counter_{};
 };
 
-}  // namespace he60r
-}  // namespace esphome
+}  // namespace esphome::he60r

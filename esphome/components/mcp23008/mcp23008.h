@@ -5,8 +5,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace mcp23008 {
+namespace esphome::mcp23008 {
 
 class MCP23008 : public mcp23x08_base::MCP23X08Base, public i2c::I2CDevice {
  public:
@@ -20,5 +19,4 @@ class MCP23008 : public mcp23x08_base::MCP23X08Base, public i2c::I2CDevice {
   bool write_reg(uint8_t reg, uint8_t value) override;
 };
 
-}  // namespace mcp23008
-}  // namespace esphome
+}  // namespace esphome::mcp23008

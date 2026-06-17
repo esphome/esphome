@@ -1,15 +1,14 @@
 #include "modbus_select.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace modbus_controller {
+namespace esphome::modbus_controller {
 
 static const char *const TAG = "modbus_controller.select";
 
 void ModbusSelect::dump_config() { LOG_SELECT(TAG, "Modbus Controller Select", this); }
 
 void ModbusSelect::parse_and_publish(const std::vector<uint8_t> &data) {
-  int64_t value = payload_to_number(data, this->sensor_value_type, this->offset, this->bitmask);
+  int64_t value = modbus::helpers::payload_to_number(data, this->sensor_value_type, this->offset, this->bitmask);
 
   ESP_LOGD(TAG, "New select value %lld from payload", value);
 
@@ -52,7 +51,7 @@ void ModbusSelect::control(size_t index) {
     // Transform func requires string parameter for backward compatibility
     auto val = (*this->write_transform_func_)(this, std::string(option), *mapval, data);
     if (val.has_value()) {
-      mapval = *val;
+      mapval = val;
       ESP_LOGV(TAG, "write_lambda returned mapping value %lld", *mapval);
     } else {
       ESP_LOGD(TAG, "Communication handled by write_lambda - exiting control");
@@ -61,7 +60,7 @@ void ModbusSelect::control(size_t index) {
   }
 
   if (data.empty()) {
-    number_to_payload(data, *mapval, this->sensor_value_type);
+    modbus::helpers::number_to_payload(data, *mapval, this->sensor_value_type);
   } else {
     ESP_LOGV(TAG, "Using payload from write lambda");
   }
@@ -86,5 +85,4 @@ void ModbusSelect::control(size_t index) {
     this->publish_state(index);
 }
 
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller

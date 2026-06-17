@@ -9,8 +9,7 @@
 using namespace esphome::climate;
 using namespace esphome::uart;
 
-namespace esphome {
-namespace haier {
+namespace esphome::haier {
 
 static const char *const TAG = "haier.climate";
 constexpr size_t SIGNAL_LEVEL_UPDATE_INTERVAL_MS = 10000;
@@ -85,7 +84,7 @@ void HonClimate::set_horizontal_airflow(hon_protocol::HorizontalSwingMode direct
   this->force_send_control_ = true;
 }
 
-std::string HonClimate::get_cleaning_status_text() const {
+const char *HonClimate::get_cleaning_status_text() const {
   switch (this->cleaning_status_) {
     case CleaningState::SELF_CLEAN:
       return "Self clean";
@@ -114,14 +113,6 @@ void HonClimate::start_steri_cleaning() {
   }
 }
 
-void HonClimate::add_alarm_start_callback(std::function<void(uint8_t, const char *)> &&callback) {
-  this->alarm_start_callback_.add(std::move(callback));
-}
-
-void HonClimate::add_alarm_end_callback(std::function<void(uint8_t, const char *)> &&callback) {
-  this->alarm_end_callback_.add(std::move(callback));
-}
-
 haier_protocol::HandlerError HonClimate::get_device_version_answer_handler_(haier_protocol::FrameType request_type,
                                                                             haier_protocol::FrameType message_type,
                                                                             const uint8_t *data, size_t data_size) {
@@ -142,29 +133,22 @@ haier_protocol::HandlerError HonClimate::get_device_version_answer_handler_(haie
     }
     // All OK
     hon_protocol::DeviceVersionAnswer *answr = (hon_protocol::DeviceVersionAnswer *) data;
-    char tmp[9];
-    tmp[8] = 0;
-    strncpy(tmp, answr->protocol_version, 8);
-    this->hvac_hardware_info_ = HardwareInfo();
-    this->hvac_hardware_info_.value().protocol_version_ = std::string(tmp);
-    strncpy(tmp, answr->software_version, 8);
-    this->hvac_hardware_info_.value().software_version_ = std::string(tmp);
-    strncpy(tmp, answr->hardware_version, 8);
-    this->hvac_hardware_info_.value().hardware_version_ = std::string(tmp);
-    strncpy(tmp, answr->device_name, 8);
-    this->hvac_hardware_info_.value().device_name_ = std::string(tmp);
+    HardwareInfo info{};  // zero-init guarantees null-termination
+    strncpy(info.protocol_version_, answr->protocol_version, HARDWARE_INFO_STR_SIZE - 1);
+    strncpy(info.software_version_, answr->software_version, HARDWARE_INFO_STR_SIZE - 1);
+    strncpy(info.hardware_version_, answr->hardware_version, HARDWARE_INFO_STR_SIZE - 1);
+    strncpy(info.device_name_, answr->device_name, HARDWARE_INFO_STR_SIZE - 1);
+    info.functions_[0] = (answr->functions[1] & 0x01) != 0;  // interactive mode support
+    info.functions_[1] = (answr->functions[1] & 0x02) != 0;  // controller-device mode support
+    info.functions_[2] = (answr->functions[1] & 0x04) != 0;  // crc support
+    info.functions_[3] = (answr->functions[1] & 0x08) != 0;  // multiple AC support
+    info.functions_[4] = (answr->functions[1] & 0x20) != 0;  // roles support
+    this->use_crc_ = info.functions_[2];
 #ifdef USE_TEXT_SENSOR
-    this->update_sub_text_sensor_(SubTextSensorType::APPLIANCE_NAME, this->hvac_hardware_info_.value().device_name_);
-    this->update_sub_text_sensor_(SubTextSensorType::PROTOCOL_VERSION,
-                                  this->hvac_hardware_info_.value().protocol_version_);
+    this->update_sub_text_sensor_(SubTextSensorType::APPLIANCE_NAME, info.device_name_);
+    this->update_sub_text_sensor_(SubTextSensorType::PROTOCOL_VERSION, info.protocol_version_);
 #endif
-    this->hvac_hardware_info_.value().functions_[0] = (answr->functions[1] & 0x01) != 0;  // interactive mode support
-    this->hvac_hardware_info_.value().functions_[1] =
-        (answr->functions[1] & 0x02) != 0;  // controller-device mode support
-    this->hvac_hardware_info_.value().functions_[2] = (answr->functions[1] & 0x04) != 0;  // crc support
-    this->hvac_hardware_info_.value().functions_[3] = (answr->functions[1] & 0x08) != 0;  // multiple AC support
-    this->hvac_hardware_info_.value().functions_[4] = (answr->functions[1] & 0x20) != 0;  // roles support
-    this->use_crc_ = this->hvac_hardware_info_.value().functions_[2];
+    this->hvac_hardware_info_ = info;
     this->set_phase(ProtocolPhases::SENDING_INIT_2);
     return result;
   } else {
@@ -309,32 +293,38 @@ void HonClimate::set_handlers() {
   // Set handlers
   this->haier_protocol_.set_answer_handler(
       haier_protocol::FrameType::GET_DEVICE_VERSION,
-      std::bind(&HonClimate::get_device_version_answer_handler_, this, std::placeholders::_1, std::placeholders::_2,
-                std::placeholders::_3, std::placeholders::_4));
+      [this](haier_protocol::FrameType req, haier_protocol::FrameType msg, const uint8_t *data, size_t size) {
+        return this->get_device_version_answer_handler_(req, msg, data, size);
+      });
   this->haier_protocol_.set_answer_handler(
       haier_protocol::FrameType::GET_DEVICE_ID,
-      std::bind(&HonClimate::get_device_id_answer_handler_, this, std::placeholders::_1, std::placeholders::_2,
-                std::placeholders::_3, std::placeholders::_4));
+      [this](haier_protocol::FrameType req, haier_protocol::FrameType msg, const uint8_t *data, size_t size) {
+        return this->get_device_id_answer_handler_(req, msg, data, size);
+      });
   this->haier_protocol_.set_answer_handler(
       haier_protocol::FrameType::CONTROL,
-      std::bind(&HonClimate::status_handler_, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3,
-                std::placeholders::_4));
+      [this](haier_protocol::FrameType req, haier_protocol::FrameType msg, const uint8_t *data, size_t size) {
+        return this->status_handler_(req, msg, data, size);
+      });
   this->haier_protocol_.set_answer_handler(
       haier_protocol::FrameType::GET_MANAGEMENT_INFORMATION,
-      std::bind(&HonClimate::get_management_information_answer_handler_, this, std::placeholders::_1,
-                std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
+      [this](haier_protocol::FrameType req, haier_protocol::FrameType msg, const uint8_t *data, size_t size) {
+        return this->get_management_information_answer_handler_(req, msg, data, size);
+      });
   this->haier_protocol_.set_answer_handler(
       haier_protocol::FrameType::GET_ALARM_STATUS,
-      std::bind(&HonClimate::get_alarm_status_answer_handler_, this, std::placeholders::_1, std::placeholders::_2,
-                std::placeholders::_3, std::placeholders::_4));
+      [this](haier_protocol::FrameType req, haier_protocol::FrameType msg, const uint8_t *data, size_t size) {
+        return this->get_alarm_status_answer_handler_(req, msg, data, size);
+      });
   this->haier_protocol_.set_answer_handler(
       haier_protocol::FrameType::REPORT_NETWORK_STATUS,
-      std::bind(&HonClimate::report_network_status_answer_handler_, this, std::placeholders::_1, std::placeholders::_2,
-                std::placeholders::_3, std::placeholders::_4));
-  this->haier_protocol_.set_message_handler(
-      haier_protocol::FrameType::ALARM_STATUS,
-      std::bind(&HonClimate::alarm_status_message_handler_, this, std::placeholders::_1, std::placeholders::_2,
-                std::placeholders::_3));
+      [this](haier_protocol::FrameType req, haier_protocol::FrameType msg, const uint8_t *data, size_t size) {
+        return this->report_network_status_answer_handler_(req, msg, data, size);
+      });
+  this->haier_protocol_.set_message_handler(haier_protocol::FrameType::ALARM_STATUS,
+                                            [this](haier_protocol::FrameType type, const uint8_t *data, size_t size) {
+                                              return this->alarm_status_message_handler_(type, data, size);
+                                            });
 }
 
 void HonClimate::dump_config() {
@@ -349,10 +339,9 @@ void HonClimate::dump_config() {
                   "  Device software version: %s\n"
                   "  Device hardware version: %s\n"
                   "  Device name: %s",
-                  this->hvac_hardware_info_.value().protocol_version_.c_str(),
-                  this->hvac_hardware_info_.value().software_version_.c_str(),
-                  this->hvac_hardware_info_.value().hardware_version_.c_str(),
-                  this->hvac_hardware_info_.value().device_name_.c_str());
+                  this->hvac_hardware_info_.value().protocol_version_,
+                  this->hvac_hardware_info_.value().software_version_,
+                  this->hvac_hardware_info_.value().hardware_version_, this->hvac_hardware_info_.value().device_name_);
     ESP_LOGCONFIG(TAG, "  Device features:%s%s%s%s%s",
                   (this->hvac_hardware_info_.value().functions_[0] ? " interactive" : ""),
                   (this->hvac_hardware_info_.value().functions_[1] ? " controller-device" : ""),
@@ -462,7 +451,7 @@ void HonClimate::process_phase(std::chrono::steady_clock::time_point now) {
       if (this->action_request_.has_value()) {
         if (this->action_request_.value().message.has_value()) {
           this->send_message_(this->action_request_.value().message.value(), this->use_crc_);
-          this->action_request_.value().message.reset();
+          this->action_request_.value().message.reset();  // NOLINT(bugprone-unchecked-optional-access)
         } else {
           // Message already sent, reseting request and return to idle
           this->action_request_.reset();
@@ -677,7 +666,6 @@ haier_protocol::HaierMessage HonClimate::get_control_message() {
     this->quiet_mode_state_ = (SwitchState) ((uint8_t) this->quiet_mode_state_ & 0b01);
   }
   out_data->beeper_status = ((!this->get_beeper_state()) || (!has_hvac_settings)) ? 1 : 0;
-  control_out_buffer[4] = 0;  // This byte should be cleared before setting values
   out_data->display_status = this->get_display_state() ? 1 : 0;
   this->display_status_ = (SwitchState) ((uint8_t) this->display_status_ & 0b01);
   out_data->health_mode = this->get_health_mode() ? 1 : 0;
@@ -750,7 +738,7 @@ void HonClimate::update_sub_sensor_(SubSensorType type, float value) {
   if (type < SubSensorType::SUB_SENSOR_TYPE_COUNT) {
     size_t index = (size_t) type;
     if ((this->sub_sensors_[index] != nullptr) &&
-        ((!this->sub_sensors_[index]->has_state()) || (this->sub_sensors_[index]->raw_state != value)))
+        ((!this->sub_sensors_[index]->has_state()) || (this->sub_sensors_[index]->get_raw_state() != value)))
       this->sub_sensors_[index]->publish_state(value);
   }
 }
@@ -799,7 +787,7 @@ void HonClimate::set_sub_text_sensor(SubTextSensorType type, text_sensor::TextSe
   }
 }
 
-void HonClimate::update_sub_text_sensor_(SubTextSensorType type, const std::string &value) {
+void HonClimate::update_sub_text_sensor_(SubTextSensorType type, const char *value) {
   size_t index = (size_t) type;
   if (this->sub_text_sensors_[index] != nullptr)
     this->sub_text_sensors_[index]->publish_state(value);
@@ -893,7 +881,8 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
     } else {
       this->preset = CLIMATE_PRESET_NONE;
     }
-    should_publish = should_publish || (!old_preset.has_value()) || (old_preset.value() != this->preset.value());
+    should_publish = should_publish || (!old_preset.has_value()) ||
+                     (old_preset.value_or(CLIMATE_PRESET_NONE) != this->preset.value_or(CLIMATE_PRESET_NONE));
   }
   {
     // Target temperature
@@ -936,7 +925,8 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
         this->fan_mode = CLIMATE_FAN_HIGH;
         break;
     }
-    should_publish = should_publish || (!old_fan_mode.has_value()) || (old_fan_mode.value() != fan_mode.value());
+    should_publish = should_publish || (!old_fan_mode.has_value()) ||
+                     (old_fan_mode.value_or(CLIMATE_FAN_ON) != this->fan_mode.value_or(CLIMATE_FAN_ON));
   }
   // Display status
   // should be before "Climate mode" because it is changing this->mode
@@ -1301,7 +1291,8 @@ void HonClimate::clear_control_messages_queue_() {
 }
 
 bool HonClimate::prepare_pending_action() {
-  switch (this->action_request_.value().action) {
+  auto &action_request = this->action_request_.value();  // NOLINT(bugprone-unchecked-optional-access)
+  switch (action_request.action) {
     case ActionRequest::START_SELF_CLEAN:
       if (this->control_method_ == HonControlMethod::SET_GROUP_PARAMETERS) {
         uint8_t control_out_buffer[haier_protocol::MAX_FRAME_SIZE];
@@ -1315,12 +1306,12 @@ bool HonClimate::prepare_pending_action() {
         out_data->ac_power = 1;
         out_data->ac_mode = (uint8_t) hon_protocol::ConditioningMode::DRY;
         out_data->light_status = 0;
-        this->action_request_.value().message = haier_protocol::HaierMessage(
+        action_request.message = haier_protocol::HaierMessage(
             haier_protocol::FrameType::CONTROL, (uint16_t) hon_protocol::SubcommandsControl::SET_GROUP_PARAMETERS,
             control_out_buffer, this->real_control_packet_size_);
         return true;
       } else if (this->control_method_ == HonControlMethod::SET_SINGLE_PARAMETER) {
-        this->action_request_.value().message =
+        action_request.message =
             haier_protocol::HaierMessage(haier_protocol::FrameType::CONTROL,
                                          (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
                                              (uint8_t) hon_protocol::DataParameters::SELF_CLEANING,
@@ -1343,7 +1334,7 @@ bool HonClimate::prepare_pending_action() {
         out_data->ac_power = 1;
         out_data->ac_mode = (uint8_t) hon_protocol::ConditioningMode::DRY;
         out_data->light_status = 0;
-        this->action_request_.value().message = haier_protocol::HaierMessage(
+        action_request.message = haier_protocol::HaierMessage(
             haier_protocol::FrameType::CONTROL, (uint16_t) hon_protocol::SubcommandsControl::SET_GROUP_PARAMETERS,
             control_out_buffer, this->real_control_packet_size_);
         return true;
@@ -1372,12 +1363,10 @@ void HonClimate::process_protocol_reset() {
 
 bool HonClimate::should_get_big_data_() {
   if (this->big_data_sensors_ > 0) {
-    static uint8_t counter = 0;
-    counter = (counter + 1) % 3;
-    return counter == 1;
+    this->big_data_counter_ = (this->big_data_counter_ + 1) % 3;
+    return this->big_data_counter_ == 1;
   }
   return false;
 }
 
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier

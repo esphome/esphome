@@ -85,8 +85,10 @@ class LD2412Component : public Component, public uart::UARTDevice {
   void set_light_out_control();
   void set_basic_config();
 #ifdef USE_NUMBER
-  void set_gate_move_threshold_number(uint8_t gate, number::Number *n);
-  void set_gate_still_threshold_number(uint8_t gate, number::Number *n);
+  void set_gate_move_threshold_number(uint8_t gate, number::Number *n) { this->gate_move_threshold_numbers_[gate] = n; }
+  void set_gate_still_threshold_number(uint8_t gate, number::Number *n) {
+    this->gate_still_threshold_numbers_[gate] = n;
+  }
   void set_gate_threshold();
   void get_gate_threshold();
 #endif
@@ -131,8 +133,8 @@ class LD2412Component : public Component, public uart::UARTDevice {
   std::array<number::Number *, TOTAL_GATES> gate_still_threshold_numbers_{};
 #endif
 #ifdef USE_SENSOR
-  std::array<SensorWithDedup<uint8_t> *, TOTAL_GATES> gate_move_sensors_{};
-  std::array<SensorWithDedup<uint8_t> *, TOTAL_GATES> gate_still_sensors_{};
+  std::array<SensorWithDedup<uint8_t>, TOTAL_GATES> gate_move_sensors_{};
+  std::array<SensorWithDedup<uint8_t>, TOTAL_GATES> gate_still_sensors_{};
 #endif
 };
 

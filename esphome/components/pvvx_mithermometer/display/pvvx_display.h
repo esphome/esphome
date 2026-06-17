@@ -13,8 +13,7 @@
 #include "esphome/components/time/real_time_clock.h"
 #endif
 
-namespace esphome {
-namespace pvvx_mithermometer {
+namespace esphome::pvvx_mithermometer {
 
 class PVVXDisplay;
 
@@ -130,7 +129,6 @@ class PVVXDisplay : public ble_client::BLEClientNode, public PollingComponent {
   pvvx_writer_t writer_{};
 };
 
-}  // namespace pvvx_mithermometer
-}  // namespace esphome
+}  // namespace esphome::pvvx_mithermometer
 
 #endif

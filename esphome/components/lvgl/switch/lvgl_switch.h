@@ -7,8 +7,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
 
-namespace esphome {
-namespace lvgl {
+namespace esphome::lvgl {
 
 class LVGLSwitch : public switch_::Switch, public Component {
  public:
@@ -21,5 +20,4 @@ class LVGLSwitch : public switch_::Switch, public Component {
   std::function<void(bool)> state_lambda_{};
 };
 
-}  // namespace lvgl
-}  // namespace esphome
+}  // namespace esphome::lvgl

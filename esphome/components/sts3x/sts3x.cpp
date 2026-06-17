@@ -1,8 +1,7 @@
 #include "sts3x.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sts3x {
+namespace esphome::sts3x {
 
 static const char *const TAG = "sts3x";
 
@@ -66,5 +65,4 @@ void STS3XComponent::update() {
   });
 }
 
-}  // namespace sts3x
-}  // namespace esphome
+}  // namespace esphome::sts3x

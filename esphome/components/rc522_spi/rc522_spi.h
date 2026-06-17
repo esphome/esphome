@@ -4,7 +4,6 @@
 #include "esphome/components/rc522/rc522.h"
 #include "esphome/components/spi/spi.h"
 
-namespace esphome {
 /**
  * Library based on https://github.com/miguelbalboa/rfid
  * and adapted to ESPHome by @glmnet
@@ -13,7 +12,7 @@ namespace esphome {
  *
  *
  */
-namespace rc522_spi {
+namespace esphome::rc522_spi {
 
 class RC522Spi : public rc522::RC522,
                  public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
@@ -50,5 +49,4 @@ class RC522Spi : public rc522::RC522,
                           ) override;
 };
 
-}  // namespace rc522_spi
-}  // namespace esphome
+}  // namespace esphome::rc522_spi

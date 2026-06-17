@@ -13,6 +13,7 @@ class TextCall {
   void perform();
 
   TextCall &set_value(const std::string &value);
+  TextCall &set_value(const char *value, size_t len);
 
  protected:
   Text *const parent_;
