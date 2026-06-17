@@ -4,8 +4,7 @@
 // Datasheet:
 // - https://support.epson.biz/td/api/doc_check.php?dl=app_RX8025T
 
-namespace esphome {
-namespace rx8025t {
+namespace esphome::rx8025t {
 
 static const char *const TAG = "rx8025t";
 
@@ -120,5 +119,4 @@ bool RX8025TComponent::write_rtc_() {
   return true;
 }
 
-}  // namespace rx8025t
-}  // namespace esphome
+}  // namespace esphome::rx8025t
