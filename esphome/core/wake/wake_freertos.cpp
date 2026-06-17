@@ -30,7 +30,7 @@ void IRAM_ATTR wake_loop_any_context() { wake_main_task_any_context(); }
 
 }  // namespace esphome
 
-extern "C" void IRAM_ATTR esphome_wake_loop_any_context() {
+extern "C" void IRAM_ATTR esphome_wake_loop_threadsafe() {
   esphome::wake_request_set();
   esphome_main_task_notify();
 }
