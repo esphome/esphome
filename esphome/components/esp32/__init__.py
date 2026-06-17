@@ -1263,7 +1263,7 @@ def final_validate(config):
                 "Binaries will NOT be signed automatically during build. "
                 "You must sign them externally before flashing."
             )
-    if advanced.get(CONF_NVS_ENCRYPTION) is not None:
+    if (nvs_enc := advanced.get(CONF_NVS_ENCRYPTION)) is not None:
         variant = config[CONF_VARIANT]
         if variant not in NVS_ENCRYPTION_HMAC_VARIANTS:
             supported = ", ".join(
@@ -1276,6 +1276,15 @@ def final_validate(config):
                     f"Supported variants: {supported}.",
                     path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_NVS_ENCRYPTION],
                 )
+            )
+        else:
+            _LOGGER.warning(
+                "NVS encryption will burn an HMAC key into eFuse block %d on the "
+                "first boot of each device. This is PERMANENT and IRREVERSIBLE: "
+                "the block cannot be erased or reused afterwards. Enabling (or "
+                "later disabling) encryption also wipes any previously saved "
+                "preferences once, because the older data can no longer be read.",
+                nvs_enc[CONF_KEY_ID],
             )
     if errs:
         raise cv.MultipleInvalid(errs)

@@ -196,6 +196,7 @@ def test_execute_from_psram_p4_sdkconfig(
 def test_nvs_encryption_sdkconfig(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test that nvs_encryption sets the HMAC scheme sdkconfig options."""
     generate_main(component_config_path("nvs_encryption_s3.yaml"))
@@ -203,6 +204,8 @@ def test_nvs_encryption_sdkconfig(
     assert sdkconfig.get("CONFIG_NVS_ENCRYPTION") is True
     assert sdkconfig.get("CONFIG_NVS_SEC_KEY_PROTECT_USING_HMAC") is True
     assert sdkconfig.get("CONFIG_NVS_SEC_HMAC_EFUSE_KEY_ID") == 0
+    # The permanent/irreversible eFuse burn is warned about at config time.
+    assert "PERMANENT and IRREVERSIBLE" in caplog.text
 
 
 def test_ignore_pin_validation_error_on_clean_pin_warns(
