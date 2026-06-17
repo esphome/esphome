@@ -606,7 +606,7 @@ class WiFiComponent final : public Component {
   bool release_high_performance();
 #endif  // USE_WIFI_RUNTIME_POWER_SAVE
 
-#ifdef USE_WIFI_RUNTIME_ROAMING_SUPPRESSION
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_ROAMING_SUPPRESSION)
   /** Request that post-connect roaming scans be suppressed.
    *
    * Components that are disrupted by the radio briefly going off-channel during a
@@ -617,6 +617,8 @@ class WiFiComponent final : public Component {
    * A roaming scan already in progress is allowed to finish; this only prevents new
    * roaming scans from starting. The roaming interval timer is not reset, so roaming
    * resumes on the next loop once suppression is released (and the interval elapsed).
+   *
+   * Note: Only supported on ESP32.
    *
    * Thread-safe: may be called from any task.
    */
@@ -645,7 +647,7 @@ class WiFiComponent final : public Component {
            !this->roaming_suppression_count_.compare_exchange_weak(current, current - 1, std::memory_order_relaxed)) {
     }
   }
-#endif  // USE_WIFI_RUNTIME_ROAMING_SUPPRESSION
+#endif  // USE_ESP32 && USE_WIFI_RUNTIME_ROAMING_SUPPRESSION
 
  protected:
 #ifdef USE_WIFI_AP
@@ -777,7 +779,7 @@ class WiFiComponent final : public Component {
 
   /// Returns true if a component has requested that roaming scans be suppressed (e.g. during audio playback).
   bool roaming_suppressed_() const {
-#ifdef USE_WIFI_RUNTIME_ROAMING_SUPPRESSION
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_ROAMING_SUPPRESSION)
     return this->roaming_suppression_count_.load(std::memory_order_relaxed) != 0;
 #else
     return false;
@@ -897,7 +899,7 @@ class WiFiComponent final : public Component {
   // int8_t limits to 127 APs (enforced in __init__.py via MAX_WIFI_NETWORKS)
   int8_t selected_sta_index_{-1};
   uint8_t roaming_attempts_{0};
-#ifdef USE_WIFI_RUNTIME_ROAMING_SUPPRESSION
+#if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_ROAMING_SUPPRESSION)
   // Count of active roaming-suppression requests. Incremented/decremented from any task
   // (e.g. audio playback), read in loop(). Roaming scans are paused while non-zero.
   // Relaxed ordering is sufficient: the count value is the only data shared across threads,

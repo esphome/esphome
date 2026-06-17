@@ -799,6 +799,8 @@ def enable_runtime_roaming_suppression():
     roaming scan (e.g., audio playback) should call this function during their code
     generation. This enables the request_roaming_suppression() and
     release_roaming_suppression() APIs, which pause periodic roaming scans while active.
+
+    Only supported on ESP32.
     """
     CORE.data[RUNTIME_ROAMING_SUPPRESSION_KEY] = True
 
