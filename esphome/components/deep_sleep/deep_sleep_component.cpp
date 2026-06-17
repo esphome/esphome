@@ -43,21 +43,28 @@ void DeepSleepComponent::dump_config() {
   if (this->run_duration_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Run Duration: %" PRIu32 " ms", *this->run_duration_);
   }
+#ifdef USE_OTA_STATE_LISTENER
   if (this->ota_prevent_timeout_ > 0) {
     ESP_LOGCONFIG(TAG, "  OTA Prevent Timeout: %" PRIu32 " ms", this->ota_prevent_timeout_);
   }
+#endif
   this->dump_config_platform_();
 }
 
 void DeepSleepComponent::loop() {
+#ifdef USE_OTA_STATE_LISTENER
   // Safety timeout for OTA prevent
   if (this->ota_prevented_) {
     if (millis() - this->ota_start_time_ > this->ota_prevent_timeout_) {
-      this->allow_deep_sleep();
+      // Only unblock if we didn't override an existing manual block
+      if (!this->pre_ota_prevent_) {
+        this->allow_deep_sleep();
+      }
       this->ota_prevented_ = false;
       ESP_LOGW(TAG, "OTA stalled: Deep sleep timeout reached, resuming normal sleep cycle.");
     }
   }
+#endif
 
   if (this->next_enter_deep_sleep_)
     this->begin_sleep();
@@ -108,14 +115,18 @@ void DeepSleepComponent::on_ota_global_state(ota::OTAState state, float progress
 
   if (state == ota::OTA_STARTED) {
     if (!this->ota_prevented_) {
+      this->pre_ota_prevent_ = this->prevent_;
       this->prevent_deep_sleep();
       this->ota_prevented_ = true;
       this->ota_start_time_ = millis();
-      ESP_LOGD(TAG, "OTA Started: Deep sleep prevented for %u ms", this->ota_prevent_timeout_);
+      ESP_LOGD(TAG, "OTA Started: Deep sleep prevented for %" PRIu32 " ms", this->ota_prevent_timeout_);
     }
   } else if (state == ota::OTA_COMPLETED || state == ota::OTA_ABORT || state == ota::OTA_ERROR) {
     if (this->ota_prevented_) {
-      this->allow_deep_sleep();
+      // Restore previous user prevent state if it existed before OTA
+      if (!this->pre_ota_prevent_) {
+        this->allow_deep_sleep();
+      }
       this->ota_prevented_ = false;
       ESP_LOGD(TAG, "OTA Finished/Aborted: Deep sleep allowed");
     }

@@ -1,0 +1,8 @@
+substitutions:
+  wakeup_pin: GPIO4
+
+ota:
+  - platform: esphome
+
+<<: !include common.yaml
+<<: !include common-esp32-all.yaml
