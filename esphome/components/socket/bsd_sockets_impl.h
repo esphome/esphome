@@ -76,7 +76,7 @@ class BSDSocketImpl {
 #endif
   }
   ssize_t recvfrom(void *buf, size_t len, sockaddr *addr, socklen_t *addr_len) {
-#if defined(USE_ESP32) || defined(USE_HOST)
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_ZEPHYR)
     return ::recvfrom(this->fd_, buf, len, 0, addr, addr_len);
 #else
     return ::lwip_recvfrom(this->fd_, buf, len, 0, addr, addr_len);
@@ -85,6 +85,18 @@ class BSDSocketImpl {
   ssize_t readv(const struct iovec *iov, int iovcnt) {
 #if defined(USE_ESP32)
     return ::lwip_readv(this->fd_, iov, iovcnt);
+#elif defined(USE_ZEPHYR)
+    // Zephyr does not expose readv (<sys/uio.h> is excluded in headers.h); emulate over the iovec entries.
+    ssize_t total = 0;
+    for (int i = 0; i < iovcnt; i++) {
+      ssize_t ret = ::read(this->fd_, iov[i].iov_base, iov[i].iov_len);
+      if (ret < 0)
+        return total > 0 ? total : ret;
+      total += ret;
+      if (static_cast<size_t>(ret) < iov[i].iov_len)
+        break;  // partial read: stop, mirror readv's short-read behavior
+    }
+    return total;
 #else
     return ::readv(this->fd_, iov, iovcnt);
 #endif
@@ -100,6 +112,18 @@ class BSDSocketImpl {
   ssize_t writev(const struct iovec *iov, int iovcnt) {
 #if defined(USE_ESP32)
     return ::lwip_writev(this->fd_, iov, iovcnt);
+#elif defined(USE_ZEPHYR)
+    // Zephyr does not expose writev (<sys/uio.h> is excluded in headers.h); emulate over the iovec entries.
+    ssize_t total = 0;
+    for (int i = 0; i < iovcnt; i++) {
+      ssize_t ret = ::write(this->fd_, iov[i].iov_base, iov[i].iov_len);
+      if (ret < 0)
+        return total > 0 ? total : ret;
+      total += ret;
+      if (static_cast<size_t>(ret) < iov[i].iov_len)
+        break;  // partial write: stop, mirror writev's short-write behavior
+    }
+    return total;
 #else
     return ::writev(this->fd_, iov, iovcnt);
 #endif

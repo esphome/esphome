@@ -170,6 +170,11 @@ using socklen_t = uint32_t;
 #include <netinet/tcp.h>
 #endif  // USE_HOST
 
+#ifdef USE_ZEPHYR
+// Zephyr (CONFIG_POSIX_API) provides inet_ntop/inet_pton here via zephyr/posix/arpa/inet.h.
+#include <arpa/inet.h>
+#endif  // USE_ZEPHYR
+
 #ifdef USE_ARDUINO
 // arduino-esp32 declares a global var called INADDR_NONE which is replaced
 // by the define

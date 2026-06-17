@@ -244,13 +244,19 @@ bool OpenThreadComponent::teardown() {
     otSrpClientClearHostAndServices(instance);
     otSrpClientBuffersFreeAllServices(instance);
     global_openthread_component = nullptr;
-#if defined(USE_ESP32) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+// Nested so the ESP_IDF_VERSION_VAL(...) token is only parsed on ESP32; on other platforms
+// (e.g. nRF52/Zephyr) ESP_IDF_VERSION_VAL is undefined and would break preprocessing here.
+#if defined(USE_ESP32)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
     ESP_LOGD(TAG, "Exit main loop ");
     int error = this->openthread_stop_();
     if (error != ESP_OK) {
       ESP_LOGW(TAG, "Failed attempt to stop main loop %d", error);
       this->teardown_complete_ = true;
     }
+#else
+    this->teardown_complete_ = true;
+#endif
 #else
     this->teardown_complete_ = true;
 #endif

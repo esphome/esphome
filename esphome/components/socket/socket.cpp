@@ -148,7 +148,16 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
   auto *server = reinterpret_cast<sockaddr_in *>(addr);
   memset(server, 0, sizeof(sockaddr_in));
   server->sin_family = AF_INET;
+#ifdef USE_ZEPHYR
+  // Zephyr does not provide inet_addr; inet_pton writes the address directly (host byte order
+  // handling matches inet_addr's network-byte-order result for s_addr).
+  if (inet_pton(AF_INET, ip_address, &server->sin_addr) != 1) {
+    errno = EINVAL;
+    return 0;
+  }
+#else
   server->sin_addr.s_addr = inet_addr(ip_address);
+#endif
   server->sin_port = htons(port);
   return sizeof(sockaddr_in);
 }
