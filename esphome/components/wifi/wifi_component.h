@@ -17,6 +17,7 @@
 #include "esphome/core/string_ref.h"
 
 #include <atomic>
+#include <limits>
 #include <span>
 #include <string>
 #include <type_traits>
@@ -619,7 +620,14 @@ class WiFiComponent final : public Component {
    *
    * Thread-safe: may be called from any task.
    */
-  void request_roaming_suppression() { this->roaming_suppression_count_.fetch_add(1, std::memory_order_relaxed); }
+  void request_roaming_suppression() {
+    uint8_t current = this->roaming_suppression_count_.load(std::memory_order_relaxed);
+    // CAS loop: saturate at max instead of wrapping, so an excess of requests can't roll the
+    // counter back to zero and unintentionally re-enable roaming.
+    while (current < std::numeric_limits<uint8_t>::max() &&
+           !this->roaming_suppression_count_.compare_exchange_weak(current, current + 1, std::memory_order_relaxed)) {
+    }
+  }
 
   /** Release a roaming suppression request.
    *
