@@ -5,8 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "../touchscreen/cst328_touchscreen.h"
 
-namespace esphome {
-namespace cst328 {
+namespace esphome::cst328 {
 
 class CST328Button : public binary_sensor::BinarySensor,
                      public Component,
@@ -18,5 +17,4 @@ class CST328Button : public binary_sensor::BinarySensor,
   void update_button(bool state) override;
 };
 
-}  // namespace cst328
-}  // namespace esphome
+}  // namespace esphome::cst328

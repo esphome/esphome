@@ -6,8 +6,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace cst328 {
+namespace esphome::cst328 {
 
 static const uint8_t CST328_TOUCH_MAX_POINTS = 5;
 static const uint8_t CST328_TOUCH_DATA_SIZE = CST328_TOUCH_MAX_POINTS * 5 + 2;
@@ -62,5 +61,4 @@ class CST328Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
   bool setup_complete_{};
 };
 
-}  // namespace cst328
-}  // namespace esphome
+}  // namespace esphome::cst328

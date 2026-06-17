@@ -1,7 +1,6 @@
 #include "cst328_touchscreen.h"
 
-namespace esphome {
-namespace cst328 {
+namespace esphome::cst328 {
 
 static const char *const TAG = "cst328.touchscreen";
 
@@ -165,5 +164,4 @@ void CST328Touchscreen::update_touches() {
   }
 }
 
-}  // namespace cst328
-}  // namespace esphome
+}  // namespace esphome::cst328

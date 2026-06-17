@@ -1,8 +1,7 @@
 #include "cst328_button.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace cst328 {
+namespace esphome::cst328 {
 static const char *const TAG = "cst328.binary_sensor";
 
 void CST328Button::setup() {
@@ -14,5 +13,4 @@ void CST328Button::dump_config() { LOG_BINARY_SENSOR("", "CST328 Button", this);
 
 void CST328Button::update_button(bool state) { this->publish_state(state); }
 
-}  // namespace cst328
-}  // namespace esphome
+}  // namespace esphome::cst328
