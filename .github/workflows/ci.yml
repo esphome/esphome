@@ -537,15 +537,12 @@ jobs:
         id: check_full_scan
         run: |
           . venv/bin/activate
-          # determine-jobs.clang-tidy-full-scan is true when core C++ changed
-          # OR the ci-run-all label forced --force-all. Independent of the
-          # hash check, both must produce a full scan in the job itself.
+          # determine-jobs.clang-tidy-full-scan is true when core C++ or a
+          # clang-tidy-relevant config file changed, or the ci-run-all label
+          # forced --force-all.
           if [ "${{ needs.determine-jobs.outputs.clang-tidy-full-scan }}" = "true" ]; then
             echo "full_scan=true" >> $GITHUB_OUTPUT
             echo "reason=determine_jobs" >> $GITHUB_OUTPUT
-          elif python script/clang_tidy_hash.py --check; then
-            echo "full_scan=true" >> $GITHUB_OUTPUT
-            echo "reason=hash_changed" >> $GITHUB_OUTPUT
           else
             echo "full_scan=false" >> $GITHUB_OUTPUT
             echo "reason=normal" >> $GITHUB_OUTPUT
@@ -607,15 +604,12 @@ jobs:
         id: check_full_scan
         run: |
           . venv/bin/activate
-          # determine-jobs.clang-tidy-full-scan is true when core C++ changed
-          # OR the ci-run-all label forced --force-all. Independent of the
-          # hash check, both must produce a full scan in the job itself.
+          # determine-jobs.clang-tidy-full-scan is true when core C++ or a
+          # clang-tidy-relevant config file changed, or the ci-run-all label
+          # forced --force-all.
           if [ "${{ needs.determine-jobs.outputs.clang-tidy-full-scan }}" = "true" ]; then
             echo "full_scan=true" >> $GITHUB_OUTPUT
             echo "reason=determine_jobs" >> $GITHUB_OUTPUT
-          elif python script/clang_tidy_hash.py --check; then
-            echo "full_scan=true" >> $GITHUB_OUTPUT
-            echo "reason=hash_changed" >> $GITHUB_OUTPUT
           else
             echo "full_scan=false" >> $GITHUB_OUTPUT
             echo "reason=normal" >> $GITHUB_OUTPUT
@@ -691,15 +685,12 @@ jobs:
         id: check_full_scan
         run: |
           . venv/bin/activate
-          # determine-jobs.clang-tidy-full-scan is true when core C++ changed
-          # OR the ci-run-all label forced --force-all. Independent of the
-          # hash check, both must produce a full scan in the job itself.
+          # determine-jobs.clang-tidy-full-scan is true when core C++ or a
+          # clang-tidy-relevant config file changed, or the ci-run-all label
+          # forced --force-all.
           if [ "${{ needs.determine-jobs.outputs.clang-tidy-full-scan }}" = "true" ]; then
             echo "full_scan=true" >> $GITHUB_OUTPUT
             echo "reason=determine_jobs" >> $GITHUB_OUTPUT
-          elif python script/clang_tidy_hash.py --check; then
-            echo "full_scan=true" >> $GITHUB_OUTPUT
-            echo "reason=hash_changed" >> $GITHUB_OUTPUT
           else
             echo "full_scan=false" >> $GITHUB_OUTPUT
             echo "reason=normal" >> $GITHUB_OUTPUT
@@ -779,15 +770,12 @@ jobs:
         id: check_full_scan
         run: |
           . venv/bin/activate
-          # determine-jobs.clang-tidy-full-scan is true when core C++ changed
-          # OR the ci-run-all label forced --force-all. Independent of the
-          # hash check, both must produce a full scan in the job itself.
+          # determine-jobs.clang-tidy-full-scan is true when core C++ or a
+          # clang-tidy-relevant config file changed, or the ci-run-all label
+          # forced --force-all.
           if [ "${{ needs.determine-jobs.outputs.clang-tidy-full-scan }}" = "true" ]; then
             echo "full_scan=true" >> $GITHUB_OUTPUT
             echo "reason=determine_jobs" >> $GITHUB_OUTPUT
-          elif python script/clang_tidy_hash.py --check; then
-            echo "full_scan=true" >> $GITHUB_OUTPUT
-            echo "reason=hash_changed" >> $GITHUB_OUTPUT
           else
             echo "full_scan=false" >> $GITHUB_OUTPUT
             echo "reason=normal" >> $GITHUB_OUTPUT
@@ -1049,7 +1037,7 @@ jobs:
           cache-key: ${{ needs.common.outputs.cache-key }}
       - uses: esphome/pre-commit-action@43cd1109c09c544d97196f7730ee5b2e0cc6d81e # v3.0.1 fork with pinned actions/cache
         env:
-          SKIP: pylint,clang-tidy-hash,ci-custom
+          SKIP: pylint,ci-custom
       - uses: pre-commit-ci/lite-action@5d6cc0eb514c891a40562a58a8e71576c5c7fb43 # v1.1.0
         if: always()
 

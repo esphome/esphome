@@ -55,7 +55,6 @@ from functools import cache
 import json
 import os
 from pathlib import Path
-import subprocess
 import sys
 from typing import Any
 
@@ -279,24 +278,34 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
     return (False, [])
 
 
+# Files that affect clang-tidy results globally. A change to any of these can
+# surface warnings in source files the PR didn't touch, so the entire codebase
+# must be re-scanned rather than just the changed files. Per-target
+# sdkconfig.defaults.<target> files are matched by prefix below.
+CLANG_TIDY_GLOBAL_FILES = frozenset(
+    {
+        ".clang-tidy",
+        "platformio.ini",
+        "requirements_dev.txt",
+        "esphome/idf_component.yml",
+    }
+)
+
+
 @cache
-def _is_clang_tidy_full_scan() -> bool:
-    """Check if clang-tidy configuration changed (requires full scan).
+def _is_clang_tidy_full_scan(branch: str | None = None) -> bool:
+    """Check if a clang-tidy-relevant config file changed (requires full scan).
 
     Returns:
-        True if full scan is needed (hash changed), False otherwise.
+        True if full scan is needed, False otherwise.
     """
-    try:
-        result = subprocess.run(
-            [str(Path(root_path) / "script" / "clang_tidy_hash.py"), "--check"],
-            capture_output=True,
-            check=False,
-        )
-        # Exit 0 means hash changed (full scan needed)
-        return result.returncode == 0
-    except Exception:  # noqa: BLE001
-        # If hash check fails, run full scan to be safe
-        return True
+    for file in changed_files(branch):
+        if file in CLANG_TIDY_GLOBAL_FILES:
+            return True
+        # Root-level sdkconfig.defaults and per-target sdkconfig.defaults.<target>
+        if "/" not in file and file.startswith("sdkconfig.defaults"):
+            return True
+    return False
 
 
 def should_run_clang_tidy(branch: str | None = None) -> bool:
@@ -307,13 +316,12 @@ def should_run_clang_tidy(branch: str | None = None) -> bool:
 
     Clang-tidy will run when ANY of the following conditions are met:
 
-    1. Clang-tidy configuration changed
-       - The hash of .clang-tidy configuration file has changed
-       - The hash includes the .clang-tidy file, clang-tidy version from requirements_dev.txt,
-         and relevant platformio.ini sections
-       - When configuration changes, a full scan is needed to ensure all code complies
-         with the new rules
-       - Detected by script/clang_tidy_hash.py --check returning exit code 0
+    1. A clang-tidy-relevant config file changed (full scan needed)
+       - Any file in CLANG_TIDY_GLOBAL_FILES (.clang-tidy, platformio.ini,
+         requirements_dev.txt, esphome/idf_component.yml) or a root-level
+         sdkconfig.defaults* file
+       - These affect clang-tidy results globally, so all code must be re-checked
+         to ensure it still complies
 
     2. Any C++ source files changed
        - Any file with C++ extensions: .cpp, .h, .hpp, .cc, .cxx, .c, .tcc
@@ -321,27 +329,14 @@ def should_run_clang_tidy(branch: str | None = None) -> bool:
        - This ensures all C++ code is checked, including tests, examples, etc.
        - Examples: esphome/core/component.cpp, tests/custom/my_component.h
 
-    3. The .clang-tidy.hash file itself changed
-       - This indicates the configuration has been updated and clang-tidy should run
-       - Ensures that PRs updating the clang-tidy configuration are properly validated
-
-    If the hash check fails for any reason, clang-tidy runs as a safety measure to ensure
-    code quality is maintained.
-
     Args:
         branch: Branch to compare against. If None, uses default.
 
     Returns:
         True if clang-tidy should run, False otherwise.
     """
-    # First check if clang-tidy configuration changed (full scan needed)
-    if _is_clang_tidy_full_scan():
-        return True
-
-    # Check if .clang-tidy.hash file itself was changed
-    # This handles the case where the hash was properly updated in the PR
-    files = changed_files(branch)
-    if ".clang-tidy.hash" in files:
+    # First check if a clang-tidy-relevant config file changed (full scan needed)
+    if _is_clang_tidy_full_scan(branch):
         return True
 
     return _any_changed_file_endswith(branch, CPP_FILE_EXTENSIONS)
@@ -1276,9 +1271,9 @@ def main() -> None:
     # Determine clang-tidy mode based on actual files that will be checked
     is_full_scan = False
     if run_clang_tidy:
-        # Full scan needed if: hash changed OR core files changed
-        # (is_core_change is forced True under --force-all)
-        is_full_scan = _is_clang_tidy_full_scan() or is_core_change
+        # Full scan needed if: a clang-tidy-relevant config file changed OR
+        # core files changed (is_core_change is forced True under --force-all)
+        is_full_scan = _is_clang_tidy_full_scan(args.branch) or is_core_change
 
         if is_full_scan:
             # Full scan checks all files - always use split mode for efficiency

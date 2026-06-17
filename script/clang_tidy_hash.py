@@ -1,17 +1,16 @@
-#!/usr/bin/env python3
-"""Calculate and manage hash for clang-tidy configuration."""
+"""Calculate a content hash of the clang-tidy build inputs.
+
+Used by ``script/helpers.py`` as a cache key for generated idedata: the hash
+covers every file baked into idedata (``.clang-tidy``, ``platformio.ini``, the
+clang-tidy version, ``sdkconfig.defaults*`` and ``esphome/idf_component.yml``),
+so the cache can't drift from that file list.
+"""
 
 from __future__ import annotations
 
-import argparse
 import hashlib
 from pathlib import Path
 import re
-import sys
-
-# Add the script directory to path to import helpers
-script_dir = Path(__file__).parent
-sys.path.insert(0, str(script_dir))
 
 
 def read_file_lines(path: Path) -> list[str]:
@@ -113,97 +112,3 @@ def calculate_clang_tidy_hash(repo_root: Path | None = None) -> str:
         hasher.update(read_file_bytes(idf_component_path))
 
     return hasher.hexdigest()
-
-
-def read_stored_hash(repo_root: Path | None = None) -> str | None:
-    """Read the stored hash from file"""
-    repo_root = _ensure_repo_root(repo_root)
-    hash_file = repo_root / ".clang-tidy.hash"
-    if hash_file.exists():
-        lines = read_file_lines(hash_file)
-        return lines[0].strip() if lines else None
-    return None
-
-
-def write_file_content(path: Path, content: str) -> None:
-    """Write content to a file."""
-    with path.open("w") as f:
-        f.write(content)
-
-
-def write_hash(hash_value: str, repo_root: Path | None = None) -> None:
-    """Write hash to file"""
-    repo_root = _ensure_repo_root(repo_root)
-    hash_file = repo_root / ".clang-tidy.hash"
-    # Strip any trailing newlines to ensure consistent formatting
-    write_file_content(hash_file, hash_value.strip() + "\n")
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Manage clang-tidy configuration hash")
-    parser.add_argument(
-        "--check",
-        action="store_true",
-        help="Check if full scan needed (exit 0 if needed)",
-    )
-    parser.add_argument("--update", action="store_true", help="Update the hash file")
-    parser.add_argument(
-        "--update-if-changed",
-        action="store_true",
-        help="Update hash only if configuration changed (for pre-commit)",
-    )
-    parser.add_argument(
-        "--verify", action="store_true", help="Verify hash matches (for CI)"
-    )
-
-    args = parser.parse_args()
-
-    current_hash = calculate_clang_tidy_hash()
-    stored_hash = read_stored_hash()
-
-    if args.check:
-        # Check if hash changed OR if .clang-tidy.hash was updated in this PR
-        # This is used in CI to determine if a full clang-tidy scan is needed
-        hash_changed = current_hash != stored_hash
-
-        # Lazy import to avoid requiring dependencies that aren't needed for other modes
-        from helpers import changed_files  # noqa: E402
-
-        hash_file_updated = ".clang-tidy.hash" in changed_files()
-
-        # Exit 0 if full scan needed
-        sys.exit(0 if (hash_changed or hash_file_updated) else 1)
-
-    elif args.verify:
-        # Verify that hash file is up to date with current configuration
-        # This is used in pre-commit and CI checks to ensure hash was updated
-        if current_hash != stored_hash:
-            print("ERROR: Clang-tidy configuration has changed but hash not updated!")
-            print(f"Expected: {current_hash}")
-            print(f"Found: {stored_hash}")
-            print("\nPlease run: script/clang_tidy_hash.py --update")
-            sys.exit(1)
-        print("Hash verification passed")
-
-    elif args.update:
-        write_hash(current_hash)
-        print(f"Hash updated: {current_hash}")
-
-    elif args.update_if_changed:
-        if current_hash != stored_hash:
-            write_hash(current_hash)
-            print(f"Clang-tidy hash updated: {current_hash}")
-            # Exit 0 so pre-commit can stage the file
-            sys.exit(0)
-        else:
-            print("Clang-tidy hash unchanged")
-            sys.exit(0)
-
-    else:
-        print(f"Current hash: {current_hash}")
-        print(f"Stored hash: {stored_hash}")
-        print(f"Match: {current_hash == stored_hash}")
-
-
-if __name__ == "__main__":
-    main()
