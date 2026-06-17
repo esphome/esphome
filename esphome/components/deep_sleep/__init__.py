@@ -320,11 +320,13 @@ CONFIG_SCHEMA = cv.All(
 
 def validate_ota_dependency(config):
     if (
-        config.get(CONF_OTA_TIMEOUT, core.TimePeriod(milliseconds=0)) > core.TimePeriod(milliseconds=0)
+        config.get(CONF_OTA_TIMEOUT, core.TimePeriod(milliseconds=0))
+        > core.TimePeriod(milliseconds=0)
         and "ota" not in CORE.loaded_integrations
     ):
         raise cv.Invalid("The 'ota' component must be configured to use 'ota_timeout'.")
     return config
+
 
 FINAL_VALIDATE_SCHEMA = validate_ota_dependency
 
@@ -335,6 +337,7 @@ async def to_code(config):
 
     if (ota_timeout := config[CONF_OTA_TIMEOUT]) > core.TimePeriod(milliseconds=0):
         from esphome.components import ota
+
         cg.add(var.set_ota_prevent_timeout(ota_timeout))
         ota.request_ota_state_listeners()
 

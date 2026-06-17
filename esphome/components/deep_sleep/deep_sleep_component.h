@@ -121,8 +121,7 @@ class DeepSleepComponent : public Component
 
 #ifdef USE_OTA_STATE_LISTENER
   void set_ota_prevent_timeout(uint32_t timeout) { this->ota_prevent_timeout_ = timeout; }
-  void on_ota_global_state(ota::OTAState state, float progress, uint8_t error,
-                           ota::OTAComponent *component) override;
+  void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *component) override;
 #endif
 
   void setup() override;
