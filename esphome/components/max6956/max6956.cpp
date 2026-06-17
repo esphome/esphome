@@ -1,8 +1,7 @@
 #include "max6956.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace max6956 {
+namespace esphome::max6956 {
 
 static const char *const TAG = "max6956";
 
@@ -20,7 +19,6 @@ const uint8_t MASK_CURRENT_PIN = 0x0F;
  *    MAX6956                         *
  **************************************/
 void MAX6956::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MAX6956...");
   uint8_t configuration;
   if (!this->read_reg_(MAX6956_CONFIGURATION, &configuration)) {
     this->mark_failed();
@@ -112,6 +110,8 @@ void MAX6956::write_brightness_mode() {
 }
 
 void MAX6956::set_pin_brightness(uint8_t pin, float brightness) {
+  if (pin < MAX6956_MIN || pin > MAX6956_MAX)
+    return;
   uint8_t reg_addr = MAX6956_CURRENT_START + (pin - MAX6956_MIN) / 2;
   uint8_t config = 0;
   uint8_t shift = 4 * (pin % 2);
@@ -146,10 +146,12 @@ void MAX6956::dump_config() {
   ESP_LOGCONFIG(TAG, "MAX6956");
 
   if (brightness_mode_ == MAX6956CURRENTMODE::GLOBAL) {
-    ESP_LOGCONFIG(TAG, "current mode: global");
-    ESP_LOGCONFIG(TAG, "global brightness: %u", global_brightness_);
+    ESP_LOGCONFIG(TAG,
+                  "  Current mode: global\n"
+                  "  Brightness: %u",
+                  global_brightness_);
   } else {
-    ESP_LOGCONFIG(TAG, "current mode: segment");
+    ESP_LOGCONFIG(TAG, "  Current mode: segment");
   }
 }
 
@@ -160,11 +162,8 @@ void MAX6956GPIOPin::setup() { pin_mode(flags_); }
 void MAX6956GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
 bool MAX6956GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
 void MAX6956GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
-std::string MAX6956GPIOPin::dump_summary() const {
-  char buffer[32];
-  snprintf(buffer, sizeof(buffer), "%u via Max6956", pin_);
-  return buffer;
+size_t MAX6956GPIOPin::dump_summary(char *buffer, size_t len) const {
+  return buf_append_printf(buffer, len, 0, "%u via Max6956", this->pin_);
 }
 
-}  // namespace max6956
-}  // namespace esphome
+}  // namespace esphome::max6956

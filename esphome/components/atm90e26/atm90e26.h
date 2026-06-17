@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/spi/spi.h"
 
-namespace esphome {
-namespace atm90e26 {
+namespace esphome::atm90e26 {
 
 class ATM90E26Component : public PollingComponent,
                           public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
@@ -13,7 +12,6 @@ class ATM90E26Component : public PollingComponent,
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
 
   void set_voltage_sensor(sensor::Sensor *obj) { this->voltage_sensor_ = obj; }
@@ -68,5 +66,4 @@ class ATM90E26Component : public PollingComponent,
   uint32_t pl_const_{1429876};
 };
 
-}  // namespace atm90e26
-}  // namespace esphome
+}  // namespace esphome::atm90e26

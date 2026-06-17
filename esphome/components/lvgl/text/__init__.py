@@ -5,13 +5,12 @@ import esphome.config_validation as cv
 
 from ..defines import CONF_WIDGET
 from ..lvcode import (
-    API_EVENT,
     EVENT_ARG,
     UPDATE_EVENT,
     LambdaContext,
     LvContext,
-    lv,
     lv_add,
+    lv_obj,
     lvgl_static,
 )
 from ..types import LV_EVENT, LvText, lvgl_ns
@@ -19,9 +18,8 @@ from ..widgets import get_widgets, wait_for_widgets
 
 LVGLText = lvgl_ns.class_("LVGLText", text.Text)
 
-CONFIG_SCHEMA = text.TEXT_SCHEMA.extend(
+CONFIG_SCHEMA = text.text_schema(LVGLText).extend(
     {
-        cv.GenerateID(): cv.declare_id(LVGLText),
         cv.Required(CONF_WIDGET): cv.use_id(LvText),
     }
 )
@@ -34,7 +32,7 @@ async def to_code(config):
     await wait_for_widgets()
     async with LambdaContext([(cg.std_string, "text_value")]) as control:
         await widget.set_property("text", "text_value.c_str()")
-        lv.event_send(widget.obj, API_EVENT, cg.nullptr)
+        lv_obj.send_event(widget.obj, UPDATE_EVENT, cg.nullptr)
         control.add(textvar.publish_state(widget.get_value()))
     async with LambdaContext(EVENT_ARG) as lamb:
         lv_add(textvar.publish_state(widget.get_value()))

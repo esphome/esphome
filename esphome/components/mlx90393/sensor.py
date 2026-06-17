@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_RESOLUTION,
     CONF_TEMPERATURE,
     CONF_TEMPERATURE_COMPENSATION,
+    DEVICE_CLASS_TEMPERATURE,
     ICON_MAGNET,
     ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
@@ -63,6 +64,13 @@ def _validate(config):
                 raise cv.Invalid(
                     f"{axis}: {CONF_RESOLUTION} cannot be {res} with {CONF_TEMPERATURE_COMPENSATION} enabled"
                 )
+    if config[CONF_HALLCONF] == 0xC and (
+        config[CONF_OVERSAMPLING],
+        config[CONF_FILTER],
+    ) in [(0, 0), (1, 0), (0, 1)]:
+        raise cv.Invalid(
+            f"{CONF_OVERSAMPLING}=={config[CONF_OVERSAMPLING]} and {CONF_FILTER}=={config[CONF_FILTER]} not allowed with {CONF_HALLCONF}=={config[CONF_HALLCONF]:#02x}"
+        )
     return config
 
 
@@ -100,6 +108,7 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_CELSIUS,
                 accuracy_decimals=1,
                 icon=ICON_THERMOMETER,
+                device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ).extend(
                 cv.Schema(
@@ -123,9 +132,6 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if CONF_DRDY_PIN in config:
-        pin = await cg.gpio_pin_expression(config[CONF_DRDY_PIN])
-        cg.add(var.set_drdy_pin(pin))
     cg.add(var.set_gain(GAIN[config[CONF_GAIN]]))
     cg.add(var.set_oversampling(config[CONF_OVERSAMPLING]))
     cg.add(var.set_filter(config[CONF_FILTER]))

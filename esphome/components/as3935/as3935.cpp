@@ -1,14 +1,11 @@
 #include "as3935.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace as3935 {
+namespace esphome::as3935 {
 
 static const char *const TAG = "as3935";
 
 void AS3935Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up AS3935...");
-
   this->irq_pin_->setup();
   LOG_PIN("  IRQ Pin: ", this->irq_pin_);
 
@@ -42,8 +39,6 @@ void AS3935Component::dump_config() {
   LOG_SENSOR("  ", "Lightning energy", this->energy_sensor_);
 #endif
 }
-
-float AS3935Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void AS3935Component::loop() {
   if (!this->irq_pin_->digital_read())
@@ -282,7 +277,7 @@ void AS3935Component::display_oscillator(bool state, uint8_t osc) {
 // based on the resonance frequency of the antenna and so it should be trimmed
 // before the calibration is done.
 bool AS3935Component::calibrate_oscillator() {
-  ESP_LOGI(TAG, "Starting oscillators calibration...");
+  ESP_LOGI(TAG, "Starting oscillators calibration");
   this->write_register(CALIB_RCO, WIPE_ALL, DIRECT_COMMAND, 0);  // Send command to calibrate the oscillators
 
   this->display_oscillator(true, 2);
@@ -307,12 +302,14 @@ bool AS3935Component::calibrate_oscillator() {
 }
 
 void AS3935Component::tune_antenna() {
-  ESP_LOGI(TAG, "Starting antenna tuning...");
   uint8_t div_ratio = this->read_div_ratio();
   uint8_t tune_val = this->read_capacitance();
-  ESP_LOGI(TAG, "Division Ratio is set to: %d", div_ratio);
-  ESP_LOGI(TAG, "Internal Capacitor is set to: %d", tune_val);
-  ESP_LOGI(TAG, "Displaying oscillator on INT pin. Measure its frequency - multiply value by Division Ratio");
+  ESP_LOGI(TAG,
+           "Starting antenna tuning\n"
+           "  Division Ratio is set to: %d\n"
+           "  Internal Capacitor is set to: %d\n"
+           "  Displaying oscillator on INT pin. Measure its frequency - multiply value by Division Ratio",
+           div_ratio, tune_val);
   this->display_oscillator(true, ANTFREQ);
 }
 
@@ -322,5 +319,4 @@ uint8_t AS3935Component::read_register_(uint8_t reg, uint8_t mask) {
   return value;
 }
 
-}  // namespace as3935
-}  // namespace esphome
+}  // namespace esphome::as3935

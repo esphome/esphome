@@ -1,10 +1,9 @@
 #include "pcd_8544.h"
-#include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
-namespace esphome {
-namespace pcd8544 {
+namespace esphome::pcd8544 {
 
 static const char *const TAG = "pcd_8544";
 
@@ -117,10 +116,15 @@ void PCD8544::update() {
 }
 
 void PCD8544::fill(Color color) {
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
+    return;
+  }
+
   uint8_t fill = color.is_on() ? 0xFF : 0x00;
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     this->buffer_[i] = fill;
 }
 
-}  // namespace pcd8544
-}  // namespace esphome
+}  // namespace esphome::pcd8544

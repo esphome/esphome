@@ -3,8 +3,10 @@ from __future__ import annotations
 import asyncio
 from asyncio import events
 from concurrent.futures import ThreadPoolExecutor
+import contextlib
 import logging
 import os
+from pathlib import Path
 import socket
 import threading
 from time import monotonic
@@ -125,10 +127,8 @@ def start_dashboard(args) -> None:
 
     asyncio.set_event_loop_policy(DashboardEventLoopPolicy(settings.verbose))
 
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(async_start(args))
-    except KeyboardInterrupt:
-        pass
 
 
 async def async_start(args) -> None:
@@ -150,4 +150,4 @@ async def async_start(args) -> None:
         await dashboard.async_run()
     finally:
         if sock:
-            os.remove(sock)
+            Path(sock).unlink()

@@ -2,8 +2,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace display {
+namespace esphome::display {
 
 static const char *const TAG = "display";
 
@@ -69,21 +68,16 @@ bool Rect::inside(int16_t test_x, int16_t test_y, bool absolute) const {  // NOL
     return true;
   }
   if (absolute) {
-    return ((test_x >= this->x) && (test_x <= this->x2()) && (test_y >= this->y) && (test_y <= this->y2()));
-  } else {
-    return ((test_x >= 0) && (test_x <= this->w) && (test_y >= 0) && (test_y <= this->h));
+    return test_x >= this->x && test_x < this->x2() && test_y >= this->y && test_y < this->y2();
   }
+  return test_x >= 0 && test_x < this->w && test_y >= 0 && test_y < this->h;
 }
 
-bool Rect::inside(Rect rect, bool absolute) const {
+bool Rect::inside(Rect rect) const {
   if (!this->is_set() || !rect.is_set()) {
     return true;
   }
-  if (absolute) {
-    return ((rect.x <= this->x2()) && (rect.x2() >= this->x) && (rect.y <= this->y2()) && (rect.y2() >= this->y));
-  } else {
-    return ((rect.x <= this->w) && (rect.w >= 0) && (rect.y <= this->h) && (rect.h >= 0));
-  }
+  return this->x2() >= rect.x && this->x <= rect.x2() && this->y2() >= rect.y && this->y <= rect.y2();
 }
 
 void Rect::info(const std::string &prefix) {
@@ -95,5 +89,4 @@ void Rect::info(const std::string &prefix) {
   }
 }
 
-}  // namespace display
-}  // namespace esphome
+}  // namespace esphome::display

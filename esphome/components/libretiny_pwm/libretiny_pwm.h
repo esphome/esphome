@@ -7,8 +7,7 @@
 
 #ifdef USE_LIBRETINY
 
-namespace esphome {
-namespace libretiny_pwm {
+namespace esphome::libretiny_pwm {
 
 class LibreTinyPWM : public output::FloatOutput, public Component {
  public:
@@ -40,7 +39,7 @@ template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
   SetFrequencyAction(LibreTinyPWM *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(float, frequency);
 
-  void play(Ts... x) {
+  void play(const Ts &...x) {
     float freq = this->frequency_.value(x...);
     this->parent_->update_frequency(freq);
   }
@@ -49,7 +48,6 @@ template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
   LibreTinyPWM *parent_;
 };
 
-}  // namespace libretiny_pwm
-}  // namespace esphome
+}  // namespace esphome::libretiny_pwm
 
 #endif

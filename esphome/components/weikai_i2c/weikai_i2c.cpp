@@ -5,8 +5,7 @@
 
 #include "weikai_i2c.h"
 
-namespace esphome {
-namespace weikai_i2c {
+namespace esphome::weikai_i2c {
 static const char *const TAG = "weikai_i2c";
 
 /// @brief Display a buffer in hexadecimal format (32 hex values / line).
@@ -96,7 +95,7 @@ void WeikaiRegisterI2C::read_fifo(uint8_t *data, size_t length) const {
 #endif
   } else {  // error
     this->comp_->status_set_warning();
-    ESP_LOGE(TAG, "WeikaiRegisterI2C::read_fifo() @%02X reg=N/A ch=%d I2C_code:%d len=%d buf=%02X...", address,
+    ESP_LOGE(TAG, "WeikaiRegisterI2C::read_fifo() @%02X reg=N/A ch=%d I2C_code:%d len=%d buf=%02X", address,
              this->channel_, (int) error, length, data[0]);
   }
 }
@@ -131,8 +130,8 @@ void WeikaiRegisterI2C::write_fifo(uint8_t *data, size_t length) {
 #endif
   } else {  // error
     this->comp_->status_set_warning();
-    ESP_LOGE(TAG, "WK2168Reg::write_fifo() @%02X reg=N/A, ch=%d I2C_code:%d len=%d, buf=%02X...", address,
-             this->channel_, (int) error, length, data[0]);
+    ESP_LOGE(TAG, "WK2168Reg::write_fifo() @%02X reg=N/A, ch=%d I2C_code:%d len=%d, buf=%02X", address, this->channel_,
+             (int) error, length, data[0]);
   }
 }
 
@@ -142,8 +141,7 @@ void WeikaiRegisterI2C::write_fifo(uint8_t *data, size_t length) {
 void WeikaiComponentI2C::setup() {
   // before any manipulation we store the address to base_address_ for future use
   this->base_address_ = this->address_;
-  ESP_LOGCONFIG(TAG, "Setting up wk2168_i2c: %s with %d UARTs at @%02X ...", this->get_name(), this->children_.size(),
-                this->base_address_);
+  ESP_LOGCONFIG(TAG, "Setup %s (%d UARTs) @ 0x%02X", this->get_name(), this->children_.size(), this->base_address_);
 
   // enable all channels
   this->reg(WKREG_GENA, 0) = GENA_C1EN | GENA_C2EN | GENA_C3EN | GENA_C4EN;
@@ -160,11 +158,16 @@ void WeikaiComponentI2C::setup() {
 }
 
 void WeikaiComponentI2C::dump_config() {
-  ESP_LOGCONFIG(TAG, "Initialization of %s with %d UARTs completed", this->get_name(), this->children_.size());
-  ESP_LOGCONFIG(TAG, "  Crystal: %" PRIu32, this->crystal_);
-  if (test_mode_)
-    ESP_LOGCONFIG(TAG, "  Test mode: %d", test_mode_);
-  ESP_LOGCONFIG(TAG, "  Transfer buffer size: %d", XFER_MAX_SIZE);
+  ESP_LOGCONFIG(TAG,
+                "Initialization of %s with %d UARTs completed\n"
+                "  Crystal: %" PRIu32,
+                this->get_name(), this->children_.size(), this->crystal_);
+  if (test_mode_) {
+    ESP_LOGCONFIG(TAG,
+                  "  Test mode: %d\n"
+                  "  Transfer buffer size: %d",
+                  test_mode_, XFER_MAX_SIZE);
+  }
   this->address_ = this->base_address_;  // we restore the base_address before display (less confusing)
   LOG_I2C_DEVICE(this);
 
@@ -173,5 +176,4 @@ void WeikaiComponentI2C::dump_config() {
   }
 }
 
-}  // namespace weikai_i2c
-}  // namespace esphome
+}  // namespace esphome::weikai_i2c

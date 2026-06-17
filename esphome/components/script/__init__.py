@@ -45,13 +45,26 @@ def get_script(script_id):
 
 
 def check_max_runs(value):
+    # Set default for queued mode to prevent unbounded queue growth
+    if CONF_MAX_RUNS not in value and value[CONF_MODE] == CONF_QUEUED:
+        value[CONF_MAX_RUNS] = 5
+
     if CONF_MAX_RUNS not in value:
         return value
+
     if value[CONF_MODE] not in [CONF_QUEUED, CONF_PARALLEL]:
         raise cv.Invalid(
-            "The option 'max_runs' is only valid in 'queue' and 'parallel' mode.",
+            "The option 'max_runs' is only valid in 'queued' and 'parallel' mode.",
             path=[CONF_MAX_RUNS],
         )
+
+    # Queued mode must have bounded queue (min 1), parallel mode can be unlimited (0)
+    if value[CONF_MODE] == CONF_QUEUED and value[CONF_MAX_RUNS] < 1:
+        raise cv.Invalid(
+            "The option 'max_runs' must be at least 1 for queued mode.",
+            path=[CONF_MAX_RUNS],
+        )
+
     return value
 
 
@@ -106,7 +119,7 @@ CONFIG_SCHEMA = automation.validate_automation(
         cv.Optional(CONF_MODE, default=CONF_SINGLE): cv.one_of(
             *SCRIPT_MODES, lower=True
         ),
-        cv.Optional(CONF_MAX_RUNS): cv.positive_int,
+        cv.Optional(CONF_MAX_RUNS): cv.int_range(min=0, max=100),
         cv.Optional(CONF_PARAMETERS, default={}): cv.Schema(
             {
                 validate_parameter_name: validate_parameter_type,
@@ -124,7 +137,7 @@ async def to_code(config):
         template, func_args = parameters_to_template(conf[CONF_PARAMETERS])
         trigger = cg.new_Pvariable(conf[CONF_ID], template)
         # Add a human-readable name to the script
-        cg.add(trigger.set_name(conf[CONF_ID].id))
+        cg.add(trigger.set_name(cg.LogStringLiteral(conf[CONF_ID].id)))
 
         if CONF_MAX_RUNS in conf:
             cg.add(trigger.set_max_runs(conf[CONF_MAX_RUNS]))
@@ -147,6 +160,7 @@ async def to_code(config):
             cv.Optional(validate_parameter_name): cv.templatable(cv.valid),
         },
     ),
+    synchronous=True,
 )
 async def script_execute_action_to_code(config, action_id, template_arg, args):
     def convert(type: str):
@@ -155,6 +169,8 @@ async def script_execute_action_to_code(config, action_id, template_arg, args):
                 return value
             if type == "bool":
                 return cg.RawExpression(str(value).lower())
+            if isinstance(value, (list, tuple)):
+                return cg.ArrayInitializer(*value)
             return cg.RawExpression(str(value))
 
         return converter
@@ -195,6 +211,7 @@ async def script_execute_action_to_code(config, action_id, template_arg, args):
     "script.stop",
     ScriptStopAction,
     maybe_simple_id({cv.Required(CONF_ID): cv.use_id(Script)}),
+    synchronous=True,
 )
 async def script_stop_action_to_code(config, action_id, template_arg, args):
     full_id, paren = await cg.get_variable_with_full_id(config[CONF_ID])
@@ -206,6 +223,7 @@ async def script_stop_action_to_code(config, action_id, template_arg, args):
     "script.wait",
     ScriptWaitAction,
     maybe_simple_id({cv.Required(CONF_ID): cv.use_id(Script)}),
+    synchronous=False,
 )
 async def script_wait_action_to_code(config, action_id, template_arg, args):
     full_id, paren = await cg.get_variable_with_full_id(config[CONF_ID])

@@ -10,12 +10,11 @@
 #include "esphome/components/api/api_server.h"
 #endif
 
-namespace esphome {
-namespace status {
+namespace esphome::status {
 
 static const char *const TAG = "status";
 
-void StatusBinarySensor::loop() {
+void StatusBinarySensor::update() {
   bool status = network::is_connected();
 #ifdef USE_MQTT
   if (mqtt::global_mqtt_client != nullptr) {
@@ -33,5 +32,4 @@ void StatusBinarySensor::loop() {
 void StatusBinarySensor::setup() { this->publish_initial_state(false); }
 void StatusBinarySensor::dump_config() { LOG_BINARY_SENSOR("", "Status Binary Sensor", this); }
 
-}  // namespace status
-}  // namespace esphome
+}  // namespace esphome::status

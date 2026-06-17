@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace ms5611 {
+namespace esphome::ms5611 {
 
 static const char *const TAG = "ms5611";
 
@@ -15,30 +14,29 @@ static const uint8_t MS5611_CMD_CONV_D2 = 0x50;
 static const uint8_t MS5611_CMD_READ_PROM = 0xA2;
 
 void MS5611Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MS5611...");
   if (!this->write_bytes(MS5611_CMD_RESET, nullptr, 0)) {
     this->mark_failed();
     return;
   }
-  delay(100);  // NOLINT
-  for (uint8_t offset = 0; offset < 6; offset++) {
-    if (!this->read_byte_16(MS5611_CMD_READ_PROM + (offset * 2), &this->prom_[offset])) {
-      this->mark_failed();
-      return;
+  this->set_timeout(100, [this]() {
+    for (uint8_t offset = 0; offset < 6; offset++) {
+      if (!this->read_byte_16(MS5611_CMD_READ_PROM + (offset * 2), &this->prom_[offset])) {
+        this->mark_failed();
+        return;
+      }
     }
-  }
+  });
 }
 void MS5611Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MS5611:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with MS5611 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
 }
-float MS5611Component::get_setup_priority() const { return setup_priority::DATA; }
 void MS5611Component::update() {
   // request temperature reading
   if (!this->write_bytes(MS5611_CMD_CONV_D2 + 0x08, nullptr, 0)) {
@@ -46,8 +44,7 @@ void MS5611Component::update() {
     return;
   }
 
-  auto f = std::bind(&MS5611Component::read_temperature_, this);
-  this->set_timeout("temperature", 10, f);
+  this->set_timeout("temperature", 10, [this]() { this->read_temperature_(); });
 }
 void MS5611Component::read_temperature_() {
   uint8_t bytes[3];
@@ -63,8 +60,7 @@ void MS5611Component::read_temperature_() {
     return;
   }
 
-  auto f = std::bind(&MS5611Component::read_pressure_, this, raw_temperature);
-  this->set_timeout("pressure", 10, f);
+  this->set_timeout("pressure", 10, [this, raw_temperature]() { this->read_pressure_(raw_temperature); });
 }
 void MS5611Component::read_pressure_(uint32_t raw_temperature) {
   uint8_t bytes[3];
@@ -126,5 +122,4 @@ void MS5611Component::calculate_values_(uint32_t raw_temperature, uint32_t raw_p
   this->status_clear_warning();
 }
 
-}  // namespace ms5611
-}  // namespace esphome
+}  // namespace esphome::ms5611

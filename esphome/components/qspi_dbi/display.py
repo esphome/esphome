@@ -1,6 +1,9 @@
+import logging
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import display, spi
+from esphome.components.const import CONF_DRAW_ROUNDING
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BRIGHTNESS,
@@ -24,10 +27,11 @@ from esphome.const import (
 )
 from esphome.core import TimePeriod
 
-from . import CONF_DRAW_FROM_ORIGIN, CONF_DRAW_ROUNDING
+from . import CONF_DRAW_FROM_ORIGIN
 from .models import DriverChip
 
 DEPENDENCIES = ["spi"]
+LOGGER = logging.getLogger(__name__)
 
 qspi_dbi_ns = cg.esphome_ns.namespace("qspi_dbi")
 QSPI_DBI = qspi_dbi_ns.class_(
@@ -72,9 +76,8 @@ def map_sequence(value):
 
 def _validate(config):
     chip = DriverChip.chips[config[CONF_MODEL]]
-    if not chip.initsequence:
-        if CONF_INIT_SEQUENCE not in config:
-            raise cv.Invalid(f"{chip.name} model requires init_sequence")
+    if not chip.initsequence and CONF_INIT_SEQUENCE not in config:
+        raise cv.Invalid(f"{chip.name} model requires init_sequence")
     return config
 
 
@@ -154,14 +157,18 @@ CONFIG_SCHEMA = cv.All(
         upper=True,
         key=CONF_MODEL,
     ),
-    cv.only_with_esp_idf,
+    _validate,
+    cv.only_on_esp32,
 )
 
 
 async def to_code(config):
+    LOGGER.warning(
+        "The 'qspi_dbi' component is deprecated, it is recommended to use 'mipi_spi' instead."
+    )
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
-    await spi.register_spi_device(var, config)
+    await spi.register_spi_device(var, config, write_only=True)
 
     chip = DriverChip.chips[config[CONF_MODEL]]
     if chip.initsequence:

@@ -8,8 +8,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace time {
+namespace esphome::time {
 
 class CronTrigger : public Trigger<>, public Component {
  public:
@@ -27,10 +26,11 @@ class CronTrigger : public Trigger<>, public Component {
   void add_day_of_week(uint8_t day_of_week);
   void add_days_of_week(const std::vector<uint8_t> &days_of_week);
   bool matches(const ESPTime &time);
-  void loop() override;
+  void setup() override;
   float get_setup_priority() const override;
 
  protected:
+  void check_time_();
   std::bitset<61> seconds_;
   std::bitset<60> minutes_;
   std::bitset<24> hours_;
@@ -48,5 +48,4 @@ class SyncTrigger : public Trigger<>, public Component {
  protected:
   RealTimeClock *rtc_;
 };
-}  // namespace time
-}  // namespace esphome
+}  // namespace esphome::time

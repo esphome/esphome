@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace iaqcore {
+namespace esphome::iaqcore {
 
 class IAQCore : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -16,8 +15,6 @@ class IAQCore : public PollingComponent, public i2c::I2CDevice {
   void update() override;
   void dump_config() override;
 
-  float get_setup_priority() const override { return setup_priority::DATA; }
-
  protected:
   sensor::Sensor *co2_{nullptr};
   sensor::Sensor *tvoc_{nullptr};
@@ -25,5 +22,4 @@ class IAQCore : public PollingComponent, public i2c::I2CDevice {
   void publish_nans_();
 };
 
-}  // namespace iaqcore
-}  // namespace esphome
+}  // namespace esphome::iaqcore

@@ -1,116 +1,99 @@
-#include "socket.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#include "socket.h"
 
 #ifdef USE_SOCKET_IMPL_LWIP_SOCKETS
 
 #include <cstring>
-
-namespace esphome {
-namespace socket {
-
-std::string format_sockaddr(const struct sockaddr_storage &storage) {
-  if (storage.ss_family == AF_INET) {
-    const struct sockaddr_in *addr = reinterpret_cast<const struct sockaddr_in *>(&storage);
-    char buf[INET_ADDRSTRLEN];
-    const char *ret = lwip_inet_ntop(AF_INET, &addr->sin_addr, buf, sizeof(buf));
-    if (ret == nullptr)
-      return {};
-    return std::string{buf};
-  }
-#if LWIP_IPV6
-  else if (storage.ss_family == AF_INET6) {
-    const struct sockaddr_in6 *addr = reinterpret_cast<const struct sockaddr_in6 *>(&storage);
-    char buf[INET6_ADDRSTRLEN];
-    const char *ret = lwip_inet_ntop(AF_INET6, &addr->sin6_addr, buf, sizeof(buf));
-    if (ret == nullptr)
-      return {};
-    return std::string{buf};
-  }
+#include "esphome/core/application.h"
+#ifdef USE_HOST
+#include "esphome/core/wake.h"
 #endif
-  return {};
+
+namespace esphome::socket {
+
+LwIPSocketImpl::LwIPSocketImpl(int fd, bool monitor_loop) {
+  this->fd_ = fd;
+  if (!monitor_loop || this->fd_ < 0)
+    return;
+#ifdef USE_LWIP_FAST_SELECT
+  this->cached_sock_ = hook_fd_for_fast_select(this->fd_);
+#else
+  this->loop_monitored_ = wake_register_fd(this->fd_);
+#endif
 }
 
-class LwIPSocketImpl : public Socket {
- public:
-  LwIPSocketImpl(int fd) : fd_(fd) {}
-  ~LwIPSocketImpl() override {
-    if (!closed_) {
-      close();  // NOLINT(clang-analyzer-optin.cplusplus.VirtualCall)
-    }
-  }
-  int connect(const struct sockaddr *addr, socklen_t addrlen) override { return lwip_connect(fd_, addr, addrlen); }
-  std::unique_ptr<Socket> accept(struct sockaddr *addr, socklen_t *addrlen) override {
-    int fd = lwip_accept(fd_, addr, addrlen);
-    if (fd == -1)
-      return {};
-    return make_unique<LwIPSocketImpl>(fd);
-  }
-  int bind(const struct sockaddr *addr, socklen_t addrlen) override { return lwip_bind(fd_, addr, addrlen); }
-  int close() override {
-    int ret = lwip_close(fd_);
-    closed_ = true;
-    return ret;
-  }
-  int shutdown(int how) override { return lwip_shutdown(fd_, how); }
+LwIPSocketImpl::~LwIPSocketImpl() { this->close(); }
 
-  int getpeername(struct sockaddr *addr, socklen_t *addrlen) override { return lwip_getpeername(fd_, addr, addrlen); }
-  std::string getpeername() override {
-    struct sockaddr_storage storage;
-    socklen_t len = sizeof(storage);
-    int err = this->getpeername((struct sockaddr *) &storage, &len);
-    if (err != 0)
-      return {};
-    return format_sockaddr(storage);
-  }
-  int getsockname(struct sockaddr *addr, socklen_t *addrlen) override { return lwip_getsockname(fd_, addr, addrlen); }
-  std::string getsockname() override {
-    struct sockaddr_storage storage;
-    socklen_t len = sizeof(storage);
-    int err = this->getsockname((struct sockaddr *) &storage, &len);
-    if (err != 0)
-      return {};
-    return format_sockaddr(storage);
-  }
-  int getsockopt(int level, int optname, void *optval, socklen_t *optlen) override {
-    return lwip_getsockopt(fd_, level, optname, optval, optlen);
-  }
-  int setsockopt(int level, int optname, const void *optval, socklen_t optlen) override {
-    return lwip_setsockopt(fd_, level, optname, optval, optlen);
-  }
-  int listen(int backlog) override { return lwip_listen(fd_, backlog); }
-  ssize_t read(void *buf, size_t len) override { return lwip_read(fd_, buf, len); }
-  ssize_t readv(const struct iovec *iov, int iovcnt) override { return lwip_readv(fd_, iov, iovcnt); }
-  ssize_t write(const void *buf, size_t len) override { return lwip_write(fd_, buf, len); }
-  ssize_t send(void *buf, size_t len, int flags) { return lwip_send(fd_, buf, len, flags); }
-  ssize_t writev(const struct iovec *iov, int iovcnt) override { return lwip_writev(fd_, iov, iovcnt); }
-  ssize_t sendto(const void *buf, size_t len, int flags, const struct sockaddr *to, socklen_t tolen) override {
-    return lwip_sendto(fd_, buf, len, flags, to, tolen);
-  }
-  int setblocking(bool blocking) override {
-    int fl = lwip_fcntl(fd_, F_GETFL, 0);
-    if (blocking) {
-      fl &= ~O_NONBLOCK;
-    } else {
-      fl |= O_NONBLOCK;
-    }
-    lwip_fcntl(fd_, F_SETFL, fl);
+int LwIPSocketImpl::close() {
+  if (this->fd_ < 0) {
+    // Already closed, or never opened.
     return 0;
   }
+#ifdef USE_LWIP_FAST_SELECT
+  // Null the cached lwip_sock pointer before closing. The underlying lwip slot can be
+  // recycled for a new connection as soon as lwip_close() returns, so anything that
+  // might dereference cached_sock_ post-close (e.g. setsockopt(TCP_NODELAY)) would
+  // otherwise touch an unrelated socket's pcb. No per-socket callback unhook is needed —
+  // all LwIP sockets share the same static event_callback.
+  this->cached_sock_ = nullptr;
+#else
+  if (this->loop_monitored_) {
+    wake_unregister_fd(this->fd_);
+  }
+#endif
+  int ret = lwip_close(this->fd_);
+  this->fd_ = -1;  // Sentinel for "closed" — prevents double-close and makes use-after-close visible.
+  return ret;
+}
 
- protected:
-  int fd_;
-  bool closed_ = false;
-};
+int LwIPSocketImpl::setblocking(bool blocking) {
+  int fl = lwip_fcntl(this->fd_, F_GETFL, 0);
+  if (blocking) {
+    fl &= ~O_NONBLOCK;
+  } else {
+    fl |= O_NONBLOCK;
+  }
+  lwip_fcntl(this->fd_, F_SETFL, fl);
+  return 0;
+}
 
-std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
+size_t LwIPSocketImpl::getpeername_to(std::span<char, SOCKADDR_STR_LEN> buf) {
+  struct sockaddr_storage storage;
+  socklen_t len = sizeof(storage);
+  if (this->getpeername(reinterpret_cast<struct sockaddr *>(&storage), &len) != 0) {
+    buf[0] = '\0';
+    return 0;
+  }
+  return format_sockaddr_to(reinterpret_cast<struct sockaddr *>(&storage), len, buf);
+}
+
+size_t LwIPSocketImpl::getsockname_to(std::span<char, SOCKADDR_STR_LEN> buf) {
+  struct sockaddr_storage storage;
+  socklen_t len = sizeof(storage);
+  if (this->getsockname(reinterpret_cast<struct sockaddr *>(&storage), &len) != 0) {
+    buf[0] = '\0';
+    return 0;
+  }
+  return format_sockaddr_to(reinterpret_cast<struct sockaddr *>(&storage), len, buf);
+}
+
+// Helper to create a socket with optional monitoring
+static std::unique_ptr<LwIPSocketImpl> create_socket(int domain, int type, int protocol, bool loop_monitored = false) {
   int ret = lwip_socket(domain, type, protocol);
   if (ret == -1)
     return nullptr;
-  return std::unique_ptr<Socket>{new LwIPSocketImpl(ret)};
+  return make_unique<LwIPSocketImpl>(ret, loop_monitored);
 }
 
-}  // namespace socket
-}  // namespace esphome
+std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
+  return create_socket(domain, type, protocol, false);
+}
+
+std::unique_ptr<Socket> socket_loop_monitored(int domain, int type, int protocol) {
+  return create_socket(domain, type, protocol, true);
+}
+
+}  // namespace esphome::socket
 
 #endif  // USE_SOCKET_IMPL_LWIP_SOCKETS

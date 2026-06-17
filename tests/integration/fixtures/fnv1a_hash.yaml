@@ -1,0 +1,60 @@
+esphome:
+  name: fnv1a-hash-test
+  platformio_options:
+    build_flags:
+      - "-DDEBUG"
+  on_boot:
+    - lambda: |-
+        using esphome::fnv1a_hash;
+        using esphome::fnv1a_hash_extend;
+
+        // Test empty string (should return offset basis)
+        uint32_t hash_empty = fnv1a_hash("");
+        if (hash_empty == 0x811c9dc5) {
+          ESP_LOGI("FNV1A", "empty PASSED");
+        } else {
+          ESP_LOGE("FNV1A", "empty FAILED: 0x%08x != 0x811c9dc5", hash_empty);
+        }
+
+        // Test known FNV-1a hashes
+        uint32_t hash_hello = fnv1a_hash("hello");
+        if (hash_hello == 0x4f9f2cab) {
+          ESP_LOGI("FNV1A", "known_hello PASSED");
+        } else {
+          ESP_LOGE("FNV1A", "known_hello FAILED: 0x%08x != 0x4f9f2cab", hash_hello);
+        }
+
+        uint32_t hash_helloworld = fnv1a_hash("helloworld");
+        if (hash_helloworld == 0x3b9f5c61) {
+          ESP_LOGI("FNV1A", "known_helloworld PASSED");
+        } else {
+          ESP_LOGE("FNV1A", "known_helloworld FAILED: 0x%08x != 0x3b9f5c61", hash_helloworld);
+        }
+
+        // Test fnv1a_hash_extend consistency
+        uint32_t hash1 = fnv1a_hash("hello");
+        hash1 = fnv1a_hash_extend(hash1, "world");
+        uint32_t hash2 = fnv1a_hash("helloworld");
+
+        if (hash1 == hash2) {
+          ESP_LOGI("FNV1A", "extend PASSED");
+        } else {
+          ESP_LOGE("FNV1A", "extend FAILED: 0x%08x != 0x%08x", hash1, hash2);
+        }
+
+        // Test with std::string
+        std::string str1 = "foo";
+        std::string str2 = "bar";
+        uint32_t hash3 = fnv1a_hash(str1);
+        hash3 = fnv1a_hash_extend(hash3, str2);
+        uint32_t hash4 = fnv1a_hash("foobar");
+
+        if (hash3 == hash4) {
+          ESP_LOGI("FNV1A", "string PASSED");
+        } else {
+          ESP_LOGE("FNV1A", "string FAILED: 0x%08x != 0x%08x", hash3, hash4);
+        }
+
+host:
+api:
+logger:

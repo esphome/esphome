@@ -5,6 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_INPUT,
+    CONF_INTERRUPT_PIN,
     CONF_INVERTED,
     CONF_MODE,
     CONF_NUMBER,
@@ -27,6 +28,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.declare_id(TCA9555Component),
+            cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -38,6 +40,8 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
+    if interrupt_pin := config.get(CONF_INTERRUPT_PIN):
+        cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
 
 
 def validate_mode(value):
@@ -53,7 +57,7 @@ TCA9555_PIN_SCHEMA = pins.gpio_base_schema(
     cv.int_range(min=0, max=15),
     modes=[CONF_INPUT, CONF_OUTPUT],
     mode_validator=validate_mode,
-    invertable=True,
+    invertible=True,
 ).extend(
     {
         cv.Required(CONF_TCA9555): cv.use_id(TCA9555Component),

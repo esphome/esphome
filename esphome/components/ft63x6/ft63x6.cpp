@@ -10,8 +10,8 @@
 
 // Registers
 // Reference: https://focuslcds.com/content/FT6236.pdf
-namespace esphome {
-namespace ft63x6 {
+
+namespace esphome::ft63x6 {
 static const uint8_t FT6X36_ADDR_DEVICE_MODE = 0x00;
 
 static const uint8_t FT63X6_ADDR_TD_STATUS = 0x02;
@@ -28,7 +28,6 @@ static const uint8_t FT63X6_ADDR_CHIP_ID = 0xA3;
 static const char *const TAG = "FT63X6";
 
 void FT63X6Touchscreen::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up FT63X6 Touchscreen...");
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
     this->interrupt_pin_->setup();
@@ -71,8 +70,10 @@ void FT63X6Touchscreen::dump_config() {
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  ESP_LOGCONFIG(TAG, "  X Calibration: [%d, %d]", this->x_raw_min_, this->x_raw_max_);
-  ESP_LOGCONFIG(TAG, "  Y Calibration: [%d, %d]", this->y_raw_min_, this->y_raw_max_);
+  ESP_LOGCONFIG(TAG,
+                "  X Calibration: [%d, %d]\n"
+                "  Y Calibration: [%d, %d]",
+                this->x_raw_min_, this->x_raw_max_, this->y_raw_min_, this->y_raw_max_);
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -132,5 +133,4 @@ uint8_t FT63X6Touchscreen::read_byte_(uint8_t addr) {
   return byte;
 }
 
-}  // namespace ft63x6
-}  // namespace esphome
+}  // namespace esphome::ft63x6

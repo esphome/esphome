@@ -8,8 +8,7 @@
 #include "esphome/components/event/event.h"
 #include "mqtt_component.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 class MQTTEventComponent : public mqtt::MQTTComponent {
  public:
@@ -26,14 +25,13 @@ class MQTTEventComponent : public mqtt::MQTTComponent {
 
  protected:
   bool publish_event_(const std::string &event_type);
-  std::string component_type() const override;
+  const char *component_type() const override;
   const EntityBase *get_entity() const override;
 
   event::Event *event_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

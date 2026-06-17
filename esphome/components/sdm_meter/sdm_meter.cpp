@@ -1,9 +1,9 @@
 #include "sdm_meter.h"
 #include "sdm_meter_registers.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sdm_meter {
+namespace esphome::sdm_meter {
 
 static const char *const TAG = "sdm_meter";
 
@@ -84,8 +84,10 @@ void SDMMeter::on_modbus_data(const std::vector<uint8_t> &data) {
 
 void SDMMeter::update() { this->send(MODBUS_CMD_READ_IN_REGISTERS, 0, MODBUS_REGISTER_COUNT); }
 void SDMMeter::dump_config() {
-  ESP_LOGCONFIG(TAG, "SDM Meter:");
-  ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
+  ESP_LOGCONFIG(TAG,
+                "SDM Meter:\n"
+                "  Address: 0x%02X",
+                this->address_);
   for (uint8_t i = 0; i < 3; i++) {
     auto phase = this->phases_[i];
     if (!phase.setup)
@@ -107,5 +109,4 @@ void SDMMeter::dump_config() {
   LOG_SENSOR("  ", "Export Reactive Energy", this->export_reactive_energy_sensor_);
 }
 
-}  // namespace sdm_meter
-}  // namespace esphome
+}  // namespace esphome::sdm_meter

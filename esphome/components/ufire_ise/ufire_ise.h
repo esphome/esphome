@@ -6,8 +6,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace ufire_ise {
+namespace esphome::ufire_ise {
 
 static const float PROBE_MV_TO_PH = 59.2;
 static const float PROBE_TMP_CORRECTION = 0.03;
@@ -64,7 +63,7 @@ template<typename... Ts> class UFireISECalibrateProbeLowAction : public Action<T
   UFireISECalibrateProbeLowAction(UFireISEComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(float, solution)
 
-  void play(Ts... x) override { this->parent_->calibrate_probe_low(this->solution_.value(x...)); }
+  void play(const Ts &...x) override { this->parent_->calibrate_probe_low(this->solution_.value(x...)); }
 
  protected:
   UFireISEComponent *parent_;
@@ -75,7 +74,7 @@ template<typename... Ts> class UFireISECalibrateProbeHighAction : public Action<
   UFireISECalibrateProbeHighAction(UFireISEComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(float, solution)
 
-  void play(Ts... x) override { this->parent_->calibrate_probe_high(this->solution_.value(x...)); }
+  void play(const Ts &...x) override { this->parent_->calibrate_probe_high(this->solution_.value(x...)); }
 
  protected:
   UFireISEComponent *parent_;
@@ -85,11 +84,10 @@ template<typename... Ts> class UFireISEResetAction : public Action<Ts...> {
  public:
   UFireISEResetAction(UFireISEComponent *parent) : parent_(parent) {}
 
-  void play(Ts... x) override { this->parent_->reset_board(); }
+  void play(const Ts &...x) override { this->parent_->reset_board(); }
 
  protected:
   UFireISEComponent *parent_;
 };
 
-}  // namespace ufire_ise
-}  // namespace esphome
+}  // namespace esphome::ufire_ise

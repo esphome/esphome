@@ -8,8 +8,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace max7219digit {
+namespace esphome::max7219digit {
 
 enum ChipLinesStyle {
   ZIGZAG = 0,
@@ -23,7 +22,7 @@ enum ScrollMode {
 
 class MAX7219Component;
 
-using max7219_writer_t = std::function<void(MAX7219Component &)>;
+using max7219_writer_t = display::DisplayWriter<MAX7219Component>;
 
 class MAX7219Component : public display::DisplayBuffer,
                          public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
@@ -117,8 +116,7 @@ class MAX7219Component : public display::DisplayBuffer,
   uint32_t last_scroll_ = 0;
   uint16_t stepsleft_;
   size_t get_buffer_length_();
-  optional<max7219_writer_t> writer_local_{};
+  max7219_writer_t writer_local_{};
 };
 
-}  // namespace max7219digit
-}  // namespace esphome
+}  // namespace esphome::max7219digit

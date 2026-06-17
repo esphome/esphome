@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_SELECT
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.select";
 
@@ -21,21 +20,22 @@ void MQTTSelectComponent::setup() {
     call.set_option(state);
     call.perform();
   });
-  this->select_->add_on_state_callback([this](const std::string &state, size_t index) { this->publish_state(state); });
+  this->select_->add_on_state_callback([this](size_t index) { this->publish_state(this->select_->option_at(index)); });
 }
 
 void MQTTSelectComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Select '%s':", this->select_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, false)
+  LOG_MQTT_COMPONENT(true, false);
 }
 
-std::string MQTTSelectComponent::component_type() const { return "select"; }
+MQTT_COMPONENT_TYPE(MQTTSelectComponent, "select")
 const EntityBase *MQTTSelectComponent::get_entity() const { return this->select_; }
 
 void MQTTSelectComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   const auto &traits = select_->traits;
   // https://www.home-assistant.io/integrations/select.mqtt/
-  JsonArray options = root.createNestedArray(MQTT_OPTIONS);
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  JsonArray options = root[MQTT_OPTIONS].to<JsonArray>();
   for (const auto &option : traits.get_options())
     options.add(option);
 
@@ -43,17 +43,18 @@ void MQTTSelectComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
 }
 bool MQTTSelectComponent::send_initial_state() {
   if (this->select_->has_state()) {
-    return this->publish_state(this->select_->state);
+    auto option = this->select_->current_option();
+    return this->publish_state(std::string(option.c_str(), option.size()));
   } else {
     return true;
   }
 }
 bool MQTTSelectComponent::publish_state(const std::string &value) {
-  return this->publish(this->get_state_topic_(), value);
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return this->publish(this->get_state_topic_to_(topic_buf), value.data(), value.size());
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

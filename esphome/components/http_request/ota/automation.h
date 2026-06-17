@@ -3,8 +3,7 @@
 
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace http_request {
+namespace esphome::http_request {
 
 template<typename... Ts> class OtaHttpRequestComponentFlashAction : public Action<Ts...> {
  public:
@@ -15,7 +14,7 @@ template<typename... Ts> class OtaHttpRequestComponentFlashAction : public Actio
   TEMPLATABLE_VALUE(std::string, url)
   TEMPLATABLE_VALUE(std::string, username)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     if (this->md5_url_.has_value()) {
       this->parent_->set_md5_url(this->md5_url_.value(x...));
     }
@@ -38,5 +37,4 @@ template<typename... Ts> class OtaHttpRequestComponentFlashAction : public Actio
   OtaHttpRequestComponent *parent_;
 };
 
-}  // namespace http_request
-}  // namespace esphome
+}  // namespace esphome::http_request

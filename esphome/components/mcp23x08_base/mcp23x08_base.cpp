@@ -1,23 +1,24 @@
 #include "mcp23x08_base.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp23x08_base {
+namespace esphome::mcp23x08_base {
 
 static const char *const TAG = "mcp23x08_base";
 
-bool MCP23X08Base::digital_read(uint8_t pin) {
-  uint8_t bit = pin % 8;
-  uint8_t reg_addr = mcp23x08_base::MCP23X08_GPIO;
-  uint8_t value = 0;
-  this->read_reg(reg_addr, &value);
-  return value & (1 << bit);
+bool MCP23X08Base::digital_read_hw(uint8_t pin) {
+  if (!this->read_reg(mcp23x08_base::MCP23X08_GPIO, &this->input_mask_)) {
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return false;
+  }
+  return true;
 }
 
-void MCP23X08Base::digital_write(uint8_t pin, bool value) {
+void MCP23X08Base::digital_write_hw(uint8_t pin, bool value) {
   uint8_t reg_addr = mcp23x08_base::MCP23X08_OLAT;
   this->update_reg(pin, value, reg_addr);
 }
+
+bool MCP23X08Base::digital_read_cache(uint8_t pin) { return this->input_mask_ & (1 << pin); }
 
 void MCP23X08Base::pin_mode(uint8_t pin, gpio::Flags flags) {
   uint8_t iodir = mcp23x08_base::MCP23X08_IODIR;
@@ -29,6 +30,16 @@ void MCP23X08Base::pin_mode(uint8_t pin, gpio::Flags flags) {
     this->update_reg(pin, true, gppu);
   } else if (flags == gpio::FLAG_OUTPUT) {
     this->update_reg(pin, false, iodir);
+  }
+  // When interrupt_pin is configured, auto-enable CHANGE interrupt for input pins
+  // so the chip's INT output fires on any input state change
+  if (this->interrupt_pin_ != nullptr && (flags & gpio::FLAG_INPUT)) {
+    this->pin_interrupt_mode(pin, mcp23xxx_base::MCP23XXX_CHANGE);
+  }
+  // Enable polling loop for input pins (not needed for interrupt-driven mode
+  // where the ISR handles re-enabling loop)
+  if (this->interrupt_pin_ == nullptr && (flags & gpio::FLAG_INPUT)) {
+    this->enable_loop();
   }
 }
 
@@ -45,12 +56,12 @@ void MCP23X08Base::pin_interrupt_mode(uint8_t pin, mcp23xxx_base::MCP23XXXInterr
     case mcp23xxx_base::MCP23XXX_RISING:
       this->update_reg(pin, true, gpinten);
       this->update_reg(pin, true, intcon);
-      this->update_reg(pin, true, defval);
+      this->update_reg(pin, false, defval);
       break;
     case mcp23xxx_base::MCP23XXX_FALLING:
       this->update_reg(pin, true, gpinten);
       this->update_reg(pin, true, intcon);
-      this->update_reg(pin, false, defval);
+      this->update_reg(pin, true, defval);
       break;
     case mcp23xxx_base::MCP23XXX_NO_INTERRUPT:
       this->update_reg(pin, false, gpinten);
@@ -80,5 +91,4 @@ void MCP23X08Base::update_reg(uint8_t pin, bool pin_value, uint8_t reg_addr) {
   }
 }
 
-}  // namespace mcp23x08_base
-}  // namespace esphome
+}  // namespace esphome::mcp23x08_base

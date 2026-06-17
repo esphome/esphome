@@ -5,8 +5,7 @@
 #include "ili9xxx_defines.h"
 #include "ili9xxx_init.h"
 
-namespace esphome {
-namespace ili9xxx {
+namespace esphome::ili9xxx {
 
 static const char *const TAG = "ili9xxx";
 const size_t ILI9XXX_TRANSFER_BUFFER_SIZE = 126;  // ensure this is divisible by 6
@@ -89,7 +88,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
 
   void dump_config() override;
   void setup() override;
-  void on_shutdown() override { this->command(ILI9XXX_SLPIN); }
+  void on_powerdown() override { this->command(ILI9XXX_SLPIN); }
 
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
@@ -283,5 +282,4 @@ class ILI9XXXST7735 : public ILI9XXXDisplay {
   ILI9XXXST7735() : ILI9XXXDisplay(INITCMD_ST7735, 128, 160) {}
 };
 
-}  // namespace ili9xxx
-}  // namespace esphome
+}  // namespace esphome::ili9xxx

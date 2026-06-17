@@ -1,0 +1,67 @@
+usb_host:
+  max_transfer_requests: 32
+
+usb_uart:
+  - id: uart_0
+    type: cdc_acm
+    vid: 0x1234
+    pid: 0x5678
+    channels:
+      - id: channel_0_1
+  - id: uart_1
+    type: cp210x
+    channels:
+      - id: channel_1_1
+        baud_rate: 115200
+        stop_bits: 2
+        data_bits: 7
+        parity: even
+  - id: uart_2
+    type: ch34x
+    channels:
+      - id: channel_2_1
+        baud_rate: 115200
+      - id: channel_2_2
+        baud_rate: 9600
+  - id: uart_3
+    type: ch340
+    channels:
+      - id: channel_3_1
+        baud_rate: 57600
+  - id: uart_4
+    type: esp_jtag
+    channels:
+      - id: channel_4_1
+        debug: true
+        dummy_receiver: true
+        debug_prefix: "[ESP_JTAG] "
+  - id: uart_5
+    type: cp210x
+    channels:
+      - id: channel_5_1
+        baud_rate: 9600
+        debug: true
+        debug_prefix: "[CP210X] "
+  - id: uart_6
+    type: ft2232
+    channels:
+      - id: channel_6_1
+        baud_rate: 115200
+      - id: channel_6_2
+        baud_rate: 9600
+        stop_bits: 2
+        data_bits: 7
+        parity: odd
+  - id: uart_7
+    type: pl2303
+    channels:
+      - id: channel_7_1
+        baud_rate: 115200
+  - id: uart_8
+    type: pl2303gc
+    channels:
+      - id: channel_8_1
+        baud_rate: 9600
+        stop_bits: 2
+        data_bits: 7
+        parity: even

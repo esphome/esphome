@@ -5,16 +5,26 @@
 // Implementation based on:
 //   https://github.com/sciosense/ENS160_driver
 
+// For best performance, the sensor shall be operated in normal indoor air in the range -5 to 60°C
+// (typical: 25°C); relative humidity: 20 to 80%RH (typical: 50%RH), non-condensing with no aggressive
+// or poisonous gases present. Prolonged exposure to environments outside these conditions can affect
+// performance and lifetime of the sensor.
+// The sensor is designed for indoor use and is not waterproof or dustproof. It should be protected from
+// water, condensation, dust, and aggressive gases. Note that the status will only be stored in non-volatile
+// memory after an initial 24 h of continuous operation. If unpowered before the conclusion of that period,
+// the ENS160 will resume "Initial Start-up" mode after re-powering.
+
 #include "ens160_base.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace ens160_base {
+namespace esphome::ens160_base {
 
 static const char *const TAG = "ens160";
 
-static const uint8_t ENS160_BOOTING = 10;
+// Datasheet specifies 10ms, but some users report that 10ms is not sufficient for the
+// sensor to boot and be ready for commands. 11ms seems to be a safe value.
+static const uint8_t ENS160_BOOTING = 11;
 
 static const uint16_t ENS160_PART_ID = 0x0160;
 
@@ -49,8 +59,6 @@ static const uint8_t ENS160_DATA_STATUS_NEWGPR = 0x01;
 static const uint8_t ENS160_DATA_AQI = 0x07;
 
 void ENS160Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ENS160...");
-
   // check part_id
   uint16_t part_id;
   if (!this->read_bytes(ENS160_REG_PART_ID, reinterpret_cast<uint8_t *>(&part_id), 2)) {
@@ -93,6 +101,8 @@ void ENS160Component::setup() {
     this->mark_failed();
     return;
   }
+  delay(ENS160_BOOTING);
+
   // clear command
   if (!this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_NOP)) {
     this->error_code_ = WRITE_FAILED;
@@ -104,6 +114,7 @@ void ENS160Component::setup() {
     this->mark_failed();
     return;
   }
+  delay(ENS160_BOOTING);
 
   // read firmware version
   if (!this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_GET_APPVER)) {
@@ -111,6 +122,8 @@ void ENS160Component::setup() {
     this->mark_failed();
     return;
   }
+  delay(ENS160_BOOTING);
+
   uint8_t version_data[3];
   if (!this->read_bytes(ENS160_REG_GPR_READ_4, version_data, 3)) {
     this->error_code_ = READ_FAILED;
@@ -153,14 +166,17 @@ void ENS160Component::update() {
   }
 
   // verbose status logging
-  ESP_LOGV(TAG, "Status: ENS160 STATAS bit    0x%x",
-           (ENS160_DATA_STATUS_STATAS & (status_value)) == ENS160_DATA_STATUS_STATAS);
-  ESP_LOGV(TAG, "Status: ENS160 STATER bit    0x%x",
-           (ENS160_DATA_STATUS_STATER & (status_value)) == ENS160_DATA_STATUS_STATER);
-  ESP_LOGV(TAG, "Status: ENS160 VALIDITY FLAG 0x%02x", (ENS160_DATA_STATUS_VALIDITY & status_value) >> 2);
-  ESP_LOGV(TAG, "Status: ENS160 NEWDAT bit    0x%x",
-           (ENS160_DATA_STATUS_NEWDAT & (status_value)) == ENS160_DATA_STATUS_NEWDAT);
-  ESP_LOGV(TAG, "Status: ENS160 NEWGPR bit    0x%x",
+  ESP_LOGV(TAG,
+           "ENS160 Status Register: 0x%02x\n"
+           "  STATAS bit    0x%x\n"
+           "  STATER bit    0x%x\n"
+           "  VALIDITY FLAG 0x%02x\n"
+           "  NEWDAT bit    0x%x\n"
+           "  NEWGPR bit    0x%x",
+           status_value, (ENS160_DATA_STATUS_STATAS & (status_value)) == ENS160_DATA_STATUS_STATAS,
+           (ENS160_DATA_STATUS_STATER & (status_value)) == ENS160_DATA_STATUS_STATER,
+           (ENS160_DATA_STATUS_VALIDITY & status_value) >> 2,
+           (ENS160_DATA_STATUS_NEWDAT & (status_value)) == ENS160_DATA_STATUS_NEWDAT,
            (ENS160_DATA_STATUS_NEWGPR & (status_value)) == ENS160_DATA_STATUS_NEWGPR);
 
   data_ready = ENS160_DATA_STATUS_NEWDAT & status_value;
@@ -187,7 +203,7 @@ void ENS160Component::update() {
       }
       return;
     case INVALID_OUTPUT:
-      ESP_LOGE(TAG, "ENS160 Invalid Status - No Invalid Output");
+      ESP_LOGE(TAG, "ENS160 Invalid Status - No valid output");
       this->status_set_warning();
       return;
   }
@@ -222,7 +238,6 @@ void ENS160Component::update() {
   if (this->aqi_ != nullptr) {
     // remove reserved bits, just in case they are used in future
     data_aqi = ENS160_DATA_AQI & data_aqi;
-
     this->aqi_->publish_state(data_aqi);
   }
 
@@ -279,7 +294,7 @@ void ENS160Component::dump_config() {
 
   switch (this->error_code_) {
     case COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, "Communication failed! Is the sensor connected?");
+      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
       break;
     case READ_FAILED:
       ESP_LOGE(TAG, "Error reading from register");
@@ -316,5 +331,4 @@ void ENS160Component::dump_config() {
   }
 }
 
-}  // namespace ens160_base
-}  // namespace esphome
+}  // namespace esphome::ens160_base

@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pmwcs3 {
+namespace esphome::pmwcs3 {
 
 static const uint8_t PMWCS3_I2C_ADDRESS = 0x63;
 static const uint8_t PMWCS3_REG_READ_START = 0x01;
@@ -26,45 +25,39 @@ static const char *const TAG = "pmwcs3";
 void PMWCS3Component::new_i2c_address(uint8_t address) {
   if (!this->write_byte(PMWCS3_SET_I2C_ADDRESS, address)) {
     this->status_set_warning();
-    ESP_LOGW(TAG, "couldn't write the new I2C address %d", address);
+    ESP_LOGW(TAG, "Setting I2C address failed (%d)", address);
     return;
   }
   this->set_i2c_address(address);  // Allows device to continue working until new firmware is written with new address.
-  ESP_LOGVV(TAG, "changed I2C address to %d", address);
+  ESP_LOGVV(TAG, "Set I2C address to %d", address);
   this->status_clear_warning();
 }
 
 void PMWCS3Component::air_calibration() {
   if (!this->write_bytes(PMWCS3_REG_CALIBRATE_AIR, nullptr, 0)) {
     this->status_set_warning();
-    ESP_LOGW(TAG, "couldn't start air calibration");
+    ESP_LOGW(TAG, "Starting air calibration failed");
     return;
   }
-  ESP_LOGW(TAG, "Start air calibration during the next 300s");
+  ESP_LOGW(TAG, "Running air calibration for 300s");
 }
 void PMWCS3Component::water_calibration() {
   if (!this->write_bytes(PMWCS3_REG_CALIBRATE_WATER, nullptr, 0)) {
     this->status_set_warning();
-    ESP_LOGW(TAG, "couldn't start water calibration");
+    ESP_LOGW(TAG, "Starting water calibration failed");
     return;
   }
-  ESP_LOGW(TAG, "Start water calibration during the next 300s");
+  ESP_LOGW(TAG, "Running water calibration for 300s");
 }
 
-void PMWCS3Component::setup() { ESP_LOGCONFIG(TAG, "Setting up PMWCS3..."); }
-
 void PMWCS3Component::update() { this->read_data_(); }
-
-float PMWCS3Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void PMWCS3Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PMWCS3");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with PMWCS3 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
-  ESP_LOGI(TAG, "%s", this->is_failed() ? "FAILED" : "OK");
-
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "e25", this->e25_sensor_);
   LOG_SENSOR("  ", "ec", this->ec_sensor_);
@@ -75,7 +68,7 @@ void PMWCS3Component::read_data_() {
   /////// Super important !!!! first activate reading PMWCS3_REG_READ_START (if not, return always the same values) ////
   if (!this->write_bytes(PMWCS3_REG_READ_START, nullptr, 0)) {
     this->status_set_warning();
-    ESP_LOGVV(TAG, "Failed to write into REG_READ_START register !!!");
+    ESP_LOGVV(TAG, "Writing REG_READ_START failed");
     return;
   }
 
@@ -85,7 +78,7 @@ void PMWCS3Component::read_data_() {
     uint8_t data[8];
     float e25, ec, temperature, vwc;
     if (!this->read_bytes(PMWCS3_REG_GET_DATA, (uint8_t *) &data, 8)) {
-      ESP_LOGVV(TAG, "Error reading PMWCS3_REG_GET_DATA registers");
+      ESP_LOGVV(TAG, "Reading PMWCS3_REG_GET_DATA failed");
       this->mark_failed();
       return;
     }
@@ -112,5 +105,4 @@ void PMWCS3Component::read_data_() {
   });
 }
 
-}  // namespace pmwcs3
-}  // namespace esphome
+}  // namespace esphome::pmwcs3

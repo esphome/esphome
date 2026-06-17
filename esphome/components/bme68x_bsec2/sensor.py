@@ -9,8 +9,10 @@ from esphome.const import (
     CONF_SAMPLE_RATE,
     CONF_TEMPERATURE,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
+    DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     ICON_GAS_CYLINDER,
     ICON_GAUGE,
     ICON_THERMOMETER,
@@ -32,7 +34,6 @@ CONF_CO2_EQUIVALENT = "co2_equivalent"
 CONF_IAQ = "iaq"
 CONF_IAQ_STATIC = "iaq_static"
 ICON_ACCURACY = "mdi:checkbox-marked-circle-outline"
-ICON_TEST_TUBE = "mdi:test-tube"
 UNIT_IAQ = "IAQ"
 
 TYPES = [
@@ -49,6 +50,7 @@ TYPES = [
 
 CONFIG_SCHEMA = cv.Schema(
     {
+        cv.GenerateID(): cv.declare_id(cg.EntityBase),
         cv.GenerateID(CONF_BME68X_BSEC2_ID): cv.use_id(BME68xBSEC2Component),
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
             unit_of_measurement=UNIT_CELSIUS,
@@ -61,7 +63,6 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
             unit_of_measurement=UNIT_HECTOPASCAL,
-            icon=ICON_GAUGE,
             accuracy_decimals=1,
             device_class=DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
             state_class=STATE_CLASS_MEASUREMENT,
@@ -102,14 +103,14 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_CO2_EQUIVALENT): sensor.sensor_schema(
             unit_of_measurement=UNIT_PARTS_PER_MILLION,
-            icon=ICON_TEST_TUBE,
             accuracy_decimals=1,
+            device_class=DEVICE_CLASS_CARBON_DIOXIDE,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_BREATH_VOC_EQUIVALENT): sensor.sensor_schema(
             unit_of_measurement=UNIT_PARTS_PER_MILLION,
-            icon=ICON_TEST_TUBE,
             accuracy_decimals=1,
+            device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
     }

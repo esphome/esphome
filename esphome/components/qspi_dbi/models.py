@@ -1,7 +1,6 @@
 # Commands
+from esphome.components.const import CONF_DRAW_ROUNDING
 from esphome.const import CONF_INVERT_COLORS, CONF_SWAP_XY
-
-from . import CONF_DRAW_ROUNDING
 
 SW_RESET_CMD = 0x01
 SLEEP_IN = 0x10

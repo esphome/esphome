@@ -1,15 +1,32 @@
 #include "image.h"
 
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace image {
+namespace esphome::image {
 
 void Image::draw(int x, int y, display::Display *display, Color color_on, Color color_off) {
+  int img_x0 = 0;
+  int img_y0 = 0;
+  int w = width_;
+  int h = height_;
+
+  auto clipping = display->get_clipping();
+  if (clipping.is_set()) {
+    if (clipping.x > x)
+      img_x0 += clipping.x - x;
+    if (clipping.y > y)
+      img_y0 += clipping.y - y;
+    if (w > clipping.x2() - x)
+      w = clipping.x2() - x;
+    if (h > clipping.y2() - y)
+      h = clipping.y2() - y;
+  }
+
   switch (type_) {
     case IMAGE_TYPE_BINARY: {
-      for (int img_x = 0; img_x < width_; img_x++) {
-        for (int img_y = 0; img_y < height_; img_y++) {
+      for (int img_x = img_x0; img_x < w; img_x++) {
+        for (int img_y = img_y0; img_y < h; img_y++) {
           if (this->get_binary_pixel_(img_x, img_y)) {
             display->draw_pixel_at(x + img_x, y + img_y, color_on);
           } else if (!this->transparency_) {
@@ -20,8 +37,8 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
       break;
     }
     case IMAGE_TYPE_GRAYSCALE:
-      for (int img_x = 0; img_x < width_; img_x++) {
-        for (int img_y = 0; img_y < height_; img_y++) {
+      for (int img_x = img_x0; img_x < w; img_x++) {
+        for (int img_y = img_y0; img_y < h; img_y++) {
           const uint32_t pos = (img_x + img_y * this->width_);
           const uint8_t gray = progmem_read_byte(this->data_start_ + pos);
           Color color = Color(gray, gray, gray, 0xFF);
@@ -47,8 +64,8 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
       }
       break;
     case IMAGE_TYPE_RGB565:
-      for (int img_x = 0; img_x < width_; img_x++) {
-        for (int img_y = 0; img_y < height_; img_y++) {
+      for (int img_x = img_x0; img_x < w; img_x++) {
+        for (int img_y = img_y0; img_y < h; img_y++) {
           auto color = this->get_rgb565_pixel_(img_x, img_y);
           if (color.w >= 0x80) {
             display->draw_pixel_at(x + img_x, y + img_y, color);
@@ -57,8 +74,8 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
       }
       break;
     case IMAGE_TYPE_RGB:
-      for (int img_x = 0; img_x < width_; img_x++) {
-        for (int img_y = 0; img_y < height_; img_y++) {
+      for (int img_x = img_x0; img_x < w; img_x++) {
+        for (int img_y = img_y0; img_y < h; img_y++) {
           auto color = this->get_rgb_pixel_(img_x, img_y);
           if (color.w >= 0x80) {
             display->draw_pixel_at(x + img_x, y + img_y, color);
@@ -87,45 +104,26 @@ Color Image::get_pixel(int x, int y, const Color color_on, const Color color_off
   }
 }
 #ifdef USE_LVGL
-lv_img_dsc_t *Image::get_lv_img_dsc() {
+lv_image_dsc_t *Image::get_lv_image_dsc() {
   // lazily construct lvgl image_dsc.
   if (this->dsc_.data != this->data_start_) {
     this->dsc_.data = this->data_start_;
-    this->dsc_.header.always_zero = 0;
-    this->dsc_.header.reserved = 0;
+    this->dsc_.header.reserved_2 = 0;
+    this->dsc_.header.stride = this->get_width_stride();
     this->dsc_.header.w = this->width_;
     this->dsc_.header.h = this->height_;
     this->dsc_.data_size = this->get_width_stride() * this->get_height();
     switch (this->get_type()) {
       case IMAGE_TYPE_BINARY:
-        this->dsc_.header.cf = LV_IMG_CF_ALPHA_1BIT;
+        this->dsc_.header.cf = LV_COLOR_FORMAT_A1;
         break;
 
       case IMAGE_TYPE_GRAYSCALE:
-        this->dsc_.header.cf = LV_IMG_CF_ALPHA_8BIT;
+        this->dsc_.header.cf = LV_COLOR_FORMAT_A8;
         break;
 
       case IMAGE_TYPE_RGB:
 #if LV_COLOR_DEPTH == 32
-        switch (this->transparent_) {
-          case TRANSPARENCY_ALPHA_CHANNEL:
-            this->dsc_.header.cf = LV_IMG_CF_TRUE_COLOR_ALPHA;
-            break;
-          case TRANSPARENCY_CHROMA_KEY:
-            this->dsc_.header.cf = LV_IMG_CF_TRUE_COLOR_CHROMA_KEYED;
-            break;
-          default:
-            this->dsc_.header.cf = LV_IMG_CF_TRUE_COLOR;
-            break;
-        }
-#else
-        this->dsc_.header.cf =
-            this->transparency_ == TRANSPARENCY_ALPHA_CHANNEL ? LV_IMG_CF_RGBA8888 : LV_IMG_CF_RGB888;
-#endif
-        break;
-
-      case IMAGE_TYPE_RGB565:
-#if LV_COLOR_DEPTH == 16
         switch (this->transparency_) {
           case TRANSPARENCY_ALPHA_CHANNEL:
             this->dsc_.header.cf = LV_IMG_CF_TRUE_COLOR_ALPHA;
@@ -138,7 +136,23 @@ lv_img_dsc_t *Image::get_lv_img_dsc() {
             break;
         }
 #else
-        this->dsc_.header.cf = this->transparent_ == TRANSPARENCY_ALPHA_CHANNEL ? LV_IMG_CF_RGB565A8 : LV_IMG_CF_RGB565;
+        this->dsc_.header.cf =
+            this->transparency_ == TRANSPARENCY_ALPHA_CHANNEL ? LV_COLOR_FORMAT_ARGB8888 : LV_COLOR_FORMAT_RGB888;
+#endif
+        break;
+
+      case IMAGE_TYPE_RGB565:
+#if LV_COLOR_DEPTH == 16
+        switch (this->transparency_) {
+          case TRANSPARENCY_ALPHA_CHANNEL:
+            this->dsc_.header.cf = LV_COLOR_FORMAT_RGB565A8;
+            break;
+          default:
+            this->dsc_.header.cf = LV_COLOR_FORMAT_RGB565;
+        }
+#else
+        this->dsc_.header.cf =
+            this->transparency_ == TRANSPARENCY_ALPHA_CHANNEL ? LV_IMG_CF_RGB565A8 : LV_IMG_CF_RGB565;
 #endif
         break;
     }
@@ -154,8 +168,8 @@ bool Image::get_binary_pixel_(int x, int y) const {
 }
 Color Image::get_rgb_pixel_(int x, int y) const {
   const uint32_t pos = (x + y * this->width_) * this->bpp_ / 8;
-  Color color = Color(progmem_read_byte(this->data_start_ + pos + 0), progmem_read_byte(this->data_start_ + pos + 1),
-                      progmem_read_byte(this->data_start_ + pos + 2), 0xFF);
+  Color color = Color(progmem_read_byte(this->data_start_ + pos + 2), progmem_read_byte(this->data_start_ + pos + 1),
+                      progmem_read_byte(this->data_start_ + pos + 0), 0xFF);
 
   switch (this->transparency_) {
     case TRANSPARENCY_CHROMA_KEY:
@@ -174,14 +188,14 @@ Color Image::get_rgb_pixel_(int x, int y) const {
 }
 Color Image::get_rgb565_pixel_(int x, int y) const {
   const uint8_t *pos = this->data_start_ + (x + y * this->width_) * this->bpp_ / 8;
-  uint16_t rgb565 = encode_uint16(progmem_read_byte(pos), progmem_read_byte(pos + 1));
+  uint16_t rgb565 = encode_uint16(progmem_read_byte(pos + 1), progmem_read_byte(pos));
   auto r = (rgb565 & 0xF800) >> 11;
   auto g = (rgb565 & 0x07E0) >> 5;
   auto b = rgb565 & 0x001F;
   auto a = 0xFF;
   switch (this->transparency_) {
     case TRANSPARENCY_ALPHA_CHANNEL:
-      a = progmem_read_byte(pos + 2);
+      a = progmem_read_byte(this->data_start_ + this->width_ * this->height_ * 2 + (x + y * this->width_));
       break;
     case TRANSPARENCY_CHROMA_KEY:
       if (rgb565 == 0x0020)
@@ -220,7 +234,7 @@ Image::Image(const uint8_t *data_start, int width, int height, ImageType type, T
       this->bpp_ = 8;
       break;
     case IMAGE_TYPE_RGB565:
-      this->bpp_ = transparency == TRANSPARENCY_ALPHA_CHANNEL ? 24 : 16;
+      this->bpp_ = 16;
       break;
     case IMAGE_TYPE_RGB:
       this->bpp_ = this->transparency_ == TRANSPARENCY_ALPHA_CHANNEL ? 32 : 24;
@@ -228,5 +242,4 @@ Image::Image(const uint8_t *data_start, int width, int height, ImageType type, T
   }
 }
 
-}  // namespace image
-}  // namespace esphome
+}  // namespace esphome::image

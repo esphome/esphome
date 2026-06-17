@@ -6,8 +6,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 class TuyaDatapointUpdateTrigger : public Trigger<TuyaDatapoint> {
  public:
@@ -51,5 +50,4 @@ class TuyaBitmaskDatapointUpdateTrigger : public Trigger<uint32_t> {
   explicit TuyaBitmaskDatapointUpdateTrigger(Tuya *parent, uint8_t sensor_id);
 };
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

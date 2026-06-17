@@ -1,8 +1,7 @@
 #include "bp5758d.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace bp5758d {
+namespace esphome::bp5758d {
 
 static const char *const TAG = "bp5758d";
 
@@ -20,7 +19,6 @@ static const uint8_t BP5758D_ALL_DATA_CHANNEL_ENABLEMENT = 0b00011111;
 static const uint8_t BP5758D_DELAY = 2;
 
 void BP5758D::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up BP5758D Output Component...");
   this->data_pin_->setup();
   this->data_pin_->digital_write(false);
   delayMicroseconds(BP5758D_DELAY);
@@ -165,5 +163,4 @@ void BP5758D::write_buffer_(uint8_t *buffer, uint8_t size) {
   delayMicroseconds(BP5758D_DELAY);
 }
 
-}  // namespace bp5758d
-}  // namespace esphome
+}  // namespace esphome::bp5758d

@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace ens160_base {
+namespace esphome::ens160_base {
 
 class ENS160Component : public PollingComponent, public sensor::Sensor {
  public:
@@ -18,7 +17,6 @@ class ENS160Component : public PollingComponent, public sensor::Sensor {
   void setup() override;
   void update() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
   void send_env_data_();
@@ -60,5 +58,4 @@ class ENS160Component : public PollingComponent, public sensor::Sensor {
   sensor::Sensor *temperature_{nullptr};
 };
 
-}  // namespace ens160_base
-}  // namespace esphome
+}  // namespace esphome::ens160_base

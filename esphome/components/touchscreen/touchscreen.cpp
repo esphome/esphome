@@ -2,8 +2,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace touchscreen {
+namespace esphome::touchscreen {
 
 static const char *const TAG = "touchscreen";
 
@@ -50,13 +49,15 @@ void Touchscreen::loop() {
       tp.second.x_prev = tp.second.x;
       tp.second.y_prev = tp.second.y;
     }
+    // The interrupt flag must be reset BEFORE calling update_touches, otherwise we might miss an interrupt that was
+    // triggered while we were reading touch data.
+    this->store_.touched = false;
     this->update_touches();
     if (this->skip_update_) {
       for (auto &tp : this->touches_) {
         tp.second.state &= ~STATE_RELEASING;
       }
     } else {
-      this->store_.touched = false;
       this->defer([this]() { this->send_touches_(); });
       if (this->touch_timeout_ > 0) {
         // Simulate a touch after <this->touch_timeout_> ms. This will reset any existing timeout operation.
@@ -77,7 +78,7 @@ void Touchscreen::add_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_r
   if (this->swap_x_y_) {
     std::swap(x_raw, y_raw);
   }
-  if (this->touches_.count(id) == 0) {
+  if (!this->touches_.contains(id)) {
     tp.state = STATE_PRESSED;
     tp.id = id;
   } else {
@@ -160,5 +161,4 @@ int16_t Touchscreen::normalize_(int16_t val, int16_t min_val, int16_t max_val, b
   return ret;
 }
 
-}  // namespace touchscreen
-}  // namespace esphome
+}  // namespace esphome::touchscreen

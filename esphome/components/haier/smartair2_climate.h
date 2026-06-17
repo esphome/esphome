@@ -3,8 +3,7 @@
 #include <chrono>
 #include "haier_base.h"
 
-namespace esphome {
-namespace haier {
+namespace esphome::haier {
 
 class Smartair2Climate : public HaierClimateBase {
  public:
@@ -36,5 +35,4 @@ class Smartair2Climate : public HaierClimateBase {
   bool use_alternative_swing_control_;
 };
 
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier

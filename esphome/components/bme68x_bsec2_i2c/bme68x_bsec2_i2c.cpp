@@ -1,4 +1,5 @@
 #include "esphome/core/defines.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -8,8 +9,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace bme68x_bsec2_i2c {
+namespace esphome::bme68x_bsec2_i2c {
 
 static const char *const TAG = "bme68x_bsec2_i2c.sensor";
 
@@ -30,7 +30,11 @@ void BME68xBSEC2I2CComponent::dump_config() {
   BME68xBSEC2Component::dump_config();
 }
 
-uint32_t BME68xBSEC2I2CComponent::get_hash() { return fnv1_hash("bme68x_bsec_state_" + to_string(this->address_)); }
+uint32_t BME68xBSEC2I2CComponent::get_hash() {
+  char buf[22];  // "bme68x_bsec_state_" (18) + uint8_t max (3) + null
+  snprintf(buf, sizeof(buf), "bme68x_bsec_state_%u", this->address_);
+  return fnv1_hash(buf);
+}
 
 int8_t BME68xBSEC2I2CComponent::read_bytes_wrapper(uint8_t a_register, uint8_t *data, uint32_t len, void *intfPtr) {
   ESP_LOGVV(TAG, "read_bytes_wrapper: reg = %u", a_register);
@@ -48,6 +52,5 @@ void BME68xBSEC2I2CComponent::delay_us(uint32_t period, void *intfPtr) {
   delayMicroseconds(period);
 }
 
-}  // namespace bme68x_bsec2_i2c
-}  // namespace esphome
+}  // namespace esphome::bme68x_bsec2_i2c
 #endif

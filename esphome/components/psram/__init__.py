@@ -1,67 +1,146 @@
 import logging
+import textwrap
+from typing import Any
 
 import esphome.codegen as cg
+from esphome.components.const import CONF_IGNORE_NOT_FOUND
 from esphome.components.esp32 import (
+    CONF_CPU_FREQUENCY,
     CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES,
     VARIANT_ESP32,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C61,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
     add_idf_sdkconfig_option,
     get_esp32_variant,
-    only_on_variant,
+    idf_version,
+    variant_filtered_enum,
 )
-from esphome.components.esp32.const import VARIANT_ESP32S2, VARIANT_ESP32S3
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
+    CONF_DISABLED,
     CONF_FRAMEWORK,
     CONF_ID,
     CONF_MODE,
     CONF_SPEED,
-    KEY_CORE,
-    KEY_FRAMEWORK_VERSION,
     PLATFORM_ESP32,
 )
 from esphome.core import CORE
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "psram"
 
 DEPENDENCIES = [PLATFORM_ESP32]
 
+# PSRAM availability tracking for cross-component coordination
+KEY_PSRAM_GUARANTEED = "psram_guaranteed"
+
 _LOGGER = logging.getLogger(__name__)
 
-psram_ns = cg.esphome_ns.namespace("psram")
+psram_ns = cg.esphome_ns.namespace(DOMAIN)
 PsramComponent = psram_ns.class_("PsramComponent", cg.Component)
 
 TYPE_QUAD = "quad"
 TYPE_OCTAL = "octal"
+TYPE_HEX = "hex"
+
+SDK_MODES = {TYPE_QUAD: "QUAD", TYPE_OCTAL: "OCT", TYPE_HEX: "HEX"}
 
 CONF_ENABLE_ECC = "enable_ecc"
 
 SPIRAM_MODES = {
-    TYPE_QUAD: "CONFIG_SPIRAM_MODE_QUAD",
-    TYPE_OCTAL: "CONFIG_SPIRAM_MODE_OCT",
+    VARIANT_ESP32: (TYPE_QUAD,),
+    VARIANT_ESP32C5: (TYPE_QUAD,),
+    VARIANT_ESP32C61: (TYPE_QUAD,),
+    VARIANT_ESP32S2: (TYPE_QUAD,),
+    VARIANT_ESP32S3: (TYPE_QUAD, TYPE_OCTAL),
+    VARIANT_ESP32P4: (TYPE_HEX,),
 }
 
+
 SPIRAM_SPEEDS = {
-    40e6: "CONFIG_SPIRAM_SPEED_40M",
-    80e6: "CONFIG_SPIRAM_SPEED_80M",
-    120e6: "CONFIG_SPIRAM_SPEED_120M",
+    VARIANT_ESP32: (40, 80, 120),
+    VARIANT_ESP32C5: (40, 80, 120),
+    VARIANT_ESP32C61: (40, 80),
+    VARIANT_ESP32S2: (40, 80, 120),
+    VARIANT_ESP32S3: (40, 80, 120),
+    VARIANT_ESP32P4: (20, 100, 200),
 }
+
+SPIRAM_SPEEDS_MHZ = {
+    variant: tuple(f"{speed}MHZ" for speed in speeds)
+    for variant, speeds in SPIRAM_SPEEDS.items()
+}
+
+
+def supported() -> bool:
+    if not CORE.is_esp32:
+        return False
+    variant = get_esp32_variant()
+    return variant in SPIRAM_MODES
+
+
+def is_guaranteed() -> bool:
+    """Check if PSRAM is guaranteed to be available.
+
+    Returns True when PSRAM is configured with both 'disabled: false' and
+    'ignore_not_found: false', meaning the device will fail to boot if PSRAM
+    is not found. This ensures safe use of high buffer configurations that
+    depend on PSRAM.
+
+    This function should be called during code generation (to_code phase) by
+    components that need to know PSRAM availability for configuration decisions.
+
+    Returns:
+        bool: True if PSRAM is guaranteed, False otherwise
+    """
+    return CORE.data.get(KEY_PSRAM_GUARANTEED, False)
+
+
+def request_external_task_stack() -> None:
+    """Allow FreeRTOS task stacks to be allocated in external RAM (PSRAM).
+
+    Components that expose a ``task_stack_in_psram`` option should call this from their
+    ``to_code`` when the option is enabled. The sdkconfig option only permits external
+    stacks; it does not move any stack into PSRAM on its own, so it stays opt-in per task.
+    """
+    add_idf_sdkconfig_option("CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True)
+
+
+def validate_task_stack_in_psram(value: Any) -> bool:
+    """Validate a ``task_stack_in_psram`` boolean, requiring the psram component only when enabled.
+
+    Validating the boolean first means an explicit ``false`` does not pull in the psram
+    requirement, so the option can still be set to false on devices without PSRAM.
+    """
+    if value := cv.boolean(value):
+        return cv.requires_component(DOMAIN)(value)
+    return value
 
 
 def validate_psram_mode(config):
-    if config[CONF_MODE] == TYPE_OCTAL and config[CONF_SPEED] == 120e6:
-        esp32_config = fv.full_config.get()[PLATFORM_ESP32]
-        if (
-            esp32_config[CONF_FRAMEWORK]
-            .get(CONF_ADVANCED, {})
-            .get(CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES)
-        ):
-            _LOGGER.warning(
-                "120MHz PSRAM in octal mode is an experimental feature - use at your own risk"
+    esp32_config = fv.full_config.get()[PLATFORM_ESP32]
+    if config[CONF_SPEED] == "120MHZ":
+        if esp32_config[CONF_CPU_FREQUENCY] != "240MHZ":
+            raise cv.Invalid(
+                "PSRAM 120MHz requires 240MHz CPU frequency (set in esp32 component)"
             )
-        else:
-            raise cv.Invalid("PSRAM 120MHz is not supported in octal mode")
+        if config[CONF_MODE] == TYPE_OCTAL:
+            if (
+                esp32_config[CONF_FRAMEWORK]
+                .get(CONF_ADVANCED, {})
+                .get(CONF_ENABLE_IDF_EXPERIMENTAL_FEATURES)
+            ):
+                _LOGGER.warning(
+                    "120MHz PSRAM in octal mode is an experimental feature - use at your own risk"
+                )
+            else:
+                raise cv.Invalid("PSRAM 120MHz is not supported in octal mode")
     if config[CONF_MODE] != TYPE_OCTAL and config[CONF_ENABLE_ECC]:
         raise cv.Invalid("ECC is only available in octal mode.")
     if config[CONF_MODE] == TYPE_OCTAL:
@@ -73,52 +152,106 @@ def validate_psram_mode(config):
     return config
 
 
+def _set_variant_defaults(config: ConfigType) -> ConfigType:
+    """Resolve variant-dependent defaults before the static schema validates.
+
+    The set of valid ``mode``/``speed`` values is variant-specific (enforced by
+    ``variant_filtered_enum`` in the schema below); this only supplies the default
+    when the user omits the option. ``mode`` has no single default on chips that
+    support more than one mode, so selection is required there.
+    """
+    variant = get_esp32_variant()
+    modes = SPIRAM_MODES.get(variant)
+    speeds = SPIRAM_SPEEDS.get(variant)
+    if not modes or not speeds:
+        raise cv.Invalid("PSRAM is not supported on this chip")
+    config = config.copy()
+    if CONF_MODE not in config:
+        if len(modes) != 1:
+            raise cv.Invalid(
+                textwrap.dedent(
+                    f"""
+                        {variant} requires PSRAM mode selection; one of {", ".join(modes)}
+                        Selection of the wrong mode for the board will cause a runtime failure to initialise PSRAM
+                    """
+                )
+            )
+        config[CONF_MODE] = modes[0]
+    if CONF_SPEED not in config:
+        config[CONF_SPEED] = f"{speeds[0]}MHZ"
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
+    _set_variant_defaults,
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PsramComponent),
-            cv.Optional(CONF_MODE, default=TYPE_QUAD): cv.enum(
-                SPIRAM_MODES, lower=True
-            ),
+            cv.Optional(CONF_MODE): variant_filtered_enum(SPIRAM_MODES, lower=True),
             cv.Optional(CONF_ENABLE_ECC, default=False): cv.boolean,
-            cv.Optional(CONF_SPEED, default=40e6): cv.All(
-                cv.frequency, cv.one_of(*SPIRAM_SPEEDS)
+            cv.Optional(CONF_SPEED): variant_filtered_enum(
+                SPIRAM_SPEEDS_MHZ, upper=True
             ),
+            cv.Optional(CONF_DISABLED, default=False): cv.boolean,
+            cv.Optional(CONF_IGNORE_NOT_FOUND, default=True): cv.boolean,
         }
-    ),
-    only_on_variant(
-        supported=[VARIANT_ESP32, VARIANT_ESP32S3, VARIANT_ESP32S2],
     ),
 )
 
-FINAL_VALIDATE_SCHEMA = validate_psram_mode
+
+def _store_psram_guaranteed(config):
+    """Store PSRAM guaranteed status in CORE.data for other components.
+
+    PSRAM is "guaranteed" when it will fail if not found, ensuring safe use
+    of high buffer configurations in network/wifi components.
+
+    Called during final validation to ensure the flag is available
+    before any to_code() functions run.
+    """
+    psram_guaranteed = not config[CONF_DISABLED] and not config[CONF_IGNORE_NOT_FOUND]
+    CORE.data[KEY_PSRAM_GUARANTEED] = psram_guaranteed
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = cv.All(validate_psram_mode, _store_psram_guaranteed)
 
 
 async def to_code(config):
+    if config[CONF_DISABLED]:
+        return
     if CORE.using_arduino:
         cg.add_build_flag("-DBOARD_HAS_PSRAM")
         if config[CONF_MODE] == TYPE_OCTAL:
             cg.add_platformio_option("board_build.arduino.memory_type", "qio_opi")
 
-    if CORE.using_esp_idf:
-        add_idf_sdkconfig_option(
-            f"CONFIG_{get_esp32_variant().upper()}_SPIRAM_SUPPORT", True
-        )
-        add_idf_sdkconfig_option("CONFIG_SPIRAM", True)
-        add_idf_sdkconfig_option("CONFIG_SPIRAM_USE", True)
-        add_idf_sdkconfig_option("CONFIG_SPIRAM_USE_CAPS_ALLOC", True)
-        add_idf_sdkconfig_option("CONFIG_SPIRAM_IGNORE_NOTFOUND", True)
+    add_idf_sdkconfig_option("CONFIG_SOC_SPIRAM_SUPPORTED", True)
+    add_idf_sdkconfig_option("CONFIG_SPIRAM", True)
+    add_idf_sdkconfig_option("CONFIG_SPIRAM_USE", True)
+    add_idf_sdkconfig_option("CONFIG_SPIRAM_USE_CAPS_ALLOC", True)
+    add_idf_sdkconfig_option(
+        "CONFIG_SPIRAM_IGNORE_NOTFOUND", config[CONF_IGNORE_NOT_FOUND]
+    )
 
-        add_idf_sdkconfig_option(f"{SPIRAM_MODES[config[CONF_MODE]]}", True)
-        add_idf_sdkconfig_option(f"{SPIRAM_SPEEDS[config[CONF_SPEED]]}", True)
-        if config[CONF_MODE] == TYPE_OCTAL and config[CONF_SPEED] == 120e6:
-            add_idf_sdkconfig_option("CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240", True)
-            if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(5, 4, 0):
-                add_idf_sdkconfig_option(
-                    "CONFIG_SPIRAM_TIMING_TUNING_POINT_VIA_TEMPERATURE_SENSOR", True
-                )
-        if config[CONF_ENABLE_ECC]:
-            add_idf_sdkconfig_option("CONFIG_SPIRAM_ECC_ENABLE", True)
+    add_idf_sdkconfig_option(f"CONFIG_SPIRAM_MODE_{SDK_MODES[config[CONF_MODE]]}", True)
+
+    # Remove MHz suffix, convert to int
+    speed = int(config[CONF_SPEED][:-3])
+    add_idf_sdkconfig_option(f"CONFIG_SPIRAM_SPEED_{speed}M", True)
+    add_idf_sdkconfig_option("CONFIG_SPIRAM_SPEED", speed)
+    if speed == 120:
+        variant = get_esp32_variant()
+        # On chips with MSPI timing tuning, FLASH and PSRAM share the core
+        # clock so flash frequency must match PSRAM frequency.
+        # ESP32 and ESP32-S2 don't have this constraint.
+        if variant not in (VARIANT_ESP32, VARIANT_ESP32S2):
+            add_idf_sdkconfig_option("CONFIG_ESPTOOLPY_FLASHFREQ_120M", True)
+        if config[CONF_MODE] == TYPE_OCTAL and idf_version() >= cv.Version(5, 4, 0):
+            add_idf_sdkconfig_option(
+                "CONFIG_SPIRAM_TIMING_TUNING_POINT_VIA_TEMPERATURE_SENSOR",
+                True,
+            )
+    if config[CONF_ENABLE_ECC]:
+        add_idf_sdkconfig_option("CONFIG_SPIRAM_ECC_ENABLE", True)
 
     cg.add_define("USE_PSRAM")
 

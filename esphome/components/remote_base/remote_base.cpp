@@ -1,33 +1,10 @@
 #include "remote_base.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#include <cinttypes>
-
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote_base";
-
-#if defined(USE_ESP32) && ESP_IDF_VERSION_MAJOR < 5
-RemoteRMTChannel::RemoteRMTChannel(uint8_t mem_block_num) : mem_block_num_(mem_block_num) {
-  static rmt_channel_t next_rmt_channel = RMT_CHANNEL_0;
-  this->channel_ = next_rmt_channel;
-  next_rmt_channel = rmt_channel_t(int(next_rmt_channel) + mem_block_num);
-}
-
-RemoteRMTChannel::RemoteRMTChannel(rmt_channel_t channel, uint8_t mem_block_num)
-    : channel_(channel), mem_block_num_(mem_block_num) {}
-
-void RemoteRMTChannel::config_rmt(rmt_config_t &rmt) {
-  if (rmt_channel_t(int(this->channel_) + this->mem_block_num_) > RMT_CHANNEL_MAX) {
-    this->mem_block_num_ = int(RMT_CHANNEL_MAX) - int(this->channel_);
-    ESP_LOGW(TAG, "Not enough RMT memory blocks available, reduced to %i blocks.", this->mem_block_num_);
-  }
-  rmt.channel = this->channel_;
-  rmt.clk_div = this->clock_divider_;
-  rmt.mem_block_num = this->mem_block_num_;
-}
-#endif
 
 /* RemoteReceiveData */
 
@@ -38,6 +15,22 @@ bool RemoteReceiveData::peek_mark(uint32_t length, uint32_t offset) const {
   const int32_t lo = this->lower_bound_(length);
   const int32_t hi = this->upper_bound_(length);
   return value >= 0 && lo <= value && value <= hi;
+}
+
+bool RemoteReceiveData::peek_mark_at_least(uint32_t length, uint32_t offset) const {
+  if (!this->is_valid(offset))
+    return false;
+  const int32_t value = this->peek(offset);
+  const int32_t lo = this->lower_bound_(length);
+  return value >= 0 && lo <= value;
+}
+
+bool RemoteReceiveData::peek_mark_at_most(uint32_t length, uint32_t offset) const {
+  if (!this->is_valid(offset))
+    return false;
+  const int32_t value = this->peek(offset);
+  const int32_t hi = this->upper_bound_(length);
+  return value >= 0 && value <= hi;
 }
 
 bool RemoteReceiveData::peek_space(uint32_t length, uint32_t offset) const {
@@ -55,6 +48,14 @@ bool RemoteReceiveData::peek_space_at_least(uint32_t length, uint32_t offset) co
   const int32_t value = this->peek(offset);
   const int32_t lo = this->lower_bound_(length);
   return value <= 0 && lo <= -value;
+}
+
+bool RemoteReceiveData::peek_space_at_most(uint32_t length, uint32_t offset) const {
+  if (!this->is_valid(offset))
+    return false;
+  const int32_t value = this->peek(offset);
+  const int32_t hi = this->upper_bound_(length);
+  return value <= 0 && -value <= hi;
 }
 
 bool RemoteReceiveData::expect_mark(uint32_t length) {
@@ -125,44 +126,75 @@ void RemoteReceiverBase::call_dumpers_() {
 
 void RemoteReceiverBinarySensorBase::dump_config() { LOG_BINARY_SENSOR("", "Remote Receiver Binary Sensor", this); }
 
+/* RemoteTransmitData */
+
+void RemoteTransmitData::set_data_from_packed_sint32(const uint8_t *data, size_t len, size_t count) {
+  this->data_.clear();
+  this->data_.reserve(count);
+
+  while (len > 0) {
+    // Parse varint (inline, no dependency on api component)
+    uint32_t raw = 0;
+    uint32_t shift = 0;
+    uint32_t consumed = 0;
+    for (; consumed < len && consumed < 5; consumed++) {
+      uint8_t byte = data[consumed];
+      raw |= (byte & 0x7F) << shift;
+      if ((byte & 0x80) == 0) {
+        consumed++;
+        break;
+      }
+      shift += 7;
+    }
+    if (consumed == 0)
+      break;  // Parse error
+
+    // Zigzag decode: (n >> 1) ^ -(n & 1)
+    int32_t decoded = static_cast<int32_t>((raw >> 1) ^ (~(raw & 1) + 1));
+    this->data_.push_back(decoded);
+    data += consumed;
+    len -= consumed;
+  }
+}
+
+bool RemoteTransmitData::set_data_from_base64url(const std::string &base64url) {
+  return base64_decode_int32_vector(base64url, this->data_);
+}
+
+/* RemoteTransmitterBase */
+
 void RemoteTransmitterBase::send_(uint32_t send_times, uint32_t send_wait) {
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   const auto &vec = this->temp_.get_data();
   char buffer[256];
-  uint32_t buffer_offset = 0;
-  buffer_offset += sprintf(buffer, "Sending times=%" PRIu32 " wait=%" PRIu32 "ms: ", send_times, send_wait);
+  size_t pos = buf_append_printf(buffer, sizeof(buffer), 0,
+                                 "Sending times=%" PRIu32 " wait=%" PRIu32 "ms: ", send_times, send_wait);
 
   for (size_t i = 0; i < vec.size(); i++) {
     const int32_t value = vec[i];
-    const uint32_t remaining_length = sizeof(buffer) - buffer_offset;
-    int written;
+    size_t prev_pos = pos;
 
     if (i + 1 < vec.size()) {
-      written = snprintf(buffer + buffer_offset, remaining_length, "%" PRId32 ", ", value);
+      pos = buf_append_printf(buffer, sizeof(buffer), pos, "%" PRId32 ", ", value);
     } else {
-      written = snprintf(buffer + buffer_offset, remaining_length, "%" PRId32, value);
+      pos = buf_append_printf(buffer, sizeof(buffer), pos, "%" PRId32, value);
     }
 
-    if (written < 0 || written >= int(remaining_length)) {
-      // write failed, flush...
-      buffer[buffer_offset] = '\0';
+    if (pos >= sizeof(buffer) - 1) {
+      // buffer full, flush and continue
+      buffer[prev_pos] = '\0';
       ESP_LOGVV(TAG, "%s", buffer);
-      buffer_offset = 0;
-      written = sprintf(buffer, "  ");
       if (i + 1 < vec.size()) {
-        written += sprintf(buffer + written, "%" PRId32 ", ", value);
+        pos = buf_append_printf(buffer, sizeof(buffer), 0, "  %" PRId32 ", ", value);
       } else {
-        written += sprintf(buffer + written, "%" PRId32, value);
+        pos = buf_append_printf(buffer, sizeof(buffer), 0, "  %" PRId32, value);
       }
     }
-
-    buffer_offset += written;
   }
-  if (buffer_offset != 0) {
+  if (pos != 0) {
     ESP_LOGVV(TAG, "%s", buffer);
   }
 #endif
   this->send_internal(send_times, send_wait);
 }
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

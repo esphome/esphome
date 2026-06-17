@@ -1,14 +1,13 @@
 #include "ads1118.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ads1118 {
+namespace esphome::ads1118 {
 
 static const char *const TAG = "ads1118";
 static const uint8_t ADS1118_DATA_RATE_860_SPS = 0b111;
 
 void ADS1118::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ads1118");
   this->spi_setup();
 
   this->config_ = 0;
@@ -122,5 +121,4 @@ float ADS1118::request_measurement(ADS1118Multiplexer multiplexer, ADS1118Gain g
   }
 }
 
-}  // namespace ads1118
-}  // namespace esphome
+}  // namespace esphome::ads1118

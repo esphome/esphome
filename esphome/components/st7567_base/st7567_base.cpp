@@ -1,9 +1,8 @@
 #include "st7567_base.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
-namespace esphome {
-namespace st7567_base {
+namespace esphome::st7567_base {
 
 static const char *const TAG = "st7567";
 
@@ -13,7 +12,7 @@ void ST7567::setup() {
 }
 
 void ST7567::display_init_() {
-  ESP_LOGD(TAG, "Initializing ST7567 display...");
+  ESP_LOGD(TAG, "Initializing display");
   this->display_init_registers_();
   this->clear();
   this->write_display_data();
@@ -42,7 +41,7 @@ void ST7567::display_init_registers_() {
 }
 
 void ST7567::display_sw_refresh_() {
-  ESP_LOGD(TAG, "Performing refresh sequence...");
+  ESP_LOGD(TAG, "Performing refresh sequence");
   this->command(ST7567_SW_REFRESH);
   this->display_init_registers_();
 }
@@ -131,7 +130,16 @@ void HOT ST7567::draw_absolute_pixel_internal(int x, int y, Color color) {
   }
 }
 
-void ST7567::fill(Color color) { memset(buffer_, color.is_on() ? 0xFF : 0x00, this->get_buffer_length_()); }
+void ST7567::fill(Color color) {
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
+    return;
+  }
+
+  uint8_t fill = color.is_on() ? 0xFF : 0x00;
+  memset(buffer_, fill, this->get_buffer_length_());
+}
 
 void ST7567::init_reset_() {
   if (this->reset_pin_ != nullptr) {
@@ -148,5 +156,4 @@ void ST7567::init_reset_() {
 
 const char *ST7567::model_str_() { return "ST7567 128x64"; }
 
-}  // namespace st7567_base
-}  // namespace esphome
+}  // namespace esphome::st7567_base

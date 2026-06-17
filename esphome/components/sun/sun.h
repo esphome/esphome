@@ -7,8 +7,7 @@
 
 #include "esphome/components/time/real_time_clock.h"
 
-namespace esphome {
-namespace sun {
+namespace esphome::sun {
 
 namespace internal {
 
@@ -115,7 +114,7 @@ template<typename... Ts> class SunCondition : public Condition<Ts...>, public Pa
   TEMPLATABLE_VALUE(double, elevation);
   void set_above(bool above) { above_ = above; }
 
-  bool check(Ts... x) override {
+  bool check(const Ts &...x) override {
     double elevation = this->elevation_.value(x...);
     double current = this->parent_->elevation();
     if (this->above_) {
@@ -129,5 +128,4 @@ template<typename... Ts> class SunCondition : public Condition<Ts...>, public Pa
   bool above_;
 };
 
-}  // namespace sun
-}  // namespace esphome
+}  // namespace esphome::sun

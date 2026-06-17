@@ -1,8 +1,7 @@
 #include "pzemac.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pzemac {
+namespace esphome::pzemac {
 
 static const char *const TAG = "pzemac";
 
@@ -64,8 +63,10 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
 
 void PZEMAC::update() { this->send(PZEM_CMD_READ_IN_REGISTERS, 0, PZEM_REGISTER_COUNT); }
 void PZEMAC::dump_config() {
-  ESP_LOGCONFIG(TAG, "PZEMAC:");
-  ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
+  ESP_LOGCONFIG(TAG,
+                "PZEMAC:\n"
+                "  Address: 0x%02X",
+                this->address_);
   LOG_SENSOR("", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("", "Current", this->current_sensor_);
   LOG_SENSOR("", "Power", this->power_sensor_);
@@ -81,5 +82,4 @@ void PZEMAC::reset_energy_() {
   this->send_raw(cmd);
 }
 
-}  // namespace pzemac
-}  // namespace esphome
+}  // namespace esphome::pzemac

@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/sensirion_common/i2c_sensirion.h"
 
-namespace esphome {
-namespace sdp3x {
+namespace esphome::sdp3x {
 
 enum MeasurementMode { MASS_FLOW_AVG, DP_AVG };
 
@@ -17,7 +16,6 @@ class SDP3XComponent : public PollingComponent, public sensirion_common::Sensiri
   void setup() override;
   void dump_config() override;
 
-  float get_setup_priority() const override;
   void set_measurement_mode(MeasurementMode mode) { measurement_mode_ = mode; }
 
  protected:
@@ -26,5 +24,4 @@ class SDP3XComponent : public PollingComponent, public sensirion_common::Sensiri
   MeasurementMode measurement_mode_;
 };
 
-}  // namespace sdp3x
-}  // namespace esphome
+}  // namespace esphome::sdp3x

@@ -3,8 +3,7 @@
 #include "esphome/components/max6956/max6956.h"
 #include "esphome/components/output/float_output.h"
 
-namespace esphome {
-namespace max6956 {
+namespace esphome::max6956 {
 
 class MAX6956;
 
@@ -24,5 +23,4 @@ class MAX6956LedChannel : public output::FloatOutput, public Component {
   uint8_t pin_;
 };
 
-}  // namespace max6956
-}  // namespace esphome
+}  // namespace esphome::max6956

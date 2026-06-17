@@ -1,6 +1,6 @@
 binary_sensor:
   - platform: gpio
-    id: bin1
+    id: alarm_control_panel_bin1
     pin: 1
 
 alarm_control_panel:
@@ -9,6 +9,8 @@ alarm_control_panel:
     name: Alarm Panel
     codes:
       - "1234"
+      - "5678"
+      - "0000"
     requires_code_to_arm: true
     arming_home_time: 1s
     arming_night_time: 1s
@@ -16,18 +18,20 @@ alarm_control_panel:
     pending_time: 15s
     trigger_time: 30s
     binary_sensors:
-      - input: bin1
+      - input: alarm_control_panel_bin1
         bypass_armed_home: true
         bypass_armed_night: true
+        bypass_auto: true
     on_state:
       then:
         - lambda: !lambda |-
             ESP_LOGD("TEST", "State change %s", LOG_STR_ARG(alarm_control_panel_state_to_string(id(alarmcontrolpanel1)->get_state())));
   - platform: template
     id: alarmcontrolpanel2
-    name: Alarm Panel
+    name: Alarm Panel 2
     codes:
       - "1234"
+      - "9999"
     requires_code_to_arm: true
     arming_home_time: 1s
     arming_night_time: 1s
@@ -35,9 +39,10 @@ alarm_control_panel:
     pending_time: 15s
     trigger_time: 30s
     binary_sensors:
-      - input: bin1
+      - input: alarm_control_panel_bin1
         bypass_armed_home: true
         bypass_armed_night: true
+        bypass_auto: true
     on_disarmed:
       then:
         - logger.log: "### DISARMED ###"

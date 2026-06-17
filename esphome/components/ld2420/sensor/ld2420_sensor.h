@@ -3,8 +3,7 @@
 #include "../ld2420.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace ld2420 {
+namespace esphome::ld2420 {
 
 class LD2420Sensor : public LD2420Listener, public Component, sensor::Sensor {
  public:
@@ -27,8 +26,7 @@ class LD2420Sensor : public LD2420Listener, public Component, sensor::Sensor {
 
  protected:
   sensor::Sensor *distance_sensor_{nullptr};
-  std::vector<sensor::Sensor *> energy_sensors_ = std::vector<sensor::Sensor *>(LD2420_TOTAL_GATES);
+  std::vector<sensor::Sensor *> energy_sensors_ = std::vector<sensor::Sensor *>(TOTAL_GATES);
 };
 
-}  // namespace ld2420
-}  // namespace esphome
+}  // namespace esphome::ld2420

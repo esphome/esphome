@@ -3,6 +3,7 @@ from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CALIBRATION,
+    CONF_CLEAR,
     CONF_COLOR_TEMPERATURE,
     CONF_GAIN,
     CONF_GLASS_ATTENUATION_FACTOR,
@@ -38,7 +39,6 @@ CONF_F5 = "f5"
 CONF_F6 = "f6"
 CONF_F7 = "f7"
 CONF_F8 = "f8"
-CONF_CLEAR = "clear"
 CONF_NIR = "nir"
 
 CONF_BAND_COUNTS = "band_counts"
@@ -48,7 +48,6 @@ CONF_IRRADIANCE = "irradiance"
 CONF_IRRADIANCE_PHOTOPIC = "irradiance_photopic"
 CONF_PPFD = "ppfd"
 CONF_IRRADIANCE_PAR = "irradiance_par"
-CONF_SATURATION = "saturation"
 CONF_SATURATION_LEVEL = "saturation_level"
 
 UNIT_COUNTS = "#"
@@ -226,16 +225,6 @@ CONFIG_SCHEMA = (
                 ),
                 key=CONF_NAME,
             ),
-            cv.Optional(CONF_SATURATION): cv.maybe_simple_value(
-                sensor.sensor_schema(
-                    unit_of_measurement=UNIT_COUNTS,
-                    icon=ICON_SATURATION,
-                    accuracy_decimals=0,
-                    device_class=DEVICE_CLASS_ILLUMINANCE,
-                    state_class=STATE_CLASS_MEASUREMENT,
-                ),
-                key=CONF_NAME,
-            ),
             cv.Optional(CONF_SATURATION_LEVEL): cv.maybe_simple_value(
                 sensor.sensor_schema(
                     unit_of_measurement=UNIT_PERCENT,
@@ -274,7 +263,6 @@ SENSORS_INTEGRAL = [
     CONF_IRRADIANCE_PAR,
     CONF_PPFD,
     CONF_COLOR_TEMPERATURE,
-    CONF_SATURATION,
     CONF_SATURATION_LEVEL,
 ]
 
@@ -299,13 +287,13 @@ async def to_code(config):
         for key, ch in BANDS.items():
             if sensor_config := counts_config.get(key):
                 sens = await sensor.new_sensor(sensor_config)
-                cg.add(getattr(var, "set_band_counts_sensor")(sens, ch))
+                cg.add(var.set_band_counts_sensor(sens, ch))
 
     if basic_counts_config := config.get(CONF_BAND_BASIC_COUNTS):
         for key, ch in BANDS.items():
             if sensor_config := basic_counts_config.get(key):
                 sens = await sensor.new_sensor(sensor_config)
-                cg.add(getattr(var, "set_band_basic_counts_sensor")(sens, ch))
+                cg.add(var.set_band_basic_counts_sensor(sens, ch))
 
     for sensor_id in SENSORS_INTEGRAL:
         if sensor_config := config.get(sensor_id):

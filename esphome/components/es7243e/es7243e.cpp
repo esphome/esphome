@@ -6,8 +6,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace es7243e {
+namespace esphome::es7243e {
 
 static const char *const TAG = "es7243e";
 
@@ -34,8 +33,6 @@ void ES7243E::dump_config() {
 }
 
 void ES7243E::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ES7243E...");
-
   ES7243E_ERROR_FAILED(this->write_byte(ES7243E_CLOCK_MGR_REG01, 0x3A));
   ES7243E_ERROR_FAILED(this->write_byte(ES7243E_RESET_REG00, 0x80));
   ES7243E_ERROR_FAILED(this->write_byte(ES7243E_TEST_MODE_REGF9, 0x00));
@@ -121,5 +118,4 @@ uint8_t ES7243E::es7243e_gain_reg_value_(float mic_gain) {
   return 14;
 }
 
-}  // namespace es7243e
-}  // namespace esphome
+}  // namespace esphome::es7243e

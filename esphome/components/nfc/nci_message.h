@@ -1,12 +1,11 @@
 #pragma once
 
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #include <vector>
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
 class NciMessage {
  public:
@@ -46,5 +45,4 @@ class NciMessage {
   std::vector<uint8_t> nci_message_{0, 0, 0};  // three bytes, MT/PBF/GID, OID, payload length/size
 };
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

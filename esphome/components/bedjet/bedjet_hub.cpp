@@ -3,10 +3,10 @@
 #include "bedjet_hub.h"
 #include "bedjet_child.h"
 #include "bedjet_const.h"
+#include "esphome/core/application.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace bedjet {
+namespace esphome::bedjet {
 
 static const LogString *bedjet_button_to_string(BedjetButton button) {
   switch (button) {
@@ -192,8 +192,9 @@ bool BedJetHub::discover_characteristics_() {
       result = false;
     } else if (descr->uuid.get_uuid().len != ESP_UUID_LEN_16 ||
                descr->uuid.get_uuid().uuid.uuid16 != ESP_GATT_UUID_CHAR_CLIENT_CONFIG) {
+      char uuid_buf[espbt::UUID_STR_LEN];
       ESP_LOGW(TAG, "Config descriptor 0x%x (uuid %s) is not a client config char uuid", this->char_handle_status_,
-               descr->uuid.to_string().c_str());
+               descr->uuid.to_str(uuid_buf));
       result = false;
     } else {
       this->config_descr_status_ = descr->handle;
@@ -215,11 +216,14 @@ bool BedJetHub::discover_characteristics_() {
     }
   }
 
-  ESP_LOGI(TAG, "[%s] Discovered service characteristics: ", this->get_name().c_str());
-  ESP_LOGI(TAG, "     - Command char: 0x%x", this->char_handle_cmd_);
-  ESP_LOGI(TAG, "     - Status char: 0x%x", this->char_handle_status_);
-  ESP_LOGI(TAG, "       - config descriptor: 0x%x", this->config_descr_status_);
-  ESP_LOGI(TAG, "     - Name char: 0x%x", this->char_handle_name_);
+  ESP_LOGI(TAG,
+           "[%s] Discovered service characteristics:\n"
+           "     - Command char: 0x%x\n"
+           "     - Status char: 0x%x\n"
+           "       - config descriptor: 0x%x\n"
+           "     - Name char: 0x%x",
+           this->get_name().c_str(), this->char_handle_cmd_, this->char_handle_status_, this->config_descr_status_,
+           this->char_handle_name_);
 
   return result;
 }
@@ -479,14 +483,20 @@ void BedJetHub::set_clock(uint8_t hour, uint8_t minute) {
 
 /* Internal */
 
-void BedJetHub::loop() {}
+void BedJetHub::loop() {
+  // Parent BLEClientNode has a loop() method, but this component uses
+  // polling via update() and BLE callbacks so loop isn't needed
+  this->disable_loop();
+}
 void BedJetHub::update() { this->dispatch_status_(); }
 
 void BedJetHub::dump_config() {
-  ESP_LOGCONFIG(TAG, "BedJet Hub '%s'", this->get_name().c_str());
-  ESP_LOGCONFIG(TAG, "  ble_client.app_id: %d", this->parent()->app_id);
-  ESP_LOGCONFIG(TAG, "  ble_client.conn_id: %d", this->parent()->get_conn_id());
-  LOG_UPDATE_INTERVAL(this)
+  ESP_LOGCONFIG(TAG,
+                "BedJet Hub '%s'\n"
+                "  ble_client.app_id: %d\n"
+                "  ble_client.conn_id: %d",
+                this->get_name().c_str(), this->parent()->app_id, this->parent()->get_conn_id());
+  LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG, "  Child components (%d):", this->children_.size());
   for (auto *child : this->children_) {
     ESP_LOGCONFIG(TAG, "    - %s", child->describe().c_str());
@@ -526,7 +536,7 @@ void BedJetHub::dispatch_status_() {
     }
 
     if (this->timeout_ > 0 && diff > this->timeout_ && this->parent()->enabled) {
-      ESP_LOGW(TAG, "[%s] Timed out after %" PRId32 " sec. Retrying...", this->get_name().c_str(), this->timeout_);
+      ESP_LOGW(TAG, "[%s] Timed out after %" PRId32 " sec. Retrying", this->get_name().c_str(), this->timeout_);
       // set_enabled(false) will only close the connection if state != IDLE.
       this->parent()->set_state(espbt::ClientState::CONNECTING);
       this->parent()->set_enabled(false);
@@ -540,7 +550,6 @@ void BedJetHub::register_child(BedJetClient *obj) {
   obj->set_parent(this);
 }
 
-}  // namespace bedjet
-}  // namespace esphome
+}  // namespace esphome::bedjet
 
 #endif

@@ -8,13 +8,18 @@
 #endif  // CYW43_USES_VSYS_PIN
 #include <hardware/adc.h>
 
-namespace esphome {
-namespace adc {
+// PICO_VSYS_PIN is defined in pico-sdk board headers (e.g. boards/pico2.h),
+// but the Arduino framework's config_autogen.h includes a generic board header
+// that doesn't define it. Provide the standard value (pin 29) as a fallback.
+#ifndef PICO_VSYS_PIN
+#define PICO_VSYS_PIN 29  // NOLINT(cppcoreguidelines-macro-usage)
+#endif
+
+namespace esphome::adc {
 
 static const char *const TAG = "adc.rp2040";
 
 void ADCSensor::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ADC '%s'...", this->get_name().c_str());
   static bool initialized = false;
   if (!initialized) {
     adc_init();
@@ -33,14 +38,16 @@ void ADCSensor::dump_config() {
     LOG_PIN("  Pin: ", this->pin_);
 #endif  // USE_ADC_SENSOR_VCC
   }
-  ESP_LOGCONFIG(TAG, "  Samples: %i", this->sample_count_);
-  ESP_LOGCONFIG(TAG, "  Sampling mode: %s", LOG_STR_ARG(sampling_mode_to_str(this->sampling_mode_)));
+  ESP_LOGCONFIG(TAG,
+                "  Samples: %i\n"
+                "  Sampling mode: %s",
+                this->sample_count_, LOG_STR_ARG(sampling_mode_to_str(this->sampling_mode_)));
   LOG_UPDATE_INTERVAL(this);
 }
 
 float ADCSensor::sample() {
   uint32_t raw = 0;
-  auto aggr = Aggregator(this->sampling_mode_);
+  auto aggr = Aggregator<uint32_t>(this->sampling_mode_);
 
   if (this->is_temperature_) {
     adc_set_temp_sensor_enabled(true);
@@ -90,7 +97,6 @@ float ADCSensor::sample() {
   return aggr.aggregate() * 3.3f / 4096.0f * coeff;
 }
 
-}  // namespace adc
-}  // namespace esphome
+}  // namespace esphome::adc
 
 #endif  // USE_RP2040

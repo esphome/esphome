@@ -7,11 +7,10 @@
 
 #include <vector>
 
-namespace esphome {
-namespace pn7160_spi {
+namespace esphome::pn7160_spi {
 
-static const uint8_t TDD_SPI_READ = 0xFF;
-static const uint8_t TDD_SPI_WRITE = 0x0A;
+static constexpr uint8_t TDD_SPI_READ = 0xFF;
+static constexpr uint8_t TDD_SPI_WRITE = 0x0A;
 
 class PN7160Spi : public pn7160::PN7160,
                   public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
@@ -26,5 +25,4 @@ class PN7160Spi : public pn7160::PN7160,
   uint8_t write_nfcc(nfc::NciMessage &tx) override;
 };
 
-}  // namespace pn7160_spi
-}  // namespace esphome
+}  // namespace esphome::pn7160_spi

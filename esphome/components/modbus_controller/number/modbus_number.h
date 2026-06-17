@@ -6,8 +6,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace modbus_controller {
+namespace esphome::modbus_controller {
 
 using value_to_data_t = std::function<float>(float);
 
@@ -31,10 +30,10 @@ class ModbusNumber : public number::Number, public Component, public SensorItem 
   void set_parent(ModbusController *parent) { this->parent_ = parent; }
   void set_write_multiply(float factor) { this->multiply_by_ = factor; }
 
-  using transform_func_t = std::function<optional<float>(ModbusNumber *, float, const std::vector<uint8_t> &)>;
-  using write_transform_func_t = std::function<optional<float>(ModbusNumber *, float, std::vector<uint16_t> &)>;
-  void set_template(transform_func_t &&f) { this->transform_func_ = f; }
-  void set_write_template(write_transform_func_t &&f) { this->write_transform_func_ = f; }
+  using transform_func_t = optional<float> (*)(ModbusNumber *, float, const std::vector<uint8_t> &);
+  using write_transform_func_t = optional<float> (*)(ModbusNumber *, float, std::vector<uint16_t> &);
+  void set_template(transform_func_t f) { this->transform_func_ = f; }
+  void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }
   void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
 
  protected:
@@ -46,5 +45,4 @@ class ModbusNumber : public number::Number, public Component, public SensorItem 
   bool use_write_multiple_{false};
 };
 
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller

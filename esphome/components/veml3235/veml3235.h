@@ -5,8 +5,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace veml3235 {
+namespace esphome::veml3235 {
 
 // Register IDs/locations
 //
@@ -65,7 +64,6 @@ class VEML3235Sensor : public sensor::Sensor, public PollingComponent, public i2
   void setup() override;
   void dump_config() override;
   void update() override { this->publish_state(this->read_lx_()); }
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   // Used by ESPHome framework. Does NOT actually set the value on the device.
   void set_auto_gain(bool auto_gain) { this->auto_gain_ = auto_gain; }
@@ -105,5 +103,4 @@ class VEML3235Sensor : public sensor::Sensor, public PollingComponent, public i2
   VEML3235ComponentIntegrationTime integration_time_{VEML3235_INTEGRATION_TIME_50MS};
 };
 
-}  // namespace veml3235
-}  // namespace esphome
+}  // namespace esphome::veml3235

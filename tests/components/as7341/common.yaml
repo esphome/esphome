@@ -1,31 +1,51 @@
-i2c:
-  - id: i2c_as7341
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: as7341
+    i2c_id: i2c_bus
     update_interval: 15s
     gain: X8
     atime: 120
     astep: 99
-    f1:
-      name: F1
-    f2:
-      name: F2
-    f3:
-      name: F3
-    f4:
-      name: F4
-    f5:
-      name: F5
-    f6:
-      name: F6
-    f7:
-      name: F7
-    f8:
-      name: F8
-    clear:
-      name: Clear
-    nir:
-      name: NIR
+    calibration:
+      glass_attenuation_factor: 1.0
+    band_counts:
+      f1:
+        name: F1
+      f2:
+        name: F2
+      f3:
+        name: F3
+      f4:
+        name: F4
+      f5:
+        name: F5
+      f6:
+        name: F6
+      f7:
+        name: F7
+      f8:
+        name: F8
+      clear:
+        name: Clear
+      nir:
+        name: NIR
+    band_basic_counts:
+      f1:
+        name: F1 basic
+      clear:
+        name: Clear basic
+      nir:
+        name: NIR basic
+    illuminance:
+      name: Illuminance
+    irradiance:
+      name: Irradiance
+    irradiance_photopic:
+      name: Irradiance photopic
+    ppfd:
+      name: PPFD
+    irradiance_par:
+      name: PAR
+    color_temperature:
+      name: Color temperature
+    saturation_level:
+      name: Saturation level

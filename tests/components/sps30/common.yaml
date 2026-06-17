@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_sps30
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: sps30
+    i2c_id: i2c_bus
     pm_1_0:
       name: Workshop PM <1µm Weight concentration
       id: workshop_PM_1_0
@@ -34,3 +30,4 @@ sensor:
       id: workshop_PMC_10_0
     address: 0x69
     update_interval: 10s
+    idle_interval: 5min

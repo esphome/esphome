@@ -8,8 +8,7 @@
 #endif
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace hydreon_rgxx {
+namespace esphome::hydreon_rgxx {
 
 enum RGModel {
   RG9 = 1,
@@ -53,8 +52,6 @@ class HydreonRGxxComponent : public PollingComponent, public uart::UARTDevice {
   void setup() override;
   void dump_config() override;
 
-  float get_setup_priority() const override;
-
   void set_disable_led(bool disable_led) { this->disable_led_ = disable_led; }
 
  protected:
@@ -94,5 +91,4 @@ class HydreonRGxxBinaryComponent : public Component {
   HydreonRGxxBinaryComponent(HydreonRGxxComponent *parent) {}
 };
 
-}  // namespace hydreon_rgxx
-}  // namespace esphome
+}  // namespace esphome::hydreon_rgxx

@@ -1,5 +1,5 @@
-from collections.abc import Awaitable
-from typing import Any, Callable, Optional
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.const import CONF_ID
@@ -16,7 +16,7 @@ def define_has_component(component_type: str, keys: list[str]) -> None:
     cg.add_define(
         f"OPENTHERM_{component_type.upper()}_LIST(F, sep)",
         cg.RawExpression(
-            " sep ".join(map(lambda key: f"F({key}_{component_type.lower()})", keys))
+            " sep ".join(f"F({key}_{component_type.lower()})" for key in keys)
         ),
     )
     for key in keys:
@@ -30,10 +30,8 @@ def define_has_settings(keys: list[str], schemas: dict[str, SettingSchema]) -> N
         "OPENTHERM_SETTING_LIST(F, sep)",
         cg.RawExpression(
             " sep ".join(
-                map(
-                    lambda key: f"F({schemas[key].backing_type}, {key}_setting, {schemas[key].default_value})",
-                    keys,
-                )
+                f"F({schemas[key].backing_type}, {key}_setting, {schemas[key].default_value})"
+                for key in keys
             )
         ),
     )
@@ -103,7 +101,7 @@ def define_setting_readers(component_type: str, keys: list[str]) -> None:
 
 
 def add_messages(hub: cg.MockObj, keys: list[str], schemas: dict[str, TSchema]):
-    messages: dict[str, tuple[bool, Optional[int]]] = {}
+    messages: dict[str, tuple[bool, int | None]] = {}
     for key in keys:
         messages[schemas[key].message] = (
             schemas[key].keep_updated,

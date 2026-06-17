@@ -3,7 +3,7 @@ from esphome.components import i2c, output
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ID
 
-from .. import CONF_GP8403_ID, GP8403, gp8403_ns
+from .. import CONF_GP8403_ID, GP8403Component, gp8403_ns
 
 DEPENDENCIES = ["gp8403"]
 
@@ -14,7 +14,7 @@ GP8403Output = gp8403_ns.class_(
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(GP8403Output),
-        cv.GenerateID(CONF_GP8403_ID): cv.use_id(GP8403),
+        cv.GenerateID(CONF_GP8403_ID): cv.use_id(GP8403Component),
         cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=1),
     }
 ).extend(cv.COMPONENT_SCHEMA)

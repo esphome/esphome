@@ -1,10 +1,16 @@
 #include "uponor_smatrix.h"
+#include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace uponor_smatrix {
+#include <cinttypes>
+
+namespace esphome::uponor_smatrix {
 
 static const char *const TAG = "uponor_smatrix";
+
+// Maximum bytes to log in verbose hex output
+static constexpr size_t UPONOR_MAX_LOG_BYTES = 36;
 
 void UponorSmatrixComponent::setup() {
 #ifdef USE_TIME
@@ -16,11 +22,10 @@ void UponorSmatrixComponent::setup() {
 
 void UponorSmatrixComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Uponor Smatrix");
-  ESP_LOGCONFIG(TAG, "  System address: 0x%04X", this->address_);
 #ifdef USE_TIME
   if (this->time_id_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Time synchronization: YES");
-    ESP_LOGCONFIG(TAG, "  Time master device address: 0x%04X", this->time_device_address_);
+    ESP_LOGCONFIG(TAG, "  Time master device address: 0x%08" PRIX32 "", this->time_device_address_);
   }
 #endif
 
@@ -29,13 +34,13 @@ void UponorSmatrixComponent::dump_config() {
   if (!this->unknown_devices_.empty()) {
     ESP_LOGCONFIG(TAG, "  Detected unknown device addresses:");
     for (auto device_address : this->unknown_devices_) {
-      ESP_LOGCONFIG(TAG, "    0x%04X", device_address);
+      ESP_LOGCONFIG(TAG, "    0x%08" PRIX32 "", device_address);
     }
   }
 }
 
 void UponorSmatrixComponent::loop() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
 
   // Discard stale data
   if (!this->rx_buffer_.empty() && (now - this->last_rx_ > 50)) {
@@ -87,8 +92,7 @@ bool UponorSmatrixComponent::parse_byte_(uint8_t byte) {
     return false;
   }
 
-  uint16_t system_address = encode_uint16(packet[0], packet[1]);
-  uint16_t device_address = encode_uint16(packet[2], packet[3]);
+  uint32_t device_address = encode_uint32(packet[0], packet[1], packet[2], packet[3]);
   uint16_t crc = encode_uint16(packet[packet_len - 1], packet[packet_len - 2]);
 
   uint16_t computed_crc = crc16(packet, packet_len - 2);
@@ -97,30 +101,23 @@ bool UponorSmatrixComponent::parse_byte_(uint8_t byte) {
     return false;
   }
 
-  ESP_LOGV(TAG, "Received packet: sys=%04X, dev=%04X, data=%s, crc=%04X", system_address, device_address,
-           format_hex(&packet[4], packet_len - 6).c_str(), crc);
-
-  // Detect or check system address
-  if (this->address_ == 0) {
-    ESP_LOGI(TAG, "Using detected system address 0x%04X", system_address);
-    this->address_ = system_address;
-  } else if (this->address_ != system_address) {
-    // This should never happen except if the system address was set or detected incorrectly, so warn the user.
-    ESP_LOGW(TAG, "Received packet from unknown system address 0x%04X", system_address);
-    return true;
-  }
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_size(UPONOR_MAX_LOG_BYTES)];
+#endif
+  ESP_LOGV(TAG, "Received packet: addr=%08" PRIX32 ", data=%s, crc=%04X", device_address,
+           format_hex_to(hex_buf, &packet[4], packet_len - 6), crc);
 
   // Handle packet
   size_t data_len = (packet_len - 6) / 3;
   if (data_len == 0) {
     if (packet[4] == UPONOR_ID_REQUEST)
-      ESP_LOGVV(TAG, "Ignoring request packet for device 0x%04X", device_address);
+      ESP_LOGVV(TAG, "Ignoring request packet for device 0x%08" PRIX32 "", device_address);
     return true;
   }
 
   // Decode packet payload data for easy access
   UponorSmatrixData data[data_len];
-  for (int i = 0; i < data_len; i++) {
+  for (size_t i = 0; i < data_len; i++) {
     data[i].id = packet[(i * 3) + 4];
     data[i].value = encode_uint16(packet[(i * 3) + 5], packet[(i * 3) + 6]);
   }
@@ -133,13 +130,13 @@ bool UponorSmatrixComponent::parse_byte_(uint8_t byte) {
     // thermostat sending both room temperature and time information.
     bool found_temperature = false;
     bool found_time = false;
-    for (int i = 0; i < data_len; i++) {
+    for (size_t i = 0; i < data_len; i++) {
       if (data[i].id == UPONOR_ID_ROOM_TEMP)
         found_temperature = true;
       if (data[i].id == UPONOR_ID_DATETIME1)
         found_time = true;
       if (found_temperature && found_time) {
-        ESP_LOGI(TAG, "Using detected time device address 0x%04X", device_address);
+        ESP_LOGI(TAG, "Using detected time device address 0x%08" PRIX32 "", device_address);
         this->time_device_address_ = device_address;
         break;
       }
@@ -157,8 +154,8 @@ bool UponorSmatrixComponent::parse_byte_(uint8_t byte) {
   }
 
   // Log unknown device addresses
-  if (!found && !this->unknown_devices_.count(device_address)) {
-    ESP_LOGI(TAG, "Received packet for unknown device address 0x%04X ", device_address);
+  if (!found && !this->unknown_devices_.contains(device_address)) {
+    ESP_LOGI(TAG, "Received packet for unknown device address 0x%08" PRIX32 " ", device_address);
     this->unknown_devices_.insert(device_address);
   }
 
@@ -166,20 +163,20 @@ bool UponorSmatrixComponent::parse_byte_(uint8_t byte) {
   return true;
 }
 
-bool UponorSmatrixComponent::send(uint16_t device_address, const UponorSmatrixData *data, size_t data_len) {
-  if (this->address_ == 0 || device_address == 0 || data == nullptr || data_len == 0)
+bool UponorSmatrixComponent::send(uint32_t device_address, const UponorSmatrixData *data, size_t data_len) {
+  if (device_address == 0 || data == nullptr || data_len == 0)
     return false;
 
   // Assemble packet for send queue. All fields are big-endian except for the little-endian checksum.
   std::vector<uint8_t> packet;
   packet.reserve(6 + 3 * data_len);
 
-  packet.push_back(this->address_ >> 8);
-  packet.push_back(this->address_ >> 0);
+  packet.push_back(device_address >> 24);
+  packet.push_back(device_address >> 16);
   packet.push_back(device_address >> 8);
   packet.push_back(device_address >> 0);
 
-  for (int i = 0; i < data_len; i++) {
+  for (size_t i = 0; i < data_len; i++) {
     packet.push_back(data[i].id);
     packet.push_back(data[i].value >> 8);
     packet.push_back(data[i].value >> 0);
@@ -223,5 +220,4 @@ bool UponorSmatrixComponent::do_send_time_() {
 }
 #endif
 
-}  // namespace uponor_smatrix
-}  // namespace esphome
+}  // namespace esphome::uponor_smatrix

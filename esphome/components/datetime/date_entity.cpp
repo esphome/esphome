@@ -1,37 +1,40 @@
 #include "date_entity.h"
-
+#include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
 #ifdef USE_DATETIME_DATE
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace datetime {
+namespace esphome::datetime {
 
 static const char *const TAG = "datetime.date_entity";
 
 void DateEntity::publish_state() {
   if (this->year_ == 0 || this->month_ == 0 || this->day_ == 0) {
-    this->has_state_ = false;
+    this->set_has_state(false);
     return;
   }
   if (this->year_ < 1970 || this->year_ > 3000) {
-    this->has_state_ = false;
+    this->set_has_state(false);
     ESP_LOGE(TAG, "Year must be between 1970 and 3000");
     return;
   }
   if (this->month_ < 1 || this->month_ > 12) {
-    this->has_state_ = false;
+    this->set_has_state(false);
     ESP_LOGE(TAG, "Month must be between 1 and 12");
     return;
   }
   if (this->day_ > days_in_month(this->month_, this->year_)) {
-    this->has_state_ = false;
+    this->set_has_state(false);
     ESP_LOGE(TAG, "Day must be between 1 and %d for month %d", days_in_month(this->month_, this->year_), this->month_);
     return;
   }
-  this->has_state_ = true;
-  ESP_LOGD(TAG, "'%s': Sending date %d-%d-%d", this->get_name().c_str(), this->year_, this->month_, this->day_);
+  this->set_has_state(true);
+  ESP_LOGV(TAG, "'%s' >> %d-%d-%d", this->get_name().c_str(), this->year_, this->month_, this->day_);
   this->state_callback_.call();
+#if defined(USE_DATETIME_DATE) && defined(USE_CONTROLLER_REGISTRY)
+  ControllerRegistry::notify_date_update(this);
+#endif
 }
 
 DateCall DateEntity::make_call() { return DateCall(this); }
@@ -80,16 +83,16 @@ void DateCall::validate_() {
 
 void DateCall::perform() {
   this->validate_();
-  ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
 
   if (this->year_.has_value()) {
-    ESP_LOGD(TAG, " Year: %d", *this->year_);
+    ESP_LOGV(TAG, " Year: %d", *this->year_);
   }
   if (this->month_.has_value()) {
-    ESP_LOGD(TAG, " Month: %d", *this->month_);
+    ESP_LOGV(TAG, " Month: %d", *this->month_);
   }
   if (this->day_.has_value()) {
-    ESP_LOGD(TAG, " Day: %d", *this->day_);
+    ESP_LOGV(TAG, " Day: %d", *this->day_);
   }
   this->parent_->control(*this);
 }
@@ -103,9 +106,9 @@ DateCall &DateCall::set_date(uint16_t year, uint8_t month, uint8_t day) {
 
 DateCall &DateCall::set_date(ESPTime time) { return this->set_date(time.year, time.month, time.day_of_month); };
 
-DateCall &DateCall::set_date(const std::string &date) {
+DateCall &DateCall::set_date(const char *date, size_t len) {
   ESPTime val{};
-  if (!ESPTime::strptime(date, val)) {
+  if (!ESPTime::strptime(date, len, val)) {
     ESP_LOGE(TAG, "Could not convert the date string to an ESPTime object");
     return *this;
   }
@@ -125,7 +128,6 @@ void DateEntityRestoreState::apply(DateEntity *date) {
   date->publish_state();
 }
 
-}  // namespace datetime
-}  // namespace esphome
+}  // namespace esphome::datetime
 
 #endif  // USE_DATETIME_DATE

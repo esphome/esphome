@@ -11,6 +11,7 @@ CODEOWNERS = ["@neffs", "@kbx81"]
 
 AUTO_LOAD = ["bme68x_bsec2"]
 DEPENDENCIES = ["i2c"]
+MULTI_CONF = True
 
 bme68x_bsec2_i2c_ns = cg.esphome_ns.namespace("bme68x_bsec2_i2c")
 BME68xBSEC2I2CComponent = bme68x_bsec2_i2c_ns.class_(

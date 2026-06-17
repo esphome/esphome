@@ -91,6 +91,10 @@ venv-*/
 # mypy
 .mypy_cache/
 
+# nix
+/default.nix
+/shell.nix
+
 .pioenvs
 .piolibdeps
 .pio
@@ -137,9 +141,12 @@ tests/.esphome/
 
 sdkconfig.*
 !sdkconfig.defaults
+!sdkconfig.defaults.*
 
 .tests/
 
 /components
 /managed_components
+/dependencies.lock
 
+api-docs/

@@ -4,8 +4,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace es8311 {
+namespace esphome::es8311 {
 
 enum ES8311MicGain {
   ES8311_MIC_GAIN_MIN = -1,
@@ -50,7 +49,6 @@ class ES8311 : public audio_dac::AudioDac, public Component, public i2c::I2CDevi
   /////////////////////////
 
   void setup() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void dump_config() override;
 
   ////////////////////////
@@ -131,5 +129,4 @@ class ES8311 : public audio_dac::AudioDac, public Component, public i2c::I2CDevi
   ES8311Resolution resolution_out_;
 };
 
-}  // namespace es8311
-}  // namespace esphome
+}  // namespace esphome::es8311

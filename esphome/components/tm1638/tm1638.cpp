@@ -1,11 +1,10 @@
 #include "tm1638.h"
 #include "sevenseg.h"
-#include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
-namespace esphome {
-namespace tm1638 {
+namespace esphome::tm1638 {
 
 static const char *const TAG = "display.tm1638";
 static const uint8_t TM1638_REGISTER_FIXEDADDRESS = 0x44;
@@ -20,8 +19,6 @@ static const uint8_t TM1638_UNKNOWN_CHAR = 0b11111111;
 static const uint8_t TM1638_SHIFT_DELAY = 4;  // clock pause between commands, default 4ms
 
 void TM1638Component::setup() {
-  ESP_LOGD(TAG, "Setting up TM1638...");
-
   this->clk_pin_->setup();  // OUTPUT
   this->dio_pin_->setup();  // OUTPUT
   this->stb_pin_->setup();  // OUTPUT
@@ -37,14 +34,13 @@ void TM1638Component::setup() {
   this->set_intensity(intensity_);
 
   this->reset_();  // all LEDs off
-
-  for (uint8_t i = 0; i < 8; i++)  // zero fill print buffer
-    this->buffer_[i] = 0;
 }
 
 void TM1638Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "TM1638:");
-  ESP_LOGCONFIG(TAG, "  Intensity: %u", this->intensity_);
+  ESP_LOGCONFIG(TAG,
+                "TM1638:\n"
+                "  Intensity: %u",
+                this->intensity_);
   LOG_PIN("  CLK Pin: ", this->clk_pin_);
   LOG_PIN("  DIO Pin: ", this->dio_pin_);
   LOG_PIN("  STB Pin: ", this->stb_pin_);
@@ -150,35 +146,38 @@ void TM1638Component::set_intensity(uint8_t brightness_level) {
 
 uint8_t TM1638Component::print(uint8_t start_pos, const char *str) {
   uint8_t pos = start_pos;
-
   bool last_was_dot = false;
 
   for (; *str != '\0'; str++) {
     uint8_t data = TM1638_UNKNOWN_CHAR;
 
     if (*str >= ' ' && *str <= '~') {
-      data = progmem_read_byte(&TM1638Translation::SEVEN_SEG[*str - 32]);  // subract 32 to account for ASCII offset
-    } else if (data == TM1638_UNKNOWN_CHAR) {
+      // Subtract 32 to account for ASCII offset
+      data = progmem_read_byte(&TM1638Translation::SEVEN_SEG[*str - 32]);
+    } else {
       ESP_LOGW(TAG, "Encountered character '%c' with no TM1638 representation while translating string!", *str);
     }
 
-    if (*str == '.')  // handle dots
-    {
-      if (pos != start_pos &&
-          !last_was_dot)  // if we are not at the first position, backup by one unless last char was a dot
-      {
+    if (*str == '.') {
+      // Merge dot onto previous character unless we're at the start or last was also a dot
+      if (pos != start_pos && !last_was_dot) {
         pos--;
       }
-      this->buffer_[pos] |= 0b10000000;  // turn on the dot on the previous position
-      last_was_dot = true;               // set a bit in case the next chracter is also a dot
-    } else                               // if not a dot, then just write the character to display
-    {
+      if (pos >= 8) {
+        ESP_LOGI(TAG, "TM1638 String is too long for the display!");
+        break;
+      }
+      // Turn on the dot on the previous position
+      this->buffer_[pos] |= 0b10000000;
+      last_was_dot = true;
+    } else {
+      // Not a dot, write the character to display
       if (pos >= 8) {
         ESP_LOGI(TAG, "TM1638 String is too long for the display!");
         break;
       }
       this->buffer_[pos] = data;
-      last_was_dot = false;  // clear dot tracking bit
+      last_was_dot = false;
     }
 
     pos++;
@@ -282,5 +281,4 @@ void TM1638Component::shift_out_(uint8_t val) {
   }
 }
 
-}  // namespace tm1638
-}  // namespace esphome
+}  // namespace esphome::tm1638

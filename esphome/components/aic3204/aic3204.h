@@ -6,8 +6,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace aic3204 {
+namespace esphome::aic3204 {
 
 // TLV320AIC3204 Register Addresses
 // Page 0
@@ -66,7 +65,6 @@ class AIC3204 : public audio_dac::AudioDac, public Component, public i2c::I2CDev
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   bool set_mute_off() override;
   bool set_mute_on() override;
@@ -84,5 +82,4 @@ class AIC3204 : public audio_dac::AudioDac, public Component, public i2c::I2CDev
   float volume_{0};
 };
 
-}  // namespace aic3204
-}  // namespace esphome
+}  // namespace esphome::aic3204

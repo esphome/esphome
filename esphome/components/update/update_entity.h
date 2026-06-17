@@ -1,11 +1,11 @@
 #pragma once
 
+#include <memory>
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 
-namespace esphome {
-namespace update {
+namespace esphome::update {
 
 struct UpdateInfo {
   std::string latest_version;
@@ -26,10 +26,10 @@ enum UpdateState : uint8_t {
   UPDATE_STATE_INSTALLING,
 };
 
-class UpdateEntity : public EntityBase, public EntityBase_DeviceClass {
- public:
-  bool has_state() const { return this->has_state_; }
+const LogString *update_state_to_string(UpdateState state);
 
+class UpdateEntity : public EntityBase {
+ public:
   void publish_state();
 
   void perform() { this->perform(false); }
@@ -39,15 +39,22 @@ class UpdateEntity : public EntityBase, public EntityBase_DeviceClass {
   const UpdateInfo &update_info = update_info_;
   const UpdateState &state = state_;
 
-  void add_on_state_callback(std::function<void()> &&callback) { this->state_callback_.add(std::move(callback)); }
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
+  Trigger<const UpdateInfo &> *get_update_available_trigger() {
+    if (!update_available_trigger_) {
+      update_available_trigger_ = std::make_unique<Trigger<const UpdateInfo &>>();
+    }
+    return update_available_trigger_.get();
+  }
 
  protected:
   UpdateState state_{UPDATE_STATE_UNKNOWN};
   UpdateInfo update_info_;
-  bool has_state_{false};
 
-  CallbackManager<void()> state_callback_{};
+  LazyCallbackManager<void()> state_callback_{};
+  std::unique_ptr<Trigger<const UpdateInfo &>> update_available_trigger_{nullptr};
 };
 
-}  // namespace update
-}  // namespace esphome
+}  // namespace esphome::update

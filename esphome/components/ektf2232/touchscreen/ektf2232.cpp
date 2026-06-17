@@ -4,8 +4,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace ektf2232 {
+namespace esphome::ektf2232 {
 
 static const char *const TAG = "ektf2232";
 
@@ -16,13 +15,12 @@ static const uint8_t GET_Y_RES[4] = {0x53, 0x63, 0x00, 0x00};
 static const uint8_t GET_POWER_STATE_CMD[4] = {0x53, 0x50, 0x00, 0x01};
 
 void EKTF2232Touchscreen::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up EKT2232 Touchscreen...");
   this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
   this->interrupt_pin_->setup();
 
   this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
 
-  this->rts_pin_->setup();
+  this->reset_pin_->setup();
 
   this->hard_reset_();
   if (!this->soft_reset_()) {
@@ -99,9 +97,9 @@ bool EKTF2232Touchscreen::get_power_state() {
 }
 
 void EKTF2232Touchscreen::hard_reset_() {
-  this->rts_pin_->digital_write(false);
+  this->reset_pin_->digital_write(false);
   delay(15);
-  this->rts_pin_->digital_write(true);
+  this->reset_pin_->digital_write(true);
   delay(15);
 }
 
@@ -128,8 +126,7 @@ void EKTF2232Touchscreen::dump_config() {
   ESP_LOGCONFIG(TAG, "EKT2232 Touchscreen:");
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
-  LOG_PIN("  RTS Pin: ", this->rts_pin_);
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
 }
 
-}  // namespace ektf2232
-}  // namespace esphome
+}  // namespace esphome::ektf2232

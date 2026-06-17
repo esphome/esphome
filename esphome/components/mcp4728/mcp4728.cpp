@@ -3,13 +3,11 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp4728 {
+namespace esphome::mcp4728 {
 
 static const char *const TAG = "mcp4728";
 
 void MCP4728Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MCP4728 (0x%02X)...", this->address_);
   auto err = this->write(nullptr, 0);
   if (err != i2c::ERROR_OK) {
     this->mark_failed();
@@ -21,7 +19,7 @@ void MCP4728Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MCP4728:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with MCP4728 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
 
@@ -110,5 +108,4 @@ void MCP4728Component::select_gain_(MCP4728ChannelIdx channel, MCP4728Gain gain)
   this->update_ = true;
 }
 
-}  // namespace mcp4728
-}  // namespace esphome
+}  // namespace esphome::mcp4728

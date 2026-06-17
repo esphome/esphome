@@ -5,8 +5,7 @@
 
 // Very basic support for TOF10120 distance sensor
 
-namespace esphome {
-namespace tof10120 {
+namespace esphome::tof10120 {
 
 static const char *const TAG = "tof10120";
 static const uint8_t TOF10120_READ_DISTANCE_CMD[] = {0x00};
@@ -27,7 +26,7 @@ void TOF10120Sensor::setup() {}
 
 void TOF10120Sensor::update() {
   if (!this->write_bytes(TOF10120_DISTANCE_REGISTER, TOF10120_READ_DISTANCE_CMD, sizeof(TOF10120_READ_DISTANCE_CMD))) {
-    ESP_LOGE(TAG, "Communication with TOF10120 failed on write");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->status_set_warning();
     return;
   }
@@ -39,7 +38,7 @@ void TOF10120Sensor::update() {
   }
   delay(TOF10120_DEFAULT_DELAY);
   if (this->read(data, 2) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Communication with TOF10120 failed on read");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->status_set_warning();
     return;
   }
@@ -56,5 +55,4 @@ void TOF10120Sensor::update() {
   this->status_clear_warning();
 }
 
-}  // namespace tof10120
-}  // namespace esphome
+}  // namespace esphome::tof10120

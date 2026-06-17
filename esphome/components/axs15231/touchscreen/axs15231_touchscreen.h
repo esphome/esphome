@@ -5,8 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace axs15231 {
+namespace esphome::axs15231 {
 
 class AXS15231Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice {
  public:
@@ -23,5 +22,4 @@ class AXS15231Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevi
   GPIOPin *reset_pin_{};
 };
 
-}  // namespace axs15231
-}  // namespace esphome
+}  // namespace esphome::axs15231

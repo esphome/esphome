@@ -10,14 +10,13 @@
 #include <Esp.h>
 #endif
 
-namespace esphome {
-namespace shutdown {
+namespace esphome::shutdown {
 
 static const char *const TAG = "shutdown.button";
 
 void ShutdownButton::dump_config() { LOG_BUTTON("", "Shutdown Button", this); }
 void ShutdownButton::press_action() {
-  ESP_LOGI(TAG, "Shutting down...");
+  ESP_LOGI(TAG, "Shutting down");
   // Let MQTT settle a bit
   delay(100);  // NOLINT
   App.run_safe_shutdown_hooks();
@@ -29,5 +28,4 @@ void ShutdownButton::press_action() {
 #endif
 }
 
-}  // namespace shutdown
-}  // namespace esphome
+}  // namespace esphome::shutdown

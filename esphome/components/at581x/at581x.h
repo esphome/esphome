@@ -10,15 +10,11 @@
 #endif
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace at581x {
+namespace esphome::at581x {
 
 class AT581XComponent : public Component, public i2c::I2CDevice {
-#ifdef USE_SWITCH
- protected:
-  switch_::Switch *rf_power_switch_{nullptr};
-
  public:
+#ifdef USE_SWITCH
   void set_rf_power_switch(switch_::Switch *s) {
     this->rf_power_switch_ = s;
     s->turn_on();
@@ -48,6 +44,9 @@ class AT581XComponent : public Component, public i2c::I2CDevice {
   bool i2c_read_reg(uint8_t addr, uint8_t &data);
 
  protected:
+#ifdef USE_SWITCH
+  switch_::Switch *rf_power_switch_{nullptr};
+#endif
   int freq_;
   int self_check_time_ms_;   /*!< Power-on self-test time, range: 0 ~ 65536 ms */
   int protect_time_ms_;      /*!< Protection time, recommended 1000 ms */
@@ -58,5 +57,4 @@ class AT581XComponent : public Component, public i2c::I2CDevice {
   int power_;                /*!< In µA */
 };
 
-}  // namespace at581x
-}  // namespace esphome
+}  // namespace esphome::at581x

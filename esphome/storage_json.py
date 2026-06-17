@@ -1,63 +1,107 @@
 from __future__ import annotations
 
 import binascii
-import codecs
 from datetime import datetime
 import json
 import logging
 import os
+from pathlib import Path
 
 from esphome import const
-from esphome.const import CONF_DISABLED, CONF_MDNS
-from esphome.core import CORE
+from esphome.const import (
+    CONF_DISABLED,
+    CONF_MDNS,
+    KEY_CORE,
+    KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
+    Toolchain,
+)
+from esphome.core import CORE, EsphomeError
 from esphome.helpers import write_file_if_changed
 from esphome.types import CoreType
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def storage_path() -> str:
-    return os.path.join(CORE.data_dir, "storage", f"{CORE.config_filename}.json")
+def storage_path() -> Path:
+    return CORE.data_dir / "storage" / f"{CORE.config_filename}.json"
 
 
-def ext_storage_path(config_filename: str) -> str:
-    return os.path.join(CORE.data_dir, "storage", f"{config_filename}.json")
+def ext_storage_path(config_filename: str) -> Path:
+    """Path to the per-config StorageJSON sidecar.
+
+    Used by:
+    - device-builder (esphome/device-builder) — locates the sidecar
+      to read board / framework / firmware-bin / loaded_integrations
+      info for the dashboard. Coordinate before changing the path
+      shape; device-builder reads the same file on disk.
+    """
+    return CORE.data_dir / "storage" / f"{config_filename}.json"
 
 
-def esphome_storage_path() -> str:
-    return os.path.join(CORE.data_dir, "esphome.json")
+def esphome_storage_path() -> Path:
+    return CORE.data_dir / "esphome.json"
 
 
-def ignored_devices_storage_path() -> str:
-    return os.path.join(CORE.data_dir, "ignored-devices.json")
+def ignored_devices_storage_path() -> Path:
+    """Path to the dashboard's ignored-devices list.
+
+    Used by:
+    - device-builder (esphome/device-builder) — reads the same
+      ``ignored-devices.json`` so the new dashboard's "ignore" toggle
+      stays compatible with the legacy one. Don't change the file
+      shape without coordinating.
+    """
+    return CORE.data_dir / "ignored-devices.json"
 
 
-def trash_storage_path() -> str:
+def trash_storage_path() -> Path:
     return CORE.relative_config_path("trash")
 
 
-def archive_storage_path() -> str:
+def archive_storage_path() -> Path:
     return CORE.relative_config_path("archive")
 
 
+def _to_path_if_not_none(value: str | None) -> Path | None:
+    """Convert a string to Path if it's not None."""
+    return Path(value) if value is not None else None
+
+
 class StorageJSON:
+    """Persisted device metadata sidecar.
+
+    Used by:
+    - esphome.dashboard (legacy dashboard)
+    - device-builder (esphome/device-builder) — reads/writes the same
+      JSON file as the legacy dashboard so a single config_dir can be
+      shared between the two during the transition. The schema
+      (``storage_version``, field names, types) must stay backwards
+      compatible — coordinate with the device-builder team before
+      adding required fields or changing semantics of existing ones.
+    """
+
     def __init__(
         self,
         storage_version: int,
         name: str,
         friendly_name: str,
-        comment: str,
-        esphome_version: str,
+        comment: str | None,
+        esphome_version: str | None,
         src_version: int | None,
         address: str,
         web_port: int | None,
         target_platform: str,
-        build_path: str,
-        firmware_bin_path: str,
+        build_path: Path | None,
+        firmware_bin_path: Path | None,
         loaded_integrations: set[str],
+        loaded_platforms: set[str],
         no_mdns: bool,
         framework: str | None = None,
         core_platform: str | None = None,
+        toolchain: str | None = None,
+        area: str | None = None,
+        framework_version: str | None = None,
     ) -> None:
         # Version of the storage JSON schema
         assert storage_version is None or isinstance(storage_version, int)
@@ -86,12 +130,20 @@ class StorageJSON:
         self.firmware_bin_path = firmware_bin_path
         # A set of strings of names of loaded integrations
         self.loaded_integrations = loaded_integrations
+        # A set of strings for platform/integration combos
+        self.loaded_platforms = loaded_platforms
         # Is mDNS disabled
         self.no_mdns = no_mdns
         # The framework used to compile the firmware
         self.framework = framework
         # The core platform of this firmware. Like "esp32", "rp2040", "host" etc.
         self.core_platform = core_platform
+        # The toolchain used for the build ("platformio" / "esp-idf")
+        self.toolchain = toolchain
+        # The area of the node
+        self.area = area
+        # The framework version the build used (for esp32, the resolved ESP-IDF version)
+        self.framework_version = framework_version
 
     def as_dict(self):
         return {
@@ -104,12 +156,16 @@ class StorageJSON:
             "address": self.address,
             "web_port": self.web_port,
             "esp_platform": self.target_platform,
-            "build_path": self.build_path,
-            "firmware_bin_path": self.firmware_bin_path,
+            "build_path": str(self.build_path),
+            "firmware_bin_path": str(self.firmware_bin_path),
             "loaded_integrations": sorted(self.loaded_integrations),
+            "loaded_platforms": sorted(self.loaded_platforms),
             "no_mdns": self.no_mdns,
             "framework": self.framework,
             "core_platform": self.core_platform,
+            "toolchain": self.toolchain,
+            "area": self.area,
+            "framework_version": self.framework_version,
         }
 
     def to_json(self):
@@ -121,10 +177,12 @@ class StorageJSON:
     @staticmethod
     def from_esphome_core(esph: CoreType, old: StorageJSON | None) -> StorageJSON:
         hardware = esph.target_platform.upper()
+        framework_version: str | None = None
         if esph.is_esp32:
             from esphome.components import esp32
 
             hardware = esp32.get_esp32_variant(esph)
+            framework_version = str(esp32.idf_version())
         return StorageJSON(
             storage_version=1,
             name=esph.name,
@@ -138,6 +196,7 @@ class StorageJSON:
             build_path=esph.build_path,
             firmware_bin_path=esph.firmware_bin,
             loaded_integrations=esph.loaded_integrations,
+            loaded_platforms=esph.loaded_platforms,
             no_mdns=(
                 CONF_MDNS in esph.config
                 and CONF_DISABLED in esph.config[CONF_MDNS]
@@ -145,6 +204,9 @@ class StorageJSON:
             ),
             framework=esph.target_framework,
             core_platform=esph.target_platform,
+            toolchain=esph.toolchain.value if esph.toolchain is not None else None,
+            area=esph.area,
+            framework_version=framework_version,
         )
 
     @staticmethod
@@ -164,14 +226,15 @@ class StorageJSON:
             build_path=None,
             firmware_bin_path=None,
             loaded_integrations=set(),
+            loaded_platforms=set(),
             no_mdns=False,
             framework=None,
             core_platform=platform.lower(),
         )
 
     @staticmethod
-    def _load_impl(path: str) -> StorageJSON | None:
-        with codecs.open(path, "r", encoding="utf-8") as f_handle:
+    def _load_impl(path: Path) -> StorageJSON | None:
+        with path.open("r", encoding="utf-8") as f_handle:
             storage = json.load(f_handle)
         storage_version = storage["storage_version"]
         name = storage.get("name")
@@ -184,12 +247,16 @@ class StorageJSON:
         address = storage.get("address")
         web_port = storage.get("web_port")
         esp_platform = storage.get("esp_platform")
-        build_path = storage.get("build_path")
-        firmware_bin_path = storage.get("firmware_bin_path")
+        build_path = _to_path_if_not_none(storage.get("build_path"))
+        firmware_bin_path = _to_path_if_not_none(storage.get("firmware_bin_path"))
         loaded_integrations = set(storage.get("loaded_integrations", []))
+        loaded_platforms = set(storage.get("loaded_platforms", []))
         no_mdns = storage.get("no_mdns", False)
         framework = storage.get("framework")
         core_platform = storage.get("core_platform")
+        toolchain = storage.get("toolchain")
+        area = storage.get("area")
+        framework_version = storage.get("framework_version")
         return StorageJSON(
             storage_version,
             name,
@@ -203,17 +270,74 @@ class StorageJSON:
             build_path,
             firmware_bin_path,
             loaded_integrations,
+            loaded_platforms,
             no_mdns,
             framework,
             core_platform,
+            toolchain,
+            area,
+            framework_version,
         )
 
     @staticmethod
-    def load(path: str) -> StorageJSON | None:
+    def load(path: Path) -> StorageJSON | None:
         try:
             return StorageJSON._load_impl(path)
-        except Exception:  # pylint: disable=broad-except
+        except Exception:  # noqa: BLE001  # pylint: disable=broad-except
             return None
+
+    def apply_to_core(self) -> None:
+        """Populate CORE with the metadata upload/logs read.
+
+        Inverse of :meth:`from_esphome_core`. Keep paired -- a new
+        attribute upload/logs needs has to be captured there too.
+        Validator-only fields (loaded_integrations/platforms,
+        friendly_name) are skipped; the fast path doesn't run
+        validation and CORE.__init__ defaults them.
+        """
+        CORE.name = self.name
+        CORE.build_path = self.build_path
+        # Restore toolchain so upload/logs picks the right firmware_bin path.
+        # An unknown value (corrupt sidecar, or written by a newer ESPHome)
+        # just leaves CORE.toolchain None — the fallback then picks PlatformIO.
+        if self.toolchain and CORE.toolchain is None:
+            try:
+                CORE.toolchain = Toolchain(self.toolchain)
+            except ValueError:
+                _LOGGER.debug(
+                    "Ignoring unknown toolchain %r from %s",
+                    self.toolchain,
+                    storage_path(),
+                )
+        target_platform = self.core_platform or self.target_platform.lower()
+        CORE.data[KEY_CORE] = {
+            KEY_TARGET_PLATFORM: target_platform,
+            KEY_TARGET_FRAMEWORK: self.framework,
+        }
+        # The compile pipeline populates CORE.data[KEY_ESP32] when esp32's
+        # validator runs; on the cache fast path that validator is skipped,
+        # so populate the variant upload_using_esptool reads via
+        # esp32.get_esp32_variant(). target_platform on disk is the variant
+        # (e.g. "ESP32S3"); core_platform is the family (e.g. "esp32").
+        if target_platform == const.PLATFORM_ESP32:
+            from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION
+            from esphome.const import KEY_VARIANT
+
+            esp32_data = {KEY_VARIANT: self.target_platform}
+            if self.framework_version:
+                import esphome.config_validation as cv
+
+                try:
+                    esp32_data[KEY_IDF_VERSION] = cv.Version.parse(
+                        self.framework_version
+                    )
+                except ValueError as err:
+                    raise EsphomeError(
+                        f"Could not parse the framework version "
+                        f"{self.framework_version!r} from {storage_path()}. "
+                        f"Please clean the build files and recompile."
+                    ) from err
+            CORE.data[KEY_ESP32] = esp32_data
 
     def __eq__(self, o) -> bool:
         return isinstance(o, StorageJSON) and self.as_dict() == o.as_dict()
@@ -244,15 +368,18 @@ class EsphomeStorageJSON:
     @property
     def last_update_check(self) -> datetime | None:
         try:
-            return datetime.strptime(self.last_update_check_str, "%Y-%m-%dT%H:%M:%S")
-        except Exception:  # pylint: disable=broad-except
+            # Stored format is naive ISO without %z; preserved for backward compat.
+            return datetime.strptime(  # noqa: DTZ007
+                self.last_update_check_str, "%Y-%m-%dT%H:%M:%S"
+            )
+        except Exception:  # noqa: BLE001  # pylint: disable=broad-except
             return None
 
     @last_update_check.setter
     def last_update_check(self, new: datetime) -> None:
         self.last_update_check_str = new.strftime("%Y-%m-%dT%H:%M:%S")
 
-    def to_json(self) -> dict:
+    def to_json(self) -> str:
         return f"{json.dumps(self.as_dict(), indent=2)}\n"
 
     def save(self, path: str) -> None:
@@ -260,7 +387,7 @@ class EsphomeStorageJSON:
 
     @staticmethod
     def _load_impl(path: str) -> EsphomeStorageJSON | None:
-        with codecs.open(path, "r", encoding="utf-8") as f_handle:
+        with Path(path).open("r", encoding="utf-8") as f_handle:
             storage = json.load(f_handle)
         storage_version = storage["storage_version"]
         cookie_secret = storage.get("cookie_secret")
@@ -274,7 +401,7 @@ class EsphomeStorageJSON:
     def load(path: str) -> EsphomeStorageJSON | None:
         try:
             return EsphomeStorageJSON._load_impl(path)
-        except Exception:  # pylint: disable=broad-except
+        except Exception:  # noqa: BLE001  # pylint: disable=broad-except
             return None
 
     @staticmethod

@@ -1,21 +1,19 @@
 #ifdef USE_ESP32_VARIANT_ESP32S3
 #include "st7701s.h"
+#include "esphome/core/gpio.h"
 #include "esphome/core/log.h"
+#include <driver/gpio.h>
 
-namespace esphome {
-namespace st7701s {
+namespace esphome::st7701s {
 
 void ST7701S::setup() {
-  esph_log_config(TAG, "Setting up ST7701S");
   this->spi_setup();
   this->write_init_sequence_();
 
   esp_lcd_rgb_panel_config_t config{};
   config.flags.fb_in_psram = 1;
-#if ESP_IDF_VERSION_MAJOR >= 5
   config.bounce_buffer_size_px = this->width_ * 10;
   config.num_fbs = 1;
-#endif  // ESP_IDF_VERSION_MAJOR
   config.timings.h_res = this->width_;
   config.timings.v_res = this->height_;
   config.timings.hsync_pulse_width = this->hsync_pulse_width_;
@@ -27,31 +25,29 @@ void ST7701S::setup() {
   config.timings.flags.pclk_active_neg = this->pclk_inverted_;
   config.timings.pclk_hz = this->pclk_frequency_;
   config.clk_src = LCD_CLK_SRC_PLL160M;
-  config.psram_trans_align = 64;
   size_t data_pin_count = sizeof(this->data_pins_) / sizeof(this->data_pins_[0]);
   for (size_t i = 0; i != data_pin_count; i++) {
-    config.data_gpio_nums[i] = this->data_pins_[i]->get_pin();
+    config.data_gpio_nums[i] = static_cast<gpio_num_t>(this->data_pins_[i]->get_pin());
   }
   config.data_width = data_pin_count;
-  config.disp_gpio_num = -1;
-  config.hsync_gpio_num = this->hsync_pin_->get_pin();
-  config.vsync_gpio_num = this->vsync_pin_->get_pin();
-  config.de_gpio_num = this->de_pin_->get_pin();
-  config.pclk_gpio_num = this->pclk_pin_->get_pin();
+  config.disp_gpio_num = GPIO_NUM_NC;
+  config.hsync_gpio_num = static_cast<gpio_num_t>(this->hsync_pin_->get_pin());
+  config.vsync_gpio_num = static_cast<gpio_num_t>(this->vsync_pin_->get_pin());
+  config.de_gpio_num = static_cast<gpio_num_t>(this->de_pin_->get_pin());
+  config.pclk_gpio_num = static_cast<gpio_num_t>(this->pclk_pin_->get_pin());
   esp_err_t err = esp_lcd_new_rgb_panel(&config, &this->handle_);
-  ESP_ERROR_CHECK(esp_lcd_panel_reset(this->handle_));
-  ESP_ERROR_CHECK(esp_lcd_panel_init(this->handle_));
   if (err != ESP_OK) {
     esph_log_e(TAG, "lcd_new_rgb_panel failed: %s", esp_err_to_name(err));
+    this->mark_failed();
+    return;
   }
-  esph_log_config(TAG, "ST7701S setup complete");
+  ESP_ERROR_CHECK(esp_lcd_panel_reset(this->handle_));
+  ESP_ERROR_CHECK(esp_lcd_panel_init(this->handle_));
 }
 
 void ST7701S::loop() {
-#if ESP_IDF_VERSION_MAJOR >= 5
   if (this->handle_ != nullptr)
     esp_lcd_rgb_panel_restart(this->handle_);
-#endif  // ESP_IDF_VERSION_MAJOR
 }
 
 void ST7701S::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
@@ -61,8 +57,9 @@ void ST7701S::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
   // if color mapping is required, pass the buck.
   // note that endianness is not considered here - it is assumed to match!
   if (bitness != display::COLOR_BITNESS_565) {
-    return display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
-                                            x_pad);
+    display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
+                                     x_pad);
+    return;
   }
   x_start += this->offset_x_;
   y_start += this->offset_y_;
@@ -181,18 +178,22 @@ void ST7701S::write_init_sequence_() {
 
 void ST7701S::dump_config() {
   ESP_LOGCONFIG("", "ST7701S RGB LCD");
-  ESP_LOGCONFIG(TAG, "  Height: %u", this->height_);
-  ESP_LOGCONFIG(TAG, "  Width: %u", this->width_);
+  ESP_LOGCONFIG(TAG,
+                "  Height: %u\n"
+                "  Width: %u",
+                this->height_, this->width_);
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  DE Pin: ", this->de_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   size_t data_pin_count = sizeof(this->data_pins_) / sizeof(this->data_pins_[0]);
-  for (size_t i = 0; i != data_pin_count; i++)
-    ESP_LOGCONFIG(TAG, "  Data pin %d: %s", i, (this->data_pins_[i])->dump_summary().c_str());
+  char pin_summary[GPIO_SUMMARY_MAX_LEN];
+  for (size_t i = 0; i != data_pin_count; i++) {
+    this->data_pins_[i]->dump_summary(pin_summary, sizeof(pin_summary));
+    ESP_LOGCONFIG(TAG, "  Data pin %d: %s", i, pin_summary);
+  }
   ESP_LOGCONFIG(TAG, "  SPI Data rate: %dMHz", (unsigned) (this->data_rate_ / 1000000));
 }
 
-}  // namespace st7701s
-}  // namespace esphome
+}  // namespace esphome::st7701s
 #endif  // USE_ESP32_VARIANT_ESP32S3

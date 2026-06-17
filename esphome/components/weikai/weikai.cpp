@@ -4,70 +4,11 @@
 /// @details The classes declared in this file can be used by the Weikai family
 
 #include "weikai.h"
+#include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace weikai {
-
-/*! @mainpage Weikai source code documentation
- This documentation provides information about the implementation of the family of WeiKai Components in ESPHome.
- Here is the class diagram related to Weikai family of components:
- @image html weikai_class.png
-
-  @section WKRingBuffer_ The WKRingBuffer template class
-The WKRingBuffer template class has it names implies implement a simple ring buffer helper class. This straightforward
-container implements FIFO functionality, enabling bytes to be pushed into one side and popped from the other in the
-order of entry. Implementation is classic and therefore not described in any details.
-
-  @section WeikaiRegister_ The WeikaiRegister class
- The WeikaiRegister helper class creates objects that act as proxies to the device registers.
- @details This is an abstract virtual class (interface) that provides all the necessary access to registers while hiding
- the actual implementation. The access to the registers can be made through an I²C bus in for example for wk2168_i2c
- component or through a SPI bus for example in the case of the wk2168_spi component. Derived classes will actually
- performs the specific bus operations.
-
- @section WeikaiRegisterI2C_ WeikaiRegisterI2C
- The weikai_i2c::WeikaiRegisterI2C class implements the virtual methods of the WeikaiRegister class for an I2C bus.
-
-  @section WeikaiRegisterSPI_ WeikaiRegisterSPI
- The weikai_spi::WeikaiRegisterSPI class implements the virtual methods of the WeikaiRegister class for an SPI bus.
-
- @section WeikaiComponent_ The WeikaiComponent class
-The WeikaiComponent class stores the information global to a WeiKai family component and provides methods to set/access
-this information. It also serves as a container for WeikaiChannel instances. This is done by maintaining an array of
-references these WeikaiChannel instances. This class derives from the esphome::Component classes. This class override
-esphome::Component::loop() method to facilitate the seamless transfer of accumulated bytes from the receive
-FIFO into the ring buffer. This process ensures quick access to the stored bytes, enhancing the overall efficiency of
-the component.
-
- @section WeikaiComponentI2C_ WeikaiComponentI2C
- The weikai_i2c::WeikaiComponentI2C class implements the virtual methods of the WeikaiComponent class for an I2C bus.
-
-  @section WeikaiComponentSPI_ WeikaiComponentSPI
- The weikai_spi::WeikaiComponentSPI class implements the virtual methods of the WeikaiComponent class for an SPI bus.
-
- @section WeikaiGPIOPin_ WeikaiGPIOPin class
- The WeikaiGPIOPin class is an helper class to expose the GPIO pins of WK family components as if they were internal
- GPIO pins. It also provides the setup() and dump_summary() methods.
-
- @section WeikaiChannel_ The WeikaiChannel class
- The WeikaiChannel class is used to implement all the virtual methods of the ESPHome uart::UARTComponent class. An
- individual instance of this class is created for each UART channel. It has a link back to the WeikaiComponent object it
- belongs to. This class derives from the uart::UARTComponent class. It collaborates through an aggregation with
- WeikaiComponent. This implies that WeikaiComponent acts as a container, housing several WeikaiChannel instances.
- Furthermore, the WeikaiChannel class derives from the ESPHome uart::UARTComponent class, it also has an association
- relationship with the WKRingBuffer and WeikaiRegister helper classes. Consequently, when a WeikaiChannel instance is
- destroyed, the associated WKRingBuffer instance is also destroyed.
-
-*/
+namespace esphome::weikai {
 
 static const char *const TAG = "weikai";
-
-/// @brief convert an int to binary representation as C++ std::string
-/// @param val integer to convert
-/// @return a std::string
-inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
-/// Convert std::string to C string
-#define I2S2CS(val) (i2s(val).c_str())
 
 /// @brief measure the time elapsed between two calls
 /// @param last_time time of the previous call
@@ -154,7 +95,7 @@ WeikaiRegister &WeikaiRegister::operator|=(uint8_t value) {
 // The WeikaiComponent methods
 ///////////////////////////////////////////////////////////////////////////////
 void WeikaiComponent::loop() {
-  if ((this->component_state_ & COMPONENT_STATE_MASK) != COMPONENT_STATE_LOOP)
+  if (!this->is_in_loop_state())
     return;
 
   // If there are some bytes in the receive FIFO we transfers them to the ring buffers
@@ -164,7 +105,7 @@ void WeikaiComponent::loop() {
     transferred += child->xfer_fifo_to_buffer_();
   }
   if (transferred > 0) {
-    ESP_LOGV(TAG, "we transferred %d bytes from fifo to buffer...", transferred);
+    ESP_LOGV(TAG, "transferred %d bytes from fifo to buffer", transferred);
   }
 
 #ifdef TEST_COMPONENT
@@ -173,8 +114,8 @@ void WeikaiComponent::loop() {
   uint32_t time = 0;
 
   if (test_mode_ == 1) {  // test component in loopback
-    ESP_LOGI(TAG, "Component loop %" PRIu32 " for %s : %" PRIu32 " ms since last call ...", loop_count++,
-             this->get_name(), millis() - loop_time);
+    ESP_LOGI(TAG, "Component loop %" PRIu32 " for %s : %" PRIu32 " ms since last call", loop_count++, this->get_name(),
+             millis() - loop_time);
     loop_time = millis();
     char message[64];
     elapsed_ms(time);  // set time to now
@@ -186,14 +127,14 @@ void WeikaiComponent::loop() {
       uint32_t const start_time = millis();
       while (children_[i]->tx_fifo_is_not_empty_()) {  // wait until buffer empty
         if (millis() - start_time > 1500) {
-          ESP_LOGE(TAG, "timeout while flushing - %d bytes left in buffer...", children_[i]->tx_in_fifo_());
+          ESP_LOGE(TAG, "timeout while flushing - %d bytes left in buffer", children_[i]->tx_in_fifo_());
           break;
         }
         yield();  // reschedule our thread to avoid blocking
       }
       bool status = children_[i]->uart_receive_test_(message);
-      ESP_LOGI(TAG, "Test %s => send/received %u bytes %s - execution time %" PRIu32 " ms...", message,
-               RING_BUFFER_SIZE, status ? "correctly" : "with error", elapsed_ms(time));
+      ESP_LOGI(TAG, "Test %s => send/received %u bytes %s - execution time %" PRIu32 " ms", message, RING_BUFFER_SIZE,
+               status ? "correctly" : "with error", elapsed_ms(time));
     }
   }
 
@@ -222,17 +163,18 @@ void WeikaiComponent::test_gpio_input_() {
   static bool init_input{false};
   static uint8_t state{0};
   uint8_t value;
+  char bin_buf[9];  // 8 binary digits + null
   if (!init_input) {
     init_input = true;
     // set all pins in input mode
     this->reg(WKREG_GPDIR, 0) = 0x00;
     ESP_LOGI(TAG, "initializing all pins to input mode");
     state = this->reg(WKREG_GPDAT, 0);
-    ESP_LOGI(TAG, "initial input data state = %02X (%s)", state, I2S2CS(state));
+    ESP_LOGI(TAG, "initial input data state = %02X (%s)", state, format_bin_to(bin_buf, state));
   }
   value = this->reg(WKREG_GPDAT, 0);
   if (value != state) {
-    ESP_LOGI(TAG, "Input data changed from %02X to %02X (%s)", state, value, I2S2CS(value));
+    ESP_LOGI(TAG, "Input data changed from %02X to %02X (%s)", state, value, format_bin_to(bin_buf, value));
     state = value;
   }
 }
@@ -240,6 +182,7 @@ void WeikaiComponent::test_gpio_input_() {
 void WeikaiComponent::test_gpio_output_() {
   static bool init_output{false};
   static uint8_t state{0};
+  char bin_buf[9];  // 8 binary digits + null
   if (!init_output) {
     init_output = true;
     // set all pins in output mode
@@ -250,7 +193,7 @@ void WeikaiComponent::test_gpio_output_() {
   }
   state = ~state;
   this->reg(WKREG_GPDAT, 0) = state;
-  ESP_LOGI(TAG, "Flipping all outputs to %02X (%s)", state, I2S2CS(state));
+  ESP_LOGI(TAG, "Flipping all outputs to %02X (%s)", state, format_bin_to(bin_buf, state));
   delay(100);  // NOLINT
 }
 #endif
@@ -260,7 +203,9 @@ void WeikaiComponent::test_gpio_output_() {
 ///////////////////////////////////////////////////////////////////////////////
 bool WeikaiComponent::read_pin_val_(uint8_t pin) {
   this->input_state_ = this->reg(WKREG_GPDAT, 0);
-  ESP_LOGVV(TAG, "reading input pin %u = %u in_state %s", pin, this->input_state_ & (1 << pin), I2S2CS(input_state_));
+  char bin_buf[9];
+  ESP_LOGVV(TAG, "reading input pin %u = %u in_state %s", pin, this->input_state_ & (1 << pin),
+            format_bin_to(bin_buf, this->input_state_));
   return this->input_state_ & (1 << pin);
 }
 
@@ -270,7 +215,9 @@ void WeikaiComponent::write_pin_val_(uint8_t pin, bool value) {
   } else {
     this->output_state_ &= ~(1 << pin);
   }
-  ESP_LOGVV(TAG, "writing output pin %d with %d out_state %s", pin, uint8_t(value), I2S2CS(this->output_state_));
+  char bin_buf[9];
+  ESP_LOGVV(TAG, "writing output pin %d with %d out_state %s", pin, uint8_t(value),
+            format_bin_to(bin_buf, this->output_state_));
   this->reg(WKREG_GPDAT, 0) = this->output_state_;
 }
 
@@ -284,7 +231,8 @@ void WeikaiComponent::set_pin_direction_(uint8_t pin, gpio::Flags flags) {
       ESP_LOGE(TAG, "pin %d direction invalid", pin);
     }
   }
-  ESP_LOGVV(TAG, "setting pin %d direction to %d pin_config=%s", pin, flags, I2S2CS(this->pin_config_));
+  char bin_buf[9];
+  ESP_LOGVV(TAG, "setting pin %d direction to %d pin_config=%s", pin, flags, format_bin_to(bin_buf, this->pin_config_));
   this->reg(WKREG_GPDIR, 0) = this->pin_config_;  // TODO check ~
 }
 
@@ -293,24 +241,21 @@ void WeikaiGPIOPin::setup() {
                 flags_ == gpio::FLAG_INPUT          ? "Input"
                 : this->flags_ == gpio::FLAG_OUTPUT ? "Output"
                                                     : "NOT SPECIFIED");
-  // ESP_LOGCONFIG(TAG, "Setting GPIO pins mode to '%s' %02X", I2S2CS(this->flags_), this->flags_);
   this->pin_mode(this->flags_);
 }
 
-std::string WeikaiGPIOPin::dump_summary() const {
-  char buffer[32];
-  snprintf(buffer, sizeof(buffer), "%u via WeiKai %s", this->pin_, this->parent_->get_name());
-  return buffer;
+size_t WeikaiGPIOPin::dump_summary(char *buffer, size_t len) const {
+  return buf_append_printf(buffer, len, 0, "%u via WeiKai %s", this->pin_, this->parent_->get_name());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // The WeikaiChannel methods
 ///////////////////////////////////////////////////////////////////////////////
 void WeikaiChannel::setup_channel() {
-  ESP_LOGCONFIG(TAG, "  Setting up UART %s:%s ...", this->parent_->get_name(), this->get_channel_name());
+  ESP_LOGCONFIG(TAG, "  Setting up UART %s:%s", this->parent_->get_name(), this->get_channel_name());
   // we enable transmit and receive on this channel
   if (this->check_channel_down()) {
-    ESP_LOGCONFIG(TAG, "  Error channel %s not working...", this->get_channel_name());
+    ESP_LOGCONFIG(TAG, "  Error channel %s not working", this->get_channel_name());
   }
   this->reset_fifo_();
   this->receive_buffer_.clear();
@@ -319,11 +264,13 @@ void WeikaiChannel::setup_channel() {
 }
 
 void WeikaiChannel::dump_channel() {
-  ESP_LOGCONFIG(TAG, "  UART %s ...", this->get_channel_name());
-  ESP_LOGCONFIG(TAG, "    Baud rate: %" PRIu32 " Bd", this->baud_rate_);
-  ESP_LOGCONFIG(TAG, "    Data bits: %u", this->data_bits_);
-  ESP_LOGCONFIG(TAG, "    Stop bits: %u", this->stop_bits_);
-  ESP_LOGCONFIG(TAG, "    Parity: %s", p2s(this->parity_));
+  ESP_LOGCONFIG(TAG,
+                "  UART %s\n"
+                "    Baud rate: %" PRIu32 " Bd\n"
+                "    Data bits: %u\n"
+                "    Stop bits: %u\n"
+                "    Parity: %s",
+                this->get_channel_name(), this->baud_rate_, this->data_bits_, this->stop_bits_, p2s(this->parity_));
 }
 
 void WeikaiChannel::reset_fifo_() {
@@ -349,8 +296,9 @@ void WeikaiChannel::set_line_param_() {
       break;  // no parity 000x
   }
   this->reg(WKREG_LCR) = lcr;  // write LCR
+  char bin_buf[9];
   ESP_LOGV(TAG, "    line config: %d data_bits, %d stop_bits, parity %s register [%s]", this->data_bits_,
-           this->stop_bits_, p2s(this->parity_), I2S2CS(lcr));
+           this->stop_bits_, p2s(this->parity_), format_bin_to(bin_buf, lcr));
 }
 
 void WeikaiChannel::set_baudrate_() {
@@ -386,7 +334,8 @@ size_t WeikaiChannel::tx_in_fifo_() {
   if (tfcnt == 0) {
     uint8_t const fsr = this->reg(WKREG_FSR);
     if (fsr & FSR_TFFULL) {
-      ESP_LOGVV(TAG, "tx FIFO full FSR=%s", I2S2CS(fsr));
+      char bin_buf[9];
+      ESP_LOGVV(TAG, "tx FIFO full FSR=%s", format_bin_to(bin_buf, fsr));
       tfcnt = FIFO_SIZE;
     }
   }
@@ -398,14 +347,15 @@ size_t WeikaiChannel::rx_in_fifo_() {
   size_t available = this->reg(WKREG_RFCNT);
   uint8_t const fsr = this->reg(WKREG_FSR);
   if (fsr & (FSR_RFOE | FSR_RFLB | FSR_RFFE | FSR_RFPE)) {
+    char bin_buf[9];
     if (fsr & FSR_RFOE)
-      ESP_LOGE(TAG, "Receive data overflow FSR=%s", I2S2CS(fsr));
+      ESP_LOGE(TAG, "Receive data overflow FSR=%s", format_bin_to(bin_buf, fsr));
     if (fsr & FSR_RFLB)
-      ESP_LOGE(TAG, "Receive line break FSR=%s", I2S2CS(fsr));
+      ESP_LOGE(TAG, "Receive line break FSR=%s", format_bin_to(bin_buf, fsr));
     if (fsr & FSR_RFFE)
-      ESP_LOGE(TAG, "Receive frame error FSR=%s", I2S2CS(fsr));
+      ESP_LOGE(TAG, "Receive frame error FSR=%s", format_bin_to(bin_buf, fsr));
     if (fsr & FSR_RFPE)
-      ESP_LOGE(TAG, "Receive parity error FSR=%s", I2S2CS(fsr));
+      ESP_LOGE(TAG, "Receive parity error FSR=%s", format_bin_to(bin_buf, fsr));
   }
   if ((available == 0) && (fsr & FSR_RFDAT)) {
     // here we should be very careful because we can have something like this:
@@ -414,11 +364,13 @@ size_t WeikaiChannel::rx_in_fifo_() {
     // -  so to be sure we need to do another read of RFCNT and if it is still zero -> buffer full
     available = this->reg(WKREG_RFCNT);
     if (available == 0) {  // still zero ?
-      ESP_LOGV(TAG, "rx FIFO is full FSR=%s", I2S2CS(fsr));
+      char bin_buf[9];
+      ESP_LOGV(TAG, "rx FIFO is full FSR=%s", format_bin_to(bin_buf, fsr));
       available = FIFO_SIZE;
     }
   }
-  ESP_LOGVV(TAG, "rx FIFO contain %d bytes - FSR status=%s", available, I2S2CS(fsr));
+  char bin_buf2[9];
+  ESP_LOGVV(TAG, "rx FIFO contain %d bytes - FSR status=%s", available, format_bin_to(bin_buf2, fsr));
   return available;
 }
 
@@ -448,7 +400,7 @@ bool WeikaiChannel::peek_byte(uint8_t *buffer) {
   return this->receive_buffer_.peek(*buffer);
 }
 
-int WeikaiChannel::available() {
+size_t WeikaiChannel::available() {
   size_t available = this->receive_buffer_.count();
   if (!available)
     available = xfer_fifo_to_buffer_();
@@ -459,7 +411,7 @@ bool WeikaiChannel::read_array(uint8_t *buffer, size_t length) {
   bool status = true;
   auto available = this->receive_buffer_.count();
   if (length > available) {
-    ESP_LOGW(TAG, "read_array: buffer underflow requested %d bytes only %d bytes available...", length, available);
+    ESP_LOGW(TAG, "read_array: buffer underflow requested %d bytes only %d bytes available", length, available);
     length = available;
     status = false;
   }
@@ -474,24 +426,26 @@ bool WeikaiChannel::read_array(uint8_t *buffer, size_t length) {
 
 void WeikaiChannel::write_array(const uint8_t *buffer, size_t length) {
   if (length > XFER_MAX_SIZE) {
-    ESP_LOGE(TAG, "Write_array: invalid call - requested %d bytes but max size %d ...", length, XFER_MAX_SIZE);
+    ESP_LOGE(TAG, "Write_array: invalid call - requested %d bytes but max size %d", length, XFER_MAX_SIZE);
     length = XFER_MAX_SIZE;
   }
   this->reg(0).write_fifo(const_cast<uint8_t *>(buffer), length);
 }
 
-void WeikaiChannel::flush() {
+uart::UARTFlushResult WeikaiChannel::flush() {
   uint32_t const start_time = millis();
   while (this->tx_fifo_is_not_empty_()) {  // wait until buffer empty
     if (millis() - start_time > 200) {
-      ESP_LOGW(TAG, "WARNING flush timeout - still %d bytes not sent after 200 ms...", this->tx_in_fifo_());
-      return;
+      ESP_LOGW(TAG, "WARNING flush timeout - still %d bytes not sent after 200 ms", this->tx_in_fifo_());
+      return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
     }
     yield();  // reschedule our thread to avoid blocking
   }
+  return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
 }
 
 size_t WeikaiChannel::xfer_fifo_to_buffer_() {
+  size_t total = 0;
   size_t to_transfer;
   size_t free;
   while ((to_transfer = this->rx_in_fifo_()) && (free = this->receive_buffer_.free())) {
@@ -505,9 +459,10 @@ size_t WeikaiChannel::xfer_fifo_to_buffer_() {
       this->reg(0).read_fifo(data, to_transfer);
       for (size_t i = 0; i < to_transfer; i++)
         this->receive_buffer_.push(data[i]);
+      total += to_transfer;
     }
   }  // while work to do
-  return to_transfer;
+  return total;
 }
 
 ///
@@ -561,7 +516,7 @@ void WeikaiChannel::uart_send_test_(char *message) {
     this->flush();
     to_send -= XFER_MAX_SIZE;
   }
-  ESP_LOGV(TAG, "%s => sent %d bytes - exec time %d µs ...", message, RING_BUFFER_SIZE, micros() - start_exec);
+  ESP_LOGV(TAG, "%s => sent %d bytes - exec time %d µs", message, RING_BUFFER_SIZE, micros() - start_exec);
 }
 
 /// @brief test read_array method
@@ -578,7 +533,7 @@ bool WeikaiChannel::uart_receive_test_(char *message) {
     while (XFER_MAX_SIZE > this->available()) {
       this->xfer_fifo_to_buffer_();
       if (millis() - start_time > 1500) {
-        ESP_LOGE(TAG, "uart_receive_test_() timeout: only %d bytes received...", this->available());
+        ESP_LOGE(TAG, "uart_receive_test_() timeout: only %d bytes received", this->available());
         break;
       }
       yield();  // reschedule our thread to avoid blocking
@@ -590,20 +545,20 @@ bool WeikaiChannel::uart_receive_test_(char *message) {
   uint8_t peek_value = 0;
   this->peek_byte(&peek_value);
   if (peek_value != 0) {
-    ESP_LOGE(TAG, "Peek first byte value error...");
+    ESP_LOGE(TAG, "Peek first byte value error");
     status = false;
   }
 
   for (size_t i = 0; i < RING_BUFFER_SIZE; i++) {
     if (buffer[i] != i % XFER_MAX_SIZE) {
-      ESP_LOGE(TAG, "Read buffer contains error...b=%x i=%x", buffer[i], i % XFER_MAX_SIZE);
+      ESP_LOGE(TAG, "Read buffer contains error b=%x i=%x", buffer[i], i % XFER_MAX_SIZE);
       print_buffer(buffer);
       status = false;
       break;
     }
   }
 
-  ESP_LOGV(TAG, "%s => received %d bytes  status %s - exec time %d µs ...", message, received, status ? "OK" : "ERROR",
+  ESP_LOGV(TAG, "%s => received %d bytes  status %s - exec time %d µs", message, received, status ? "OK" : "ERROR",
            micros() - start_exec);
   return status;
 }
@@ -611,5 +566,4 @@ bool WeikaiChannel::uart_receive_test_(char *message) {
 /// @}
 #endif
 
-}  // namespace weikai
-}  // namespace esphome
+}  // namespace esphome::weikai

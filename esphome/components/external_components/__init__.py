@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import Any
 
 from esphome import git, loader
 import esphome.config_validation as cv
@@ -17,7 +18,7 @@ from esphome.const import (
     TYPE_GIT,
     TYPE_LOCAL,
 )
-from esphome.core import CORE
+from esphome.core import CORE, TimePeriodSeconds
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,11 +36,11 @@ CONFIG_SCHEMA = cv.ensure_list(
 )
 
 
-async def to_code(config):
+async def to_code(config: dict[str, Any]) -> None:
     pass
 
 
-def _process_git_config(config: dict, refresh) -> str:
+def _process_git_config(config: dict[str, Any], refresh: TimePeriodSeconds) -> Path:
     repo_dir, _ = git.clone_or_update(
         url=config[CONF_URL],
         ref=config.get(CONF_REF),
@@ -70,7 +71,7 @@ def _process_git_config(config: dict, refresh) -> str:
     return components_dir
 
 
-def _process_single_config(config: dict):
+def _process_single_config(config: dict[str, Any]) -> None:
     conf = config[CONF_SOURCE]
     if conf[CONF_TYPE] == TYPE_GIT:
         with cv.prepend_path([CONF_SOURCE]):
@@ -80,7 +81,7 @@ def _process_single_config(config: dict):
     elif conf[CONF_TYPE] == TYPE_LOCAL:
         components_dir = Path(CORE.relative_config_path(conf[CONF_PATH]))
     else:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     if config[CONF_COMPONENTS] == "all":
         num_components = len(list(components_dir.glob("*/__init__.py")))
@@ -105,7 +106,7 @@ def _process_single_config(config: dict):
     loader.install_meta_finder(components_dir, allowed_components=allowed_components)
 
 
-def do_external_components_pass(config: dict) -> None:
+def do_external_components_pass(config: dict[str, Any]) -> None:
     conf = config.get(DOMAIN)
     if conf is None:
         return

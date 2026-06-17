@@ -3,6 +3,8 @@ from esphome.components import number
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
+    CONF_MOVE_THRESHOLD,
+    CONF_STILL_THRESHOLD,
     CONF_TIMEOUT,
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_ILLUMINANCE,
@@ -24,13 +26,12 @@ MaxDistanceTimeoutNumber = ld2410_ns.class_("MaxDistanceTimeoutNumber", number.N
 CONF_MAX_MOVE_DISTANCE_GATE = "max_move_distance_gate"
 CONF_MAX_STILL_DISTANCE_GATE = "max_still_distance_gate"
 CONF_LIGHT_THRESHOLD = "light_threshold"
-CONF_STILL_THRESHOLD = "still_threshold"
-CONF_MOVE_THRESHOLD = "move_threshold"
 
 TIMEOUT_GROUP = "timeout"
 
 CONFIG_SCHEMA = cv.Schema(
     {
+        cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
         cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410Component),
         cv.Inclusive(CONF_TIMEOUT, TIMEOUT_GROUP): number.number_schema(
             MaxDistanceTimeoutNumber,

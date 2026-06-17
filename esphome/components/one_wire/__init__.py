@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ADDRESS
+from esphome.const import CONF_ADDRESS, CONF_INDEX
 
 CODEOWNERS = ["@ssieb"]
 
@@ -18,13 +18,13 @@ def one_wire_device_schema():
 
     :return: The 1-wire device schema, `extend` this in your config schema.
     """
-    schema = cv.Schema(
+    return cv.Schema(
         {
             cv.GenerateID(CONF_ONE_WIRE_ID): cv.use_id(OneWireBus),
-            cv.Optional(CONF_ADDRESS): cv.hex_uint64_t,
+            cv.Exclusive(CONF_ADDRESS, "index_or_address"): cv.hex_uint64_t,
+            cv.Exclusive(CONF_INDEX, "index_or_address"): cv.uint8_t,
         }
     )
-    return schema
 
 
 async def register_one_wire_device(var, config):
@@ -32,9 +32,11 @@ async def register_one_wire_device(var, config):
 
     Sets the 1-wire bus to use and the 1-wire address.
 
-    This is a coroutine, you need to await it with a 'yield' expression!
+    This is a coroutine, you need to await it with an 'await' expression!
     """
     parent = await cg.get_variable(config[CONF_ONE_WIRE_ID])
     cg.add(var.set_one_wire_bus(parent))
     if (address := config.get(CONF_ADDRESS)) is not None:
         cg.add(var.set_address(address))
+    if (index := config.get(CONF_INDEX)) is not None:
+        cg.add(var.set_index(index))

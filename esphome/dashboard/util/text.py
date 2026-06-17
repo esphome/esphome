@@ -1,25 +1,15 @@
+"""Back-compat shim for ``friendly_name_slugify``.
+
+The function moved to :mod:`esphome.helpers` so it survives the legacy
+dashboard's eventual removal — see the
+``esphome.helpers.friendly_name_slugify`` docstring. This module
+re-exports the name so existing
+``from esphome.dashboard.util.text import friendly_name_slugify``
+imports keep working while downstream consumers migrate.
+"""
+
 from __future__ import annotations
 
-import unicodedata
+from esphome.helpers import friendly_name_slugify
 
-from esphome.const import ALLOWED_NAME_CHARS
-
-
-def strip_accents(value):
-    return "".join(
-        c
-        for c in unicodedata.normalize("NFD", str(value))
-        if unicodedata.category(c) != "Mn"
-    )
-
-
-def friendly_name_slugify(value):
-    value = (
-        strip_accents(value)
-        .lower()
-        .replace(" ", "-")
-        .replace("_", "-")
-        .replace("--", "-")
-        .strip("-")
-    )
-    return "".join(c for c in value if c in ALLOWED_NAME_CHARS)
+__all__ = ["friendly_name_slugify"]

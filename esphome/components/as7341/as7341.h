@@ -4,10 +4,9 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace as7341 {
+namespace esphome::as7341 {
 
-static const uint8_t AS7341_CHIP_ID = 0X09;
+static const uint8_t AS7341_CHIP_ID = 0x09;
 
 static const uint8_t AS7341_CONFIG = 0x70;
 static const uint8_t AS7341_LED = 0x74;
@@ -126,7 +125,6 @@ class AS7341Component : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void loop() override;
   void update() override;
 
@@ -173,7 +171,6 @@ class AS7341Component : public PollingComponent, public i2c::I2CDevice {
   SUB_SENSOR(irradiance_photopic);
   SUB_SENSOR(irradiance_par);
   SUB_SENSOR(ppfd);
-  SUB_SENSOR(ct);
   SUB_SENSOR(color_temperature);
   SUB_SENSOR(saturation_level);
 #endif
@@ -289,5 +286,4 @@ class AS7341Component : public PollingComponent, public i2c::I2CDevice {
   uint16_t swap_bytes(uint16_t data);
 };
 
-}  // namespace as7341
-}  // namespace esphome
+}  // namespace esphome::as7341

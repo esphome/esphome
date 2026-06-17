@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
@@ -16,8 +17,6 @@ CODEOWNERS = ["@DrCoolZic"]
 AUTO_LOAD = ["uart"]
 
 MULTI_CONF = True
-CONF_STOP_BITS = "stop_bits"
-CONF_PARITY = "parity"
 CONF_CRYSTAL = "crystal"
 CONF_UART = "uart"
 CONF_TEST_MODE = "test_mode"
@@ -60,6 +59,7 @@ WKBASE_SCHEMA = cv.Schema(
                 cv.Required(CONF_ID): cv.declare_id(WeikaiChannel),
                 cv.Optional(CONF_CHANNEL, default=0): cv.int_range(min=0, max=3),
                 cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
+                cv.Optional(CONF_DATA_BITS, default=8): cv.one_of(8, int=True),
                 cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
                 cv.Optional(CONF_PARITY, default="NONE"): cv.enum(
                     uart.UART_PARITY_OPTIONS, upper=True

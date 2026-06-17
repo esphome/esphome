@@ -8,8 +8,7 @@
 #include "esphome/components/number/number.h"
 #include "mqtt_component.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 class MQTTNumberComponent : public mqtt::MQTTComponent {
  public:
@@ -33,14 +32,13 @@ class MQTTNumberComponent : public mqtt::MQTTComponent {
 
  protected:
   /// Override for MQTTComponent, returns "number".
-  std::string component_type() const override;
+  const char *component_type() const override;
   const EntityBase *get_entity() const override;
 
   number::Number *number_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

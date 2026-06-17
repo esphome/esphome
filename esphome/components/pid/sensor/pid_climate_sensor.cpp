@@ -1,9 +1,8 @@
 #include "pid_climate_sensor.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
-namespace esphome {
-namespace pid {
+namespace esphome::pid {
 
 static const char *const TAG = "pid.sensor";
 
@@ -55,5 +54,4 @@ void PIDClimateSensor::update_from_parent_() {
 }
 void PIDClimateSensor::dump_config() { LOG_SENSOR("", "PID Climate Sensor", this); }
 
-}  // namespace pid
-}  // namespace esphome
+}  // namespace esphome::pid

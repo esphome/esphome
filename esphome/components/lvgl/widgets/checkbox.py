@@ -2,7 +2,7 @@ from esphome.config_validation import Optional
 from esphome.const import CONF_TEXT
 
 from ..defines import CONF_INDICATOR, CONF_MAIN, CONF_PAD_COLUMN
-from ..lv_validation import lv_text, pixels
+from ..lv_validation import lv_text, padding
 from ..lvcode import lv
 from ..schemas import TEXT_SCHEMA
 from ..types import LvBoolean
@@ -17,11 +17,10 @@ class CheckboxType(WidgetType):
             CONF_CHECKBOX,
             LvBoolean("lv_checkbox_t"),
             (CONF_MAIN, CONF_INDICATOR),
-            TEXT_SCHEMA.extend(
-                {
-                    Optional(CONF_PAD_COLUMN): pixels,
-                }
-            ),
+            {
+                **TEXT_SCHEMA,
+                Optional(CONF_PAD_COLUMN): padding,
+            },
         )
 
     async def to_code(self, w: Widget, config):

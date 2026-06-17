@@ -1,11 +1,11 @@
 #pragma once
 
+#include <queue>
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace kamstrup_kmp {
+namespace esphome::kamstrup_kmp {
 
 /*
     ===========================================================================
@@ -83,7 +83,6 @@ class KamstrupKMPComponent : public PollingComponent, public uart::UARTDevice {
   void set_flow_sensor(sensor::Sensor *sensor) { this->flow_sensor_ = sensor; }
   void set_volume_sensor(sensor::Sensor *sensor) { this->volume_sensor_ = sensor; }
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
   void loop() override;
   void add_custom_sensor(sensor::Sensor *sensor, uint16_t command) {
@@ -124,8 +123,4 @@ class KamstrupKMPComponent : public PollingComponent, public uart::UARTDevice {
   void set_sensor_value_(uint16_t command, float value, uint8_t unit_idx);
 };
 
-// "true" CCITT CRC-16
-uint16_t crc16_ccitt(const uint8_t *buffer, int len);
-
-}  // namespace kamstrup_kmp
-}  // namespace esphome
+}  // namespace esphome::kamstrup_kmp

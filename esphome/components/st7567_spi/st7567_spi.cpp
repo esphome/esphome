@@ -1,13 +1,11 @@
 #include "st7567_spi.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace st7567_spi {
+namespace esphome::st7567_spi {
 
 static const char *const TAG = "st7567_spi";
 
 void SPIST7567::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up SPI ST7567 display...");
   this->spi_setup();
   this->dc_pin_->setup();
   if (this->cs_)
@@ -19,13 +17,15 @@ void SPIST7567::setup() {
 
 void SPIST7567::dump_config() {
   LOG_DISPLAY("", "SPI ST7567", this);
-  ESP_LOGCONFIG(TAG, "  Model: %s", this->model_str_());
+  ESP_LOGCONFIG(TAG,
+                "  Model: %s\n"
+                "  Mirror X: %s\n"
+                "  Mirror Y: %s\n"
+                "  Invert Colors: %s",
+                this->model_str_(), YESNO(this->mirror_x_), YESNO(this->mirror_y_), YESNO(this->invert_colors_));
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  ESP_LOGCONFIG(TAG, "  Mirror X: %s", YESNO(this->mirror_x_));
-  ESP_LOGCONFIG(TAG, "  Mirror Y: %s", YESNO(this->mirror_y_));
-  ESP_LOGCONFIG(TAG, "  Invert Colors: %s", YESNO(this->invert_colors_));
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -62,5 +62,4 @@ void HOT SPIST7567::write_display_data() {
   }
 }
 
-}  // namespace st7567_spi
-}  // namespace esphome
+}  // namespace esphome::st7567_spi

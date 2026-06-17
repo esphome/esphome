@@ -5,8 +5,7 @@
 
 #include "tormatic_protocol.h"
 
-namespace esphome {
-namespace tormatic {
+namespace esphome::tormatic {
 
 using namespace esphome::cover;
 
@@ -16,7 +15,6 @@ class Tormatic : public cover::Cover, public uart::UARTDevice, public PollingCom
   void loop() override;
   void update() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; };
 
   void set_open_duration(uint32_t duration) { this->open_duration_ = duration; }
   void set_close_duration(uint32_t duration) { this->close_duration_ = duration; }
@@ -44,6 +42,7 @@ class Tormatic : public cover::Cover, public uart::UARTDevice, public PollingCom
   void handle_gate_status_(GateStatus s);
 
   uint32_t seq_tx_{0};
+  optional<MessageHeader> pending_hdr_{};
 
   GateStatus current_status_{PAUSED};
 
@@ -56,5 +55,4 @@ class Tormatic : public cover::Cover, public uart::UARTDevice, public PollingCom
   optional<float> target_position_{};
 };
 
-}  // namespace tormatic
-}  // namespace esphome
+}  // namespace esphome::tormatic

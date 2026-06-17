@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 import argparse
-import glob
 import inspect
 import json
 import os
+from pathlib import Path
 import re
 
 import voluptuous as vol
@@ -39,7 +39,11 @@ parser.add_argument(
 )
 parser.add_argument("--check", action="store_true", help="Check only for CI")
 
-args = parser.parse_args()
+# Module-level ``Namespace`` so helper functions can reference ``args``
+# without threading it through every call. ``main()`` fills it via
+# ``parser.parse_args(namespace=args)``; tests import this module without
+# invoking ``main()`` and rely on the defaults below.
+args = argparse.Namespace(output_path=".", check=False)
 
 DUMP_RAW = False
 DUMP_UNKNOWN = False
@@ -67,17 +71,16 @@ def get_component_names():
     # pylint: disable-next=redefined-outer-name,reimported
     from esphome.loader import CORE_COMPONENTS_PATH
 
-    component_names = ["esphome", "sensor", "esp32", "esp8266"]
-    skip_components = []
-
-    for d in os.listdir(CORE_COMPONENTS_PATH):
-        if not d.startswith("__") and os.path.isdir(
-            os.path.join(CORE_COMPONENTS_PATH, d)
-        ):
-            if d not in component_names and d not in skip_components:
-                component_names.append(d)
-
-    return component_names
+    # return sorted(
+    #     ["esphome", "sensor", "esp32", "esp8266", "adc", "touchscreen", "xpt2046"]
+    # )
+    return sorted(
+        [
+            d.name
+            for d in CORE_COMPONENTS_PATH.iterdir()
+            if not d.name.startswith("__") and d.is_dir()
+        ]
+    )
 
 
 def load_components():
@@ -118,39 +121,65 @@ from esphome.util import Registry  # noqa: E402
 # pylint: enable=wrong-import-position
 
 
+def sort_obj(obj):
+    if isinstance(obj, dict):
+        is_enum = obj.get(S_TYPE) == "enum"
+        result = {}
+        for k, v in sorted(obj.items(), key=lambda x: str(x[0])):
+            if is_enum and k == "values" and isinstance(v, dict):
+                # Preserve source order of enum options
+                result[k] = {vk: sort_obj(vv) for vk, vv in v.items()}
+            else:
+                result[k] = sort_obj(v)
+        return result
+    if isinstance(obj, list):
+        return [sort_obj(item) for item in obj]
+    return obj
+
+
 def write_file(name, obj):
-    full_path = os.path.join(args.output_path, name + ".json")
+    full_path = Path(args.output_path) / f"{name}.json"
+    sorted_obj = sort_obj(obj)
     if JSON_DUMP_PRETTY:
-        json_str = json.dumps(obj, indent=2)
+        json_str = json.dumps(sorted_obj, indent=2)
     else:
-        json_str = json.dumps(obj, separators=(",", ":"))
+        json_str = json.dumps(sorted_obj, separators=(",", ":"))
     write_file_if_changed(full_path, json_str)
-    print(f"Wrote {full_path}")
 
 
 def delete_extra_files(keep_names):
-    for d in os.listdir(args.output_path):
-        if d.endswith(".json") and d[:-5] not in keep_names:
-            os.remove(os.path.join(args.output_path, d))
-            print(f"Deleted {d}")
+    output_path = Path(args.output_path)
+    count = 0
+    for d in output_path.iterdir():
+        if d.suffix == ".json" and d.stem not in keep_names:
+            count += 1
+            d.unlink()
+    return count
 
 
 def register_module_schemas(key, module, manifest=None):
+    count = 0
     for name, schema in module_schemas(module):
+        count += 1
         register_known_schema(key, name, schema)
 
-    if manifest:
+    if (
+        manifest
+        and manifest.multi_conf
+        and key in output
+        and S_CONFIG_SCHEMA in output[key][S_SCHEMAS]
+    ):
         # Multi conf should allow list of components
         # not sure about 2nd part of the if, might be useless config (e.g. as3935)
-        if manifest.multi_conf and S_CONFIG_SCHEMA in output[key][S_SCHEMAS]:
-            output[key][S_SCHEMAS][S_CONFIG_SCHEMA]["is_list"] = True
+        output[key][S_SCHEMAS][S_CONFIG_SCHEMA]["is_list"] = True
+    return count
 
 
 def register_known_schema(module, name, schema):
     if module not in output:
         output[module] = {S_SCHEMAS: {}}
     config = convert_config(schema, f"{module}/{name}")
-    if S_TYPE not in config:
+    if S_TYPE not in config and name != "FINAL_VALIDATE_SCHEMA" and module != "core":
         print(f"Config var without type: {module}.{name}")
 
     output[module][S_SCHEMAS][name] = config
@@ -173,14 +202,23 @@ def module_schemas(module):
     except OSError:
         # some empty __init__ files
         module_str = ""
-    schemas = {}
+    schemas = []
     for m_attr_name in dir(module):
         m_attr_obj = getattr(module, m_attr_name)
         if is_convertible_schema(m_attr_obj):
-            schemas[module_str.find(m_attr_name)] = [m_attr_name, m_attr_obj]
+            # Find where the name is assigned in the module source to preserve
+            # definition order. Using ^NAME\s*= (multiline) targets assignments
+            # at column 0, so "CONFIG_SCHEMA" won't collide with "CONFIG_SCHEMA_BASE".
+            match = re.search(
+                r"^" + re.escape(m_attr_name) + r"\s*=",
+                module_str,
+                re.MULTILINE,
+            )
+            pos = match.start() if match else -1
+            schemas.append((pos, m_attr_name, m_attr_obj))
 
-    for pos in sorted(schemas.keys()):
-        yield schemas[pos]
+    for _, name, obj in sorted(schemas, key=lambda x: x[0]):
+        yield name, obj
 
 
 found_registries = {}
@@ -230,7 +268,7 @@ def add_module_registries(domain, module):
                 reg_type = attr_name.partition("_")[0].lower()
                 found_registries[repr(attr_obj)] = f"{domain}.{reg_type}"
 
-            for name in attr_obj.keys():
+            for name in attr_obj:
                 if "." not in name:
                     reg_entry_name = name
                 else:
@@ -238,9 +276,16 @@ def add_module_registries(domain, module):
                     if len(parts) == 2:
                         reg_domain = parts[0]
                         reg_entry_name = parts[1]
-                    else:
-                        reg_domain = ".".join([parts[1], parts[0]])
-                        reg_entry_name = parts[2]
+                    elif len(parts) == 3:
+                        # is a platform or a component?
+                        if parts[0] in schema_core[S_PLATFORMS]:
+                            reg_domain = ".".join([parts[1], parts[0]])
+                            reg_entry_name = parts[2]
+                        elif parts[0] in schema_core[S_COMPONENTS]:
+                            reg_domain = parts[0]
+                            reg_entry_name = ".".join([parts[1], parts[2]])
+                        else:
+                            print(f"registry {name} is unknown")
 
                 if reg_domain not in output:
                     output[reg_domain] = {}
@@ -249,8 +294,6 @@ def add_module_registries(domain, module):
                 output[reg_domain][reg_type][reg_entry_name] = convert_config(
                     attr_obj[name].schema, f"{reg_domain}/{reg_type}/{reg_entry_name}"
                 )
-
-                # print(f"{domain} - {attr_name} - {name}")
 
 
 def do_pins():
@@ -298,7 +341,7 @@ def fix_remote_receiver():
     remote_receiver_schema["CONFIG_SCHEMA"] = {
         "type": "schema",
         "schema": {
-            "extends": ["binary_sensor.BINARY_SENSOR_SCHEMA", "core.COMPONENT_SCHEMA"],
+            "extends": ["binary_sensor._BINARY_SENSOR_SCHEMA", "core.COMPONENT_SCHEMA"],
             "config_vars": output["remote_base"].pop("binary"),
         },
     }
@@ -328,6 +371,35 @@ def fix_font():
     )
 
 
+def fix_globals():
+    if "globals" not in output:
+        return
+    from esphome.components.globals import _NON_RESTORING_SCHEMA
+
+    config = convert_config(_NON_RESTORING_SCHEMA, "globals/CONFIG_SCHEMA")
+    config["is_list"] = True
+    output["globals"][S_SCHEMAS][S_CONFIG_SCHEMA] = config
+
+
+def fix_mapping():
+    if "mapping" not in output:
+        return
+    from esphome.components.mapping import BASE_SCHEMA
+
+    config = convert_config(BASE_SCHEMA, "mapping/CONFIG_SCHEMA")
+    output["mapping"][S_SCHEMAS][S_CONFIG_SCHEMA] = config
+
+
+def fix_image():
+    if "image" not in output:
+        return
+    from esphome.components.image import IMAGE_SCHEMA
+
+    config = convert_config(IMAGE_SCHEMA, "image/CONFIG_SCHEMA")
+    config["is_list"] = True
+    output["image"][S_SCHEMAS][S_CONFIG_SCHEMA] = config
+
+
 def fix_menu():
     if "display_menu_base" not in output:
         return
@@ -353,7 +425,34 @@ def fix_menu():
     # 4. Configure menu items inside as recursive
     menu = schemas["MENU_TYPES"][S_SCHEMA][S_CONFIG_VARS]["items"]["types"]["menu"]
     menu[S_CONFIG_VARS].pop("items")
-    menu[S_EXTENDS] = ["display_menu_base.MENU_TYPES"]
+    menu[S_EXTENDS].append("display_menu_base.MENU_TYPES")
+
+
+def fix_lvgl_widgets():
+    # lvgl's `widgets:` is a recursive tree (a widget can contain widgets). The
+    # dumper has no cycle detection, so — like fix_menu — hoist the inlined
+    # widget-type enumeration into a named schema and reference it for both the
+    # top-level list and each widget's own children, instead of expanding it.
+    if "lvgl" not in output:
+        return
+    schemas = output["lvgl"][S_SCHEMAS]
+    config_vars = schemas["CONFIG_SCHEMA"][S_SCHEMA][S_CONFIG_VARS]
+    widgets = config_vars.get("widgets")
+    if not widgets or S_SCHEMA not in widgets or S_CONFIG_VARS not in widgets[S_SCHEMA]:
+        return
+    # 1. Hoist the (one-level) widget enumeration into a named schema.
+    schemas["WIDGET_TYPES"] = {S_TYPE: S_SCHEMA, S_SCHEMA: widgets[S_SCHEMA]}
+    # 2. Reference it from the top-level widgets: list instead of inlining.
+    widgets[S_SCHEMA] = {S_EXTENDS: ["lvgl.WIDGET_TYPES"]}
+    # 3. Let every widget contain child widgets, via the same named ref.
+    for widget in schemas["WIDGET_TYPES"][S_SCHEMA][S_CONFIG_VARS].values():
+        if widget.get(S_TYPE) == S_SCHEMA and S_SCHEMA in widget:
+            widget[S_SCHEMA].setdefault(S_CONFIG_VARS, {})["widgets"] = {
+                S_TYPE: S_SCHEMA,
+                "is_list": True,
+                "key": "Optional",
+                S_SCHEMA: {S_EXTENDS: ["lvgl.WIDGET_TYPES"]},
+            }
 
 
 def get_logger_tags():
@@ -366,13 +465,11 @@ def get_logger_tags():
         "scheduler",
         "api.service",
     ]
-    for x in os.walk(CORE_COMPONENTS_PATH):
-        for y in glob.glob(os.path.join(x[0], "*.cpp")):
-            with open(y, encoding="utf-8") as file:
-                data = file.read()
-                match = pattern.search(data)
-                if match:
-                    tags.append(match.group(1))
+    for file in CORE_COMPONENTS_PATH.rglob("*.cpp"):
+        data = file.read_text(encoding="utf-8")
+        match = pattern.search(data)
+        if match:
+            tags.append(match.group(1))
     return tags
 
 
@@ -411,11 +508,16 @@ def add_referenced_recursive(referenced_schemas, config_var, path, eat_schema=Fa
 
             s1 = get_str_path_schema(k)
             p = k.split(".")
-            if len(p) == 3 and path[0] == f"{p[0]}.{p[1]}":
-                # special case for schema inside platforms
-                add_referenced_recursive(
-                    referenced_schemas, s1, [path[0], "schemas", p[2]]
-                )
+            if len(p) == 3:
+                if path[0] == f"{p[0]}.{p[1]}":
+                    # special case for schema inside platforms
+                    add_referenced_recursive(
+                        referenced_schemas, s1, [path[0], "schemas", p[2]]
+                    )
+                else:
+                    add_referenced_recursive(
+                        referenced_schemas, s1, [f"{p[0]}.{p[1]}", "schemas", p[2]]
+                    )
             else:
                 add_referenced_recursive(
                     referenced_schemas, s1, [p[0], "schemas", p[1]]
@@ -438,8 +540,7 @@ def get_str_path_schema(strPath):
     if len(parts) > 2:
         parts[0] += "." + parts[1]
         parts[1] = parts[2]
-    s1 = output.get(parts[0], {}).get(S_SCHEMAS, {}).get(parts[1], {})
-    return s1
+    return output.get(parts[0], {}).get(S_SCHEMAS, {}).get(parts[1], {})
 
 
 def pop_str_path_schema(strPath):
@@ -527,7 +628,6 @@ def shrink():
                 else:
                     arr_s.pop(S_EXTENDS)
                     arr_s |= key_s[S_SCHEMA]
-                    print(x)
 
     # simple types should be spread on each component,
     # for enums so far these are logger.is_log_level, cover.validate_cover_state and pulse_counter.sensor.COUNT_MODE_SCHEMA
@@ -576,6 +676,10 @@ def shrink():
                 domain_schemas[S_SCHEMAS].pop(schema_name)
 
 
+def is_cv_invalid(schema):
+    return repr(schema).startswith("<function invalid.<locals>.validator")
+
+
 def build_schema():
     print("Building schema")
 
@@ -606,7 +710,8 @@ def build_schema():
             output[domain] = {S_COMPONENTS: {}, S_SCHEMAS: {}}
             platforms[domain] = {}
         elif manifest.config_schema is not None:
-            # e.g. dallas
+            if is_cv_invalid(manifest.config_schema):
+                continue
             output[domain] = {S_SCHEMAS: {S_CONFIG_SCHEMA: {}}}
 
     # Generate platforms (e.g. sensor, binary_sensor, climate )
@@ -617,7 +722,9 @@ def build_schema():
     # Generate components
     for domain, manifest in components.items():
         if domain not in platforms:
-            if manifest.config_schema is not None:
+            if manifest.config_schema is not None and not is_cv_invalid(
+                manifest.config_schema
+            ):
                 core_components[domain] = {}
                 if len(manifest.dependencies) > 0:
                     core_components[domain]["dependencies"] = manifest.dependencies
@@ -626,14 +733,15 @@ def build_schema():
         for platform in platforms:
             platform_manifest = get_platform(domain=platform, platform=domain)
             if platform_manifest is not None:
-                output[platform][S_COMPONENTS][domain] = {}
-                if len(platform_manifest.dependencies) > 0:
-                    output[platform][S_COMPONENTS][domain]["dependencies"] = (
-                        platform_manifest.dependencies
-                    )
-                register_module_schemas(
+                count = register_module_schemas(
                     f"{domain}.{platform}", platform_manifest.module, platform_manifest
                 )
+                if count > 0:
+                    output[platform][S_COMPONENTS].setdefault(domain, {})
+                    if len(platform_manifest.dependencies) > 0:
+                        output[platform][S_COMPONENTS][domain]["dependencies"] = (
+                            platform_manifest.dependencies
+                        )
 
     # Do registries
     add_module_registries("core", automation)
@@ -653,9 +761,13 @@ def build_schema():
     fix_remote_receiver()
     fix_script()
     fix_font()
+    fix_globals()
+    fix_mapping()
+    fix_image()
     add_logger_tags()
     shrink()
     fix_menu()
+    fix_lvgl_widgets()
 
     # aggregate components, so all component info is in same file, otherwise we have dallas.json, dallas.sensor.json, etc.
     data = {}
@@ -673,12 +785,19 @@ def build_schema():
     # bundle core inside esphome
     data["esphome"]["core"] = data.pop("core")["core"]
 
+    if GENERATED_ID_TYPES:
+        print(
+            "Unconsumed id_type matchers:",
+            [id_type for _, id_type in GENERATED_ID_TYPES],
+        )
+
     if args.check:  # do not gen files
         return
 
     for c, s in data.items():
         write_file(c, s)
-    delete_extra_files(data.keys())
+    deleted = delete_extra_files(data.keys())
+    print(f"Written {len(data.items())} deleted {deleted} files.")
 
 
 def is_convertible_schema(schema):
@@ -695,7 +814,7 @@ def is_convertible_schema(schema):
     if repr(schema) in ejs.registry_schemas:
         return True
     if isinstance(schema, dict):
-        for k in schema.keys():
+        for k in schema:
             if isinstance(k, (cv.Required, cv.Optional)):
                 return True
     return False
@@ -707,15 +826,36 @@ def convert_config(schema, path):
     return converted
 
 
+GENERATED_ID_TYPES = [
+    (
+        lambda p: p.startswith("i2c/CONFIG_SCHEMA/") and p.endswith("/id"),
+        {"class": "i2c::I2CBus", "parents": ["Component"]},
+    ),
+    (
+        lambda p: p == "uart/CONFIG_SCHEMA/val 1/ext0/all/id",
+        {"class": "uart::UARTComponent", "parents": ["Component"]},
+    ),
+    (
+        lambda p: p == "http_request/CONFIG_SCHEMA/val 1/ext0/all/id",
+        {"class": "http_request::HttpRequestComponent", "parents": ["Component"]},
+    ),
+    (
+        lambda p: (
+            p
+            == "uptime.sensor/CONFIG_SCHEMA/type_timestamp/ext0/ext1/all/time_id/val 1"
+        ),
+        {},
+    ),
+    (lambda p: p == "esp_ldo/action/voltage.adjust/all/all/id", {}),
+]
+
+
 def convert(schema, config_var, path):
     """config_var can be a config_var or a schema: both are dicts
     config_var has a S_TYPE property, if this is S_SCHEMA, then it has a S_SCHEMA property
     schema does not have a type property, schema can have optionally both S_CONFIG_VARS and S_EXTENDS
     """
     repr_schema = repr(schema)
-
-    if path.startswith("ads1115.sensor") and path.endswith("gain"):
-        print(path)
 
     if repr_schema in known_schemas:
         schema_info = known_schemas[(repr_schema)]
@@ -740,6 +880,12 @@ def convert(schema, config_var, path):
         extended = ejs.extended_schemas.get(repr_schema)
         for idx, ext in enumerate(extended):
             convert(ext, config_var, f"{path}/ext{idx}")
+        return
+
+    if isinstance(schema, cv.SensitiveValidator):
+        config_var["sensitive"] = True
+        config_var["sensitive_source"] = "explicit"
+        convert(schema.inner, config_var, f"{path}/sensitive")
         return
 
     if isinstance(schema, cv.All):
@@ -805,15 +951,29 @@ def convert(schema, config_var, path):
         elif schema_type == "enum":
             config_var[S_TYPE] = "enum"
             config_var["values"] = dict.fromkeys(list(data.keys()))
+        elif schema_type == "variant_enum":
+            # Per-variant enum (e.g. psram mode/speed): each value carries the
+            # list of variants that accept it so clients can filter to the
+            # user's selected variant. Additive to the plain enum format —
+            # consumers that ignore the metadata still see every option.
+            config_var[S_TYPE] = "enum"
+            config_var["values"] = {
+                value: {"variants": variants} for value, variants in data.items()
+            }
         elif schema_type == "maybe":
-            config_var[S_TYPE] = S_SCHEMA
+            # maybe_simple_value: either a scalar shorthand (mapped to the key in
+            # data[1]) or the full wrapped schema. The wrapped schema is usually a
+            # plain Schema (converts to a "schema" config var), but may be something
+            # else, e.g. a typed_schema (converts to a "typed" config var with
+            # "types" and no top-level "schema" key). Merge whatever it produced
+            # rather than assuming a "schema" key is present.
             config_var["maybe"] = data[1]
-            config_var["schema"] = convert_config(data[0], path + "/maybe")["schema"]
+            config_var.update(convert_config(data[0], path + "/maybe"))
         # esphome/on_boot
         elif schema_type == "automation":
             extra_schema = None
             config_var[S_TYPE] = "trigger"
-            if automation.AUTOMATION_SCHEMA == ejs.extended_schemas[repr(data)][0]:
+            if ejs.extended_schemas[repr(data)][0] == automation.AUTOMATION_SCHEMA:
                 extra_schema = ejs.extended_schemas[repr(data)][1]
             if (
                 extra_schema is not None and len(extra_schema) > 1
@@ -837,8 +997,6 @@ def convert(schema, config_var, path):
                             schema({"delay": "1s"})
                         except cv.Invalid:
                             config_var["has_required_var"] = True
-                else:
-                    print("figure out " + path)
         elif schema_type == "effects":
             config_var[S_TYPE] = "registry"
             config_var["registry"] = "light.effects"
@@ -866,7 +1024,7 @@ def convert(schema, config_var, path):
             }
         elif schema_type == "use_id":
             if inspect.ismodule(data):
-                m_attr_obj = getattr(data, "CONFIG_SCHEMA")
+                m_attr_obj = data.CONFIG_SCHEMA
                 use_schema = known_schemas.get(repr(m_attr_obj))
                 if use_schema:
                     [output_module, output_name] = use_schema[0][1].split(".")
@@ -875,34 +1033,24 @@ def convert(schema, config_var, path):
                         "id"
                     ]["id_type"]["class"]
                     config_var[S_TYPE] = "use_id"
-                else:
-                    print("TODO deferred?")
             elif isinstance(data, str):
                 # TODO: Figure out why pipsolar does this
                 config_var["use_id_type"] = data
             else:
                 config_var["use_id_type"] = str(data.base)
                 config_var[S_TYPE] = "use_id"
+        elif schema_type == "schema":
+            # A callable CONFIG_SCHEMA that returned a representative schema
+            # for extraction (model-driven components); walk it as usual.
+            convert(data, config_var, path)
         else:
             raise TypeError("Unknown extracted schema type")
     elif config_var.get("key") == "GeneratedID":
-        if path.startswith("i2c/CONFIG_SCHEMA/") and path.endswith("/id"):
-            config_var["id_type"] = {
-                "class": "i2c::I2CBus",
-                "parents": ["Component"],
-            }
-        elif path == "uart/CONFIG_SCHEMA/val 1/ext0/all/id":
-            config_var["id_type"] = {
-                "class": "uart::UARTComponent",
-                "parents": ["Component"],
-            }
-        elif path == "http_request/CONFIG_SCHEMA/val 1/ext0/all/id":
-            config_var["id_type"] = {
-                "class": "http_request::HttpRequestComponent",
-                "parents": ["Component"],
-            }
-        elif path == "pins/esp32/val 1/id":
-            config_var["id_type"] = "pin"
+        for i, (matcher, id_type) in enumerate(GENERATED_ID_TYPES):
+            if matcher(path):
+                config_var["id_type"] = id_type
+                GENERATED_ID_TYPES.pop(i)
+                break
         else:
             print("Cannot determine id_type for " + path)
 
@@ -921,9 +1069,8 @@ def convert(schema, config_var, path):
             config = convert_config(schema_type, path + "/type_" + schema_key)
             types[schema_key] = config["schema"]
 
-    elif DUMP_UNKNOWN:
-        if S_TYPE not in config_var:
-            config_var["unknown"] = repr_schema
+    elif DUMP_UNKNOWN and S_TYPE not in config_var:
+        config_var["unknown"] = repr_schema
 
     if DUMP_PATH:
         config_var["path"] = path
@@ -982,13 +1129,77 @@ def convert_keys(converted, schema, path):
             else:
                 converted["key_type"] = str(k)
 
-        if hasattr(k, "default") and str(k.default) != "...":
+        # ``cv.OnlyWith`` / ``cv.OnlyWithout`` expose ``default`` as
+        # a property that returns ``vol.UNDEFINED`` when the gating
+        # component isn't loaded — and at schema-generation time
+        # ``CORE.loaded_integrations`` is always empty, so the
+        # property never resolves. The unconditional default lives
+        # on ``_default``; expose it under a *new* per-class field
+        # (``default_with`` for ``OnlyWith``, ``default_without`` for
+        # ``OnlyWithout``) that bundles the value with the gating
+        # component(s). Pure addition to the bundle — old consumers
+        # that read only ``default`` see these fields as
+        # default-less (same as today, no regression where they used
+        # to fall back to a hard-coded UI default); new consumers
+        # opt-in to the gated fields and apply the default
+        # *conditionally* on which integrations the user has
+        # loaded. Without the gate info, an ethernet-only config on
+        # ``cv.OnlyWith(K, "wifi", default=True)`` would otherwise
+        # render ``True`` even though ESPHome itself wouldn't apply
+        # the default for that config.
+        if isinstance(k, (cv.OnlyWith, cv.OnlyWithout)):
+            default_value = k._default()
+            if default_value is not None:
+                components = (
+                    list(k._component)
+                    if isinstance(k._component, list)
+                    else [k._component]
+                )
+                gate_field = (
+                    "default_with" if isinstance(k, cv.OnlyWith) else "default_without"
+                )
+                result[gate_field] = {
+                    "value": str(default_value),
+                    "components": components,
+                }
+        elif hasattr(k, "default") and str(k.default) != "...":
             default_value = k.default()
             if default_value is not None:
                 result["default"] = str(default_value)
 
+        # UI hint from ``cv.Optional`` / ``cv.Required`` — surfaced
+        # for schema consumers (visual editors) that want to render
+        # advanced / yaml-only fields differently. ESPHome itself
+        # ignores it at runtime; emitting only when set keeps the
+        # dump compact and backwards-compatible with markers that
+        # don't carry the attribute. The value is the str form of
+        # ``cv.Visibility`` (e.g. ``"advanced"`` / ``"yaml_only"``)
+        # so consumers don't need an enum import to read it.
+        visibility = getattr(k, "visibility", None)
+        if visibility is not None:
+            result["visibility"] = str(visibility)
+
         # Do value
         convert(v, result, path + f"/{str(k)}")
+
+        # Heuristic fallback when the field's validator wasn't explicitly
+        # wrapped in ``cv.sensitive``. Only applies to string-typed leaves so
+        # we don't mark unrelated nested schemas. ``sensitive_source`` lets
+        # consumers distinguish explicit markers from heuristic matches. Pull
+        # the field name from ``k.schema`` (voluptuous's stored key) rather
+        # than ``str(k)`` so we don't depend on the marker's ``__str__``
+        # representation.
+        if (
+            "sensitive" not in result
+            and result.get(S_TYPE) == "string"
+            and isinstance(k, (cv.Required, cv.Optional, cv.Inclusive, cv.Exclusive))
+            and isinstance(k.schema, str)
+        ):
+            key_lower = k.schema.lower()
+            if any(frag in key_lower for frag in cv.SENSITIVE_KEY_FRAGMENTS):
+                result["sensitive"] = True
+                result["sensitive_source"] = "heuristic"
+
         if "schema" not in converted:
             converted[S_TYPE] = "schema"
             converted["schema"] = {S_CONFIG_VARS: {}}
@@ -1006,4 +1217,10 @@ def convert_keys(converted, schema, path):
             config_vars["string"] = config_vars.pop(key)
 
 
-build_schema()
+def main() -> None:
+    parser.parse_args(namespace=args)
+    build_schema()
+
+
+if __name__ == "__main__":
+    main()

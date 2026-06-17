@@ -8,8 +8,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace xiaomi_wx08zm {
+namespace esphome::xiaomi_wx08zm {
 
 class XiaomiWX08ZM : public Component,
                      public binary_sensor::BinarySensorInitiallyOff,
@@ -20,7 +19,6 @@ class XiaomiWX08ZM : public Component,
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
 
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void set_tablet(sensor::Sensor *tablet) { tablet_ = tablet; }
   void set_battery_level(sensor::Sensor *battery_level) { battery_level_ = battery_level; }
 
@@ -30,7 +28,6 @@ class XiaomiWX08ZM : public Component,
   sensor::Sensor *battery_level_{nullptr};
 };
 
-}  // namespace xiaomi_wx08zm
-}  // namespace esphome
+}  // namespace esphome::xiaomi_wx08zm
 
 #endif

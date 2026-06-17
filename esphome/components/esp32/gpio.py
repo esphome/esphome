@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 import logging
 from typing import Any
@@ -26,19 +27,31 @@ from .const import (
     VARIANT_ESP32,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
     VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
     VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
+    VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
     esp32_ns,
 )
 from .gpio_esp32 import esp32_validate_gpio_pin, esp32_validate_supports
 from .gpio_esp32_c2 import esp32_c2_validate_gpio_pin, esp32_c2_validate_supports
 from .gpio_esp32_c3 import esp32_c3_validate_gpio_pin, esp32_c3_validate_supports
+from .gpio_esp32_c5 import esp32_c5_validate_gpio_pin, esp32_c5_validate_supports
 from .gpio_esp32_c6 import esp32_c6_validate_gpio_pin, esp32_c6_validate_supports
+from .gpio_esp32_c61 import esp32_c61_validate_gpio_pin, esp32_c61_validate_supports
 from .gpio_esp32_h2 import esp32_h2_validate_gpio_pin, esp32_h2_validate_supports
+from .gpio_esp32_h4 import esp32_h4_validate_gpio_pin, esp32_h4_validate_supports
+from .gpio_esp32_h21 import esp32_h21_validate_gpio_pin, esp32_h21_validate_supports
+from .gpio_esp32_p4 import esp32_p4_validate_gpio_pin, esp32_p4_validate_supports
 from .gpio_esp32_s2 import esp32_s2_validate_gpio_pin, esp32_s2_validate_supports
 from .gpio_esp32_s3 import esp32_s3_validate_gpio_pin, esp32_s3_validate_supports
+from .gpio_esp32_s31 import esp32_s31_validate_gpio_pin, esp32_s31_validate_supports
 
 ESP32InternalGPIOPin = esp32_ns.class_("ESP32InternalGPIOPin", cg.InternalGPIOPin)
 
@@ -64,8 +77,7 @@ def _lookup_pin(value):
 def _translate_pin(value):
     if isinstance(value, dict) or value is None:
         raise cv.Invalid(
-            "This variable only supports pin numbers, not full pin schemas "
-            "(with inverted and mode)."
+            "This variable only supports pin numbers, not full pin schemas (with inverted and mode)."
         )
     if isinstance(value, int) and not isinstance(value, bool):
         return value
@@ -82,37 +94,61 @@ def _translate_pin(value):
 
 @dataclass
 class ESP32ValidationFunctions:
-    pin_validation: Any
-    usage_validation: Any
+    pin_validation: Callable[[int], int]
+    usage_validation: Callable[[dict[str, Any]], dict[str, Any]]
 
 
 _esp32_validations = {
     VARIANT_ESP32: ESP32ValidationFunctions(
         pin_validation=esp32_validate_gpio_pin, usage_validation=esp32_validate_supports
     ),
-    VARIANT_ESP32S2: ESP32ValidationFunctions(
-        pin_validation=esp32_s2_validate_gpio_pin,
-        usage_validation=esp32_s2_validate_supports,
+    VARIANT_ESP32C2: ESP32ValidationFunctions(
+        pin_validation=esp32_c2_validate_gpio_pin,
+        usage_validation=esp32_c2_validate_supports,
     ),
     VARIANT_ESP32C3: ESP32ValidationFunctions(
         pin_validation=esp32_c3_validate_gpio_pin,
         usage_validation=esp32_c3_validate_supports,
     ),
-    VARIANT_ESP32S3: ESP32ValidationFunctions(
-        pin_validation=esp32_s3_validate_gpio_pin,
-        usage_validation=esp32_s3_validate_supports,
-    ),
-    VARIANT_ESP32C2: ESP32ValidationFunctions(
-        pin_validation=esp32_c2_validate_gpio_pin,
-        usage_validation=esp32_c2_validate_supports,
+    VARIANT_ESP32C5: ESP32ValidationFunctions(
+        pin_validation=esp32_c5_validate_gpio_pin,
+        usage_validation=esp32_c5_validate_supports,
     ),
     VARIANT_ESP32C6: ESP32ValidationFunctions(
         pin_validation=esp32_c6_validate_gpio_pin,
         usage_validation=esp32_c6_validate_supports,
     ),
+    VARIANT_ESP32C61: ESP32ValidationFunctions(
+        pin_validation=esp32_c61_validate_gpio_pin,
+        usage_validation=esp32_c61_validate_supports,
+    ),
     VARIANT_ESP32H2: ESP32ValidationFunctions(
         pin_validation=esp32_h2_validate_gpio_pin,
         usage_validation=esp32_h2_validate_supports,
+    ),
+    VARIANT_ESP32H4: ESP32ValidationFunctions(
+        pin_validation=esp32_h4_validate_gpio_pin,
+        usage_validation=esp32_h4_validate_supports,
+    ),
+    VARIANT_ESP32H21: ESP32ValidationFunctions(
+        pin_validation=esp32_h21_validate_gpio_pin,
+        usage_validation=esp32_h21_validate_supports,
+    ),
+    VARIANT_ESP32P4: ESP32ValidationFunctions(
+        pin_validation=esp32_p4_validate_gpio_pin,
+        usage_validation=esp32_p4_validate_supports,
+    ),
+    VARIANT_ESP32S2: ESP32ValidationFunctions(
+        pin_validation=esp32_s2_validate_gpio_pin,
+        usage_validation=esp32_s2_validate_supports,
+    ),
+    VARIANT_ESP32S3: ESP32ValidationFunctions(
+        pin_validation=esp32_s3_validate_gpio_pin,
+        usage_validation=esp32_s3_validate_supports,
+    ),
+    VARIANT_ESP32S31: ESP32ValidationFunctions(
+        pin_validation=esp32_s31_validate_gpio_pin,
+        usage_validation=esp32_s31_validate_supports,
     ),
 }
 
@@ -154,10 +190,16 @@ def validate_gpio_pin(pin):
             exc,
         )
     else:
-        # Throw an exception if used for a pin that would not have resulted
-        # in a validation error anyway!
+        # `ignore_pin_validation_error` only suppresses an error raised by the
+        # variant's pin_validation above (e.g. SPI flash/PSRAM pins, invalid pin
+        # numbers). If that didn't raise, the option is a no-op -- warn so the
+        # user can clean it up, but don't block the build.
         if ignore_pin_validation_warning:
-            raise cv.Invalid(f"GPIO{pin[CONF_NUMBER]} is not a reserved pin")
+            _LOGGER.warning(
+                "GPIO%d has no validation errors to ignore; "
+                "remove `ignore_pin_validation_error: true` from this pin.",
+                pin[CONF_NUMBER],
+            )
 
     return pin
 
@@ -175,8 +217,7 @@ def validate_supports(value):
             "Open-drain only works with output mode", [CONF_MODE, CONF_OPEN_DRAIN]
         )
 
-    value = _esp32_validations[variant].usage_validation(value)
-    return value
+    return _esp32_validations[variant].usage_validation(value)
 
 
 # https://docs.espressif.com/projects/esp-idf/en/v3.3.5/api-reference/peripherals/gpio.html#_CPPv416gpio_drive_cap_t
@@ -212,7 +253,10 @@ async def esp32_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     num = config[CONF_NUMBER]
     cg.add(var.set_pin(getattr(gpio_num_t, f"GPIO_NUM_{num}")))
-    cg.add(var.set_inverted(config[CONF_INVERTED]))
+    # Only set if true to avoid bloating setup() function
+    # (inverted bit in pin_flags_ bitfield is zero-initialized to false)
+    if config[CONF_INVERTED]:
+        cg.add(var.set_inverted(True))
     if CONF_DRIVE_STRENGTH in config:
         cg.add(var.set_drive_strength(config[CONF_DRIVE_STRENGTH]))
     cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))

@@ -3,8 +3,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace safe_mode {
+namespace esphome::safe_mode {
 
 static const char *const TAG = "safe_mode.switch";
 
@@ -17,7 +16,7 @@ void SafeModeSwitch::write_state(bool state) {
   this->publish_state(false);
 
   if (state) {
-    ESP_LOGI(TAG, "Restarting device in safe mode...");
+    ESP_LOGI(TAG, "Restarting in safe mode");
     this->safe_mode_component_->set_safe_mode_pending(true);
 
     // Let MQTT settle a bit
@@ -28,5 +27,4 @@ void SafeModeSwitch::write_state(bool state) {
 
 void SafeModeSwitch::dump_config() { LOG_SWITCH("", "Safe Mode Switch", this); }
 
-}  // namespace safe_mode
-}  // namespace esphome
+}  // namespace esphome::safe_mode

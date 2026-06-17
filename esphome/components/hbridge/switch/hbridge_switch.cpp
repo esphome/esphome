@@ -3,15 +3,12 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace hbridge {
+namespace esphome::hbridge {
 
 static const char *const TAG = "switch.hbridge";
 
 float HBridgeSwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
 void HBridgeSwitch::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up H-Bridge Switch '%s'...", this->name_.c_str());
-
   optional<bool> initial_state = this->get_initial_state_with_restore_mode();
 
   // Like GPIOSwitch does, set the pin state both before and after pin setup()
@@ -91,5 +88,4 @@ void HBridgeSwitch::timer_fn_() {
   this->timer_running_ = false;
 }
 
-}  // namespace hbridge
-}  // namespace esphome
+}  // namespace esphome::hbridge

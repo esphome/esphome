@@ -1,8 +1,7 @@
 #include "mcp9600.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp9600 {
+namespace esphome::mcp9600 {
 
 static const char *const TAG = "mcp9600";
 
@@ -28,8 +27,6 @@ static const uint8_t MCP9600_REGISTER_ALERT4_LIMIT = 0x13;
 static const uint8_t MCP9600_REGISTER_DEVICE_ID = 0x20;
 
 void MCP9600Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MCP9600...");
-
   uint16_t dev_id = 0;
   this->read_byte_16(MCP9600_REGISTER_DEVICE_ID, &dev_id);
   this->device_id_ = (uint8_t) (dev_id >> 8);
@@ -42,20 +39,20 @@ void MCP9600Component::setup() {
   }
 
   bool success = this->write_byte(MCP9600_REGISTER_STATUS, 0x00);
-  success |= this->write_byte(MCP9600_REGISTER_SENSOR_CONFIG, uint8_t(0x00 | thermocouple_type_ << 4));
-  success |= this->write_byte(MCP9600_REGISTER_CONFIG, 0x00);
-  success |= this->write_byte(MCP9600_REGISTER_ALERT1_CONFIG, 0x00);
-  success |= this->write_byte(MCP9600_REGISTER_ALERT2_CONFIG, 0x00);
-  success |= this->write_byte(MCP9600_REGISTER_ALERT3_CONFIG, 0x00);
-  success |= this->write_byte(MCP9600_REGISTER_ALERT4_CONFIG, 0x00);
-  success |= this->write_byte(MCP9600_REGISTER_ALERT1_HYSTERESIS, 0x00);
-  success |= this->write_byte(MCP9600_REGISTER_ALERT2_HYSTERESIS, 0x00);
-  success |= this->write_byte(MCP9600_REGISTER_ALERT3_HYSTERESIS, 0x00);
-  success |= this->write_byte(MCP9600_REGISTER_ALERT4_HYSTERESIS, 0x00);
-  success |= this->write_byte_16(MCP9600_REGISTER_ALERT1_LIMIT, 0x0000);
-  success |= this->write_byte_16(MCP9600_REGISTER_ALERT2_LIMIT, 0x0000);
-  success |= this->write_byte_16(MCP9600_REGISTER_ALERT3_LIMIT, 0x0000);
-  success |= this->write_byte_16(MCP9600_REGISTER_ALERT4_LIMIT, 0x0000);
+  success &= this->write_byte(MCP9600_REGISTER_SENSOR_CONFIG, uint8_t(0x00 | thermocouple_type_ << 4));
+  success &= this->write_byte(MCP9600_REGISTER_CONFIG, 0x00);
+  success &= this->write_byte(MCP9600_REGISTER_ALERT1_CONFIG, 0x00);
+  success &= this->write_byte(MCP9600_REGISTER_ALERT2_CONFIG, 0x00);
+  success &= this->write_byte(MCP9600_REGISTER_ALERT3_CONFIG, 0x00);
+  success &= this->write_byte(MCP9600_REGISTER_ALERT4_CONFIG, 0x00);
+  success &= this->write_byte(MCP9600_REGISTER_ALERT1_HYSTERESIS, 0x00);
+  success &= this->write_byte(MCP9600_REGISTER_ALERT2_HYSTERESIS, 0x00);
+  success &= this->write_byte(MCP9600_REGISTER_ALERT3_HYSTERESIS, 0x00);
+  success &= this->write_byte(MCP9600_REGISTER_ALERT4_HYSTERESIS, 0x00);
+  success &= this->write_byte_16(MCP9600_REGISTER_ALERT1_LIMIT, 0x0000);
+  success &= this->write_byte_16(MCP9600_REGISTER_ALERT2_LIMIT, 0x0000);
+  success &= this->write_byte_16(MCP9600_REGISTER_ALERT3_LIMIT, 0x0000);
+  success &= this->write_byte_16(MCP9600_REGISTER_ALERT4_LIMIT, 0x0000);
 
   if (!success) {
     this->error_code_ = FAILED_TO_UPDATE_CONFIGURATION;
@@ -65,12 +62,12 @@ void MCP9600Component::setup() {
 }
 
 void MCP9600Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "MCP9600:");
+  ESP_LOGCONFIG(TAG,
+                "MCP9600:\n"
+                "  Device ID: 0x%x",
+                this->device_id_);
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-
-  ESP_LOGCONFIG(TAG, "  Device ID: 0x%x", this->device_id_);
-
   LOG_SENSOR("  ", "Hot Junction Temperature", this->hot_junction_sensor_);
   LOG_SENSOR("  ", "Cold Junction Temperature", this->cold_junction_sensor_);
 
@@ -111,5 +108,4 @@ void MCP9600Component::update() {
   this->status_clear_warning();
 }
 
-}  // namespace mcp9600
-}  // namespace esphome
+}  // namespace esphome::mcp9600

@@ -1,8 +1,7 @@
 #include "daikin_brc.h"
 #include "esphome/components/remote_base/remote_base.h"
 
-namespace esphome {
-namespace daikin_brc {
+namespace esphome::daikin_brc {
 
 static const char *const TAG = "daikin_brc.climate";
 
@@ -111,7 +110,7 @@ uint8_t DaikinBrcClimate::operation_mode_() {
 
 uint8_t DaikinBrcClimate::fan_speed_swing_() {
   uint16_t fan_speed;
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_LOW:
       fan_speed = DAIKIN_BRC_FAN_1;
       break;
@@ -269,5 +268,4 @@ bool DaikinBrcClimate::on_receive(remote_base::RemoteReceiveData data) {
   return this->parse_state_frame_(state_frame);
 }
 
-}  // namespace daikin_brc
-}  // namespace esphome
+}  // namespace esphome::daikin_brc

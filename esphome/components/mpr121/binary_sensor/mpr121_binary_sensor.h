@@ -4,8 +4,7 @@
 
 #include "../mpr121.h"
 
-namespace esphome {
-namespace mpr121 {
+namespace esphome::mpr121 {
 
 class MPR121BinarySensor : public binary_sensor::BinarySensor, public MPR121Channel, public Parented<MPR121Component> {
  public:
@@ -22,5 +21,4 @@ class MPR121BinarySensor : public binary_sensor::BinarySensor, public MPR121Chan
   optional<uint8_t> release_threshold_{};
 };
 
-}  // namespace mpr121
-}  // namespace esphome
+}  // namespace esphome::mpr121

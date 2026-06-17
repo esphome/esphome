@@ -7,8 +7,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace ruuvitag {
+namespace esphome::ruuvitag {
 
 class RuuviTag : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
@@ -48,7 +47,6 @@ class RuuviTag : public Component, public esp32_ble_tracker::ESPBTDeviceListener
   }
 
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
   void set_pressure(sensor::Sensor *pressure) { pressure_ = pressure; }
@@ -78,7 +76,6 @@ class RuuviTag : public Component, public esp32_ble_tracker::ESPBTDeviceListener
   sensor::Sensor *measurement_sequence_number_{nullptr};
 };
 
-}  // namespace ruuvitag
-}  // namespace esphome
+}  // namespace esphome::ruuvitag
 
 #endif

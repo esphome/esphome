@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace as7341 {
+namespace esphome::as7341 {
 
 static const char *const TAG = "as7341";
 
@@ -83,7 +82,6 @@ void log_cn_s(const char *TAG, const char *str, const ChannelValuesString &arr) 
 }
 
 void AS7341Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up AS7341...");
   LOG_I2C_DEVICE(this);
 
   // Verify device ID
@@ -126,12 +124,14 @@ void AS7341Component::dump_config() {
   ESP_LOGCONFIG(TAG, "AS7341:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with AS7341 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
-  ESP_LOGCONFIG(TAG, "  Gain: %u", get_gain());
-  ESP_LOGCONFIG(TAG, "  ATIME: %u", get_atime());
-  ESP_LOGCONFIG(TAG, "  ASTEP: %u", get_astep());
+  ESP_LOGCONFIG(TAG,
+                "  Gain: %u\n"
+                "  ATIME: %u\n"
+                "  ASTEP: %u",
+                get_gain(), get_atime(), get_astep());
 
   // LOG_SENSOR("  ", "F1", this->band_counts_f1_sensor_);
   // LOG_SENSOR("  ", "F2", this->band_counts_f2_sensor_);
@@ -144,8 +144,6 @@ void AS7341Component::dump_config() {
   // LOG_SENSOR("  ", "NIR", this->band_counts_nir_sensor_);
   // LOG_SENSOR("  ", "Clear", this->band_counts_clear_sensor_);
 }
-
-float AS7341Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void AS7341Component::set_dark_current_calibration(const CalibrationCoeffs &vals) {
   // Copy first 4 values
@@ -728,5 +726,4 @@ bool AS7341Component::clear_register_bit(uint8_t address, uint8_t bit_position) 
 
 uint16_t AS7341Component::swap_bytes(uint16_t data) { return (data >> 8) | (data << 8); }
 
-}  // namespace as7341
-}  // namespace esphome
+}  // namespace esphome::as7341

@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/spi/spi.h"
 
-namespace esphome {
-namespace max31865 {
+namespace esphome::max31865 {
 
 enum MAX31865RegisterMasks { SPI_WRITE_M = 0x80 };
 enum MAX31865Registers {
@@ -34,7 +33,6 @@ class MAX31865Sensor : public sensor::Sensor,
   void set_num_rtd_wires(uint8_t rtd_wires) { rtd_wires_ = rtd_wires; }
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
 
   void update() override;
 
@@ -54,5 +52,4 @@ class MAX31865Sensor : public sensor::Sensor,
   float calc_temperature_(float rtd_ratio);
 };
 
-}  // namespace max31865
-}  // namespace esphome
+}  // namespace esphome::max31865

@@ -5,8 +5,7 @@
 #include "dht12.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace dht12 {
+namespace esphome::dht12 {
 
 static const char *const TAG = "dht12";
 
@@ -34,7 +33,6 @@ void DHT12Component::update() {
   this->status_clear_warning();
 }
 void DHT12Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up DHT12...");
   uint8_t data[5];
   if (!this->read_data_(data)) {
     this->mark_failed();
@@ -45,12 +43,12 @@ void DHT12Component::dump_config() {
   ESP_LOGD(TAG, "DHT12:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with DHT12 failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
-float DHT12Component::get_setup_priority() const { return setup_priority::DATA; }
+
 bool DHT12Component::read_data_(uint8_t *data) {
   if (!this->read_bytes(0, data, 5)) {
     ESP_LOGW(TAG, "Updating DHT12 failed!");
@@ -66,5 +64,4 @@ bool DHT12Component::read_data_(uint8_t *data) {
   return true;
 }
 
-}  // namespace dht12
-}  // namespace esphome
+}  // namespace esphome::dht12

@@ -2,16 +2,17 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pylontech {
+namespace esphome::pylontech {
 
 static const char *const TAG = "pylontech.sensor";
 
 PylontechSensor::PylontechSensor(int8_t bat_num) { this->bat_num_ = bat_num; }
 
 void PylontechSensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "Pylontech Sensor:");
-  ESP_LOGCONFIG(TAG, " Battery %d", this->bat_num_);
+  ESP_LOGCONFIG(TAG,
+                "Pylontech Sensor:\n"
+                " Battery %d",
+                this->bat_num_);
   LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("  ", "Current", this->current_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
@@ -56,5 +57,4 @@ void PylontechSensor::on_line_read(PylontechListener::LineContents *line) {
   }
 }
 
-}  // namespace pylontech
-}  // namespace esphome
+}  // namespace esphome::pylontech

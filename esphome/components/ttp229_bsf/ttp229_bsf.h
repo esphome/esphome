@@ -6,8 +6,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace ttp229_bsf {
+namespace esphome::ttp229_bsf {
 
 class TTP229BSFChannel : public binary_sensor::BinarySensor {
  public:
@@ -25,7 +24,6 @@ class TTP229BSFComponent : public Component {
   void register_channel(TTP229BSFChannel *channel) { this->channels_.push_back(channel); }
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void loop() override {
     // check datavalid if sdo is high
     if (!this->sdo_pin_->digital_read()) {
@@ -52,5 +50,4 @@ class TTP229BSFComponent : public Component {
   std::vector<TTP229BSFChannel *> channels_{};
 };
 
-}  // namespace ttp229_bsf
-}  // namespace esphome
+}  // namespace esphome::ttp229_bsf

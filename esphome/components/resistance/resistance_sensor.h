@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace resistance {
+namespace esphome::resistance {
 
 enum ResistanceConfiguration {
   UPSTREAM,
@@ -24,7 +23,6 @@ class ResistanceSensor : public Component, public sensor::Sensor {
       this->process_(this->sensor_->state);
   }
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
   void process_(float value);
@@ -34,5 +32,4 @@ class ResistanceSensor : public Component, public sensor::Sensor {
   float reference_voltage_;
 };
 
-}  // namespace resistance
-}  // namespace esphome
+}  // namespace esphome::resistance

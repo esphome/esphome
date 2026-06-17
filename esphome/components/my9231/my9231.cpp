@@ -1,9 +1,8 @@
 #include "my9231.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
-namespace esphome {
-namespace my9231 {
+namespace esphome::my9231 {
 
 static const char *const TAG = "my9231.output";
 
@@ -28,7 +27,6 @@ static const uint8_t MY9231_CMD_SCATTER_APDM = 0x0 << 0;
 static const uint8_t MY9231_CMD_SCATTER_PWM = 0x1 << 0;
 
 void MY9231OutputComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up MY9231OutputComponent...");
   this->pin_di_->setup();
   this->pin_di_->digital_write(false);
   this->pin_dcki_->setup();
@@ -57,15 +55,16 @@ void MY9231OutputComponent::setup() {
     this->send_dcki_pulses_(32 * this->num_chips_);
     this->init_chips_(command);
   }
-  ESP_LOGV(TAG, "  Chips initialized.");
 }
 void MY9231OutputComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MY9231:");
+  ESP_LOGCONFIG(TAG,
+                "MY9231:\n"
+                "  Total number of channels: %u\n"
+                "  Number of chips: %u\n"
+                "  Bit depth: %u",
+                this->num_channels_, this->num_chips_, this->bit_depth_);
   LOG_PIN("  DI Pin: ", this->pin_di_);
   LOG_PIN("  DCKI Pin: ", this->pin_dcki_);
-  ESP_LOGCONFIG(TAG, "  Total number of channels: %u", this->num_channels_);
-  ESP_LOGCONFIG(TAG, "  Number of chips: %u", this->num_chips_);
-  ESP_LOGCONFIG(TAG, "  Bit depth: %u", this->bit_depth_);
 }
 void MY9231OutputComponent::loop() {
   if (!this->update_)
@@ -81,9 +80,9 @@ void MY9231OutputComponent::loop() {
   }
   this->update_ = false;
 }
-void MY9231OutputComponent::set_channel_value_(uint8_t channel, uint16_t value) {
+void MY9231OutputComponent::set_channel_value_(uint16_t channel, uint16_t value) {
   ESP_LOGV(TAG, "set channels %u to %u", channel, value);
-  uint8_t index = this->num_channels_ - channel - 1;
+  uint16_t index = this->num_channels_ - channel - 1;
   if (this->pwm_amounts_[index] != value) {
     this->update_ = true;
   }
@@ -123,5 +122,4 @@ void MY9231OutputComponent::send_dcki_pulses_(uint8_t count) {
   }
 }
 
-}  // namespace my9231
-}  // namespace esphome
+}  // namespace esphome::my9231

@@ -5,8 +5,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace max9611 {
+namespace esphome::max9611 {
 
 enum MAX9611Multiplexer {
   MAX9611_MULTIPLEXER_CSA_GAIN1 = 0b000,
@@ -38,7 +37,6 @@ class MAX9611Component : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void update() override;
   void set_voltage_sensor(sensor::Sensor *vs) { voltage_sensor_ = vs; }
   void set_current_sensor(sensor::Sensor *cs) { current_sensor_ = cs; }
@@ -58,5 +56,4 @@ class MAX9611Component : public PollingComponent, public i2c::I2CDevice {
   MAX9611Multiplexer gain_;
 };
 
-}  // namespace max9611
-}  // namespace esphome
+}  // namespace esphome::max9611

@@ -1,9 +1,9 @@
 #include "havells_solar.h"
 #include "havells_solar_registers.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace havells_solar {
+namespace esphome::havells_solar {
 
 static const char *const TAG = "havells_solar";
 
@@ -123,8 +123,10 @@ void HavellsSolar::on_modbus_data(const std::vector<uint8_t> &data) {
 
 void HavellsSolar::update() { this->send(MODBUS_CMD_READ_IN_REGISTERS, 0, MODBUS_REGISTER_COUNT); }
 void HavellsSolar::dump_config() {
-  ESP_LOGCONFIG(TAG, "HAVELLS Solar:");
-  ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
+  ESP_LOGCONFIG(TAG,
+                "HAVELLS Solar:\n"
+                "  Address: 0x%02X",
+                this->address_);
   for (uint8_t i = 0; i < 3; i++) {
     auto phase = this->phases_[i];
     if (!phase.setup)
@@ -161,5 +163,4 @@ void HavellsSolar::dump_config() {
   LOG_SENSOR("  ", "DCI Of T", this->dci_of_t_sensor_);
 }
 
-}  // namespace havells_solar
-}  // namespace esphome
+}  // namespace esphome::havells_solar

@@ -7,3 +7,14 @@ event:
       - template_event_type2
     on_event:
       - logger.log: Event fired
+      - lambda: |-
+          // Test get_last_event_type() returns StringRef
+          if (id(some_event).has_event()) {
+            auto event_type = id(some_event).get_last_event_type();
+            // Compare with string literal using ==
+            if (event_type == "template_event_type1") {
+              ESP_LOGD("test", "Event type is template_event_type1");
+            }
+            // Log using %.*s format for StringRef
+            ESP_LOGD("test", "Event type: %.*s", (int) event_type.size(), event_type.c_str());
+          }

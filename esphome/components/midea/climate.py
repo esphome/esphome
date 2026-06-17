@@ -30,7 +30,7 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_WATT,
 )
-from esphome.core import coroutine
+from esphome.core import CORE, coroutine
 
 CODEOWNERS = ["@dudanov"]
 DEPENDENCIES = ["climate", "uart"]
@@ -53,7 +53,9 @@ def templatize(value):
 
 def register_action(name, type_, schema):
     validator = templatize(schema).extend(MIDEA_ACTION_BASE_SCHEMA)
-    registerer = automation.register_action(f"midea_ac.{name}", type_, validator)
+    registerer = automation.register_action(
+        f"midea_ac.{name}", type_, validator, synchronous=True
+    )
 
     def decorator(func):
         async def new_func(config, action_id, template_arg, args):
@@ -104,9 +106,9 @@ validate_custom_fan_modes = cv.enum(CUSTOM_FAN_MODES, upper=True)
 validate_custom_presets = cv.enum(CUSTOM_PRESETS, upper=True)
 
 CONFIG_SCHEMA = cv.All(
-    climate.CLIMATE_SCHEMA.extend(
+    climate.climate_schema(AirConditioner)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(AirConditioner),
             cv.Optional(CONF_PERIOD, default="1s"): cv.time_period,
             cv.Optional(CONF_TIMEOUT, default="2s"): cv.time_period,
             cv.Optional(CONF_NUM_ATTEMPTS, default=3): cv.int_range(min=1, max=5),
@@ -259,10 +261,9 @@ async def power_inv_to_code(var, config, args):
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await climate.new_climate(config)
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    await climate.register_climate(var, config)
     cg.add(var.set_period(config[CONF_PERIOD].total_milliseconds))
     cg.add(var.set_response_timeout(config[CONF_TIMEOUT].total_milliseconds))
     cg.add(var.set_request_attempts(config[CONF_NUM_ATTEMPTS]))
@@ -291,4 +292,7 @@ async def to_code(config):
     if CONF_HUMIDITY_SETPOINT in config:
         sens = await sensor.new_sensor(config[CONF_HUMIDITY_SETPOINT])
         cg.add(var.set_humidity_setpoint_sensor(sens))
+    # MideaUART library requires WiFi (WiFi auto-enables Network via dependency mapping)
+    if CORE.is_esp32:
+        cg.add_library("WiFi", None)
     cg.add_library("dudanov/MideaUART", "1.1.9")

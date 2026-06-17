@@ -10,8 +10,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace ens210 {
+namespace esphome::ens210 {
 
 static const char *const TAG = "ens210";
 
@@ -87,7 +86,6 @@ static uint32_t crc7(uint32_t value) {
 }
 
 void ENS210Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ENS210...");
   uint8_t data[2];
   uint16_t part_id = 0;
   // Reset
@@ -137,8 +135,6 @@ void ENS210Component::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
-float ENS210Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void ENS210Component::update() {
   // Execute a single measurement
   if (!this->write_byte(ENS210_REGISTER_SENS_RUN, 0x00)) {
@@ -163,7 +159,7 @@ void ENS210Component::update() {
 
     // Read T_VAL and H_VAL
     if (!this->read_bytes(ENS210_REGISTER_T_VAL, data, 6)) {
-      ESP_LOGE(TAG, "Communication with ENS210 failed!");
+      ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
       this->status_set_warning();
       return;
     }
@@ -226,5 +222,4 @@ bool ENS210Component::set_low_power_(bool enable) {
   return result;
 }
 
-}  // namespace ens210
-}  // namespace esphome
+}  // namespace esphome::ens210

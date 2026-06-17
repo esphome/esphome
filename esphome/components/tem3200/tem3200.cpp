@@ -1,10 +1,9 @@
 #include "tem3200.h"
-#include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
-namespace esphome {
-namespace tem3200 {
+namespace esphome::tem3200 {
 
 static const char *const TAG = "tem3200";
 
@@ -16,15 +15,13 @@ enum ErrorCode {
 };
 
 void TEM3200Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up TEM3200...");
-
   uint8_t status(NONE);
   uint16_t raw_temperature(0);
   uint16_t raw_pressure(0);
 
   i2c::ErrorCode err = this->read_(status, raw_temperature, raw_pressure);
   if (err != i2c::ERROR_OK) {
-    ESP_LOGCONFIG(TAG, "    I2C Communication Failed...");
+    ESP_LOGCONFIG(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed();
     return;
   }
@@ -43,7 +40,6 @@ void TEM3200Component::setup() {
       this->status_set_warning();
       break;
   }
-  ESP_LOGCONFIG(TAG, "    Success...");
 }
 
 void TEM3200Component::dump_config() {
@@ -53,8 +49,6 @@ void TEM3200Component::dump_config() {
   LOG_SENSOR("  ", "Raw Pressure", this->raw_pressure_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
 }
-
-float TEM3200Component::get_setup_priority() const { return setup_priority::DATA; }
 
 i2c::ErrorCode TEM3200Component::read_(uint8_t &status, uint16_t &raw_temperature, uint16_t &raw_pressure) {
   uint8_t response[4] = {0x00, 0x00, 0x00, 0x00};
@@ -115,7 +109,7 @@ void TEM3200Component::update() {
   i2c::ErrorCode err = this->read_(status, raw_temperature, raw_pressure);
 
   if (err != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "I2C Communication Failed");
+    ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->status_set_warning();
     return;
   }
@@ -147,5 +141,4 @@ void TEM3200Component::update() {
   this->status_clear_warning();
 }
 
-}  // namespace tem3200
-}  // namespace esphome
+}  // namespace esphome::tem3200
