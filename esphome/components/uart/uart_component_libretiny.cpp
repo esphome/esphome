@@ -145,7 +145,7 @@ void LibreTinyUARTComponent::write_array(const uint8_t *data, size_t len) {
   this->serial_->write(data, len);
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
-    this->debug_callback_.call(UART_DIRECTION_TX, data[i], this->debug_prefix_);
+    this->debug_callback_.call(UART_DIRECTION_TX, data[i], StringRef());
   }
 #endif
 }
@@ -163,7 +163,7 @@ bool LibreTinyUARTComponent::read_array(uint8_t *data, size_t len) {
   this->serial_->readBytes(data, len);
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
-    this->debug_callback_.call(UART_DIRECTION_RX, data[i], this->debug_prefix_);
+    this->debug_callback_.call(UART_DIRECTION_RX, data[i], StringRef());
   }
 #endif
   return true;
