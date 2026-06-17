@@ -117,8 +117,6 @@ class DeepSleepComponent : public Component
   /// Set a duration in ms for how long the code should run before entering deep sleep mode.
   void set_run_duration(uint32_t time_ms);
 
-  void set_ota_prevent_timeout(uint32_t timeout) { this->ota_prevent_timeout_ = timeout; }
-
 #ifdef USE_OTA_STATE_LISTENER
   void set_ota_prevent_timeout(uint32_t timeout) { this->ota_prevent_timeout_ = timeout; }
   void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *component) override;

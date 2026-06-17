@@ -37,7 +37,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     PlatformFramework,
 )
-from esphome.core import CORE, config
+from esphome.core import CORE
 from esphome.types import ConfigType
 
 WAKEUP_PINS = {
