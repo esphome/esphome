@@ -1,0 +1,53 @@
+sensor:
+  - platform: as734x
+    type: AS7341
+    i2c_id: i2c_bus
+    update_interval: 15s
+    gain: X8
+    atime: 120
+    astep: 99
+    normalize_basic_counts: true
+    calibration:
+      glass_attenuation_factor: 1.0
+    counts:
+      f1:
+        name: F1
+      f2:
+        name: F2
+      f3:
+        name: F3
+      f4:
+        name: F4
+      f5:
+        name: F5
+      f6:
+        name: F6
+      f7:
+        name: F7
+      f8:
+        name: F8
+      nir:
+        name: NIR
+      clear:
+        name: Clear
+    basic_counts:
+      f1:
+        name: F1 basic
+      clear:
+        name: Clear basic
+    illuminance:
+      name: Illuminance
+    irradiance:
+      name: Irradiance
+    irradiance_photopic:
+      name: Irradiance photopic
+    ppfd:
+      name: PPFD
+    irradiance_par:
+      name: PAR
+    color_temperature:
+      name: Color temperature
+    saturation_level:
+      name: Saturation level
+    rgb_hex:
+      name: RGB hex
