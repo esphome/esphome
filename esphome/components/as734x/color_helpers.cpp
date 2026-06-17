@@ -1,8 +1,7 @@
 #include "color_helpers.h"
 #include <cmath>
 
-namespace esphome {
-namespace as734x {
+namespace esphome::as734x {
 
 inline float clamp(float val, float min_val, float max_val) { return std::fmax(min_val, std::fmin(max_val, val)); }
 
@@ -78,5 +77,4 @@ void tristimulus_to_cct(float x, float y, float z, float &cct) {
 
 //}
 
-}  // namespace as734x
-}  // namespace esphome
+}  // namespace esphome::as734x

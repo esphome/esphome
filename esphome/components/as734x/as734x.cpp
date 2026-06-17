@@ -1,4 +1,5 @@
 #include "as734x.h"
+#include <cstdio>
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
@@ -12,8 +13,7 @@
 #include "as7343.h"
 #endif
 
-namespace esphome {
-namespace as734x {
+namespace esphome::as734x {
 
 static const char *const TAG = "as734x";
 
@@ -117,8 +117,6 @@ void AS734XComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  ASTEP: %u", this->astep_);
   ESP_LOGCONFIG(TAG, "  Glass attenuation factor: %f", this->glass_attenuation_factor_);
 }
-
-float AS734XComponent::get_setup_priority() const { return setup_priority::DATA; }
 
 void AS734XComponent::enable_led(bool enable) {
   this->led_enabled_ = enable;
@@ -425,7 +423,16 @@ void AS734XComponent::calculate_color_(float &cct, float &lux) {
 
     ESP_LOGD(TAG, "  XYZ: %.4f, %.4f, %.4f", tri_xyz[0], tri_xyz[1], tri_xyz[2]);
     ESP_LOGD(TAG, "  CCT: %.2f", cct);
-    // xyz_to_hex(tri_xyz[0], tri_xyz[1], tri_xyz[2], &this->rgb_hex_str_[0]);
+
+    // Normalize to chromaticity (sum = 1) so the resulting color is independent of
+    // brightness; otherwise the sRGB conversion clamps to white under normal light.
+    float xyz_sum = tri_xyz[0] + tri_xyz[1] + tri_xyz[2];
+    if (xyz_sum > 0.0f) {
+      uint8_t r, g, b;
+      tristimulus_to_hex(tri_xyz[0] / xyz_sum, tri_xyz[1] / xyz_sum, tri_xyz[2] / xyz_sum, r, g, b);
+      ESP_LOGD(TAG, "  RGB: %d, %d, %d", r, g, b);
+      snprintf(this->rgb_hex_str_, sizeof(this->rgb_hex_str_), "%02x%02x%02x", r, g, b);
+    }
   }
 }
 
@@ -458,5 +465,4 @@ uint16_t AS734XComponent::get_maximum_spectral_adc_(uint16_t atime, uint16_t ast
   }
   return value;
 }
-}  // namespace as734x
-}  // namespace esphome
+}  // namespace esphome::as734x

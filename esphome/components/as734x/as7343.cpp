@@ -2,8 +2,7 @@
 
 #include "as7343.h"
 
-namespace esphome {
-namespace as734x {
+namespace esphome::as734x {
 
 static const char *const TAG = "as734x.as7343";
 
@@ -262,7 +261,6 @@ bool AS7343::read_channels(uint8_t step, ChannelValuesUint16 &values, Gain &gain
   return ret;
 }
 
-}  // namespace as734x
-}  // namespace esphome
+}  // namespace esphome::as734x
 
 #endif  // USE_AS7343

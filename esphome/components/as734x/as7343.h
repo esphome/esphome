@@ -1,8 +1,7 @@
 #pragma once
 #include "as734xbase.h"
 
-namespace esphome {
-namespace as734x {
+namespace esphome::as734x {
 
 class AS7343 : public AS734xBase {
  public:
@@ -41,5 +40,4 @@ class AS7343 : public AS734xBase {
   void direct_config_3_chain_();
 };
 
-}  // namespace as734x
-}  // namespace esphome
+}  // namespace esphome::as734x

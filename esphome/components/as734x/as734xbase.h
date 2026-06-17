@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace as734x {
+namespace esphome::as734x {
 
 enum class Model : uint8_t {
   AS7341 = 41,
@@ -125,5 +124,4 @@ class AS734xBase {
   bool clear_register_bit_(uint8_t address, uint8_t bit_position);
 };
 
-}  // namespace as734x
-}  // namespace esphome
+}  // namespace esphome::as734x

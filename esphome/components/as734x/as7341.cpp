@@ -3,8 +3,7 @@
 #include "as7341.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace as734x {
+namespace esphome::as734x {
 
 static const char *const TAG = "as734x.as7341";
 
@@ -161,7 +160,6 @@ bool AS7341::read_channels(uint8_t smux_step, ChannelValuesUint16 &values, Gain 
   return ret;
 }
 
-}  // namespace as734x
-}  // namespace esphome
+}  // namespace esphome::as734x
 
 #endif  // USE_AS7341

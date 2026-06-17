@@ -1,8 +1,7 @@
 #pragma once
 #include "as734xbase.h"
 
-namespace esphome {
-namespace as734x {
+namespace esphome::as734x {
 
 class AS7341 : public AS734xBase {
  public:
@@ -38,5 +37,4 @@ class AS7341 : public AS734xBase {
   static const float PPFD_UMOL_PER_COUNT[NUM_CHANNELS];
 };
 
-}  // namespace as734x
-}  // namespace esphome
+}  // namespace esphome::as734x

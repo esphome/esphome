@@ -1,8 +1,7 @@
 #include "as734xbase.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace as734x {
+namespace esphome::as734x {
 
 static const char *const TAG = "as734x.base";
 
@@ -97,5 +96,4 @@ bool AS734xBase::clear_register_bit_(uint8_t address, uint8_t bit_position) {
   return this->i2c_device_->write_byte(address, data);
 }
 
-}  // namespace as734x
-}  // namespace esphome
+}  // namespace esphome::as734x

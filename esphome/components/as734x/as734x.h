@@ -8,8 +8,7 @@
 
 #include "as734xbase.h"
 
-namespace esphome {
-namespace as734x {
+namespace esphome::as734x {
 
 class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -17,7 +16,6 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
   void loop() override;
 
@@ -161,5 +159,4 @@ class AS734XComponent : public PollingComponent, public i2c::I2CDevice {
 #endif
 };
 
-}  // namespace as734x
-}  // namespace esphome
+}  // namespace esphome::as734x
