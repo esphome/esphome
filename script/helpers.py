@@ -53,6 +53,7 @@ BASE_BUS_COMPONENTS = {
     "canbus",
     "remote_transmitter",
     "remote_receiver",
+    "i2s_audio",
 }
 
 # Cache version for components graph
@@ -147,6 +148,31 @@ def get_component_test_files(
     if include_validate:
         files.extend(tests_dir.glob("validate.*.yaml"))
     return files
+
+
+def get_component_test_platforms(component: str, *, base_only: bool = True) -> set[str]:
+    """Return the set of platforms a component has compilable test files for.
+
+    Uses the same discovery as ``test_build_components.py`` (``get_component_test_files``
+    + ``parse_test_filename``) so callers agree with what the build runner would
+    actually compile. With ``base_only=True`` (the default, matching the
+    memory-impact build's ``--base-only``), only base ``test.<platform>.yaml``
+    files are considered; variant ``test-<variant>.<platform>.yaml`` files are
+    excluded. The ``"all"`` platform sentinel is excluded.
+
+    Args:
+        component: Component name (e.g. "wifi")
+        base_only: If True, only consider base test files (default).
+
+    Returns:
+        Set of platform identifiers (e.g. {"esp32-idf", "esp8266-ard"}).
+    """
+    platforms: set[str] = set()
+    for test_file in get_component_test_files(component, all_variants=not base_only):
+        platform = parse_test_filename(test_file)[1]
+        if platform != "all":
+            platforms.add(platform)
+    return platforms
 
 
 def is_validate_only_file(test_file: Path) -> bool:
@@ -639,26 +665,22 @@ def load_idedata(environment: str) -> dict[str, Any]:
     start_time = time.time()
     print(f"Loading IDE data for environment '{environment}'...")
 
-    platformio_ini = Path(root_path) / "platformio.ini"
+    # Reuse the clang-tidy input hash as the cache key: it already covers every
+    # file baked into the generated idedata (platformio.ini, sdkconfig.defaults,
+    # esphome/idf_component.yml), so this can't drift from that file list. A
+    # content hash -- unlike an mtime comparison -- stays correct across git
+    # checkouts, which don't preserve mtimes.
+    from clang_tidy_hash import calculate_clang_tidy_hash
+
     temp_idedata = Path(temp_folder) / f"idedata-{environment}.json"
-    changed = False
-    if (
-        not platformio_ini.is_file()
-        or not temp_idedata.is_file()
-        or platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime
-    ):
-        changed = True
+    temp_hash = Path(temp_folder) / f"idedata-{environment}.hash"
 
-    if "idf" in environment:
-        # remove full sdkconfig when the defaults have changed so that it is regenerated
-        default_sdkconfig = Path(root_path) / "sdkconfig.defaults"
-        temp_sdkconfig = Path(temp_folder) / f"sdkconfig-{environment}"
-
-        if not temp_sdkconfig.is_file():
-            changed = True
-        elif default_sdkconfig.stat().st_mtime >= temp_sdkconfig.stat().st_mtime:
-            temp_sdkconfig.unlink()
-            changed = True
+    cache_key = calculate_clang_tidy_hash()
+    changed = (
+        not temp_idedata.is_file()
+        or not temp_hash.is_file()
+        or temp_hash.read_text().strip() != cache_key
+    )
 
     if not changed:
         data = json.loads(temp_idedata.read_text())
@@ -669,7 +691,12 @@ def load_idedata(environment: str) -> dict[str, Any]:
     # ensure temp directory exists before running pio, as it writes sdkconfig to it
     Path(temp_folder).mkdir(exist_ok=True)
 
-    if "nrf" in environment:
+    platformio_ini = Path(root_path) / "platformio.ini"
+    if "esp32" in environment:
+        from esphome.espidf.clang_tidy import load_idedata as idf_load_idedata
+
+        data = idf_load_idedata(environment, temp_folder, platformio_ini)
+    elif "nrf" in environment:
         from helpers_zephyr import load_idedata as zephyr_load_idedata
 
         data = zephyr_load_idedata(environment, temp_folder, platformio_ini)
@@ -680,6 +707,7 @@ def load_idedata(environment: str) -> dict[str, Any]:
         match = re.search(r'{\s*".*}', stdout.decode("utf-8"))
         data = json.loads(match.group())
     temp_idedata.write_text(json.dumps(data, indent=2) + "\n")
+    temp_hash.write_text(cache_key + "\n")
 
     elapsed = time.time() - start_time
     print(f"IDE data generated and cached in {elapsed:.2f} seconds")
