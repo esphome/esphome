@@ -73,23 +73,26 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
   return addresses;
 }
 
-std::optional<InstanceLock> InstanceLock::try_acquire(int delay) {
+InstanceLock InstanceLock::try_acquire(int delay) {
   struct openthread_context *ot_context = openthread_get_default_context();
-  if (k_mutex_lock(&ot_context->api_lock, K_MSEC(delay)) == 0) {
-    return InstanceLock();
-  }
-  return {};
+  // Non-owning guard if the lock isn't acquired within delay ms; callers check via operator bool.
+  return InstanceLock(k_mutex_lock(&ot_context->api_lock, K_MSEC(delay)) == 0);
 }
 
 InstanceLock InstanceLock::acquire() {
   struct openthread_context *ot_context = openthread_get_default_context();
   k_mutex_lock(&ot_context->api_lock, K_FOREVER);
-  return InstanceLock();
+  return InstanceLock(true);
 }
 
 otInstance *InstanceLock::get_instance() { return openthread_get_default_instance(); }
 
-InstanceLock::~InstanceLock() { openthread_api_mutex_unlock(openthread_get_default_context()); }
+InstanceLock::~InstanceLock() {
+  // Only release if this guard actually owns the lock (try_acquire may have failed).
+  if (this->owns_) {
+    openthread_api_mutex_unlock(openthread_get_default_context());
+  }
+}
 
 }  // namespace esphome::openthread
 #endif
