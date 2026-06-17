@@ -105,7 +105,8 @@ class ADE7880 : public i2c::I2CDevice, public PollingComponent {
   // the callable will be passed a 'float' value and is expected to return a 'float'
   template<typename F> void update_sensor_from_s24zp_register16_(sensor::Sensor *sensor, uint16_t a_register, F &&f);
   template<typename F> void update_sensor_from_s16_register16_(sensor::Sensor *sensor, uint16_t a_register, F &&f);
-  template<typename F> void update_sensor_from_s32_register16_(sensor::Sensor *sensor, uint16_t a_register, F &&f);
+
+  void update_active_energy_(PowerChannel *channel, uint16_t a_register);
 
   void reset_device_();
 

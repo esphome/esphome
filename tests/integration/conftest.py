@@ -79,7 +79,7 @@ def shared_platformio_cache() -> Generator[Path]:
     lock_file = Path.home() / ".esphome-integration-tests-init.lock"
 
     # Always acquire the lock to ensure cache is ready before proceeding
-    with open(lock_file, "w") as lock_fd:
+    with lock_file.open("w") as lock_fd:
         fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
 
         # Check if the native platform is installed (the actual indicator of a populated cache)
@@ -407,8 +407,10 @@ async def wait_and_connect_api_client(
         # Wait for connection with timeout
         try:
             await asyncio.wait_for(connected_future, timeout=timeout)
-        except TimeoutError:
-            raise TimeoutError(f"Failed to connect to API after {timeout} seconds")
+        except TimeoutError as err:
+            raise TimeoutError(
+                f"Failed to connect to API after {timeout} seconds"
+            ) from err
 
         if return_disconnect_event:
             yield client, disconnect_event

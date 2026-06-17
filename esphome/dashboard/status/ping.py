@@ -83,7 +83,7 @@ class PingStatus:
                     return_exceptions=True,
                 )
 
-                for entry, result in zip(ping_group, dns_results):
+                for entry, result in zip(ping_group, dns_results, strict=True):
                     if isinstance(result, Exception):
                         # Only update state if its unknown or from ping
                         # so we don't mark it as offline if we have a state
@@ -106,7 +106,7 @@ class PingStatus:
                     return_exceptions=True,
                 )
 
-                for entry_addresses, result in zip(entry_addresses, results):
+                for entry_address, result in zip(entry_addresses, results, strict=True):
                     if isinstance(result, Exception):
                         ping_result = False
                     elif isinstance(result, BaseException):
@@ -114,7 +114,7 @@ class PingStatus:
                     else:
                         host: Host = result
                         ping_result = host.is_alive
-                    entry: DashboardEntry = entry_addresses[0]
+                    entry: DashboardEntry = entry_address[0]
                     # If we can reach it via ping, we always set it
                     # online, however if we can't reach it via ping
                     # we only set it to offline if the state is unknown

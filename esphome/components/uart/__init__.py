@@ -513,10 +513,11 @@ async def uart_write_to_code(config, action_id, template_arg, args):
 @coroutine_with_priority(CoroPriority.FINAL)
 async def final_step():
     """Final code generation step to configure optional UART features."""
-    if CORE.is_esp32 and CORE.has_networking:
-        # Wake-on-RX is essentially free on ESP32 (just an ISR function pointer
-        # registration) — enable by default to reduce RX buffer overflow risk
-        # by waking the main loop immediately when data arrives.
+    if (CORE.is_esp32 or CORE.is_esp8266) and CORE.has_networking:
+        # Wake-on-RX is essentially free (just an ISR function pointer
+        # registration on ESP32, an inline flag set on ESP8266 software
+        # serial) — enable by default to reduce RX buffer overflow risk by
+        # waking the main loop immediately when data arrives.
         cg.add_define("USE_UART_WAKE_LOOP_ON_RX")
 
 

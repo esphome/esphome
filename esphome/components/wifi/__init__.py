@@ -251,7 +251,7 @@ EAP_AUTH_SCHEMA = cv.All(
         {
             cv.Optional(CONF_IDENTITY): cv.string_strict,
             cv.Optional(CONF_USERNAME): cv.string_strict,
-            cv.Optional(CONF_PASSWORD): cv.string_strict,
+            cv.Optional(CONF_PASSWORD): cv.sensitive(cv.string_strict),
             cv.Optional(CONF_CERTIFICATE_AUTHORITY): wpa2_eap.validate_certificate,
             cv.SplitDefault(CONF_TTLS_PHASE_2, esp32="mschapv2"): cv.All(
                 cv.enum(TTLS_PHASE_2), cv.only_on_esp32
@@ -271,8 +271,8 @@ EAP_AUTH_SCHEMA = cv.All(
 WIFI_NETWORK_BASE = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(WiFiAP),
-        cv.Optional(CONF_SSID): cv.ssid,
-        cv.Optional(CONF_PASSWORD): validate_password,
+        cv.Optional(CONF_SSID): cv.sensitive(cv.ssid),
+        cv.Optional(CONF_PASSWORD): cv.sensitive(validate_password),
         cv.Optional(CONF_CHANNEL): validate_channel,
         cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
     }
@@ -326,23 +326,9 @@ def validate_variant(_):
 
 
 def _apply_min_auth_mode_default(config):
-    """Apply platform-specific default for min_auth_mode and warn ESP8266 users."""
-    # Only apply defaults for platforms that support min_auth_mode
+    """Apply platform-specific default for min_auth_mode."""
     if CONF_MIN_AUTH_MODE not in config and (CORE.is_esp8266 or CORE.is_esp32):
-        if CORE.is_esp8266:
-            _LOGGER.warning(
-                "The minimum WiFi authentication mode (wifi -> min_auth_mode) is not set. "
-                "This controls the weakest encryption your device will accept when connecting to WiFi. "
-                "Currently defaults to WPA (less secure), but will change to WPA2 (more secure) in 2026.6.0. "
-                "WPA uses TKIP encryption which has known security vulnerabilities and should be avoided. "
-                "WPA2 uses AES encryption which is significantly more secure. "
-                "To silence this warning, explicitly set min_auth_mode under 'wifi:'. "
-                "If your router supports WPA2 or WPA3, set 'min_auth_mode: WPA2'. "
-                "If your router only supports WPA, set 'min_auth_mode: WPA'."
-            )
-            config[CONF_MIN_AUTH_MODE] = VALIDATE_WIFI_MIN_AUTH_MODE("WPA")
-        elif CORE.is_esp32:
-            config[CONF_MIN_AUTH_MODE] = VALIDATE_WIFI_MIN_AUTH_MODE("WPA2")
+        config[CONF_MIN_AUTH_MODE] = VALIDATE_WIFI_MIN_AUTH_MODE("WPA2")
     return config
 
 
@@ -448,8 +434,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_NETWORKS): cv.All(
                 cv.ensure_list(WIFI_NETWORK_STA), cv.Length(max=MAX_WIFI_NETWORKS)
             ),
-            cv.Optional(CONF_SSID): cv.ssid,
-            cv.Optional(CONF_PASSWORD): validate_password,
+            cv.Optional(CONF_SSID): cv.sensitive(cv.ssid),
+            cv.Optional(CONF_PASSWORD): cv.sensitive(validate_password),
             cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
             cv.Optional(CONF_EAP): EAP_AUTH_SCHEMA,
             cv.Optional(CONF_AP): wifi_network_ap,
@@ -864,8 +850,8 @@ async def final_step():
     WiFiConfigureAction,
     cv.Schema(
         {
-            cv.Required(CONF_SSID): cv.templatable(cv.ssid),
-            cv.Required(CONF_PASSWORD): cv.templatable(validate_password),
+            cv.Required(CONF_SSID): cv.sensitive(cv.templatable(cv.ssid)),
+            cv.Required(CONF_PASSWORD): cv.sensitive(cv.templatable(validate_password)),
             cv.Optional(CONF_SAVE, default=True): cv.templatable(cv.boolean),
             cv.Optional(CONF_TIMEOUT, default="30000ms"): cv.templatable(
                 cv.positive_time_period_milliseconds

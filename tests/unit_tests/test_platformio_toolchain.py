@@ -304,6 +304,11 @@ def test_run_platformio_cli_sets_environment_variables(
         )
         assert "PLATFORMIO_LIBDEPS_DIR" in os.environ
         assert "PYTHONWARNINGS" in os.environ
+        # Caps git's upward search at the config dir so an uninitialized or
+        # corrupt parent git repo can't break the framework's `git describe`.
+        assert str(CORE.config_dir) in os.environ["GIT_CEILING_DIRECTORIES"].split(
+            os.pathsep
+        )
 
         # Check command was called correctly — runs PlatformIO as a subprocess
         # via the esphome.platformio.runner entry point.
@@ -440,6 +445,21 @@ def test_run_compile(setup_core: Path, mock_run_platformio_cli_run: Mock) -> Non
     toolchain.run_compile(config, verbose=True)
 
     mock_run_platformio_cli_run.assert_called_once_with(config, True, "-j4")
+
+
+def test_run_compile_without_process_limit(
+    setup_core: Path, mock_run_platformio_cli_run: Mock
+) -> None:
+    """When no compile_process_limit is set, run_compile passes no -j flag."""
+    from esphome.const import CONF_ESPHOME
+
+    CORE.build_path = str(setup_core / "build" / "test")
+    config = {CONF_ESPHOME: {}}
+    mock_run_platformio_cli_run.return_value = 0
+
+    toolchain.run_compile(config, verbose=False)
+
+    mock_run_platformio_cli_run.assert_called_once_with(config, False)
 
 
 def test_get_idedata_caches_result(

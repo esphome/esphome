@@ -2,95 +2,150 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
+#include "esphome/components/uart/uart.h"
+
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
-#include "esphome/components/uart/uart.h"
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 
-#include "mbus.h"
-#include "dlms.h"
-#include "obis.h"
+#include <dlms_parser/dlms_parser.h>
 
-#include <array>
 #include <vector>
+#include <string>
+#include <array>
+#include <optional>
+#include <span>
+
+#if __has_include(<psa/crypto.h>)
+#include <dlms_parser/decryption/aes_128_gcm_decryptor_tfpsa.h>
+#elif !defined(USE_ESP8266) && __has_include(<mbedtls/gcm.h>)
+#if __has_include(<mbedtls/esp_config.h>)
+#include <mbedtls/esp_config.h>
+#endif
+#include <dlms_parser/decryption/aes_128_gcm_decryptor_mbedtls.h>
+#elif __has_include(<bearssl/bearssl.h>)
+#include <dlms_parser/decryption/aes_128_gcm_decryptor_bearssl.h>
+#else
+#define DLMS_METER_NO_CRYPTO
+#endif
+
+#ifndef DLMS_MAX_SENSORS
+static constexpr uint8_t DLMS_MAX_SENSORS = 0;
+#endif
+#ifndef DLMS_MAX_TEXT_SENSORS
+static constexpr uint8_t DLMS_MAX_TEXT_SENSORS = 0;
+#endif
+#ifndef DLMS_MAX_BINARY_SENSORS
+static constexpr uint8_t DLMS_MAX_BINARY_SENSORS = 0;
+#endif
 
 namespace esphome::dlms_meter {
 
-#ifndef DLMS_METER_SENSOR_LIST
-#define DLMS_METER_SENSOR_LIST(F, SEP)
-#endif
-
-#ifndef DLMS_METER_TEXT_SENSOR_LIST
-#define DLMS_METER_TEXT_SENSOR_LIST(F, SEP)
-#endif
-
-struct MeterData {
-  float voltage_l1 = 0.0f;             // Voltage L1
-  float voltage_l2 = 0.0f;             // Voltage L2
-  float voltage_l3 = 0.0f;             // Voltage L3
-  float current_l1 = 0.0f;             // Current L1
-  float current_l2 = 0.0f;             // Current L2
-  float current_l3 = 0.0f;             // Current L3
-  float active_power_plus = 0.0f;      // Active power taken from grid
-  float active_power_minus = 0.0f;     // Active power put into grid
-  float active_energy_plus = 0.0f;     // Active energy taken from grid
-  float active_energy_minus = 0.0f;    // Active energy put into grid
-  float reactive_energy_plus = 0.0f;   // Reactive energy taken from grid
-  float reactive_energy_minus = 0.0f;  // Reactive energy put into grid
-  char timestamp[27]{};                // Text sensor for the timestamp value
-
-  // Netz NOE
-  float power_factor = 0.0f;  // Power Factor
-  char meternumber[13]{};     // Text sensor for the meterNumber value
+#ifdef DLMS_METER_NO_CRYPTO
+// Fallback dummy decryptor for platforms without supported crypto (e.g., Zephyr during clang-tidy)
+class Aes128GcmDecryptorDummy : public dlms_parser::Aes128GcmDecryptor {
+ public:
+  void set_decryption_key(const dlms_parser::Aes128GcmDecryptionKey &key) override {}
+  bool decrypt_in_place(std::span<const uint8_t> iv, std::span<uint8_t> ciphertext_and_plaintext,
+                        std::span<const uint8_t> aad, std::span<const uint8_t> tag) override {
+    return false;
+  }
 };
+#endif
 
-// Provider constants
-enum Providers : uint32_t { PROVIDER_GENERIC = 0x00, PROVIDER_NETZNOE = 0x01 };
+#if __has_include(<psa/crypto.h>)
+using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorTfPsa;
+#elif !defined(USE_ESP8266) && __has_include(<mbedtls/gcm.h>)
+using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorMbedTls;
+#elif __has_include(<bearssl/bearssl.h>)
+using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorBearSsl;
+#else
+using Aes128GcmDecryptorImpl = Aes128GcmDecryptorDummy;
+#endif
+
+#ifdef USE_SENSOR
+struct SensorItem {
+  std::string obis_code;
+  sensor::Sensor *sensor;
+};
+#endif
+#ifdef USE_TEXT_SENSOR
+struct TextSensorItem {
+  std::string obis_code;
+  text_sensor::TextSensor *sensor;
+};
+#endif
+#ifdef USE_BINARY_SENSOR
+struct BinarySensorItem {
+  std::string obis_code;
+  binary_sensor::BinarySensor *sensor;
+};
+#endif
+
+struct CustomPattern {
+  std::string pattern;
+  std::optional<std::string> name;
+  int priority{0};
+  std::optional<std::array<uint8_t, 6>> default_obis;
+};
 
 class DlmsMeterComponent : public Component, public uart::UARTDevice {
  public:
-  DlmsMeterComponent() = default;
+  DlmsMeterComponent(uint32_t receive_timeout_ms, bool skip_crc_check,
+                     std::optional<std::array<uint8_t, 16>> decryption_key,
+                     std::optional<std::array<uint8_t, 16>> authentication_key,
+                     std::vector<CustomPattern> custom_patterns);
 
+  void setup() override;
   void dump_config() override;
   void loop() override;
 
-  void set_decryption_key(const std::array<uint8_t, 16> &key) { this->decryption_key_ = key; }
-  void set_provider(uint32_t provider) { this->provider_ = provider; }
-
-  void publish_sensors(MeterData &data) {
-#define DLMS_METER_PUBLISH_SENSOR(s) \
-  if (this->s##_sensor_ != nullptr) \
-    s##_sensor_->publish_state(data.s);
-    DLMS_METER_SENSOR_LIST(DLMS_METER_PUBLISH_SENSOR, )
-
-#define DLMS_METER_PUBLISH_TEXT_SENSOR(s) \
-  if (this->s##_text_sensor_ != nullptr) \
-    s##_text_sensor_->publish_state(data.s);
-    DLMS_METER_TEXT_SENSOR_LIST(DLMS_METER_PUBLISH_TEXT_SENSOR, )
-  }
-
-  DLMS_METER_SENSOR_LIST(SUB_SENSOR, )
-  DLMS_METER_TEXT_SENSOR_LIST(SUB_TEXT_SENSOR, )
+#ifdef USE_SENSOR
+  void register_sensor(const std::string &obis_code, sensor::Sensor *sensor);
+#endif
+#ifdef USE_TEXT_SENSOR
+  void register_text_sensor(const std::string &obis_code, text_sensor::TextSensor *sensor);
+#endif
+#ifdef USE_BINARY_SENSOR
+  void register_binary_sensor(const std::string &obis_code, binary_sensor::BinarySensor *sensor);
+#endif
 
  protected:
-  bool parse_mbus_(std::vector<uint8_t> &mbus_payload);
-  bool parse_dlms_(const std::vector<uint8_t> &mbus_payload, uint16_t &message_length, uint8_t &systitle_length,
-                   uint16_t &header_offset);
-  bool decrypt_(std::vector<uint8_t> &mbus_payload, uint16_t message_length, uint8_t systitle_length,
-                uint16_t header_offset);
-  void decode_obis_(uint8_t *plaintext, uint16_t message_length);
+  void read_rx_buffer_();
+  void flush_rx_buffer_();
+  void process_frame_();
+  void on_data_(const char *obis_code, float float_val, const char *str_val, bool is_numeric);
 
-  std::vector<uint8_t> receive_buffer_;  // Stores the packet currently being received
-  std::vector<uint8_t> mbus_payload_;    // Parsed M-Bus payload, reused to avoid heap churn
-  uint32_t last_read_ = 0;               // Timestamp when data was last read
-  uint32_t read_timeout_ = 1000;         // Time to wait after last byte before considering data complete
+  std::array<uint8_t, 2048> rx_buffer_;
+  size_t bytes_accumulated_{0};
+  uint32_t last_rx_char_time_{0};
 
-  uint32_t provider_ = PROVIDER_GENERIC;  // Provider of the meter / your grid operator
-  std::array<uint8_t, 16> decryption_key_;
+  uint32_t receive_timeout_ms_{1000};
+  bool skip_crc_check_{false};
+
+  std::vector<CustomPattern> custom_patterns_;
+
+  Aes128GcmDecryptorImpl decryptor_;
+  dlms_parser::DlmsParser parser_;
+
+#ifdef USE_SENSOR
+  StaticVector<SensorItem, DLMS_MAX_SENSORS> sensors_;
+#endif
+#ifdef USE_TEXT_SENSOR
+  StaticVector<TextSensorItem, DLMS_MAX_TEXT_SENSORS> text_sensors_;
+#endif
+#ifdef USE_BINARY_SENSOR
+  StaticVector<BinarySensorItem, DLMS_MAX_BINARY_SENSORS> binary_sensors_;
+#endif
 };
 
 }  // namespace esphome::dlms_meter

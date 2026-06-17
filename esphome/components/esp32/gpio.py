@@ -31,9 +31,12 @@ from .const import (
     VARIANT_ESP32C6,
     VARIANT_ESP32C61,
     VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
     esp32_ns,
 )
 from .gpio_esp32 import esp32_validate_gpio_pin, esp32_validate_supports
@@ -43,9 +46,12 @@ from .gpio_esp32_c5 import esp32_c5_validate_gpio_pin, esp32_c5_validate_support
 from .gpio_esp32_c6 import esp32_c6_validate_gpio_pin, esp32_c6_validate_supports
 from .gpio_esp32_c61 import esp32_c61_validate_gpio_pin, esp32_c61_validate_supports
 from .gpio_esp32_h2 import esp32_h2_validate_gpio_pin, esp32_h2_validate_supports
+from .gpio_esp32_h4 import esp32_h4_validate_gpio_pin, esp32_h4_validate_supports
+from .gpio_esp32_h21 import esp32_h21_validate_gpio_pin, esp32_h21_validate_supports
 from .gpio_esp32_p4 import esp32_p4_validate_gpio_pin, esp32_p4_validate_supports
 from .gpio_esp32_s2 import esp32_s2_validate_gpio_pin, esp32_s2_validate_supports
 from .gpio_esp32_s3 import esp32_s3_validate_gpio_pin, esp32_s3_validate_supports
+from .gpio_esp32_s31 import esp32_s31_validate_gpio_pin, esp32_s31_validate_supports
 
 ESP32InternalGPIOPin = esp32_ns.class_("ESP32InternalGPIOPin", cg.InternalGPIOPin)
 
@@ -120,6 +126,14 @@ _esp32_validations = {
         pin_validation=esp32_h2_validate_gpio_pin,
         usage_validation=esp32_h2_validate_supports,
     ),
+    VARIANT_ESP32H4: ESP32ValidationFunctions(
+        pin_validation=esp32_h4_validate_gpio_pin,
+        usage_validation=esp32_h4_validate_supports,
+    ),
+    VARIANT_ESP32H21: ESP32ValidationFunctions(
+        pin_validation=esp32_h21_validate_gpio_pin,
+        usage_validation=esp32_h21_validate_supports,
+    ),
     VARIANT_ESP32P4: ESP32ValidationFunctions(
         pin_validation=esp32_p4_validate_gpio_pin,
         usage_validation=esp32_p4_validate_supports,
@@ -131,6 +145,10 @@ _esp32_validations = {
     VARIANT_ESP32S3: ESP32ValidationFunctions(
         pin_validation=esp32_s3_validate_gpio_pin,
         usage_validation=esp32_s3_validate_supports,
+    ),
+    VARIANT_ESP32S31: ESP32ValidationFunctions(
+        pin_validation=esp32_s31_validate_gpio_pin,
+        usage_validation=esp32_s31_validate_supports,
     ),
 }
 

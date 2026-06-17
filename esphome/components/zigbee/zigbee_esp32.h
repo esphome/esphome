@@ -13,7 +13,6 @@
 #include "ha/esp_zigbee_ha_standard.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
-#include "esphome/core/defines.h"
 #include "zigbee_helpers_esp32.h"
 
 #ifdef USE_BINARY_SENSOR
@@ -99,8 +98,6 @@ class ZigbeeComponent : public Component {
   CallbackManager<void(bool)> join_cb_{};
 };
 
-extern "C" void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct);
-
 template<typename T>
 void ZigbeeComponent::add_attr(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
                                uint8_t max_size, T value) {
@@ -129,7 +126,7 @@ template<typename T>
 void ZigbeeComponent::add_attr_(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role,
                                 uint16_t attr_id, T *value_p) {
   esp_zb_attribute_list_t *attr_list = this->attribute_list_[{endpoint_id, cluster_id, role}];
-  esp_err_t ret = esphome_zb_cluster_add_or_update_attr(cluster_id, attr_list, attr_id, value_p);
+  esphome_zb_cluster_add_or_update_attr(cluster_id, attr_list, attr_id, value_p);
 
   if (attr != nullptr) {
     this->attributes_[{endpoint_id, cluster_id, role, attr_id}] = attr;

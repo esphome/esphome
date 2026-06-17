@@ -193,8 +193,8 @@ CONFIG_SCHEMA = cv.All(
                     cv.Required(CONF_USERNAME): cv.All(
                         cv.string_strict, cv.Length(min=1)
                     ),
-                    cv.Required(CONF_PASSWORD): cv.All(
-                        cv.string_strict, cv.Length(min=1)
+                    cv.Required(CONF_PASSWORD): cv.sensitive(
+                        cv.All(cv.string_strict, cv.Length(min=1))
                     ),
                 }
             ),
@@ -326,12 +326,12 @@ async def to_code(config):
     if CONF_CSS_INCLUDE in config:
         cg.add_define("USE_WEBSERVER_CSS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_CSS_INCLUDE])
-        with open(file=path, encoding="utf-8") as css_file:
+        with path.open(encoding="utf-8") as css_file:
             add_resource_as_progmem("CSS_INCLUDE", css_file.read())
     if CONF_JS_INCLUDE in config:
         cg.add_define("USE_WEBSERVER_JS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_JS_INCLUDE])
-        with open(file=path, encoding="utf-8") as js_file:
+        with path.open(encoding="utf-8") as js_file:
             add_resource_as_progmem("JS_INCLUDE", js_file.read())
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
     if CONF_LOCAL in config and config[CONF_LOCAL]:
