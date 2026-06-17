@@ -608,8 +608,8 @@ void TAS2780::apply_amp_and_channel_config() {
     return;
   }
   tdm_cfg2 &= ~(TAS2780_TDM_CFG2_RX_SCFG_MASK | TAS2780_TDM_CFG2_RX_WLEN_MASK | TAS2780_TDM_CFG2_RX_SLEN_MASK);
-  tdm_cfg2 |=
-      get_channel_select_reg_val(this->selected_channel_) | TAS2780_TDM_CFG2_RX_WLEN_32BIT | TAS2780_TDM_CFG2_RX_SLEN_32BIT;
+  tdm_cfg2 |= get_channel_select_reg_val(this->selected_channel_) | TAS2780_TDM_CFG2_RX_WLEN_32BIT |
+              TAS2780_TDM_CFG2_RX_SLEN_32BIT;
   this->reg(TAS2780_TDM_CFG2) = tdm_cfg2;
 }
 
