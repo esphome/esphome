@@ -112,12 +112,12 @@ union As7341Cfg8 {
 
 constexpr uint16_t AS7341_NUM_CHANNELS = 12;
 
-typedef std::array<const char *, AS7341_NUM_CHANNELS> ChannelValuesString;
-typedef std::array<uint16_t, AS7341_NUM_CHANNELS> ChannelValuesUint16;
-typedef std::array<float, AS7341_NUM_CHANNELS> ChannelValuesFloat;
-typedef std::array<float, AS7341_NUM_CHANNELS - 2> CalibrationCoeffs;
+using ChannelValuesString = std::array<const char *, AS7341_NUM_CHANNELS>;
+using ChannelValuesUint16 = std::array<uint16_t, AS7341_NUM_CHANNELS>;
+using ChannelValuesFloat = std::array<float, AS7341_NUM_CHANNELS>;
+using CalibrationCoeffs = std::array<float, AS7341_NUM_CHANNELS - 2>;
 
-typedef std::array<sensor::Sensor *, AS7341_NUM_CHANNELS> SensorArray;
+using SensorArray = std::array<sensor::Sensor *, AS7341_NUM_CHANNELS>;
 
 #define SUB_SENSOR_ARRAY
 
