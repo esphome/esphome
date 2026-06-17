@@ -10,6 +10,7 @@ from esphome.components.esp32 import (
     const,
     get_esp32_variant,
     only_on_variant,
+    request_wifi,
 )
 from esphome.components.network import (
     has_high_performance_networking,
@@ -594,9 +595,11 @@ async def to_code(config):
         )
         cg.add(var.set_ap_timeout(conf[CONF_AP_TIMEOUT]))
         cg.add_define("USE_WIFI_AP")
-    elif CORE.is_esp32 and not CORE.using_arduino:
-        add_idf_sdkconfig_option("CONFIG_ESP_WIFI_SOFTAP_SUPPORT", False)
-        add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", False)
+
+    # ESP32: register the WiFi stack with the esp32 sdkconfig reconciler, which
+    # drops SoftAP support / the LWIP DHCP server when AP mode is unused.
+    if CORE.is_esp32:
+        request_wifi(ap=CONF_AP in config)
 
     # Disable Enterprise WiFi support if no EAP is configured
     if CORE.is_esp32:
