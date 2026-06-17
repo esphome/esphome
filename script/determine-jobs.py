@@ -58,6 +58,7 @@ from pathlib import Path
 import sys
 from typing import Any
 
+from clang_tidy_hash import CLANG_TIDY_GLOBAL_FILES, SDKCONFIG_DEFAULTS_PREFIX
 from helpers import (
     CPP_FILE_EXTENSIONS,
     ESPHOME_TESTS_COMPONENTS_PATH,
@@ -278,23 +279,12 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
     return (False, [])
 
 
-# Files that affect clang-tidy results globally. A change to any of these can
-# surface warnings in source files the PR didn't touch, so the entire codebase
-# must be re-scanned rather than just the changed files. Per-target
-# sdkconfig.defaults.<target> files are matched by prefix below.
-CLANG_TIDY_GLOBAL_FILES = frozenset(
-    {
-        ".clang-tidy",
-        "platformio.ini",
-        "requirements_dev.txt",
-        "esphome/idf_component.yml",
-    }
-)
-
-
 @cache
 def _is_clang_tidy_full_scan(branch: str | None = None) -> bool:
     """Check if a clang-tidy-relevant config file changed (requires full scan).
+
+    A change to a file that affects clang-tidy globally can surface warnings in
+    source files the PR didn't touch, so the entire codebase must be re-scanned.
 
     Returns:
         True if full scan is needed, False otherwise.
@@ -303,7 +293,7 @@ def _is_clang_tidy_full_scan(branch: str | None = None) -> bool:
         if file in CLANG_TIDY_GLOBAL_FILES:
             return True
         # Root-level sdkconfig.defaults and per-target sdkconfig.defaults.<target>
-        if "/" not in file and file.startswith("sdkconfig.defaults"):
+        if "/" not in file and file.startswith(SDKCONFIG_DEFAULTS_PREFIX):
             return True
     return False
 
