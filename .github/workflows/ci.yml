@@ -270,8 +270,8 @@ jobs:
       python-linters: ${{ steps.determine.outputs.python-linters }}
       import-time: ${{ steps.determine.outputs.import-time }}
       device-builder: ${{ steps.determine.outputs.device-builder }}
-      native-idf: ${{ steps.determine.outputs.native-idf }}
-      native-idf-components: ${{ steps.determine.outputs.native-idf-components }}
+      esp32-platformio: ${{ steps.determine.outputs.esp32-platformio }}
+      esp32-platformio-components: ${{ steps.determine.outputs.esp32-platformio-components }}
       changed-components: ${{ steps.determine.outputs.changed-components }}
       changed-components-with-tests: ${{ steps.determine.outputs.changed-components-with-tests }}
       directly-changed-components-with-tests: ${{ steps.determine.outputs.directly-changed-components-with-tests }}
@@ -324,8 +324,8 @@ jobs:
           echo "python-linters=$(echo "$output" | jq -r '.python_linters')" >> $GITHUB_OUTPUT
           echo "import-time=$(echo "$output" | jq -r '.import_time')" >> $GITHUB_OUTPUT
           echo "device-builder=$(echo "$output" | jq -r '.device_builder')" >> $GITHUB_OUTPUT
-          echo "native-idf=$(echo "$output" | jq -r '.native_idf')" >> $GITHUB_OUTPUT
-          echo "native-idf-components=$(echo "$output" | jq -r '.native_idf_components')" >> $GITHUB_OUTPUT
+          echo "esp32-platformio=$(echo "$output" | jq -r '.esp32_platformio')" >> $GITHUB_OUTPUT
+          echo "esp32-platformio-components=$(echo "$output" | jq -r '.esp32_platformio_components')" >> $GITHUB_OUTPUT
           echo "changed-components=$(echo "$output" | jq -c '.changed_components')" >> $GITHUB_OUTPUT
           echo "changed-components-with-tests=$(echo "$output" | jq -c '.changed_components_with_tests')" >> $GITHUB_OUTPUT
           echo "directly-changed-components-with-tests=$(echo "$output" | jq -c '.directly_changed_components_with_tests')" >> $GITHUB_OUTPUT
@@ -522,7 +522,6 @@ jobs:
           key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
 
       - name: Cache ESP-IDF install
-        # Shared with the IDF tidy + native-IDF build jobs (same install).
         if: matrix.cache_idf
         uses: ./.github/actions/cache-esp-idf
         with:
@@ -592,7 +591,6 @@ jobs:
           cache-key: ${{ needs.common.outputs.cache-key }}
 
       - name: Cache ESP-IDF install
-        # Shared with the Arduino tidy + native-IDF build jobs (same install).
         uses: ./.github/actions/cache-esp-idf
 
       - name: Register problem matchers
@@ -673,7 +671,6 @@ jobs:
           cache-key: ${{ needs.common.outputs.cache-key }}
 
       - name: Cache ESP-IDF install
-        # Shared with the Arduino tidy + native-IDF build jobs (same install).
         uses: ./.github/actions/cache-esp-idf
 
       - name: Register problem matchers
@@ -758,7 +755,6 @@ jobs:
           cache-key: ${{ needs.common.outputs.cache-key }}
 
       - name: Cache ESP-IDF install
-        # Shared with the IDF/Arduino clang-tidy jobs + native-IDF build (same install).
         uses: ./.github/actions/cache-esp-idf
 
       - name: Register problem matchers
@@ -805,6 +801,10 @@ jobs:
       - common
       - determine-jobs
     if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.component-test-count) > 0
+    env:
+      # esp32 component builds use the native ESP-IDF toolchain (default), so
+      # share the tidy jobs' install location -- the restore below lands here.
+      ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
     strategy:
       fail-fast: false
       max-parallel: ${{ (startsWith(github.base_ref, 'beta') || startsWith(github.base_ref, 'release')) && 8 || 4 }}
@@ -832,6 +832,12 @@ jobs:
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Cache ESP-IDF install (restore-only)
+        # A batch may contain no esp32 build, so never save -- just reuse the
+        # shared install the dev tidy jobs already cached when present.
+        uses: ./.github/actions/cache-esp-idf
+        with:
+          restore-only: true
       - name: Validate and compile components with intelligent grouping
         run: |
           . venv/bin/activate
@@ -935,20 +941,19 @@ jobs:
             echo "All components in this batch are validate-only -- skipping compile stage."
           fi
 
-  test-native-idf:
-    name: Test components with native ESP-IDF
+  test-esp32-platformio:
+    name: Test esp32 components with PlatformIO
     runs-on: ubuntu-24.04
     needs:
       - common
       - determine-jobs
-    if: github.event_name == 'pull_request' && needs.determine-jobs.outputs.native-idf == 'true'
+    if: github.event_name == 'pull_request' && needs.determine-jobs.outputs.esp32-platformio == 'true'
     env:
-      ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
-      # Comma-joined subset of the native-IDF representative component list,
-      # computed by script/determine-jobs.py (native_idf_components_to_test).
+      # Comma-joined subset of the esp32 PlatformIO representative component list,
+      # computed by script/determine-jobs.py (esp32_platformio_components_to_test).
       # Single source of truth -- the full list lives in
-      # script/determine-jobs.py::NATIVE_IDF_TEST_COMPONENTS.
-      TEST_COMPONENTS: ${{ needs.determine-jobs.outputs.native-idf-components }}
+      # script/determine-jobs.py::ESP32_PLATFORMIO_TEST_COMPONENTS.
+      TEST_COMPONENTS: ${{ needs.determine-jobs.outputs.esp32-platformio-components }}
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -959,66 +964,22 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
 
-      - name: Prepare build storage on /mnt
-        # Bind-mount the larger /mnt disk over the IDF install + build dirs BEFORE
-        # restoring the cache, so the ~4.5GB restore lands on the roomier volume
-        # instead of being shadowed by a mount set up later in the run step.
-        run: |
-          root_avail=$(df -k / | awk 'NR==2 {print $4}')
-          mnt_avail=$(df -k /mnt 2>/dev/null | awk 'NR==2 {print $4}')
-          echo "Available space: / has ${root_avail}KB, /mnt has ${mnt_avail}KB"
-          if [ -n "$mnt_avail" ] && [ "$mnt_avail" -gt "$root_avail" ]; then
-            echo "Using /mnt for build files (more space available)"
-            sudo mkdir -p /mnt/esphome-idf
-            sudo chown $USER:$USER /mnt/esphome-idf
-            mkdir -p ~/.esphome-idf
-            sudo mount --bind /mnt/esphome-idf ~/.esphome-idf
-            sudo mkdir -p /mnt/test_build_components_build
-            sudo chown $USER:$USER /mnt/test_build_components_build
-            mkdir -p tests/test_build_components/build
-            sudo mount --bind /mnt/test_build_components_build tests/test_build_components/build
-          else
-            echo "Using / for build files (more space available than /mnt or /mnt unavailable)"
-          fi
-
-      - name: Cache ESP-IDF install
-        # Shared with the IDF/Arduino clang-tidy jobs (same install); restores
-        # into the /mnt bind-mount prepared above when present.
-        uses: ./.github/actions/cache-esp-idf
-
-      - name: Run native ESP-IDF compile test
+      - name: Run PlatformIO compile test
         run: |
           . venv/bin/activate
 
           echo "Testing components: $TEST_COMPONENTS"
           echo ""
 
-          # Show disk space before validation
-          echo "Disk space before config validation:"
-          df -h
-          echo ""
-
           # Run config validation (auto-grouped by test_build_components.py)
-          python3 script/test_build_components.py -e config -t esp32-idf -c "$TEST_COMPONENTS" -f --toolchain esp-idf
+          python3 script/test_build_components.py -e config -t esp32-idf -c "$TEST_COMPONENTS" -f --toolchain platformio
 
           echo ""
           echo "Config validation passed! Starting compilation..."
           echo ""
 
-          # Show disk space before compilation
-          echo "Disk space before compilation:"
-          df -h
-          echo ""
-
           # Run compilation (auto-grouped by test_build_components.py)
-          python3 script/test_build_components.py -e compile -t esp32-idf -c "$TEST_COMPONENTS" -f --toolchain esp-idf
-
-      - name: Save ESPHome cache
-        if: github.ref == 'refs/heads/dev'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: ~/.esphome-idf
-          key: ${{ runner.os }}-esphome-${{ needs.common.outputs.cache-key }}
+          python3 script/test_build_components.py -e compile -t esp32-idf -c "$TEST_COMPONENTS" -f --toolchain platformio
 
   pre-commit-ci-lite:
     name: pre-commit.ci lite
@@ -1353,7 +1314,7 @@ jobs:
       - determine-jobs
       - device-builder
       - test-build-components-split
-      - test-native-idf
+      - test-esp32-platformio
       - pre-commit-ci-lite
       - memory-impact-target-branch
       - memory-impact-pr-branch
