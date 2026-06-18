@@ -1,0 +1,177 @@
+---
+description: "Instructions for setting up the UFM-01 flow meter in ESPHome."
+title: "UFM-01 Flow Meter"
+---
+
+import APIRef from '@components/APIRef.astro';
+import Figure from '@components/Figure.astro';
+
+The `ufm01` component allows you to integrate the UFM-01 flow meter
+([datasheet](https://www.sciosense.com/wp-content/uploads/2025/06/UFM-01-Datasheet-1.pdf),
+[manufacturer page](https://www.sciosense.com/ufm-01-ultrasonic-flow-sensing-module/))
+into your ESPHome device. This component reads accumulated flow (volume), current flow rate, and water temperature
+from the UFM-01 device via UART. It also provides several diagnostic binary sensors to monitor the device's status.
+
+The UFM-01 flow meter communicates using a specific UART protocol at 2400 baud with even parity and 1 stop bit.
+
+<Figure
+  src="/images/ufm01.png"
+  alt="UFM-01 ultrasonic flow meter"
+  caption="UFM-01 flow meter"
+  layout="constrained"
+  width={236}
+  height={278}
+/>
+
+## Configuration
+
+The `ufm01` component requires a UART bus to be configured. Ensure your UART bus is set up with `baud_rate: 2400`,
+`parity: EVEN`, and `stop_bits: 1`.
+
+```yaml
+# Example UART configuration
+uart:
+  - id: uart_bus
+    tx_pin: GPIOXX
+    rx_pin: GPIOXX
+    baud_rate: 2400
+    parity: EVEN
+    stop_bits: 1
+```
+
+## Component/Hub
+
+To use the UFM-01 component, add the following to your configuration:
+
+```yaml
+# Basic UFM-01 configuration
+ufm01:
+  - id: ufm01_component
+    uart_id: uart_bus # The ID of your UART bus
+```
+
+### Configuration variables
+
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): The ID to use for the UFM-01 component.
+- **uart_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the UART bus to use.
+
+## Sensor
+
+The `ufm01` sensor platform allows you to read accumulated flow, current flow rate, and water temperature from the
+UFM-01 device.
+
+```yaml
+# Sensor configuration
+sensor:
+  - platform: ufm01
+    ufm01_id: ufm01_component # The ID of your UFM-01 component
+    accumulated_flow:
+      name: "UFM01 Accumulated Flow"
+    flow:
+      name: "UFM01 Flow Rate"
+    temperature:
+      name: "UFM01 Water Temperature"
+```
+
+### Configuration variables
+
+- **platform**: `ufm01`
+- **ufm01_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the `ufm01` component this sensor belongs to.
+- **accumulated_flow** (*Optional*): The accumulated flow (volume) sensor.
+
+  - All options from [Sensor](/components/sensor).
+
+- **flow** (*Optional*): The current flow rate sensor.
+
+  - All options from [Sensor](/components/sensor).
+
+- **temperature** (*Optional*): The water temperature sensor.
+
+  - All options from [Sensor](/components/sensor).
+
+When `empty_tube` is active, `flow` and `temperature` are published as unknown (`NaN`). `accumulated_flow` continues
+to update.
+
+## Binary Sensor
+
+The UFM-01 component also exposes several diagnostic binary sensors to report the device's status.
+
+```yaml
+# Binary sensor configuration
+binary_sensor:
+  - platform: ufm01
+    ufm01_id: ufm01_component # The ID of your UFM-01 component
+    ufc_chip_error:
+      name: "UFM01 UFC Chip Error"
+    flow_direction_wrong:
+      name: "UFM01 Flow Direction Wrong"
+    empty_tube:
+      name: "UFM01 Empty Tube"
+    flow_rate_out_of_range:
+      name: "UFM01 Flow Rate Out of Range"
+```
+
+### Configuration variables
+
+- **platform**: `ufm01`
+- **ufm01_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the `ufm01` component this binary sensor belongs to.
+- **ufc_chip_error** (*Optional*): Reports if there is an error with the UFC chip (ultrasonic flow converter; datasheet ST2 bit 5).
+
+  - All options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
+
+- **flow_direction_wrong** (*Optional*): Reports if the flow direction is incorrect.
+
+  - All options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
+
+- **empty_tube** (*Optional*): Reports if the tube is empty.
+
+  - All options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
+
+- **flow_rate_out_of_range** (*Optional*): Reports if the flow rate is out of the measurable range.
+
+  - All options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
+
+## Full Example Configuration
+
+```yaml
+uart:
+  - id: uart_bus
+    tx_pin: GPIOXX
+    rx_pin: GPIOXX
+    baud_rate: 2400
+    parity: EVEN
+    stop_bits: 1
+
+ufm01:
+  - id: ufm01_component
+    uart_id: uart_bus
+
+sensor:
+  - platform: ufm01
+    ufm01_id: ufm01_component
+    accumulated_flow:
+      name: "UFM01 Accumulated Flow"
+    flow:
+      name: "UFM01 Flow Rate"
+    temperature:
+      name: "UFM01 Water Temperature"
+
+binary_sensor:
+  - platform: ufm01
+    ufm01_id: ufm01_component
+    ufc_chip_error:
+      name: "UFM01 UFC Chip Error"
+    flow_direction_wrong:
+      name: "UFM01 Flow Direction Wrong"
+    empty_tube:
+      name: "UFM01 Empty Tube"
+    flow_rate_out_of_range:
+      name: "UFM01 Flow Rate Out of Range"
+```
+
+## See Also
+
+- [UART](/components/uart/)
+- [Sensor](/components/sensor/)
+- [Binary Sensor](/components/binary_sensor/)
+- <APIRef text="ufm01.h" path="ufm01/ufm01.h" />
