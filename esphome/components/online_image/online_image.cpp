@@ -124,11 +124,11 @@ void OnlineImage::update() {
     auto content_type_header = this->downloader_->get_response_header(CONTENT_TYPE_HEADER_NAME);
     const char *content_type = content_type_header.c_str();
     ESP_LOGV(TAG, "Content-Type: %s", content_type);
-    if (strcasestr(content_type, "image/bmp") != nullptr) {
+    if (!strcasecmp(content_type, "image/bmp")) {
       format = runtime_image::BMP;
-    } else if (strcasestr(content_type, "image/jpeg") != nullptr) {
+    } else if (!strcasecmp(content_type, "image/jpeg")) {
       format = runtime_image::JPEG;
-    } else if (strcasestr(content_type, "image/png") != nullptr) {
+    } else if (!strcasecmp(content_type, "image/png")) {
       format = runtime_image::PNG;
     } else {
       ESP_LOGE(TAG, "Image format '%s' not supported", content_type);
