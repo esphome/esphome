@@ -121,7 +121,8 @@ void OnlineImage::update() {
 
   if (format == runtime_image::AUTO) {
     // Try to auto-detect format from Content-Type header
-    auto content_type = this->downloader_->get_response_header(CONTENT_TYPE_HEADER_NAME).c_str();
+    auto content_type_header = this->downloader_->get_response_header(CONTENT_TYPE_HEADER_NAME);
+    const char *content_type = content_type_header.c_str();
     ESP_LOGV(TAG, "Content-Type: %s", content_type);
     if (strcasestr(content_type, "image/bmp") != nullptr) {
       format = runtime_image::BMP;
