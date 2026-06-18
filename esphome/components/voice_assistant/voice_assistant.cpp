@@ -373,9 +373,9 @@ void VoiceAssistant::loop() {
     }
     case State::STREAMING_MICROPHONE: {
       // pre_shift is ignored by RingBufferAudioSource (no intermediate transfer buffer to compact).
-        if (this->audio_mode_ == AUDIO_MODE_API) {
+      if (this->audio_mode_ == AUDIO_MODE_API) {
         this->stream_api_audio_();
-        } else {
+      } else {
         // UDP (will eventually be deprecated)
         // Only the primary microphone channel is used
         while (true) {
@@ -406,7 +406,7 @@ void VoiceAssistant::loop() {
       }
       if (is_running || is_running2) {
         if (is_running) {
-        this->mic_source_->stop();
+          this->mic_source_->stop();
         }
         if (is_running2) {
           this->mic_source2_->stop();
