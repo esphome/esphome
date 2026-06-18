@@ -42,7 +42,7 @@ static void bdb_start_top_level_commissioning_cb(uint8_t mode_mask) {
   }
 }
 
-void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
+extern "C" void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
   static uint8_t steering_retry_count = 0;
   uint32_t *p_sg_p = signal_struct->p_app_signal;
   esp_err_t err_status = signal_struct->esp_err_status;
@@ -183,21 +183,21 @@ esp_err_t ZigbeeComponent::create_endpoint(uint8_t endpoint_id, zb_ha_standard_d
                                            esp_zb_cluster_list_t *esp_zb_cluster_list) {
   esp_zb_endpoint_config_t endpoint_config = {.endpoint = endpoint_id,
                                               .app_profile_id = ESP_ZB_AF_HA_PROFILE_ID,
-                                              .app_device_id = device_id,
+                                              .app_device_id = static_cast<uint16_t>(device_id),
                                               .app_device_version = 0};
   return esp_zb_ep_list_add_ep(this->esp_zb_ep_list_, esp_zb_cluster_list, endpoint_config);
 }
 
-static void esp_zb_task_(void *pvParameters) {
+static void esp_zb_task(void *pv_parameters) {
   if (esp_zb_start(false) != ESP_OK) {
     ESP_LOGE(TAG, "Could not setup Zigbee");
     vTaskDelete(NULL);
   }
   if (global_zigbee->is_battery_powered()) {
     ESP_LOGD(TAG, "Battery powered!");
-    esp_zb_set_node_descriptor_power_source(0);
+    esp_zb_set_node_descriptor_power_source(false);
   } else {
-    esp_zb_set_node_descriptor_power_source(1);
+    esp_zb_set_node_descriptor_power_source(true);
   }
   esp_zb_stack_main_loop();
 }
@@ -218,20 +218,20 @@ void ZigbeeComponent::setup() {
     return;
   }
 
-  esp_zb_zed_cfg_t zb_zed_cfg = {
-      .ed_timeout = ESP_ZB_ED_AGING_TIMEOUT_64MIN,
-      .keep_alive = ED_KEEP_ALIVE,
-  };
-  esp_zb_zczr_cfg_t zb_zczr_cfg = {
-      .max_children = MAX_CHILDREN,
-  };
   esp_zb_cfg_t zb_nwk_cfg = {
       .esp_zb_role = this->device_role_,
       .install_code_policy = false,
   };
 #ifdef ZB_ROUTER_ROLE
+  esp_zb_zczr_cfg_t zb_zczr_cfg = {
+      .max_children = MAX_CHILDREN,
+  };
   zb_nwk_cfg.nwk_cfg.zczr_cfg = zb_zczr_cfg;
 #else
+  esp_zb_zed_cfg_t zb_zed_cfg = {
+      .ed_timeout = ESP_ZB_ED_AGING_TIMEOUT_64MIN,
+      .keep_alive = ED_KEEP_ALIVE,
+  };
   zb_nwk_cfg.nwk_cfg.zed_cfg = zb_zed_cfg;
 #endif
   esp_zb_init(&zb_nwk_cfg);
@@ -290,7 +290,7 @@ void ZigbeeComponent::setup() {
       }
     }
   }
-  xTaskCreate(esp_zb_task_, "Zigbee_main", 4096, NULL, 24, NULL);
+  xTaskCreate(esp_zb_task, "Zigbee_main", 4096, NULL, 24, NULL);
   this->disable_loop();  // loop is only needed for processing events, so disable until we join a network
 }
 

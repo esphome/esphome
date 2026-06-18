@@ -65,6 +65,38 @@ def test_esp32_config(
 
 
 @pytest.mark.parametrize(
+    ("config_toolchain", "expected"),
+    [
+        # No `toolchain:` set -> the new default for esp32.
+        (None, Toolchain.ESP_IDF),
+        # An explicit `toolchain:` still wins over the default.
+        (Toolchain.PLATFORMIO.value, Toolchain.PLATFORMIO),
+        (Toolchain.ESP_IDF.value, Toolchain.ESP_IDF),
+    ],
+)
+def test_esp32_default_toolchain_is_esp_idf(
+    set_core_config: SetCoreConfigCallable,
+    config_toolchain: str | None,
+    expected: Toolchain,
+) -> None:
+    """With no `toolchain:` set (and nothing pinned via the CLI), esp32 resolves
+    to the ESP-IDF toolchain; an explicit `toolchain:` still wins."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    from esphome.components.esp32 import CONFIG_SCHEMA
+
+    # Fresh run: no --toolchain CLI and no prior config pinned CORE.toolchain.
+    CORE.toolchain = None
+    config: dict[str, Any] = {"variant": VARIANT_ESP32}
+    if config_toolchain is not None:
+        config["toolchain"] = config_toolchain
+
+    CONFIG_SCHEMA(config)
+
+    assert CORE.toolchain == expected
+
+
+@pytest.mark.parametrize(
     ("config", "error_match"),
     [
         pytest.param(
@@ -83,7 +115,7 @@ def test_esp32_config(
             id="mismatched_board_variant_config",
         ),
         pytest.param(
-            {"variant": "esp32s31"},
+            {"variant": "esp32s31", "toolchain": Toolchain.PLATFORMIO.value},
             r"No default board is known for ESP32S31\. Please specify the `board:` option explicitly\. @ data\['variant'\]",
             id="variant_without_default_board_requires_explicit_board_under_platformio",
         ),
@@ -285,3 +317,29 @@ def test_native_idf_enables_reproducible_build(
 
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_APP_REPRODUCIBLE_BUILD") is True
+
+
+def test_flash_mode_sets_sdkconfig_and_pio_option(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """flash_mode/flash_frequency select the esptool flash parameters on both backends."""
+    generate_main(component_config_path("flash_mode_idf.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_ESPTOOLPY_FLASHMODE_QIO") is True
+    assert sdkconfig.get("CONFIG_ESPTOOLPY_FLASHFREQ_80M") is True
+    assert CORE.platformio_options.get("board_build.flash_mode") == "qio"
+    assert CORE.platformio_options.get("board_build.f_flash") == "80000000L"
+
+
+def test_flash_mode_unset_leaves_defaults(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Without flash_mode the board/sdkconfig defaults stay untouched."""
+    generate_main(component_config_path("flash_mode_default.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert not any(key.startswith("CONFIG_ESPTOOLPY_FLASHMODE_") for key in sdkconfig)
+    assert not any(key.startswith("CONFIG_ESPTOOLPY_FLASHFREQ_") for key in sdkconfig)
+    assert "board_build.flash_mode" not in CORE.platformio_options
+    assert "board_build.f_flash" not in CORE.platformio_options
