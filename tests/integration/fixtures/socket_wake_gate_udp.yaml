@@ -1,0 +1,29 @@
+esphome:
+  name: socket-wake-gate-udp
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          // Raise loop_interval_ to 2000ms. Without socket_loop_monitored()
+          // the loop does not wake on UDP data and the packet sits in the
+          // kernel buffer until loop_interval_ expires.
+          App.set_loop_interval(2000);
+      # Let boot transients and API handshake settle.
+      - delay: 500ms
+      - lambda: |-
+          ESP_LOGI("test", "BOOT_DONE");
+
+host:
+
+api:
+
+logger:
+  level: INFO
+
+udp:
+  - id: test_udp
+    port: UDP_LISTEN_PORT_PLACEHOLDER
+    on_receive:
+      - logger.log:
+          format: "PONG"
+          level: INFO

@@ -38,7 +38,7 @@ void UDPComponent::setup() {
   // create listening socket if we either want to subscribe to providers, or need to listen
   // for ping key broadcasts.
   if (this->should_listen_) {
-    this->listen_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+    this->listen_socket_ = socket::socket_loop_monitored(AF_INET, SOCK_DGRAM, IPPROTO_IP);
     if (this->listen_socket_ == nullptr) {
       this->status_set_error(LOG_STR("Could not create socket"));
       this->mark_failed();
@@ -107,6 +107,8 @@ void UDPComponent::loop() {
     std::array<uint8_t, MAX_PACKET_SIZE> buf;
     for (;;) {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+      if (!this->listen_socket_->ready())
+        break;
       auto len = this->listen_socket_->read(buf.data(), buf.size());
 #endif
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
