@@ -1369,4 +1369,7 @@ jobs:
           # 1. The target branch has a build issue independent of this PR
           # 2. This PR fixes a build issue on the target branch
           # In either case, we only care that the PR branch builds successfully.
-          echo "$NEEDS_JSON" | jq -e 'del(.["memory-impact-target-branch"]) | all(.result != "failure")'
+          # Every other job must have succeeded or been skipped; a "cancelled" or
+          # "failure" result fails this check so CI is not reported green when the
+          # workflow was cancelled.
+          echo "$NEEDS_JSON" | jq -e 'del(.["memory-impact-target-branch"]) | all(.result == "success" or .result == "skipped")'
