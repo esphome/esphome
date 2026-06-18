@@ -363,7 +363,14 @@ async def to_code(config):
     if CONF_UPDATE_MODE in config:
         cg.add(var.set_update_mode(UPDATE_MODE_OPTIONS[config[CONF_UPDATE_MODE]]))
 
-    transform = config.get(CONF_TRANSFORM, {})
+    transform = config.get(
+        CONF_TRANSFORM,
+        {
+            CONF_MIRROR_X: model.get_default(CONF_MIRROR_X),
+            CONF_MIRROR_Y: model.get_default(CONF_MIRROR_Y),
+        },
+    )
+
     transform_value = sum(
         flag for key, flag in _TRANSFORM_FLAGS.items() if transform.get(key)
     )

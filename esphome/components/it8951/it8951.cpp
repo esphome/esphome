@@ -939,7 +939,7 @@ void IT8951Display::dump_config() {
                 this->use_legacy_dpy_area_ ? "DPY_AREA (0x0034, legacy)" : "DPY_BUF_AREA (0x0037)");
   ESP_LOGCONFIG(TAG, "  Sleep when done: %s", YESNO(this->sleep_when_done_));
   ESP_LOGCONFIG(TAG, "  Full update every: %u", this->full_update_every_);
-  ESP_LOGCONFIG(TAG, "  Reversed colors: %s", YESNO(this->invert_colors_));
+  ESP_LOGCONFIG(TAG, "  Inverted colors: %s", YESNO(this->invert_colors_));
   ESP_LOGCONFIG(TAG, "  Force 1bpp: %s", YESNO(this->force_1bpp_));
   ESP_LOGCONFIG(TAG, "  Reset duration: %" PRIu32 "ms", this->reset_duration_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
