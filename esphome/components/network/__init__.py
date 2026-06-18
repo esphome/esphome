@@ -157,23 +157,29 @@ def get_network_priority(iface: str) -> float | None:
     the calling component should fall back to its own default setup priority.
 
     Args:
-        iface: Interface type string — one of ``"ethernet"``, ``"wifi"``,
-               ``"openthread"`` or ``"modem"`` (case-insensitive).
+        iface: Interface type string (case-insensitive). Currently ``"ethernet"``
+               or ``"wifi"`` — the only types the priority-list validator
+               accepts; ``"openthread"`` / ``"modem"`` are planned but not yet
+               supported. An interface not present in the configured list
+               returns ``None``.
 
     Returns:
         float setup priority, or None if no priority list was configured.
 
-    Example usage inside a component's ``to_code``::
+    Example usage inside a component's ``to_code``. Emit the override before
+    ``register_component`` so an explicit ``setup_priority:`` on the component
+    still wins::
 
         from esphome.components import network
 
         async def to_code(config):
             var = cg.new_Pvariable(config[CONF_ID])
-            await cg.register_component(var, config)
 
             prio = network.get_network_priority("ethernet")
             if prio is not None:
                 cg.add(var.set_setup_priority(prio))
+
+            await cg.register_component(var, config)
             ...
     """
     priority_list = CORE.data.get(KEY_NETWORK_PRIORITY)

@@ -7,17 +7,22 @@ from esphome.components.network import (
     KEY_NETWORK_PRIORITY,
     NETWORK_PRIORITY_BASE,
     NETWORK_PRIORITY_STEP,
+    _final_validate,
     _validate_priority_list,
     get_network_priority,
 )
+from esphome.const import CONF_PRIORITY
 from esphome.core import CORE
+import esphome.final_validate as fv
 
 
 @pytest.fixture(autouse=True)
 def _clear_core_data():
-    """Wipe CORE.data so each test starts with a clean slate."""
+    """Wipe CORE.data and reset fv.full_config so each test starts clean."""
     CORE.data.clear()
+    token = fv.full_config.set({})
     yield
+    fv.full_config.reset(token)
     CORE.data.clear()
 
 
@@ -102,3 +107,27 @@ def test_get_network_priority_is_case_insensitive_on_query() -> None:
 def test_get_network_priority_returns_none_for_unlisted_interface() -> None:
     CORE.data[KEY_NETWORK_PRIORITY] = _validate_priority_list(["ethernet"])
     assert get_network_priority("wifi") is None
+
+
+def test_final_validate_rejects_priority_iface_without_component() -> None:
+    """An interface named in 'priority' with no matching component block is rejected."""
+    # priority lists wifi, but only ethernet is present in the full config.
+    fv.full_config.set({"ethernet": {}})
+    config = {CONF_PRIORITY: _validate_priority_list(["ethernet", "wifi"])}
+    with pytest.raises(
+        Invalid, match=r"'wifi' is listed in 'network: priority:' but no 'wifi:'"
+    ):
+        _final_validate(config)
+
+
+def test_final_validate_accepts_when_all_priority_ifaces_present() -> None:
+    """No error when every interface in 'priority' has a matching component block."""
+    fv.full_config.set({"ethernet": {}, "wifi": {}})
+    config = {CONF_PRIORITY: _validate_priority_list(["ethernet", "wifi"])}
+    _final_validate(config)  # must not raise
+
+
+def test_final_validate_noop_without_priority_list() -> None:
+    """A network config without a 'priority' list imposes no component requirements."""
+    fv.full_config.set({})
+    _final_validate({})  # must not raise

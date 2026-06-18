@@ -495,12 +495,15 @@ def phy_register(address: int, value: int, page: int):
 @coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
 
-    # Apply network priority if configured, otherwise use the existing default
+    # Apply network priority before register_component (which emits the user's
+    # explicit setup_priority: if set) so that, as in wifi, an explicit
+    # setup_priority: still wins over the network-priority-derived value.
     prio = get_network_priority("ethernet")
     if prio is not None:
         cg.add(var.set_setup_priority(prio))
+
+    await cg.register_component(var, config)
 
     if CORE.is_esp32:
         await _to_code_esp32(var, config)
