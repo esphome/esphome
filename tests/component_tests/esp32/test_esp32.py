@@ -12,12 +12,12 @@ import pytest
 from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANTS,
-    NetworkCoexData,
+    NetworkSdkconfigData,
     _reconcile_network_sdkconfig,
 )
 from esphome.components.esp32.const import (
     KEY_ESP32,
-    KEY_NETWORK_COEX,
+    KEY_NETWORK_SDKCONFIG,
     KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
 )
@@ -325,12 +325,12 @@ def test_flash_mode_unset_leaves_defaults(
 
 
 @pytest.mark.parametrize(
-    ("framework", "coex", "preset", "expected"),
+    ("framework", "net", "preset", "expected"),
     [
         # --- IDF: single-interface cases (must match pre-refactor behavior) ---
         pytest.param(
             PlatformFramework.ESP32_IDF,
-            NetworkCoexData(wifi=True),
+            NetworkSdkconfigData(wifi=True),
             {},
             {
                 "CONFIG_ESP_WIFI_SOFTAP_SUPPORT": False,
@@ -340,14 +340,14 @@ def test_flash_mode_unset_leaves_defaults(
         ),
         pytest.param(
             PlatformFramework.ESP32_IDF,
-            NetworkCoexData(wifi=True, wifi_ap=True),
+            NetworkSdkconfigData(wifi=True, wifi_ap=True),
             {},
             {},
             id="idf_wifi_ap_leaves_softap_dhcps",
         ),
         pytest.param(
             PlatformFramework.ESP32_IDF,
-            NetworkCoexData(ethernet=True),
+            NetworkSdkconfigData(ethernet=True),
             {},
             {
                 "CONFIG_ESP_WIFI_ENABLED": False,
@@ -357,7 +357,7 @@ def test_flash_mode_unset_leaves_defaults(
         ),
         pytest.param(
             PlatformFramework.ESP32_IDF,
-            NetworkCoexData(
+            NetworkSdkconfigData(
                 wifi=True, bluetooth=True, ble_42=True, software_coexistence=True
             ),
             {},
@@ -372,7 +372,7 @@ def test_flash_mode_unset_leaves_defaults(
         ),
         pytest.param(
             PlatformFramework.ESP32_IDF,
-            NetworkCoexData(bluetooth=True),
+            NetworkSdkconfigData(bluetooth=True),
             {},
             {"CONFIG_BT_ENABLED": True},
             id="idf_ble_server_only_no_ble42",
@@ -380,7 +380,7 @@ def test_flash_mode_unset_leaves_defaults(
         # --- IDF: user sdkconfig_options always win ---
         pytest.param(
             PlatformFramework.ESP32_IDF,
-            NetworkCoexData(wifi=True),
+            NetworkSdkconfigData(wifi=True),
             {"CONFIG_ESP_WIFI_SOFTAP_SUPPORT": True},
             {
                 "CONFIG_ESP_WIFI_SOFTAP_SUPPORT": True,
@@ -391,7 +391,9 @@ def test_flash_mode_unset_leaves_defaults(
         # --- IDF: user advanced enable_lwip_dhcp_server: false, even with AP ---
         pytest.param(
             PlatformFramework.ESP32_IDF,
-            NetworkCoexData(wifi=True, wifi_ap=True, lwip_dhcps=False),
+            NetworkSdkconfigData(
+                wifi=True, wifi_ap=True, enable_lwip_dhcp_server=False
+            ),
             {},
             {"CONFIG_LWIP_DHCPS": False},
             id="idf_user_disables_dhcps_with_ap",
@@ -399,7 +401,7 @@ def test_flash_mode_unset_leaves_defaults(
         # --- IDF: WiFi + Ethernet coexist (the multi-interface unlock) ---
         pytest.param(
             PlatformFramework.ESP32_IDF,
-            NetworkCoexData(wifi=True, ethernet=True),
+            NetworkSdkconfigData(wifi=True, ethernet=True),
             {},
             {
                 "CONFIG_ESP_WIFI_SOFTAP_SUPPORT": False,
@@ -410,14 +412,14 @@ def test_flash_mode_unset_leaves_defaults(
         # --- Arduino: SoftAP/DHCPS disable is IDF-only ---
         pytest.param(
             PlatformFramework.ESP32_ARDUINO,
-            NetworkCoexData(wifi=True),
+            NetworkSdkconfigData(wifi=True),
             {},
             {},
             id="arduino_wifi_no_ap_untouched",
         ),
         pytest.param(
             PlatformFramework.ESP32_ARDUINO,
-            NetworkCoexData(ethernet=True),
+            NetworkSdkconfigData(ethernet=True),
             {},
             {
                 "CONFIG_ESP_WIFI_ENABLED": False,
@@ -428,7 +430,7 @@ def test_flash_mode_unset_leaves_defaults(
         # --- Arduino + Ethernet: DHCPS stays available even if user disabled it ---
         pytest.param(
             PlatformFramework.ESP32_ARDUINO,
-            NetworkCoexData(ethernet=True, lwip_dhcps=False),
+            NetworkSdkconfigData(ethernet=True, enable_lwip_dhcp_server=False),
             {},
             {
                 "CONFIG_ESP_WIFI_ENABLED": False,
@@ -441,16 +443,16 @@ def test_flash_mode_unset_leaves_defaults(
 def test_reconcile_network_sdkconfig(
     set_core_config: SetCoreConfigCallable,
     framework: PlatformFramework,
-    coex: NetworkCoexData,
+    net: NetworkSdkconfigData,
     preset: dict[str, Any],
     expected: dict[str, Any],
 ) -> None:
     """The FINAL-priority reconciler resolves WiFi/Ethernet/Bluetooth/coexistence
-    sdkconfig flags from the requests recorded in NetworkCoexData."""
+    sdkconfig flags from the requests recorded in NetworkSdkconfigData."""
     set_core_config(framework)
     CORE.data[KEY_ESP32] = {
         KEY_SDKCONFIG_OPTIONS: dict(preset),
-        KEY_NETWORK_COEX: coex,
+        KEY_NETWORK_SDKCONFIG: net,
     }
 
     asyncio.run(_reconcile_network_sdkconfig())

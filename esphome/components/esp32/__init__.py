@@ -69,7 +69,7 @@ from .const import (
     KEY_FLASH_SIZE,
     KEY_FULL_CERT_BUNDLE,
     KEY_IDF_VERSION,
-    KEY_NETWORK_COEX,
+    KEY_NETWORK_SDKCONFIG,
     KEY_PATH,
     KEY_REF,
     KEY_REPO,
@@ -599,13 +599,13 @@ def add_idf_sdkconfig_option(name: str, value: SdkconfigValueType):
 
 
 @dataclass
-class NetworkCoexData:
-    """Network/coexistence sdkconfig requests, reconciled at FINAL priority.
+class NetworkSdkconfigData:
+    """Inputs for the network-related esp32 sdkconfig flags, reconciled at FINAL.
 
-    Components call the request_*() helpers below instead of setting the
-    WiFi/Ethernet/Bluetooth/coexistence sdkconfig flags directly; the single
-    _reconcile_network_sdkconfig() coroutine then decides the final values so
-    conflicting requests no longer depend on call order.
+    Components call the request_*() helpers below (and esp32's own to_code fills
+    in enable_lwip_dhcp_server) instead of setting the WiFi/Ethernet/Bluetooth
+    sdkconfig flags directly; the single _reconcile_network_sdkconfig() coroutine
+    then decides the final values so they no longer depend on call order.
     """
 
     wifi: bool = False  # WiFi component active (STA and/or AP)
@@ -614,40 +614,41 @@ class NetworkCoexData:
     bluetooth: bool = False  # any BLE component active
     ble_42: bool = False  # BLE 4.2 features needed
     software_coexistence: bool = False  # WiFi/BT software coexistence requested
-    lwip_dhcps: bool | None = None  # esp32 enable_lwip_dhcp_server advanced tristate
+    # esp32 advanced enable_lwip_dhcp_server option (True/False/None=unset)
+    enable_lwip_dhcp_server: bool | None = None
 
 
-def _coex_data() -> NetworkCoexData:
+def _network_sdkconfig() -> NetworkSdkconfigData:
     data = CORE.data[KEY_ESP32]
-    if KEY_NETWORK_COEX not in data:
-        data[KEY_NETWORK_COEX] = NetworkCoexData()
-    return data[KEY_NETWORK_COEX]
+    if KEY_NETWORK_SDKCONFIG not in data:
+        data[KEY_NETWORK_SDKCONFIG] = NetworkSdkconfigData()
+    return data[KEY_NETWORK_SDKCONFIG]
 
 
 def request_wifi(ap: bool = False) -> None:
     """Request the WiFi stack. Pass ap=True when AP mode is configured."""
-    coex = _coex_data()
-    coex.wifi = True
+    net = _network_sdkconfig()
+    net.wifi = True
     if ap:
-        coex.wifi_ap = True
+        net.wifi_ap = True
 
 
 def request_ethernet() -> None:
     """Request the Ethernet stack."""
-    _coex_data().ethernet = True
+    _network_sdkconfig().ethernet = True
 
 
 def request_bluetooth(ble_42: bool = False) -> None:
     """Request the Bluetooth controller. Pass ble_42=True for 4.2 features."""
-    coex = _coex_data()
-    coex.bluetooth = True
+    net = _network_sdkconfig()
+    net.bluetooth = True
     if ble_42:
-        coex.ble_42 = True
+        net.ble_42 = True
 
 
 def request_software_coexistence() -> None:
     """Request WiFi/BT software coexistence (only valid alongside WiFi)."""
-    _coex_data().software_coexistence = True
+    _network_sdkconfig().software_coexistence = True
 
 
 def add_idf_component(
@@ -1910,7 +1911,7 @@ async def _reconcile_network_sdkconfig() -> None:
     own priorities) is seen first. A user-supplied sdkconfig_options value
     always takes precedence.
     """
-    coex = CORE.data[KEY_ESP32].get(KEY_NETWORK_COEX, NetworkCoexData())
+    net = CORE.data[KEY_ESP32].get(KEY_NETWORK_SDKCONFIG, NetworkSdkconfigData())
     opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     is_arduino = CORE.using_arduino
 
@@ -1921,33 +1922,34 @@ async def _reconcile_network_sdkconfig() -> None:
 
     # Bluetooth: only ever enable when requested. The IDF default is off and
     # nothing sets these False today, so never write False here.
-    if coex.bluetooth:
+    if net.bluetooth:
         set_opt("CONFIG_BT_ENABLED", True)
-        if coex.ble_42:
+        if net.ble_42:
             set_opt("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
 
     # WiFi stack: disable only when Ethernet is present and WiFi is not. WiFi
     # relies on the IDF default (enabled), so it is never written True here.
-    wifi_disabled = coex.ethernet and not coex.wifi
+    wifi_disabled = net.ethernet and not net.wifi
     if wifi_disabled:
         set_opt("CONFIG_ESP_WIFI_ENABLED", False)
 
     # Software coexistence: enable when requested (the schema only allows it
     # alongside WiFi). Disable only in the Ethernet-without-WiFi case.
-    if coex.software_coexistence:
+    if net.software_coexistence:
         set_opt("CONFIG_SW_COEXIST_ENABLE", True)
     elif wifi_disabled:
         set_opt("CONFIG_SW_COEXIST_ENABLE", False)
 
     # SoftAP support: drop it when WiFi is used without AP mode (IDF only).
-    if not is_arduino and coex.wifi and not coex.wifi_ap:
+    if not is_arduino and net.wifi and not net.wifi_ap:
         set_opt("CONFIG_ESP_WIFI_SOFTAP_SUPPORT", False)
 
-    # LWIP DHCP server: disable when WiFi has no AP (IDF) or the user disabled
-    # it explicitly, unless Arduino+Ethernet needs the symbols to compile.
-    wifi_wants_dhcps_off = not is_arduino and coex.wifi and not coex.wifi_ap
-    user_wants_dhcps_off = coex.lwip_dhcps is False
-    arduino_eth_exclusion = is_arduino and coex.ethernet
+    # LWIP DHCP server: a WiFi-AP-mode/user-preference concern (not coexistence).
+    # Disable when WiFi has no AP (IDF) or the user disabled it explicitly,
+    # unless Arduino+Ethernet needs the symbols to compile.
+    wifi_wants_dhcps_off = not is_arduino and net.wifi and not net.wifi_ap
+    user_wants_dhcps_off = net.enable_lwip_dhcp_server is False
+    arduino_eth_exclusion = is_arduino and net.ethernet
     if (wifi_wants_dhcps_off or user_wants_dhcps_off) and not arduino_eth_exclusion:
         set_opt("CONFIG_LWIP_DHCPS", False)
 
@@ -2277,9 +2279,11 @@ async def to_code(config):
         include_builtin_idf_component(component_name)
 
     # DHCP server (CONFIG_LWIP_DHCPS) is reconciled in _reconcile_network_sdkconfig
-    # together with the WiFi component's own AP-mode optimization; stash the user's
+    # together with the WiFi component's own AP-mode optimization; record the user's
     # advanced tristate (True/False/None) for it to consume at FINAL priority.
-    _coex_data().lwip_dhcps = advanced.get(CONF_ENABLE_LWIP_DHCP_SERVER)
+    _network_sdkconfig().enable_lwip_dhcp_server = advanced.get(
+        CONF_ENABLE_LWIP_DHCP_SERVER
+    )
     if not advanced[CONF_ENABLE_LWIP_MDNS_QUERIES]:
         add_idf_sdkconfig_option("CONFIG_LWIP_DNS_SUPPORT_MDNS_QUERIES", False)
     if not advanced[CONF_ENABLE_LWIP_BRIDGE_INTERFACE]:
