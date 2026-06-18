@@ -63,7 +63,7 @@ void OnlineImage::update() {
 
   // Add Accept header based on image format
   const char *accept_mime_type;
-  esphome::runtime_image::ImageFormat format = this->get_format();
+  runtime_image::ImageFormat format = this->get_format();
   switch (format) {
 #ifdef USE_RUNTIME_IMAGE_BMP
     case runtime_image::BMP:
@@ -121,16 +121,16 @@ void OnlineImage::update() {
 
   if (format == runtime_image::AUTO) {
     // Try to auto-detect format from Content-Type header
-    auto content_type = this->downloader_->get_response_header(CONTENT_TYPE_HEADER_NAME);
-    ESP_LOGV(TAG, "Content-Type: %s", content_type.c_str());
-    if (content_type.find("image/jpeg") != std::string::npos) {
-      format = runtime_image::JPEG;
-    } else if (content_type.find("image/png") != std::string::npos) {
-      format = runtime_image::PNG;
-    } else if (content_type.find("image/bmp") != std::string::npos) {
+    auto content_type = this->downloader_->get_response_header(CONTENT_TYPE_HEADER_NAME).c_str();
+    ESP_LOGV(TAG, "Content-Type: %s", content_type);
+    if (strcasestr(content_type, "image/bmp") != nullptr) {
       format = runtime_image::BMP;
+    } else if (strcasestr(content_type, "image/jpeg") != nullptr) {
+      format = runtime_image::JPEG;
+    } else if (strcasestr(content_type, "image/png") != nullptr) {
+      format = runtime_image::PNG;
     } else {
-      ESP_LOGE(TAG, "Image format '%s' not supported", content_type.c_str());
+      ESP_LOGE(TAG, "Image format '%s' not supported", content_type);
       this->end_connection_();
       this->download_error_callback_.call();
       return;

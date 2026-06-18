@@ -23,7 +23,6 @@ runtime_image_ns = cg.esphome_ns.namespace("runtime_image")
 
 # Base decoder classes
 ImageDecoder = runtime_image_ns.class_("ImageDecoder")
-AutoDecoder = runtime_image_ns.class_("AutoDecoder", ImageDecoder)
 BmpDecoder = runtime_image_ns.class_("BmpDecoder", ImageDecoder)
 JpegDecoder = runtime_image_ns.class_("JpegDecoder", ImageDecoder)
 PngDecoder = runtime_image_ns.class_("PngDecoder", ImageDecoder)
@@ -139,9 +138,7 @@ def runtime_image_schema(image_class: cg.MockObjClass = RuntimeImage) -> cv.Sche
     return cv.Schema(
         {
             cv.Required(CONF_ID): cv.declare_id(image_class),
-            cv.Optional(CONF_FORMAT, default="AUTO"): cv.one_of(
-                *IMAGE_FORMATS, upper=True
-            ),
+            cv.Required(CONF_FORMAT): cv.one_of(*IMAGE_FORMATS, upper=True),
             cv.Optional(CONF_RESIZE): cv.dimensions,
             cv.Required(CONF_TYPE): validate_type(IMAGE_TYPE),
             cv.Optional(CONF_BYTE_ORDER): cv.one_of(

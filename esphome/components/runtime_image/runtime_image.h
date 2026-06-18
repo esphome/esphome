@@ -12,7 +12,7 @@ class ImageDecoder;
  * @brief Image format types that can be decoded dynamically.
  */
 enum ImageFormat {
-  /** Automatically detect from data. */
+  /** Automatically detect. Currently client classes need to implement the detection by demselves.  */
   AUTO,
   /** JPEG format. */
   JPEG,
