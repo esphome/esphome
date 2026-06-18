@@ -6,7 +6,6 @@ from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.network import (
     get_network_priority,
-    get_priority_interfaces,
     get_priority_interfaces_from_full_config,
     ip_address_literal,
 )
@@ -549,6 +548,7 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
         add_idf_sdkconfig_option,
         idf_version,
         include_builtin_idf_component,
+        request_ethernet,
     )
 
     if config[CONF_TYPE] in SPI_ETHERNET_TYPES:
@@ -595,13 +595,10 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
             )
             cg.add(var.add_phy_register(reg))
 
-    # Disable WiFi when using Ethernet alone to save memory.
-    # When network: priority: lists both interfaces, WiFi must remain enabled.
-    priority_ifaces = get_priority_interfaces()
-    running_with_wifi = "wifi" in priority_ifaces and "ethernet" in priority_ifaces
-    if not running_with_wifi:
-        add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENABLED", False)
-        add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", False)
+    # Register Ethernet with the esp32 sdkconfig reconciler. It disables the
+    # WiFi stack and WiFi/BT coexistence only when Ethernet runs without WiFi,
+    # so multi-interface configs (network: priority: with both) keep WiFi.
+    request_ethernet()
 
     # Re-enable ESP-IDF's Ethernet driver (excluded by default to save compile time)
     include_builtin_idf_component("esp_eth")

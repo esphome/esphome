@@ -456,7 +456,7 @@ jobs:
           echo "binary=$BINARY" >> $GITHUB_OUTPUT
 
       - name: Run CodSpeed benchmarks
-        uses: CodSpeedHQ/action@9d332c4d90b43981c3e55ae8e38e68709996240f # v4.17.0
+        uses: CodSpeedHQ/action@c145068895e045cc725ee76fcd2307624b65c3af # v4.17.5
         with:
           run: |
             . venv/bin/activate
@@ -537,15 +537,12 @@ jobs:
         id: check_full_scan
         run: |
           . venv/bin/activate
-          # determine-jobs.clang-tidy-full-scan is true when core C++ changed
-          # OR the ci-run-all label forced --force-all. Independent of the
-          # hash check, both must produce a full scan in the job itself.
+          # determine-jobs.clang-tidy-full-scan is true when core C++ or a
+          # clang-tidy-relevant config file changed, or the ci-run-all label
+          # forced --force-all.
           if [ "${{ needs.determine-jobs.outputs.clang-tidy-full-scan }}" = "true" ]; then
             echo "full_scan=true" >> $GITHUB_OUTPUT
             echo "reason=determine_jobs" >> $GITHUB_OUTPUT
-          elif python script/clang_tidy_hash.py --check; then
-            echo "full_scan=true" >> $GITHUB_OUTPUT
-            echo "reason=hash_changed" >> $GITHUB_OUTPUT
           else
             echo "full_scan=false" >> $GITHUB_OUTPUT
             echo "reason=normal" >> $GITHUB_OUTPUT
@@ -607,15 +604,12 @@ jobs:
         id: check_full_scan
         run: |
           . venv/bin/activate
-          # determine-jobs.clang-tidy-full-scan is true when core C++ changed
-          # OR the ci-run-all label forced --force-all. Independent of the
-          # hash check, both must produce a full scan in the job itself.
+          # determine-jobs.clang-tidy-full-scan is true when core C++ or a
+          # clang-tidy-relevant config file changed, or the ci-run-all label
+          # forced --force-all.
           if [ "${{ needs.determine-jobs.outputs.clang-tidy-full-scan }}" = "true" ]; then
             echo "full_scan=true" >> $GITHUB_OUTPUT
             echo "reason=determine_jobs" >> $GITHUB_OUTPUT
-          elif python script/clang_tidy_hash.py --check; then
-            echo "full_scan=true" >> $GITHUB_OUTPUT
-            echo "reason=hash_changed" >> $GITHUB_OUTPUT
           else
             echo "full_scan=false" >> $GITHUB_OUTPUT
             echo "reason=normal" >> $GITHUB_OUTPUT
@@ -691,15 +685,12 @@ jobs:
         id: check_full_scan
         run: |
           . venv/bin/activate
-          # determine-jobs.clang-tidy-full-scan is true when core C++ changed
-          # OR the ci-run-all label forced --force-all. Independent of the
-          # hash check, both must produce a full scan in the job itself.
+          # determine-jobs.clang-tidy-full-scan is true when core C++ or a
+          # clang-tidy-relevant config file changed, or the ci-run-all label
+          # forced --force-all.
           if [ "${{ needs.determine-jobs.outputs.clang-tidy-full-scan }}" = "true" ]; then
             echo "full_scan=true" >> $GITHUB_OUTPUT
             echo "reason=determine_jobs" >> $GITHUB_OUTPUT
-          elif python script/clang_tidy_hash.py --check; then
-            echo "full_scan=true" >> $GITHUB_OUTPUT
-            echo "reason=hash_changed" >> $GITHUB_OUTPUT
           else
             echo "full_scan=false" >> $GITHUB_OUTPUT
             echo "reason=normal" >> $GITHUB_OUTPUT
@@ -779,15 +770,12 @@ jobs:
         id: check_full_scan
         run: |
           . venv/bin/activate
-          # determine-jobs.clang-tidy-full-scan is true when core C++ changed
-          # OR the ci-run-all label forced --force-all. Independent of the
-          # hash check, both must produce a full scan in the job itself.
+          # determine-jobs.clang-tidy-full-scan is true when core C++ or a
+          # clang-tidy-relevant config file changed, or the ci-run-all label
+          # forced --force-all.
           if [ "${{ needs.determine-jobs.outputs.clang-tidy-full-scan }}" = "true" ]; then
             echo "full_scan=true" >> $GITHUB_OUTPUT
             echo "reason=determine_jobs" >> $GITHUB_OUTPUT
-          elif python script/clang_tidy_hash.py --check; then
-            echo "full_scan=true" >> $GITHUB_OUTPUT
-            echo "reason=hash_changed" >> $GITHUB_OUTPUT
           else
             echo "full_scan=false" >> $GITHUB_OUTPUT
             echo "reason=normal" >> $GITHUB_OUTPUT
@@ -832,7 +820,7 @@ jobs:
         run: echo ${{ matrix.components }}
 
       - name: Cache apt packages
-        uses: awalsh128/cache-apt-pkgs-action@acb598e5ddbc6f68a970c5da0688d2f3a9f04d05 # v1.5.3
+        uses: awalsh128/cache-apt-pkgs-action@681749ae568c81c2037cb9185e38b709b261bd2f # v1.5.3
         with:
           packages: libsdl2-dev
           version: 1.0
@@ -1049,7 +1037,7 @@ jobs:
           cache-key: ${{ needs.common.outputs.cache-key }}
       - uses: esphome/pre-commit-action@43cd1109c09c544d97196f7730ee5b2e0cc6d81e # v3.0.1 fork with pinned actions/cache
         env:
-          SKIP: pylint,clang-tidy-hash,ci-custom
+          SKIP: pylint,ci-custom
       - uses: pre-commit-ci/lite-action@5d6cc0eb514c891a40562a58a8e71576c5c7fb43 # v1.1.0
         if: always()
 
@@ -1381,4 +1369,7 @@ jobs:
           # 1. The target branch has a build issue independent of this PR
           # 2. This PR fixes a build issue on the target branch
           # In either case, we only care that the PR branch builds successfully.
-          echo "$NEEDS_JSON" | jq -e 'del(.["memory-impact-target-branch"]) | all(.result != "failure")'
+          # Every other job must have succeeded or been skipped; a "cancelled" or
+          # "failure" result fails this check so CI is not reported green when the
+          # workflow was cancelled.
+          echo "$NEEDS_JSON" | jq -e 'del(.["memory-impact-target-branch"]) | all(.result == "success" or .result == "skipped")'

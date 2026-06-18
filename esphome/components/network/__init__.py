@@ -186,18 +186,6 @@ def get_network_priority(iface: str) -> float | None:
     return None
 
 
-def get_priority_interfaces() -> set[str]:
-    """Return the set of interface names declared in ``network: priority:``.
-
-    Reads from ``CORE.data[KEY_NETWORK_PRIORITY]`` and is intended for use
-    inside ``to_code`` (after the ``network`` coroutine has populated the
-    list). For final-validation use see
-    ``get_priority_interfaces_from_full_config``.  Returns an empty set if
-    no priority list was configured.
-    """
-    return {entry["interface"] for entry in CORE.data.get(KEY_NETWORK_PRIORITY, [])}
-
-
 def get_priority_interfaces_from_full_config(full_config) -> set[str]:
     """Return the set of interface names declared in ``network: priority:``.
 
