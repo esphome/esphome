@@ -7,6 +7,7 @@ import sys
 
 from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME, KEY_CORE
 from esphome.core import CORE, EsphomeError
+from esphome.helpers import add_git_ceiling_directory
 from esphome.util import FlashImage, run_external_process
 
 _LOGGER = logging.getLogger(__name__)
@@ -53,6 +54,10 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ.setdefault("PYTHONWARNINGS", "ignore::SyntaxWarning")
     # Increase uv retry count to handle transient network errors (default is 3)
     os.environ.setdefault("UV_HTTP_RETRIES", "10")
+    # Cap git's repo search at the config directory so the framework's build
+    # scripts running `git describe` for the app version can't error out on an
+    # uninitialized or corrupt git repo in a parent directory.
+    add_git_ceiling_directory(os.environ, CORE.config_dir)
     # Strip the Windows extended-length path prefix from sys.executable so it
     # doesn't propagate into PlatformIO's $PYTHONEXE and break SCons-emitted
     # command lines run through cmd.exe.

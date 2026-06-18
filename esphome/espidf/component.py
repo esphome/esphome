@@ -56,7 +56,7 @@ ESPHOME_DATA_EXTRA_CMAKE_KEY = "EXTRA_CMAKE"
 
 
 class Source:
-    def download(self, dir_suffix: str, force: bool = False) -> Path:
+    def download(self, dir_suffix: str, force: bool = False, salt: str = "") -> Path:
         raise NotImplementedError
 
 
@@ -64,10 +64,12 @@ class URLSource(Source):
     def __init__(self, url: str):
         self.url = url
 
-    def download(self, dir_suffix: str, force: bool = False) -> Path:
+    def download(self, dir_suffix: str, force: bool = False, salt: str = "") -> Path:
         base_dir = Path(CORE.data_dir) / DOMAIN
         h = hashlib.new("sha256")
         h.update(self.url.encode())
+        if salt:
+            h.update(salt.encode())
         path = base_dir / h.hexdigest()[:8] / dir_suffix
         # Marker file written last to signal a complete extraction. Using a
         # marker (instead of just `path.is_dir()`) means an interrupted
@@ -99,12 +101,12 @@ class GitSource(Source):
         self.url = url
         self.ref = ref
 
-    def download(self, dir_suffix: str, force: bool = False) -> Path:
+    def download(self, dir_suffix: str, force: bool = False, salt: str = "") -> Path:
         path, _ = git.clone_or_update(
             url=self.url,
             ref=self.ref,
             refresh=git.NEVER_REFRESH if not force else None,
-            domain=DOMAIN,
+            domain=f"{DOMAIN}/{salt}" if salt else DOMAIN,
             submodules=[],
             subpath=Path(dir_suffix),
         )
@@ -146,14 +148,16 @@ class IDFComponent:
     def get_require_name(self):
         return self.get_sanitized_name().replace("/", "__")
 
-    def download(self, force: bool = False):
+    def download(self, force: bool = False, salt: str = ""):
         """
         The dependency name should match the directory name at the end of the override path.
         The ESP-IDF build system uses the directory name as the component name, so the directory of the override_path should match the component name.
         If you want to specify the full name of the component with the namespace, replace / in the component name with __.
         @see https://docs.espressif.com/projects/idf-component-manager/en/latest/reference/manifest_file.html
         """
-        self.path = self.source.download(self.get_sanitized_name(), force=force)
+        self.path = self.source.download(
+            self.get_sanitized_name(), force=force, salt=salt
+        )
 
 
 def _apply_extra_script(component: IDFComponent) -> None:
@@ -699,8 +703,32 @@ def generate_idf_components(libraries: list[Library]) -> list[IDFComponent]:
     The returned list holds the top-level components (those directly requested);
     transitive dependencies are converted too and wired into each component's
     generated manifest.
+
+    ``lib_ignore`` from ``esphome->platformio_options`` excludes libraries by
+    short name (part after the ``/``), matched against both the top-level
+    libraries and every dependency discovered during the graph walk.
     """
     nodes: dict[str, _LibNode] = {}
+
+    lib_ignore = {
+        name.split("/")[-1].lower()
+        for name in CORE.platformio_options.get("lib_ignore", [])
+    }
+
+    # The generated CMakeLists.txt/idf_component.yml inside the shared cache
+    # bake in the dependency wiring, which lib_ignore changes; salt the cache
+    # path so configs with different lib_ignore values don't fight over (and
+    # constantly rewrite) the same converted component files.
+    salt = (
+        hashlib.sha256(",".join(sorted(lib_ignore)).encode()).hexdigest()[:8]
+        if lib_ignore
+        else ""
+    )
+
+    def is_ignored(name: str | None) -> bool:
+        if not lib_ignore or name is None:
+            return False
+        return name.split("/")[-1].lower() in lib_ignore
 
     def add_spec(name: str | None, version: str | None, repository: str | None) -> str:
         key, is_git, locator = _node_key(name, version, repository)
@@ -718,6 +746,7 @@ def generate_idf_components(libraries: list[Library]) -> list[IDFComponent]:
     top_level = [
         add_spec(library.name, library.version, library.repository)
         for library in libraries
+        if not is_ignored(library.name)
     ]
 
     # Collect + resolve to a fixpoint: a node is (re)resolved whenever its
@@ -749,7 +778,7 @@ def generate_idf_components(libraries: list[Library]) -> list[IDFComponent]:
             component = IDFComponent(
                 _owner_pkgname_to_name(owner, name), version, URLSource(url)
             )
-        component.download()
+        component.download(salt=salt)
 
         library_json_path = component.path / "library.json"
         library_properties_path = component.path / "library.properties"
@@ -787,6 +816,12 @@ def generate_idf_components(libraries: list[Library]) -> list[IDFComponent]:
             except InvalidIDFComponent as e:
                 _LOGGER.debug("Skip dependency %s: %s", dependency.get("name"), str(e))
                 continue
+            dep_name = _owner_pkgname_to_name(
+                dependency.get("owner"), dependency.get("name")
+            )
+            if is_ignored(dep_name):
+                _LOGGER.debug("Skip ignored dependency %s", dep_name)
+                continue
             # The version field may actually be a URL (git/archive dependency).
             dep_version = dependency["version"]
             dep_url = None
@@ -796,11 +831,7 @@ def generate_idf_components(libraries: list[Library]) -> list[IDFComponent]:
                     dep_url, dep_version = dep_version, None
             except (TypeError, ValueError):
                 pass
-            dep_key = add_spec(
-                _owner_pkgname_to_name(dependency.get("owner"), dependency.get("name")),
-                dep_version,
-                dep_url,
-            )
+            dep_key = add_spec(dep_name, dep_version, dep_url)
             node.edges.add(dep_key)
             worklist.append(dep_key)
 

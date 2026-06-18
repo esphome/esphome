@@ -593,6 +593,8 @@ class EsphomeCore:
         self.build_flags: set[str] = set()
         # A set of build unflags to set in the platformio project
         self.build_unflags: set[str] = set()
+        # The C++ language standard for the build (e.g. "gnu++20"), set via cg.set_cpp_standard()
+        self.cpp_standard: str | None = None
         # A set of defines to set for the compile process in esphome/core/defines.h
         self.defines: set[Define] = set()
         # A map of all platformio options to apply
@@ -649,6 +651,7 @@ class EsphomeCore:
         self.platformio_libraries = {}
         self.build_flags = set()
         self.build_unflags = set()
+        self.cpp_standard = None
         self.defines = set()
         self.platformio_options = {}
         self.loaded_integrations = set()
@@ -868,6 +871,10 @@ class EsphomeCore:
         return self.toolchain == Toolchain.PLATFORMIO
 
     @property
+    def using_toolchain_sdk_nrf(self):
+        return self.toolchain == Toolchain.SDK_NRF
+
+    @property
     def using_zephyr(self):
         return self.target_framework == "zephyr"
 
@@ -951,6 +958,13 @@ class EsphomeCore:
         return build_flag
 
     def add_build_unflag(self, build_unflag: str) -> None:
+        if self.using_toolchain_esp_idf:
+            # The native ESP-IDF build generator does not consume build_unflags
+            _LOGGER.warning(
+                "Build unflag %s is ignored when building with the native "
+                "ESP-IDF toolchain",
+                build_unflag,
+            )
         self.build_unflags.add(build_unflag)
         _LOGGER.debug("Adding build unflag: %s", build_unflag)
 
