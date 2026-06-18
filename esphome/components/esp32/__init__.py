@@ -1944,13 +1944,15 @@ async def _reconcile_network_sdkconfig() -> None:
     if not is_arduino and net.wifi and not net.wifi_ap:
         set_opt("CONFIG_ESP_WIFI_SOFTAP_SUPPORT", False)
 
-    # LWIP DHCP server: a WiFi-AP-mode/user-preference concern (not coexistence).
-    # Disable when WiFi has no AP (IDF) or the user disabled it explicitly,
-    # unless Arduino+Ethernet needs the symbols to compile.
+    # LWIP DHCP server: a WiFi-AP-mode / enable_lwip_dhcp_server concern (not
+    # coexistence). Disable when WiFi has no AP (IDF) or the enable_lwip_dhcp_server
+    # option is set to false, unless Arduino+Ethernet needs the symbols to compile.
     wifi_wants_dhcps_off = not is_arduino and net.wifi and not net.wifi_ap
-    user_wants_dhcps_off = net.enable_lwip_dhcp_server is False
+    dhcp_server_disabled_by_option = net.enable_lwip_dhcp_server is False
     arduino_eth_exclusion = is_arduino and net.ethernet
-    if (wifi_wants_dhcps_off or user_wants_dhcps_off) and not arduino_eth_exclusion:
+    if (
+        wifi_wants_dhcps_off or dhcp_server_disabled_by_option
+    ) and not arduino_eth_exclusion:
         set_opt("CONFIG_LWIP_DHCPS", False)
 
 
