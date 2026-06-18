@@ -69,7 +69,8 @@ void IT8951Display::loop() {
     // future shows up as <= 0 elapsed and won't trigger a false timeout.
     const int32_t elapsed = static_cast<int32_t>(now - this->phase_started_at_);
     if (elapsed > static_cast<int32_t>(BUSY_TIMEOUT_MS)) {
-      ESP_LOGW(TAG, "Busy timeout (%dms) in phase %u, recovering", elapsed, static_cast<unsigned>(this->phase_));
+      ESP_LOGW(TAG, "Busy timeout (%" PRIu32 "ms) in phase %u, recovering", elapsed,
+               static_cast<unsigned>(this->phase_));
       this->recover_();
     }
     return;
@@ -235,9 +236,6 @@ void IT8951Display::advance_phase_() {
           this->set_phase_(Phase::IDLE);
           return;
         }
-        // Fresh buffer is zero-filled by SplitBuffer, which maps to all-black.
-        // Fill with white so the first update doesn't flash a black background.
-        this->buffer_.fill(this->reversed_ ? 0x00 : 0xFF);
       }
       if (this->configured_data_rate_ != 0 && this->configured_data_rate_ != this->data_rate_) {
         this->spi_teardown();
@@ -288,7 +286,7 @@ void IT8951Display::advance_phase_() {
       break;
 
     case Phase::UPDATE_SLEEP:
-      ESP_LOGD(TAG, "Update took %ums (mode=%u area=%ux%u@%u,%u)", millis() - this->update_started_at_,
+      ESP_LOGD(TAG, "Update took %" PRIu32 "ms (mode=%u area=%ux%u@%u,%u)", millis() - this->update_started_at_,
                static_cast<unsigned>(this->active_mode_), this->area_w_, this->area_h_, this->area_x_, this->area_y_);
       this->set_phase_(Phase::IDLE);
       this->advance_phase_();
@@ -884,7 +882,7 @@ void IT8951Display::fill(Color color) {
     return;
   }
   uint8_t packed = this->color_to_nibble_(color);
-  if (!this->reversed_)
+  if (this->reversed_)
     packed = 0x0F - packed;
   if (packed != 0x00 && packed != 0x0F)
     this->has_grayscale_ = true;
@@ -901,7 +899,7 @@ void HOT IT8951Display::draw_pixel_at(int x, int y, Color color) {
   if (!this->rotate_coordinates_(x, y))
     return;
   uint8_t internal_color = this->color_to_nibble_(color) & 0x0F;
-  if (!this->reversed_)
+  if (this->reversed_)
     internal_color = 0x0F - internal_color;
   if (internal_color != 0x00 && internal_color != 0x0F)
     this->has_grayscale_ = true;
@@ -943,7 +941,7 @@ void IT8951Display::dump_config() {
   ESP_LOGCONFIG(TAG, "  Full update every: %u", this->full_update_every_);
   ESP_LOGCONFIG(TAG, "  Reversed colors: %s", YESNO(this->reversed_));
   ESP_LOGCONFIG(TAG, "  Force 1bpp: %s", YESNO(this->force_1bpp_));
-  ESP_LOGCONFIG(TAG, "  Reset duration: %ums", this->reset_duration_);
+  ESP_LOGCONFIG(TAG, "  Reset duration: %" PRIu32 "ms", this->reset_duration_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_PIN("  CS Pin: ", this->cs_);

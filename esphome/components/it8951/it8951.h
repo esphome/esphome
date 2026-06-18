@@ -184,14 +184,14 @@ class IT8951Display : public Display,
   void update_mode(UpdateMode mode);
   DisplayType get_display_type() override { return DISPLAY_TYPE_GRAYSCALE; }
   void fill(Color color) override;
-  void clear() override { this->fill(COLOR_OFF); }
+  void clear() override { this->fill(COLOR_ON); }
   void draw_pixel_at(int x, int y, Color color) override;
+  int get_width() override { return (this->effective_transform_ & TRANSFORM_SWAP_XY) ? this->height_ : this->width_; }
+  int get_height() override { return (this->effective_transform_ & TRANSFORM_SWAP_XY) ? this->width_ : this->height_; }
 
  protected:
   int get_height_internal() override { return this->height_; }
   int get_width_internal() override { return this->width_; }
-  int get_width() override { return (this->effective_transform_ & TRANSFORM_SWAP_XY) ? this->height_ : this->width_; }
-  int get_height() override { return (this->effective_transform_ & TRANSFORM_SWAP_XY) ? this->width_ : this->height_; }
 
   // --- Coord transform / dirty region ---
   void update_effective_transform_();

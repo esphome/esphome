@@ -150,13 +150,9 @@ IT8951Model(
     # waveform LUT defaults to a value that produces no visible change
     # for grayscale modes.
     force_temperature=25,
-    # reTerminal E1003 expects the framebuffer in IT8951-native polarity
-    # (0x00 = black, 0x0F = white). The driver's default polarity is the
-    # opposite, so enable `reversed` here to get correct on-screen output
-    # (white background, black text/graphics).
-    reversed=True,
     sleep_when_done=False,
     data_rate=4_000_000,
+    mirror_x=True,
 )
 
 IT8951Model(
