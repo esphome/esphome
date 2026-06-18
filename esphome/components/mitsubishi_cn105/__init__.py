@@ -69,7 +69,6 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 async def register_mitsubishi_cn105(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
     cg.add(
         var.set_telemetry_request_min_interval(
             config[CONF_TELEMETRY_REQUEST_MIN_INTERVAL]

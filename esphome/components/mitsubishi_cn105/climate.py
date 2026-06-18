@@ -154,8 +154,6 @@ async def to_code(config: ConfigType) -> None:
                     config[CONF_CURRENT_TEMPERATURE_MIN_INTERVAL]
                 )
             )
-        if CONF_UPDATE_INTERVAL in config:
-            cg.add(parent.set_update_interval(config[CONF_UPDATE_INTERVAL]))
         cg.add(var.set_parent(parent))
     cg.add(var.set_supported_swing_mode(config[CONF_SUPPORTED_SWING_MODES]))
 
