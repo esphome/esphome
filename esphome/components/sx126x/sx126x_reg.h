@@ -2,8 +2,7 @@
 
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace sx126x {
+namespace esphome::sx126x {
 
 static const uint32_t XTAL_FREQ = 32000000;
 
@@ -161,5 +160,4 @@ enum SX126xRampTime : uint8_t {
   PA_RAMP_3400 = 0x07,
 };
 
-}  // namespace sx126x
-}  // namespace esphome
+}  // namespace esphome::sx126x

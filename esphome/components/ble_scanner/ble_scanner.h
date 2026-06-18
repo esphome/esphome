@@ -10,8 +10,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace ble_scanner {
+namespace esphome::ble_scanner {
 
 class BLEScanner : public text_sensor::TextSensor, public esp32_ble_tracker::ESPBTDeviceListener, public Component {
  public:
@@ -43,7 +42,6 @@ class BLEScanner : public text_sensor::TextSensor, public esp32_ble_tracker::ESP
   void dump_config() override;
 };
 
-}  // namespace ble_scanner
-}  // namespace esphome
+}  // namespace esphome::ble_scanner
 
 #endif

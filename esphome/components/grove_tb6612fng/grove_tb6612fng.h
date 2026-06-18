@@ -4,7 +4,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-//#include "esphome/core/helpers.h"
+// #include "esphome/core/helpers.h"
 
 /*
     Grove_Motor_Driver_TB6612FNG.h
@@ -33,8 +33,7 @@
     THE SOFTWARE.
 */
 
-namespace esphome {
-namespace grove_tb6612fng {
+namespace esphome::grove_tb6612fng {
 
 enum MotorChannelTypeT {
   MOTOR_CHA = 0,
@@ -168,11 +167,19 @@ class GROVETB6612FNGMotorRunAction : public Action<Ts...>, public Parented<Grove
   TEMPLATABLE_VALUE(uint8_t, channel)
   TEMPLATABLE_VALUE(uint16_t, speed)
 
+  void set_direction(bool forward) { this->forward_ = forward; }
+
   void play(const Ts &...x) override {
     auto channel = this->channel_.value(x...);
-    auto speed = this->speed_.value(x...);
+    int16_t speed = this->speed_.value(x...);
+    if (!this->forward_) {
+      speed = -speed;
+    }
     this->parent_->dc_motor_run(channel, speed);
   }
+
+ protected:
+  bool forward_{true};
 };
 
 template<typename... Ts>
@@ -211,5 +218,4 @@ class GROVETB6612FNGMotorChangeAddressAction : public Action<Ts...>, public Pare
   void play(const Ts &...x) override { this->parent_->set_i2c_addr(this->address_.value(x...)); }
 };
 
-}  // namespace grove_tb6612fng
-}  // namespace esphome
+}  // namespace esphome::grove_tb6612fng

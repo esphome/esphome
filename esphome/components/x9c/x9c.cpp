@@ -1,8 +1,7 @@
 #include "x9c.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace x9c {
+namespace esphome::x9c {
 
 static const char *const TAG = "x9c.output";
 
@@ -73,5 +72,4 @@ void X9cOutput::dump_config() {
   LOG_FLOAT_OUTPUT(this);
 }
 
-}  // namespace x9c
-}  // namespace esphome
+}  // namespace esphome::x9c

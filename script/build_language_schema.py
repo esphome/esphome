@@ -39,7 +39,11 @@ parser.add_argument(
 )
 parser.add_argument("--check", action="store_true", help="Check only for CI")
 
-args = parser.parse_args()
+# Module-level ``Namespace`` so helper functions can reference ``args``
+# without threading it through every call. ``main()`` fills it via
+# ``parser.parse_args(namespace=args)``; tests import this module without
+# invoking ``main()`` and rely on the defaults below.
+args = argparse.Namespace(output_path=".", check=False)
 
 DUMP_RAW = False
 DUMP_UNKNOWN = False
@@ -119,7 +123,15 @@ from esphome.util import Registry  # noqa: E402
 
 def sort_obj(obj):
     if isinstance(obj, dict):
-        return {k: sort_obj(v) for k, v in sorted(obj.items(), key=lambda x: str(x[0]))}
+        is_enum = obj.get(S_TYPE) == "enum"
+        result = {}
+        for k, v in sorted(obj.items(), key=lambda x: str(x[0])):
+            if is_enum and k == "values" and isinstance(v, dict):
+                # Preserve source order of enum options
+                result[k] = {vk: sort_obj(vv) for vk, vv in v.items()}
+            else:
+                result[k] = sort_obj(v)
+        return result
     if isinstance(obj, list):
         return [sort_obj(item) for item in obj]
     return obj
@@ -414,6 +426,33 @@ def fix_menu():
     menu = schemas["MENU_TYPES"][S_SCHEMA][S_CONFIG_VARS]["items"]["types"]["menu"]
     menu[S_CONFIG_VARS].pop("items")
     menu[S_EXTENDS].append("display_menu_base.MENU_TYPES")
+
+
+def fix_lvgl_widgets():
+    # lvgl's `widgets:` is a recursive tree (a widget can contain widgets). The
+    # dumper has no cycle detection, so — like fix_menu — hoist the inlined
+    # widget-type enumeration into a named schema and reference it for both the
+    # top-level list and each widget's own children, instead of expanding it.
+    if "lvgl" not in output:
+        return
+    schemas = output["lvgl"][S_SCHEMAS]
+    config_vars = schemas["CONFIG_SCHEMA"][S_SCHEMA][S_CONFIG_VARS]
+    widgets = config_vars.get("widgets")
+    if not widgets or S_SCHEMA not in widgets or S_CONFIG_VARS not in widgets[S_SCHEMA]:
+        return
+    # 1. Hoist the (one-level) widget enumeration into a named schema.
+    schemas["WIDGET_TYPES"] = {S_TYPE: S_SCHEMA, S_SCHEMA: widgets[S_SCHEMA]}
+    # 2. Reference it from the top-level widgets: list instead of inlining.
+    widgets[S_SCHEMA] = {S_EXTENDS: ["lvgl.WIDGET_TYPES"]}
+    # 3. Let every widget contain child widgets, via the same named ref.
+    for widget in schemas["WIDGET_TYPES"][S_SCHEMA][S_CONFIG_VARS].values():
+        if widget.get(S_TYPE) == S_SCHEMA and S_SCHEMA in widget:
+            widget[S_SCHEMA].setdefault(S_CONFIG_VARS, {})["widgets"] = {
+                S_TYPE: S_SCHEMA,
+                "is_list": True,
+                "key": "Optional",
+                S_SCHEMA: {S_EXTENDS: ["lvgl.WIDGET_TYPES"]},
+            }
 
 
 def get_logger_tags():
@@ -728,6 +767,7 @@ def build_schema():
     add_logger_tags()
     shrink()
     fix_menu()
+    fix_lvgl_widgets()
 
     # aggregate components, so all component info is in same file, otherwise we have dallas.json, dallas.sensor.json, etc.
     data = {}
@@ -842,6 +882,12 @@ def convert(schema, config_var, path):
             convert(ext, config_var, f"{path}/ext{idx}")
         return
 
+    if isinstance(schema, cv.SensitiveValidator):
+        config_var["sensitive"] = True
+        config_var["sensitive_source"] = "explicit"
+        convert(schema.inner, config_var, f"{path}/sensitive")
+        return
+
     if isinstance(schema, cv.All):
         i = 0
         for inner in schema.validators:
@@ -905,10 +951,24 @@ def convert(schema, config_var, path):
         elif schema_type == "enum":
             config_var[S_TYPE] = "enum"
             config_var["values"] = dict.fromkeys(list(data.keys()))
+        elif schema_type == "variant_enum":
+            # Per-variant enum (e.g. psram mode/speed): each value carries the
+            # list of variants that accept it so clients can filter to the
+            # user's selected variant. Additive to the plain enum format —
+            # consumers that ignore the metadata still see every option.
+            config_var[S_TYPE] = "enum"
+            config_var["values"] = {
+                value: {"variants": variants} for value, variants in data.items()
+            }
         elif schema_type == "maybe":
-            config_var[S_TYPE] = S_SCHEMA
+            # maybe_simple_value: either a scalar shorthand (mapped to the key in
+            # data[1]) or the full wrapped schema. The wrapped schema is usually a
+            # plain Schema (converts to a "schema" config var), but may be something
+            # else, e.g. a typed_schema (converts to a "typed" config var with
+            # "types" and no top-level "schema" key). Merge whatever it produced
+            # rather than assuming a "schema" key is present.
             config_var["maybe"] = data[1]
-            config_var["schema"] = convert_config(data[0], path + "/maybe")["schema"]
+            config_var.update(convert_config(data[0], path + "/maybe"))
         # esphome/on_boot
         elif schema_type == "automation":
             extra_schema = None
@@ -964,7 +1024,7 @@ def convert(schema, config_var, path):
             }
         elif schema_type == "use_id":
             if inspect.ismodule(data):
-                m_attr_obj = getattr(data, "CONFIG_SCHEMA")
+                m_attr_obj = data.CONFIG_SCHEMA
                 use_schema = known_schemas.get(repr(m_attr_obj))
                 if use_schema:
                     [output_module, output_name] = use_schema[0][1].split(".")
@@ -979,6 +1039,10 @@ def convert(schema, config_var, path):
             else:
                 config_var["use_id_type"] = str(data.base)
                 config_var[S_TYPE] = "use_id"
+        elif schema_type == "schema":
+            # A callable CONFIG_SCHEMA that returned a representative schema
+            # for extraction (model-driven components); walk it as usual.
+            convert(data, config_var, path)
         else:
             raise TypeError("Unknown extracted schema type")
     elif config_var.get("key") == "GeneratedID":
@@ -1065,13 +1129,77 @@ def convert_keys(converted, schema, path):
             else:
                 converted["key_type"] = str(k)
 
-        if hasattr(k, "default") and str(k.default) != "...":
+        # ``cv.OnlyWith`` / ``cv.OnlyWithout`` expose ``default`` as
+        # a property that returns ``vol.UNDEFINED`` when the gating
+        # component isn't loaded — and at schema-generation time
+        # ``CORE.loaded_integrations`` is always empty, so the
+        # property never resolves. The unconditional default lives
+        # on ``_default``; expose it under a *new* per-class field
+        # (``default_with`` for ``OnlyWith``, ``default_without`` for
+        # ``OnlyWithout``) that bundles the value with the gating
+        # component(s). Pure addition to the bundle — old consumers
+        # that read only ``default`` see these fields as
+        # default-less (same as today, no regression where they used
+        # to fall back to a hard-coded UI default); new consumers
+        # opt-in to the gated fields and apply the default
+        # *conditionally* on which integrations the user has
+        # loaded. Without the gate info, an ethernet-only config on
+        # ``cv.OnlyWith(K, "wifi", default=True)`` would otherwise
+        # render ``True`` even though ESPHome itself wouldn't apply
+        # the default for that config.
+        if isinstance(k, (cv.OnlyWith, cv.OnlyWithout)):
+            default_value = k._default()
+            if default_value is not None:
+                components = (
+                    list(k._component)
+                    if isinstance(k._component, list)
+                    else [k._component]
+                )
+                gate_field = (
+                    "default_with" if isinstance(k, cv.OnlyWith) else "default_without"
+                )
+                result[gate_field] = {
+                    "value": str(default_value),
+                    "components": components,
+                }
+        elif hasattr(k, "default") and str(k.default) != "...":
             default_value = k.default()
             if default_value is not None:
                 result["default"] = str(default_value)
 
+        # UI hint from ``cv.Optional`` / ``cv.Required`` — surfaced
+        # for schema consumers (visual editors) that want to render
+        # advanced / yaml-only fields differently. ESPHome itself
+        # ignores it at runtime; emitting only when set keeps the
+        # dump compact and backwards-compatible with markers that
+        # don't carry the attribute. The value is the str form of
+        # ``cv.Visibility`` (e.g. ``"advanced"`` / ``"yaml_only"``)
+        # so consumers don't need an enum import to read it.
+        visibility = getattr(k, "visibility", None)
+        if visibility is not None:
+            result["visibility"] = str(visibility)
+
         # Do value
         convert(v, result, path + f"/{str(k)}")
+
+        # Heuristic fallback when the field's validator wasn't explicitly
+        # wrapped in ``cv.sensitive``. Only applies to string-typed leaves so
+        # we don't mark unrelated nested schemas. ``sensitive_source`` lets
+        # consumers distinguish explicit markers from heuristic matches. Pull
+        # the field name from ``k.schema`` (voluptuous's stored key) rather
+        # than ``str(k)`` so we don't depend on the marker's ``__str__``
+        # representation.
+        if (
+            "sensitive" not in result
+            and result.get(S_TYPE) == "string"
+            and isinstance(k, (cv.Required, cv.Optional, cv.Inclusive, cv.Exclusive))
+            and isinstance(k.schema, str)
+        ):
+            key_lower = k.schema.lower()
+            if any(frag in key_lower for frag in cv.SENSITIVE_KEY_FRAGMENTS):
+                result["sensitive"] = True
+                result["sensitive_source"] = "heuristic"
+
         if "schema" not in converted:
             converted[S_TYPE] = "schema"
             converted["schema"] = {S_CONFIG_VARS: {}}
@@ -1089,4 +1217,10 @@ def convert_keys(converted, schema, path):
             config_vars["string"] = config_vars.pop(key)
 
 
-build_schema()
+def main() -> None:
+    parser.parse_args(namespace=args)
+    build_schema()
+
+
+if __name__ == "__main__":
+    main()

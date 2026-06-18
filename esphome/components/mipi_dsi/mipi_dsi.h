@@ -16,8 +16,7 @@
 
 #include "esp_lcd_mipi_dsi.h"
 
-namespace esphome {
-namespace mipi_dsi {
+namespace esphome::mipi_dsi {
 
 constexpr static const char *const TAG = "display.mipi_dsi";
 const uint8_t SW_RESET_CMD = 0x01;
@@ -36,9 +35,9 @@ const uint8_t MADCTL_MV = 0x20;     // row/column swap
 const uint8_t MADCTL_XFLIP = 0x02;  // Mirror the display horizontally
 const uint8_t MADCTL_YFLIP = 0x01;  // Mirror the display vertically
 
-class MIPI_DSI : public display::Display {
+class MipiDsi : public display::Display {
  public:
-  MIPI_DSI(size_t width, size_t height, display::ColorBitness color_depth, uint8_t pixel_mode)
+  MipiDsi(size_t width, size_t height, display::ColorBitness color_depth, uint8_t pixel_mode)
       : width_(width), height_(height), color_depth_(color_depth), pixel_mode_(pixel_mode) {}
   display::ColorOrder get_color_mode() { return this->color_mode_; }
   void set_color_mode(display::ColorOrder color_mode) { this->color_mode_ = color_mode; }
@@ -113,6 +112,5 @@ class MIPI_DSI : public display::Display {
   uint16_t y_high_{0};
 };
 
-}  // namespace mipi_dsi
-}  // namespace esphome
+}  // namespace esphome::mipi_dsi
 #endif

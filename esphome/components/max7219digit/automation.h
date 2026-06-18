@@ -5,8 +5,7 @@
 
 #include "max7219digit.h"
 
-namespace esphome {
-namespace max7219digit {
+namespace esphome::max7219digit {
 
 template<typename... Ts> class DisplayInvertAction : public Action<Ts...>, public Parented<MAX7219Component> {
  public:
@@ -48,5 +47,4 @@ template<typename... Ts> class DisplayIntensityAction : public Action<Ts...>, pu
   }
 };
 
-}  // namespace max7219digit
-}  // namespace esphome
+}  // namespace esphome::max7219digit

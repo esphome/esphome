@@ -15,8 +15,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace daly_bms {
+namespace esphome::daly_bms {
 
 class DalyBmsComponent : public PollingComponent, public uart::UARTDevice {
  public:
@@ -88,5 +87,4 @@ class DalyBmsComponent : public PollingComponent, public uart::UARTDevice {
   uint8_t next_request_;
 };
 
-}  // namespace daly_bms
-}  // namespace esphome
+}  // namespace esphome::daly_bms

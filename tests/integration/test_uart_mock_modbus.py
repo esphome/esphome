@@ -14,13 +14,65 @@ test_uart_mock_modbus_no_threshold :
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
+from collections.abc import Callable
+from dataclasses import dataclass
 
-from aioesphomeapi import ButtonInfo, EntityState, SensorState
+from aioesphomeapi import NumberInfo
 import pytest
 
-from .state_utils import InitialStateHelper, build_key_to_entity_mapping, find_entity
+from .state_utils import SensorTracker, find_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+
+
+@dataclass
+class RegisterTestCase:
+    """Test parameters for a single modbus register write/read round-trip."""
+
+    initial_value: object
+    write_number_name: str
+    write_value: float
+    post_write_value: object
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_modbus_line_callback() -> tuple[Callable[[str], None], list[str], list[str]]:
+    """Return a (callback, error_lines, warning_lines) tuple for tracking modbus log output.
+
+    Only captures bus-level modbus messages ([modbus:]), not modbus_controller
+    scheduling noise (e.g. "Duplicate modbus command found").
+    """
+    error_log_lines: list[str] = []
+    warning_log_lines: list[str] = []
+
+    def line_callback(line: str) -> None:
+        if "[E][modbus:" in line:
+            error_log_lines.append(line)
+        if "[W][modbus:" in line:
+            warning_log_lines.append(line)
+
+    return line_callback, error_log_lines, warning_log_lines
+
+
+def _assert_no_modbus_errors(
+    error_log_lines: list[str], warning_log_lines: list[str]
+) -> None:
+    assert len(error_log_lines) == 0, (
+        "Expect no errors logged by the modbus mock, but got:\n"
+        + "\n".join(error_log_lines)
+    )
+    assert len(warning_log_lines) == 0, (
+        "Expect no warnings logged by the modbus mock, but got:\n"
+        + "\n".join(warning_log_lines)
+    )
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -30,127 +82,41 @@ async def test_uart_mock_modbus(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test basic modbus data parsing."""
-    # Replace external component path placeholder
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
+
+    tracker = SensorTracker(
+        [
+            "basic_register",
+            "delayed_response",
+            "late_response",
+            "no_response",
+            "exception_response",
+        ]
     )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
-    loop = asyncio.get_running_loop()
-
-    # Track sensor state updates (after initial state is swallowed)
-    sensor_states: dict[str, list[float]] = {
-        "basic_register": [],
-        "delayed_response": [],
-        "late_response": [],
-        "no_response": [],
-        "exception_response": [],
-    }
-
-    basic_register_changed = loop.create_future()
-    delayed_response_changed = loop.create_future()
-    late_response_changed = loop.create_future()
-    no_response_changed = loop.create_future()
-    exception_response_changed = loop.create_future()
-
-    def on_state(state: EntityState) -> None:
-        if isinstance(state, SensorState) and not state.missing_state:
-            sensor_name = key_to_sensor.get(state.key)
-            if sensor_name and sensor_name in sensor_states:
-                sensor_states[sensor_name].append(state.state)
-                if (
-                    sensor_name == "basic_register"
-                    and state.state == 259.0
-                    and not basic_register_changed.done()
-                ):
-                    basic_register_changed.set_result(True)
-                elif (
-                    sensor_name == "delayed_response"
-                    and state.state == 255.0
-                    and not delayed_response_changed.done()
-                ):
-                    delayed_response_changed.set_result(True)
-                elif (
-                    sensor_name == "late_response" and not late_response_changed.done()
-                ):
-                    late_response_changed.set_result(True)
-                elif sensor_name == "no_response" and not no_response_changed.done():
-                    no_response_changed.set_result(True)
-                elif (
-                    sensor_name == "exception_response"
-                    and not exception_response_changed.done()
-                ):
-                    exception_response_changed.set_result(True)
+    basic_register_changed = tracker.expect("basic_register", 259.0)
+    delayed_response_changed = tracker.expect("delayed_response", 255.0)
+    # late_response / no_response / exception_response: expect *any* value
+    # (these should never fire, so we use a permissive match via expect_any)
+    late_response_changed = tracker.expect_any("late_response")
+    no_response_changed = tracker.expect_any("no_response")
+    exception_response_changed = tracker.expect_any("exception_response")
 
     async with (
         run_compiled(yaml_config),
         api_client_connected() as client,
     ):
-        entities, _ = await client.list_entities_services()
+        await tracker.setup_and_start_scenario(client)
 
-        # Build key mappings for all sensor types
-        all_names = list(sensor_states.keys())
-        key_to_sensor = build_key_to_entity_mapping(entities, all_names)
-
-        # Set up initial state helper
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
-
-        # Start the UART mock scenario now that we're subscribed
-        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
-        assert start_btn is not None, "Start Scenario button not found"
-        client.button_command(start_btn.key)
-
-        try:
-            await asyncio.wait_for(delayed_response_changed, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for delayed_response change. Received sensor states:\n"
-                f"  delayed_response: {sensor_states['delayed_response']}\n"
-            )
-
-        try:
-            await asyncio.wait_for(late_response_changed, timeout=2.0)
-            pytest.fail(
-                f"late_response change should not have been triggered, but was. Received sensor states:\n"
-                f"  late_response: {sensor_states['late_response']}\n"
-            )
-        except TimeoutError:
-            pass  # Expected timeout since we never inject a response for late_response
-
-        try:
-            await asyncio.wait_for(no_response_changed, timeout=2.0)
-            pytest.fail(
-                f"no_response change should not have been triggered, but was. Received sensor states:\n"
-                f"  no_response: {sensor_states['no_response']}\n"
-            )
-        except TimeoutError:
-            pass  # Expected timeout since we never inject a response for no_response
-
-        # Wait for basic register to be updated with successful parse
-        try:
-            await asyncio.wait_for(basic_register_changed, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for Basic Register change. Received sensor states:\n"
-                f"  basic_register: {sensor_states['basic_register']}\n"
-            )
-
-        try:
-            await asyncio.wait_for(exception_response_changed, timeout=2.0)
-            pytest.fail(
-                f"exception_response change should not have been triggered, but was. Received sensor states:\n"
-                f"  exception_response: {sensor_states['exception_response']}\n"
-            )
-        except TimeoutError:
-            pass
+        await tracker.await_change(delayed_response_changed, "delayed_response")
+        await tracker.await_change(basic_register_changed, "basic_register")
+        # Run all "must not change" checks concurrently — each waits the full
+        # timeout, so sequential execution would multiply the wall time.
+        await asyncio.gather(
+            tracker.await_must_not_change(late_response_changed, "late_response"),
+            tracker.await_must_not_change(no_response_changed, "no_response"),
+            tracker.await_must_not_change(
+                exception_response_changed, "exception_response"
+            ),
+        )
 
 
 @pytest.mark.asyncio
@@ -159,69 +125,17 @@ async def test_uart_mock_modbus_timing(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test basic modbus data parsing."""
-    # Replace external component path placeholder
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
+    """Test modbus timing with multi-register SDM meter response."""
 
-    loop = asyncio.get_running_loop()
-
-    # Track sensor state updates (after initial state is swallowed)
-    sensor_states: dict[str, list[float]] = {
-        "sdm_voltage": [],
-    }
-
-    voltage_changed = loop.create_future()
-
-    def on_state(state: EntityState) -> None:
-        if isinstance(state, SensorState) and not state.missing_state:
-            sensor_name = key_to_sensor.get(state.key)
-            if sensor_name and sensor_name in sensor_states:
-                sensor_states[sensor_name].append(state.state)
-                # Check if this is a good voltage reading (243V)
-                if (
-                    sensor_name == "sdm_voltage"
-                    and state.state > 200.0
-                    and not voltage_changed.done()
-                ):
-                    voltage_changed.set_result(True)
+    tracker = SensorTracker(["sdm_voltage"])
+    voltage_changed = tracker.expect_any("sdm_voltage")
 
     async with (
         run_compiled(yaml_config),
         api_client_connected() as client,
     ):
-        entities, _ = await client.list_entities_services()
-
-        # Build key mappings for all sensor types
-        all_names = list(sensor_states.keys())
-        key_to_sensor = build_key_to_entity_mapping(entities, all_names)
-
-        # Set up initial state helper
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
-
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
-
-        # Start the UART mock scenario now that we're subscribed
-        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
-        assert start_btn is not None, "Start Scenario button not found"
-        client.button_command(start_btn.key)
-
-        # Wait for voltage to be updated with successful parse
-        try:
-            await asyncio.wait_for(voltage_changed, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for SDM voltage change. Received sensor states:\n"
-                f"  sdm_voltage: {sensor_states['sdm_voltage']}\n"
-            )
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_change(voltage_changed, "sdm_voltage")
 
 
 @pytest.mark.asyncio
@@ -234,66 +148,187 @@ async def test_uart_mock_modbus_no_threshold(
 
     Without the 50ms fallback timeout, the chunked response with a 40ms gap
     between USB packets would cause a false timeout and CRC failure cascade.
+    Bus-level warnings (CRC failures, buffer clears) are expected during
+    chunked reassembly — the test only verifies the final value arrives.
     """
-    # Replace external component path placeholder
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
 
-    loop = asyncio.get_running_loop()
-
-    # Track sensor state updates (after initial state is swallowed)
-    sensor_states: dict[str, list[float]] = {
-        "sdm_voltage": [],
-    }
-
-    voltage_changed = loop.create_future()
-
-    def on_state(state: EntityState) -> None:
-        if isinstance(state, SensorState) and not state.missing_state:
-            sensor_name = key_to_sensor.get(state.key)
-            if sensor_name and sensor_name in sensor_states:
-                sensor_states[sensor_name].append(state.state)
-                # Check if this is a good voltage reading (243V)
-                if (
-                    sensor_name == "sdm_voltage"
-                    and state.state > 200.0
-                    and not voltage_changed.done()
-                ):
-                    voltage_changed.set_result(True)
+    tracker = SensorTracker(["sdm_voltage"])
+    voltage_changed = tracker.expect_any("sdm_voltage")
 
     async with (
         run_compiled(yaml_config),
         api_client_connected() as client,
     ):
-        entities, _ = await client.list_entities_services()
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_change(voltage_changed, "sdm_voltage")
 
-        # Build key mappings for all sensor types
-        all_names = list(sensor_states.keys())
-        key_to_sensor = build_key_to_entity_mapping(entities, all_names)
 
-        # Set up initial state helper
-        initial_state_helper = InitialStateHelper(entities)
-        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+@pytest.mark.asyncio
+@pytest.mark.xfail(
+    reason="Modbus parser cannot handle server responses from other devices on the bus. Fix tracked in PR #11969.",
+    strict=True,
+)
+async def test_uart_mock_modbus_server(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test modbus server parsing with peer traffic on a shared bus."""
 
-        try:
-            await initial_state_helper.wait_for_initial_states()
-        except TimeoutError:
-            pytest.fail("Timeout waiting for initial states")
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
-        # Start the UART mock scenario now that we're subscribed
-        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
-        assert start_btn is not None, "Start Scenario button not found"
-        client.button_command(start_btn.key)
+    tracker = SensorTracker(
+        ["basic_read", "read_after_peer_response", "read_after_peer_timeout"]
+    )
+    futures = tracker.expect_all(
+        {
+            "basic_read": 1,
+            "read_after_peer_response": 1,
+            "read_after_peer_timeout": 1,
+        }
+    )
 
-        # Wait for voltage to be updated with successful parse
-        try:
-            await asyncio.wait_for(voltage_changed, timeout=2.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for SDM voltage change. Received sensor states:\n"
-                f"  sdm_voltage: {sensor_states['sdm_voltage']}\n"
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_all(futures)
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_server_controller(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test server/controller functionality for all read register types."""
+
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    expected_values = {
+        "reg_u_word": 99,
+        "reg_s_word": -99,
+        "reg_u_dword": 16909060,
+        "reg_s_dword": -16909060,
+        "reg_u_dword_r": pytest.approx(67305985),
+        "reg_s_dword_r": pytest.approx(-67305985),
+        "reg_u_qword": pytest.approx(72623859790382856),
+        "reg_s_qword": pytest.approx(-72623859790382856),
+        "reg_u_qword_r": pytest.approx(578437695752307201),
+        "reg_s_qword_r": pytest.approx(-578437695752307201),
+        "reg_fp32": pytest.approx(3.14),
+        "reg_fp32_r": pytest.approx(3.14),
+    }
+    tracker = SensorTracker(list(expected_values.keys()))
+    futures = tracker.expect_all(expected_values)
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_all(futures)
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_server_controller_write(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test server/controller write functionality for all register value types.
+
+    Verifies that writing to modbus server registers via the controller updates
+    the server's stored values, which are then read back correctly on the next poll.
+    All 12 value types are tested: U/S_WORD, U/S_DWORD(_R), U/S_QWORD(_R), FP32(_R).
+    """
+
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    register_test_cases: dict[str, RegisterTestCase] = {
+        "reg_u_word": RegisterTestCase(11, "write_u_word", 42, 42),
+        "reg_s_word": RegisterTestCase(-11, "write_s_word", -42, -42),
+        "reg_u_dword": RegisterTestCase(1001, "write_u_dword", 2002, 2002),
+        "reg_s_dword": RegisterTestCase(-1001, "write_s_dword", -2002, -2002),
+        "reg_u_dword_r": RegisterTestCase(3003, "write_u_dword_r", 4004, 4004),
+        "reg_s_dword_r": RegisterTestCase(-3003, "write_s_dword_r", -4004, -4004),
+        "reg_u_qword": RegisterTestCase(5005, "write_u_qword", 6006, 6006),
+        "reg_s_qword": RegisterTestCase(-5005, "write_s_qword", -6006, -6006),
+        "reg_u_qword_r": RegisterTestCase(7007, "write_u_qword_r", 8008, 8008),
+        "reg_s_qword_r": RegisterTestCase(-7007, "write_s_qword_r", -8008, -8008),
+        "reg_fp32": RegisterTestCase(
+            pytest.approx(1.5, abs=0.01),
+            "write_fp32",
+            3.14,
+            pytest.approx(3.14, abs=0.01),
+        ),
+        "reg_fp32_r": RegisterTestCase(
+            pytest.approx(2.5, abs=0.01),
+            "write_fp32_r",
+            6.28,
+            pytest.approx(6.28, abs=0.01),
+        ),
+    }
+
+    tracker = SensorTracker(list(register_test_cases.keys()))
+
+    # Phase 1: expect initial baseline values
+    initial_futures = tracker.expect_all(
+        {name: case.initial_value for name, case in register_test_cases.items()}
+    )
+    # Phase 2: expect post-write values (registered now so on_state can match them)
+    written_futures = tracker.expect_all(
+        {name: case.post_write_value for name, case in register_test_cases.items()}
+    )
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        entities = await tracker.setup_and_start_scenario(client)
+
+        # Wait for initial baseline values to confirm the controller <-> server
+        # connection is working before issuing writes
+        await tracker.await_all(initial_futures, timeout=4.0)
+
+        # Issue write commands for all register types
+        for case in register_test_cases.values():
+            entity = find_entity(entities, case.write_number_name, NumberInfo)
+            assert entity is not None, (
+                f"{case.write_number_name} number entity not found"
             )
+            client.number_command(entity.key, case.write_value)
+
+        # Wait for sensors to reflect the written values (round-trip write+read)
+        await tracker.await_all(written_futures, timeout=4.0)
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.asyncio
+@pytest.mark.xfail(
+    reason="Modbus parser cannot handle server responses from other devices on the bus. Fix tracked in PR #11969.",
+    strict=True,
+)
+async def test_uart_mock_modbus_server_controller_multiple(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test server/controller functionality with multiple servers."""
+
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    expected_values = {"reg_u_word": 919, "reg_u_word_2": 929}
+    tracker = SensorTracker(list(expected_values.keys()))
+    futures = tracker.expect_all(expected_values)
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_all(futures)
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)

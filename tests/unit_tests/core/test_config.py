@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from esphome import config_validation as cv, core
+from esphome.components.safe_mode import to_code as safe_mode_to_code
 from esphome.const import (
     CONF_AREA,
     CONF_AREAS,
@@ -19,6 +20,9 @@ from esphome.const import (
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
     KEY_CORE,
+    KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
+    Toolchain,
 )
 from esphome.core import CORE, config
 from esphome.core.config import (
@@ -137,6 +141,33 @@ def test_multiple_areas_and_devices(yaml_file: Callable[[str], str]) -> None:
         "device2": "area1",
         "device3": "area2",
     }
+
+
+@pytest.mark.asyncio
+@pytest.mark.filterwarnings("ignore::RuntimeWarning")
+@pytest.mark.parametrize(
+    ("fixture", "expected_area"),
+    [
+        ("legacy_string_area.yaml", "Living Room"),
+        ("multiple_areas_devices.yaml", "Main Area"),
+    ],
+)
+async def test_to_code_records_core_area(
+    yaml_file: Callable[[str], Path],
+    fixture: str,
+    expected_area: str,
+) -> None:
+    """``to_code`` records the node's area name on CORE for StorageJSON."""
+    result = load_config_from_fixture(yaml_file, fixture, FIXTURES_DIR)
+    assert result is not None
+    assert CORE.area is None
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
+        mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
+        await config.to_code(result[CONF_ESPHOME])
+
+    assert CORE.area == expected_area
 
 
 def test_legacy_string_area(
@@ -312,6 +343,75 @@ def test_add_platform_defines_priority() -> None:
     )
 
 
+def test_to_code_priority_above_safe_mode() -> None:
+    """Test that core to_code emits the looping_components_ init before safe_mode.
+
+    Regression test for https://github.com/esphome/esphome/issues/16262.
+    safe_mode emits an `if (should_enter_safe_mode(...)) return;` line in main()
+    at APPLICATION priority. The `App.looping_components_.init(...)` call must be
+    emitted at a higher priority than APPLICATION so it lands in main() before
+    the early return; otherwise the FixedVector is never sized when safe mode is
+    active and loop() never runs (Wi-Fi never connects).
+    """
+    assert config.to_code.priority > safe_mode_to_code.priority, (
+        f"core to_code priority ({config.to_code.priority}) must be greater than "
+        f"safe_mode to_code priority ({safe_mode_to_code.priority}) so that "
+        "App.looping_components_.init() is emitted before safe_mode's early return"
+    )
+
+
+@pytest.mark.asyncio
+async def test_add_looping_components_handles_empty_entries() -> None:
+    """Test that _add_looping_components emits a valid constexpr when there are
+    no looping component entries.
+
+    With zero entries the generated constexpr must still be syntactically valid
+    C++ (`= 0;`), not an empty expression (`= ;`). This guards the empty-list
+    case that would otherwise produce uncompilable main.cpp output.
+    """
+    CORE.data["looping_component_entries"] = []
+
+    await config._add_looping_components()
+
+    constexpr_lines = [
+        str(s)
+        for s in CORE.global_statements
+        if "ESPHOME_LOOPING_COMPONENT_COUNT" in str(s)
+    ]
+    assert len(constexpr_lines) == 1
+    text = constexpr_lines[0]
+    assert "static constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT" in text
+    # The right-hand side must contain a literal `0`, not be empty.
+    rhs = text.split("=", 1)[1]
+    assert "0" in rhs
+    assert rhs.strip().rstrip(";").strip(), (
+        f"constexpr right-hand side must not be empty, got: {text!r}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_add_looping_components_with_entries() -> None:
+    """Test that _add_looping_components builds a HasLoopOverride sum from entries."""
+    CORE.data["looping_component_entries"] = [
+        "esphome::wifi::WiFiComponent",
+        "esphome::logger::Logger",
+        "esphome::wifi::WiFiComponent",
+    ]
+
+    await config._add_looping_components()
+
+    constexpr_lines = [
+        str(s)
+        for s in CORE.global_statements
+        if "ESPHOME_LOOPING_COMPONENT_COUNT" in str(s)
+    ]
+    assert len(constexpr_lines) == 1
+    text = constexpr_lines[0]
+    # Deduplicated by type, with per-type counts as multiplier.
+    assert "(2 * HasLoopOverride<esphome::wifi::WiFiComponent>::value)" in text
+    assert "(1 * HasLoopOverride<esphome::logger::Logger>::value)" in text
+
+
 def test_valid_include_with_angle_brackets() -> None:
     """Test valid_include accepts angle bracket includes."""
     assert valid_include("<ArduinoJson.h>") == "<ArduinoJson.h>"
@@ -416,7 +516,7 @@ def test_preload_core_config_basic(setup_core: Path) -> None:
     assert CONF_BUILD_PATH in config[CONF_ESPHOME]
     # Verify default build path is "build/<device_name>"
     build_path = config[CONF_ESPHOME][CONF_BUILD_PATH]
-    assert build_path.endswith(os.path.join("build", "test_device"))
+    assert build_path.endswith(str(Path("build") / "test_device"))
 
 
 def test_preload_core_config_with_build_path(setup_core: Path) -> None:
@@ -453,7 +553,7 @@ def test_preload_core_config_env_build_path(setup_core: Path) -> None:
     assert "test_device" in config[CONF_ESPHOME][CONF_BUILD_PATH]
     # Verify it uses the env var path with device name appended
     build_path = config[CONF_ESPHOME][CONF_BUILD_PATH]
-    expected_path = os.path.join("/env/build", "test_device")
+    expected_path = str(Path("/env/build") / "test_device")
     assert build_path == expected_path or build_path == expected_path.replace(
         "/", os.sep
     )
@@ -669,7 +769,7 @@ async def test_add_includes_with_single_file(
     """Test add_includes copies a single header file to build directory."""
     CORE.config_path = tmp_path / "config.yaml"
     CORE.build_path = tmp_path / "build"
-    os.makedirs(CORE.build_path, exist_ok=True)
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
 
     # Create include file
     include_file = tmp_path / "my_header.h"
@@ -699,7 +799,7 @@ async def test_add_includes_with_directory_unix(
     """Test add_includes copies all files from a directory on Unix."""
     CORE.config_path = tmp_path / "config.yaml"
     CORE.build_path = tmp_path / "build"
-    os.makedirs(CORE.build_path, exist_ok=True)
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
 
     # Create include directory with files
     include_dir = tmp_path / "includes"
@@ -744,7 +844,7 @@ async def test_add_includes_with_directory_windows(
     """Test add_includes copies all files from a directory on Windows."""
     CORE.config_path = tmp_path / "config.yaml"
     CORE.build_path = tmp_path / "build"
-    os.makedirs(CORE.build_path, exist_ok=True)
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
 
     # Create include directory with files
     include_dir = tmp_path / "includes"
@@ -786,7 +886,7 @@ async def test_add_includes_with_multiple_sources(
     """Test add_includes with multiple files and directories."""
     CORE.config_path = tmp_path / "config.yaml"
     CORE.build_path = tmp_path / "build"
-    os.makedirs(CORE.build_path, exist_ok=True)
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
 
     # Create various include sources
     single_file = tmp_path / "single.h"
@@ -814,7 +914,7 @@ async def test_add_includes_empty_directory(
     """Test add_includes with an empty directory doesn't fail."""
     CORE.config_path = tmp_path / "config.yaml"
     CORE.build_path = tmp_path / "build"
-    os.makedirs(CORE.build_path, exist_ok=True)
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
 
     # Create empty directory
     empty_dir = tmp_path / "empty"
@@ -836,7 +936,7 @@ async def test_add_includes_preserves_directory_structure_unix(
     """Test that add_includes preserves relative directory structure on Unix."""
     CORE.config_path = tmp_path / "config.yaml"
     CORE.build_path = tmp_path / "build"
-    os.makedirs(CORE.build_path, exist_ok=True)
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
 
     # Create nested directory structure
     lib_dir = tmp_path / "lib"
@@ -870,7 +970,7 @@ async def test_add_includes_preserves_directory_structure_windows(
     """Test that add_includes preserves relative directory structure on Windows."""
     CORE.config_path = tmp_path / "config.yaml"
     CORE.build_path = tmp_path / "build"
-    os.makedirs(CORE.build_path, exist_ok=True)
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
 
     # Create nested directory structure
     lib_dir = tmp_path / "lib"
@@ -903,7 +1003,7 @@ async def test_add_includes_overwrites_existing_files(
     """Test that add_includes overwrites existing files in build directory."""
     CORE.config_path = tmp_path / "config.yaml"
     CORE.build_path = tmp_path / "build"
-    os.makedirs(CORE.build_path, exist_ok=True)
+    CORE.build_path.mkdir(parents=True, exist_ok=True)
 
     # Create include file
     include_file = tmp_path / "header.h"
@@ -1064,3 +1164,123 @@ def test_make_app_name_cpp_special_chars_escaped() -> None:
     cpp_expr, _, _ = make_app_name_cpp('my "device"', "buf", "-", add_mac_suffix=False)
     # cpp_string_escape uses octal escapes for quotes
     assert '"' not in cpp_expr[1:-1]  # no unescaped quotes inside the outer quotes
+
+
+@pytest.mark.parametrize(
+    ("lib", "name", "version", "repository"),
+    [
+        ("ArduinoJson", "ArduinoJson", None, None),
+        ("bblanchon/ArduinoJson@7.4.2", "bblanchon/ArduinoJson", "7.4.2", None),
+        (
+            "noise-c=https://github.com/esphome/noise-c.git",
+            "noise-c",
+            None,
+            "https://github.com/esphome/noise-c.git",
+        ),
+    ],
+)
+def test_add_library_str(
+    lib: str, name: str, version: str | None, repository: str | None
+) -> None:
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "esp-idf",
+    }
+
+    config._add_library_str(lib)
+
+    libraries = list(CORE.platformio_libraries.values())
+    assert len(libraries) == 1
+    assert libraries[0].name == name
+    assert libraries[0].version == version
+    assert libraries[0].repository == repository
+
+
+@pytest.mark.asyncio
+async def test_add_platformio_options_native_idf(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """On the native IDF toolchain, build_flags/lib_deps/lib_ignore are
+    honored, upload_speed is silent and everything else warns."""
+    CORE.toolchain = Toolchain.ESP_IDF
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "esp-idf",
+    }
+
+    await config._add_platformio_options(
+        {
+            "build_flags": "-DSINGLE_FLAG",  # string and list forms both valid
+            "lib_deps": ["bblanchon/ArduinoJson@7.4.2"],
+            "lib_ignore": "libsodium",
+            "upload_speed": "115200",
+            "board_build.f_flash": "80000000L",
+        }
+    )
+
+    assert "-DSINGLE_FLAG" in CORE.build_flags
+    assert "ArduinoJson" in CORE.platformio_libraries
+    # lib_ignore is stored (listified) for generate_idf_components to read;
+    # nothing else lands in platformio_options on the native toolchain.
+    assert CORE.platformio_options == {"lib_ignore": ["libsodium"]}
+    assert "esphome->platformio_options->board_build.f_flash is ignored" in caplog.text
+    assert "upload_speed" not in caplog.text
+    # build_flags has a first-class esphome equivalent, so it is deprecated.
+    # lib_deps/lib_ignore are kept as valid platformio_options (no warning).
+    assert (
+        "esphome->platformio_options->build_flags is deprecated; use "
+        "esphome->build_flags instead" in caplog.text
+    )
+    assert "lib_deps is deprecated" not in caplog.text
+    assert "lib_ignore is deprecated" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_add_platformio_options_platformio(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """On the PlatformIO toolchain all options pass through to the ini,
+    with build_flags/lib_ignore listified."""
+    CORE.toolchain = Toolchain.PLATFORMIO
+
+    await config._add_platformio_options(
+        {
+            "build_flags": "-DSINGLE_FLAG",
+            "lib_ignore": "libsodium",
+            "upload_speed": "115200",
+        }
+    )
+
+    assert CORE.platformio_options == {
+        "build_flags": ["-DSINGLE_FLAG"],
+        "lib_ignore": ["libsodium"],
+        "upload_speed": "115200",
+    }
+    # platformio_options is the correct mechanism on the PlatformIO toolchain,
+    # so the native-equivalent deprecation must not fire here.
+    assert "deprecated" not in caplog.text
+
+
+def test_add_library_str_bare_url_requires_name() -> None:
+    """A bare repository URL has no library name; CORE.add_library rejects it."""
+    with pytest.raises(ValueError, match="must have a name"):
+        config._add_library_str("https://github.com/esphome/noise-c.git")
+
+
+@pytest.mark.asyncio
+@pytest.mark.filterwarnings("ignore::RuntimeWarning")
+async def test_to_code_adds_libraries(yaml_file: Callable[[str], Path]) -> None:
+    """esphome->libraries entries are parsed and registered via cg.add_library."""
+    result = load_config_from_fixture(yaml_file, "libraries.yaml", FIXTURES_DIR)
+    assert result is not None
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
+        mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
+        await config.to_code(result[CONF_ESPHOME])
+
+    mock_cg.add_library.assert_any_call("SomeLib", None)
+    mock_cg.add_library.assert_any_call("bblanchon/ArduinoJson", "7.4.2")
+    mock_cg.add_library.assert_any_call(
+        "noise-c", None, "https://github.com/esphome/noise-c.git"
+    )

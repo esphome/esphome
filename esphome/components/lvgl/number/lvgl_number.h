@@ -6,17 +6,12 @@
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
 
-namespace esphome {
-namespace lvgl {
+namespace esphome::lvgl {
 
 class LVGLNumber : public number::Number, public Component {
  public:
-  LVGLNumber(std::function<void(float)> control_lambda, std::function<float()> value_lambda, lv_event_code_t event,
-             bool restore)
-      : control_lambda_(std::move(control_lambda)),
-        value_lambda_(std::move(value_lambda)),
-        event_(event),
-        restore_(restore) {}
+  LVGLNumber(std::function<void(float)> control_lambda, std::function<float()> value_lambda, bool restore)
+      : control_lambda_(std::move(control_lambda)), value_lambda_(std::move(value_lambda)), restore_(restore) {}
 
   void setup() override {
     float value = this->value_lambda_();
@@ -43,10 +38,8 @@ class LVGLNumber : public number::Number, public Component {
   }
   std::function<void(float)> control_lambda_;
   std::function<float()> value_lambda_;
-  lv_event_code_t event_;
   bool restore_;
   ESPPreferenceObject pref_{};
 };
 
-}  // namespace lvgl
-}  // namespace esphome
+}  // namespace esphome::lvgl

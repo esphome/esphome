@@ -54,7 +54,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_IP_ADDRESS): text_sensor.text_sensor_schema(
             IPAddressOpenThreadInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-        ),
+        ).extend(cv.polling_component_schema("1s")),
         cv.Optional(CONF_ROLE): text_sensor.text_sensor_schema(
             RoleOpenThreadInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ).extend(cv.polling_component_schema("1s")),

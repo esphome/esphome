@@ -7,6 +7,7 @@ from datetime import datetime
 import json
 import os
 from pathlib import Path
+import re
 import stat
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -32,6 +33,7 @@ from esphome.writer import (
     clean_build,
     clean_cmake_cache,
     copy_src_tree,
+    generate_build_info_data_cpp,
     generate_build_info_data_h,
     get_build_info,
     storage_should_clean,
@@ -40,6 +42,42 @@ from esphome.writer import (
     write_cpp,
     write_gitignore,
 )
+
+
+@pytest.fixture(autouse=True)
+def _isolate_platformio_paths(tmp_path_factory: pytest.TempPathFactory) -> Any:
+    """Sandbox PlatformIO path lookups so tests never touch ~/.platformio.
+
+    `clean_all` and `clean_build` both query ProjectConfig for paths like
+    `cache_dir` and `core_dir` and `rmtree` anything that exists. By
+    default `core_dir` resolves to ~/.platformio, which is global state
+    shared across pytest-xdist workers — multiple workers can each pass
+    `is_dir()` and then race inside `shutil.rmtree`, producing
+    FileNotFoundError flakes (and trashing developers' local PIO state
+    when the suite is run outside CI).
+
+    14 of the 18 `clean_*` tests in this file invoke `clean_all` /
+    `clean_build` without installing their own ProjectConfig mock, so
+    making the fixture autouse is simpler than tagging each test
+    individually.
+
+    Patch ProjectConfig.get_instance to point every PIO dir at a unique
+    tmp directory that doesn't actually exist on disk — `is_dir()`
+    returns False, so the rmtree loop is skipped entirely. Tests that
+    want to verify the PIO-cleanup branch (e.g. test_clean_all,
+    test_clean_all_partial_exists) install their own inner patch which
+    stacks on top of this one and wins for the duration of their block.
+    """
+    pio_root = tmp_path_factory.mktemp("isolated_pio") / "nonexistent"
+    mock_cfg = MagicMock()
+    mock_cfg.get.side_effect = lambda section, option: (
+        str(pio_root / option) if section == "platformio" else ""
+    )
+    with patch(
+        "platformio.project.config.ProjectConfig.get_instance",
+        return_value=mock_cfg,
+    ):
+        yield
 
 
 @pytest.fixture
@@ -73,6 +111,8 @@ def create_storage() -> Callable[..., StorageJSON]:
             no_mdns=kwargs.get("no_mdns", False),
             framework=kwargs.get("framework", "arduino"),
             core_platform=kwargs.get("core_platform", "esp32"),
+            toolchain=kwargs.get("toolchain", "platformio"),
+            framework_version=kwargs.get("framework_version"),
         )
 
     return _create
@@ -101,6 +141,46 @@ def test_storage_should_clean_when_build_path_changes(
     """Test that clean is triggered when build_path changes."""
     old = create_storage(loaded_integrations=["api", "wifi"], build_path="/build1")
     new = create_storage(loaded_integrations=["api", "wifi"], build_path="/build2")
+    assert storage_should_clean(old, new) is True
+
+
+def test_storage_should_clean_when_toolchain_changes(
+    create_storage: Callable[..., StorageJSON],
+) -> None:
+    """Test that clean is triggered when the build toolchain changes.
+
+    Switching between the PlatformIO and native ESP-IDF toolchains produces
+    incompatible build trees (and toolchain-specific idedata), so the build
+    must be wiped.
+    """
+    old = create_storage(loaded_integrations=["api", "wifi"], toolchain="platformio")
+    new = create_storage(loaded_integrations=["api", "wifi"], toolchain="esp-idf")
+    assert storage_should_clean(old, new) is True
+
+
+def test_storage_should_clean_when_framework_changes(
+    create_storage: Callable[..., StorageJSON],
+) -> None:
+    """Test that clean is triggered when the framework changes.
+
+    Switching between arduino and esp-idf produces incompatible build trees
+    even on the same toolchain, so the build must be wiped.
+    """
+    old = create_storage(loaded_integrations=["api", "wifi"], framework="arduino")
+    new = create_storage(loaded_integrations=["api", "wifi"], framework="esp-idf")
+    assert storage_should_clean(old, new) is True
+
+
+def test_storage_should_clean_when_framework_version_changes(
+    create_storage: Callable[..., StorageJSON],
+) -> None:
+    """Test that clean is triggered when the framework version changes.
+
+    A different framework/ESP-IDF version compiles against a different SDK, so
+    the stale build tree must be wiped.
+    """
+    old = create_storage(loaded_integrations=["api", "wifi"], framework_version="5.3.1")
+    new = create_storage(loaded_integrations=["api", "wifi"], framework_version="5.4.0")
     assert storage_should_clean(old, new) is True
 
 
@@ -288,8 +368,8 @@ def test_update_storage_json_logging_when_old_is_none(
     with caplog.at_level("INFO"):
         update_storage_json()
 
-    # Verify clean_build was called
-    mock_clean_build.assert_called_once()
+    # Verify clean_build was called with a full wipe (runs before src is written)
+    mock_clean_build.assert_called_once_with(clear_pio_cache=False, full=True)
 
     # Verify the correct log message was used (not the component removal message)
     assert "Core config or version changed, cleaning build files..." in caplog.text
@@ -339,60 +419,50 @@ def test_update_storage_json_logging_components_removed(
     new_storage.save.assert_called_once_with("/test/path")
 
 
+def _mock_cmake_cache_paths(mock_core: MagicMock, tmp_path: Path) -> None:
+    """Wire relative_pioenvs_path/relative_build_path to tmp_path subtrees."""
+    mock_core.name = "test_device"
+    mock_core.relative_pioenvs_path.side_effect = (tmp_path / ".pioenvs").joinpath
+    mock_core.relative_build_path.side_effect = tmp_path.joinpath
+
+
 @patch("esphome.writer.CORE")
-def test_clean_cmake_cache(
+def test_clean_cmake_cache_platformio(
     mock_core: MagicMock,
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test clean_cmake_cache removes CMakeCache.txt file."""
-    # Create directory structure
-    pioenvs_dir = tmp_path / ".pioenvs"
-    pioenvs_dir.mkdir()
-    device_dir = pioenvs_dir / "test_device"
-    device_dir.mkdir()
-    cmake_cache_file = device_dir / "CMakeCache.txt"
+    """Test clean_cmake_cache removes the PlatformIO CMakeCache.txt."""
+    _mock_cmake_cache_paths(mock_core, tmp_path)
+    cmake_cache_file = tmp_path / ".pioenvs" / "test_device" / "CMakeCache.txt"
+    cmake_cache_file.parent.mkdir(parents=True)
     cmake_cache_file.write_text("# CMake cache file")
 
-    # Setup mocks
-    mock_core.relative_pioenvs_path.return_value = pioenvs_dir
-    mock_core.name = "test_device"
-
-    # Verify file exists before
-    assert cmake_cache_file.exists()
-
-    # Call the function
     with caplog.at_level("INFO"):
         clean_cmake_cache()
 
-    # Verify file was removed
     assert not cmake_cache_file.exists()
-
-    # Verify logging
     assert "Deleting" in caplog.text
     assert "CMakeCache.txt" in caplog.text
 
 
 @patch("esphome.writer.CORE")
-def test_clean_cmake_cache_no_pioenvs_dir(
+def test_clean_cmake_cache_esp_idf(
     mock_core: MagicMock,
     tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test clean_cmake_cache when pioenvs directory doesn't exist."""
-    # Setup non-existent directory path
-    pioenvs_dir = tmp_path / ".pioenvs"
+    """Test clean_cmake_cache removes the native ESP-IDF build/CMakeCache.txt."""
+    _mock_cmake_cache_paths(mock_core, tmp_path)
+    cmake_cache_file = tmp_path / "build" / "CMakeCache.txt"
+    cmake_cache_file.parent.mkdir(parents=True)
+    cmake_cache_file.write_text("# CMake cache file")
 
-    # Setup mocks
-    mock_core.relative_pioenvs_path.return_value = pioenvs_dir
+    with caplog.at_level("INFO"):
+        clean_cmake_cache()
 
-    # Verify directory doesn't exist
-    assert not pioenvs_dir.exists()
-
-    # Call the function - should not crash
-    clean_cmake_cache()
-
-    # Verify directory still doesn't exist
-    assert not pioenvs_dir.exists()
+    assert not cmake_cache_file.exists()
+    assert str(cmake_cache_file) in caplog.text
 
 
 @patch("esphome.writer.CORE")
@@ -400,26 +470,10 @@ def test_clean_cmake_cache_no_cmake_file(
     mock_core: MagicMock,
     tmp_path: Path,
 ) -> None:
-    """Test clean_cmake_cache when CMakeCache.txt doesn't exist."""
-    # Create directory structure without CMakeCache.txt
-    pioenvs_dir = tmp_path / ".pioenvs"
-    pioenvs_dir.mkdir()
-    device_dir = pioenvs_dir / "test_device"
-    device_dir.mkdir()
-    cmake_cache_file = device_dir / "CMakeCache.txt"
+    """Test clean_cmake_cache when no CMakeCache.txt exists -- should not crash."""
+    _mock_cmake_cache_paths(mock_core, tmp_path)
 
-    # Setup mocks
-    mock_core.relative_pioenvs_path.return_value = pioenvs_dir
-    mock_core.name = "test_device"
-
-    # Verify file doesn't exist
-    assert not cmake_cache_file.exists()
-
-    # Call the function - should not crash
     clean_cmake_cache()
-
-    # Verify file still doesn't exist
-    assert not cmake_cache_file.exists()
 
 
 @patch("esphome.writer.CORE")
@@ -441,6 +495,24 @@ def test_clean_build(
     dependencies_lock = tmp_path / "dependencies.lock"
     dependencies_lock.write_text("lock file")
 
+    # idedata cache lives under the data dir, not the build path.
+    idedata_cache = tmp_path / "idedata" / "test.json"
+    idedata_cache.parent.mkdir()
+    idedata_cache.write_text("{}")
+
+    # Native ESP-IDF toolchain artifacts.
+    idf_build_dir = tmp_path / "build"
+    idf_build_dir.mkdir()
+    (idf_build_dir / "CMakeCache.txt").write_text("cache")
+    managed_components_dir = tmp_path / "managed_components"
+    managed_components_dir.mkdir()
+    (managed_components_dir / "espressif__arduino-esp32").mkdir()
+
+    # Converted-PIO-library cache (native ESP-IDF), under the data dir.
+    pio_components_dir = tmp_path / "pio_components"
+    pio_components_dir.mkdir()
+    (pio_components_dir / "abc12345").mkdir()
+
     # Create PlatformIO cache directory
     platformio_cache_dir = tmp_path / ".platformio" / ".cache"
     platformio_cache_dir.mkdir(parents=True)
@@ -452,12 +524,18 @@ def test_clean_build(
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
-    mock_core.relative_build_path.return_value = dependencies_lock
+    mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.name = "test"
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
 
     # Verify all exist before
     assert pioenvs_dir.exists()
     assert piolibdeps_dir.exists()
     assert dependencies_lock.exists()
+    assert idedata_cache.exists()
+    assert idf_build_dir.exists()
+    assert managed_components_dir.exists()
+    assert pio_components_dir.exists()
     assert platformio_cache_dir.exists()
 
     # Mock PlatformIO's ProjectConfig cache_dir
@@ -480,6 +558,10 @@ def test_clean_build(
     assert not pioenvs_dir.exists()
     assert not piolibdeps_dir.exists()
     assert not dependencies_lock.exists()
+    assert not idedata_cache.exists()
+    assert not idf_build_dir.exists()
+    assert not managed_components_dir.exists()
+    assert not pio_components_dir.exists()
     assert not platformio_cache_dir.exists()
 
     # Verify logging
@@ -487,7 +569,45 @@ def test_clean_build(
     assert ".pioenvs" in caplog.text
     assert ".piolibdeps" in caplog.text
     assert "dependencies.lock" in caplog.text
+    assert str(idedata_cache) in caplog.text
+    assert str(idf_build_dir) in caplog.text
+    assert str(managed_components_dir) in caplog.text
     assert "PlatformIO cache" in caplog.text
+
+
+@patch("esphome.writer.CORE")
+def test_clean_build_full_wipes_build_dir(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """full=True wipes the whole build dir (incl. src/) but keeps siblings."""
+    build_dir = tmp_path / "build" / "test"
+    (build_dir / "src").mkdir(parents=True)
+    (build_dir / "src" / "main.cpp").write_text("// generated")
+    (build_dir / "platformio.ini").write_text("[platformio]")
+    (build_dir / ".pioenvs").mkdir()
+
+    idedata_cache = tmp_path / "idedata" / "test.json"
+    idedata_cache.parent.mkdir()
+    idedata_cache.write_text("{}")
+
+    # A sibling of the build dir (under the data dir) must survive.
+    survivor = tmp_path / "keep_me.txt"
+    survivor.write_text("keep")
+
+    # build_path may be a str (e.g. set from config); clean_build must coerce.
+    mock_core.build_path = str(build_dir)
+    mock_core.name = "test"
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
+
+    with caplog.at_level("INFO"):
+        clean_build(clear_pio_cache=False, full=True)
+
+    assert not build_dir.exists()
+    assert not idedata_cache.exists()
+    assert survivor.exists()
+    assert str(build_dir) in caplog.text
 
 
 @patch("esphome.writer.CORE")
@@ -508,7 +628,8 @@ def test_clean_build_partial_exists(
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
-    mock_core.relative_build_path.return_value = dependencies_lock
+    mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
 
     # Verify only pioenvs exists
     assert pioenvs_dir.exists()
@@ -545,7 +666,8 @@ def test_clean_build_nothing_exists(
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
-    mock_core.relative_build_path.return_value = dependencies_lock
+    mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
 
     # Verify nothing exists
     assert not pioenvs_dir.exists()
@@ -581,7 +703,8 @@ def test_clean_build_platformio_not_available(
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = piolibdeps_dir
-    mock_core.relative_build_path.return_value = dependencies_lock
+    mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
 
     # Verify all exist before
     assert pioenvs_dir.exists()
@@ -619,7 +742,8 @@ def test_clean_build_empty_cache_dir(
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
-    mock_core.relative_build_path.return_value = tmp_path / "dependencies.lock"
+    mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
 
     # Verify pioenvs exists before
     assert pioenvs_dir.exists()
@@ -1342,12 +1466,13 @@ def test_clean_build_handles_readonly_files(
     # Create a read-only file (simulating git pack files on Windows)
     readonly_file = git_dir / "pack-abc123.pack"
     readonly_file.write_text("pack data")
-    os.chmod(readonly_file, stat.S_IRUSR)  # Read-only
+    readonly_file.chmod(stat.S_IRUSR)  # Read-only
 
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
-    mock_core.relative_build_path.return_value = tmp_path / "dependencies.lock"
+    mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
 
     # Verify file is read-only
     assert not os.access(readonly_file, os.W_OK)
@@ -1377,7 +1502,7 @@ def test_clean_all_handles_readonly_files(
     subdir.mkdir()
     readonly_file = subdir / "readonly.txt"
     readonly_file.write_text("content")
-    os.chmod(readonly_file, stat.S_IRUSR)  # Read-only
+    readonly_file.chmod(stat.S_IRUSR)  # Read-only
 
     # Verify file is read-only
     assert not os.access(readonly_file, os.W_OK)
@@ -1406,12 +1531,13 @@ def test_clean_build_reraises_for_other_errors(
     test_file.write_text("content")
 
     # Make subdir read-only so files inside can't be deleted
-    os.chmod(subdir, stat.S_IRUSR | stat.S_IXUSR)
+    subdir.chmod(stat.S_IRUSR | stat.S_IXUSR)
 
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.relative_piolibdeps_path.return_value = tmp_path / ".piolibdeps"
-    mock_core.relative_build_path.return_value = tmp_path / "dependencies.lock"
+    mock_core.relative_build_path.side_effect = lambda name: tmp_path / name
+    mock_core.relative_internal_path.side_effect = tmp_path.joinpath
 
     try:
         # Mock os.access in writer module to return True (writable)
@@ -1424,7 +1550,7 @@ def test_clean_build_reraises_for_other_errors(
             clean_build()
     finally:
         # Cleanup - restore write permission so tmp_path cleanup works
-        os.chmod(subdir, stat.S_IRWXU)
+        subdir.chmod(stat.S_IRWXU)
 
 
 # Tests for get_build_info()
@@ -1615,49 +1741,62 @@ def test_get_build_info_build_time_str_format(
 
 def test_generate_build_info_data_h_format() -> None:
     """Test generate_build_info_data_h produces correct header content."""
-    config_hash = 0x12345678
-    build_time = 1700000000
-    build_time_str = "2023-11-14 22:13:20 +0000"
-    comment = "Test comment"
-
-    result = generate_build_info_data_h(
-        config_hash, build_time, build_time_str, comment
-    )
+    result = generate_build_info_data_h()
 
     assert "#pragma once" in result
-    assert "#define ESPHOME_CONFIG_HASH 0x12345678U" in result
-    assert "#define ESPHOME_BUILD_TIME 1700000000" in result
-    assert "#define ESPHOME_COMMENT_SIZE 13" in result  # len("Test comment") + 1
-    assert 'ESPHOME_BUILD_TIME_STR[] = "2023-11-14 22:13:20 +0000"' in result
-    assert 'ESPHOME_COMMENT_STR[] = "Test comment"' in result
+    assert "extern const uint32_t ESPHOME_CONFIG_HASH;" in result
+    assert "extern const time_t ESPHOME_BUILD_TIME;" in result
+    assert "extern const size_t ESPHOME_COMMENT_SIZE;" in result
+    assert "extern const char ESPHOME_BUILD_TIME_STR[]" in result
+    assert "extern const char ESPHOME_COMMENT_STR[]" in result
 
 
 def test_generate_build_info_data_h_esp8266_progmem() -> None:
     """Test generate_build_info_data_h includes PROGMEM for ESP8266."""
-    result = generate_build_info_data_h(0xABCDEF01, 1700000000, "test", "comment")
+    result = generate_build_info_data_h()
 
     # Should have ESP8266 PROGMEM conditional
     assert "#ifdef USE_ESP8266" in result
     assert "#include <pgmspace.h>" in result
     assert "PROGMEM" in result
-    # Both build time and comment should have PROGMEM versions
+
+
+def test_generate_build_info_data_cpp_format() -> None:
+    """Test generate_build_info_data_cpp produces correct data definitions."""
+    result = generate_build_info_data_cpp(
+        0x12345678, 1700000000, "2023-11-14 22:13:20 +0000", "Test comment"
+    )
+
+    assert '#include "esphome/core/build_info_data.h"' in result
+    assert "const uint32_t ESPHOME_CONFIG_HASH = 0x12345678U;" in result
+    assert "const time_t ESPHOME_BUILD_TIME = 1700000000;" in result
+    assert "const size_t ESPHOME_COMMENT_SIZE = 13;" in result
+    assert 'ESPHOME_BUILD_TIME_STR[] = "2023-11-14 22:13:20 +0000"' in result
+    assert 'ESPHOME_COMMENT_STR[] = "Test comment"' in result
+
+
+def test_generate_build_info_data_cpp_esp8266_progmem() -> None:
+    """Test generate_build_info_data_cpp includes PROGMEM definitions."""
+    result = generate_build_info_data_cpp(0xABCDEF01, 1700000000, "test", "comment")
+
+    assert "#ifdef USE_ESP8266" in result
     assert 'ESPHOME_BUILD_TIME_STR[] PROGMEM = "test"' in result
     assert 'ESPHOME_COMMENT_STR[] PROGMEM = "comment"' in result
 
 
-def test_generate_build_info_data_h_hash_formatting() -> None:
-    """Test generate_build_info_data_h formats hash with leading zeros."""
+def test_generate_build_info_data_cpp_hash_formatting() -> None:
+    """Test generate_build_info_data_cpp formats hash with leading zeros."""
     # Test with small hash value that needs leading zeros
-    result = generate_build_info_data_h(0x00000001, 0, "test", "")
-    assert "#define ESPHOME_CONFIG_HASH 0x00000001U" in result
+    result = generate_build_info_data_cpp(0x00000001, 0, "test", "")
+    assert "const uint32_t ESPHOME_CONFIG_HASH = 0x00000001U;" in result
 
     # Test with larger hash value
-    result = generate_build_info_data_h(0xFFFFFFFF, 0, "test", "")
-    assert "#define ESPHOME_CONFIG_HASH 0xffffffffU" in result
+    result = generate_build_info_data_cpp(0xFFFFFFFF, 0, "test", "")
+    assert "const uint32_t ESPHOME_CONFIG_HASH = 0xffffffffU;" in result
 
 
-def test_generate_build_info_data_h_comment_escaping() -> None:
-    r"""Test generate_build_info_data_h properly escapes special characters in comment.
+def test_generate_build_info_data_cpp_comment_escaping() -> None:
+    r"""Test generate_build_info_data_cpp properly escapes special characters in comment.
 
     Uses cpp_string_escape which outputs octal escapes for special characters:
     - backslash (ASCII 92) -> \134
@@ -1665,24 +1804,50 @@ def test_generate_build_info_data_h_comment_escaping() -> None:
     - newline (ASCII 10) -> \012
     """
     # Test backslash escaping (ASCII 92 = octal 134)
-    result = generate_build_info_data_h(0, 0, "test", "backslash\\here")
+    result = generate_build_info_data_cpp(0, 0, "test", "backslash\\here")
     assert 'ESPHOME_COMMENT_STR[] = "backslash\\134here"' in result
 
     # Test quote escaping (ASCII 34 = octal 042)
-    result = generate_build_info_data_h(0, 0, "test", 'has "quotes"')
+    result = generate_build_info_data_cpp(0, 0, "test", 'has "quotes"')
     assert 'ESPHOME_COMMENT_STR[] = "has \\042quotes\\042"' in result
 
     # Test newline escaping (ASCII 10 = octal 012)
-    result = generate_build_info_data_h(0, 0, "test", "line1\nline2")
+    result = generate_build_info_data_cpp(0, 0, "test", "line1\nline2")
     assert 'ESPHOME_COMMENT_STR[] = "line1\\012line2"' in result
 
 
-def test_generate_build_info_data_h_empty_comment() -> None:
-    """Test generate_build_info_data_h handles empty comment."""
-    result = generate_build_info_data_h(0, 0, "test", "")
+def test_generate_build_info_data_cpp_empty_comment() -> None:
+    """Test generate_build_info_data_cpp handles empty comment."""
+    result = generate_build_info_data_cpp(0, 0, "test", "")
 
-    assert "#define ESPHOME_COMMENT_SIZE 1" in result  # Just null terminator
+    assert "const size_t ESPHOME_COMMENT_SIZE = 1;" in result  # Just null terminator
     assert 'ESPHOME_COMMENT_STR[] = ""' in result
+
+
+def test_generate_build_info_data_cpp_comment_size_counts_utf8_bytes() -> None:
+    """Comment size is in encoded UTF-8 bytes, not characters."""
+    # "héllo" = 6 UTF-8 bytes + NUL.
+    result = generate_build_info_data_cpp(0, 0, "test", "héllo")
+    assert "const size_t ESPHOME_COMMENT_SIZE = 7;" in result
+
+
+def test_generate_build_info_data_cpp_comment_clamped_to_buffer() -> None:
+    """Generator clamps at byte level and never truncates mid-codepoint."""
+    # 100 thermometer-with-VS-16 sequences = 700 bytes, past the 256 buffer.
+    result = generate_build_info_data_cpp(0, 0, "test", "🌡️" * 100)
+
+    match = re.search(r"ESPHOME_COMMENT_SIZE = (\d+);", result)
+    assert match is not None
+    size = int(match.group(1))
+    assert 1 < size <= 256
+
+    lit_match = re.search(r'ESPHOME_COMMENT_STR\[\] = "([^"]*)"', result)
+    assert lit_match is not None
+    raw = re.sub(
+        r"\\([0-7]{3})", lambda m: chr(int(m.group(1), 8)), lit_match.group(1)
+    ).encode("latin-1")
+    raw.decode("utf-8")  # raises if truncation left a partial UTF-8 sequence
+    assert len(raw) == size - 1
 
 
 @patch("esphome.writer.CORE")
@@ -1758,15 +1923,21 @@ def test_copy_src_tree_writes_build_info_files(
     ):
         copy_src_tree()
 
-    # Verify build_info_data.h was written
+    # Verify build_info_data.h declarations and build_info_data.cpp values were written
     build_info_h_path = esphome_core_path / "build_info_data.h"
     assert build_info_h_path.exists()
     build_info_h_content = build_info_h_path.read_text()
-    assert "#define ESPHOME_CONFIG_HASH 0xdeadbeefU" in build_info_h_content
-    assert "#define ESPHOME_BUILD_TIME" in build_info_h_content
+    assert "extern const uint32_t ESPHOME_CONFIG_HASH;" in build_info_h_content
     assert "ESPHOME_BUILD_TIME_STR" in build_info_h_content
-    assert "#define ESPHOME_COMMENT_SIZE" in build_info_h_content
+    assert "extern const size_t ESPHOME_COMMENT_SIZE;" in build_info_h_content
     assert "ESPHOME_COMMENT_STR" in build_info_h_content
+    build_info_cpp_path = esphome_core_path / "build_info_data.cpp"
+    assert build_info_cpp_path.exists()
+    build_info_cpp_content = build_info_cpp_path.read_text()
+    assert "const uint32_t ESPHOME_CONFIG_HASH = 0xdeadbeefU;" in build_info_cpp_content
+    assert "const time_t ESPHOME_BUILD_TIME" in build_info_cpp_content
+    assert "const size_t ESPHOME_COMMENT_SIZE" in build_info_cpp_content
+    assert "ESPHOME_COMMENT_STR" in build_info_cpp_content
 
     # Verify build_info.json was written
     build_info_json_path = build_path / "build_info.json"
@@ -1833,7 +2004,9 @@ def test_copy_src_tree_detects_config_hash_change(
 
     # Verify build_info files were updated due to config_hash change
     assert build_info_h_path.exists()
-    new_content = build_info_h_path.read_text()
+    build_info_cpp_path = esphome_core_path / "build_info_data.cpp"
+    assert build_info_cpp_path.exists()
+    new_content = build_info_cpp_path.read_text()
     assert "0xdeadbeef" in new_content.lower()
 
     new_json = json.loads(build_info_json_path.read_text())

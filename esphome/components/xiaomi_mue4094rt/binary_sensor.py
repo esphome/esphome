@@ -1,3 +1,4 @@
+from esphome import core
 import esphome.codegen as cg
 from esphome.components import binary_sensor, esp32_ble_tracker
 import esphome.config_validation as cv
@@ -21,9 +22,10 @@ CONFIG_SCHEMA = cv.All(
     .extend(
         {
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
-            cv.Optional(
-                CONF_TIMEOUT, default="5s"
-            ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_TIMEOUT, default="5s"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=core.TimePeriod(milliseconds=65535)),
+            ),
         }
     )
     .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)

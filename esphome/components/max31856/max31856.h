@@ -6,8 +6,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace max31856 {
+namespace esphome::max31856 {
 
 enum MAX31856RegisterMasks { SPI_WRITE_M = 0x80 };
 
@@ -98,5 +97,4 @@ class MAX31856Sensor : public sensor::Sensor,
   void set_noise_filter_();
 };
 
-}  // namespace max31856
-}  // namespace esphome
+}  // namespace esphome::max31856

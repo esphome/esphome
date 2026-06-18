@@ -9,8 +9,7 @@
 #include "pid_controller.h"
 #include "pid_autotuner.h"
 
-namespace esphome {
-namespace pid {
+namespace esphome::pid {
 
 class PIDClimate : public climate::Climate, public Component {
  public:
@@ -164,5 +163,4 @@ template<typename... Ts> class PIDSetControlParametersAction : public Action<Ts.
   PIDClimate *parent_;
 };
 
-}  // namespace pid
-}  // namespace esphome
+}  // namespace esphome::pid

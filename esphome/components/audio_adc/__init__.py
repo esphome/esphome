@@ -32,7 +32,7 @@ async def audio_adc_set_mic_gain_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
-    template_ = await cg.templatable(config.get(CONF_MIC_GAIN), args, float)
+    template_ = await cg.templatable(config.get(CONF_MIC_GAIN), args, cg.float_)
     cg.add(var.set_mic_gain(template_))
 
     return var

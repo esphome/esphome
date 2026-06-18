@@ -4,8 +4,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace climate_ir_lg {
+namespace esphome::climate_ir_lg {
 
 // Temperature
 const uint8_t TEMP_MIN = 18;  // Celsius
@@ -54,5 +53,4 @@ class LgIrClimate : public climate_ir::ClimateIR {
   climate::ClimateMode mode_before_{climate::CLIMATE_MODE_OFF};
 };
 
-}  // namespace climate_ir_lg
-}  // namespace esphome
+}  // namespace esphome::climate_ir_lg

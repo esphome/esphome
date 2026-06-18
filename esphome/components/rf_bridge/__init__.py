@@ -67,22 +67,26 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_CODE_RECEIVED,
+        "add_on_code_received_callback",
+        [(RFBridgeData, "data")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_ADVANCED_CODE_RECEIVED,
+        "add_on_advanced_code_received_callback",
+        [(RFBridgeAdvancedData, "data")],
+    ),
+)
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    for conf in config.get(CONF_ON_CODE_RECEIVED, []):
-        await automation.build_callback_automation(
-            var, "add_on_code_received_callback", [(RFBridgeData, "data")], conf
-        )
-    for conf in config.get(CONF_ON_ADVANCED_CODE_RECEIVED, []):
-        await automation.build_callback_automation(
-            var,
-            "add_on_advanced_code_received_callback",
-            [(RFBridgeAdvancedData, "data")],
-            conf,
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 RFBRIDGE_SEND_CODE_SCHEMA = cv.Schema(
@@ -185,9 +189,9 @@ RFBRIDGE_SEND_ADVANCED_CODE_SCHEMA = cv.Schema(
 async def rf_bridge_send_advanced_code_to_code(config, action_id, template_args, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_args, paren)
-    template_ = await cg.templatable(config[CONF_LENGTH], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_LENGTH], args, cg.uint8)
     cg.add(var.set_length(template_))
-    template_ = await cg.templatable(config[CONF_PROTOCOL], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_PROTOCOL], args, cg.uint8)
     cg.add(var.set_protocol(template_))
     template_ = await cg.templatable(config[CONF_CODE], args, cg.std_string)
     cg.add(var.set_code(template_))

@@ -4,8 +4,7 @@
 #include "esphome/components/output/float_output.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace pca9685 {
+namespace esphome::pca9685 {
 
 enum class PhaseBalancer {
   NONE = 0x00,
@@ -76,5 +75,4 @@ class PCA9685Output : public Component, public i2c::I2CDevice {
   bool update_{true};
 };
 
-}  // namespace pca9685
-}  // namespace esphome
+}  // namespace esphome::pca9685

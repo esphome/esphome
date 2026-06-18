@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from typing import Any
 
 from esphome import config_validation as cv
 from esphome.automation import Trigger, validate_automation
@@ -10,6 +11,7 @@ from esphome.const import (
     CONF_GROUP,
     CONF_ID,
     CONF_ON_BOOT,
+    CONF_ON_UPDATE,
     CONF_ON_VALUE,
     CONF_STATE,
     CONF_TEXT,
@@ -20,6 +22,11 @@ from esphome.const import (
 )
 from esphome.core import TimePeriod
 from esphome.core.config import StartupTrigger
+from esphome.schema_extractors import (
+    SCHEMA_EXTRACT,
+    EnableSchemaExtraction,
+    schema_extractor,
+)
 
 from . import defines as df, lv_validation as lvalid
 from .defines import (
@@ -29,10 +36,17 @@ from .defines import (
     CONF_SCROLL_SNAP_Y,
     CONF_SCROLLBAR_MODE,
     CONF_TIME_FORMAT,
+    CONF_TRIGGER,
     LV_GRAD_DIR,
+    LV_VALUE_EVENTS,
+    VALUE_ON_CHANGE,
+    VALUE_ON_RELEASE,
+    VALUE_ON_UPDATE,
+    VALUE_ON_VALUE,
     get_remapped_uses,
+    is_press_event,
 )
-from .helpers import CONF_IF_NAN, requires_component, validate_printf
+from .helpers import CONF_IF_NAN, validate_printf
 from .layout import (
     FLEX_OBJ_SCHEMA,
     GRID_CELL_SCHEMA,
@@ -40,12 +54,14 @@ from .layout import (
     grid_alignments,
 )
 from .lv_validation import lv_color, lv_font, lv_gradient, lv_image, opacity
-from .lvcode import LvglComponent, lv_event_t_ptr
+from .lvcode import UPDATE_EVENT, LvglComponent, lv_event_t_ptr
 from .types import (
+    LV_EVENT,
     LVEncoderListener,
     LvType,
     lv_group_t,
     lv_obj_t,
+    lv_point_t,
     lv_pseudo_button_t,
     lv_style_t,
 )
@@ -110,7 +126,7 @@ PRESS_TIME = cv.All(
 ENCODER_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.All(
-            cv.declare_id(LVEncoderListener), requires_component("binary_sensor")
+            cv.declare_id(LVEncoderListener), cv.requires_component("binary_sensor")
         ),
         cv.Optional(CONF_GROUP): cv.declare_id(lv_group_t),
         cv.Optional(df.CONF_INITIAL_FOCUS): cv.All(
@@ -123,8 +139,8 @@ ENCODER_SCHEMA = cv.Schema(
 
 POINT_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_X): cv.templatable(cv.int_),
-        cv.Required(CONF_Y): cv.templatable(cv.int_),
+        cv.Required(CONF_X): lvalid.pixels_or_percent,
+        cv.Required(CONF_Y): lvalid.pixels_or_percent,
     }
 )
 
@@ -137,9 +153,13 @@ def point_schema(value):
     """
     if isinstance(value, dict):
         return POINT_SCHEMA(value)
+    if isinstance(value, list):
+        if len(value) != 2:
+            raise cv.Invalid("Invalid point format, should be <x_int>, <y_int>")
+        return POINT_SCHEMA({CONF_X: value[0], CONF_Y: value[1]})
     try:
-        x, y = map(int, value.split(","))
-        return {CONF_X: x, CONF_Y: y}
+        x, y = str(value).split(",")
+        return POINT_SCHEMA({CONF_X: x, CONF_Y: y})
     except ValueError:
         pass
     # not raising this in the catch block because pylint doesn't like it
@@ -349,36 +369,101 @@ SET_STATE_SCHEMA = cv.Schema(
 FLAG_SCHEMA = cv.Schema({cv.Optional(flag): lvalid.lv_bool for flag in df.OBJ_FLAGS})
 FLAG_LIST = cv.ensure_list(df.LV_OBJ_FLAG.one_of)
 
+VALUE_TRIGGER_SCHEMA = {
+    cv.Optional(CONF_TRIGGER, default=CONF_ON_VALUE): cv.one_of(
+        *LV_VALUE_EVENTS, lower=True
+    ),
+}
 
-def part_schema(parts):
+TRIGGER_EVENT_MAP = {
+    VALUE_ON_CHANGE: (LV_EVENT.VALUE_CHANGED,),
+    VALUE_ON_UPDATE: (UPDATE_EVENT,),
+    VALUE_ON_VALUE: (LV_EVENT.VALUE_CHANGED, UPDATE_EVENT),
+    VALUE_ON_RELEASE: (LV_EVENT.RELEASED,),
+}
+
+
+def part_dict(parts: tuple[str, ...] | list[str]) -> dict[Any, Any]:
+    """
+    Return the raw mapping used by part_schema, so callers can merge it into a
+    larger dict and avoid chained .extend() calls (each .extend() recompiles the
+    whole mapping, turning the build into O(N^2)).
+
+    Invariant: the source schemas spread here (STATE_SCHEMA, FLAG_SCHEMA, the
+    nested STATE_SCHEMA values) must use the default extra=PREVENT_EXTRA and
+    required=False and must not register any add_extra/prepend_extra
+    validators. Reaching into .schema and rebuilding via cv.Schema(...) keeps
+    only the mapping; non-default extra/required and any _extra_schemas would
+    be silently dropped.
+    """
+    return {
+        **STATE_SCHEMA.schema,
+        **FLAG_SCHEMA.schema,
+        **{cv.Optional(part): STATE_SCHEMA for part in parts},
+    }
+
+
+def part_schema(parts: tuple[str, ...] | list[str]) -> cv.Schema:
     """
     Generate a schema for the various parts (e.g. main:, indicator:) of a widget type
     :param parts:  The parts to include
     :return: The schema
     """
-    return STATE_SCHEMA.extend(FLAG_SCHEMA).extend(
-        {cv.Optional(part): STATE_SCHEMA for part in parts}
-    )
+    return cv.Schema(part_dict(parts))
 
 
-def automation_schema(typ: LvType):
+def _lazy_validate_automation(extra_schema: dict) -> Callable[[Any], Any]:
+    """Return a validator that defers building the validate_automation schema.
+
+    validate_automation() runs AUTOMATION_SCHEMA.extend(extra_schema), which
+    voluptuous compiles eagerly. automation_schema() builds ~60 of these per
+    widget type, and the vast majority of slots are never invoked by a given
+    user config. Deferring the build to first use removes that work from
+    schema-construction time.
+
+    When EnableSchemaExtraction is set (build_language_schema.py), fall back
+    to eager construction so the @schema_extractor("automation") decoration
+    inside validate_automation is registered.
+    """
+    if EnableSchemaExtraction:
+        return validate_automation(extra_schema)
+
+    cached: Callable[[Any], Any] | None = None
+
+    def validator(value: Any) -> Any:
+        nonlocal cached
+        if cached is None:
+            cached = validate_automation(extra_schema)
+        return cached(value)
+
+    return validator
+
+
+def automation_schema(typ: LvType) -> dict[Any, Any]:
     events = df.LV_EVENT_TRIGGERS + df.SWIPE_TRIGGERS
     if typ.has_on_value:
-        events = events + (CONF_ON_VALUE,)
+        events = events + (CONF_ON_VALUE, CONF_ON_UPDATE)
     args = typ.get_arg_type()
-    args.append(lv_event_t_ptr)
+
+    def get_trigger_args(event):
+        result = args.copy()
+        if is_press_event(event):
+            result.append(lv_point_t)
+        result.append(lv_event_t_ptr)
+        return result
+
     return {
         **{
-            cv.Optional(event): validate_automation(
+            cv.Optional(event): _lazy_validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        Trigger.template(*args)
+                        Trigger.template(*get_trigger_args(event))
                     ),
                 }
             )
             for event in events
         },
-        cv.Optional(CONF_ON_BOOT): validate_automation(
+        cv.Optional(CONF_ON_BOOT): _lazy_validate_automation(
             {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupTrigger)}
         ),
     }
@@ -393,7 +478,7 @@ def _update_widget(widget_type: WidgetType) -> Callable[[dict], dict]:
     """
 
     def validator(value: dict) -> dict:
-        df.get_data(df.KEY_UPDATED_WIDGETS).setdefault(widget_type, []).append(value)
+        df.get_updated_widgets().setdefault(widget_type, []).append(value)
         return value
 
     return validator
@@ -427,23 +512,62 @@ def base_update_schema(widget_type: WidgetType | LvType, parts):
     return schema
 
 
-def obj_schema(widget_type: WidgetType):
+# Memoize obj_dict() the same way _OBJ_SCHEMA_CACHE memoizes obj_schema().
+# automation_schema(w.w_type) builds fresh Trigger.template(...) objects on
+# every call, so without this cache _theme_schema pays that cost per widget
+# per validation. Callers must treat the returned dict as immutable. The
+# _theme_schema caller spreads it into a fresh dict, which is safe; the
+# obj_schema caller passes it directly to cv.Schema(...) -- voluptuous stores
+# the mapping by reference but never mutates it (.extend() copies first), so
+# the alias is also safe today. Adding in-place mutation of obj_schema(w).schema
+# would corrupt this cache.
+_OBJ_DICT_CACHE: dict[int, tuple[WidgetType, dict[Any, Any]]] = {}
+
+
+def obj_dict(widget_type: WidgetType) -> dict[Any, Any]:
+    """
+    Return the raw mapping used by obj_schema, so callers can merge it into a
+    larger dict and avoid chained .extend() calls.
+
+    Inherits the same source-schema invariant documented on part_dict: any
+    schema spread into this mapping must use the default extra=PREVENT_EXTRA
+    and required=False and must carry no add_extra/prepend_extra validators.
+
+    The returned mapping is cached and must be treated as immutable by callers.
+    """
+    cached = _OBJ_DICT_CACHE.get(id(widget_type))
+    if cached is not None and cached[0] is widget_type:
+        return cached[1]
+    built = {
+        **part_dict(widget_type.parts),
+        **ALIGN_TO_SCHEMA,
+        **automation_schema(widget_type.w_type),
+        cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
+        cv.Optional(CONF_GROUP): cv.use_id(lv_group_t),
+    }
+    _OBJ_DICT_CACHE[id(widget_type)] = (widget_type, built)
+    return built
+
+
+# Widget types are module-level singletons populated at import time, so we
+# can cache compiled obj_schemas by widget_type identity for the lifetime of
+# the process. The strong reference in the value keeps the key (an id()
+# target) from being recycled.
+_OBJ_SCHEMA_CACHE: dict[int, tuple[WidgetType, cv.Schema]] = {}
+
+
+def obj_schema(widget_type: WidgetType) -> cv.Schema:
     """
     Create a schema for a widget type itself i.e. no allowance for children
     :param widget_type:
     :return:
     """
-    return (
-        part_schema(widget_type.parts)
-        .extend(ALIGN_TO_SCHEMA)
-        .extend(automation_schema(widget_type.w_type))
-        .extend(
-            {
-                cv.Optional(CONF_STATE): SET_STATE_SCHEMA,
-                cv.Optional(CONF_GROUP): cv.use_id(lv_group_t),
-            }
-        )
-    )
+    cached = _OBJ_SCHEMA_CACHE.get(id(widget_type))
+    if cached is not None and cached[0] is widget_type:
+        return cached[1]
+    schema = cv.Schema(obj_dict(widget_type))
+    _OBJ_SCHEMA_CACHE[id(widget_type)] = (widget_type, schema)
+    return schema
 
 
 ALIGN_TO_SCHEMA = {
@@ -500,7 +624,35 @@ def strip_defaults(schema: cv.Schema):
     return cv.Schema({cv.Optional(k): v for k, v in schema.schema.items()})
 
 
-def container_schema(widget_type: WidgetType, extras=None):
+# Keyed by (id(widget_type), id(extras)); strong refs in the value keep both
+# alive so id() can't be recycled.
+_CONTAINER_SCHEMA_CACHE: dict[
+    tuple[int, int], tuple[Any, Any, Callable[[Any], Any]]
+] = {}
+
+
+def container_schema_value(widget_type: WidgetType, extras: Any = None) -> cv.Schema:
+    """
+    Build the static schema that :func:`container_schema` validates against, i.e.
+    everything except the value-dependent ``append_layout_schema`` applied at
+    validation time.
+
+    Factored out and exposed so the language-schema dumper can extract a
+    representative schema for a widget — and for the top-level ``lvgl:`` block,
+    whose ``CONFIG_SCHEMA`` is a callable that otherwise hides this behind the
+    :func:`container_schema` validator closure.
+    """
+    schema = obj_schema(widget_type).extend(
+        {cv.GenerateID(): cv.declare_id(widget_type.w_type)}
+    )
+    if extras:
+        schema = schema.extend(extras)
+    return schema.extend(widget_type.schema)
+
+
+def container_schema(
+    widget_type: WidgetType, extras: Any = None
+) -> Callable[[Any], Any]:
     """
     Create a schema for a container widget of a given type. All obj properties are available, plus
     the extras passed in, plus any defined for the specific widget being specified.
@@ -508,19 +660,26 @@ def container_schema(widget_type: WidgetType, extras=None):
     :param extras:  Additional options to be made available, e.g. layout properties for children
     :return: The schema for this type of widget.
     """
-    schema = obj_schema(widget_type).extend(
-        {cv.GenerateID(): cv.declare_id(widget_type.w_type)}
-    )
-    if extras:
-        schema = schema.extend(extras)
-    # Delayed evaluation for recursion
+    cache_key = (id(widget_type), id(extras))
+    cached = _CONTAINER_SCHEMA_CACHE.get(cache_key)
+    if cached is not None:
+        cached_widget_type, cached_extras, cached_validator = cached
+        if cached_widget_type is widget_type and cached_extras is extras:
+            return cached_validator
 
-    schema = schema.extend(widget_type.schema)
+    cached_schema: cv.Schema | None = None
 
-    def validator(value):
+    def get_schema() -> cv.Schema:
+        nonlocal cached_schema
+        if cached_schema is None:
+            cached_schema = container_schema_value(widget_type, extras)
+        return cached_schema
+
+    def validator(value: Any) -> Any:
         value = value or {}
-        return append_layout_schema(schema, value)(value)
+        return append_layout_schema(get_schema(), value)(value)
 
+    _CONTAINER_SCHEMA_CACHE[cache_key] = (widget_type, extras, validator)
     return validator
 
 
@@ -537,7 +696,23 @@ def any_widget_schema(extras=None):
     :return: A validator for the Widgets key
     """
 
+    @schema_extractor("schema")
     def validator(value):
+        if value is SCHEMA_EXTRACT:
+            # The widgets: list is built per-value at validation time, so the
+            # language-schema dumper sees nothing. Enumerate every registered
+            # widget type as an optional key (a widget item is really a
+            # single-key mapping; over-listing them lets editors complete any
+            # widget — `esphome config` enforces exactly one). extras carries the
+            # layout child options where applicable.
+            return cv.ensure_list(
+                cv.Schema(
+                    {
+                        cv.Optional(name): container_schema_value(widget_type, extras)
+                        for name, widget_type in WIDGET_TYPES.items()
+                    }
+                )
+            )
         if isinstance(value, dict):
             # Convert to list
             is_dict = True
@@ -560,7 +735,7 @@ def any_widget_schema(extras=None):
             container_validator = container_schema(widget_type, extras=extras)
             if required := widget_type.required_component:
                 container_validator = cv.All(
-                    container_validator, requires_component(required)
+                    container_validator, cv.requires_component(required)
                 )
             # Apply custom validation
             path = [key] if is_dict else [index, key]

@@ -5,9 +5,9 @@ tlc5947:
 
 output:
   - platform: tlc5947
-    id: output_1
+    id: tlc5947_output_1
     channel: 0
     max_power: 0.8
   - platform: tlc5947
-    id: output_2
+    id: tlc5947_output_2
     channel: 1

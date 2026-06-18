@@ -4,10 +4,10 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include <vector>
 
-namespace esphome {
-namespace sx127x {
+namespace esphome::sx127x {
 
 enum SX127xBw : uint8_t {
   SX127X_BW_2_6,
@@ -86,6 +86,7 @@ class SX127x : public Component,
   Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 
  protected:
+  static void IRAM_ATTR gpio_intr(SX127x *arg);
   void configure_fsk_ook_();
   void configure_lora_();
   void set_mode_(uint8_t modulation, uint8_t mode);
@@ -124,5 +125,4 @@ class SX127x : public Component,
   bool rx_start_{false};
 };
 
-}  // namespace sx127x
-}  // namespace esphome
+}  // namespace esphome::sx127x

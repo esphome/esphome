@@ -12,8 +12,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 
-namespace esphome {
-namespace tm1637 {
+namespace esphome::tm1637 {
 
 class TM1637Display;
 #ifdef USE_BINARY_SENSOR
@@ -50,6 +49,9 @@ class TM1637Display : public PollingComponent {
   /// Set raw buffer bytes from data array up to length bytes.
   void set_buffer(const uint8_t *data, uint8_t length);
 
+  /// Set the display brightness. Accepts a value between 0.0 and 1.0; 0 will turn off
+  /// the display and 1.0 will set it to the maximum brightness.
+  void set_brightness(float brightness);
   void set_intensity(uint8_t intensity) { this->intensity_ = intensity; }
   void set_inverted(bool inverted) { this->inverted_ = inverted; }
   void set_length(uint8_t length) { this->length_ = length; }
@@ -102,5 +104,4 @@ class TM1637Key : public binary_sensor::BinarySensor {
 };
 #endif
 
-}  // namespace tm1637
-}  // namespace esphome
+}  // namespace esphome::tm1637

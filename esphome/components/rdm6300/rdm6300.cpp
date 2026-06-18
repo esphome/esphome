@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace rdm6300 {
+namespace esphome::rdm6300 {
 
 static const char *const TAG = "rdm6300";
 
@@ -67,5 +66,4 @@ void rdm6300::RDM6300Component::loop() {
   }
 }
 
-}  // namespace rdm6300
-}  // namespace esphome
+}  // namespace esphome::rdm6300

@@ -22,6 +22,7 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    queue_entity_register,
     setup_device_class,
     setup_entity,
 )
@@ -184,16 +185,19 @@ async def build_filters(config):
     return await cg.build_registry_list(FILTER_REGISTRY, config)
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_VALUE, "add_on_state_callback", [(cg.std_string, "x")]
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_RAW_VALUE, "add_on_raw_state_callback", [(cg.std_string, "x")]
+    ),
+)
+
+
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _build_text_sensor_automations(var, config):
-    for conf_key, callback in (
-        (CONF_ON_VALUE, "add_on_state_callback"),
-        (CONF_ON_RAW_VALUE, "add_on_raw_state_callback"),
-    ):
-        for conf in config.get(conf_key, []):
-            await automation.build_callback_automation(
-                var, callback, [(cg.std_string, "x")], conf
-            )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 @setup_entity("text_sensor")
@@ -218,7 +222,7 @@ async def setup_text_sensor_core_(var, config):
 async def register_text_sensor(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_text_sensor(var))
+    queue_entity_register("text_sensor", config)
     CORE.register_platform_component("text_sensor", var)
     await setup_text_sensor_core_(var, config)
 

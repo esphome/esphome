@@ -23,9 +23,9 @@ using SPIInterface = SPIClassRP2040 *;
 using SPIInterface = SPIClass *;
 #endif
 
-#elif defined(CLANG_TIDY)
+#elif defined(USE_HOST) || defined(CLANG_TIDY)
 
-using SPIInterface = void *;  // Stub for platforms without SPI (e.g., Zephyr)
+using SPIInterface = void *;  // Stub for platforms without SPI (e.g., host, Zephyr)
 
 #endif  // USE_ESP32 / USE_ARDUINO
 
@@ -451,7 +451,7 @@ class SPIDevice : public SPIClient {
 
   uint8_t read_byte() { return this->delegate_->transfer(0); }
 
-  void read_array(uint8_t *data, size_t length) { return this->delegate_->read_array(data, length); }
+  void read_array(uint8_t *data, size_t length) { this->delegate_->read_array(data, length); }
 
   /**
    * Write a single data item, up to 32 bits.

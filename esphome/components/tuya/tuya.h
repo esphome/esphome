@@ -13,8 +13,7 @@
 #include "esphome/core/time.h"
 #endif
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 enum class TuyaDatapointType : uint8_t {
   RAW = 0x00,      // variable length
@@ -151,7 +150,7 @@ class Tuya : public Component, public uart::UARTDevice {
   int reset_pin_reported_ = -1;
   uint32_t last_command_timestamp_ = 0;
   uint32_t last_rx_char_timestamp_ = 0;
-  std::string product_ = "";
+  std::string product_;
   std::vector<TuyaDatapointListener> listeners_;
   std::vector<TuyaDatapoint> datapoints_;
   std::vector<uint8_t> rx_message_;
@@ -162,5 +161,4 @@ class Tuya : public Component, public uart::UARTDevice {
   CallbackManager<void()> initialized_callback_{};
 };
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

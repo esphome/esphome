@@ -23,8 +23,7 @@
 #include "esphome/components/graphical_display_menu/graphical_display_menu.h"
 #endif
 
-namespace esphome {
-namespace display {
+namespace esphome::display {
 
 /** TextAlign is used to tell the display class how to position a piece of text. By default
  * the coordinates you enter for the print*() functions take the upper left corner of the text
@@ -871,5 +870,4 @@ class DisplayOnPageChangeTrigger : public Trigger<DisplayPage *, DisplayPage *> 
 
 const LogString *text_align_to_string(TextAlign textalign);
 
-}  // namespace display
-}  // namespace esphome
+}  // namespace esphome::display

@@ -1,8 +1,7 @@
 #include "power_supply.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace power_supply {
+namespace esphome::power_supply {
 
 static const char *const TAG = "power_supply";
 
@@ -54,5 +53,4 @@ void PowerSupply::on_powerdown() {
   this->pin_->digital_write(false);
 }
 
-}  // namespace power_supply
-}  // namespace esphome
+}  // namespace esphome::power_supply

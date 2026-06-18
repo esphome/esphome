@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 import contextlib
 import logging
 import os
+from pathlib import Path
 import socket
 import threading
 from time import monotonic
@@ -149,4 +150,4 @@ async def async_start(args) -> None:
         await dashboard.async_run()
     finally:
         if sock:
-            os.remove(sock)
+            Path(sock).unlink()

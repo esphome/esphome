@@ -2,13 +2,15 @@ from ast import literal_eval
 from collections.abc import Iterator, Mapping
 from itertools import chain, islice
 import math
-import re
 from types import GeneratorType
 from typing import Any
 
 import jinja2 as jinja
 from jinja2.nativetypes import NativeCodeGenerator, NativeTemplate
 from jinja2.runtime import missing as Missing
+
+# Re-exported for backward compatibility — consumers import has_jinja from here
+from esphome.expression import has_jinja  # noqa: F401  # pylint: disable=unused-import
 
 TemplateError = jinja.TemplateError
 TemplateSyntaxError = jinja.TemplateSyntaxError
@@ -18,18 +20,6 @@ Undefined = jinja.Undefined
 # Sentinel key for resolver callback in ContextVars.
 # Dots are invalid in substitution names so this can never collide with user keys.
 Resolver = ".resolver"
-
-
-DETECT_JINJA = r"(\$\{)"
-detect_jinja_re = re.compile(
-    r"<%.+?%>"  # Block form expression: <% ... %>
-    r"|\$\{[^}]+\}",  # Braced form expression: ${ ... }
-    flags=re.MULTILINE,
-)
-
-
-def has_jinja(st: str) -> bool:
-    return detect_jinja_re.search(st) is not None
 
 
 # SAFE_GLOBALS defines a allowlist of built-in functions or modules that are considered safe to expose

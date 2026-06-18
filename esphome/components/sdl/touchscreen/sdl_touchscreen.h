@@ -4,8 +4,7 @@
 #include "../sdl_esphome.h"
 #include "esphome/components/touchscreen/touchscreen.h"
 
-namespace esphome {
-namespace sdl {
+namespace esphome::sdl {
 
 class SdlTouchscreen : public touchscreen::Touchscreen, public Parented<Sdl> {
  public:
@@ -21,6 +20,5 @@ class SdlTouchscreen : public touchscreen::Touchscreen, public Parented<Sdl> {
   }
 };
 
-}  // namespace sdl
-}  // namespace esphome
+}  // namespace esphome::sdl
 #endif

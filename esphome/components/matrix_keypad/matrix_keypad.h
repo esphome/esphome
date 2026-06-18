@@ -8,8 +8,7 @@
 #include <cstdlib>
 #include <utility>
 
-namespace esphome {
-namespace matrix_keypad {
+namespace esphome::matrix_keypad {
 
 class MatrixKeypadListener {
  public:
@@ -51,5 +50,4 @@ class MatrixKeypad : public key_provider::KeyProvider, public Component {
   std::vector<MatrixKeyTrigger *> key_triggers_;
 };
 
-}  // namespace matrix_keypad
-}  // namespace esphome
+}  // namespace esphome::matrix_keypad

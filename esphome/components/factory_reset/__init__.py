@@ -73,6 +73,15 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_INCREMENT,
+        "add_increment_callback",
+        [(cg.uint8, "x"), (cg.uint8, "target")],
+    ),
+)
+
+
 async def to_code(config):
     if reset_count := config.get(CONF_RESETS_REQUIRED):
         var = cg.new_Pvariable(
@@ -81,10 +90,4 @@ async def to_code(config):
             config[CONF_MAX_DELAY].total_seconds,
         )
         await cg.register_component(var, config)
-        for conf in config.get(CONF_ON_INCREMENT, []):
-            await automation.build_callback_automation(
-                var,
-                "add_increment_callback",
-                [(cg.uint8, "x"), (cg.uint8, "target")],
-                conf,
-            )
+        await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)

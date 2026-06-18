@@ -6,8 +6,7 @@
 
 #include "dfrobot_sen0395.h"
 
-namespace esphome {
-namespace dfrobot_sen0395 {
+namespace esphome::dfrobot_sen0395 {
 
 static const char *const TAG = "dfrobot_sen0395.commands";
 
@@ -330,5 +329,4 @@ uint8_t SensitivityCommand::on_message(std::string &message) {
   return 0;  // Command not done yet
 }
 
-}  // namespace dfrobot_sen0395
-}  // namespace esphome
+}  // namespace esphome::dfrobot_sen0395

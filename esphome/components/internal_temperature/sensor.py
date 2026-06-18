@@ -8,6 +8,7 @@ from esphome.const import (
     ENTITY_CATEGORY_DIAGNOSTIC,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
+    PLATFORM_LN882X,
     PLATFORM_NRF52,
     PLATFORM_RP2040,
     STATE_CLASS_MEASUREMENT,
@@ -30,7 +31,15 @@ CONFIG_SCHEMA = cv.All(
         state_class=STATE_CLASS_MEASUREMENT,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ).extend(cv.polling_component_schema("60s")),
-    cv.only_on([PLATFORM_ESP32, PLATFORM_RP2040, PLATFORM_BK72XX, PLATFORM_NRF52]),
+    cv.only_on(
+        [
+            PLATFORM_ESP32,
+            PLATFORM_RP2040,
+            PLATFORM_BK72XX,
+            PLATFORM_NRF52,
+            PLATFORM_LN882X,
+        ]
+    ),
 )
 
 
@@ -52,6 +61,9 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "internal_temperature_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
         "internal_temperature_bk72xx.cpp": {
             PlatformFramework.BK72XX_ARDUINO,
+        },
+        "internal_temperature_ln882x.cpp": {
+            PlatformFramework.LN882X_ARDUINO,
         },
         "internal_temperature_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
     }

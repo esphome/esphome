@@ -3,8 +3,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace am43 {
+namespace esphome::am43 {
 
 static const char *const TAG = "am43_cover";
 
@@ -154,7 +153,6 @@ void Am43Component::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
   }
 }
 
-}  // namespace am43
-}  // namespace esphome
+}  // namespace esphome::am43
 
 #endif

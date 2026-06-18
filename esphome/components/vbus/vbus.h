@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace vbus {
+namespace esphome::vbus {
 
 using message_parser_t = std::function<float(std::vector<uint8_t> &)>;
 
@@ -47,5 +46,4 @@ class VBus : public uart::UARTDevice, public Component {
   std::vector<VBusListener *> listeners_{};
 };
 
-}  // namespace vbus
-}  // namespace esphome
+}  // namespace esphome::vbus

@@ -1,8 +1,7 @@
 #include "mpu6886.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mpu6886 {
+namespace esphome::mpu6886 {
 
 static const char *const TAG = "mpu6886";
 
@@ -146,5 +145,4 @@ void MPU6886Component::update() {
   this->status_clear_warning();
 }
 
-}  // namespace mpu6886
-}  // namespace esphome
+}  // namespace esphome::mpu6886

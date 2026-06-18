@@ -27,7 +27,7 @@ static void register_libretiny(MDNSComponent *, StaticVector<MDNSService, MDNS_S
     while (*service_type == '_') {
       service_type++;
     }
-    uint16_t port_ = const_cast<TemplatableValue<uint16_t> &>(service.port).value();
+    uint16_t port_ = service.port.value();
     MDNS.addService(service_type, proto, port_);
     for (const auto &record : service.txt_records) {
       MDNS.addServiceTxt(service_type, proto, MDNS_STR_ARG(record.key), MDNS_STR_ARG(record.value));

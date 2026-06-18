@@ -6,17 +6,32 @@ on:
   schedule:
     - cron: "45 6 * * *"
 
+# Repo writes (branch push, PR open) happen via the App token minted below,
+# so the workflow's GITHUB_TOKEN does not need any write scopes.
+permissions:
+  contents: read  # actions/checkout for this repo and home-assistant/core
+
 jobs:
   sync:
     name: Sync Device Classes
     runs-on: ubuntu-latest
     if: github.repository == 'esphome/esphome'
     steps:
+      - name: Generate a token
+        id: generate-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.ESPHOME_GITHUB_APP_CLIENT_ID }}
+          private-key: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
+          # Scope the minted App token to the minimum needed by peter-evans/create-pull-request.
+          permission-contents: write       # git.createCommit + refs.create/update to push the sync/device-classes branch
+          permission-pull-requests: write  # pulls.create / pulls.update to open or refresh the sync PR
+
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Checkout Home Assistant
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           repository: home-assistant/core
           path: lib/home-assistant
@@ -26,22 +41,59 @@ jobs:
         with:
           python-version: "3.14"
 
+      - name: Set up uv
+        # An order of magnitude faster than pip on cold boots, with its
+        # own wheel cache. ``--system`` (below) installs into the
+        # setup-python interpreter so subsequent ``pre-commit`` /
+        # ``script/run-in-env.py`` steps find the deps without a
+        # ``uv run`` prefix.
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+          # Pin uv version so the action does not have to fetch the
+          # manifest from raw.githubusercontent.com on every cache
+          # miss; that fetch flakes on Windows runners.
+          version: "0.11.15"
+
       - name: Install Home Assistant
         run: |
-          python -m pip install --upgrade pip
-          pip install -e lib/home-assistant
-          pip install -r requirements_test.txt pre-commit
+          uv pip install --system -e lib/home-assistant
+          uv pip install --system -r requirements.txt -r requirements_test.txt pre-commit
 
       - name: Sync
         run: |
           python ./script/sync-device_class.py
 
-      - name: Run pre-commit hooks
-        run: |
-          python script/run-in-env.py pre-commit run --all-files
+      - name: Apply pre-commit auto-fixes
+        # First pass: let formatters (ruff, end-of-file-fixer, etc.) modify
+        # files. pre-commit exits non-zero whenever a hook touches anything,
+        # which would otherwise abort the workflow before the auto-fixes
+        # can flow into the sync PR.
+        #
+        # SKIP:
+        #   - no-commit-to-branch is a local guard against committing on
+        #     dev/release/beta; CI runs on dev by definition, and
+        #     peter-evans/create-pull-request creates the branch itself.
+        #   - pylint surfaces import-error / relative-beyond-top-level
+        #     noise here because this workflow installs only a subset of
+        #     the runtime deps (HA + requirements*.txt); main CI already
+        #     gates pylint on real PRs.
+        env:
+          SKIP: pylint,no-commit-to-branch
+        run: python script/run-in-env.py pre-commit run --all-files || true
+
+      - name: Verify pre-commit clean
+        # Second pass: re-run all hooks against the now-fixed tree.
+        # Auto-fixers exit 0 (nothing to change); any remaining failure
+        # from a check-only hook (flake8 / yamllint / ci-custom) is a
+        # real issue and fails the workflow loudly. Same SKIP list as
+        # above for the same reasons.
+        env:
+          SKIP: pylint,no-commit-to-branch
+        run: python script/run-in-env.py pre-commit run --all-files
 
       - name: Commit changes
-        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           commit-message: "Synchronise Device Classes from Home Assistant"
           committer: esphomebot <esphome@openhomefoundation.org>
@@ -50,4 +102,4 @@ jobs:
           delete-branch: true
           title: "Synchronise Device Classes from Home Assistant"
           body-path: .github/PULL_REQUEST_TEMPLATE.md
-          token: ${{ secrets.DEVICE_CLASS_SYNC_TOKEN }}
+          token: ${{ steps.generate-token.outputs.token }}

@@ -6,6 +6,7 @@ from esphome.const import CONF_ID, CONF_SAMPLE_RATE, CONF_TEMPERATURE_OFFSET, Fr
 CODEOWNERS = ["@trvrnrth"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensor", "text_sensor"]
+CONFLICTS_WITH = ["bme68x_bsec2"]
 MULTI_CONF = True
 
 CONF_BME680_BSEC_ID = "bme680_bsec_id"
