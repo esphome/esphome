@@ -280,7 +280,7 @@ class IT8951Display : public Display,
   uint16_t height_;
   uint16_t row_width_;
   size_t buffer_length_{};
-  split_buffer::SplitBuffer buffer_{};
+  uint8_t *buffer_{};
   uint8_t transform_{0};
   uint8_t effective_transform_{0};
   uint8_t full_update_every_{1};

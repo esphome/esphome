@@ -230,8 +230,10 @@ void IT8951Display::advance_phase_() {
       break;
 
     case Phase::INIT_DONE:
-      if (!this->buffer_.is_valid()) {
-        if (!this->buffer_.init(this->buffer_length_)) {
+      if (this->buffer_ == nullptr) {
+        RAMAllocator<uint8_t> allocator{};
+        this->buffer_ = allocator.allocate(this->buffer_length_);
+        if (this->buffer_ == nullptr) {
           this->mark_failed(LOG_STR("Failed to allocate IT8951 framebuffer"));
           this->set_phase_(Phase::IDLE);
           return;
@@ -887,7 +889,7 @@ void IT8951Display::fill(Color color) {
   if (packed != 0x00 && packed != 0x0F)
     this->has_grayscale_ = true;
   const uint8_t fill_byte = static_cast<uint8_t>((packed << 4) | packed);
-  this->buffer_.fill(fill_byte);
+  memset(this->buffer_, fill_byte, this->buffer_length_);
   this->x_low_ = 0;
   this->y_low_ = 0;
   this->x_high_ = this->width_;
@@ -923,25 +925,32 @@ uint8_t IT8951Display::get_pixel_nibble_(uint16_t x, uint16_t y) {
 
 void IT8951Display::dump_config() {
   LOG_DISPLAY("", "IT8951 E-Paper", this);
-  ESP_LOGCONFIG(TAG, "  Model preset: %s", this->name_ != nullptr ? this->name_ : "(unknown)");
-  ESP_LOGCONFIG(TAG, "  Dimensions: %dx%d", this->get_width_internal(), this->get_height_internal());
-  ESP_LOGCONFIG(TAG, "  Buffer: %u bytes in %u segment(s)", static_cast<unsigned>(this->buffer_length_),
-                static_cast<unsigned>(this->buffer_.get_buffer_count()));
-  ESP_LOGCONFIG(TAG, "  Image buffer addr: 0x%04X%04X", this->img_buf_addr_h_, this->img_buf_addr_l_);
-  ESP_LOGCONFIG(TAG, "  VCOM: %.02fV (set selector 0x%04X)", static_cast<float>(this->vcom_) / 1000.0f,
-                this->vcom_register_);
+  char force_temperature[24];
   if (this->force_temperature_set_) {
-    ESP_LOGCONFIG(TAG, "  Force temperature: %d °C", this->force_temperature_);
+    snprintf(force_temperature, sizeof(force_temperature), "%d °C", this->force_temperature_);
   } else {
-    ESP_LOGCONFIG(TAG, "  Force temperature: (controller default)");
+    strncpy(force_temperature, "(controller default)", sizeof(force_temperature));
+    force_temperature[sizeof(force_temperature) - 1] = '\0';
   }
-  ESP_LOGCONFIG(TAG, "  Display command: %s",
-                this->use_legacy_dpy_area_ ? "DPY_AREA (0x0034, legacy)" : "DPY_BUF_AREA (0x0037)");
-  ESP_LOGCONFIG(TAG, "  Sleep when done: %s", YESNO(this->sleep_when_done_));
-  ESP_LOGCONFIG(TAG, "  Full update every: %u", this->full_update_every_);
-  ESP_LOGCONFIG(TAG, "  Inverted colors: %s", YESNO(this->invert_colors_));
-  ESP_LOGCONFIG(TAG, "  Force 1bpp: %s", YESNO(this->force_1bpp_));
-  ESP_LOGCONFIG(TAG, "  Reset duration: %" PRIu32 "ms", this->reset_duration_);
+  ESP_LOGCONFIG(TAG,
+                "  Model preset: %s"
+                "\n  Dimensions: %dx%d"
+                "\n  Buffer: %u bytes"
+                "\n  Image buffer addr: 0x%04X%04X"
+                "\n  VCOM: %.02fV (set selector 0x%04X)"
+                "\n  Force temperature: %s"
+                "\n  Display command: %s"
+                "\n  Sleep when done: %s"
+                "\n  Full update every: %u"
+                "\n  Inverted colors: %s"
+                "\n  Force 1bpp: %s"
+                "\n  Reset duration: %" PRIu32 "ms",
+                this->name_ != nullptr ? this->name_ : "(unknown)", this->get_width_internal(),
+                this->get_height_internal(), static_cast<unsigned>(this->buffer_length_), this->img_buf_addr_h_,
+                this->img_buf_addr_l_, static_cast<float>(this->vcom_) / 1000.0f, this->vcom_register_,
+                force_temperature, this->use_legacy_dpy_area_ ? "DPY_AREA (0x0034, legacy)" : "DPY_BUF_AREA (0x0037)",
+                YESNO(this->sleep_when_done_), this->full_update_every_, YESNO(this->invert_colors_),
+                YESNO(this->force_1bpp_), this->reset_duration_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_PIN("  CS Pin: ", this->cs_);
