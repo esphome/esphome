@@ -503,8 +503,58 @@ async def add_includes(includes: list[str], is_c_header: bool = False) -> None:
             include_file(path, basename, is_c_header)
 
 
+def _add_library_str(lib: str) -> None:
+    if "@" in lib:
+        name, vers = lib.split("@", 1)
+        cg.add_library(name, vers)
+    elif "://" in lib:
+        # Repository...
+        if "=" in lib:
+            name, repo = lib.split("=", 1)
+            cg.add_library(name, None, repo)
+        else:
+            cg.add_library(None, None, lib)
+    else:
+        cg.add_library(lib, None)
+
+
 @coroutine_with_priority(CoroPriority.FINAL)
-async def _add_platformio_options(pio_options):
+async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> None:
+    if CORE.using_toolchain_esp_idf:
+        # The native ESP-IDF build doesn't read platformio.ini; honor the
+        # options with a native equivalent and warn about the rest, which
+        # would otherwise be silently ignored.
+        for key, val in pio_options.items():
+            vals = [val] if isinstance(val, str) else val
+            if key == CONF_BUILD_FLAGS:
+                # Deprecated: esphome->build_flags is the native equivalent.
+                # Remove before 2026.12.0
+                _LOGGER.warning(
+                    "esphome->platformio_options->build_flags is deprecated; use "
+                    "esphome->build_flags instead. Support for it will be removed "
+                    "in 2026.12.0."
+                )
+                for flag in vals:
+                    cg.add_build_flag(flag)
+            elif key == "lib_deps":
+                # Routed through the regular library mechanism so the libraries
+                # are converted to IDF components like any other PIO library
+                for lib in vals:
+                    _add_library_str(lib)
+            elif key == "lib_ignore":
+                # Read by the PIO-library-to-IDF-component conversion
+                # (generate_idf_components); filters both top-level libraries
+                # and dependencies discovered during conversion
+                cg.add_platformio_option(key, vals)
+            elif key != "upload_speed":
+                # upload_speed needs no handling: it is read from the raw
+                # config at upload time (upload_using_esptool)
+                _LOGGER.warning(
+                    "esphome->platformio_options->%s is ignored when building with "
+                    "the native ESP-IDF toolchain",
+                    key,
+                )
+        return
     # Add includes at the very end, so that they override everything
     for key, val in pio_options.items():
         if key in ["build_flags", "lib_ignore"] and not isinstance(val, list):
@@ -655,19 +705,7 @@ async def to_code(config: ConfigType) -> None:
 
     # Libraries
     for lib in config[CONF_LIBRARIES]:
-        if "@" in lib:
-            name, vers = lib.split("@", 1)
-            cg.add_library(name, vers)
-        elif "://" in lib:
-            # Repository...
-            if "=" in lib:
-                name, repo = lib.split("=", 1)
-                cg.add_library(name, None, repo)
-            else:
-                cg.add_library(None, None, lib)
-
-        else:
-            cg.add_library(lib, None)
+        _add_library_str(lib)
 
     cg.add_build_flag("-Wno-unused-variable")
     cg.add_build_flag("-Wno-unused-but-set-variable")

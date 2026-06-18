@@ -160,6 +160,12 @@ def _setup_core(work_dir: Path, settings: _Settings) -> None:
     CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = "esp32"
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = settings.target_framework
 
+    # Gates arduino-only components in esphome/idf_component.yml (IDF reads it at
+    # reconfigure time). Set here -- before the manifest is written/reconfigured.
+    os.environ["ESPHOME_ARDUINO_COMPONENT"] = (
+        "1" if settings.target_framework == "arduino" else "0"
+    )
+
 
 # Special IDF "components" that are tools/subprojects, not requirable by an app
 # (they provide no public includes and break requirement resolution), plus our
@@ -333,11 +339,18 @@ def _write_tidy_project(
     # ESPHome's static-analysis sdkconfig (repo root): enables the flags any
     # component sets (e.g. CONFIG_BT_ENABLED) so sdkconfig-gated IDF components
     # register and expose their includes. IDF reads ``sdkconfig.defaults`` from
-    # the project root.
+    # the project root, plus a per-target ``sdkconfig.defaults.<idf_target>``
+    # for variant-only components (e.g. openthread on c6/h2).
+    repo_root = esphome_dir.parent
     (work_dir / "sdkconfig.defaults").write_text(
-        (esphome_dir.parent / "sdkconfig.defaults").read_text(encoding="utf-8"),
+        (repo_root / "sdkconfig.defaults").read_text(encoding="utf-8"),
         encoding="utf-8",
     )
+    target_defaults = repo_root / f"sdkconfig.defaults.{settings.idf_target}"
+    if target_defaults.is_file():
+        (work_dir / target_defaults.name).write_text(
+            target_defaults.read_text(encoding="utf-8"), encoding="utf-8"
+        )
 
 
 def _generate_compile_commands(
