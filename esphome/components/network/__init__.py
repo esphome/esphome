@@ -51,6 +51,19 @@ VALID_NETWORK_TYPES = ["ethernet", "wifi"]
 NETWORK_PRIORITY_BASE = 250.0
 NETWORK_PRIORITY_STEP = 5.0
 
+# Lower-bound guard. The lowest-priority entry gets
+# NETWORK_PRIORITY_BASE - (len - 1) * NETWORK_PRIORITY_STEP, which must stay
+# strictly above setup_priority::AFTER_WIFI (200.0, see esphome/core/component.h)
+# so a long priority list never drops an interface into the band used by
+# components that expect to run after the network is up. There is ample headroom
+# for the two types today; this assert fires if a future expansion of
+# VALID_NETWORK_TYPES would silently cross that band.
+_SETUP_PRIORITY_AFTER_WIFI = 200.0
+assert (
+    NETWORK_PRIORITY_BASE - (len(VALID_NETWORK_TYPES) - 1) * NETWORK_PRIORITY_STEP
+    > _SETUP_PRIORITY_AFTER_WIFI
+), "network: priority: list is long enough to cross setup_priority::AFTER_WIFI"
+
 network_ns = cg.esphome_ns.namespace("network")
 NetworkComponent = network_ns.class_("NetworkComponent", cg.Component)
 IPAddress = network_ns.class_("IPAddress")
