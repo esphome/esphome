@@ -689,6 +689,25 @@ def test_choose_upload_log_host_with_ota_device_with_ota_config() -> None:
     assert result == ["192.168.1.100"]
 
 
+def test_choose_upload_log_host_ota_mdns_disabled_uses_address_cache() -> None:
+    """A .local device with mDNS disabled resolves via the dashboard-supplied cache."""
+    setup_core(
+        config={
+            CONF_API: {},
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
+            CONF_MDNS: {CONF_DISABLED: True},
+        },
+        address="esp32-a1s.local",
+    )
+    CORE.address_cache = AddressCache(mdns_cache={"esp32-a1s.local": ["192.168.1.50"]})
+
+    for purpose in (Purpose.LOGGING, Purpose.UPLOADING):
+        result = choose_upload_log_host(
+            default="OTA", check_default=None, purpose=purpose
+        )
+        assert result == ["192.168.1.50"]
+
+
 def test_choose_upload_log_host_with_ota_device_with_api_config() -> None:
     """Test OTA device when API is configured (no upload without OTA in config)."""
     setup_core(config={CONF_API: {}}, address="192.168.1.100")
@@ -3133,6 +3152,22 @@ def test_has_resolvable_address() -> None:
 
     # Test with no address and mDNS disabled
     setup_core(config={CONF_MDNS: {CONF_DISABLED: True}}, address=None)
+    assert has_resolvable_address() is False
+
+    # mDNS disabled + .local, but the dashboard cached the address -> resolvable
+    setup_core(
+        config={CONF_MDNS: {CONF_DISABLED: True}}, address="esphome-device.local"
+    )
+    CORE.address_cache = AddressCache(
+        mdns_cache={"esphome-device.local": ["192.168.1.100"]}
+    )
+    assert has_resolvable_address() is True
+
+    # mDNS disabled + .local, cache present but missing this host -> not resolvable
+    setup_core(
+        config={CONF_MDNS: {CONF_DISABLED: True}}, address="esphome-device.local"
+    )
+    CORE.address_cache = AddressCache(mdns_cache={"other-device.local": ["10.0.0.1"]})
     assert has_resolvable_address() is False
 
 

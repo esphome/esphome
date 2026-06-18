@@ -504,6 +504,12 @@ def has_resolvable_address() -> bool:
     if has_ip_address():
         return True
 
+    # The dashboard pre-resolves the device and passes the IPs via
+    # --mdns-address-cache/--dns-address-cache; honor a cached address even when the
+    # device has mDNS disabled (e.g. a .local host found via ping).
+    if CORE.address_cache and CORE.address_cache.get_addresses(CORE.address):
+        return True
+
     if has_mdns():
         return True
 
