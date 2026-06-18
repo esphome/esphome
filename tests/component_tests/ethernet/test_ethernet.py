@@ -18,7 +18,7 @@ def _reset_full_config():
 
 
 def test_rejects_wifi_and_ethernet_without_priority() -> None:
-    """wifi + ethernet without a network: priority: list must be rejected."""
+    """Wi-Fi + ethernet without a network: priority: list must be rejected."""
     fv.full_config.set({"wifi": {}, "ethernet": {}})
     with pytest.raises(Invalid, match="cannot be used together with component wifi"):
         _final_validate({})
