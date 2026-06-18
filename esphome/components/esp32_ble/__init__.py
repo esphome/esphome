@@ -8,7 +8,12 @@ from typing import Any
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components.const import CONF_USE_PSRAM
-from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
+from esphome.components.esp32 import (
+    add_idf_sdkconfig_option,
+    const,
+    get_esp32_variant,
+    request_bluetooth,
+)
 from esphome.components.esp32.const import VARIANT_ESP32C2
 import esphome.config_validation as cv
 from esphome.const import (
@@ -599,8 +604,7 @@ async def to_code(config):
     max_connections = config.get(CONF_MAX_CONNECTIONS, DEFAULT_MAX_CONNECTIONS)
     cg.add_define("USE_ESP32_BLE_MAX_CONNECTIONS", max_connections)
 
-    add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
-    add_idf_sdkconfig_option("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
+    request_bluetooth(ble_42=True)
 
     # When PSRAM and BT are used together, Bluedroid should prefer SPIRAM for
     # heap allocations and use dynamic (heap-based) environment memory tables
