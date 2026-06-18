@@ -235,7 +235,10 @@ def merge_factory_bin(source, target, env):
             for addr, fname in sorted(
                 flash_data["flash_files"].items(), key=lambda kv: int(kv[0], 16)
             ):
+                # flasher_args.json paths are relative to build_dir
                 file_path = pathlib.Path(fname)
+                if not file_path.is_absolute():
+                    file_path = build_dir / file_path
                 if file_path.exists():
                     sections.append((addr, str(file_path)))
                 else:
