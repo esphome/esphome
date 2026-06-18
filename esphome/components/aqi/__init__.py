@@ -11,4 +11,5 @@ CONF_CALCULATION_TYPE = "calculation_type"
 AQI_CALCULATION_TYPE = {
     "CAQI": AQICalculatorType.CAQI_TYPE,
     "AQI": AQICalculatorType.AQI_TYPE,
+    "EAQI": AQICalculatorType.EAQI_TYPE,
 }
