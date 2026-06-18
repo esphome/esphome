@@ -39,8 +39,13 @@ from helpers import BASE_BUS_COMPONENTS, is_validate_only_file
 from esphome import yaml_util
 from esphome.config_helpers import Extend, Remove
 
-# Path to common bus configs
-COMMON_BUS_PATH = Path("tests/test_build_components/common")
+# Path to common bus configs (resolved relative to this file, not the CWD)
+COMMON_BUS_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "tests"
+    / "test_build_components"
+    / "common"
+)
 
 # Package dependencies - maps packages to the packages they include
 # When a component uses a package on the left, it automatically gets
@@ -59,6 +64,7 @@ DIRECT_BUS_TYPES = (
     "modbus",
     "remote_transmitter",
     "remote_receiver",
+    "i2s_audio",
 )
 
 # Signature for components with no bus requirements
@@ -128,7 +134,7 @@ def uses_local_file_references(component_dir: Path) -> bool:
 
     try:
         content = common_yaml.read_text()
-    except Exception:  # pylint: disable=broad-exception-caught
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         return False
 
     # Pattern to match $component_dir or ${component_dir} references
@@ -164,7 +170,7 @@ def is_platform_component(component_dir: Path) -> bool:
     try:
         content = comp_init.read_text()
         return "IS_PLATFORM_COMPONENT = True" in content
-    except Exception:  # pylint: disable=broad-exception-caught
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         return False
 
 
@@ -222,7 +228,7 @@ def analyze_yaml_file(yaml_file: Path) -> dict[str, Any]:
     try:
         data = yaml_util.load_yaml(yaml_file)
         result["loaded"] = True
-    except Exception:  # pylint: disable=broad-exception-caught
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         return result
 
     # Check for Extend/Remove objects

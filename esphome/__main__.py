@@ -504,6 +504,12 @@ def has_resolvable_address() -> bool:
     if has_ip_address():
         return True
 
+    # The dashboard pre-resolves the device and passes the IPs via
+    # --mdns-address-cache/--dns-address-cache; honor a cached address even when the
+    # device has mDNS disabled (e.g. a .local host found via ping).
+    if CORE.address_cache and CORE.address_cache.get_addresses(CORE.address):
+        return True
+
     if has_mdns():
         return True
 
@@ -696,6 +702,11 @@ def _wrap_to_code(name, comp, yaml_util):
 def write_cpp(config: ConfigType) -> int:
     from esphome import writer
 
+    # Refresh the storage sidecar and clean an incompatible previous build
+    # before regenerating any sources. This may full-wipe the build dir, so it
+    # has to run before write_cpp_file writes src/.
+    writer.update_storage_json()
+
     if not get_bool_env(ENV_NOGITIGNORE):
         writer.write_gitignore()
 
@@ -761,6 +772,7 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
         toolchain.create_factory_bin()
         toolchain.create_ota_bin()
         toolchain.create_elf_copy()
+        toolchain.get_idedata()
     else:
         from esphome.platformio import toolchain
 
@@ -1351,6 +1363,19 @@ def _validate_bootloader_binary(binary: Path) -> None:
         )
 
 
+def _should_subscribe_states(args: ArgsProtocol) -> bool:
+    """Determine whether entity state changes should be shown in log output.
+
+    The ``--states``/``--no-states`` command line flags take precedence. When
+    neither is given, the ``ESPHOME_LOG_STATES`` environment variable controls
+    the behavior, defaulting to showing states.
+    """
+    states = getattr(args, "states", None)
+    if states is not None:
+        return states
+    return get_bool_env("ESPHOME_LOG_STATES", True)
+
+
 def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int | None:
     try:
         module = importlib.import_module("esphome.components." + CORE.target_platform)
@@ -1380,7 +1405,7 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
         return run_logs(
             config,
             network_devices,
-            subscribe_states=not getattr(args, "no_states", False),
+            subscribe_states=_should_subscribe_states(args),
         )
 
     if port_type in (PortType.NETWORK, PortType.MQTT) and has_mqtt_logging():
@@ -1410,7 +1435,16 @@ def command_wizard(args: ArgsProtocol) -> int | None:
 def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
     from esphome import yaml_util
 
-    if not CORE.verbose:
+    if getattr(args, "no_defaults", False):
+        user_config = getattr(config, "user_config", None)
+        if user_config is None:
+            _LOGGER.warning(
+                "--no-defaults requested but the user-only config snapshot is "
+                "unavailable; falling back to the validated configuration."
+            )
+        else:
+            config = user_config
+    elif not CORE.verbose:
         config = strip_default_ids(config)
     output = yaml_util.dump(config, args.show_secrets)
     if not args.show_secrets:
@@ -1618,7 +1652,7 @@ def command_clean(args: ArgsProtocol, config: ConfigType) -> int | None:
     from esphome import writer
 
     try:
-        writer.clean_build()
+        writer.clean_build(full=True)
     except OSError as err:
         _LOGGER.error("Error deleting build files: %s", err)
         return 1
@@ -1831,7 +1865,7 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
         ram_report = ram_analyzer.generate_report()
         print()
         print(ram_report)
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception as e:  # noqa: BLE001  # pylint: disable=broad-except
         _LOGGER.warning("RAM strings analysis failed: %s", e)
 
     return 0
@@ -2019,6 +2053,29 @@ SIMPLE_CONFIG_ACTIONS = [
 ]
 
 
+def _add_states_args(parser: argparse.ArgumentParser) -> None:
+    """Add mutually exclusive ``--states``/``--no-states`` flags to a parser.
+
+    When neither flag is given, the ``ESPHOME_LOG_STATES`` environment variable
+    controls whether entity state changes are shown (defaulting to showing them).
+    """
+    states_group = parser.add_mutually_exclusive_group()
+    states_group.add_argument(
+        "--states",
+        dest="states",
+        action="store_true",
+        default=None,
+        help="Show entity state changes in log output (overrides ESPHOME_LOG_STATES).",
+    )
+    states_group.add_argument(
+        "--no-states",
+        dest="states",
+        action="store_false",
+        default=None,
+        help="Do not show entity state changes in log output.",
+    )
+
+
 def parse_args(argv):
     options_parser = argparse.ArgumentParser(add_help=False)
     options_parser.add_argument(
@@ -2111,6 +2168,12 @@ def parse_args(argv):
     parser_config.add_argument(
         "--show-secrets", help="Show secrets in output.", action="store_true"
     )
+    parser_config.add_argument(
+        "--no-defaults",
+        help="Only output the user-supplied configuration without "
+        "schema defaults applied.",
+        action="store_true",
+    )
 
     parser_config_hash = subparsers.add_parser(
         "config-hash", help="Calculate the hash of the configuration."
@@ -2195,11 +2258,7 @@ def parse_args(argv):
         help="Reset the device before starting serial logs.",
         default=os.getenv("ESPHOME_SERIAL_LOGGING_RESET"),
     )
-    parser_logs.add_argument(
-        "--no-states",
-        action="store_true",
-        help="Do not show entity state changes in log output.",
-    )
+    _add_states_args(parser_logs)
 
     parser_discover = subparsers.add_parser(
         "discover",
@@ -2231,11 +2290,7 @@ def parse_args(argv):
         "--no-logs", help="Disable starting logs.", action="store_true"
     )
 
-    parser_run.add_argument(
-        "--no-states",
-        action="store_true",
-        help="Do not show entity state changes in log output.",
-    )
+    _add_states_args(parser_run)
 
     parser_run.add_argument(
         "--reset",

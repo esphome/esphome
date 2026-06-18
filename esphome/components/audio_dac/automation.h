@@ -6,7 +6,7 @@
 
 namespace esphome::audio_dac {
 
-template<typename... Ts> class MuteOffAction : public Action<Ts...> {
+template<typename... Ts> class MuteOffAction final : public Action<Ts...> {
  public:
   explicit MuteOffAction(AudioDac *audio_dac) : audio_dac_(audio_dac) {}
 
@@ -16,7 +16,7 @@ template<typename... Ts> class MuteOffAction : public Action<Ts...> {
   AudioDac *audio_dac_;
 };
 
-template<typename... Ts> class MuteOnAction : public Action<Ts...> {
+template<typename... Ts> class MuteOnAction final : public Action<Ts...> {
  public:
   explicit MuteOnAction(AudioDac *audio_dac) : audio_dac_(audio_dac) {}
 
@@ -26,7 +26,7 @@ template<typename... Ts> class MuteOnAction : public Action<Ts...> {
   AudioDac *audio_dac_;
 };
 
-template<typename... Ts> class SetVolumeAction : public Action<Ts...> {
+template<typename... Ts> class SetVolumeAction final : public Action<Ts...> {
  public:
   explicit SetVolumeAction(AudioDac *audio_dac) : audio_dac_(audio_dac) {}
 

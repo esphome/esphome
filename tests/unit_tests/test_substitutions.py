@@ -361,6 +361,47 @@ def test_validate_config_without_command_line_substitutions_maintains_ordered_di
     assert result[CONF_SUBSTITUTIONS]["var2"] == "value2"
 
 
+def test_validate_config_captures_user_config_snapshot(tmp_path: Path) -> None:
+    """validate_config stores a deep copy of the user's config -- with
+    substitutions re-added and no schema defaults applied -- on
+    ``result.user_config`` for ``esphome config --no-defaults``.
+    """
+    test_config = _get_test_minimal_valid_config(tmp_path)
+
+    result = config_module.validate_config(test_config, None)
+
+    # Snapshot is populated.
+    assert result.user_config is not None
+    # Substitutions are re-added and appear first.
+    assert list(result.user_config.keys())[0] == CONF_SUBSTITUTIONS
+    assert result.user_config[CONF_SUBSTITUTIONS]["var1"] == "value1"
+    # User-supplied keys are present without schema-default fields like
+    # ``build_path`` (which preload_core_config injects on the validated
+    # result's esphome section).
+    assert result.user_config["esphome"] == {"name": "test_device"}
+    assert "build_path" not in result.user_config["esphome"]
+    assert "min_version" not in result.user_config["esphome"]
+    assert result.user_config["esp32"] == {"board": "esp32dev"}
+
+
+def test_validate_config_user_config_snapshot_is_deep_copy(tmp_path: Path) -> None:
+    """The snapshot is independent of subsequent mutations to the result
+    config -- preload_core_config rewrites ``esphome:`` in place, but the
+    snapshot keeps the user's literal block.
+    """
+    test_config = _get_test_minimal_valid_config(tmp_path)
+
+    result = config_module.validate_config(test_config, None)
+
+    assert result.user_config is not None
+    # preload_core_config injected build_path onto the validated config.
+    assert "build_path" in result["esphome"]
+    # The snapshot was taken before that and is unaffected.
+    assert "build_path" not in result.user_config["esphome"]
+    # And the two are not aliased.
+    assert result["esphome"] is not result.user_config["esphome"]
+
+
 def test_merge_config_preserves_ordered_dict() -> None:
     """Test that merge_config preserves OrderedDict type.
 

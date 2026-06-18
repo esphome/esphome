@@ -30,9 +30,6 @@ class MipiRgb : public display::Display {
   void fill(Color color) override;
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
                       display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
-  void write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
-                         int x_pad);
-  bool check_buffer_();
 
   display::ColorOrder get_color_mode() { return this->color_mode_; }
   void set_color_mode(display::ColorOrder color_mode) { this->color_mode_ = color_mode; }
@@ -60,12 +57,15 @@ class MipiRgb : public display::Display {
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
   int get_width_internal() override { return this->width_; }
   int get_height_internal() override { return this->height_; }
-  void dump_pins_(uint8_t start, uint8_t end, const char *name, uint8_t offset);
   void dump_config() override;
   void draw_pixel_at(int x, int y, Color color) override;
 
   // this will be horribly slow.
  protected:
+  void write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
+                         int x_pad);
+  bool check_buffer_();
+  void dump_pins_(uint8_t start, uint8_t end, const char *name, uint8_t offset);
   void setup_enables_();
   void common_setup_();
   InternalGPIOPin *de_pin_{nullptr};

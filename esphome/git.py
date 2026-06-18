@@ -341,6 +341,7 @@ def clone_or_update(
 
 
 GIT_DOMAINS = {
+    "codeberg": "codeberg.org",
     "github": "github.com",
     "gitlab": "gitlab.com",
 }
@@ -363,6 +364,8 @@ class GitFile:
     def raw_url(self) -> str:
         if self.ref is None:
             raise ValueError("URL has no ref")
+        if self.domain == "codeberg.org":
+            return f"https://codeberg.org/{self.owner}/{self.repo}/raw/commit/{self.ref}/{self.filename}"
         if self.domain == "github.com":
             return f"https://raw.githubusercontent.com/{self.owner}/{self.repo}/{self.ref}/{self.filename}"
         if self.domain == "gitlab.com":
