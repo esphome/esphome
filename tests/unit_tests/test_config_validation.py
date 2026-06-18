@@ -1174,9 +1174,10 @@ def test_update_interval__never_passes_through() -> None:
 def test_optional_default_visibility_is_none() -> None:
     """An ``Optional`` with no ``visibility`` kwarg reports ``None``.
 
-    Consumers can read the attribute directly with plain attribute
-    access; absence (``None``) means "render on the editor's main
-    form."
+    The marker stays faithful to what the author wrote: ESPHome does
+    not encode the default on it. Resolving ``None`` to an effective
+    visibility is the consumer's job — a schema-aware editor treats an
+    unset ``Optional`` as ``ADVANCED`` (see :class:`Visibility`).
     """
     o = cv.Optional("foo")
     assert o.visibility is None
@@ -1194,6 +1195,17 @@ def test_optional_visibility_yaml_only() -> None:
     assert o.visibility is cv.Visibility.YAML_ONLY
 
 
+def test_optional_visibility_ui() -> None:
+    """``visibility=Visibility.UI`` is recorded on the marker.
+
+    ``UI`` promotes an ``Optional`` onto the editor's main form,
+    overriding the consumer's default of ``ADVANCED`` for unset
+    optionals.
+    """
+    o = cv.Optional("foo", visibility=cv.Visibility.UI)
+    assert o.visibility is cv.Visibility.UI
+
+
 def test_visibility_str_values_match_dump_emission() -> None:
     """``Visibility`` is a ``StrEnum`` whose values are the literal
     strings the schema dumper emits.
@@ -1203,6 +1215,7 @@ def test_visibility_str_values_match_dump_emission() -> None:
     field — pinning the on-the-wire spelling here keeps the dump
     contract stable.
     """
+    assert str(cv.Visibility.UI) == "ui"
     assert str(cv.Visibility.ADVANCED) == "advanced"
     assert str(cv.Visibility.YAML_ONLY) == "yaml_only"
 
