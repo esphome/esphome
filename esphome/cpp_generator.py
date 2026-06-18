@@ -705,15 +705,8 @@ def add_build_unflag(build_unflag: str) -> None:
 
 
 def set_cpp_standard(standard: str) -> None:
-    """Set C++ standard with compiler flag `-std={standard}`."""
-    CORE.add_build_unflag("-std=gnu++11")
-    CORE.add_build_unflag("-std=gnu++14")
-    CORE.add_build_unflag("-std=gnu++17")
-    CORE.add_build_unflag("-std=gnu++23")
-    CORE.add_build_unflag("-std=gnu++2a")
-    CORE.add_build_unflag("-std=gnu++2b")
-    CORE.add_build_unflag("-std=gnu++2c")
-    CORE.add_build_flag(f"-std={standard}")
+    """Set the C++ language standard for the build (e.g. ``gnu++20``)."""
+    CORE.cpp_standard = standard
 
 
 def add_define(name: str, value: SafeExpType = None):
