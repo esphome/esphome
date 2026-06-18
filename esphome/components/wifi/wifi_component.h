@@ -694,6 +694,12 @@ class WiFiComponent final : public Component {
   bool wifi_apply_hostname_();
   bool wifi_sta_connect_(const WiFiAP &ap);
   void wifi_pre_setup_();
+#ifdef USE_ESP32
+  // ESP-IDF only: defers esp_wifi_init() + netif creation (which allocate ~15-30KB of
+  // DMA-capable internal SRAM) until wifi actually needs to come up. Idempotent.
+  // Called from setup() only when enable_on_boot_=true, and from enable() on first use.
+  void wifi_lazy_init_();
+#endif
   WiFiSTAConnectStatus wifi_sta_connect_status_() const;
   bool is_connected_() const {
     return this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED &&
@@ -889,6 +895,12 @@ class WiFiComponent final : public Component {
   bool rrm_{false};
 #endif
   bool enable_on_boot_{true};
+#ifdef USE_ESP32
+  // Tracks whether esp_wifi_init() + netif creation has happened. Allows enable()
+  // to be called at runtime without re-allocating, and ensures the heavy init is
+  // skipped entirely when enable_on_boot_ is false until first enable().
+  bool wifi_initialized_{false};
+#endif
   bool got_ipv4_address_{false};
   bool keep_scan_results_{false};
   bool has_completed_scan_after_captive_portal_start_{

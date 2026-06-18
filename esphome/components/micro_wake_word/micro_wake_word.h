@@ -11,6 +11,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/static_task.h"
 
 #ifdef USE_OTA_STATE_LISTENER
 #include "esphome/components/ota/ota_backend.h"
@@ -59,6 +60,8 @@ class MicroWakeWord : public Component
 
   void set_stop_after_detection(bool stop_after_detection) { this->stop_after_detection_ = stop_after_detection; }
 
+  void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }
+
   Trigger<std::string> *get_wake_word_detected_trigger() { return &this->wake_word_detected_trigger_; }
 
   void add_wake_word_model(WakeWordModel *model);
@@ -93,6 +96,8 @@ class MicroWakeWord : public Component
 
   bool stop_after_detection_;
 
+  bool task_stack_in_psram_{false};
+
   uint8_t features_step_size_;
 
   // Audio frontend handles generating spectrogram features
@@ -105,8 +110,9 @@ class MicroWakeWord : public Component
   // Used to send messages about the models' states to the main loop
   QueueHandle_t detection_queue_;
 
+  StaticTask inference_task_;
+
   static void inference_task(void *params);
-  TaskHandle_t inference_task_handle_{nullptr};
 
   /// @brief Suspends the inference task
   void suspend_task_();

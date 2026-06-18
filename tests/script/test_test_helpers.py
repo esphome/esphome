@@ -1,6 +1,5 @@
 """Unit tests for script/build_helpers.py manifest override and build helpers."""
 
-import os
 from pathlib import Path
 import sys
 import textwrap
@@ -9,9 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 # Add the script directory to Python path so we can import build_helpers
-sys.path.insert(
-    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "script"))
-)
+sys.path.insert(0, str((Path(__file__).parent / ".." / ".." / "script").resolve()))
 
 import build_helpers  # noqa: E402
 

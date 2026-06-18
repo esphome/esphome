@@ -43,7 +43,7 @@ def save_compiled_config(config: ConfigType) -> None:
     try:
         rendered = yaml_util.dump(config, show_secrets=True)
         write_file(compiled_config_path(CORE.config_filename), rendered, private=True)
-    except Exception as err:  # pylint: disable=broad-except
+    except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
         _LOGGER.debug("Skipping compiled config cache write: %s", err)
 
 
@@ -62,7 +62,7 @@ def load_compiled_config(conf_path: Path) -> ConfigType | None:
 
     try:
         config = yaml_util.load_yaml(cache_path, clear_secrets=False)
-    except Exception:  # pylint: disable=broad-except
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-except
         return None
 
     storage = StorageJSON.load(ext_storage_path(conf_path.name))

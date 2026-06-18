@@ -3,17 +3,14 @@
 from collections.abc import Generator
 import importlib.util
 import json
-import os
 from pathlib import Path
 import sys
-from unittest.mock import Mock, call, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
 # Add the script directory to Python path so we can import the module
-script_dir = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "script")
-)
+script_dir = str((Path(__file__).parent / ".." / ".." / "script").resolve())
 sys.path.insert(0, script_dir)
 
 # Import helpers module for patching
@@ -22,7 +19,7 @@ import helpers  # noqa: E402
 import script.helpers  # noqa: E402
 
 spec = importlib.util.spec_from_file_location(
-    "determine_jobs", os.path.join(script_dir, "determine-jobs.py")
+    "determine_jobs", str(Path(script_dir) / "determine-jobs.py")
 )
 determine_jobs = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(determine_jobs)
@@ -656,52 +653,38 @@ def test_determine_integration_tests_non_yaml_fixture_runs_all() -> None:
 
 
 @pytest.mark.parametrize(
-    ("check_returncode", "changed_files", "expected_result"),
+    ("changed_files", "expected_result"),
     [
-        (0, [], True),  # Hash changed - need full scan
-        (1, ["esphome/core.cpp"], True),  # C++ file changed
-        (1, ["README.md"], False),  # No C++ files changed
-        (1, [".clang-tidy.hash"], True),  # Hash file itself changed
-        (1, ["platformio.ini", ".clang-tidy.hash"], True),  # Config + hash changed
+        ([], False),  # Nothing changed
+        (["esphome/core.cpp"], True),  # C++ file changed
+        (["README.md"], False),  # No C++ files changed
+        ([".clang-tidy"], True),  # clang-tidy config changed - full scan
+        (["platformio.ini"], True),  # build config changed - full scan
+        (["requirements_dev.txt"], True),  # clang-tidy version source changed
+        (["sdkconfig.defaults"], True),  # sdkconfig changed - full scan
+        (["sdkconfig.defaults.esp32c6"], True),  # per-target sdkconfig changed
+        (["esphome/idf_component.yml"], True),  # idf managed deps changed
+        (["platformio.ini", "README.md"], True),  # config + non-C++
     ],
 )
 def test_should_run_clang_tidy(
-    check_returncode: int,
     changed_files: list[str],
     expected_result: bool,
 ) -> None:
     """Test should_run_clang_tidy function."""
-    with (
-        patch.object(determine_jobs, "changed_files", return_value=changed_files),
-        patch("subprocess.run") as mock_run,
-    ):
-        # Test with hash check returning specific code
-        mock_run.return_value = Mock(returncode=check_returncode)
+    with patch.object(determine_jobs, "changed_files", return_value=changed_files):
         result = determine_jobs.should_run_clang_tidy()
         assert result == expected_result
-
-
-def test_should_run_clang_tidy_hash_check_exception() -> None:
-    """Test should_run_clang_tidy when hash check fails with exception."""
-    # When hash check fails, clang-tidy should run as a safety measure
-    with (
-        patch.object(determine_jobs, "changed_files", return_value=["README.md"]),
-        patch("subprocess.run", side_effect=Exception("Hash check failed")),
-    ):
-        result = determine_jobs.should_run_clang_tidy()
-        assert result is True  # Fail safe - run clang-tidy
 
 
 def test_should_run_clang_tidy_with_branch() -> None:
     """Test should_run_clang_tidy with branch argument."""
     with patch.object(determine_jobs, "changed_files") as mock_changed:
         mock_changed.return_value = []
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = Mock(returncode=1)  # Hash unchanged
-            determine_jobs.should_run_clang_tidy("release")
-            # Changed files is called twice now - once for hash check, once for .clang-tidy.hash check
-            assert mock_changed.call_count == 2
-            mock_changed.assert_has_calls([call("release"), call("release")])
+        determine_jobs.should_run_clang_tidy("release")
+        # changed_files is queried against the given branch by both the
+        # config-file full-scan check and the C++ extension check.
+        mock_changed.assert_called_with("release")
 
 
 @pytest.mark.parametrize(
@@ -1429,7 +1412,15 @@ def test_detect_memory_impact_config_core_python_only_changes(tmp_path: Path) ->
 
 @pytest.mark.usefixtures("mock_target_branch_dev")
 def test_detect_memory_impact_config_no_common_platform(tmp_path: Path) -> None:
-    """Test memory impact detection when components have no common platform."""
+    """Test memory impact detection when components have no common platform.
+
+    The merged build runs with --base-only on a single platform, so components
+    without a base test on the selected platform cannot be built and must be
+    dropped. We build the largest subset that shares the selected platform
+    rather than handing the runner components it has nothing to compile for
+    (which previously produced "0 passed, 0 failed" and a failed memory
+    extraction).
+    """
     # Create test directory structure
     tests_dir = tmp_path / "tests" / "components"
 
@@ -1456,12 +1447,71 @@ def test_detect_memory_impact_config_no_common_platform(tmp_path: Path) -> None:
 
         result = determine_jobs.detect_memory_impact_config()
 
-    # Should pick the most frequently supported platform
+    # No common platform: pick the most preferred platform among those supported
+    # (esp8266-ard outranks esp32-idf in the preference list) and build only the
+    # components that have a base test on it. wifi (esp32-idf only) is dropped.
     assert result["should_run"] == "true"
-    assert set(result["components"]) == {"wifi", "logger"}
-    # When no common platform, picks most commonly supported
-    # esp8266-ard is preferred over esp32-idf in the preference list
-    assert result["platform"] in ["esp32-idf", "esp8266-ard"]
+    assert result["platform"] == "esp8266-ard"
+    assert result["components"] == ["logger"]
+    assert result["use_merged_config"] == "true"
+
+
+@pytest.mark.usefixtures("mock_target_branch_dev")
+def test_detect_memory_impact_config_variant_only_platform_excluded(
+    tmp_path: Path,
+) -> None:
+    """Regression test for the const + shelly_dimmer memory-impact failure.
+
+    Reproduces https://github.com/esphome/esphome/actions/runs/26746938473
+    where a platform hint selected esp32-idf even though neither changed
+    component had a base test.esp32-idf.yaml. The merged --base-only build then
+    found nothing to compile ("0 passed, 0 failed") and memory extraction
+    failed. Also covers a component whose only esp32-idf test is a *variant*
+    (test-*.esp32-idf.yaml): --base-only never compiles variants, so it must
+    not count toward platform availability.
+    """
+    tests_dir = tmp_path / "tests" / "components"
+
+    # const: base test only on esp32-s3-idf
+    const_dir = tests_dir / "const"
+    const_dir.mkdir(parents=True)
+    (const_dir / "test.esp32-s3-idf.yaml").write_text("test: const")
+
+    # shelly_dimmer: base test only on esp8266-ard
+    shelly_dir = tests_dir / "shelly_dimmer"
+    shelly_dir.mkdir(parents=True)
+    (shelly_dir / "test.esp8266-ard.yaml").write_text("test: shelly_dimmer")
+
+    # mdns: only a VARIANT test on esp32-idf (no base test.esp32-idf.yaml).
+    # --base-only would never build it, so it must be excluded entirely.
+    mdns_dir = tests_dir / "mdns"
+    mdns_dir.mkdir(parents=True)
+    (mdns_dir / "test-min.esp32-idf.yaml").write_text("test: mdns")
+
+    with (
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(helpers, "root_path", str(tmp_path)),
+        patch.object(determine_jobs, "changed_files") as mock_changed_files,
+    ):
+        # The "_esp32" filename yields an esp32-idf platform hint, reproducing
+        # the original bug where the hint picked a platform no component could
+        # build as a base test.
+        mock_changed_files.return_value = [
+            "esphome/components/const/const.cpp",
+            "esphome/components/shelly_dimmer/shelly_dimmer_esp32.cpp",
+            "esphome/components/mdns/mdns.cpp",
+        ]
+
+        result = determine_jobs.detect_memory_impact_config()
+
+    # The esp32-idf hint is unbuildable (no base test), so we fall back to the
+    # platform supported by the most components, broken by preference order:
+    # esp8266-ard (shelly_dimmer) outranks esp32-s3-idf (const). Only the
+    # component with a base test on the selected platform is returned; the
+    # variant-only mdns is excluded entirely.
+    assert result["should_run"] == "true"
+    assert result["platform"] == "esp8266-ard"
+    assert result["components"] == ["shelly_dimmer"]
     assert result["use_merged_config"] == "true"
 
 
@@ -1548,12 +1598,16 @@ def test_detect_memory_impact_config_includes_base_bus_components(
 
 
 @pytest.mark.usefixtures("mock_target_branch_dev")
-def test_detect_memory_impact_config_with_variant_tests(tmp_path: Path) -> None:
-    """Test memory impact detection for components with only variant test files.
+def test_detect_memory_impact_config_variant_only_components_skipped(
+    tmp_path: Path,
+) -> None:
+    """Components with only variant tests are skipped for memory impact.
 
-    This verifies that memory impact analysis works correctly for components like
-    improv_serial, ethernet, mdns, etc. which only have variant test files
-    (test-*.yaml) instead of base test files (test.*.yaml).
+    Components like improv_serial and ethernet only have variant test files
+    (test-*.yaml), no base test.<platform>.yaml. The memory-impact build runs
+    test_build_components.py with --base-only, which never compiles variants, so
+    these components have nothing buildable and must not be selected. Selecting
+    them previously produced "0 passed, 0 failed" and a failed memory extraction.
     """
     # Create test directory structure
     tests_dir = tmp_path / "tests" / "components"
@@ -1584,12 +1638,8 @@ def test_detect_memory_impact_config_with_variant_tests(tmp_path: Path) -> None:
 
         result = determine_jobs.detect_memory_impact_config()
 
-    # Should detect both components even though they only have variant tests
-    assert result["should_run"] == "true"
-    assert set(result["components"]) == {"improv_serial", "ethernet"}
-    # Both components support esp32-idf
-    assert result["platform"] == "esp32-idf"
-    assert result["use_merged_config"] == "true"
+    # Neither component has a base test, so nothing is buildable under --base-only
+    assert result["should_run"] == "false"
 
 
 # Tests for clang-tidy split mode logic

@@ -118,7 +118,7 @@ struct ComponentRuntimeStats {
 
   // Cumulative sum of every record_time() duration since boot, across all
   // components. Used by Application::loop() to snapshot time spent inside
-  // WarnIfComponentBlockingGuard (including guards constructed by the
+  // LoopBlockingGuard (including guards constructed by the
   // scheduler at scheduler.cpp) so main-loop overhead accounting can
   // subtract scheduled-callback time from the before_loop_tasks_ wall time.
   static uint64_t global_recorded_us;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -220,18 +220,6 @@ class Component {
    */
   void mark_failed();
 
-  // Remove before 2026.6.0
-  ESPDEPRECATED("Use mark_failed(LOG_STR(\"static string literal\")) instead. Do NOT use .c_str() from temporary "
-                "strings. Will stop working in 2026.6.0",
-                "2025.12.0")
-  void mark_failed(const char *message) {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-    this->status_set_error(message);
-#pragma GCC diagnostic pop
-    this->mark_failed();
-  }
-
   void mark_failed(const LogString *message) {
     this->status_set_error(message);
     this->mark_failed();
@@ -296,11 +284,6 @@ class Component {
   void status_set_warning(const LogString *message);
 
   void status_set_error();  // Set error flag without message
-  // Remove before 2026.6.0
-  ESPDEPRECATED("Use status_set_error(LOG_STR(\"static string literal\")) instead. Do NOT use .c_str() from temporary "
-                "strings. Will stop working in 2026.6.0",
-                "2025.12.0")
-  void status_set_error(const char *message);
   void status_set_error(const LogString *message);
 
   void status_clear_warning() {
@@ -343,7 +326,7 @@ class Component {
     return component_source_lookup(this->component_source_index_);
   }
 
-  bool should_warn_of_blocking(uint32_t blocking_time);
+  bool should_warn_of_blocking(uint32_t blocking_time, uint32_t &threshold_ms_out);
 
  protected:
   friend class Application;
@@ -588,7 +571,7 @@ class Component {
   volatile bool pending_enable_loop_{false};  ///< ISR-safe flag for enable_loop_soon_any_context
 #ifdef USE_RUNTIME_STATS
   friend class runtime_stats::RuntimeStatsCollector;
-  friend class WarnIfComponentBlockingGuard;
+  friend class LoopBlockingGuard;
   ComponentRuntimeStats runtime_stats_;
 #endif
 };
@@ -636,59 +619,7 @@ class PollingComponent : public Component {
   uint32_t update_interval_;
 };
 
-// millis() and micros() are available via hal.h
-
-class WarnIfComponentBlockingGuard {
- public:
-  WarnIfComponentBlockingGuard(Component *component, uint32_t start_time)
-      : started_(start_time),
-        component_(component)
-#ifdef USE_RUNTIME_STATS
-        ,
-        started_us_(micros())
-#endif
-  {
-  }
-
-  // Finish the timing operation and return the current time (millis)
-  // Inlined: the fast path is just millis() + subtract + compare
-  inline uint32_t HOT finish() {
-#ifdef USE_RUNTIME_STATS
-    uint32_t elapsed_us = micros() - this->started_us_;
-    // component_ is nullptr for self-keyed scheduler items (set_timeout/set_interval(self, ...))
-    if (this->component_ != nullptr) {
-      this->component_->runtime_stats_.record_time(elapsed_us);
-    } else {
-      // Still accumulate into the global counter so Application::loop() can subtract
-      // this time from before_loop_tasks_ wall time.
-      ComponentRuntimeStats::global_recorded_us += elapsed_us;
-    }
-#endif
-    uint32_t curr_time = MillisInternal::get();
-#ifndef USE_BENCHMARK
-    // Fast path: compare against constant threshold in ms (computed at compile time from centiseconds)
-    static constexpr uint32_t WARN_IF_BLOCKING_OVER_MS = static_cast<uint32_t>(WARN_IF_BLOCKING_OVER_CS) * 10U;
-    uint32_t blocking_time = curr_time - this->started_;
-    if (blocking_time > WARN_IF_BLOCKING_OVER_MS) [[unlikely]] {
-      warn_blocking(this->component_, blocking_time);
-    }
-#endif
-    return curr_time;
-  }
-
-  ~WarnIfComponentBlockingGuard() = default;
-
- protected:
-  uint32_t started_;
-  Component *component_;
-#ifdef USE_RUNTIME_STATS
-  uint32_t started_us_;
-#endif
-
- private:
-  // Cold path for blocking warning - defined in component.cpp
-  static void __attribute__((noinline, cold)) warn_blocking(Component *component, uint32_t blocking_time);
-};
+// LoopBlockingGuard lives in application.h because it reads its state from App.
 
 // Function to clear setup priority overrides after all components are set up
 // Only has an implementation when USE_SETUP_PRIORITY_OVERRIDE is defined

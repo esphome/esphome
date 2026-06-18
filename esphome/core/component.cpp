@@ -32,10 +32,7 @@ static const char *const TAG = "component";
 namespace {
 struct ComponentErrorMessage {
   const Component *component;
-  const char *message;
-  // Track if message is flash pointer (needs LOG_STR_ARG) or RAM pointer
-  // Remove before 2026.6.0 when deprecated const char* API is removed
-  bool is_flash_ptr;
+  const LogString *message;
 };
 
 #ifdef USE_SETUP_PRIORITY_OVERRIDE
@@ -56,9 +53,8 @@ std::vector<ComponentPriorityOverride> *setup_priority_overrides = nullptr;
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 std::vector<ComponentErrorMessage> *component_error_messages = nullptr;
 
-// Helper to store error messages - reduces duplication between deprecated and new API
-// Remove before 2026.6.0 when deprecated const char* API is removed
-void store_component_error_message(const Component *component, const char *message, bool is_flash_ptr) {
+// Helper to store error messages
+void store_component_error_message(const Component *component, const LogString *message) {
   // Lazy allocate the error messages vector if needed
   if (!component_error_messages) {
     component_error_messages = new std::vector<ComponentErrorMessage>();
@@ -67,12 +63,11 @@ void store_component_error_message(const Component *component, const char *messa
   for (auto &entry : *component_error_messages) {
     if (entry.component == component) {
       entry.message = message;
-      entry.is_flash_ptr = is_flash_ptr;
       return;
     }
   }
   // Add new error message
-  component_error_messages->emplace_back(ComponentErrorMessage{component, message, is_flash_ptr});
+  component_error_messages->emplace_back(ComponentErrorMessage{component, message});
 }
 }  // namespace
 
@@ -209,21 +204,17 @@ void Component::call_dump_config_() {
   this->dump_config();
   if (this->is_failed()) {
     // Look up error message from global vector
-    const char *error_msg = nullptr;
-    bool is_flash_ptr = false;
+    const LogString *error_msg = nullptr;
     if (component_error_messages) {
       for (const auto &entry : *component_error_messages) {
         if (entry.component == this) {
           error_msg = entry.message;
-          is_flash_ptr = entry.is_flash_ptr;
           break;
         }
       }
     }
-    // Log with appropriate format based on pointer type
     ESP_LOGE(TAG, "  %s is marked FAILED: %s", LOG_STR_ARG(this->get_component_log_str()),
-             error_msg ? (is_flash_ptr ? LOG_STR_ARG((const LogString *) error_msg) : error_msg)
-                       : LOG_STR_LITERAL("unspecified"));
+             error_msg ? LOG_STR_ARG(error_msg) : LOG_STR_LITERAL("unspecified"));
   }
 }
 
@@ -267,9 +258,11 @@ void Component::call() {
       break;
   }
 }
-bool Component::should_warn_of_blocking(uint32_t blocking_time) {
+bool Component::should_warn_of_blocking(uint32_t blocking_time, uint32_t &threshold_ms_out) {
   // Convert centisecond threshold to milliseconds for comparison
   uint32_t threshold_ms = static_cast<uint32_t>(this->warn_if_blocking_over_) * 10U;
+  // Report the threshold that was exceeded (before any ratcheting below) so the warning is accurate.
+  threshold_ms_out = threshold_ms;
   if (blocking_time > threshold_ms) {
     // Set new threshold: blocking_time + increment, converted back to centiseconds
     uint32_t new_threshold_ms = blocking_time + WARN_IF_BLOCKING_INCREMENT_MS;
@@ -390,23 +383,13 @@ void Component::status_set_warning(const LogString *message) {
            message ? LOG_STR_ARG(message) : LOG_STR_LITERAL("unspecified"));
 }
 void Component::status_set_error() { this->status_set_error((const LogString *) nullptr); }
-void Component::status_set_error(const char *message) {
-  if (!this->set_status_flag_(STATUS_LED_ERROR))
-    return;
-  ESP_LOGE(TAG, "%s set Error flag: %s", LOG_STR_ARG(this->get_component_log_str()),
-           message ? message : LOG_STR_LITERAL("unspecified"));
-  if (message != nullptr) {
-    store_component_error_message(this, message, false);
-  }
-}
 void Component::status_set_error(const LogString *message) {
   if (!this->set_status_flag_(STATUS_LED_ERROR))
     return;
   ESP_LOGE(TAG, "%s set Error flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? LOG_STR_ARG(message) : LOG_STR_LITERAL("unspecified"));
   if (message != nullptr) {
-    // Store the LogString pointer directly (safe because LogString is always in flash/static memory)
-    store_component_error_message(this, LOG_STR_ARG(message), true);
+    store_component_error_message(this, message);
   }
 }
 void Component::status_clear_warning_slow_path_() {
@@ -510,19 +493,25 @@ uint32_t PollingComponent::get_update_interval() const { return this->update_int
 uint64_t ComponentRuntimeStats::global_recorded_us = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #endif
 
-void __attribute__((noinline, cold))
-WarnIfComponentBlockingGuard::warn_blocking(Component *component, uint32_t blocking_time) {
-  bool should_warn;
+void __attribute__((noinline, cold)) LoopBlockingGuard::warn_blocking(uint32_t blocking_time) {
+  // Identity is published on App by the caller before the guard is built; read it back here.
+  Component *component = App.get_current_component();
+  // Component-less path always warns (the caller already checked the constant threshold).
+  uint32_t threshold_ms = WARN_IF_BLOCKING_OVER_MS;
+  if (component != nullptr && !component->should_warn_of_blocking(blocking_time, threshold_ms)) {
+    return;  // Component's (possibly ratcheted) threshold not exceeded yet
+  }
+  // Component name if any, else the published source (owning script), else a generic label.
+  const LogString *name;
   if (component != nullptr) {
-    should_warn = component->should_warn_of_blocking(blocking_time);
+    name = component->get_component_log_str();
   } else {
-    should_warn = true;  // Already checked > WARN_IF_BLOCKING_OVER_MS in caller
+    name = App.get_current_source();
+    if (name == nullptr)
+      name = LOG_STR("a scheduled task");
   }
-  if (should_warn) {
-    ESP_LOGW(TAG, "%s took a long time for an operation (%" PRIu32 " ms), max is 30 ms",
-             component == nullptr ? LOG_STR_LITERAL("<null>") : LOG_STR_ARG(component->get_component_log_str()),
-             blocking_time);
-  }
+  ESP_LOGW(TAG, "%s took a long time for an operation (%" PRIu32 " ms), max is %" PRIu32 " ms", LOG_STR_ARG(name),
+           blocking_time, threshold_ms);
 }
 
 #ifdef USE_SETUP_PRIORITY_OVERRIDE

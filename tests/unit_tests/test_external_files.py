@@ -120,7 +120,7 @@ def test_is_file_recent_with_old_file(setup_core: Path) -> None:
 
     old_time = time.time() - 7200
     mock_stat = MagicMock()
-    mock_stat.st_ctime = old_time
+    mock_stat.st_mtime = old_time
 
     with patch.object(Path, "stat", return_value=mock_stat):
         refresh = TimePeriod(seconds=3600)
@@ -147,7 +147,7 @@ def test_is_file_recent_with_zero_refresh(setup_core: Path) -> None:
 
     # Mock stat to return a time 10 seconds ago
     mock_stat = MagicMock()
-    mock_stat.st_ctime = time.time() - 10
+    mock_stat.st_mtime = time.time() - 10
     with patch.object(Path, "stat", return_value=mock_stat):
         refresh = TimePeriod(seconds=0)
         result = external_files.is_file_recent(test_file, refresh)

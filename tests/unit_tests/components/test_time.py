@@ -70,11 +70,11 @@ def test_numeric_offset_slash() -> None:
 
 
 def test_star() -> None:
-    assert _parse_cron_part("*", 0, 59, {}) == set(range(0, 60))
+    assert _parse_cron_part("*", 0, 59, {}) == set(range(60))
 
 
 def test_question() -> None:
-    assert _parse_cron_part("?", 0, 59, {}) == set(range(0, 60))
+    assert _parse_cron_part("?", 0, 59, {}) == set(range(60))
 
 
 def test_range() -> None:

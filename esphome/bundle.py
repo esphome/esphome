@@ -412,7 +412,7 @@ class ConfigBundleCreator:
     @staticmethod
     def _add_to_tar(tar: tarfile.TarFile, bf: BundleFile) -> None:
         """Add a BundleFile to the tar archive with deterministic metadata."""
-        with open(bf.source, "rb") as f:
+        with bf.source.open("rb") as f:
             _add_bytes_to_tar(tar, bf.path, f.read())
 
 
