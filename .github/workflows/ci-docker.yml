@@ -184,15 +184,17 @@ jobs:
       max-parallel: 2
       matrix:
         # One entry per distinct toolchain. ESP32 variants (c3/c6/s2/s3/p4)
-        # share a toolchain bundle, so a single esp32 entry per framework is
-        # enough; esp32-arduino exercises the Arduino-on-ESP-IDF toolchain,
-        # esp32-idf the PlatformIO-packaged ESP-IDF, and esp32-idf-toolchain the
-        # native ESP-IDF (idf.py) toolchain.
+        # share a toolchain bundle, so esp32 is exercised on the base variant
+        # across the full framework x toolchain cross-product (arduino/esp-idf
+        # framework, each built with the platformio and native esp-idf
+        # toolchains) so both toolchains stay covered regardless of which one is
+        # the default.
         id:
           - esp8266-arduino
-          - esp32-arduino
-          - esp32-idf
-          - esp32-idf-toolchain
+          - esp32-arduino-platformio
+          - esp32-arduino-esp-idf
+          - esp32-idf-platformio
+          - esp32-idf-esp-idf
           - rp2040-arduino
           - bk72xx-arduino
           - rtl87xx-arduino
