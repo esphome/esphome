@@ -5,8 +5,8 @@ namespace esphome::aqi {
 
 static const char *const TAG = "aqi";
 
-const char *AQISensor::calculation_type_to_string_() const {
-  switch (this->aqi_calc_type_) {
+static const char *calculation_type_to_string(AQICalculatorType type) {
+  switch (type) {
     case AQI_TYPE:
       return "AQI";
     case CAQI_TYPE:
@@ -35,7 +35,7 @@ void AQISensor::setup() {
 
 void AQISensor::dump_config() {
   ESP_LOGCONFIG(TAG, "AQI Sensor:");
-  ESP_LOGCONFIG(TAG, "  Calculation Type: %s", this->calculation_type_to_string_());
+  ESP_LOGCONFIG(TAG, "  Calculation Type: %s", calculation_type_to_string(this->aqi_calc_type_));
   if (this->pm_2_5_sensor_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  PM2.5 Sensor: '%s'", this->pm_2_5_sensor_->get_name().c_str());
   }
