@@ -981,6 +981,17 @@ jobs:
           # Run compilation (auto-grouped by test_build_components.py)
           python3 script/test_build_components.py -e compile -t esp32-idf -c "$TEST_COMPONENTS" -f --toolchain platformio
 
+          echo ""
+          echo "ESP-IDF-via-PlatformIO build passed! Starting Arduino smoke test..."
+          echo ""
+
+          # Smoke-test the Arduino framework path (Arduino on esp32 only ever
+          # builds through PlatformIO). Reuses $TEST_COMPONENTS; only the
+          # components with an esp32-ard test (currently heatpumpir, esp32_ble)
+          # are built -- the rest are filtered out as they have no arduino test.
+          python3 script/test_build_components.py -e config -t esp32-ard -c "$TEST_COMPONENTS" -f --toolchain platformio
+          python3 script/test_build_components.py -e compile -t esp32-ard -c "$TEST_COMPONENTS" -f --toolchain platformio
+
   pre-commit-ci-lite:
     name: pre-commit.ci lite
     runs-on: ubuntu-latest
