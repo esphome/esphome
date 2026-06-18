@@ -5,7 +5,7 @@ import importlib.util
 import json
 from pathlib import Path
 import sys
-from unittest.mock import Mock, call, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -653,52 +653,38 @@ def test_determine_integration_tests_non_yaml_fixture_runs_all() -> None:
 
 
 @pytest.mark.parametrize(
-    ("check_returncode", "changed_files", "expected_result"),
+    ("changed_files", "expected_result"),
     [
-        (0, [], True),  # Hash changed - need full scan
-        (1, ["esphome/core.cpp"], True),  # C++ file changed
-        (1, ["README.md"], False),  # No C++ files changed
-        (1, [".clang-tidy.hash"], True),  # Hash file itself changed
-        (1, ["platformio.ini", ".clang-tidy.hash"], True),  # Config + hash changed
+        ([], False),  # Nothing changed
+        (["esphome/core.cpp"], True),  # C++ file changed
+        (["README.md"], False),  # No C++ files changed
+        ([".clang-tidy"], True),  # clang-tidy config changed - full scan
+        (["platformio.ini"], True),  # build config changed - full scan
+        (["requirements_dev.txt"], True),  # clang-tidy version source changed
+        (["sdkconfig.defaults"], True),  # sdkconfig changed - full scan
+        (["sdkconfig.defaults.esp32c6"], True),  # per-target sdkconfig changed
+        (["esphome/idf_component.yml"], True),  # idf managed deps changed
+        (["platformio.ini", "README.md"], True),  # config + non-C++
     ],
 )
 def test_should_run_clang_tidy(
-    check_returncode: int,
     changed_files: list[str],
     expected_result: bool,
 ) -> None:
     """Test should_run_clang_tidy function."""
-    with (
-        patch.object(determine_jobs, "changed_files", return_value=changed_files),
-        patch("subprocess.run") as mock_run,
-    ):
-        # Test with hash check returning specific code
-        mock_run.return_value = Mock(returncode=check_returncode)
+    with patch.object(determine_jobs, "changed_files", return_value=changed_files):
         result = determine_jobs.should_run_clang_tidy()
         assert result == expected_result
-
-
-def test_should_run_clang_tidy_hash_check_exception() -> None:
-    """Test should_run_clang_tidy when hash check fails with exception."""
-    # When hash check fails, clang-tidy should run as a safety measure
-    with (
-        patch.object(determine_jobs, "changed_files", return_value=["README.md"]),
-        patch("subprocess.run", side_effect=Exception("Hash check failed")),
-    ):
-        result = determine_jobs.should_run_clang_tidy()
-        assert result is True  # Fail safe - run clang-tidy
 
 
 def test_should_run_clang_tidy_with_branch() -> None:
     """Test should_run_clang_tidy with branch argument."""
     with patch.object(determine_jobs, "changed_files") as mock_changed:
         mock_changed.return_value = []
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = Mock(returncode=1)  # Hash unchanged
-            determine_jobs.should_run_clang_tidy("release")
-            # Changed files is called twice now - once for hash check, once for .clang-tidy.hash check
-            assert mock_changed.call_count == 2
-            mock_changed.assert_has_calls([call("release"), call("release")])
+        determine_jobs.should_run_clang_tidy("release")
+        # changed_files is queried against the given branch by both the
+        # config-file full-scan check and the C++ extension check.
+        mock_changed.assert_called_with("release")
 
 
 @pytest.mark.parametrize(
