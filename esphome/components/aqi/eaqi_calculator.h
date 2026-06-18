@@ -23,12 +23,12 @@ class EAQICalculator : public AbstractAQICalculator {
   static constexpr int INDEX_GRID[NUM_LEVELS][2] = {{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}, {6, 6}};
 
   static constexpr float PM2_5_GRID[NUM_LEVELS][2] = {
-      {0.0f, 5.0f}, {5.0f, 15.0f}, {15.0f, 50.0f},
+      {0.0f, 5.0f},   {5.0f, 15.0f},   {15.0f, 50.0f},
       {50.0f, 90.0f}, {90.0f, 140.0f}, {140.0f, std::numeric_limits<float>::max()},
   };
 
   static constexpr float PM10_0_GRID[NUM_LEVELS][2] = {
-      {0.0f, 15.0f}, {15.0f, 45.0f}, {45.0f, 120.0f},
+      {0.0f, 15.0f},    {15.0f, 45.0f},   {45.0f, 120.0f},
       {120.0f, 195.0f}, {195.0f, 270.0f}, {270.0f, std::numeric_limits<float>::max()},
   };
 
