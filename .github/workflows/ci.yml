@@ -820,7 +820,7 @@ jobs:
         run: echo ${{ matrix.components }}
 
       - name: Cache apt packages
-        uses: awalsh128/cache-apt-pkgs-action@681749ae568c81c2037cb9185e38b709b261bd2f # v1.5.3
+        uses: awalsh128/cache-apt-pkgs-action@acb598e5ddbc6f68a970c5da0688d2f3a9f04d05 # v1.5.3
         with:
           packages: libsdl2-dev
           version: 1.0
