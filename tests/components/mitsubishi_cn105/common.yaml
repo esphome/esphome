@@ -6,6 +6,7 @@ mitsubishi_cn105:
 
 climate:
   - platform: mitsubishi_cn105
+    mitsubishi_cn105_id: ac
     name: "AC Test"
     supported_swing_modes: BOTH
 
