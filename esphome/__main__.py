@@ -1772,9 +1772,8 @@ def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
     import json
 
     if CORE.using_toolchain_esp_idf:
-        # The native ESP-IDF toolchain has no `pio run -t idedata`; idedata is
-        # derived from the existing build's compile_commands.json, so the
-        # configuration must already be compiled (returns None otherwise).
+        # Native ESP-IDF derives idedata from the build's compile_commands.json,
+        # so the configuration must already be compiled.
         from esphome.espidf import toolchain as espidf_toolchain
 
         idedata = espidf_toolchain.get_idedata()
