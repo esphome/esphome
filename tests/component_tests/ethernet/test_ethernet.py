@@ -25,7 +25,7 @@ def test_rejects_wifi_and_ethernet_without_priority() -> None:
 
 
 def test_rejects_wifi_and_ethernet_with_incomplete_priority() -> None:
-    """A priority list that does not contain both interfaces is not enough."""
+    """A priority list missing an interface is rejected and names what's missing."""
     fv.full_config.set(
         {
             "wifi": {},
@@ -33,5 +33,5 @@ def test_rejects_wifi_and_ethernet_with_incomplete_priority() -> None:
             "network": {CONF_PRIORITY: _validate_priority_list(["ethernet"])},
         }
     )
-    with pytest.raises(Invalid, match="cannot be used together with component wifi"):
+    with pytest.raises(Invalid, match=r"must.*list both interfaces; missing: wifi"):
         _final_validate({})

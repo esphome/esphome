@@ -688,14 +688,20 @@ def _final_validate_rmii_pins(config: ConfigType) -> None:
 def _final_validate(config: ConfigType) -> ConfigType:
     """Final validation for Ethernet component."""
     # Allow ethernet + wifi coexistence only when both are declared in network: priority:.
-    full = fv.full_config.get()
-    priority_ifaces = get_priority_interfaces_from_full_config(full)
-    has_priority_config = "ethernet" in priority_ifaces and "wifi" in priority_ifaces
-    if "wifi" in full and not has_priority_config:
-        raise cv.Invalid(
-            "Component ethernet cannot be used together with component wifi "
-            "unless both are listed under 'network: priority:'"
-        )
+    if "wifi" in fv.full_config.get():
+        priority_ifaces = get_priority_interfaces_from_full_config(fv.full_config.get())
+        missing = [i for i in ("ethernet", "wifi") if i not in priority_ifaces]
+        if missing and priority_ifaces:
+            # A priority list exists but is incomplete: point at what to add.
+            raise cv.Invalid(
+                "When ethernet and wifi are used together, 'network: priority:' must "
+                f"list both interfaces; missing: {', '.join(missing)}"
+            )
+        if missing:
+            raise cv.Invalid(
+                "Component ethernet cannot be used together with component wifi "
+                "unless both are listed under 'network: priority:'"
+            )
 
     _final_validate_spi(config)
     _final_validate_rmii_pins(config)
