@@ -28,7 +28,7 @@ speaker:
 
 - **output_speaker** (**Required**, [ID](/guides/configuration-types#id)): The [speaker](/components/speaker/) to output the resampled audio.
 - **buffer_duration** (*Optional*, [Time](/guides/configuration-types#time)): The duration of the internal ring buffer. Larger values may reduce stuttering but use more memory. Defaults to `500ms`.
-- **bits_per_sample** (*Optional*, positive integer): The audio sample bit depth after resampling. Defaults to the output speaker's bits per sample.
+- **bits_per_sample** (*Optional*, positive integer or `passthrough`): The audio sample bit depth after resampling. Defaults to `passthrough`, where the bit depth matches the input audio.
 - **sample_rate** (*Optional*, positive integer): Sample rate to convert to. Must be between `8000` and `48000`. Defaults to the output speaker's sample rate.
 - **filters** (*Optional*, positive integer): The number of windowed sinc interpolation filters to use. Must be between `2` and `1024`. Defaults to `16`.
 - **taps** (*Optional*, positive integer): The number of taps per windowed sinc interpolation filter. Must between `16` and `128` and divisible by 4. Defaults to `16`.

@@ -1,0 +1,26 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Monochrome IMU icon">
+  <g fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round">
+
+    <!-- Gyroscope rings -->
+    <circle cx="256" cy="256" r="92"/>
+    <circle cx="256" cy="256" r="48"/>
+
+    <!-- Accelerometer axes -->
+    <!-- X axis -->
+    <line x1="256" y1="256" x2="408" y2="256"/>
+    <polyline points="376,224 408,256 376,288"/>
+
+    <!-- Y axis -->
+    <line x1="256" y1="256" x2="256" y2="104"/>
+    <polyline points="224,136 256,104 288,136"/>
+
+    <!-- Z axis -->
+    <line x1="256" y1="256" x2="152" y2="360"/>
+    <polyline points="150,316 152,360 196,358"/>
+
+    <!-- Motion arcs -->
+    <path d="M120 200 A160 160 0 0 1 200 120"/>
+    <path d="M312 120 A160 160 0 0 1 392 200"/>
+    <path d="M392 312 A160 160 0 0 1 312 392"/>
+  </g>
+</svg>

@@ -5,10 +5,17 @@ title: "NeoPixelBus Light"
 import APIRef from '@components/APIRef.astro';
 
 
-> [!WARNING]
-> NeoPixelBus does **not** work with ESP-IDF.
+> [!CAUTION]
+> **ESP32 support deprecated in 2026.6.** The upstream
+> [NeoPixelBus](https://github.com/Makuna/NeoPixelBus/) library is no longer actively maintained, and it does
+> not build on top of ESP-IDF 6. ESP32 support will be removed no later than 2027.1, and may happen sooner once
+> ESPHome moves to ESP-IDF 6. ESP8266 is not affected.
 >
-> For clockless lights, you can use [Esp32 Rmt Led Strip](/components/light/esp32_rmt_led_strip/), and for SPI LEDs see [Spi Led Strip](/components/light/spi_led_strip/).
+> Migration paths for ESP32:
+> - Clockless lights (WS2811, WS2812, SK6812, etc.) → [Esp32 Rmt Led Strip](/components/light/esp32_rmt_led_strip/).
+> - 2-wire SPI lights (DotStar, WS2801, LPD8806, P9813) → [Spi Led Strip](/components/light/spi_led_strip/).
+>
+> NeoPixelBus does **not** work with ESP-IDF (use the migration paths above).
 
 The `neopixelbus` light platform allows you to create RGB lights
 in ESPHome for individually addressable lights like NeoPixel or WS2812.

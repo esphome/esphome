@@ -160,7 +160,7 @@ wifi:
   password: !secret wifi_password
 
   # Set minimum WiFi security - reject connections to networks with weaker security
-  # Default is WPA2 on ESP32, WPA on ESP8266 (will change to WPA2 in 2026.6.0)
+  # Default is WPA2 on ESP32 and ESP8266
   min_auth_mode: WPA2  # Or WPA3 for ESP32 if all your networks support it
 
   # Optional: Fallback AP with password (only if needed)
@@ -172,8 +172,7 @@ wifi:
 
 **Best practices:**
 
-- **ESP32 users:** The default `min_auth_mode: WPA2` is secure and allows WPA2 and WPA3 networks - only set `min_auth_mode: WPA3` if you want to restrict to WPA3-only networks
-- **ESP8266 users:** Explicitly set `min_auth_mode: WPA2` to avoid the insecure WPA default
+- The default `min_auth_mode: WPA2` is secure on both ESP32 and ESP8266 and allows WPA2 and WPA3 networks - on ESP32 you can set `min_auth_mode: WPA3` to restrict to WPA3-only networks
 - **WPA (TKIP) has known vulnerabilities** - only use if you have a legacy router that can't be upgraded
 - Never use open or WEP-encrypted networks
 - Use WPA2 (minimum) or WPA3 (recommended) on your router

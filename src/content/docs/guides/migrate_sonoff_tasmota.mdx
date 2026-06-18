@@ -145,6 +145,9 @@ If you migrated an ESP32 device from Tasmota v12 or later using the safeboot-bas
 > [!CAUTION]
 > There is a risk of bricking the device if the power is interrupted or the ESP is reset during a partition table update, requiring serial flashing to repair it. Make sure you have a stable power supply. The update is usually completed within less than 15 seconds after running the `esphome upload` command.
 
+> [!IMPORTANT]
+> Migrating from Tasmota to ESPHome changes the location of the NVS partition, invalidating all configuration data stored in non-volatile memory. If you used Captive Portal or Improv to configure your WiFi credentials you need to do that again before continuing to the next step. This only happens once during the migration: after the first successful `esphome upload --partition-table` command for the direct method and indirect methods A and B, or after the final `esphome upload --partition-table` command for indirect method C.
+
 > [!NOTE]
 > Picking a method whose size limit is too small for your running app does **not** brick the device. The device verifies the new partition table before writing anything to flash and rejects the upload with an error if the running app would not fit. You can safely retry with the next-larger method. Only power loss or a reset *during* a partition table update that has already passed verification can leave the device unable to boot.
 

@@ -157,6 +157,8 @@ If you are using a framework that does not support SPI polling mode,
 
 - **mac_address** (*Optional*, MAC Address): Set the MAC address of the ethernet interface.
 
+- **enable_on_boot** (*Optional*, boolean): If enabled, the Ethernet interface will be enabled on boot. Defaults to `true`.
+
 - **on_connect** (*Optional*, [Automation](/automations)): An action to be performed when a connection is established.
 - **on_disconnect** (*Optional*, [Automation](/automations)): An action to be performed when the connection is dropped.
 
@@ -534,6 +536,74 @@ ethernet:
   on_disconnect:
     - switch.turn_off: switch1
 ```
+
+## Actions
+
+<span id="ethernet-on_disable"></span>
+
+### `ethernet.disable` Action
+
+This action turns off the Ethernet interface on demand.
+
+```yaml
+on_...:
+  then:
+    - ethernet.disable:
+```
+
+> [!NOTE]
+> Be mindful of the reboot timeout set for the [API component](/components/api/) if you disable Ethernet on a device that has no other network interface configured. If Ethernet remains off for longer than that timeout, the device will reboot!
+
+<span id="ethernet-on_enable"></span>
+
+### `ethernet.enable` Action
+
+This action turns on the Ethernet interface on demand.
+
+```yaml
+on_...:
+  then:
+    - ethernet.enable:
+```
+
+> [!NOTE]
+> The configuration option `enable_on_boot` can be set to `false` if you do not want Ethernet to be enabled on boot.
+
+## Conditions
+
+<span id="ethernet-connected_condition"></span>
+
+### `ethernet.connected` Condition
+
+This [Condition](/automations/actions#all-conditions) checks if the device currently has an Ethernet connection.
+
+```yaml
+on_...:
+  if:
+    condition:
+      ethernet.connected:
+    then:
+      - logger.log: Ethernet is connected!
+```
+
+The lambda equivalent for this is `id(ethernet_id).is_connected()`.
+
+<span id="ethernet-enabled_condition"></span>
+
+### `ethernet.enabled` Condition
+
+This [Condition](/automations/actions#all-conditions) checks if the Ethernet interface is currently enabled.
+
+```yaml
+on_...:
+  if:
+    condition:
+      ethernet.enabled:
+    then:
+      - logger.log: Ethernet is enabled!
+```
+
+The lambda equivalent for this is `id(ethernet_id).is_enabled()`.
 
 ## See Also
 

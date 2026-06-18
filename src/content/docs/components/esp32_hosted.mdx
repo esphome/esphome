@@ -70,6 +70,10 @@ wifi:
 - **sdio_frequency** (*Optional*, frequency): Set the speed of communication between the host and
   the co-processor. If you experience loss of communication, or reboots, then try reducing this value.
   The value can be between 400kHz and 50MHz, with a default of 40MHz.
+- **use_psram** (*Optional*, boolean): Place the SDIO transport buffer pool in PSRAM instead of
+  internal RAM. Requires the host MCU to have DMA-capable PSRAM enabled (ESP32-P4, ESP32-S3).
+  Recommended when the host firmware uses most of internal RAM (for example, a large LVGL UI);
+  without it, boot can fail with an `sdio_mempool_create` assert. Defaults to `false`.
 
 ## SPI Transport
 
@@ -110,6 +114,10 @@ wifi:
 - **frequency** (*Optional*, frequency): The SPI clock frequency. Maximum depends on variant: 10MHz for ESP32, 40MHz for all other variants. Defaults to the maximum for each variant.
 - **handshake_active_high** (*Optional*, boolean): Polarity of the handshake signal. Defaults to `true`.
 - **data_ready_active_high** (*Optional*, boolean): Polarity of the data ready signal. Defaults to `true`.
+- **use_psram** (*Optional*, boolean): Place the SPI transport buffer pool in PSRAM instead of
+  internal RAM. Requires the host MCU to have DMA-capable PSRAM enabled (ESP32-P4, ESP32-S3).
+  Recommended when the host firmware uses most of internal RAM (for example, a large LVGL UI);
+  without it, boot can fail with an `spi_mempool_create` assert. Defaults to `false`.
 
 ## Updating co-processor firmware
 

@@ -105,6 +105,9 @@ ota:
 > [!CAUTION]
 > There is a risk of bricking the device if the power is interrupted or the ESP is reset during a partition table update, requiring serial flashing to repair it. Make sure you have a stable power supply. The update is usually completed within less than 15 seconds after running the `esphome upload` command.
 
+> [!IMPORTANT]
+> If the location of the NVS partition changes during a partition table update, the data stored in it won't be available after the update. In that case, if you used Captive Portal or Improv to configure your WiFi credentials you need to configure them again after updating.
+
 Open the ESPHome logs for detailed information about potential errors. To perform the partition table update you can run the following command:
 
 ```

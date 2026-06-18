@@ -72,9 +72,8 @@ The transmitter is connected to the `i2s_dout_pin` (the same pin used for standa
 
 When `spdif_mode` is enabled, the following settings are required:
 
-- **Sample Rate**: Only `44100` Hz (CD quality) or `48000` Hz (DVD/DAT quality) are supported
-- **Channels**: Must be set to `stereo` (2 channels)
-- **bits_per_sample**: Must be set to `16bit`
+- **sample_rate**: Only `44100` Hz (CD quality) or `48000` Hz (DVD/DAT quality) are supported
+- **channel**: Must be set to `stereo` (2 channels)
 - **use_apll**: Must be set to `true` for accurate clock generation
 - **i2s_mode**: Must be set to `primary`
 - **i2s_comm_fmt**: Must be set to `stand_i2s`
@@ -96,7 +95,6 @@ speaker:
     spdif_mode: true
     use_apll: true
     sample_rate: 48000
-    bits_per_sample: 16bit
     channel: stereo
     timeout: never
 ```

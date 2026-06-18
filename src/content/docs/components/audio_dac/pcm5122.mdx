@@ -1,0 +1,103 @@
+---
+description: "Instructions for using ESPHome's PCM5122 audio DAC platform to play media from your devices."
+title: "PCM5122"
+---
+import APIRef from '@components/APIRef.astro';
+
+
+The `pcm5122` platform allows your ESPHome devices to use the PCM5122 high-performance stereo audio DAC.
+This allows the playback of audio via the microcontroller from a range of sources via [Speaker](/components/speaker/) or
+[Media Player](/components/media_player/).
+
+The [I²C bus](/components/i2c) is required in your configuration as this is used to communicate with the PCM5122.
+
+```yaml
+# Example configuration entry
+audio_dac:
+  - platform: pcm5122
+    id: pcm5122_dac
+```
+
+<span id="config-pcm5122"></span>
+
+## Configuration variables
+
+- **address** (*Optional*, int): The I²C address of the device. Defaults to `0x4D`.
+- **bits_per_sample** (*Optional*, enum): The bit depth of the audio samples. One of `16bit`, `24bit`, or `32bit`. Defaults to `16bit`.
+- **i2c_id** (*Optional*): The ID of the [I²C bus](/components/i2c) the PCM5122 is connected to.
+- All other options from [Audio DAC](/components/audio_dac#config-audio_dac).
+
+## Automations
+
+All [Audio DAC Automations](/components/audio_dac#automations-audio_dac) are supported by this platform.
+
+## Pin configuration
+
+The PCM5122 exposes GPIO pins 3 through 6 that can be used as general-purpose input or output pins
+within ESPHome. These pins can be used anywhere a GPIO pin is accepted.
+
+```yaml
+# Example: use PCM5122 GPIO4 as an output (e.g. to enable an amplifier)
+switch:
+  - platform: gpio
+    name: "Amplifier Enable"
+    pin:
+      pcm5122: pcm5122_dac
+      number: 4
+      mode:
+        output: true
+      inverted: false
+```
+
+### Pin configuration variables
+
+- **pcm5122** (**Required**, [ID](/guides/configuration-types#id)): The ID of the PCM5122 component.
+- **number** (**Required**, int): The GPIO pin number. Must be between `3` and `6`.
+- **mode** (**Required**): Configure the pin direction. Exactly one of `input` or `output` must be set to `true`.
+  - **input** (*Optional*, bool): Set as input pin. Defaults to `false`.
+  - **output** (*Optional*, bool): Set as output pin. Defaults to `false`.
+- **inverted** (*Optional*, bool): Invert the logic level of the pin. Defaults to `false`.
+
+## Configuration Example
+
+```yaml
+i2c:
+  sda: GPIOXX
+  scl: GPIOXX
+
+i2s_audio:
+  - id: i2s_output
+    i2s_lrclk_pin: GPIOXX
+    i2s_bclk_pin: GPIOXX
+
+audio_dac:
+  - platform: pcm5122
+    id: pcm5122_dac
+    address: 0x4D
+    bits_per_sample: 16bit
+
+speaker:
+  - platform: i2s_audio
+    i2s_audio_id: i2s_output
+    id: speaker_id
+    i2s_dout_pin: GPIOXX
+    dac_type: external
+    audio_dac: pcm5122_dac
+
+# Use PCM5122 GPIO4 to control an external amplifier enable pin
+switch:
+  - platform: gpio
+    name: "Amplifier Enable"
+    pin:
+      pcm5122: pcm5122_dac
+      number: 4
+      mode:
+        output: true
+    restore_mode: RESTORE_DEFAULT_ON
+```
+
+## See Also
+
+- [Audio DAC Component](/components/audio_dac/)
+- <APIRef text="pcm5122.h" path="pcm5122/pcm5122.h" />
+- <APIRef text="audio_dac.h" path="audio_dac/audio_dac.h" />

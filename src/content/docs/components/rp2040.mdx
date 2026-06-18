@@ -56,11 +56,28 @@ automatically reset the device into BOOTSEL mode.
 
 ## Configuration variables
 
-- **board** (**Required**, string): The PlatformIO board identifier. Common boards include `rpipicow`
+- **variant** (*Optional*, string): The RP2040-series chip to target. One of `rp2040` or `rp2350`.
+  This must match the hardware in use, or it will fail to flash.
+
+- **board** (*Optional*, string): The PlatformIO board identifier. Common boards include `rpipicow`
   (Raspberry Pi Pico W), `rpipico` (Raspberry Pi Pico), `rpipico2w` (Raspberry Pi Pico 2 W), and
   `rpipico2` (Raspberry Pi Pico 2). Over 140 boards from the
   [arduino-pico](https://github.com/earlephilhower/arduino-pico) framework are supported. Any board
   supported by the framework can be used here.
+
+> [!NOTE]
+> At least one of `board` or `variant` must be specified. If `variant` alone is specified, the board
+> configuration will be automatically filled using the canonical Raspberry Pi Foundation reference board
+> for that variant: `rpipicow` (Pico W) for `rp2040` and `rpipico2w` (Pico 2 W) for `rp2350`. Both may
+> be specified, but they must define the same variant. If the board is not recognised by ESPHome,
+> `variant` must be specified explicitly.
+
+> [!WARNING]
+> Some components are restricted to specific boards rather than the whole variant. The [WiFi](/components/wifi/)
+> component, for example, requires a board with the Cypress CYW43439 wireless chip (such as `rpipicow` or
+> `rpipico2w`); selecting a board without it (such as `rpipico` or `rpipico2`) will fail validation even though
+> the variant is otherwise capable.
+
 - **watchdog_timeout** (*Optional*, [Time](/guides/configuration-types#time)): The timeout to apply to the RP2040 watchdog.
   When the device hangs for that period of time, it will reboot. Defaults to `8388ms` (maximum). Set to `0s` to
   disable the watchdog entirely.
