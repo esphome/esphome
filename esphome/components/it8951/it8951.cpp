@@ -882,7 +882,7 @@ void IT8951Display::fill(Color color) {
     return;
   }
   uint8_t packed = this->color_to_nibble_(color);
-  if (this->reversed_)
+  if (this->invert_colors_)
     packed = 0x0F - packed;
   if (packed != 0x00 && packed != 0x0F)
     this->has_grayscale_ = true;
@@ -899,7 +899,7 @@ void HOT IT8951Display::draw_pixel_at(int x, int y, Color color) {
   if (!this->rotate_coordinates_(x, y))
     return;
   uint8_t internal_color = this->color_to_nibble_(color) & 0x0F;
-  if (this->reversed_)
+  if (this->invert_colors_)
     internal_color = 0x0F - internal_color;
   if (internal_color != 0x00 && internal_color != 0x0F)
     this->has_grayscale_ = true;
@@ -939,7 +939,7 @@ void IT8951Display::dump_config() {
                 this->use_legacy_dpy_area_ ? "DPY_AREA (0x0034, legacy)" : "DPY_BUF_AREA (0x0037)");
   ESP_LOGCONFIG(TAG, "  Sleep when done: %s", YESNO(this->sleep_when_done_));
   ESP_LOGCONFIG(TAG, "  Full update every: %u", this->full_update_every_);
-  ESP_LOGCONFIG(TAG, "  Reversed colors: %s", YESNO(this->reversed_));
+  ESP_LOGCONFIG(TAG, "  Reversed colors: %s", YESNO(this->invert_colors_));
   ESP_LOGCONFIG(TAG, "  Force 1bpp: %s", YESNO(this->force_1bpp_));
   ESP_LOGCONFIG(TAG, "  Reset duration: %" PRIu32 "ms", this->reset_duration_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);

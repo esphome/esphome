@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_FULL_UPDATE_EVERY,
     CONF_HEIGHT,
     CONF_ID,
+    CONF_INVERT_COLORS,
     CONF_LAMBDA,
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
@@ -24,7 +25,6 @@ from esphome.const import (
     CONF_PAGES,
     CONF_RESET_DURATION,
     CONF_RESET_PIN,
-    CONF_REVERSED,
     CONF_ROTATION,
     CONF_SLEEP_WHEN_DONE,
     CONF_SWAP_XY,
@@ -71,13 +71,13 @@ UPDATE_MODE_OPTIONS = {
     "GLD16": UpdateMode.UPDATE_MODE_GLD16,
     "DU4": UpdateMode.UPDATE_MODE_DU4,
     "A2": UpdateMode.UPDATE_MODE_A2,
-    "fast": UpdateMode.UPDATE_MODE_DU,
-    "full": UpdateMode.UPDATE_MODE_GC16,
+    "FAST": UpdateMode.UPDATE_MODE_DU,
+    "FULL": UpdateMode.UPDATE_MODE_GC16,
 }
 # Validator preserves case as written (matches existing user-facing strings).
-update_mode = cv.one_of(*UPDATE_MODE_OPTIONS, upper=False)
+update_mode = cv.one_of(*UPDATE_MODE_OPTIONS, upper=True)
 # Action validator maps YAML mode directly to C++ UpdateMode enum values.
-action_update_mode = cv.enum(UPDATE_MODE_OPTIONS, upper=False)
+action_update_mode = cv.enum(UPDATE_MODE_OPTIONS, upper=True)
 
 # Transform flag values mirror the C++ TRANSFORM_* constants.
 _TRANSFORM_NONE = 0
@@ -151,7 +151,7 @@ IT8951Model(
     # for grayscale modes.
     force_temperature=25,
     sleep_when_done=False,
-    data_rate=4_000_000,
+    data_rate=20_000_000,
     mirror_x=True,
 )
 
@@ -223,7 +223,7 @@ def _model_schema(config):
                 }
             ),
             cv.Optional(
-                CONF_REVERSED, default=model.get_default(CONF_REVERSED, False)
+                CONF_INVERT_COLORS, default=model.get_default(CONF_INVERT_COLORS, False)
             ): cv.boolean,
             cv.Optional(
                 CONF_SLEEP_WHEN_DONE,
@@ -346,16 +346,20 @@ async def to_code(config):
     if busy_pin := config.get(CONF_BUSY_PIN):
         cg.add(var.set_busy_pin(await cg.gpio_pin_expression(busy_pin)))
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
-    if CONF_RESET_DURATION in config:
-        cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))
-    cg.add(var.set_reversed(config[CONF_REVERSED]))
-    cg.add(var.set_sleep_when_done(config[CONF_SLEEP_WHEN_DONE]))
+    if (reset_duration := config.get(CONF_RESET_DURATION)) is not None:
+        cg.add(var.set_reset_duration(reset_duration))
+    if config.get(CONF_INVERT_COLORS):
+        cg.add(var.set_invert_colors(True))
+    if config.get(CONF_SLEEP_WHEN_DONE):
+        cg.add(var.set_sleep_when_done(True))
     cg.add(var.set_vcom(config[CONF_VCOM]))
     cg.add(var.set_vcom_register(config[CONF_VCOM_REGISTER]))
     if CONF_FORCE_TEMPERATURE in config:
         cg.add(var.set_force_temperature(config[CONF_FORCE_TEMPERATURE]))
-    cg.add(var.set_use_legacy_dpy_area(config[CONF_USE_LEGACY_DPY_AREA]))
-    cg.add(var.set_force_1bpp(config[CONF_FORCE_1BPP]))
+    if config.get(CONF_USE_LEGACY_DPY_AREA):
+        cg.add(var.set_use_legacy_dpy_area(True))
+    if config.get(CONF_FORCE_1BPP):
+        cg.add(var.set_force_1bpp(True))
     if CONF_UPDATE_MODE in config:
         cg.add(var.set_update_mode(UPDATE_MODE_OPTIONS[config[CONF_UPDATE_MODE]]))
 
@@ -373,7 +377,7 @@ async def to_code(config):
     automation.maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(IT8951Display),
-            cv.Optional(CONF_MODE): cv.templatable(action_update_mode),
+            cv.Optional(CONF_MODE): cv.templatable(update_mode),
         }
     ),
     synchronous=True,
@@ -381,7 +385,10 @@ async def to_code(config):
 async def it8951_update_action_to_code(config, action_id, template_arg, args):
     display_var = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, display_var)
-    if CONF_MODE in config:
-        template_ = await cg.templatable(config[CONF_MODE], args, UpdateMode)
-        cg.add(var.set_mode(template_))
+    if mode := config.get(CONF_MODE):
+        if cg.is_template(mode):
+            mode = await cg.templatable(config[CONF_MODE], args, UpdateMode)
+        else:
+            mode = UPDATE_MODE_OPTIONS[mode]
+        cg.add(var.set_mode(mode))
     return var

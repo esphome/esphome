@@ -159,7 +159,7 @@ class IT8951Display : public Display,
   void set_busy_pin(GPIOPin *pin) { this->busy_pin_ = pin; }
   void set_reset_duration(uint32_t ms) { this->reset_duration_ = ms; }
   void set_full_update_every(uint8_t n) { this->full_update_every_ = n; }
-  void set_reversed(bool reversed) { this->reversed_ = reversed; }
+  void set_invert_colors(bool invert_colors) { this->invert_colors_ = invert_colors; }
   void set_sleep_when_done(bool s) { this->sleep_when_done_ = s; }
   void set_vcom(uint16_t vcom_mv) { this->vcom_ = vcom_mv; }
   void set_vcom_register(uint16_t selector) { this->vcom_register_ = selector; }
@@ -290,7 +290,7 @@ class IT8951Display : public Display,
   int16_t force_temperature_{DEFAULT_FORCE_TEMP_C};
   bool force_temperature_set_{false};
   bool use_legacy_dpy_area_{false};
-  bool reversed_{false};
+  bool invert_colors_{false};
   bool sleep_when_done_{false};
   bool force_1bpp_{false};
   UpdateMode default_update_mode_{UPDATE_MODE_NONE};
