@@ -792,7 +792,7 @@ def enable_runtime_power_save_control():
     CORE.data[RUNTIME_POWER_SAVE_KEY] = True
 
 
-def enable_runtime_roaming_suppression():
+def enable_runtime_roaming_suppression() -> None:
     """Enable runtime suppression of post-connect roaming scans.
 
     Components that are disrupted by the radio briefly going off-channel during a
