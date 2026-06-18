@@ -164,7 +164,10 @@ def test_get_idedata_prog_path_points_at_firmware_elf(setup_core: Path) -> None:
     ):
         result = toolchain.get_idedata()
 
-    assert result["prog_path"].endswith("build/firmware.elf")
+    # Use Path semantics so the contract holds on Windows too (backslashes).
+    prog_path = Path(result["prog_path"])
+    assert prog_path.name == "firmware.elf"
+    assert prog_path.parent.name == "build"
 
 
 def test_get_idf_env_sets_git_ceiling_directories(setup_core: Path) -> None:
