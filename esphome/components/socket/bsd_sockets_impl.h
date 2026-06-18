@@ -120,6 +120,9 @@ class BSDSocketImpl {
       if (n < 0)
         return total > 0 ? total : n;
       total += n;
+      if (static_cast<size_t>(n) < iov[i].iov_len)
+        break;  // partial write: stop so caller resumes from the correct stream offset
+
     }
     return total;
 #else
