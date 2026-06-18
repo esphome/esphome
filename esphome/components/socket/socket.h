@@ -111,7 +111,6 @@ std::unique_ptr<Socket> socket_loop_monitored(int domain, int type, int protocol
 // LWIP_TCP has separate Socket/ListenSocket types — needs distinct factory functions.
 std::unique_ptr<ListenSocket> socket_listen(int domain, int type, int protocol);
 std::unique_ptr<ListenSocket> socket_listen_loop_monitored(int domain, int type, int protocol);
-std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol);
 #else
 // BSD and LWIP_SOCKETS: Socket == ListenSocket, so listen variants just delegate.
 inline std::unique_ptr<ListenSocket> socket_listen(int domain, int type, int protocol) {
@@ -120,14 +119,11 @@ inline std::unique_ptr<ListenSocket> socket_listen(int domain, int type, int pro
 inline std::unique_ptr<ListenSocket> socket_listen_loop_monitored(int domain, int type, int protocol) {
   return socket_loop_monitored(domain, type, protocol);
 }
-inline std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol) {
-#if USE_NETWORK_IPV6
-  return socket_loop_monitored(AF_INET6, type, protocol);
-#else
-  return socket_loop_monitored(AF_INET, type, protocol);
 #endif
-}
-#endif
+/// Create a listening socket in the newest available IP domain and monitor it for data in
+/// the main loop. On IPv6 builds the socket is dual-stack (IPV6_V6ONLY cleared) so it
+/// also receives IPv4 traffic via IPv4-mapped addresses.
+std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol);
 
 /// Set a sockaddr to the specified address and port for the IP version used by socket_ip().
 /// @param addr Destination sockaddr structure
@@ -144,6 +140,20 @@ inline socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const st
 
 /// Set a sockaddr to the any address and specified port for the IP version used by socket_ip().
 socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t port);
+
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+/// Join an IPv4 multicast group and fill addr for a subsequent bind().
+/// Handles AF_INET (IP_ADD_MEMBERSHIP) and AF_INET6 (IPV6_JOIN_GROUP via IPv4-mapped address)
+/// transparently based on the build's IP version.
+/// @param sock  The socket to join the group on
+/// @param addr  Destination sockaddr to fill for bind()
+/// @param addrlen  Size of addr buffer
+/// @param ip_address  Null-terminated IPv4 multicast address string (e.g. "239.0.0.1")
+/// @param port  Port number in host byte order
+/// @return Size of the sockaddr filled, or 0 on error (errno set)
+socklen_t join_multicast_group(Socket *sock, struct sockaddr *addr, socklen_t addrlen, const char *ip_address,
+                               uint16_t port);
+#endif
 
 /// Format sockaddr into caller-provided buffer, returns length written (excluding null)
 size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::span<char, SOCKADDR_STR_LEN> buf);

@@ -69,6 +69,7 @@ from .const import (
     KEY_FLASH_SIZE,
     KEY_FULL_CERT_BUNDLE,
     KEY_IDF_VERSION,
+    KEY_NETWORK_SDKCONFIG,
     KEY_PATH,
     KEY_REF,
     KEY_REPO,
@@ -595,6 +596,59 @@ SdkconfigValueType = bool | int | HexInt | str | RawSdkconfigValue
 def add_idf_sdkconfig_option(name: str, value: SdkconfigValueType):
     """Set an esp-idf sdkconfig value."""
     CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS][name] = value
+
+
+@dataclass
+class NetworkSdkconfigData:
+    """Inputs for the network-related esp32 sdkconfig flags, reconciled at FINAL.
+
+    Components call the request_*() helpers below (and esp32's own to_code fills
+    in enable_lwip_dhcp_server) instead of setting the WiFi/Ethernet/Bluetooth
+    sdkconfig flags directly; the single _reconcile_network_sdkconfig() coroutine
+    then decides the final values so they no longer depend on call order.
+    """
+
+    wifi: bool = False  # WiFi component active (STA and/or AP)
+    wifi_ap: bool = False  # WiFi AP mode configured
+    ethernet: bool = False  # Ethernet component active
+    bluetooth: bool = False  # any BLE component active
+    ble_42: bool = False  # BLE 4.2 features needed
+    software_coexistence: bool = False  # WiFi/BT software coexistence requested
+    # esp32 advanced enable_lwip_dhcp_server option (True/False/None=unset)
+    enable_lwip_dhcp_server: bool | None = None
+
+
+def _network_sdkconfig() -> NetworkSdkconfigData:
+    data = CORE.data[KEY_ESP32]
+    if KEY_NETWORK_SDKCONFIG not in data:
+        data[KEY_NETWORK_SDKCONFIG] = NetworkSdkconfigData()
+    return data[KEY_NETWORK_SDKCONFIG]
+
+
+def request_wifi(ap: bool = False) -> None:
+    """Request the WiFi stack. Pass ap=True when AP mode is configured."""
+    net = _network_sdkconfig()
+    net.wifi = True
+    if ap:
+        net.wifi_ap = True
+
+
+def request_ethernet() -> None:
+    """Request the Ethernet stack."""
+    _network_sdkconfig().ethernet = True
+
+
+def request_bluetooth(ble_42: bool = False) -> None:
+    """Request the Bluetooth controller. Pass ble_42=True for 4.2 features."""
+    net = _network_sdkconfig()
+    net.bluetooth = True
+    if ble_42:
+        net.ble_42 = True
+
+
+def request_software_coexistence() -> None:
+    """Request WiFi/BT software coexistence (only valid alongside WiFi)."""
+    _network_sdkconfig().software_coexistence = True
 
 
 def add_idf_component(
@@ -1848,6 +1902,61 @@ async def _set_libc_picolibc_newlib_compat() -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
+async def _reconcile_network_sdkconfig() -> None:
+    """Reconcile WiFi/Ethernet/Bluetooth/coexistence sdkconfig flags.
+
+    Single decision point for flags that multiple components used to set
+    directly (and sometimes with conflicting values). Runs at FINAL priority so
+    every request_*() call (made from the various components' to_code at their
+    own priorities) is seen first. A user-supplied sdkconfig_options value
+    always takes precedence.
+    """
+    net = CORE.data[KEY_ESP32].get(KEY_NETWORK_SDKCONFIG, NetworkSdkconfigData())
+    opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    is_arduino = CORE.using_arduino
+
+    def set_opt(name: str, value: SdkconfigValueType) -> None:
+        # User sdkconfig_options (applied during to_code) win.
+        if name not in opts:
+            add_idf_sdkconfig_option(name, value)
+
+    # Bluetooth: only ever enable when requested. The IDF default is off and
+    # nothing sets these False today, so never write False here.
+    if net.bluetooth:
+        set_opt("CONFIG_BT_ENABLED", True)
+        if net.ble_42:
+            set_opt("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
+
+    # WiFi stack: disable only when Ethernet is present and WiFi is not. WiFi
+    # relies on the IDF default (enabled), so it is never written True here.
+    wifi_disabled = net.ethernet and not net.wifi
+    if wifi_disabled:
+        set_opt("CONFIG_ESP_WIFI_ENABLED", False)
+
+    # Software coexistence: enable when requested (the schema only allows it
+    # alongside WiFi). Disable only in the Ethernet-without-WiFi case.
+    if net.software_coexistence:
+        set_opt("CONFIG_SW_COEXIST_ENABLE", True)
+    elif wifi_disabled:
+        set_opt("CONFIG_SW_COEXIST_ENABLE", False)
+
+    # SoftAP support: drop it when WiFi is used without AP mode (IDF only).
+    if not is_arduino and net.wifi and not net.wifi_ap:
+        set_opt("CONFIG_ESP_WIFI_SOFTAP_SUPPORT", False)
+
+    # LWIP DHCP server: a WiFi-AP-mode / enable_lwip_dhcp_server concern (not
+    # coexistence). Disable when WiFi has no AP (IDF) or the enable_lwip_dhcp_server
+    # option is set to false, unless Arduino+Ethernet needs the symbols to compile.
+    wifi_wants_dhcps_off = not is_arduino and net.wifi and not net.wifi_ap
+    dhcp_server_disabled_by_option = net.enable_lwip_dhcp_server is False
+    arduino_eth_exclusion = is_arduino and net.ethernet
+    if (
+        wifi_wants_dhcps_off or dhcp_server_disabled_by_option
+    ) and not arduino_eth_exclusion:
+        set_opt("CONFIG_LWIP_DHCPS", False)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
 async def _add_yaml_idf_components(components: list[ConfigType]):
     """Add IDF components from YAML config with final priority to override code-added components."""
     for component in components:
@@ -2171,14 +2280,12 @@ async def to_code(config):
     for component_name in advanced.get(CONF_INCLUDE_BUILTIN_IDF_COMPONENTS, []):
         include_builtin_idf_component(component_name)
 
-    # DHCP server: only disable if explicitly set to false
-    # WiFi component handles its own optimization when AP mode is not used
-    # When using Arduino with Ethernet, DHCP server functions must be available
-    # for the Network library to compile, even if not actively used
-    if advanced.get(CONF_ENABLE_LWIP_DHCP_SERVER) is False and not (
-        conf[CONF_TYPE] == FRAMEWORK_ARDUINO and "ethernet" in CORE.loaded_integrations
-    ):
-        add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", False)
+    # DHCP server (CONFIG_LWIP_DHCPS) is reconciled in _reconcile_network_sdkconfig
+    # together with the WiFi component's own AP-mode optimization; record the user's
+    # advanced tristate (True/False/None) for it to consume at FINAL priority.
+    _network_sdkconfig().enable_lwip_dhcp_server = advanced.get(
+        CONF_ENABLE_LWIP_DHCP_SERVER
+    )
     if not advanced[CONF_ENABLE_LWIP_MDNS_QUERIES]:
         add_idf_sdkconfig_option("CONFIG_LWIP_DNS_SUPPORT_MDNS_QUERIES", False)
     if not advanced[CONF_ENABLE_LWIP_BRIDGE_INTERFACE]:
@@ -2396,6 +2503,9 @@ async def to_code(config):
 
     # FINAL priority: runs after every require_libc_picolibc_newlib_compat() call
     CORE.add_job(_set_libc_picolibc_newlib_compat)
+
+    # FINAL priority: runs after every network/coexistence request_*() call
+    CORE.add_job(_reconcile_network_sdkconfig)
 
     # Disable regi2c control functions in IRAM
     # Only needed if using analog peripherals (ADC, DAC, etc.) from ISRs while cache is disabled
