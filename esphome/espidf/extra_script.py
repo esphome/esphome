@@ -6,8 +6,8 @@ section instead of static fields. The script runs under SCons during
 PIO's build and mutates the active ``Environment`` (``env.Append``,
 ``env.Replace``, …) — chiefly to set ``LIBPATH``/``LIBS`` per chip MCU.
 
-ESPHome's PIO→IDF converter (``_generate_idf_component``) doesn't run
-SCons, so these scripts were previously ignored and any library
+ESPHome's PIO→IDF converter doesn't run SCons, so these scripts were
+previously ignored and any library
 relying on them failed to link under ``toolchain: esp-idf``. This
 module provides a small shim that ``exec``s an extra-script with a
 fake ``env`` object, captures the common ``env.Append(...)`` calls,

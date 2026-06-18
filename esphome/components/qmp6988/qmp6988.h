@@ -98,7 +98,7 @@ class QMP6988Component : public PollingComponent, public i2c::I2CDevice {
   void write_oversampling_temperature_(QMP6988Oversampling oversampling_t);
   void write_oversampling_pressure_(QMP6988Oversampling oversampling_p);
   void write_filter_(QMP6988IIRFilter filter);
-  void calculate_pressure_();
+  bool calculate_pressure_();
   void calculate_altitude_(float pressure, float temp);
 
   int32_t get_compensated_pressure_(qmp6988_ik_data_t *ik, int32_t dp, int16_t tx);

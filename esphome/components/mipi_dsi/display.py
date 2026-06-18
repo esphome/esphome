@@ -32,6 +32,7 @@ from esphome.components.mipi import (
     dimension_schema,
     get_color_depth,
     map_sequence,
+    model_schema_extractor,
     power_of_two,
     requires_buffer,
 )
@@ -65,7 +66,7 @@ DOMAIN = "mipi_dsi"
 
 LOGGER = logging.getLogger(DOMAIN)
 
-MIPI_DSI = mipi_dsi_ns.class_("MIPI_DSI", display.Display, cg.Component)
+MipiDsi = mipi_dsi_ns.class_("MipiDsi", display.Display, cg.Component)
 ColorOrder = display.display_ns.enum("ColorMode")
 ColorBitness = display.display_ns.enum("ColorBitness")
 
@@ -114,7 +115,7 @@ def model_schema(config):
     schema = display.FULL_DISPLAY_SCHEMA.extend(
         {
             model.option(CONF_RESET_PIN, cv.UNDEFINED): pins.gpio_output_pin_schema,
-            cv.GenerateID(): cv.declare_id(MIPI_DSI),
+            cv.GenerateID(): cv.declare_id(MipiDsi),
             cv_dimensions(CONF_DIMENSIONS): dimension_schema(
                 model.get_default(CONF_DRAW_ROUNDING, 1)
             ),
@@ -161,6 +162,7 @@ def model_schema(config):
     )
 
 
+@model_schema_extractor(MODELS, model_schema)
 def _config_schema(config):
     config = cv.Schema(
         {
@@ -170,7 +172,9 @@ def _config_schema(config):
     )(config)
     config = model_schema(config)(config)
     model = MODELS[config[CONF_MODEL].upper()]
-    width, height, _offset_width, _offset_height = model.get_dimensions(config)
+    width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
+        model.get_dimensions(config)
+    )
     display.add_metadata(
         config[CONF_ID],
         width,
@@ -204,7 +208,9 @@ async def to_code(config):
     model = MODELS[config[CONF_MODEL].upper()]
     color_depth = COLOR_DEPTHS[get_color_depth(config)]
     pixel_mode = int(config[CONF_PIXEL_MODE].removesuffix("bit"))
-    width, height, _offset_width, _offset_height = model.get_dimensions(config)
+    width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
+        model.get_dimensions(config)
+    )
     var = cg.new_Pvariable(config[CONF_ID], width, height, color_depth, pixel_mode)
 
     sequence = model.get_sequence(config)

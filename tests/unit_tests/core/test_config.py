@@ -20,6 +20,9 @@ from esphome.const import (
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
     KEY_CORE,
+    KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
+    Toolchain,
 )
 from esphome.core import CORE, config
 from esphome.core.config import (
@@ -1161,3 +1164,123 @@ def test_make_app_name_cpp_special_chars_escaped() -> None:
     cpp_expr, _, _ = make_app_name_cpp('my "device"', "buf", "-", add_mac_suffix=False)
     # cpp_string_escape uses octal escapes for quotes
     assert '"' not in cpp_expr[1:-1]  # no unescaped quotes inside the outer quotes
+
+
+@pytest.mark.parametrize(
+    ("lib", "name", "version", "repository"),
+    [
+        ("ArduinoJson", "ArduinoJson", None, None),
+        ("bblanchon/ArduinoJson@7.4.2", "bblanchon/ArduinoJson", "7.4.2", None),
+        (
+            "noise-c=https://github.com/esphome/noise-c.git",
+            "noise-c",
+            None,
+            "https://github.com/esphome/noise-c.git",
+        ),
+    ],
+)
+def test_add_library_str(
+    lib: str, name: str, version: str | None, repository: str | None
+) -> None:
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "esp-idf",
+    }
+
+    config._add_library_str(lib)
+
+    libraries = list(CORE.platformio_libraries.values())
+    assert len(libraries) == 1
+    assert libraries[0].name == name
+    assert libraries[0].version == version
+    assert libraries[0].repository == repository
+
+
+@pytest.mark.asyncio
+async def test_add_platformio_options_native_idf(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """On the native IDF toolchain, build_flags/lib_deps/lib_ignore are
+    honored, upload_speed is silent and everything else warns."""
+    CORE.toolchain = Toolchain.ESP_IDF
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "esp-idf",
+    }
+
+    await config._add_platformio_options(
+        {
+            "build_flags": "-DSINGLE_FLAG",  # string and list forms both valid
+            "lib_deps": ["bblanchon/ArduinoJson@7.4.2"],
+            "lib_ignore": "libsodium",
+            "upload_speed": "115200",
+            "board_build.f_flash": "80000000L",
+        }
+    )
+
+    assert "-DSINGLE_FLAG" in CORE.build_flags
+    assert "ArduinoJson" in CORE.platformio_libraries
+    # lib_ignore is stored (listified) for generate_idf_components to read;
+    # nothing else lands in platformio_options on the native toolchain.
+    assert CORE.platformio_options == {"lib_ignore": ["libsodium"]}
+    assert "esphome->platformio_options->board_build.f_flash is ignored" in caplog.text
+    assert "upload_speed" not in caplog.text
+    # build_flags has a first-class esphome equivalent, so it is deprecated.
+    # lib_deps/lib_ignore are kept as valid platformio_options (no warning).
+    assert (
+        "esphome->platformio_options->build_flags is deprecated; use "
+        "esphome->build_flags instead" in caplog.text
+    )
+    assert "lib_deps is deprecated" not in caplog.text
+    assert "lib_ignore is deprecated" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_add_platformio_options_platformio(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """On the PlatformIO toolchain all options pass through to the ini,
+    with build_flags/lib_ignore listified."""
+    CORE.toolchain = Toolchain.PLATFORMIO
+
+    await config._add_platformio_options(
+        {
+            "build_flags": "-DSINGLE_FLAG",
+            "lib_ignore": "libsodium",
+            "upload_speed": "115200",
+        }
+    )
+
+    assert CORE.platformio_options == {
+        "build_flags": ["-DSINGLE_FLAG"],
+        "lib_ignore": ["libsodium"],
+        "upload_speed": "115200",
+    }
+    # platformio_options is the correct mechanism on the PlatformIO toolchain,
+    # so the native-equivalent deprecation must not fire here.
+    assert "deprecated" not in caplog.text
+
+
+def test_add_library_str_bare_url_requires_name() -> None:
+    """A bare repository URL has no library name; CORE.add_library rejects it."""
+    with pytest.raises(ValueError, match="must have a name"):
+        config._add_library_str("https://github.com/esphome/noise-c.git")
+
+
+@pytest.mark.asyncio
+@pytest.mark.filterwarnings("ignore::RuntimeWarning")
+async def test_to_code_adds_libraries(yaml_file: Callable[[str], Path]) -> None:
+    """esphome->libraries entries are parsed and registered via cg.add_library."""
+    result = load_config_from_fixture(yaml_file, "libraries.yaml", FIXTURES_DIR)
+    assert result is not None
+
+    with patch("esphome.core.config.cg") as mock_cg:
+        mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
+        mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
+        await config.to_code(result[CONF_ESPHOME])
+
+    mock_cg.add_library.assert_any_call("SomeLib", None)
+    mock_cg.add_library.assert_any_call("bblanchon/ArduinoJson", "7.4.2")
+    mock_cg.add_library.assert_any_call(
+        "noise-c", None, "https://github.com/esphome/noise-c.git"
+    )

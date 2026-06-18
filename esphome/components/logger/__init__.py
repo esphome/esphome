@@ -461,7 +461,11 @@ async def _late_logger_init(config: ConfigType) -> None:
         cg.add_define("USE_LOGGER_USB_SERIAL_JTAG")
         # USB Serial JTAG code is compiled when platform supports it.
         # Enable secondary USB serial JTAG console so the VFS functions are available.
-        if CORE.is_esp32 and config[CONF_HARDWARE_UART] != USB_SERIAL_JTAG:
+        if (
+            CORE.is_esp32
+            and config[CONF_HARDWARE_UART] != USB_SERIAL_JTAG
+            and has_serial_logging
+        ):
             require_usb_serial_jtag_secondary()
             require_vfs_termios()
     except cv.Invalid:

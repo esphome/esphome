@@ -1,0 +1,12 @@
+# Per-target ESP-IDF sdkconfig defaults for esp32s3 static analysis (clang-tidy) only.
+# Read by IDF in addition to sdkconfig.defaults. Enables variant-only components so
+# their headers register for the tidy translation unit (these are normally set at
+# codegen via add_idf_sdkconfig_option, which the stub tidy build skips).
+
+# tinyusb CDC (usb_cdc_acm) -- the esp_tinyusb managed component is already in
+# esphome/idf_component.yml; these enable its CDC class so tud_cdc_* and the
+# CONFIG_TINYUSB_CDC_* macros are declared.
+CONFIG_TINYUSB_CDC_ENABLED=y
+CONFIG_TINYUSB_CDC_COUNT=1
+CONFIG_TINYUSB_CDC_RX_BUFSIZE=256
+CONFIG_TINYUSB_CDC_TX_BUFSIZE=256

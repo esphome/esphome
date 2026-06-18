@@ -112,6 +112,7 @@ def create_storage() -> Callable[..., StorageJSON]:
             framework=kwargs.get("framework", "arduino"),
             core_platform=kwargs.get("core_platform", "esp32"),
             toolchain=kwargs.get("toolchain", "platformio"),
+            framework_version=kwargs.get("framework_version"),
         )
 
     return _create
@@ -154,6 +155,32 @@ def test_storage_should_clean_when_toolchain_changes(
     """
     old = create_storage(loaded_integrations=["api", "wifi"], toolchain="platformio")
     new = create_storage(loaded_integrations=["api", "wifi"], toolchain="esp-idf")
+    assert storage_should_clean(old, new) is True
+
+
+def test_storage_should_clean_when_framework_changes(
+    create_storage: Callable[..., StorageJSON],
+) -> None:
+    """Test that clean is triggered when the framework changes.
+
+    Switching between arduino and esp-idf produces incompatible build trees
+    even on the same toolchain, so the build must be wiped.
+    """
+    old = create_storage(loaded_integrations=["api", "wifi"], framework="arduino")
+    new = create_storage(loaded_integrations=["api", "wifi"], framework="esp-idf")
+    assert storage_should_clean(old, new) is True
+
+
+def test_storage_should_clean_when_framework_version_changes(
+    create_storage: Callable[..., StorageJSON],
+) -> None:
+    """Test that clean is triggered when the framework version changes.
+
+    A different framework/ESP-IDF version compiles against a different SDK, so
+    the stale build tree must be wiped.
+    """
+    old = create_storage(loaded_integrations=["api", "wifi"], framework_version="5.3.1")
+    new = create_storage(loaded_integrations=["api", "wifi"], framework_version="5.4.0")
     assert storage_should_clean(old, new) is True
 
 
