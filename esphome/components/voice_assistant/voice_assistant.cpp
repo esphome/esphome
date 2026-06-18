@@ -373,9 +373,9 @@ void VoiceAssistant::loop() {
     }
     case State::STREAMING_MICROPHONE: {
       // pre_shift is ignored by RingBufferAudioSource (no intermediate transfer buffer to compact).
-      if (this->audio_mode_ == AUDIO_MODE_API) {
+        if (this->audio_mode_ == AUDIO_MODE_API) {
         this->stream_api_audio_();
-      } else {
+        } else {
         // UDP (will eventually be deprecated)
         // Only the primary microphone channel is used
         while (true) {
@@ -406,7 +406,7 @@ void VoiceAssistant::loop() {
       }
       if (is_running || is_running2) {
         if (is_running) {
-          this->mic_source_->stop();
+        this->mic_source_->stop();
         }
         if (is_running2) {
           this->mic_source2_->stop();
@@ -978,11 +978,12 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
 void VoiceAssistant::on_audio(const api::VoiceAssistantAudio &msg) {
 #ifdef USE_SPEAKER  // We should never get to this function if there is no speaker anyway
   if ((this->speaker_ != nullptr) && (this->speaker_buffer_ != nullptr)) {
-    if (this->speaker_buffer_index_ + msg.data_len < SPEAKER_BUFFER_SIZE) {
+    if (this->speaker_buffer_index_ + msg.data_len <= SPEAKER_BUFFER_SIZE) {
       memcpy(this->speaker_buffer_ + this->speaker_buffer_index_, msg.data, msg.data_len);
       this->speaker_buffer_index_ += msg.data_len;
       this->speaker_buffer_size_ += msg.data_len;
       this->speaker_bytes_received_ += msg.data_len;
+      this->write_speaker_();
       ESP_LOGV(TAG, "Received audio: %u bytes from API", msg.data_len);
     } else {
       ESP_LOGE(TAG, "Cannot receive audio, buffer is full");
