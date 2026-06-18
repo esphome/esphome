@@ -150,6 +150,20 @@ def test_get_idedata_regenerates_on_corrupted_cache(setup_core: Path) -> None:
     assert result == {"cxx_path": "regen"}
 
 
+def test_get_idf_env_sets_git_ceiling_directories(setup_core: Path) -> None:
+    """The IDF env caps git's upward search at the config directory.
+
+    This stops ESP-IDF's `git describe` from walking into an uninitialized or
+    corrupt git repo in a parent directory and failing the build.
+    """
+    toolchain._cache().env.clear()
+    # Set IDF_PATH so the framework-install branch is skipped.
+    with patch.dict(os.environ, {"IDF_PATH": str(setup_core)}):
+        env = toolchain._get_idf_env(version="5.5.4")
+    assert CORE.config_dir == setup_core
+    assert str(CORE.config_dir) in env["GIT_CEILING_DIRECTORIES"].split(os.pathsep)
+
+
 def test_get_core_framework_version_from_core_data():
     """The version is read from CORE.data when validation populated it."""
     from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION

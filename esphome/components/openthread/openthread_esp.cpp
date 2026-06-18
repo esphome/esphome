@@ -216,14 +216,11 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
 // not thread safe, only use in read-only use cases
 otInstance *OpenThreadComponent::get_openthread_instance_() { return esp_openthread_get_instance(); }
 
-std::optional<InstanceLock> InstanceLock::try_acquire(int delay) {
+InstanceLock InstanceLock::try_acquire(int delay) {
   if (!global_openthread_component->is_lock_initialized()) {
-    return {};
+    return InstanceLock(false);
   }
-  if (esp_openthread_lock_acquire(delay)) {
-    return InstanceLock();
-  }
-  return {};
+  return InstanceLock(esp_openthread_lock_acquire(delay));
 }
 
 InstanceLock InstanceLock::acquire() {
@@ -242,12 +239,16 @@ InstanceLock InstanceLock::acquire() {
   while (!esp_openthread_lock_acquire(100)) {
     esp_task_wdt_reset();
   }
-  return InstanceLock();
+  return InstanceLock(true);
 }
 
 otInstance *InstanceLock::get_instance() { return esp_openthread_get_instance(); }
 
-InstanceLock::~InstanceLock() { esp_openthread_lock_release(); }
+InstanceLock::~InstanceLock() {
+  if (this->owns_) {
+    esp_openthread_lock_release();
+  }
+}
 
 }  // namespace esphome::openthread
 #endif
