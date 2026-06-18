@@ -138,8 +138,12 @@ void AS734XComponent::loop() {
       ESP_LOGVV(TAG, "READ_DATA");
       if (this->device_->is_data_ready()) {
         bool device_saturated = false;
-        this->device_->read_channels(this->readings_.smux_step, this->readings_.raw_counts, this->readings_.gain,
-                                     device_saturated);
+        if (!this->device_->read_channels(this->readings_.smux_step, this->readings_.raw_counts, this->readings_.gain,
+                                          device_saturated)) {
+          ESP_LOGW(TAG, "Failed to read channel data, aborting measurement");
+          this->state_ = State::IDLE;
+          break;
+        }
         if (this->readings_.first_run) {
           this->readings_.first_run = false;
           ESP_LOGVV(TAG, "Discarding first reading");

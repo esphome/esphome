@@ -86,6 +86,7 @@ bool AS734xBase::set_register_bit_(uint8_t address, uint8_t bit_position) {
 }
 
 bool AS734xBase::clear_register_bit_(uint8_t address, uint8_t bit_position) {
+  this->set_bank_for_reg_(address);
   uint8_t data;
   this->i2c_device_->read_byte(address, &data);
   data &= ~(1 << bit_position);
