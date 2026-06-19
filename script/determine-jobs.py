@@ -466,11 +466,11 @@ def should_run_device_builder(branch: str | None = None) -> bool:
     return False
 
 
-# Components tested by the native ESP-IDF compile-test job. This is the
+# Components tested by the PlatformIO compile-test job. This is the
 # single source of truth: the workflow reads the comma-joined list from the
-# `native-idf-components` output of `determine-jobs` and uses it as the
-# `TEST_COMPONENTS` env on the `test-native-idf` job.
-NATIVE_IDF_TEST_COMPONENTS = frozenset(
+# `esp32-platformio-components` output of `determine-jobs` and uses it as the
+# `TEST_COMPONENTS` env on the `test-esp32-platformio` job.
+ESP32_PLATFORMIO_TEST_COMPONENTS = frozenset(
     {
         "esp32",
         "api",
@@ -490,53 +490,75 @@ NATIVE_IDF_TEST_COMPONENTS = frozenset(
     }
 )
 
-# Path prefixes whose changes always trigger the native ESP-IDF compile
-# test: anything under esphome/espidf/ (the native IDF runner / API /
-# framework / component generator).
-NATIVE_IDF_TRIGGER_PATH_PREFIXES = ("esphome/espidf/",)
+# Path prefixes whose changes always trigger the PlatformIO compile test:
+# anything under esphome/platformio/ (the PlatformIO runner / toolchain that
+# drives every PlatformIO build). The esp32 platform component is already in
+# ESP32_PLATFORMIO_TEST_COMPONENTS, so its changes are covered by the normal
+# component-narrowing path.
+ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES = ("esphome/platformio/",)
 
-# Standalone files that, when changed, also trigger the native ESP-IDF
-# compile test:
-#   - esphome/build_gen/espidf.py -- the native IDF build generator
-#     (other files under build_gen/ target PlatformIO and don't affect
-#     the native IDF path)
+# Standalone files that, when changed, trigger the PlatformIO compile test:
+#   - esphome/build_gen/platformio.py -- the PlatformIO build generator
 #   - script/test_build_components.py -- the harness the job invokes
 #   - .github/workflows/ci.yml -- the job's own definition
-NATIVE_IDF_TRIGGER_FILES = frozenset(
+ESP32_PLATFORMIO_TRIGGER_FILES = frozenset(
     {
-        "esphome/build_gen/espidf.py",
+        "esphome/build_gen/platformio.py",
         "script/test_build_components.py",
         ".github/workflows/ci.yml",
     }
 )
 
 
-def _native_idf_path_or_file_trigger(files: list[str]) -> bool:
-    """Whether any changed file is a native IDF infrastructure / harness trigger."""
+def _esp32_platformio_path_or_file_trigger(files: list[str]) -> bool:
+    """Whether any changed file is a PlatformIO infrastructure / harness trigger."""
     for file in files:
-        if file in NATIVE_IDF_TRIGGER_FILES:
+        if file in ESP32_PLATFORMIO_TRIGGER_FILES:
             return True
-        if any(file.startswith(prefix) for prefix in NATIVE_IDF_TRIGGER_PATH_PREFIXES):
+        if any(
+            file.startswith(prefix) for prefix in ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES
+        ):
             return True
     return False
 
 
-def native_idf_components_to_test(branch: str | None = None) -> list[str]:
-    """Subset of ``NATIVE_IDF_TEST_COMPONENTS`` the job needs to compile.
+# ESP-IDF infra: changes under esphome/espidf/ or to the IDF build generator
+# affect every esp32 IDF build (now the default toolchain) but aren't
+# components, so the component matrix wouldn't otherwise force any esp32
+# compile. When they change we fold the `esp32` component into the matrix so
+# the default native-IDF build path is still compiled on an infra-only PR.
+ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES = ("esphome/espidf/",)
+ESP_IDF_INFRA_TRIGGER_FILES = frozenset({"esphome/build_gen/espidf.py"})
 
-    The job builds components with the native ESP-IDF toolchain (no
-    PlatformIO). When only a specific component (or something it depends
-    on) changed, there's no value in re-building every other unrelated
-    component in the test list -- the regular ``component-test`` matrix
-    already covers them via PlatformIO. So we narrow to the intersection
-    of ``NATIVE_IDF_TEST_COMPONENTS`` and the changed-component dependency
+
+def _esp_idf_infra_changed(files: list[str]) -> bool:
+    """Whether any changed file is ESP-IDF build/runner infrastructure."""
+    for file in files:
+        if file in ESP_IDF_INFRA_TRIGGER_FILES:
+            return True
+        if any(
+            file.startswith(prefix) for prefix in ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES
+        ):
+            return True
+    return False
+
+
+def esp32_platformio_components_to_test(branch: str | None = None) -> list[str]:
+    """Subset of ``ESP32_PLATFORMIO_TEST_COMPONENTS`` the job needs to compile.
+
+    The job builds components with the PlatformIO toolchain. When only a
+    specific component (or something it depends on) changed, there's no
+    value in re-building every other unrelated component in the test list --
+    the regular ``component-test`` matrix already covers them via the
+    default toolchain. So we narrow to the intersection of
+    ``ESP32_PLATFORMIO_TEST_COMPONENTS`` and the changed-component dependency
     closure.
 
     Returns the full list (sorted) when we can't safely narrow:
 
     1. Core C++/Python files changed (``esphome/core/*``).
-    2. Native IDF infrastructure changed (``esphome/espidf/*`` or
-       ``esphome/build_gen/espidf.py``).
+    2. PlatformIO infrastructure changed (``esphome/platformio/*`` or
+       ``esphome/build_gen/platformio.py``).
     3. The test harness or workflow itself changed
        (``script/test_build_components.py``, ``.github/workflows/ci.yml``).
 
@@ -558,31 +580,31 @@ def native_idf_components_to_test(branch: str | None = None) -> list[str]:
     """
     files = changed_files(branch)
 
-    if core_changed(files) or _native_idf_path_or_file_trigger(files):
-        return sorted(NATIVE_IDF_TEST_COMPONENTS)
+    if core_changed(files) or _esp32_platformio_path_or_file_trigger(files):
+        return sorted(ESP32_PLATFORMIO_TEST_COMPONENTS)
 
     component_files = [f for f in files if filter_component_and_test_files(f)]
     changed = get_components_with_dependencies(component_files, True)
 
-    return sorted(NATIVE_IDF_TEST_COMPONENTS & set(changed))
+    return sorted(ESP32_PLATFORMIO_TEST_COMPONENTS & set(changed))
 
 
-def should_run_native_idf(branch: str | None = None) -> bool:
-    """Determine if the `test-native-idf` compile-test job should run.
+def should_run_esp32_platformio(branch: str | None = None) -> bool:
+    """Determine if the `test-esp32-platformio` compile-test job should run.
 
-    Runs whenever ``native_idf_components_to_test()`` returns a non-empty
+    Runs whenever ``esp32_platformio_components_to_test()`` returns a non-empty
     list. Skipping the job on unrelated Python-only PRs avoids ~5 min of
     CI per PR (worse on cold caches). The regular ``component-test``
-    matrix still exercises the same components through PlatformIO when
-    those components change.
+    matrix still exercises the same components through the default
+    toolchain when those components change.
 
     Args:
         branch: Branch to compare against. If None, uses default.
 
     Returns:
-        True if the native ESP-IDF compile test should run, False otherwise.
+        True if the PlatformIO compile test should run, False otherwise.
     """
-    return bool(native_idf_components_to_test(branch))
+    return bool(esp32_platformio_components_to_test(branch))
 
 
 def determine_cpp_unit_tests(
@@ -1162,8 +1184,8 @@ def main() -> None:
         run_python_linters = True
         run_import_time = True
         run_device_builder = True
-        native_idf_components = sorted(NATIVE_IDF_TEST_COMPONENTS)
-        run_native_idf = True
+        esp32_platformio_components = sorted(ESP32_PLATFORMIO_TEST_COMPONENTS)
+        run_esp32_platformio = True
     else:
         integration_run_all, integration_test_files = determine_integration_tests(
             args.branch
@@ -1173,8 +1195,8 @@ def main() -> None:
         run_python_linters = should_run_python_linters(args.branch)
         run_import_time = should_run_import_time(args.branch)
         run_device_builder = should_run_device_builder(args.branch)
-        native_idf_components = native_idf_components_to_test(args.branch)
-        run_native_idf = bool(native_idf_components)
+        esp32_platformio_components = esp32_platformio_components_to_test(args.branch)
+        run_esp32_platformio = bool(esp32_platformio_components)
     run_integration, integration_test_buckets = _compute_integration_test_buckets(
         integration_run_all, integration_test_files
     )
@@ -1227,6 +1249,18 @@ def main() -> None:
             for component in changed_components
             if _component_has_tests(component)
         ]
+
+    # ESP-IDF build-gen/runner changed but no component pulled esp32 in: fold the
+    # `esp32` component into the matrix so the default native-IDF build path is
+    # still compiled on an infra-only PR. force_all/core already test everything,
+    # so skip there. Runs grouped (not added to directly-changed).
+    if (
+        not is_core_change
+        and _esp_idf_infra_changed(changed)
+        and "esp32" not in changed_components_with_tests
+        and _component_has_tests("esp32")
+    ):
+        changed_components_with_tests.append("esp32")
 
     # Get directly changed components with tests (for isolated testing)
     # These will be tested WITHOUT --testing-mode in CI to enable full validation
@@ -1345,8 +1379,8 @@ def main() -> None:
         "python_linters": run_python_linters,
         "import_time": run_import_time,
         "device_builder": run_device_builder,
-        "native_idf": run_native_idf,
-        "native_idf_components": ",".join(native_idf_components),
+        "esp32_platformio": run_esp32_platformio,
+        "esp32_platformio_components": ",".join(esp32_platformio_components),
         "changed_components": changed_components,
         "changed_components_with_tests": changed_components_with_tests,
         "directly_changed_components_with_tests": list(directly_changed_with_tests),
