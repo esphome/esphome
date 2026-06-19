@@ -472,6 +472,7 @@ def get_idedata() -> dict | None:
             pass
 
     data = idedata_from_build(compile_commands)
+    data["prog_path"] = str(get_elf_path())
     cache.parent.mkdir(parents=True, exist_ok=True)
     cache.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     return data
