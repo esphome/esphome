@@ -81,8 +81,13 @@ def _get_idf_tools_path() -> Path:
         Path object pointing to the ESP-IDF tools directory
     """
     if "ESPHOME_ESP_IDF_PREFIX" in os.environ:
-        return Path(get_str_env("ESPHOME_ESP_IDF_PREFIX", None)).expanduser()
-    return CORE.data_dir / "idf"
+        path = Path(get_str_env("ESPHOME_ESP_IDF_PREFIX", None)).expanduser()
+    else:
+        path = CORE.data_dir / "idf"
+    # Resolve so an unnormalized config path (e.g. compiling ``../config/x.yaml``)
+    # doesn't leave ``..`` segments in the IDF_TOOLS_PATH handed to idf.py, which
+    # otherwise warns that the venv interpreter path doesn't match the install.
+    return path.resolve()
 
 
 # Windows' default MAX_PATH is 260 characters. ESP-IDF toolchains nest deeply
