@@ -23,8 +23,12 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_USB_CDC_ACM_ID): cv.use_id(usb_cdc_acm.USBCDCACMInstance),
         cv.Optional(CONF_DTR_PIN): pins.gpio_output_pin_schema,
         cv.Optional(CONF_RTS_PIN): pins.gpio_output_pin_schema,
-        cv.Optional(CONF_UART_RX_BUFFER_SIZE, default=256): cv.uint16_t,
-        cv.Optional(CONF_UART_TX_BUFFER_SIZE, default=256): cv.uint16_t,
+        cv.Optional(CONF_UART_RX_BUFFER_SIZE, default=256): cv.int_range(
+            min=64, max=65535
+        ),
+        cv.Optional(CONF_UART_TX_BUFFER_SIZE, default=256): cv.int_range(
+            min=64, max=65535
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 

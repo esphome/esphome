@@ -207,8 +207,14 @@ void USBUARTBridge::set_line_coding(uint32_t bit_rate, uint8_t stop_bits, uint8_
     ESP_LOGV(TAG, "Stop bits changed to %s", str_stop_bits(stop_bits));
   }
 
-  if (this->uart_parent_->get_parity() != parity) {
-    this->uart_parent_->set_parity(static_cast<uart::UARTParityOptions>(parity));
+  // USB CDC parity numbering (0=None, 1=Odd, 2=Even, 3=Mark, 4=Space) differs from
+  // UARTParityOptions (0=None, 1=Even, 2=Odd). Map explicitly; Mark/Space are
+  // unsupported by the UART and fall back to None.
+  auto uart_parity = (parity == 1)   ? uart::UART_CONFIG_PARITY_ODD
+                     : (parity == 2) ? uart::UART_CONFIG_PARITY_EVEN
+                                     : uart::UART_CONFIG_PARITY_NONE;
+  if (this->uart_parent_->get_parity() != uart_parity) {
+    this->uart_parent_->set_parity(uart_parity);
     changed = true;
     ESP_LOGV(TAG, "Parity changed to %s", str_parity(parity));
   }
