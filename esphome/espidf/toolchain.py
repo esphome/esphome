@@ -14,7 +14,7 @@ from esphome.const import CONF_FRAMEWORK, CONF_SOURCE
 from esphome.core import CORE, EsphomeError
 from esphome.espidf.framework import check_esp_idf_install, get_framework_env
 from esphome.espidf.size_summary import print_summary
-from esphome.helpers import add_git_ceiling_directory
+from esphome.helpers import IS_WINDOWS, add_git_ceiling_directory
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -88,6 +88,21 @@ def _get_idf_env(version: str | None = None) -> dict[str, str]:
         # `git describe` for the app version can't error out on an
         # uninitialized or corrupt git repo in a parent directory.
         add_git_ceiling_directory(env_cache[version], CORE.config_dir)
+
+        # Enable ccache when available -- a large rebuild speedup. idf.py
+        # leaves ccache off by default, so opt in via IDF_CCACHE_ENABLE (idf.py
+        # turns that into -DCCACHE_ENABLE=1). Guards:
+        #  - respect an explicit user IDF_CCACHE_ENABLE (don't override their choice)
+        #  - skip on Windows, where ccache hits long-path/temp-file failures
+        #  - only when ccache is actually installed
+        #  - bound the cache so it can't silently fill the disk
+        if (
+            not IS_WINDOWS
+            and "IDF_CCACHE_ENABLE" not in os.environ
+            and shutil.which("ccache") is not None
+        ):
+            env_cache[version]["IDF_CCACHE_ENABLE"] = "1"
+            env_cache[version].setdefault("CCACHE_MAXSIZE", "2G")
     return env_cache[version]
 
 

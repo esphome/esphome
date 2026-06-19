@@ -191,3 +191,57 @@ def test_get_core_framework_version_from_core_data():
 
     CORE.data = {KEY_ESP32: {KEY_IDF_VERSION: cv.Version(5, 5, 4)}}
     assert toolchain._get_core_framework_version() == "5.5.4"
+
+
+def test_get_idf_env_enables_ccache_when_available(setup_core: Path) -> None:
+    """Opt in to ccache (with a bounded cache) when installed on a non-Windows host."""
+    toolchain._cache().env.clear()
+    with (
+        patch.dict(os.environ, {"IDF_PATH": str(setup_core)}, clear=True),
+        patch.object(toolchain, "IS_WINDOWS", False),
+        patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
+    ):
+        env = toolchain._get_idf_env(version="5.5.4")
+    assert env["IDF_CCACHE_ENABLE"] == "1"
+    assert env["CCACHE_MAXSIZE"] == "2G"
+
+
+def test_get_idf_env_no_ccache_when_not_installed(setup_core: Path) -> None:
+    """No ccache on PATH -> the env var is not set."""
+    toolchain._cache().env.clear()
+    with (
+        patch.dict(os.environ, {"IDF_PATH": str(setup_core)}, clear=True),
+        patch.object(toolchain, "IS_WINDOWS", False),
+        patch.object(toolchain.shutil, "which", return_value=None),
+    ):
+        env = toolchain._get_idf_env(version="5.5.4")
+    assert "IDF_CCACHE_ENABLE" not in env
+
+
+def test_get_idf_env_no_ccache_on_windows(setup_core: Path) -> None:
+    """Skip ccache on Windows (long-path/temp-file failures)."""
+    toolchain._cache().env.clear()
+    with (
+        patch.dict(os.environ, {"IDF_PATH": str(setup_core)}, clear=True),
+        patch.object(toolchain, "IS_WINDOWS", True),
+        patch.object(toolchain.shutil, "which", return_value="C:\\ccache.exe"),
+    ):
+        env = toolchain._get_idf_env(version="5.5.4")
+    assert "IDF_CCACHE_ENABLE" not in env
+
+
+def test_get_idf_env_respects_explicit_ccache_setting(setup_core: Path) -> None:
+    """An explicit IDF_CCACHE_ENABLE is left untouched (user choice wins)."""
+    toolchain._cache().env.clear()
+    with (
+        patch.dict(
+            os.environ,
+            {"IDF_PATH": str(setup_core), "IDF_CCACHE_ENABLE": "0"},
+            clear=True,
+        ),
+        patch.object(toolchain, "IS_WINDOWS", False),
+        patch.object(toolchain.shutil, "which", return_value="/usr/bin/ccache"),
+    ):
+        env = toolchain._get_idf_env(version="5.5.4")
+    assert env["IDF_CCACHE_ENABLE"] == "0"
+    assert "CCACHE_MAXSIZE" not in env
