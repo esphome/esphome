@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/pn7160/pn7160.h"
 
-namespace esphome {
-namespace pn7160 {
+namespace esphome::pn7160 {
 
 template<typename... Ts> class PN7160IsWritingCondition : public Condition<Ts...>, public Parented<PN7160> {
  public:
@@ -64,5 +63,4 @@ template<typename... Ts> class SetWriteModeAction : public Action<Ts...>, public
   void play(const Ts &...x) override { this->parent_->write_mode(); }
 };
 
-}  // namespace pn7160
-}  // namespace esphome
+}  // namespace esphome::pn7160

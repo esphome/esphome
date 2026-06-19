@@ -1,8 +1,7 @@
 #include "mcp9600.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp9600 {
+namespace esphome::mcp9600 {
 
 static const char *const TAG = "mcp9600";
 
@@ -109,5 +108,4 @@ void MCP9600Component::update() {
   this->status_clear_warning();
 }
 
-}  // namespace mcp9600
-}  // namespace esphome
+}  // namespace esphome::mcp9600

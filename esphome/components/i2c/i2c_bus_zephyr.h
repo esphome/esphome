@@ -5,7 +5,7 @@
 #include "i2c_bus.h"
 #include "esphome/core/component.h"
 
-struct device;
+struct device;  // NOLINT(readability-identifier-naming) - forward decl of Zephyr's device type
 
 namespace esphome::i2c {
 

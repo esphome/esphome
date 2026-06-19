@@ -9,8 +9,7 @@
 #include <cinttypes>
 #include <climits>
 
-namespace esphome {
-namespace debug {
+namespace esphome::debug {
 
 static const char *const TAG = "debug";
 
@@ -93,5 +92,4 @@ void DebugComponent::update() {
 
 float DebugComponent::get_setup_priority() const { return setup_priority::LATE; }
 
-}  // namespace debug
-}  // namespace esphome
+}  // namespace esphome::debug

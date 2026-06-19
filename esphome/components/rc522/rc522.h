@@ -7,8 +7,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace rc522 {
+namespace esphome::rc522 {
 
 class RC522BinarySensor;
 class RC522Trigger;
@@ -275,5 +274,4 @@ class RC522Trigger : public Trigger<std::string> {
   void process(std::vector<uint8_t> &data);
 };
 
-}  // namespace rc522
-}  // namespace esphome
+}  // namespace esphome::rc522

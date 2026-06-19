@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static const char *const TAG = "remote.gobox";
 
@@ -128,5 +127,4 @@ void GoboxProtocol::dump(const GoboxData &data) {
   }
 }
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

@@ -33,7 +33,7 @@ uart_mock:
               data: !lambda return data;
   - id: virtual_uart_controller
     baud_rate: 9600
-    auto_start: true  # See comment on virtual_uart_server above
+    auto_start: true # See comment on virtual_uart_server above
     debug:
     on_tx:
       - then:
@@ -94,10 +94,11 @@ modbus_controller:
     update_interval: 2s
     id: modbus_controller_1
 
+modbus_server:
   - address: 1
     modbus_id: virtual_modbus_server
     id: modbus_server_1
-    server_registers:
+    registers:
       - address: 0x01
         value_type: U_WORD
         read_lambda: return id(stored_u_word);

@@ -4,8 +4,7 @@
 #include "esphome/components/ssd1327_base/ssd1327_base.h"
 #include "esphome/components/spi/spi.h"
 
-namespace esphome {
-namespace ssd1327_spi {
+namespace esphome::ssd1327_spi {
 
 class SPISSD1327 : public ssd1327_base::SSD1327,
                    public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_TRAILING,
@@ -25,5 +24,4 @@ class SPISSD1327 : public ssd1327_base::SSD1327,
   GPIOPin *dc_pin_;
 };
 
-}  // namespace ssd1327_spi
-}  // namespace esphome
+}  // namespace esphome::ssd1327_spi

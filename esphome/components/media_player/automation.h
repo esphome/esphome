@@ -3,9 +3,7 @@
 #include "esphome/core/automation.h"
 #include "media_player.h"
 
-namespace esphome {
-
-namespace media_player {
+namespace esphome::media_player {
 
 template<MediaPlayerCommand Command, typename... Ts>
 class MediaPlayerCommandAction : public Action<Ts...>, public Parented<MediaPlayer> {
@@ -136,5 +134,4 @@ template<typename... Ts> class IsMutedCondition : public Condition<Ts...>, publi
   bool check(const Ts &...x) override { return this->parent_->is_muted(); }
 };
 
-}  // namespace media_player
-}  // namespace esphome
+}  // namespace esphome::media_player

@@ -530,6 +530,8 @@ void WiFiComponent::wifi_process_event_(LTWiFiEvent *event) {
         this->error_from_callback_ = true;
       }
 
+      // Refresh is_connected() cache; sta_state_/error_from_callback_ make it false.
+      this->update_connected_state_();
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
       this->notify_disconnect_state_listeners_();
 #endif

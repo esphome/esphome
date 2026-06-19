@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace iaqcore {
+namespace esphome::iaqcore {
 
 static const char *const TAG = "iaqcore";
 
@@ -97,5 +96,4 @@ void IAQCore::dump_config() {
   LOG_SENSOR("  ", "TVOC", this->tvoc_);
 }
 
-}  // namespace iaqcore
-}  // namespace esphome
+}  // namespace esphome::iaqcore

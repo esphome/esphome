@@ -147,7 +147,6 @@ void LvglComponent::render_start_cb(lv_event_t *event) {
   comp->draw_start_();
 }
 
-lv_event_code_t lv_api_event;     // NOLINT
 lv_event_code_t lv_update_event;  // NOLINT
 void LvglComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -194,7 +193,6 @@ void LvglComponent::esphome_lvgl_init() {
   LV_GLOBAL_DEFAULT()->font_draw_buf_handlers.buf_free_cb = lv_free_core;
   lv_tick_set_cb([] { return millis(); });
   lv_update_event = static_cast<lv_event_code_t>(lv_event_register_id());
-  lv_api_event = static_cast<lv_event_code_t>(lv_event_register_id());
 }
 
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event) {
@@ -454,10 +452,12 @@ void LVTouchListener::update(const touchscreen::TouchPoints_t &tpoints) {
 
 #ifdef USE_LVGL_METER
 
-int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int value) {
+int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int32_t value) {
   auto *scale = lv_obj_get_parent(obj);
   auto min_value = lv_scale_get_range_min_value(scale);
-  return ((value - min_value) * lv_scale_get_angle_range(scale) / (lv_scale_get_range_max_value(scale) - min_value) +
+  auto max_value = lv_scale_get_range_max_value(scale);
+  value = clamp(value, min_value, max_value);
+  return ((value - min_value) * lv_scale_get_angle_range(scale) / (max_value - min_value) +
           lv_scale_get_rotation((scale))) %
          360;
 }
@@ -545,7 +545,7 @@ void LvSelectable::set_selected_text(const std::string &text, lv_anim_enable_t a
   auto index = std::find(this->options_.begin(), this->options_.end(), text);
   if (index != this->options_.end()) {
     this->set_selected_index(index - this->options_.begin(), anim);
-    lv_obj_send_event(this->obj, lv_api_event, nullptr);
+    lv_obj_send_event(this->obj, lv_update_event, nullptr);
   }
 }
 
@@ -572,7 +572,7 @@ void LvButtonMatrixType::set_obj(lv_obj_t *lv_obj) {
         auto key_idx = lv_buttonmatrix_get_selected_button(self->obj);
         if (key_idx == LV_BUTTONMATRIX_BUTTON_NONE)
           return;
-        if (self->key_map_.count(key_idx) != 0) {
+        if (self->key_map_.contains(key_idx)) {
           self->send_key_(self->key_map_[key_idx]);
           return;
         }
@@ -863,6 +863,46 @@ void lv_scale_draw_event_cb(lv_event_t *e, int16_t range_start, int16_t range_en
   }
 }
 #endif  // USE_LVGL_SCALE
+
+#ifdef USE_LVGL_GRADIENT
+/**
+ *
+ * @param dsc The gradient descriptor containing the color stops
+ * @param pos The current position to calculate the color for
+ * @return The color for the given position
+ */
+
+lv_color_t lv_grad_calculate_color(const lv_grad_dsc_t *dsc, int32_t pos) {
+  if (dsc->stops_count == 0)
+    return lv_color_black();
+  if (dsc->stops_count == 1 || pos <= dsc->stops[0].frac)
+    return dsc->stops[0].color;
+  if (pos >= dsc->stops[dsc->stops_count - 1].frac)
+    return dsc->stops[dsc->stops_count - 1].color;
+  int i = 1;
+  while (i < dsc->stops_count && dsc->stops[i].frac < pos)
+    i++;
+  auto *stop1 = &dsc->stops[i - 1];
+  auto *stop2 = &dsc->stops[i];
+  int32_t range = stop2->frac - stop1->frac;
+  int32_t offset = pos - stop1->frac;
+  return lv_color_mix(stop2->color, stop1->color, range == 0 ? 0 : (offset * 255) / range);
+}
+#endif  // USE_LVGL_GRADIENT
+
+lv_point_t LvglComponent::get_touch_relative_to_obj(lv_obj_t *obj) {
+  auto *indev = lv_indev_get_act();
+  if (indev == nullptr) {
+    return {INT32_MAX, INT32_MAX};
+  }
+  lv_point_t point;
+  lv_indev_get_point(indev, &point);
+  lv_area_t coords;
+  lv_obj_get_coords(obj, &coords);
+  point.x -= coords.x1;
+  point.y -= coords.y1;
+  return point;
+}
 
 static void lv_container_constructor(const lv_obj_class_t *class_p, lv_obj_t *obj) {
   LV_TRACE_OBJ_CREATE("begin");

@@ -12,8 +12,7 @@
 #include <memory>
 #include <vector>
 
-namespace esphome {
-namespace e131 {
+namespace esphome::e131 {
 
 class E131AddressableLightEffect;
 
@@ -53,6 +52,8 @@ class E131Component : public esphome::Component {
     if (!this->udp_.parsePacket())
       return -1;
     return this->udp_.read(buf, len);
+#else
+    return -1;
 #endif
   }
   bool packet_(const uint8_t *data, size_t len, int &universe, E131Packet &packet);
@@ -72,6 +73,6 @@ class E131Component : public esphome::Component {
   std::vector<UniverseConsumer> universe_consumers_;
 };
 
-}  // namespace e131
-}  // namespace esphome
+}  // namespace esphome::e131
+
 #endif

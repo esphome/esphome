@@ -1,0 +1,7 @@
+# Common I2C configuration for host platform tests
+
+i2c:
+  - id: i2c_bus
+    device: /dev/i2c-0
+    frequency: 100kHz
+    scan: true

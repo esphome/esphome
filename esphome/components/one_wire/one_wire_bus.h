@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include <vector>
 
-namespace esphome {
-namespace one_wire {
+namespace esphome::one_wire {
 
 class OneWireBus {
  public:
@@ -64,5 +63,4 @@ class OneWireBus {
   virtual uint64_t search_int() = 0;
 };
 
-}  // namespace one_wire
-}  // namespace esphome
+}  // namespace esphome::one_wire

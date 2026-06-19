@@ -1,8 +1,7 @@
 #include "pcf8574.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pcf8574 {
+namespace esphome::pcf8574 {
 
 static const char *const TAG = "pcf8574";
 
@@ -131,5 +130,4 @@ size_t PCF8574GPIOPin::dump_summary(char *buffer, size_t len) const {
   return buf_append_printf(buffer, len, 0, "%u via PCF8574", this->pin_);
 }
 
-}  // namespace pcf8574
-}  // namespace esphome
+}  // namespace esphome::pcf8574

@@ -13,8 +13,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/weikai/weikai.h"
 
-namespace esphome {
-namespace weikai_i2c {
+namespace esphome::weikai_i2c {
 
 class WeikaiComponentI2C;
 
@@ -57,5 +56,4 @@ class WeikaiComponentI2C : public weikai::WeikaiComponent, public i2c::I2CDevice
   WeikaiRegisterI2C reg_i2c_{this, 0, 0};  ///< init to this component
 };
 
-}  // namespace weikai_i2c
-}  // namespace esphome
+}  // namespace esphome::weikai_i2c

@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
 
-namespace esphome {
-namespace kuntze {
+namespace esphome::kuntze {
 
 class Kuntze : public PollingComponent, public modbus::ModbusDevice {
  public:
@@ -38,5 +37,4 @@ class Kuntze : public PollingComponent, public modbus::ModbusDevice {
   sensor::Sensor *oci_sensor_{nullptr};
 };
 
-}  // namespace kuntze
-}  // namespace esphome
+}  // namespace esphome::kuntze

@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/switch/switch.h"
 
-namespace esphome {
-namespace restart {
+namespace esphome::restart {
 
 class RestartSwitch : public switch_::Switch, public Component {
  public:
@@ -14,5 +13,4 @@ class RestartSwitch : public switch_::Switch, public Component {
   void write_state(bool state) override;
 };
 
-}  // namespace restart
-}  // namespace esphome
+}  // namespace esphome::restart

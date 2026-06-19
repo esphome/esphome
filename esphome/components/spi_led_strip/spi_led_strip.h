@@ -5,8 +5,7 @@
 #include "esphome/components/light/addressable_light.h"
 #include "esphome/components/spi/spi.h"
 
-namespace esphome {
-namespace spi_led_strip {
+namespace esphome::spi_led_strip {
 
 static const char *const TAG = "spi_led_strip";
 class SpiLedStrip : public light::AddressableLight,
@@ -36,5 +35,4 @@ class SpiLedStrip : public light::AddressableLight,
   uint16_t num_leds_;
 };
 
-}  // namespace spi_led_strip
-}  // namespace esphome
+}  // namespace esphome::spi_led_strip

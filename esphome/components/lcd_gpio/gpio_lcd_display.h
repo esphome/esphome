@@ -4,8 +4,7 @@
 #include "esphome/components/lcd_base/lcd_display.h"
 #include "esphome/components/display/display.h"
 
-namespace esphome {
-namespace lcd_gpio {
+namespace esphome::lcd_gpio {
 
 class GPIOLCDDisplay;
 
@@ -51,5 +50,4 @@ class GPIOLCDDisplay : public lcd_base::LCDDisplay {
   gpio_lcd_writer_t writer_;
 };
 
-}  // namespace lcd_gpio
-}  // namespace esphome
+}  // namespace esphome::lcd_gpio

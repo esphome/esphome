@@ -4,8 +4,7 @@
 #include "esphome/components/output/float_output.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace color_temperature {
+namespace esphome::color_temperature {
 
 class CTLightOutput : public light::LightOutput {
  public:
@@ -34,5 +33,4 @@ class CTLightOutput : public light::LightOutput {
   float warm_white_temperature_;
 };
 
-}  // namespace color_temperature
-}  // namespace esphome
+}  // namespace esphome::color_temperature

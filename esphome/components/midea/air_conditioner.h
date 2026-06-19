@@ -8,9 +8,7 @@
 #include "appliance_base.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace midea {
-namespace ac {
+namespace esphome::midea::ac {
 
 using sensor::Sensor;
 using climate::ClimateCall;
@@ -61,8 +59,6 @@ class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner>,
   Sensor *power_sensor_{nullptr};
 };
 
-}  // namespace ac
-}  // namespace midea
-}  // namespace esphome
+}  // namespace esphome::midea::ac
 
 #endif  // USE_ARDUINO

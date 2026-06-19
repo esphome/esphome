@@ -15,8 +15,7 @@
 #include "esphome/components/i2c/i2c_bus.h"
 #endif  // USE_I2C
 
-namespace esphome {
-namespace esp32_camera {
+namespace esphome::esp32_camera {
 
 class ESP32Camera;
 
@@ -259,7 +258,6 @@ class ESP32CameraStreamStopTrigger : public Trigger<>, public camera::CameraList
   void on_stream_stop() override { this->trigger(); }
 };
 
-}  // namespace esp32_camera
-}  // namespace esphome
+}  // namespace esphome::esp32_camera
 
 #endif

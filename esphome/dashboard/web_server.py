@@ -40,8 +40,9 @@ import voluptuous as vol
 import yaml
 from yaml.nodes import Node
 
-from esphome import const, platformio_api, yaml_util
+from esphome import const, yaml_util
 from esphome.helpers import get_bool_env, mkdir_p, sort_ip_addresses
+from esphome.platformio import toolchain
 from esphome.storage_json import (
     StorageJSON,
     archive_storage_path,
@@ -437,7 +438,11 @@ class EsphomePortCommandWebSocket(EsphomeCommandWebSocket):
 class EsphomeLogsHandler(EsphomePortCommandWebSocket):
     async def build_command(self, json_message: dict[str, Any]) -> list[str]:
         """Build the command to run."""
-        return await self.build_device_command(["logs"], json_message)
+        cmd = await self.build_device_command(["logs"], json_message)
+        if json_message.get("no_states"):
+            cmd.append("--no-states")
+            _LOGGER.debug("Built command: %s", cmd)
+        return cmd
 
 
 class EsphomeRenameHandler(EsphomeCommandWebSocket):
@@ -1025,7 +1030,7 @@ class DownloadListRequestHandler(BaseHandler):
 
         try:
             module = importlib.import_module(f"esphome.components.{platform}")
-            get_download_types = getattr(module, "get_download_types")
+            get_download_types = module.get_download_types
         except AttributeError as exc:
             raise ValueError(f"Unknown platform {platform}") from exc
         downloads = get_download_types(storage_json)
@@ -1035,7 +1040,7 @@ class DownloadListRequestHandler(BaseHandler):
 class DownloadBinaryRequestHandler(BaseHandler):
     def _load_file(self, path: str, compressed: bool) -> bytes:
         """Load a file from disk and compress it if requested."""
-        with open(path, "rb") as f:
+        with Path(path).open("rb") as f:
             data = f.read()
             if compressed:
                 return gzip.compress(data, 9)
@@ -1086,7 +1091,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
                 self.send_error(404 if rc == 2 else 500)
                 return
 
-            idedata = platformio_api.IDEData(json.loads(stdout))
+            idedata = toolchain.IDEData(json.loads(stdout))
 
             found = False
             for image in idedata.extra_flash_images:
@@ -1141,7 +1146,7 @@ class MainRequestHandler(BaseHandler):
         begin = bool(self.get_argument("begin", False))
         if settings.using_password:
             # Simply accessing the xsrf_token sets the cookie for us
-            self.xsrf_token  # pylint: disable=pointless-statement
+            self.xsrf_token  # pylint: disable=pointless-statement  # noqa: B018
         else:
             self.clear_cookie("_xsrf")
 
@@ -1287,7 +1292,7 @@ class EditRequestHandler(BaseHandler):
     def _read_file(self, filename: str, configuration: str) -> bytes | None:
         """Read a file and return the content as bytes."""
         try:
-            with open(file=filename, encoding="utf-8") as f:
+            with Path(filename).open(encoding="utf-8") as f:
                 return f.read()
         except FileNotFoundError:
             if configuration in const.SECRETS_FILES:
@@ -1374,7 +1379,7 @@ class LoginHandler(BaseHandler):
         loop = asyncio.get_running_loop()
         try:
             req = await loop.run_in_executor(None, self._make_supervisor_auth_request)
-        except Exception as err:  # pylint: disable=broad-except
+        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
             _LOGGER.warning("Error during Hass.io auth request: %s", err)
             self.set_status(500)
             self.render_login_page(error="Internal server error")
@@ -1488,7 +1493,7 @@ def get_base_frontend_path() -> Path:
         static_path += "/"
 
     # This path can be relative, so resolve against the root or else templates don't work
-    path = Path(os.getcwd()) / static_path / "esphome_dashboard"
+    path = Path.cwd() / static_path / "esphome_dashboard"
     return path.resolve()
 
 
@@ -1514,7 +1519,10 @@ def get_static_file_url(name: str) -> str:
     return f"{base}?hash={hash_}"
 
 
-def make_app(debug=get_bool_env(ENV_DEV)) -> tornado.web.Application:
+def make_app(debug: bool | None = None) -> tornado.web.Application:
+    if debug is None:
+        debug = get_bool_env(ENV_DEV)
+
     def log_function(handler: tornado.web.RequestHandler) -> None:
         if handler.get_status() < 400:
             log_method = access_log.info

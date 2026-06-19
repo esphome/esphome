@@ -24,7 +24,7 @@ from .helpers import (
 from .toolchain import find_tool, resolve_tool_path, run_tool
 
 if TYPE_CHECKING:
-    from esphome.platformio_api import IDEData
+    from esphome.platformio.toolchain import IDEData
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -793,8 +793,11 @@ class MemoryAnalyzer:
         """Scan ESPHome source object files to map extern "C" symbols to components.
 
         When no linker map file is available, this uses ``nm`` to scan ``.o`` files
-        under ``src/esphome/`` and build a symbol-to-component mapping. This catches
-        ``extern "C"`` functions and other symbols that lack C++ namespace prefixes.
+        under ``src/`` (including ``src/main.cpp.o`` and everything beneath
+        ``src/esphome/``) and build a symbol-to-component mapping. This catches
+        ``extern "C"`` functions, the ESPHome-generated ``setup()``/``loop()``
+        entry points in ``main.cpp``, and other symbols that lack C++ namespace
+        prefixes.
 
         Skips scanning if ``_source_symbol_map`` was already populated by
         ``_parse_map_file()``.
@@ -806,12 +809,12 @@ class MemoryAnalyzer:
         if obj_dir is None:
             return
 
-        # Find ESPHome source object files
-        esphome_src_dir = obj_dir / "src" / "esphome"
-        if not esphome_src_dir.is_dir():
+        # Scan all ESPHome-owned source object files: src/main.cpp.o and src/esphome/...
+        src_dir = obj_dir / "src"
+        if not src_dir.is_dir():
             return
 
-        obj_files = sorted(esphome_src_dir.rglob("*.o"))
+        obj_files = sorted(src_dir.rglob("*.o"))
         if not obj_files:
             return
 
@@ -1063,6 +1066,10 @@ class MemoryAnalyzer:
                     return f"{_COMPONENT_PREFIX_ESPHOME}{component_name}"
                 if component_name in self.external_components:
                     return f"{_COMPONENT_PREFIX_EXTERNAL}{component_name}"
+
+        # ESPHome-generated entry point: src/main.cpp.o (contains setup()/loop())
+        if len(parts) >= 2 and parts[-2:] == ("src", "main.cpp.o"):
+            return _COMPONENT_CORE
 
         # ESPHome core: src/esphome/core/... or src/esphome/...
         if "core" in parts and "esphome" in parts:

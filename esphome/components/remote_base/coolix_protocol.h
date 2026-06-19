@@ -6,8 +6,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct CoolixData {
   CoolixData() {}
@@ -37,5 +36,4 @@ template<typename... Ts> class CoolixAction : public RemoteTransmitterActionBase
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base
