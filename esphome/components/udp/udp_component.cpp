@@ -11,13 +11,16 @@ static const char *const TAG = "udp";
 
 void UDPComponent::setup() {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+  this->sockaddrs_.init(this->addresses_.size());
   for (const auto &address : this->addresses_) {
-    struct sockaddr saddr {};
-    socket::set_sockaddr(&saddr, sizeof(saddr), address, this->broadcast_port_);
-    this->sockaddrs_.push_back(saddr);
+    SockaddrEntry entry{};
+    entry.len =
+        socket::set_sockaddr((struct sockaddr *) &entry.addr, sizeof(entry.addr), address, this->broadcast_port_);
+    this->sockaddrs_.push_back(entry);
   }
-  // set up broadcast socket
+  // set up send socket(s)
   if (this->should_broadcast_) {
+    // AF_INET for IPv4 (broadcast requires IPv4 socket)
     this->broadcast_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
     if (this->broadcast_socket_ == nullptr) {
       this->status_set_error(LOG_STR("Could not create socket"));
@@ -25,20 +28,42 @@ void UDPComponent::setup() {
       return;
     }
     int enable = 1;
-    auto err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
-    if (err != 0) {
+    auto err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable));
+    if (err != 0)
       this->status_set_warning(LOG_STR("Socket unable to set reuseaddr"));
-      // we can still continue
-    }
-    err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_BROADCAST, &enable, sizeof(int));
-    if (err != 0) {
+    err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_BROADCAST, &enable, sizeof(enable));
+    if (err != 0)
       this->status_set_warning(LOG_STR("Socket unable to set broadcast"));
+#if USE_NETWORK_IPV6
+    // Create IPv6 send socket if any destination is IPv6
+    for (const auto &entry : this->sockaddrs_) {
+      if (entry.addr.ss_family == AF_INET6) {
+        this->send_socket_v6_ = socket::socket(AF_INET6, SOCK_DGRAM, IPPROTO_IP);
+        if (this->send_socket_v6_ == nullptr) {
+          this->status_set_error(LOG_STR("Could not create IPv6 socket"));
+          this->mark_failed();
+          return;
+        }
+        err = this->send_socket_v6_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable));
+        if (err != 0)
+          this->status_set_warning(LOG_STR("IPv6 socket unable to set reuseaddr"));
+        break;
+      }
     }
+#endif
   }
-  // create listening socket if we either want to subscribe to providers, or need to listen
-  // for ping key broadcasts.
+  // create listening socket
   if (this->should_listen_) {
-    this->listen_socket_ = socket::socket_ip_loop_monitored(SOCK_DGRAM, IPPROTO_IP);
+    if (this->listen_address_.has_value()) {
+      // Multicast: create socket with family matching the multicast address
+      char addr_buf[network::IP_ADDRESS_BUFFER_SIZE];
+      this->listen_address_.value().str_to(addr_buf);
+      int af = (strchr(addr_buf, ':') != nullptr) ? AF_INET6 : AF_INET;
+      this->listen_socket_ = socket::socket_loop_monitored(af, SOCK_DGRAM, IPPROTO_IP);
+    } else {
+      // Non-multicast: dual-stack on IPv6 builds, AF_INET on IPv4 builds
+      this->listen_socket_ = socket::socket_ip_loop_monitored(SOCK_DGRAM, IPPROTO_IP);
+    }
     if (this->listen_socket_ == nullptr) {
       this->status_set_error(LOG_STR("Could not create socket"));
       this->mark_failed();
@@ -53,10 +78,9 @@ void UDPComponent::setup() {
     }
     int enable = 1;
     err = this->listen_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable));
-    if (err != 0) {
+    if (err != 0)
       this->status_set_warning(LOG_STR("Socket unable to set reuseaddr"));
-      // we can still continue
-    }
+
     struct sockaddr_storage server {};
     socklen_t server_len = 0;
 
@@ -64,14 +88,23 @@ void UDPComponent::setup() {
       char addr_buf[network::IP_ADDRESS_BUFFER_SIZE];
       this->listen_address_.value().str_to(addr_buf);
       ESP_LOGD(TAG, "Join multicast %s", addr_buf);
+      uint8_t mcast_ifindex = 0;
       server_len = socket::join_multicast_group(this->listen_socket_.get(), (struct sockaddr *) &server, sizeof(server),
-                                                addr_buf, this->listen_port_);
+                                                addr_buf, this->listen_port_, &mcast_ifindex);
       if (server_len == 0) {
         ESP_LOGE(TAG, "Failed to join multicast group. Error %d", errno);
         this->status_set_error(LOG_STR("Failed to join multicast group"));
         this->mark_failed();
         return;
       }
+#if USE_NETWORK_IPV6
+      // Set outgoing multicast interface on the IPv6 send socket using the same
+      // netif index that join_multicast_group found. IPV6_MULTICAST_IF on ESP-IDF
+      // LwIP always returns success regardless of index, so we must use a known-valid
+      // index from the join probe rather than probing independently.
+      if (mcast_ifindex != 0 && this->send_socket_v6_ != nullptr)
+        this->send_socket_v6_->setsockopt(IPPROTO_IPV6, IPV6_MULTICAST_IF, &mcast_ifindex, sizeof(mcast_ifindex));
+#endif
     } else {
       server_len = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), this->listen_port_);
     }
@@ -140,8 +173,20 @@ void UDPComponent::dump_config() {
 
 void UDPComponent::send_packet(const uint8_t *data, size_t size) {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-  for (const auto &saddr : this->sockaddrs_) {
-    auto result = this->broadcast_socket_->sendto(data, size, 0, &saddr, sizeof(saddr));
+  for (const auto &entry : this->sockaddrs_) {
+#if USE_NETWORK_IPV6
+    if (entry.addr.ss_family == AF_INET6) {
+      if (this->send_socket_v6_ != nullptr) {
+        auto result = this->send_socket_v6_->sendto(data, size, 0,
+                                                    reinterpret_cast<const struct sockaddr *>(&entry.addr), entry.len);
+        if (result < 0)
+          ESP_LOGW(TAG, "sendto() IPv6 error %d", errno);
+      }
+      continue;
+    }
+#endif
+    auto result = this->broadcast_socket_->sendto(data, size, 0, reinterpret_cast<const struct sockaddr *>(&entry.addr),
+                                                  entry.len);
     if (result < 0)
       ESP_LOGW(TAG, "sendto() error %d", errno);
   }

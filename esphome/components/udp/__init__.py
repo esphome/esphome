@@ -67,13 +67,29 @@ RELOCATED = {
 }
 
 
+def _ipv6_multicast_address(value):
+    addr = cv.ipv6address(value)
+    if not addr.is_multicast:
+        raise cv.Invalid(f"{value} is not an IPv6 multicast address")
+    return addr
+
+
+def _listen_address(value):
+    """Accept IPv4 multicast/broadcast or IPv6 multicast address."""
+    try:
+        return cv.ipv4address_multi_broadcast(value)
+    except cv.Invalid:
+        pass
+    return _ipv6_multicast_address(value)
+
+
 def _consume_udp_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for UDP component."""
     from esphome.components import socket
 
-    # UDP uses up to 2 sockets: 1 broadcast + 1 listen
+    # UDP uses up to 3 sockets: 1 IPv4 send + 1 IPv6 send (when needed) + 1 listen
     # Whether each is used depends on code generation, so register worst case
-    socket.consume_sockets(2, "udp", socket.SocketType.UDP)(config)
+    socket.consume_sockets(3, "udp", socket.SocketType.UDP)(config)
     return config
 
 
@@ -92,9 +108,9 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(
                 CONF_LISTEN_ADDRESS, default="255.255.255.255"
-            ): cv.ipv4address_multi_broadcast,
+            ): _listen_address,
             cv.Optional(CONF_ADDRESSES, default=["255.255.255.255"]): cv.ensure_list(
-                cv.ipv4address,
+                cv.Any(cv.ipv4address, cv.ipv6address),
             ),
             cv.Optional(CONF_ON_RECEIVE): automation.validate_automation(
                 {

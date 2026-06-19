@@ -44,9 +44,14 @@ class UDPComponent : public Component {
   CallbackManager<void(std::span<const uint8_t>)> packet_listeners_{};
 
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+  struct SockaddrEntry {
+    sockaddr_storage addr{};
+    socklen_t len{0};
+  };
   std::unique_ptr<socket::Socket> broadcast_socket_ = nullptr;
+  std::unique_ptr<socket::Socket> send_socket_v6_ = nullptr;
   std::unique_ptr<socket::Socket> listen_socket_ = nullptr;
-  std::vector<struct sockaddr> sockaddrs_{};
+  FixedVector<SockaddrEntry> sockaddrs_{};
 #endif
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
   std::vector<IPAddress> ipaddrs_{};
