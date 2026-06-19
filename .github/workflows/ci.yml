@@ -971,15 +971,16 @@ jobs:
           echo "Testing components: $TEST_COMPONENTS"
           echo ""
 
-          # Run config validation (auto-grouped by test_build_components.py)
-          python3 script/test_build_components.py -e config -t esp32-idf -c "$TEST_COMPONENTS" -f --toolchain platformio
-
-          echo ""
-          echo "Config validation passed! Starting compilation..."
-          echo ""
-
-          # Run compilation (auto-grouped by test_build_components.py)
+          # compile validates config first, so a separate config pass is
+          # redundant for this smoke test. ESP-IDF framework via PlatformIO:
           python3 script/test_build_components.py -e compile -t esp32-idf -c "$TEST_COMPONENTS" -f --toolchain platformio
+
+          echo ""
+          echo "ESP-IDF-via-PlatformIO build passed! Starting Arduino smoke test..."
+          echo ""
+
+          # Arduino framework via PlatformIO (only components with an esp32-ard test are built):
+          python3 script/test_build_components.py -e compile -t esp32-ard -c "$TEST_COMPONENTS" -f --toolchain platformio
 
   pre-commit-ci-lite:
     name: pre-commit.ci lite
