@@ -32,6 +32,7 @@ from esphome.__main__ import (
     command_clean_all,
     command_config,
     command_config_hash,
+    command_idedata,
     command_rename,
     command_run,
     command_update_all,
@@ -6257,3 +6258,28 @@ def test_command_run_defaults_subscribe_states_true(
     mock_run_logs.assert_called_once_with(
         CORE.config, ["192.168.1.100"], subscribe_states=True
     )
+
+
+def test_command_idedata_esp_idf_prints_json(capsys: CaptureFixture) -> None:
+    """Under the native ESP-IDF toolchain, idedata is emitted as JSON."""
+    setup_core()
+    CORE.toolchain = Toolchain.ESP_IDF
+    data = {"cxx_path": "g++", "prog_path": "/build/firmware.elf"}
+
+    with patch("esphome.espidf.toolchain.get_idedata", return_value=data) as mock_get:
+        result = command_idedata(MagicMock(), CORE.config)
+
+    assert result == 0
+    mock_get.assert_called_once_with()
+    assert json.loads(capsys.readouterr().out) == data
+
+
+def test_command_idedata_esp_idf_no_build_errors() -> None:
+    """Under ESP-IDF, a missing build (no idedata) returns an error, not a crash."""
+    setup_core()
+    CORE.toolchain = Toolchain.ESP_IDF
+
+    with patch("esphome.espidf.toolchain.get_idedata", return_value=None):
+        result = command_idedata(MagicMock(), CORE.config)
+
+    assert result == 1
