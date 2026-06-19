@@ -269,3 +269,16 @@ ST7789V.extend(
     cs_pin=14,
     dc_pin={"number": 15, "ignore_strapping_warning": True},
 )
+
+ST7789V.extend(
+    "WAVESHARE-ESP32-S3-GEEK",
+    cs_pin=10,
+    dc_pin=8,
+    reset_pin=9,
+    width=135,
+    height=240,
+    offset_width=52,
+    offset_height=40,
+    invert_colors=True,
+    data_rate="40MHz",
+)

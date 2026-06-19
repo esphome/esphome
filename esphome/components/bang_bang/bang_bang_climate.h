@@ -16,7 +16,7 @@ struct BangBangClimateTargetTempConfig {
   float default_temperature_high{NAN};
 };
 
-class BangBangClimate : public climate::Climate, public Component {
+class BangBangClimate final : public climate::Climate, public Component {
  public:
   BangBangClimate();
   void setup() override;
