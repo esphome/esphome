@@ -604,14 +604,21 @@ def _check_esphome_idf_framework_install(
         install = True
         if _check_stamp(env_stamp_file, stamp_info):
             _LOGGER.info("Checking ESP-IDF %s framework installation ...", version)
-            cmd = [
-                get_system_python_path(),
-                str(idf_tools_path),
-                "--non-interactive",
-                "check",
-            ]
-            if run_command_ok(cmd, msg=f"ESP-IDF {version} check", env=env):
+            # Validate the install by resolving the managed tool paths rather than running
+            # ``idf_tools.py check``. ``check`` probes every tool found on the system PATH
+            # first and aborts the whole check if any of them fails to run -- e.g. a broken
+            # Homebrew ``openocd`` (a tool ESPHome never uses) crashing on a missing
+            # libcapstone dylib -- which forced a full toolchain reinstall on every build
+            # for affected (mostly macOS) users. ``_get_idf_tool_paths`` only considers the
+            # tools installed under ``IDF_TOOLS_PATH`` (prefer_system=False) and raises if a
+            # managed tool is missing, so unrelated system tools cannot poison the check.
+            try:
+                _get_idf_tool_paths(framework_path, env)
                 install = False
+            except RuntimeError as err:
+                _LOGGER.debug(
+                    "ESP-IDF %s tool resolution failed, reinstalling: %s", version, err
+                )
 
     # 4. Install framework tools if not installed or needs update
     if install:
