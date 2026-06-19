@@ -270,11 +270,11 @@ bool MitsubishiCN105::should_request_telemetry_() const {
     return false;
   }
 
-  if (!this->last_telemetry_request_ms_.has_value()) {
+  if (!this->last_telemetry_update_ms_.has_value()) {
     return true;
   }
 
-  return (get_loop_time_ms() - *this->last_telemetry_request_ms_) >= this->telemetry_request_min_interval_ms_;
+  return (get_loop_time_ms() - *this->last_telemetry_update_ms_) >= this->telemetry_request_min_interval_ms_;
 }
 
 void MitsubishiCN105::send_packet_(const uint8_t *packet, size_t len) {
@@ -392,7 +392,7 @@ bool MitsubishiCN105::parse_status_telemetry_(const uint8_t *payload, size_t len
   }
 
   this->status_.room_temperature = decode_temperature(payload[2], payload[5], 10);
-  this->last_telemetry_request_ms_ = get_loop_time_ms();
+  this->last_telemetry_update_ms_ = get_loop_time_ms();
 
   return true;
 }
