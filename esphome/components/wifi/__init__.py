@@ -621,6 +621,11 @@ async def to_code(config):
         cg.add(var.set_min_auth_mode(config[CONF_MIN_AUTH_MODE]))
     if config[CONF_FAST_CONNECT]:
         cg.add_define("USE_WIFI_FAST_CONNECT")
+        # Preserve historic storage of the fast-connect preference: ESP8266 has
+        # always used RTC memory; every other platform effectively used flash
+        # (the in_flash flag was previously ignored outside ESP8266).
+        if not CORE.is_esp8266:
+            cg.add_define("USE_WIFI_FAST_CONNECT_IN_FLASH")
     # passive_scan defaults to false in C++ - only set if true
     if config[CONF_PASSIVE_SCAN]:
         cg.add(var.set_passive_scan(True))
