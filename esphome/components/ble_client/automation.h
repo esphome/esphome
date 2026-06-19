@@ -23,7 +23,7 @@ class Automation {
 };
 
 // implement on_connect automation.
-class BLEClientConnectTrigger : public Trigger<>, public BLEClientNode {
+class BLEClientConnectTrigger final : public Trigger<>, public BLEClientNode {
  public:
   explicit BLEClientConnectTrigger(BLEClient *parent) { parent->register_ble_node(this); }
   void loop() override {}
@@ -37,7 +37,7 @@ class BLEClientConnectTrigger : public Trigger<>, public BLEClientNode {
 };
 
 // on_disconnect automation
-class BLEClientDisconnectTrigger : public Trigger<>, public BLEClientNode {
+class BLEClientDisconnectTrigger final : public Trigger<>, public BLEClientNode {
  public:
   explicit BLEClientDisconnectTrigger(BLEClient *parent) { parent->register_ble_node(this); }
   void loop() override {}
@@ -61,7 +61,7 @@ class BLEClientDisconnectTrigger : public Trigger<>, public BLEClientNode {
   }
 };
 
-class BLEClientPasskeyRequestTrigger : public Trigger<>, public BLEClientNode {
+class BLEClientPasskeyRequestTrigger final : public Trigger<>, public BLEClientNode {
  public:
   explicit BLEClientPasskeyRequestTrigger(BLEClient *parent) { parent->register_ble_node(this); }
   void loop() override {}
@@ -71,7 +71,7 @@ class BLEClientPasskeyRequestTrigger : public Trigger<>, public BLEClientNode {
   }
 };
 
-class BLEClientPasskeyNotificationTrigger : public Trigger<uint32_t>, public BLEClientNode {
+class BLEClientPasskeyNotificationTrigger final : public Trigger<uint32_t>, public BLEClientNode {
  public:
   explicit BLEClientPasskeyNotificationTrigger(BLEClient *parent) { parent->register_ble_node(this); }
   void loop() override {}
@@ -82,7 +82,7 @@ class BLEClientPasskeyNotificationTrigger : public Trigger<uint32_t>, public BLE
   }
 };
 
-class BLEClientNumericComparisonRequestTrigger : public Trigger<uint32_t>, public BLEClientNode {
+class BLEClientNumericComparisonRequestTrigger final : public Trigger<uint32_t>, public BLEClientNode {
  public:
   explicit BLEClientNumericComparisonRequestTrigger(BLEClient *parent) { parent->register_ble_node(this); }
   void loop() override {}
@@ -94,7 +94,7 @@ class BLEClientNumericComparisonRequestTrigger : public Trigger<uint32_t>, publi
 };
 
 // implement the ble_client.ble_write action.
-template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, public BLEClientNode {
+template<typename... Ts> class BLEClientWriteAction final : public Action<Ts...>, public BLEClientNode {
  public:
   BLEClientWriteAction(BLEClient *ble_client) {
     ble_client->register_ble_node(this);
@@ -231,7 +231,7 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
   esp_gatt_write_type_t write_type_{};
 };
 
-template<typename... Ts> class BLEClientPasskeyReplyAction : public Action<Ts...> {
+template<typename... Ts> class BLEClientPasskeyReplyAction final : public Action<Ts...> {
  public:
   BLEClientPasskeyReplyAction(BLEClient *ble_client) { parent_ = ble_client; }
 
@@ -268,7 +268,7 @@ template<typename... Ts> class BLEClientPasskeyReplyAction : public Action<Ts...
   } value_{.simple = 0};
 };
 
-template<typename... Ts> class BLEClientNumericComparisonReplyAction : public Action<Ts...> {
+template<typename... Ts> class BLEClientNumericComparisonReplyAction final : public Action<Ts...> {
  public:
   BLEClientNumericComparisonReplyAction(BLEClient *ble_client) { parent_ = ble_client; }
 
@@ -301,7 +301,7 @@ template<typename... Ts> class BLEClientNumericComparisonReplyAction : public Ac
   } value_{.simple = false};
 };
 
-template<typename... Ts> class BLEClientRemoveBondAction : public Action<Ts...> {
+template<typename... Ts> class BLEClientRemoveBondAction final : public Action<Ts...> {
  public:
   BLEClientRemoveBondAction(BLEClient *ble_client) { parent_ = ble_client; }
 
@@ -315,7 +315,7 @@ template<typename... Ts> class BLEClientRemoveBondAction : public Action<Ts...> 
   BLEClient *parent_{nullptr};
 };
 
-template<typename... Ts> class BLEClientConnectAction : public Action<Ts...>, public BLEClientNode {
+template<typename... Ts> class BLEClientConnectAction final : public Action<Ts...>, public BLEClientNode {
  public:
   BLEClientConnectAction(BLEClient *ble_client) {
     ble_client->register_ble_node(this);
@@ -364,7 +364,7 @@ template<typename... Ts> class BLEClientConnectAction : public Action<Ts...>, pu
   std::tuple<Ts...> var_{};
 };
 
-template<typename... Ts> class BLEClientDisconnectAction : public Action<Ts...>, public BLEClientNode {
+template<typename... Ts> class BLEClientDisconnectAction final : public Action<Ts...>, public BLEClientNode {
  public:
   BLEClientDisconnectAction(BLEClient *ble_client) {
     ble_client->register_ble_node(this);

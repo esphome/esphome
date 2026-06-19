@@ -7,7 +7,7 @@
 
 namespace esphome::analog_threshold {
 
-class AnalogThresholdBinarySensor : public Component, public binary_sensor::BinarySensor {
+class AnalogThresholdBinarySensor final : public Component, public binary_sensor::BinarySensor {
  public:
   void dump_config() override;
   void setup() override;

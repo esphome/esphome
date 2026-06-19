@@ -104,8 +104,12 @@ class Application {
   void register_area(Area *area) { this->areas_.push_back(area); }
 #endif
 
-  void set_current_component(Component *component) { this->current_component_ = component; }
   Component *get_current_component() { return this->current_component_; }
+
+  // Owning script of the action chain currently executing (nullptr when none); used to attribute
+  // blocking warnings for deferred work to the script that scheduled it.
+  void set_current_source(const LogString *source) { this->current_source_ = source; }
+  const LogString *get_current_source() { return this->current_source_; }
 
 // Entity register methods (generated from entity_types.h).
 // Each entity type gets two overloads:
@@ -393,6 +397,7 @@ class Application {
  protected:
   friend Component;
   friend class Scheduler;
+  friend class LoopBlockingGuard;
 #ifdef USE_RUNTIME_STATS
   friend class runtime_stats::RuntimeStatsCollector;
 #endif
@@ -401,6 +406,14 @@ class Application {
 
   /// Freshen the cached loop component start time. Called by Scheduler before each dispatch.
   void set_loop_component_start_time_(uint32_t now) { this->loop_component_start_time_ = now; }
+
+  // Publish the running unit's identity (component + source) and dispatch time together, so a
+  // dispatch site can't set one without the others. Friend-only (Scheduler).
+  void set_current_execution_context_(Component *component, const LogString *source, uint32_t now) {
+    this->current_component_ = component;
+    this->current_source_ = source;
+    this->set_loop_component_start_time_(now);
+  }
 
   /// Walk all registered components looking for any whose component_state_
   /// has the given flag set. Used by Component::status_clear_*_slow_path_()
@@ -482,6 +495,7 @@ class Application {
 
   // Pointer-sized members first
   Component *current_component_{nullptr};
+  const LogString *current_source_{nullptr};
 
   // std::vector (3 pointers each: begin, end, capacity)
   // Partitioned vector design for looping components
@@ -554,6 +568,76 @@ class Application {
 /// Global storage of Application pointer - only one Application can exist.
 extern Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+/// RAII guard that publishes a current source (e.g. a script name) for a scope and restores the
+/// previous value on exit, attributing deferred work scheduled inside to that source.
+class ScopedSourceGuard {
+ public:
+  explicit ScopedSourceGuard(const LogString *source) : prev_(App.get_current_source()) {
+    App.set_current_source(source);
+  }
+  ~ScopedSourceGuard() { App.set_current_source(this->prev_); }
+  ScopedSourceGuard(const ScopedSourceGuard &) = delete;
+  ScopedSourceGuard &operator=(const ScopedSourceGuard &) = delete;
+
+ private:
+  const LogString *prev_;
+};
+
+// Times one unit of work (a component loop() or a scheduled callback) and warns if it blocks the
+// main loop too long. The constructor publishes the unit's identity + dispatch time to App;
+// finish()/the cold warning path read them back, so the guard stores no copy.
+//
+// Guards must not nest: the constructor publishes to App but never restores on destruction, so a
+// nested guard would clobber the outer's context. Safe because the two dispatch sites (component
+// loop phase, execute_item_) run strictly sequentially and aren't re-entered from a timed callback.
+class LoopBlockingGuard {
+ public:
+  // Publish the unit's identity + dispatch time, then start timing. The millis start lives in App,
+  // so only the runtime-stats micros stamp is kept here.
+  LoopBlockingGuard(Component *component, const LogString *source, uint32_t now) {
+    App.set_current_execution_context_(component, source, now);
+#ifdef USE_RUNTIME_STATS
+    this->started_us_ = micros();
+#endif
+  }
+
+  // Finish the timing operation and return the current time (millis)
+  // Inlined: the fast path is just millis() + subtract + compare
+  inline uint32_t HOT finish() {
+#ifdef USE_RUNTIME_STATS
+    uint32_t elapsed_us = micros() - this->started_us_;
+    // Delays have no component; accumulate into the global counter so loop() can subtract them.
+    Component *component = App.get_current_component();
+    if (component != nullptr) {
+      component->runtime_stats_.record_time(elapsed_us);
+    } else {
+      ComponentRuntimeStats::global_recorded_us += elapsed_us;
+    }
+#endif
+    uint32_t curr_time = MillisInternal::get();
+#ifndef USE_BENCHMARK
+    // Fast path: compare against constant threshold in ms (computed at compile time from centiseconds)
+    static constexpr uint32_t WARN_IF_BLOCKING_OVER_MS = static_cast<uint32_t>(WARN_IF_BLOCKING_OVER_CS) * 10U;
+    uint32_t blocking_time = curr_time - App.get_loop_component_start_time();
+    if (blocking_time > WARN_IF_BLOCKING_OVER_MS) [[unlikely]] {
+      warn_blocking(blocking_time);
+    }
+#endif
+    return curr_time;
+  }
+
+  ~LoopBlockingGuard() = default;
+
+#ifdef USE_RUNTIME_STATS
+ protected:
+  uint32_t started_us_;
+#endif
+
+ private:
+  // Cold path; defined in component.cpp. Reads the current component/source from App to name the culprit.
+  static void __attribute__((noinline, cold)) warn_blocking(uint32_t blocking_time);
+};
+
 // Phase A: drain wake notifications and run the scheduler. Invoked on every
 // Application::loop() tick regardless of whether a component phase runs, so
 // scheduler items fire at their requested cadence even when the caller has
@@ -607,7 +691,7 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // before/tail splits recorded below.
   uint32_t loop_active_start_us = micros();
   // Snapshot the cumulative component-recorded time so we can subtract the
-  // slice that the scheduler spends inside its own WarnIfComponentBlockingGuard
+  // slice that the scheduler spends inside its own LoopBlockingGuard
   // (scheduler.cpp) — that time is already counted in per-component stats,
   // so charging it again to "before" would double-count.
   uint64_t loop_recorded_snap = ComponentRuntimeStats::global_recorded_us;
@@ -660,12 +744,9 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
          this->current_loop_index_++) {
       Component *component = this->looping_components_[this->current_loop_index_];
 
-      // Update the cached time before each component runs
-      this->loop_component_start_time_ = last_op_end_time;
-
       {
-        this->set_current_component(component);
-        WarnIfComponentBlockingGuard guard{component, last_op_end_time};
+        // Guard publishes this component (no script source) + dispatch time, then times loop().
+        LoopBlockingGuard guard{component, nullptr, last_op_end_time};
         component->loop();
         // Use the finish method to get the current time as the end time
         last_op_end_time = guard.finish();
