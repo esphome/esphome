@@ -94,6 +94,10 @@ inline bool Socket::ready() const {
 /// Create a socket of the given domain, type and protocol.
 std::unique_ptr<Socket> socket(int domain, int type, int protocol);
 /// Create a socket in the newest available IP domain (IPv6 or IPv4) of the given type and protocol.
+/// The address family is fixed at compile time: AF_INET6 on USE_NETWORK_IPV6 builds, AF_INET otherwise.
+/// Unlike socket_ip_loop_monitored(), IPV6_V6ONLY is NOT cleared — the socket is IPv6-only on IPv6
+/// builds. Intended for outgoing connections where the caller resolves the target address family and
+/// connects to a matching address; not suitable for servers that need to accept both IPv4 and IPv6.
 std::unique_ptr<Socket> socket_ip(int type, int protocol);
 
 /// Create a socket and monitor it for data in the main loop.
