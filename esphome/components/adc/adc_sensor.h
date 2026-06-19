@@ -54,7 +54,7 @@ template<typename T> class Aggregator {
   SamplingMode mode_{SamplingMode::AVG};
 };
 
-class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage_sampler::VoltageSampler {
+class ADCSensor final : public sensor::Sensor, public PollingComponent, public voltage_sampler::VoltageSampler {
  public:
   /// Update the sensor's state by reading the current ADC value.
   /// This method is called periodically based on the update interval.
