@@ -121,8 +121,8 @@ inline std::unique_ptr<ListenSocket> socket_listen_loop_monitored(int domain, in
 }
 #endif
 /// Create a listening socket in the newest available IP domain and monitor it for data in
-/// the main loop. On IPv6 builds the socket is dual-stack (IPV6_V6ONLY cleared) so it
-/// also receives IPv4 traffic via IPv4-mapped addresses.
+/// the main loop. On non-LWIP_TCP IPv6 builds the socket is dual-stack (IPV6_V6ONLY cleared)
+/// so it also receives IPv4 traffic via IPv4-mapped addresses.
 std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol);
 
 /// Set a sockaddr to the specified address and port for the IP version used by socket_ip().
@@ -142,17 +142,19 @@ inline socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const st
 socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t port);
 
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-/// Join an IPv4 multicast group and fill addr for a subsequent bind().
-/// Handles AF_INET (IP_ADD_MEMBERSHIP) and AF_INET6 (IPV6_JOIN_GROUP via IPv4-mapped address)
-/// transparently based on the build's IP version.
-/// @param sock  The socket to join the group on
-/// @param addr  Destination sockaddr to fill for bind()
-/// @param addrlen  Size of addr buffer
-/// @param ip_address  Null-terminated IPv4 multicast address string (e.g. "239.0.0.1")
-/// @param port  Port number in host byte order
+/// Join a multicast group and fill addr for a subsequent bind().
+/// Dispatches on address type: IPv4 addresses use IP_ADD_MEMBERSHIP on an AF_INET socket;
+/// IPv6 addresses use IPV6_JOIN_GROUP on an AF_INET6 socket (USE_NETWORK_IPV6 builds only).
+/// The caller must create the socket with the matching address family before calling.
+/// @param sock       The socket to join the group on
+/// @param addr       Destination sockaddr to fill for bind()
+/// @param addrlen    Size of addr buffer
+/// @param ip_address  Null-terminated multicast address string (IPv4 e.g. "239.0.0.1" or IPv6 e.g. "ff02::1")
+/// @param port        Port number in host byte order
+/// @param if_index_out Optional: receives the netif index used for the IPv6 join (0 for IPv4 or on failure)
 /// @return Size of the sockaddr filled, or 0 on error (errno set)
 socklen_t join_multicast_group(Socket *sock, struct sockaddr *addr, socklen_t addrlen, const char *ip_address,
-                               uint16_t port);
+                               uint16_t port, uint8_t *if_index_out = nullptr);
 #endif
 
 /// Format sockaddr into caller-provided buffer, returns length written (excluding null)

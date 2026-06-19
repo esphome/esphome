@@ -87,7 +87,7 @@ void DNSServer::process_next_request() {
   if (this->socket_ == nullptr || !this->socket_->ready()) {
     return;
   }
-  struct sockaddr_in client_addr;
+  struct sockaddr_storage client_addr {};
   socklen_t client_addr_len = sizeof(client_addr);
 
   // Receive DNS request using raw fd for recvfrom
@@ -107,7 +107,10 @@ void DNSServer::process_next_request() {
     return;
   }
 
-  ESP_LOGVV(TAG, "Received %d bytes from %s:%d", len, inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+  char client_addr_str[socket::SOCKADDR_STR_LEN];
+  socket::format_sockaddr_to((struct sockaddr *) &client_addr, client_addr_len, client_addr_str);
+  uint16_t client_port = ntohs(reinterpret_cast<struct sockaddr_in *>(&client_addr)->sin_port);
+  ESP_LOGVV(TAG, "Received %d bytes from %s:%d", len, client_addr_str, client_port);
 
   if (len < static_cast<ssize_t>(sizeof(DNSHeader) + 1)) {
     ESP_LOGV(TAG, "Request too short: %d", len);

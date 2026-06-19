@@ -115,50 +115,76 @@ std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol) {
 
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 socklen_t join_multicast_group(Socket *sock, struct sockaddr *addr, socklen_t addrlen, const char *ip_address,
-                               uint16_t port) {
+                               uint16_t port, uint8_t *if_index_out) {
+  if (strchr(ip_address, ':') == nullptr) {
+    // IPv4 multicast — IP_ADD_MEMBERSHIP on an AF_INET socket
+    if (addrlen < sizeof(sockaddr_in)) {
+      errno = EINVAL;
+      return 0;
+    }
+    struct in_addr ipv4mc {};
+    if (inet_aton(ip_address, &ipv4mc) == 0) {
+      errno = EINVAL;
+      return 0;
+    }
+    struct ip_mreq imreq {};
+    imreq.imr_interface.s_addr = ESPHOME_INADDR_ANY;
+    imreq.imr_multiaddr = ipv4mc;
+    auto *server4 = reinterpret_cast<sockaddr_in *>(addr);
+    memset(server4, 0, sizeof(sockaddr_in));
+    server4->sin_family = AF_INET;
+    server4->sin_addr = ipv4mc;
+    server4->sin_port = htons(port);
+    if (sock->setsockopt(IPPROTO_IP, IP_ADD_MEMBERSHIP, &imreq, sizeof(imreq)) < 0)
+      return 0;
+    return sizeof(sockaddr_in);
+  }
 #if USE_NETWORK_IPV6
+  // IPv6 multicast — IPV6_JOIN_GROUP on an AF_INET6 socket
   if (addrlen < sizeof(sockaddr_in6)) {
     errno = EINVAL;
     return 0;
   }
-  struct in_addr ipv4mc {};
-  if (inet_aton(ip_address, &ipv4mc) == 0) {
+  struct ipv6_mreq imreq6 {};
+#ifdef USE_SOCKET_IMPL_BSD_SOCKETS
+  if (inet_pton(AF_INET6, ip_address, &imreq6.ipv6mr_multiaddr) != 1) {
     errno = EINVAL;
     return 0;
   }
-  struct ipv6_mreq imreq6 {};
-  imreq6.ipv6mr_multiaddr.s6_addr[10] = 0xff;
-  imreq6.ipv6mr_multiaddr.s6_addr[11] = 0xff;
-  memcpy(&imreq6.ipv6mr_multiaddr.s6_addr[12], &ipv4mc.s_addr, sizeof(ipv4mc.s_addr));
+#else
+  ip6_addr_t ip6;
+  if (!inet6_aton(ip_address, &ip6)) {
+    errno = EINVAL;
+    return 0;
+  }
+  memcpy(imreq6.ipv6mr_multiaddr.un.u32_addr, ip6.addr, sizeof(ip6.addr));
+#endif
   auto *server6 = reinterpret_cast<sockaddr_in6 *>(addr);
   memset(server6, 0, sizeof(sockaddr_in6));
   server6->sin6_family = AF_INET6;
   server6->sin6_port = htons(port);
   server6->sin6_addr = imreq6.ipv6mr_multiaddr;
-  if (sock->setsockopt(IPPROTO_IPV6, IPV6_JOIN_GROUP, &imreq6, sizeof(imreq6)) < 0)
-    return 0;
+  imreq6.ipv6mr_interface = 0;
+  if (sock->setsockopt(IPPROTO_IPV6, IPV6_JOIN_GROUP, &imreq6, sizeof(imreq6)) < 0) {
+#ifndef USE_HOST
+    // LwIP does not treat interface index 0 as "any interface" (unlike POSIX).
+    // Probe netif indices 1-3 to find the active IPv6-capable interface.
+    bool joined = false;
+    for (unsigned int idx = 1; idx <= 3 && !joined; idx++) {
+      imreq6.ipv6mr_interface = idx;
+      if (sock->setsockopt(IPPROTO_IPV6, IPV6_JOIN_GROUP, &imreq6, sizeof(imreq6)) == 0)
+        joined = true;
+    }
+    if (!joined)
+#endif
+      return 0;
+  }
+  if (if_index_out != nullptr)
+    *if_index_out = static_cast<uint8_t>(imreq6.ipv6mr_interface);
   return sizeof(sockaddr_in6);
 #else
-  if (addrlen < sizeof(sockaddr_in)) {
-    errno = EINVAL;
-    return 0;
-  }
-  struct in_addr ipv4mc {};
-  if (inet_aton(ip_address, &ipv4mc) == 0) {
-    errno = EINVAL;
-    return 0;
-  }
-  struct ip_mreq imreq {};
-  imreq.imr_interface.s_addr = ESPHOME_INADDR_ANY;
-  imreq.imr_multiaddr = ipv4mc;
-  auto *server4 = reinterpret_cast<sockaddr_in *>(addr);
-  memset(server4, 0, sizeof(sockaddr_in));
-  server4->sin_family = AF_INET;
-  server4->sin_addr = ipv4mc;
-  server4->sin_port = htons(port);
-  if (sock->setsockopt(IPPROTO_IP, IP_ADD_MEMBERSHIP, &imreq, sizeof(imreq)) < 0)
-    return 0;
-  return sizeof(sockaddr_in);
+  errno = EINVAL;
+  return 0;
 #endif
 }
 #endif
