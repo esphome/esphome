@@ -12,7 +12,10 @@ class ESP32PreferenceBackend final {
   bool load(uint8_t *data, size_t len);
 
   uint32_t key;
-  uint32_t nvs_handle;
+  uint32_t nvs_handle;   // NVS (flash) path
+  uint16_t rtc_offset;   // RTC path: word offset into the RTC storage region
+  uint8_t length_words;  // RTC path: data length in 32-bit words
+  bool in_flash;         // true: store in NVS (flash); false: store in RTC memory
 };
 
 class ESP32Preferences;
