@@ -32,6 +32,7 @@ from esphome.__main__ import (
     command_clean_all,
     command_config,
     command_config_hash,
+    command_idedata,
     command_rename,
     command_run,
     command_update_all,
@@ -687,6 +688,25 @@ def test_choose_upload_log_host_with_ota_device_with_ota_config() -> None:
         purpose=Purpose.UPLOADING,
     )
     assert result == ["192.168.1.100"]
+
+
+def test_choose_upload_log_host_ota_mdns_disabled_uses_address_cache() -> None:
+    """A .local device with mDNS disabled resolves via the dashboard-supplied cache."""
+    setup_core(
+        config={
+            CONF_API: {},
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
+            CONF_MDNS: {CONF_DISABLED: True},
+        },
+        address="esp32-a1s.local",
+    )
+    CORE.address_cache = AddressCache(mdns_cache={"esp32-a1s.local": ["192.168.1.50"]})
+
+    for purpose in (Purpose.LOGGING, Purpose.UPLOADING):
+        result = choose_upload_log_host(
+            default="OTA", check_default=None, purpose=purpose
+        )
+        assert result == ["192.168.1.50"]
 
 
 def test_choose_upload_log_host_with_ota_device_with_api_config() -> None:
@@ -3133,6 +3153,22 @@ def test_has_resolvable_address() -> None:
 
     # Test with no address and mDNS disabled
     setup_core(config={CONF_MDNS: {CONF_DISABLED: True}}, address=None)
+    assert has_resolvable_address() is False
+
+    # mDNS disabled + .local, but the dashboard cached the address -> resolvable
+    setup_core(
+        config={CONF_MDNS: {CONF_DISABLED: True}}, address="esphome-device.local"
+    )
+    CORE.address_cache = AddressCache(
+        mdns_cache={"esphome-device.local": ["192.168.1.100"]}
+    )
+    assert has_resolvable_address() is True
+
+    # mDNS disabled + .local, cache present but missing this host -> not resolvable
+    setup_core(
+        config={CONF_MDNS: {CONF_DISABLED: True}}, address="esphome-device.local"
+    )
+    CORE.address_cache = AddressCache(mdns_cache={"other-device.local": ["10.0.0.1"]})
     assert has_resolvable_address() is False
 
 
@@ -6222,3 +6258,28 @@ def test_command_run_defaults_subscribe_states_true(
     mock_run_logs.assert_called_once_with(
         CORE.config, ["192.168.1.100"], subscribe_states=True
     )
+
+
+def test_command_idedata_esp_idf_prints_json(capsys: CaptureFixture) -> None:
+    """Under the native ESP-IDF toolchain, idedata is emitted as JSON."""
+    setup_core()
+    CORE.toolchain = Toolchain.ESP_IDF
+    data = {"cxx_path": "g++", "prog_path": "/build/firmware.elf"}
+
+    with patch("esphome.espidf.toolchain.get_idedata", return_value=data) as mock_get:
+        result = command_idedata(MagicMock(), CORE.config)
+
+    assert result == 0
+    mock_get.assert_called_once_with()
+    assert json.loads(capsys.readouterr().out) == data
+
+
+def test_command_idedata_esp_idf_no_build_errors() -> None:
+    """Under ESP-IDF, a missing build (no idedata) returns an error, not a crash."""
+    setup_core()
+    CORE.toolchain = Toolchain.ESP_IDF
+
+    with patch("esphome.espidf.toolchain.get_idedata", return_value=None):
+        result = command_idedata(MagicMock(), CORE.config)
+
+    assert result == 1
