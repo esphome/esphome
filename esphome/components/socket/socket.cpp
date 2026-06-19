@@ -204,16 +204,6 @@ socklen_t join_multicast_group(Socket *sock, struct sockaddr *addr, socklen_t ad
     if (netif->name[0] == 'l' && netif->name[1] == 'o') {
       continue;
     }
-    bool has_valid_ip6 = false;
-    for (int i = 0; i < LWIP_IPV6_NUM_ADDRESSES; i++) {
-      if (ip6_addr_isvalid(netif_ip6_addr_state(netif, i))) {
-        has_valid_ip6 = true;
-        break;
-      }
-    }
-    if (!has_valid_ip6) {
-      continue;
-    }
     imreq6.ipv6mr_interface = netif_get_index(netif);
     if (sock->setsockopt(IPPROTO_IPV6, IPV6_JOIN_GROUP, &imreq6, sizeof(imreq6)) == 0) {
       joined = true;
