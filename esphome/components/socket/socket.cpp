@@ -217,7 +217,16 @@ socklen_t join_multicast_group(Socket *sock, struct sockaddr *addr, socklen_t ad
   if (if_index_out != nullptr) {
     *if_index_out = static_cast<uint8_t>(imreq6.ipv6mr_interface);
   }
-  return set_sockaddr(addr, addrlen, ip_address, port);
+  socklen_t filled = set_sockaddr(addr, addrlen, ip_address, port);
+#if defined(USE_HOST) || defined(USE_ZEPHYR)
+  if (filled == sizeof(sockaddr_in6)) {
+    // POSIX bind() on link-local multicast (ff02::, ff12::) requires sin6_scope_id
+    // set to the interface index. Harmless for site-local and global scopes.
+    // Not needed on LwIP which ignores sin6_scope_id in bind().
+    reinterpret_cast<sockaddr_in6 *>(addr)->sin6_scope_id = imreq6.ipv6mr_interface;
+  }
+#endif
+  return filled;
 #else
   errno = EINVAL;
   return 0;
