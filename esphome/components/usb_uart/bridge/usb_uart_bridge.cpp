@@ -324,21 +324,13 @@ void USBUARTBridge::uart_tx_task_() {
 
 void USBUARTBridge::uart_settings_reload_() {
   if (this->uart_parent_ != nullptr) {
-    // Safe to suspend: tasks are either blocked on FreeRTOS primitives (uart_read_bytes,
-    // xRingbufferReceiveUpTo) or performing atomic ring buffer/UART operations — no mutexes held.
-    if (this->uart_rx_task_handle_ != nullptr) {
-      vTaskSuspend(this->uart_rx_task_handle_);
-    }
-    if (this->uart_tx_task_handle_ != nullptr) {
-      vTaskSuspend(this->uart_tx_task_handle_);
-    }
-    this->uart_parent_->load_settings(false);
-    if (this->uart_rx_task_handle_ != nullptr) {
-      vTaskResume(this->uart_rx_task_handle_);
-    }
-    if (this->uart_tx_task_handle_ != nullptr) {
-      vTaskResume(this->uart_tx_task_handle_);
-    }
+    // Apply the new line coding to the live driver. Unlike load_settings(), which
+    // deletes and reinstalls the driver, this only rewrites the framing registers and
+    // leaves the RX/TX ring buffers intact — so the RX/TX tasks blocked in
+    // uart_read_bytes()/uart_write_bytes() are never disturbed and there is no
+    // use-after-free risk. Runs in the main loop (see loop()), matching the IDF UART
+    // component's main-loop-only threading contract.
+    this->uart_parent_->apply_settings_live();
   }
 }
 

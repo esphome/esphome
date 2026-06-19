@@ -250,6 +250,24 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   }
 }
 
+void IDFUARTComponent::apply_settings_live() {
+  // If the driver isn't installed yet there are no live registers to update; do a
+  // full reload (which installs the driver) instead.
+  if (!uart_is_driver_installed(this->uart_num_)) {
+    this->load_settings(false);
+    return;
+  }
+  // uart_param_config() rewrites only the framing registers (baud rate, data bits,
+  // parity, stop bits, flow control). It does not touch the driver object or its
+  // RX/TX ring buffers, so tasks blocked in uart_read_bytes()/uart_write_bytes()
+  // are undisturbed — no use-after-free, no need to suspend them.
+  uart_config_t uart_config = this->get_config_();
+  esp_err_t err = uart_param_config(this->uart_num_, &uart_config);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_param_config (live) failed: %s", esp_err_to_name(err));
+  }
+}
+
 void IDFUARTComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "UART Bus %u:", this->uart_num_);
   LOG_PIN("  TX Pin: ", this->tx_pin_);
