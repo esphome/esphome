@@ -31,8 +31,8 @@ class USBUARTBridge : public Component {
  protected:
   static void uart_rx_task_fn(void *arg);
   static void uart_tx_task_fn(void *arg);
-  void uart_rx_task();
-  void uart_tx_task();
+  void uart_rx_task_();
+  void uart_tx_task_();
   void uart_settings_reload_();
 
   TaskHandle_t uart_rx_task_handle_{nullptr};

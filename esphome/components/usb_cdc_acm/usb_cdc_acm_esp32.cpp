@@ -24,7 +24,7 @@ static constexpr size_t USB_TX_TASK_STACK_SIZE = 4096;
 static constexpr size_t USB_TX_TASK_STACK_SIZE_VV = 8192;
 static constexpr uint32_t LOG_THROTTLE_MS = 1000;
 
-static bool should_log_now_(uint32_t *last_ms, uint32_t interval_ms) {
+static bool should_log_now(uint32_t *last_ms, uint32_t interval_ms) {
   uint32_t now = esp_log_timestamp();
   if ((now - *last_ms) >= interval_ms) {
     *last_ms = now;
@@ -195,7 +195,7 @@ void USBCDCACMInstance::loop() {
 void USBCDCACMInstance::dump_config() {}
 
 void USBCDCACMInstance::log_rx_buffer_full_throttled() {
-  if (should_log_now_(&this->rx_full_log_ms_, LOG_THROTTLE_MS)) {
+  if (should_log_now(&this->rx_full_log_ms_, LOG_THROTTLE_MS)) {
     ESP_LOGE(TAG, "USB RX itf=%d: buffer full; some data is lost", this->itf_);
   }
 }
@@ -251,7 +251,7 @@ void USBCDCACMInstance::usb_tx_task() {
 
       if (queued == 0) {
         // USB endpoint has no space right now; avoid spinning and log flood.
-        if (should_log_now_(&this->tx_queue_stall_log_ms_, LOG_THROTTLE_MS)) {
+        if (should_log_now(&this->tx_queue_stall_log_ms_, LOG_THROTTLE_MS)) {
           ESP_LOGW(TAG, "USB TX itf=%d: endpoint busy, dropping pending data", this->itf_);
         }
         break;
@@ -265,10 +265,10 @@ void USBCDCACMInstance::usb_tx_task() {
 
       if (flush_ret != ESP_OK) {
         if (flush_ret == ESP_ERR_TIMEOUT) {
-          if (should_log_now_(&this->tx_flush_fail_log_ms_, LOG_THROTTLE_MS)) {
+          if (should_log_now(&this->tx_flush_fail_log_ms_, LOG_THROTTLE_MS)) {
             ESP_LOGW(TAG, "USB TX itf=%d: flush timeout, dropping pending data", this->itf_);
           }
-        } else if (should_log_now_(&this->tx_flush_fail_log_ms_, LOG_THROTTLE_MS)) {
+        } else if (should_log_now(&this->tx_flush_fail_log_ms_, LOG_THROTTLE_MS)) {
           ESP_LOGE(TAG, "USB TX itf=%d: flush failed (%d)", this->itf_, flush_ret);
         }
         if (flush_ret != ESP_ERR_TIMEOUT) {
