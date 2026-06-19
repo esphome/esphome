@@ -1,6 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components import uart, usb_cdc_acm
+from esphome.components import esp32, uart, usb_cdc_acm
+from esphome.components.esp32 import VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_UART_ID
 
@@ -16,21 +17,26 @@ CONF_UART_TX_BUFFER_SIZE = "uart_tx_buffer_size"
 usb_uart_bridge_ns = cg.esphome_ns.namespace("usb_uart_bridge")
 USBUARTBridge = usb_uart_bridge_ns.class_("USBUARTBridge", cg.Component)
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(USBUARTBridge),
-        cv.Required(CONF_UART_ID): cv.use_id(uart.IDFUARTComponent),
-        cv.Required(CONF_USB_CDC_ACM_ID): cv.use_id(usb_cdc_acm.USBCDCACMInstance),
-        cv.Optional(CONF_DTR_PIN): pins.gpio_output_pin_schema,
-        cv.Optional(CONF_RTS_PIN): pins.gpio_output_pin_schema,
-        cv.Optional(CONF_UART_RX_BUFFER_SIZE, default=256): cv.int_range(
-            min=64, max=65535
-        ),
-        cv.Optional(CONF_UART_TX_BUFFER_SIZE, default=256): cv.int_range(
-            min=64, max=65535
-        ),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(USBUARTBridge),
+            cv.Required(CONF_UART_ID): cv.use_id(uart.IDFUARTComponent),
+            cv.Required(CONF_USB_CDC_ACM_ID): cv.use_id(usb_cdc_acm.USBCDCACMInstance),
+            cv.Optional(CONF_DTR_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_RTS_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_UART_RX_BUFFER_SIZE, default=256): cv.int_range(
+                min=64, max=65535
+            ),
+            cv.Optional(CONF_UART_TX_BUFFER_SIZE, default=256): cv.int_range(
+                min=64, max=65535
+            ),
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    esp32.only_on_variant(
+        supported=[VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3],
+    ),
+)
 
 
 async def to_code(config):

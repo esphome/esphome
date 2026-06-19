@@ -155,6 +155,14 @@ void USBUARTBridge::setup() {
 
   // Create task that reads from UART and writes to USB CDC TX buffer
   this->usb_tx_task_handle_ = this->usb_cdc_parent_->get_tx_task_handle();
+  if (this->usb_tx_task_handle_ == nullptr) {
+    // usb_cdc_acm sets up first (priority IO > HARDWARE); a null handle means its
+    // setup failed. The RX task notifies this handle on every burst, so abort
+    // rather than call xTaskNotifyGive(nullptr).
+    ESP_LOGE(TAG, "USB CDC TX task not available; aborting");
+    this->mark_failed();
+    return;
+  }
   xTaskCreate(uart_rx_task_fn, "uart_usb_rx", stack_size, this, 4, &this->uart_rx_task_handle_);
   if (this->uart_rx_task_handle_ == nullptr) {
     ESP_LOGE(TAG, "Failed to create UART RX task");
