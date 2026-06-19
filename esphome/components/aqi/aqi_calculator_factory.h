@@ -6,10 +6,13 @@
 
 namespace esphome::aqi {
 
+// Enum mapping the available AQI calculation standard types
 enum AQICalculatorType { CAQI_TYPE = 0, AQI_TYPE = 1, EAQI_TYPE = 2 };
 
 class AQICalculatorFactory {
  public:
+  // Factory method to retrieve a pointer to the selected calculator instance.
+  // Switch statement is used to dispense the correct logic based on the user's YAML config.
   AbstractAQICalculator *get_calculator(AQICalculatorType type) {
     switch (type) {
       case CAQI_TYPE:

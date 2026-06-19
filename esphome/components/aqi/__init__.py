@@ -8,6 +8,8 @@ AQICalculatorType = aqi_ns.enum("AQICalculatorType")
 CONF_AQI = "aqi"
 CONF_CALCULATION_TYPE = "calculation_type"
 
+# Map the configuration strings to their respective C++ enum values.
+
 AQI_CALCULATION_TYPE = {
     "CAQI": AQICalculatorType.CAQI_TYPE,
     "AQI": AQICalculatorType.AQI_TYPE,

@@ -5,15 +5,21 @@
 #include <limits>
 #include "abstract_aqi_calculator.h"
 
+// https://www.eionet.europa.eu/etcs/etc-he/products/etc-he-products/etc-he-reports/etc-he-report-2024-17-eeas-revision-of-the-european-air-quality-index-bands/@@download/file/ETC%20HE%20Report%202024-17_Gonzalez%20Ortiz.pdf
+
 namespace esphome::aqi {
+
+// EAQI maps pollutant concentrations to discrete index levels from 1 (Good) to 6 (Extremely Poor)
 
 class EAQICalculator : public AbstractAQICalculator {
  public:
   uint16_t get_aqi(float pm2_5_value, float pm10_0_value) override {
+    // Calculate the individual indices for PM2.5 and PM10
     float indices[2] = {
         calculate_index(pm2_5_value, PM2_5_GRID),
         calculate_index(pm10_0_value, PM10_0_GRID),
     };
+    // The overall EAQI is dictated by the highest (worst) index among the measured pollutants.
     return static_cast<uint16_t>(std::lround(*std::max_element(indices, indices + 2)));
   }
 
@@ -34,12 +40,12 @@ class EAQICalculator : public AbstractAQICalculator {
 
   static float calculate_index(float value, const float array[NUM_LEVELS][2]) {
     if (value < 0.0f) {
-      return 0.0f;
+      return 0.0f; // Invalid negative concentration
     }
 
     int grid_index = get_grid_index(value, array);
     if (grid_index == -1) {
-      return 0.0f;
+      return 0.0f; // Value is out of typical bounds entirely
     }
 
     float aqi_lo = static_cast<float>(INDEX_GRID[grid_index][0]);
@@ -47,6 +53,7 @@ class EAQICalculator : public AbstractAQICalculator {
     float conc_lo = array[grid_index][0];
     float conc_hi = array[grid_index][1];
 
+    // Safety fallback to prevent division by zero
     if (conc_hi == conc_lo) {
       return aqi_lo;
     }
@@ -54,6 +61,7 @@ class EAQICalculator : public AbstractAQICalculator {
   }
 
   static int get_grid_index(float value, const float array[NUM_LEVELS][2]) {
+    // Iterate through all possible EAQI levels to locate the applicable concentration bucket
     for (int i = 0; i < NUM_LEVELS; i++) {
       bool in_range = value >= array[i][0] && value <= array[i][1];
       if (in_range) {
