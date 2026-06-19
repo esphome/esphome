@@ -102,8 +102,10 @@ void UDPComponent::setup() {
       // netif index that join_multicast_group found. IPV6_MULTICAST_IF on ESP-IDF
       // LwIP always returns success regardless of index, so we must use a known-valid
       // index from the join probe rather than probing independently.
-      if (mcast_ifindex != 0 && this->send_socket_v6_ != nullptr)
-        this->send_socket_v6_->setsockopt(IPPROTO_IPV6, IPV6_MULTICAST_IF, &mcast_ifindex, sizeof(mcast_ifindex));
+      if (mcast_ifindex != 0 && this->send_socket_v6_ != nullptr) {
+        uint32_t ifidx = mcast_ifindex;
+        this->send_socket_v6_->setsockopt(IPPROTO_IPV6, IPV6_MULTICAST_IF, &ifidx, sizeof(ifidx));
+      }
 #endif
     } else {
       server_len = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), this->listen_port_);
