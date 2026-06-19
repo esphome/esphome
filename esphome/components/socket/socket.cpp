@@ -201,7 +201,7 @@ socklen_t join_multicast_group(Socket *sock, struct sockaddr *addr, socklen_t ad
 #else  // embedded — LwIP NETIF_FOREACH available on all embedded targets
   struct netif *netif;
   NETIF_FOREACH(netif) {
-    if (netif_is_loopback(netif)) {
+    if (netif->name[0] == 'l' && netif->name[1] == 'o') {
       continue;
     }
     bool has_valid_ip6 = false;
