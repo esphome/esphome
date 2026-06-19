@@ -40,12 +40,12 @@ class EAQICalculator : public AbstractAQICalculator {
 
   static float calculate_index(float value, const float array[NUM_LEVELS][2]) {
     if (value < 0.0f) {
-      return 0.0f; // Invalid negative concentration
+      return 0.0f;  // Invalid negative concentration
     }
 
     int grid_index = get_grid_index(value, array);
     if (grid_index == -1) {
-      return 0.0f; // Value is out of typical bounds entirely
+      return 0.0f;  // Value is out of typical bounds entirely
     }
 
     float aqi_lo = static_cast<float>(INDEX_GRID[grid_index][0]);
