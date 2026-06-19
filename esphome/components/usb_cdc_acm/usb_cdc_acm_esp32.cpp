@@ -210,6 +210,7 @@ void USBCDCACMInstance::usb_tx_task() {
   if (data == nullptr) {
     ESP_LOGE(TAG, "USB TX task buffer missing for itf %d", this->itf_);
     vTaskDelete(nullptr);
+    return;
   }
   size_t tx_data_size = 0;
 

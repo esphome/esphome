@@ -1,3 +1,8 @@
+# ESP32-S2 has no USB_SERIAL_JTAG, so the logger defaults to USB_CDC, which shares
+# the USB OTG peripheral with tinyusb. Use a hardware UART for logging instead.
+logger:
+  hardware_uart: UART0
+
 bridge:
   platform: usb_uart
   uart_id: uart_0
