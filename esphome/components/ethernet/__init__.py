@@ -540,6 +540,7 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
         add_idf_sdkconfig_option,
         idf_version,
         include_builtin_idf_component,
+        request_ethernet,
     )
 
     if config[CONF_TYPE] in SPI_ETHERNET_TYPES:
@@ -586,10 +587,9 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
             )
             cg.add(var.add_phy_register(reg))
 
-    # Disable WiFi when using Ethernet to save memory
-    add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENABLED", False)
-    # Also disable WiFi/BT coexistence since WiFi is disabled
-    add_idf_sdkconfig_option("CONFIG_SW_COEXIST_ENABLE", False)
+    # Register Ethernet with the esp32 sdkconfig reconciler, which disables the
+    # WiFi stack and WiFi/BT coexistence when Ethernet is used without WiFi.
+    request_ethernet()
 
     # Re-enable ESP-IDF's Ethernet driver (excluded by default to save compile time)
     include_builtin_idf_component("esp_eth")

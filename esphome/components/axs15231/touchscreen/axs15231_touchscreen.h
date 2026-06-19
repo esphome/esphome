@@ -7,7 +7,7 @@
 
 namespace esphome::axs15231 {
 
-class AXS15231Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice {
+class AXS15231Touchscreen final : public touchscreen::Touchscreen, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;

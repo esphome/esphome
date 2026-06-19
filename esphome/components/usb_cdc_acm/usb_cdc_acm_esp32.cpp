@@ -96,9 +96,9 @@ static void tinyusb_cdc_line_coding_changed_callback(int itf, cdcacm_event_t *ev
 }
 
 static esp_err_t ringbuf_read_bytes(RingbufHandle_t ring_buf, uint8_t *out_buf, size_t out_buf_sz, size_t *rx_data_size,
-                                    TickType_t xTicksToWait) {
+                                    TickType_t x_ticks_to_wait) {
   size_t read_sz;
-  uint8_t *buf = static_cast<uint8_t *>(xRingbufferReceiveUpTo(ring_buf, &read_sz, xTicksToWait, out_buf_sz));
+  uint8_t *buf = static_cast<uint8_t *>(xRingbufferReceiveUpTo(ring_buf, &read_sz, x_ticks_to_wait, out_buf_sz));
 
   if (buf == nullptr) {
     return ESP_FAIL;
@@ -186,7 +186,7 @@ void USBCDCACMInstance::usb_tx_task() {
   uint8_t data[CONFIG_TINYUSB_CDC_TX_BUFSIZE] = {0};
   size_t tx_data_size = 0;
 
-  while (1) {
+  while (true) {
     // Wait for a notification from the bridge component
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
