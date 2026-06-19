@@ -43,78 +43,11 @@ inline bool is_register_type_binary(ModbusRegisterType type) {
 
 // Returns the expected length of a server response frame based on the function code
 // If the frame is too short to determine the length, returns the minimum length
-inline uint16_t server_frame_length(const uint8_t *frame, size_t size) {
-  if (size < 2)
-    return MIN_FRAME_SIZE;
-  if (is_function_code_exception(frame[1])) {
-    return 5;  // address(1) + function(1) + exception(1) + CRC(2)
-  }
-  switch (static_cast<ModbusFunctionCode>(frame[1])) {
-    case ModbusFunctionCode::READ_COILS:
-    case ModbusFunctionCode::READ_DISCRETE_INPUTS:
-    case ModbusFunctionCode::READ_HOLDING_REGISTERS:
-    case ModbusFunctionCode::READ_INPUT_REGISTERS:
-      // address(1) + function(1) + byte count(1) + data + CRC(2)
-      return 5 + (size > 2 ? std::min(frame[2], uint8_t(MAX_NUM_OF_REGISTERS_TO_READ * 2)) : 0);
-    case ModbusFunctionCode::WRITE_SINGLE_COIL:
-    case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
-    case ModbusFunctionCode::WRITE_MULTIPLE_COILS:
-    case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS:
-      return 8;  // address(1) + function(1) + output/register address(2) + value(2) + CRC(2)
-    // Unsupported function codes. Included here to prevent parser failures. Excluding Serial Line specific functions.
-    case ModbusFunctionCode::READ_FILE_RECORD:
-    case ModbusFunctionCode::WRITE_FILE_RECORD:
-      // address(1) + function(1) + byte count(1) + data + CRC(2)
-      return 5 + (size > 2 ? std::min(frame[2], uint8_t(MAX_FRAME_SIZE - 5)) : 0);
-    case ModbusFunctionCode::MASK_WRITE_REGISTER:
-      return 10;  // address(1) + function(1) + reference address(2) + AND mask(2) + OR mask(2) + CRC(2)
-    case ModbusFunctionCode::READ_WRITE_MULTIPLE_REGISTERS:
-      // address(1) + function(1) + byte count(1) + data + CRC(2)
-      return 5 + (size > 2 ? std::min(frame[2], uint8_t(MAX_NUM_OF_REGISTERS_TO_READ * 2)) : 0);
-    case ModbusFunctionCode::READ_FIFO_QUEUE:
-      // address(1) + function(1) + fifo address(2) CRC(2)
-      return 6;
-    default:
-      return MIN_FRAME_SIZE;  // unknown length
-  }
-}
+uint16_t server_frame_length(const uint8_t *frame, size_t size);
 
 // Returns the expected length of a client request frame based on the function code
 // If the frame is too short to determine the length, returns the minimum length
-inline uint16_t client_frame_length(const uint8_t *frame, size_t size) {
-  if (size < 2)
-    return MIN_FRAME_SIZE;
-  switch (static_cast<ModbusFunctionCode>(frame[1])) {
-    case ModbusFunctionCode::READ_COILS:
-    case ModbusFunctionCode::READ_DISCRETE_INPUTS:
-    case ModbusFunctionCode::READ_HOLDING_REGISTERS:
-    case ModbusFunctionCode::READ_INPUT_REGISTERS:
-      // address(1) + function(1) + start address(2) + quantity(2) + CRC(2)
-    case ModbusFunctionCode::WRITE_SINGLE_COIL:
-    case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
-      return 8;  // address(1) + function(1) + output/register address(2) + value(2) + CRC(2)
-    case ModbusFunctionCode::WRITE_MULTIPLE_COILS:
-    case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS:
-      // address(1) + function(1) + start address(2) + quantity(2) + byte count(1) + data + CRC(2)
-      return 9 + (size > 6 ? std::min(frame[6], uint8_t(MAX_NUM_OF_REGISTERS_TO_WRITE * 2)) : 0);
-    // Unsupported function codes. Included here to prevent parser failures. Excluding Serial Line specific functions.
-    case ModbusFunctionCode::READ_FILE_RECORD:
-    case ModbusFunctionCode::WRITE_FILE_RECORD:
-      // address(1) + function(1) + byte count(1) + data + CRC(2)
-      return 5 + (size > 2 ? std::min(frame[2], uint8_t(MAX_FRAME_SIZE - 5)) : 0);
-    case ModbusFunctionCode::MASK_WRITE_REGISTER:
-      return 10;  // address(1) + function(1) + reference address(2) + AND mask(2) + OR mask(2) + CRC(2)
-    case ModbusFunctionCode::READ_WRITE_MULTIPLE_REGISTERS:
-      // address(1) + function(1) + read start address(2) + read quantity(2) + write start address(2) +
-      // write quantity(2) + byte count(1) + data + CRC(2)
-      return 13 + (size > 10 ? std::min(frame[10], uint8_t(MAX_NUM_OF_REGISTERS_TO_WRITE * 2)) : 0);
-    case ModbusFunctionCode::READ_FIFO_QUEUE:
-      // address(1) + function(1) + fifo address(2) CRC(2)
-      return 6;
-    default:
-      return MIN_FRAME_SIZE;  // unknown length
-  }
-}
+uint16_t client_frame_length(const uint8_t *frame, size_t size);
 
 inline uint8_t server_frame_data_offset(const uint8_t *frame, size_t size) {
   if (size < 2)
