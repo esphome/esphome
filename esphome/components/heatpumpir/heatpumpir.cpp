@@ -280,63 +280,60 @@ static const uint8_t MITSUBISHI_HEAVY_SWING_V_MASK7 = 0x18;
 static const uint8_t MITSUBISHI_HEAVY_CHECKSUM_BYTE = 0xFF;
 
 bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
-
-  uint8_t frame[11] = {};
-
-  if (!data.expect_item(MITSUBISHI_HEAVY_HDR_MARK, MITSUBISHI_HEAVY_HDR_SPACE))
-    return false;
-
-  for (uint8_t pos = 0; pos < 11; pos++) {
-    uint8_t byte = 0;
-    for (int8_t bit = 0; bit < 8; bit++) {
-      if (data.expect_item(MITSUBISHI_HEAVY_BIT_MARK, MITSUBISHI_HEAVY_ONE_SPACE)) {
-        byte |= 1 << bit;
-      } else if (!data.expect_item(MITSUBISHI_HEAVY_BIT_MARK, MITSUBISHI_HEAVY_ZERO_SPACE)) {
-        return false;
-      }
-    }
-    frame[pos] = byte;
-
-    if (pos < 5 && byte != MITSUBISHI_HEAVY_FRAME_PREFIX[pos])
-      return false;
-  }
-
-  if ((uint8_t) (frame[5] ^ frame[6]) != MITSUBISHI_HEAVY_CHECKSUM_BYTE ||
-      (uint8_t) (frame[7] ^ frame[8]) != MITSUBISHI_HEAVY_CHECKSUM_BYTE ||
-      (uint8_t) (frame[9] ^ frame[10]) != MITSUBISHI_HEAVY_CHECKSUM_BYTE) {
-    return false;
-  }
-
-  // Shared: operating mode
-  if (frame[9] & MITSUBISHI_HEAVY_MODE_OFF) {
-    this->mode = climate::CLIMATE_MODE_OFF;
-  } else {
-    switch (frame[9] & MITSUBISHI_HEAVY_MODE_MASK) {
-      case MITSUBISHI_HEAVY_MODE_AUTO:
-        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-        break;
-      case MITSUBISHI_HEAVY_MODE_HEAT:
-        this->mode = climate::CLIMATE_MODE_HEAT;
-        break;
-      case MITSUBISHI_HEAVY_MODE_COOL:
-        this->mode = climate::CLIMATE_MODE_COOL;
-        break;
-      case MITSUBISHI_HEAVY_MODE_DRY:
-        this->mode = climate::CLIMATE_MODE_DRY;
-        break;
-      case MITSUBISHI_HEAVY_MODE_FAN:
-        this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-        break;
-      default:
-        return false;
-    }
-  }
-
-  this->target_temperature = 17 + ((~(frame[9] >> 4)) & MITSUBISHI_HEAVY_TEMP_MASK);
-
-  // Protocol-specific: fan, presets, and swing
   switch (this->protocol_) {
     case PROTOCOL_MITSUBISHI_HEAVY_ZMP: {
+      uint8_t frame[11] = {};
+
+      if (!data.expect_item(MITSUBISHI_HEAVY_HDR_MARK, MITSUBISHI_HEAVY_HDR_SPACE))
+        return false;
+
+      for (uint8_t pos = 0; pos < 11; pos++) {
+        uint8_t byte = 0;
+        for (int8_t bit = 0; bit < 8; bit++) {
+          if (data.expect_item(MITSUBISHI_HEAVY_BIT_MARK, MITSUBISHI_HEAVY_ONE_SPACE)) {
+            byte |= 1 << bit;
+          } else if (!data.expect_item(MITSUBISHI_HEAVY_BIT_MARK, MITSUBISHI_HEAVY_ZERO_SPACE)) {
+            return false;
+          }
+        }
+        frame[pos] = byte;
+
+        if (pos < 5 && byte != MITSUBISHI_HEAVY_FRAME_PREFIX[pos])
+          return false;
+      }
+
+      if ((uint8_t) (frame[5] ^ frame[6]) != MITSUBISHI_HEAVY_CHECKSUM_BYTE ||
+          (uint8_t) (frame[7] ^ frame[8]) != MITSUBISHI_HEAVY_CHECKSUM_BYTE ||
+          (uint8_t) (frame[9] ^ frame[10]) != MITSUBISHI_HEAVY_CHECKSUM_BYTE) {
+        return false;
+      }
+
+      if (frame[9] & MITSUBISHI_HEAVY_MODE_OFF) {
+        this->mode = climate::CLIMATE_MODE_OFF;
+      } else {
+        switch (frame[9] & MITSUBISHI_HEAVY_MODE_MASK) {
+          case MITSUBISHI_HEAVY_MODE_AUTO:
+            this->mode = climate::CLIMATE_MODE_HEAT_COOL;
+            break;
+          case MITSUBISHI_HEAVY_MODE_HEAT:
+            this->mode = climate::CLIMATE_MODE_HEAT;
+            break;
+          case MITSUBISHI_HEAVY_MODE_COOL:
+            this->mode = climate::CLIMATE_MODE_COOL;
+            break;
+          case MITSUBISHI_HEAVY_MODE_DRY:
+            this->mode = climate::CLIMATE_MODE_DRY;
+            break;
+          case MITSUBISHI_HEAVY_MODE_FAN:
+            this->mode = climate::CLIMATE_MODE_FAN_ONLY;
+            break;
+          default:
+            return false;
+        }
+      }
+
+      this->target_temperature = 17 + ((~(frame[9] >> 4)) & MITSUBISHI_HEAVY_TEMP_MASK);
+
       uint8_t fan = frame[7] & MITSUBISHI_HEAVY_FAN_MASK;
       if (fan == MITSUBISHI_HEAVY_ZMP_FAN_AUTO) {
         this->fan_mode = climate::CLIMATE_FAN_AUTO;
@@ -355,12 +352,13 @@ bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
       } else if (fan == MITSUBISHI_HEAVY_ZMP_ECONO) {
         this->preset = climate::CLIMATE_PRESET_ECO;
       }
-      static const uint8_t MITSUBISHI_HEAVY_ZMP_HS_MASK = 0xDC;
-      static const uint8_t MITSUBISHI_HEAVY_ZMP_HS_SWING = 0x5C;
 
-      uint8_t swing_h = frame[5] & MITSUBISHI_HEAVY_ZMP_HS_MASK;
+      static const uint8_t ZMP_HS_MASK = 0xDC;
+      static const uint8_t ZMP_HS_SWING = 0x5C;
+
+      uint8_t swing_h = frame[5] & ZMP_HS_MASK;
       uint8_t swing_v = (frame[5] & MITSUBISHI_HEAVY_SWING_V_MASK5) | (frame[7] & MITSUBISHI_HEAVY_SWING_V_MASK7);
-      bool h_swing = (swing_h == MITSUBISHI_HEAVY_ZMP_HS_SWING);
+      bool h_swing = (swing_h == ZMP_HS_SWING);
       bool v_swing = (swing_v == MITSUBISHI_HEAVY_ZMP_VS_SWING);
 
       if (h_swing && v_swing)
