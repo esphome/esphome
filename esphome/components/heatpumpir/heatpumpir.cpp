@@ -329,9 +329,19 @@ bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
       } else if (fan == MITSUBISHI_HEAVY_ZMP_ECONO) {
         this->preset = climate::CLIMATE_PRESET_ECO;
       }
+      uint8_t swing_h = frame[5] & 0xDC;
       uint8_t swing_v = (frame[5] & MITSUBISHI_HEAVY_SWING_V_MASK5) | (frame[7] & MITSUBISHI_HEAVY_SWING_V_MASK7);
-      this->swing_mode = (swing_v == MITSUBISHI_HEAVY_ZMP_VS_SWING) ? climate::CLIMATE_SWING_VERTICAL
-                                                                     : climate::CLIMATE_SWING_OFF;
+      bool h_swing = (swing_h == MITSUBISHI_HEAVY_ZJ_HS_SWING) || (swing_h == 0x5C);
+      bool v_swing = (swing_v == MITSUBISHI_HEAVY_ZMP_VS_SWING);
+
+      if (h_swing && v_swing)
+        this->swing_mode = climate::CLIMATE_SWING_BOTH;
+      else if (h_swing)
+        this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
+      else if (v_swing)
+        this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+      else
+        this->swing_mode = climate::CLIMATE_SWING_OFF;
       break;
     }
     default:
