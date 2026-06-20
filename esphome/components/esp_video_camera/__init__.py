@@ -8,9 +8,15 @@ All Espressif sources are pulled through the IDF component manager (managed
 components) — nothing is vendored.
 """
 
+from pathlib import Path
+
 import esphome.codegen as cg
 from esphome.components import i2c
-from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
+from esphome.components.esp32 import (
+    add_extra_build_file,
+    add_idf_component,
+    add_idf_sdkconfig_option,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_DEVICE, CONF_I2C_ID, CONF_ID, CONF_RESOLUTION
 from esphome.core import CORE
@@ -151,3 +157,21 @@ async def to_code(config):
         add_idf_sdkconfig_option(
             f"CONFIG_CAMERA_{sensor}_AUTO_DETECT_MIPI_INTERFACE_SENSOR", True
         )
+
+    # SC202CS colour tuning. The SC2356 module is the same SC202CS silicon
+    # (PID 0xeb52 @ SCCB 0x36) but ships an IPA JSON with noticeably better
+    # colour than the stock default, validated on the M5Stack Tab5 / reTerminal.
+    # Override the sensor's default IPA configuration with it. esp_cam_sensor's
+    # project_include.cmake embeds the file pointed to by the CUSTOMIZED path.
+    ipa_json = "esp_video_camera/sc202cs_ipa.json"
+    add_extra_build_file(ipa_json, Path(__file__).parent / "cfg" / "sc202cs.json")
+    add_idf_sdkconfig_option(
+        "CONFIG_CAMERA_SC202CS_DEFAULT_IPA_JSON_CONFIGURATION_FILE", False
+    )
+    add_idf_sdkconfig_option(
+        "CONFIG_CAMERA_SC202CS_CUSTOMIZED_IPA_JSON_CONFIGURATION_FILE", True
+    )
+    add_idf_sdkconfig_option(
+        "CONFIG_CAMERA_SC202CS_CUSTOMIZED_IPA_JSON_CONFIGURATION_FILE_PATH",
+        str(CORE.relative_build_path(ipa_json)),
+    )
