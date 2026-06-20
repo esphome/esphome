@@ -1,0 +1,19 @@
+ble_client:
+  - mac_address: 01:02:03:04:05:06
+    id: ecocomfort2_ble_1
+  - mac_address: 01:02:03:04:05:07
+    id: ecocomfort2_ble_2
+
+ecocomfort2:
+  - id: ecocomfort2_hub_1
+    ble_client_id: ecocomfort2_ble_1
+  - id: ecocomfort2_hub_2
+    ble_client_id: ecocomfort2_ble_2
+
+fan:
+  - platform: ecocomfort2
+    name: Ecocomfort2 Fan 1
+    ecocomfort2_id: ecocomfort2_hub_1
+  - platform: ecocomfort2
+    name: Ecocomfort2 Fan 2
+    ecocomfort2_id: ecocomfort2_hub_2
