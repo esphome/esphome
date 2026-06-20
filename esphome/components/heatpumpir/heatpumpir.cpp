@@ -252,14 +252,13 @@ static const uint8_t MITSUBISHI_HEAVY_ZJ_BYTE3 = 0x26;
 static const uint8_t MITSUBISHI_HEAVY_ZJ_BYTE4 = 0xD9;
 
 bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
-  if (this->protocol_ != PROTOCOL_MITSUBISHI_HEAVY_ZJ && this->protocol_ != PROTOCOL_MITSUBISHI_HEAVY_ZMP)
+  if (this->protocol_ != PROTOCOL_MITSUBISHI_HEAVY_ZMP)
     return false;
 
   uint8_t frame[11] = {};
 
-  if (!data.expect_item(MITSUBISHI_HEAVY_HDR_MARK, MITSUBISHI_HEAVY_HDR_SPACE)) {
+  if (!data.expect_item(MITSUBISHI_HEAVY_HDR_MARK, MITSUBISHI_HEAVY_HDR_SPACE))
     return false;
-  }
 
   for (uint8_t pos = 0; pos < MITSUBISHI_HEAVY_ZJ_STATE_LENGTH; pos++) {
     uint8_t byte = 0;
@@ -314,46 +313,33 @@ bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
 
   uint8_t fan = frame[7] & 0xE0;
 
-  if (fan == MITSUBISHI_HEAVY_ZJ_FAN_AUTO) {
+  if (fan == MITSUBISHI_HEAVY_ZMP_FAN_AUTO) {
     this->fan_mode = climate::CLIMATE_FAN_AUTO;
-    this->preset = climate::CLIMATE_PRESET_NONE;
-  } else if (fan == MITSUBISHI_HEAVY_ZJ_FAN1) {
+  } else if (fan == MITSUBISHI_HEAVY_ZMP_FAN1) {
     this->fan_mode = climate::CLIMATE_FAN_LOW;
-    this->preset = climate::CLIMATE_PRESET_NONE;
-  } else if (fan == MITSUBISHI_HEAVY_ZJ_FAN2) {
+  } else if (fan == MITSUBISHI_HEAVY_ZMP_FAN2) {
     this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-    this->preset = climate::CLIMATE_PRESET_NONE;
-  } else if (fan == MITSUBISHI_HEAVY_ZJ_FAN3) {
+  } else if (fan == MITSUBISHI_HEAVY_ZMP_FAN3) {
     this->fan_mode = climate::CLIMATE_FAN_HIGH;
-    this->preset = climate::CLIMATE_PRESET_NONE;
-  } else if (this->protocol_ == PROTOCOL_MITSUBISHI_HEAVY_ZMP) {
-    if (fan == MITSUBISHI_HEAVY_ZMP_HIPOWER) {
-      this->preset = climate::CLIMATE_PRESET_BOOST;
-    } else if (fan == MITSUBISHI_HEAVY_ZMP_ECONO) {
-      this->preset = climate::CLIMATE_PRESET_ECO;
-    }
-  } else {
-    if (fan == MITSUBISHI_HEAVY_ZJ_HIPOWER) {
-      this->preset = climate::CLIMATE_PRESET_BOOST;
-    } else if (fan == MITSUBISHI_HEAVY_ZJ_ECONO) {
-      this->preset = climate::CLIMATE_PRESET_ECO;
-    }
+  } else if (fan == MITSUBISHI_HEAVY_ZMP_HIPOWER) {
+    this->preset = climate::CLIMATE_PRESET_BOOST;
+  } else if (fan == MITSUBISHI_HEAVY_ZMP_ECONO) {
+    this->preset = climate::CLIMATE_PRESET_ECO;
   }
 
-  if (h_swing && v_swing) {
-    this->swing_mode = climate::CLIMATE_SWING_BOTH;
-  } else if (h_swing) {
-    this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
-  } else if (v_swing) {
+  uint8_t swing_v = (frame[5] & 0x02) | (frame[7] & 0x18);
+
+  if (swing_v == MITSUBISHI_HEAVY_ZMP_VS_SWING)
     this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
-  } else {
+  else
     this->swing_mode = climate::CLIMATE_SWING_OFF;
-  }
 
   this->publish_state();
   return true;
 }
 
 }  // namespace esphome::heatpumpir
+
+#endif
 
 #endif
