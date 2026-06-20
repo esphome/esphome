@@ -21,6 +21,28 @@ DEFAULT_MTU = 23
 # largest usable ACL buffer) is capped at the BLE 4.2+ maximum.
 L2CAP_HEADER_SIZE = 4
 MAX_CTLR_DATA_LENGTH = 251
+# Enabling CONFIG_BT_SMP (done when on_numeric_comparison_request is configured) raises
+# Zephyr/NCS's minimum BT_L2CAP_TX_MTU to 65 (and BT_BUF_ACL_RX_SIZE to 65 + 4 = 69) so
+# pairing PDUs fit. An explicit mtu between the default and this floor would emit
+# out-of-range Kconfig, so it is rejected; leaving mtu at the default lets Zephyr apply
+# these SMP minimums itself.
+SMP_MIN_MTU = 65
+
+
+def _validate_mtu_for_smp(config):
+    # SMP is enabled whenever numeric comparison pairing is configured (see to_code).
+    if config.get(CONF_ON_NUMERIC_COMPARISON_REQUEST) is None:
+        return config
+    if DEFAULT_MTU < config[CONF_MTU] < SMP_MIN_MTU:
+        raise cv.Invalid(
+            f"'{CONF_MTU}' must be at least {SMP_MIN_MTU} when "
+            f"'{CONF_ON_NUMERIC_COMPARISON_REQUEST}' is set, because enabling Bluetooth "
+            f"pairing (SMP) raises the minimum supported MTU to {SMP_MIN_MTU}. Use the "
+            f"default ({DEFAULT_MTU}) or a value of at least {SMP_MIN_MTU}.",
+            [CONF_MTU],
+        )
+    return config
+
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -34,6 +56,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
+    _validate_mtu_for_smp,
     cv.only_with_framework(Framework.ZEPHYR),
 )
 
