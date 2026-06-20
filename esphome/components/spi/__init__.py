@@ -55,7 +55,9 @@ SPIMode = spi_ns.enum("SPIMode")
 PLATFORM_SPI_CLOCKS = {
     PLATFORM_ESP8266: 40e6,
     PLATFORM_ESP32: 80e6,
-    PLATFORM_NRF52: 32e6,
+    # ESPHome binds the nRF52 SPI to Zephyr's spi2 node (SPIM2), which the
+    # nrf52840.dtsi caps at 8 MHz; only spi3 (SPIM3) supports 32 MHz.
+    PLATFORM_NRF52: 8e6,
     PLATFORM_RP2040: 62.5e6,
 }
 
