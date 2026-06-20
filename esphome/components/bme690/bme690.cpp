@@ -4,8 +4,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace bme690 {
+namespace esphome::bme690 {
 
 bool BME690Component::check_result_(const char *label, int8_t rslt) {
   if (rslt == BME69X_OK) {
@@ -490,5 +489,4 @@ int64_t BME690Component::get_time_ns_() {
   return (time_ms + (static_cast<int64_t>(this->millis_overflow_counter_) << 32)) * INT64_C(1000000);
 }
 
-}  // namespace bme690
-}  // namespace esphome
+}  // namespace esphome::bme690
