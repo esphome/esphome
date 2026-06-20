@@ -660,8 +660,9 @@
  * @retval 0 for Success
  * @retval Non-zero for Failure
  */
-using bme69x_read_fptr_t = BME69X_INTF_RET_TYPE (*)(uint8_t reg_addr, uint8_t *reg_data, uint32_t length,
-                                                    void *intf_ptr);
+// NOLINTNEXTLINE(modernize-use-using)
+typedef BME69X_INTF_RET_TYPE (*bme69x_read_fptr_t)(uint8_t reg_addr, uint8_t *reg_data, uint32_t length,
+                                                   void *intf_ptr);
 
 /*!
  * @brief Bus communication function pointer which should be mapped to
@@ -676,8 +677,9 @@ using bme69x_read_fptr_t = BME69X_INTF_RET_TYPE (*)(uint8_t reg_addr, uint8_t *r
  * @retval Non-zero for Failure
  *
  */
-using bme69x_write_fptr_t = BME69X_INTF_RET_TYPE (*)(uint8_t reg_addr, const uint8_t *reg_data, uint32_t length,
-                                                     void *intf_ptr);
+// NOLINTNEXTLINE(modernize-use-using)
+typedef BME69X_INTF_RET_TYPE (*bme69x_write_fptr_t)(uint8_t reg_addr, const uint8_t *reg_data, uint32_t length,
+                                                    void *intf_ptr);
 
 /*!
  * @brief Delay function pointer which should be mapped to
@@ -687,7 +689,8 @@ using bme69x_write_fptr_t = BME69X_INTF_RET_TYPE (*)(uint8_t reg_addr, const uin
  * @param[in,out] intf_ptr : Void pointer that can enable the linking of descriptors
  *                           for interface related callbacks
  */
-using bme69x_delay_us_fptr_t = void (*)(uint32_t period, void *intf_ptr);
+// NOLINTNEXTLINE(modernize-use-using)
+typedef void (*bme69x_delay_us_fptr_t)(uint32_t period, void *intf_ptr);
 
 /*
  * @brief Generic communication function pointer
