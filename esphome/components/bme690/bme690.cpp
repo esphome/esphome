@@ -159,8 +159,8 @@ void BME690Component::update() {
     sensor_settings.heater_temperature = this->heatr_conf_.heatr_temp;
     sensor_settings.heater_duration = this->heatr_conf_.heatr_dur;
     sensor_settings.run_gas = 1;
-    sensor_settings.process_data = BSEC_PROCESS_TEMPERATURE | BSEC_PROCESS_HUMIDITY | BSEC_PROCESS_PRESSURE |
-                                   BSEC_PROCESS_GAS;
+    sensor_settings.process_data =
+        BSEC_PROCESS_TEMPERATURE | BSEC_PROCESS_HUMIDITY | BSEC_PROCESS_PRESSURE | BSEC_PROCESS_GAS;
   }
 
   if (sensor_settings.trigger_measurement == 0) {
@@ -312,7 +312,7 @@ bool BME690Component::configure_bsec_() {
 }
 
 bool BME690Component::push_inputs_to_bsec_(const struct bme69x_data &data, const bsec_bme_settings_t &settings,
-                                          int64_t timestamp_ns) {
+                                           int64_t timestamp_ns) {
   bsec_input_t inputs[BSEC_MAX_PHYSICAL_SENSOR] = {};
   uint8_t n_inputs = 0;
 

@@ -29,9 +29,7 @@ namespace esphome::bme690 {
 static const char *const TAG = "bme690";
 static const char *const IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 
-inline bool bsec_has_input(uint32_t process_data, uint8_t input) {
-  return (process_data & (1U << (input - 1))) != 0;
-}
+inline bool bsec_has_input(uint32_t process_data, uint8_t input) { return (process_data & (1U << (input - 1))) != 0; }
 
 class BME690Component : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -92,9 +90,9 @@ class BME690Component : public PollingComponent, public i2c::I2CDevice {
   void save_bsec_state_();
   int64_t get_time_ns_();
 
-  struct bme69x_dev dev_{};
-  struct bme69x_conf conf_{};
-  struct bme69x_heatr_conf heatr_conf_{};
+  struct bme69x_dev dev_ {};
+  struct bme69x_conf conf_ {};
+  struct bme69x_heatr_conf heatr_conf_ {};
   std::vector<uint8_t> bsec_instance_;
   std::vector<uint8_t> bsec_work_buffer_;
   float sample_rate_{BSEC_SAMPLE_RATE_ULP};

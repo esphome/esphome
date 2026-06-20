@@ -94,7 +94,5 @@ async def to_code(config):
     )
 
     cg.add(
-        var.set_state_save_interval(
-            config[CONF_STATE_SAVE_INTERVAL].total_milliseconds
-        )
+        var.set_state_save_interval(config[CONF_STATE_SAVE_INTERVAL].total_milliseconds)
     )
