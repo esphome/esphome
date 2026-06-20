@@ -1771,6 +1771,21 @@ def command_update_all(args: ArgsProtocol) -> int | None:
 def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
     import json
 
+    if CORE.using_toolchain_esp_idf:
+        # Native ESP-IDF derives idedata from the build's compile_commands.json,
+        # so the configuration must already be compiled.
+        from esphome.espidf import toolchain as espidf_toolchain
+
+        idedata = espidf_toolchain.get_idedata()
+        if idedata is None:
+            _LOGGER.error(
+                "No idedata available; compile the configuration first",
+            )
+            return 1
+
+        print(json.dumps(idedata, indent=2) + "\n")
+        return 0
+
     if not CORE.using_toolchain_platformio:
         _LOGGER.error(
             "The idedata command is not compatible with %s toolchain",
