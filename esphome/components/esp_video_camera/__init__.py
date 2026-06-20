@@ -139,10 +139,14 @@ async def to_code(config):
         add_idf_component(name="espressif/usb_host_uvc", ref="2.5.*")
 
     # Pipeline features. Kconfig keys verified against esp_video 2.2.0.
+    # ENABLE_ISP_PIPELINE_CONTROLLER (default n) is what pulls in esp_ipa and
+    # runs the AWB/AE/CCM/gamma automation that applies the sensor IPA JSON
+    # tuning; without it the MIPI image is unprocessed (washed-out / green cast).
     for opt in (
         "CONFIG_ESP_VIDEO_ENABLE_MIPI_CSI_VIDEO_DEVICE",
         "CONFIG_ESP_VIDEO_ENABLE_ISP",
         "CONFIG_ESP_VIDEO_ENABLE_ISP_VIDEO_DEVICE",
+        "CONFIG_ESP_VIDEO_ENABLE_ISP_PIPELINE_CONTROLLER",
         "CONFIG_ESP_VIDEO_ENABLE_JPEG_VIDEO_DEVICE",
         "CONFIG_ESP_VIDEO_ENABLE_HW_JPEG_VIDEO_DEVICE",
     ):
