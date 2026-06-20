@@ -36,8 +36,8 @@ static gpio_flags_t flags_to_mode(gpio::Flags flags, bool inverted, bool value) 
 
 // ESPHome's InterruptType is expressed in logical levels, but the pin is configured active-high in Zephyr (inversion is
 // applied in software by digital_read()/digital_write(), see the `!= inverted_` convention below). So when the pin is
-// inverted we must swap the physical edge/level the interrupt arms on: a logical rising edge is a physical falling edge,
-// etc. GPIO_INT_EDGE_BOTH is symmetric and needs no swap.
+// inverted we must swap the physical edge/level the interrupt arms on: a logical rising edge is a physical falling
+// edge, etc. GPIO_INT_EDGE_BOTH is symmetric and needs no swap.
 static gpio_flags_t interrupt_type_to_flags(gpio::InterruptType type, bool inverted) {
   switch (type) {
     case gpio::INTERRUPT_RISING_EDGE:
