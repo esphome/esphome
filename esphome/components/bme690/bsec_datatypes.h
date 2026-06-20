@@ -179,7 +179,7 @@ typedef enum {
    *
    * 3 - TVOC equivalent baseline adaptation enabled.
    *
-   *	@note Baseline is a mechanism for compensating the long term drifts in the enviornment and ensure the consistency
+   * @note Baseline is a mechanism for compensating the long term drifts in the enviornment and ensure the consistency
    *of IAQ and TVOC equivalent outputs across different BME sensors.
    */
   BSEC_INPUT_DISABLE_BASELINE_TRACKER = 23,
