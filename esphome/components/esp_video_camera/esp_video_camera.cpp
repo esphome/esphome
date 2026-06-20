@@ -236,8 +236,14 @@ bool ESPVideoCamera::init_pipeline_() {
     return false;
   }
 
+  // A "uvc" device streams from a USB camera only. In that case skip the
+  // MIPI-CSI pipeline entirely: esp_video_init() runs sensor detection only
+  // when config->csi != NULL, so leaving it NULL avoids trying (and failing)
+  // to detect a MIPI sensor that isn't present on a USB-only board.
+  const bool uvc_only = this->device_.rfind("uvc", 0) == 0;
+
   // Start XCLK via LEDC if requested (MIPI sensors need it before init).
-  if (this->enable_xclk_init_ && this->xclk_pin_ != (gpio_num_t) -1) {
+  if (!uvc_only && this->enable_xclk_init_ && this->xclk_pin_ != (gpio_num_t) -1) {
     if (init_xclk_ledc(this->xclk_pin_, this->xclk_freq_) != ESP_OK) {
       ESP_LOGE(TAG, "XCLK init failed");
       return false;
@@ -255,7 +261,8 @@ bool ESPVideoCamera::init_pipeline_() {
   // The sensor XCLK is generated separately via LEDC (see init_xclk_ledc above).
 
   esp_video_init_config_t video_config = {};
-  video_config.csi = &csi_config;
+  if (!uvc_only)
+    video_config.csi = &csi_config;
 
 #if CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
   esp_video_init_usb_uvc_config_t uvc_config = {};
