@@ -100,7 +100,9 @@ struct IPAddress {
       is_v6_ = inet_pton(AF_INET6, in_address.c_str(), &addr_.v6) == 1;
     } else {
       is_v6_ = false;
-      inet_aton(in_address.c_str(), &addr_.v4);
+      if (inet_aton(in_address.c_str(), &addr_.v4) == 0) {
+        addr_.v4 = {};
+      }
     }
   }
   IPAddress(const ip_addr_t *other_ip) : is_v6_(false) {
