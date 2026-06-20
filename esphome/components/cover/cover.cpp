@@ -2,8 +2,6 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
-#include "esphome/core/progmem.h"
-
 #include <strings.h>
 
 namespace esphome::cover {
@@ -19,58 +17,24 @@ const LogString *cover_command_to_str(float pos) {
     return LOG_STR("UNKNOWN");
   }
 }
-// Cover operation strings indexed by CoverOperation enum (0-2): IDLE, OPENING, CLOSING, plus UNKNOWN
-PROGMEM_STRING_TABLE(CoverOperationStrings, "IDLE", "OPENING", "CLOSING", "UNKNOWN");
+const LogString *cover_operation_to_str(CoverOperation op) { return actuator::actuator_operation_to_str(op); }
 
-const LogString *cover_operation_to_str(CoverOperation op) {
-  return CoverOperationStrings::get_log_str(static_cast<uint8_t>(op), CoverOperationStrings::LAST_INDEX);
-}
+Cover::Cover() { this->position = COVER_OPEN; }
 
-Cover::Cover() : position{COVER_OPEN} {}
+//
+// CoverCall
+//
 
-CoverCall::CoverCall(Cover *parent) : parent_(parent) {}
+// Covariant wrapper for set_command (the only one with non-trivial base) — others are inline in cover.h
 CoverCall &CoverCall::set_command(const char *command) {
-  if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("OPEN")) == 0) {
-    this->set_command_open();
-  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("CLOSE")) == 0) {
-    this->set_command_close();
-  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("STOP")) == 0) {
-    this->set_command_stop();
-  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("TOGGLE")) == 0) {
-    this->set_command_toggle();
-  } else {
-    ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command);
-  }
+  actuator::ActuatorCallBase::set_command(command);
   return *this;
 }
-CoverCall &CoverCall::set_command_open() {
-  this->position_ = COVER_OPEN;
-  return *this;
-}
-CoverCall &CoverCall::set_command_close() {
-  this->position_ = COVER_CLOSED;
-  return *this;
-}
-CoverCall &CoverCall::set_command_stop() {
-  this->stop_ = true;
-  return *this;
-}
-CoverCall &CoverCall::set_command_toggle() {
-  this->toggle_ = true;
-  return *this;
-}
-CoverCall &CoverCall::set_position(float position) {
-  this->position_ = position;
-  return *this;
-}
-CoverCall &CoverCall::set_tilt(float tilt) {
-  this->tilt_ = tilt;
-  return *this;
-}
+
 void CoverCall::perform() {
   ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
-  auto traits = this->parent_->get_traits();
-  this->validate_();
+  auto traits = static_cast<Cover *>(this->parent_)->get_traits();
+  this->CoverCall::validate();
   if (this->stop_) {
     ESP_LOGV(TAG, "  Command: STOP");
   }
@@ -87,13 +51,11 @@ void CoverCall::perform() {
   if (this->toggle_.has_value()) {
     ESP_LOGV(TAG, "  Command: TOGGLE");
   }
-  this->parent_->control(*this);
+  static_cast<Cover *>(this->parent_)->control(*this);
 }
-const optional<float> &CoverCall::get_position() const { return this->position_; }
-const optional<float> &CoverCall::get_tilt() const { return this->tilt_; }
-const optional<bool> &CoverCall::get_toggle() const { return this->toggle_; }
-void CoverCall::validate_() {
-  auto traits = this->parent_->get_traits();
+
+void CoverCall::validate() {
+  auto traits = static_cast<Cover *>(this->parent_)->get_traits();
   const char *name = this->parent_->get_name().c_str();
 
   if (this->position_.has_value()) {
@@ -131,13 +93,6 @@ void CoverCall::validate_() {
     }
   }
 }
-CoverCall &CoverCall::set_stop(bool stop) {
-  this->stop_ = stop;
-  return *this;
-}
-bool CoverCall::get_stop() const { return this->stop_; }
-
-CoverCall Cover::make_call() { return {this}; }
 
 void Cover::publish_state(bool save) {
   this->position = clamp(this->position, 0.0f, 1.0f);
@@ -176,16 +131,15 @@ void Cover::publish_state(bool save) {
     this->rtc_.save(&restore);
   }
 }
-optional<CoverRestoreState> Cover::restore_state_() {
-  this->rtc_ = this->make_entity_preference<CoverRestoreState>();
-  CoverRestoreState recovered{};
-  if (!this->rtc_.load(&recovered))
-    return {};
-  return recovered;
-}
 
-bool Cover::is_fully_open() const { return this->position == COVER_OPEN; }
-bool Cover::is_fully_closed() const { return this->position == COVER_CLOSED; }
+optional<float> Cover::do_restore_state() {
+  auto restore = this->restore_state_();
+  if (!restore.has_value())
+    return {};
+  restore->apply(this);
+  float pos = restore->position;  // copy to avoid packed-field reference
+  return pos;
+}
 
 CoverCall CoverRestoreState::to_call(Cover *cover) {
   auto call = cover->make_call();
