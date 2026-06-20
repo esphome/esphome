@@ -1,5 +1,7 @@
 #pragma once
 
+// C ABI header; BME690 C++ wrapper code lives in namespace esphome::bme690.
+
 /**
 * Copyright (c) 2025 Bosch Sensortec GmbH. All rights reserved.
 *
