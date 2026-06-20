@@ -26,11 +26,7 @@ CONF_MODBUS_ID = "modbus_id"
 CONF_SEND_WAIT_TIME = "send_wait_time"
 CONF_TURNAROUND_TIME = "turnaround_time"
 
-ModbusRole = modbus_ns.enum("ModbusRole")
-MODBUS_ROLES = {
-    "client": ModbusRole.CLIENT,
-    "server": ModbusRole.SERVER,
-}
+MODBUS_ROLES = ["client", "server"]
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
