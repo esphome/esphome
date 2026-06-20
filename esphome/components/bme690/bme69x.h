@@ -157,7 +157,7 @@ int8_t bme69x_soft_reset(struct bme69x_dev *dev);
  * @retval 0 -> Success
  * @retval < 0 -> Fail
  */
-int8_t bme69x_set_op_mode(const uint8_t op_mode, struct bme69x_dev *dev);
+int8_t bme69x_set_op_mode(uint8_t op_mode, struct bme69x_dev *dev);
 
 /*!
  * \ingroup bme69xApiOm
