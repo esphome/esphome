@@ -37,10 +37,6 @@ inline bool is_function_code_custom(uint8_t function_code) {
           masked_function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_2_END);
 }
 
-inline bool is_register_type_binary(ModbusRegisterType type) {
-  return type == ModbusRegisterType::COIL || type == ModbusRegisterType::DISCRETE_INPUT;
-}
-
 // Returns the expected length of a server response frame based on the function code
 // If the frame is too short to determine the length, returns the minimum length
 uint16_t server_frame_length(const uint8_t *frame, size_t size);
@@ -82,19 +78,6 @@ enum class SensorValueType : uint8_t {
   FP32_R = 0xD
 };
 
-// Check frame length for supported read and write function codes.
-inline bool is_client_frame_length_valid(const uint8_t *frame, size_t size, bool has_crc = true) {
-  uint16_t frame_length = size + (has_crc ? 0 : 2);  // Account for CRC if not already included in frame
-  if (frame_length < MIN_FRAME_SIZE || frame_length > MAX_FRAME_SIZE)
-    return false;
-  if (size < 2)
-    return false;
-  if (is_function_code_read(frame[1]) || is_function_code_write(frame[1])) {
-    return client_frame_length(frame, size) == frame_length;
-  }
-  return true;
-}
-
 inline bool value_type_is_float(SensorValueType v) {
   return v == SensorValueType::FP32 || v == SensorValueType::FP32_R;
 }
@@ -125,26 +108,6 @@ inline ModbusFunctionCode modbus_register_write_function(ModbusRegisterType reg_
     case ModbusRegisterType::DISCRETE_INPUT:
     default:
       return ModbusFunctionCode::INVALID;
-  }
-}
-
-inline ModbusRegisterType modbus_register_type(ModbusFunctionCode function_code) {
-  switch (function_code) {
-    case ModbusFunctionCode::READ_COILS:
-    case ModbusFunctionCode::WRITE_SINGLE_COIL:
-    case ModbusFunctionCode::WRITE_MULTIPLE_COILS:
-      return ModbusRegisterType::COIL;
-    case ModbusFunctionCode::READ_DISCRETE_INPUTS:
-      return ModbusRegisterType::DISCRETE_INPUT;
-    case ModbusFunctionCode::READ_HOLDING_REGISTERS:
-    case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
-    case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS:
-    case ModbusFunctionCode::READ_WRITE_MULTIPLE_REGISTERS:
-      return ModbusRegisterType::HOLDING;
-    case ModbusFunctionCode::READ_INPUT_REGISTERS:
-      return ModbusRegisterType::READ;
-    default:
-      return ModbusRegisterType::CUSTOM;
   }
 }
 
