@@ -91,6 +91,7 @@ class BME690Component : public PollingComponent, public i2c::I2CDevice {
   void log_bsec_version_();
   bool load_bsec_state_();
   void save_bsec_state_();
+  int64_t get_time_ns_();
 
   struct bme69x_dev dev_{};
   struct bme69x_conf conf_{};
@@ -107,6 +108,8 @@ class BME690Component : public PollingComponent, public i2c::I2CDevice {
   bool state_dirty_{false};
   uint32_t state_save_interval_ms_{6 * 60 * 60 * 1000UL};  // 6h
   uint32_t state_preference_hash_{0};
+  uint32_t last_time_ms_{0};
+  uint32_t millis_overflow_counter_{0};
 };
 
 }  // namespace bme690
