@@ -6,6 +6,7 @@
 #include "esphome/components/modbus/modbus_definitions.h"
 #include "esphome/components/modbus/modbus_helpers.h"
 
+#include <array>
 #include <cstring>
 #include <memory>
 #include <vector>
@@ -146,6 +147,11 @@ class ModbusServerHub : public Modbus {
   void send_raw_(const uint8_t *payload, uint16_t len);
   uint8_t expecting_peer_response_{0};
   std::vector<ModbusServerDevice *> devices_;
+
+  // Holds the raw payload of a single reply deferred for sending when tx was blocked at send time.
+  // Only one server reply can be in flight at once, so a single fixed buffer avoids heap allocation.
+  std::array<uint8_t, MAX_RAW_SIZE> deferred_payload_;
+  uint16_t deferred_payload_len_{0};
 };
 
 class ModbusClientDevice {

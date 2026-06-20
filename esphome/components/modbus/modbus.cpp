@@ -531,12 +531,24 @@ void ModbusServerHub::send_raw_(const uint8_t *payload, uint16_t len) {
   if (len == 0) {
     return;
   }
+  if (len > MAX_RAW_SIZE) {
+    ESP_LOGE(TAG, "Server send frame too large (%" PRIu16 " bytes)", len);
+    return;
+  }
 
   // In the rare case that the server is blocked (frame delay has not elapsed), we delay the send.
   // This should only happen at low baud rates with long frame delays.
   if (this->tx_blocked()) {
-    auto frame = std::make_shared<ModbusFrame>(payload[0], payload + 1, len - 1);
-    this->set_timeout(this->tx_delay_remaining(), [this, frame]() { this->send_frame_(*frame); });
+    // Stash the raw payload in a single member buffer so the deferred callback can rebuild the frame
+    // without a heap allocation. Only one server reply is ever in flight, and the named timeout ensures
+    // only one deferred send is pending, so a single buffer is sufficient.
+    std::memcpy(this->deferred_payload_.data(), payload, len);
+    this->deferred_payload_len_ = len;
+    this->set_timeout("deferred_send", this->tx_delay_remaining(), [this]() {
+      ModbusFrame frame(this->deferred_payload_[0], this->deferred_payload_.data() + 1,
+                        this->deferred_payload_len_ - 1);
+      this->send_frame_(frame);
+    });
   } else {
     ModbusFrame frame(payload[0], payload + 1, len - 1);
     this->send_frame_(frame);
