@@ -263,15 +263,6 @@ static const uint8_t MITSUBISHI_HEAVY_ZJ_MODE_DRY = 0x05;
 static const uint8_t MITSUBISHI_HEAVY_ZJ_MODE_FAN = 0x04;
 static const uint8_t MITSUBISHI_HEAVY_ZJ_POWER_OFF = 0x08;
 
-static const uint8_t MITSUBISHI_HEAVY_ZJ_FAN_AUTO = 0xE0;
-static const uint8_t MITSUBISHI_HEAVY_ZJ_FAN1 = 0xA0;
-static const uint8_t MITSUBISHI_HEAVY_ZJ_FAN2 = 0x80;
-static const uint8_t MITSUBISHI_HEAVY_ZJ_FAN3 = 0x60;
-static const uint8_t MITSUBISHI_HEAVY_ZJ_HIPOWER = 0x40;
-static const uint8_t MITSUBISHI_HEAVY_ZJ_ECONO = 0x00;
-
-static const uint8_t MITSUBISHI_HEAVY_ZJ_HS_SWING = 0x4C;
-static const uint8_t MITSUBISHI_HEAVY_ZJ_VS_SWING = 0x0A;
 
 bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
   if (this->protocol_ != PROTOCOL_MITSUBISHI_HEAVY_ZJ)
