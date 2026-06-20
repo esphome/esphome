@@ -243,6 +243,8 @@ void HeatpumpIRClimate::transmit_state() {
                      swing_h_cmd);
 }
 
+// ZJ/ZMP frame prefix bytes (not defined by library)
+static const uint8_t MITSUBISHI_HEAVY_FRAME_PREFIX[5] = {0x52, 0xAE, 0xC3, 0x26, 0xD9};
 
 bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
   uint8_t frame[11] = {};
@@ -261,10 +263,8 @@ bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
     }
     frame[pos] = byte;
 
-    if ((pos == 0 && byte != 0x52) || (pos == 1 && byte != 0xAE) || (pos == 2 && byte != 0xC3) ||
-        (pos == 3 && byte != 0x26) || (pos == 4 && byte != 0xD9)) {
+    if (pos < 5 && byte != MITSUBISHI_HEAVY_FRAME_PREFIX[pos])
       return false;
-    }
   }
 
   if ((uint8_t) (frame[5] ^ frame[6]) != 0xFF || (uint8_t) (frame[7] ^ frame[8]) != 0xFF ||
