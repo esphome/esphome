@@ -67,10 +67,7 @@ CONFIG_SCHEMA = cv.All(
             Framework.ARDUINO: ("bme680", "bme68x_bsec2"),
         },
     ),
-    cv.All(
-        cv.only_on_esp32,
-        esp32.only_on_variant(supported=[esp32.VARIANT_ESP32C6]),
-    ),
+    cv.only_on_esp32,
 )
 
 
