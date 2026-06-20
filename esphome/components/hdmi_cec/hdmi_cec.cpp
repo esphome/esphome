@@ -9,6 +9,9 @@
 #endif
 #include "hdmi_cec.h"
 
+// For now, remove the message decoder to reduce the amount of code in the PR review
+#undef HDMI_CEC_USE_DECODER
+
 #ifdef HDMI_CEC_USE_DECODER
 #include "cec_decoder.h"
 #endif
