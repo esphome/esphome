@@ -25,7 +25,7 @@ class USBUARTBridge : public Component {
   void set_uart_rx_buffer_size(size_t size) { this->uart_rx_buffer_size_ = size; }
   void set_uart_tx_buffer_size(size_t size) { this->uart_tx_buffer_size_ = size; }
 
-  void set_line_coding(uint32_t bit_rate, uint8_t stop_bits, uint8_t parity, uint8_t data_bits);
+  void set_line_coding();
   void set_line_state(bool dtr, bool rts);
 
  protected:

@@ -23,25 +23,6 @@ static constexpr size_t RINGBUF_RETRY_CHUNK_SIZE = 64;
 static constexpr uint32_t LOG_THROTTLE_MS = 1000;
 static constexpr uint32_t UART_RELOAD_SETTLE_MS = 20;
 
-/*
- * uint8_t  stop_bits; ///< 0: 1 stop bit - 1: 1.5 stop bits - 2: 2 stop bits
- * uint8_t  parity;    ///< 0: None - 1: Odd - 2: Even - 3: Mark - 4: Space
- * uint8_t  data_bits; ///< can be 5, 6, 7, 8 or 16
- * */
-
-static const char *str_stop_bits(uint8_t s) {
-  return (s == 2) ? "UART_STOP_BITS_2" : (s == 1) ? "UART_STOP_BITS_1_5" : "UART_STOP_BITS_1";
-}
-static const char *str_parity(uint8_t p) {
-  return (p == 2) ? "UART_PARITY_EVEN" : (p == 1) ? "UART_PARITY_ODD" : "UART_PARITY_DISABLE";
-}
-static const char *str_data_bits(uint8_t b) {
-  return (b == 5)   ? "UART_DATA_5_BITS"
-         : (b == 6) ? "UART_DATA_6_BITS"
-         : (b == 7) ? "UART_DATA_7_BITS"
-                    : "UART_DATA_8_BITS";
-}
-
 static bool should_log_now(uint32_t *last_ms, uint32_t interval_ms) {
   uint32_t now = esp_log_timestamp();
   if ((now - *last_ms) >= interval_ms) {
@@ -138,9 +119,20 @@ void USBUARTBridge::setup() {
   // Register line state and line coding callbacks with the USB CDC ACM component
   this->usb_cdc_parent_->set_line_state_callback([this](bool dtr, bool rts) { this->set_line_state(dtr, rts); });
   this->usb_cdc_parent_->set_line_coding_callback(
-      [this](uint32_t bit_rate, uint8_t stop_bits, uint8_t parity, uint8_t data_bits) {
-        this->set_line_coding(bit_rate, stop_bits, parity, data_bits);
-      });
+      [this](uint32_t, uint8_t, uint8_t, uint8_t) { this->set_line_coding(); });
+
+  // Validate the USB CDC side is fully initialized *before* spawning any task. The
+  // tasks dereference these handles/ring buffers immediately (uart_tx_task_ blocks in
+  // xRingbufferReceive() on the RX ringbuf; uart_rx_task_ notifies the TX task handle).
+  // usb_cdc_acm sets up first (priority IO > HARDWARE), so a null here means its setup
+  // failed -- abort rather than run those primitives against null handles.
+  this->usb_tx_task_handle_ = this->usb_cdc_parent_->get_tx_task_handle();
+  if (this->usb_tx_task_handle_ == nullptr || this->usb_cdc_parent_->get_rx_ringbuf() == nullptr ||
+      this->usb_cdc_parent_->get_tx_ringbuf() == nullptr) {
+    ESP_LOGE(TAG, "USB CDC ACM not ready; aborting");
+    this->mark_failed();
+    return;
+  }
 
   // Use a larger stack size for (very) verbose logging
   const size_t stack_size = esp_log_level_get(TAG) > ESP_LOG_DEBUG ? USB_TASK_STACK_SIZE_VV : USB_TASK_STACK_SIZE;
@@ -154,18 +146,12 @@ void USBUARTBridge::setup() {
   }
 
   // Create task that reads from UART and writes to USB CDC TX buffer
-  this->usb_tx_task_handle_ = this->usb_cdc_parent_->get_tx_task_handle();
-  if (this->usb_tx_task_handle_ == nullptr) {
-    // usb_cdc_acm sets up first (priority IO > HARDWARE); a null handle means its
-    // setup failed. The RX task notifies this handle on every burst, so abort
-    // rather than call xTaskNotifyGive(nullptr).
-    ESP_LOGE(TAG, "USB CDC TX task not available; aborting");
-    this->mark_failed();
-    return;
-  }
   xTaskCreate(uart_rx_task_fn, "uart_usb_rx", stack_size, this, 4, &this->uart_rx_task_handle_);
   if (this->uart_rx_task_handle_ == nullptr) {
     ESP_LOGE(TAG, "Failed to create UART RX task");
+    // Tear down the TX task we already created so it isn't left running on a failed component.
+    vTaskDelete(this->uart_tx_task_handle_);
+    this->uart_tx_task_handle_ = nullptr;
     this->mark_failed();
     return;
   }
@@ -195,45 +181,48 @@ void USBUARTBridge::loop() {
   this->uart_settings_reload_();
 }
 
-void USBUARTBridge::set_line_coding(uint32_t bit_rate, uint8_t stop_bits, uint8_t parity, uint8_t data_bits) {
-  if (this->uart_parent_ == nullptr) {
+void USBUARTBridge::set_line_coding() {
+  if (this->uart_parent_ == nullptr || this->usb_cdc_parent_ == nullptr) {
     return;
   }
 
+  // usb_cdc_acm has already translated the raw USB line coding into UARTComponent
+  // values on the CDC instance (in process_events_, main loop) before invoking this
+  // callback. Mirror those onto the hardware UART rather than re-deriving them here --
+  // a single source of truth keeps the framing translation from drifting (and is how
+  // the earlier parity/stop-bit mapping bugs crept in).
   bool changed = false;
 
-  if (this->uart_parent_->get_baud_rate() != bit_rate) {
-    this->uart_parent_->set_baud_rate(bit_rate);
+  const uint32_t baud = this->usb_cdc_parent_->get_baud_rate();
+  if (this->uart_parent_->get_baud_rate() != baud) {
+    this->uart_parent_->set_baud_rate(baud);
     changed = true;
-    ESP_LOGV(TAG, "Baud rate changed to %" PRIu32, bit_rate);
   }
 
-  auto uart_stop_bits = (stop_bits == 0 ? UART_STOP_BITS_1 : (stop_bits == 1 ? UART_STOP_BITS_1_5 : UART_STOP_BITS_2));
-  if (this->uart_parent_->get_stop_bits() != uart_stop_bits) {
-    this->uart_parent_->set_stop_bits(uart_stop_bits);
+  const uint8_t stop_bits = this->usb_cdc_parent_->get_stop_bits();
+  if (this->uart_parent_->get_stop_bits() != stop_bits) {
+    this->uart_parent_->set_stop_bits(stop_bits);
     changed = true;
-    ESP_LOGV(TAG, "Stop bits changed to %s", str_stop_bits(stop_bits));
   }
 
-  // USB CDC parity numbering (0=None, 1=Odd, 2=Even, 3=Mark, 4=Space) differs from
-  // UARTParityOptions (0=None, 1=Even, 2=Odd). Map explicitly; Mark/Space are
-  // unsupported by the UART and fall back to None.
-  auto uart_parity = (parity == 1)   ? uart::UART_CONFIG_PARITY_ODD
-                     : (parity == 2) ? uart::UART_CONFIG_PARITY_EVEN
-                                     : uart::UART_CONFIG_PARITY_NONE;
-  if (this->uart_parent_->get_parity() != uart_parity) {
-    this->uart_parent_->set_parity(uart_parity);
+  const auto parity = this->usb_cdc_parent_->get_parity();
+  if (this->uart_parent_->get_parity() != parity) {
+    this->uart_parent_->set_parity(parity);
     changed = true;
-    ESP_LOGV(TAG, "Parity changed to %s", str_parity(parity));
   }
 
-  if (this->uart_parent_->get_data_bits() != data_bits) {
+  // data_bits is stored raw on the CDC instance and may be a value the UART cannot
+  // represent (USB CDC permits 16); only 5-8 are valid, so ignore anything else.
+  const uint8_t data_bits = this->usb_cdc_parent_->get_data_bits();
+  if (data_bits >= 5 && data_bits <= 8 && this->uart_parent_->get_data_bits() != data_bits) {
     this->uart_parent_->set_data_bits(data_bits);
     changed = true;
-    ESP_LOGV(TAG, "Data bits changed to %s", str_data_bits(data_bits));
   }
 
   if (changed) {
+    ESP_LOGV(TAG, "Line coding: baud=%" PRIu32 ", data_bits=%u, stop_bits=%u, parity=%u", baud,
+             this->uart_parent_->get_data_bits(), this->uart_parent_->get_stop_bits(),
+             static_cast<uint8_t>(this->uart_parent_->get_parity()));
     // Coalesce rapid line-coding updates from host.
     this->reload_requested_at_ = millis();
     this->reload_pending_ = true;
