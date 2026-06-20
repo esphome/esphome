@@ -8,29 +8,16 @@
 #ifdef USE_HOST
 #include "esphome/core/wake.h"
 #endif
-#ifdef USE_ZEPHYR
-#include <poll.h>
-#endif
-
 namespace esphome::socket {
 
 #ifndef USE_LWIP_FAST_SELECT
 #ifdef USE_HOST
 bool socket_ready_fd(int fd, bool loop_monitored) { return !loop_monitored || wake_fd_ready(fd); }
-#elif defined(USE_ZEPHYR)
-bool socket_ready_fd(int fd, bool loop_monitored) {
-  // poll() with 0ms timeout for non-blocking readiness — avoids busy-polling (read+EAGAIN)
-  // on every main-loop tick for monitored sockets.
-  // loop_monitored is always false today (wake_register_fd is gated to USE_HOST), but when
-  // nRF52 gains select-loop integration this path reports only fds with buffered data.
-  if (!loop_monitored)
-    return true;
-  struct pollfd pfd = {};
-  pfd.fd = fd;
-  pfd.events = POLLIN;
-  return poll(&pfd, 1, 0) > 0;
-}
 #else
+// ESP8266, RP2040, and Zephyr (nRF52): fd monitoring is not wired into the
+// esphome select loop (wake_register_fd is USE_HOST-only).  loop_monitored is
+// always false on these platforms, so always return true — the caller handles
+// EAGAIN/EWOULDBLOCK on read.
 bool socket_ready_fd(int fd, bool loop_monitored) { return true; }
 #endif
 #endif  // USE_LWIP_FAST_SELECT
@@ -64,6 +51,8 @@ static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t
 static inline const char *esphome_inet_ntop4(const void *addr, char *buf, size_t size) {
   return zsock_inet_ntop(AF_INET, addr, buf, size);
 }
+// IPv6 is always enabled on nRF52 (config validation enforces enable_ipv6=True),
+// but the guard is retained for consistency with other platform blocks.
 #if USE_NETWORK_IPV6
 static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t size) {
   return zsock_inet_ntop(AF_INET6, addr, buf, size);
