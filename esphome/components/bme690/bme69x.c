@@ -421,7 +421,7 @@ int8_t bme69x_get_conf(struct bme69x_conf *conf, struct bme69x_dev *dev)
 /*
  * @brief This API is used to set the operation mode of the sensor
  */
-int8_t bme69x_set_op_mode(const uint8_t op_mode, struct bme69x_dev *dev)
+int8_t bme69x_set_op_mode(uint8_t op_mode, struct bme69x_dev *dev)
 {
     int8_t rslt;
     uint8_t tmp_pow_mode;
