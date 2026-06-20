@@ -5,8 +5,7 @@
 
 #include <cstring>
 
-namespace esphome {
-namespace ecocomfort2 {
+namespace esphome::ecocomfort2 {
 
 static const char *const TAG = "ecocomfort2.fan";
 
@@ -203,7 +202,6 @@ int Ecocomfort2Fan::device_speed_to_fan_(uint8_t speed) const {
   }
 }
 
-}  // namespace ecocomfort2
-}  // namespace esphome
+}  // namespace esphome::ecocomfort2
 
 #endif

@@ -9,8 +9,7 @@
 #include <cstring>
 #include <esp_gap_ble_api.h>
 
-namespace esphome {
-namespace ecocomfort2 {
+namespace esphome::ecocomfort2 {
 
 static const char *const TAG = "ecocomfort2";
 
@@ -381,7 +380,6 @@ void Ecocomfort2Hub::register_child(Ecocomfort2Client *obj) {
   obj->set_parent(this);
 }
 
-}  // namespace ecocomfort2
-}  // namespace esphome
+}  // namespace esphome::ecocomfort2
 
 #endif

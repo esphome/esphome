@@ -11,8 +11,7 @@
 
 #include <esp_gattc_api.h>
 
-namespace esphome {
-namespace ecocomfort2 {
+namespace esphome::ecocomfort2 {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
@@ -148,7 +147,6 @@ class Ecocomfort2Hub : public esphome::ble_client::BLEClientNode, public Polling
   bool parse_oper_(const uint8_t *data, uint16_t len);
 };
 
-}  // namespace ecocomfort2
-}  // namespace esphome
+}  // namespace esphome::ecocomfort2
 
 #endif

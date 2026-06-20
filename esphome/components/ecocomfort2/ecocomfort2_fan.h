@@ -6,8 +6,7 @@
 #include "ecocomfort2_child.h"
 #include "ecocomfort2_hub.h"
 
-namespace esphome {
-namespace ecocomfort2 {
+namespace esphome::ecocomfort2 {
 
 class Ecocomfort2Fan : public fan::Fan, public Ecocomfort2Client, public Component {
  public:
@@ -36,7 +35,6 @@ class Ecocomfort2Fan : public fan::Fan, public Ecocomfort2Client, public Compone
   int device_speed_to_fan_(uint8_t speed) const;
 };
 
-}  // namespace ecocomfort2
-}  // namespace esphome
+}  // namespace esphome::ecocomfort2
 
 #endif
