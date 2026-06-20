@@ -11,9 +11,16 @@ from esphome.components.packet_transport import (
     CONF_SENSORS,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_DATA, CONF_ID, CONF_PORT, CONF_TRIGGER_ID
+from esphome.const import (
+    CONF_DATA,
+    CONF_ENABLE_IPV6,
+    CONF_ID,
+    CONF_PORT,
+    CONF_TRIGGER_ID,
+)
 from esphome.core import ID
 from esphome.cpp_generator import MockObj
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@clydebarrow"]
@@ -81,6 +88,25 @@ def _listen_address(value):
     except cv.Invalid:
         pass
     return _ipv6_multicast_address(value)
+
+
+def _final_validate(config):
+    if fv.full_config.get().get("network", {}).get(CONF_ENABLE_IPV6, False):
+        return
+    for addr in config.get(CONF_ADDRESSES, []):
+        if ":" in str(addr):
+            raise cv.Invalid(
+                f"IPv6 address '{addr}' requires 'enable_ipv6: true' in the 'network' component",
+                [CONF_ADDRESSES],
+            )
+    if ":" in str(config.get(CONF_LISTEN_ADDRESS, "")):
+        raise cv.Invalid(
+            f"IPv6 listen address '{config[CONF_LISTEN_ADDRESS]}' requires 'enable_ipv6: true' in the 'network' component",
+            [CONF_LISTEN_ADDRESS],
+        )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 def _consume_udp_sockets(config: ConfigType) -> ConfigType:

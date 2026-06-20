@@ -104,7 +104,9 @@ void UDPComponent::setup() {
       // index from the join probe rather than probing independently.
       if (mcast_ifindex != 0 && this->send_socket_v6_ != nullptr) {
         uint32_t ifidx = mcast_ifindex;
-        this->send_socket_v6_->setsockopt(IPPROTO_IPV6, IPV6_MULTICAST_IF, &ifidx, sizeof(ifidx));
+        if (this->send_socket_v6_->setsockopt(IPPROTO_IPV6, IPV6_MULTICAST_IF, &ifidx, sizeof(ifidx)) < 0) {
+          ESP_LOGW(TAG, "Failed to set IPv6 multicast interface: errno %d", errno);
+        }
       }
 #endif
     } else {
