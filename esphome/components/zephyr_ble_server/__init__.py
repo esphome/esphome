@@ -10,6 +10,17 @@ BLEServer = zephyr_ble_server_ns.class_("BLEServer", cg.Component)
 
 CONF_ON_NUMERIC_COMPARISON_REQUEST = "on_numeric_comparison_request"
 CONF_ACCEPT = "accept"
+CONF_MTU = "mtu"
+
+# BLE's default ATT_MTU. At this size each notification carries 20 bytes of payload and
+# Zephyr's stock (small) ACL buffers are sufficient, so the default build needs no extra
+# RAM. Raising the MTU is opt-in.
+DEFAULT_MTU = 23
+# An L2CAP PDU adds a 4-byte basic header on top of the ATT MTU; the ACL data buffers
+# must be large enough to hold it. The controller's max Data Length (and therefore the
+# largest usable ACL buffer) is capped at the BLE 4.2+ maximum.
+L2CAP_HEADER_SIZE = 4
+MAX_CTLR_DATA_LENGTH = 251
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -18,6 +29,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_ON_NUMERIC_COMPARISON_REQUEST
             ): automation.validate_automation({}),
+            cv.Optional(CONF_MTU, default=DEFAULT_MTU): cv.int_range(
+                min=DEFAULT_MTU, max=MAX_CTLR_DATA_LENGTH - L2CAP_HEADER_SIZE
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_framework(Framework.ZEPHYR),
@@ -38,18 +52,28 @@ async def to_code(config):
     zephyr_add_prj_conf("BT_PERIPHERAL", True)
     zephyr_add_prj_conf("BT_RX_STACK_SIZE", 1536)
     zephyr_add_prj_conf("BT_DEVICE_NAME", CORE.name)
-    # Raise the ATT MTU and enable LL Data Length Extension so each notification can carry
-    # ~244 bytes of payload instead of the default 20. The central (e.g. macOS) requests a large
-    # MTU on connect; the peripheral must advertise a matching BT_L2CAP_TX_MTU and provide ACL
-    # buffers large enough to hold MTU + 4 bytes of L2CAP header for the negotiation to take.
-    # This is the single biggest throughput win for BLE log streaming and OTA, shrinking a burst
-    # from dozens of round-trips to a handful.
-    zephyr_add_prj_conf("BT_L2CAP_TX_MTU", 247)
-    zephyr_add_prj_conf("BT_BUF_ACL_TX_SIZE", 251)
-    zephyr_add_prj_conf("BT_BUF_ACL_RX_SIZE", 251)
-    zephyr_add_prj_conf("BT_CTLR_DATA_LENGTH_MAX", 251)
-    zephyr_add_prj_conf("BT_USER_DATA_LEN_UPDATE", True)
-    zephyr_add_prj_conf("BT_AUTO_DATA_LEN_UPDATE", True)
+    if (mtu := config[CONF_MTU]) > DEFAULT_MTU:
+        # Raise the ATT MTU and enable LL Data Length Extension so each notification can carry
+        # up to (mtu - 3) bytes of payload instead of the default 20. The central (e.g. macOS)
+        # requests a large MTU on connect; the peripheral must advertise a matching
+        # BT_L2CAP_TX_MTU and provide ACL buffers large enough to hold the L2CAP PDU
+        # (MTU + 4-byte header) for the negotiation to take. This is the single biggest
+        # throughput win for BLE log streaming and OTA, shrinking a burst from dozens of
+        # round-trips to a handful.
+        acl_size = mtu + L2CAP_HEADER_SIZE
+        zephyr_add_prj_conf("BT_L2CAP_TX_MTU", mtu)
+        zephyr_add_prj_conf("BT_BUF_ACL_TX_SIZE", acl_size)
+        zephyr_add_prj_conf("BT_BUF_ACL_RX_SIZE", acl_size)
+        zephyr_add_prj_conf("BT_CTLR_DATA_LENGTH_MAX", acl_size)
+        zephyr_add_prj_conf("BT_USER_DATA_LEN_UPDATE", True)
+        zephyr_add_prj_conf("BT_AUTO_DATA_LEN_UPDATE", True)
+        # The enlarged ACL buffers are allocated as size x count pools, so the larger size
+        # multiplies against the buffer counts. Zephyr's defaults (TX 3, RX 6) are sized for a
+        # host juggling several connections; this peripheral serves a single connection, so trim
+        # the counts to claw back most of the RAM the bigger buffers would otherwise cost.
+        # BT_L2CAP_TX_BUF_COUNT defaults to BT_BUF_ACL_TX_COUNT, so it shrinks for free too.
+        zephyr_add_prj_conf("BT_BUF_ACL_TX_COUNT", 2)
+        zephyr_add_prj_conf("BT_BUF_ACL_RX_COUNT", 3)
     await cg.register_component(var, config)
     if config.get(CONF_ON_NUMERIC_COMPARISON_REQUEST):
         zephyr_add_prj_conf("BT_SMP", True)

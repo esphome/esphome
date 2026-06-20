@@ -1,4 +1,5 @@
 zephyr_ble_server:
+  mtu: 247
   on_numeric_comparison_request:
     then:
       - logger.log:
