@@ -337,7 +337,6 @@ bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
       uint8_t swing_v = (frame[5] & MITSUBISHI_HEAVY_SWING_V_MASK5) | (frame[7] & MITSUBISHI_HEAVY_SWING_V_MASK7);
       bool h_swing = (swing_h == MITSUBISHI_HEAVY_ZMP_MITSUBISHI_HEAVY_ZMP_HS_SWING);
       bool v_swing = (swing_v == MITSUBISHI_HEAVY_ZMP_VS_SWING);
-      ESP_LOGD(TAG, "ZMP: swing_h=0x%02X swing_v=0x%02X", swing_h, swing_v);
 
       if (h_swing && v_swing)
         this->swing_mode = climate::CLIMATE_SWING_BOTH;
