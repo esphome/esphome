@@ -703,7 +703,7 @@ using bme69x_delay_us_fptr_t = void (*)(uint32_t period, void *intf_ptr);
 /*
  * @brief Interface selection Enumerations
  */
-enum bme69x_intf {
+enum bme69x_intf {  // NOLINT(readability-identifier-naming)
   /*! SPI interface */
   BME69X_SPI_INTF,
   /*! I2C interface */
@@ -715,7 +715,7 @@ enum bme69x_intf {
 /*
  * @brief Sensor field data structure
  */
-struct bme69x_data {
+struct bme69x_data {  // NOLINT(readability-identifier-naming)
   /*! Contains new_data, gasm_valid & heat_stab */
   uint8_t status;
 
@@ -766,7 +766,7 @@ struct bme69x_data {
 #endif
 };
 
-struct bme69x_calib_data {
+struct bme69x_calib_data {  // NOLINT(readability-identifier-naming)
   /*! Calibration coefficient for the humidity sensor */
   int16_t par_h1;
 
@@ -858,7 +858,7 @@ struct bme69x_calib_data {
  * @brief BME69X sensor settings structure which comprises of ODR,
  * over-sampling and filter settings.
  */
-struct bme69x_conf {
+struct bme69x_conf {  // NOLINT(readability-identifier-naming)
   /*! Humidity oversampling. Refer @ref osx*/
   uint8_t os_hum;
 
@@ -881,7 +881,7 @@ struct bme69x_conf {
 /*
  * @brief BME69X gas heater configuration
  */
-struct bme69x_heatr_conf {
+struct bme69x_heatr_conf {  // NOLINT(readability-identifier-naming)
   /*! Enable gas measurement. Refer @ref en_dis */
   uint8_t enable;
 
@@ -910,7 +910,7 @@ struct bme69x_heatr_conf {
 /*
  * @brief BME69X device structure
  */
-struct bme69x_dev {
+struct bme69x_dev {  // NOLINT(readability-identifier-naming)
   /*! Chip Id */
   uint8_t chip_id;
 
