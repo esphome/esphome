@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_GAS_RESISTANCE,
     CONF_HUMIDITY,
     CONF_IAQ_ACCURACY,
     CONF_PRESSURE,
@@ -27,7 +28,6 @@ from . import CONF_BME690_ID, BME690Component
 
 DEPENDENCIES = ["bme690"]
 
-CONF_GAS_RESISTANCE = "gas_resistance"
 CONF_IAQ = "iaq"
 CONF_STATIC_IAQ = "static_iaq"
 CONF_CO2_EQUIVALENT = "co2_equivalent"
