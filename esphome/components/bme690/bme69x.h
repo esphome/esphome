@@ -194,7 +194,7 @@ int8_t bme69x_get_op_mode(uint8_t *op_mode, struct bme69x_dev *dev);
  *
  * @return Measurement duration calculated in microseconds
  */
-uint32_t bme69x_get_meas_dur(const uint8_t op_mode, struct bme69x_conf *conf, struct bme69x_dev *dev);
+uint32_t bme69x_get_meas_dur(uint8_t op_mode, struct bme69x_conf *conf, struct bme69x_dev *dev);
 
 /**
  * \ingroup bme69x
