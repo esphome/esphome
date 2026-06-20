@@ -49,7 +49,18 @@ if bashio::fs.directory_exists '/config/esphome/.esphome'; then
     rm -rf /config/esphome/.esphome
 fi
 
+# Only expose the public port on the LAN when the operator mapped it,
+# matching the legacy dashboard where nginx listened on 6052 only when
+# the port was configured. Combined with leave_front_door_open above,
+# this binds 6052 with no authentication; one without the other stays
+# ingress-only.
+set --
+if bashio::var.has_value "$(bashio::addon.port 6052)"; then
+    set -- --port "$(bashio::addon.port 6052)" --ha-addon-allow-public
+fi
+
 bashio::log.info "Starting ESPHome Device Builder..."
 exec esphome-device-builder /config/esphome \
     --ha-addon \
-    --ingress-port "$(bashio::addon.ingress_port)"
+    --ingress-port "$(bashio::addon.ingress_port)" \
+    "$@"
