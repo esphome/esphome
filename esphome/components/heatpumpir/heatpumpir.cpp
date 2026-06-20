@@ -252,7 +252,7 @@ static const uint8_t MITSUBISHI_HEAVY_ZJ_BYTE3 = 0x26;
 static const uint8_t MITSUBISHI_HEAVY_ZJ_BYTE4 = 0xD9;
 
 bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
-  if (this->protocol_ != PROTOCOL_MITSUBISHI_HEAVY_ZJ)
+  if (this->protocol_ != PROTOCOL_MITSUBISHI_HEAVY_ZJ && this->protocol_ != PROTOCOL_MITSUBISHI_HEAVY_ZMP)
     return false;
 
   uint8_t frame[11] = {};
@@ -313,6 +313,8 @@ bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
   this->target_temperature = 17 + ((~temp_nibble) & 0x0F);
 
   uint8_t fan = frame[7] & 0xE0;
+  bool is_zmp = (this->protocol_ == PROTOCOL_MITSUBISHI_HEAVY_ZMP);
+
   if (fan == MITSUBISHI_HEAVY_ZJ_FAN_AUTO) {
     this->fan_mode = climate::CLIMATE_FAN_AUTO;
     this->preset = climate::CLIMATE_PRESET_NONE;
@@ -325,7 +327,7 @@ bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
   } else if (fan == MITSUBISHI_HEAVY_ZJ_FAN3) {
     this->fan_mode = climate::CLIMATE_FAN_HIGH;
     this->preset = climate::CLIMATE_PRESET_NONE;
-  } else if (fan == MITSUBISHI_HEAVY_ZJ_HIPOWER) {
+  } else if (fan == (is_zmp ? 0x20 : 0x40)) {
     this->preset = climate::CLIMATE_PRESET_BOOST;
   } else if (fan == MITSUBISHI_HEAVY_ZJ_ECONO) {
     this->preset = climate::CLIMATE_PRESET_ECO;
@@ -334,7 +336,7 @@ bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
   uint8_t swing_h = frame[5] & 0xDC;
   uint8_t swing_v = (frame[5] & 0x02) | (frame[7] & 0x18);
 
-  bool h_swing = (swing_h == MITSUBISHI_HEAVY_ZJ_HS_SWING);
+  bool h_swing = (swing_h == 0x4C) || (swing_h == 0x5C);
   bool v_swing = (swing_v == MITSUBISHI_HEAVY_ZJ_VS_SWING);
 
   if (h_swing && v_swing) {
