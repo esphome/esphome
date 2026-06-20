@@ -243,13 +243,13 @@ void HeatpumpIRClimate::transmit_state() {
                      swing_h_cmd);
 }
 
-static const uint8_t MITSUBISHI_HEAVY_ZJ_STATE_LENGTH = 11;
+static const uint8_t MITSUBISHI_HEAVY_ZMP_STATE_LENGTH = 11;
 
-static const uint8_t MITSUBISHI_HEAVY_ZJ_BYTE0 = 0x52;
-static const uint8_t MITSUBISHI_HEAVY_ZJ_BYTE1 = 0xAE;
-static const uint8_t MITSUBISHI_HEAVY_ZJ_BYTE2 = 0xC3;
-static const uint8_t MITSUBISHI_HEAVY_ZJ_BYTE3 = 0x26;
-static const uint8_t MITSUBISHI_HEAVY_ZJ_BYTE4 = 0xD9;
+static const uint8_t MITSUBISHI_HEAVY_ZMP_BYTE0 = 0x52;
+static const uint8_t MITSUBISHI_HEAVY_ZMP_BYTE1 = 0xAE;
+static const uint8_t MITSUBISHI_HEAVY_ZMP_BYTE2 = 0xC3;
+static const uint8_t MITSUBISHI_HEAVY_ZMP_BYTE3 = 0x26;
+static const uint8_t MITSUBISHI_HEAVY_ZMP_BYTE4 = 0xD9;
 
 bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
   if (this->protocol_ != PROTOCOL_MITSUBISHI_HEAVY_ZMP)
@@ -260,7 +260,7 @@ bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
   if (!data.expect_item(MITSUBISHI_HEAVY_HDR_MARK, MITSUBISHI_HEAVY_HDR_SPACE))
     return false;
 
-  for (uint8_t pos = 0; pos < MITSUBISHI_HEAVY_ZJ_STATE_LENGTH; pos++) {
+  for (uint8_t pos = 0; pos < MITSUBISHI_HEAVY_ZMP_STATE_LENGTH; pos++) {
     uint8_t byte = 0;
     for (int8_t bit = 0; bit < 8; bit++) {
       if (data.expect_item(MITSUBISHI_HEAVY_BIT_MARK, MITSUBISHI_HEAVY_ONE_SPACE)) {
@@ -271,9 +271,9 @@ bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
     }
     frame[pos] = byte;
 
-    if ((pos == 0 && byte != MITSUBISHI_HEAVY_ZJ_BYTE0) || (pos == 1 && byte != MITSUBISHI_HEAVY_ZJ_BYTE1) ||
-        (pos == 2 && byte != MITSUBISHI_HEAVY_ZJ_BYTE2) || (pos == 3 && byte != MITSUBISHI_HEAVY_ZJ_BYTE3) ||
-        (pos == 4 && byte != MITSUBISHI_HEAVY_ZJ_BYTE4)) {
+    if ((pos == 0 && byte != MITSUBISHI_HEAVY_ZMP_BYTE0) || (pos == 1 && byte != MITSUBISHI_HEAVY_ZMP_BYTE1) ||
+        (pos == 2 && byte != MITSUBISHI_HEAVY_ZMP_BYTE2) || (pos == 3 && byte != MITSUBISHI_HEAVY_ZMP_BYTE3) ||
+        (pos == 4 && byte != MITSUBISHI_HEAVY_ZMP_BYTE4)) {
       return false;
     }
   }
