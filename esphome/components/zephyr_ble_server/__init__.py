@@ -1,9 +1,17 @@
+from dataclasses import dataclass
+import logging
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, Framework
+from esphome.const import CONF_ID, CONF_OTA, CONF_PLATFORM, Framework
 from esphome.core import CORE
+import esphome.final_validate as fv
+
+_LOGGER = logging.getLogger(__name__)
+
+DOMAIN = "zephyr_ble_server"
 
 zephyr_ble_server_ns = cg.esphome_ns.namespace("zephyr_ble_server")
 BLEServer = zephyr_ble_server_ns.class_("BLEServer", cg.Component)
@@ -11,6 +19,11 @@ BLEServer = zephyr_ble_server_ns.class_("BLEServer", cg.Component)
 CONF_ON_NUMERIC_COMPARISON_REQUEST = "on_numeric_comparison_request"
 CONF_ACCEPT = "accept"
 CONF_MTU = "mtu"
+
+# OTA platform whose BLE transport runs MCUmgr DFU over the Nordic UART/SMP link.
+OTA_PLATFORM_ZEPHYR_MCUMGR = "zephyr_mcumgr"
+CONF_TRANSPORT = "transport"
+CONF_BLE = "ble"
 
 # BLE's default ATT_MTU. At this size each notification carries 20 bytes of payload and
 # Zephyr's stock (small) ACL buffers are sufficient, so the default build needs no extra
@@ -27,6 +40,46 @@ MAX_CTLR_DATA_LENGTH = 251
 # out-of-range Kconfig, so it is rejected; leaving mtu at the default lets Zephyr apply
 # these SMP minimums itself.
 SMP_MIN_MTU = 65
+
+
+@dataclass
+class ZephyrBLEServerData:
+    # True when zephyr_mcumgr BLE OTA is also configured. zephyr_mcumgr's BLE transport
+    # enables NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP, which relies on Zephyr's default ACL
+    # buffer counts for OTA throughput. When this is set, the high-MTU path below keeps
+    # those default counts instead of trimming them, so OTA is not silently slowed.
+    ble_ota: bool = False
+
+
+def _get_data() -> ZephyrBLEServerData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = ZephyrBLEServerData()
+    return CORE.data[DOMAIN]
+
+
+def _is_ble_ota_configured(full_config) -> bool:
+    # zephyr_mcumgr OTA over BLE is the only OTA path that shares these ACL buffers.
+    for ota_conf in full_config.get(CONF_OTA, []):
+        if ota_conf.get(CONF_PLATFORM) != OTA_PLATFORM_ZEPHYR_MCUMGR:
+            continue
+        if ota_conf.get(CONF_TRANSPORT, {}).get(CONF_BLE):
+            return True
+    return False
+
+
+def _final_validate(config):
+    if not _is_ble_ota_configured(fv.full_config.get()):
+        return
+    _get_data().ble_ota = True
+    if config[CONF_MTU] > DEFAULT_MTU:
+        _LOGGER.info(
+            "'%s': mtu is %d and zephyr_mcumgr BLE OTA is configured, so Zephyr's "
+            "default ACL buffer counts are kept (not trimmed). This preserves OTA "
+            "throughput (NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP relies on them) at the "
+            "cost of a little extra RAM.",
+            DOMAIN,
+            config[CONF_MTU],
+        )
 
 
 def _validate_mtu_for_smp(config):
@@ -59,6 +112,8 @@ CONFIG_SCHEMA = cv.All(
     _validate_mtu_for_smp,
     cv.only_with_framework(Framework.ZEPHYR),
 )
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
@@ -95,8 +150,14 @@ async def to_code(config):
         # host juggling several connections; this peripheral serves a single connection, so trim
         # the counts to claw back most of the RAM the bigger buffers would otherwise cost.
         # BT_L2CAP_TX_BUF_COUNT defaults to BT_BUF_ACL_TX_COUNT, so it shrinks for free too.
-        zephyr_add_prj_conf("BT_BUF_ACL_TX_COUNT", 2)
-        zephyr_add_prj_conf("BT_BUF_ACL_RX_COUNT", 3)
+        #
+        # Exception: zephyr_mcumgr BLE OTA turns on NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP, which
+        # leans on those default counts for throughput. Trimming them would silently slow OTA, so
+        # keep Zephyr's stock counts when BLE OTA is configured (see _final_validate, which also
+        # logs that this RAM trade-off is being made).
+        if not _get_data().ble_ota:
+            zephyr_add_prj_conf("BT_BUF_ACL_TX_COUNT", 2)
+            zephyr_add_prj_conf("BT_BUF_ACL_RX_COUNT", 3)
     await cg.register_component(var, config)
     if config.get(CONF_ON_NUMERIC_COMPARISON_REQUEST):
         zephyr_add_prj_conf("BT_SMP", True)

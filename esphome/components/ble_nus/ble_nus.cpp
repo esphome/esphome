@@ -200,10 +200,12 @@ void BLENUS::setup() {
 void BLENUS::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
   (void) level;
   (void) tag;
-  // Reserve room for the message AND its trailing newline up front so a log line is never split
-  // across the ring-buffer boundary. on_log() runs on the main task (the only producer), so no
-  // other writer can consume space between this check and the two writes below. This guarantees the
-  // stream only ever contains whole '\n'-terminated lines instead of two lines merged together.
+  // Reserve room for the message AND its trailing newline up front so a log line is not split
+  // across the ring-buffer boundary. The main task is the only producer at typical log levels, so
+  // the reserved space normally survives between this check and the two writes below and the stream
+  // contains whole '\n'-terminated lines. At verbose levels the BT-thread rx_callback/tx_callback
+  // (ESP_LOGV/ESP_LOGVV) can also log, making a second producer possible; the worst case is then a
+  // split line (the pre-existing behavior), never a partial commit or crash.
   if (ring_buf_space_get(&global_ble_tx_ring_buf) < message_len + 1) {
     return;
   }
