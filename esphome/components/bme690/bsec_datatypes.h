@@ -67,8 +67,8 @@
  *
  */
 
-#ifndef __BSEC_DATATYPES_H__
-#define __BSEC_DATATYPES_H__
+#ifndef BSEC_DATATYPES_H_
+#define BSEC_DATATYPES_H_
 
 #ifdef __cplusplus
 extern "C" {
