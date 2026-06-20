@@ -462,9 +462,8 @@ async def to_code(configs):
                 """
             )
             var = cg.new_Pvariable(spi[CONF_ID])
-            cg.add(
-                var.set_interface(cg.RawExpression("DEVICE_DT_GET(DT_NODELABEL(spi2))"))
-            )
+            interface = get_spi_interface(spi[CONF_INTERFACE_INDEX])
+            cg.add(var.set_interface(cg.RawExpression(interface)))
             cg.add(var.set_interface_name("spi2"))
         else:
             var = cg.new_Pvariable(spi[CONF_ID])
