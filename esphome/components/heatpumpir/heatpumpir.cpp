@@ -243,11 +243,6 @@ void HeatpumpIRClimate::transmit_state() {
                      swing_h_cmd);
 }
 
-static const uint16_t MITSUBISHI_HEAVY_ZJ_HDR_MARK = 3200;
-static const uint16_t MITSUBISHI_HEAVY_ZJ_HDR_SPACE = 1600;
-static const uint16_t MITSUBISHI_HEAVY_ZJ_BIT_MARK = 400;
-static const uint16_t MITSUBISHI_HEAVY_ZJ_ONE_SPACE = 1200;
-static const uint16_t MITSUBISHI_HEAVY_ZJ_ZERO_SPACE = 400;
 static const uint8_t MITSUBISHI_HEAVY_ZJ_STATE_LENGTH = 11;
 
 static const uint8_t MITSUBISHI_HEAVY_ZJ_BYTE0 = 0x52;
@@ -256,29 +251,22 @@ static const uint8_t MITSUBISHI_HEAVY_ZJ_BYTE2 = 0xC3;
 static const uint8_t MITSUBISHI_HEAVY_ZJ_BYTE3 = 0x26;
 static const uint8_t MITSUBISHI_HEAVY_ZJ_BYTE4 = 0xD9;
 
-static const uint8_t MITSUBISHI_HEAVY_ZJ_MODE_AUTO = 0x07;
-static const uint8_t MITSUBISHI_HEAVY_ZJ_MODE_HEAT = 0x03;
-static const uint8_t MITSUBISHI_HEAVY_ZJ_MODE_COOL = 0x06;
-static const uint8_t MITSUBISHI_HEAVY_ZJ_MODE_DRY = 0x05;
-static const uint8_t MITSUBISHI_HEAVY_ZJ_MODE_FAN = 0x04;
-static const uint8_t MITSUBISHI_HEAVY_ZJ_POWER_OFF = 0x08;
-
 bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
   if (this->protocol_ != PROTOCOL_MITSUBISHI_HEAVY_ZJ)
     return false;
 
   uint8_t frame[11] = {};
 
-  if (!data.expect_item(MITSUBISHI_HEAVY_ZJ_HDR_MARK, MITSUBISHI_HEAVY_ZJ_HDR_SPACE)) {
+  if (!data.expect_item(MITSUBISHI_HEAVY_HDR_MARK, MITSUBISHI_HEAVY_HDR_SPACE)) {
     return false;
   }
 
   for (uint8_t pos = 0; pos < MITSUBISHI_HEAVY_ZJ_STATE_LENGTH; pos++) {
     uint8_t byte = 0;
     for (int8_t bit = 0; bit < 8; bit++) {
-      if (data.expect_item(MITSUBISHI_HEAVY_ZJ_BIT_MARK, MITSUBISHI_HEAVY_ZJ_ONE_SPACE)) {
+      if (data.expect_item(MITSUBISHI_HEAVY_BIT_MARK, MITSUBISHI_HEAVY_ONE_SPACE)) {
         byte |= 1 << bit;
-      } else if (!data.expect_item(MITSUBISHI_HEAVY_ZJ_BIT_MARK, MITSUBISHI_HEAVY_ZJ_ZERO_SPACE)) {
+      } else if (!data.expect_item(MITSUBISHI_HEAVY_BIT_MARK, MITSUBISHI_HEAVY_ZERO_SPACE)) {
         return false;
       }
     }
@@ -296,24 +284,24 @@ bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  if (frame[9] & MITSUBISHI_HEAVY_ZJ_POWER_OFF) {
+  if (frame[9] & MITSUBISHI_HEAVY_MODE_OFF) {
     this->mode = climate::CLIMATE_MODE_OFF;
   } else {
     uint8_t opmode = frame[9] & 0x07;
     switch (opmode) {
-      case MITSUBISHI_HEAVY_ZJ_MODE_AUTO:
+      case MITSUBISHI_HEAVY_MODE_AUTO:
         this->mode = climate::CLIMATE_MODE_HEAT_COOL;
         break;
-      case MITSUBISHI_HEAVY_ZJ_MODE_HEAT:
+      case MITSUBISHI_HEAVY_MODE_HEAT:
         this->mode = climate::CLIMATE_MODE_HEAT;
         break;
-      case MITSUBISHI_HEAVY_ZJ_MODE_COOL:
+      case MITSUBISHI_HEAVY_MODE_COOL:
         this->mode = climate::CLIMATE_MODE_COOL;
         break;
-      case MITSUBISHI_HEAVY_ZJ_MODE_DRY:
+      case MITSUBISHI_HEAVY_MODE_DRY:
         this->mode = climate::CLIMATE_MODE_DRY;
         break;
-      case MITSUBISHI_HEAVY_ZJ_MODE_FAN:
+      case MITSUBISHI_HEAVY_MODE_FAN:
         this->mode = climate::CLIMATE_MODE_FAN_ONLY;
         break;
       default:
