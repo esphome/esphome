@@ -314,12 +314,16 @@ bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
       uint8_t fan = frame[7] & MITSUBISHI_HEAVY_FAN_MASK;
       if (fan == MITSUBISHI_HEAVY_ZMP_FAN_AUTO) {
         this->fan_mode = climate::CLIMATE_FAN_AUTO;
+        this->preset = climate::CLIMATE_PRESET_NONE;
       } else if (fan == MITSUBISHI_HEAVY_ZMP_FAN1) {
         this->fan_mode = climate::CLIMATE_FAN_LOW;
+        this->preset = climate::CLIMATE_PRESET_NONE;
       } else if (fan == MITSUBISHI_HEAVY_ZMP_FAN2) {
         this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
+        this->preset = climate::CLIMATE_PRESET_NONE;
       } else if (fan == MITSUBISHI_HEAVY_ZMP_FAN3) {
         this->fan_mode = climate::CLIMATE_FAN_HIGH;
+        this->preset = climate::CLIMATE_PRESET_NONE;
       } else if (fan == MITSUBISHI_HEAVY_ZMP_HIPOWER) {
         this->preset = climate::CLIMATE_PRESET_BOOST;
       } else if (fan == MITSUBISHI_HEAVY_ZMP_ECONO) {
