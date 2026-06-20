@@ -10,7 +10,7 @@ Related documents:
 
 - Deployment guidance for operators:
   https://esphome.io/guides/security_best_practices/
-- The **dashboard / device-builder** (the web UI, its authentication, ingress,
+- The **Device Builder dashboard** (the web UI, its authentication, ingress,
   Origin/Host gates, and peer-link pairing) lives in a separate repository and
   has its own threat model. If your report concerns any of that, please read and
   report there instead:
