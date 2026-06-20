@@ -1,0 +1,9 @@
+# Exercises the interface: software fallback on nRF52 (Zephyr).
+# A software bus must NOT emit the spi2 devicetree overlay or call
+# set_interface(); SPIComponent uses the bit-bang path instead.
+spi:
+  - id: spi_bus
+    interface: software
+    clk_pin: P0.14
+    mosi_pin: P0.13
+    miso_pin: P0.15

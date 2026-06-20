@@ -424,7 +424,11 @@ async def to_code(configs):
     if CORE.using_arduino and not CORE.is_esp32:
         cg.add_library("SPI", None)
     for spi in configs:
-        if CORE.using_zephyr:
+        # On Zephyr a hardware interface is only bound when validation resolved
+        # one (CONF_INTERFACE_INDEX is set). When the bus falls back to (or was
+        # explicitly configured as) interface: software, skip the spi2 overlay and
+        # the set_interface() call so SPIComponent uses the bit-bang path.
+        if CORE.using_zephyr and spi.get(CONF_INTERFACE_INDEX) is not None:
             zephyr_add_prj_conf("SPI", True)
             clk_pin = spi[CONF_CLK_PIN][CONF_NUMBER]
             mosi_pin = spi[CONF_MOSI_PIN][CONF_NUMBER] if CONF_MOSI_PIN in spi else None
