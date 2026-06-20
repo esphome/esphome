@@ -131,7 +131,8 @@ bool Scheduler::is_retry_cancelled_locked_(Component *component, NameType name_t
 // name_type determines storage type: STATIC_STRING uses static_name, others use hash_or_id
 void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type type, NameType name_type,
                                       const char *static_name, uint32_t hash_or_id, uint32_t delay,
-                                      std::function<void()> &&func, bool is_retry, bool skip_cancel) {
+                                      std::function<void()> &&func, bool is_retry, bool skip_cancel,
+                                      const LogString *source) {
   if (delay == SCHEDULER_DONT_RUN) {
     // Still need to cancel existing timer if we have a name/id
     if (!skip_cancel) {
@@ -174,7 +175,12 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
 
   // Create and populate the scheduler item
   SchedulerItem *item = this->get_item_from_pool_locked_();
-  item->component = component;
+  // SELF_POINTER items store the source name (owning script) in the union slot instead of a component.
+  if (name_type == NameType::SELF_POINTER) {
+    item->source_name = source;
+  } else {
+    item->component = component;
+  }
   item->set_name(name_type, static_name, hash_or_id);
   item->type = type;
   // Use destroy + placement-new instead of move-assignment.
@@ -642,8 +648,8 @@ uint32_t HOT Scheduler::call(uint32_t now) {
       // Not reached timeout yet, done for this call
       break;
     }
-    // Don't run on failed components
-    if (item->component != nullptr && item->component->is_failed()) {
+    // Don't run on failed components (is_item_failed_ exempts SELF_POINTER delays).
+    if (this->is_item_failed_(item)) {
       LockGuard guard{this->lock_};
       this->recycle_item_main_loop_(this->pop_raw_locked_());
       continue;
@@ -790,10 +796,21 @@ Scheduler::SchedulerItem *HOT Scheduler::pop_raw_locked_() {
 
 // Helper to execute a scheduler item
 uint32_t HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
-  App.set_current_component(item->component);
-  // Freshen so callbacks reading App.get_loop_component_start_time() see this item's dispatch time.
-  App.set_loop_component_start_time_(now);
-  WarnIfComponentBlockingGuard guard{item->component, now};
+  // Resolve the component and (for SELF_POINTER/deferred items) the source name from the shared
+  // union slot with a single name-type check. Self-keyed items have no owning component; their slot
+  // holds the source name (e.g. the owning script), published so deferred work chained inside the
+  // callback re-captures it and the blocking warning can name the script instead of "<null>".
+  Component *component;
+  const LogString *source;
+  if (item->get_name_type() == NameType::SELF_POINTER) {
+    component = nullptr;
+    source = item->source_name;
+  } else {
+    component = item->component;
+    source = nullptr;
+  }
+  // Guard publishes the item's identity + dispatch time, then times the callback.
+  LoopBlockingGuard guard{component, source, now};
   item->callback();
   uint32_t end = guard.finish();
   // Feed the watchdog after each scheduled item (both main heap and defer
