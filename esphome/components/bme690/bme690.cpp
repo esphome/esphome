@@ -2,7 +2,6 @@
 
 #include <algorithm>
 
-#include "esp_timer.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -136,7 +135,7 @@ void BME690Component::update() {
     return;
   }
 
-  const int64_t timestamp_ns = static_cast<int64_t>(esp_timer_get_time()) * 1000LL;
+  const int64_t timestamp_ns = this->get_time_ns_();
 
   bsec_bme_settings_t sensor_settings = {};
   if (this->bsec_ready_) {
@@ -479,6 +478,16 @@ void BME690Component::save_bsec_state_() {
   } else {
     ESP_LOGW(TAG, "Failed to save BSEC state");
   }
+}
+
+int64_t BME690Component::get_time_ns_() {
+  uint32_t time_ms = millis();
+  if (this->last_time_ms_ > time_ms) {
+    this->millis_overflow_counter_++;
+  }
+  this->last_time_ms_ = time_ms;
+
+  return (time_ms + (static_cast<int64_t>(this->millis_overflow_counter_) << 32)) * INT64_C(1000000);
 }
 
 }  // namespace bme690
