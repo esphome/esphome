@@ -25,16 +25,16 @@ extern "C" {
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
-#ifdef USE_TEXT_SENSOR
-#include "esphome/components/text_sensor/text_sensor.h"
-#endif
 
 namespace esphome {
 namespace bme690 {
 
 static const char *const TAG = "bme690";
-#define BSEC_CHECK_INPUT(x, shift) ((x) & (1U << ((shift)-1)))
 static const char *const IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
+
+inline bool bsec_has_input(uint32_t process_data, uint8_t input) {
+  return (process_data & (1U << (input - 1))) != 0;
+}
 
 class BME690Component : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -423,20 +423,20 @@ inline bool BME690Component::push_inputs_to_bsec(const struct bme69x_data &data,
 
   inputs[n_inputs++] = {timestamp_ns, this->ext_temp_offset_, 1, BSEC_INPUT_HEATSOURCE};
 
-  if (BSEC_CHECK_INPUT(settings.process_data, BSEC_INPUT_TEMPERATURE)) {
+  if (bsec_has_input(settings.process_data, BSEC_INPUT_TEMPERATURE)) {
     inputs[n_inputs++] = {timestamp_ns, data.temperature, 1, BSEC_INPUT_TEMPERATURE};
   }
-  if (BSEC_CHECK_INPUT(settings.process_data, BSEC_INPUT_HUMIDITY)) {
+  if (bsec_has_input(settings.process_data, BSEC_INPUT_HUMIDITY)) {
     inputs[n_inputs++] = {timestamp_ns, data.humidity, 1, BSEC_INPUT_HUMIDITY};
   }
-  if (BSEC_CHECK_INPUT(settings.process_data, BSEC_INPUT_PRESSURE)) {
+  if (bsec_has_input(settings.process_data, BSEC_INPUT_PRESSURE)) {
     inputs[n_inputs++] = {timestamp_ns, data.pressure, 1, BSEC_INPUT_PRESSURE};
   }
-  if (BSEC_CHECK_INPUT(settings.process_data, BSEC_INPUT_GASRESISTOR) &&
+  if (bsec_has_input(settings.process_data, BSEC_INPUT_GASRESISTOR) &&
       (data.status & BME69X_GASM_VALID_MSK)) {
     inputs[n_inputs++] = {timestamp_ns, data.gas_resistance, 1, BSEC_INPUT_GASRESISTOR};
   }
-  if (BSEC_CHECK_INPUT(settings.process_data, BSEC_INPUT_PROFILE_PART) &&
+  if (bsec_has_input(settings.process_data, BSEC_INPUT_PROFILE_PART) &&
       (data.status & BME69X_GASM_VALID_MSK)) {
     const float profile_part = (settings.op_mode == BME69X_FORCED_MODE) ? 0.0f : static_cast<float>(data.gas_index);
     inputs[n_inputs++] = {timestamp_ns, profile_part, 1, BSEC_INPUT_PROFILE_PART};
