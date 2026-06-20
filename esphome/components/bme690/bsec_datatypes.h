@@ -1,3 +1,5 @@
+#pragma once
+
 /**
  * Copyright (C) Bosch Sensortec GmbH. All Rights Reserved. Confidential.
  *
