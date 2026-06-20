@@ -97,8 +97,7 @@ struct IPAddress {
   IPAddress(const std::string &in_address) {
     memset(&addr_, 0, sizeof(addr_));
     if (in_address.find(':') != std::string::npos) {
-      is_v6_ = true;
-      inet_pton(AF_INET6, in_address.c_str(), &addr_.v6);
+      is_v6_ = inet_pton(AF_INET6, in_address.c_str(), &addr_.v6) == 1;
     } else {
       is_v6_ = false;
       inet_aton(in_address.c_str(), &addr_.v4);
@@ -143,7 +142,9 @@ struct IPAddress {
       }
       lowercase_ip_str(buf);
     } else {
-      inet_ntop(AF_INET, &addr_.v4, buf, IP_ADDRESS_BUFFER_SIZE);
+      if (inet_ntop(AF_INET, &addr_.v4, buf, IP_ADDRESS_BUFFER_SIZE) == nullptr) {
+        buf[0] = '\0';
+      }
     }
     return buf;
   }
