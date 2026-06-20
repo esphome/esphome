@@ -15,6 +15,9 @@ MULTI_CONF = True
 
 DOMAIN = "bme690"
 
+# Multiple BME690 instances are supported by configuration, but are currently
+# untested. All instances must use the same target-compatible BSEC library,
+# because it is linked into the firmware as a single static archive.
 CONF_BME690_ID = "bme690_id"
 CONF_BSEC_LIBRARY = "bsec_library"
 CONF_STATE_SAVE_INTERVAL = "state_save_interval"
@@ -75,6 +78,12 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
+
+    value = config[CONF_ID].id
+    if isinstance(value, str):
+        value = value.encode()
+    state_preference_hash = int(hashlib.md5(value).hexdigest()[:8], 16)
+    cg.add(var.set_state_preference_hash(state_preference_hash))
 
     lib_path = _resolve_bsec_library(config[CONF_BSEC_LIBRARY])
     esp32.add_extra_build_file("libalgobsec.a", lib_path)
