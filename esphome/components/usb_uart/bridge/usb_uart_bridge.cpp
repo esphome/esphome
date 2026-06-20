@@ -22,6 +22,9 @@ static constexpr size_t USB_TASK_STACK_SIZE_VV = 8192;
 static constexpr size_t RINGBUF_RETRY_CHUNK_SIZE = 64;
 static constexpr uint32_t LOG_THROTTLE_MS = 1000;
 static constexpr uint32_t UART_RELOAD_SETTLE_MS = 20;
+// Priority for the RX/TX worker tasks; above the default but below the USB/Wi-Fi
+// system tasks so the bridge stays responsive without starving the stack.
+static constexpr UBaseType_t TASK_PRIORITY = 4;
 
 static bool should_log_now(uint32_t *last_ms, uint32_t interval_ms) {
   uint32_t now = esp_log_timestamp();
@@ -116,12 +119,11 @@ void USBUARTBridge::setup() {
     return;
   }
 
-  // Validate the USB CDC side is fully initialized *before* registering callbacks or
-  // spawning tasks. The tasks dereference these handles/ring buffers immediately
-  // (uart_tx_task_ blocks in xRingbufferReceive() on the RX ringbuf; uart_rx_task_
-  // notifies the TX task handle). usb_cdc_acm sets up first (priority IO > HARDWARE),
-  // so a null here means its setup failed -- abort before binding callbacks (which
-  // would otherwise stay registered against a component that never starts).
+  // Validate the USB CDC side is fully initialized before spawning tasks. The tasks
+  // dereference these handles/ring buffers immediately (uart_tx_task_ blocks in
+  // xRingbufferReceive() on the RX ringbuf; uart_rx_task_ notifies the TX task handle).
+  // usb_cdc_acm sets up first (priority IO > HARDWARE), so a null here means its setup
+  // failed -- abort rather than run those primitives against null handles.
   this->usb_tx_task_handle_ = this->usb_cdc_parent_->get_tx_task_handle();
   if (this->usb_tx_task_handle_ == nullptr || this->usb_cdc_parent_->get_rx_ringbuf() == nullptr ||
       this->usb_cdc_parent_->get_tx_ringbuf() == nullptr) {
@@ -129,11 +131,6 @@ void USBUARTBridge::setup() {
     this->mark_failed();
     return;
   }
-
-  // Register line state and line coding callbacks with the USB CDC ACM component
-  this->usb_cdc_parent_->set_line_state_callback([this](bool dtr, bool rts) { this->set_line_state(dtr, rts); });
-  this->usb_cdc_parent_->set_line_coding_callback(
-      [this](uint32_t, uint8_t, uint8_t, uint8_t) { this->set_line_coding(); });
 
   // Use a larger stack size for very verbose (hex dump) logging. Gate on the
   // compile-time level, matching the buffers that are only compiled in at VV.
@@ -149,7 +146,7 @@ void USBUARTBridge::setup() {
   rx_task_name[sizeof(rx_task_name) - 2] = itf_char;
 
   // Create task that reads from USB CDC RX buffer and writes to UART
-  xTaskCreate(uart_tx_task_fn, tx_task_name, stack_size, this, 4, &this->uart_tx_task_handle_);
+  xTaskCreate(uart_tx_task_fn, tx_task_name, stack_size, this, TASK_PRIORITY, &this->uart_tx_task_handle_);
   if (this->uart_tx_task_handle_ == nullptr) {
     ESP_LOGE(TAG, "Failed to create UART TX task");
     this->mark_failed();
@@ -157,7 +154,7 @@ void USBUARTBridge::setup() {
   }
 
   // Create task that reads from UART and writes to USB CDC TX buffer
-  xTaskCreate(uart_rx_task_fn, rx_task_name, stack_size, this, 4, &this->uart_rx_task_handle_);
+  xTaskCreate(uart_rx_task_fn, rx_task_name, stack_size, this, TASK_PRIORITY, &this->uart_rx_task_handle_);
   if (this->uart_rx_task_handle_ == nullptr) {
     ESP_LOGE(TAG, "Failed to create UART RX task");
     // Tear down the TX task we already created so it isn't left running on a failed component.
@@ -166,6 +163,13 @@ void USBUARTBridge::setup() {
     this->mark_failed();
     return;
   }
+
+  // Register the line state/coding callbacks only after both tasks exist, so a failed
+  // task creation above never leaves callbacks bound to a component that won't run --
+  // set_line_state() would otherwise still drive the DTR/RTS GPIOs from a dead bridge.
+  this->usb_cdc_parent_->set_line_state_callback([this](bool dtr, bool rts) { this->set_line_state(dtr, rts); });
+  this->usb_cdc_parent_->set_line_coding_callback(
+      [this](uint32_t, uint8_t, uint8_t, uint8_t) { this->set_line_coding(); });
 }
 
 void USBUARTBridge::dump_config() {
