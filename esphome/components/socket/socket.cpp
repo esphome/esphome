@@ -205,15 +205,20 @@ socklen_t join_multicast_group(Socket *sock, struct sockaddr *addr, socklen_t ad
   }
 #else  // embedded — LwIP NETIF_FOREACH available on all embedded targets
   struct netif *netif;
+  bool any_tried = false;
   NETIF_FOREACH(netif) {
     if (netif->name[0] == 'l' && netif->name[1] == 'o') {
       continue;
     }
     imreq6.ipv6mr_interface = netif_get_index(netif);
+    any_tried = true;
     if (sock->setsockopt(IPPROTO_IPV6, IPV6_JOIN_GROUP, &imreq6, sizeof(imreq6)) == 0) {
       joined = true;
       break;
     }
+  }
+  if (!joined && !any_tried) {
+    errno = EADDRNOTAVAIL;
   }
 #endif
   if (!joined) {
