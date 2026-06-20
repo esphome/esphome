@@ -162,7 +162,7 @@ def _setup_core(work_dir: Path, settings: _Settings) -> None:
 
     # Gates arduino-only components in esphome/idf_component.yml (IDF reads it at
     # reconfigure time). Set here -- before the manifest is written/reconfigured.
-    os.environ["ESPHOME_ARDUINO"] = (
+    os.environ["ESPHOME_ARDUINO_COMPONENT"] = (
         "1" if settings.target_framework == "arduino" else "0"
     )
 

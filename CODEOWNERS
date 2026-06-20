@@ -83,6 +83,7 @@ esphome/components/bme680_bsec/* @trvrnrth
 esphome/components/bme68x_bsec2/* @kbx81 @neffs
 esphome/components/bme68x_bsec2_i2c/* @kbx81 @neffs
 esphome/components/bmi160/* @flaviut
+esphome/components/bmi270/* @clydebarrow
 esphome/components/bmp280_base/* @ademuri
 esphome/components/bmp280_i2c/* @ademuri
 esphome/components/bmp280_spi/* @ademuri
@@ -291,6 +292,7 @@ esphome/components/lock/* @esphome/core
 esphome/components/logger/* @esphome/core
 esphome/components/logger/select/* @clydebarrow
 esphome/components/lps22/* @nagisa
+esphome/components/lsm6ds/* @clydebarrow
 esphome/components/ltr390/* @latonita @sjtrny
 esphome/components/ltr501/* @latonita
 esphome/components/ltr_als_ps/* @latonita
@@ -444,7 +446,7 @@ esphome/components/select/* @esphome/core
 esphome/components/sen0321/* @notjj
 esphome/components/sen21231/* @shreyaskarnik
 esphome/components/sen5x/* @martgras
-esphome/components/sen6x/* @martgras @mebner86 @mikelawrence @tuct
+esphome/components/sen6x/* @martgras @mebner86 @tuct
 esphome/components/sendspin/* @kahrendt
 esphome/components/sendspin/media_player/* @kahrendt
 esphome/components/sendspin/media_source/* @kahrendt
@@ -560,6 +562,7 @@ esphome/components/uart/packet_transport/* @clydebarrow
 esphome/components/udp/* @clydebarrow
 esphome/components/ufire_ec/* @pvizeli
 esphome/components/ufire_ise/* @pvizeli
+esphome/components/ufm01/* @ljungqvist
 esphome/components/ultrasonic/* @ssieb @swoboda1337
 esphome/components/update/* @jesserockz
 esphome/components/uponor_smatrix/* @kroimon
@@ -597,6 +600,7 @@ esphome/components/wk2212_spi/* @DrCoolZic
 esphome/components/wl_134/* @hobbypunk90
 esphome/components/wts01/* @alepee
 esphome/components/x9c/* @EtienneMD
+esphome/components/xdb401/* @RT530
 esphome/components/xgzp68xx/* @gcormier
 esphome/components/xiaomi_hhccjcy10/* @fariouche
 esphome/components/xiaomi_lywsd02mmc/* @juanluss31
