@@ -304,28 +304,28 @@ bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
   uint8_t temp_nibble = (frame[9] >> 4) & 0x0F;
   this->target_temperature = 17 + ((~temp_nibble) & 0x0F);
 
-  uint8_t fan = frame[7] & 0xE0;
+  // ZMP: fan speed, presets, and vertical swing
+  {
+    uint8_t fan = frame[7] & 0xE0;
 
-  if (fan == MITSUBISHI_HEAVY_ZMP_FAN_AUTO) {
-    this->fan_mode = climate::CLIMATE_FAN_AUTO;
-  } else if (fan == MITSUBISHI_HEAVY_ZMP_FAN1) {
-    this->fan_mode = climate::CLIMATE_FAN_LOW;
-  } else if (fan == MITSUBISHI_HEAVY_ZMP_FAN2) {
-    this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
-  } else if (fan == MITSUBISHI_HEAVY_ZMP_FAN3) {
-    this->fan_mode = climate::CLIMATE_FAN_HIGH;
-  } else if (fan == MITSUBISHI_HEAVY_ZMP_HIPOWER) {
-    this->preset = climate::CLIMATE_PRESET_BOOST;
-  } else if (fan == MITSUBISHI_HEAVY_ZMP_ECONO) {
-    this->preset = climate::CLIMATE_PRESET_ECO;
+    if (fan == MITSUBISHI_HEAVY_ZMP_FAN_AUTO) {
+      this->fan_mode = climate::CLIMATE_FAN_AUTO;
+    } else if (fan == MITSUBISHI_HEAVY_ZMP_FAN1) {
+      this->fan_mode = climate::CLIMATE_FAN_LOW;
+    } else if (fan == MITSUBISHI_HEAVY_ZMP_FAN2) {
+      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
+    } else if (fan == MITSUBISHI_HEAVY_ZMP_FAN3) {
+      this->fan_mode = climate::CLIMATE_FAN_HIGH;
+    } else if (fan == MITSUBISHI_HEAVY_ZMP_HIPOWER) {
+      this->preset = climate::CLIMATE_PRESET_BOOST;
+    } else if (fan == MITSUBISHI_HEAVY_ZMP_ECONO) {
+      this->preset = climate::CLIMATE_PRESET_ECO;
+    }
+
+    uint8_t swing_v = (frame[5] & 0x02) | (frame[7] & 0x18);
+    this->swing_mode = (swing_v == MITSUBISHI_HEAVY_ZMP_VS_SWING) ? climate::CLIMATE_SWING_VERTICAL
+                                                                   : climate::CLIMATE_SWING_OFF;
   }
-
-  uint8_t swing_v = (frame[5] & 0x02) | (frame[7] & 0x18);
-
-  if (swing_v == MITSUBISHI_HEAVY_ZMP_VS_SWING)
-    this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
-  else
-    this->swing_mode = climate::CLIMATE_SWING_OFF;
 
   this->publish_state();
   return true;
