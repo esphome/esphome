@@ -2,6 +2,8 @@ binary_sensor:
   - platform: gpio
     pin: 2
     id: gpio_binary_sensor
+    use_interrupt: true
+    interrupt_type: ANY
 
 output:
   - platform: gpio
