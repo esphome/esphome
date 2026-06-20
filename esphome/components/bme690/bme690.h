@@ -83,14 +83,14 @@ class BME690Component : public PollingComponent, public i2c::I2CDevice {
   static BME69X_INTF_RET_TYPE read_i2c(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, void *intf_ptr);
   static BME69X_INTF_RET_TYPE write_i2c(uint8_t reg_addr, const uint8_t *reg_data, uint32_t len, void *intf_ptr);
   static void delay_usec(uint32_t period, void *intf_ptr);
-  bool check_result(const char *label, int8_t rslt);
-  bool check_bsec_status(const char *label, bsec_library_return_t rslt);
-  bool configure_bsec();
-  bool push_inputs_to_bsec(const struct bme69x_data &data, const bsec_bme_settings_t &settings, int64_t timestamp_ns);
-  void handle_bsec_outputs(const bsec_output_t *outputs, uint8_t num_outputs);
-  void log_bsec_version();
-  bool load_bsec_state();
-  void save_bsec_state();
+  bool check_result_(const char *label, int8_t rslt);
+  bool check_bsec_status_(const char *label, bsec_library_return_t rslt);
+  bool configure_bsec_();
+  bool push_inputs_to_bsec_(const struct bme69x_data &data, const bsec_bme_settings_t &settings, int64_t timestamp_ns);
+  void handle_bsec_outputs_(const bsec_output_t *outputs, uint8_t num_outputs);
+  void log_bsec_version_();
+  bool load_bsec_state_();
+  void save_bsec_state_();
 
   struct bme69x_dev dev_{};
   struct bme69x_conf conf_{};

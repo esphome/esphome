@@ -8,7 +8,7 @@
 namespace esphome {
 namespace bme690 {
 
-bool BME690Component::check_result(const char *label, int8_t rslt) {
+bool BME690Component::check_result_(const char *label, int8_t rslt) {
   if (rslt == BME69X_OK) {
     return true;
   }
@@ -17,7 +17,7 @@ bool BME690Component::check_result(const char *label, int8_t rslt) {
   return false;
 }
 
-bool BME690Component::check_bsec_status(const char *label, bsec_library_return_t rslt) {
+bool BME690Component::check_bsec_status_(const char *label, bsec_library_return_t rslt) {
   if (rslt == BSEC_OK) {
     return true;
   }
@@ -75,7 +75,7 @@ void BME690Component::setup() {
   this->dev_.delay_us = BME690Component::delay_usec;
 
   int8_t rslt = bme69x_init(&this->dev_);
-  if (!this->check_result("bme69x_init", rslt)) {
+  if (!this->check_result_("bme69x_init", rslt)) {
     this->mark_failed();
     return;
   }
@@ -86,7 +86,7 @@ void BME690Component::setup() {
   this->conf_.os_pres = BME69X_OS_16X;
   this->conf_.os_temp = BME69X_OS_16X;
   rslt = bme69x_set_conf(&this->conf_, &this->dev_);
-  if (!this->check_result("bme69x_set_conf", rslt)) {
+  if (!this->check_result_("bme69x_set_conf", rslt)) {
     this->mark_failed();
     return;
   }
@@ -99,12 +99,12 @@ void BME690Component::setup() {
   this->heatr_conf_.profile_len = 0;
   this->heatr_conf_.shared_heatr_dur = 0;
   rslt = bme69x_set_heatr_conf(BME69X_FORCED_MODE, &this->heatr_conf_, &this->dev_);
-  if (!this->check_result("bme69x_set_heatr_conf", rslt)) {
+  if (!this->check_result_("bme69x_set_heatr_conf", rslt)) {
     this->mark_failed();
     return;
   }
 
-  if (!this->configure_bsec()) {
+  if (!this->configure_bsec_()) {
     ESP_LOGW(TAG, "BSEC configuration failed; running raw sensor only.");
   }
 }
@@ -144,7 +144,7 @@ void BME690Component::update() {
       return;
     }
     auto bsec_rslt = bsec_sensor_control(this->bsec_instance_.data(), timestamp_ns, &sensor_settings);
-    if (!this->check_bsec_status("bsec_sensor_control", bsec_rslt)) {
+    if (!this->check_bsec_status_("bsec_sensor_control", bsec_rslt)) {
       this->status_set_warning();
     }
     ESP_LOGI(TAG, "BSEC control: next_call=%lld, trig=%u, op_mode=%u, temp_os=%u hum_os=%u pres_os=%u run_gas=%u",
@@ -176,7 +176,7 @@ void BME690Component::update() {
   this->conf_.os_temp = sensor_settings.temperature_oversampling;
 
   int8_t rslt = bme69x_set_conf(&this->conf_, &this->dev_);
-  if (!this->check_result("bme69x_set_conf", rslt)) {
+  if (!this->check_result_("bme69x_set_conf", rslt)) {
     this->status_set_warning();
     return;
   }
@@ -196,13 +196,13 @@ void BME690Component::update() {
   }
 
   rslt = bme69x_set_heatr_conf(sensor_settings.op_mode, &this->heatr_conf_, &this->dev_);
-  if (!this->check_result("bme69x_set_heatr_conf", rslt)) {
+  if (!this->check_result_("bme69x_set_heatr_conf", rslt)) {
     this->status_set_warning();
     return;
   }
 
   rslt = bme69x_set_op_mode(sensor_settings.op_mode, &this->dev_);
-  if (!this->check_result("bme69x_set_op_mode", rslt)) {
+  if (!this->check_result_("bme69x_set_op_mode", rslt)) {
     this->status_set_warning();
     return;
   }
@@ -223,7 +223,7 @@ void BME690Component::update() {
   struct bme69x_data data = {};
   uint8_t n_fields = 0;
   rslt = bme69x_get_data(sensor_settings.op_mode, &data, &n_fields, &this->dev_);
-  if (!this->check_result("bme69x_get_data", rslt)) {
+  if (!this->check_result_("bme69x_get_data", rslt)) {
     this->status_set_warning();
     return;
   }
@@ -248,30 +248,30 @@ void BME690Component::update() {
   }
 
   if (this->bsec_ready_) {
-    this->push_inputs_to_bsec(data, sensor_settings, timestamp_ns);
+    this->push_inputs_to_bsec_(data, sensor_settings, timestamp_ns);
   }
 }
 
-bool BME690Component::configure_bsec() {
+bool BME690Component::configure_bsec_() {
   size_t instance_size = bsec_get_instance_size();
   this->bsec_instance_.assign(instance_size, 0);
   this->bsec_work_buffer_.assign(BSEC_MAX_WORKBUFFER_SIZE, 0);
 
   auto bsec_rslt = bsec_init(this->bsec_instance_.data());
-  if (!this->check_bsec_status("bsec_init", bsec_rslt)) {
+  if (!this->check_bsec_status_("bsec_init", bsec_rslt)) {
     return false;
   }
-  this->log_bsec_version();
+  this->log_bsec_version_();
 
   bsec_rslt = bsec_set_configuration(this->bsec_instance_.data(), bsec_config_iaq, sizeof(bsec_config_iaq),
                                      this->bsec_work_buffer_.data(), this->bsec_work_buffer_.size());
-  if (!this->check_bsec_status("bsec_set_configuration", bsec_rslt)) {
+  if (!this->check_bsec_status_("bsec_set_configuration", bsec_rslt)) {
     return false;
   }
 
   this->pref_ = global_preferences->make_preference<std::array<uint8_t, BSEC_MAX_STATE_BLOB_SIZE + 4>>(
       this->state_preference_hash_);
-  this->load_bsec_state();
+  this->load_bsec_state_();
 
   bsec_sensor_configuration_t requested_virtual_sensors[14] = {};
   uint8_t n_requested = 0;
@@ -304,7 +304,7 @@ bool BME690Component::configure_bsec() {
 
   bsec_rslt = bsec_update_subscription(this->bsec_instance_.data(), requested_virtual_sensors, n_requested,
                                        required_sensor_settings, &n_required);
-  if (!this->check_bsec_status("bsec_update_subscription", bsec_rslt)) {
+  if (!this->check_bsec_status_("bsec_update_subscription", bsec_rslt)) {
     return false;
   }
 
@@ -313,7 +313,7 @@ bool BME690Component::configure_bsec() {
   return true;
 }
 
-bool BME690Component::push_inputs_to_bsec(const struct bme69x_data &data, const bsec_bme_settings_t &settings,
+bool BME690Component::push_inputs_to_bsec_(const struct bme69x_data &data, const bsec_bme_settings_t &settings,
                                           int64_t timestamp_ns) {
   bsec_input_t inputs[BSEC_MAX_PHYSICAL_SENSOR] = {};
   uint8_t n_inputs = 0;
@@ -344,18 +344,18 @@ bool BME690Component::push_inputs_to_bsec(const struct bme69x_data &data, const 
   bsec_output_t outputs[BSEC_NUMBER_OUTPUTS] = {};
   uint8_t num_outputs = BSEC_NUMBER_OUTPUTS;
   auto bsec_rslt = bsec_do_steps(this->bsec_instance_.data(), inputs, n_inputs, outputs, &num_outputs);
-  if (!this->check_bsec_status("bsec_do_steps", bsec_rslt)) {
+  if (!this->check_bsec_status_("bsec_do_steps", bsec_rslt)) {
     this->status_set_warning();
     return false;
   }
 
   ESP_LOGI(TAG, "BSEC outputs: %u", num_outputs);
-  this->handle_bsec_outputs(outputs, num_outputs);
-  this->save_bsec_state();
+  this->handle_bsec_outputs_(outputs, num_outputs);
+  this->save_bsec_state_();
   return true;
 }
 
-void BME690Component::handle_bsec_outputs(const bsec_output_t *outputs, uint8_t num_outputs) {
+void BME690Component::handle_bsec_outputs_(const bsec_output_t *outputs, uint8_t num_outputs) {
   for (uint8_t idx = 0; idx < num_outputs; idx++) {
     const auto &out = outputs[idx];
     switch (out.sensor_id) {
@@ -412,7 +412,7 @@ void BME690Component::handle_bsec_outputs(const bsec_output_t *outputs, uint8_t 
   }
 }
 
-void BME690Component::log_bsec_version() {
+void BME690Component::log_bsec_version_() {
   bsec_version_t ver{};
   auto rslt = bsec_get_version(this->bsec_instance_.data(), &ver);
   if (rslt == BSEC_OK) {
@@ -422,7 +422,7 @@ void BME690Component::log_bsec_version() {
   }
 }
 
-bool BME690Component::load_bsec_state() {
+bool BME690Component::load_bsec_state_() {
   std::array<uint8_t, BSEC_MAX_STATE_BLOB_SIZE + 4> buf{};
   if (!this->pref_.load(&buf)) {
     return false;
@@ -436,7 +436,7 @@ bool BME690Component::load_bsec_state() {
 
   auto rslt = bsec_set_state(this->bsec_instance_.data(), buf.data() + 4, len, this->bsec_work_buffer_.data(),
                              this->bsec_work_buffer_.size());
-  if (!this->check_bsec_status("bsec_set_state", rslt)) {
+  if (!this->check_bsec_status_("bsec_set_state", rslt)) {
     return false;
   }
 
@@ -444,7 +444,7 @@ bool BME690Component::load_bsec_state() {
   return true;
 }
 
-void BME690Component::save_bsec_state() {
+void BME690Component::save_bsec_state_() {
   if (!this->bsec_ready_) {
     return;
   }
@@ -461,7 +461,7 @@ void BME690Component::save_bsec_state() {
 
   auto rslt = bsec_get_state(this->bsec_instance_.data(), state_set_id, state_buf.data(), state_len,
                              this->bsec_work_buffer_.data(), work_buf_len, &state_len);
-  if (!this->check_bsec_status("bsec_get_state", rslt)) {
+  if (!this->check_bsec_status_("bsec_get_state", rslt)) {
     return;
   }
 
