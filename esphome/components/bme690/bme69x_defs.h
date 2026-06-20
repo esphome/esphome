@@ -81,15 +81,6 @@
 #endif
 #endif
 
-/*! C standard macros */
-#ifndef NULL
-#ifdef __cplusplus
-#define NULL 0
-#else
-#define NULL ((void *) 0)
-#endif
-#endif
-
 #ifndef BME69X_DO_NOT_USE_FPU
 
 /* Comment or un-comment the macro to provide floating point data output */
