@@ -360,5 +360,3 @@ bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
 }  // namespace esphome::heatpumpir
 
 #endif
-
-#endif
