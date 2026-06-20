@@ -3,15 +3,16 @@
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
-#include "esphome/components/cover/cover.h"
+#include "esphome/components/actuator/actuator.h"
 
 namespace esphome::endstop {
 
-class EndstopCover : public cover::Cover, public Component {
+// Inheritance: EndstopActuatorBase -> Component (holds IActuator* pointer, no diamond)
+class EndstopActuatorBase : public Component {
  public:
+  void set_actuator(actuator::IActuator *actuator) { this->actuator_ = actuator; }
   void setup() override;
   void loop() override;
-  void dump_config() override;
 
   Trigger<> *get_open_trigger() { return &this->open_trigger_; }
   Trigger<> *get_close_trigger() { return &this->close_trigger_; }
@@ -22,25 +23,22 @@ class EndstopCover : public cover::Cover, public Component {
   void set_close_duration(uint32_t close_duration) { this->close_duration_ = close_duration; }
   void set_max_duration(uint32_t max_duration) { this->max_duration_ = max_duration; }
 
-  cover::CoverTraits get_traits() override;
-
  protected:
-  void control(const cover::CoverCall &call) override;
+  void control_(const actuator::ActuatorCallBase &call);
   void stop_prev_trigger_();
   bool is_open_() const { return this->open_endstop_->state; }
   bool is_closed_() const { return this->close_endstop_->state; }
   bool is_at_target_() const;
-
-  void start_direction_(cover::CoverOperation dir);
-
+  void start_direction_(actuator::ActuatorOperation dir);
   void recompute_position_();
 
-  binary_sensor::BinarySensor *open_endstop_;
-  binary_sensor::BinarySensor *close_endstop_;
+  actuator::IActuator *actuator_{nullptr};
+  binary_sensor::BinarySensor *open_endstop_{nullptr};
+  binary_sensor::BinarySensor *close_endstop_{nullptr};
   Trigger<> open_trigger_;
-  uint32_t open_duration_;
+  uint32_t open_duration_{0};
   Trigger<> close_trigger_;
-  uint32_t close_duration_;
+  uint32_t close_duration_{0};
   Trigger<> stop_trigger_;
   uint32_t max_duration_{UINT32_MAX};
 
@@ -49,7 +47,7 @@ class EndstopCover : public cover::Cover, public Component {
   uint32_t start_dir_time_{0};
   uint32_t last_publish_time_{0};
   float target_position_{0};
-  cover::CoverOperation last_operation_{cover::COVER_OPERATION_OPENING};
+  actuator::ActuatorOperation last_operation_{actuator::ACTUATOR_OPERATION_OPENING};
 };
 
 }  // namespace esphome::endstop

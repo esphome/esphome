@@ -5,13 +5,19 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
+#include "esphome/components/actuator/actuator.h"
 
 #include "cover_traits.h"
 
 namespace esphome::cover {
 
-static constexpr float COVER_OPEN = 1.0f;
-static constexpr float COVER_CLOSED = 0.0f;
+// Backward-compat aliases.
+using CoverOperation = actuator::ActuatorOperation;
+constexpr actuator::ActuatorOperation COVER_OPERATION_IDLE = actuator::ACTUATOR_OPERATION_IDLE;
+constexpr actuator::ActuatorOperation COVER_OPERATION_OPENING = actuator::ACTUATOR_OPERATION_OPENING;
+constexpr actuator::ActuatorOperation COVER_OPERATION_CLOSING = actuator::ACTUATOR_OPERATION_CLOSING;
+static constexpr float COVER_OPEN = actuator::ACTUATOR_OPEN;
+static constexpr float COVER_CLOSED = actuator::ACTUATOR_CLOSED;
 
 #define LOG_COVER(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -25,43 +31,30 @@ static constexpr float COVER_CLOSED = 0.0f;
 
 class Cover;
 
-class CoverCall {
+// Inheritance: CoverCall -> ActuatorCallBase
+class CoverCall : public actuator::ActuatorCallBase {
  public:
   CoverCall(Cover *parent);
 
-  /// Set the command as a string, "STOP", "OPEN", "CLOSE", "TOGGLE".
+  // Covariant wrappers — return CoverCall& for fluent chaining compatibility
   CoverCall &set_command(const char *command);
-  /// Set the command to open the cover.
   CoverCall &set_command_open();
-  /// Set the command to close the cover.
   CoverCall &set_command_close();
-  /// Set the command to stop the cover.
   CoverCall &set_command_stop();
-  /// Set the command to toggle the cover.
   CoverCall &set_command_toggle();
-  /// Set the call to a certain target position.
   CoverCall &set_position(float position);
-  /// Set the call to a certain target tilt.
   CoverCall &set_tilt(float tilt);
-  /// Set whether this cover call should stop the cover.
   CoverCall &set_stop(bool stop);
 
-  /// Perform the cover call.
   void perform();
 
-  const optional<float> &get_position() const;
-  bool get_stop() const;
-  const optional<float> &get_tilt() const;
-  const optional<bool> &get_toggle() const;
+  const optional<float> &get_tilt() const { return this->tilt_; }
 
  protected:
-  void validate_();
-
-  Cover *parent_;
-  bool stop_{false};
-  optional<float> position_{};
   optional<float> tilt_{};
-  optional<bool> toggle_{};
+
+ private:
+  void validate() override;
 };
 
 /// Struct used to store the restored state of a cover
@@ -74,16 +67,6 @@ struct CoverRestoreState {
   /// Apply these settings to the cover
   void apply(Cover *cover);
 } __attribute__((packed));
-
-/// Enum encoding the current operation of a cover.
-enum CoverOperation : uint8_t {
-  /// The cover is currently idle (not moving)
-  COVER_OPERATION_IDLE = 0,
-  /// The cover is currently opening.
-  COVER_OPERATION_OPENING,
-  /// The cover is currently closing.
-  COVER_OPERATION_CLOSING,
-};
 
 const LogString *cover_operation_to_str(CoverOperation op);
 
@@ -107,25 +90,18 @@ const LogString *cover_operation_to_str(CoverOperation op);
  * to control all values of the cover. Also implement get_traits() to return what operations
  * the cover supports.
  */
-class Cover : public EntityBase {
+// Inheritance: Cover -> ActuatorBase, IActuator
+class Cover : public actuator::ActuatorBase, public actuator::IActuator {
  public:
   explicit Cover();
 
-  /// The current operation of the cover (idle, opening, closing).
-  CoverOperation current_operation{COVER_OPERATION_IDLE};
-  /** The position of the cover from 0.0 (fully closed) to 1.0 (fully open).
-   *
-   * For binary covers this is always equals to 0.0 or 1.0 (see also COVER_OPEN and
-   * COVER_CLOSED constants).
-   */
-  float position;
   /// The current tilt value of the cover from 0.0 to 1.0.
   float tilt{COVER_OPEN};
 
   /// Construct a new cover call used to control the cover.
   CoverCall make_call();
 
-  template<typename F> void add_on_state_callback(F &&f) { this->state_callback_.add(std::forward<F>(f)); }
+  using actuator::ActuatorBase::add_on_state_callback;
 
   /** Publish the current state of the cover.
    *
@@ -138,21 +114,55 @@ class Cover : public EntityBase {
 
   virtual CoverTraits get_traits() = 0;
 
-  /// Helper method to check if the cover is fully open. Equivalent to comparing .position against 1.0
-  bool is_fully_open() const;
-  /// Helper method to check if the cover is fully closed. Equivalent to comparing .position against 0.0
-  bool is_fully_closed() const;
+  // IActuator implementation
+  float get_position() const override { return this->position; }
+  void set_position(float p) override { this->position = p; }
+  actuator::ActuatorOperation get_operation() const override { return this->current_operation; }
+  void set_operation(actuator::ActuatorOperation op) override { this->current_operation = op; }
+  void do_publish_state(bool save) override { this->publish_state(save); }
+  optional<float> do_restore_state() override;
+  const char *get_entity_name() const override { return this->get_name().c_str(); }
 
  protected:
   friend CoverCall;
 
   virtual void control(const CoverCall &call) = 0;
 
-  optional<CoverRestoreState> restore_state_();
-
-  LazyCallbackManager<void()> state_callback_{};
-
-  ESPPreferenceObject rtc_;
+  optional<CoverRestoreState> restore_state_() { return ActuatorBase::restore_state_<CoverRestoreState>(); }
 };
+
+// Inline definitions placed after Cover's full declaration so the Cover* → ActuatorBase* upcast
+// in the constructor is well-formed. Defining these inline allows the compiler to fold the
+// covariant wrappers and constructor into the call site (make_call().set_*().perform()).
+inline CoverCall::CoverCall(Cover *parent) : actuator::ActuatorCallBase(parent) {}
+inline CoverCall &CoverCall::set_command_open() {
+  actuator::ActuatorCallBase::set_command_open();
+  return *this;
+}
+inline CoverCall &CoverCall::set_command_close() {
+  actuator::ActuatorCallBase::set_command_close();
+  return *this;
+}
+inline CoverCall &CoverCall::set_command_stop() {
+  actuator::ActuatorCallBase::set_command_stop();
+  return *this;
+}
+inline CoverCall &CoverCall::set_command_toggle() {
+  actuator::ActuatorCallBase::set_command_toggle();
+  return *this;
+}
+inline CoverCall &CoverCall::set_position(float position) {
+  actuator::ActuatorCallBase::set_position(position);
+  return *this;
+}
+inline CoverCall &CoverCall::set_tilt(float tilt) {
+  this->tilt_ = tilt;
+  return *this;
+}
+inline CoverCall &CoverCall::set_stop(bool stop) {
+  actuator::ActuatorCallBase::set_stop(stop);
+  return *this;
+}
+inline CoverCall Cover::make_call() { return CoverCall(this); }
 
 }  // namespace esphome::cover
