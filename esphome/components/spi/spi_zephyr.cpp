@@ -28,7 +28,6 @@ ZephyrSPIDelegate::ZephyrSPIDelegate(const device *dev, uint32_t data_rate, SPIB
   this->cfg_.frequency = data_rate;
   this->cfg_.operation = build_operation(bit_order, mode);
   // CS is driven by ESPHome via SPIDelegate base class; no Zephyr-level CS control.
-  this->cfg_.slave = 0;
 }
 
 void ZephyrSPIDelegate::do_transceive_(const uint8_t *tx, uint8_t *rx, size_t length) {
