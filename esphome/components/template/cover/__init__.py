@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import cover
+from esphome.components import actuator as actuator_component, cover
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ASSUMED_STATE,
@@ -115,11 +115,13 @@ async def to_code(config):
 
 # CONF_STATE and CONF_POSITION are cv.Exclusive in the schema, so at most
 # one is present and both map to the position field.
-_COVER_PUBLISH_FIELDS: tuple[cover.ApplyField, ...] = (
-    cover.ApplyField(CONF_STATE, "position", cg.float_),
-    cover.ApplyField(CONF_POSITION, "position", cg.float_),
-    cover.ApplyField(CONF_TILT, "tilt", cg.float_),
-    cover.ApplyField(CONF_CURRENT_OPERATION, "current_operation", cover.CoverOperation),
+_COVER_PUBLISH_FIELDS: tuple[actuator_component.ApplyField, ...] = (
+    actuator_component.ApplyField(CONF_STATE, "position", cg.float_),
+    actuator_component.ApplyField(CONF_POSITION, "position", cg.float_),
+    actuator_component.ApplyField(CONF_TILT, "tilt", cg.float_),
+    actuator_component.ApplyField(
+        CONF_CURRENT_OPERATION, "current_operation", cover.CoverOperation
+    ),
 )
 
 
@@ -147,7 +149,7 @@ async def cover_template_publish_to_code(
 ) -> MockObj:
     # Mutates Cover fields directly (no CoverCall) since publish is a state
     # push, not a control request.
-    return await cover.build_apply_lambda_action(
+    return await actuator_component.build_apply_lambda_action(
         config=config,
         action_id=action_id,
         template_arg=template_arg,
