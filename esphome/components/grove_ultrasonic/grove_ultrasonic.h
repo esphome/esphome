@@ -10,7 +10,7 @@ namespace esphome::grove_ultrasonic {
 
 /// ISR-safe storage for echo pulse timing.
 struct GroveUltrasonicSensorStore {
-  static void IRAM_ATTR gpio_intr(GroveUltrasonicSensorStore *arg);
+  static void gpio_intr(GroveUltrasonicSensorStore *arg);
 
   volatile uint32_t measurement_start_us{0};
   volatile uint32_t echo_start_us{0};
@@ -42,7 +42,7 @@ class GroveUltrasonicSensorComponent : public sensor::Sensor, public PollingComp
   /// Convert an echo duration in µs to distance in metres.
   static float us_to_m(uint32_t us);
   /// Send the trigger pulse, switching pin direction as needed.
-  void IRAM_ATTR send_trigger_pulse_();
+  void send_trigger_pulse_();
 
   InternalGPIOPin *sig_pin_{nullptr};
   ISRInternalGPIOPin sig_pin_isr_;
