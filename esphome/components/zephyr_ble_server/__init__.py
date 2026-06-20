@@ -38,6 +38,18 @@ async def to_code(config):
     zephyr_add_prj_conf("BT_PERIPHERAL", True)
     zephyr_add_prj_conf("BT_RX_STACK_SIZE", 1536)
     zephyr_add_prj_conf("BT_DEVICE_NAME", CORE.name)
+    # Raise the ATT MTU and enable LL Data Length Extension so each notification can carry
+    # ~244 bytes of payload instead of the default 20. The central (e.g. macOS) requests a large
+    # MTU on connect; the peripheral must advertise a matching BT_L2CAP_TX_MTU and provide ACL
+    # buffers large enough to hold MTU + 4 bytes of L2CAP header for the negotiation to take.
+    # This is the single biggest throughput win for BLE log streaming and OTA, shrinking a burst
+    # from dozens of round-trips to a handful.
+    zephyr_add_prj_conf("BT_L2CAP_TX_MTU", 247)
+    zephyr_add_prj_conf("BT_BUF_ACL_TX_SIZE", 251)
+    zephyr_add_prj_conf("BT_BUF_ACL_RX_SIZE", 251)
+    zephyr_add_prj_conf("BT_CTLR_DATA_LENGTH_MAX", 251)
+    zephyr_add_prj_conf("BT_USER_DATA_LEN_UPDATE", True)
+    zephyr_add_prj_conf("BT_AUTO_DATA_LEN_UPDATE", True)
     await cg.register_component(var, config)
     if config.get(CONF_ON_NUMERIC_COMPARISON_REQUEST):
         zephyr_add_prj_conf("BT_SMP", True)
