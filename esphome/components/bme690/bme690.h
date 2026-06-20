@@ -53,6 +53,7 @@ class BME690Component : public PollingComponent, public i2c::I2CDevice {
   void set_comp_temperature_sensor(sensor::Sensor *sensor) { comp_temperature_sensor = sensor; }
   void set_comp_humidity_sensor(sensor::Sensor *sensor) { comp_humidity_sensor = sensor; }
   void set_state_save_interval(uint32_t interval) { state_save_interval_ms_ = interval; }
+  void set_state_preference_hash(uint32_t hash) { this->state_preference_hash_ = hash; }
 #ifdef USE_TEXT_SENSOR
   void set_iaq_accuracy_text_sensor(text_sensor::TextSensor *sensor) { iaq_accuracy_text_sensor_ = sensor; }
 #endif
@@ -107,6 +108,7 @@ class BME690Component : public PollingComponent, public i2c::I2CDevice {
   uint8_t last_iaq_accuracy_{0};
   bool state_dirty_{false};
   uint32_t state_save_interval_ms_{6 * 60 * 60 * 1000UL};  // 6h
+  uint32_t state_preference_hash_{0};
 };
 
 inline bool BME690Component::check_result(const char *label, int8_t rslt) {
@@ -372,7 +374,8 @@ inline bool BME690Component::configure_bsec() {
     return false;
   }
 
-  this->pref_ = global_preferences->make_preference<std::array<uint8_t, BSEC_MAX_STATE_BLOB_SIZE + 4>>(fnv1_hash("bsec_state"));
+  this->pref_ = global_preferences->make_preference<std::array<uint8_t, BSEC_MAX_STATE_BLOB_SIZE + 4>>(
+      this->state_preference_hash_);
   this->load_bsec_state();
 
   bsec_sensor_configuration_t requested_virtual_sensors[14] = {};
