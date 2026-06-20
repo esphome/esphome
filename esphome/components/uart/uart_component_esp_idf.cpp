@@ -261,6 +261,11 @@ void IDFUARTComponent::apply_settings_live() {
   // parity, stop bits, flow control). It does not touch the driver object or its
   // RX/TX ring buffers, so tasks blocked in uart_read_bytes()/uart_write_bytes()
   // are undisturbed — no use-after-free, no need to suspend them.
+  //
+  // Note: the new framing takes effect immediately, mid-byte if a transmission is in
+  // progress, so a byte shifting out (or still in the TX FIFO) when this is called can
+  // be corrupted. That is unavoidable when reconfiguring a live UART and is expected,
+  // not a bug; line-coding changes normally arrive at port-open before traffic flows.
   uart_config_t uart_config = this->get_config_();
   esp_err_t err = uart_param_config(this->uart_num_, &uart_config);
   if (err != ESP_OK) {
