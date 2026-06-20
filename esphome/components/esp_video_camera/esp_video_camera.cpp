@@ -23,6 +23,10 @@ extern "C" {
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
+#if CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
+#include "esp_intr_alloc.h"
+#include "usb/usb_host.h"
+#endif
 }
 
 #ifndef V4L2_CID_JPEG_COMPRESSION_QUALITY
@@ -52,6 +56,22 @@ void video_init_task_core0(void *param) {
   xSemaphoreGive(p->done);
   vTaskDelete(nullptr);
 }
+
+#if CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
+// Pump USB Host Library events. esp_video is told not to own the USB host lib
+// (init_usb_host_lib = false) so that we can tolerate it already being
+// installed by another component; when we install it ourselves we run this
+// daemon, when it is shared the existing owner pumps the events instead.
+void usb_host_lib_daemon_task(void *param) {
+  while (true) {
+    uint32_t event_flags;
+    if (usb_host_lib_handle_events(portMAX_DELAY, &event_flags) == ESP_OK) {
+      if (event_flags & USB_HOST_LIB_EVENT_FLAGS_NO_CLIENTS)
+        usb_host_device_free_all();
+    }
+  }
+}
+#endif
 
 // Generate the sensor XCLK with LEDC. For MIPI-CSI sensors esp_video_init() does
 // not start XCLK, so non-M5Stack boards must do it before init or the sensor
@@ -244,7 +264,25 @@ bool ESPVideoCamera::init_pipeline_() {
     uvc_config.uvc.task_stack = 4096;
     uvc_config.uvc.task_priority = 5;
     uvc_config.uvc.task_affinity = -1;
-    uvc_config.usb.init_usb_host_lib = true;
+
+    // The USB Host Library can only be installed once per system. Manage it here
+    // instead of letting esp_video own it, so that if another component (e.g.
+    // ESPHome's usb_host) has already installed it we share the existing stack
+    // instead of aborting esp_video_init(). When we install it ourselves we also
+    // run the library event daemon; when it is already installed we leave the
+    // events to the existing owner.
+    usb_host_config_t host_config = {};
+    host_config.skip_phy_setup = false;
+    host_config.intr_flags = ESP_INTR_FLAG_LEVEL1;
+    esp_err_t host_ret = usb_host_install(&host_config);
+    if (host_ret == ESP_OK) {
+      xTaskCreatePinnedToCore(usb_host_lib_daemon_task, "usb_lib", 4096, nullptr, 5, nullptr, tskNO_AFFINITY);
+    } else if (host_ret == ESP_ERR_INVALID_STATE) {
+      ESP_LOGW(TAG, "USB Host already installed by another component; sharing it for UVC");
+    } else {
+      ESP_LOGE(TAG, "usb_host_install() failed: %s", esp_err_to_name(host_ret));
+    }
+    uvc_config.usb.init_usb_host_lib = false;  // we manage the USB host library (see above)
     uvc_config.usb.task_stack = 4096;
     uvc_config.usb.task_priority = 5;
     uvc_config.usb.task_affinity = -1;
