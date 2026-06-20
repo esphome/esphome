@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace grove_ultrasonic {
+namespace esphome::grove_ultrasonic {
 
 static const char *const TAG = "grove_ultrasonic.sensor";
 
@@ -137,5 +136,4 @@ float GroveUltrasonicSensorComponent::us_to_m(uint32_t us) {
   return total_dist / 2.0f;
 }
 
-}  // namespace grove_ultrasonic
-}  // namespace esphome
+}  // namespace esphome::grove_ultrasonic

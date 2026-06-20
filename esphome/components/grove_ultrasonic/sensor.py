@@ -7,11 +7,11 @@ compatible with the Grove Ultrasonic Ranger (single-pin).
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import CONF_SIG_PIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_INPUT,
     CONF_OUTPUT,
-    CONF_SIG_PIN,
     CONF_TIMEOUT,
     ICON_ARROW_EXPAND_VERTICAL,
     STATE_CLASS_MEASUREMENT,

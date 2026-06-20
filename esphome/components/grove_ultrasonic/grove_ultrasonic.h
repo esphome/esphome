@@ -6,8 +6,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace grove_ultrasonic {
+namespace esphome::grove_ultrasonic {
 
 /// ISR-safe storage for echo pulse timing.
 struct GroveUltrasonicSensorStore {
@@ -25,8 +24,7 @@ struct GroveUltrasonicSensorStore {
 /// Uses a shared SIG pin that alternates between OUTPUT (trigger
 /// pulse) and INPUT (echo listening).  Configure with ``sig_pin:``
 /// in YAML.
-class GroveUltrasonicSensorComponent : public sensor::Sensor,
-                                        public PollingComponent {
+class GroveUltrasonicSensorComponent : public sensor::Sensor, public PollingComponent {
  public:
   void set_sig_pin(InternalGPIOPin *pin) { this->sig_pin_ = pin; }
 
@@ -55,5 +53,4 @@ class GroveUltrasonicSensorComponent : public sensor::Sensor,
   bool measurement_pending_{false};
 };
 
-}  // namespace grove_ultrasonic
-}  // namespace esphome
+}  // namespace esphome::grove_ultrasonic
