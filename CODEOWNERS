@@ -205,6 +205,7 @@ esphome/components/gree/* @orestismers
 esphome/components/gree/switch/* @nagyrobi
 esphome/components/grove_gas_mc_v2/* @YorkshireIoT
 esphome/components/grove_tb6612fng/* @max246
+esphome/components/grove_ultrasonic/* @Eelviny
 esphome/components/growatt_solar/* @leeuwte
 esphome/components/gt911/* @clydebarrow @jesserockz
 esphome/components/haier/* @paveldn
