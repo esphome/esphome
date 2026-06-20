@@ -175,6 +175,22 @@ TEST(IPAddressHost, IPv6FullAddressRoundTrip) {
 }
 
 // =========================================================================
+// Malformed input
+// =========================================================================
+
+TEST(IPAddressHost, MalformedIPv4YieldsEmptyAddress) {
+  IPAddress addr("not-an-ip");
+  EXPECT_FALSE(addr.is_set());
+  EXPECT_TRUE(addr.is_ip4());
+}
+
+TEST(IPAddressHost, MalformedIPv6YieldsEmptyAddress) {
+  IPAddress addr("gg::1");
+  EXPECT_FALSE(addr.is_set());
+  EXPECT_TRUE(addr.is_ip4());
+}
+
+// =========================================================================
 // Cross-family
 // =========================================================================
 

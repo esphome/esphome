@@ -180,6 +180,7 @@ socklen_t join_multicast_group(Socket *sock, struct sockaddr *addr, socklen_t ad
 #if defined(USE_HOST) || defined(USE_ZEPHYR)
   struct ifaddrs *ifaddr;
   if (getifaddrs(&ifaddr) == 0) {
+    bool any_tried = false;
     for (struct ifaddrs *ifa = ifaddr; ifa != nullptr && !joined; ifa = ifa->ifa_next) {
       if (ifa->ifa_addr == nullptr || ifa->ifa_addr->sa_family != AF_INET6) {
         continue;
@@ -192,11 +193,15 @@ socklen_t join_multicast_group(Socket *sock, struct sockaddr *addr, socklen_t ad
         continue;
       }
       imreq6.ipv6mr_interface = idx;
+      any_tried = true;
       if (sock->setsockopt(IPPROTO_IPV6, IPV6_JOIN_GROUP, &imreq6, sizeof(imreq6)) == 0) {
         joined = true;
       }
     }
     freeifaddrs(ifaddr);
+    if (!joined && !any_tried) {
+      errno = EADDRNOTAVAIL;
+    }
   }
 #else  // embedded — LwIP NETIF_FOREACH available on all embedded targets
   struct netif *netif;
