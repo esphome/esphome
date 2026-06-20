@@ -24,8 +24,7 @@ extern "C" {
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
 
-namespace esphome {
-namespace bme690 {
+namespace esphome::bme690 {
 
 static const char *const TAG = "bme690";
 static const char *const IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
@@ -112,5 +111,4 @@ class BME690Component : public PollingComponent, public i2c::I2CDevice {
   uint32_t millis_overflow_counter_{0};
 };
 
-}  // namespace bme690
-}  // namespace esphome
+}  // namespace esphome::bme690
