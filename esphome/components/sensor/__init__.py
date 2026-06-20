@@ -37,8 +37,10 @@ from esphome.const import (
     CONF_REFERENCE_TEMPERATURE,
     CONF_SEND_EVERY,
     CONF_SEND_FIRST_AT,
+    CONF_SENSOR_ID,
     CONF_STATE_CLASS,
     CONF_TEMPERATURE,
+    CONF_TEMPERATURE_OFFSET,
     CONF_TIMEOUT,
     CONF_TO,
     CONF_TRIGGER_ID,
@@ -46,6 +48,7 @@ from esphome.const import (
     CONF_VALUE,
     CONF_WEB_SERVER,
     CONF_WINDOW_SIZE,
+    CONF_USE_FAHRENHEIT,
     DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
@@ -295,6 +298,7 @@ OrFilter = sensor_ns.class_("OrFilter", Filter)
 CalibrateLinearFilter = sensor_ns.class_("CalibrateLinearFilter", Filter)
 ToNTCResistanceFilter = sensor_ns.class_("ToNTCResistanceFilter", Filter)
 ToNTCTemperatureFilter = sensor_ns.class_("ToNTCTemperatureFilter", Filter)
+RHCorrectionFilter = sensor_ns.class_("RHCorrectionFilter", Filter)
 CalibratePolynomialFilter = sensor_ns.class_("CalibratePolynomialFilter", Filter)
 SensorInRangeCondition = sensor_ns.class_("SensorInRangeCondition", Filter)
 ClampFilter = sensor_ns.class_("ClampFilter", Filter)
@@ -1181,6 +1185,23 @@ async def calibrate_ntc_temperature_filter_to_code(config, filter_id):
         calib[CONF_C],
     )
 
+@FILTER_REGISTRY.register(
+    "rh_correction",
+    RHCorrectionFilter,
+    cv.All(
+        cv.Schema(
+            {
+                cv.Required(CONF_TEMPERATURE_OFFSET): cv.templatable(cv.float_),
+                cv.Required(CONF_SENSOR_ID): cv.use_id(Sensor),
+                cv.Optional(CONF_USE_FAHRENHEIT, default=False): cv.boolean,
+            }
+        ),
+    ),
+)
+async def rh_correction_filter_to_code(config, filter_id):
+    sensor = await cg.get_variable(config[CONF_SENSOR_ID])
+    offset = await cg.templatable(config[CONF_TEMPERATURE_OFFSET], [], cg.float_)
+    return cg.new_Pvariable(filter_id, offset, sensor, config[CONF_USE_FAHRENHEIT])
 
 def _mean(xs):
     return sum(xs) / len(xs)

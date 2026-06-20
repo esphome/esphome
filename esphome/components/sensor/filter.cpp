@@ -467,6 +467,53 @@ optional<float> ToNTCTemperatureFilter::new_value(float value) {
   return temp;
 }
 
+// RHCorrectionFilter
+optional<float> RHCorrectionFilter::new_value(float value) {
+  /**
+   *  see: https://en.wikipedia.org/wiki/Dew_point
+   * 
+   *  Pvs(T) = a*e^(b*T/(c+T)) Magnus Formula
+   *  RH = Pvs(Tnc)*RHnc/Pvs(Tc)
+   *  RH = Rhnc*e^(b * (Tnc/(c+Tnc) - Tc/(c+Tc)))
+   * 
+   * Where:
+   * 
+   * Pvs  := Saturated Vapor Pressure
+   * RH   := Corrected RH
+   * RHnc := RH non corrected (coming from the sensor)
+   * Tc   := Actual temperature (correct)
+   * Tnc  := Sensor temperature = T-Offset
+   * 
+   * a,b,c := parameters of the Magnus formula, 'a' is not 
+   *          used here and b, c are the standard: 17.67, 243.5 [°C] 
+   *  
+   */
+
+  const float b = 17.67f;
+  const float c = 243.5f;
+  if (this->temperature_sensor_ == nullptr) {
+    ESP_LOGW(TAG, "RHCorrectionFilter(%p): No temperature sensor set.", this, value);
+    return value;
+  }
+  float Tc = this->temperature_sensor_->get_state();
+  float Tnc = Tc - this->temperature_offset_.value();
+  if(Tc < -10 || Tc > 60 || Tnc < -10 || Tnc > 60) {
+    // Not reliable if the range is outside -10 60°C
+    // This check will also prevents invalid values for the calculation below
+    ESP_LOGW(TAG, "RHCorrectionFilter(%p): Invalid temperature values. Tc=%f Tnc=%f", this, Tc, Tnc);
+    return value;
+  }
+  if(this->use_fahrenheit_){
+    // The formula described above only works with °C
+    // so we need to convert the temperatures if they are in °F
+    Tc = (Tc-32)/1.8;
+    Tnc = (Tnc-32)/1.8;
+  }
+  float RH = value*std::exp(b*(Tnc/(Tnc+c)-Tc/(Tc+c)));
+  ESP_LOGVV(TAG, "RHCorrectionFilter(%p)::new_value(%f) -> %f", this, value, RH);
+  return RH;
+}
+
 // StreamingFilter (base class)
 StreamingFilter::StreamingFilter(uint16_t window_size, uint16_t send_first_at)
     : window_size_(window_size), send_first_at_(send_first_at) {}
