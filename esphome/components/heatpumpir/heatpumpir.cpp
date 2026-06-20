@@ -330,12 +330,12 @@ bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
         this->preset = climate::CLIMATE_PRESET_ECO;
       }
       // ZMP horizontal swing constants (not defined in library)
-      static const uint8_t HS_MASK = 0xDC;
-      static const uint8_t HS_SWING = 0x5C;
+      static const uint8_t MITSUBISHI_HEAVY_ZMP_HS_MASK = 0xDC;
+      static const uint8_t MITSUBISHI_HEAVY_ZMP_HS_SWING = 0x5C;
 
-      uint8_t swing_h = frame[5] & HS_MASK;
+      uint8_t swing_h = frame[5] & MITSUBISHI_HEAVY_ZMP_HS_MASK;
       uint8_t swing_v = (frame[5] & MITSUBISHI_HEAVY_SWING_V_MASK5) | (frame[7] & MITSUBISHI_HEAVY_SWING_V_MASK7);
-      bool h_swing = (swing_h == HS_SWING);
+      bool h_swing = (swing_h == MITSUBISHI_HEAVY_ZMP_HS_SWING);
       bool v_swing = (swing_v == MITSUBISHI_HEAVY_ZMP_VS_SWING);
 
       if (h_swing && v_swing)
