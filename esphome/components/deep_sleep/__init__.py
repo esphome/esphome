@@ -1,3 +1,5 @@
+import logging
+
 from esphome import automation, core, pins
 import esphome.codegen as cg
 from esphome.components import esp32, time
@@ -39,6 +41,8 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 WAKEUP_PINS = {
     VARIANT_ESP32: [
@@ -168,6 +172,18 @@ def validate_config(config: ConfigType) -> ConfigType:
     ):
         raise cv.Invalid(
             "Your platform does not support providing multiple entries in wakeup_pin"
+        )
+
+    if CORE.is_nrf52 and CONF_SLEEP_DURATION in config and CONF_WAKEUP_PIN in config:
+        # On nRF52 a set sleep_duration takes the timer (kernel delay) path, which
+        # the GPIO SENSE latch used for the wakeup pin cannot interrupt -- so the
+        # wakeup pin never wakes the device. Omit sleep_duration to use the wakeup
+        # pin (System OFF), or remove wakeup_pin for a pure timer wakeup.
+        _LOGGER.warning(
+            "On nRF52, 'wakeup_pin' cannot wake the device while 'sleep_duration' is "
+            "set: the timer path uses a kernel delay that the GPIO SENSE latch cannot "
+            "interrupt. Omit 'sleep_duration' to wake from the pin (System OFF), or "
+            "remove 'wakeup_pin' for a pure timer wakeup."
         )
 
     return config

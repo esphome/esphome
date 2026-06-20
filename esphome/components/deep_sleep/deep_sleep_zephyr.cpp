@@ -81,9 +81,6 @@ void DeepSleepComponent::deep_sleep_() {
     //
     // The system is reset when it wakes up from System OFF mode.
     sys_poweroff();
-#ifdef USE_NRF52
-    sys_reboot(SYS_REBOOT_COLD);
-#endif
 #else
     esphome::internal::wakeable_delay(UINT32_MAX);
 #endif
@@ -95,6 +92,8 @@ void DeepSleepComponent::deep_sleep_() {
     ESP_LOGD(TAG, "Timeout expired (normal sleep)");
 #ifdef USE_NRF52
     if (this->sleep_duration_.has_value()) {
+      // Timer path uses a kernel delay (not System OFF), so reset to mimic
+      // deep-sleep wake-on-reset semantics used by other platforms.
       sys_reboot(SYS_REBOOT_COLD);
     }
 #endif
