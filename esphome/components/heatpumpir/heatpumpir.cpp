@@ -249,8 +249,9 @@ static const uint8_t MITSUBISHI_HEAVY_FRAME_PREFIX[5] = {0x52, 0xAE, 0xC3, 0x26,
 static const uint8_t MITSUBISHI_HEAVY_MODE_MASK = 0x07;
 static const uint8_t MITSUBISHI_HEAVY_TEMP_MASK = 0x0F;
 static const uint8_t MITSUBISHI_HEAVY_FAN_MASK = 0xE0;
-static const uint8_t MITSUBISHI_HEAVY_SWING_V_LO = 0x02;
-static const uint8_t MITSUBISHI_HEAVY_SWING_V_HI = 0x18;
+// Vertical swing is split: bit 1 in frame[5], bits 4+3 in frame[7]
+static const uint8_t MITSUBISHI_HEAVY_SWING_V_MASK5 = 0x02;
+static const uint8_t MITSUBISHI_HEAVY_SWING_V_MASK7 = 0x18;
 static const uint8_t MITSUBISHI_HEAVY_CHECKSUM_BYTE = 0xFF;
 
 bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
@@ -324,7 +325,7 @@ bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
       } else if (fan == MITSUBISHI_HEAVY_ZMP_ECONO) {
         this->preset = climate::CLIMATE_PRESET_ECO;
       }
-      uint8_t swing_v = (frame[5] & MITSUBISHI_HEAVY_SWING_V_LO) | (frame[7] & MITSUBISHI_HEAVY_SWING_V_HI);
+      uint8_t swing_v = (frame[5] & MITSUBISHI_HEAVY_SWING_V_MASK5) | (frame[7] & MITSUBISHI_HEAVY_SWING_V_MASK7);
       this->swing_mode = (swing_v == MITSUBISHI_HEAVY_ZMP_VS_SWING) ? climate::CLIMATE_SWING_VERTICAL
                                                                      : climate::CLIMATE_SWING_OFF;
       break;
