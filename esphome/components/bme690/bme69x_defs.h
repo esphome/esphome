@@ -61,23 +61,23 @@
 /********************************************************* */
 #ifdef __KERNEL__
 #if !defined(UINT8_C) && !defined(INT8_C)
-#define INT8_C(x)    S8_C(x)
-#define UINT8_C(x)   U8_C(x)
+#define INT8_C(x)    S8_C((x))
+#define UINT8_C(x)   U8_C((x))
 #endif
 
 #if !defined(UINT16_C) && !defined(INT16_C)
-#define INT16_C(x)   S16_C(x)
-#define UINT16_C(x)  U16_C(x)
+#define INT16_C(x)   S16_C((x))
+#define UINT16_C(x)  U16_C((x))
 #endif
 
 #if !defined(INT32_C) && !defined(UINT32_C)
-#define INT32_C(x)   S32_C(x)
-#define UINT32_C(x)  U32_C(x)
+#define INT32_C(x)   S32_C((x))
+#define UINT32_C(x)  U32_C((x))
 #endif
 
 #if !defined(INT64_C) && !defined(UINT64_C)
-#define INT64_C(x)   S64_C(x)
-#define UINT64_C(x)  U64_C(x)
+#define INT64_C(x)   S64_C((x))
+#define UINT64_C(x)  U64_C((x))
 #endif
 #endif
 
@@ -621,24 +621,24 @@
 #define BME69X_HCTRL_POS                          UINT8_C(3)
 
 /* Macro to combine two 8 bit data's to form a 16 bit data */
-#define BME69X_CONCAT_BYTES(msb, lsb)             (((uint16_t)msb << 8) | (uint16_t)lsb)
+#define BME69X_CONCAT_BYTES(msb, lsb)             (((uint16_t) (msb) << 8) | (uint16_t) (lsb))
 
 /* Macro to set bits */
 #define BME69X_SET_BITS(reg_data, bitname, data) \
-    ((reg_data & ~(bitname##_MSK)) | \
-     ((data << bitname##_POS) & bitname##_MSK))
+    (((reg_data) & ~(bitname##_MSK)) | \
+     (((data) << bitname##_POS) & bitname##_MSK))
 
 /* Macro to get bits */
-#define BME69X_GET_BITS(reg_data, bitname)        ((reg_data & (bitname##_MSK)) >> \
+#define BME69X_GET_BITS(reg_data, bitname)        (((reg_data) & (bitname##_MSK)) >> \
                                                    (bitname##_POS))
 
 /* Macro to set bits starting from position 0 */
 #define BME69X_SET_BITS_POS_0(reg_data, bitname, data) \
-    ((reg_data & ~(bitname##_MSK)) | \
-     (data & bitname##_MSK))
+    (((reg_data) & ~(bitname##_MSK)) | \
+     ((data) & bitname##_MSK))
 
 /* Macro to get bits starting from position 0 */
-#define BME69X_GET_BITS_POS_0(reg_data, bitname)  (reg_data & (bitname##_MSK))
+#define BME69X_GET_BITS_POS_0(reg_data, bitname)  ((reg_data) & (bitname##_MSK))
 
 /**
  * BME69X_INTF_RET_TYPE is the read/write interface return type which can be overwritten by the build system.
