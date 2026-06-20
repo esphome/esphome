@@ -253,9 +253,13 @@ static const uint8_t MITSUBISHI_HEAVY_FAN_MASK = 0xE0;
 static const uint8_t MITSUBISHI_HEAVY_SWING_V_MASK5 = 0x02;
 static const uint8_t MITSUBISHI_HEAVY_SWING_V_MASK7 = 0x18;
 static const uint8_t MITSUBISHI_HEAVY_CHECKSUM_BYTE = 0xFF;
-// ZMP horizontal swing not in library. Standard=0x4C, some remotes use 0x5C.
+// ZMP horizontal swing not in library. Standard=0x4C, some remotes use MITSUBISHI_HEAVY_HS_SWING_ALT.
 static const uint8_t MITSUBISHI_HEAVY_HS_SWING = 0x4C;
-static const uint8_t MITSUBISHI_HEAVY_HS_SWING_ALT = 0x5C;
+static const uint8_t MITSUBISHI_HEAVY_HS_SWING_ALT = MITSUBISHI_HEAVY_HS_SWING_ALT;
+static const uint8_t MITSUBISHI_HEAVY_HS_MASK = 0xDC;
+// ZMP horizontal swing not in library. Standard=0x4C, some remotes use MITSUBISHI_HEAVY_HS_SWING_ALT.
+static const uint8_t MITSUBISHI_HEAVY_HS_SWING = 0x4C;
+static const uint8_t MITSUBISHI_HEAVY_HS_SWING_ALT = MITSUBISHI_HEAVY_HS_SWING_ALT;
 static const uint8_t MITSUBISHI_HEAVY_HS_MASK = 0xDC;
 
 bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
@@ -333,7 +337,7 @@ bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
       } else if (fan == MITSUBISHI_HEAVY_ZMP_ECONO) {
         this->preset = climate::CLIMATE_PRESET_ECO;
       }
-      uint8_t swing_h = frame[5] & 0xDC;
+      uint8_t swing_h = frame[5] & MITSUBISHI_HEAVY_HS_MASK;
       uint8_t swing_h = frame[5] & MITSUBISHI_HEAVY_HS_MASK;
       uint8_t swing_v = (frame[5] & MITSUBISHI_HEAVY_SWING_V_MASK5) | (frame[7] & MITSUBISHI_HEAVY_SWING_V_MASK7);
       bool h_swing = (swing_h == MITSUBISHI_HEAVY_HS_SWING) || (swing_h == MITSUBISHI_HEAVY_HS_SWING_ALT);
