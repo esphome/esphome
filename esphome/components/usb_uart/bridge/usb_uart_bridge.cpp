@@ -116,16 +116,12 @@ void USBUARTBridge::setup() {
     return;
   }
 
-  // Register line state and line coding callbacks with the USB CDC ACM component
-  this->usb_cdc_parent_->set_line_state_callback([this](bool dtr, bool rts) { this->set_line_state(dtr, rts); });
-  this->usb_cdc_parent_->set_line_coding_callback(
-      [this](uint32_t, uint8_t, uint8_t, uint8_t) { this->set_line_coding(); });
-
-  // Validate the USB CDC side is fully initialized *before* spawning any task. The
-  // tasks dereference these handles/ring buffers immediately (uart_tx_task_ blocks in
-  // xRingbufferReceive() on the RX ringbuf; uart_rx_task_ notifies the TX task handle).
-  // usb_cdc_acm sets up first (priority IO > HARDWARE), so a null here means its setup
-  // failed -- abort rather than run those primitives against null handles.
+  // Validate the USB CDC side is fully initialized *before* registering callbacks or
+  // spawning tasks. The tasks dereference these handles/ring buffers immediately
+  // (uart_tx_task_ blocks in xRingbufferReceive() on the RX ringbuf; uart_rx_task_
+  // notifies the TX task handle). usb_cdc_acm sets up first (priority IO > HARDWARE),
+  // so a null here means its setup failed -- abort before binding callbacks (which
+  // would otherwise stay registered against a component that never starts).
   this->usb_tx_task_handle_ = this->usb_cdc_parent_->get_tx_task_handle();
   if (this->usb_tx_task_handle_ == nullptr || this->usb_cdc_parent_->get_rx_ringbuf() == nullptr ||
       this->usb_cdc_parent_->get_tx_ringbuf() == nullptr) {
@@ -134,11 +130,26 @@ void USBUARTBridge::setup() {
     return;
   }
 
-  // Use a larger stack size for (very) verbose logging
-  const size_t stack_size = esp_log_level_get(TAG) > ESP_LOG_DEBUG ? USB_TASK_STACK_SIZE_VV : USB_TASK_STACK_SIZE;
+  // Register line state and line coding callbacks with the USB CDC ACM component
+  this->usb_cdc_parent_->set_line_state_callback([this](bool dtr, bool rts) { this->set_line_state(dtr, rts); });
+  this->usb_cdc_parent_->set_line_coding_callback(
+      [this](uint32_t, uint8_t, uint8_t, uint8_t) { this->set_line_coding(); });
+
+  // Use a larger stack size for very verbose (hex dump) logging. Gate on the
+  // compile-time level, matching the buffers that are only compiled in at VV.
+  constexpr size_t stack_size =
+      ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE ? USB_TASK_STACK_SIZE_VV : USB_TASK_STACK_SIZE;
+
+  // Unique per-instance task names (keyed on the CDC interface number) so multiple
+  // bridge instances don't produce ambiguous duplicates in task dumps/backtraces.
+  char tx_task_name[] = "usb_uart_tx_0";
+  char rx_task_name[] = "uart_usb_rx_0";
+  const char itf_char = format_hex_char(static_cast<char>(this->usb_cdc_parent_->get_itf()));
+  tx_task_name[sizeof(tx_task_name) - 2] = itf_char;
+  rx_task_name[sizeof(rx_task_name) - 2] = itf_char;
 
   // Create task that reads from USB CDC RX buffer and writes to UART
-  xTaskCreate(uart_tx_task_fn, "usb_uart_tx", stack_size, this, 4, &this->uart_tx_task_handle_);
+  xTaskCreate(uart_tx_task_fn, tx_task_name, stack_size, this, 4, &this->uart_tx_task_handle_);
   if (this->uart_tx_task_handle_ == nullptr) {
     ESP_LOGE(TAG, "Failed to create UART TX task");
     this->mark_failed();
@@ -146,7 +157,7 @@ void USBUARTBridge::setup() {
   }
 
   // Create task that reads from UART and writes to USB CDC TX buffer
-  xTaskCreate(uart_rx_task_fn, "uart_usb_rx", stack_size, this, 4, &this->uart_rx_task_handle_);
+  xTaskCreate(uart_rx_task_fn, rx_task_name, stack_size, this, 4, &this->uart_rx_task_handle_);
   if (this->uart_rx_task_handle_ == nullptr) {
     ESP_LOGE(TAG, "Failed to create UART RX task");
     // Tear down the TX task we already created so it isn't left running on a failed component.
@@ -310,11 +321,15 @@ void USBUARTBridge::uart_tx_task_() {
       continue;
     }
 
-    ESP_LOGV(TAG, "Sending %d bytes to UART", rx_size);
-    size_t xfer_size = uart_write_bytes(uart_num, data_to_uart, rx_size);
+    ESP_LOGV(TAG, "Sending %zu bytes to UART", rx_size);
+    // uart_write_bytes() returns int (-1 on error); keep it signed so a failure isn't
+    // turned into SIZE_MAX by an implicit conversion.
+    int xfer_size = uart_write_bytes(uart_num, data_to_uart, rx_size);
 
-    if (xfer_size != rx_size) {
-      ESP_LOGW(TAG, "UART write incomplete (%d/%d bytes)", xfer_size, rx_size);
+    if (xfer_size < 0) {
+      ESP_LOGE(TAG, "UART write failed: %d", xfer_size);
+    } else if (static_cast<size_t>(xfer_size) != rx_size) {
+      ESP_LOGW(TAG, "UART write incomplete (%d/%zu bytes)", xfer_size, rx_size);
     }
   }
 }
