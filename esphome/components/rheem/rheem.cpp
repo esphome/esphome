@@ -78,7 +78,7 @@ void RheemClimate::transmit_state() {
   safecelsius = std::min(safecelsius, RHEEM_TEMP_MAX);
   // Convert to integer nr. of half degrees.
   auto half_degrees = static_cast<uint8_t>(safecelsius * 2);
-  if (half_degrees & 1) {                    // Do we have a half degree celsius?
+  if (half_degrees & 1) {                   // Do we have a half degree celsius?
     remote_state[12] |= RHEEM_HALF_DEGREE;  // Add 0.5 degrees
   } else {
     remote_state[12] &= ~RHEEM_HALF_DEGREE;  // Clear the half degree.
@@ -111,9 +111,9 @@ void RheemClimate::transmit_state() {
 
   // Set mute
   if (this->mute) {
-    remote_state[4] = 0x70; // 01110000 -> Mute Active
+    remote_state[4] = 0x70;  // 01110000 -> Mute Active
   } else {
-    remote_state[4] = 0x4C; // 01001100 -> Mute Inactive (Standard Fan Mode)
+    remote_state[4] = 0x4C;  // 01001100 -> Mute Inactive (Standard Fan Mode)
   }
 
   // Calculate & set the checksum for the current internal state of the remote.

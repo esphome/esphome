@@ -25,4 +25,3 @@ switch:
     turn_off_action:
       - lambda: |-
           ((rheem::RheemClimate*)id(rheem_sensor))->set_mute_state(false);
-

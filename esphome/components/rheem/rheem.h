@@ -15,19 +15,18 @@ class RheemClimate : public climate_ir::ClimateIR {
                               {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
                                climate::CLIMATE_FAN_HIGH},
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}) {
+    this->mute = true;
+  }
 
-        this->mute = true;
-      }
+  bool mute{true};  // sets mute to true, its used to lower the fan speed below min
 
- bool mute{true}; // sets mute to true, its used to lower the fan speed below min
+  // Exposed function for YAML switch component to manipulate states
+  void set_mute_state(bool state) {
+    this->mute = state;
+    this->transmit_state();
+  }
 
-// Exposed function for YAML switch component to manipulate states
- void set_mute_state(bool state) { 
-  this->mute = state; 
-  this->transmit_state();
- }
-
-// climate::ClimateTraits traits() override;
+  // climate::ClimateTraits traits() override;
  protected:
   /// Transmit via IR the state of this climate controller.
   void transmit_state() override;
