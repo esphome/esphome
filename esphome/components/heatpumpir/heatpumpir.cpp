@@ -330,6 +330,7 @@ bool HeatpumpIRClimate::on_receive(remote_base::RemoteReceiveData data) {
         this->preset = climate::CLIMATE_PRESET_ECO;
       }
       uint8_t swing_h = frame[5] & 0xDC;
+      uint8_t swing_h = frame[5] & 0xDC;
       uint8_t swing_v = (frame[5] & MITSUBISHI_HEAVY_SWING_V_MASK5) | (frame[7] & MITSUBISHI_HEAVY_SWING_V_MASK7);
       bool h_swing = (swing_h == MITSUBISHI_HEAVY_ZJ_HS_SWING) || (swing_h == 0x5C);
       bool v_swing = (swing_v == MITSUBISHI_HEAVY_ZMP_VS_SWING);
