@@ -4,9 +4,11 @@ from esphome.components import esp32, uart, usb_cdc_acm
 from esphome.components.esp32 import VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_UART_ID
+from esphome.core import CORE
 
 CODEOWNERS = ["@kbx81"]
 DEPENDENCIES = ["tinyusb", "uart", "usb_cdc_acm"]
+DOMAIN = "usb_uart_bridge"
 
 CONF_DTR_PIN = "dtr_pin"
 CONF_RTS_PIN = "rts_pin"
@@ -37,6 +39,31 @@ CONFIG_SCHEMA = cv.All(
         supported=[VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3],
     ),
 )
+
+
+def _final_validate(config):
+    # Each bridge must own its UART and USB CDC-ACM interface exclusively. If two
+    # bridges shared either, their RX/TX tasks would contend on the same ring buffers
+    # (and the second setup() would silently overwrite the first's line callbacks),
+    # corrupting both streams with no runtime error. Reject duplicates at config time.
+    data = CORE.data.setdefault(DOMAIN, {})
+    for conf_key, label in (
+        (CONF_UART_ID, "UART"),
+        (CONF_USB_CDC_ACM_ID, "USB CDC-ACM interface"),
+    ):
+        used = data.setdefault(conf_key, set())
+        key = str(config[conf_key])
+        if key in used:
+            raise cv.Invalid(
+                f"The {label} '{key}' is already bridged by another 'bridge' instance; "
+                f"each bridge requires its own {label}.",
+                [conf_key],
+            )
+        used.add(key)
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):
