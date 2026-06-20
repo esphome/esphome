@@ -261,7 +261,7 @@ bool BME690Component::configure_bsec_() {
   }
   this->log_bsec_version_();
 
-  bsec_rslt = bsec_set_configuration(this->bsec_instance_.data(), bsec_config_iaq, sizeof(bsec_config_iaq),
+  bsec_rslt = bsec_set_configuration(this->bsec_instance_.data(), BSEC_CONFIG_IAQ, sizeof(BSEC_CONFIG_IAQ),
                                      this->bsec_work_buffer_.data(), this->bsec_work_buffer_.size());
   if (!this->check_bsec_status_("bsec_set_configuration", bsec_rslt)) {
     return false;
