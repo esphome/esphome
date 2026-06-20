@@ -67,8 +67,8 @@
  *
  */
 
-#ifndef __BSEC_INTERFACE__
-#define __BSEC_INTERFACE__
+#ifndef BSEC_INTERFACE_H_
+#define BSEC_INTERFACE_H_
 
 #include "bsec_datatypes.h"
 
@@ -429,4 +429,4 @@ bsec_library_return_t bsec_sensor_control(void *inst, const int64_t time_stamp, 
 }
 #endif
 
-#endif /* __BSEC_INTERFACE_H__ */
+#endif /* BSEC_INTERFACE_H_ */
