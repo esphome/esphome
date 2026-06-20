@@ -34,20 +34,24 @@ static gpio_flags_t flags_to_mode(gpio::Flags flags, bool inverted, bool value) 
   return ret;
 }
 
-static gpio_flags_t interrupt_type_to_flags(gpio::InterruptType type) {
+// ESPHome's InterruptType is expressed in logical levels, but the pin is configured active-high in Zephyr (inversion is
+// applied in software by digital_read()/digital_write(), see the `!= inverted_` convention below). So when the pin is
+// inverted we must swap the physical edge/level the interrupt arms on: a logical rising edge is a physical falling edge,
+// etc. GPIO_INT_EDGE_BOTH is symmetric and needs no swap.
+static gpio_flags_t interrupt_type_to_flags(gpio::InterruptType type, bool inverted) {
   switch (type) {
     case gpio::INTERRUPT_RISING_EDGE:
-      return GPIO_INT_EDGE_RISING;
+      return inverted ? GPIO_INT_EDGE_FALLING : GPIO_INT_EDGE_RISING;
     case gpio::INTERRUPT_FALLING_EDGE:
-      return GPIO_INT_EDGE_FALLING;
+      return inverted ? GPIO_INT_EDGE_RISING : GPIO_INT_EDGE_FALLING;
     case gpio::INTERRUPT_ANY_EDGE:
       return GPIO_INT_EDGE_BOTH;
     case gpio::INTERRUPT_LOW_LEVEL:
-      return GPIO_INT_LEVEL_LOW;
+      return inverted ? GPIO_INT_LEVEL_HIGH : GPIO_INT_LEVEL_LOW;
     case gpio::INTERRUPT_HIGH_LEVEL:
-      return GPIO_INT_LEVEL_HIGH;
+      return inverted ? GPIO_INT_LEVEL_LOW : GPIO_INT_LEVEL_HIGH;
   }
-  return GPIO_INT_EDGE_RISING;
+  return inverted ? GPIO_INT_EDGE_FALLING : GPIO_INT_EDGE_RISING;
 }
 
 // Zephyr calls this with a pointer to the gpio_callback the interrupt fired on.
@@ -96,7 +100,7 @@ void ZephyrGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio::Inte
     return;
   }
 
-  ret = gpio_pin_interrupt_configure(this->gpio_, port_pin, interrupt_type_to_flags(type));
+  ret = gpio_pin_interrupt_configure(this->gpio_, port_pin, interrupt_type_to_flags(type, this->inverted_));
   if (ret != 0) {
     ESP_LOGE(TAG, "gpio_pin_interrupt_configure failed for pin %u: %d", this->pin_, ret);
     gpio_remove_callback(this->gpio_, &this->interrupt_.callback);

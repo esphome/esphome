@@ -5,6 +5,16 @@ binary_sensor:
     use_interrupt: true
     interrupt_type: ANY
 
+  # Inverted pin with an edge-specific interrupt: exercises the inversion-aware
+  # interrupt-arming path (logical RISING must arm on the physical falling edge).
+  - platform: gpio
+    pin:
+      number: P0.4
+      inverted: true
+    id: gpio_binary_sensor_inverted
+    use_interrupt: true
+    interrupt_type: RISING
+
 output:
   - platform: gpio
     pin: P0.3
