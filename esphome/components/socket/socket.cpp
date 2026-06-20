@@ -8,25 +8,29 @@
 #ifdef USE_HOST
 #include "esphome/core/wake.h"
 #endif
+#ifdef USE_ZEPHYR
+#include <poll.h>
+#endif
 
 namespace esphome::socket {
 
 #ifndef USE_LWIP_FAST_SELECT
 #ifdef USE_HOST
 bool socket_ready_fd(int fd, bool loop_monitored) { return !loop_monitored || wake_fd_ready(fd); }
+#elif defined(USE_ZEPHYR)
+bool socket_ready_fd(int fd, bool loop_monitored) {
+  // poll() with 0ms timeout for non-blocking readiness — avoids busy-polling (read+EAGAIN)
+  // on every main-loop tick for monitored sockets.
+  // loop_monitored is always false today (wake_register_fd is gated to USE_HOST), but when
+  // nRF52 gains select-loop integration this path reports only fds with buffered data.
+  if (!loop_monitored)
+    return true;
+  struct pollfd pfd = {};
+  pfd.fd = fd;
+  pfd.events = POLLIN;
+  return poll(&pfd, 1, 0) > 0;
+}
 #else
-// nRF52/Zephyr: no select-loop integration yet, so always report ready.
-//
-// This stub is only safe because loop_monitored is always false on this platform:
-// wake_register_fd() is gated to USE_HOST, so BSDSocketImpl never sets loop_monitored_
-// true here. The arg is therefore dead on nRF52 -- do NOT enable fd registration in the
-// monitor loop without also giving this function a real readiness check, or every
-// monitored socket will silently fall back to busy-polling.
-//
-// TODO(nrf52-openthread): back this with zsock_poll() (ZVFS_POLL/ZVFS_SELECT are pulled
-// in via NET_SOCKETS) to avoid a read() syscall per monitored socket on every main-loop
-// tick. As written it busy-polls (EAGAIN when empty) -- a measurable idle-CPU/power cost
-// on a battery-constrained SoC, not just a micro-optimization.
 bool socket_ready_fd(int fd, bool loop_monitored) { return true; }
 #endif
 #endif  // USE_LWIP_FAST_SELECT
