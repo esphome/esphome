@@ -64,6 +64,35 @@ void ModbusController::on_modbus_data(const std::vector<uint8_t> &data) {
   }
   auto &current_command = this->command_queue_.front();
   if (current_command != nullptr) {
+    // Validate response payload size for read commands. Sensors index into the
+    // payload at pre-computed offsets - a size mismatch (e.g., from a bus collision
+    // where another master's response is captured) causes out-of-bounds reads.
+    size_t expected_bytes = 0;
+    bool requires_validation = true;
+
+    switch (current_command->function_code) {
+      case ModbusFunctionCode::READ_COILS:
+      case ModbusFunctionCode::READ_DISCRETE_INPUTS:
+        expected_bytes = (current_command->register_count + 7) / 8;
+        break;
+      case ModbusFunctionCode::READ_HOLDING_REGISTERS:
+      case ModbusFunctionCode::READ_INPUT_REGISTERS:
+        expected_bytes = current_command->register_count * 2;
+        break;
+      default:
+        // CUSTOM and Write function codes do not require payload size validation
+        requires_validation = false;
+        break;
+    }
+
+    if (requires_validation && data.size() != expected_bytes) {
+      ESP_LOGW(TAG,
+               "Response size mismatch for device=%d address=0x%04X: got %zu bytes, expected %zu. "
+               "Possible bus collision - discarding response and retrying.",
+               this->address_, current_command->register_address, data.size(), expected_bytes);
+      return;  // Don't dequeue the command  -  it will be retried on the next cycle
+    }
+
     if (this->module_offline_) {
       ESP_LOGW(TAG, "Modbus device=%d back online", this->address_);
 
