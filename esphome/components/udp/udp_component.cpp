@@ -47,6 +47,8 @@ void UDPComponent::setup() {
         err = this->send_socket_v6_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable));
         if (err != 0)
           this->status_set_warning(LOG_STR("IPv6 socket unable to set reuseaddr"));
+        // IPV6_MULTICAST_IF is set below only when a multicast join succeeds — probing
+        // at setup() time is unreliable because WiFi may not be associated yet.
         break;
       }
     }
@@ -98,10 +100,8 @@ void UDPComponent::setup() {
         return;
       }
 #if USE_NETWORK_IPV6
-      // Set outgoing multicast interface on the IPv6 send socket using the same
-      // netif index that join_multicast_group found. IPV6_MULTICAST_IF on ESP-IDF
-      // LwIP always returns success regardless of index, so we must use a known-valid
-      // index from the join probe rather than probing independently.
+      // ESP-IDF LwIP accepts any index for IPV6_MULTICAST_IF without validation,
+      // so a known-valid index from a successful join is required.
       if (mcast_ifindex != 0 && this->send_socket_v6_ != nullptr) {
         uint32_t ifidx = mcast_ifindex;
         if (this->send_socket_v6_->setsockopt(IPPROTO_IPV6, IPV6_MULTICAST_IF, &ifidx, sizeof(ifidx)) < 0) {
