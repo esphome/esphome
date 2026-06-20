@@ -26,7 +26,8 @@ bool DeepSleepComponent::prepare_to_sleep_() {
 #ifdef USE_NRF52
   if (this->wakeup_pin_ != nullptr && !this->sleep_duration_.has_value() &&
       this->wakeup_pin_mode_ == WAKEUP_PIN_MODE_KEEP_AWAKE) {
-    const bool active = this->wakeup_pin_->digital_read() ^ this->wakeup_pin_->is_inverted();
+    // digital_read() already returns the logical (inversion-applied) state, so true means active.
+    const bool active = this->wakeup_pin_->digital_read();
     if (active) {
       if (!this->next_enter_deep_sleep_) {
         this->status_set_warning();
@@ -52,7 +53,8 @@ static void configure_nrf52_wakeup_pin(InternalGPIOPin *wakeup_pin, WakeupPinMod
 
   bool wake_high = !wakeup_pin->is_inverted();
   if (wakeup_pin_mode == WAKEUP_PIN_MODE_INVERT_WAKEUP) {
-    const bool active = wakeup_pin->digital_read() ^ wakeup_pin->is_inverted();
+    // digital_read() already returns the logical (inversion-applied) state, so true means active.
+    const bool active = wakeup_pin->digital_read();
     if (active) {
       wake_high = !wake_high;
     }
