@@ -104,7 +104,7 @@ ESPBTUUID ESPBTUUID::as_128bit() const {
   } else {
     uuid32 = this->uuid_.uuid.uuid16;
   }
-  for (uint8_t i = 0; i < this->uuid_.len; i++) {
+  for (uint16_t i = 0; i < this->uuid_.len; i++) {
     data[12 + i] = ((uuid32 >> i * 8) & 0xFF);
   }
   return ESPBTUUID::from_raw(data);

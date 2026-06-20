@@ -13,8 +13,7 @@
 
 #include "commands.h"
 
-namespace esphome {
-namespace dfrobot_sen0395 {
+namespace esphome::dfrobot_sen0395 {
 
 const uint8_t MMWAVE_READ_BUFFER_LENGTH = 255;
 
@@ -121,5 +120,4 @@ class DfrobotSen0395Component : public uart::UARTDevice, public Component {
   friend class ReadStateCommand;
 };
 
-}  // namespace dfrobot_sen0395
-}  // namespace esphome
+}  // namespace esphome::dfrobot_sen0395

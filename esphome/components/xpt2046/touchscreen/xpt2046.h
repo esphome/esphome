@@ -7,8 +7,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace xpt2046 {
+namespace esphome::xpt2046 {
 
 using namespace touchscreen;
 
@@ -37,5 +36,4 @@ class XPT2046Component : public Touchscreen,
   InternalGPIOPin *irq_pin_{nullptr};
 };
 
-}  // namespace xpt2046
-}  // namespace esphome
+}  // namespace esphome::xpt2046

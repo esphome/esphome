@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace lc709203f {
+namespace esphome::lc709203f {
 
 enum LC709203FState {
   STATE_INIT,
@@ -50,5 +49,4 @@ class Lc709203f : public sensor::Sensor, public PollingComponent, public i2c::I2
   uint16_t pack_voltage_;
 };
 
-}  // namespace lc709203f
-}  // namespace esphome
+}  // namespace esphome::lc709203f

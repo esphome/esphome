@@ -4,8 +4,7 @@
 #include "esphome/components/tuya/tuya.h"
 #include "esphome/components/climate/climate.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 class TuyaClimate : public climate::Climate, public Component {
  public:
@@ -125,5 +124,4 @@ class TuyaClimate : public climate::Climate, public Component {
   bool reports_fahrenheit_{false};
 };
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

@@ -6,8 +6,7 @@
 
 #include "es7210_const.h"
 
-namespace esphome {
-namespace es7210 {
+namespace esphome::es7210 {
 
 enum ES7210BitsPerSample : uint8_t {
   ES7210_BITS_PER_SAMPLE_16 = 16,
@@ -57,5 +56,4 @@ class ES7210 : public audio_adc::AudioAdc, public Component, public i2c::I2CDevi
   uint32_t sample_rate_{0};
 };
 
-}  // namespace es7210
-}  // namespace esphome
+}  // namespace esphome::es7210

@@ -4,8 +4,7 @@
 #include "esphome/components/output/float_output.h"
 #include "esphome/components/light/light_output.h"
 
-namespace esphome {
-namespace cwww {
+namespace esphome::cwww {
 
 class CWWWLightOutput : public light::LightOutput {
  public:
@@ -36,5 +35,4 @@ class CWWWLightOutput : public light::LightOutput {
   bool constant_brightness_;
 };
 
-}  // namespace cwww
-}  // namespace esphome
+}  // namespace esphome::cwww

@@ -3,8 +3,7 @@
 #include "esphome/core/hal.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace i2c_device {
+namespace esphome::i2c_device {
 
 static const char *const TAG = "i2c_device";
 
@@ -13,5 +12,4 @@ void I2CDeviceComponent::dump_config() {
   LOG_I2C_DEVICE(this);
 }
 
-}  // namespace i2c_device
-}  // namespace esphome
+}  // namespace esphome::i2c_device

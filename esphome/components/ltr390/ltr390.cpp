@@ -3,8 +3,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ltr390 {
+namespace esphome::ltr390 {
 
 static const char *const TAG = "ltr390";
 
@@ -203,5 +202,4 @@ void LTR390Component::update() {
   this->read_mode_((this->enabled_modes_ & ENABLED_MODE_ALS) ? LTR390_MODE_ALS : LTR390_MODE_UVS);
 }
 
-}  // namespace ltr390
-}  // namespace esphome
+}  // namespace esphome::ltr390

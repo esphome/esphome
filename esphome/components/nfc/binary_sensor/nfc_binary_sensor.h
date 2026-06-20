@@ -6,8 +6,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
 class NfcTagBinarySensor : public binary_sensor::BinarySensor,
                            public Component,
@@ -34,5 +33,4 @@ class NfcTagBinarySensor : public binary_sensor::BinarySensor,
   NfcTagUid uid_;
 };
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

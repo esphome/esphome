@@ -1,8 +1,7 @@
 #include "binary_sensor_map.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace binary_sensor_map {
+namespace esphome::binary_sensor_map {
 
 static const char *const TAG = "binary_sensor_map";
 
@@ -138,5 +137,4 @@ void BinarySensorMap::add_channel(binary_sensor::BinarySensor *sensor, float pro
   };
   this->channels_.push_back(sensor_channel);
 }
-}  // namespace binary_sensor_map
-}  // namespace esphome
+}  // namespace esphome::binary_sensor_map

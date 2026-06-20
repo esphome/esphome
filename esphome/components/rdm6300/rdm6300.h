@@ -8,8 +8,7 @@
 #include <cinttypes>
 #include <vector>
 
-namespace esphome {
-namespace rdm6300 {
+namespace esphome::rdm6300 {
 
 class RDM6300BinarySensor;
 class RDM6300Trigger;
@@ -52,5 +51,4 @@ class RDM6300Trigger : public Trigger<uint32_t> {
   void process(uint32_t uid) { this->trigger(uid); }
 };
 
-}  // namespace rdm6300
-}  // namespace esphome
+}  // namespace esphome::rdm6300

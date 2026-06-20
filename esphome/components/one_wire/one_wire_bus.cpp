@@ -1,8 +1,7 @@
 #include "one_wire_bus.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace one_wire {
+namespace esphome::one_wire {
 
 static const char *const TAG = "one_wire";
 
@@ -93,5 +92,4 @@ void OneWireBus::dump_devices_(const char *tag) {
   }
 }
 
-}  // namespace one_wire
-}  // namespace esphome
+}  // namespace esphome::one_wire

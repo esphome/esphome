@@ -4,8 +4,7 @@
 #include "esphome/components/time/real_time_clock.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace gps {
+namespace esphome::gps {
 
 class GPSTime : public time::RealTimeClock, public GPSListener {
  public:
@@ -21,5 +20,4 @@ class GPSTime : public time::RealTimeClock, public GPSListener {
   bool has_time_{false};
 };
 
-}  // namespace gps
-}  // namespace esphome
+}  // namespace esphome::gps

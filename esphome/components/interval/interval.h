@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace interval {
+namespace esphome::interval {
 
 class IntervalTrigger : public Trigger<>, public PollingComponent {
  public:
@@ -24,5 +23,4 @@ class IntervalTrigger : public Trigger<>, public PollingComponent {
   uint32_t startup_delay_{0};
 };
 
-}  // namespace interval
-}  // namespace esphome
+}  // namespace esphome::interval

@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 
-namespace esphome {
-namespace factory_reset {
+namespace esphome::factory_reset {
 
 class FactoryResetSwitch : public switch_::Switch, public Component {
  public:
@@ -18,5 +17,4 @@ class FactoryResetSwitch : public switch_::Switch, public Component {
   void write_state(bool state) override;
 };
 
-}  // namespace factory_reset
-}  // namespace esphome
+}  // namespace esphome::factory_reset

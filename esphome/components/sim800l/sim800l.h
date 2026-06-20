@@ -13,8 +13,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace sim800l {
+namespace esphome::sim800l {
 
 const uint16_t SIM800L_READ_BUFFER_LENGTH = 1024;
 
@@ -184,5 +183,4 @@ template<typename... Ts> class Sim800LDisconnectAction : public Action<Ts...> {
   Sim800LComponent *parent_;
 };
 
-}  // namespace sim800l
-}  // namespace esphome
+}  // namespace esphome::sim800l

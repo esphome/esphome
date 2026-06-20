@@ -7,8 +7,7 @@
 #include "esphome/components/output/float_output.h"
 #include <vector>
 
-namespace esphome {
-namespace tlc5971 {
+namespace esphome::tlc5971 {
 
 class TLC5971 : public Component {
  public:
@@ -39,5 +38,4 @@ class TLC5971 : public Component {
   std::vector<uint16_t> pwm_amounts_;
   bool update_{true};
 };
-}  // namespace tlc5971
-}  // namespace esphome
+}  // namespace esphome::tlc5971

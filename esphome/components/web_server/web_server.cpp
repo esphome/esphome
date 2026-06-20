@@ -611,7 +611,7 @@ static void set_json_icon_state_value(JsonObject &root, EntityBase *obj, const c
 }
 
 // Helper to get request detail parameter
-static JsonDetail get_request_detail(AsyncWebServerRequest *request) {
+[[maybe_unused]] static JsonDetail get_request_detail(AsyncWebServerRequest *request) {
   return request->arg(ESPHOME_F("detail")) == "all" ? DETAIL_ALL : DETAIL_STATE;
 }
 
@@ -2638,9 +2638,9 @@ bool WebServer::isRequestHandlerTrivial() const { return false; }
 
 void WebServer::add_sorting_info_(JsonObject &root, EntityBase *entity) {
 #ifdef USE_WEBSERVER_SORTING
-  if (this->sorting_entitys_.find(entity) != this->sorting_entitys_.end()) {
+  if (this->sorting_entitys_.contains(entity)) {
     root[ESPHOME_F("sorting_weight")] = this->sorting_entitys_[entity].weight;
-    if (this->sorting_groups_.find(this->sorting_entitys_[entity].group_id) != this->sorting_groups_.end()) {
+    if (this->sorting_groups_.contains(this->sorting_entitys_[entity].group_id)) {
       root[ESPHOME_F("sorting_group")] = this->sorting_groups_[this->sorting_entitys_[entity].group_id].name;
     }
   }

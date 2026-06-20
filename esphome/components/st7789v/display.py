@@ -1,3 +1,5 @@
+import logging
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import display, power_supply, spi
@@ -25,6 +27,8 @@ CONF_EIGHTBITCOLOR = "eightbitcolor"
 CODEOWNERS = ["@kbx81"]
 
 DEPENDENCIES = ["spi"]
+
+LOGGER = logging.getLogger(__name__)
 
 ST7789V = st7789v_ns.class_(
     "ST7789V", cg.PollingComponent, spi.SPIDevice, display.DisplayBuffer
@@ -175,6 +179,9 @@ FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
 
 
 async def to_code(config):
+    LOGGER.warning(
+        "The 'st7789v' component is deprecated, it is recommended to use 'mipi_spi' instead."
+    )
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
     await spi.register_spi_device(var, config, write_only=True)

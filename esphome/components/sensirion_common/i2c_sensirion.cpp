@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace sensirion_common {
+namespace esphome::sensirion_common {
 
 static const char *const TAG = "sensirion_i2c";
 // To avoid memory allocations for small writes a stack buffer is used
@@ -79,5 +78,4 @@ bool SensirionI2CDevice::get_register_(uint16_t reg, CommandLen command_len, uin
   return result;
 }
 
-}  // namespace sensirion_common
-}  // namespace esphome
+}  // namespace esphome::sensirion_common

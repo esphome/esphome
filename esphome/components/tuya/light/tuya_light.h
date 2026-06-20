@@ -4,8 +4,7 @@
 #include "esphome/components/tuya/tuya.h"
 #include "esphome/components/light/light_output.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 enum TuyaColorType { RGB, HSV, RGBHSV };
 
@@ -65,5 +64,4 @@ class TuyaLight : public Component, public light::LightOutput {
   light::LightState *state_{nullptr};
 };
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

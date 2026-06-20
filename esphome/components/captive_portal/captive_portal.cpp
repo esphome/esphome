@@ -5,8 +5,7 @@
 #include "esphome/components/wifi/wifi_component.h"
 #include "captive_index.h"
 
-namespace esphome {
-namespace captive_portal {
+namespace esphome::captive_portal {
 
 static const char *const TAG = "captive_portal";
 
@@ -135,6 +134,6 @@ void CaptivePortal::dump_config() { ESP_LOGCONFIG(TAG, "Captive Portal:"); }
 
 CaptivePortal *global_captive_portal = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace captive_portal
-}  // namespace esphome
+}  // namespace esphome::captive_portal
+
 #endif

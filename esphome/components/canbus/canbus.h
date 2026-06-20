@@ -7,8 +7,7 @@
 #include <cinttypes>
 #include <vector>
 
-namespace esphome {
-namespace canbus {
+namespace esphome::canbus {
 
 enum Error : uint8_t {
   ERROR_OK = 0,
@@ -177,5 +176,4 @@ class CanbusTrigger : public Trigger<std::vector<uint8_t>, uint32_t, bool>, publ
   optional<bool> remote_transmission_request_{};
 };
 
-}  // namespace canbus
-}  // namespace esphome
+}  // namespace esphome::canbus
