@@ -217,6 +217,65 @@ int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sens
 StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(ModbusFunctionCode function_code, uint16_t start_address,
                                                       uint16_t number_of_entities, const uint8_t *values,
                                                       size_t values_len) {
+  if (is_function_code_read(static_cast<uint8_t>(function_code))) {
+    if (values != nullptr || values_len > 0) {
+      ESP_LOGW(TAG, "Values provided for read function code %02X, but will be ignored",
+               static_cast<uint8_t>(function_code));
+    }
+  } else if (is_function_code_write(static_cast<uint8_t>(function_code))) {
+    if (values == nullptr || values_len == 0) {
+      ESP_LOGE(TAG, "No values provided for write function code %02X", static_cast<uint8_t>(function_code));
+      return {};
+    }
+  } else {
+    ESP_LOGE(TAG, "Unsupported function code %02X for client PDU creation", static_cast<uint8_t>(function_code));
+    return {};
+  }
+
+  if (number_of_entities == 0) {
+    ESP_LOGE(TAG, "Number of entities is zero for function code %02X", static_cast<uint8_t>(function_code));
+    return {};
+  }
+
+  switch (function_code) {
+    case ModbusFunctionCode::READ_COILS:
+      if (number_of_entities > MAX_NUM_OF_COILS_TO_READ) {
+        ESP_LOGE(TAG, "number_of_entities %u exceeds maximum coils to read %u for function code %02X",
+                 number_of_entities, MAX_NUM_OF_COILS_TO_READ, static_cast<uint8_t>(function_code));
+        return {};
+      }
+      break;
+    case ModbusFunctionCode::READ_DISCRETE_INPUTS:
+      if (number_of_entities > MAX_NUM_OF_DISCRETE_INPUTS_TO_READ) {
+        ESP_LOGE(TAG, "number_of_entities %u exceeds maximum discrete inputs to read %u for function code %02X",
+                 number_of_entities, MAX_NUM_OF_DISCRETE_INPUTS_TO_READ, static_cast<uint8_t>(function_code));
+        return {};
+      }
+      break;
+    case ModbusFunctionCode::READ_HOLDING_REGISTERS:
+    case ModbusFunctionCode::READ_INPUT_REGISTERS:
+      if (number_of_entities > MAX_NUM_OF_REGISTERS_TO_READ) {
+        ESP_LOGE(TAG, "number_of_entities %u exceeds maximum registers to read %u for function code %02X",
+                 number_of_entities, MAX_NUM_OF_REGISTERS_TO_READ, static_cast<uint8_t>(function_code));
+        return {};
+      }
+      break;
+    case ModbusFunctionCode::WRITE_SINGLE_COIL:
+    case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
+      break;  // number_of_entities is ignored for single write, so no need to validate
+    case ModbusFunctionCode::WRITE_MULTIPLE_COILS:
+    case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS:
+      if (number_of_entities > MAX_NUM_OF_REGISTERS_TO_WRITE) {
+        ESP_LOGE(TAG, "number_of_entities %u exceeds maximum registers to write %u for function code %02X",
+                 number_of_entities, MAX_NUM_OF_REGISTERS_TO_WRITE, static_cast<uint8_t>(function_code));
+        return {};
+      }
+      break;
+    default:
+      ESP_LOGE(TAG, "Unsupported function code %u for client PDU creation", static_cast<unsigned int>(function_code));
+      return {};
+  }
+
   StaticVector<uint8_t, MAX_PDU_SIZE> pdu;
   pdu.push_back(static_cast<uint8_t>(function_code));
   pdu.push_back(start_address >> 8);
@@ -226,7 +285,8 @@ StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(ModbusFunctionCode functio
     pdu.push_back(number_of_entities >> 8);
     pdu.push_back(number_of_entities >> 0);
   }
-  if (values_len > 0 && is_function_code_write(static_cast<uint8_t>(function_code))) {
+
+  if (is_function_code_write(static_cast<uint8_t>(function_code))) {
     if (function_code == ModbusFunctionCode::WRITE_MULTIPLE_COILS ||
         function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
       // 6 bytes of overhead (fc + start_addr×2 + qty×2 + byte_count) leave MAX_PDU_SIZE-6 bytes for values

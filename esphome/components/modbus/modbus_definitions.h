@@ -68,11 +68,16 @@ enum class ModbusExceptionCode : uint8_t {
 };
 
 // 6.12 16 (0x10) Write Multiple registers:
-const uint8_t MAX_NUM_OF_REGISTERS_TO_WRITE = 123;  // 0x7B
+static constexpr uint16_t MAX_NUM_OF_REGISTERS_TO_WRITE = 123;  // 0x7B
+
+// 6.1 01 (0x01) Read Coils
+// 6.2 02 (0x02) Read Discrete Inputs
+static constexpr uint16_t MAX_NUM_OF_COILS_TO_READ = 2000;            // 0x7D0
+static constexpr uint16_t MAX_NUM_OF_DISCRETE_INPUTS_TO_READ = 2000;  // 0x7D0
 
 // 6.3 03 (0x03) Read Holding Registers
 // 6.4 04 (0x04) Read Input Registers
-const uint8_t MAX_NUM_OF_REGISTERS_TO_READ = 125;  // 0x7D
+static constexpr uint8_t MAX_NUM_OF_REGISTERS_TO_READ = 125;  // 0x7D
 
 // Smallest possible frame is 4 bytes (custom function with no data): address(1) + function(1) + CRC(2)
 static constexpr uint16_t MIN_FRAME_SIZE = 4;

@@ -132,6 +132,53 @@ TEST(ModbusCreateClientPdu, WriteMultipleOverCapacityReturnsEmpty) {
   EXPECT_TRUE(pdu.empty());
 }
 
+TEST(ModbusCreateClientPdu, UnsupportedFunctionCodeReturnsEmpty) {
+  auto pdu = create_client_pdu(FC::READ_FIFO_QUEUE, 0x0000, 1);
+  EXPECT_TRUE(pdu.empty());
+}
+
+TEST(ModbusCreateClientPdu, ZeroEntitiesReturnsEmpty) {
+  auto pdu = create_client_pdu(FC::READ_HOLDING_REGISTERS, 0x0000, 0);
+  EXPECT_TRUE(pdu.empty());
+}
+
+TEST(ModbusCreateClientPdu, WriteWithoutValuesReturnsEmpty) {
+  auto pdu = create_client_pdu(FC::WRITE_MULTIPLE_REGISTERS, 0x0000, 1, nullptr, 0);
+  EXPECT_TRUE(pdu.empty());
+}
+
+TEST(ModbusCreateClientPdu, ReadHoldingOverMaxReturnsEmpty) {
+  auto pdu = create_client_pdu(FC::READ_HOLDING_REGISTERS, 0x0000, MAX_NUM_OF_REGISTERS_TO_READ + 1);
+  EXPECT_TRUE(pdu.empty());
+}
+
+// Regression: coils allow up to 2000 entities, well above the 125 register limit.
+// A switch fall-through previously subjected coil/discrete reads to the register limit.
+TEST(ModbusCreateClientPdu, ReadCoilsAboveRegisterLimitIsValid) {
+  const uint16_t quantity = MAX_NUM_OF_REGISTERS_TO_READ + 1;  // 126: valid for coils, too many for registers
+  auto pdu = create_client_pdu(FC::READ_COILS, 0x0000, quantity);
+  const std::vector<uint8_t> expected{0x01, 0x00, 0x00, static_cast<uint8_t>(quantity >> 8),
+                                      static_cast<uint8_t>(quantity & 0xFF)};
+  EXPECT_EQ(std::vector<uint8_t>(pdu.begin(), pdu.end()), expected);
+}
+
+TEST(ModbusCreateClientPdu, ReadCoilsOverMaxReturnsEmpty) {
+  auto pdu = create_client_pdu(FC::READ_COILS, 0x0000, MAX_NUM_OF_COILS_TO_READ + 1);
+  EXPECT_TRUE(pdu.empty());
+}
+
+TEST(ModbusCreateClientPdu, ReadDiscreteInputsOverMaxReturnsEmpty) {
+  auto pdu = create_client_pdu(FC::READ_DISCRETE_INPUTS, 0x0000, MAX_NUM_OF_DISCRETE_INPUTS_TO_READ + 1);
+  EXPECT_TRUE(pdu.empty());
+}
+
+TEST(ModbusCreateClientPdu, WriteMultipleOverEntityLimitReturnsEmpty) {
+  const uint8_t values[] = {0x00, 0x0B};
+  auto pdu = create_client_pdu(FC::WRITE_MULTIPLE_REGISTERS, 0x0000, MAX_NUM_OF_REGISTERS_TO_WRITE + 1, values,
+                               sizeof(values));
+  EXPECT_TRUE(pdu.empty());
+}
+
 TEST(ModbusHelpersTest, PayloadToNumberRejectsOffsetAtEndOfBuffer) {
   const std::vector<uint8_t> data{0x12, 0x34};
   EXPECT_EQ(payload_to_number(data, SensorValueType::U_WORD, 2, 0xFFFFFFFF), 0);
