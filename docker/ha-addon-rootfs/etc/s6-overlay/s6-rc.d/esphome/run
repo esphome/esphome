@@ -49,14 +49,17 @@ if bashio::fs.directory_exists '/config/esphome/.esphome'; then
     rm -rf /config/esphome/.esphome
 fi
 
-# Only expose the public port on the LAN when the operator mapped it,
-# matching the legacy dashboard where nginx listened on 6052 only when
-# the port was configured. Combined with leave_front_door_open above,
-# this binds 6052 with no authentication; one without the other stays
-# ingress-only.
+# Only signal device-builder to expose the public LAN port when the operator
+# mapped port 6052, matching the legacy dashboard where nginx listened on the
+# fixed port 6052 only when it was configured. We use the mapping purely as a
+# presence check and don't forward the published value; device-builder binds
+# its default port 6052 (the fixed container port, as the legacy
+# "listen 6052" did). --ha-addon-allow-public is inert on its own: the no-auth
+# gate is the DISABLE_HA_AUTHENTICATION env var set above, so both opt-ins are
+# required to bind 6052 unauthenticated; either alone stays ingress-only.
 set --
 if bashio::var.has_value "$(bashio::addon.port 6052)"; then
-    set -- --port "$(bashio::addon.port 6052)" --ha-addon-allow-public
+    set -- --ha-addon-allow-public
 fi
 
 bashio::log.info "Starting ESPHome Device Builder..."
