@@ -20,7 +20,12 @@ bool BME690Component::check_bsec_status_(const char *label, bsec_library_return_
     return true;
   }
 
-  ESP_LOGW(TAG, "%s failed: %d", label, static_cast<int>(rslt));
+  if (rslt > BSEC_OK) {
+    ESP_LOGW(TAG, "%s warning: %d", label, static_cast<int>(rslt));
+    return true;
+  }
+
+  ESP_LOGE(TAG, "%s failed: %d", label, static_cast<int>(rslt));
   return false;
 }
 
