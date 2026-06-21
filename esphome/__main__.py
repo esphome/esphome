@@ -28,13 +28,13 @@ from esphome.const import (
     ALLOWED_NAME_CHARS,
     ARGUMENT_HELP_DEVICE,
     CONF_API,
-    CONF_AUTH,
     CONF_BAUD_RATE,
     CONF_BROKER,
     CONF_DEASSERT_RTS_DTR,
     CONF_DISABLED,
     CONF_ESPHOME,
     CONF_LEVEL,
+    CONF_LOG,
     CONF_LOG_TOPIC,
     CONF_LOGGER,
     CONF_MDNS,
@@ -48,7 +48,7 @@ from esphome.const import (
     CONF_PORT,
     CONF_SUBSTITUTIONS,
     CONF_TOPIC,
-    CONF_USERNAME,
+    CONF_VERSION,
     CONF_WEB_SERVER,
     CONF_WIFI,
     ENV_NOGITIGNORE,
@@ -280,8 +280,8 @@ def _unresolved_default_error(purpose: Purpose, defaults: list[str]) -> str:
         if purpose == Purpose.LOGGING and not has_api():
             return (
                 "Cannot view logs over the network: no 'api:' component is "
-                "configured. Network log streaming requires the native API; add "
-                "an 'api:' component, enable MQTT logging, or view logs over USB."
+                "configured. Add an 'api:' component, enable MQTT logging, add a "
+                "'web_server:' component, or view logs over USB."
             )
         if purpose == Purpose.UPLOADING and not has_ota():
             return (
@@ -321,9 +321,12 @@ def choose_upload_log_host(
                 ]
                 resolved.append(choose_prompt(options, purpose=purpose))
             elif device == "OTA":
+                # Logs can stream over a network transport via the native API
+                # or the web_server HTTP SSE feed.
+                network_logging = has_api() or has_web_server_logging()
                 # ensure IP adresses are used first
                 if is_ip_address(CORE.address) and (
-                    (purpose == Purpose.LOGGING and has_api())
+                    (purpose == Purpose.LOGGING and network_logging)
                     or (purpose == Purpose.UPLOADING and has_ota())
                 ):
                     resolved.extend(_resolve_with_cache(CORE.address, purpose))
@@ -335,7 +338,11 @@ def choose_upload_log_host(
                     if has_mqtt_logging():
                         resolved.append("MQTT")
 
-                    if has_api() and has_non_ip_address() and has_resolvable_address():
+                    if (
+                        network_logging
+                        and has_non_ip_address()
+                        and has_resolvable_address()
+                    ):
                         resolved.extend(_ota_hostnames_for_default(purpose))
 
                 elif purpose == Purpose.UPLOADING:
@@ -397,7 +404,7 @@ def choose_upload_log_host(
             mqtt_config = CORE.config[CONF_MQTT]
             options.append((f"MQTT ({mqtt_config[CONF_BROKER]})", "MQTT"))
 
-        if has_api():
+        if has_api() or has_web_server_logging():
             add_ota_options()
 
     elif purpose == Purpose.UPLOADING and has_ota():
@@ -488,6 +495,21 @@ def has_web_server_ota() -> bool:
         ota_item.get(CONF_PLATFORM) == CONF_WEB_SERVER
         for ota_item in CORE.config[CONF_OTA]
     )
+
+
+def has_web_server_logging() -> bool:
+    """Check if logs can be streamed over the web_server HTTP SSE endpoint.
+
+    The ``web_server`` component exposes a ``/events`` Server-Sent Events
+    stream that carries ``event: log`` frames. This requires version 2+ (the
+    v1 UI has no ``/events`` endpoint) and the ``log`` option enabled (default).
+    """
+    web_conf = CORE.config.get(CONF_WEB_SERVER)
+    if web_conf is None:
+        return False
+    if web_conf.get(CONF_VERSION, 2) == 1:
+        return False
+    return web_conf.get(CONF_LOG, True)
 
 
 def has_mqtt_ip_lookup() -> bool:
@@ -1290,23 +1312,21 @@ def _upload_via_native_api(
 def _upload_via_web_server(
     config: ConfigType, network_devices: list[str], binary: Path
 ) -> tuple[int, str | None]:
-    web_conf = config.get(CONF_WEB_SERVER)
-    if not web_conf:
-        raise EsphomeError(
-            f"Cannot upload via web_server OTA: the {CONF_WEB_SERVER} component "
-            f"is not configured."
-        )
-
-    remote_port = int(web_conf[CONF_PORT])
-    auth = web_conf.get(CONF_AUTH) or {}
-    username = auth.get(CONF_USERNAME)
-    password = auth.get(CONF_PASSWORD)
-
     from esphome import web_server_ota
+    from esphome.web_server_helpers import get_web_server_connection
 
+    remote_port, username, password = get_web_server_connection(config)
     return web_server_ota.run_ota(
         network_devices, remote_port, username, password, binary
     )
+
+
+def _show_logs_via_web_server(config: ConfigType, network_devices: list[str]) -> int:
+    from esphome import web_server_logs
+    from esphome.web_server_helpers import get_web_server_connection
+
+    port, username, password = get_web_server_connection(config)
+    return web_server_logs.run_logs(network_devices, port, username, password)
 
 
 # Layout of esp_partition_info_t on flash. Each entry is 32 bytes, leading with a
@@ -1436,6 +1456,13 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
         return mqtt.show_logs(
             config, args.topic, args.username, args.password, args.client_id
         )
+
+    # Fall back to the web_server HTTP SSE log stream for devices that have
+    # web_server: but no api: (the logging counterpart to web_server OTA).
+    if has_web_server_logging() and (
+        network_devices := _resolve_network_devices(devices, config, args)
+    ):
+        return _show_logs_via_web_server(config, network_devices)
 
     raise EsphomeError("No remote or local logging method configured (api/mqtt/logger)")
 
