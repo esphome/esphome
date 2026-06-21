@@ -33,8 +33,8 @@ void SchedulerBulkCleanupComponent::trigger_bulk_cleanup() {
   // Cancel all of them to mark for removal
   ESP_LOGI(TAG, "Cancelling all 25 timeouts to trigger bulk cleanup...");
   int cancelled_count = 0;
-  for (int i = 0; i < 25; i++) {
-    if (App.scheduler.cancel_timeout(this, BULK_TIMEOUT_NAMES[i])) {
+  for (const char *name : BULK_TIMEOUT_NAMES) {
+    if (App.scheduler.cancel_timeout(this, name)) {
       cancelled_count++;
     }
   }
