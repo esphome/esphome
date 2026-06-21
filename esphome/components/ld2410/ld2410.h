@@ -140,6 +140,8 @@ class LD2410Component : public Component, public uart::UARTDevice {
   bool bluetooth_on_{false};
   uint16_t bg_correction_duration_{10};  // seconds; HiLink's tool default
   bool bg_correction_running_{false};
+  uint32_t bg_correction_next_poll_{0};  // millis() of next 0x1B poll while running
+  uint32_t bg_correction_deadline_{0};   // millis() after which we stop waiting
 #ifdef USE_NUMBER
   std::array<number::Number *, TOTAL_GATES> gate_move_threshold_numbers_{};
   std::array<number::Number *, TOTAL_GATES> gate_still_threshold_numbers_{};

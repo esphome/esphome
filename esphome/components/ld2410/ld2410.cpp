@@ -161,16 +161,13 @@ static constexpr uint8_t CMD_BG_CORRECTION_START = 0x0B;
 static constexpr uint8_t CMD_BG_CORRECTION_QUERY = 0x1B;
 // Status byte returned in the 0x1B query ACK: 0 = idle, 1 = in progress, 2 = done.
 static constexpr uint8_t BG_CORRECTION_COMPLETED = 0x02;
-// How often we poll 0x1B while a correction is running, and the scheduler keys
-// used to cancel the poll / safety timers.
+// How often we poll 0x1B from loop() while a correction is running.
 static constexpr uint32_t BG_CORRECTION_POLL_INTERVAL_MS = 1000;
 static constexpr uint32_t BG_CORRECTION_SAFETY_MARGIN_MS = 3000;
 // After accepting 0x0B the module waits a fixed ~10 s warm-up before it begins
-// measuring, so the safety timeout must allow for it on top of the requested window;
-// otherwise it fires before the module can ever report completion.
+// measuring, so the safety deadline must allow for it on top of the requested window;
+// otherwise it elapses before the module can ever report completion.
 static constexpr uint32_t BG_CORRECTION_WARMUP_MS = 10000;
-static const char *const BG_CORRECTION_POLL = "ld2410_bg_poll";
-static const char *const BG_CORRECTION_SAFETY = "ld2410_bg_safety";
 // Commands values
 static constexpr uint8_t CMD_MAX_MOVE_VALUE = 0x00;
 static constexpr uint8_t CMD_MAX_STILL_VALUE = 0x01;
@@ -296,6 +293,19 @@ void LD2410Component::restart_and_read_all_info() {
 }
 
 void LD2410Component::loop() {
+  // Drive background-correction polling here instead of the scheduler to avoid
+  // runtime heap allocation (set_interval/set_timeout allocate a SchedulerItem).
+  if (this->bg_correction_running_) {
+    const uint32_t now = millis();
+    if ((int32_t) (now - this->bg_correction_deadline_) >= 0) {
+      // Completion was never reported (e.g. firmware predating 0x1B); clear the
+      // indicator so it can never latch on forever.
+      this->finish_background_correction_(false);
+    } else if ((int32_t) (now - this->bg_correction_next_poll_) >= 0) {
+      this->bg_correction_next_poll_ = now + BG_CORRECTION_POLL_INTERVAL_MS;
+      this->query_background_correction_();
+    }
+  }
   // Read all available bytes in batches to reduce UART call overhead.
   size_t avail = this->available();
   uint8_t buf[MAX_LINE_LENGTH];
@@ -739,7 +749,7 @@ void LD2410Component::start_background_correction() {
     ESP_LOGW(TAG, "Background correction already running; ignoring request");
     return;
   }
-  ESP_LOGI(TAG, "Starting background correction (%u s). People must be absent; leave other clutter in place",
+  ESP_LOGI(TAG, "Starting background correction (%u s); room must be empty (leave fixed clutter in place)",
            this->bg_correction_duration_);
   // The module runs the routine in normal reporting mode, so open config only
   // long enough to issue the command, then close it again.
@@ -748,15 +758,14 @@ void LD2410Component::start_background_correction() {
   this->send_command_(CMD_BG_CORRECTION_START, value, sizeof(value));
   this->set_config_mode_(false);
   this->set_background_correction_running_(true);
-  // Poll the module for real completion instead of trusting a fixed timer.
-  this->set_interval(BG_CORRECTION_POLL, BG_CORRECTION_POLL_INTERVAL_MS,
-                     [this]() { this->query_background_correction_(); });
-  // Safety net: clear the indicator even if completion is never reported (e.g.
-  // firmware predating 0x1B), so it can never latch on forever.
-  this->set_timeout(
-      BG_CORRECTION_SAFETY,
-      (uint32_t) this->bg_correction_duration_ * 1000 + BG_CORRECTION_WARMUP_MS + BG_CORRECTION_SAFETY_MARGIN_MS,
-      [this]() { this->finish_background_correction_(false); });
+  // Poll the module for real completion from loop() instead of trusting a fixed
+  // timer. The safety deadline clears the indicator if completion is never reported
+  // (e.g. firmware predating 0x1B); it includes the module's fixed warm-up so it
+  // can't elapse before the routine has even started measuring.
+  const uint32_t now = millis();
+  this->bg_correction_next_poll_ = now + BG_CORRECTION_POLL_INTERVAL_MS;
+  this->bg_correction_deadline_ =
+      now + (uint32_t) this->bg_correction_duration_ * 1000 + BG_CORRECTION_WARMUP_MS + BG_CORRECTION_SAFETY_MARGIN_MS;
 }
 
 void LD2410Component::query_background_correction_() {
@@ -769,8 +778,7 @@ void LD2410Component::finish_background_correction_(bool completed) {
   if (!this->bg_correction_running_) {
     return;
   }
-  this->cancel_interval(BG_CORRECTION_POLL);
-  this->cancel_timeout(BG_CORRECTION_SAFETY);
+  // Clearing the flag stops the poll/deadline checks in loop().
   this->set_background_correction_running_(false);
   if (completed) {
     ESP_LOGI(TAG, "Background correction complete; refreshing thresholds");
