@@ -14,7 +14,7 @@ This document provides essential context for AI models interacting with this pro
 *   **Build Systems:** PlatformIO is the primary build system. CMake is used as an alternative.
 *   **Configuration:** YAML.
 *   **Key Libraries/Dependencies:**
-    *   **Python:** `voluptuous` (for configuration validation), `PyYAML` (for parsing configuration files), `paho-mqtt` (for MQTT communication), `tornado` (for the web server), `aioesphomeapi` (for the native API).
+    *   **Python:** `voluptuous` (for configuration validation), `PyYAML` (for parsing configuration files), `paho-mqtt` (for MQTT communication), `aioesphomeapi` (for the native API).
     *   **C++:** `ArduinoJson` (for JSON serialization/deserialization), `AsyncMqttClient-esphome` (for MQTT), `ESPAsyncWebServer` (for the web server).
 *   **Package Manager(s):** `pip` (for Python dependencies), `platformio` (for C++/PlatformIO dependencies).
 *   **Communication Protocols:** Protobuf (for native API), MQTT, HTTP.
