@@ -121,13 +121,58 @@ std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol) {
 }
 
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-socklen_t join_multicast_group(Socket *sock, struct sockaddr *addr, socklen_t addrlen, const char *ip_address,
-                               uint16_t port, uint8_t *if_index_out) {
-  if (strchr(ip_address, ':') == nullptr) {
-    if (addrlen < sizeof(sockaddr_in)) {
-      errno = EINVAL;
-      return 0;
+template<typename F> static bool foreach_eligible_ipv6_if(F &&callback) {
+#if defined(USE_HOST) || defined(USE_ZEPHYR)
+  struct ifaddrs *ifaddr;
+  if (getifaddrs(&ifaddr) != 0) {
+    return false;
+  }
+  bool found_any = false;
+  for (struct ifaddrs *ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next) {
+    if (ifa->ifa_addr == nullptr || ifa->ifa_addr->sa_family != AF_INET6) {
+      continue;
     }
+    if ((ifa->ifa_flags & IFF_LOOPBACK) || !(ifa->ifa_flags & IFF_UP) || !(ifa->ifa_flags & IFF_MULTICAST)) {
+      continue;
+    }
+    unsigned int idx = if_nametoindex(ifa->ifa_name);
+    if (idx == 0) {
+      continue;
+    }
+    found_any = true;
+    if (callback(idx)) {
+      break;
+    }
+  }
+  freeifaddrs(ifaddr);
+  if (!found_any) {
+    errno = EADDRNOTAVAIL;
+  }
+  return found_any;
+#else
+  bool found_any = false;
+  struct netif *netif;
+  NETIF_FOREACH(netif) {
+    if (netif->name[0] == 'l' && netif->name[1] == 'o') {
+      continue;
+    }
+    if (!(netif->flags & NETIF_FLAG_UP) || !(netif->flags & NETIF_FLAG_MLD6)) {
+      continue;
+    }
+    found_any = true;
+    if (callback(netif_get_index(netif))) {
+      break;
+    }
+  }
+  if (!found_any) {
+    errno = EADDRNOTAVAIL;
+  }
+  return found_any;
+#endif
+}
+
+bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_index_out) {
+  if (strchr(ip_address, ':') == nullptr) {
     struct in_addr ipv4mc {};
 #ifdef USE_ZEPHYR
     if (zsock_inet_pton(AF_INET, ip_address, &ipv4mc) != 1) {
@@ -135,24 +180,20 @@ socklen_t join_multicast_group(Socket *sock, struct sockaddr *addr, socklen_t ad
     if (inet_aton(ip_address, &ipv4mc) == 0) {
 #endif
       errno = EINVAL;
-      return 0;
+      return false;
     }
     struct ip_mreq imreq {};
     imreq.imr_interface.s_addr = ESPHOME_INADDR_ANY;
     imreq.imr_multiaddr = ipv4mc;
     if (sock->setsockopt(IPPROTO_IP, IP_ADD_MEMBERSHIP, &imreq, sizeof(imreq)) < 0) {
-      return 0;
+      return false;
     }
     if (if_index_out != nullptr) {
       *if_index_out = 0;
     }
-    return set_sockaddr(addr, addrlen, ip_address, port);
+    return true;
   }
 #if USE_NETWORK_IPV6
-  if (addrlen < sizeof(sockaddr_in6)) {
-    errno = EINVAL;
-    return 0;
-  }
   struct ipv6_mreq imreq6 {};
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
 #ifdef USE_ZEPHYR
@@ -161,88 +202,56 @@ socklen_t join_multicast_group(Socket *sock, struct sockaddr *addr, socklen_t ad
   if (inet_pton(AF_INET6, ip_address, &imreq6.ipv6mr_multiaddr) != 1) {
 #endif
     errno = EINVAL;
-    return 0;
+    return false;
   }
 #else
   ip6_addr_t ip6;
   if (!inet6_aton(ip_address, &ip6)) {
     errno = EINVAL;
-    return 0;
+    return false;
   }
   memcpy(imreq6.ipv6mr_multiaddr.un.u32_addr, ip6.addr, sizeof(ip6.addr));
 #endif
-  // Both POSIX and LwIP require an explicit interface index.
   // POSIX: interface=0 fails for link-local multicast (ff02::) and may select loopback for
-  // other scopes. LwIP: NETIF_NO_INDEX=0 is always rejected. Iterate directly to a real
-  // non-loopback interface on both platforms.
-  imreq6.ipv6mr_interface = 0;
+  // other scopes. LwIP: NETIF_NO_INDEX=0 is always rejected.
   bool joined = false;
-#if defined(USE_HOST) || defined(USE_ZEPHYR)
-  struct ifaddrs *ifaddr;
-  if (getifaddrs(&ifaddr) == 0) {
-    bool any_tried = false;
-    for (struct ifaddrs *ifa = ifaddr; ifa != nullptr && !joined; ifa = ifa->ifa_next) {
-      if (ifa->ifa_addr == nullptr || ifa->ifa_addr->sa_family != AF_INET6) {
-        continue;
-      }
-      if ((ifa->ifa_flags & IFF_LOOPBACK) || !(ifa->ifa_flags & IFF_UP)) {
-        continue;
-      }
-      unsigned int idx = if_nametoindex(ifa->ifa_name);
-      if (idx == 0) {
-        continue;
-      }
-      imreq6.ipv6mr_interface = idx;
-      any_tried = true;
-      if (sock->setsockopt(IPPROTO_IPV6, IPV6_JOIN_GROUP, &imreq6, sizeof(imreq6)) == 0) {
-        joined = true;
-      }
-    }
-    freeifaddrs(ifaddr);
-    if (!joined && !any_tried) {
-      errno = EADDRNOTAVAIL;
-    }
-  }
-#else  // embedded — LwIP NETIF_FOREACH available on all embedded targets
-  struct netif *netif;
-  bool any_tried = false;
-  NETIF_FOREACH(netif) {
-    if (netif->name[0] == 'l' && netif->name[1] == 'o') {
-      continue;
-    }
-    imreq6.ipv6mr_interface = netif_get_index(netif);
-    any_tried = true;
+  foreach_eligible_ipv6_if([&](unsigned int idx) {
+    imreq6.ipv6mr_interface = idx;
     if (sock->setsockopt(IPPROTO_IPV6, IPV6_JOIN_GROUP, &imreq6, sizeof(imreq6)) == 0) {
       joined = true;
-      break;
+      return true;
     }
-  }
-  if (!joined && !any_tried) {
-    errno = EADDRNOTAVAIL;
-  }
-#endif
+    return false;
+  });
   if (!joined) {
-    return 0;
+    return false;
   }
   if (if_index_out != nullptr) {
-    *if_index_out = static_cast<uint8_t>(imreq6.ipv6mr_interface);
+    *if_index_out = imreq6.ipv6mr_interface;
   }
-  socklen_t filled = set_sockaddr(addr, addrlen, ip_address, port);
-#if defined(USE_HOST) || defined(USE_ZEPHYR)
-  if (filled == sizeof(sockaddr_in6)) {
-    // POSIX bind() on link-local multicast (ff02::, ff12::) requires sin6_scope_id
-    // set to the interface index. Harmless for site-local and global scopes.
-    // Not needed on LwIP which ignores sin6_scope_id in bind().
-    reinterpret_cast<sockaddr_in6 *>(addr)->sin6_scope_id = imreq6.ipv6mr_interface;
-  }
-#endif
-  return filled;
+  return true;
 #else
   errno = EINVAL;
-  return 0;
-#endif
+  return false;
+#endif  // USE_NETWORK_IPV6
 }
-#endif
+
+#if USE_NETWORK_IPV6
+bool set_ipv6_multicast_if(Socket *sock, uint32_t if_index_in) {
+  uint32_t ifindex = if_index_in;
+  if (ifindex == 0) {
+    foreach_eligible_ipv6_if([&](unsigned int idx) {
+      ifindex = idx;
+      return true;
+    });
+    if (ifindex == 0) {
+      return false;
+    }
+  }
+  return sock->setsockopt(IPPROTO_IPV6, IPV6_MULTICAST_IF, &ifindex, sizeof(ifindex)) == 0;
+}
+#endif  // USE_NETWORK_IPV6
+#endif  // USE_SOCKET_IMPL_BSD_SOCKETS || USE_SOCKET_IMPL_LWIP_SOCKETS
 
 socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_address, uint16_t port) {
 #if USE_NETWORK_IPV6

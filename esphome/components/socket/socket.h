@@ -146,20 +146,22 @@ inline socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const st
 socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t port);
 
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-/// Join a multicast group and fill addr for a subsequent bind().
-/// Dispatches on address type: IPv4 addresses use IP_ADD_MEMBERSHIP on an AF_INET socket;
-/// IPv6 addresses use IPV6_JOIN_GROUP on an AF_INET6 socket (USE_NETWORK_IPV6 builds only).
-/// The caller must create the socket with the matching address family before calling.
-/// @param sock       The socket to join the group on
-/// @param addr       Destination sockaddr to fill for bind()
-/// @param addrlen    Size of addr buffer
-/// @param ip_address  Null-terminated multicast address string (IPv4 e.g. "239.0.0.1" or IPv6 e.g. "ff02::1")
-/// @param port        Port number in host byte order
-/// @param if_index_out Optional: receives the netif index used for the IPv6 join (0 for IPv4 or on failure)
-/// @return Size of the sockaddr filled, or 0 on error (errno set)
-socklen_t join_multicast_group(Socket *sock, struct sockaddr *addr, socklen_t addrlen, const char *ip_address,
-                               uint16_t port, uint8_t *if_index_out = nullptr);
-#endif
+/// Join a multicast group on the given socket.
+/// @param sock         The socket to join on
+/// @param ip_address   Null-terminated multicast address string (IPv4 or IPv6)
+/// @param if_index_out If non-null, receives the interface index used (IPv4 always writes 0)
+/// @return true on success, false on failure (errno set)
+bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_index_out = nullptr);
+
+#if USE_NETWORK_IPV6
+/// Configure the outgoing IPv6 multicast interface on the given socket.
+/// @param sock        The socket to configure
+/// @param if_index_in Non-zero: use this interface index directly. Zero (default): probe for the first eligible
+/// interface.
+/// @return true on success, false on failure (errno set)
+bool set_ipv6_multicast_if(Socket *sock, uint32_t if_index_in = 0);
+#endif  // USE_NETWORK_IPV6
+#endif  // USE_SOCKET_IMPL_BSD_SOCKETS || USE_SOCKET_IMPL_LWIP_SOCKETS
 
 /// Format sockaddr into caller-provided buffer, returns length written (excluding null)
 size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::span<char, SOCKADDR_STR_LEN> buf);
