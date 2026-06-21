@@ -49,6 +49,12 @@ class ResamplerSpeaker : public Component, public speaker::Speaker {
   }
   void set_target_sample_rate(uint32_t target_sample_rate) { this->target_sample_rate_ = target_sample_rate; }
 
+  /// @brief When enabled, the input bits per sample are passed through to the output speaker unchanged instead of being
+  /// converted to a fixed target. Only the sample rate is resampled if it differs from the target.
+  void set_passthrough_bits_per_sample(bool passthrough_bits_per_sample) {
+    this->passthrough_bits_per_sample_ = passthrough_bits_per_sample;
+  }
+
   void set_filters(uint16_t filters) { this->filters_ = filters; }
   void set_taps(uint16_t taps) { this->taps_ = taps; }
 
@@ -80,23 +86,24 @@ class ResamplerSpeaker : public Component, public speaker::Speaker {
 
   speaker::Speaker *output_speaker_{nullptr};
 
-  bool task_stack_in_psram_{false};
-  bool waiting_for_output_{false};
-
   StaticTask task_;
 
   audio::AudioStreamInfo target_stream_info_;
 
-  uint16_t taps_;
-  uint16_t filters_;
-
-  uint8_t target_bits_per_sample_;
-  uint32_t target_sample_rate_;
+  uint64_t callback_remainder_{0};
 
   uint32_t buffer_duration_ms_;
   uint32_t state_start_ms_{0};
+  uint32_t target_sample_rate_;
 
-  uint64_t callback_remainder_{0};
+  uint16_t taps_;
+  uint16_t filters_;
+
+  uint8_t target_bits_per_sample_{0};
+
+  bool passthrough_bits_per_sample_{false};
+  bool task_stack_in_psram_{false};
+  bool waiting_for_output_{false};
 };
 
 }  // namespace esphome::resampler
