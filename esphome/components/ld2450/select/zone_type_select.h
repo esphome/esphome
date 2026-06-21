@@ -5,7 +5,7 @@
 
 namespace esphome::ld2450 {
 
-class ZoneTypeSelect final : public select::Select, public Parented<LD2450Component> {
+class ZoneTypeSelect : public select::Select, public Parented<LD2450Component> {
  public:
   ZoneTypeSelect() = default;
 
