@@ -27,8 +27,13 @@ static std::vector<NVSData> s_pending_save;  // NOLINT(cppcoreguidelines-avoid-n
 //
 // Gated on SOC_RTC_MEM_SUPPORTED: the ESP32-C2 and -C61 have no RTC memory at all, so RTC_NOINIT_ATTR
 // has no section to land in and would fail to link. On those variants in_flash=false transparently
-// falls back to NVS (see make_preference below). Variants with only RTC fast memory (C3/C6/H2/P4/...)
-// are fine -- RTC_NOINIT_ATTR lands in fast memory there, which is likewise retained across resets.
+// falls back to NVS (see make_preference below).
+//
+// On variants with only RTC fast memory (C3/C6/H2/P4/C5/...) RTC_NOINIT_ATTR lands in RTC fast memory.
+// This is still safe: the linker reserves .rtc_noinit ahead of any RTC-fast-as-heap pool
+// (CONFIG_ESP_SYSTEM_ALLOW_RTC_FAST_MEM_AS_HEAP), and IDF keeps the RTC fast power domain on in deep
+// sleep (forced on whether or not it is used as heap), so the data is retained across both resets and
+// deep sleep -- only power loss clears it.
 #if SOC_RTC_MEM_SUPPORTED
 static constexpr size_t RTC_PREF_SIZE_WORDS = 64;  // 256 bytes
 static constexpr size_t RTC_PREF_MAX_WORDS = 255;  // length_words field is a uint8_t
