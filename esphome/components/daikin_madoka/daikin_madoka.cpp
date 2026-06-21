@@ -23,6 +23,27 @@ void DaikinMadoka::dump_config() { LOG_CLIMATE(TAG, "Daikin Madoka Climate Contr
 
 void DaikinMadoka::setup() { this->receive_semaphore_ = xSemaphoreCreateMutex(); }
 
+inline static uint32_t get_command_cooldown(uint16_t cmd) {
+  switch (cmd) {
+    case CMD_GET_SETTING_STATUS:
+    case CMD_GET_OPERATION_MODE:
+    case CMD_GET_SETPOINT:
+    case CMD_GET_FAN_SPEED:
+    case CMD_GET_SENSOR_INFORMATION:
+      return 50;
+    case CMD_SET_SETTING_STATUS:
+      return 200;
+    case CMD_SET_OPERATION_MODE:
+      return 600;
+    case CMD_SET_SETPOINT:
+      return 400;
+    case CMD_SET_FAN_SPEED:
+      return 200;
+    default:
+      return 100;
+  }
+}
+
 void DaikinMadoka::loop() {
   std::vector<uint8_t> chk = {};
   if (xSemaphoreTake(this->receive_semaphore_, 0L)) {
@@ -38,7 +59,9 @@ void DaikinMadoka::loop() {
   if (!this->query_queue_.empty() && !this->pending_message_) {
     Query query = this->query_queue_.front();
     this->query_queue_.pop();
-    this->query_(query.cmd, query.args, query.delay_ms);
+    this->query_(query.cmd, query.args);
+    this->pending_message_ = true;
+    this->set_timeout("query", get_command_cooldown(query.cmd), [this]() { this->pending_message_ = false; });
   }
   if (this->should_update_) {
     this->should_update_ = false;
@@ -84,9 +107,9 @@ void DaikinMadoka::control(const ClimateCall &call) {
     }
     ESP_LOGD(TAG, "status: %d, mode: %d", status_out, mode_out);
     if (mode_out != 255) {
-      this->query_queue_.push({CMD_SET_OPERATION_MODE, std::vector<uint8_t>{0x20, 0x01, (uint8_t) mode_out}, 600});
+      this->query_queue_.push({CMD_SET_OPERATION_MODE, std::vector<uint8_t>{0x20, 0x01, (uint8_t) mode_out}});
     }
-    this->query_queue_.push({CMD_SET_SETTING_STATUS, std::vector<uint8_t>{0x20, 0x01, (uint8_t) status_out}, 200});
+    this->query_queue_.push({CMD_SET_SETTING_STATUS, std::vector<uint8_t>{0x20, 0x01, (uint8_t) status_out}});
   }
   std::vector<uint8_t> temp_setpoint_args;
   auto target_temperature_high_opt = call.get_target_temperature_high();
@@ -102,7 +125,7 @@ void DaikinMadoka::control(const ClimateCall &call) {
                               {0x21, 0x02, (uint8_t) ((target_low >> 8) & 0xFF), (uint8_t) (target_low & 0xFF)});
   }
   if (!temp_setpoint_args.empty()) {
-    this->query_queue_.push({CMD_SET_SETPOINT, temp_setpoint_args, 400});
+    this->query_queue_.push({CMD_SET_SETPOINT, temp_setpoint_args});
   }
   auto fan_mode_opt = call.get_fan_mode();
   if (fan_mode_opt.has_value()) {
@@ -126,9 +149,8 @@ void DaikinMadoka::control(const ClimateCall &call) {
         break;
     }
     if (fan_mode_out != 255) {
-      this->query_queue_.push(
-          {CMD_SET_FAN_SPEED,
-           std::vector<uint8_t>{0x20, 0x01, (uint8_t) fan_mode_out, 0x21, 0x01, (uint8_t) fan_mode_out}, 200});
+      this->query_queue_.push({CMD_SET_FAN_SPEED, std::vector<uint8_t>{0x20, 0x01, (uint8_t) fan_mode_out, 0x21, 0x01,
+                                                                       (uint8_t) fan_mode_out}});
     }
   }
   this->should_update_ = true;
@@ -228,7 +250,7 @@ void DaikinMadoka::update() {
   std::vector<uint16_t> all_cmds{CMD_GET_SETTING_STATUS, CMD_GET_OPERATION_MODE, CMD_GET_SETPOINT, CMD_GET_FAN_SPEED,
                                  CMD_GET_SENSOR_INFORMATION};
   for (auto cmd : all_cmds) {
-    this->query_queue_.push({cmd, std::vector<uint8_t>{0x00, 0x00}, 50});
+    this->query_queue_.push({cmd, std::vector<uint8_t>{0x00, 0x00}});
   }
 }
 
@@ -297,7 +319,7 @@ std::vector<uint8_t> DaikinMadoka::prepare_message_(uint16_t cmd, std::vector<ui
   return result;
 }
 
-void DaikinMadoka::query_(uint16_t cmd, std::vector<uint8_t> args, int delay_ms) {
+void DaikinMadoka::query_(uint16_t cmd, std::vector<uint8_t> args) {
   std::vector<uint8_t> payload = this->prepare_message_(cmd, std::move(args));
 
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
@@ -322,8 +344,6 @@ void DaikinMadoka::query_(uint16_t cmd, std::vector<uint8_t> args, int delay_ms)
       return;
     }
   }
-  this->pending_message_ = true;
-  this->set_timeout("query", delay_ms, [this]() { this->pending_message_ = false; });
 }
 
 void DaikinMadoka::parse_cb_(std::vector<uint8_t> msg) {
