@@ -29,18 +29,19 @@ class UDPComponent : public Component {
   void set_should_broadcast() { this->should_broadcast_ = true; }
   void set_should_listen() { this->should_listen_ = true; }
   template<typename F> void add_listener(F &&listener) { this->packet_listeners_.add(std::forward<F>(listener)); }
-  void setup() override;
   void loop() override;
   void dump_config() override;
   void send_packet(const uint8_t *data, size_t size);
   void send_packet(const std::vector<uint8_t> &buf) { this->send_packet(buf.data(), buf.size()); }
-  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; };
 
  protected:
+  void setup_();
+
   uint16_t listen_port_{};
   uint16_t broadcast_port_{};
   bool should_broadcast_{};
   bool should_listen_{};
+  bool net_started_{false};
   CallbackManager<void(std::span<const uint8_t>)> packet_listeners_{};
 
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)

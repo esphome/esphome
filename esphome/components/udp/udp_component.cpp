@@ -9,7 +9,7 @@ namespace esphome::udp {
 
 static const char *const TAG = "udp";
 
-void UDPComponent::setup() {
+void UDPComponent::setup_() {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   this->sockaddrs_.init(this->addresses_.size());
   for (const auto &address : this->addresses_) {
@@ -117,7 +117,8 @@ void UDPComponent::setup() {
         if (err != 0)
           this->status_set_warning(LOG_STR("IPv6 socket unable to set reuseaddr"));
         if (!socket::set_ipv6_multicast_if(this->send_socket_v6_.get(), mcast_ifindex)) {
-          ESP_LOGW(TAG, "Failed to set IPv6 multicast interface: errno %d", errno);
+          this->mark_failed(LOG_STR("Failed to set IPv6 multicast interface"));
+          return;
         }
         break;
       }
@@ -135,24 +136,39 @@ void UDPComponent::setup() {
   if (this->should_listen_)
     this->udp_client_.begin(this->listen_port_);
 #endif
+  ESP_LOGD(TAG, "Sockets ready");
 }
 
 void UDPComponent::loop() {
+  if (!this->net_started_) {
+    if (!network::is_connected()) {
+      return;
+    }
+    this->setup_();
+    if (this->is_failed()) {
+      return;
+    }
+    this->net_started_ = true;
+  }
   if (this->should_listen_) {
     std::array<uint8_t, MAX_PACKET_SIZE> buf;
     for (;;) {
+      int len = 0;
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-      if (!this->listen_socket_->ready())
+      if (!this->listen_socket_->ready()) {
         break;
-      auto len = this->listen_socket_->read(buf.data(), buf.size());
+      }
+      len = this->listen_socket_->read(buf.data(), buf.size());
 #endif
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
-      auto len = this->udp_client_.parsePacket();
-      if (len > 0)
+      len = this->udp_client_.parsePacket();
+      if (len > 0) {
         len = this->udp_client_.read(buf.data(), buf.size());
+      }
 #endif
-      if (len <= 0)
+      if (len <= 0) {
         break;
+      }
       size_t packet_len = static_cast<size_t>(len);
       ESP_LOGV(TAG, "Received packet of length %zu", packet_len);
       this->packet_listeners_.call(std::span<const uint8_t>(buf.data(), packet_len));
@@ -180,6 +196,9 @@ void UDPComponent::dump_config() {
 
 void UDPComponent::send_packet(const uint8_t *data, size_t size) {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+  if (this->broadcast_socket_ == nullptr) {
+    return;
+  }
   for (const auto &entry : this->sockaddrs_) {
 #if USE_NETWORK_IPV6
     if (entry.addr.ss_family == AF_INET6) {
@@ -188,6 +207,8 @@ void UDPComponent::send_packet(const uint8_t *data, size_t size) {
                                                     reinterpret_cast<const struct sockaddr *>(&entry.addr), entry.len);
         if (result < 0)
           ESP_LOGW(TAG, "sendto() IPv6 error %d", errno);
+      } else {
+        ESP_LOGW(TAG, "IPv6 send socket unavailable, dropping packet");
       }
       continue;
     }
