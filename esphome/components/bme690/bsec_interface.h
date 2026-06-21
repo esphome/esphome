@@ -235,8 +235,8 @@ bsec_library_return_t bsec_init(void *inst);
  *
  */
 bsec_library_return_t bsec_update_subscription(void *inst,
-                                               const bsec_sensor_configuration_t *const requested_virtual_sensors,
-                                               const uint8_t n_requested_virtual_sensors,
+                                               const bsec_sensor_configuration_t *requested_virtual_sensors,
+                                               uint8_t n_requested_virtual_sensors,
                                                bsec_sensor_configuration_t *required_sensor_settings,
                                                uint8_t *n_required_sensor_settings);
 
@@ -279,7 +279,7 @@ bsec_library_return_t bsec_update_subscription(void *inst,
  * @return Zero when successful, otherwise an error code
  *
  */
-bsec_library_return_t bsec_do_steps(void *inst, const bsec_input_t *const inputs, const uint8_t n_inputs,
+bsec_library_return_t bsec_do_steps(void *inst, const bsec_input_t *inputs, uint8_t n_inputs,
                                     bsec_output_t *outputs, uint8_t *n_outputs);
 
 /*!
@@ -317,9 +317,9 @@ bsec_library_return_t bsec_reset_output(void *inst, uint8_t sensor_id);
  * @return Zero when successful, otherwise an error code
  *
  */
-bsec_library_return_t bsec_set_configuration(void *inst, const uint8_t *const serialized_settings,
-                                             const uint32_t n_serialized_settings, uint8_t *work_buffer,
-                                             const uint32_t n_work_buffer_size);
+bsec_library_return_t bsec_set_configuration(void *inst, const uint8_t *serialized_settings,
+                                             uint32_t n_serialized_settings, uint8_t *work_buffer,
+                                             uint32_t n_work_buffer_size);
 /*!
  * @brief Restore the internal state of the library instance
  *
@@ -342,9 +342,8 @@ bsec_library_return_t bsec_set_configuration(void *inst, const uint8_t *const se
  * @return Zero when successful, otherwise an error code
  *
  */
-bsec_library_return_t bsec_set_state(void *inst, const uint8_t *const serialized_state,
-                                     const uint32_t n_serialized_state, uint8_t *work_buffer,
-                                     const uint32_t n_work_buffer_size);
+bsec_library_return_t bsec_set_state(void *inst, const uint8_t *serialized_state, uint32_t n_serialized_state,
+                                     uint8_t *work_buffer, uint32_t n_work_buffer_size);
 
 /*!
  * @brief Retrieve the current library instance configuration
@@ -367,9 +366,9 @@ bsec_library_return_t bsec_set_state(void *inst, const uint8_t *const serialized
  * @return Zero when successful, otherwise an error code
  *
  */
-bsec_library_return_t bsec_get_configuration(void *inst, const uint8_t config_id, uint8_t *serialized_settings,
-                                             const uint32_t n_serialized_settings_max, uint8_t *work_buffer,
-                                             const uint32_t n_work_buffer, uint32_t *n_serialized_settings);
+bsec_library_return_t bsec_get_configuration(void *inst, uint8_t config_id, uint8_t *serialized_settings,
+                                             uint32_t n_serialized_settings_max, uint8_t *work_buffer,
+                                             uint32_t n_work_buffer, uint32_t *n_serialized_settings);
 
 /*!
  *@brief Retrieve the current internal library instance state
@@ -392,9 +391,9 @@ bsec_library_return_t bsec_get_configuration(void *inst, const uint8_t config_id
  * @return Zero when successful, otherwise an error code
  *
  */
-bsec_library_return_t bsec_get_state(void *inst, const uint8_t state_set_id, uint8_t *serialized_state,
-                                     const uint32_t n_serialized_state_max, uint8_t *work_buffer,
-                                     const uint32_t n_work_buffer, uint32_t *n_serialized_state);
+bsec_library_return_t bsec_get_state(void *inst, uint8_t state_set_id, uint8_t *serialized_state,
+                                     uint32_t n_serialized_state_max, uint8_t *work_buffer, uint32_t n_work_buffer,
+                                     uint32_t *n_serialized_state);
 
 /*!
  * @brief Retrieve BMExxx sensor instructions for the library instance
