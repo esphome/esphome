@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/components/gpio_expander/cached_gpio.h"
 
 namespace esphome::max6956 {
 
@@ -20,29 +21,41 @@ enum MAX6956GPIORange : uint8_t {
   MAX6956_MAX = 31,
 };
 
+/// Bank configuration for MAX6956
+static constexpr uint8_t MAX6956_BANK_SIZE = 8;
+static constexpr uint8_t MAX6956_TOTAL_PINS = 32;  // Includes pins 0-3 (unused) for cache alignment
+static constexpr uint8_t MAX6956_BANK0_SHIFT = 4;
+static_assert(MAX6956_TOTAL_PINS % MAX6956_BANK_SIZE == 0,
+              "MAX6956_TOTAL_PINS must be an exact multiple of MAX6956_BANK_SIZE for CachedGpioExpander");
+
 enum MAX6956GPIORegisters {
   MAX6956_GLOBAL_CURRENT = 0x02,
   MAX6956_CONFIGURATION = 0x04,
   MAX6956_TRANSITION_DETECT_MASK = 0x06,
   MAX6956_DISPLAY_TEST = 0x07,
-  MAX6956_PORT_CONFIG_START = 0x09,   // Port Configuration P7, P6, P5, P4
-  MAX6956_CURRENT_START = 0x12,       // Current054
-  MAX6956_1PORT_VALUE_START = 0x20,   // Port 0 only (virtual port, no action)
-  MAX6956_8PORTS_VALUE_START = 0x44,  // 8 ports 4-11 (data bits D0-D7)
+  MAX6956_PORT_CONFIG_START = 0x09,  // Port Configuration P7, P6, P5, P4
+  MAX6956_CURRENT_START = 0x12,      // Current054
+  MAX6956_1PORT_VALUE_START = 0x20,  // Port 0 only (virtual port, no action)
+  // 8-port bulk read registers aligned with base class banks
+  MAX6956_4PORTS_4_7 = 0x40,    // 4 ports 4-7 (bits D0-D3, D4-D7 read as 0)
+  MAX6956_8PORTS_8_15 = 0x48,   // 8 ports 8-15 (bits D0-D7)
+  MAX6956_8PORTS_16_23 = 0x50,  // 8 ports 16-23 (bits D0-D7)
+  MAX6956_8PORTS_24_31 = 0x58,  // 8 ports 24-31 (bits D0-D7)
 };
 
 enum MAX6956GPIOFlag { FLAG_LED = 0x20 };
 
 enum MAX6956CURRENTMODE { GLOBAL = 0x00, SEGMENT = 0x01 };
 
-class MAX6956 : public Component, public i2c::I2CDevice {
+class MAX6956 : public Component,
+                public i2c::I2CDevice,
+                public gpio_expander::CachedGpioExpander<uint8_t, MAX6956_TOTAL_PINS> {
  public:
   MAX6956() = default;
 
   void setup() override;
+  void loop() override;
 
-  bool digital_read(uint8_t pin);
-  void digital_write(uint8_t pin, bool value);
   void pin_mode(uint8_t pin, gpio::Flags flags);
   void pin_mode(uint8_t pin, max6956::MAX6956GPIOFlag flags);
 
@@ -57,6 +70,11 @@ class MAX6956 : public Component, public i2c::I2CDevice {
   void write_brightness_global();
   void write_brightness_mode();
 
+  // CachedGpioExpander implementation
+  bool digital_read_hw(uint8_t pin) override;
+  bool digital_read_cache(uint8_t pin) override;
+  void digital_write_hw(uint8_t pin, bool value) override;
+
  protected:
   // read a given register
   bool read_reg_(uint8_t reg, uint8_t *value);
@@ -64,6 +82,13 @@ class MAX6956 : public Component, public i2c::I2CDevice {
   bool write_reg_(uint8_t reg, uint8_t value);
   max6956::MAX6956CURRENTMODE brightness_mode_{};
   uint8_t global_brightness_{0};
+
+  // Cache for the 4 banks of 8 pins each (aligned with base class view)
+  // Bank 0: bits 0-7 (bits 0-3 unused as MAX6956 pins start at 4, bits 4-7 = pins 4-7)
+  // Bank 1: bits 8-15 (pins 8-15)
+  // Bank 2: bits 16-23 (pins 16-23)
+  // Bank 3: bits 24-31 (pins 24-31)
+  uint8_t input_banks_[4] = {0, 0, 0, 0};
 
  private:
   int8_t prev_bright_[28] = {0};

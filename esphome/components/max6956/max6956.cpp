@@ -39,14 +39,52 @@ void MAX6956::setup() {
   ESP_LOGD(TAG, "setup reg[0x%.2X]=0x%.2X", MAX6956_CONFIGURATION, configuration);
 }
 
-bool MAX6956::digital_read(uint8_t pin) {
-  uint8_t reg_addr = MAX6956_1PORT_VALUE_START + pin;
-  uint8_t value = 0;
-  this->read_reg_(reg_addr, &value);
-  return (value & MASK_1PORT_VALUE);
+void MAX6956::loop() {
+  // Invalidate cache at the start of each loop
+  this->reset_pin_cache_();
 }
 
-void MAX6956::digital_write(uint8_t pin, bool value) {
+bool MAX6956::digital_read_hw(uint8_t pin) {
+  // MAX6956 pins start at MAX6956_MIN
+  if (pin < MAX6956_MIN || pin > MAX6956_MAX) {
+    return false;
+  }
+
+  // Calculate bank index based on the base class view (no offset adjustment)
+  uint8_t bank_index = pin / MAX6956_BANK_SIZE;
+
+  static constexpr uint8_t BANK_REGS[4] = {
+      MAX6956_4PORTS_4_7,    // Bank 0: 4 ports 4-7 (bits D0-D3, D4-D7 read as 0)
+      MAX6956_8PORTS_8_15,   // Bank 1: 8 ports 8-15 (bits D0-D7)
+      MAX6956_8PORTS_16_23,  // Bank 2: 8 ports 16-23 (bits D0-D7)
+      MAX6956_8PORTS_24_31,  // Bank 3: 8 ports 24-31 (bits D0-D7)
+  };
+
+  // Read the appropriate register
+  uint8_t value = 0;
+  if (!this->read_reg_(BANK_REGS[bank_index], &value)) {
+    return false;
+  }
+
+  // Store in cache with proper alignment
+  if (bank_index == 0) {
+    // Special case for bank 0: pins 4-7 are in bits D0-D3, shift them to bits 4-7
+    this->input_banks_[0] = value << MAX6956_BANK0_SHIFT;
+  } else {
+    // Banks 1-3 map directly
+    this->input_banks_[bank_index] = value;
+  }
+
+  return true;
+}
+
+bool MAX6956::digital_read_cache(uint8_t pin) {
+  uint8_t bank_index = pin / MAX6956_BANK_SIZE;
+  uint8_t bit_position = pin % MAX6956_BANK_SIZE;
+  return (this->input_banks_[bank_index] & (1 << bit_position)) != 0;
+}
+
+void MAX6956::digital_write_hw(uint8_t pin, bool value) {
   uint8_t reg_addr = MAX6956_1PORT_VALUE_START + pin;
   this->write_reg_(reg_addr, value);
 }
