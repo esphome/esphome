@@ -54,6 +54,10 @@ class BME690Component : public PollingComponent, public i2c::I2CDevice {
   void set_comp_humidity_sensor(sensor::Sensor *sensor) { comp_humidity_sensor = sensor; }
   void set_sample_rate(SampleRate sample_rate) { this->sample_rate_ = sample_rate; }
   void set_temperature_offset(float offset) { this->ext_temp_offset_ = offset; }
+  void set_bsec_configuration(const uint8_t *data, uint32_t len) {
+    this->bsec_configuration_ = data;
+    this->bsec_configuration_length_ = len;
+  }
   void set_state_save_interval(uint32_t interval) { state_save_interval_ms_ = interval; }
   void set_state_preference_hash(uint32_t hash) { this->state_preference_hash_ = hash; }
 #ifdef USE_TEXT_SENSOR
@@ -97,12 +101,16 @@ class BME690Component : public PollingComponent, public i2c::I2CDevice {
   void save_bsec_state_();
   int64_t get_time_ns_();
   float get_sample_rate_() const;
+  const uint8_t *get_bsec_configuration_() const;
+  uint32_t get_bsec_configuration_length_() const;
 
   struct bme69x_dev dev_ {};
   struct bme69x_conf conf_ {};
   struct bme69x_heatr_conf heatr_conf_ {};
   std::vector<uint8_t> bsec_instance_;
   std::vector<uint8_t> bsec_work_buffer_;
+  const uint8_t *bsec_configuration_{nullptr};
+  uint32_t bsec_configuration_length_{0};
   SampleRate sample_rate_{SAMPLE_RATE_LP};
   float ext_temp_offset_{0.0f};
   bool bsec_ready_{false};
