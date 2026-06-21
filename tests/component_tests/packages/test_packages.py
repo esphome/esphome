@@ -210,30 +210,6 @@ def test_package_include(basic_wifi, basic_esphome) -> None:
     assert actual == expected
 
 
-def test_single_package(
-    basic_esphome,
-    basic_wifi,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """
-    Tests the simple case where a single package is added to the top-level config as is.
-    In this test, the CONF_WIFI config is expected to be simply added to the top-level config.
-    This tests the case where the user just put packages: !include package.yaml, not
-    part of a list or mapping of packages.
-    This behavior is deprecated, the test also checks if a warning is issued.
-    """
-    config = {CONF_ESPHOME: basic_esphome, CONF_PACKAGES: {CONF_WIFI: basic_wifi}}
-
-    expected = {CONF_ESPHOME: basic_esphome, CONF_WIFI: basic_wifi}
-
-    with caplog.at_level("WARNING"):
-        actual = packages_pass(config)
-
-    assert actual == expected
-
-    assert "This method for including packages will go away in 2026.7.0" in caplog.text
-
-
 def test_package_append(basic_wifi, basic_esphome) -> None:
     """
     Tests the case where a key is present in both a package and top-level config.
@@ -1154,37 +1130,14 @@ def test_packages_include_file_resolves_to_invalid_type_raises(
         6,
         "some string",
         True,
-    ],
-)
-def test_invalid_package_contents_rejected(invalid_package: object) -> None:
-    """Invalid package contents are rejected by PACKAGE_SCHEMA during do_packages_pass."""
-    config = {
-        CONF_PACKAGES: {
-            "some_package": invalid_package,
-        },
-    }
-    with pytest.raises(cv.Invalid):
-        do_packages_pass(config)
-
-
-@pytest.mark.xfail(
-    reason="Deprecated single-package fallback swallows these errors. "
-    "Remove xfail when single-package deprecation is removed (2026.7.0).",
-    strict=True,
-)
-@pytest.mark.parametrize(
-    "invalid_package",
-    [
         None,
         ["some string"],
         {"some_component": 8},
         {3: 2},
     ],
 )
-def test_invalid_package_contents_masked_by_deprecation(
-    invalid_package: object,
-) -> None:
-    """These invalid packages are swallowed by the deprecated single-package fallback."""
+def test_invalid_package_contents_rejected(invalid_package: object) -> None:
+    """Invalid package contents are rejected by PACKAGE_SCHEMA during do_packages_pass."""
     config = {
         CONF_PACKAGES: {
             "some_package": invalid_package,
@@ -1231,14 +1184,10 @@ def test_named_dict_with_include_files_no_false_deprecation_warning(
     assert "deprecated" not in caplog.text.lower()
 
 
-def test_validate_deprecated_false_raises_directly(
+def test_named_package_errors_raise_directly(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """With validate_deprecated=False, errors raise directly without fallback.
-
-    This is the codepath used for remote packages where _process_remote_package
-    returns already-resolved dicts that is_package_definition cannot detect.
-    """
+    """Errors processing a named-dict package raise directly, with no deprecation warning."""
     config = {
         CONF_PACKAGES: {
             "pkg_a": {CONF_WIFI: {CONF_SSID: "test"}},
@@ -1261,7 +1210,7 @@ def test_validate_deprecated_false_raises_directly(
         caplog.at_level(logging.WARNING),
         pytest.raises(cv.Invalid, match="nested error"),
     ):
-        _walk_packages(config, failing_callback, validate_deprecated=False)
+        _walk_packages(config, failing_callback)
 
     assert "deprecated" not in caplog.text.lower()
 
@@ -1294,40 +1243,6 @@ def test_error_on_first_declared_package_still_detected() -> None:
 
     with pytest.raises(cv.Invalid, match="error in first_pkg"):
         _walk_packages(config, fail_on_last)
-
-
-def test_deprecated_single_package_fallback_still_works(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """The deprecated single-package form still falls back at the top level.
-
-    When a dict's values are plain config fragments (not package definitions)
-    and the callback fails, the deprecated fallback wraps the dict in a list
-    and retries with a deprecation warning.
-    """
-    config = {
-        CONF_PACKAGES: {
-            CONF_WIFI: {CONF_SSID: "test", CONF_PASSWORD: "secret"},
-        },
-    }
-
-    attempt = 0
-
-    def fail_then_succeed(
-        package_config: dict, context: object, path: DocumentPath | None = None
-    ) -> dict:
-        nonlocal attempt
-        attempt += 1
-        if attempt == 1:
-            # First attempt: treating as named dict fails
-            raise cv.Invalid("not a valid package")
-        # Second attempt: after fallback wraps as list, succeeds
-        return package_config
-
-    with caplog.at_level(logging.WARNING):
-        _walk_packages(config, fail_then_succeed)
-
-    assert "deprecated" in caplog.text.lower()
 
 
 def test_merge_packages_invalid_nested_type_raises() -> None:
