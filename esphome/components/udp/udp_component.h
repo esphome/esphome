@@ -35,7 +35,7 @@ class UDPComponent : public Component {
   void send_packet(const std::vector<uint8_t> &buf) { this->send_packet(buf.data(), buf.size()); }
 
  protected:
-  void setup_();
+  void open_sockets_();
 
   uint16_t listen_port_{};
   uint16_t broadcast_port_{};

@@ -9,7 +9,7 @@ namespace esphome::udp {
 
 static const char *const TAG = "udp";
 
-void UDPComponent::setup_() {
+void UDPComponent::open_sockets_() {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   this->sockaddrs_.init(this->addresses_.size());
   for (const auto &address : this->addresses_) {
@@ -144,7 +144,7 @@ void UDPComponent::loop() {
     if (!network::is_connected()) {
       return;
     }
-    this->setup_();
+    this->open_sockets_();
     if (this->is_failed()) {
       return;
     }
