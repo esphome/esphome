@@ -767,13 +767,10 @@ def run_compile(args, config: ConfigType) -> bool:
     # get_download_types (which mirrors the platformio build output layout).
     zephyr_dir = build_dir / "zephyr"
     west_out = zephyr_dir / "zephyr"
-    for filename in ("zephyr.hex", "zephyr.uf2", "app_update.bin"):
+    for filename in "zephyr.uf2":
         src = west_out / filename
         if src.is_file():
             shutil.copy2(src, zephyr_dir / filename)
-    src = build_dir / "merged.hex"
-    if src.is_file():
-        shutil.copy2(src, zephyr_dir / "merged.hex")
 
     # (dev_type, sd_req) per bootloader — values from Nordic SoftDevice release notes
     _GENPKG_PARAMS = {
@@ -788,7 +785,7 @@ def run_compile(args, config: ConfigType) -> bool:
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
     ):
-        hex_file = build_dir / "zephyr" / "zephyr.hex"
+        hex_file = west_out / "zephyr.hex"
         dfu_package = build_dir / "firmware.zip"
         genpkg_cmd = [
             str(paths["python_executable"]),
