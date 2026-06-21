@@ -448,7 +448,7 @@ class Component {
    * Similar to javascript's setTimeout(). Empty name means no cancelling possible.
    *
    * IMPORTANT: Do not rely on this having correct timing. This is only called from
-   * loop() and therefore can be significantly delay. If you need exact timing please
+   * loop() and therefore can be significantly delayed. If you need exact timing please
    * use hardware timers.
    *
    * IMPORTANT: The provided name pointer must remain valid for the lifetime of the scheduler item.

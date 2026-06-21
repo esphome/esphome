@@ -129,7 +129,7 @@ script:
           });
           static const char CANCEL_NAME_2[] = "cancel_test";
           App.scheduler.cancel_timeout(component2, CANCEL_NAME_2);
-          ESP_LOGI("test", "Cancelled timeout using different string object");
+          ESP_LOGI("test", "Cancelled timeout using different buffer with same content");
 
           // Test 11: const char* name with defer
           class TestDynamicDeferComponent : public Component {

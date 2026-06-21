@@ -156,6 +156,7 @@ script:
 
           // Simulate a burst of defer operations like ratgdo does with state updates
           // These should execute immediately and recycle quickly to the pool
+          // Phase-specific id range (0..9) so ids never collide with later phases
           for (int i = 0; i < 10; i++) {
             App.scheduler.set_timeout(component, static_cast<uint32_t>(i), 0, [i]() {
               ESP_LOGD("test", "Defer %d executed", i);
@@ -206,8 +207,9 @@ script:
           // Now create 8 new timeouts - they should reuse from pool when available
           int reuse_test_count = 8;
 
+          // Phase-specific id range (100..107) so ids never collide with other phases
           for (int i = 0; i < reuse_test_count; i++) {
-            App.scheduler.set_timeout(component, static_cast<uint32_t>(i), 10 + i * 5, [i]() {
+            App.scheduler.set_timeout(component, static_cast<uint32_t>(100 + i), 10 + i * 5, [i]() {
               ESP_LOGD("test", "Reuse test %d completed", i);
             });
           }
@@ -227,8 +229,9 @@ script:
           auto *component = id(test_sensor);
           int full_reuse_count = 10;
 
+          // Phase-specific id range (200..209) so ids never collide with other phases
           for (int i = 0; i < full_reuse_count; i++) {
-            App.scheduler.set_timeout(component, static_cast<uint32_t>(i), 10 + i * 5, [i]() {
+            App.scheduler.set_timeout(component, static_cast<uint32_t>(200 + i), 10 + i * 5, [i]() {
               ESP_LOGD("test", "Full reuse test %d completed", i);
             });
           }
