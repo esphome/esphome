@@ -33,7 +33,7 @@ struct MenuItemValueArguments {
   bool is_menu_editing;
 };
 
-class GraphicalDisplayMenu final : public display_menu_base::DisplayMenuComponent {
+class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
  public:
   void setup() override;
   void dump_config() override;
@@ -73,7 +73,7 @@ class GraphicalDisplayMenu final : public display_menu_base::DisplayMenuComponen
   CallbackManager<void()> on_redraw_callbacks_{};
 };
 
-class GraphicalDisplayMenuOnRedrawTrigger final : public Trigger<const GraphicalDisplayMenu *> {
+class GraphicalDisplayMenuOnRedrawTrigger : public Trigger<const GraphicalDisplayMenu *> {
  public:
   explicit GraphicalDisplayMenuOnRedrawTrigger(GraphicalDisplayMenu *parent) : parent_(parent) {
     parent->add_on_redraw_callback([this]() { this->trigger(this->parent_); });
