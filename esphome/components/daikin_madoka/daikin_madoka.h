@@ -40,6 +40,12 @@ struct Status {
   uint8_t mode;
 };
 
+struct Query {
+  uint16_t cmd;
+  std::vector<uint8_t> args;
+  int delay_ms;
+};
+
 namespace espbt = esphome::esp32_ble_tracker;
 
 static const espbt::ESPBTUUID MADOKA_SERVICE_UUID = espbt::ESPBTUUID::from_raw("2141e110-213a-11e6-b67b-9e71128cae77");
@@ -53,6 +59,8 @@ class DaikinMadoka : public climate::Climate, public esphome::ble_client::BLECli
   bool should_update_ = false;
   std::queue<std::vector<uint8_t>> received_chunks_ = {};
   std::map<uint8_t, std::vector<uint8_t>> pending_chunks_ = {};
+  std::queue<Query> query_queue_ = {};
+  bool pending_message_ = false;
   uint16_t notify_handle_{0};
   uint16_t wwr_handle_{0};
   SemaphoreHandle_t receive_semaphore_{nullptr};
@@ -63,7 +71,7 @@ class DaikinMadoka : public climate::Climate, public esphome::ble_client::BLECli
 
   std::vector<std::vector<uint8_t>> split_payload_(std::vector<uint8_t> msg);
   std::vector<uint8_t> prepare_message_(uint16_t cmd, std::vector<uint8_t> args);
-  void query_(uint16_t cmd, std::vector<uint8_t> args, int t_d);
+  void query_(uint16_t cmd, std::vector<uint8_t> args, int delay_ms);
   void parse_cb_(std::vector<uint8_t> msg);
   void process_incoming_chunk_(std::vector<uint8_t> chk);
 
