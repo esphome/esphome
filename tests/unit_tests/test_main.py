@@ -32,6 +32,7 @@ from esphome.__main__ import (
     command_clean_all,
     command_config,
     command_config_hash,
+    command_dashboard,
     command_idedata,
     command_rename,
     command_run,
@@ -6283,3 +6284,25 @@ def test_command_idedata_esp_idf_no_build_errors() -> None:
         result = command_idedata(MagicMock(), CORE.config)
 
     assert result == 1
+
+
+def test_command_dashboard_warns_deprecated(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The dashboard command logs a deprecation warning and still starts."""
+    args = MockArgs()
+
+    with (
+        patch(
+            "esphome.dashboard.dashboard.start_dashboard", return_value=0
+        ) as mock_start,
+        caplog.at_level(logging.WARNING, logger="esphome.__main__"),
+    ):
+        result = command_dashboard(args)
+
+    assert result == 0
+    mock_start.assert_called_once_with(args)
+    assert any(
+        "deprecated" in rec.message and "2027.1.0" in rec.message
+        for rec in caplog.records
+    )

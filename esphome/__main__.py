@@ -1692,6 +1692,11 @@ def command_bundle(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_dashboard(args: ArgsProtocol) -> int | None:
+    _LOGGER.warning(
+        "The 'dashboard' command is deprecated and will be removed in ESPHome "
+        "2027.1.0. Install the 'esphome-device-builder' package and run "
+        "'esphome-device-builder' instead."
+    )
     from esphome.dashboard import dashboard
 
     return dashboard.start_dashboard(args)
@@ -2356,9 +2361,9 @@ def parse_args(argv):
         "configuration", help="Your YAML file or configuration directory.", nargs="*"
     )
 
-    parser_dashboard = subparsers.add_parser(
-        "dashboard", help="Create a simple web server for a dashboard."
-    )
+    # Deprecated, will be removed in 2027.1.0. Omitting help= hides it from the
+    # main parser's command listing while keeping the subcommand functional.
+    parser_dashboard = subparsers.add_parser("dashboard")
     parser_dashboard.add_argument(
         "configuration", help="Your YAML configuration file directory."
     )
