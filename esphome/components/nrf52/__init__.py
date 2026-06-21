@@ -767,7 +767,7 @@ def run_compile(args, config: ConfigType) -> bool:
     # get_download_types (which mirrors the platformio build output layout).
     zephyr_dir = build_dir / "zephyr"
     west_out = zephyr_dir / "zephyr"
-    for filename in "zephyr.uf2":
+    for filename in ["zephyr.uf2"]:
         src = west_out / filename
         if src.is_file():
             shutil.copy2(src, zephyr_dir / filename)
