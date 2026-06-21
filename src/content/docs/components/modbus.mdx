@@ -44,15 +44,15 @@ modbus:
   This is useful for RS485 transceivers that do not have automatic flow control switching,
   like the common MAX485. If your UART supports `flow_control_pin`, you should configure this in the `uart` component, not in the `modbus` component.
 
-- **send_wait_time** (*Optional*, [Time](/guides/configuration-types#time)): Time in milliseconds before the next ModBUS command is sent when an answer from a previous command has not yet started (i.e. when to timeout and assume no response is coming). Defaults to 250 ms.
+- **send_wait_time** (*Optional*, [Time](/guides/configuration-types#time)): Time in milliseconds before the next ModBUS command is sent when an answer from a previous command has not yet started (i.e. when to timeout and assume no response is coming). Defaults to 2000 ms.
   Set this value to the maximum time required for the slowest device on the bus to begin responding (time to first byte).
   If a device starts responding within this time, the next command will be queued and sent after the response is finished, no matter how long the response.
+  This option is only valid when the `role` is `client`.
 
-- **turnaround_time** (*Optional*, [Time](/guides/configuration-types#time)): Time in milliseconds before the next ModBUS command is sent after last response is received. This interval allows other devices on the bus time to process messages. Defaults to 100 ms.
+- **turnaround_time** (*Optional*, [Time](/guides/configuration-types#time)): Time in milliseconds before the next ModBUS command is sent after last response is received. This interval allows other devices on the bus time to process messages. Defaults to 600 ms.
   This value is ideally set to the maximum time required for the slowest device on the bus to process a message and be ready to process another. Note that all devices will receive all messages and will require time to process them even if they don't need to reply.
   If devices don't respond sometimes, it can help to increase this value.
-
-- **disable_crc** (*Optional*, boolean): If set to `true`, invalid CRC values are ignored. This will reduce error messages but will not fix communication issues. Try increasing times above first if you see CRC errors. Defaults to `false`.
+  This option is only valid when the `role` is `client`.
 
 - **role** (*Optional*, string): The role of this component, `client` or `server`. Defaults to `client`.
 
