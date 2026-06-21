@@ -167,7 +167,7 @@ void DaikinMadoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
                                        esp_ble_gattc_cb_param_t *param) {
   switch (event) {
     case ESP_GATTC_DISCONNECT_EVT: {
-      this->node_state = espbt::ClientState::IDLE;  // ??
+      this->node_state = espbt::ClientState::IDLE;
       this->current_temperature = NAN;
       this->target_temperature = NAN;
       this->publish_state();
@@ -187,7 +187,7 @@ void DaikinMadoka::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
-      this->node_state = espbt::ClientState::ESTABLISHED;  // ??
+      this->node_state = espbt::ClientState::ESTABLISHED;
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
@@ -221,7 +221,7 @@ void DaikinMadoka::update() {
   }
 }
 
-bool validate_buffer(std::vector<uint8_t> buffer) { return buffer[0] == buffer.size(); }
+static bool validate_buffer(std::vector<uint8_t> buffer) { return !buffer.empty() && buffer[0] == buffer.size(); }
 
 void DaikinMadoka::process_incoming_chunk_(std::vector<uint8_t> chk) {
   if (chk.size() < 2) {
@@ -233,6 +233,10 @@ void DaikinMadoka::process_incoming_chunk_(std::vector<uint8_t> chk) {
   if (chunk_id == 0 && validate_buffer(stripped)) {
     this->parse_cb_(stripped);
     return;
+  }
+  if (chunk_id == 0 && !this->pending_chunks_.empty()) {
+    ESP_LOGW(TAG, "Buffer is not empty, but new message started. Clearing buffer.");
+    this->pending_chunks_.clear();
   }
   if (this->pending_chunks_.contains(chunk_id)) {
     ESP_LOGE(TAG, "Another packet with the same chunk ID is already in the buffer.");
@@ -288,13 +292,14 @@ void DaikinMadoka::query_(uint16_t cmd, std::vector<uint8_t> args, int t_d) {
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
     return;
   }
-  std::vector<std::vector<uint8_t>> chunks = this->split_payload_(payload);
+  const auto chunks = this->split_payload_(payload);
   const char *addr = this->parent_->address_str();
-  for (auto chk : chunks) {
-    esp_err_t status;
+  for (const auto &chk : chunks) {
+    esp_err_t status = ESP_OK;
     for (int j = 0; j < BLE_SEND_MAX_RETRIES; j++) {
       status = esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->wwr_handle_,
-                                        chk.size(), chk.data(), ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+                                        chk.size(), (uint8_t *) chk.data(), ESP_GATT_WRITE_TYPE_NO_RSP,
+                                        ESP_GATT_AUTH_REQ_NONE);
       if (!status) {
         break;
       }
@@ -310,9 +315,13 @@ void DaikinMadoka::query_(uint16_t cmd, std::vector<uint8_t> args, int t_d) {
 }
 
 void DaikinMadoka::parse_cb_(std::vector<uint8_t> msg) {
-  uint16_t function_id = msg[2] << 8 | msg[3];
-  uint8_t i = 4;
-  uint8_t message_size = msg.size();
+  if (msg.size() < 4) {
+    ESP_LOGE(TAG, "Discarding message: invalid length.");
+    return;
+  }
+  const uint16_t function_id = msg[2] << 8 | msg[3];
+  size_t i = 4;
+  const size_t message_size = msg.size();
 
   switch (function_id) {
     case CMD_GET_SETTING_STATUS:
