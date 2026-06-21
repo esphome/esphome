@@ -158,6 +158,10 @@ void BME690Component::update() {
              sensor_settings.pressure_oversampling, sensor_settings.run_gas);
     this->next_call_ns_ = sensor_settings.next_call;
   } else {
+    if (!this->bsec_fallback_warning_logged_) {
+      ESP_LOGW(TAG, "BSEC is not ready; publishing raw sensor values only.");
+      this->bsec_fallback_warning_logged_ = true;
+    }
     sensor_settings.op_mode = BME69X_FORCED_MODE;
     sensor_settings.trigger_measurement = 1;
     sensor_settings.temperature_oversampling = BME69X_OS_16X;
