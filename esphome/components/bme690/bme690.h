@@ -114,6 +114,7 @@ class BME690Component : public PollingComponent, public i2c::I2CDevice {
   SampleRate sample_rate_{SAMPLE_RATE_LP};
   float ext_temp_offset_{0.0f};
   bool bsec_ready_{false};
+  bool bsec_fallback_warning_logged_{false};
   int64_t next_call_ns_{0};
   ESPPreferenceObject pref_;
   uint32_t last_state_save_ms_{0};
