@@ -94,13 +94,16 @@ struct IPAddress {
     memset(&addr_, 0, sizeof(addr_));
     addr_.v4.s_addr = htonl((first << 24) | (second << 16) | (third << 8) | fourth);
   }
-  IPAddress(const std::string &in_address) {
+  IPAddress(const std::string &in_address) : valid_(false) {
     memset(&addr_, 0, sizeof(addr_));
     if (in_address.find(':') != std::string::npos) {
       is_v6_ = inet_pton(AF_INET6, in_address.c_str(), &addr_.v6) == 1;
+      valid_ = is_v6_;
     } else {
       is_v6_ = false;
-      if (inet_aton(in_address.c_str(), &addr_.v4) == 0) {
+      if (inet_aton(in_address.c_str(), &addr_.v4) != 0) {
+        valid_ = true;
+      } else {
         addr_.v4 = {};
       }
     }
@@ -120,6 +123,7 @@ struct IPAddress {
     }
     return addr_.v4.s_addr != 0;
   }
+  bool is_valid() const { return valid_; }
   bool is_ip4() const { return !is_v6_; }
   bool is_ip6() const { return is_v6_; }
   bool is_multicast() const {
@@ -270,6 +274,7 @@ struct IPAddress {
  protected:
 #if defined(USE_HOST)
   bool is_v6_{false};
+  bool valid_{true};
   union {
     ip4_addr_t v4;
     struct in6_addr v6;
