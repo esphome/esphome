@@ -280,8 +280,8 @@ def _unresolved_default_error(purpose: Purpose, defaults: list[str]) -> str:
         if purpose == Purpose.LOGGING and not has_api():
             return (
                 "Cannot view logs over the network: no 'api:' component is "
-                "configured. Add an 'api:' component, enable MQTT logging, add a "
-                "'web_server:' component, or view logs over USB."
+                "configured. Network log streaming requires the native API; add "
+                "an 'api:' component, enable MQTT logging, or view logs over USB."
             )
         if purpose == Purpose.UPLOADING and not has_ota():
             return (
