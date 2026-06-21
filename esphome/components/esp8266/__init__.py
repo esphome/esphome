@@ -492,6 +492,15 @@ def _parse_register(config, regex, line):
 STACKTRACE_ESP8266_EXCEPTION_TYPE_RE = re.compile(r"[eE]xception \((\d+)\):")
 STACKTRACE_ESP8266_PC_RE = re.compile(r"epc1=0x(4[0-9a-fA-F]{7})")
 STACKTRACE_ESP8266_EXCVADDR_RE = re.compile(r"excvaddr=0x(4[0-9a-fA-F]{7})")
+# Structured crash handler output (crash_handler.cpp) from a previous boot:
+#   PC: 0x40220060
+#   EXCVADDR: 0x0000008A
+#   BT0: 0x40212345
+STACKTRACE_ESP8266_CRASH_PC_RE = re.compile(r".*PC\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
+STACKTRACE_ESP8266_CRASH_EXCVADDR_RE = re.compile(
+    r".*EXCVADDR\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})"
+)
+STACKTRACE_ESP8266_CRASH_BT_RE = re.compile(r"BT\d+:\s*0x([0-9a-fA-F]{8})")
 STACKTRACE_BAD_ALLOC_RE = re.compile(
     r"^last failed alloc call: (4[0-9a-fA-F]{7})\((\d+)\)$"
 )
@@ -508,9 +517,16 @@ def process_stacktrace(config, line, backtrace_state):
             "Exception type: %s", ESP8266_EXCEPTION_CODES.get(code, "unknown")
         )
 
-    # ESP8266 PC/EXCVADDR
+    # ESP8266 PC/EXCVADDR (legacy Arduino postmortem)
     _parse_register(config, STACKTRACE_ESP8266_PC_RE, line)
     _parse_register(config, STACKTRACE_ESP8266_EXCVADDR_RE, line)
+
+    # ESP8266 structured crash handler (crash_handler.cpp) from previous boot
+    _parse_register(config, STACKTRACE_ESP8266_CRASH_PC_RE, line)
+    _parse_register(config, STACKTRACE_ESP8266_CRASH_EXCVADDR_RE, line)
+    match = re.search(STACKTRACE_ESP8266_CRASH_BT_RE, line)
+    if match is not None:
+        _decode_pc(config, match.group(1))
 
     # bad alloc
     match = re.match(STACKTRACE_BAD_ALLOC_RE, line)

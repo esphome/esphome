@@ -76,7 +76,10 @@ def zephyr_data() -> ZephyrData:
 
 
 def zephyr_add_prj_conf(
-    name: str, value: PrjConfValueType, required: bool = True, image: str = ""
+    name: str,
+    value: PrjConfValueType,
+    required: bool = True,
+    image: str = "",
 ) -> None:
     """Set an zephyr prj conf value."""
     if not name.startswith("CONFIG_"):
@@ -133,7 +136,7 @@ def zephyr_to_code(config: ConfigType) -> None:
 
     # <err> os: ***** USAGE FAULT *****
     # <err> os:   Illegal load of EXC_RETURN into PC
-    zephyr_add_prj_conf("MAIN_STACK_SIZE", 2048)
+    zephyr_add_prj_conf("MAIN_STACK_SIZE", 2048, required=False)
 
     CORE.add_job(_cdc_acm_to_code, config)
 
