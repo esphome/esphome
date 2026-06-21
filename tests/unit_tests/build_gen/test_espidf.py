@@ -136,6 +136,54 @@ def test_get_project_cmakelists_full_emits_builtin_components_property(
     assert "JPEGDEC APPEND" not in content
 
 
+def test_get_component_cmakelists_no_link_flags() -> None:
+    """With no -Wl, flags the target_link_options block is emitted with an empty body."""
+    CORE.build_flags = set()
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert "target_link_options(${COMPONENT_LIB} PUBLIC\n    \n)" in content
+
+
+def test_get_component_cmakelists_single_link_flag() -> None:
+    """A single -Wl, flag appears indented inside target_link_options."""
+    CORE.build_flags = {"-Wl,--gc-sections"}
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert (
+        "target_link_options(${COMPONENT_LIB} PUBLIC\n    -Wl,--gc-sections\n)"
+        in content
+    )
+
+
+def test_get_component_cmakelists_multiple_link_flags_sorted() -> None:
+    """Multiple -Wl, flags are sorted and joined with the four-space indent."""
+    CORE.build_flags = {"-Wl,-z,noexecstack", "-Wl,--gc-sections", "-Wl,-Map=out.map"}
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    expected = (
+        "target_link_options(${COMPONENT_LIB} PUBLIC\n"
+        "    -Wl,--gc-sections\n"
+        "    -Wl,-Map=out.map\n"
+        "    -Wl,-z,noexecstack\n"
+        ")"
+    )
+    assert expected in content
+
+
+def test_get_component_cmakelists_compile_flags_excluded_from_link_opts() -> None:
+    """-D and -W (non-linker) flags must not appear in target_link_options."""
+    CORE.build_flags = {"-DFOO", "-Wall", "-Wl,--gc-sections"}
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert "-DFOO" not in content.split("target_link_options")[1]
+    assert "-Wall" not in content.split("target_link_options")[1]
+    assert "-Wl,--gc-sections" in content
+
+
 def test_get_project_cmakelists_emits_managed_components_property(
     tmp_path: Path,
 ) -> None:
@@ -162,3 +210,53 @@ def test_get_project_cmakelists_emits_managed_components_property(
                 "idf_build_set_property(ESPHOME_PROJECT_MANAGED_COMPONENTS"
                 " espressif__esp-dsp APPEND)"
             ) in content
+
+
+def test_get_project_cmakelists_replaces_cpp_standard(tmp_path: Path) -> None:
+    """cg.set_cpp_standard() replaces the IDF default -std in
+    CXX_COMPILE_OPTIONS between include(project.cmake) and project()."""
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(CORE, "cpp_standard", "gnu++20"),
+    ):
+        from esphome.build_gen.espidf import get_project_cmakelists
+
+        content = get_project_cmakelists(minimal=True)
+
+    assert (
+        "idf_build_get_property(esphome_cxx_compile_options CXX_COMPILE_OPTIONS)"
+        in content
+    )
+    assert 'list(FILTER esphome_cxx_compile_options EXCLUDE REGEX "^-std=")' in content
+    assert 'list(APPEND esphome_cxx_compile_options "-std=gnu++20")' in content
+    # The replacement must come after project.cmake (which appends the IDF
+    # default) and before project() (which consumes the options).
+    include_pos = content.index("tools/cmake/project.cmake")
+    replace_pos = content.index("CXX_COMPILE_OPTIONS")
+    project_pos = content.index("project(test)")
+    assert include_pos < replace_pos < project_pos
+
+
+def test_get_project_cmakelists_no_cpp_standard(tmp_path: Path) -> None:
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(CORE, "cpp_standard", None),
+    ):
+        from esphome.build_gen.espidf import get_project_cmakelists
+
+        content = get_project_cmakelists(minimal=True)
+
+    assert "CXX_COMPILE_OPTIONS" not in content
+
+
+def test_get_component_cmakelists_no_compile_features() -> None:
+    """The C++ standard is pinned project-wide via CXX_COMPILE_OPTIONS in the
+    top-level CMakeLists; the src component must not set its own."""
+    with patch.object(CORE, "build_flags", set()):
+        from esphome.build_gen.espidf import get_component_cmakelists
+
+        content = get_component_cmakelists()
+
+    assert "target_compile_features" not in content
