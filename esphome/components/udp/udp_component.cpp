@@ -18,43 +18,8 @@ void UDPComponent::setup() {
         socket::set_sockaddr((struct sockaddr *) &entry.addr, sizeof(entry.addr), address, this->broadcast_port_);
     this->sockaddrs_.push_back(entry);
   }
-  // set up send socket(s)
-  if (this->should_broadcast_) {
-    // AF_INET for IPv4 (broadcast requires IPv4 socket)
-    this->broadcast_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
-    if (this->broadcast_socket_ == nullptr) {
-      this->status_set_error(LOG_STR("Could not create socket"));
-      this->mark_failed();
-      return;
-    }
-    int enable = 1;
-    auto err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable));
-    if (err != 0)
-      this->status_set_warning(LOG_STR("Socket unable to set reuseaddr"));
-    err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_BROADCAST, &enable, sizeof(enable));
-    if (err != 0)
-      this->status_set_warning(LOG_STR("Socket unable to set broadcast"));
-#if USE_NETWORK_IPV6
-    // Create IPv6 send socket if any destination is IPv6
-    for (const auto &entry : this->sockaddrs_) {
-      if (entry.addr.ss_family == AF_INET6) {
-        this->send_socket_v6_ = socket::socket(AF_INET6, SOCK_DGRAM, IPPROTO_IP);
-        if (this->send_socket_v6_ == nullptr) {
-          this->status_set_error(LOG_STR("Could not create IPv6 socket"));
-          this->mark_failed();
-          return;
-        }
-        err = this->send_socket_v6_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable));
-        if (err != 0)
-          this->status_set_warning(LOG_STR("IPv6 socket unable to set reuseaddr"));
-        // IPV6_MULTICAST_IF is set below only when a multicast join succeeds — probing
-        // at setup() time is unreliable because WiFi may not be associated yet.
-        break;
-      }
-    }
-#endif
-  }
-  // create listening socket
+  uint32_t mcast_ifindex = 0;
+  // create listening socket first so mcast_ifindex is known before broadcast socket setup
   if (this->should_listen_) {
     if (this->listen_address_.has_value()) {
       // Multicast: create socket with family matching the multicast address
@@ -90,23 +55,24 @@ void UDPComponent::setup() {
       char addr_buf[network::IP_ADDRESS_BUFFER_SIZE];
       this->listen_address_.value().str_to(addr_buf);
       ESP_LOGD(TAG, "Join multicast %s", addr_buf);
-      uint8_t mcast_ifindex = 0;
-      server_len = socket::join_multicast_group(this->listen_socket_.get(), (struct sockaddr *) &server, sizeof(server),
-                                                addr_buf, this->listen_port_, &mcast_ifindex);
-      if (server_len == 0) {
+      if (!socket::join_multicast_group(this->listen_socket_.get(), addr_buf, &mcast_ifindex)) {
         ESP_LOGE(TAG, "Failed to join multicast group. Error %d", errno);
         this->status_set_error(LOG_STR("Failed to join multicast group"));
         this->mark_failed();
         return;
       }
-#if USE_NETWORK_IPV6
-      // ESP-IDF LwIP accepts any index for IPV6_MULTICAST_IF without validation,
-      // so a known-valid index from a successful join is required.
-      if (mcast_ifindex != 0 && this->send_socket_v6_ != nullptr) {
-        uint32_t ifidx = mcast_ifindex;
-        if (this->send_socket_v6_->setsockopt(IPPROTO_IPV6, IPV6_MULTICAST_IF, &ifidx, sizeof(ifidx)) < 0) {
-          ESP_LOGW(TAG, "Failed to set IPv6 multicast interface: errno %d", errno);
-        }
+      server_len = socket::set_sockaddr((struct sockaddr *) &server, sizeof(server), addr_buf, this->listen_port_);
+      if (server_len == 0) {
+        ESP_LOGE(TAG, "Failed to set bind address. Error %d", errno);
+        this->status_set_error(LOG_STR("Failed to set bind address"));
+        this->mark_failed();
+        return;
+      }
+#if defined(USE_HOST) || defined(USE_ZEPHYR)
+      if (server_len == sizeof(sockaddr_in6) && mcast_ifindex != 0) {
+        // POSIX bind() on link-local multicast requires sin6_scope_id set to the interface index;
+        // LwIP ignores sin6_scope_id in bind().
+        reinterpret_cast<sockaddr_in6 *>(&server)->sin6_scope_id = mcast_ifindex;
       }
 #endif
     } else {
@@ -120,6 +86,43 @@ void UDPComponent::setup() {
       this->mark_failed();
       return;
     }
+  }
+  // set up send socket(s)
+  if (this->should_broadcast_) {
+    // AF_INET for IPv4 (broadcast requires IPv4 socket)
+    this->broadcast_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+    if (this->broadcast_socket_ == nullptr) {
+      this->status_set_error(LOG_STR("Could not create socket"));
+      this->mark_failed();
+      return;
+    }
+    int enable = 1;
+    auto err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable));
+    if (err != 0)
+      this->status_set_warning(LOG_STR("Socket unable to set reuseaddr"));
+    err = this->broadcast_socket_->setsockopt(SOL_SOCKET, SO_BROADCAST, &enable, sizeof(enable));
+    if (err != 0)
+      this->status_set_warning(LOG_STR("Socket unable to set broadcast"));
+#if USE_NETWORK_IPV6
+    // Create IPv6 send socket if any destination is IPv6
+    for (const auto &entry : this->sockaddrs_) {
+      if (entry.addr.ss_family == AF_INET6) {
+        this->send_socket_v6_ = socket::socket(AF_INET6, SOCK_DGRAM, IPPROTO_IP);
+        if (this->send_socket_v6_ == nullptr) {
+          this->status_set_error(LOG_STR("Could not create IPv6 socket"));
+          this->mark_failed();
+          return;
+        }
+        err = this->send_socket_v6_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable));
+        if (err != 0)
+          this->status_set_warning(LOG_STR("IPv6 socket unable to set reuseaddr"));
+        if (!socket::set_ipv6_multicast_if(this->send_socket_v6_.get(), mcast_ifindex)) {
+          ESP_LOGW(TAG, "Failed to set IPv6 multicast interface: errno %d", errno);
+        }
+        break;
+      }
+    }
+#endif
   }
 #endif
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
