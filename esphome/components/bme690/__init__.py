@@ -6,7 +6,7 @@ from esphome import external_files
 import esphome.codegen as cg
 from esphome.components import esp32, i2c
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_SAMPLE_RATE, Framework
+from esphome.const import CONF_ID, CONF_SAMPLE_RATE, CONF_TEMPERATURE_OFFSET, Framework
 from esphome.core import CORE
 
 DEPENDENCIES = ["i2c"]
@@ -66,6 +66,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SAMPLE_RATE, default="LP"): cv.enum(
                 SAMPLE_RATE_OPTIONS, upper=True
             ),
+            cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature_delta,
             cv.Optional(
                 CONF_STATE_SAVE_INTERVAL, default="6hours"
             ): cv.positive_time_period_minutes,
@@ -94,6 +95,7 @@ async def to_code(config):
     state_preference_hash = int(hashlib.md5(value).hexdigest()[:8], 16)
     cg.add(var.set_state_preference_hash(state_preference_hash))
     cg.add(var.set_sample_rate(config[CONF_SAMPLE_RATE]))
+    cg.add(var.set_temperature_offset(config[CONF_TEMPERATURE_OFFSET]))
 
     lib_path = _resolve_bsec_library(config[CONF_BSEC_LIBRARY])
     esp32.add_extra_build_file("libalgobsec.a", lib_path)
