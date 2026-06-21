@@ -268,8 +268,10 @@ bool BME690Component::configure_bsec_() {
   }
   this->log_bsec_version_();
 
-  bsec_rslt = bsec_set_configuration(this->bsec_instance_.data(), BSEC_CONFIG_IAQ, sizeof(BSEC_CONFIG_IAQ),
-                                     this->bsec_work_buffer_.data(), this->bsec_work_buffer_.size());
+  bsec_rslt =
+      bsec_set_configuration(this->bsec_instance_.data(), this->get_bsec_configuration_(),
+                             this->get_bsec_configuration_length_(), this->bsec_work_buffer_.data(),
+                             this->bsec_work_buffer_.size());
   if (!this->check_bsec_status_("bsec_set_configuration", bsec_rslt)) {
     return false;
   }
@@ -321,6 +323,20 @@ bool BME690Component::configure_bsec_() {
 
 float BME690Component::get_sample_rate_() const {
   return this->sample_rate_ == SAMPLE_RATE_ULP ? BSEC_SAMPLE_RATE_ULP : BSEC_SAMPLE_RATE_LP;
+}
+
+const uint8_t *BME690Component::get_bsec_configuration_() const {
+  if (this->bsec_configuration_ != nullptr) {
+    return this->bsec_configuration_;
+  }
+  return this->sample_rate_ == SAMPLE_RATE_ULP ? BSEC_CONFIG_IAQ_300S_4D : BSEC_CONFIG_IAQ_3S_4D;
+}
+
+uint32_t BME690Component::get_bsec_configuration_length_() const {
+  if (this->bsec_configuration_length_ != 0) {
+    return this->bsec_configuration_length_;
+  }
+  return this->sample_rate_ == SAMPLE_RATE_ULP ? sizeof(BSEC_CONFIG_IAQ_300S_4D) : sizeof(BSEC_CONFIG_IAQ_3S_4D);
 }
 
 bool BME690Component::push_inputs_to_bsec_(const struct bme69x_data &data, const bsec_bme_settings_t &settings,
