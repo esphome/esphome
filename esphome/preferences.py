@@ -19,8 +19,19 @@ STORAGE_RTC = "rtc"
 
 
 def _rtc_supported() -> bool:
-    """Whether the active platform has an RTC-backed preferences backend."""
-    return CORE.is_esp32 or CORE.is_esp8266
+    """Whether the active platform has an RTC-backed preferences backend.
+
+    Mirrors the C++ ``SOC_RTC_MEM_SUPPORTED`` guard in the ESP32 backend: the ESP32-C2
+    and -C61 have no RTC memory at all, so RTC storage is unavailable there.
+    """
+    if CORE.is_esp8266:
+        return True
+    if CORE.is_esp32:
+        from esphome.components.esp32 import get_esp32_variant
+        from esphome.components.esp32.const import VARIANT_ESP32C2, VARIANT_ESP32C61
+
+        return get_esp32_variant() not in (VARIANT_ESP32C2, VARIANT_ESP32C61)
+    return False
 
 
 def _default_storage() -> str:

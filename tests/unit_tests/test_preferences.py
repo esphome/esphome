@@ -3,11 +3,19 @@
 import pytest
 
 from esphome import preferences
+from esphome.components.esp32 import KEY_ESP32
+from esphome.components.esp32.const import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C61,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_STORAGE,
     KEY_CORE,
     KEY_TARGET_PLATFORM,
+    KEY_VARIANT,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
@@ -17,6 +25,11 @@ from esphome.core import CORE
 
 def _set_platform(platform: str) -> None:
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
+
+
+def _set_esp32(variant: str) -> None:
+    _set_platform(PLATFORM_ESP32)
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: variant}
 
 
 def _validate(value: dict):
@@ -32,7 +45,6 @@ def test_is_in_flash() -> None:
     ("platform", "expected"),
     [
         # Defaults preserve each platform's historic behavior.
-        (PLATFORM_ESP32, preferences.STORAGE_FLASH),
         (PLATFORM_ESP8266, preferences.STORAGE_RTC),
         (PLATFORM_RP2040, preferences.STORAGE_FLASH),
     ],
@@ -42,10 +54,29 @@ def test_default_storage_per_platform(platform: str, expected: str) -> None:
     assert _validate({})[CONF_STORAGE] == expected
 
 
-@pytest.mark.parametrize("platform", [PLATFORM_ESP32, PLATFORM_ESP8266])
-def test_rtc_allowed_on_supported_platforms(platform: str) -> None:
-    _set_platform(platform)
+@pytest.mark.parametrize("variant", [VARIANT_ESP32, VARIANT_ESP32C2])
+def test_default_storage_esp32_is_flash(variant: str) -> None:
+    # ESP32 defaults to flash on every variant, including those without RTC memory.
+    _set_esp32(variant)
+    assert _validate({})[CONF_STORAGE] == preferences.STORAGE_FLASH
+
+
+def test_rtc_allowed_on_esp8266() -> None:
+    _set_platform(PLATFORM_ESP8266)
     assert _validate({CONF_STORAGE: "rtc"})[CONF_STORAGE] == preferences.STORAGE_RTC
+
+
+@pytest.mark.parametrize("variant", [VARIANT_ESP32, VARIANT_ESP32C3])
+def test_rtc_allowed_on_esp32_with_rtc_memory(variant: str) -> None:
+    _set_esp32(variant)
+    assert _validate({CONF_STORAGE: "rtc"})[CONF_STORAGE] == preferences.STORAGE_RTC
+
+
+@pytest.mark.parametrize("variant", [VARIANT_ESP32C2, VARIANT_ESP32C61])
+def test_rtc_rejected_on_esp32_without_rtc_memory(variant: str) -> None:
+    _set_esp32(variant)
+    with pytest.raises(cv.Invalid, match="not supported on this platform"):
+        _validate({CONF_STORAGE: "rtc"})
 
 
 def test_rtc_rejected_on_unsupported_platform() -> None:
