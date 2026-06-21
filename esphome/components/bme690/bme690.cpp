@@ -131,6 +131,7 @@ void BME690Component::dump_config() {
   LOG_TEXT_SENSOR("  ", "IAQ Accuracy", this->iaq_accuracy_text_sensor_);
 #endif
   ESP_LOGCONFIG(TAG, "  Sample Rate: %s", this->sample_rate_ == SAMPLE_RATE_ULP ? "ULP" : "LP");
+  ESP_LOGCONFIG(TAG, "  Temperature Offset: %.2f°C", this->ext_temp_offset_);
   ESP_LOGCONFIG(TAG, "  State Save Interval: %ums", this->state_save_interval_ms_);
   LOG_UPDATE_INTERVAL(this);
 }
