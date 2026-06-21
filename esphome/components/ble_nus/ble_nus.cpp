@@ -25,11 +25,14 @@ void BLENUS::write_array(const uint8_t *data, size_t len) {
   if (atomic_get(&this->tx_status_) == TX_DISABLED) {
     return;
   }
-  auto sent = ring_buf_put(&global_ble_tx_ring_buf, data, len);
-  if (sent < len) {
-    ESP_LOGE(TAG, "TX dropping %u bytes", len - sent);
+  // ring_buf_put() performs a partial write when the buffer is nearly full, which would commit a
+  // truncated fragment and corrupt the stream. Only write when the whole payload fits, so the byte
+  // stream never contains a partial message.
+  if (ring_buf_space_get(&global_ble_tx_ring_buf) < len) {
+    ESP_LOGE(TAG, "TX dropping %u bytes", len);
     return;
   }
+  ring_buf_put(&global_ble_tx_ring_buf, data, len);
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
     this->debug_callback_.call(uart::UART_DIRECTION_TX, data[i]);
@@ -197,6 +200,15 @@ void BLENUS::setup() {
 void BLENUS::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
   (void) level;
   (void) tag;
+  // Reserve room for the message AND its trailing newline up front so a log line is not split
+  // across the ring-buffer boundary. The main task is the only producer at typical log levels, so
+  // the reserved space normally survives between this check and the two writes below and the stream
+  // contains whole '\n'-terminated lines. At verbose levels the BT-thread rx_callback/tx_callback
+  // (ESP_LOGV/ESP_LOGVV) can also log, making a second producer possible; the worst case is then a
+  // split line (the pre-existing behavior), never a partial commit or crash.
+  if (ring_buf_space_get(&global_ble_tx_ring_buf) < message_len + 1) {
+    return;
+  }
   this->write_array(reinterpret_cast<const uint8_t *>(message), message_len);
   const char c = '\n';
   this->write_array(reinterpret_cast<const uint8_t *>(&c), 1);
