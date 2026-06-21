@@ -86,14 +86,6 @@ std::string str_sprintf(const char *fmt, ...) {
   return str;
 }
 
-// --- Value formatting helpers ---
-
-std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
-  char buf[VALUE_ACCURACY_MAX_LEN];
-  value_accuracy_to_buf(buf, value, accuracy_decimals);
-  return std::string(buf);
-}
-
 // --- Base64 helpers ---
 
 static constexpr const char *BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"

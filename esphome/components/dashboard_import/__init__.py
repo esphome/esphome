@@ -92,7 +92,6 @@ def import_config(
     """Materialise a dashboard-imported device's YAML on disk.
 
     Used by:
-    - esphome.dashboard (legacy dashboard)
     - device-builder (esphome/device-builder) — called from the
       ``devices/import`` WS handler to seed the YAML for an adopted
       factory firmware. Coordinate before changing the kwargs or the
