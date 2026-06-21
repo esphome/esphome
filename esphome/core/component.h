@@ -357,9 +357,9 @@ class Component {
   /// so once a flag is set, subsequent (potentially different) messages may be suppressed.
   bool set_status_flag_(uint8_t flag);
 
-  /** Set an interval function with a unique name. Empty name means no cancelling possible.
+  /** Set an interval function with a const char* name. Empty name means no cancelling possible.
    *
-   * This will call f every interval ms. Can be cancelled via CancelInterval().
+   * This will call f every interval ms. Can be cancelled via cancel_interval().
    * Similar to javascript's setInterval().
    *
    * IMPORTANT NOTE:
@@ -443,7 +443,7 @@ class Component {
   ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
   bool cancel_retry(uint32_t id);  // NOLINT
 
-  /** Set a timeout function with a unique name.
+  /** Set a timeout function with a const char* name.
    *
    * Similar to javascript's setTimeout(). Empty name means no cancelling possible.
    *

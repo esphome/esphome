@@ -384,8 +384,8 @@ class Scheduler {
   inline bool HOT names_match_static_(const char *name1, const char *name2) const {
     // Check pointer equality first (common for static strings), then string contents
     // The core ESPHome codebase uses static strings (const char*) for component names,
-    // making pointer comparison effective. The std::string overloads exist only for
-    // compatibility with external components but are rarely used in practice.
+    // making pointer comparison effective. The strcmp fallback covers distinct pointers
+    // with identical content (e.g. names built into separate static buffers).
     return (name1 != nullptr && name2 != nullptr) && ((name1 == name2) || (strcmp(name1, name2) == 0));
   }
 
