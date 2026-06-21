@@ -50,18 +50,6 @@ def is_remote_package(package_config: dict) -> bool:
     return CONF_URL in package_config
 
 
-def is_package_definition(value: object) -> bool:
-    """Returns True if the value looks like a package definition rather than a config fragment.
-
-    Package definitions are IncludeFile objects, git URL shorthand strings, or
-    remote package dicts (containing a ``url:`` key).  Config fragments are
-    plain dicts that represent component configuration.
-    """
-    return isinstance(value, (yaml_util.IncludeFile, str)) or (
-        isinstance(value, dict) and is_remote_package(value)
-    )
-
-
 def valid_package_contents(package_config: dict) -> dict:
     """Validate that a package looks like a plausible ESPHome config fragment.
 

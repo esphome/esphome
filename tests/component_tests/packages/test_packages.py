@@ -12,7 +12,6 @@ from esphome.components.packages import (
     _substitute_package_definition,
     _walk_packages,
     do_packages_pass,
-    is_package_definition,
     merge_packages,
     resolve_packages,
 )
@@ -87,44 +86,6 @@ def packages_pass(config):
     config = merge_packages(config)
     resolve_extend_remove(config)
     return config
-
-
-_INCLUDE_FILE = "INCLUDE_FILE"
-
-
-@pytest.mark.parametrize(
-    ("value", "expected"),
-    [
-        # IncludeFile objects are package definitions
-        (_INCLUDE_FILE, True),
-        # Git URL shorthand strings are package definitions
-        ("github://esphome/firmware/base.yaml@main", True),
-        # Remote package dicts (with url key) are package definitions
-        ({"url": "https://github.com/esphome/firmware", "file": "base.yaml"}, True),
-        # Plain config dicts are NOT package definitions (they are config fragments)
-        ({"wifi": {"ssid": "test"}}, False),
-        # None is not a package definition
-        (None, False),
-        # Lists are not package definitions
-        ([{"wifi": {"ssid": "test"}}], False),
-        # Empty dicts are not package definitions
-        ({}, False),
-    ],
-    ids=[
-        "include_file",
-        "git_shorthand",
-        "remote_package",
-        "config_fragment",
-        "none",
-        "list",
-        "empty_dict",
-    ],
-)
-def test_is_package_definition(value: object, expected: bool) -> None:
-    """Test that is_package_definition correctly identifies package definitions."""
-    if value is _INCLUDE_FILE:
-        value = MagicMock(spec=IncludeFile)
-    assert is_package_definition(value) is expected
 
 
 def test_package_unused(basic_esphome, basic_wifi) -> None:
