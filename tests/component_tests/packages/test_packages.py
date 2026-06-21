@@ -1108,6 +1108,20 @@ def test_invalid_package_contents_rejected(invalid_package: object) -> None:
         do_packages_pass(config)
 
 
+def test_single_package_fragment_form_rejected() -> None:
+    """The deprecated single-package form is removed and now raises.
+
+    Previously ``packages: !include some_package.yaml`` resolving to a bare config
+    fragment dict was silently wrapped and merged via the single-package fallback.
+    That form must now raise instead of being accepted.
+    """
+    config = {
+        CONF_PACKAGES: {CONF_WIFI: {CONF_SSID: "test", CONF_PASSWORD: "secret"}},
+    }
+    with pytest.raises(cv.Invalid):
+        do_packages_pass(config)
+
+
 def test_named_dict_with_include_files_no_false_deprecation_warning(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
