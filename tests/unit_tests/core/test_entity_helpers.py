@@ -175,7 +175,7 @@ def test_name_add_mac_suffix_behavior() -> None:
     """Test behavior related to name_add_mac_suffix.
 
     In C++, when name_add_mac_suffix is enabled and entity has no name,
-    get_object_id() returns str_sanitize(str_snake_case(App.get_friendly_name()))
+    write_object_id_to() returns str_sanitize(str_snake_case(App.get_friendly_name()))
     dynamically. Our function always returns the same result since we're
     calculating the base for duplicate tracking.
     """
