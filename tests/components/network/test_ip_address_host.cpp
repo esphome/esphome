@@ -191,6 +191,40 @@ TEST(IPAddressHost, MalformedIPv6YieldsEmptyAddress) {
 }
 
 // =========================================================================
+// is_valid() — parse success vs failure
+// =========================================================================
+
+TEST(IPAddressHost, ValidIPv4IsValid) {
+  IPAddress addr("192.168.1.1");
+  EXPECT_TRUE(addr.is_valid());
+}
+
+TEST(IPAddressHost, ValidIPv6IsValid) {
+  IPAddress addr("ff12::cafe");
+  EXPECT_TRUE(addr.is_valid());
+}
+
+TEST(IPAddressHost, MalformedIPv4NotValid) {
+  IPAddress addr("not-an-ip");
+  EXPECT_FALSE(addr.is_valid());
+}
+
+TEST(IPAddressHost, MalformedIPv6NotValid) {
+  IPAddress addr("gg::1");
+  EXPECT_FALSE(addr.is_valid());
+}
+
+TEST(IPAddressHost, DefaultConstructorIsValid) {
+  IPAddress addr;
+  EXPECT_TRUE(addr.is_valid());
+}
+
+TEST(IPAddressHost, OctetConstructorIsValid) {
+  IPAddress addr(192, 168, 1, 1);
+  EXPECT_TRUE(addr.is_valid());
+}
+
+// =========================================================================
 // Cross-family
 // =========================================================================
 
