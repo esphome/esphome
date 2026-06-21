@@ -31,6 +31,11 @@ static const char *const IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "
 
 inline bool bsec_has_input(uint32_t process_data, uint8_t input) { return (process_data & (1U << (input - 1))) != 0; }
 
+enum SampleRate {
+  SAMPLE_RATE_LP = 0,
+  SAMPLE_RATE_ULP = 1,
+};
+
 class BME690Component : public PollingComponent, public i2c::I2CDevice {
  public:
   explicit BME690Component(uint32_t update_interval = 5000) : PollingComponent(update_interval) {}
@@ -47,6 +52,7 @@ class BME690Component : public PollingComponent, public i2c::I2CDevice {
   void set_gas_percentage_sensor(sensor::Sensor *sensor) { gas_percentage_sensor = sensor; }
   void set_comp_temperature_sensor(sensor::Sensor *sensor) { comp_temperature_sensor = sensor; }
   void set_comp_humidity_sensor(sensor::Sensor *sensor) { comp_humidity_sensor = sensor; }
+  void set_sample_rate(SampleRate sample_rate) { this->sample_rate_ = sample_rate; }
   void set_state_save_interval(uint32_t interval) { state_save_interval_ms_ = interval; }
   void set_state_preference_hash(uint32_t hash) { this->state_preference_hash_ = hash; }
 #ifdef USE_TEXT_SENSOR
@@ -89,13 +95,14 @@ class BME690Component : public PollingComponent, public i2c::I2CDevice {
   bool load_bsec_state_();
   void save_bsec_state_();
   int64_t get_time_ns_();
+  float get_sample_rate_() const;
 
   struct bme69x_dev dev_ {};
   struct bme69x_conf conf_ {};
   struct bme69x_heatr_conf heatr_conf_ {};
   std::vector<uint8_t> bsec_instance_;
   std::vector<uint8_t> bsec_work_buffer_;
-  float sample_rate_{BSEC_SAMPLE_RATE_ULP};
+  SampleRate sample_rate_{SAMPLE_RATE_LP};
   float ext_temp_offset_{0.0f};
   bool bsec_ready_{false};
   int64_t next_call_ns_{0};

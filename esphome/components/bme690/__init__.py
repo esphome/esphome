@@ -6,7 +6,7 @@ from esphome import external_files
 import esphome.codegen as cg
 from esphome.components import esp32, i2c
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, Framework
+from esphome.const import CONF_ID, CONF_SAMPLE_RATE, Framework
 from esphome.core import CORE
 
 DEPENDENCIES = ["i2c"]
@@ -26,6 +26,12 @@ bme690_ns = cg.esphome_ns.namespace("bme690")
 BME690Component = bme690_ns.class_(
     "BME690Component", cg.PollingComponent, i2c.I2CDevice
 )
+
+SampleRate = bme690_ns.enum("SampleRate")
+SAMPLE_RATE_OPTIONS = {
+    "LP": SampleRate.SAMPLE_RATE_LP,
+    "ULP": SampleRate.SAMPLE_RATE_ULP,
+}
 
 
 def _compute_local_file_path(url: str) -> Path:
@@ -57,6 +63,9 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(BME690Component),
             cv.Required(CONF_BSEC_LIBRARY): cv.Any(cv.file_, cv.url),
+            cv.Optional(CONF_SAMPLE_RATE, default="LP"): cv.enum(
+                SAMPLE_RATE_OPTIONS, upper=True
+            ),
             cv.Optional(
                 CONF_STATE_SAVE_INTERVAL, default="6hours"
             ): cv.positive_time_period_minutes,
@@ -84,6 +93,7 @@ async def to_code(config):
         value = value.encode()
     state_preference_hash = int(hashlib.md5(value).hexdigest()[:8], 16)
     cg.add(var.set_state_preference_hash(state_preference_hash))
+    cg.add(var.set_sample_rate(config[CONF_SAMPLE_RATE]))
 
     lib_path = _resolve_bsec_library(config[CONF_BSEC_LIBRARY])
     esp32.add_extra_build_file("libalgobsec.a", lib_path)
