@@ -84,6 +84,8 @@ def _read_bsec_config(path: Path) -> list[int]:
     # Bosch ships BSEC3 configs as binary .config files. Keep support for
     # comma-separated byte lists too, matching the BSEC2 component convention.
     if b"\0" in data:
+        if len(data) >= 4 and int.from_bytes(data[:4], "little") == len(data) - 4:
+            data = data[4:]
         return list(data)
 
     try:
