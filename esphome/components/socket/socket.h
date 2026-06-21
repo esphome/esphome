@@ -157,7 +157,8 @@ bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_ind
 /// Configure the outgoing IPv6 multicast interface on the given socket.
 /// @param sock        The socket to configure
 /// @param if_index_in Non-zero: use this interface index directly. Zero (default): probe for the first eligible
-/// interface.
+/// interface via foreach_eligible_ipv6_if(). On single-interface devices (typical for ESP32/ESP8266) this is always
+/// correct. On multi-homed hosts the "first eligible" interface is arbitrary; pass the desired index explicitly.
 /// @return true on success, false on failure (errno set)
 bool set_ipv6_multicast_if(Socket *sock, uint32_t if_index_in = 0);
 #endif  // USE_NETWORK_IPV6
