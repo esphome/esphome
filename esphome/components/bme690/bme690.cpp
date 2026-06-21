@@ -159,7 +159,12 @@ void BME690Component::update() {
     this->next_call_ns_ = sensor_settings.next_call;
   } else {
     if (!this->bsec_fallback_warning_logged_) {
-      ESP_LOGW(TAG, "BSEC is not ready; publishing raw sensor values only.");
+      if (this->bsec_setup_failed_step_ != nullptr) {
+        ESP_LOGW(TAG, "BSEC setup failed at %s: %d; publishing raw sensor values only.",
+                 this->bsec_setup_failed_step_, static_cast<int>(this->bsec_setup_failed_result_));
+      } else {
+        ESP_LOGW(TAG, "BSEC is not ready; publishing raw sensor values only.");
+      }
       this->bsec_fallback_warning_logged_ = true;
     }
     sensor_settings.op_mode = BME69X_FORCED_MODE;
@@ -268,6 +273,8 @@ bool BME690Component::configure_bsec_() {
 
   auto bsec_rslt = bsec_init(this->bsec_instance_.data());
   if (!this->check_bsec_status_("bsec_init", bsec_rslt)) {
+    this->bsec_setup_failed_step_ = "bsec_init";
+    this->bsec_setup_failed_result_ = bsec_rslt;
     return false;
   }
   this->log_bsec_version_();
@@ -277,6 +284,8 @@ bool BME690Component::configure_bsec_() {
                              this->get_bsec_configuration_length_(), this->bsec_work_buffer_.data(),
                              this->bsec_work_buffer_.size());
   if (!this->check_bsec_status_("bsec_set_configuration", bsec_rslt)) {
+    this->bsec_setup_failed_step_ = "bsec_set_configuration";
+    this->bsec_setup_failed_result_ = bsec_rslt;
     return false;
   }
 
@@ -317,6 +326,8 @@ bool BME690Component::configure_bsec_() {
   bsec_rslt = bsec_update_subscription(this->bsec_instance_.data(), requested_virtual_sensors, n_requested,
                                        required_sensor_settings, &n_required);
   if (!this->check_bsec_status_("bsec_update_subscription", bsec_rslt)) {
+    this->bsec_setup_failed_step_ = "bsec_update_subscription";
+    this->bsec_setup_failed_result_ = bsec_rslt;
     return false;
   }
 
