@@ -24,6 +24,7 @@ from esphome.__main__ import (
     _make_crystal_freq_callback,
     _redact_with_legacy_fallback,
     _resolve_network_devices,
+    _unresolved_default_error,
     _validate_bootloader_binary,
     _validate_partition_table_binary,
     choose_upload_log_host,
@@ -713,9 +714,7 @@ def test_choose_upload_log_host_with_ota_device_with_api_config() -> None:
     """Test OTA device when API is configured (no upload without OTA in config)."""
     setup_core(config={CONF_API: {}}, address="192.168.1.100")
 
-    with pytest.raises(
-        EsphomeError, match="All specified devices .* could not be resolved"
-    ):
+    with pytest.raises(EsphomeError, match="no 'ota:' platform is configured"):
         choose_upload_log_host(
             default="OTA",
             check_default=None,
@@ -733,6 +732,57 @@ def test_choose_upload_log_host_with_ota_device_with_api_config_logging() -> Non
         purpose=Purpose.LOGGING,
     )
     assert result == ["192.168.1.100"]
+
+
+def test_choose_upload_log_host_logging_without_api_reports_missing_api() -> None:
+    """A resolvable device with only ota: fails logs with a missing-api message."""
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, address="192.168.1.100"
+    )
+
+    with pytest.raises(EsphomeError, match="no 'api:' component is configured"):
+        choose_upload_log_host(
+            default="OTA",
+            check_default=None,
+            purpose=Purpose.LOGGING,
+        )
+
+
+def test_choose_upload_log_host_logging_no_transport_reports_missing_api() -> None:
+    """A resolvable device with neither api: nor MQTT logging fails clearly."""
+    setup_core(address="192.168.1.100")
+
+    with pytest.raises(EsphomeError, match="no 'api:' component is configured"):
+        choose_upload_log_host(
+            default="OTA",
+            check_default=None,
+            purpose=Purpose.LOGGING,
+        )
+
+
+def test_unresolved_default_error_unresolvable_keeps_dashboard_hint() -> None:
+    """A .local host with mDNS disabled and no cache keeps the dashboard hint."""
+    setup_core(
+        config={CONF_API: {}, CONF_MDNS: {CONF_DISABLED: True}},
+        address="esp32-a1s.local",
+    )
+    CORE.dashboard = True
+
+    msg = _unresolved_default_error(Purpose.LOGGING, ["OTA"])
+    assert "could not be resolved" in msg
+    assert "set 'use_address'" in msg
+
+
+def test_unresolved_default_error_upload_with_ota_is_generic() -> None:
+    """With ota: present the upload error stays generic, not transport-specific."""
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, address="192.168.1.100"
+    )
+    CORE.dashboard = False
+
+    msg = _unresolved_default_error(Purpose.UPLOADING, ["OTA"])
+    assert "could not be resolved" in msg
+    assert "try --device <IP>" in msg
 
 
 @pytest.mark.usefixtures("mock_has_mqtt_logging")
