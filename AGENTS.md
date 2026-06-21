@@ -35,7 +35,6 @@ This document provides essential context for AI models interacting with this pro
     2.  **Code Generation** (`esphome/codegen.py`, `esphome/cpp_generator.py`): Manages Python to C++ code generation, template processing, and build flag management.
     3.  **Component System** (`esphome/components/`): Contains modular hardware and software components with platform-specific implementations and dependency management.
     4.  **Core Framework** (`esphome/core/`): Manages the application lifecycle, hardware abstraction, and component registration.
-    5.  **Dashboard** (`esphome/dashboard/`): A web-based interface for device configuration, management, and OTA updates.
 
 *   **Platform Support:**
     1.  **ESP32** (`components/esp32/`): Espressif ESP32 family. Supports multiple variants (Original, C2, C3, C5, C6, H2, P4, S2, S3) with ESP-IDF framework. Arduino framework supports only a subset of the variants (Original, C3, S2, S3).
@@ -456,7 +455,6 @@ This document provides essential context for AI models interacting with this pro
     *   **Debug Tools:**
         - `esphome config <file>.yaml` to validate configuration.
         - `esphome compile <file>.yaml` to compile without uploading.
-        - Check the Dashboard for real-time logs.
         - Use component-specific debug logging.
     *   **Common Issues:**
         - **Import Errors**: Check component dependencies and `PYTHONPATH`.
@@ -658,7 +656,7 @@ This document provides essential context for AI models interacting with this pro
         If you need a real-world example, search for components that use `@dataclass` with `CORE.data` in the codebase. Note: Some components may use `TypedDict` for dictionary-based storage; both patterns are acceptable depending on your needs.
 
         **Why this matters:**
-        - Module-level globals persist between compilation runs if the dashboard doesn't fork/exec
+        - Module-level globals persist between compilation runs if the host process (e.g. device-builder) doesn't fork/exec
         - `CORE.data` automatically clears between runs
         - Namespacing under `DOMAIN` prevents key collisions between components
         - `@dataclass` provides type safety and cleaner attribute access
