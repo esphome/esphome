@@ -130,6 +130,7 @@ void BME690Component::dump_config() {
 #ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "IAQ Accuracy", this->iaq_accuracy_text_sensor_);
 #endif
+  ESP_LOGCONFIG(TAG, "  Sample Rate: %s", this->sample_rate_ == SAMPLE_RATE_ULP ? "ULP" : "LP");
   ESP_LOGCONFIG(TAG, "  State Save Interval: %ums", this->state_save_interval_ms_);
   LOG_UPDATE_INTERVAL(this);
 }
@@ -278,10 +279,11 @@ bool BME690Component::configure_bsec_() {
 
   bsec_sensor_configuration_t requested_virtual_sensors[14] = {};
   uint8_t n_requested = 0;
+  const float sample_rate = this->get_sample_rate_();
 
   auto add_request = [&](uint8_t sensor_id) {
     requested_virtual_sensors[n_requested].sensor_id = sensor_id;
-    requested_virtual_sensors[n_requested].sample_rate = this->sample_rate_;
+    requested_virtual_sensors[n_requested].sample_rate = sample_rate;
     n_requested++;
   };
 
@@ -312,8 +314,12 @@ bool BME690Component::configure_bsec_() {
   }
 
   this->bsec_ready_ = true;
-  ESP_LOGI(TAG, "BSEC ready (sample rate %.3f Hz)", this->sample_rate_);
+  ESP_LOGI(TAG, "BSEC ready (sample rate %.3f Hz)", sample_rate);
   return true;
+}
+
+float BME690Component::get_sample_rate_() const {
+  return this->sample_rate_ == SAMPLE_RATE_ULP ? BSEC_SAMPLE_RATE_ULP : BSEC_SAMPLE_RATE_LP;
 }
 
 bool BME690Component::push_inputs_to_bsec_(const struct bme69x_data &data, const bsec_bme_settings_t &settings,
