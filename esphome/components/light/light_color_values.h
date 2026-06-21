@@ -276,7 +276,7 @@ class LightColorValues {
   void set_state(bool state) { this->state_ = state ? 1.0f : 0.0f; }
 
   /// Get the brightness property of these light color values. In range 0.0 to 1.0
-  float get_brightness() const { return this->brightness_; }
+  float get_brightness() const { return this->is_on() ? this->brightness_ : 0.0f; }
   /// Set the brightness property of these light color values. In range 0.0 to 1.0
   void set_brightness(float brightness) { this->brightness_ = clamp_unit_float(brightness); }
 
