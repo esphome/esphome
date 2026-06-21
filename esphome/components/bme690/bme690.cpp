@@ -1,6 +1,7 @@
 #include "bme690.h"
 
 #include <algorithm>
+#include <cinttypes>
 
 #include "esphome/core/log.h"
 
@@ -132,7 +133,7 @@ void BME690Component::dump_config() {
 #endif
   ESP_LOGCONFIG(TAG, "  Sample Rate: %s", this->sample_rate_ == SAMPLE_RATE_ULP ? "ULP" : "LP");
   ESP_LOGCONFIG(TAG, "  Temperature Offset: %.2f°C", this->ext_temp_offset_);
-  ESP_LOGCONFIG(TAG, "  State Save Interval: %ums", this->state_save_interval_ms_);
+  ESP_LOGCONFIG(TAG, "  State Save Interval: %" PRIu32 "ms", this->state_save_interval_ms_);
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -481,7 +482,7 @@ bool BME690Component::load_bsec_state_() {
     return false;
   }
 
-  ESP_LOGI(TAG, "Restored BSEC state (%u bytes)", len);
+  ESP_LOGI(TAG, "Restored BSEC state (%" PRIu32 " bytes)", len);
   return true;
 }
 
@@ -516,7 +517,7 @@ void BME690Component::save_bsec_state_() {
   if (this->pref_.save(&buf)) {
     this->last_state_save_ms_ = now;
     this->state_dirty_ = false;
-    ESP_LOGI(TAG, "Saved BSEC state (%u bytes)", state_len);
+    ESP_LOGI(TAG, "Saved BSEC state (%" PRIu32 " bytes)", state_len);
   } else {
     ESP_LOGW(TAG, "Failed to save BSEC state");
   }
