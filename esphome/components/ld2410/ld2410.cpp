@@ -165,6 +165,10 @@ static constexpr uint8_t BG_CORRECTION_COMPLETED = 0x02;
 // used to cancel the poll / safety timers.
 static constexpr uint32_t BG_CORRECTION_POLL_INTERVAL_MS = 1000;
 static constexpr uint32_t BG_CORRECTION_SAFETY_MARGIN_MS = 3000;
+// After accepting 0x0B the module waits a fixed ~10 s warm-up before it begins
+// measuring, so the safety timeout must allow for it on top of the requested window;
+// otherwise it fires before the module can ever report completion.
+static constexpr uint32_t BG_CORRECTION_WARMUP_MS = 10000;
 static const char *const BG_CORRECTION_POLL = "ld2410_bg_poll";
 static const char *const BG_CORRECTION_SAFETY = "ld2410_bg_safety";
 // Commands values
@@ -174,6 +178,11 @@ static constexpr uint8_t CMD_DURATION_VALUE = 0x02;
 // Bitmasks for target states
 static constexpr uint8_t MOVE_BITMASK = 0x01;
 static constexpr uint8_t STILL_BITMASK = 0x02;
+// While background correction runs, the module repurposes the target-state byte to
+// report calibration progress (0x04 running, 0x05 success, 0x06 failure) instead of
+// real presence. Normal presence only uses 0x00-0x03, so any value >= this is a
+// calibration status frame and must not drive the target sensors.
+static constexpr uint8_t TARGET_STATE_CALIBRATING_MIN = 0x04;
 // Header & Footer size
 static constexpr uint8_t HEADER_FOOTER_SIZE = 4;
 // Command Header & Footer
@@ -354,15 +363,20 @@ void LD2410Component::handle_periodic_data_() {
     0x02 = Still targets
     0x03 = Moving+Still targets
   */
-  char target_state = this->buffer_data_[TARGET_STATES];
-  if (this->target_binary_sensor_ != nullptr) {
-    this->target_binary_sensor_->publish_state(target_state != 0x00);
-  }
-  if (this->moving_target_binary_sensor_ != nullptr) {
-    this->moving_target_binary_sensor_->publish_state(target_state & MOVE_BITMASK);
-  }
-  if (this->still_target_binary_sensor_ != nullptr) {
-    this->still_target_binary_sensor_->publish_state(target_state & STILL_BITMASK);
+  uint8_t target_state = this->buffer_data_[TARGET_STATES];
+  // During background correction the module reports calibration progress in this byte
+  // (>= 0x04) rather than real presence. Skip those frames so an empty room being
+  // calibrated isn't published as occupied and doesn't trigger presence automations.
+  if (target_state < TARGET_STATE_CALIBRATING_MIN) {
+    if (this->target_binary_sensor_ != nullptr) {
+      this->target_binary_sensor_->publish_state(target_state != 0x00);
+    }
+    if (this->moving_target_binary_sensor_ != nullptr) {
+      this->moving_target_binary_sensor_->publish_state(target_state & MOVE_BITMASK);
+    }
+    if (this->still_target_binary_sensor_ != nullptr) {
+      this->still_target_binary_sensor_->publish_state(target_state & STILL_BITMASK);
+    }
   }
 #endif
   /*
@@ -739,9 +753,10 @@ void LD2410Component::start_background_correction() {
                      [this]() { this->query_background_correction_(); });
   // Safety net: clear the indicator even if completion is never reported (e.g.
   // firmware predating 0x1B), so it can never latch on forever.
-  this->set_timeout(BG_CORRECTION_SAFETY,
-                    (uint32_t) this->bg_correction_duration_ * 1000 + BG_CORRECTION_SAFETY_MARGIN_MS,
-                    [this]() { this->finish_background_correction_(false); });
+  this->set_timeout(
+      BG_CORRECTION_SAFETY,
+      (uint32_t) this->bg_correction_duration_ * 1000 + BG_CORRECTION_WARMUP_MS + BG_CORRECTION_SAFETY_MARGIN_MS,
+      [this]() { this->finish_background_correction_(false); });
 }
 
 void LD2410Component::query_background_correction_() {
