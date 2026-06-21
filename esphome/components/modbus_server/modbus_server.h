@@ -52,32 +52,34 @@ class ServerRegister {
     };
   }
 
-  // Formats a raw value into a string representation based on the value type for debugging
-  std::string format_value(int64_t value) const {
-    // max 44: float with %.1f can be up to 42 chars (3.4e38 → 39 integer digits + sign + decimal + 1 digit)
-    // plus null terminator = 43, rounded to 44 for 4-byte alignment
-    char buf[44];
+  // max 44: float with %.1f can be up to 42 chars (3.4e38 → 39 integer digits + sign + decimal + 1 digit)
+  // plus null terminator = 43, rounded to 44 for 4-byte alignment
+  static constexpr size_t FORMAT_VALUE_BUF_SIZE = 44;
+
+  // Formats a raw value into a caller-provided buffer based on the value type for debugging.
+  // Returns buf for convenience.
+  const char *format_value(int64_t value, char *buf, size_t buf_size) const {
     switch (this->value_type) {
       case SensorValueType::U_WORD:
       case SensorValueType::U_DWORD:
       case SensorValueType::U_DWORD_R:
       case SensorValueType::U_QWORD:
       case SensorValueType::U_QWORD_R:
-        buf_append_printf(buf, sizeof(buf), 0, "%" PRIu64, static_cast<uint64_t>(value));
+        buf_append_printf(buf, buf_size, 0, "%" PRIu64, static_cast<uint64_t>(value));
         return buf;
       case SensorValueType::S_WORD:
       case SensorValueType::S_DWORD:
       case SensorValueType::S_DWORD_R:
       case SensorValueType::S_QWORD:
       case SensorValueType::S_QWORD_R:
-        buf_append_printf(buf, sizeof(buf), 0, "%" PRId64, value);
+        buf_append_printf(buf, buf_size, 0, "%" PRId64, value);
         return buf;
       case SensorValueType::FP32_R:
       case SensorValueType::FP32:
-        buf_append_printf(buf, sizeof(buf), 0, "%.1f", bit_cast<float>(static_cast<uint32_t>(value)));
+        buf_append_printf(buf, buf_size, 0, "%.1f", bit_cast<float>(static_cast<uint32_t>(value)));
         return buf;
       default:
-        buf_append_printf(buf, sizeof(buf), 0, "%" PRId64, value);
+        buf_append_printf(buf, buf_size, 0, "%" PRId64, value);
         return buf;
     }
   }
@@ -89,12 +91,10 @@ class ServerRegister {
   WriteLambda write_lambda;
 };
 
-class ModbusServer : public Component, public modbus::ModbusDevice {
+class ModbusServer : public Component, public modbus::ModbusServerDevice {
  public:
   void dump_config() override;
 
-  /// Not used for ModbusServer.
-  void on_modbus_data(const std::vector<uint8_t> &data) override{};
   /// Registers a server register with the controller. Called by esphomes code generator
   void add_server_register(ServerRegister *server_register) { server_registers_.push_back(server_register); }
   /// called when a modbus request (function code 0x03 or 0x04) was parsed without errors
