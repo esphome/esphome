@@ -80,7 +80,7 @@ ISRInternalGPIOPin ZephyrGPIOPin::to_isr() const {
 }
 
 void ZephyrGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const {
-  if (this->gpio_ == nullptr || !device_is_ready(this->gpio_)) {
+  if (!device_is_ready(this->gpio_)) {
     ESP_LOGE(TAG, "Cannot attach interrupt: GPIO device not ready");
     return;
   }
