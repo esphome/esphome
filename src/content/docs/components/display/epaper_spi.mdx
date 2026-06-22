@@ -58,10 +58,11 @@ the pins used to interface to the display to be specified.
 These models correspond to displays integrated with a microcontroller, and have a full configuration predefined, so at
 a minimum only the model name need be configured. Other options can be overridden in the configuration if needed.
 
-| Model name             | Manufacturer | Product Description                                                                                                          |
-| ---------------------- |--------------| ---------------------------------------------------------------------------------------------------------------------------- |
-| Seeed-reTerminal-E1002 | Seeed Studio | [https://www.seeedstudio.com/reTerminal-E1002-p-6533.html](https://www.seeedstudio.com/reTerminal-E1002-p-6533.html)                                                                   |
-| Seeed-ee04-mono-4.26   | Seeed Studio | Seeed EE04 board with Waveshare 4.26" mono epaper. [https://www.seeedstudio.com/XIAO-ePaper-Display-Board-EE04-p-6560.html](https://www.seeedstudio.com/XIAO-ePaper-Display-Board-EE04-p-6560.html)  |
+| Model name              | Manufacturer | Product Description                                                                                                          |
+|-------------------------|--------------|------------------------------------------------------------------------------------------------------------------------------|
+| Seeed-ee04-mono-4.26    | Seeed Studio | Seeed EE04 board with Waveshare 4.26" mono epaper. [https://www.seeedstudio.com/XIAO-ePaper-Display-Board-EE04-p-6560.html](https://www.seeedstudio.com/XIAO-ePaper-Display-Board-EE04-p-6560.html)  |
+| Seeed-reTerminal-E1002  | Seeed Studio | [https://www.seeedstudio.com/reTerminal-E1002-p-6533.html](https://www.seeedstudio.com/reTerminal-E1002-p-6533.html)         |
+| Seeed-reTerminal-Sticky | Seeed Studio | [https://www.seeedstudio.com/sticky/](https://www.seeedstudio.com/sticky/)                                                                 |
 
 ## Configuration variables
 
@@ -79,6 +80,10 @@ but can be overridden if needed.
 
 - **reset_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The RESET pin, if used.
   Make sure you pull this pin high (by connecting it to 3.3V with a resistor) if not connected to a GPIO pin.
+- **enable_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): An optional pin to enable the
+  display, if required. A list of pins can be provided for displays that require multiple enable pins.
+  A full pin configuration may be provided to set the pin mode and inverted property if required.
+  The pin or pins will be driven high (low if inverted) prior to display initialisation.
 - **dimensions** (**Required**, dict): Dimensions of the screen, specified either as *width* **x** *height* (e.g `320x240`  )
   or with separate config keys. For integrated boards with full pre-defined configuration this is optional and will be preset by
   the model selected. The dimensions are specified in pixels, and the width and height must be greater than 0.
