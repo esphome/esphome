@@ -635,7 +635,6 @@ void Tuya::send_gmt_time_() {
     uint8_t hour = now.hour;
     uint8_t minute = now.minute;
     uint8_t second = now.second;
-    ESP_LOGD(TAG, "Sending utc time");
     payload = std::vector<uint8_t>{0x01, year, month, day_of_month, hour, minute, second};
   } else {
     // By spec we need to notify MCU that the time was not obtained if this is a response to a query
