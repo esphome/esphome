@@ -218,8 +218,11 @@ LightColorValues LightCall::validate_() {
     this->state_ = false;
     this->set_flag_(FLAG_HAS_STATE);
     if (color_mode & ColorCapability::BRIGHTNESS) {
-      // Reset brightness so the light has nonzero brightness when turned back on.
-      this->brightness_ = 1.0f;
+      // If an explicit turn-off, reset brightness so the light has nonzero brightness when turned back on.
+      // otherwise honor the brightness request
+      if (explicit_turn_off_request) {
+        this->brightness_ = 1.0f;
+      }
     } else {
       // Light doesn't support brightness; clear the flag to avoid a spurious
       // "brightness not supported" warning during capability validation.
