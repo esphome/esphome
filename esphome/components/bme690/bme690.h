@@ -100,6 +100,7 @@ class BME690Component : public PollingComponent, public i2c::I2CDevice {
   bool load_bsec_state_();
   void save_bsec_state_();
   int64_t get_time_ns_();
+  bool is_bsec_3_3_or_newer_() const;
   float get_sample_rate_() const;
   const uint8_t *get_bsec_configuration_() const;
   uint32_t get_bsec_configuration_length_() const;
@@ -117,6 +118,8 @@ class BME690Component : public PollingComponent, public i2c::I2CDevice {
   bool bsec_fallback_warning_logged_{false};
   const char *bsec_setup_failed_step_{nullptr};
   bsec_library_return_t bsec_setup_failed_result_{BSEC_OK};
+  bsec_version_t bsec_version_{};
+  bool bsec_version_known_{false};
   int64_t next_call_ns_{0};
   ESPPreferenceObject pref_;
   uint32_t last_state_save_ms_{0};

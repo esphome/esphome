@@ -297,6 +297,7 @@ bool BME690Component::configure_bsec_() {
   bsec_sensor_configuration_t requested_virtual_sensors[14] = {};
   uint8_t n_requested = 0;
   const float sample_rate = this->get_sample_rate_();
+  const bool bsec_3_3_or_newer = this->is_bsec_3_3_or_newer_();
 
   auto add_request = [&](uint8_t sensor_id) {
     requested_virtual_sensors[n_requested].sensor_id = sensor_id;
@@ -316,7 +317,15 @@ bool BME690Component::configure_bsec_() {
   add_request(BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE);
   add_request(BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY);
   add_request(BSEC_OUTPUT_CO2_EQUIVALENT);
-  add_request(BSEC_OUTPUT_BREATH_VOC_EQUIVALENT);
+  if (bsec_3_3_or_newer) {
+    // BSEC 3.3 disables BREATH_VOC_EQUIVALENT for BME690. TVOC is LP-only and is currently not exposed
+    // because it uses ppb rather than the Breath VOC sensor's ppm unit.
+    if (this->sample_rate_ == SAMPLE_RATE_LP) {
+      add_request(BSEC_OUTPUT_TVOC_EQUIVALENT);
+    }
+  } else {
+    add_request(BSEC_OUTPUT_BREATH_VOC_EQUIVALENT);
+  }
   add_request(BSEC_OUTPUT_GAS_PERCENTAGE);
   add_request(BSEC_OUTPUT_STABILIZATION_STATUS);
   add_request(BSEC_OUTPUT_RUN_IN_STATUS);
@@ -458,10 +467,20 @@ void BME690Component::log_bsec_version_() {
   bsec_version_t ver{};
   auto rslt = bsec_get_version(this->bsec_instance_.data(), &ver);
   if (rslt == BSEC_OK) {
+    this->bsec_version_ = ver;
+    this->bsec_version_known_ = true;
     ESP_LOGI(TAG, "BSEC version %u.%u.%u.%u", ver.major, ver.minor, ver.major_bugfix, ver.minor_bugfix);
   } else {
+    this->bsec_version_known_ = false;
     ESP_LOGW(TAG, "bsec_get_version failed: %d", static_cast<int>(rslt));
   }
+}
+
+bool BME690Component::is_bsec_3_3_or_newer_() const {
+  if (!this->bsec_version_known_) {
+    return false;
+  }
+  return this->bsec_version_.major > 3 || (this->bsec_version_.major == 3 && this->bsec_version_.minor >= 3);
 }
 
 bool BME690Component::load_bsec_state_() {
