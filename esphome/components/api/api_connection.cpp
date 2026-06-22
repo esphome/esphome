@@ -375,7 +375,7 @@ void APIConnection::finalize_iterator_sync_() {
 
 void APIConnection::process_iterator_batch_(ComponentIterator &iterator) {
   size_t initial_size = this->deferred_batch_.size();
-  size_t max_batch = this->get_max_batch_size_();
+  size_t max_batch = MAX_INITIAL_PER_BATCH;
   while (!iterator.completed() && (this->deferred_batch_.size() - initial_size) < max_batch) {
     iterator.advance();
   }
@@ -417,16 +417,6 @@ uint16_t APIConnection::fill_and_encode_entity_info(EntityBase *entity, InfoResp
                                                     APIConnection *conn, uint32_t remaining_size) {
   // Set common fields that are shared by all entity types
   msg.key = entity->get_object_id_hash();
-
-  // API 1.14+ clients compute object_id client-side from the entity name
-  // For older clients, we must send object_id for backward compatibility
-  // See: https://github.com/esphome/backlog/issues/76
-  // TODO: Remove this backward compat code before 2026.7.0 - all clients should support API 1.14 by then
-  // Buffer must remain in scope until encode_to_buffer is called
-  char object_id_buf[OBJECT_ID_MAX_LEN];
-  if (!conn->client_supports_api_version(1, 14)) {
-    msg.object_id = entity->get_object_id_to(object_id_buf);
-  }
 
   if (entity->has_own_name()) {
     msg.name = entity->get_name();

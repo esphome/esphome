@@ -104,23 +104,26 @@ def _set_stream_limits(config):
     # stream it accepts is 16-bit (see start_i2s_driver); the other variants handle 8-bit.
     min_bits_per_sample = 16 if esp32.get_esp32_variant() == esp32.VARIANT_ESP32 else 8
 
+    # The configured bits per sample sets the I2S slot width, but the speaker narrows wider streams down to it
+    # in place before clocking them out (see start_i2s_driver). Advertise up to 32-bit so those wider streams
+    # are accepted rather than forcing an upstream conversion.
+    max_bits_per_sample = 32
+
     if config[CONF_I2S_MODE] == CONF_PRIMARY:
-        # Primary mode can reconfigure the bus to the incoming sample rate and channel count, but the
-        # configured bits per sample is a hard ceiling: the speaker rejects any stream that exceeds the
-        # slot bit width it was set up with (see start_i2s_driver), so advertise that as the maximum.
+        # Primary mode can reconfigure the bus to the incoming sample rate and channel count.
         audio.set_stream_limits(
             min_bits_per_sample=min_bits_per_sample,
-            max_bits_per_sample=config[CONF_BITS_PER_SAMPLE],
+            max_bits_per_sample=max_bits_per_sample,
             min_channels=1,
             max_channels=2,
             min_sample_rate=16000,
             max_sample_rate=48000,
         )(config)
     else:
-        # Secondary mode has unmodifiable max bits per sample and min/max sample rates
+        # Secondary mode has unmodifiable min/max sample rates
         audio.set_stream_limits(
             min_bits_per_sample=min_bits_per_sample,
-            max_bits_per_sample=config[CONF_BITS_PER_SAMPLE],
+            max_bits_per_sample=max_bits_per_sample,
             min_channels=1,
             max_channels=2,
             min_sample_rate=config.get(CONF_SAMPLE_RATE),
