@@ -14,7 +14,7 @@ namespace esphome::font {
 
 class Font;
 
-class Glyph {
+class Glyph final {
  public:
   constexpr Glyph(uint32_t code_point, const uint8_t *data, int advance, int offset_x, int offset_y, int width,
                   int height)
@@ -37,7 +37,7 @@ class Glyph {
   int height;
 };
 
-class Font
+class Font final
 #ifdef USE_DISPLAY
     : public display::BaseFont
 #endif

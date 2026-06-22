@@ -16,7 +16,7 @@ enum ES7210BitsPerSample : uint8_t {
   ES7210_BITS_PER_SAMPLE_32 = 32,
 };
 
-class ES7210 : public audio_adc::AudioAdc, public Component, public i2c::I2CDevice {
+class ES7210 final : public audio_adc::AudioAdc, public Component, public i2c::I2CDevice {
   /* Class for configuring an ES7210 ADC for microphone input.
    * Based on code from:
    * - https://github.com/espressif/esp-bsp/ (accessed 20241219)
