@@ -420,7 +420,7 @@ bsec_library_return_t bsec_get_state(void *inst, uint8_t state_set_id, uint8_t *
  *
  * @return Zero when successful, otherwise an error code
  */
-bsec_library_return_t bsec_sensor_control(void *inst, const int64_t time_stamp, bsec_bme_settings_t *sensor_settings);
+bsec_library_return_t bsec_sensor_control(void *inst, int64_t time_stamp, bsec_bme_settings_t *sensor_settings);
 
 /*@}*/  // BSEC Interface
 
