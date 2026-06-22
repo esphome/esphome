@@ -41,7 +41,9 @@ void ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(ezb_bdb_comm_mode_mask_
     global_zigbee->set_timeout("zb_init", 10, [mode]() { ZigbeeComponent::esp_zigbee_alarm_bdb_commissioning(mode); });
     return;
   }
-  (void) ezb_bdb_start_top_level_commissioning(mode);
+  if (ezb_bdb_start_top_level_commissioning(mode) != EZB_ERR_NONE) {
+    ESP_LOGE(TAG, "Start top level commissioning failed!");
+  }
   esp_zigbee_lock_release();
 }
 
@@ -136,7 +138,7 @@ static void zb_action_handler(ezb_zcl_core_action_callback_id_t callback_id, voi
       ESP_LOGD(TAG, "Received ZCL Default Response: 0x%02x", default_rsp->in.status_code);
     } break;
     default:
-      ESP_LOGD(TAG, "Receive Zigbee action(0x%04x) callback", callback_id);
+      ESP_LOGD(TAG, "Receive Zigbee action(0x%04x) callback", static_cast<unsigned>(callback_id));
       break;
   }
 }
