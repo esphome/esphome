@@ -336,19 +336,17 @@ void ModbusServerHub::process_modbus_server_frame(uint8_t address, uint8_t funct
 
 void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data,
                                                    uint16_t len) {
-
   for (auto *device : this->devices_) {
     if (device->get_address() == address) {
       ModbusServerResponse response;
 
       if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
           static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_INPUT_REGISTERS) {
-        response =
-            device->on_modbus_read_registers(function_code, helpers::get_data<uint16_t>(data, 0),
-                                         helpers::get_data<uint16_t>(data, 2));
+        response = device->on_modbus_read_registers(function_code, helpers::get_data<uint16_t>(data, 0),
+                                                    helpers::get_data<uint16_t>(data, 2));
       } else if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
                  static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
-        response = device->on_modbus_write_registers(function_code, std::vector<uint8_t>(data, data + len));
+        response = device->on_modbus_write_registers(function_code, data, len);
       } else {
         ESP_LOGW(TAG, "Unsupported function code %" PRIu8, function_code);
         this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
@@ -357,7 +355,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       if (static_cast<uint8_t>(response.exception)) {
         this->send_exception_(address, function_code, response.exception);
       } else {
-        this->send_response_(address, function_code, std::move(response.payload));
+        this->send_response_(address, function_code, response.payload.get(), response.payload_len);
       }
     }
   }
@@ -453,9 +451,19 @@ float Modbus::get_setup_priority() const {
   return setup_priority::BUS - 1.0f;
 }
 
-void ModbusServerHub::send_response_(uint8_t address, uint8_t function_code, std::vector<uint8_t> &&payload) {
-  payload.insert(payload.begin(), std::initializer_list<uint8_t>{address, function_code});
-  this->send_raw_(payload.data(), static_cast<uint16_t>(payload.size()));
+void ModbusServerHub::send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload,
+                                     uint16_t payload_len) {
+  // Build the raw frame (address + function code + payload) in a stack buffer; it's consumed
+  // immediately by send_raw_ and a full raw frame never exceeds MAX_RAW_SIZE.
+  if (payload_len + 2 > MAX_RAW_SIZE) {
+    ESP_LOGE(TAG, "Server response too large (%" PRIu16 " bytes)", static_cast<uint16_t>(payload_len + 2));
+    return;
+  }
+  uint8_t raw[MAX_RAW_SIZE];
+  raw[0] = address;
+  raw[1] = function_code;
+  std::memcpy(raw + 2, payload, payload_len);
+  this->send_raw_(raw, payload_len + 2);
 }
 
 void ModbusServerHub::send_exception_(uint8_t address, uint8_t function_code, ModbusExceptionCode exception_code) {

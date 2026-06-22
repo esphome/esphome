@@ -18,10 +18,11 @@ modbus::ModbusServerResponse ModbusServer::on_modbus_read_registers(uint8_t func
 
   if (number_of_registers == 0 || number_of_registers > modbus::MAX_NUM_OF_REGISTERS_TO_READ) {
     ESP_LOGW(TAG, "Invalid number of registers %" PRIu16 ". Sending exception response.", number_of_registers);
-    return {.exception = ModbusExceptionCode::ILLEGAL_DATA_ADDRESS};
+    return ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;
   }
 
-  std::vector<uint16_t> sixteen_bit_response;
+  // Accumulate response words in a fixed-size stack buffer (push_back is bounds-checked).
+  StaticVector<uint16_t, modbus::MAX_NUM_OF_REGISTERS_TO_READ> sixteen_bit_response;
   for (uint16_t current_address = start_address; current_address < start_address + number_of_registers;) {
     bool found = false;
     for (auto *server_register : this->server_registers_) {
@@ -35,10 +36,7 @@ modbus::ModbusServerResponse ModbusServer::on_modbus_read_registers(uint8_t func
                  server_register->address, static_cast<size_t>(server_register->value_type),
                  server_register->register_count, server_register->format_value(value, value_buf, sizeof(value_buf)));
 
-        std::vector<uint16_t> payload;
-        payload.reserve(server_register->register_count * 2);
-        modbus::helpers::number_to_payload(payload, value, server_register->value_type);
-        sixteen_bit_response.insert(sixteen_bit_response.end(), payload.cbegin(), payload.cend());
+        modbus::helpers::number_to_payload(sixteen_bit_response, value, server_register->value_type);
         current_address += server_register->register_count;
         found = true;
         break;
@@ -58,37 +56,38 @@ modbus::ModbusServerResponse ModbusServer::on_modbus_read_registers(uint8_t func
         ESP_LOGW(TAG,
                  "Could not match any register to address 0x%02X and default not allowed. Sending exception response.",
                  current_address);
-        return {.exception = ModbusExceptionCode::ILLEGAL_DATA_ADDRESS};
+        return ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;
       }
     }
   }
 
-  std::vector<uint8_t> response;
   if (number_of_registers != sixteen_bit_response.size())
     ESP_LOGW(TAG, "Response size not matched to request register count.");
-  response.push_back(sixteen_bit_response.size() * 2);  // actual byte count
+  uint8_t buffer[modbus::MAX_RAW_SIZE];
+  uint16_t idx = 0;
+  buffer[idx++] = static_cast<uint8_t>(sixteen_bit_response.size() * 2);  // actual byte count
   for (auto v : sixteen_bit_response) {
     auto decoded_value = decode_value(v);
-    response.push_back(decoded_value[0]);
-    response.push_back(decoded_value[1]);
+    buffer[idx++] = decoded_value[0];
+    buffer[idx++] = decoded_value[1];
   }
-  return {.payload = std::move(response)};
+  return {buffer, idx};
 }
 
-modbus::ModbusServerResponse ModbusServer::on_modbus_write_registers(uint8_t function_code,
-                                                                     const std::vector<uint8_t> &data) {
+modbus::ModbusServerResponse ModbusServer::on_modbus_write_registers(uint8_t function_code, const uint8_t *data,
+                                                                     uint16_t len) {
   uint16_t number_of_registers;
   uint16_t payload_offset;
 
   if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
-    if (data.size() < 5) {
-      ESP_LOGW(TAG, "Write multiple registers data too short (%zu bytes)", data.size());
-      return {.exception = ModbusExceptionCode::ILLEGAL_DATA_VALUE};
+    if (len < 5) {
+      ESP_LOGW(TAG, "Write multiple registers data too short (%" PRIu16 " bytes)", len);
+      return ModbusExceptionCode::ILLEGAL_DATA_VALUE;
     }
     number_of_registers = uint16_t(data[3]) | (uint16_t(data[2]) << 8);
     if (number_of_registers == 0 || number_of_registers > modbus::MAX_NUM_OF_REGISTERS_TO_WRITE) {
       ESP_LOGW(TAG, "Invalid number of registers %" PRIu16 ". Sending exception response.", number_of_registers);
-      return {.exception = ModbusExceptionCode::ILLEGAL_DATA_VALUE};
+      return ModbusExceptionCode::ILLEGAL_DATA_VALUE;
     }
     uint16_t payload_size = data[4];
     if (payload_size != number_of_registers * 2) {
@@ -96,24 +95,24 @@ modbus::ModbusServerResponse ModbusServer::on_modbus_write_registers(uint8_t fun
                "Payload size of %" PRIu16 " bytes is not 2 times the number of registers (%" PRIu16
                "). Sending exception response.",
                payload_size, number_of_registers);
-      return {.exception = ModbusExceptionCode::ILLEGAL_DATA_VALUE};
+      return ModbusExceptionCode::ILLEGAL_DATA_VALUE;
     }
-    if (data.size() < 5 + payload_size) {
-      ESP_LOGW(TAG, "Write multiple registers payload truncated (%zu bytes, expected %u)", data.size(),
+    if (len < 5 + payload_size) {
+      ESP_LOGW(TAG, "Write multiple registers payload truncated (%" PRIu16 " bytes, expected %u)", len,
                5 + payload_size);
-      return {.exception = ModbusExceptionCode::ILLEGAL_DATA_VALUE};
+      return ModbusExceptionCode::ILLEGAL_DATA_VALUE;
     }
     payload_offset = 5;
   } else if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_SINGLE_REGISTER) {
-    if (data.size() < 4) {
-      ESP_LOGW(TAG, "Write single register data too short (%zu bytes)", data.size());
-      return {.exception = ModbusExceptionCode::ILLEGAL_DATA_VALUE};
+    if (len < 4) {
+      ESP_LOGW(TAG, "Write single register data too short (%" PRIu16 " bytes)", len);
+      return ModbusExceptionCode::ILLEGAL_DATA_VALUE;
     }
     number_of_registers = 1;
     payload_offset = 2;
   } else {
     ESP_LOGW(TAG, "Invalid function code 0x%X. Sending exception response.", function_code);
-    return {.exception = ModbusExceptionCode::ILLEGAL_FUNCTION};
+    return ModbusExceptionCode::ILLEGAL_FUNCTION;
   }
 
   uint16_t start_address = uint16_t(data[1]) | (uint16_t(data[0]) << 8);
@@ -148,13 +147,13 @@ modbus::ModbusServerResponse ModbusServer::on_modbus_write_registers(uint8_t fun
         return server_register->write_lambda != nullptr;
       })) {
     ESP_LOGW(TAG, "Invalid register address. Sending exception response.");
-    return {.exception = ModbusExceptionCode::ILLEGAL_DATA_ADDRESS};
+    return ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;
   }
 
   // Actually write to the registers:
-  if (!for_each_register([&data](ServerRegister *server_register, uint16_t offset) {
+  if (!for_each_register([data, len](ServerRegister *server_register, uint16_t offset) {
         bool error = false;
-        int64_t number = payload_to_number(data, server_register->value_type, offset, 0xFFFFFFFF, &error);
+        int64_t number = payload_to_number(data, len, server_register->value_type, offset, 0xFFFFFFFF, &error);
         if (error) {
           return false;
         } else {
@@ -162,13 +161,11 @@ modbus::ModbusServerResponse ModbusServer::on_modbus_write_registers(uint8_t fun
         }
       })) {
     ESP_LOGW(TAG, "Could not write all registers. Sending exception response.");
-    return {.exception = ModbusExceptionCode::SERVICE_DEVICE_FAILURE};
+    return ModbusExceptionCode::SERVICE_DEVICE_FAILURE;
   }
 
-  std::vector<uint8_t> response;
-  response.reserve(4);
-  response.insert(response.end(), data.begin(), data.begin() + 4);
-  return {.payload = std::move(response)};
+  // Echo the first 4 bytes (start address + value/quantity) back as the response.
+  return {data, 4};
 }
 
 void ModbusServer::dump_config() {

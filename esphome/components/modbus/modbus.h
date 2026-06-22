@@ -141,7 +141,7 @@ class ModbusServerHub : public Modbus {
   void process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len);
   void send_raw_(const uint8_t *payload, uint16_t len);
   void send_exception_(uint8_t address, uint8_t function_code, ModbusExceptionCode exception_code);
-  void send_response_(uint8_t address, uint8_t function_code, std::vector<uint8_t> &&payload);
+  void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);
   uint8_t expecting_peer_response_{0};
   std::vector<ModbusServerDevice *> devices_;
 
@@ -197,8 +197,22 @@ class ModbusClientDevice {
 using ModbusDevice = ModbusClientDevice;
 
 struct ModbusServerResponse {
-  ModbusExceptionCode exception;
-  std::vector<uint8_t> payload;
+  ModbusExceptionCode exception{};
+  // Exact-size payload allocation to avoid std::vector overhead (mirrors ModbusFrame)
+  std::unique_ptr<uint8_t[]> payload;
+  uint16_t payload_len{0};
+
+  ModbusServerResponse() = default;
+
+  // Successful response: copies the payload into an exact-size buffer.
+  ModbusServerResponse(const uint8_t *payload, uint16_t payload_len)
+      : payload(std::make_unique<uint8_t[]>(payload_len)), payload_len(payload_len) {
+    memcpy(this->payload.get(), payload, payload_len);
+  }
+
+  // Error response: carries a Modbus exception code and no payload.
+  // Implicit on purpose so device handlers can simply `return ModbusExceptionCode::...;`.
+  ModbusServerResponse(ModbusExceptionCode exception) : exception(exception) {}
 };
 
 class ModbusServerDevice {
@@ -214,7 +228,7 @@ class ModbusServerDevice {
   uint8_t get_address() const { return address_; }
   virtual ModbusServerResponse on_modbus_read_registers(uint8_t function_code, uint16_t start_address,
                                                         uint16_t number_of_registers) = 0;
-  virtual ModbusServerResponse on_modbus_write_registers(uint8_t function_code, const std::vector<uint8_t> &data) = 0;
+  virtual ModbusServerResponse on_modbus_write_registers(uint8_t function_code, const uint8_t *data, uint16_t len) = 0;
 
  protected:
   uint8_t address_;
