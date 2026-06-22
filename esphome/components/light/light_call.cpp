@@ -213,20 +213,13 @@ LightColorValues LightCall::validate_() {
   // Flag whether an explicit turn off was requested, in which case we'll also stop the effect.
   bool explicit_turn_off_request = this->has_state() && !this->state_;
 
-  // Turn off when brightness is set to zero, and reset brightness (so that it has nonzero brightness when turned on).
-  if (this->has_brightness() && this->brightness_ == 0.0f) {
-    this->state_ = false;
-    this->set_flag_(FLAG_HAS_STATE);
+  // make sure turn-on makes the light visible unless told otherwise
+  if (this->has_state() && this->state_) {
     if (color_mode & ColorCapability::BRIGHTNESS) {
-      // If an explicit turn-off, reset brightness so the light has nonzero brightness when turned back on.
-      // otherwise honor the brightness request
-      if (explicit_turn_off_request) {
+      if (!this->has_brightness() && this->parent_->remote_values.get_brightness() == 0.0f) {
         this->brightness_ = 1.0f;
+        this->set_flag_(FLAG_HAS_BRIGHTNESS);
       }
-    } else {
-      // Light doesn't support brightness; clear the flag to avoid a spurious
-      // "brightness not supported" warning during capability validation.
-      this->clear_flag_(FLAG_HAS_BRIGHTNESS);
     }
   }
 
