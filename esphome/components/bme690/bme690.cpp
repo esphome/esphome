@@ -168,55 +168,83 @@ void BME690Component::read_() {
   }
 
   const int64_t timestamp_ns = this->get_time_ns_();
-
   bsec_bme_settings_t sensor_settings = {};
+
   if (this->bsec_ready_) {
-    if (this->next_call_ns_ != 0 && timestamp_ns < this->next_call_ns_) {
-      this->schedule_next_bsec_read_();
+    if (!this->get_bsec_sensor_settings_(timestamp_ns, &sensor_settings)) {
       return;
     }
-    auto bsec_rslt = bsec_sensor_control(this->bsec_instance_.data(), timestamp_ns, &sensor_settings);
-    if (!this->check_bsec_status_("bsec_sensor_control", bsec_rslt)) {
-      this->status_set_warning();
-      this->schedule_read_(this->update_interval_ms_);
-      return;
-    }
-    ESP_LOGI(TAG, "BSEC control: next_call=%lld, trig=%u, op_mode=%u, temp_os=%u hum_os=%u pres_os=%u run_gas=%u",
-             static_cast<long long>(sensor_settings.next_call), sensor_settings.trigger_measurement,
-             sensor_settings.op_mode, sensor_settings.temperature_oversampling, sensor_settings.humidity_oversampling,
-             sensor_settings.pressure_oversampling, sensor_settings.run_gas);
-    this->next_call_ns_ = sensor_settings.next_call;
   } else {
-    if (!this->bsec_fallback_warning_logged_) {
-      if (this->bsec_setup_failed_step_ != nullptr) {
-        ESP_LOGW(TAG, "BSEC setup failed at %s: %d; publishing raw sensor values only.",
-                 this->bsec_setup_failed_step_, static_cast<int>(this->bsec_setup_failed_result_));
-      } else {
-        ESP_LOGW(TAG, "BSEC is not ready; publishing raw sensor values only.");
-      }
-      this->bsec_fallback_warning_logged_ = true;
-    }
-    sensor_settings.op_mode = BME69X_FORCED_MODE;
-    sensor_settings.trigger_measurement = 1;
-    sensor_settings.temperature_oversampling = BME69X_OS_16X;
-    sensor_settings.humidity_oversampling = BME69X_OS_16X;
-    sensor_settings.pressure_oversampling = BME69X_OS_16X;
-    sensor_settings.heater_temperature = this->heatr_conf_.heatr_temp;
-    sensor_settings.heater_duration = this->heatr_conf_.heatr_dur;
-    sensor_settings.run_gas = 1;
-    sensor_settings.process_data =
-        BSEC_PROCESS_TEMPERATURE | BSEC_PROCESS_HUMIDITY | BSEC_PROCESS_PRESSURE | BSEC_PROCESS_GAS;
+    this->get_raw_fallback_settings_(&sensor_settings);
   }
 
   if (sensor_settings.trigger_measurement == 0) {
-    if (this->bsec_ready_) {
-      this->schedule_next_bsec_read_();
-    } else {
-      this->schedule_read_(this->update_interval_ms_);
-    }
+    this->schedule_after_measurement_();
     return;
   }
 
+  if (!this->apply_sensor_settings_(sensor_settings)) {
+    return;
+  }
+
+  struct bme69x_data data = {};
+  if (!this->perform_measurement_(sensor_settings, &data)) {
+    return;
+  }
+
+  this->publish_raw_outputs_(data);
+
+  if (this->bsec_ready_) {
+    this->push_inputs_to_bsec_(data, sensor_settings, timestamp_ns);
+  }
+  this->schedule_after_measurement_();
+}
+
+bool BME690Component::get_bsec_sensor_settings_(int64_t timestamp_ns, bsec_bme_settings_t *sensor_settings) {
+  if (this->next_call_ns_ != 0 && timestamp_ns < this->next_call_ns_) {
+    this->schedule_next_bsec_read_();
+    return false;
+  }
+
+  auto bsec_rslt = bsec_sensor_control(this->bsec_instance_.data(), timestamp_ns, sensor_settings);
+  if (!this->check_bsec_status_("bsec_sensor_control", bsec_rslt)) {
+    this->status_set_warning();
+    this->schedule_read_(this->update_interval_ms_);
+    return false;
+  }
+
+  ESP_LOGI(TAG, "BSEC control: next_call=%lld, trig=%u, op_mode=%u, temp_os=%u hum_os=%u pres_os=%u run_gas=%u",
+           static_cast<long long>(sensor_settings->next_call), sensor_settings->trigger_measurement,
+           sensor_settings->op_mode, sensor_settings->temperature_oversampling, sensor_settings->humidity_oversampling,
+           sensor_settings->pressure_oversampling, sensor_settings->run_gas);
+  this->next_call_ns_ = sensor_settings->next_call;
+  return true;
+}
+
+void BME690Component::get_raw_fallback_settings_(bsec_bme_settings_t *sensor_settings) {
+  if (!this->bsec_fallback_warning_logged_) {
+    if (this->bsec_setup_failed_step_ != nullptr) {
+      ESP_LOGW(TAG, "BSEC setup failed at %s: %d; publishing raw sensor values only.",
+               this->bsec_setup_failed_step_, static_cast<int>(this->bsec_setup_failed_result_));
+    } else {
+      ESP_LOGW(TAG, "BSEC is not ready; publishing raw sensor values only.");
+    }
+    this->bsec_fallback_warning_logged_ = true;
+  }
+
+  sensor_settings->op_mode = BME69X_FORCED_MODE;
+  sensor_settings->trigger_measurement = 1;
+  sensor_settings->temperature_oversampling = BME69X_OS_16X;
+  sensor_settings->humidity_oversampling = BME69X_OS_16X;
+  sensor_settings->pressure_oversampling = BME69X_OS_16X;
+  sensor_settings->heater_temperature = this->heatr_conf_.heatr_temp;
+  sensor_settings->heater_duration = this->heatr_conf_.heatr_dur;
+  sensor_settings->run_gas = 1;
+  sensor_settings->process_data =
+      BSEC_PROCESS_TEMPERATURE | BSEC_PROCESS_HUMIDITY | BSEC_PROCESS_PRESSURE | BSEC_PROCESS_GAS;
+}
+
+bool BME690Component::apply_sensor_settings_(bsec_bme_settings_t &sensor_settings) {
   this->conf_.filter = BME69X_FILTER_OFF;
   this->conf_.odr = BME69X_ODR_NONE;
   this->conf_.os_hum = sensor_settings.humidity_oversampling;
@@ -227,7 +255,7 @@ void BME690Component::read_() {
   if (!this->check_result_("bme69x_set_conf", rslt)) {
     this->status_set_warning();
     this->schedule_read_(this->update_interval_ms_);
-    return;
+    return false;
   }
 
   this->heatr_conf_.enable = sensor_settings.run_gas ? BME69X_ENABLE : BME69X_DISABLE;
@@ -243,7 +271,7 @@ void BME690Component::read_() {
       ESP_LOGW(TAG, "BSEC heater profile length %u exceeds supported maximum", sensor_settings.heater_profile_len);
       this->status_set_warning();
       this->schedule_read_(this->update_interval_ms_);
-      return;
+      return false;
     }
     this->heatr_conf_.profile_len = sensor_settings.heater_profile_len;
     this->heatr_conf_.heatr_temp_prof = sensor_settings.heater_temperature_profile;
@@ -254,16 +282,20 @@ void BME690Component::read_() {
   if (!this->check_result_("bme69x_set_heatr_conf", rslt)) {
     this->status_set_warning();
     this->schedule_read_(this->update_interval_ms_);
-    return;
+    return false;
   }
 
   rslt = bme69x_set_op_mode(sensor_settings.op_mode, &this->dev_);
   if (!this->check_result_("bme69x_set_op_mode", rslt)) {
     this->status_set_warning();
     this->schedule_read_(this->update_interval_ms_);
-    return;
+    return false;
   }
 
+  return true;
+}
+
+bool BME690Component::perform_measurement_(const bsec_bme_settings_t &sensor_settings, struct bme69x_data *data) {
   uint32_t meas_dur_us = bme69x_get_meas_dur(sensor_settings.op_mode, &this->conf_, &this->dev_);
   if (this->heatr_conf_.profile_len > 0) {
     // Use the total heating duration if a profile is requested.
@@ -277,21 +309,24 @@ void BME690Component::read_() {
   }
   delay_usec(meas_dur_us, this);
 
-  struct bme69x_data data = {};
   uint8_t n_fields = 0;
-  rslt = bme69x_get_data(sensor_settings.op_mode, &data, &n_fields, &this->dev_);
+  int8_t rslt = bme69x_get_data(sensor_settings.op_mode, data, &n_fields, &this->dev_);
   if (!this->check_result_("bme69x_get_data", rslt)) {
     this->status_set_warning();
     this->schedule_read_(this->update_interval_ms_);
-    return;
+    return false;
   }
 
   if (n_fields == 0) {
     ESP_LOGV(TAG, "No new measurement available");
     this->schedule_read_(this->update_interval_ms_);
-    return;
+    return false;
   }
 
+  return true;
+}
+
+void BME690Component::publish_raw_outputs_(const struct bme69x_data &data) {
   if (this->temperature_sensor_ != nullptr) {
     this->temperature_sensor_->publish_state(data.temperature);
   }
@@ -305,9 +340,10 @@ void BME690Component::read_() {
   if (this->gas_resistance_sensor_ != nullptr) {
     this->gas_resistance_sensor_->publish_state(data.gas_resistance);
   }
+}
 
+void BME690Component::schedule_after_measurement_() {
   if (this->bsec_ready_) {
-    this->push_inputs_to_bsec_(data, sensor_settings, timestamp_ns);
     this->schedule_next_bsec_read_();
   } else {
     this->schedule_read_(this->update_interval_ms_);
