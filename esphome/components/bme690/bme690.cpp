@@ -7,6 +7,8 @@
 
 namespace esphome::bme690 {
 
+static constexpr uint8_t BME690_MAX_HEATER_PROFILE_LEN = 10;
+
 bool BME690Component::check_result_(const char *label, int8_t rslt) {
   if (rslt == BME69X_OK) {
     return true;
@@ -119,18 +121,18 @@ void BME690Component::setup() {
 void BME690Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BME690");
   LOG_I2C_DEVICE(this);
-  LOG_SENSOR("  ", "Temperature", this->temperature_sensor);
-  LOG_SENSOR("  ", "Humidity", this->humidity_sensor);
-  LOG_SENSOR("  ", "Pressure", this->pressure_sensor);
-  LOG_SENSOR("  ", "Gas resistance", this->gas_resistance_sensor);
-  LOG_SENSOR("  ", "IAQ", this->iaq_sensor);
-  LOG_SENSOR("  ", "IAQ accuracy", this->iaq_accuracy_sensor);
-  LOG_SENSOR("  ", "Static IAQ", this->static_iaq_sensor);
-  LOG_SENSOR("  ", "CO2 equivalent", this->co2_equivalent_sensor);
-  LOG_SENSOR("  ", "Breath VOC equivalent", this->breath_voc_equivalent_sensor);
-  LOG_SENSOR("  ", "Gas percentage", this->gas_percentage_sensor);
-  LOG_SENSOR("  ", "Compensated temperature", this->comp_temperature_sensor);
-  LOG_SENSOR("  ", "Compensated humidity", this->comp_humidity_sensor);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
+  LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
+  LOG_SENSOR("  ", "Gas resistance", this->gas_resistance_sensor_);
+  LOG_SENSOR("  ", "IAQ", this->iaq_sensor_);
+  LOG_SENSOR("  ", "IAQ accuracy", this->iaq_accuracy_sensor_);
+  LOG_SENSOR("  ", "Static IAQ", this->static_iaq_sensor_);
+  LOG_SENSOR("  ", "CO2 equivalent", this->co2_equivalent_sensor_);
+  LOG_SENSOR("  ", "Breath VOC equivalent", this->breath_voc_equivalent_sensor_);
+  LOG_SENSOR("  ", "Gas percentage", this->gas_percentage_sensor_);
+  LOG_SENSOR("  ", "Compensated temperature", this->comp_temperature_sensor_);
+  LOG_SENSOR("  ", "Compensated humidity", this->comp_humidity_sensor_);
 #ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "IAQ Accuracy", this->iaq_accuracy_text_sensor_);
 #endif
@@ -156,7 +158,8 @@ void BME690Component::schedule_next_bsec_read_() {
     return;
   }
 
-  this->schedule_read_(static_cast<uint32_t>((delay_ns + INT64_C(999999)) / INT64_C(1000000)));
+  const int64_t delay_ms = (delay_ns + INT64_C(999999)) / INT64_C(1000000);
+  this->schedule_read_(static_cast<uint32_t>(std::min<int64_t>(delay_ms, UINT32_MAX)));
 }
 
 void BME690Component::read_() {
@@ -236,9 +239,15 @@ void BME690Component::read_() {
   this->heatr_conf_.profile_len = 0;
 
   if (sensor_settings.heater_profile_len > 0) {
+    if (sensor_settings.heater_profile_len > BME690_MAX_HEATER_PROFILE_LEN) {
+      ESP_LOGW(TAG, "BSEC heater profile length %u exceeds supported maximum", sensor_settings.heater_profile_len);
+      this->status_set_warning();
+      this->schedule_read_(this->update_interval_ms_);
+      return;
+    }
     this->heatr_conf_.profile_len = sensor_settings.heater_profile_len;
-    this->heatr_conf_.heatr_temp_prof = const_cast<uint16_t *>(sensor_settings.heater_temperature_profile);
-    this->heatr_conf_.heatr_dur_prof = const_cast<uint16_t *>(sensor_settings.heater_duration_profile);
+    this->heatr_conf_.heatr_temp_prof = sensor_settings.heater_temperature_profile;
+    this->heatr_conf_.heatr_dur_prof = sensor_settings.heater_duration_profile;
   }
 
   rslt = bme69x_set_heatr_conf(sensor_settings.op_mode, &this->heatr_conf_, &this->dev_);
@@ -283,18 +292,18 @@ void BME690Component::read_() {
     return;
   }
 
-  if (this->temperature_sensor != nullptr) {
-    this->temperature_sensor->publish_state(data.temperature);
+  if (this->temperature_sensor_ != nullptr) {
+    this->temperature_sensor_->publish_state(data.temperature);
   }
-  if (this->pressure_sensor != nullptr) {
+  if (this->pressure_sensor_ != nullptr) {
     // Driver returns pressure in Pa; convert to hPa to match common ESPHome convention.
-    this->pressure_sensor->publish_state(data.pressure / 100.0f);
+    this->pressure_sensor_->publish_state(data.pressure / 100.0f);
   }
-  if (this->humidity_sensor != nullptr) {
-    this->humidity_sensor->publish_state(data.humidity);
+  if (this->humidity_sensor_ != nullptr) {
+    this->humidity_sensor_->publish_state(data.humidity);
   }
-  if (this->gas_resistance_sensor != nullptr) {
-    this->gas_resistance_sensor->publish_state(data.gas_resistance);
+  if (this->gas_resistance_sensor_ != nullptr) {
+    this->gas_resistance_sensor_->publish_state(data.gas_resistance);
   }
 
   if (this->bsec_ready_) {
@@ -308,7 +317,6 @@ void BME690Component::read_() {
 bool BME690Component::configure_bsec_() {
   size_t instance_size = bsec_get_instance_size();
   this->bsec_instance_.assign(instance_size, 0);
-  this->bsec_work_buffer_.assign(BSEC_MAX_WORKBUFFER_SIZE, 0);
 
   auto bsec_rslt = bsec_init(this->bsec_instance_.data());
   if (!this->check_bsec_status_("bsec_init", bsec_rslt)) {
@@ -353,13 +361,13 @@ bool BME690Component::configure_bsec_() {
 }
 
 uint8_t BME690Component::build_iaq_subscription_(bsec_sensor_configuration_t *requested_virtual_sensors,
-                                                 float sample_rate) const {
+                                                 float bsec_sample_rate) const {
   uint8_t n_requested = 0;
   const bool bsec_3_3_or_newer = this->is_bsec_3_3_or_newer_();
 
   auto add_request = [&](uint8_t sensor_id) {
     requested_virtual_sensors[n_requested].sensor_id = sensor_id;
-    requested_virtual_sensors[n_requested].sample_rate = sample_rate;
+    requested_virtual_sensors[n_requested].sample_rate = bsec_sample_rate;
     n_requested++;
   };
 
@@ -456,50 +464,49 @@ void BME690Component::handle_bsec_outputs_(const bsec_output_t *outputs, uint8_t
     const auto &out = outputs[idx];
     switch (out.sensor_id) {
       case BSEC_OUTPUT_IAQ:
-        if (this->iaq_sensor != nullptr) {
-          this->iaq_sensor->publish_state(out.signal);
+        if (this->iaq_sensor_ != nullptr) {
+          this->iaq_sensor_->publish_state(out.signal);
         }
-        if (this->iaq_accuracy_sensor != nullptr) {
-          this->iaq_accuracy_sensor->publish_state(out.accuracy);
+        if (this->iaq_accuracy_sensor_ != nullptr) {
+          this->iaq_accuracy_sensor_->publish_state(out.accuracy);
         }
 #ifdef USE_TEXT_SENSOR
         if (this->iaq_accuracy_text_sensor_ != nullptr && out.accuracy < 4) {
           this->iaq_accuracy_text_sensor_->publish_state(IAQ_ACCURACY_STATES[out.accuracy]);
         }
 #endif
-        this->last_iaq_accuracy_ = out.accuracy;
         if (out.accuracy >= 2) {
           this->state_dirty_ = true;
         }
         break;
       case BSEC_OUTPUT_STATIC_IAQ:
-        if (this->static_iaq_sensor != nullptr) {
-          this->static_iaq_sensor->publish_state(out.signal);
+        if (this->static_iaq_sensor_ != nullptr) {
+          this->static_iaq_sensor_->publish_state(out.signal);
         }
         break;
       case BSEC_OUTPUT_CO2_EQUIVALENT:
-        if (this->co2_equivalent_sensor != nullptr) {
-          this->co2_equivalent_sensor->publish_state(out.signal);
+        if (this->co2_equivalent_sensor_ != nullptr) {
+          this->co2_equivalent_sensor_->publish_state(out.signal);
         }
         break;
       case BSEC_OUTPUT_BREATH_VOC_EQUIVALENT:
-        if (this->breath_voc_equivalent_sensor != nullptr) {
-          this->breath_voc_equivalent_sensor->publish_state(out.signal);
+        if (this->breath_voc_equivalent_sensor_ != nullptr) {
+          this->breath_voc_equivalent_sensor_->publish_state(out.signal);
         }
         break;
       case BSEC_OUTPUT_GAS_PERCENTAGE:
-        if (this->gas_percentage_sensor != nullptr) {
-          this->gas_percentage_sensor->publish_state(out.signal);
+        if (this->gas_percentage_sensor_ != nullptr) {
+          this->gas_percentage_sensor_->publish_state(out.signal);
         }
         break;
       case BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE:
-        if (this->comp_temperature_sensor != nullptr) {
-          this->comp_temperature_sensor->publish_state(out.signal);
+        if (this->comp_temperature_sensor_ != nullptr) {
+          this->comp_temperature_sensor_->publish_state(out.signal);
         }
         break;
       case BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY:
-        if (this->comp_humidity_sensor != nullptr) {
-          this->comp_humidity_sensor->publish_state(out.signal);
+        if (this->comp_humidity_sensor_ != nullptr) {
+          this->comp_humidity_sensor_->publish_state(out.signal);
         }
         break;
       default:
@@ -568,6 +575,10 @@ void BME690Component::save_bsec_state_() {
   auto rslt = bsec_get_state(this->bsec_instance_.data(), state_set_id, state_buf.data(), state_len,
                              this->bsec_work_buffer_.data(), work_buf_len, &state_len);
   if (!this->check_bsec_status_("bsec_get_state", rslt)) {
+    return;
+  }
+  if (state_len > BSEC_MAX_STATE_BLOB_SIZE) {
+    ESP_LOGW(TAG, "BSEC state too large to save (%" PRIu32 " bytes)", state_len);
     return;
   }
 
