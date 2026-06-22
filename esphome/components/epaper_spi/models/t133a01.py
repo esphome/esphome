@@ -9,18 +9,39 @@ Supported models:
 - Seeed-reTerminal-E1004: 1200x1600 pixels, 6-color (T133A01 panel)
 """
 
+from esphome import pins
+import esphome.codegen as cg
+from esphome.const import CONF_CS_PIN
+
 from . import EpaperModel
+
+CONF_CS1_PIN = "cs1_pin"
 
 
 class T133A01Model(EpaperModel):
     """EpaperModel subclass for T133A01-based 6-color e-paper displays."""
 
+    # The driver drives CS and CS1 directly for the dual-CS protocol.
+    manages_cs = True
+
     def __init__(self, name, class_name="EPaperT133A01", **defaults):
         super().__init__(name, class_name, **defaults)
 
+    def add_options(self) -> dict:
+        # CS1 is the second chip-select required by the dual-CS architecture.
+        # fallback=None makes it required unless the model provides a default.
+        return {
+            self.option(CONF_CS1_PIN, fallback=None): pins.gpio_output_pin_schema,
+        }
+
+    async def to_code(self, var, config) -> None:
+        cs = await cg.gpio_pin_expression(config[CONF_CS_PIN])
+        cs1 = await cg.gpio_pin_expression(config[CONF_CS1_PIN])
+        cg.add(var.set_cs_pins(cs, cs1))
+
 
 t133a01_base = T133A01Model(
-    "t133a01-base",
+    "t133a01",
     minimum_update_interval="30s",
     data_rate="10MHz",
 )

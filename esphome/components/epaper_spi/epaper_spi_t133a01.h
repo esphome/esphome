@@ -26,8 +26,10 @@ class EPaperT133A01 : public EPaperBase {
     this->buffer_length_ = (size_t) width * height / 2;  // 2 pixels per byte at 4bpp
   }
 
-  void set_cs1_pin(GPIOPin *pin) { this->cs1_pin_ = pin; }
-  void set_enable_pin(GPIOPin *pin) { this->enable_pin_ = pin; }
+  void set_cs_pins(GPIOPin *cs, GPIOPin *cs1) {
+    this->cs_pin_ = cs;
+    this->cs1_pin_ = cs1;
+  }
 
   void fill(Color color) override;
   void clear() override;
@@ -46,12 +48,19 @@ class EPaperT133A01 : public EPaperBase {
 
   bool transfer_data() override;
 
-  /// Send a command+data to the CS1 device
-  void cmd_data_cs1_(uint8_t command, const uint8_t *data, size_t length);
-  void cmd_data_cs1_(uint8_t command, std::initializer_list<uint8_t> data) {
-    this->cmd_data_cs1_(command, data.begin(), data.size());
+  /**
+   * Send a command (and optional data) selecting one or both controllers.
+   * Both chip-selects are active-low and managed directly by this driver.
+   * @param use_cs  assert CS (left controller) for this transaction
+   * @param use_cs1 assert CS1 (right controller) for this transaction
+   */
+  void write_command_(uint8_t command, const uint8_t *data, size_t length, bool use_cs, bool use_cs1);
+  void write_command_(uint8_t command, std::initializer_list<uint8_t> data, bool use_cs, bool use_cs1) {
+    this->write_command_(command, data.begin(), data.size(), use_cs, use_cs1);
   }
-  void command_cs1_(uint8_t value);
+  void write_command_(uint8_t command, bool use_cs, bool use_cs1) {
+    this->write_command_(command, nullptr, 0, use_cs, use_cs1);
+  }
 
   /// Convert Color to 4-bit T133A01 color index
   static uint8_t color_to_index(Color color);
@@ -59,8 +68,8 @@ class EPaperT133A01 : public EPaperBase {
   /// Apply COLOR_GET remap table to translate sprite indices to hardware values
   static uint8_t remap_color(uint8_t index);
 
+  GPIOPin *cs_pin_{nullptr};
   GPIOPin *cs1_pin_{nullptr};
-  GPIOPin *enable_pin_{nullptr};
 };
 
 }  // namespace esphome::epaper_spi

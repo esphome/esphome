@@ -2,7 +2,6 @@
 
 #include <algorithm>
 
-#include "driver/gpio.h"
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
@@ -100,48 +99,21 @@ uint8_t EPaperT133A01::color_to_index(Color color) {
 }
 
 void EPaperT133A01::setup_pins() const {
-  // Set up base pins
-  this->dc_pin_->setup();
-  this->dc_pin_->digital_write(false);
+  // dc, reset, busy and enable pins are set up by the base class.
+  EPaperBase::setup_pins();
 
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
-  }
-
-  if (this->busy_pin_ != nullptr) {
-    this->busy_pin_->setup();
-  }
-
-  // Set up CS1 pin
-  if (this->cs1_pin_ != nullptr) {
-    this->cs1_pin_->setup();
-    this->cs1_pin_->digital_write(true);
-  }
-
-  // Set up ENABLE pin
-  if (this->enable_pin_ != nullptr) {
-    this->enable_pin_->setup();
-    this->enable_pin_->digital_write(true);
-  }
-
-  // Reconfigure GPIO10 as pure GPIO output.
-  // SPIDelegate already set it up via cs_pin_, but we need to ensure
-  // gpio_set_level() (or direct register writes) can override it during
-  // the CS1 data phase to deselect the CS controller.
-  gpio_config_t io_conf = {};
-  io_conf.pin_bit_mask = (1ULL << GPIO_NUM_10);
-  io_conf.mode = GPIO_MODE_OUTPUT;
-  io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-  io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-  io_conf.intr_type = GPIO_INTR_DISABLE;
-  gpio_config(&io_conf);
-  gpio_set_level(GPIO_NUM_10, 1);
+  // Both chip-selects are driven directly by this driver (the dual-CS
+  // protocol needs CS held HIGH while CS1 receives data, which the SPI
+  // bus cannot do). Start both deselected (HIGH).
+  this->cs_pin_->setup();
+  this->cs_pin_->digital_write(true);
+  this->cs1_pin_->setup();
+  this->cs1_pin_->digital_write(true);
 }
 
 bool EPaperT133A01::reset() {
-  if (this->enable_pin_ != nullptr) {
-    this->enable_pin_->digital_write(true);
+  for (auto *enable_pin : this->enable_pins_) {
+    enable_pin->digital_write(true);
   }
   if (this->reset_pin_ != nullptr) {
     if (this->state_ == EPaperState::RESET) {
@@ -161,104 +133,86 @@ bool EPaperT133A01::reset() {
  * protocol requires per-command routing.
  */
 bool EPaperT133A01::initialise(bool partial) {
-  // SPIDelegate manages CS (GPIO10) automatically via enable()/disable().
-  // cs1_pin_ manages CS1 (GPIO2) via digital_write in cmd_data_cs1_().
-  //
   // Init sequence mirrors the Arduino GFX library's EPD_INIT() macro
-  // (T133A01_Defines.h). Commands prefixed with CS1 (via cmd_data_cs1_)
-  // are routed to both CS and CS1 simultaneously, matching Arduino behavior.
+  // (T133A01_Defines.h). Commands routed to CS only leave CS1 deselected;
+  // commands routed to both controllers assert CS and CS1 together.
 
-  // 0x74 - panel config (CS only, CS1 stays deselected)
-  this->cmd_data(0x74, {0x00, 0x0C, 0x0C, 0xD9, 0xDD, 0xDD, 0x15, 0x15, 0x55});
+  // 0x74 - panel config (CS only)
+  this->write_command_(0x74, {0x00, 0x0C, 0x0C, 0xD9, 0xDD, 0xDD, 0x15, 0x15, 0x55}, true, false);
   delay(10);
 
   // 0xF0 - panel config (CS + CS1)
-  this->cmd_data_cs1_(0xF0, {0x49, 0x55, 0x13, 0x5D, 0x05, 0x10});
+  this->write_command_(0xF0, {0x49, 0x55, 0x13, 0x5D, 0x05, 0x10}, true, true);
   delay(10);
 
   // PSR - Panel Setting Register (CS + CS1)
-  this->cmd_data_cs1_(0x00, {0xDF, 0x69});
+  this->write_command_(0x00, {0xDF, 0x69}, true, true);
   delay(10);
 
-  // DCDC (via CS)
-  this->cmd_data(RA5_DCDC, {0x44, 0x54, 0x00});
+  // DCDC (CS only)
+  this->write_command_(RA5_DCDC, {0x44, 0x54, 0x00}, true, false);
   delay(10);
 
-  // CDI (via CS1)
-  this->cmd_data_cs1_(R50_CDI, {0x37});
+  // CDI (CS + CS1)
+  this->write_command_(R50_CDI, {0x37}, true, true);
   delay(10);
 
-  // 0x60 (via CS1)
-  this->cmd_data_cs1_(0x60, {0x03, 0x03});
+  // 0x60 (CS + CS1)
+  this->write_command_(0x60, {0x03, 0x03}, true, true);
   delay(10);
 
-  // 0x86 (via CS1)
-  this->cmd_data_cs1_(0x86, {0x10});
+  // 0x86 (CS + CS1)
+  this->write_command_(0x86, {0x10}, true, true);
   delay(10);
 
-  // PWS - Phase Width Setting (via CS1)
-  this->cmd_data_cs1_(RE3_PWS, {0x22});
+  // PWS - Phase Width Setting (CS + CS1)
+  this->write_command_(RE3_PWS, {0x22}, true, true);
   delay(10);
 
   // TRES - Resolution Setting (CS + CS1).
-  // Fixed value {0x04, 0xB0, 0x03, 0x20} matching Arduino TRES_V.
   // With width=1200, height=1600: first word = width = 1200, second word = height/2 = 800.
-  this->cmd_data_cs1_(R61_TRES, {(uint8_t) (this->width_ >> 8), (uint8_t) (this->width_ & 0xFF),
-                                 (uint8_t) ((this->height_ / 2) >> 8), (uint8_t) ((this->height_ / 2) & 0xFF)});
+  this->write_command_(R61_TRES,
+                       {(uint8_t) (this->width_ >> 8), (uint8_t) (this->width_ & 0xFF),
+                        (uint8_t) ((this->height_ / 2) >> 8), (uint8_t) ((this->height_ / 2) & 0xFF)},
+                       true, true);
   delay(10);
 
-  // PWR - Power Setting (via CS)
-  this->cmd_data(R01_PWR, {0x0F, 0x00, 0x28, 0x2C, 0x28, 0x38});
+  // PWR - Power Setting (CS only)
+  this->write_command_(R01_PWR, {0x0F, 0x00, 0x28, 0x2C, 0x28, 0x38}, true, false);
   delay(10);
 
-  // 0xB6 (via CS)
-  this->cmd_data(0xB6, {0x07});
+  // 0xB6 (CS only)
+  this->write_command_(0xB6, {0x07}, true, false);
   delay(10);
 
-  // BTST_P (via CS)
-  this->cmd_data(R06_BTST_P, {0xE0, 0x20});
+  // BTST_P (CS only)
+  this->write_command_(R06_BTST_P, {0xE0, 0x20}, true, false);
   delay(10);
 
-  // 0xB7 (via CS)
-  this->cmd_data(0xB7, {0x01});
+  // 0xB7 (CS only)
+  this->write_command_(0xB7, {0x01}, true, false);
   delay(10);
 
-  // BTST_N (via CS)
-  this->cmd_data(R05_BTST_N, {0xE0, 0x20});
+  // BTST_N (CS only)
+  this->write_command_(R05_BTST_N, {0xE0, 0x20}, true, false);
   delay(10);
 
-  // 0xB0 (via CS)
-  this->cmd_data(0xB0, {0x01});
+  // 0xB0 (CS only)
+  this->write_command_(0xB0, {0x01}, true, false);
   delay(10);
 
-  // 0xB1 (via CS)
-  this->cmd_data(0xB1, {0x02});
+  // 0xB1 (CS only)
+  this->write_command_(0xB1, {0x02}, true, false);
   delay(10);
 
   return true;
 }
 
-void EPaperT133A01::command_cs1_(uint8_t value) {
-  ESP_LOGV(TAG, "CS1 Command: 0x%02X", value);
-  if (this->cs1_pin_ == nullptr) {
-    ESP_LOGE(TAG, "CS1 pin not configured");
-    return;
-  }
-  this->cs1_pin_->digital_write(false);  // Select CS1
-  this->dc_pin_->digital_write(false);
-  this->enable();
-  this->write_byte(value);
-  this->disable();
-  this->cs1_pin_->digital_write(true);
-}
-
-void EPaperT133A01::cmd_data_cs1_(uint8_t command, const uint8_t *data, size_t length) {
-  ESP_LOGV(TAG, "CS1 Command: 0x%02X, Length: %u", command, (unsigned) length);
-  if (this->cs1_pin_ == nullptr) {
-    ESP_LOGE(TAG, "CS1 pin not configured");
-    return;
-  }
-  this->cs1_pin_->digital_write(false);  // Select CS1
+void EPaperT133A01::write_command_(uint8_t command, const uint8_t *data, size_t length, bool use_cs, bool use_cs1) {
+  ESP_LOGV(TAG, "Command: 0x%02X, Length: %u, CS: %d, CS1: %d", command, (unsigned) length, use_cs, use_cs1);
+  // Chip-selects are active-low: assert the requested controllers.
+  this->cs_pin_->digital_write(!use_cs);
+  this->cs1_pin_->digital_write(!use_cs1);
   this->dc_pin_->digital_write(false);
   this->enable();
   this->write_byte(command);
@@ -267,6 +221,7 @@ void EPaperT133A01::cmd_data_cs1_(uint8_t command, const uint8_t *data, size_t l
     this->write_array(data, length);
   }
   this->disable();
+  this->cs_pin_->digital_write(true);
   this->cs1_pin_->digital_write(true);
 }
 
@@ -296,24 +251,24 @@ void EPaperT133A01::draw_pixel_at(int x, int y, Color color) {
 }
 
 void EPaperT133A01::power_on() {
-  ESP_LOGV(TAG, "Power on via CS1");
-  this->command_cs1_(R04_PON);
+  ESP_LOGV(TAG, "Power on");
+  this->write_command_(R04_PON, true, true);
 }
 
 void EPaperT133A01::power_off() {
-  ESP_LOGV(TAG, "Power off via CS1");
-  this->cmd_data_cs1_(R02_POF, {0x00});
+  ESP_LOGV(TAG, "Power off");
+  this->write_command_(R02_POF, {0x00}, true, true);
 }
 
 void EPaperT133A01::refresh_screen(bool partial) {
-  ESP_LOGV(TAG, "Refresh screen via CS1");
+  ESP_LOGV(TAG, "Refresh screen");
   // Display Refresh
-  this->cmd_data_cs1_(R12_DRF, {0x01});
+  this->write_command_(R12_DRF, {0x01}, true, true);
 }
 
 void EPaperT133A01::deep_sleep() {
-  ESP_LOGV(TAG, "Deep sleep via CS1");
-  this->cmd_data_cs1_(0x07, {0xA5});
+  ESP_LOGV(TAG, "Deep sleep");
+  this->write_command_(0x07, {0xA5}, true, true);
 }
 
 bool HOT EPaperT133A01::transfer_data() {
@@ -325,22 +280,22 @@ bool HOT EPaperT133A01::transfer_data() {
 
   size_t half = this->current_data_index_;
 
-  // --- CCSET: select color set before data transfer ---
-  if (half == 0 && this->cs1_pin_ != nullptr) {
-    this->cmd_data_cs1_(RE0_CCSET, {0x01});
+  // --- CCSET: select color set before data transfer (CS + CS1) ---
+  if (half == 0) {
+    this->write_command_(RE0_CCSET, {0x01}, true, true);
     this->wait_for_idle_(true);
     delay(10);
   }
 
-  // --- CS phase: left half of each row via CS (GPIO10) ---
+  // --- CS phase: left half of each row via CS ---
   // T133A01 requires CS to stay LOW for the ENTIRE DTM data stream.
   // Toggling CS between chunks resets the controller's data pointer,
   // causing only the last chunk to be retained. Keep CS asserted
-  // across timeout boundaries by NOT calling disable() on yield.
+  // across timeout boundaries by NOT deselecting on yield.
   if (half < total_rows) {
     if (half == 0) {
-      if (this->cs1_pin_ != nullptr)
-        this->cs1_pin_->digital_write(true);
+      this->cs_pin_->digital_write(false);   // select CS
+      this->cs1_pin_->digital_write(true);   // deselect CS1
       this->dc_pin_->digital_write(false);
       this->enable();
       this->write_byte(R10_DTM);
@@ -363,20 +318,19 @@ bool HOT EPaperT133A01::transfer_data() {
     }
     ESP_LOGD(TAG, "CS phase done");
     this->disable();
+    this->cs_pin_->digital_write(true);  // deselect CS
   }
 
-  // --- CS1 phase: right half of each row via CS1 (GPIO2) ---
-  // Same continuous-transaction requirement as CS phase.
-  // CS (GPIO10) is overridden HIGH after enable() so only CS1 receives data.
+  // --- CS1 phase: right half of each row via CS1 ---
+  // Same continuous-transaction requirement as the CS phase.
+  // CS is held HIGH so only CS1 receives the data.
   if (half >= total_rows && half < total_rows * 2) {
     size_t cs1_row = half - total_rows;
 
     if (cs1_row == 0) {
-      if (this->cs1_pin_ != nullptr)
-        this->cs1_pin_->digital_write(false);
-      gpio_set_level(GPIO_NUM_10, 1);
+      this->cs_pin_->digital_write(true);    // deselect CS
+      this->cs1_pin_->digital_write(false);  // select CS1
       this->enable();
-      gpio_set_level(GPIO_NUM_10, 1);
       this->dc_pin_->digital_write(false);
       this->write_byte(R10_DTM);
       this->dc_pin_->digital_write(true);
@@ -398,9 +352,8 @@ bool HOT EPaperT133A01::transfer_data() {
       }
     }
     ESP_LOGD(TAG, "CS1 phase done");
-    if (this->cs1_pin_ != nullptr)
-      this->cs1_pin_->digital_write(true);
     this->disable();
+    this->cs1_pin_->digital_write(true);  // deselect CS1
   }
 
   this->current_data_index_ = 0;
@@ -409,8 +362,8 @@ bool HOT EPaperT133A01::transfer_data() {
 
 void EPaperT133A01::dump_config() {
   EPaperBase::dump_config();
+  LOG_PIN("  CS Pin: ", this->cs_pin_);
   LOG_PIN("  CS1 Pin: ", this->cs1_pin_);
-  LOG_PIN("  Enable Pin: ", this->enable_pin_);
 }
 
 }  // namespace esphome::epaper_spi

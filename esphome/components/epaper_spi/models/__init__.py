@@ -7,6 +7,9 @@ from esphome.const import CONF_DIMENSIONS, CONF_HEIGHT, CONF_WIDTH
 class EpaperModel:
     models: dict[str, Self] = {}
 
+    # Whether the driver manages chip-select itself instead of via the SPI bus.
+    manages_cs: bool = False
+
     def __init__(
         self,
         name: str,
@@ -34,6 +37,23 @@ class EpaperModel:
 
     def get_constructor_args(self, config) -> tuple:
         return ()
+
+    def add_options(self) -> dict:
+        """
+        Return model-specific configuration schema options.
+        The base implementation adds nothing; specific models override this to
+        declare extra options without cluttering the shared schema.
+        :return: A mapping suitable for cv.Schema.extend()
+        """
+        return {}
+
+    async def to_code(self, var, config) -> None:
+        """
+        Generate model-specific code for the options added by add_options().
+        The base implementation does nothing; specific models override this.
+        :param var: The component variable
+        :param config: The validated configuration
+        """
 
     def get_dimensions(self, config) -> tuple[int, int]:
         if CONF_DIMENSIONS in config:
