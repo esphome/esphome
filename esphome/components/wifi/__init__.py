@@ -345,11 +345,18 @@ def final_validate(config):
     has_improv_serial = "improv_serial" in full_config
     has_captive_portal = "captive_portal" in full_config
     has_web_server = "web_server" in full_config
+    # possible primary network interfaces
+    has_primary_netif = "ethernet" in full_config or "modem" in full_config
     if not (has_sta or has_ap or has_improv or has_improv_serial):
         raise cv.Invalid(
             "Please specify at least an SSID or an Access Point to create."
         )
-    if has_ap and not has_captive_portal and not has_web_server:
+    if (
+        has_ap
+        and not has_captive_portal
+        and not has_web_server
+        and not has_primary_netif
+    ):
         _LOGGER.warning(
             "WiFi AP is configured but neither captive_portal nor web_server is enabled. "
             "The AP will not be usable for configuration or monitoring. "
