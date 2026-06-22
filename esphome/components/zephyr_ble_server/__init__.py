@@ -40,6 +40,7 @@ async def to_code(config):
     zephyr_add_prj_conf("BT_DEVICE_NAME", CORE.name)
     await cg.register_component(var, config)
     if config.get(CONF_ON_NUMERIC_COMPARISON_REQUEST):
+        cg.add_define("USE_BLE_NUMERIC_COMPARISON_REPLY")
         zephyr_add_prj_conf("BT_SMP", True)
         zephyr_add_prj_conf("BT_SETTINGS", True)
         zephyr_add_prj_conf("BT_SMP_SC_ONLY", True)

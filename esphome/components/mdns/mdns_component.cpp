@@ -14,7 +14,7 @@
 #define MDNS_STATIC_CONST_CHAR(name, value) static constexpr const char name[] = value
 #endif
 
-#ifdef USE_API
+#ifdef USE_API_TRANSPORT_IP
 #include "esphome/components/api/api_server.h"
 #endif
 #ifdef USE_DASHBOARD_IMPORT
@@ -47,7 +47,7 @@ void MDNSComponent::setup_buffers_and_register_(PlatformRegisterFn platform_regi
   auto &services = services_storage;
 #endif
 
-#ifdef USE_API
+#ifdef USE_API_TRANSPORT_IP
 #ifdef USE_MDNS_STORE_SERVICES
   get_mac_address_into_buffer(this->mac_address_);
   char *mac_ptr = this->mac_address_;
@@ -75,7 +75,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   // IMPORTANT: The #ifdef blocks below must match COMPONENTS_WITH_MDNS_SERVICES
   // in mdns/__init__.py. If you add a new service here, update both locations.
 
-#ifdef USE_API
+#ifdef USE_API_TRANSPORT_IP
   MDNS_STATIC_CONST_CHAR(SERVICE_ESPHOMELIB, "_esphomelib");
   MDNS_STATIC_CONST_CHAR(TXT_FRIENDLY_NAME, "friendly_name");
   MDNS_STATIC_CONST_CHAR(TXT_VERSION, "version");
@@ -214,7 +214,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   web_service.port = []() -> uint16_t { return USE_WEBSERVER_PORT; };
 #endif
 
-#if !defined(USE_API) && !defined(USE_PROMETHEUS) && !defined(USE_SENDSPIN) && !defined(USE_WEBSERVER) && \
+#if !defined(USE_API_TRANSPORT_IP) && !defined(USE_PROMETHEUS) && !defined(USE_SENDSPIN) && !defined(USE_WEBSERVER) && \
     !defined(USE_MDNS_EXTRA_SERVICES)
   MDNS_STATIC_CONST_CHAR(SERVICE_HTTP, "_http");
   MDNS_STATIC_CONST_CHAR(TXT_VERSION, "version");

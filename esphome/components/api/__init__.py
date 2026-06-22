@@ -31,6 +31,9 @@ from esphome.const import (
     CONF_THEN,
     CONF_TRIGGER_ID,
     CONF_VARIABLES,
+    PLATFORM_ESP32,
+    PLATFORM_NRF52,
+    PLATFORM_RP2,
 )
 from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.cpp_generator import MockObj, TemplateArgsType
@@ -39,20 +42,26 @@ from esphome.types import ConfigFragmentType, ConfigType
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "api"
-DEPENDENCIES = ["network"]
 CODEOWNERS = ["@esphome/core"]
 
 
-def AUTO_LOAD(config: ConfigType) -> list[str]:
-    """Conditionally auto-load json only when capture_response is used."""
-    base = ["socket"]
+def AUTO_LOAD(config: ConfigType | None) -> list[str]:
+    """Conditionally auto-load socket or socket_ble based on transport
+    and json only when capture_response is used."""
+    components = []
+    if (not config or config.get(CONF_TRANSPORT) == "ble") and (
+        CORE.is_esp32 or CORE.is_nrf52 or CORE.is_rp2
+    ):
+        components.append("socket_ble")
+    if not config or config.get(CONF_TRANSPORT) == "ip":
+        components.extend(("socket", "network"))
 
     # Check if any homeassistant.action/homeassistant.service has capture_response: true
     # This flag is set during config validation in _validate_response_config
     if not config or CORE.data.get(DOMAIN, {}).get(CONF_CAPTURE_RESPONSE, False):
-        return base + ["json"]
+        components.append("json")
 
-    return base
+    return components
 
 
 api_ns = cg.esphome_ns.namespace("api")
@@ -102,6 +111,7 @@ SERVICE_ARG_FALLBACK_TYPES: dict[str, MockObj] = {
         for name, t in _SERVICE_ARG_SCALAR_TYPES.items()
     },
 }
+CONF_TRANSPORT = "transport"
 CONF_ENCRYPTION = "encryption"
 CONF_BATCH_DELAY = "batch_delay"
 CONF_CUSTOM_SERVICES = "custom_services"
@@ -264,12 +274,35 @@ def _encryption_schema(config):
 
 def _consume_api_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for API component."""
-    from esphome.components import socket
 
+    transport = config.get(CONF_TRANSPORT)
     # API needs 1 listening socket + typically 3 concurrent client connections
     # (not max_connections, which is the upper limit rarely reached)
-    socket.consume_sockets(3, "api")(config)
-    socket.consume_sockets(1, "api", socket.SocketType.TCP_LISTEN)(config)
+    if transport == "ip":
+        from esphome.components import socket
+
+        socket.consume_sockets(3, "api", socket.SocketType.TCP)(config)
+        socket.consume_sockets(1, "api", socket.SocketType.TCP_LISTEN)(config)
+    elif transport == "ble":
+        from esphome.components import socket_ble
+
+        socket_ble.consume_sockets(3, "api", socket_ble.SocketType.L2CAP)(config)
+        socket_ble.consume_sockets(1, "api", socket_ble.SocketType.L2CAP_LISTEN)(config)
+    return config
+
+
+def _validate_transport(value):
+    if value == "ble":
+        return cv.only_on([PLATFORM_ESP32, PLATFORM_NRF52, PLATFORM_RP2])(value)
+    return value
+
+
+def _validate_no_port_set_on_ble(config):
+    # check if port is other than default 6053 when transport is ble
+    if config[CONF_TRANSPORT] == "ble" and config[CONF_PORT] != 6053:
+        raise cv.Invalid(
+            "BLE transport does not support specifing a port", path=[CONF_PORT]
+        )
     return config
 
 
@@ -277,6 +310,9 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(APIServer),
+            cv.Optional(CONF_TRANSPORT, default="ip"): cv.All(
+                cv.one_of("ip", "ble", lower=True), _validate_transport
+            ),
             cv.Optional(CONF_PORT, default=6053): cv.port,
             # Removed in 2026.1.0 - kept to provide helpful error message
             cv.Optional(CONF_PASSWORD): cv.invalid(
@@ -353,6 +389,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
+    _validate_no_port_set_on_ble,
     _consume_api_sockets,
     _register_provisioning_source,
 )
@@ -390,6 +427,11 @@ async def to_code(config: ConfigType) -> None:
 
     if config[CONF_HOMEASSISTANT_STATES]:
         cg.add_define("USE_API_HOMEASSISTANT_STATES")
+
+    if config[CONF_TRANSPORT] == "ip":
+        cg.add_define("USE_API_TRANSPORT_IP")
+    elif config[CONF_TRANSPORT] == "ble":
+        cg.add_define("USE_API_TRANSPORT_BLE")
 
     if actions := config.get(CONF_ACTIONS, []):
         # Collect all triggers first, then register all at once with initializer_list

@@ -3,7 +3,9 @@
 #include <cerrno>
 #include <cinttypes>
 #include "api_connection.h"
+#ifdef USE_API_TRANSPORT_IP
 #include "esphome/components/network/util.h"
+#endif
 #include "esphome/core/application.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/defines.h"
@@ -52,14 +54,15 @@ void APIServer::setup() {
   }
 #endif
 #endif
-
+  int err;
+#ifdef USE_API_TRANSPORT_IP
   this->socket_ = socket::socket_ip_loop_monitored(SOCK_STREAM, 0).release();  // monitored for incoming connections
   if (this->socket_ == nullptr) {
     this->socket_failed_(LOG_STR("creation"));
     return;
   }
   int enable = 1;
-  int err = this->socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
+  err = this->socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
   if (err != 0) {
     ESP_LOGW(TAG, "Socket reuseaddr: errno %d", errno);
     // we can still continue
@@ -69,16 +72,31 @@ void APIServer::setup() {
     this->socket_failed_(LOG_STR("nonblocking"));
     return;
   }
-
-  struct sockaddr_storage server;
-
-  socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), this->port_);
+  api_sockaddr_storage_t server;
+  socklen_t sl = socket::set_sockaddr_any((api_sockaddr_t *) &server, sizeof(server), this->port_);
   if (sl == 0) {
     this->socket_failed_(LOG_STR("set sockaddr"));
     return;
   }
+#elif defined(USE_API_TRANSPORT_BLE)
+  this->socket_ = socket_ble::socket_ble_listen_loop_monitored(AF_BLUETOOTH, SOCK_SEQPACKET, BTPROTO_L2CAP).release();
+  if (this->socket_ == nullptr) {
+    this->socket_failed_(LOG_STR("creation"));
+    return;
+  }
+  err = this->socket_->setblocking(false);
+  if (err != 0) {
+    this->socket_failed_(LOG_STR("nonblocking"));
+    return;
+  }
+  struct sockaddr_l2 server = {
+      .l2_family = AF_BLUETOOTH,
+      .l2_psm = BLE_LISTEN_PSM,
+  };
+  socklen_t sl = sizeof(server);
+#endif
 
-  err = this->socket_->bind((struct sockaddr *) &server, sl);
+  err = this->socket_->bind((api_sockaddr_t *) &server, sl);
   if (err != 0) {
     this->socket_failed_(LOG_STR("bind"));
     return;
@@ -156,6 +174,7 @@ void APIServer::loop() {
     return;
   }
 
+#ifdef USE_API_TRANSPORT_IP
   // Process clients and remove disconnected ones in a single pass
   // Check network connectivity once for all clients
   if (!network::is_connected()) {
@@ -166,6 +185,7 @@ void APIServer::loop() {
     }
     // Continue to process and clean up the clients below
   }
+#endif
 
   uint8_t client_index = 0;
   while (client_index < this->api_connection_count_) {
@@ -196,7 +216,7 @@ void APIServer::remove_client_(uint8_t client_index) {
 
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
   // Save client info before closing socket and removal for the trigger
-  char peername_buf[socket::SOCKADDR_STR_LEN];
+  char peername_buf[API_SOCKADDR_STR_LEN];
   std::string client_name(client->get_name());
   std::string client_peername(client->get_peername_to(peername_buf));
 #endif
@@ -232,14 +252,14 @@ void APIServer::remove_client_(uint8_t client_index) {
 
 void __attribute__((flatten)) APIServer::accept_new_connections_() {
   while (true) {
-    struct sockaddr_storage source_addr;
+    api_sockaddr_storage_t source_addr;
     socklen_t addr_len = sizeof(source_addr);
 
-    auto sock = this->socket_->accept_loop_monitored((struct sockaddr *) &source_addr, &addr_len);
+    auto sock = this->socket_->accept_loop_monitored((api_sockaddr_t *) &source_addr, &addr_len);
     if (!sock)
       break;
 
-    char peername[socket::SOCKADDR_STR_LEN];
+    char peername[API_SOCKADDR_STR_LEN];
     sock->getpeername_to(peername);
 
     // Check if we're at the connection limit
@@ -265,13 +285,23 @@ void __attribute__((flatten)) APIServer::accept_new_connections_() {
 }
 
 void APIServer::dump_config() {
+#ifdef USE_API_TRANSPORT_IP
   char addr_buf[network::USE_ADDRESS_BUFFER_SIZE];
+#endif
   ESP_LOGCONFIG(TAG,
                 "Server:\n"
+#ifdef USE_API_TRANSPORT_IP
+                "  Transport: IP\n"
                 "  Address: %s:%u\n"
+#elif defined(USE_API_TRANSPORT_BLE)
+                "  Transport: BLE\n"
+#endif
                 "  Listen backlog: %u\n"
                 "  Max connections: %u",
-                network::get_use_address_to(addr_buf), this->port_, this->listen_backlog_, MAX_API_CONNECTIONS);
+#ifdef USE_API_TRANSPORT_IP
+                network::get_use_address_to(addr_buf), this->port_,
+#endif
+                this->listen_backlog_, MAX_API_CONNECTIONS);
 #ifdef USE_API_NOISE
   ESP_LOGCONFIG(TAG, "  Noise encryption: %s", YESNO(this->noise_ctx_.has_psk()));
   if (!this->noise_ctx_.has_psk()) {
@@ -696,10 +726,12 @@ void APIServer::on_shutdown() {
 }
 
 bool APIServer::teardown() {
+#ifdef USE_API_TRANSPORT_IP
   // If network is disconnected, no point trying to flush buffers
   if (!network::is_connected()) {
     return true;
   }
+#endif
   this->loop();
 
   // Return true only when all clients have been torn down

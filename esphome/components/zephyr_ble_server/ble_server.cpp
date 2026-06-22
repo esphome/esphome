@@ -16,13 +16,26 @@ BLEServer *global_ble_server;  // NOLINT(cppcoreguidelines-avoid-non-const-globa
 #define DEVICE_NAME CONFIG_BT_DEVICE_NAME
 #define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
 
+// Truncate the device name to fit into a 31 byte advertisement packet.
+#if defined(USE_API_TRANSPORT_BLE) || defined(USE_OTA)
+constexpr std::size_t MAX_ADV_NAME_LEN = 8;
+#else
+constexpr std::size_t MAX_ADV_NAME_LEN = 26;
+#endif
 static const bt_data AD[] = {
     BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
-    BT_DATA(BT_DATA_NAME_COMPLETE, DEVICE_NAME, DEVICE_NAME_LEN),
+    BT_DATA((DEVICE_NAME_LEN > MAX_ADV_NAME_LEN) ? BT_DATA_NAME_SHORTENED : BT_DATA_NAME_COMPLETE, DEVICE_NAME,
+            (DEVICE_NAME_LEN > MAX_ADV_NAME_LEN) ? MAX_ADV_NAME_LEN : DEVICE_NAME_LEN),
 };
 
 static const bt_data SD[] = {
-#ifdef USE_OTA
+#ifdef USE_API_TRANSPORT_BLE
+    BT_DATA_BYTES(BT_DATA_UUID128_ALL, 0x3e, 0x80, 0x39, 0x53, 0x54, 0x45, 0x64, 0x89, 0x44, 0x44, 0x9c, 0x1c, 0x8b,
+                  0x0d, 0x1b, 0xe5),
+
+#elif defined(USE_OTA)
+    // A standard BLE advertisment can be at most 31 bytes in size, two full 128 bit won't fit it. We prioritize API
+    // service if available.
     BT_DATA_BYTES(BT_DATA_UUID128_ALL, 0x84, 0xaa, 0x60, 0x74, 0x52, 0x8a, 0x8b, 0x86, 0xd3, 0x4c, 0xb7, 0x1d, 0x1d,
                   0xdc, 0x53, 0x8d),
 #endif
@@ -53,7 +66,12 @@ void BLEServer::connected(bt_conn *conn, uint8_t err) {
   }
   ESP_LOGI(TAG, "Connected %s", addr);
 #ifdef CONFIG_BT_SMP
-  if (bt_conn_set_security(conn, BT_SECURITY_L4)) {
+#ifdef USE_BLE_NUMERIC_COMPARISON_REPLY
+  bt_security_t sec = BT_SECURITY_L4;
+#else
+  bt_security_t sec = BT_SECURITY_L1;
+#endif
+  if (bt_conn_set_security(conn, sec)) {
     ESP_LOGE(TAG, "Failed to set security");
   }
 #endif
@@ -124,17 +142,6 @@ static void bond_deleted(uint8_t id, const bt_addr_le_t *peer) {
   ESP_LOGD(TAG, "Bond deleted for %s, id %u", addr, id);
 }
 
-static void auth_passkey_display(bt_conn *conn, unsigned int passkey) {
-  char addr[BT_ADDR_LE_STR_LEN];
-  char passkey_str[7];
-
-  bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
-
-  snprintk(passkey_str, 7, "%06u", passkey);
-
-  ESP_LOGI(TAG, "Passkey for %s: %s", addr, passkey_str);
-}
-
 static void conn_addr_str(bt_conn *conn, char *addr, size_t len) {
   struct bt_conn_info info;
 
@@ -162,6 +169,18 @@ static void auth_cancel(bt_conn *conn) {
   ESP_LOGI(TAG, "Pairing cancelled: %s", addr);
 }
 
+#ifdef USE_BLE_NUMERIC_COMPARISON_REPLY
+static void auth_passkey_display(bt_conn *conn, unsigned int passkey) {
+  char addr[BT_ADDR_LE_STR_LEN];
+  char passkey_str[7];
+
+  bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
+
+  snprintk(passkey_str, 7, "%06u", passkey);
+
+  ESP_LOGI(TAG, "Passkey for %s: %s", addr, passkey_str);
+}
+
 void BLEServer::auth_passkey_confirm(bt_conn *conn, unsigned int passkey) {
   char addr[BT_ADDR_LE_STR_LEN];
   char passkey_str[7];
@@ -173,7 +192,7 @@ void BLEServer::auth_passkey_confirm(bt_conn *conn, unsigned int passkey) {
   ESP_LOGI(TAG, "Confirm passkey for %s: %s", addr, passkey_str);
   global_ble_server->defer([passkey]() { global_ble_server->passkey_cb_(passkey); });
 }
-
+#endif
 static void auth_pairing_confirm(bt_conn *conn) {
   /* Automatically confirm pairing request from the device side. */
   auto err = bt_conn_auth_pairing_confirm(conn);
@@ -188,7 +207,6 @@ static void auth_pairing_confirm(bt_conn *conn) {
 
   ESP_LOGI(TAG, "Pairing confirmed: %s", addr);
 }
-
 #endif
 
 void BLEServer::setup() {
@@ -214,8 +232,10 @@ void BLEServer::setup() {
     ESP_LOGE(TAG, "Failed to register authorization info callbacks.");
   }
   static struct bt_conn_auth_cb auth_cb = {
+#ifdef USE_BLE_NUMERIC_COMPARISON_REPLY
       .passkey_display = auth_passkey_display,
       .passkey_confirm = auth_passkey_confirm,
+#endif
       .cancel = auth_cancel,
       .pairing_confirm = auth_pairing_confirm,
   };

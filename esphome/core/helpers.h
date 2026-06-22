@@ -357,6 +357,16 @@ template<typename T, size_t N> class StaticRingBuffer {
     return true;
   }
 
+  bool push(T &&value) {
+    if (this->count_ >= N) {
+      return false;
+    }
+    this->data_[this->tail_] = std::move(value);
+    this->tail_ = (this->tail_ + 1) % N;
+    ++this->count_;
+    return true;
+  }
+
   void pop() {
     if (this->count_ > 0) {
       this->head_ = (this->head_ + 1) % N;
