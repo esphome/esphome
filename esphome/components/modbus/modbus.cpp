@@ -339,14 +339,49 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
   for (auto *device : this->devices_) {
     if (device->get_address() == address) {
       ModbusServerResponse response;
+      // On success, the response data: reads return the register payload; writes echo the
+      // request's first 4 bytes (start address + value/quantity).
+      const uint8_t *response_data;
+      uint16_t response_len;
 
       if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
           static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_INPUT_REGISTERS) {
         response = device->on_modbus_read_registers(function_code, helpers::get_data<uint16_t>(data, 0),
                                                     helpers::get_data<uint16_t>(data, 2));
+        response_data = response.payload.get();
+        response_len = response.payload_len;
       } else if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
                  static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
-        response = device->on_modbus_write_registers(function_code, data, len);
+        // PDU data: start address(2) [+ quantity(2) + byte count(1)] + register values.
+        // A single-register write always targets one register; for a multiple-register write the
+        // quantity is in the frame and its byte count must equal quantity * 2. Pass the handler a
+        // pointer to the register values so it doesn't have to know the request framing.
+        uint16_t start_address = helpers::get_data<uint16_t>(data, 0);
+        uint16_t number_of_registers = 1;
+        uint16_t values_offset = 2;  // single write: values follow the 2-byte start address
+        if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
+          if (len < 5 || helpers::get_data<uint16_t>(data, 2) * 2 != len - 5) {
+            ESP_LOGW(TAG, "Malformed write multiple registers frame (len=%" PRIu16 ")", len);
+            this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
+            return;
+          }
+          number_of_registers = helpers::get_data<uint16_t>(data, 2);
+          values_offset = 5;  // multiple write: values follow start address(2) + quantity(2) + byte count(1)
+        }
+        if (number_of_registers == 0 || number_of_registers > MAX_NUM_OF_REGISTERS_TO_WRITE) {
+          ESP_LOGW(TAG, "Invalid number of registers %" PRIu16, number_of_registers);
+          this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
+          return;
+        }
+        if (len < values_offset + number_of_registers * 2) {
+          ESP_LOGW(TAG, "Write registers payload truncated (len=%" PRIu16 ")", len);
+          this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
+          return;
+        }
+        response = device->on_modbus_write_registers(start_address, number_of_registers, data + values_offset,
+                                                     number_of_registers * 2);
+        response_data = data;  // echo the request header
+        response_len = 4;
       } else {
         ESP_LOGW(TAG, "Unsupported function code %" PRIu8, function_code);
         this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
@@ -355,7 +390,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       if (static_cast<uint8_t>(response.exception)) {
         this->send_exception_(address, function_code, response.exception);
       } else {
-        this->send_response_(address, function_code, response.payload.get(), response.payload_len);
+        this->send_response_(address, function_code, response_data, response_len);
       }
     }
   }

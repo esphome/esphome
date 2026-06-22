@@ -3,7 +3,6 @@
 #include "esphome/core/log.h"
 
 namespace esphome::modbus_server {
-using modbus::ModbusFunctionCode;
 using modbus::ModbusExceptionCode;
 using modbus::helpers::payload_to_number;
 
@@ -74,56 +73,16 @@ modbus::ModbusServerResponse ModbusServer::on_modbus_read_registers(uint8_t func
   return {buffer, idx};
 }
 
-modbus::ModbusServerResponse ModbusServer::on_modbus_write_registers(uint8_t function_code, const uint8_t *data,
+modbus::ModbusServerResponse ModbusServer::on_modbus_write_registers(uint16_t start_address,
+                                                                     uint16_t number_of_registers, const uint8_t *data,
                                                                      uint16_t len) {
-  uint16_t number_of_registers;
-  uint16_t payload_offset;
+  // data points at the register values; the caller has validated the register count and length.
+  ESP_LOGD(TAG, "Received write registers for device 0x%X. Start address: 0x%X. Number of registers: 0x%X.",
+           this->address_, start_address, number_of_registers);
 
-  if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
-    if (len < 5) {
-      ESP_LOGW(TAG, "Write multiple registers data too short (%" PRIu16 " bytes)", len);
-      return ModbusExceptionCode::ILLEGAL_DATA_VALUE;
-    }
-    number_of_registers = uint16_t(data[3]) | (uint16_t(data[2]) << 8);
-    if (number_of_registers == 0 || number_of_registers > modbus::MAX_NUM_OF_REGISTERS_TO_WRITE) {
-      ESP_LOGW(TAG, "Invalid number of registers %" PRIu16 ". Sending exception response.", number_of_registers);
-      return ModbusExceptionCode::ILLEGAL_DATA_VALUE;
-    }
-    uint16_t payload_size = data[4];
-    if (payload_size != number_of_registers * 2) {
-      ESP_LOGW(TAG,
-               "Payload size of %" PRIu16 " bytes is not 2 times the number of registers (%" PRIu16
-               "). Sending exception response.",
-               payload_size, number_of_registers);
-      return ModbusExceptionCode::ILLEGAL_DATA_VALUE;
-    }
-    if (len < 5 + payload_size) {
-      ESP_LOGW(TAG, "Write multiple registers payload truncated (%" PRIu16 " bytes, expected %u)", len,
-               5 + payload_size);
-      return ModbusExceptionCode::ILLEGAL_DATA_VALUE;
-    }
-    payload_offset = 5;
-  } else if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_SINGLE_REGISTER) {
-    if (len < 4) {
-      ESP_LOGW(TAG, "Write single register data too short (%" PRIu16 " bytes)", len);
-      return ModbusExceptionCode::ILLEGAL_DATA_VALUE;
-    }
-    number_of_registers = 1;
-    payload_offset = 2;
-  } else {
-    ESP_LOGW(TAG, "Invalid function code 0x%X. Sending exception response.", function_code);
-    return ModbusExceptionCode::ILLEGAL_FUNCTION;
-  }
-
-  uint16_t start_address = uint16_t(data[1]) | (uint16_t(data[0]) << 8);
-  ESP_LOGD(TAG,
-           "Received write holding registers for device 0x%X. FC: 0x%X. Start address: 0x%X. Number of registers: "
-           "0x%X.",
-           this->address_, function_code, start_address, number_of_registers);
-
-  auto for_each_register = [this, start_address, number_of_registers, payload_offset](
+  auto for_each_register = [this, start_address, number_of_registers](
                                const std::function<bool(ServerRegister *, uint16_t offset)> &callback) -> bool {
-    uint16_t offset = payload_offset;
+    uint16_t offset = 0;
     for (uint16_t current_address = start_address; current_address < start_address + number_of_registers;) {
       bool ok = false;
       for (auto *server_register : this->server_registers_) {
@@ -164,8 +123,8 @@ modbus::ModbusServerResponse ModbusServer::on_modbus_write_registers(uint8_t fun
     return ModbusExceptionCode::SERVICE_DEVICE_FAILURE;
   }
 
-  // Echo the first 4 bytes (start address + value/quantity) back as the response.
-  return {data, 4};
+  // Success: the caller builds the write response (an echo of the request header).
+  return {};
 }
 
 void ModbusServer::dump_config() {
