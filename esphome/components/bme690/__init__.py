@@ -29,6 +29,7 @@ CONF_BME690_ID = "bme690_id"
 CONF_BSEC_CONFIG = "bsec_config"
 CONF_BSEC_LIBRARY = "bsec_library"
 CONF_STATE_SAVE_INTERVAL = "state_save_interval"
+KEY_BSEC_LIBRARY = "bsec_library"
 
 bme690_ns = cg.esphome_ns.namespace("bme690")
 BME690Component = bme690_ns.class_(
@@ -131,7 +132,7 @@ async def to_code(config):
     value = config[CONF_ID].id
     if isinstance(value, str):
         value = value.encode()
-    state_preference_hash = int(hashlib.md5(value).hexdigest()[:8], 16)
+    state_preference_hash = int(hashlib.sha256(value).hexdigest()[:8], 16)
     cg.add(var.set_state_preference_hash(state_preference_hash))
     cg.add(var.set_sample_rate(config[CONF_SAMPLE_RATE]))
     cg.add(var.set_temperature_offset(config[CONF_TEMPERATURE_OFFSET]))
@@ -144,6 +145,14 @@ async def to_code(config):
         cg.add(var.set_bsec_configuration(config_array, len(rhs)))
 
     lib_path = _resolve_bsec_library(config[CONF_BSEC_LIBRARY])
+    data = CORE.data.setdefault(DOMAIN, {})
+    if (existing_lib_path := data.get(KEY_BSEC_LIBRARY)) is not None:
+        if existing_lib_path != lib_path:
+            raise core.EsphomeError(
+                "All BME690 instances must use the same BSEC library archive"
+            )
+    else:
+        data[KEY_BSEC_LIBRARY] = lib_path
     esp32.add_extra_build_file("libalgobsec.a", lib_path)
 
     build_dir = CORE.relative_build_path()
