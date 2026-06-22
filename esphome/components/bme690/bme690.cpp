@@ -9,6 +9,94 @@ namespace esphome::bme690 {
 
 static constexpr uint8_t BME690_MAX_HEATER_PROFILE_LEN = 10;
 
+static const char *bsec_status_to_string(bsec_library_return_t rslt) {
+  switch (rslt) {
+    case BSEC_OK:
+      return "BSEC_OK";
+    case BSEC_E_DOSTEPS_INVALIDINPUT:
+      return "BSEC_E_DOSTEPS_INVALIDINPUT";
+    case BSEC_E_DOSTEPS_VALUELIMITS:
+      return "BSEC_E_DOSTEPS_VALUELIMITS";
+    case BSEC_I_DOSTEPS_NOOUTPUTSRETURNABLE:
+      return "BSEC_I_DOSTEPS_NOOUTPUTSRETURNABLE";
+    case BSEC_W_DOSTEPS_EXCESSOUTPUTS:
+      return "BSEC_W_DOSTEPS_EXCESSOUTPUTS";
+    case BSEC_W_DOSTEPS_TSINTRADIFFOUTOFRANGE:
+      return "BSEC_W_DOSTEPS_TSINTRADIFFOUTOFRANGE";
+    case BSEC_W_DOSTEPS_GASINDEXMISS:
+      return "BSEC_W_DOSTEPS_GASINDEXMISS";
+    case BSEC_E_DOSTEPS_DUPLICATEINPUT:
+      return "BSEC_E_DOSTEPS_DUPLICATEINPUT";
+    case BSEC_E_SU_WRONGDATARATE:
+      return "BSEC_E_SU_WRONGDATARATE";
+    case BSEC_E_SU_SAMPLERATELIMITS:
+      return "BSEC_E_SU_SAMPLERATELIMITS";
+    case BSEC_E_SU_DUPLICATEGATE:
+      return "BSEC_E_SU_DUPLICATEGATE";
+    case BSEC_E_SU_INVALIDSAMPLERATE:
+      return "BSEC_E_SU_INVALIDSAMPLERATE";
+    case BSEC_E_SU_GATECOUNTEXCEEDSARRAY:
+      return "BSEC_E_SU_GATECOUNTEXCEEDSARRAY";
+    case BSEC_E_SU_SAMPLINTVLINTEGERMULT:
+      return "BSEC_E_SU_SAMPLINTVLINTEGERMULT";
+    case BSEC_E_SU_MULTGASSAMPLINTVL:
+      return "BSEC_E_SU_MULTGASSAMPLINTVL";
+    case BSEC_E_SU_HIGHHEATERONDURATION:
+      return "BSEC_E_SU_HIGHHEATERONDURATION";
+    case BSEC_W_SU_UNKNOWNOUTPUTGATE:
+      return "BSEC_W_SU_UNKNOWNOUTPUTGATE";
+    case BSEC_W_SU_MODINNOULP:
+      return "BSEC_W_SU_MODINNOULP";
+    case BSEC_I_SU_SUBSCRIBEDOUTPUTGATES:
+      return "BSEC_I_SU_SUBSCRIBEDOUTPUTGATES";
+    case BSEC_I_SU_GASESTIMATEPRECEDENCE:
+      return "BSEC_I_SU_GASESTIMATEPRECEDENCE";
+    case BSEC_W_SU_SAMPLERATEMISMATCH:
+      return "BSEC_W_SU_SAMPLERATEMISMATCH";
+    case BSEC_E_PARSE_SECTIONEXCEEDSWORKBUFFER:
+      return "BSEC_E_PARSE_SECTIONEXCEEDSWORKBUFFER";
+    case BSEC_E_CONFIG_FAIL:
+      return "BSEC_E_CONFIG_FAIL";
+    case BSEC_E_CONFIG_VERSIONMISMATCH:
+      return "BSEC_E_CONFIG_VERSIONMISMATCH";
+    case BSEC_E_CONFIG_FEATUREMISMATCH:
+      return "BSEC_E_CONFIG_FEATUREMISMATCH";
+    case BSEC_E_CONFIG_CRCMISMATCH:
+      return "BSEC_E_CONFIG_CRCMISMATCH";
+    case BSEC_E_CONFIG_EMPTY:
+      return "BSEC_E_CONFIG_EMPTY";
+    case BSEC_E_CONFIG_INSUFFICIENTWORKBUFFER:
+      return "BSEC_E_CONFIG_INSUFFICIENTWORKBUFFER";
+    case BSEC_E_CONFIG_INVALIDSTRINGSIZE:
+      return "BSEC_E_CONFIG_INVALIDSTRINGSIZE";
+    case BSEC_E_CONFIG_INSUFFICIENTBUFFER:
+      return "BSEC_E_CONFIG_INSUFFICIENTBUFFER";
+    case BSEC_E_SET_INVALIDCHANNELIDENTIFIER:
+      return "BSEC_E_SET_INVALIDCHANNELIDENTIFIER";
+    case BSEC_E_SET_INVALIDLENGTH:
+      return "BSEC_E_SET_INVALIDLENGTH";
+    case BSEC_W_SC_CALL_TIMING_VIOLATION:
+      return "BSEC_W_SC_CALL_TIMING_VIOLATION";
+    case BSEC_W_SC_MODEXCEEDULPTIMELIMIT:
+      return "BSEC_W_SC_MODEXCEEDULPTIMELIMIT";
+    case BSEC_W_SC_MODINSUFFICIENTWAITTIME:
+      return "BSEC_W_SC_MODINSUFFICIENTWAITTIME";
+    default:
+      return "BSEC_UNKNOWN";
+  }
+}
+
+static bool bsec_status_is_info(bsec_library_return_t rslt) {
+  switch (rslt) {
+    case BSEC_I_DOSTEPS_NOOUTPUTSRETURNABLE:
+    case BSEC_I_SU_SUBSCRIBEDOUTPUTGATES:
+    case BSEC_I_SU_GASESTIMATEPRECEDENCE:
+      return true;
+    default:
+      return false;
+  }
+}
+
 bool BME690Component::check_result_(const char *label, int8_t rslt) {
   if (rslt == BME69X_OK) {
     return true;
@@ -24,11 +112,15 @@ bool BME690Component::check_bsec_status_(const char *label, bsec_library_return_
   }
 
   if (rslt > BSEC_OK) {
-    ESP_LOGW(TAG, "%s warning: %d", label, static_cast<int>(rslt));
+    if (bsec_status_is_info(rslt)) {
+      ESP_LOGI(TAG, "%s info: %s (%d)", label, bsec_status_to_string(rslt), static_cast<int>(rslt));
+    } else {
+      ESP_LOGW(TAG, "%s warning: %s (%d)", label, bsec_status_to_string(rslt), static_cast<int>(rslt));
+    }
     return true;
   }
 
-  ESP_LOGE(TAG, "%s failed: %d", label, static_cast<int>(rslt));
+  ESP_LOGE(TAG, "%s failed: %s (%d)", label, bsec_status_to_string(rslt), static_cast<int>(rslt));
   return false;
 }
 
