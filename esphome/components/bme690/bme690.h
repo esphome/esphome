@@ -15,6 +15,7 @@ extern "C" {
 #include "bsec_iaq.h"
 }
 
+#include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
@@ -36,10 +37,8 @@ enum SampleRate {
   SAMPLE_RATE_ULP = 1,
 };
 
-class BME690Component : public PollingComponent, public i2c::I2CDevice {
+class BME690Component : public Component, public i2c::I2CDevice {
  public:
-  explicit BME690Component(uint32_t update_interval = 5000) : PollingComponent(update_interval) {}
-
   void set_temperature_sensor(sensor::Sensor *sensor) { temperature_sensor = sensor; }
   void set_humidity_sensor(sensor::Sensor *sensor) { humidity_sensor = sensor; }
   void set_pressure_sensor(sensor::Sensor *sensor) { pressure_sensor = sensor; }
@@ -60,6 +59,7 @@ class BME690Component : public PollingComponent, public i2c::I2CDevice {
   }
   void set_state_save_interval(uint32_t interval) { state_save_interval_ms_ = interval; }
   void set_state_preference_hash(uint32_t hash) { this->state_preference_hash_ = hash; }
+  void set_update_interval(uint32_t update_interval) { this->update_interval_ms_ = update_interval; }
 #ifdef USE_TEXT_SENSOR
   void set_iaq_accuracy_text_sensor(text_sensor::TextSensor *sensor) { iaq_accuracy_text_sensor_ = sensor; }
 #endif
@@ -85,7 +85,6 @@ class BME690Component : public PollingComponent, public i2c::I2CDevice {
 
   void setup() override;
   void dump_config() override;
-  void update() override;
 
  protected:
   static BME69X_INTF_RET_TYPE read_i2c(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, void *intf_ptr);
@@ -94,6 +93,9 @@ class BME690Component : public PollingComponent, public i2c::I2CDevice {
   bool check_result_(const char *label, int8_t rslt);
   bool check_bsec_status_(const char *label, bsec_library_return_t rslt);
   bool configure_bsec_();
+  void read_();
+  void schedule_read_(uint32_t delay_ms);
+  void schedule_next_bsec_read_();
   bool push_inputs_to_bsec_(const struct bme69x_data &data, const bsec_bme_settings_t &settings, int64_t timestamp_ns);
   void handle_bsec_outputs_(const bsec_output_t *outputs, uint8_t num_outputs);
   void log_bsec_version_();
@@ -127,6 +129,7 @@ class BME690Component : public PollingComponent, public i2c::I2CDevice {
   bool state_dirty_{false};
   uint32_t state_save_interval_ms_{6 * 60 * 60 * 1000UL};  // 6h
   uint32_t state_preference_hash_{0};
+  uint32_t update_interval_ms_{3000};
   uint32_t last_time_ms_{0};
   uint32_t millis_overflow_counter_{0};
 };
