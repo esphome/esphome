@@ -6,7 +6,7 @@
 
 namespace esphome::demo {
 
-class DemoSensor : public sensor::Sensor, public PollingComponent {
+class DemoSensor final : public sensor::Sensor, public PollingComponent {
  public:
   void update() override {
     float val = random_float();
