@@ -113,6 +113,9 @@ sx126x:
 - **shaping** (**Optional**, enum): Transmitter data shaping can be `GAUSSIAN_BT_0_3`, `GAUSSIAN_BT_0_5`,
   `GAUSSIAN_BT_0_7`, `GAUSSIAN_BT_1_0` or `NONE`.
 
+- **whitening_enable** (**Optional**, bool): Enables CCITT data whitening, with fixed polynomial `0x21`. Defaults to `false`.
+- **whitening_initial** (**Optional**, int): Initial value of whitening shift register.  Defaults to `0x100`.
+
 > [!NOTE]
 > Configuration variables can be changed at runtime using lambdas. Settings will only be applied
 > after calling `configure`. See <APIRef text="sx126x.h" path="sx126x/sx126x.h" />.
