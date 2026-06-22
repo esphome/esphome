@@ -33,6 +33,7 @@ from esphome.__main__ import (
     command_clean_all,
     command_config,
     command_config_hash,
+    command_dashboard,
     command_idedata,
     command_rename,
     command_run,
@@ -3738,6 +3739,45 @@ def test_command_wizard(tmp_path: Path) -> None:
 
         assert result == 0
         mock_wizard.assert_called_once_with(config_file)
+
+
+def test_command_dashboard_errors_with_device_builder_redirect() -> None:
+    """The removed dashboard command points users to ESPHome Device Builder."""
+    args = MockArgs()
+
+    with pytest.raises(EsphomeError, match="esphome-device-builder"):
+        command_dashboard(args)
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["esphome", "dashboard"],
+        ["esphome", "dashboard", "/config"],
+        # Legacy flags must be accepted so old invocations reach the redirect
+        # instead of failing on argparse "unrecognized arguments".
+        ["esphome", "dashboard", "--port", "6052", "/config"],
+        ["esphome", "dashboard", "--username", "u", "--password", "p", "--open-ui"],
+        [
+            "esphome",
+            "dashboard",
+            "--address",
+            "0.0.0.0",
+            "--socket",
+            "/x",
+            "--ha-addon",
+        ],
+    ],
+)
+def test_run_esphome_dashboard_redirects_to_device_builder(
+    argv: list[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """`esphome dashboard` still parses but fails with the redirect message."""
+    result = run_esphome(argv)
+
+    assert result == 1
+    assert "esphome-device-builder" in caplog.text
 
 
 def test_command_config_hash(

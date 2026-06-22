@@ -8,13 +8,13 @@
 namespace esphome::dfrobot_sen0395 {
 
 template<typename... Ts>
-class DfrobotSen0395ResetAction : public Action<Ts...>, public Parented<DfrobotSen0395Component> {
+class DfrobotSen0395ResetAction final : public Action<Ts...>, public Parented<DfrobotSen0395Component> {
  public:
   void play(const Ts &...x) { this->parent_->enqueue(make_unique<ResetSystemCommand>()); }
 };
 
 template<typename... Ts>
-class DfrobotSen0395SettingsAction : public Action<Ts...>, public Parented<DfrobotSen0395Component> {
+class DfrobotSen0395SettingsAction final : public Action<Ts...>, public Parented<DfrobotSen0395Component> {
  public:
   TEMPLATABLE_VALUE(int8_t, factory_reset)
   TEMPLATABLE_VALUE(int8_t, start_after_power_on)

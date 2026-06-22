@@ -527,7 +527,7 @@ def has_resolvable_address() -> bool:
     if has_ip_address():
         return True
 
-    # The dashboard pre-resolves the device and passes the IPs via
+    # device-builder pre-resolves the device and passes the IPs via
     # --mdns-address-cache/--dns-address-cache; honor a cached address even when the
     # device has mDNS disabled (e.g. a .local host found via ping).
     if CORE.address_cache and CORE.address_cache.get_addresses(CORE.address):
@@ -1715,9 +1715,13 @@ def command_bundle(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_dashboard(args: ArgsProtocol) -> int | None:
-    from esphome.dashboard import dashboard
-
-    return dashboard.start_dashboard(args)
+    raise EsphomeError(
+        "The built-in dashboard has been removed from ESPHome. "
+        "Install and run ESPHome Device Builder instead:\n"
+        "  pip install esphome-device-builder\n"
+        "  esphome-device-builder\n"
+        "See https://github.com/esphome/device-builder for more information."
+    )
 
 
 def run_multiple_configs(
@@ -2379,44 +2383,22 @@ def parse_args(argv):
         "configuration", help="Your YAML file or configuration directory.", nargs="*"
     )
 
-    parser_dashboard = subparsers.add_parser(
-        "dashboard", help="Create a simple web server for a dashboard."
+    # The dashboard moved to ESPHome Device Builder; the command is kept only to
+    # print a redirect (see command_dashboard). Accept and ignore the old flags
+    # so legacy invocations reach that message instead of failing on argparse
+    # "unrecognized arguments".
+    parser_dashboard = subparsers.add_parser("dashboard")
+    parser_dashboard.add_argument("configuration", nargs="?", help=argparse.SUPPRESS)
+    parser_dashboard.add_argument("--port", help=argparse.SUPPRESS)
+    parser_dashboard.add_argument("--address", help=argparse.SUPPRESS)
+    parser_dashboard.add_argument("--username", help=argparse.SUPPRESS)
+    parser_dashboard.add_argument("--password", help=argparse.SUPPRESS)
+    parser_dashboard.add_argument("--socket", help=argparse.SUPPRESS)
+    parser_dashboard.add_argument(
+        "--open-ui", action="store_true", help=argparse.SUPPRESS
     )
     parser_dashboard.add_argument(
-        "configuration", help="Your YAML configuration file directory."
-    )
-    parser_dashboard.add_argument(
-        "--port",
-        help="The HTTP port to open connections on. Defaults to 6052.",
-        type=int,
-        default=6052,
-    )
-    parser_dashboard.add_argument(
-        "--address",
-        help="The address to bind to.",
-        type=str,
-        default="0.0.0.0",
-    )
-    parser_dashboard.add_argument(
-        "--username",
-        help="The optional username to require for authentication.",
-        type=str,
-        default="",
-    )
-    parser_dashboard.add_argument(
-        "--password",
-        help="The optional password to require for authentication.",
-        type=str,
-        default="",
-    )
-    parser_dashboard.add_argument(
-        "--open-ui", help="Open the dashboard UI in a browser.", action="store_true"
-    )
-    parser_dashboard.add_argument(
-        "--ha-addon", help=argparse.SUPPRESS, action="store_true"
-    )
-    parser_dashboard.add_argument(
-        "--socket", help="Make the dashboard serve under a unix socket", type=str
+        "--ha-addon", action="store_true", help=argparse.SUPPRESS
     )
 
     parser_vscode = subparsers.add_parser("vscode")
@@ -2511,11 +2493,7 @@ def run_esphome(argv):
     elif args.quiet:
         args.log_level = "CRITICAL"
 
-    setup_log(
-        log_level=args.log_level,
-        # Show timestamp for dashboard access logs
-        include_timestamp=args.command == "dashboard",
-    )
+    setup_log(log_level=args.log_level)
 
     if args.command in PRE_CONFIG_ACTIONS:
         try:
