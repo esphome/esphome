@@ -812,9 +812,9 @@ jobs:
       # required because each esphome build lands in a different per-device dir
       # -- without them the cache gets zero hits.
       #
-      # IDF_CCACHE_ENABLE starts at "0" so the first CI run is a clean baseline
-      # with all the plumbing in place; flip to "1" to measure the speedup.
-      IDF_CCACHE_ENABLE: "0"
+      # IDF_CCACHE_ENABLE was "0" for the first run (clean baseline with all the
+      # plumbing in place); now "1" to measure the speedup vs that baseline.
+      IDF_CCACHE_ENABLE: "1"
       CCACHE_DIR: /mnt/ccache
       CCACHE_BASEDIR: ${{ github.workspace }}
       CCACHE_NOHASHDIR: "true"
