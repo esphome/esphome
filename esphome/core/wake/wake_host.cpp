@@ -123,6 +123,14 @@ void wakeable_delay(uint32_t ms) {
       if (ms == 0) [[unlikely]] {
         yield();
       }
+      // A socket woke select() early — open the component-phase gate so the
+      // owning component's loop() drains the data on this tick rather than
+      // waiting up to loop_interval_ ms. Idempotent if wake_loop_threadsafe()
+      // already set the flag (wake socket fired); required when an application
+      // socket fired and nothing else set the flag.
+      if (ret > 0) {
+        wake_request_set();
+      }
       return;
     }
     // ret < 0: error (EINTR is normal, anything else is unexpected).

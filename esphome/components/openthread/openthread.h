@@ -45,6 +45,8 @@ class OpenThreadComponent : public Component {
   bool is_sed() const { return (this->poll_period_ > 0); }
 #endif
   void set_output_power(int8_t output_power) { this->output_power_ = output_power; }
+  void set_connected(bool connected) { this->connected_ = connected; }
+  static void on_state_changed(otChangedFlags flags, void *context);
 
   /** Apply Link Mode settings (incl poll period).
    * When called from outside the OpenThread task, call while holding InstanceLock.
@@ -53,7 +55,6 @@ class OpenThreadComponent : public Component {
 
  protected:
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
-  static void on_state_changed(otChangedFlags flags, void *context);
   otInstance *get_openthread_instance_();
   int openthread_stop_();
   std::function<void()> factory_reset_external_callback_;
