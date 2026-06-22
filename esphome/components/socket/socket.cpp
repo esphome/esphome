@@ -106,7 +106,7 @@ std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol) {
   return socket_listen_loop_monitored(AF_INET6, type, protocol);
 #else
   return socket_listen_loop_monitored(AF_INET, type, protocol);
-#endif
+#endif /* USE_NETWORK_IPV6 */
 }
 #endif
 
