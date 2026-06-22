@@ -23,13 +23,38 @@ void UDPComponent::open_sockets_() {
   if (this->should_listen_) {
     if (this->listen_address_.has_value()) {
       // Multicast: create socket with family matching the multicast address
+#ifdef USE_HOST
+      // On HOST, IPAddress(string) can fail silently; is_valid() exposes that.
+      // On embedded targets, listen_address_ is always set from Python-validated code-gen — cannot be invalid.
+      if (!this->listen_address_.value().is_valid()) {
+        ESP_LOGE(TAG, "Invalid listen address");
+        this->mark_failed();
+        return;
+      }
+#endif
       char addr_buf[network::IP_ADDRESS_BUFFER_SIZE];
       this->listen_address_.value().str_to(addr_buf);
+      if (addr_buf[0] == '\0') {
+        ESP_LOGE(TAG, "Failed to format listen address");
+        this->mark_failed();
+        return;
+      }
       int af = (strchr(addr_buf, ':') != nullptr) ? AF_INET6 : AF_INET;
       this->listen_socket_ = socket::socket_loop_monitored(af, SOCK_DGRAM, IPPROTO_IP);
     } else {
       // Non-multicast: dual-stack on IPv6 builds, AF_INET on IPv4 builds
       this->listen_socket_ = socket::socket_ip_loop_monitored(SOCK_DGRAM, IPPROTO_IP);
+#if USE_NETWORK_IPV6
+      if (this->listen_socket_ != nullptr) {
+        int disable = 0;
+        if (this->listen_socket_->setsockopt(IPPROTO_IPV6, IPV6_V6ONLY, &disable, sizeof(disable)) < 0) {
+          ESP_LOGE(TAG, "Failed to set IPV6_V6ONLY: errno %d", errno);
+          this->status_set_error(LOG_STR("Failed to set IPV6_V6ONLY"));
+          this->mark_failed();
+          return;
+        }
+      }
+#endif
     }
     if (this->listen_socket_ == nullptr) {
       this->status_set_error(LOG_STR("Could not create socket"));
@@ -54,6 +79,11 @@ void UDPComponent::open_sockets_() {
     if (this->listen_address_.has_value()) {
       char addr_buf[network::IP_ADDRESS_BUFFER_SIZE];
       this->listen_address_.value().str_to(addr_buf);
+      if (addr_buf[0] == '\0') {
+        ESP_LOGE(TAG, "Failed to format listen address");
+        this->mark_failed();
+        return;
+      }
       ESP_LOGD(TAG, "Join multicast %s", addr_buf);
       if (!socket::join_multicast_group(this->listen_socket_.get(), addr_buf, &mcast_ifindex)) {
         ESP_LOGE(TAG, "Failed to join multicast group. Error %d", errno);
@@ -196,27 +226,30 @@ void UDPComponent::dump_config() {
 
 void UDPComponent::send_packet(const uint8_t *data, size_t size) {
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-  if (this->broadcast_socket_ == nullptr) {
-    return;
-  }
   for (const auto &entry : this->sockaddrs_) {
 #if USE_NETWORK_IPV6
     if (entry.addr.ss_family == AF_INET6) {
       if (this->send_socket_v6_ != nullptr) {
         auto result = this->send_socket_v6_->sendto(data, size, 0,
                                                     reinterpret_cast<const struct sockaddr *>(&entry.addr), entry.len);
-        if (result < 0)
+        if (result < 0) {
           ESP_LOGW(TAG, "sendto() IPv6 error %d", errno);
+        }
       } else {
         ESP_LOGW(TAG, "IPv6 send socket unavailable, dropping packet");
       }
       continue;
     }
 #endif
+    if (this->broadcast_socket_ == nullptr) {
+      ESP_LOGW(TAG, "IPv4 send socket unavailable, dropping packet");
+      continue;
+    }
     auto result = this->broadcast_socket_->sendto(data, size, 0, reinterpret_cast<const struct sockaddr *>(&entry.addr),
                                                   entry.len);
-    if (result < 0)
+    if (result < 0) {
       ESP_LOGW(TAG, "sendto() error %d", errno);
+    }
   }
 #endif
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
