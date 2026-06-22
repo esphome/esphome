@@ -34,10 +34,10 @@ class EPaperT133A01 : public EPaperBase {
   void fill(Color color) override;
   void clear() override;
 
+  void setup() override;
   void dump_config() override;
 
  protected:
-  void setup_pins() const override;
   bool reset() override;
   bool initialise(bool partial) override;
   void refresh_screen(bool partial) override;

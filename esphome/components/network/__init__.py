@@ -108,6 +108,13 @@ def has_high_performance_networking() -> bool:
     return CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING, False)
 
 
+def validate_ipv6(value: bool) -> bool:
+    if CORE.is_nrf52 and not value:
+        raise cv.Invalid("On nRF52, enable_ipv6 must be true")
+
+    return value
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(NetworkComponent),
@@ -133,6 +140,7 @@ CONFIG_SCHEMA = cv.Schema(
                 ),
                 cv.boolean_false,
             ),
+            validate_ipv6,
         ),
         cv.Optional(CONF_MIN_IPV6_ADDR_COUNT, default=0): cv.positive_int,
         cv.Optional(CONF_ENABLE_HIGH_PERFORMANCE): cv.All(cv.boolean, cv.only_on_esp32),
@@ -209,13 +217,6 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", 64)
 
     if CORE.is_nrf52:
-        enable_ipv6 = config.get(CONF_ENABLE_IPV6, True)
-        if not enable_ipv6:
-            _LOGGER.warning(
-                "IPv6 cannot be disabled on nRF52 because the Zephyr IPAddress implementation is IPv6-only. "
-                "Forcing CONFIG_NET_IPV6=y."
-            )
-            config[CONF_ENABLE_IPV6] = True
         zephyr_add_prj_conf("NETWORKING", True)
         zephyr_add_prj_conf("NET_IPV6", True)
         zephyr_add_prj_conf("NET_TCP", True)

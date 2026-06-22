@@ -10,7 +10,7 @@ namespace esphome::m5stack_8angle {
 static const uint8_t M5STACK_8ANGLE_NUM_LEDS = 9;
 static const uint8_t M5STACK_8ANGLE_BYTES_PER_LED = 4;
 
-class M5Stack8AngleLightOutput : public light::AddressableLight, public Parented<M5Stack8AngleComponent> {
+class M5Stack8AngleLightOutput final : public light::AddressableLight, public Parented<M5Stack8AngleComponent> {
  public:
   void setup() override;
 

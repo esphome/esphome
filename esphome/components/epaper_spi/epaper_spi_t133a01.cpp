@@ -98,9 +98,9 @@ uint8_t EPaperT133A01::color_to_index(Color color) {
   return T133A01_BLACK;
 }
 
-void EPaperT133A01::setup_pins() const {
-  // dc, reset, busy and enable pins are set up by the base class.
-  EPaperBase::setup_pins();
+void EPaperT133A01::setup() {
+  // Base setup initialises the buffer, the standard pins and the SPI bus.
+  EPaperBase::setup();
 
   // Both chip-selects are driven directly by this driver (the dual-CS
   // protocol needs CS held HIGH while CS1 receives data, which the SPI

@@ -1,7 +1,5 @@
 #pragma once
 
-#include <vector>
-
 #include "esphome/components/display/display.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/split_buffer/split_buffer.h"
@@ -125,7 +123,7 @@ class EPaperBase : public Display,
 
   const char *epaper_state_to_string_();
   bool is_idle_() const;
-  virtual void setup_pins() const;
+  void setup_pins_() const;
   virtual bool reset();
   virtual bool initialise(bool partial);
   void send_init_sequence_(const uint8_t *sequence, size_t length);

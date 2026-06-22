@@ -25,7 +25,7 @@ void EPaperBase::setup() {
     this->mark_failed(LOG_STR("Failed to initialise buffer"));
     return;
   }
-  this->setup_pins();
+  this->setup_pins_();
   this->spi_setup();
 }
 
@@ -37,7 +37,11 @@ bool EPaperBase::init_buffer_(size_t buffer_length) {
   return true;
 }
 
-void EPaperBase::setup_pins() const {
+void EPaperBase::setup_pins_() const {
+  for (auto *pin : this->enable_pins_) {
+    pin->setup();
+    pin->digital_write(true);
+  }
   this->dc_pin_->setup();  // OUTPUT
   this->dc_pin_->digital_write(false);
 
@@ -48,11 +52,6 @@ void EPaperBase::setup_pins() const {
 
   if (this->busy_pin_ != nullptr) {
     this->busy_pin_->setup();  // INPUT
-  }
-
-  for (auto *enable_pin : this->enable_pins_) {
-    enable_pin->setup();  // OUTPUT
-    enable_pin->digital_write(true);
   }
 }
 
@@ -353,9 +352,6 @@ void EPaperBase::dump_config() {
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_PIN("  CS Pin: ", this->cs_);
-  for (auto *enable_pin : this->enable_pins_) {
-    LOG_PIN("  Enable Pin: ", enable_pin);
-  }
   LOG_UPDATE_INTERVAL(this);
 }
 

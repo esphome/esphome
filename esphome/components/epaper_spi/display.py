@@ -5,10 +5,15 @@ from esphome import core, pins
 import esphome.codegen as cg
 from esphome.components import display, spi
 from esphome.components.display import CONF_SHOW_TEST_CARD, validate_rotation
-from esphome.components.mipi import flatten_sequence, map_sequence
+from esphome.components.mipi import (
+    flatten_sequence,
+    map_sequence,
+    model_schema_extractor,
+)
 import esphome.config_validation as cv
 from esphome.config_validation import update_interval
 from esphome.const import (
+    CONF_AUTO_CLEAR_ENABLED,
     CONF_BUSY_PIN,
     CONF_CS_PIN,
     CONF_DATA_RATE,
@@ -111,6 +116,7 @@ def model_schema(config):
     ).extend(model.add_options())
 
 
+@model_schema_extractor(MODELS, model_schema)
 def customise_schema(config):
     """
     Create a customised config schema for a specific model and validate the configuration.
@@ -124,7 +130,23 @@ def customise_schema(config):
         },
         extra=cv.ALLOW_EXTRA,
     )(config)
-    return model_schema(config)(config)
+    model = MODELS[config[CONF_MODEL]]
+    config = model_schema(config)(config)
+    width, height = model.get_dimensions(config)
+    display.add_metadata(
+        config[CONF_ID],
+        width,
+        height,
+        has_hardware_rotation=True,
+        byte_order=cv.UNDEFINED,
+        has_writer=config.get(CONF_AUTO_CLEAR_ENABLED) is True
+        or config.get(CONF_PAGES) is not None
+        or config.get(CONF_LAMBDA) is not None
+        or config.get(CONF_SHOW_TEST_CARD) is True,
+        rotation=config.get(CONF_ROTATION, 0),
+        draw_rounding=0,
+    )
+    return config
 
 
 CONFIG_SCHEMA = customise_schema

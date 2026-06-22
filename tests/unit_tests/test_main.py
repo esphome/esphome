@@ -24,6 +24,7 @@ from esphome.__main__ import (
     _make_crystal_freq_callback,
     _redact_with_legacy_fallback,
     _resolve_network_devices,
+    _unresolved_default_error,
     _validate_bootloader_binary,
     _validate_partition_table_binary,
     choose_upload_log_host,
@@ -32,6 +33,8 @@ from esphome.__main__ import (
     command_clean_all,
     command_config,
     command_config_hash,
+    command_dashboard,
+    command_idedata,
     command_rename,
     command_run,
     command_update_all,
@@ -471,6 +474,88 @@ def test_command_config__show_secrets_skips_redaction(
     assert "\\033[8m" not in output
 
 
+def test_command_config__no_defaults_dumps_user_snapshot(
+    tmp_path: Path, capfd: CaptureFixture[str]
+) -> None:
+    """``--no-defaults`` dumps ``config.user_config`` instead of the
+    validated config, so schema defaults don't leak into the output."""
+    from esphome.config import Config
+
+    setup_core(tmp_path=tmp_path, config={"esphome": {"name": "test"}})
+    args = MockArgs()
+    args.show_secrets = True
+    args.no_defaults = True
+
+    validated = Config()
+    validated["esphome"] = {"name": "test", "build_path": "build/test"}
+    validated["wifi"] = {"ssid": "MyNet", "reboot_timeout": "15min"}
+    validated.user_config = {
+        "esphome": {"name": "test"},
+        "wifi": {"ssid": "MyNet"},
+    }
+
+    result = command_config(args, validated)
+
+    assert result == 0
+    output = capfd.readouterr().out
+    assert "ssid: MyNet" in output
+    # Defaults present on the validated config must not appear.
+    assert "reboot_timeout" not in output
+    assert "build_path" not in output
+
+
+def test_command_config__no_defaults_warns_when_snapshot_missing(
+    tmp_path: Path,
+    capfd: CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """If the snapshot is unavailable (e.g. a plain dict was passed in),
+    ``--no-defaults`` logs a warning and falls back to the input config."""
+    setup_core(tmp_path=tmp_path, config={"esphome": {"name": "test"}})
+    args = MockArgs()
+    args.show_secrets = True
+    args.no_defaults = True
+
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        result = command_config(args, {"wifi": {"ssid": "MyNet"}})
+
+    assert result == 0
+    output = capfd.readouterr().out
+    assert "ssid: MyNet" in output
+    assert any(
+        "user-only config snapshot is unavailable" in rec.message
+        for rec in caplog.records
+    )
+
+
+def test_command_config__no_defaults_skips_strip_default_ids(
+    tmp_path: Path, capfd: CaptureFixture[str]
+) -> None:
+    """When ``--no-defaults`` is set, ``strip_default_ids`` isn't run --
+    the user snapshot is already free of schema-injected IDs."""
+    from esphome.config import Config
+
+    setup_core(tmp_path=tmp_path, config={"esphome": {"name": "test"}})
+    args = MockArgs()
+    args.show_secrets = True
+    args.no_defaults = True
+
+    validated = Config()
+    validated["sensor"] = [{"name": "x", "id": "auto_generated"}]
+    validated.user_config = {"sensor": [{"name": "x"}]}
+
+    with patch(
+        "esphome.__main__.strip_default_ids", side_effect=AssertionError
+    ) as mock_strip:
+        result = command_config(args, validated)
+
+    assert result == 0
+    mock_strip.assert_not_called()
+    output = capfd.readouterr().out
+    assert "name: x" in output
+    assert "auto_generated" not in output
+
+
 def test_choose_upload_log_host_with_string_default() -> None:
     """Test with a single string default device."""
     setup_core()
@@ -607,13 +692,30 @@ def test_choose_upload_log_host_with_ota_device_with_ota_config() -> None:
     assert result == ["192.168.1.100"]
 
 
+def test_choose_upload_log_host_ota_mdns_disabled_uses_address_cache() -> None:
+    """A .local device with mDNS disabled resolves via the dashboard-supplied cache."""
+    setup_core(
+        config={
+            CONF_API: {},
+            CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}],
+            CONF_MDNS: {CONF_DISABLED: True},
+        },
+        address="esp32-a1s.local",
+    )
+    CORE.address_cache = AddressCache(mdns_cache={"esp32-a1s.local": ["192.168.1.50"]})
+
+    for purpose in (Purpose.LOGGING, Purpose.UPLOADING):
+        result = choose_upload_log_host(
+            default="OTA", check_default=None, purpose=purpose
+        )
+        assert result == ["192.168.1.50"]
+
+
 def test_choose_upload_log_host_with_ota_device_with_api_config() -> None:
     """Test OTA device when API is configured (no upload without OTA in config)."""
     setup_core(config={CONF_API: {}}, address="192.168.1.100")
 
-    with pytest.raises(
-        EsphomeError, match="All specified devices .* could not be resolved"
-    ):
+    with pytest.raises(EsphomeError, match="no 'ota:' platform is configured"):
         choose_upload_log_host(
             default="OTA",
             check_default=None,
@@ -631,6 +733,57 @@ def test_choose_upload_log_host_with_ota_device_with_api_config_logging() -> Non
         purpose=Purpose.LOGGING,
     )
     assert result == ["192.168.1.100"]
+
+
+def test_choose_upload_log_host_logging_without_api_reports_missing_api() -> None:
+    """A resolvable device with only ota: fails logs with a missing-api message."""
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, address="192.168.1.100"
+    )
+
+    with pytest.raises(EsphomeError, match="no 'api:' component is configured"):
+        choose_upload_log_host(
+            default="OTA",
+            check_default=None,
+            purpose=Purpose.LOGGING,
+        )
+
+
+def test_choose_upload_log_host_logging_no_transport_reports_missing_api() -> None:
+    """A resolvable device with neither api: nor MQTT logging fails clearly."""
+    setup_core(address="192.168.1.100")
+
+    with pytest.raises(EsphomeError, match="no 'api:' component is configured"):
+        choose_upload_log_host(
+            default="OTA",
+            check_default=None,
+            purpose=Purpose.LOGGING,
+        )
+
+
+def test_unresolved_default_error_unresolvable_keeps_dashboard_hint() -> None:
+    """A .local host with mDNS disabled and no cache keeps the dashboard hint."""
+    setup_core(
+        config={CONF_API: {}, CONF_MDNS: {CONF_DISABLED: True}},
+        address="esp32-a1s.local",
+    )
+    CORE.dashboard = True
+
+    msg = _unresolved_default_error(Purpose.LOGGING, ["OTA"])
+    assert "could not be resolved" in msg
+    assert "set 'use_address'" in msg
+
+
+def test_unresolved_default_error_upload_with_ota_is_generic() -> None:
+    """With ota: present the upload error stays generic, not transport-specific."""
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, address="192.168.1.100"
+    )
+    CORE.dashboard = False
+
+    msg = _unresolved_default_error(Purpose.UPLOADING, ["OTA"])
+    assert "could not be resolved" in msg
+    assert "try --device <IP>" in msg
 
 
 @pytest.mark.usefixtures("mock_has_mqtt_logging")
@@ -1269,6 +1422,7 @@ class MockArgs:
     ota_platform: str | None = None
     partition_table: bool = False
     bootloader: bool = False
+    states: bool | None = None
 
 
 def test_upload_program_serial_esp32(
@@ -2663,7 +2817,7 @@ def test_show_logs_api_no_states(
     mock_run_logs.return_value = 0
 
     args = MockArgs()
-    args.no_states = True
+    args.states = False
     devices = ["192.168.1.100"]
 
     result = show_logs(CORE.config, args, devices)
@@ -3050,6 +3204,22 @@ def test_has_resolvable_address() -> None:
 
     # Test with no address and mDNS disabled
     setup_core(config={CONF_MDNS: {CONF_DISABLED: True}}, address=None)
+    assert has_resolvable_address() is False
+
+    # mDNS disabled + .local, but the dashboard cached the address -> resolvable
+    setup_core(
+        config={CONF_MDNS: {CONF_DISABLED: True}}, address="esphome-device.local"
+    )
+    CORE.address_cache = AddressCache(
+        mdns_cache={"esphome-device.local": ["192.168.1.100"]}
+    )
+    assert has_resolvable_address() is True
+
+    # mDNS disabled + .local, cache present but missing this host -> not resolvable
+    setup_core(
+        config={CONF_MDNS: {CONF_DISABLED: True}}, address="esphome-device.local"
+    )
+    CORE.address_cache = AddressCache(mdns_cache={"other-device.local": ["10.0.0.1"]})
     assert has_resolvable_address() is False
 
 
@@ -3569,6 +3739,45 @@ def test_command_wizard(tmp_path: Path) -> None:
 
         assert result == 0
         mock_wizard.assert_called_once_with(config_file)
+
+
+def test_command_dashboard_errors_with_device_builder_redirect() -> None:
+    """The removed dashboard command points users to ESPHome Device Builder."""
+    args = MockArgs()
+
+    with pytest.raises(EsphomeError, match="esphome-device-builder"):
+        command_dashboard(args)
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["esphome", "dashboard"],
+        ["esphome", "dashboard", "/config"],
+        # Legacy flags must be accepted so old invocations reach the redirect
+        # instead of failing on argparse "unrecognized arguments".
+        ["esphome", "dashboard", "--port", "6052", "/config"],
+        ["esphome", "dashboard", "--username", "u", "--password", "p", "--open-ui"],
+        [
+            "esphome",
+            "dashboard",
+            "--address",
+            "0.0.0.0",
+            "--socket",
+            "/x",
+            "--ha-addon",
+        ],
+    ],
+)
+def test_run_esphome_dashboard_redirects_to_device_builder(
+    argv: list[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """`esphome dashboard` still parses but fails with the redirect message."""
+    result = run_esphome(argv)
+
+    assert result == 1
+    assert "esphome-device-builder" in caplog.text
 
 
 def test_command_config_hash(
@@ -5989,19 +6198,77 @@ def test_upload_using_esptool_subprocess_passes_crystal_callback(
 def test_parse_args_run_no_states() -> None:
     """Test that --no-states is parsed for the run command."""
     args = parse_args(["esphome", "run", "--no-states", "device.yaml"])
-    assert args.no_states is True
+    assert args.states is False
 
 
-def test_parse_args_run_no_states_default() -> None:
-    """Test that no_states defaults to False for the run command."""
+def test_parse_args_run_states() -> None:
+    """Test that --states is parsed for the run command."""
+    args = parse_args(["esphome", "run", "--states", "device.yaml"])
+    assert args.states is True
+
+
+def test_parse_args_run_states_default() -> None:
+    """Test that states defaults to None (unset) for the run command."""
     args = parse_args(["esphome", "run", "device.yaml"])
-    assert args.no_states is False
+    assert args.states is None
 
 
 def test_parse_args_logs_no_states() -> None:
     """Test that --no-states is parsed for the logs command."""
     args = parse_args(["esphome", "logs", "--no-states", "device.yaml"])
-    assert args.no_states is True
+    assert args.states is False
+
+
+def test_parse_args_logs_states() -> None:
+    """Test that --states is parsed for the logs command."""
+    args = parse_args(["esphome", "logs", "--states", "device.yaml"])
+    assert args.states is True
+
+
+def test_should_subscribe_states_default() -> None:
+    """Test that states are shown by default when nothing is set."""
+    from esphome.__main__ import _should_subscribe_states
+
+    args = parse_args(["esphome", "logs", "device.yaml"])
+    with patch.dict(os.environ, {}, clear=False):
+        os.environ.pop("ESPHOME_LOG_STATES", None)
+        assert _should_subscribe_states(args) is True
+
+
+def test_should_subscribe_states_env_suppresses() -> None:
+    """Test that ESPHOME_LOG_STATES=false suppresses states by default."""
+    from esphome.__main__ import _should_subscribe_states
+
+    args = parse_args(["esphome", "logs", "device.yaml"])
+    with patch.dict(os.environ, {"ESPHOME_LOG_STATES": "false"}):
+        assert _should_subscribe_states(args) is False
+
+
+def test_should_subscribe_states_env_enables() -> None:
+    """Test that ESPHOME_LOG_STATES=true enables states by default."""
+    from esphome.__main__ import _should_subscribe_states
+
+    args = parse_args(["esphome", "logs", "device.yaml"])
+    with patch.dict(os.environ, {"ESPHOME_LOG_STATES": "true"}):
+        assert _should_subscribe_states(args) is True
+
+
+def test_should_subscribe_states_flag_overrides_env() -> None:
+    """Test that --states overrides ESPHOME_LOG_STATES=false."""
+    from esphome.__main__ import _should_subscribe_states
+
+    args = parse_args(["esphome", "logs", "--states", "device.yaml"])
+    with patch.dict(os.environ, {"ESPHOME_LOG_STATES": "false"}):
+        assert _should_subscribe_states(args) is True
+
+
+def test_should_subscribe_states_no_flag_overrides_env() -> None:
+    """Test that --no-states overrides ESPHOME_LOG_STATES=true."""
+    from esphome.__main__ import _should_subscribe_states
+
+    args = parse_args(["esphome", "logs", "--no-states", "device.yaml"])
+    with patch.dict(os.environ, {"ESPHOME_LOG_STATES": "true"}):
+        assert _should_subscribe_states(args) is False
 
 
 @patch("esphome.components.api.client.run_logs")
@@ -6020,7 +6287,7 @@ def test_command_run_passes_no_states_to_show_logs(
     mock_run_logs.return_value = 0
 
     args = MockArgs()
-    args.no_states = True
+    args.states = False
     args.no_logs = False
     args.device = None
 
@@ -6070,10 +6337,39 @@ def test_command_run_defaults_subscribe_states_true(
         ),
         patch("esphome.__main__.upload_program", return_value=(0, "192.168.1.100")),
         patch("esphome.__main__.get_serial_ports", return_value=[]),
+        patch.dict(os.environ, {}, clear=False),
     ):
+        # Ensure the default behavior is not affected by an ambient
+        # ESPHOME_LOG_STATES set in the test runner's environment.
+        os.environ.pop("ESPHOME_LOG_STATES", None)
         result = command_run(args, CORE.config)
 
     assert result == 0
     mock_run_logs.assert_called_once_with(
         CORE.config, ["192.168.1.100"], subscribe_states=True
     )
+
+
+def test_command_idedata_esp_idf_prints_json(capsys: CaptureFixture) -> None:
+    """Under the native ESP-IDF toolchain, idedata is emitted as JSON."""
+    setup_core()
+    CORE.toolchain = Toolchain.ESP_IDF
+    data = {"cxx_path": "g++", "prog_path": "/build/firmware.elf"}
+
+    with patch("esphome.espidf.toolchain.get_idedata", return_value=data) as mock_get:
+        result = command_idedata(MagicMock(), CORE.config)
+
+    assert result == 0
+    mock_get.assert_called_once_with()
+    assert json.loads(capsys.readouterr().out) == data
+
+
+def test_command_idedata_esp_idf_no_build_errors() -> None:
+    """Under ESP-IDF, a missing build (no idedata) returns an error, not a crash."""
+    setup_core()
+    CORE.toolchain = Toolchain.ESP_IDF
+
+    with patch("esphome.espidf.toolchain.get_idedata", return_value=None):
+        result = command_idedata(MagicMock(), CORE.config)
+
+    assert result == 1

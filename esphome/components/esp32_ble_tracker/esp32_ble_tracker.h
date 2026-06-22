@@ -294,11 +294,11 @@ class ESPBTClient : public ESPBTDeviceListener {
   uint8_t *tracker_state_version_{nullptr};
 };
 
-class ESP32BLETracker : public Component,
+class ESP32BLETracker final : public Component,
 #ifdef USE_OTA_STATE_LISTENER
-                        public ota::OTAGlobalStateListener,
+                              public ota::OTAGlobalStateListener,
 #endif
-                        public Parented<ESP32BLE> {
+                              public Parented<ESP32BLE> {
  public:
   void set_scan_duration(uint32_t scan_duration) { scan_duration_ = scan_duration; }
   void set_scan_interval(uint32_t scan_interval) { scan_interval_ = scan_interval; }

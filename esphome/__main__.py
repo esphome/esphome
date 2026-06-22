@@ -268,6 +268,36 @@ def _ota_hostnames_for_default(purpose: Purpose) -> list[str]:
     return _resolve_with_cache(CORE.address, purpose)
 
 
+def _unresolved_default_error(purpose: Purpose, defaults: list[str]) -> str:
+    """Build the error when a default device target produced no usable host.
+
+    When the OTA default was requested and the address resolves but the config
+    lacks the transport the purpose needs (``api:`` for logs, an ``ota:``
+    platform for uploads), name that gap instead of the misleading
+    "could not be resolved" / set-use_address hint.
+    """
+    if "OTA" in defaults and has_resolvable_address():
+        if purpose == Purpose.LOGGING and not has_api():
+            return (
+                "Cannot view logs over the network: no 'api:' component is "
+                "configured. Network log streaming requires the native API; add "
+                "an 'api:' component, enable MQTT logging, or view logs over USB."
+            )
+        if purpose == Purpose.UPLOADING and not has_ota():
+            return (
+                "Cannot upload over the network: no 'ota:' platform is "
+                "configured. Add an 'ota:' platform, or upload over USB."
+            )
+    if CORE.dashboard:
+        hint = "If you know the IP, set 'use_address' in your network config."
+    else:
+        hint = "If you know the IP, try --device <IP>"
+    return (
+        f"All specified devices {defaults} could not be resolved. "
+        f"Is the device connected to the network? {hint}"
+    )
+
+
 def choose_upload_log_host(
     default: list[str] | str | None,
     check_default: str | None,
@@ -317,14 +347,7 @@ def choose_upload_log_host(
             else:
                 resolved.append(device)
         if not resolved:
-            if CORE.dashboard:
-                hint = "If you know the IP, set 'use_address' in your network config."
-            else:
-                hint = "If you know the IP, try --device <IP>"
-            raise EsphomeError(
-                f"All specified devices {defaults} could not be resolved. "
-                f"Is the device connected to the network? {hint}"
-            )
+            raise EsphomeError(_unresolved_default_error(purpose, defaults))
         return resolved
 
     # No devices specified, show interactive chooser
@@ -502,6 +525,12 @@ def has_resolvable_address() -> bool:
         return False
 
     if has_ip_address():
+        return True
+
+    # device-builder pre-resolves the device and passes the IPs via
+    # --mdns-address-cache/--dns-address-cache; honor a cached address even when the
+    # device has mDNS disabled (e.g. a .local host found via ping).
+    if CORE.address_cache and CORE.address_cache.get_addresses(CORE.address):
         return True
 
     if has_mdns():
@@ -695,6 +724,11 @@ def _wrap_to_code(name, comp, yaml_util):
 def write_cpp(config: ConfigType) -> int:
     from esphome import writer
 
+    # Refresh the storage sidecar and clean an incompatible previous build
+    # before regenerating any sources. This may full-wipe the build dir, so it
+    # has to run before write_cpp_file writes src/.
+    writer.update_storage_json()
+
     if not get_bool_env(ENV_NOGITIGNORE):
         writer.write_gitignore()
 
@@ -760,6 +794,7 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
         toolchain.create_factory_bin()
         toolchain.create_ota_bin()
         toolchain.create_elf_copy()
+        toolchain.get_idedata()
     else:
         from esphome.platformio import toolchain
 
@@ -1350,6 +1385,19 @@ def _validate_bootloader_binary(binary: Path) -> None:
         )
 
 
+def _should_subscribe_states(args: ArgsProtocol) -> bool:
+    """Determine whether entity state changes should be shown in log output.
+
+    The ``--states``/``--no-states`` command line flags take precedence. When
+    neither is given, the ``ESPHOME_LOG_STATES`` environment variable controls
+    the behavior, defaulting to showing states.
+    """
+    states = getattr(args, "states", None)
+    if states is not None:
+        return states
+    return get_bool_env("ESPHOME_LOG_STATES", True)
+
+
 def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int | None:
     try:
         module = importlib.import_module("esphome.components." + CORE.target_platform)
@@ -1379,7 +1427,7 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
         return run_logs(
             config,
             network_devices,
-            subscribe_states=not getattr(args, "no_states", False),
+            subscribe_states=_should_subscribe_states(args),
         )
 
     if port_type in (PortType.NETWORK, PortType.MQTT) and has_mqtt_logging():
@@ -1409,7 +1457,16 @@ def command_wizard(args: ArgsProtocol) -> int | None:
 def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
     from esphome import yaml_util
 
-    if not CORE.verbose:
+    if getattr(args, "no_defaults", False):
+        user_config = getattr(config, "user_config", None)
+        if user_config is None:
+            _LOGGER.warning(
+                "--no-defaults requested but the user-only config snapshot is "
+                "unavailable; falling back to the validated configuration."
+            )
+        else:
+            config = user_config
+    elif not CORE.verbose:
         config = strip_default_ids(config)
     output = yaml_util.dump(config, args.show_secrets)
     if not args.show_secrets:
@@ -1617,7 +1674,7 @@ def command_clean(args: ArgsProtocol, config: ConfigType) -> int | None:
     from esphome import writer
 
     try:
-        writer.clean_build()
+        writer.clean_build(full=True)
     except OSError as err:
         _LOGGER.error("Error deleting build files: %s", err)
         return 1
@@ -1658,9 +1715,13 @@ def command_bundle(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_dashboard(args: ArgsProtocol) -> int | None:
-    from esphome.dashboard import dashboard
-
-    return dashboard.start_dashboard(args)
+    raise EsphomeError(
+        "The built-in dashboard has been removed from ESPHome. "
+        "Install and run ESPHome Device Builder instead:\n"
+        "  pip install esphome-device-builder\n"
+        "  esphome-device-builder\n"
+        "See https://github.com/esphome/device-builder for more information."
+    )
 
 
 def run_multiple_configs(
@@ -1736,6 +1797,21 @@ def command_update_all(args: ArgsProtocol) -> int | None:
 
 def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
     import json
+
+    if CORE.using_toolchain_esp_idf:
+        # Native ESP-IDF derives idedata from the build's compile_commands.json,
+        # so the configuration must already be compiled.
+        from esphome.espidf import toolchain as espidf_toolchain
+
+        idedata = espidf_toolchain.get_idedata()
+        if idedata is None:
+            _LOGGER.error(
+                "No idedata available; compile the configuration first",
+            )
+            return 1
+
+        print(json.dumps(idedata, indent=2) + "\n")
+        return 0
 
     if not CORE.using_toolchain_platformio:
         _LOGGER.error(
@@ -2018,6 +2094,29 @@ SIMPLE_CONFIG_ACTIONS = [
 ]
 
 
+def _add_states_args(parser: argparse.ArgumentParser) -> None:
+    """Add mutually exclusive ``--states``/``--no-states`` flags to a parser.
+
+    When neither flag is given, the ``ESPHOME_LOG_STATES`` environment variable
+    controls whether entity state changes are shown (defaulting to showing them).
+    """
+    states_group = parser.add_mutually_exclusive_group()
+    states_group.add_argument(
+        "--states",
+        dest="states",
+        action="store_true",
+        default=None,
+        help="Show entity state changes in log output (overrides ESPHOME_LOG_STATES).",
+    )
+    states_group.add_argument(
+        "--no-states",
+        dest="states",
+        action="store_false",
+        default=None,
+        help="Do not show entity state changes in log output.",
+    )
+
+
 def parse_args(argv):
     options_parser = argparse.ArgumentParser(add_help=False)
     options_parser.add_argument(
@@ -2110,6 +2209,12 @@ def parse_args(argv):
     parser_config.add_argument(
         "--show-secrets", help="Show secrets in output.", action="store_true"
     )
+    parser_config.add_argument(
+        "--no-defaults",
+        help="Only output the user-supplied configuration without "
+        "schema defaults applied.",
+        action="store_true",
+    )
 
     parser_config_hash = subparsers.add_parser(
         "config-hash", help="Calculate the hash of the configuration."
@@ -2194,11 +2299,7 @@ def parse_args(argv):
         help="Reset the device before starting serial logs.",
         default=os.getenv("ESPHOME_SERIAL_LOGGING_RESET"),
     )
-    parser_logs.add_argument(
-        "--no-states",
-        action="store_true",
-        help="Do not show entity state changes in log output.",
-    )
+    _add_states_args(parser_logs)
 
     parser_discover = subparsers.add_parser(
         "discover",
@@ -2230,11 +2331,7 @@ def parse_args(argv):
         "--no-logs", help="Disable starting logs.", action="store_true"
     )
 
-    parser_run.add_argument(
-        "--no-states",
-        action="store_true",
-        help="Do not show entity state changes in log output.",
-    )
+    _add_states_args(parser_run)
 
     parser_run.add_argument(
         "--reset",
@@ -2286,44 +2383,22 @@ def parse_args(argv):
         "configuration", help="Your YAML file or configuration directory.", nargs="*"
     )
 
-    parser_dashboard = subparsers.add_parser(
-        "dashboard", help="Create a simple web server for a dashboard."
+    # The dashboard moved to ESPHome Device Builder; the command is kept only to
+    # print a redirect (see command_dashboard). Accept and ignore the old flags
+    # so legacy invocations reach that message instead of failing on argparse
+    # "unrecognized arguments".
+    parser_dashboard = subparsers.add_parser("dashboard")
+    parser_dashboard.add_argument("configuration", nargs="?", help=argparse.SUPPRESS)
+    parser_dashboard.add_argument("--port", help=argparse.SUPPRESS)
+    parser_dashboard.add_argument("--address", help=argparse.SUPPRESS)
+    parser_dashboard.add_argument("--username", help=argparse.SUPPRESS)
+    parser_dashboard.add_argument("--password", help=argparse.SUPPRESS)
+    parser_dashboard.add_argument("--socket", help=argparse.SUPPRESS)
+    parser_dashboard.add_argument(
+        "--open-ui", action="store_true", help=argparse.SUPPRESS
     )
     parser_dashboard.add_argument(
-        "configuration", help="Your YAML configuration file directory."
-    )
-    parser_dashboard.add_argument(
-        "--port",
-        help="The HTTP port to open connections on. Defaults to 6052.",
-        type=int,
-        default=6052,
-    )
-    parser_dashboard.add_argument(
-        "--address",
-        help="The address to bind to.",
-        type=str,
-        default="0.0.0.0",
-    )
-    parser_dashboard.add_argument(
-        "--username",
-        help="The optional username to require for authentication.",
-        type=str,
-        default="",
-    )
-    parser_dashboard.add_argument(
-        "--password",
-        help="The optional password to require for authentication.",
-        type=str,
-        default="",
-    )
-    parser_dashboard.add_argument(
-        "--open-ui", help="Open the dashboard UI in a browser.", action="store_true"
-    )
-    parser_dashboard.add_argument(
-        "--ha-addon", help=argparse.SUPPRESS, action="store_true"
-    )
-    parser_dashboard.add_argument(
-        "--socket", help="Make the dashboard serve under a unix socket", type=str
+        "--ha-addon", action="store_true", help=argparse.SUPPRESS
     )
 
     parser_vscode = subparsers.add_parser("vscode")
@@ -2418,11 +2493,7 @@ def run_esphome(argv):
     elif args.quiet:
         args.log_level = "CRITICAL"
 
-    setup_log(
-        log_level=args.log_level,
-        # Show timestamp for dashboard access logs
-        include_timestamp=args.command == "dashboard",
-    )
+    setup_log(log_level=args.log_level)
 
     if args.command in PRE_CONFIG_ACTIONS:
         try:

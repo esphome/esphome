@@ -7,7 +7,7 @@
 
 namespace esphome::cd74hc4067 {
 
-class CD74HC4067Component : public Component {
+class CD74HC4067Component final : public Component {
  public:
   /// Set up the internal sensor array.
   void setup() override;
@@ -38,7 +38,7 @@ class CD74HC4067Component : public Component {
   uint32_t switch_delay_;
 };
 
-class CD74HC4067Sensor : public sensor::Sensor, public PollingComponent, public voltage_sampler::VoltageSampler {
+class CD74HC4067Sensor final : public sensor::Sensor, public PollingComponent, public voltage_sampler::VoltageSampler {
  public:
   CD74HC4067Sensor(CD74HC4067Component *parent);
 
