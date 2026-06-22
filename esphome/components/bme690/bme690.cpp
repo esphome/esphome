@@ -332,9 +332,29 @@ bool BME690Component::configure_bsec_() {
       this->state_preference_hash_);
   this->load_bsec_state_();
 
-  bsec_sensor_configuration_t requested_virtual_sensors[14] = {};
-  uint8_t n_requested = 0;
   const float sample_rate = this->get_sample_rate_();
+  bsec_sensor_configuration_t requested_virtual_sensors[14] = {};
+  const uint8_t n_requested = this->build_iaq_subscription_(requested_virtual_sensors, sample_rate);
+
+  bsec_sensor_configuration_t required_sensor_settings[BSEC_MAX_PHYSICAL_SENSOR] = {};
+  uint8_t n_required = BSEC_MAX_PHYSICAL_SENSOR;
+
+  bsec_rslt = bsec_update_subscription(this->bsec_instance_.data(), requested_virtual_sensors, n_requested,
+                                       required_sensor_settings, &n_required);
+  if (!this->check_bsec_status_("bsec_update_subscription", bsec_rslt)) {
+    this->bsec_setup_failed_step_ = "bsec_update_subscription";
+    this->bsec_setup_failed_result_ = bsec_rslt;
+    return false;
+  }
+
+  this->bsec_ready_ = true;
+  ESP_LOGI(TAG, "BSEC ready (sample rate %.3f Hz)", sample_rate);
+  return true;
+}
+
+uint8_t BME690Component::build_iaq_subscription_(bsec_sensor_configuration_t *requested_virtual_sensors,
+                                                 float sample_rate) const {
+  uint8_t n_requested = 0;
   const bool bsec_3_3_or_newer = this->is_bsec_3_3_or_newer_();
 
   auto add_request = [&](uint8_t sensor_id) {
@@ -368,20 +388,7 @@ bool BME690Component::configure_bsec_() {
   add_request(BSEC_OUTPUT_STABILIZATION_STATUS);
   add_request(BSEC_OUTPUT_RUN_IN_STATUS);
 
-  bsec_sensor_configuration_t required_sensor_settings[BSEC_MAX_PHYSICAL_SENSOR] = {};
-  uint8_t n_required = BSEC_MAX_PHYSICAL_SENSOR;
-
-  bsec_rslt = bsec_update_subscription(this->bsec_instance_.data(), requested_virtual_sensors, n_requested,
-                                       required_sensor_settings, &n_required);
-  if (!this->check_bsec_status_("bsec_update_subscription", bsec_rslt)) {
-    this->bsec_setup_failed_step_ = "bsec_update_subscription";
-    this->bsec_setup_failed_result_ = bsec_rslt;
-    return false;
-  }
-
-  this->bsec_ready_ = true;
-  ESP_LOGI(TAG, "BSEC ready (sample rate %.3f Hz)", sample_rate);
-  return true;
+  return n_requested;
 }
 
 float BME690Component::get_sample_rate_() const {
