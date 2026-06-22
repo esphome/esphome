@@ -217,9 +217,9 @@ struct ModbusServerResponse {
 
 class ModbusServerDevice {
  public:
-  ModbusServerDevice() = default;
-  ModbusServerDevice(uint8_t address) : address_(address) {}
   virtual ~ModbusServerDevice() = default;
+  ModbusServerDevice() = default;
+  // Polymorphic base: non-copyable and non-movable to prevent slicing (Rule of Five).
   ModbusServerDevice(const ModbusServerDevice &) = delete;
   ModbusServerDevice &operator=(const ModbusServerDevice &) = delete;
   ModbusServerDevice(ModbusServerDevice &&) = delete;
@@ -232,7 +232,7 @@ class ModbusServerDevice {
                                                          const uint8_t *data, uint16_t len) = 0;
 
  protected:
-  uint8_t address_;
+  uint8_t address_{0};
 };
 
 }  // namespace esphome::modbus
