@@ -9,6 +9,58 @@
 
 namespace esphome::modbus::helpers {
 
+inline bool is_function_code_read(uint8_t function_code) {
+  ModbusFunctionCode masked_function_code = static_cast<ModbusFunctionCode>(function_code & FUNCTION_CODE_MASK);
+  return masked_function_code == ModbusFunctionCode::READ_COILS ||
+         masked_function_code == ModbusFunctionCode::READ_DISCRETE_INPUTS ||
+         masked_function_code == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
+         masked_function_code == ModbusFunctionCode::READ_INPUT_REGISTERS;
+}
+
+inline bool is_function_code_write(uint8_t function_code) {
+  ModbusFunctionCode masked_function_code = static_cast<ModbusFunctionCode>(function_code & FUNCTION_CODE_MASK);
+  return masked_function_code == ModbusFunctionCode::WRITE_SINGLE_COIL ||
+         masked_function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
+         masked_function_code == ModbusFunctionCode::WRITE_MULTIPLE_COILS ||
+         masked_function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS;
+}
+
+inline bool is_function_code_exception(uint8_t function_code) {
+  return (static_cast<uint8_t>(function_code) & FUNCTION_CODE_EXCEPTION_MASK) != 0;
+}
+
+inline bool is_function_code_custom(uint8_t function_code) {
+  uint8_t masked_function_code = function_code & FUNCTION_CODE_MASK;
+  return (masked_function_code >= FUNCTION_CODE_USER_DEFINED_SPACE_1_INIT &&
+          masked_function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_1_END) ||
+         (masked_function_code >= FUNCTION_CODE_USER_DEFINED_SPACE_2_INIT &&
+          masked_function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_2_END);
+}
+
+// Returns the expected length of a server response frame based on the function code
+// If the frame is too short to determine the length, returns the minimum length
+uint16_t server_frame_length(const uint8_t *frame, size_t size);
+
+// Returns the expected length of a client request frame based on the function code
+// If the frame is too short to determine the length, returns the minimum length
+uint16_t client_frame_length(const uint8_t *frame, size_t size);
+
+inline uint8_t server_frame_data_offset(const uint8_t *frame, size_t size) {
+  if (size < 2)
+    return 0;
+  switch (static_cast<ModbusFunctionCode>(frame[1])) {
+    case ModbusFunctionCode::READ_COILS:
+    case ModbusFunctionCode::READ_DISCRETE_INPUTS:
+    case ModbusFunctionCode::READ_HOLDING_REGISTERS:
+    case ModbusFunctionCode::READ_INPUT_REGISTERS:
+      return 3;  // address(1) + function(1) + byte count(1) + data + CRC(2)
+    default:
+      return 2;
+  }
+}
+
+inline uint8_t client_frame_data_offset(const uint8_t *, size_t) { return 2; }
+
 enum class SensorValueType : uint8_t {
   RAW = 0x00,     // variable length
   U_WORD = 0x1,   // 1 Register unsigned
@@ -41,21 +93,21 @@ inline ModbusFunctionCode modbus_register_read_function(ModbusRegisterType reg_t
     case ModbusRegisterType::READ:
       return ModbusFunctionCode::READ_INPUT_REGISTERS;
     default:
-      return ModbusFunctionCode::CUSTOM;
+      return ModbusFunctionCode::INVALID;
   }
 }
 
-inline ModbusFunctionCode modbus_register_write_function(ModbusRegisterType reg_type) {
+inline ModbusFunctionCode modbus_register_write_function(ModbusRegisterType reg_type, bool multiple = false) {
   switch (reg_type) {
     case ModbusRegisterType::COIL:
-      return ModbusFunctionCode::WRITE_SINGLE_COIL;
-    case ModbusRegisterType::DISCRETE_INPUT:
-      return ModbusFunctionCode::CUSTOM;
+      return multiple ? ModbusFunctionCode::WRITE_MULTIPLE_COILS : ModbusFunctionCode::WRITE_SINGLE_COIL;
     case ModbusRegisterType::HOLDING:
-      return ModbusFunctionCode::READ_WRITE_MULTIPLE_REGISTERS;
+      return multiple ? ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS : ModbusFunctionCode::WRITE_SINGLE_REGISTER;
+    // These register types can't be written (per spec)
     case ModbusRegisterType::READ:
+    case ModbusRegisterType::DISCRETE_INPUT:
     default:
-      return ModbusFunctionCode::CUSTOM;
+      return ModbusFunctionCode::INVALID;
   }
 }
 
@@ -112,29 +164,29 @@ inline uint64_t qword_from_hex_str(const std::string &value, uint8_t pos) {
  * @param buffer_offset  offset in bytes.
  * @return value of type T extracted from buffer
  */
-template<typename T> T get_data(const std::vector<uint8_t> &data, size_t buffer_offset) {
+template<typename T> T get_data(const uint8_t *data, size_t buffer_offset) {
   if (sizeof(T) == sizeof(uint8_t)) {
     return T(data[buffer_offset]);
   }
   if (sizeof(T) == sizeof(uint16_t)) {
     return T((uint16_t(data[buffer_offset + 0]) << 8) | (uint16_t(data[buffer_offset + 1]) << 0));
   }
-
   if (sizeof(T) == sizeof(uint32_t)) {
     return static_cast<uint32_t>(get_data<uint16_t>(data, buffer_offset)) << 16 |
            static_cast<uint32_t>(get_data<uint16_t>(data, buffer_offset + 2));
   }
-
   if (sizeof(T) == sizeof(uint64_t)) {
     return static_cast<uint64_t>(get_data<uint32_t>(data, buffer_offset)) << 32 |
            (static_cast<uint64_t>(get_data<uint32_t>(data, buffer_offset + 4)));
   }
-
   static_assert(sizeof(T) == sizeof(uint8_t) || sizeof(T) == sizeof(uint16_t) || sizeof(T) == sizeof(uint32_t) ||
                     sizeof(T) == sizeof(uint64_t),
                 "Unsupported type size in get_data; only 1, 2, 4, or 8-byte integer types are supported.");
-
   return T{};
+}
+
+template<typename T> T get_data(const std::vector<uint8_t> &data, size_t buffer_offset) {
+  return get_data<T>(data.data(), buffer_offset);
 }
 
 /** Extract coil data from modbus response buffer
@@ -188,7 +240,27 @@ void number_to_payload(std::vector<uint16_t> &data, int64_t value, SensorValueTy
  * @return 64-bit number of the payload
  */
 int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
-                          uint32_t bitmask);
+                          uint32_t bitmask, bool *error_return = nullptr);
+
+/** Create a modbus clinet pdu for reading/writing single/multiple coils/register/inputs.
+ * @param function_code the modbus function code to use. One of:
+ * READ_COILS
+ * READ_DISCRETE_INPUTS
+ * READ_HOLDING_REGISTERS
+ * READ_INPUT_REGISTERS
+ * WRITE_SINGLE_COIL
+ * WRITE_SINGLE_REGISTER
+ * WRITE_MULTIPLE_COILS
+ * WRITE_MULTIPLE_REGISTERS
+ * @param start_address coil/register/input starting address
+ * @param number_of_entities number of coils/registers/inputs to read/write
+ * @param values optional payload bytes to write (nullptr for read commands)
+ * @param values_len length of values array
+ * @return PDU (function code + data, no address, no CRC)
+ */
+StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(ModbusFunctionCode function_code, uint16_t start_address,
+                                                      uint16_t number_of_entities, const uint8_t *values = nullptr,
+                                                      size_t values_len = 0);
 
 inline std::vector<uint16_t> float_to_payload(float value, SensorValueType value_type) {
   int64_t val;
