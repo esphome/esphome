@@ -79,6 +79,12 @@ class BME690Component : public Component, public i2c::I2CDevice {
   uint8_t build_iaq_subscription_(bsec_sensor_configuration_t *requested_virtual_sensors,
                                   float bsec_sample_rate) const;
   void read_();
+  bool get_bsec_sensor_settings_(int64_t timestamp_ns, bsec_bme_settings_t *sensor_settings);
+  void get_raw_fallback_settings_(bsec_bme_settings_t *sensor_settings);
+  bool apply_sensor_settings_(bsec_bme_settings_t &sensor_settings);
+  bool perform_measurement_(const bsec_bme_settings_t &sensor_settings, struct bme69x_data *data);
+  void publish_raw_outputs_(const struct bme69x_data &data);
+  void schedule_after_measurement_();
   void schedule_read_(uint32_t delay_ms);
   void schedule_next_bsec_read_();
   bool push_inputs_to_bsec_(const struct bme69x_data &data, const bsec_bme_settings_t &settings, int64_t timestamp_ns);
