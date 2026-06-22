@@ -309,8 +309,6 @@ void ZigbeeComponent::loop() {
 
 void ZigbeeComponent::dump_config() {
   if (esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
-    // model is a ZCL string: [length octet][chars], not NUL-terminated, so print
-    // with %.*s using the leading length octet rather than %s.
     ESP_LOGCONFIG(TAG,
                   "Zigbee\n"
                   "  Model: %.*s\n"
