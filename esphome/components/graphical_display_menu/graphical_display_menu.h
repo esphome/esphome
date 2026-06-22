@@ -53,10 +53,10 @@ class GraphicalDisplayMenu final : public display_menu_base::DisplayMenuComponen
   void draw_menu() override;
   void draw_menu_internal_(display::Display *display, const display::Rect *bounds);
   void draw_item(const display_menu_base::MenuItem *item, uint8_t row, bool selected) override;
-  display::Rect measure_item(display::Display *display, const display_menu_base::MenuItem *item,
-                             const display::Rect *bounds, bool selected);
-  void draw_item(display::Display *display, const display_menu_base::MenuItem *item, const display::Rect *bounds,
-                 bool selected);
+  display::Rect measure_item_(display::Display *display, const display_menu_base::MenuItem *item,
+                              const display::Rect *bounds, bool selected);
+  void draw_item_(display::Display *display, const display_menu_base::MenuItem *item, const display::Rect *bounds,
+                  bool selected);
   void update() override;
 
   void on_before_show() override;
