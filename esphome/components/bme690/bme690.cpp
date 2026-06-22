@@ -108,8 +108,11 @@ void BME690Component::setup() {
     return;
   }
 
-  if (!this->configure_bsec_()) {
+  if (this->configure_bsec_()) {
+    this->schedule_read_(0);
+  } else {
     ESP_LOGW(TAG, "BSEC configuration failed; running raw sensor only.");
+    this->schedule_read_(this->update_interval_ms_);
   }
 }
 
@@ -134,10 +137,29 @@ void BME690Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Sample Rate: %s", this->sample_rate_ == SAMPLE_RATE_ULP ? "ULP" : "LP");
   ESP_LOGCONFIG(TAG, "  Temperature Offset: %.2f°C", this->ext_temp_offset_);
   ESP_LOGCONFIG(TAG, "  State Save Interval: %" PRIu32 "ms", this->state_save_interval_ms_);
-  LOG_UPDATE_INTERVAL(this);
+  ESP_LOGCONFIG(TAG, "  Fallback Update Interval: %.1fs", this->update_interval_ms_ / 1000.0f);
 }
 
-void BME690Component::update() {
+void BME690Component::schedule_read_(uint32_t delay_ms) {
+  this->set_timeout("read", delay_ms, [this]() { this->read_(); });
+}
+
+void BME690Component::schedule_next_bsec_read_() {
+  if (this->next_call_ns_ == 0) {
+    this->schedule_read_(this->update_interval_ms_);
+    return;
+  }
+
+  const int64_t delay_ns = this->next_call_ns_ - this->get_time_ns_();
+  if (delay_ns <= 0) {
+    this->schedule_read_(0);
+    return;
+  }
+
+  this->schedule_read_(static_cast<uint32_t>((delay_ns + INT64_C(999999)) / INT64_C(1000000)));
+}
+
+void BME690Component::read_() {
   if (this->status_has_error()) {
     return;
   }
@@ -147,11 +169,14 @@ void BME690Component::update() {
   bsec_bme_settings_t sensor_settings = {};
   if (this->bsec_ready_) {
     if (this->next_call_ns_ != 0 && timestamp_ns < this->next_call_ns_) {
+      this->schedule_next_bsec_read_();
       return;
     }
     auto bsec_rslt = bsec_sensor_control(this->bsec_instance_.data(), timestamp_ns, &sensor_settings);
     if (!this->check_bsec_status_("bsec_sensor_control", bsec_rslt)) {
       this->status_set_warning();
+      this->schedule_read_(this->update_interval_ms_);
+      return;
     }
     ESP_LOGI(TAG, "BSEC control: next_call=%lld, trig=%u, op_mode=%u, temp_os=%u hum_os=%u pres_os=%u run_gas=%u",
              static_cast<long long>(sensor_settings.next_call), sensor_settings.trigger_measurement,
@@ -181,6 +206,11 @@ void BME690Component::update() {
   }
 
   if (sensor_settings.trigger_measurement == 0) {
+    if (this->bsec_ready_) {
+      this->schedule_next_bsec_read_();
+    } else {
+      this->schedule_read_(this->update_interval_ms_);
+    }
     return;
   }
 
@@ -193,6 +223,7 @@ void BME690Component::update() {
   int8_t rslt = bme69x_set_conf(&this->conf_, &this->dev_);
   if (!this->check_result_("bme69x_set_conf", rslt)) {
     this->status_set_warning();
+    this->schedule_read_(this->update_interval_ms_);
     return;
   }
 
@@ -213,12 +244,14 @@ void BME690Component::update() {
   rslt = bme69x_set_heatr_conf(sensor_settings.op_mode, &this->heatr_conf_, &this->dev_);
   if (!this->check_result_("bme69x_set_heatr_conf", rslt)) {
     this->status_set_warning();
+    this->schedule_read_(this->update_interval_ms_);
     return;
   }
 
   rslt = bme69x_set_op_mode(sensor_settings.op_mode, &this->dev_);
   if (!this->check_result_("bme69x_set_op_mode", rslt)) {
     this->status_set_warning();
+    this->schedule_read_(this->update_interval_ms_);
     return;
   }
 
@@ -240,11 +273,13 @@ void BME690Component::update() {
   rslt = bme69x_get_data(sensor_settings.op_mode, &data, &n_fields, &this->dev_);
   if (!this->check_result_("bme69x_get_data", rslt)) {
     this->status_set_warning();
+    this->schedule_read_(this->update_interval_ms_);
     return;
   }
 
   if (n_fields == 0) {
     ESP_LOGV(TAG, "No new measurement available");
+    this->schedule_read_(this->update_interval_ms_);
     return;
   }
 
@@ -264,6 +299,9 @@ void BME690Component::update() {
 
   if (this->bsec_ready_) {
     this->push_inputs_to_bsec_(data, sensor_settings, timestamp_ns);
+    this->schedule_next_bsec_read_();
+  } else {
+    this->schedule_read_(this->update_interval_ms_);
   }
 }
 

@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_RAW_DATA_ID,
     CONF_SAMPLE_RATE,
     CONF_TEMPERATURE_OFFSET,
+    CONF_UPDATE_INTERVAL,
     Framework,
 )
 from esphome.core import CORE
@@ -31,7 +32,7 @@ CONF_STATE_SAVE_INTERVAL = "state_save_interval"
 
 bme690_ns = cg.esphome_ns.namespace("bme690")
 BME690Component = bme690_ns.class_(
-    "BME690Component", cg.PollingComponent, i2c.I2CDevice
+    "BME690Component", cg.Component, i2c.I2CDevice
 )
 
 SampleRate = bme690_ns.enum("SampleRate")
@@ -135,7 +136,13 @@ CONFIG_SCHEMA = cv.All(
             ): cv.positive_time_period_minutes,
         }
     )
-    .extend(cv.polling_component_schema("3s"))
+    .extend(
+        cv.COMPONENT_SCHEMA.extend(
+            {
+                cv.Optional(CONF_UPDATE_INTERVAL, default="3s"): cv.update_interval,
+            }
+        )
+    )
     .extend(i2c.i2c_device_schema(0x76)),
     cv.only_with_framework(
         frameworks=Framework.ESP_IDF,
@@ -159,6 +166,7 @@ async def to_code(config):
     cg.add(var.set_state_preference_hash(state_preference_hash))
     cg.add(var.set_sample_rate(config[CONF_SAMPLE_RATE]))
     cg.add(var.set_temperature_offset(config[CONF_TEMPERATURE_OFFSET]))
+    cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL].total_milliseconds))
 
     if (bsec_config := config.get(CONF_BSEC_CONFIG)) is not None:
         config_path = _resolve_bsec_config(bsec_config)
