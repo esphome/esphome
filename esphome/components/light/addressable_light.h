@@ -132,7 +132,7 @@ class AddressableLight : public LightOutput, public Component {
   float idle_ma_per_led_{1.0f};
   float max_current_ma_{0.0f};  // 0 = disabled
   float estimated_ma_{0.0f};
-  uint8_t power_scale_{255};  // 255 = no reduction; updated each frame
+  uint8_t power_scale_{255};  // 255 = no reduction; fed into the color correction each frame
 #endif
 #ifdef USE_POWER_SUPPLY
   power_supply::PowerSupplyRequester power_;
