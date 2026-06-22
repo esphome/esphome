@@ -34,10 +34,11 @@ ezb_zcl_cluster_desc_t esphome_zb_default_cluster_dscr_create(uint16_t cluster_i
       return ezb_zcl_analog_input_create_cluster_desc(NULL, role_mask);
     case EZB_ZCL_CLUSTER_ID_BINARY_INPUT:
       return ezb_zcl_binary_input_create_cluster_desc(NULL, role_mask);
-    default:
+    default: {
       ezb_zcl_custom_cluster_config_t config = {0};
       config.cluster_id = cluster_id;
       return ezb_zcl_custom_create_cluster_desc(&config, role_mask);
+    }
   }
 }
 
