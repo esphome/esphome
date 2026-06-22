@@ -7,7 +7,7 @@
 
 namespace esphome::max7219digit {
 
-template<typename... Ts> class DisplayInvertAction : public Action<Ts...>, public Parented<MAX7219Component> {
+template<typename... Ts> class DisplayInvertAction final : public Action<Ts...>, public Parented<MAX7219Component> {
  public:
   TEMPLATABLE_VALUE(bool, state)
 
@@ -17,7 +17,7 @@ template<typename... Ts> class DisplayInvertAction : public Action<Ts...>, publi
   }
 };
 
-template<typename... Ts> class DisplayVisibilityAction : public Action<Ts...>, public Parented<MAX7219Component> {
+template<typename... Ts> class DisplayVisibilityAction final : public Action<Ts...>, public Parented<MAX7219Component> {
  public:
   TEMPLATABLE_VALUE(bool, state)
 
@@ -27,7 +27,7 @@ template<typename... Ts> class DisplayVisibilityAction : public Action<Ts...>, p
   }
 };
 
-template<typename... Ts> class DisplayReverseAction : public Action<Ts...>, public Parented<MAX7219Component> {
+template<typename... Ts> class DisplayReverseAction final : public Action<Ts...>, public Parented<MAX7219Component> {
  public:
   TEMPLATABLE_VALUE(bool, state)
 
@@ -37,7 +37,7 @@ template<typename... Ts> class DisplayReverseAction : public Action<Ts...>, publ
   }
 };
 
-template<typename... Ts> class DisplayIntensityAction : public Action<Ts...>, public Parented<MAX7219Component> {
+template<typename... Ts> class DisplayIntensityAction final : public Action<Ts...>, public Parented<MAX7219Component> {
  public:
   TEMPLATABLE_VALUE(uint8_t, state)
 

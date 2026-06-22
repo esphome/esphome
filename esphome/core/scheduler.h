@@ -31,11 +31,6 @@ class Scheduler {
   template<typename... Ts> friend class DelayAction;
 
  public:
-  // std::string overload - deprecated, use const char* or uint32_t instead
-  // Remove before 2026.7.0
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  void set_timeout(Component *component, const std::string &name, uint32_t timeout, std::function<void()> &&func);
-
   /** Set a timeout with a const char* name.
    *
    * IMPORTANT: The provided name pointer must remain valid for the lifetime of the scheduler item.
@@ -53,17 +48,12 @@ class Scheduler {
                             static_cast<uint32_t>(id), timeout, std::move(func));
   }
 
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  bool cancel_timeout(Component *component, const std::string &name);
   bool cancel_timeout(Component *component, const char *name);
   bool cancel_timeout(Component *component, uint32_t id);
   bool cancel_timeout(Component *component, InternalSchedulerID id) {
     return this->cancel_item_(component, NameType::NUMERIC_ID_INTERNAL, nullptr, static_cast<uint32_t>(id),
                               SchedulerItem::TIMEOUT);
   }
-
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  void set_interval(Component *component, const std::string &name, uint32_t interval, std::function<void()> &&func);
 
   /** Set an interval with a const char* name.
    *
@@ -82,8 +72,6 @@ class Scheduler {
                             static_cast<uint32_t>(id), interval, std::move(func));
   }
 
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  bool cancel_interval(Component *component, const std::string &name);
   bool cancel_interval(Component *component, const char *name);
   bool cancel_interval(Component *component, uint32_t id);
   bool cancel_interval(Component *component, InternalSchedulerID id) {
@@ -396,8 +384,8 @@ class Scheduler {
   inline bool HOT names_match_static_(const char *name1, const char *name2) const {
     // Check pointer equality first (common for static strings), then string contents
     // The core ESPHome codebase uses static strings (const char*) for component names,
-    // making pointer comparison effective. The std::string overloads exist only for
-    // compatibility with external components but are rarely used in practice.
+    // making pointer comparison effective. The strcmp fallback covers distinct pointers
+    // with identical content (e.g. names built into separate static buffers).
     return (name1 != nullptr && name2 != nullptr) && ((name1 == name2) || (strcmp(name1, name2) == 0));
   }
 
