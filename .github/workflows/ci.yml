@@ -805,6 +805,20 @@ jobs:
       # esp32 component builds use the native ESP-IDF toolchain (default), so
       # share the tidy jobs' install location -- the restore below lands here.
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
+      # ccache for the ESP-IDF builds. Within a batch the same target platform
+      # is compiled many times (once per bus-group + once per isolated
+      # component); the IDF framework objects are identical across those builds,
+      # so ccache deduplicates them. CCACHE_BASEDIR + CCACHE_NOHASHDIR are
+      # required because each esphome build lands in a different per-device dir
+      # -- without them the cache gets zero hits.
+      #
+      # IDF_CCACHE_ENABLE starts at "0" so the first CI run is a clean baseline
+      # with all the plumbing in place; flip to "1" to measure the speedup.
+      IDF_CCACHE_ENABLE: "0"
+      CCACHE_DIR: /mnt/ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_NOHASHDIR: "true"
+      CCACHE_MAXSIZE: 2G
     strategy:
       fail-fast: false
       max-parallel: ${{ (startsWith(github.base_ref, 'beta') || startsWith(github.base_ref, 'release')) && 8 || 4 }}
@@ -822,8 +836,8 @@ jobs:
       - name: Cache apt packages
         uses: awalsh128/cache-apt-pkgs-action@acb598e5ddbc6f68a970c5da0688d2f3a9f04d05 # v1.5.3
         with:
-          packages: libsdl2-dev
-          version: 1.0
+          packages: libsdl2-dev ccache
+          version: 1.1
 
       - name: Check out code from GitHub
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -838,6 +852,15 @@ jobs:
         uses: ./.github/actions/cache-esp-idf
         with:
           restore-only: true
+      - name: Prepare ccache
+        # /mnt is the large ephemeral disk on GitHub runners (same place the
+        # build step bind-mounts ~/.platformio to). Fail loudly if ccache is
+        # missing so a future runner-image change can't silently disable it.
+        run: |
+          sudo mkdir -p "$CCACHE_DIR"
+          sudo chown "$USER":"$USER" "$CCACHE_DIR"
+          ccache --version
+          ccache -z
       - name: Validate and compile components with intelligent grouping
         run: |
           . venv/bin/activate
@@ -940,6 +963,10 @@ jobs:
           else
             echo "All components in this batch are validate-only -- skipping compile stage."
           fi
+
+      - name: ccache statistics
+        if: always()
+        run: ccache -s
 
   test-esp32-platformio:
     name: Test esp32 components with PlatformIO
