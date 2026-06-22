@@ -294,8 +294,8 @@ bool HOT EPaperT133A01::transfer_data() {
   // across timeout boundaries by NOT deselecting on yield.
   if (half < total_rows) {
     if (half == 0) {
-      this->cs_pin_->digital_write(false);   // select CS
-      this->cs1_pin_->digital_write(true);   // deselect CS1
+      this->cs_pin_->digital_write(false);  // select CS
+      this->cs1_pin_->digital_write(true);  // deselect CS1
       this->dc_pin_->digital_write(false);
       this->enable();
       this->write_byte(R10_DTM);
