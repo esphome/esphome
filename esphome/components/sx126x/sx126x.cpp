@@ -256,12 +256,7 @@ void SX126x::configure() {
       // according to the datasheet, section 12 table 12-1 "The user should not
       // change the value of the 7 MSB of this register"
       this->read_register_(REG_WHITENING_INITIAL, buf, 1);
-      if (this->whitening_initial_ & 0x100) {
-        buf[0] |= 0x01;
-      } else {
-        buf[0] &= 0xfe;
-      }
-
+      buf[0] = (buf[0] & 0xFE) | ((this->whitening_initial_ >> 8) & 0x01);
       buf[1] = this->whitening_initial_ & 0xFF;
       this->write_register_(REG_WHITENING_INITIAL, buf, 2);
     }
