@@ -206,7 +206,7 @@ bool BME690Component::get_bsec_sensor_settings_(int64_t timestamp_ns, bsec_bme_s
     return false;
   }
 
-  auto bsec_rslt = bsec_sensor_control(this->bsec_instance_.data(), timestamp_ns, sensor_settings);
+  auto bsec_rslt = bsec_sensor_control(this->bsec_instance_data_(), timestamp_ns, sensor_settings);
   if (!this->check_bsec_status_("bsec_sensor_control", bsec_rslt)) {
     this->status_set_warning();
     this->schedule_read_(this->update_interval_ms_);
@@ -352,9 +352,13 @@ void BME690Component::schedule_after_measurement_() {
 
 bool BME690Component::configure_bsec_() {
   size_t instance_size = bsec_get_instance_size();
-  this->bsec_instance_.assign(instance_size, 0);
+  if (instance_size == 0) {
+    ESP_LOGE(TAG, "bsec_get_instance_size returned 0");
+    return false;
+  }
+  this->bsec_instance_ = std::make_unique<uint8_t[]>(instance_size);
 
-  auto bsec_rslt = bsec_init(this->bsec_instance_.data());
+  auto bsec_rslt = bsec_init(this->bsec_instance_data_());
   if (!this->check_bsec_status_("bsec_init", bsec_rslt)) {
     this->bsec_setup_failed_step_ = "bsec_init";
     this->bsec_setup_failed_result_ = bsec_rslt;
@@ -363,7 +367,7 @@ bool BME690Component::configure_bsec_() {
   this->log_bsec_version_();
 
   bsec_rslt =
-      bsec_set_configuration(this->bsec_instance_.data(), this->get_bsec_configuration_(),
+      bsec_set_configuration(this->bsec_instance_data_(), this->get_bsec_configuration_(),
                              this->get_bsec_configuration_length_(), this->bsec_work_buffer_.data(),
                              this->bsec_work_buffer_.size());
   if (!this->check_bsec_status_("bsec_set_configuration", bsec_rslt)) {
@@ -383,7 +387,7 @@ bool BME690Component::configure_bsec_() {
   bsec_sensor_configuration_t required_sensor_settings[BSEC_MAX_PHYSICAL_SENSOR] = {};
   uint8_t n_required = BSEC_MAX_PHYSICAL_SENSOR;
 
-  bsec_rslt = bsec_update_subscription(this->bsec_instance_.data(), requested_virtual_sensors, n_requested,
+  bsec_rslt = bsec_update_subscription(this->bsec_instance_data_(), requested_virtual_sensors, n_requested,
                                        required_sensor_settings, &n_required);
   if (!this->check_bsec_status_("bsec_update_subscription", bsec_rslt)) {
     this->bsec_setup_failed_step_ = "bsec_update_subscription";
@@ -439,6 +443,8 @@ float BME690Component::get_sample_rate_() const {
   return this->sample_rate_ == SAMPLE_RATE_ULP ? BSEC_SAMPLE_RATE_ULP : BSEC_SAMPLE_RATE_LP;
 }
 
+uint8_t *BME690Component::bsec_instance_data_() { return this->bsec_instance_.get(); }
+
 const uint8_t *BME690Component::get_bsec_configuration_() const {
   if (this->bsec_configuration_ != nullptr) {
     return this->bsec_configuration_;
@@ -483,7 +489,7 @@ bool BME690Component::push_inputs_to_bsec_(const struct bme69x_data &data, const
 
   bsec_output_t outputs[BSEC_NUMBER_OUTPUTS] = {};
   uint8_t num_outputs = BSEC_NUMBER_OUTPUTS;
-  auto bsec_rslt = bsec_do_steps(this->bsec_instance_.data(), inputs, n_inputs, outputs, &num_outputs);
+  auto bsec_rslt = bsec_do_steps(this->bsec_instance_data_(), inputs, n_inputs, outputs, &num_outputs);
   if (!this->check_bsec_status_("bsec_do_steps", bsec_rslt)) {
     this->status_set_warning();
     return false;
@@ -553,7 +559,7 @@ void BME690Component::handle_bsec_outputs_(const bsec_output_t *outputs, uint8_t
 
 void BME690Component::log_bsec_version_() {
   bsec_version_t ver{};
-  auto rslt = bsec_get_version(this->bsec_instance_.data(), &ver);
+  auto rslt = bsec_get_version(this->bsec_instance_data_(), &ver);
   if (rslt == BSEC_OK) {
     this->bsec_version_ = ver;
     this->bsec_version_known_ = true;
@@ -583,7 +589,7 @@ bool BME690Component::load_bsec_state_() {
     return false;
   }
 
-  auto rslt = bsec_set_state(this->bsec_instance_.data(), buf.data() + 4, len, this->bsec_work_buffer_.data(),
+  auto rslt = bsec_set_state(this->bsec_instance_data_(), buf.data() + 4, len, this->bsec_work_buffer_.data(),
                              this->bsec_work_buffer_.size());
   if (!this->check_bsec_status_("bsec_set_state", rslt)) {
     return false;
@@ -608,7 +614,7 @@ void BME690Component::save_bsec_state_() {
   uint8_t state_set_id = 0;
   uint32_t work_buf_len = this->bsec_work_buffer_.size();
 
-  auto rslt = bsec_get_state(this->bsec_instance_.data(), state_set_id, state_buf.data(), state_len,
+  auto rslt = bsec_get_state(this->bsec_instance_data_(), state_set_id, state_buf.data(), state_len,
                              this->bsec_work_buffer_.data(), work_buf_len, &state_len);
   if (!this->check_bsec_status_("bsec_get_state", rslt)) {
     return;

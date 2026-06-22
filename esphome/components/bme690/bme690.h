@@ -1,7 +1,7 @@
 #pragma once
 
-#include <vector>
 #include <array>
+#include <memory>
 
 // Use floating point calculations provided by the Bosch driver.
 #ifndef BME69X_USE_FPU
@@ -95,6 +95,7 @@ class BME690Component : public Component, public i2c::I2CDevice {
   int64_t get_time_ns_();
   bool is_bsec_3_3_or_newer_() const;
   float get_sample_rate_() const;
+  uint8_t *bsec_instance_data_();
   const uint8_t *get_bsec_configuration_() const;
   uint32_t get_bsec_configuration_length_() const;
 
@@ -117,7 +118,7 @@ class BME690Component : public Component, public i2c::I2CDevice {
   struct bme69x_dev dev_ {};
   struct bme69x_conf conf_ {};
   struct bme69x_heatr_conf heatr_conf_ {};
-  std::vector<uint8_t> bsec_instance_;
+  std::unique_ptr<uint8_t[]> bsec_instance_;
   std::array<uint8_t, BSEC_MAX_WORKBUFFER_SIZE> bsec_work_buffer_{};
   const uint8_t *bsec_configuration_{nullptr};
   uint32_t bsec_configuration_length_{0};
