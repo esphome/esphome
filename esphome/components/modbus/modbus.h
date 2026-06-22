@@ -226,8 +226,7 @@ class ModbusServerDevice {
   ModbusServerDevice &operator=(ModbusServerDevice &&) = delete;
   void set_address(uint8_t address) { address_ = address; }
   uint8_t get_address() const { return address_; }
-  virtual ModbusServerResponse on_modbus_read_registers(uint8_t function_code, uint16_t start_address,
-                                                        uint16_t number_of_registers) = 0;
+  virtual ModbusServerResponse on_modbus_read_registers(uint16_t start_address, uint16_t number_of_registers) = 0;
   virtual ModbusServerResponse on_modbus_write_registers(uint16_t start_address, uint16_t number_of_registers,
                                                          const uint8_t *data, uint16_t len) = 0;
 

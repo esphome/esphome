@@ -8,17 +8,11 @@ using modbus::helpers::payload_to_number;
 
 static const char *const TAG = "modbus_server";
 
-modbus::ModbusServerResponse ModbusServer::on_modbus_read_registers(uint8_t function_code, uint16_t start_address,
+modbus::ModbusServerResponse ModbusServer::on_modbus_read_registers(uint16_t start_address,
                                                                     uint16_t number_of_registers) {
   ESP_LOGD(TAG,
-           "Received read holding/input registers for device 0x%X. FC: 0x%X. Start address: 0x%X. Number of registers: "
-           "0x%X.",
-           this->address_, function_code, start_address, number_of_registers);
-
-  if (number_of_registers == 0 || number_of_registers > modbus::MAX_NUM_OF_REGISTERS_TO_READ) {
-    ESP_LOGW(TAG, "Invalid number of registers %" PRIu16 ". Sending exception response.", number_of_registers);
-    return ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;
-  }
+           "Received read holding/input registers for device 0x%X. Start address: 0x%X. Number of registers: 0x%X.",
+           this->address_, start_address, number_of_registers);
 
   // Accumulate response words in a fixed-size stack buffer (push_back is bounds-checked).
   StaticVector<uint16_t, modbus::MAX_NUM_OF_REGISTERS_TO_READ> sixteen_bit_response;

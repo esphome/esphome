@@ -346,8 +346,14 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
 
       if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
           static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_INPUT_REGISTERS) {
-        response = device->on_modbus_read_registers(function_code, helpers::get_data<uint16_t>(data, 0),
-                                                    helpers::get_data<uint16_t>(data, 2));
+        // PDU data: start address(2) + quantity(2).
+        uint16_t number_of_registers = helpers::get_data<uint16_t>(data, 2);
+        if (number_of_registers == 0 || number_of_registers > MAX_NUM_OF_REGISTERS_TO_READ) {
+          ESP_LOGW(TAG, "Invalid number of registers %" PRIu16, number_of_registers);
+          this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+          return;
+        }
+        response = device->on_modbus_read_registers(helpers::get_data<uint16_t>(data, 0), number_of_registers);
         response_data = response.payload.get();
         response_len = response.payload_len;
       } else if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
