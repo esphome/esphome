@@ -56,11 +56,11 @@ def test_setup_core_sets_arduino_env(
     target_framework: str,
     expected: str,
 ) -> None:
-    """_setup_core sets ESPHOME_ARDUINO, which gates arduino-only manifest deps."""
+    """_setup_core sets ESPHOME_ARDUINO_COMPONENT, which gates arduino-only manifest deps."""
     # monkeypatch snapshots os.environ, so the env var _setup_core writes is
     # restored after the test instead of leaking into later tests.
-    monkeypatch.delenv("ESPHOME_ARDUINO", raising=False)
+    monkeypatch.delenv("ESPHOME_ARDUINO_COMPONENT", raising=False)
 
     _setup_core(tmp_path / "proj", _settings(target_framework=target_framework))
 
-    assert os.environ["ESPHOME_ARDUINO"] == expected
+    assert os.environ["ESPHOME_ARDUINO_COMPONENT"] == expected

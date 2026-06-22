@@ -52,6 +52,11 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.core.config import BOARD_MAX_LENGTH
 import esphome.final_validate as fv
+from esphome.framework_helpers import (
+    get_project_compile_flags,
+    get_project_link_flags,
+    run_command_ok,
+)
 from esphome.helpers import write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
@@ -63,7 +68,7 @@ from .const import (
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
 )
-from .framework import check_and_install
+from .framework import check_and_install, get_build_env, get_build_paths
 
 # force import gpio to register pin schema
 from .gpio import nrf52_pin_to_code  # noqa: F401
@@ -99,9 +104,6 @@ FAKE_BOARD_MANIFEST = """
 
 
 def set_core_data(config: ConfigType) -> ConfigType:
-    # Resolve toolchain: CLI (already on CORE.toolchain) > YAML > default.
-    if CORE.toolchain is None:
-        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.PLATFORMIO)
     zephyr_set_core_data(config)
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_NRF52
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
@@ -109,6 +111,12 @@ def set_core_data(config: ConfigType) -> ConfigType:
     if config[KEY_BOOTLOADER] in BOOTLOADER_CONFIG:
         zephyr_add_pm_static(BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]])
 
+    return config
+
+
+def _resolve_toolchain(config: ConfigType) -> ConfigType:
+    if CORE.toolchain is None:
+        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.PLATFORMIO)
     return config
 
 
@@ -145,6 +153,12 @@ BOOTLOADERS = [
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
     BOOTLOADER_MCUBOOT,
 ]
+
+
+def _validate_toolchain(value) -> Toolchain:
+    return Toolchain(
+        cv.one_of(Toolchain.PLATFORMIO, Toolchain.SDK_NRF, lower=True)(value)
+    )
 
 
 def _detect_bootloader(config: ConfigType) -> ConfigType:
@@ -233,9 +247,11 @@ CONFIG_SCHEMA = cv.All(
                     ),
                 }
             ),
+            cv.Optional(CONF_TOOLCHAIN): _validate_toolchain,
             cv.GenerateID(CONF_CDC_ACM): cv.declare_id(CdcAcm),
         }
     ),
+    _resolve_toolchain,
     set_framework,
 )
 
@@ -565,6 +581,47 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
     return False
 
 
+def _generate_cmake_lists() -> None:
+    compile_flags = get_project_compile_flags()
+    link_flags = get_project_link_flags()
+
+    lines = [
+        "cmake_minimum_required(VERSION 3.20.0)",
+        "",
+        'set(Zephyr_DIR "$ENV{ZEPHYR_BASE}/share/zephyr-package/cmake/")',
+        "",
+        "find_package(Zephyr REQUIRED)",
+        "",
+        f"project({CORE.name})",
+        "",
+        'file(GLOB_RECURSE APP_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/../src/*.cpp" "${CMAKE_CURRENT_LIST_DIR}/../src/*.c")',
+        "",
+        "target_sources(app PRIVATE ${APP_SOURCES})",
+        'target_include_directories(app PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../src")',
+    ]
+
+    if compile_flags:
+        lines += [
+            "",
+            "target_compile_options(app PRIVATE",
+            *[f'  "{flag}"' for flag in compile_flags],
+            ")",
+        ]
+
+    if link_flags:
+        lines += [
+            "",
+            "zephyr_ld_options(",
+            *[f'  "{flag}"' for flag in link_flags],
+            ")",
+        ]
+
+    write_file_if_changed(
+        CORE.relative_build_path("zephyr", "CMakeLists.txt"),
+        "\n".join(lines) + "\n",
+    )
+
+
 def run_compile(args, config: ConfigType) -> bool:
     if CORE.using_toolchain_platformio:
         return False
@@ -574,4 +631,35 @@ def run_compile(args, config: ConfigType) -> bool:
             "Supported toolchains are 'platformio' and 'sdk-nrf'."
         )
     check_and_install()
-    raise EsphomeError("Native build for nRF52 is not implemented yet")
+
+    paths = get_build_paths()
+    env = get_build_env()
+
+    _generate_cmake_lists()
+
+    board = zephyr_data()[KEY_BOARD]
+    build_dir = CORE.relative_pioenvs_path(CORE.name)
+    source_dir = CORE.relative_build_path("zephyr")
+
+    west_cmd = [
+        str(paths["python_executable"]),
+        "-m",
+        "west",
+        "build",
+        "--pristine=auto",
+        "-b",
+        board,
+        "-d",
+        str(build_dir),
+        str(source_dir),
+    ]
+
+    if not run_command_ok(
+        west_cmd,
+        env=env,
+        stream_output=True,
+        cwd=str(paths["framework_path"]),
+    ):
+        raise EsphomeError("nRF52 native build failed")
+
+    return True

@@ -45,7 +45,7 @@ const uint8_t DAIKIN_DBG_TOLERANCE = 25;
 // State Frame size
 const uint8_t DAIKIN_STATE_FRAME_SIZE = 19;
 
-class DaikinArcClimate : public climate_ir::ClimateIR {
+class DaikinArcClimate final : public climate_ir::ClimateIR {
  public:
   DaikinArcClimate()
       : climate_ir::ClimateIR(DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX, 0.5f, true, true,

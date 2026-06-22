@@ -16,9 +16,9 @@ class CC1101Listener {
   virtual void on_packet(const std::vector<uint8_t> &packet, float freq_offset, float rssi, uint8_t lqi) = 0;
 };
 
-class CC1101Component : public Component,
-                        public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                              spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
+class CC1101Component final : public Component,
+                              public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                                    spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
  public:
   CC1101Component();
 
@@ -119,27 +119,27 @@ class CC1101Component : public Component,
 };
 
 // Action Wrappers
-template<typename... Ts> class BeginTxAction : public Action<Ts...>, public Parented<CC1101Component> {
+template<typename... Ts> class BeginTxAction final : public Action<Ts...>, public Parented<CC1101Component> {
  public:
   void play(const Ts &...x) override { this->parent_->begin_tx(); }
 };
 
-template<typename... Ts> class BeginRxAction : public Action<Ts...>, public Parented<CC1101Component> {
+template<typename... Ts> class BeginRxAction final : public Action<Ts...>, public Parented<CC1101Component> {
  public:
   void play(const Ts &...x) override { this->parent_->begin_rx(); }
 };
 
-template<typename... Ts> class ResetAction : public Action<Ts...>, public Parented<CC1101Component> {
+template<typename... Ts> class ResetAction final : public Action<Ts...>, public Parented<CC1101Component> {
  public:
   void play(const Ts &...x) override { this->parent_->reset(); }
 };
 
-template<typename... Ts> class SetIdleAction : public Action<Ts...>, public Parented<CC1101Component> {
+template<typename... Ts> class SetIdleAction final : public Action<Ts...>, public Parented<CC1101Component> {
  public:
   void play(const Ts &...x) override { this->parent_->set_idle(); }
 };
 
-template<typename... Ts> class SendPacketAction : public Action<Ts...>, public Parented<CC1101Component> {
+template<typename... Ts> class SendPacketAction final : public Action<Ts...>, public Parented<CC1101Component> {
  public:
   void set_data_template(std::function<std::vector<uint8_t>(Ts...)> func) { this->data_func_ = func; }
   void set_data_static(const uint8_t *data, size_t len) {
@@ -163,79 +163,80 @@ template<typename... Ts> class SendPacketAction : public Action<Ts...>, public P
   size_t data_static_len_{0};
 };
 
-template<typename... Ts> class SetSymbolRateAction : public Action<Ts...>, public Parented<CC1101Component> {
+template<typename... Ts> class SetSymbolRateAction final : public Action<Ts...>, public Parented<CC1101Component> {
  public:
   TEMPLATABLE_VALUE(float, symbol_rate)
   void play(const Ts &...x) override { this->parent_->set_symbol_rate(this->symbol_rate_.value(x...)); }
 };
 
-template<typename... Ts> class SetFrequencyAction : public Action<Ts...>, public Parented<CC1101Component> {
+template<typename... Ts> class SetFrequencyAction final : public Action<Ts...>, public Parented<CC1101Component> {
  public:
   TEMPLATABLE_VALUE(float, frequency)
   void play(const Ts &...x) override { this->parent_->set_frequency(this->frequency_.value(x...)); }
 };
 
-template<typename... Ts> class SetOutputPowerAction : public Action<Ts...>, public Parented<CC1101Component> {
+template<typename... Ts> class SetOutputPowerAction final : public Action<Ts...>, public Parented<CC1101Component> {
  public:
   TEMPLATABLE_VALUE(float, output_power)
   void play(const Ts &...x) override { this->parent_->set_output_power(this->output_power_.value(x...)); }
 };
 
-template<typename... Ts> class SetModulationTypeAction : public Action<Ts...>, public Parented<CC1101Component> {
+template<typename... Ts> class SetModulationTypeAction final : public Action<Ts...>, public Parented<CC1101Component> {
  public:
   TEMPLATABLE_VALUE(Modulation, modulation_type)
   void play(const Ts &...x) override { this->parent_->set_modulation_type(this->modulation_type_.value(x...)); }
 };
 
-template<typename... Ts> class SetRxAttenuationAction : public Action<Ts...>, public Parented<CC1101Component> {
+template<typename... Ts> class SetRxAttenuationAction final : public Action<Ts...>, public Parented<CC1101Component> {
  public:
   TEMPLATABLE_VALUE(RxAttenuation, rx_attenuation)
   void play(const Ts &...x) override { this->parent_->set_rx_attenuation(this->rx_attenuation_.value(x...)); }
 };
 
-template<typename... Ts> class SetDcBlockingFilterAction : public Action<Ts...>, public Parented<CC1101Component> {
+template<typename... Ts>
+class SetDcBlockingFilterAction final : public Action<Ts...>, public Parented<CC1101Component> {
  public:
   TEMPLATABLE_VALUE(bool, dc_blocking_filter)
   void play(const Ts &...x) override { this->parent_->set_dc_blocking_filter(this->dc_blocking_filter_.value(x...)); }
 };
 
-template<typename... Ts> class SetManchesterAction : public Action<Ts...>, public Parented<CC1101Component> {
+template<typename... Ts> class SetManchesterAction final : public Action<Ts...>, public Parented<CC1101Component> {
  public:
   TEMPLATABLE_VALUE(bool, manchester)
   void play(const Ts &...x) override { this->parent_->set_manchester(this->manchester_.value(x...)); }
 };
 
-template<typename... Ts> class SetFilterBandwidthAction : public Action<Ts...>, public Parented<CC1101Component> {
+template<typename... Ts> class SetFilterBandwidthAction final : public Action<Ts...>, public Parented<CC1101Component> {
  public:
   TEMPLATABLE_VALUE(float, filter_bandwidth)
   void play(const Ts &...x) override { this->parent_->set_filter_bandwidth(this->filter_bandwidth_.value(x...)); }
 };
 
-template<typename... Ts> class SetFskDeviationAction : public Action<Ts...>, public Parented<CC1101Component> {
+template<typename... Ts> class SetFskDeviationAction final : public Action<Ts...>, public Parented<CC1101Component> {
  public:
   TEMPLATABLE_VALUE(float, fsk_deviation)
   void play(const Ts &...x) override { this->parent_->set_fsk_deviation(this->fsk_deviation_.value(x...)); }
 };
 
-template<typename... Ts> class SetMskDeviationAction : public Action<Ts...>, public Parented<CC1101Component> {
+template<typename... Ts> class SetMskDeviationAction final : public Action<Ts...>, public Parented<CC1101Component> {
  public:
   TEMPLATABLE_VALUE(uint8_t, msk_deviation)
   void play(const Ts &...x) override { this->parent_->set_msk_deviation(this->msk_deviation_.value(x...)); }
 };
 
-template<typename... Ts> class SetChannelAction : public Action<Ts...>, public Parented<CC1101Component> {
+template<typename... Ts> class SetChannelAction final : public Action<Ts...>, public Parented<CC1101Component> {
  public:
   TEMPLATABLE_VALUE(uint8_t, channel)
   void play(const Ts &...x) override { this->parent_->set_channel(this->channel_.value(x...)); }
 };
 
-template<typename... Ts> class SetChannelSpacingAction : public Action<Ts...>, public Parented<CC1101Component> {
+template<typename... Ts> class SetChannelSpacingAction final : public Action<Ts...>, public Parented<CC1101Component> {
  public:
   TEMPLATABLE_VALUE(float, channel_spacing)
   void play(const Ts &...x) override { this->parent_->set_channel_spacing(this->channel_spacing_.value(x...)); }
 };
 
-template<typename... Ts> class SetIfFrequencyAction : public Action<Ts...>, public Parented<CC1101Component> {
+template<typename... Ts> class SetIfFrequencyAction final : public Action<Ts...>, public Parented<CC1101Component> {
  public:
   TEMPLATABLE_VALUE(float, if_frequency)
   void play(const Ts &...x) override { this->parent_->set_if_frequency(this->if_frequency_.value(x...)); }
