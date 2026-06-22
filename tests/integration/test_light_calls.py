@@ -322,6 +322,41 @@ async def test_light_calls(
         assert state.state is True
         assert state.brightness == pytest.approx(0.75)
 
+        # Test 31: Turning a light on whose brightness is 0 restores full brightness.
+        # Setting brightness to 0 no longer forces the light off; the next turn-on
+        # (without an explicit brightness) makes the light visible again by resetting
+        # brightness to 1.0.
+        client.light_command(key=rgbcw_light.key, state=True, brightness=0.5)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is True
+        assert state.brightness == pytest.approx(0.5)
+
+        # Drive brightness to zero without touching state - the light stays "on" at 0
+        client.light_command(key=rgbcw_light.key, brightness=0.0)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.brightness == pytest.approx(0.0)
+
+        # Turning on without an explicit brightness restores it to full brightness
+        client.light_command(key=rgbcw_light.key, state=True)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is True
+        assert state.brightness == pytest.approx(1.0)
+
+        # Test 32: Turning a light on when it already has nonzero brightness leaves
+        # the brightness unchanged (the reset only happens when brightness is 0).
+        client.light_command(key=rgbcw_light.key, state=True, brightness=0.4)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.brightness == pytest.approx(0.4)
+
+        client.light_command(key=rgbcw_light.key, state=False)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is False
+
+        client.light_command(key=rgbcw_light.key, state=True)
+        state = await wait_for_state_change(rgbcw_light.key)
+        assert state.state is True
+        assert state.brightness == pytest.approx(0.4)
+
         # Final cleanup - turn all lights off
         for light in lights:
             client.light_command(
