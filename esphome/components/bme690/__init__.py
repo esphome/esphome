@@ -82,42 +82,11 @@ def _read_bsec_config(path: Path) -> list[int]:
             f"Could not open BSEC configuration file {path}: {e}"
         ) from e
 
-    # Bosch ships BSEC3 configs as binary .config files. Keep support for
-    # comma-separated byte lists too, matching the BSEC2 component convention.
-    if b"\0" in data:
-        if len(data) >= 4 and int.from_bytes(data[:4], "little") == len(data) - 4:
-            data = data[4:]
-        return list(data)
-
-    try:
-        text = data.decode("utf-8").strip()
-    except UnicodeDecodeError:
-        return list(data)
-
-    if not text:
+    if not data:
         raise core.EsphomeError(f"BSEC configuration file {path} is empty")
-
-    allowed_chars = set("0123456789abcdefABCDEFxX, \t\r\n")
-    if any(char not in allowed_chars for char in text):
-        raise core.EsphomeError(
-            f"BSEC configuration file {path} must be a binary .config file or "
-            "a comma-separated byte list"
-        )
-
-    try:
-        values = [int(value.strip(), 0) for value in text.split(",") if value.strip()]
-    except ValueError as e:
-        raise core.EsphomeError(
-            f"Could not parse BSEC configuration file {path}: {e}"
-        ) from e
-
-    if not values:
-        raise core.EsphomeError(f"BSEC configuration file {path} is empty")
-    if any(value < 0 or value > 0xFF for value in values):
-        raise core.EsphomeError(
-            f"BSEC configuration file {path} contains values outside the byte range"
-        )
-    return values
+    if len(data) >= 4 and int.from_bytes(data[:4], "little") == len(data) - 4:
+        data = data[4:]
+    return list(data)
 
 
 CONFIG_SCHEMA = cv.All(
