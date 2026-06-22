@@ -398,6 +398,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       } else {
         this->send_response_(address, function_code, response_data, response_len);
       }
+      return;
     }
   }
 
