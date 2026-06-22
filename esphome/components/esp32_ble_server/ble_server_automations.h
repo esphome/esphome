@@ -64,7 +64,7 @@ class BLECharacteristicSetValueActionManager {
   void remove_listener_(BLECharacteristic *characteristic);
 };
 
-template<typename... Ts> class BLECharacteristicSetValueAction : public Action<Ts...> {
+template<typename... Ts> class BLECharacteristicSetValueAction final : public Action<Ts...> {
  public:
   BLECharacteristicSetValueAction(BLECharacteristic *characteristic) : parent_(characteristic) {}
   TEMPLATABLE_VALUE(std::vector<uint8_t>, buffer)
@@ -92,7 +92,7 @@ template<typename... Ts> class BLECharacteristicSetValueAction : public Action<T
 #endif  // USE_ESP32_BLE_SERVER_SET_VALUE_ACTION
 
 #ifdef USE_ESP32_BLE_SERVER_NOTIFY_ACTION
-template<typename... Ts> class BLECharacteristicNotifyAction : public Action<Ts...> {
+template<typename... Ts> class BLECharacteristicNotifyAction final : public Action<Ts...> {
  public:
   BLECharacteristicNotifyAction(BLECharacteristic *characteristic) : parent_(characteristic) {}
   void play(const Ts &...x) override {
@@ -110,7 +110,7 @@ template<typename... Ts> class BLECharacteristicNotifyAction : public Action<Ts.
 #endif  // USE_ESP32_BLE_SERVER_NOTIFY_ACTION
 
 #ifdef USE_ESP32_BLE_SERVER_DESCRIPTOR_SET_VALUE_ACTION
-template<typename... Ts> class BLEDescriptorSetValueAction : public Action<Ts...> {
+template<typename... Ts> class BLEDescriptorSetValueAction final : public Action<Ts...> {
  public:
   BLEDescriptorSetValueAction(BLEDescriptor *descriptor) : parent_(descriptor) {}
   TEMPLATABLE_VALUE(std::vector<uint8_t>, buffer)
