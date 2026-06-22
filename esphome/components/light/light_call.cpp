@@ -213,6 +213,12 @@ LightColorValues LightCall::validate_() {
   // Flag whether an explicit turn off was requested, in which case we'll also stop the effect.
   bool explicit_turn_off_request = this->has_state() && !this->state_;
 
+  // treat 0 brightness as an implicit turn-off if state is not explicitly set
+  if (this->has_brightness() && this->brightness_ == 0.0f && !this->has_state()) {
+    this->state_ = false;
+    this->set_flag_(FLAG_HAS_STATE);
+  }
+
   // make sure turn-on makes the light visible unless told otherwise
   if (this->has_state() && this->state_) {
     if (color_mode & ColorCapability::BRIGHTNESS) {
