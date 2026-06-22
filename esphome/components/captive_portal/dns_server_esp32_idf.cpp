@@ -109,7 +109,12 @@ void DNSServer::process_next_request() {
 
   char client_addr_str[socket::SOCKADDR_STR_LEN];
   socket::format_sockaddr_to((struct sockaddr *) &client_addr, client_addr_len, client_addr_str);
-  uint16_t client_port = ntohs(reinterpret_cast<struct sockaddr_in *>(&client_addr)->sin_port);
+  uint16_t client_port;
+  if (client_addr.ss_family == AF_INET6) {
+    client_port = ntohs(reinterpret_cast<struct sockaddr_in6 *>(&client_addr)->sin6_port);
+  } else {
+    client_port = ntohs(reinterpret_cast<struct sockaddr_in *>(&client_addr)->sin_port);
+  }
   ESP_LOGVV(TAG, "Received %d bytes from %s:%d", len, client_addr_str, client_port);
 
   if (len < static_cast<ssize_t>(sizeof(DNSHeader) + 1)) {

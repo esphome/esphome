@@ -115,6 +115,7 @@ std::unique_ptr<Socket> socket_loop_monitored(int domain, int type, int protocol
 // LWIP_TCP has separate Socket/ListenSocket types — needs distinct factory functions.
 std::unique_ptr<ListenSocket> socket_listen(int domain, int type, int protocol);
 std::unique_ptr<ListenSocket> socket_listen_loop_monitored(int domain, int type, int protocol);
+std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol);
 #else
 // BSD and LWIP_SOCKETS: Socket == ListenSocket, so listen variants just delegate.
 inline std::unique_ptr<ListenSocket> socket_listen(int domain, int type, int protocol) {
@@ -123,11 +124,14 @@ inline std::unique_ptr<ListenSocket> socket_listen(int domain, int type, int pro
 inline std::unique_ptr<ListenSocket> socket_listen_loop_monitored(int domain, int type, int protocol) {
   return socket_loop_monitored(domain, type, protocol);
 }
+inline std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol) {
+#if USE_NETWORK_IPV6
+  return socket_loop_monitored(AF_INET6, type, protocol);
+#else
+  return socket_loop_monitored(AF_INET, type, protocol);
 #endif
-/// Create a listening socket in the newest available IP domain and monitor it for data in
-/// the main loop. On non-LWIP_TCP IPv6 builds the socket is dual-stack (IPV6_V6ONLY cleared)
-/// so it also receives IPv4 traffic via IPv4-mapped addresses.
-std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol);
+}
+#endif
 
 /// Set a sockaddr to the specified address and port for the IP version used by socket_ip().
 /// @param addr Destination sockaddr structure

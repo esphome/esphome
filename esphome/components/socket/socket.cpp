@@ -98,27 +98,17 @@ std::unique_ptr<Socket> socket_ip(int type, int protocol) {
 #endif /* USE_NETWORK_IPV6 */
 }
 
+#ifdef USE_SOCKET_IMPL_LWIP_TCP
+// LWIP_TCP has separate Socket/ListenSocket types — needs out-of-line factory.
+// BSD and LWIP_SOCKETS define this inline in socket.h.
 std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol) {
 #if USE_NETWORK_IPV6
-  const int af = AF_INET6;
+  return socket_listen_loop_monitored(AF_INET6, type, protocol);
 #else
-  const int af = AF_INET;
-#endif
-#ifdef USE_SOCKET_IMPL_LWIP_TCP
-  return socket_listen_loop_monitored(af, type, protocol);
-#else
-  auto sock = socket_loop_monitored(af, type, protocol);
-#if USE_NETWORK_IPV6
-  if (sock != nullptr) {
-    int disable = 0;
-    if (sock->setsockopt(IPPROTO_IPV6, IPV6_V6ONLY, &disable, sizeof(disable)) < 0) {
-      return nullptr;
-    }
-  }
-#endif
-  return sock;
+  return socket_listen_loop_monitored(AF_INET, type, protocol);
 #endif
 }
+#endif
 
 #if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 template<typename F> static bool foreach_eligible_ipv6_if(F &&callback) {
