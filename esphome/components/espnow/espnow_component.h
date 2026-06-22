@@ -88,7 +88,7 @@ class ESPNowBroadcastHandler {
   virtual bool on_broadcast(const ESPNowRecvInfo &info, const uint8_t *data, uint8_t size) = 0;
 };
 
-class ESPNowComponent : public Component {
+class ESPNowComponent final : public Component {
  public:
   ESPNowComponent();
   void setup() override;
