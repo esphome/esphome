@@ -1,4 +1,5 @@
 #include "online_image.h"
+#include "esphome/components/runtime_image/image_decoder.h"
 #include "esphome/core/log.h"
 #include <algorithm>
 
@@ -181,7 +182,7 @@ void OnlineImage::loop() {
       auto consumed = this->feed_data(this->download_buffer_.data(), this->download_buffer_.unread());
 
       if (consumed < 0) {
-        ESP_LOGE(TAG, "Error decoding image: %d", consumed);
+        ESP_LOGE(TAG, "Error decoding image: %s", esphome::runtime_image::decode_error_to_string(consumed));
         this->end_connection_();
         this->download_error_callback_.call();
         return;
