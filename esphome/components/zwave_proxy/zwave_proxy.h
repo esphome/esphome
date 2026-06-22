@@ -49,7 +49,7 @@ enum ZWaveProxyFeature : uint32_t {
   FEATURE_ZWAVE_PROXY_ENABLED = 1 << 0,
 };
 
-class ZWaveProxy : public uart::UARTDevice, public Component {
+class ZWaveProxy final : public uart::UARTDevice, public Component {
  public:
   ZWaveProxy();
 
