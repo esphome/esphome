@@ -103,9 +103,10 @@ const std::map<Protocol, std::function<HeatpumpIR *()>> PROTOCOL_CONSTRUCTOR_MAP
     {PROTOCOL_R51M, []() { return new R51MHeatpumpIR(); }},                                  // NOLINT
 };
 
-const std::map<Protocol, std::function<bool(HeatpumpIRClimate &, remote_base::RemoteReceiveData &)>> PROTOCOL_RECEIVE_MAP =
-    {
-        {PROTOCOL_MITSUBISHI_HEAVY_ZMP, [](HeatpumpIRClimate &climate, remote_base::RemoteReceiveData &data) {
+const std::map<Protocol, std::function<bool(HeatpumpIRClimate &, remote_base::RemoteReceiveData &)>>
+    PROTOCOL_RECEIVE_MAP = {
+        {PROTOCOL_MITSUBISHI_HEAVY_ZMP,
+         [](HeatpumpIRClimate &climate, remote_base::RemoteReceiveData &data) {
            uint8_t frame[11];
            return decode_mitsubishi_heavy_frame(data, frame, climate) && decode_mitsubishi_heavy_zmp(frame, climate);
          }},
