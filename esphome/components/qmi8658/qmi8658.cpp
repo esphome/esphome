@@ -74,7 +74,6 @@ void QMI8658Component::setup() {
     this->mark_failed(LOG_STR("Failed to write REG_CTRL7"));
     return;
   }
-  delay(5);
 
   ESP_LOGCONFIG(TAG, "QMI8658 initialised successfully");
 }
