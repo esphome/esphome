@@ -71,14 +71,10 @@ def _to_path_if_not_none(value: str | None) -> Path | None:
 class StorageJSON:
     """Persisted device metadata sidecar.
 
-    Used by:
-    - esphome.dashboard (legacy dashboard)
-    - device-builder (esphome/device-builder) — reads/writes the same
-      JSON file as the legacy dashboard so a single config_dir can be
-      shared between the two during the transition. The schema
-      (``storage_version``, field names, types) must stay backwards
-      compatible — coordinate with the device-builder team before
-      adding required fields or changing semantics of existing ones.
+    Used by device-builder (esphome/device-builder), which reads/writes this
+    JSON file. The schema (``storage_version``, field names, types) must stay
+    backwards compatible — coordinate with the device-builder team before
+    adding required fields or changing semantics of existing ones.
     """
 
     def __init__(

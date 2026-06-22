@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_TIME_ID,
     DEVICE_CLASS_DURATION,
-    DEVICE_CLASS_UPTIME,
+    DEVICE_CLASS_TIMESTAMP,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_TIMER,
     STATE_CLASS_TOTAL_INCREASING,
@@ -33,8 +33,9 @@ CONFIG_SCHEMA = cv.typed_schema(
         ).extend(cv.polling_component_schema("60s")),
         "timestamp": sensor.sensor_schema(
             UptimeTimestampSensor,
+            icon=ICON_TIMER,
             accuracy_decimals=0,
-            device_class=DEVICE_CLASS_UPTIME,
+            device_class=DEVICE_CLASS_TIMESTAMP,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         )
         .extend(
