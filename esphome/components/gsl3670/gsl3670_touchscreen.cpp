@@ -4,6 +4,7 @@
 
 namespace esphome::gsl3670 {
 
+static const char *const TAG = "gsl3670.touchscreen";
 static const size_t MAX_TOUCHES = 3;
 // ---------------------------------------------------------------------------
 // setup() – mirrors esp_lcd_touch_gsl3670_init() in the Seeed BSP:
@@ -164,14 +165,5 @@ bool GSL3670Touchscreen::write_reg_(uint8_t reg, const uint8_t *data, size_t len
 }
 
 bool GSL3670Touchscreen::write_reg8_(uint8_t reg, uint8_t val) { return write_reg_(reg, &val, 1); }
-
-bool GSL3670Touchscreen::read_reg_(uint8_t reg, uint8_t *data, size_t len) {
-  auto err = this->read_register(reg, data, len);
-  if (err != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "I2C read reg 0x%02X failed (%d)", reg, err);
-    return false;
-  }
-  return true;
-}
 
 }  // namespace esphome::gsl3670

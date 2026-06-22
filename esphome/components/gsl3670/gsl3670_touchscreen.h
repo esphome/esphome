@@ -8,7 +8,6 @@
 
 namespace esphome::gsl3670 {
 
-static const char *const TAG = "gsl3670.touchscreen";
 // ---------------------------------------------------------------------------
 // GSL3670 touchscreen ESPHome component
 // ---------------------------------------------------------------------------
@@ -40,7 +39,6 @@ class GSL3670Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevic
   // ---------- I2C helpers ----------
   bool write_reg_(uint8_t reg, const uint8_t *data, size_t len);
   bool write_reg8_(uint8_t reg, uint8_t val);
-  bool read_reg_(uint8_t reg, uint8_t *data, size_t len);
 
   InternalGPIOPin *interrupt_pin_{nullptr};
   GPIOPin *reset_pin_{nullptr};

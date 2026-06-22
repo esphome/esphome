@@ -121,6 +121,10 @@ def _validate_firmware(firmware: dict) -> dict:
                 f"expected {expected.lower()}, got {actual}",
                 [CONF_SHA256],
             )
+    else:
+        LOGGER.warning(
+            "No SHA256 provided for gsl3670 firmware - firmware integrity can not be checked"
+        )
     _validate_firmware_data(data, url)
     return firmware
 
