@@ -5,7 +5,7 @@
 
 namespace esphome::emontx {
 
-class EmonTxSensor : public sensor::Sensor, public Component {
+class EmonTxSensor final : public sensor::Sensor, public Component {
  public:
   void dump_config() override;
 };

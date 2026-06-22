@@ -124,14 +124,8 @@ def slugify(value: str) -> str:
 def friendly_name_slugify(value: str) -> str:
     """Convert a friendly name to a slug with dashes instead of underscores.
 
-    Used by:
-    - esphome.dashboard.web_server (legacy dashboard)
-    - device-builder (esphome/device-builder) — slugifies friendly names
-      into the YAML filename / device name during adoption + wizard flows.
-
-    Lives here rather than in ``esphome.dashboard.util.text`` so it
-    survives the legacy dashboard's eventual removal.
-    The dashboard module re-exports this name as a back-compat shim.
+    Used by device-builder (esphome/device-builder), which slugifies friendly
+    names into the YAML filename / device name during adoption + wizard flows.
     Coordinate with the device-builder team before changing the
     slugification rules — the mapping must stay stable so existing
     on-disk filenames keep matching across releases.
