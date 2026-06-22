@@ -6,7 +6,7 @@
 
 namespace esphome::cwww {
 
-class CWWWLightOutput : public light::LightOutput {
+class CWWWLightOutput final : public light::LightOutput {
  public:
   void set_cold_white(output::FloatOutput *cold_white) { cold_white_ = cold_white; }
   void set_warm_white(output::FloatOutput *warm_white) { warm_white_ = warm_white; }

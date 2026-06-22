@@ -201,7 +201,7 @@ void ModbusController::update() {
 // walk through the sensors and determine the register ranges to read
 size_t ModbusController::create_register_ranges_() {
   this->register_ranges_.clear();
-  if (this->parent_->role == modbus::ModbusRole::CLIENT && this->sensorset_.empty()) {
+  if (this->sensorset_.empty()) {
     ESP_LOGW(TAG, "No sensors registered");
     return 0;
   }
