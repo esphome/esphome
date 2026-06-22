@@ -135,7 +135,7 @@ CONFIG_SCHEMA = cv.All(
             ): cv.positive_time_period_minutes,
         }
     )
-    .extend(cv.polling_component_schema("5s"))
+    .extend(cv.polling_component_schema("3s"))
     .extend(i2c.i2c_device_schema(0x76)),
     cv.only_with_framework(
         frameworks=Framework.ESP_IDF,
