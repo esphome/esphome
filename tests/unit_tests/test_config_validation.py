@@ -1,6 +1,6 @@
 import string
 
-from hypothesis import example, given
+from hypothesis import example, given, settings
 from hypothesis.strategies import builds, integers, ip_addresses, one_of, text
 import pytest
 import voluptuous as vol
@@ -276,6 +276,10 @@ def test_boolean__invalid(value):
         config_validation.boolean(value)
 
 
+# deadline disabled: the validator is trivially fast, but Hypothesis's per-example
+# deadline can spuriously trip on slow/loaded CI runners (e.g. one example hitting
+# a GC pause), making this a flaky failure. Matches test_helpers.py.
+@settings(deadline=None)
 @given(value=ip_addresses(v=4).map(str))
 def test_ipv4__valid(value):
     config_validation.ipv4address(value)
@@ -287,6 +291,7 @@ def test_ipv4__invalid(value):
         config_validation.ipv4address(value)
 
 
+@settings(deadline=None)
 @given(value=ip_addresses(v=6).map(str))
 def test_ipv6__valid(value):
     config_validation.ipaddress(value)
