@@ -222,6 +222,7 @@ void BME690Component::dump_config() {
   LOG_SENSOR("  ", "Static IAQ", this->static_iaq_sensor_);
   LOG_SENSOR("  ", "CO2 equivalent", this->co2_equivalent_sensor_);
   LOG_SENSOR("  ", "Breath VOC equivalent", this->breath_voc_equivalent_sensor_);
+  LOG_SENSOR("  ", "TVOC equivalent", this->tvoc_equivalent_sensor_);
   LOG_SENSOR("  ", "Gas percentage", this->gas_percentage_sensor_);
   LOG_SENSOR("  ", "Compensated temperature", this->comp_temperature_sensor_);
   LOG_SENSOR("  ", "Compensated humidity", this->comp_humidity_sensor_);
@@ -516,8 +517,7 @@ uint8_t BME690Component::build_iaq_subscription_(bsec_sensor_configuration_t *re
   add_request(BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY);
   add_request(BSEC_OUTPUT_CO2_EQUIVALENT);
   if (bsec_3_3_or_newer) {
-    // BSEC 3.3 disables BREATH_VOC_EQUIVALENT for BME690. TVOC is LP-only and is currently not exposed
-    // because it uses ppb rather than the Breath VOC sensor's ppm unit.
+    // BSEC 3.3 disables BREATH_VOC_EQUIVALENT for BME690. TVOC is LP-only.
     if (this->sample_rate_ == SAMPLE_RATE_LP) {
       add_request(BSEC_OUTPUT_TVOC_EQUIVALENT);
     }
@@ -626,6 +626,11 @@ void BME690Component::handle_bsec_outputs_(const bsec_output_t *outputs, uint8_t
       case BSEC_OUTPUT_BREATH_VOC_EQUIVALENT:
         if (this->breath_voc_equivalent_sensor_ != nullptr) {
           this->breath_voc_equivalent_sensor_->publish_state(out.signal);
+        }
+        break;
+      case BSEC_OUTPUT_TVOC_EQUIVALENT:
+        if (this->tvoc_equivalent_sensor_ != nullptr) {
+          this->tvoc_equivalent_sensor_->publish_state(out.signal);
         }
         break;
       case BSEC_OUTPUT_GAS_PERCENTAGE:

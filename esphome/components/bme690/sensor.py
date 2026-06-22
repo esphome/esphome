@@ -20,6 +20,7 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_HECTOPASCAL,
     UNIT_OHM,
+    UNIT_PARTS_PER_BILLION,
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
@@ -32,6 +33,7 @@ CONF_IAQ = "iaq"
 CONF_STATIC_IAQ = "static_iaq"
 CONF_CO2_EQUIVALENT = "co2_equivalent"
 CONF_BREATH_VOC_EQUIVALENT = "breath_voc_equivalent"
+CONF_TVOC_EQUIVALENT = "tvoc_equivalent"
 CONF_GAS_PERCENTAGE = "gas_percentage"
 CONF_COMPENSATED_TEMPERATURE = "compensated_temperature"
 CONF_COMPENSATED_HUMIDITY = "compensated_humidity"
@@ -95,6 +97,12 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
+        cv.Optional(CONF_TVOC_EQUIVALENT): sensor.sensor_schema(
+            unit_of_measurement=UNIT_PARTS_PER_BILLION,
+            accuracy_decimals=0,
+            device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
         cv.Optional(CONF_GAS_PERCENTAGE): sensor.sensor_schema(
             unit_of_measurement=UNIT_PERCENT,
             accuracy_decimals=2,
@@ -148,6 +156,9 @@ async def to_code(config):
     if CONF_BREATH_VOC_EQUIVALENT in config:
         sens = await sensor.new_sensor(config[CONF_BREATH_VOC_EQUIVALENT])
         cg.add(hub.set_breath_voc_equivalent_sensor(sens))
+    if CONF_TVOC_EQUIVALENT in config:
+        sens = await sensor.new_sensor(config[CONF_TVOC_EQUIVALENT])
+        cg.add(hub.set_tvoc_equivalent_sensor(sens))
     if CONF_GAS_PERCENTAGE in config:
         sens = await sensor.new_sensor(config[CONF_GAS_PERCENTAGE])
         cg.add(hub.set_gas_percentage_sensor(sens))

@@ -48,6 +48,7 @@ class BME690Component : public Component, public i2c::I2CDevice {
   void set_static_iaq_sensor(sensor::Sensor *sensor) { this->static_iaq_sensor_ = sensor; }
   void set_co2_equivalent_sensor(sensor::Sensor *sensor) { this->co2_equivalent_sensor_ = sensor; }
   void set_breath_voc_equivalent_sensor(sensor::Sensor *sensor) { this->breath_voc_equivalent_sensor_ = sensor; }
+  void set_tvoc_equivalent_sensor(sensor::Sensor *sensor) { this->tvoc_equivalent_sensor_ = sensor; }
   void set_gas_percentage_sensor(sensor::Sensor *sensor) { this->gas_percentage_sensor_ = sensor; }
   void set_comp_temperature_sensor(sensor::Sensor *sensor) { this->comp_temperature_sensor_ = sensor; }
   void set_comp_humidity_sensor(sensor::Sensor *sensor) { this->comp_humidity_sensor_ = sensor; }
@@ -108,6 +109,7 @@ class BME690Component : public Component, public i2c::I2CDevice {
   sensor::Sensor *static_iaq_sensor_{nullptr};
   sensor::Sensor *co2_equivalent_sensor_{nullptr};
   sensor::Sensor *breath_voc_equivalent_sensor_{nullptr};
+  sensor::Sensor *tvoc_equivalent_sensor_{nullptr};
   sensor::Sensor *gas_percentage_sensor_{nullptr};
   sensor::Sensor *comp_temperature_sensor_{nullptr};
   sensor::Sensor *comp_humidity_sensor_{nullptr};
