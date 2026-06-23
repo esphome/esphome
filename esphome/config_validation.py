@@ -879,13 +879,13 @@ def only_on_rp2040(obj):
     * ``rp2.only_on_variant(supported=[VARIANT_RP2040])`` — variant-level
       gate, rejects RP2350 boards on the rp2 platform.
 
-    Scheduled for removal in 2027.6.0.
+    Scheduled for removal in 2027.7.0.
     """
     if not CORE.data.get(_ONLY_ON_RP2040_DEPRECATED_KEY):
         _LOGGER.warning(
             "cv.only_on_rp2040 is deprecated; use cv.only_on_rp2 for the "
             "family gate, or rp2.only_on_variant(supported=[VARIANT_RP2040]) "
-            "for the variant gate. Removed in 2027.6.0."
+            "for the variant gate. Removed in 2027.7.0."
         )
         CORE.data[_ONLY_ON_RP2040_DEPRECATED_KEY] = True
     return only_on_rp2(obj)

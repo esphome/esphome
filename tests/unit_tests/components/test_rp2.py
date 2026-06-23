@@ -58,7 +58,7 @@ def test_rp2_declares_rp2040_as_alias() -> None:
     from esphome.components import rp2
 
     assert "rp2040" in rp2.ALIASES
-    assert rp2.ALIAS_REMOVAL_VERSION == "2027.6.0"
+    assert rp2.ALIAS_REMOVAL_VERSION == "2027.7.0"
 
 
 def test_rp2040_python_import_resolves_to_rp2() -> None:

@@ -62,7 +62,7 @@ IS_TARGET_PLATFORM = True
 # warning and the key-rename pass; this declaration is the only place a
 # component needs to opt in. See ComponentManifest.aliases for details.
 ALIASES = ["rp2040"]
-ALIAS_REMOVAL_VERSION = "2027.6.0"
+ALIAS_REMOVAL_VERSION = "2027.7.0"
 
 
 def get_board() -> str:

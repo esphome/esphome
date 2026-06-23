@@ -373,12 +373,12 @@ def test_read_aliases_extracts_removal_version(tmp_path: Path) -> None:
     init.write_text(
         textwrap.dedent("""\
             ALIASES = ['old']
-            ALIAS_REMOVAL_VERSION = "2027.6.0"
+            ALIAS_REMOVAL_VERSION = "2027.7.0"
             """)
     )
     aliases, removal = _read_aliases(init, ast)
     assert aliases == ["old"]
-    assert removal == "2027.6.0"
+    assert removal == "2027.7.0"
 
 
 def test_read_aliases_skips_dynamic_forms(tmp_path: Path) -> None:
@@ -471,7 +471,7 @@ def test_real_alias_map_includes_rp2040() -> None:
     meta = get_alias_metadata()
     assert "rp2040" in meta
     assert meta["rp2040"].canonical == "rp2"
-    assert meta["rp2040"].removal_version == "2027.6.0"
+    assert meta["rp2040"].removal_version == "2027.7.0"
 
 
 def test_get_component_resolves_alias() -> None:
@@ -557,7 +557,7 @@ def test_resolve_component_aliases_renames_legacy_key(
     assert any(
         "'rp2040:' top-level key is deprecated" in record.message
         and "rename it to 'rp2:'" in record.message
-        and "2027.6.0" in record.message
+        and "2027.7.0" in record.message
         for record in caplog.records
     )
 
