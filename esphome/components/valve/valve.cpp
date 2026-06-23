@@ -2,16 +2,11 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
-#include "esphome/core/progmem.h"
-
 #include <strings.h>
 
 namespace esphome::valve {
 
 static const char *const TAG = "valve";
-
-const float VALVE_OPEN = 1.0f;
-const float VALVE_CLOSED = 0.0f;
 
 const LogString *valve_command_to_str(float pos) {
   if (pos == VALVE_OPEN) {
@@ -22,54 +17,24 @@ const LogString *valve_command_to_str(float pos) {
     return LOG_STR("UNKNOWN");
   }
 }
-// Valve operation strings indexed by ValveOperation enum (0-2): IDLE, OPENING, CLOSING, plus UNKNOWN
-PROGMEM_STRING_TABLE(ValveOperationStrings, "IDLE", "OPENING", "CLOSING", "UNKNOWN");
+const LogString *valve_operation_to_str(ValveOperation op) { return actuator::actuator_operation_to_str(op); }
 
-const LogString *valve_operation_to_str(ValveOperation op) {
-  return ValveOperationStrings::get_log_str(static_cast<uint8_t>(op), ValveOperationStrings::LAST_INDEX);
-}
+Valve::Valve() { this->position = VALVE_OPEN; }
 
-Valve::Valve() : position{VALVE_OPEN} {}
+//
+// ValveCall
+//
 
-ValveCall::ValveCall(Valve *parent) : parent_(parent) {}
+// Covariant wrapper for set_command (the only one with non-trivial base) — others are inline in valve.h
 ValveCall &ValveCall::set_command(const char *command) {
-  if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("OPEN")) == 0) {
-    this->set_command_open();
-  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("CLOSE")) == 0) {
-    this->set_command_close();
-  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("STOP")) == 0) {
-    this->set_command_stop();
-  } else if (ESPHOME_strcasecmp_P(command, ESPHOME_PSTR("TOGGLE")) == 0) {
-    this->set_command_toggle();
-  } else {
-    ESP_LOGW(TAG, "'%s' - Unrecognized command %s", this->parent_->get_name().c_str(), command);
-  }
+  actuator::ActuatorCallBase::set_command(command);
   return *this;
 }
-ValveCall &ValveCall::set_command_open() {
-  this->position_ = VALVE_OPEN;
-  return *this;
-}
-ValveCall &ValveCall::set_command_close() {
-  this->position_ = VALVE_CLOSED;
-  return *this;
-}
-ValveCall &ValveCall::set_command_stop() {
-  this->stop_ = true;
-  return *this;
-}
-ValveCall &ValveCall::set_command_toggle() {
-  this->toggle_ = true;
-  return *this;
-}
-ValveCall &ValveCall::set_position(float position) {
-  this->position_ = position;
-  return *this;
-}
+
 void ValveCall::perform() {
   ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
-  auto traits = this->parent_->get_traits();
-  this->validate_();
+  auto traits = static_cast<Valve *>(this->parent_)->get_traits();
+  this->ValveCall::validate();
   if (this->stop_) {
     ESP_LOGV(TAG, "  Command: STOP");
   }
@@ -83,12 +48,12 @@ void ValveCall::perform() {
   if (this->toggle_.has_value()) {
     ESP_LOGV(TAG, "  Command: TOGGLE");
   }
-  this->parent_->control(*this);
+  static_cast<Valve *>(this->parent_)->control(*this);
 }
-const optional<float> &ValveCall::get_position() const { return this->position_; }
-const optional<bool> &ValveCall::get_toggle() const { return this->toggle_; }
-void ValveCall::validate_() {
-  auto traits = this->parent_->get_traits();
+
+void ValveCall::validate() {
+  auto traits = static_cast<Valve *>(this->parent_)->get_traits();
+
   if (this->position_.has_value()) {
     auto pos = *this->position_;
     if (!traits.get_supports_position() && pos != VALVE_OPEN && pos != VALVE_CLOSED) {
@@ -116,13 +81,6 @@ void ValveCall::validate_() {
     }
   }
 }
-ValveCall &ValveCall::set_stop(bool stop) {
-  this->stop_ = stop;
-  return *this;
-}
-bool ValveCall::get_stop() const { return this->stop_; }
-
-ValveCall Valve::make_call() { return {this}; }
 
 void Valve::publish_state(bool save) {
   this->position = clamp(this->position, 0.0f, 1.0f);
@@ -154,16 +112,15 @@ void Valve::publish_state(bool save) {
     this->rtc_.save(&restore);
   }
 }
-optional<ValveRestoreState> Valve::restore_state_() {
-  this->rtc_ = this->make_entity_preference<ValveRestoreState>();
-  ValveRestoreState recovered{};
-  if (!this->rtc_.load(&recovered))
-    return {};
-  return recovered;
-}
 
-bool Valve::is_fully_open() const { return this->position == VALVE_OPEN; }
-bool Valve::is_fully_closed() const { return this->position == VALVE_CLOSED; }
+optional<float> Valve::do_restore_state() {
+  auto restore = this->restore_state_();
+  if (!restore.has_value())
+    return {};
+  restore->apply(this);
+  float pos = restore->position;  // copy to avoid packed-field reference
+  return pos;
+}
 
 ValveCall ValveRestoreState::to_call(Valve *valve) {
   auto call = valve->make_call();
