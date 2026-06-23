@@ -1,10 +1,9 @@
 ARG BUILD_VERSION=dev
-ARG BUILD_OS=alpine
-ARG BUILD_BASE_VERSION=2025.04.0
+ARG BUILD_BASE_VERSION=2026.06.0
 ARG BUILD_TYPE=docker
 
-FROM ghcr.io/esphome/docker-base:${BUILD_OS}-${BUILD_BASE_VERSION} AS base-source-docker
-FROM ghcr.io/esphome/docker-base:${BUILD_OS}-ha-addon-${BUILD_BASE_VERSION} AS base-source-ha-addon
+FROM ghcr.io/esphome/docker-base:debian-${BUILD_BASE_VERSION} AS base-source-docker
+FROM ghcr.io/esphome/docker-base:debian-ha-addon-${BUILD_BASE_VERSION} AS base-source-ha-addon
 
 ARG BUILD_TYPE
 FROM base-source-${BUILD_TYPE} AS base
@@ -18,13 +17,12 @@ RUN git config --system --add safe.directory "*" \
 # validate openocd-esp32 (it dynamically links libusb-1.0.so.0); without
 # it idf_tools.py rejects the openocd install with exit 127 and aborts
 # the whole framework setup.
-RUN if command -v apk > /dev/null; then \
-        apk add --no-cache build-base libusb; \
-    else \
-        apt-get update \
-        && apt-get install -y --no-install-recommends build-essential libusb-1.0-0 \
-        && rm -rf /var/lib/apt/lists/*; \
-    fi
+# ccache speeds up repeat ESP-IDF compiles (enabled via IDF_CCACHE_ENABLE);
+# ESP-IDF silently skips it when the binary isn't on PATH, so it must be
+# present in the image for the dashboard/Device Builder to benefit.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential libusb-1.0-0 ccache \
+    && rm -rf /var/lib/apt/lists/*
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 
@@ -35,6 +33,9 @@ COPY requirements.txt /
 RUN \
     uv pip install --no-cache-dir \
     -r /requirements.txt
+
+# Install the ESPHome Device Builder dashboard.
+RUN uv pip install --no-cache-dir esphome-device-builder==1.0.14
 
 RUN \
     platformio settings set enable_telemetry No \
