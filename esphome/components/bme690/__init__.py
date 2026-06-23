@@ -95,13 +95,19 @@ def _read_bsec_config(path: Path) -> list[int]:
     return list(data)
 
 
+def _validate_bsec_options(config):
+    if CONF_BSEC_CONFIG in config and CONF_BSEC_LIBRARY not in config:
+        raise cv.Invalid(f"{CONF_BSEC_CONFIG} requires {CONF_BSEC_LIBRARY}")
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BME690Component),
             cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
             cv.Optional(CONF_BSEC_CONFIG): cv.Any(cv.file_, cv.url),
-            cv.Required(CONF_BSEC_LIBRARY): cv.Any(cv.file_, cv.url),
+            cv.Optional(CONF_BSEC_LIBRARY): cv.Any(cv.file_, cv.url),
             cv.Optional(CONF_SAMPLE_RATE, default="LP"): cv.enum(
                 SAMPLE_RATE_OPTIONS, upper=True
             ),
@@ -119,6 +125,7 @@ CONFIG_SCHEMA = cv.All(
         )
     )
     .extend(i2c.i2c_device_schema(0x76)),
+    _validate_bsec_options,
     cv.only_with_framework(
         frameworks=Framework.ESP_IDF,
         suggestions={
@@ -149,21 +156,24 @@ async def to_code(config):
         config_array = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
         cg.add(var.set_bsec_configuration(config_array, len(rhs)))
 
-    lib_path = _resolve_bsec_library(config[CONF_BSEC_LIBRARY])
-    data = CORE.data.setdefault(DOMAIN, {})
-    if (existing_lib_path := data.get(KEY_BSEC_LIBRARY)) is not None:
-        if existing_lib_path != lib_path:
-            raise core.EsphomeError(
-                "All BME690 instances must use the same BSEC library archive"
-            )
-    else:
-        data[KEY_BSEC_LIBRARY] = lib_path
-        esp32.add_extra_build_file("libalgobsec.a", lib_path)
+    if (bsec_library := config.get(CONF_BSEC_LIBRARY)) is not None:
+        cg.add(var.set_bsec_enabled(True))
+        lib_path = _resolve_bsec_library(bsec_library)
+        data = CORE.data.setdefault(DOMAIN, {})
+        if (existing_lib_path := data.get(KEY_BSEC_LIBRARY)) is not None:
+            if existing_lib_path != lib_path:
+                raise core.EsphomeError(
+                    "All BME690 instances must use the same BSEC library archive"
+                )
+        else:
+            data[KEY_BSEC_LIBRARY] = lib_path
+            esp32.add_extra_build_file("libalgobsec.a", lib_path)
 
-        build_dir = CORE.relative_build_path()
-        cg.add_build_flag(
-            f"-L{build_dir} -Wl,--whole-archive -lalgobsec -Wl,--no-whole-archive"
-        )
+            cg.add_define("USE_BSEC")
+            build_dir = CORE.relative_build_path()
+            cg.add_build_flag(
+                f"-L{build_dir} -Wl,--whole-archive -lalgobsec -Wl,--no-whole-archive"
+            )
 
     cg.add(
         var.set_state_save_interval(config[CONF_STATE_SAVE_INTERVAL].total_milliseconds)

@@ -10,10 +10,13 @@ namespace esphome::bme690 {
 // Reference material for the BME69x driver and Bosch BSEC integration examples:
 // https://www.bosch-sensortec.com/en/software-tools/software/bme680-software-bsec
 static const char *const TAG = "bme690";
+#if defined(USE_BSEC) && defined(USE_TEXT_SENSOR)
 static const char *const IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
+#endif
 static constexpr uint8_t BME690_MAX_HEATER_PROFILE_LEN = 10;
 static constexpr uint32_t BME690_READ_TIMEOUT_ID = 0;
 
+#ifdef USE_BSEC
 static const char *bsec_status_to_string(bsec_library_return_t rslt) {
   switch (rslt) {
     case BSEC_OK:
@@ -101,6 +104,7 @@ static bool bsec_status_is_info(bsec_library_return_t rslt) {
       return false;
   }
 }
+#endif
 
 bool BME690Component::check_result_(const char *label, int8_t rslt) {
   if (rslt == BME69X_OK) {
@@ -111,6 +115,7 @@ bool BME690Component::check_result_(const char *label, int8_t rslt) {
   return false;
 }
 
+#ifdef USE_BSEC
 bool BME690Component::check_bsec_status_(const char *label, bsec_library_return_t rslt) {
   if (rslt == BSEC_OK) {
     return true;
@@ -128,6 +133,7 @@ bool BME690Component::check_bsec_status_(const char *label, bsec_library_return_
   ESP_LOGE(TAG, "%s failed: %s (%d)", label, bsec_status_to_string(rslt), static_cast<int>(rslt));
   return false;
 }
+#endif
 
 BME69X_INTF_RET_TYPE BME690Component::read_i2c(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, void *intf_ptr) {
   auto *self = static_cast<BME690Component *>(intf_ptr);
@@ -207,10 +213,20 @@ void BME690Component::setup() {
     return;
   }
 
-  if (this->configure_bsec_()) {
-    this->schedule_read_(0);
+  if (this->bsec_enabled_) {
+#ifdef USE_BSEC
+    if (this->configure_bsec_()) {
+      this->schedule_read_(0);
+    } else {
+      ESP_LOGW(TAG, "BSEC configuration failed; running raw sensor only.");
+      this->schedule_read_(this->update_interval_ms_);
+    }
+#else
+    ESP_LOGW(TAG, "BSEC support is not compiled; running raw sensor only.");
+    this->schedule_read_(this->update_interval_ms_);
+#endif
   } else {
-    ESP_LOGW(TAG, "BSEC configuration failed; running raw sensor only.");
+    ESP_LOGCONFIG(TAG, "BSEC library not configured; running raw sensor only.");
     this->schedule_read_(this->update_interval_ms_);
   }
 }
@@ -238,15 +254,21 @@ void BME690Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Temperature Offset: %.2f°C", this->ext_temp_offset_);
   ESP_LOGCONFIG(TAG, "  State Save Interval: %" PRIu32 "ms", this->state_save_interval_ms_);
   ESP_LOGCONFIG(TAG, "  Fallback Update Interval: %.1fs", this->update_interval_ms_ / 1000.0f);
-  ESP_LOGCONFIG(TAG, "  BSEC Config: %s (%" PRIu32 " bytes)",
-                this->bsec_configuration_ != nullptr ? "custom" : "built-in",
-                this->get_bsec_configuration_length_());
+  ESP_LOGCONFIG(TAG, "  BSEC: %s", this->bsec_enabled_ ? "enabled" : "disabled");
+#ifdef USE_BSEC
+  if (this->bsec_enabled_) {
+    ESP_LOGCONFIG(TAG, "  BSEC Config: %s (%" PRIu32 " bytes)",
+                  this->bsec_configuration_ != nullptr ? "custom" : "built-in",
+                  this->get_bsec_configuration_length_());
+  }
+#endif
 }
 
 void BME690Component::schedule_read_(uint32_t delay_ms) {
   this->set_timeout(BME690_READ_TIMEOUT_ID, delay_ms, [this]() { this->read_(); });
 }
 
+#ifdef USE_BSEC
 void BME690Component::schedule_next_bsec_read_() {
   if (this->next_call_ns_ == 0) {
     this->schedule_read_(this->update_interval_ms_);
@@ -262,6 +284,7 @@ void BME690Component::schedule_next_bsec_read_() {
   const int64_t delay_ms = (delay_ns + INT64_C(999999)) / INT64_C(1000000);
   this->schedule_read_(static_cast<uint32_t>(std::min<int64_t>(delay_ms, UINT32_MAX)));
 }
+#endif
 
 void BME690Component::read_() {
   if (this->status_has_error()) {
@@ -271,13 +294,17 @@ void BME690Component::read_() {
   const int64_t timestamp_ns = this->get_time_ns_();
   bsec_bme_settings_t sensor_settings = {};
 
+#ifdef USE_BSEC
   if (this->bsec_ready_) {
     if (!this->get_bsec_sensor_settings_(timestamp_ns, &sensor_settings)) {
       return;
     }
   } else {
+#endif
     this->get_raw_fallback_settings_(&sensor_settings);
+#ifdef USE_BSEC
   }
+#endif
 
   if (sensor_settings.trigger_measurement == 0) {
     this->schedule_after_measurement_();
@@ -295,12 +322,15 @@ void BME690Component::read_() {
 
   this->publish_raw_outputs_(data);
 
+#ifdef USE_BSEC
   if (this->bsec_ready_) {
     this->push_inputs_to_bsec_(data, sensor_settings, timestamp_ns);
   }
+#endif
   this->schedule_after_measurement_();
 }
 
+#ifdef USE_BSEC
 bool BME690Component::get_bsec_sensor_settings_(int64_t timestamp_ns, bsec_bme_settings_t *sensor_settings) {
   if (this->next_call_ns_ != 0 && timestamp_ns < this->next_call_ns_) {
     this->schedule_next_bsec_read_();
@@ -321,10 +351,13 @@ bool BME690Component::get_bsec_sensor_settings_(int64_t timestamp_ns, bsec_bme_s
   this->next_call_ns_ = sensor_settings->next_call;
   return true;
 }
+#endif
 
 void BME690Component::get_raw_fallback_settings_(bsec_bme_settings_t *sensor_settings) {
   if (!this->bsec_fallback_warning_logged_) {
-    if (this->bsec_setup_failed_step_ != nullptr) {
+    if (!this->bsec_enabled_) {
+      ESP_LOGD(TAG, "Publishing raw sensor values only.");
+    } else if (this->bsec_setup_failed_step_ != nullptr) {
       ESP_LOGW(TAG, "BSEC setup failed at %s: %d; publishing raw sensor values only.",
                this->bsec_setup_failed_step_, static_cast<int>(this->bsec_setup_failed_result_));
     } else {
@@ -445,12 +478,17 @@ void BME690Component::publish_raw_outputs_(const struct bme69x_data &data) {
 
 void BME690Component::schedule_after_measurement_() {
   if (this->bsec_ready_) {
+#ifdef USE_BSEC
     this->schedule_next_bsec_read_();
+#else
+    this->schedule_read_(this->update_interval_ms_);
+#endif
   } else {
     this->schedule_read_(this->update_interval_ms_);
   }
 }
 
+#ifdef USE_BSEC
 bool BME690Component::configure_bsec_() {
   size_t instance_size = bsec_get_instance_size();
   if (instance_size == 0) {
@@ -744,6 +782,7 @@ void BME690Component::save_bsec_state_() {
     ESP_LOGW(TAG, "Failed to save BSEC state");
   }
 }
+#endif
 
 int64_t BME690Component::get_time_ns_() {
   return static_cast<int64_t>(millis_64()) * INT64_C(1000000);

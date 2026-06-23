@@ -46,6 +46,7 @@ class BME690Component : public Component, public i2c::I2CDevice {
   void set_comp_humidity_sensor(sensor::Sensor *sensor) { this->comp_humidity_sensor_ = sensor; }
   void set_sample_rate(SampleRate sample_rate) { this->sample_rate_ = sample_rate; }
   void set_temperature_offset(float offset) { this->ext_temp_offset_ = offset; }
+  void set_bsec_enabled(bool enabled) { this->bsec_enabled_ = enabled; }
   void set_bsec_configuration(const uint8_t *data, uint32_t len) {
     this->bsec_configuration_ = data;
     this->bsec_configuration_length_ = len;
@@ -118,6 +119,7 @@ class BME690Component : public Component, public i2c::I2CDevice {
   uint32_t bsec_configuration_length_{0};
   SampleRate sample_rate_{SAMPLE_RATE_LP};
   float ext_temp_offset_{0.0f};
+  bool bsec_enabled_{false};
   bool bsec_ready_{false};
   bool bsec_fallback_warning_logged_{false};
   const char *bsec_setup_failed_step_{nullptr};
