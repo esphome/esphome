@@ -7,6 +7,8 @@
 
 namespace esphome::bme690 {
 
+static const char *const TAG = "bme690";
+static const char *const IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 static constexpr uint8_t BME690_MAX_HEATER_PROFILE_LEN = 10;
 
 static const char *bsec_status_to_string(bsec_library_return_t rslt) {

@@ -3,11 +3,6 @@
 #include <array>
 #include <memory>
 
-// Use floating point calculations provided by the Bosch driver.
-#ifndef BME69X_USE_FPU
-#define BME69X_USE_FPU
-#endif
-
 extern "C" {
 #include "bme69x.h"
 #include "bsec_interface.h"
@@ -26,9 +21,6 @@ extern "C" {
 #endif
 
 namespace esphome::bme690 {
-
-static const char *const TAG = "bme690";
-static const char *const IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 
 inline bool bsec_has_input(uint32_t process_data, uint8_t input) { return (process_data & (1U << (input - 1))) != 0; }
 
