@@ -159,9 +159,12 @@ def setup_core(
     CORE.config = config
     CORE.toolchain = Toolchain.PLATFORMIO
 
-    if platform is not None:
-        CORE.data[KEY_CORE] = {}
-        CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = platform
+    # Production always populates CORE.data[KEY_CORE] before upload/logs run
+    # (the platform validator sets it during read_config, and
+    # StorageJSON.apply_to_core sets it on the cache fast path), so mirror
+    # that here. Tests that exercise platform-specific behavior pass a
+    # platform explicitly; the rest get a platform-agnostic None.
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
 
     if tmp_path is not None:
         CORE.config_path = str(tmp_path / f"{name}.yaml")
