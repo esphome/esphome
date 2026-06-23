@@ -258,8 +258,7 @@ void BME690Component::dump_config() {
 #ifdef USE_BSEC
   if (this->bsec_enabled_) {
     ESP_LOGCONFIG(TAG, "  BSEC Config: %s (%" PRIu32 " bytes)",
-                  this->bsec_configuration_ != nullptr ? "custom" : "built-in",
-                  this->get_bsec_configuration_length_());
+                  this->bsec_configuration_ != nullptr ? "custom" : "built-in", this->get_bsec_configuration_length_());
   }
 #endif
 }
@@ -359,8 +358,8 @@ void BME690Component::get_raw_fallback_settings_(bsec_bme_settings_t *sensor_set
     if (!this->bsec_enabled_) {
       ESP_LOGD(TAG, "Publishing raw sensor values only.");
     } else if (this->bsec_setup_failed_step_ != nullptr) {
-      ESP_LOGW(TAG, "BSEC setup failed at %s: %d; publishing raw sensor values only.",
-               this->bsec_setup_failed_step_, static_cast<int>(this->bsec_setup_failed_result_));
+      ESP_LOGW(TAG, "BSEC setup failed at %s: %d; publishing raw sensor values only.", this->bsec_setup_failed_step_,
+               static_cast<int>(this->bsec_setup_failed_result_));
     } else {
       ESP_LOGW(TAG, "BSEC is not ready; publishing raw sensor values only.");
     }
@@ -505,10 +504,9 @@ bool BME690Component::configure_bsec_() {
   }
   this->log_bsec_version_();
 
-  bsec_rslt =
-      bsec_set_configuration(this->bsec_instance_data_(), this->get_bsec_configuration_(),
-                             this->get_bsec_configuration_length_(), this->bsec_work_buffer_.data(),
-                             this->bsec_work_buffer_.size());
+  bsec_rslt = bsec_set_configuration(this->bsec_instance_data_(), this->get_bsec_configuration_(),
+                                     this->get_bsec_configuration_length_(), this->bsec_work_buffer_.data(),
+                                     this->bsec_work_buffer_.size());
   if (!this->check_bsec_status_("bsec_set_configuration", bsec_rslt)) {
     this->bsec_setup_failed_step_ = "bsec_set_configuration";
     this->bsec_setup_failed_result_ = bsec_rslt;
@@ -784,8 +782,6 @@ void BME690Component::save_bsec_state_() {
 }
 #endif
 
-int64_t BME690Component::get_time_ns_() {
-  return static_cast<int64_t>(millis_64()) * INT64_C(1000000);
-}
+int64_t BME690Component::get_time_ns_() { return static_cast<int64_t>(millis_64()) * INT64_C(1000000); }
 
 }  // namespace esphome::bme690
