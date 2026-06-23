@@ -805,23 +805,15 @@ jobs:
       # esp32 component builds use the native ESP-IDF toolchain (default), so
       # share the tidy jobs' install location -- the restore below lands here.
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
-      # ccache for the ESP-IDF builds. Within a batch the same target platform
-      # is compiled many times (once per bus-group + once per isolated
-      # component); the IDF framework objects are identical across those builds,
-      # so ccache deduplicates them. CCACHE_BASEDIR + CCACHE_NOHASHDIR are
-      # required because each esphome build lands in a different per-device dir
-      # -- without them the cache gets zero hits.
-      #
-      # IDF_CCACHE_ENABLE was "0" for the first run (clean baseline with all the
-      # plumbing in place); now "1" to measure the speedup vs that baseline.
+      # ccache for the ESP-IDF builds: a batch compiles the same target many
+      # times, so framework objects dedupe. BASEDIR + NOHASHDIR are needed
+      # because each build lands in a different per-device dir; depend mode
+      # keeps cache-miss overhead low.
       IDF_CCACHE_ENABLE: "1"
       CCACHE_DIR: /mnt/ccache
       CCACHE_BASEDIR: ${{ github.workspace }}
       CCACHE_NOHASHDIR: "true"
       CCACHE_MAXSIZE: 2G
-      # Depend mode: hash the compiler-generated depfiles (IDF/ninja already
-      # emit -MD) instead of running the preprocessor, cutting cache-miss
-      # overhead from ~5-20% to ~1-3% and making hits direct-mode (faster).
       CCACHE_DEPEND: "1"
     strategy:
       fail-fast: false
@@ -857,9 +849,7 @@ jobs:
         with:
           restore-only: true
       - name: Prepare ccache
-        # CCACHE_DIR is on /mnt (the large ephemeral disk, root-owned), so it
-        # must be created with sudo before ccache can write to it. -z zeroes
-        # stats so each batch's "ccache statistics" step starts clean.
+        # /mnt is root-owned; create CCACHE_DIR before ccache writes to it.
         run: |
           sudo mkdir -p "$CCACHE_DIR" && sudo chown "$USER":"$USER" "$CCACHE_DIR"
           ccache -z
@@ -966,7 +956,7 @@ jobs:
             echo "All components in this batch are validate-only -- skipping compile stage."
           fi
 
-      - name: ccache statistics
+      - name: Print ccache statistics
         if: always()
         run: ccache -s
 
