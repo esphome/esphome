@@ -241,6 +241,39 @@ def test_bind_key__rejects_non_hex_pair_length() -> None:
         config_validation.bind_key("0123456789ABCDEF0123456789ABCDE")
 
 
+def test_bind_key__direct_call_with_name_validates_with_that_name() -> None:
+    # Passing both a value and a name validates immediately using the custom
+    # name for error wording, and still tags the result sensitive.
+    result = config_validation.bind_key(
+        "0123456789ABCDEF0123456789ABCDEF", name="Decryption key"
+    )
+    assert isinstance(result, SensitiveStr)
+
+    with pytest.raises(Invalid, match="Decryption key must consist of"):
+        config_validation.bind_key("00", name="Decryption key")
+
+
+def test_bind_key__factory_without_name_keeps_existing_name() -> None:
+    # Re-invoking a named validator without a name preserves its name rather
+    # than resetting to the default.
+    named = config_validation.bind_key(name="Decryption key")
+    rederived = named()
+
+    with pytest.raises(Invalid, match="Decryption key must consist of"):
+        rederived("00")
+
+
+def test_bind_key__repr_is_name_keyed_and_non_recursive() -> None:
+    # ``self.inner`` is a bound method of the instance, so the inherited
+    # ``repr(self.inner)`` would recurse infinitely; the override keeps repr
+    # finite and keyed on the name for schema-dump dedup.
+    assert repr(config_validation.bind_key) == "bind_key('Bind key')"
+    assert (
+        repr(config_validation.bind_key(name="Decryption key"))
+        == "bind_key('Decryption key')"
+    )
+
+
 def test_sensitive__repr_mirrors_inner() -> None:
     # The schema dump dedups on ``repr(schema)``; mirroring the inner
     # validator's repr keeps two ``cv.sensitive(cv.string)`` wrappers

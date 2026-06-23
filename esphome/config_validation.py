@@ -1259,8 +1259,18 @@ class BindKeyValidator(SensitiveValidator):
     ) -> typing.Any:
         if value is _BIND_KEY_MISSING:
             # Factory usage: return a validator with customized error wording.
-            return BindKeyValidator(name if name is not None else "Bind key")
+            return BindKeyValidator(name if name is not None else self._name)
+        if name is not None and name != self._name:
+            # Direct validation with a one-off custom name.
+            return BindKeyValidator(name)(value)
         return super().__call__(value)
+
+    def __repr__(self) -> str:
+        # ``self.inner`` is a bound method of this instance, so the inherited
+        # ``SensitiveValidator.__repr__`` (which returns ``repr(self.inner)``)
+        # would recurse infinitely. Provide a stable, name-keyed repr instead so
+        # ``build_language_schema`` dedup and voluptuous errors stay sane.
+        return f"bind_key({self._name!r})"
 
 
 bind_key = BindKeyValidator()
