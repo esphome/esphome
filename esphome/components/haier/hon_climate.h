@@ -35,7 +35,7 @@ struct HonSettings {
   bool quiet_mode_state{false};
 };
 
-class HonClimate : public HaierClimateBase {
+class HonClimate final : public HaierClimateBase {
 #ifdef USE_SENSOR
  public:
   enum class SubSensorType {

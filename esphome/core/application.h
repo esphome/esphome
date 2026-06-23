@@ -194,15 +194,6 @@ class Application {
   /// Buffer must be BUILD_TIME_STR_SIZE bytes (compile-time enforced)
   void get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buffer);
 
-  /// Get the build time as a string (deprecated, use get_build_time_string() instead)
-  // Remove before 2026.7.0
-  ESPDEPRECATED("Use get_build_time_string() instead. Removed in 2026.7.0", "2026.1.0")
-  std::string get_compilation_time() {
-    char buf[BUILD_TIME_STR_SIZE];
-    this->get_build_time_string(buf);
-    return std::string(buf);
-  }
-
   /// Get the cached time in milliseconds from when the current component started its loop execution
   inline uint32_t IRAM_ATTR HOT get_loop_component_start_time() const { return this->loop_component_start_time_; }
 
