@@ -91,7 +91,7 @@ AS7343::AS7343(i2c::I2CDevice *i2c_device) : AS734xBase(i2c_device, AS7343::NUM_
 bool AS7343::verify_device_id() {
   this->set_bank_for_reg_(AS7343_ID);
 
-  uint8_t id;
+  uint8_t id{0};
   this->i2c_device_->read_byte(AS7343_ID, &id);
   ESP_LOGCONFIG(TAG, "  Read ID: 0x%X", id);
   return (id == AS7343_CHIP_ID);
@@ -142,7 +142,7 @@ bool AS7343::read_channels(uint8_t /*step*/, ChannelValuesUint16 &values, Gain &
       AS7343_CHANNEL_640_F6, AS7343_CHANNEL_690_F7, AS7343_CHANNEL_745_F8, AS7343_CHANNEL_855_NIR,
       AS7343_CHANNEL_CLEAR_0};
 
-  std::array<uint16_t, AS7343_NUM_CHANNELS_MAX> data;
+  std::array<uint16_t, AS7343_NUM_CHANNELS_MAX> data{};
 
   RegStatus status{0};
   status.raw = this->i2c_device_->reg(AS7343_STATUS).get();

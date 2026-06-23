@@ -1,5 +1,5 @@
 #pragma once
-#include "as734xbase.h"
+#include "as734x.h"
 
 namespace esphome::as734x {
 

@@ -1,5 +1,5 @@
 #pragma once
-#include "as734xbase.h"
+#include "as734x.h"
 
 namespace esphome::as734x {
 
@@ -14,7 +14,7 @@ class AS7343 : public AS734xBase {
 
   uint8_t get_number_of_smux_steps() const override { return NUM_SMUX_STEPS; }
   bool prepare_for_smux_step(uint8_t step) override { return true; };
-  bool is_smux_ready() override { return true; };
+  bool is_smux_busy() override { return false; }
 
   bool read_channels(uint8_t step, ChannelValuesUint16 &values, Gain &gain, bool &saturated) override;
 
