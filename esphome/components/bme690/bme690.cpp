@@ -741,13 +741,7 @@ void BME690Component::save_bsec_state_() {
 }
 
 int64_t BME690Component::get_time_ns_() {
-  uint32_t time_ms = millis();
-  if (this->last_time_ms_ > time_ms) {
-    this->millis_overflow_counter_++;
-  }
-  this->last_time_ms_ = time_ms;
-
-  return (time_ms + (static_cast<int64_t>(this->millis_overflow_counter_) << 32)) * INT64_C(1000000);
+  return static_cast<int64_t>(millis_64()) * INT64_C(1000000);
 }
 
 }  // namespace esphome::bme690

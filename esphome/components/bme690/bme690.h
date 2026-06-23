@@ -131,8 +131,6 @@ class BME690Component : public Component, public i2c::I2CDevice {
   uint32_t state_save_interval_ms_{6 * 60 * 60 * 1000UL};  // 6h
   uint32_t state_preference_hash_{0};
   uint32_t update_interval_ms_{3000};
-  uint32_t last_time_ms_{0};
-  uint32_t millis_overflow_counter_{0};
 };
 
 }  // namespace esphome::bme690
