@@ -393,6 +393,18 @@ async def to_code(config: ConfigType) -> None:
     ).total_milliseconds > 0:
         cg.add_define("USE_API_PROVISIONING_TIMEOUT")
         cg.add(var.set_provisioning_timeout(provisioning_timeout))
+        # on_provisioning_timeout is only valid when provisioning_timeout is set
+        # (enforced in validation) and the trigger can only fire while the feature
+        # is enabled, so register it here.
+        if (
+            on_provisioning_timeout := config.get(CONF_ON_PROVISIONING_TIMEOUT)
+        ) is not None:
+            cg.add_define("USE_API_PROVISIONING_TIMEOUT_TRIGGER")
+            await automation.build_automation(
+                var.get_provisioning_timeout_trigger(),
+                [],
+                on_provisioning_timeout,
+            )
     cg.add(var.set_batch_delay(config[CONF_BATCH_DELAY]))
     if CONF_LISTEN_BACKLOG in config:
         cg.add(var.set_listen_backlog(config[CONF_LISTEN_BACKLOG]))
@@ -501,16 +513,6 @@ async def to_code(config: ConfigType) -> None:
             var.get_client_disconnected_trigger(),
             [(cg.std_string, "client_info"), (cg.std_string, "client_address")],
             config[CONF_ON_CLIENT_DISCONNECTED],
-        )
-
-    if (
-        on_provisioning_timeout := config.get(CONF_ON_PROVISIONING_TIMEOUT)
-    ) is not None:
-        cg.add_define("USE_API_PROVISIONING_TIMEOUT_TRIGGER")
-        await automation.build_automation(
-            var.get_provisioning_timeout_trigger(),
-            [],
-            on_provisioning_timeout,
         )
 
     if (encryption_config := config.get(CONF_ENCRYPTION, None)) is not None:
