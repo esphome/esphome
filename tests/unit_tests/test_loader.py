@@ -402,9 +402,15 @@ def test_read_aliases_returns_empty_for_missing_declaration(tmp_path: Path) -> N
 def test_read_aliases_handles_syntax_error(tmp_path: Path) -> None:
     """A broken __init__.py shouldn't crash the alias scanner — it'll
     surface as an ImportError elsewhere, but the scanner just yields
-    nothing so other components keep working."""
+    nothing so other components keep working.
+
+    The source must contain the substring ``ALIASES`` so the scanner
+    actually attempts to parse the file; otherwise the early-return
+    optimization would short-circuit before reaching the parser and
+    this test would not exercise the syntax-error branch.
+    """
     init = tmp_path / "__init__.py"
-    init.write_text("def broken( :\n")
+    init.write_text("ALIASES = ['oops'\ndef broken( :\n")
     assert _read_aliases(init, ast) == ([], None)
 
 
@@ -450,11 +456,12 @@ def test_build_alias_map_rejects_duplicate_alias(tmp_path: Path) -> None:
         _build_alias_map()
 
 
-def test_build_alias_map_handles_missing_dir() -> None:
+def test_build_alias_map_handles_missing_dir(tmp_path: Path) -> None:
     """If the components directory doesn't exist (unlikely in production,
     but possible in some test contexts), we want an empty map rather than
     a crash — the rest of the loader can still function."""
-    fake = Path("/nonexistent-components-dir-for-test")
+    fake = tmp_path / "does-not-exist"
+    assert not fake.exists()
     with patch("esphome.loader.CORE_COMPONENTS_PATH", fake):
         alias_map, meta_map = _build_alias_map()
     assert alias_map == {}
