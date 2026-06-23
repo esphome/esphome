@@ -291,10 +291,11 @@ void BME690Component::read_() {
     return;
   }
 
-  const int64_t timestamp_ns = this->get_time_ns_();
   bsec_bme_settings_t sensor_settings = {};
 
 #ifdef USE_BSEC
+  const int64_t timestamp_ns = this->get_time_ns_();
+
   if (this->bsec_ready_) {
     if (!this->get_bsec_sensor_settings_(timestamp_ns, &sensor_settings)) {
       return;
