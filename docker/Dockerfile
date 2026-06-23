@@ -1,5 +1,5 @@
 ARG BUILD_VERSION=dev
-ARG BUILD_BASE_VERSION=2026.06.0
+ARG BUILD_BASE_VERSION=2026.07.0
 ARG BUILD_TYPE=docker
 
 FROM ghcr.io/esphome/docker-base:debian-${BUILD_BASE_VERSION} AS base-source-docker
@@ -10,19 +10,6 @@ FROM base-source-${BUILD_TYPE} AS base
 
 RUN git config --system --add safe.directory "*" \
     && git config --system advice.detachedHead false
-
-# Install build tools for Python packages that require compilation
-# (e.g., ruamel.yaml.clib used by ESP-IDF's idf-component-manager).
-# Also install libusb-1.0 at runtime so the ESP-IDF tools installer can
-# validate openocd-esp32 (it dynamically links libusb-1.0.so.0); without
-# it idf_tools.py rejects the openocd install with exit 127 and aborts
-# the whole framework setup.
-# ccache speeds up repeat ESP-IDF compiles (enabled via IDF_CCACHE_ENABLE);
-# ESP-IDF silently skips it when the binary isn't on PATH, so it must be
-# present in the image for the dashboard/Device Builder to benefit.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential libusb-1.0-0 ccache \
-    && rm -rf /var/lib/apt/lists/*
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 
