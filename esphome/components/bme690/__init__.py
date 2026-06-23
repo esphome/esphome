@@ -17,6 +17,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 
+CODEOWNERS = ["@berikv"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensor", "text_sensor"]
 MULTI_CONF = True
