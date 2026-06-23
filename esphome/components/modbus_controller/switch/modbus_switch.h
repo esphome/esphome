@@ -6,8 +6,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace modbus_controller {
+namespace esphome::modbus_controller {
 
 class ModbusSwitch : public Component, public switch_::Switch, public SensorItem {
  public:
@@ -49,5 +48,4 @@ class ModbusSwitch : public Component, public switch_::Switch, public SensorItem
   bool assumed_state_{false};
 };
 
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller

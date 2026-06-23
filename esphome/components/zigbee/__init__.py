@@ -36,6 +36,7 @@ from .const_zephyr import (
 from .zigbee_esp32 import (
     final_validate_esp32,
     validate_binary_sensor_esp32,
+    validate_sensor_esp32,
     zigbee_require_vfs_select,
 )
 from .zigbee_zephyr import (
@@ -49,8 +50,9 @@ _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@luar123", "@tomaszduda23"]
 
+CONFLICTS_WITH = ["openthread"]
 
-BINARY_SENSOR_SCHEMA = cv.Schema(
+BASE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_REPORT): cv.All(
             cv.requires_component("zigbee"),
@@ -58,8 +60,9 @@ BINARY_SENSOR_SCHEMA = cv.Schema(
             cv.enum(REPORT, lower=True),
         )
     }
-).extend(zephyr_binary_sensor)
-SENSOR_SCHEMA = cv.Schema({}).extend(zephyr_sensor)
+)
+BINARY_SENSOR_SCHEMA = cv.Schema({}).extend(BASE_SCHEMA).extend(zephyr_binary_sensor)
+SENSOR_SCHEMA = cv.Schema({}).extend(BASE_SCHEMA).extend(zephyr_sensor)
 SWITCH_SCHEMA = cv.Schema({}).extend(zephyr_switch)
 NUMBER_SCHEMA = cv.Schema({}).extend(zephyr_number)
 
@@ -78,10 +81,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.string, cv.Length(max=31)
             ),
             cv.Optional(CONF_ROUTER, default=False): cv.boolean,
-            cv.Optional(CONF_ON_JOIN): cv.All(
-                cv.requires_component("nrf52"),
-                automation.validate_automation(single=True),
-            ),
+            cv.Optional(CONF_ON_JOIN): automation.validate_automation({}),
             cv.OnlyWith(CONF_WIPE_ON_BOOT, "nrf52", default=False): cv.All(
                 cv.Any(
                     cv.boolean,
@@ -89,9 +89,8 @@ CONFIG_SCHEMA = cv.All(
                 ),
                 cv.requires_component("nrf52"),
             ),
-            cv.OnlyWith(CONF_POWER_SOURCE, "nrf52", default="DC_SOURCE"): cv.All(
-                cv.enum(POWER_SOURCE, upper=True),
-                cv.requires_component("nrf52"),
+            cv.Optional(CONF_POWER_SOURCE, default="DC_SOURCE"): cv.enum(
+                POWER_SOURCE, upper=True
             ),
             cv.Optional(CONF_IEEE802154_VENDOR_OUI): cv.All(
                 cv.Any(
@@ -145,17 +144,25 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 )
 
 
+_CALLBACK_AUTOMATIONS = [
+    automation.CallbackAutomation(CONF_ON_JOIN, "add_on_join_callback", [(bool, "x")]),
+]
+
+
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_ZIGBEE")
+    var = None
     if CORE.using_zephyr:
         from .zigbee_zephyr import zephyr_to_code
 
-        await zephyr_to_code(config)
+        var = await zephyr_to_code(config)
     if CORE.is_esp32:
         from .zigbee_esp32 import esp32_to_code
 
-        await esp32_to_code(config)
+        var = await esp32_to_code(config)
+    if var is not None:
+        await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 async def setup_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
@@ -227,7 +234,7 @@ def validate_sensor(config: ConfigType) -> ConfigType:
     if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return config
     if CORE.is_esp32:
-        return config
+        return validate_sensor_esp32(config)
     return consume_endpoint(config)
 
 

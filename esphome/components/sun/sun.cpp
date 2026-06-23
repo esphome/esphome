@@ -12,8 +12,7 @@ like exact nutation are not included. But in some testing the accuracy appears t
 for random spots around the globe.
 */
 
-namespace esphome {
-namespace sun {
+namespace esphome::sun {
 
 using namespace esphome::sun::internal;
 
@@ -322,5 +321,4 @@ optional<ESPTime> Sun::sunset(ESPTime date, double elevation) { return this->cal
 double Sun::elevation() { return this->calc_coords_().elevation; }
 double Sun::azimuth() { return this->calc_coords_().azimuth; }
 
-}  // namespace sun
-}  // namespace esphome
+}  // namespace esphome::sun

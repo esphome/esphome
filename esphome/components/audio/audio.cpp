@@ -4,8 +4,7 @@
 
 #include <cstring>
 
-namespace esphome {
-namespace audio {
+namespace esphome::audio {
 
 // Euclidean's algorithm for finding the greatest common divisor
 static uint32_t gcd(uint32_t a, uint32_t b) {
@@ -129,5 +128,4 @@ void scale_audio_samples(const int16_t *audio_samples, int16_t *output_buffer, i
   }
 }
 
-}  // namespace audio
-}  // namespace esphome
+}  // namespace esphome::audio

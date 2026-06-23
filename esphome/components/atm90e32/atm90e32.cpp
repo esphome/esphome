@@ -5,8 +5,7 @@
 #include <numbers>
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace atm90e32 {
+namespace esphome::atm90e32 {
 
 static const char *const TAG = "atm90e32";
 
@@ -1313,5 +1312,4 @@ bool ATM90E32Component::validate_spi_read_(uint16_t expected, const char *contex
   return true;
 }
 
-}  // namespace atm90e32
-}  // namespace esphome
+}  // namespace esphome::atm90e32

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32
@@ -63,7 +65,7 @@ CONF_JSON = "json"
 
 def validate_url(value):
     value = cv.url(value)
-    if value.startswith("http://") or value.startswith("https://"):
+    if value.startswith(("http://", "https://")):
         return value
     raise cv.Invalid("URL must start with 'http://' or 'https://'")
 
@@ -174,7 +176,7 @@ async def to_code(config):
 
         if config.get(CONF_VERIFY_SSL):
             if ca_cert_path := config.get(CONF_CA_CERTIFICATE_PATH):
-                with open(ca_cert_path, encoding="utf-8") as f:
+                with Path(ca_cert_path).open(encoding="utf-8") as f:
                     ca_cert_content = f.read()
                 cg.add(var.set_ca_certificate(ca_cert_content))
             else:

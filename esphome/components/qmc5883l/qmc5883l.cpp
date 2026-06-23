@@ -4,8 +4,7 @@
 #include "esphome/core/hal.h"
 #include <cmath>
 
-namespace esphome {
-namespace qmc5883l {
+namespace esphome::qmc5883l {
 
 static const char *const TAG = "qmc5883l";
 
@@ -213,5 +212,4 @@ i2c::ErrorCode QMC5883LComponent::read_bytes_16_le_(uint8_t a_register, uint16_t
   return err;
 }
 
-}  // namespace qmc5883l
-}  // namespace esphome
+}  // namespace esphome::qmc5883l

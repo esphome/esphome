@@ -5,10 +5,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace hbridge {
+namespace esphome::hbridge {
 
-class HBridgeLightOutput : public Component, public light::LightOutput {
+class HBridgeLightOutput final : public Component, public light::LightOutput {
  public:
   void set_pina_pin(output::FloatOutput *pina_pin) { this->pina_pin_ = pina_pin; }
   void set_pinb_pin(output::FloatOutput *pinb_pin) { this->pinb_pin_ = pinb_pin; }
@@ -68,5 +67,4 @@ class HBridgeLightOutput : public Component, public light::LightOutput {
   HighFrequencyLoopRequester high_freq_;
 };
 
-}  // namespace hbridge
-}  // namespace esphome
+}  // namespace esphome::hbridge

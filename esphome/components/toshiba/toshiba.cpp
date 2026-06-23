@@ -4,8 +4,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace toshiba {
+namespace esphome::toshiba {
 
 struct RacPt1411hwruFanSpeed {
   uint8_t code1;
@@ -1372,5 +1371,4 @@ bool ToshibaClimate::decode_(remote_base::RemoteReceiveData *data, uint8_t *mess
   return true;
 }
 
-}  // namespace toshiba
-}  // namespace esphome
+}  // namespace esphome::toshiba

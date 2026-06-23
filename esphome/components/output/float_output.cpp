@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace output {
+namespace esphome::output {
 
 static const char *const TAG = "output.float";
 
@@ -40,5 +39,4 @@ void FloatOutput::set_level(float state) {
 
 void FloatOutput::write_state(bool state) { this->set_level(state != this->inverted_ ? 1.0f : 0.0f); }
 
-}  // namespace output
-}  // namespace esphome
+}  // namespace esphome::output

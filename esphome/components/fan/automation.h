@@ -4,8 +4,7 @@
 #include "esphome/core/component.h"
 #include "fan.h"
 
-namespace esphome {
-namespace fan {
+namespace esphome::fan {
 
 // All configured fields are baked into a single stateless lambda whose
 // constants live in flash. The action only stores one function pointer
@@ -19,7 +18,7 @@ namespace fan {
 // (e.g. `const T & &` if Ts already carries a reference, or `const const
 // T &` if Ts already carries a const). This keeps trigger args no-copy
 // regardless of whether the trigger supplies `T`, `T &`, or `const T &`.
-template<typename... Ts> class TurnOnAction : public Action<Ts...> {
+template<typename... Ts> class TurnOnAction final : public Action<Ts...> {
  public:
   using ApplyFn = void (*)(FanCall &, const std::remove_cvref_t<Ts> &...);
   TurnOnAction(Fan *state, ApplyFn apply) : state_(state), apply_(apply) {}
@@ -34,7 +33,7 @@ template<typename... Ts> class TurnOnAction : public Action<Ts...> {
   ApplyFn apply_;
 };
 
-template<typename... Ts> class TurnOffAction : public Action<Ts...> {
+template<typename... Ts> class TurnOffAction final : public Action<Ts...> {
  public:
   explicit TurnOffAction(Fan *state) : state_(state) {}
 
@@ -43,7 +42,7 @@ template<typename... Ts> class TurnOffAction : public Action<Ts...> {
   Fan *state_;
 };
 
-template<typename... Ts> class ToggleAction : public Action<Ts...> {
+template<typename... Ts> class ToggleAction final : public Action<Ts...> {
  public:
   explicit ToggleAction(Fan *state) : state_(state) {}
 
@@ -52,7 +51,7 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
   Fan *state_;
 };
 
-template<typename... Ts> class CycleSpeedAction : public Action<Ts...> {
+template<typename... Ts> class CycleSpeedAction final : public Action<Ts...> {
  public:
   explicit CycleSpeedAction(Fan *state) : state_(state) {}
 
@@ -96,7 +95,7 @@ template<typename... Ts> class CycleSpeedAction : public Action<Ts...> {
   Fan *state_;
 };
 
-template<typename... Ts> class FanIsOnCondition : public Condition<Ts...> {
+template<typename... Ts> class FanIsOnCondition final : public Condition<Ts...> {
  public:
   explicit FanIsOnCondition(Fan *state) : state_(state) {}
   bool check(const Ts &...x) override { return this->state_->state; }
@@ -104,7 +103,7 @@ template<typename... Ts> class FanIsOnCondition : public Condition<Ts...> {
  protected:
   Fan *state_;
 };
-template<typename... Ts> class FanIsOffCondition : public Condition<Ts...> {
+template<typename... Ts> class FanIsOffCondition final : public Condition<Ts...> {
  public:
   explicit FanIsOffCondition(Fan *state) : state_(state) {}
   bool check(const Ts &...x) override { return !this->state_->state; }
@@ -113,7 +112,7 @@ template<typename... Ts> class FanIsOffCondition : public Condition<Ts...> {
   Fan *state_;
 };
 
-class FanStateTrigger : public Trigger<Fan *> {
+class FanStateTrigger final : public Trigger<Fan *> {
  public:
   FanStateTrigger(Fan *state) : fan_(state) {
     state->add_on_state_callback([this]() { this->trigger(this->fan_); });
@@ -123,7 +122,7 @@ class FanStateTrigger : public Trigger<Fan *> {
   Fan *fan_;
 };
 
-class FanTurnOnTrigger : public Trigger<> {
+class FanTurnOnTrigger final : public Trigger<> {
  public:
   FanTurnOnTrigger(Fan *state) : fan_(state) {
     state->add_on_state_callback([this]() {
@@ -142,7 +141,7 @@ class FanTurnOnTrigger : public Trigger<> {
   bool last_on_;
 };
 
-class FanTurnOffTrigger : public Trigger<> {
+class FanTurnOffTrigger final : public Trigger<> {
  public:
   FanTurnOffTrigger(Fan *state) : fan_(state) {
     state->add_on_state_callback([this]() {
@@ -161,7 +160,7 @@ class FanTurnOffTrigger : public Trigger<> {
   bool last_on_;
 };
 
-class FanDirectionSetTrigger : public Trigger<FanDirection> {
+class FanDirectionSetTrigger final : public Trigger<FanDirection> {
  public:
   FanDirectionSetTrigger(Fan *state) : fan_(state) {
     state->add_on_state_callback([this]() {
@@ -180,7 +179,7 @@ class FanDirectionSetTrigger : public Trigger<FanDirection> {
   FanDirection last_direction_;
 };
 
-class FanOscillatingSetTrigger : public Trigger<bool> {
+class FanOscillatingSetTrigger final : public Trigger<bool> {
  public:
   FanOscillatingSetTrigger(Fan *state) : fan_(state) {
     state->add_on_state_callback([this]() {
@@ -199,7 +198,7 @@ class FanOscillatingSetTrigger : public Trigger<bool> {
   bool last_oscillating_;
 };
 
-class FanSpeedSetTrigger : public Trigger<int> {
+class FanSpeedSetTrigger final : public Trigger<int> {
  public:
   FanSpeedSetTrigger(Fan *state) : fan_(state) {
     state->add_on_state_callback([this]() {
@@ -218,7 +217,7 @@ class FanSpeedSetTrigger : public Trigger<int> {
   int last_speed_;
 };
 
-class FanPresetSetTrigger : public Trigger<StringRef> {
+class FanPresetSetTrigger final : public Trigger<StringRef> {
  public:
   FanPresetSetTrigger(Fan *state) : fan_(state) {
     state->add_on_state_callback([this]() {
@@ -237,5 +236,4 @@ class FanPresetSetTrigger : public Trigger<StringRef> {
   StringRef last_preset_mode_{};
 };
 
-}  // namespace fan
-}  // namespace esphome
+}  // namespace esphome::fan

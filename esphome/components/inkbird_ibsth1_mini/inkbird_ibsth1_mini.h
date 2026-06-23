@@ -6,8 +6,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace inkbird_ibsth1_mini {
+namespace esphome::inkbird_ibsth1_mini {
 
 class InkbirdIbstH1Mini : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
@@ -29,7 +28,6 @@ class InkbirdIbstH1Mini : public Component, public esp32_ble_tracker::ESPBTDevic
   sensor::Sensor *battery_level_{nullptr};
 };
 
-}  // namespace inkbird_ibsth1_mini
-}  // namespace esphome
+}  // namespace esphome::inkbird_ibsth1_mini
 
 #endif

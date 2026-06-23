@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pipsolar {
+namespace esphome::pipsolar {
 
 static const char *const TAG = "pipsolar";
 
@@ -811,5 +810,4 @@ uint16_t Pipsolar::pipsolar_crc_(uint8_t *msg, uint8_t len) {
   return crc;
 }
 
-}  // namespace pipsolar
-}  // namespace esphome
+}  // namespace esphome::pipsolar

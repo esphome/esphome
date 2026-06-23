@@ -2,8 +2,7 @@
 #ifdef USE_LIBRETINY
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace debug {
+namespace esphome::debug {
 
 static const char *const TAG = "debug";
 
@@ -62,6 +61,5 @@ void DebugComponent::update_platform_() {
 #endif
 }
 
-}  // namespace debug
-}  // namespace esphome
+}  // namespace esphome::debug
 #endif

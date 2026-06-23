@@ -11,8 +11,7 @@
 
 #include "../http_request.h"
 
-namespace esphome {
-namespace http_request {
+namespace esphome::http_request {
 
 static const uint8_t MD5_SIZE = 32;
 
@@ -56,5 +55,4 @@ class OtaHttpRequestComponent final : public ota::OTAComponent, public Parented<
   static const uint16_t HTTP_RECV_BUFFER = 256;  // the firmware GET chunk size
 };
 
-}  // namespace http_request
-}  // namespace esphome
+}  // namespace esphome::http_request

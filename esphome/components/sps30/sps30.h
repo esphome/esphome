@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/sensirion_common/i2c_sensirion.h"
 
-namespace esphome {
-namespace sps30 {
+namespace esphome::sps30 {
 
 /// This class implements support for the Sensirion SPS30 i2c/UART Particulate Matter
 /// PM1.0, PM2.5, PM4, PM10 Air Quality sensors.
@@ -67,5 +66,4 @@ class SPS30Component : public PollingComponent, public sensirion_common::Sensiri
   optional<uint32_t> idle_interval_;
 };
 
-}  // namespace sps30
-}  // namespace esphome
+}  // namespace esphome::sps30

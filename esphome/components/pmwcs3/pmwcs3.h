@@ -7,8 +7,7 @@
 // ref:
 // https://github.com/tinovi/i2cArduino/blob/master/i2cArduino.h
 
-namespace esphome {
-namespace pmwcs3 {
+namespace esphome::pmwcs3 {
 
 class PMWCS3Component : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -64,5 +63,4 @@ template<typename... Ts> class PMWCS3NewI2cAddressAction : public Action<Ts...> 
   PMWCS3Component *parent_;
 };
 
-}  // namespace pmwcs3
-}  // namespace esphome
+}  // namespace esphome::pmwcs3

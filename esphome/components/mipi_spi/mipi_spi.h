@@ -7,8 +7,7 @@
 #include "esphome/components/display/display_color_utils.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace mipi_spi {
+namespace esphome::mipi_spi {
 
 constexpr static const char *const TAG = "display.mipi_spi";
 
@@ -82,10 +81,15 @@ void internal_dump_config(const char *model, int width, int height, int offset_w
  * @tparam HEIGHT Height of the display in pixels
  * @tparam OFFSET_WIDTH The x-offset of the display in pixels
  * @tparam OFFSET_HEIGHT The y-offset of the display in pixels
+ * @tparam PAD_WIDTH Additional pixels recognised by the controller after the offset and width
+ * @tparam PAD_HEIGHT Additional lines recognised by the controller after the offset and width
+ * @tparam MADCTL The base MADCTL value for the display, with no rotation bits set.
+ * @tparam HAS_HARDWARE_ROTATION Whether the display supports hardware rotation.
  * buffer
  */
 template<typename BUFFERTYPE, PixelMode BUFFERPIXEL, bool IS_BIG_ENDIAN, PixelMode DISPLAYPIXEL, BusType BUS_TYPE,
-         int WIDTH, int HEIGHT, int OFFSET_WIDTH, int OFFSET_HEIGHT, uint16_t MADCTL, bool HAS_HARDWARE_ROTATION>
+         int WIDTH, int HEIGHT, int OFFSET_WIDTH, int OFFSET_HEIGHT, int PAD_WIDTH, int PAD_HEIGHT, uint16_t MADCTL,
+         bool HAS_HARDWARE_ROTATION>
 class MipiSpi : public display::Display,
                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                       spi::DATA_RATE_1MHZ> {
@@ -127,17 +131,6 @@ class MipiSpi : public display::Display,
     return HEIGHT;
   }
 
-  // If hardware rotation is in use, the actual display width/height changes with rotation
-  int get_width_internal() override {
-    if constexpr (HAS_HARDWARE_ROTATION)
-      return get_width();
-    return WIDTH;
-  }
-  int get_height_internal() override {
-    if constexpr (HAS_HARDWARE_ROTATION)
-      return get_height();
-    return HEIGHT;
-  }
   void set_init_sequence(const std::vector<uint8_t> &sequence) { this->init_sequence_ = sequence; }
 
   // reset the display, and write the init sequence
@@ -234,14 +227,25 @@ class MipiSpi : public display::Display,
   }
 
   void dump_config() override {
-    internal_dump_config(this->model_, this->get_width(), this->get_height(), OFFSET_WIDTH, OFFSET_HEIGHT,
-                         (uint8_t) MADCTL, this->invert_colors_, DISPLAYPIXEL * 8, IS_BIG_ENDIAN, this->brightness_,
-                         this->cs_, this->reset_pin_, this->dc_pin_, this->mode_, this->data_rate_, BUS_TYPE,
-                         HAS_HARDWARE_ROTATION);
+    internal_dump_config(this->model_, this->get_width(), this->get_height(), this->get_offset_width_(),
+                         this->get_offset_height_(), (uint8_t) MADCTL, this->invert_colors_, DISPLAYPIXEL * 8,
+                         IS_BIG_ENDIAN, this->brightness_, this->cs_, this->reset_pin_, this->dc_pin_, this->mode_,
+                         this->data_rate_, BUS_TYPE, HAS_HARDWARE_ROTATION);
   }
 
  protected:
   /* METHODS */
+  // If hardware rotation is in use, the actual display width/height changes with rotation
+  int get_width_internal() override {
+    if constexpr (HAS_HARDWARE_ROTATION)
+      return get_width();
+    return WIDTH;
+  }
+  int get_height_internal() override {
+    if constexpr (HAS_HARDWARE_ROTATION)
+      return get_height();
+    return HEIGHT;
+  }
   // convenience functions to write commands with or without data
   void write_command_(uint8_t cmd, uint8_t data) { this->write_command_(cmd, &data, 1); }
   void write_command_(uint8_t cmd) { this->write_command_(cmd, &cmd, 0); }
@@ -331,20 +335,34 @@ class MipiSpi : public display::Display,
     this->write_command_(MADCTL_CMD, madctl);
   }
 
-  uint16_t get_offset_width_() {
+  uint16_t get_offset_width_() const {
     if constexpr (HAS_HARDWARE_ROTATION) {
-      if (this->rotation_ == display::DISPLAY_ROTATION_90_DEGREES ||
-          this->rotation_ == display::DISPLAY_ROTATION_270_DEGREES)
-        return OFFSET_HEIGHT;
+      switch (this->rotation_) {
+        case display::DISPLAY_ROTATION_90_DEGREES:
+          return OFFSET_HEIGHT;
+        case display::DISPLAY_ROTATION_180_DEGREES:
+          return PAD_WIDTH;
+        case display::DISPLAY_ROTATION_270_DEGREES:
+          return PAD_HEIGHT;
+        default:
+          break;
+      }
     }
     return OFFSET_WIDTH;
   }
 
-  uint16_t get_offset_height_() {
+  uint16_t get_offset_height_() const {
     if constexpr (HAS_HARDWARE_ROTATION) {
-      if (this->rotation_ == display::DISPLAY_ROTATION_90_DEGREES ||
-          this->rotation_ == display::DISPLAY_ROTATION_270_DEGREES)
-        return OFFSET_WIDTH;
+      switch (this->rotation_) {
+        case display::DISPLAY_ROTATION_90_DEGREES:
+          return PAD_WIDTH;
+        case display::DISPLAY_ROTATION_180_DEGREES:
+          return PAD_HEIGHT;
+        case display::DISPLAY_ROTATION_270_DEGREES:
+          return OFFSET_WIDTH;
+        default:
+          break;
+      }
     }
     return OFFSET_HEIGHT;
   }
@@ -397,7 +415,7 @@ class MipiSpi : public display::Display,
         this->write_cmd_addr_data(0, 0, 0, 0, ptr, w * h, 8);
       }
     } else {
-      for (size_t y = 0; y != static_cast<size_t>(h); y++) {
+      for (size_t y = 0; y != h; y++) {
         if constexpr (BUS_TYPE == BUS_TYPE_SINGLE || BUS_TYPE == BUS_TYPE_SINGLE_16) {
           this->write_array(ptr, w);
         } else if constexpr (BUS_TYPE == BUS_TYPE_QUAD) {
@@ -493,19 +511,23 @@ class MipiSpi : public display::Display,
  * @tparam BUFFERPIXEL Color depth of the buffer
  * @tparam DISPLAYPIXEL Color depth of the display
  * @tparam BUS_TYPE The type of the interface bus (single, quad, octal)
- * @tparam ROTATION The rotation of the display
  * @tparam WIDTH Width of the display in pixels
  * @tparam HEIGHT Height of the display in pixels
  * @tparam OFFSET_WIDTH The x-offset of the display in pixels
  * @tparam OFFSET_HEIGHT The y-offset of the display in pixels
+ * @tparam PAD_WIDTH Additional pixels recognised by the controller after the offset and width
+ * @tparam PAD_HEIGHT Additional lines recognised by the controller after the offset and width
+ * @tparam MADCTL The base MADCTL value for the display, with no rotation bits set.
+ * @tparam HAS_HARDWARE_ROTATION Whether the display supports hardware rotation.
  * @tparam FRACTION The fraction of the display size to use for the buffer (e.g. 4 means a 1/4 buffer).
  * @tparam ROUNDING The alignment requirement for drawing operations (e.g. 2 means that x coordinates must be even)
  */
 template<typename BUFFERTYPE, PixelMode BUFFERPIXEL, bool IS_BIG_ENDIAN, PixelMode DISPLAYPIXEL, BusType BUS_TYPE,
-         uint16_t WIDTH, uint16_t HEIGHT, int OFFSET_WIDTH, int OFFSET_HEIGHT, uint16_t MADCTL,
-         bool HAS_HARDWARE_ROTATION, int FRACTION, unsigned ROUNDING>
-class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DISPLAYPIXEL, BUS_TYPE, WIDTH, HEIGHT,
-                                     OFFSET_WIDTH, OFFSET_HEIGHT, MADCTL, HAS_HARDWARE_ROTATION> {
+         uint16_t WIDTH, uint16_t HEIGHT, int OFFSET_WIDTH, int OFFSET_HEIGHT, int PAD_WIDTH, int PAD_HEIGHT,
+         uint16_t MADCTL, bool HAS_HARDWARE_ROTATION, int FRACTION, unsigned ROUNDING>
+class MipiSpiBuffer
+    : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DISPLAYPIXEL, BUS_TYPE, WIDTH, HEIGHT, OFFSET_WIDTH,
+                     OFFSET_HEIGHT, PAD_WIDTH, PAD_HEIGHT, MADCTL, HAS_HARDWARE_ROTATION> {
  public:
   // these values define the buffer size needed to write in accordance with the chip pixel alignment
   // requirements. If the required rounding does not divide the width and height, we round up to the next multiple and
@@ -516,7 +538,7 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
 
   void dump_config() override {
     MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DISPLAYPIXEL, BUS_TYPE, WIDTH, HEIGHT, OFFSET_WIDTH, OFFSET_HEIGHT,
-            MADCTL, HAS_HARDWARE_ROTATION>::dump_config();
+            PAD_WIDTH, PAD_HEIGHT, MADCTL, HAS_HARDWARE_ROTATION>::dump_config();
     esph_log_config(TAG,
                     "  Rotation: %d°\n"
                     "  Buffer pixels: %d bits\n"
@@ -529,7 +551,7 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
 
   void setup() override {
     MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DISPLAYPIXEL, BUS_TYPE, WIDTH, HEIGHT, OFFSET_WIDTH, OFFSET_HEIGHT,
-            MADCTL, HAS_HARDWARE_ROTATION>::setup();
+            PAD_WIDTH, PAD_HEIGHT, MADCTL, HAS_HARDWARE_ROTATION>::setup();
     RAMAllocator<BUFFERTYPE> allocator{};
     this->buffer_ = allocator.allocate(round_buffer(WIDTH) * round_buffer(HEIGHT) / FRACTION);
     if (this->buffer_ == nullptr) {
@@ -672,5 +694,4 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
   uint16_t end_line_{1};
 };
 
-}  // namespace mipi_spi
-}  // namespace esphome
+}  // namespace esphome::mipi_spi

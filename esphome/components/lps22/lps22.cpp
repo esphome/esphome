@@ -1,7 +1,6 @@
 #include "lps22.h"
 
-namespace esphome {
-namespace lps22 {
+namespace esphome::lps22 {
 
 static constexpr const char *const TAG = "lps22";
 
@@ -78,5 +77,4 @@ void LPS22Component::try_read_() {
   }
 }
 
-}  // namespace lps22
-}  // namespace esphome
+}  // namespace esphome::lps22

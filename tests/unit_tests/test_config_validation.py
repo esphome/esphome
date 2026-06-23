@@ -1,6 +1,6 @@
 import string
 
-from hypothesis import example, given
+from hypothesis import example, given, settings
 from hypothesis.strategies import builds, integers, ip_addresses, one_of, text
 import pytest
 import voluptuous as vol
@@ -27,6 +27,7 @@ from esphome.const import (
     SCHEDULER_DONT_RUN,
 )
 from esphome.core import CORE, HexInt, Lambda
+from esphome.yaml_util import SensitiveStr
 
 
 def test_check_not_templatable__invalid():
@@ -127,6 +128,171 @@ def test_string_string__invalid(value):
         config_validation.string_strict(value)
 
 
+def test_sensitive__default_delegates_to_string() -> None:
+    validator = config_validation.sensitive()
+
+    assert isinstance(validator, config_validation.SensitiveValidator)
+    assert validator.inner is config_validation.string
+    assert validator("hunter2") == "hunter2"
+    assert validator(42) == "42"
+
+
+def test_sensitive__custom_inner_delegates_validation() -> None:
+    validator = config_validation.sensitive(config_validation.string_strict)
+
+    assert validator.inner is config_validation.string_strict
+    assert validator("abc") == "abc"
+    with pytest.raises(Invalid, match="Must be string, got"):
+        validator(123)
+
+
+def test_sensitive__wraps_string_result_in_sensitive_str() -> None:
+    validator = config_validation.sensitive()
+    result = validator("hunter2")
+
+    assert isinstance(result, SensitiveStr)
+    assert isinstance(result, str)
+    assert result == "hunter2"
+
+
+def test_sensitive__does_not_double_tag_already_sensitive() -> None:
+    # If the inner validator already returns a SensitiveStr (e.g., nested
+    # cv.sensitive wrappers), re-tagging is a no-op rather than a new
+    # SensitiveStr around the same value.
+    pre_tagged = SensitiveStr("hunter2")
+
+    def inner(_value):
+        return pre_tagged
+
+    validator = config_validation.sensitive(inner)
+    result = validator("anything")
+
+    assert result is pre_tagged
+
+
+def test_sensitive__non_string_result_passes_through() -> None:
+    # If an inner validator returns something other than a string (e.g., a
+    # Lambda template), the sensitive wrapper must not coerce it.
+    sentinel = object()
+
+    def inner(_value):
+        return sentinel
+
+    validator = config_validation.sensitive(inner)
+    assert validator("anything") is sentinel
+
+
+def test_sensitive__is_detectable_via_isinstance() -> None:
+    validator = config_validation.sensitive()
+
+    assert isinstance(validator, config_validation.SensitiveValidator)
+
+
+def test_bind_key__bare_usage_validates_and_is_sensitive() -> None:
+    # Used bare (cv.bind_key) it is itself a sensitive validator: detectable for
+    # frontend masking and validating a value directly tags the result.
+    assert isinstance(config_validation.bind_key, config_validation.SensitiveValidator)
+
+    result = config_validation.bind_key("0123456789ABCDEF0123456789ABCDEF")
+
+    assert isinstance(result, SensitiveStr)
+    assert result == "0123456789ABCDEF0123456789ABCDEF"
+
+
+def test_bind_key__bare_usage_in_schema() -> None:
+    # Voluptuous calls the bare validator with the config value; the result must
+    # come through tagged sensitive.
+    schema = config_validation.Schema(
+        {config_validation.Required("key"): config_validation.bind_key}
+    )
+    out = schema({"key": "0123456789ABCDEF0123456789ABCDEF"})
+
+    assert isinstance(out["key"], SensitiveStr)
+
+
+def test_bind_key__factory_returns_sensitive_validator() -> None:
+    # Called with a name (cv.bind_key(name=...)) it returns a new sensitive
+    # validator rather than validating.
+    validator = config_validation.bind_key(name="Decryption key")
+
+    assert isinstance(validator, config_validation.SensitiveValidator)
+    assert validator is not config_validation.bind_key
+    assert isinstance(validator("0123456789ABCDEF0123456789ABCDEF"), SensitiveStr)
+
+
+@pytest.mark.parametrize(
+    ("value", "error"),
+    (
+        ("00", "Decryption key must consist of 16 hexadecimal numbers"),
+        ("0123456789ABCDEF0123456789ABCDEG", "Decryption key must be hex values"),
+    ),
+)
+def test_bind_key__custom_name_in_error(value: str, error: str) -> None:
+    # The ``name`` argument (used by dsmr/dlms_meter) customizes error messages.
+    validator = config_validation.bind_key(name="Decryption key")
+    with pytest.raises(Invalid, match=error):
+        validator(value)
+
+
+def test_bind_key__rejects_non_hex_pair_length() -> None:
+    # Odd-length input yields a trailing single-char part, hitting the
+    # "format XX" branch rather than the hex-value branch.
+    with pytest.raises(Invalid, match="Bind key must be format XX"):
+        config_validation.bind_key("0123456789ABCDEF0123456789ABCDE")
+
+
+def test_bind_key__direct_call_with_name_validates_with_that_name() -> None:
+    # Passing both a value and a name validates immediately using the custom
+    # name for error wording, and still tags the result sensitive.
+    result = config_validation.bind_key(
+        "0123456789ABCDEF0123456789ABCDEF", name="Decryption key"
+    )
+    assert isinstance(result, SensitiveStr)
+
+    with pytest.raises(Invalid, match="Decryption key must consist of"):
+        config_validation.bind_key("00", name="Decryption key")
+
+
+def test_bind_key__factory_without_name_keeps_existing_name() -> None:
+    # Re-invoking a named validator without a name preserves its name rather
+    # than resetting to the default.
+    named = config_validation.bind_key(name="Decryption key")
+    rederived = named()
+
+    with pytest.raises(Invalid, match="Decryption key must consist of"):
+        rederived("00")
+
+
+def test_bind_key__repr_is_name_keyed_and_non_recursive() -> None:
+    # ``self.inner`` is a bound method of the instance, so the inherited
+    # ``repr(self.inner)`` would recurse infinitely; the override keeps repr
+    # finite and keyed on the name for schema-dump dedup.
+    assert repr(config_validation.bind_key) == "bind_key('Bind key')"
+    assert (
+        repr(config_validation.bind_key(name="Decryption key"))
+        == "bind_key('Decryption key')"
+    )
+
+
+def test_sensitive__repr_mirrors_inner() -> None:
+    # The schema dump dedups on ``repr(schema)``; mirroring the inner
+    # validator's repr keeps two ``cv.sensitive(cv.string)`` wrappers
+    # interchangeable for that purpose and avoids leaking the wrapper as
+    # noise in voluptuous error messages.
+    assert repr(config_validation.sensitive(config_validation.string)) == repr(
+        config_validation.string
+    )
+    assert repr(config_validation.sensitive(config_validation.string)) == repr(
+        config_validation.sensitive(config_validation.string)
+    )
+
+
+def test_sensitive_key_fragments__covers_common_terms() -> None:
+    assert isinstance(config_validation.SENSITIVE_KEY_FRAGMENTS, frozenset)
+    for term in ("password", "passcode", "secret", "token", "api_key", "apikey", "psk"):
+        assert term in config_validation.SENSITIVE_KEY_FRAGMENTS
+
+
 @given(
     builds(
         lambda v: "mdi:" + v,
@@ -196,6 +362,10 @@ def test_boolean__invalid(value):
         config_validation.boolean(value)
 
 
+# deadline disabled: the validator is trivially fast, but Hypothesis's per-example
+# deadline can spuriously trip on slow/loaded CI runners (e.g. one example hitting
+# a GC pause), making this a flaky failure. Matches test_helpers.py.
+@settings(deadline=None)
 @given(value=ip_addresses(v=4).map(str))
 def test_ipv4__valid(value):
     config_validation.ipv4address(value)
@@ -207,6 +377,7 @@ def test_ipv4__invalid(value):
         config_validation.ipv4address(value)
 
 
+@settings(deadline=None)
 @given(value=ip_addresses(v=6).map(str))
 def test_ipv6__valid(value):
     config_validation.ipaddress(value)
@@ -793,3 +964,187 @@ def test_update_interval__never_passes_through() -> None:
     """update_interval: never must still map to SCHEDULER_DONT_RUN."""
     result = config_validation.update_interval("never")
     assert result.total_milliseconds == SCHEDULER_DONT_RUN
+
+
+# ---------------------------------------------------------------------------
+# Visibility UI-hint kwarg
+# ---------------------------------------------------------------------------
+
+
+def test_optional_default_visibility_is_none() -> None:
+    """An ``Optional`` with no ``visibility`` kwarg reports ``None``.
+
+    Consumers can read the attribute directly with plain attribute
+    access; absence (``None``) means "render on the editor's main
+    form."
+    """
+    o = config_validation.Optional("foo")
+    assert o.visibility is None
+
+
+def test_optional_visibility_advanced() -> None:
+    """``visibility=Visibility.ADVANCED`` is recorded on the marker."""
+    o = config_validation.Optional(
+        "foo", visibility=config_validation.Visibility.ADVANCED
+    )
+    assert o.visibility is config_validation.Visibility.ADVANCED
+
+
+def test_optional_visibility_yaml_only() -> None:
+    """``visibility=Visibility.YAML_ONLY`` is recorded on the marker."""
+    o = config_validation.Optional(
+        "foo", visibility=config_validation.Visibility.YAML_ONLY
+    )
+    assert o.visibility is config_validation.Visibility.YAML_ONLY
+
+
+def test_visibility_str_values_match_dump_emission() -> None:
+    """``Visibility`` is a ``StrEnum`` whose values are the literal
+    strings the schema dumper emits.
+
+    The schema bundle consumers (catalog generators, third-party
+    schema-aware tooling) shouldn't need an enum import to read the
+    field — pinning the on-the-wire spelling here keeps the dump
+    contract stable.
+    """
+    assert str(config_validation.Visibility.ADVANCED) == "advanced"
+    assert str(config_validation.Visibility.YAML_ONLY) == "yaml_only"
+
+
+def test_optional_visibility_does_not_affect_validation() -> None:
+    """The kwarg is an advisory UI hint — it must not change how the
+    validator behaves. A schema with ``visibility`` applied must
+    accept and reject the same values it would without it.
+    """
+    plain = config_validation.Schema(
+        {config_validation.Optional("foo", default=42): config_validation.int_}
+    )
+    flagged = config_validation.Schema(
+        {
+            config_validation.Optional(
+                "foo",
+                default=42,
+                visibility=config_validation.Visibility.YAML_ONLY,
+            ): config_validation.int_
+        }
+    )
+    # Same accept / default-fill behavior.
+    assert plain({"foo": 7}) == flagged({"foo": 7}) == {"foo": 7}
+    assert plain({}) == flagged({}) == {"foo": 42}
+    # Same rejection on bad input.
+    with pytest.raises(Invalid):
+        plain({"foo": "not-an-int"})
+    with pytest.raises(Invalid):
+        flagged({"foo": "not-an-int"})
+
+
+def test_required_default_visibility_is_none() -> None:
+    """``Required`` mirrors ``Optional`` for the ``visibility`` kwarg."""
+    r = config_validation.Required("foo")
+    assert r.visibility is None
+
+
+def test_required_visibility_kwarg() -> None:
+    """``Required`` accepts ``visibility`` for symmetry with ``Optional``.
+
+    Required fields rarely need the kwarg, but exposing it lets
+    consumers apply uniform logic across key markers.
+    """
+    r = config_validation.Required(
+        "foo", visibility=config_validation.Visibility.ADVANCED
+    )
+    assert r.visibility is config_validation.Visibility.ADVANCED
+
+
+def test_polling_component_schema_visibility_opt_in() -> None:
+    """``visibility=`` propagates to the inherited ``update_interval``.
+
+    Time platforms pass ``Visibility.ADVANCED``; sensors and other
+    polling components leave it ``None`` and keep the un-flagged shape.
+    """
+    default = config_validation.polling_component_schema("15min")
+    advanced = config_validation.polling_component_schema(
+        "15min", visibility=config_validation.Visibility.ADVANCED
+    )
+    default_keys = {str(k): k for k in default.schema}
+    advanced_keys = {str(k): k for k in advanced.schema}
+    assert default_keys["update_interval"].visibility is None
+    assert (
+        advanced_keys["update_interval"].visibility
+        is config_validation.Visibility.ADVANCED
+    )
+    # The opt-in only touches update_interval — setup_priority
+    # still inherits its YAML_ONLY visibility from COMPONENT_SCHEMA
+    # in both shapes.
+    assert (
+        default_keys["setup_priority"].visibility
+        is config_validation.Visibility.YAML_ONLY
+    )
+    assert (
+        advanced_keys["setup_priority"].visibility
+        is config_validation.Visibility.YAML_ONLY
+    )
+
+
+def test_polling_component_schema_no_default_ignores_visibility() -> None:
+    """``visibility`` is silently ignored when the field is Required.
+
+    When ``default_update_interval=None`` the field becomes
+    ``Required``. Hiding a Required field behind an advanced
+    disclosure is a UX hazard — a collapsed-by-default editor could
+    let the user submit without noticing the form has an unfilled
+    required field. The helper accepts the kwarg unconditionally
+    for caller ergonomics but doesn't honour it on this branch.
+    """
+    schema = config_validation.polling_component_schema(
+        None, visibility=config_validation.Visibility.ADVANCED
+    )
+    keys = {str(k): k for k in schema.schema}
+    assert isinstance(keys["update_interval"], config_validation.Required)
+    assert keys["update_interval"].visibility is None
+
+
+def test_visibility_marker_is_per_field_no_mutation() -> None:
+    """Each field's ``visibility`` is recorded as the author wrote it.
+
+    Cascading semantics — "a stricter parent forces its descendants
+    at-least as strict" — live on the consumer side, not in the
+    marker itself. The schema marker stays as-written so consumers
+    can walk the parent chain and compute the effective visibility
+    themselves; mutating the marker would lose the per-field author
+    intent.
+
+    Pin both directions of the no-mutation contract: an inner
+    ``YAML_ONLY`` under an ``ADVANCED`` parent stays ``YAML_ONLY``
+    on the marker (the consumer's effective-visibility cascade
+    would also report ``YAML_ONLY`` since it's stricter), and an
+    un-marked inner field stays ``None`` on the marker (the
+    cascade's job is to compute ``ADVANCED`` from the parent — a
+    detail this test deliberately doesn't pin, since it's a
+    consumer concern).
+    """
+    inner_unset = config_validation.Optional("baz")
+    inner_yaml_only = config_validation.Optional(
+        "qux", visibility=config_validation.Visibility.YAML_ONLY
+    )
+    parent = config_validation.Optional(
+        "foo", visibility=config_validation.Visibility.ADVANCED
+    )
+
+    # Wire them into a nested schema — none of the markers' own
+    # ``visibility`` should change as a result.
+    schema = config_validation.Schema(
+        {
+            parent: config_validation.Schema(
+                {
+                    inner_unset: config_validation.int_,
+                    inner_yaml_only: config_validation.string,
+                }
+            )
+        }
+    )
+    assert schema  # touch the schema so any deferred mutation runs
+
+    assert parent.visibility is config_validation.Visibility.ADVANCED
+    assert inner_unset.visibility is None
+    assert inner_yaml_only.visibility is config_validation.Visibility.YAML_ONLY

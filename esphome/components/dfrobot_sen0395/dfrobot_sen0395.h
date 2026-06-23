@@ -13,8 +13,7 @@
 
 #include "commands.h"
 
-namespace esphome {
-namespace dfrobot_sen0395 {
+namespace esphome::dfrobot_sen0395 {
 
 const uint8_t MMWAVE_READ_BUFFER_LENGTH = 255;
 
@@ -37,7 +36,7 @@ class CircularCommandQueue {
   std::unique_ptr<Command> commands_[COMMAND_QUEUE_SIZE];
 };
 
-class DfrobotSen0395Component : public uart::UARTDevice, public Component {
+class DfrobotSen0395Component final : public uart::UARTDevice, public Component {
 #ifdef USE_SWITCH
   SUB_SWITCH(sensor_active)
   SUB_SWITCH(turn_on_led)
@@ -121,5 +120,4 @@ class DfrobotSen0395Component : public uart::UARTDevice, public Component {
   friend class ReadStateCommand;
 };
 
-}  // namespace dfrobot_sen0395
-}  // namespace esphome
+}  // namespace esphome::dfrobot_sen0395

@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace hte501 {
+namespace esphome::hte501 {
 
 /// This class implements support for the hte501 of temperature i2c sensors.
 class HTE501Component : public PollingComponent, public i2c::I2CDevice {
@@ -24,5 +23,4 @@ class HTE501Component : public PollingComponent, public i2c::I2CDevice {
   enum ErrorCode { NONE = 0, COMMUNICATION_FAILED, CRC_CHECK_FAILED } error_code_{NONE};
 };
 
-}  // namespace hte501
-}  // namespace esphome
+}  // namespace esphome::hte501
