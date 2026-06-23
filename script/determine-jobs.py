@@ -192,6 +192,7 @@ MEMORY_IMPACT_PLATFORM_PREFERENCE = [
     Platform.RTL87XX_ARD,  # LibreTiny RTL8720x
     Platform.LN882X_ARD,  # LibreTiny LN882x
     Platform.RP2040_ARD,  # Raspberry Pi Pico (RP2040)
+    Platform.RP2350_ARD,  # Raspberry Pi Pico 2 (RP2350)
     Platform.NRF52_ZEPHYR,  # Nordic nRF52 (Zephyr)
 ]
 
