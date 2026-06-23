@@ -849,7 +849,6 @@ jobs:
         with:
           restore-only: true
       - name: Prepare ccache
-        # /mnt is root-owned; create CCACHE_DIR before ccache writes to it.
         run: |
           sudo mkdir -p "$CCACHE_DIR" && sudo chown "$USER":"$USER" "$CCACHE_DIR"
           ccache -z
@@ -957,7 +956,6 @@ jobs:
           fi
 
       - name: Print ccache statistics
-        if: always()
         run: ccache -s
 
   test-esp32-platformio:
