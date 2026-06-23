@@ -38,7 +38,7 @@ display:
       allow_other_uses: true
       number: GPIO4
     full_update_every: 30
-    reversed: false
+    invert_colors: false
     sleep_when_done: true
     force_1bpp: false
     update_mode: GC16
