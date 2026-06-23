@@ -153,12 +153,12 @@ async def to_code(config):
             )
     else:
         data[KEY_BSEC_LIBRARY] = lib_path
-    esp32.add_extra_build_file("libalgobsec.a", lib_path)
+        esp32.add_extra_build_file("libalgobsec.a", lib_path)
 
-    build_dir = CORE.relative_build_path()
-    cg.add_build_flag(
-        f"-L{build_dir} -Wl,--whole-archive -lalgobsec -Wl,--no-whole-archive"
-    )
+        build_dir = CORE.relative_build_path()
+        cg.add_build_flag(
+            f"-L{build_dir} -Wl,--whole-archive -lalgobsec -Wl,--no-whole-archive"
+        )
 
     cg.add(
         var.set_state_save_interval(config[CONF_STATE_SAVE_INTERVAL].total_milliseconds)
