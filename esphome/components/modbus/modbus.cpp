@@ -339,25 +339,29 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
   for (auto *device : this->devices_) {
     if (device->get_address() == address) {
       ModbusServerResponse response;
-      // On success, the response data: reads return the register payload; writes echo the
-      // request's first 4 bytes (start address + value/quantity).
       const uint8_t *response_data;
       uint16_t response_len;
 
       if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
           static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_INPUT_REGISTERS) {
         // PDU data: start address(2) + quantity(2).
+        uint16_t start_address = helpers::get_data<uint16_t>(data, 0);
         uint16_t number_of_registers = helpers::get_data<uint16_t>(data, 2);
         if (number_of_registers == 0 || number_of_registers > MAX_NUM_OF_REGISTERS_TO_READ) {
           ESP_LOGW(TAG, "Invalid number of registers %" PRIu16, number_of_registers);
+          this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
+          return;
+        }
+        if (start_address > std::numeric_limits<uint16_t>::max() - number_of_registers) {
+          ESP_LOGW(TAG, "Register address out of range - start: %" PRIu16 " num: %" PRIu16, start_address,
+                   number_of_registers);
           this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
           return;
         }
         if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_HOLDING_REGISTERS) {
-          response =
-              device->on_modbus_read_holding_registers(helpers::get_data<uint16_t>(data, 0), number_of_registers);
+          response = device->on_modbus_read_holding_registers(start_address, number_of_registers);
         } else {
-          response = device->on_modbus_read_input_registers(helpers::get_data<uint16_t>(data, 0), number_of_registers);
+          response = device->on_modbus_read_input_registers(start_address, number_of_registers);
         }
         response_data = response.payload.get();
         response_len = response.payload_len;
@@ -371,27 +375,26 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
         uint16_t number_of_registers = 1;
         uint16_t values_offset = 2;  // single write: values follow the 2-byte start address
         if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
-          if (len < 5 || helpers::get_data<uint16_t>(data, 2) * 2 != len - 5) {
-            ESP_LOGW(TAG, "Malformed write multiple registers frame (len=%" PRIu16 ")", len);
+          number_of_registers = helpers::get_data<uint16_t>(data, 2);
+          uint8_t number_of_bytes = helpers::get_data<uint8_t>(data, 4);
+          values_offset = 5;  // multiple write: values follow start address(2) + quantity(2) + byte count(1)
+          if (number_of_registers == 0 || number_of_registers > MAX_NUM_OF_REGISTERS_TO_WRITE ||
+              number_of_registers * 2 != number_of_bytes) {
+            ESP_LOGW(TAG, "Invalid number of registers %" PRIu16 " or bytes %" PRIu8, number_of_registers,
+                     number_of_bytes);
             this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
             return;
           }
-          number_of_registers = helpers::get_data<uint16_t>(data, 2);
-          values_offset = 5;  // multiple write: values follow start address(2) + quantity(2) + byte count(1)
-        }
-        if (number_of_registers == 0 || number_of_registers > MAX_NUM_OF_REGISTERS_TO_WRITE) {
-          ESP_LOGW(TAG, "Invalid number of registers %" PRIu16, number_of_registers);
-          this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
-          return;
-        }
-        if (len < values_offset + number_of_registers * 2) {
-          ESP_LOGW(TAG, "Write registers payload truncated (len=%" PRIu16 ")", len);
-          this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
-          return;
+          if (start_address > std::numeric_limits<uint16_t>::max() - number_of_registers) {
+            ESP_LOGW(TAG, "Register address out of range - start: %" PRIu16 " num: %" PRIu16, start_address,
+                     number_of_registers);
+            this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+            return;
+          }
         }
         response = device->on_modbus_write_registers(start_address, number_of_registers, data + values_offset,
                                                      number_of_registers * 2);
-        response_data = data;  // echo the request header
+        response_data = data;  // echo the request header per Modbus 6.6, 6.12
         response_len = 4;
       } else {
         ESP_LOGW(TAG, "Unsupported function code %" PRIu8, function_code);
