@@ -334,7 +334,7 @@ async def test_light_calls(
         client.light_command(key=rgbcw_light.key, brightness=0.0)
         state = await wait_for_state_change(rgbcw_light.key)
         assert state.state is False
-
+        assert state.brightness == pytest.approx(0.0)
         # Turning on without an explicit brightness restores it to full brightness
         client.light_command(key=rgbcw_light.key, state=True)
         state = await wait_for_state_change(rgbcw_light.key)
