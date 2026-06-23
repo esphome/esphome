@@ -2299,3 +2299,10 @@ BOARDS = {
         "max_pin": 29,
     },
 }
+
+# Deprecated: use RP2_BASE_PINS / RP2_BOARD_PINS instead. Kept as back-compat
+# aliases so external custom components / tooling that imported the legacy
+# names via the ``rp2040`` package alias keep working.
+# Scheduled for removal in 2027.7.0.
+RP2040_BASE_PINS = RP2_BASE_PINS
+RP2040_BOARD_PINS = RP2_BOARD_PINS
