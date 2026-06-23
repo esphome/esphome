@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import cover
+from esphome.components import valve
 import esphome.config_validation as cv
 
 from .. import (
@@ -9,22 +9,20 @@ from .. import (
     time_based_ns,
 )
 
-# Auto-load the parent time_based component so its source files
-# (time_based_actuator.cpp/.h) are picked up by the build.
 AUTO_LOAD = ["time_based"]
 
-TimeBasedCover = time_based_ns.class_(
-    "TimeBasedCover", TimeBasedActuatorBase, cover.Cover
+TimeBasedValve = time_based_ns.class_(
+    "TimeBasedValve", TimeBasedActuatorBase, valve.Valve
 )
 
 CONFIG_SCHEMA = (
-    cover.cover_schema(TimeBasedCover)
+    valve.valve_schema(TimeBasedValve)
     .extend(TIME_BASED_ACTUATOR_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA)
 )
 
 
 async def to_code(config):
-    var = await cover.new_cover(config)
+    var = await valve.new_valve(config)
     await cg.register_component(var, config)
     await apply_time_based_actuator_config(var, config)

@@ -1,0 +1,22 @@
+binary_sensor:
+  - platform: template
+    id: bin1
+    lambda: |-
+      return millis() > 10000;
+
+valve:
+  - platform: template
+    name: "Template Valve"
+    id: template_valve
+    lambda: |-
+      if (id(bin1).state) {
+        return VALVE_OPEN;
+      }
+      return VALVE_CLOSED;
+    open_action:
+      - logger.log: open_action
+    close_action:
+      - logger.log: close_action
+    stop_action:
+      - logger.log: stop_action
+    optimistic: true
