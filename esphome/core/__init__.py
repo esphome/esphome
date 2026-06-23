@@ -25,7 +25,7 @@ from esphome.const import (
     PLATFORM_HOST,
     PLATFORM_LN882X,
     PLATFORM_NRF52,
-    PLATFORM_RP2040,
+    PLATFORM_RP2,
     PLATFORM_RTL87XX,
     Toolchain,
 )
@@ -827,8 +827,24 @@ class EsphomeCore:
         return self.target_platform == PLATFORM_ESP32
 
     @property
+    def is_rp2(self):
+        """Return True if the target platform is the RP2 chip family.
+
+        Canonical umbrella check covering RP2040, RP2350, and any future
+        RP2-series chip. Mirrors :attr:`is_esp32` for the ESP32 family.
+        For variant-specific gating (RP2040 vs RP2350), use
+        ``rp2.get_rp2040_variant()`` or ``rp2.only_on_variant(...)`` from
+        the rp2 component — variant detection doesn't belong on ``CORE``.
+        """
+        return self.target_platform == PLATFORM_RP2
+
+    @property
     def is_rp2040(self):
-        return self.target_platform == PLATFORM_RP2040
+        """Deprecated: use :attr:`is_rp2` for the family check, or
+        ``rp2.get_rp2040_variant() == rp2.VARIANT_RP2040`` for the
+        variant-specific check. Kept as an alias since pre-RP2350
+        callers used it as a family check, identical to ``is_rp2``."""
+        return self.is_rp2
 
     @property
     def is_bk72xx(self):

@@ -94,7 +94,7 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_RP2040,
+    PLATFORM_RP2,
     Toolchain,
 )
 from esphome.core import CORE, EsphomeError
@@ -1193,7 +1193,7 @@ def test_choose_upload_log_host_no_defaults_with_rp2040_bootsel(
     mock_choose_prompt: Mock,
 ) -> None:
     """Test interactive mode shows RP2040 BOOTSEL option via picotool."""
-    setup_core(platform=PLATFORM_RP2040)
+    setup_core(platform=PLATFORM_RP2)
 
     with (
         patch(
@@ -1216,7 +1216,7 @@ def test_choose_upload_log_host_no_defaults_with_rp2040_bootsel(
 @pytest.mark.usefixtures("mock_no_serial_ports")
 def test_choose_upload_log_host_rp2040_no_device_shows_bootsel_help() -> None:
     """Test BOOTSEL instructions shown when no RP2040 device found."""
-    setup_core(platform=PLATFORM_RP2040)
+    setup_core(platform=PLATFORM_RP2)
 
     with (
         patch(
@@ -1238,7 +1238,7 @@ def test_choose_upload_log_host_rp2040_bootsel_tip_with_ota(
 ) -> None:
     """Test BOOTSEL tip shown when only OTA options exist for RP2040."""
     setup_core(
-        platform=PLATFORM_RP2040,
+        platform=PLATFORM_RP2,
         config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]},
         address="192.168.1.100",
     )
@@ -1267,7 +1267,7 @@ def test_choose_upload_log_host_rp2040_bootsel_tip_with_serial_ports(
     mock_choose_prompt: Mock,
 ) -> None:
     """Test BOOTSEL tip shown when serial ports exist but no BOOTSEL device."""
-    setup_core(platform=PLATFORM_RP2040)
+    setup_core(platform=PLATFORM_RP2)
 
     mock_ports = [MockSerialPort("/dev/ttyACM0", "RP2040 Serial")]
     with (
@@ -1292,7 +1292,7 @@ def test_choose_upload_log_host_rp2040_permission_error_no_options(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test permission warning shown when BOOTSEL device found but not accessible."""
-    setup_core(platform=PLATFORM_RP2040)
+    setup_core(platform=PLATFORM_RP2)
 
     with (
         patch(
@@ -1322,7 +1322,7 @@ def test_choose_upload_log_host_rp2040_permission_error_with_ota(
 ) -> None:
     """Test permission warning shown with OTA fallback available."""
     setup_core(
-        platform=PLATFORM_RP2040,
+        platform=PLATFORM_RP2,
         config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]},
         address="192.168.1.100",
     )
@@ -1379,7 +1379,7 @@ def test_choose_upload_log_host_rp2040_serial_and_bootsel(
     mock_choose_prompt: Mock,
 ) -> None:
     """Test both serial ports and BOOTSEL option shown for RP2040."""
-    setup_core(platform=PLATFORM_RP2040)
+    setup_core(platform=PLATFORM_RP2)
 
     mock_ports = [MockSerialPort("/dev/ttyACM0", "RP2040 Serial")]
     with (
@@ -1632,7 +1632,7 @@ def test_upload_using_esptool_with_file_path(
 @pytest.mark.parametrize(
     "platform,device",
     [
-        (PLATFORM_RP2040, "/dev/ttyACM0"),
+        (PLATFORM_RP2, "/dev/ttyACM0"),
         (PLATFORM_BK72XX, "/dev/ttyUSB0"),  # LibreTiny platform
     ],
 )
@@ -1664,7 +1664,7 @@ def test_upload_using_platformio_creates_signed_bin_for_rp2040(
     tmp_path: Path,
 ) -> None:
     """Test that upload_using_platformio creates firmware.bin.signed for RP2040."""
-    setup_core(platform=PLATFORM_RP2040)
+    setup_core(platform=PLATFORM_RP2)
 
     build_dir = tmp_path / "build"
     build_dir.mkdir()
@@ -1727,7 +1727,7 @@ def test_upload_program_bootsel(
     mock_get_port_type: Mock,
 ) -> None:
     """Test upload_program with BOOTSEL for RP2040."""
-    setup_core(platform=PLATFORM_RP2040)
+    setup_core(platform=PLATFORM_RP2)
     mock_get_port_type.return_value = "BOOTSEL"
     mock_upload_using_picotool.return_value = 0
 
@@ -1748,7 +1748,7 @@ def test_upload_program_bootsel_failed(
     mock_get_port_type: Mock,
 ) -> None:
     """Test upload_program when BOOTSEL upload fails."""
-    setup_core(platform=PLATFORM_RP2040)
+    setup_core(platform=PLATFORM_RP2)
     mock_get_port_type.return_value = "BOOTSEL"
     mock_upload_using_picotool.return_value = 1
 
@@ -1765,7 +1765,7 @@ def test_upload_program_bootsel_failed(
 
 def test_upload_using_picotool_success(tmp_path: Path) -> None:
     """Test upload_using_picotool succeeds."""
-    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+    setup_core(platform=PLATFORM_RP2, tmp_path=tmp_path)
 
     build_dir = tmp_path / "build"
     build_dir.mkdir()
@@ -1802,7 +1802,7 @@ def test_upload_using_picotool_success(tmp_path: Path) -> None:
 
 def test_upload_using_picotool_no_elf(tmp_path: Path) -> None:
     """Test upload_using_picotool when ELF file is missing."""
-    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+    setup_core(platform=PLATFORM_RP2, tmp_path=tmp_path)
 
     build_dir = tmp_path / "build"
     build_dir.mkdir()
@@ -1820,7 +1820,7 @@ def test_upload_using_picotool_no_elf(tmp_path: Path) -> None:
 
 def test_upload_using_picotool_not_found(tmp_path: Path) -> None:
     """Test upload_using_picotool when picotool binary not found."""
-    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+    setup_core(platform=PLATFORM_RP2, tmp_path=tmp_path)
 
     build_dir = tmp_path / "build"
     build_dir.mkdir()
@@ -1840,7 +1840,7 @@ def test_upload_using_picotool_not_found(tmp_path: Path) -> None:
 
 def test_upload_using_picotool_permission_error(tmp_path: Path) -> None:
     """Test upload_using_picotool shows helpful message on permission error."""
-    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+    setup_core(platform=PLATFORM_RP2, tmp_path=tmp_path)
 
     build_dir = tmp_path / "build"
     build_dir.mkdir()

@@ -339,7 +339,7 @@ def _validate(config):
                     f"{config[CONF_TYPE]} PHY requires RMII interface and is only supported "
                     f"on ESP32 classic and ESP32-P4, not {variant}"
                 )
-    elif CORE.is_rp2040 and config[CONF_TYPE] not in RP2040_ETHERNET_TYPES:
+    elif CORE.is_rp2 and config[CONF_TYPE] not in RP2040_ETHERNET_TYPES:
         raise cv.Invalid(
             f"Only {', '.join(sorted(RP2040_ETHERNET_TYPES))} are supported on RP2040, "
             f"not {config[CONF_TYPE]}"
@@ -420,7 +420,7 @@ SPI_SCHEMA = cv.All(
             }
         ),
     ),
-    cv.only_on([Platform.ESP32, Platform.RP2040]),
+    cv.only_on([Platform.ESP32, Platform.RP2]),
     _validate_spi_interface,
 )
 
@@ -434,13 +434,13 @@ CONFIG_SCHEMA = cv.All(
             "JL1101": RMII_SCHEMA,
             "KSZ8081": RMII_SCHEMA,
             "KSZ8081RNA": RMII_SCHEMA,
-            "W5100": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2040])),
+            "W5100": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2])),
             "W5500": SPI_SCHEMA,
             "OPENETH": cv.All(BASE_SCHEMA, cv.only_on([Platform.ESP32])),
             "DM9051": SPI_SCHEMA,
             "ENC28J60": SPI_SCHEMA,
-            "W6100": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2040])),
-            "W6300": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2040])),
+            "W6100": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2])),
+            "W6300": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2])),
             "LAN8670": RMII_SCHEMA,
         },
         upper=True,
@@ -496,7 +496,7 @@ async def to_code(config):
 
     if CORE.is_esp32:
         await _to_code_esp32(var, config)
-    elif CORE.is_rp2040:
+    elif CORE.is_rp2:
         await _to_code_rp2040(var, config)
 
     cg.add(var.set_type(ETHERNET_TYPES[config[CONF_TYPE]]))
@@ -697,7 +697,7 @@ _platform_filter = filter_source_files_from_platform(
             PlatformFramework.ESP32_IDF,
             PlatformFramework.ESP32_ARDUINO,
         },
-        "ethernet_component_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "ethernet_component_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
         "esp_eth_phy_jl1101.c": {
             PlatformFramework.ESP32_IDF,
             PlatformFramework.ESP32_ARDUINO,
