@@ -259,7 +259,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_get_time_response(const GetTimeResponse &value);
 #endif
   void on_hello_request(const HelloRequest &msg);
-  void on_disconnect_request();
+  void on_disconnect_request(const DisconnectRequest &msg);
   void on_ping_request();
   void on_device_info_request();
   void on_list_entities_request() { this->begin_iterator_(ActiveIterator::LIST_ENTITIES); }

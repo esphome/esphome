@@ -45,6 +45,10 @@
 #include "esphome/components/improv_serial/improv_serial_component.h"
 #endif
 
+#if defined(USE_API) && defined(USE_API_PROVISIONING_TIMEOUT)
+#include "esphome/components/api/api_server.h"
+#endif
+
 namespace esphome::wifi {
 
 static const char *const TAG = "wifi";
@@ -866,8 +870,19 @@ void WiFiComponent::loop() {
 
     if (!this->has_ap() && this->reboot_timeout_ != 0) {
       if (now - this->last_connected_ > this->reboot_timeout_) {
-        ESP_LOGE(TAG, "Can't connect; rebooting");
-        App.reboot();
+        bool suppress = false;
+#if defined(USE_API) && defined(USE_API_PROVISIONING_TIMEOUT)
+        // Don't reboot while API provisioning is pending (window open OR closed but
+        // still unprovisioned). Rebooting would either cut onboarding short or, once
+        // closed, defeat the purpose since the device would come back up - the closed
+        // state is persisted, but we still avoid the pointless reboot loop. Resumes
+        // normal reboot behavior once the device is provisioned.
+        suppress = api::global_api_server != nullptr && api::global_api_server->provisioning_pending();
+#endif
+        if (!suppress) {
+          ESP_LOGE(TAG, "Can't connect; rebooting");
+          App.reboot();
+        }
       }
     }
   }

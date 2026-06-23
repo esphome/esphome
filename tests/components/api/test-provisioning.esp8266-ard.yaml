@@ -1,0 +1,15 @@
+# Provisioning-window feature on ESP8266 (no BLE Improv): exercises the api timer
+# / trigger and the wifi + improv_serial cross-component guards.
+api:
+  port: 8000
+  reboot_timeout: 15min
+  encryption:
+  provisioning_timeout: 1min
+  on_provisioning_timeout:
+    - logger.log: "Provisioning window expired"
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+improv_serial:

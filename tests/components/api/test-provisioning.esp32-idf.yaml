@@ -1,0 +1,25 @@
+# Exercises the EN18031 provisioning-window feature: encryption enabled with no
+# key (device boots unprovisioned), a provisioning_timeout with its
+# on_provisioning_timeout trigger, plus the wifi and improv cross-component guards
+# that suppress reboots / refuse provisioning while the window is open.
+api:
+  port: 8000
+  reboot_timeout: 15min
+  encryption:
+  provisioning_timeout: 1min
+  on_provisioning_timeout:
+    - logger.log: "Provisioning window expired"
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+improv_serial:
+
+binary_sensor:
+  - platform: gpio
+    pin: 0
+    id: io0_button
+
+esp32_improv:
+  authorizer: io0_button

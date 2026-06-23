@@ -93,6 +93,11 @@ class ImprovSerialComponent : public Component, public improv_base::ImprovBase {
   uint32_t last_read_byte_{0};
   wifi::WiFiAP connecting_sta_;
   improv::State state_{improv::STATE_AUTHORIZED};
+#if defined(USE_API) && defined(USE_API_PROVISIONING_TIMEOUT)
+  // Set once the API provisioning window closes; further WIFI_SETTINGS requests
+  // are refused so the device stops accepting provisioning until it is reset.
+  bool provisioning_closed_{false};
+#endif
 };
 
 extern ImprovSerialComponent
