@@ -294,7 +294,10 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
 
         if (!this->time_sync_callback_registered_) {
           // tuya mcu supports time, so we let them know when our time changed
-          this->time_id_->add_on_time_sync_callback([this] { this->send_local_time_(); this->send_gmt_time_(); });
+          this->time_id_->add_on_time_sync_callback([this] {
+            this->send_local_time_();
+            this->send_gmt_time_();
+          });
           this->time_sync_callback_registered_ = true;
         }
       } else
@@ -310,7 +313,10 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
 
         if (!this->time_sync_callback_registered_) {
           // tuya mcu supports time, so we let them know when our time changed
-          this->time_id_->add_on_time_sync_callback([this] { this->send_local_time_(); this->send_gmt_time_(); });
+          this->time_id_->add_on_time_sync_callback([this] {
+            this->send_local_time_();
+            this->send_gmt_time_();
+          });
           this->time_sync_callback_registered_ = true;
         }
       } else
