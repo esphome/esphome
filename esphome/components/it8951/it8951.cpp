@@ -335,6 +335,9 @@ void IT8951Display::on_safe_shutdown() {
 // --- Init op enqueuers -------------------------------------------------------
 
 void IT8951Display::enqueue_init_reset_() {
+  // A reset (including recovery) re-runs SYS_RUN below, so the controller is
+  // awake once this sequence completes.
+  this->asleep_ = false;
   // Reset pulse: high -> low (reset_duration) -> high -> wait for ROM boot.
   this->enqueue_(OpType::GPIO_RESET_HIGH);
   this->enqueue_(OpType::GPIO_RESET_LOW);
@@ -382,6 +385,17 @@ void IT8951Display::enqueue_init_temp_() {
 // --- Update op enqueuers -----------------------------------------------------
 
 void IT8951Display::enqueue_update_transfer_() {
+  // If the controller was put to sleep after the previous update, wake it
+  // before touching the display engine. TCON_SLEEP gates off all clocks; a
+  // register read (e.g. the LUTAFSR poll in UPDATE_REFRESH) returns a frozen
+  // value while asleep, so without this the next update stalls forever in
+  // op_check_lut_idle_(). SRAM/registers (packed-write mode, VCOM, LUT) are
+  // retained across sleep, so SYS_RUN + a short settle is all that's needed.
+  if (this->asleep_) {
+    this->enqueue_(OpType::CMD, TCON_SYS_RUN);
+    this->enqueue_(OpType::DELAY_MS, 10);  // clocks settle after SYS_RUN
+    this->asleep_ = false;
+  }
   this->transfer_row_ = 0;
   this->enqueue_(OpType::XFER_LISAR);
   this->enqueue_(OpType::XFER_AREA_CMD);
@@ -425,8 +439,12 @@ void IT8951Display::enqueue_update_restore_() {
 }
 
 void IT8951Display::enqueue_update_sleep_() {
-  if (this->sleep_when_done_)
+  if (this->sleep_when_done_) {
     this->enqueue_(OpType::CMD, TCON_SLEEP);
+    // Remember that the controller is now asleep so the next update wakes it
+    // (see enqueue_update_transfer_) before polling any register.
+    this->asleep_ = true;
+  }
 }
 
 // --- SPI primitives ----------------------------------------------------------

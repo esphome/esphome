@@ -263,6 +263,9 @@ class IT8951Display : public Display,
   bool use_1bpp_{false};
   bool has_grayscale_{false};
   bool initialised_{false};
+  // True once TCON_SLEEP has been sent and the controller has not been woken
+  // since. The next update must issue TCON_SYS_RUN before any SPI op.
+  bool asleep_{false};
   uint32_t partial_update_count_{0};
   uint32_t update_started_at_{0};
 
