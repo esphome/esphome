@@ -178,7 +178,7 @@ def model_schema(config):
     if not spi_mode:
         if bus_mode == TYPE_OCTAL or (
             bus_mode == TYPE_SINGLE
-            and not config.get(CONF_CS_PIN, model.get_default(CONF_CS_PIN))
+            and config.get(CONF_CS_PIN, model.get_default(CONF_CS_PIN)) is False
         ):
             spi_mode = "MODE3"
             if bus_mode == TYPE_SINGLE:

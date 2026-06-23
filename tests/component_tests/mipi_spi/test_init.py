@@ -325,7 +325,7 @@ def test_single_bus_no_cs_no_mode_warns(
     "config",
     [
         pytest.param(
-            {"model": "ili9488", "dc_pin": 14, "cs_pin": 13},
+            {"model": "ili9488", "dc_pin": 14, "cs_pin": 0},
             id="cs_pin_provided",
         ),
         pytest.param(
