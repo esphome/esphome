@@ -74,7 +74,7 @@ template<typename... Ts> class PreventDeepSleepAction;
  * and set_run_duration, then set how long the deep sleep should last using set_sleep_duration and optionally
  * on the ESP32 set_wakeup_pin.
  */
-class DeepSleepComponent : public Component
+class DeepSleepComponent final : public Component
 #ifdef USE_OTA_STATE_LISTENER
     ,
                            public ota::OTAGlobalStateListener
@@ -182,7 +182,7 @@ class DeepSleepComponent : public Component
 
 extern bool global_has_deep_sleep;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-template<typename... Ts> class EnterDeepSleepAction : public Action<Ts...> {
+template<typename... Ts> class EnterDeepSleepAction final : public Action<Ts...> {
  public:
   EnterDeepSleepAction(DeepSleepComponent *deep_sleep) : deep_sleep_(deep_sleep) {}
   TEMPLATABLE_VALUE(uint32_t, sleep_duration);
@@ -254,12 +254,13 @@ template<typename... Ts> class EnterDeepSleepAction : public Action<Ts...> {
 #endif
 };
 
-template<typename... Ts> class PreventDeepSleepAction : public Action<Ts...>, public Parented<DeepSleepComponent> {
+template<typename... Ts>
+class PreventDeepSleepAction final : public Action<Ts...>, public Parented<DeepSleepComponent> {
  public:
   void play(const Ts &...x) override { this->parent_->prevent_deep_sleep(); }
 };
 
-template<typename... Ts> class AllowDeepSleepAction : public Action<Ts...>, public Parented<DeepSleepComponent> {
+template<typename... Ts> class AllowDeepSleepAction final : public Action<Ts...>, public Parented<DeepSleepComponent> {
  public:
   void play(const Ts &...x) override { this->parent_->allow_deep_sleep(); }
 };
