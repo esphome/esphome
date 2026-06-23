@@ -9,13 +9,20 @@ from .. import const, generate, schema, validate
 DEPENDENCIES = [const.OPENTHERM]
 COMPONENT_TYPE = const.SWITCH
 
+AbstractOpenthermSwitch = generate.opentherm_ns.class_(
+    "AbstractOpenthermSwitch", switch.Switch, cg.Component, generate.MessageProcessor
+)
 OpenthermSwitch = generate.opentherm_ns.class_(
-    "OpenthermSwitch", switch.Switch, cg.Component
+    "OpenthermSwitch", AbstractOpenthermSwitch
 )
 
 
-async def new_openthermswitch(config: dict[str, Any]) -> cg.Pvariable:
-    var = await switch.new_switch(config)
+async def new_openthermswitch(
+    config: dict[str, Any], key: str, hub: cg.MockObj
+) -> cg.MockObj:
+    var = await switch.new_switch(
+        config, generate.accessor_template(schema.SWITCHES[key])
+    )
     await cg.register_component(var, config)
     return var
 
@@ -32,11 +39,10 @@ CONFIG_SCHEMA = validate.create_component_schema(
 
 
 async def to_code(config: dict[str, Any]) -> None:
-    keys = await generate.component_to_code(
+    await generate.component_to_code(
         COMPONENT_TYPE,
         schema.SWITCHES,
         OpenthermSwitch,
-        generate.create_only_conf(new_openthermswitch),
+        new_openthermswitch,
         config,
     )
-    generate.define_readers(COMPONENT_TYPE, keys)

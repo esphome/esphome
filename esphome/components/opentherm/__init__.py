@@ -2,13 +2,12 @@ from typing import Any
 
 from esphome import automation, pins
 import esphome.codegen as cg
-from esphome.components import sensor
-from esphome.components.esp32 import include_builtin_idf_component
+from esphome.components import esp32, esp32_rmt, sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TRIGGER_ID, PLATFORM_ESP32, PLATFORM_ESP8266
 from esphome.core import CORE
 
-from . import const, generate, schema, validate
+from . import generate, schema, validate
 
 CODEOWNERS = ["@olegtarasov"]
 MULTI_CONF = True
@@ -35,6 +34,7 @@ BeforeProcessResponseTrigger = generate.opentherm_ns.class_(
     "BeforeProcessResponseTrigger",
     automation.Trigger.template(generate.OpenthermData.operator("ref")),
 )
+
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -81,7 +81,12 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config: dict[str, Any]) -> None:
     if CORE.is_esp32:
-        include_builtin_idf_component("esp_driver_gptimer")
+        # RMT capable variants use the RMT driver; the rest fall back to a
+        # gptimer based software implementation.
+        if esp32.get_esp32_variant() in esp32_rmt.VARIANTS_NO_RMT:
+            esp32.include_builtin_idf_component("esp_driver_gptimer")
+        else:
+            esp32.include_builtin_idf_component("esp_driver_rmt")
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -107,28 +112,18 @@ async def to_code(config: dict[str, Any]) -> None:
             continue
         if key in schema.INPUTS:
             input_sensor = await cg.get_variable(value)
-            cg.add(getattr(var, f"set_{key}_{const.INPUT_SENSOR}")(input_sensor))
+            generate.add_input_sensor(var, key, input_sensor)
             input_sensors.append(key)
         elif key in schema.SETTINGS:
-            if value == schema.SETTINGS[key].default_value:
-                continue
-            cg.add(getattr(var, f"set_{key}_{const.SETTING}")(value))
+            generate.add_setting(var, key, value)
             settings.append(key)
         else:
             cg.add(getattr(var, f"set_{key}")(value))
 
     if len(input_sensors) > 0:
-        generate.define_has_component(const.INPUT_SENSOR, input_sensors)
-        generate.define_message_handler(
-            const.INPUT_SENSOR, input_sensors, schema.INPUTS
-        )
-        generate.define_readers(const.INPUT_SENSOR, input_sensors)
         generate.add_messages(var, input_sensors, schema.INPUTS)
 
     if len(settings) > 0:
-        generate.define_has_settings(settings, schema.SETTINGS)
-        generate.define_message_handler(const.SETTING, settings, schema.SETTINGS)
-        generate.define_setting_readers(const.SETTING, settings)
         generate.add_messages(var, settings, schema.SETTINGS)
 
     for conf in config.get(CONF_BEFORE_SEND, []):
@@ -142,3 +137,6 @@ async def to_code(config: dict[str, Any]) -> None:
         await automation.build_automation(
             trigger, [(generate.OpenthermData.operator("ref"), "x")], conf
         )
+
+
+FINAL_VALIDATE_SCHEMA = validate.final_validate

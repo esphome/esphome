@@ -2,7 +2,7 @@
 # inputs of the OpenTherm component.
 
 from dataclasses import dataclass
-from typing import Any, TypeVar
+from typing import TypeVar
 
 import esphome.config_validation as cv
 from esphome.const import (
@@ -654,7 +654,7 @@ BINARY_SENSORS: dict[str, BinarySensorSchema] = {
 
 @dataclass
 class SwitchSchema(EntitySchema):
-    default_mode: str | None = None
+    default_mode: str
 
 
 SWITCHES: dict[str, SwitchSchema] = {
@@ -831,9 +831,7 @@ INPUTS: dict[str, InputSchema] = {
 
 @dataclass
 class SettingSchema(EntitySchema):
-    backing_type: str
     validation_schema: cv.Schema
-    default_value: Any
     order: int | None = None
 
 
@@ -843,9 +841,7 @@ SETTINGS: dict[str, SettingSchema] = {
         message="VERSION_CONTROLLER",
         keep_updated=False,
         message_data="u8_hb",
-        backing_type="uint8_t",
         validation_schema=cv.int_range(min=0, max=255),
-        default_value=0,
         order=1,
     ),
     "controller_product_version": SettingSchema(
@@ -853,9 +849,7 @@ SETTINGS: dict[str, SettingSchema] = {
         message="VERSION_CONTROLLER",
         keep_updated=False,
         message_data="u8_lb",
-        backing_type="uint8_t",
         validation_schema=cv.int_range(min=0, max=255),
-        default_value=0,
         order=1,
     ),
     "opentherm_version_controller": SettingSchema(
@@ -863,9 +857,7 @@ SETTINGS: dict[str, SettingSchema] = {
         message="OT_VERSION_CONTROLLER",
         keep_updated=False,
         message_data="f88",
-        backing_type="float",
         validation_schema=cv.positive_float,
-        default_value=0,
         order=3,
     ),
     "controller_configuration": SettingSchema(
@@ -873,9 +865,7 @@ SETTINGS: dict[str, SettingSchema] = {
         message="CONTROLLER_CONFIG",
         keep_updated=False,
         message_data="u8_hb",
-        backing_type="uint8_t",
         validation_schema=cv.int_range(min=0, max=255),
-        default_value=0,
         order=5,
     ),
     "controller_id": SettingSchema(
@@ -883,9 +873,7 @@ SETTINGS: dict[str, SettingSchema] = {
         message="CONTROLLER_CONFIG",
         keep_updated=False,
         message_data="u8_lb",
-        backing_type="uint8_t",
         validation_schema=cv.int_range(min=0, max=255),
-        default_value=0,
         order=5,
     ),
 }
