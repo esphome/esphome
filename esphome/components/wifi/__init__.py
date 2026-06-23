@@ -764,6 +764,7 @@ async def wifi_disable_to_code(config, action_id, template_arg, args):
 
 KEEP_SCAN_RESULTS_KEY = "wifi_keep_scan_results"
 RUNTIME_POWER_SAVE_KEY = "wifi_runtime_power_save"
+RUNTIME_ROAMING_SUPPRESSION_KEY = "wifi_runtime_roaming_suppression"
 # Keys for listener counts
 IP_STATE_LISTENERS_KEY = "wifi_ip_state_listeners"
 SCAN_RESULTS_LISTENERS_KEY = "wifi_scan_results_listeners"
@@ -792,6 +793,19 @@ def enable_runtime_power_save_control():
     Only supported on ESP32.
     """
     CORE.data[RUNTIME_POWER_SAVE_KEY] = True
+
+
+def enable_runtime_roaming_suppression() -> None:
+    """Enable runtime suppression of post-connect roaming scans.
+
+    Components that are disrupted by the radio briefly going off-channel during a
+    roaming scan (e.g., audio playback) should call this function during their code
+    generation. This enables the request_roaming_suppression() and
+    release_roaming_suppression() APIs, which pause periodic roaming scans while active.
+
+    Only supported on ESP32.
+    """
+    CORE.data[RUNTIME_ROAMING_SUPPRESSION_KEY] = True
 
 
 def request_wifi_ip_state_listener() -> None:
@@ -827,6 +841,8 @@ async def final_step():
         )
     if CORE.data.get(RUNTIME_POWER_SAVE_KEY, False):
         cg.add_define("USE_WIFI_RUNTIME_POWER_SAVE")
+    if CORE.data.get(RUNTIME_ROAMING_SUPPRESSION_KEY, False):
+        cg.add_define("USE_WIFI_RUNTIME_ROAMING_SUPPRESSION")
 
     # Generate listener defines - each listener type has its own #ifdef
     ip_state_count = CORE.data.get(IP_STATE_LISTENERS_KEY, 0)

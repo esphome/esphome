@@ -298,6 +298,9 @@ def espidf_mocks(setup_core: Path):
         patch("esphome.espidf.framework.archive_extract_all") as extract,
         patch("esphome.espidf.framework.create_venv") as venv,
         patch("esphome.espidf.framework.run_command_ok", return_value=True) as run_ok,
+        patch(
+            "esphome.espidf.framework._get_idf_tool_paths", return_value=([], {})
+        ) as tool_paths,
         patch("esphome.espidf.framework._clone_idf_with_submodules") as clone,
         patch("esphome.espidf.framework._write_idf_version_txt"),
         patch("esphome.espidf.framework._patch_tools_json_for_linux_arm64"),
@@ -308,7 +311,12 @@ def espidf_mocks(setup_core: Path):
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
     ):
         yield SimpleNamespace(
-            download=download, extract=extract, venv=venv, run_ok=run_ok, clone=clone
+            download=download,
+            extract=extract,
+            venv=venv,
+            run_ok=run_ok,
+            tool_paths=tool_paths,
+            clone=clone,
         )
 
 
@@ -403,10 +411,10 @@ def test_check_esp_idf_install_stamp_mismatch_reinstalls(
 def test_check_esp_idf_install_check_command_failure_reinstalls(
     espidf_mocks: SimpleNamespace,
 ) -> None:
-    """A failing idf_tools check reinstalls tools (marker present, no re-extract)."""
+    """A failing tool-path resolution reinstalls tools (marker present, no re-extract)."""
     _mark_installed()
-    # idf_tools check fails -> install stays True; the later installs succeed.
-    espidf_mocks.run_ok.side_effect = [False, True, True, True]
+    # Managed tool resolution fails -> install stays True; the later installs succeed.
+    espidf_mocks.tool_paths.side_effect = RuntimeError("missing ESP-IDF tool")
     check_esp_idf_install(_IDF_VERSION, features=["fb"])
 
     espidf_mocks.extract.assert_not_called()
