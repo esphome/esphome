@@ -396,9 +396,7 @@ async def to_code(config: ConfigType) -> None:
         # on_provisioning_timeout is only valid when provisioning_timeout is set
         # (enforced in validation) and the trigger can only fire while the feature
         # is enabled, so register it here.
-        if (
-            on_provisioning_timeout := config.get(CONF_ON_PROVISIONING_TIMEOUT)
-        ) is not None:
+        if on_provisioning_timeout := config.get(CONF_ON_PROVISIONING_TIMEOUT):
             cg.add_define("USE_API_PROVISIONING_TIMEOUT_TRIGGER")
             await automation.build_automation(
                 var.get_provisioning_timeout_trigger(),
