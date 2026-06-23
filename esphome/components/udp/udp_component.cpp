@@ -23,15 +23,6 @@ void UDPComponent::open_sockets_() {
   if (this->should_listen_) {
     if (this->listen_address_.has_value()) {
       // Multicast: create socket with family matching the multicast address
-#ifdef USE_HOST
-      // On HOST, IPAddress(string) can fail silently; is_valid() exposes that.
-      // On embedded targets, listen_address_ is always set from Python-validated code-gen — cannot be invalid.
-      if (!this->listen_address_.value().is_valid()) {
-        ESP_LOGE(TAG, "Invalid listen address");
-        this->mark_failed();
-        return;
-      }
-#endif
       char addr_buf[network::IP_ADDRESS_BUFFER_SIZE];
       this->listen_address_.value().str_to(addr_buf);
       if (addr_buf[0] == '\0') {
