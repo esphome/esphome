@@ -38,6 +38,7 @@ CONF_GAS_PERCENTAGE = "gas_percentage"
 CONF_COMPENSATED_TEMPERATURE = "compensated_temperature"
 CONF_COMPENSATED_HUMIDITY = "compensated_humidity"
 
+ICON_ACCURACY = "mdi:checkbox-marked-circle-outline"
 UNIT_IAQ = "IAQ"
 
 CONFIG_SCHEMA = cv.Schema(
@@ -76,6 +77,7 @@ CONFIG_SCHEMA = cv.Schema(
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_IAQ_ACCURACY): sensor.sensor_schema(
+            icon=ICON_ACCURACY,
             accuracy_decimals=0,
             state_class=STATE_CLASS_MEASUREMENT,
         ),

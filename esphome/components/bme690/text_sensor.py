@@ -7,12 +7,16 @@ from . import CONF_BME690_ID, BME690Component
 
 DEPENDENCIES = ["bme690"]
 
+ICON_ACCURACY = "mdi:checkbox-marked-circle-outline"
+
 TYPES = [CONF_IAQ_ACCURACY]
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_BME690_ID): cv.use_id(BME690Component),
-        cv.Optional(CONF_IAQ_ACCURACY): text_sensor.text_sensor_schema(),
+        cv.Optional(CONF_IAQ_ACCURACY): text_sensor.text_sensor_schema(
+            icon=ICON_ACCURACY
+        ),
     }
 )
 
