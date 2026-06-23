@@ -353,7 +353,12 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
           this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
           return;
         }
-        response = device->on_modbus_read_registers(helpers::get_data<uint16_t>(data, 0), number_of_registers);
+        if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_HOLDING_REGISTERS) {
+          response =
+              device->on_modbus_read_holding_registers(helpers::get_data<uint16_t>(data, 0), number_of_registers);
+        } else {
+          response = device->on_modbus_read_input_registers(helpers::get_data<uint16_t>(data, 0), number_of_registers);
+        }
         response_data = response.payload.get();
         response_len = response.payload_len;
       } else if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
@@ -398,6 +403,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       } else {
         this->send_response_(address, function_code, response_data, response_len);
       }
+      return;
     }
   }
 
