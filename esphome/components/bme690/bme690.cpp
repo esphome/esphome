@@ -478,15 +478,14 @@ void BME690Component::publish_raw_outputs_(const struct bme69x_data &data) {
 }
 
 void BME690Component::schedule_after_measurement_() {
-  if (this->bsec_ready_) {
 #ifdef USE_BSEC
+  if (this->bsec_ready_) {
     this->schedule_next_bsec_read_();
-#else
-    this->schedule_read_(this->update_interval_ms_);
-#endif
-  } else {
-    this->schedule_read_(this->update_interval_ms_);
+    return;
   }
+#endif
+
+  this->schedule_read_(this->update_interval_ms_);
 }
 
 #ifdef USE_BSEC
