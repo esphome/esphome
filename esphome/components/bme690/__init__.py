@@ -32,9 +32,7 @@ CONF_STATE_SAVE_INTERVAL = "state_save_interval"
 KEY_BSEC_LIBRARY = "bsec_library"
 
 bme690_ns = cg.esphome_ns.namespace("bme690")
-BME690Component = bme690_ns.class_(
-    "BME690Component", cg.Component, i2c.I2CDevice
-)
+BME690Component = bme690_ns.class_("BME690Component", cg.Component, i2c.I2CDevice)
 
 SampleRate = bme690_ns.enum("SampleRate")
 SAMPLE_RATE_OPTIONS = {

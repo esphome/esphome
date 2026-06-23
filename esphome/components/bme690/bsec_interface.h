@@ -234,8 +234,7 @@ bsec_library_return_t bsec_init(void *inst);
  * @sa bsec_virtual_sensor_t
  *
  */
-bsec_library_return_t bsec_update_subscription(void *inst,
-                                               const bsec_sensor_configuration_t *requested_virtual_sensors,
+bsec_library_return_t bsec_update_subscription(void *inst, const bsec_sensor_configuration_t *requested_virtual_sensors,
                                                uint8_t n_requested_virtual_sensors,
                                                bsec_sensor_configuration_t *required_sensor_settings,
                                                uint8_t *n_required_sensor_settings);
@@ -279,8 +278,8 @@ bsec_library_return_t bsec_update_subscription(void *inst,
  * @return Zero when successful, otherwise an error code
  *
  */
-bsec_library_return_t bsec_do_steps(void *inst, const bsec_input_t *inputs, uint8_t n_inputs,
-                                    bsec_output_t *outputs, uint8_t *n_outputs);
+bsec_library_return_t bsec_do_steps(void *inst, const bsec_input_t *inputs, uint8_t n_inputs, bsec_output_t *outputs,
+                                    uint8_t *n_outputs);
 
 /*!
  * @brief Reset a particular virtual sensor output of the library instance

@@ -317,8 +317,8 @@ bool BME690Component::get_bsec_sensor_settings_(int64_t timestamp_ns, bsec_bme_s
 void BME690Component::get_raw_fallback_settings_(bsec_bme_settings_t *sensor_settings) {
   if (!this->bsec_fallback_warning_logged_) {
     if (this->bsec_setup_failed_step_ != nullptr) {
-      ESP_LOGW(TAG, "BSEC setup failed at %s: %d; publishing raw sensor values only.",
-               this->bsec_setup_failed_step_, static_cast<int>(this->bsec_setup_failed_result_));
+      ESP_LOGW(TAG, "BSEC setup failed at %s: %d; publishing raw sensor values only.", this->bsec_setup_failed_step_,
+               static_cast<int>(this->bsec_setup_failed_result_));
     } else {
       ESP_LOGW(TAG, "BSEC is not ready; publishing raw sensor values only.");
     }
@@ -459,10 +459,9 @@ bool BME690Component::configure_bsec_() {
   }
   this->log_bsec_version_();
 
-  bsec_rslt =
-      bsec_set_configuration(this->bsec_instance_data_(), this->get_bsec_configuration_(),
-                             this->get_bsec_configuration_length_(), this->bsec_work_buffer_.data(),
-                             this->bsec_work_buffer_.size());
+  bsec_rslt = bsec_set_configuration(this->bsec_instance_data_(), this->get_bsec_configuration_(),
+                                     this->get_bsec_configuration_length_(), this->bsec_work_buffer_.data(),
+                                     this->bsec_work_buffer_.size());
   if (!this->check_bsec_status_("bsec_set_configuration", bsec_rslt)) {
     this->bsec_setup_failed_step_ = "bsec_set_configuration";
     this->bsec_setup_failed_result_ = bsec_rslt;

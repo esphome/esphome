@@ -342,7 +342,7 @@ typedef enum {  // NOLINT(modernize-use-using)
 /*!
  * @brief Enumeration for function return codes
  */
-typedef enum {  // NOLINT(modernize-use-using)
+typedef enum {                      // NOLINT(modernize-use-using)
   BSEC_OK = 0,                      /*!< Function execution successful */
   BSEC_E_DOSTEPS_INVALIDINPUT = -1, /*!< Input (physical) sensor id passed to bsec_do_steps() is not in the valid range
                                        or not valid for requested virtual sensor */
@@ -422,7 +422,7 @@ typedef enum {  // NOLINT(modernize-use-using)
  * versions of BSEC.
  *
  */
-typedef struct {  // NOLINT(modernize-use-using)
+typedef struct {        // NOLINT(modernize-use-using)
   uint8_t major;        /**< @brief Major version */
   uint8_t minor;        /**< @brief Minor version */
   uint8_t major_bugfix; /**< @brief Major bug fix version */
@@ -464,7 +464,7 @@ typedef struct {  // NOLINT(modernize-use-using)
  *
  * @sa bsec_virtual_sensor_t
  */
-typedef struct {  // NOLINT(modernize-use-using)
+typedef struct {      // NOLINT(modernize-use-using)
   int64_t time_stamp; /*!< @brief Time stamp in nanosecond resolution as provided as input [ns] */
   float signal;       /*!< @brief Signal sample in the unit defined for the respective bsec_output_t::sensor_id @sa
                          bsec_virtual_sensor_t */
@@ -562,7 +562,7 @@ typedef struct {  // NOLINT(modernize-use-using)
  * In case of bsec_bme_settings_t::run_gas = 1, the gas sensor must be enabled with the provided
  * bsec_bme_settings_t::heater_temperature and bsec_bme_settings_t::heating_duration settings.
  */
-typedef struct {  // NOLINT(modernize-use-using)
+typedef struct {               // NOLINT(modernize-use-using)
   int64_t next_call;           /*!< @brief Time stamp of the next call of the sensor_control*/
   uint32_t process_data;       /*!< @brief Bit field describing which data is to be passed to bsec_do_steps() @sa
                                   BSEC_PROCESS_GAS, BSEC_PROCESS_TEMPERATURE, BSEC_PROCESS_HUMIDITY, BSEC_PROCESS_PRESSURE */
