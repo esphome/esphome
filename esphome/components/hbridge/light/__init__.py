@@ -8,7 +8,7 @@ from .. import hbridge_ns
 CODEOWNERS = ["@DotNetDann"]
 
 HBridgeLightOutput = hbridge_ns.class_(
-    "HBridgeLightOutput", cg.Component, light.LightOutput
+    "HBridgeLightOutput", cg.PollingComponent, light.LightOutput
 )
 
 CONFIG_SCHEMA = light.RGB_LIGHT_SCHEMA.extend(
