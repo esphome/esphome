@@ -2368,7 +2368,7 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES", True)
             add_idf_sdkconfig_option(
                 "CONFIG_SECURE_BOOT_SIGNING_KEY",
-                str(signed_ota[CONF_SIGNING_KEY].resolve().as_posix(),
+                str(signed_ota[CONF_SIGNING_KEY].resolve().as_posix()),
             )
         else:
             # Public key mode — verification only, external signing required
