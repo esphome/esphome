@@ -819,6 +819,10 @@ jobs:
       CCACHE_BASEDIR: ${{ github.workspace }}
       CCACHE_NOHASHDIR: "true"
       CCACHE_MAXSIZE: 2G
+      # Depend mode: hash the compiler-generated depfiles (IDF/ninja already
+      # emit -MD) instead of running the preprocessor, cutting cache-miss
+      # overhead from ~5-20% to ~1-3% and making hits direct-mode (faster).
+      CCACHE_DEPEND: "1"
     strategy:
       fail-fast: false
       max-parallel: ${{ (startsWith(github.base_ref, 'beta') || startsWith(github.base_ref, 'release')) && 8 || 4 }}
