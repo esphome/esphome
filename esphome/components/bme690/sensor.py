@@ -1,5 +1,10 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import (
+    CONF_BREATH_VOC_EQUIVALENT,
+    CONF_CO2_EQUIVALENT,
+    CONF_IAQ,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_GAS_RESISTANCE,
@@ -29,10 +34,7 @@ from . import CONF_BME690_ID, BME690Component
 
 DEPENDENCIES = ["bme690"]
 
-CONF_IAQ = "iaq"
 CONF_STATIC_IAQ = "static_iaq"
-CONF_CO2_EQUIVALENT = "co2_equivalent"
-CONF_BREATH_VOC_EQUIVALENT = "breath_voc_equivalent"
 CONF_TVOC_EQUIVALENT = "tvoc_equivalent"
 CONF_GAS_PERCENTAGE = "gas_percentage"
 CONF_COMPENSATED_TEMPERATURE = "compensated_temperature"
