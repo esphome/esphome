@@ -24,6 +24,7 @@ from esphome.__main__ import (
     _make_crystal_freq_callback,
     _redact_with_legacy_fallback,
     _resolve_network_devices,
+    _unresolved_default_error,
     _validate_bootloader_binary,
     _validate_partition_table_binary,
     choose_upload_log_host,
@@ -32,6 +33,7 @@ from esphome.__main__ import (
     command_clean_all,
     command_config,
     command_config_hash,
+    command_dashboard,
     command_idedata,
     command_rename,
     command_run,
@@ -157,9 +159,12 @@ def setup_core(
     CORE.config = config
     CORE.toolchain = Toolchain.PLATFORMIO
 
-    if platform is not None:
-        CORE.data[KEY_CORE] = {}
-        CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = platform
+    # Production always populates CORE.data[KEY_CORE] before upload/logs run
+    # (the platform validator sets it during read_config, and
+    # StorageJSON.apply_to_core sets it on the cache fast path), so mirror
+    # that here. Tests that exercise platform-specific behavior pass a
+    # platform explicitly; the rest get a platform-agnostic None.
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
 
     if tmp_path is not None:
         CORE.config_path = str(tmp_path / f"{name}.yaml")
@@ -713,9 +718,7 @@ def test_choose_upload_log_host_with_ota_device_with_api_config() -> None:
     """Test OTA device when API is configured (no upload without OTA in config)."""
     setup_core(config={CONF_API: {}}, address="192.168.1.100")
 
-    with pytest.raises(
-        EsphomeError, match="All specified devices .* could not be resolved"
-    ):
+    with pytest.raises(EsphomeError, match="no 'ota:' platform is configured"):
         choose_upload_log_host(
             default="OTA",
             check_default=None,
@@ -733,6 +736,57 @@ def test_choose_upload_log_host_with_ota_device_with_api_config_logging() -> Non
         purpose=Purpose.LOGGING,
     )
     assert result == ["192.168.1.100"]
+
+
+def test_choose_upload_log_host_logging_without_api_reports_missing_api() -> None:
+    """A resolvable device with only ota: fails logs with a missing-api message."""
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, address="192.168.1.100"
+    )
+
+    with pytest.raises(EsphomeError, match="no 'api:' component is configured"):
+        choose_upload_log_host(
+            default="OTA",
+            check_default=None,
+            purpose=Purpose.LOGGING,
+        )
+
+
+def test_choose_upload_log_host_logging_no_transport_reports_missing_api() -> None:
+    """A resolvable device with neither api: nor MQTT logging fails clearly."""
+    setup_core(address="192.168.1.100")
+
+    with pytest.raises(EsphomeError, match="no 'api:' component is configured"):
+        choose_upload_log_host(
+            default="OTA",
+            check_default=None,
+            purpose=Purpose.LOGGING,
+        )
+
+
+def test_unresolved_default_error_unresolvable_keeps_dashboard_hint() -> None:
+    """A .local host with mDNS disabled and no cache keeps the dashboard hint."""
+    setup_core(
+        config={CONF_API: {}, CONF_MDNS: {CONF_DISABLED: True}},
+        address="esp32-a1s.local",
+    )
+    CORE.dashboard = True
+
+    msg = _unresolved_default_error(Purpose.LOGGING, ["OTA"])
+    assert "could not be resolved" in msg
+    assert "set 'use_address'" in msg
+
+
+def test_unresolved_default_error_upload_with_ota_is_generic() -> None:
+    """With ota: present the upload error stays generic, not transport-specific."""
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, address="192.168.1.100"
+    )
+    CORE.dashboard = False
+
+    msg = _unresolved_default_error(Purpose.UPLOADING, ["OTA"])
+    assert "could not be resolved" in msg
+    assert "try --device <IP>" in msg
 
 
 @pytest.mark.usefixtures("mock_has_mqtt_logging")
@@ -1607,6 +1661,29 @@ def test_upload_program_serial_platformio_platforms(
     assert host == device
     mock_check_permissions.assert_called_once_with(device)
     mock_upload_using_platformio.assert_called_once_with(config, device)
+
+
+@patch("esphome.__main__.importlib.import_module")
+def test_upload_program_serial_unknown_platform(
+    mock_import: Mock,
+    mock_get_port_type: Mock,
+    mock_check_permissions: Mock,
+) -> None:
+    """Serial upload on an unsupported platform falls through to exit_code 1."""
+    setup_core(platform="custom_platform")
+    # Module has no upload_program handler, so the SERIAL branch is reached.
+    mock_import.return_value = MagicMock(spec=[])
+    mock_get_port_type.return_value = "SERIAL"
+
+    config = {}
+    args = MockArgs()
+    devices = ["/dev/ttyUSB0"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 1
+    assert host is None
+    mock_check_permissions.assert_called_once_with("/dev/ttyUSB0")
 
 
 def test_upload_using_platformio_creates_signed_bin_for_rp2040(
@@ -3688,6 +3765,45 @@ def test_command_wizard(tmp_path: Path) -> None:
 
         assert result == 0
         mock_wizard.assert_called_once_with(config_file)
+
+
+def test_command_dashboard_errors_with_device_builder_redirect() -> None:
+    """The removed dashboard command points users to ESPHome Device Builder."""
+    args = MockArgs()
+
+    with pytest.raises(EsphomeError, match="esphome-device-builder"):
+        command_dashboard(args)
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["esphome", "dashboard"],
+        ["esphome", "dashboard", "/config"],
+        # Legacy flags must be accepted so old invocations reach the redirect
+        # instead of failing on argparse "unrecognized arguments".
+        ["esphome", "dashboard", "--port", "6052", "/config"],
+        ["esphome", "dashboard", "--username", "u", "--password", "p", "--open-ui"],
+        [
+            "esphome",
+            "dashboard",
+            "--address",
+            "0.0.0.0",
+            "--socket",
+            "/x",
+            "--ha-addon",
+        ],
+    ],
+)
+def test_run_esphome_dashboard_redirects_to_device_builder(
+    argv: list[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """`esphome dashboard` still parses but fails with the redirect message."""
+    result = run_esphome(argv)
+
+    assert result == 1
+    assert "esphome-device-builder" in caplog.text
 
 
 def test_command_config_hash(
@@ -6258,6 +6374,44 @@ def test_command_run_defaults_subscribe_states_true(
     mock_run_logs.assert_called_once_with(
         CORE.config, ["192.168.1.100"], subscribe_states=True
     )
+
+
+def test_command_run_rp2040_bootsel_redetects_serial_port() -> None:
+    """After a BOOTSEL upload (no device) on RP2040, command_run waits for and
+    picks up the newly enumerated serial port before showing logs."""
+    setup_core(
+        config={"logger": {}, CONF_API: {}, CONF_MDNS: {CONF_DISABLED: False}},
+        platform=PLATFORM_RP2040,
+    )
+
+    args = MockArgs()
+    args.no_logs = False
+    args.device = None
+
+    new_port = MockSerialPort("/dev/ttyACM0", "RP2040 Serial")
+
+    with (
+        patch("esphome.__main__.write_cpp", return_value=0),
+        patch("esphome.__main__.compile_program", return_value=0),
+        patch(
+            "esphome.__main__.choose_upload_log_host",
+            side_effect=[[], ["/dev/ttyACM0"]],
+        ) as mock_choose,
+        patch("esphome.__main__.upload_program", return_value=(0, None)),
+        patch(
+            "esphome.__main__.get_serial_ports",
+            side_effect=[[], [new_port]],
+        ),
+        patch("esphome.__main__._wait_for_serial_port") as mock_wait,
+        patch("esphome.__main__.show_logs", return_value=0) as mock_show_logs,
+    ):
+        result = command_run(args, CORE.config)
+
+    assert result == 0
+    mock_wait.assert_called_once_with(known_ports=set())
+    # The re-detected serial port is used as the preferred logging device.
+    assert mock_choose.call_args_list[-1].kwargs["default"] == "/dev/ttyACM0"
+    mock_show_logs.assert_called_once_with(CORE.config, args, ["/dev/ttyACM0"])
 
 
 def test_command_idedata_esp_idf_prints_json(capsys: CaptureFixture) -> None:

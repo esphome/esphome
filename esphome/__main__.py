@@ -52,11 +52,6 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WIFI,
     ENV_NOGITIGNORE,
-    KEY_CORE,
-    KEY_TARGET_PLATFORM,
-    PLATFORM_ESP32,
-    PLATFORM_ESP8266,
-    PLATFORM_RP2040,
     SECRETS_FILES,
     Toolchain,
 )
@@ -268,6 +263,36 @@ def _ota_hostnames_for_default(purpose: Purpose) -> list[str]:
     return _resolve_with_cache(CORE.address, purpose)
 
 
+def _unresolved_default_error(purpose: Purpose, defaults: list[str]) -> str:
+    """Build the error when a default device target produced no usable host.
+
+    When the OTA default was requested and the address resolves but the config
+    lacks the transport the purpose needs (``api:`` for logs, an ``ota:``
+    platform for uploads), name that gap instead of the misleading
+    "could not be resolved" / set-use_address hint.
+    """
+    if "OTA" in defaults and has_resolvable_address():
+        if purpose == Purpose.LOGGING and not has_api():
+            return (
+                "Cannot view logs over the network: no 'api:' component is "
+                "configured. Network log streaming requires the native API; add "
+                "an 'api:' component, enable MQTT logging, or view logs over USB."
+            )
+        if purpose == Purpose.UPLOADING and not has_ota():
+            return (
+                "Cannot upload over the network: no 'ota:' platform is "
+                "configured. Add an 'ota:' platform, or upload over USB."
+            )
+    if CORE.dashboard:
+        hint = "If you know the IP, set 'use_address' in your network config."
+    else:
+        hint = "If you know the IP, try --device <IP>"
+    return (
+        f"All specified devices {defaults} could not be resolved. "
+        f"Is the device connected to the network? {hint}"
+    )
+
+
 def choose_upload_log_host(
     default: list[str] | str | None,
     check_default: str | None,
@@ -317,14 +342,7 @@ def choose_upload_log_host(
             else:
                 resolved.append(device)
         if not resolved:
-            if CORE.dashboard:
-                hint = "If you know the IP, set 'use_address' in your network config."
-            else:
-                hint = "If you know the IP, try --device <IP>"
-            raise EsphomeError(
-                f"All specified devices {defaults} could not be resolved. "
-                f"Is the device connected to the network? {hint}"
-            )
+            raise EsphomeError(_unresolved_default_error(purpose, defaults))
         return resolved
 
     # No devices specified, show interactive chooser
@@ -336,7 +354,7 @@ def choose_upload_log_host(
     bootsel_permission_error = False
     if (
         purpose == Purpose.UPLOADING
-        and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
+        and CORE.is_rp2040
         and (picotool := _find_picotool()) is not None
     ):
         bootsel = detect_rp2040_bootsel(picotool)
@@ -383,7 +401,7 @@ def choose_upload_log_host(
     # Show helpful BOOTSEL instructions for RP2040 when no BOOTSEL device is found
     if (
         purpose == Purpose.UPLOADING
-        and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
+        and CORE.is_rp2040
         and not any(get_port_type(opt[1]) == PortType.BOOTSEL for opt in options)
     ):
         if bootsel_permission_error:
@@ -504,7 +522,7 @@ def has_resolvable_address() -> bool:
     if has_ip_address():
         return True
 
-    # The dashboard pre-resolves the device and passes the IPs via
+    # device-builder pre-resolves the device and passes the IPs via
     # --mdns-address-cache/--dns-address-cache; honor a cached address even when the
     # device has mDNS disabled (e.g. a .local host found via ping).
     if CORE.address_cache and CORE.address_cache.get_addresses(CORE.address):
@@ -961,7 +979,7 @@ def upload_using_platformio(config: ConfigType, port: str) -> int:
     # RP2040 platform-raspberrypi build recipe expects firmware.bin.signed for
     # the upload target, but 'nobuild' skips the build phase that creates it.
     # Create it here so the upload doesn't fail.
-    if CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040:
+    if CORE.is_rp2040:
         idedata = toolchain.get_idedata(config)
         build_dir = Path(idedata.firmware_elf_path).parent
         firmware_bin = build_dir / "firmware.bin"
@@ -1146,10 +1164,10 @@ def upload_program(
         check_permissions(host)
 
         exit_code = 1
-        if CORE.target_platform in (PLATFORM_ESP32, PLATFORM_ESP8266):
+        if CORE.is_esp32 or CORE.is_esp8266:
             file = getattr(args, "file", None)
             exit_code = upload_using_esptool(config, host, file, args.upload_speed)
-        elif CORE.target_platform == PLATFORM_RP2040 or CORE.is_libretiny:
+        elif CORE.is_rp2040 or CORE.is_libretiny:
             exit_code = upload_using_platformio(config, host)
         # else: Unknown target platform, exit_code remains 1
 
@@ -1606,10 +1624,7 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     # After BOOTSEL upload, wait for a new serial port to appear
     # so it shows up in the log chooser
-    if (
-        successful_device is None
-        and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
-    ):
+    if successful_device is None and CORE.is_rp2040:
         _wait_for_serial_port(known_ports=pre_upload_ports)
         # If exactly one new serial port appeared, use it directly
         serial_ports = get_serial_ports()
@@ -1692,9 +1707,13 @@ def command_bundle(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_dashboard(args: ArgsProtocol) -> int | None:
-    from esphome.dashboard import dashboard
-
-    return dashboard.start_dashboard(args)
+    raise EsphomeError(
+        "The built-in dashboard has been removed from ESPHome. "
+        "Install and run ESPHome Device Builder instead:\n"
+        "  pip install esphome-device-builder\n"
+        "  esphome-device-builder\n"
+        "See https://github.com/esphome/device-builder for more information."
+    )
 
 
 def run_multiple_configs(
@@ -2356,44 +2375,22 @@ def parse_args(argv):
         "configuration", help="Your YAML file or configuration directory.", nargs="*"
     )
 
-    parser_dashboard = subparsers.add_parser(
-        "dashboard", help="Create a simple web server for a dashboard."
+    # The dashboard moved to ESPHome Device Builder; the command is kept only to
+    # print a redirect (see command_dashboard). Accept and ignore the old flags
+    # so legacy invocations reach that message instead of failing on argparse
+    # "unrecognized arguments".
+    parser_dashboard = subparsers.add_parser("dashboard")
+    parser_dashboard.add_argument("configuration", nargs="?", help=argparse.SUPPRESS)
+    parser_dashboard.add_argument("--port", help=argparse.SUPPRESS)
+    parser_dashboard.add_argument("--address", help=argparse.SUPPRESS)
+    parser_dashboard.add_argument("--username", help=argparse.SUPPRESS)
+    parser_dashboard.add_argument("--password", help=argparse.SUPPRESS)
+    parser_dashboard.add_argument("--socket", help=argparse.SUPPRESS)
+    parser_dashboard.add_argument(
+        "--open-ui", action="store_true", help=argparse.SUPPRESS
     )
     parser_dashboard.add_argument(
-        "configuration", help="Your YAML configuration file directory."
-    )
-    parser_dashboard.add_argument(
-        "--port",
-        help="The HTTP port to open connections on. Defaults to 6052.",
-        type=int,
-        default=6052,
-    )
-    parser_dashboard.add_argument(
-        "--address",
-        help="The address to bind to.",
-        type=str,
-        default="0.0.0.0",
-    )
-    parser_dashboard.add_argument(
-        "--username",
-        help="The optional username to require for authentication.",
-        type=str,
-        default="",
-    )
-    parser_dashboard.add_argument(
-        "--password",
-        help="The optional password to require for authentication.",
-        type=str,
-        default="",
-    )
-    parser_dashboard.add_argument(
-        "--open-ui", help="Open the dashboard UI in a browser.", action="store_true"
-    )
-    parser_dashboard.add_argument(
-        "--ha-addon", help=argparse.SUPPRESS, action="store_true"
-    )
-    parser_dashboard.add_argument(
-        "--socket", help="Make the dashboard serve under a unix socket", type=str
+        "--ha-addon", action="store_true", help=argparse.SUPPRESS
     )
 
     parser_vscode = subparsers.add_parser("vscode")
@@ -2488,11 +2485,7 @@ def run_esphome(argv):
     elif args.quiet:
         args.log_level = "CRITICAL"
 
-    setup_log(
-        log_level=args.log_level,
-        # Show timestamp for dashboard access logs
-        include_timestamp=args.command == "dashboard",
-    )
+    setup_log(log_level=args.log_level)
 
     if args.command in PRE_CONFIG_ACTIONS:
         try:
