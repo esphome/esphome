@@ -822,8 +822,8 @@ jobs:
       - name: Cache apt packages
         uses: awalsh128/cache-apt-pkgs-action@acb598e5ddbc6f68a970c5da0688d2f3a9f04d05 # v1.5.3
         with:
-          packages: libsdl2-dev
-          version: 1.0
+          packages: libsdl2-dev ccache
+          version: 1.1
 
       - name: Check out code from GitHub
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -940,6 +940,11 @@ jobs:
           else
             echo "All components in this batch are validate-only -- skipping compile stage."
           fi
+
+      - name: Print ccache statistics
+        # esphome stores the cache under the IDF tools path; expand the leading
+        # ~ in ESPHOME_ESP_IDF_PREFIX so ccache reads the dir the build used.
+        run: CCACHE_DIR="${ESPHOME_ESP_IDF_PREFIX/#\~/$HOME}/ccache" ccache -s
 
   test-esp32-platformio:
     name: Test esp32 components with PlatformIO

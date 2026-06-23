@@ -77,7 +77,7 @@ async def to_code(config):
     url = config[CONF_PACKAGE_IMPORT_URL]
     if config[CONF_IMPORT_FULL_CONFIG]:
         url += "?full_config"
-    cg.add(dashboard_import_ns.set_package_import_url(url))
+    cg.add(dashboard_import_ns.set_package_import_url(cg.FlashStringLiteral(url)))
 
 
 def import_config(
