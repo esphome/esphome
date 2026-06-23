@@ -1,5 +1,7 @@
 #include "bsec_iaq.h"
 
+// Built-in IAQ defaults are the BSEC 3.3.0.0 BME690 33V 4d configs:
+// release_bin/IAQ/config/bme690/bme690_iaq_33v_300s_4d and bme690_iaq_33v_3s_4d.
 const uint8_t BSEC_CONFIG_IAQ_300S_4D[550] = {
     0, 0, 3, 3, 61, 0, 0, 0, 0, 0, 0, 0, 14, 2, 0, 0,
     80, 0, 1, 0, 0, 192, 168, 71, 64, 49, 119, 76, 0, 78, 237, 73,

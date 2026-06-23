@@ -7,6 +7,8 @@
 
 namespace esphome::bme690 {
 
+// Reference material for the BME69x driver and Bosch BSEC integration examples:
+// https://www.bosch-sensortec.com/en/software-tools/software/bme680-software-bsec
 static const char *const TAG = "bme690";
 static const char *const IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 static constexpr uint8_t BME690_MAX_HEATER_PROFILE_LEN = 10;
@@ -523,7 +525,7 @@ uint8_t BME690Component::build_iaq_subscription_(bsec_sensor_configuration_t *re
   add_request(BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY);
   add_request(BSEC_OUTPUT_CO2_EQUIVALENT);
   if (bsec_3_3_or_newer) {
-    // BSEC 3.3 disables BREATH_VOC_EQUIVALENT for BME690. TVOC is LP-only.
+    // Bosch's BSEC 3.3 IAQ example for BME690 requests TVOC in LP mode and omits Breath VOC.
     if (this->sample_rate_ == SAMPLE_RATE_LP) {
       add_request(BSEC_OUTPUT_TVOC_EQUIVALENT);
     }

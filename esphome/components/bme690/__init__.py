@@ -22,6 +22,10 @@ MULTI_CONF = True
 
 DOMAIN = "bme690"
 
+# Bosch BSEC library/config downloads:
+# https://www.bosch-sensortec.com/en/software-tools/software-downloads.html?downloadId=bsec3300
+# https://www.bosch-sensortec.com/en/products/downloads
+
 # Multiple BME690 instances are supported by configuration, but are currently
 # untested. All instances must use the same target-compatible BSEC library,
 # because it is linked into the firmware as a single static archive.
@@ -85,6 +89,7 @@ def _read_bsec_config(path: Path) -> list[int]:
 
     if not data:
         raise core.EsphomeError(f"BSEC configuration file {path} is empty")
+    # Bosch .config files include a 4-byte little-endian length prefix; the BSEC API expects the payload only.
     if len(data) >= 4 and int.from_bytes(data[:4], "little") == len(data) - 4:
         data = data[4:]
     return list(data)
