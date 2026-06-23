@@ -3,6 +3,7 @@
 #include "esphome/components/network/ip_address.h"
 
 #ifdef USE_HOST
+#if USE_NETWORK_IPV6
 
 namespace esphome::network::testing {
 
@@ -82,10 +83,11 @@ TEST(IPAddressHost, IPv4FromOctetsMatchesParse) {
   EXPECT_EQ(from_octets, from_string);
 }
 
-TEST(IPAddressHost, IPv4FromInAddr) {
-  // IPAddress(const ip_addr_t *) — on HOST ip_addr_t = in_addr
-  struct in_addr raw {};
-  raw.s_addr = htonl((192u << 24) | (168u << 16) | (1u << 8) | 1u);
+TEST(IPAddressHost, IPv4FromIPAddrT) {
+  ip_addr_t raw;
+  memset(&raw, 0, sizeof(raw));
+  raw.u_addr.ip4.s_addr = htonl((192u << 24) | (168u << 16) | (1u << 8) | 1u);
+  raw.type = IPADDR_TYPE_V4;
   IPAddress addr(&raw);
   char buf[IP_ADDRESS_BUFFER_SIZE];
   EXPECT_STREQ(addr.str_to(buf), "192.168.1.1");
@@ -168,8 +170,6 @@ TEST(IPAddressHost, IPv6FullAddressRoundTrip) {
   IPAddress addr(input);
   char buf[IP_ADDRESS_BUFFER_SIZE];
   addr.str_to(buf);
-  // inet_ntop may compress leading zeros within groups; just verify the high
-  // prefix and that the output is non-empty.
   EXPECT_NE(buf[0], '\0');
   EXPECT_NE(std::string(buf).find("fde0"), std::string::npos);
 }
@@ -185,43 +185,11 @@ TEST(IPAddressHost, MalformedIPv4YieldsEmptyAddress) {
 }
 
 TEST(IPAddressHost, MalformedIPv6YieldsEmptyAddress) {
+  // "gg::1" looks like IPv6 (contains ':') but fails inet_pton; addr stays
+  // zeroed (type=V4 from memset) so is_set() is false and is_ip4() is true.
   IPAddress addr("gg::1");
   EXPECT_FALSE(addr.is_set());
   EXPECT_TRUE(addr.is_ip4());
-}
-
-// =========================================================================
-// is_valid() — parse success vs failure
-// =========================================================================
-
-TEST(IPAddressHost, ValidIPv4IsValid) {
-  IPAddress addr("192.168.1.1");
-  EXPECT_TRUE(addr.is_valid());
-}
-
-TEST(IPAddressHost, ValidIPv6IsValid) {
-  IPAddress addr("ff12::cafe");
-  EXPECT_TRUE(addr.is_valid());
-}
-
-TEST(IPAddressHost, MalformedIPv4NotValid) {
-  IPAddress addr("not-an-ip");
-  EXPECT_FALSE(addr.is_valid());
-}
-
-TEST(IPAddressHost, MalformedIPv6NotValid) {
-  IPAddress addr("gg::1");
-  EXPECT_FALSE(addr.is_valid());
-}
-
-TEST(IPAddressHost, DefaultConstructorIsValid) {
-  IPAddress addr;
-  EXPECT_TRUE(addr.is_valid());
-}
-
-TEST(IPAddressHost, OctetConstructorIsValid) {
-  IPAddress addr(192, 168, 1, 1);
-  EXPECT_TRUE(addr.is_valid());
 }
 
 // =========================================================================
@@ -236,4 +204,5 @@ TEST(IPAddressHost, IPv4AndIPv6NotEqual) {
 
 }  // namespace esphome::network::testing
 
+#endif  // USE_NETWORK_IPV6
 #endif  // USE_HOST
