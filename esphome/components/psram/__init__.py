@@ -16,6 +16,7 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     get_esp32_variant,
     idf_version,
+    variant_filtered_enum,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -29,6 +30,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 DOMAIN = "psram"
@@ -68,6 +70,11 @@ SPIRAM_SPEEDS = {
     VARIANT_ESP32S2: (40, 80, 120),
     VARIANT_ESP32S3: (40, 80, 120),
     VARIANT_ESP32P4: (20, 100, 200),
+}
+
+SPIRAM_SPEEDS_MHZ = {
+    variant: tuple(f"{speed}MHZ" for speed in speeds)
+    for variant, speeds in SPIRAM_SPEEDS.items()
 }
 
 
@@ -145,15 +152,23 @@ def validate_psram_mode(config):
     return config
 
 
-def get_config_schema(config):
+def _set_variant_defaults(config: ConfigType) -> ConfigType:
+    """Resolve variant-dependent defaults before the static schema validates.
+
+    The set of valid ``mode``/``speed`` values is variant-specific (enforced by
+    ``variant_filtered_enum`` in the schema below); this only supplies the default
+    when the user omits the option. ``mode`` has no single default on chips that
+    support more than one mode, so selection is required there.
+    """
     variant = get_esp32_variant()
-    speeds = [f"{s}MHZ" for s in SPIRAM_SPEEDS.get(variant, [])]
-    if not speeds:
+    modes = SPIRAM_MODES.get(variant)
+    speeds = SPIRAM_SPEEDS.get(variant)
+    if not modes or not speeds:
         raise cv.Invalid("PSRAM is not supported on this chip")
-    modes = SPIRAM_MODES[variant]
-    if CONF_MODE not in config and len(modes) != 1:
-        raise (
-            cv.Invalid(
+    config = config.copy()
+    if CONF_MODE not in config:
+        if len(modes) != 1:
+            raise cv.Invalid(
                 textwrap.dedent(
                     f"""
                         {variant} requires PSRAM mode selection; one of {", ".join(modes)}
@@ -161,20 +176,27 @@ def get_config_schema(config):
                     """
                 )
             )
-        )
-    return cv.Schema(
+        config[CONF_MODE] = modes[0]
+    if CONF_SPEED not in config:
+        config[CONF_SPEED] = f"{speeds[0]}MHZ"
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    _set_variant_defaults,
+    cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PsramComponent),
-            cv.Optional(CONF_MODE, default=modes[0]): cv.one_of(*modes, lower=True),
+            cv.Optional(CONF_MODE): variant_filtered_enum(SPIRAM_MODES, lower=True),
             cv.Optional(CONF_ENABLE_ECC, default=False): cv.boolean,
-            cv.Optional(CONF_SPEED, default=speeds[0]): cv.one_of(*speeds, upper=True),
+            cv.Optional(CONF_SPEED): variant_filtered_enum(
+                SPIRAM_SPEEDS_MHZ, upper=True
+            ),
             cv.Optional(CONF_DISABLED, default=False): cv.boolean,
             cv.Optional(CONF_IGNORE_NOT_FOUND, default=True): cv.boolean,
         }
-    )(config)
-
-
-CONFIG_SCHEMA = get_config_schema
+    ),
+)
 
 
 def _store_psram_guaranteed(config):

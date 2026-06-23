@@ -6,7 +6,7 @@
 
 namespace esphome::factory_reset {
 
-class FactoryResetSwitch : public switch_::Switch, public Component {
+class FactoryResetSwitch final : public switch_::Switch, public Component {
  public:
   void dump_config() override;
 #ifdef USE_OPENTHREAD
