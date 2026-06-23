@@ -621,6 +621,8 @@ def test_get_framework_env_with_python_env(tmp_path: Path) -> None:
             "esphome.espidf.framework._get_idf_tool_paths",
             return_value=(["/tool/bin"], {"IDF_X": "1"}),
         ),
+        # ccache env is covered separately; keep this test host-independent.
+        patch("esphome.espidf.framework._ccache_env", return_value={}),
     ):
         env = get_framework_env(
             tmp_path / "fw", tmp_path / "penv", {"PATH": "/usr/bin"}
@@ -641,6 +643,8 @@ def test_get_framework_env_without_python_env_uses_os_path(tmp_path: Path) -> No
         ),
         patch("esphome.espidf.framework._get_idf_version", return_value="5.1.2"),
         patch("esphome.espidf.framework._get_idf_tool_paths", return_value=([], {})),
+        # ccache env is covered separately; keep this test host-independent.
+        patch("esphome.espidf.framework._ccache_env", return_value={}),
     ):
         env = get_framework_env(tmp_path / "fw")
 
@@ -679,14 +683,16 @@ def test_ccache_env_default_enabled_when_available(tmp_path: Path) -> None:
 
 
 def test_ccache_env_disabled_when_binary_missing(tmp_path: Path) -> None:
-    p1, p2, p3 = _ccache_patches(tmp_path, None, tmp_path / "build")
+    # build_path is None here too: a disabled cache must not require it.
+    p1, p2, p3 = _ccache_patches(tmp_path, None, None)
     with patch.dict("os.environ", {}, clear=True), p1, p2, p3:
         assert _ccache_env() == {}
 
 
 def test_ccache_env_opt_out_via_env(tmp_path: Path) -> None:
-    # Explicit IDF_CCACHE_ENABLE=0 wins even when the binary is present.
-    p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", tmp_path / "build")
+    # Explicit IDF_CCACHE_ENABLE=0 wins even when the binary is present, and
+    # short-circuits before build_path is needed.
+    p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", None)
     with patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "0"}, clear=True), p1, p2, p3:
         assert _ccache_env() == {}
 
@@ -714,12 +720,18 @@ def test_ccache_env_preserves_user_overrides(tmp_path: Path) -> None:
     assert env["CCACHE_DEPEND"] == "1"
 
 
-def test_ccache_env_no_basedir_without_build_path(tmp_path: Path) -> None:
+def test_ccache_env_raises_without_build_path(tmp_path: Path) -> None:
+    # Enabled but no build_path means the IDF env was built too early -- fail
+    # loudly instead of silently dropping CCACHE_BASEDIR.
     p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", None)
-    with patch.dict("os.environ", {}, clear=True), p1, p2, p3:
-        env = _ccache_env()
-    assert "CCACHE_BASEDIR" not in env
-    assert env["IDF_CCACHE_ENABLE"] == "1"
+    with (
+        patch.dict("os.environ", {}, clear=True),
+        p1,
+        p2,
+        p3,
+        pytest.raises(ValueError, match="build_path"),
+    ):
+        _ccache_env()
 
 
 # ---------------------------------------------------------------------------
