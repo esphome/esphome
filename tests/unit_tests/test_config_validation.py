@@ -490,6 +490,194 @@ def test_require_framework_version(framework, platform, message):
         )("test")
 
 
+def _setup_core_for_framework(platform: str, framework: str) -> None:
+    """Wire CORE.data with the minimum keys for require_framework_version /
+    SplitDefault to evaluate without raising KeyError."""
+    from esphome.const import (
+        KEY_CORE,
+        KEY_FRAMEWORK_VERSION,
+        KEY_TARGET_FRAMEWORK,
+        KEY_TARGET_PLATFORM,
+    )
+
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: platform,
+        KEY_TARGET_FRAMEWORK: framework,
+        KEY_FRAMEWORK_VERSION: config_validation.Version(1, 0, 0),
+    }
+
+
+def test_only_on_rp2_passes_on_rp2_platform() -> None:
+    """``cv.only_on_rp2`` is the canonical family gate. It accepts any value
+    untouched when the configured platform is rp2."""
+    _setup_core_for_framework(PLATFORM_RP2, "arduino")
+    assert config_validation.only_on_rp2("anything") == "anything"
+
+
+def test_only_on_rp2_rejects_other_platforms() -> None:
+    """The same gate raises ``Invalid`` outside the rp2 platform."""
+    _setup_core_for_framework(PLATFORM_ESP32, "arduino")
+    with pytest.raises(Invalid, match="rp2"):
+        config_validation.only_on_rp2("anything")
+
+
+def test_only_on_rp2040_delegates_and_warns_once(caplog) -> None:
+    """``cv.only_on_rp2040`` is a deprecation shim — it logs a one-shot
+    warning, dedupes via CORE.data, and delegates to ``only_on_rp2``.
+    Repeated calls in the same run must not log again."""
+    import logging
+
+    _setup_core_for_framework(PLATFORM_RP2, "arduino")
+    # Reset the dedupe flag so this test is independent of order.
+    CORE.data.pop(config_validation._ONLY_ON_RP2040_DEPRECATED_KEY, None)
+
+    with caplog.at_level(logging.WARNING, logger="esphome.config_validation"):
+        assert config_validation.only_on_rp2040("ok") == "ok"
+        first_warnings = [r for r in caplog.records if "only_on_rp2040" in r.message]
+        assert len(first_warnings) == 1
+        assert "2027.7.0" in first_warnings[0].message
+
+        # Second call dedupes — no additional warning is emitted.
+        assert config_validation.only_on_rp2040("ok") == "ok"
+        warnings_after_second = [
+            r for r in caplog.records if "only_on_rp2040" in r.message
+        ]
+        assert len(warnings_after_second) == 1
+
+
+def test_only_on_rp2040_still_gates_on_non_rp2(caplog) -> None:
+    """The deprecation shim must still raise on non-rp2 platforms — it
+    delegates to ``only_on_rp2``, so the gating behavior is preserved."""
+    import logging
+
+    _setup_core_for_framework(PLATFORM_ESP32, "arduino")
+    CORE.data.pop(config_validation._ONLY_ON_RP2040_DEPRECATED_KEY, None)
+
+    with (
+        caplog.at_level(logging.WARNING, logger="esphome.config_validation"),
+        pytest.raises(Invalid, match="rp2"),
+    ):
+        config_validation.only_on_rp2040("anything")
+
+
+def test_require_framework_version_esp32_variant_specific_key() -> None:
+    """ESP32 variant-specific kwargs (``esp32_c3_arduino``) must win over
+    the base ``esp32_arduino`` key when the configured variant matches."""
+    from esphome.components.esp32 import KEY_ESP32
+    from esphome.const import (
+        KEY_CORE,
+        KEY_FRAMEWORK_VERSION,
+        KEY_TARGET_FRAMEWORK,
+        KEY_TARGET_PLATFORM,
+        KEY_VARIANT,
+    )
+
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: PLATFORM_ESP32,
+        KEY_TARGET_FRAMEWORK: "arduino",
+        KEY_FRAMEWORK_VERSION: config_validation.Version(1, 2, 0),
+    }
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: VARIANT_ESP32C3}
+
+    # Variant-specific entry permits this version; base key would reject it.
+    assert (
+        config_validation.require_framework_version(
+            esp32_arduino=config_validation.Version(5, 0, 0),  # would reject
+            esp32_c3_arduino=config_validation.Version(1, 0, 0),  # wins, ok
+        )("test")
+        == "test"
+    )
+
+
+def test_require_framework_version_rp2_variant_specific_key() -> None:
+    """RP2 variant kwargs (``rp2_2040_arduino``) must win over the base
+    ``rp2_arduino`` key when ``CORE.data['rp2']['variant']`` is wired."""
+    from esphome.const import (
+        KEY_CORE,
+        KEY_FRAMEWORK_VERSION,
+        KEY_TARGET_FRAMEWORK,
+        KEY_TARGET_PLATFORM,
+    )
+
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: PLATFORM_RP2,
+        KEY_TARGET_FRAMEWORK: "arduino",
+        KEY_FRAMEWORK_VERSION: config_validation.Version(1, 2, 0),
+    }
+    CORE.data["rp2"] = {"variant": "RP2040"}
+
+    # Variant key wins — base ``rp2_arduino`` (which would reject) is ignored.
+    assert (
+        config_validation.require_framework_version(
+            rp2_arduino=config_validation.Version(5, 0, 0),  # would reject
+            rp2_2040_arduino=config_validation.Version(1, 0, 0),  # wins, ok
+        )("test")
+        == "test"
+    )
+
+    # Without a variant kwarg the base ``rp2_arduino`` is used (fallback).
+    CORE.data["rp2"] = {"variant": "RP2350"}
+    assert (
+        config_validation.require_framework_version(
+            rp2_arduino=config_validation.Version(1, 0, 0),
+        )("test")
+        == "test"
+    )
+
+
+def test_split_default_rp2_variant_keys() -> None:
+    """``SplitDefault`` resolves ``rp2_<chip>_<framework>`` first, falling
+    back to ``rp2_<chip>`` and ``rp2_<framework>`` before the base key."""
+    from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK, KEY_TARGET_PLATFORM
+
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: PLATFORM_RP2,
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+    CORE.data["rp2"] = {"variant": "RP2040"}
+
+    schema = config_validation.Schema(
+        {
+            config_validation.SplitDefault(
+                "full",
+                rp2="base",
+                rp2_arduino="base-framework",
+                rp2_2040="variant-only",
+                rp2_2040_arduino="variant-framework",
+            ): str,
+        }
+    )
+    # Most specific (variant + framework) wins.
+    assert schema({}).get("full") == "variant-framework"
+
+    # Drop the most-specific kwarg → variant-only wins.
+    schema = config_validation.Schema(
+        {
+            config_validation.SplitDefault(
+                "full",
+                rp2="base",
+                rp2_arduino="base-framework",
+                rp2_2040="variant-only",
+            ): str,
+        }
+    )
+    assert schema({}).get("full") == "variant-only"
+
+    # RP2350 variant — no rp2_2350_* kwargs → fall through to base framework.
+    CORE.data["rp2"] = {"variant": "RP2350"}
+    schema = config_validation.Schema(
+        {
+            config_validation.SplitDefault(
+                "full",
+                rp2="base",
+                rp2_arduino="base-framework",
+                rp2_2040="not-this",
+            ): str,
+        }
+    )
+    assert schema({}).get("full") == "base-framework"
+
+
 def test_only_with_single_component_loaded() -> None:
     """Test OnlyWith with single component when component is loaded."""
     CORE.loaded_integrations = {"mqtt"}

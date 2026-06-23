@@ -94,6 +94,7 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_HOST,
     PLATFORM_RP2,
     Toolchain,
 )
@@ -1447,6 +1448,32 @@ def test_upload_program_serial_esp32(
     mock_upload_using_esptool.assert_called_once()
 
 
+def test_upload_program_serial_unknown_platform_returns_failure(
+    mock_upload_using_esptool: Mock,
+    mock_upload_using_platformio: Mock,
+    mock_get_port_type: Mock,
+    mock_check_permissions: Mock,
+) -> None:
+    """Unknown target platforms fall through both serial-upload branches
+    (esptool for ESP, platformio for RP2/LibreTiny) and return exit_code=1
+    without invoking any uploader. Covers the elif-fallthrough branch on
+    the platform dispatch."""
+    setup_core(platform=PLATFORM_HOST)
+    mock_get_port_type.return_value = "SERIAL"
+
+    config = {}
+    args = MockArgs()
+    devices = ["/dev/ttyUSB0"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 1
+    assert host is None  # exit_code != 0 → host returned as None
+    mock_check_permissions.assert_called_once_with("/dev/ttyUSB0")
+    mock_upload_using_esptool.assert_not_called()
+    mock_upload_using_platformio.assert_not_called()
+
+
 def test_upload_program_serial_esp8266_with_file(
     mock_upload_using_esptool: Mock,
     mock_get_port_type: Mock,
@@ -1698,6 +1725,53 @@ def test_upload_using_platformio_skips_signed_bin_for_non_rp2040(
         result = upload_using_platformio({}, "/dev/ttyUSB0")
 
     assert result == 0
+
+
+def test_upload_using_platformio_skips_signed_bin_when_already_present(
+    tmp_path: Path,
+) -> None:
+    """The signed-bin copy is idempotent: if ``firmware.bin.signed`` already
+    exists on the RP2 build path, the upload step must not overwrite it
+    (and must not fail when the unsigned ``firmware.bin`` is absent)."""
+    setup_core(platform=PLATFORM_RP2)
+
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    # Pre-existing signed bin with distinct content — must be preserved.
+    signed_bin = build_dir / "firmware.bin.signed"
+    signed_bin.write_bytes(b"already signed")
+    # No unsigned firmware.bin on disk — the `is_file()` guard must hold.
+    firmware_elf = build_dir / "firmware.elf"
+    firmware_elf.write_bytes(b"elf")
+
+    mock_idedata = MagicMock()
+    mock_idedata.firmware_elf_path = str(firmware_elf)
+
+    with (
+        patch("esphome.platformio.toolchain.get_idedata", return_value=mock_idedata),
+        patch("esphome.platformio.toolchain.run_platformio_cli_run", return_value=0),
+    ):
+        result = upload_using_platformio({}, "/dev/ttyACM0")
+
+    assert result == 0
+    # Pre-existing signed bin is untouched.
+    assert signed_bin.read_bytes() == b"already signed"
+
+
+def test_upload_using_platformio_handles_port_none(tmp_path: Path) -> None:
+    """The upload step must work without a serial port (PlatformIO picks the
+    target itself); the ``--upload-port`` flag is only appended when a port
+    is provided."""
+    setup_core(platform=PLATFORM_ESP32)
+
+    with patch(
+        "esphome.platformio.toolchain.run_platformio_cli_run", return_value=0
+    ) as mock_run:
+        result = upload_using_platformio({}, None)
+
+    assert result == 0
+    args = mock_run.call_args.args
+    assert "--upload-port" not in args
 
 
 def test_upload_program_serial_upload_failed(
