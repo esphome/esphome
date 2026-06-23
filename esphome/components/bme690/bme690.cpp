@@ -10,6 +10,7 @@ namespace esphome::bme690 {
 static const char *const TAG = "bme690";
 static const char *const IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 static constexpr uint8_t BME690_MAX_HEATER_PROFILE_LEN = 10;
+static constexpr uint32_t BME690_READ_TIMEOUT_ID = 0;
 
 static const char *bsec_status_to_string(bsec_library_return_t rslt) {
   switch (rslt) {
@@ -238,7 +239,7 @@ void BME690Component::dump_config() {
 }
 
 void BME690Component::schedule_read_(uint32_t delay_ms) {
-  this->set_timeout("read", delay_ms, [this]() { this->read_(); });
+  this->set_timeout(BME690_READ_TIMEOUT_ID, delay_ms, [this]() { this->read_(); });
 }
 
 void BME690Component::schedule_next_bsec_read_() {
