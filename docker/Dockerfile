@@ -1,5 +1,5 @@
 ARG BUILD_VERSION=dev
-ARG BUILD_BASE_VERSION=2026.07.0
+ARG BUILD_BASE_VERSION=2026.06.1
 ARG BUILD_TYPE=docker
 
 FROM ghcr.io/esphome/docker-base:debian-${BUILD_BASE_VERSION} AS base-source-docker
