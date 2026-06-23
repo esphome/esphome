@@ -81,8 +81,13 @@ def _get_idf_tools_path() -> Path:
         Path object pointing to the ESP-IDF tools directory
     """
     if "ESPHOME_ESP_IDF_PREFIX" in os.environ:
-        return Path(get_str_env("ESPHOME_ESP_IDF_PREFIX", None)).expanduser()
-    return CORE.data_dir / "idf"
+        path = Path(get_str_env("ESPHOME_ESP_IDF_PREFIX", None)).expanduser()
+    else:
+        path = CORE.data_dir / "idf"
+    # Resolve so an unnormalized config path (e.g. compiling ``../config/x.yaml``)
+    # doesn't leave ``..`` segments in the IDF_TOOLS_PATH handed to idf.py, which
+    # otherwise warns that the venv interpreter path doesn't match the install.
+    return path.resolve()
 
 
 # Windows' default MAX_PATH is 260 characters. ESP-IDF toolchains nest deeply
@@ -604,14 +609,16 @@ def _check_esphome_idf_framework_install(
         install = True
         if _check_stamp(env_stamp_file, stamp_info):
             _LOGGER.info("Checking ESP-IDF %s framework installation ...", version)
-            cmd = [
-                get_system_python_path(),
-                str(idf_tools_path),
-                "--non-interactive",
-                "check",
-            ]
-            if run_command_ok(cmd, msg=f"ESP-IDF {version} check", env=env):
+            # Validate via the managed tool-path resolution, not ``idf_tools.py check``:
+            # ``check`` probes tools on the system PATH and aborts if any fail to run (e.g. a
+            # broken Homebrew openocd), which forced a toolchain reinstall on every build.
+            try:
+                _get_idf_tool_paths(framework_path, env)
                 install = False
+            except RuntimeError as err:
+                _LOGGER.debug(
+                    "ESP-IDF %s tool resolution failed, reinstalling: %s", version, err
+                )
 
     # 4. Install framework tools if not installed or needs update
     if install:
