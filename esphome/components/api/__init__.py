@@ -503,12 +503,14 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_ON_CLIENT_DISCONNECTED],
         )
 
-    if CONF_ON_PROVISIONING_TIMEOUT in config:
+    if (
+        on_provisioning_timeout := config.get(CONF_ON_PROVISIONING_TIMEOUT)
+    ) is not None:
         cg.add_define("USE_API_PROVISIONING_TIMEOUT_TRIGGER")
         await automation.build_automation(
             var.get_provisioning_timeout_trigger(),
             [],
-            config[CONF_ON_PROVISIONING_TIMEOUT],
+            on_provisioning_timeout,
         )
 
     if (encryption_config := config.get(CONF_ENCRYPTION, None)) is not None:
