@@ -236,6 +236,9 @@ void BME690Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Temperature Offset: %.2f°C", this->ext_temp_offset_);
   ESP_LOGCONFIG(TAG, "  State Save Interval: %" PRIu32 "ms", this->state_save_interval_ms_);
   ESP_LOGCONFIG(TAG, "  Fallback Update Interval: %.1fs", this->update_interval_ms_ / 1000.0f);
+  ESP_LOGCONFIG(TAG, "  BSEC Config: %s (%" PRIu32 " bytes)",
+                this->bsec_configuration_ != nullptr ? "custom" : "built-in",
+                this->get_bsec_configuration_length_());
 }
 
 void BME690Component::schedule_read_(uint32_t delay_ms) {
