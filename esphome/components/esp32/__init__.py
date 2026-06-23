@@ -2370,10 +2370,8 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES", True)
             add_idf_sdkconfig_option(
                 "CONFIG_SECURE_BOOT_SIGNING_KEY",
-                # as_posix() so kconfiglib doesn't consume Windows backslashes
-                # as escape sequences (C:\Work\key.pem -> C:Workkey.pem) when it
-                # generates the final sdkconfig; espsecure accepts forward
-                # slashes. No-op on POSIX.
+                # as_posix() so kconfiglib doesn't eat Windows backslashes as
+                # escapes (C:\Work\key.pem -> C:Workkey.pem). No-op on POSIX.
                 signed_ota[CONF_SIGNING_KEY].resolve().as_posix(),
             )
         else:
