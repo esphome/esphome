@@ -36,9 +36,9 @@ void IT8951Display::prepend_(OpType type, uint16_t a, uint16_t b) {
   }
 }
 
-bool IT8951Display::busy_pin_low_() const {
+bool IT8951Display::is_busy_() const {
   // IT8951 Hardware Ready (HW_RDY): HIGH = ready, LOW = busy.
-  return this->busy_pin_ != nullptr && !this->busy_pin_->digital_read();
+  return !this->busy_pin_->digital_read();
 }
 
 void IT8951Display::loop() {
@@ -64,10 +64,12 @@ void IT8951Display::loop() {
   Op queued_op = this->queue_.front();
   const bool needs_hardware_ready = queued_op.type != OpType::GPIO_RESET_LOW &&
                                     queued_op.type != OpType::GPIO_RESET_HIGH && queued_op.type != OpType::DELAY_MS;
-  if (needs_hardware_ready && this->busy_pin_low_()) {
+  if (needs_hardware_ready && this->is_busy_()) {
     // Signed elapsed: any pending DELAY_MS or scheduled work in the near
     // future shows up as <= 0 elapsed and won't trigger a false timeout.
     const int32_t elapsed = static_cast<int32_t>(now - this->phase_started_at_);
+    ESP_LOGV(TAG, "HW_RDY is LOW (busy) in phase %u, elapsed=%" PRId32 "ms", static_cast<unsigned>(this->phase_),
+             elapsed);
     if (elapsed > static_cast<int32_t>(BUSY_TIMEOUT_MS)) {
       ESP_LOGW(TAG, "Busy timeout (%" PRIu32 "ms) in phase %u, recovering", elapsed,
                static_cast<unsigned>(this->phase_));
@@ -81,6 +83,7 @@ void IT8951Display::loop() {
 }
 
 void IT8951Display::process_op_(const Op &op) {
+  ESP_LOGV(TAG, "Processing op type=%u a=0x%04X b=0x%04X", static_cast<unsigned>(op.type), op.a, op.b);
   switch (op.type) {
     case OpType::CMD:
       this->spi_cmd_(op.a);
@@ -154,6 +157,7 @@ void IT8951Display::process_op_(const Op &op) {
 }
 
 void IT8951Display::set_phase_(Phase next) {
+  ESP_LOGV(TAG, "Phase %u -> %u", static_cast<unsigned>(this->phase_), static_cast<unsigned>(next));
   this->phase_ = next;
   this->phase_started_at_ = millis();
 }
@@ -389,6 +393,7 @@ void IT8951Display::enqueue_update_transfer_() {
 }
 
 void IT8951Display::enqueue_update_refresh_() {
+  ESP_LOGV(TAG, "Enqueueing refresh ops: use_1bpp=%u", this->use_1bpp_);
   // Poll LUT idle: CMD(REG_RD) → WRITE_W(LUTAFSR) → READ_WORD → CHECK_LUT_IDLE
   this->enqueue_(OpType::CMD, TCON_REG_RD);
   this->enqueue_(OpType::WRITE_W, LUTAFSR);
@@ -650,6 +655,7 @@ void IT8951Display::op_dpy_buf_args_() {
 }
 
 void IT8951Display::op_check_lut_idle_() {
+  ESP_LOGV(TAG, "Checking LUT idle, read_result_=0x%04X", this->read_result_);
   // read_result_ holds LUTAFSR value from the preceding READ_WORD op.
   if (this->read_result_ != 0) {
     // LUT still busy — re-enqueue the full read sequence after a short delay.

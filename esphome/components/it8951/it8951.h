@@ -207,7 +207,7 @@ class IT8951Display : public Display,
   // --- Op queue / loop machinery ---
   void enqueue_(OpType type, uint16_t a = 0, uint16_t b = 0);
   void prepend_(OpType type, uint16_t a = 0, uint16_t b = 0);
-  bool busy_pin_low_() const;
+  bool is_busy_() const;
   void process_op_(const Op &op);
   void advance_phase_();
   void set_phase_(Phase next);

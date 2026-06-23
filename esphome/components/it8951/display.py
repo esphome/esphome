@@ -393,9 +393,8 @@ async def it8951_update_action_to_code(config, action_id, template_arg, args):
     display_var = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, display_var)
     if mode := config.get(CONF_MODE):
-        if cg.is_template(mode):
-            mode = await cg.templatable(config[CONF_MODE], args, UpdateMode)
-        else:
+        if not cg.is_template(mode):
             mode = UPDATE_MODE_OPTIONS[mode]
+        mode = await cg.templatable(mode, args, UpdateMode)
         cg.add(var.set_mode(mode))
     return var
