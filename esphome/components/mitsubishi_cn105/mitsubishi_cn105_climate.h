@@ -8,7 +8,7 @@
 
 namespace esphome::mitsubishi_cn105 {
 
-class MitsubishiCN105Climate final : public climate::Climate, public Component, public uart::UARTDevice {
+class MitsubishiCN105Climate : public climate::Climate, public Component, public uart::UARTDevice {
  public:
   explicit MitsubishiCN105Climate() : hp_(*this) {}
 
@@ -37,7 +37,7 @@ class MitsubishiCN105Climate final : public climate::Climate, public Component, 
 };
 
 template<typename... Ts>
-class SetRemoteTemperatureAction final : public Action<Ts...>, public Parented<MitsubishiCN105Climate> {
+class SetRemoteTemperatureAction : public Action<Ts...>, public Parented<MitsubishiCN105Climate> {
  public:
   TEMPLATABLE_VALUE(float, temperature)
 
@@ -45,7 +45,7 @@ class SetRemoteTemperatureAction final : public Action<Ts...>, public Parented<M
 };
 
 template<typename... Ts>
-class ClearRemoteTemperatureAction final : public Action<Ts...>, public Parented<MitsubishiCN105Climate> {
+class ClearRemoteTemperatureAction : public Action<Ts...>, public Parented<MitsubishiCN105Climate> {
  public:
   void play(const Ts &...x) override { this->parent_->clear_remote_temperature(); }
 };
