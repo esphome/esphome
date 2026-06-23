@@ -11,6 +11,7 @@ from esphome.components.bk72xx.boards import BK72XX_BOARD_PINS
 from esphome.components.esp32.boards import ESP32_BOARD_PINS
 from esphome.components.esp8266.boards import ESP8266_BOARD_PINS
 from esphome.components.ln882x.boards import LN882X_BOARD_PINS
+from esphome.components.rp2.boards import RP2_BOARD_PINS
 from esphome.components.rtl87xx.boards import RTL87XX_BOARD_PINS
 from esphome.core import CORE
 import esphome.wizard as wz
@@ -298,6 +299,31 @@ def test_wizard_write_defaults_platform_from_board_rtl87xx(
     # Then
     generated_config = wz.write_file.call_args.args[1]
     assert "rtl87xx:" in generated_config
+
+
+def test_wizard_write_defaults_platform_from_board_rp2(
+    default_config: dict[str, Any], tmp_path: Path, monkeypatch: MonkeyPatch
+):
+    """
+    If the platform is not explicitly set, use "RP2" when the board is in
+    the RP2 boards list. The generated config must use the canonical
+    ``rp2:`` top-level key (not the deprecated ``rp2040:`` alias).
+    """
+    # Given
+    del default_config["platform"]
+    default_config["board"] = [*RP2_BOARD_PINS][0]
+
+    monkeypatch.setattr(wz, "write_file", MagicMock())
+    monkeypatch.setattr(CORE, "config_path", tmp_path.parent)
+
+    # When
+    wz.wizard_write(tmp_path, **default_config)
+
+    # Then
+    generated_config = wz.write_file.call_args.args[1]
+    assert "rp2:" in generated_config
+    # Guard against regressing to the legacy alias key.
+    assert "rp2040:" not in generated_config
 
 
 def test_safe_print_step_prints_step_number_and_description(monkeypatch: MonkeyPatch):
@@ -612,7 +638,7 @@ def test_wizard_accepts_rpipico_board(tmp_path: Path, monkeypatch: MonkeyPatch):
     # Given
     wizard_answers_rp2040 = [
         "test-node",  # Name of the node
-        "RP2040",  # platform
+        "RP2",  # platform (canonical name; ``RP2040`` was the legacy alias)
         "rpipico",  # board (no WiFi support)
     ]
     config_file = tmp_path / "test.yaml"
