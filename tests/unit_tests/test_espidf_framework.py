@@ -692,12 +692,26 @@ def test_ccache_env_opt_out_via_env(tmp_path: Path) -> None:
 
 
 def test_ccache_env_opt_in_without_binary(tmp_path: Path) -> None:
-    # Explicit IDF_CCACHE_ENABLE=1 forces it on without probing PATH.
+    # Explicit IDF_CCACHE_ENABLE=1 forces it on without probing PATH. It's
+    # already in the environment, so it isn't re-emitted, but the rest is.
     p1, p2, p3 = _ccache_patches(tmp_path, None, tmp_path / "build")
     with patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "1"}, clear=True), p1, p2, p3:
         env = _ccache_env()
-    assert env["IDF_CCACHE_ENABLE"] == "1"
+    assert "IDF_CCACHE_ENABLE" not in env
     assert env["CCACHE_DIR"] == str(tmp_path / "tools" / "ccache")
+    assert env["CCACHE_DEPEND"] == "1"
+
+
+def test_ccache_env_preserves_user_overrides(tmp_path: Path) -> None:
+    # User-set CCACHE_* values must not be clobbered; unset ones still default.
+    p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", tmp_path / "build")
+    user_env = {"CCACHE_DIR": "/my/cache", "CCACHE_MAXSIZE": "9G"}
+    with patch.dict("os.environ", user_env, clear=True), p1, p2, p3:
+        env = _ccache_env()
+    assert "CCACHE_DIR" not in env
+    assert "CCACHE_MAXSIZE" not in env
+    assert env["IDF_CCACHE_ENABLE"] == "1"
+    assert env["CCACHE_DEPEND"] == "1"
 
 
 def test_ccache_env_no_basedir_without_build_path(tmp_path: Path) -> None:

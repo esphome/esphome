@@ -819,8 +819,11 @@ def _ccache_env() -> dict[str, str]:
 
     Enabled by default whenever the ``ccache`` binary is on PATH; set
     ``IDF_CCACHE_ENABLE=0`` in the environment to opt out. The cache lives under
-    the shared IDF tools path, so it is reused across every project and survives
-    ``clean-all`` (which only clears the per-project build dir).
+    the IDF tools path. How widely it is shared depends on where that resolves:
+    across projects (and surviving ``clean-all``) when it is a common location
+    (``ESPHOME_ESP_IDF_PREFIX`` or the add-on ``/data``), but per-project under
+    ``.esphome/idf`` for a default pip install, where ``clean-all`` clears it
+    along with the framework.
 
     Depend mode keeps cache-miss overhead low (hashes the compiler's depfiles
     instead of preprocessing). ``CCACHE_BASEDIR`` rewrites the per-build
@@ -828,6 +831,9 @@ def _ccache_env() -> dict[str, str]:
     share framework cache entries; it is scoped to the build dir on purpose --
     a broader base would also rewrite the shared IDF path under the cache dir
     and lose those hits.
+
+    Only values the user has not already set in the environment are returned, so
+    a custom ``CCACHE_DIR`` / ``CCACHE_MAXSIZE`` / etc. is respected.
     """
     # Honor an explicit choice already in the environment (opt-out or opt-in).
     if "IDF_CCACHE_ENABLE" in os.environ:
@@ -837,15 +843,16 @@ def _ccache_env() -> dict[str, str]:
         # ESP-IDF silently skips ccache without the binary; don't enable it.
         return {}
 
-    env = {
+    defaults = {
         "IDF_CCACHE_ENABLE": "1",
         "CCACHE_DIR": str(_get_idf_tools_path() / "ccache"),
         "CCACHE_NOHASHDIR": "true",
         "CCACHE_DEPEND": "1",
     }
     if CORE.build_path:
-        env["CCACHE_BASEDIR"] = str(Path(CORE.build_path).resolve())
-    return env
+        defaults["CCACHE_BASEDIR"] = str(Path(CORE.build_path).resolve())
+    # Don't override CCACHE_* values the user already set in their environment.
+    return {k: v for k, v in defaults.items() if k not in os.environ}
 
 
 def get_framework_env(
