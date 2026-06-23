@@ -77,7 +77,7 @@ template<typename... Ts> class PreventDeepSleepAction;
 class DeepSleepComponent final : public Component
 #ifdef USE_OTA_STATE_LISTENER
     ,
-                           public ota::OTAGlobalStateListener
+                                 public ota::OTAGlobalStateListener
 #endif
 {
  public:
