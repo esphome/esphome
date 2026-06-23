@@ -762,6 +762,13 @@ void MQTTClientComponent::set_on_disconnect(mqtt_on_disconnect_callback_t &&call
   this->on_disconnect_.add(std::move(callback_copy));
 }
 
+#if defined(USE_ESP8266) && ASYNC_TCP_SSL_ENABLED
+void MQTTClientComponent::add_ssl_fingerprint(const std::array<uint8_t, 20> &fingerprint) {
+  this->mqtt_backend_.set_secure(true);
+  this->mqtt_backend_.add_server_fingerprint(fingerprint.data());
+}
+#endif
+
 MQTTClientComponent *global_mqtt_client = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 // MQTTMessageTrigger

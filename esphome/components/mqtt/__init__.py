@@ -1,7 +1,10 @@
+import re
+
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components import logger, socket
+from esphome.components.const import CONF_SSL_FINGERPRINTS
 from esphome.components.esp32 import (
     add_idf_component,
     add_idf_sdkconfig_option,
@@ -64,6 +67,10 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
+ESP8266_ASYNC_MQTT_CLIENT_LIBRARY = "esphome/AsyncMqttClient-esphome"
+ESP8266_ASYNC_MQTT_CLIENT_VERSION = "2.2.0"
+ESP8266_ESP_ASYNC_TCP_LIBRARY = "esphome/ESPAsyncTCP"
+ESP8266_ESP_ASYNC_TCP_VERSION = "2.1.0"
 
 
 def AUTO_LOAD():
@@ -224,6 +231,20 @@ def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
     return config
 
 
+def validate_fingerprint(value):
+    value = cv.string(value)
+    if re.match(r"^[0-9a-f]{40}$", value) is None:
+        raise cv.Invalid("fingerprint must be valid SHA1 hash")
+    return value
+
+
+def validate_ssl_fingerprints(value):
+    fingerprints = cv.ensure_list(validate_fingerprint)(value)
+    if len(fingerprints) != 1:
+        raise cv.Invalid("ESP8266 MQTT TLS supports exactly one fingerprint")
+    return fingerprints
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -279,6 +300,9 @@ CONFIG_SCHEMA = cv.All(
                     }
                 ),
                 validate_message_just_topic,
+            ),
+            cv.Optional(CONF_SSL_FINGERPRINTS): cv.All(
+                cv.only_on_esp8266, validate_ssl_fingerprints
             ),
             cv.Optional(CONF_KEEPALIVE, default="15s"): cv.positive_time_period_seconds,
             cv.Optional(
@@ -341,9 +365,18 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     # Add required libraries for ESP8266 and LibreTiny
-    if CORE.is_esp8266 or CORE.is_libretiny:
+    if CORE.is_libretiny:
         # https://github.com/heman/async-mqtt-client/blob/master/library.json
         cg.add_library("heman/AsyncMqttClient-esphome", "2.0.0")
+    elif CORE.is_esp8266:
+        cg.add_library(
+            ESP8266_ASYNC_MQTT_CLIENT_LIBRARY,
+            ESP8266_ASYNC_MQTT_CLIENT_VERSION,
+        )
+        cg.add_library(
+            ESP8266_ESP_ASYNC_TCP_LIBRARY,
+            ESP8266_ESP_ASYNC_TCP_VERSION,
+        )
 
     if CORE.is_esp32:
         # Re-enable ESP-IDF's mqtt component (excluded by default to save compile time)
@@ -450,6 +483,14 @@ async def to_code(config):
     if CONF_IDF_SEND_ASYNC in config and config[CONF_IDF_SEND_ASYNC]:
         cg.add_define("USE_MQTT_IDF_ENQUEUE")
     # end esp-idf
+
+    if CONF_SSL_FINGERPRINTS in config:
+        for fingerprint in config[CONF_SSL_FINGERPRINTS]:
+            arr = [
+                cg.RawExpression(f"0x{fingerprint[i : i + 2]}") for i in range(0, 40, 2)
+            ]
+            cg.add(var.add_ssl_fingerprint(arr))
+        cg.add_build_flag("-DASYNC_TCP_SSL_ENABLED=1")
 
     for conf in config.get(CONF_ON_MESSAGE, []):
         trig = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf[CONF_TOPIC])

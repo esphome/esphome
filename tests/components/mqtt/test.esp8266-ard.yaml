@@ -4,3 +4,8 @@ substitutions:
 packages:
   common: !include common.yaml
   update: !include common-update.yaml
+
+mqtt:
+  port: 8883
+  ssl_fingerprints:
+    - 00112233445566778899aabbccddeeff00112233

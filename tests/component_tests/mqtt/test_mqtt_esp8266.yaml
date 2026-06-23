@@ -1,0 +1,20 @@
+esphome:
+  name: test_mqtt_esp8266
+
+esp8266:
+  board: esp01_1m
+
+logger:
+  baud_rate: 115200
+
+wifi:
+  ssid: "wifi-ssid"
+  password: "wifi pwd"
+
+mqtt:
+  id: mqtt_client
+  broker: "some.bro.ker"
+  port: 1883
+  username: "mqtt_user"
+  password: "mqtt_pass"
+  log_topic: null

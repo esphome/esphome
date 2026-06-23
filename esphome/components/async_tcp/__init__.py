@@ -35,8 +35,8 @@ async def to_code(config):
         # https://github.com/ESP32Async/AsyncTCP
         cg.add_library("ESP32Async/AsyncTCP", "3.4.5")
     elif CORE.is_esp8266:
-        # https://github.com/ESP32Async/ESPAsyncTCP
-        cg.add_library("ESP32Async/ESPAsyncTCP", "2.0.0")
+        # https://github.com/esphome-libs/ESPAsyncTCP
+        cg.add_library("esphome/ESPAsyncTCP", "2.1.0")
     elif CORE.is_rp2040:
         # https://github.com/ayushsharma82/RPAsyncTCP
         # RPAsyncTCP is a drop-in replacement for AsyncTCP_RP2040W with better
