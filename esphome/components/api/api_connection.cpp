@@ -10,6 +10,7 @@
 #ifdef USE_API_USER_DEFINED_ACTIONS
 #include "user_services.h"
 #endif
+#include <array>
 #include <cerrno>
 #include <cinttypes>
 #include <functional>
@@ -417,6 +418,8 @@ uint16_t APIConnection::fill_and_encode_entity_info(EntityBase *entity, InfoResp
                                                     APIConnection *conn, uint32_t remaining_size) {
   // Set common fields that are shared by all entity types
   msg.key = entity->get_object_id_hash();
+  std::array<char, OBJECT_ID_MAX_LEN> object_id_buf;
+  msg.object_id = entity->get_object_id_to(object_id_buf);
 
   if (entity->has_own_name()) {
     msg.name = entity->get_name();
