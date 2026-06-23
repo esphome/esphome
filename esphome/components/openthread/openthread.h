@@ -19,6 +19,8 @@ namespace esphome::openthread {
 
 class InstanceLock;
 
+template<typename... Ts> class OpenThreadComponentPollPeriodAction;
+
 class OpenThreadComponent : public Component {
  public:
   OpenThreadComponent();
@@ -41,19 +43,21 @@ class OpenThreadComponent : public Component {
   void set_use_address(const char *use_address) { this->use_address_ = use_address; }
 #if CONFIG_OPENTHREAD_MTD
   void set_poll_period(uint32_t poll_period) { this->poll_period_ = poll_period; }
-  /** Returns true if this device is a Sleepy End Device (poll period > 0) */
-  bool is_sed() const { return (this->poll_period_ > 0); }
 #endif
   void set_output_power(int8_t output_power) { this->output_power_ = output_power; }
   void set_connected(bool connected) { this->connected_ = connected; }
   static void on_state_changed(otChangedFlags flags, void *context);
 
+ protected:
+  // Actions re-apply link mode under the OT lock; allow them to call apply_linkmode_()
+  // without exposing this lock-sensitive, raw-instance method on the public API.
+  template<typename... Ts> friend class OpenThreadComponentPollPeriodAction;
+
   /** Apply Link Mode settings (incl poll period).
    * When called from outside the OpenThread task, call while holding InstanceLock.
    */
-  void apply_linkmode(otInstance *instance);
+  void apply_linkmode_(otInstance *instance);
 
- protected:
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
   otInstance *get_openthread_instance_();
   int openthread_stop_();

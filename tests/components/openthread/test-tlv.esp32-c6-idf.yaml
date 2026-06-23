@@ -14,7 +14,7 @@ switch:
     restore_mode: ALWAYS_OFF
     turn_on_action:
       then:
-        - openthread.pollperiod: 0s
+        - openthread.set_poll_period: 0s
     turn_off_action:
       then:
-        - openthread.pollperiod: 5s
+        - openthread.set_poll_period: 5s

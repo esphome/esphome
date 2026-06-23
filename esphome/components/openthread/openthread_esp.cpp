@@ -111,7 +111,7 @@ void OpenThreadComponent::ot_main() {
 
   ESP_LOGD(TAG, "Thread Version: %" PRIu16, otThreadGetVersion());
 
-  this->apply_linkmode(instance);
+  this->apply_linkmode_(instance);
 
   if (this->output_power_.has_value()) {
     if (const auto err = otPlatRadioSetTransmitPower(instance, *this->output_power_); err != OT_ERROR_NONE) {

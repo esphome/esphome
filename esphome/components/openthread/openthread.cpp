@@ -266,7 +266,7 @@ void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
   ESP_LOGD(TAG, "Waiting on Confirmation Removal SRP Host and Services");
 }
 
-void OpenThreadComponent::apply_linkmode(otInstance *instance) {
+void OpenThreadComponent::apply_linkmode_(otInstance *instance) {
   otLinkModeConfig link_mode_config{};
 #if CONFIG_OPENTHREAD_FTD
   link_mode_config.mRxOnWhenIdle = true;

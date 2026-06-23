@@ -309,7 +309,6 @@ OpenThreadComponentPollPeriodAction = openthread_ns.class_(
     cg.Parented.template(OpenThreadComponent),
 )
 
-# TODO: Validations (e.g. MTD only)
 POLL_PERIOD_ACTION_SCHEMA = automation.maybe_conf(
     CONF_POLL_PERIOD,
     cv.Schema(
@@ -324,7 +323,7 @@ POLL_PERIOD_ACTION_SCHEMA = automation.maybe_conf(
 
 
 @automation.register_action(
-    "openthread.pollperiod",
+    "openthread.set_poll_period",
     OpenThreadComponentPollPeriodAction,
     POLL_PERIOD_ACTION_SCHEMA,
     synchronous=True,
