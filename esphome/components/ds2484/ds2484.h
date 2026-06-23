@@ -8,7 +8,7 @@
 
 namespace esphome::ds2484 {
 
-class DS2484OneWireBus : public one_wire::OneWireBus, public i2c::I2CDevice, public Component {
+class DS2484OneWireBus final : public one_wire::OneWireBus, public i2c::I2CDevice, public Component {
  public:
   void setup() override;
   void dump_config() override;

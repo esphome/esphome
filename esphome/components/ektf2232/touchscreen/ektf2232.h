@@ -10,7 +10,7 @@ namespace esphome::ektf2232 {
 
 using namespace touchscreen;
 
-class EKTF2232Touchscreen : public Touchscreen, public i2c::I2CDevice {
+class EKTF2232Touchscreen final : public Touchscreen, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
