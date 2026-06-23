@@ -1,0 +1,9 @@
+remote_transmitter:
+  pin: GPIO4
+  carrier_duty_percent: 50%
+
+climate:
+  - platform: remko_ar715
+    name: Test RemkoAr715
+    supports_cool: true
+    supports_heat: false
