@@ -5,6 +5,7 @@ import urllib.parse
 from esphome import core, external_files
 import esphome.codegen as cg
 from esphome.components import esp32, i2c
+from esphome.components.const import CONF_STATE_SAVE_INTERVAL
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -28,7 +29,6 @@ DOMAIN = "bme690"
 CONF_BME690_ID = "bme690_id"
 CONF_BSEC_CONFIG = "bsec_config"
 CONF_BSEC_LIBRARY = "bsec_library"
-CONF_STATE_SAVE_INTERVAL = "state_save_interval"
 KEY_BSEC_LIBRARY = "bsec_library"
 
 bme690_ns = cg.esphome_ns.namespace("bme690")
