@@ -15,6 +15,7 @@ from unittest.mock import patch
 import pytest
 
 from esphome.espidf.framework import (
+    _ccache_env,
     _check_stamp,
     _check_windows_path_length,
     _clone_idf_with_submodules,
@@ -637,6 +638,66 @@ def test_get_framework_env_without_python_env_uses_os_path(tmp_path: Path) -> No
 
     assert "IDF_PYTHON_ENV_PATH" not in env
     assert env["PATH"]  # taken from os.environ
+
+
+# ---------------------------------------------------------------------------
+# _ccache_env
+# ---------------------------------------------------------------------------
+
+
+def _ccache_patches(tmp_path: Path, which: str | None, build_path: Path | None):
+    return (
+        patch("esphome.espidf.framework.shutil.which", return_value=which),
+        patch(
+            "esphome.espidf.framework._get_idf_tools_path",
+            return_value=tmp_path / "tools",
+        ),
+        patch(
+            "esphome.espidf.framework.CORE",
+            SimpleNamespace(build_path=build_path),
+        ),
+    )
+
+
+def test_ccache_env_default_enabled_when_available(tmp_path: Path) -> None:
+    p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", tmp_path / "build")
+    with patch.dict("os.environ", {}, clear=True), p1, p2, p3:
+        env = _ccache_env()
+    assert env["IDF_CCACHE_ENABLE"] == "1"
+    assert env["CCACHE_DIR"] == str(tmp_path / "tools" / "ccache")
+    assert env["CCACHE_NOHASHDIR"] == "true"
+    assert env["CCACHE_DEPEND"] == "1"
+    assert env["CCACHE_BASEDIR"] == str((tmp_path / "build").resolve())
+
+
+def test_ccache_env_disabled_when_binary_missing(tmp_path: Path) -> None:
+    p1, p2, p3 = _ccache_patches(tmp_path, None, tmp_path / "build")
+    with patch.dict("os.environ", {}, clear=True), p1, p2, p3:
+        assert _ccache_env() == {}
+
+
+def test_ccache_env_opt_out_via_env(tmp_path: Path) -> None:
+    # Explicit IDF_CCACHE_ENABLE=0 wins even when the binary is present.
+    p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", tmp_path / "build")
+    with patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "0"}, clear=True), p1, p2, p3:
+        assert _ccache_env() == {}
+
+
+def test_ccache_env_opt_in_without_binary(tmp_path: Path) -> None:
+    # Explicit IDF_CCACHE_ENABLE=1 forces it on without probing PATH.
+    p1, p2, p3 = _ccache_patches(tmp_path, None, tmp_path / "build")
+    with patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "1"}, clear=True), p1, p2, p3:
+        env = _ccache_env()
+    assert env["IDF_CCACHE_ENABLE"] == "1"
+    assert env["CCACHE_DIR"] == str(tmp_path / "tools" / "ccache")
+
+
+def test_ccache_env_no_basedir_without_build_path(tmp_path: Path) -> None:
+    p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", None)
+    with patch.dict("os.environ", {}, clear=True), p1, p2, p3:
+        env = _ccache_env()
+    assert "CCACHE_BASEDIR" not in env
+    assert env["IDF_CCACHE_ENABLE"] == "1"
 
 
 # ---------------------------------------------------------------------------

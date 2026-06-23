@@ -23,7 +23,7 @@ from esphome.framework_helpers import (
     run_command_ok,
     str_to_lst_of_str,
 )
-from esphome.helpers import get_str_env, write_file_if_changed
+from esphome.helpers import get_bool_env, get_str_env, write_file_if_changed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -812,6 +812,40 @@ def check_esp_idf_install(
     return framework_path, python_env_path
 
 
+def _ccache_env() -> dict[str, str]:
+    """Return ccache settings for ESP-IDF compiles.
+
+    Enabled by default whenever the ``ccache`` binary is on PATH; set
+    ``IDF_CCACHE_ENABLE=0`` in the environment to opt out. The cache lives under
+    the shared IDF tools path, so it is reused across every project and survives
+    ``clean-all`` (which only clears the per-project build dir).
+
+    Depend mode keeps cache-miss overhead low (hashes the compiler's depfiles
+    instead of preprocessing). ``CCACHE_BASEDIR`` rewrites the per-build
+    absolute paths (generated ``sdkconfig`` include, etc.) so different devices
+    share framework cache entries; it is scoped to the build dir on purpose --
+    a broader base would also rewrite the shared IDF path under the cache dir
+    and lose those hits.
+    """
+    # Honor an explicit choice already in the environment (opt-out or opt-in).
+    if "IDF_CCACHE_ENABLE" in os.environ:
+        if not get_bool_env("IDF_CCACHE_ENABLE"):
+            return {}
+    elif shutil.which("ccache") is None:
+        # ESP-IDF silently skips ccache without the binary; don't enable it.
+        return {}
+
+    env = {
+        "IDF_CCACHE_ENABLE": "1",
+        "CCACHE_DIR": str(_get_idf_tools_path() / "ccache"),
+        "CCACHE_NOHASHDIR": "true",
+        "CCACHE_DEPEND": "1",
+    }
+    if CORE.build_path:
+        env["CCACHE_BASEDIR"] = str(Path(CORE.build_path).resolve())
+    return env
+
+
 def get_framework_env(
     framework_path: PathType,
     python_env_path: PathType | None = None,
@@ -853,5 +887,8 @@ def get_framework_env(
     paths_to_export, export_vars = _get_idf_tool_paths(framework_path, env)
     env.update(export_vars)
     env["PATH"] = os.pathsep.join(paths_to_export + path_list)
+
+    # 6. Enable ccache for the compile toolchain (default on when available).
+    env.update(_ccache_env())
 
     return env
