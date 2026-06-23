@@ -805,16 +805,6 @@ jobs:
       # esp32 component builds use the native ESP-IDF toolchain (default), so
       # share the tidy jobs' install location -- the restore below lands here.
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
-      # ccache for the ESP-IDF builds: a batch compiles the same target many
-      # times, so framework objects dedupe. BASEDIR + NOHASHDIR are needed
-      # because each build lands in a different per-device dir; depend mode
-      # keeps cache-miss overhead low.
-      IDF_CCACHE_ENABLE: "1"
-      CCACHE_DIR: /mnt/ccache
-      CCACHE_BASEDIR: ${{ github.workspace }}
-      CCACHE_NOHASHDIR: "true"
-      CCACHE_MAXSIZE: 2G
-      CCACHE_DEPEND: "1"
     strategy:
       fail-fast: false
       max-parallel: ${{ (startsWith(github.base_ref, 'beta') || startsWith(github.base_ref, 'release')) && 8 || 4 }}
@@ -848,10 +838,6 @@ jobs:
         uses: ./.github/actions/cache-esp-idf
         with:
           restore-only: true
-      - name: Prepare ccache
-        run: |
-          sudo mkdir -p "$CCACHE_DIR" && sudo chown "$USER":"$USER" "$CCACHE_DIR"
-          ccache -z
       - name: Validate and compile components with intelligent grouping
         run: |
           . venv/bin/activate
@@ -956,7 +942,9 @@ jobs:
           fi
 
       - name: Print ccache statistics
-        run: ccache -s
+        # esphome stores the cache under the IDF tools path; expand the leading
+        # ~ in ESPHOME_ESP_IDF_PREFIX so ccache reads the dir the build used.
+        run: CCACHE_DIR="${ESPHOME_ESP_IDF_PREFIX/#\~/$HOME}/ccache" ccache -s
 
   test-esp32-platformio:
     name: Test esp32 components with PlatformIO
