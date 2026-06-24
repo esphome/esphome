@@ -8,8 +8,8 @@ using modbus::helpers::payload_to_number;
 
 static const char *const TAG = "modbus_server";
 
-modbus::ModbusServerResponse ModbusServer::on_modbus_read_registers(uint16_t start_address,
-                                                                    uint16_t number_of_registers) {
+modbus::ServerRegisterResponse ModbusServer::on_modbus_read_registers(uint16_t start_address,
+                                                                      uint16_t number_of_registers) {
   ESP_LOGD(TAG,
            "Received read holding/input registers for device 0x%X. Start address: 0x%X. Number of registers: 0x%X.",
            this->address_, start_address, number_of_registers);
@@ -57,9 +57,9 @@ modbus::ModbusServerResponse ModbusServer::on_modbus_read_registers(uint16_t sta
   return {sixteen_bit_response.data(), sixteen_bit_response.size()};
 }
 
-modbus::ModbusServerResponse ModbusServer::on_modbus_write_registers(uint16_t start_address,
-                                                                     uint16_t number_of_registers, const uint8_t *data,
-                                                                     uint16_t len) {
+modbus::ServerRegisterResponse ModbusServer::on_modbus_write_registers(uint16_t start_address,
+                                                                       uint16_t number_of_registers,
+                                                                       const uint8_t *data, uint16_t len) {
   // data points at the register values; the caller has validated the register count and length.
   ESP_LOGD(TAG, "Received write registers for device 0x%X. Start address: 0x%X. Number of registers: 0x%X.",
            this->address_, start_address, number_of_registers);

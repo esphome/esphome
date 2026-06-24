@@ -196,23 +196,23 @@ class ModbusClientDevice {
 // This is for compatibility with external components using the former class name
 using ModbusDevice = ModbusClientDevice;
 
-struct ModbusServerResponse {
+struct ServerRegisterResponse {
   ModbusExceptionCode exception{};
-  // Exact-size payload allocation to avoid std::vector overhead (mirrors ModbusFrame)
-  std::unique_ptr<uint16_t[]> payload;
-  size_t payload_len{0};
+  // Exact-size register allocation to avoid std::vector overhead (mirrors ModbusFrame)
+  std::unique_ptr<uint16_t[]> registers;
+  size_t register_count{0};
 
-  ModbusServerResponse() = default;
+  ServerRegisterResponse() = default;
 
-  // Successful response: copies the payload into an exact-size buffer.
-  ModbusServerResponse(const uint16_t *payload, size_t payload_len)
-      : payload(std::make_unique<uint16_t[]>(payload_len)), payload_len(payload_len) {
-    memcpy(this->payload.get(), payload, payload_len * sizeof(uint16_t));
+  // Successful response: copies the registers into an exact-size buffer.
+  ServerRegisterResponse(const uint16_t *registers, size_t register_count)
+      : registers(std::make_unique<uint16_t[]>(register_count)), register_count(register_count) {
+    memcpy(this->registers.get(), registers, register_count * sizeof(uint16_t));
   }
 
-  // Error response: carries a Modbus exception code and no payload.
+  // Error response: carries a Modbus exception code and no registers.
   // Implicit on purpose so device handlers can simply `return ModbusExceptionCode::...;`.
-  ModbusServerResponse(ModbusExceptionCode exception) : exception(exception) {}
+  ServerRegisterResponse(ModbusExceptionCode exception) : exception(exception) {}
 };
 
 class ModbusServerDevice {
@@ -226,17 +226,18 @@ class ModbusServerDevice {
   ModbusServerDevice &operator=(ModbusServerDevice &&) = delete;
   void set_address(uint8_t address) { address_ = address; }
   uint8_t get_address() const { return address_; }
-  virtual ModbusServerResponse on_modbus_read_registers(uint16_t start_address, uint16_t number_of_registers) {
+  virtual ServerRegisterResponse on_modbus_read_registers(uint16_t start_address, uint16_t number_of_registers) {
     return ModbusExceptionCode::ILLEGAL_FUNCTION;
   };
-  virtual ModbusServerResponse on_modbus_read_input_registers(uint16_t start_address, uint16_t number_of_registers) {
+  virtual ServerRegisterResponse on_modbus_read_input_registers(uint16_t start_address, uint16_t number_of_registers) {
     return this->on_modbus_read_registers(start_address, number_of_registers);
   };
-  virtual ModbusServerResponse on_modbus_read_holding_registers(uint16_t start_address, uint16_t number_of_registers) {
+  virtual ServerRegisterResponse on_modbus_read_holding_registers(uint16_t start_address,
+                                                                  uint16_t number_of_registers) {
     return this->on_modbus_read_registers(start_address, number_of_registers);
   };
-  virtual ModbusServerResponse on_modbus_write_registers(uint16_t start_address, uint16_t number_of_registers,
-                                                         const uint8_t *data, uint16_t len) {
+  virtual ServerRegisterResponse on_modbus_write_registers(uint16_t start_address, uint16_t number_of_registers,
+                                                           const uint8_t *data, uint16_t len) {
     return ModbusExceptionCode::ILLEGAL_FUNCTION;
   };
 
