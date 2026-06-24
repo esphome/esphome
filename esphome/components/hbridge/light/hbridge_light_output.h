@@ -25,12 +25,9 @@ class HBridgeLightOutput final : public PollingComponent, public light::LightOut
   void setup() override { this->stop_poller(); }
 
   void update() override {
-    // Polled only while both channels are active. Alternate the H-bridge direction to
-    // multiplex cold and warm white; update_interval sets the flip cadence. It must be
-    // slower than the output's PWM period so each channel completes PWM cycles (flipping
-    // faster collapses the output onto one side), but fast enough to avoid visible flicker.
-    // The 8 ms default matches the effective rate of the original PollingComponent and can
-    // be tuned via update_interval (issue #17030).
+    // Flip the H-bridge direction to multiplex cold/warm white. update_interval must stay
+    // slower than the output's PWM period (flipping faster collapses the output onto one
+    // channel) but fast enough to avoid flicker (issue #17030).
     if (!this->forward_direction_) {
       this->pina_pin_->set_level(this->pina_duty_);
       this->pinb_pin_->set_level(0);
