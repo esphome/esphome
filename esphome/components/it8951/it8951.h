@@ -226,6 +226,9 @@ class IT8951Display : public Display,
   void set_mono_pixel_(uint16_t x, uint16_t y, bool value) const;
   // Write a 4bpp grayscale nibble into the framebuffer (two pixels per byte).
   void set_gray_pixel_(uint16_t x, uint16_t y, uint8_t nibble) const;
+  // Convert a color and write it at native framebuffer coordinates: a 4bpp
+  // nibble in grayscale mode, or an ordered-dithered bit in monochrome mode.
+  void write_pixel_native_(uint16_t x, uint16_t y, const Color &color) const;
 
   // --- Op queue / loop machinery ---
   void enqueue_(OpType type, uint16_t a = 0, uint16_t b = 0);

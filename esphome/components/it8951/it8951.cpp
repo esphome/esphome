@@ -698,13 +698,16 @@ bool IT8951Display::prepare_update_region_(UpdateMode &mode) {
     this->x_high_ = this->width_;
     this->y_high_ = this->height_;
   } else {
-    // IT8951 requires x and width to be multiples of 4 pixels (4bpp).
-    // For the 1bpp trick (8BPP with area_w/8), we need area_w to be a
-    // multiple of 16 so that the byte count sent (word-padded) matches
-    // what the IT8951 expects.  16-alignment satisfies both constraints.
-    this->x_low_ &= 0xFFF0;
+    // Align the partial region's X extent to 32 pixels. The IT8951's partial
+    // display refresh snaps the X start/width to a 32-pixel boundary (the panel
+    // source driver fetches 32-pixel chunks); refreshing a region whose X is
+    // only 16-aligned makes the panel snap it down to the previous boundary,
+    // shifting that update ~16px to the left. 32-alignment also satisfies the
+    // load constraints (4bpp X must be a multiple of 4; the 8bpp-packed mono
+    // load needs x/8 even, i.e. X a multiple of 16).
+    this->x_low_ &= 0xFFE0;
     uint16_t temp_max = this->x_high_ > 0 ? static_cast<uint16_t>(this->x_high_ - 1) : 0;
-    temp_max = static_cast<uint16_t>(temp_max | 0x000F);
+    temp_max = static_cast<uint16_t>(temp_max | 0x001F);
     if (temp_max >= this->width_)
       temp_max = static_cast<uint16_t>(this->width_ - 1);
     this->x_high_ = static_cast<uint16_t>(temp_max + 1);
@@ -901,6 +904,16 @@ static uint8_t color_to_nibble(const Color &color) {
   return quantize_8bit_to_nibble(static_cast<uint8_t>(gray));
 }
 
+// 4x4 ordered (Bayer) dither threshold over the RGB-sum range (0..765). A pixel
+// whose r+g+b is below the threshold renders black, so lighter pixels produce
+// progressively sparser black dots instead of vanishing to white. The matrix
+// averages to ~382, matching the conventional monochrome cut (r+g+b >= 382 is
+// white), while the per-pixel variation reproduces intermediate gray levels.
+static inline uint16_t dither_threshold(uint16_t x, uint16_t y) {
+  static const uint8_t BAYER4[16] = {0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5};
+  return static_cast<uint16_t>(BAYER4[((y & 3) << 2) | (x & 3)] * 48 + 24);
+}
+
 void IT8951Display::fill(Color color) {
   if (this->get_clipping().is_set()) {
     Display::fill(color);
@@ -928,13 +941,22 @@ void HOT IT8951Display::draw_pixel_at(int x, int y, Color color) {
   App.feed_wdt();
   if (!this->rotate_coordinates_(x, y))
     return;
-  uint8_t internal_color = color_to_nibble(color) & 0x0F;
-  if (this->invert_colors_)
-    internal_color = 0x0F - internal_color;
+  this->write_pixel_native_(static_cast<uint16_t>(x), static_cast<uint16_t>(y), color);
+}
+
+void HOT IT8951Display::write_pixel_native_(uint16_t x, uint16_t y, const Color &color) const {
   if (this->grayscale_) {
-    this->set_gray_pixel_(static_cast<uint16_t>(x), static_cast<uint16_t>(y), internal_color);
+    uint8_t nibble = color_to_nibble(color);
+    if (this->invert_colors_)
+      nibble = static_cast<uint8_t>(0x0F - nibble);
+    this->set_gray_pixel_(x, y, nibble);
   } else {
-    this->set_mono_pixel_(static_cast<uint16_t>(x), static_cast<uint16_t>(y), internal_color <= 0x07);
+    uint16_t lum = static_cast<uint16_t>(color.r) + color.g + color.b;  // 0..765, 765 = white
+    if (this->invert_colors_)
+      lum = static_cast<uint16_t>(765 - lum);
+    // Ordered dither: set the bit (foreground/black) when this pixel is darker
+    // than its dither threshold, so pale colours render as visible texture.
+    this->set_mono_pixel_(x, y, lum < dither_threshold(x, y));
   }
 }
 
@@ -972,19 +994,13 @@ void HOT IT8951Display::draw_pixels_at(int x_start, int y_start, int w, int h, c
           color_value = ptr[source_idx];
           break;
       }
-      uint8_t nibble = color_to_nibble(ColorUtil::to_color(color_value, order, bitness)) & 0x0F;
-      if (this->invert_colors_)
-        nibble = 0x0F - nibble;
       int nx = x_start + x;
       int ny = y_start + y;
       this->apply_transform_(nx, ny);
       if (nx < 0 || ny < 0 || nx >= this->width_ || ny >= this->height_)
         continue;
-      if (this->grayscale_) {
-        this->set_gray_pixel_(static_cast<uint16_t>(nx), static_cast<uint16_t>(ny), nibble);
-      } else {
-        this->set_mono_pixel_(static_cast<uint16_t>(nx), static_cast<uint16_t>(ny), nibble <= 0x07);
-      }
+      this->write_pixel_native_(static_cast<uint16_t>(nx), static_cast<uint16_t>(ny),
+                                ColorUtil::to_color(color_value, order, bitness));
     }
   }
 

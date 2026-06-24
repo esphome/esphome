@@ -308,6 +308,11 @@ def _customise_schema(config):
         # Report the configured rotation so LVGL can detect (and reject) a
         # rotation set in the display config instead of the LVGL config.
         rotation=model_config.get(CONF_ROTATION, 0),
+        # The IT8951 snaps partial display refreshes to a 32-pixel X boundary
+        # (see prepare_update_region_), so have LVGL round its redraw areas to
+        # 32px too — this keeps flush rectangles aligned with what the panel
+        # actually refreshes and avoids redundant re-rounding/over-draw.
+        draw_rounding=32,
     )
 
     return model_config
