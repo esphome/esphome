@@ -338,7 +338,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
                                                    uint16_t len) {
   for (auto *device : this->devices_) {
     if (device->get_address() == address) {
-      ServerRegisterResponse response;
+      ServerResponseStatus response;
       uint8_t buffer[modbus::MAX_RAW_SIZE];
       const uint8_t *response_data = buffer;
       uint16_t response_len = 0;
@@ -406,8 +406,12 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
             return;
           }
         }
-        response = device->on_modbus_write_registers(start_address, number_of_registers, data + values_offset,
-                                                     number_of_registers * 2);
+        // Assemble the register values (host byte order) so the handler never sees wire framing.
+        ServerRegisterData in_registers;
+        for (uint16_t i = 0; i < number_of_registers; i++) {
+          in_registers.push_back(helpers::get_data<uint16_t>(data, values_offset + i * 2));
+        }
+        response = device->on_modbus_write_registers(start_address, number_of_registers, in_registers);
         response_data = data;  // echo the request header per Modbus 6.6, 6.12
         response_len = 4;
       } else {

@@ -179,6 +179,32 @@ int64_t payload_to_number(const uint8_t *data, size_t size, SensorValueType sens
   return value;
 }
 
+int64_t registers_to_number(const uint16_t *registers, size_t count, SensorValueType sensor_value_type,
+                            uint16_t register_offset, uint32_t bitmask, bool *error_return) {
+  const size_t required_size = required_payload_size(sensor_value_type);
+  if (required_size == 0) {
+    return 0;  // RAW/unsupported: nothing to read
+  }
+  const size_t required_words = required_size / 2;
+  if (static_cast<size_t>(register_offset) + required_words > count) {
+    ESP_LOGE(TAG, "not enough registers for value type=%u offset=%u count=%zu required=%zu",
+             static_cast<unsigned int>(sensor_value_type), static_cast<unsigned int>(register_offset), count,
+             required_words);
+    if (error_return)
+      *error_return = true;
+    return 0;
+  }
+  // Serialize the needed words back to big-endian bytes and reuse the audited byte decoder so the
+  // mask/shift and sign-extension behaviour stays identical to the wire path.
+  uint8_t bytes[8];  // at most 4 registers (QWORD)
+  for (size_t i = 0; i < required_words; i++) {
+    uint16_t reg = registers[register_offset + i];
+    bytes[i * 2] = static_cast<uint8_t>(reg >> 8);
+    bytes[i * 2 + 1] = static_cast<uint8_t>(reg & 0xFF);
+  }
+  return payload_to_number(bytes, required_size, sensor_value_type, 0, bitmask, error_return);
+}
+
 StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(ModbusFunctionCode function_code, uint16_t start_address,
                                                       uint16_t number_of_entities, const uint8_t *values,
                                                       size_t values_len) {
