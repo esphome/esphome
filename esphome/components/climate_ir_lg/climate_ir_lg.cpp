@@ -266,7 +266,7 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
       return true;
 
     case HEADER_BASIC:
-      if (this->alternative_mode_ && (remote_state & COMMAND_DATA_MASK) == BASIC_JET) {
+      if ((remote_state & COMMAND_DATA_MASK) == BASIC_JET) {
         switch (this->mode) {
           case climate::CLIMATE_MODE_COOL:
           case climate::CLIMATE_MODE_HEAT:
