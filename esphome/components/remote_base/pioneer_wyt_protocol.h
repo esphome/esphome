@@ -66,7 +66,6 @@ class PioneerWytData {
   static PioneerWytData make_fan(uint8_t fan_speed, bool mute, bool vertical_swing, bool horizontal_swing);
 
  protected:
-  uint8_t checksum_offset_ = 0;
   std::array<uint8_t, WYT_REMOTE_COMMAND_SIZE> data_{0};
 
   // Calculate checksum
