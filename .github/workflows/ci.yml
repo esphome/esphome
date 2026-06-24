@@ -34,7 +34,7 @@ jobs:
         run: echo key="${{ hashFiles('requirements.txt', 'requirements_dev.txt', 'requirements_test.txt', '.pre-commit-config.yaml') }}" >> $GITHUB_OUTPUT
       - name: Set up Python ${{ env.DEFAULT_PYTHON }}
         id: python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
       - name: Restore Python virtual environment
@@ -162,7 +162,7 @@ jobs:
           ref: main
           path: device-builder
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.13"
       - name: Set up uv
@@ -360,7 +360,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Set up Python 3.13
         id: python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.13"
       - name: Restore Python virtual environment
