@@ -6,7 +6,7 @@
 
 namespace esphome::opentherm {
 
-class OpenthermOutput : public output::FloatOutput, public Component, public OpenthermInput {
+class OpenthermOutput final : public output::FloatOutput, public Component, public OpenthermInput {
  protected:
   bool has_state_ = false;
   const char *id_ = nullptr;

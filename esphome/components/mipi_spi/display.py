@@ -172,13 +172,19 @@ def model_schema(config):
     if bus_mode == TYPE_SINGLE:
         other_options.append(CONF_SPI_16)
     # Calculate default SPI mode. Mode3 for octal bus or single bus with no cs pin, mode0 otherwise.
-    spi_mode = model.get_default(CONF_SPI_MODE)
+    spi_mode = (
+        cv.UNDEFINED if CONF_SPI_MODE in config else model.get_default(CONF_SPI_MODE)
+    )
     if not spi_mode:
         if bus_mode == TYPE_OCTAL or (
             bus_mode == TYPE_SINGLE
-            and not config.get(CONF_CS_PIN, model.get_default(CONF_CS_PIN))
+            and config.get(CONF_CS_PIN, model.get_default(CONF_CS_PIN)) is False
         ):
             spi_mode = "MODE3"
+            if bus_mode == TYPE_SINGLE:
+                LOGGER.warning(
+                    "No SPI mode specified, defaulting to MODE3 due to lack of CS pin. If you experience issues, try setting SPI mode explicitly to MODE0 or MODE3."
+                )
         else:
             spi_mode = "MODE0"
 
