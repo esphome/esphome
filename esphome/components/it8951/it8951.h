@@ -192,7 +192,7 @@ class IT8951Display : public Display,
   void update_mode(UpdateMode mode);
   DisplayType get_display_type() override { return this->grayscale_ ? DISPLAY_TYPE_GRAYSCALE : DISPLAY_TYPE_BINARY; }
   void fill(Color color) override;
-  void clear() override { this->fill(COLOR_ON); }
+  void clear() override { this->fill(Color::WHITE); }
   void draw_pixel_at(int x, int y, Color color) override;
   // Bulk pixel blit (used by LVGL and image rendering). Overridden to write
   // straight into the framebuffer, avoiding the base class's per-pixel
