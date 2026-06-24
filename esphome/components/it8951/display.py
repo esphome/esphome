@@ -41,7 +41,7 @@ DEPENDENCIES = ["spi"]
 CONF_VCOM = "vcom"
 CONF_VCOM_REGISTER = "vcom_register"
 CONF_FORCE_TEMPERATURE = "force_temperature"
-CONF_FORCE_1BPP = "force_1bpp"
+CONF_GRAYSCALE = "grayscale"
 CONF_UPDATE_MODE = "update_mode"
 CONF_USE_LEGACY_DPY_AREA = "use_legacy_dpy_area"
 
@@ -214,7 +214,7 @@ def _model_schema(config):
             cv.Required(CONF_MODEL): cv.one_of(model.name, upper=True, space="-"),
             cv.Optional(CONF_ROTATION, default=0): validate_rotation,
             cv.Optional(CONF_UPDATE_INTERVAL, default=cv.UNDEFINED): update_interval,
-            cv.Optional(CONF_FULL_UPDATE_EVERY, default=30): cv.int_range(0, 255),
+            cv.Optional(CONF_FULL_UPDATE_EVERY, default=30): cv.int_range(1, 255),
             cv.Optional(CONF_TRANSFORM): cv.Schema(
                 {
                     cv.Required(CONF_MIRROR_X): cv.boolean,
@@ -229,8 +229,11 @@ def _model_schema(config):
                 CONF_SLEEP_WHEN_DONE,
                 default=model.get_default(CONF_SLEEP_WHEN_DONE, False),
             ): cv.boolean,
+            # Pixel format: true = 4bpp grayscale, false = packed 1bpp
+            # monochrome. Monochrome halves the framebuffer and enables fast DU
+            # partial refreshes; grayscale gives 16 levels but always uses GC16.
             cv.Optional(
-                CONF_FORCE_1BPP, default=model.get_default(CONF_FORCE_1BPP, False)
+                CONF_GRAYSCALE, default=model.get_default(CONF_GRAYSCALE, True)
             ): cv.boolean,
             cv.Optional(
                 CONF_VCOM, default=model.get_default(CONF_VCOM, 2300)
@@ -358,8 +361,7 @@ async def to_code(config):
         cg.add(var.set_force_temperature(config[CONF_FORCE_TEMPERATURE]))
     if config.get(CONF_USE_LEGACY_DPY_AREA):
         cg.add(var.set_use_legacy_dpy_area(True))
-    if config.get(CONF_FORCE_1BPP):
-        cg.add(var.set_force_1bpp(True))
+    cg.add(var.set_grayscale(config[CONF_GRAYSCALE]))
     if CONF_UPDATE_MODE in config:
         cg.add(var.set_update_mode(UPDATE_MODE_OPTIONS[config[CONF_UPDATE_MODE]]))
 

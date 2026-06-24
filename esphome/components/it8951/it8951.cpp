@@ -1,6 +1,5 @@
 #include "it8951.h"
 
-#include <array>
 #include <cstring>
 
 #include "esphome/core/application.h"
@@ -11,10 +10,6 @@
 namespace esphome::it8951 {
 
 static const char *const TAG = "it8951";
-
-// Maximum row buffer sizes for supported panel widths (up to 2048 pixels).
-static constexpr size_t MAX_4BPP_ROW_BYTES = 2048 / 2;
-static constexpr size_t MAX_1BPP_ROW_BYTES = 2048 / 8;
 
 // Soft cap for time spent in a single XFER_ROWS Op so we yield back to the
 // loop within one tick budget.
@@ -209,7 +204,7 @@ void IT8951Display::advance_phase_() {
       }
 
       this->dev_info_attempts_ = 0;
-      this->row_width_ = static_cast<uint16_t>((static_cast<uint32_t>(this->width_) + 1) / 2);
+      this->row_width_ = this->compute_row_width_();
       this->buffer_length_ = static_cast<size_t>(this->row_width_) * static_cast<size_t>(this->height_);
       this->img_buf_addr_l_ = this->dev_info_.img_buf_addr_l;
       this->img_buf_addr_h_ = this->dev_info_.img_buf_addr_h;
@@ -256,7 +251,6 @@ void IT8951Display::advance_phase_() {
       break;
 
     case Phase::UPDATE_PREPARE: {
-      this->has_grayscale_ = false;
       this->do_update_();
       UpdateMode mode = this->active_mode_;
       if (!this->prepare_update_region_(mode)) {
@@ -277,7 +271,7 @@ void IT8951Display::advance_phase_() {
       break;
 
     case Phase::UPDATE_REFRESH:
-      if (this->use_1bpp_) {
+      if (!this->grayscale_) {
         this->set_phase_(Phase::UPDATE_RESTORE);
         this->enqueue_update_restore_();
       } else {
@@ -407,13 +401,13 @@ void IT8951Display::enqueue_update_transfer_() {
 }
 
 void IT8951Display::enqueue_update_refresh_() {
-  ESP_LOGV(TAG, "Enqueueing refresh ops: use_1bpp=%u", this->use_1bpp_);
+  ESP_LOGV(TAG, "Enqueueing refresh ops: grayscale=%u", this->grayscale_);
   // Poll LUT idle: CMD(REG_RD) → WRITE_W(LUTAFSR) → READ_WORD → CHECK_LUT_IDLE
   this->enqueue_(OpType::CMD, TCON_REG_RD);
   this->enqueue_(OpType::WRITE_W, LUTAFSR);
   this->enqueue_(OpType::READ_WORD);
   this->enqueue_(OpType::CHECK_LUT_IDLE);
-  if (this->use_1bpp_) {
+  if (!this->grayscale_) {
     // Read UP1SR+2: CMD(REG_RD) → WRITE_W(UP1SR+2) → READ_WORD → SET_1BPP
     this->enqueue_(OpType::CMD, TCON_REG_RD);
     this->enqueue_(OpType::WRITE_W, static_cast<uint16_t>(UP1SR + 2));
@@ -540,7 +534,7 @@ void IT8951Display::spi_read_dev_info_() {
   this->write_byte16(0x0000);  // dummy
   wait_for_hardware_ready(this->busy_pin_);
   auto *words = reinterpret_cast<uint16_t *>(&this->dev_info_);
-  const uint32_t word_count = sizeof(this->dev_info_) / sizeof(uint16_t);
+  constexpr uint32_t word_count = sizeof(this->dev_info_) / sizeof(uint16_t);
   for (uint32_t i = 0; i < word_count; i++) {
     const uint8_t hi = this->transfer_byte(0);
     const uint8_t lo = this->transfer_byte(0);
@@ -563,17 +557,19 @@ void IT8951Display::op_xfer_lisar_() {
 void IT8951Display::op_xfer_area_args_() {
   // Single CS transaction: WRITE preamble + 5 area-parameter words.
   uint16_t args[5];
-  if (this->use_1bpp_) {
-    args[0] = static_cast<uint16_t>((LDIMG_L_ENDIAN << 8) | (PIXEL_8BPP << 4));
-    args[1] = static_cast<uint16_t>(this->area_x_ / 8);
-    args[2] = static_cast<uint16_t>(this->area_y_ + this->transfer_row_);
-    args[3] = static_cast<uint16_t>(this->area_w_ / 8);
-    args[4] = static_cast<uint16_t>(this->area_h_ - this->transfer_row_);
-  } else {
+  if (this->grayscale_) {
     args[0] = static_cast<uint16_t>((LDIMG_B_ENDIAN << 8) | (PIXEL_4BPP << 4));
     args[1] = this->area_x_;
     args[2] = static_cast<uint16_t>(this->area_y_ + this->transfer_row_);
     args[3] = this->area_w_;
+    args[4] = static_cast<uint16_t>(this->area_h_ - this->transfer_row_);
+  } else {
+    // Monochrome is loaded via the 8bpp-packed trick: x and width are expressed
+    // in bytes (8 pixels each) and the controller unpacks one bit per pixel.
+    args[0] = static_cast<uint16_t>((LDIMG_L_ENDIAN << 8) | (PIXEL_8BPP << 4));
+    args[1] = static_cast<uint16_t>(this->area_x_ / 8);
+    args[2] = static_cast<uint16_t>(this->area_y_ + this->transfer_row_);
+    args[3] = static_cast<uint16_t>(this->area_w_ / 8);
     args[4] = static_cast<uint16_t>(this->area_h_ - this->transfer_row_);
   }
   this->spi_write_args_(args, 5);
@@ -583,66 +579,33 @@ void IT8951Display::op_xfer_area_end_() { this->spi_cmd_(TCON_LD_IMG_END); }
 
 bool IT8951Display::op_xfer_rows_() {
   const uint32_t start_time = millis();
-  const uint16_t area_x = this->area_x_;
   const uint16_t area_y = this->area_y_;
-  const uint16_t area_w = this->area_w_;
   const uint16_t area_h = this->area_h_;
+
+  // Bytes per source row, and the byte offset of area_x within a row, in the
+  // framebuffer's native packing. These match the per-row byte count the
+  // controller expects from op_xfer_area_args_: area_w/2 for 4bpp grayscale,
+  // area_w/8 for the 1bpp-packed monochrome trick. area_x / area_w are
+  // 16-pixel aligned (see prepare_update_region_), so both divisions are exact.
+  const uint16_t bytes_per_row =
+      this->grayscale_ ? static_cast<uint16_t>(this->area_w_ >> 1) : static_cast<uint16_t>(this->area_w_ >> 3);
+  const uint16_t row_x_bytes =
+      this->grayscale_ ? static_cast<uint16_t>(this->area_x_ >> 1) : static_cast<uint16_t>(this->area_x_ >> 3);
 
   // Single CS write transaction — HW_RDY was confirmed high by the loop gate.
   this->enable();
   this->write_byte16(PACKET_TYPE_WRITE);
   wait_for_hardware_ready(this->busy_pin_);
 
-  if (this->use_1bpp_) {
-    // Pack the row into 16-bit words, LSB-first to match the IT8951's
-    // L_ENDIAN + MSB_FIRST SPI byte-swap behavior.
-    const uint16_t words_per_row = static_cast<uint16_t>((area_w + 15) / 16);
-    if (words_per_row * 2 > MAX_1BPP_ROW_BYTES) {
-      ESP_LOGE(TAG, "1bpp row buffer too small (%u words)", words_per_row);
-      this->disable();
-      return true;
-    }
-    std::array<uint16_t, MAX_1BPP_ROW_BYTES / 2> row_words{};
-    while (this->transfer_row_ < area_h) {
-      row_words.fill(0);
-      const uint16_t row_y = static_cast<uint16_t>(area_y + this->transfer_row_);
-      for (uint16_t x = 0; x < area_w; x++) {
-        const uint8_t nibble = this->get_pixel_nibble_(static_cast<uint16_t>(area_x + x), row_y);
-        if (nibble <= 0x07)
-          row_words[x / 16] |= static_cast<uint16_t>(1U << (x & 0x0F));
-      }
-      for (uint16_t i = 0; i < words_per_row; i++)
-        row_words[i] = byteswap(row_words[i]);
-      this->write_array(reinterpret_cast<const uint8_t *>(row_words.data()), words_per_row * 2);
-      this->transfer_row_++;
-      if (millis() - start_time >= MAX_TRANSFER_TIME_MS)
-        break;
-    }
-  } else {
-    const bool full_width = (area_x == 0 && area_w == this->width_);
-    const uint16_t bytes_per_row = full_width ? this->row_width_ : static_cast<uint16_t>(area_w >> 1);
-    if (bytes_per_row > MAX_4BPP_ROW_BYTES) {
-      ESP_LOGE(TAG, "4bpp row buffer too small (%u bytes)", bytes_per_row);
-      this->disable();
-      return true;
-    }
-    while (this->transfer_row_ < area_h) {
-      const uint32_t row_y = area_y + this->transfer_row_;
-      const uint32_t offset = row_y * this->row_width_ + (full_width ? 0 : (area_x >> 1));
-      if (full_width) {
-        // Full-width rows are contiguous in framebuffer order, so write
-        // directly and avoid an extra memcpy per row.
-        this->write_array(&this->buffer_[offset], bytes_per_row);
-      } else {
-        std::array<uint8_t, MAX_4BPP_ROW_BYTES> row_buffer{};
-        for (uint16_t i = 0; i < bytes_per_row; i++)
-          row_buffer[i] = this->buffer_[offset + i];
-        this->write_array(row_buffer.data(), bytes_per_row);
-      }
-      this->transfer_row_++;
-      if (millis() - start_time >= MAX_TRANSFER_TIME_MS)
-        break;
-    }
+  // Each source row is a contiguous slice of the framebuffer in both formats —
+  // the buffer already holds the wire bytes — so stream it straight to SPI with
+  // no per-pixel packing or temporary buffer.
+  while (this->transfer_row_ < area_h) {
+    const uint32_t offset = (static_cast<uint32_t>(area_y) + this->transfer_row_) * this->row_width_ + row_x_bytes;
+    this->write_array(&this->buffer_[offset], bytes_per_row);
+    this->transfer_row_++;
+    if (millis() - start_time >= MAX_TRANSFER_TIME_MS)
+      break;
   }
 
   this->disable();
@@ -690,9 +653,9 @@ void IT8951Display::op_set_1bpp_() {
   // Push to FRONT in reverse order so they execute before DPY_BUF_CMD/ARGS
   // that are already in the queue.
   const uint16_t modified = static_cast<uint16_t>(this->read_result_ | (1U << 2));
-  this->prepend_(OpType::WRITE_REG, BGVR, static_cast<uint16_t>((uint16_t(0xFF) << 8) | 0x00));
+  this->prepend_(OpType::WRITE_REG, BGVR, 0xFF00);
   this->prepend_(OpType::CMD, TCON_REG_WR, 0);
-  this->prepend_(OpType::WRITE_REG, static_cast<uint16_t>(UP1SR + 2), modified);
+  this->prepend_(OpType::WRITE_REG, UP1SR + 2, modified);
   this->prepend_(OpType::CMD, TCON_REG_WR, 0);
 }
 
@@ -707,7 +670,8 @@ void IT8951Display::op_clear_1bpp_() {
 
 bool IT8951Display::prepare_update_region_(UpdateMode &mode) {
   this->partial_update_count_++;
-  if (this->full_update_every_ > 0 && this->partial_update_count_ >= this->full_update_every_) {
+  const bool full_update = this->partial_update_count_ >= this->full_update_every_;
+  if (full_update) {
     this->partial_update_count_ = 0;
     mode = UPDATE_MODE_GC16;
     this->x_low_ = 0;
@@ -748,12 +712,26 @@ bool IT8951Display::prepare_update_region_(UpdateMode &mode) {
   this->area_w_ = width;
   this->area_h_ = height;
   this->transfer_row_ = 0;
-  this->use_1bpp_ = this->force_1bpp_ || !this->has_grayscale_;
+
+  // On non-full updates, downgrade monochrome frames from the full, flashy GC16
+  // clear to DU — a fast, low-flash absolute waveform — so full_update_every
+  // buys cheaper refreshes between the periodic GC16 cleans that clear
+  // accumulated ghosting.
+  //
+  // Grayscale frames are deliberately left on GC16: every reduced grayscale
+  // waveform this controller exposes (the non-flashing GL family GL16/GLR16/
+  // GLD16, and the 4-tone DU4) renders incorrectly on the supported panels —
+  // a white background is driven to grey rather than staying white. GC16 is the
+  // only waveform that reproduces grayscale faithfully, so we keep it.
+  //
+  // An explicitly configured non-GC16 update_mode is honoured as-is.
+  if (!full_update && mode == UPDATE_MODE_GC16 && !this->grayscale_)
+    mode = UPDATE_MODE_DU;
 
   this->reset_dirty_region_();
 
   ESP_LOGD(TAG, "Update: %ux%u@%u,%u mode=%u (%s)", width, height, x, y, static_cast<unsigned>(mode),
-           this->use_1bpp_ ? "1bpp" : "4bpp");
+           this->grayscale_ ? "grayscale" : "mono");
   return true;
 }
 
@@ -878,7 +856,7 @@ bool IT8951Display::rotate_coordinates_(int &x, int &y) {
 
 // --- Color / drawing ---------------------------------------------------------
 
-uint8_t IT8951Display::color_to_nibble_(const Color &color) const {
+static uint8_t color_to_nibble(const Color &color) {
   auto quantize_8bit_to_nibble = [](uint8_t value) -> uint8_t {
     uint8_t nibble = static_cast<uint8_t>((static_cast<uint16_t>(value) + 8) >> 4);
     return nibble > 0x0F ? 0x0F : nibble;
@@ -907,12 +885,17 @@ void IT8951Display::fill(Color color) {
     Display::fill(color);
     return;
   }
-  uint8_t packed = this->color_to_nibble_(color);
+  uint8_t packed = color_to_nibble(color);
   if (this->invert_colors_)
     packed = 0x0F - packed;
-  if (packed != 0x00 && packed != 0x0F)
-    this->has_grayscale_ = true;
-  const uint8_t fill_byte = static_cast<uint8_t>((packed << 4) | packed);
+  uint8_t fill_byte;
+  if (this->grayscale_) {
+    fill_byte = static_cast<uint8_t>((packed << 4) | packed);
+  } else {
+    // Monochrome: a set bit selects the foreground gray (see op_set_1bpp_).
+    // Bits are set for the lighter half of the range, matching set_mono_pixel_.
+    fill_byte = (packed <= 0x07) ? 0xFF : 0x00;
+  }
   memset(this->buffer_, fill_byte, this->buffer_length_);
   this->x_low_ = 0;
   this->y_low_ = 0;
@@ -924,25 +907,40 @@ void HOT IT8951Display::draw_pixel_at(int x, int y, Color color) {
   App.feed_wdt();
   if (!this->rotate_coordinates_(x, y))
     return;
-  uint8_t internal_color = this->color_to_nibble_(color) & 0x0F;
+  uint8_t internal_color = color_to_nibble(color) & 0x0F;
   if (this->invert_colors_)
     internal_color = 0x0F - internal_color;
-  if (internal_color != 0x00 && internal_color != 0x0F)
-    this->has_grayscale_ = true;
-  const uint32_t index = static_cast<uint32_t>(y) * this->row_width_ + (static_cast<uint32_t>(x) >> 1);
-  uint8_t buf = this->buffer_[index];
-  if (x & 0x1) {
-    buf = (buf & 0xF0) | internal_color;
+  if (this->grayscale_) {
+    const uint32_t index = static_cast<uint32_t>(y) * this->row_width_ + (static_cast<uint32_t>(x) >> 1);
+    uint8_t buf = this->buffer_[index];
+    if (x & 0x1) {
+      buf = (buf & 0xF0) | internal_color;
+    } else {
+      buf = (buf & 0x0F) | static_cast<uint8_t>(internal_color << 4);
+    }
+    this->buffer_[index] = buf;
   } else {
-    buf = (buf & 0x0F) | (internal_color << 4);
+    this->set_mono_pixel_(static_cast<uint16_t>(x), static_cast<uint16_t>(y), internal_color <= 0x07);
   }
-  this->buffer_[index] = buf;
 }
 
-uint8_t IT8951Display::get_pixel_nibble_(uint16_t x, uint16_t y) {
-  const uint32_t index = static_cast<uint32_t>(y) * this->row_width_ + (static_cast<uint32_t>(x) >> 1);
-  const uint8_t byte = this->buffer_[index];
-  return (x & 1U) == 0 ? (byte >> 4) : (byte & 0x0F);
+void IT8951Display::set_mono_pixel_(uint16_t x, uint16_t y, bool value) const {
+  // The monochrome framebuffer holds the exact bytes streamed to the
+  // controller for the 8bpp-load / 1bpp-display trick (L_ENDIAN). Pixels are
+  // grouped in 16s; on the wire the high byte (pixels 8..15) precedes the low
+  // byte (pixels 0..7), and the bit index within a byte is the pixel's offset
+  // (LSB = lowest x). Storing in that order lets op_xfer_rows_ copy rows
+  // verbatim with no packing or byte-swapping.
+  const uint16_t group = static_cast<uint16_t>(x >> 4);
+  const uint8_t sub = static_cast<uint8_t>(x & 0x0F);
+  const uint16_t byte_index = static_cast<uint16_t>(group * 2u + (sub < 8u ? 1u : 0u));
+  const uint8_t mask = static_cast<uint8_t>(1u << (sub & 0x07));
+  const uint32_t index = static_cast<uint32_t>(y) * this->row_width_ + byte_index;
+  if (value) {
+    this->buffer_[index] |= mask;
+  } else {
+    this->buffer_[index] &= static_cast<uint8_t>(~mask);
+  }
 }
 
 // --- Diagnostics -------------------------------------------------------------
@@ -967,14 +965,14 @@ void IT8951Display::dump_config() {
                 "\n  Sleep when done: %s"
                 "\n  Full update every: %u"
                 "\n  Inverted colors: %s"
-                "\n  Force 1bpp: %s"
+                "\n  Pixel format: %s"
                 "\n  Reset duration: %" PRIu32 "ms",
                 this->name_ != nullptr ? this->name_ : "(unknown)", this->get_width_internal(),
                 this->get_height_internal(), static_cast<unsigned>(this->buffer_length_), this->img_buf_addr_h_,
                 this->img_buf_addr_l_, static_cast<float>(this->vcom_) / 1000.0f, this->vcom_register_,
                 force_temperature, this->use_legacy_dpy_area_ ? "DPY_AREA (0x0034, legacy)" : "DPY_BUF_AREA (0x0037)",
                 YESNO(this->sleep_when_done_), this->full_update_every_, YESNO(this->invert_colors_),
-                YESNO(this->force_1bpp_), this->reset_duration_);
+                this->grayscale_ ? "4bpp grayscale" : "1bpp monochrome", this->reset_duration_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_PIN("  CS Pin: ", this->cs_);

@@ -4,10 +4,8 @@
 
 #include "esphome/components/display/display.h"
 #include "esphome/components/spi/spi.h"
-#include "esphome/components/split_buffer/split_buffer.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
-#include "esphome/core/log.h"
 
 #include "it8951_defs.h"
 
@@ -33,7 +31,7 @@ template<typename T, size_t N> class StaticOpQueue {
     if (this->count_ >= N)
       return false;
     this->data_[(this->head_ + this->count_) % N] = value;
-    this->count_++;
+    ++this->count_;
     return true;
   }
 
@@ -42,7 +40,7 @@ template<typename T, size_t N> class StaticOpQueue {
       return false;
     this->head_ = (this->head_ + N - 1) % N;
     this->data_[this->head_] = value;
-    this->count_++;
+    ++this->count_;
     return true;
   }
 
@@ -50,7 +48,7 @@ template<typename T, size_t N> class StaticOpQueue {
     if (this->count_ == 0)
       return;
     this->head_ = (this->head_ + 1) % N;
-    this->count_--;
+    --this->count_;
   }
 
   const T &front() const { return this->data_[this->head_]; }
@@ -143,7 +141,7 @@ class IT8951Display : public Display,
                                             spi::DATA_RATE_2MHZ> {
  public:
   IT8951Display(const char *name, uint16_t width, uint16_t height) : name_(name), width_(width), height_(height) {
-    this->row_width_ = static_cast<uint16_t>((static_cast<uint32_t>(width) + 1) / 2);
+    this->row_width_ = this->compute_row_width_();
     this->buffer_length_ = static_cast<size_t>(this->row_width_) * static_cast<size_t>(height);
   }
 
@@ -158,7 +156,13 @@ class IT8951Display : public Display,
   void set_reset_pin(GPIOPin *pin) { this->reset_pin_ = pin; }
   void set_busy_pin(GPIOPin *pin) { this->busy_pin_ = pin; }
   void set_reset_duration(uint32_t ms) { this->reset_duration_ = ms; }
-  void set_full_update_every(uint8_t n) { this->full_update_every_ = n; }
+  void set_full_update_every(uint8_t n) {
+    this->full_update_every_ = n;
+    // Seed the counter so the very first update trips the full-update branch in
+    // prepare_update_region_, giving a freshly-booted panel a clean GC16 refresh
+    // before any partial (fast-waveform) updates begin.
+    this->partial_update_count_ = n;
+  }
   void set_invert_colors(bool invert_colors) { this->invert_colors_ = invert_colors; }
   void set_sleep_when_done(bool s) { this->sleep_when_done_ = s; }
   void set_vcom(uint16_t vcom_mv) { this->vcom_ = vcom_mv; }
@@ -168,7 +172,10 @@ class IT8951Display : public Display,
     this->force_temperature_set_ = true;
   }
   void set_use_legacy_dpy_area(bool use) { this->use_legacy_dpy_area_ = use; }
-  void set_force_1bpp(bool f) { this->force_1bpp_ = f; }
+  // Pixel format: true = 4bpp grayscale framebuffer, false = packed 1bpp
+  // monochrome framebuffer. Chosen at config time; the framebuffer is stored
+  // in this native format and every update uses the matching transfer path.
+  void set_grayscale(bool g) { this->grayscale_ = g; }
   void set_update_mode(uint16_t m) { this->default_update_mode_ = static_cast<UpdateMode>(m); }
   void set_transform(uint8_t t) {
     this->transform_ = t;
@@ -182,7 +189,7 @@ class IT8951Display : public Display,
   // --- Display API ---
   void update() override;
   void update_mode(UpdateMode mode);
-  DisplayType get_display_type() override { return DISPLAY_TYPE_GRAYSCALE; }
+  DisplayType get_display_type() override { return this->grayscale_ ? DISPLAY_TYPE_GRAYSCALE : DISPLAY_TYPE_BINARY; }
   void fill(Color color) override;
   void clear() override { this->fill(COLOR_ON); }
   void draw_pixel_at(int x, int y, Color color) override;
@@ -198,11 +205,15 @@ class IT8951Display : public Display,
   bool rotate_coordinates_(int &x, int &y);
   void reset_dirty_region_();
 
-  // --- Color helpers ---
-  uint8_t color_to_nibble_(const Color &color) const;
-
-  // --- 1bpp helpers ---
-  uint8_t get_pixel_nibble_(uint16_t x, uint16_t y);
+  // --- Framebuffer geometry / monochrome packing ---
+  // Bytes per row for the configured pixel format: 4bpp grayscale packs two
+  // pixels per byte; monochrome packs eight bits per byte, rounded up to a
+  // whole 16-pixel group (matching the controller's 8bpp-load / 1bpp trick).
+  uint16_t compute_row_width_() const {
+    return this->grayscale_ ? static_cast<uint16_t>((static_cast<uint32_t>(this->width_) + 1) / 2)
+                            : static_cast<uint16_t>(((static_cast<uint32_t>(this->width_) + 15) / 16) * 2);
+  }
+  void set_mono_pixel_(uint16_t x, uint16_t y, bool value) const;
 
   // --- Op queue / loop machinery ---
   void enqueue_(OpType type, uint16_t a = 0, uint16_t b = 0);
@@ -260,8 +271,6 @@ class IT8951Display : public Display,
   UpdateMode active_mode_{UPDATE_MODE_NONE};
   uint16_t area_x_{0}, area_y_{0}, area_w_{0}, area_h_{0};
   uint16_t transfer_row_{0};
-  bool use_1bpp_{false};
-  bool has_grayscale_{false};
   bool initialised_{false};
   // True once TCON_SLEEP has been sent and the controller has not been woken
   // since. The next update must issue TCON_SYS_RUN before any SPI op.
@@ -295,7 +304,9 @@ class IT8951Display : public Display,
   bool use_legacy_dpy_area_{false};
   bool invert_colors_{false};
   bool sleep_when_done_{false};
-  bool force_1bpp_{false};
+  // Pixel format selector (see set_grayscale): true = 4bpp grayscale,
+  // false = packed 1bpp monochrome.
+  bool grayscale_{true};
   UpdateMode default_update_mode_{UPDATE_MODE_NONE};
   GPIOPin *reset_pin_{nullptr};
   GPIOPin *busy_pin_{nullptr};
@@ -322,6 +333,7 @@ template<typename... Ts> class IT8951UpdateAction : public Action<Ts...> {
   explicit IT8951UpdateAction(IT8951Display *display) : display_(display) {}
   TEMPLATABLE_VALUE(UpdateMode, mode)
 
+ protected:
   void play(const Ts &...x) override {
     if (!this->display_->is_ready())
       return;
@@ -332,7 +344,6 @@ template<typename... Ts> class IT8951UpdateAction : public Action<Ts...> {
     }
   }
 
- protected:
   IT8951Display *display_;
 };
 

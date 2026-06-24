@@ -40,7 +40,7 @@ display:
     full_update_every: 30
     invert_colors: false
     sleep_when_done: true
-    force_1bpp: false
+    grayscale: true
     update_mode: GC16
     rotation: 270
     transform:
@@ -68,7 +68,7 @@ display:
     lambda: |-
       it.filled_rectangle(0, 0, 128, 128, Color::BLACK);
 
-  # seeed-ee03 (1872x1404), force 1bpp fast path
+  # seeed-ee03 (1872x1404), monochrome fast path
   - platform: it8951
     spi_id: spi_bus
     model: seeed-ee03
@@ -81,8 +81,8 @@ display:
     busy_pin:
       allow_other_uses: true
       number: GPIO4
-    force_1bpp: true
-    update_mode: A2
+    grayscale: false
+    update_mode: DU
     lambda: |-
       it.circle(128, 128, 64, Color::BLACK);
 
