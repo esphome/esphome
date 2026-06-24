@@ -108,6 +108,9 @@ void HeatpumpIRClimate::setup() {
     return;
   }
   this->heatpump_ir_ = protocol_constructor->second();
+  if (this->is_mitsubishi_heavy_()) {
+    this->presets_ = {climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_BOOST};
+  }
   climate_ir::ClimateIR::setup();
   if (this->sensor_) {
     this->sensor_->add_on_state_callback([this](float state) {
@@ -123,15 +126,6 @@ void HeatpumpIRClimate::setup() {
   } else {
     this->current_temperature = NAN;
   }
-}
-
-climate::ClimateTraits HeatpumpIRClimate::traits() {
-  auto traits = climate_ir::ClimateIR::traits();
-  if (this->is_mitsubishi_heavy_()) {
-    traits.set_supported_presets(
-        {climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_BOOST});
-  }
-  return traits;
 }
 
 bool HeatpumpIRClimate::is_mitsubishi_heavy_() const {
