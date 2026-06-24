@@ -57,17 +57,16 @@ modbus::ServerResponseStatus ModbusServer::on_modbus_read_registers(uint16_t sta
 }
 
 modbus::ServerResponseStatus ModbusServer::on_modbus_write_registers(uint16_t start_address,
-                                                                     uint16_t number_of_registers,
                                                                      const modbus::ServerRegisterData &in_registers) {
-  // in_registers holds the register values in host byte order; the caller has validated the register count.
-  ESP_LOGD(TAG, "Received write registers for device 0x%X. Start address: 0x%X. Number of registers: 0x%X.",
-           this->address_, start_address, number_of_registers);
+  // in_registers holds the register values in host byte order; its size is the register count.
+  ESP_LOGD(TAG, "Received write registers for device 0x%X. Start address: 0x%X. Number of registers: 0x%zX.",
+           this->address_, start_address, in_registers.size());
 
   auto for_each_register =
       [this, start_address,
-       number_of_registers](const std::function<bool(ServerRegister *, uint16_t register_offset)> &callback) -> bool {
+       &in_registers](const std::function<bool(ServerRegister *, uint16_t register_offset)> &callback) -> bool {
     uint16_t register_offset = 0;
-    for (uint16_t current_address = start_address; current_address < start_address + number_of_registers;) {
+    for (uint16_t current_address = start_address; current_address < start_address + in_registers.size();) {
       bool ok = false;
       for (auto *server_register : this->server_registers_) {
         if (server_register->address == current_address) {

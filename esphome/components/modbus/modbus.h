@@ -226,7 +226,7 @@ class ModbusServerDevice {
                                                                 ServerRegisterData &out_registers) {
     return this->on_modbus_read_registers(start_address, number_of_registers, out_registers);
   };
-  virtual ServerResponseStatus on_modbus_write_registers(uint16_t start_address, uint16_t number_of_registers,
+  virtual ServerResponseStatus on_modbus_write_registers(uint16_t start_address,
                                                          const ServerRegisterData &in_registers) {
     return ModbusExceptionCode::ILLEGAL_FUNCTION;
   };

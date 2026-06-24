@@ -410,7 +410,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
         for (uint16_t i = 0; i < number_of_registers; i++) {
           in_registers.push_back(helpers::get_data<uint16_t>(data, values_offset + i * 2));
         }
-        status = device->on_modbus_write_registers(start_address, number_of_registers, in_registers);
+        status = device->on_modbus_write_registers(start_address, in_registers);
         response_data = data;  // echo the request header per Modbus 6.6, 6.12
         response_len = 4;
       } else {
