@@ -5,5 +5,3 @@ remote_transmitter:
 climate:
   - platform: remko_ar715
     name: Test RemkoAr715
-    supports_cool: true
-    supports_heat: false
