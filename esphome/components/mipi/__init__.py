@@ -120,6 +120,7 @@ CSCON = 0xF0
 PWCTR6 = 0xF6
 ADJCTL3 = 0xF7
 PAGESEL = 0xFE
+PAGESEL1 = 0xFF
 
 MADCTL_MY = 0x80  # Bit 7 Bottom to top
 MADCTL_MX = 0x40  # Bit 6 Right to left
