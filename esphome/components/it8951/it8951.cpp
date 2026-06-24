@@ -13,7 +13,7 @@ static const char *const TAG = "it8951";
 
 // Soft cap for time spent in a single XFER_ROWS Op so we yield back to the
 // loop within one tick budget.
-static constexpr uint32_t MAX_TRANSFER_TIME_MS = 10;
+static constexpr uint32_t MAX_TRANSFER_TIME_MS = 20;
 
 // --- Loop / scheduling -------------------------------------------------------
 
@@ -114,12 +114,14 @@ void IT8951Display::process_op_(const Op &op) {
       this->op_xfer_area_args_();
       break;
     case OpType::XFER_ROWS:
-      // Always commit the chunk we just streamed bytes into. If more rows
-      // remain, also queue the next chunk and another XFER_ROWS pass.
-      this->enqueue_(OpType::XFER_AREA_END);
-      if (!this->op_xfer_rows_()) {
-        this->enqueue_(OpType::XFER_AREA_CMD);
-        this->enqueue_(OpType::XFER_AREA_ARGS);
+      // Stream rows into the single open LD_IMG_AREA load. The load stays open
+      // across loop iterations (CS toggles between bursts, matching the
+      // reference driver), so a partial slice just re-queues another XFER_ROWS
+      // pass to resume; only when all rows are sent do we close it with one
+      // LD_IMG_END. This avoids an LD_IMG_END / LD_IMG_AREA round-trip per slice.
+      if (this->op_xfer_rows_()) {
+        this->enqueue_(OpType::XFER_AREA_END);
+      } else {
         this->enqueue_(OpType::XFER_ROWS);
       }
       break;
@@ -153,6 +155,16 @@ void IT8951Display::process_op_(const Op &op) {
 
 void IT8951Display::set_phase_(Phase next) {
   ESP_LOGV(TAG, "Phase %u -> %u", static_cast<unsigned>(this->phase_), static_cast<unsigned>(next));
+  // Run the loop continuously only while streaming image data, so 20ms transfer
+  // slices aren't separated by the ~16ms default loop interval. Other phases are
+  // one-shot or delay-gated and don't benefit (the LUT-idle wait is deliberately
+  // excluded so it doesn't busy-loop through the multi-second refresh). start()
+  // and stop() are idempotent, so driving them off the transition is safe.
+  if (next == Phase::UPDATE_TRANSFER) {
+    this->high_freq_.start();
+  } else {
+    this->high_freq_.stop();
+  }
   this->phase_ = next;
   this->phase_started_at_ = millis();
 }
@@ -391,13 +403,13 @@ void IT8951Display::enqueue_update_transfer_() {
     this->asleep_ = false;
   }
   this->transfer_row_ = 0;
+  // Open a single LD_IMG_AREA load for the whole region. XFER_ROWS streams into
+  // it across as many time-sliced passes as needed and emits the one matching
+  // LD_IMG_END when the last row is sent (see the XFER_ROWS handler).
   this->enqueue_(OpType::XFER_LISAR);
   this->enqueue_(OpType::XFER_AREA_CMD);
   this->enqueue_(OpType::XFER_AREA_ARGS);
   this->enqueue_(OpType::XFER_ROWS);
-  // No trailing XFER_AREA_END here — XFER_ROWS handler always enqueues an
-  // END for the chunk it just streamed (and queues another CMD+ARGS+ROWS
-  // sequence if more rows remain).
 }
 
 void IT8951Display::enqueue_update_refresh_() {
@@ -555,22 +567,24 @@ void IT8951Display::op_xfer_lisar_() {
 }
 
 void IT8951Display::op_xfer_area_args_() {
-  // Single CS transaction: WRITE preamble + 5 area-parameter words.
+  // Single CS transaction: WRITE preamble + 5 area-parameter words describing
+  // the full update region. Sent once when the load is opened (transfer_row_ is
+  // 0); XFER_ROWS then streams every row into this one area.
   uint16_t args[5];
   if (this->grayscale_) {
     args[0] = static_cast<uint16_t>((LDIMG_B_ENDIAN << 8) | (PIXEL_4BPP << 4));
     args[1] = this->area_x_;
-    args[2] = static_cast<uint16_t>(this->area_y_ + this->transfer_row_);
+    args[2] = this->area_y_;
     args[3] = this->area_w_;
-    args[4] = static_cast<uint16_t>(this->area_h_ - this->transfer_row_);
+    args[4] = this->area_h_;
   } else {
     // Monochrome is loaded via the 8bpp-packed trick: x and width are expressed
     // in bytes (8 pixels each) and the controller unpacks one bit per pixel.
     args[0] = static_cast<uint16_t>((LDIMG_L_ENDIAN << 8) | (PIXEL_8BPP << 4));
     args[1] = static_cast<uint16_t>(this->area_x_ / 8);
-    args[2] = static_cast<uint16_t>(this->area_y_ + this->transfer_row_);
+    args[2] = this->area_y_;
     args[3] = static_cast<uint16_t>(this->area_w_ / 8);
-    args[4] = static_cast<uint16_t>(this->area_h_ - this->transfer_row_);
+    args[4] = this->area_h_;
   }
   this->spi_write_args_(args, 5);
 }

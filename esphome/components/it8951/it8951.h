@@ -6,6 +6,7 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 #include "it8951_defs.h"
 
@@ -130,7 +131,7 @@ enum class Phase : uint8_t {
   INIT_DONE,      // allocate framebuffer; transition to IDLE
   // Update flow
   UPDATE_PREPARE,   // do_update_, compute dirty region, decide 4bpp/1bpp
-  UPDATE_TRANSFER,  // chunked LD_IMG_AREA / LD_IMG_END loop
+  UPDATE_TRANSFER,  // one LD_IMG_AREA, time-sliced row streaming, one LD_IMG_END
   UPDATE_REFRESH,   // wait LUT idle, optionally enable 1bpp, send DPY_BUF_AREA
   UPDATE_RESTORE,   // wait LUT idle, clear UP1SR bit 2 (1bpp only)
   UPDATE_SLEEP,     // optional deep sleep
@@ -264,6 +265,9 @@ class IT8951Display : public Display,
   Phase phase_{Phase::IDLE};
   uint32_t delay_until_{0};
   uint32_t phase_started_at_{0};
+  // Requests a continuous (non-throttled) main loop while streaming image data
+  // so 20ms transfer slices aren't separated by the ~16ms default loop interval.
+  HighFrequencyLoopRequester high_freq_;
 
   // Pending update bookkeeping
   bool update_pending_{false};
