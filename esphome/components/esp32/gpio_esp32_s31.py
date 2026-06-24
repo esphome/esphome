@@ -8,7 +8,8 @@ from esphome.pins import check_strapping_pin
 # Per the ESP32-S31 datasheet (page 96):
 # https://documentation.espressif.com/esp32-s31_datasheet_en.pdf
 _ESP32S31_SPI_FLASH_PINS: set[int] = {27, 28, 29, 31, 32, 33}
-_ESP32S31_STRAPPING_PINS: set[int] = {60, 61}
+# GPIO60/GPIO61 set the boot mode; GPIO37 selects the JTAG signal source.
+_ESP32S31_STRAPPING_PINS: set[int] = {37, 60, 61}
 # LP I2C is fixed to GPIO6 (SCL) / GPIO7 (SDA) per the datasheet IO MUX table.
 _ESP32S31_I2C_LP_PINS = {"SDA": 7, "SCL": 6}
 
