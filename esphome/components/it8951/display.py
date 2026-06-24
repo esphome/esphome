@@ -297,11 +297,17 @@ def _customise_schema(config):
         model_config[CONF_ID],
         width,
         height,
+        # Rotation is applied per-pixel in draw_pixel_at at no extra cost, so we
+        # advertise hardware rotation: LVGL routes its rotation to the driver via
+        # set_rotation rather than rotating the framebuffer in software.
         has_hardware_rotation=True,
         has_writer=any(
             model_config.get(key)
             for key in (CONF_LAMBDA, CONF_PAGES, CONF_SHOW_TEST_CARD)
         ),
+        # Report the configured rotation so LVGL can detect (and reject) a
+        # rotation set in the display config instead of the LVGL config.
+        rotation=model_config.get(CONF_ROTATION, 0),
     )
 
     return model_config

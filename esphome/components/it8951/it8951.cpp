@@ -249,6 +249,10 @@ void IT8951Display::advance_phase_() {
           this->set_phase_(Phase::IDLE);
           return;
         }
+        // The allocator does not zero memory. Start blank (white) so that with
+        // auto_clear disabled (partial/area updates) the first update doesn't
+        // transfer garbage in regions the user's lambda never draws.
+        this->fill(Color::WHITE);
       }
       if (this->configured_data_rate_ != 0 && this->configured_data_rate_ != this->data_rate_) {
         this->spi_teardown();
@@ -882,11 +886,9 @@ static uint8_t color_to_nibble(const Color &color) {
     return quantize_8bit_to_nibble(color.r);
 
   if (color.raw_32 == 0)
-    return 0x00;  // COLOR_OFF -> white (lightest)
+    return 0x00;  // black
   if (color.raw_32 == 0xFFFFFFFF)
-    return 0x0F;  // COLOR_ON -> black (darkest)
-  if (color.g == 0 && color.b == 0 && color.w == 0 && color.r <= 0x0F)
-    return color.r;
+    return 0x0F;  // white
 
   // Derive luminance from RGB.
   uint16_t gray = static_cast<uint16_t>(color.r) + color.g + color.b;
