@@ -1,0 +1,48 @@
+#include "esphome/core/log.h"
+#include "inkplate6flick.h"
+
+#include "esp_rom_sys.h"
+
+namespace esphome::inkplate {
+
+static const char *TAG = "inkplate6flick";
+
+// Source: Inkplate6FLICKDriver display1b() / display3b() — same 9-step sequence for both.
+const Inkplate6FLICK::CleanStep Inkplate6FLICK::CLEAN_SEQ[9] = {
+    {0, 5}, {1, 15}, {2, 1}, {0, 15}, {2, 1}, {1, 15}, {2, 1}, {0, 15}, {2, 1},
+};
+
+// ---------------------------------------------------------------------------
+// setup() — allocate GLUT buffers + one-time hardware init
+// ---------------------------------------------------------------------------
+
+void Inkplate6FLICK::setup() {
+  InkplateParallelBase::setup();
+
+  this->glut_ = new uint8_t[256 * this->grayscale_phases_];
+  this->glut2_ = new uint8_t[256 * this->grayscale_phases_];
+  if (this->glut_ == nullptr || this->glut2_ == nullptr) {
+    ESP_LOGE(TAG, "GLUT alloc failed");
+    return;
+  }
+  for (int j = 0; j < this->grayscale_phases_; ++j) {
+    for (int i = 0; i < 256; ++i) {
+      uint8_t v = (uint8_t) (((uint32_t) INKPLATE6FLICK_WAVEFORM3BIT[i & 0x07][j] << 2u) |
+                             (uint32_t) INKPLATE6FLICK_WAVEFORM3BIT[(i >> 4) & 0x07][j]);
+      this->glut_[j * 256 + i] = v;
+      this->glut2_[j * 256 + i] = (uint8_t) (v << 4u);
+    }
+  }
+
+  this->i2s_init_();
+  this->tps_begin_();
+
+  ESP_LOGI(TAG, "Inkplate6FLICK setup done — %dx%d", this->width_, this->height_);
+}
+
+void Inkplate6FLICK::dump_config() {
+  ESP_LOGCONFIG(TAG, "Inkplate 6FLICK %dx%d, dark_phases=%d, partial_phases=%d, grayscale_phases=%d", this->width_,
+                this->height_, this->dark_phases_, this->partial_phases_, this->grayscale_phases_);
+}
+
+}  // namespace esphome::inkplate
