@@ -254,7 +254,7 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
   std::memcpy(data, this->rx_buffer_.data() + data_offset, data_len);
   this->clear_rx_buffer_(LOG_STR("parse succeeded"), false, frame_length);
 
-  this->process_modbus_client_frame_(address, function_code, data, data_len);
+  this->process_modbus_client_frame_(address, function_code, data);
 
   return true;
 }
@@ -334,8 +334,7 @@ void ModbusServerHub::process_modbus_server_frame(uint8_t address, uint8_t funct
   this->expecting_peer_response_ = 0;
 }
 
-void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data,
-                                                   uint16_t len) {
+void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data) {
   for (auto *device : this->devices_) {
     if (device->get_address() == address) {
       ServerResponseStatus status;
