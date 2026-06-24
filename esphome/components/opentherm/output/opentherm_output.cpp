@@ -12,9 +12,8 @@ void opentherm::OpenthermOutput::write_state(float state) {
 #else
   bool zero_means_zero = false;
 #endif
-  this->state = state < 0.003 && zero_means_zero
-                    ? 0.0
-                    : clamp(std::lerp(min_value_, max_value_, state), min_value_, max_value_);
+  this->state =
+      state < 0.003 && zero_means_zero ? 0.0 : clamp(std::lerp(min_value_, max_value_, state), min_value_, max_value_);
   this->has_state_ = true;
   ESP_LOGD(TAG, "Output %s set to %.2f", this->id_, this->state);
 }
