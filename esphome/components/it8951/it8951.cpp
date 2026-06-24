@@ -304,6 +304,12 @@ void IT8951Display::setup() {
   this->data_rate_ = SPI_PROBE_FREQUENCY;
   this->spi_setup();
 
+  // Power on the panel before reset and the init handshake.
+  for (auto *pin : this->enable_pins_) {
+    pin->setup();
+    pin->digital_write(true);
+  }
+
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(true);

@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_CS_PIN,
     CONF_DATA_RATE,
     CONF_DIMENSIONS,
+    CONF_ENABLE_PIN,
     CONF_FULL_UPDATE_EVERY,
     CONF_HEIGHT,
     CONF_ID,
@@ -140,6 +141,9 @@ IT8951Model(
     busy_pin=13,
     reset_pin=12,
     cs_pin=10,
+    # Board power-enable rails: 1.8V logic supply (GPIO21) and the EPD supply
+    # (GPIO11). Driven high during setup so no separate power_supply is needed.
+    enable_pin=[21, 11],
     vcom=1400,
     # reTerminal E1003 panel firmware only accepts the 0x0002 VCOM SET
     # selector; using the default 0x0001 leaves VCOM unchanged and breaks
@@ -264,6 +268,11 @@ def _model_schema(config):
                 default=model.get_default(CONF_USE_LEGACY_DPY_AREA, False),
             ): cv.boolean,
             cv.Optional(CONF_UPDATE_MODE): update_mode,
+            # One or more GPIOs driven high during setup to power on the panel
+            # (e.g. board power-enable rails), before reset and init.
+            cv.Optional(
+                CONF_ENABLE_PIN, default=model.get_default(CONF_ENABLE_PIN, [])
+            ): cv.ensure_list(pins.gpio_output_pin_schema),
             cv.Optional(CONF_RESET_DURATION): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=core.TimePeriod(milliseconds=500)),
@@ -366,6 +375,12 @@ async def to_code(config):
         cg.add(var.set_reset_pin(await cg.gpio_pin_expression(reset_pin)))
     if busy_pin := config.get(CONF_BUSY_PIN):
         cg.add(var.set_busy_pin(await cg.gpio_pin_expression(busy_pin)))
+    if enable_pins := config.get(CONF_ENABLE_PIN):
+        cg.add(
+            var.set_enable_pins(
+                [await cg.gpio_pin_expression(pin) for pin in enable_pins]
+            )
+        )
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
     if (reset_duration := config.get(CONF_RESET_DURATION)) is not None:
         cg.add(var.set_reset_duration(reset_duration))
