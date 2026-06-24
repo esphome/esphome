@@ -31,7 +31,7 @@ The RC522 IC supports SPI, I²C and UART communication protocols; ESPHome can us
 ## Over SPI
 
 The `rc522_spi` component allows you to use RC522 NFC/RFID controllers with ESPHome. This component is a global hub
-that establishes the connection to the RC522 via [SPI](/components/spi). Using [RC522 binary sensors](#rc522-binary_sensor),
+that establishes the connection to the RC522 via [SPI](/components/spi). Using [RC522 binary sensors](#rc522-binary-sensor),
 you can then create individual binary sensors that track if an NFC/RFID tag is currently detected by the RC522.
 
 ```yaml
@@ -72,7 +72,7 @@ binary_sensor:
 
 The `rc522_i2c` component allows you to use RC522 NFC/RFID controllers with ESPHome. This component is a global hub
 that establishes the connection to the RC522 via [I²C](/components/i2c) (also available over SPI). Using the
-[RC522 binary sensors](#rc522-binary_sensor) you can then create individual binary sensors that track if
+[RC522 binary sensors](#rc522-binary-sensor) you can then create individual binary sensors that track if
 an NFC/RFID tag is currently detected by the RC522.
 
 ```yaml
@@ -156,8 +156,6 @@ rc522_spi: # or rc522_i2c
           topic: rc522/tag_removed
           payload: !lambda 'return x;'
 ```
-
-<span id="rc522-binary_sensor"></span>
 
 ## `rc522` Binary Sensor
 

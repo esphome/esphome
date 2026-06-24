@@ -190,9 +190,9 @@ radio_frequency:
 The triggers used above:
 
 - `on_transmit` on [`remote_transmitter`](/components/remote_transmitter) — fires before each transmission. Call
-  [`cc1101.begin_tx`](/components/cc1101#cc1101begin_tx-action) here to put the chip into TX state.
+  [`cc1101.begin_tx`](/components/cc1101#cc1101-begin_tx-action) here to put the chip into TX state.
 - `on_complete` on [`remote_transmitter`](/components/remote_transmitter) — fires after a transmission finishes.
-  Call [`cc1101.begin_rx`](/components/cc1101#cc1101begin_rx-action) here to return the chip to RX state (idle
+  Call [`cc1101.begin_rx`](/components/cc1101#cc1101-begin_rx-action) here to return the chip to RX state (idle
   listening).
 - `on_control` on the `radio_frequency` entity — fires when a transmit request arrives, before the underlying
   transmission begins. The call object (`x`) exposes `get_frequency()`, `get_modulation()`, and
@@ -212,13 +212,13 @@ component ID.
 
 Both platforms transmit signals using raw timings, which provides full remote control over the exact waveform sent
 to the hardware. When configured with a `remote_transmitter_id`, the component can transmit IR/RF signals by accepting
-an [array of microsecond timing values](/components/remote_transmitter#remote_transmittertransmit_raw-action)
+an [array of microsecond timing values](/components/remote_transmitter#remote_transmitter-transmit_raw-action)
 representing alternating mark (LED on) and space (LED off) periods.
 
 **Transmission parameters:**
 
 - **Raw timings array**: Alternating mark/space durations in microseconds (just as the
-  [remote_transmitter.transmit_raw](/components/remote_transmitter#remote_transmittertransmit_raw-action) action uses)
+  [remote_transmitter.transmit_raw](/components/remote_transmitter#remote_transmitter-transmit_raw-action) action uses)
 - **Carrier frequency** (infrared platform): Optional carrier frequency in Hz (0 = no carrier modulation)
 - **Repeat count**: Number of times to transmit the signal (defaults to 1)
 

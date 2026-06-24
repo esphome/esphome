@@ -486,8 +486,6 @@ Configuration variables:
 
 RGB displays use red, green, and blue, while grayscale displays may use white.
 
-<span id="display-pages"></span>
-
 ### Display Pages
 
 Certain display types also allow you to show "pages". With pages you can create drawing lambdas
@@ -545,7 +543,7 @@ on_...:
 ```
 
 > [!NOTE]
-> To trigger a redraw right after the page show use a [component.update](/automations/actions#component-update_action)
+> To trigger a redraw right after the page show use a [component.update](/automations/actions#component-update-action)
 > action:
 >
 > ```yaml
@@ -556,8 +554,6 @@ on_...:
 >       - display.page.show_next: my_display
 >       - component.update: my_display
 > ```
-
-<span id="display-is_displaying_page-condition"></span>
 
 ### `display.is_displaying_page` Condition
 

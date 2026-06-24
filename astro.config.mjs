@@ -8,6 +8,7 @@ import { imageBreakpoints } from "./src/lib/breakpoints.ts";
 import { remarkAlert } from "remark-github-blockquote-alert";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import { rehypeHeadingSlugs } from "./src/lib/rehype-heading-slugs.mjs";
 import componentsJson from "./src/integrations/components-json.ts";
 import routeIndex from "./src/integrations/route-index.ts";
 
@@ -132,7 +133,7 @@ export default defineConfig({
     // to .mdx files when this is explicitly truthy. Without it, GFM tables render as literal text.
     gfm: true,
     remarkPlugins: [remarkAlert, remarkMath],
-    rehypePlugins: [rehypeKatex],
+    rehypePlugins: [rehypeHeadingSlugs, rehypeKatex],
   },
   integrations: [
     starlight({

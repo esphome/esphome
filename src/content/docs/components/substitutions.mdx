@@ -62,8 +62,6 @@ something:
   test: ${bar[foo]}
 ```
 
-<span id="jinja-expressions"></span>
-
 ## Jinja expressions
 
 Simple Jinja expressions and filters can be used inside `${ ... }` syntax.
@@ -146,8 +144,6 @@ In addition to the Jinja expressions, ESPHome supports a number of built-in func
 - `chr` Returns the character for a given Unicode code point. Example: `chr(65) == "A"`
 - `len` Returns the length of the string. Example: `len("Hello") == 5`
 
-<span id="substitute-include-variables"></span>
-
 ## Disabling Jinja and substitutions
 
 You can prevent ESPHome from substituting variables or processing Jinja by means of the `!literal` tag before any value:
@@ -220,8 +216,6 @@ binary_sensor:
 ESPHome expands the substitutions in the filename before loading the file, so `on-multi-click-${platform}.yaml`
 resolves to `on-multi-click-esp32.yaml` in the above example. Any substitution expression — including
 [Jinja expressions](/components/substitutions#jinja-expressions) — can be used.
-
-<span id="command-line-substitutions"></span>
 
 ## Command line substitutions
 

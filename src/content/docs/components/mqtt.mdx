@@ -170,8 +170,6 @@ Configuration options:
 - **retain** (*Optional*, boolean): If the published message should
    have a retain flag on or not. Defaults to `true`.
 
-<span id="mqtt-device_discovery"></span>
-
 ## MQTT device discovery
 
 The ESPHome device will respond to the following MQTT topics if `mqtt.discover_ip` is enabled.
@@ -658,8 +656,6 @@ mqtt:
 
 ## Actions
 
-<span id="mqtt-publish_action"></span>
-
 ### `mqtt.publish` Action
 
 Publish an MQTT message on a topic using this action in automations.
@@ -705,8 +701,6 @@ on_...:
 > ```cpp
 > id(mqtt_client).publish("the/topic", "The Payload");
 > ```
-
-<span id="mqtt-publish_json_action"></span>
 
 ### `mqtt.publish_json` Action
 
@@ -805,8 +799,6 @@ on_...:
 ```
 
 ## Conditions
-
-<span id="mqtt-connected_condition"></span>
 
 ### `mqtt.connected` Condition
 

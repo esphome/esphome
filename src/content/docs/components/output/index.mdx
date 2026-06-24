@@ -53,8 +53,6 @@ Float outputs only:
 > The `min_power` and `max_power` values are automatically clamped to ensure `0.0 ≤ min_power ≤ max_power ≤ 1.0`.
 > This prevents invalid configurations and ensures stable output behavior.
 
-<span id="output-turn_on_action"></span>
-
 ### `output.turn_on` Action
 
 This action turns the output with the given ID on when executed.
@@ -72,8 +70,6 @@ on_...:
 > id(light_1).turn_on();
 > ```
 
-<span id="output-turn_off_action"></span>
-
 ### `output.turn_off` Action
 
 This action turns the output with the given ID off when executed.
@@ -90,8 +86,6 @@ on_...:
 > ```cpp
 > id(light_1).turn_off();
 > ```
-
-<span id="output-set_level_action"></span>
 
 ### `output.set_level` Action
 
@@ -117,8 +111,6 @@ on_...:
 > // range is 0.0 (off) to 1.0 (on)
 > id(light_1).set_level(0.5);
 > ```
-
-<span id="output-set_min_power_action"></span>
 
 ### `output.set_min_power` Action
 
@@ -152,8 +144,6 @@ on_...:
 > `output.set_min_power` / `output.set_max_power` action is registered. If your
 > config uses neither, add e.g. `min_power: 0%` to one output to opt in — the
 > build otherwise fails with a `static_assert` pointing at the lambda.
-
-<span id="output-set_max_power_action"></span>
 
 ### `output.set_max_power` Action
 

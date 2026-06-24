@@ -245,7 +245,7 @@ which will reduce performance. On ESP32P4 the software rotation is hardware acce
 
 Touchscreen coordinates will be automatically rotated when using LVGL rotation.
 
-The display orientation may be changed at runtime with the [`lvgl.display.set_rotation`](#lvgl-display-set-rotation-action) action.
+The display orientation may be changed at runtime with the [`lvgl.display.set_rotation`](#lvgl-display-set_rotation-action) action.
 
 ## Style properties
 
@@ -601,8 +601,6 @@ Widgets support [general or specific](/components/lvgl/widgets#lvgl-automation-a
 
 Several actions are available for the LVGL component itself, these are outlined below. Note that if multiple LVGL instances are configured, an **lvgl_id** config entry will be required to specify which instance the action relates to. This is not required if there is only a single LVGL instance configured.
 
-<span id="lvgl-style-update-action"></span>
-
 ### `lvgl.style.update` Action
 
 This [action](/automations/actions#actions-action) allows changing/updating the properties of a style at run time. This can be used to
@@ -628,8 +626,6 @@ on_...:
       border_color: 0x00FF00
 ```
 
-<span id="lvgl-pause-action"></span>
-
 ### `lvgl.pause` Action
 
 This [action](/automations/actions#actions-action) pauses the activity of LVGL, including rendering.
@@ -643,8 +639,6 @@ on_...:
       show_snow: true
 ```
 
-<span id="lvgl-resume-action"></span>
-
 ### `lvgl.resume` Action
 
 This [action](/automations/actions#actions-action) resumes the activity of LVGL, including rendering.
@@ -655,8 +649,6 @@ This [action](/automations/actions#actions-action) resumes the activity of LVGL,
 on_...:
   - lvgl.resume:
 ```
-
-<span id="lvgl-display-set-rotation-action"></span>
 
 ### `lvgl.display.set_rotation` Action
 
@@ -708,8 +700,6 @@ on_...:
       time: 300ms
 ```
 
-<span id="lvgl-page-show-action"></span>
-
 ### `lvgl.page.show` Action
 
 This [action](/automations/actions#actions-action) shows a specific page (including pages with their `skip` option enabled).
@@ -731,11 +721,9 @@ on_...:
 
 ## Conditions
 
-<span id="lvgl-is-idle-condition"></span>
-
 ### `lvgl.is_idle` Condition
 
-This [condition](/automations/actions#common_conditions) checks if the amount of time specified has passed since the last touch event.
+This [condition](/automations/actions#common-conditions) checks if the amount of time specified has passed since the last touch event.
 
 - **timeout** (**Required**, [templatable](/automations/templates), int): Amount of [time](/guides/configuration-types#time) expected since the last touch event.
 - **lvgl_id** (*Optional*): The ID of the LVGL instance to monitor.
@@ -753,11 +741,9 @@ on_...:
             transition_length: 3s
 ```
 
-<span id="lvgl-is-paused-condition"></span>
-
 ### `lvgl.is_paused` Condition
 
-This [condition](/automations/actions#common_conditions) checks if LVGL is in the paused state or not.
+This [condition](/automations/actions#common-conditions) checks if LVGL is in the paused state or not.
 
 - **lvgl_id** (*Optional*): The ID of the LVGL instance to monitor.
 
@@ -772,7 +758,7 @@ on_...:
 
 ### `lvgl.page.is_showing` Condition
 
-This [condition](/automations/actions#common_conditions) checks if the nominated page is the one currently showing.
+This [condition](/automations/actions#common-conditions) checks if the nominated page is the one currently showing.
 
 - **id** (**Required**): The ID of the page to check. May be supplied as a simple value.
 

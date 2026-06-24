@@ -69,8 +69,6 @@ sensor:
   layout="constrained"
 />
 
-<span id="mhz19-calibrate_zero_action"></span>
-
 ## `mhz19.calibrate_zero` Action
 
 This [action](/automations/actions#all-actions) executes zero point calibration command on the sensor with the given ID.
@@ -94,8 +92,6 @@ api:
         - mhz19.calibrate_zero: my_mhz19_id
 ```
 
-<span id="mhz19-abc_enable_action"></span>
-
 ## `mhz19.abc_enable` Action
 
 This [action](/automations/actions#all-actions) enables automatic baseline calibration on the sensor with the given ID.
@@ -105,8 +101,6 @@ on_...:
   then:
     - mhz19.abc_enable: my_mhz19_id
 ```
-
-<span id="mhz19-abc_disable_action"></span>
 
 ## `mhz19.abc_disable` Action
 
@@ -130,8 +124,6 @@ switch:
     on_turn_off:
       mhz19.abc_disable: my_mhz19_id
 ```
-
-<span id="mhz19-detection_range_set_action"></span>
 
 ## `mhz19.detection_range_set` Action
 

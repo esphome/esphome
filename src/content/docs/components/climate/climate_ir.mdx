@@ -78,8 +78,6 @@ climate:
 
 - **transmitter_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the remote transmitter.
 
-<span id="climate_ir_lg"></span>
-
 ### `climate_ir_lg`
 
 - **header_high** (*Optional*, [Time](/guides/configuration-types#time)): time for the high part of the header for the LG protocol. Defaults to `8000us`
@@ -97,8 +95,6 @@ climate:
     header_high: 3265us # AC Units from LG in Brazil, for example use these timings
     header_low: 9856us
 ```
-
-<span id="daikin_brc"></span>
 
 ### `daikin_brc`
 
@@ -120,8 +116,6 @@ climate:
 ### `delonghi`
 
 The `delonghi` climate currently supports the protocol used by some Delonghi portable units, known working with Delonghi PAC WE 120HP.
-
-<span id="daikin_arc"></span>
 
 ### `daikin_arc`
 
@@ -174,8 +168,6 @@ switch:
       name: "AC X-Fan"
 ```
 
-<span id="midea_ir"></span>
-
 ### `midea_ir`
 
 These air conditioners support two protocols: Midea and Coolix. Therefore, when using an IR receiver, it considers both protocols and publishes the received states.
@@ -194,8 +186,6 @@ climate:
 > [!NOTE]
 > - See [Transmit Midea](/components/remote_transmitter#remote_transmitter-transmit_midea) to send custom commands, including Follow Me mode.
 > - See [Toshiba](#toshiba) below if you are looking for compatibility with Midea model MAP14HS1TBL or similar.
-
-<span id="mitsubishi"></span>
 
 ### `mitsubishi`
 
@@ -234,8 +224,6 @@ climate:
     horizontal_default: "left"
     vertical_default: "down"
 ```
-
-<span id="toshiba"></span>
 
 ### `toshiba`
 
@@ -276,16 +264,12 @@ climate:
     sensor: room_temperature
 ```
 
-<span id="whirlpool"></span>
-
 ### `whirlpool`
 
 - **model** (*Optional*, string): There are two valid models to choose from:
 
   - `DG11J1-3A`  : Temperature range is from 18 to 32 (default)
   - `DG11J1-91`  : Temperature range is from 16 to 30
-
-<span id="whynter"></span>
 
 ### `whynter`
 
@@ -300,8 +284,6 @@ climate:
     use_fahrenheit: true
     supports_heat: true
 ```
-
-<span id="zhlt01"></span>
 
 ### `zhlt01`
 

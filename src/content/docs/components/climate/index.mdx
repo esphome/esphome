@@ -160,8 +160,6 @@ MQTT options:
 
 ## Climate Automation
 
-<span id="climate-control_action"></span>
-
 ### `climate.control` Action
 
 This is an [Action](/automations/actions#all-actions) for setting parameters for climate devices.
@@ -289,8 +287,6 @@ advanced stuff.
     call.perform();
 ```
 
-<span id="climate-on_state_trigger"></span>
-
 ### `climate.on_state` Trigger
 
 This trigger is activated each time the state of the climate device is updated
@@ -307,8 +303,6 @@ climate:
           if (x.mode != CLIMATE_MODE_OFF)
             id(some_binary_sensor).publish_state(true);
 ```
-
-<span id="climate-on_control_trigger"></span>
 
 ### `climate.on_control` Trigger
 

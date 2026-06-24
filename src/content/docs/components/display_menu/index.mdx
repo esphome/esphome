@@ -80,16 +80,16 @@ Configuration variables:
 
 - **mode** (*Optional*, enum): Defines the navigation logic. Defaults to `rotary`.
 
-  - `rotary`  : Rotary mode expects the clockwise movement wired to [display_menu.down](#display_menu-down_action),
+  - `rotary`  : Rotary mode expects the clockwise movement wired to [display_menu.down](#display_menu-down-action),
 
-      the anticlockwise one to [display_menu.up](#display_menu-up_action) and the switch
-      to [display_menu.enter](#display_menu-enter_action) action.
+      the anticlockwise one to [display_menu.up](#display_menu-up-action) and the switch
+      to [display_menu.enter](#display_menu-enter-action) action.
 
-  - `joystick`  : Joystick mode expects the up, down, left and right buttons wired to the [display_menu.up](#display_menu-up_action),
+  - `joystick`  : Joystick mode expects the up, down, left and right buttons wired to the [display_menu.up](#display_menu-up-action),
 
-      [display_menu.down](#display_menu-down_action), [display_menu.left](#display_menu-left_action)
-      and [display_menu.right](#display_menu-right_action) actions and the middle button
-      to the [display_menu.enter](#display_menu-enter_action) action.
+      [display_menu.down](#display_menu-down-action), [display_menu.left](#display_menu-left-action)
+      and [display_menu.right](#display_menu-right-action) actions and the middle button
+      to the [display_menu.enter](#display_menu-enter-action) action.
 
 - **items** (**Required**): The first level of the menu.
 
@@ -553,8 +553,6 @@ lcd_menu:
           lambda: 'some_state--;'
 ```
 
-<span id="display_menu-up_action"></span>
-
 ### `display_menu.up` Action
 
 This is an [Action](/automations/actions#all-actions) for navigating up in a menu. The action
@@ -573,8 +571,6 @@ Configuration variables:
 
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the menu to navigate.
 
-<span id="display_menu-down_action"></span>
-
 ### `display_menu.down` Action
 
 This is an [Action](/automations/actions#all-actions) for navigating down in a menu. The action
@@ -592,8 +588,6 @@ sensor:
 Configuration variables:
 
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the menu to navigate.
-
-<span id="display_menu-left_action"></span>
 
 ### `display_menu.left` Action
 
@@ -616,8 +610,6 @@ Configuration variables:
 
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the menu to navigate.
 
-<span id="display_menu-right_action"></span>
-
 ### `display_menu.right` Action
 
 This is an [Action](/automations/actions#all-actions) usually wired to the right button
@@ -637,8 +629,6 @@ binary_sensor:
 Configuration variables:
 
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the menu to navigate.
-
-<span id="display_menu-enter_action"></span>
 
 ### `display_menu.enter` Action
 

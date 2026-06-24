@@ -99,8 +99,6 @@ climate:
 
 ## Automations
 
-<span id="midea_ac-power_on_action"></span>
-
 ### `midea_ac.power_on` Action
 
 This action turn on power. The mode and preset will be restored to the last state before turned off.
@@ -110,8 +108,6 @@ on_...:
   then:
     - midea_ac.power_on:
 ```
-
-<span id="midea_ac-power_off_action"></span>
 
 ### `midea_ac.power_off` Action
 
@@ -123,8 +119,6 @@ on_...:
     - midea_ac.power_off:
 ```
 
-<span id="midea_ac-power_toggle_action"></span>
-
 ### `midea_ac.power_toggle` Action
 
 This action toggle the power state. Identical to pressing the power button on the remote control.
@@ -134,8 +128,6 @@ on_...:
   then:
     - midea_ac.power_toggle:
 ```
-
-<span id="midea_ac-follow_me_action"></span>
 
 ### `midea_ac.follow_me` Action
 
@@ -165,8 +157,6 @@ Configuration variables:
 - **beeper** (*Optional*, boolean, [templatable](/automations/templates)):
   Sets beep on update. Defaults to `false`.
 
-<span id="midea_ac-display_toggle_action"></span>
-
 ### `midea_ac.display_toggle` Action
 
 This action toggle ac screen. Works via UART if supported or [Remote Transmitter](/components/remote_transmitter/).
@@ -176,8 +166,6 @@ on_...:
   then:
     - midea_ac.display_toggle:
 ```
-
-<span id="midea_ac-swing_step_action"></span>
 
 ### `midea_ac.swing_step` Action
 
@@ -189,8 +177,6 @@ on_...:
     - midea_ac.swing_step:
 ```
 
-<span id="midea_ac-beeper_on_action"></span>
-
 ### `midea_ac.beeper_on` Action
 
 This action turn on beeper feedback.
@@ -200,8 +186,6 @@ on_...:
   then:
     - midea_ac.beeper_on:
 ```
-
-<span id="midea_ac-beeper_off_action"></span>
 
 ### `midea_ac.beeper_off` Action
 

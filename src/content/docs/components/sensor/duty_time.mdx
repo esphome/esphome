@@ -51,8 +51,6 @@ sensor:
 
 In addition to all basic [sensor automations](/components/sensor#sensor-automations), the component supports the automations below.
 
-<span id="sensor-duty_time-start_action"></span>
-
 ### `sensor.duty_time.start` Action
 
 This action starts/resume time tracking. In lambdas, you may use the `start()` method.
@@ -63,8 +61,6 @@ on_...:
     - sensor.duty_time.start: my_climate_work_time
 ```
 
-<span id="sensor-duty_time-stop_action"></span>
-
 ### `sensor.duty_time.stop` Action
 
 This action suspends time tracking. Causes the sensor to be updated, including the `last_time` sensor. In lambdas, you may use the `stop()` method.
@@ -74,8 +70,6 @@ on_...:
   then:
     - sensor.duty_time.stop: my_climate_work_time
 ```
-
-<span id="sensor-duty_time-reset_action"></span>
 
 ### `sensor.duty_time.reset` Action
 

@@ -144,8 +144,6 @@ The following integers are the wakeup causes:
 When `sleep_duration` is configured or Zigbee is used, the nRF52 resumes normal operation after waking up.
 Otherwise, the nRF52 performs a full reset instead of continuing execution.
 
-<span id="deep_sleep-enter_action"></span>
-
 ## `deep_sleep.enter` Action
 
 This action makes the given deep sleep component enter deep sleep immediately.
@@ -178,8 +176,6 @@ Configuration options:
 - **sleep_duration** (*Optional*, [templatable](/automations/templates), [Time](/guides/configuration-types#time)): The time duration to stay in deep sleep mode. If a template is used, it should return a value in milliseconds.
 - **until** (*Optional*, string): The time of day to wake up. Only on ESP32.
 - **time_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the time component to use for the `until` option. Only on ESP32.
-
-<span id="deep_sleep-prevent_action"></span>
 
 ## `deep_sleep.prevent` Action
 
@@ -222,8 +218,6 @@ on_...:
 >       then:
 >         - deep_sleep.enter: deep_sleep_1
 > ```
-
-<span id="deep_sleep-allow_action"></span>
 
 ## `deep_sleep.allow` Action
 

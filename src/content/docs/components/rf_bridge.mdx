@@ -69,8 +69,6 @@ on_code_received:
         code: !lambda 'char buf[9]; return format_hex_to(buf, data.code);'
 ```
 
-<span id="rf_bridge-send_code_action"></span>
-
 ## `rf_bridge.send_code` Action
 
 Send a standard (0xA5) RF code using this action in automations.
@@ -100,8 +98,6 @@ Configuration options:
 > id(my_rf_bridge).send_code(0x700, 0x800, 0x1000, 0xABC123);
 > ```
 
-<span id="rf_bridge-beep_action"></span>
-
 ## `rf_bridge.beep` Action
 
 Activate the internal buzzer to make a beep.
@@ -125,8 +121,6 @@ Configuration options:
 > id(my_rf_bridge).beep(100);
 > ```
 
-<span id="rf_bridge-learn_action"></span>
-
 ## `rf_bridge.learn` Action
 
 Tell the RF Bridge to learn new protocol timings using this action in automations.
@@ -149,14 +143,12 @@ Configuration options:
 > id(my_rf_bridge).learn();
 > ```
 
-<span id="rf_bridge-send_raw_action"></span>
-
 ## `rf_bridge.send_raw` Action
 
 Send a raw command to the onboard radio chip. The OEM RF firmware is able to raw send only standard signals (usually short), for other signals (B0 transmit), flashing the RF chip with Portisch or Mightymos firmware is needed.
 
 This can be used to send raw RF codes in automations, mainly for protocols that are not supported.
-If you have *Portisch* or *Mightymos* firmware installed, these raw codes can be obtained with the help of [`rf_bridge.start_bucket_sniffing` Action](#rf_bridge-start_bucket_sniffing_action)
+If you have *Portisch* or *Mightymos* firmware installed, these raw codes can be obtained with the help of [`rf_bridge.start_bucket_sniffing` Action](#rf_bridge-start_bucket_sniffing-action)
 
 ```yaml
 on_...:
@@ -205,8 +197,6 @@ on_advanced_code_received:
         code: !lambda 'return data.code;'
 ```
 
-<span id="rf_bridge-send_advanced_code_action"></span>
-
 ### `rf_bridge.send_advanced_code` Action
 
 Send an RF code using this action in automations.
@@ -234,8 +224,6 @@ Configuration options:
 > id(my_rf_bridge).send_advanced_code({0x04, 0x01, "ABC123"});
 > ```
 
-<span id="rf_bridge-start_advanced_sniffing_action"></span>
-
 ### `rf_bridge.start_advanced_sniffing` Action
 
 Tell the RF Bridge to listen for the advanced/extra protocols defined in the portisch firmware.
@@ -258,8 +246,6 @@ Configuration options:
 > id(my_rf_bridge).start_advanced_sniffing();
 > ```
 
-<span id="rf_bridge-stop_advanced_sniffing_action"></span>
-
 ### `rf_bridge.stop_advanced_sniffing` Action
 
 Tell the RF Bridge to stop listening for the advanced/extra protocols defined in the portisch firmware.
@@ -281,12 +267,10 @@ Configuration options:
 > id(my_rf_bridge).stop_advanced_sniffing();
 > ```
 
-<span id="rf_bridge-start_bucket_sniffing_action"></span>
-
 ### `rf_bridge.start_bucket_sniffing` Action
 
 Tell the RF Bridge to dump raw sniffing data. Useful for getting codes for unsupported protocols.
-The raw data will be available in the log and can later be used with [`rf_bridge.send_raw` Action](#rf_bridge-send_raw_action) action.
+The raw data will be available in the log and can later be used with [`rf_bridge.send_raw` Action](#rf_bridge-send_raw-action) action.
 
 > [!NOTE]
 > A conversion from *B1* (received) raw format to *B0* (send) raw command format should be applied.

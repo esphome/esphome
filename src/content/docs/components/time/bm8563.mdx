@@ -17,8 +17,6 @@ time:
 - **address** (*Optional*, int): Manually specify the I²C address of the RTC. Defaults to `0x51`.
 - All other options from [Base Time Configuration](/components/time#base_time_config).
 
-<span id="bm8563-write_time_action"></span>
-
 ## `bm8563.write_time` Action
 
 This [Action](/automations/actions#config-action) triggers a synchronization of the current system time to the RTC hardware.
@@ -34,8 +32,6 @@ on_...:
   - bm8563.write_time:
       id: bm8563_time
 ```
-
-<span id="bm8563-read_time_action"></span>
 
 ## `bm8563.read_time` Action
 
@@ -54,8 +50,6 @@ on_...:
   - bm8563.read_time:
       id: bm8563_time
 ```
-
-<span id="bm8563-start_timer_action"></span>
 
 ## `bm8563.start_timer` Action
 

@@ -207,8 +207,6 @@ logger:
 Here, `VERBOSE` logs are compiled, but not shown (because of `initial_level: ERROR`)
 However, the `wifi` tag has `VERBOSE` level enabled, and shown.
 
-<span id="logger-log_action"></span>
-
 ## `logger.log` Action
 
 Print a formatted message to the logs.
@@ -283,7 +281,7 @@ logger:
 ```
 
 > [!NOTE]
-> Logging will not work in the `on_message` trigger. You can't use the [logger.log](#logger-log_action) action
+> Logging will not work in the `on_message` trigger. You can't use the [logger.log](#logger-log-action) action
 > and the `ESP_LOGx` logging macros in this automation.
 
 ## See Also
