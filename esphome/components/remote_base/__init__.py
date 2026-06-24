@@ -4,6 +4,7 @@ from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
+    CONF_BEEPER,
     CONF_BUTTON,
     CONF_CARRIER_FREQUENCY,
     CONF_CHANNEL,
@@ -14,6 +15,7 @@ from esphome.const import (
     CONF_DATA,
     CONF_DELTA,
     CONF_DEVICE,
+    CONF_DISPLAY,
     CONF_FAMILY,
     CONF_GROUP,
     CONF_ID,
@@ -21,8 +23,10 @@ from esphome.const import (
     CONF_INVERTED,
     CONF_LEVEL,
     CONF_MAGNITUDE,
+    CONF_MODE,
     CONF_NBITS,
     CONF_ONE,
+    CONF_POWER,
     CONF_PROTOCOL,
     CONF_PULSE_LENGTH,
     CONF_RC_CODE_1,
@@ -32,8 +36,10 @@ from esphome.const import (
     CONF_SOURCE,
     CONF_STATE,
     CONF_SYNC,
+    CONF_TARGET_TEMPERATURE,
     CONF_TIMES,
     CONF_TRIGGER_ID,
+    CONF_TYPE,
     CONF_TYPE_ID,
     CONF_WAIT_TIME,
     CONF_WAND_ID,
@@ -962,6 +968,155 @@ async def pioneer_action(var, config, args):
     cg.add(var.set_rc_code_1(template_))
     template_ = await cg.templatable(config[CONF_RC_CODE_2], args, cg.uint16)
     cg.add(var.set_rc_code_2(template_))
+
+
+# PioneerWyt
+PioneerWytData = ns.struct("PioneerWytData")
+PioneerWytAction = ns.class_("PioneerWytAction", RemoteTransmitterActionBase)
+
+
+CONF_FAN_SPEED = "fan_speed"
+CONF_MUTE = "mute"
+CONF_VERTICAL_SWING = "vertical_swing"
+CONF_HORIZONTAL_SWING = "horizontal_swing"
+CONF_TURBO = "turbo"
+CONF_ECO = "eco"
+CONF_FOLLOW_ME = "follow_me"
+CONF_REMOTE_TEMP = "remote_temp"
+CONF_SLEEP = "sleep"
+
+PioneerWytDataType = ns.enum("PioneerWytDataType")
+PioneerWytMode = ns.enum("PioneerWytMode")
+PioneerWytFanSpeed = ns.enum("PioneerWytFanSpeed")
+
+PIONEER_WYT_MODES = {
+    "HEAT": PioneerWytMode.PIONEER_WYT_MODE_HEAT,
+    "DRY": PioneerWytMode.PIONEER_WYT_MODE_DRY,
+    "COOL": PioneerWytMode.PIONEER_WYT_MODE_COOL,
+    "FAN": PioneerWytMode.PIONEER_WYT_MODE_FAN,
+    "AUTO": PioneerWytMode.PIONEER_WYT_MODE_AUTO,
+}
+
+PIONEER_WYT_FAN_SPEEDS = {
+    "AUTO": PioneerWytFanSpeed.PIONEER_WYT_FAN_AUTO,
+    "LOW": PioneerWytFanSpeed.PIONEER_WYT_FAN_LOW,
+    "MEDIUM_LOW": PioneerWytFanSpeed.PIONEER_WYT_FAN_MEDIUM_LOW,
+    "MEDIUM": PioneerWytFanSpeed.PIONEER_WYT_FAN_MEDIUM,
+    "MEDIUM_HIGH": PioneerWytFanSpeed.PIONEER_WYT_FAN_MEDIUM_HIGH,
+    "HIGH": PioneerWytFanSpeed.PIONEER_WYT_FAN_HIGH,
+}
+
+PIONEER_WYT_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_CODE): cv.All([cv.hex_uint8_t], cv.Length(min=13, max=13)),
+        cv.Optional(CONF_TYPE): cv.one_of("GENERAL", "FAN", "BOTH", upper=True),
+        cv.Optional(CONF_POWER, default=True): cv.boolean,
+        cv.Optional(CONF_MODE, default="COOL"): cv.enum(PIONEER_WYT_MODES, upper=True),
+        cv.Optional(CONF_TARGET_TEMPERATURE, default=24.0): cv.float_,
+        cv.Optional(CONF_BEEPER, default=True): cv.boolean,
+        cv.Optional(CONF_DISPLAY, default=True): cv.boolean,
+        cv.Optional(CONF_ECO, default=False): cv.boolean,
+        cv.Optional(CONF_TURBO, default=False): cv.boolean,
+        cv.Optional(CONF_SLEEP, default=False): cv.boolean,
+        cv.Optional(CONF_FOLLOW_ME, default=False): cv.boolean,
+        cv.Optional(CONF_REMOTE_TEMP, default=0): cv.int_range(min=0, max=255),
+        cv.Optional(CONF_FAN_SPEED, default="AUTO"): cv.enum(
+            PIONEER_WYT_FAN_SPEEDS, upper=True
+        ),
+        cv.Optional(CONF_MUTE, default=False): cv.boolean,
+        cv.Optional(CONF_VERTICAL_SWING, default=False): cv.boolean,
+        cv.Optional(CONF_HORIZONTAL_SWING, default=False): cv.boolean,
+    }
+)
+
+
+@register_action("pioneer_wyt", PioneerWytAction, PIONEER_WYT_ACTION_SCHEMA)
+async def pioneer_wyt_action(var, config, args):
+    if CONF_CODE in config:
+        if CONF_TYPE in config:
+            raise cv.Invalid("Cannot specify both code and type for pioneer_wyt action")
+        vec_ = cg.std_vector.template(cg.uint8)
+        template_ = await cg.templatable(config[CONF_CODE], args, vec_, vec_)
+        cg.add(var.set_code(template_))
+    else:
+        type_val = config.get(CONF_TYPE, "BOTH")
+        if type_val == "GENERAL":
+            cg.add(
+                var.set_type(
+                    await cg.templatable(
+                        PioneerWytDataType.PIONEER_WYT_TYPE_GENERAL,
+                        args,
+                        PioneerWytDataType,
+                    )
+                )
+            )
+        elif type_val == "FAN":
+            cg.add(
+                var.set_type(
+                    await cg.templatable(
+                        PioneerWytDataType.PIONEER_WYT_TYPE_FAN,
+                        args,
+                        PioneerWytDataType,
+                    )
+                )
+            )
+        elif type_val == "BOTH":
+            cg.add(
+                var.set_type(
+                    await cg.templatable(
+                        PioneerWytDataType.PIONEER_WYT_TYPE_BOTH,
+                        args,
+                        PioneerWytDataType,
+                    )
+                )
+            )
+
+        cg.add(var.set_power(await cg.templatable(config[CONF_POWER], args, cg.bool_)))
+        cg.add(
+            var.set_mode(await cg.templatable(config[CONF_MODE], args, PioneerWytMode))
+        )
+        cg.add(
+            var.set_target_temperature(
+                await cg.templatable(config[CONF_TARGET_TEMPERATURE], args, cg.float_)
+            )
+        )
+        cg.add(
+            var.set_beeper(await cg.templatable(config[CONF_BEEPER], args, cg.bool_))
+        )
+        cg.add(
+            var.set_display(await cg.templatable(config[CONF_DISPLAY], args, cg.bool_))
+        )
+        cg.add(var.set_eco(await cg.templatable(config[CONF_ECO], args, cg.bool_)))
+        cg.add(var.set_turbo(await cg.templatable(config[CONF_TURBO], args, cg.bool_)))
+        cg.add(var.set_sleep(await cg.templatable(config[CONF_SLEEP], args, cg.bool_)))
+        cg.add(
+            var.set_follow_me(
+                await cg.templatable(config[CONF_FOLLOW_ME], args, cg.bool_)
+            )
+        )
+        cg.add(
+            var.set_remote_temp(
+                await cg.templatable(config[CONF_REMOTE_TEMP], args, cg.uint8)
+            )
+        )
+
+        cg.add(
+            var.set_fan_speed(
+                await cg.templatable(config[CONF_FAN_SPEED], args, PioneerWytFanSpeed)
+            )
+        )
+        cg.add(var.set_mute(await cg.templatable(config[CONF_MUTE], args, cg.bool_)))
+
+        cg.add(
+            var.set_vertical_swing(
+                await cg.templatable(config[CONF_VERTICAL_SWING], args, cg.bool_)
+            )
+        )
+        cg.add(
+            var.set_horizontal_swing(
+                await cg.templatable(config[CONF_HORIZONTAL_SWING], args, cg.bool_)
+            )
+        )
 
 
 # Pronto

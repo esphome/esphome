@@ -95,6 +95,35 @@ button:
           repeat:
             times: 2
   - platform: template
+    name: Pioneer WYT
+    on_press:
+      remote_transmitter.transmit_pioneer_wyt:
+        code: [0xD3, 0x26, 0x00, 0x01, 0x00, 0x20, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0x00]
+  - platform: template
+    name: Pioneer WYT Friendly General
+    on_press:
+      remote_transmitter.transmit_pioneer_wyt:
+        type: GENERAL
+        power: true
+        mode: COOL
+        target_temperature: 22.0
+  - platform: template
+    name: Pioneer WYT Friendly Fan
+    on_press:
+      remote_transmitter.transmit_pioneer_wyt:
+        type: FAN
+        fan_speed: HIGH
+        vertical_swing: true
+  - platform: template
+    name: Pioneer WYT Friendly Both
+    on_press:
+      remote_transmitter.transmit_pioneer_wyt:
+        power: true
+        mode: COOL
+        target_temperature: 22.0
+        fan_speed: HIGH
+        vertical_swing: true
+  - platform: template
     name: RC Switch Raw
     on_press:
       remote_transmitter.transmit_rc_switch_raw:
