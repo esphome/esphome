@@ -19,10 +19,8 @@ display:
       allow_other_uses: true
       number: GPIO4
     enable_pin:
-      - allow_other_uses: true
-        number: GPIO17
-      - allow_other_uses: true
-        number: GPIO18
+      - GPIO17
+      - GPIO18
     vcom: 1500
     update_interval: 60s
     lambda: |-
