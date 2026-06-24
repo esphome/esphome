@@ -132,8 +132,6 @@ class ModbusServerHub : public Modbus {
   void register_device(ModbusServerDevice *device) { this->devices_.push_back(device); }
 
  protected:
-  friend class ModbusServerDevice;
-
   void parse_modbus_frames() override;
   bool parse_modbus_client_frame_();
   // Parsers need to handle standard (ModbusFunctionCode) and custom (uint8_t) function codes, so we use uint8_t here.
