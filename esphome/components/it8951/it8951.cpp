@@ -102,9 +102,6 @@ void IT8951Display::process_op_(const Op &op) {
     case OpType::SET_1BPP:
       this->op_set_1bpp_();
       break;
-    case OpType::CLEAR_1BPP:
-      this->op_clear_1bpp_();
-      break;
     case OpType::XFER_LISAR:
       this->op_xfer_lisar_();
       break;
@@ -156,15 +153,18 @@ void IT8951Display::process_op_(const Op &op) {
 
 void IT8951Display::set_phase_(Phase next) {
   ESP_LOGV(TAG, "Phase %u -> %u", static_cast<unsigned>(this->phase_), static_cast<unsigned>(next));
-  // Run the loop continuously only while streaming image data, so 20ms transfer
-  // slices aren't separated by the ~16ms default loop interval. Other phases are
-  // one-shot or delay-gated and don't benefit (the LUT-idle wait is deliberately
-  // excluded so it doesn't busy-loop through the multi-second refresh). start()
-  // and stop() are idempotent, so driving them off the transition is safe.
-  if (next == Phase::UPDATE_TRANSFER) {
-    this->high_freq_.start();
-  } else {
+  // Run the loop continuously for the whole active sequence, returning to normal
+  // throttling only at IDLE. Each queued op is processed one per loop iteration,
+  // so at the default ~16ms loop interval the dozens of small ops in the refresh
+  // and restore phases (register polls, 1bpp enable/restore, DPY) would dominate
+  // a partial update's latency. The LUT-idle polls are DELAY_MS-paced, so this
+  // doesn't hammer SPI — it only spends a little extra CPU during the (short,
+  // infrequent) update instead of sleeping between ops. start()/stop() are
+  // idempotent, so driving them off the transition is safe.
+  if (next == Phase::IDLE) {
     this->high_freq_.stop();
+  } else {
+    this->high_freq_.start();
   }
   this->phase_ = next;
   this->phase_started_at_ = millis();
@@ -288,16 +288,14 @@ void IT8951Display::advance_phase_() {
       break;
 
     case Phase::UPDATE_REFRESH:
-      if (!this->grayscale_) {
-        this->set_phase_(Phase::UPDATE_RESTORE);
-        this->enqueue_update_restore_();
-      } else {
-        this->set_phase_(Phase::UPDATE_SLEEP);
-        this->enqueue_update_sleep_();
-      }
-      break;
-
-    case Phase::UPDATE_RESTORE:
+      // Fire-and-forget: don't block here waiting for the refresh to complete.
+      // The next update's pre-display LUT-idle poll (and the HW_RDY-gated
+      // TCON_SLEEP) wait as needed, so the refresh time stays off this update's
+      // critical path. The 1bpp display mode is left enabled rather than
+      // restored after every update: on a monochrome display every update
+      // (DU partials and the periodic GC16 cleans) runs in 1bpp mode, so the
+      // bit never needs clearing — and clearing it required a full
+      // refresh-length LUT-idle wait.
       this->set_phase_(Phase::UPDATE_SLEEP);
       this->enqueue_update_sleep_();
       break;
@@ -433,20 +431,6 @@ void IT8951Display::enqueue_update_refresh_() {
   }
   this->enqueue_(OpType::DPY_BUF_CMD);
   this->enqueue_(OpType::DPY_BUF_ARGS);
-}
-
-void IT8951Display::enqueue_update_restore_() {
-  // After a 1bpp refresh, wait for LUT idle then clear UP1SR bit 2.
-  // CMD(REG_RD) → WRITE_W(LUTAFSR) → READ_WORD → CHECK_LUT_IDLE
-  this->enqueue_(OpType::CMD, TCON_REG_RD);
-  this->enqueue_(OpType::WRITE_W, LUTAFSR);
-  this->enqueue_(OpType::READ_WORD);
-  this->enqueue_(OpType::CHECK_LUT_IDLE);
-  // CMD(REG_RD) → WRITE_W(UP1SR+2) → READ_WORD → CLEAR_1BPP
-  this->enqueue_(OpType::CMD, TCON_REG_RD);
-  this->enqueue_(OpType::WRITE_W, static_cast<uint16_t>(UP1SR + 2));
-  this->enqueue_(OpType::READ_WORD);
-  this->enqueue_(OpType::CLEAR_1BPP);
 }
 
 void IT8951Display::enqueue_update_sleep_() {
@@ -675,13 +659,6 @@ void IT8951Display::op_set_1bpp_() {
   this->prepend_(OpType::WRITE_REG, BGVR, 0xFF00);
   this->prepend_(OpType::CMD, TCON_REG_WR, 0);
   this->prepend_(OpType::WRITE_REG, UP1SR + 2, modified);
-  this->prepend_(OpType::CMD, TCON_REG_WR, 0);
-}
-
-void IT8951Display::op_clear_1bpp_() {
-  // read_result_ holds UP1SR+2 value. Clear bit 2 and write back.
-  const uint16_t modified = static_cast<uint16_t>(this->read_result_ & ~(1U << 2));
-  this->prepend_(OpType::WRITE_REG, static_cast<uint16_t>(UP1SR + 2), modified);
   this->prepend_(OpType::CMD, TCON_REG_WR, 0);
 }
 
@@ -954,9 +931,11 @@ void HOT IT8951Display::write_pixel_native_(uint16_t x, uint16_t y, const Color 
     uint16_t lum = static_cast<uint16_t>(color.r) + color.g + color.b;  // 0..765, 765 = white
     if (this->invert_colors_)
       lum = static_cast<uint16_t>(765 - lum);
-    // Ordered dither: set the bit (foreground/black) when this pixel is darker
-    // than its dither threshold, so pale colours render as visible texture.
-    this->set_mono_pixel_(x, y, lum < dither_threshold(x, y));
+    // Set the bit (foreground/black) when this pixel is darker than its
+    // threshold. With dithering the threshold varies per pixel so pale colours
+    // render as visible texture; otherwise it's the fixed ~50% cut (r+g+b<382).
+    const uint16_t threshold = this->dithering_ ? dither_threshold(x, y) : 382;
+    this->set_mono_pixel_(x, y, lum < threshold);
   }
 }
 

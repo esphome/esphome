@@ -99,7 +99,6 @@ enum class OpType : uint8_t {
                     //   into read_result_. Loop HW_RDY gate ensures data ready.
   CHECK_LUT_IDLE,   // checks read_result_; if non-zero, re-enqueues read sequence
   SET_1BPP,         // uses read_result_ to set UP1SR bit 2, enqueues writes
-  CLEAR_1BPP,       // uses read_result_ to clear UP1SR bit 2, enqueues writes
   XFER_LISAR,       // set image-buffer target address (2× reg write: 4 CS transactions)
   XFER_AREA_CMD,    // single CS: CMD preamble + TCON_LD_IMG_AREA
   XFER_AREA_ARGS,   // single CS: WRITE preamble + 5 area-parameter words
@@ -133,7 +132,6 @@ enum class Phase : uint8_t {
   UPDATE_PREPARE,   // do_update_, compute dirty region, decide 4bpp/1bpp
   UPDATE_TRANSFER,  // one LD_IMG_AREA, time-sliced row streaming, one LD_IMG_END
   UPDATE_REFRESH,   // wait LUT idle, optionally enable 1bpp, send DPY_BUF_AREA
-  UPDATE_RESTORE,   // wait LUT idle, clear UP1SR bit 2 (1bpp only)
   UPDATE_SLEEP,     // optional deep sleep
 };
 
@@ -177,6 +175,8 @@ class IT8951Display : public Display,
   // monochrome framebuffer. Chosen at config time; the framebuffer is stored
   // in this native format and every update uses the matching transfer path.
   void set_grayscale(bool g) { this->grayscale_ = g; }
+  // Monochrome only: ordered-dither pale colours (true) vs a hard 50% threshold.
+  void set_dithering(bool d) { this->dithering_ = d; }
   void set_update_mode(uint16_t m) { this->default_update_mode_ = static_cast<UpdateMode>(m); }
   void set_transform(uint8_t t) {
     this->transform_ = t;
@@ -255,7 +255,6 @@ class IT8951Display : public Display,
   void op_dpy_buf_args_();
   void op_check_lut_idle_();
   void op_set_1bpp_();
-  void op_clear_1bpp_();
 
   // --- Phase enqueuers ---
   void enqueue_init_reset_();
@@ -264,7 +263,6 @@ class IT8951Display : public Display,
   void enqueue_init_temp_();
   void enqueue_update_transfer_();
   void enqueue_update_refresh_();
-  void enqueue_update_restore_();
   void enqueue_update_sleep_();
 
   bool prepare_update_region_(UpdateMode &mode);
@@ -325,6 +323,8 @@ class IT8951Display : public Display,
   // Pixel format selector (see set_grayscale): true = 4bpp grayscale,
   // false = packed 1bpp monochrome.
   bool grayscale_{true};
+  // Monochrome dithering (see set_dithering): true = ordered dither.
+  bool dithering_{true};
   UpdateMode default_update_mode_{UPDATE_MODE_NONE};
   GPIOPin *reset_pin_{nullptr};
   GPIOPin *busy_pin_{nullptr};

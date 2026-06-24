@@ -82,6 +82,7 @@ display:
       allow_other_uses: true
       number: GPIO4
     grayscale: false
+    dithering: false
     update_mode: DU
     lambda: |-
       it.circle(128, 128, 64, Color::BLACK);

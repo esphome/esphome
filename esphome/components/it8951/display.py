@@ -42,6 +42,7 @@ CONF_VCOM = "vcom"
 CONF_VCOM_REGISTER = "vcom_register"
 CONF_FORCE_TEMPERATURE = "force_temperature"
 CONF_GRAYSCALE = "grayscale"
+CONF_DITHERING = "dithering"
 CONF_UPDATE_MODE = "update_mode"
 CONF_USE_LEGACY_DPY_AREA = "use_legacy_dpy_area"
 
@@ -235,6 +236,12 @@ def _model_schema(config):
             cv.Optional(
                 CONF_GRAYSCALE, default=model.get_default(CONF_GRAYSCALE, True)
             ): cv.boolean,
+            # Monochrome only: ordered-dither pale colours so they render as
+            # visible stipple. Disable for a crisp hard black/white threshold
+            # (better for purely black/white text). No effect in grayscale mode.
+            cv.Optional(
+                CONF_DITHERING, default=model.get_default(CONF_DITHERING, True)
+            ): cv.boolean,
             cv.Optional(
                 CONF_VCOM, default=model.get_default(CONF_VCOM, 2300)
             ): cv.int_range(0, 5000),
@@ -373,6 +380,7 @@ async def to_code(config):
     if config.get(CONF_USE_LEGACY_DPY_AREA):
         cg.add(var.set_use_legacy_dpy_area(True))
     cg.add(var.set_grayscale(config[CONF_GRAYSCALE]))
+    cg.add(var.set_dithering(config[CONF_DITHERING]))
     if CONF_UPDATE_MODE in config:
         cg.add(var.set_update_mode(UPDATE_MODE_OPTIONS[config[CONF_UPDATE_MODE]]))
 
