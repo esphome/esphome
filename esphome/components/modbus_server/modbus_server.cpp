@@ -95,8 +95,8 @@ modbus::ServerResponseStatus ModbusServer::on_modbus_write_registers(uint16_t st
   // Actually write to the registers:
   if (!for_each_register([&registers](ServerRegister *server_register, uint16_t register_offset) {
         bool error = false;
-        int64_t number = registers_to_number(registers.data(), registers.size(), server_register->value_type,
-                                             register_offset, 0xFFFFFFFF, &error);
+        int64_t number = registers_to_number(registers.data() + register_offset, registers.size() - register_offset,
+                                             server_register->value_type, &error);
         if (error) {
           return false;
         } else {

@@ -286,15 +286,14 @@ inline int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueTy
 }
 
 /** Reconstruct a number from register words (host byte order). Inverse of number_to_payload.
+ * Decodes the value at the start of the given span; advance the pointer to read successive values.
  * @param registers register values in host byte order
  * @param count number of registers available in registers
  * @param sensor_value_type defines if 16/32/64 bits or FP32 is used
- * @param register_offset index of the first register to read (a register index, not a byte offset)
- * @param bitmask bitmask used for masking and shifting
  * @return 64-bit number of the registers
  */
 int64_t registers_to_number(const uint16_t *registers, size_t count, SensorValueType sensor_value_type,
-                            uint16_t register_offset, uint32_t bitmask, bool *error_return = nullptr);
+                            bool *error_return = nullptr);
 
 /** Create a modbus clinet pdu for reading/writing single/multiple coils/register/inputs.
  * @param function_code the modbus function code to use. One of:
