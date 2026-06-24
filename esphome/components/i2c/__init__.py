@@ -13,9 +13,12 @@ from esphome.components.esp32 import (
     VARIANT_ESP32C6,
     VARIANT_ESP32C61,
     VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
     get_esp32_variant,
 )
 from esphome.components.esp32.gpio_esp32_c5 import esp32_c5_validate_lp_i2c
@@ -72,9 +75,14 @@ ESP32_I2C_CAPABILITIES = {
     VARIANT_ESP32C6: {"NUM": 2, "HP": 1, "LP": 1},
     VARIANT_ESP32C61: {"NUM": 1, "HP": 1},
     VARIANT_ESP32H2: {"NUM": 2, "HP": 2},
+    VARIANT_ESP32H4: {"NUM": 2, "HP": 2},
+    VARIANT_ESP32H21: {"NUM": 2, "HP": 2},
     VARIANT_ESP32P4: {"NUM": 3, "HP": 2, "LP": 1},
     VARIANT_ESP32S2: {"NUM": 2, "HP": 2},
     VARIANT_ESP32S3: {"NUM": 2, "HP": 2},
+    # S31 has 3 HP + 1 LP I2C; LP I2C is deferred until its LP pin validator lands,
+    # so only the 3 HP interfaces are exposed here.
+    VARIANT_ESP32S31: {"NUM": 3, "HP": 3},
 }
 VALIDATE_LP_I2C = {
     VARIANT_ESP32C5: esp32_c5_validate_lp_i2c,
