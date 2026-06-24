@@ -53,6 +53,17 @@ class RemkoAr715Climate : public climate_ir::ClimateIR {
                                climate::CLIMATE_FAN_HIGH},
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}) {}
 
+  climate::ClimateTraits traits() override {
+    auto traits = climate_ir::ClimateIR::traits();
+    traits.set_supported_modes({
+        climate::CLIMATE_MODE_OFF,
+        climate::CLIMATE_MODE_COOL,
+        climate::CLIMATE_MODE_DRY,
+        climate::CLIMATE_MODE_FAN_ONLY,
+    });
+    return traits;
+  }
+
  protected:
   /// Transmit the current climate state via IR.
   void transmit_state() override;
