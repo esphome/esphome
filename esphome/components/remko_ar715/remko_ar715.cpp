@@ -56,13 +56,12 @@ void RemkoAr715Climate::transmit_state() {
   }
 
   uint64_t code = this->build_code_(power, swing, n3, n2, temp);
-  ESP_LOGD(TAG, "Sending code 0x%013llX (power=%s temp=%u swing=%s N3=0x%X N2=0x%X)",
-           code, ONOFF(power), temp, ONOFF(swing), n3, n2);
+  ESP_LOGD(TAG, "Sending code 0x%013llX (power=%s temp=%u swing=%s N3=0x%X N2=0x%X)", code, ONOFF(power), temp,
+           ONOFF(swing), n3, n2);
   this->send_(code);
 }
 
-uint64_t RemkoAr715Climate::build_code_(bool power, bool swing, uint8_t n3,
-                                        uint8_t n2, uint8_t temp) {
+uint64_t RemkoAr715Climate::build_code_(bool power, bool swing, uint8_t n3, uint8_t n2, uint8_t temp) {
   // 52-bit word, 13 nibbles MSB->LSB:
   //   N12=0x8 (fixed header)
   //   N11=power
@@ -74,7 +73,12 @@ uint64_t RemkoAr715Climate::build_code_(bool power, bool swing, uint8_t n3,
   uint8_t nibs[12] = {
       0x8,
       static_cast<uint8_t>(power ? REMKO_AR715_POWER_ON : REMKO_AR715_POWER_OFF),
-      0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+      0x0,
+      0x0,
+      0x0,
+      0x0,
+      0x0,
+      0x0,
       static_cast<uint8_t>(swing ? REMKO_AR715_SWING_ON : REMKO_AR715_SWING_OFF),
       n3,
       n2,
