@@ -242,19 +242,6 @@ void IT8951Display::advance_phase_() {
       break;
 
     case Phase::INIT_DONE:
-      if (this->buffer_ == nullptr) {
-        RAMAllocator<uint8_t> allocator{};
-        this->buffer_ = allocator.allocate(this->buffer_length_);
-        if (this->buffer_ == nullptr) {
-          this->mark_failed(LOG_STR("Failed to allocate IT8951 framebuffer"));
-          this->set_phase_(Phase::IDLE);
-          return;
-        }
-        // The allocator does not zero memory. Start blank (white) so that with
-        // auto_clear disabled (partial/area updates) the first update doesn't
-        // transfer garbage in regions the user's lambda never draws.
-        this->fill(Color::WHITE);
-      }
       if (this->configured_data_rate_ != 0 && this->configured_data_rate_ != this->data_rate_) {
         this->spi_teardown();
         this->set_data_rate(this->configured_data_rate_);
@@ -327,6 +314,23 @@ void IT8951Display::setup() {
 
   this->update_effective_transform_();
   this->reset_dirty_region_();
+
+  // Allocate the framebuffer now: its size is fixed by the configured pixel
+  // format and dimensions, so there's no need to defer to the async controller
+  // init. LVGL (and other writers) can push pixels via draw_pixels_at as soon
+  // as the component is set up — before init completes — and without a buffer
+  // those writes would dereference a null pointer and crash.
+  this->row_width_ = this->compute_row_width_();
+  this->buffer_length_ = static_cast<size_t>(this->row_width_) * static_cast<size_t>(this->height_);
+  RAMAllocator<uint8_t> allocator{};
+  this->buffer_ = allocator.allocate(this->buffer_length_);
+  if (this->buffer_ == nullptr) {
+    this->mark_failed(LOG_STR("Failed to allocate IT8951 framebuffer"));
+    return;
+  }
+  // The allocator does not zero memory; start blank (white) so undrawn regions
+  // (e.g. with auto_clear disabled) don't show garbage on the first update.
+  this->fill(Color::WHITE);
 
   // Kick off async init via the queue. Reset pulse + boot delay + wake +
   // packed-write enable; everything blocking lives as DELAY_MS Ops gated by
@@ -915,6 +919,8 @@ void IT8951Display::fill(Color color) {
 }
 
 void HOT IT8951Display::draw_pixel_at(int x, int y, Color color) {
+  if (this->buffer_ == nullptr)
+    return;
   App.feed_wdt();
   if (!this->rotate_coordinates_(x, y))
     return;
@@ -941,6 +947,10 @@ void HOT IT8951Display::write_pixel_native_(uint16_t x, uint16_t y, const Color 
 
 void HOT IT8951Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
                                        ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
+  // A writer (e.g. LVGL) may push pixels before the framebuffer is ready or
+  // after an allocation failure; ignore those rather than dereferencing null.
+  if (this->buffer_ == nullptr)
+    return;
   // A clipping rectangle would need a per-pixel test; that's rare for the bulk
   // blit callers (LVGL, images), so fall back to the base per-pixel path then.
   if (this->get_clipping().is_set()) {
