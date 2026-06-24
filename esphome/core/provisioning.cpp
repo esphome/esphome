@@ -14,6 +14,19 @@ ProvisioningManager *global_provisioning_manager =  // NOLINT(cppcoreguidelines-
 
 ProvisioningManager::ProvisioningManager() { global_provisioning_manager = this; }
 
+uint8_t ProvisioningManager::register_source() {
+  if (this->source_count_ >= MAX_SOURCES) {
+    // Defensive: only a handful of sources exist in practice. Fail loudly rather
+    // than shifting past the mask width (undefined behavior). The returned index is
+    // ignored by set_source_provisioned()'s bounds check.
+    ESP_LOGE(TAG, "Too many provisioning sources (max %u)", MAX_SOURCES);
+    return this->source_count_;
+  }
+  uint8_t source = this->source_count_++;
+  this->registered_mask_ |= (1UL << source);
+  return source;
+}
+
 void ProvisioningManager::loop() {
   // Nothing to do once provisioned or already closed.
   if (this->closed_ || this->is_provisioned())
@@ -40,6 +53,12 @@ void ProvisioningManager::dump_config() {
                 "  Timeout: %" PRIu32 "ms\n"
                 "  Provisioned: %s",
                 this->timeout_, YESNO(this->is_provisioned()));
+  if (this->registered_mask_ == 0) {
+    // No transport registered as a source, so the window never opens and nothing
+    // can close it. Warn rather than silently leaving the option inert.
+    ESP_LOGW(TAG, "No provisioning-capable component configured (e.g. 'api:' with "
+                  "'encryption:' and no 'key'); the provisioning window is inert");
+  }
 }
 
 }  // namespace esphome

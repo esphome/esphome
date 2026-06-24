@@ -23,6 +23,9 @@ namespace esphome {
 // (api, and later mqtt/wireguard/...) drive it through the source API.
 class ProvisioningManager : public Component {
  public:
+  // Maximum number of provisioning sources, limited by the width of the state masks.
+  static constexpr uint8_t MAX_SOURCES = 32;
+
   ProvisioningManager();
 
   void loop() override;
@@ -33,13 +36,11 @@ class ProvisioningManager : public Component {
 
   // Register a provisioning source. Returns a bit index the source uses to report
   // its state via set_source_provisioned(). Call once, from the source's setup().
-  uint8_t register_source() {
-    uint8_t source = this->source_count_++;
-    this->registered_mask_ |= (1UL << source);
-    return source;
-  }
+  uint8_t register_source();
   // Report whether the given source currently holds valid credentials.
   void set_source_provisioned(uint8_t source, bool provisioned) {
+    if (source >= MAX_SOURCES)
+      return;
     if (provisioned) {
       this->provisioned_mask_ |= (1UL << source);
     } else {
@@ -47,10 +48,12 @@ class ProvisioningManager : public Component {
     }
   }
 
-  // True once every registered source is provisioned (requires at least one source).
-  bool is_provisioned() const {
-    return this->registered_mask_ != 0 && (this->provisioned_mask_ & this->registered_mask_) == this->registered_mask_;
-  }
+  // True once every registered source is provisioned. With no sources registered
+  // this is vacuously true: a `provisioning:` block configured without any
+  // provisioning-capable component leaves the reboot timeouts working normally (the
+  // window simply never opens) instead of silently disabling them. dump_config()
+  // warns about that inert configuration.
+  bool is_provisioned() const { return (this->provisioned_mask_ & this->registered_mask_) == this->registered_mask_; }
   // True while provisioning is still pending: the device is unprovisioned, whether
   // the window is still open or has already closed. Reboot timeouts are suppressed
   // while this holds so the device never auto-reboots (and silently reopens the

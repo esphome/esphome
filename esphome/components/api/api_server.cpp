@@ -119,6 +119,9 @@ void APIServer::setup() {
       for (auto &c : this->active_clients()) {
         DisconnectRequest req;
         req.reason = enums::DISCONNECT_REASON_PROVISIONING_CLOSED;
+        // Best-effort: if the send buffer is full the reason is dropped, but the
+        // client still learns the window is closed when it reconnects (rejected at
+        // hello) or via the socket close.
         c->send_message(req);
       }
     });
