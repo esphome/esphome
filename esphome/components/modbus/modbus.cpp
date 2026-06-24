@@ -338,9 +338,9 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
                                                    uint16_t len) {
   for (auto *device : this->devices_) {
     if (device->get_address() == address) {
-      ServerResponseStatus response;
-      uint8_t buffer[modbus::MAX_RAW_SIZE];
-      const uint8_t *response_data = buffer;
+      ServerResponseStatus status;
+      uint8_t response_buffer[modbus::MAX_RAW_SIZE];
+      const uint8_t *response_data = response_buffer;
       uint16_t response_len = 0;
 
       if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
@@ -361,9 +361,9 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
         }
         ServerRegisterData out_registers;
         if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_HOLDING_REGISTERS) {
-          response = device->on_modbus_read_holding_registers(start_address, number_of_registers, out_registers);
+          status = device->on_modbus_read_holding_registers(start_address, number_of_registers, out_registers);
         } else {
-          response = device->on_modbus_read_input_registers(start_address, number_of_registers, out_registers);
+          status = device->on_modbus_read_input_registers(start_address, number_of_registers, out_registers);
         }
 
         if (out_registers.size() != number_of_registers) {
@@ -373,18 +373,18 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
           return;
         }
 
-        buffer[response_len++] = static_cast<uint8_t>(number_of_registers * 2);  // actual byte count
+        response_buffer[response_len++] = static_cast<uint8_t>(number_of_registers * 2);  // actual byte count
         for (size_t i = 0; i < out_registers.size(); i++) {
-          auto decoded_value = decode_value(out_registers[i]);
-          buffer[response_len++] = decoded_value[0];
-          buffer[response_len++] = decoded_value[1];
+          auto register_bytes = decode_value(out_registers[i]);
+          response_buffer[response_len++] = register_bytes[0];
+          response_buffer[response_len++] = register_bytes[1];
         }
       } else if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
                  static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
         // PDU data: start address(2) [+ quantity(2) + byte count(1)] + register values.
         // A single-register write always targets one register; for a multiple-register write the
-        // quantity is in the frame and its byte count must equal quantity * 2. Pass the handler a
-        // pointer to the register values so it doesn't have to know the request framing.
+        // quantity is in the frame and its byte count must equal quantity * 2. The register values are
+        // assembled into in_registers below so the handler doesn't have to know the request framing.
         uint16_t start_address = helpers::get_data<uint16_t>(data, 0);
         uint16_t number_of_registers = 1;
         uint16_t values_offset = 2;  // single write: values follow the 2-byte start address
@@ -411,7 +411,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
         for (uint16_t i = 0; i < number_of_registers; i++) {
           in_registers.push_back(helpers::get_data<uint16_t>(data, values_offset + i * 2));
         }
-        response = device->on_modbus_write_registers(start_address, number_of_registers, in_registers);
+        status = device->on_modbus_write_registers(start_address, number_of_registers, in_registers);
         response_data = data;  // echo the request header per Modbus 6.6, 6.12
         response_len = 4;
       } else {
@@ -419,8 +419,8 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
         this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
         return;
       }
-      if (response.has_value()) {
-        this->send_exception_(address, function_code, response.value());
+      if (status.has_value()) {
+        this->send_exception_(address, function_code, status.value());
       } else {
         this->send_response_(address, function_code, response_data, response_len);
       }
@@ -527,19 +527,19 @@ void ModbusServerHub::send_response_(uint8_t address, uint8_t function_code, con
     ESP_LOGE(TAG, "Server response too large (%" PRIu16 " bytes)", static_cast<uint16_t>(payload_len + 2));
     return;
   }
-  uint8_t raw[MAX_RAW_SIZE];
-  raw[0] = address;
-  raw[1] = function_code;
-  std::memcpy(raw + 2, payload, payload_len);
-  this->send_raw_(raw, payload_len + 2);
+  uint8_t raw_frame[MAX_RAW_SIZE];
+  raw_frame[0] = address;
+  raw_frame[1] = function_code;
+  std::memcpy(raw_frame + 2, payload, payload_len);
+  this->send_raw_(raw_frame, payload_len + 2);
 }
 
 void ModbusServerHub::send_exception_(uint8_t address, uint8_t function_code, ModbusExceptionCode exception_code) {
-  uint8_t raw[3];
-  raw[0] = address;
-  raw[1] = function_code | FUNCTION_CODE_EXCEPTION_MASK;
-  raw[2] = static_cast<uint8_t>(exception_code);
-  this->send_raw_(raw, 3);
+  uint8_t raw_frame[3];
+  raw_frame[0] = address;
+  raw_frame[1] = function_code | FUNCTION_CODE_EXCEPTION_MASK;
+  raw_frame[2] = static_cast<uint8_t>(exception_code);
+  this->send_raw_(raw_frame, 3);
 }
 
 // Raw send for client: pushes to tx queue. Everything except the CRC must be contained in payload.
