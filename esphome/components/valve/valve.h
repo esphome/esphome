@@ -7,8 +7,7 @@
 #include "esphome/core/preferences.h"
 #include "valve_traits.h"
 
-namespace esphome {
-namespace valve {
+namespace esphome::valve {
 
 const extern float VALVE_OPEN;
 const extern float VALVE_CLOSED;
@@ -117,7 +116,7 @@ class Valve : public EntityBase {
   /// Construct a new valve call used to control the valve.
   ValveCall make_call();
 
-  void add_on_state_callback(std::function<void()> &&f);
+  template<typename F> void add_on_state_callback(F &&f) { this->state_callback_.add(std::forward<F>(f)); }
 
   /** Publish the current state of the valve.
    *
@@ -147,5 +146,4 @@ class Valve : public EntityBase {
   ESPPreferenceObject rtc_;
 };
 
-}  // namespace valve
-}  // namespace esphome
+}  // namespace esphome::valve

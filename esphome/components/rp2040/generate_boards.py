@@ -67,7 +67,7 @@ def load_boards(arduino_pico_path: Path) -> tuple[dict, dict]:
 
     for json_file in sorted(json_dir.glob("*.json")):
         board_name = json_file.stem
-        with open(json_file, encoding="utf-8") as f:
+        with json_file.open(encoding="utf-8") as f:
             data = json.load(f)
 
         build = data.get("build", {})
@@ -78,11 +78,17 @@ def load_boards(arduino_pico_path: Path) -> tuple[dict, dict]:
 
         display_name = f"{vendor} {name}".strip() if vendor else name
 
-        boards[board_name] = {
+        extra_flags = build.get("extra_flags", "")
+        has_wifi = "PICO_CYW43_SUPPORTED=1" in extra_flags
+
+        board_entry: dict = {
             "name": display_name,
             "mcu": mcu,
             "max_pin": MCU_MAX_PIN.get(mcu, DEFAULT_MAX_PIN),
         }
+        if has_wifi:
+            board_entry["wifi"] = True
+        boards[board_name] = board_entry
 
         # Get pins for this variant
         if variant not in variant_pins_cache:
@@ -130,7 +136,7 @@ def _get_variant(json_file: Path) -> str | None:
     """Get variant name from a board JSON file."""
     if not json_file.exists():
         return None
-    with open(json_file, encoding="utf-8") as f:
+    with json_file.open(encoding="utf-8") as f:
         data = json.load(f)
     return data.get("build", {}).get("variant")
 

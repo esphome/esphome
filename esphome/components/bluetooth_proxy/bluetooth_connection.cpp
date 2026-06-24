@@ -135,10 +135,24 @@ void BluetoothConnection::loop() {
   // - For V3_WITH_CACHE: Services are never sent, disable after INIT state
   // - For V3_WITHOUT_CACHE: Disable only after service discovery is complete
   //   (send_service_ == DONE_SENDING_SERVICES, which is only set after services are sent)
-  if (this->state() != espbt::ClientState::INIT && (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE ||
-                                                    this->send_service_ == DONE_SENDING_SERVICES)) {
+  // Never disable while DISCONNECTING — BLEClientBase::loop() needs to keep running so the
+  // 10s safety timeout can force IDLE if CLOSE_EVT is never delivered.
+  if (this->state() != espbt::ClientState::INIT && this->state() != espbt::ClientState::DISCONNECTING &&
+      (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE ||
+       this->send_service_ == DONE_SENDING_SERVICES)) {
     this->disable_loop();
   }
+}
+
+void BluetoothConnection::on_disconnect_complete(esp_err_t reason) {
+  // Called from both the CLOSE_EVT handler and the DISCONNECTING safety timeout in the
+  // base class. Free the proxy slot, notify the API client, and reset send_service_.
+  // address_ may already be 0 if reset_connection_ ran earlier on this teardown.
+  if (this->address_ == 0) {
+    return;
+  }
+  ESP_LOGD(TAG, "[%d] [%s] Close, reason=0x%02x, freeing slot", this->connection_index_, this->address_str_, reason);
+  this->reset_connection_(reason);
 }
 
 void BluetoothConnection::reset_connection_(esp_err_t reason) {
@@ -370,14 +384,6 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
                param->disconnect.reason);
       // Send disconnection notification but don't free the slot yet
       this->proxy_->send_device_connection(this->address_, false, 0, param->disconnect.reason);
-      break;
-    }
-    case ESP_GATTC_CLOSE_EVT: {
-      ESP_LOGD(TAG, "[%d] [%s] Close, reason=0x%02x, freeing slot", this->connection_index_, this->address_str_,
-               param->close.reason);
-      // Now the GATT connection is fully closed and controller resources are freed
-      // Safe to mark the connection slot as available
-      this->reset_connection_(param->close.reason);
       break;
     }
     case ESP_GATTC_OPEN_EVT: {

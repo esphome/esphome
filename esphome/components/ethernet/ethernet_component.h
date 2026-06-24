@@ -11,6 +11,9 @@
 
 #ifdef USE_ESP32
 #include "esp_eth.h"
+#ifdef USE_ETHERNET_SPI
+#include "hal/spi_types.h"
+#endif
 #include "esp_eth_mac.h"
 #include "esp_eth_mac_esp.h"
 #include "esp_netif.h"
@@ -23,7 +26,29 @@ extern "C" eth_esp32_emac_config_t eth_esp32_emac_default_config(void);
 #endif  // USE_ESP32
 
 #ifdef USE_RP2040
+#if defined(USE_ETHERNET_W5500)
 #include <W5500lwIP.h>
+#elif defined(USE_ETHERNET_W5100)
+#include <W5100lwIP.h>
+#elif defined(USE_ETHERNET_W6100)
+#include <W6100lwIP.h>
+#elif defined(USE_ETHERNET_W6300)
+#include <W6300lwIP.h>
+// W6300 uses PIO QSPI, not Arduino SPI. The upstream Wiznet6300 class
+// incorrectly returns needsSPI()=true, causing LwipIntfDev::begin() to
+// call SPI.begin() which claims GPIOs that PIO QSPI needs.
+// This wrapper hides needsSPI() with a version returning false.
+class Wiznet6300NoSPI : public Wiznet6300 {
+ public:
+  using Wiznet6300::Wiznet6300;
+  constexpr bool needsSPI() const { return false; }
+};
+using Wiznet6300lwIPFixed = LwipIntfDev<Wiznet6300NoSPI>;
+#elif defined(USE_ETHERNET_ENC28J60)
+#include <ENC28J60lwIP.h>
+#else
+#error "Unsupported RP2040 SPI Ethernet type"
+#endif
 #endif
 
 namespace esphome::ethernet {
@@ -53,10 +78,14 @@ enum EthernetType : uint8_t {
   ETHERNET_TYPE_JL1101,
   ETHERNET_TYPE_KSZ8081,
   ETHERNET_TYPE_KSZ8081RNA,
+  ETHERNET_TYPE_W5100,
   ETHERNET_TYPE_W5500,
   ETHERNET_TYPE_OPENETH,
   ETHERNET_TYPE_DM9051,
   ETHERNET_TYPE_LAN8670,
+  ETHERNET_TYPE_ENC28J60,
+  ETHERNET_TYPE_W6100,
+  ETHERNET_TYPE_W6300,
 };
 
 struct ManualIP {
@@ -85,7 +114,7 @@ enum eth_duplex_t { ETH_DUPLEX_HALF, ETH_DUPLEX_FULL };
 enum eth_speed_t { ETH_SPEED_10M, ETH_SPEED_100M };
 #endif
 
-class EthernetComponent : public Component {
+class EthernetComponent final : public Component {
  public:
   EthernetComponent();
   void setup() override;
@@ -95,6 +124,17 @@ class EthernetComponent : public Component {
   void on_powerdown() override { powerdown(); }
   bool is_connected() { return this->state_ == EthernetComponentState::CONNECTED; }
 
+  // Per-interface lifecycle (parallels WiFiComponent::enable/disable/is_disabled).
+  // enable_on_boot defaults to true; when false, setup() runs all the driver/netif
+  // installation but skips esp_eth_start(), keeping the link cold until enable() is
+  // called. This is the primary lever for memory reclamation in multi-interface
+  // configurations where only one interface should carry traffic at a time.
+  void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
+  void enable();
+  void disable();
+  bool is_disabled() { return this->disabled_; }
+  bool is_enabled() { return !this->disabled_; }
+
   void set_type(EthernetType type);
 #ifdef USE_ETHERNET_MANUAL_IP
   void set_manual_ip(const ManualIP &manual_ip);
@@ -103,8 +143,8 @@ class EthernetComponent : public Component {
 
   network::IPAddresses get_ip_addresses();
   network::IPAddress get_dns_address(uint8_t num);
-  const char *get_use_address() const;
-  void set_use_address(const char *use_address);
+  const char *get_use_address() const { return this->use_address_; }
+  void set_use_address(const char *use_address) { this->use_address_ = use_address; }
   void get_eth_mac_address_raw(uint8_t *mac);
   // Remove before 2026.9.0
   ESPDEPRECATED("Use get_eth_mac_address_pretty_into_buffer() instead. Removed in 2026.9.0", "2026.3.0")
@@ -125,6 +165,7 @@ class EthernetComponent : public Component {
   void set_interrupt_pin(uint8_t interrupt_pin);
   void set_reset_pin(uint8_t reset_pin);
   void set_clock_speed(int clock_speed);
+  void set_interface(spi_host_device_t interface);
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   void set_polling_interval(uint32_t polling_interval);
 #endif
@@ -164,6 +205,16 @@ class EthernetComponent : public Component {
   void finish_connect_();
   void dump_connect_params_();
 
+#ifdef USE_ESP32
+  // ESP-IDF only: defers the SPI bus init, netif creation, MAC/PHY install, driver
+  // install, netif attach, and event handler registration (which together allocate
+  // ~3-8KB of DMA-capable internal SRAM via SPI driver state + eth driver RX queue)
+  // until ethernet actually needs to come up. Idempotent — guarded by the
+  // ethernet_initialized_ flag. Called from setup() when enable_on_boot_=true, or
+  // from enable() on first runtime enable. Mirrors wifi_lazy_init_() in WiFi.
+  void ethernet_lazy_init_();
+#endif
+
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   void notify_ip_state_listeners_();
 #endif
@@ -191,6 +242,7 @@ class EthernetComponent : public Component {
   int reset_pin_{-1};
   int phy_addr_spi_{-1};
   int clock_speed_;
+  spi_host_device_t interface_{SPI2_HOST};
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   uint32_t polling_interval_{0};
 #endif
@@ -215,7 +267,26 @@ class EthernetComponent : public Component {
 
 #ifdef USE_RP2040
   static constexpr uint32_t LINK_CHECK_INTERVAL = 500;  // ms between link/IP polls
+#if defined(USE_ETHERNET_W5100)
+  static constexpr uint32_t RESET_DELAY_MS = 150;  // W5100S PLL lock time
+#elif defined(USE_ETHERNET_W6300)
+  static constexpr uint32_t RESET_DELAY_MS = 100;  // W6300 needs 100ms after hardware reset
+#else
+  static constexpr uint32_t RESET_DELAY_MS = 10;
+#endif
+#if defined(USE_ETHERNET_W5500)
   Wiznet5500lwIP *eth_{nullptr};
+#elif defined(USE_ETHERNET_W5100)
+  Wiznet5100lwIP *eth_{nullptr};
+#elif defined(USE_ETHERNET_W6100)
+  Wiznet6100lwIP *eth_{nullptr};
+#elif defined(USE_ETHERNET_W6300)
+  Wiznet6300lwIPFixed *eth_{nullptr};
+#elif defined(USE_ETHERNET_ENC28J60)
+  ENC28J60lwIP *eth_{nullptr};
+#else
+#error "Unsupported RP2040 SPI Ethernet type"
+#endif
   uint32_t last_link_check_{0};
   uint8_t clk_pin_;
   uint8_t miso_pin_;
@@ -237,6 +308,17 @@ class EthernetComponent : public Component {
   bool started_{false};
   bool connected_{false};
   bool got_ipv4_address_{false};
+  // Codegen-time YAML option. When false, setup() defers esp_eth_start().
+  bool enable_on_boot_{true};
+  // Mirror of "is the link intentionally stopped" — set when setup() honors
+  // enable_on_boot=false, cleared by enable(), set again by disable().
+  bool disabled_{false};
+#ifdef USE_ESP32
+  // Tracks whether ethernet_lazy_init_() has completed successfully. Allows enable()
+  // to be called at runtime after enable_on_boot:false without re-allocating, and
+  // ensures setup() skips the heavy init when enable_on_boot_ is false.
+  bool ethernet_initialized_{false};
+#endif
 #if LWIP_IPV6
   uint8_t ipv6_count_{0};
   bool ipv6_setup_done_{false};

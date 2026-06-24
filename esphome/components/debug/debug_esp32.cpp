@@ -16,8 +16,7 @@
 #include <Esp.h>
 #endif
 
-namespace esphome {
-namespace debug {
+namespace esphome::debug {
 
 static const char *const TAG = "debug";
 
@@ -49,7 +48,8 @@ static const size_t REBOOT_MAX_LEN = 24;
 void DebugComponent::on_shutdown() {
   auto *component = App.get_current_component();
   char buffer[REBOOT_MAX_LEN]{};
-  auto pref = global_preferences->make_preference(REBOOT_MAX_LEN, fnv1_hash(REBOOT_KEY + App.get_name()));
+  auto pref = global_preferences->make_preference(REBOOT_MAX_LEN,
+                                                  fnv1_hash_extend(fnv1_hash(REBOOT_KEY), App.get_name().c_str()));
   if (component != nullptr) {
     strncpy(buffer, LOG_STR_ARG(component->get_component_log_str()), REBOOT_MAX_LEN - 1);
     buffer[REBOOT_MAX_LEN - 1] = '\0';
@@ -66,7 +66,8 @@ const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFE
   unsigned reason = esp_reset_reason();
   if (reason < sizeof(RESET_REASONS) / sizeof(RESET_REASONS[0])) {
     if (reason == ESP_RST_SW) {
-      auto pref = global_preferences->make_preference(REBOOT_MAX_LEN, fnv1_hash(REBOOT_KEY + App.get_name()));
+      auto pref = global_preferences->make_preference(REBOOT_MAX_LEN,
+                                                      fnv1_hash_extend(fnv1_hash(REBOOT_KEY), App.get_name().c_str()));
       char reboot_source[REBOOT_MAX_LEN]{};
       if (pref.load(&reboot_source)) {
         reboot_source[REBOOT_MAX_LEN - 1] = '\0';
@@ -222,17 +223,21 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   const char *model = ESPHOME_VARIANT;
 
   // Build features string
-  pos = buf_append_printf(buf, size, pos, "|Chip: %s Features:", model);
+  pos = buf_append_str(buf, size, pos, "|Chip: ");
+  pos = buf_append_str(buf, size, pos, model);
+  pos = buf_append_str(buf, size, pos, " Features:");
   bool first_feature = true;
   for (const auto &feature : CHIP_FEATURES) {
     if (info.features & feature.bit) {
-      pos = buf_append_printf(buf, size, pos, "%s%s", first_feature ? "" : ", ", feature.name);
+      pos = buf_append_str(buf, size, pos, first_feature ? "" : ", ");
+      pos = buf_append_str(buf, size, pos, feature.name);
       first_feature = false;
       info.features &= ~feature.bit;
     }
   }
   if (info.features != 0) {
-    pos = buf_append_printf(buf, size, pos, "%sOther:0x%" PRIx32, first_feature ? "" : ", ", info.features);
+    pos = buf_append_str(buf, size, pos, first_feature ? "" : ", ");
+    pos = buf_append_printf(buf, size, pos, "Other:0x%" PRIx32, info.features);
   }
   pos = buf_append_printf(buf, size, pos, " Cores:%u Revision:%u", info.cores, info.revision);
 
@@ -265,17 +270,20 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   // Framework detection
 #ifdef USE_ARDUINO
   ESP_LOGD(TAG, "  Framework: Arduino");
-  pos = buf_append_printf(buf, size, pos, "|Framework: Arduino");
+  pos = buf_append_str(buf, size, pos, "|Framework: Arduino");
 #else
   ESP_LOGD(TAG, "  Framework: ESP-IDF");
-  pos = buf_append_printf(buf, size, pos, "|Framework: ESP-IDF");
+  pos = buf_append_str(buf, size, pos, "|Framework: ESP-IDF");
 #endif
 
-  pos = buf_append_printf(buf, size, pos, "|ESP-IDF: %s", esp_get_idf_version());
+  pos = buf_append_str(buf, size, pos, "|ESP-IDF: ");
+  pos = buf_append_str(buf, size, pos, esp_get_idf_version());
   pos = buf_append_printf(buf, size, pos, "|EFuse MAC: %02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3],
                           mac[4], mac[5]);
-  pos = buf_append_printf(buf, size, pos, "|Reset: %s", reset_reason);
-  pos = buf_append_printf(buf, size, pos, "|Wakeup: %s", wakeup_cause);
+  pos = buf_append_str(buf, size, pos, "|Reset: ");
+  pos = buf_append_str(buf, size, pos, reset_reason);
+  pos = buf_append_str(buf, size, pos, "|Wakeup: ");
+  pos = buf_append_str(buf, size, pos, wakeup_cause);
 
   return pos;
 }
@@ -302,6 +310,6 @@ void DebugComponent::update_platform_() {
 #endif
 }
 
-}  // namespace debug
-}  // namespace esphome
+}  // namespace esphome::debug
+
 #endif  // USE_ESP32

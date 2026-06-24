@@ -759,6 +759,115 @@ TEST(PosixTzParser, EpochToLocalDstTransition) {
 }
 
 // ============================================================================
+// Leap year edge cases for closed-form year arithmetic
+// ============================================================================
+
+TEST(PosixTzParser, EpochToLocalLeapYear2000) {
+  // 2000 is a leap year (divisible by 400)
+  ParsedTimezone tz;
+  ASSERT_TRUE(parse_posix_tz("UTC0", tz));
+
+  // Feb 29, 2000 12:00:00 UTC
+  time_t epoch = make_utc(2000, 2, 29, 12);
+  struct tm local;
+  ASSERT_TRUE(epoch_to_local_tm(epoch, tz, &local));
+  EXPECT_EQ(local.tm_year, 100);  // 2000
+  EXPECT_EQ(local.tm_mon, 1);     // February
+  EXPECT_EQ(local.tm_mday, 29);
+  EXPECT_EQ(local.tm_hour, 12);
+}
+
+TEST(PosixTzParser, EpochToLocalNonLeapYear2100) {
+  // 2100 is NOT a leap year (divisible by 100 but not 400)
+  ParsedTimezone tz;
+  ASSERT_TRUE(parse_posix_tz("UTC0", tz));
+
+  // Mar 1, 2100 00:00:00 UTC — the day after what would be Feb 29
+  time_t epoch = make_utc(2100, 3, 1);
+  struct tm local;
+  ASSERT_TRUE(epoch_to_local_tm(epoch, tz, &local));
+  EXPECT_EQ(local.tm_year, 200);  // 2100
+  EXPECT_EQ(local.tm_mon, 2);     // March
+  EXPECT_EQ(local.tm_mday, 1);
+
+  // Feb 28, 2100 23:59:59 UTC — last second of February (no Feb 29)
+  epoch = make_utc(2100, 2, 28, 23, 59, 59);
+  ASSERT_TRUE(epoch_to_local_tm(epoch, tz, &local));
+  EXPECT_EQ(local.tm_year, 200);
+  EXPECT_EQ(local.tm_mon, 1);  // February
+  EXPECT_EQ(local.tm_mday, 28);
+}
+
+TEST(PosixTzParser, EpochToLocalLeapYear2400) {
+  // 2400 is a leap year (divisible by 400)
+  ParsedTimezone tz;
+  ASSERT_TRUE(parse_posix_tz("UTC0", tz));
+
+  time_t epoch = make_utc(2400, 2, 29, 6);
+  struct tm local;
+  ASSERT_TRUE(epoch_to_local_tm(epoch, tz, &local));
+  EXPECT_EQ(local.tm_year, 500);  // 2400
+  EXPECT_EQ(local.tm_mon, 1);     // February
+  EXPECT_EQ(local.tm_mday, 29);
+  EXPECT_EQ(local.tm_hour, 6);
+}
+
+TEST(PosixTzParser, EpochToLocalNewYearBoundaries) {
+  // Test year boundary — last second of 2099 and first second of 2100
+  ParsedTimezone tz;
+  ASSERT_TRUE(parse_posix_tz("UTC0", tz));
+  struct tm local;
+
+  // Dec 31, 2099 23:59:59 UTC
+  time_t epoch = make_utc(2099, 12, 31, 23, 59, 59);
+  ASSERT_TRUE(epoch_to_local_tm(epoch, tz, &local));
+  EXPECT_EQ(local.tm_year, 199);  // 2099
+  EXPECT_EQ(local.tm_mon, 11);    // December
+  EXPECT_EQ(local.tm_mday, 31);
+
+  // Jan 1, 2100 00:00:00 UTC
+  epoch = make_utc(2100, 1, 1);
+  ASSERT_TRUE(epoch_to_local_tm(epoch, tz, &local));
+  EXPECT_EQ(local.tm_year, 200);  // 2100
+  EXPECT_EQ(local.tm_mon, 0);     // January
+  EXPECT_EQ(local.tm_mday, 1);
+}
+
+TEST(PosixTzParser, EpochToLocalDstAcrossCenturyBoundary) {
+  // DST transition in year 2100 (non-leap) with US Eastern rules
+  ParsedTimezone tz;
+  ASSERT_TRUE(parse_posix_tz("EST5EDT,M3.2.0/2,M11.1.0/2", tz));
+
+  // July 4, 2100 16:00 UTC = 12:00 EDT
+  time_t epoch = make_utc(2100, 7, 4, 16);
+  struct tm local;
+  ASSERT_TRUE(epoch_to_local_tm(epoch, tz, &local));
+  EXPECT_EQ(local.tm_hour, 12);
+  EXPECT_EQ(local.tm_isdst, 1);
+
+  // Jan 15, 2100 10:00 UTC = 05:00 EST
+  epoch = make_utc(2100, 1, 15, 10);
+  ASSERT_TRUE(epoch_to_local_tm(epoch, tz, &local));
+  EXPECT_EQ(local.tm_hour, 5);
+  EXPECT_EQ(local.tm_isdst, 0);
+}
+
+TEST(PosixTzParser, EpochToLocalFarFutureYear5000) {
+  // Year 5000 — days/365 estimate overshoots by ~2 years due to leap days,
+  // requiring multiple correction steps in days_to_year.
+  ParsedTimezone tz;
+  ASSERT_TRUE(parse_posix_tz("UTC0", tz));
+
+  time_t epoch = make_utc(5000, 6, 15, 12);
+  struct tm local;
+  ASSERT_TRUE(epoch_to_local_tm(epoch, tz, &local));
+  EXPECT_EQ(local.tm_year, 3100);  // 5000
+  EXPECT_EQ(local.tm_mon, 5);      // June
+  EXPECT_EQ(local.tm_mday, 15);
+  EXPECT_EQ(local.tm_hour, 12);
+}
+
+// ============================================================================
 // Verification against libc
 // ============================================================================
 
@@ -1036,8 +1145,6 @@ static time_t esptime_recalc_local(int year, int month, int day, int hour, int m
   t.hour = hour;
   t.minute = min;
   t.second = sec;
-  t.day_of_week = 1;  // Placeholder for fields_in_range()
-  t.day_of_year = 1;
   t.recalc_timestamp_local();
   return t.timestamp;
 }
@@ -1185,6 +1292,60 @@ TEST(RecalcTimestampLocal, NonDefaultTransitionTime) {
   libc_result = libc_mktime(2026, 3, 8, 4, 0, 0);
   esp_result = esptime_recalc_local(2026, 3, 8, 4, 0, 0);
   EXPECT_EQ(esp_result, libc_result);
+}
+
+TEST(RecalcTimestampLocal, MinimalFieldsWithoutDayOfWeekOrYear) {
+  // Regression test for issue #15115: DateTimeEntity::state_as_esptime() constructs
+  // an ESPTime with only year/month/day/hour/minute/second set (no day_of_week or
+  // day_of_year). recalc_timestamp_local() must work without those fields.
+  const char *tz_str = "CET-1CEST,M3.5.0,M10.5.0";
+  setenv("TZ", tz_str, 1);
+  tzset();
+  time::ParsedTimezone tz{};
+  ASSERT_TRUE(parse_posix_tz(tz_str, tz));
+  set_global_tz(tz);
+
+  // Construct ESPTime with only date/time fields (like state_as_esptime does)
+  ESPTime t{};
+  t.year = 2026;
+  t.month = 3;
+  t.day_of_month = 20;
+  t.hour = 23;
+  t.minute = 14;
+  t.second = 55;
+  // day_of_week and day_of_year are deliberately left as 0
+  t.recalc_timestamp_local();
+
+  // Must NOT return -1 (the bug: fields_in_range() rejected valid times)
+  EXPECT_NE(t.timestamp, -1);
+
+  // Verify against libc
+  time_t libc_result = libc_mktime(2026, 3, 20, 23, 14, 55);
+  EXPECT_EQ(t.timestamp, libc_result);
+}
+
+TEST(RecalcTimestampLocal, MinimalFieldsNoDST) {
+  // Same test but with a timezone that has no DST
+  const char *tz_str = "IST-5:30";
+  setenv("TZ", tz_str, 1);
+  tzset();
+  time::ParsedTimezone tz{};
+  ASSERT_TRUE(parse_posix_tz(tz_str, tz));
+  set_global_tz(tz);
+
+  ESPTime t{};
+  t.year = 2026;
+  t.month = 3;
+  t.day_of_month = 23;
+  t.hour = 10;
+  t.minute = 0;
+  t.second = 0;
+  t.recalc_timestamp_local();
+
+  EXPECT_NE(t.timestamp, -1);
+
+  time_t libc_result = libc_mktime(2026, 3, 23, 10, 0, 0);
+  EXPECT_EQ(t.timestamp, libc_result);
 }
 
 TEST(RecalcTimestampLocal, YearBoundaryDST) {

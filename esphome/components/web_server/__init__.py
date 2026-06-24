@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import gzip
+import logging
 
 import esphome.codegen as cg
 from esphome.components import web_server_base
@@ -38,6 +39,8 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
+_LOGGER = logging.getLogger(__name__)
+
 AUTO_LOAD = ["json", "web_server_base"]
 
 CONF_SORTING_GROUP_ID = "sorting_group_id"
@@ -68,6 +71,15 @@ def default_url(config: ConfigType) -> ConfigType:
             config[CONF_CSS_URL] = ""
         if CONF_JS_URL not in config:
             config[CONF_JS_URL] = "https://oi.esphome.io/v3/www.js"
+    return config
+
+
+def validate_version_deprecated(config: ConfigType) -> ConfigType:
+    if config[CONF_VERSION] == 1:
+        _LOGGER.warning(
+            "Version 1 of 'web_server' is deprecated and will be removed in "
+            "2027.1.0. Please migrate to version 2 (the default) or version 3."
+        )
     return config
 
 
@@ -193,8 +205,8 @@ CONFIG_SCHEMA = cv.All(
                     cv.Required(CONF_USERNAME): cv.All(
                         cv.string_strict, cv.Length(min=1)
                     ),
-                    cv.Required(CONF_PASSWORD): cv.All(
-                        cv.string_strict, cv.Length(min=1)
+                    cv.Required(CONF_PASSWORD): cv.sensitive(
+                        cv.All(cv.string_strict, cv.Length(min=1))
                     ),
                 }
             ),
@@ -220,6 +232,7 @@ CONFIG_SCHEMA = cv.All(
         ]
     ),
     default_url,
+    validate_version_deprecated,
     validate_local,
     validate_sorting_groups,
     validate_ota,
@@ -326,12 +339,12 @@ async def to_code(config):
     if CONF_CSS_INCLUDE in config:
         cg.add_define("USE_WEBSERVER_CSS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_CSS_INCLUDE])
-        with open(file=path, encoding="utf-8") as css_file:
+        with path.open(encoding="utf-8") as css_file:
             add_resource_as_progmem("CSS_INCLUDE", css_file.read())
     if CONF_JS_INCLUDE in config:
         cg.add_define("USE_WEBSERVER_JS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_JS_INCLUDE])
-        with open(file=path, encoding="utf-8") as js_file:
+        with path.open(encoding="utf-8") as js_file:
             add_resource_as_progmem("JS_INCLUDE", js_file.read())
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
     if CONF_LOCAL in config and config[CONF_LOCAL]:

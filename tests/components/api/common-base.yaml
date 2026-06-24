@@ -91,6 +91,24 @@ api:
               - float_arr.size()
               - string_arr[0].c_str()
               - string_arr.size()
+    # Test array + string args used after a non-synchronous action (delay).
+    # The default non-owning types (StringRef, const FixedVector&) would
+    # dangle once rx_buf_ is reused, and FixedVector is non-copyable so
+    # DelayAction's lambda capture would fail to compile.  The api codegen
+    # must fall back to owning std::string / std::vector here.
+    - action: array_with_delay
+      variables:
+        name: string
+        int_arr: int[]
+        string_arr: string[]
+      then:
+        - delay: 20ms
+        - logger.log:
+            format: "Delayed: %s (%u ints, %u strings)"
+            args:
+              - name.c_str()
+              - int_arr.size()
+              - string_arr.size()
     # Test ContinuationAction (IfAction with then/else branches)
     - action: test_if_action
       variables:
@@ -102,12 +120,12 @@ api:
               lambda: 'return condition;'
             then:
               - logger.log:
-                  format: "Condition true, value: %d"
-                  args: ['value']
+                  format: "Condition true, value: %ld"
+                  args: ['(long) value']
             else:
               - logger.log:
-                  format: "Condition false, value: %d"
-                  args: ['value']
+                  format: "Condition false, value: %ld"
+                  args: ['(long) value']
         - logger.log: "After if/else"
     # Test nested IfAction (multiple ContinuationAction instances)
     - action: test_nested_if
@@ -153,8 +171,8 @@ api:
             count: !lambda 'return count;'
             then:
               - logger.log:
-                  format: "Repeat iteration: %d"
-                  args: ['iteration']
+                  format: "Repeat iteration: %lu"
+                  args: ['(unsigned long) iteration']
         - logger.log: "After repeat"
     # Test combined continuations (if + while + repeat)
     - action: test_combined_continuations
@@ -175,8 +193,8 @@ api:
                           lambda: 'return id(api_continuation_test_counter) > 0;'
                         then:
                           - logger.log:
-                              format: "Combined: repeat=%d, while=%d"
-                              args: ['iteration', 'id(api_continuation_test_counter)']
+                              format: "Combined: repeat=%lu, while=%d"
+                              args: ['(unsigned long) iteration', 'id(api_continuation_test_counter)']
                           - lambda: 'id(api_continuation_test_counter)--;'
             else:
               - logger.log: "Skipped loops"
@@ -190,8 +208,8 @@ api:
         - api.respond:
             success: true
         - logger.log:
-            format: "Status response sent (call_id=%d)"
-            args: [call_id]
+            format: "Status response sent (call_id=%lu)"
+            args: ['(unsigned long) call_id']
 
     - action: test_respond_status_error
       variables:
@@ -211,8 +229,8 @@ api:
         value: float
       then:
         - logger.log:
-            format: "Optional response (call_id=%d, return_response=%d)"
-            args: [call_id, return_response]
+            format: "Optional response (call_id=%lu, return_response=%lu)"
+            args: ['(unsigned long) call_id', '(unsigned long) return_response']
         - api.respond:
             data: !lambda |-
               root["sensor"] = sensor_name;
@@ -246,8 +264,8 @@ api:
         input: string
       then:
         - logger.log:
-            format: "Only response (call_id=%d)"
-            args: [call_id]
+            format: "Only response (call_id=%lu)"
+            args: ['(unsigned long) call_id']
         - api.respond:
             data: !lambda |-
               root["input"] = input;
@@ -278,7 +296,7 @@ api:
 event:
   - platform: template
     name: Test Event
-    id: test_event
+    id: api_test_event
     event_types:
       - single_click
       - double_click

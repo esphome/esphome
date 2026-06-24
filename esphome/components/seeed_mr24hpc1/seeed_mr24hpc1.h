@@ -30,8 +30,7 @@
 
 #include <map>
 
-namespace esphome {
-namespace seeed_mr24hpc1 {
+namespace esphome::seeed_mr24hpc1 {
 
 enum FrameState {
   FRAME_IDLE,
@@ -213,5 +212,4 @@ class MR24HPC1Component : public Component,
   void set_custom_unman_time(uint16_t value);
 };
 
-}  // namespace seeed_mr24hpc1
-}  // namespace esphome
+}  // namespace esphome::seeed_mr24hpc1

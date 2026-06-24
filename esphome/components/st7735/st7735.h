@@ -4,8 +4,7 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display_buffer.h"
 
-namespace esphome {
-namespace st7735 {
+namespace esphome::st7735 {
 
 static const uint8_t ST7735_TFTWIDTH_128 = 128;   // for 1.44 and mini^M
 static const uint8_t ST7735_TFTWIDTH_80 = 80;     // for mini^M
@@ -85,5 +84,4 @@ class ST7735 : public display::DisplayBuffer,
   GPIOPin *dc_pin_{nullptr};
 };
 
-}  // namespace st7735
-}  // namespace esphome
+}  // namespace esphome::st7735

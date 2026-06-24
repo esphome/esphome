@@ -5,8 +5,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/display/display.h"
 
-namespace esphome {
-namespace tm1621 {
+namespace esphome::tm1621 {
 
 class TM1621Display;
 
@@ -71,5 +70,4 @@ class TM1621Display : public PollingComponent {
   bool kwh_;
 };
 
-}  // namespace tm1621
-}  // namespace esphome
+}  // namespace esphome::tm1621

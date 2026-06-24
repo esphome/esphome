@@ -64,12 +64,15 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    # Pop update_interval before register_component so it doesn't generate
+    # a set_update_interval call — sds011 handles this via set_update_interval_min
+    update_interval = config.pop(CONF_UPDATE_INTERVAL, None)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    if CONF_UPDATE_INTERVAL in config:
-        cg.add(var.set_update_interval_min(config[CONF_UPDATE_INTERVAL]))
+    if update_interval is not None:
+        cg.add(var.set_update_interval_min(update_interval))
     cg.add(var.set_rx_mode_only(config[CONF_RX_ONLY]))
 
     if CONF_PM_2_5 in config:

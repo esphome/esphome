@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sx1509 {
+namespace esphome::sx1509 {
 
 static const char *const TAG = "sx1509";
 
@@ -309,9 +308,8 @@ void SX1509Component::set_debounce_keypad_(uint8_t time, uint8_t num_rows, uint8
   set_debounce_time_(time);
   for (uint16_t i = 0; i < num_rows; i++)
     set_debounce_pin_(i);
-  for (uint16_t i = 0; i < (8 + num_cols); i++)
-    set_debounce_pin_(i);
+  for (uint16_t i = 0; i < num_cols; i++)
+    set_debounce_pin_(i + 8);
 }
 
-}  // namespace sx1509
-}  // namespace esphome
+}  // namespace esphome::sx1509

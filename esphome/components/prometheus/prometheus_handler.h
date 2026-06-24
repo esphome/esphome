@@ -1,6 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
-#ifdef USE_NETWORK
+#if defined(USE_NETWORK) && !defined(USE_ZEPHYR)
 #include <map>
 #include <utility>
 
@@ -12,8 +12,7 @@
 #include "esphome/core/log.h"
 #endif
 
-namespace esphome {
-namespace prometheus {
+namespace esphome::prometheus {
 
 class PrometheusHandler : public AsyncWebHandler, public Component {
  public:
@@ -218,6 +217,6 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
   std::map<EntityBase *, std::string> relabel_map_name_;
 };
 
-}  // namespace prometheus
-}  // namespace esphome
-#endif
+}  // namespace esphome::prometheus
+
+#endif  // USE_NETWORK && !USE_ZEPHYR

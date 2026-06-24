@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace msa3xx {
+namespace esphome::msa3xx {
 
 static const char *const TAG = "msa3xx";
 
@@ -410,5 +409,4 @@ void MSA3xxComponent::process_motions_(RegMotionInterrupt old) {
   }
 }
 
-}  // namespace msa3xx
-}  // namespace esphome
+}  // namespace esphome::msa3xx

@@ -72,6 +72,7 @@ void BLEClientBase::loop() {
     // never delivered CLOSE_EVT/DISCONNECT_EVT, services would leak without this call.
     this->release_services();
     this->set_idle_();
+    this->on_disconnect_complete(ESP_GATT_CONN_TIMEOUT);
   }
 }
 
@@ -350,7 +351,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       // For V3_WITHOUT_CACHE, we already set fast params before connecting
       // No need to update them again here
       this->log_event_("Searching for services");
-      esp_ble_gattc_search_service(esp_gattc_if, param->cfg_mtu.conn_id, nullptr);
+      esp_ble_gattc_search_service(esp_gattc_if, param->open.conn_id, nullptr);
       break;
     }
     case ESP_GATTC_CONNECT_EVT: {
@@ -418,6 +419,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       this->log_gattc_lifecycle_event_("CLOSE");
       this->release_services();
       this->set_idle_();
+      this->on_disconnect_complete(param->close.reason);
       break;
     }
     case ESP_GATTC_SEARCH_RES_EVT: {

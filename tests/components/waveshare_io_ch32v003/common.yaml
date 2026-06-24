@@ -1,0 +1,33 @@
+waveshare_io_ch32v003:
+  - id: wave_io
+    address: 0x24
+
+binary_sensor:
+  - platform: gpio
+    id: wave_io_binary_sensor
+    pin:
+      waveshare_io_ch32v003: wave_io
+      number: 3
+      mode: INPUT
+      inverted: false
+
+output:
+  - platform: gpio
+    id: wave_io_output
+    pin:
+      waveshare_io_ch32v003: wave_io
+      number: 0
+      mode: OUTPUT
+      inverted: false
+
+  - platform: waveshare_io_ch32v003
+    id: wave_io_pwm_output
+    inverted: true
+    zero_means_zero: true
+    safe_pwm_levels:
+      min_value: 0
+      max_value: 247
+
+sensor:
+  - platform: waveshare_io_ch32v003
+    id: wave_io_adc

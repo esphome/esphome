@@ -16,8 +16,7 @@
 #include <pico/sem.h>
 #include <map>
 
-namespace esphome {
-namespace rp2040_pio_led_strip {
+namespace esphome::rp2040_pio_led_strip {
 
 enum RGBOrder : uint8_t {
   ORDER_RGB,
@@ -127,7 +126,6 @@ class RP2040PIOLEDStripLightOutput : public light::AddressableLight {
   inline static struct semaphore dma_write_complete_sem_[12];
 };
 
-}  // namespace rp2040_pio_led_strip
-}  // namespace esphome
+}  // namespace esphome::rp2040_pio_led_strip
 
 #endif  // USE_RP2040

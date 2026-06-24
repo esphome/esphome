@@ -7,8 +7,7 @@
 
 #include <freertos/task.h>
 
-namespace esphome {
-namespace esp32_camera {
+namespace esphome::esp32_camera {
 
 static const char *const TAG = "esp32_camera";
 static constexpr size_t FRAMEBUFFER_TASK_STACK_SIZE = 1792;
@@ -521,11 +520,9 @@ void ESP32Camera::framebuffer_task(void *pv) {
     camera_fb_t *framebuffer = esp_camera_fb_get();
     xQueueSend(that->framebuffer_get_queue_, &framebuffer, portMAX_DELAY);
     // Only wake the main loop if there's a pending request to consume the frame
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
     if (that->has_requested_image_()) {
       App.wake_loop_threadsafe();
     }
-#endif
     // return is no-op for config with 1 fb
     xQueueReceive(that->framebuffer_return_queue_, &framebuffer, portMAX_DELAY);
     esp_camera_fb_return(framebuffer);
@@ -558,7 +555,6 @@ bool ESP32CameraImage::was_requested_by(camera::CameraRequester requester) const
   return (this->requesters_ & (1 << requester)) != 0;
 }
 
-}  // namespace esp32_camera
-}  // namespace esphome
+}  // namespace esphome::esp32_camera
 
 #endif

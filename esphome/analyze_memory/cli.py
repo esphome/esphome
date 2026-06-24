@@ -6,6 +6,7 @@ from collections import defaultdict
 from collections.abc import Callable
 import heapq
 from operator import itemgetter
+from pathlib import Path
 import sys
 from typing import TYPE_CHECKING
 
@@ -15,12 +16,24 @@ from . import (
     _COMPONENT_PREFIX_ESPHOME,
     _COMPONENT_PREFIX_EXTERNAL,
     _COMPONENT_PREFIX_LIB,
+    _PSTORAGE_SUFFIX,
     RAM_SECTIONS,
     MemoryAnalyzer,
 )
 
 if TYPE_CHECKING:
     from . import ComponentMemory
+
+
+def _format_pstorage_name(name: str) -> str:
+    """Format a __pstorage symbol as 'storage for {id}'."""
+    if not name.endswith(_PSTORAGE_SUFFIX):
+        return name
+    prefix = name[: -len(_PSTORAGE_SUFFIX)]
+    # Strip component namespace prefix: {component}__{id} -> {id}
+    dunder_pos = prefix.find("__")
+    var_id = prefix[dunder_pos + 2 :] if dunder_pos != -1 else prefix
+    return f"storage for {var_id}"
 
 
 class MemoryAnalyzerCLI(MemoryAnalyzer):
@@ -148,11 +161,14 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
         If section is one of the RAM sections (.data or .bss), a label like
         " [data]" or " [bss]" is appended. For non-RAM sections or when
         section is None, no section label is added.
+
+        Placement new storage symbols are formatted as "storage for {id}".
         """
+        display_name = _format_pstorage_name(demangled)
         section_label = ""
         if section in RAM_SECTIONS:
             section_label = f" [{section[1:]}]"  # .data -> [data], .bss -> [bss]
-        return f"{demangled} ({size:,} B){section_label}"
+        return f"{display_name} ({size:,} B){section_label}"
 
     def _add_top_symbols(self, lines: list[str]) -> None:
         """Add a section showing the top largest symbols in the binary."""
@@ -175,11 +191,13 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
         for i, (_, demangled, size, section, component) in enumerate(top_symbols):
             # Format section label
             section_label = f"[{section[1:]}]" if section else ""
-            # Truncate demangled name if too long
+            # Format storage symbols readably
+            display_name = _format_pstorage_name(demangled)
+            # Truncate if too long
             demangled_display = (
-                f"{demangled[:truncate_limit]}..."
-                if len(demangled) > self.COL_TOP_SYMBOL_NAME
-                else demangled
+                f"{display_name[:truncate_limit]}..."
+                if len(display_name) > self.COL_TOP_SYMBOL_NAME
+                else display_name
             )
             lines.append(
                 f"{i + 1:>2}. {size:>7,} B {section_label:<8} {demangled_display:<{self.COL_TOP_SYMBOL_NAME}} {component}"
@@ -492,7 +510,7 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             lines.append(
                 f"{_COMPONENT_CORE} Symbols > {self.SYMBOL_SIZE_THRESHOLD} B ({len(large_core_symbols)} symbols):"
             )
-            for i, (symbol, demangled, size) in enumerate(large_core_symbols):
+            for i, (_symbol, demangled, size) in enumerate(large_core_symbols):
                 # Core symbols only track (symbol, demangled, size) without section info,
                 # so we don't show section labels here
                 lines.append(
@@ -573,17 +591,18 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                 lines.append(f"Total size: {comp_mem.flash_total:,} B")
                 lines.append("")
 
-                # Show all symbols above threshold for better visibility
+                # Show symbols above threshold, always include storage symbols
                 large_symbols = [
                     (sym, dem, size, sec)
                     for sym, dem, size, sec in sorted_symbols
                     if size > self.SYMBOL_SIZE_THRESHOLD
+                    or dem.endswith(_PSTORAGE_SUFFIX)
                 ]
 
                 lines.append(
-                    f"{comp_name} Symbols > {self.SYMBOL_SIZE_THRESHOLD} B ({len(large_symbols)} symbols):"
+                    f"{comp_name} Symbols > {self.SYMBOL_SIZE_THRESHOLD} B & storage ({len(large_symbols)} symbols):"
                 )
-                for i, (symbol, demangled, size, section) in enumerate(large_symbols):
+                for i, (_symbol, demangled, size, section) in enumerate(large_symbols):
                     lines.append(
                         f"{i + 1}. {self._format_symbol_with_section(demangled, size, section)}"
                     )
@@ -604,7 +623,10 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             # Sort by size descending
             sorted_ram_syms = sorted(ram_syms, key=lambda x: x[2], reverse=True)
             large_ram_syms = [
-                s for s in sorted_ram_syms if s[2] > self.RAM_SYMBOL_SIZE_THRESHOLD
+                s
+                for s in sorted_ram_syms
+                if s[2] > self.RAM_SYMBOL_SIZE_THRESHOLD
+                or s[1].endswith(_PSTORAGE_SUFFIX)
             ]
 
             lines.append(f"{name} ({mem.ram_total:,} B total RAM):")
@@ -619,16 +641,17 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                 lines.append(
                     f"  Symbols > {self.RAM_SYMBOL_SIZE_THRESHOLD} B ({len(large_ram_syms)}):"
                 )
-                for symbol, demangled, size, section in large_ram_syms[:10]:
+                for _symbol, demangled, size, section in large_ram_syms[:10]:
                     # Format section label consistently by stripping leading dot
                     section_label = section.lstrip(".") if section else ""
+                    display_name = _format_pstorage_name(demangled)
                     # Add ellipsis if name is truncated
-                    demangled_display = (
-                        f"{demangled[:70]}..." if len(demangled) > 70 else demangled
+                    display_name = (
+                        f"{display_name[:70]}..."
+                        if len(display_name) > 70
+                        else display_name
                     )
-                    lines.append(
-                        f"    {size:>6,} B [{section_label}] {demangled_display}"
-                    )
+                    lines.append(f"    {size:>6,} B [{section_label}] {display_name}")
                 if len(large_ram_syms) > 10:
                     lines.append(f"    ... and {len(large_ram_syms) - 10} more")
             lines.append("")
@@ -677,7 +700,7 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
         content = "\n".join(lines)
 
         if output_file:
-            with open(output_file, "w", encoding="utf-8") as f:
+            with Path(output_file).open("w", encoding="utf-8") as f:
                 f.write(content)
         else:
             print(content)
@@ -715,9 +738,8 @@ def main():
 
     # Load build directory
     import json
-    from pathlib import Path
 
-    from esphome.platformio_api import IDEData
+    from esphome.platformio.toolchain import IDEData
 
     build_path = Path(build_dir)
 
@@ -763,7 +785,7 @@ def main():
         if not idedata_path.exists():
             continue
         try:
-            with open(idedata_path, encoding="utf-8") as f:
+            with idedata_path.open(encoding="utf-8") as f:
                 raw_data = json.load(f)
             idedata = IDEData(raw_data)
             print(f"Loaded idedata from: {idedata_path}", file=sys.stderr)

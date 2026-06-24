@@ -64,7 +64,7 @@ optional<size_t> SelectCall::calculate_target_index_(const char *name) {
   }
 
   if (this->operation_ == SELECT_OP_SET) {
-    ESP_LOGD(TAG, "'%s' - Setting", name);
+    ESP_LOGV(TAG, "'%s' - Setting", name);
     if (!this->index_.has_value()) {
       ESP_LOGW(TAG, "'%s' - No option set", name);
       return nullopt;
@@ -73,7 +73,7 @@ optional<size_t> SelectCall::calculate_target_index_(const char *name) {
   }
 
   // SELECT_OP_NEXT or SELECT_OP_PREVIOUS
-  ESP_LOGD(TAG, "'%s' - Selecting %s, with%s cycling", name,
+  ESP_LOGV(TAG, "'%s' - Selecting %s, with%s cycling", name,
            this->operation_ == SELECT_OP_NEXT ? LOG_STR_LITERAL("next") : LOG_STR_LITERAL("previous"),
            this->cycle_ ? LOG_STR_LITERAL("") : LOG_STR_LITERAL("out"));
 
@@ -116,7 +116,7 @@ void SelectCall::perform() {
 
   auto idx = target_index.value();
   // All operations use indices, call control() by index to avoid string conversion
-  ESP_LOGD(TAG, "'%s' - Set selected option to: %s", name, parent->option_at(idx));
+  ESP_LOGV(TAG, "'%s' - Set selected option to: %s", name, parent->option_at(idx));
   parent->control(idx);
 }
 

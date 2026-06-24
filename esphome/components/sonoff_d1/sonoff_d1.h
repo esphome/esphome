@@ -39,8 +39,7 @@
 #include "esphome/components/light/light_state.h"
 #include "esphome/components/light/light_traits.h"
 
-namespace esphome {
-namespace sonoff_d1 {
+namespace esphome::sonoff_d1 {
 
 class SonoffD1Output : public light::LightOutput, public uart::UARTDevice, public Component {
  public:
@@ -80,5 +79,4 @@ class SonoffD1Output : public light::LightOutput, public uart::UARTDevice, publi
   void publish_state_(bool is_on, uint8_t brightness);
 };
 
-}  // namespace sonoff_d1
-}  // namespace esphome
+}  // namespace esphome::sonoff_d1

@@ -1,8 +1,7 @@
 #include "max6675.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace max6675 {
+namespace esphome::max6675 {
 
 static const char *const TAG = "max6675";
 
@@ -13,8 +12,7 @@ void MAX6675Sensor::update() {
   this->disable();
 
   // Conversion time typ: 170ms, max: 220ms
-  auto f = std::bind(&MAX6675Sensor::read_data_, this);
-  this->set_timeout("value", 250, f);
+  this->set_timeout("value", 250, [this]() { this->read_data_(); });
 }
 
 void MAX6675Sensor::setup() { this->spi_setup(); }
@@ -44,5 +42,4 @@ void MAX6675Sensor::read_data_() {
   this->status_clear_warning();
 }
 
-}  // namespace max6675
-}  // namespace esphome
+}  // namespace esphome::max6675
