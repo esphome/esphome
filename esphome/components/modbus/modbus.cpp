@@ -530,12 +530,11 @@ void ModbusServerHub::send_response_(uint8_t address, uint8_t function_code, con
 }
 
 void ModbusServerHub::send_exception_(uint8_t address, uint8_t function_code, ModbusExceptionCode exception_code) {
-  std::vector<uint8_t> payload;
-  payload.reserve(3);
-  payload.push_back(address);
-  payload.push_back(function_code | FUNCTION_CODE_EXCEPTION_MASK);
-  payload.push_back(static_cast<uint8_t>(exception_code));
-  this->send_raw_(payload.data(), static_cast<uint16_t>(payload.size()));
+  uint8_t raw[3];
+  raw[0] = address;
+  raw[1] = function_code | FUNCTION_CODE_EXCEPTION_MASK;
+  raw[2] = static_cast<uint8_t>(exception_code);
+  this->send_raw_(raw, 3);
 }
 
 // Raw send for client: pushes to tx queue. Everything except the CRC must be contained in payload.
