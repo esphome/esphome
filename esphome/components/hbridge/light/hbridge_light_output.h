@@ -8,8 +8,6 @@ namespace esphome::hbridge {
 
 class HBridgeLightOutput final : public PollingComponent, public light::LightOutput {
  public:
-  HBridgeLightOutput() : PollingComponent(DEFAULT_SWITCH_INTERVAL_MS) {}
-
   void set_pina_pin(output::FloatOutput *pina_pin) { this->pina_pin_ = pina_pin; }
   void set_pinb_pin(output::FloatOutput *pinb_pin) { this->pinb_pin_ = pinb_pin; }
 
@@ -65,7 +63,6 @@ class HBridgeLightOutput final : public PollingComponent, public light::LightOut
   }
 
  protected:
-  static constexpr uint32_t DEFAULT_SWITCH_INTERVAL_MS = 8;
   output::FloatOutput *pina_pin_;
   output::FloatOutput *pinb_pin_;
   float pina_duty_{0};
