@@ -1,0 +1,9 @@
+esphome:
+  name: test-provisioning
+  provisioning:
+    timeout: 60s
+    on_timeout:
+      then:
+        - lambda: 'return;'
+
+host:
