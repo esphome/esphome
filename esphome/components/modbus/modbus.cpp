@@ -341,7 +341,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       ServerRegisterResponse response;
       uint8_t buffer[modbus::MAX_RAW_SIZE];
       const uint8_t *response_data = buffer;
-      uint16_t response_len;
+      uint16_t response_len = 0;
 
       if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
           static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_INPUT_REGISTERS) {
@@ -359,22 +359,23 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
           this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
           return;
         }
+        ServerRegisterData out_registers;
         if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_HOLDING_REGISTERS) {
-          response = device->on_modbus_read_holding_registers(start_address, number_of_registers);
+          response = device->on_modbus_read_holding_registers(start_address, number_of_registers, out_registers);
         } else {
-          response = device->on_modbus_read_input_registers(start_address, number_of_registers);
+          response = device->on_modbus_read_input_registers(start_address, number_of_registers, out_registers);
         }
 
-        if (response.register_count != number_of_registers) {
+        if (out_registers.size() != number_of_registers) {
           ESP_LOGE(TAG, "Incorrect response %" PRIu16 " requested, %zu returned", number_of_registers,
-                   response.register_count);
+                   out_registers.size());
           this->send_exception_(address, function_code, ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
           return;
         }
 
         buffer[response_len++] = static_cast<uint8_t>(number_of_registers * 2);  // actual byte count
-        for (uint16_t i = 0; i < response.register_count; i++) {
-          auto decoded_value = decode_value(response.registers.get()[i]);
+        for (size_t i = 0; i < out_registers.size(); i++) {
+          auto decoded_value = decode_value(out_registers[i]);
           buffer[response_len++] = decoded_value[0];
           buffer[response_len++] = decoded_value[1];
         }
@@ -414,8 +415,8 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
         this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
         return;
       }
-      if (static_cast<uint8_t>(response.exception)) {
-        this->send_exception_(address, function_code, response.exception);
+      if (response.has_value()) {
+        this->send_exception_(address, function_code, response.value());
       } else {
         this->send_response_(address, function_code, response_data, response_len);
       }

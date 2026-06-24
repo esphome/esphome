@@ -196,24 +196,9 @@ class ModbusClientDevice {
 // This is for compatibility with external components using the former class name
 using ModbusDevice = ModbusClientDevice;
 
-struct ServerRegisterResponse {
-  ModbusExceptionCode exception{};
-  // Exact-size register allocation to avoid std::vector overhead (mirrors ModbusFrame)
-  std::unique_ptr<uint16_t[]> registers;
-  size_t register_count{0};
-
-  ServerRegisterResponse() = default;
-
-  // Successful response: copies the registers into an exact-size buffer.
-  ServerRegisterResponse(const uint16_t *registers, size_t register_count)
-      : registers(std::make_unique<uint16_t[]>(register_count)), register_count(register_count) {
-    memcpy(this->registers.get(), registers, register_count * sizeof(uint16_t));
-  }
-
-  // Error response: carries a Modbus exception code and no registers.
-  // Implicit on purpose so device handlers can simply `return ModbusExceptionCode::...;`.
-  ServerRegisterResponse(ModbusExceptionCode exception) : exception(exception) {}
-};
+using ServerRegisterResponse =
+    std::optional<ModbusExceptionCode>;  // std::nullopt means success, otherwise the exception code is returned
+using ServerRegisterData = StaticVector<uint16_t, MAX_NUM_OF_REGISTERS_TO_READ>;
 
 class ModbusServerDevice {
  public:
@@ -226,15 +211,17 @@ class ModbusServerDevice {
   ModbusServerDevice &operator=(ModbusServerDevice &&) = delete;
   void set_address(uint8_t address) { address_ = address; }
   uint8_t get_address() const { return address_; }
-  virtual ServerRegisterResponse on_modbus_read_registers(uint16_t start_address, uint16_t number_of_registers) {
+  virtual ServerRegisterResponse on_modbus_read_registers(uint16_t start_address, uint16_t number_of_registers,
+                                                          ServerRegisterData &out_registers) {
     return ModbusExceptionCode::ILLEGAL_FUNCTION;
   };
-  virtual ServerRegisterResponse on_modbus_read_input_registers(uint16_t start_address, uint16_t number_of_registers) {
-    return this->on_modbus_read_registers(start_address, number_of_registers);
+  virtual ServerRegisterResponse on_modbus_read_input_registers(uint16_t start_address, uint16_t number_of_registers,
+                                                                ServerRegisterData &out_registers) {
+    return this->on_modbus_read_registers(start_address, number_of_registers, out_registers);
   };
-  virtual ServerRegisterResponse on_modbus_read_holding_registers(uint16_t start_address,
-                                                                  uint16_t number_of_registers) {
-    return this->on_modbus_read_registers(start_address, number_of_registers);
+  virtual ServerRegisterResponse on_modbus_read_holding_registers(uint16_t start_address, uint16_t number_of_registers,
+                                                                  ServerRegisterData &out_registers) {
+    return this->on_modbus_read_registers(start_address, number_of_registers, out_registers);
   };
   virtual ServerRegisterResponse on_modbus_write_registers(uint16_t start_address, uint16_t number_of_registers,
                                                            const uint8_t *data, uint16_t len) {
