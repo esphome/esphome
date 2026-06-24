@@ -1,212 +1,252 @@
 #pragma once
 
-#include "esphome/components/display/display_buffer.h"
-#include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
-#include "esphome/core/hal.h"
+#include "esphome/core/gpio.h"
+#include "esphome/core/helpers.h"
+#include "esphome/components/i2c/i2c.h"
+#include "esphome/components/display/display_buffer.h"
 
-#include <array>
+// ESP32 I2S / DMA / GPIO matrix headers
+#include "esp_private/periph_ctrl.h"
+#include "rom/lldesc.h"
+#include "soc/i2s_struct.h"
+#include "soc/i2s_reg.h"
+#include "soc/gpio_reg.h"
+#include "soc/gpio_struct.h"
+#include "soc/io_mux_reg.h"
+
+#include <cinttypes>
 
 namespace esphome::inkplate {
 
-enum InkplateModel : uint8_t {
-  INKPLATE_6 = 0,
-  INKPLATE_10 = 1,
-  INKPLATE_6_PLUS = 2,
-  INKPLATE_6_V2 = 3,
-  INKPLATE_5 = 4,
-  INKPLATE_5_V2 = 5,
-};
-
-static constexpr uint8_t GLUT_SIZE = 9;
-static constexpr uint8_t GLUT_COUNT = 8;
-
-static constexpr uint8_t LUT2[16] = {0xAA, 0xA9, 0xA6, 0xA5, 0x9A, 0x99, 0x96, 0x95,
-                                     0x6A, 0x69, 0x66, 0x65, 0x5A, 0x59, 0x56, 0x55};
-static constexpr uint8_t LUTW[16] = {0xFF, 0xFE, 0xFB, 0xFA, 0xEF, 0xEE, 0xEB, 0xEA,
-                                     0xBF, 0xBE, 0xBB, 0xBA, 0xAF, 0xAE, 0xAB, 0xAA};
-static constexpr uint8_t LUTB[16] = {0xFF, 0xFD, 0xF7, 0xF5, 0xDF, 0xDD, 0xD7, 0xD5,
-                                     0x7F, 0x7D, 0x77, 0x75, 0x5F, 0x5D, 0x57, 0x55};
-
-static constexpr uint8_t PIXEL_MASK_LUT[8] = {0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80};
-static constexpr uint8_t PIXEL_MASK_GLUT[2] = {0x0F, 0xF0};
-
-class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
+// InkplateParallelBase — non-blocking parallel e-paper driver base class.
+//
+// Owns two 1bpp framebuffers:
+//   buffer_      (DisplayBuffer member) — draw buffer; users draw here via lambda.
+//   d_memory_new_ — shadow of the last frame pushed to the panel (reserved for
+//                   partial update; currently always mirrors buffer_ on each refresh).
+//
+// Two additional framebuffers allocated by base setup():
+//   p_buffer_       — partial-update diff buffer (LUTW & LUTB pre-mixed)
+//   d_memory_4bit_  — 4bpp grayscale draw buffer (2 pixels per byte, init white)
+//
+// Inherits i2c::I2CDevice for direct TPS65186 PMIC register access (address 0x48).
+//
+// Refresh state machine:
+//   POWER_ON → TRANSFER → POWER_OFF → IDLE
+//
+// Parallel Inkplates have no panel BUSY line and no SPI controller; timing is
+// driven by the ESP32 I2S DMA peripheral.
+class InkplateParallelBase : public display::DisplayBuffer, public i2c::I2CDevice {
  public:
-  void set_greyscale(bool greyscale) {
-    this->greyscale_ = greyscale;
-    this->block_partial_ = true;
-    if (this->is_ready())
-      this->initialize_();
-  }
-
-  void set_waveform(const std::array<uint8_t, GLUT_COUNT * GLUT_SIZE> &waveform, bool is_custom) {
-    static_assert(sizeof(this->waveform_) == sizeof(uint8_t) * GLUT_COUNT * GLUT_SIZE,
-                  "waveform_ buffer size must match input waveform array size");
-    memmove(this->waveform_, waveform.data(), sizeof(this->waveform_));
-    this->custom_waveform_ = is_custom;
-  }
-
-  void set_mirror_y(bool mirror_y) { this->mirror_y_ = mirror_y; }
-  void set_mirror_x(bool mirror_x) { this->mirror_x_ = mirror_x; }
-
-  void set_partial_updating(bool partial_updating) { this->partial_updating_ = partial_updating; }
-  void set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
-
-  void set_model(InkplateModel model) { this->model_ = model; }
-
-  void set_display_data_0_pin(InternalGPIOPin *data) { this->display_data_0_pin_ = data; }
-  void set_display_data_1_pin(InternalGPIOPin *data) { this->display_data_1_pin_ = data; }
-  void set_display_data_2_pin(InternalGPIOPin *data) { this->display_data_2_pin_ = data; }
-  void set_display_data_3_pin(InternalGPIOPin *data) { this->display_data_3_pin_ = data; }
-  void set_display_data_4_pin(InternalGPIOPin *data) { this->display_data_4_pin_ = data; }
-  void set_display_data_5_pin(InternalGPIOPin *data) { this->display_data_5_pin_ = data; }
-  void set_display_data_6_pin(InternalGPIOPin *data) { this->display_data_6_pin_ = data; }
-  void set_display_data_7_pin(InternalGPIOPin *data) { this->display_data_7_pin_ = data; }
-
-  void set_ckv_pin(GPIOPin *ckv) { this->ckv_pin_ = ckv; }
-  void set_cl_pin(InternalGPIOPin *cl) { this->cl_pin_ = cl; }
-  void set_gpio0_enable_pin(GPIOPin *gpio0_enable) { this->gpio0_enable_pin_ = gpio0_enable; }
-  void set_gmod_pin(GPIOPin *gmod) { this->gmod_pin_ = gmod; }
-  void set_le_pin(InternalGPIOPin *le) { this->le_pin_ = le; }
-  void set_oe_pin(GPIOPin *oe) { this->oe_pin_ = oe; }
-  void set_powerup_pin(GPIOPin *powerup) { this->powerup_pin_ = powerup; }
-  void set_sph_pin(GPIOPin *sph) { this->sph_pin_ = sph; }
-  void set_spv_pin(GPIOPin *spv) { this->spv_pin_ = spv; }
-  void set_vcom_pin(GPIOPin *vcom) { this->vcom_pin_ = vcom; }
-  void set_wakeup_pin(GPIOPin *wakeup) { this->wakeup_pin_ = wakeup; }
-
-  float get_setup_priority() const override;
-
-  void dump_config() override;
-
-  void display();
-  void clean();
-  void fill(Color color) override;
-
-  void update() override;
+  InkplateParallelBase(int width, int height, int dark_phases, int partial_phases, int grayscale_phases)
+      : width_(width),
+        height_(height),
+        dark_phases_(dark_phases),
+        partial_phases_(partial_phases),
+        grayscale_phases_(grayscale_phases) {}
 
   void setup() override;
+  void loop() override;
+  void update() override;
+  void on_safe_shutdown() override;
 
-  uint8_t get_panel_state() { return this->panel_on_; }
-  bool get_greyscale() { return this->greyscale_; }
-  bool get_partial_updating() { return this->partial_updating_; }
-  uint8_t get_temperature() { return this->temperature_; }
+  void set_full_update_every(int n) { this->full_update_every_ = n; }
 
-  void block_partial() { this->block_partial_ = true; }
+  // Switch between 1-bit (buffer_) and grayscale (d_memory_4bit_) draw routing.
+  void set_grayscale_mode(bool enable) { this->grayscale_mode_ = enable; }
+
+  void set_pin_ckv(GPIOPin *p) { this->pin_ckv_ = p; }
+  void set_pin_sph(GPIOPin *p) { this->pin_sph_ = p; }
+  void set_pin_le(GPIOPin *p) { this->pin_le_ = p; }
+  void set_pin_oe(GPIOPin *p) { this->pin_oe_ = p; }
+  void set_pin_gmod(GPIOPin *p) { this->pin_gmod_ = p; }
+  void set_pin_spv(GPIOPin *p) { this->pin_spv_ = p; }
+  void set_pin_wakeup(GPIOPin *p) { this->pin_wakeup_ = p; }
+  void set_pin_pwrup(GPIOPin *p) { this->pin_pwrup_ = p; }
+  void set_pin_vcom(GPIOPin *p) { this->pin_vcom_ = p; }
+  void set_pin_gpio0_enable(GPIOPin *p) { this->pin_gpio0_enable_ = p; }
+  void set_gpio0_enable_low(bool v) { this->gpio0_enable_low_ = v; }
 
   display::DisplayType get_display_type() override {
-    return get_greyscale() ? display::DisplayType::DISPLAY_TYPE_GRAYSCALE : display::DisplayType::DISPLAY_TYPE_BINARY;
+    return this->grayscale_mode_ ? display::DisplayType::DISPLAY_TYPE_GRAYSCALE
+                                 : display::DisplayType::DISPLAY_TYPE_BINARY;
   }
+
+  bool is_refreshing() const { return this->state_ != STATE_IDLE; }
+
+  void display_partial();
+  void display_grayscale();
 
  protected:
+  struct CleanStep {
+    uint8_t c;
+    uint8_t rep;
+  };
+
+  enum State {
+    STATE_IDLE,
+    STATE_POWER_ON,
+    STATE_TRANSFER,
+    STATE_POWER_OFF,
+  };
+
+  enum PowerOnSub {
+    PON_SETUP,
+    PON_TPS_WAKEUP_SET,
+    PON_TPS_WAKEUP_WAIT,
+    PON_TPS_ENABLE,
+    PON_TPS_PWRUP_SET,
+    PON_TPS_GOOD_POLL,
+    PON_TPS_VCOM_SET,
+    PON_DONE,
+  };
+
+  enum PowerOffSub {
+    POFF_VCOM_LOW,
+    POFF_PWRUP_LOW,
+    POFF_WAIT_RAILS,
+    POFF_WAKEUP_LOW,
+    POFF_OE_GMOD,
+    POFF_I2S_STOP,
+    POFF_DONE,
+  };
+
+  // TRF_FINAL_SKIP is used by Inkplate4 only; other boards never enter that case.
+  enum TransferSub {
+    TRF_COPY_BUF,
+    TRF_CLEAN,
+    TRF_DARK,
+    TRF_LUT2,
+    TRF_ZERO,
+    TRF_FINAL_SKIP,
+    TRF_PARTIAL_DIFF,
+    TRF_PARTIAL_SEND,
+    TRF_PARTIAL_CLEAN_DISC,
+    TRF_PARTIAL_CLEAN_SKIP,
+    TRF_GRAYSCALE_SEND,
+    TRF_GRAYSCALE_FINAL_CLEAN,
+    TRF_FINAL_VSCAN,
+    TRF_DONE,
+  };
+
+  int get_width_internal() override { return this->width_; }
+  int get_height_internal() override { return this->height_; }
+
+  // 1bpp draw: pixel (x,y) → buffer_[y*(width/8) + x/8] bit (x%8), LSB-first.
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
-  void display1b_();
-  void display3b_();
-  void initialize_();
-  bool partial_update_();
-  void clean_fast_(uint8_t c, uint8_t rep);
 
-  void hscan_start_(uint32_t d);
-  void vscan_end_();
+  // --- virtual hardware interface ---
+
+  // Called once before each refresh cycle to reset sub-state counters.
+  void prepare_for_update_();
+
+  // GPIO init + I2S pin routing + TPS65186 power-up sequence.
+  // Called every loop() tick in STATE_POWER_ON; return true when done.
+  bool do_power_on_step_();
+
+  // Send pixel data via I2S DMA (clean + waveform phases).
+  // Called every loop() tick in STATE_TRANSFER; return true when done.
+  // Base handles common cases; board-specific cases dispatched to do_board_transfer_step_().
+  virtual bool do_transfer_step_();
+
+  // Board-specific transfer cases (TRF_DARK, TRF_LUT2, TRF_ZERO, TRF_PARTIAL_SEND,
+  // TRF_PARTIAL_CLEAN_SKIP, TRF_GRAYSCALE_SEND). Base provides standard (16-aligned width)
+  // implementation; boards override only for quirks (remainder bytes, alternate sequencing).
+  virtual bool do_board_transfer_step_();
+
+  // TPS65186 power-down + I2S clock/GPIO release.
+  // Called every loop() tick in STATE_POWER_OFF; return true when done.
+  bool do_power_off_step_();
+
+  // Emergency hardware power-off on OTA / reboot mid-refresh.
+  void do_emergency_off_();
+
+  // clean_data_byte_() default: reads from clean_seq_ pointer set by subclass constructor.
+  // Inkplate10 overrides to select between two sequences based on update path.
+  virtual uint8_t clean_data_byte_() const;
+
+  // TPS65186 I2C helpers (via i2c::I2CDevice registers at address 0x48).
+  bool tps_write_reg_(uint8_t reg, uint8_t data);
+  bool tps_read_reg_(uint8_t reg, uint8_t *out);
+
+  // One-time hardware init — called by each board's setup().
+  void tps_begin_();
+  void i2s_init_();
+  void i2s_pin_route_();
+  void i2s_pin_release_();
+
+  // Per-line EPD timing — called from board do_transfer_step_() implementations.
   void vscan_start_();
+  void vscan_end_();
+  void send_line_i2s_();
 
-  void eink_off_();
-  void eink_on_();
-  bool read_power_status_();
+  void set_state_(State s);
+  void process_state_();
 
-  void setup_pins_();
-  void pins_z_state_();
-  void pins_as_outputs_();
+  // --- shared data ---
+  int width_{0}, height_{0};
 
-  int get_width_internal() override {
-    if (this->model_ == INKPLATE_6 || this->model_ == INKPLATE_6_V2) {
-      return 800;
-    } else if (this->model_ == INKPLATE_10) {
-      return 1200;
-    } else if (this->model_ == INKPLATE_5) {
-      return 960;
-    } else if (this->model_ == INKPLATE_5_V2) {
-      return 1280;
-    } else if (this->model_ == INKPLATE_6_PLUS) {
-      return 1024;
-    }
-    return 0;
-  }
+  // Control pins — direct ESP32 GPIO
+  GPIOPin *pin_ckv_{nullptr};
+  GPIOPin *pin_sph_{nullptr};
+  GPIOPin *pin_le_{nullptr};
 
-  int get_height_internal() override {
-    if (this->model_ == INKPLATE_6 || this->model_ == INKPLATE_6_V2) {
-      return 600;
-    } else if (this->model_ == INKPLATE_5) {
-      return 540;
-    } else if (this->model_ == INKPLATE_5_V2) {
-      return 720;
-    } else if (this->model_ == INKPLATE_10) {
-      return 825;
-    } else if (this->model_ == INKPLATE_6_PLUS) {
-      return 758;
-    }
-    return 0;
-  }
+  // Control pins — PCAL6416A expander
+  GPIOPin *pin_oe_{nullptr};
+  GPIOPin *pin_gmod_{nullptr};
+  GPIOPin *pin_spv_{nullptr};
+  GPIOPin *pin_wakeup_{nullptr};
+  GPIOPin *pin_pwrup_{nullptr};
+  GPIOPin *pin_vcom_{nullptr};
+  GPIOPin *pin_gpio0_enable_{nullptr};
+  bool gpio0_enable_low_{false};
 
-  size_t get_buffer_length_();
+  int full_update_every_{1};
+  int update_count_{0};
+  bool partial_{false};
+  bool grayscale_mode_{false};
 
-  uint32_t get_data_pin_mask_() {
-    uint32_t data = 0;
-    data |= (1UL << this->display_data_0_pin_->get_pin());
-    data |= (1UL << this->display_data_1_pin_->get_pin());
-    data |= (1UL << this->display_data_2_pin_->get_pin());
-    data |= (1UL << this->display_data_3_pin_->get_pin());
-    data |= (1UL << this->display_data_4_pin_->get_pin());
-    data |= (1UL << this->display_data_5_pin_->get_pin());
-    data |= (1UL << this->display_data_6_pin_->get_pin());
-    data |= (1UL << this->display_data_7_pin_->get_pin());
-    return data;
-  }
+  int dark_phases_{0};
+  int partial_phases_{0};
+  int grayscale_phases_{0};
 
-  bool panel_on_{false};
-  uint8_t temperature_;
+  // Framebuffers
+  // buffer_         — 1bpp draw buffer (DisplayBuffer base member)
+  // d_memory_new_   — 1bpp shadow of last displayed frame
+  // p_buffer_       — partial update diff buffer
+  // d_memory_4bit_  — 4bpp grayscale draw buffer
+  uint8_t *d_memory_new_{nullptr};
+  uint8_t *p_buffer_{nullptr};
+  uint8_t *d_memory_4bit_{nullptr};
 
-  uint8_t *partial_buffer_{nullptr};
-  uint8_t *partial_buffer_2_{nullptr};
+  // Grayscale LUTs — allocated by board setup()
+  uint8_t *glut_{nullptr};
+  uint8_t *glut2_{nullptr};
 
-  uint32_t *glut_{nullptr};
-  uint32_t *glut2_{nullptr};
-  uint32_t pin_lut_[256];
+  // I2S DMA line buffer and descriptor (DMA-capable SRAM)
+  volatile uint8_t *dma_line_buf_{nullptr};
+  volatile lldesc_t *dma_desc_{nullptr};
 
-  uint32_t full_update_every_;
-  uint32_t partial_updates_{0};
+  State state_{STATE_IDLE};
+  uint32_t state_start_ms_{0};
 
+  // Sub-state for power-on / power-off / transfer state machines
+  PowerOnSub pon_sub_{PON_SETUP};
+  PowerOffSub poff_sub_{POFF_VCOM_LOW};
+  TransferSub trf_sub_{TRF_COPY_BUF};
+  TransferSub trf_after_clean_{TRF_DARK};
+  uint32_t sub_start_ms_{0};
+  uint32_t tps_pwrup_start_ms_{0};
   bool block_partial_{true};
-  bool greyscale_;
-  bool mirror_y_{false};
-  bool mirror_x_{false};
-  bool partial_updating_;
-  bool custom_waveform_{false};
-  uint8_t waveform_[GLUT_COUNT][GLUT_SIZE];
+  bool grayscale_update_{false};
+  int trf_k_{0};
+  size_t trf_step_{0};
+  size_t trf_pass_{0};
 
-  InkplateModel model_;
-
-  InternalGPIOPin *display_data_0_pin_;
-  InternalGPIOPin *display_data_1_pin_;
-  InternalGPIOPin *display_data_2_pin_;
-  InternalGPIOPin *display_data_3_pin_;
-  InternalGPIOPin *display_data_4_pin_;
-  InternalGPIOPin *display_data_5_pin_;
-  InternalGPIOPin *display_data_6_pin_;
-  InternalGPIOPin *display_data_7_pin_;
-
-  GPIOPin *ckv_pin_;
-  InternalGPIOPin *cl_pin_;
-  GPIOPin *gpio0_enable_pin_;
-  GPIOPin *gmod_pin_;
-  InternalGPIOPin *le_pin_;
-  GPIOPin *oe_pin_;
-  GPIOPin *powerup_pin_;
-  GPIOPin *sph_pin_;
-  GPIOPin *spv_pin_;
-  GPIOPin *vcom_pin_;
-  GPIOPin *wakeup_pin_;
+  // Pointer to board-specific clean sequence — set in subclass constructor.
+  const CleanStep *clean_seq_{nullptr};
+  size_t clean_seq_len_{0};
 };
 
 }  // namespace esphome::inkplate
