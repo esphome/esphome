@@ -28,9 +28,14 @@ uint8_t ProvisioningManager::register_source() {
 }
 
 void ProvisioningManager::loop() {
-  // Nothing to do once provisioned or already closed.
-  if (this->closed_ || this->is_provisioned())
+  // The window is resolved once the device is provisioned or the window has closed;
+  // there is nothing left to track, so stop running entirely. Checked here rather
+  // than in setup() because sources register during their own setup(), which may
+  // run after ours - so is_provisioned() is only reliable from the first loop().
+  if (this->is_provisioned() || this->closed_) {
+    this->disable_loop();
     return;
+  }
   // The window timer runs from boot (millis since boot). The closed state is not
   // persisted, so a reboot reopens the window.
   if (this->timeout_ != 0 && App.get_loop_component_start_time() > this->timeout_) {
