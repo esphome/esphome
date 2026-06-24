@@ -32,10 +32,10 @@ bkcmd=0       // Tells the Nextion to not send responses on commands. This is th
 ```
 
 This permits faster communication with the Nextion display and it is highly recommended when using
-[Hardware UARTs](/components/uart#uart-hardware_uarts).
+[Hardware UARTs](/components/uart#hardware-uarts).
 
 > [!WARNING]
-> **We highly recommend using only** [Hardware UARTs](/components/uart#uart-hardware_uarts) **with Nextion displays.**
+> **We highly recommend using only** [Hardware UARTs](/components/uart#hardware-uarts) **with Nextion displays.**
 >
 > *Use of software UARTs is known to result in unpredictable/inconsistent behavior.*
 >
@@ -402,7 +402,7 @@ logging or other [automations](/automations/) will occur. This process uses the 
 > update process failing.*
 >
 > If you experience problems with the update process and are using a software UART (for example, on the ESP8266), you
-> should switch to an ESP32 or supported variant which has more available [Hardware UARTs](/components/uart#uart-hardware_uarts).
+> should switch to an ESP32 or supported variant which has more available [Hardware UARTs](/components/uart#hardware-uarts).
 
 You can use Home Assistant itself or any other web server to host the TFT file. When using HTTPS (generally
 recommended), you may notice reduced upload speeds as the encryption consumes more resources on the microcontroller.

@@ -13,7 +13,7 @@ or 433 MHz radio frequency (RF) signals.
 The component is split into two parts:
 
 - The remote receiver "hub", which defines the pin and a few additional settings, and...
-- Individual [remote receiver binary sensors](#remote-receiver-binary-sensor) which will activate when their
+- Individual [remote receiver binary sensors](#binary-sensor) which will activate when their
   respective signal is received.
 
 **See** [Setting up IR Devices](/guides/setting_up_rmt_devices#remote-setting-up-infrared) **and** [Setting up RF Devices](/guides/setting_up_rmt_devices#remote-setting-up-rf) **for details.**
@@ -313,8 +313,6 @@ remote_receiver:
           - ...
 ```
 
-<span id="remote-receiver-binary-sensor"></span>
-
 ## Binary Sensor
 
 The `remote_receiver` binary sensor lets you track when a button on a remote control is pressed.
@@ -540,7 +538,7 @@ Remote code selection (exactly one of these has to be included):
   - **code** (**Required**, string): The remote code to listen for, copy this from the dumper output. To ignore a bit
     in the received data, use `x` at that place in the **code**.
 
-  - **protocol** (*Optional*): The RC Switch protocol to use, see [RC Switch Protocol](/components/remote_transmitter#remote_transmitter-rc_switch-protocol) for
+  - **protocol** (*Optional*): The RC Switch protocol to use, see [RC Switch Protocol](/components/remote_transmitter#rc-switch-protocol) for
     more info.
 
 - **rc_switch_type_a**: Trigger on a decoded RC Switch Type A remote code with the given data.
@@ -548,7 +546,7 @@ Remote code selection (exactly one of these has to be included):
   - **group** (**Required**, string): The group, binary string.
   - **device** (**Required**, string): The device in the group, binary string.
   - **state** (**Required**, boolean): The on/off state to trigger on.
-  - **protocol** (*Optional*): The RC Switch protocol to use, see [RC Switch Protocol](/components/remote_transmitter#remote_transmitter-rc_switch-protocol) for
+  - **protocol** (*Optional*): The RC Switch protocol to use, see [RC Switch Protocol](/components/remote_transmitter#rc-switch-protocol) for
     more info.
 
 - **rc_switch_type_b**: Trigger on a decoded RC Switch Type B remote code with the given data.
@@ -556,7 +554,7 @@ Remote code selection (exactly one of these has to be included):
   - **address** (**Required**, int): The address, int from 1 to 4.
   - **channel** (**Required**, int): The channel, int from 1 to 4.
   - **state** (**Required**, boolean): The on/off state to trigger on.
-  - **protocol** (*Optional*): The RC Switch protocol to use, see [RC Switch Protocol](/components/remote_transmitter#remote_transmitter-rc_switch-protocol) for
+  - **protocol** (*Optional*): The RC Switch protocol to use, see [RC Switch Protocol](/components/remote_transmitter#rc-switch-protocol) for
     more info.
 
 - **rc_switch_type_c**: Trigger on a decoded RC Switch Type C remote code with the given data.
@@ -565,7 +563,7 @@ Remote code selection (exactly one of these has to be included):
   - **group** (**Required**, int): The group. Range is 1 to 4.
   - **device** (**Required**, int): The device. Range is 1 to 4.
   - **state** (**Required**, boolean): The on/off state to trigger on.
-  - **protocol** (*Optional*): The RC Switch protocol to use, see [RC Switch Protocol](/components/remote_transmitter#remote_transmitter-rc_switch-protocol) for
+  - **protocol** (*Optional*): The RC Switch protocol to use, see [RC Switch Protocol](/components/remote_transmitter#rc-switch-protocol) for
     more info.
 
 - **rc_switch_type_d**: Trigger on a decoded RC Switch Type D remote code with the given data.
@@ -573,7 +571,7 @@ Remote code selection (exactly one of these has to be included):
   - **group** (**Required**, int): The group. Range is 1 to 4.
   - **device** (**Required**, int): The device. Range is 1 to 3.
   - **state** (**Required**, boolean): The on/off state to trigger on.
-  - **protocol** (*Optional*): The RC Switch protocol to use, see [RC Switch Protocol](/components/remote_transmitter#remote_transmitter-rc_switch-protocol) for
+  - **protocol** (*Optional*): The RC Switch protocol to use, see [RC Switch Protocol](/components/remote_transmitter#rc-switch-protocol) for
     more info.
 
 - **roomba**: Trigger on a decoded Roomba remote code with the given data.

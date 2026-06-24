@@ -23,7 +23,7 @@ Configuration variables:
 - **name** (*Optional*, string): The name of the alarm control panel. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and
+> If you have a [friendly_name](/components/esphome#configuration-variables) set for your device and
 > you want the switch to use that name, you can set `name: None`.
 
 - **on_state** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform
@@ -301,8 +301,6 @@ on_...:
     condition:
       alarm_control_panel.is_armed: acp1
 ```
-
-<span id="alarm_control_panel_lambda_calls"></span>
 
 ### lambda calls
 

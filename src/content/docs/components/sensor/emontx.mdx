@@ -9,7 +9,7 @@ import Figure from '@components/Figure.astro';
 
 The `emontx` component allows you to use ESPHome to create a connection to an OpenEnergyMonitor emonTX via a supported device (ESP32 recommended).
 This component is a global hub that establishes the connection to the EmonTx via [UART bus](/components/uart) and translates the received data.
-Using the [emontx sensors](#emontx-sensors), you can then create sensors for Home Assistant that track voltage, current, power as measured by CTs (up to 12), pulse data, and temperature depending on the configuration of the emonTX.
+Using the [emontx sensors](#sensors), you can then create sensors for Home Assistant that track voltage, current, power as measured by CTs (up to 12), pulse data, and temperature depending on the configuration of the emonTX.
 
 The component can send data to an MQTT Broker either as JSON or as individual topics to be consumed by any system.
 
@@ -111,9 +111,7 @@ sensor:
     name: "Energy CT1"
 ```
 
-This will create three sensors in Home Assistant tracking voltage, power, and energy from the first CT channel. See the [Sensors](#emontx-sensors) section below for all available sensor types and their tag names.
-
-<span id="emontx-sensors"></span>
+This will create three sensors in Home Assistant tracking voltage, power, and energy from the first CT channel. See the [Sensors](#sensors) section below for all available sensor types and their tag names.
 
 ## Sensors
 
@@ -504,7 +502,7 @@ For example, with device name `emontx_living_room` and the sensors defined below
 - `emontx_living_room/sensor/voltage/state` for the sensor named "Voltage"
 - `emontx_living_room/sensor/energy_ct2/state` for the sensor named "Energy CT2"
 
-> Only sensor(s) defined in the configuration will be published (see [Sensors](#emontx-sensors)).
+> Only sensor(s) defined in the configuration will be published (see [Sensors](#sensors)).
 
 Example:
 

@@ -26,7 +26,7 @@ Configuration variables:
 - **name** (*Optional*, string): The name of the lock. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and
+> If you have a [friendly_name](/components/esphome#configuration-variables) set for your device and
 > you want the lock to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the
@@ -98,8 +98,6 @@ on_...:
       # Same syntax for is_unlocked
       lock.is_locked: my_lock
 ```
-
-<span id="lock-lambda_calls"></span>
 
 ### lambda calls
 

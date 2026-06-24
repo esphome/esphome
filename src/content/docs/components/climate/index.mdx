@@ -54,7 +54,7 @@ Configuration variables:
 - **name** (*Optional*, string): The name of the climate device. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and
+> If you have a [friendly_name](/components/esphome#configuration-variables) set for your device and
 > you want the climate to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the climate device in the frontend.
@@ -213,8 +213,6 @@ Configuration variables:
 
 - **swing_mode** (*Optional*, string, [templatable](/automations/templates)): Set the swing mode
   of the climate device. One of `OFF`, `BOTH`, `VERTICAL`, `HORIZONTAL`.
-
-<span id="climate-lambda_calls"></span>
 
 ### lambda calls
 

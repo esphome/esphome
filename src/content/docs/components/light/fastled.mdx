@@ -27,15 +27,13 @@ import APIRef from '@components/APIRef.astro';
 >
 > For addressable lights, you can use [Esp32 Rmt Led Strip](/components/light/esp32_rmt_led_strip/) or for SPI LEDs see [Spi Led Strip](/components/light/spi_led_strip/)..
 
-<span id="fastled-clockless"></span>
-
 ## Clockless
 
 The `fastled_clockless` light platform allows you to create RGB lights
 in ESPHome for a [number of supported chipsets](#fastled_clockless-chipsets).
 
 Clockless FastLED lights differ from the
-[SPI](#fastled-spi) in that they only have a single data wire to connect, and not separate data and clock wires.
+[SPI](#spi) in that they only have a single data wire to connect, and not separate data and clock wires.
 
 <Image src={fastledClocklessUiImg} layout="constrained" alt="" />
 
@@ -98,8 +96,6 @@ light:
 - `UCS2903`
 - `SM16703`
 
-<span id="fastled-spi"></span>
-
 ## SPI
 
 The `fastled_spi` light platform allows you to create RGB lights
@@ -108,7 +104,7 @@ in ESPHome for a [number of supported chipsets](#fastled_spi-chipsets).
 See [Spi Led Strip](/components/light/spi_led_strip/) for an alternative component that works on ESP-IDF (and Arduino.)
 
 SPI FastLED lights differ from the
-[Clockless](#fastled-clockless) in that they require two pins to be connected, one for a data and one for a clock signal
+[Clockless](#clockless) in that they require two pins to be connected, one for a data and one for a clock signal
 whereas the clockless lights only need a single pin.
 
 <Image src={fastledSpiUiImg} layout="constrained" alt="" />

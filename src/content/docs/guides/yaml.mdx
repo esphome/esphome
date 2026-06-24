@@ -37,8 +37,6 @@ foo:
   text: "# can be included in a string"
 ```
 
-<span id="yaml-scalars"></span>
-
 ### Scalars
 
 A YAML scalar is any value that doesn't contain a colon (`:`). It can be a string, number, boolean, or null.
@@ -66,8 +64,6 @@ esp8266:
 web_server:
   port: 80 # integer value
 ```
-
-<span id="yaml-sequences"></span>
 
 ### Sequences
 
@@ -134,8 +130,6 @@ two errors:
 - label: # Will throw an error "expected a dictionary"
   text: "Temperature 1"  # Wrong! Should be indented. Will throw error "text is an invalid option for ..."
 ```
-
-<span id="yaml-mappings"></span>
 
 ### Mappings
 
@@ -299,8 +293,6 @@ The secrets file must consist only of a flat mapping of keys to scalar values.
 The `substitutions:` feature allows you to define reusable values that can be referenced throughout your configuration.
 For full details see [Substitutions](/components/substitutions/)
 
-<span id="yaml-include"></span>
-
 ### !include
 
 - Insert the contents of another YAML file at this position.
@@ -334,8 +326,6 @@ your main configuration. The data is merged with the main configuration, with va
 precedence over values in the package data.
 
 See [Packages](/components/packages/) for more details.
-
-<span id="yaml-hidden-items"></span>
 
 ### Hidden items
 

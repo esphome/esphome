@@ -42,10 +42,10 @@ sensor:
 
 ## Configuration Variables
 
-- **id** (*Optional*, [ID](/guides/configuration-types#config-id)): The ID of the `dlms_meter` component.
-- **uart_id** (*Optional*, [ID](/guides/configuration-types#config-id)): The ID of the UART component that is
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the `dlms_meter` component.
+- **uart_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the UART component that is
 connected to the smart meter.
-- **receive_timeout** (*Optional*, [Time](/guides/configuration-types#config-time)): The timeout for receiving a complete frame. Defaults to `1000ms`.
+- **receive_timeout** (*Optional*, [Time](/guides/configuration-types#time)): The timeout for receiving a complete frame. Defaults to `1000ms`.
 - **decryption_key** (*Optional*, string): Specify if your smart meter uses encryption. You should request this key
 from your electricity provider (32 hex characters, case-insensitive).
 - **auth_key** (*Optional*, string): Authentication key. Specify if your smart meter uses encryption with
@@ -64,7 +64,7 @@ descriptor pattern** that tells the system how to parse the incoming data.
 All platforms (`sensor`, `text_sensor`, `binary_sensor`) support dynamic mapping using the `obis_code` property.
 This allows you to decode nearly any property your meter emits.
 
-- **dlms_meter_id** (*Optional*, [ID](/guides/configuration-types#config-id)): Manually specify the ID of the
+- **dlms_meter_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the
 `dlms_meter` hub if you have multiple.
 - **obis_code** (**Required for dynamic mapping**, string): The OBIS code of the value you want to read. The code supports flexible formats
 like `1-0:32.7.0` or `1.0.32.7.0.255`.

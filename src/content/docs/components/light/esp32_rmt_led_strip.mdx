@@ -25,7 +25,7 @@ light:
 - **pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The pin for the data line of the light.
 - **num_leds** (**Required**, int): The number of LEDs in the strip.
 - **chipset** (*Optional*, enum): The name of the chipset used; determines signal timing. Not required if
-  [specifying the timings manually](#esp32-rmt-led-strip-manual_timings).
+  [specifying the timings manually](#manual-timings).
 
   - `WS2811`
   - `WS2812`
@@ -71,8 +71,6 @@ light:
   the DMA buffer size and can be set to a large value.
 
 - All other options from [Light](/components/light#config-light).
-
-<span id="esp32-rmt-led-strip-manual_timings"></span>
 
 ### Manual Timings
 

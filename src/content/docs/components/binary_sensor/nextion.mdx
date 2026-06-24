@@ -44,8 +44,8 @@ binary_sensor:
 - **page_id** (*Optional*, string): The ID of the page the component is on. Use `0`   for the default page.
 - **component_id** (*Optional*, string): The ID (the number, not name!) of the component to track.
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The duration to update the sensor. If using a [Nextion Custom Binary Sensor Protocol](#nextion-custom-binary-sensor-protocol) this should not be used
-- **background_color** (*Optional*, [Color](/components/display#config-color)): The background color
-- **foreground_color** (*Optional*, [Color](/components/display#config-color)): The foreground color
+- **background_color** (*Optional*, [Color](/components/display#color)): The background color
+- **foreground_color** (*Optional*, [Color](/components/display#color)): The foreground color
 - **visible** (*Optional*, boolean): Visible or not
 - All other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
@@ -70,7 +70,7 @@ Example:
       id(nextion1).update_components_by_page_prefix("page"+x+".");
 ```
 
-See [How things Update](#nextion_binary_sensor_how_things_update) for additional information
+See [How things Update](#how-things-update) for additional information
 
 ### Globals
 
@@ -119,9 +119,7 @@ on_...:
   display which will update component. Default is true.
 
 > [!NOTE]
-> This action can also be written in lambdas. See [Lambda Calls](#nextion_binary_sensor_lambda_calls)
-
-<span id="nextion_binary_sensor_lambda_calls"></span>
+> This action can also be written in lambdas. See [Lambda Calls](#lambda-calls)
 
 ## Lambda Calls
 
@@ -144,8 +142,6 @@ more advanced functions (see the full <APIRef text="nextion_binarysensor.h" path
 - `set_foreground_pressed_color(Color color)`  : Sets the background color to **Color**
 - `set_visible(bool visible)`   : Sets visible or not. If set to false, no updates will be sent to the component
 
-<span id="nextion_binary_sensor_how_things_update"></span>
-
 ## How things Update
 
 A Nextion component with an integer value (.val) or Nextion variable will be automatically polled if **update_interval** is set.
@@ -165,7 +161,7 @@ Using the above yaml example:
 - "Radio 0 Binary Sensor" will poll the Nextion for the `r0.val`   value and set the state accordingly.
 - "Is Darkmode Set" will NOT poll the Nextion. Either the Nextion will need to use the [Nextion Custom Binary Sensor Protocol](#nextion-custom-binary-sensor-protocol) or use a lambda:
 
-- [Lambda Calls](#nextion_binary_sensor_lambda_calls).
+- [Lambda Calls](#lambda-calls).
 
 > [!NOTE]
 > No updates will be sent to the Nextion if it is sleeping. Once it wakes the components will be updated. If a component is invisible, `visible(false)`, then it won't update until it is set to be visible.

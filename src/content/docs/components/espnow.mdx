@@ -20,10 +20,10 @@ espnow:
 - **channel** (*Optional*, int): The Wi-Fi channel that the ESP-NOW communication will use to send/receive data packets.
   Cannot be set when [Wi-Fi](/components/wifi/) is used, as ESP-NOW will use the same channel as the Wi-Fi network.
 - **auto_add_peer** (*Optional*, boolean): When set to `true`, the ESP-NOW component will automatically add any new incoming
-  device as a peer. See [Peers](#espnow-peers) below. Defaults to `false`.
+  device as a peer. See [Peers](#peers) below. Defaults to `false`.
 - **enable_on_boot** (*Optional*, boolean): Enable the ESP-NOW component on boot. Defaults to `true`.
 - **peers** (*Optional*, list of MAC Address): The list of MAC addresses of the devices that this device is allowed to
-  communicate with. See [Peers](#espnow-peers) below.
+  communicate with. See [Peers](#peers) below.
 
 Automations:
 - **on_receive** (*Optional*, [Automation](/automations)): An automation to perform when a directed (non-broadcast) packet is
@@ -182,7 +182,7 @@ Automations:
 ### `espnow.broadcast` Action
 This is an [Action](/automations/actions#all-actions) for sending a data packet over the ESP-NOW protocol to every
 device on the same Wi-Fi channel that is listening for ESP-NOW broadcasts. It is equivalent to using `espnow.send`
-with the address `FF:FF:FF:FF:FF:FF`. See [Broadcasting](#espnow-broadcasting) below for a discussion of when
+with the address `FF:FF:FF:FF:FF:FF`. See [Broadcasting](#broadcasting) below for a discussion of when
 broadcasts are appropriate.
 
 ```yaml
@@ -251,7 +251,6 @@ on_...:
   or consult the [Espressif ESP-NOW documentation](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/network/esp_now.html).
   Both peers must be on the same channel for ESP-NOW packets to be exchanged.
 
-<span id="espnow-peers"></span>
 ## Peers
 A peer is a device that this device is allowed to send to. Broadcast and unencrypted unicast data can be received from
 any device without explicitly adding it as a peer; however, only packets whose source address is in the registered peer
@@ -264,7 +263,6 @@ will be an error when trying to send data to a non-broadcast address.
 Setting `auto_add_peer` to `true` will allow the component to automatically add any incoming device as a peer, and
 will automatically add any peer that data is sent to.
 
-<span id="espnow-broadcasting"></span>
 ## Broadcasting
 The ESP-NOW protocol supports both directed (unicast) frames addressed to a specific peer and broadcast frames sent to
 the special address `FF:FF:FF:FF:FF:FF`. Each style has different trade-offs:

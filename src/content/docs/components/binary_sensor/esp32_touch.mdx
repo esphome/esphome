@@ -12,15 +12,15 @@ Capacitive touch detection is possible on ESP32, ESP32-S2, ESP32-S3 and ESP32-P4
 In ESPHome, it is configured in two parts:
 
 - [Component/Hub](#esp32-touch-component)
-- [Binary Sensor](#esp32-touch-binary-sensor)
+- [Binary Sensor](#binary-sensor)
 
 <span id="esp32-touch-component"></span>
 
 ## Component/Hub
 
 The `esp32_touch` component creates a global hub enabling (capacitive) touch detection on GPIO pins
-[supported by ESP32, ESP32-S2, ESP32-S3 and ESP32-P4 processors](#esp32-touch-pad-pins). With this enabled,
-[binary sensors](#esp32-touch-binary-sensor) may then be configured to permit touch detection.
+[supported by ESP32, ESP32-S2, ESP32-S3 and ESP32-P4 processors](#touch-pad-pins). With this enabled,
+[binary sensors](#binary-sensor) may then be configured to permit touch detection.
 
 ```yaml
 # Example configuration entry
@@ -32,7 +32,7 @@ esp32_touch:
 
 - **setup_mode** (*Optional*, boolean): Whether debug messages with the touch pad value should
    be displayed in the logs. Useful for finding out suitable thresholds for the binary sensors, but
-   will spam the logs. See [setting up touch pads](#esp32-touch-binary-sensor)
+   will spam the logs. See [setting up touch pads](#binary-sensor)
    for more information. Defaults to `false`.
 
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID for code generation.
@@ -119,8 +119,6 @@ Waterproof configuration:
 For a more detailed explanation of the waterproof configuration, please see the
 [ESP-IDF documentation.](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s2/api-reference/peripherals/touch_pad.html#_CPPv420touch_pad_waterproof)
 
-<span id="esp32-touch-binary-sensor"></span>
-
 ## Binary Sensor
 
 The `esp32_touch` binary sensor platform lets you use the touch peripheral of the
@@ -150,10 +148,10 @@ binary_sensor:
    events on.
 
 - **threshold** (**Required**, `int`  ): The threshold to use to detect touch events. See
-   [Finding Thresholds](#esp32-finding-thresholds) below for help determining this value.
+   [Finding Thresholds](#finding-thresholds) below for help determining this value.
 
 - **wakeup_threshold** (*Optional*, `int`  ): The threshold to use to detect touch events to wake-up from deep sleep.
-   See [Finding Thresholds](#esp32-finding-thresholds) below for help determining this value. Touch pad sensors that should trigger a
+   See [Finding Thresholds](#finding-thresholds) below for help determining this value. Touch pad sensors that should trigger a
    wake-up from deep sleep must specify this value. The [Deep Sleep Component](/components/deep_sleep#deep_sleep-component) must also be configured to enable
    wake-up from a touch event. Note that no filter(s) is/are active during deep sleep.
 
@@ -186,8 +184,6 @@ One example of use is a wide area pressure sensor that integrates a number of sm
 of aluminium foil that sandwich paper, and connect one wire to a touch pin and the other to ground. Set up several sensors
 under a flexible object like a plastic mat, add the raw values, and apply a threshold.
 
-<span id="esp32-touch-pad-pins"></span>
-
 ## Touch Pad Pins
 
 Various pins on the ESP32, ESP32-S2, ESP32-S3 and ESP32-P4 can be used to detect touches. They are as follows (using the default
@@ -196,8 +192,6 @@ Various pins on the ESP32, ESP32-S2, ESP32-S3 and ESP32-P4 can be used to detect
 | ESP32                                                                       | ESP32-S2       | ESP32-S3       | ESP32-P4       |
 | --------------------------------------------------------------------------- | -------------- | -------------- | -------------- |
 | GPIO4, GPIO0, GPIO2, GPIO15, GPIO13, GPIO12, GPIO14, GPIO27, GPIO33, GPIO32 | GPIO1 - GPIO14 | GPIO1 - GPIO14 | GPIO2 - GPIO15 |
-
-<span id="esp32-finding-thresholds"></span>
 
 ## Finding Thresholds
 

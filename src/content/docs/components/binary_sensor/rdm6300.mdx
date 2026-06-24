@@ -20,7 +20,7 @@ create individual binary sensors that track if an NFC/RFID tag is currently dete
 
 <Image src={rdm6300FullImg} layout="constrained" alt="" />
 
-See [Setting Up Tags](#rdm6300-setting_up_tags) for information on how to setup individual binary sensors for this component.
+See [Setting Up Tags](#setting-up-tags) for information on how to setup individual binary sensors for this component.
 
 As the communication with the RDM6300 is done using UART, you need
 to have an [UART bus](/components/uart) in your configuration with the `rx_pin` connected to the data pin of the RDM6300 and
@@ -105,8 +105,6 @@ binary_sensor:
 
 - **uid** (**Required**, int): The unique ID of the NFC/RFID tag.
 - All other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
-
-<span id="rdm6300-setting_up_tags"></span>
 
 ## Setting Up Tags
 

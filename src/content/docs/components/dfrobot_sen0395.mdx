@@ -74,11 +74,7 @@ dfrobot_sen0395:
 - **uart_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the [Uart](/components/uart/) if you want
   to use multiple UART buses.
 
-<span id="dfrobot_sen0395-binary_sensor"></span>
-
 ## Binary Sensor
-
-<span id="dfrobot_sen0395-via_gpio"></span>
 
 ### Via GPIO
 
@@ -99,13 +95,11 @@ binary_sensor:
       mode: INPUT_PULLDOWN
 ```
 
-<span id="dfrobot_sen0395-via_uart"></span>
-
 ### Via UART
 
 Connecting the sensor via the serial connection (UART) allows both changing its settings as well as reading its state.
 Note, however, that the UART peripheral cannot wake the processor; if you plan on sleeping the processor, you'll likely
-still need to use the [GPIO pin](#dfrobot_sen0395-via_gpio) approach described above (in addition to the UART).
+still need to use the [GPIO pin](#via-gpio) approach described above (in addition to the UART).
 
 First, setup a [Uart](/components/uart/) and [Hub Component](#dfrobot_sen0395-component) and then use its binary sensor platform
 to create individual binary sensors for each presence sensor.
@@ -122,8 +116,6 @@ binary_sensor:
   Required when multiple instances of the `dfrobot_sen0395` component are defined.
 
 - All other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
-
-<span id="dfrobot_sen0395-switch"></span>
 
 ## Switch
 
@@ -155,8 +147,6 @@ switch:
     remain off.
 
 - All other options from [Switch](/components/switch#config-switch).
-
-<span id="dfrobot_sen0395-actions"></span>
 
 ## Actions
 

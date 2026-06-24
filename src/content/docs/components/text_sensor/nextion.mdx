@@ -34,15 +34,15 @@ text_sensor:
 - **nextion_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the Nextion display.
 - **component_name** (**Required**, string): The name of the Nextion component.
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The duration to update the sensor. If using a [Nextion Custom Text Sensor Protocol](#nextion-custom-text-sensor-protocol) this should not be used
-- **background_color** (*Optional*, [Color](/components/display#config-color)): The background color
-- **foreground_color** (*Optional*, [Color](/components/display#config-color)): The foreground color
+- **background_color** (*Optional*, [Color](/components/display#color)): The background color
+- **foreground_color** (*Optional*, [Color](/components/display#color)): The foreground color
 - **font_id** (*Optional*, int): The font id for the component
 - **visible** (*Optional*, boolean): Visible or not
 - All other options from [Text Sensor](/components/text_sensor#config-text_sensor).
 
 **Only one** *component_name* **or** *variable_name* **can be set**
 
-See [How things Update](#nextion_text_sensor_how_things_update) for additional information
+See [How things Update](#how-things-update) for additional information
 
 ### Globals
 
@@ -91,9 +91,7 @@ Configuration variables:
   display which will update component. Default is true.
 
 > [!NOTE]
-> This action can also be written in lambdas. See [Lambda Calls](#nextion_text_sensor_lambda_calls)
-
-<span id="nextion_text_sensor_lambda_calls"></span>
+> This action can also be written in lambdas. See [Lambda Calls](#lambda-calls)
 
 ### Lambda Calls
 
@@ -114,8 +112,6 @@ some more advanced functions (see the full <APIRef text="nextion_textsensor.h" p
 - `set_foreground_color(Color color)`  : Sets the background color to **Color**
 - `set_visible(bool visible)` : Sets visible or not. If set to false, no updates will be sent to the component
 
-<span id="nextion_text_sensor_how_things_update"></span>
-
 ## How things Update
 
 A Nextion component with an integer value (.val) or Nextion variable will be automatically polled if **update_interval** is set.
@@ -132,7 +128,7 @@ Using the above yaml example:
 
 - "text0" will poll the Nextion for `text0.txt` value and set the state accordingly.
 
-- [Lambda Calls](#nextion_text_sensor_lambda_calls).
+- [Lambda Calls](#lambda-calls).
 
 > [!NOTE]
 > No updates will be sent to the Nextion if it is sleeping. Once it wakes, the components will be updated. If a component is invisible, `visible(false)`, then it won't update until it is set to be visible.
