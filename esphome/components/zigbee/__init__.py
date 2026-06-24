@@ -8,6 +8,9 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
+    VARIANT_ESP32S31,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INTERNAL, CONF_MODEL, CONF_NAME
@@ -112,6 +115,9 @@ CONFIG_SCHEMA = cv.All(
             only_on_variant(
                 supported=[
                     VARIANT_ESP32H2,
+                    VARIANT_ESP32H4,
+                    VARIANT_ESP32H21,
+                    VARIANT_ESP32S31,
                     VARIANT_ESP32C5,
                     VARIANT_ESP32C6,
                 ]
