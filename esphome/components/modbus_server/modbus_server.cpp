@@ -54,17 +54,7 @@ modbus::ModbusServerResponse ModbusServer::on_modbus_read_registers(uint16_t sta
     }
   }
 
-  if (number_of_registers != sixteen_bit_response.size())
-    ESP_LOGW(TAG, "Response size not matched to request register count.");
-  uint8_t buffer[modbus::MAX_RAW_SIZE];
-  uint16_t idx = 0;
-  buffer[idx++] = static_cast<uint8_t>(sixteen_bit_response.size() * 2);  // actual byte count
-  for (auto v : sixteen_bit_response) {
-    auto decoded_value = decode_value(v);
-    buffer[idx++] = decoded_value[0];
-    buffer[idx++] = decoded_value[1];
-  }
-  return {buffer, idx};
+  return {sixteen_bit_response.data(), sixteen_bit_response.size()};
 }
 
 modbus::ModbusServerResponse ModbusServer::on_modbus_write_registers(uint16_t start_address,

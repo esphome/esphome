@@ -339,7 +339,8 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
   for (auto *device : this->devices_) {
     if (device->get_address() == address) {
       ModbusServerResponse response;
-      const uint8_t *response_data;
+      uint8_t buffer[modbus::MAX_RAW_SIZE];
+      const uint8_t *response_data = buffer;
       uint16_t response_len;
 
       if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_HOLDING_REGISTERS ||
@@ -363,8 +364,20 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
         } else {
           response = device->on_modbus_read_input_registers(start_address, number_of_registers);
         }
-        response_data = response.payload.get();
-        response_len = response.payload_len;
+
+        if (response.payload_len != number_of_registers) {
+          ESP_LOGE(TAG, "Incorrect response %" PRIu16 " requested, %zu returned", number_of_registers,
+                   response.payload_len);
+          this->send_exception_(address, function_code, ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
+          return;
+        }
+
+        buffer[response_len++] = static_cast<uint8_t>(number_of_registers * 2);  // actual byte count
+        for (uint16_t i = 0; i < response.payload_len; i++) {
+          auto decoded_value = decode_value(response.payload.get()[i]);
+          buffer[response_len++] = decoded_value[0];
+          buffer[response_len++] = decoded_value[1];
+        }
       } else if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
                  static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
         // PDU data: start address(2) [+ quantity(2) + byte count(1)] + register values.

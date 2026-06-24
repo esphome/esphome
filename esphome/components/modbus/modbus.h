@@ -199,15 +199,15 @@ using ModbusDevice = ModbusClientDevice;
 struct ModbusServerResponse {
   ModbusExceptionCode exception{};
   // Exact-size payload allocation to avoid std::vector overhead (mirrors ModbusFrame)
-  std::unique_ptr<uint8_t[]> payload;
-  uint16_t payload_len{0};
+  std::unique_ptr<uint16_t[]> payload;
+  size_t payload_len{0};
 
   ModbusServerResponse() = default;
 
   // Successful response: copies the payload into an exact-size buffer.
-  ModbusServerResponse(const uint8_t *payload, uint16_t payload_len)
-      : payload(std::make_unique<uint8_t[]>(payload_len)), payload_len(payload_len) {
-    memcpy(this->payload.get(), payload, payload_len);
+  ModbusServerResponse(const uint16_t *payload, size_t payload_len)
+      : payload(std::make_unique<uint16_t[]>(payload_len)), payload_len(payload_len) {
+    memcpy(this->payload.get(), payload, payload_len * sizeof(uint16_t));
   }
 
   // Error response: carries a Modbus exception code and no payload.
