@@ -6,7 +6,7 @@ namespace esphome::remko_ar715 {
 
 // Remko AR-715 IR Remote protocol
 // Used by: Remko RKL series, Fischer ClimaButler RCS-SD43, TROTEC PAC 4600,
-//          Novamaster CL 990/1590, Rexair C15000N, freecom RCS-SD43
+//          Novamatic CL 990/1590, Rexair C15000N, freecom RCS-SD43
 //
 // Protocol analysis: https://github.com/crankyoldgit/IRremoteESP8266/issues/1812
 // 52-bit pulse-distance encoding, all state sent per command.
