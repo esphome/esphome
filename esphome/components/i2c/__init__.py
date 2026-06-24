@@ -80,8 +80,10 @@ ESP32_I2C_CAPABILITIES = {
     VARIANT_ESP32P4: {"NUM": 3, "HP": 2, "LP": 1},
     VARIANT_ESP32S2: {"NUM": 2, "HP": 2},
     VARIANT_ESP32S3: {"NUM": 2, "HP": 2},
-    # S31 has 3 HP + 1 LP I2C; LP I2C is deferred until its LP pin validator lands,
-    # so only the 3 HP interfaces are exposed here.
+    # S31 has 3 HP + 1 LP I2C, but only the 3 HP interfaces are exposed for now: LP I2C
+    # needs an exact SDA/SCL pin validator like C5/C6/P4 (see VALIDATE_LP_I2C), and the fixed
+    # LP I2C pin assignment for S31 isn't published yet -- it's a datasheet value (e.g. C6 is
+    # GPIO6/7), not present in ESP-IDF soc_caps. Add LP I2C once that pin pair is known.
     VARIANT_ESP32S31: {"NUM": 3, "HP": 3},
 }
 VALIDATE_LP_I2C = {
