@@ -12,6 +12,7 @@ jobs:
     name: Prepare
     permissions:
       issues: write
+      pull-requests: write
     if: >-
       github.event.issue.pull_request &&
       startsWith(github.event.comment.body, '@esphomebot generate image') &&
@@ -77,7 +78,7 @@ jobs:
     name: Generate
     permissions:
       issues: write
-      pull-requests: read
+      pull-requests: write
       contents: read
     if: >-
       github.event.issue.pull_request &&
