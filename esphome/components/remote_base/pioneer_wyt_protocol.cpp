@@ -26,7 +26,8 @@ uint8_t PioneerWytData::calc_cs_(uint8_t checksum_offset) const {
 
 void PioneerWytProtocol::encode(RemoteTransmitData *dst, const PioneerWytData &data) {
   dst->set_carrier_frequency(38000);
-  dst->reserve(5 + ((data.size() + 1) * 2));
+  // Header: mark+space + initial bit mark => 3 entries. Each bit adds space+mark => 2 entries.
+  dst->reserve(dst->get_data().size() + 3 + PIONEER_WYT_IR_PACKET_BIT_SIZE * 2u);
   dst->mark(HEADER_MARK_US);
   dst->space(HEADER_SPACE_US);
   dst->mark(BIT_MARK_US);
