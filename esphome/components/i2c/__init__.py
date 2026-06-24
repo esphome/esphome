@@ -81,7 +81,7 @@ ESP32_I2C_CAPABILITIES = {
     VARIANT_ESP32P4: {"NUM": 3, "HP": 2, "LP": 1},
     VARIANT_ESP32S2: {"NUM": 2, "HP": 2},
     VARIANT_ESP32S3: {"NUM": 2, "HP": 2},
-    VARIANT_ESP32S31: {"NUM": 4, "HP": 3, "LP": 1},
+    VARIANT_ESP32S31: {"NUM": 3, "HP": 2, "LP": 1},
 }
 VALIDATE_LP_I2C = {
     VARIANT_ESP32C5: esp32_c5_validate_lp_i2c,
