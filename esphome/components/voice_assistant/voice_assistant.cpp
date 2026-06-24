@@ -1365,6 +1365,18 @@ void VoiceAssistant::model_load_task(void *params) {
       continue;
     }
 
+    // The manifest's "model" field is just a filename (e.g. "my_model.tflite"), not a full URL.
+    // Resolve it relative to the manifest URL by replacing the manifest filename with the model filename.
+    // If the manifest already provides an absolute URL, use it as-is.
+    if (model_url.compare(0, 7, "http://") != 0 && model_url.compare(0, 8, "https://") != 0) {
+      const std::string &manifest_url = cached_ww.url;
+      size_t slash_pos = manifest_url.find_last_of('/');
+      if (slash_pos != std::string::npos) {
+        model_url = manifest_url.substr(0, slash_pos + 1) + model_url;
+      }
+    }
+    ESP_LOGD(TAG, "Resolved model URL for %s: %s", cached_ww.id.c_str(), model_url.c_str());
+
     // Download model
     auto container = this_va->http_request_->get(model_url);
     if (!container || container->status_code != 200) {
