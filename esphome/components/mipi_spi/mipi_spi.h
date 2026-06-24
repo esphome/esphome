@@ -187,13 +187,6 @@ class MipiSpi : public display::Display,
             }
           } break;
 
-          case INVERT_ON:
-            this->invert_colors_ = true;
-            break;
-          case BRIGHTNESS:
-            this->brightness_ = arg_byte;
-            break;
-
           default:
             break;
         }
