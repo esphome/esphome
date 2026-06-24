@@ -176,7 +176,6 @@ class MipiSpi : public display::Display,
           this->mark_failed();
           return;
         }
-        auto arg_byte = vec[index];
         switch (cmd) {
           case SLEEP_OUT: {
             // are we ready, boots?
