@@ -1,11 +1,11 @@
-import pkgutil
 import importlib
+import pkgutil
 
+from esphome import pins as esphome_pins
 import esphome.codegen as cg
+from esphome.components import display, i2c
 import esphome.config_validation as cv
 from esphome.config_validation import update_interval
-from esphome import pins as esphome_pins
-from esphome.components import i2c, display
 from esphome.const import (
     CONF_FULL_UPDATE_EVERY,
     CONF_ID,
@@ -20,11 +20,11 @@ from . import models
 
 DEPENDENCIES = ["i2c"]
 
-CONF_PCA6416A_ID   = "pca6416a_id"
-CONF_MCP23017_ID   = "mcp23017_id"
-CONF_PIN_CKV       = "pin_ckv"
-CONF_PIN_SPH       = "pin_sph"
-CONF_PIN_LE        = "pin_le"
+CONF_PCA6416A_ID = "pca6416a_id"
+CONF_MCP23017_ID = "mcp23017_id"
+CONF_PIN_CKV = "pin_ckv"
+CONF_PIN_SPH = "pin_sph"
+CONF_PIN_LE = "pin_le"
 CONF_GRAYSCALE_MODE = "grayscale_mode"
 
 # Auto-load every model file so they self-register into InkplateParallelModel.models
@@ -33,15 +33,15 @@ for _mod in pkgutil.iter_modules(models.__path__):
 
 MODELS = models.InkplateParallelModel.models
 
-inkplate_ns      = cg.esphome_ns.namespace("inkplate")
-pca6416a_ns      = cg.esphome_ns.namespace("pca6416a")
-mcp23017_ns      = cg.esphome_ns.namespace("mcp23017")
+inkplate_ns = cg.esphome_ns.namespace("inkplate")
+pca6416a_ns = cg.esphome_ns.namespace("pca6416a")
+mcp23017_ns = cg.esphome_ns.namespace("mcp23017")
 mcp23xxx_base_ns = cg.esphome_ns.namespace("mcp23xxx_base")
 
 PCA6416AComponent = pca6416a_ns.class_("PCA6416AComponent")
-PCA6416AGPIOPin   = pca6416a_ns.class_("PCA6416AGPIOPin", cg.GPIOPin)
+PCA6416AGPIOPin = pca6416a_ns.class_("PCA6416AGPIOPin", cg.GPIOPin)
 MCP23017Component = mcp23017_ns.class_("MCP23017")
-MCP23017GPIOPin   = mcp23xxx_base_ns.class_("MCP23XXXGPIOPin<16>", cg.GPIOPin)
+MCP23017GPIOPin = mcp23xxx_base_ns.class_("MCP23XXXGPIOPin<16>", cg.GPIOPin)
 
 _CPP_CLASSES = {
     name: inkplate_ns.class_(model.cpp_class, display.Display, i2c.I2CDevice)
@@ -51,7 +51,7 @@ _CPP_CLASSES = {
 _DIRECT_PIN_CONF = {
     "ckv": CONF_PIN_CKV,
     "sph": CONF_PIN_SPH,
-    "le":  CONF_PIN_LE,
+    "le": CONF_PIN_LE,
 }
 
 
@@ -87,7 +87,10 @@ def _final_validate(config):
     model = MODELS.get(config.get(CONF_MODEL))
     if model is not None and model.min_update_interval_ms > 0:
         interval = config.get(CONF_UPDATE_INTERVAL)
-        if interval is not None and interval.total_milliseconds < model.min_update_interval_ms:
+        if (
+            interval is not None
+            and interval.total_milliseconds < model.min_update_interval_ms
+        ):
             raise cv.Invalid(
                 f"update_interval {interval.total_milliseconds}ms below minimum "
                 f"{model.min_update_interval_ms}ms for {model.name}"
@@ -100,16 +103,16 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID():                    cv.declare_id(next(iter(_CPP_CLASSES.values()))),
-            cv.Required(CONF_MODEL):            cv.one_of(*MODELS, lower=True),
-            cv.Optional(CONF_PCA6416A_ID):      cv.use_id(PCA6416AComponent),
-            cv.Optional(CONF_MCP23017_ID):      cv.use_id(MCP23017Component),
+            cv.GenerateID(): cv.declare_id(next(iter(_CPP_CLASSES.values()))),
+            cv.Required(CONF_MODEL): cv.one_of(*MODELS, lower=True),
+            cv.Optional(CONF_PCA6416A_ID): cv.use_id(PCA6416AComponent),
+            cv.Optional(CONF_MCP23017_ID): cv.use_id(MCP23017Component),
             cv.Optional(CONF_FULL_UPDATE_EVERY, default=1): cv.positive_int,
             cv.Optional(CONF_GRAYSCALE_MODE, default=False): cv.boolean,
             # Direct GPIO pin overrides (defaults injected from model by _inject_direct_pin_defaults)
-            cv.Optional(CONF_PIN_CKV):          esphome_pins.gpio_output_pin_schema,
-            cv.Optional(CONF_PIN_SPH):          esphome_pins.gpio_output_pin_schema,
-            cv.Optional(CONF_PIN_LE):           esphome_pins.gpio_output_pin_schema,
+            cv.Optional(CONF_PIN_CKV): esphome_pins.gpio_output_pin_schema,
+            cv.Optional(CONF_PIN_SPH): esphome_pins.gpio_output_pin_schema,
+            cv.Optional(CONF_PIN_LE): esphome_pins.gpio_output_pin_schema,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -122,7 +125,9 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def _make_expander_pin(pca_var, pin_num, pin_name, parent_id):
-    pin_id = ID(f"{parent_id}_pca_{pin_name}", is_declaration=True, type=PCA6416AGPIOPin)
+    pin_id = ID(
+        f"{parent_id}_pca_{pin_name}", is_declaration=True, type=PCA6416AGPIOPin
+    )
     pin_var = cg.new_Pvariable(pin_id)
     cg.add(pin_var.set_parent(pca_var))
     cg.add(pin_var.set_pin(pin_num))
@@ -132,7 +137,9 @@ async def _make_expander_pin(pca_var, pin_num, pin_name, parent_id):
 
 
 async def _make_mcp23017_pin(mcp_var, pin_num, pin_name, parent_id):
-    pin_id = ID(f"{parent_id}_mcp_{pin_name}", is_declaration=True, type=MCP23017GPIOPin)
+    pin_id = ID(
+        f"{parent_id}_mcp_{pin_name}", is_declaration=True, type=MCP23017GPIOPin
+    )
     pin_var = cg.new_Pvariable(pin_id)
     cg.add(pin_var.set_parent(mcp_var))
     cg.add(pin_var.set_pin(pin_num))
@@ -143,8 +150,14 @@ async def _make_mcp23017_pin(mcp_var, pin_num, pin_name, parent_id):
 
 async def to_code(config):
     model = MODELS[config[CONF_MODEL]]
-    var = cg.new_Pvariable(config[CONF_ID], model.width, model.height,
-                           model.dark_phases, model.partial_phases, model.grayscale_phases)
+    var = cg.new_Pvariable(
+        config[CONF_ID],
+        model.width,
+        model.height,
+        model.dark_phases,
+        model.partial_phases,
+        model.grayscale_phases,
+    )
 
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
     cg.add(var.set_grayscale_mode(config[CONF_GRAYSCALE_MODE]))
@@ -155,7 +168,7 @@ async def to_code(config):
     direct_setters = {
         CONF_PIN_CKV: "set_pin_ckv",
         CONF_PIN_SPH: "set_pin_sph",
-        CONF_PIN_LE:  "set_pin_le",
+        CONF_PIN_LE: "set_pin_le",
     }
     for conf_key, setter in direct_setters.items():
         if conf_key in config:
@@ -164,12 +177,12 @@ async def to_code(config):
 
     # Expander pins — auto-wired from pca6416a_id or mcp23017_id
     expander_setters = {
-        "oe":           "set_pin_oe",
-        "gmod":         "set_pin_gmod",
-        "spv":          "set_pin_spv",
-        "wakeup":       "set_pin_wakeup",
-        "pwrup":        "set_pin_pwrup",
-        "vcom":         "set_pin_vcom",
+        "oe": "set_pin_oe",
+        "gmod": "set_pin_gmod",
+        "spv": "set_pin_spv",
+        "wakeup": "set_pin_wakeup",
+        "pwrup": "set_pin_pwrup",
+        "vcom": "set_pin_vcom",
         "gpio0_enable": "set_pin_gpio0_enable",
     }
     if CONF_PCA6416A_ID in config:

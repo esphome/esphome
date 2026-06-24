@@ -1,11 +1,20 @@
 class InkplateParallelModel:
     models = {}
 
-    def __init__(self, name, cpp_class, width, height,
-                 dark_phases, partial_phases, grayscale_phases,
-                 direct_pins=None, expander_pins=None,
-                 gpio0_enable_low=False,
-                 min_update_interval_ms=5000):
+    def __init__(
+        self,
+        name,
+        cpp_class,
+        width,
+        height,
+        dark_phases,
+        partial_phases,
+        grayscale_phases,
+        direct_pins=None,
+        expander_pins=None,
+        gpio0_enable_low=False,
+        min_update_interval_ms=5000,
+    ):
         self.name = name
         self.cpp_class = cpp_class
         self.width = width
