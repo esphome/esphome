@@ -6,46 +6,53 @@
 
 #include <cstring>
 #include "esphome/core/application.h"
+#ifdef USE_HOST
+#include "esphome/core/wake.h"
+#endif
 
 namespace esphome::socket {
 
 BSDSocketImpl::BSDSocketImpl(int fd, bool monitor_loop) {
   this->fd_ = fd;
-  if (!monitor_loop || this->fd_ < 0)
+  if (this->fd_ < 0)
+    return;
+#ifdef USE_HOST
+  // Release listening ports on OTA re-exec.
+  int flags = ::fcntl(this->fd_, F_GETFD, 0);
+  if (flags >= 0)
+    ::fcntl(this->fd_, F_SETFD, flags | FD_CLOEXEC);
+#endif
+  if (!monitor_loop)
     return;
 #ifdef USE_LWIP_FAST_SELECT
-  // Cache lwip_sock pointer and register for monitoring (hooks callback internally)
-  this->cached_sock_ = esphome_lwip_get_sock(this->fd_);
-  this->loop_monitored_ = App.register_socket(this->cached_sock_);
+  this->cached_sock_ = hook_fd_for_fast_select(this->fd_);
 #else
-  this->loop_monitored_ = App.register_socket_fd(this->fd_);
+  this->loop_monitored_ = wake_register_fd(this->fd_);
 #endif
 }
 
-BSDSocketImpl::~BSDSocketImpl() {
-  if (!this->closed_) {
-    this->close();
-  }
-}
+BSDSocketImpl::~BSDSocketImpl() { this->close(); }
 
 int BSDSocketImpl::close() {
-  if (!this->closed_) {
-    // Unregister before closing to avoid dangling pointer in monitored set
-#ifdef USE_LWIP_FAST_SELECT
-    if (this->loop_monitored_) {
-      App.unregister_socket(this->cached_sock_);
-      this->cached_sock_ = nullptr;
-    }
-#else
-    if (this->loop_monitored_) {
-      App.unregister_socket_fd(this->fd_);
-    }
-#endif
-    int ret = ::close(this->fd_);
-    this->closed_ = true;
-    return ret;
+  if (this->fd_ < 0) {
+    // Already closed, or never opened.
+    return 0;
   }
-  return 0;
+#ifdef USE_LWIP_FAST_SELECT
+  // Null the cached lwip_sock pointer before closing. The underlying lwip slot can be
+  // recycled for a new connection as soon as ::close() returns, so anything that might
+  // dereference cached_sock_ post-close (e.g. setsockopt(TCP_NODELAY)) would otherwise
+  // touch an unrelated socket's pcb. No per-socket callback unhook is needed —
+  // all LwIP sockets share the same static event_callback.
+  this->cached_sock_ = nullptr;
+#else
+  if (this->loop_monitored_) {
+    wake_unregister_fd(this->fd_);
+  }
+#endif
+  int ret = ::close(this->fd_);
+  this->fd_ = -1;  // Sentinel for "closed" — prevents double-close and makes use-after-close visible.
+  return ret;
 }
 
 int BSDSocketImpl::setblocking(bool blocking) {

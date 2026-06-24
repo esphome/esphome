@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/sensirion_common/i2c_sensirion.h"
 
-namespace esphome {
-namespace scd30 {
+namespace esphome::scd30 {
 
 /// This class implements support for the Sensirion scd30 i2c GAS (VOC and CO2eq) sensors.
 class SCD30Component : public Component, public sensirion_common::SensirionI2CDevice {
@@ -48,5 +47,4 @@ class SCD30Component : public Component, public sensirion_common::SensirionI2CDe
   sensor::Sensor *temperature_sensor_{nullptr};
 };
 
-}  // namespace scd30
-}  // namespace esphome
+}  // namespace esphome::scd30

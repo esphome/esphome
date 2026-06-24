@@ -17,7 +17,7 @@ from ..defines import (
     CONF_ZOOM,
 )
 from ..lv_validation import lv_angle, lv_bool, lv_image, scale, size
-from ..types import lv_img_t
+from ..types import lv_image_t
 from . import Widget, WidgetType
 from .label import CONF_LABEL
 
@@ -55,7 +55,7 @@ class ImgType(WidgetType):
     def __init__(self):
         super().__init__(
             CONF_IMAGE,
-            lv_img_t,
+            lv_image_t,
             (CONF_MAIN,),
             IMG_SCHEMA,
             IMG_MODIFY_SCHEMA,

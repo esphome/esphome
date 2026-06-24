@@ -6,8 +6,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace pn532_spi {
+namespace esphome::pn532_spi {
 
 class PN532Spi : public pn532::PN532,
                  public spi::SPIDevice<spi::BIT_ORDER_LSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
@@ -24,5 +23,4 @@ class PN532Spi : public pn532::PN532,
   bool read_response(uint8_t command, std::vector<uint8_t> &data) override;
 };
 
-}  // namespace pn532_spi
-}  // namespace esphome
+}  // namespace esphome::pn532_spi

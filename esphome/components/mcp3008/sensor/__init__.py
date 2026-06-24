@@ -35,7 +35,7 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.GenerateID(CONF_MCP3008_ID): cv.use_id(MCP3008),
-            cv.Required(CONF_NUMBER): cv.int_,
+            cv.Required(CONF_NUMBER): cv.int_range(min=0, max=7),
             cv.Optional(CONF_REFERENCE_VOLTAGE, default="3.3V"): cv.voltage,
         }
     )

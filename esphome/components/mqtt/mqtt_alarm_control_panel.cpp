@@ -48,7 +48,8 @@ static bool apply_command(AlarmControlPanelCall &call, const char *state) {
 }
 
 void MQTTAlarmControlPanelComponent::setup() {
-  this->alarm_control_panel_->add_on_state_callback([this]() { this->publish_state(); });
+  this->alarm_control_panel_->add_on_state_callback(
+      [this](AlarmControlPanelState /*state*/) { this->publish_state(); });
   this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
     auto call = this->alarm_control_panel_->make_call();
     if (!payload.empty() && payload[0] == '{') {

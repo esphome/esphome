@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace tmp1075 {
+namespace esphome::tmp1075 {
 
 struct TMP1075Config {
   union {
@@ -85,5 +84,4 @@ class TMP1075Sensor : public PollingComponent, public sensor::Sensor, public i2c
   void log_config_();
 };
 
-}  // namespace tmp1075
-}  // namespace esphome
+}  // namespace esphome::tmp1075

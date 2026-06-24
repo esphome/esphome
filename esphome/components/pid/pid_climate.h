@@ -9,10 +9,9 @@
 #include "pid_controller.h"
 #include "pid_autotuner.h"
 
-namespace esphome {
-namespace pid {
+namespace esphome::pid {
 
-class PIDClimate : public climate::Climate, public Component {
+class PIDClimate final : public climate::Climate, public Component {
  public:
   PIDClimate() = default;
   void setup() override;
@@ -109,7 +108,7 @@ class PIDClimate : public climate::Climate, public Component {
   bool do_publish_ = false;
 };
 
-template<typename... Ts> class PIDAutotuneAction : public Action<Ts...> {
+template<typename... Ts> class PIDAutotuneAction final : public Action<Ts...> {
  public:
   PIDAutotuneAction(PIDClimate *parent) : parent_(parent) {}
 
@@ -132,7 +131,7 @@ template<typename... Ts> class PIDAutotuneAction : public Action<Ts...> {
   PIDClimate *parent_;
 };
 
-template<typename... Ts> class PIDResetIntegralTermAction : public Action<Ts...> {
+template<typename... Ts> class PIDResetIntegralTermAction final : public Action<Ts...> {
  public:
   PIDResetIntegralTermAction(PIDClimate *parent) : parent_(parent) {}
 
@@ -142,7 +141,7 @@ template<typename... Ts> class PIDResetIntegralTermAction : public Action<Ts...>
   PIDClimate *parent_;
 };
 
-template<typename... Ts> class PIDSetControlParametersAction : public Action<Ts...> {
+template<typename... Ts> class PIDSetControlParametersAction final : public Action<Ts...> {
  public:
   PIDSetControlParametersAction(PIDClimate *parent) : parent_(parent) {}
 
@@ -205,5 +204,45 @@ template<typename... Ts> class PIDSetDeadbandThresholdParametersAction : public 
   PIDClimate *parent_;
 };
 
-}  // namespace pid
-}  // namespace esphome
+template<typename... Ts> class PIDSetDeadbandControlParametersMultipliersAction : public Action<Ts...> {
+ public:
+  PIDSetDeadbandControlParametersMultipliersAction(PIDClimate *parent) : parent_(parent) {}
+
+  void play(const Ts &...x) {
+    auto kp_multiplier = this->kp_multiplier_.value(x...);
+    auto ki_multiplier = this->ki_multiplier_.value(x...);
+    auto kd_multiplier = this->kd_multiplier_.value(x...);
+
+    this->parent_->set_kp_multiplier(kp_multiplier);
+    this->parent_->set_ki_multiplier(ki_multiplier);
+    this->parent_->set_kd_multiplier(kd_multiplier);
+  }
+
+ protected:
+  TEMPLATABLE_VALUE(float, kp_multiplier)
+  TEMPLATABLE_VALUE(float, ki_multiplier)
+  TEMPLATABLE_VALUE(float, kd_multiplier)
+
+  PIDClimate *parent_;
+};
+
+template<typename... Ts> class PIDSetDeadbandThresholdParametersAction : public Action<Ts...> {
+ public:
+  PIDSetDeadbandThresholdParametersAction(PIDClimate *parent) : parent_(parent) {}
+
+  void play(const Ts &...x) {
+    auto threshold_high = this->threshold_high_.value(x...);
+    auto threshold_low = this->threshold_low_.value(x...);
+
+    this->parent_->set_threshold_high(threshold_high);
+    this->parent_->set_threshold_low(threshold_low);
+  }
+
+ protected:
+  TEMPLATABLE_VALUE(float, threshold_high)
+  TEMPLATABLE_VALUE(float, threshold_low)
+
+  PIDClimate *parent_;
+};
+
+}  // namespace esphome::pid

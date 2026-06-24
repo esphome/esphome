@@ -7,8 +7,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace tt21100 {
+namespace esphome::tt21100 {
 
 using namespace touchscreen;
 
@@ -39,5 +38,4 @@ class TT21100Touchscreen : public Touchscreen, public i2c::I2CDevice {
   std::vector<TT21100ButtonListener *> button_listeners_;
 };
 
-}  // namespace tt21100
-}  // namespace esphome
+}  // namespace esphome::tt21100

@@ -6,8 +6,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/time/real_time_clock.h"
 
-namespace esphome {
-namespace total_daily_energy {
+namespace esphome::total_daily_energy {
 
 enum TotalDailyEnergyMethod {
   TOTAL_DAILY_ENERGY_METHOD_TRAPEZOID = 0,
@@ -23,12 +22,12 @@ class TotalDailyEnergy : public sensor::Sensor, public Component {
   void set_method(TotalDailyEnergyMethod method) { method_ = method; }
   void setup() override;
   void dump_config() override;
-  void loop() override;
 
   void publish_state_and_save(float state);
 
  protected:
   void process_new_state_(float state);
+  void schedule_midnight_reset_();
 
   ESPPreferenceObject pref_;
   time::RealTimeClock *time_;
@@ -41,5 +40,4 @@ class TotalDailyEnergy : public sensor::Sensor, public Component {
   float last_power_state_{0.0f};
 };
 
-}  // namespace total_daily_energy
-}  // namespace esphome
+}  // namespace esphome::total_daily_energy

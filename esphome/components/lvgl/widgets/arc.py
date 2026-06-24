@@ -77,8 +77,11 @@ class ArcType(NumberType):
                 # start_angle and end_angle are mapped to bg_start_angle and bg_end_angle
                 prop = str(prop)
                 if prop.endswith("_angle"):
-                    prop = "bg_" + prop
-                await w.set_property(prop, config, processor=validator)
+                    await w.set_property(
+                        "bg_" + prop, await validator.process(config.get(prop))
+                    )
+                else:
+                    await w.set_property(prop, config, processor=validator)
         if CONF_ADJUSTABLE in config:
             if not config[CONF_ADJUSTABLE]:
                 lv_obj.remove_style(w.obj, nullptr, LV_PART.KNOB)

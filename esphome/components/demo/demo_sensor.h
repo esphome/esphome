@@ -4,10 +4,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace demo {
+namespace esphome::demo {
 
-class DemoSensor : public sensor::Sensor, public PollingComponent {
+class DemoSensor final : public sensor::Sensor, public PollingComponent {
  public:
   void update() override {
     float val = random_float();
@@ -25,5 +24,4 @@ class DemoSensor : public sensor::Sensor, public PollingComponent {
   }
 };
 
-}  // namespace demo
-}  // namespace esphome
+}  // namespace esphome::demo

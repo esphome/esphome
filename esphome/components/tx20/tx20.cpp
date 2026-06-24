@@ -4,8 +4,7 @@
 
 #include <array>
 
-namespace esphome {
-namespace tx20 {
+namespace esphome::tx20 {
 
 static const char *const TAG = "tx20";
 static const uint8_t MAX_BUFFER_SIZE = 41;
@@ -136,7 +135,7 @@ void Tx20Component::decode_and_publish_() {
       }
       if (tx20_se == tx20_sb) {
         tx20_wind_direction = tx20_se;
-        if (tx20_wind_direction >= 0 && tx20_wind_direction < 16) {
+        if (tx20_wind_direction < 16) {
           wind_cardinal_direction_ = DIRECTIONS[tx20_wind_direction];
         }
         ESP_LOGV(TAG, "WindDirection %d", tx20_wind_direction);
@@ -165,7 +164,7 @@ void IRAM_ATTR Tx20ComponentStore::gpio_intr(Tx20ComponentStore *arg) {
     }
     arg->buffer[arg->buffer_index] = 1;
     arg->start_time = now;
-    arg->buffer_index++;  // NOLINT(clang-diagnostic-deprecated-volatile)
+    arg->buffer_index += 1;
     return;
   }
   const uint32_t delay = now - arg->start_time;
@@ -196,7 +195,7 @@ void IRAM_ATTR Tx20ComponentStore::gpio_intr(Tx20ComponentStore *arg) {
   }
   arg->spent_time += delay;
   arg->start_time = now;
-  arg->buffer_index++;  // NOLINT(clang-diagnostic-deprecated-volatile)
+  arg->buffer_index += 1;
 }
 void IRAM_ATTR Tx20ComponentStore::reset() {
   tx20_available = false;
@@ -206,5 +205,4 @@ void IRAM_ATTR Tx20ComponentStore::reset() {
   start_time = 0;
 }
 
-}  // namespace tx20
-}  // namespace esphome
+}  // namespace esphome::tx20

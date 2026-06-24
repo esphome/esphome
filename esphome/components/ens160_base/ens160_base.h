@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace ens160_base {
+namespace esphome::ens160_base {
 
 class ENS160Component : public PollingComponent, public sensor::Sensor {
  public:
@@ -59,5 +58,4 @@ class ENS160Component : public PollingComponent, public sensor::Sensor {
   sensor::Sensor *temperature_{nullptr};
 };
 
-}  // namespace ens160_base
-}  // namespace esphome
+}  // namespace esphome::ens160_base

@@ -5,8 +5,7 @@
 #include "esphome/components/output/float_output.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace rgbct {
+namespace esphome::rgbct {
 
 class RGBCTLightOutput : public light::LightOutput {
  public:
@@ -55,5 +54,4 @@ class RGBCTLightOutput : public light::LightOutput {
   bool color_interlock_{true};
 };
 
-}  // namespace rgbct
-}  // namespace esphome
+}  // namespace esphome::rgbct

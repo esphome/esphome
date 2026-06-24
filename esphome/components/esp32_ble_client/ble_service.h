@@ -17,7 +17,7 @@ namespace espbt = esphome::esp32_ble_tracker;
 
 class BLEClientBase;
 
-class BLEService {
+class BLEService final {
  public:
   ~BLEService();
   bool parsed = false;
