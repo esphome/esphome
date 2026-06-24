@@ -194,6 +194,11 @@ class IT8951Display : public Display,
   void fill(Color color) override;
   void clear() override { this->fill(COLOR_ON); }
   void draw_pixel_at(int x, int y, Color color) override;
+  // Bulk pixel blit (used by LVGL and image rendering). Overridden to write
+  // straight into the framebuffer, avoiding the base class's per-pixel
+  // draw_pixel_at overhead (watchdog feed, clipping test, dirty-box clamps).
+  void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
+                      ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
   int get_width() override { return (this->effective_transform_ & TRANSFORM_SWAP_XY) ? this->height_ : this->width_; }
   int get_height() override { return (this->effective_transform_ & TRANSFORM_SWAP_XY) ? this->width_ : this->height_; }
 
@@ -203,6 +208,10 @@ class IT8951Display : public Display,
 
   // --- Coord transform / dirty region ---
   void update_effective_transform_();
+  // Map display (logical) coordinates to native framebuffer coordinates by
+  // applying effective_transform_ (swap/mirror). Shared by rotate_coordinates_
+  // and the bulk draw_pixels_at path.
+  void apply_transform_(int &x, int &y) const;
   bool rotate_coordinates_(int &x, int &y);
   void reset_dirty_region_();
 
@@ -215,6 +224,8 @@ class IT8951Display : public Display,
                             : static_cast<uint16_t>(((static_cast<uint32_t>(this->width_) + 15) / 16) * 2);
   }
   void set_mono_pixel_(uint16_t x, uint16_t y, bool value) const;
+  // Write a 4bpp grayscale nibble into the framebuffer (two pixels per byte).
+  void set_gray_pixel_(uint16_t x, uint16_t y, uint8_t nibble) const;
 
   // --- Op queue / loop machinery ---
   void enqueue_(OpType type, uint16_t a = 0, uint16_t b = 0);

@@ -1,5 +1,6 @@
 #include "it8951.h"
 
+#include <algorithm>
 #include <cstring>
 
 #include "esphome/core/application.h"
@@ -854,15 +855,19 @@ void IT8951Display::update_effective_transform_() {
   }
 }
 
-bool IT8951Display::rotate_coordinates_(int &x, int &y) {
-  if (!this->get_clipping().inside(x, y))
-    return false;
+void IT8951Display::apply_transform_(int &x, int &y) const {
   if (this->effective_transform_ & TRANSFORM_SWAP_XY)
     std::swap(x, y);
   if (this->effective_transform_ & TRANSFORM_MIRROR_X)
     x = this->width_ - x - 1;
   if (this->effective_transform_ & TRANSFORM_MIRROR_Y)
     y = this->height_ - y - 1;
+}
+
+bool IT8951Display::rotate_coordinates_(int &x, int &y) {
+  if (!this->get_clipping().inside(x, y))
+    return false;
+  this->apply_transform_(x, y);
   if (x >= this->width_ || y >= this->height_ || x < 0 || y < 0)
     return false;
   this->x_low_ = clamp_at_most(this->x_low_, x);
@@ -927,16 +932,78 @@ void HOT IT8951Display::draw_pixel_at(int x, int y, Color color) {
   if (this->invert_colors_)
     internal_color = 0x0F - internal_color;
   if (this->grayscale_) {
-    const uint32_t index = static_cast<uint32_t>(y) * this->row_width_ + (static_cast<uint32_t>(x) >> 1);
-    uint8_t buf = this->buffer_[index];
-    if (x & 0x1) {
-      buf = (buf & 0xF0) | internal_color;
-    } else {
-      buf = (buf & 0x0F) | static_cast<uint8_t>(internal_color << 4);
-    }
-    this->buffer_[index] = buf;
+    this->set_gray_pixel_(static_cast<uint16_t>(x), static_cast<uint16_t>(y), internal_color);
   } else {
     this->set_mono_pixel_(static_cast<uint16_t>(x), static_cast<uint16_t>(y), internal_color <= 0x07);
+  }
+}
+
+void HOT IT8951Display::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, ColorOrder order,
+                                       ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
+  // A clipping rectangle would need a per-pixel test; that's rare for the bulk
+  // blit callers (LVGL, images), so fall back to the base per-pixel path then.
+  if (this->get_clipping().is_set()) {
+    Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset, x_pad);
+    return;
+  }
+
+  const size_t line_stride = static_cast<size_t>(x_offset) + w + x_pad;  // source line length in pixels
+  for (int y = 0; y < h; y++) {
+    App.feed_wdt();
+    size_t source_idx = (static_cast<size_t>(y_offset) + y) * line_stride + x_offset;
+    for (int x = 0; x < w; x++, source_idx++) {
+      uint32_t color_value;
+      switch (bitness) {
+        case COLOR_BITNESS_565: {
+          const size_t i = source_idx * 2;
+          color_value = big_endian ? (static_cast<uint32_t>(ptr[i]) << 8) | ptr[i + 1]
+                                   : ptr[i] | (static_cast<uint32_t>(ptr[i + 1]) << 8);
+          break;
+        }
+        case COLOR_BITNESS_888: {
+          const size_t i = source_idx * 3;
+          color_value =
+              big_endian
+                  ? (static_cast<uint32_t>(ptr[i]) << 16) | (static_cast<uint32_t>(ptr[i + 1]) << 8) | ptr[i + 2]
+                  : ptr[i] | (static_cast<uint32_t>(ptr[i + 1]) << 8) | (static_cast<uint32_t>(ptr[i + 2]) << 16);
+          break;
+        }
+        default:
+          color_value = ptr[source_idx];
+          break;
+      }
+      uint8_t nibble = color_to_nibble(ColorUtil::to_color(color_value, order, bitness)) & 0x0F;
+      if (this->invert_colors_)
+        nibble = 0x0F - nibble;
+      int nx = x_start + x;
+      int ny = y_start + y;
+      this->apply_transform_(nx, ny);
+      if (nx < 0 || ny < 0 || nx >= this->width_ || ny >= this->height_)
+        continue;
+      if (this->grayscale_) {
+        this->set_gray_pixel_(static_cast<uint16_t>(nx), static_cast<uint16_t>(ny), nibble);
+      } else {
+        this->set_mono_pixel_(static_cast<uint16_t>(nx), static_cast<uint16_t>(ny), nibble <= 0x07);
+      }
+    }
+  }
+
+  // Expand the dirty bounding box once from the transformed block corners: the
+  // image of an axis-aligned rectangle under swap/mirror is still axis-aligned,
+  // so its two opposite corners bound it.
+  int x0 = x_start, y0 = y_start;
+  int x1 = x_start + w - 1, y1 = y_start + h - 1;
+  this->apply_transform_(x0, y0);
+  this->apply_transform_(x1, y1);
+  const int nx_lo = std::max(0, std::min(x0, x1));
+  const int ny_lo = std::max(0, std::min(y0, y1));
+  const int nx_hi = std::min(this->width_ - 1, std::max(x0, x1));
+  const int ny_hi = std::min(this->height_ - 1, std::max(y0, y1));
+  if (nx_hi >= nx_lo && ny_hi >= ny_lo) {
+    this->x_low_ = clamp_at_most(this->x_low_, nx_lo);
+    this->x_high_ = clamp_at_least(this->x_high_, nx_hi + 1);
+    this->y_low_ = clamp_at_most(this->y_low_, ny_lo);
+    this->y_high_ = clamp_at_least(this->y_high_, ny_hi + 1);
   }
 }
 
@@ -957,6 +1024,17 @@ void IT8951Display::set_mono_pixel_(uint16_t x, uint16_t y, bool value) const {
   } else {
     this->buffer_[index] &= static_cast<uint8_t>(~mask);
   }
+}
+
+void IT8951Display::set_gray_pixel_(uint16_t x, uint16_t y, uint8_t nibble) const {
+  const uint32_t index = static_cast<uint32_t>(y) * this->row_width_ + (static_cast<uint32_t>(x) >> 1);
+  uint8_t buf = this->buffer_[index];
+  if (x & 0x1) {
+    buf = (buf & 0xF0) | nibble;
+  } else {
+    buf = (buf & 0x0F) | static_cast<uint8_t>(nibble << 4);
+  }
+  this->buffer_[index] = buf;
 }
 
 // --- Diagnostics -------------------------------------------------------------
