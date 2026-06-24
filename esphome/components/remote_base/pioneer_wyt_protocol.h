@@ -36,25 +36,15 @@ enum PioneerWytDataType : uint8_t {
 class PioneerWytData {
  public:
   PioneerWytData() {}
-  PioneerWytData(std::array<uint8_t, WYT_REMOTE_COMMAND_SIZE> data) {
-    std::copy_n(data.begin(), WYT_REMOTE_COMMAND_SIZE, this->data_.begin());
-  }
   PioneerWytData(const std::vector<uint8_t> &data) {
     std::copy_n(data.begin(), std::min(data.size(), this->data_.size()), this->data_.begin());
   }
 
   uint8_t size() const { return this->data_.size(); }
-  bool is_valid() const {
-    return this->data_[WYT_REMOTE_COMMAND_SIZE - 1] ==
-           this->calc_cs_(this->type() == PIONEER_WYT_TYPE_FAN ? 0x0F : 0x00);
-  }
   void finalize() {
     this->data_[WYT_REMOTE_COMMAND_SIZE - 1] = this->calc_cs_(this->type() == PIONEER_WYT_TYPE_FAN ? 0x0F : 0x00);
   }
 
-  bool operator==(const PioneerWytData &rhs) const {
-    return std::equal(this->data_.begin(), this->data_.begin() + WYT_REMOTE_COMMAND_SIZE - 1, rhs.data_.begin());
-  }
   PioneerWytDataType type() const { return static_cast<PioneerWytDataType>(this->data_[3]); }
   uint8_t &operator[](size_t idx) { return this->data_[idx]; }
   const uint8_t &operator[](size_t idx) const { return this->data_[idx]; }
