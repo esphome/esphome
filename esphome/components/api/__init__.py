@@ -33,6 +33,7 @@ from esphome.const import (
     CONF_VARIABLES,
 )
 from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
+from esphome.core.config import register_provisioning_source
 from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigFragmentType, ConfigType
 
@@ -110,6 +111,20 @@ CONF_HOMEASSISTANT_STATES = "homeassistant_states"
 CONF_LISTEN_BACKLOG = "listen_backlog"
 CONF_MAX_SEND_QUEUE = "max_send_queue"
 CONF_STATE_SUBSCRIPTION_ONLY = "state_subscription_only"
+
+
+def _is_provisioning_source(full_config: ConfigType) -> bool:
+    """The API is a provisioning source when encryption is enabled.
+
+    With no ``key`` the device boots unprovisioned and is set up on first
+    connection; a YAML ``key`` means it is born provisioned. Either way the API
+    registers with the provisioning manager, so `esphome: provisioning:` is valid.
+    """
+    api_config = full_config.get(DOMAIN)
+    return api_config is not None and CONF_ENCRYPTION in api_config
+
+
+register_provisioning_source(_is_provisioning_source)
 
 
 def validate_encryption_key(value):

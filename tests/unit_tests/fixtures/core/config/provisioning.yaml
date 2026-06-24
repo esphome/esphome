@@ -7,3 +7,7 @@ esphome:
         - lambda: 'return;'
 
 host:
+
+# Provisioning-capable source: encryption enabled, no key.
+api:
+  encryption:

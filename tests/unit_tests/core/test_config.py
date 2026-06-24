@@ -449,6 +449,19 @@ async def test_add_automations_provisioning(
     assert (mock_build_automation.await_count == 1) is expect_on_timeout
 
 
+def test_provisioning_without_source_is_rejected(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`provisioning:` with no provisioning-capable component is a config error."""
+    result = load_config_from_fixture(
+        yaml_file, "provisioning_no_source.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    captured = capsys.readouterr()
+    assert "requires at least one provisioning-capable component" in captured.out
+
+
 def test_valid_include_with_angle_brackets() -> None:
     """Test valid_include accepts angle bracket includes."""
     assert valid_include("<ArduinoJson.h>") == "<ArduinoJson.h>"

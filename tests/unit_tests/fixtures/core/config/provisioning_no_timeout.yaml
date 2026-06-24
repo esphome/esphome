@@ -4,3 +4,7 @@ esphome:
     timeout: 60s
 
 host:
+
+# Provisioning-capable source: encryption enabled, no key.
+api:
+  encryption:
