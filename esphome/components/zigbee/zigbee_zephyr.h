@@ -66,7 +66,7 @@ struct AnalogAttrsOutput : AnalogAttrs {
   float resolution;
 };
 
-class ZigbeeComponent : public Component {
+class ZigbeeComponent final : public Component {
  public:
   void setup() override;
   void dump_config() override;
