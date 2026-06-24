@@ -358,23 +358,23 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
           this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
           return;
         }
-        ServerRegisterData out_registers;
+        RegisterValues registers;
         if (static_cast<ModbusFunctionCode>(function_code) == ModbusFunctionCode::READ_HOLDING_REGISTERS) {
-          status = device->on_modbus_read_holding_registers(start_address, number_of_registers, out_registers);
+          status = device->on_modbus_read_holding_registers(start_address, number_of_registers, registers);
         } else {
-          status = device->on_modbus_read_input_registers(start_address, number_of_registers, out_registers);
+          status = device->on_modbus_read_input_registers(start_address, number_of_registers, registers);
         }
 
-        if (out_registers.size() != number_of_registers) {
+        if (registers.size() != number_of_registers) {
           ESP_LOGE(TAG, "Incorrect response %" PRIu16 " requested, %zu returned", number_of_registers,
-                   out_registers.size());
+                   registers.size());
           this->send_exception_(address, function_code, ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
           return;
         }
 
         response_buffer[response_len++] = static_cast<uint8_t>(number_of_registers * 2);  // actual byte count
-        for (size_t i = 0; i < out_registers.size(); i++) {
-          auto register_bytes = decode_value(out_registers[i]);
+        for (size_t i = 0; i < registers.size(); i++) {
+          auto register_bytes = decode_value(registers[i]);
           response_buffer[response_len++] = register_bytes[0];
           response_buffer[response_len++] = register_bytes[1];
         }
@@ -383,7 +383,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
         // PDU data: start address(2) [+ quantity(2) + byte count(1)] + register values.
         // A single-register write always targets one register; for a multiple-register write the
         // quantity is in the frame and its byte count must equal quantity * 2. The register values are
-        // assembled into in_registers below so the handler doesn't have to know the request framing.
+        // assembled into registers below so the handler doesn't have to know the request framing.
         uint16_t start_address = helpers::get_data<uint16_t>(data, 0);
         uint16_t number_of_registers = 1;
         uint16_t values_offset = 2;  // single write: values follow the 2-byte start address
@@ -406,11 +406,11 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
           }
         }
         // Assemble the register values (host byte order) so the handler never sees wire framing.
-        ServerRegisterData in_registers;
+        RegisterValues registers;
         for (uint16_t i = 0; i < number_of_registers; i++) {
-          in_registers.push_back(helpers::get_data<uint16_t>(data, values_offset + i * 2));
+          registers.push_back(helpers::get_data<uint16_t>(data, values_offset + i * 2));
         }
-        status = device->on_modbus_write_registers(start_address, in_registers);
+        status = device->on_modbus_write_registers(start_address, registers);
         response_data = data;  // echo the request header per Modbus 6.6, 6.12
         response_len = 4;
       } else {

@@ -201,7 +201,7 @@ using ServerResponseStatus = std::optional<ModbusExceptionCode>;
 // Register values exchanged with server handlers, in host byte order. Sized at the larger of the two protocol
 // maxima (read = 125 / 0x7D, write = 123 / 0x7B); the per-direction count limit is enforced by the hub, not by
 // the capacity of this type.
-using ServerRegisterData = StaticVector<uint16_t, MAX_NUM_OF_REGISTERS_TO_READ>;
+using RegisterValues = StaticVector<uint16_t, MAX_NUM_OF_REGISTERS_TO_READ>;
 
 class ModbusServerDevice {
  public:
@@ -215,19 +215,18 @@ class ModbusServerDevice {
   void set_address(uint8_t address) { address_ = address; }
   uint8_t get_address() const { return address_; }
   virtual ServerResponseStatus on_modbus_read_registers(uint16_t start_address, uint16_t number_of_registers,
-                                                        ServerRegisterData &out_registers) {
+                                                        RegisterValues &registers) {
     return ModbusExceptionCode::ILLEGAL_FUNCTION;
   };
   virtual ServerResponseStatus on_modbus_read_input_registers(uint16_t start_address, uint16_t number_of_registers,
-                                                              ServerRegisterData &out_registers) {
-    return this->on_modbus_read_registers(start_address, number_of_registers, out_registers);
+                                                              RegisterValues &registers) {
+    return this->on_modbus_read_registers(start_address, number_of_registers, registers);
   };
   virtual ServerResponseStatus on_modbus_read_holding_registers(uint16_t start_address, uint16_t number_of_registers,
-                                                                ServerRegisterData &out_registers) {
-    return this->on_modbus_read_registers(start_address, number_of_registers, out_registers);
+                                                                RegisterValues &registers) {
+    return this->on_modbus_read_registers(start_address, number_of_registers, registers);
   };
-  virtual ServerResponseStatus on_modbus_write_registers(uint16_t start_address,
-                                                         const ServerRegisterData &in_registers) {
+  virtual ServerResponseStatus on_modbus_write_registers(uint16_t start_address, const RegisterValues &registers) {
     return ModbusExceptionCode::ILLEGAL_FUNCTION;
   };
 

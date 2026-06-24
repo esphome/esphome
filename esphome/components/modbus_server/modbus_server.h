@@ -99,10 +99,10 @@ class ModbusServer : public Component, public modbus::ModbusServerDevice {
   void add_server_register(ServerRegister *server_register) { server_registers_.push_back(server_register); }
   /// called when a modbus request (function code 0x03 or 0x04) was parsed without errors
   modbus::ServerResponseStatus on_modbus_read_registers(uint16_t start_address, uint16_t number_of_registers,
-                                                        modbus::ServerRegisterData &out_registers) final;
+                                                        modbus::RegisterValues &registers) final;
   /// called when a modbus request (function code 0x06 or 0x10) was parsed without errors
   modbus::ServerResponseStatus on_modbus_write_registers(uint16_t start_address,
-                                                         const modbus::ServerRegisterData &in_registers) final;
+                                                         const modbus::RegisterValues &registers) final;
   /// Called by esphome generated code to set the server courtesy response object
   void set_server_courtesy_response(const ServerCourtesyResponse &server_courtesy_response) {
     this->server_courtesy_response_ = server_courtesy_response;
