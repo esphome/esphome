@@ -1,14 +1,17 @@
-# Exercises the EN18031 provisioning-window feature: encryption enabled with no
-# key (device boots unprovisioned), a provisioning_timeout with its
-# on_provisioning_timeout trigger, plus the wifi and improv cross-component guards
-# that suppress reboots / refuse provisioning while the window is open.
+# Exercises the EN18031 provisioning window driven by the core `esphome: provisioning:`
+# block: api registers as a provisioning source (encryption enabled, no key), the
+# on_timeout automation, and the wifi + esp32_improv cross-component guards that
+# suppress reboots / refuse provisioning while the window is open. (improv_serial is
+# intentionally NOT gated - it requires physical access.)
+esphome:
+  provisioning:
+    timeout: 1min
+    on_timeout:
+      then:
+        - logger.log: "Provisioning window expired"
+
 api:
-  port: 8000
-  reboot_timeout: 15min
   encryption:
-  provisioning_timeout: 1min
-  on_provisioning_timeout:
-    - logger.log: "Provisioning window expired"
 
 wifi:
   ssid: MySSID

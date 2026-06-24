@@ -8,10 +8,6 @@
 
 #include "esphome/components/logger/logger.h"
 
-#if defined(USE_API) && defined(USE_API_PROVISIONING_TIMEOUT)
-#include "esphome/components/api/api_server.h"
-#endif
-
 namespace esphome::improv_serial {
 
 static const char *const TAG = "improv_serial";
@@ -22,15 +18,6 @@ void ImprovSerialComponent::setup() {
   this->uart_num_ = logger::global_logger->get_uart_num();
 #elif defined(USE_ARDUINO)
   this->hw_serial_ = logger::global_logger->get_hw_serial();
-#endif
-
-#if defined(USE_API) && defined(USE_API_PROVISIONING_TIMEOUT)
-  if (api::global_api_server != nullptr) {
-    api::global_api_server->add_on_provisioning_closed_callback([this]() {
-      ESP_LOGD(TAG, "API provisioning window closed; refusing further provisioning");
-      this->provisioning_closed_ = true;
-    });
-  }
 #endif
 
   if (wifi::global_wifi_component->has_sta()) {
@@ -245,13 +232,6 @@ bool ImprovSerialComponent::parse_improv_serial_byte_(uint8_t byte) {
 bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command) {
   switch (command.command) {
     case improv::WIFI_SETTINGS: {
-#if defined(USE_API) && defined(USE_API_PROVISIONING_TIMEOUT)
-      if (this->provisioning_closed_) {
-        ESP_LOGW(TAG, "Provisioning window closed; refusing settings");
-        this->set_error_(improv::ERROR_NOT_AUTHORIZED);
-        return true;
-      }
-#endif
       if (wifi::global_wifi_component->is_disabled()) {
         // Wi-Fi is disabled, so we can't provision. Respond immediately
         // instead of letting the client wait out its provisioning timeout.
@@ -274,14 +254,6 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       return true;
     }
     case improv::GET_CURRENT_STATE:
-#if defined(USE_API) && defined(USE_API_PROVISIONING_TIMEOUT)
-      if (this->provisioning_closed_) {
-        // Provisioning window closed; report the "stopped" state so a client can
-        // tell the user provisioning is no longer available.
-        this->send_current_state_(improv::STATE_STOPPED);
-        return true;
-      }
-#endif
       if (wifi::global_wifi_component->is_disabled()) {
         // Wi-Fi is disabled; report the Improv "stopped" state so a client can tell
         // the user that provisioning is unavailable. Reported transiently without

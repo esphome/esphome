@@ -13,6 +13,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
 #include "esphome/core/log.h"
+#include "esphome/core/provisioning.h"
 #include "esphome/core/string_ref.h"
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -75,39 +76,6 @@ class APIServer final : public Component,
   void set_noise_psk(psk_t psk) { this->noise_ctx_.set_psk(psk); }
   APINoiseContext &get_noise_ctx() { return this->noise_ctx_; }
 #endif  // USE_API_NOISE
-
-  // Whether the device is provisioned (has an encryption key). A device built
-  // without noise encryption is always considered provisioned, so the
-  // provisioning window never opens on such builds.
-  bool is_provisioned() const {
-#ifdef USE_API_NOISE
-    return this->noise_ctx_.has_psk();
-#else
-    return true;
-#endif
-  }
-#ifdef USE_API_PROVISIONING_TIMEOUT
-  void set_provisioning_timeout(uint32_t provisioning_timeout) { this->provisioning_timeout_ = provisioning_timeout; }
-  // True once the window has expired without the device being provisioned. This
-  // state is intentionally NOT persisted: a power cycle (or physical reset button)
-  // reboots the device unprovisioned, reopening the window. New provisioning
-  // attempts are refused while closed.
-  bool provisioning_closed() const { return this->provisioning_closed_; }
-  // True whenever the provisioning feature is engaged and the device is not yet
-  // provisioned (window open OR closed). reboot_timeout (api and wifi) is suppressed
-  // while this is true so the device NEVER auto-reboots while unprovisioned - an
-  // auto-reboot would reopen the window without the deliberate power cycle / reset
-  // that is meant to be required.
-  bool provisioning_pending() const { return this->provisioning_window_open_ || this->provisioning_closed_; }
-  // Register a callback fired once when the provisioning window closes (at runtime
-  // expiry). Used internally by improv to stop accepting provisioning requests.
-  template<typename F> void add_on_provisioning_closed_callback(F &&callback) {
-    this->provisioning_closed_callback_.add(std::forward<F>(callback));
-  }
-#else
-  bool provisioning_closed() const { return false; }
-  bool provisioning_pending() const { return false; }
-#endif  // USE_API_PROVISIONING_TIMEOUT
 
   void handle_disconnect(APIConnection *conn);
 #ifdef USE_BINARY_SENSOR
@@ -281,9 +249,6 @@ class APIServer final : public Component,
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
   Trigger<std::string, std::string> *get_client_disconnected_trigger() { return &this->client_disconnected_trigger_; }
 #endif
-#ifdef USE_API_PROVISIONING_TIMEOUT_TRIGGER
-  Trigger<> *get_provisioning_timeout_trigger() { return &this->provisioning_timeout_trigger_; }
-#endif
 
  protected:
   // Accept incoming socket connections. Only called when socket has pending connections.
@@ -291,10 +256,16 @@ class APIServer final : public Component,
   // Remove a disconnected client by index. Swaps with the last populated slot and resets it.
   void __attribute__((noinline)) remove_client_(uint8_t client_index);
 
-#ifdef USE_API_PROVISIONING_TIMEOUT
-  // Transition the provisioning window to the closed state: fire the callback and
-  // trigger, then disconnect any clients still attempting to provision.
-  void close_provisioning_window_();
+#ifdef USE_PROVISIONING
+  // True while a configured provisioning window is still pending (the device is
+  // unprovisioned). Suppresses the reboot timeout and its warning so the device is
+  // not auto-rebooted while waiting to be provisioned. False when no provisioning
+  // window is configured.
+  bool provisioning_pending_() const {
+    return global_provisioning_manager != nullptr && global_provisioning_manager->window_pending();
+  }
+#else
+  bool provisioning_pending_() const { return false; }
 #endif
 
 #ifdef USE_API_NOISE
@@ -328,19 +299,10 @@ class APIServer final : public Component,
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
   Trigger<std::string, std::string> client_disconnected_trigger_;
 #endif
-#ifdef USE_API_PROVISIONING_TIMEOUT_TRIGGER
-  Trigger<> provisioning_timeout_trigger_;
-#endif
 
   // 4-byte aligned types
   uint32_t reboot_timeout_{300000};
   uint32_t last_connected_{0};
-#ifdef USE_API_PROVISIONING_TIMEOUT
-  uint32_t provisioning_timeout_{0};
-  LazyCallbackManager<void()> provisioning_closed_callback_;
-  bool provisioning_window_open_{false};
-  bool provisioning_closed_{false};
-#endif
 
   // Slots [0, api_connection_count_) are populated; trailing slots are always nullptr.
   std::array<APIConnectionPtr, MAX_API_CONNECTIONS> clients_{};
@@ -383,7 +345,10 @@ class APIServer final : public Component,
   uint8_t listen_backlog_{4};
   bool shutting_down_ = false;
   uint8_t api_connection_count_{0};
-  // 7 bytes used, 1 byte padding
+#if defined(USE_PROVISIONING) && defined(USE_API_NOISE)
+  // Index assigned by the provisioning manager for reporting this transport's state.
+  uint8_t provisioning_source_{0};
+#endif
 
 #ifdef USE_API_NOISE
   APINoiseContext noise_ctx_;

@@ -107,20 +107,26 @@ void APIServer::setup() {
 
   // Initialize last_connected_ for reboot timeout tracking
   this->last_connected_ = App.get_loop_component_start_time();
-#ifdef USE_API_PROVISIONING_TIMEOUT
-  // Open the provisioning window if the device booted unprovisioned. The closed
-  // state is intentionally NOT persisted - a power cycle (or physical reset) boots
-  // the device unprovisioned and reopens the window. While the window is pending
-  // (open or expired-but-unprovisioned) the reboot timeout and its warning are
-  // suppressed so the device NEVER auto-reboots while unprovisioned (an auto-reboot
-  // would reopen the window without the deliberate reset that is meant to be
-  // required). The window timer runs from boot (millis since boot).
-  if (this->provisioning_timeout_ != 0 && !this->is_provisioned()) {
-    this->provisioning_window_open_ = true;
+#if defined(USE_PROVISIONING) && defined(USE_API_NOISE)
+  // Register with the provisioning manager (esphome: provisioning:) as a source and
+  // report our current state (provisioned == an encryption key is set). When the
+  // window closes, disconnect any client still attempting to provision so it learns
+  // the reason. The manager owns the timeout, window state and on_timeout automation.
+  if (global_provisioning_manager != nullptr) {
+    this->provisioning_source_ = global_provisioning_manager->register_source();
+    global_provisioning_manager->set_source_provisioned(this->provisioning_source_, this->noise_ctx_.has_psk());
+    global_provisioning_manager->add_on_closed_callback([this]() {
+      for (auto &c : this->active_clients()) {
+        DisconnectRequest req;
+        req.reason = enums::DISCONNECT_REASON_PROVISIONING_CLOSED;
+        c->send_message(req);
+      }
+    });
   }
 #endif
-  // Set warning status if reboot timeout is enabled (suppressed during provisioning)
-  if (this->reboot_timeout_ != 0 && !this->provisioning_pending()) {
+  // Set warning status if reboot timeout is enabled (suppressed while provisioning
+  // is pending so the device waits to be onboarded instead of rebooting).
+  if (this->reboot_timeout_ != 0 && !this->provisioning_pending_()) {
     this->status_set_warning(LOG_STR("waiting for client connection"));
   }
 }
@@ -131,22 +137,12 @@ void APIServer::loop() {
     this->accept_new_connections_();
   }
 
-#ifdef USE_API_PROVISIONING_TIMEOUT
-  // Close the provisioning window once the timeout (measured from boot) elapses
-  // while still unprovisioned. Done in loop to match the reboot-timeout rationale
-  // below (avoids scheduler heap churn from a cancelled one-shot timeout).
-  if (this->provisioning_window_open_ && App.get_loop_component_start_time() > this->provisioning_timeout_) {
-    this->close_provisioning_window_();
-  }
-#endif
-
   if (this->api_connection_count_ == 0) {
     // Check reboot timeout - done in loop to avoid scheduler heap churn
     // (cancelled scheduler items sit in heap memory until their scheduled time).
-    // Suppressed while provisioning is pending (window open or expired-but-
-    // unprovisioned) so the device waits to be onboarded / reset instead of
-    // rebooting itself; resumes normally once provisioned.
-    if (this->reboot_timeout_ != 0 && !this->provisioning_pending()) {
+    // Suppressed while a provisioning window is pending so the device waits to be
+    // onboarded / reset instead of rebooting itself; resumes once provisioned.
+    if (this->reboot_timeout_ != 0 && !this->provisioning_pending_()) {
       const uint32_t now = App.get_loop_component_start_time();
       if (now - this->last_connected_ > this->reboot_timeout_) {
         ESP_LOGE(TAG, "No clients; rebooting");
@@ -219,7 +215,7 @@ void APIServer::remove_client_(uint8_t client_index) {
 
   // Last client disconnected - set warning and start tracking for reboot timeout
   // (suppressed while provisioning is pending - see loop()).
-  if (this->api_connection_count_ == 0 && this->reboot_timeout_ != 0 && !this->provisioning_pending()) {
+  if (this->api_connection_count_ == 0 && this->reboot_timeout_ != 0 && !this->provisioning_pending_()) {
     this->status_set_warning(LOG_STR("waiting for client connection"));
     this->last_connected_ = App.get_loop_component_start_time();
   }
@@ -257,7 +253,7 @@ void __attribute__((flatten)) APIServer::accept_new_connections_() {
     conn->start();
 
     // First client connected - clear warning and update timestamp
-    if (this->api_connection_count_ == 1 && this->reboot_timeout_ != 0 && !this->provisioning_pending()) {
+    if (this->api_connection_count_ == 1 && this->reboot_timeout_ != 0 && !this->provisioning_pending_()) {
       this->status_clear_warning();
       this->last_connected_ = App.get_loop_component_start_time();
     }
@@ -278,9 +274,6 @@ void APIServer::dump_config() {
   }
 #else
   ESP_LOGCONFIG(TAG, "  Noise encryption: NO");
-#endif
-#ifdef USE_API_PROVISIONING_TIMEOUT
-  ESP_LOGCONFIG(TAG, "  Provisioning timeout: %" PRIu32 "ms", this->provisioning_timeout_);
 #endif
 }
 
@@ -601,12 +594,11 @@ bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
   SavedNoisePsk new_saved_psk{psk};
   bool result = this->update_noise_psk_(new_saved_psk, LOG_STR("Noise PSK saved"), LOG_STR("Failed to save Noise PSK"),
                                         make_active);
-#ifdef USE_API_PROVISIONING_TIMEOUT
-  // The device is now provisioned; close the open window so the reboot timeout
-  // resumes normal operation. (Provisioning while the window is already closed is
-  // refused in APIConnection, so this only runs from a successful in-window set.)
-  if (result) {
-    this->provisioning_window_open_ = false;
+#ifdef USE_PROVISIONING
+  // The device now has a key; report provisioned so the provisioning window is
+  // satisfied and the reboot timeout resumes normal operation.
+  if (result && global_provisioning_manager != nullptr) {
+    global_provisioning_manager->set_source_provisioned(this->provisioning_source_, true);
   }
 #endif
   return result;
@@ -620,28 +612,17 @@ bool APIServer::clear_noise_psk(bool make_active) {
   return false;
 #else
   SavedNoisePsk empty_psk{};
-  return this->update_noise_psk_(empty_psk, LOG_STR("Noise PSK cleared"), LOG_STR("Failed to clear Noise PSK"),
-                                 make_active);
-#endif
-}
-#endif
-
-#ifdef USE_API_PROVISIONING_TIMEOUT
-void APIServer::close_provisioning_window_() {
-  this->provisioning_window_open_ = false;
-  this->provisioning_closed_ = true;
-  ESP_LOGW(TAG, "Provisioning window expired; refusing provisioning until reset (power cycle)");
-  this->provisioning_closed_callback_.call();
-#ifdef USE_API_PROVISIONING_TIMEOUT_TRIGGER
-  this->provisioning_timeout_trigger_.trigger();
-#endif
-  // Disconnect any client still connected (plaintext, mid-provisioning) with the
-  // reason so it can report why the device closed the connection.
-  for (auto &c : this->active_clients()) {
-    DisconnectRequest req;
-    req.reason = enums::DISCONNECT_REASON_PROVISIONING_CLOSED;
-    c->send_message(req);
+  bool result = this->update_noise_psk_(empty_psk, LOG_STR("Noise PSK cleared"), LOG_STR("Failed to clear Noise PSK"),
+                                        make_active);
+#ifdef USE_PROVISIONING
+  // The key was cleared; report unprovisioned so a subsequent reboot reopens the
+  // provisioning window.
+  if (result && global_provisioning_manager != nullptr) {
+    global_provisioning_manager->set_source_provisioned(this->provisioning_source_, false);
   }
+#endif
+  return result;
+#endif
 }
 #endif
 

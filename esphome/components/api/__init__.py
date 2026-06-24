@@ -110,8 +110,6 @@ CONF_HOMEASSISTANT_STATES = "homeassistant_states"
 CONF_LISTEN_BACKLOG = "listen_backlog"
 CONF_MAX_SEND_QUEUE = "max_send_queue"
 CONF_STATE_SUBSCRIPTION_ONLY = "state_subscription_only"
-CONF_PROVISIONING_TIMEOUT = "provisioning_timeout"
-CONF_ON_PROVISIONING_TIMEOUT = "on_provisioning_timeout"
 
 
 def validate_encryption_key(value):
@@ -247,31 +245,6 @@ def _encryption_schema(config):
     return ENCRYPTION_SCHEMA(config)
 
 
-def _validate_provisioning_timeout(config: ConfigType) -> ConfigType:
-    """A provisioning window only makes sense on a device that boots unprovisioned.
-
-    That requires ``encryption:`` to be enabled with no ``key:`` so Home Assistant
-    can set the key on first connection. A YAML key (born provisioned) or no
-    encryption at all leaves nothing for the window to gate.
-    """
-    if config[CONF_PROVISIONING_TIMEOUT].total_milliseconds == 0:
-        if CONF_ON_PROVISIONING_TIMEOUT in config:
-            raise cv.Invalid(
-                "'on_provisioning_timeout' requires 'provisioning_timeout' to be set.",
-                [CONF_ON_PROVISIONING_TIMEOUT],
-            )
-        return config
-    encryption_config = config.get(CONF_ENCRYPTION)
-    if encryption_config is None or encryption_config.get(CONF_KEY):
-        raise cv.Invalid(
-            "'provisioning_timeout' requires 'encryption:' to be enabled without a "
-            "'key:' so the device boots unprovisioned and Home Assistant can set the "
-            "key on first connection.",
-            [CONF_PROVISIONING_TIMEOUT],
-        )
-    return config
-
-
 def _consume_api_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for API component."""
     from esphome.components import socket
@@ -302,12 +275,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="15min"
             ): cv.positive_time_period_milliseconds,
-            # EN18031 provisioning window. 0 (default) disables the feature, leaving
-            # all existing behavior unchanged. When set, the device closes the
-            # provisioning window this long after boot if it is still unprovisioned.
-            cv.Optional(
-                CONF_PROVISIONING_TIMEOUT, default="0s"
-            ): cv.positive_time_period_milliseconds,
             cv.Exclusive(
                 CONF_SERVICES, group_of_exclusion=CONF_ACTIONS
             ): ACTIONS_SCHEMA,
@@ -324,9 +291,6 @@ CONFIG_SCHEMA = cv.All(
                 single=True
             ),
             cv.Optional(CONF_ON_CLIENT_DISCONNECTED): automation.validate_automation(
-                single=True
-            ),
-            cv.Optional(CONF_ON_PROVISIONING_TIMEOUT): automation.validate_automation(
                 single=True
             ),
             # Connection limits to prevent memory exhaustion on resource-constrained devices
@@ -370,7 +334,6 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
-    _validate_provisioning_timeout,
     _consume_api_sockets,
 )
 
@@ -388,21 +351,6 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
-    if (
-        provisioning_timeout := config[CONF_PROVISIONING_TIMEOUT]
-    ).total_milliseconds > 0:
-        cg.add_define("USE_API_PROVISIONING_TIMEOUT")
-        cg.add(var.set_provisioning_timeout(provisioning_timeout))
-        # on_provisioning_timeout is only valid when provisioning_timeout is set
-        # (enforced in validation) and the trigger can only fire while the feature
-        # is enabled, so register it here.
-        if on_provisioning_timeout := config.get(CONF_ON_PROVISIONING_TIMEOUT):
-            cg.add_define("USE_API_PROVISIONING_TIMEOUT_TRIGGER")
-            await automation.build_automation(
-                var.get_provisioning_timeout_trigger(),
-                [],
-                on_provisioning_timeout,
-            )
     cg.add(var.set_batch_delay(config[CONF_BATCH_DELAY]))
     if CONF_LISTEN_BACKLOG in config:
         cg.add(var.set_listen_backlog(config[CONF_LISTEN_BACKLOG]))

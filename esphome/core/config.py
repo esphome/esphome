@@ -32,11 +32,13 @@ from esphome.const import (
     CONF_ON_BOOT,
     CONF_ON_LOOP,
     CONF_ON_SHUTDOWN,
+    CONF_ON_TIMEOUT,
     CONF_ON_UPDATE,
     CONF_PLATFORM,
     CONF_PLATFORMIO_OPTIONS,
     CONF_PRIORITY,
     CONF_PROJECT,
+    CONF_TIMEOUT,
     CONF_TRIGGER_ID,
     CONF_VERSION,
     KEY_CORE,
@@ -104,6 +106,9 @@ LoopTrigger = cg.esphome_ns.class_(
 ProjectUpdateTrigger = cg.esphome_ns.class_(
     "ProjectUpdateTrigger", cg.Component, automation.Trigger.template(cg.std_string)
 )
+ProvisioningManager = cg.esphome_ns.class_("ProvisioningManager", cg.Component)
+
+CONF_PROVISIONING = "provisioning"
 Device = cg.esphome_ns.class_("Device")
 Area = cg.esphome_ns.class_("Area")
 
@@ -310,6 +315,15 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_LOOP): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoopTrigger),
+                }
+            ),
+            cv.Optional(CONF_PROVISIONING): cv.Schema(
+                {
+                    cv.GenerateID(): cv.declare_id(ProvisioningManager),
+                    cv.Required(CONF_TIMEOUT): cv.positive_time_period_milliseconds,
+                    cv.Optional(CONF_ON_TIMEOUT): automation.validate_automation(
+                        single=True
+                    ),
                 }
             ),
             cv.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(valid_include),
@@ -590,6 +604,14 @@ async def _add_automations(config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         await cg.register_component(trigger, conf)
         await automation.build_automation(trigger, [], conf)
+
+    if provisioning_conf := config.get(CONF_PROVISIONING):
+        cg.add_define("USE_PROVISIONING")
+        var = cg.new_Pvariable(provisioning_conf[CONF_ID])
+        await cg.register_component(var, provisioning_conf)
+        cg.add(var.set_timeout(provisioning_conf[CONF_TIMEOUT]))
+        if on_timeout := provisioning_conf.get(CONF_ON_TIMEOUT):
+            await automation.build_automation(var.get_timeout_trigger(), [], on_timeout)
 
 
 # Datetime component has special subtypes that need additional defines

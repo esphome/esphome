@@ -7,8 +7,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#if defined(USE_API) && defined(USE_API_PROVISIONING_TIMEOUT)
-#include "esphome/components/api/api_server.h"
+#ifdef USE_PROVISIONING
+#include "esphome/core/provisioning.h"
 #endif
 
 #ifdef USE_ESP32
@@ -45,10 +45,10 @@ void ESP32ImprovComponent::setup() {
 #endif
   global_ble_server->on_disconnect([this](uint16_t conn_id) { this->set_error_(improv::ERROR_NONE); });
 
-#if defined(USE_API) && defined(USE_API_PROVISIONING_TIMEOUT)
-  if (api::global_api_server != nullptr) {
-    api::global_api_server->add_on_provisioning_closed_callback([this]() {
-      ESP_LOGD(TAG, "API provisioning window closed; stopping Improv");
+#ifdef USE_PROVISIONING
+  if (global_provisioning_manager != nullptr) {
+    global_provisioning_manager->add_on_closed_callback([this]() {
+      ESP_LOGD(TAG, "Provisioning window closed; stopping Improv");
       this->stop();
     });
   }
@@ -295,10 +295,10 @@ void ESP32ImprovComponent::start() {
   if (this->should_start_ || this->state_ != improv::STATE_STOPPED)
     return;
 
-#if defined(USE_API) && defined(USE_API_PROVISIONING_TIMEOUT)
-  // Don't (re)start advertising once the API provisioning window has closed - e.g.
-  // when wifi tries to restart Improv after the window expired at runtime.
-  if (api::global_api_server != nullptr && api::global_api_server->provisioning_closed()) {
+#ifdef USE_PROVISIONING
+  // Don't (re)start advertising once the provisioning window has closed - e.g. when
+  // wifi tries to restart Improv after the window expired at runtime.
+  if (global_provisioning_manager != nullptr && global_provisioning_manager->closed()) {
     ESP_LOGD(TAG, "Provisioning window closed; not starting Improv");
     return;
   }
@@ -360,8 +360,8 @@ void ESP32ImprovComponent::process_incoming_data_() {
           this->incoming_data_.clear();
           return;
         }
-#if defined(USE_API) && defined(USE_API_PROVISIONING_TIMEOUT)
-        if (api::global_api_server != nullptr && api::global_api_server->provisioning_closed()) {
+#ifdef USE_PROVISIONING
+        if (global_provisioning_manager != nullptr && global_provisioning_manager->closed()) {
           ESP_LOGW(TAG, "Provisioning window closed; refusing settings");
           this->set_error_(improv::ERROR_NOT_AUTHORIZED);
           this->incoming_data_.clear();

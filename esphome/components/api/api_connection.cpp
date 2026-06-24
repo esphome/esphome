@@ -24,6 +24,7 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/provisioning.h"
 #include "esphome/core/version.h"
 
 #ifdef USE_DEEP_SLEEP
@@ -1724,8 +1725,8 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   resp.server_info = ESPHOME_VERSION_REF;
   resp.name = StringRef(App.get_name());
 
-#ifdef USE_API_PROVISIONING_TIMEOUT
-  if (this->parent_->provisioning_closed()) {
+#ifdef USE_PROVISIONING
+  if (global_provisioning_manager != nullptr && global_provisioning_manager->closed()) {
     // The provisioning window has closed without the device being provisioned.
     // Acknowledge the hello so the client can read the server name, then request
     // disconnect with the reason. Authentication is intentionally not completed.
@@ -2016,10 +2017,10 @@ bool APIConnection::send_noise_encryption_set_key_response_(const NoiseEncryptio
   NoiseEncryptionSetKeyResponse resp;
   resp.success = false;
 
-#ifdef USE_API_PROVISIONING_TIMEOUT
+#ifdef USE_PROVISIONING
   // Refuse to set a key once the provisioning window has closed (defense in depth;
   // such connections are already rejected at hello).
-  if (this->parent_->provisioning_closed()) {
+  if (global_provisioning_manager != nullptr && global_provisioning_manager->closed()) {
     ESP_LOGW(TAG, "Provisioning closed; rejecting key set");
     return this->send_message(resp);
   }
