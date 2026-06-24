@@ -21,7 +21,6 @@ class HBridgeLightOutput final : public PollingComponent, public light::LightOut
     return traits;
   }
 
-  // Start with the poller disabled; it is only run while multiplexing (see write_state).
   void setup() override { this->stop_poller(); }
 
   void update() override {
