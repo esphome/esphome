@@ -1006,10 +1006,16 @@ PIONEER_WYT_FAN_SPEEDS = {
     "HIGH": PioneerWytFanSpeed.PIONEER_WYT_FAN_HIGH,
 }
 
+PIONEER_WYT_TYPES = {
+    "GENERAL": PioneerWytDataType.PIONEER_WYT_TYPE_GENERAL,
+    "FAN": PioneerWytDataType.PIONEER_WYT_TYPE_FAN,
+    "BOTH": PioneerWytDataType.PIONEER_WYT_TYPE_BOTH,
+}
+
 PIONEER_WYT_ACTION_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_CODE): cv.All([cv.hex_uint8_t], cv.Length(min=13, max=13)),
-        cv.Optional(CONF_TYPE): cv.one_of("GENERAL", "FAN", "BOTH", upper=True),
+        cv.Optional(CONF_TYPE): cv.enum(PIONEER_WYT_TYPES, upper=True),
         cv.Optional(CONF_POWER, default=True): cv.boolean,
         cv.Optional(CONF_MODE, default="COOL"): cv.enum(PIONEER_WYT_MODES, upper=True),
         cv.Optional(CONF_TARGET_TEMPERATURE, default=24.0): cv.float_,
@@ -1039,38 +1045,8 @@ async def pioneer_wyt_action(var, config, args):
         template_ = await cg.templatable(config[CONF_CODE], args, vec_, vec_)
         cg.add(var.set_code(template_))
     else:
-        type_val = config.get(CONF_TYPE, "BOTH")
-        if type_val == "GENERAL":
-            cg.add(
-                var.set_type(
-                    await cg.templatable(
-                        PioneerWytDataType.PIONEER_WYT_TYPE_GENERAL,
-                        args,
-                        PioneerWytDataType,
-                    )
-                )
-            )
-        elif type_val == "FAN":
-            cg.add(
-                var.set_type(
-                    await cg.templatable(
-                        PioneerWytDataType.PIONEER_WYT_TYPE_FAN,
-                        args,
-                        PioneerWytDataType,
-                    )
-                )
-            )
-        elif type_val == "BOTH":
-            cg.add(
-                var.set_type(
-                    await cg.templatable(
-                        PioneerWytDataType.PIONEER_WYT_TYPE_BOTH,
-                        args,
-                        PioneerWytDataType,
-                    )
-                )
-            )
-
+        type_ = config.get(CONF_TYPE, PioneerWytDataType.PIONEER_WYT_TYPE_BOTH)
+        cg.add(var.set_type(await cg.templatable(type_, args, PioneerWytDataType)))
         cg.add(var.set_power(await cg.templatable(config[CONF_POWER], args, cg.bool_)))
         cg.add(
             var.set_mode(await cg.templatable(config[CONF_MODE], args, PioneerWytMode))
