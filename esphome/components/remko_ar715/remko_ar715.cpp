@@ -1,4 +1,4 @@
-// Copyright naKruul
+// Copyright 2026 naKruul
 /// @file
 /// @brief ESPHome climate component for Remko AR-715 IR remote.
 /// @see https://github.com/crankyoldgit/IRremoteESP8266/issues/1812
