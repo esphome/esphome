@@ -23,3 +23,8 @@ text:
     min_length: 8
     max_length: 32
     mode: password
+
+text_sensor:
+  - platform: text
+    name: "Test Text State"
+    source_id: test_text

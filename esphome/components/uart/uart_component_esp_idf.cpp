@@ -7,7 +7,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/gpio.h"
 #include "driver/gpio.h"
+#include "esp_private/gpio.h"
 #include "soc/gpio_num.h"
+#include "soc/uart_pins.h"
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
 #include "esphome/core/application.h"
@@ -20,6 +22,20 @@
 namespace esphome::uart {
 
 static const char *const TAG = "uart.idf";
+
+/// Check if a pin number matches one of the default UART0 GPIO pins.
+/// These pins may have residual IOMUX state from the ROM bootloader that
+/// must be cleared before UART reconfiguration.
+///
+/// ESP-IDF's uart_set_pin() has an asymmetry: when routing TX via GPIO matrix,
+/// it calls gpio_func_sel(PIN_FUNC_GPIO) to clear IOMUX, but for RX it only
+/// calls gpio_input_enable() which does NOT clear the IOMUX function select.
+/// If a default UART0 TX pin (configured as TX via IOMUX during boot) is later
+/// reassigned as RX via GPIO matrix, the old IOMUX TX function remains active,
+/// causing TX data to loop back into RX on the same pin.
+static constexpr bool is_default_uart0_pin(int8_t pin_num) {
+  return pin_num == U0TXD_GPIO_NUM || pin_num == U0RXD_GPIO_NUM;
+}
 
 uart_config_t IDFUARTComponent::get_config_() {
   uart_parity_t parity = UART_PARITY_DISABLE;
@@ -131,6 +147,33 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     return;
   }
 
+  // uart_param_config must be called after uart_driver_install and before any
+  // other uart_set_*() calls. The driver installation resets the UART peripheral
+  // registers to their default state, overwriting any previously configured baud
+  // rate or framing settings. Calling uart_param_config here ensures the requested
+  // settings are applied after the reset and before pin routing, inversion, and
+  // threshold configuration.
+  uart_config_t uart_config = this->get_config_();
+  err = uart_param_config(this->uart_num_, &uart_config);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_param_config failed: %s", esp_err_to_name(err));
+    this->mark_failed();
+    return;
+  }
+
+  int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
+  int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
+  int8_t flow_control = this->flow_control_pin_ != nullptr ? this->flow_control_pin_->get_pin() : -1;
+
+  // Clear residual IOMUX function on UART0 default pins left by the ROM bootloader.
+  // See is_default_uart0_pin() comment for details on the ESP-IDF uart_set_pin() bug.
+  if (is_default_uart0_pin(tx)) {
+    gpio_func_sel(static_cast<gpio_num_t>(tx), PIN_FUNC_GPIO);
+  }
+  if (is_default_uart0_pin(rx)) {
+    gpio_func_sel(static_cast<gpio_num_t>(rx), PIN_FUNC_GPIO);
+  }
+
   auto setup_pin_if_needed = [](InternalGPIOPin *pin) {
     if (!pin) {
       return;
@@ -145,10 +188,6 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   if (this->rx_pin_ != this->tx_pin_) {
     setup_pin_if_needed(this->tx_pin_);
   }
-
-  int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
-  int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
-  int8_t flow_control = this->flow_control_pin_ != nullptr ? this->flow_control_pin_->get_pin() : -1;
 
   uint32_t invert = 0;
   if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted()) {
@@ -189,18 +228,11 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     return;
   }
 
+  // Per ESP-IDF docs, uart_set_mode() must be called only after uart_driver_install().
   auto mode = this->flow_control_pin_ != nullptr ? UART_MODE_RS485_HALF_DUPLEX : UART_MODE_UART;
-  err = uart_set_mode(this->uart_num_, mode);  // per docs, must be called only after uart_driver_install()
+  err = uart_set_mode(this->uart_num_, mode);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_set_mode failed: %s", esp_err_to_name(err));
-    this->mark_failed();
-    return;
-  }
-
-  uart_config_t uart_config = this->get_config_();
-  err = uart_param_config(this->uart_num_, &uart_config);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "uart_param_config failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
   }
@@ -229,6 +261,9 @@ void IDFUARTComponent::dump_config() {
                   "  RX Full Threshold: %u\n"
                   "  RX Timeout: %u",
                   this->rx_buffer_size_, this->rx_full_threshold_, this->rx_timeout_);
+  }
+  if (this->flush_timeout_ms_ > 0) {
+    ESP_LOGCONFIG(TAG, "  Flush Timeout: %" PRIu32 " ms", this->flush_timeout_ms_);
   }
   ESP_LOGCONFIG(TAG,
                 "  Baud Rate: %" PRIu32 " baud\n"
@@ -268,7 +303,7 @@ void IDFUARTComponent::set_rx_timeout(size_t rx_timeout) {
 void IDFUARTComponent::write_array(const uint8_t *data, size_t len) {
   int32_t write_len = uart_write_bytes(this->uart_num_, data, len);
   if (write_len != (int32_t) len) {
-    ESP_LOGW(TAG, "uart_write_bytes failed: %d != %zu", write_len, len);
+    ESP_LOGW(TAG, "uart_write_bytes failed: %" PRId32 " != %zu", write_len, len);
     this->mark_failed();
   }
 #ifdef USE_UART_DEBUGGER
@@ -296,6 +331,9 @@ bool IDFUARTComponent::peek_byte(uint8_t *data) {
 }
 
 bool IDFUARTComponent::read_array(uint8_t *data, size_t len) {
+  if (len == 0) {
+    return false;
+  }
   size_t length_to_read = len;
   int32_t read_len = 0;
   if (!this->check_read_timeout_(len))
@@ -303,11 +341,10 @@ bool IDFUARTComponent::read_array(uint8_t *data, size_t len) {
   if (this->has_peek_) {
     length_to_read--;
     *data = this->peek_byte_;
-    data++;
     this->has_peek_ = false;
   }
   if (length_to_read > 0)
-    read_len = uart_read_bytes(this->uart_num_, data, length_to_read, 20 / portTICK_PERIOD_MS);
+    read_len = uart_read_bytes(this->uart_num_, data + (len - length_to_read), length_to_read, 20 / portTICK_PERIOD_MS);
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
     this->debug_callback_.call(UART_DIRECTION_RX, data[i]);
@@ -332,9 +369,15 @@ size_t IDFUARTComponent::available() {
   return available;
 }
 
-void IDFUARTComponent::flush() {
+UARTFlushResult IDFUARTComponent::flush() {
   ESP_LOGVV(TAG, "    Flushing");
-  uart_wait_tx_done(this->uart_num_, portMAX_DELAY);
+  TickType_t ticks = this->flush_timeout_ms_ == 0 ? portMAX_DELAY : pdMS_TO_TICKS(this->flush_timeout_ms_);
+  esp_err_t err = uart_wait_tx_done(this->uart_num_, ticks);
+  if (err == ESP_OK)
+    return UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
+  if (err == ESP_ERR_TIMEOUT)
+    return UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
+  return UARTFlushResult::UART_FLUSH_RESULT_FAILED;
 }
 
 void IDFUARTComponent::check_logger_conflict() {}

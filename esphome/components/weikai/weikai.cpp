@@ -6,8 +6,7 @@
 #include "weikai.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace weikai {
+namespace esphome::weikai {
 
 static const char *const TAG = "weikai";
 
@@ -433,18 +432,20 @@ void WeikaiChannel::write_array(const uint8_t *buffer, size_t length) {
   this->reg(0).write_fifo(const_cast<uint8_t *>(buffer), length);
 }
 
-void WeikaiChannel::flush() {
+uart::UARTFlushResult WeikaiChannel::flush() {
   uint32_t const start_time = millis();
   while (this->tx_fifo_is_not_empty_()) {  // wait until buffer empty
     if (millis() - start_time > 200) {
       ESP_LOGW(TAG, "WARNING flush timeout - still %d bytes not sent after 200 ms", this->tx_in_fifo_());
-      return;
+      return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
     }
     yield();  // reschedule our thread to avoid blocking
   }
+  return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
 }
 
 size_t WeikaiChannel::xfer_fifo_to_buffer_() {
+  size_t total = 0;
   size_t to_transfer;
   size_t free;
   while ((to_transfer = this->rx_in_fifo_()) && (free = this->receive_buffer_.free())) {
@@ -458,9 +459,10 @@ size_t WeikaiChannel::xfer_fifo_to_buffer_() {
       this->reg(0).read_fifo(data, to_transfer);
       for (size_t i = 0; i < to_transfer; i++)
         this->receive_buffer_.push(data[i]);
+      total += to_transfer;
     }
   }  // while work to do
-  return to_transfer;
+  return total;
 }
 
 ///
@@ -564,5 +566,4 @@ bool WeikaiChannel::uart_receive_test_(char *message) {
 /// @}
 #endif
 
-}  // namespace weikai
-}  // namespace esphome
+}  // namespace esphome::weikai

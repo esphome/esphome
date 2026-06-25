@@ -8,13 +8,12 @@
 
 #include "../ads1118.h"
 
-namespace esphome {
-namespace ads1118 {
+namespace esphome::ads1118 {
 
-class ADS1118Sensor : public PollingComponent,
-                      public sensor::Sensor,
-                      public voltage_sampler::VoltageSampler,
-                      public Parented<ADS1118> {
+class ADS1118Sensor final : public PollingComponent,
+                            public sensor::Sensor,
+                            public voltage_sampler::VoltageSampler,
+                            public Parented<ADS1118> {
  public:
   void update() override;
 
@@ -32,5 +31,4 @@ class ADS1118Sensor : public PollingComponent,
   bool temperature_mode_;
 };
 
-}  // namespace ads1118
-}  // namespace esphome
+}  // namespace esphome::ads1118

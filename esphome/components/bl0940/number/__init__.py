@@ -89,6 +89,6 @@ async def to_code(config):
             )
             await cg.register_component(var, conf)
 
-            if restore_value := config.get(CONF_RESTORE_VALUE):
+            if restore_value := conf.get(CONF_RESTORE_VALUE):
                 cg.add(var.set_restore_value(restore_value))
             cg.add(getattr(bl0940, setter_method)(var))

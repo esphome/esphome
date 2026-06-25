@@ -180,6 +180,9 @@ async def to_code(config):
     if proces_std_dev := config.get(CONF_PROCESS_STD_DEV):
         cg.add(var.set_process_std_dev(proces_std_dev))
 
+    if config[CONF_TYPE] in (CONF_KALMAN, CONF_LINEAR):
+        cg.add(var.set_source_count(len(config[CONF_SOURCES])))
+
     for source_conf in config[CONF_SOURCES]:
         source = await cg.get_variable(source_conf[CONF_SOURCE])
         if config[CONF_TYPE] == CONF_KALMAN:

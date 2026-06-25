@@ -8,8 +8,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace atc_mithermometer {
+namespace esphome::atc_mithermometer {
 
 struct ParseResult {
   optional<float> temperature;
@@ -19,7 +18,7 @@ struct ParseResult {
   int raw_offset;
 };
 
-class ATCMiThermometer : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class ATCMiThermometer final : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; };
 
@@ -44,7 +43,6 @@ class ATCMiThermometer : public Component, public esp32_ble_tracker::ESPBTDevice
   bool report_results_(const optional<ParseResult> &result, const char *address);
 };
 
-}  // namespace atc_mithermometer
-}  // namespace esphome
+}  // namespace esphome::atc_mithermometer
 
 #endif

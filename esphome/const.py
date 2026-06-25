@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2026.3.0-dev"
+__version__ = "2026.7.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -13,6 +13,14 @@ VALID_SUBSTITUTIONS_CHARACTERS = (
 
 # CLI Help Text Constants
 ARGUMENT_HELP_DEVICE = "Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses. Use 'OTA' for resolving from MQTT, DNS or mDNS and avoiding the interactive prompt."
+
+
+class Toolchain(StrEnum):
+    """Toolchain identifiers for ESPHome."""
+
+    PLATFORMIO = "platformio"
+    ESP_IDF = "esp-idf"
+    SDK_NRF = "sdk-nrf"
 
 
 class Platform(StrEnum):
@@ -192,6 +200,7 @@ CONF_BROKER = "broker"
 CONF_BSSID = "bssid"
 CONF_BUFFER_DURATION = "buffer_duration"
 CONF_BUFFER_SIZE = "buffer_size"
+CONF_BUILD_FLAGS = "build_flags"
 CONF_BUILD_PATH = "build_path"
 CONF_BUS_VOLTAGE = "bus_voltage"
 CONF_BUSY_PIN = "busy_pin"
@@ -274,6 +283,7 @@ CONF_CURRENT = "current"
 CONF_CURRENT_HUMIDITY_STATE_TOPIC = "current_humidity_state_topic"
 CONF_CURRENT_OPERATION = "current_operation"
 CONF_CURRENT_RESISTOR = "current_resistor"
+CONF_CURRENT_TEMPERATURE = "current_temperature"
 CONF_CURRENT_TEMPERATURE_STATE_TOPIC = "current_temperature_state_topic"
 CONF_CUSTOM = "custom"
 CONF_CUSTOM_FAN_MODE = "custom_fan_mode"
@@ -355,6 +365,7 @@ CONF_EFFECT = "effect"
 CONF_EFFECTS = "effects"
 CONF_ELSE = "else"
 CONF_ENABLE_BTM = "enable_btm"
+CONF_ENABLE_FULL_PRINTF = "enable_full_printf"
 CONF_ENABLE_IPV6 = "enable_ipv6"
 CONF_ENABLE_ON_BOOT = "enable_on_boot"
 CONF_ENABLE_OTA_ROLLBACK = "enable_ota_rollback"
@@ -1034,6 +1045,7 @@ CONF_TO = "to"
 CONF_TO_NTC_RESISTANCE = "to_ntc_resistance"
 CONF_TO_NTC_TEMPERATURE = "to_ntc_temperature"
 CONF_TOLERANCE = "tolerance"
+CONF_TOOLCHAIN = "toolchain"
 CONF_TOPIC = "topic"
 CONF_TOPIC_PREFIX = "topic_prefix"
 CONF_TOTAL = "total"
@@ -1230,9 +1242,11 @@ UNIT_KILOVOLT_AMPS_REACTIVE_HOURS = "kvarh"
 UNIT_KILOWATT = "kW"
 UNIT_KILOWATT_HOURS = "kWh"
 UNIT_LITRE = "L"
+UNIT_LITRE_PER_SECOND = "L/s"
 UNIT_LUX = "lx"
 UNIT_MEGAJOULE = "MJ"
 UNIT_METER = "m"
+UNIT_METER_PER_SECOND = "m/s"
 UNIT_METER_PER_SECOND_SQUARED = "m/s²"
 UNIT_MICROAMP = "µA"
 UNIT_MICROGRAMS_PER_CUBIC_METER = "µg/m³"
@@ -1242,6 +1256,7 @@ UNIT_MICROSILVERTS_PER_HOUR = "µSv/h"
 UNIT_MICROTESLA = "µT"
 UNIT_MILLIAMP = "mA"
 UNIT_MILLIGRAMS_PER_CUBIC_METER = "mg/m³"
+UNIT_MILLILITRE = "mL"
 UNIT_MILLIMETER = "mm"
 UNIT_MILLISECOND = "ms"
 UNIT_MILLISIEMENS_PER_CENTIMETER = "mS/cm"
@@ -1253,6 +1268,7 @@ UNIT_PARTS_PER_MILLION = "ppm"
 UNIT_PASCAL = "Pa"
 UNIT_PERCENT = "%"
 UNIT_PH = "pH"
+UNIT_POUND = "lb"
 UNIT_PULSES = "pulses"
 UNIT_PULSES_PER_MINUTE = "pulses/min"
 UNIT_REVOLUTIONS_PER_MINUTE = "RPM"
@@ -1353,6 +1369,7 @@ DEVICE_CLASS_TEMPERATURE = "temperature"
 DEVICE_CLASS_TEMPERATURE_DELTA = "temperature_delta"
 DEVICE_CLASS_TIMESTAMP = "timestamp"
 DEVICE_CLASS_UPDATE = "update"
+DEVICE_CLASS_UPTIME = "uptime"
 DEVICE_CLASS_VIBRATION = "vibration"
 DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS = "volatile_organic_compounds"
 DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS = "volatile_organic_compounds_parts"
@@ -1388,7 +1405,6 @@ KEY_FRAMEWORK_VERSION = "framework_version"
 KEY_NAME = "name"
 KEY_VARIANT = "variant"
 KEY_PAST_SAFE_MODE = "past_safe_mode"
-KEY_NATIVE_IDF = "native_idf"
 
 # Entity categories
 ENTITY_CATEGORY_NONE = ""
@@ -1402,3 +1418,12 @@ ENTITY_CATEGORY_DIAGNOSTIC = "diagnostic"
 # The corresponding constant exists in c++
 # when update_interval is set to never, it becomes SCHEDULER_DONT_RUN milliseconds
 SCHEDULER_DONT_RUN = 4294967295
+
+# Sentinel values written by the esphome-device-builder dashboard into
+# secrets.yaml on first boot so that !secret wifi_ssid / !secret wifi_password
+# references resolve cleanly through validation before the user has finished
+# the onboarding wizard. Compilation refuses if these reach the binary so that
+# a user who dismisses onboarding can't accidentally flash a device that will
+# never associate with their wifi.
+PLACEHOLDER_WIFI_SSID = "REPLACE_WITH_YOUR_WIFI_NETWORK"
+PLACEHOLDER_WIFI_PASSWORD = "REPLACE_WITH_YOUR_WIFI_PASSWORD"  # noqa: S105

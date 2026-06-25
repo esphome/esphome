@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace senseair {
+namespace esphome::senseair {
 
 static const char *const TAG = "senseair";
 static const uint8_t SENSEAIR_REQUEST_LENGTH = 8;
@@ -147,8 +146,6 @@ bool SenseAirComponent::senseair_write_command_(const uint8_t *command, uint8_t 
 void SenseAirComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SenseAir:");
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
-  this->check_uart_settings(9600);
 }
 
-}  // namespace senseair
-}  // namespace esphome
+}  // namespace esphome::senseair

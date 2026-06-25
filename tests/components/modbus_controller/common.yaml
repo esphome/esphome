@@ -1,53 +1,11 @@
-modbus:
-  - id: mod_bus2
-    uart_id: uart_bus
-    role: server
-
 modbus_controller:
   - id: modbus_controller1
     address: 0x2
     modbus_id: modbus_bus
-    allow_duplicate_commands: false
     on_online:
       then:
         logger.log: "Module Online"
-  - id: modbus_controller2
-    address: 0x2
-    modbus_id: mod_bus2
-    server_registers:
-      - address: 0x0000
-        value_type: S_DWORD_R
-        read_lambda: |-
-          return 42.3;
-    max_cmd_retries: 0
-  - id: modbus_controller3
-    address: 0x3
-    modbus_id: mod_bus2
-    server_registers:
-      - address: 0x0009
-        value_type: S_DWORD
-        read_lambda: |-
-          return 31;
-        write_lambda: |-
-          printf("address=%d, value=%d", x);
-          return true;
-    max_cmd_retries: 0
-  - id: modbus_controller4
-    modbus_id: mod_bus2
-    address: 0x4
-    server_courtesy_response:
-      enabled: true
-      register_last_address: 100
-      register_value: 0
-    server_registers:
-      - address: 0x0001
-        value_type: U_WORD
-        read_lambda: |-
-          return 0x8;
-      - address: 0x0005
-        value_type: U_WORD
-        read_lambda: |-
-          return (random_uint32() % 100);
+
 binary_sensor:
   - platform: modbus_controller
     modbus_controller_id: modbus_controller1

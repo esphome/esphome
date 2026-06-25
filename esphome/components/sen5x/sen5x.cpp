@@ -5,8 +5,7 @@
 #include "esphome/core/log.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace sen5x {
+namespace esphome::sen5x {
 
 static const char *const TAG = "sen5x";
 
@@ -423,5 +422,4 @@ bool SEN5XComponent::start_fan_cleaning() {
   return true;
 }
 
-}  // namespace sen5x
-}  // namespace esphome
+}  // namespace esphome::sen5x

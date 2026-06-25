@@ -53,7 +53,9 @@ def templatize(value):
 
 def register_action(name, type_, schema):
     validator = templatize(schema).extend(MIDEA_ACTION_BASE_SCHEMA)
-    registerer = automation.register_action(f"midea_ac.{name}", type_, validator)
+    registerer = automation.register_action(
+        f"midea_ac.{name}", type_, validator, synchronous=True
+    )
 
     def decorator(func):
         async def new_func(config, action_id, template_arg, args):
@@ -256,6 +258,11 @@ async def power_off_to_code(var, config, args):
 )
 async def power_inv_to_code(var, config, args):
     pass
+
+
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "midea", baud_rate=9600, require_rx=True, require_tx=True
+)
 
 
 async def to_code(config):

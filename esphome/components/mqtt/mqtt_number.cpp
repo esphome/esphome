@@ -57,10 +57,6 @@ void MQTTNumberComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
     root[MQTT_MODE] =
         NumberMqttModeStrings::get_progmem_str(static_cast<uint8_t>(mode), static_cast<uint8_t>(NUMBER_MODE_BOX));
   }
-  const auto device_class = this->number_->get_device_class_ref();
-  if (!device_class.empty()) {
-    root[MQTT_DEVICE_CLASS] = device_class;
-  }
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
   config.command_topic = true;

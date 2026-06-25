@@ -6,8 +6,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace ufire_ec {
+namespace esphome::ufire_ec {
 
 static const uint8_t CONFIG_TEMP_COMPENSATION = 0x02;
 
@@ -44,7 +43,7 @@ class UFireECComponent : public PollingComponent, public i2c::I2CDevice {
  protected:
   float measure_temperature_();
   float measure_ms_();
-  void set_solution_(float solution, float temperature);
+  bool set_solution_(float solution, float temperature);
   void set_compensation_(float temperature);
   void set_coefficient_(float coefficient);
   void set_temperature_(float temperature);
@@ -83,5 +82,4 @@ template<typename... Ts> class UFireECResetAction : public Action<Ts...> {
   UFireECComponent *parent_;
 };
 
-}  // namespace ufire_ec
-}  // namespace esphome
+}  // namespace esphome::ufire_ec

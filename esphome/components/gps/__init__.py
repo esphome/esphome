@@ -34,7 +34,7 @@ AUTO_LOAD = ["sensor"]
 CODEOWNERS = ["@coogle", "@ximex"]
 
 gps_ns = cg.esphome_ns.namespace("gps")
-GPS = gps_ns.class_("GPS", cg.Component, uart.UARTDevice)
+GPS = gps_ns.class_("GPS", cg.PollingComponent, uart.UARTDevice)
 GPSListener = gps_ns.class_("GPSListener")
 
 MULTI_CONF = True

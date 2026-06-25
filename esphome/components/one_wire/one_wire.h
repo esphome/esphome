@@ -4,8 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace one_wire {
+namespace esphome::one_wire {
 
 #define LOG_ONE_WIRE_DEVICE(this) \
   ESP_LOGCONFIG(TAG, "  Address: %s (%s)", this->get_address_name().c_str(), \
@@ -15,7 +14,7 @@ class OneWireDevice {
  public:
   /// @brief store the address of the device
   /// @param address of the device
-  void set_address(uint64_t address) { this->address_ = address; }
+  void set_address(uint64_t address);
 
   void set_index(uint8_t index) { this->index_ = index; }
 
@@ -43,5 +42,4 @@ class OneWireDevice {
   bool send_command_(uint8_t cmd);
 };
 
-}  // namespace one_wire
-}  // namespace esphome
+}  // namespace esphome::one_wire

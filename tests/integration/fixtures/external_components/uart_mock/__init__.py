@@ -43,6 +43,7 @@ CONF_INJECT_RX = "inject_rx"
 CONF_EXPECT_TX = "expect_tx"
 CONF_PERIODIC_RX = "periodic_rx"
 CONF_ON_TX = "on_tx"
+CONF_AUTO_START = "auto_start"
 
 UART_PARITY_OPTIONS = {
     "NONE": uart.UARTParityOptions.UART_CONFIG_PARITY_NONE,
@@ -61,6 +62,7 @@ CONFIG_INJECT_RX_SCHEMA = cv.maybe_simple_value(
     {
         cv.GenerateID(): cv.use_id(MockUartComponent),
         cv.Required("data"): cv.templatable(validate_raw_data),
+        cv.Optional(CONF_DELAY): cv.positive_time_period_milliseconds,
     },
     key=CONF_DATA,
 )
@@ -70,6 +72,7 @@ RESPONSE_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_EXPECT_TX): [cv.hex_uint8_t],
         cv.Required(CONF_INJECT_RX): [cv.hex_uint8_t],
+        cv.Optional(CONF_DELAY, default="0ms"): cv.positive_time_period_milliseconds,
     }
 )
 
@@ -85,7 +88,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(MockUartComponent),
         cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
         cv.Optional(CONF_RX_BUFFER_SIZE, default=256): cv.validate_bytes,
-        cv.Optional(CONF_RX_FULL_THRESHOLD, default=10): cv.int_range(min=1, max=120),
+        cv.Optional(CONF_RX_FULL_THRESHOLD): cv.int_range(min=1, max=120),
         cv.Optional(CONF_RX_TIMEOUT, default=2): cv.int_range(min=0, max=92),
         cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
         cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
@@ -95,6 +98,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_INJECTIONS, default=[]): cv.ensure_list(INJECTION_SCHEMA),
         cv.Optional(CONF_RESPONSES, default=[]): cv.ensure_list(RESPONSE_SCHEMA),
         cv.Optional(CONF_PERIODIC_RX, default=[]): cv.ensure_list(PERIODIC_RX_SCHEMA),
+        cv.Optional(CONF_AUTO_START, default=True): cv.boolean,
         cv.Optional(CONF_ON_TX): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MockUartTXTrigger),
@@ -123,6 +127,8 @@ async def inject_rx_to_code(config, action_id, template_arg, args):
         arr_id = ID(f"{action_id}_data", is_declaration=True, type=cg.uint8)
         arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data))
         cg.add(var.set_data_static(arr, len(data)))
+    if CONF_DELAY in config:
+        cg.add(var.set_delay(config[CONF_DELAY]))
     return var
 
 
@@ -132,11 +138,15 @@ async def to_code(config):
 
     cg.add(var.set_baud_rate(config[CONF_BAUD_RATE]))
     cg.add(var.set_rx_buffer_size(config[CONF_RX_BUFFER_SIZE]))
-    cg.add(var.set_rx_full_threshold(config[CONF_RX_FULL_THRESHOLD]))
+    if CONF_RX_FULL_THRESHOLD in config:
+        cg.add(var.set_rx_full_threshold(config[CONF_RX_FULL_THRESHOLD]))
     cg.add(var.set_rx_timeout(config[CONF_RX_TIMEOUT]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
     cg.add(var.set_parity(config[CONF_PARITY]))
+
+    if not config[CONF_AUTO_START]:
+        cg.add(var.set_auto_start(False))
 
     for injection in config[CONF_INJECTIONS]:
         rx_data = injection[CONF_INJECT_RX]
@@ -146,7 +156,8 @@ async def to_code(config):
     for response in config[CONF_RESPONSES]:
         tx_data = response[CONF_EXPECT_TX]
         rx_data = response[CONF_INJECT_RX]
-        cg.add(var.add_response(tx_data, rx_data))
+        delay_ms = response[CONF_DELAY]
+        cg.add(var.add_response(tx_data, rx_data, delay_ms))
 
     for periodic in config[CONF_PERIODIC_RX]:
         data = periodic[CONF_DATA]

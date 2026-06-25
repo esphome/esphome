@@ -5,7 +5,19 @@
 
 #include <string>
 
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32)
+#include <esp_idf_version.h>
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+// mbedtls 4.0 (IDF 6.0) removed the legacy mbedtls_md HMAC API.
+// Use the PSA Crypto MAC API instead.
+#define USE_HMAC_SHA256_PSA
+#include <psa/crypto.h>
+#else
+#define USE_HMAC_SHA256_MBEDTLS
+#include "mbedtls/md.h"
+#endif
+#elif defined(USE_LIBRETINY)
+#define USE_HMAC_SHA256_MBEDTLS
 #include "mbedtls/md.h"
 #else
 #include "esphome/components/sha256/sha256.h"
@@ -45,7 +57,12 @@ class HmacSHA256 {
   bool equals_hex(const char *expected);
 
  protected:
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_HMAC_SHA256_PSA)
+  static constexpr size_t SHA256_DIGEST_SIZE = 32;
+  psa_mac_operation_t op_ = PSA_MAC_OPERATION_INIT;
+  mbedtls_svc_key_id_t key_id_ = MBEDTLS_SVC_KEY_ID_INIT;
+  uint8_t digest_[SHA256_DIGEST_SIZE]{};
+#elif defined(USE_HMAC_SHA256_MBEDTLS)
   static constexpr size_t SHA256_DIGEST_SIZE = 32;
   mbedtls_md_context_t ctx_{};
   uint8_t digest_[SHA256_DIGEST_SIZE]{};

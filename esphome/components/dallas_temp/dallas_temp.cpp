@@ -1,8 +1,7 @@
 #include "dallas_temp.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace dallas_temp {
+namespace esphome::dallas_temp {
 
 static const char *const TAG = "dallas.temp.sensor";
 
@@ -136,6 +135,9 @@ bool DallasTemperatureSensor::check_scratch_pad_() {
 float DallasTemperatureSensor::get_temp_c_() {
   int16_t temp = (this->scratch_pad_[1] << 8) | this->scratch_pad_[0];
   if ((this->address_ & 0xff) == DALLAS_MODEL_DS18S20) {
+    if (this->scratch_pad_[7] == 0) {
+      return NAN;
+    }
     return (temp >> 1) + (this->scratch_pad_[7] - this->scratch_pad_[6]) / float(this->scratch_pad_[7]) - 0.25;
   }
   switch (this->resolution_) {
@@ -156,5 +158,4 @@ float DallasTemperatureSensor::get_temp_c_() {
   return temp / 16.0f;
 }
 
-}  // namespace dallas_temp
-}  // namespace esphome
+}  // namespace esphome::dallas_temp
