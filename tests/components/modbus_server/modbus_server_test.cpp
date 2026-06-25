@@ -121,4 +121,109 @@ TEST(ModbusServerWrite, CallbackFailureIsServiceDeviceFailure) {
   EXPECT_TRUE(first_written);  // pre-validation passed, so the first write applied before the failure
 }
 
+// --- on_modbus_read_registers --------------------------------------------------
+
+TEST(ModbusServerRead, SingleWordSucceeds) {
+  ModbusServer server;
+  ServerRegister reg(0x0000, SensorValueType::U_WORD, 1);
+  reg.read_lambda = []() -> int64_t { return 0x1234; };
+  server.add_server_register(&reg);
+
+  RegisterValues out;
+  auto status = server.on_modbus_read_registers(0x0000, 1, out);
+  EXPECT_FALSE(status.has_value());
+  ASSERT_EQ(out.size(), 1u);
+  EXPECT_EQ(out[0], 0x1234);
+}
+
+TEST(ModbusServerRead, DwordReturnsTwoWordsHighFirst) {
+  ModbusServer server;
+  ServerRegister reg(0x0000, SensorValueType::U_DWORD, 2);
+  reg.read_lambda = []() -> int64_t { return 0x12345678; };
+  server.add_server_register(&reg);
+
+  RegisterValues out;
+  auto status = server.on_modbus_read_registers(0x0000, 2, out);
+  EXPECT_FALSE(status.has_value());
+  ASSERT_EQ(out.size(), 2u);
+  EXPECT_EQ(out[0], 0x1234);
+  EXPECT_EQ(out[1], 0x5678);
+}
+
+// Starting inside a multi-register value is rejected with ILLEGAL_DATA_ADDRESS -- not masked by the courtesy
+// default -- and the read_lambda is never invoked.
+TEST(ModbusServerRead, StartInsideValueRejected) {
+  ModbusServer server;
+  bool read_called = false;
+  ServerRegister reg(0x0010, SensorValueType::U_DWORD, 2);  // occupies 0x0010 and 0x0011
+  reg.read_lambda = [&read_called]() -> int64_t {
+    read_called = true;
+    return 0;
+  };
+  server.set_server_courtesy_response(
+      ServerCourtesyResponse{.enabled = true, .register_last_address = 0xFFFF, .register_value = 0xABCD});
+  server.add_server_register(&reg);
+
+  RegisterValues out;
+  auto status = server.on_modbus_read_registers(0x0011, 1, out);  // the second cell of the DWORD
+  ASSERT_TRUE(status.has_value());
+  EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+  EXPECT_FALSE(read_called);
+}
+
+// A read that stops short of a value's end clips it -> ILLEGAL_DATA_ADDRESS, and the read_lambda is not invoked.
+TEST(ModbusServerRead, ClippedTailRejected) {
+  ModbusServer server;
+  bool read_called = false;
+  ServerRegister reg(0x0000, SensorValueType::U_DWORD, 2);
+  reg.read_lambda = [&read_called]() -> int64_t {
+    read_called = true;
+    return 0;
+  };
+  server.add_server_register(&reg);
+
+  RegisterValues out;
+  auto status = server.on_modbus_read_registers(0x0000, 1, out);  // only 1 of the DWORD's 2 registers
+  ASSERT_TRUE(status.has_value());
+  EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+  EXPECT_FALSE(read_called);
+}
+
+// A write-only register (no read_lambda) is not readable -> ILLEGAL_DATA_ADDRESS, not a courtesy default.
+TEST(ModbusServerRead, WriteOnlyRegisterRejected) {
+  ModbusServer server;
+  ServerRegister reg(0x0000, SensorValueType::U_WORD, 1);  // no read_lambda set
+  server.set_server_courtesy_response(
+      ServerCourtesyResponse{.enabled = true, .register_last_address = 0xFFFF, .register_value = 0xABCD});
+  server.add_server_register(&reg);
+
+  RegisterValues out;
+  auto status = server.on_modbus_read_registers(0x0000, 1, out);
+  ASSERT_TRUE(status.has_value());
+  EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+}
+
+// An unregistered address with courtesy enabled returns the default value for each cell.
+TEST(ModbusServerRead, CourtesyDefaultForUnregistered) {
+  ModbusServer server;
+  server.set_server_courtesy_response(
+      ServerCourtesyResponse{.enabled = true, .register_last_address = 0xFFFF, .register_value = 0xABCD});
+
+  RegisterValues out;
+  auto status = server.on_modbus_read_registers(0x0005, 2, out);
+  EXPECT_FALSE(status.has_value());
+  ASSERT_EQ(out.size(), 2u);
+  EXPECT_EQ(out[0], 0xABCD);
+  EXPECT_EQ(out[1], 0xABCD);
+}
+
+// An unregistered address with courtesy disabled is rejected.
+TEST(ModbusServerRead, UnregisteredRejectedWithoutCourtesy) {
+  ModbusServer server;
+  RegisterValues out;
+  auto status = server.on_modbus_read_registers(0x0005, 1, out);
+  ASSERT_TRUE(status.has_value());
+  EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+}
+
 }  // namespace esphome::modbus_server

@@ -111,6 +111,8 @@ class ModbusServer : public Component, public modbus::ModbusServerDevice {
   ServerCourtesyResponse get_server_courtesy_response() const { return this->server_courtesy_response_; }
 
  protected:
+  /// Find the registered value whose register span contains address, or nullptr if none does.
+  ServerRegister *find_containing_register_(uint32_t address) const;
   /// Collection of all server registers for this component
   std::vector<ServerRegister *> server_registers_{};
   /// Server courtesy response

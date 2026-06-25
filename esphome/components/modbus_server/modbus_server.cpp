@@ -8,6 +8,16 @@ using modbus::helpers::registers_to_number;
 
 static const char *const TAG = "modbus_server";
 
+ServerRegister *ModbusServer::find_containing_register_(uint32_t address) const {
+  for (auto *server_register : this->server_registers_) {
+    if (address >= server_register->address &&
+        address < static_cast<uint32_t>(server_register->address) + server_register->register_count) {
+      return server_register;
+    }
+  }
+  return nullptr;
+}
+
 modbus::ServerResponseStatus ModbusServer::on_modbus_read_registers(uint16_t start_address,
                                                                     uint16_t number_of_registers,
                                                                     modbus::RegisterValues &registers) {
@@ -15,42 +25,50 @@ modbus::ServerResponseStatus ModbusServer::on_modbus_read_registers(uint16_t sta
            "Received read holding/input registers for device 0x%X. Start address: 0x%X. Number of registers: 0x%X.",
            this->address_, start_address, number_of_registers);
 
-  for (uint16_t current_address = start_address; current_address < start_address + number_of_registers;) {
-    bool found = false;
-    for (auto *server_register : this->server_registers_) {
-      if (server_register->address == current_address) {
-        if (!server_register->read_lambda) {
-          break;
-        }
-        int64_t value = server_register->read_lambda();
-        char value_buf[ServerRegister::FORMAT_VALUE_BUF_SIZE];
-        ESP_LOGV(TAG, "Matched register. Address: 0x%02X. Value type: %zu. Register count: %u. Value: %s.",
-                 server_register->address, static_cast<size_t>(server_register->value_type),
-                 server_register->register_count, server_register->format_value(value, value_buf, sizeof(value_buf)));
+  const uint32_t end_address = static_cast<uint32_t>(start_address) + number_of_registers;
+  uint32_t current_address = start_address;
+  while (current_address < end_address) {
+    ServerRegister *server_register = this->find_containing_register_(current_address);
 
-        modbus::helpers::number_to_payload(registers, value, server_register->value_type);
-        current_address += server_register->register_count;
-        found = true;
-        break;
-      }
-    }
-
-    if (!found) {
+    if (server_register == nullptr) {
+      // Unregistered address: optionally answer with the courtesy default, otherwise reject.
       if (this->server_courtesy_response_.enabled &&
-          (current_address <= this->server_courtesy_response_.register_last_address)) {
-        ESP_LOGV(TAG,
-                 "Could not match any register to address 0x%02X, but default allowed. "
-                 "Returning default value: %" PRIu16 ".",
-                 current_address, this->server_courtesy_response_.register_value);
+          current_address <= this->server_courtesy_response_.register_last_address) {
+        ESP_LOGV(TAG, "No register at 0x%04X; returning courtesy default %" PRIu16 ".",
+                 static_cast<uint16_t>(current_address), this->server_courtesy_response_.register_value);
         registers.push_back(this->server_courtesy_response_.register_value);
-        current_address += 1;  // Just increment by 1, as the default response is a single register
-      } else {
-        ESP_LOGW(TAG,
-                 "Could not match any register to address 0x%02X and default not allowed. Sending exception response.",
-                 current_address);
-        return ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;
+        current_address += 1;  // the courtesy default is always a single register
+        continue;
       }
+      ESP_LOGW(TAG, "No register at 0x%04X and courtesy default not allowed. Sending exception response.",
+               static_cast<uint16_t>(current_address));
+      return ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;
     }
+
+    if (!server_register->read_lambda) {
+      // Registered but not readable (write-only); don't mask it with the courtesy default.
+      ESP_LOGW(TAG, "Register at 0x%04X is not readable. Sending exception response.", server_register->address);
+      return ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;
+    }
+
+    // A multi-register value is atomic: the request must start at the value's first register and cover all of
+    // it. Starting inside the value, or stopping short of its end, clips it and is rejected.
+    const bool clipped =
+        current_address != server_register->address ||
+        static_cast<uint32_t>(server_register->address) + server_register->register_count > end_address;
+    if (clipped) {
+      ESP_LOGW(TAG, "Read clips the multi-register value at 0x%04X. Sending exception response.",
+               server_register->address);
+      return ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;
+    }
+
+    int64_t value = server_register->read_lambda();
+    char value_buf[ServerRegister::FORMAT_VALUE_BUF_SIZE];
+    ESP_LOGV(TAG, "Matched register. Address: 0x%02X. Value type: %zu. Register count: %u. Value: %s.",
+             server_register->address, static_cast<size_t>(server_register->value_type),
+             server_register->register_count, server_register->format_value(value, value_buf, sizeof(value_buf)));
+    modbus::helpers::number_to_payload(registers, value, server_register->value_type);
+    current_address += server_register->register_count;
   }
 
   return {};
