@@ -1070,89 +1070,46 @@ async def pioneer_wyt_action(var, config, args):
         cg.add(var.set_code(template_))
     else:
         type_ = config.get(CONF_TYPE, PioneerWytDataType.PIONEER_WYT_TYPE_BOTH)
+        power = config.get(CONF_POWER, True)
+        mode = config.get(CONF_MODE, PIONEER_WYT_MODES["COOL"])
+        target_temperature = config.get(CONF_TARGET_TEMPERATURE, 24.0)
+        beeper = config.get(CONF_BEEPER, True)
+        display = config.get(CONF_DISPLAY, True)
+        eco = config.get(CONF_ECO, False)
+        turbo = config.get(CONF_TURBO, False)
+        sleep = config.get(CONF_SLEEP, False)
+        follow_me = config.get(CONF_FOLLOW_ME, False)
+        remote_temp = config.get(CONF_REMOTE_TEMP, 0)
+        fan_speed = config.get(CONF_FAN_SPEED, PIONEER_WYT_FAN_SPEEDS["AUTO"])
+        mute = config.get(CONF_MUTE, False)
+        vertical_swing = config.get(CONF_VERTICAL_SWING, False)
+        horizontal_swing = config.get(CONF_HORIZONTAL_SWING, False)
+
         cg.add(var.set_type(await cg.templatable(type_, args, PioneerWytDataType)))
-        cg.add(
-            var.set_power(
-                await cg.templatable(config.get(CONF_POWER, True), args, cg.bool_)
-            )
-        )
-        cg.add(
-            var.set_mode(
-                await cg.templatable(
-                    config.get(CONF_MODE, PIONEER_WYT_MODES["COOL"]),
-                    args,
-                    PioneerWytMode,
-                )
-            )
-        )
+        cg.add(var.set_power(await cg.templatable(power, args, cg.bool_)))
+        cg.add(var.set_mode(await cg.templatable(mode, args, PioneerWytMode)))
         cg.add(
             var.set_target_temperature(
-                await cg.templatable(
-                    config.get(CONF_TARGET_TEMPERATURE, 24.0), args, cg.float_
-                )
+                await cg.templatable(target_temperature, args, cg.float_)
             )
         )
+        cg.add(var.set_beeper(await cg.templatable(beeper, args, cg.bool_)))
+        cg.add(var.set_display(await cg.templatable(display, args, cg.bool_)))
+        cg.add(var.set_eco(await cg.templatable(eco, args, cg.bool_)))
+        cg.add(var.set_turbo(await cg.templatable(turbo, args, cg.bool_)))
+        cg.add(var.set_sleep(await cg.templatable(sleep, args, cg.bool_)))
+        cg.add(var.set_follow_me(await cg.templatable(follow_me, args, cg.bool_)))
+        cg.add(var.set_remote_temp(await cg.templatable(remote_temp, args, cg.uint8)))
         cg.add(
-            var.set_beeper(
-                await cg.templatable(config.get(CONF_BEEPER, True), args, cg.bool_)
-            )
+            var.set_fan_speed(await cg.templatable(fan_speed, args, PioneerWytFanSpeed))
         )
+        cg.add(var.set_mute(await cg.templatable(mute, args, cg.bool_)))
         cg.add(
-            var.set_display(
-                await cg.templatable(config.get(CONF_DISPLAY, True), args, cg.bool_)
-            )
-        )
-        cg.add(
-            var.set_eco(
-                await cg.templatable(config.get(CONF_ECO, False), args, cg.bool_)
-            )
-        )
-        cg.add(
-            var.set_turbo(
-                await cg.templatable(config.get(CONF_TURBO, False), args, cg.bool_)
-            )
-        )
-        cg.add(
-            var.set_sleep(
-                await cg.templatable(config.get(CONF_SLEEP, False), args, cg.bool_)
-            )
-        )
-        cg.add(
-            var.set_follow_me(
-                await cg.templatable(config.get(CONF_FOLLOW_ME, False), args, cg.bool_)
-            )
-        )
-        cg.add(
-            var.set_remote_temp(
-                await cg.templatable(config.get(CONF_REMOTE_TEMP, 0), args, cg.uint8)
-            )
-        )
-        cg.add(
-            var.set_fan_speed(
-                await cg.templatable(
-                    config.get(CONF_FAN_SPEED, PIONEER_WYT_FAN_SPEEDS["AUTO"]),
-                    args,
-                    PioneerWytFanSpeed,
-                )
-            )
-        )
-        cg.add(
-            var.set_mute(
-                await cg.templatable(config.get(CONF_MUTE, False), args, cg.bool_)
-            )
-        )
-        cg.add(
-            var.set_vertical_swing(
-                await cg.templatable(
-                    config.get(CONF_VERTICAL_SWING, False), args, cg.bool_
-                )
-            )
+            var.set_vertical_swing(await cg.templatable(vertical_swing, args, cg.bool_))
         )
         cg.add(
             var.set_horizontal_swing(
-                await cg.templatable(
-                    config.get(CONF_HORIZONTAL_SWING, False), args, cg.bool_
-                )
+                await cg.templatable(horizontal_swing, args, cg.bool_)
             )
         )
 
