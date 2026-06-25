@@ -2893,6 +2893,11 @@ bool VoiceAssistantAudio::decode_length(uint32_t field_id, ProtoLengthDelimited 
       this->data_len = value.size();
       break;
     }
+    case 3: {
+      this->data2 = value.data();
+      this->data2_len = value.size();
+      break;
+    }
     default:
       return false;
   }
@@ -2902,12 +2907,14 @@ uint8_t *VoiceAssistantAudio::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG
   uint8_t *__restrict__ pos = buffer.get_pos();
   ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 1, this->data, this->data_len);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 2, this->end);
+  ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 3, this->data2, this->data2_len);
   return pos;
 }
 uint32_t VoiceAssistantAudio::calculate_size() const {
   uint32_t size = 0;
   size += ProtoSize::calc_length(1, this->data_len);
   size += ProtoSize::calc_bool(1, this->end);
+  size += ProtoSize::calc_length(1, this->data2_len);
   return size;
 }
 bool VoiceAssistantTimerEventResponse::decode_varint(uint32_t field_id, proto_varint_value_t value) {

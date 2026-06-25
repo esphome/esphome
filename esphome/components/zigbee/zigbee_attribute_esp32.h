@@ -27,7 +27,7 @@ enum ZigbeeReportT {
   ZIGBEE_REPORT_FORCE,
 };
 
-class ZigbeeAttribute : public Component {
+class ZigbeeAttribute final : public Component {
  public:
   ZigbeeAttribute(ZigbeeComponent *parent, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
                   uint8_t attr_type, float scale, uint8_t max_size)
@@ -37,8 +37,8 @@ class ZigbeeAttribute : public Component {
         role_(role),
         attr_id_(attr_id),
         attr_type_(attr_type),
-        scale_(scale),
-        max_size_(max_size) {}
+        max_size_(max_size),
+        scale_(scale) {}
   void loop() override;
   template<typename T> void add_attr(T value);
   esp_zb_zcl_reporting_info_t get_reporting_info();

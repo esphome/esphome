@@ -133,7 +133,7 @@ CONFIG_SCHEMA = cv.All(
                 host=8082,
             ): cv.port,
             cv.Optional(CONF_ALLOW_PARTITION_ACCESS, default=False): cv.boolean,
-            cv.Optional(CONF_PASSWORD): cv.string,
+            cv.Optional(CONF_PASSWORD): cv.sensitive(),
             cv.Optional(CONF_NUM_ATTEMPTS): cv.invalid(
                 f"'{CONF_SAFE_MODE}' (and its related configuration variables) has moved from 'ota' to its own component. See https://esphome.io/components/safe_mode"
             ),

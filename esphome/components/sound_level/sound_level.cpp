@@ -11,7 +11,7 @@ namespace esphome::sound_level {
 
 static const char *const TAG = "sound_level";
 
-static const uint32_t AUDIO_BUFFER_DURATION_MS = 30;
+static const uint32_t MAX_FILL_DURATION_MS = 30;
 static const uint32_t RING_BUFFER_DURATION_MS = 120;
 
 // Square INT16_MIN since INT16_MIN^2 > INT16_MAX^2
@@ -30,8 +30,7 @@ void SoundLevelComponent::dump_config() {
 void SoundLevelComponent::setup() {
   this->microphone_source_->add_data_callback([this](const std::vector<uint8_t> &data) {
     std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
-    if (this->ring_buffer_.use_count() == 2) {
-      // ``audio_buffer_`` and ``temp_ring_buffer`` share ownership of a ring buffer, so its safe/useful to write
+    if (temp_ring_buffer != nullptr) {
       temp_ring_buffer->write((void *) data.data(), data.size());
     }
   });
@@ -81,10 +80,11 @@ void SoundLevelComponent::loop() {
     return;
   }
 
-  // Copy data from ring buffer into the transfer buffer - don't block to avoid slowing the main loop
-  this->audio_buffer_->transfer_data_from_source(0);
+  // Expose a chunk of the ring buffer's internal storage - don't block to avoid slowing the main loop.
+  // pre_shift is ignored by RingBufferAudioSource (no intermediate transfer buffer to compact).
+  this->audio_source_->fill(0, false);
 
-  if (this->audio_buffer_->available() == 0) {
+  if (this->audio_source_->available() == 0) {
     // No new audio available for processing
     return;
   }
@@ -92,11 +92,11 @@ void SoundLevelComponent::loop() {
   const uint32_t samples_in_window =
       this->microphone_source_->get_audio_stream_info().ms_to_samples(this->measurement_duration_ms_);
   const uint32_t samples_available_to_process =
-      this->microphone_source_->get_audio_stream_info().bytes_to_samples(this->audio_buffer_->available());
+      this->microphone_source_->get_audio_stream_info().bytes_to_samples(this->audio_source_->available());
   const uint32_t samples_to_process = std::min(samples_in_window - this->sample_count_, samples_available_to_process);
 
   // MicrophoneSource always provides int16 samples due to Python codegen settings
-  const int16_t *audio_data = reinterpret_cast<const int16_t *>(this->audio_buffer_->get_buffer_start());
+  const int16_t *audio_data = reinterpret_cast<const int16_t *>(this->audio_source_->data());
 
   // Process all the new audio samples
   for (uint32_t i = 0; i < samples_to_process; ++i) {
@@ -115,9 +115,8 @@ void SoundLevelComponent::loop() {
     ++this->sample_count_;
   }
 
-  // Remove the processed samples from ``audio_buffer_``
-  this->audio_buffer_->decrease_buffer_length(
-      this->microphone_source_->get_audio_stream_info().samples_to_bytes(samples_to_process));
+  // Remove the processed samples from ``audio_source_``
+  this->audio_source_->consume(this->microphone_source_->get_audio_stream_info().samples_to_bytes(samples_to_process));
 
   if (this->sample_count_ == samples_in_window) {
     // Processed enough samples for the measurement window, compute and publish the sensor values
@@ -158,36 +157,39 @@ void SoundLevelComponent::stop() {
 }
 
 bool SoundLevelComponent::start_() {
-  if (this->audio_buffer_ != nullptr) {
+  if (this->audio_source_ != nullptr) {
     return true;
   }
 
-  // Allocate a transfer buffer
-  this->audio_buffer_ = audio::AudioSourceTransferBuffer::create(
-      this->microphone_source_->get_audio_stream_info().ms_to_bytes(AUDIO_BUFFER_DURATION_MS));
-  if (this->audio_buffer_ == nullptr) {
-    this->status_momentary_error("transfer_buffer", 15000);
+  const auto &stream_info = this->microphone_source_->get_audio_stream_info();
+  const size_t bytes_per_frame = stream_info.frames_to_bytes(1);
+
+  // Allocate a ring buffer for the microphone callback to write into. Round the size down to a multiple
+  // of bytes_per_frame so the wrap boundary stays frame-aligned and avoids unnecessary single-frame splices.
+  this->ring_buffer_.reset();  // Reset pointer to any previous ring buffer allocation
+  const size_t ring_buffer_size =
+      (stream_info.ms_to_bytes(RING_BUFFER_DURATION_MS) / bytes_per_frame) * bytes_per_frame;
+  std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(ring_buffer_size);
+  if (temp_ring_buffer == nullptr) {
+    this->status_momentary_error("ring_buffer", 15000);
     return false;
   }
 
-  // Allocates a new ring buffer, adds it as a source for the transfer buffer, and points ring_buffer_ to it
-  this->ring_buffer_.reset();  // Reset pointer to any previous ring buffer allocation
-  std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(
-      this->microphone_source_->get_audio_stream_info().ms_to_bytes(RING_BUFFER_DURATION_MS));
-  if (temp_ring_buffer.use_count() == 0) {
-    this->status_momentary_error("ring_buffer", 15000);
-    this->stop_();
+  // Zero-copy source that reads directly from the ring buffer's internal storage. Frame-aligned reads
+  // ensure multi-channel frames are never split across the ring buffer's wrap boundary.
+  this->audio_source_ = audio::RingBufferAudioSource::create(
+      temp_ring_buffer, stream_info.ms_to_bytes(MAX_FILL_DURATION_MS), static_cast<uint8_t>(bytes_per_frame));
+  if (this->audio_source_ == nullptr) {
+    this->status_momentary_error("audio_source", 15000);
     return false;
-  } else {
-    this->ring_buffer_ = temp_ring_buffer;
-    this->audio_buffer_->set_source(temp_ring_buffer);
   }
+  this->ring_buffer_ = temp_ring_buffer;
 
   this->status_clear_error();
   return true;
 }
 
-void SoundLevelComponent::stop_() { this->audio_buffer_.reset(); }
+void SoundLevelComponent::stop_() { this->audio_source_.reset(); }
 
 }  // namespace esphome::sound_level
 

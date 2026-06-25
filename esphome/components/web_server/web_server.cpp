@@ -164,36 +164,9 @@ EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
   }
 #endif
 
-  // Try matching by entity name (new format)
+  // Match by entity name
   if (this->id == entity->get_name()) {
     result.matched = true;
-    return result;
-  }
-
-  // Fall back to object_id (deprecated format)
-  char object_id_buf[OBJECT_ID_MAX_LEN];
-  StringRef object_id = entity->get_object_id_to(object_id_buf);
-  if (this->id == object_id) {
-    result.matched = true;
-    // Log deprecation warning
-#ifdef USE_DEVICES
-    Device *device = entity->get_device();
-    if (device != nullptr) {
-      ESP_LOGW(TAG,
-               "Deprecated URL format: /%.*s/%.*s/%.*s - use entity name '/%.*s/%s/%s' instead. "
-               "Object ID URLs will be removed in 2026.7.0.",
-               (int) this->domain.size(), this->domain.c_str(), (int) this->device_name.size(),
-               this->device_name.c_str(), (int) this->id.size(), this->id.c_str(), (int) this->domain.size(),
-               this->domain.c_str(), device->get_name(), entity->get_name().c_str());
-    } else
-#endif
-    {
-      ESP_LOGW(TAG,
-               "Deprecated URL format: /%.*s/%.*s - use entity name '/%.*s/%s' instead. "
-               "Object ID URLs will be removed in 2026.7.0.",
-               (int) this->domain.size(), this->domain.c_str(), (int) this->id.size(), this->id.c_str(),
-               (int) this->domain.size(), this->domain.c_str(), entity->get_name().c_str());
-    }
   }
 
   return result;
@@ -611,7 +584,7 @@ static void set_json_icon_state_value(JsonObject &root, EntityBase *obj, const c
 }
 
 // Helper to get request detail parameter
-static JsonDetail get_request_detail(AsyncWebServerRequest *request) {
+[[maybe_unused]] static JsonDetail get_request_detail(AsyncWebServerRequest *request) {
   return request->arg(ESPHOME_F("detail")) == "all" ? DETAIL_ALL : DETAIL_STATE;
 }
 
@@ -2638,9 +2611,9 @@ bool WebServer::isRequestHandlerTrivial() const { return false; }
 
 void WebServer::add_sorting_info_(JsonObject &root, EntityBase *entity) {
 #ifdef USE_WEBSERVER_SORTING
-  if (this->sorting_entitys_.find(entity) != this->sorting_entitys_.end()) {
+  if (this->sorting_entitys_.contains(entity)) {
     root[ESPHOME_F("sorting_weight")] = this->sorting_entitys_[entity].weight;
-    if (this->sorting_groups_.find(this->sorting_entitys_[entity].group_id) != this->sorting_groups_.end()) {
+    if (this->sorting_groups_.contains(this->sorting_entitys_[entity].group_id)) {
       root[ESPHOME_F("sorting_group")] = this->sorting_groups_[this->sorting_entitys_[entity].group_id].name;
     }
   }

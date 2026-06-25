@@ -1,11 +1,8 @@
-i2s_audio:
-  i2s_lrclk_pin: ${i2s_bclk_pin}
-  i2s_bclk_pin: ${i2s_lrclk_pin}
-
 microphone:
   - platform: i2s_audio
     id: i2s_microphone
-    i2s_din_pin: ${i2s_dout_pin}
+    i2s_audio_id: i2s_audio_bus
+    i2s_din_pin: ${i2s_din_pin}
     adc_type: external
     bits_per_sample: 16bit
 

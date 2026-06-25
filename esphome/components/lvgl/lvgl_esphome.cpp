@@ -572,7 +572,7 @@ void LvButtonMatrixType::set_obj(lv_obj_t *lv_obj) {
         auto key_idx = lv_buttonmatrix_get_selected_button(self->obj);
         if (key_idx == LV_BUTTONMATRIX_BUTTON_NONE)
           return;
-        if (self->key_map_.count(key_idx) != 0) {
+        if (self->key_map_.contains(key_idx)) {
           self->send_key_(self->key_map_[key_idx]);
           return;
         }
