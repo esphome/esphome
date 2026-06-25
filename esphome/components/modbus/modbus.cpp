@@ -373,8 +373,8 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
         }
 
         response_buffer[response_len++] = static_cast<uint8_t>(number_of_registers * 2);  // actual byte count
-        for (size_t i = 0; i < registers.size(); i++) {
-          auto register_bytes = decode_value(registers[i]);
+        for (auto r : registers) {
+          auto register_bytes = decode_value(r);
           response_buffer[response_len++] = register_bytes[0];
           response_buffer[response_len++] = register_bytes[1];
         }

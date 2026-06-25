@@ -72,7 +72,8 @@ TEST(ModbusServerWrite, UnderSuppliedValueAppliesNothing) {
   // Two words supplied: one for the WORD at 0x0000, but only one of the two the DWORD at 0x0001 needs.
   auto status = server.on_modbus_write_registers(0x0000, make_registers({0x1111, 0x2222}));
   ASSERT_TRUE(status.has_value());
-  EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_VALUE);
+  if (status.has_value())
+    EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_VALUE);
   EXPECT_FALSE(word_written);  // the writable WORD must NOT have been applied
   EXPECT_FALSE(dword_written);
 }
@@ -85,7 +86,8 @@ TEST(ModbusServerWrite, UnwritableRegisterRejected) {
 
   auto status = server.on_modbus_write_registers(0x0000, make_registers({0x1234}));
   ASSERT_TRUE(status.has_value());
-  EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+  if (status.has_value())
+    EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
 }
 
 // An address with no registered register yields ILLEGAL_DATA_ADDRESS.
@@ -93,7 +95,8 @@ TEST(ModbusServerWrite, UnmatchedAddressRejected) {
   ModbusServer server;
   auto status = server.on_modbus_write_registers(0x0005, make_registers({0x1234}));
   ASSERT_TRUE(status.has_value());
-  EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+  if (status.has_value())
+    EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
 }
 
 // A write_lambda failing at runtime is the one non-atomic case: the earlier register is already
@@ -113,7 +116,8 @@ TEST(ModbusServerWrite, CallbackFailureIsServiceDeviceFailure) {
 
   auto status = server.on_modbus_write_registers(0x0000, make_registers({0xAAAA, 0xBBBB}));
   ASSERT_TRUE(status.has_value());
-  EXPECT_EQ(status.value(), ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
+  if (status.has_value())
+    EXPECT_EQ(status.value(), ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
   EXPECT_TRUE(first_written);  // pre-validation passed, so the first write applied before the failure
 }
 
