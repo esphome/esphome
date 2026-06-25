@@ -13,14 +13,18 @@ from esphome.components.esp32 import (
     VARIANT_ESP32C6,
     VARIANT_ESP32C61,
     VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
     get_esp32_variant,
 )
 from esphome.components.esp32.gpio_esp32_c5 import esp32_c5_validate_lp_i2c
 from esphome.components.esp32.gpio_esp32_c6 import esp32_c6_validate_lp_i2c
 from esphome.components.esp32.gpio_esp32_p4 import esp32_p4_validate_lp_i2c
+from esphome.components.esp32.gpio_esp32_s31 import esp32_s31_validate_lp_i2c
 from esphome.components.zephyr import (
     zephyr_add_overlay,
     zephyr_add_prj_conf,
@@ -72,14 +76,18 @@ ESP32_I2C_CAPABILITIES = {
     VARIANT_ESP32C6: {"NUM": 2, "HP": 1, "LP": 1},
     VARIANT_ESP32C61: {"NUM": 1, "HP": 1},
     VARIANT_ESP32H2: {"NUM": 2, "HP": 2},
+    VARIANT_ESP32H4: {"NUM": 2, "HP": 2},
+    VARIANT_ESP32H21: {"NUM": 2, "HP": 2},
     VARIANT_ESP32P4: {"NUM": 3, "HP": 2, "LP": 1},
     VARIANT_ESP32S2: {"NUM": 2, "HP": 2},
     VARIANT_ESP32S3: {"NUM": 2, "HP": 2},
+    VARIANT_ESP32S31: {"NUM": 3, "HP": 2, "LP": 1},
 }
 VALIDATE_LP_I2C = {
     VARIANT_ESP32C5: esp32_c5_validate_lp_i2c,
     VARIANT_ESP32C6: esp32_c6_validate_lp_i2c,
     VARIANT_ESP32P4: esp32_p4_validate_lp_i2c,
+    VARIANT_ESP32S31: esp32_s31_validate_lp_i2c,
 }
 LP_I2C_VARIANT = list(VALIDATE_LP_I2C.keys())
 
