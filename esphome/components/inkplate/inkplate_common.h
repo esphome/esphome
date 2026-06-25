@@ -1,12 +1,15 @@
 #pragma once
 
 #include <stdint.h>
+
+#ifdef USE_ESP32
 #include "soc/gpio_struct.h"
 
 // I2S signal indices for the ESP32 GPIO matrix (ESP32 only, I2S1).
 #ifndef I2S1O_BCK_OUT_IDX
 #include "soc/gpio_sig_map.h"
 #endif
+#endif  // USE_ESP32
 
 namespace esphome::inkplate {
 
@@ -29,6 +32,7 @@ static constexpr uint8_t INK_GPIO_CKV = 32;
 static constexpr uint8_t INK_GPIO_SPH = 33;
 static constexpr uint8_t INK_GPIO_LE = 2;
 
+#ifdef USE_ESP32
 // Direct GPIO register macros for timing-critical vscan / send operations.
 // CKV and SPH are in the GPIO1 bank (GPIOs 32-39); LE is in GPIO0 bank.
 #define INK_CKV_SET() \
@@ -55,6 +59,7 @@ static constexpr uint8_t INK_GPIO_LE = 2;
   do { \
     GPIO.out_w1tc = (1u << INK_GPIO_LE); \
   } while (0)
+#endif  // USE_ESP32
 
 // TPS65186 power-good bitmask (all rails OK).
 static constexpr uint8_t TPS_PWR_GOOD_OK = 0b11111010;

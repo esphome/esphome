@@ -2,13 +2,13 @@ esp32:
   cpu_frequency: 240MHz
 
 pca6416a:
-  - id: pca6416a_hub
+  - id: inkplate_pca6416a
     i2c_id: i2c_bus
     address: 0x20
 
 display:
   - platform: inkplate
     model: inkplate6v2
-    pca6416a_id: pca6416a_hub
+    pca6416a_id: inkplate_pca6416a
     id: inkplate_display
     update_interval: 60s
