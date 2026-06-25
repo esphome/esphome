@@ -10,7 +10,7 @@
 
 namespace esphome::inkplate {
 
-static const char *TAG = "inkplate";
+static const char *const TAG = "inkplate";
 
 // ---------------------------------------------------------------------------
 // Setup
@@ -112,17 +112,19 @@ void InkplateParallelBase::draw_absolute_pixel_internal(int x, int y, Color colo
     // 3-bit grayscale: pass Color(0,0,0)–Color(7,7,7) for levels 0–7.
     uint8_t v = color.r & 0x07u;
     uint32_t byte_pos = (uint32_t) y * (this->width_ / 2) + (x / 2);
-    if (x & 1)
+    if (x & 1) {
       this->d_memory_4bit_[byte_pos] = (this->d_memory_4bit_[byte_pos] & 0xF0u) | v;
-    else
+    } else {
       this->d_memory_4bit_[byte_pos] = (this->d_memory_4bit_[byte_pos] & 0x0Fu) | (uint8_t) (v << 4u);
+    }
   } else {
     uint32_t byte_pos = (uint32_t) y * (this->width_ / 8) + (x / 8);
     uint8_t bit_mask = 1u << (x % 8);
-    if (color.is_on())
+    if (color.is_on()) {
       this->buffer_[byte_pos] |= bit_mask;
-    else
+    } else {
       this->buffer_[byte_pos] &= ~bit_mask;
+    }
   }
 }
 
@@ -468,11 +470,12 @@ void InkplateParallelBase::i2s_pin_route_() {
     GPIO.func_out_sel_cfg[pin].func_sel = func;
     GPIO.func_out_sel_cfg[pin].inv_sel = 0;
     GPIO.func_out_sel_cfg[pin].oen_sel = 0;
-    if (pin < 32)
+    if (pin < 32) {
       GPIO.enable_w1ts = (1u << pin);
-    else
+    } else {
       GPIO.enable1_w1ts.data = (1u << (pin - 32));
-    REG_WRITE(mux_reg, (3u << FUN_DRV_S) | (2u << MCU_SEL_S));
+    }
+    REG_WRITE(mux_reg, (3u << FUN_DRV_S) | (2u << MCU_SEL_S));  // NOLINT(clang-analyzer-core.FixedAddressDereference)
   };
 
   route(0, I2S1O_BCK_OUT_IDX, IO_MUX_GPIO0_REG);  // CL (clock)
@@ -842,14 +845,15 @@ bool InkplateParallelBase::do_board_transfer_step() {
       vscan_start_();
       for (int i = 0; i < this->height_; i++) {
         for (int j = 0; j < this->width_ / 4; j += 4) {
-          this->dma_line_buf_[j + 2] =
-              (uint8_t) (this->glut2_[this->trf_k_ * 256 + *(--dp)] | this->glut_[this->trf_k_ * 256 + *(--dp)]);
-          this->dma_line_buf_[j + 3] =
-              (uint8_t) (this->glut2_[this->trf_k_ * 256 + *(--dp)] | this->glut_[this->trf_k_ * 256 + *(--dp)]);
-          this->dma_line_buf_[j] =
-              (uint8_t) (this->glut2_[this->trf_k_ * 256 + *(--dp)] | this->glut_[this->trf_k_ * 256 + *(--dp)]);
-          this->dma_line_buf_[j + 1] =
-              (uint8_t) (this->glut2_[this->trf_k_ * 256 + *(--dp)] | this->glut_[this->trf_k_ * 256 + *(--dp)]);
+          uint8_t pix_hi, pix_lo;
+          pix_hi = *(--dp); pix_lo = *(--dp);
+          this->dma_line_buf_[j + 2] = (uint8_t) (this->glut2_[this->trf_k_ * 256 + pix_hi] | this->glut_[this->trf_k_ * 256 + pix_lo]);
+          pix_hi = *(--dp); pix_lo = *(--dp);
+          this->dma_line_buf_[j + 3] = (uint8_t) (this->glut2_[this->trf_k_ * 256 + pix_hi] | this->glut_[this->trf_k_ * 256 + pix_lo]);
+          pix_hi = *(--dp); pix_lo = *(--dp);
+          this->dma_line_buf_[j] = (uint8_t) (this->glut2_[this->trf_k_ * 256 + pix_hi] | this->glut_[this->trf_k_ * 256 + pix_lo]);
+          pix_hi = *(--dp); pix_lo = *(--dp);
+          this->dma_line_buf_[j + 1] = (uint8_t) (this->glut2_[this->trf_k_ * 256 + pix_hi] | this->glut_[this->trf_k_ * 256 + pix_lo]);
         }
         send_line_i2s_();
         vscan_end_();

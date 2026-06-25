@@ -7,7 +7,7 @@
 
 namespace esphome::inkplate {
 
-static const char *TAG = "inkplate10";
+static const char *const TAG = "inkplate10";
 
 const Inkplate10::CleanStep Inkplate10::CLEAN_SEQ_1B[8] = {
     {0, 1}, {1, 10}, {2, 1}, {0, 10}, {2, 1}, {1, 10}, {2, 1}, {0, 10},

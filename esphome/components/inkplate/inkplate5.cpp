@@ -7,7 +7,7 @@
 
 namespace esphome::inkplate {
 
-static const char *TAG = "inkplate5v2";
+static const char *const TAG = "inkplate5v2";
 
 const Inkplate5::CleanStep Inkplate5::CLEAN_SEQ[8] = {
     {0, 1}, {1, 11}, {2, 1}, {0, 11}, {2, 1}, {1, 11}, {2, 1}, {0, 11},
@@ -77,7 +77,7 @@ const Inkplate5V1::CleanStep Inkplate5V1::CLEAN_SEQ_V1[9] = {
 };
 
 void Inkplate5V1::setup() {
-  InkplateParallelBase::setup();
+  InkplateParallelBase::setup();  // NOLINT(bugprone-parent-virtual-call)
 
   this->glut_ = new uint8_t[256 * this->grayscale_phases_];
   this->glut2_ = new uint8_t[256 * this->grayscale_phases_];

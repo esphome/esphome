@@ -7,7 +7,7 @@
 
 namespace esphome::inkplate {
 
-static const char *TAG = "inkplate6";
+static const char *const TAG = "inkplate6";
 
 // Clean sequence for display1b(): 9 steps, 77 total vscan passes.
 // Source: Inkplate6Driver.cpp EPDDriver::display1b()
@@ -49,7 +49,7 @@ void Inkplate6::dump_config() {
 }
 
 void Inkplate6V1::setup() {
-  InkplateParallelBase::setup();
+  InkplateParallelBase::setup();  // NOLINT(bugprone-parent-virtual-call)
 
   this->glut_ = new uint8_t[256 * this->grayscale_phases_];
   this->glut2_ = new uint8_t[256 * this->grayscale_phases_];

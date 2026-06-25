@@ -7,7 +7,7 @@
 
 namespace esphome::inkplate {
 
-static const char *TAG = "inkplate6plus";
+static const char *const TAG = "inkplate6plus";
 
 // Source: Inkplate6PLUSDriver.cpp EPDDriver::display1b() / display3b() — same 6-step sequence for both.
 const Inkplate6PLUS::CleanStep Inkplate6PLUS::CLEAN_SEQ[6] = {
