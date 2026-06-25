@@ -45,6 +45,9 @@ class OpenThreadComponent final : public Component {
   network::IPAddresses get_ip_addresses();
   std::optional<otIp6Address> get_omr_address();
   void ot_main();
+#ifdef USE_OPENTHREAD_GRACEFUL_DETACH_ON_SHUTDOWN
+  static void detach_callback(void *context);
+#endif
   void on_factory_reset(std::function<void()> callback);
   void defer_factory_reset_external_callback();
 
