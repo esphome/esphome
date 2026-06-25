@@ -53,7 +53,9 @@ ModbusServerRegisterSchema = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ServerRegister),
         cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
-        cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(SERVER_SENSOR_VALUE_TYPE),
+        cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(
+            SERVER_SENSOR_VALUE_TYPE
+        ),
         cv.Required(CONF_READ_LAMBDA): cv.returning_lambda,
         cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
         cv.Optional(CONF_ALLOW_PARTIAL_READ, default=False): cv.boolean,
