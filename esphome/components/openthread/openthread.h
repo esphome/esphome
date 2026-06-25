@@ -43,6 +43,7 @@ class OpenThreadComponent final : public Component {
   void set_use_address(const char *use_address) { this->use_address_ = use_address; }
 #if CONFIG_OPENTHREAD_MTD
   void set_poll_period(uint32_t poll_period) { this->poll_period_ = poll_period; }
+  uint32_t get_poll_period() const { return this->poll_period_; }
 #endif
   void set_output_power(int8_t output_power) { this->output_power_ = output_power; }
   void set_connected(bool connected) { this->connected_ = connected; }
