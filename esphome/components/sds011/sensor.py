@@ -62,9 +62,23 @@ CONFIG_SCHEMA = cv.All(
     validate_sds011_rx_mode,
 )
 
-FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    "sds011", baud_rate=9600, require_rx=True, data_bits=8, parity="NONE", stop_bits=1
-)
+
+def _final_validate(config):
+    # In the default mode setup() writes config commands, so tx is required;
+    # rx_only mode never writes, so tx is optional.
+    uart.final_validate_device_schema(
+        "sds011",
+        baud_rate=9600,
+        require_rx=True,
+        require_tx=not config.get(CONF_RX_ONLY, False),
+        data_bits=8,
+        parity="NONE",
+        stop_bits=1,
+    )(config)
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):
