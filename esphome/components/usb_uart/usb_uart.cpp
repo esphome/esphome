@@ -538,6 +538,7 @@ void USBUartComponent::apply_channel_settings(USBUartChannel *channel) {
     // the one-control-transfer-at-a-time guarantee (restarting mid-flight would let an
     // in-flight callback complete against fresh state). The pending slot coalesces multiple
     // requests; the channel's live settings are read when the reload eventually runs.
+    // Note: multiple channel reloads are not queued; only one pending reload is supported at a time.
     this->cfg_pending_reload_ = channel;
     return;
   }
