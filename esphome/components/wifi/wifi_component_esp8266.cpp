@@ -218,9 +218,18 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
     return {};
   network::IPAddresses addresses;
   uint8_t index = 0;
+  // addrList enumerates all lwIP netifs, including the SoftAP / fallback hotspot. Filter out
+  // the AP address so the STA address is reported as the device IP (see issue #17181).
+  struct ip_info ap_ip {};
+  wifi_get_ip_info(SOFTAP_IF, &ap_ip);
+  network::IPAddress ap_address(&ap_ip.ip);
+  bool filter_ap = ap_address.is_set();
   for (auto &addr : addrList) {
+    network::IPAddress ip(addr.ipFromNetifNum());
+    if (filter_ap && ip == ap_address)
+      continue;
     assert(index < addresses.size());
-    addresses[index++] = addr.ipFromNetifNum();
+    addresses[index++] = ip;
   }
   return addresses;
 }

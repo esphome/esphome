@@ -216,7 +216,7 @@ template<typename... Ts> class ParallelScript : public Script<Ts...> {
 
 template<class S, typename... Ts> class ScriptExecuteAction;
 
-template<class... As, typename... Ts> class ScriptExecuteAction<Script<As...>, Ts...> : public Action<Ts...> {
+template<class... As, typename... Ts> class ScriptExecuteAction<Script<As...>, Ts...> final : public Action<Ts...> {
  public:
   ScriptExecuteAction(Script<As...> *script) : script_(script) {}
 
@@ -254,7 +254,7 @@ template<class... As, typename... Ts> class ScriptExecuteAction<Script<As...>, T
   Args args_;
 };
 
-template<class C, typename... Ts> class ScriptStopAction : public Action<Ts...> {
+template<class C, typename... Ts> class ScriptStopAction final : public Action<Ts...> {
  public:
   ScriptStopAction(C *script) : script_(script) {}
 
@@ -264,7 +264,7 @@ template<class C, typename... Ts> class ScriptStopAction : public Action<Ts...> 
   C *script_;
 };
 
-template<class C, typename... Ts> class IsRunningCondition : public Condition<Ts...> {
+template<class C, typename... Ts> class IsRunningCondition final : public Condition<Ts...> {
  public:
   explicit IsRunningCondition(C *parent) : parent_(parent) {}
 
@@ -281,7 +281,7 @@ template<class C, typename... Ts> class IsRunningCondition : public Condition<Ts
  * (e.g., rapid button presses, high-frequency sensor updates), so we use
  * queue-based storage for correctness.
  */
-template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>, public Component {
+template<class C, typename... Ts> class ScriptWaitAction final : public Action<Ts...>, public Component {
  public:
   ScriptWaitAction(C *script) : script_(script) {}
 

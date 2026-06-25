@@ -65,6 +65,19 @@ from esphome.framework_helpers import _tar_extract_all, get_python_env_executabl
             "https://github.com/espressif/esp-idf.git@v6.0.1",
             ("https://github.com/espressif/esp-idf.git", "v6.0.1"),
         ),
+        # '#' ref separator (PlatformIO/git-web convention) works on both forms
+        (
+            "https://github.com/espressif/esp-idf.git#release/v6.1",
+            ("https://github.com/espressif/esp-idf.git", "release/v6.1"),
+        ),
+        (
+            "github://espressif/esp-idf#release/v6.1",
+            ("https://github.com/espressif/esp-idf.git", "release/v6.1"),
+        ),
+        (
+            "github://espressif/esp-idf.git#master",
+            ("https://github.com/espressif/esp-idf.git", "master"),
+        ),
         # Tolerate a trailing ".git" on the shorthand so the user doesn't
         # silently end up with a doubled "...esp-idf.git.git" URL.
         (
