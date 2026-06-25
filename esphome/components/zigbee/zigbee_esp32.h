@@ -35,7 +35,7 @@ uint8_t *get_zcl_string(const char *str, uint8_t max_size, bool use_max_size = f
 
 class ZigbeeAttribute;
 
-class ZigbeeComponent : public Component {
+class ZigbeeComponent final : public Component {
  public:
   void setup() override;
   void loop() override;
