@@ -4,7 +4,7 @@
 #include "esphome/core/component.h"
 
 namespace esphome::network {
-class NetworkComponent : public Component {
+class NetworkComponent final : public Component {
  public:
   void setup() override;
   // AFTER_BLUETOOTH: BLE controller must initialize before esp_netif_init per IDF guidance.
