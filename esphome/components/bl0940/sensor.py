@@ -211,6 +211,10 @@ CONFIG_SCHEMA = (
     .add_extra(set_reference_values)
 )
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "bl0940", baud_rate=4800, stop_bits=1, require_rx=True, require_tx=True
+)
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])

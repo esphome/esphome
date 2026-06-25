@@ -62,6 +62,10 @@ CONFIG_SCHEMA = cv.All(
     validate_sds011_rx_mode,
 )
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "sds011", baud_rate=9600, require_rx=True
+)
+
 
 async def to_code(config):
     # Pop update_interval before register_component so it doesn't generate
