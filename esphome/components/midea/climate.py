@@ -260,6 +260,11 @@ async def power_inv_to_code(var, config, args):
     pass
 
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "midea", baud_rate=9600, require_rx=True, require_tx=True
+)
+
+
 async def to_code(config):
     var = await climate.new_climate(config)
     await cg.register_component(var, config)

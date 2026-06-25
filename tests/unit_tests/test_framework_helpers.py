@@ -526,7 +526,7 @@ class TestDownloadFromMirrors:
     def test_success_returns_url_and_writes_content(self, tmp_path: Path) -> None:
         target = tmp_path / "out.bin"
         with patch(
-            "esphome.framework_helpers.requests.get",
+            "requests.get",
             return_value=_mock_response(b"filedata"),
         ):
             url = download_from_mirrors(["https://example.com/f"], {}, target)
@@ -535,7 +535,7 @@ class TestDownloadFromMirrors:
 
     def test_substitutions_applied_to_url(self, tmp_path: Path) -> None:
         with patch(
-            "esphome.framework_helpers.requests.get",
+            "requests.get",
             return_value=_mock_response(b"x"),
         ) as mock_get:
             download_from_mirrors(
@@ -547,7 +547,7 @@ class TestDownloadFromMirrors:
 
     def test_falls_back_to_second_mirror(self, tmp_path: Path) -> None:
         with patch(
-            "esphome.framework_helpers.requests.get",
+            "requests.get",
             side_effect=[_mock_response(b"", ok=False), _mock_response(b"second")],
         ):
             url = download_from_mirrors(
@@ -561,7 +561,7 @@ class TestDownloadFromMirrors:
     def test_all_mirrors_fail_reraises_last_exception(self, tmp_path: Path) -> None:
         with (
             patch(
-                "esphome.framework_helpers.requests.get",
+                "requests.get",
                 return_value=_mock_response(b"", ok=False),
             ),
             pytest.raises(req.HTTPError),
@@ -579,7 +579,7 @@ class TestDownloadFromMirrors:
     def test_file_like_target_written(self) -> None:
         buf = io.BytesIO()
         with patch(
-            "esphome.framework_helpers.requests.get",
+            "requests.get",
             return_value=_mock_response(b"bytes"),
         ):
             download_from_mirrors(["https://example.com/f"], {}, buf)
@@ -590,7 +590,7 @@ class TestDownloadFromMirrors:
         r = _mock_response(b"1234567890")
         r.headers = {"content-length": "10"}
         with (
-            patch("esphome.framework_helpers.requests.get", return_value=r),
+            patch("requests.get", return_value=r),
             patch("esphome.framework_helpers.ProgressBar") as mock_pb,
         ):
             download_from_mirrors(["https://example.com/f"], {}, tmp_path / "out.bin")
@@ -606,10 +606,33 @@ class TestDownloadFromMirrors:
         r.headers = {"content-length": "0"}
         r.iter_content.return_value = [b""]  # one empty chunk
         target = tmp_path / "out.bin"
-        with patch("esphome.framework_helpers.requests.get", return_value=r):
+        with patch("requests.get", return_value=r):
             download_from_mirrors(["https://example.com/f"], {}, target)
         assert target.exists()
         assert target.read_bytes() == b""
+
+
+def test_importing_framework_helpers_does_not_import_requests() -> None:
+    """Importing framework_helpers must not drag in requests.
+
+    requests is a heavy import (~85ms) only needed by download_from_mirrors to
+    fetch toolchains during a build. framework_helpers is loaded during config
+    validation (esp-idf framework, host platform), so the import is deferred to
+    the function that uses it. A fresh interpreter is required because the test
+    process has already imported requests.
+    """
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys\nimport esphome.framework_helpers\n"
+            "print('\\n'.join(sys.modules))",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert "requests" not in result.stdout.split()
 
 
 # ---------------------------------------------------------------------------

@@ -17,6 +17,8 @@ from esphome.components.mipi import (
     MADCTL,
     MODE_BGR,
     MODE_RGB,
+    PAGESEL,
+    PAGESEL1,
     PIXFMT,
     DriverChip,
     dimension_schema,
@@ -276,14 +278,16 @@ def customise_schema(config):
     # Check for invalid combinations of MADCTL config
     if init_sequence := config.get(CONF_INIT_SEQUENCE):
         commands = [x[0] for x in init_sequence]
-        if MADCTL in commands and CONF_TRANSFORM in config:
-            raise cv.Invalid(
-                f"transform is not supported when MADCTL ({MADCTL:#X}) is in the init sequence"
-            )
-        if PIXFMT in commands:
-            raise cv.Invalid(
-                f"PIXFMT ({PIXFMT:#X}) should not be in the init sequence, it will be set automatically"
-            )
+        # If there is page swapping, we can't rely on recognising common commands
+        if PAGESEL not in commands and PAGESEL1 not in commands:
+            if MADCTL in commands and CONF_TRANSFORM in config:
+                raise cv.Invalid(
+                    f"transform is not supported when MADCTL ({MADCTL:#X}) is in the init sequence"
+                )
+            if PIXFMT in commands:
+                raise cv.Invalid(
+                    f"PIXFMT ({PIXFMT:#X}) should not be in the init sequence, it will be set automatically"
+                )
 
     if bus_mode == TYPE_QUAD and CONF_DC_PIN in config:
         raise cv.Invalid("DC pin is not supported in quad mode")
@@ -291,13 +295,7 @@ def customise_schema(config):
         raise cv.Invalid(f"DC pin is required in {bus_mode} mode")
     denominator(config)
     model = MODELS[config[CONF_MODEL]]
-    has_hardware_transform = config.get(
-        CONF_TRANSFORM
-    ) != CONF_DISABLED and model.transforms == {
-        CONF_MIRROR_X,
-        CONF_MIRROR_Y,
-        CONF_SWAP_XY,
-    }
+    has_hardware_transform = model.has_hardware_transform(config)
     width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
         model.get_dimensions(config, not has_hardware_transform)
     )
@@ -362,13 +360,7 @@ def get_instance(config):
     :return: type, template arguments
     """
     model = MODELS[config[CONF_MODEL]]
-    has_hardware_transform = config.get(
-        CONF_TRANSFORM
-    ) != CONF_DISABLED and model.transforms == {
-        CONF_MIRROR_X,
-        CONF_MIRROR_Y,
-        CONF_SWAP_XY,
-    }
+    has_hardware_transform = model.has_hardware_transform(config)
     width, height, offset_width, offset_height, pad_width, pad_height = (
         model.get_dimensions(config, not has_hardware_transform)
     )
