@@ -31,20 +31,12 @@ void PioneerWytProtocol::encode(RemoteTransmitData *dst, const PioneerWytData &d
   dst->mark(HEADER_MARK_US);
   dst->space(HEADER_SPACE_US);
   dst->mark(BIT_MARK_US);
-  uint8_t checksum = 0;
-  // Fan mode messages are built different (have an offset added to their checksum calculation)
-  if (data.type() == PIONEER_WYT_TYPE_FAN) {
-    checksum = 0x0F;
-  }
-  for (size_t i = 0; i < data.size() - 1; i++) {
-    uint8_t item = data[i];
-    this->encode_byte_(dst, item);
-    checksum += item;
+  for (size_t i = 0; i < data.size(); i++) {
+    this->encode_byte_(dst, data[i]);
   }
   char hex_buf[format_hex_pretty_size(WYT_REMOTE_COMMAND_SIZE)];
   format_hex_pretty_to(hex_buf, &data[0], data.size());
-  ESP_LOGI(TAG, "Transmit PioneerWyt: %s cs: %0X", hex_buf, checksum);
-  this->encode_byte_(dst, checksum);
+  ESP_LOGD(TAG, "Transmit PioneerWyt: %s cs: %02X", hex_buf, data[data.size() - 1]);
 }
 
 void PioneerWytProtocol::encode_byte_(RemoteTransmitData *dst, uint8_t item) {
