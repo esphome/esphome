@@ -10,6 +10,7 @@ from esphome.components.esp32 import (
     const,
     get_esp32_variant,
     only_on_variant,
+    request_wifi,
 )
 from esphome.components.network import (
     has_high_performance_networking,
@@ -75,14 +76,20 @@ _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["network"]
 
-NO_WIFI_VARIANTS = [const.VARIANT_ESP32H2, const.VARIANT_ESP32P4]
+NO_WIFI_VARIANTS = [
+    const.VARIANT_ESP32H2,
+    const.VARIANT_ESP32H4,
+    const.VARIANT_ESP32H21,
+    const.VARIANT_ESP32P4,
+]
 
 
 def variant_has_wifi(variant: str) -> bool:
     """Return True if *variant* has a native WiFi PHY.
 
-    Variants without a native PHY (ESP32-H2, ESP32-P4) need the
-    ``esp32_hosted`` co-processor to use ``wifi:``.
+    Variants without a native PHY (see ``NO_WIFI_VARIANTS`` — currently
+    ESP32-H2, ESP32-H4, ESP32-H21, ESP32-P4) need the ``esp32_hosted``
+    co-processor to use ``wifi:``.
 
     Case-insensitive on *variant* so external callers can pass either
     the upstream uppercase form (e.g. ``"ESP32H2"`` from
@@ -594,9 +601,11 @@ async def to_code(config):
         )
         cg.add(var.set_ap_timeout(conf[CONF_AP_TIMEOUT]))
         cg.add_define("USE_WIFI_AP")
-    elif CORE.is_esp32 and not CORE.using_arduino:
-        add_idf_sdkconfig_option("CONFIG_ESP_WIFI_SOFTAP_SUPPORT", False)
-        add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", False)
+
+    # ESP32: register the WiFi stack with the esp32 sdkconfig reconciler, which
+    # drops SoftAP support / the LWIP DHCP server when AP mode is unused.
+    if CORE.is_esp32:
+        request_wifi(ap=CONF_AP in config)
 
     # Disable Enterprise WiFi support if no EAP is configured
     if CORE.is_esp32:
@@ -761,6 +770,7 @@ async def wifi_disable_to_code(config, action_id, template_arg, args):
 
 KEEP_SCAN_RESULTS_KEY = "wifi_keep_scan_results"
 RUNTIME_POWER_SAVE_KEY = "wifi_runtime_power_save"
+RUNTIME_ROAMING_SUPPRESSION_KEY = "wifi_runtime_roaming_suppression"
 # Keys for listener counts
 IP_STATE_LISTENERS_KEY = "wifi_ip_state_listeners"
 SCAN_RESULTS_LISTENERS_KEY = "wifi_scan_results_listeners"
@@ -789,6 +799,19 @@ def enable_runtime_power_save_control():
     Only supported on ESP32.
     """
     CORE.data[RUNTIME_POWER_SAVE_KEY] = True
+
+
+def enable_runtime_roaming_suppression() -> None:
+    """Enable runtime suppression of post-connect roaming scans.
+
+    Components that are disrupted by the radio briefly going off-channel during a
+    roaming scan (e.g., audio playback) should call this function during their code
+    generation. This enables the request_roaming_suppression() and
+    release_roaming_suppression() APIs, which pause periodic roaming scans while active.
+
+    Only supported on ESP32.
+    """
+    CORE.data[RUNTIME_ROAMING_SUPPRESSION_KEY] = True
 
 
 def request_wifi_ip_state_listener() -> None:
@@ -824,6 +847,8 @@ async def final_step():
         )
     if CORE.data.get(RUNTIME_POWER_SAVE_KEY, False):
         cg.add_define("USE_WIFI_RUNTIME_POWER_SAVE")
+    if CORE.data.get(RUNTIME_ROAMING_SUPPRESSION_KEY, False):
+        cg.add_define("USE_WIFI_RUNTIME_ROAMING_SUPPRESSION")
 
     # Generate listener defines - each listener type has its own #ifdef
     ip_state_count = CORE.data.get(IP_STATE_LISTENERS_KEY, 0)
