@@ -4,6 +4,7 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components.modbus_server import (
+    SERVER_SENSOR_VALUE_TYPE,
     _validate_no_overlapping_registers,
     _validate_register_ranges,
 )
@@ -73,3 +74,11 @@ def test_multi_register_value_at_last_address_rejected() -> None:
     config = _config([(0xFFFF, "U_DWORD")])
     with pytest.raises(cv.Invalid, match="past the end"):
         _validate_register_ranges(config)
+
+
+def test_raw_value_type_rejected() -> None:
+    # RAW has no numeric encoding, so it is not offered as a server register type.
+    validator = cv.enum(SERVER_SENSOR_VALUE_TYPE)
+    with pytest.raises(cv.Invalid):
+        validator("RAW")
+    assert validator("U_WORD") == "U_WORD"

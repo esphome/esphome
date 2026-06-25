@@ -42,11 +42,18 @@ SERVER_COURTESY_RESPONSE_SCHEMA = cv.Schema(
     }
 )
 
+# RAW has no numeric encoding, so it is not a valid server register type: a server value is produced by a
+# lambda and encoded into registers, and on the server a RAW register would just be a single 16-bit word --
+# use U_WORD for that. Restrict the choices to the encodable types.
+SERVER_SENSOR_VALUE_TYPE = {
+    key: value for key, value in SENSOR_VALUE_TYPE.items() if key != "RAW"
+}
+
 ModbusServerRegisterSchema = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ServerRegister),
         cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
-        cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(SENSOR_VALUE_TYPE),
+        cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(SERVER_SENSOR_VALUE_TYPE),
         cv.Required(CONF_READ_LAMBDA): cv.returning_lambda,
         cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
         cv.Optional(CONF_ALLOW_PARTIAL_READ, default=False): cv.boolean,
