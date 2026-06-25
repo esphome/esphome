@@ -1,5 +1,6 @@
 #ifdef USE_HOST
 #include <gtest/gtest.h>
+#include <cstdlib>
 #include <filesystem>
 #include "esphome/components/host/preferences.h"
 #include "esphome/core/application.h"
