@@ -17,12 +17,12 @@ runs:
   steps:
     - name: Set up Python ${{ inputs.python-version }}
       id: python
-      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
       with:
         python-version: ${{ inputs.python-version }}
     - name: Restore Python virtual environment
       id: cache-venv
-      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      uses: actions/cache/restore@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
       with:
         path: venv
         # yamllint disable-line rule:line-length
@@ -32,7 +32,7 @@ runs:
       # detects the activated venv via ``VIRTUAL_ENV`` so the venv layout
       # downstream jobs rely on is preserved.
       if: steps.cache-venv.outputs.cache-hit != 'true'
-      uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
       with:
         enable-cache: true
         # Pin uv version so the action does not have to fetch the

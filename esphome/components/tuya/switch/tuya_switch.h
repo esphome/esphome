@@ -6,7 +6,7 @@
 
 namespace esphome::tuya {
 
-class TuyaSwitch : public switch_::Switch, public Component {
+class TuyaSwitch final : public switch_::Switch, public Component {
  public:
   void setup() override;
   void dump_config() override;
