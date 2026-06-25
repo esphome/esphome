@@ -80,9 +80,8 @@ def _inject_direct_pin_defaults(config):
 
 
 def _final_validate(config):
-    if CONF_LAMBDA in config or CONF_PAGES in config:
-        if CONF_UPDATE_INTERVAL not in config:
-            config[CONF_UPDATE_INTERVAL] = update_interval("1min")
+    if (CONF_LAMBDA in config or CONF_PAGES in config) and CONF_UPDATE_INTERVAL not in config:
+        config[CONF_UPDATE_INTERVAL] = update_interval("1min")
 
     model = MODELS.get(config.get(CONF_MODEL))
     if model is not None and model.min_update_interval_ms > 0:

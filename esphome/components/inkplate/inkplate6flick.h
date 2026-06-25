@@ -3,6 +3,8 @@
 #include "inkplate.h"
 #include "inkplate_common.h"
 
+#ifdef USE_ESP32
+
 namespace esphome::inkplate {
 
 static const uint8_t INKPLATE6FLICK_WAVEFORM3BIT[8][9] = {
@@ -33,3 +35,5 @@ class Inkplate6FLICK : public InkplateParallelBase {
 };
 
 }  // namespace esphome::inkplate
+
+#endif  // USE_ESP32

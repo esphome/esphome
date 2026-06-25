@@ -3,6 +3,8 @@
 #include "inkplate.h"
 #include "inkplate_common.h"
 
+#ifdef USE_ESP32
+
 namespace esphome::inkplate {
 
 static const uint8_t INKPLATE10_WAVEFORM3BIT[8][9] = {
@@ -26,7 +28,9 @@ class Inkplate10 : public InkplateParallelBase {
   static const CleanStep CLEAN_SEQ_3B[8];
   static constexpr size_t CLEAN_SEQ_LEN = 8;
 
-  uint8_t clean_data_byte_() const override;
+  uint8_t clean_data_byte() const override;
 };
 
 }  // namespace esphome::inkplate
+
+#endif  // USE_ESP32

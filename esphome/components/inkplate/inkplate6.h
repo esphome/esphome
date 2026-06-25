@@ -3,6 +3,8 @@
 #include "inkplate.h"
 #include "inkplate_common.h"
 
+#ifdef USE_ESP32
+
 namespace esphome::inkplate {
 
 static const uint8_t INKPLATE6_WAVEFORM3BIT[8][9] = {
@@ -51,3 +53,5 @@ class Inkplate6V1 : public Inkplate6 {
 };
 
 }  // namespace esphome::inkplate
+
+#endif  // USE_ESP32

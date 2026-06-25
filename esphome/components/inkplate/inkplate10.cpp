@@ -1,6 +1,8 @@
 #include "esphome/core/log.h"
 #include "inkplate10.h"
 
+#ifdef USE_ESP32
+
 #include "esp_rom_sys.h"
 
 namespace esphome::inkplate {
@@ -49,12 +51,12 @@ void Inkplate10::dump_config() {
 }
 
 // ---------------------------------------------------------------------------
-// clean_data_byte_ — selects sequence based on update path.
+// clean_data_byte — selects sequence based on update path.
 // CLEAN_SEQ_1B and CLEAN_SEQ_3B have identical .rep values; clean_seq_ is
 // set to CLEAN_SEQ_1B in the constructor for rep tracking. Only .c differs.
 // ---------------------------------------------------------------------------
 
-uint8_t Inkplate10::clean_data_byte_() const {
+uint8_t Inkplate10::clean_data_byte() const {
   const CleanStep *seq = (this->trf_after_clean_ == TRF_GRAYSCALE_SEND) ? CLEAN_SEQ_3B : CLEAN_SEQ_1B;
   switch (seq[this->trf_step_].c) {
     case 0:
@@ -71,3 +73,5 @@ uint8_t Inkplate10::clean_data_byte_() const {
 }
 
 }  // namespace esphome::inkplate
+
+#endif  // USE_ESP32

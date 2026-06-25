@@ -1,6 +1,8 @@
 #include "esphome/core/log.h"
 #include "inkplate6flick.h"
 
+#ifdef USE_ESP32
+
 #include "esp_rom_sys.h"
 
 namespace esphome::inkplate {
@@ -46,3 +48,5 @@ void Inkplate6FLICK::dump_config() {
 }
 
 }  // namespace esphome::inkplate
+
+#endif  // USE_ESP32

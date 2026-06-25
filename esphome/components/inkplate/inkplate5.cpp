@@ -1,6 +1,8 @@
 #include "esphome/core/log.h"
 #include "inkplate5.h"
 
+#ifdef USE_ESP32
+
 #include "esp_rom_sys.h"
 
 namespace esphome::inkplate {
@@ -45,14 +47,14 @@ void Inkplate5::dump_config() {
 }
 
 // ---------------------------------------------------------------------------
-// do_board_transfer_step_
+// do_board_transfer_step
 //
 // Only overrides TRF_PARTIAL_CLEAN_SKIP: Arduino Inkplate5 skips the 0xFF
 // vscan pass after the discharge passes — buffer sync only.
 // All other cases fall through to base.
 // ---------------------------------------------------------------------------
 
-bool Inkplate5::do_board_transfer_step_() {
+bool Inkplate5::do_board_transfer_step() {
   switch (this->trf_sub_) {
     case TRF_PARTIAL_CLEAN_SKIP:
       memcpy(this->d_memory_new_, this->buffer_, (size_t) this->width_ * this->height_ / 8);
@@ -60,7 +62,7 @@ bool Inkplate5::do_board_transfer_step_() {
       return false;
 
     default:
-      return InkplateParallelBase::do_board_transfer_step_();
+      return InkplateParallelBase::do_board_transfer_step();
   }
 }
 
@@ -104,3 +106,5 @@ void Inkplate5V1::dump_config() {
 }
 
 }  // namespace esphome::inkplate
+
+#endif  // USE_ESP32

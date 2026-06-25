@@ -1,6 +1,8 @@
 #include "esphome/core/log.h"
 #include "inkplate4.h"
 
+#ifdef USE_ESP32
+
 #include "esp_rom_sys.h"
 
 namespace esphome::inkplate {
@@ -46,7 +48,7 @@ void Inkplate4::dump_config() {
 }
 
 // ---------------------------------------------------------------------------
-// do_board_transfer_step_
+// do_board_transfer_step
 //
 // Overrides all standard cases because width=600 is not 16-pixel aligned:
 //   - TRF_DARK / TRF_LUT2 / TRF_PARTIAL_SEND / TRF_GRAYSCALE_SEND: inner loop
@@ -56,7 +58,7 @@ void Inkplate4::dump_config() {
 // TRF_PARTIAL_CLEAN_SKIP is standard — falls through to base.
 // ---------------------------------------------------------------------------
 
-bool Inkplate4::do_board_transfer_step_() {
+bool Inkplate4::do_board_transfer_step() {
   switch (this->trf_sub_) {
     case TRF_DARK: {
       const uint8_t *dmp = this->d_memory_new_ + (size_t) this->width_ * this->height_ / 8 - 1;
@@ -196,8 +198,10 @@ bool Inkplate4::do_board_transfer_step_() {
     }
 
     default:
-      return InkplateParallelBase::do_board_transfer_step_();
+      return InkplateParallelBase::do_board_transfer_step();
   }
 }
 
 }  // namespace esphome::inkplate
+
+#endif  // USE_ESP32

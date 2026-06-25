@@ -3,6 +3,8 @@
 #include "inkplate.h"
 #include "inkplate_common.h"
 
+#ifdef USE_ESP32
+
 #include "esp_rom_sys.h"
 #include "driver/gpio.h"
 
@@ -578,11 +580,11 @@ void InkplateParallelBase::send_line_i2s_() {
 }
 
 // ---------------------------------------------------------------------------
-// clean_data_byte_ — default: uses clean_seq_ pointer set by subclass constructor.
+// clean_data_byte — default: uses clean_seq_ pointer set by subclass constructor.
 // Inkplate10 overrides this to select between two sequences.
 // ---------------------------------------------------------------------------
 
-uint8_t InkplateParallelBase::clean_data_byte_() const {
+uint8_t InkplateParallelBase::clean_data_byte() const {
   if (!this->clean_seq_)
     return 0;
   switch (this->clean_seq_[this->trf_step_].c) {
@@ -623,7 +625,7 @@ void InkplateParallelBase::process_state_() {
       break;
 
     case STATE_TRANSFER:
-      if (!this->do_transfer_step_())
+      if (!this->do_transfer_step())
         return;
       this->set_state_(STATE_POWER_OFF);
       break;
@@ -639,11 +641,11 @@ void InkplateParallelBase::process_state_() {
 }
 
 // ---------------------------------------------------------------------------
-// do_transfer_step_ — dispatches common TRF cases; board-specific cases fall
-// through to do_board_transfer_step_().
+// do_transfer_step — dispatches common TRF cases; board-specific cases fall
+// through to do_board_transfer_step().
 // ---------------------------------------------------------------------------
 
-bool InkplateParallelBase::do_transfer_step_() {
+bool InkplateParallelBase::do_transfer_step() {
   switch (this->trf_sub_) {
     case TRF_COPY_BUF:
       memcpy(this->d_memory_new_, this->buffer_, (size_t) this->width_ * this->height_ / 8);
@@ -657,7 +659,7 @@ bool InkplateParallelBase::do_transfer_step_() {
       if (!this->clean_seq_ || !this->clean_seq_len_)
         return false;
       vscan_start_();
-      uint8_t data = this->clean_data_byte_();
+      uint8_t data = this->clean_data_byte();
       memset((void *) this->dma_line_buf_, data, (size_t) this->width_ / 4 + 16);
       for (int i = 0; i < this->height_; i++) {
         send_line_i2s_();
@@ -733,16 +735,16 @@ bool InkplateParallelBase::do_transfer_step_() {
       return true;
 
     default:
-      return this->do_board_transfer_step_();
+      return this->do_board_transfer_step();
   }
 }
 
 // ---------------------------------------------------------------------------
-// do_board_transfer_step_ — standard (16-aligned width) implementations.
+// do_board_transfer_step — standard (16-aligned width) implementations.
 // Inkplate4 overrides all cases; Inkplate5 overrides TRF_PARTIAL_CLEAN_SKIP only.
 // ---------------------------------------------------------------------------
 
-bool InkplateParallelBase::do_board_transfer_step_() {
+bool InkplateParallelBase::do_board_transfer_step() {
   switch (this->trf_sub_) {
     case TRF_DARK: {
       const uint8_t *dmp = this->d_memory_new_ + (size_t) this->width_ * this->height_ / 8 - 1;
@@ -867,3 +869,5 @@ bool InkplateParallelBase::do_board_transfer_step_() {
 }
 
 }  // namespace esphome::inkplate
+
+#endif  // USE_ESP32

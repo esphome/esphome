@@ -1,6 +1,8 @@
 #include "esphome/core/log.h"
 #include "inkplate6.h"
 
+#ifdef USE_ESP32
+
 #include "esp_rom_sys.h"
 
 namespace esphome::inkplate {
@@ -76,3 +78,5 @@ void Inkplate6V1::dump_config() {
 }
 
 }  // namespace esphome::inkplate
+
+#endif  // USE_ESP32

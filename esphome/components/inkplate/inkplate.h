@@ -6,6 +6,8 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/display/display_buffer.h"
 
+#ifdef USE_ESP32
+
 // ESP32 I2S / DMA / GPIO matrix headers
 #include "esp_private/periph_ctrl.h"
 #include "rom/lldesc.h"
@@ -147,13 +149,13 @@ class InkplateParallelBase : public display::DisplayBuffer, public i2c::I2CDevic
 
   // Send pixel data via I2S DMA (clean + waveform phases).
   // Called every loop() tick in STATE_TRANSFER; return true when done.
-  // Base handles common cases; board-specific cases dispatched to do_board_transfer_step_().
-  virtual bool do_transfer_step_();
+  // Base handles common cases; board-specific cases dispatched to do_board_transfer_step().
+  virtual bool do_transfer_step();
 
   // Board-specific transfer cases (TRF_DARK, TRF_LUT2, TRF_ZERO, TRF_PARTIAL_SEND,
   // TRF_PARTIAL_CLEAN_SKIP, TRF_GRAYSCALE_SEND). Base provides standard (16-aligned width)
   // implementation; boards override only for quirks (remainder bytes, alternate sequencing).
-  virtual bool do_board_transfer_step_();
+  virtual bool do_board_transfer_step();
 
   // TPS65186 power-down + I2S clock/GPIO release.
   // Called every loop() tick in STATE_POWER_OFF; return true when done.
@@ -162,9 +164,9 @@ class InkplateParallelBase : public display::DisplayBuffer, public i2c::I2CDevic
   // Emergency hardware power-off on OTA / reboot mid-refresh.
   void do_emergency_off_();
 
-  // clean_data_byte_() default: reads from clean_seq_ pointer set by subclass constructor.
+  // clean_data_byte() default: reads from clean_seq_ pointer set by subclass constructor.
   // Inkplate10 overrides to select between two sequences based on update path.
-  virtual uint8_t clean_data_byte_() const;
+  virtual uint8_t clean_data_byte() const;
 
   // TPS65186 I2C helpers (via i2c::I2CDevice registers at address 0x48).
   bool tps_write_reg_(uint8_t reg, uint8_t data);
@@ -176,7 +178,7 @@ class InkplateParallelBase : public display::DisplayBuffer, public i2c::I2CDevic
   void i2s_pin_route_();
   void i2s_pin_release_();
 
-  // Per-line EPD timing — called from board do_transfer_step_() implementations.
+  // Per-line EPD timing — called from board do_transfer_step() implementations.
   void vscan_start_();
   void vscan_end_();
   void send_line_i2s_();
@@ -250,3 +252,5 @@ class InkplateParallelBase : public display::DisplayBuffer, public i2c::I2CDevic
 };
 
 }  // namespace esphome::inkplate
+
+#endif  // USE_ESP32
