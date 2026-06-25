@@ -226,6 +226,7 @@ CONFIG_SCHEMA = cv.All(
                 *CONF_DEVICE_TYPES, upper=True
             ),
             cv.Optional(CONF_FORCE_DATASET): cv.boolean,
+            cv.Optional(CONF_GRACEFUL_DETACH_ON_SHUTDOWN): cv.boolean,
             cv.Optional(CONF_TLV): cv.All(cv.string_strict, _validate_tlv_hex),
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
             cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
