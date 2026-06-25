@@ -53,7 +53,9 @@ ModbusServerRegisterSchema = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ServerRegister),
         cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
-        cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(SERVER_SENSOR_VALUE_TYPE),
+        cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(
+            SERVER_SENSOR_VALUE_TYPE
+        ),
         cv.Required(CONF_READ_LAMBDA): cv.returning_lambda,
         cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
         cv.Optional(CONF_ALLOW_PARTIAL_READ, default=False): cv.boolean,
@@ -83,7 +85,9 @@ def _validate_no_overlapping_registers(config):
         (register[CONF_ADDRESS], TYPE_REGISTER_MAP[register[CONF_VALUE_TYPE]])
         for register in config.get(CONF_REGISTERS, [])
     )
-    for (address, register_count), (next_address, _) in zip(spans, spans[1:]):
+    for (address, register_count), (next_address, _) in zip(
+        spans, spans[1:], strict=False
+    ):
         if next_address < address + register_count:
             raise cv.Invalid(
                 f"Register address 0x{next_address:04X} overlaps the register at 0x{address:04X}, which spans {register_count} register(s); each register's address range must be unique",

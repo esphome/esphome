@@ -167,7 +167,8 @@ TEST(ModbusServerRead, StartInsideValueRejected) {
   RegisterValues out;
   auto status = server.on_modbus_read_registers(0x0011, 1, out);  // the second cell of the DWORD
   ASSERT_TRUE(status.has_value());
-  EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+  if (status.has_value())
+    EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
   EXPECT_FALSE(read_called);
 }
 
@@ -185,7 +186,8 @@ TEST(ModbusServerRead, ClippedTailRejected) {
   RegisterValues out;
   auto status = server.on_modbus_read_registers(0x0000, 1, out);  // only 1 of the DWORD's 2 registers
   ASSERT_TRUE(status.has_value());
-  EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+  if (status.has_value())
+    EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
   EXPECT_FALSE(read_called);
 }
 
@@ -200,7 +202,8 @@ TEST(ModbusServerRead, WriteOnlyRegisterRejected) {
   RegisterValues out;
   auto status = server.on_modbus_read_registers(0x0000, 1, out);
   ASSERT_TRUE(status.has_value());
-  EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+  if (status.has_value())
+    EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
 }
 
 // An unregistered address with courtesy enabled returns the default value for each cell.
@@ -223,7 +226,8 @@ TEST(ModbusServerRead, UnregisteredRejectedWithoutCourtesy) {
   RegisterValues out;
   auto status = server.on_modbus_read_registers(0x0005, 1, out);
   ASSERT_TRUE(status.has_value());
-  EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+  if (status.has_value())
+    EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
 }
 
 // --- partial reads (opt-in) ----------------------------------------------------

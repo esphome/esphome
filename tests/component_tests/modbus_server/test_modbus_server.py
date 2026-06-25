@@ -8,8 +8,8 @@ from esphome.components.modbus_server import (
     _validate_no_overlapping_registers,
     _validate_register_ranges,
 )
-from esphome.components.modbus_server.const import CONF_REGISTERS
-from esphome.const import CONF_ADDRESS, CONF_VALUE_TYPE
+from esphome.components.modbus_server.const import CONF_REGISTERS, CONF_VALUE_TYPE
+from esphome.const import CONF_ADDRESS
 
 
 def _config(registers: list[tuple[int, str]]) -> dict:
