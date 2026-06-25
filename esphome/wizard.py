@@ -421,27 +421,21 @@ def wizard(path: Path) -> int:
         safe_print(f"(Type {color(AnsiFore.GREEN, 'esp01_1m')} for Sonoff devices)")
     safe_print()
     # Don't sleep because user needs to copy link
-    if platform == "ESP32":
-        safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, "nodemcu-32s")}".')
-        boards_list = esp32_boards.BOARDS.items()
-    elif platform == "ESP8266":
-        safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, "nodemcuv2")}".')
-        boards_list = esp8266_boards.BOARDS.items()
-    elif platform == "BK72XX":
-        safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, "cb2s")}".')
-        boards_list = bk72xx_boards.BOARDS.items()
-    elif platform == "LN882X":
-        safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, "wl2s")}".')
-        boards_list = ln882x_boards.BOARDS.items()
-    elif platform == "RTL87XX":
-        safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, "wr3")}".')
-        boards_list = rtl87xx_boards.BOARDS.items()
-    elif platform == "RP2":
-        safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, "rpipicow")}".')
-        boards_list = rp2_boards.BOARDS.items()
-
-    else:
-        raise NotImplementedError("Unknown platform!")
+    # Platform-to-(example board, boards module) lookup. Dict-driven so the
+    # set of supported platforms has a single source of truth and the elif
+    # chain — which left the last entry's "False" branch structurally
+    # unreachable in tests — is gone.
+    example_boards = {
+        "ESP32": ("nodemcu-32s", esp32_boards),
+        "ESP8266": ("nodemcuv2", esp8266_boards),
+        "BK72XX": ("cb2s", bk72xx_boards),
+        "LN882X": ("wl2s", ln882x_boards),
+        "RTL87XX": ("wr3", rtl87xx_boards),
+        "RP2": ("rpipicow", rp2_boards),
+    }
+    example, boards_module = example_boards[platform]
+    safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, example)}".')
+    boards_list = boards_module.BOARDS.items()
 
     boards = []
     safe_print("Options:")
