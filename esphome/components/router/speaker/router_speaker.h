@@ -13,7 +13,7 @@
 
 namespace esphome::router {
 
-class Router : public Component, public speaker::Speaker {
+class Router final : public Component, public speaker::Speaker {
  public:
   float get_setup_priority() const override { return setup_priority::DATA; }
 
@@ -77,7 +77,7 @@ class Router : public Component, public speaker::Speaker {
   std::atomic<int8_t> active_output_idx_{0};
 };
 
-template<typename... Ts> class SwitchOutputAction : public Action<Ts...> {
+template<typename... Ts> class SwitchOutputAction final : public Action<Ts...> {
  public:
   explicit SwitchOutputAction(Router *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(speaker::Speaker *, target)

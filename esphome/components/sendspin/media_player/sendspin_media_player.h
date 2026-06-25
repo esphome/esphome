@@ -9,7 +9,7 @@
 
 namespace esphome::sendspin_ {
 
-class SendspinMediaPlayer : public SendspinChild, public media_player::MediaPlayer {
+class SendspinMediaPlayer final : public SendspinChild, public media_player::MediaPlayer {
  public:
   void setup() override;
   void dump_config() override;
