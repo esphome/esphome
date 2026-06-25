@@ -23,6 +23,7 @@ void InkplateParallelBase::setup() {
   this->buffer_ = allocator.allocate(buf_size);
   if (this->buffer_ == nullptr) {
     ESP_LOGE(TAG, "buffer_ alloc failed (%zu bytes)", buf_size);
+    this->mark_failed();
     return;
   }
   memset(this->buffer_, 0x00, buf_size);  // all-black initial state
@@ -30,6 +31,7 @@ void InkplateParallelBase::setup() {
   this->d_memory_new_ = allocator.allocate(buf_size);
   if (this->d_memory_new_ == nullptr) {
     ESP_LOGE(TAG, "d_memory_new_ alloc failed");
+    this->mark_failed();
     return;
   }
   memset(this->d_memory_new_, 0x00, buf_size);
@@ -39,6 +41,7 @@ void InkplateParallelBase::setup() {
   this->p_buffer_ = allocator.allocate(p_buf_size);
   if (this->p_buffer_ == nullptr) {
     ESP_LOGE(TAG, "p_buffer_ alloc failed (%zu bytes)", p_buf_size);
+    this->mark_failed();
     return;
   }
   memset(this->p_buffer_, 0, p_buf_size);
@@ -48,6 +51,7 @@ void InkplateParallelBase::setup() {
   this->d_memory_4bit_ = allocator.allocate(gs_buf_size);
   if (this->d_memory_4bit_ == nullptr) {
     ESP_LOGE(TAG, "d_memory_4bit_ alloc failed (%zu bytes)", gs_buf_size);
+    this->mark_failed();
     return;
   }
   memset(this->d_memory_4bit_, 0xFF, gs_buf_size);
@@ -58,6 +62,7 @@ void InkplateParallelBase::setup() {
   this->dma_desc_ = (volatile lldesc_t *) heap_caps_malloc(sizeof(lldesc_t), MALLOC_CAP_DMA);
   if (this->dma_line_buf_ == nullptr || this->dma_desc_ == nullptr) {
     ESP_LOGE(TAG, "DMA alloc failed");
+    this->mark_failed();
     return;
   }
   memset((void *) this->dma_line_buf_, 0, line_buf_size);
@@ -70,9 +75,15 @@ void InkplateParallelBase::setup() {
 // Loop / update
 // ---------------------------------------------------------------------------
 
-void InkplateParallelBase::loop() { this->process_state_(); }
+void InkplateParallelBase::loop() {
+  if (this->is_failed())
+    return;
+  this->process_state_();
+}
 
 void InkplateParallelBase::update() {
+  if (this->is_failed())
+    return;
   if (this->state_ != STATE_IDLE) {
     ESP_LOGW(TAG, "update() skipped — busy (state %d)", (int) this->state_);
     return;

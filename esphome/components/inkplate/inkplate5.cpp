@@ -19,11 +19,15 @@ const Inkplate5::CleanStep Inkplate5::CLEAN_SEQ[8] = {
 
 void Inkplate5::setup() {
   InkplateParallelBase::setup();
+  if (this->is_failed())
+    return;
 
-  this->glut_ = new uint8_t[256 * this->grayscale_phases_];
-  this->glut2_ = new uint8_t[256 * this->grayscale_phases_];
+  RAMAllocator<uint8_t> allocator;
+  this->glut_ = allocator.allocate(256 * this->grayscale_phases_);
+  this->glut2_ = allocator.allocate(256 * this->grayscale_phases_);
   if (this->glut_ == nullptr || this->glut2_ == nullptr) {
     ESP_LOGE(TAG, "GLUT alloc failed");
+    this->mark_failed();
     return;
   }
   for (int j = 0; j < this->grayscale_phases_; ++j) {
@@ -78,11 +82,15 @@ const Inkplate5V1::CleanStep Inkplate5V1::CLEAN_SEQ_V1[9] = {
 
 void Inkplate5V1::setup() {
   InkplateParallelBase::setup();  // NOLINT(bugprone-parent-virtual-call)
+  if (this->is_failed())
+    return;
 
-  this->glut_ = new uint8_t[256 * this->grayscale_phases_];
-  this->glut2_ = new uint8_t[256 * this->grayscale_phases_];
+  RAMAllocator<uint8_t> allocator;
+  this->glut_ = allocator.allocate(256 * this->grayscale_phases_);
+  this->glut2_ = allocator.allocate(256 * this->grayscale_phases_);
   if (this->glut_ == nullptr || this->glut2_ == nullptr) {
     ESP_LOGE(TAG, "GLUT alloc failed");
+    this->mark_failed();
     return;
   }
   for (int j = 0; j < this->grayscale_phases_; ++j) {

@@ -16,11 +16,15 @@ const Inkplate6PLUS::CleanStep Inkplate6PLUS::CLEAN_SEQ[6] = {
 
 void Inkplate6PLUS::setup() {
   InkplateParallelBase::setup();
+  if (this->is_failed())
+    return;
 
-  this->glut_ = new uint8_t[256 * this->grayscale_phases_];
-  this->glut2_ = new uint8_t[256 * this->grayscale_phases_];
+  RAMAllocator<uint8_t> allocator;
+  this->glut_ = allocator.allocate(256 * this->grayscale_phases_);
+  this->glut2_ = allocator.allocate(256 * this->grayscale_phases_);
   if (this->glut_ == nullptr || this->glut2_ == nullptr) {
     ESP_LOGE(TAG, "GLUT alloc failed");
+    this->mark_failed();
     return;
   }
   for (int j = 0; j < this->grayscale_phases_; ++j) {
