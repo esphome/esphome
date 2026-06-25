@@ -5,15 +5,14 @@
 
 #include "at581x.h"
 
-namespace esphome {
-namespace at581x {
+namespace esphome::at581x {
 
-template<typename... Ts> class AT581XResetAction : public Action<Ts...>, public Parented<AT581XComponent> {
+template<typename... Ts> class AT581XResetAction final : public Action<Ts...>, public Parented<AT581XComponent> {
  public:
   void play(const Ts &...x) { this->parent_->reset_hardware_frontend(); }
 };
 
-template<typename... Ts> class AT581XSettingsAction : public Action<Ts...>, public Parented<AT581XComponent> {
+template<typename... Ts> class AT581XSettingsAction final : public Action<Ts...>, public Parented<AT581XComponent> {
  public:
   TEMPLATABLE_VALUE(int8_t, hw_frontend_reset)
   TEMPLATABLE_VALUE(int, frequency)
@@ -67,5 +66,4 @@ template<typename... Ts> class AT581XSettingsAction : public Action<Ts...>, publ
     }
   }
 };
-}  // namespace at581x
-}  // namespace esphome
+}  // namespace esphome::at581x

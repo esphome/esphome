@@ -3,8 +3,7 @@
 #ifdef USE_MD5
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace md5 {
+namespace esphome::md5 {
 
 #if defined(USE_ARDUINO) && !defined(USE_RP2040) && !defined(USE_ESP32)
 void MD5Digest::init() {
@@ -77,6 +76,6 @@ void MD5Digest::calculate() {
 MD5Digest::~MD5Digest() = default;
 #endif  // USE_HOST
 
-}  // namespace md5
-}  // namespace esphome
+}  // namespace esphome::md5
+
 #endif

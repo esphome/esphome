@@ -16,8 +16,7 @@
 #include "driver/gptimer.h"
 #endif
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
 template<class T> constexpr T read_bit(T value, uint8_t bit) { return (value >> bit) & 0x01; }
 
@@ -403,5 +402,4 @@ class OpenTherm {
 #endif
 };
 
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm

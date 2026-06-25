@@ -15,7 +15,7 @@ from esphome.components.mipi import (
 import esphome.config_validation as cv
 
 from .amoled import CO5300
-from .ili import ILI9488_A
+from .ili import ILI9488_A, ST7789V
 from .jc import AXS15231
 
 DriverChip(
@@ -177,6 +177,20 @@ CO5300.extend(
     reset_pin=39,
 )
 
+# Waveshare ESP32-S3 Touch AMOLED 2.16" (CO5300 controller)
+# Pin assignments are the same as the 1.75" devkit: CS=12, RESET=39. Width/height set to 480x480.
+CO5300.extend(
+    "WAVESHARE-ESP32-S3-TOUCH-AMOLED-2.16",
+    width=480,
+    height=480,
+    pixel_mode="16bit",
+    offset_height=0,
+    offset_width=0,
+    cs_pin=12,
+    reset_pin=39,
+    data_rate="40MHz",
+)
+
 AXS15231.extend(
     "WAVESHARE-ESP32-S3-TOUCH-LCD-3.49",
     width=172,
@@ -242,4 +256,29 @@ ST7789P.extend(
             0x23,
         ),
     ),
+)
+
+ST7789V.extend(
+    "WAVESHARE-ESP32-C6-LCD-1.47",
+    width=172,
+    height=320,
+    offset_width=34,
+    invert_colors=True,
+    data_rate="40MHz",
+    reset_pin=21,
+    cs_pin=14,
+    dc_pin={"number": 15, "ignore_strapping_warning": True},
+)
+
+ST7789V.extend(
+    "WAVESHARE-ESP32-S3-GEEK",
+    cs_pin=10,
+    dc_pin=8,
+    reset_pin=9,
+    width=135,
+    height=240,
+    offset_width=52,
+    offset_height=40,
+    invert_colors=True,
+    data_rate="40MHz",
 )

@@ -4,8 +4,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace xiaomi_xmwsdj04mmc {
+namespace esphome::xiaomi_xmwsdj04mmc {
 
 static const char *const TAG = "xiaomi_xmwsdj04mmc";
 
@@ -69,7 +68,6 @@ bool XiaomiXMWSDJ04MMC::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
 
 void XiaomiXMWSDJ04MMC::set_bindkey(const char *bindkey) { parse_hex(bindkey, this->bindkey_, sizeof(this->bindkey_)); }
 
-}  // namespace xiaomi_xmwsdj04mmc
-}  // namespace esphome
+}  // namespace esphome::xiaomi_xmwsdj04mmc
 
 #endif

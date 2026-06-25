@@ -5,8 +5,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace htu31d {
+namespace esphome::htu31d {
 
 class HTU31DComponent : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -27,5 +26,4 @@ class HTU31DComponent : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *temperature_{nullptr};
   sensor::Sensor *humidity_{nullptr};
 };
-}  // namespace htu31d
-}  // namespace esphome
+}  // namespace esphome::htu31d

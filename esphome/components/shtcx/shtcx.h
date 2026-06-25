@@ -4,10 +4,13 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/sensirion_common/i2c_sensirion.h"
 
-namespace esphome {
-namespace shtcx {
+namespace esphome::shtcx {
 
-enum SHTCXType { SHTCX_TYPE_SHTC3 = 0, SHTCX_TYPE_SHTC1, SHTCX_TYPE_UNKNOWN };
+enum SHTCXType : uint8_t {
+  SHTCX_TYPE_SHTC3 = 0,
+  SHTCX_TYPE_SHTC1,
+  SHTCX_TYPE_UNKNOWN,
+};
 
 /// This class implements support for the SHT3x-DIS family of temperature+humidity i2c sensors.
 class SHTCXComponent : public PollingComponent, public sensirion_common::SensirionI2CDevice {
@@ -23,11 +26,10 @@ class SHTCXComponent : public PollingComponent, public sensirion_common::Sensiri
   void wake_up();
 
  protected:
-  SHTCXType type_;
-  uint16_t sensor_id_;
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
+  uint16_t sensor_id_;
+  SHTCXType type_;
 };
 
-}  // namespace shtcx
-}  // namespace esphome
+}  // namespace esphome::shtcx

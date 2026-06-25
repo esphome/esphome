@@ -8,8 +8,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace xiaomi_cgpr1 {
+namespace esphome::xiaomi_cgpr1 {
 
 class XiaomiCGPR1 : public Component,
                     public binary_sensor::BinarySensorInitiallyOff,
@@ -33,7 +32,6 @@ class XiaomiCGPR1 : public Component,
   sensor::Sensor *illuminance_{nullptr};
 };
 
-}  // namespace xiaomi_cgpr1
-}  // namespace esphome
+}  // namespace esphome::xiaomi_cgpr1
 
 #endif

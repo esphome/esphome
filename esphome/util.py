@@ -94,13 +94,29 @@ def safe_print(message="", end="\n"):
     except UnicodeEncodeError:
         pass
 
+    # Fall back to the stream's actual encoding (e.g. cp1252 on Windows
+    # redirected pipes). Use "backslashreplace" so unencodable code points
+    # like the wifi signal-bar block characters (U+2582..U+2588) become
+    # readable ``\uXXXX`` escapes, and decode back to ``str`` so ``print``
+    # never receives a ``bytes`` object (which would render as a ``b'...'``
+    # repr).
+    encoding = sys.stdout.encoding or "ascii"
     try:
-        print(message.encode("utf-8", "backslashreplace"), end=end)
+        print(
+            message.encode(encoding, "backslashreplace").decode(encoding),
+            end=end,
+        )
+        return
     except UnicodeEncodeError:
-        try:
-            print(message.encode("ascii", "backslashreplace"), end=end)
-        except UnicodeEncodeError:
-            print("Cannot print line because of invalid locale!")
+        pass
+
+    try:
+        print(
+            message.encode("ascii", "backslashreplace").decode("ascii"),
+            end=end,
+        )
+    except UnicodeEncodeError:
+        print("Cannot print line because of invalid locale!")
 
 
 def safe_input(prompt=""):
@@ -255,7 +271,7 @@ def run_external_command(
         raise
     except SystemExit as err:
         return err.args[0]
-    except Exception as err:  # pylint: disable=broad-except
+    except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
         _LOGGER.error("Running command failed: %s", err)
         _LOGGER.error("Please try running %s locally.", full_cmd)
         return 1
@@ -302,7 +318,7 @@ def run_external_process(*cmd: str, **kwargs: Any) -> int | str:
         return proc.stdout if capture_stdout else proc.returncode
     except KeyboardInterrupt:  # pylint: disable=try-except-raise
         raise
-    except Exception as err:  # pylint: disable=broad-except
+    except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
         _LOGGER.error("Running command failed: %s", err)
         _LOGGER.error("Please try running %s locally.", full_cmd)
         return 1
@@ -487,3 +503,9 @@ def get_esp32_arduino_flash_error_help() -> str | None:
             "https://esphome.io/guides/esp32_arduino_to_idf/\n\n",
         )
     )
+
+
+@dataclass
+class FlashImage:
+    path: Path
+    offset: str

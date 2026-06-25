@@ -7,8 +7,7 @@
 // ref:
 // https://github.com/usefulsensors/person_sensor_pico_c/blob/main/person_sensor.h
 
-namespace esphome {
-namespace sen21231_sensor {
+namespace esphome::sen21231_sensor {
 // The I2C address of the person sensor board.
 static const uint8_t PERSON_SENSOR_I2C_ADDRESS = 0x62;
 static const uint8_t PERSON_SENSOR_REG_MODE = 0x01;
@@ -73,5 +72,4 @@ class Sen21231Sensor : public sensor::Sensor, public PollingComponent, public i2
   void read_data_();
 };
 
-}  // namespace sen21231_sensor
-}  // namespace esphome
+}  // namespace esphome::sen21231_sensor

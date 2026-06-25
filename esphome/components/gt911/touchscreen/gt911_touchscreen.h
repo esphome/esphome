@@ -5,15 +5,14 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace gt911 {
+namespace esphome::gt911 {
 
 class GT911ButtonListener {
  public:
   virtual void update_button(uint8_t index, bool state) = 0;
 };
 
-class GT911Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice {
+class GT911Touchscreen final : public touchscreen::Touchscreen, public i2c::I2CDevice {
  public:
   /// @brief Initialize the GT911 touchscreen.
   ///
@@ -67,5 +66,4 @@ class GT911Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice 
   bool use_primary_i2c_addr_{true};  // use 0x5d by default
 };
 
-}  // namespace gt911
-}  // namespace esphome
+}  // namespace esphome::gt911

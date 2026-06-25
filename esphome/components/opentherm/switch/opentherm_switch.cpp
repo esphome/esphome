@@ -1,7 +1,6 @@
 #include "opentherm_switch.h"
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
 static const char *const TAG = "opentherm.switch";
 
@@ -24,5 +23,4 @@ void OpenthermSwitch::dump_config() {
   ESP_LOGCONFIG(TAG, "  Current state: %d", this->state);
 }
 
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm

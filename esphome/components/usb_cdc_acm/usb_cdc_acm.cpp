@@ -1,4 +1,5 @@
-#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #include "usb_cdc_acm.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
@@ -29,10 +30,7 @@ void USBCDCACMInstance::queue_line_state_event(bool dtr, bool rts) {
   // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
   // allocate() returned non-null, the queue cannot be full.
   this->event_queue_.push(event);
-
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
   App.wake_loop_threadsafe();
-#endif
 }
 
 void USBCDCACMInstance::queue_line_coding_event(uint32_t bit_rate, uint8_t stop_bits, uint8_t parity,
@@ -53,10 +51,7 @@ void USBCDCACMInstance::queue_line_coding_event(uint32_t bit_rate, uint8_t stop_
   // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
   // allocate() returned non-null, the queue cannot be full.
   this->event_queue_.push(event);
-
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
   App.wake_loop_threadsafe();
-#endif
 }
 
 void USBCDCACMInstance::process_events_() {

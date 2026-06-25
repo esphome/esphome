@@ -1,7 +1,6 @@
 #include "ota_backend.h"
 
-namespace esphome {
-namespace ota {
+namespace esphome::ota {
 
 #ifdef USE_OTA_STATE_LISTENER
 OTAGlobalCallback *global_ota_callback{nullptr};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -34,5 +33,4 @@ void OTAComponent::notify_state_(OTAState state, float progress, uint8_t error) 
 }
 #endif
 
-}  // namespace ota
-}  // namespace esphome
+}  // namespace esphome::ota

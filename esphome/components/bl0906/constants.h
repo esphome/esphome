@@ -1,8 +1,7 @@
 #pragma once
 #include <cstdint>
 
-namespace esphome {
-namespace bl0906 {
+namespace esphome::bl0906 {
 
 // Total power conversion
 static const float BL0906_WATT = 16 * 1.097 * 1.097 * (20000 + 20000 + 20000 + 20000 + 20000) /
@@ -118,5 +117,4 @@ const uint8_t BL0906_INIT[2][6] = {
     // Enable User Operation Write
     {BL0906_WRITE_COMMAND, BL0906_USR_WRPROT, 0x55, 0x55, 0x00, 0xB7}};
 
-}  // namespace bl0906
-}  // namespace esphome
+}  // namespace esphome::bl0906

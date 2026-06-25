@@ -35,7 +35,7 @@ class LabelType(WidgetType):
         if (value := config.get(CONF_TEXT)) is not None:
             await w.set_property(CONF_TEXT, await lv_text.process(value))
         await w.set_property(CONF_LONG_MODE, config)
-        await w.set_property(CONF_RECOLOR, config)
+        await w.set_property(CONF_RECOLOR, config, processor=lv_bool)
 
 
 label_spec = LabelType()
