@@ -120,6 +120,7 @@ CSCON = 0xF0
 PWCTR6 = 0xF6
 ADJCTL3 = 0xF7
 PAGESEL = 0xFE
+PAGESEL1 = 0xFF
 
 MADCTL_MY = 0x80  # Bit 7 Bottom to top
 MADCTL_MX = 0x40  # Bit 6 Right to left
@@ -322,6 +323,9 @@ class DriverChip:
                     - defaults.get(CONF_OFFSET_WIDTH, 0)
                     - defaults.get(CONF_PAD_WIDTH, 0)
                 )
+            elif defaults[CONF_WIDTH] > defaults[CONF_NATIVE_WIDTH]:
+                defaults[CONF_NATIVE_WIDTH] = defaults[CONF_WIDTH]
+
         else:
             native_width = (
                 defaults.get(CONF_WIDTH, 0)
@@ -337,6 +341,8 @@ class DriverChip:
                     - defaults.get(CONF_OFFSET_HEIGHT, 0)
                     - defaults.get(CONF_PAD_HEIGHT, 0)
                 )
+            elif defaults[CONF_HEIGHT] > defaults[CONF_NATIVE_HEIGHT]:
+                defaults[CONF_NATIVE_HEIGHT] = defaults[CONF_HEIGHT]
         else:
             native_height = (
                 defaults.get(CONF_HEIGHT, 0)

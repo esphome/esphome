@@ -1,7 +1,6 @@
 from collections import UserDict
 from collections.abc import Callable
 from functools import reduce
-import logging
 from pathlib import Path
 from typing import Any
 
@@ -36,8 +35,6 @@ from esphome.const import (
 )
 from esphome.core import EsphomeError
 
-_LOGGER = logging.getLogger(__name__)
-
 DOMAIN = CONF_PACKAGES
 # Guard against infinite include chains (e.g. A includes B includes A).
 MAX_INCLUDE_DEPTH = 20
@@ -51,18 +48,6 @@ PackageCallback = Callable[
 def is_remote_package(package_config: dict) -> bool:
     """Returns True if the package_config is a remote package definition."""
     return CONF_URL in package_config
-
-
-def is_package_definition(value: object) -> bool:
-    """Returns True if the value looks like a package definition rather than a config fragment.
-
-    Package definitions are IncludeFile objects, git URL shorthand strings, or
-    remote package dicts (containing a ``url:`` key).  Config fragments are
-    plain dicts that represent component configuration.
-    """
-    return isinstance(value, (yaml_util.IncludeFile, str)) or (
-        isinstance(value, dict) and is_remote_package(value)
-    )
 
 
 def valid_package_contents(package_config: dict) -> dict:
@@ -134,22 +119,6 @@ def validate_source_shorthand(value):
     return REMOTE_PACKAGE_SCHEMA(conf)
 
 
-def deprecate_single_package(config: dict) -> dict:
-    _LOGGER.warning(
-        """
-        Including a single package under `packages:`, i.e., `packages: !include mypackage.yaml` is deprecated.
-        This method for including packages will go away in 2026.7.0
-        Please use a list instead:
-
-        packages:
-          - !include mypackage.yaml
-
-        See https://github.com/esphome/esphome/pull/12116
-        """
-    )
-    return config
-
-
 REMOTE_PACKAGE_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -198,10 +167,7 @@ CONFIG_SCHEMA = cv.Any(  # under `packages:` we can have either:
             str: PACKAGE_SCHEMA,  # a named dict of package definitions, or
         }
     ),
-    [PACKAGE_SCHEMA],  # a list of package definitions, or
-    cv.All(  # a single package definition (deprecated)
-        cv.ensure_list(PACKAGE_SCHEMA), deprecate_single_package
-    ),
+    [PACKAGE_SCHEMA],  # a list of package definitions
 )
 
 
@@ -348,7 +314,6 @@ def _walk_packages(
     config: dict,
     callback: PackageCallback,
     context: ContextVars | None = None,
-    validate_deprecated: bool = True,
     path: yaml_util.DocumentPath | None = None,
 ) -> dict:
     """Walks the packages structure in priority order, invoking ``callback`` on each package definition found.
@@ -378,17 +343,7 @@ def _walk_packages(
         elif (
             result := _walk_package_dict(packages, callback, context, packages_path)
         ) is not None:
-            if not validate_deprecated or any(
-                is_package_definition(v) for v in packages.values()
-            ):
-                raise result
-            # Fallback: treat the dict as a single deprecated package.
-            # This block can be removed once the single-package
-            # deprecation period (2026.7.0) is over.
-            config[CONF_PACKAGES] = [packages]
-            return _walk_packages(
-                deprecate_single_package(config), callback, context, path=path
-            )
+            raise result
 
     config[CONF_PACKAGES] = packages
     return config
@@ -588,9 +543,6 @@ class _PackageProcessor:
         path: yaml_util.DocumentPath,
     ) -> dict:
         """Resolve a single package and recurse into any nested packages."""
-        from_remote = isinstance(package_config, dict) and is_remote_package(
-            package_config
-        )
         package_config = self.resolve_package(package_config, context_vars, path)
         context_vars = self.collect_substitutions(package_config, context_vars)
 
@@ -600,17 +552,10 @@ class _PackageProcessor:
         # Push context from !include vars on the packages key (the package root
         # was already pushed in collect_substitutions above).
         context_vars = push_context(package_config[CONF_PACKAGES], context_vars)
-        # Disable the deprecated single-package fallback for remote
-        # packages.  _process_remote_package returns dicts with
-        # already-resolved values that is_package_definition cannot
-        # distinguish from config fragments, so the fallback would
-        # always fire and mask real errors with wrong paths
-        # (packages->0 instead of packages-><name>).
         return _walk_packages(
             package_config,
             self.process_package,
             context_vars,
-            validate_deprecated=not from_remote,
             path=path,
         )
 
@@ -673,7 +618,7 @@ def merge_packages(config: dict) -> dict:
         merge_list.append(package_config)
         return _walk_packages(package_config, process_package_callback, path=path)
 
-    _walk_packages(config, process_package_callback, validate_deprecated=False)
+    _walk_packages(config, process_package_callback)
     # Merge all packages into the main config:
     config = reduce(lambda new, old: merge_config(old, new), merge_list, config)
     del config[CONF_PACKAGES]
