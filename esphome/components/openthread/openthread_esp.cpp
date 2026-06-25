@@ -111,7 +111,7 @@ void OpenThreadComponent::ot_main() {
 
   ESP_LOGD(TAG, "Thread Version: %" PRIu16, otThreadGetVersion());
 
-  this->apply_linkmode(instance);
+  this->apply_linkmode_(instance);
 
   if (this->output_power_.has_value()) {
     if (const auto err = otPlatRadioSetTransmitPower(instance, *this->output_power_); err != OT_ERROR_NONE) {
@@ -192,7 +192,7 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
 otInstance *OpenThreadComponent::get_openthread_instance_() { return esp_openthread_get_instance(); }
 
 InstanceLock InstanceLock::try_acquire(int delay) {
-  if (!global_openthread_component->is_lock_initialized()) {
+  if (global_openthread_component == nullptr || !global_openthread_component->is_lock_initialized()) {
     return InstanceLock(false);
   }
   return InstanceLock(esp_openthread_lock_acquire(delay));

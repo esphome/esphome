@@ -5,7 +5,7 @@
 
 namespace esphome::seeed_mr24hpc1 {
 
-class CustomSetEndButton : public button::Button, public Parented<MR24HPC1Component> {
+class CustomSetEndButton final : public button::Button, public Parented<MR24HPC1Component> {
  public:
   CustomSetEndButton() = default;
 

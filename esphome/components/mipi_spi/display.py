@@ -17,6 +17,8 @@ from esphome.components.mipi import (
     MADCTL,
     MODE_BGR,
     MODE_RGB,
+    PAGESEL,
+    PAGESEL1,
     PIXFMT,
     DriverChip,
     dimension_schema,
@@ -172,13 +174,19 @@ def model_schema(config):
     if bus_mode == TYPE_SINGLE:
         other_options.append(CONF_SPI_16)
     # Calculate default SPI mode. Mode3 for octal bus or single bus with no cs pin, mode0 otherwise.
-    spi_mode = model.get_default(CONF_SPI_MODE)
+    spi_mode = (
+        cv.UNDEFINED if CONF_SPI_MODE in config else model.get_default(CONF_SPI_MODE)
+    )
     if not spi_mode:
         if bus_mode == TYPE_OCTAL or (
             bus_mode == TYPE_SINGLE
-            and not config.get(CONF_CS_PIN, model.get_default(CONF_CS_PIN))
+            and config.get(CONF_CS_PIN, model.get_default(CONF_CS_PIN)) is False
         ):
             spi_mode = "MODE3"
+            if bus_mode == TYPE_SINGLE:
+                LOGGER.warning(
+                    "No SPI mode specified, defaulting to MODE3 due to lack of CS pin. If you experience issues, try setting SPI mode explicitly to MODE0 or MODE3."
+                )
         else:
             spi_mode = "MODE0"
 
@@ -270,14 +278,16 @@ def customise_schema(config):
     # Check for invalid combinations of MADCTL config
     if init_sequence := config.get(CONF_INIT_SEQUENCE):
         commands = [x[0] for x in init_sequence]
-        if MADCTL in commands and CONF_TRANSFORM in config:
-            raise cv.Invalid(
-                f"transform is not supported when MADCTL ({MADCTL:#X}) is in the init sequence"
-            )
-        if PIXFMT in commands:
-            raise cv.Invalid(
-                f"PIXFMT ({PIXFMT:#X}) should not be in the init sequence, it will be set automatically"
-            )
+        # If there is page swapping, we can't rely on recognising common commands
+        if PAGESEL not in commands and PAGESEL1 not in commands:
+            if MADCTL in commands and CONF_TRANSFORM in config:
+                raise cv.Invalid(
+                    f"transform is not supported when MADCTL ({MADCTL:#X}) is in the init sequence"
+                )
+            if PIXFMT in commands:
+                raise cv.Invalid(
+                    f"PIXFMT ({PIXFMT:#X}) should not be in the init sequence, it will be set automatically"
+                )
 
     if bus_mode == TYPE_QUAD and CONF_DC_PIN in config:
         raise cv.Invalid("DC pin is not supported in quad mode")
@@ -285,13 +295,7 @@ def customise_schema(config):
         raise cv.Invalid(f"DC pin is required in {bus_mode} mode")
     denominator(config)
     model = MODELS[config[CONF_MODEL]]
-    has_hardware_transform = config.get(
-        CONF_TRANSFORM
-    ) != CONF_DISABLED and model.transforms == {
-        CONF_MIRROR_X,
-        CONF_MIRROR_Y,
-        CONF_SWAP_XY,
-    }
+    has_hardware_transform = model.has_hardware_transform(config)
     width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
         model.get_dimensions(config, not has_hardware_transform)
     )
@@ -356,13 +360,7 @@ def get_instance(config):
     :return: type, template arguments
     """
     model = MODELS[config[CONF_MODEL]]
-    has_hardware_transform = config.get(
-        CONF_TRANSFORM
-    ) != CONF_DISABLED and model.transforms == {
-        CONF_MIRROR_X,
-        CONF_MIRROR_Y,
-        CONF_SWAP_XY,
-    }
+    has_hardware_transform = model.has_hardware_transform(config)
     width, height, offset_width, offset_height, pad_width, pad_height = (
         model.get_dimensions(config, not has_hardware_transform)
     )

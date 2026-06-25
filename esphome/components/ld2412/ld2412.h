@@ -36,7 +36,7 @@ using namespace ld24xx;
 static constexpr uint8_t MAX_LINE_LENGTH = 54;  // Max characters for serial buffer
 static constexpr uint8_t TOTAL_GATES = 14;      // Total number of gates supported by the LD2412
 
-class LD2412Component : public Component, public uart::UARTDevice {
+class LD2412Component final : public Component, public uart::UARTDevice {
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(dynamic_background_correction_status)
   SUB_BINARY_SENSOR(moving_target)
