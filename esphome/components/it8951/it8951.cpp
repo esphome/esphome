@@ -288,7 +288,7 @@ void IT8951Display::advance_phase_() {
       break;
 
     case Phase::UPDATE_SLEEP:
-      ESP_LOGD(TAG, "Update took %" PRIu32 "ms (mode=%u area=%ux%u@%u,%u)", millis() - this->update_started_at_,
+      ESP_LOGV(TAG, "Update took %" PRIu32 "ms (mode=%u area=%ux%u@%u,%u)", millis() - this->update_started_at_,
                static_cast<unsigned>(this->active_mode_), this->area_w_, this->area_h_, this->area_x_, this->area_y_);
       this->set_phase_(Phase::IDLE);
       this->advance_phase_();
@@ -739,7 +739,7 @@ bool IT8951Display::prepare_update_region_(UpdateMode &mode) {
 
   this->reset_dirty_region_();
 
-  ESP_LOGD(TAG, "Update: %ux%u@%u,%u mode=%u (%s)", width, height, x, y, static_cast<unsigned>(mode),
+  ESP_LOGV(TAG, "Update: %ux%u@%u,%u mode=%u (%s)", width, height, x, y, static_cast<unsigned>(mode),
            this->grayscale_ ? "grayscale" : "mono");
   return true;
 }
