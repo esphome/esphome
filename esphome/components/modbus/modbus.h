@@ -138,6 +138,7 @@ class ModbusServerHub : public Modbus {
   // Parsers need to handle standard (ModbusFunctionCode) and custom (uint8_t) function codes, so we use uint8_t here.
   void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len) override;
   void process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data);
+  ModbusServerDevice *find_device_(uint8_t address);
   void send_raw_(const uint8_t *payload, uint16_t len);
   void send_exception_(uint8_t address, uint8_t function_code, ModbusExceptionCode exception_code);
   void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);
