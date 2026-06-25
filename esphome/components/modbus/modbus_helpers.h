@@ -225,7 +225,7 @@ template<typename N> N mask_and_shift_by_rightbit(N data, uint32_t mask) {
 }
 
 // Logs an error for an unsupported value type. Defined in the .cpp so logging stays out of headers.
-void log_invalid_number_to_payload_type(SensorValueType value_type);
+void log_unsupported_value_type(SensorValueType value_type);
 
 /** Append the Modbus register words for value to data.
  * Works with any container exposing push_back(uint16_t) (e.g. std::vector or StaticVector).
@@ -263,7 +263,7 @@ template<typename Container> void number_to_payload(Container &data, int64_t val
       data.push_back((value & 0xFFFF000000000000) >> 48);
       break;
     default:
-      log_invalid_number_to_payload_type(value_type);
+      log_unsupported_value_type(value_type);
       break;
   }
 }

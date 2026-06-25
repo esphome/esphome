@@ -101,7 +101,7 @@ static size_t required_payload_size(SensorValueType sensor_value_type) {
   }
 }
 
-void log_invalid_number_to_payload_type(SensorValueType value_type) {
+void log_unsupported_value_type(SensorValueType value_type) {
   ESP_LOGE(TAG, "Invalid data type for modbus number to payload conversion: %d", static_cast<uint16_t>(value_type));
 }
 
