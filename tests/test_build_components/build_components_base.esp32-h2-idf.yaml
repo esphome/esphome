@@ -4,10 +4,11 @@ esphome:
 
 esp32:
   board: esp32-h2-devkitm-1
-  variant: ESP32H2
-  flash_size: 4MB
   framework:
     type: esp-idf
+  # Use custom partition table with larger app partition (3MB)
+  # Default IDF partitions only allow 1.75MB which is too small for grouped tests
+  partitions: ../partitions_testing.csv
 
 logger:
   level: VERY_VERBOSE

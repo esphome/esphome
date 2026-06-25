@@ -11,7 +11,7 @@ namespace esphome::pzemac {
 
 template<typename... Ts> class ResetEnergyAction;
 
-class PZEMAC : public PollingComponent, public modbus::ModbusDevice {
+class PZEMAC final : public PollingComponent, public modbus::ModbusDevice {
  public:
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
   void set_current_sensor(sensor::Sensor *current_sensor) { current_sensor_ = current_sensor; }
@@ -38,7 +38,7 @@ class PZEMAC : public PollingComponent, public modbus::ModbusDevice {
   void reset_energy_();
 };
 
-template<typename... Ts> class ResetEnergyAction : public Action<Ts...> {
+template<typename... Ts> class ResetEnergyAction final : public Action<Ts...> {
  public:
   ResetEnergyAction(PZEMAC *pzemac) : pzemac_(pzemac) {}
 
