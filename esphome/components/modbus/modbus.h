@@ -210,8 +210,8 @@ class ModbusServerDevice {
   ModbusServerDevice &operator=(const ModbusServerDevice &) = delete;
   ModbusServerDevice(ModbusServerDevice &&) = delete;
   ModbusServerDevice &operator=(ModbusServerDevice &&) = delete;
-  void set_address(uint8_t address) { address_ = address; }
-  uint8_t get_address() const { return address_; }
+  void set_address(uint8_t address) { this->address_ = address; }
+  uint8_t get_address() const { return this->address_; }
   virtual ServerResponseStatus on_modbus_read_registers(uint16_t start_address, uint16_t number_of_registers,
                                                         RegisterValues &registers) {
     return ModbusExceptionCode::ILLEGAL_FUNCTION;
