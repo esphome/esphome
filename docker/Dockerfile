@@ -1,5 +1,5 @@
 ARG BUILD_VERSION=dev
-ARG BUILD_BASE_VERSION=2026.06.0
+ARG BUILD_BASE_VERSION=2026.06.1
 ARG BUILD_TYPE=docker
 
 FROM ghcr.io/esphome/docker-base:debian-${BUILD_BASE_VERSION} AS base-source-docker
@@ -10,16 +10,6 @@ FROM base-source-${BUILD_TYPE} AS base
 
 RUN git config --system --add safe.directory "*" \
     && git config --system advice.detachedHead false
-
-# Install build tools for Python packages that require compilation
-# (e.g., ruamel.yaml.clib used by ESP-IDF's idf-component-manager).
-# Also install libusb-1.0 at runtime so the ESP-IDF tools installer can
-# validate openocd-esp32 (it dynamically links libusb-1.0.so.0); without
-# it idf_tools.py rejects the openocd install with exit 127 and aborts
-# the whole framework setup.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential libusb-1.0-0 \
-    && rm -rf /var/lib/apt/lists/*
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 
@@ -32,7 +22,7 @@ RUN \
     -r /requirements.txt
 
 # Install the ESPHome Device Builder dashboard.
-RUN uv pip install --no-cache-dir esphome-device-builder==1.0.1
+RUN uv pip install --no-cache-dir esphome-device-builder==1.0.18
 
 RUN \
     platformio settings set enable_telemetry No \

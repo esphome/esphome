@@ -11,13 +11,30 @@ import sys
 import time
 from typing import IO
 
-import requests
-
 from esphome.helpers import ProgressBar, rmtree
 
 PathType = str | os.PathLike
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def get_project_link_flags() -> list[str]:
+    """Return the sorted -Wl, linker flags from the current build."""
+    from esphome.core import CORE  # local import to avoid circular dependency
+
+    return sorted(flag for flag in CORE.build_flags if flag.startswith("-Wl,"))
+
+
+def get_project_compile_flags() -> list[str]:
+    """Return the sorted -D and -W (non-linker) flags from the current build."""
+    from esphome.core import CORE  # local import to avoid circular dependency
+
+    return [
+        flag
+        for flag in sorted(CORE.build_flags)
+        if flag.startswith("-D")
+        or (flag.startswith("-W") and not flag.startswith("-Wl,"))
+    ]
 
 
 def str_to_lst_of_str(a: str | list[str]) -> list[str]:
@@ -616,6 +633,10 @@ def download_from_mirrors(
         ValueError: If mirrors list is empty.
         Exception: If all download attempts fail.
     """
+    # Imported lazily: requests is a heavy import (~85ms) and is only needed
+    # when actually downloading a toolchain, never during config validation.
+    import requests
+
     # 1. Open target file for writing if path given
     with ExitStack() as stack:
         if isinstance(target, (str, os.PathLike)):
