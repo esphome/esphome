@@ -12,7 +12,7 @@ enum class DemoFanType {
   TYPE_4,
 };
 
-class DemoFan : public fan::Fan, public Component {
+class DemoFan final : public fan::Fan, public Component {
  public:
   void set_type(DemoFanType type) { type_ = type; }
   fan::FanTraits get_traits() override {

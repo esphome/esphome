@@ -139,6 +139,28 @@ def test_convert_walks_callable_schema_extractor() -> None:
     assert "foo" in config_var["schema"]["config_vars"]
 
 
+def test_convert_emits_variant_enum() -> None:
+    """A per-variant enum is dumped with each value tagged by its variants."""
+    from esphome.components.esp32 import (
+        VARIANT_ESP32,
+        VARIANT_ESP32S3,
+        variant_filtered_enum,
+    )
+
+    validator = variant_filtered_enum(
+        {VARIANT_ESP32: ("quad",), VARIANT_ESP32S3: ("quad", "octal")},
+        lower=True,
+    )
+    config_var: dict = {}
+    _bls.convert(validator, config_var, "/test")
+
+    assert config_var["type"] == "enum"
+    assert config_var["values"] == {
+        "quad": {"variants": [VARIANT_ESP32, VARIANT_ESP32S3]},
+        "octal": {"variants": [VARIANT_ESP32S3]},
+    }
+
+
 def test_convert_keys_emits_heuristic_sensitive_marker() -> None:
     converted: dict = {}
     _bls.convert_keys(converted, {cv.Optional("password"): cv.string}, "/root")

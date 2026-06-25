@@ -176,7 +176,6 @@ class MipiSpi : public display::Display,
           this->mark_failed();
           return;
         }
-        auto arg_byte = vec[index];
         switch (cmd) {
           case SLEEP_OUT: {
             // are we ready, boots?
@@ -186,13 +185,6 @@ class MipiSpi : public display::Display,
               delay(duration);
             }
           } break;
-
-          case INVERT_ON:
-            this->invert_colors_ = true;
-            break;
-          case BRIGHTNESS:
-            this->brightness_ = arg_byte;
-            break;
 
           default:
             break;
