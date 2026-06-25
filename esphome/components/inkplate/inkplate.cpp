@@ -846,14 +846,22 @@ bool InkplateParallelBase::do_board_transfer_step() {
       for (int i = 0; i < this->height_; i++) {
         for (int j = 0; j < this->width_ / 4; j += 4) {
           uint8_t pix_hi, pix_lo;
-          pix_hi = *(--dp); pix_lo = *(--dp);
-          this->dma_line_buf_[j + 2] = (uint8_t) (this->glut2_[this->trf_k_ * 256 + pix_hi] | this->glut_[this->trf_k_ * 256 + pix_lo]);
-          pix_hi = *(--dp); pix_lo = *(--dp);
-          this->dma_line_buf_[j + 3] = (uint8_t) (this->glut2_[this->trf_k_ * 256 + pix_hi] | this->glut_[this->trf_k_ * 256 + pix_lo]);
-          pix_hi = *(--dp); pix_lo = *(--dp);
-          this->dma_line_buf_[j] = (uint8_t) (this->glut2_[this->trf_k_ * 256 + pix_hi] | this->glut_[this->trf_k_ * 256 + pix_lo]);
-          pix_hi = *(--dp); pix_lo = *(--dp);
-          this->dma_line_buf_[j + 1] = (uint8_t) (this->glut2_[this->trf_k_ * 256 + pix_hi] | this->glut_[this->trf_k_ * 256 + pix_lo]);
+          pix_hi = *(--dp);
+          pix_lo = *(--dp);
+          this->dma_line_buf_[j + 2] =
+              (uint8_t) (this->glut2_[this->trf_k_ * 256 + pix_hi] | this->glut_[this->trf_k_ * 256 + pix_lo]);
+          pix_hi = *(--dp);
+          pix_lo = *(--dp);
+          this->dma_line_buf_[j + 3] =
+              (uint8_t) (this->glut2_[this->trf_k_ * 256 + pix_hi] | this->glut_[this->trf_k_ * 256 + pix_lo]);
+          pix_hi = *(--dp);
+          pix_lo = *(--dp);
+          this->dma_line_buf_[j] =
+              (uint8_t) (this->glut2_[this->trf_k_ * 256 + pix_hi] | this->glut_[this->trf_k_ * 256 + pix_lo]);
+          pix_hi = *(--dp);
+          pix_lo = *(--dp);
+          this->dma_line_buf_[j + 1] =
+              (uint8_t) (this->glut2_[this->trf_k_ * 256 + pix_hi] | this->glut_[this->trf_k_ * 256 + pix_lo]);
         }
         send_line_i2s_();
         vscan_end_();
