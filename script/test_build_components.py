@@ -42,6 +42,7 @@ from script.analyze_component_buses import (
 from script.helpers import (
     get_component_test_files,
     is_validate_only_file,
+    parse_test_filename,
     split_conflicting_groups,
 )
 from script.merge_component_configs import merge_component_configs
@@ -120,21 +121,6 @@ def find_component_tests(
             component_tests[comp_dir.name] = test_files
 
     return dict(component_tests)
-
-
-def parse_test_filename(test_file: Path) -> tuple[str, str]:
-    """Parse test filename to extract test name and platform.
-
-    Args:
-        test_file: Path to test file
-
-    Returns:
-        Tuple of (test_name, platform)
-    """
-    parts = test_file.stem.split(".")
-    if len(parts) == 2:
-        return parts[0], parts[1]  # test, platform
-    return parts[0], "all"
 
 
 def get_platform_base_files(base_dir: Path) -> dict[str, list[Path]]:

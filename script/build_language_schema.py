@@ -428,6 +428,33 @@ def fix_menu():
     menu[S_EXTENDS].append("display_menu_base.MENU_TYPES")
 
 
+def fix_lvgl_widgets():
+    # lvgl's `widgets:` is a recursive tree (a widget can contain widgets). The
+    # dumper has no cycle detection, so — like fix_menu — hoist the inlined
+    # widget-type enumeration into a named schema and reference it for both the
+    # top-level list and each widget's own children, instead of expanding it.
+    if "lvgl" not in output:
+        return
+    schemas = output["lvgl"][S_SCHEMAS]
+    config_vars = schemas["CONFIG_SCHEMA"][S_SCHEMA][S_CONFIG_VARS]
+    widgets = config_vars.get("widgets")
+    if not widgets or S_SCHEMA not in widgets or S_CONFIG_VARS not in widgets[S_SCHEMA]:
+        return
+    # 1. Hoist the (one-level) widget enumeration into a named schema.
+    schemas["WIDGET_TYPES"] = {S_TYPE: S_SCHEMA, S_SCHEMA: widgets[S_SCHEMA]}
+    # 2. Reference it from the top-level widgets: list instead of inlining.
+    widgets[S_SCHEMA] = {S_EXTENDS: ["lvgl.WIDGET_TYPES"]}
+    # 3. Let every widget contain child widgets, via the same named ref.
+    for widget in schemas["WIDGET_TYPES"][S_SCHEMA][S_CONFIG_VARS].values():
+        if widget.get(S_TYPE) == S_SCHEMA and S_SCHEMA in widget:
+            widget[S_SCHEMA].setdefault(S_CONFIG_VARS, {})["widgets"] = {
+                S_TYPE: S_SCHEMA,
+                "is_list": True,
+                "key": "Optional",
+                S_SCHEMA: {S_EXTENDS: ["lvgl.WIDGET_TYPES"]},
+            }
+
+
 def get_logger_tags():
     pattern = re.compile(r'^static const char \*const TAG = "(\w.*)";', re.MULTILINE)
     # tags not in components dir
@@ -740,6 +767,7 @@ def build_schema():
     add_logger_tags()
     shrink()
     fix_menu()
+    fix_lvgl_widgets()
 
     # aggregate components, so all component info is in same file, otherwise we have dallas.json, dallas.sensor.json, etc.
     data = {}
@@ -923,10 +951,24 @@ def convert(schema, config_var, path):
         elif schema_type == "enum":
             config_var[S_TYPE] = "enum"
             config_var["values"] = dict.fromkeys(list(data.keys()))
+        elif schema_type == "variant_enum":
+            # Per-variant enum (e.g. psram mode/speed): each value carries the
+            # list of variants that accept it so clients can filter to the
+            # user's selected variant. Additive to the plain enum format —
+            # consumers that ignore the metadata still see every option.
+            config_var[S_TYPE] = "enum"
+            config_var["values"] = {
+                value: {"variants": variants} for value, variants in data.items()
+            }
         elif schema_type == "maybe":
-            config_var[S_TYPE] = S_SCHEMA
+            # maybe_simple_value: either a scalar shorthand (mapped to the key in
+            # data[1]) or the full wrapped schema. The wrapped schema is usually a
+            # plain Schema (converts to a "schema" config var), but may be something
+            # else, e.g. a typed_schema (converts to a "typed" config var with
+            # "types" and no top-level "schema" key). Merge whatever it produced
+            # rather than assuming a "schema" key is present.
             config_var["maybe"] = data[1]
-            config_var["schema"] = convert_config(data[0], path + "/maybe")["schema"]
+            config_var.update(convert_config(data[0], path + "/maybe"))
         # esphome/on_boot
         elif schema_type == "automation":
             extra_schema = None
@@ -997,6 +1039,10 @@ def convert(schema, config_var, path):
             else:
                 config_var["use_id_type"] = str(data.base)
                 config_var[S_TYPE] = "use_id"
+        elif schema_type == "schema":
+            # A callable CONFIG_SCHEMA that returned a representative schema
+            # for extraction (model-driven components); walk it as usual.
+            convert(data, config_var, path)
         else:
             raise TypeError("Unknown extracted schema type")
     elif config_var.get("key") == "GeneratedID":

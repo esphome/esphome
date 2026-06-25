@@ -16,7 +16,7 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
     Toolchain,
 )
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 from esphome.helpers import write_file_if_changed
 from esphome.types import CoreType
 
@@ -71,14 +71,10 @@ def _to_path_if_not_none(value: str | None) -> Path | None:
 class StorageJSON:
     """Persisted device metadata sidecar.
 
-    Used by:
-    - esphome.dashboard (legacy dashboard)
-    - device-builder (esphome/device-builder) — reads/writes the same
-      JSON file as the legacy dashboard so a single config_dir can be
-      shared between the two during the transition. The schema
-      (``storage_version``, field names, types) must stay backwards
-      compatible — coordinate with the device-builder team before
-      adding required fields or changing semantics of existing ones.
+    Used by device-builder (esphome/device-builder), which reads/writes this
+    JSON file. The schema (``storage_version``, field names, types) must stay
+    backwards compatible — coordinate with the device-builder team before
+    adding required fields or changing semantics of existing ones.
     """
 
     def __init__(
@@ -100,6 +96,8 @@ class StorageJSON:
         framework: str | None = None,
         core_platform: str | None = None,
         toolchain: str | None = None,
+        area: str | None = None,
+        framework_version: str | None = None,
     ) -> None:
         # Version of the storage JSON schema
         assert storage_version is None or isinstance(storage_version, int)
@@ -138,6 +136,10 @@ class StorageJSON:
         self.core_platform = core_platform
         # The toolchain used for the build ("platformio" / "esp-idf")
         self.toolchain = toolchain
+        # The area of the node
+        self.area = area
+        # The framework version the build used (for esp32, the resolved ESP-IDF version)
+        self.framework_version = framework_version
 
     def as_dict(self):
         return {
@@ -158,6 +160,8 @@ class StorageJSON:
             "framework": self.framework,
             "core_platform": self.core_platform,
             "toolchain": self.toolchain,
+            "area": self.area,
+            "framework_version": self.framework_version,
         }
 
     def to_json(self):
@@ -169,10 +173,12 @@ class StorageJSON:
     @staticmethod
     def from_esphome_core(esph: CoreType, old: StorageJSON | None) -> StorageJSON:
         hardware = esph.target_platform.upper()
+        framework_version: str | None = None
         if esph.is_esp32:
             from esphome.components import esp32
 
             hardware = esp32.get_esp32_variant(esph)
+            framework_version = str(esp32.idf_version())
         return StorageJSON(
             storage_version=1,
             name=esph.name,
@@ -195,6 +201,8 @@ class StorageJSON:
             framework=esph.target_framework,
             core_platform=esph.target_platform,
             toolchain=esph.toolchain.value if esph.toolchain is not None else None,
+            area=esph.area,
+            framework_version=framework_version,
         )
 
     @staticmethod
@@ -243,6 +251,8 @@ class StorageJSON:
         framework = storage.get("framework")
         core_platform = storage.get("core_platform")
         toolchain = storage.get("toolchain")
+        area = storage.get("area")
+        framework_version = storage.get("framework_version")
         return StorageJSON(
             storage_version,
             name,
@@ -261,6 +271,8 @@ class StorageJSON:
             framework,
             core_platform,
             toolchain,
+            area,
+            framework_version,
         )
 
     @staticmethod
@@ -304,10 +316,24 @@ class StorageJSON:
         # esp32.get_esp32_variant(). target_platform on disk is the variant
         # (e.g. "ESP32S3"); core_platform is the family (e.g. "esp32").
         if target_platform == const.PLATFORM_ESP32:
-            from esphome.components.esp32.const import KEY_ESP32
+            from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION
             from esphome.const import KEY_VARIANT
 
-            CORE.data[KEY_ESP32] = {KEY_VARIANT: self.target_platform}
+            esp32_data = {KEY_VARIANT: self.target_platform}
+            if self.framework_version:
+                import esphome.config_validation as cv
+
+                try:
+                    esp32_data[KEY_IDF_VERSION] = cv.Version.parse(
+                        self.framework_version
+                    )
+                except ValueError as err:
+                    raise EsphomeError(
+                        f"Could not parse the framework version "
+                        f"{self.framework_version!r} from {storage_path()}. "
+                        f"Please clean the build files and recompile."
+                    ) from err
+            CORE.data[KEY_ESP32] = esp32_data
 
     def __eq__(self, o) -> bool:
         return isinstance(o, StorageJSON) and self.as_dict() == o.as_dict()

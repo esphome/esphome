@@ -6,7 +6,7 @@
 
 namespace esphome::demo {
 
-class DemoTextSensor : public text_sensor::TextSensor, public PollingComponent {
+class DemoTextSensor final : public text_sensor::TextSensor, public PollingComponent {
  public:
   void update() override {
     float val = random_float();
