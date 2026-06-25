@@ -6,7 +6,7 @@
 
 namespace esphome::binary {
 
-class BinaryFan : public Component, public fan::Fan {
+class BinaryFan final : public Component, public fan::Fan {
  public:
   void setup() override;
   void dump_config() override;

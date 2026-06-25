@@ -6,7 +6,7 @@
 
 namespace esphome::aqi {
 
-class AQISensor : public sensor::Sensor, public Component {
+class AQISensor final : public sensor::Sensor, public Component {
  public:
   void setup() override;
   void dump_config() override;
