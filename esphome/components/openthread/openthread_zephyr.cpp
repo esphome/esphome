@@ -85,8 +85,6 @@ void OpenThreadComponent::setup() {
   openthread_start(context);
 }
 
-void OpenThreadComponent::ot_main() {}
-
 otInstance *OpenThreadComponent::get_openthread_instance_() { return openthread_get_default_instance(); }
 
 int OpenThreadComponent::openthread_stop_() {
