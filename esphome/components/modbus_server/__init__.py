@@ -54,6 +54,20 @@ ModbusServerRegisterSchema = cv.Schema(
 )
 
 
+def _validate_register_ranges(config):
+    # Each register occupies [address, address + register_count); the whole span must fit inside the 16-bit
+    # Modbus address space (0x0000-0xFFFF).
+    for register in config.get(CONF_REGISTERS, []):
+        address = register[CONF_ADDRESS]
+        register_count = TYPE_REGISTER_MAP[register[CONF_VALUE_TYPE]]
+        if address + register_count > 0x10000:
+            raise cv.Invalid(
+                f"Register at 0x{address:04X} spans {register_count} register(s) and runs past the end of the 16-bit address space (0xFFFF)",
+                path=[CONF_REGISTERS],
+            )
+    return config
+
+
 def _validate_no_overlapping_registers(config):
     # Each register occupies [address, address + register_count). Reject configs where any two ranges
     # overlap -- the same address twice, or a multi-register value straddling a neighbour -- since the
@@ -81,6 +95,7 @@ CONFIG_SCHEMA = cv.All(
             ): cv.ensure_list(ModbusServerRegisterSchema),
         }
     ).extend(modbus.modbus_device_schema(0x01, role="server")),
+    _validate_register_ranges,
     _validate_no_overlapping_registers,
 )
 

@@ -3,7 +3,10 @@
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.modbus_server import _validate_no_overlapping_registers
+from esphome.components.modbus_server import (
+    _validate_no_overlapping_registers,
+    _validate_register_ranges,
+)
 from esphome.components.modbus_server.const import CONF_REGISTERS
 from esphome.const import CONF_ADDRESS, CONF_VALUE_TYPE
 
@@ -50,3 +53,23 @@ def test_overlap_detected_regardless_of_order() -> None:
     config = _config([(0x11, "U_WORD"), (0x10, "U_DWORD")])
     with pytest.raises(cv.Invalid, match="overlaps"):
         _validate_no_overlapping_registers(config)
+
+
+def test_register_span_within_address_space_pass() -> None:
+    # A value whose span ends exactly at 0xFFFF is fine (U_QWORD at 0xFFFC covers 0xFFFC-0xFFFF).
+    config = _config([(0xFFFF, "U_WORD"), (0xFFFC, "U_QWORD")])
+    assert _validate_register_ranges(config) is config
+
+
+def test_register_span_past_end_rejected() -> None:
+    # U_QWORD at 0xFFFE would need 0xFFFE-0x10001, running off the 16-bit address space.
+    config = _config([(0xFFFE, "U_QWORD")])
+    with pytest.raises(cv.Invalid, match="past the end"):
+        _validate_register_ranges(config)
+
+
+def test_multi_register_value_at_last_address_rejected() -> None:
+    # A U_DWORD at 0xFFFF needs a second register at 0x10000, which does not exist.
+    config = _config([(0xFFFF, "U_DWORD")])
+    with pytest.raises(cv.Invalid, match="past the end"):
+        _validate_register_ranges(config)
