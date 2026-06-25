@@ -54,6 +54,23 @@ ModbusServerRegisterSchema = cv.Schema(
 )
 
 
+def _validate_no_overlapping_registers(config):
+    # Each register occupies [address, address + register_count). Reject configs where any two ranges
+    # overlap -- the same address twice, or a multi-register value straddling a neighbour -- since the
+    # server resolves a request by the value containing an address and overlaps are ambiguous.
+    spans = sorted(
+        (register[CONF_ADDRESS], TYPE_REGISTER_MAP[register[CONF_VALUE_TYPE]])
+        for register in config.get(CONF_REGISTERS, [])
+    )
+    for (address, register_count), (next_address, _) in zip(spans, spans[1:]):
+        if next_address < address + register_count:
+            raise cv.Invalid(
+                f"Register address 0x{next_address:04X} overlaps the register at 0x{address:04X}, which spans {register_count} register(s); each register's address range must be unique",
+                path=[CONF_REGISTERS],
+            )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -64,6 +81,7 @@ CONFIG_SCHEMA = cv.All(
             ): cv.ensure_list(ModbusServerRegisterSchema),
         }
     ).extend(modbus.modbus_device_schema(0x01, role="server")),
+    _validate_no_overlapping_registers,
 )
 
 
