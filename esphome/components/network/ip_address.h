@@ -38,7 +38,7 @@ static inline int ipaddr_aton(const char *cp, ip_addr_t *addr) {
     addr->type = IPADDR_TYPE_V6;
     return 1;
   }
-  if (inet_pton(AF_INET, cp, &addr->u_addr.ip4) != 1) {
+  if (inet_aton(cp, &addr->u_addr.ip4) != 1) {
     return 0;
   }
   addr->type = IPADDR_TYPE_V4;
@@ -136,6 +136,7 @@ struct IPAddress {
     this->ip_addr_.type = IPADDR_TYPE_V4;
   }
   IPAddress(ip6_addr_t *other_ip) {
+    memset(&this->ip_addr_, 0, sizeof(this->ip_addr_));
     this->ip_addr_.u_addr.ip6 = *other_ip;
     this->ip_addr_.type = IPADDR_TYPE_V6;
   }
