@@ -476,6 +476,34 @@ def test_wizard_accepts_default_answers_esp32(
     assert retval == 0
 
 
+def test_wizard_accepts_default_answers_bk72xx(
+    tmp_path: Path, monkeypatch: MonkeyPatch, wizard_answers: list[str]
+):
+    """
+    The wizard should accept the given default answers for bk72xx. The
+    libretiny branch also exercises the False side of the
+    ``elif platform == "RP2":`` checks in the platform / board-link
+    elif chain (without this, those branches show as partial coverage
+    because only the rpipico interactive test reaches them with platform
+    == "RP2").
+    """
+    # Given
+    wizard_answers[1] = "BK72XX"
+    wizard_answers[2] = next(iter(BK72XX_BOARD_PINS))
+    config_file = tmp_path / "test.yaml"
+    input_mock = MagicMock(side_effect=wizard_answers)
+    monkeypatch.setattr("builtins.input", input_mock)
+    monkeypatch.setattr(wz, "safe_print", lambda t=None, end=None: 0)
+    monkeypatch.setattr(wz, "sleep", lambda _: 0)
+    monkeypatch.setattr(wz, "wizard_write", MagicMock())
+
+    # When
+    retval = wz.wizard(config_file)
+
+    # Then
+    assert retval == 0
+
+
 def test_wizard_offers_better_node_name(
     tmp_path: Path, monkeypatch: MonkeyPatch, wizard_answers: list[str]
 ):
