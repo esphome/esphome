@@ -188,6 +188,92 @@ def test_sensitive__is_detectable_via_isinstance() -> None:
     assert isinstance(validator, config_validation.SensitiveValidator)
 
 
+def test_bind_key__bare_usage_validates_and_is_sensitive() -> None:
+    # Used bare (cv.bind_key) it is itself a sensitive validator: detectable for
+    # frontend masking and validating a value directly tags the result.
+    assert isinstance(config_validation.bind_key, config_validation.SensitiveValidator)
+
+    result = config_validation.bind_key("0123456789ABCDEF0123456789ABCDEF")
+
+    assert isinstance(result, SensitiveStr)
+    assert result == "0123456789ABCDEF0123456789ABCDEF"
+
+
+def test_bind_key__bare_usage_in_schema() -> None:
+    # Voluptuous calls the bare validator with the config value; the result must
+    # come through tagged sensitive.
+    schema = config_validation.Schema(
+        {config_validation.Required("key"): config_validation.bind_key}
+    )
+    out = schema({"key": "0123456789ABCDEF0123456789ABCDEF"})
+
+    assert isinstance(out["key"], SensitiveStr)
+
+
+def test_bind_key__factory_returns_sensitive_validator() -> None:
+    # Called with a name (cv.bind_key(name=...)) it returns a new sensitive
+    # validator rather than validating.
+    validator = config_validation.bind_key(name="Decryption key")
+
+    assert isinstance(validator, config_validation.SensitiveValidator)
+    assert validator is not config_validation.bind_key
+    assert isinstance(validator("0123456789ABCDEF0123456789ABCDEF"), SensitiveStr)
+
+
+@pytest.mark.parametrize(
+    ("value", "error"),
+    (
+        ("00", "Decryption key must consist of 16 hexadecimal numbers"),
+        ("0123456789ABCDEF0123456789ABCDEG", "Decryption key must be hex values"),
+    ),
+)
+def test_bind_key__custom_name_in_error(value: str, error: str) -> None:
+    # The ``name`` argument (used by dsmr/dlms_meter) customizes error messages.
+    validator = config_validation.bind_key(name="Decryption key")
+    with pytest.raises(Invalid, match=error):
+        validator(value)
+
+
+def test_bind_key__rejects_non_hex_pair_length() -> None:
+    # Odd-length input yields a trailing single-char part, hitting the
+    # "format XX" branch rather than the hex-value branch.
+    with pytest.raises(Invalid, match="Bind key must be format XX"):
+        config_validation.bind_key("0123456789ABCDEF0123456789ABCDE")
+
+
+def test_bind_key__direct_call_with_name_validates_with_that_name() -> None:
+    # Passing both a value and a name validates immediately using the custom
+    # name for error wording, and still tags the result sensitive.
+    result = config_validation.bind_key(
+        "0123456789ABCDEF0123456789ABCDEF", name="Decryption key"
+    )
+    assert isinstance(result, SensitiveStr)
+
+    with pytest.raises(Invalid, match="Decryption key must consist of"):
+        config_validation.bind_key("00", name="Decryption key")
+
+
+def test_bind_key__factory_without_name_keeps_existing_name() -> None:
+    # Re-invoking a named validator without a name preserves its name rather
+    # than resetting to the default.
+    named = config_validation.bind_key(name="Decryption key")
+    rederived = named()
+
+    with pytest.raises(Invalid, match="Decryption key must consist of"):
+        rederived("00")
+
+
+def test_bind_key__repr_is_name_keyed_and_non_recursive() -> None:
+    # ``self.inner`` is a bound method of the instance, so the inherited
+    # ``repr(self.inner)`` would recurse infinitely; the override keeps repr
+    # finite and keyed on the name for schema-dump dedup.
+    assert repr(config_validation.bind_key) == "bind_key('Bind key')"
+    assert (
+        repr(config_validation.bind_key(name="Decryption key"))
+        == "bind_key('Decryption key')"
+    )
+
+
 def test_sensitive__repr_mirrors_inner() -> None:
     # The schema dump dedups on ``repr(schema)``; mirroring the inner
     # validator's repr keeps two ``cv.sensitive(cv.string)`` wrappers
