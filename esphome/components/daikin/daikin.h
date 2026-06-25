@@ -39,7 +39,7 @@ const uint32_t DAIKIN_MESSAGE_SPACE = 32300;
 // State Frame size
 const uint8_t DAIKIN_STATE_FRAME_SIZE = 19;
 
-class DaikinClimate : public climate_ir::ClimateIR {
+class DaikinClimate final : public climate_ir::ClimateIR {
  public:
   DaikinClimate()
       : climate_ir::ClimateIR(DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX, 1.0f, true, true,

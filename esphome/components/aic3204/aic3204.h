@@ -61,7 +61,7 @@ static const uint8_t AIC3204_ADC_PTM = 0x3D;       // Register 61 - ADC Power Tu
 static const uint8_t AIC3204_AN_IN_CHRG = 0x47;    // Register 71 - Analog Input Quick Charging Config
 static const uint8_t AIC3204_REF_STARTUP = 0x7B;   // Register 123 - Reference Power Up Config
 
-class AIC3204 : public audio_dac::AudioDac, public Component, public i2c::I2CDevice {
+class AIC3204 final : public audio_dac::AudioDac, public Component, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
