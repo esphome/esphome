@@ -63,7 +63,6 @@ class Modbus : public uart::UARTDevice, public Component {
   uint32_t last_receive_check_{0};
   uint32_t last_send_{0};
   uint32_t last_send_tx_offset_{0};
-  bool last_send_was_broadcast_{false};
   uint16_t frame_delay_ms_{5};
   uint16_t long_rx_buffer_delay_ms_{0};
 
