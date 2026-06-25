@@ -33,6 +33,17 @@ host:
 
 The `esphome run yourfile.yaml` command will compile and automatically run the build file on the `host` platform.
 
+## Preferences
+
+The host platform supports persistence of preferences. See [Preferences](/components/esphome/#preferences-component)
+for more information. The preferences are stored in a file in the directory specified by the environment
+variable `ESPHOME_PREFDIR`. If that variable is unset, they are stored in a directory named `.esphome/prefs`
+under the user's home directory. If neither `ESPHOME_PREFDIR` is set nor the home directory can be determined
+from the `HOME` environment variable, preferences will not be saved or restored, and error messages will be logged.
+
+The preferences file created in the directory has a name derived from the `name` option in the `esphome` block with
+the suffix `.prefs`. For example, if the `name` is `living_room`, the preferences file will be named `living_room.prefs`.
+
 ## Over-the-Air Updates
 
 The host platform supports [OTA updates](/components/ota/esphome/) via the `esphome` OTA platform on port `8082` (by
