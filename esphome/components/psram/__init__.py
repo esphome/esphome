@@ -10,9 +10,11 @@ from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32C5,
     VARIANT_ESP32C61,
+    VARIANT_ESP32H4,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
     add_idf_sdkconfig_option,
     get_esp32_variant,
     idf_version,
@@ -57,8 +59,10 @@ SPIRAM_MODES = {
     VARIANT_ESP32: (TYPE_QUAD,),
     VARIANT_ESP32C5: (TYPE_QUAD,),
     VARIANT_ESP32C61: (TYPE_QUAD,),
+    VARIANT_ESP32H4: (TYPE_QUAD,),
     VARIANT_ESP32S2: (TYPE_QUAD,),
     VARIANT_ESP32S3: (TYPE_QUAD, TYPE_OCTAL),
+    VARIANT_ESP32S31: (TYPE_OCTAL,),
     VARIANT_ESP32P4: (TYPE_HEX,),
 }
 
@@ -67,8 +71,10 @@ SPIRAM_SPEEDS = {
     VARIANT_ESP32: (40, 80, 120),
     VARIANT_ESP32C5: (40, 80, 120),
     VARIANT_ESP32C61: (40, 80),
+    VARIANT_ESP32H4: (32, 64),
     VARIANT_ESP32S2: (40, 80, 120),
     VARIANT_ESP32S3: (40, 80, 120),
+    VARIANT_ESP32S31: (40, 100, 200, 250),
     VARIANT_ESP32P4: (20, 100, 200),
 }
 
@@ -145,10 +151,8 @@ def validate_psram_mode(config):
         raise cv.Invalid("ECC is only available in octal mode.")
     if config[CONF_MODE] == TYPE_OCTAL:
         variant = get_esp32_variant()
-        if variant != VARIANT_ESP32S3:
-            raise cv.Invalid(
-                f"Octal PSRAM is only supported on ESP32-S3, not {variant}"
-            )
+        if TYPE_OCTAL not in SPIRAM_MODES.get(variant, ()):
+            raise cv.Invalid(f"Octal PSRAM is not supported on {variant}")
     return config
 
 
