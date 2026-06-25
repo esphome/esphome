@@ -400,7 +400,6 @@ bool Modbus::send_frame_(const ModbusFrame &frame) {
            format_hex_pretty_to(hex_buf, frame.data.get(), frame.size), now - this->last_send_,
            now - this->last_modbus_byte_);
   this->last_send_ = now;
-  // address 0 is the Modbus broadcast address (no response expected)
   this->last_send_was_broadcast_ = frame.size > 0 && frame.data[0] == 0;
   return true;
 }
