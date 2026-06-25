@@ -67,7 +67,8 @@ class OpenThreadComponent final : public Component {
   template<typename... Ts> friend class OpenThreadComponentPollPeriodAction;
 
   /** Apply Link Mode settings (incl poll period).
-   * When called from outside the OpenThread task, call while holding InstanceLock.
+   * Callers running outside the OpenThread task must hold InstanceLock.
+   * ot_main() runs on the OpenThread task itself and must not acquire the lock.
    */
   void apply_linkmode_(otInstance *instance);
 

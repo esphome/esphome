@@ -229,11 +229,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_GRACEFUL_DETACH_ON_SHUTDOWN): cv.boolean,
             cv.Optional(CONF_TLV): cv.All(cv.string_strict, _validate_tlv_hex),
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
-            cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_OUTPUT_POWER): cv.All(
                 cv.decibel,
                 _validate_txpower,
             ),
+            cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
         }
     ).extend(_CONNECTION_SCHEMA),
     cv.has_exactly_one_key(CONF_NETWORK_KEY, CONF_TLV),
