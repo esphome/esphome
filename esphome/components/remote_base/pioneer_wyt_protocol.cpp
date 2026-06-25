@@ -103,9 +103,9 @@ PioneerWytData PioneerWytData::make_general(bool power, uint8_t mode, float targ
   if (half_digit)
     b12 |= (1 << 2);
   if (left_right_swing) {
-    b12 |= (0x11 << 3);
+    b12 |= (1 << 7) | (1 << 3);
   } else {
-    b12 |= (0x10 << 3);
+    b12 |= (1 << 7);
   }
   d[12] = b12;
 

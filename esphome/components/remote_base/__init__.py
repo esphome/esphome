@@ -1040,13 +1040,23 @@ def validate_pioneer_wyt(config):
     return config
 
 
+def validate_target_temperature(value):
+    value = cv.float_(value)
+    if abs(value - round(value * 2.0) / 2.0) > 1e-3:
+        raise cv.Invalid("Target temperature must be a multiple of 0.5°C")
+    return value
+
+
 PIONEER_WYT_ACTION_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_CODE): cv.All([cv.hex_uint8_t], cv.Length(min=13, max=13)),
         cv.Optional(CONF_TYPE): cv.enum(PIONEER_WYT_TYPES, upper=True),
         cv.Optional(CONF_POWER): cv.boolean,
         cv.Optional(CONF_MODE): cv.enum(PIONEER_WYT_MODES, upper=True),
-        cv.Optional(CONF_TARGET_TEMPERATURE): cv.float_range(min=16, max=31),
+        cv.Optional(CONF_TARGET_TEMPERATURE): cv.All(
+            cv.float_range(min=16, max=31),
+            validate_target_temperature,
+        ),
         cv.Optional(CONF_BEEPER): cv.boolean,
         cv.Optional(CONF_DISPLAY): cv.boolean,
         cv.Optional(CONF_ECO): cv.boolean,
