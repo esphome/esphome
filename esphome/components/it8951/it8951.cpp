@@ -869,12 +869,12 @@ bool IT8951Display::rotate_coordinates_(int &x, int &y) {
 
 // --- Color / drawing ---------------------------------------------------------
 
-static uint8_t color_to_nibble(const Color &color) {
-  auto quantize_8bit_to_nibble = [](uint8_t value) -> uint8_t {
-    uint8_t nibble = static_cast<uint8_t>((static_cast<uint16_t>(value) + 8) >> 4);
-    return nibble > 0x0F ? 0x0F : nibble;
-  };
+static uint8_t quantize_8bit_to_nibble(uint8_t value) {
+  uint8_t nibble = static_cast<uint8_t>((static_cast<uint16_t>(value) + 8) >> 4);
+  return nibble > 0x0F ? 0x0F : nibble;
+}
 
+static uint8_t color_to_nibble(const Color &color) {
   // Grayscale images are emitted as Color(gray, gray, gray, 0xFF).
   // Handle this shape first so endpoint values don't alias COLOR_ON/OFF.
   if (color.w == 0xFF && color.r == color.g && color.g == color.b)
@@ -885,20 +885,22 @@ static uint8_t color_to_nibble(const Color &color) {
   if (color.raw_32 == 0xFFFFFFFF)
     return 0x0F;  // white
 
-  // Derive luminance from RGB.
-  uint16_t gray = static_cast<uint16_t>(color.r) + color.g + color.b;
-  gray /= 3;
-  return quantize_8bit_to_nibble(static_cast<uint8_t>(gray));
+  // Derive luma from RGB using Rec.601 weights (0.299/0.587/0.114, scaled by
+  // 256). Rec.601 is the standard for converting SDR images to grayscale and
+  // spreads saturated colours across the mid-range; Rec.709 instead crams them
+  // against white/black where the 16 panel levels are hard to tell apart.
+  auto luma = static_cast<uint8_t>((77u * color.r + 150u * color.g + 29u * color.b + 128u) >> 8);
+  return quantize_8bit_to_nibble(luma);
 }
 
-// 4x4 ordered (Bayer) dither threshold over the RGB-sum range (0..765). A pixel
-// whose r+g+b is below the threshold renders black, so lighter pixels produce
-// progressively sparser black dots instead of vanishing to white. The matrix
-// averages to ~382, matching the conventional monochrome cut (r+g+b >= 382 is
-// white), while the per-pixel variation reproduces intermediate gray levels.
-static inline uint16_t dither_threshold(uint16_t x, uint16_t y) {
+// 4x4 ordered (Bayer) dither threshold over the weighted-luma range (0..65535).
+// A pixel whose luma is below the threshold renders black, so lighter pixels
+// produce progressively sparser black dots instead of vanishing to white. The
+// matrix averages to 32768, matching the conventional monochrome cut, while the
+// per-pixel variation reproduces intermediate gray levels.
+static uint16_t dither_threshold(uint16_t x, uint16_t y) {
   static const uint8_t BAYER4[16] = {0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5};
-  return static_cast<uint16_t>(BAYER4[((y & 3) << 2) | (x & 3)] * 48 + 24);
+  return static_cast<uint16_t>(BAYER4[((y & 3) << 2) | (x & 3)] * 4096u + 2048u);
 }
 
 void IT8951Display::fill(Color color) {
@@ -913,8 +915,6 @@ void IT8951Display::fill(Color color) {
   if (this->grayscale_) {
     fill_byte = static_cast<uint8_t>((packed << 4) | packed);
   } else {
-    // Monochrome: a set bit selects the foreground gray (see op_set_1bpp_).
-    // Bits are set for the lighter half of the range, matching set_mono_pixel_.
     fill_byte = (packed <= 0x07) ? 0xFF : 0x00;
   }
   memset(this->buffer_, fill_byte, this->buffer_length_);
@@ -940,13 +940,15 @@ void HOT IT8951Display::write_pixel_native_(uint16_t x, uint16_t y, const Color 
       nibble = static_cast<uint8_t>(0x0F - nibble);
     this->set_gray_pixel_(x, y, nibble);
   } else {
-    uint16_t lum = static_cast<uint16_t>(color.r) + color.g + color.b;  // 0..765, 765 = white
+    // Rec.601 luma (see color_to_nibble). Weights sum to 257 so white maps to
+    // exactly 65535, using the full 16-bit range without overflow.
+    auto lum = static_cast<uint16_t>(77u * color.r + 151u * color.g + 29u * color.b);
     if (this->invert_colors_)
-      lum = static_cast<uint16_t>(765 - lum);
+      lum = static_cast<uint16_t>(65535u - lum);
     // Set the bit (foreground/black) when this pixel is darker than its
     // threshold. With dithering the threshold varies per pixel so pale colours
-    // render as visible texture; otherwise it's the fixed ~50% cut (r+g+b<382).
-    const uint16_t threshold = this->dithering_ ? dither_threshold(x, y) : 382;
+    // render as visible texture; otherwise it's the fixed ~50% cut (r+g+b<32768).
+    const uint16_t threshold = this->dithering_ ? dither_threshold(x, y) : 32768;
     this->set_mono_pixel_(x, y, lum < threshold);
   }
 }
