@@ -1,5 +1,6 @@
 #pragma once
-#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #include "esphome/core/component.h"
 
 #include "tinyusb.h"
@@ -17,7 +18,7 @@ enum USBDStringDescriptor : uint8_t {
   SIZE = 6,
 };
 
-static const char *DEFAULT_USB_STR = "ESPHome";
+static const char *const DEFAULT_USB_STR = "ESPHome";
 
 class TinyUSB : public Component {
  public:
@@ -69,4 +70,5 @@ class TinyUSB : public Component {
 };
 
 }  // namespace esphome::tinyusb
-#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 ||
+        // USE_ESP32_VARIANT_ESP32S31 || USE_ESP32_VARIANT_ESP32H4

@@ -259,14 +259,7 @@ def lint_executable_bit(fname: Path) -> str | None:
     return None
 
 
-@lint_content_find_check(
-    "\t",
-    only_first=True,
-    exclude=[
-        "esphome/dashboard/static/ace.js",
-        "esphome/dashboard/static/ext-searchbox.js",
-    ],
-)
+@lint_content_find_check("\t", only_first=True)
 def lint_tabs(fname, line, col, content):
     return "File contains tab character. Please convert tabs to spaces."
 
@@ -276,7 +269,7 @@ def lint_newline(fname, line, col, content):
     return "File contains Windows newline. Please set your editor to Unix newline mode."
 
 
-@lint_content_check(exclude=["*.svg", ".clang-tidy.hash"])
+@lint_content_check(exclude=["*.svg"])
 def lint_end_newline(fname, content):
     if content and not content.endswith("\n"):
         return "File does not end with a newline, please add an empty line at the end of the file."
@@ -690,19 +683,6 @@ def lint_esphome_h(fname, line, col, content):
         "File contains reference to 'esphome.h' - This file is "
         "auto-generated and should only be used for *custom* "
         "components. Please replace with references to the direct files."
-    )
-
-
-@lint_content_find_check(
-    "CORE.using_esp_idf",
-    include=py_include,
-    exclude=["esphome/core/__init__.py", "script/ci-custom.py"],
-)
-def lint_using_esp_idf_deprecated(fname, line, col, content):
-    return (
-        f"{highlight('CORE.using_esp_idf')} is deprecated and will change behavior in 2026.6. "
-        "ESP32 Arduino builds on top of ESP-IDF, so ESP-IDF features are available in both frameworks. "
-        f"Please use {highlight('CORE.is_esp32')} and/or {highlight('CORE.using_arduino')} instead."
     )
 
 

@@ -84,12 +84,7 @@ def indent_list(text: str, padding: str = "  ") -> list[str]:
     """Indent each line of the given text with the specified padding."""
     lines = []
     for line in text.splitlines():
-        if (
-            line == ""
-            or line.startswith("#ifdef")
-            or line.startswith("#if ")
-            or line.startswith("#endif")
-        ):
+        if line == "" or line.startswith(("#ifdef", "#if ", "#endif")):
             p = ""
         else:
             p = padding

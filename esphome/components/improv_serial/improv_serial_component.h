@@ -11,8 +11,7 @@
 
 #ifdef USE_ESP32
 #include <driver/uart.h>
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32C61) || \
-    defined(USE_ESP32_VARIANT_ESP32H2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#ifdef USE_LOGGER_USB_SERIAL_JTAG
 #include <driver/usb_serial_jtag.h>
 #include <hal/usb_serial_jtag_ll.h>
 #endif
@@ -58,6 +57,7 @@ class ImprovSerialComponent : public Component, public improv_base::ImprovBase {
   bool parse_improv_payload_(improv::ImprovCommand &command);
 
   void set_state_(improv::State state);
+  void send_current_state_(improv::State state);
   void set_error_(improv::Error error);
   void send_response_(std::vector<uint8_t> &response);
   void on_wifi_connect_timeout_();

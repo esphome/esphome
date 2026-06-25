@@ -1,6 +1,7 @@
 #pragma once
 
-#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
@@ -16,6 +17,7 @@ namespace esphome::usb_uart {
 class USBUartTypeCdcAcm;
 class USBUartComponent;
 class USBUartChannel;
+class USBUartTypePL2303;
 
 static const char *const TAG = "usb_uart";
 
@@ -129,6 +131,8 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   friend class USBUartTypeCdcAcm;
   friend class USBUartTypeCP210X;
   friend class USBUartTypeCH34X;
+  friend class USBUartTypeFT23XX;
+  friend class USBUartTypePL2303;
 
  public:
   // Number of output chunk slots per channel, derived from buffer_size config.
@@ -213,7 +217,7 @@ class USBUartTypeCdcAcm : public USBUartComponent {
   /// Resets per-channel transfer flags and posts the first bulk IN transfer.
   /// Called by enable_channels() and by vendor-specific subclass overrides that
   /// handle their own line-coding setup before starting data flow.
-  void start_channels();
+  void start_channels_();
 };
 
 class USBUartTypeCP210X : public USBUartTypeCdcAcm {
@@ -240,6 +244,48 @@ class USBUartTypeCH34X : public USBUartTypeCdcAcm {
   uint8_t num_ports_{1};
 };
 
+class USBUartTypeFT23XX : public USBUartTypeCdcAcm {
+ public:
+  USBUartTypeFT23XX(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {}
+
+  void start_input(USBUartChannel *channel);
+
+ protected:
+  std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
+  void enable_channels() override;
+
+  int reset_(USBUartChannel *channel);
+  int set_baudrate_(USBUartChannel *channel, uint32_t baudrate = 0);
+  int set_line_properties_(USBUartChannel *channel);
+  int set_dtr_rts_(USBUartChannel *channel);
+
+  uint8_t chip_type_{255};
+};
+
+enum Pl2303ChipType : uint8_t {
+  PL2303_TYPE_H = 0,  // Legacy, max 1.2Mbaud
+  PL2303_TYPE_HX,     // max 6Mbaud, divisor encoding
+  PL2303_TYPE_TA,     // max 6Mbaud, alt divisor encoding
+  PL2303_TYPE_TB,     // max 12Mbaud, alt divisor encoding
+  PL2303_TYPE_HXD,    // max 12Mbaud, divisor encoding
+  PL2303_TYPE_HXN,    // G-series, max 12Mbaud, direct encoding only
+  PL2303_TYPE_UNKNOWN = 0xFF,
+};
+
+class USBUartTypePL2303 : public USBUartTypeCdcAcm {
+  friend class USBUartChannel;
+
+ public:
+  USBUartTypePL2303(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {}
+
+ protected:
+  std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
+  void enable_channels() override;
+
+  Pl2303ChipType chip_type_{PL2303_TYPE_UNKNOWN};
+};
+
 }  // namespace esphome::usb_uart
 
-#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 ||
+        // USE_ESP32_VARIANT_ESP32S31 || USE_ESP32_VARIANT_ESP32H4

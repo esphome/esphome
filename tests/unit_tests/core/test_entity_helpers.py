@@ -174,10 +174,11 @@ def test_empty_name_fallback() -> None:
 def test_name_add_mac_suffix_behavior() -> None:
     """Test behavior related to name_add_mac_suffix.
 
-    In C++, when name_add_mac_suffix is enabled and entity has no name,
-    get_object_id() returns str_sanitize(str_snake_case(App.get_friendly_name()))
-    dynamically. Our function always returns the same result since we're
-    calculating the base for duplicate tracking.
+    In C++, an entity's object_id is computed from its name_ via
+    write_object_id_to() (sanitized snake_case). When an entity has no name,
+    configure_entity_() sets name_ from the friendly name, with the MAC suffix
+    appended when name_add_mac_suffix is enabled. Our function always returns
+    the same result since we're calculating the base for duplicate tracking.
     """
     # The function should always return the same result regardless of
     # name_add_mac_suffix setting, as we're calculating the base object_id

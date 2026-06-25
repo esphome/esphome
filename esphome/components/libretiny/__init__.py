@@ -28,7 +28,7 @@ from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed
 from esphome.storage_json import StorageJSON
 
-from . import gpio  # noqa
+from . import gpio  # noqa: F401
 from .const import (
     COMPONENT_BK72XX,
     CONF_GPIO_RECOVER,
@@ -158,15 +158,13 @@ def only_on_family(*, supported=None, unsupported=None):
 def get_download_types(storage_json: StorageJSON = None):
     """Binary-download entries for a built LibreTiny firmware.
 
-    Used by:
-    - esphome.dashboard (legacy "Download .bin" button)
-    - device-builder (esphome/device-builder) — same dispatch via
-      ``importlib.import_module(f"esphome.components.{platform}")``
-      then ``module.get_download_types(storage)``. The contract is
-      "returns ``list[dict]`` with at least ``title`` /
-      ``description`` / ``file`` / ``download`` keys"; please keep
-      the shape stable so the new dashboard's download panel
-      doesn't have to special-case per-platform schemas.
+    Used by device-builder (esphome/device-builder), via
+    ``importlib.import_module(f"esphome.components.{platform}")``
+    then ``module.get_download_types(storage)``. The contract is
+    "returns ``list[dict]`` with at least ``title`` /
+    ``description`` / ``file`` / ``download`` keys"; please keep
+    the shape stable so the download panel
+    doesn't have to special-case per-platform schemas.
     """
     types = [
         {

@@ -23,7 +23,7 @@ namespace esphome::esp32_ble_server {
 using namespace esp32_ble;
 using namespace bytebuffer;
 
-class BLEServer : public Component, public Parented<ESP32BLE> {
+class BLEServer final : public Component, public Parented<ESP32BLE> {
  public:
   void setup() override;
   void loop() override;
