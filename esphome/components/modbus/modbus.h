@@ -139,6 +139,10 @@ class ModbusServerHub : public Modbus {
   void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len) override;
   void process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data);
   ModbusServerDevice *find_device_(uint8_t address);
+  // Returns true if [start_address, start_address + number_of_registers) fits in the 16-bit address space.
+  // On failure, logs and sends an ILLEGAL_DATA_ADDRESS exception to the client.
+  bool check_register_range_(uint8_t address, uint8_t function_code, uint16_t start_address,
+                             uint16_t number_of_registers);
   void send_raw_(const uint8_t *payload, uint16_t len);
   void send_exception_(uint8_t address, uint8_t function_code, ModbusExceptionCode exception_code);
   void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);

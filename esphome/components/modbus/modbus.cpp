@@ -345,6 +345,17 @@ ModbusServerDevice *ModbusServerHub::find_device_(uint8_t address) {
   return nullptr;
 }
 
+bool ModbusServerHub::check_register_range_(uint8_t address, uint8_t function_code, uint16_t start_address,
+                                            uint16_t number_of_registers) {
+  if (start_address > std::numeric_limits<uint16_t>::max() - number_of_registers) {
+    ESP_LOGW(TAG, "Register address out of range - start: %" PRIu16 " num: %" PRIu16, start_address,
+             number_of_registers);
+    this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+    return false;
+  }
+  return true;
+}
+
 void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data) {
   ModbusServerDevice *device = this->find_device_(address);
   if (device == nullptr) {
@@ -369,10 +380,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
         this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
         return;
       }
-      if (start_address > std::numeric_limits<uint16_t>::max() - number_of_registers) {
-        ESP_LOGW(TAG, "Register address out of range - start: %" PRIu16 " num: %" PRIu16, start_address,
-                 number_of_registers);
-        this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+      if (!this->check_register_range_(address, function_code, start_address, number_of_registers)) {
         return;
       }
       RegisterValues registers;
@@ -423,10 +431,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
           this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
           return;
         }
-        if (start_address > std::numeric_limits<uint16_t>::max() - number_of_registers) {
-          ESP_LOGW(TAG, "Register address out of range - start: %" PRIu16 " num: %" PRIu16, start_address,
-                   number_of_registers);
-          this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+        if (!this->check_register_range_(address, function_code, start_address, number_of_registers)) {
           return;
         }
       }
