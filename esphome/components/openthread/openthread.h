@@ -28,7 +28,9 @@ enum class OtcTeardownStage : uint8_t {
   OTC_TEARDOWN_COMPLETED
 };
 
-class OpenThreadComponent : public Component {
+template<typename... Ts> class OpenThreadComponentPollPeriodAction;
+
+class OpenThreadComponent final : public Component {
  public:
   OpenThreadComponent();
   ~OpenThreadComponent();
@@ -52,15 +54,11 @@ class OpenThreadComponent : public Component {
   void set_use_address(const char *use_address) { this->use_address_ = use_address; }
 #if CONFIG_OPENTHREAD_MTD
   void set_poll_period(uint32_t poll_period) { this->poll_period_ = poll_period; }
-  /** Returns true if this device is a Sleepy End Device (poll period > 0) */
-  bool is_sed() const { return (this->poll_period_ > 0); }
+  uint32_t get_poll_period() const { return this->poll_period_; }
 #endif
   void set_output_power(int8_t output_power) { this->output_power_ = output_power; }
-
-  /** Apply Link Mode settings (incl poll period).
-   * When called from outside the OpenThread task, call while holding InstanceLock.
-   */
-  void apply_linkmode(otInstance *instance);
+  void set_connected(bool connected) { this->connected_ = connected; }
+  static void on_state_changed(otChangedFlags flags, void *context);
 
   void publish_state(otDeviceRole role);
   template<typename F> void add_on_state_callback(F &&callback) {
@@ -71,9 +69,18 @@ class OpenThreadComponent : public Component {
   }
 
  protected:
+  // Actions re-apply link mode under the OT lock; allow them to call apply_linkmode_()
+  // without exposing this lock-sensitive, raw-instance method on the public API.
+  template<typename... Ts> friend class OpenThreadComponentPollPeriodAction;
+
+  /** Apply Link Mode settings (incl poll period).
+   * Callers running outside the OpenThread task must hold InstanceLock.
+   */
+  void apply_linkmode_(otInstance *instance);
+
   std::atomic<OtcTeardownStage> teardown_stage_{OtcTeardownStage::OTC_TEARDOWN_NOT_STARTED};
+
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
-  static void on_state_changed(otChangedFlags flags, void *context);
   otInstance *get_openthread_instance_();
   int openthread_stop_();
   std::function<void()> factory_reset_external_callback_;
@@ -97,7 +104,7 @@ class OpenThreadComponent : public Component {
 
 extern OpenThreadComponent *global_openthread_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-class OpenThreadSrpComponent : public Component {
+class OpenThreadSrpComponent final : public Component {
  public:
   void set_mdns(esphome::mdns::MDNSComponent *mdns);
   // This has to run after the mdns component or else no services are available to advertise

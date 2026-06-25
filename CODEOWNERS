@@ -445,7 +445,7 @@ esphome/components/select/* @esphome/core
 esphome/components/sen0321/* @notjj
 esphome/components/sen21231/* @shreyaskarnik
 esphome/components/sen5x/* @martgras
-esphome/components/sen6x/* @martgras @mebner86 @mikelawrence @tuct
+esphome/components/sen6x/* @martgras @mebner86 @tuct
 esphome/components/sendspin/* @kahrendt
 esphome/components/sendspin/media_player/* @kahrendt
 esphome/components/sendspin/media_source/* @kahrendt
@@ -561,6 +561,7 @@ esphome/components/uart/packet_transport/* @clydebarrow
 esphome/components/udp/* @clydebarrow
 esphome/components/ufire_ec/* @pvizeli
 esphome/components/ufire_ise/* @pvizeli
+esphome/components/ufm01/* @ljungqvist
 esphome/components/ultrasonic/* @ssieb @swoboda1337
 esphome/components/update/* @jesserockz
 esphome/components/uponor_smatrix/* @kroimon
@@ -577,6 +578,7 @@ esphome/components/wake_on_lan/* @clydebarrow @willwill2will54
 esphome/components/watchdog/* @oarcher
 esphome/components/water_heater/* @dhoeben
 esphome/components/waveshare_epaper/* @clydebarrow
+esphome/components/waveshare_io_ch32v003/* @latonita
 esphome/components/web_server/ota/* @esphome/core
 esphome/components/web_server_base/* @esphome/core
 esphome/components/web_server_idf/* @dentra

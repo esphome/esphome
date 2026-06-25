@@ -54,7 +54,7 @@ class OpenThreadComponentPollPeriodAction final : public Action<Ts...>, public O
 #endif
   }
 
-  void apply_locked(otInstance *instance) override { this->parent_->apply_linkmode(instance); }
+  void apply_locked(otInstance *instance) override { this->parent_->apply_linkmode_(instance); }
 };
 
 /// Callback forwarder that triggers an Automation<> only when a specific role is entered.
