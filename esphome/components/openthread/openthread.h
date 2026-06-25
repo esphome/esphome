@@ -19,7 +19,7 @@ namespace esphome::openthread {
 
 class InstanceLock;
 
-class OpenThreadComponent : public Component {
+class OpenThreadComponent final : public Component {
  public:
   OpenThreadComponent();
   ~OpenThreadComponent();
@@ -68,7 +68,7 @@ class OpenThreadComponent : public Component {
 
 extern OpenThreadComponent *global_openthread_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-class OpenThreadSrpComponent : public Component {
+class OpenThreadSrpComponent final : public Component {
  public:
   void set_mdns(esphome::mdns::MDNSComponent *mdns);
   // This has to run after the mdns component or else no services are available to advertise

@@ -52,11 +52,6 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WIFI,
     ENV_NOGITIGNORE,
-    KEY_CORE,
-    KEY_TARGET_PLATFORM,
-    PLATFORM_ESP32,
-    PLATFORM_ESP8266,
-    PLATFORM_RP2040,
     SECRETS_FILES,
     Toolchain,
 )
@@ -359,7 +354,7 @@ def choose_upload_log_host(
     bootsel_permission_error = False
     if (
         purpose == Purpose.UPLOADING
-        and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
+        and CORE.is_rp2040
         and (picotool := _find_picotool()) is not None
     ):
         bootsel = detect_rp2040_bootsel(picotool)
@@ -406,7 +401,7 @@ def choose_upload_log_host(
     # Show helpful BOOTSEL instructions for RP2040 when no BOOTSEL device is found
     if (
         purpose == Purpose.UPLOADING
-        and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
+        and CORE.is_rp2040
         and not any(get_port_type(opt[1]) == PortType.BOOTSEL for opt in options)
     ):
         if bootsel_permission_error:
@@ -984,7 +979,7 @@ def upload_using_platformio(config: ConfigType, port: str) -> int:
     # RP2040 platform-raspberrypi build recipe expects firmware.bin.signed for
     # the upload target, but 'nobuild' skips the build phase that creates it.
     # Create it here so the upload doesn't fail.
-    if CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040:
+    if CORE.is_rp2040:
         idedata = toolchain.get_idedata(config)
         build_dir = Path(idedata.firmware_elf_path).parent
         firmware_bin = build_dir / "firmware.bin"
@@ -1169,10 +1164,10 @@ def upload_program(
         check_permissions(host)
 
         exit_code = 1
-        if CORE.target_platform in (PLATFORM_ESP32, PLATFORM_ESP8266):
+        if CORE.is_esp32 or CORE.is_esp8266:
             file = getattr(args, "file", None)
             exit_code = upload_using_esptool(config, host, file, args.upload_speed)
-        elif CORE.target_platform == PLATFORM_RP2040 or CORE.is_libretiny:
+        elif CORE.is_rp2040 or CORE.is_libretiny:
             exit_code = upload_using_platformio(config, host)
         # else: Unknown target platform, exit_code remains 1
 
@@ -1629,10 +1624,7 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     # After BOOTSEL upload, wait for a new serial port to appear
     # so it shows up in the log chooser
-    if (
-        successful_device is None
-        and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
-    ):
+    if successful_device is None and CORE.is_rp2040:
         _wait_for_serial_port(known_ports=pre_upload_ports)
         # If exactly one new serial port appeared, use it directly
         serial_ports = get_serial_ports()
