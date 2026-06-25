@@ -19,7 +19,7 @@ namespace esphome::remko_ar715 {
 static const char *const TAG = "remko_ar715.climate";
 
 void RemkoAr715Climate::transmit_state() {
-  uint8_t temp = (uint8_t) this->target_temperature;
+  uint8_t temp = (uint8_t) lroundf(this->target_temperature);
   temp = std::max((uint8_t) REMKO_AR715_TEMP_MIN, std::min((uint8_t) REMKO_AR715_TEMP_MAX, temp));
 
   bool power = (this->mode != climate::CLIMATE_MODE_OFF);
