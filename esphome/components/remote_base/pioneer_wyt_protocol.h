@@ -36,7 +36,7 @@ enum PioneerWytDataType : uint8_t {
 class PioneerWytData {
  public:
   PioneerWytData() {}
-  PioneerWytData(const std::vector<uint8_t> &data) {
+  explicit PioneerWytData(const std::vector<uint8_t> &data) {
     std::copy_n(data.begin(), std::min(data.size(), this->data_.size()), this->data_.begin());
   }
 
