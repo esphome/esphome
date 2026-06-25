@@ -92,10 +92,14 @@ int32_t Modbus::tx_delay_remaining() {
 
 int32_t ModbusClientHub::tx_delay_remaining() {
   const uint32_t now = millis();
-  return std::max({(int32_t) 0,
-                   (int32_t) (this->last_send_tx_offset_ + this->frame_delay_ms_ + this->turnaround_delay_ms_ -
-                              (now - this->last_send_)),
-                   (int32_t) (this->frame_delay_ms_ + this->turnaround_delay_ms_ - (now - this->last_modbus_byte_))});
+  // Turnaround delay only applies after a broadcast: no response is expected, so we must give listening devices
+  // quiet time to process it before the next request. For normal unicast request/response the received reply already
+  // provides the inter-frame timing, so adding turnaround there just throttles throughput.
+  const uint16_t turnaround = this->last_send_was_broadcast_ ? this->turnaround_delay_ms_ : 0;
+  return std::max(
+      {(int32_t) 0,
+       (int32_t) (this->last_send_tx_offset_ + this->frame_delay_ms_ + turnaround - (now - this->last_send_)),
+       (int32_t) (this->frame_delay_ms_ + turnaround - (now - this->last_modbus_byte_))});
 }
 
 bool Modbus::tx_blocked() {
@@ -396,6 +400,8 @@ bool Modbus::send_frame_(const ModbusFrame &frame) {
            format_hex_pretty_to(hex_buf, frame.data.get(), frame.size), now - this->last_send_,
            now - this->last_modbus_byte_);
   this->last_send_ = now;
+  // address 0 is the Modbus broadcast address (no response expected)
+  this->last_send_was_broadcast_ = frame.size > 0 && frame.data[0] == 0;
   return true;
 }
 
