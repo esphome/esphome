@@ -416,7 +416,6 @@ void ModbusClientHub::send_next_frame_() {
   ModbusDeviceCommand &command = this->tx_buffer_.front();
 
   if (this->send_frame_(command.frame)) {
-    // Broadcasts (address 0) get no response, so don't wait for one
     if (!this->last_send_was_broadcast_)
       this->waiting_for_response_ = std::move(command);
   } else {
