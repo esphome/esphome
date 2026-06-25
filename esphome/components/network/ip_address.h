@@ -22,23 +22,25 @@
 #if USE_NETWORK_IPV6
 using ip4_addr_t = struct in_addr;
 using ip6_addr_t = struct in6_addr;
-typedef struct {
+struct ip_addr_t {
   union {
     struct in6_addr ip6;
     struct in_addr ip4;
   } u_addr;
   uint8_t type;
-} ip_addr_t;
+};
 enum : uint8_t { IPADDR_TYPE_V4 = 0, IPADDR_TYPE_V6 = 6 };
 static inline int ipaddr_aton(const char *cp, ip_addr_t *addr) {
   if (strchr(cp, ':') != nullptr) {
-    if (inet_pton(AF_INET6, cp, &addr->u_addr.ip6) != 1)
+    if (inet_pton(AF_INET6, cp, &addr->u_addr.ip6) != 1) {
       return 0;
+    }
     addr->type = IPADDR_TYPE_V6;
     return 1;
   }
-  if (inet_pton(AF_INET, cp, &addr->u_addr.ip4) != 1)
+  if (inet_pton(AF_INET, cp, &addr->u_addr.ip4) != 1) {
     return 0;
+  }
   addr->type = IPADDR_TYPE_V4;
   return 1;
 }
@@ -115,40 +117,43 @@ struct IPAddress {
 
 #elif defined(USE_HOST)
 #if USE_NETWORK_IPV6
-  IPAddress() { memset(&ip_addr_, 0, sizeof(ip_addr_)); }
+  IPAddress() { memset(&this->ip_addr_, 0, sizeof(this->ip_addr_)); }
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
-    ip_addr_.u_addr.ip4.s_addr =
+    memset(&this->ip_addr_, 0, sizeof(this->ip_addr_));
+    this->ip_addr_.u_addr.ip4.s_addr =
         htonl(((uint32_t) first << 24) | ((uint32_t) second << 16) | ((uint32_t) third << 8) | fourth);
-    ip_addr_.type = IPADDR_TYPE_V4;
+    this->ip_addr_.type = IPADDR_TYPE_V4;
   }
   IPAddress(const char *in_address) {
-    memset(&ip_addr_, 0, sizeof(ip_addr_));
-    ipaddr_aton(in_address, &ip_addr_);
+    memset(&this->ip_addr_, 0, sizeof(this->ip_addr_));
+    ipaddr_aton(in_address, &this->ip_addr_);
   }
   IPAddress(const std::string &in_address) : IPAddress(in_address.c_str()) {}
-  IPAddress(const ip_addr_t *other_ip) { memcpy(&ip_addr_, other_ip, sizeof(ip_addr_t)); }
+  IPAddress(const ip_addr_t *other_ip) { memcpy(&this->ip_addr_, other_ip, sizeof(ip_addr_t)); }
   IPAddress(ip4_addr_t *other_ip) {
-    ip_addr_.u_addr.ip4 = *other_ip;
-    ip_addr_.type = IPADDR_TYPE_V4;
+    memset(&this->ip_addr_, 0, sizeof(this->ip_addr_));
+    this->ip_addr_.u_addr.ip4 = *other_ip;
+    this->ip_addr_.type = IPADDR_TYPE_V4;
   }
   IPAddress(ip6_addr_t *other_ip) {
-    ip_addr_.u_addr.ip6 = *other_ip;
-    ip_addr_.type = IPADDR_TYPE_V6;
+    this->ip_addr_.u_addr.ip6 = *other_ip;
+    this->ip_addr_.type = IPADDR_TYPE_V6;
   }
-  operator ip_addr_t() const { return ip_addr_; }
+  operator ip_addr_t() const { return this->ip_addr_; }
   bool is_set() const {
-    if (ip_addr_.type == IPADDR_TYPE_V6) {
-      const uint32_t *w = reinterpret_cast<const uint32_t *>(ip_addr_.u_addr.ip6.s6_addr);
-      return w[0] || w[1] || w[2] || w[3];
+    if (this->ip_addr_.type == IPADDR_TYPE_V6) {
+      static constexpr uint8_t zero[sizeof(struct in6_addr)] = {};
+      return memcmp(this->ip_addr_.u_addr.ip6.s6_addr, zero, sizeof(zero)) != 0;
     }
-    return ip_addr_.u_addr.ip4.s_addr != 0;
+    return this->ip_addr_.u_addr.ip4.s_addr != 0;
   }
-  bool is_ip4() const { return ip_addr_.type == IPADDR_TYPE_V4; }
-  bool is_ip6() const { return ip_addr_.type == IPADDR_TYPE_V6; }
+  bool is_ip4() const { return this->ip_addr_.type == IPADDR_TYPE_V4; }
+  bool is_ip6() const { return this->ip_addr_.type == IPADDR_TYPE_V6; }
   bool is_multicast() const {
-    if (ip_addr_.type == IPADDR_TYPE_V6)
-      return ip_addr_.u_addr.ip6.s6_addr[0] == 0xff;
-    return (ntohl(ip_addr_.u_addr.ip4.s_addr) & 0xF0000000UL) == 0xE0000000UL;
+    if (this->ip_addr_.type == IPADDR_TYPE_V6) {
+      return this->ip_addr_.u_addr.ip6.s6_addr[0] == 0xff;
+    }
+    return (ntohl(this->ip_addr_.u_addr.ip4.s_addr) & 0xF0000000UL) == 0xE0000000UL;
   }
   // Remove before 2026.8.0
   ESPDEPRECATED(
@@ -160,25 +165,28 @@ struct IPAddress {
     return buf;
   }
   char *str_to(char *buf) const {
-    if (ip_addr_.type == IPADDR_TYPE_V6) {
-      inet_ntop(AF_INET6, &ip_addr_.u_addr.ip6, buf, IP_ADDRESS_BUFFER_SIZE);
+    if (this->ip_addr_.type == IPADDR_TYPE_V6) {
+      inet_ntop(AF_INET6, &this->ip_addr_.u_addr.ip6, buf, IP_ADDRESS_BUFFER_SIZE);
     } else {
-      inet_ntop(AF_INET, &ip_addr_.u_addr.ip4, buf, IP_ADDRESS_BUFFER_SIZE);
+      inet_ntop(AF_INET, &this->ip_addr_.u_addr.ip4, buf, IP_ADDRESS_BUFFER_SIZE);
     }
     lowercase_ip_str(buf);
     return buf;
   }
   bool operator==(const IPAddress &other) const {
-    if (ip_addr_.type != other.ip_addr_.type)
+    if (this->ip_addr_.type != other.ip_addr_.type) {
       return false;
-    if (ip_addr_.type == IPADDR_TYPE_V6)
-      return memcmp(&ip_addr_.u_addr.ip6, &other.ip_addr_.u_addr.ip6, sizeof(struct in6_addr)) == 0;
-    return ip_addr_.u_addr.ip4.s_addr == other.ip_addr_.u_addr.ip4.s_addr;
+    }
+    if (this->ip_addr_.type == IPADDR_TYPE_V6) {
+      return memcmp(&this->ip_addr_.u_addr.ip6, &other.ip_addr_.u_addr.ip6, sizeof(struct in6_addr)) == 0;
+    }
+    return this->ip_addr_.u_addr.ip4.s_addr == other.ip_addr_.u_addr.ip4.s_addr;
   }
   bool operator!=(const IPAddress &other) const { return !(*this == other); }
   IPAddress &operator+=(uint8_t increase) {
-    if (ip_addr_.type == IPADDR_TYPE_V4)
-      (((uint8_t *) (&ip_addr_.u_addr.ip4))[3]) += increase;
+    if (this->ip_addr_.type == IPADDR_TYPE_V4) {
+      (((uint8_t *) (&this->ip_addr_.u_addr.ip4))[3]) += increase;
+    }
     return *this;
   }
 #else
