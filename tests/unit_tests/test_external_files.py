@@ -2,6 +2,8 @@
 
 import os
 from pathlib import Path
+import subprocess
+import sys
 import time
 from unittest.mock import MagicMock, patch
 
@@ -26,19 +28,21 @@ def _seed_etag(cache_file: Path, etag: str) -> Path:
 
 @pytest.fixture
 def mock_requests_head() -> MagicMock:
-    """Patch `external_files.requests.head` so the conditional HEAD-request
-    validator can be tested without doing real HTTP.
+    """Patch `requests.head` so the conditional HEAD-request validator can be
+    tested without doing real HTTP. external_files imports requests lazily, so
+    the global module is patched rather than a module-level attribute.
     """
-    with patch("esphome.external_files.requests.head") as m:
+    with patch("requests.head") as m:
         yield m
 
 
 @pytest.fixture
 def mock_requests_get() -> MagicMock:
-    """Patch `external_files.requests.get` so the download path can be
-    tested without doing real HTTP.
+    """Patch `requests.get` so the download path can be tested without doing
+    real HTTP. external_files imports requests lazily, so the global module is
+    patched rather than a module-level attribute.
     """
-    with patch("esphome.external_files.requests.get") as m:
+    with patch("requests.get") as m:
         yield m
 
 
@@ -799,3 +803,24 @@ def test_download_content_atomic_write_no_partial_on_failure(
     # into the cache directory either way.
     leftover_tmps = list(setup_core.glob("tmp*"))
     assert leftover_tmps == []
+
+
+def test_importing_external_files_does_not_import_requests() -> None:
+    """Importing external_files must not drag in requests.
+
+    requests is a heavy import (~85ms) only needed when actually fetching remote
+    files. external_files is imported during config validation (font, audio_file
+    components), so the import is deferred to the functions that use it. A fresh
+    interpreter is required because the test process has already imported it.
+    """
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys\nimport esphome.external_files\nprint('\\n'.join(sys.modules))",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert "requests" not in result.stdout.split()

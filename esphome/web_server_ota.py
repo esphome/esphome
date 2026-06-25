@@ -15,9 +15,6 @@ import secrets
 import socket
 from typing import BinaryIO
 
-import requests
-from requests.auth import HTTPBasicAuth
-
 from esphome.core import EsphomeError
 from esphome.helpers import ProgressBar, resolve_ip_address
 
@@ -92,6 +89,11 @@ def _try_upload(
     password: str | None,
     filename: Path,
 ) -> tuple[int, str | None]:
+    # Imported lazily: requests is a heavy import (~85ms) only needed when
+    # actually performing a web_server OTA upload, never during config validation.
+    import requests
+    from requests.auth import HTTPBasicAuth
+
     from esphome.core import CORE
 
     try:

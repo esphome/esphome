@@ -6,6 +6,8 @@ import io
 import logging
 from pathlib import Path
 import socket
+import subprocess
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -173,7 +175,7 @@ def test_run_ota_success(monkeypatch: pytest.MonkeyPatch, firmware: Path) -> Non
     _patch_resolve(monkeypatch, [("192.168.1.50", 80)])
 
     with patch(
-        "esphome.web_server_ota.requests.post",
+        "requests.post",
         return_value=_make_response(200, "Update Successful!"),
     ) as post:
         exit_code, host = run_ota(["device.local"], 80, None, None, firmware)
@@ -199,7 +201,7 @@ def test_run_ota_logs_device_response_body(
     caplog.set_level(logging.INFO, logger="esphome.web_server_ota")
 
     with patch(
-        "esphome.web_server_ota.requests.post",
+        "requests.post",
         return_value=_make_response(200, "Update Successful!"),
     ):
         run_ota(["192.168.1.50"], 80, None, None, firmware)
@@ -216,7 +218,7 @@ def test_run_ota_log_says_via_web_server(
     caplog.set_level(logging.INFO, logger="esphome.web_server_ota")
 
     with patch(
-        "esphome.web_server_ota.requests.post",
+        "requests.post",
         return_value=_make_response(200, "Update Successful!"),
     ):
         run_ota(["192.168.1.50"], 80, None, None, firmware)
@@ -230,7 +232,7 @@ def test_run_ota_sends_basic_auth(
     _patch_resolve(monkeypatch, [("192.168.1.50", 80)])
 
     with patch(
-        "esphome.web_server_ota.requests.post",
+        "requests.post",
         return_value=_make_response(200, "Update Successful!"),
     ) as post:
         exit_code, _ = run_ota(["192.168.1.50"], 80, "admin", "secret", firmware)
@@ -248,7 +250,7 @@ def test_run_ota_skips_auth_when_no_credentials(
     _patch_resolve(monkeypatch, [("192.168.1.50", 80)])
 
     with patch(
-        "esphome.web_server_ota.requests.post",
+        "requests.post",
         return_value=_make_response(200, "Update Successful!"),
     ) as post:
         run_ota(["192.168.1.50"], 80, None, None, firmware)
@@ -263,7 +265,7 @@ def test_run_ota_skips_auth_when_only_username(
     _patch_resolve(monkeypatch, [("192.168.1.50", 80)])
 
     with patch(
-        "esphome.web_server_ota.requests.post",
+        "requests.post",
         return_value=_make_response(200, "Update Successful!"),
     ) as post:
         run_ota(["192.168.1.50"], 80, "admin", None, firmware)
@@ -277,7 +279,7 @@ def test_run_ota_uses_update_url(
     _patch_resolve(monkeypatch, [("192.168.1.50", 8080)])
 
     with patch(
-        "esphome.web_server_ota.requests.post",
+        "requests.post",
         return_value=_make_response(200, "Update Successful!"),
     ) as post:
         run_ota(["192.168.1.50"], 8080, None, None, firmware)
@@ -293,7 +295,7 @@ def test_run_ota_failure_response(
     _patch_resolve(monkeypatch, [("192.168.1.50", 80)])
 
     with patch(
-        "esphome.web_server_ota.requests.post",
+        "requests.post",
         return_value=_make_response(200, "Update Failed!"),
     ):
         exit_code, host = run_ota(["192.168.1.50"], 80, None, None, firmware)
@@ -309,7 +311,7 @@ def test_run_ota_failure_response_empty_body(
     _patch_resolve(monkeypatch, [("192.168.1.50", 80)])
 
     with patch(
-        "esphome.web_server_ota.requests.post",
+        "requests.post",
         return_value=_make_response(200, ""),
     ):
         exit_code, host = run_ota(["192.168.1.50"], 80, None, None, firmware)
@@ -325,7 +327,7 @@ def test_run_ota_auth_failed(
     _patch_resolve(monkeypatch, [("192.168.1.50", 80)])
 
     with patch(
-        "esphome.web_server_ota.requests.post",
+        "requests.post",
         return_value=_make_response(401, "Unauthorized"),
     ):
         exit_code, host = run_ota(["192.168.1.50"], 80, "user", "wrong", firmware)
@@ -341,7 +343,7 @@ def test_run_ota_unexpected_status_code(
     _patch_resolve(monkeypatch, [("192.168.1.50", 80)])
 
     with patch(
-        "esphome.web_server_ota.requests.post",
+        "requests.post",
         return_value=_make_response(500, "Internal Error"),
     ):
         exit_code, host = run_ota(["192.168.1.50"], 80, None, None, firmware)
@@ -361,7 +363,7 @@ def test_run_ota_unexpected_status_empty_body_falls_back(
     response.reason = "Service Unavailable"
 
     with patch(
-        "esphome.web_server_ota.requests.post",
+        "requests.post",
         return_value=response,
     ):
         exit_code, host = run_ota(["192.168.1.50"], 80, None, None, firmware)
@@ -381,7 +383,7 @@ def test_run_ota_unexpected_status_no_body_no_reason(
     response.reason = ""
 
     with patch(
-        "esphome.web_server_ota.requests.post",
+        "requests.post",
         return_value=response,
     ):
         run_ota(["192.168.1.50"], 80, None, None, firmware)
@@ -399,7 +401,7 @@ def test_run_ota_connection_error_then_success(
     )
 
     with patch(
-        "esphome.web_server_ota.requests.post",
+        "requests.post",
         side_effect=[
             requests.ConnectionError("refused"),
             _make_response(200, "Update Successful!"),
@@ -422,7 +424,7 @@ def test_run_ota_request_exception_falls_through(
     )
 
     with patch(
-        "esphome.web_server_ota.requests.post",
+        "requests.post",
         side_effect=[
             requests.Timeout("read timeout"),
             _make_response(200, "Update Successful!"),
@@ -444,7 +446,7 @@ def test_run_ota_all_addresses_unreachable(
     )
 
     with patch(
-        "esphome.web_server_ota.requests.post",
+        "requests.post",
         side_effect=requests.ConnectionError("refused"),
     ):
         exit_code, host = run_ota(["device.local"], 80, None, None, firmware)
@@ -516,7 +518,7 @@ def test_run_ota_string_host_accepted(
     _patch_resolve(monkeypatch, [("10.0.0.5", 80)])
 
     with patch(
-        "esphome.web_server_ota.requests.post",
+        "requests.post",
         return_value=_make_response(200, "Update Successful!"),
     ):
         exit_code, host = run_ota("10.0.0.5", 80, None, None, firmware)
@@ -544,7 +546,7 @@ def test_run_ota_multiple_hosts_first_fails(
     monkeypatch.setattr("esphome.web_server_ota.resolve_ip_address", _resolve)
 
     with patch(
-        "esphome.web_server_ota.requests.post",
+        "requests.post",
         side_effect=[
             requests.ConnectionError("refused"),
             _make_response(200, "Update Successful!"),
@@ -595,7 +597,7 @@ def test_run_ota_finalizes_progress_bar_on_success(
 
     with (
         patch(
-            "esphome.web_server_ota.requests.post",
+            "requests.post",
             return_value=_make_response(200, "Update Successful!"),
         ),
         patch.object(ProgressBar, "done", lambda self: done_called.append(True)),
@@ -615,7 +617,7 @@ def test_run_ota_finalizes_progress_bar_on_failure(
 
     with (
         patch(
-            "esphome.web_server_ota.requests.post",
+            "requests.post",
             side_effect=requests.ConnectionError("boom"),
         ),
         patch.object(ProgressBar, "done", lambda self: done_called.append(True)),
@@ -637,7 +639,7 @@ def test_run_ota_ipv6_url_brackets_host(
     )
 
     with patch(
-        "esphome.web_server_ota.requests.post",
+        "requests.post",
         return_value=_make_response(200, "Update Successful!"),
     ) as post:
         exit_code, host = run_ota(["device.local"], 80, None, None, firmware)
@@ -660,7 +662,7 @@ def test_run_ota_ipv6_link_local_includes_scope_id(
     )
 
     with patch(
-        "esphome.web_server_ota.requests.post",
+        "requests.post",
         return_value=_make_response(200, "Update Successful!"),
     ) as post:
         exit_code, _ = run_ota(["device.local"], 80, None, None, firmware)
@@ -668,3 +670,23 @@ def test_run_ota_ipv6_link_local_includes_scope_id(
     assert exit_code == 0
     url = post.call_args.args[0]
     assert url == f"http://[fe80::1%253]:80{OTA_PATH}"
+
+
+def test_importing_web_server_ota_does_not_import_requests() -> None:
+    """Importing web_server_ota must not drag in requests.
+
+    requests is a heavy import (~85ms) only needed when actually performing a
+    web_server OTA upload, so the import is deferred into _try_upload. A fresh
+    interpreter is required because the test process has already imported it.
+    """
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys\nimport esphome.web_server_ota\nprint('\\n'.join(sys.modules))",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert "requests" not in result.stdout.split()

@@ -9,8 +9,6 @@ import os
 from pathlib import Path
 import time
 
-import requests
-
 import esphome.config_validation as cv
 from esphome.const import CONF_FILE, CONF_TYPE, CONF_URL, __version__
 from esphome.core import CORE, EsphomeError, TimePeriodSeconds
@@ -92,6 +90,10 @@ def _write_etag(local_file_path: Path, etag: str | None) -> None:
 def has_remote_file_changed(
     url: str, local_file_path: Path, timeout: int = NETWORK_TIMEOUT
 ) -> bool:
+    # Imported lazily: requests is a heavy import (~85ms) only needed when
+    # actually checking remote files, never during config validation.
+    import requests
+
     if local_file_path.exists():
         _LOGGER.debug("has_remote_file_changed: File exists at %s", local_file_path)
         try:
@@ -158,6 +160,10 @@ def compute_local_file_dir(domain: str) -> Path:
 
 
 def download_content(url: str, path: Path, timeout: int = NETWORK_TIMEOUT) -> bytes:
+    # Imported lazily: requests is a heavy import (~85ms) only needed when
+    # actually downloading, never during config validation.
+    import requests
+
     if CORE.skip_external_update and path.exists():
         _LOGGER.debug("Skipping update for %s (refresh disabled)", url)
         return path.read_bytes()
