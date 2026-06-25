@@ -81,7 +81,13 @@ _CALLBACK_AUTOMATIONS = (
 )
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    "rf_bridge", baud_rate=19200, require_rx=True, require_tx=True
+    "rf_bridge",
+    baud_rate=19200,
+    require_rx=True,
+    require_tx=True,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=1,
 )
 
 
