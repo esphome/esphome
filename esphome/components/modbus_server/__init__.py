@@ -10,6 +10,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID
 
 from .const import (
+    CONF_ALLOW_PARTIAL_READ,
     CONF_COURTESY_RESPONSE,
     CONF_READ_LAMBDA,
     CONF_REGISTER_LAST_ADDRESS,
@@ -48,6 +49,7 @@ ModbusServerRegisterSchema = cv.Schema(
         cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(SENSOR_VALUE_TYPE),
         cv.Required(CONF_READ_LAMBDA): cv.returning_lambda,
         cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
+        cv.Optional(CONF_ALLOW_PARTIAL_READ, default=False): cv.boolean,
     }
 )
 
@@ -118,6 +120,8 @@ async def to_code(config):
                         ),
                     )
                 )
+            if server_register[CONF_ALLOW_PARTIAL_READ]:
+                cg.add(server_register_var.set_allow_partial_read(True))
             cg.add(var.add_server_register(server_register_var))
     await cg.register_component(var, config)
     return await modbus.register_modbus_server_device(var, config)

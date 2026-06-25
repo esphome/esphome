@@ -226,4 +226,56 @@ TEST(ModbusServerRead, UnregisteredRejectedWithoutCourtesy) {
   EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
 }
 
+// --- partial reads (opt-in) ----------------------------------------------------
+
+// With allow_partial_read, reading only the first register of a DWORD returns its high word.
+TEST(ModbusServerRead, PartialReadHighWord) {
+  ModbusServer server;
+  ServerRegister reg(0x0010, SensorValueType::U_DWORD, 2);
+  reg.allow_partial_read = true;
+  reg.read_lambda = []() -> int64_t { return 0x12345678; };
+  server.add_server_register(&reg);
+
+  RegisterValues out;
+  auto status = server.on_modbus_read_registers(0x0010, 1, out);
+  EXPECT_FALSE(status.has_value());
+  ASSERT_EQ(out.size(), 1u);
+  EXPECT_EQ(out[0], 0x1234);
+}
+
+// With allow_partial_read, starting at the interior cell returns the low word.
+TEST(ModbusServerRead, PartialReadLowWordFromInterior) {
+  ModbusServer server;
+  ServerRegister reg(0x0010, SensorValueType::U_DWORD, 2);
+  reg.allow_partial_read = true;
+  reg.read_lambda = []() -> int64_t { return 0x12345678; };
+  server.add_server_register(&reg);
+
+  RegisterValues out;
+  auto status = server.on_modbus_read_registers(0x0011, 1, out);
+  EXPECT_FALSE(status.has_value());
+  ASSERT_EQ(out.size(), 1u);
+  EXPECT_EQ(out[0], 0x5678);
+}
+
+// Slicing is in wire order, so a reversed value type partials correctly: U_DWORD_R emits the low word
+// first, so 0x0010 holds 0x5678 and 0x0011 holds 0x1234.
+TEST(ModbusServerRead, PartialReadReversedType) {
+  ModbusServer server;
+  ServerRegister reg(0x0010, SensorValueType::U_DWORD_R, 2);
+  reg.allow_partial_read = true;
+  reg.read_lambda = []() -> int64_t { return 0x12345678; };
+  server.add_server_register(&reg);
+
+  RegisterValues first;
+  ASSERT_FALSE(server.on_modbus_read_registers(0x0010, 1, first).has_value());
+  ASSERT_EQ(first.size(), 1u);
+  EXPECT_EQ(first[0], 0x5678);
+
+  RegisterValues second;
+  ASSERT_FALSE(server.on_modbus_read_registers(0x0011, 1, second).has_value());
+  ASSERT_EQ(second.size(), 1u);
+  EXPECT_EQ(second[0], 0x1234);
+}
+
 }  // namespace esphome::modbus_server

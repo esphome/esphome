@@ -84,9 +84,13 @@ class ServerRegister {
     }
   }
 
+  void set_allow_partial_read(bool allow_partial_read) { this->allow_partial_read = allow_partial_read; }
+
   uint16_t address{0};
   SensorValueType value_type{SensorValueType::RAW};
   uint8_t register_count{0};
+  // When true, a read may cover only part of this multi-register value; otherwise it must read the whole value.
+  bool allow_partial_read{false};
   ReadLambda read_lambda;
   WriteLambda write_lambda;
 };

@@ -8,6 +8,9 @@ using modbus::helpers::registers_to_number;
 
 static const char *const TAG = "modbus_server";
 
+// The widest Modbus value type (QWORD) spans four registers.
+static constexpr uint8_t MAX_REGISTERS_PER_VALUE = 4;
+
 ServerRegister *ModbusServer::find_containing_register_(uint32_t address) const {
   for (auto *server_register : this->server_registers_) {
     if (address >= server_register->address &&
@@ -51,13 +54,18 @@ modbus::ServerResponseStatus ModbusServer::on_modbus_read_registers(uint16_t sta
       return ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;
     }
 
-    // A multi-register value is atomic: the request must start at the value's first register and cover all of
-    // it. Starting inside the value, or stopping short of its end, clips it and is rejected.
-    const bool clipped =
-        current_address != server_register->address ||
-        static_cast<uint32_t>(server_register->address) + server_register->register_count > end_address;
-    if (clipped) {
-      ESP_LOGW(TAG, "Read clips the multi-register value at 0x%04X. Sending exception response.",
+    // A multi-register value is normally atomic: the request must start at its first register and cover all of
+    // it. A value may opt in to partial reads, in which case the request may start inside it or stop short of
+    // its end and we return only the covered words.
+    const uint16_t value_offset = static_cast<uint16_t>(current_address - server_register->address);
+    const uint16_t words_available = static_cast<uint16_t>(server_register->register_count - value_offset);
+    const uint16_t words_wanted = static_cast<uint16_t>(end_address - current_address);
+    const uint16_t take = words_available < words_wanted ? words_available : words_wanted;
+    const bool clipped = value_offset != 0 || take != server_register->register_count;
+    if (clipped && !server_register->allow_partial_read) {
+      ESP_LOGW(TAG,
+               "Read clips the multi-register value at 0x%04X, which does not allow partial reads. "
+               "Sending exception response.",
                server_register->address);
       return ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;
     }
@@ -67,8 +75,21 @@ modbus::ServerResponseStatus ModbusServer::on_modbus_read_registers(uint16_t sta
     ESP_LOGV(TAG, "Matched register. Address: 0x%02X. Value type: %zu. Register count: %u. Value: %s.",
              server_register->address, static_cast<size_t>(server_register->value_type),
              server_register->register_count, server_register->format_value(value, value_buf, sizeof(value_buf)));
-    modbus::helpers::number_to_payload(registers, value, server_register->value_type);
-    current_address += server_register->register_count;
+
+    // Encode the whole value once (wire word order) and emit only the covered words. Slicing the encoded words
+    // handles the reversed value types for free, since number_to_payload already emits in wire order.
+    StaticVector<uint16_t, MAX_REGISTERS_PER_VALUE> value_words;
+    modbus::helpers::number_to_payload(value_words, value, server_register->value_type);
+    if (value_offset + take > value_words.size()) {
+      // The value encoded to fewer words than its register span (e.g. a RAW register); treat as a device fault.
+      ESP_LOGE(TAG, "Register at 0x%04X did not encode to %u registers", server_register->address,
+               server_register->register_count);
+      return ModbusExceptionCode::SERVICE_DEVICE_FAILURE;
+    }
+    for (uint16_t i = 0; i < take; i++) {
+      registers.push_back(value_words[value_offset + i]);
+    }
+    current_address += take;
   }
 
   return {};
