@@ -125,7 +125,6 @@ bool USBUartTypeCH34X::config_step(USBUartChannel *channel, uint8_t step, bool r
       auto factor = static_cast<uint8_t>(clk / baud_rate);
       if (factor == 0 || factor == 0xFF) {
         ESP_LOGE(TAG, "Invalid baud rate %" PRIu32, baud_rate);
-        channel->initialised_.store(false);
         return false;
       }
       if ((clk / factor - baud_rate) > (baud_rate - clk / (factor + 1)))
