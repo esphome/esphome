@@ -2,6 +2,7 @@
 #ifdef USE_HOST
 
 #include "esphome/core/preference_backend.h"
+#include <cstring>
 #include <map>
 #include <string>
 #include <vector>
