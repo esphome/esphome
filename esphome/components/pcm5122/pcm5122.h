@@ -41,7 +41,7 @@ enum PCM5122BitsPerSample : uint8_t {
   PCM5122_BITS_PER_SAMPLE_32 = 32,
 };
 
-class PCM5122 : public audio_dac::AudioDac, public Component, public i2c::I2CDevice {
+class PCM5122 final : public audio_dac::AudioDac, public Component, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
