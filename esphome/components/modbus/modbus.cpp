@@ -365,6 +365,13 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
           status = device->on_modbus_read_input_registers(start_address, number_of_registers, registers);
         }
 
+        // A handler that returns an exception leaves registers partially filled, so check the exception
+        // first and forward it before validating the register count on the success path.
+        if (status.has_value()) {
+          this->send_exception_(address, function_code, status.value());
+          return;
+        }
+
         if (registers.size() != number_of_registers) {
           ESP_LOGE(TAG, "Incorrect response %" PRIu16 " requested, %zu returned", number_of_registers,
                    registers.size());
