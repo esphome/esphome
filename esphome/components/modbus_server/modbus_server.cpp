@@ -84,26 +84,36 @@ modbus::ServerResponseStatus ModbusServer::on_modbus_write_registers(uint16_t st
     return true;
   };
 
-  // check all registers are writable before writing to any of them:
-  if (!for_each_register([](ServerRegister *server_register, uint16_t register_offset) -> bool {
-        return server_register->write_lambda != nullptr;
+  // Pre-flight: every targeted register must be writable AND have its full value present in the request,
+  // so we never apply a partial write before discovering a problem. The commit pass below re-runs
+  // registers_to_number rather than caching the decoded values: using the same function for the check and
+  // the write keeps a single source of truth for the decode bound, independent of how register_count was set.
+  ModbusExceptionCode precheck = ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;  // unmatched or unwritable register
+  if (!for_each_register([&precheck, &registers](ServerRegister *server_register, uint16_t register_offset) -> bool {
+        if (server_register->write_lambda == nullptr) {
+          return false;  // unwritable -> ILLEGAL_DATA_ADDRESS
+        }
+        bool error = false;
+        registers_to_number(registers.data() + register_offset, registers.size() - register_offset,
+                            server_register->value_type, &error);
+        if (error) {
+          precheck = ModbusExceptionCode::ILLEGAL_DATA_VALUE;  // request doesn't supply the full value
+          return false;
+        }
+        return true;
       })) {
-    ESP_LOGW(TAG, "Invalid register address. Sending exception response.");
-    return ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;
+    ESP_LOGW(TAG, "Write request rejected before applying any register. Sending exception response.");
+    return precheck;
   }
 
-  // Actually write to the registers:
+  // Commit: every value is known writable and decodable, so the only failure now is a user write callback
+  // rejecting the value at runtime -- which cannot be rolled back.
   if (!for_each_register([&registers](ServerRegister *server_register, uint16_t register_offset) {
-        bool error = false;
         int64_t number = registers_to_number(registers.data() + register_offset, registers.size() - register_offset,
-                                             server_register->value_type, &error);
-        if (error) {
-          return false;
-        } else {
-          return server_register->write_lambda(number);
-        }
+                                             server_register->value_type);
+        return server_register->write_lambda(number);
       })) {
-    ESP_LOGW(TAG, "Could not write all registers. Sending exception response.");
+    ESP_LOGW(TAG, "A register write callback failed mid-sequence; earlier writes were already applied.");
     return ModbusExceptionCode::SERVICE_DEVICE_FAILURE;
   }
 
