@@ -12,7 +12,7 @@
 
 namespace esphome::bthome_mithermometer {
 
-class BTHomeMiThermometer : public esp32_ble_tracker::ESPBTDeviceListener, public Component {
+class BTHomeMiThermometer final : public esp32_ble_tracker::ESPBTDeviceListener, public Component {
  public:
   void set_address(uint64_t address) { this->address_ = address; }
   void set_bindkey(std::initializer_list<uint8_t> bindkey);

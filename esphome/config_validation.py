@@ -1220,21 +1220,60 @@ def mac_address(value):
     return core.MACAddress(*parts_int)
 
 
-def bind_key(value, *, name="Bind key"):
-    value = string_strict(value)
-    parts = [value[i : i + 2] for i in range(0, len(value), 2)]
-    if len(parts) != 16:
-        raise Invalid(f"{name} must consist of 16 hexadecimal numbers")
-    parts_int = []
-    if any(len(part) != 2 for part in parts):
-        raise Invalid(f"{name} must be format XX")
-    for part in parts:
-        try:
-            parts_int.append(int(part, 16))
-        except ValueError:
-            raise Invalid(f"{name} must be hex values from 00 to FF") from None
+_BIND_KEY_MISSING = object()
 
-    return "".join(f"{part:02X}" for part in parts_int)
+
+class BindKeyValidator(SensitiveValidator):
+    """Sensitive validator for a 16-byte hex bind/encryption key.
+
+    Use bare as a validator (``cv.bind_key``) for the default error wording, or
+    call it with a custom ``name`` (``cv.bind_key(name="Decryption key")``) to
+    get a validator with tailored error messages. Either way the value is marked
+    sensitive so frontends mask it and dump tooling redacts it.
+    """
+
+    def __init__(self, name: str = "Bind key") -> None:
+        self._name = name
+        super().__init__(self._validate)
+
+    def _validate(self, value: typing.Any) -> str:
+        value = string_strict(value)
+        parts = [value[i : i + 2] for i in range(0, len(value), 2)]
+        if len(parts) != 16:
+            raise Invalid(f"{self._name} must consist of 16 hexadecimal numbers")
+        parts_int = []
+        if any(len(part) != 2 for part in parts):
+            raise Invalid(f"{self._name} must be format XX")
+        for part in parts:
+            try:
+                parts_int.append(int(part, 16))
+            except ValueError:
+                raise Invalid(
+                    f"{self._name} must be hex values from 00 to FF"
+                ) from None
+
+        return "".join(f"{part:02X}" for part in parts_int)
+
+    def __call__(
+        self, value: typing.Any = _BIND_KEY_MISSING, *, name: str | None = None
+    ) -> typing.Any:
+        if value is _BIND_KEY_MISSING:
+            # Factory usage: return a validator with customized error wording.
+            return BindKeyValidator(name if name is not None else self._name)
+        if name is not None and name != self._name:
+            # Direct validation with a one-off custom name.
+            return BindKeyValidator(name)(value)
+        return super().__call__(value)
+
+    def __repr__(self) -> str:
+        # ``self.inner`` is a bound method of this instance, so the inherited
+        # ``SensitiveValidator.__repr__`` (which returns ``repr(self.inner)``)
+        # would recurse infinitely. Provide a stable, name-keyed repr instead so
+        # ``build_language_schema`` dedup and voluptuous errors stay sane.
+        return f"bind_key({self._name!r})"
+
+
+bind_key = BindKeyValidator()
 
 
 def uuid(value):

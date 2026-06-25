@@ -3,6 +3,9 @@ from esphome.components.esp32 import (
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
+    VARIANT_ESP32S31,
     add_idf_sdkconfig_option,
     get_esp32_variant,
     include_builtin_idf_component,
@@ -187,7 +190,14 @@ def _validate_platform(config):
     if CORE.using_zephyr:
         return config
     return only_on_variant(
-        supported=[VARIANT_ESP32C5, VARIANT_ESP32C6, VARIANT_ESP32H2]
+        supported=[
+            VARIANT_ESP32C5,
+            VARIANT_ESP32C6,
+            VARIANT_ESP32H2,
+            VARIANT_ESP32H4,
+            VARIANT_ESP32H21,
+            VARIANT_ESP32S31,
+        ]
     )(config)
 
 

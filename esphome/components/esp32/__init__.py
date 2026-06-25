@@ -533,15 +533,13 @@ def get_board(core_obj=None):
 def get_download_types(storage_json):
     """Binary-download entries for a built ESP32 firmware.
 
-    Used by:
-    - esphome.dashboard (legacy "Download .bin" button)
-    - device-builder (esphome/device-builder) — same dispatch via
-      ``importlib.import_module(f"esphome.components.{platform}")``
-      then ``module.get_download_types(storage)``. The contract is
-      "returns ``list[dict]`` with at least ``title`` /
-      ``description`` / ``file`` / ``download`` keys"; please keep
-      the shape stable so the new dashboard's download panel
-      doesn't have to special-case per-platform schemas.
+    Used by device-builder (esphome/device-builder), via
+    ``importlib.import_module(f"esphome.components.{platform}")``
+    then ``module.get_download_types(storage)``. The contract is
+    "returns ``list[dict]`` with at least ``title`` /
+    ``description`` / ``file`` / ``download`` keys"; please keep
+    the shape stable so the download panel
+    doesn't have to special-case per-platform schemas.
     """
     return [
         {
@@ -1589,65 +1587,12 @@ FRAMEWORK_SCHEMA = cv.Schema(
 )
 
 
-# Remove this class in 2026.7.0
-class _FrameworkMigrationWarning:
-    shown = False
-
-
-def _show_framework_migration_message(name: str, variant: str) -> None:
-    """Show a message about the framework default change and how to switch back to Arduino."""
-    # Remove this function in 2026.7.0
-    if _FrameworkMigrationWarning.shown:
-        return
-    _FrameworkMigrationWarning.shown = True
-
-    from esphome.log import AnsiFore, color
-
-    message = (
-        color(
-            AnsiFore.BOLD_CYAN,
-            f"💡 NOTICE: {name} does not have a framework specified.",
-        )
-        + "\n\n"
-        + f"Starting with ESPHome 2026.1.0, the default framework for {variant} is ESP-IDF.\n"
-        + "(We've been warning about this change since ESPHome 2025.8.0)\n"
-        + "\n"
-        + "Why we made this change:\n"
-        + color(AnsiFore.GREEN, "  ✨ Smaller firmware binaries\n")
-        + color(AnsiFore.GREEN, "  ⚡ Faster compile times\n")
-        + color(AnsiFore.GREEN, "  🚀 Better performance and newer features\n")
-        + color(AnsiFore.GREEN, "  🔧 More actively maintained by ESPHome\n")
-        + "\n"
-        + "To continue using Arduino, add this to your YAML under 'esp32:':\n"
-        + color(AnsiFore.WHITE, "    framework:\n")
-        + color(AnsiFore.WHITE, "      type: arduino\n")
-        + "\n"
-        + "To silence this message with ESP-IDF, explicitly set:\n"
-        + color(AnsiFore.WHITE, "    framework:\n")
-        + color(AnsiFore.WHITE, "      type: esp-idf\n")
-        + "\n"
-        + "Migration guide: "
-        + color(
-            AnsiFore.BLUE,
-            "https://esphome.io/guides/esp32_arduino_to_idf/",
-        )
-    )
-    _LOGGER.warning(message)
-
-
 def _set_default_framework(config):
     config = config.copy()
     if CONF_FRAMEWORK not in config:
         config[CONF_FRAMEWORK] = FRAMEWORK_SCHEMA({})
     if CONF_TYPE not in config[CONF_FRAMEWORK]:
-        variant = config[CONF_VARIANT]
         config[CONF_FRAMEWORK][CONF_TYPE] = FRAMEWORK_ESP_IDF
-        # Show migration message for variants that previously defaulted to Arduino
-        # Remove this message in 2026.7.0
-        if variant in ARDUINO_ALLOWED_VARIANTS:
-            _show_framework_migration_message(
-                config.get(CONF_NAME, "This device"), variant
-            )
 
     return config
 
@@ -2423,14 +2368,14 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES", True)
             add_idf_sdkconfig_option(
                 "CONFIG_SECURE_BOOT_SIGNING_KEY",
-                str(signed_ota[CONF_SIGNING_KEY].resolve()),
+                signed_ota[CONF_SIGNING_KEY].resolve().as_posix(),
             )
         else:
             # Public key mode — verification only, external signing required
             add_idf_sdkconfig_option("CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES", False)
             add_idf_sdkconfig_option(
                 "CONFIG_SECURE_BOOT_VERIFICATION_KEY",
-                str(signed_ota[CONF_VERIFICATION_KEY].resolve()),
+                signed_ota[CONF_VERIFICATION_KEY].resolve().as_posix(),
             )
 
         cg.add_define("USE_OTA_SIGNED_VERIFICATION")

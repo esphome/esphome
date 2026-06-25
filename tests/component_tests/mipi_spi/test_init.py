@@ -306,6 +306,50 @@ def test_all_predefined_models(
         run_schema_validation(config)
 
 
+def test_single_bus_no_cs_no_mode_warns(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A single-bus display with no CS pin and no explicit SPI mode warns about MODE3 default."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    run_schema_validation({"model": "ili9488", "dc_pin": 14})
+
+    assert "defaulting to MODE3 due to lack of CS pin" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        pytest.param(
+            {"model": "ili9488", "dc_pin": 14, "cs_pin": 0},
+            id="cs_pin_provided",
+        ),
+        pytest.param(
+            {"model": "ili9488", "dc_pin": 14, "spi_mode": "mode0"},
+            id="spi_mode_provided",
+        ),
+    ],
+)
+def test_single_bus_no_mode_warning_suppressed(
+    config: ConfigType,
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """No MODE3 warning when a CS pin or an explicit SPI mode is provided."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    run_schema_validation(config)
+
+    assert "defaulting to MODE3 due to lack of CS pin" not in caplog.text
+
+
 def test_native_generation(
     generate_main: Callable[[str | Path], str],
     component_fixture_path: Callable[[str], Path],
