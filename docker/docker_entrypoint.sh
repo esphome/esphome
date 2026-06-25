@@ -27,4 +27,12 @@ if [[ -d /build ]]; then
     export ESPHOME_BUILD_PATH=/build
 fi
 
+# The default CMD is "dashboard /config". Route the dashboard to the new
+# Device Builder, but pass every other subcommand (compile, run, config,
+# logs, ...) straight through to the esphome CLI so direct CLI use keeps working.
+if [[ "$1" == "dashboard" ]]; then
+    shift
+    exec esphome-device-builder "$@"
+fi
+
 exec esphome "$@"

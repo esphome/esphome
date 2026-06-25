@@ -137,6 +137,96 @@ def _path_begins_with(path: ConfigPath, other: ConfigPath) -> bool:
     return path[: len(other)] == other
 
 
+# CORE.data key for the per-alias "already warned this run" dedupe set.
+# Cleared between runs because CORE.data is reset; one warning per alias
+# per `esphome config|compile|run` invocation is the desired UX.
+_ALIAS_WARNED_KEY = "_component_aliases_warned"
+
+
+def _resolve_component_aliases(config: dict[str, Any]) -> None:
+    """Rewrite legacy top-level keys to their canonical names, in place.
+
+    Looks up each top-level key against the component-alias map built by
+    :mod:`esphome.loader` (see ``ComponentManifest.aliases``); when a
+    matching alias is found, the key is moved to its canonical name and a
+    one-shot deprecation warning is logged (per alias, per run — deduped
+    via ``CORE.data``).
+
+    Ambiguous configurations raise ``cv.Invalid`` rather than silently
+    keeping one entry — that would hide a real misconfiguration. Two cases
+    are rejected: the canonical key together with one of its deprecated
+    aliases, and two or more different aliases of the same canonical
+    component.
+
+    The rest of the validator chain (dependency resolution, schema
+    validation, codegen) sees only canonical names, so component
+    `DEPENDENCIES = ["<canonical>"]` works regardless of which spelling
+    the user typed.
+    """
+    alias_meta_map = loader.get_alias_metadata()
+    if not alias_meta_map:
+        return
+
+    # Group every legacy alias key present in the config by the canonical
+    # component it resolves to, preserving config order within each group.
+    legacy_by_canonical: dict[str, list[str]] = {}
+    for key in config:
+        meta = alias_meta_map.get(key)
+        if meta is not None:
+            legacy_by_canonical.setdefault(meta.canonical, []).append(key)
+
+    if not legacy_by_canonical:
+        return
+
+    # Reject ambiguous configurations up front — checking before rewriting
+    # means a conflict is caught regardless of key order.
+    for canonical, legacies in legacy_by_canonical.items():
+        if canonical in config:
+            # The canonical key and (at least) one deprecated alias are both
+            # present.
+            raise vol.Invalid(
+                f"Both '{legacies[0]}:' (deprecated alias of '{canonical}:') "
+                f"and '{canonical}:' are present in the configuration. Remove "
+                f"the deprecated '{legacies[0]}:' key.",
+                path=[legacies[0]],
+            )
+        if len(legacies) > 1:
+            # Several different deprecated aliases of the same component.
+            listed = ", ".join(f"'{alias}:'" for alias in legacies)
+            raise vol.Invalid(
+                f"Multiple deprecated aliases of '{canonical}:' are present "
+                f"({listed}). Use only '{canonical}:'.",
+                path=[legacies[0]],
+            )
+
+    warned: set[str] = CORE.data.setdefault(_ALIAS_WARNED_KEY, set())
+
+    # Rebuild in place so each canonical key keeps the legacy key's original
+    # position — top-level key order matters for some downstream passes
+    # (e.g. auto-load ordering). A plain `config[canonical] = config.pop(...)`
+    # would instead move the renamed key to the end.
+    rewritten: dict[str, Any] = {}
+    for key, value in config.items():
+        meta = alias_meta_map.get(key)
+        if meta is None:
+            rewritten[key] = value
+            continue
+        rewritten[meta.canonical] = value
+        if key not in warned:
+            warned.add(key)
+            removal = (
+                f" Removed in {meta.removal_version}." if meta.removal_version else ""
+            )
+            _LOGGER.warning(
+                "The '%s:' top-level key is deprecated; rename it to '%s:'.%s",
+                key,
+                meta.canonical,
+                removal,
+            )
+    config.clear()
+    config.update(rewritten)
+
+
 @functools.total_ordering
 class _ValidationStepTask:
     def __init__(self, priority: float, id_number: int, step: ConfigValidationStep):
@@ -1047,6 +1137,18 @@ def validate_config(
     # re-substitution. Re-added to result at the end of this function.
     substitutions = config.pop(CONF_SUBSTITUTIONS, None)
     CORE.raw_config = config
+
+    # 1.15. Resolve component aliases so legacy top-level keys
+    # (`rp2040:`, …) route to their canonical component before any
+    # downstream pass touches the config. Logs a deprecation warning
+    # per alias; mutates `config` in place. Errors here surface as
+    # plain config errors and abort further validation.
+    try:
+        _resolve_component_aliases(config)
+    except vol.Invalid as err:
+        result.update(config)
+        result.add_error(err)
+        return result
 
     # 1.2. Resolve !extend and !remove and check for REPLACEME
     # After this step, there will not be any Extend or Remove values in the config anymore

@@ -251,6 +251,16 @@ void SX126x::configure() {
       this->write_register_(REG_CRC_POLYNOMIAL, buf, 2);
     }
 
+    // set whitening params
+    if (this->whitening_enable_) {
+      // according to the datasheet, section 12 table 12-1 "The user should not
+      // change the value of the 7 MSB of this register"
+      this->read_register_(REG_WHITENING_INITIAL, buf, 1);
+      buf[0] = (buf[0] & 0xFE) | ((this->whitening_initial_ >> 8) & 0x01);
+      buf[1] = this->whitening_initial_ & 0xFF;
+      this->write_register_(REG_WHITENING_INITIAL, buf, 2);
+    }
+
     // set packet params and sync word
     this->set_packet_params_(this->get_max_packet_size());
     if (!this->sync_value_.empty()) {
@@ -297,7 +307,7 @@ void SX126x::set_packet_params_(uint8_t payload_length) {
     } else {
       buf[7] = 0x01;
     }
-    buf[8] = 0x00;
+    buf[8] = (this->whitening_enable_) ? 0x01 : 0x00;
     this->write_opcode_(RADIO_SET_PACKETPARAMS, buf, 9);
   }
 }
@@ -540,6 +550,10 @@ void SX126x::dump_config() {
     char hex_buf[17];  // 8 bytes max = 16 hex chars + null
     ESP_LOGCONFIG(TAG, "  Sync Value: 0x%s",
                   format_hex_to(hex_buf, this->sync_value_.data(), this->sync_value_.size()));
+  }
+  ESP_LOGCONFIG(TAG, "  Whitening Enable: %s", TRUEFALSE(this->whitening_enable_));
+  if (this->whitening_enable_) {
+    ESP_LOGCONFIG(TAG, "  Whitening Initial: 0x%03x", this->whitening_initial_);
   }
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Configuring SX126x failed");
