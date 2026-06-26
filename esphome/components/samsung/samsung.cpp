@@ -62,6 +62,11 @@ bool SamsungClimate::on_receive(remote_base::RemoteReceiveData data) {
     }
   }
 
+  if (!data.expect_mark(SAMSUNG_AIRCON1_BIT_MARK)) {
+    ESP_LOGVV(TAG, "Footer fail");
+    return false;
+  }
+
   if (this->is_power_off_()) {
     this->last_known_mode_ = this->mode;
     this->mode = climate::ClimateMode::CLIMATE_MODE_OFF;
