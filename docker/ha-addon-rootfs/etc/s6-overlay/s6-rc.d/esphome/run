@@ -19,14 +19,6 @@ if bashio::config.true 'leave_front_door_open'; then
     export DISABLE_HA_AUTHENTICATION=true
 fi
 
-if bashio::config.true 'streamer_mode'; then
-    export ESPHOME_STREAMER_MODE=true
-fi
-
-if bashio::config.has_value 'relative_url'; then
-    export ESPHOME_DASHBOARD_RELATIVE_URL=$(bashio::config 'relative_url')
-fi
-
 if bashio::config.has_value 'default_compile_process_limit'; then
     export ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT=$(bashio::config 'default_compile_process_limit')
 else
