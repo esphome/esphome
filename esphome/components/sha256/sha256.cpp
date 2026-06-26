@@ -1,7 +1,8 @@
 #include "sha256.h"
 
 // Only compile SHA256 implementation on platforms that support it
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_HOST)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || \
+    defined(USE_HOST) || defined(USE_ZEPHYR)
 
 #include "esphome/core/helpers.h"
 #include <cstring>
@@ -125,6 +126,27 @@ void SHA256::calculate() {
   if (!this->calculated_) {
     unsigned int len = 32;
     EVP_DigestFinal_ex(this->ctx_, this->digest_, &len);
+    this->calculated_ = true;
+  }
+}
+
+#elif defined(USE_SHA256_TINYCRYPT)
+
+// Zephyr/nRF52: bundled TinyCrypt (software SHA256). tc_sha256_final consumes the
+// state, so guard repeated calculate() calls like the BearSSL/OpenSSL backends.
+
+SHA256::~SHA256() = default;
+
+void SHA256::init() {
+  tc_sha256_init(&this->ctx_);
+  this->calculated_ = false;
+}
+
+void SHA256::add(const uint8_t *data, size_t len) { tc_sha256_update(&this->ctx_, data, len); }
+
+void SHA256::calculate() {
+  if (!this->calculated_) {
+    tc_sha256_final(this->digest_, &this->ctx_);
     this->calculated_ = true;
   }
 }

@@ -14,6 +14,15 @@ CONFIG_SCHEMA = cv.Schema({})
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_SHA256")
 
+    # Zephyr/nRF52 has no mbedTLS/PSA in the default build; the SHA256 backend uses
+    # the bundled TinyCrypt, which must be enabled in the Zephyr config.
+    if CORE.using_zephyr:
+        from esphome.components.zephyr import zephyr_add_prj_conf
+
+        zephyr_add_prj_conf("TINYCRYPT", True)
+        zephyr_add_prj_conf("TINYCRYPT_SHA256", True)
+        return
+
     # Add OpenSSL library for host platform
     if not CORE.is_host:
         return
