@@ -5,7 +5,10 @@
 
 namespace esphome::samsung {
 
-#define GETBITS8(data, offset, size) (((data) & (((uint8_t) UINT8_MAX >> (8 - (size))) << (offset))) >> (offset))
+/// Extract `size` bits starting at bit `offset` from an 8-bit value.
+inline uint8_t get_bits8(uint8_t data, uint8_t offset, uint8_t size) {
+  return (data & static_cast<uint8_t>((UINT8_MAX >> (8 - size)) << offset)) >> offset;
+}
 
 static const uint32_t SAMSUNG_IR_FREQUENCY_HZ = 38000;
 static const uint32_t SAMSUNG_AIRCON1_HDR_MARK = 3000;
