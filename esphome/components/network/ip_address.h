@@ -122,7 +122,7 @@ struct IPAddress {
 #if LWIP_IPV4
   IPAddress(ip4_addr_t *other_ip) {
     memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip4_addr_t));
-#if USE_ESP32 && LWIP_IPV6
+#if LWIP_IPV6
     ip_addr_.type = IPADDR_TYPE_V4;
 #endif
   }

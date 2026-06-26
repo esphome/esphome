@@ -38,7 +38,7 @@ using namespace ld24xx;
 static constexpr uint8_t MAX_LINE_LENGTH = 50;
 static constexpr uint8_t TOTAL_GATES = 9;  // Total number of gates supported by the LD2410
 
-class LD2410Component : public Component, public uart::UARTDevice {
+class LD2410Component final : public Component, public uart::UARTDevice {
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(out_pin_presence_status)
   SUB_BINARY_SENSOR(moving_target)

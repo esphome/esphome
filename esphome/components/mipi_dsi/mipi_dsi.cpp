@@ -9,18 +9,18 @@ namespace esphome::mipi_dsi {
 static constexpr size_t MIPI_DSI_MAX_CMD_LOG_BYTES = 64;
 
 static bool notify_refresh_ready(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata, void *user_ctx) {
-  auto sem = static_cast<SemaphoreHandle_t>(user_ctx);
+  SemaphoreHandle_t sem = static_cast<SemaphoreHandle_t>(user_ctx);
   BaseType_t need_yield = pdFALSE;
   xSemaphoreGiveFromISR(sem, &need_yield);
   return (need_yield == pdTRUE);
 }
 
-void MIPI_DSI::smark_failed(const LogString *message, esp_err_t err) {
+void MipiDsi::smark_failed(const LogString *message, esp_err_t err) {
   ESP_LOGE(TAG, "%s: %s", LOG_STR_ARG(message), esp_err_to_name(err));
   this->mark_failed(message);
 }
 
-void MIPI_DSI::setup() {
+void MipiDsi::setup() {
   ESP_LOGCONFIG(TAG, "Running Setup");
 
   if (!this->enable_pins_.empty()) {
@@ -175,7 +175,7 @@ void MIPI_DSI::setup() {
   ESP_LOGCONFIG(TAG, "MIPI DSI setup complete");
 }
 
-void MIPI_DSI::update() {
+void MipiDsi::update() {
   if (this->auto_clear_enabled_) {
     this->clear();
   }
@@ -202,8 +202,8 @@ void MIPI_DSI::update() {
   this->y_high_ = 0;
 }
 
-void MIPI_DSI::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
-                              display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
+void MipiDsi::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
+                             display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) {
   if (w <= 0 || h <= 0)
     return;
   // if color mapping is required, pass the buck.
@@ -216,8 +216,8 @@ void MIPI_DSI::draw_pixels_at(int x_start, int y_start, int w, int h, const uint
   this->write_to_display_(x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
 }
 
-void MIPI_DSI::write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
-                                 int x_pad) {
+void MipiDsi::write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
+                                int x_pad) {
   esp_err_t err = ESP_OK;
   auto bytes_per_pixel = 3 - this->color_depth_;
   auto stride = (x_offset + w + x_pad) * bytes_per_pixel;
@@ -241,7 +241,7 @@ void MIPI_DSI::write_to_display_(int x_start, int y_start, int w, int h, const u
     ESP_LOGE(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
 }
 
-bool MIPI_DSI::check_buffer_() {
+bool MipiDsi::check_buffer_() {
   if (this->is_failed())
     return false;
   if (this->buffer_ != nullptr)
@@ -257,7 +257,7 @@ bool MIPI_DSI::check_buffer_() {
   return true;
 }
 
-void MIPI_DSI::draw_pixel_at(int x, int y, Color color) {
+void MipiDsi::draw_pixel_at(int x, int y, Color color) {
   if (!this->get_clipping().inside(x, y))
     return;
 
@@ -280,7 +280,6 @@ void MIPI_DSI::draw_pixel_at(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) {
     return;
   }
-  auto pixel = convert_big_endian(display::ColorUtil::color_to_565(color));
   if (!this->check_buffer_())
     return;
   size_t pos = (y * this->width_) + x;
@@ -319,7 +318,7 @@ void MIPI_DSI::draw_pixel_at(int x, int y, Color color) {
   if (y > this->y_high_)
     this->y_high_ = y;
 }
-void MIPI_DSI::fill(Color color) {
+void MipiDsi::fill(Color color) {
   if (!this->check_buffer_())
     return;
 
@@ -359,7 +358,7 @@ void MIPI_DSI::fill(Color color) {
   }
 }
 
-int MIPI_DSI::get_width() {
+int MipiDsi::get_width() {
   switch (this->rotation_) {
     case display::DISPLAY_ROTATION_90_DEGREES:
     case display::DISPLAY_ROTATION_270_DEGREES:
@@ -371,7 +370,7 @@ int MIPI_DSI::get_width() {
   }
 }
 
-int MIPI_DSI::get_height() {
+int MipiDsi::get_height() {
   switch (this->rotation_) {
     case display::DISPLAY_ROTATION_0_DEGREES:
     case display::DISPLAY_ROTATION_180_DEGREES:
@@ -385,7 +384,7 @@ int MIPI_DSI::get_height() {
 
 static const uint8_t PIXEL_MODES[] = {0, 16, 18, 24};
 
-void MIPI_DSI::dump_config() {
+void MipiDsi::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "MIPI_DSI RGB LCD"
                 "\n  Model: %s"

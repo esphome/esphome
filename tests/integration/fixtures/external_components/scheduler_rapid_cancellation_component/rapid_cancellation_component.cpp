@@ -4,11 +4,17 @@
 #include <vector>
 #include <chrono>
 #include <random>
-#include <sstream>
 
 namespace esphome::scheduler_rapid_cancellation_component {
 
 static const char *const TAG = "scheduler_rapid_cancellation";
+
+// Static name table keeps the const char* pointers valid for the lifetime of the scheduled tasks.
+// Threads race over this fixed set of names; STATIC_STRING names match by content, so scheduling
+// the same name replaces (implicitly cancels) the previous timeout, exactly as before.
+static const char *const SHARED_TIMEOUT_NAMES[10] = {
+    "shared_timeout_0", "shared_timeout_1", "shared_timeout_2", "shared_timeout_3", "shared_timeout_4",
+    "shared_timeout_5", "shared_timeout_6", "shared_timeout_7", "shared_timeout_8", "shared_timeout_9"};
 
 void SchedulerRapidCancellationComponent::setup() { ESP_LOGCONFIG(TAG, "SchedulerRapidCancellationComponent setup"); }
 
@@ -32,14 +38,12 @@ void SchedulerRapidCancellationComponent::run_rapid_cancellation_test() {
       for (int i = 0; i < OPERATIONS_PER_THREAD; i++) {
         // Use modulo to ensure multiple threads use the same names
         int name_index = i % NUM_NAMES;
-        std::stringstream ss;
-        ss << "shared_timeout_" << name_index;
-        std::string name = ss.str();
+        const char *name = SHARED_TIMEOUT_NAMES[name_index];
 
         // All threads schedule timeouts - this will implicitly cancel existing ones
         this->set_timeout(name, 150, [this, name]() {
           this->total_executed_.fetch_add(1);
-          ESP_LOGI(TAG, "Executed callback '%s'", name.c_str());
+          ESP_LOGI(TAG, "Executed callback '%s'", name);
         });
         this->total_scheduled_.fetch_add(1);
 

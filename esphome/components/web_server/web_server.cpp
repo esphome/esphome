@@ -164,36 +164,9 @@ EntityMatchResult UrlMatch::match_entity(EntityBase *entity) const {
   }
 #endif
 
-  // Try matching by entity name (new format)
+  // Match by entity name
   if (this->id == entity->get_name()) {
     result.matched = true;
-    return result;
-  }
-
-  // Fall back to object_id (deprecated format)
-  char object_id_buf[OBJECT_ID_MAX_LEN];
-  StringRef object_id = entity->get_object_id_to(object_id_buf);
-  if (this->id == object_id) {
-    result.matched = true;
-    // Log deprecation warning
-#ifdef USE_DEVICES
-    Device *device = entity->get_device();
-    if (device != nullptr) {
-      ESP_LOGW(TAG,
-               "Deprecated URL format: /%.*s/%.*s/%.*s - use entity name '/%.*s/%s/%s' instead. "
-               "Object ID URLs will be removed in 2026.7.0.",
-               (int) this->domain.size(), this->domain.c_str(), (int) this->device_name.size(),
-               this->device_name.c_str(), (int) this->id.size(), this->id.c_str(), (int) this->domain.size(),
-               this->domain.c_str(), device->get_name(), entity->get_name().c_str());
-    } else
-#endif
-    {
-      ESP_LOGW(TAG,
-               "Deprecated URL format: /%.*s/%.*s - use entity name '/%.*s/%s' instead. "
-               "Object ID URLs will be removed in 2026.7.0.",
-               (int) this->domain.size(), this->domain.c_str(), (int) this->id.size(), this->id.c_str(),
-               (int) this->domain.size(), this->domain.c_str(), entity->get_name().c_str());
-    }
   }
 
   return result;

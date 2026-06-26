@@ -1,0 +1,18 @@
+coverage:
+  status:
+    patch:
+      default:
+        target: 100%
+        threshold: 0%
+    project:
+      default:
+        informational: true
+
+ignore:
+  - "esphome/components/**/*"
+  - "esphome/analyze_memory/**/*"
+  - "tests/integration/**/*"
+
+comment:
+  layout: "reach, diff, flags, files"
+  require_changes: true
