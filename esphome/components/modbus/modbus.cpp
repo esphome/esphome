@@ -347,7 +347,7 @@ ModbusServerDevice *ModbusServerHub::find_device_(uint8_t address) {
 
 bool ModbusServerHub::check_register_range_(uint8_t address, uint8_t function_code, uint16_t start_address,
                                             uint16_t number_of_registers) {
-  if (start_address > std::numeric_limits<uint16_t>::max() - number_of_registers) {
+  if ((uint32_t) start_address + number_of_registers > 0x10000u) {
     ESP_LOGW(TAG, "Register address out of range - start: %" PRIu16 " num: %" PRIu16, start_address,
              number_of_registers);
     this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
