@@ -6,16 +6,8 @@ climate:
     name: HeatpumpIR Climate Mitsubishi
     min_temperature: 18
     max_temperature: 30
-    transmitter_id: xmitr
-  - platform: heatpumpir
-    protocol: mitsubishi_heavy_zj
-    horizontal_default: left
-    vertical_default: mup
-    name: HeatpumpIR Climate Mitsubishi ZJ
-    min_temperature: 18
-    max_temperature: 30
-    transmitter_id: xmitr
-  - platform: heatpumpir
+     transmitter_id: xmitr
+   - platform: heatpumpir
     protocol: mitsubishi_heavy_zmp
     horizontal_default: left
     vertical_default: up
