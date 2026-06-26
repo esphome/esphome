@@ -13,6 +13,8 @@
 
 #include "remko_ar715.h"
 #include "esphome/core/log.h"
+#include <algorithm>
+#include <cmath>
 
 namespace esphome::remko_ar715 {
 
