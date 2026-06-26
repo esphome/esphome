@@ -81,36 +81,19 @@ bool BluetoothProxy::parse_devices(const esp32_ble::BLEScanResult *scan_results,
   if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr)
     return false;
 
-  auto &advertisements = this->response_.advertisements;
-
   for (size_t i = 0; i < count; i++) {
     auto &result = scan_results[i];
     uint8_t length = result.adv_data_len + result.scan_rsp_len;
 
-    // Fill in the data directly at current position
-    auto &adv = advertisements[this->response_.advertisements_len];
-    adv.address = esp32_ble::ble_addr_to_uint64(result.bda);
-    adv.rssi = result.rssi;
-    adv.address_type = result.ble_addr_type;
-    adv.data_len = length;
-    std::memcpy(adv.data, result.ble_adv, length);
-
-    this->response_.advertisements_len++;
-
     ESP_LOGV(TAG, "Queuing raw packet from %02X:%02X:%02X:%02X:%02X:%02X, length %d. RSSI: %d dB", result.bda[0],
              result.bda[1], result.bda[2], result.bda[3], result.bda[4], result.bda[5], length, result.rssi);
 
-    // Flush if we have reached BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE
-    if (this->response_.advertisements_len >= BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE) {
-      this->flush_pending_advertisements_();
-    }
+    // Batching + flushing now lives in the shared BluetoothProxyAdvertisements base.
+    this->add_advertisement(esp32_ble::ble_addr_to_uint64(result.bda), result.rssi, result.ble_addr_type,
+                            result.ble_adv, length);
   }
 
   return true;
-}
-
-void BluetoothProxy::log_advertisement_flush_() {
-  ESP_LOGV(TAG, "Sent batch of %u BLE advertisements", this->response_.advertisements_len);
 }
 
 void BluetoothProxy::dump_config() {

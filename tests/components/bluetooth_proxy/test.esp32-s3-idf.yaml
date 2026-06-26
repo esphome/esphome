@@ -1,8 +1,9 @@
 <<: !include common.yaml
 
 esp32_ble_tracker:
-  max_connections: 9
 
+# Passive (advertisement-only) proxy: exercises the shared BluetoothProxyAdvertisements
+# core without GATT active connections — the same forwarding path the LibreTiny proxy uses.
 bluetooth_proxy:
-  active: true
-  connection_slots: 9
+  active: false
+  cache_services: false

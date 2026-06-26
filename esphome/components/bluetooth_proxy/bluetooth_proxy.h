@@ -15,6 +15,7 @@
 #include "esphome/core/defines.h"
 
 #include "bluetooth_connection.h"
+#include "bluetooth_proxy_advertisements.h"
 
 #ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_bt.h>
@@ -38,22 +39,11 @@ using namespace esp32_ble_client;
 static constexpr uint32_t LEGACY_ACTIVE_CONNECTIONS_VERSION = 5;
 static constexpr uint32_t LEGACY_PASSIVE_ONLY_VERSION = 1;
 
-enum BluetoothProxyFeature : uint32_t {
-  FEATURE_PASSIVE_SCAN = 1 << 0,
-  FEATURE_ACTIVE_CONNECTIONS = 1 << 1,
-  FEATURE_REMOTE_CACHING = 1 << 2,
-  FEATURE_PAIRING = 1 << 3,
-  FEATURE_CACHE_CLEARING = 1 << 4,
-  FEATURE_RAW_ADVERTISEMENTS = 1 << 5,
-  FEATURE_STATE_AND_MODE = 1 << 6,
-  FEATURE_CONNECTION_PARAMS_SETTING = 1 << 7,
-};
-
-enum BluetoothProxySubscriptionFlag : uint32_t {
-  SUBSCRIPTION_RAW_ADVERTISEMENTS = 1 << 0,
-};
-
-class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
+// BluetoothProxyFeature / BluetoothProxySubscriptionFlag and the advertisement-batching
+// core (response_, add_advertisement, flush_pending_advertisements_) now live in the
+// shared, chip-neutral BluetoothProxyAdvertisements base (bluetooth_proxy_advertisements.h).
+class BluetoothProxy final : public BluetoothProxyAdvertisements,
+                             public esp32_ble_tracker::ESPBTDeviceListener,
                              public esp32_ble_tracker::BLEScannerStateListener,
                              public Component {
   friend class BluetoothConnection;  // Allow connection to update connections_free_response_
@@ -90,7 +80,7 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
 
   void subscribe_api_connection(api::APIConnection *api_connection, uint32_t flags);
   void unsubscribe_api_connection(api::APIConnection *api_connection);
-  api::APIConnection *get_api_connection() { return this->api_connection_; }
+  // get_api_connection() is inherited from BluetoothProxyAdvertisements.
 
   void send_device_connection(uint64_t address, bool connected, uint16_t mtu = 0, esp_err_t error = ESP_OK);
   void send_connections_free();
@@ -153,18 +143,6 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
  protected:
   void send_bluetooth_scanner_state_(esp32_ble_tracker::ScannerState state);
 
-  /// Caller must ensure api_connection_ is non-null and API server is connected.
-  void flush_pending_advertisements_() {
-    if (this->response_.advertisements_len == 0)
-      return;
-    this->api_connection_->send_message(this->response_);
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    this->log_advertisement_flush_();
-#endif
-    this->response_.advertisements_len = 0;
-  }
-  void log_advertisement_flush_();
-
   BluetoothConnection *get_connection_(uint64_t address, bool reserve);
   void log_connection_request_ignored_(BluetoothConnection *connection, espbt::ClientState state);
   void log_connection_info_(BluetoothConnection *connection, const char *message);
@@ -172,17 +150,9 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
   void handle_gatt_not_connected_(uint64_t address, uint16_t handle, const char *action, const char *type);
 
   // Memory optimized layout for 32-bit systems
-  // Group 1: Pointers (4 bytes each, naturally aligned)
-  api::APIConnection *api_connection_{nullptr};
-
+  // (api_connection_ and the advertisement response_ now live in the shared base.)
   // Group 2: Fixed-size array of connection pointers
   std::array<BluetoothConnection *, BLUETOOTH_PROXY_MAX_CONNECTIONS> connections_{};
-
-  // BLE advertisement batching
-  api::BluetoothLERawAdvertisementsResponse response_;
-
-  // Group 3: 4-byte types
-  uint32_t last_advertisement_flush_time_{0};
 
   // Pre-allocated response message - always ready to send
   api::BluetoothConnectionsFreeResponse connections_free_response_;
@@ -197,5 +167,10 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
 extern BluetoothProxy *global_bluetooth_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome::bluetooth_proxy
+
+#elif defined(USE_LIBRETINY)  // USE_ESP32
+
+// Off-ESP32 (LibreTiny): the same bluetooth_proxy::BluetoothProxy, advertisement-proxy only.
+#include "bluetooth_proxy_libretiny.h"
 
 #endif  // USE_ESP32
