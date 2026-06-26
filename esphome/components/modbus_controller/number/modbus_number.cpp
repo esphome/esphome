@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace modbus_controller {
+namespace esphome::modbus_controller {
 
 static const char *const TAG = "modbus.number";
 
@@ -90,5 +89,4 @@ void ModbusNumber::control(float value) {
 }
 void ModbusNumber::dump_config() { LOG_NUMBER(TAG, "Modbus Number", this); }
 
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller

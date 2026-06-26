@@ -8,8 +8,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 enum ToleranceMode : uint8_t {
   TOLERANCE_MODE_PERCENTAGE = 0,
@@ -257,7 +256,7 @@ template<typename T> class RemoteReceiverBinarySensor : public RemoteReceiverBin
 };
 
 template<typename T>
-class RemoteReceiverTrigger : public Trigger<typename T::ProtocolData>, public RemoteReceiverListener {
+class RemoteReceiverTrigger final : public Trigger<typename T::ProtocolData>, public RemoteReceiverListener {
  protected:
   bool on_receive(RemoteReceiveData src) override {
     auto proto = T();
@@ -317,5 +316,4 @@ template<typename T> class RemoteReceiverDumper : public RemoteReceiverDumperBas
   using prefix##Dumper = RemoteReceiverDumper<prefix##Protocol>;
 #define DECLARE_REMOTE_PROTOCOL(prefix) DECLARE_REMOTE_PROTOCOL_(prefix)
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

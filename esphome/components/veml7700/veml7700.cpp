@@ -3,8 +3,7 @@
 #include "esphome/core/log.h"
 #include <limits>
 
-namespace esphome {
-namespace veml7700 {
+namespace esphome::veml7700 {
 
 static const char *const TAG = "veml7700";
 static const size_t VEML_REG_SIZE = 2;
@@ -434,5 +433,4 @@ void VEML7700Component::publish_data_part_3_(Readings &data) {
     this->actual_integration_time_sensor_->publish_state(get_itime_ms(data.actual_time));
   }
 }
-}  // namespace veml7700
-}  // namespace esphome
+}  // namespace esphome::veml7700

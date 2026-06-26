@@ -1,5 +1,5 @@
 esphome:
-  name: host-climate-test
+  name: host-climate-basic-state
 host:
 api:
 logger:
@@ -10,6 +10,7 @@ climate:
     name: Dual-mode Thermostat
     sensor: host_thermostat_temperature_sensor
     humidity_sensor: host_thermostat_humidity_sensor
+    on_boot_restore_from: default_preset
     humidity_hysteresis: 1.0
     min_cooling_off_time: 20s
     min_cooling_run_time: 20s

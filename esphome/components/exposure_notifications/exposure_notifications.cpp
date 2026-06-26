@@ -4,8 +4,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace exposure_notifications {
+namespace esphome::exposure_notifications {
 
 using namespace esp32_ble_tracker;
 
@@ -43,7 +42,6 @@ bool ExposureNotificationTrigger::parse_device(const ESPBTDevice &device) {
   return true;
 }
 
-}  // namespace exposure_notifications
-}  // namespace esphome
+}  // namespace esphome::exposure_notifications
 
 #endif

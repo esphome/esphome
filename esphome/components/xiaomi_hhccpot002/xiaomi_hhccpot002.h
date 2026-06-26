@@ -7,8 +7,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace xiaomi_hhccpot002 {
+namespace esphome::xiaomi_hhccpot002 {
 
 class XiaomiHHCCPOT002 : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
@@ -26,7 +25,6 @@ class XiaomiHHCCPOT002 : public Component, public esp32_ble_tracker::ESPBTDevice
   sensor::Sensor *conductivity_{nullptr};
 };
 
-}  // namespace xiaomi_hhccpot002
-}  // namespace esphome
+}  // namespace esphome::xiaomi_hhccpot002
 
 #endif

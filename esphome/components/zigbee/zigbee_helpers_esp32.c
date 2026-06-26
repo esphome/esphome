@@ -33,6 +33,9 @@ esp_err_t esphome_zb_cluster_list_add_or_update_cluster(uint16_t cluster_id, esp
       case ESP_ZB_ZCL_CLUSTER_ID_IDENTIFY:
         ret = esp_zb_cluster_list_add_identify_cluster(cluster_list, attr_list, role_mask);
         break;
+      case ESP_ZB_ZCL_CLUSTER_ID_ANALOG_INPUT:
+        ret = esp_zb_cluster_list_add_analog_input_cluster(cluster_list, attr_list, role_mask);
+        break;
       case ESP_ZB_ZCL_CLUSTER_ID_BINARY_INPUT:
         ret = esp_zb_cluster_list_add_binary_input_cluster(cluster_list, attr_list, role_mask);
         break;
@@ -49,6 +52,8 @@ esp_zb_attribute_list_t *esphome_zb_default_attr_list_create(uint16_t cluster_id
       return esp_zb_basic_cluster_create(NULL);
     case ESP_ZB_ZCL_CLUSTER_ID_IDENTIFY:
       return esp_zb_identify_cluster_create(NULL);
+    case ESP_ZB_ZCL_CLUSTER_ID_ANALOG_INPUT:
+      return esp_zb_analog_input_cluster_create(NULL);
     case ESP_ZB_ZCL_CLUSTER_ID_BINARY_INPUT:
       return esp_zb_binary_input_cluster_create(NULL);
     default:
@@ -63,6 +68,8 @@ esp_err_t esphome_zb_cluster_add_attr(uint16_t cluster_id, esp_zb_attribute_list
       return esp_zb_basic_cluster_add_attr(attr_list, attr_id, value_p);
     case ESP_ZB_ZCL_CLUSTER_ID_IDENTIFY:
       return esp_zb_identify_cluster_add_attr(attr_list, attr_id, value_p);
+    case ESP_ZB_ZCL_CLUSTER_ID_ANALOG_INPUT:
+      return esp_zb_analog_input_cluster_add_attr(attr_list, attr_id, value_p);
     case ESP_ZB_ZCL_CLUSTER_ID_BINARY_INPUT:
       return esp_zb_binary_input_cluster_add_attr(attr_list, attr_id, value_p);
     default:

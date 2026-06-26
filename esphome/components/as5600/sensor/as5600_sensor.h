@@ -7,10 +7,9 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/as5600/as5600.h"
 
-namespace esphome {
-namespace as5600 {
+namespace esphome::as5600 {
 
-class AS5600Sensor : public PollingComponent, public Parented<AS5600Component>, public sensor::Sensor {
+class AS5600Sensor final : public PollingComponent, public Parented<AS5600Component>, public sensor::Sensor {
  public:
   void update() override;
   void dump_config() override;
@@ -32,5 +31,4 @@ class AS5600Sensor : public PollingComponent, public Parented<AS5600Component>, 
   OutRangeMode out_of_range_mode_{OUT_RANGE_MODE_MIN_MAX};
 };
 
-}  // namespace as5600
-}  // namespace esphome
+}  // namespace esphome::as5600

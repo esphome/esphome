@@ -31,11 +31,6 @@ class Scheduler {
   template<typename... Ts> friend class DelayAction;
 
  public:
-  // std::string overload - deprecated, use const char* or uint32_t instead
-  // Remove before 2026.7.0
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  void set_timeout(Component *component, const std::string &name, uint32_t timeout, std::function<void()> &&func);
-
   /** Set a timeout with a const char* name.
    *
    * IMPORTANT: The provided name pointer must remain valid for the lifetime of the scheduler item.
@@ -53,17 +48,12 @@ class Scheduler {
                             static_cast<uint32_t>(id), timeout, std::move(func));
   }
 
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  bool cancel_timeout(Component *component, const std::string &name);
   bool cancel_timeout(Component *component, const char *name);
   bool cancel_timeout(Component *component, uint32_t id);
   bool cancel_timeout(Component *component, InternalSchedulerID id) {
     return this->cancel_item_(component, NameType::NUMERIC_ID_INTERNAL, nullptr, static_cast<uint32_t>(id),
                               SchedulerItem::TIMEOUT);
   }
-
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  void set_interval(Component *component, const std::string &name, uint32_t interval, std::function<void()> &&func);
 
   /** Set an interval with a const char* name.
    *
@@ -82,8 +72,6 @@ class Scheduler {
                             static_cast<uint32_t>(id), interval, std::move(func));
   }
 
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  bool cancel_interval(Component *component, const std::string &name);
   bool cancel_interval(Component *component, const char *name);
   bool cancel_interval(Component *component, uint32_t id);
   bool cancel_interval(Component *component, InternalSchedulerID id) {
@@ -132,6 +120,12 @@ class Scheduler {
   // @return Timestamp of the last item that ran, or `now` unchanged if none ran.
   uint32_t call(uint32_t now);
 
+  // Reclaim memory held by the post-boot peak. Frees every SchedulerItem in the
+  // recycle freelist and shrinks items_/to_add_/defer_queue_ vector capacity to
+  // their current sizes (std::vector grows by doubling and otherwise retains the
+  // peak). Live items in those vectors are preserved.
+  void trim_freelist();
+
   // Move items from to_add_ into the main heap.
   // IMPORTANT: This method should only be called from the main thread (loop task).
   // Inlined: the fast path (nothing to add) is just an atomic load / empty check.
@@ -177,8 +171,13 @@ class Scheduler {
 
  protected:
   struct SchedulerItem {
-    // Ordered by size to minimize padding
-    Component *component;
+    // Ordered by size to minimize padding. Mutually exclusive by state; read the component via
+    // get_component() so SELF_POINTER items read as component-less.
+    union {
+      Component *component;          // live, non-SELF_POINTER: owning component
+      const LogString *source_name;  // live SELF_POINTER: owning script name (log attribution)
+      SchedulerItem *next_free;      // while pooled
+    };
     // Optimized name storage using tagged union - zero heap allocation
     union {
       const char *static_name;  // For STATIC_STRING (string literals) and SELF_POINTER (caller's `this`)
@@ -292,14 +291,23 @@ class Scheduler {
       next_execution_high_ = static_cast<uint16_t>(value >> 32);
     }
     constexpr const char *get_type_str() const { return (type == TIMEOUT) ? "timeout" : "interval"; }
-    const LogString *get_source() const { return component ? component->get_component_log_str() : LOG_STR("unknown"); }
+    // The owning component, or nullptr for SELF_POINTER items (whose slot holds source_name instead).
+    // All component access goes through this so SELF_POINTER items read as component-less.
+    Component *get_component() const { return name_type_ == NameType::SELF_POINTER ? nullptr : component; }
+    const LogString *get_source() const {
+      // Same no-source label as warn_blocking, for consistent log vocabulary.
+      if (name_type_ == NameType::SELF_POINTER)
+        return source_name != nullptr ? source_name : LOG_STR("a scheduled task");
+      return component != nullptr ? component->get_component_log_str() : LOG_STR("unknown");
+    }
   };
 
   // Common implementation for both timeout and interval
   // name_type determines storage type: STATIC_STRING uses static_name, others use hash_or_id
+  // `source` is stored (in the union slot) only for SELF_POINTER items; ignored otherwise.
   void set_timer_common_(Component *component, SchedulerItem::Type type, NameType name_type, const char *static_name,
                          uint32_t hash_or_id, uint32_t delay, std::function<void()> &&func, bool is_retry = false,
-                         bool skip_cancel = false);
+                         bool skip_cancel = false, const LogString *source = nullptr);
 
   // Common implementation for retry - Remove before 2026.8.0
   // name_type determines storage type: STATIC_STRING uses static_name, others use hash_or_id
@@ -355,6 +363,10 @@ class Scheduler {
   SchedulerItem *get_item_from_pool_locked_();
 
  private:
+  // Out-of-line helper that shrinks a SchedulerItem* vector's capacity to its current
+  // size. Centralised so trim_freelist() doesn't pay flash cost per call site.
+  void shrink_scheduler_vector_(std::vector<SchedulerItem *> *v);
+
   // Helper to cancel matching items - must be called with lock held.
   // When find_first=true, stops after the first match (used by set_timer_common_ where
   // the cancel-before-add invariant guarantees at most one match).
@@ -372,8 +384,8 @@ class Scheduler {
   inline bool HOT names_match_static_(const char *name1, const char *name2) const {
     // Check pointer equality first (common for static strings), then string contents
     // The core ESPHome codebase uses static strings (const char*) for component names,
-    // making pointer comparison effective. The std::string overloads exist only for
-    // compatibility with external components but are rarely used in practice.
+    // making pointer comparison effective. The strcmp fallback covers distinct pointers
+    // with identical content (e.g. names built into separate static buffers).
     return (name1 != nullptr && name2 != nullptr) && ((name1 == name2) || (strcmp(name1, name2) == 0));
   }
 
@@ -388,8 +400,10 @@ class Scheduler {
     // Fixes: https://github.com/esphome/esphome/issues/11940
     if (item == nullptr)
       return false;
-    if (item->component != component || item->type != type || (skip_removed && this->is_item_removed_locked_(item)) ||
-        (match_retry && !item->is_retry)) {
+    // get_component() is nullptr for SELF_POINTER items (their cancels pass nullptr too), so they
+    // match by the `this` key alone.
+    if (item->get_component() != component || item->type != type ||
+        (skip_removed && this->is_item_removed_locked_(item)) || (match_retry && !item->is_retry)) {
       return false;
     }
     // Name type must match
@@ -409,10 +423,15 @@ class Scheduler {
   // Helper to execute a scheduler item
   uint32_t execute_item_(SchedulerItem *item, uint32_t now);
 
-  // Helper to check if item should be skipped
-  bool should_skip_item_(SchedulerItem *item) const {
-    return is_item_removed_(item) || (item->component != nullptr && item->component->is_failed());
+  // True if the item's component is failed (so it must not run). SELF_POINTER delays have no
+  // component (get_component() == nullptr) and always fire.
+  bool is_item_failed_(SchedulerItem *item) const {
+    Component *component = item->get_component();
+    return component != nullptr && component->is_failed();
   }
+
+  // Helper to check if item should be skipped
+  bool should_skip_item_(SchedulerItem *item) const { return is_item_removed_(item) || this->is_item_failed_(item); }
 
   // Helper to recycle a SchedulerItem back to the pool.
   // Takes a raw pointer — caller transfers ownership. The item is either added to the
@@ -713,19 +732,15 @@ class Scheduler {
 #endif
   }
 
-  // Memory pool for recycling SchedulerItem objects to reduce heap churn.
-  // Design decisions:
-  // - std::vector is used instead of a fixed array because many systems only need 1-2 scheduler items
-  // - The vector grows dynamically up to MAX_POOL_SIZE (5) only when needed, saving memory on simple setups
-  // - Pool size of 5 matches typical usage (2-4 timers) while keeping memory overhead low (~250 bytes on ESP32)
-  // - The pool significantly reduces heap fragmentation which is critical because heap allocation/deallocation
-  //   can stall the entire system, causing timing issues and dropped events for any components that need
-  //   to synchronize between tasks (see https://github.com/esphome/backlog/issues/52)
-  std::vector<SchedulerItem *> scheduler_item_pool_;
+  // Intrusive freelist threaded through SchedulerItem::next_free. Unbounded so it quiesces at the
+  // app's concurrent-timer high-water mark; the previous fixed cap caused steady-state new/delete
+  // churn on devices with many timers (see https://github.com/esphome/backlog/issues/52).
+  SchedulerItem *scheduler_item_pool_head_{nullptr};
+  size_t scheduler_item_pool_size_{0};
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
   // Leak detection: tracks total live SchedulerItem allocations.
-  // Invariant: debug_live_items_ == items_.size() + to_add_.size() + defer_queue_.size() + scheduler_item_pool_.size()
+  // Invariant: debug_live_items_ == items_.size() + to_add_.size() + defer_queue_.size() + scheduler_item_pool_size_
   // Verified periodically in call() to catch leaks early.
   size_t debug_live_items_{0};
 

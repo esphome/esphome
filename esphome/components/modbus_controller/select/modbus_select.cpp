@@ -1,8 +1,7 @@
 #include "modbus_select.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace modbus_controller {
+namespace esphome::modbus_controller {
 
 static const char *const TAG = "modbus_controller.select";
 
@@ -86,5 +85,4 @@ void ModbusSelect::control(size_t index) {
     this->publish_state(index);
 }
 
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller

@@ -21,7 +21,7 @@ modbus_server:
         read_lambda: |-
           return 31;
         write_lambda: |-
-          printf("address=%d, value=%d", x);
+          printf("address=%d, value=%" PRId32 "\n", (int) address, x);
           return true;
   - id: modbus_server4
     modbus_id: mod_bus2

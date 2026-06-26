@@ -709,3 +709,119 @@ def test_detect_rp2040_bootsel_timeout() -> None:
         result = util.detect_rp2040_bootsel("/usr/bin/picotool")
     assert result.device_count == 0
     assert result.permission_error is False
+
+
+class TestSafePrint:
+    """Tests for ``safe_print`` and its UnicodeEncodeError fallback chain."""
+
+    @pytest.fixture(autouse=True)
+    def _no_dashboard(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Default ``CORE.dashboard`` to False so each test starts hermetic."""
+        from esphome.core import CORE
+
+        monkeypatch.setattr(CORE, "dashboard", False)
+
+    def test_prints_plain_message(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """ASCII-only messages take the fast path through native ``print``."""
+        util.safe_print("hello world")
+        assert capsys.readouterr().out == "hello world\n"
+
+    def test_prints_unicode_on_utf8_stdout(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Non-ASCII goes straight through when stdout can encode it."""
+        util.safe_print("bars: \u2582\u2584\u2586\u2588")
+        assert capsys.readouterr().out == "bars: \u2582\u2584\u2586\u2588\n"
+
+    def test_dashboard_escapes_esc_byte(
+        self,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        r"""Dashboard mode escapes raw ``\033`` ESC bytes to literal ``\\033``."""
+        from esphome.core import CORE
+
+        monkeypatch.setattr(CORE, "dashboard", True)
+        util.safe_print("\033[0;32mhi\033[0m")
+        assert capsys.readouterr().out == "\\033[0;32mhi\\033[0m\n"
+
+    def test_fallback_writes_string_not_bytes_repr(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression: cp1252 fallback must produce a printable str, not ``b'...'``.
+
+        On Windows, when stdout is a redirected pipe (e.g. the dashboard),
+        Python uses cp1252, which cannot encode the wifi signal-bar block
+        characters (U+2582..U+2588). The previous fallback path called
+        ``print(message.encode(...))`` with a ``bytes`` object, which
+        Python's ``print`` rendered as a literal ``b'...'`` repr — visible
+        in the user's dashboard output. The fix re-encodes through the
+        stream's encoding with ``backslashreplace`` and decodes back to
+        ``str``.
+        """
+        buf = io.BytesIO()
+        cp1252_stream = io.TextIOWrapper(buf, encoding="cp1252", errors="strict")
+        monkeypatch.setattr(sys, "stdout", cp1252_stream)
+
+        util.safe_print("bars: \u2582\u2584\u2586\u2588 done")
+        cp1252_stream.flush()
+        output = buf.getvalue().decode("cp1252")
+
+        # Output is a clean line, not the bytes repr.
+        assert not output.startswith("b'")
+        assert "b'bars" not in output
+        # Unencodable codepoints become readable backslash escapes.
+        assert "\\u2582\\u2584\\u2586\\u2588" in output
+        # Encodable parts survive unchanged.
+        assert "bars: " in output
+        assert " done" in output
+        assert output.endswith("\n")
+
+    def test_fallback_with_dashboard_escaped_message(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Dashboard ESC escaping + cp1252 fallback compose correctly."""
+        from esphome.core import CORE
+
+        monkeypatch.setattr(CORE, "dashboard", True)
+        buf = io.BytesIO()
+        cp1252_stream = io.TextIOWrapper(buf, encoding="cp1252", errors="strict")
+        monkeypatch.setattr(sys, "stdout", cp1252_stream)
+
+        util.safe_print("\033[0;32m\u2582\u2584\u2586\u2588\033[0m")
+        cp1252_stream.flush()
+        output = buf.getvalue().decode("cp1252")
+
+        # Dashboard escaping turned ESC into literal "\033" (5 chars), which
+        # cp1252 can encode, so it survives the round-trip verbatim.
+        assert "\\033[0;32m" in output
+        assert "\\033[0m" in output
+        # Block characters became backslash escapes via backslashreplace.
+        assert "\\u2582\\u2584\\u2586\\u2588" in output
+
+    def test_final_message_when_locale_is_invalid(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """If every encoding path fails, surface the locale-error sentinel."""
+        original_print = print
+        call_count = 0
+
+        def fake_print(*args: Any, **kwargs: Any) -> None:
+            nonlocal call_count
+            call_count += 1
+            # The first three calls are: native print, stream-encoding
+            # fallback, ASCII fallback. Make all three raise so we reach
+            # the final sentinel "Cannot print line..." which is expected
+            # to succeed (no encoding required).
+            if call_count <= 3:
+                raise UnicodeEncodeError("ascii", "x", 0, 1, "boom")
+            original_print(*args, **kwargs)
+
+        monkeypatch.setattr("builtins.print", fake_print)
+        util.safe_print("x")
+        assert call_count == 4
+        assert (
+            capsys.readouterr().out == "Cannot print line because of invalid locale!\n"
+        )

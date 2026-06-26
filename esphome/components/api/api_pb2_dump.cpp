@@ -2174,6 +2174,7 @@ const char *VoiceAssistantAudio::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("VoiceAssistantAudio"));
   dump_bytes_field(out, ESPHOME_PSTR("data"), this->data, this->data_len);
   dump_field(out, ESPHOME_PSTR("end"), this->end);
+  dump_bytes_field(out, ESPHOME_PSTR("data2"), this->data2, this->data2_len);
   return out.c_str();
 }
 const char *VoiceAssistantTimerEventResponse::dump_to(DumpBuffer &out) const {

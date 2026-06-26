@@ -42,7 +42,7 @@ static void bdb_start_top_level_commissioning_cb(uint8_t mode_mask) {
   }
 }
 
-void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
+extern "C" void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
   static uint8_t steering_retry_count = 0;
   uint32_t *p_sg_p = signal_struct->p_app_signal;
   esp_err_t err_status = signal_struct->esp_err_status;
@@ -59,11 +59,13 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
         ESP_LOGD(TAG, "Device started up in %sfactory-reset mode", esp_zb_bdb_is_factory_new() ? "" : "non ");
         global_zigbee->started = true;
         if (esp_zb_bdb_is_factory_new()) {
+          global_zigbee->factory_new = true;
           ESP_LOGD(TAG, "Start network steering");
           esp_zb_bdb_start_top_level_commissioning(ESP_ZB_BDB_MODE_NETWORK_STEERING);
         } else {
           ESP_LOGD(TAG, "Device rebooted");
-          global_zigbee->connected = true;
+          global_zigbee->joined = true;
+          global_zigbee->enable_loop_soon_any_context();
         }
       } else {
         ESP_LOGE(TAG, "FIRST_START.  Device started up in %sfactory-reset mode with an error %d (%s)",
@@ -78,7 +80,8 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
         steering_retry_count = 0;
         ESP_LOGI(TAG, "Joined network successfully (PAN ID: 0x%04hx, Channel:%d)", esp_zb_get_pan_id(),
                  esp_zb_get_current_channel());
-        global_zigbee->connected = true;
+        global_zigbee->joined = true;
+        global_zigbee->enable_loop_soon_any_context();
       } else {
         ESP_LOGI(TAG, "Network steering was not successful (status: %s)", esp_err_to_name(err_status));
         if (steering_retry_count < 10) {
@@ -150,7 +153,7 @@ void ZigbeeComponent::add_cluster(uint8_t endpoint_id, uint16_t cluster_id, uint
   this->attribute_list_[{endpoint_id, cluster_id, role}] = attr_list;
 }
 
-void ZigbeeComponent::set_basic_cluster(const char *model, const char *manufacturer) {
+void ZigbeeComponent::set_basic_cluster(const char *model, const char *manufacturer, uint8_t power_source) {
   char date_buf[16];
   time_t time_val = App.get_build_time();
   struct tm *timeinfo = localtime(&time_val);
@@ -159,13 +162,14 @@ void ZigbeeComponent::set_basic_cluster(const char *model, const char *manufactu
       .model = get_zcl_string(model, 31),
       .manufacturer = get_zcl_string(manufacturer, 31),
       .date = get_zcl_string(date_buf, 15),
+      .power_source = power_source,
   };
 }
 
 esp_zb_attribute_list_t *ZigbeeComponent::create_basic_cluster_() {
   esp_zb_basic_cluster_cfg_t basic_cluster_cfg = {
       .zcl_version = ESP_ZB_ZCL_BASIC_ZCL_VERSION_DEFAULT_VALUE,
-      .power_source = 0,
+      .power_source = this->basic_cluster_data_.power_source,
   };
   esp_zb_attribute_list_t *attr_list = esp_zb_basic_cluster_create(&basic_cluster_cfg);
   esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_NAME_ID,
@@ -179,26 +183,30 @@ esp_err_t ZigbeeComponent::create_endpoint(uint8_t endpoint_id, zb_ha_standard_d
                                            esp_zb_cluster_list_t *esp_zb_cluster_list) {
   esp_zb_endpoint_config_t endpoint_config = {.endpoint = endpoint_id,
                                               .app_profile_id = ESP_ZB_AF_HA_PROFILE_ID,
-                                              .app_device_id = device_id,
+                                              .app_device_id = static_cast<uint16_t>(device_id),
                                               .app_device_version = 0};
   return esp_zb_ep_list_add_ep(this->esp_zb_ep_list_, esp_zb_cluster_list, endpoint_config);
 }
 
-static void esp_zb_task_(void *pvParameters) {
+static void esp_zb_task(void *pv_parameters) {
   if (esp_zb_start(false) != ESP_OK) {
     ESP_LOGE(TAG, "Could not setup Zigbee");
     vTaskDelete(NULL);
   }
-  esp_zb_set_node_descriptor_power_source(1);
+  if (global_zigbee->is_battery_powered()) {
+    ESP_LOGD(TAG, "Battery powered!");
+    esp_zb_set_node_descriptor_power_source(false);
+  } else {
+    esp_zb_set_node_descriptor_power_source(true);
+  }
   esp_zb_stack_main_loop();
 }
 
 void ZigbeeComponent::setup() {
   global_zigbee = this;
-  esp_zb_platform_config_t config = {
-      .radio_config = ESP_ZB_DEFAULT_RADIO_CONFIG(),
-      .host_config = ESP_ZB_DEFAULT_HOST_CONFIG(),
-  };
+  esp_zb_platform_config_t config = {};
+  config.radio_config = ESP_ZB_DEFAULT_RADIO_CONFIG();
+  config.host_config = ESP_ZB_DEFAULT_HOST_CONFIG();
 #ifdef USE_WIFI
   if (esp_coex_wifi_i154_enable() != ESP_OK) {
     this->mark_failed();
@@ -210,20 +218,20 @@ void ZigbeeComponent::setup() {
     return;
   }
 
-  esp_zb_zed_cfg_t zb_zed_cfg = {
-      .ed_timeout = ESP_ZB_ED_AGING_TIMEOUT_64MIN,
-      .keep_alive = ED_KEEP_ALIVE,
-  };
-  esp_zb_zczr_cfg_t zb_zczr_cfg = {
-      .max_children = MAX_CHILDREN,
-  };
   esp_zb_cfg_t zb_nwk_cfg = {
       .esp_zb_role = this->device_role_,
       .install_code_policy = false,
   };
 #ifdef ZB_ROUTER_ROLE
+  esp_zb_zczr_cfg_t zb_zczr_cfg = {
+      .max_children = MAX_CHILDREN,
+  };
   zb_nwk_cfg.nwk_cfg.zczr_cfg = zb_zczr_cfg;
 #else
+  esp_zb_zed_cfg_t zb_zed_cfg = {
+      .ed_timeout = ESP_ZB_ED_AGING_TIMEOUT_64MIN,
+      .keep_alive = ED_KEEP_ALIVE,
+  };
   zb_nwk_cfg.nwk_cfg.zed_cfg = zb_zed_cfg;
 #endif
   esp_zb_init(&zb_nwk_cfg);
@@ -282,7 +290,16 @@ void ZigbeeComponent::setup() {
       }
     }
   }
-  xTaskCreate(esp_zb_task_, "Zigbee_main", 4096, NULL, 24, NULL);
+  xTaskCreate(esp_zb_task, "Zigbee_main", 4096, NULL, 24, NULL);
+  this->disable_loop();  // loop is only needed for processing events, so disable until we join a network
+}
+
+void ZigbeeComponent::loop() {
+  if (this->joined.exchange(false)) {
+    this->connected_ = true;
+    this->join_cb_.call(this->factory_new);
+  }
+  this->disable_loop();
 }
 
 void ZigbeeComponent::dump_config() {

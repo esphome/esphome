@@ -5,8 +5,7 @@
 
 #include <cmath>
 
-namespace esphome {
-namespace combination {
+namespace esphome::combination {
 
 static const char *const TAG = "combination";
 
@@ -267,5 +266,4 @@ void SumCombinationComponent::handle_new_value(float value) {
   this->publish_state(sum);
 }
 
-}  // namespace combination
-}  // namespace esphome
+}  // namespace esphome::combination

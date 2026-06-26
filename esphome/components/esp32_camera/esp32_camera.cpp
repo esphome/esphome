@@ -7,8 +7,7 @@
 
 #include <freertos/task.h>
 
-namespace esphome {
-namespace esp32_camera {
+namespace esphome::esp32_camera {
 
 static const char *const TAG = "esp32_camera";
 static constexpr size_t FRAMEBUFFER_TASK_STACK_SIZE = 1792;
@@ -556,7 +555,6 @@ bool ESP32CameraImage::was_requested_by(camera::CameraRequester requester) const
   return (this->requesters_ & (1 << requester)) != 0;
 }
 
-}  // namespace esp32_camera
-}  // namespace esphome
+}  // namespace esphome::esp32_camera
 
 #endif

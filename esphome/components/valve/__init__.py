@@ -240,21 +240,29 @@ async def valve_control_to_code(config, action_id, template_arg, args):
         (CONF_POSITION, "set_position", cg.float_),
     )
 
+    # Normalize trigger args to `const std::remove_cvref_t<T> &` so the
+    # apply lambda and any inner field lambdas (generated below via
+    # `process_lambda`) share one parameter spelling that's well-formed for
+    # any T (value, ref, or const-ref). Matches ControlAction::ApplyFn.
+    normalized_args = [
+        (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), n)
+        for t, n in args
+    ]
+
     fwd_args = ", ".join(name for _, name in args)
     body_lines: list[str] = []
     for conf_key, setter, type_ in FIELDS:
         if (value := config.get(conf_key)) is None:
             continue
         if isinstance(value, Lambda):
-            inner = await cg.process_lambda(value, args, return_type=type_)
+            inner = await cg.process_lambda(value, normalized_args, return_type=type_)
             body_lines.append(f"call.{setter}(({inner})({fwd_args}));")
         else:
             body_lines.append(f"call.{setter}({cg.safe_exp(value)});")
 
-    # Match ControlAction::ApplyFn signature: const Ts &... for trigger args.
     apply_args = [
         (ValveCall.operator("ref"), "call"),
-        *((t.operator("const").operator("ref"), n) for t, n in args),
+        *normalized_args,
     ]
     apply_lambda = LambdaExpression(
         ["\n".join(body_lines)],

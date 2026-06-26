@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace bme680 {
+namespace esphome::bme680 {
 
 static const char *const TAG = "bme680.sensor";
 
@@ -508,5 +507,4 @@ void BME680Component::set_heater(uint16_t heater_temperature, uint16_t heater_du
   this->heater_duration_ = heater_duration;
 }
 
-}  // namespace bme680
-}  // namespace esphome
+}  // namespace esphome::bme680

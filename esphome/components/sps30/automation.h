@@ -4,8 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "sps30.h"
 
-namespace esphome {
-namespace sps30 {
+namespace esphome::sps30 {
 
 template<typename... Ts> class StartFanAction : public Action<Ts...>, public Parented<SPS30Component> {
  public:
@@ -22,5 +21,4 @@ template<typename... Ts> class StopMeasurementAction : public Action<Ts...>, pub
   void play(const Ts &...x) override { this->parent_->stop_measurement(); }
 };
 
-}  // namespace sps30
-}  // namespace esphome
+}  // namespace esphome::sps30

@@ -6,12 +6,11 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace ble_presence {
+namespace esphome::ble_presence {
 
-class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
-                          public esp32_ble_tracker::ESPBTDeviceListener,
-                          public Component {
+class BLEPresenceDevice final : public binary_sensor::BinarySensorInitiallyOff,
+                                public esp32_ble_tracker::ESPBTDeviceListener,
+                                public Component {
  public:
   void set_address(uint64_t address) {
     this->match_by_ = MATCH_BY_MAC_ADDRESS;
@@ -137,7 +136,6 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
   uint32_t timeout_{};
 };
 
-}  // namespace ble_presence
-}  // namespace esphome
+}  // namespace esphome::ble_presence
 
 #endif

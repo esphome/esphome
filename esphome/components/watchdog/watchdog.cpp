@@ -14,8 +14,7 @@
 #include "pico/stdlib.h"
 #endif
 
-namespace esphome {
-namespace watchdog {
+namespace esphome::watchdog {
 
 static const char *const TAG = "http_request.watchdog";
 
@@ -75,5 +74,4 @@ uint32_t WatchdogManager::get_timeout_() {
   return timeout_ms;
 }
 
-}  // namespace watchdog
-}  // namespace esphome
+}  // namespace esphome::watchdog

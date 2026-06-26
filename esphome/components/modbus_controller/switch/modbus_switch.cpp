@@ -2,8 +2,8 @@
 #include "modbus_switch.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-namespace esphome {
-namespace modbus_controller {
+
+namespace esphome::modbus_controller {
 
 static const char *const TAG = "modbus_controller.switch";
 
@@ -112,5 +112,4 @@ void ModbusSwitch::write_state(bool state) {
   this->publish_state(state);
 }
 // ModbusSwitch end
-}  // namespace modbus_controller
-}  // namespace esphome
+}  // namespace esphome::modbus_controller

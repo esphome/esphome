@@ -54,6 +54,10 @@ RadioFrequencyCall &RadioFrequencyCall::set_repeat_count(uint32_t count) {
 
 void RadioFrequencyCall::perform() {
   if (this->parent_ != nullptr) {
+    // Fire any on_control hooks (user-wired automations) before handing off to
+    // the platform-specific control() — gives users a chance to react to call
+    // parameters (e.g. retune an external RF front-end based on call.get_frequency()).
+    this->parent_->control_callback_.call(*this);
     this->parent_->control(*this);
   }
 }

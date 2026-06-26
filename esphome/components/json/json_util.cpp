@@ -3,8 +3,7 @@
 
 // ArduinoJson::Allocator is included via ArduinoJson.h in json_util.h
 
-namespace esphome {
-namespace json {
+namespace esphome::json {
 
 static const char *const TAG = "json";
 
@@ -149,5 +148,4 @@ SerializationBuffer<> JsonBuilder::serialize() {
   return result;
 }
 
-}  // namespace json
-}  // namespace esphome
+}  // namespace esphome::json

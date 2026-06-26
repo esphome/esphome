@@ -6,7 +6,7 @@
 #endif  // USE_BINARY_SENSOR
 #ifdef USE_IMAGE
 #include "esphome/components/image/image.h"
-#endif  // USE_LVGL_IMAGE
+#endif  // USE_IMAGE
 #ifdef USE_LVGL_ROTARY_ENCODER
 #include "esphome/components/rotary_encoder/rotary_encoder.h"
 #endif  // USE_LVGL_ROTARY_ENCODER
@@ -32,10 +32,10 @@
 
 #ifdef USE_FONT
 #include "esphome/components/font/font.h"
-#endif  // USE_LVGL_FONT
+#endif  // USE_FONT
 #ifdef USE_TOUCHSCREEN
 #include "esphome/components/touchscreen/touchscreen.h"
-#endif  // USE_LVGL_TOUCHSCREEN
+#endif  // USE_TOUCHSCREEN
 
 #if defined(USE_LVGL_BUTTONMATRIX) || defined(USE_LVGL_KEYBOARD)
 #include "esphome/components/key_provider/key_provider.h"
@@ -50,7 +50,6 @@ using lv_color_data = uint16_t;
 using lv_color_data = uint32_t;
 #endif
 
-extern lv_event_code_t lv_api_event;     // NOLINT
 extern lv_event_code_t lv_update_event;  // NOLINT
 extern std::string lv_event_code_name_for(lv_event_t *event);
 
@@ -75,11 +74,11 @@ inline void lv_style_set_text_font(lv_style_t *style, const font::Font *font) {
   lv_style_set_text_font(style, font->get_lv_font());
 }
 #endif
-#if defined(USE_LVGL_IMAGE) && defined(USE_IMAGE)
-#if LV_USE_IMAGE
+
+#ifdef USE_IMAGE
+#ifdef USE_LVGL_IMAGE
 // Shortcut / overload, so that the source of an image widget can easily be updated from within a lambda.
 inline void lv_image_set_src(lv_obj_t *obj, image::Image *image) { ::lv_image_set_src(obj, image->get_lv_image_dsc()); }
-#endif  // LV_USE_IMAGE
 
 inline void lv_obj_set_style_bitmap_mask_src(lv_obj_t *obj, image::Image *image, lv_style_selector_t selector) {
   ::lv_obj_set_style_bitmap_mask_src(obj, image->get_lv_image_dsc(), selector);
@@ -94,7 +93,8 @@ inline void lv_style_set_bg_image_src(lv_style_t *style, image::Image *image) {
 inline void lv_style_set_bitmap_mask_src(lv_style_t *style, image::Image *image) {
   ::lv_style_set_bitmap_mask_src(style, image->get_lv_image_dsc());
 }
-#endif  // USE_LVGL_IMAGE
+#endif
+
 #ifdef USE_LVGL_ANIMIMG
 inline void lv_animimg_set_src(lv_obj_t *img, std::vector<image::Image *> images) {
   auto *dsc = static_cast<std::vector<lv_image_dsc_t *> *>(lv_obj_get_user_data(img));
@@ -110,6 +110,7 @@ inline void lv_animimg_set_src(lv_obj_t *img, std::vector<image::Image *> images
   lv_animimg_set_src(img, (const void **) dsc->data(), dsc->size());
 }
 #endif  // USE_LVGL_ANIMIMG
+#endif  // USE_IMAGE
 
 #ifdef USE_LVGL_METER
 int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int32_t value);
@@ -124,7 +125,8 @@ int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int32_t value);
  */
 
 lv_color_t lv_grad_calculate_color(const lv_grad_dsc_t *dsc, int32_t pos);
-#endif
+#endif  // USE_LVGL_GRADIENT
+
 // Parent class for things that wrap an LVGL object
 class LvCompound {
  public:
@@ -153,7 +155,7 @@ class LvPageType : public Parented<LvglComponent> {
 
 using event_callback_t = void(lv_event_t *);
 
-class LvLambdaComponent : public Component {
+class LvLambdaComponent final : public Component {
  public:
   LvLambdaComponent(void (*callback)()) : callback_(callback) {}
 
@@ -165,13 +167,13 @@ class LvLambdaComponent : public Component {
   void (*callback_)();
 };
 
-template<typename... Ts> class ObjUpdateAction : public Action<Ts...> {
+template<typename... Ts> class ObjUpdateAction final : public Action<Ts...> {
  public:
   explicit ObjUpdateAction(std::function<void(Ts...)> &&lamb) : lamb_(std::move(lamb)) {}
 
+ protected:
   void play(const Ts &...x) override { this->lamb_(x...); }
 
- protected:
   std::function<void(Ts...)> lamb_;
 };
 #ifdef USE_LVGL_ANIMIMG
@@ -183,13 +185,19 @@ enum RotationType : uint8_t {
   ROTATION_HARDWARE,
 };
 
-class LvglComponent : public PollingComponent {
+class LvglComponent final : public PollingComponent {
   constexpr static const char *const TAG = "lvgl";
 
  public:
   LvglComponent(std::vector<display::Display *> displays, float buffer_frac, bool full_refresh, int draw_rounding,
                 bool resume_on_input, bool update_when_display_idle, RotationType rotation_type);
   static void static_flush_cb(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *color_p);
+  /**
+   *
+   * @param obj A widget
+   * @return The position of the last indev point relative to the widget's origin.
+   */
+  static lv_point_t get_touch_relative_to_obj(lv_obj_t *obj);
 
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
   void setup() override;
@@ -220,10 +228,42 @@ class LvglComponent : public PollingComponent {
    * Initialize the LVGL library and register custom events.
    */
   static void esphome_lvgl_init();
+
+  //  Convenience overloads for adding a callback for one or more events
   static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event);
   static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2);
   static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2,
                            lv_event_code_t event3);
+
+  // change the state of a widget and fire an event if changed (only needed for CHECKED)
+
+  static void lv_obj_set_state_value(lv_obj_t *obj, lv_state_t state, bool value) {
+    if (value != lv_obj_has_state(obj, state)) {
+      if (value) {
+        lv_obj_add_state(obj, state);
+      } else {
+        lv_obj_remove_state(obj, state);
+      }
+      if (state == LV_STATE_CHECKED)
+        lv_obj_send_event(obj, lv_update_event, nullptr);
+    }
+  }
+
+  // change the state of a buttonmatrix button and fire an event if changed (only needed for CHECKED)
+#ifdef USE_LVGL_BUTTONMATRIX
+  static void lv_buttonmatrix_set_button_ctrl_value(lv_obj_t *obj, uint32_t index, lv_buttonmatrix_ctrl_t ctrl,
+                                                    bool value) {
+    if (value != lv_buttonmatrix_has_button_ctrl(obj, index, ctrl)) {
+      if (value) {
+        lv_buttonmatrix_set_button_ctrl(obj, index, ctrl);
+      } else {
+        lv_buttonmatrix_clear_button_ctrl(obj, index, ctrl);
+      }
+      if (ctrl == LV_BUTTONMATRIX_CTRL_CHECKED)
+        lv_obj_send_event(obj, lv_update_event, nullptr);
+    }
+  }
+#endif
 
   void add_page(LvPageType *page);
   void show_page(size_t index, lv_screen_load_anim_t anim, uint32_t time);
@@ -299,7 +339,7 @@ class LvglComponent : public PollingComponent {
 #endif
 };
 
-class IdleTrigger : public Trigger<> {
+class IdleTrigger final : public Trigger<> {
  public:
   explicit IdleTrigger(LvglComponent *parent, TemplatableFn<uint32_t> timeout);
 
@@ -308,16 +348,16 @@ class IdleTrigger : public Trigger<> {
   bool is_idle_{};
 };
 
-template<typename... Ts> class LvglAction : public Action<Ts...>, public Parented<LvglComponent> {
+template<typename... Ts> class LvglAction final : public Action<Ts...>, public Parented<LvglComponent> {
  public:
   explicit LvglAction(std::function<void(LvglComponent *)> &&lamb) : action_(std::move(lamb)) {}
-  void play(const Ts &...x) override { this->action_(this->parent_); }
 
  protected:
+  void play(const Ts &...x) override { this->action_(this->parent_); }
   std::function<void(LvglComponent *)> action_{};
 };
 
-template<typename Tc, typename... Ts> class LvglCondition : public Condition<Ts...>, public Parented<Tc> {
+template<typename Tc, typename... Ts> class LvglCondition final : public Condition<Ts...>, public Parented<Tc> {
  public:
   LvglCondition(std::function<bool(Tc *)> &&condition_lambda) : condition_lambda_(std::move(condition_lambda)) {}
   bool check(const Ts &...x) override { return this->condition_lambda_(this->parent_); }
@@ -327,7 +367,7 @@ template<typename Tc, typename... Ts> class LvglCondition : public Condition<Ts.
 };
 
 #ifdef USE_LVGL_TOUCHSCREEN
-class LVTouchListener : public touchscreen::TouchListener, public Parented<LvglComponent> {
+class LVTouchListener final : public touchscreen::TouchListener, public Parented<LvglComponent> {
  public:
   LVTouchListener(uint16_t long_press_time, uint16_t long_press_repeat_time, LvglComponent *parent);
   void update(const touchscreen::TouchPoints_t &tpoints) override;
@@ -363,7 +403,7 @@ class IndicatorLine : public LvCompound {
 #endif
 
 #ifdef USE_LVGL_KEY_LISTENER
-class LVEncoderListener : public Parented<LvglComponent> {
+class LVEncoderListener final : public Parented<LvglComponent> {
  public:
   LVEncoderListener(lv_indev_type_t type, uint16_t long_press_time, uint16_t long_press_repeat_time);
 

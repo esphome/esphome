@@ -1,10 +1,13 @@
+import functools
 import importlib
 from pathlib import Path
 import pkgutil
+import re
 
 from esphome.automation import Trigger, build_automation, validate_automation
 import esphome.codegen as cg
 from esphome.components.const import (
+    BYTE_ORDER_BIG,
     CONF_BYTE_ORDER,
     CONF_COLOR_DEPTH,
     CONF_DRAW_ROUNDING,
@@ -28,14 +31,14 @@ from esphome.components.image import (
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_AUTO_CLEAR_ENABLED,
     CONF_BUFFER_SIZE,
+    CONF_ESPHOME,
     CONF_GROUP,
     CONF_ID,
-    CONF_LAMBDA,
     CONF_LOG_LEVEL,
     CONF_ON_IDLE,
     CONF_PAGES,
+    CONF_PLATFORMIO_OPTIONS,
     CONF_ROTATION,
     CONF_TIMEOUT,
     CONF_TRIGGER_ID,
@@ -44,12 +47,21 @@ from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import MockObj
 from esphome.final_validate import full_config
 from esphome.helpers import write_file_if_changed
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.writer import clean_build
 from esphome.yaml_util import load_yaml
 
-from . import defines as df, helpers, lv_validation as lvalid, widgets
-from .automation import focused_widgets, layers_to_code, lvgl_update, refreshed_widgets
-from .defines import CONF_ALIGN_TO_LAMBDA_ID
+from . import defines as df, lv_validation as lvalid, widgets
+from .automation import layers_to_code, lvgl_update
+from .defines import (
+    CONF_ALIGN_TO_LAMBDA_ID,
+    LOGGER,
+    add_lv_use,
+    get_focused_widgets,
+    get_lv_images_used,
+    get_refreshed_widgets,
+    set_widgets_completed,
+)
 from .encoders import (
     ENCODERS_CONFIG,
     encoders_to_code,
@@ -58,16 +70,21 @@ from .encoders import (
 )
 from .gradient import GRADIENT_SCHEMA, gradients_to_code
 from .keypads import KEYPADS_CONFIG, keypads_to_code
-from .lv_validation import lv_bool, lv_images_used
+from .lv_validation import lv_bool
 from .lvcode import LvContext, LvglComponent, lv_event_t_ptr, lvgl_static
 from .schemas import (
+    BASE_PROPS,
     DISP_BG_SCHEMA,
     FULL_STYLE_SCHEMA,
+    SET_STATE_SCHEMA,
+    STATE_SCHEMA,
     STYLE_REMAP,
+    STYLE_SCHEMA,
     WIDGET_TYPES,
     any_widget_schema,
     container_schema,
-    obj_schema,
+    container_schema_value,
+    obj_dict,
 )
 from .styles import styles_to_code, theme_to_code
 from .touchscreens import touchscreen_schema, touchscreens_to_code
@@ -89,8 +106,8 @@ from .widgets import (
     add_widgets,
     get_screen_active,
     set_obj_properties,
-    styles_used,
 )
+from .widgets.img import CONF_IMAGE
 
 # Import only what we actually use directly in this file
 from .widgets.msgbox import MSGBOX_SCHEMA, msgboxes_to_code
@@ -100,6 +117,14 @@ from .widgets.page import (  # page_spec used in LVGL_SCHEMA
     generate_page_triggers,
     page_spec,
 )
+
+# These style schemas live in .schemas but are imported here so they land in
+# this module's namespace, where script/build_language_schema.py registers them
+# as *named* schemas and emits `extends` references — instead of inlining the
+# ~80-property STYLE_SCHEMA at every widget x part x state, which bloated the
+# dumped lvgl schema ~23x (17 MB vs ~750 KB). They are not otherwise used in
+# this file; this tuple keeps the imports live (and self-documents why).
+_SCHEMA_DUMPER_NAMED_SCHEMAS = (STYLE_SCHEMA, STATE_SCHEMA, SET_STATE_SCHEMA)
 
 # Widget registration happens via WidgetType.__init__ in individual widget files
 # The imports below trigger creation of the widget types
@@ -143,9 +168,28 @@ def generate_lv_conf_h():
     all_defines = set(
         df.LV_DEFINES + tuple(f"LV_USE_{w.upper()}" for w in WIDGET_TYPES)
     )
-    # Get the defines that are actually used based on the config
-    lv_defines = df.get_data(df.KEY_LV_DEFINES)
-    unused_defines = all_defines - set(lv_defines)
+    build_flags = (
+        CORE.config[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS).get("build_flags", [])
+    )
+    if not isinstance(build_flags, list):
+        build_flags = [build_flags]
+    # Extract define names from build flags like '-DLV_USE_CHART=1', '-D LV_USE_CHART',
+    # or multiple defines in one string.
+    define_pattern = r'-D\s*([A-Z_][A-Z0-9_]*)(?:=[^\s\'"\]]*)?'
+    defines_from_flags = {
+        m.group(1) for flag in build_flags for m in re.finditer(define_pattern, flag)
+    }
+
+    # Get the defines that are actually used based on the config,
+    lv_defines = df.get_defines()
+    clashes = defines_from_flags & lv_defines.keys()
+    if clashes:
+        LOGGER.warning(
+            "Some defines are set both by ESPHome build flags and by LVGL configuration which may lead to unexpected behavior: %s",
+            sorted(clashes),
+        )
+    unused_defines = all_defines - lv_defines.keys() - defines_from_flags
+
     # Create the content of lv_conf.h with the used defines set to their value, and the unused defines disabled
     definitions = [as_macro(m, v) for m, v in lv_defines.items()] + [
         as_macro(m, "0") for m in unused_defines
@@ -182,61 +226,73 @@ def multi_conf_validate(configs: list[dict]):
 
 
 def final_validation(config_list):
-    if len(config_list) != 1:
-        multi_conf_validate(config_list)
     global_config = full_config.get()
+    # Resolve byte_order from display metadata before multi-config validation
     for config in config_list:
+        metas = [get_display_metadata(disp) for disp in config[df.CONF_DISPLAYS]]
+        if any(m.has_writer for m in metas):
+            raise cv.Invalid(
+                "Using lambda:, pages:, auto_clear_enabled: true, or show_test_card: true in display config is not compatible with LVGL"
+            )
+        if any(m.rotation != 0 for m in metas):
+            raise cv.Invalid(
+                "use of 'rotation' in the display config is not compatible with LVGL, please set rotation in the LVGL config instead"
+            )
+        config[CONF_DRAW_ROUNDING] = max(
+            [m.draw_rounding for m in metas] + [config[CONF_DRAW_ROUNDING]]
+        )
+        display_byte_orders = {
+            m.byte_order for m in metas if m.byte_order is not cv.UNDEFINED
+        }
+        if len(display_byte_orders) > 1:
+            raise cv.Invalid(
+                "All displays configured for an LVGL instance must use the same byte_order"
+            )
+        if display_byte_orders:
+            display_order = next(iter(display_byte_orders))
+            if CONF_BYTE_ORDER in config:
+                if config[CONF_BYTE_ORDER] != display_order:
+                    raise cv.Invalid(
+                        "LVGL byte order must match the display byte order",
+                        [CONF_BYTE_ORDER],
+                    )
+            else:
+                config[CONF_BYTE_ORDER] = display_order
+        if CONF_BYTE_ORDER not in config:
+            config[CONF_BYTE_ORDER] = BYTE_ORDER_BIG
+
         if (pages := config.get(CONF_PAGES)) and all(p[df.CONF_SKIP] for p in pages):
             raise cv.Invalid("At least one page must not be skipped")
-        for display_id in config[df.CONF_DISPLAYS]:
-            path = global_config.get_path_for_id(display_id)[:-1]
-            display = global_config.get_config_for_path(path)
-            if CONF_LAMBDA in display or CONF_PAGES in display:
-                raise cv.Invalid(
-                    "Using lambda: or pages: in display config is not compatible with LVGL"
-                )
-            # treating 0 as false is intended here.
-            if display.get(CONF_ROTATION):
-                raise cv.Invalid(
-                    "use of 'rotation' in the display config is not compatible with LVGL, please set rotation in the LVGL config instead"
-                )
-            if display.get(CONF_AUTO_CLEAR_ENABLED) is True:
-                raise cv.Invalid(
-                    "Using auto_clear_enabled: true in display config not compatible with LVGL"
-                )
-            if draw_rounding := display.get(CONF_DRAW_ROUNDING):
-                config[CONF_DRAW_ROUNDING] = max(
-                    draw_rounding, config[CONF_DRAW_ROUNDING]
-                )
         buffer_frac = config[CONF_BUFFER_SIZE]
         if CORE.is_esp32 and buffer_frac > 0.5 and PSRAM_DOMAIN not in global_config:
             df.LOGGER.warning("buffer_size: may need to be reduced without PSRAM")
-        for w in focused_widgets:
-            path = global_config.get_path_for_id(w)
-            widget_conf = global_config.get_config_for_path(path[:-1])
-            if (
-                df.CONF_ADJUSTABLE in widget_conf
-                and not widget_conf[df.CONF_ADJUSTABLE]
-            ):
-                raise cv.Invalid(
-                    "A non adjustable arc may not be focused",
-                    path,
-                )
-        for w in refreshed_widgets:
-            path = global_config.get_path_for_id(w)
-            widget_conf = global_config.get_config_for_path(path[:-1])
-            if not any(isinstance(v, (Lambda, dict)) for v in widget_conf.values()):
-                raise cv.Invalid(
-                    f"Widget '{w}' does not have any dynamic properties to refresh",
-                )
-        # Do per-widget type final validation for update actions
-        for widget_type, update_configs in df.get_data(df.KEY_UPDATED_WIDGETS).items():
-            for conf in update_configs:
-                for id_conf in conf.get(CONF_ID, ()):
-                    name = id_conf[CONF_ID]
-                    path = global_config.get_path_for_id(name)
-                    widget_conf = global_config.get_config_for_path(path[:-1])
-                    widget_type.final_validate(name, conf, widget_conf, path[1:])
+
+    if len(config_list) != 1:
+        multi_conf_validate(config_list)
+
+    for w in get_focused_widgets():
+        path = global_config.get_path_for_id(w)
+        widget_conf = global_config.get_config_for_path(path[:-1])
+        if df.CONF_ADJUSTABLE in widget_conf and not widget_conf[df.CONF_ADJUSTABLE]:
+            raise cv.Invalid(
+                "A non adjustable arc may not be focused",
+                path,
+            )
+    for w in get_refreshed_widgets():
+        path = global_config.get_path_for_id(w)
+        widget_conf = global_config.get_config_for_path(path[:-1])
+        if not any(isinstance(v, (Lambda, dict)) for v in widget_conf.values()):
+            raise cv.Invalid(
+                f"Widget '{w}' does not have any dynamic properties to refresh",
+            )
+    # Do per-widget type final validation for update actions
+    for widget_type, update_configs in df.get_updated_widgets().items():
+        for conf in update_configs:
+            for id_conf in conf.get(CONF_ID, ()):
+                name = id_conf[CONF_ID]
+                path = global_config.get_path_for_id(name)
+                widget_conf = global_config.get_config_for_path(path[:-1])
+                widget_type.final_validate(name, conf, widget_conf, path[1:])
 
 
 async def to_code(configs):
@@ -279,7 +335,7 @@ async def to_code(configs):
         cg.RawExpression(f"ESPHOME_LOG_LEVEL_{config_0[CONF_LOG_LEVEL]}"),
     )
     df.add_define("LV_COLOR_DEPTH", config_0[CONF_COLOR_DEPTH])
-    for font in helpers.lv_fonts_used:
+    for font in df.get_lv_fonts_used():
         df.add_define(f"LV_FONT_{font.upper()}")
 
     if config_0[CONF_COLOR_DEPTH] == 16:
@@ -294,7 +350,7 @@ async def to_code(configs):
     cg.add_build_flag("-Isrc")
 
     cg.add_global(lvgl_ns.using)
-    for font in helpers.esphome_fonts_used:
+    for font in df.get_esphome_fonts_used():
         await cg.get_variable(font)
     default_font = config_0[df.CONF_DEFAULT_FONT]
     if not lvalid.is_lv_font(default_font):
@@ -335,8 +391,7 @@ async def to_code(configs):
         # options will have CONF_ROTATION true if rotation is changed in an automation.
         if CONF_ROTATION in config or df.get_options().get(CONF_ROTATION) is True:
             if all(
-                get_display_metadata(str(disp)).has_hardware_rotation
-                for disp in displays
+                get_display_metadata(disp).has_hardware_rotation for disp in displays
             ):
                 rotation_type = RotationType.ROTATION_HARDWARE
                 df.LOGGER.info("LVGL will use hardware rotation via display driver")
@@ -377,8 +432,8 @@ async def to_code(configs):
             await lvgl_update(lv_component, config)
             await msgboxes_to_code(lv_component, config)
             # await disp_update(lv_component.get_disp(), config)
-    # Set this directly since we are limited in how many methods can be added to the Widget class.
-    Widget.widgets_completed = True
+    # Mark all widgets as completed so awaiters of ``wait_for_widgets`` proceed.
+    set_widgets_completed(True)
     async with LvContext():
         await generate_triggers()
         await generate_align_tos(configs[0])
@@ -404,9 +459,10 @@ async def to_code(configs):
                     )
 
     # This must be done after all widgets are created
-    for comp in helpers.lvgl_components_required:
-        cg.add_define(f"USE_LVGL_{comp.upper()}")
-    for use in helpers.lv_uses:
+    styles_used = df.get_styles_used()
+    if any(BASE_PROPS.get(x) is lvalid.lv_image for x in styles_used):
+        add_lv_use(CONF_IMAGE)
+    for use in df.get_lv_uses():
         df.add_define(f"LV_USE_{use.upper()}")
         cg.add_define(f"USE_LVGL_{use.upper()}")
 
@@ -433,7 +489,7 @@ async def to_code(configs):
     } & styles_used:
         lv_image_formats.add("A8")
 
-    for image_id in lv_images_used:
+    for image_id in get_lv_images_used():
         await cg.get_variable(image_id)
         metadata = get_image_metadata(image_id.id)
         image_type = IMAGE_TYPE[metadata.image_type]
@@ -486,108 +542,136 @@ def add_hello_world(config):
     return config
 
 
-def _theme_schema(value):
+@functools.cache
+def _build_theme_schema(
+    widget_types: tuple[tuple[str, widgets.WidgetType], ...],
+) -> cv.Schema:
+    # The theme schema is value-independent: it depends only on the set of
+    # registered widget types. Key the cache on a snapshot of WIDGET_TYPES so
+    # that an external component registering a new widget after the first
+    # validation (legal per any_widget_schema's lazy-evaluation contract)
+    # produces a fresh tuple, a cache miss, and a rebuilt schema -- the cache
+    # self-heals instead of stale-rejecting valid themes. See obj_dict() in
+    # schemas.py for why chained .extend() is avoided here.
     return cv.Schema(
         {
             cv.Optional(df.CONF_DARK_MODE, default=False): cv.boolean,
             **{
-                cv.Optional(name): obj_schema(w).extend(FULL_STYLE_SCHEMA)
-                for name, w in WIDGET_TYPES.items()
+                cv.Optional(name): cv.Schema(
+                    {**obj_dict(w), **FULL_STYLE_SCHEMA.schema}
+                )
+                for name, w in widget_types
             },
         }
-    )(value)
+    )
+
+
+def _theme_schema(value: dict) -> dict:
+    return _build_theme_schema(tuple(WIDGET_TYPES.items()))(value)
 
 
 FINAL_VALIDATE_SCHEMA = final_validation
 
-LVGL_SCHEMA = cv.All(
-    container_schema(
-        obj_spec,
-        cv.polling_component_schema("1s")
-        .extend(
-            {
-                **{
-                    cv.Optional(event): validate_automation(
-                        {
-                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                                Trigger.template(lv_obj_t_ptr, lv_event_t_ptr)
-                            ),
-                        }
-                    )
-                    for event in df.LV_SCREEN_EVENT_TRIGGERS
-                    + df.LV_DISPLAY_EVENT_TRIGGERS
-                },
-                cv.GenerateID(CONF_ID): cv.declare_id(LvglComponent),
-                cv.GenerateID(CONF_ALIGN_TO_LAMBDA_ID): cv.declare_id(lv_lambda_t),
-                cv.GenerateID(df.CONF_DISPLAYS): display_schema,
-                cv.Optional(CONF_COLOR_DEPTH, default=16): cv.one_of(16),
-                cv.Optional(
-                    df.CONF_DEFAULT_FONT, default="montserrat_14"
-                ): lvalid.lv_font,
-                cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
-                cv.Optional(
-                    df.CONF_UPDATE_WHEN_DISPLAY_IDLE, default=False
-                ): cv.boolean,
-                cv.Optional(CONF_DRAW_ROUNDING, default=2): cv.positive_int,
-                cv.Optional(CONF_BUFFER_SIZE, default=0): cv.percentage,
-                cv.Optional(CONF_ROTATION): validate_rotation,
-                cv.Optional(CONF_LOG_LEVEL, default="WARN"): cv.one_of(
-                    *df.LV_LOG_LEVELS, upper=True
-                ),
-                cv.Optional(CONF_BYTE_ORDER, default="big_endian"): cv.one_of(
-                    "big_endian", "little_endian", lower=True
-                ),
-                cv.Optional(df.CONF_STYLE_DEFINITIONS): cv.ensure_list(
-                    cv.Schema({cv.Required(CONF_ID): cv.declare_id(lv_style_t)}).extend(
-                        FULL_STYLE_SCHEMA
-                    )
-                ),
-                cv.Optional(CONF_ON_IDLE): validate_automation(
+# The options accepted at the top level of an `lvgl:` block, on top of the base
+# object schema that `container_schema(obj_spec, ...)` supplies. Held in a
+# module-level name (rather than inline) so the schema-extractor wrapper on
+# CONFIG_SCHEMA below can hand the language-schema dumper the same composed
+# schema the runtime validates against.
+LVGL_TOP_LEVEL_SCHEMA = (
+    cv.polling_component_schema("1s")
+    .extend(
+        {
+            **{
+                cv.Optional(event): validate_automation(
                     {
-                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(IdleTrigger),
-                        cv.Required(CONF_TIMEOUT): cv.templatable(
-                            cv.positive_time_period_milliseconds
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                            Trigger.template(lv_obj_t_ptr, lv_event_t_ptr)
                         ),
                     }
-                ),
-                cv.Optional(CONF_PAGES): cv.ensure_list(container_schema(page_spec)),
-                **{
-                    cv.Optional(x): validate_automation(
-                        {
-                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PlainTrigger),
-                        },
-                        single=True,
-                    )
-                    for x in SIMPLE_TRIGGERS
-                },
-                cv.Optional(df.CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
-                cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
-                cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),
-                cv.Optional(df.CONF_BOTTOM_LAYER): container_schema(obj_spec),
-                cv.Optional(
-                    df.CONF_TRANSPARENCY_KEY, default=0x000400
-                ): lvalid.lv_color,
-                cv.Optional(df.CONF_THEME): _theme_schema,
-                cv.Optional(df.CONF_GRADIENTS): GRADIENT_SCHEMA,
-                cv.Optional(df.CONF_TOUCHSCREENS, default=None): touchscreen_schema,
-                cv.Optional(df.CONF_ENCODERS, default=None): ENCODERS_CONFIG,
-                cv.Optional(df.CONF_KEYPADS, default=None): KEYPADS_CONFIG,
-                cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t),
-                cv.Optional(df.CONF_RESUME_ON_INPUT, default=True): cv.boolean,
-            }
-        )
-        .extend(DISP_BG_SCHEMA),
-    ),
+                )
+                for event in df.LV_SCREEN_EVENT_TRIGGERS + df.LV_DISPLAY_EVENT_TRIGGERS
+            },
+            cv.GenerateID(CONF_ID): cv.declare_id(LvglComponent),
+            cv.GenerateID(CONF_ALIGN_TO_LAMBDA_ID): cv.declare_id(lv_lambda_t),
+            cv.GenerateID(df.CONF_DISPLAYS): display_schema,
+            cv.Optional(CONF_COLOR_DEPTH, default=16): cv.one_of(16),
+            cv.Optional(df.CONF_DEFAULT_FONT, default="montserrat_14"): lvalid.lv_font,
+            cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
+            cv.Optional(df.CONF_UPDATE_WHEN_DISPLAY_IDLE, default=False): cv.boolean,
+            cv.Optional(CONF_DRAW_ROUNDING, default=2): cv.positive_int,
+            cv.Optional(CONF_BUFFER_SIZE, default=0): cv.percentage,
+            cv.Optional(CONF_ROTATION): validate_rotation,
+            cv.Optional(CONF_LOG_LEVEL, default="WARN"): cv.one_of(
+                *df.LV_LOG_LEVELS, upper=True
+            ),
+            cv.Optional(CONF_BYTE_ORDER): cv.one_of(
+                "big_endian", "little_endian", lower=True
+            ),
+            cv.Optional(df.CONF_STYLE_DEFINITIONS): cv.ensure_list(
+                cv.Schema({cv.Required(CONF_ID): cv.declare_id(lv_style_t)}).extend(
+                    FULL_STYLE_SCHEMA
+                )
+            ),
+            cv.Optional(CONF_ON_IDLE): validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(IdleTrigger),
+                    cv.Required(CONF_TIMEOUT): cv.templatable(
+                        cv.positive_time_period_milliseconds
+                    ),
+                }
+            ),
+            cv.Optional(CONF_PAGES): cv.ensure_list(container_schema(page_spec)),
+            **{
+                cv.Optional(x): validate_automation(
+                    {
+                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PlainTrigger),
+                    },
+                    single=True,
+                )
+                for x in SIMPLE_TRIGGERS
+            },
+            cv.Optional(df.CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
+            cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
+            cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),
+            cv.Optional(df.CONF_BOTTOM_LAYER): container_schema(obj_spec),
+            cv.Optional(df.CONF_TRANSPARENCY_KEY, default=0x000400): lvalid.lv_color,
+            cv.Optional(df.CONF_THEME): _theme_schema,
+            cv.Optional(df.CONF_GRADIENTS): GRADIENT_SCHEMA,
+            cv.Optional(df.CONF_TOUCHSCREENS, default=None): touchscreen_schema,
+            cv.Optional(df.CONF_ENCODERS, default=None): ENCODERS_CONFIG,
+            cv.Optional(df.CONF_KEYPADS, default=None): KEYPADS_CONFIG,
+            cv.GenerateID(df.CONF_DEFAULT_GROUP): cv.declare_id(lv_group_t),
+            cv.Optional(df.CONF_RESUME_ON_INPUT, default=True): cv.boolean,
+        }
+    )
+    .extend(DISP_BG_SCHEMA)
+)
+
+
+LVGL_SCHEMA = cv.All(
+    container_schema(obj_spec, LVGL_TOP_LEVEL_SCHEMA),
     cv.has_at_most_one_key(CONF_PAGES, df.CONF_LAYOUT),
     add_hello_world,
 )
 
 
+@schema_extractor("schema")
 def lvgl_config_schema(config):
     """
     Can't use cv.ensure_list here because it converts an empty config to an empty list,
     rather than a default config.
     """
+    if config is SCHEMA_EXTRACT:
+        # CONFIG_SCHEMA is this callable wrapping `cv.All` over a container_schema
+        # closure, so the language-schema dumper can't see the top-level `lvgl:`
+        # fields (it would emit an empty schema). Hand it the same composed
+        # obj + top-level schema the runtime validates against, plus the
+        # `widgets:` key (added per-value by append_layout_schema at runtime, so
+        # otherwise invisible to the dumper). Validation of real configs (the
+        # branches below) is unchanged.
+        return container_schema_value(obj_spec, LVGL_TOP_LEVEL_SCHEMA).extend(
+            {cv.Optional(df.CONF_WIDGETS): any_widget_schema()}
+        )
     if not config or isinstance(config, dict):
         return [LVGL_SCHEMA(config)]
     return cv.Schema([LVGL_SCHEMA])(config)

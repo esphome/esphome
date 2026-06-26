@@ -70,12 +70,6 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
   stream_ptr = std::make_unique<WiFiClient>();
 #endif  // USE_HTTP_REQUEST_ESP8266_HTTPS
 
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 1, 0)  // && USE_ARDUINO_VERSION_CODE < VERSION_CODE(?, ?, ?)
-  if (!secure) {
-    ESP_LOGW(TAG, "Using HTTP on Arduino version >= 3.1 is **very** slow. Consider setting framework version to 3.0.2 "
-                  "in your YAML, or use HTTPS");
-  }
-#endif  // USE_ARDUINO_VERSION_CODE
   bool status = container->client_.begin(*stream_ptr, url.c_str());
 
 #elif defined(USE_RP2040)
