@@ -407,6 +407,13 @@ def preload_core_config(config, result) -> str:
 
     CORE.name = conf[CONF_NAME]
     CORE.friendly_name = conf.get(CONF_FRIENDLY_NAME)
+    # Record the node's area name now (substitutions are already resolved at this
+    # point). storage.json is written before to_code() runs, so deferring this to
+    # to_code() left the area as null in storage.json. The value here is the raw
+    # post-substitution form (a plain string or a {name: ...} mapping); to_code()
+    # later sets it again from the validated config, which yields the same name.
+    if (area := conf.get(CONF_AREA)) is not None:
+        CORE.area = area[CONF_NAME] if isinstance(area, dict) else area
     CORE.data[KEY_CORE] = {}
 
     if CONF_BUILD_PATH not in conf:

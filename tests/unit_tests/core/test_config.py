@@ -157,10 +157,16 @@ async def test_to_code_records_core_area(
     fixture: str,
     expected_area: str,
 ) -> None:
-    """``to_code`` records the node's area name on CORE for StorageJSON."""
+    """The node's area name is recorded on CORE for StorageJSON.
+
+    It must be set during config load (preload_core_config), not deferred to
+    to_code(): storage.json is written before to_code() runs, so a late
+    assignment left the area as null in storage.json (regression #17218).
+    """
     result = load_config_from_fixture(yaml_file, fixture, FIXTURES_DIR)
     assert result is not None
-    assert CORE.area is None
+    # Recorded already at config-load time, before any code generation.
+    assert CORE.area == expected_area
 
     with patch("esphome.core.config.cg") as mock_cg:
         mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
