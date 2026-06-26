@@ -11,7 +11,6 @@
 
 namespace esphome::socket {
 
-#ifndef USE_LWIP_FAST_SELECT
 #ifdef USE_HOST
 // Host: ready when the wake select() loop has flagged this fd (or it isn't monitored).
 bool socket_ready_fd(int fd, bool loop_monitored) { return !loop_monitored || wake_fd_ready(fd); }
@@ -21,7 +20,6 @@ bool socket_ready_fd(int fd, bool loop_monitored) { return !loop_monitored || wa
 // return true — the caller handles EAGAIN/EWOULDBLOCK on read.
 bool socket_ready_fd(int /*fd*/, bool /*loop_monitored*/) { return true; }
 #endif
-#endif  // USE_LWIP_FAST_SELECT
 
 // Platform-specific inet_ntop wrappers
 #if defined(USE_SOCKET_IMPL_LWIP_TCP)
