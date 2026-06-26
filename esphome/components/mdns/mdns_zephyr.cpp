@@ -2,33 +2,22 @@
 #if defined(USE_ZEPHYR) && defined(USE_MDNS)
 
 #include "mdns_component.h"
-#include "esphome/core/application.h"
-#include "esphome/core/log.h"
 
 namespace esphome::mdns {
 
-static const char *const TAG = "mdns.zephyr";
-
-void MDNSComponent::setup() {
-  ESP_LOGD(TAG, "Setting up mDNS for Zephyr...");
 #ifdef USE_MDNS_STORE_SERVICES
-#if defined(USE_API)
-  get_mac_address_into_buffer(this->mac_address_);
-  char *mac_ptr = this->mac_address_;
+// Zephyr has no local IP mDNS responder. When a consumer (ex. the OpenThread SRP
+// client) enables service storage, it reads the compiled records via get_services()
+// and advertises them itself. We only need to compile and store the records here.
+static void register_zephyr(MDNSComponent *, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &) {}
+
+void MDNSComponent::setup() { this->setup_buffers_and_register_(register_zephyr); }
 #else
-  char *mac_ptr = nullptr;
-#endif
-  this->compile_records_(this->services_, mac_ptr, nullptr);
-#else
-  StaticVector<MDNSService, MDNS_SERVICE_COUNT> services;
-  char *mac_ptr = nullptr;
-  this->compile_records_(services, mac_ptr, nullptr);
+// No responder and nothing consuming the records, so skip the boot-time compile.
+void MDNSComponent::setup() {}
 #endif
 
-  ESP_LOGI(TAG, "mDNS records compiled, waiting for network connectivity before registering services");
-}
-
-void MDNSComponent::on_shutdown() { ESP_LOGD(TAG, "Shutting down mDNS for Zephyr..."); }
+void MDNSComponent::on_shutdown() {}
 
 }  // namespace esphome::mdns
 

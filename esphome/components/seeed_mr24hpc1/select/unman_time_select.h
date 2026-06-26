@@ -5,7 +5,7 @@
 
 namespace esphome::seeed_mr24hpc1 {
 
-class UnmanTimeSelect : public select::Select, public Parented<MR24HPC1Component> {
+class UnmanTimeSelect final : public select::Select, public Parented<MR24HPC1Component> {
  public:
   UnmanTimeSelect() = default;
 

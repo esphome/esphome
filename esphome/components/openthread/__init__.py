@@ -1,8 +1,12 @@
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components.esp32 import (
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
+    VARIANT_ESP32S31,
     add_idf_sdkconfig_option,
     get_esp32_variant,
     include_builtin_idf_component,
@@ -100,9 +104,7 @@ def set_sdkconfig_options(config):
 
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_ENABLED", True)
 
-    if tlv := config.get(CONF_TLV):
-        cg.add_define("USE_OPENTHREAD_TLVS", tlv)
-    else:
+    if not config.get(CONF_TLV):
         if pan_id := config.get(CONF_PAN_ID):
             add_idf_sdkconfig_option("CONFIG_OPENTHREAD_NETWORK_PANID", pan_id)
 
@@ -129,9 +131,6 @@ def set_sdkconfig_options(config):
             add_idf_sdkconfig_option(
                 "CONFIG_OPENTHREAD_NETWORK_PSKC", f"{pskc:X}".lower()
             )
-
-    if config.get(CONF_FORCE_DATASET):
-        cg.add_define("USE_OPENTHREAD_FORCE_DATASET")
 
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_DNS64_CLIENT", True)
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT", True)
@@ -161,6 +160,11 @@ _CONNECTION_SCHEMA = cv.Schema(
 def _validate(config: ConfigType) -> ConfigType:
     if CONF_USE_ADDRESS not in config:
         config[CONF_USE_ADDRESS] = f"{CORE.name}.local"
+    if CORE.using_zephyr and CONF_TLV not in config:
+        raise cv.Invalid(
+            "On nRF52, OpenThread credentials must be provided via 'tlv'. "
+            "Individual parameters (network_key, pan_id, channel, etc.) are not yet supported on this platform."
+        )
     device_type = config.get(CONF_DEVICE_TYPE)
     poll_period = config.get(CONF_POLL_PERIOD)
     if (
@@ -184,11 +188,31 @@ def _require_vfs_select(config):
 
 
 def _validate_platform(config):
-    if CORE.is_nrf52:
+    if CORE.using_zephyr:
         return config
     return only_on_variant(
-        supported=[VARIANT_ESP32C5, VARIANT_ESP32C6, VARIANT_ESP32H2]
+        supported=[
+            VARIANT_ESP32C5,
+            VARIANT_ESP32C6,
+            VARIANT_ESP32H2,
+            VARIANT_ESP32H4,
+            VARIANT_ESP32H21,
+            VARIANT_ESP32S31,
+        ]
     )(config)
+
+
+def _validate_tlv_hex(value):
+    s = cv.string_strict(value)
+    if len(s) % 2 != 0:
+        raise cv.Invalid("TLV must have an even number of hex characters")
+    try:
+        raw = bytes.fromhex(s)
+    except ValueError as e:
+        raise cv.Invalid(f"TLV must be valid hex: {e}") from e
+    if len(raw) > 254:  # sizeof(otOperationalDatasetTlvs::mTlvs)
+        raise cv.Invalid(f"TLV too long ({len(raw)} bytes, max 254)")
+    return s
 
 
 CONFIG_SCHEMA = cv.All(
@@ -201,13 +225,13 @@ CONFIG_SCHEMA = cv.All(
                 *CONF_DEVICE_TYPES, upper=True
             ),
             cv.Optional(CONF_FORCE_DATASET): cv.boolean,
-            cv.Optional(CONF_TLV): cv.string_strict,
+            cv.Optional(CONF_TLV): cv.All(cv.string_strict, _validate_tlv_hex),
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
-            cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_OUTPUT_POWER): cv.All(
                 cv.decibel,
                 _validate_txpower,
             ),
+            cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
         }
     ).extend(_CONNECTION_SCHEMA),
     cv.has_exactly_one_key(CONF_NETWORK_KEY, CONF_TLV),
@@ -241,7 +265,6 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
         "openthread_esp.cpp": {
-            PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
         "openthread_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
@@ -256,6 +279,10 @@ async def to_code(config):
         include_builtin_idf_component("openthread")
 
     cg.add_define("USE_OPENTHREAD")
+    if config.get(CONF_FORCE_DATASET):
+        cg.add_define("USE_OPENTHREAD_FORCE_DATASET")
+    if tlv := config.get(CONF_TLV):
+        cg.add_define("USE_OPENTHREAD_TLVS", tlv)
 
     # OpenThread SRP needs access to mDNS services after setup
     enable_mdns_storage()
@@ -276,12 +303,44 @@ async def to_code(config):
 
     if CORE.is_esp32:
         set_sdkconfig_options(config)
-    elif CORE.is_nrf52:
+    elif CORE.using_zephyr:
         zephyr_add_prj_conf("NET_L2_OPENTHREAD", True)
-        zephyr_add_prj_conf("OPENTHREAD_NORDIC_LIBRARY_FTD", True)
-        zephyr_add_prj_conf("OPENTHREAD_SRP_CLIENT", True)
-        zephyr_add_prj_conf("OPENTHREAD_SLAAC", True)
+        zephyr_add_prj_conf(
+            f"OPENTHREAD_NORDIC_LIBRARY_{config.get(CONF_DEVICE_TYPE)}", True
+        )
         zephyr_add_prj_conf(f"OPENTHREAD_{config.get(CONF_DEVICE_TYPE)}", True)
-        zephyr_add_prj_conf("OPENTHREAD_DEBUG", False)
-        if tlv := config.get(CONF_TLV):
-            cg.add_define("USE_OPENTHREAD_TLVS", tlv)
+        zephyr_add_prj_conf("MAIN_STACK_SIZE", 4096)
+
+
+# Actions
+OpenThreadComponentPollPeriodAction = openthread_ns.class_(
+    "OpenThreadComponentPollPeriodAction",
+    automation.Action,
+    cg.Parented.template(OpenThreadComponent),
+)
+
+POLL_PERIOD_ACTION_SCHEMA = automation.maybe_conf(
+    CONF_POLL_PERIOD,
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(OpenThreadComponent),
+            cv.Required(CONF_POLL_PERIOD): cv.templatable(
+                cv.positive_time_period_milliseconds
+            ),
+        }
+    ),
+)
+
+
+@automation.register_action(
+    "openthread.set_poll_period",
+    OpenThreadComponentPollPeriodAction,
+    POLL_PERIOD_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def openthread_poll_period_action_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = await cg.templatable(config[CONF_POLL_PERIOD], args, cg.uint32)
+    cg.add(var.set_poll_period(template_))
+    return var
