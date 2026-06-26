@@ -11,7 +11,7 @@ from esphome.core import CORE
 
 CODEOWNERS = ["@rob-deutsch"]
 
-AUTO_LOAD = ["climate_ir", "remote_receiver"]
+AUTO_LOAD = ["climate_ir"]
 
 heatpumpir_ns = cg.esphome_ns.namespace("heatpumpir")
 HeatpumpIRClimate = heatpumpir_ns.class_("HeatpumpIRClimate", climate_ir.ClimateIR)

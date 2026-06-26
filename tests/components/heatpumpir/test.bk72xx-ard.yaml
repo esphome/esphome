@@ -4,5 +4,6 @@ packages:
 <<: !include common.yaml
 
 remote_receiver:
-  pin: GPIO17
-  dump: all
+  - id: rcvr
+    pin: GPIO17
+    dump: all

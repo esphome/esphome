@@ -100,7 +100,9 @@ class HeatpumpIRClimate : public climate_ir::ClimateIR {
                               {climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH,
                                climate::CLIMATE_FAN_AUTO},
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL,
-                               climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_BOTH}) {}
+                               climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_BOTH},
+                              {climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO,
+                               climate::CLIMATE_PRESET_BOOST}) {}
   void setup() override;
   void set_protocol(Protocol protocol) { this->protocol_ = protocol; }
   void set_horizontal_default(HorizontalDirection horizontal_direction) {
