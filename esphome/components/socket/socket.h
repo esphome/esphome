@@ -60,11 +60,11 @@ inline struct lwip_sock *hook_fd_for_fast_select(int fd) {
   }
   return sock;
 }
-#else   // USE_HOST or any non-fast-select path
+#elif defined(USE_HOST) || defined(USE_ZEPHYR)
 /// Shared ready() helper for fd-based socket implementations.
 /// Checks if the Application's select() loop has marked this fd as ready.
 bool socket_ready_fd(int fd, bool loop_monitored);
-#endif  // USE_LWIP_FAST_SELECT / USE_HOST / else
+#endif  // USE_LWIP_FAST_SELECT
 
 // Inline ready() — defined here because it depends on socket_ready/socket_ready_fd
 // declared above, while the impl headers are included before those declarations.

@@ -86,7 +86,8 @@ class BSDSocketImpl {
 #if defined(USE_ESP32)
     return ::lwip_readv(this->fd_, iov, iovcnt);
 #elif defined(USE_ZEPHYR)
-    // Zephyr does not provide readv(); emulate with a read() loop.
+    // Zephyr does not provide readv(); emulate with a read() loop. Stream sockets only:
+    // on a datagram socket each read() would consume a separate datagram, not scatter one.
     ssize_t total = 0;
     for (int i = 0; i < iovcnt; i++) {
       ssize_t n = ::read(this->fd_, iov[i].iov_base, iov[i].iov_len);
@@ -113,7 +114,8 @@ class BSDSocketImpl {
 #if defined(USE_ESP32)
     return ::lwip_writev(this->fd_, iov, iovcnt);
 #elif defined(USE_ZEPHYR)
-    // Zephyr does not provide writev(); emulate with a write() loop.
+    // Zephyr does not provide writev(); emulate with a write() loop. Stream sockets only:
+    // on a datagram socket each write() would emit a separate datagram, not gather one.
     ssize_t total = 0;
     for (int i = 0; i < iovcnt; i++) {
       ssize_t n = ::write(this->fd_, iov[i].iov_base, iov[i].iov_len);

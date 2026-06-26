@@ -12,13 +12,13 @@ namespace esphome::socket {
 
 #ifndef USE_LWIP_FAST_SELECT
 #ifdef USE_HOST
+// Host: ready when the wake select() loop has flagged this fd (or it isn't monitored).
 bool socket_ready_fd(int fd, bool loop_monitored) { return !loop_monitored || wake_fd_ready(fd); }
-#else
-// ESP8266, RP2040, and Zephyr (nRF52): fd monitoring is not wired into the
-// esphome select loop (wake_register_fd is USE_HOST-only).  loop_monitored is
-// always false on these platforms, so always return true — the caller handles
-// EAGAIN/EWOULDBLOCK on read.
-bool socket_ready_fd(int fd, bool loop_monitored) { return true; }
+#elif defined(USE_ZEPHYR)
+// Zephyr (nRF52): fd monitoring isn't wired into the esphome select loop
+// (wake_register_fd is USE_HOST-only), so loop_monitored is always false. Always
+// return true — the caller handles EAGAIN/EWOULDBLOCK on read.
+bool socket_ready_fd(int /*fd*/, bool /*loop_monitored*/) { return true; }
 #endif
 #endif  // USE_LWIP_FAST_SELECT
 
