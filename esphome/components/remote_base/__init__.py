@@ -1049,7 +1049,7 @@ def validate_target_temperature(value):
 
 PIONEER_WYT_ACTION_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_CODE): cv.All([cv.hex_uint8_t], cv.Length(min=13, max=13)),
+        cv.Optional(CONF_CODE): cv.All([cv.hex_uint8_t], cv.Length(min=13, max=14)),
         cv.Optional(CONF_TYPE): cv.enum(PIONEER_WYT_TYPES, upper=True),
         cv.Optional(CONF_POWER): cv.boolean,
         cv.Optional(CONF_MODE): cv.enum(PIONEER_WYT_MODES, upper=True),
