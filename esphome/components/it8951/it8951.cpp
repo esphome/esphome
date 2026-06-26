@@ -904,6 +904,8 @@ static uint16_t dither_threshold(uint16_t x, uint16_t y) {
 }
 
 void IT8951Display::fill(Color color) {
+  if (this->buffer_ == nullptr)
+    return;
   if (this->get_clipping().is_set()) {
     Display::fill(color);
     return;
