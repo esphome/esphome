@@ -82,21 +82,22 @@ bool SamsungClimate::on_receive(remote_base::RemoteReceiveData data) {
   return true;
 }
 
-void SamsungClimate::send_() {
+void SamsungClimate::send_(const uint16_t length) {
   this->checksum_();
 
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();
 
-  // Header(2) +  2 * MSG_HDR(2 * Item(2)) + 21 Bytes * 8 Bits * Bit(2) + Last Mark (1)
-  data->reserve(2 + 2 * 2 * 2 + 21 * 8 * 2 + 1);
+  // Header(2) + (sections - 1) * MSG_HDR(2 * Item(2)) + length Bytes * 8 Bits * Bit(2) + Last Mark (1)
+  const uint16_t sections = length / K_SAMSUNG_AC_SECTION_LENGTH;
+  data->reserve(2 + (sections - 1) * 2 * 2 + length * 8 * 2 + 1);
   data->set_carrier_frequency(SAMSUNG_IR_FREQUENCY_HZ);
 
   // Header
   data->item(SAMSUNG_AIRCON1_HDR_MARK, SAMSUNG_AIRCON1_HDR_SPACE);
 
-  for (uint8_t i = 0; i < 21; i++) {
-    if (i == 7 || i == 14) {
+  for (uint8_t i = 0; i < length; i++) {
+    if (i != 0 && i % K_SAMSUNG_AC_SECTION_LENGTH == 0) {
       data->item(SAMSUNG_AIRCON1_BIT_MARK, SAMSUNG_AIRCON1_MSG_SPACE);
       data->item(SAMSUNG_AIRCON1_HDR_MARK, SAMSUNG_AIRCON1_HDR_SPACE);
     }
@@ -218,7 +219,7 @@ void SamsungClimate::send_power_state_(const bool on) {
 
   std::memcpy(this->protocol_.raw, on ? K_ON : K_OFF, K_SAMSUNG_AC_EXTENDED_STATE_LENGTH);
 
-  this->send_();
+  this->send_(K_SAMSUNG_AC_EXTENDED_STATE_LENGTH);
 
   std::memcpy(this->protocol_.raw, K_RESET, K_SAMSUNG_AC_EXTENDED_STATE_LENGTH);
 }

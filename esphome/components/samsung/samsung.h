@@ -17,6 +17,7 @@ static const uint32_t SAMSUNG_AIRCON1_ZERO_SPACE = 500;
 static const uint32_t SAMSUNG_AIRCON1_MSG_SPACE = 2000;
 
 const uint16_t K_SAMSUNG_AC_EXTENDED_STATE_LENGTH = 21;
+const uint16_t K_SAMSUNG_AC_STATE_LENGTH = 14;
 const uint16_t K_SAMSUNG_AC_SECTION_LENGTH = 7;
 
 // Temperature
@@ -191,7 +192,8 @@ class SamsungClimate : public climate_ir::ClimateIR {
   bool on_receive(remote_base::RemoteReceiveData data) override;
 
   /// Send the current state of the climate object.
-  void send_();
+  /// @param[in] length The number of bytes (sections * 7) to transmit.
+  void send_(uint16_t length = K_SAMSUNG_AC_STATE_LENGTH);
   /// Change the AC power state.
   /// @param[in] on true, the AC is on. false, the AC is off.
   void send_power_state_(bool on);
