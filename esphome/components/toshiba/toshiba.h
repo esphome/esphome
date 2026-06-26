@@ -23,7 +23,7 @@ const float TOSHIBA_RAC_PT1411HWRU_TEMP_F_MAX = 86.0;
 const float TOSHIBA_RAS_2819T_TEMP_C_MIN = 18.0;
 const float TOSHIBA_RAS_2819T_TEMP_C_MAX = 30.0;
 
-class ToshibaClimate : public climate_ir::ClimateIR {
+class ToshibaClimate final : public climate_ir::ClimateIR {
  public:
   ToshibaClimate()
       : climate_ir::ClimateIR(TOSHIBA_GENERIC_TEMP_C_MIN, TOSHIBA_GENERIC_TEMP_C_MAX, 1.0f, true, true,

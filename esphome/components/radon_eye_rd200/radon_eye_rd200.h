@@ -13,7 +13,7 @@
 
 namespace esphome::radon_eye_rd200 {
 
-class RadonEyeRD200 : public PollingComponent, public ble_client::BLEClientNode {
+class RadonEyeRD200 final : public PollingComponent, public ble_client::BLEClientNode {
  public:
   RadonEyeRD200();
 

@@ -20,7 +20,7 @@ enum USBDStringDescriptor : uint8_t {
 
 static const char *const DEFAULT_USB_STR = "ESPHome";
 
-class TinyUSB : public Component {
+class TinyUSB final : public Component {
  public:
   void setup() override;
   void dump_config() override;

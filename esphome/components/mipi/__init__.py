@@ -393,6 +393,16 @@ class DriverChip:
             return {CONF_MIRROR_X, CONF_MIRROR_Y, CONF_SWAP_XY}
         return {CONF_MIRROR_X, CONF_MIRROR_Y}
 
+    def has_hardware_transform(self, config) -> bool:
+        """
+        Check if the model supports hardware transforms for the given configuration.
+        """
+        return config.get(CONF_TRANSFORM) != CONF_DISABLED and self.transforms == {
+            CONF_MIRROR_X,
+            CONF_MIRROR_Y,
+            CONF_SWAP_XY,
+        }
+
     def option(self, name, fallback=False) -> cv.Optional:
         return cv.Optional(name, default=self.get_default(name, fallback))
 
@@ -423,10 +433,15 @@ class DriverChip:
         :return: A tuple (width, height, offset_width, offset_height, pad_width, pad_height).
         """
 
+        transform = self.get_transform(config)
         if CONF_DIMENSIONS in config:
             # Explicit dimensions, just use as is
             dimensions = config[CONF_DIMENSIONS]
             if isinstance(dimensions, dict):
+                native_width = self.get_default(CONF_NATIVE_WIDTH, 0)
+                native_height = self.get_default(CONF_NATIVE_HEIGHT, 0)
+                if transform.get(CONF_SWAP_XY) is True:
+                    native_width, native_height = native_height, native_width
                 width = dimensions[CONF_WIDTH]
                 height = dimensions[CONF_HEIGHT]
                 offset_width = dimensions[CONF_OFFSET_WIDTH]
@@ -434,23 +449,19 @@ class DriverChip:
                 if CONF_PAD_WIDTH in dimensions:
                     pad_width = dimensions[CONF_PAD_WIDTH]
                     native_width = width + offset_width + pad_width
+                elif native_width == 0:
+                    pad_width = 0
+                    native_width = width + offset_width
                 else:
-                    native_width = self.get_default(CONF_NATIVE_WIDTH, 0)
-                    if native_width == 0:
-                        pad_width = 0
-                        native_width = width + offset_width
-                    else:
-                        pad_width = native_width - width - offset_width
+                    pad_width = native_width - width - offset_width
                 if CONF_PAD_HEIGHT in dimensions:
                     pad_height = dimensions[CONF_PAD_HEIGHT]
                     native_height = height + offset_height + pad_height
+                elif native_height == 0:
+                    pad_height = 0
+                    native_height = height + offset_height
                 else:
-                    native_height = self.get_default(CONF_NATIVE_HEIGHT, 0)
-                    if native_height == 0:
-                        pad_height = 0
-                        native_height = height + offset_height
-                    else:
-                        pad_height = native_height - height - offset_height
+                    pad_height = native_height - height - offset_height
                 if (
                     pad_width + offset_width >= native_width
                     or pad_height + offset_height >= native_height
@@ -466,7 +477,6 @@ class DriverChip:
             return width, height, 0, 0, 0, 0
 
         # Default dimensions, use model defaults
-        transform = self.get_transform(config)
 
         width = self.get_default(CONF_WIDTH)
         height = self.get_default(CONF_HEIGHT)
