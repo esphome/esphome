@@ -2,8 +2,7 @@
 #include <cinttypes>
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace samsung {
+namespace esphome::samsung {
 
 static const char *const TAG = "samsung.climate";
 
@@ -322,5 +321,4 @@ uint16_t SamsungClimate::count_bits(const uint64_t data, const uint8_t length, c
     return length - count;
   }
 }
-}  // namespace samsung
-}  // namespace esphome
+}  // namespace esphome::samsung

@@ -3,8 +3,7 @@
 #include "esphome/components/climate/climate_mode.h"
 #include "esphome/components/climate_ir/climate_ir.h"
 
-namespace esphome {
-namespace samsung {
+namespace esphome::samsung {
 
 #define GETBITS8(data, offset, size) (((data) & (((uint8_t) UINT8_MAX >> (8 - (size))) << (offset))) >> (offset))
 
@@ -240,5 +239,4 @@ class SamsungClimate : public climate_ir::ClimateIR {
   /// @return The nr. of bits found of the given type found in the Integer.
   static uint16_t count_bits(uint64_t data, uint8_t length, bool ones = true, uint16_t init = 0);
 };
-}  // namespace samsung
-}  // namespace esphome
+}  // namespace esphome::samsung
