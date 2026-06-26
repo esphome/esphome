@@ -11,6 +11,7 @@ void SamsungClimate::transmit_state() {
   if (this->current_climate_mode_ != climate::ClimateMode::CLIMATE_MODE_OFF &&
       this->mode == climate::ClimateMode::CLIMATE_MODE_OFF) {
     this->last_known_mode_ = this->current_climate_mode_;
+    this->current_climate_mode_ = this->mode;
     this->send_power_state_(false);
     return;
   }
