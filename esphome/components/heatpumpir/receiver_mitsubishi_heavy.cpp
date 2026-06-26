@@ -1,9 +1,9 @@
 #include "receiver_mitsubishi_heavy.h"
 #include "heatpumpir.h"
 
-#include <HeatpumpIRFactory.h>
-
 #if defined(USE_ARDUINO) || defined(USE_ESP32)
+
+#include <HeatpumpIRFactory.h>
 
 namespace esphome::heatpumpir {
 
