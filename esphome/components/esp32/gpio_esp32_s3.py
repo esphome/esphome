@@ -3,7 +3,14 @@ from typing import Any
 
 import esphome.config_validation as cv
 from esphome.const import CONF_INPUT, CONF_MODE, CONF_NUMBER
+from esphome.core import CORE
 from esphome.pins import check_strapping_pin
+
+# CORE.data key recording any GPIO33-37 usage. Kept outside CORE.data[KEY_ESP32]
+# (which set_core_data resets) so the esp32 final_validate can decide whether to
+# warn: these pins are only taken by the PSRAM interface in octal mode, which is
+# not known yet when an individual pin is validated.
+KEY_ESP32S3R8_PSRAM_PINS_USED = "esp32_s3_r8_psram_pins_used"
 
 _ESP32S3_SPI_PSRAM_PINS = {
     26: "SPICS1",
@@ -39,10 +46,10 @@ def esp32_s3_validate_gpio_pin(value: int) -> int:
             f"This pin cannot be used on ESP32-S3s and is already used by the SPI/PSRAM interface(function: {_ESP32S3_SPI_PSRAM_PINS[value]})"
         )
     if value in _ESP32S3R8_PSRAM_PINS:
-        _LOGGER.warning(
-            "GPIO%d is used by the PSRAM interface on ESP32-S3R8 / ESP32-S3R8V and should be avoided on these models",
-            value,
-        )
+        # Record usage; the esp32 final_validate warns only if octal PSRAM (which
+        # actually uses these pins) is configured. On quad-PSRAM S3 variants these
+        # pins are free, so warning unconditionally here is a false positive.
+        CORE.data.setdefault(KEY_ESP32S3R8_PSRAM_PINS_USED, set()).add(value)
 
     if value in (22, 23, 24, 25):
         # These pins are not exposed in GPIO mux (reason unknown)
