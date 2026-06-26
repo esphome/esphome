@@ -18,6 +18,12 @@ bool socket_ready_fd(int fd, bool loop_monitored) { return !loop_monitored || wa
 // Zephyr (nRF52): fd monitoring isn't wired into the esphome select loop
 // (wake_register_fd is USE_HOST-only), so loop_monitored is always false. Always
 // return true — the caller handles EAGAIN/EWOULDBLOCK on read.
+//
+// Cost (known trade-off, not an oversight): loop-monitored sockets (API, web_server)
+// are read every loop() iteration and bail on EAGAIN; there is no event-driven wake,
+// so the main loop busy-polls at loop frequency and cannot idle between packets.
+// TODO: wire Zephyr fds into an event-driven wake source (e.g. zsock_poll/k_poll) so
+// the loop can sleep between packets on battery/OpenThread targets.
 bool socket_ready_fd(int /*fd*/, bool /*loop_monitored*/) { return true; }
 #endif
 
