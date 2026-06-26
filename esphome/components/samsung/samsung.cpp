@@ -206,9 +206,7 @@ void SamsungClimate::set_temp_(const uint8_t temp) {
       esphome::clamp<uint8_t>(temp, K_SAMSUNG_AC_MIN_TEMP, K_SAMSUNG_AC_MAX_TEMP) - K_SAMSUNG_AC_MIN_TEMP;
 }
 
-void SamsungClimate::update_temp_() {
-  this->target_temperature = this->protocol_.temp + K_SAMSUNG_AC_MIN_TEMP;
-}
+void SamsungClimate::update_temp_() { this->target_temperature = this->protocol_.temp + K_SAMSUNG_AC_MIN_TEMP; }
 
 void SamsungClimate::send_power_state_(const bool on) {
   static const uint8_t K_ON[K_SAMSUNG_AC_EXTENDED_STATE_LENGTH] = {0x02, 0x92, 0x0F, 0x00, 0x00, 0x00, 0xF0,
