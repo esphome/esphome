@@ -8,6 +8,7 @@
 #ifdef USE_HOST
 #include "esphome/core/wake.h"
 #endif
+
 namespace esphome::socket {
 
 #ifndef USE_LWIP_FAST_SELECT
