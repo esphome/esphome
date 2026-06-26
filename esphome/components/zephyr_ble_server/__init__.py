@@ -130,6 +130,11 @@ async def to_code(config):
     zephyr_add_prj_conf("BT_PERIPHERAL", True)
     zephyr_add_prj_conf("BT_RX_STACK_SIZE", 1536)
     zephyr_add_prj_conf("BT_DEVICE_NAME", CORE.name)
+    # The advertised/GAP name is set at runtime from App.get_name() (see
+    # ble_server.cpp) so name_add_mac_suffix yields a per-device name; that needs
+    # a writable name buffer. Size it for the base name plus the "-<mac>" tail.
+    zephyr_add_prj_conf("BT_DEVICE_NAME_DYNAMIC", True)
+    zephyr_add_prj_conf("BT_DEVICE_NAME_MAX", 28)
     if (mtu := config[CONF_MTU]) > DEFAULT_MTU:
         # Raise the ATT MTU and enable LL Data Length Extension so each notification can carry
         # up to (mtu - 3) bytes of payload instead of the default 20. The central (e.g. macOS)

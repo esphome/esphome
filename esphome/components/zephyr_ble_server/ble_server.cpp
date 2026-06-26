@@ -1,5 +1,6 @@
 #ifdef USE_ZEPHYR
 #include "ble_server.h"
+#include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 #include <zephyr/bluetooth/bluetooth.h>
@@ -13,13 +14,12 @@ static k_work advertise_work;  // NOLINT(cppcoreguidelines-avoid-non-const-globa
 
 BLEServer *global_ble_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-#define DEVICE_NAME CONFIG_BT_DEVICE_NAME
-#define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
-
-static const bt_data AD[] = {
-    BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
-    BT_DATA(BT_DATA_NAME_COMPLETE, DEVICE_NAME, DEVICE_NAME_LEN),
-};
+// The advertised name is taken from App.get_name() at setup() rather than the
+// compile-time CONFIG_BT_DEVICE_NAME. With name_add_mac_suffix that yields a
+// per-device name (e.g. "b-a1b2c3"), so several identical nodes in range stay
+// distinguishable in a scan instead of all advertising the same base name.
+// Captured once and reused by advertise(), which re-runs on every disconnect.
+static std::string device_name;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static const bt_data SD[] = {
 #ifdef USE_OTA
@@ -36,12 +36,19 @@ static void advertise(k_work *work) {
     ESP_LOGE(TAG, "Advertising failed to stop (rc %d)", rc);
   }
 
-  rc = bt_le_adv_start(ADV_PARAM, AD, ARRAY_SIZE(AD), SD, ARRAY_SIZE(SD));
+  // Build the advertising data here (not as a static const) so the name carries
+  // the runtime device_name captured in setup().
+  const bt_data ad[] = {
+      BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
+      BT_DATA(BT_DATA_NAME_COMPLETE, device_name.c_str(), device_name.size()),
+  };
+
+  rc = bt_le_adv_start(ADV_PARAM, ad, ARRAY_SIZE(ad), SD, ARRAY_SIZE(SD));
   if (rc) {
     ESP_LOGE(TAG, "Advertising failed to start (rc %d)", rc);
     return;
   }
-  ESP_LOGI(TAG, "Advertising successfully started");
+  ESP_LOGI(TAG, "Advertising successfully started as '%s'", device_name.c_str());
 }
 
 void BLEServer::connected(bt_conn *conn, uint8_t err) {
@@ -236,6 +243,16 @@ void BLEServer::setup() {
     ESP_LOGE(TAG, "Cannot load settings, err: %d", err);
   }
 #endif
+  // Capture the runtime name (with the name_add_mac_suffix tail) before the
+  // first advertise. Also push it to the GAP Device Name characteristic so a
+  // connected central reads the same per-device name (needs
+  // CONFIG_BT_DEVICE_NAME_DYNAMIC); the advertised name uses device_name
+  // directly, so it is correct even if bt_set_name() is unavailable.
+  device_name = App.get_name();
+  err = bt_set_name(device_name.c_str());
+  if (err) {
+    ESP_LOGW(TAG, "Failed to set GAP device name to '%s' (err %d)", device_name.c_str(), err);
+  }
   k_work_submit(&advertise_work);
 }
 
