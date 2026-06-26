@@ -23,6 +23,8 @@ display:
       - GPIO18
     vcom: 1500
     update_interval: 60s
+    # Exercise an alias for the update_mode config option.
+    update_mode: fast
     lambda: |-
       it.circle(64, 64, 50, Color::BLACK);
 
@@ -90,7 +92,8 @@ display:
     lambda: |-
       it.circle(128, 128, 64, Color::BLACK);
 
-# Exercise the it8951.update automation in fast and full modes.
+# Exercise the it8951.update automation: alias modes, a direct enum-name mode,
+# and the bare (default-mode) form.
 interval:
   - interval: 30s
     then:
@@ -100,4 +103,7 @@ interval:
       - it8951.update:
           id: m5epd_display
           mode: full
+      - it8951.update:
+          id: m5epd_display
+          mode: A2
       - it8951.update: m5epd_display

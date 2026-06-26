@@ -76,10 +76,9 @@ UPDATE_MODE_OPTIONS = {
     "FAST": UpdateMode.UPDATE_MODE_DU,
     "FULL": UpdateMode.UPDATE_MODE_GC16,
 }
-# Validator preserves case as written (matches existing user-facing strings).
-update_mode = cv.one_of(*UPDATE_MODE_OPTIONS, upper=True)
-# Action validator maps YAML mode directly to C++ UpdateMode enum values.
-action_update_mode = cv.enum(UPDATE_MODE_OPTIONS, upper=True)
+# Maps the YAML mode string directly to the C++ UpdateMode enum value, so the
+# config option and the it8951.update action share one validator.
+update_mode = cv.enum(UPDATE_MODE_OPTIONS, upper=True)
 
 # Transform flag values mirror the C++ TRANSFORM_* constants.
 _TRANSFORM_NONE = 0
@@ -396,8 +395,8 @@ async def to_code(config):
         cg.add(var.set_use_legacy_dpy_area(True))
     cg.add(var.set_grayscale(config[CONF_GRAYSCALE]))
     cg.add(var.set_dithering(config[CONF_DITHERING]))
-    if CONF_UPDATE_MODE in config:
-        cg.add(var.set_update_mode(UPDATE_MODE_OPTIONS[config[CONF_UPDATE_MODE]]))
+    if (mode := config.get(CONF_UPDATE_MODE)) is not None:
+        cg.add(var.set_update_mode(mode))
 
     transform = config.get(
         CONF_TRANSFORM,
@@ -429,8 +428,6 @@ async def it8951_update_action_to_code(config, action_id, template_arg, args):
     display_var = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, display_var)
     if mode := config.get(CONF_MODE):
-        if not cg.is_template(mode):
-            mode = UPDATE_MODE_OPTIONS[mode]
         mode = await cg.templatable(mode, args, UpdateMode)
         cg.add(var.set_mode(mode))
     return var
