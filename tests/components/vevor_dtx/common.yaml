@@ -1,0 +1,28 @@
+vevor_dtx:
+  pin: GPIO14
+  bit_time: 88us
+  max_gap: 2ms
+  filter: 20us
+  buffer_size: 512b
+  temperature:
+    name: Outdoor Temperature
+  humidity:
+    name: Outdoor Humidity
+  wind_speed:
+    name: Wind Speed
+  wind_gust:
+    name: Wind Gust
+  wind_direction_degrees:
+    name: Wind Direction
+  rain:
+    name: Rain
+  uv_index:
+    name: UV Index
+  illuminance:
+    name: Illuminance
+  sensor_id:
+    name: Sensor ID
+  tx_counter:
+    name: TX Counter
+  low_battery:
+    name: Low Battery
