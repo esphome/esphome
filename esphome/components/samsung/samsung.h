@@ -182,9 +182,9 @@ class SamsungClimate : public climate_ir::ClimateIR {
                                climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
 
  protected:
-  SamsungProtocol protocol_;
-  climate::ClimateMode current_climate_mode_;
-  climate::ClimateMode last_known_mode_;
+  SamsungProtocol protocol_{};
+  climate::ClimateMode current_climate_mode_{climate::ClimateMode::CLIMATE_MODE_OFF};
+  climate::ClimateMode last_known_mode_{climate::ClimateMode::CLIMATE_MODE_OFF};
 
   /// Transmit via IR the state of this climate controller
   void transmit_state() override;
