@@ -370,8 +370,6 @@ async def to_code(config):
 
     await automation.build_callback_automations(ot, config, _CALLBACK_AUTOMATIONS)
 
-    await automation.build_callback_automations(ot, config, _CALLBACK_AUTOMATIONS)
-
 
 # Actions
 OpenThreadComponentPollPeriodAction = openthread_ns.class_(
