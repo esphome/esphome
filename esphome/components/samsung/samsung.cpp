@@ -34,21 +34,21 @@ bool SamsungClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   ESP_LOGD(TAG, "Received Samsung A/C message size %" PRId32, data.size());
-  for (uint8_t i = 0; i < 14; i++) {
-    if (i == 7) {
-      if (data.expect_item(SAMSUNG_AIRCON1_BIT_MARK, SAMSUNG_AIRCON1_MSG_SPACE)) {
-        ESP_LOGV(TAG, "Received MSG_SPACE %" PRIu8, i);
-      } else {
-        ESP_LOGW(TAG, "Failed to receive MSG_SPACE %" PRIu8, i);
+  for (uint8_t i = 0; i < K_SAMSUNG_AC_EXTENDED_STATE_LENGTH; i++) {
+    if (i != 0 && i % K_SAMSUNG_AC_SECTION_LENGTH == 0) {
+      // Each section (7 bytes) is separated by a MSG_SPACE followed by a new header.
+      const bool have_separator = data.expect_item(SAMSUNG_AIRCON1_BIT_MARK, SAMSUNG_AIRCON1_MSG_SPACE) &&
+                                  data.expect_item(SAMSUNG_AIRCON1_HDR_MARK, SAMSUNG_AIRCON1_HDR_SPACE);
+      if (!have_separator) {
+        // Sections beyond the standard frame are optional; a missing separator marks the end.
+        if (i >= K_SAMSUNG_AC_STATE_LENGTH) {
+          ESP_LOGV(TAG, "End of frame after %" PRIu8 " bytes", i);
+          break;
+        }
+        ESP_LOGW(TAG, "Failed to receive section separator before byte %" PRIu8, i);
         return false;
       }
-
-      if (data.expect_item(SAMSUNG_AIRCON1_HDR_MARK, SAMSUNG_AIRCON1_HDR_SPACE)) {
-        ESP_LOGV(TAG, "Received HDR_SPACE %" PRIu8, i);
-      } else {
-        ESP_LOGW(TAG, "Failed to receive HDR_SPACE %" PRIu8, i);
-        return false;
-      }
+      ESP_LOGV(TAG, "Received section separator before byte %" PRIu8, i);
     }
 
     for (uint8_t y = 0; y < 8; y++) {
