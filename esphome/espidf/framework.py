@@ -337,16 +337,19 @@ print(".".join([str(x) for x in sys.version_info]))
 
 
 _GITHUB_SHORTHAND_RE = re.compile(
-    r"^github://([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+?)(?:@([a-zA-Z0-9\-_.\./]+))?$"
+    r"^github://([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+?)(?:[@#]([a-zA-Z0-9\-_.\./]+))?$"
 )
 _GITHUB_HTTPS_RE = re.compile(
-    r"^(https://github\.com/[a-zA-Z0-9\-]+/[a-zA-Z0-9\-\._]+?\.git)(?:@([a-zA-Z0-9\-_.\./]+))?$"
+    r"^(https://github\.com/[a-zA-Z0-9\-]+/[a-zA-Z0-9\-\._]+?\.git)(?:[@#]([a-zA-Z0-9\-_.\./]+))?$"
 )
 
 
 def _parse_git_source(source_url: str) -> tuple[str, str | None] | None:
     """Return ``(url, ref)`` for ``github://owner/repo[@ref]`` or
-    ``https://github.com/owner/repo.git[@ref]``, else ``None``."""
+    ``https://github.com/owner/repo.git[@ref]``, else ``None``.
+
+    The ref may be separated with ``@`` or ``#``; ``#`` matches the PlatformIO
+    convention used for ``platform_version`` URLs."""
     if m := _GITHUB_SHORTHAND_RE.match(source_url):
         owner, repo, ref = m.group(1), m.group(2), m.group(3)
         # Tolerate a trailing ".git" on the shorthand repo so the
