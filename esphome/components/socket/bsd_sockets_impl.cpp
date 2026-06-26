@@ -22,14 +22,14 @@ BSDSocketImpl::BSDSocketImpl(int fd, bool monitor_loop) {
   if (flags >= 0)
     ::fcntl(this->fd_, F_SETFD, flags | FD_CLOEXEC);
 #endif
+  // Guard structure matches socket_ready_fd(): non-HOST platforms (nRF52/OpenThread)
+  // do not register fds with the esphome select loop, so monitor_loop is a no-op there.
   if (!monitor_loop)
     return;
 #ifdef USE_LWIP_FAST_SELECT
   this->cached_sock_ = hook_fd_for_fast_select(this->fd_);
 #elif defined(USE_HOST)
   this->loop_monitored_ = wake_register_fd(this->fd_);
-#else
-  this->loop_monitored_ = false;
 #endif
 }
 

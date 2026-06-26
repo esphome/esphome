@@ -12,11 +12,19 @@
 namespace esphome::socket {
 
 #ifdef USE_HOST
-// Shared ready() implementation for fd-based socket implementations (BSD and LWIP sockets).
-// Checks if the host wake select() loop has marked this fd as ready.
+// Host: ready when the wake select() loop has flagged this fd (or it isn't monitored).
 bool socket_ready_fd(int fd, bool loop_monitored) { return !loop_monitored || wake_fd_ready(fd); }
-#else
-bool socket_ready_fd(int fd, bool loop_monitored) { return true; }
+#elif defined(USE_ZEPHYR)
+// Zephyr (nRF52): fd monitoring isn't wired into the esphome select loop
+// (wake_register_fd is USE_HOST-only), so loop_monitored is always false. Always
+// return true — the caller handles EAGAIN/EWOULDBLOCK on read.
+//
+// Cost (known trade-off, not an oversight): loop-monitored sockets (API, web_server)
+// are read every loop() iteration and bail on EAGAIN; there is no event-driven wake,
+// so the main loop busy-polls at loop frequency and cannot idle between packets.
+// TODO: wire Zephyr fds into an event-driven wake source (e.g. zsock_poll/k_poll) so
+// the loop can sleep between packets on battery/OpenThread targets.
+bool socket_ready_fd(int /*fd*/, bool /*loop_monitored*/) { return true; }
 #endif
 
 // Platform-specific inet_ntop wrappers
@@ -42,6 +50,19 @@ static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t
   return lwip_inet_ntop(AF_INET6, addr, buf, size);
 }
 #endif
+#elif defined(USE_ZEPHYR)
+// Zephyr BSD sockets — use Zephyr native address formatting via POSIX-subset wrappers.
+// <zephyr/net/socket.h> is already included transitively through <sys/socket.h>.
+static inline const char *esphome_inet_ntop4(const void *addr, char *buf, size_t size) {
+  return zsock_inet_ntop(AF_INET, addr, buf, size);
+}
+// IPv6 is always enabled on nRF52 (config validation enforces enable_ipv6=True),
+// but the guard is retained for consistency with other platform blocks.
+#if USE_NETWORK_IPV6
+static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t size) {
+  return zsock_inet_ntop(AF_INET6, addr, buf, size);
+}
+#endif
 #else
 // BSD sockets (host, ESP32-IDF)
 static inline const char *esphome_inet_ntop4(const void *addr, char *buf, size_t size) {
@@ -64,27 +85,28 @@ size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::s
 #if USE_NETWORK_IPV6
   else if (addr_ptr->sa_family == AF_INET6 && len >= sizeof(sockaddr_in6)) {
     const auto *addr = reinterpret_cast<const struct sockaddr_in6 *>(addr_ptr);
-#if defined(USE_HOST)
+#ifdef USE_HOST
     // Format IPv4-mapped IPv6 addresses as regular IPv4 (POSIX layout, no LWIP union)
     if (IN6_IS_ADDR_V4MAPPED(&addr->sin6_addr) &&
         esphome_inet_ntop4(&addr->sin6_addr.s6_addr[12], buf.data(), buf.size()) != nullptr) {
       return strlen(buf.data());
     }
-#elif !defined(USE_SOCKET_IMPL_LWIP_TCP)
-    // Format IPv4-mapped IPv6 addresses as regular IPv4
-#if defined(USE_ZEPHYR)
+#elif defined(USE_ZEPHYR)
+    // Format IPv4-mapped IPv6 addresses as regular IPv4. Zephyr uses the standard POSIX
+    // s6_addr layout (not the LWIP union) but provides no IN6_IS_ADDR_V4MAPPED macro, so
+    // detect the ::ffff:0:0/96 prefix directly on the address words.
     if (addr->sin6_addr.s6_addr32[0] == 0 && addr->sin6_addr.s6_addr32[1] == 0 &&
         addr->sin6_addr.s6_addr32[2] == htonl(0xFFFF) &&
         esphome_inet_ntop4(&addr->sin6_addr.s6_addr32[3], buf.data(), buf.size()) != nullptr) {
       return strlen(buf.data());
     }
-#else
+#elif !defined(USE_SOCKET_IMPL_LWIP_TCP)
+    // Format IPv4-mapped IPv6 addresses as regular IPv4 (LWIP layout)
     if (addr->sin6_addr.un.u32_addr[0] == 0 && addr->sin6_addr.un.u32_addr[1] == 0 &&
         addr->sin6_addr.un.u32_addr[2] == htonl(0xFFFF) &&
         esphome_inet_ntop4(&addr->sin6_addr.un.u32_addr[3], buf.data(), buf.size()) != nullptr) {
       return strlen(buf.data());
     }
-#endif
 #endif
     if (esphome_inet_ntop6(&addr->sin6_addr, buf.data(), buf.size()) != nullptr)
       return strlen(buf.data());
@@ -127,11 +149,19 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
     server->sin6_port = htons(port);
 
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
+#if defined(USE_ZEPHYR)
+    // Zephyr BSD sockets: use native address conversion
+    if (zsock_inet_pton(AF_INET6, ip_address, &server->sin6_addr) != 1) {
+      errno = EINVAL;
+      return 0;
+    }
+#else
     // Use standard inet_pton for BSD sockets
     if (inet_pton(AF_INET6, ip_address, &server->sin6_addr) != 1) {
       errno = EINVAL;
       return 0;
     }
+#endif
 #else
     // Use LWIP-specific functions
     ip6_addr_t ip6;
@@ -148,10 +178,9 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
   auto *server = reinterpret_cast<sockaddr_in *>(addr);
   memset(server, 0, sizeof(sockaddr_in));
   server->sin_family = AF_INET;
-#ifdef USE_ZEPHYR
-  // Zephyr does not provide inet_addr; inet_pton writes the address directly (host byte order
-  // handling matches inet_addr's network-byte-order result for s_addr).
-  if (inet_pton(AF_INET, ip_address, &server->sin_addr) != 1) {
+#if defined(USE_ZEPHYR)
+  // Zephyr BSD sockets: use native address conversion
+  if (zsock_inet_pton(AF_INET, ip_address, &server->sin_addr) != 1) {
     errno = EINVAL;
     return 0;
   }

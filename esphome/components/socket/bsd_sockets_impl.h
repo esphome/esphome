@@ -86,15 +86,16 @@ class BSDSocketImpl {
 #if defined(USE_ESP32)
     return ::lwip_readv(this->fd_, iov, iovcnt);
 #elif defined(USE_ZEPHYR)
-    // Zephyr does not expose readv (<sys/uio.h> is excluded in headers.h); emulate over the iovec entries.
+    // Zephyr does not provide readv(); emulate with a read() loop. Stream sockets only:
+    // on a datagram socket each read() would consume a separate datagram, not scatter one.
     ssize_t total = 0;
     for (int i = 0; i < iovcnt; i++) {
-      ssize_t ret = ::read(this->fd_, iov[i].iov_base, iov[i].iov_len);
-      if (ret < 0)
-        return total > 0 ? total : ret;
-      total += ret;
-      if (static_cast<size_t>(ret) < iov[i].iov_len)
-        break;  // partial read: stop, mirror readv's short-read behavior
+      ssize_t n = ::read(this->fd_, iov[i].iov_base, iov[i].iov_len);
+      if (n < 0)
+        return total > 0 ? total : n;
+      total += n;
+      if (static_cast<size_t>(n) < iov[i].iov_len)
+        break;
     }
     return total;
 #else
@@ -113,15 +114,16 @@ class BSDSocketImpl {
 #if defined(USE_ESP32)
     return ::lwip_writev(this->fd_, iov, iovcnt);
 #elif defined(USE_ZEPHYR)
-    // Zephyr does not expose writev (<sys/uio.h> is excluded in headers.h); emulate over the iovec entries.
+    // Zephyr does not provide writev(); emulate with a write() loop. Stream sockets only:
+    // on a datagram socket each write() would emit a separate datagram, not gather one.
     ssize_t total = 0;
     for (int i = 0; i < iovcnt; i++) {
-      ssize_t ret = ::write(this->fd_, iov[i].iov_base, iov[i].iov_len);
-      if (ret < 0)
-        return total > 0 ? total : ret;
-      total += ret;
-      if (static_cast<size_t>(ret) < iov[i].iov_len)
-        break;  // partial write: stop, mirror writev's short-write behavior
+      ssize_t n = ::write(this->fd_, iov[i].iov_base, iov[i].iov_len);
+      if (n < 0)
+        return total > 0 ? total : n;
+      total += n;
+      if (static_cast<size_t>(n) < iov[i].iov_len)
+        break;  // partial write: stop so caller resumes from the correct stream offset
     }
     return total;
 #else

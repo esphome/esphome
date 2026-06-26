@@ -169,10 +169,9 @@ using socklen_t = uint32_t;
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
 #endif  // USE_HOST
-
 #ifdef USE_ZEPHYR
-// Zephyr (CONFIG_POSIX_API) provides inet_ntop/inet_pton here via zephyr/posix/arpa/inet.h.
 #include <arpa/inet.h>
+#include <netinet/in.h>
 #endif  // USE_ZEPHYR
 
 #ifdef USE_ARDUINO
