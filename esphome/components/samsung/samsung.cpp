@@ -20,7 +20,7 @@ void SamsungClimate::transmit_state() {
   this->current_climate_mode_ = this->mode;
 
   this->set_climate_mode_(this->mode);
-  this->set_temp_(this->target_temperature);
+  this->set_temp_(static_cast<uint8_t>(this->target_temperature));
   this->set_swing_mode_(this->swing_mode);
   this->set_fan_(this->fan_mode.has_value() ? this->fan_mode.value() : climate::CLIMATE_FAN_AUTO);
 
@@ -101,7 +101,7 @@ void SamsungClimate::send_(const uint16_t length) {
   // Header
   data->item(SAMSUNG_AIRCON1_HDR_MARK, SAMSUNG_AIRCON1_HDR_SPACE);
 
-  for (uint8_t i = 0; i < length; i++) {
+  for (uint16_t i = 0; i < length; i++) {
     if (i != 0 && i % K_SAMSUNG_AC_SECTION_LENGTH == 0) {
       data->item(SAMSUNG_AIRCON1_BIT_MARK, SAMSUNG_AIRCON1_MSG_SPACE);
       data->item(SAMSUNG_AIRCON1_HDR_MARK, SAMSUNG_AIRCON1_HDR_SPACE);
