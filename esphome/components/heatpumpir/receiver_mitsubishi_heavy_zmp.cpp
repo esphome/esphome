@@ -8,15 +8,15 @@
 namespace esphome::heatpumpir {
 
 bool decode_mitsubishi_heavy_zmp(const uint8_t frame[11], HeatpumpIRClimate &climate) {
-  static const uint8_t byte_swing_h = 5;
-  static const uint8_t byte_fan = 7;
-  static const uint8_t fan_speed_mask = 0xE0;
-  static const uint8_t horizontal_swing_mask = 0xDC;
-  static const uint8_t horizontal_swing_active = 0x5C;
-  static const uint8_t vs_mask_byte5 = 0x02;
-  static const uint8_t vs_mask_byte7 = 0x18;
+  static const uint8_t BYTE_SWING_H = 5;
+  static const uint8_t BYTE_FAN = 7;
+  static const uint8_t FAN_SPEED_MASK = 0xE0;
+  static const uint8_t HORIZONTAL_SWING_MASK = 0xDC;
+  static const uint8_t HORIZONTAL_SWING_ACTIVE = 0x5C;
+  static const uint8_t VS_MASK_BYTE5 = 0x02;
+  static const uint8_t VS_MASK_BYTE7 = 0x18;
 
-  uint8_t fan = frame[byte_fan] & fan_speed_mask;
+  uint8_t fan = frame[BYTE_FAN] & FAN_SPEED_MASK;
   climate.preset = climate::CLIMATE_PRESET_NONE;
   switch (fan) {
     case MITSUBISHI_HEAVY_ZMP_FAN_AUTO:
@@ -39,9 +39,9 @@ bool decode_mitsubishi_heavy_zmp(const uint8_t frame[11], HeatpumpIRClimate &cli
       break;
   }
 
-  uint8_t swing_h = frame[byte_swing_h] & horizontal_swing_mask;
-  uint8_t swing_v = (frame[byte_swing_h] & vs_mask_byte5) | (frame[byte_fan] & vs_mask_byte7);
-  bool h_swing = (swing_h == horizontal_swing_active);
+  uint8_t swing_h = frame[BYTE_SWING_H] & HORIZONTAL_SWING_MASK;
+  uint8_t swing_v = (frame[BYTE_SWING_H] & VS_MASK_BYTE5) | (frame[BYTE_FAN] & VS_MASK_BYTE7);
+  bool h_swing = (swing_h == HORIZONTAL_SWING_ACTIVE);
   bool v_swing = (swing_v == MITSUBISHI_HEAVY_ZMP_VS_SWING);
 
   if (h_swing && v_swing) {
