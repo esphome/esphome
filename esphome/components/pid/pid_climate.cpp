@@ -40,16 +40,19 @@ void PIDClimate::setup() {
   }
 }
 void PIDClimate::control(const climate::ClimateCall &call) {
+  bool mode_changed = false;
   auto call_mode = call.get_mode();
-  if (call_mode.has_value())
+  if (call_mode.has_value()) {
+    mode_changed = this->mode != *call_mode;
     this->mode = *call_mode;
+  }
   auto call_target = call.get_target_temperature();
   if (call_target.has_value())
     this->target_temperature = *call_target;
 
-  // If switching to off mode, set output immediately
-  if (this->mode == climate::CLIMATE_MODE_OFF)
-    this->write_output_(0.0f);
+  // If switching modes, apply the current PID output to the new mode immediately.
+  if (mode_changed || this->mode == climate::CLIMATE_MODE_OFF)
+    this->write_output_(this->mode == climate::CLIMATE_MODE_OFF ? 0.0f : this->output_value_);
 
   this->publish_state();
 }
@@ -94,24 +97,39 @@ void PIDClimate::dump_config() {
 }
 void PIDClimate::write_output_(float value) {
   this->output_value_ = value;
+  float active_value = value;
+  switch (this->mode) {
+    case climate::CLIMATE_MODE_OFF:
+      active_value = 0.0f;
+      break;
+    case climate::CLIMATE_MODE_HEAT:
+      active_value = std::max(0.0f, value);
+      break;
+    case climate::CLIMATE_MODE_COOL:
+      active_value = std::min(0.0f, value);
+      break;
+    default:
+      break;
+  }
+  this->active_output_value_ = active_value;
 
   // first ensure outputs are off (both outputs not active at the same time)
-  if (this->supports_cool_() && value >= 0)
+  if (this->supports_cool_() && active_value >= 0)
     this->cool_output_->set_level(0.0f);
-  if (this->supports_heat_() && value <= 0)
+  if (this->supports_heat_() && active_value <= 0)
     this->heat_output_->set_level(0.0f);
 
   // value < 0 means cool, > 0 means heat
-  if (this->supports_cool_() && value < 0)
-    this->cool_output_->set_level(std::min(1.0f, -value));
-  if (this->supports_heat_() && value > 0)
-    this->heat_output_->set_level(std::min(1.0f, value));
+  if (this->supports_cool_() && active_value < 0)
+    this->cool_output_->set_level(std::min(1.0f, -active_value));
+  if (this->supports_heat_() && active_value > 0)
+    this->heat_output_->set_level(std::min(1.0f, active_value));
 
   // Update action variable for user feedback what's happening
   climate::ClimateAction new_action;
-  if (this->supports_cool_() && value < 0) {
+  if (this->supports_cool_() && active_value < 0) {
     new_action = climate::CLIMATE_ACTION_COOLING;
-  } else if (this->supports_heat_() && value > 0) {
+  } else if (this->supports_heat_() && active_value > 0) {
     new_action = climate::CLIMATE_ACTION_HEATING;
   } else if (this->mode == climate::CLIMATE_MODE_OFF) {
     new_action = climate::CLIMATE_ACTION_OFF;
