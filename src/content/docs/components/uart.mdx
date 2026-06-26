@@ -75,9 +75,7 @@ uart:
 - **parity** (*Optional*): The parity used on the UART bus. Options: `NONE`, `EVEN`, `ODD`. Defaults to `NONE`.
 - **stop_bits** (*Optional*, int): The number of stop bits to send. Options: 1, 2. Defaults to 1.
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID for this UART hub if you need multiple UART hubs.
-- **debug** (*Optional*, mapping): Options for debugging communication on the UART hub, see [Debugging](#uart-debugging).
-
-<span id="uart-hardware_uarts"></span>
+- **debug** (*Optional*, mapping): Options for debugging communication on the UART hub, see [Debugging](#debugging).
 
 ## Hardware UARTs
 
@@ -99,8 +97,6 @@ use `tx_pin: GPIO2`. Any other combination of pins will result in use of a softw
 
 > [!NOTE]
 > The Software UART is only available on the ESP8266. It is not available on ESP32 and variants.
-
-<span id="uart-write_action"></span>
 
 ## `uart.write` Action
 
@@ -125,8 +121,6 @@ on_...:
       id: my_second_uart
       data: 'other data'
 ```
-
-<span id="uart-debugging"></span>
 
 ## Debugging
 

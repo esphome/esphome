@@ -35,7 +35,7 @@ light:
 - **name** (*Optional*, string): The name of the light. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and you want the light
+> If you have a [friendly_name](/components/esphome#configuration-variables) set for your device and you want the light
 > to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the light in the frontend.
@@ -71,7 +71,7 @@ light:
   See [`light.on_turn_on` / `light.on_turn_off` Trigger](#light-on_turn_on_off_trigger).
 
 - **on_state** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform when the light's set state is
-  changed. See [`light.on_state` Trigger](#light-on_state_trigger).
+  changed. See [`light.on_state` Trigger](#light-on_state-trigger).
 
 **Additional configuration variables for addressable lights:**
 
@@ -157,8 +157,6 @@ explicitly set them to zero.
 
 ## Light Automations
 
-<span id="light-toggle_action"></span>
-
 ### `light.toggle` Action
 
 This action toggles a light with the given ID when executed.
@@ -186,8 +184,6 @@ on_...:
 > // perform action:
 > call.perform();
 > ```
-
-<span id="light-turn_on_action"></span>
 
 ### `light.turn_on` Action
 
@@ -267,8 +263,6 @@ on_...:
 >     white: 75%
 > ```
 
-<span id="light-turn_off_action"></span>
-
 ### `light.turn_off` Action
 
 This action turns a light with the given ID off when executed.
@@ -299,8 +293,6 @@ on_...:
 > call.perform();
 > ```
 
-<span id="light-control_action"></span>
-
 ### `light.control` Action
 
 This [Action](/automations/actions#all-actions) is a generic call to change the state of a light - it is essentially just a
@@ -319,8 +311,6 @@ on_...:
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the light.
 - **state** (*Optional*, [templatable](/automations/templates), boolean): Change the ON/OFF state of the light.
 - All other options from [light state](#light-state_config).
-
-<span id="light-dim_relative_action"></span>
 
 ### `light.dim_relative` Action
 
@@ -410,8 +400,6 @@ on_...:
 > The action turns the light on if it isn't already on, so the chosen effect starts immediately. To cycle effects only
 > while the light is on, gate the action with the [`light.is_on`](#light-is_on_condition) condition.
 
-<span id="light-addressable_set_action"></span>
-
 ### `light.addressable_set` Action
 
 This [Action](/automations/actions#all-actions) allows you to manually set a range of LEDs on an addressable light to a specific
@@ -484,8 +472,6 @@ light:
     - logger.log: "Light Turned Off!"
 ```
 
-<span id="light-on_state_trigger"></span>
-
 ### `light.on_state` Trigger
 
 This trigger is activated each time the set light state is changed. It is not triggered based on current state, but
@@ -500,8 +486,6 @@ light:
     on_state:
     - logger.log: "Light State Changed!"
 ```
-
-<span id="light-effects"></span>
 
 ## Light Effects
 
@@ -567,7 +551,7 @@ These effects receive frames from an external source instead of generating anima
 | Effect | Description | Parameters |
 | --- | --- | --- |
 | [Automation](#automation-light-effect) | Run ESPHome automation actions on a loop | `name`, `sequence` |
-| [E1.31](#e131-effect) | Receive sACN / E1.31 frames over the network | `universe`, `channels` |
+| [E1.31](#e1-31-effect) | Receive sACN / E1.31 frames over the network | `universe`, `channels` |
 | [Adalight](#adalight-effect) | Receive Adalight protocol over UART | `uart_id` |
 | [WLED](#wled-effect) | Receive WLED UDP sync protocol | `port`, `blank_on_start`, `sync_group_mask` |
 

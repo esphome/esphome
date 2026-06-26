@@ -35,7 +35,7 @@ Configuration variables:
 - **name** (*Optional*, string): The name for the number. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and
+> If you have a [friendly_name](/components/esphome#configuration-variables) set for your device and
 > you want the number to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the number in the frontend.
@@ -133,8 +133,6 @@ Configuration variables:
 - **below** (*Optional*, float): The maximum for the trigger.
 - See [Automation](/automations).
 
-<span id="number-in_range_condition"></span>
-
 ### `number.in_range` Condition
 
 This condition passes if the state of the given number is inside a range.
@@ -159,8 +157,6 @@ Configuration variables:
 - **above** (*Optional*, float): The minimum for the condition.
 - **below** (*Optional*, float): The maximum for the condition.
 
-<span id="number-set_action"></span>
-
 ### `number.set` Action
 
 This is an [Action](/automations/actions#all-actions) for setting a number state.
@@ -176,8 +172,6 @@ Configuration variables:
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the number to set.
 - **value** (**Required**, float, [templatable](/automations/templates)):
   The value to set the number to.
-
-<span id="number-increment_action"></span>
 
 ### `number.increment` Action
 
@@ -201,8 +195,6 @@ Configuration variables:
   work when the number component uses a minimum and maximum value.
   Defaults to `true`.
 
-<span id="number-decrement_action"></span>
-
 ### `number.decrement` Action
 
 This is an [Action](/automations/actions#all-actions) for decrementing a number value by its
@@ -225,8 +217,6 @@ Configuration variables:
   work when the number component uses a minimum and maximum value.
   Defaults to `true`.
 
-<span id="number-to-min_action"></span>
-
 ### `number.to_min` Action
 
 This is an [Action](/automations/actions#all-actions) setting a number to its minimum value, given
@@ -244,8 +234,6 @@ Configuration variables:
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the number component to update.
 
-<span id="number-to-max_action"></span>
-
 ### `number.to_max` Action
 
 This is an [Action](/automations/actions#all-actions) setting a number to its maximum value, given
@@ -262,8 +250,6 @@ a number component that has a maximum value defined for it.
 Configuration variables:
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the number component to update.
-
-<span id="number-operation_action"></span>
 
 ### `number.operation` Action
 
@@ -299,8 +285,6 @@ Configuration variables:
   Can be used with `DECREMENT` or `INCREMENT` to specify whether or not to
   wrap around the value when respectively the minimum or maximum value of the
   number is exceeded.
-
-<span id="number-lambda_calls"></span>
 
 ### lambda calls
 

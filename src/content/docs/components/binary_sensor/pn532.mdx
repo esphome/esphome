@@ -21,7 +21,7 @@ create individual binary sensors that track if an NFC/RFID tag is currently dete
 
 <Image src={pn532FullImg} layout="constrained" alt="" />
 
-See [Setting Up Tags](#pn532-setting_up_tags) for information on how to setup individual binary sensors for this component.
+See [Setting Up Tags](#setting-up-tags) for information on how to setup individual binary sensors for this component.
 
 The PN532 can be configured to use either the SPI **or** I²C protocol for data communication.
 You will need to switch the dip switches located on the module according to the table printed on the board.
@@ -116,7 +116,7 @@ if the tag is changed or goes away for one cycle of `update_interval`.
 The parameter `x` this trigger provides is of type `std::string` and is the tag UID in the format
 `74-10-37-94`. The configuration below will for example publish the tag ID on the MQTT topic `pn532/tag`.
 
-See [NDEF reading](#pn532-ndef_reading) below for how to use the second `tag` parameter that is provided to this trigger.
+See [NDEF reading](#ndef-reading) below for how to use the second `tag` parameter that is provided to this trigger.
 
 ```yaml
 pn532_...:
@@ -208,8 +208,6 @@ binary_sensor:
 
 - All other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
-<span id="pn532-setting_up_tags"></span>
-
 ## Setting Up Tags
 
 To set up binary sensors for specific NFC tags you first have to know their unique IDs. To obtain this
@@ -224,13 +222,9 @@ Found new tag '74-10-37-94'
 Then copy this id and create a `binary_sensor` entry as in the configuration example. Repeat this process for
 each tag.
 
-<span id="pn532-ndef"></span>
-
 ## NDEF
 
 The PN532 supports reading and writing NDEF formatted data into the cards.
-
-<span id="pn532-ndef_reading"></span>
 
 ### NDEF reading
 
@@ -258,8 +252,6 @@ pn532_...:
           }
           return x;
 ```
-
-<span id="pn532-ndef_writing"></span>
 
 ### NDEF Writing
 

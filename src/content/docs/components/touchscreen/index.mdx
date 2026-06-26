@@ -52,7 +52,7 @@ touchscreen:
 
   - **x_min** (**Required**, int): The raw value corresponding to the left
 
-      (or top if `swap_xy` is specified) edge of the touchscreen. See [Calibration](#touchscreen-calibration)
+      (or top if `swap_xy` is specified) edge of the touchscreen. See [Calibration](#calibration)
       for the process to calibrate the touchscreen.
 
   - **x_max** (**Required**, int): The raw value corresponding to the right
@@ -92,8 +92,6 @@ The integer members for the touch positions below are in relation to the display
 - `x_prev` and `y_prev` are the previous position.
 - `x_org` and `y_org` are the position of the touch when it was first detected.
 - `x_raw` and `y_raw` are for calibrating the touchscreen in relation of the display. This replaces the properties with the same name in the touchscreen classes.
-
-<span id="touchscreen-calibration"></span>
 
 ## Calibration
 
@@ -248,8 +246,6 @@ This automation will be triggered when all touches are released from the touchsc
 
 At this point of time it has no extra arguments.
 
-<span id="touchscreen_binary_sensor"></span>
-
 ## Binary Sensor
 
 The `touchscreen` binary sensor allows you to setup areas on the touch screen as virtual
@@ -288,7 +284,7 @@ binary_sensor:
 
 ## See Also
 
-- [Binary Sensor Filters](/components/binary_sensor#binary_sensor-filters)
+- [Binary Sensor Filters](/components/binary_sensor#binary-sensor-filters)
 - [Inkplate 6 Plus](/components/display/inkplate/)
 - [EKTF2232 Touchscreen Controller](/components/touchscreen/ektf2232/)
 - [XPT2046 Touch Screen Controller (Updated version)](/components/touchscreen/xpt2046/)

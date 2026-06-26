@@ -72,7 +72,7 @@ binary_sensor:
 
 > [!NOTE]
 > By default, each of the target [Binary Sensor](/components/binary_sensor/) components above includes the
-> following [filter](/components/binary_sensor#binary_sensor-filters) by default to prevent flooding Home Assistant with state updates:
+> following [filter](/components/binary_sensor#binary-sensor-filters) by default to prevent flooding Home Assistant with state updates:
 >
 > ```yaml
 > - settle: 1000ms
@@ -247,8 +247,6 @@ switch:
 - **engineering_mode** Turn on/off the engineering mode. All options from [Switch](/components/switch#config-switch).
 - **ld2412_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID for the component. Required when using multiple
   components.
-
-<span id="ld2412-number"></span>
 
 ## Number
 
@@ -477,7 +475,7 @@ To calibrate your sensor, perform the following:
 
 1. Enable [engineering mode](#ld2412-engineering-mode).
 1. Monitor the `gate_X_move_energy` and `gate_X_still_energy` [sensors](#ld2412-sensors).
-1. Change the [thresholds](#ld2412-number) and repeat step 2 until you are satisfied.
+1. Change the [thresholds](#number) and repeat step 2 until you are satisfied.
 1. Disable [engineering mode](#ld2412-engineering-mode).
 
 As an alternative, you can simply leave the room, turn on the "Dynamic background correction" and let it calibrate

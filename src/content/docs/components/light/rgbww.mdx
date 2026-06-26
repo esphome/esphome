@@ -7,7 +7,7 @@ import APIRef from '@components/APIRef.astro';
 
 The `rgbww` light platform creates an RGBWW (cold white + warm white)
 light from 5 [float output components](/components/output/) (one for each channel). The cold and warm
-white channels can be controlled individually or together, see [Mixing](/components/light/cwww#cwww_mixing) for more information.
+white channels can be controlled individually or together, see [Mixing](/components/light/cwww#mixing) for more information.
 
 ```yaml
 # Example configuration entry
@@ -59,7 +59,7 @@ time: `color_interlock`.
 Setting this option to `true` will result in the light having two color modes available, `RGB` and `COLD_WARM_WHITE`.
 When the `RGB` color mode is active, the white leds are turned off, and when the `COLD_WARM_WHITE` color mode is active,
 the RGB leds are turned off. Switching between these modes can be done from the Home Assistant interface, or by using
-the `color_mode` option of the [light control actions](/components/light#light-turn_on_action).
+the `color_mode` option of the [light control actions](/components/light#light-turn_on-action).
 
 ## Configuration variables
 
@@ -86,7 +86,7 @@ the `color_mode` option of the [light control actions](/components/light#light-t
   both channels at full brightness at once. Defaults to `false`.
 
 - **color_interlock** (*Optional*, boolean): When enabled, this will prevent white leds being on at the same
-  time as RGB leds. See [Color Interlock](/components/light/rgbw#rgbw_color_interlock) for more information. Defaults to `false`.
+  time as RGB leds. See [Color Interlock](/components/light/rgbw#color-interlock) for more information. Defaults to `false`.
 
 - All other options from [Light](/components/light#config-light).
 

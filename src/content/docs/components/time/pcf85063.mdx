@@ -17,8 +17,6 @@ time:
 - **address** (*Optional*, int): Manually specify the I²C address of the RTC. Defaults to `0x51`.
 - All other options from [Base Time Configuration](/components/time#base_time_config).
 
-<span id="pcf85063-write_time_action"></span>
-
 ## `pcf85063.write_time` Action
 
 This [Action](/automations/actions#all-actions) triggers a synchronization of the current system time to the RTC hardware.
@@ -34,8 +32,6 @@ on_...:
   - pcf85063.write_time:
       id: pcf85063_time
 ```
-
-<span id="pcf85063-read_time_action"></span>
 
 ## `pcf85063.read_time` Action
 

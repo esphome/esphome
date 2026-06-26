@@ -132,8 +132,6 @@ Configuration variables:
 
 - All other from [Base Stepper Configuration](#base_stepper_config).
 
-<span id="stepper-set_target_action"></span>
-
 ## `stepper.set_target` Action
 
 To use your stepper motor in [automations](/automations) or templates, you can use this action to set the target
@@ -178,8 +176,6 @@ Configuration options:
 >         target: 150
 > ```
 
-<span id="stepper-report_position_action"></span>
-
 ## `stepper.report_position` Action
 
 All steppers start out with a target and current position of `0` on boot. However, if you for example want to home
@@ -217,8 +213,6 @@ Configuration variables:
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the stepper.
 - **position** (**Required**, int, [templatable](/automations/templates)): The position to report in steps.
 
-<span id="stepper-set_speed_action"></span>
-
 ## `stepper.set_speed` Action
 
 This [Action](/automations/actions#all-actions) allows you to set the speed of a stepper at runtime.
@@ -236,8 +230,6 @@ Configuration variables:
 - **speed** (**Required**, float, [templatable](/automations/templates)): The speed
   in `steps/s` (steps per seconds) to drive the stepper at.
 
-<span id="stepper-set_acceleration_action"></span>
-
 ## `stepper.set_acceleration` Action
 
 This [Action](/automations/actions#all-actions) allows you to set the acceleration of a stepper at runtime.
@@ -254,8 +246,6 @@ Configuration variables:
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the stepper.
 - **acceleration** (**Required**, float, [templatable](/automations/templates)): The acceleration
   in `steps/s^2` (steps per seconds squared) to use when starting to move.
-
-<span id="stepper-set_deceleration_action"></span>
 
 ## `stepper.set_deceleration` Action
 
@@ -299,8 +289,6 @@ stepper:
     # [...] stepper config
     id: my_stepper
 ```
-
-<span id="stepper-lambda_calls"></span>
 
 ## lambda calls
 

@@ -41,7 +41,7 @@ sy6970:
 
 ## Configuration variables
 
-- **id** (*Optional*, [ID](/guides/configuration-types#config-id)): Manually specify the ID used for code generation.
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
 - **address** (*Optional*, int): The I²C address of the device. Defaults to `0x6A`.
 - **enable_status_led** (*Optional*, boolean): Enable or disable the status LED on the IC. Defaults to `true`.
 - **input_current_limit** (*Optional*, int): Input current in milliamps. Accepts values between 100 and 3200. Defaults to `500`.
@@ -51,7 +51,7 @@ sy6970:
 - **charge_enabled** (*Optional*, boolean): Enable or disable charging. Defaults to `true`.
 - **enable_adc** (*Optional*, boolean): Enable or disable the ADC. Defaults to `true`.
 - All other options from [I²C Device](/components/i2c).
-- **update_interval** (*Optional*, [Time](/guides/configuration-types#config-time)): The interval to check the sensor. Defaults to `5s`.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the sensor. Defaults to `5s`.
 
 ## Sensor
 
@@ -76,7 +76,7 @@ sensor:
 
 ## Sensor Configuration variables
 
-- **sy6970_id** (*Optional*, [ID](/guides/configuration-types#config-id)): The ID of the SY6970 component. Defaults to the only SY6970 component in your configuration.
+- **sy6970_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the SY6970 component. Defaults to the only SY6970 component in your configuration.
 - **vbus_voltage** (*Optional*): The voltage on the VBUS (USB) input in volts.
   - All options from [Sensor](/components/sensor).
 - **battery_voltage** (*Optional*): The battery voltage in volts.
@@ -108,7 +108,7 @@ binary_sensor:
 
 ## Binary Sensor Configuration variables
 
-- **sy6970_id** (*Optional*, [ID](/guides/configuration-types#config-id)): The ID of the SY6970 component. Defaults to the only SY6970 component in your configuration.
+- **sy6970_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the SY6970 component. Defaults to the only SY6970 component in your configuration.
 - **vbus_connected** (*Optional*): Indicates whether VBUS (USB power) is connected.
   - All options from [Binary Sensor](/components/binary_sensor).
 - **charging** (*Optional*): Indicates whether the battery is currently charging.
@@ -136,7 +136,7 @@ text_sensor:
 
 ## Text Sensor Configuration variables
 
-- **sy6970_id** (*Optional*, [ID](/guides/configuration-types#config-id)): The ID of the SY6970 component. Defaults to the only SY6970 component in your configuration.
+- **sy6970_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the SY6970 component. Defaults to the only SY6970 component in your configuration.
 - **bus_status** (*Optional*): The type of power source connected. Possible values are:
   - `No Input` - No power source connected
   - `USB SDP` - USB Standard Downstream Port

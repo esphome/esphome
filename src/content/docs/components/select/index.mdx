@@ -35,7 +35,7 @@ Configuration variables:
 - **name** (*Optional*, string): The name for the select. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and
+> If you have a [friendly_name](/components/esphome#configuration-variables) set for your device and
 > you want the select to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the select in the frontend.
@@ -131,8 +131,6 @@ on_...:
 
 ## Actions
 
-<span id="select-set_action"></span>
-
 ### `select.set` Action
 
 This is an [Action](/automations/actions#all-actions) for setting the active option using an option value.
@@ -151,8 +149,6 @@ Configuration variables:
 
 When a non-existing option value is used, a warning is logged and the state of
 the select is left as-is.
-
-<span id="select-set_index_action"></span>
 
 ### `select.set_index` Action
 
@@ -173,8 +169,6 @@ Configuration variables:
 When a non-existing index value is used, a warning is logged and the state of
 the select is left as-is.
 
-<span id="select-next_action"></span>
-
 ### `select.next` Action
 
 This is an [Action](/automations/actions#all-actions) for selecting the next option in a select component.
@@ -193,8 +187,6 @@ Configuration variables:
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the select to set.
 - **cycle** (*Optional*, boolean): Whether or not to jump back to the first option
   of the select when the last option is currently selected. Defaults to `true`.
-
-<span id="select-previous_action"></span>
 
 ### `select.previous` Action
 
@@ -216,8 +208,6 @@ Configuration variables:
 - **cycle** (*Optional*, boolean): Whether or not to jump to the last option
   of the select when the first option is currently selected. Defaults to `true`.
 
-<span id="select-first_action"></span>
-
 ### `select.first` Action
 
 This is an [Action](/automations/actions#all-actions) for selecting the first option in
@@ -235,8 +225,6 @@ Configuration variables:
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the select to set.
 
-<span id="select-last_action"></span>
-
 ### `select.last` Action
 
 This is an [Action](/automations/actions#all-actions) for selecting the last option in
@@ -253,8 +241,6 @@ a select component.
 Configuration variables:
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the select to set.
-
-<span id="select-operation_action"></span>
 
 ### `select.operation` Action
 

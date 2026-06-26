@@ -14,7 +14,7 @@ import APIRef from '@components/APIRef.astro';
 ## Component/Hub
 
 The `ads1115` domain creates a global hub so that you can later create
-individual sensors using the [ADS1115 Sensor Platform](#ads1115-sensor).
+individual sensors using the [ADS1115 Sensor Platform](#sensor).
 To use this hub, first setup the [I²C Bus](/components/i2c) and connect the sensor to the pins specified there.
 
 <Figure
@@ -53,8 +53,6 @@ change the i²c address.
 - If the address pin is pulled to VCC, the address is `0x49`.
 - If the address pin is tied to SDA, the address is `0x4a`.
 - If the address pin is tied to SCL, the address is `0x4B`.
-
-<span id="ads1115-sensor"></span>
 
 ## Sensor
 

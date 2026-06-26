@@ -62,9 +62,9 @@ esp32:
   lower) to work around this.
 
 - **partitions** (*Optional*, filename or list): A partition table CSV file or a list of custom partitions to add.
-  See [Partitions](#esp32-partitions).
+  See [Partitions](#partitions).
 
-- **framework** (*Optional*): Options for the underlying framework used by ESPHome. See [Framework](#esp32-framework).
+- **framework** (*Optional*): Options for the underlying framework used by ESPHome. See [Framework](#framework).
 
 - **watchdog_timeout** (*Optional*, [Time](/guides/configuration-types#time)): The timeout applied to the
   ESP-IDF task watchdog. If a subscribed task fails to feed the watchdog within this period, the device
@@ -299,8 +299,6 @@ esphome --toolchain esp-idf compile my_device.yaml
 If not specified, `platformio` is used by default.
 If both `esp32.toolchain` and the `--toolchain` CLI option are set, the CLI option takes precedence.
 
-<span id="esp32-framework"></span>
-
 ## Framework
 
 ESPHome supports two framework options for ESP32 chips:
@@ -375,10 +373,8 @@ esp32:
 - **log_level** (*Optional*, string): Log level of the framework, one of `ERROR` (default), `NONE`, `WARN`, `INFO`,
   `DEBUG` or `VERBOSE`.
 
-- **advanced** (*Optional*, mapping): See [Advanced Configuration](#esp32-advanced_configuration) below.
-- **components** (*Optional*, list of components): See [IDF Components](#esp32-idf_components) below.
-
-<span id="esp32-advanced_configuration"></span>
+- **advanced** (*Optional*, mapping): See [Advanced Configuration](#advanced-configuration) below.
+- **components** (*Optional*, list of components): See [IDF Components](#idf-components) below.
 
 ## Advanced Configuration
 
@@ -762,8 +758,6 @@ esp32:
 > [!NOTE]
 > If you were already adding libraries via `libraries` config or calling `cg.add_library()`, no action is needed. If you were previously using Arduino library APIs directly in lambdas (e.g. `Preferences`, `Wire`, `SPI`) without adding them to the `libraries` config, you will need to explicitly add them.
 
-<span id="esp32-idf_components"></span>
-
 ## IDF Components
 
 The `components` option allows you to include IDF components. These components will then be compiled into the resulting
@@ -805,8 +799,6 @@ esp32:
   custom or patched version of the component.
 - **path** (*Optional*, string): The path of the component in the git repository or a local path to the
   component if `source` is not set.
-
-<span id="esp32-partitions"></span>
 
 ## Partitions
 

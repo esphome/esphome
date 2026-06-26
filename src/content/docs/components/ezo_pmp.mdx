@@ -123,8 +123,8 @@ sensor:
 ### `max_flow_rate`
 
 The pump provides its own calculation of the maximum flow rate it can provide (in ml/minute). Dosing requests that exceed this rate
-will fail. When using the [Dose Continuously](#ezo_pmp-dose_continuously_action) Action, this is the volume the pump will
-dose every minute. This value will get updated after the pump is calibrated (see [`ezo_pmp.set_calibration_volume` Action](#ezo_pmp-set_calibration_volume_action)).
+will fail. When using the [Dose Continuously](#ezo_pmp-dose_continuously-action) Action, this is the volume the pump will
+dose every minute. This value will get updated after the pump is calibrated (see [`ezo_pmp.set_calibration_volume` Action](#ezo_pmp-set_calibration_volume-action)).
 
 ```yaml
 sensor:
@@ -235,8 +235,6 @@ text_sensor:
 
 ## Actions
 
-<span id="ezo_pmp-dose_continuously_action"></span>
-
 ### `ezo_pmp.dose_continuously` Action
 
 Use this action in an [automations](/automations) to have the peristaltic pump dose continuously
@@ -253,8 +251,6 @@ on_...:
 #### Configuration variables
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the pump.
-
-<span id="ezo_pmp-dose_volume_action"></span>
 
 ### `ezo_pmp.dose_volume` Action
 
@@ -279,8 +275,6 @@ on_...:
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the pump.
 - **volume** (**Required**, float, [templatable](/automations/templates)): The volume to dose in milliliters. If negative, pump will run in reverse.
-
-<span id="ezo_pmp-dose_volume_over_time_action"></span>
 
 ### `ezo_pmp.dose_volume_over_time` Action
 
@@ -311,8 +305,6 @@ on_...:
 - **volume** (**Required**, float, [templatable](/automations/templates)): The volume to dose in milliliters. If negative, pump will run in reverse.
 - **duration** (**Required**, int, [templatable](/automations/templates)): The time (in minutes) the pump will take to dose the volume requested.
 
-<span id="ezo_pmp-dose_with_constant_flow_rate_action"></span>
-
 ### `ezo_pmp.dose_with_constant_flow_rate` Action
 
 Use this action in an [automations](/automations) to have the peristaltic pump dose an specific `volume` (in milliliters) every minute
@@ -342,8 +334,6 @@ on_...:
 - **volume_per_minute** (**Required**, float, [templatable](/automations/templates)): The volume to dose in milliliters every minute. If negative, pump will run in reverse.
 - **duration** (**Required**, int, [templatable](/automations/templates)): The time (in minutes) the pump will dose the volume requested every minute.
 
-<span id="ezo_pmp-pause_dosing_action"></span>
-
 ### `ezo_pmp.pause_dosing` Action
 
 Use this action to pause a Dosing command that was previously issued. To determine if the dosing is paused or not, you can use the [Is Paused](#ezo_pmp-is_paused_binary_sensor) sensor.
@@ -360,8 +350,6 @@ on_...:
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the pump.
 
-<span id="ezo_pmp-stop_dosing_action"></span>
-
 ### `ezo_pmp.stop_dosing` Action
 
 Use this action to stop the current Dosing command.
@@ -376,8 +364,6 @@ on_...:
 #### Configuration variables
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the pump.
-
-<span id="ezo_pmp-clear_total_volume_dosed_action"></span>
 
 ### `ezo_pmp.clear_total_volume_dosed` Action
 
@@ -394,8 +380,6 @@ on_...:
 #### Configuration variables
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the pump.
-
-<span id="ezo_pmp-set_calibration_volume_action"></span>
 
 ### `ezo_pmp.set_calibration_volume` Action
 
@@ -422,8 +406,6 @@ on_...:
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the pump.
 - **volume** (**Required**, float, [templatable](/automations/templates)): The volume measured as part of the calibration process.
 
-<span id="ezo_pmp-clear_calibration_action"></span>
-
 ### `ezo_pmp.clear_calibration` Action
 
 Clear the calibration values stored in the pump. You can check the calibration status by using the
@@ -440,8 +422,6 @@ on_...:
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the pump.
 
-<span id="ezo_pmp-find_action"></span>
-
 ### `ezo_pmp.find` Action
 
 Use this action to make the LED on the Pump control board to blink for a minute. The pump will not respond to any other action while the LED is blinking.
@@ -456,8 +436,6 @@ on_...:
 #### Configuration variables
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the pump.
-
-<span id="ezo_pmp-change_i2c_address_action"></span>
 
 ### `ezo_pmp.change_i2c_address` Action
 
@@ -518,8 +496,6 @@ button:
           duration: !lambda |-
                   return id(duration).state;
 ```
-
-<span id="ezo_pmp-lambda_calls"></span>
 
 ## lambda calls
 

@@ -54,7 +54,7 @@ Configuration variables:
 - **name** (*Optional*, string): The name of the climate device. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and
+> If you have a [friendly_name](/components/esphome#configuration-variables) set for your device and
 > you want the climate to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the climate device in the frontend.
@@ -160,8 +160,6 @@ MQTT options:
 
 ## Climate Automation
 
-<span id="climate-control_action"></span>
-
 ### `climate.control` Action
 
 This is an [Action](/automations/actions#all-actions) for setting parameters for climate devices.
@@ -215,8 +213,6 @@ Configuration variables:
 
 - **swing_mode** (*Optional*, string, [templatable](/automations/templates)): Set the swing mode
   of the climate device. One of `OFF`, `BOTH`, `VERTICAL`, `HORIZONTAL`.
-
-<span id="climate-lambda_calls"></span>
 
 ### lambda calls
 
@@ -289,8 +285,6 @@ advanced stuff.
     call.perform();
 ```
 
-<span id="climate-on_state_trigger"></span>
-
 ### `climate.on_state` Trigger
 
 This trigger is activated each time the state of the climate device is updated
@@ -307,8 +301,6 @@ climate:
           if (x.mode != CLIMATE_MODE_OFF)
             id(some_binary_sensor).publish_state(true);
 ```
-
-<span id="climate-on_control_trigger"></span>
 
 ### `climate.on_control` Trigger
 

@@ -17,7 +17,7 @@ override substitutions with the same name in a package.
 Dictionaries are merged key-by-key. Lists of components are merged by component ID (if specified). Other lists are
 merged by concatenation. All other configuration values are replaced with the later value.
 
-ESPHome uses `!include` to "bring in" packages from other files; this feature is described in [!include](/guides/yaml#yaml-include).
+ESPHome uses `!include` to "bring in" packages from other files; this feature is described in [!include](/guides/yaml#include).
 
 The `packages:` key may have a value that is:
 
@@ -227,8 +227,6 @@ ESPHome will expand `${platform}` before loading the file, so `device-${platform
 > [!NOTE]
 > Filename substitutions are not supported when using the YAML merge key (`<<: !include filename.yaml`).
 
-<span id="config-packages_extend"></span>
-
 ## Extend
 
 To make changes or add additional configuration to included configurations, `!extend config_id` can be used, where
@@ -305,8 +303,6 @@ switch:
   - id: !extend ${ switches[mains_switch] }
     name: "Mains switch"
 ```
-
-<span id="config-packages_remove"></span>
 
 ## Remove
 

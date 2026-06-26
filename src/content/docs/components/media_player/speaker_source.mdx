@@ -9,7 +9,7 @@ It supports two independent audio pipelines: media and announcement. Each pipeli
 
 Each pipeline maintains its own playlist with support for repeat (off, one, all) and shuffle modes. Volume and mute state are persisted to flash and restored on reboot.
 
-This platform only works on ESP32-based chips using the [ESP-IDF framework](/components/esp32#esp32-framework).
+This platform only works on ESP32-based chips using the [ESP-IDF framework](/components/esp32#framework).
 
 > [!WARNING]
 > Audio and voice components consume a significant amount of resources (RAM, CPU) on the device.
@@ -139,7 +139,7 @@ Configuration variables:
 
 ### Base Media Player Actions
 
-This platform supports all [media player actions](/components/media_player#media_player-actions) including `play`, `pause`, `stop`, `toggle`, `volume_set`, `volume_up`, `volume_down`, `mute`, `unmute`, `next`, `previous`, `repeat_off`, `repeat_one`, `repeat_all`, `shuffle`, `unshuffle`, and `clear_playlist`.
+This platform supports all [media player actions](/components/media_player#media-player-actions) including `play`, `pause`, `stop`, `toggle`, `volume_set`, `volume_up`, `volume_down`, `mute`, `unmute`, `next`, `previous`, `repeat_off`, `repeat_one`, `repeat_all`, `shuffle`, `unshuffle`, and `clear_playlist`.
 
 When using the `media_player.play_media` action, the media URL is routed to the first source in the pipeline that can handle the URI prefix. For example, a URL starting with `audio-file://` is routed to an Audio File media source.
 

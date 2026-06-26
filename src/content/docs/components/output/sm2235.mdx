@@ -14,7 +14,7 @@ ESPHome. Communication is done with two GPIO pins (DATA and CLK).
 
 To use the channels of this components, you first need to setup the
 global `sm2235` hub and give it an id, and then define the
-[individual output channels](#sm2235-output).
+[individual output channels](#output).
 
 ```yaml
 # Example configuration entry
@@ -85,8 +85,6 @@ sm2235:
 | 14 | 60 mA |
 | 15 | 64 mA |
 
-<span id="sm2235-output"></span>
-
 ## Output
 
 The SM2235 output component exposes a SM2235 channel of a global
@@ -114,7 +112,7 @@ output:
 
 > [!NOTE]
 > This driver does support enabling of both the color and the white channels
-> at the same time, but it is not encourage. Therefore, the [Color Interlock](/components/light/rgbw#rgbw_color_interlock)
+> at the same time, but it is not encourage. Therefore, the [Color Interlock](/components/light/rgbw#color-interlock)
 > should be set to true when using this driver for safest operation.
 
 ## See Also

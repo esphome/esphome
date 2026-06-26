@@ -149,8 +149,6 @@ ble_client:
             accept: True
 ```
 
-<span id="ble_client-connect_action"></span>
-
 ## `ble_client.connect` Action
 
 This action is useful only for devices with `auto_connect: false` and allows a connection to be made from
@@ -191,14 +189,10 @@ Any actions after the `connect` action will proceed only after the connect succe
 fails the subsequent actions in the automation block will *not* be executed. This should be considered
 if scanning has been stopped - another mechanism may be required to restart it.
 
-<span id="ble_client-disconnect_action"></span>
-
 ## `ble_client.disconnect` Action
 
 This action disconnects a device that was connected with the `ble_client.connect` action.
 Execution of the automation block sequence resumes after the disconnect has completed.
-
-<span id="ble_client-ble_write_action"></span>
 
 ## `ble_client.ble_write` Action
 
@@ -241,8 +235,6 @@ switch:
 - **characteristic_uuid** (**Required**, UUID): UUID of the service's characteristic to write to.
 - **value** (**Required**, list of bytes, [templatable](/automations/templates)): The value to be written.
 
-<span id="ble_client-passkey_reply_action"></span>
-
 ## `ble_client.passkey_reply` Action
 
 This action triggers an authentication attempt using the specified `passkey`.
@@ -261,8 +253,6 @@ on_...:
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): ID of the associated BLE client.
 - **passkey** (**Required**, int, [templatable](/automations/templates)): The 6-digit passkey.
-
-<span id="ble_client-numeric_comparison_reply_action"></span>
 
 ## `ble_client.numeric_comparison_reply` Action
 
@@ -283,8 +273,6 @@ on_...:
 - **id** (**Required**, [ID](/guides/configuration-types#id)): ID of the associated BLE client.
 - **accept** (**Required**, boolean, [templatable](/automations/templates)): Should be `true` if the passkeys
   displayed on both BLE devices are matching.
-
-<span id="ble_client-remove_bond_action"></span>
 
 ## `ble_client.remove_bond` Action
 

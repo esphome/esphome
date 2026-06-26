@@ -35,7 +35,7 @@ Configuration variables:
 - **name** (*Optional*, string): The name for the valve. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and you want the valve
+> If you have a [friendly_name](/components/esphome#configuration-variables) set for your device and you want the valve
 > to use that name, you can set `name: None`.
 
 - **device_class** (*Optional*, string): The device class for the sensor. See
@@ -63,8 +63,6 @@ MQTT options:
 - **position_command_topic** (*Optional*, string): The topic to receive valve position commands on.
 - All other options from [MQTT Component](/components/mqtt#config-mqtt-component).
 
-<span id="valve-open_action"></span>
-
 ## `valve.open` Action
 
 This [action](/automations/actions#all-actions) opens the valve with the given ID when executed.
@@ -83,8 +81,6 @@ on_...:
 > call.set_command_open();
 > call.perform();
 > ```
-
-<span id="valve-close_action"></span>
 
 ## `valve.close` Action
 
@@ -105,8 +101,6 @@ on_...:
 > call.perform();
 > ```
 
-<span id="valve-stop_action"></span>
-
 ## `valve.stop` Action
 
 This [action](/automations/actions#all-actions) stops the valve with the given ID when executed.
@@ -125,8 +119,6 @@ on_...:
 > call.set_command_stop();
 > call.perform();
 > ```
-
-<span id="valve-toggle_action"></span>
 
 ## `valve.toggle` Action
 
@@ -147,8 +139,6 @@ on_...:
 > call.set_command_toggle();
 > call.perform();
 > ```
-
-<span id="valve-control_action"></span>
 
 ## `valve.control` Action
 
@@ -214,8 +204,6 @@ read-only, if you want to act on the valve, use the `make_call()` method as show
         }
 ```
 
-<span id="valve-on_open_trigger"></span>
-
 ### `valve.on_open` Trigger
 
 This trigger is activated each time the valve reaches a fully open state.
@@ -227,8 +215,6 @@ valve:
     on_open:
       - logger.log: "Valve is Open!"
 ```
-
-<span id="valve-on_closed_trigger"></span>
 
 ### `valve.on_closed` Trigger
 

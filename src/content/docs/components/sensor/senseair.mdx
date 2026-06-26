@@ -56,8 +56,6 @@ sensor:
 > [!NOTE]
 > `G+` should be connected to power supply (supported voltage is 4.5 V to 5.25 V), `G0` to `GND` pin
 
-<span id="senseair-background_calibration_action"></span>
-
 ## `senseair.background_calibration` Action
 
 This [action](/automations/actions#all-actions) initiates a background calibration on the sensor with the given ID: the current
@@ -69,8 +67,6 @@ on_...:
   then:
     - senseair.background_calibration: my_senseair_id
 ```
-
-<span id="senseair-background_calibration_result_action"></span>
 
 ## `senseair.background_calibration_result` Action
 
@@ -85,8 +81,6 @@ on_...:
     - senseair.background_calibration_result: my_senseair_id
 ```
 
-<span id="senseair-abc_get_period_action"></span>
-
 ## `senseair.abc_get_period` Action
 
 This [action](/automations/actions#all-actions) requests the currently configured ABC interval from the sensor with the given ID.
@@ -98,8 +92,6 @@ on_...:
     - senseair.abc_get_period: my_senseair_id
 ```
 
-<span id="senseair-abc_enable_action"></span>
-
 ## `senseair.abc_enable` Action
 
 This [action](/automations/actions#all-actions) enables Automatic Baseline Calibration on the sensor with the given ID.
@@ -110,8 +102,6 @@ on_...:
   then:
     - senseair.abc_enable: my_senseair_id
 ```
-
-<span id="senseair-abc_disable_action"></span>
 
 ## `senseair.abc_disable` Action
 

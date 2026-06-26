@@ -16,7 +16,7 @@ triggered in Home Assistant via automations.
 > [!NOTE]
 > Events in ESPHome are designed to trigger an action in Home Assistant, and have a unidirectional flow from ESPHome to Home Assistant.
 > Home Assistant event entities are different from events on event bus. If you just want to trigger an event on the
-> Home Assistant event bus, you should use a [Home Assistant event](/components/api#api-homeassistant_event_action) instead.
+> Home Assistant event bus, you should use a [Home Assistant event](/components/api#homeassistant-event-action) instead.
 
 > [!NOTE]
 > Home Assistant Core 2024.5 or higher is required for ESPHome event entities to work.
@@ -50,7 +50,7 @@ One of `id` or `name` is required.
 - **name** (*Optional*, string): The name for the event. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and
+> If you have a [friendly_name](/components/esphome#configuration-variables) set for your device and
 > you want the event to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the event in the frontend.
@@ -120,8 +120,6 @@ Configuration variables:
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the event.
 - **event_type** (**Required**, string, [templatable](/automations/templates)): The type of event to trigger.
-
-<span id="event-lambda_calls"></span>
 
 ### lambda Calls
 

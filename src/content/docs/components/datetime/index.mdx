@@ -35,7 +35,7 @@ Configuration variables:
 - **name** (*Optional*, string): The name for the datetime. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and
+> If you have a [friendly_name](/components/esphome#configuration-variables) set for your device and
 > you want the datetime to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the datetime in the frontend.
@@ -95,8 +95,6 @@ Configuration variables: See [Automation](/automations).
 
 ## Date Automation
 
-<span id="datetime-date_set_action"></span>
-
 ### `datetime.date.set` Action
 
 This is an [Action](/automations/actions#all-actions) for setting a datetime date state.
@@ -130,8 +128,6 @@ Configuration variables:
 - **date** (**Required**, string, date parts, [templatable](/automations/templates)):
   The value to set the datetime to.
 
-<span id="datetime-lambda_calls"></span>
-
 ### lambda calls
 
 From [lambdas](/automations/templates#config-lambda), you can call several methods on all datetimes to do some
@@ -160,8 +156,6 @@ advanced stuff (see the full API Reference for more info).
 ```
 
 ## Time Automation
-
-<span id="datetime-time_set_action"></span>
 
 ### `datetime.time.set` Action
 
@@ -196,8 +190,6 @@ Configuration variables:
 - **time** (**Required**, string, time parts, [templatable](/automations/templates)):
   The value to set the datetime to.
 
-<span id="datetime-time-lambda_calls"></span>
-
 ### lambda calls
 
 From [lambdas](/automations/templates#config-lambda), you can call several methods on all datetimes to do some
@@ -226,8 +218,6 @@ advanced stuff (see the full API Reference for more info).
 ```
 
 ## DateTime Automation
-
-<span id="datetime-datetime_set_action"></span>
 
 ### `datetime.datetime.set` Action
 
@@ -264,8 +254,6 @@ Configuration variables:
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the datetime to set.
 - **datetime** (**Required**, string, datetime parts, [templatable](/automations/templates)):
   The value to set the datetime to.
-
-<span id="datetime-datetime-lambda_calls"></span>
 
 ### Lambda calls
 

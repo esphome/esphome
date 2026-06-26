@@ -68,9 +68,9 @@ climate:
 - **switch_datapoint** (**Required**, int): The datapoint id number of the climate switch (device on/off).
 - **active_state** (*Optional*): Configuration for the Active State detection (or HVAC mode setting and reporting).
 
-  - **datapoint** (**Required**, int): The datapoint id number of the active state - [see below](#active_state_detection).
-  - **heating_value** (*Optional*, int): The active state datapoint value when in heating mode. Defaults to `1` - [see below](#active_state_detection).
-  - **cooling_value** (*Optional*, int): The active state datapoint value when in cooling mode - [see below](#active_state_detection).
+  - **datapoint** (**Required**, int): The datapoint id number of the active state - [see below](#active-state-detection).
+  - **heating_value** (*Optional*, int): The active state datapoint value when in heating mode. Defaults to `1` - [see below](#active-state-detection).
+  - **cooling_value** (*Optional*, int): The active state datapoint value when in cooling mode - [see below](#active-state-detection).
   - **drying_value** (*Optional*, int): The active state datapoint value when in drying mode.
   - **fanonly_value** (*Optional*, int): The active state datapoint value when in fan-only mode.
 - **preset** (*Optional*): Configuration for presets.
@@ -94,8 +94,8 @@ climate:
   - **medium_value** (*Optional*, int): The datapoint value the device reports when the fan is on `medium` speed.
   - **middle_value** (*Optional*, int): The datapoint value the device reports when the fan is on `middle` speed. (May set to device's `high` value if you have a `Turbo` option).
   - **high_value** (*Optional*, int): The datapoint value the device reports when the fan is on `high` speed. (Sometimes called `Turbo`  ).
-- **heating_state_pin** (*Optional*, [Pin](/guides/configuration-types#pin)): The input pin indicating that the device is heating - [see below](#active_state_detection). Only used if **active_state_datapoint** is not configured.
-- **cooling_state_pin** (*Optional*, [Pin](/guides/configuration-types#pin)): The input pin indicating that the device is cooling - [see below](#active_state_detection). Only used if **active_state_datapoint** is not configured.
+- **heating_state_pin** (*Optional*, [Pin](/guides/configuration-types#pin)): The input pin indicating that the device is heating - [see below](#active-state-detection). Only used if **active_state_datapoint** is not configured.
+- **cooling_state_pin** (*Optional*, [Pin](/guides/configuration-types#pin)): The input pin indicating that the device is cooling - [see below](#active-state-detection). Only used if **active_state_datapoint** is not configured.
 - **target_temperature_datapoint** (**Required**, int): The datapoint id number of the target temperature.
 - **current_temperature_datapoint** (**Required**, int): The datapoint id number of the current temperature.
 - **temperature_multiplier** (*Optional*, float): A multiplier to modify the incoming and outgoing temperature values - [see below](#temperature-multiplier).
@@ -109,8 +109,6 @@ If the device has different multipliers for current and target temperatures, **t
 
 - All other options from [Climate](/components/climate#config-climate).
 
-<span id="active_state_detection"></span>
-
 ## Active state detection
 
 Some Tuya climate devices don't have a data point for setting and reporting HVAC mode, they use a data point to report their active state (current action). In this case, you can just use the **active_state** configuration.
@@ -121,8 +119,6 @@ If none of the above variables are set, the active state is inferred from the di
 
 - If **supports_heat** is `True` and the current temperature is more than 1 °C below the target temperature, the device is expected to be heating.
 - If **supports_cool** is `True` and the current temperature is more than 1 °C above the target temperature, the device is expected to be cooling.
-
-<span id="temperature-multiplier"></span>
 
 ## Temperature multiplier
 

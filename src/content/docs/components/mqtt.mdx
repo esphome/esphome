@@ -42,7 +42,7 @@ mqtt:
   the MQTT session after disconnect. Defaults to `false`.
 
 - **client_id** (*Optional*, string): The client id to use for opening
-  connections. See [Defaults](#mqtt-defaults) for more information.
+  connections. See [Defaults](#defaults) for more information.
 
 - **discover_ip** (*Optional*, boolean): If Home Assistant automatic device
   discovery should be enabled. Defaults to `true`.
@@ -82,7 +82,7 @@ mqtt:
   The `log_topic` has an additional configuration option:
 
   - **level** (*Optional*, string): The log level to use for MQTT logs. See
-    [Log Levels](/components/logger#logger-log_levels) for options.
+    [Log Levels](/components/logger#log-levels) for options.
 
 - **birth_message** (*Optional*, [MQTTMessage](#mqtt-message)): The message to send when
   a connection to the broker is established. See [Last Will And Birth Messages](#mqtt-last_will_birth) for more information.
@@ -170,8 +170,6 @@ Configuration options:
 - **retain** (*Optional*, boolean): If the published message should
    have a retain flag on or not. Defaults to `true`.
 
-<span id="mqtt-device_discovery"></span>
-
 ## MQTT device discovery
 
 The ESPHome device will respond to the following MQTT topics if `mqtt.discover_ip` is enabled.
@@ -220,8 +218,6 @@ JSON keys:
 - **project_version** (*Optional*, string): `esphome.project.version`.
 - **project_version** (*Optional*, string): `dashboard_import.package_import_url`.
 - **api_encryption** (*Optional*, string): API encryption type.
-
-<span id="mqtt-using_device_discovery_with_home_assistant"></span>
 
 ## Using device discovery with Home Assistant
 
@@ -300,8 +296,6 @@ name part of the generated entity name. Setting `discovery_object_id_generator: 
 in the ESPHome MQTT component configuration will cause Home Assistant to include device name
 in the generated entity names (e.g. `sensor.uptime` becomes `sensor.<device name>_uptime`  ),
 making it easier to distinguish the entities in various entity lists.
-
-<span id="mqtt-defaults"></span>
 
 ## Defaults
 
@@ -658,8 +652,6 @@ mqtt:
 
 ## Actions
 
-<span id="mqtt-publish_action"></span>
-
 ### `mqtt.publish` Action
 
 Publish an MQTT message on a topic using this action in automations.
@@ -705,8 +697,6 @@ on_...:
 > ```cpp
 > id(mqtt_client).publish("the/topic", "The Payload");
 > ```
-
-<span id="mqtt-publish_json_action"></span>
 
 ### `mqtt.publish_json` Action
 
@@ -805,8 +795,6 @@ on_...:
 ```
 
 ## Conditions
-
-<span id="mqtt-connected_condition"></span>
 
 ### `mqtt.connected` Condition
 

@@ -75,7 +75,7 @@ sprinkler:
         valve_switch_id: lawn_sprinkler_valve_sw1
 ```
 
-Please see the [Controller Examples](#sprinkler-controller-examples) section below for extensive, detailed configuration
+Please see the [Controller Examples](#controller-examples) section below for extensive, detailed configuration
 examples that are ready for you to copy and paste!
 
 ## Configuration variables
@@ -184,7 +184,7 @@ examples that are ready for you to copy and paste!
     [GPIO switch](/components/switch/gpio/) wired to control a relay or other switching device which in turn would
     activate the respective pump/valve. For latching valves/pumps, use an [H-Bridge switch](/components/switch/hbridge/).
     *It is not recommended to expose this switch to the front end; please see*
-    [An Important Note about GPIO Switches and Control](#sprinkler-controller-an_important_note_about_gpio_switches_and_control)
+    [An Important Note about GPIO Switches and Control](#an-important-note-about-gpio-switches-and-control)
     *below for more detail.*
 
   - **run_duration_number** (*Optional*, *string*): The name of the [number](/components/number/) component
@@ -204,10 +204,8 @@ examples that are ready for you to copy and paste!
     system. Typically this would be a [GPIO switch](/components/switch/gpio/) wired to control a relay
     or other switching device which in turn would activate the respective valve. For latching valves, use an
     [H-Bridge switch](/components/switch/hbridge/). *It is not recommended to expose this switch to the front end; please see*
-    [An Important Note about GPIO Switches and Control](#sprinkler-controller-an_important_note_about_gpio_switches_and_control)
+    [An Important Note about GPIO Switches and Control](#an-important-note-about-gpio-switches-and-control)
     *below for more detail.*
-
-<span id="sprinkler-controller-an_important_note_about_gpio_switches_and_control"></span>
 
 ## An Important Note about GPIO Switches and Control
 
@@ -257,8 +255,6 @@ In summary, to ensure that your sprinkler controller consistently operates as ex
 
 These simple configuration tweaks will help prevent any number of errors (human, automation, or otherwise) and may help
 to avert disaster!
-
-<span id="sprinkler-controller-actions"></span>
 
 ## Controller Actions
 
@@ -513,14 +509,12 @@ on_...:
 > - The `start_single_valve` action ignores whether a valve is enabled via its enable switch.
 > - The `next_valve` and `previous_valve` actions may not appear to respond immediately if either
 >   `manual_selection_delay` or any of the various delay mechanisms described in the
->   [Pump and Distribution Valve Coordination](#sprinkler-controller-pump_and_distribution_valve_coordination) section below are configured.
+>   [Pump and Distribution Valve Coordination](#pump-and-distribution-valve-coordination) section below are configured.
 >   If you are using any of these configuration options, be sure to allow the delay intervals to elapse
 >   before assuming something isn't working!
 >
 > - If a valve is active when its `run_duration` or the multiplier value is changed, the active
 >   valve's run duration will remain unaffected until the next time it is started.
-
-<span id="sprinkler-controller-pump_and_distribution_valve_coordination"></span>
 
 ## Pump and Distribution Valve Coordination
 
@@ -596,8 +590,6 @@ valve/zone. In these situations, `pump_switch_off_during_valve_open_delay` may p
 with `valve_open_delay`.
 
 In any case, the examples in the next section illustrate how/where to add these options into your configuration.
-
-<span id="sprinkler-controller-examples"></span>
 
 ## Controller Examples
 
@@ -1102,8 +1094,6 @@ component's specific configuration details before you can use them.
 With these points in mind, let's discuss some of the methods which indicate the state of the sprinkler controller.
 We'll approach this from the angle of *"how do I..."*
 
-<span id="sprinkler-controller-sprinkler_controller_understanding_state_how_do_i"></span>
-
 ### How Do I
 
 - **...determine if the sprinkler controller is running?**
@@ -1134,7 +1124,7 @@ We'll approach this from the angle of *"how do I..."*
   Use the method `optional<size_t> paused_valve()` to check if there is a paused valve. If the `optional` returned
   `has_value()`, the sprinkler controller is paused and you may use the `value()` method to check which specific
   valve is paused. In general, this follows the same pattern as the
-  [active_valve() example above](#sprinkler-controller-sprinkler_controller_understanding_state_how_do_i).
+  [active_valve() example above](#how-do-i).
 
 - **...determine the sprinkler controller's current mode?**
 

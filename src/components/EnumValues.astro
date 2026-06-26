@@ -1,0 +1,78 @@
+---
+/**
+ * EnumValues Component
+ *
+ * Renders a list of enum values for a configuration option, in a single
+ * consistent style across the docs. Replaces hand-formatted bullet lists
+ * like:
+ *
+ *     - `ANY` (default): Trigger on any edge change (high to low or low to high)
+ *     - `RISING`: Trigger only on rising edge (low to high)
+ *
+ * The structured prop form means `script/schema_doc.py` can parse the
+ * value/description/default fields directly out of the MDX source — no
+ * fragile bullet-list regex required.
+ *
+ * Usage in MDX:
+ *
+ *   import EnumValues from "@components/EnumValues.astro";
+ *
+ *   <EnumValues values={[
+ *     { value: "ANY",     default: true,  description: "Trigger on any edge change (high to low or low to high)" },
+ *     { value: "RISING",  description: "Trigger only on rising edge (low to high)" },
+ *     { value: "FALLING", description: "Trigger only on falling edge (high to low)" },
+ *   ]} />
+ *
+ * Descriptions are rendered as plain text (no inline markdown). For values
+ * whose description needs markdown — links, inline code, emphasis — keep
+ * the bullet-list form for now.
+ */
+
+interface EnumValueItem {
+  value: string;
+  description?: string;
+  default?: boolean;
+}
+
+interface Props {
+  values: EnumValueItem[];
+}
+
+const { values } = Astro.props;
+---
+
+<ul class="enum-values">
+  {
+    values.map((item) => (
+      <li data-enum-value={item.value} data-default={item.default ? "true" : undefined}>
+        <code>{item.value}</code>
+        {item.default && (
+          <>
+            {" "}
+            <span class="enum-default">(default)</span>
+          </>
+        )}
+        {item.description && <>: {item.description}</>}
+      </li>
+    ))
+  }
+</ul>
+
+<style>
+  .enum-values {
+    /* Match the default Starlight unordered-list look so migrated pages
+       are visually indistinguishable from the bullet form. */
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+  }
+
+  .enum-values > li {
+    margin: 0.25rem 0;
+  }
+
+  .enum-default {
+    /* Same weight as surrounding text — matches the existing
+       `(default)` annotation, which is plain parenthesised text. */
+    color: var(--sl-color-gray-3);
+  }
+</style>

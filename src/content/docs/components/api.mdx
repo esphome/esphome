@@ -123,8 +123,6 @@ api:
 - **on_client_disconnected** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform when a client
   disconnects from the API. See [`on_client_disconnected` Trigger](#api-on_client_disconnected_trigger).
 
-<span id="api-actions"></span>
-
 ## Actions
 
 Before using any of the actions below, you'll need to tell Home Assistant to allow your device to
@@ -148,12 +146,10 @@ Then:
 
 1. Then click "submit"
 
-<span id="api-homeassistant_event_action"></span>
-
 ### `homeassistant.event` Action
 
 > [!NOTE]
-> Be sure to [follow the instructions above](#api-actions) to tell Home Assistant to allow
+> Be sure to [follow the instructions above](#actions) to tell Home Assistant to allow
 > your device to perform actions.
 
 When using the native API with Home Assistant, you can create events in the Home Assistant event bus
@@ -179,12 +175,10 @@ on_...:
 - **variables** (*Optional*, mapping): Optional variables that can be used in the `data_template`.
   Values are [lambdas](/automations/templates#config-lambda) and will be evaluated before sending the request.
 
-<span id="api-homeassistant_action-action"></span>
-
 ### `homeassistant.action` Action
 
 > [!NOTE]
-> Be sure to [follow the instructions above](#api-actions) to tell Home Assistant to allow
+> Be sure to [follow the instructions above](#actions) to tell Home Assistant to allow
 > your device to perform actions.
 
 When using the native API with Home Assistant, you can perform Home Assistant actions straight from ESPHome [Automations](/automations).
@@ -341,7 +335,7 @@ When `response_template` is used, the processed result is available in `response
 ### `homeassistant.tag_scanned` Action
 
 > [!NOTE]
-> Be sure to [follow the instructions above](#api-actions) to tell Home Assistant to allow
+> Be sure to [follow the instructions above](#actions) to tell Home Assistant to allow
 > your device to make action calls.
 
 When using the native API with Home Assistant, you can push tag_scanned to Home Assistant
@@ -397,8 +391,6 @@ api:
 ```
 
 ## Conditions
-
-<span id="api-connected_condition"></span>
 
 ### `api.connected` Condition
 

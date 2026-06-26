@@ -14,7 +14,7 @@ import APIRef from '@components/APIRef.astro';
 
 ADS1118 4-Channel 16-Bit A/D Converter ([datasheet](https://www.ti.com/lit/ds/symlink/ads1118.pdf))
 The `ads1118` domain creates a global hub so that you can later create
-individual sensors using the [ADS1118 Sensor Platform](#ads1118-sensor).
+individual sensors using the [ADS1118 Sensor Platform](#sensor).
 It uses the [SPI Bus](/components/spi) for communication.
 
 <Figure
@@ -34,8 +34,6 @@ ads1118:
 - **cs_pin** (**Required**, int): The SPI cable select pin to use.
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID for this ADS1118 Hub. Use this if you
   want to use multiple ADS1118 hubs at once.
-
-<span id="ads1118-sensor"></span>
 
 ## Sensor
 

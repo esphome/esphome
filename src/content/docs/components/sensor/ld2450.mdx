@@ -92,7 +92,7 @@ binary_sensor:
 
 > [!NOTE]
 > By default, each of the [Binary Sensor](/components/binary_sensor/) components above includes the
-> following [filter](/components/binary_sensor#binary_sensor-filters) by default to prevent flooding Home Assistant with state updates:
+> following [filter](/components/binary_sensor#binary-sensor-filters) by default to prevent flooding Home Assistant with state updates:
 >
 > ```yaml
 > - settle: 1000ms
@@ -223,7 +223,7 @@ sensor:
 
       All options from [Sensor](/components/sensor).
 
-- **zone_N** (*Optional*): Target count details in the defined [zones](#ld2450-number) (N = 1 to 3). A maximum of
+- **zone_N** (*Optional*): Target count details in the defined [zones](#number) (N = 1 to 3). A maximum of
   three zones: `zone_1`, `zone_2`, `zone_3`.
 
   - **target_count** (*Optional*, int): Total targets detected in the zone, whether they are stationary or in motion.
@@ -254,8 +254,6 @@ sensor:
 >
 > To remove the default filters for any given sensor instance, add `filters: []` to its configuration.
 
-<span id="ld2450-switch"></span>
-
 ## Switch
 
 The `ld2450` switch allows you to control your [Ld2450](/components/sensor/ld2450/) `Bluetooth` and `Multi/Single Target Tracking`.
@@ -282,8 +280,6 @@ switch:
 
 - **multi_target** (*Optional*): Turn on/off the Multi Target Tracking option. The initial state set based on the
   corresponding setting as read from LD2450 module at boot. All options from [Switch](/components/switch#config-switch).
-
-<span id="ld2450-number"></span>
 
 ## Number
 

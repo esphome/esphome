@@ -437,8 +437,6 @@ class Rect {
 
 With `is_clipping();` tells you if clipping is activated.
 
-<span id="config-color"></span>
-
 ### Color
 
 When using RGB-capable displays in ESPHome you may wish to use custom colors.
@@ -485,8 +483,6 @@ Configuration variables:
 - **hex** (*Optional*, string): The color in hexadecimal representation. Defaults to `FFFFFF`.
 
 RGB displays use red, green, and blue, while grayscale displays may use white.
-
-<span id="display-pages"></span>
 
 ### Display Pages
 
@@ -545,7 +541,7 @@ on_...:
 ```
 
 > [!NOTE]
-> To trigger a redraw right after the page show use a [component.update](/automations/actions#component-update_action)
+> To trigger a redraw right after the page show use a [component.update](/automations/actions#component-update-action)
 > action:
 >
 > ```yaml
@@ -556,8 +552,6 @@ on_...:
 >       - display.page.show_next: my_display
 >       - component.update: my_display
 > ```
-
-<span id="display-is_displaying_page-condition"></span>
 
 ### `display.is_displaying_page` Condition
 

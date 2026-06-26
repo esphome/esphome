@@ -29,7 +29,7 @@ Configuration variables:
 - **name** (*Optional*, string): The name for the sensor. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and
+> If you have a [friendly_name](/components/esphome#configuration-variables) set for your device and
 > you want the text sensor to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the sensor in the frontend.
@@ -61,8 +61,6 @@ Automations:
 
 - **on_raw_value** (*Optional*, [Automation](/automations)): An automation to perform
   when a new value is received that hasn't passed through any filters. See [`on_raw_value`](#text_sensor-on_raw_value).
-
-<span id="text_sensor-filters"></span>
 
 ## Text Sensor Filters
 
@@ -228,8 +226,6 @@ text_sensor:
 
 Configuration variables: See [Automation](/automations).
 
-<span id="text_sensor-state_condition"></span>
-
 ## `text_sensor.state` Condition
 
 This [Condition](/automations/actions#all-conditions) allows you to check if a given text sensor
@@ -259,8 +255,6 @@ Configuration variables:
 >   // do something
 > }
 > ```
-
-<span id="text_sensor-lambda_calls"></span>
 
 ### lambda calls
 

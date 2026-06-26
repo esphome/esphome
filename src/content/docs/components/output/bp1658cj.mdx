@@ -12,7 +12,7 @@ ESPHome. Communication is done with two GPIO pins (DATA and CLK).
 
 To use the channels of this components, you first need to setup the
 global `bp1658cj` hub and give it an id, and then define the
-[individual output channels](#bp1658cj-output).
+[individual output channels](#output).
 It is used in some smart light bulbs:
 
 - Orein OS0100411267 RGBCT Bulb
@@ -86,8 +86,6 @@ bp1658cj:
 | 14 | 140 mA |
 | 15 | 150 mA |
 
-<span id="bp1658cj-output"></span>
-
 ## Output
 
 The BP1658CJ output component exposes a BP1658CJ channel of a global
@@ -115,7 +113,7 @@ output:
 
 > [!NOTE]
 > This driver does support enabling of both the color and the white channels
-> at the same time, but it is not encourage. Therefore, the [Color Interlock](/components/light/rgbw#rgbw_color_interlock)
+> at the same time, but it is not encourage. Therefore, the [Color Interlock](/components/light/rgbw#color-interlock)
 > should be set to true when using this driver for safest operation.
 
 ## See Also

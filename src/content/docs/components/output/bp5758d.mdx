@@ -12,7 +12,7 @@ ESPHome. Communication is done with two GPIO pins (DATA and CLK).
 
 To use the channels of this components, you first need to setup the
 global `bp5758d` hub and give it an id, and then define the
-[individual output channels](#bp5758d-output).
+[individual output channels](#output).
 It is used in some smart light bulbs:
 
 - DoHome G25 Globe bulb
@@ -39,8 +39,6 @@ bp5758d:
 > the bulb is designed to handle, start with lower values
 > and increase slowly, comparing to a stock bulb to verify
 > what is safe for your model.
-
-<span id="bp5758d-output"></span>
 
 ## Output
 
@@ -71,7 +69,7 @@ output:
 
 > [!NOTE]
 > This driver does support enabling of both the color and the white channels
-> at the same time, but it is not encourage. Therefore, the [Color Interlock](/components/light/rgbw#rgbw_color_interlock)
+> at the same time, but it is not encourage. Therefore, the [Color Interlock](/components/light/rgbw#color-interlock)
 > should be set to true when using this driver for safest operation.
 
 ## See Also

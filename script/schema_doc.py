@@ -232,6 +232,15 @@ def md_get_next_config(lines, index):
 
         line = lines[index].strip()
 
+        # JSX block boundaries (e.g. <EnumValues …/>) terminate the
+        # current bullet — without this, the JSX opener gets absorbed as
+        # continuation text and the structured-enum walker downstream
+        # never sees the block.
+        if line.startswith("<EnumValues"):
+            if ret:
+                return index, ret, indent
+            return index, None, indent
+
         if line.startswith("- "):
             if ret:
                 return index, ret, indent
@@ -325,6 +334,75 @@ REGEX_PROP = r"^\*\*(\w+)\*\*(?: \((.*?)\))?: (.*)"  # **<group1>** (<group2>): 
 REGEX_ENUM1 = r"^`([^`]*)`(?:(?: -|:) (.*)|\s\((.*)\))?"
 REGEX_ENUM2 = r"^\*\*([^\*]*)\*\*(?:(?: -|:) (.*)|\s\((.*)\))?"
 REGEX_PROP_TITLE = r"^#+ `([^`]+)`(.*)"
+
+# <EnumValues values={[ {value: "X", default: true, description: "Y"}, … ]} />
+# The opener and closer must each sit on their own (possibly indented) line.
+# The schema_doc author convention forbids nested arrays/objects inside the
+# values prop, which keeps this parsable without a real JSX parser.
+REGEX_ENUM_VALUES_BLOCK = re.compile(
+    r"<EnumValues\s+values=\{(\[.*?\])\}\s*/>", re.DOTALL
+)
+
+
+def parse_enum_values_block(lines, index):
+    """Detect an ``<EnumValues …/>`` block at lines[index..] (after blanks).
+
+    Three return shapes — the caller MUST distinguish them by comparing
+    the returned index to the input ``index``:
+
+    * ``(index, None)``  — no block at this position; caller should fall
+      through to the bullet path.
+    * ``(end_index, entries)`` — block parsed successfully; caller should
+      apply the entries and advance ``index`` to ``end_index``.
+    * ``(end_index, None)`` where ``end_index > index`` — block detected
+      but malformed; the failure is already printed. Caller MUST still
+      advance ``index`` to ``end_index`` to avoid an infinite loop on the
+      same lines.
+
+    Entries: ``[{"value": str, "description"?: str, "default"?: bool}, …]``.
+    """
+    start = index
+    while start < len(lines) and not lines[start].strip():
+        start += 1
+    if start >= len(lines) or not lines[start].lstrip().startswith("<EnumValues"):
+        return index, None
+
+    end = start
+    while end < len(lines) and not lines[end].rstrip().endswith("/>"):
+        end += 1
+    if end >= len(lines):
+        # Unterminated — consume to EOF so the walker doesn't keep re-trying.
+        print(f"<EnumValues> at line {start + 1}: unterminated block")
+        return len(lines), None
+
+    try:
+        entries = _parse_enum_values_prop(lines[start : end + 1])
+    except ValueError as err:
+        print(f"<EnumValues> at line {start + 1}: {err}")
+        return end + 1, None
+    return end + 1, entries
+
+
+def _parse_enum_values_prop(block_lines):
+    """Parse the values={[…]} prop out of an already-located block.
+    Returns the entries list or raises ``ValueError`` on malformation."""
+    m = REGEX_ENUM_VALUES_BLOCK.search("\n".join(block_lines))
+    if not m:
+        raise ValueError('expected values={[ {value: "…", …}, … ]} />')
+    # JS object literal → JSON: quote the three allowed keys, strip
+    # trailing commas. Anything beyond that is an author mistake and
+    # json.loads will surface it.
+    body = re.sub(r"\b(value|description|default)\s*:", r'"\1":', m.group(1))
+    body = re.sub(r",(\s*[\]\}])", r"\1", body)
+    try:
+        entries = json.loads(body)
+    except json.JSONDecodeError as err:
+        raise ValueError(str(err)) from err
+    if not isinstance(entries, list) or any(
+        not isinstance(e, dict) or "value" not in e for e in entries
+    ):
+        raise ValueError("each entry needs a 'value'")
+    return entries
 
 
 def find_schema_prop(schema, prop_name):
@@ -591,6 +669,24 @@ def is_break_title(title):
     return False
 
 
+def _apply_enum_entries(matched_config, entries, md_file, index):
+    """Write parsed <EnumValues> entries into the matched enum config."""
+    values = matched_config.get("values", {})
+    for entry in entries:
+        enum_value = entry["value"]
+        if enum_value not in values:
+            continue
+        values[enum_value] = values.get(enum_value) or {}
+        description = entry.get("description")
+        if description:
+            values[enum_value][JSON_DOCS] = convert_links(
+                md_file, index, description
+            )
+        if entry.get("default"):
+            values[enum_value]["default"] = True
+        stats.enum_docs += 1
+
+
 def process_schema(
     md_file,
     lines,
@@ -610,6 +706,29 @@ def process_schema(
                 return index
             else:
                 index += 1
+        # An <EnumValues> block must be handled (or at least skipped) here
+        # — md_get_next_config treats <EnumValues lines as bullet
+        # boundaries without consuming them, so falling through would
+        # loop forever on the same line. parse_enum_values_block returns
+        # an advanced index even on malformation, so any detected block
+        # is consumed regardless of whether it had a valid enum to attach
+        # to.
+        jsx_end, jsx_entries = parse_enum_values_block(lines, index)
+        if jsx_end != index:
+            if jsx_entries is None:
+                pass  # malformed — already reported by the parser
+            elif (
+                matched_config is not None
+                and matched_config.get(JSON_CV_TYPE) == "enum"
+            ):
+                _apply_enum_entries(matched_config, jsx_entries, md_file, index)
+            else:
+                print(
+                    f"{md_file}:{index + 1} <EnumValues> with no preceding "
+                    "enum prop — skipped"
+                )
+            index = jsx_end
+            continue
         prev_index = index
         index, item_config, item_indent = md_get_next_config(lines, index)
         if index >= len(lines):

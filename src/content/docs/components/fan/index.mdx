@@ -33,7 +33,7 @@ Configuration variables:
 - **name** (*Optional*, string): The name of the fan. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and
+> If you have a [friendly_name](/components/esphome#configuration-variables) set for your device and
 > you want the fan to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the fan in the frontend.
@@ -93,7 +93,7 @@ MQTT options:
 Automation triggers:
 
 - **on_state** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform
-  when the fan state is changed. See [`fan.on_state` Trigger](#fan-on_state_trigger).
+  when the fan state is changed. See [`fan.on_state` Trigger](#fan-on_state-trigger).
 
 - **on_turn_on** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform
   when the fan is turned on. See [`fan.on_turn_on` / `fan.on_turn_off` Trigger](#fan-on_turn_on_off_trigger).
@@ -102,18 +102,16 @@ Automation triggers:
   when the fan is turned off. See [`fan.on_turn_on` / `fan.on_turn_off` Trigger](#fan-on_turn_on_off_trigger).
 
 - **on_direction_set** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform
-  when the fan direction is changed. See [`fan.on_direction_set` Trigger](#fan-on_direction_set_trigger).
+  when the fan direction is changed. See [`fan.on_direction_set` Trigger](#fan-on_direction_set-trigger).
 
 - **on_oscillating_set** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform
-  when the fan oscillating state is changed. See [`fan.on_oscillating_set` Trigger](#fan-on_oscillating_set_trigger).
+  when the fan oscillating state is changed. See [`fan.on_oscillating_set` Trigger](#fan-on_oscillating_set-trigger).
 
 - **on_speed_set** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform
-  when the fan speed is changed. See [`fan.on_speed_set` Trigger](#fan-on_speed_set_trigger).
+  when the fan speed is changed. See [`fan.on_speed_set` Trigger](#fan-on_speed_set-trigger).
 
 - **on_preset_set** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform
-  when the fan preset mode is changed. See [`fan.on_preset_set` Trigger](#fan-on_preset_set_trigger).
-
-<span id="fan-toggle_action"></span>
+  when the fan preset mode is changed. See [`fan.on_preset_set` Trigger](#fan-on_preset_set-trigger).
 
 ## `fan.toggle` Action
 
@@ -125,8 +123,6 @@ on_...:
     - fan.toggle: fan_1
 ```
 
-<span id="fan-turn_off_action"></span>
-
 ## `fan.turn_off` Action
 
 Turns the fan with the given ID off when executed.
@@ -136,8 +132,6 @@ on_...:
   then:
     - fan.turn_off: fan_1
 ```
-
-<span id="fan-turn_on_action"></span>
 
 ## `fan.turn_on` Action
 
@@ -163,8 +157,6 @@ Configuration options:
 
 - **direction** (*Optional*, string, [templatable](/automations/templates)):
   Set the direction of the fan. Can be either `forward` or `reverse`. Defaults to not changing the direction.
-
-<span id="fan-cycle_speed_action"></span>
 
 ## `fan.cycle_speed` Action
 
@@ -203,8 +195,6 @@ on_...:
     - script.execute: my_script
 ```
 
-<span id="fan-on_state_trigger"></span>
-
 ## `fan.on_state` Trigger
 
 This trigger is activated each time the fan state is changed. It will fire when the state is either set via API e.g. in Home Assistant or locally by an automation or a lambda function.
@@ -237,8 +227,6 @@ fan:
     - logger.log: "Fan Turned Off!"
 ```
 
-<span id="fan-on_direction_set_trigger"></span>
-
 ## `fan.on_direction_set` Trigger
 
 This trigger is activated each time the fan direction is changed. It will fire when the direction is either set via API e.g. in Home Assistant or locally by an automation or a lambda function.
@@ -253,8 +241,6 @@ fan:
         format: "Fan Direction was changed to %s!"
         args: [ 'x == FanDirection::FORWARD ? "FORWARD" : "REVERSE"' ]
 ```
-
-<span id="fan-on_oscillating_set_trigger"></span>
 
 ## `fan.on_oscillating_set` Trigger
 
@@ -271,8 +257,6 @@ fan:
         args: [ ONOFF(x) ]
 ```
 
-<span id="fan-on_speed_set_trigger"></span>
-
 ## `fan.on_speed_set` Trigger
 
 This trigger is activated each time the fan speed is changed. It will fire when the speed is either set via API e.g. in Home Assistant or locally by an automation or a lambda function.
@@ -287,8 +271,6 @@ fan:
         format: "Fan Speed was changed to %d!"
         args: [ x ]
 ```
-
-<span id="fan-on_preset_set_trigger"></span>
 
 ## `fan.on_preset_set` Trigger
 

@@ -30,7 +30,7 @@ Configuration variables:
 - **name** (*Optional*, string): The name for the water heater. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and you want the water heater
+> If you have a [friendly_name](/components/esphome#configuration-variables) set for your device and you want the water heater
 > to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the water heater in the frontend.
@@ -67,8 +67,6 @@ MQTT options:
 - **target_temperature_state_topic** (*Optional*, string): The topic to publish target temperature state changes to.
 - All other options from [MQTT Component](/components/mqtt#config-mqtt-component).
 
-<span id="water-heater-control_action"></span>
-
 ## `water_heater.control` Action
 
 This [action](/automations/actions#all-actions) allows you to set the operation mode and/or target temperature of the water heater.
@@ -97,8 +95,6 @@ Configuration variables:
 > call.set_target_temperature(65.0);
 > call.perform();
 > ```
-
-<span id="water-heater-modes"></span>
 
 ## Water Heater Modes
 

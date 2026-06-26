@@ -264,7 +264,7 @@ If you *still* can't get it to work, you might want to revisit
 That's no good. Here are some steps that resolve some problems:
 
 - **If you're having Wi-Fi problems**: See [My node keeps reconnecting randomly](#wifi-problems).
-- [Enable verbose logs](/components/logger#logger-log_levels) in your ESPHome device's `logger:` section.
+- [Enable verbose logs](/components/logger#log-levels) in your ESPHome device's `logger:` section.
 - **If your device is crashing**: See the [Troubleshooting](/guides/troubleshooting/) guide for how to get a backtrace.
 - **Still seeing an error?** Check if there is a known issue in the
   [ESPHome issue tracker](https://github.com/esphome/esphome/issues). If not, you can create a new issue to describe
@@ -290,7 +290,7 @@ If you want the issue you're experiencing to be fixed quickly:
   Please read [How to create a Minimal, Complete, and Verifiable example](https://stackoverflow.com/help/mcve).
 
 - If it's a hardware communication issue (such as with an I²C or SPI device), try setting the
-  [log level](/components/logger#logger-log_levels) to `VERY_VERBOSE` as it may provide better insight into what is going on.
+  [log level](/components/logger#log-levels) to `VERY_VERBOSE` as it may provide better insight into what is going on.
 
 - Please describe what troubleshooting steps you've already tried as that may also help us track down the issue.
 
@@ -406,7 +406,7 @@ Here are some steps that may help mitigate the issue:
 
 - Give your ESPHome device a [static IP](/components/wifi#wifi-manual_ip).
 - Set the `power_save_mode` to `light` in your `wifi:` configuration. Note, however, that this may exacerbate the
-  problem in some situations. See [Power Save Mode](/components/wifi#wifi-power_save_mode).
+  problem in some situations. See [Power Save Mode](/components/wifi#power-save-mode).
 
 - The issue seems to happen with "cheap" boards more frequently -- especially the "cheap" NodeMCU boards from eBay
   which sometimes have bad antennas.
@@ -437,8 +437,6 @@ Here are some steps that may help mitigate the issue:
   reliability and responsiveness. This will cause Wi-Fi devices in power save mode to wake up more frequently. This
   may mitigate disconnections at the expense of increasing power (and possibly battery) usage of other devices also
   using power save modes.
-
-<span id="brownout-detector-was-triggered"></span>
 
 ## "Brownout detector was triggered"
 
@@ -575,8 +573,6 @@ services:
 > `-e ESPHOME_DASHBOARD_USE_PING=true`
 >
 > See also [https://github.com/esphome/issues/issues/641#issuecomment-534156628](https://github.com/esphome/issues/issues/641#issuecomment-534156628).
-
-<span id="faq-notes_on_disabling_mdns"></span>
 
 ## Notes on disabling mDNS
 

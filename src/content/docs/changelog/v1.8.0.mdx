@@ -130,11 +130,11 @@ Plus I want to put an extra focus on reviewing PRs so that code submitters don't
 - Fixed gas resistance readings from BME680s
 - Fixed HTU21D readings only working in very verbose mode
 - Sometimes the ESP would create a WiFi hotspot even though it was not configured to do so. That should be fixed now.
-- You can now also have conditional actions. See [`if` Action](/automations/actions#if_action).
+- You can now also have conditional actions. See [`if` Action](/automations/actions#if-action).
 - The esphomeyaml dashboard and Hass.io add-on now can be configured with a password.
 - Fixed YAML anchors not working (you can now prefix keys with `.` to make esphomeyaml ignore them)
 - Made Dallas and DHT temperature sensor a bit more reliable by making the code a bit more efficient and thus resolving some timing issues.
-- A `heartbeat` filter has been added to [binary sensors](/components/binary_sensor#binary_sensor-filters).
+- A `heartbeat` filter has been added to [binary sensors](/components/binary_sensor#binary-sensor-filters).
 - The [`on_loop`](/components/esphome#esphome-on_loop) trigger has been added.
 - esphomeyaml now know about more ESP8266/ESP32 boards, so now you can use the board-specific pin
   names with even more board types.

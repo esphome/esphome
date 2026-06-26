@@ -43,7 +43,7 @@ Configuration variables:
 - **name** (*Optional*, string): The name for the button. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and
+> If you have a [friendly_name](/components/esphome#configuration-variables) set for your device and
 > you want the button to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the button in the frontend.
@@ -92,8 +92,6 @@ button:
 
 Configuration variables: see [Automation](/automations).
 
-<span id="button-press_action"></span>
-
 ### `button.press` Action
 
 This is an [Action](/automations/actions#all-actions) for pressing a button in an Automation.
@@ -110,9 +108,7 @@ Configuration variables:
 > Buttons are designed to trigger an action on a device from Home Assistant, and have an unidirectional flow from
 > Home Assistant to ESPHome. If you press a button using this action, no button press event will be triggered in Home
 > Assistant. If you want to trigger an automation in Home Assistant, you should use a
-> [Home Assistant event](/components/api#api-homeassistant_event_action) instead.
-
-<span id="button-lambda_calls"></span>
+> [Home Assistant event](/components/api#homeassistant-event-action) instead.
 
 ### lambda calls
 

@@ -20,7 +20,7 @@ It is used in some smart light bulbs:
 
 To use the channels of this components, you first need to setup the
 global `sm2135` hub and give it an id, and then define the
-[individual output channels](#sm2135-output).
+[individual output channels](#output).
 
 ```yaml
 # Example configuration entry
@@ -50,8 +50,6 @@ sm2135:
 - **separate_modes** (*Optional*, bool): Use separate RGB/CW modes instead of writing all 5 values as RGB.
   Defaults to `true`, keep it at `true` if your SM2135 chip variant does not support simultaneous CW and RGB modes (e.g. SM2135E).
   Set this to `false` when your SM2135 chip variant supports having CW and RGB leds on at the same time (e.g. SM2135EH/SM2135EJ).
-
-<span id="sm2135-output"></span>
 
 ## Output
 
@@ -104,7 +102,7 @@ output:
 
 > [!NOTE]
 > This driver does not support enabling of both the color and the white channels
-> at the same time. Therefore, the [Color Interlock](/components/light/rgbw#rgbw_color_interlock) should be set to true
+> at the same time. Therefore, the [Color Interlock](/components/light/rgbw#color-interlock) should be set to true
 > when using this driver.
 
 ## See Also

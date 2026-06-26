@@ -12,6 +12,7 @@ jobs:
     name: Prepare
     permissions:
       issues: write
+      pull-requests: write
     if: >-
       github.event.issue.pull_request &&
       startsWith(github.event.comment.body, '@esphomebot generate image') &&
@@ -33,12 +34,15 @@ jobs:
           # Extract component name using bash parameter expansion (no external commands)
           component="${COMMENT_BODY#@esphomebot generate image }"
 
-          # Validate component name: only lowercase alphanumeric and underscores
-          if [[ "$component" =~ ^[a-z0-9_]+$ ]]; then
+          # Validate component name: letters (any case), numbers, and underscores.
+          # A few component paths use mixed case (e.g. /components/mcp23Sxx/), so the
+          # requested name must be allowed to carry uppercase letters. The filename is
+          # always lowercased separately below (name_lower).
+          if [[ "$component" =~ ^[A-Za-z0-9_]+$ ]]; then
             echo "name=$component" >> $GITHUB_OUTPUT
             echo "name_lower=${component,,}" >> $GITHUB_OUTPUT
           else
-            echo "::error::Invalid component name. Must contain only lowercase letters, numbers, and underscores."
+            echo "::error::Invalid component name. Must contain only letters, numbers, and underscores."
             exit 1
           fi
 
@@ -54,7 +58,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `@${context.actor} Invalid component name. Use lowercase letters, numbers, ` +
+              body: `@${context.actor} Invalid component name. Use letters, numbers, ` +
                 'and underscores only (e.g. `bme280`, `sht3x`, `dallas_temp`).'
             })
 
@@ -77,7 +81,7 @@ jobs:
     name: Generate
     permissions:
       issues: write
-      pull-requests: read
+      pull-requests: write
       contents: read
     if: >-
       github.event.issue.pull_request &&
@@ -171,9 +175,9 @@ jobs:
             const path = 'src/content/docs/components/index.mdx';
             const name = process.env.COMPONENT;
             const img = process.env.IMG;
-            // Component name is validated to [a-z0-9_]+, so it is safe in a regex.
+            // Component name is validated to [A-Za-z0-9_]+, so it is safe in a regex.
             // Match case-insensitively: a few index paths use mixed case (e.g.
-            // /components/mcp23Sxx/) while the requested name is always lowercase.
+            // /components/mcp23Sxx/) and the requested name may also carry mixed case.
             const re = new RegExp('("/components/' + name + '/",\\s*")[^"]*(")', 'gi');
             let count = 0;
             const updated = fs.readFileSync(path, 'utf8')

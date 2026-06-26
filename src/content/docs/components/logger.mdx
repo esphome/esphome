@@ -13,7 +13,7 @@ configuration). By default, all logs with a severity `DEBUG` or higher will be s
 Increasing the log level severity (to e.g `INFO` or `WARN`  ) can help with the performance of the application and memory size.
 
 > [!NOTE]
-> The "severity" of a log message represents the importance of the message, i.e. how critical it is. The severity levels are defined in the [log levels](#logger-log_levels) section.
+> The "severity" of a log message represents the importance of the message, i.e. how critical it is. The severity levels are defined in the [log levels](#log-levels) section.
 
 ```yaml
 # Example configuration entry
@@ -50,7 +50,7 @@ Advanced settings:
    Set to `0` to disable the log buffer. Defaults to `768B`.
 
 - **hardware_uart** (*Optional*, string): The Hardware UART to use for logging. The default varies depending on
-   the specific processor/chip and framework you are using. See the [table below](#logger-default_hardware_interfaces).
+   the specific processor/chip and framework you are using. See the [table below](#default-hardware-interfaces).
 
 - **esp8266_store_log_strings_in_flash** (*Optional*, boolean): **ESP8266 only.** Compile-time
    setting for where log format strings live. When `true` (default), they stay in flash via
@@ -77,8 +77,6 @@ Advanced settings:
 
 - **early_message** (*Optional*, boolean): Displays early debug information, such as the boot reason.
    Only on nRF52.
-
-<span id="logger-hardware_uarts"></span>
 
 ## Hardware UARTs
 
@@ -107,8 +105,6 @@ so if you use any other configuration you will not get log messages over the on-
 
 *Undefined* means that the logger component cannot use this hardware UART at this time.
 
-<span id="logger-default_hardware_interfaces"></span>
-
 ## Default Hardware Interfaces
 
 Because of the wide variety of boards and processors/chips available, we've selected varying default
@@ -129,8 +125,6 @@ the original ESP32 or ESP8266) continue to use USB-to-serial bridge ICs for comm
 | ESP32-S3  | `USB_SERIAL_JTAG` |
 | RP2040    | `USB_CDC`         |
 | NRF52     | `USB_CDC`         |
-
-<span id="logger-log_levels"></span>
 
 ## Log Levels
 
@@ -207,8 +201,6 @@ logger:
 Here, `VERBOSE` logs are compiled, but not shown (because of `initial_level: ERROR`)
 However, the `wifi` tag has `VERBOSE` level enabled, and shown.
 
-<span id="logger-log_action"></span>
-
 ## `logger.log` Action
 
 Print a formatted message to the logs.
@@ -232,7 +224,7 @@ Configuration options:
 - **args** (*Optional*, list of [lambda](/automations/templates#config-lambda)): The optional arguments for the
    format message.
 
-- **level** (*Optional*, string): The [log level](#logger-log_levels) to print the message
+- **level** (*Optional*, string): The [log level](#log-levels) to print the message
    with. Defaults to `DEBUG`.
 
 - **tag** (*Optional*, string): The tag (seen in front of the message in the logs) to print the message
@@ -283,7 +275,7 @@ logger:
 ```
 
 > [!NOTE]
-> Logging will not work in the `on_message` trigger. You can't use the [logger.log](#logger-log_action) action
+> Logging will not work in the `on_message` trigger. You can't use the [logger.log](#logger-log-action) action
 > and the `ESP_LOGx` logging macros in this automation.
 
 ## See Also

@@ -21,7 +21,7 @@ An [I²C](/components/i2c) bus must be defined within your device's ESPHome conf
 ESPHome supports both card/tag reading/writing as well as card/tag emulation with this component. By default,
 only read/write mode is enabled; card/tag emulation is enabled only if the `emulation_message` configuration
 variable is defined (see below). Regardless, reader/writer (polling) mode and card/tag emulation mode may be
-independently enabled and disabled by using the corresponding [Actions](#pn7150-actions) (see below).
+independently enabled and disabled by using the corresponding [Actions](#actions) (see below).
 
 In addition, the [Nfc](/components/binary_sensor/nfc/) platform may be used to quickly and easily identify tags presented to the reader.
 
@@ -63,8 +63,6 @@ pn7150_i2c:
   to use multiple I²C buses.
 
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID for this component.
-
-<span id="pn7150-actions"></span>
 
 ## Actions
 
@@ -227,7 +225,7 @@ message (if one is present).
 The parameter `x` this trigger provides is of type `std::string` and is the tag UID in the format
 `74-10-37-94`. The example configuration below will publish the tag ID on the MQTT topic `pn7150/tag`.
 
-See [NDEF Reading](#pn7150-ndef_reading) below for how to use the second `tag` parameter that is provided to this trigger.
+See [NDEF Reading](#ndef-reading) below for how to use the second `tag` parameter that is provided to this trigger.
 
 ```yaml
 pn7150_i2c:
@@ -303,13 +301,9 @@ pn7150_i2c:
       - rtttl.play: "alert:d=32,o=5,b=160:e6,p,e6,p,e6"
 ```
 
-<span id="pn7150-ndef"></span>
-
 ## NDEF
 
 The PN7150 supports reading NDEF messages from and writing NDEF messages to cards/tags.
-
-<span id="pn7150-ndef_reading"></span>
 
 ### NDEF Reading
 
@@ -326,8 +320,6 @@ pn7150_i2c:
     then:
       - homeassistant.tag_scanned: !lambda "return tag.has_ha_tag_id() ? tag.get_ha_tag_id() : x;"
 ```
-
-<span id="pn7150-ndef_writing"></span>
 
 ### NDEF Writing
 

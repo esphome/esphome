@@ -100,8 +100,8 @@ The following configuration variables apply to the main `lvgl` component, in ord
 - **displays** (*Optional*, list, [ID](/guides/configuration-types#id)): A list of display IDs where LVGL should perform rendering based on its configuration. This may be omitted if there is a single display configured, which will be used automatically.
 - **touchscreens** (*Optional*, list): A list of touchscreens interacting with the LVGL widgets on the display. If you configure a single touchscreen it will be used automatically, and this config entry will not be required.
   - **touchscreen_id** (**Required**, [ID](/guides/configuration-types#id)): ID of a touchscreen configuration related to a display.
-  - **long_press_time** (*Optional*, [Time](/guides/configuration-types#time)): For the touchscreen, delay after which the `on_long_pressed` [interaction trigger](/components/lvgl/widgets#lvgl-automation-triggers) will be called. Defaults to `400ms`.
-  - **long_press_repeat_time** (*Optional*, [Time](/guides/configuration-types#time)): For the touchscreen, repeated interval after `long_press_time`, when `on_long_pressed_repeat` [interaction trigger](/components/lvgl/widgets#lvgl-automation-triggers) will be called. Defaults to `100ms`.
+  - **long_press_time** (*Optional*, [Time](/guides/configuration-types#time)): For the touchscreen, delay after which the `on_long_pressed` [interaction trigger](/components/lvgl/widgets#triggers) will be called. Defaults to `400ms`.
+  - **long_press_repeat_time** (*Optional*, [Time](/guides/configuration-types#time)): For the touchscreen, repeated interval after `long_press_time`, when `on_long_pressed_repeat` [interaction trigger](/components/lvgl/widgets#triggers) will be called. Defaults to `100ms`.
 - **encoders** (*Optional*, list): A list of rotary encoders interacting with the LVGL widgets on the display.
   - **group** (*Optional*, string): A name for a group of widgets which will interact with the input device. See the [common properties](/components/lvgl/widgets/) of the widgets for more information on groups.
   - **initial_focus** (*Optional*, [ID](/guides/configuration-types#id)): An optional ID for a widget to be given focus on startup (especially useful if there is only one focusable widget.)
@@ -109,8 +109,8 @@ The following configuration variables apply to the main `lvgl` component, in ord
   - **sensor** (*Optional*, [ID](/guides/configuration-types#id)): The ID of a [Rotary Encoder](/components/sensor/rotary_encoder/); or a list with buttons for left/right interaction with the widgets:
     - **left_button** (*Optional*, [ID](/guides/configuration-types#id)): The ID of a [Binary Sensor](/components/binary_sensor/), to be used as `LEFT` key.
     - **right_button** (*Optional*, [ID](/guides/configuration-types#id)): The ID of a [Binary Sensor](/components/binary_sensor/), to be used as `RIGHT` key.
-  - **long_press_time** (*Optional*, [Time](/guides/configuration-types#time)): For the rotary encoder, delay after which the `on_long_pressed` [interaction trigger](/components/lvgl/widgets#lvgl-automation-triggers) will be called. Defaults to `400ms`. Can be disabled with `never`.
-  - **long_press_repeat_time** (*Optional*, [Time](/guides/configuration-types#time)): For the rotary encoder, repeated interval after `long_press_time`, when `on_long_pressed_repeat` [interaction trigger](/components/lvgl/widgets#lvgl-automation-triggers) will be called. Defaults to `100ms`. Can be disabled with `never`.
+  - **long_press_time** (*Optional*, [Time](/guides/configuration-types#time)): For the rotary encoder, delay after which the `on_long_pressed` [interaction trigger](/components/lvgl/widgets#triggers) will be called. Defaults to `400ms`. Can be disabled with `never`.
+  - **long_press_repeat_time** (*Optional*, [Time](/guides/configuration-types#time)): For the rotary encoder, repeated interval after `long_press_time`, when `on_long_pressed_repeat` [interaction trigger](/components/lvgl/widgets#triggers) will be called. Defaults to `100ms`. Can be disabled with `never`.
 - **rotary_sensitivity** (*Optional*, int16): Adjust sensitivity for rotary encoders in 1/256 unit. For example with 128 slow down the rotary to half, 512 speeds up to double, 256 no change.
 - **keypads** (*Optional*, list): A list of keypads interacting with the LVGL widgets on the display.
   - **group** (*Optional*, string): A name for a group of widgets which will interact with the input device. See the [common properties](/components/lvgl/widgets/) of the widgets for more information on groups.
@@ -126,11 +126,11 @@ The following configuration variables apply to the main `lvgl` component, in ord
   - **prev** (*Optional*, [ID](/guides/configuration-types#id)): The ID of a [Binary Sensor](/components/binary_sensor/), to be used as `PREV` key.
   - **home** (*Optional*, [ID](/guides/configuration-types#id)): The ID of a [Binary Sensor](/components/binary_sensor/), to be used as `HOME` key.
   - **end** (*Optional*, [ID](/guides/configuration-types#id)): The ID of a [Binary Sensor](/components/binary_sensor/), to be used as `END` key.
-  - **long_press_time** (*Optional*, [Time](/guides/configuration-types#time)): For the keypad, delay after which the `on_long_pressed` [interaction trigger](/components/lvgl/widgets#lvgl-automation-triggers) will be called. Defaults to `400ms`. Can be disabled with `never`.
-  - **long_press_repeat_time** (*Optional*, [Time](/guides/configuration-types#time)): For the keypad, repeated interval after `long_press_time`, when `on_long_pressed_repeat` [interaction trigger](/components/lvgl/widgets#lvgl-automation-triggers) will be called. Defaults to `100ms`. Can be disabled with `never`.
+  - **long_press_time** (*Optional*, [Time](/guides/configuration-types#time)): For the keypad, delay after which the `on_long_pressed` [interaction trigger](/components/lvgl/widgets#triggers) will be called. Defaults to `400ms`. Can be disabled with `never`.
+  - **long_press_repeat_time** (*Optional*, [Time](/guides/configuration-types#time)): For the keypad, repeated interval after `long_press_time`, when `on_long_pressed_repeat` [interaction trigger](/components/lvgl/widgets#triggers) will be called. Defaults to `100ms`. Can be disabled with `never`.
 
 > [!TIP]
-> When using binary sensors (from physical keys) to interact with LVGL, if there are only three keys available, they are best used when configured as a rotary encoder, where `LEFT` and `RIGHT` act like the rotary wheel, and `ENTER` generates an `on_press` [trigger](/components/lvgl/widgets#lvgl-automation-triggers). With four or more keys, a keypad configuration is generally more appropriate. For example, a keypad consisting of five keys might use `PREV`, `NEXT`, `UP`, `DOWN` and `ENTER`  ; `PREV`  /`NEXT` are used to select a widget within the group, `UP`  /`DOWN` changes the selected value and `ENTER` generates an `on_press` [trigger](/components/lvgl/widgets#lvgl-automation-triggers).
+> When using binary sensors (from physical keys) to interact with LVGL, if there are only three keys available, they are best used when configured as a rotary encoder, where `LEFT` and `RIGHT` act like the rotary wheel, and `ENTER` generates an `on_press` [trigger](/components/lvgl/widgets#triggers). With four or more keys, a keypad configuration is generally more appropriate. For example, a keypad consisting of five keys might use `PREV`, `NEXT`, `UP`, `DOWN` and `ENTER`  ; `PREV`  /`NEXT` are used to select a widget within the group, `UP`  /`DOWN` changes the selected value and `ENTER` generates an `on_press` [trigger](/components/lvgl/widgets#triggers).
 >
 > The `long_press_time` and `long_press_repeat_time` can be fine-tuned also by setting them to `never` and using the `autorepeat` filter on each binary sensor separately.
 
@@ -154,9 +154,9 @@ The following configuration variables apply to the main `lvgl` component, in ord
 - **draw_rounding** (*Optional*, int): An optional value to use for rounding draw areas to a specified boundary. Defaults to 2. Useful for displays that require draw windows to be on specified boundaries (usually powers of 2.)
 - **log_level** (*Optional*, string): Set the logger level specifically for the messages of the LVGL library: `VERBOSE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `NONE`. Defaults to `WARN`.
 - **byte_order** (*Optional*, string): The byte order of the data LVGL outputs; either `big_endian` or `little_endian`. Will try to auto-configure based on the display metadata. Defaults to `big_endian` if the display driver does not supply the information.
-- **default_font** (*Optional*, ID): The ID of the [font](#lvgl-fonts) used by default to render the text or symbols. Defaults to LVGL's internal `montserrat_14` if not specified.
+- **default_font** (*Optional*, ID): The ID of the [font](#fonts) used by default to render the text or symbols. Defaults to LVGL's internal `montserrat_14` if not specified.
 - **style_definitions** (*Optional*, list): A batch of style definitions to use in LVGL widget's `styles` configuration. See [below](#lvgl-theme) for more details.
-- **gradients** (*Optional*, list): A list of gradient definitions to use in *bg_grad* styles. See [below](#lvgl-gradients) for more details.
+- **gradients** (*Optional*, list): A list of gradient definitions to use in *bg_grad* styles. See [below](#gradients) for more details.
 - **theme** (*Optional*, dict): Theme configuration. Supports `dark_mode` and per-widget style defaults. See [below](#lvgl-theme) for more details.
 - **widgets** (*Optional*, list): A list of [Widgets](/components/lvgl/widgets/) to be drawn on the root display. May not be used if `pages` (below) is configured.
 - **pages** (*Optional*, list): A list of page IDs. Each page acts as a parent for widgets placed on it. May not be used with `widgets` (above). Options for each page:
@@ -245,7 +245,7 @@ which will reduce performance. On ESP32P4 the software rotation is hardware acce
 
 Touchscreen coordinates will be automatically rotated when using LVGL rotation.
 
-The display orientation may be changed at runtime with the [`lvgl.display.set_rotation`](#lvgl-display-set-rotation-action) action.
+The display orientation may be changed at runtime with the [`lvgl.display.set_rotation`](#lvgl-display-set_rotation-action) action.
 
 ## Style properties
 
@@ -265,29 +265,29 @@ You can adjust the appearance of widgets by changing their foreground, backgroun
 
 These style properties may be applied to any widget, though not all widgets use all of them.
 
-- **opa** (*Optional*, [opacity](#lvgl-opacity)): Opacity of the entire widget. Inherited from parent. Defaults to `COVER`.
-- **opa_layered** (*Optional*, [opacity](#lvgl-opacity)): Opacity of the entire layer the widget is on. Inherited from parent. Defaults to `COVER`.
+- **opa** (*Optional*, [opacity](#opacity)): Opacity of the entire widget. Inherited from parent. Defaults to `COVER`.
+- **opa_layered** (*Optional*, [opacity](#opacity)): Opacity of the entire layer the widget is on. Inherited from parent. Defaults to `COVER`.
 - **base_dir** (*Optional*): Set base direction of widget. One of `LTR` `RTL` `AUTO` (default).
 - **bg_color** (*Optional*, [color](#lvgl-color)): Color for the background of the widget. Defaults to `0xFFFFFF` (white).
-- **bg_opa** (*Optional*, [opacity](#lvgl-opacity)): Opacity of the widget background.
-- **bg_grad** (*Optional*, [gradient](#lvgl-gradients)): A gradient to apply to the background.
+- **bg_opa** (*Optional*, [opacity](#opacity)): Opacity of the widget background.
+- **bg_grad** (*Optional*, [gradient](#gradients)): A gradient to apply to the background.
 - **bg_grad_color** (*Optional*, [color](#lvgl-color)): Color to make the background gradually fade to. Defaults to `0` (black).
 - **bg_grad_dir** (*Optional*, dict): Choose the direction of the background gradient: `NONE`, `HOR`, `VER`. Defaults to `NONE`.
 - **bg_main_stop** (*Optional*, 0-255): Specify where the gradient should start: `0` = upper left, `128` = in the center, `255` = lower right. Defaults to `0`.
 - **bg_grad_stop** (*Optional*, 0-255): Specify where the gradient should stop: `0` = upper left, `128` = in the center, `255` = lower right. Defaults to `255`.
-- **bg_main_opa** (*Optional*, [opacity](#lvgl-opacity)): Set opacity of the first gradient color. Defaults to `COVER`.
-- **bg_grad_opa** (*Optional*, [opacity](#lvgl-opacity)): Set opacity of the second gradient color. Defaults to `COVER`.
+- **bg_main_opa** (*Optional*, [opacity](#opacity)): Set opacity of the first gradient color. Defaults to `COVER`.
+- **bg_grad_opa** (*Optional*, [opacity](#opacity)): Set opacity of the second gradient color. Defaults to `COVER`.
 - **bg_image_src** (*Optional*, [image](/components/image#display-image)): The ID of an existing image configuration, to show as the background of the widget.
-- **bg_image_opa** (*Optional*, [opacity](#lvgl-opacity)): Opacity of the background image of the widget.
+- **bg_image_opa** (*Optional*, [opacity](#opacity)): Opacity of the background image of the widget.
 - **bg_image_recolor** (*Optional*, [color](#lvgl-color)): Color to mix with every pixel of the background image of the widget.
-- **bg_image_recolor_opa** (*Optional*, [opacity](#lvgl-opacity)): Opacity of the recoloring of the background image of the widget.
+- **bg_image_recolor_opa** (*Optional*, [opacity](#opacity)): Opacity of the recoloring of the background image of the widget.
 - **blend_mode** (*Optional*): Describes how to blend the colors to the background. One of `NORMAL` (default), `ADDITIVE`, `SUBTRACTIVE`, `MULTIPLY`, `DIFFERENCE`.
 - **blur_radius** (*Optional*, int16): Sets the intensity of blurring. Applied on each widget part separately before the children are rendered. Defaults to `0`.
 - **blur_backdrop** (*Optional*, boolean): If `true` the background of the widget will be blurred. The part should have opacity smaller to make it visible. If `false` the given part will be blurred when it's rendered but before drawing the children. Defaults to `false`.
 - **blur_quality** (*Optional*): One of `AUTO`, `SPEED`, `PRECISION`. Setting to `SPEED` the blurring algorithm will prefer speed over quality. `PRECISION` will force using higher quality but slower blur. With `AUTO` the quality will be selected automatically (default).
 - **border_width** (*Optional*, int16): Set the width of the border in pixels. Defaults to `0`.
 - **border_color** (*Optional*, [color](#lvgl-color)): Color to draw borders of the widget. Defaults to `0` (black).
-- **border_opa** (*Optional*, [opacity](#lvgl-opacity)): Opacity of the borders of the widget. Defaults to `COVER`.
+- **border_opa** (*Optional*, [opacity](#opacity)): Opacity of the borders of the widget. Defaults to `COVER`.
 - **border_post** (*Optional*, boolean): If `true` the border will be drawn after all children of the widget have been drawn. Defaults to `false`.
 - **border_side** (*Optional*, list): Select which borders of the widgets to show (multiple can be specified as a YAML list, defaults to `NONE`):
   - `NONE`
@@ -298,16 +298,16 @@ These style properties may be applied to any widget, though not all widgets use 
   - `INTERNAL`
 - **radius** (*Optional*, uint16): The radius to be used to form the widget's rounded corners. 0 = no radius (square corners); 65535 (max) = pill shaped widget (true circle if it has same width and height, radius then should be set to half the width/height).
 - **clip_corner** (*Optional*, boolean): If set to `true`, overflowing content will be clipped off by the widget's rounded corners (`radius` > `0`).
-- **color_filter_opa** (*Optional*, [opacity](#lvgl-opacity)): Opacity of the color filter. Currently color filters are applied only by the default LVGL theme, this option allows the effect of those to be disabled by setting to `TRANSP`.
+- **color_filter_opa** (*Optional*, [opacity](#opacity)): Opacity of the color filter. Currently color filters are applied only by the default LVGL theme, this option allows the effect of those to be disabled by setting to `TRANSP`.
 - **anim_duration** (*Optional*, int16): Animation duration in milliseconds. Its meaning is widget specific. E.g. blink time of the cursor on the Text Area or scroll time of a roller. See [Widgets](/components/lvgl/widgets/) documentation to learn more where this applies.
-- **image_opa** (*Optional*, [opacity](#lvgl-opacity)): Set opacity of an image.
+- **image_opa** (*Optional*, [opacity](#opacity)): Set opacity of an image.
 - **image_recolor** (*Optional*, [color](#lvgl-color)): Color to mix with every pixel of an image. Note that `image_recolor_opa` defaults to `TRANSP`, so it must also be set.
-- **image_recolor_opa** (*Optional*, [opacity](#lvgl-opacity)): Opacity of the image recoloring.
+- **image_recolor_opa** (*Optional*, [opacity](#opacity)): Opacity of the image recoloring.
 - **recolor** (*Optional*, [color](#lvgl-color)): Color to mix with the widget. Defaults to `0` (black). Note that `recolor_opa` defaults to `TRANSP`, so it must also be set.
-- **recolor_opa** (*Optional*, [opacity](#lvgl-opacity)): Sets the intensity of color mixing. Intermediate values result in semi-transparency.
+- **recolor_opa** (*Optional*, [opacity](#opacity)): Sets the intensity of color mixing. Intermediate values result in semi-transparency.
 - **outline_width** (*Optional*, int16): Set the width of the outline in pixels. It's like a border but drawn outside of the rectangles. Defaults to `0`.
 - **outline_color** (*Optional*, [color](#lvgl-color)): Color used to draw the outline around the widget. Defaults to `0` (black).
-- **outline_opa** (*Optional*, [opacity](#lvgl-opacity)): Opacity of the outline of the widget. Defaults to `COVER`.
+- **outline_opa** (*Optional*, [opacity](#opacity)): Opacity of the outline of the widget. Defaults to `COVER`.
 - **outline_pad** (*Optional*, int16): Distance between the outline and the widget itself. Defaults to `0`.
 - **pad_all** (*Optional*, int16): Set the padding in all directions, in pixels. It makes the content area smaller in all directions.
 - **pad_top** (*Optional*, int16): Set the padding on the top, in pixels. It makes the content area smaller in this direction.
@@ -324,10 +324,10 @@ These style properties may be applied to any widget, though not all widgets use 
 - **shadow_color** (*Optional*, [color](#lvgl-color)): Color used to create a shadow under the widget rectangle. Defaults to `0` (black).
 - **shadow_offset_x** (*Optional*, int16): Horizontal offset of the shadow, in pixels. Defaults to `0`.
 - **shadow_offset_y** (*Optional*, int16): Vertical offset of the shadow, in pixels. Defaults to `0`.
-- **shadow_opa** (*Optional*, [opacity](#lvgl-opacity)): Opacity of the shadow. Defaults to `COVER`.
+- **shadow_opa** (*Optional*, [opacity](#opacity)): Opacity of the shadow. Defaults to `COVER`.
 - **shadow_spread** (*Optional*, int16): Spread of the shadow, in pixels. Defaults to `0`.
 - **shadow_width** (*Optional*, int16): Width of the shadow, in pixels. Defaults to `0`.
-- **drop_shadow_opa** (*Optional*, [opacity](#lvgl-opacity)): Take a snapshot of a part of a widget and blur it. Set the opacity of the shadow. Defaults to `0`.
+- **drop_shadow_opa** (*Optional*, [opacity](#opacity)): Take a snapshot of a part of a widget and blur it. Set the opacity of the shadow. Defaults to `0`.
 - **drop_shadow_radius** (*Optional*, int16): Sets the intensity of blurring. Applied on each widget part separately before the children are rendered. Defaults to `0`.
 - **drop_shadow_offset_x** (*Optional*, int16): Set an offset on the shadow in pixels in X direction. Defaults to `0`.
 - **drop_shadow_offset_y** (*Optional*, int16): Set an offset on the shadow in pixels in Y direction. Defaults to `0`.
@@ -350,8 +350,6 @@ These style properties may be applied to any widget, though not all widgets use 
 > [!NOTE]
 > The property names `transform_angle`, `transform_zoom`, `shadow_ofs_x` and `shadow_ofs_y` are deprecated. Use `transform_rotation`, `transform_scale`, `shadow_offset_x` and `shadow_offset_y` respectively.
 
-<span id="lvgl-opacity"></span>
-
 ### Opacity
 
 Various parts of the widgets (like background, borders etc.) support opacity. It can be specified in one of several ways:
@@ -367,12 +365,12 @@ Default values depend on widget specifics.
 
 ### Colors
 
-Colors can be specified anywhere in the LVGL configuration either by referencing a preconfigured [ESPHome color](/components/display#config-color) ID or by representing the color in the common hexadecimal notation. For example, `0xFF0000` would be red.
+Colors can be specified anywhere in the LVGL configuration either by referencing a preconfigured [ESPHome color](/components/display#color) ID or by representing the color in the common hexadecimal notation. For example, `0xFF0000` would be red.
 
 You may also use any of the [standard CSS color names](https://developer.mozilla.org/en-US/docs/Web/CSS/named-color), e.g. `springgreen`.
 
 When using a lambda to provide a color you can use the `lv_color_hex` function to convert a hex value, or
-return a [Color](/components/display#config-color) ID - this is useful when using the [Mapping](/components/mapping/). Examples:
+return a [Color](/components/display#color) ID - this is useful when using the [Mapping](/components/mapping/). Examples:
 
 ```yaml
 # Example to set the color directly via Lambda
@@ -381,8 +379,6 @@ return a [Color](/components/display#config-color) ID - this is useful when usin
       text: 'Hello World!'
       text_color: !lambda return lv_color_hex(0xFF0000);
 ```
-
-<span id="lvgl-gradients"></span>
 
 ### Gradients
 
@@ -393,7 +389,7 @@ A gradient is a sequence of colors which can be applied to an object using the `
 - **direction** (**Required**, string): The direction of the gradient: `hor` (or `horizontal`) or `ver` (or `vertical`).
 - **stops** (**Required**, list): A list of at least 2 color stop points. Each stop point has the following options:
   - **color** (**Required**, [Color](#lvgl-color)): The color of the stop point.
-  - **opa** (*Optional*, [opacity](#lvgl-opacity)): The opacity at this stop point. Defaults to `COVER` (fully opaque).
+  - **opa** (*Optional*, [opacity](#opacity)): The opacity at this stop point. Defaults to `COVER` (fully opaque).
   - **position** (**Required**, float): The position of the stop point. Must be a float between 0.0 and 1.0, a percentage between 0% and 100%, or an integer between 0 and 255.
 
 ```yaml
@@ -419,8 +415,6 @@ lvgl:
         - color: 0xFF0000
           position: 255
 ```
-
-<span id="lvgl-fonts"></span>
 
 ### Fonts
 
@@ -601,8 +595,6 @@ Widgets support [general or specific](/components/lvgl/widgets#lvgl-automation-a
 
 Several actions are available for the LVGL component itself, these are outlined below. Note that if multiple LVGL instances are configured, an **lvgl_id** config entry will be required to specify which instance the action relates to. This is not required if there is only a single LVGL instance configured.
 
-<span id="lvgl-style-update-action"></span>
-
 ### `lvgl.style.update` Action
 
 This [action](/automations/actions#actions-action) allows changing/updating the properties of a style at run time. This can be used to
@@ -628,8 +620,6 @@ on_...:
       border_color: 0x00FF00
 ```
 
-<span id="lvgl-pause-action"></span>
-
 ### `lvgl.pause` Action
 
 This [action](/automations/actions#actions-action) pauses the activity of LVGL, including rendering.
@@ -643,8 +633,6 @@ on_...:
       show_snow: true
 ```
 
-<span id="lvgl-resume-action"></span>
-
 ### `lvgl.resume` Action
 
 This [action](/automations/actions#actions-action) resumes the activity of LVGL, including rendering.
@@ -655,8 +643,6 @@ This [action](/automations/actions#actions-action) resumes the activity of LVGL,
 on_...:
   - lvgl.resume:
 ```
-
-<span id="lvgl-display-set-rotation-action"></span>
 
 ### `lvgl.display.set_rotation` Action
 
@@ -708,8 +694,6 @@ on_...:
       time: 300ms
 ```
 
-<span id="lvgl-page-show-action"></span>
-
 ### `lvgl.page.show` Action
 
 This [action](/automations/actions#actions-action) shows a specific page (including pages with their `skip` option enabled).
@@ -727,15 +711,11 @@ on_...:
   - lvgl.page.show: secret_page  # shorthand version
 ```
 
-<span id="lvgl-conditions"></span>
-
 ## Conditions
-
-<span id="lvgl-is-idle-condition"></span>
 
 ### `lvgl.is_idle` Condition
 
-This [condition](/automations/actions#common_conditions) checks if the amount of time specified has passed since the last touch event.
+This [condition](/automations/actions#common-conditions) checks if the amount of time specified has passed since the last touch event.
 
 - **timeout** (**Required**, [templatable](/automations/templates), int): Amount of [time](/guides/configuration-types#time) expected since the last touch event.
 - **lvgl_id** (*Optional*): The ID of the LVGL instance to monitor.
@@ -753,11 +733,9 @@ on_...:
             transition_length: 3s
 ```
 
-<span id="lvgl-is-paused-condition"></span>
-
 ### `lvgl.is_paused` Condition
 
-This [condition](/automations/actions#common_conditions) checks if LVGL is in the paused state or not.
+This [condition](/automations/actions#common-conditions) checks if LVGL is in the paused state or not.
 
 - **lvgl_id** (*Optional*): The ID of the LVGL instance to monitor.
 
@@ -772,7 +750,7 @@ on_...:
 
 ### `lvgl.page.is_showing` Condition
 
-This [condition](/automations/actions#common_conditions) checks if the nominated page is the one currently showing.
+This [condition](/automations/actions#common-conditions) checks if the nominated page is the one currently showing.
 
 - **id** (**Required**): The ID of the page to check. May be supplied as a simple value.
 
@@ -788,7 +766,7 @@ on_...:
 
 ## Triggers
 
-Widget level [interaction triggers](/components/lvgl/widgets#lvgl-automation-triggers) are available, plus a few for the LVGL component itself:
+Widget level [interaction triggers](/components/lvgl/widgets#triggers) are available, plus a few for the LVGL component itself:
 
 <span id="lvgl-on-idle-trigger"></span>
 
@@ -819,27 +797,27 @@ See [Turn off screen when idle](/cookbook/lvgl#lvgl-cookbook-idlescreen) for an 
 
 ### `on_pause` trigger
 
-This [trigger](/components/lvgl/widgets#lvgl-automation-triggers) is triggered when LVGL is paused. This can be used to perform any desired actions when the screen is locked, such as turning off the display backlight.
+This [trigger](/components/lvgl/widgets#triggers) is triggered when LVGL is paused. This can be used to perform any desired actions when the screen is locked, such as turning off the display backlight.
 
 <span id="lvgl_on_resume_trigger"></span>
 
 ### `on_resume` trigger
 
-This [trigger](/components/lvgl/widgets#lvgl-automation-triggers) is triggered when LVGL is resumed. This can be used to perform any desired actions when the screen is unlocked, such as turning on the display backlight.
+This [trigger](/components/lvgl/widgets#triggers) is triggered when LVGL is resumed. This can be used to perform any desired actions when the screen is unlocked, such as turning on the display backlight.
 
 ### `on_boot` trigger
 
-This [trigger](/components/lvgl/widgets#lvgl-automation-triggers) is triggered after LVGL has been setup. It is available on the `lvgl` component and any widget and can be used to perform any LVGL related setup that is not possible with static configuration. When used on a widget, it does not act specifically on that widget but can be used to keep actions related to that widget together with its configuration.
+This [trigger](/components/lvgl/widgets#triggers) is triggered after LVGL has been setup. It is available on the `lvgl` component and any widget and can be used to perform any LVGL related setup that is not possible with static configuration. When used on a widget, it does not act specifically on that widget but can be used to keep actions related to that widget together with its configuration.
 
 ### `on_draw_start` trigger
 
-This [trigger](/components/lvgl/widgets#lvgl-automation-triggers) is executed before each LVGL drawing operation.
+This [trigger](/components/lvgl/widgets#triggers) is executed before each LVGL drawing operation.
 
 <span id="lvgl-on-draw-end-trigger"></span>
 
 ### `on_draw_end` trigger
 
-This [trigger](/components/lvgl/widgets#lvgl-automation-triggers) is executed after LVGL has completed drawing all updated screen elements. It
+This [trigger](/components/lvgl/widgets#triggers) is executed after LVGL has completed drawing all updated screen elements. It
 may be used for example to trigger an update of a display component like an e-paper screen that requires the buffer
 to be sent to the display for it to be updated.
 

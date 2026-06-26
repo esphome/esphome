@@ -45,7 +45,7 @@ Configuration variables:
 - **name** (*Optional*, string): The name for the sensor. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and
+> If you have a [friendly_name](/components/esphome#configuration-variables) set for your device and
 > you want the sensor to use that name, you can set `name: None`.
 
 - **unit_of_measurement** (*Optional*, string): Manually set the unit
@@ -127,8 +127,6 @@ MQTT Options:
 >       filters:
 >         # ...
 > ```
-
-<span id="sensor-filters"></span>
 
 ## Sensor Filters
 
@@ -287,8 +285,6 @@ sensor:
 
 Configuration variables: See [Automation](/automations).
 
-<span id="sensor-in_range_condition"></span>
-
 ### `sensor.in_range` Condition
 
 This condition passes if the state of the given sensor is inside a range.
@@ -312,8 +308,6 @@ Configuration variables:
 
 - **above** (*Optional*, float): The minimum for the condition.
 - **below** (*Optional*, float): The maximum for the condition.
-
-<span id="sensor-lambda_calls"></span>
 
 ### Lambda calls
 

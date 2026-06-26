@@ -15,7 +15,7 @@ The `rc522` component allows you to use RC522 NFC/RFID controllers
 ([datasheet](https://www.nxp.com/docs/en/data-sheet/MFRC522.pdf), [Ali Express](https://www.aliexpress.com/item/1260729519.html))
 with ESPHome. ESPHome can read the UID from the tag. Every NFC/RFID tag has a unique "UID" value assigned at the time
 of manufacture. Tags can be associated with binary sensors, making it easy to determine when a specific tag is present.
-You can also use the tag information directly within ESPHome automations/lambdas. See [Setting Up Tags](#rc522-setting_up_tags) for
+You can also use the tag information directly within ESPHome automations/lambdas. See [Setting Up Tags](#setting-up-tags) for
 information on how to setup individual binary sensors using this component.
 
 The RC522 IC supports SPI, I²C and UART communication protocols; ESPHome can use either SPI or I²C.
@@ -31,7 +31,7 @@ The RC522 IC supports SPI, I²C and UART communication protocols; ESPHome can us
 ## Over SPI
 
 The `rc522_spi` component allows you to use RC522 NFC/RFID controllers with ESPHome. This component is a global hub
-that establishes the connection to the RC522 via [SPI](/components/spi). Using [RC522 binary sensors](#rc522-binary_sensor),
+that establishes the connection to the RC522 via [SPI](/components/spi). Using [RC522 binary sensors](#rc522-binary-sensor),
 you can then create individual binary sensors that track if an NFC/RFID tag is currently detected by the RC522.
 
 ```yaml
@@ -72,7 +72,7 @@ binary_sensor:
 
 The `rc522_i2c` component allows you to use RC522 NFC/RFID controllers with ESPHome. This component is a global hub
 that establishes the connection to the RC522 via [I²C](/components/i2c) (also available over SPI). Using the
-[RC522 binary sensors](#rc522-binary_sensor) you can then create individual binary sensors that track if
+[RC522 binary sensors](#rc522-binary-sensor) you can then create individual binary sensors that track if
 an NFC/RFID tag is currently detected by the RC522.
 
 ```yaml
@@ -157,8 +157,6 @@ rc522_spi: # or rc522_i2c
           payload: !lambda 'return x;'
 ```
 
-<span id="rc522-binary_sensor"></span>
-
 ## `rc522` Binary Sensor
 
 The `rc522` binary sensor platform lets you track if an NFC/RFID tag with a given unique id (`uid`  ) is currently
@@ -187,8 +185,6 @@ binary_sensor:
   of hexadecimal values. For example `74-10-37-94`.
 
 - All other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
-
-<span id="rc522-setting_up_tags"></span>
 
 ## Setting Up Tags
 

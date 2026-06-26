@@ -5,6 +5,7 @@ title: "GPIO Binary Sensor"
 
 import { Image } from 'astro:assets';
 import APIRef from '@components/APIRef.astro';
+import EnumValues from '@components/EnumValues.astro';
 
 <span id="gpio-binary-sensor"></span>
 
@@ -57,9 +58,12 @@ binary_sensor:
 
 - **interrupt_type** (*Optional*, string): The type of interrupt to use. One of:
 
-  - `ANY` (default): Trigger on any edge change (high to low or low to high)
-  - `RISING`  : Trigger only on rising edge (low to high)
-  - `FALLING`  : Trigger only on falling edge (high to low)
+  <EnumValues values={[
+    { value: "ANY",     default: true, description: "Trigger on any edge change (high to low or low to high)" },
+    { value: "RISING",  description: "Trigger only on rising edge (low to high)" },
+    { value: "FALLING", description: "Trigger only on falling edge (high to low)" },
+  ]} />
+
 
 - All other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
 
@@ -134,7 +138,7 @@ binary_sensor:
 ## Debouncing Values
 
 Some binary sensors are a bit unstable and quickly transition between the ON and OFF state while
-they're pressed. To fix this and debounce the signal, use the [binary sensor filters](/components/binary_sensor#binary_sensor-filters):
+they're pressed. To fix this and debounce the signal, use the [binary sensor filters](/components/binary_sensor#binary-sensor-filters):
 
 ```yaml
 # Example configuration entry

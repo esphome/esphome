@@ -796,7 +796,7 @@ on_...:
 #### Configuration variables
 
 - **code** (**Required**, string, [templatable](/automations/templates)): The raw code to send, copy this from the dump output.
-- **protocol** (*Optional*, [templatable](/automations/templates)): The RC Switch protocol to use, see [RC Switch Protocol](#remote_transmitter-rc_switch-protocol)
+- **protocol** (*Optional*, [templatable](/automations/templates)): The RC Switch protocol to use, see [RC Switch Protocol](#rc-switch-protocol)
   for more information.
 
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
@@ -822,7 +822,7 @@ on_...:
 - **group** (**Required**, string, [templatable](/automations/templates)): The group to send the command to.
 - **device** (**Required**, string, [templatable](/automations/templates)): The device in the group to send the command to.
 - **state** (**Required**, boolean, [templatable](/automations/templates)): The on/off state to send.
-- **protocol** (*Optional*, [templatable](/automations/templates)): The RC Switch protocol to use, see [RC Switch Protocol](#remote_transmitter-rc_switch-protocol)
+- **protocol** (*Optional*, [templatable](/automations/templates)): The RC Switch protocol to use, see [RC Switch Protocol](#rc-switch-protocol)
   for more information.
 
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
@@ -848,7 +848,7 @@ on_...:
 - **address** (**Required**, int, [templatable](/automations/templates)): The address to send the command to.
 - **channel** (**Required**, int, [templatable](/automations/templates)): The channel to send the command to.
 - **state** (**Required**, boolean, [templatable](/automations/templates)): The on/off state to send.
-- **protocol** (*Optional*, [templatable](/automations/templates)): The RC Switch protocol to use, see [RC Switch Protocol](#remote_transmitter-rc_switch-protocol)
+- **protocol** (*Optional*, [templatable](/automations/templates)): The RC Switch protocol to use, see [RC Switch Protocol](#rc-switch-protocol)
   for more information.
 
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
@@ -876,7 +876,7 @@ on_...:
 - **group** (**Required**, int, [templatable](/automations/templates)): The group to send the command to. Range is 1 to 4.
 - **device** (**Required**, int, [templatable](/automations/templates)): The device to send the command to. Range is 1 to 4.
 - **state** (**Required**, boolean, [templatable](/automations/templates)): The on/off state to send.
-- **protocol** (*Optional*, [templatable](/automations/templates)): The RC Switch protocol to use, see [RC Switch Protocol](#remote_transmitter-rc_switch-protocol)
+- **protocol** (*Optional*, [templatable](/automations/templates)): The RC Switch protocol to use, see [RC Switch Protocol](#rc-switch-protocol)
   for more information.
 
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
@@ -902,7 +902,7 @@ on_...:
 - **group** (**Required**, string, [templatable](/automations/templates)): The group to send the command to. Range is `a` to `d`.
 - **device** (**Required**, int, [templatable](/automations/templates)): The device to send the command to. Range is 1 to 3.
 - **state** (**Required**, boolean, [templatable](/automations/templates)): The on/off state to send.
-- **protocol** (*Optional*, [templatable](/automations/templates)): The RC Switch protocol to use, see [RC Switch Protocol](#remote_transmitter-rc_switch-protocol)
+- **protocol** (*Optional*, [templatable](/automations/templates)): The RC Switch protocol to use, see [RC Switch Protocol](#rc-switch-protocol)
   for more information.
 
 - All other options from [Remote Transmitter Actions](#remote_transmitter-transmit_action).
@@ -1108,8 +1108,6 @@ on_...:
   the first one defined in the configuration.
 
 - **value** (**Required**, bool, [templatable](/automations/templates)): The output value of the pin.
-
-<span id="remote_transmitter-rc_switch-protocol"></span>
 
 ### RC Switch Protocol
 

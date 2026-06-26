@@ -41,14 +41,14 @@ external_components:
 
 ## Configuration variables
 
-- **source**: The location of the components you want to retrieve. See [Local](#external-components_local)
-  and [external-components_git](#external-components_git).
+- **source**: The location of the components you want to retrieve. See [Local](#local)
+  and [external-components_git](#git).
 
   - **type** (**Required**): Repository type. One of `local`, `git`.
 
   git options:
 
-  - **url** (**Required**, url): Git repository url. See [external-components_git](#external-components_git).
+  - **url** (**Required**, url): Git repository url. See [external-components_git](#git).
   - **ref** (*Optional*, string): Git ref (branch or tag). If not specified the default branch is used.
   - **username** (*Optional*, string): Username for the Git server, if one is required
   - **password** (*Optional*, string): Password for the Git server, if one is required
@@ -56,15 +56,13 @@ external_components:
 
   local options:
 
-  - **path** (**Required**): Path to use when using local components. See [Local](#external-components_local).
+  - **path** (**Required**): Path to use when using local components. See [Local](#local).
 
 - **components** (*Optional*, list): The list of components to use from the external source.
   By default, all available components are used.
 
 - **refresh** (*Optional*, [Time](/guides/configuration-types#time)): The interval the source will be checked. Has no
-  effect on `local`. See [Refresh](#external-components_refresh). for more info. Defaults to `1day`.
-
-<span id="external-components_local"></span>
+  effect on `local`. See [Refresh](#refresh). for more info. Defaults to `1day`.
 
 ## Local
 
@@ -105,8 +103,6 @@ Given the above example of `my_components`, the folder structure must look like:
         ├── component2.h
         └── switch.py
 ```
-
-<span id="external-components_git"></span>
 
 ## Git
 
@@ -196,8 +192,6 @@ server using the `username` and `password` fields. This is most useful when comb
 `!secret`  feature, to load the values in from a `secrets.yaml` file. This is not a comprehensive
 security measure; your username and password will necessarily be stored in clear text within the
 `.esphome` directory.
-
-<span id="external-components_refresh"></span>
 
 ### Refresh
 

@@ -12,7 +12,7 @@ It is best to set the component's vscope to global in the Nextion Editor. This w
 if the page is shown or not.
 
 > [!NOTE]
-> The Nextion can receive an integer but it can only send 3 bytes for a negative integer. The range if using the [Nextion Custom Sensor Protocol](#nextion_custom_sensor_protocol) is:
+> The Nextion can receive an integer but it can only send 3 bytes for a negative integer. The range if using the [Nextion Custom Sensor Protocol](#nextion-custom-sensor-protocol) is:
 > -16777215 to 4294967295
 
 See [Nextion](/components/display/nextion/) for setting up the display
@@ -59,8 +59,8 @@ sensor:
 - **precision** (*Optional*, int): This is for Nextion float components. This sets
   the precision that the component is set to. This typically is the `vvs1` setting of the component.
 
-- **background_color** (*Optional*, [Color](/components/display#config-color)): The background color
-- **foreground_color** (*Optional*, [Color](/components/display#config-color)): The foreground color
+- **background_color** (*Optional*, [Color](/components/display#color)): The background color
+- **foreground_color** (*Optional*, [Color](/components/display#color)): The foreground color
 - **visible** (*Optional*, boolean): Visible or not
 
 ### Waveform Settings
@@ -81,7 +81,7 @@ sensor:
 > `background_color`, `foreground_color` and `visible` do not retain their state on page change. [Sensor Settings](#nextion_sensor_settings).
 > A [Nextion Sensor](#nextion_sensor) with a custom protocol sending the current page can be used to execute the API call [Update Components By Prefix](/components/display/nextion#update_components_by_prefix) to update all the components for that page
 
-See [How things Update](#nextion_sensor_how_things_update) for additional information
+See [How things Update](#how-things-update) for additional information
 
 ### Globals
 
@@ -90,8 +90,6 @@ nothing will be updated. To get around this the Nextion components can be change
 should be prefixed with the page name (page0/page1 or whatever you have changed it to).
 
 *Example:* `component_name: page0.humidity`
-
-<span id="sensor-nextion-publish_action"></span>
 
 ## `sensor.nextion.publish` Action
 
@@ -132,9 +130,7 @@ Configuration variables:
   display which will update component. Default is true.
 
 > [!NOTE]
-> This action can also be written in lambdas. See [Lambda Calls](#nextion_sensor_lambda_calls)
-
-<span id="nextion_sensor_lambda_calls"></span>
+> This action can also be written in lambdas. See [Lambda Calls](#lambda-calls)
 
 ### Lambda Calls
 
@@ -155,12 +151,10 @@ some more advanced functions (see the full <APIRef text="nextion_sensor.h" path=
 - `set_foreground_color(Color color)`  : Sets the background color to **Color**
 - `set_visible(bool visible)` : Sets visible or not. If set to false, no updates will be sent to the component
 
-<span id="nextion_sensor_how_things_update"></span>
-
 ## How things Update
 
 A Nextion component with an integer value (.val) or Nextion variable will be automatically polled if **update_interval** is set.
-To have the Nextion send the data you can use the [Nextion Custom Sensor Protocol](#nextion_custom_sensor_protocol) for this. Add the [Nextion Custom Sensor Protocol](#nextion_custom_sensor_protocol) to the
+To have the Nextion send the data you can use the [Nextion Custom Sensor Protocol](#nextion-custom-sensor-protocol) for this. Add the [Nextion Custom Sensor Protocol](#nextion-custom-sensor-protocol) to the
 component or function you want to trigger the send. Typically this is in *Touch Press Event* but some components, like a slider, should have it
 set in the *Touch Release Event* to capture all the changes. Since this is a custom protocol it can be sent from anywhere (timers/functions/components)
 in the Nextion.
@@ -172,14 +166,12 @@ in the Nextion.
 Using the above yaml example:
 
 - "Current Humidity" will poll the Nextion for the `humidity.val` value and set the sensor accordingly.
-- "Current Temperature" will NOT poll the Nextion. Either the Nextion will need to use the [Nextion Custom Sensor Protocol](#nextion_custom_sensor_protocol) or use a lambda:
+- "Current Temperature" will NOT poll the Nextion. Either the Nextion will need to use the [Nextion Custom Sensor Protocol](#nextion-custom-sensor-protocol) or use a lambda:
 
-- [Lambda Calls](#nextion_sensor_lambda_calls).
+- [Lambda Calls](#lambda-calls).
 
 > [!NOTE]
 > No updates will be sent to the Nextion if it is sleeping. Once it wakes, the components will be updated. If a component is invisible, `visible(false)`, then it won't update until it is set to be visible.
-
-<span id="nextion_custom_sensor_protocol"></span>
 
 ## Nextion Custom Sensor Protocol
 
@@ -244,7 +236,7 @@ display:
 - The automation is triggered **when the custom protocol frame is received**, not when a sensor entity updates.
 - Defining a `sensor:` entry is **not required** to use this automation.
 - Existing Nextion sensor entities and polling behavior are unchanged.
-- This automation reflects the same protocol described in [Nextion Custom Sensor Protocol](#nextion_custom_sensor_protocol).
+- This automation reflects the same protocol described in [Nextion Custom Sensor Protocol](#nextion-custom-sensor-protocol).
 - This mechanism allows event-driven handling of Nextion data without the overhead of maintaining a sensor entity when no persistent state is needed.
 
 ## See Also

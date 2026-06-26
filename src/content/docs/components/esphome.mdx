@@ -15,8 +15,6 @@ esphome:
     area: Living Room
 ```
 
-<span id="esphome-configuration_variables"></span>
-
 ## Configuration variables
 
 - **name** (**Required**, string): This is the name of the node. It
@@ -56,13 +54,13 @@ Advanced options:
 
 - **includes** (*Optional*, list of files): A list of C/C++ files to include in the (auto-generated) `main` file.
   The paths in this list are relative to the directory where the YAML configuration file is located or `<...>` includes.
-  See [`includes`](#esphome-includes).
+  See [`includes`](#includes).
 
 - **includes_c** (*Optional*, list of files): The same as `includes` but for files that require C linkage. All includes
-  will be wrapped in `extern "C" {}`. See [`includes`](#esphome-includes).
+  will be wrapped in `extern "C" {}`. See [`includes`](#includes).
 
 - **libraries** (*Optional*, list of libraries): A list of libraries to include in the project. See
-  [`libraries`](#esphome-libraries).
+  [`libraries`](#libraries).
 
 - **comment** (*Optional*, string): Additional text information about this node. Only for display in UI.
 - **name_add_mac_suffix** (*Optional*, boolean): Appends the last 3 bytes of the mac address of the device to
@@ -238,8 +236,6 @@ esphome:
 > Environment variables set here are only available during the build process. They do not affect
 > the runtime behavior of your device.
 
-<span id="esphome-includes"></span>
-
 ## `includes`
 
 With `includes` you can include source files in the generated PlatformIO project.
@@ -272,8 +268,6 @@ This option behaves differently depending on what the included file is pointing 
 - If the include string points to a regular source file (.c, .cpp), it is copied in the src/ folder
    AND compiled into the binary. This way implementation of classes and functions in header files can
    be provided.
-
-<span id="esphome-libraries"></span>
 
 ## `libraries`
 

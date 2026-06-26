@@ -62,8 +62,6 @@ sensor:
 - **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the sensor.
   Defaults to `60s`.
 
-<span id="hdc302x-heater_on_action"></span>
-
 ## `hdc302x.heater_on` Action
 
 This [action](/automations/actions#all-actions) enables the integrated heater on the sensor with the given ID.
@@ -104,8 +102,6 @@ on_...:
 - **duration** (*Optional*, [Time](/guides/configuration-types#time)): Duration to run the heater.
   Set to `0s` to keep the heater on until manually disabled with `hdc302x.heater_off`. Defaults to `5s`.
 
-<span id="hdc302x-heater_off_action"></span>
-
 ## `hdc302x.heater_off` Action
 
 This [action](/automations/actions#all-actions) disables the integrated heater on the sensor with the given ID.
@@ -123,7 +119,7 @@ In condensing environments, moisture can form on the sensor when the ambient tem
 dew point, preventing accurate humidity readings. The integrated heater can be used to evaporate this condensation.
 
 > [!WARNING]
-> Read the [heater safety notes above](#hdc302x-heater_on_action) before using the heater. Condensation
+> Read the [heater safety notes above](#hdc302x-heater_on-action) before using the heater. Condensation
 > removal timings and power requirements vary depending on your board layout and supply voltage.
 >
 > See section 7.3.7 in the [datasheet](https://www.ti.com/lit/ds/symlink/hdc3020.pdf), and section 3.6 in the

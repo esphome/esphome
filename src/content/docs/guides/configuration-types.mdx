@@ -6,8 +6,6 @@ title: "Configuration Types"
 ESPHome's configuration files have several configuration types. This
 page describes them.
 
-<span id="config-id"></span>
-
 ## ID
 
 Quite an important aspect of ESPHome are “IDs”. They are used to
@@ -28,8 +26,6 @@ IDs are in reality just C++ variable names, they must also adhere to
 
 > [!NOTE]
 > These IDs are used only within ESPHome and are not translated to Home Assistant's Entity ID.
-
-<span id="config-pin"></span>
 
 ## Pin
 
@@ -54,8 +50,6 @@ some_config_option:
   # alias on the NodeMCU ESP8266:
   pin: D0
 ```
-
-<span id="config-pin_schema"></span>
 
 ## Pin Schema
 
@@ -129,8 +123,6 @@ Advanced options:
   However, some ESP32 board designs wire specific flash configurations that free up certain pins for general use.
   If you are *absolutely* certain that your specific board design allows a normally-reserved pin to be used,
   you can suppress the error by setting this option to `true`. Defaults to `false`.
-
-<span id="config-time"></span>
 
 ## Time
 

@@ -31,7 +31,7 @@ Configuration variables:
 - **name** (*Optional*, string): The name for the binary sensor. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and
+> If you have a [friendly_name](/components/esphome#configuration-variables) set for your device and
 > you want the binary sensor to use that name, you can set `name: None`.
 
 - **device_class** (*Optional*, string): The device class for the
@@ -40,7 +40,7 @@ Configuration variables:
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the binary sensor in the frontend.
 - **filters** (*Optional*, list): A list of filters to apply on the binary sensor values such as
-  inverting signals. See [Binary Sensor Filters](#binary_sensor-filters).
+  inverting signals. See [Binary Sensor Filters](#binary-sensor-filters).
 
 Automations:
 
@@ -89,8 +89,6 @@ Advanced options:
 
 ## Actions
 
-<span id="binary_sensor-invalidate_state-action"></span>
-
 ### `binary_sensor.invalidate_state` Action
 
 This action will invalidate the current state of the sensor. It is most useful with the Template binary sensor.
@@ -102,8 +100,6 @@ on_...:
 ```
 
 The state may also be invalidated by an API call in a lambda - see the API reference linked below.
-
-<span id="binary_sensor-filters"></span>
 
 ## Binary Sensor Filters
 
@@ -467,7 +463,7 @@ Configuration variables:
 
 > [!NOTE]
 > Getting the timing right for your use-case can sometimes be a bit difficult. If you set the
-> [global log level](/components/logger#logger-log_levels) to `VERBOSE`, the multi click trigger shows logs
+> [global log level](/components/logger#log-levels) to `VERBOSE`, the multi click trigger shows logs
 > about what stopped the trigger from happening.
 
 You can use an `OFF` timing at the end of the timing sequence to differentiate between different
@@ -544,8 +540,6 @@ on_...:
       # Same syntax for is_off
       binary_sensor.is_on: my_binary_sensor
 ```
-
-<span id="binary_sensor-lambda_calls"></span>
 
 ### lambda calls
 

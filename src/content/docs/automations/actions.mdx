@@ -155,11 +155,7 @@ Now that concludes the introduction to actions in ESPHome. They're a powerful to
 your device with an easy-to-use syntax. What follows below is an index of common actions which you're sure to find
 useful (and even essential) for building all sorts of automations.
 
-<span id="common-actions"></span>
-
 ## Common Actions
-
-<span id="delay_action"></span>
 
 ### `delay` Action
 
@@ -179,8 +175,6 @@ on_...:
 > [!NOTE]
 > This is a "smart" asynchronous delay - other code will still run in the background while
 > the delay is happening. When using a lambda call, you should return the delay value in milliseconds.
-
-<span id="if_action"></span>
 
 ### `if` Action
 
@@ -226,8 +220,6 @@ At least one of `condition`, `all` or `any` must be provided.
 - **else** (*Optional*, [Action](#all-actions)): The action to perform if the condition evaluates to false.
   Defaults to doing nothing.
 
-<span id="lambda_action"></span>
-
 ### `lambda` Action
 
 This action executes an arbitrary piece of C++ code (see [Lambda](/automations/templates#config-lambda)).
@@ -238,8 +230,6 @@ on_...:
     - lambda: |-
         id(some_binary_sensor).publish_state(false);
 ```
-
-<span id="repeat_action"></span>
 
 ### `repeat` Action
 
@@ -265,8 +255,6 @@ on_...:
   lambdas using the implicit script parameter `iteration`.
 
 - **then** (**Required**, [Action](#all-actions)): The action to repeat.
-
-<span id="wait_until_action"></span>
 
 ### `wait_until` Action
 
@@ -300,11 +288,9 @@ on_...:
 - **condition** (**Required**, [Condition](#all-conditions)): The condition to wait to become true.
 - **timeout** (*Optional*, [Time](/guides/configuration-types#time), [templatable](/automations/templates)): Time to wait before timing out. Defaults to never timing out.
 
-<span id="while_action"></span>
-
 ### `while` Action
 
-This action is similar to the [if](#if_action) Action. The `while` action loops
+This action is similar to the [if](#if-action) Action. The `while` action loops
 through a block as long as the given condition is true.
 
 ```yaml
@@ -326,8 +312,6 @@ on_...:
 
 - **then** (**Required**, [Action](#all-actions)): The action to perform until the condition evaluates to false.
 
-<span id="component-update_action"></span>
-
 ### `component.update` Action
 
 Using this action you can manually call the `update()` method of a component.
@@ -344,8 +328,6 @@ on_...:
     - lambda: 'id(my_component).update();'
 ```
 
-<span id="component-suspend_action"></span>
-
 ### `component.suspend` Action
 
 Using this action you can manually call the `stop_poller()` method of a component.
@@ -353,7 +335,7 @@ Using this action you can manually call the `stop_poller()` method of a componen
 After this action the component will stop being refreshed.
 
 While the poller is suspendend, it's still possible to trigger on-demand updates by
-using [component.update](#component-update_action)
+using [component.update](#component-update-action)
 
 Please note that this only works with PollingComponent types and others will result in a
 compile error.
@@ -366,8 +348,6 @@ on_...:
     # The same as:
     - lambda: 'id(my_component).stop_poller();'
 ```
-
-<span id="component-resume_action"></span>
 
 ### `component.resume` Action
 
@@ -398,8 +378,6 @@ on_...:
         id: my_component
         update_interval: 15s
 ```
-
-<span id="common_conditions"></span>
 
 ## Common Conditions
 
@@ -434,8 +412,6 @@ on_...:
               binary_sensor.is_off: some_binary_sensor
           - binary_sensor.is_on: some_other_sensor
 ```
-
-<span id="for_condition"></span>
 
 ### `for` Condition
 
@@ -503,8 +479,6 @@ on_...:
 ## All Conditions
 
 <AutomationList type="Condition" />
-
-<span id="tips-and-tricks"></span>
 
 ## Tips and Tricks
 

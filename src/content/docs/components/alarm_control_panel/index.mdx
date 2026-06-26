@@ -23,7 +23,7 @@ Configuration variables:
 - **name** (*Optional*, string): The name of the alarm control panel. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and
+> If you have a [friendly_name](/components/esphome#configuration-variables) set for your device and
 > you want the switch to use that name, you can set `name: None`.
 
 - **on_state** (*Optional*, [Action](/automations/actions#all-actions)): An automation to perform
@@ -223,8 +223,6 @@ alarm_control_panel:
       - logger.log: "Alarm Chime!"
 ```
 
-<span id="alarm_control_panel_arm_away_action"></span>
-
 ### `alarm_control_panel.arm_away` Action
 
 This action arms the alarm in away mode. The `code` is required when *requires_code_to_arm* is *true*.
@@ -236,8 +234,6 @@ on_...:
         id: acp1
         code: "1234"
 ```
-
-<span id="alarm_control_panel_arm_home_action"></span>
 
 ### `alarm_control_panel.arm_home` Action
 
@@ -251,8 +247,6 @@ on_...:
         code: "1234"
 ```
 
-<span id="alarm_control_panel_arm_night_action"></span>
-
 ### `alarm_control_panel.arm_night` Action
 
 This action arms the alarm in night mode. The `code` is required when *requires_code_to_arm* is *true*.
@@ -264,8 +258,6 @@ on_...:
         id: acp1
         code: "1234"
 ```
-
-<span id="alarm_control_panel_disarm_action"></span>
 
 ### `alarm_control_panel.disarm` Action
 
@@ -279,8 +271,6 @@ on_...:
         code: "1234"
 ```
 
-<span id="alarm_control_panel_pending_action"></span>
-
 ### `alarm_control_panel.pending` Action
 
 This action puts the alarm in pending state (the state before triggered after *pending_time*).
@@ -290,8 +280,6 @@ on_...:
   then:
     - alarm_control_panel.pending: acp1
 ```
-
-<span id="alarm_control_panel_triggered_action"></span>
 
 ### `alarm_control_panel.triggered` Action
 
@@ -303,8 +291,6 @@ on_...:
     - alarm_control_panel.triggered: acp1
 ```
 
-<span id="alarm_control_panel_is_armed_condition"></span>
-
 ### `alarm_control_panel.is_armed` Condition
 
 This [Condition](/automations/actions#all-conditions) checks if the alarm control panel is armed.
@@ -315,8 +301,6 @@ on_...:
     condition:
       alarm_control_panel.is_armed: acp1
 ```
-
-<span id="alarm_control_panel_lambda_calls"></span>
 
 ### lambda calls
 

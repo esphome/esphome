@@ -36,8 +36,6 @@ wifi:
 > [!TIP]
 > For WiFi security recommendations including `min_auth_mode` configuration, see the [Security Best Practices](/guides/security_best_practices#wifi-security) guide.
 
-<span id="wifi-configuration_variables"></span>
-
 ## Configuration variables
 
 - **ssid** (*Optional*, string): The name (or [service set identifier](https://www.lifewire.com/definition-of-service-set-identifier-816547))
@@ -89,7 +87,7 @@ wifi:
   Does not apply when in access point mode.
 
 - **power_save_mode** (*Optional*, string): The power save mode for the WiFi interface.
-  See [Power Save Mode](#wifi-power_save_mode)
+  See [Power Save Mode](#power-save-mode)
 
 - **output_power** (*Optional*, string): The amount of TX power for the WiFi interface from 8.5dB to 20.5dB. Default
   for ESP8266 is 20dB, 20.5dB might cause unexpected restarts.
@@ -144,7 +142,7 @@ wifi:
   This helps devices recover from scenarios where they connect to a suboptimal
   AP (e.g., after an AP reboot or site power loss). Automatically disabled if
   `enable_btm` or `enable_rrm` is enabled. See
-  [Post-Connect Roaming](#wifi-post_connect_roaming). Defaults to `true`.
+  [Post-Connect Roaming](#post-connect-roaming). Defaults to `true`.
 
 - **on_connect** (*Optional*, [Automation](/automations)): An action to be performed when a connection is established.
 - **on_disconnect** (*Optional*, [Automation](/automations)): An action to be performed when the connection is dropped.
@@ -222,8 +220,6 @@ the OTA process will automatically choose that as the target for the upload.
 > [!NOTE]
 > See also [Changing ESPHome Node Name](/components/esphome#esphome-changing_node_name).
 
-<span id="wifi-power_save_mode"></span>
-
 ## Power Save Mode
 
 The WiFi interface of all ESPs offer three power save modes to reduce the amount of power spent on
@@ -275,8 +271,6 @@ wifi:
   password: VerySafePassword
   min_auth_mode: WPA3  # Only connect to WPA3 networks (most secure)
 ```
-
-<span id="wifi-post_connect_roaming"></span>
 
 ## Post-Connect Roaming
 
@@ -556,8 +550,6 @@ on_...:
 
 ## Conditions
 
-<span id="wifi-connected_condition"></span>
-
 ### `wifi.connected` Condition
 
 This [Condition](/automations/actions#all-conditions) checks if the WiFi client is currently connected to a station.
@@ -572,8 +564,6 @@ on_...:
 ```
 
 The lambda equivalent for this is `id(wifi_id).is_connected()`.
-
-<span id="wifi-enabled_condition"></span>
 
 ### `wifi.enabled` Condition
 
@@ -590,8 +580,6 @@ on_...:
 ```
 
 The lambda equivalent for this is `!id(wifi_id).is_disabled()`.
-
-<span id="wifi-ap-active_condition"></span>
 
 ### `wifi.ap_active` Condition
 

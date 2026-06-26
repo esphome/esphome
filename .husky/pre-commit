@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+branch="$(git rev-parse --abbrev-ref HEAD)"
+case "$branch" in
+current | next | beta)
+  echo "ESPHome: direct commits to '$branch' are not allowed. Please create a feature branch."
+  exit 1
+  ;;
+esac
+
+npx lint-staged

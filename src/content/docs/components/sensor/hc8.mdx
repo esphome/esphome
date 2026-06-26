@@ -45,8 +45,6 @@ sensor:
 
 - **warmup_time** (*Optional*, [Time](/guides/configuration-types#time)): The sensor has a warmup period during which it returns inaccurate readings (e.g., 500ppm, 505ppm). This setting discards readings until the warmup time has elapsed (returning `NaN` during warmup). The datasheet specifies a 10-minute preheating time for full accuracy, with 90% accuracy achieved after 3 minutes. Empirical evidence shows that reasonable values are usually returned after about 1 minute. Defaults to `75s`.
 
-<span id="hc8-calibrate_action"></span>
-
 ## `hc8.calibrate` Action
 
 This [action](/automations/actions#all-actions) executes baseline calibration command on the sensor with the given ID.

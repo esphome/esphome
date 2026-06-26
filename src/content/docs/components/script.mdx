@@ -49,8 +49,6 @@ script:
 
 - **then** (**Required**, [Action](/automations/actions#all-actions)): The action to perform.
 
-<span id="script-parameters"></span>
-
 ## Script Parameters
 
 Scripts can be defined with parameters. The arguments given when calling the script can be used within the script's
@@ -81,8 +79,6 @@ script:
       - light.turn_off: status_light
 ```
 
-<span id="script-execute_action"></span>
-
 ## `script.execute` Action
 
 This action executes the script. The script **mode** dictates what will happen if the script was already running.
@@ -104,8 +100,6 @@ on_...:
     # Calling a parameterised script inside a lambda
     - lambda: id(blink_light)->execute(1000);
 ```
-
-<span id="script-stop_action"></span>
 
 ## `script.stop` Action
 
@@ -134,8 +128,6 @@ on_...:
 lambda: 'id(my_script).stop();'
 ```
 
-<span id="script-wait_action"></span>
-
 ## `script.wait` Action
 
 This action suspends execution of the automation until a script has finished executing.
@@ -161,13 +153,11 @@ on_...:
 
 This can't be used in a lambda as it would block all functioning of the device. The script wouldn't even get to run.
 
-<span id="script-is_running_condition"></span>
-
 ## `script.is_running` Condition
 
 This [condition](/automations/actions#all-conditions) allows you to check if a given script is running. In case scripts are run in
 `parallel`, this condition only tells you if at least one script of the given id is running, not how many. Not
-designed for use with [while](/automations/actions#while_action); instead try [script.wait](#script-wait_action).
+designed for use with [while](/automations/actions#while-action); instead try [script.wait](#script-wait-action).
 
 ```yaml
 on_...:

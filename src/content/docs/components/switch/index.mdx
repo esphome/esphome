@@ -27,7 +27,7 @@ Configuration variables:
 - **name** (*Optional*, string): The name of the switch. At least one of **id** and **name** must be specified.
 
 > [!NOTE]
-> If you have a [friendly_name](/components/esphome#esphome-configuration_variables) set for your device and
+> If you have a [friendly_name](/components/esphome#configuration-variables) set for your device and
 > you want the switch to use that name, you can set `name: None`.
 
 - **icon** (*Optional*, icon): Manually set the icon to use for the
@@ -79,8 +79,6 @@ Configuration variables:
 - If MQTT enabled, All other options from [MQTT Component](/components/mqtt#config-mqtt-component).
 - If Webserver enabled and version 3 is selected, All other options from Webserver Component.. See [Webserver Version 3](/components/web_server#config-webserver-version-3-options).
 
-<span id="switch-toggle_action"></span>
-
 ### `switch.toggle` Action
 
 This action toggles a switch with the given ID when executed.
@@ -90,8 +88,6 @@ on_...:
   then:
     - switch.toggle: relay_1
 ```
-
-<span id="switch-turn_on_action"></span>
 
 ### `switch.turn_on` Action
 
@@ -103,8 +99,6 @@ on_...:
     - switch.turn_on: relay_1
 ```
 
-<span id="switch-turn_off_action"></span>
-
 ### `switch.turn_off` Action
 
 This action turns a switch with the given ID off when executed.
@@ -114,8 +108,6 @@ on_...:
   then:
     - switch.turn_off: relay_1
 ```
-
-<span id="switch-control_action"></span>
 
 ### `switch.control` Action
 
@@ -157,8 +149,6 @@ on_...:
       # Same syntax for is_off
       switch.is_on: my_switch
 ```
-
-<span id="switch-lambda_calls"></span>
 
 ### lambda calls
 
@@ -233,8 +223,6 @@ switch:
     on_turn_off:
     - logger.log: "Switch Turned Off!"
 ```
-
-<span id="switch-on_state_trigger"></span>
 
 ### `switch.on_state` Trigger
 

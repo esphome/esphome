@@ -160,7 +160,7 @@ sensor:
 
 Cleargrass (Qingping): hygro thermometer, round body, e-ink display.
 
-New firmware requires a bindkey in order to decrypt the received data (see [Obtaining the Bindkey](#obtaining_the_bindkey)), and stopped broadcasting battery level.
+New firmware requires a bindkey in order to decrypt the received data (see [Obtaining the Bindkey](#obtaining-the-bindkey)), and stopped broadcasting battery level.
 
 <Image src="/images/xiaomi_cgg1.jpg" width={300} height={217} layout="constrained" alt="" />
 
@@ -198,7 +198,7 @@ There are several ways to operate this sensor:
 1. Device flashed with [ATC MiThermometer](https://github.com/atc1441/ATC_MiThermometer) custom firmware, supporting "Mi Like", "Custom" advertisements
 
 With PVVX firmware and "BTHome v2" advertisement, encryption with bindkey is supported, just like with Xiaomi stock firmware
-(see [Obtaining the Bindkey](#obtaining_the_bindkey)). Unencrypted communication is supported only in custom firmware, but it's not recommended for obvious security reasons.
+(see [Obtaining the Bindkey](#obtaining-the-bindkey)). Unencrypted communication is supported only in custom firmware, but it's not recommended for obvious security reasons.
 
 > [!NOTE]
 > PVVX firmare deprecated any other advertisment format other than "BTHome v2" starting with version 6.0.
@@ -237,7 +237,7 @@ sensor:
       name: "BTHome Signal"
 ```
 
-If you enable "Encrypted beacon" in the PVVX firmware, specify the `bindkey` with the value you see when you press the "Get BindKey" button in Telink Flasher (see [Obtaining the Bindkey](#obtaining_the_bindkey)).
+If you enable "Encrypted beacon" in the PVVX firmware, specify the `bindkey` with the value you see when you press the "Get BindKey" button in Telink Flasher (see [Obtaining the Bindkey](#obtaining-the-bindkey)).
 
 > [!NOTE]
 > Once you've set a `bindkey`, the component will not accept unencrypted beacons from that `mac_address`. The mismatch will be printed in the log.
@@ -280,7 +280,7 @@ sensor:
 
 ### XMWSDJ04MMC
 
-Hygro thermometer, small square body, e-ink display, encrypted, broadcasts temperature, humidity and battery status. Requires a bindkey in order to decrypt the received data (see [Obtaining the Bindkey](#obtaining_the_bindkey)).
+Hygro thermometer, small square body, e-ink display, encrypted, broadcasts temperature, humidity and battery status. Requires a bindkey in order to decrypt the received data (see [Obtaining the Bindkey](#obtaining-the-bindkey)).
 
 <Image src={xiaomiXmwsdj04mmcImg} layout="constrained" alt="" />
 
@@ -323,7 +323,7 @@ sensor:
 
 ### MHO-C401
 
-Hygro thermometer, square body, e-ink display, encrypted, broadcasts temperature, humidity and battery status. Requires a bindkey in order to decrypt the received data (see [Obtaining the Bindkey](#obtaining_the_bindkey)).
+Hygro thermometer, square body, e-ink display, encrypted, broadcasts temperature, humidity and battery status. Requires a bindkey in order to decrypt the received data (see [Obtaining the Bindkey](#obtaining-the-bindkey)).
 
 <Image src={xiaomiMhoc401Img} layout="constrained" alt="" />
 
@@ -331,7 +331,7 @@ Hygro thermometer, square body, e-ink display, encrypted, broadcasts temperature
 
 Similar to the LYWSD03MMC, there is custom firmware available for this device, so there are the following possibilities to operate this sensor:
 
-1. Xiaomi stock firmware (requires a bindkey in order to decrypt the received data, see [Obtaining the Bindkey](#obtaining_the_bindkey))
+1. Xiaomi stock firmware (requires a bindkey in order to decrypt the received data, see [Obtaining the Bindkey](#obtaining-the-bindkey))
 1. Device flashed with [PVVX MiThermometer](https://github.com/pvvx/ATC_MiThermometer) custom firmware
 
 - "Mi Like" advertisement (dummy bindkey required)
@@ -370,7 +370,7 @@ sensor:
 
 ### CGD1
 
-Cleargrass (Qingping) alarm clock, segment LCD, encrypted, broadcasts temperature, humidity and battery status. Requires a bindkey in order to decrypt the received data (see [Obtaining the Bindkey](#obtaining_the_bindkey)).
+Cleargrass (Qingping) alarm clock, segment LCD, encrypted, broadcasts temperature, humidity and battery status. Requires a bindkey in order to decrypt the received data (see [Obtaining the Bindkey](#obtaining-the-bindkey)).
 
 <Image src={xiaomiCgd1Img} layout="constrained" alt="" />
 
@@ -391,7 +391,7 @@ sensor:
 
 ### CGDK2
 
-Cleargrass (Qingping) Temp & RH Lite, round body, segment LCD, encrypted, broadcasts temperature, humidity and battery status. Requires a bindkey in order to decrypt the received data (see [Obtaining the Bindkey](#obtaining_the_bindkey)).
+Cleargrass (Qingping) Temp & RH Lite, round body, segment LCD, encrypted, broadcasts temperature, humidity and battery status. Requires a bindkey in order to decrypt the received data (see [Obtaining the Bindkey](#obtaining-the-bindkey)).
 The measurements are broadcast every 10-15 minutes.
 
 <Image src={xiaomiCgdk2Img} layout="constrained" alt="" />
@@ -473,7 +473,7 @@ binary_sensor:
 
 ### MJYD02YL-A
 
-Xiaomi Yeelight night light, in-shape replacement of MJYD02YL with BLE, broadcasts light on/off status, motion detection, idle time since last motion event and battery status. Requires a bindkey in order to decrypt the received data (see [Obtaining the Bindkey](#obtaining_the_bindkey)). Implemented as a hybrid sensor, needs both `sensor` and `binary_sensor` in config.
+Xiaomi Yeelight night light, in-shape replacement of MJYD02YL with BLE, broadcasts light on/off status, motion detection, idle time since last motion event and battery status. Requires a bindkey in order to decrypt the received data (see [Obtaining the Bindkey](#obtaining-the-bindkey)). Implemented as a hybrid sensor, needs both `sensor` and `binary_sensor` in config.
 
 <Image src={xiaomiMjyd02ylaImg} layout="constrained" alt="" />
 
@@ -499,7 +499,7 @@ binary_sensor:
 
 ### CGPR1
 
-Qingping motion & ambient light sensor. Broadcasts motion detection, idle time since last motion event, lux value and battery status. Requires a bindkey in order to decrypt the received data (see [Obtaining the Bindkey](#obtaining_the_bindkey)).
+Qingping motion & ambient light sensor. Broadcasts motion detection, idle time since last motion event, lux value and battery status. Requires a bindkey in order to decrypt the received data (see [Obtaining the Bindkey](#obtaining-the-bindkey)).
 
 <Image src={xiaomiCgpr1Img} layout="constrained" alt="" />
 
@@ -522,7 +522,7 @@ binary_sensor:
 ### RTCGQ02LM - Mi Motion Sensor 2
 
 Motion & ambient light sensor. Broadcasts motion detection, light/dark and battery status. Also has a button that broadcasts when pressed.
-Requires a bindkey in order to decrypt the received data (see [Obtaining the Bindkey](#obtaining_the_bindkey)).
+Requires a bindkey in order to decrypt the received data (see [Obtaining the Bindkey](#obtaining-the-bindkey)).
 
 <Image src="/images/xiaomi_rtcgq02lm.jpg" width={300} height={300} layout="constrained" alt="" />
 
@@ -569,8 +569,6 @@ All options from [Sensor](/components/sensor) are supported for:
 - **formaldehyde**
 - **battery_level**
 
-<span id="obtaining_the_mac_address"></span>
-
 ## Obtaining the MAC address
 
 To find the MAC Address so that ESPHome can identify the device, you can create a simple configuration without any sensor entries:
@@ -590,8 +588,6 @@ Found device XX:XX:XX:XX:XX:XX RSSI=-78
 ```
 
 It can sometimes take some time for the first BLE broadcast to be received. Once the device has been found, copy the address `XX:XX:XX:XX:XX:XX` into a new platform entry like shown in the example configurations.
-
-<span id="obtaining_the_bindkey"></span>
 
 ## Obtaining the Bindkey
 

@@ -3,6 +3,9 @@
   "version": "2.0.0",
   "description": "ESPHome Documentation",
   "type": "module",
+  "engines": {
+    "node": "^22.22.1 || >=24"
+  },
   "scripts": {
     "dev": "astro dev --host",
     "build": "astro build",
@@ -10,18 +13,26 @@
     "serve": "astro build && astro preview --host",
     "lint": "node script/lint.mjs",
     "lint:js": "eslint .",
+    "lint:md": "markdownlint \"**/*.md\"",
     "format": "prettier --write \"**/*.{ts,tsx,js,mjs,cjs,astro,css}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,cjs,astro,css}\""
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,cjs,astro,css}\"",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs,cjs,astro,css}": "prettier --write",
+    "*.md": "markdownlint"
   },
   "dependencies": {
     "@astrojs/starlight": "^0.39.3",
     "astro": "^6.4.6",
+    "github-slugger": "^2.0.0",
     "katex": "^0.17.0",
     "micromark": "^4.0.2",
     "rehype-katex": "^7.0.1",
     "remark-github-blockquote-alert": "^2.1.0",
     "remark-math": "^6.0.0",
-    "sharp": "^0.34.5"
+    "sharp": "^0.34.5",
+    "unist-util-visit": "^5.1.0"
   },
   "repository": {
     "type": "git",
@@ -38,7 +49,10 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-astro": "^1.7.0",
     "globals": "^17.6.0",
+    "husky": "^9.1.7",
     "jsdom": "^29.1.1",
+    "lint-staged": "^17.0.8",
+    "markdownlint-cli": "^0.49.0",
     "prettier": "^3.8.4",
     "prettier-plugin-astro": "^0.14.1",
     "typescript": "^6.0.3",

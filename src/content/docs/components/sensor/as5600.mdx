@@ -18,7 +18,7 @@ import APIRef from '@components/APIRef.astro';
 The `as5600` sensor platform you to use your AS5600 ([datasheet](https://ams.com/documents/20143/36005/AS5600_DS000365_5-00.pdf/649ee61c-8f9a-20df-9e10-43173a3eb323),
 [AMS](https://ams.com/en/as5600)) or AS5600L ([datasheet](https://ams.com/documents/20143/36005/AS5600L_DS000545_3-00.pdf/7ade6878-7a32-2294-b88d-479d50fab6de),
 [AMS](https://ams.com/en/as5600l)) 12-bit magnetic position sensor with ESPHome. Individual sensors will be added
-using the [AS5600 Sensor Platform](#as5600-sensor). To use this hub, first setup
+using the [AS5600 Sensor Platform](#sensor). To use this hub, first setup
 the [I²C Bus](/components/i2c) and connect the sensor to the pins specified there.
 
 <Figure
@@ -38,7 +38,7 @@ as5600:
 ### Configuration variables
 
 - **dir_pin** (*Optional*, int): The pin connected to the AS5600's direction pin.
-  See [Direction](#as5600_direction) for more information.
+  See [Direction](#direction) for more information.
 
 - **direction** (*Optional*, string): The direction that the magnet should rotate to increase values.
   Used in combination with the **dir_pin**.
@@ -96,8 +96,6 @@ as5600:
 
 - **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID for this AS5600 Hub.
 - All other options for I²C devices described at [I²C Bus](/components/i2c).
-
-<span id="as5600_direction"></span>
 
 ## Direction
 
@@ -161,8 +159,6 @@ as5600:
 The AS5600 address is not configurable and must be `0x36`. However, if using an AS5600L,
 the default address should be `0x40` and it is configurable.
 
-<span id="as5600-sensor"></span>
-
 ## Sensor
 
 The `as5600` sensor allows you to publish the angle/position measurement from your AS5600 with ESPHome.
@@ -193,7 +189,7 @@ sensor:
 ### Configuration variables
 
 - **out_of_range_mode** (*Optional*, string): How to treat out of range values. Only applicable if configured
-  for a range less than 360 degrees. Defaults to `min_max`. See [Out of Range Mode](#as5600-out-of-range-mode).
+  for a range less than 360 degrees. Defaults to `min_max`. See [Out of Range Mode](#out-of-range-mode).
 
 - **as5600_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the
   [AS5600 Hub](#as5600-component) you want to use this sensor.
@@ -217,12 +213,10 @@ sensor:
 
   - All other options from [Sensor](/components/sensor).
 - **status** (*Optional*): Information about the magnet status. Typically for diagnostic purposes.
-  See [Magnet Status](#as5600-magnet-status)
+  See [Magnet Status](#magnet-status)
 
   - All other options from [Sensor](/components/sensor).
 - All other options from [Sensor](/components/sensor).
-
-<span id="as5600-out-of-range-mode"></span>
 
 ### Out of Range Mode
 
@@ -234,8 +228,6 @@ splits that range in half and reports `0` while in the half of the "out-of-range
 `4095` while in the half of the "out-of-range" range closest to the `end_position` / end of the `range`. Alternatively, you may set to `nan`
 mode where the sensor will publish `NAN` (i.e. "Unknown") when the position falls outside the narrowed range.
 
-<span id="as5600-magnet-status"></span>
-
 ### Magnet Status
 
 The magnet status should report one of the following values:
@@ -244,8 +236,6 @@ The magnet status should report one of the following values:
 - `4` indicates that the magnet was detected and has good reading.
 - `5` indicates that the magnet was detected, but is too strong. Measurements may appear to be stuck if the magnet is too strong.
 - `6` indicates that the magnet was detected, but is too weak. Measurements may still be possible in this state.
-
-<span id="as5600-converting-position"></span>
 
 ### Converting Position
 
