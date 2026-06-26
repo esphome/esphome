@@ -221,6 +221,11 @@ async def to_code(config):
         zephyr_add_prj_conf("NET_IPV6", True)
         zephyr_add_prj_conf("NET_TCP", True)
         zephyr_add_prj_conf("NET_UDP", True)
+        # The nRF Connect SDK replaces mbedTLS with PSA/Oberon crypto, which does not provide the
+        # legacy mbedtls_md5() symbol that Zephyr's RFC 6528 TCP ISN generator links against
+        # (selecting MBEDTLS_MAC_MD5_ENABLED does not bring in the legacy C API here). Fall back to
+        # the non-cryptographic sys_rand ISN — acceptable on an isolated IPv6/OpenThread mesh device.
+        zephyr_add_prj_conf("NET_TCP_ISN_RFC6528", False)
 
     if (enable_ipv6 := config.get(CONF_ENABLE_IPV6, None)) is not None:
         cg.add_define("USE_NETWORK_IPV6", enable_ipv6)

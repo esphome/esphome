@@ -31,8 +31,21 @@
 #include <vector>
 #include <string>
 
+#ifdef LOG_LEVEL_NONE
+#pragma push_macro("LOG_LEVEL_NONE")
+#undef LOG_LEVEL_NONE
+#endif
+
 namespace esphome::api {
 
 // This file only provides includes, no actual code
 
 }  // namespace esphome::api
+
+// NOTE: intentionally do NOT pop_macro LOG_LEVEL_NONE here. On Zephyr it is defined as a logging
+// macro that collides with the LogLevel enum value of the same name in api_pb2.h; it must stay
+// undefined so the enum parses. The guard below is false after the #undef above (the macro is no
+// longer defined), so the pop never fires -- leaving the macro suppressed for this translation unit.
+#ifdef LOG_LEVEL_NONE
+#pragma pop_macro("LOG_LEVEL_NONE")
+#endif
