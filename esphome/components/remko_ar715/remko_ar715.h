@@ -53,6 +53,11 @@ class RemkoAr715Climate : public climate_ir::ClimateIR {
                                climate::CLIMATE_FAN_HIGH},
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}) {}
 
+  // Note: supports_cool and supports_heat are accepted by the base class schema
+  // but have no effect here. The traits() override explicitly excludes
+  // CLIMATE_MODE_HEAT and CLIMATE_MODE_HEAT_COOL because the AR-715 remote
+  // does not support these modes.
+  // TODO: remove this override once https://github.com/esphome/esphome/pull/16786 is merged.
   climate::ClimateTraits traits() override {
     auto traits = climate_ir::ClimateIR::traits();
     traits.set_supported_modes({
