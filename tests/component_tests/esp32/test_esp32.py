@@ -232,7 +232,8 @@ def test_s3_psram_pin_warning_only_for_octal(
     Using such a pin must only warn when octal PSRAM is configured; on quad
     PSRAM the pins are free and warning would be a false positive (#16857).
     """
-    generate_main(component_config_path(fixture))
+    with caplog.at_level("WARNING"):
+        generate_main(component_config_path(fixture))
     warned = "GPIO34 is used by the PSRAM interface in octal mode" in caplog.text
     assert warned == expect_warning
 
