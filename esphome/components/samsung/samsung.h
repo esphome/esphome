@@ -51,7 +51,7 @@ const uint8_t K_LOW_NIBBLE = 0;
 const uint8_t K_HIGH_NIBBLE = 4;
 
 static const uint8_t K_RESET[K_SAMSUNG_AC_EXTENDED_STATE_LENGTH] = {0x02, 0x92, 0x0F, 0x00, 0x00, 0x00, 0xF0,
-                                                                    0x01, 0xD2, 0x0F, 0x00, 0x00, 0x00, 0x00,
+                                                                    0x01, 0x02, 0xAE, 0x71, 0x00, 0x15, 0xF0,
                                                                     0x01, 0xE2, 0xFE, 0x71, 0x80, 0x11, 0xF0};
 
 /// Native representation of a Samsung A/C message.
