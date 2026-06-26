@@ -176,6 +176,23 @@ async def test_to_code_records_core_area(
     assert CORE.area == expected_area
 
 
+def test_config_load_without_area_clears_stale_core_area(
+    yaml_file: Callable[[str], Path],
+) -> None:
+    """A config without an area must not inherit a stale CORE.area.
+
+    preload_core_config assigns CORE.area unconditionally, so the area from a
+    previous load in a long-running process cannot leak into a config that
+    omits it.
+    """
+    CORE.area = "Stale Area From Previous Load"
+    result = load_config_from_fixture(
+        yaml_file, "device_without_area.yaml", FIXTURES_DIR
+    )
+    assert result is not None
+    assert CORE.area is None
+
+
 def test_legacy_string_area(
     yaml_file: Callable[[str], str], caplog: pytest.LogCaptureFixture
 ) -> None:
