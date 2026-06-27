@@ -190,17 +190,24 @@ void WiFiComponent::wifi_lazy_init_() {
     s_ap_netif = esp_netif_create_default_wifi_ap();
 #endif  // USE_WIFI_AP
 
-  // Another component (e.g. ESP-NOW) may have already initialized and started the
-  // WiFi driver before our STA netif and its default event handlers existed. In
-  // that case esp_wifi_get_mode() succeeds, and the WIFI_EVENT_STA_START that binds
-  // the netif's RX path already fired and will not repeat -- leaving the netif
-  // unbound, so the first received STA frame would dereference a null input function
-  // and crash in esp_netif_receive (#17232). Drive the start action manually instead
-  // of re-initializing.
+  // The WiFi driver was started (e.g. by ESP-NOW with the wifi component disabled at
+  // boot) before our STA netif existed. The default WIFI_EVENT_STA_START handler
+  // therefore ran with no netif and never called esp_wifi_register_if_rxcb() -- the
+  // only thing that points the driver's RX path at a netif (it sets
+  // s_wifi_netifs[WIFI_IF_STA]). A bare esp_netif_action_start() would stop the
+  // immediate crash (#17232) but leaves RX unbound, so the first association
+  // associates at L2 yet never receives DHCP replies and times out (#17239). Restart
+  // the driver now that the netif exists so STA_START re-runs the default handler and
+  // wires RX correctly. ESP-NOW survives the stop/start (its peer state persists).
   wifi_mode_t mode;
   if (esp_wifi_get_mode(&mode) == ESP_OK) {
-    ESP_LOGD(TAG, "WiFi driver already initialized elsewhere; binding STA netif");
-    esp_netif_action_start(s_sta_netif, nullptr, 0, nullptr);
+    ESP_LOGD(TAG, "WiFi driver already started without STA netif; restarting to bind it");
+    esp_wifi_stop();
+    esp_err_t err = esp_wifi_start();
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_wifi_start failed: %s", esp_err_to_name(err));
+      return;
+    }
     s_wifi_started = true;
     this->wifi_initialized_ = true;
     return;
