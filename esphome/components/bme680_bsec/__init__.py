@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import esp32, i2c
+from esphome.components.const import CONF_STATE_SAVE_INTERVAL
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_SAMPLE_RATE, CONF_TEMPERATURE_OFFSET, Framework
 
@@ -12,7 +13,6 @@ MULTI_CONF = True
 CONF_BME680_BSEC_ID = "bme680_bsec_id"
 CONF_IAQ_MODE = "iaq_mode"
 CONF_SUPPLY_VOLTAGE = "supply_voltage"
-CONF_STATE_SAVE_INTERVAL = "state_save_interval"
 
 bme680_bsec_ns = cg.esphome_ns.namespace("bme680_bsec")
 
