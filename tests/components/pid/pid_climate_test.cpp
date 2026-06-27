@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 #include <cmath>
 
+#ifdef USE_HOST
 #include "esphome/components/host/preferences.h"
+#endif
 #include "esphome/components/pid/pid_climate.h"
 
 namespace esphome::pid::testing {
@@ -21,8 +23,10 @@ struct PIDClimateTestState {
   TestFloatOutput cool_output;
 
   PIDClimateTestState() {
-    host::setup_preferences();
-    host::host_preferences->reset();
+#ifdef USE_HOST
+    esphome::host::setup_preferences();
+    esphome::host::host_preferences->reset();
+#endif
 
     this->climate.set_sensor(&this->temperature_sensor);
     this->climate.set_heat_output(&this->heat_output);
