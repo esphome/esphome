@@ -218,6 +218,7 @@ def test_execute_from_psram_p4_sdkconfig(
     [
         ("psram_quad_gpio34.yaml", False),
         ("psram_octal_gpio34.yaml", True),
+        ("psram_octal_disabled_gpio34.yaml", False),
     ],
 )
 def test_s3_psram_pin_warning_only_for_octal(
