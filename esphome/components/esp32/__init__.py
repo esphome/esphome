@@ -1100,10 +1100,9 @@ def _detect_variant(value):
 
 def final_validate(config):
     # Imported locally to avoid circular import issues
-    from esphome.components.psram import DOMAIN as PSRAM_DOMAIN, TYPE_OCTAL
-    from esphome.const import CONF_MODE
+    from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 
-    from .gpio_esp32_s3 import KEY_ESP32S3R8_PSRAM_PINS_USED
+    from .gpio import final_validate_pins
 
     errs = []
     conf_fw = config[CONF_FRAMEWORK]
@@ -1188,17 +1187,7 @@ def final_validate(config):
                 )
             )
 
-    # GPIO33-37 are only used by the PSRAM interface in octal mode (ESP32-S3R8 /
-    # S3R8V). Warn about pins recorded during validation only when octal PSRAM is
-    # actually configured, otherwise (quad PSRAM or none) the pins are free.
-    if (
-        psram_pins := CORE.data.pop(KEY_ESP32S3R8_PSRAM_PINS_USED, None)
-    ) and full_config.get(PSRAM_DOMAIN, {}).get(CONF_MODE) == TYPE_OCTAL:
-        for pin in sorted(psram_pins):
-            _LOGGER.warning(
-                "GPIO%d is used by the PSRAM interface in octal mode and should be avoided",
-                pin,
-            )
+    final_validate_pins(full_config)
 
     if (
         config[CONF_FLASH_SIZE] == "32MB"
