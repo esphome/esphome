@@ -7,6 +7,7 @@
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/components/uart/uart_component.h"
 
+#include <atomic>
 #include <functional>
 #ifdef USE_ZEPHYR
 #include <zephyr/device.h>
@@ -107,6 +108,7 @@ class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMC
   const device *uart_dev_;
   uint32_t dtr_{0};
   uint32_t rts_{0};
+  std::atomic<bool> rx_irq_disabled_{false};
   ring_buf rx_ringbuf_;
   ring_buf tx_ringbuf_;
   uint8_t rx_ringbuf_data_[ESPHOME_CDC_RX_RING_BUFFER_SIZE];

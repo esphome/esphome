@@ -38,6 +38,11 @@ void USBCDCACMInstance::uart_rx_process_() {
     } else {
       total_size += rx;
     }
+  } else {
+    // Ring buffer full: disable RX IRQ so the ISR stops firing. loop() will
+    // re-enable it once the consumer has freed space.
+    uart_irq_rx_disable(this->uart_dev_);
+    this->rx_irq_disabled_ = true;
   }
   ring_buf_put_finish(&this->rx_ringbuf_, total_size);
 }
@@ -78,6 +83,10 @@ void USBCDCACMInstance::setup() {
 }
 
 void USBCDCACMInstance::loop() {
+  if (this->rx_irq_disabled_ && ring_buf_space_get(&this->rx_ringbuf_) > 0) {
+    this->rx_irq_disabled_ = false;
+    uart_irq_rx_enable(this->uart_dev_);
+  }
   uint32_t dtr = 0;
   uint32_t rts = 0;
   uart_line_ctrl_get(this->uart_dev_, UART_LINE_CTRL_DTR, &dtr);
@@ -86,7 +95,7 @@ void USBCDCACMInstance::loop() {
     ESP_LOGD(TAG, "UART Bus %s: %s", this->uart_dev_->name, dtr ? "Opened" : "Closed");
   }
   if (dtr != this->dtr_ || rts != this->rts_) {
-    ESP_LOGV(TAG, "Line state device %s: DTR=%d, RTS=%d", this->uart_dev_->name, dtr, rts);
+    ESP_LOGV(TAG, "Line state device %s: DTR=%u, RTS=%u", this->uart_dev_->name, dtr, rts);
     this->dtr_ = dtr;
     this->rts_ = rts;
     // Queue event for processing in main loop
