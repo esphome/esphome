@@ -191,6 +191,19 @@ void WiFiComponent::wifi_lazy_init_() {
     cfg.nvs_enable = false;
   }
   esp_err_t err = esp_wifi_init(&cfg);
+  if (err == ESP_ERR_WIFI_INIT_STATE) {
+    // Another component (e.g. ESP-NOW) already initialized and started the WiFi
+    // driver before our STA netif and its default event handlers existed. The
+    // WIFI_EVENT_STA_START that binds the netif's RX path therefore already fired
+    // and will not repeat, leaving the netif unbound. Drive the start action
+    // manually so the netif is wired up; otherwise the first received STA frame
+    // dereferences a null input function and crashes in esp_netif_receive (#17232).
+    ESP_LOGD(TAG, "WiFi driver already initialized elsewhere; binding STA netif");
+    esp_netif_action_start(s_sta_netif, nullptr, 0, nullptr);
+    s_wifi_started = true;
+    this->wifi_initialized_ = true;
+    return;
+  }
   if (err != ERR_OK) {
     ESP_LOGE(TAG, "esp_wifi_init failed: %s", esp_err_to_name(err));
     return;
