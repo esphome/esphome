@@ -1,5 +1,6 @@
 #include "api_connection.h"
 #ifdef USE_API
+#include "api_connection_buffer.h"  // for encode_to_buffer / get_batch_delay_ms_ inlines
 #ifdef USE_API_NOISE
 #include "api_frame_helper_noise.h"
 #endif
@@ -374,7 +375,7 @@ void APIConnection::finalize_iterator_sync_() {
 
 void APIConnection::process_iterator_batch_(ComponentIterator &iterator) {
   size_t initial_size = this->deferred_batch_.size();
-  size_t max_batch = this->get_max_batch_size_();
+  size_t max_batch = MAX_INITIAL_PER_BATCH;
   while (!iterator.completed() && (this->deferred_batch_.size() - initial_size) < max_batch) {
     iterator.advance();
   }
@@ -416,16 +417,6 @@ uint16_t APIConnection::fill_and_encode_entity_info(EntityBase *entity, InfoResp
                                                     APIConnection *conn, uint32_t remaining_size) {
   // Set common fields that are shared by all entity types
   msg.key = entity->get_object_id_hash();
-
-  // API 1.14+ clients compute object_id client-side from the entity name
-  // For older clients, we must send object_id for backward compatibility
-  // See: https://github.com/esphome/backlog/issues/76
-  // TODO: Remove this backward compat code before 2026.7.0 - all clients should support API 1.14 by then
-  // Buffer must remain in scope until encode_to_buffer is called
-  char object_id_buf[OBJECT_ID_MAX_LEN];
-  if (!conn->client_supports_api_version(1, 14)) {
-    msg.object_id = entity->get_object_id_to(object_id_buf);
-  }
 
   if (entity->has_own_name()) {
     msg.name = entity->get_name();
@@ -1168,7 +1159,7 @@ void APIConnection::on_camera_image_request(const CameraImageRequest &msg) {
 void APIConnection::on_get_time_response(const GetTimeResponse &value) {
   if (homeassistant::global_homeassistant_time != nullptr) {
     homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
-#ifdef USE_TIME_TIMEZONE
+#if defined(USE_HOMEASSISTANT_TIMEZONE) && defined(USE_TIME_TIMEZONE)
     if (!value.timezone.empty()) {
       // Check if the sender provided pre-parsed timezone data.
       // If std_offset is non-zero or DST rules are present, the parsed data was populated.
@@ -1305,6 +1296,9 @@ void APIConnection::on_voice_assistant_announce_request(const VoiceAssistantAnno
 bool APIConnection::send_voice_assistant_get_configuration_response_(const VoiceAssistantConfigurationRequest &msg) {
   VoiceAssistantConfigurationResponse resp;
   if (!this->check_voice_assistant_api_connection_()) {
+    // send_message encodes synchronously, so this stack local outlives the encode
+    const std::vector<std::string> empty_wake_words;
+    resp.active_wake_words = &empty_wake_words;
     return this->send_message(resp);
   }
 

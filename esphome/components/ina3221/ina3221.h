@@ -34,7 +34,7 @@ enum INA3221ConversionTime {
   INA3221_CONVERSION_TIME_8244US = 0b111,
 };
 
-class INA3221Component : public PollingComponent, public i2c::I2CDevice {
+class INA3221Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;

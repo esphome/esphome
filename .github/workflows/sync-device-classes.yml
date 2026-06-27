@@ -28,16 +28,16 @@ jobs:
           permission-pull-requests: write  # pulls.create / pulls.update to open or refresh the sync PR
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Checkout Home Assistant
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: home-assistant/core
           path: lib/home-assistant
 
       - name: Setup Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.14"
 
@@ -47,9 +47,13 @@ jobs:
         # setup-python interpreter so subsequent ``pre-commit`` /
         # ``script/run-in-env.py`` steps find the deps without a
         # ``uv run`` prefix.
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           enable-cache: true
+          # Pin uv version so the action does not have to fetch the
+          # manifest from raw.githubusercontent.com on every cache
+          # miss; that fetch flakes on Windows runners.
+          version: "0.11.15"
 
       - name: Install Home Assistant
         run: |

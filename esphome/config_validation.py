@@ -101,7 +101,7 @@ from esphome.schema_extractors import (
 )
 from esphome.util import parse_esphome_version
 from esphome.voluptuous_schema import _Schema
-from esphome.yaml_util import make_data_base
+from esphome.yaml_util import SensitiveStr, make_data_base
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -487,6 +487,59 @@ def string_strict(value):
     )
 
 
+# Substring fallbacks for fields whose validator isn't explicitly wrapped in
+# ``cv.sensitive``. Frontends and dump tooling should prefer the explicit
+# marker; this list exists so we still mask obvious leaks in unmigrated or
+# third-party schemas. Kept here as the single source of truth.
+SENSITIVE_KEY_FRAGMENTS: frozenset[str] = frozenset(
+    {
+        "password",
+        "passcode",
+        "secret",
+        "token",
+        "api_key",
+        "apikey",
+        "psk",
+    }
+)
+
+
+class SensitiveValidator:
+    """Marker wrapper that flags a field as containing sensitive data (passwords,
+    encryption keys, PSKs, tokens). Frontends and dump tooling detect this marker
+    to mask the value; validation behavior is delegated to the inner validator.
+    """
+
+    def __init__(self, inner: Callable[[typing.Any], typing.Any]) -> None:
+        self.inner = inner
+
+    def __call__(self, value: typing.Any) -> typing.Any:
+        validated = self.inner(value)
+        # Tag string results so yaml_util.dump can mask them. Non-string
+        # results pass through unchanged; already-tagged values are not
+        # re-wrapped to keep nested cv.sensitive applications idempotent.
+        if isinstance(validated, str) and not isinstance(validated, SensitiveStr):
+            return SensitiveStr(validated)
+        return validated
+
+    def __repr__(self) -> str:
+        # Mirror the inner validator's repr so ``build_language_schema``'s
+        # ``known_schemas``/``extended_schemas`` dedup (keyed on ``repr(schema)``)
+        # treats two wrappers around the same inner as identical, and so
+        # voluptuous error messages stay readable.
+        return repr(self.inner)
+
+
+def sensitive(
+    inner: Callable[[typing.Any], typing.Any] = string,
+) -> SensitiveValidator:
+    """Mark a field as sensitive so that frontends mask it and dump tooling redacts it.
+
+    Validation behavior is identical to ``inner`` (defaults to ``cv.string``).
+    """
+    return SensitiveValidator(inner)
+
+
 def icon(value):
     """Validate that a given config value is a valid icon."""
     from esphome.core.config import ICON_MAX_LENGTH
@@ -810,16 +863,6 @@ only_on_rp2040 = only_on(PLATFORM_RP2040)
 only_with_arduino = only_with_framework(Framework.ARDUINO)
 
 
-def only_with_esp_idf(obj):
-    """Deprecated: use only_on_esp32 instead."""
-    _LOGGER.warning(
-        "cv.only_with_esp_idf was deprecated in 2026.1, will change behavior in 2026.6. "
-        "ESP32 Arduino builds on top of ESP-IDF, so ESP-IDF features are available in both frameworks. "
-        "Use cv.only_on_esp32 and/or cv.only_with_arduino instead."
-    )
-    return only_with_framework(Framework.ESP_IDF)(obj)
-
-
 # Adapted from:
 # https://github.com/alecthomas/voluptuous/issues/115#issuecomment-144464666
 def has_at_least_one_key(*keys):
@@ -1136,7 +1179,9 @@ def date_time(date: bool, time: bool):
                 format += "%p"
 
         try:
-            date_obj = datetime.strptime(value, format)
+            # The generated format never includes %z/%Z, so this parses a
+            # naive wall-clock date/time by design.
+            date_obj = datetime.strptime(value, format)  # noqa: DTZ007
         except ValueError as err:
             raise Invalid(f"Invalid {exc_message}: {err}") from err
 
@@ -1175,21 +1220,60 @@ def mac_address(value):
     return core.MACAddress(*parts_int)
 
 
-def bind_key(value, *, name="Bind key"):
-    value = string_strict(value)
-    parts = [value[i : i + 2] for i in range(0, len(value), 2)]
-    if len(parts) != 16:
-        raise Invalid(f"{name} must consist of 16 hexadecimal numbers")
-    parts_int = []
-    if any(len(part) != 2 for part in parts):
-        raise Invalid(f"{name} must be format XX")
-    for part in parts:
-        try:
-            parts_int.append(int(part, 16))
-        except ValueError:
-            raise Invalid(f"{name} must be hex values from 00 to FF") from None
+_BIND_KEY_MISSING = object()
 
-    return "".join(f"{part:02X}" for part in parts_int)
+
+class BindKeyValidator(SensitiveValidator):
+    """Sensitive validator for a 16-byte hex bind/encryption key.
+
+    Use bare as a validator (``cv.bind_key``) for the default error wording, or
+    call it with a custom ``name`` (``cv.bind_key(name="Decryption key")``) to
+    get a validator with tailored error messages. Either way the value is marked
+    sensitive so frontends mask it and dump tooling redacts it.
+    """
+
+    def __init__(self, name: str = "Bind key") -> None:
+        self._name = name
+        super().__init__(self._validate)
+
+    def _validate(self, value: typing.Any) -> str:
+        value = string_strict(value)
+        parts = [value[i : i + 2] for i in range(0, len(value), 2)]
+        if len(parts) != 16:
+            raise Invalid(f"{self._name} must consist of 16 hexadecimal numbers")
+        parts_int = []
+        if any(len(part) != 2 for part in parts):
+            raise Invalid(f"{self._name} must be format XX")
+        for part in parts:
+            try:
+                parts_int.append(int(part, 16))
+            except ValueError:
+                raise Invalid(
+                    f"{self._name} must be hex values from 00 to FF"
+                ) from None
+
+        return "".join(f"{part:02X}" for part in parts_int)
+
+    def __call__(
+        self, value: typing.Any = _BIND_KEY_MISSING, *, name: str | None = None
+    ) -> typing.Any:
+        if value is _BIND_KEY_MISSING:
+            # Factory usage: return a validator with customized error wording.
+            return BindKeyValidator(name if name is not None else self._name)
+        if name is not None and name != self._name:
+            # Direct validation with a one-off custom name.
+            return BindKeyValidator(name)(value)
+        return super().__call__(value)
+
+    def __repr__(self) -> str:
+        # ``self.inner`` is a bound method of this instance, so the inherited
+        # ``SensitiveValidator.__repr__`` (which returns ``repr(self.inner)``)
+        # would recurse infinitely. Provide a stable, name-keyed repr instead so
+        # ``build_language_schema`` dedup and voluptuous errors stay sane.
+        return f"bind_key({self._name!r})"
+
+
+bind_key = BindKeyValidator()
 
 
 def uuid(value):
@@ -1410,9 +1494,7 @@ def ipv6address(value):
 def ipv4address_multi_broadcast(value):
     address = ipv4address(value)
     if not (address.is_multicast or (address == IPv4Address("255.255.255.255"))):
-        raise Invalid(
-            f"{value} is not a multicasst address nor local broadcast address"
-        )
+        raise Invalid(f"{value} is not a multicast address nor local broadcast address")
     return address
 
 
@@ -1862,7 +1944,7 @@ def extract_keys(schema):
         elif isinstance(skey, vol.Marker) and isinstance(skey.schema, str):
             keys.append(skey.schema)
         else:
-            raise ValueError()
+            raise ValueError
     keys.sort()
     return keys
 

@@ -253,6 +253,106 @@ def test_run_esphome_upload_and_logs_fall_back_when_no_cache(
     mock_read.assert_called_once()
 
 
+def test_run_esphome_upload_does_not_refresh_cache_without_sidecar(
+    tmp_path: Path,
+) -> None:
+    """Without a StorageJSON sidecar (no compile has run), the fallback
+    skips the cache write -- load_compiled_config requires the sidecar,
+    so writing the rendered (secret-resolved) YAML would be inert and
+    leak secrets to disk for nothing."""
+    yaml_path = tmp_path / "lite_test.yaml"
+    yaml_path.write_text("esphome:\n  name: lite_test\n")
+    CORE.config_path = yaml_path
+
+    with (
+        patch(
+            "esphome.__main__.read_config",
+            return_value={"esphome": {"name": "lite_test"}},
+        ),
+        patch("esphome.compiled_config.save_compiled_config") as mock_save,
+        patch.dict(
+            "esphome.__main__.POST_CONFIG_ACTIONS",
+            {"upload": lambda args, config: 0},
+        ),
+    ):
+        run_esphome(["esphome", "upload", str(yaml_path)])
+
+    mock_save.assert_not_called()
+
+
+@pytest.mark.parametrize("command", ["upload", "logs"])
+def test_run_esphome_upload_and_logs_refresh_cache_on_fallback(
+    tmp_path: Path, command: str
+) -> None:
+    """A stale-cache fallback rewrites the cache so the next call hits
+    the fast path. Without this, every upload/logs after a YAML edit
+    pays for read_config() until the next compile rewrites the cache."""
+    yaml_path = tmp_path / "lite_test.yaml"
+    yaml_path.write_text("esphome:\n  name: lite_test\n")
+    CORE.config_path = yaml_path
+
+    storage_dir = tmp_path / ".esphome" / "storage"
+    _write_storage(storage_dir / "lite_test.yaml.json")
+    cache = _write_cache(storage_dir / "lite_test.yaml.validated.yaml")
+    _set_cache_mtime(cache, yaml_path, offset=-60)  # stale
+
+    fresh_config = {"esphome": {"name": "lite_test"}, "logger": {}}
+
+    with (
+        patch("esphome.__main__.read_config", return_value=fresh_config),
+        patch(
+            "esphome.compiled_config.save_compiled_config", wraps=save_compiled_config
+        ) as mock_save,
+        patch.dict(
+            "esphome.__main__.POST_CONFIG_ACTIONS",
+            {command: lambda args, config: 0},
+        ),
+    ):
+        assert run_esphome(["esphome", command, str(yaml_path)]) == 0
+
+    mock_save.assert_called_once_with(fresh_config)
+    # mtime is now newer than the source YAML, so a follow-up call hits
+    # the fast path instead of repeating read_config.
+    assert cache.stat().st_mtime >= yaml_path.stat().st_mtime
+
+
+def test_run_esphome_upload_with_substitution_does_not_refresh_cache(
+    fresh_cache_files: Path,
+) -> None:
+    """`-s` substitutions skip the cache on both read and write -- saving
+    here would clobber the cache with a substitution-specific config."""
+    with (
+        patch("esphome.__main__.read_config", return_value={"esphome": {}}),
+        patch("esphome.compiled_config.save_compiled_config") as mock_save,
+        patch.dict(
+            "esphome.__main__.POST_CONFIG_ACTIONS",
+            {"upload": lambda args, config: 0},
+        ),
+    ):
+        run_esphome(["esphome", "-s", "var", "val", "upload", str(fresh_cache_files)])
+
+    mock_save.assert_not_called()
+
+
+def test_run_esphome_compile_does_not_refresh_cache_via_fallback(
+    fresh_cache_files: Path,
+) -> None:
+    """Compile writes the cache through update_storage_json, not via the
+    upload/logs fallback path -- the fallback save would skip the
+    storage_should_clean check."""
+    with (
+        patch("esphome.__main__.read_config", return_value={"esphome": {}}),
+        patch("esphome.compiled_config.save_compiled_config") as mock_save,
+        patch.dict(
+            "esphome.__main__.POST_CONFIG_ACTIONS",
+            {"compile": lambda args, config: 0},
+        ),
+    ):
+        run_esphome(["esphome", "compile", str(fresh_cache_files)])
+
+    mock_save.assert_not_called()
+
+
 def test_run_esphome_upload_with_substitution_skips_cache(
     fresh_cache_files: Path,
 ) -> None:

@@ -15,7 +15,7 @@
 #include <cstring>
 
 #ifdef USE_ESP32
-#include "rom/crc.h"
+#include "esp_rom_crc.h"
 #endif
 
 namespace esphome {
@@ -47,7 +47,7 @@ static const uint16_t CRC16_8408_LE_LUT_H[] = {0x0000, 0x1081, 0x2102, 0x3183, 0
                                                0x8408, 0x9489, 0xa50a, 0xb58b, 0xc60c, 0xd68d, 0xe70e, 0xf78f};
 #endif
 
-#if !defined(USE_ESP32) || defined(USE_ESP32_VARIANT_ESP32S2)
+#ifndef USE_ESP32
 static const uint16_t CRC16_1021_BE_LUT_L[] = {0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50a5, 0x60c6, 0x70e7,
                                                0x8108, 0x9129, 0xa14a, 0xb16b, 0xc18c, 0xd1ad, 0xe1ce, 0xf1ef};
 static const uint16_t CRC16_1021_BE_LUT_H[] = {0x0000, 0x1231, 0x2462, 0x3653, 0x48c4, 0x5af5, 0x6ca6, 0x7e97,
@@ -86,7 +86,7 @@ uint8_t crc8(const uint8_t *data, uint8_t len, uint8_t crc, uint8_t poly, bool m
 uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t reverse_poly, bool refin, bool refout) {
 #ifdef USE_ESP32
   if (reverse_poly == 0x8408) {
-    crc = crc16_le(refin ? crc : (crc ^ 0xffff), data, len);
+    crc = esp_rom_crc16_le(refin ? crc : (crc ^ 0xffff), data, len);
     return refout ? crc : (crc ^ 0xffff);
   }
 #endif
@@ -124,23 +124,24 @@ uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t reverse
 }
 
 uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t poly, bool refin, bool refout) {
-#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32S2)
+#ifdef USE_ESP32
   if (poly == 0x1021) {
-    crc = crc16_be(refin ? crc : (crc ^ 0xffff), data, len);
+    crc = esp_rom_crc16_be(refin ? crc : (crc ^ 0xffff), data, len);
     return refout ? crc : (crc ^ 0xffff);
   }
 #endif
   if (refin) {
     crc ^= 0xffff;
   }
-#if !defined(USE_ESP32) || defined(USE_ESP32_VARIANT_ESP32S2)
+#ifndef USE_ESP32
   if (poly == 0x1021) {
     while (len--) {
       uint8_t combo = (crc >> 8) ^ *data++;
       crc = (crc << 8) ^ CRC16_1021_BE_LUT_L[combo & 0x0F] ^ CRC16_1021_BE_LUT_H[combo >> 4];
     }
-  } else {
+  } else
 #endif
+  {
     while (len--) {
       crc ^= (((uint16_t) *data++) << 8);
       for (uint8_t i = 0; i < 8; i++) {
@@ -151,9 +152,7 @@ uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t poly,
         }
       }
     }
-#if !defined(USE_ESP32) || defined(USE_ESP32_VARIANT_ESP32S2)
   }
-#endif
   return refout ? (crc ^ 0xffff) : crc;
 }
 

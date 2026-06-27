@@ -252,6 +252,22 @@ void RingBufferAudioSource::consume(size_t bytes) {
   }
 }
 
+void RingBufferAudioSource::clear_buffered_data() {
+  // Release the held item before reset() so the source no longer references memory the reset will reclaim.
+  if (this->acquired_item_ != nullptr) {
+    this->ring_buffer_->receive_release(this->acquired_item_);
+    this->acquired_item_ = nullptr;
+  }
+  this->current_data_ = nullptr;
+  this->current_available_ = 0;
+  this->queued_data_ = nullptr;
+  this->queued_length_ = 0;
+  this->item_trailing_ptr_ = nullptr;
+  this->item_trailing_length_ = 0;
+  this->splice_length_ = 0;
+  this->ring_buffer_->reset();
+}
+
 bool RingBufferAudioSource::has_buffered_data() const {
   // splice_length_ is deliberately not considered here. It holds an incomplete frame whose completion
   // bytes must still arrive through the ring buffer, which ring_buffer_->available() already reports.

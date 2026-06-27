@@ -13,22 +13,13 @@ from esphome.core import CORE
 
 
 @pytest.fixture
-def mock_update_storage_json() -> Generator[MagicMock]:
-    """Mock update_storage_json for all tests."""
-    with patch("esphome.build_gen.platformio.update_storage_json") as mock:
-        yield mock
-
-
-@pytest.fixture
 def mock_write_file_if_changed() -> Generator[MagicMock]:
     """Mock write_file_if_changed for tests."""
     with patch("esphome.build_gen.platformio.write_file_if_changed") as mock:
         yield mock
 
 
-def test_write_ini_creates_new_file(
-    tmp_path: Path, mock_update_storage_json: MagicMock
-) -> None:
+def test_write_ini_creates_new_file(tmp_path: Path) -> None:
     """Test write_ini creates a new platformio.ini file."""
     CORE.build_path = str(tmp_path)
 
@@ -50,9 +41,7 @@ framework = arduino
     assert platformio.INI_AUTO_GENERATE_END in file_content
 
 
-def test_write_ini_updates_existing_file(
-    tmp_path: Path, mock_update_storage_json: MagicMock
-) -> None:
+def test_write_ini_updates_existing_file(tmp_path: Path) -> None:
     """Test write_ini updates existing platformio.ini file."""
     CORE.build_path = str(tmp_path)
 
@@ -97,9 +86,7 @@ framework = arduino
     assert "platform = old" not in file_content
 
 
-def test_write_ini_preserves_custom_sections(
-    tmp_path: Path, mock_update_storage_json: MagicMock
-) -> None:
+def test_write_ini_preserves_custom_sections(tmp_path: Path) -> None:
     """Test write_ini preserves custom sections outside auto-generate markers."""
     CORE.build_path = str(tmp_path)
 
@@ -148,7 +135,6 @@ monitor_speed = 115200
 
 def test_write_ini_no_change_when_content_same(
     tmp_path: Path,
-    mock_update_storage_json: MagicMock,
     mock_write_file_if_changed: MagicMock,
 ) -> None:
     """Test write_ini doesn't rewrite file when content is unchanged."""
@@ -176,13 +162,41 @@ def test_write_ini_no_change_when_content_same(
     assert content in call_args[1]
 
 
-def test_write_ini_calls_update_storage_json(
-    tmp_path: Path, mock_update_storage_json: MagicMock
+@pytest.fixture
+def clean_core(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(CORE, "name", "test")
+    monkeypatch.setattr(CORE, "platformio_options", {})
+    monkeypatch.setattr(CORE, "platformio_libraries", {})
+    monkeypatch.setattr(CORE, "build_flags", set())
+    monkeypatch.setattr(CORE, "build_unflags", set())
+
+
+def test_get_ini_content_pins_cpp_standard(
+    clean_core: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test write_ini calls update_storage_json."""
-    CORE.build_path = str(tmp_path)
+    """cg.set_cpp_standard() pins -std via build_flags and unflags every other
+    known standard so the platform/framework default is stripped."""
+    monkeypatch.setattr(CORE, "cpp_standard", "gnu++20")
 
-    content = "[env:test]\nplatform = esp32"
+    content = platformio.get_ini_content()
 
-    platformio.write_ini(content)
-    mock_update_storage_json.assert_called_once()
+    flags_section = content.split("build_flags =")[1].split("build_unflags =")[0]
+    unflags_section = content.split("build_unflags =")[1].split("extra_scripts")[0]
+    assert "-std=gnu++20\n" in flags_section
+    # Both the GNU and strict dialects of every other standard are stripped.
+    for year in ("11", "14", "17", "23", "26", "2a", "2b", "2c"):
+        assert f"-std=gnu++{year}\n" in unflags_section
+        assert f"-std=c++{year}\n" in unflags_section
+    assert "-std=c++20\n" in unflags_section
+    # The selected standard must not unflag itself.
+    assert "-std=gnu++20\n" not in unflags_section
+
+
+def test_get_ini_content_no_cpp_standard(
+    clean_core: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(CORE, "cpp_standard", None)
+
+    content = platformio.get_ini_content()
+
+    assert "-std=" not in content

@@ -1,5 +1,6 @@
 #include "bluetooth_proxy.h"
 
+#include "esphome/components/api/api_server.h"
 #include "esphome/core/log.h"
 #include "esphome/core/macros.h"
 #include "esphome/core/application.h"
