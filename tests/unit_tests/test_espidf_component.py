@@ -26,13 +26,13 @@ from esphome.platformio.library import (
     GitSource,
     InvalidLibrary as InvalidIDFComponent,
     URLSource,
-    _collect_filtered_files,
     _node_key,
     _normalize_dependencies,
     _parse_library_json,
     _parse_library_properties,
     _resolve_registry_version,
-    _split_list_by_condition,
+    collect_filtered_files,
+    split_list_by_condition,
 )
 
 
@@ -72,7 +72,7 @@ def test_collect_filtered_files_basic(tmp_path):
     f2.parent.mkdir(parents=True)
     f2.write_text("int b;")
 
-    result = _collect_filtered_files(tmp_path, ["+<*>"])
+    result = collect_filtered_files(tmp_path, ["+<*>"])
     assert str(f1) in result
     assert str(f2) in result
 
@@ -83,7 +83,7 @@ def test_collect_filtered_files_exclude(tmp_path):
     f1.write_text("int a;")
     f2.write_text("int b;")
 
-    result = _collect_filtered_files(tmp_path, ["+<*> -<*.cpp>"])
+    result = collect_filtered_files(tmp_path, ["+<*> -<*.cpp>"])
     assert str(f1) in result
     assert str(f2) not in result
 
@@ -91,7 +91,7 @@ def test_collect_filtered_files_exclude(tmp_path):
 def test_split_list_by_condition():
     items = ["-Iinclude", "-Llib", "-Wall"]
 
-    matched, rest = _split_list_by_condition(
+    matched, rest = split_list_by_condition(
         items, lambda x: x[2:] if x.startswith("-I") else None
     )
 

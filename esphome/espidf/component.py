@@ -23,11 +23,11 @@ from esphome.platformio.library import (
     ConvertedLibrary as IDFComponent,
     LibraryBackend,
     PathType,
-    _check_library_data as _check_library_data_generic,
-    _collect_filtered_files,
-    _ensure_list,
-    _split_list_by_condition,
+    check_library_data as _check_library_data_generic,
+    collect_filtered_files,
     convert_libraries,
+    ensure_list,
+    split_list_by_condition,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -110,15 +110,15 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     build_include_dir = component.data.get("build", {}).get(
         "includeDir", DEFAULT_BUILD_INCLUDE_DIR
     )
-    build_src_filter = _ensure_list(
+    build_src_filter = ensure_list(
         component.data.get("build", {}).get("srcFilter", DEFAULT_BUILD_SRC_FILTER)
     )
-    build_flags = _ensure_list(
+    build_flags = ensure_list(
         component.data.get("build", {}).get("flags", DEFAULT_BUILD_FLAGS)
     )
 
     # List all sources files
-    build_src_files = _collect_filtered_files(
+    build_src_files = collect_filtered_files(
         component.path / Path(build_src_dir), build_src_filter
     )
 
@@ -138,13 +138,13 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     ]
 
     # Handle build flags
-    include_dir_flags, build_flags = _split_list_by_condition(
+    include_dir_flags, build_flags = split_list_by_condition(
         build_flags, lambda a: a[2:].strip() if a.startswith("-I") else None
     )
-    link_directories, build_flags = _split_list_by_condition(
+    link_directories, build_flags = split_list_by_condition(
         build_flags, lambda a: a[2:].strip() if a.startswith("-L") else None
     )
-    link_libraries, build_flags = _split_list_by_condition(
+    link_libraries, build_flags = split_list_by_condition(
         build_flags, lambda a: a[2:].strip() if a.startswith("-l") else None
     )
 
@@ -156,7 +156,7 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     ]
 
     # Split build_flags list into private and public lists
-    private_build_flags, public_build_flags = _split_list_by_condition(
+    private_build_flags, public_build_flags = split_list_by_condition(
         build_flags, lambda a: a if a.startswith("-W") else None
     )
 

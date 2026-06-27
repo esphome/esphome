@@ -198,7 +198,7 @@ class LibraryBackend:
 T = TypeVar("T")
 
 
-def _ensure_list(obj: T | list[T]) -> list[T]:
+def ensure_list(obj: T | list[T]) -> list[T]:
     """
     Convert an object to a list if it isn't already a list.
 
@@ -229,7 +229,7 @@ def _owner_pkgname_to_name(owner: str | None, pkgname: str) -> str:
     return f"{owner}/{pkgname}" if owner else pkgname
 
 
-def _collect_filtered_files(src_dir: PathType, src_filters: list[str]) -> list[str]:
+def collect_filtered_files(src_dir: PathType, src_filters: list[str]) -> list[str]:
     """
     Recursively match files in a directory according to include/exclude patterns.
 
@@ -285,7 +285,7 @@ def _collect_filtered_files(src_dir: PathType, src_filters: list[str]) -> list[s
     return [r for r in selected if Path(r).is_file()]
 
 
-def _split_list_by_condition(
+def split_list_by_condition(
     items: list[str], match_fn: Callable[[str], str | None]
 ) -> tuple[list[str], list[str]]:
     """
@@ -309,7 +309,7 @@ def _split_list_by_condition(
     return matched, non_matched
 
 
-def _check_library_data(data: dict, platform: str, framework: str):
+def check_library_data(data: dict, platform: str, framework: str):
     """
     Check whether a library manifest is compatible with the target toolchain.
 
@@ -332,7 +332,7 @@ def _check_library_data(data: dict, platform: str, framework: str):
     platforms = data.get("platforms", "*")
     if isinstance(platforms, str):
         platforms = [a.strip() for a in platforms.split(",")]
-    platforms = _ensure_list(platforms)
+    platforms = ensure_list(platforms)
 
     # Check if library supports the target platform
     valid_platforms = "*" in platforms or platform in platforms
@@ -343,7 +343,7 @@ def _check_library_data(data: dict, platform: str, framework: str):
     frameworks = data.get("frameworks", "*")
     if isinstance(frameworks, str):
         frameworks = [a.strip() for a in frameworks.split(",")]
-    frameworks = _ensure_list(frameworks)
+    frameworks = ensure_list(frameworks)
 
     # Check if library declares the active framework. PIO library manifests
     # often list only "arduino" even when the library actually compiles fine
@@ -631,7 +631,7 @@ def convert_libraries(
             )
 
         try:
-            _check_library_data(component.data, backend.platform, backend.framework)
+            check_library_data(component.data, backend.platform, backend.framework)
         except InvalidLibrary as e:
             # Skip an incompatible transitive dependency, but fail fast if a
             # top-level library the build explicitly requested is incompatible.
@@ -651,7 +651,7 @@ def convert_libraries(
             if "name" not in dependency or "version" not in dependency:
                 continue
             try:
-                _check_library_data(dependency, backend.platform, backend.framework)
+                check_library_data(dependency, backend.platform, backend.framework)
             except InvalidLibrary as e:
                 _LOGGER.debug("Skip dependency %s: %s", dependency.get("name"), str(e))
                 continue
