@@ -1,9 +1,11 @@
 import esphome.codegen as cg
 from esphome.components import esp32, uart
 from esphome.components.esp32 import (
+    VARIANT_ESP32H4,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
     add_idf_sdkconfig_option,
 )
 from esphome.components.uart import debug_to_code, maybe_empty_debug, uart_ns
@@ -67,7 +69,13 @@ CONFIG_SCHEMA = cv.All(
     cv.Any(
         cv.only_on_nrf52,
         esp32.only_on_variant(
-            supported=[VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3],
+            supported=[
+                VARIANT_ESP32H4,
+                VARIANT_ESP32P4,
+                VARIANT_ESP32S2,
+                VARIANT_ESP32S3,
+                VARIANT_ESP32S31,
+            ],
         ),
     ),
 )

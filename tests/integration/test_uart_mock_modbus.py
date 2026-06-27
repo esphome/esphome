@@ -127,15 +127,18 @@ async def test_uart_mock_modbus_timing(
 ) -> None:
     """Test modbus timing with multi-register SDM meter response."""
 
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
     tracker = SensorTracker(["sdm_voltage"])
     voltage_changed = tracker.expect_any("sdm_voltage")
 
     async with (
-        run_compiled(yaml_config),
+        run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
         await tracker.setup_and_start_scenario(client)
         await tracker.await_change(voltage_changed, "sdm_voltage")
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)
 
 
 @pytest.mark.asyncio
@@ -148,26 +151,25 @@ async def test_uart_mock_modbus_no_threshold(
 
     Without the 50ms fallback timeout, the chunked response with a 40ms gap
     between USB packets would cause a false timeout and CRC failure cascade.
-    Bus-level warnings (CRC failures, buffer clears) are expected during
-    chunked reassembly — the test only verifies the final value arrives.
+    Bus-level warnings (CRC/parse failures, buffer clears) are NOT expected during
+    chunked reassembly, if timeouts are set properly — these warnings indicate undersized timeouts.
     """
+
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
     tracker = SensorTracker(["sdm_voltage"])
     voltage_changed = tracker.expect_any("sdm_voltage")
 
     async with (
-        run_compiled(yaml_config),
+        run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
         await tracker.setup_and_start_scenario(client)
         await tracker.await_change(voltage_changed, "sdm_voltage")
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(
-    reason="Modbus parser cannot handle server responses from other devices on the bus. Fix tracked in PR #11969.",
-    strict=True,
-)
 async def test_uart_mock_modbus_server(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -308,10 +310,6 @@ async def test_uart_mock_modbus_server_controller_write(
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(
-    reason="Modbus parser cannot handle server responses from other devices on the bus. Fix tracked in PR #11969.",
-    strict=True,
-)
 async def test_uart_mock_modbus_server_controller_multiple(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -331,4 +329,29 @@ async def test_uart_mock_modbus_server_controller_multiple(
     ):
         await tracker.setup_and_start_scenario(client)
         await tracker.await_all(futures)
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_broadcast(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test that broadcast writes (address 0) don't wait for a response.
+
+    A controller at address 0 sends broadcast writes that get no reply. The
+    client must not arm the response timeout for them: otherwise every write
+    blocks for send_wait_time and logs a spurious "no response from 0" warning.
+    """
+
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected(),
+    ):
+        # Several broadcast writes fire on the 400ms interval; send_wait_time is
+        # 200ms, so the old behaviour would have warned on each one by now.
+        await asyncio.sleep(3.0)
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
