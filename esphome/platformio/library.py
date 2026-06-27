@@ -275,9 +275,10 @@ def _collect_filtered_files(src_dir: PathType, src_filters: list[str]) -> list[s
                 for root, _, files in os.walk(item):
                     matched.extend([str(Path(root) / f) for f in files])
 
+        # FILTER_REGEX only ever captures "+" or "-", so the else is the "-" case.
         if sign == "+":
             selected.update(matched)
-        elif sign == "-":
+        else:
             selected.difference_update(matched)
 
     return [r for r in selected if Path(r).is_file()]
