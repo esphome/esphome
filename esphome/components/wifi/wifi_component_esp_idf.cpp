@@ -185,25 +185,28 @@ void WiFiComponent::wifi_lazy_init_() {
     s_ap_netif = esp_netif_create_default_wifi_ap();
 #endif  // USE_WIFI_AP
 
-  wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-  if (global_preferences->nvs_handle == 0) {
-    ESP_LOGW(TAG, "starting wifi without nvs");
-    cfg.nvs_enable = false;
-  }
-  esp_err_t err = esp_wifi_init(&cfg);
-  if (err == ESP_ERR_WIFI_INIT_STATE) {
-    // Another component (e.g. ESP-NOW) already initialized and started the WiFi
-    // driver before our STA netif and its default event handlers existed. The
-    // WIFI_EVENT_STA_START that binds the netif's RX path therefore already fired
-    // and will not repeat, leaving the netif unbound. Drive the start action
-    // manually so the netif is wired up; otherwise the first received STA frame
-    // dereferences a null input function and crashes in esp_netif_receive (#17232).
+  // Another component (e.g. ESP-NOW) may have already initialized and started the
+  // WiFi driver before our STA netif and its default event handlers existed. In
+  // that case esp_wifi_get_mode() succeeds, and the WIFI_EVENT_STA_START that binds
+  // the netif's RX path already fired and will not repeat -- leaving the netif
+  // unbound, so the first received STA frame would dereference a null input function
+  // and crash in esp_netif_receive (#17232). Drive the start action manually instead
+  // of re-initializing.
+  wifi_mode_t mode;
+  if (esp_wifi_get_mode(&mode) == ESP_OK) {
     ESP_LOGD(TAG, "WiFi driver already initialized elsewhere; binding STA netif");
     esp_netif_action_start(s_sta_netif, nullptr, 0, nullptr);
     s_wifi_started = true;
     this->wifi_initialized_ = true;
     return;
   }
+
+  wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+  if (global_preferences->nvs_handle == 0) {
+    ESP_LOGW(TAG, "starting wifi without nvs");
+    cfg.nvs_enable = false;
+  }
+  esp_err_t err = esp_wifi_init(&cfg);
   if (err != ERR_OK) {
     ESP_LOGE(TAG, "esp_wifi_init failed: %s", esp_err_to_name(err));
     return;
