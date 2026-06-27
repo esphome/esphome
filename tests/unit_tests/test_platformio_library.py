@@ -5,6 +5,7 @@ Covers the shared download/parse/resolve/dependency-walk paths in
 exercised in their own test modules)."""
 
 import json
+import logging
 from pathlib import Path
 
 import pytest
@@ -14,16 +15,64 @@ import esphome.platformio.library as lib
 from esphome.platformio.library import (
     ConvertedLibrary,
     GitSource,
+    InvalidLibrary,
     LibraryBackend,
     Source,
     URLSource,
     _resolve_registry_version,
+    check_library_data,
     convert_libraries,
 )
 
 
 def _backend(emit=lambda component: None) -> LibraryBackend:
     return LibraryBackend(platform="espressif32", framework="espidf", emit=emit)
+
+
+def test_check_library_data_accepts_wildcards():
+    check_library_data({"platforms": "*", "frameworks": "*"}, "espressif32", "espidf")
+
+
+def test_check_library_data_accepts_missing_frameworks():
+    check_library_data({"platforms": "*"}, "espressif32", "espidf")
+
+
+def test_check_library_data_accepts_empty_manifest():
+    check_library_data({}, "espressif32", "espidf")
+
+
+def test_check_library_data_accepts_matching_platform():
+    check_library_data(
+        {"platforms": "espressif32", "frameworks": "*"}, "espressif32", "espidf"
+    )
+
+
+def test_check_library_data_accepts_matching_framework():
+    check_library_data(
+        {"platforms": "*", "frameworks": "espidf"}, "espressif32", "espidf"
+    )
+
+
+def test_check_library_data_rejects_unsupported_platform():
+    with pytest.raises(InvalidLibrary):
+        check_library_data(
+            {"platforms": ["other"], "frameworks": "*"}, "espressif32", "espidf"
+        )
+
+
+def test_check_library_data_warns_on_framework_mismatch(
+    caplog: pytest.LogCaptureFixture,
+):
+    # Framework mismatch is a warning, not a hard skip: the library is still
+    # included so manifests that only list "arduino" (but compile fine under the
+    # target framework) can be used without forking them.
+    with caplog.at_level(logging.WARNING, logger="esphome.platformio.library"):
+        check_library_data(
+            {"name": "lib", "platforms": "*", "frameworks": ["other"]},
+            "espressif32",
+            "espidf",
+        )
+    assert "do not include 'espidf'" in caplog.text
 
 
 def test_source_download_not_implemented():

@@ -15,7 +15,6 @@ from esphome.const import (
 )
 from esphome.core import CORE, Library
 from esphome.espidf.component import (
-    _check_library_data,
     generate_cmakelists_txt,
     generate_idf_component_yml,
     generate_idf_components,
@@ -24,7 +23,6 @@ import esphome.platformio.library
 from esphome.platformio.library import (
     ConvertedLibrary as IDFComponent,
     GitSource,
-    InvalidLibrary as InvalidIDFComponent,
     URLSource,
     _node_key,
     _normalize_dependencies,
@@ -202,41 +200,6 @@ def test_generate_idf_component_yml_missing_path_raises(tmp_component):
 
     with pytest.raises(RuntimeError):
         generate_idf_component_yml(tmp_component)
-
-
-def test_check_library_data_valid(esp32_idf_core):
-    _check_library_data({"platforms": "*", "frameworks": "*"})
-
-
-def test_check_library_data_valid2(esp32_idf_core):
-    _check_library_data({"platforms": "*"})
-
-
-def test_check_library_data_valid3(esp32_idf_core):
-    _check_library_data({})
-
-
-def test_check_library_data_valid4(esp32_idf_core):
-    _check_library_data({"platforms": "espressif32", "frameworks": "*"})
-
-
-def test_check_library_data_valid5(esp32_idf_core):
-    _check_library_data({"platforms": "*", "frameworks": "espidf"})
-
-
-def test_check_library_data_invalid_platform(esp32_idf_core):
-    with pytest.raises(InvalidIDFComponent):
-        _check_library_data({"platforms": ["other"], "frameworks": "*"})
-
-
-def test_check_library_data_invalid_framework(
-    esp32_idf_core: None, caplog: pytest.LogCaptureFixture
-) -> None:
-    # Framework mismatch is a warning, not a hard skip: the library is still
-    # included so that PIO manifests that only list "arduino" (but actually
-    # compile under IDF) can be used without forking them.
-    _check_library_data({"name": "lib", "platforms": "*", "frameworks": ["other"]})
-    assert "do not include 'espidf'" in caplog.text
 
 
 def test_extra_script_captures_libpath_libs_and_defines(tmp_path):

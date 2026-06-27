@@ -23,7 +23,6 @@ from esphome.platformio.library import (
     ConvertedLibrary as IDFComponent,
     LibraryBackend,
     PathType,
-    check_library_data as _check_library_data_generic,
     collect_filtered_files,
     convert_libraries,
     ensure_list,
@@ -38,16 +37,6 @@ ESP32_PLATFORM = "espressif32"
 def _idf_framework() -> str:
     """The framework token an ESP-IDF library manifest is expected to declare."""
     return "arduino" if CORE.using_arduino else "espidf"
-
-
-def _check_library_data(data: dict):
-    """Check a PIO library manifest against the active ESP-IDF build.
-
-    Thin wrapper over the generic check that supplies the ESP-IDF platform and
-    the active framework, so existing callers/tests keep the single-argument
-    signature.
-    """
-    _check_library_data_generic(data, ESP32_PLATFORM, _idf_framework())
 
 
 def _apply_extra_script(component: IDFComponent) -> None:
