@@ -352,6 +352,7 @@ def test_storage_json_from_esphome_core_mdns_enabled(setup_core: Path) -> None:
     mock_core.web_port = None
     mock_core.target_platform = "esp8266"
     mock_core.is_esp32 = False
+    mock_core.is_nrf52 = False
     mock_core.build_path = "/build"
     mock_core.firmware_bin = "/build/firmware.bin"
     mock_core.loaded_integrations = set()
@@ -364,6 +365,34 @@ def test_storage_json_from_esphome_core_mdns_enabled(setup_core: Path) -> None:
 
     assert result.no_mdns is False
     assert result.toolchain is None
+
+
+def test_storage_json_from_esphome_core_nrf52(setup_core: Path) -> None:
+    """Test from_esphome_core captures the framework version on nRF52."""
+    from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
+
+    mock_core = MagicMock()
+    mock_core.name = "nrf_device"
+    mock_core.friendly_name = "nRF Device"
+    mock_core.comment = None
+    mock_core.address = "nrf.local"
+    mock_core.web_port = None
+    mock_core.target_platform = "nrf52"
+    mock_core.is_esp32 = False
+    mock_core.is_nrf52 = True
+    mock_core.data = {KEY_CORE: {KEY_FRAMEWORK_VERSION: cv.Version(2, 9, 2)}}
+    mock_core.build_path = "/build/nrf_device"
+    mock_core.firmware_bin = "/build/nrf_device/firmware.bin"
+    mock_core.loaded_integrations = set()
+    mock_core.loaded_platforms = set()
+    mock_core.config = {}
+    mock_core.target_framework = "zephyr"
+    mock_core.toolchain = None
+
+    result = storage_json.StorageJSON.from_esphome_core(mock_core, old=None)
+
+    assert result.target_platform == "NRF52"
+    assert result.framework_version == "2.9.2"
 
 
 def test_storage_json_load_valid_file(tmp_path: Path) -> None:
