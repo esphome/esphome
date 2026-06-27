@@ -488,7 +488,12 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
     from esphome.upload_targets import PortType, get_port_type
 
     if KEY_ZEPHYR not in CORE.data:
-        platform_config = config.get(CORE.target_platform, {})
+        platform_config = config.get(CORE.target_platform)
+        if not platform_config:
+            raise EsphomeError(
+                "nRF52 platform configuration is missing; "
+                "please re-validate and recompile."
+            )
         set_core_data(platform_config)
         set_framework(platform_config)
 
@@ -532,6 +537,12 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                     _time.sleep(0.1)
                     if host not in {p.device for p in _list_ports.comports()}:
                         break
+                else:
+                    _LOGGER.warning(
+                        "Device did not leave %s within 5 s; "
+                        "it may not have entered bootloader mode",
+                        host,
+                    )
 
                 # Wait for DFU port to reappear
                 deadline = _time.monotonic() + 10
@@ -539,6 +550,11 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
                     _time.sleep(0.1)
                     if host in {p.device for p in _list_ports.comports()}:
                         break
+                else:
+                    raise EsphomeError(
+                        f"DFU port {host!r} did not reappear within 10 s. "
+                        "Check that the device entered DFU mode."
+                    )
 
                 # Wait for udev to finish setting up device permissions
                 deadline = _time.monotonic() + 5
