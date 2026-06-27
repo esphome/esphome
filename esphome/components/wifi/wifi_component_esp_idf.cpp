@@ -179,6 +179,11 @@ void WiFiComponent::wifi_lazy_init_() {
   // nor re-register the default WiFi handlers.
   if (s_sta_netif == nullptr)
     s_sta_netif = esp_netif_create_default_wifi_sta();
+  if (s_sta_netif == nullptr) {
+    // Allocation failed; leave wifi_initialized_ false so a later enable() retries.
+    ESP_LOGE(TAG, "esp_netif_create_default_wifi_sta failed");
+    return;
+  }
 
 #ifdef USE_WIFI_AP
   if (s_ap_netif == nullptr)
