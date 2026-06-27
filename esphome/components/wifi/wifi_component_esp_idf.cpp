@@ -199,11 +199,22 @@ void WiFiComponent::wifi_lazy_init_() {
   // associates at L2 yet never receives DHCP replies and times out (#17239). Restart
   // the driver now that the netif exists so STA_START re-runs the default handler and
   // wires RX correctly. ESP-NOW survives the stop/start (its peer state persists).
+  // This also matches a self-retry: if esp_wifi_set_storage() below failed on a
+  // previous wifi_lazy_init_() it returned without setting wifi_initialized_, and
+  // esp_wifi_init() has since run, so esp_wifi_get_mode() now succeeds here too.
   wifi_mode_t mode;
   if (esp_wifi_get_mode(&mode) == ESP_OK) {
     ESP_LOGD(TAG, "WiFi driver already started without STA netif; restarting to bind it");
-    esp_wifi_stop();
-    esp_err_t err = esp_wifi_start();
+    esp_err_t err = esp_wifi_stop();
+    if (err != ESP_OK)
+      ESP_LOGW(TAG, "esp_wifi_stop failed: %s", esp_err_to_name(err));
+    // Re-apply RAM storage; the normal init path does this, but it is skipped on
+    // the self-retry case above, which would otherwise let the driver persist
+    // credentials to NVS for the rest of the boot.
+    err = esp_wifi_set_storage(WIFI_STORAGE_RAM);
+    if (err != ESP_OK)
+      ESP_LOGW(TAG, "esp_wifi_set_storage failed: %s", esp_err_to_name(err));
+    err = esp_wifi_start();
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "esp_wifi_start failed: %s", esp_err_to_name(err));
       return;
