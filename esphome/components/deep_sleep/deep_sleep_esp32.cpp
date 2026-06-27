@@ -16,7 +16,7 @@ namespace esphome::deep_sleep {
 // | ESP32-S3  | ✓    | ✓    | ✓     |             |
 // | ESP32-C2  |      |      |       | ✓           |
 // | ESP32-C3  |      |      |       | ✓           |
-// | ESP32-C5  |      | (✓)  |       | (✓)         |
+// | ESP32-C5  |      | ✓    |       | ✓           |
 // | ESP32-C6  |      | ✓    |       | ✓           |
 // | ESP32-C61 |      | ✓    |       | ✓           |
 // | ESP32-H2  |      | ✓    |       |             |
@@ -56,7 +56,8 @@ void DeepSleepComponent::set_ext1_wakeup(Ext1Wakeup ext1_wakeup) { this->ext1_wa
 #endif
 
 #if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3) && \
-    !defined(USE_ESP32_VARIANT_ESP32C6) && !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32H2)
+    !defined(USE_ESP32_VARIANT_ESP32C5) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
+    !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32H2)
 void DeepSleepComponent::set_touch_wakeup(bool touch_wakeup) { this->touch_wakeup_ = touch_wakeup; }
 #endif
 
@@ -99,7 +100,8 @@ void DeepSleepComponent::deep_sleep_() {
 
     // Single pin wakeup (ext0) - ESP32, S2, S3 only
 #if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3) && \
-    !defined(USE_ESP32_VARIANT_ESP32C6) && !defined(USE_ESP32_VARIANT_ESP32H2)
+    !defined(USE_ESP32_VARIANT_ESP32C5) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
+    !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32H2)
   if (this->wakeup_pin_ != nullptr) {
     const auto gpio_pin = gpio_num_t(this->wakeup_pin_->get_pin());
     if (this->wakeup_pin_->get_flags() & gpio::FLAG_PULLUP) {
@@ -122,9 +124,9 @@ void DeepSleepComponent::deep_sleep_() {
   }
 #endif
 
-  // GPIO wakeup - C2, C3, C6, C61 only
-#if defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || \
-    defined(USE_ESP32_VARIANT_ESP32C61)
+  // GPIO wakeup - C2, C3, C5, C6, C61 only
+#if defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C5) || \
+    defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32C61)
   if (this->wakeup_pin_ != nullptr) {
     const auto gpio_pin = gpio_num_t(this->wakeup_pin_->get_pin());
     // Make sure GPIO is in input mode, not all RTC GPIO pins are input by default
@@ -154,7 +156,8 @@ void DeepSleepComponent::deep_sleep_() {
 
   // Touch wakeup - ESP32, S2, S3 only
 #if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3) && \
-    !defined(USE_ESP32_VARIANT_ESP32C6) && !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32H2)
+    !defined(USE_ESP32_VARIANT_ESP32C5) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
+    !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32H2)
   if (this->touch_wakeup_.has_value() && *(this->touch_wakeup_)) {
     esp_sleep_enable_touchpad_wakeup();
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
