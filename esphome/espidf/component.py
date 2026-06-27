@@ -11,7 +11,7 @@ import logging
 import os
 from pathlib import Path
 
-from esphome.core import CORE
+from esphome.core import CORE, Library
 from esphome.helpers import write_file_if_changed
 from esphome.platformio.library import (
     DEFAULT_BUILD_FLAGS,
@@ -269,7 +269,7 @@ def _emit_idf_component(component: IDFComponent) -> None:
     )
 
 
-def generate_idf_components(libraries: list) -> list[IDFComponent]:
+def generate_idf_components(libraries: list[Library]) -> list[IDFComponent]:
     """Resolve and convert a batch of PlatformIO libraries to IDF components."""
     backend = LibraryBackend(
         platform=ESP32_PLATFORM,

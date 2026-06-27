@@ -29,7 +29,7 @@ from urllib.parse import urlparse, urlsplit, urlunsplit
 
 from esphome import git
 from esphome.core import CORE, Library
-from esphome.espidf.framework import archive_extract_all, download_from_mirrors, rmdir
+from esphome.framework_helpers import archive_extract_all, download_from_mirrors, rmdir
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -168,11 +168,12 @@ class ConvertedLibrary:
         return self.get_sanitized_name().replace("/", "__")
 
     def download(self, force: bool = False, salt: str = ""):
-        """
-        The dependency name should match the directory name at the end of the override path.
-        The ESP-IDF build system uses the directory name as the component name, so the directory of the override_path should match the component name.
-        If you want to specify the full name of the component with the namespace, replace / in the component name with __.
-        @see https://docs.espressif.com/projects/idf-component-manager/en/latest/reference/manifest_file.html
+        """Fetch the library into the shared cache and record its ``path``.
+
+        The cache directory is named after the sanitized library name; backends
+        rely on that name to identify the unit they build (e.g. ESP-IDF uses the
+        directory name as the component name, replacing ``/`` with ``__`` via
+        ``get_require_name``).
         """
         self.path = self.source.download(
             self.get_sanitized_name(), force=force, salt=salt
