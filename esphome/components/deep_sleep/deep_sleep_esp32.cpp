@@ -124,7 +124,7 @@ void DeepSleepComponent::deep_sleep_() {
   }
 #endif
 
-  // GPIO wakeup - C2, C3, C6, C61 only
+  // GPIO wakeup - C2, C3, C5, C6, C61 only
 #if defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C5) || \
     defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32C61)
   if (this->wakeup_pin_ != nullptr) {
