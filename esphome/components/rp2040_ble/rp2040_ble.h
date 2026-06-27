@@ -18,7 +18,7 @@ enum class BLEComponentState : uint8_t {
   DISABLED,
 };
 
-class RP2040BLE : public Component {
+class RP2040BLE final : public Component {
  public:
   void setup() override;
   void loop() override;
