@@ -47,8 +47,10 @@ from esphome.__main__ import (
     has_mqtt_ip_lookup,
     has_mqtt_logging,
     has_name_add_mac_suffix,
+    has_native_ota,
     has_non_ip_address,
     has_ota,
+    has_platform_ota,
     has_resolvable_address,
     has_web_server_ota,
     mqtt_get_ip,
@@ -3110,6 +3112,34 @@ def test_has_ota() -> None:
     # Test with empty OTA list
     setup_core(config={CONF_OTA: []})
     assert has_ota() is False
+
+    # Test with OTA zephyr_mcumgr platform (platform-specific, non-ESP)
+    setup_core(config={CONF_OTA: [{CONF_PLATFORM: "zephyr_mcumgr"}]})
+    assert has_ota() is True
+    assert has_platform_ota() is True
+    assert has_native_ota() is False
+    assert has_web_server_ota() is False
+
+    # Sanity: an unknown platform is still not recognized
+    setup_core(config={CONF_OTA: [{CONF_PLATFORM: "other_unknown"}]})
+    assert has_ota() is False
+    assert has_platform_ota() is False
+
+
+def test_has_platform_ota() -> None:
+    """Test has_platform_ota helper."""
+
+    # zephyr_mcumgr is in the platform-ota set
+    setup_core(config={CONF_OTA: [{CONF_PLATFORM: "zephyr_mcumgr"}]})
+    assert has_platform_ota() is True
+
+    # Unknown platform → False
+    setup_core(config={CONF_OTA: [{CONF_PLATFORM: "http_request"}]})
+    assert has_platform_ota() is False
+
+    # No OTA section → False
+    setup_core(config={})
+    assert has_platform_ota() is False
 
 
 def test_get_port_type() -> None:
