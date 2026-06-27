@@ -32,6 +32,7 @@ from esphome.espidf.component import (
     generate_idf_component_yml,
     generate_idf_components,
 )
+import esphome.platformio.library
 
 
 @pytest.fixture(name="tmp_component")
@@ -453,7 +454,7 @@ def _patch_registry(monkeypatch, versions):
     ``get_compatible_registry_versions`` / ``pick_best_registry_version`` run on
     the canned data so the intersection logic is exercised for real.
     """
-    registry = esphome.espidf.component._make_registry_client()
+    registry = esphome.platformio.library._make_registry_client()
     monkeypatch.setattr(
         registry,
         "fetch_registry_package",
@@ -467,7 +468,7 @@ def _patch_registry(monkeypatch, versions):
         },
     )
     monkeypatch.setattr(
-        esphome.espidf.component, "_make_registry_client", lambda: registry
+        esphome.platformio.library, "_make_registry_client", lambda: registry
     )
 
 
@@ -535,7 +536,7 @@ def test_generate_idf_components_dedupes_shared_dependency(
         return owner, pkgname, version, f"http://x/{pkgname}.tar.gz"
 
     monkeypatch.setattr(
-        esphome.espidf.component, "_resolve_registry_version", fake_resolve
+        esphome.platformio.library, "_resolve_registry_version", fake_resolve
     )
 
     top = generate_idf_components(
@@ -594,7 +595,7 @@ def test_generate_idf_components_lib_ignore_filters_top_level_and_dependencies(
         return owner, pkgname, "1.0.0", f"http://x/{pkgname}.tar.gz"
 
     monkeypatch.setattr(
-        esphome.espidf.component, "_resolve_registry_version", fake_resolve
+        esphome.platformio.library, "_resolve_registry_version", fake_resolve
     )
     # lib_ignore is read from CORE.platformio_options (stored there by
     # _add_platformio_options); matched by lowercase short name.
@@ -640,7 +641,7 @@ def test_generate_idf_components_handles_dependency_cycle(
 
     monkeypatch.setattr(IDFComponent, "download", fake_download)
     monkeypatch.setattr(
-        esphome.espidf.component,
+        esphome.platformio.library,
         "_resolve_registry_version",
         lambda owner, pkgname, requirements: (
             owner,
@@ -697,7 +698,7 @@ def test_generate_idf_components_git_overrides_registry_warns(
 
     monkeypatch.setattr(IDFComponent, "download", fake_download)
     monkeypatch.setattr(
-        esphome.espidf.component,
+        esphome.platformio.library,
         "_resolve_registry_version",
         lambda owner, pkgname, requirements: (
             owner,
@@ -733,7 +734,7 @@ def test_generate_idf_components_missing_manifest_raises(
 
     monkeypatch.setattr(IDFComponent, "download", fake_download)
     monkeypatch.setattr(
-        esphome.espidf.component,
+        esphome.platformio.library,
         "_resolve_registry_version",
         lambda owner, pkgname, requirements: (
             owner,
@@ -777,7 +778,7 @@ def test_generate_idf_components_warns_on_noncanonical_duplicate(
     monkeypatch.setattr(IDFComponent, "download", fake_download)
     # Bare "shared" and "owner/shared" both resolve to canonical owner/shared.
     monkeypatch.setattr(
-        esphome.espidf.component,
+        esphome.platformio.library,
         "_resolve_registry_version",
         lambda owner, pkgname, requirements: (
             owner or "owner",
@@ -810,7 +811,7 @@ def test_generate_idf_components_incompatible_top_level_raises(
 
     monkeypatch.setattr(IDFComponent, "download", fake_download)
     monkeypatch.setattr(
-        esphome.espidf.component,
+        esphome.platformio.library,
         "_resolve_registry_version",
         lambda owner, pkgname, requirements: (
             owner,
@@ -820,7 +821,7 @@ def test_generate_idf_components_incompatible_top_level_raises(
         ),
     )
 
-    with pytest.raises(RuntimeError, match="not compatible with ESP-IDF"):
+    with pytest.raises(RuntimeError, match="not compatible with espidf"):
         generate_idf_components([Library("esphome/A", "1.0.0", None)])
 
 
@@ -846,7 +847,7 @@ def test_generate_idf_components_incompatible_dependency_skipped(
 
     monkeypatch.setattr(IDFComponent, "download", fake_download)
     monkeypatch.setattr(
-        esphome.espidf.component,
+        esphome.platformio.library,
         "_resolve_registry_version",
         lambda owner, pkgname, requirements: (
             owner,
@@ -892,7 +893,7 @@ def test_git_source_salt_scopes_domain(monkeypatch: pytest.MonkeyPatch) -> None:
         return Path("/cloned"), None
 
     monkeypatch.setattr(
-        esphome.espidf.component.git, "clone_or_update", fake_clone_or_update
+        esphome.platformio.library.git, "clone_or_update", fake_clone_or_update
     )
 
     source = GitSource("https://github.com/esphome/noise-c.git", "v1.0")
