@@ -152,7 +152,7 @@ def test_multiple_areas_and_devices(yaml_file: Callable[[str], str]) -> None:
         ("multiple_areas_devices.yaml", "Main Area"),
     ],
 )
-async def test_to_code_records_core_area(
+async def test_core_area_recorded_at_config_load(
     yaml_file: Callable[[str], Path],
     fixture: str,
     expected_area: str,
