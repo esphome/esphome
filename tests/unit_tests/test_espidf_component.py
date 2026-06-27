@@ -14,13 +14,18 @@ from esphome.const import (
     Platform,
 )
 from esphome.core import CORE, Library
-import esphome.espidf.component
 from esphome.espidf.component import (
-    GitSource,
-    IDFComponent,
-    InvalidIDFComponent,
-    URLSource,
     _check_library_data,
+    generate_cmakelists_txt,
+    generate_idf_component_yml,
+    generate_idf_components,
+)
+import esphome.platformio.library
+from esphome.platformio.library import (
+    ConvertedLibrary as IDFComponent,
+    GitSource,
+    InvalidLibrary as InvalidIDFComponent,
+    URLSource,
     _collect_filtered_files,
     _node_key,
     _normalize_dependencies,
@@ -28,11 +33,7 @@ from esphome.espidf.component import (
     _parse_library_properties,
     _resolve_registry_version,
     _split_list_by_condition,
-    generate_cmakelists_txt,
-    generate_idf_component_yml,
-    generate_idf_components,
 )
-import esphome.platformio.library
 
 
 @pytest.fixture(name="tmp_component")

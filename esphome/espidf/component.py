@@ -13,66 +13,22 @@ from pathlib import Path
 
 from esphome.core import CORE
 from esphome.helpers import write_file_if_changed
-
-# Re-exported for backward compatibility: external callers and tests still import
-# these names from ``esphome.espidf.component``.
-from esphome.platformio.library import (  # noqa: F401
+from esphome.platformio.library import (
     DEFAULT_BUILD_FLAGS,
     DEFAULT_BUILD_INCLUDE_DIR,
-    DEFAULT_BUILD_SRC_DIRS,
     DEFAULT_BUILD_SRC_FILTER,
     ESPHOME_DATA_EXTRA_CMAKE_KEY,
     ESPHOME_DATA_KEY,
     SRC_FILE_EXTENSIONS,
     ConvertedLibrary as IDFComponent,
-    GitSource,
-    InvalidLibrary as InvalidIDFComponent,
     LibraryBackend,
     PathType,
-    URLSource,
     _check_library_data as _check_library_data_generic,
     _collect_filtered_files,
     _ensure_list,
-    _node_key,
-    _normalize_dependencies,
-    _parse_library_json,
-    _parse_library_properties,
-    _resolve_registry_version,
     _split_list_by_condition,
     convert_libraries,
 )
-
-# Names re-exported above are part of this module's public surface (imported
-# elsewhere and by tests as ``esphome.espidf.component.<name>``); declare them so
-# linters don't treat the re-exports as unused.
-__all__ = [
-    "DEFAULT_BUILD_FLAGS",
-    "DEFAULT_BUILD_INCLUDE_DIR",
-    "DEFAULT_BUILD_SRC_DIRS",
-    "DEFAULT_BUILD_SRC_FILTER",
-    "ESP32_PLATFORM",
-    "ESPHOME_DATA_EXTRA_CMAKE_KEY",
-    "ESPHOME_DATA_KEY",
-    "SRC_FILE_EXTENSIONS",
-    "GitSource",
-    "IDFComponent",
-    "InvalidIDFComponent",
-    "LibraryBackend",
-    "PathType",
-    "URLSource",
-    "convert_libraries",
-    "generate_cmakelists_txt",
-    "generate_idf_component_yml",
-    "generate_idf_components",
-    "_check_library_data",
-    "_collect_filtered_files",
-    "_node_key",
-    "_normalize_dependencies",
-    "_parse_library_json",
-    "_parse_library_properties",
-    "_resolve_registry_version",
-    "_split_list_by_condition",
-]
 
 _LOGGER = logging.getLogger(__name__)
 
