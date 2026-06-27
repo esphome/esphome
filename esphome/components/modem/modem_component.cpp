@@ -229,6 +229,7 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
           break;  // Exit loop and fall through to COMMAND_MODE
         }
       }
+      [[fallthrough]];
 
     case modem_mode::COMMAND_MODE:
       ESP_LOGD(TAG, "OK: Modem in COMMAND mode.");
