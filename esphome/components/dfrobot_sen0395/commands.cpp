@@ -127,7 +127,7 @@ DetRangeCfgCommand::DetRangeCfgCommand(float min1, float max1, float min2, float
         this->max4_ = max4 = -1;
 
     char buf[72];  // max 72: "detRangeCfg -1 "(15) + 8 * (float(5) + space(1)) + null
-    snprintf(buf, sizeof(buf), "detRangeCfg -1 %.0f %.0f", min1 / 0.15, max1 / 0.15);
+    snprintf(buf, sizeof(buf), "detRangeCfg -1 %.0f %.0f", min1 / 0.15f, max1 / 0.15f);
     this->cmd_ = buf;
   } else if (min3 < 0 || max3 < 0) {
     this->min1_ = min1 = roundf(min1 / 0.15f) * 0.15f;
@@ -137,7 +137,7 @@ DetRangeCfgCommand::DetRangeCfgCommand(float min1, float max1, float min2, float
     this->min3_ = min3 = this->max3_ = max3 = this->min4_ = min4 = this->max4_ = max4 = -1;
 
     char buf[72];  // max 72: "detRangeCfg -1 "(15) + 8 * (float(5) + space(1)) + null
-    snprintf(buf, sizeof(buf), "detRangeCfg -1 %.0f %.0f %.0f %.0f", min1 / 0.15, max1 / 0.15, min2 / 0.15,
+    snprintf(buf, sizeof(buf), "detRangeCfg -1 %.0f %.0f %.0f %.0f", min1 / 0.15f, max1 / 0.15f, min2 / 0.15f,
              max2 / 0.15f);
     this->cmd_ = buf;
   } else if (min4 < 0 || max4 < 0) {
@@ -150,7 +150,7 @@ DetRangeCfgCommand::DetRangeCfgCommand(float min1, float max1, float min2, float
     this->min4_ = min4 = this->max4_ = max4 = -1;
 
     char buf[72];  // max 72: "detRangeCfg -1 "(15) + 8 * (float(5) + space(1)) + null
-    snprintf(buf, sizeof(buf), "detRangeCfg -1 %.0f %.0f %.0f %.0f %.0f %.0f", min1 / 0.15, max1 / 0.15, min2 / 0.15,
+    snprintf(buf, sizeof(buf), "detRangeCfg -1 %.0f %.0f %.0f %.0f %.0f %.0f", min1 / 0.15f, max1 / 0.15f, min2 / 0.15f,
              max2 / 0.15f, min3 / 0.15f, max3 / 0.15f);
     this->cmd_ = buf;
   } else {
@@ -164,7 +164,7 @@ DetRangeCfgCommand::DetRangeCfgCommand(float min1, float max1, float min2, float
     this->max4_ = max4 = roundf(max4 / 0.15f) * 0.15f;
 
     char buf[72];  // max 72: "detRangeCfg -1 "(15) + 8 * (float(5) + space(1)) + null
-    snprintf(buf, sizeof(buf), "detRangeCfg -1 %.0f %.0f %.0f %.0f %.0f %.0f %.0f %.0f", min1 / 0.15, max1 / 0.15,
+    snprintf(buf, sizeof(buf), "detRangeCfg -1 %.0f %.0f %.0f %.0f %.0f %.0f %.0f %.0f", min1 / 0.15f, max1 / 0.15f,
              min2 / 0.15f, max2 / 0.15f, min3 / 0.15f, max3 / 0.15f, min4 / 0.15f, max4 / 0.15f);
     this->cmd_ = buf;
   }
