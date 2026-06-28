@@ -163,6 +163,42 @@ def test_convert_emits_variant_enum() -> None:
     }
 
 
+def test_uart_clock_source_preserves_variant_metadata() -> None:
+    """UART clock choices retain chip restrictions in the editor schema."""
+    # Extraction must be enabled before importing UART, independently of test order.
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            """
+import json
+import runpy
+from esphome import config_validation as cv
+
+converter = runpy.run_path("script/build_language_schema.py")
+from esphome.components.uart import CONF_CLOCK_SOURCE, CONFIG_SCHEMA
+
+schema = next(v for v in CONFIG_SCHEMA.validators if isinstance(v, cv.Schema))
+converted = {}
+converter["convert"](
+    schema.schema[cv.Optional(CONF_CLOCK_SOURCE)], converted, "/uart/clock_source"
+)
+print(json.dumps(converted))
+""",
+        ],
+        cwd=SCRIPT_PATH.parent.parent,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    converted = json.loads(result.stdout)
+
+    assert converted["type"] == "enum"
+    assert converted["values"]["REF_TICK"] == {"variants": ["ESP32", "ESP32S2"]}
+    assert "ESP32C6" in converted["values"]["XTAL"]["variants"]
+    assert "ESP32C6" not in converted["values"]["APB"]["variants"]
+
+
 def test_convert_keys_emits_heuristic_sensitive_marker() -> None:
     converted: dict = {}
     _bls.convert_keys(converted, {cv.Optional("password"): cv.string}, "/root")
