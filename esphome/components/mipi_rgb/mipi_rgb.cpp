@@ -177,11 +177,6 @@ void MipiRgb::common_setup_() {
   ESP_LOGCONFIG(TAG, "MipiRgb setup complete");
 }
 
-void MipiRgb::loop() {
-  if (this->handle_ != nullptr)
-    esp_lcd_rgb_panel_restart(this->handle_);
-}
-
 void MipiRgb::update() {
   if (this->is_failed())
     return;
