@@ -8,7 +8,7 @@
 namespace esphome::my9231 {
 
 /// MY9231 float output component.
-class MY9231OutputComponent : public Component {
+class MY9231OutputComponent final : public Component {
  public:
   class Channel;
   void set_pin_di(GPIOPin *pin_di) { pin_di_ = pin_di; }
@@ -26,7 +26,7 @@ class MY9231OutputComponent : public Component {
   /// Send new values if they were updated.
   void loop() override;
 
-  class Channel : public output::FloatOutput {
+  class Channel final : public output::FloatOutput {
    public:
     void set_parent(MY9231OutputComponent *parent) { parent_ = parent; }
     void set_channel(uint16_t channel) { channel_ = channel; }
