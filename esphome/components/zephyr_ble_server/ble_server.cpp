@@ -327,8 +327,8 @@ void BLEServer::dump_config() {
 #else
                 "  security manager: NO",
 #endif
-                YESNO(this->conn_), bt_get_name(), bt_get_appearance(), YESNO(bt_is_ready()),
-                (int) advertise_rc, ([]() -> const char * {
+                YESNO(this->conn_), bt_get_name(), bt_get_appearance(), YESNO(bt_is_ready()), (int) advertise_rc,
+                ([]() -> const char * {
                   static char s[BT_ADDR_LE_STR_LEN] = "none";
                   bt_addr_le_t ids[CONFIG_BT_ID_MAX];
                   size_t n = CONFIG_BT_ID_MAX;
