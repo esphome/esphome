@@ -37,8 +37,9 @@ def test_generate_cmakelists_txt_basic(tmp_path):
 
     assert "zephyr_library_named(mylib)" in out
     assert "zephyr_library_sources(" in out
-    # Sources are emitted as absolute paths (CMakeLists lives in zephyr/ subdir).
-    assert str((src / "main.c").resolve()) in out
+    # Sources are emitted as absolute paths (CMakeLists lives in zephyr/ subdir),
+    # always with forward slashes (CMake path separator on every platform).
+    assert (src / "main.c").resolve().as_posix() in out
 
 
 def test_generate_cmakelists_txt_flags_and_includes(tmp_path):
@@ -51,7 +52,7 @@ def test_generate_cmakelists_txt_flags_and_includes(tmp_path):
     out = generate_cmakelists_txt(c)
 
     assert "zephyr_include_directories(" in out
-    assert str((tmp_path / "include").resolve()) in out
+    assert (tmp_path / "include").resolve().as_posix() in out
     assert "zephyr_library_compile_options(" in out
     assert "-DFOO" in out
     assert "-Wall" in out
