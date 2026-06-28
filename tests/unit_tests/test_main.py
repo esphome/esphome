@@ -3175,6 +3175,20 @@ def test_has_platform_ota() -> None:
     )
     assert has_platform_ota() is True
 
+    # zephyr_mcumgr over BLE/UART is NOT a network OTA path
+    setup_core(
+        config={
+            CONF_OTA: [
+                {CONF_PLATFORM: "zephyr_mcumgr", "transport": {"ble": True}},
+            ]
+        }
+    )
+    assert has_platform_ota() is False
+
+    # zephyr_mcumgr with no transport mapping is also not a network OTA path
+    setup_core(config={CONF_OTA: [{CONF_PLATFORM: "zephyr_mcumgr"}]})
+    assert has_platform_ota() is False
+
     # Unknown platform → False
     setup_core(config={CONF_OTA: [{CONF_PLATFORM: "http_request"}]})
     assert has_platform_ota() is False
