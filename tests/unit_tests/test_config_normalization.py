@@ -143,7 +143,7 @@ def test_validate_config_warns_on_dropped_merge_key(
         config.validate_config(raw_config, {})
 
     assert any(
-        "was dropped while merging a '<<' include" in record.message
+        "was dropped while processing a '<<' merge" in record.message
         and "logger" in record.message
         for record in caplog.records
     )
@@ -163,7 +163,7 @@ def test_validate_config_suppresses_merge_warning(
         config.validate_config(raw_config, {})
 
     assert not any(
-        "was dropped while merging a '<<' include" in record.message
+        "was dropped while processing a '<<' merge" in record.message
         for record in caplog.records
     )
     # The queue is drained even when the warning is suppressed.
