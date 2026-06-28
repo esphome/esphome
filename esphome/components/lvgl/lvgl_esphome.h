@@ -155,7 +155,7 @@ class LvPageType : public Parented<LvglComponent> {
 
 using event_callback_t = void(lv_event_t *);
 
-class LvLambdaComponent : public Component {
+class LvLambdaComponent final : public Component {
  public:
   LvLambdaComponent(void (*callback)()) : callback_(callback) {}
 
@@ -167,7 +167,7 @@ class LvLambdaComponent : public Component {
   void (*callback_)();
 };
 
-template<typename... Ts> class ObjUpdateAction : public Action<Ts...> {
+template<typename... Ts> class ObjUpdateAction final : public Action<Ts...> {
  public:
   explicit ObjUpdateAction(std::function<void(Ts...)> &&lamb) : lamb_(std::move(lamb)) {}
 
@@ -185,7 +185,7 @@ enum RotationType : uint8_t {
   ROTATION_HARDWARE,
 };
 
-class LvglComponent : public PollingComponent {
+class LvglComponent final : public PollingComponent {
   constexpr static const char *const TAG = "lvgl";
 
  public:
@@ -339,7 +339,7 @@ class LvglComponent : public PollingComponent {
 #endif
 };
 
-class IdleTrigger : public Trigger<> {
+class IdleTrigger final : public Trigger<> {
  public:
   explicit IdleTrigger(LvglComponent *parent, TemplatableFn<uint32_t> timeout);
 
@@ -348,7 +348,7 @@ class IdleTrigger : public Trigger<> {
   bool is_idle_{};
 };
 
-template<typename... Ts> class LvglAction : public Action<Ts...>, public Parented<LvglComponent> {
+template<typename... Ts> class LvglAction final : public Action<Ts...>, public Parented<LvglComponent> {
  public:
   explicit LvglAction(std::function<void(LvglComponent *)> &&lamb) : action_(std::move(lamb)) {}
 
@@ -357,7 +357,7 @@ template<typename... Ts> class LvglAction : public Action<Ts...>, public Parente
   std::function<void(LvglComponent *)> action_{};
 };
 
-template<typename Tc, typename... Ts> class LvglCondition : public Condition<Ts...>, public Parented<Tc> {
+template<typename Tc, typename... Ts> class LvglCondition final : public Condition<Ts...>, public Parented<Tc> {
  public:
   LvglCondition(std::function<bool(Tc *)> &&condition_lambda) : condition_lambda_(std::move(condition_lambda)) {}
   bool check(const Ts &...x) override { return this->condition_lambda_(this->parent_); }
@@ -367,7 +367,7 @@ template<typename Tc, typename... Ts> class LvglCondition : public Condition<Ts.
 };
 
 #ifdef USE_LVGL_TOUCHSCREEN
-class LVTouchListener : public touchscreen::TouchListener, public Parented<LvglComponent> {
+class LVTouchListener final : public touchscreen::TouchListener, public Parented<LvglComponent> {
  public:
   LVTouchListener(uint16_t long_press_time, uint16_t long_press_repeat_time, LvglComponent *parent);
   void update(const touchscreen::TouchPoints_t &tpoints) override;
@@ -403,7 +403,7 @@ class IndicatorLine : public LvCompound {
 #endif
 
 #ifdef USE_LVGL_KEY_LISTENER
-class LVEncoderListener : public Parented<LvglComponent> {
+class LVEncoderListener final : public Parented<LvglComponent> {
  public:
   LVEncoderListener(lv_indev_type_t type, uint16_t long_press_time, uint16_t long_press_repeat_time);
 

@@ -63,6 +63,7 @@ class Modbus : public uart::UARTDevice, public Component {
   uint32_t last_receive_check_{0};
   uint32_t last_send_{0};
   uint32_t last_send_tx_offset_{0};
+  bool last_send_was_broadcast_{false};
   uint16_t frame_delay_ms_{5};
   uint16_t long_rx_buffer_delay_ms_{0};
 
@@ -137,6 +138,11 @@ class ModbusServerHub : public Modbus {
   // Parsers need to handle standard (ModbusFunctionCode) and custom (uint8_t) function codes, so we use uint8_t here.
   void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len) override;
   void process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data);
+  ModbusServerDevice *find_device_(uint8_t address);
+  // Returns true if [start_address, start_address + number_of_registers) fits in the 16-bit address space.
+  // On failure, logs and sends an ILLEGAL_DATA_ADDRESS exception to the client.
+  bool check_register_range_(uint8_t address, uint8_t function_code, uint16_t start_address,
+                             uint16_t number_of_registers);
   void send_raw_(const uint8_t *payload, uint16_t len);
   void send_exception_(uint8_t address, uint8_t function_code, ModbusExceptionCode exception_code);
   void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);
@@ -210,8 +216,8 @@ class ModbusServerDevice {
   ModbusServerDevice &operator=(const ModbusServerDevice &) = delete;
   ModbusServerDevice(ModbusServerDevice &&) = delete;
   ModbusServerDevice &operator=(ModbusServerDevice &&) = delete;
-  void set_address(uint8_t address) { address_ = address; }
-  uint8_t get_address() const { return address_; }
+  void set_address(uint8_t address) { this->address_ = address; }
+  uint8_t get_address() const { return this->address_; }
   virtual ServerResponseStatus on_modbus_read_registers(uint16_t start_address, uint16_t number_of_registers,
                                                         RegisterValues &registers) {
     return ModbusExceptionCode::ILLEGAL_FUNCTION;

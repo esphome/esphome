@@ -105,7 +105,7 @@ modbus::ServerResponseStatus ModbusServer::on_modbus_write_registers(uint16_t st
       [this, start_address,
        &registers](const std::function<bool(ServerRegister *, uint16_t register_offset)> &callback) -> bool {
     uint16_t register_offset = 0;
-    for (uint16_t current_address = start_address; current_address < start_address + registers.size();) {
+    for (uint32_t current_address = start_address; current_address < start_address + registers.size();) {
       bool ok = false;
       for (auto *server_register : this->server_registers_) {
         if (server_register->address == current_address) {
