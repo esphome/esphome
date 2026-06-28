@@ -3143,8 +3143,14 @@ def test_has_ota() -> None:
     setup_core(config={CONF_OTA: []})
     assert has_ota() is False
 
-    # Test with OTA zephyr_mcumgr platform (platform-specific, non-ESP)
-    setup_core(config={CONF_OTA: [{CONF_PLATFORM: "zephyr_mcumgr"}]})
+    # Test with OTA zephyr_mcumgr platform over the network (SMP-over-UDP)
+    setup_core(
+        config={
+            CONF_OTA: [
+                {CONF_PLATFORM: "zephyr_mcumgr", "transport": {"udp": True}},
+            ]
+        }
+    )
     assert has_ota() is True
     assert has_platform_ota() is True
     assert has_native_ota() is False
@@ -3159,8 +3165,14 @@ def test_has_ota() -> None:
 def test_has_platform_ota() -> None:
     """Test has_platform_ota helper."""
 
-    # zephyr_mcumgr is in the platform-ota set
-    setup_core(config={CONF_OTA: [{CONF_PLATFORM: "zephyr_mcumgr"}]})
+    # zephyr_mcumgr with UDP transport is a network OTA path
+    setup_core(
+        config={
+            CONF_OTA: [
+                {CONF_PLATFORM: "zephyr_mcumgr", "transport": {"udp": True}},
+            ]
+        }
+    )
     assert has_platform_ota() is True
 
     # Unknown platform → False

@@ -455,21 +455,25 @@ def has_api() -> bool:
 
 # OTA platforms whose upload is handled by the target platform's own
 # ``upload_program`` function rather than by the generic ESP upload paths
-# (native API or web_server).  Adding a platform here makes the OTA
-# discovery / interactive chooser aware that Over-the-Air upload is
-# available even though no ``esphome`` or ``web_server`` OTA section is
-# configured.
+# (native API or web_server).
+#
+# Note: has_ota() is used specifically for *network* OTA target discovery.
 _PLATFORM_OTA_PLATFORMS = frozenset({"zephyr_mcumgr"})
 
 
 def has_platform_ota() -> bool:
-    """Check if a platform-specific OTA platform is configured."""
+    """Check if a platform-specific *network* OTA platform is configured."""
     if CONF_OTA not in CORE.config:
         return False
-    return any(
-        ota_item.get(CONF_PLATFORM) in _PLATFORM_OTA_PLATFORMS
-        for ota_item in CORE.config[CONF_OTA]
-    )
+    for ota_item in CORE.config[CONF_OTA]:
+        platform = ota_item.get(CONF_PLATFORM)
+        if platform not in _PLATFORM_OTA_PLATFORMS:
+            continue
+        # zephyr_mcumgr supports BLE/UART (non-network) and UDP (network) transports.
+        if platform == "zephyr_mcumgr" and not ota_item.get("transport", {}).get("udp"):
+            continue
+        return True
+    return False
 
 
 def has_ota() -> bool:
