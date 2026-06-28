@@ -25,7 +25,6 @@ class MipiRgb : public display::Display {
  public:
   MipiRgb(int width, int height) : width_(width), height_(height) {}
   void setup() override;
-  void loop() override;
   void update() override;
   void fill(Color color) override;
   void draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *ptr, display::ColorOrder order,
