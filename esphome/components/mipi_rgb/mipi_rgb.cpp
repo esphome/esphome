@@ -44,8 +44,8 @@ void MipiRgb::setup_enables_() {
 void MipiRgbSpi::setup() {
   this->setup_enables_();
   this->spi_setup();
-  this->write_init_sequence_();
   this->common_setup_();
+  this->write_init_sequence_();
 }
 void MipiRgbSpi::write_command_(uint8_t value) {
   this->enable();
