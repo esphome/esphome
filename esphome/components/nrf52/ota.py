@@ -154,9 +154,10 @@ async def _upload_chunk_with_resume(
     total = len(image)
     timeout = SMP_NET_UPLOAD_FIRST_TIMEOUT if off == 0 else SMP_NET_UPLOAD_TIMEOUT
     for attempt in range(SMP_NET_UPLOAD_RETRIES):
-        # NOTE: _maximize_image_upload_write_packet is smpclient-internal; a future
-        # rename would break the UDP path at runtime (serial/BLE unaffected). See
-        # review #9 — kept because smpclient exposes no public chunk-sizing helper.
+        # NOTE: _maximize_image_upload_write_packet is smpclient-internal (no public
+        # chunk-sizing helper exists). _resilient_upload guards its presence up front,
+        # so a future smpclient rename fails with a clear error there rather than a
+        # cryptic AttributeError here. The serial/BLE paths are unaffected.
         request = smp_client._maximize_image_upload_write_packet(  # pylint: disable=protected-access
             ImageUploadWrite(
                 off=off,
@@ -213,16 +214,21 @@ async def _request_with_retry(
 
 
 async def _resilient_upload(
-    smp_client: SMPClient,
-    image: bytes,
-    progress: ProgressBar,
-    image_sha: bytes | None = None,
+    smp_client: SMPClient, image: bytes, progress: ProgressBar
 ) -> None:
     """Upload an image over a lossy transport (UDP), resending dropped chunks."""
+    # _upload_chunk_with_resume relies on smpclient's internal chunk-sizing helper
+    # (no public equivalent exists). Guard its presence up front so a future smpclient
+    # rename fails with an actionable message instead of a cryptic AttributeError
+    # partway through an upload.
+    if not hasattr(smp_client, "_maximize_image_upload_write_packet"):
+        raise EsphomeError(
+            "Installed smpclient is missing the internal helper "
+            "'_maximize_image_upload_write_packet' required for UDP OTA chunk sizing. "
+            "Pin a compatible smpclient version or report this upstream."
+        )
     total = len(image)
-    image_sha = (
-        image_sha or sha256(image).digest()
-    )  # constant — hoisted out of the retry loop
+    image_sha = sha256(image).digest()  # constant — hoisted out of the retry loop
     off = 0
     stalls = 0
     response = None
