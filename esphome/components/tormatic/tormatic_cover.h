@@ -20,6 +20,8 @@ class Tormatic final : public cover::Cover, public uart::UARTDevice, public Poll
   void set_close_duration(uint32_t duration) { this->close_duration_ = duration; }
 
   void publish_state(bool save = true, uint32_t ratelimit = 0);
+  // Send custom raw payload (hex string like "00 0A 00 03")
+  void send_custom_payload(const std::string &hex_payload);
 
   cover::CoverTraits get_traits() override;
 

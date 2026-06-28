@@ -389,4 +389,58 @@ void Tormatic::drain_rx_(uint16_t n) {
   }
 }
 
+// Send custom raw payload (hex string like "00 0A 00 03")
+// Returns the sequence counter (first 2 bytes) of the sent message
+void Tormatic::send_custom_payload(const std::string &hex_payload) {
+  std::vector<uint8_t> payload;
+  
+  // Parse hex string (space-separated or continuous)
+  size_t i = 0;
+  while (i < hex_payload.length()) {
+    // Skip whitespace
+    while (i < hex_payload.length() && isspace(hex_payload[i])) {
+      i++;
+    }
+    if (i >= hex_payload.length()) break;
+    
+    // Parse two hex digits
+    if (i + 1 < hex_payload.length()) {
+      char hex_byte[3] = {hex_payload[i], hex_payload[i + 1], '\0'};
+      uint8_t byte = (uint8_t) strtol(hex_byte, nullptr, 16);
+      payload.push_back(byte);
+      i += 2;
+    } else {
+      i++;
+    }
+  }
+  
+  if (payload.empty()) {
+    ESP_LOGE(TAG, "send_custom_payload: No valid hex bytes parsed");
+    return;
+  }
+
+  // Build complete message:
+  // MessageHeader (seq + len + type) + payload
+  MessageHeader hdr(COMMAND, ++this->seq_tx_, payload.size());
+  
+  auto out = serialize(hdr);
+  out.insert(out.end(), payload.begin(), payload.end());
+  
+  //log_hex_bytes(TAG, "Sending custom payload", out.data(), out.size());
+  
+  // Drain any garbage data in the UART Rx buffer before sending
+  this->drain_rx_(0);
+  
+  this->write_array(out);
+
+  // Wait briefly for the echoed command frame to arrive, then discard it.
+  if (!this->read_gate_status_()) {
+    ESP_LOGW(TAG, "No response frame received for custom payload within 250ms; requesting status as fallback");
+    this->request_gate_status_();
+
+    if (!this->read_gate_status_()) {
+      ESP_LOGW(TAG, "No status response received after custom payload fallback request");
+    }
+  }  
+}
 }  // namespace esphome::tormatic
