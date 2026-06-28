@@ -157,6 +157,8 @@ def generate_zephyr_modules(libraries: list[Library]) -> list[Path]:
         _emit_zephyr_module(component)
         module_dirs.append(component.path)
 
-    backend = LibraryBackend(platform=None, framework=ZEPHYR_FRAMEWORK, emit=emit)
+    backend = LibraryBackend(
+        platform=None, framework=ZEPHYR_FRAMEWORK, emit=emit, cache_key="zephyr"
+    )
     convert_libraries(libraries, backend)
     return module_dirs
