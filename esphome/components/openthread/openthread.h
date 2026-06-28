@@ -85,7 +85,7 @@ class OpenThreadSrpComponent final : public Component {
  public:
   void set_mdns(esphome::mdns::MDNSComponent *mdns);
   // This has to run after the mdns component or else no services are available to advertise
-  float get_setup_priority() const override { return this->mdns_->get_setup_priority() - 1.0; }
+  float get_setup_priority() const override { return this->mdns_->get_setup_priority() - 1.0f; }
   void setup() override;
   static void srp_callback(otError err, const otSrpClientHostInfo *host_info, const otSrpClientService *services,
                            const otSrpClientService *removed_services, void *context);
