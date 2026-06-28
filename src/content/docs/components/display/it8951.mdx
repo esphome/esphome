@@ -1,0 +1,329 @@
+---
+description: "Instructions for setting up IT8951 e-paper displays in ESPHome."
+title: "IT8951 E-Paper Display"
+---
+
+import APIRef from "@components/APIRef.astro";
+
+The `it8951` display platform provides a driver for e-paper displays using the
+ITE IT8951 controller.
+
+The IT8951 controller supports 16-level grayscale and multiple refresh modes
+including fast partial updates. It is found in larger e-paper displays (4.7" and
+above) and integrated boards such as the M5Paper.
+
+The communication method uses [SPI](/components/spi), so you need to have an
+`spi:` section in your configuration. Both MOSI and MISO are required (the
+driver reads device info and register values from the controller).
+
+For integrated boards with predefined configurations, only the model name needs
+to be specified. Other options can be overridden if needed.
+
+```yaml
+display:
+  - platform: it8951
+    model: m5stack-m5paper
+    lambda: |-
+      it.filled_circle(it.get_width() / 2, it.get_height() / 2, 50, Color::BLACK);
+```
+
+## Supported models
+
+### Generic controller
+
+Using the generic `IT8951` model requires full configuration with pins and
+dimensions specified.
+
+| Model name | Description                                                                            |
+| ---------- | -------------------------------------------------------------------------------------- |
+| IT8951     | Generic IT8951 controller. [Datasheet](https://www.ite.com.tw/en/product/cate5/IT8951) |
+
+### Integrated display boards
+
+These models have predefined pin assignments and dimensions. At minimum only the
+model name needs to be configured.
+
+| Model name             | Manufacturer | Dimensions | Description                                                                             |
+| ---------------------- | ------------ | ---------- | --------------------------------------------------------------------------------------- |
+| m5stack-m5paper        | M5Stack      | 960×540    | M5Paper 4.7" e-ink, 16-level grayscale. [Doc](https://docs.m5stack.com/en/core/m5paper) |
+| Seeed-reTerminal-E1003 | Seeed Studio | 1872×1404  | [Product page](https://www.seeedstudio.com/reTerminal-E1003.html)                       |
+| Seeed-EE03             | Seeed Studio | 1872×1404  | Seeed EE03 board with 10.3" e-paper.                                                    |
+
+> [!IMPORTANT]
+> `m5stack-m5paper` model work with the SKU K049 model and variants (K049-B, K049-C)
+>
+> Newer (but EOL) M5PaperS3 does not use the IT8951 nor any driver, but rather a direct connection to the ESP32S3 which is **not** supported by this component.
+
+## Configuration variables
+
+When using an integrated display board model, most configuration (pins,
+dimensions, VCOM) is preset but can be overridden.
+
+- **model** (**Required**): The model of the IT8951 display. See the table above
+  for options (case is not significant). One of `IT8951`, `m5stack-m5paper`,
+  `Seeed-reTerminal-E1003`, `Seeed-EE03`.
+- **cs_pin** (**Required** for generic, _Optional_ for integrated boards,
+  [Pin Schema](/guides/configuration-types#pin-schema)): The SPI chip select pin.
+- **busy_pin** (**Required** for generic, _Optional_ for integrated boards,
+  [Pin Schema](/guides/configuration-types#pin-schema)): The HRDY (host ready) pin.
+  The IT8951 uses active-high ready signaling (HIGH = ready, LOW = busy).
+- **reset_pin** (**Required** for generic, _Optional_ for integrated boards,
+  [Pin Schema](/guides/configuration-types#pin-schema)): The hardware reset pin.
+  Make sure you pull this pin high (by connecting it to 3.3V with a resistor) if
+  not connected to a GPIO pin.
+- **enable_pin** (_Optional_, [Pin Schema](/guides/configuration-types#pin-schema)
+  or list): One or more GPIOs driven high during setup to power on the panel,
+  before reset and initialization. Useful for boards with one or more
+  power-enable rails for the display.
+- **dimensions** (**Required** for generic, _Optional_ for integrated boards):
+  Dimensions of the screen, specified either as _width_ **x** _height_
+  (e.g. `960x540`) or with separate config keys. The dimensions are in pixels
+  and represent the **native panel** orientation (before rotation).
+  - **width** (**Required**, int): Specifies width of display in pixels.
+  - **height** (**Required**, int): Specifies height of display in pixels.
+
+- **rotation** (_Optional_, int): Set the rotation of the display. Everything
+  drawn in `lambda:` will be rotated. One of `0°` (default), `90°`, `180°`,
+  `270°`.
+- **transform** (_Optional_, dict): Additional transform applied on top of
+  rotation.
+  - **mirror_x** (**Required**, boolean): If true, mirror the x axis.
+  - **mirror_y** (**Required**, boolean): If true, mirror the y axis.
+  - **swap_xy** (**Required**, boolean): If true, swap x and y axis.
+
+- **update_mode** (_Optional_, enum): Default waveform mode for display
+  updates. If not set, defaults to `GC16` (full grayscale). Can be overridden
+  per-update via the `it8951.update` action. One of:
+
+  | Mode    | Description                                                                             |
+  | ------- | --------------------------------------------------------------------------------------- |
+  | `INIT`  | Full erase to white. Use after power-on or when display state is unknown.               |
+  | `DU`    | Direct update. Fast, non-flash. Black/white transitions only. Also available as `fast`. |
+  | `GC16`  | Grayscale clearing. Full 16-level grayscale, highest quality. Also available as `full`. |
+  | `GL16`  | Grayscale light. 16 levels with reduced flash, good for anti-aliased text on white.     |
+  | `GLR16` | Like GL16 with reduced artifacts (requires image preprocessing).                        |
+  | `GLD16` | Like GL16 with further reduced artifacts (full display update recommended).             |
+  | `DU4`   | 4-level grayscale, fast update. Good for anti-aliased text in menus.                    |
+  | `A2`    | Fastest mode. Black/white only, minimal ghosting. Good for animations/page turns.       |
+
+  > [!NOTE]
+  > Not every waveform is present in every panel's waveform LUT. On the
+  > supported Seeed panels only `GC16` (grayscale) and `DU` (monochrome) have
+  > been verified to render correctly; the reduced-grayscale modes (`GL16`,
+  > `GLR16`, `GLD16`, `DU4`) and `A2` can leave a white background rendered as
+  > grey. The driver's automatic mode selection therefore only ever uses `GC16`
+  > and `DU`; set `update_mode` to another value only if you have confirmed it
+  > works on your panel.
+
+- **full_update_every** (_Optional_, int): Number of updates between forced
+  full `GC16` refreshes, which clear accumulated ghosting. Defaults to `30`;
+  range `1`–`255`. The first update after boot is always a full refresh. In
+  monochrome mode (`grayscale: false`) the intervening updates use the fast
+  `DU` waveform; in grayscale mode they remain `GC16` (see the note under
+  **update_mode**).
+- **auto_clear_enabled** (_Optional_, boolean): When `true` (the default when a
+  `lambda` or `pages` is configured), the framebuffer is cleared before every
+  render, so each update redraws and refreshes the whole screen. Set to `false`
+  to enable partial **area updates**, where only the changed region is
+  transferred and refreshed — see [Area updates](#area-updates-partial-regions).
+- **vcom** (_Optional_, int): VCOM voltage in millivolts. Each e-paper panel has
+  a specific VCOM value printed on its flex cable. Defaults to `2300` (2.3V) for
+  m5stack-m5paper. Incorrect VCOM can cause image quality issues.
+- **invert_colors** (_Optional_, boolean): Invert the color mapping (swap black
+  and white). Defaults to `false`.
+- **sleep_when_done** (_Optional_, boolean): Put the IT8951 controller into
+  deep sleep after each display update completes. Reduces power consumption but
+  adds wake-up latency for the next update. Defaults to `true` for m5stack-m5paper,
+  `false` for Seeed boards.
+- **grayscale** (_Optional_, boolean): Selects the framebuffer pixel format.
+  When `true` (default), the framebuffer stores 16-level grayscale (4 bits per
+  pixel) and updates use the `GC16` waveform. When `false`, the framebuffer is
+  packed monochrome (1 bit per pixel): this halves RAM use, roughly halves the
+  transfer time, and enables fast `DU` partial refreshes between full cleans.
+  Choose `false` for pure black/white content (text, QR codes, line art) where
+  speed and memory matter more than gray levels.
+- **dithering** (_Optional_, boolean): Monochrome only (no effect when
+  `grayscale` is `true`). When `true` (default), colors are reproduced with
+  ordered (Bayer) dithering, so pale shades — button fills, spinner arcs, light
+  grays — render as a visible black/white stipple instead of vanishing to
+  white. Pure black and pure white stay solid. Set to `false` for a hard 50%
+  black/white threshold (crisper, stipple-free text at the cost of pale fills
+  disappearing).
+- **reset_duration** (_Optional_, [Time](/guides/configuration-types#time)):
+  Duration of the hardware reset pulse. Defaults to `10ms`. Maximum `500ms`.
+- **lambda** (_Optional_,
+  [lambda](/automations/templates#config-lambda)): The lambda to use for rendering
+  content on the display. See
+  [Display Rendering Engine](/components/display#display-engine) for more
+  information.
+- **pages** (_Optional_, list): Show pages instead of a single lambda. See
+  [Display Pages](/components/display#display-pages).
+- **update_interval** (_Optional_,
+  [Time](/guides/configuration-types#time)): The interval to re-draw the screen.
+  Defaults to `1min`. Use `never` to only manually update the screen via
+  `component.update`.
+- **spi_id** (_Optional_, [ID](/guides/configuration-types#id)): Required to
+  specify the ID of the [SPI Component](/components/spi) if your configuration
+  defines multiple SPI buses.
+- **id** (_Optional_, [ID](/guides/configuration-types#id)): Manually specify
+  the ID used for code generation.
+
+## Actions
+
+### `it8951.update` Action
+
+Trigger a display update with an optional waveform mode override:
+
+```yaml
+on_...:
+  then:
+    - it8951.update:
+        id: my_display
+        mode: DU
+```
+
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The display to update.
+- **mode** (_Optional_, string): The waveform mode for this update. If omitted,
+  uses the configured `update_mode` or defaults to `GC16`. Supports
+  [templating](/automations/templates).
+
+## Full configuration examples
+
+### M5Paper (integrated board)
+
+Minimal configuration — pins and dimensions are preset:
+
+```yaml
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+  miso_pin: GPIO34
+
+display:
+  - platform: it8951
+    model: m5stack-m5paper
+    update_interval: 30s
+    update_mode: DU
+    full_update_every: 20
+    rotation: 270
+    lambda: |-
+      it.print(10, 10, id(my_font), "Hello, M5Paper!");
+```
+
+### Generic IT8951 controller
+
+Full configuration with explicit pins and dimensions:
+
+```yaml
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+  miso_pin: GPIO19
+
+display:
+  - platform: it8951
+    model: IT8951
+    dimensions:
+      width: 1024
+      height: 758
+    cs_pin: GPIO15
+    reset_pin: GPIO22
+    busy_pin: GPIO27
+    vcom: 2100
+    update_interval: 1min
+    full_update_every: 10
+    rotation: 0
+    lambda: |-
+      it.fill(Color::WHITE);
+      it.print(10, 10, id(my_font), Color::BLACK, "Hello!");
+```
+
+### Using with LVGL
+
+When using with LVGL, set `update_interval: never` and let LVGL manage updates:
+
+```yaml
+display:
+  - platform: it8951
+    model: m5stack-m5paper
+    id: my_display
+    update_interval: never
+    rotation: 270
+```
+
+### Partial updates with different modes
+
+Use fast mode for interactive elements and full mode for periodic cleanup:
+
+```yaml
+display:
+  - platform: it8951
+    model: m5stack-m5paper
+    id: my_display
+    update_mode: DU
+    full_update_every: 30
+    update_interval: 5s
+    rotation: 270
+    lambda: |-
+      it.fill(Color::WHITE);
+      it.strftime(10, 10, id(my_font), "%H:%M:%S", id(my_time).now());
+```
+
+### Area updates (partial regions)
+
+By default every update redraws and refreshes the whole screen, because
+`auto_clear_enabled` defaults to `true` and clears the framebuffer before each
+render. Setting `auto_clear_enabled: false` enables **area updates**: the
+framebuffer persists between updates, and only the bounding box of whatever your
+lambda draws is transferred to the controller and refreshed on the panel. This
+is much faster and flashes only the changed region.
+
+Because the buffer persists, your lambda must **erase** the area it is about to
+redraw (drawing over the old pixels), otherwise remnants of the previous content
+remain. Erasing counts as drawing, so it is included in the changed region:
+
+```yaml
+display:
+  - platform: it8951
+    model: m5stack-m5paper
+    id: my_display
+    auto_clear_enabled: false
+    update_mode: DU
+    full_update_every: 30
+    update_interval: 1s
+    rotation: 270
+    lambda: |-
+      // Erase just the clock area, then redraw it. Only this rectangle is
+      // transferred and refreshed; the rest of the panel is untouched.
+      it.filled_rectangle(0, 0, 360, 90, Color::WHITE);
+      it.strftime(0, 0, id(my_font), Color::BLACK, "%H:%M:%S", id(my_time).now());
+```
+
+Notes:
+
+- The changed region's horizontal extent is rounded out to a multiple of 32
+  pixels (a hardware alignment requirement); vertical extent is exact.
+- A full `GC16` refresh is still forced every `full_update_every` updates, and
+  on the first update after boot, to clear accumulated ghosting.
+- If a lambda draws nothing, the update is skipped entirely.
+
+## Technical notes
+
+- The IT8951 controller supports up to 16 levels of grayscale (4 bits per
+  pixel). Set `grayscale: false` to store the framebuffer as packed 1-bit
+  monochrome instead, which uses a quarter of the RAM and transfers far less
+  data per update for pure black/white content.
+- The driver is fully non-blocking. SPI operations are queued and executed one
+  per main loop iteration, gated on the HRDY pin. Row data transfer is
+  time-sliced to stay within the loop tick budget.
+- The framebuffer is stored in PSRAM on ESP32 devices. For a 960×540 display
+  at 4bpp, this requires approximately 260 KB.
+- The display rendering lambda runs synchronously and may take 200-300ms for
+  complex UIs due to PSRAM access latency. This is normal for e-paper displays
+  with large framebuffers.
+
+## See Also
+
+- [ESPHome Display Rendering Engine](/components/display#display-engine)
+- [LVGL Graphics](/components/lvgl/)
+- <APIRef text="it8951.h" path="it8951/it8951.h" />
