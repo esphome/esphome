@@ -28,9 +28,6 @@ namespace esphome::espnow {
 
 static constexpr const char *TAG = "espnow";
 
-static const esp_err_t CONFIG_ESPNOW_WAKE_WINDOW = 50;
-static const esp_err_t CONFIG_ESPNOW_WAKE_INTERVAL = 100;
-
 ESPNowComponent *global_esp_now = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static const LogString *espnow_error_to_str(esp_err_t error) {
@@ -203,11 +200,6 @@ void ESPNowComponent::enable_() {
   }
 
   esp_wifi_get_mac(WIFI_IF_STA, this->own_address_);
-
-#ifdef USE_DEEP_SLEEP
-  esp_now_set_wake_window(CONFIG_ESPNOW_WAKE_WINDOW);
-  esp_wifi_connectionless_module_set_wake_interval(CONFIG_ESPNOW_WAKE_INTERVAL);
-#endif
 
   this->state_ = ESPNOW_STATE_ENABLED;
 
