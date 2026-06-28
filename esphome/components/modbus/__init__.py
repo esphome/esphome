@@ -124,7 +124,6 @@ async def register_modbus_client_device(var, config):
 
 async def register_modbus_server_device(var, config):
     parent = await cg.get_variable(config[CONF_MODBUS_ID])
-    cg.add(var.set_parent(parent))
     cg.add(var.set_address(config[CONF_ADDRESS]))
     cg.add(parent.register_device(var))
 
