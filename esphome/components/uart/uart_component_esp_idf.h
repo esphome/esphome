@@ -11,6 +11,15 @@
 
 namespace esphome::uart {
 
+/// UART clock source. Unsupported selections fall back to the chip's default.
+enum UARTClockSource : uint8_t {
+  UART_CLOCK_SOURCE_DEFAULT = 0,
+  UART_CLOCK_SOURCE_APB,
+  UART_CLOCK_SOURCE_XTAL,
+  UART_CLOCK_SOURCE_RTC,
+  UART_CLOCK_SOURCE_REF_TICK,
+};
+
 /// ESP-IDF UART driver wrapper.
 ///
 /// Thread safety: All public methods must only be called from the main loop.
@@ -36,6 +45,8 @@ class IDFUARTComponent final : public UARTComponent, public Component {
   UARTFlushResult flush() override;
 
   void set_flush_timeout(uint32_t flush_timeout_ms) override { this->flush_timeout_ms_ = flush_timeout_ms; }
+
+  void set_clock_source(UARTClockSource clock_source) { this->clock_source_ = clock_source; }
 
   uint8_t get_hw_serial_number() { return this->uart_num_; }
 
@@ -106,6 +117,7 @@ class IDFUARTComponent final : public UARTComponent, public Component {
   bool has_peek_{false};
   uint8_t peek_byte_{0};
   uint32_t flush_timeout_ms_{0};  ///< 0 means wait indefinitely (portMAX_DELAY).
+  UARTClockSource clock_source_{UART_CLOCK_SOURCE_DEFAULT};
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
   // ISR callback for UART RX data notification — wakes the main loop directly.
