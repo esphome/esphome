@@ -159,9 +159,12 @@ def setup_core(
     CORE.config = config
     CORE.toolchain = Toolchain.PLATFORMIO
 
-    if platform is not None:
-        CORE.data[KEY_CORE] = {}
-        CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = platform
+    # Production always populates CORE.data[KEY_CORE] before upload/logs run
+    # (the platform validator sets it during read_config, and
+    # StorageJSON.apply_to_core sets it on the cache fast path), so mirror
+    # that here. Tests that exercise platform-specific behavior pass a
+    # platform explicitly; the rest get a platform-agnostic None.
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
 
     if tmp_path is not None:
         CORE.config_path = str(tmp_path / f"{name}.yaml")
@@ -437,6 +440,36 @@ def test_redact_with_legacy_fallback__does_not_match_fragment_as_suffix(
         out = _redact_with_legacy_fallback("monkey: 1234\n")
     assert "\\033[8m" not in out
     assert not any("legacy substring" in rec.message for rec in caplog.records)
+
+
+def test_redact_with_legacy_fallback__substitutions_redacted_without_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Substitution keys have no schema validator, so their values are still
+    redacted but the unactionable cv.sensitive migration warning is suppressed
+    (see issue #17225)."""
+    text = "substitutions:\n  ota_password: apolloautomation\nesphome:\n  name: x\n"
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback(text)
+    assert "ota_password: \\033[8mapolloautomation\\033[28m" in out
+    assert not any("legacy substring" in rec.message for rec in caplog.records)
+
+
+def test_redact_with_legacy_fallback__warns_after_substitutions_block(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The suppression ends at the next top-level key; a sensitive-shaped field
+    in a later block (a real schema field) still warns, while the substitution
+    above it does not."""
+    text = (
+        "substitutions:\n  ota_password: apolloautomation\nwifi:\n  password: hunter2\n"
+    )
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback(text)
+    assert "ota_password: \\033[8mapolloautomation\\033[28m" in out
+    assert "password: \\033[8mhunter2\\033[28m" in out
+    assert any("'password'" in rec.message for rec in caplog.records)
+    assert not any("ota_password" in rec.message for rec in caplog.records)
 
 
 def test_command_config__invokes_legacy_fallback_when_redacting(
@@ -1658,6 +1691,29 @@ def test_upload_program_serial_platformio_platforms(
     assert host == device
     mock_check_permissions.assert_called_once_with(device)
     mock_upload_using_platformio.assert_called_once_with(config, device)
+
+
+@patch("esphome.__main__.importlib.import_module")
+def test_upload_program_serial_unknown_platform(
+    mock_import: Mock,
+    mock_get_port_type: Mock,
+    mock_check_permissions: Mock,
+) -> None:
+    """Serial upload on an unsupported platform falls through to exit_code 1."""
+    setup_core(platform="custom_platform")
+    # Module has no upload_program handler, so the SERIAL branch is reached.
+    mock_import.return_value = MagicMock(spec=[])
+    mock_get_port_type.return_value = "SERIAL"
+
+    config = {}
+    args = MockArgs()
+    devices = ["/dev/ttyUSB0"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 1
+    assert host is None
+    mock_check_permissions.assert_called_once_with("/dev/ttyUSB0")
 
 
 def test_upload_using_platformio_creates_signed_bin_for_rp2040(
@@ -6348,6 +6404,44 @@ def test_command_run_defaults_subscribe_states_true(
     mock_run_logs.assert_called_once_with(
         CORE.config, ["192.168.1.100"], subscribe_states=True
     )
+
+
+def test_command_run_rp2040_bootsel_redetects_serial_port() -> None:
+    """After a BOOTSEL upload (no device) on RP2040, command_run waits for and
+    picks up the newly enumerated serial port before showing logs."""
+    setup_core(
+        config={"logger": {}, CONF_API: {}, CONF_MDNS: {CONF_DISABLED: False}},
+        platform=PLATFORM_RP2040,
+    )
+
+    args = MockArgs()
+    args.no_logs = False
+    args.device = None
+
+    new_port = MockSerialPort("/dev/ttyACM0", "RP2040 Serial")
+
+    with (
+        patch("esphome.__main__.write_cpp", return_value=0),
+        patch("esphome.__main__.compile_program", return_value=0),
+        patch(
+            "esphome.__main__.choose_upload_log_host",
+            side_effect=[[], ["/dev/ttyACM0"]],
+        ) as mock_choose,
+        patch("esphome.__main__.upload_program", return_value=(0, None)),
+        patch(
+            "esphome.__main__.get_serial_ports",
+            side_effect=[[], [new_port]],
+        ),
+        patch("esphome.__main__._wait_for_serial_port") as mock_wait,
+        patch("esphome.__main__.show_logs", return_value=0) as mock_show_logs,
+    ):
+        result = command_run(args, CORE.config)
+
+    assert result == 0
+    mock_wait.assert_called_once_with(known_ports=set())
+    # The re-detected serial port is used as the preferred logging device.
+    assert mock_choose.call_args_list[-1].kwargs["default"] == "/dev/ttyACM0"
+    mock_show_logs.assert_called_once_with(CORE.config, args, ["/dev/ttyACM0"])
 
 
 def test_command_idedata_esp_idf_prints_json(capsys: CaptureFixture) -> None:

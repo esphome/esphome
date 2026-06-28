@@ -215,7 +215,7 @@ void VEML3235Sensor::dump_config() {
                   "  Auto-gain upper threshold: %f%%\n"
                   "  Auto-gain lower threshold: %f%%\n"
                   "  Values below will be used as initial values only",
-                  this->auto_gain_threshold_high_ * 100.0, this->auto_gain_threshold_low_ * 100.0);
+                  this->auto_gain_threshold_high_ * 100.0f, this->auto_gain_threshold_low_ * 100.0f);
   }
   ESP_LOGCONFIG(TAG,
                 "  Digital gain: %uX\n"
