@@ -184,6 +184,10 @@ def run_tidy(executable, args, options, tmpdir, path_queue, lock, failed_files):
     while True:
         path = path_queue.get()
         invocation = [executable]
+        # TEMPORARY (audit): the reduced .clang-tidy enables only a
+        # clang-diagnostic-* check, which clang-tidy's "no checks enabled" guard
+        # rejects; allow it so the double-promotion scan can run.
+        invocation.append("--allow-no-checks")
 
         if tmpdir is not None:
             invocation.append("--export-fixes")
