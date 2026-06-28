@@ -228,7 +228,7 @@ void Display::filled_gauge(int center_x, int center_y, int radius1, int radius2,
   int e2max, e2min;
   progress = std::max(0, std::min(progress, 100));  // 0..100
   int draw_progress = progress > 50 ? (100 - progress) : progress;
-  float tan_a = (progress == 50) ? 65535 : tan(float(draw_progress) * M_PI / 100);  // slope
+  float tan_a = (progress == 50) ? 65535 : tanf(float(draw_progress) * std::numbers::pi_v<float> / 100);  // slope
 
   do {
     // outer dots
