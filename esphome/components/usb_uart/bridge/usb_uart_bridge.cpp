@@ -83,14 +83,19 @@ static esp_err_t ringbuf_read_bytes(RingbufHandle_t ring_buf, uint8_t *out_buf, 
 }
 
 void USBUARTBridge::setup() {
+  // DTR/RTS carry the host's logical line state: true = asserted, false = deasserted
+  // (matching the USB CDC SET_CONTROL_LINE_STATE bits and set_line_state() below).
+  // Initialize them deasserted, since no host has raised them yet. For a conventional
+  // active-low serial interface (DTR#/RTS#), configure the pins with `inverted: true`
+  // so deasserted idles HIGH and an assertion drives LOW, as a real adapter would.
   if (this->dtr_pin_ != nullptr) {
     this->dtr_pin_->setup();
-    this->dtr_pin_->digital_write(true);
+    this->dtr_pin_->digital_write(false);
   }
 
   if (this->rts_pin_ != nullptr) {
     this->rts_pin_->setup();
-    this->rts_pin_->digital_write(true);
+    this->rts_pin_->digital_write(false);
   }
 
   if (this->uart_parent_ == nullptr) {
