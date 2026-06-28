@@ -206,14 +206,16 @@ void WiFiComponent::wifi_lazy_init_() {
   if (esp_wifi_get_mode(&mode) == ESP_OK) {
     ESP_LOGD(TAG, "WiFi driver already started without STA netif; restarting to bind it");
     esp_err_t err = esp_wifi_stop();
-    if (err != ESP_OK)
+    if (err != ESP_OK) {
       ESP_LOGW(TAG, "esp_wifi_stop failed: %s", esp_err_to_name(err));
+    }
     // Re-apply RAM storage; the normal init path does this, but it is skipped on
     // the self-retry case above, which would otherwise let the driver persist
     // credentials to NVS for the rest of the boot.
     err = esp_wifi_set_storage(WIFI_STORAGE_RAM);
-    if (err != ESP_OK)
+    if (err != ESP_OK) {
       ESP_LOGW(TAG, "esp_wifi_set_storage failed: %s", esp_err_to_name(err));
+    }
     err = esp_wifi_start();
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "esp_wifi_start failed: %s", esp_err_to_name(err));
