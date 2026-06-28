@@ -215,7 +215,7 @@ void SX126x::configure() {
   // configure modem
   if (this->modulation_ == PACKET_TYPE_LORA) {
     // set modulation params
-    float duration = 1000.0f * std::pow(2, this->spreading_factor_) / BW_HZ[this->bandwidth_];
+    float duration = 1000.0f * (1UL << this->spreading_factor_) / BW_HZ[this->bandwidth_];
     buf[0] = this->spreading_factor_;
     buf[1] = BW_LORA[this->bandwidth_ - SX126X_BW_7810];
     buf[2] = this->coding_rate_;
