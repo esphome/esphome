@@ -15,6 +15,7 @@ from esphome.const import (
     UNIT_EMPTY,
     UNIT_PH,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@ssieb"]
 
@@ -88,7 +89,7 @@ CONFIG_SCHEMA = (
 )
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> ConfigType:
     return modbus.final_validate_modbus_device("kuntze", role="client")(config)
 
 

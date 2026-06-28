@@ -41,6 +41,7 @@ from esphome.const import (
     UNIT_VOLT_AMPS_REACTIVE,
     UNIT_WATT,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["modbus"]
 CODEOWNERS = ["@polyfaces", "@jesserockz"]
@@ -147,7 +148,7 @@ CONFIG_SCHEMA = (
 )
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> ConfigType:
     return modbus.final_validate_modbus_device("sdm_meter", role="client")(config)
 
 

@@ -25,6 +25,7 @@ from esphome.const import (
     UNIT_VOLT,
     UNIT_WATT,
 )
+from esphome.types import ConfigType
 
 CONF_ENERGY_PRODUCTION_DAY = "energy_production_day"
 CONF_TOTAL_ENERGY_PRODUCTION = "total_energy_production"
@@ -162,7 +163,7 @@ CONFIG_SCHEMA = (
 )
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> ConfigType:
     return modbus.final_validate_modbus_device("growatt_solar", role="client")(config)
 
 

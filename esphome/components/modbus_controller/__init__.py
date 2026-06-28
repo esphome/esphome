@@ -11,6 +11,7 @@ from esphome.components.modbus.helpers import (
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_OFFSET
 from esphome.cpp_helpers import logging
+from esphome.types import ConfigType
 
 from .const import (
     CONF_ALLOW_DUPLICATE_COMMANDS,
@@ -117,7 +118,7 @@ def validate_modbus_register(config):
     return config
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> ConfigType:
     return modbus.final_validate_modbus_device("modbus_controller", role="client")(
         config
     )

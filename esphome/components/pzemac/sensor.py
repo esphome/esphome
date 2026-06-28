@@ -26,6 +26,7 @@ from esphome.const import (
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["modbus"]
 
@@ -97,7 +98,7 @@ async def reset_energy_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> ConfigType:
     return modbus.final_validate_modbus_device("pzemac", role="client")(config)
 
 
