@@ -30,6 +30,12 @@ static const bt_data SD[] = {
 
 const bt_le_adv_param *const ADV_PARAM = BT_LE_ADV_CONN;
 
+// Last bt_le_adv_start() rc, surfaced in dump_config() because advertise() runs on
+// the BT workqueue thread whose logs don't reliably flush over USB-CDC. -255 means
+// advertise() has not run yet; 0 means advertising is up. Useful on a headless BLE
+// node where a non-zero rc is otherwise invisible.
+static volatile int advertise_rc = -255;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 static void advertise(k_work *work) {
   int rc = bt_le_adv_stop();
   if (rc) {
@@ -38,12 +44,21 @@ static void advertise(k_work *work) {
 
   // Build the advertising data here (not as a static const) so the name carries
   // the runtime device_name captured in setup().
+  //
+  // Do NOT include a BT_DATA_FLAGS element. The nRF SoftDevice Controller rejects
+  // HCI LE Set Advertising Data that carries the AD Flags type (0x01) with
+  // INVALID_PARAM (-EINVAL) -- it owns the discoverability flags for the
+  // connectable advertising mode and sets them itself. A bisection proved this is
+  // the sole cause of the long-standing advertising failure: a bare advert, a
+  // name-only AD, and the scan-response UUID each start cleanly (rc 0); only an AD
+  // containing the flags element fails. The name (for macOS/CoreBluetooth
+  // discovery) goes in the primary AD; the SMP/NUS UUID stays in the scan response.
   const bt_data ad[] = {
-      BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
       BT_DATA(BT_DATA_NAME_COMPLETE, device_name.c_str(), device_name.size()),
   };
 
   rc = bt_le_adv_start(ADV_PARAM, ad, ARRAY_SIZE(ad), SD, ARRAY_SIZE(SD));
+  advertise_rc = rc;
   if (rc) {
     ESP_LOGE(TAG, "Advertising failed to start (rc %d)", rc);
     return;
@@ -305,12 +320,23 @@ void BLEServer::dump_config() {
                 "  name: %s\n"
                 "  appearance: %u\n"
                 "  ready: %s\n"
+                "  last advertise rc: %d (-255 = advertise() never ran)\n"
+                "  id0 addr: %s\n"
 #ifdef CONFIG_BT_SMP
                 "  security manager: YES",
 #else
                 "  security manager: NO",
 #endif
-                YESNO(this->conn_), bt_get_name(), bt_get_appearance(), YESNO(bt_is_ready()));
+                YESNO(this->conn_), bt_get_name(), bt_get_appearance(), YESNO(bt_is_ready()),
+                (int) advertise_rc, ([]() -> const char * {
+                  static char s[BT_ADDR_LE_STR_LEN] = "none";
+                  bt_addr_le_t ids[CONFIG_BT_ID_MAX];
+                  size_t n = CONFIG_BT_ID_MAX;
+                  bt_id_get(ids, &n);
+                  if (n > 0)
+                    bt_addr_le_to_str(&ids[0], s, sizeof(s));
+                  return s;
+                })());
 
 #ifdef ESPHOME_LOG_HAS_DEBUG
   bt_conn_foreach(BT_CONN_TYPE_ALL, connection_info, nullptr);

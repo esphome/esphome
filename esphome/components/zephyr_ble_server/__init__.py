@@ -128,6 +128,14 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     zephyr_add_prj_conf("BT", True)
     zephyr_add_prj_conf("BT_PERIPHERAL", True)
+    # Enable the BT settings subsystem unconditionally. Beyond persisting bonds, it
+    # is what makes the host load/generate a valid identity (device) address after
+    # bt_enable() via settings_load(). Without it the nRF SoftDevice Controller comes
+    # up with an all-zero identity address and bt_le_adv_start() fails with -EINVAL,
+    # so the node never advertises (no BLE logs/OTA). Previously this was only set
+    # inside the numeric-comparison/SMP branch below, which left non-SMP nodes (the
+    # soil sensor) unable to advertise.
+    zephyr_add_prj_conf("BT_SETTINGS", True)
     zephyr_add_prj_conf("BT_RX_STACK_SIZE", 1536)
     zephyr_add_prj_conf("BT_DEVICE_NAME", CORE.name)
     # The advertised/GAP name is set at runtime from App.get_name() (see
