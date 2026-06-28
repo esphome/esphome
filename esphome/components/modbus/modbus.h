@@ -130,22 +130,22 @@ class ModbusServerHub : public Modbus {
  public:
   ModbusServerHub() = default;
   void dump_config() override;
-  void send(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &payload);
-  ESPDEPRECATED("Use ModbusServerDevice::send_raw instead. Removed in 2026.10.0", "2026.4.0")
-  void send_raw(const std::vector<uint8_t> &payload) {
-    this->send_raw_(payload.data(), static_cast<uint16_t>(payload.size()));
-  };
   void register_device(ModbusServerDevice *device) { this->devices_.push_back(device); }
 
  protected:
-  friend class ModbusServerDevice;
-
   void parse_modbus_frames() override;
   bool parse_modbus_client_frame_();
   // Parsers need to handle standard (ModbusFunctionCode) and custom (uint8_t) function codes, so we use uint8_t here.
   void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len) override;
-  void process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len);
+  void process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data);
+  ModbusServerDevice *find_device_(uint8_t address);
+  // Returns true if [start_address, start_address + number_of_registers) fits in the 16-bit address space.
+  // On failure, logs and sends an ILLEGAL_DATA_ADDRESS exception to the client.
+  bool check_register_range_(uint8_t address, uint8_t function_code, uint16_t start_address,
+                             uint16_t number_of_registers);
   void send_raw_(const uint8_t *payload, uint16_t len);
+  void send_exception_(uint8_t address, uint8_t function_code, ModbusExceptionCode exception_code);
+  void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);
   uint8_t expecting_peer_response_{0};
   std::vector<ModbusServerDevice *> devices_;
 
@@ -200,35 +200,41 @@ class ModbusClientDevice {
 // This is for compatibility with external components using the former class name
 using ModbusDevice = ModbusClientDevice;
 
+// Result of a server register handler: std::nullopt means success, otherwise the Modbus exception code to return.
+using ServerResponseStatus = std::optional<ModbusExceptionCode>;
+// Register values exchanged with server handlers, in host byte order. Sized at the larger of the two protocol
+// maxima (read = 125 / 0x7D, write = 123 / 0x7B); the per-direction count limit is enforced by the hub, not by
+// the capacity of this type.
+using RegisterValues = StaticVector<uint16_t, MAX_NUM_OF_REGISTERS_TO_READ>;
+
 class ModbusServerDevice {
  public:
-  ModbusServerDevice() = default;
-  ModbusServerDevice(ModbusServerHub *parent, uint8_t address) : parent_(parent), address_(address) {}
   virtual ~ModbusServerDevice() = default;
+  ModbusServerDevice() = default;
+  // Polymorphic base: non-copyable and non-movable to prevent slicing (Rule of Five).
   ModbusServerDevice(const ModbusServerDevice &) = delete;
   ModbusServerDevice &operator=(const ModbusServerDevice &) = delete;
   ModbusServerDevice(ModbusServerDevice &&) = delete;
   ModbusServerDevice &operator=(ModbusServerDevice &&) = delete;
-  void set_parent(ModbusServerHub *parent) { this->parent_ = parent; }
   void set_address(uint8_t address) { this->address_ = address; }
-  virtual void on_modbus_read_registers(uint8_t function_code, uint16_t start_address, uint16_t number_of_registers){};
-  virtual void on_modbus_write_registers(uint8_t function_code, const std::vector<uint8_t> &data){};
-  void send(uint8_t function, const std::vector<uint8_t> &payload) {
-    this->parent_->send(this->address_, function, payload);
-  }
-  void send_raw(const std::vector<uint8_t> &payload) {
-    this->parent_->send_raw_(payload.data(), static_cast<uint16_t>(payload.size()));
-  }
-  void send_error(uint8_t function_code, ModbusExceptionCode exception_code) {
-    uint8_t error_response[3] = {this->address_, uint8_t(function_code | FUNCTION_CODE_EXCEPTION_MASK),
-                                 static_cast<uint8_t>(exception_code)};
-    this->parent_->send_raw_(error_response, 3);
-  }
+  uint8_t get_address() const { return this->address_; }
+  virtual ServerResponseStatus on_modbus_read_registers(uint16_t start_address, uint16_t number_of_registers,
+                                                        RegisterValues &registers) {
+    return ModbusExceptionCode::ILLEGAL_FUNCTION;
+  };
+  virtual ServerResponseStatus on_modbus_read_input_registers(uint16_t start_address, uint16_t number_of_registers,
+                                                              RegisterValues &registers) {
+    return this->on_modbus_read_registers(start_address, number_of_registers, registers);
+  };
+  virtual ServerResponseStatus on_modbus_read_holding_registers(uint16_t start_address, uint16_t number_of_registers,
+                                                                RegisterValues &registers) {
+    return this->on_modbus_read_registers(start_address, number_of_registers, registers);
+  };
+  virtual ServerResponseStatus on_modbus_write_registers(uint16_t start_address, const RegisterValues &registers) {
+    return ModbusExceptionCode::ILLEGAL_FUNCTION;
+  };
 
  protected:
-  friend ModbusServerHub;
-
-  ModbusServerHub *parent_{nullptr};
   uint8_t address_{0};
 };
 
