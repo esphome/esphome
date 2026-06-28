@@ -220,7 +220,9 @@ async def _resilient_upload(
 ) -> None:
     """Upload an image over a lossy transport (UDP), resending dropped chunks."""
     total = len(image)
-    image_sha = image_sha or sha256(image).digest()  # constant — hoisted out of the retry loop
+    image_sha = (
+        image_sha or sha256(image).digest()
+    )  # constant — hoisted out of the retry loop
     off = 0
     stalls = 0
     response = None
