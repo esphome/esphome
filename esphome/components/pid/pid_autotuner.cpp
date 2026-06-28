@@ -300,7 +300,7 @@ bool PIDAutotuner::OscillationFrequencyDetector::is_increase_decrease_symmetrica
     min_interval = std::min(min_interval, interval);
   }
   float ratio = min_interval / float(max_interval);
-  return ratio >= 0.66;
+  return ratio >= 0.66f;
 }
 
 // ================== OscillationAmplitudeDetector ==================
