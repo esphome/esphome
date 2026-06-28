@@ -15,7 +15,7 @@ fetch/parse/cache plumbing, not API compatibility.
 from pathlib import Path
 
 from esphome import yaml_util
-from esphome.core import Library
+from esphome.core import EsphomeError, Library
 from esphome.helpers import write_file_if_changed
 from esphome.platformio.library import (
     DEFAULT_BUILD_FLAGS,
@@ -150,10 +150,26 @@ def generate_zephyr_modules(libraries: list[Library]) -> list[Path]:
     its own module). Every directory should be added to ``ZEPHYR_EXTRA_MODULES``;
     Zephyr links all module libraries into the image, so cross-library symbols
     resolve without explicit dependency declarations.
+
+    Raises ``EsphomeError`` if two libraries resolve to the same Zephyr module
+    name -- each module's CMakeLists calls ``zephyr_library_named(<name>)``, so a
+    duplicate would otherwise fail the build with a CMake "target already exists".
+    The converter already warns when a library is referenced under inconsistent
+    specs (bare ``name`` vs ``owner/name``, git vs registry); this turns that into
+    an actionable error at the Zephyr boundary where it is fatal.
     """
     module_dirs: list[Path] = []
+    by_name: dict[str, Path] = {}
 
     def emit(component: ConvertedLibrary) -> None:
+        name = component.get_require_name()
+        if name in by_name:
+            raise EsphomeError(
+                f"Two libraries resolve to the same Zephyr module '{name}' "
+                f"({by_name[name]} and {component.path}). Reference the library "
+                f"consistently (e.g. always as 'owner/name') so it resolves once."
+            )
+        by_name[name] = component.path
         _emit_zephyr_module(component)
         module_dirs.append(component.path)
 

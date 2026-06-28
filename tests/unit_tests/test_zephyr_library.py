@@ -2,13 +2,15 @@
 
 from pathlib import Path
 
+import pytest
+
 import esphome.components.zephyr.library as zlib
 from esphome.components.zephyr.library import (
     generate_cmakelists_txt,
     generate_module_yml,
     generate_zephyr_modules,
 )
-from esphome.core import Library
+from esphome.core import EsphomeError, Library
 from esphome.platformio.library import ConvertedLibrary, URLSource
 
 
@@ -92,3 +94,24 @@ def test_generate_zephyr_modules_collects_all_dirs_and_writes(tmp_path, monkeypa
     for comp in (top, dep):
         assert (comp.path / "zephyr" / "module.yml").is_file()
         assert (comp.path / "zephyr" / "CMakeLists.txt").is_file()
+
+
+def test_generate_zephyr_modules_errors_on_duplicate_module_name(tmp_path, monkeypatch):
+    # The same library referenced under inconsistent specs (e.g. bare vs
+    # owner-qualified, or git vs registry) resolves to two components with the
+    # same Zephyr module name, which would collide in zephyr_library_named().
+    a = _make_component(tmp_path / "a", "esphome/noise-c")
+    a.path.mkdir(parents=True)
+    b = _make_component(tmp_path / "b", "esphome/noise-c")
+    b.path.mkdir(parents=True)
+    assert a.get_require_name() == b.get_require_name()
+
+    def fake_convert(libraries, backend):
+        backend.emit(a)
+        backend.emit(b)
+        return [a]
+
+    monkeypatch.setattr(zlib, "convert_libraries", fake_convert)
+
+    with pytest.raises(EsphomeError, match="same Zephyr module"):
+        generate_zephyr_modules([Library("esphome/noise-c", "1.0", None)])
