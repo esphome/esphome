@@ -38,9 +38,11 @@ ZEPHYR_FRAMEWORK = "zephyr"
 
 
 def _escape(p: PathType) -> str:
-    # CMake list separator is ';'; use forward slashes and quote so spaces and
-    # backslashes (Windows) survive.
-    return '"{}"'.format(str(p).replace("\\", "/"))
+    # In CMakeLists.txt, backslashes need to be escaped (mirrors the ESP-IDF
+    # backend's escape_entry). Doubling -- rather than rewriting '\' -> '/' --
+    # preserves content, so it's safe for arbitrary build flags (e.g. a -D value
+    # containing a backslash) as well as Windows paths.
+    return f'"{str(p)}"'.replace("\\", "\\\\")
 
 
 def generate_module_yml(component: ConvertedLibrary) -> str:
