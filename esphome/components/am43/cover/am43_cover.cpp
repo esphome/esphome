@@ -118,9 +118,9 @@ void Am43Component::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         if (!this->invert_position_)
           this->position = 1 - this->position;
         if (this->position > 0.97f)
-          this->position = 1.0;
+          this->position = 1.0f;
         if (this->position < 0.02f)
-          this->position = 0.0;
+          this->position = 0.0f;
         this->publish_state();
       }
 
