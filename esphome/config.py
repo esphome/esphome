@@ -1195,7 +1195,7 @@ def validate_config(
     ):
         for key, location in dict.fromkeys(dropped):
             _LOGGER.warning(
-                "Key '%s' (%s) was dropped while merging a '<<' include because it "
+                "Key '%s' (%s) was dropped while processing a '<<' merge because it "
                 "is already defined. Merge keys don't combine sections - the first "
                 "definition wins. Use 'packages:' to merge sections, or set "
                 "'esphome: { merge_warnings: false }' to silence this.",
