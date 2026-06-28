@@ -411,6 +411,18 @@ async def _dfu_to_code(dfu_config):
 def copy_files() -> None:
     """Copy files to the build directory."""
 
+    # PlatformIO-library conversion to Zephyr modules is wired into the sdk-nrf
+    # CMakeLists only; on the PlatformIO toolchain the CMakeLists comes from the
+    # platform package, so libraries can't be injected yet. Warn instead of
+    # silently dropping them.
+    if CORE.using_toolchain_platformio and CORE.platformio_libraries:
+        _LOGGER.warning(
+            "PlatformIO libraries (%s) are not supported on the nRF52 "
+            "'platformio' toolchain; use toolchain 'sdk-nrf' to build them as "
+            "Zephyr modules.",
+            ", ".join(sorted(CORE.platformio_libraries)),
+        )
+
     if CORE.using_toolchain_platformio and (
         zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
         or zephyr_data()[KEY_BOARD] == "xiao_ble"
@@ -701,11 +713,26 @@ def _generate_cmake_lists() -> None:
     compile_flags = get_project_compile_flags()
     link_flags = get_project_link_flags()
 
+    # Convert any PlatformIO libraries added via cg.add_library() into Zephyr
+    # modules and discover them through ZEPHYR_EXTRA_MODULES (a CMake list, set
+    # before find_package(Zephyr) so the modules are picked up). Only
+    # framework-agnostic libraries actually compile under Zephyr.
+    from esphome.components.zephyr.library import generate_zephyr_modules
+
+    module_dirs = generate_zephyr_modules(list(CORE.platformio_libraries.values()))
+
     lines = [
         "cmake_minimum_required(VERSION 3.20.0)",
         "",
         'set(Zephyr_DIR "$ENV{ZEPHYR_BASE}/share/zephyr-package/cmake/")',
         "",
+    ]
+
+    if module_dirs:
+        modules = ";".join(str(d).replace("\\", "/") for d in module_dirs)
+        lines += [f'set(ZEPHYR_EXTRA_MODULES "{modules}")', ""]
+
+    lines += [
         "find_package(Zephyr REQUIRED)",
         "",
         f"project({CORE.name})",

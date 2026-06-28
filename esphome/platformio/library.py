@@ -190,7 +190,7 @@ class LibraryBackend:
     Zephyr ``module.yml`` + ``CMakeLists.txt``).
     """
 
-    platform: str
+    platform: str | None
     framework: str
     emit: Callable[["ConvertedLibrary"], None]
 
@@ -309,7 +309,7 @@ def split_list_by_condition(
     return matched, non_matched
 
 
-def check_library_data(data: dict, platform: str, framework: str):
+def check_library_data(data: dict, platform: str | None, framework: str):
     """
     Check whether a library manifest is compatible with the target toolchain.
 
@@ -322,7 +322,9 @@ def check_library_data(data: dict, platform: str, framework: str):
     Args:
         data: PIO library manifest dict being processed.
         platform: The PlatformIO platform token the build targets (e.g.
-            ``espressif32``).
+            ``espressif32``). ``None`` skips the platform check entirely — useful
+            for targets (e.g. Zephyr) where PIO manifests rarely declare the
+            platform yet portable libraries still build.
         framework: The active framework name (e.g. ``espidf``, ``arduino``,
             ``zephyr``) the manifest is expected to declare.
 
@@ -335,7 +337,7 @@ def check_library_data(data: dict, platform: str, framework: str):
     platforms = ensure_list(platforms)
 
     # Check if library supports the target platform
-    valid_platforms = "*" in platforms or platform in platforms
+    valid_platforms = platform is None or "*" in platforms or platform in platforms
 
     if not valid_platforms:
         raise InvalidLibrary(f"Unsupported library platforms: {platforms}")
