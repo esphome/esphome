@@ -211,6 +211,17 @@ CONFIG_SCHEMA = (
     .add_extra(set_reference_values)
 )
 
+# BL0940 datasheet: 4800 baud, 8 data bits, no parity (stop bits are 1.5 -- not
+# representable in the uart schema, so it isn't asserted).
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "bl0940",
+    baud_rate=4800,
+    data_bits=8,
+    parity="NONE",
+    require_rx=True,
+    require_tx=True,
+)
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])

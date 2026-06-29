@@ -18,6 +18,7 @@ from esphome.const import (
     PLATFORM_ESP32,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 from . import boards
 from .const import (
@@ -50,7 +51,11 @@ from .gpio_esp32_h4 import esp32_h4_validate_gpio_pin, esp32_h4_validate_support
 from .gpio_esp32_h21 import esp32_h21_validate_gpio_pin, esp32_h21_validate_supports
 from .gpio_esp32_p4 import esp32_p4_validate_gpio_pin, esp32_p4_validate_supports
 from .gpio_esp32_s2 import esp32_s2_validate_gpio_pin, esp32_s2_validate_supports
-from .gpio_esp32_s3 import esp32_s3_validate_gpio_pin, esp32_s3_validate_supports
+from .gpio_esp32_s3 import (
+    esp32_s3_final_validate_pins,
+    esp32_s3_validate_gpio_pin,
+    esp32_s3_validate_supports,
+)
 from .gpio_esp32_s31 import esp32_s31_validate_gpio_pin, esp32_s31_validate_supports
 
 ESP32InternalGPIOPin = esp32_ns.class_("ESP32InternalGPIOPin", cg.InternalGPIOPin)
@@ -96,6 +101,7 @@ def _translate_pin(value):
 class ESP32ValidationFunctions:
     pin_validation: Callable[[int], int]
     usage_validation: Callable[[dict[str, Any]], dict[str, Any]]
+    final_validate: Callable[[ConfigType], None] | None = None
 
 
 _esp32_validations = {
@@ -145,6 +151,7 @@ _esp32_validations = {
     VARIANT_ESP32S3: ESP32ValidationFunctions(
         pin_validation=esp32_s3_validate_gpio_pin,
         usage_validation=esp32_s3_validate_supports,
+        final_validate=esp32_s3_final_validate_pins,
     ),
     VARIANT_ESP32S31: ESP32ValidationFunctions(
         pin_validation=esp32_s31_validate_gpio_pin,
@@ -261,3 +268,10 @@ async def esp32_pin_to_code(config):
         cg.add(var.set_drive_strength(config[CONF_DRIVE_STRENGTH]))
     cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
     return var
+
+
+def final_validate_pins(full_config: ConfigType) -> None:
+    """Run the active variant's pin final-validation, if it defines one."""
+    funcs = _esp32_validations.get(CORE.data[KEY_ESP32][KEY_VARIANT])
+    if funcs is not None and funcs.final_validate is not None:
+        funcs.final_validate(full_config)
