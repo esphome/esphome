@@ -81,7 +81,8 @@ class FilesystemStorage : public Storage {
   virtual StorageError open(const char *path, FileHandle *&handle, OpenMode mode = OpenMode::READ) = 0;
   virtual StorageError close(FileHandle *handle) = 0;
   virtual StorageError read(FileHandle *handle, uint8_t *buf, size_t len, size_t *bytes_transferred = nullptr) = 0;
-  virtual StorageError write(FileHandle *handle, const uint8_t *buf, size_t len, size_t *bytes_transferred = nullptr) = 0;
+  virtual StorageError write(FileHandle *handle, const uint8_t *buf, size_t len,
+                             size_t *bytes_transferred = nullptr) = 0;
   virtual StorageError seek(FileHandle *handle, size_t offset) = 0;
   virtual StorageError tell(FileHandle *handle, size_t *position) = 0;
   virtual StorageError stat(const char *path, FileStat *stat) = 0;
