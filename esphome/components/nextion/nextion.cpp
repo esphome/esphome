@@ -117,30 +117,41 @@ bool Nextion::check_connect_() {
 
   ESP_LOGN(TAG, "connect: %s", response.c_str());
 
-  size_t start;
+  // Parse comok response fields directly
+  // Format: comok <touch>,<reserved>,<model>,<fw>,<mcu_code>,<serial>,<flash>
+  size_t field_count = 0;
+  size_t start = 0;
   size_t end = 0;
-  std::vector<std::string> connect_info;
+  auto copy_field = [&](char *dst, size_t cap) {
+    size_t len = (end == std::string::npos ? response.size() : end) - start;
+    size_t n = len < cap ? len : cap;
+    std::memcpy(dst, response.data() + start, n);
+    dst[n] = '\0';
+  };
   while ((start = response.find_first_not_of(',', end)) != std::string::npos) {
     end = response.find(',', start);
-    connect_info.push_back(response.substr(start, end - start));
+    switch (field_count) {
+      case 2:
+        copy_field(this->device_model_, this->NEXTION_MODEL_MAX);
+        break;
+      case 3:
+        copy_field(this->firmware_version_, this->NEXTION_FW_MAX);
+        break;
+      case 5:
+        copy_field(this->serial_number_, this->NEXTION_SERIAL_MAX);
+        break;
+      case 6:
+        this->flash_size_ = static_cast<uint32_t>(std::strtoul(response.data() + start, nullptr, 10));
+        break;
+      default:
+        break;
+    }
+    ++field_count;
   }
 
-  this->is_detected_ = (connect_info.size() == 7);
+  this->is_detected_ = (field_count == 7);
   if (this->is_detected_) {
-    ESP_LOGN(TAG, "Connect info: %zu", connect_info.size());
-#ifdef USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
-    this->device_model_ = connect_info[2];
-    this->firmware_version_ = connect_info[3];
-    this->serial_number_ = connect_info[5];
-    this->flash_size_ = connect_info[6];
-#else   // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
-    ESP_LOGI(TAG,
-             "  Device Model:   %s\n"
-             "  FW Version:     %s\n"
-             "  Serial Number:  %s\n"
-             "  Flash Size:     %s\n",
-             connect_info[2].c_str(), connect_info[3].c_str(), connect_info[5].c_str(), connect_info[6].c_str());
-#endif  // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
+    ESP_LOGN(TAG, "Connect info: %zu fields", field_count);
   } else {
     ESP_LOGE(TAG, "Bad connect value: '%s'", response.c_str());
   }
@@ -178,24 +189,26 @@ void Nextion::dump_config() {
 #ifdef USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
   ESP_LOGCONFIG(TAG, "  Skip handshake: YES");
 #else  // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
-#ifdef USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
+  if (this->is_setup()) {
+    ESP_LOGCONFIG(TAG,
+                  "  Device Model: %s\n"
+                  "  FW Version: %s\n"
+                  "  Serial Number: %s\n"
+                  "  Flash Size: %" PRIu32 " bytes",
+                  this->device_model_, this->firmware_version_, this->serial_number_, this->flash_size_);
+  } else {
+    ESP_LOGCONFIG(TAG, "  Device info: not yet detected");
+  }
   ESP_LOGCONFIG(TAG,
-                "  Device Model: %s\n"
-                "  FW Version: %s\n"
-                "  Serial Number: %s\n"
-                "  Flash Size: %s\n"
-                "  Max queue age: %u ms\n"
-                "  Startup override: %u ms\n",
-                this->device_model_.c_str(), this->firmware_version_.c_str(), this->serial_number_.c_str(),
-                this->flash_size_.c_str(), this->max_q_age_ms_, this->startup_override_ms_);
-#endif  // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
 #ifdef USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START
-  ESP_LOGCONFIG(TAG, "  Exit reparse: YES\n");
+                "  Exit reparse: YES\n"
 #endif  // USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START
-  ESP_LOGCONFIG(TAG,
+                "  Max queue age: %u ms\n"
+                "  Startup override: %u ms\n"
                 "  Wake On Touch: %s\n"
                 "  Touch Timeout: %" PRIu16,
-                YESNO(this->connection_state_.auto_wake_on_touch_), this->touch_sleep_timeout_);
+                this->max_q_age_ms_, this->startup_override_ms_, YESNO(this->connection_state_.auto_wake_on_touch_),
+                this->touch_sleep_timeout_);
 #endif  // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
 
 #ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
@@ -641,6 +654,7 @@ void Nextion::process_nextion_commands_() {
         } else {
           ESP_LOGN(TAG, "String resp: '%s' id: %s type: %s", to_process.c_str(), component->get_variable_name().c_str(),
                    component->get_queue_type_string());
+          component->set_state_from_string(to_process, true, false);
         }
 
         delete nb;  // NOLINT(cppcoreguidelines-owning-memory)

@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace veml3235 {
+namespace esphome::veml3235 {
 
 static const char *const TAG = "veml3235.sensor";
 
@@ -216,7 +215,7 @@ void VEML3235Sensor::dump_config() {
                   "  Auto-gain upper threshold: %f%%\n"
                   "  Auto-gain lower threshold: %f%%\n"
                   "  Values below will be used as initial values only",
-                  this->auto_gain_threshold_high_ * 100.0, this->auto_gain_threshold_low_ * 100.0);
+                  this->auto_gain_threshold_high_ * 100.0f, this->auto_gain_threshold_low_ * 100.0f);
   }
   ESP_LOGCONFIG(TAG,
                 "  Digital gain: %uX\n"
@@ -225,5 +224,4 @@ void VEML3235Sensor::dump_config() {
                 digital_gain, gain, integration_time);
 }
 
-}  // namespace veml3235
-}  // namespace esphome
+}  // namespace esphome::veml3235

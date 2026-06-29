@@ -1,8 +1,7 @@
 #include "pzemdc.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pzemdc {
+namespace esphome::pzemdc {
 
 static const char *const TAG = "pzemdc";
 
@@ -71,5 +70,4 @@ void PZEMDC::reset_energy() {
   this->send_raw(cmd);
 }
 
-}  // namespace pzemdc
-}  // namespace esphome
+}  // namespace esphome::pzemdc

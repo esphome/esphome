@@ -4,7 +4,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
-
 #ifdef USE_ESP32
 #include <esp_sleep.h>
 #endif
@@ -16,8 +15,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace deep_sleep {
+namespace esphome::deep_sleep {
 
 #if defined(USE_ESP32) || defined(USE_BK72XX)
 
@@ -72,7 +70,7 @@ template<typename... Ts> class PreventDeepSleepAction;
  * and set_run_duration, then set how long the deep sleep should last using set_sleep_duration and optionally
  * on the ESP32 set_wakeup_pin.
  */
-class DeepSleepComponent : public Component {
+class DeepSleepComponent final : public Component {
  public:
   /// Set the duration in ms the component should sleep once it's in deep sleep mode.
   void set_sleep_duration(uint32_t time_ms);
@@ -98,7 +96,8 @@ class DeepSleepComponent : public Component {
 #endif
 
 #if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3) && \
-    !defined(USE_ESP32_VARIANT_ESP32C6) && !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32H2)
+    !defined(USE_ESP32_VARIANT_ESP32C5) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
+    !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32H2)
   void set_touch_wakeup(bool touch_wakeup);
 #endif
 
@@ -129,6 +128,8 @@ class DeepSleepComponent : public Component {
   void dump_config_platform_();
   bool prepare_to_sleep_();
   void deep_sleep_();
+  void schedule_sleep_();
+  bool should_teardown_();
 
 #ifdef USE_BK72XX
   bool pin_prevents_sleep_(WakeUpPinItem &pinItem) const;
@@ -161,7 +162,7 @@ class DeepSleepComponent : public Component {
 
 extern bool global_has_deep_sleep;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-template<typename... Ts> class EnterDeepSleepAction : public Action<Ts...> {
+template<typename... Ts> class EnterDeepSleepAction final : public Action<Ts...> {
  public:
   EnterDeepSleepAction(DeepSleepComponent *deep_sleep) : deep_sleep_(deep_sleep) {}
   TEMPLATABLE_VALUE(uint32_t, sleep_duration);
@@ -233,15 +234,15 @@ template<typename... Ts> class EnterDeepSleepAction : public Action<Ts...> {
 #endif
 };
 
-template<typename... Ts> class PreventDeepSleepAction : public Action<Ts...>, public Parented<DeepSleepComponent> {
+template<typename... Ts>
+class PreventDeepSleepAction final : public Action<Ts...>, public Parented<DeepSleepComponent> {
  public:
   void play(const Ts &...x) override { this->parent_->prevent_deep_sleep(); }
 };
 
-template<typename... Ts> class AllowDeepSleepAction : public Action<Ts...>, public Parented<DeepSleepComponent> {
+template<typename... Ts> class AllowDeepSleepAction final : public Action<Ts...>, public Parented<DeepSleepComponent> {
  public:
   void play(const Ts &...x) override { this->parent_->allow_deep_sleep(); }
 };
 
-}  // namespace deep_sleep
-}  // namespace esphome
+}  // namespace esphome::deep_sleep

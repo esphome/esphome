@@ -76,8 +76,9 @@ async def to_code(config):
         var = cg.new_Pvariable(config[CONF_ID])
         await cg.register_component(var, config)
 
-        if config.get(CONF_ON_SAFE_MODE):
+        if on_safe_mode := config.get(CONF_ON_SAFE_MODE):
             cg.add_define("USE_SAFE_MODE_CALLBACK")
+            cg.add_define("ESPHOME_SAFE_MODE_CALLBACK_COUNT", len(on_safe_mode))
             await automation.build_callback_automations(
                 var, config, _CALLBACK_AUTOMATIONS
             )

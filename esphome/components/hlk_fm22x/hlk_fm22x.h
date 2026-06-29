@@ -71,7 +71,7 @@ enum HlkFm22xFaceDirection {
   FACE_DIRECTION_UP = 0x10,
 };
 
-class HlkFm22xComponent : public PollingComponent, public uart::UARTDevice {
+class HlkFm22xComponent final : public PollingComponent, public uart::UARTDevice {
  public:
   void setup() override;
   void update() override;
@@ -141,7 +141,7 @@ class HlkFm22xComponent : public PollingComponent, public uart::UARTDevice {
   CallbackManager<void(uint8_t)> enrollment_failed_callback_;
 };
 
-template<typename... Ts> class EnrollmentAction : public Action<Ts...>, public Parented<HlkFm22xComponent> {
+template<typename... Ts> class EnrollmentAction final : public Action<Ts...>, public Parented<HlkFm22xComponent> {
  public:
   TEMPLATABLE_VALUE(std::string, name)
   TEMPLATABLE_VALUE(uint8_t, direction)
@@ -153,7 +153,7 @@ template<typename... Ts> class EnrollmentAction : public Action<Ts...>, public P
   }
 };
 
-template<typename... Ts> class DeleteAction : public Action<Ts...>, public Parented<HlkFm22xComponent> {
+template<typename... Ts> class DeleteAction final : public Action<Ts...>, public Parented<HlkFm22xComponent> {
  public:
   TEMPLATABLE_VALUE(int16_t, face_id)
 
@@ -163,17 +163,17 @@ template<typename... Ts> class DeleteAction : public Action<Ts...>, public Paren
   }
 };
 
-template<typename... Ts> class DeleteAllAction : public Action<Ts...>, public Parented<HlkFm22xComponent> {
+template<typename... Ts> class DeleteAllAction final : public Action<Ts...>, public Parented<HlkFm22xComponent> {
  public:
   void play(const Ts &...x) override { this->parent_->delete_all_faces(); }
 };
 
-template<typename... Ts> class ScanAction : public Action<Ts...>, public Parented<HlkFm22xComponent> {
+template<typename... Ts> class ScanAction final : public Action<Ts...>, public Parented<HlkFm22xComponent> {
  public:
   void play(const Ts &...x) override { this->parent_->scan_face(); }
 };
 
-template<typename... Ts> class ResetAction : public Action<Ts...>, public Parented<HlkFm22xComponent> {
+template<typename... Ts> class ResetAction final : public Action<Ts...>, public Parented<HlkFm22xComponent> {
  public:
   void play(const Ts &...x) override { this->parent_->reset(); }
 };

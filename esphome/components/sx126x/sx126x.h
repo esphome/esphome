@@ -8,8 +8,7 @@
 #include <utility>
 #include <vector>
 
-namespace esphome {
-namespace sx126x {
+namespace esphome::sx126x {
 
 enum SX126xBw : uint8_t {
   // FSK
@@ -72,6 +71,8 @@ class SX126x : public Component,
   void set_crc_size(uint8_t crc_size) { this->crc_size_ = crc_size; }
   void set_crc_polynomial(uint16_t crc_polynomial) { this->crc_polynomial_ = crc_polynomial; }
   void set_crc_initial(uint16_t crc_initial) { this->crc_initial_ = crc_initial; }
+  void set_whitening_enable(bool whitening_enable) { this->whitening_enable_ = whitening_enable; }
+  void set_whitening_initial(uint16_t whitening_initial) { this->whitening_initial_ = whitening_initial; }
   void set_deviation(uint32_t deviation) { this->deviation_ = deviation; }
   void set_dio1_pin(GPIOPin *dio1_pin) { this->dio1_pin_ = dio1_pin; }
   void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
@@ -79,7 +80,7 @@ class SX126x : public Component,
   void set_mode_rx();
   void set_mode_tx();
   void set_mode_standby(SX126xStandbyMode mode);
-  void set_mode_sleep();
+  void set_mode_sleep(bool cold = false);
   void set_modulation(uint8_t modulation) { this->modulation_ = modulation; }
   void set_pa_power(int8_t power) { this->pa_power_ = power; }
   void set_pa_ramp(uint8_t ramp) { this->pa_ramp_ = ramp; }
@@ -129,6 +130,8 @@ class SX126x : public Component,
   uint8_t crc_size_{0};
   uint16_t crc_polynomial_{0};
   uint16_t crc_initial_{0};
+  bool whitening_enable_{false};
+  uint16_t whitening_initial_{0};
   uint32_t deviation_{0};
   uint32_t frequency_{0};
   uint32_t payload_length_{0};
@@ -146,5 +149,4 @@ class SX126x : public Component,
   bool rf_switch_{false};
 };
 
-}  // namespace sx126x
-}  // namespace esphome
+}  // namespace esphome::sx126x

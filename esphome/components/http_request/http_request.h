@@ -311,7 +311,7 @@ inline HttpReadResult http_read_fully(HttpContainer *container, uint8_t *buffer,
   return {HttpReadStatus::OK, 0};
 }
 
-class HttpRequestResponseTrigger : public Trigger<std::shared_ptr<HttpContainer>, std::string &> {
+class HttpRequestResponseTrigger final : public Trigger<std::shared_ptr<HttpContainer>, std::string &> {
  public:
   void process(const std::shared_ptr<HttpContainer> &container, std::string &response_body) {
     this->trigger(container, response_body);
@@ -447,7 +447,7 @@ class HttpRequestComponent : public Component {
   uint32_t watchdog_timeout_{0};
 };
 
-template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
+template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...> {
  public:
   HttpRequestSendAction(HttpRequestComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, url)
@@ -462,7 +462,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
     this->request_headers_.push_back({key, value});
   }
 
-  void add_collect_header(const char *value) { this->lower_case_collect_headers_.push_back(value); }
+  void add_collect_header(const char *value) { this->lower_case_collect_headers_.emplace_back(value); }
 
   void init_json(size_t count) { this->json_.init(count); }
   void add_json(const char *key, TemplatableValue<std::string, Ts...> value) { this->json_.push_back({key, value}); }

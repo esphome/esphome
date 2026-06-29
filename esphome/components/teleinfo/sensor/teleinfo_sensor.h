@@ -2,8 +2,7 @@
 #include "esphome/components/teleinfo/teleinfo.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace teleinfo {
+namespace esphome::teleinfo {
 
 class TeleInfoSensor : public TeleInfoListener, public sensor::Sensor, public Component {
  public:
@@ -12,5 +11,4 @@ class TeleInfoSensor : public TeleInfoListener, public sensor::Sensor, public Co
   void dump_config() override;
 };
 
-}  // namespace teleinfo
-}  // namespace esphome
+}  // namespace esphome::teleinfo

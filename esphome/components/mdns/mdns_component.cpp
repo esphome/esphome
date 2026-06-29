@@ -39,7 +39,39 @@ MDNS_STATIC_CONST_CHAR(SERVICE_TCP, "_tcp");
 // Wrap build-time defines into flash storage
 MDNS_STATIC_CONST_CHAR(VALUE_VERSION, ESPHOME_VERSION);
 
-void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services, char *mac_address_buf) {
+void MDNSComponent::setup_buffers_and_register_(PlatformRegisterFn platform_register) {
+#ifdef USE_MDNS_STORE_SERVICES
+  auto &services = this->services_;
+#else
+  StaticVector<MDNSService, MDNS_SERVICE_COUNT> services_storage;
+  auto &services = services_storage;
+#endif
+
+#ifdef USE_API
+#ifdef USE_MDNS_STORE_SERVICES
+  get_mac_address_into_buffer(this->mac_address_);
+  char *mac_ptr = this->mac_address_;
+  format_hex_to(this->config_hash_str_, App.get_config_hash());
+  char *cfg_ptr = this->config_hash_str_;
+#else
+  char mac_address[MAC_ADDRESS_BUFFER_SIZE];
+  char config_hash_str[CONFIG_HASH_STR_SIZE];
+  get_mac_address_into_buffer(mac_address);
+  format_hex_to(config_hash_str, App.get_config_hash());
+  char *mac_ptr = mac_address;
+  char *cfg_ptr = config_hash_str;
+#endif
+#else
+  char *mac_ptr = nullptr;
+  char *cfg_ptr = nullptr;
+#endif
+
+  this->compile_records_(services, mac_ptr, cfg_ptr);
+  platform_register(this, services);
+}
+
+void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services, char *mac_address_buf,
+                                     char *config_hash_buf) {
   // IMPORTANT: The #ifdef blocks below must match COMPONENTS_WITH_MDNS_SERVICES
   // in mdns/__init__.py. If you add a new service here, update both locations.
 
@@ -47,6 +79,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   MDNS_STATIC_CONST_CHAR(SERVICE_ESPHOMELIB, "_esphomelib");
   MDNS_STATIC_CONST_CHAR(TXT_FRIENDLY_NAME, "friendly_name");
   MDNS_STATIC_CONST_CHAR(TXT_VERSION, "version");
+  MDNS_STATIC_CONST_CHAR(TXT_CONFIG_HASH, "config_hash");
   MDNS_STATIC_CONST_CHAR(TXT_MAC, "mac");
   MDNS_STATIC_CONST_CHAR(TXT_PLATFORM, "platform");
   MDNS_STATIC_CONST_CHAR(TXT_BOARD, "board");
@@ -63,11 +96,11 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
     bool friendly_name_empty = friendly_name.empty();
 
     // Calculate exact capacity for txt_records
-    size_t txt_count = 3;  // version, mac, board (always present)
+    size_t txt_count = 4;  // version, config_hash, mac, board (always present)
     if (!friendly_name_empty) {
       txt_count++;  // friendly_name
     }
-#if defined(USE_ESP8266) || defined(USE_ESP32) || defined(USE_RP2040) || defined(USE_LIBRETINY)
+#if defined(USE_ESP8266) || defined(USE_ESP32) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_NRF52)
     txt_count++;  // platform
 #endif
 #if defined(USE_WIFI) || defined(USE_ETHERNET) || defined(USE_OPENTHREAD)
@@ -91,6 +124,9 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
     }
     txt_records.push_back({MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)});
 
+    // Config hash: passed from caller (either member buffer or stack buffer depending on USE_MDNS_STORE_SERVICES)
+    txt_records.push_back({MDNS_STR(TXT_CONFIG_HASH), MDNS_STR(config_hash_buf)});
+
     // MAC address: passed from caller (either member buffer or stack buffer depending on USE_MDNS_STORE_SERVICES)
     txt_records.push_back({MDNS_STR(TXT_MAC), MDNS_STR(mac_address_buf)});
 
@@ -105,6 +141,9 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
     txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR(PLATFORM_RP2040)});
 #elif defined(USE_LIBRETINY)
     txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR(lt_cpu_get_model_name())});
+#elif defined(USE_NRF52)
+    MDNS_STATIC_CONST_CHAR(PLATFORM_NRF52, "nRF52");
+    txt_records.push_back({MDNS_STR(TXT_PLATFORM), MDNS_STR(PLATFORM_NRF52)});
 #endif
 
     txt_records.push_back({MDNS_STR(TXT_BOARD), MDNS_STR(VALUE_BOARD)});

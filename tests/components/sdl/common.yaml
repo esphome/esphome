@@ -3,24 +3,46 @@ host:
 
 display:
   - platform: sdl
-    id: sdl_display
+    id: sdl_sdl_display
     update_interval: 1s
     auto_clear_enabled: false
     show_test_card: true
     dimensions:
       width: 450
       height: 600
+    window_options:
+      position:
+        x: 100
+        y: 100
+
+  - platform: sdl
+    id: second_display
+    dimensions:
+      width: 450
+      height: 600
+    window_options:
+      position:
+        centered_on_display: 1
+
+  - platform: sdl
+    id: third_display
+    dimensions:
+      width: 450
+      height: 600
+    window_options:
+      position:
+        centered_on_display: 0
 
 binary_sensor:
   - platform: sdl
-    sdl_id: sdl_display
+    sdl_id: sdl_sdl_display
     id: key_up
     key: SDLK_UP
   - platform: sdl
-    sdl_id: sdl_display
+    sdl_id: sdl_sdl_display
     id: key_down
     key: SDLK_DOWN
   - platform: sdl
-    sdl_id: sdl_display
+    sdl_id: sdl_sdl_display
     id: key_enter
     key: SDLK_RETURN

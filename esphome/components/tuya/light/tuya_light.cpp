@@ -2,8 +2,7 @@
 #include "tuya_light.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace tuya {
+namespace esphome::tuya {
 
 static const char *const TAG = "tuya.light";
 
@@ -228,5 +227,4 @@ void TuyaLight::write_state(light::LightState *state) {
   }
 }
 
-}  // namespace tuya
-}  // namespace esphome
+}  // namespace esphome::tuya

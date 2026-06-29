@@ -3,8 +3,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace ili9xxx {
+namespace esphome::ili9xxx {
 
 // clang-format off
 static constexpr uint8_t PROGMEM INITCMD_M5STACK[] = {
@@ -478,5 +477,4 @@ static constexpr uint8_t PROGMEM INITCMD_ST7735[] = {
 };
 
 // clang-format on
-}  // namespace ili9xxx
-}  // namespace esphome
+}  // namespace esphome::ili9xxx

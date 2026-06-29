@@ -17,8 +17,7 @@
 #include <zephyr/drivers/adc.h>
 #endif
 
-namespace esphome {
-namespace adc {
+namespace esphome::adc {
 
 #ifdef USE_ESP32
 // clang-format off
@@ -55,7 +54,7 @@ template<typename T> class Aggregator {
   SamplingMode mode_{SamplingMode::AVG};
 };
 
-class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage_sampler::VoltageSampler {
+class ADCSensor final : public sensor::Sensor, public PollingComponent, public voltage_sampler::VoltageSampler {
  public:
   /// Update the sensor's state by reading the current ADC value.
   /// This method is called periodically based on the update interval.
@@ -162,5 +161,4 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
 #endif
 };
 
-}  // namespace adc
-}  // namespace esphome
+}  // namespace esphome::adc

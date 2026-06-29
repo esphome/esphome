@@ -6,8 +6,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace ufire_ise {
+namespace esphome::ufire_ise {
 
 static const float PROBE_MV_TO_PH = 59.2;
 static const float PROBE_TMP_CORRECTION = 0.03;
@@ -91,5 +90,4 @@ template<typename... Ts> class UFireISEResetAction : public Action<Ts...> {
   UFireISEComponent *parent_;
 };
 
-}  // namespace ufire_ise
-}  // namespace esphome
+}  // namespace esphome::ufire_ise
