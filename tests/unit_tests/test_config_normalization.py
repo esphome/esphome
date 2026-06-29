@@ -1,6 +1,7 @@
 """Unit tests for esphome.config module."""
 
 from collections.abc import Generator
+import logging
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
@@ -113,3 +114,57 @@ def test_ota_with_platform_list_and_captive_portal(fixtures_dir: Path) -> None:
     platforms = {p.get("platform") for p in result["ota"]}
     assert "esphome" in platforms, f"Expected esphome platform in {platforms}"
     assert "web_server" in platforms, f"Expected web_server platform in {platforms}"
+
+
+def _write_merge_conflict_config(tmp_path: Path, *, suppress: bool) -> Path:
+    """Create a config where two `<<` includes both define `logger:`.
+
+    The second `logger:` is dropped by the shallow merge. Returns the main file.
+    """
+    (tmp_path / "a.yaml").write_text("logger:\n  level: DEBUG\n")
+    (tmp_path / "b.yaml").write_text("logger:\n  level: INFO\n")
+    esphome_section = "esphome:\n  name: test\n"
+    if suppress:
+        esphome_section += "  merge_warnings: false\n"
+    main = tmp_path / "main.yaml"
+    main.write_text(f"{esphome_section}<<: !include a.yaml\n<<: !include b.yaml\n")
+    return main
+
+
+def test_validate_config_warns_on_dropped_merge_key(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """By default, a `<<` merge that drops a key logs a warning."""
+    main = _write_merge_conflict_config(tmp_path, suppress=False)
+    CORE.config_path = main
+    raw_config = yaml_util.load_yaml(main)
+
+    with caplog.at_level(logging.WARNING, logger="esphome.config"):
+        config.validate_config(raw_config, {})
+
+    assert any(
+        "was dropped while processing a '<<' merge" in record.message
+        and "logger" in record.message
+        for record in caplog.records
+    )
+    # The queue is drained so the warning cannot leak into a later run.
+    assert yaml_util.take_dropped_merge_keys() == []
+
+
+def test_validate_config_suppresses_merge_warning(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """`esphome: merge_warnings: false` hides the warning but still drains the queue."""
+    main = _write_merge_conflict_config(tmp_path, suppress=True)
+    CORE.config_path = main
+    raw_config = yaml_util.load_yaml(main)
+
+    with caplog.at_level(logging.WARNING, logger="esphome.config"):
+        config.validate_config(raw_config, {})
+
+    assert not any(
+        "was dropped while processing a '<<' merge" in record.message
+        for record in caplog.records
+    )
+    # The queue is drained even when the warning is suppressed.
+    assert yaml_util.take_dropped_merge_keys() == []

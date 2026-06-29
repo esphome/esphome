@@ -152,15 +152,21 @@ def test_multiple_areas_and_devices(yaml_file: Callable[[str], str]) -> None:
         ("multiple_areas_devices.yaml", "Main Area"),
     ],
 )
-async def test_to_code_records_core_area(
+async def test_core_area_recorded_at_config_load(
     yaml_file: Callable[[str], Path],
     fixture: str,
     expected_area: str,
 ) -> None:
-    """``to_code`` records the node's area name on CORE for StorageJSON."""
+    """The node's area name is recorded on CORE for StorageJSON.
+
+    It must be set during config load (preload_core_config), not deferred to
+    to_code(): storage.json is written before to_code() runs, so a late
+    assignment left the area as null in storage.json (regression #17218).
+    """
     result = load_config_from_fixture(yaml_file, fixture, FIXTURES_DIR)
     assert result is not None
-    assert CORE.area is None
+    # Recorded already at config-load time, before any code generation.
+    assert CORE.area == expected_area
 
     with patch("esphome.core.config.cg") as mock_cg:
         mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
@@ -168,6 +174,23 @@ async def test_to_code_records_core_area(
         await config.to_code(result[CONF_ESPHOME])
 
     assert CORE.area == expected_area
+
+
+def test_config_load_without_area_clears_stale_core_area(
+    yaml_file: Callable[[str], Path],
+) -> None:
+    """A config without an area must not inherit a stale CORE.area.
+
+    preload_core_config assigns CORE.area unconditionally, so the area from a
+    previous load in a long-running process cannot leak into a config that
+    omits it.
+    """
+    CORE.area = "Stale Area From Previous Load"
+    result = load_config_from_fixture(
+        yaml_file, "device_without_area.yaml", FIXTURES_DIR
+    )
+    assert result is not None
+    assert CORE.area is None
 
 
 def test_legacy_string_area(
