@@ -47,10 +47,7 @@ struct StorageInfo {
   bool is_read_only;
 };
 
-#ifndef STORAGE_MAX_PATH_LEN_VALUE
-#define STORAGE_MAX_PATH_LEN_VALUE 256
-#endif
-static constexpr size_t STORAGE_MAX_PATH_LEN = STORAGE_MAX_PATH_LEN_VALUE;
+static constexpr size_t STORAGE_MAX_PATH_LEN = 256;
 
 struct FileStat {
   char name[STORAGE_MAX_PATH_LEN];
@@ -154,12 +151,8 @@ class StorageRegistry : public Component {
   // Notification callbacks — fired whenever a device registers or unregisters.
   // Templatized so both std::function and pointer-sized forwarder structs are
   // accepted without forcing heap allocation.
-  template<typename F> void add_on_registered_callback(F &&cb) {
-    this->on_registered_.add(std::forward<F>(cb));
-  }
-  template<typename F> void add_on_unregistered_callback(F &&cb) {
-    this->on_unregistered_.add(std::forward<F>(cb));
-  }
+  template<typename F> void add_on_registered_callback(F &&cb) { this->on_registered_.add(std::forward<F>(cb)); }
+  template<typename F> void add_on_unregistered_callback(F &&cb) { this->on_unregistered_.add(std::forward<F>(cb)); }
 
  protected:
   // Single allocation at set_device_count() — no realloc machinery
