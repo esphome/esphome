@@ -31,7 +31,7 @@ enum UNIT {
 
 using pvvx_writer_t = display::DisplayWriter<PVVXDisplay>;
 
-class PVVXDisplay : public ble_client::BLEClientNode, public PollingComponent {
+class PVVXDisplay final : public ble_client::BLEClientNode, public PollingComponent {
  public:
   void set_writer(pvvx_writer_t &&writer) { this->writer_ = writer; }
   void set_auto_clear(bool auto_clear_enabled) { this->auto_clear_enabled_ = auto_clear_enabled; }

@@ -88,8 +88,6 @@ These *are* security bugs in this repo, and we want to hear about them privately
   holds the API key / OTA / web credentials).
 - Anything in the dashboard / device-builder — report that in its own repository
   (linked at the top).
-- The legacy bundled dashboard in this repo (`esphome/dashboard/`) — it is
-  deprecated and being replaced by Device Builder; report dashboard issues there.
 - Deployments where the operator removed protections or exposed credentials. See
   the security best practices guide:
   https://esphome.io/guides/security_best_practices/

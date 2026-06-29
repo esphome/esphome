@@ -28,9 +28,6 @@ namespace esphome::espnow {
 
 static constexpr const char *TAG = "espnow";
 
-static const esp_err_t CONFIG_ESPNOW_WAKE_WINDOW = 50;
-static const esp_err_t CONFIG_ESPNOW_WAKE_INTERVAL = 100;
-
 ESPNowComponent *global_esp_now = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static const LogString *espnow_error_to_str(esp_err_t error) {
@@ -204,11 +201,6 @@ void ESPNowComponent::enable_() {
 
   esp_wifi_get_mac(WIFI_IF_STA, this->own_address_);
 
-#ifdef USE_DEEP_SLEEP
-  esp_now_set_wake_window(CONFIG_ESPNOW_WAKE_WINDOW);
-  esp_wifi_connectionless_module_set_wake_interval(CONFIG_ESPNOW_WAKE_INTERVAL);
-#endif
-
   this->state_ = ESPNOW_STATE_ENABLED;
 
   for (auto peer : this->peers_) {
@@ -311,7 +303,9 @@ void ESPNowComponent::loop() {
         ESP_LOGV(TAG, ">>> [%s] %s", addr_buf, LOG_STR_ARG(espnow_error_to_str(packet->packet_.sent.status)));
 #endif
         if (this->current_send_packet_ != nullptr) {
-          this->current_send_packet_->callback_(packet->packet_.sent.status);
+          if (this->current_send_packet_->callback_ != nullptr) {
+            this->current_send_packet_->callback_(packet->packet_.sent.status);
+          }
           this->send_packet_pool_.release(this->current_send_packet_);
           this->current_send_packet_ = nullptr;  // Reset current packet after sending
         }

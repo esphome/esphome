@@ -5,7 +5,7 @@
 
 namespace esphome::haier {
 
-class SelfCleaningButton : public button::Button, public Parented<HonClimate> {
+class SelfCleaningButton final : public button::Button, public Parented<HonClimate> {
  public:
   SelfCleaningButton() = default;
 
