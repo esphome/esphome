@@ -41,6 +41,12 @@ struct PIDClimateTestState {
     this->climate.target_temperature = target_temperature;
     this->temperature_sensor.publish_state(current_temperature);
   }
+
+  void set_mode(climate::ClimateMode mode) {
+    auto call = this->climate.make_call();
+    call.set_mode(mode);
+    call.perform();
+  }
 };
 
 TEST(PIDClimateTest, HeatModeBlocksCoolingDemand) {
@@ -87,6 +93,30 @@ TEST(PIDClimateTest, CoolModeAllowsCoolingDemand) {
   EXPECT_FLOAT_EQ(state.heat_output.last_state, 0.0f);
   EXPECT_FLOAT_EQ(state.cool_output.last_state, 0.5f);
   EXPECT_EQ(state.climate.action, climate::CLIMATE_ACTION_COOLING);
+}
+
+TEST(PIDClimateTest, ControlReappliesOutputImmediatelyOnModeChange) {
+  PIDClimateTestState state;
+
+  state.update(climate::CLIMATE_MODE_HEAT_COOL, 20.0f, 20.5f);
+  EXPECT_FLOAT_EQ(state.climate.get_output_value(), -0.5f);
+  EXPECT_FLOAT_EQ(state.climate.get_active_output_value(), -0.5f);
+  EXPECT_FLOAT_EQ(state.cool_output.last_state, 0.5f);
+  EXPECT_EQ(state.climate.action, climate::CLIMATE_ACTION_COOLING);
+
+  state.set_mode(climate::CLIMATE_MODE_HEAT);
+  EXPECT_FLOAT_EQ(state.climate.get_output_value(), -0.5f);
+  EXPECT_FLOAT_EQ(state.climate.get_active_output_value(), 0.0f);
+  EXPECT_FLOAT_EQ(state.heat_output.last_state, 0.0f);
+  EXPECT_FLOAT_EQ(state.cool_output.last_state, 0.0f);
+  EXPECT_EQ(state.climate.action, climate::CLIMATE_ACTION_IDLE);
+
+  state.set_mode(climate::CLIMATE_MODE_OFF);
+  EXPECT_FLOAT_EQ(state.climate.get_output_value(), 0.0f);
+  EXPECT_FLOAT_EQ(state.climate.get_active_output_value(), 0.0f);
+  EXPECT_FLOAT_EQ(state.heat_output.last_state, 0.0f);
+  EXPECT_FLOAT_EQ(state.cool_output.last_state, 0.0f);
+  EXPECT_EQ(state.climate.action, climate::CLIMATE_ACTION_OFF);
 }
 
 }  // namespace esphome::pid::testing
