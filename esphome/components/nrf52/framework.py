@@ -111,10 +111,9 @@ def _get_version_str() -> str:
 
 def get_build_paths() -> dict:
     version = _get_version_str()
+    env_path = _get_python_env_path(version)
     return {
-        "python_executable": get_python_env_executable_path(
-            _get_python_env_path(version), "python"
-        ),
+        "python_executable": get_python_env_executable_path(env_path, "python"),
         "framework_path": _get_framework_path(version),
     }
 
