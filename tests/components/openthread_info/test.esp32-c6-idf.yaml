@@ -39,3 +39,21 @@ sensor:
       name: "Parent Link Quality In"
     parent_link_quality_out:
       name: "Parent Link Quality Out"
+    tx_total:
+      name: "TX Total"
+    tx_retries:
+      name: "TX Retries"
+    tx_err_cca:
+      name: "TX CCA Errors"
+    tx_err_abort:
+      name: "TX Abort Errors"
+    rx_total:
+      name: "RX Total"
+    rx_err_fcs:
+      name: "RX FCS Errors"
+    attach_attempts:
+      name: "Attach Attempts"
+    parent_changes:
+      name: "Parent Changes"
+    partition_id_changes:
+      name: "Partition ID Changes"

@@ -1,9 +1,12 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#if defined(USE_OPENTHREAD) && defined(USE_SENSOR)
+
 #include "openthread_info_text_sensor.h"
 #include "esphome/components/sensor/sensor.h"
-#ifdef USE_OPENTHREAD
 
+#include <openthread/link.h>
 #include <openthread/thread.h>
 
 namespace esphome::openthread_info {
@@ -56,6 +59,70 @@ class ParentLinkQualityOutOpenThreadInfo final : public OpenThreadInstancePollin
       return;
     }
     this->publish_state(parent_info.mLinkQualityOut);
+  }
+  void dump_config() override;
+};
+
+// --- MAC counters (otLinkGetCounters) — cumulative since boot ---
+
+class TxTotalOpenThreadInfo final : public OpenThreadInstancePollingComponent, public sensor::Sensor {
+ public:
+  void update_instance(otInstance *instance) override { this->publish_state(otLinkGetCounters(instance)->mTxTotal); }
+  void dump_config() override;
+};
+
+class TxRetriesOpenThreadInfo final : public OpenThreadInstancePollingComponent, public sensor::Sensor {
+ public:
+  void update_instance(otInstance *instance) override { this->publish_state(otLinkGetCounters(instance)->mTxRetry); }
+  void dump_config() override;
+};
+
+class TxErrCcaOpenThreadInfo final : public OpenThreadInstancePollingComponent, public sensor::Sensor {
+ public:
+  void update_instance(otInstance *instance) override { this->publish_state(otLinkGetCounters(instance)->mTxErrCca); }
+  void dump_config() override;
+};
+
+class TxErrAbortOpenThreadInfo final : public OpenThreadInstancePollingComponent, public sensor::Sensor {
+ public:
+  void update_instance(otInstance *instance) override { this->publish_state(otLinkGetCounters(instance)->mTxErrAbort); }
+  void dump_config() override;
+};
+
+class RxTotalOpenThreadInfo final : public OpenThreadInstancePollingComponent, public sensor::Sensor {
+ public:
+  void update_instance(otInstance *instance) override { this->publish_state(otLinkGetCounters(instance)->mRxTotal); }
+  void dump_config() override;
+};
+
+class RxErrFcsOpenThreadInfo final : public OpenThreadInstancePollingComponent, public sensor::Sensor {
+ public:
+  void update_instance(otInstance *instance) override { this->publish_state(otLinkGetCounters(instance)->mRxErrFcs); }
+  void dump_config() override;
+};
+
+// --- MLE stability counters (otThreadGetMleCounters) — cumulative since boot ---
+
+class AttachAttemptsOpenThreadInfo final : public OpenThreadInstancePollingComponent, public sensor::Sensor {
+ public:
+  void update_instance(otInstance *instance) override {
+    this->publish_state(otThreadGetMleCounters(instance)->mAttachAttempts);
+  }
+  void dump_config() override;
+};
+
+class ParentChangesOpenThreadInfo final : public OpenThreadInstancePollingComponent, public sensor::Sensor {
+ public:
+  void update_instance(otInstance *instance) override {
+    this->publish_state(otThreadGetMleCounters(instance)->mParentChanges);
+  }
+  void dump_config() override;
+};
+
+class PartitionIdChangesOpenThreadInfo final : public OpenThreadInstancePollingComponent, public sensor::Sensor {
+ public:
+  void update_instance(otInstance *instance) override {
+    this->publish_state(otThreadGetMleCounters(instance)->mPartitionIdChanges);
   }
   void dump_config() override;
 };
