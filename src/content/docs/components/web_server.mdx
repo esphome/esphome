@@ -97,7 +97,8 @@ web_server:
   is recommended for maximum compatibility. Defaults to `gzip`.
 
 - **version** (*Optional*, string): `1`, `2` or `3`. Version 1 displays as a table. Version 2 uses web components
-  and has more functionality. Version 3 uses HA-Styling. Defaults to `2`.
+  and has more functionality. Version 3 uses HA-Styling. Defaults to `2`. Version 1 is deprecated and will be removed
+  in 2027.1.0; please migrate to version 2 (the default) or version 3.
 
 - **sorting_groups** (*Optional*, list): Available only on `version: 3`. A list of group ID's and names to group the
   entities. See [Webserver Entity Grouping](#config-webserver-grouping).
@@ -156,6 +157,9 @@ web_server:
 > Always enable authentication when using the web server. See the [Security Best Practices](/guides/security_best_practices#2-web-server-authentication) guide for recommendations.
 
 Use version 1 user interface:
+
+> [!WARNING]
+> Version 1 is deprecated and will be removed in 2027.1.0; please migrate to version 2 (the default) or version 3.
 
 ```yaml
 # Example configuration entry
