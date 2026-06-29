@@ -302,7 +302,7 @@ async def random_effect_to_code(config, effect_id):
                         ): cv.positive_time_period_milliseconds,
                     }
                 ),
-                cv.has_at_least_one_key(
+                cv.AtLeastOne(
                     CONF_STATE,
                     CONF_BRIGHTNESS,
                     CONF_COLOR_MODE,

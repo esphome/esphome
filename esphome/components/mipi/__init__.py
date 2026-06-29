@@ -6,7 +6,7 @@ from collections.abc import Callable
 import functools
 from typing import Any, Self
 
-import voluptuous as vol
+import probatio
 
 from esphome.components.const import CONF_COLOR_DEPTH
 from esphome.components.display import CONF_SHOW_TEST_CARD, display_ns
@@ -280,12 +280,12 @@ def model_schema_extractor(
             names = sorted(models)
             representative = next((n for n in names if n != _CUSTOM_MODEL), names[0])
             schema = model_schema({CONF_MODEL: representative, **(extra or {})})
-            if isinstance(schema, vol.All):
+            if isinstance(schema, probatio.All):
                 schema = next(
-                    (v for v in schema.validators if isinstance(v, vol.Schema)),
+                    (v for v in schema.validators if isinstance(v, probatio.Schema)),
                     schema,
                 )
-            if isinstance(schema, vol.Schema):
+            if isinstance(schema, probatio.Schema):
                 # The resolved schema pins ``model`` to the representative; expose
                 # the full model list so the dumped enum offers every model.
                 schema = schema.extend(

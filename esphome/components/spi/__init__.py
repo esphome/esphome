@@ -348,7 +348,7 @@ SPI_SINGLE_SCHEMA = cv.All(
             ),
         }
     ),
-    cv.has_at_least_one_key(CONF_MISO_PIN, CONF_MOSI_PIN),
+    cv.AtLeastOne(CONF_MISO_PIN, CONF_MOSI_PIN),
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040]),
 )
 

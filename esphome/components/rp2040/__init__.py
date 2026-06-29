@@ -251,7 +251,7 @@ def _detect_variant(value: ConfigType) -> ConfigType:
     variant: str | None = value.get(CONF_VARIANT)
 
     if board is None:
-        # `cv.has_at_least_one_key` guarantees variant is set here.
+        # `cv.AtLeastOne` guarantees variant is set here.
         board = STANDARD_BOARDS[variant]
         value[CONF_BOARD] = board
 
@@ -298,7 +298,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENABLE_FULL_PRINTF, default=False): cv.boolean,
         }
     ),
-    cv.has_at_least_one_key(CONF_BOARD, CONF_VARIANT),
+    cv.AtLeastOne(CONF_BOARD, CONF_VARIANT),
     _detect_variant,
     set_core_data,
 )

@@ -45,7 +45,12 @@ def test_configuration_errors(set_core_config: SetCoreConfigCallable) -> None:
         match=r"string value is None for dictionary value @ data\['lane_bit_rate'\]",
     ):
         CONFIG_SCHEMA(
-            {"id": "display_id", "model": "custom", "init_sequence": [[0x36, 0x01]]}
+            {
+                "id": "display_id",
+                "model": "custom",
+                "init_sequence": [[0x36, 0x01]],
+                "dimensions": {"width": 320, "height": 240},
+            }
         )
 
     with pytest.raises(

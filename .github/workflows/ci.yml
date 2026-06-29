@@ -12,7 +12,7 @@ permissions:
   contents: read  # actions/checkout for all jobs; individual jobs add their own scopes when they need to write
 
 env:
-  DEFAULT_PYTHON: "3.11"
+  DEFAULT_PYTHON: "3.12"
   PYUPGRADE_TARGET: "--py311-plus"
 
 concurrency:
@@ -203,7 +203,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version:
-          - "3.11"
+          - "3.12"
           - "3.13"
           - "3.14"
         os:

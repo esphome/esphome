@@ -33,7 +33,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_FINISHED_PLAYBACK): automation.validate_automation({}),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.has_exactly_one_key(CONF_OUTPUT, CONF_SPEAKER),
+    cv.ExactlyOne(CONF_OUTPUT, CONF_SPEAKER),
 )
 
 

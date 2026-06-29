@@ -650,7 +650,7 @@ LVGL_TOP_LEVEL_SCHEMA = (
 
 LVGL_SCHEMA = cv.All(
     container_schema(obj_spec, LVGL_TOP_LEVEL_SCHEMA),
-    cv.has_at_most_one_key(CONF_PAGES, df.CONF_LAYOUT),
+    cv.AtMostOne(CONF_PAGES, df.CONF_LAYOUT),
     add_hello_world,
 )
 

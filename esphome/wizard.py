@@ -5,7 +5,7 @@ import string
 from typing import Literal, NotRequired, TypedDict, Unpack
 import unicodedata
 
-import voluptuous as vol
+import probatio
 
 import esphome.config_validation as cv
 from esphome.const import ALLOWED_NAME_CHARS, ENV_QUICKWIZARD
@@ -348,7 +348,7 @@ def wizard(path: Path) -> int:
         try:
             name = cv.valid_name(name)
             break
-        except vol.Invalid:
+        except probatio.Invalid:
             safe_print(
                 color(
                     AnsiFore.RED,
@@ -385,9 +385,11 @@ def wizard(path: Path) -> int:
             color(AnsiFore.BOLD_WHITE, f"({'/'.join(wizard_platforms)}): ")
         )
         try:
-            platform = vol.All(vol.Upper, vol.Any(*wizard_platforms))(platform.upper())
+            platform = probatio.All(probatio.Upper, probatio.Any(*wizard_platforms))(
+                platform.upper()
+            )
             break
-        except vol.Invalid:
+        except probatio.Invalid:
             safe_print(
                 f'Unfortunately, I can\'t find an espressif microcontroller called "{platform}". Please try again.'
             )
@@ -452,9 +454,9 @@ def wizard(path: Path) -> int:
     while True:
         board = safe_input(color(AnsiFore.BOLD_WHITE, "(board): "))
         try:
-            board = vol.All(vol.Lower, vol.Any(*boards))(board)
+            board = probatio.All(probatio.Lower, probatio.Any(*boards))(board)
             break
-        except vol.Invalid:
+        except probatio.Invalid:
             safe_print(
                 color(
                     AnsiFore.RED, f'Sorry, I don\'t think the board "{board}" exists.'
@@ -484,7 +486,7 @@ def wizard(path: Path) -> int:
             try:
                 ssid = cv.ssid(ssid)
                 break
-            except vol.Invalid:
+            except probatio.Invalid:
                 safe_print(
                     color(
                         AnsiFore.RED,

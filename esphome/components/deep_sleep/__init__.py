@@ -406,7 +406,7 @@ DEEP_SLEEP_ENTER_SCHEMA = cv.All(
             )
         )
     ),
-    cv.has_none_or_all_keys(CONF_UNTIL, CONF_TIME_ID),
+    cv.AllOrNone(CONF_UNTIL, CONF_TIME_ID),
 )
 
 

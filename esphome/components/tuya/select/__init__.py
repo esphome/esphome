@@ -43,7 +43,7 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
-    cv.has_exactly_one_key(CONF_ENUM_DATAPOINT, CONF_INT_DATAPOINT),
+    cv.ExactlyOne(CONF_ENUM_DATAPOINT, CONF_INT_DATAPOINT),
 )
 
 

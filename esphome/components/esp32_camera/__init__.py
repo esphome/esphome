@@ -306,7 +306,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     validate_jpeg_quality,
-    cv.has_exactly_one_key(CONF_I2C_PINS, CONF_I2C_ID),
+    cv.ExactlyOne(CONF_I2C_PINS, CONF_I2C_ID),
 )
 
 

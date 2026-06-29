@@ -201,7 +201,7 @@ def test_transform_and_init_sequence_errors(
         ),
         pytest.param(
             {"model": "wt32-sc01-plus", "brightness": 128},
-            r"extra keys not allowed @ data\['brightness'\]",
+            r"not a valid option @ data\['brightness'\]",
             id="brightness_not_supported",
         ),
     ],

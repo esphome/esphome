@@ -221,7 +221,7 @@ ACTIONS_SCHEMA = automation.validate_automation(
         ),
     },
     cv.All(
-        cv.has_exactly_one_key(CONF_SERVICE, CONF_ACTION),
+        cv.ExactlyOne(CONF_SERVICE, CONF_ACTION),
         cv.rename_key(CONF_SERVICE, CONF_ACTION),
         _auto_detect_supports_response,
         # Re-validate supports_response after auto-detection sets it
@@ -534,7 +534,7 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
             cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
         }
     ),
-    cv.has_exactly_one_key(CONF_SERVICE, CONF_ACTION),
+    cv.ExactlyOne(CONF_SERVICE, CONF_ACTION),
     cv.rename_key(CONF_SERVICE, CONF_ACTION),
     _validate_response_config,
 )

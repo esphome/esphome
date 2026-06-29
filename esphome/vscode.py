@@ -14,7 +14,7 @@ from esphome.yaml_util import parse_yaml
 
 def _get_invalid_range(res: Config, invalid: cv.Invalid) -> DocumentRange | None:
     return res.get_deepest_document_range_for_path(
-        invalid.path, invalid.error_message == "extra keys not allowed"
+        invalid.path, isinstance(invalid, cv.ExtraKeysInvalid)
     )
 
 

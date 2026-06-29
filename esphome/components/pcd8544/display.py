@@ -32,7 +32,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.polling_component_schema("1s"))
     .extend(spi.spi_device_schema()),
-    cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
+    cv.AtMostOne(CONF_PAGES, CONF_LAMBDA),
 )
 
 FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(

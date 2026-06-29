@@ -149,7 +149,7 @@ REMOTE_PACKAGE_SCHEMA = cv.All(
             ),
         }
     ),
-    cv.has_at_least_one_key(CONF_FILE, CONF_FILES),
+    cv.AtLeastOne(CONF_FILE, CONF_FILES),
     expand_file_to_files,
 )
 

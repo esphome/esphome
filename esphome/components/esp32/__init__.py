@@ -1550,7 +1550,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                             ): cv.one_of(*SIGNING_SCHEMES, lower=True),
                         }
                     ),
-                    cv.has_exactly_one_key(CONF_SIGNING_KEY, CONF_VERIFICATION_KEY),
+                    cv.ExactlyOne(CONF_SIGNING_KEY, CONF_VERIFICATION_KEY),
                 ),
                 cv.Optional(
                     CONF_USE_FULL_CERTIFICATE_BUNDLE, default=False
@@ -1708,7 +1708,7 @@ CONFIG_SCHEMA = cv.All(
     _set_default_framework,
     _check_versions,
     set_core_data,
-    cv.has_at_least_one_key(CONF_BOARD, CONF_VARIANT),
+    cv.AtLeastOne(CONF_BOARD, CONF_VARIANT),
 )
 
 

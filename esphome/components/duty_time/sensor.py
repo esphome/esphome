@@ -62,7 +62,7 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.polling_component_schema("60s")),
-    cv.has_at_most_one_key(CONF_SENSOR, CONF_LAMBDA),
+    cv.AtMostOne(CONF_SENSOR, CONF_LAMBDA),
 )
 
 

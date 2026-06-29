@@ -338,7 +338,7 @@ _SENSOR_SCHEMA = (
                     cv.Optional(CONF_ABOVE): cv.templatable(cv.float_),
                     cv.Optional(CONF_BELOW): cv.templatable(cv.float_),
                 },
-                cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
+                cv.AtLeastOne(CONF_ABOVE, CONF_BELOW),
             ),
         }
     )
@@ -608,7 +608,7 @@ DELTA_SCHEMA = cv.Any(
             cv.Optional(CONF_MIN_VALUE, default="0.0"): validate_delta_value,
             cv.Optional(CONF_BASELINE): cv.templatable(cv.float_),
         },
-        cv.has_at_least_one_key(CONF_MAX_VALUE, CONF_MIN_VALUE),
+        cv.AtLeastOne(CONF_MAX_VALUE, CONF_MIN_VALUE),
     ),
     validate_delta_value,
 )
@@ -1003,7 +1003,7 @@ SENSOR_IN_RANGE_CONDITION_SCHEMA = cv.All(
         cv.Optional(CONF_ABOVE): cv.float_,
         cv.Optional(CONF_BELOW): cv.float_,
     },
-    cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
+    cv.AtLeastOne(CONF_ABOVE, CONF_BELOW),
 )
 
 

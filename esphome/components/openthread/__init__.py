@@ -234,7 +234,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
         }
     ).extend(_CONNECTION_SCHEMA),
-    cv.has_exactly_one_key(CONF_NETWORK_KEY, CONF_TLV),
+    cv.ExactlyOne(CONF_NETWORK_KEY, CONF_TLV),
     _validate_platform,
     _validate,
     _require_vfs_select,

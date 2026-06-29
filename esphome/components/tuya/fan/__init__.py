@@ -26,7 +26,7 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
-    cv.has_at_least_one_key(CONF_SPEED_DATAPOINT, CONF_SWITCH_DATAPOINT),
+    cv.AtLeastOne(CONF_SPEED_DATAPOINT, CONF_SWITCH_DATAPOINT),
 )
 
 

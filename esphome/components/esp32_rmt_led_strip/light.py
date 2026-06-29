@@ -129,7 +129,7 @@ CONFIG_SCHEMA = cv.All(
             ): cv.positive_time_period_nanoseconds,
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.has_exactly_one_key(CONF_CHIPSET, CONF_BIT0_HIGH),
+    cv.ExactlyOne(CONF_CHIPSET, CONF_BIT0_HIGH),
 )
 
 

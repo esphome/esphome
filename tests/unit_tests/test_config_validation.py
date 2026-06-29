@@ -1460,7 +1460,7 @@ def test_only_with_framework_suggestion_without_docs_path() -> None:
 
 
 def test_has_at_least_one_key_not_dict() -> None:
-    with pytest.raises(Invalid, match="expected dictionary"):
+    with pytest.raises(Invalid, match="expected a dictionary"):
         cv.has_at_least_one_key("a", "b")([])
 
 
@@ -1475,17 +1475,17 @@ def test_has_at_least_one_key_ok() -> None:
 
 
 def test_has_exactly_one_key_not_dict() -> None:
-    with pytest.raises(Invalid, match="expected dictionary"):
+    with pytest.raises(Invalid, match="expected a dictionary"):
         cv.has_exactly_one_key("a", "b")("notdict")
 
 
 def test_has_exactly_one_key_too_many() -> None:
-    with pytest.raises(Invalid, match="Cannot specify more than one"):
+    with pytest.raises(Invalid, match="exactly one of"):
         cv.has_exactly_one_key("a", "b")({"a": 1, "b": 2})
 
 
 def test_has_exactly_one_key_too_few() -> None:
-    with pytest.raises(Invalid, match="Must contain exactly one"):
+    with pytest.raises(Invalid, match="exactly one of"):
         cv.has_exactly_one_key("a", "b")({"c": 1})
 
 
@@ -1495,12 +1495,12 @@ def test_has_exactly_one_key_ok() -> None:
 
 
 def test_has_at_most_one_key_not_dict() -> None:
-    with pytest.raises(Invalid, match="expected dictionary"):
+    with pytest.raises(Invalid, match="expected a dictionary"):
         cv.has_at_most_one_key("a", "b")(5)
 
 
 def test_has_at_most_one_key_too_many() -> None:
-    with pytest.raises(vol.MultipleInvalid, match="Cannot specify more than one"):
+    with pytest.raises(vol.MultipleInvalid, match="at most one of"):
         cv.has_at_most_one_key("a", "b")({"a": 1, "b": 2})
 
 
@@ -1510,7 +1510,7 @@ def test_has_at_most_one_key_ok() -> None:
 
 
 def test_has_none_or_all_keys_not_dict() -> None:
-    with pytest.raises(Invalid, match="expected dictionary"):
+    with pytest.raises(Invalid, match="expected a dictionary"):
         cv.has_none_or_all_keys("a", "b")(5)
 
 

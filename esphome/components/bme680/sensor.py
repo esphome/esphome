@@ -115,7 +115,7 @@ CONFIG_SCHEMA = (
                             ),
                         }
                     ),
-                    cv.has_at_least_one_key(CONF_TEMPERATURE, CONF_DURATION),
+                    cv.AtLeastOne(CONF_TEMPERATURE, CONF_DURATION),
                 ),
             ),
         }

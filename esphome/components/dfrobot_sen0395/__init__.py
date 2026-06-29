@@ -139,7 +139,7 @@ MMWAVE_SETTINGS_SCHEMA = cv.Schema(
         cv.Optional(CONF_SENSITIVITY): cv.templatable(cv.int_range(min=0, max=9)),
     }
 ).add_extra(
-    cv.has_at_least_one_key(
+    cv.AtLeastOne(
         CONF_FACTORY_RESET,
         CONF_DETECTION_SEGMENTS,
         CONF_OUTPUT_LATENCY,

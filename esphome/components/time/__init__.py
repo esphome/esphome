@@ -306,7 +306,7 @@ def validate_cron_keys(value):
         value = {x: value[x] for x in value if x != CONF_AT}
         value.update(at_)
         return value
-    return cv.has_at_least_one_key(*CRON_KEYS)(value)
+    return cv.AtLeastOne(*CRON_KEYS)(value)
 
 
 def validate_tz(value: str) -> str:
