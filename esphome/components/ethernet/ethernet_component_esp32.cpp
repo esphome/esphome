@@ -797,6 +797,19 @@ void EthernetComponent::dump_connect_params_() {
   char dns1_buf[network::IP_ADDRESS_BUFFER_SIZE];
   char dns2_buf[network::IP_ADDRESS_BUFFER_SIZE];
   char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  uint16_t link_speed = 10;
+  switch (this->get_link_speed()) {
+    case ETH_SPEED_100M:
+      link_speed = 100;
+      break;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    case ETH_SPEED_1000M:
+      link_speed = 1000;
+      break;
+#endif
+    default:
+      break;
+  }
   ESP_LOGCONFIG(TAG,
                 "  IP Address: %s\n"
                 "  Hostname: '%s'\n"
@@ -811,7 +824,7 @@ void EthernetComponent::dump_connect_params_() {
                 network::IPAddress(&ip.netmask).str_to(subnet_buf), network::IPAddress(&ip.gw).str_to(gateway_buf),
                 network::IPAddress(dns_ip1).str_to(dns1_buf), network::IPAddress(dns_ip2).str_to(dns2_buf),
                 this->get_eth_mac_address_pretty_into_buffer(mac_buf),
-                YESNO(this->get_duplex_mode() == ETH_DUPLEX_FULL), this->get_link_speed() == ETH_SPEED_100M ? 100 : 10);
+                YESNO(this->get_duplex_mode() == ETH_DUPLEX_FULL), link_speed);
 
 #if USE_NETWORK_IPV6
   struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
