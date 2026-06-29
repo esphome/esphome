@@ -1,10 +1,7 @@
 #include "pid_autotuner.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
-
-#ifndef M_PI
-#define M_PI 3.1415926535897932384626433
-#endif
+#include <numbers>
 
 namespace esphome::pid {
 
@@ -126,7 +123,7 @@ PIDAutotuner::PIDAutotuneResult PIDAutotuner::update(float setpoint, float proce
   float osc_ampl = this->amplitude_detector_.get_mean_oscillation_amplitude();
   float d = (this->relay_function_.output_positive - this->relay_function_.output_negative) / 2.0f;
   ESP_LOGVV(TAG, "  Relay magnitude: %f", d);
-  this->ku_ = 4.0f * d / float(M_PI * osc_ampl);
+  this->ku_ = 4.0f * d / (std::numbers::pi_v<float> * osc_ampl);
   this->pu_ = this->frequency_detector_.get_mean_oscillation_period();
 
   this->state_ = AUTOTUNE_SUCCEEDED;
