@@ -373,6 +373,20 @@ void EthernetComponent::ethernet_lazy_init_() {
   for (const auto &phy_register : this->phy_registers_) {
     this->write_phy_register_(mac, phy_register);
   }
+
+#if defined(USE_ETHERNET_GENERIC) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  // The generic 802.3 PHY driver only resets the PHY in its init; it never enables
+  // auto-negotiation. A PHY that resets into a forced-speed mode (BMCR auto-nego bit
+  // clear) therefore stays there, and esp_eth_start() skips negotiation because the
+  // driver cached auto_nego_en=false at install time. Force auto-negotiation on here
+  // (which also updates that cached state) so esp_eth_start() restarts a proper
+  // negotiation. Chip-specific PHY drivers handle this in their own init.
+  if (this->type_ == ETHERNET_TYPE_GENERIC) {
+    bool autoneg_enable = true;
+    err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_S_AUTONEGO, &autoneg_enable);
+    ESPHL_ERROR_CHECK(err, "Enable auto-negotiation failed");
+  }
+#endif
 #endif
 
   // use ESP internal eth mac
