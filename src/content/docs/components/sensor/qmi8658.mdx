@@ -1,0 +1,29 @@
+---
+description: "Instructions for setting up QMI8658 temperature sensor."
+title: "QMI8658 Temperature Sensor"
+---
+
+The `qmi8658` sensor platform provides access to the temperature sensor in a QMI8658 Accelerometer/Gyroscope
+with ESPHome. It requires a [`motion`](/components/motion) component to be configured with the `qmi8658` platform,
+which handles the accelerometer and gyroscope data processing and configures the device. See that component for more information.
+
+```yaml
+# Example configuration entry
+motion:
+  - platform: qmi8658
+
+sensor:
+  - platform: qmi8658
+    type: temperature # Optional, temperature is the only supported type for this platform
+    name: "QMI8658 Temperature"
+```
+
+## Configuration variables
+
+- **type** (*Optional*, string): Must be set to `temperature`, or simply omitted.
+- All other options from [Sensor](/components/sensor).
+
+## See Also
+
+- [Sensor Filters](/components/sensor#sensor-filters)
+- [QMI8658 Accelerometer/Gyroscope platform](/components/motion/qmi8658/)

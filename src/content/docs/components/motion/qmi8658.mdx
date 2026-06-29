@@ -1,0 +1,54 @@
+---
+description: "Instructions for setting up QMI8658 Accelerometer/Gyroscope sensors."
+title: "QMI8658 Accelerometer/Gyroscope Sensor"
+---
+
+import APIRef from '@components/APIRef.astro';
+
+The `qmi8658` motion platform allows you to use your QMI8658 Accelerometer/Gyroscope
+sensors with ESPHome. The [I²C Bus](/components/i2c) is required to be set up in
+your configuration for this sensor to work.
+
+The QMI8658 is a low-power 6-axis IMU from QST. It includes a 16-bit 3-axis accelerometer
+and a 16-bit 3-axis gyroscope, plus an on-chip temperature sensor.
+
+```yaml
+# Example configuration entry
+motion:
+  - platform: qmi8658
+    accelerometer_range: 4G
+    gyroscope_range: 2048DPS
+
+sensor:
+  - platform: motion
+    type: acceleration_x
+    name: "QMI8658 Accel X"
+  - platform: motion
+    type: gyroscope_x
+    name: "QMI8658 Gyro X"
+  - platform: motion
+    type: roll
+    name: "QMI8658 Roll"
+```
+
+## Configuration variables
+
+- **address** (*Optional*, int): Manually specify the I²C address of the sensor. Defaults to `0x6B`.
+  The QMI8658 supports `0x6B` (SA0 high) and `0x6A` (SA0 low).
+- **accelerometer_range** (*Optional*, string): The full-scale range of the accelerometer. One of
+  `2G`, `4G`, `8G`, `16G`. Defaults to `4G`.
+- **accelerometer_odr** (*Optional*, string): The output data rate of the accelerometer. One of
+  `31_25HZ`, `62_5HZ`, `125HZ`, `250HZ`, `500HZ`, `1000HZ`, `2000HZ`, `4000HZ`, `8000HZ`.
+  Defaults to `1000HZ`.
+- **gyroscope_range** (*Optional*, string): The full-scale range of the gyroscope. One of
+  `16DPS`, `32DPS`, `64DPS`, `128DPS`, `256DPS`, `512DPS`, `1024DPS`, `2048DPS`. Defaults to `2048DPS`.
+- **gyroscope_odr** (*Optional*, string): The output data rate of the gyroscope. One of
+  `31_25HZ`, `62_5HZ`, `125HZ`, `250HZ`, `500HZ`, `1000HZ`, `2000HZ`, `4000HZ`, `8000HZ`.
+  Defaults to `1000HZ`.
+
+- All other options from [Motion](/components/motion).
+
+## See Also
+
+- [QMI8658 Temperature Sensor](/components/sensor/qmi8658/)
+- <APIRef text="qmi8658.h" path="qmi8658/qmi8658.h" />
