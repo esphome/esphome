@@ -781,7 +781,7 @@ ST7796.extend(
     bus_mode=TYPE_OCTAL,
     mirror_x=True,
     reset_pin=4,
-    dc_pin=0,
+    dc_pin={"number": 0, "ignore_strapping_warning": True},
     invert_colors=True,
 )
 
