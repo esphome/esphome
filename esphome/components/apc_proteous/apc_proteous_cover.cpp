@@ -6,14 +6,14 @@ namespace esphome {
 namespace apc_proteous {
 
 static const char *const TAG = "apc_proteous.cover";
-static const char *START_CMD = "*1\r";
-static const char *START_PARTIAL_CMD = "*2\r";
-static const char *AUX1_CMD = "*4\r";
-static const char *AUX2_CMD = "*5\r";
-static const char *OPEN_CMD = "*6\r";
-static const char *CLOSE_CMD = "*7\r";
-static const char *QUERY_S = "?s\r";
-static const char *QUERY_X = "?x\r";
+static const char *const START_CMD = "*1\r";
+static const char *const START_PARTIAL_CMD = "*2\r";
+static const char *const AUX1_CMD = "*4\r";
+static const char *const AUX2_CMD = "*5\r";
+static const char *const OPEN_CMD = "*6\r";
+static const char *const CLOSE_CMD = "*7\r";
+static const char *const QUERY_S = "?s\r";
+static const char *const QUERY_X = "?x\r";
 
 using namespace esphome::cover;
 
