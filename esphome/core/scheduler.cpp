@@ -356,7 +356,7 @@ void HOT Scheduler::set_retry_common_(Component *component, NameType name_type, 
   }
 #endif
 
-  if (backoff_increase_factor < 0.0001) {
+  if (backoff_increase_factor < 0.0001f) {
     ESP_LOGE(TAG, "set_retry: backoff_factor %0.1f too small, using 1.0: %s", backoff_increase_factor,
              (name_type == NameType::STATIC_STRING && static_name) ? static_name : "");
     backoff_increase_factor = 1;

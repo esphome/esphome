@@ -42,10 +42,10 @@ void Display::line_at_angle(int x, int y, int angle, int length, Color color) {
 
 void Display::line_at_angle(int x, int y, int angle, int start_radius, int stop_radius, Color color) {
   // Calculate start and end points
-  int x1 = (start_radius * cos(angle * M_PI / 180)) + x;
-  int y1 = (start_radius * sin(angle * M_PI / 180)) + y;
-  int x2 = (stop_radius * cos(angle * M_PI / 180)) + x;
-  int y2 = (stop_radius * sin(angle * M_PI / 180)) + y;
+  int x1 = (start_radius * std::cos(angle * std::numbers::pi_v<float> / 180)) + x;
+  int y1 = (start_radius * std::sin(angle * std::numbers::pi_v<float> / 180)) + y;
+  int x2 = (stop_radius * std::cos(angle * std::numbers::pi_v<float> / 180)) + x;
+  int y2 = (stop_radius * std::sin(angle * std::numbers::pi_v<float> / 180)) + y;
 
   // Draw line
   this->line(x1, y1, x2, y2, color);
@@ -228,7 +228,7 @@ void Display::filled_gauge(int center_x, int center_y, int radius1, int radius2,
   int e2max, e2min;
   progress = std::max(0, std::min(progress, 100));  // 0..100
   int draw_progress = progress > 50 ? (100 - progress) : progress;
-  float tan_a = (progress == 50) ? 65535 : tan(float(draw_progress) * M_PI / 100);  // slope
+  float tan_a = (progress == 50) ? 65535 : tanf(float(draw_progress) * std::numbers::pi_v<float> / 100);  // slope
 
   do {
     // outer dots
@@ -444,15 +444,15 @@ void HOT Display::get_regular_polygon_vertex(int vertex_id, int *vertex_x, int *
     // hence we rotate the shape by 270° to orient the polygon up.
     rotation_degrees += ROTATION_270_DEGREES;
     // Convert the rotation to radians, easier to use in trigonometrical calculations
-    float rotation_radians = rotation_degrees * std::numbers::pi / 180;
+    float rotation_radians = rotation_degrees * std::numbers::pi_v<float> / 180;
     // A pointy top variation means the first vertex of the polygon is at the top center of the shape, this requires no
     // additional rotation of the shape.
     // A flat top variation means the first point of the polygon has to be rotated so that the first edge is horizontal,
     // this requires to rotate the shape by π/edges radians counter-clockwise so that the first point is located on the
     // left side of the first horizontal edge.
-    rotation_radians -= (variation == VARIATION_FLAT_TOP) ? std::numbers::pi / edges : 0.0;
+    rotation_radians -= (variation == VARIATION_FLAT_TOP) ? std::numbers::pi_v<float> / edges : 0.0f;
 
-    float vertex_angle = ((float) vertex_id) / edges * 2 * std::numbers::pi + rotation_radians;
+    float vertex_angle = ((float) vertex_id) / edges * 2 * std::numbers::pi_v<float> + rotation_radians;
     *vertex_x = (int) std::round(std::cos(vertex_angle) * radius) + center_x;
     *vertex_y = (int) std::round(std::sin(vertex_angle) * radius) + center_y;
   }
