@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include <cstdio>
 
 namespace esphome {
 namespace storage {
@@ -53,7 +54,8 @@ struct FileHandle {
   bool in_use{false};
   const char *path{nullptr};  // Must point to driver-owned storage (e.g. char[] in driver subtype)
   Storage *storage{nullptr};
-  // Drivers subclass this and add their own internals (FIL, lfs_file_t, etc.)
+  FILE *file{nullptr};        // POSIX handle — valid for all VFS-backed drivers, nullptr otherwise
+  // Drivers bypassing VFS subclass this and add their own handle (lfs_file_t, etc.)
 };
 
 // Abstract base — all storage drivers extend one of the three subclasses below
