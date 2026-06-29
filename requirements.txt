@@ -3,7 +3,7 @@ voluptuous==0.16.0
 PyYAML==6.0.3
 paho-mqtt==1.6.1
 colorama==0.4.6
-tzlocal==5.4.3    # from time
+tzlocal==5.4.4    # from time
 tzdata>=2026.2  # from time
 pyserial==3.5
 platformio==6.1.19
