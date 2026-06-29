@@ -83,6 +83,8 @@ Advanced options:
   Defaults to the number of cores of the CPU which is also the maximum you can set.
 
 - **debug_scheduler** (*Optional*, boolean): If set, the scheduler will print debug information about scheduled tasks at log level DEBUG.
+- **merge_warnings** (*Optional*, boolean): Whether to warn when a YAML merge key (`<<:`)
+  silently drops a key. Defaults to `true`. See [Merge key warnings](#esphome-merge_warnings).
 - **areas** (*Optional*, list of [Area Configuration](#esphome-area)): Additional areas that can be referenced by devices.
 - **devices** (*Optional*, list of [Sub-Devices](#esphome-devices)): Sub-devices to group entities under.
 
@@ -416,6 +418,38 @@ available in a newer version of ESPHome. This allows for a more friendly error m
 # Example configuration
 esphome:
   min_version: 2025.11.0
+```
+
+<span id="esphome-merge_warnings"></span>
+
+## Merge key warnings
+
+YAML merge keys (`<<:`), often combined with `!include`, merge mappings *shallowly*
+following the [YAML merge spec](https://yaml.org/type/merge.html): each key is inserted
+only if it does not already exist, and the first definition wins. This means that if two
+merged-in files both define the same top-level key, the second one is **dropped entirely**
+rather than combined:
+
+```yaml
+# main.yaml
+<<: !include a.yaml   # defines api: { reboot_timeout: 5min }
+<<: !include b.yaml   # also defines api: { encryption: ... }  -> silently dropped
+```
+
+In the example above only the `api:` block from `a.yaml` survives; the one from `b.yaml`
+is discarded. By default ESPHome prints a warning whenever this happens so the data loss
+is not silent.
+
+If you want to *combine* sections instead of having one win, use [`packages:`](/components/packages/),
+which performs a recursive deep merge.
+
+To silence the warning (for example when the drop is intentional), set `merge_warnings` to
+`false`:
+
+```yaml
+esphome:
+  name: my_device
+  merge_warnings: false
 ```
 
 <span id="esphome-area"></span>
