@@ -395,7 +395,7 @@ async def to_code(config):
         )
     if data.mp3_support:
         cg.add_define("USE_AUDIO_MP3_SUPPORT")
-        add_idf_component(name="esphome/micro-mp3", ref="0.3.0")
+        add_idf_component(name="esphome/micro-mp3", ref="0.4.0")
         _emit_memory_pair(
             data.mp3.buffer_memory,
             "CONFIG_MICRO_MP3_PREFER_PSRAM",
