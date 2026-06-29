@@ -254,9 +254,31 @@ void EthernetComponent::ethernet_lazy_init_() {
   esp32_emac_config.smi_mdc_gpio_num = this->mdc_pin_;
   esp32_emac_config.smi_mdio_gpio_num = this->mdio_pin_;
 #endif
-  esp32_emac_config.clock_config.rmii.clock_mode = this->clk_mode_;
-  esp32_emac_config.clock_config.rmii.clock_gpio =
-      static_cast<decltype(esp32_emac_config.clock_config.rmii.clock_gpio)>(this->clk_pin_);
+#if defined(USE_ETHERNET_RGMII) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  if (this->type_ == ETHERNET_TYPE_GENERIC) {
+    // rgmii_pins_ order: {tx_clk, tx_ctl, txd0..3, rx_clk, rx_ctl, rxd0..3}
+    const auto &p = this->rgmii_pins_;
+    esp32_emac_config.interface = EMAC_DATA_INTERFACE_RGMII;
+    esp32_emac_config.clock_config.rgmii.clock_tx_gpio = p[0];
+    esp32_emac_config.clock_config.rgmii.clock_rx_gpio = p[6];
+    esp32_emac_config.clock_config.rgmii.clock_phy_ref_gpio = -1;
+    esp32_emac_config.emac_dataif_gpio.rgmii.tx_ctl_num = p[1];
+    esp32_emac_config.emac_dataif_gpio.rgmii.txd0_num = p[2];
+    esp32_emac_config.emac_dataif_gpio.rgmii.txd1_num = p[3];
+    esp32_emac_config.emac_dataif_gpio.rgmii.txd2_num = p[4];
+    esp32_emac_config.emac_dataif_gpio.rgmii.txd3_num = p[5];
+    esp32_emac_config.emac_dataif_gpio.rgmii.rx_ctl_num = p[7];
+    esp32_emac_config.emac_dataif_gpio.rgmii.rxd0_num = p[8];
+    esp32_emac_config.emac_dataif_gpio.rgmii.rxd1_num = p[9];
+    esp32_emac_config.emac_dataif_gpio.rgmii.rxd2_num = p[10];
+    esp32_emac_config.emac_dataif_gpio.rgmii.rxd3_num = p[11];
+  } else
+#endif
+  {
+    esp32_emac_config.clock_config.rmii.clock_mode = this->clk_mode_;
+    esp32_emac_config.clock_config.rmii.clock_gpio =
+        static_cast<decltype(esp32_emac_config.clock_config.rmii.clock_gpio)>(this->clk_pin_);
+  }
 
   esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&esp32_emac_config, &mac_config);
 #endif
@@ -316,6 +338,12 @@ void EthernetComponent::ethernet_lazy_init_() {
 #ifdef USE_ETHERNET_LAN8670
     case ETHERNET_TYPE_LAN8670: {
       this->phy_ = esp_eth_phy_new_lan867x(&phy_config);
+      break;
+    }
+#endif
+#if defined(USE_ETHERNET_GENERIC) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    case ETHERNET_TYPE_GENERIC: {
+      this->phy_ = esp_eth_phy_new_generic(&phy_config);
       break;
     }
 #endif

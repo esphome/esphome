@@ -95,6 +95,11 @@ ESP32P4_RMII_DEFAULT_PINS = {
     49: "EMAC_TX_EN",
 }
 
+# Default RGMII data-plane GPIOs for the ESP32-S31-Function-CoreBoard-1.
+# Order matches set_rgmii_pins(): tx_clk, tx_ctl, txd0..3, rx_clk, rx_ctl, rxd0..3
+ESP32S31_RGMII_DEFAULT_PINS = [13, 12, 8, 9, 10, 11, 14, 15, 19, 18, 17, 16]
+CONF_RGMII_PINS = "rgmii_pins"
+
 ethernet_ns = cg.esphome_ns.namespace("ethernet")
 PHYRegister = ethernet_ns.struct("PHYRegister")
 CONF_PHY_ADDR = "phy_addr"
@@ -126,6 +131,7 @@ ETHERNET_TYPES = {
     "ENC28J60": EthernetType.ETHERNET_TYPE_ENC28J60,
     "W6100": EthernetType.ETHERNET_TYPE_W6100,
     "W6300": EthernetType.ETHERNET_TYPE_W6300,
+    "GENERIC": EthernetType.ETHERNET_TYPE_GENERIC,
 }
 
 # PHY types that need compile-time defines for conditional compilation
@@ -145,6 +151,7 @@ _PHY_TYPE_TO_DEFINE = {
     "ENC28J60": "USE_ETHERNET_ENC28J60",
     "W6100": "USE_ETHERNET_W6100",
     "W6300": "USE_ETHERNET_W6300",
+    "GENERIC": "USE_ETHERNET_GENERIC",
 }
 
 
@@ -309,6 +316,15 @@ def _validate(config):
                         f"({CORE.target_framework} {CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}), "
                         f"'{CONF_INTERRUPT_PIN}' is a required option for [ethernet]."
                     )
+        elif config[CONF_TYPE] == "GENERIC":
+            from esphome.components.esp32 import VARIANT_ESP32S31, get_esp32_variant
+
+            variant = get_esp32_variant()
+            if variant != VARIANT_ESP32S31:
+                raise cv.Invalid(
+                    "The 'GENERIC' (RGMII) PHY is only supported on gigabit-capable "
+                    f"variants (ESP32-S31), not {variant}"
+                )
         elif config[CONF_TYPE] != "OPENETH":
             from esphome.components.esp32 import (
                 VARIANT_ESP32,
@@ -392,6 +408,27 @@ RMII_SCHEMA = cv.All(
     cv.only_on([Platform.ESP32]),
 )
 
+# Generic IEEE 802.3 PHY over the internal EMAC's RGMII (gigabit) interface.
+# Used by gigabit-capable variants (e.g. ESP32-S31). Pins default to the
+# ESP32-S31-Function-CoreBoard-1 layout; override via rgmii_pins if needed.
+GENERIC_SCHEMA = cv.All(
+    BASE_SCHEMA.extend(
+        cv.Schema(
+            {
+                cv.Required(CONF_MDC_PIN): pins.internal_gpio_output_pin_number,
+                cv.Required(CONF_MDIO_PIN): pins.internal_gpio_output_pin_number,
+                cv.Optional(CONF_PHY_ADDR, default=0): cv.int_range(min=0, max=31),
+                cv.Optional(
+                    CONF_RGMII_PINS, default=ESP32S31_RGMII_DEFAULT_PINS
+                ): cv.All(
+                    [pins.internal_gpio_output_pin_number], cv.Length(min=12, max=12)
+                ),
+            }
+        )
+    ),
+    cv.only_on([Platform.ESP32]),
+)
+
 SPI_SCHEMA = cv.All(
     BASE_SCHEMA.extend(
         cv.Schema(
@@ -442,6 +479,7 @@ CONFIG_SCHEMA = cv.All(
             "W6100": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2040])),
             "W6300": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2040])),
             "LAN8670": RMII_SCHEMA,
+            "GENERIC": GENERIC_SCHEMA,
         },
         upper=True,
     ),
@@ -571,6 +609,19 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
     elif config[CONF_TYPE] == "OPENETH":
         cg.add_define("USE_ETHERNET_OPENETH")
         add_idf_sdkconfig_option("CONFIG_ETH_USE_OPENETH", True)
+    elif config[CONF_TYPE] == "GENERIC":
+        # Generic IEEE 802.3 PHY over the internal EMAC RGMII interface.
+        cg.add_define("USE_ETHERNET_RGMII")
+        cg.add(var.set_phy_addr(config[CONF_PHY_ADDR]))
+        cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))
+        cg.add(var.set_mdio_pin(config[CONF_MDIO_PIN]))
+        cg.add(
+            var.set_rgmii_pins(
+                cg.RawExpression(
+                    "{" + ", ".join(str(p) for p in config[CONF_RGMII_PINS]) + "}"
+                )
+            )
+        )
     else:
         cg.add(var.set_phy_addr(config[CONF_PHY_ADDR]))
         cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))

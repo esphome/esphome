@@ -86,6 +86,9 @@ enum EthernetType : uint8_t {
   ETHERNET_TYPE_ENC28J60,
   ETHERNET_TYPE_W6100,
   ETHERNET_TYPE_W6300,
+  // Generic IEEE 802.3 PHY driven over the internal EMAC's RGMII interface
+  // (gigabit-capable variants only, e.g. ESP32-S31).
+  ETHERNET_TYPE_GENERIC,
 };
 
 struct ManualIP {
@@ -177,6 +180,10 @@ class EthernetComponent final : public Component {
   void set_clk_pin(uint8_t clk_pin);
   void set_clk_mode(emac_rmii_clock_mode_t clk_mode);
   void add_phy_register(PHYRegister register_value);
+#ifdef USE_ETHERNET_RGMII
+  // RGMII data-plane GPIOs, order: {tx_clk, tx_ctl, txd0..3, rx_clk, rx_ctl, rxd0..3}
+  void set_rgmii_pins(const std::array<uint8_t, 12> &pins) { this->rgmii_pins_ = pins; }
+#endif
 #endif  // USE_ETHERNET_SPI
 #endif  // USE_ESP32
 
@@ -257,6 +264,9 @@ class EthernetComponent final : public Component {
   uint8_t phy_addr_{0};
   uint8_t mdc_pin_{23};
   uint8_t mdio_pin_{18};
+#ifdef USE_ETHERNET_RGMII
+  std::array<uint8_t, 12> rgmii_pins_{};
+#endif
 #endif  // USE_ETHERNET_SPI
 
   // ESP32 pointers
