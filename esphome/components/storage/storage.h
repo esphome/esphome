@@ -54,7 +54,7 @@ struct FileHandle {
   bool in_use{false};
   const char *path{nullptr};  // Must point to driver-owned storage (e.g. char[] in driver subtype)
   Storage *storage{nullptr};
-  FILE *file{nullptr};        // POSIX handle — valid for all VFS-backed drivers, nullptr otherwise
+  FILE *file{nullptr};  // POSIX handle — valid for all VFS-backed drivers, nullptr otherwise
   // Drivers bypassing VFS subclass this and add their own handle (lfs_file_t, etc.)
 };
 
