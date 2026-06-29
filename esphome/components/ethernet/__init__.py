@@ -403,10 +403,8 @@ RMII_SCHEMA = cv.All(
     cv.only_on([Platform.ESP32]),
 )
 
-# Generic IEEE 802.3 PHY over the internal EMAC's RGMII (gigabit) interface.
-# Used by gigabit-capable variants (e.g. ESP32-S31). The RGMII data-plane GPIOs
-# come from the IDF per-target default config (eth_esp32_emac_default_config()),
-# which for ESP32-S31 is the Function CoreBoard layout.
+# Generic IEEE 802.3 PHY over the internal EMAC RGMII interface (e.g. ESP32-S31).
+# RGMII data pins come from the IDF per-target default config.
 GENERIC_SCHEMA = cv.All(
     BASE_SCHEMA.extend(
         cv.Schema(
@@ -601,9 +599,7 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
         cg.add_define("USE_ETHERNET_OPENETH")
         add_idf_sdkconfig_option("CONFIG_ETH_USE_OPENETH", True)
     elif config[CONF_TYPE] == "GENERIC":
-        # Generic IEEE 802.3 PHY over the internal EMAC RGMII interface. The RGMII
-        # data pins come from the IDF per-target default config; only MDC/MDIO and
-        # the PHY address are configured here.
+        # RGMII data pins come from the IDF default config; set MDC/MDIO + PHY addr.
         cg.add(var.set_phy_addr(config[CONF_PHY_ADDR]))
         cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))
         cg.add(var.set_mdio_pin(config[CONF_MDIO_PIN]))

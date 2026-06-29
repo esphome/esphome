@@ -254,9 +254,8 @@ void EthernetComponent::ethernet_lazy_init_() {
   esp32_emac_config.smi_mdc_gpio_num = this->mdc_pin_;
   esp32_emac_config.smi_mdio_gpio_num = this->mdio_pin_;
 #endif
-  // For the GENERIC type, eth_esp32_emac_default_config() already selects the
-  // variant's RGMII interface and default GPIO map (the ESP32-S31 default is the
-  // Function CoreBoard layout), so the RMII clock override below is skipped.
+  // GENERIC uses the RGMII interface and default GPIO map from
+  // eth_esp32_emac_default_config(), so skip the RMII clock override.
 #ifdef USE_ETHERNET_GENERIC
   if (this->type_ != ETHERNET_TYPE_GENERIC)
 #endif

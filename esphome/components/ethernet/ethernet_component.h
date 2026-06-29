@@ -86,8 +86,6 @@ enum EthernetType : uint8_t {
   ETHERNET_TYPE_ENC28J60,
   ETHERNET_TYPE_W6100,
   ETHERNET_TYPE_W6300,
-  // Generic IEEE 802.3 PHY driven over the internal EMAC's RGMII interface
-  // (gigabit-capable variants only, e.g. ESP32-S31).
   ETHERNET_TYPE_GENERIC,
 };
 
