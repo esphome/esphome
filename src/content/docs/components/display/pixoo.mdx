@@ -1,0 +1,77 @@
+---
+title: "Divoom Pixoo Display"
+description: "Instructions for setting up the Divoom Pixoo 64 RGB LED matrix display."
+---
+
+import APIRef from '@components/APIRef.astro';
+
+The `pixoo` display platform allows you to use the [Divoom Pixoo 64](https://divoom.com/) — a 64×64 RGB LED
+matrix — with ESPHome. ESPHome runs directly on the panel's on-board ESP32, which drives the LED board over an
+internal [SPI bus](/components/spi/). Frames are rendered with ESPHome's standard display engine (lambdas,
+[images](/components/image/), [LVGL](/components/lvgl/)) and sent to the panel as RGB888 data.
+
+The panel brightness is exposed separately through the [`pixoo` light platform](/components/light/pixoo/).
+
+The Pixoo communicates over the [SPI bus](/components/spi/), which must be set up separately. The panel is
+write-only, so the bus needs a `mosi_pin` but no `miso_pin`.
+
+```yaml
+# Example configuration entry
+display:
+  - platform: pixoo
+    id: pixoo_display
+    cs_pin: GPIOXX
+    lambda: |-
+      it.line(0, 0, it.get_width() - 1, it.get_height() - 1, Color(0, 255, 0));
+```
+
+> [!NOTE]
+> The Pixoo 64 wires its ESP32 to the LED-driver board on fixed internal pins. See the
+> [full configuration example](#full-configuration-example) below for the actual pin numbers.
+
+## Configuration Variables
+
+- **model** (*Optional*, enum): The Pixoo panel model. Currently only `64x64` is supported. Defaults to `64x64`.
+- **cs_pin** (**Required**, [Pin Schema](/guides/configuration-types#pin-schema)): The SPI chip-select pin connected
+  to the LED-driver board.
+- **data_rate** (*Optional*, frequency): The SPI data rate. Defaults to `8MHz`.
+- **lambda** (*Optional*, [lambda](/automations/templates#config-lambda)): The lambda to use for rendering the content
+  on the display. See [Display Rendering Engine](/components/display#display-engine) for more information.
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to re-draw the screen.
+  Defaults to `1s`.
+- **pages** (*Optional*, list): Show pages instead of a single lambda.
+  See [Display Pages](/components/display#display-pages).
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID used for code generation.
+- All other options from [Display Component](/components/display#display-configuration).
+
+## Full Configuration Example
+
+The following configuration uses the Pixoo 64's fixed internal pins and adds the
+[`pixoo` light platform](/components/light/pixoo/) for brightness control:
+
+```yaml
+spi:
+  clk_pin: GPIO25
+  mosi_pin: GPIO33
+
+display:
+  - platform: pixoo
+    id: pixoo_display
+    model: 64x64
+    cs_pin: GPIO26
+    lambda: |-
+      it.line(0, 0, it.get_width() - 1, it.get_height() - 1, Color(0, 255, 0));
+
+light:
+  - platform: pixoo
+    pixoo_id: pixoo_display
+    name: "Pixoo Brightness"
+```
+
+## See Also
+
+- [Display Component](/components/display/)
+- [Pixoo Light](/components/light/pixoo/)
+- [SPI Bus](/components/spi/)
+- [LVGL Component](/components/lvgl/)
+- <APIRef text="pixoo.h" path="pixoo/pixoo.h" />

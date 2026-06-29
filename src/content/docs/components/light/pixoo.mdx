@@ -1,0 +1,31 @@
+---
+title: "Pixoo Brightness"
+description: "Instructions for setting up the brightness control of a Divoom Pixoo display."
+---
+
+import APIRef from '@components/APIRef.astro';
+
+The `pixoo` light platform controls the panel brightness of a [Divoom Pixoo display](/components/display/pixoo/).
+It is a brightness-only light that sends the brightness command to the panel's LED-driver board.
+
+This platform requires a [`pixoo` display](/components/display/pixoo/) to be configured.
+
+```yaml
+# Example configuration entry
+light:
+  - platform: pixoo
+    pixoo_id: pixoo_display
+    name: "Pixoo Brightness"
+```
+
+## Configuration Variables
+
+- **pixoo_id** (*Optional*, [ID](/guides/configuration-types#id)): The ID of the `pixoo` display to control.
+  Automatically set when only one `pixoo` display is configured; required when there is more than one.
+- All other options from [Light](/components/light#config-light).
+
+## See Also
+
+- [Divoom Pixoo Display](/components/display/pixoo/)
+- [Light Component](/components/light/)
+- <APIRef text="pixoo_light.h" path="pixoo/light/pixoo_light.h" />
