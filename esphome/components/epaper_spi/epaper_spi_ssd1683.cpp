@@ -7,8 +7,9 @@
 namespace esphome::epaper_spi {
 static constexpr const char *const TAG = "epaper_spi.mono";
 
-void EPaperSSD1683::refresh_screen(bool partial) {
+void EPaperSSD1683::refresh_screen() {
   ESP_LOGV(TAG, "Refresh screen");
+  bool partial = this->refresh_type_ == EPaperRefreshType::PARTIAL;
   this->cmd_data(0x3C, {partial ? (uint8_t) 0x80 : (uint8_t) 0x01});
   // On partial update, set red RAM to inverse to remove BW ghosting
   this->cmd_data(0x21, {partial ? (uint8_t) 0x80 : (uint8_t) 0x40, (uint8_t) 0x00});

@@ -225,7 +225,7 @@ void EPaperBase::process_state_() {
       this->set_state_(EPaperState::RESET);
       break;
     case EPaperState::INITIALISE:
-      if (!this->initialise(this->update_count_ != 0)) {
+      if (!this->initialise(this->refresh_type_ == EPaperRefreshType::PARTIAL)) {
         return;  // Not done yet, come back next loop
       }
       this->set_state_(EPaperState::TRANSFER_DATA);
