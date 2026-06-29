@@ -599,13 +599,24 @@ class TestEsphomeCore:
         assert target.is_esp32 is False
         assert target.is_esp8266 is False
 
-    def test_is_rp2040_deprecated_alias_matches_is_rp2(self, target):
+    def test_is_rp2040_deprecated_alias_matches_is_rp2(self, target, caplog):
         """``is_rp2040`` is kept as a deprecation shim that returns whatever
-        ``is_rp2`` returns; both must agree across platform values."""
-        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "rp2"}
-        assert target.is_rp2040 is True
-        assert target.is_rp2040 == target.is_rp2
+        ``is_rp2`` returns; both must agree across platform values. A
+        one-shot deprecation warning is emitted on first access and
+        deduped via ``CORE.data`` for the rest of the run."""
+        import logging
 
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "rp2"}
+        with caplog.at_level(logging.WARNING, logger="esphome.core"):
+            assert target.is_rp2040 is True
+            assert target.is_rp2040 == target.is_rp2
+
+            warnings = [r for r in caplog.records if "is_rp2040" in r.message]
+            assert len(warnings) == 1
+            assert "2027.7.0" in warnings[0].message
+
+        # Reset the dedupe so the False-platform branch also runs the shim.
+        target.data.pop("_core_is_rp2040_deprecated_warned", None)
         target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp32"}
         assert target.is_rp2040 is False
         assert target.is_rp2040 == target.is_rp2

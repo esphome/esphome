@@ -52,6 +52,11 @@ _LOGGER = logging.getLogger(__name__)
 # Key for tracking controller count in CORE.data for ControllerRegistry StaticVector sizing
 KEY_CONTROLLER_REGISTRY_COUNT = "controller_registry_count"
 
+# CORE.data key for the "is_rp2040 deprecation warning already fired this
+# run" flag. Mirrors the ``cv.only_on_rp2040`` dedupe pattern; cleared
+# between runs so each fresh invocation warns once.
+_IS_RP2040_DEPRECATED_KEY = "_core_is_rp2040_deprecated_warned"
+
 
 class EsphomeError(Exception):
     """General ESPHome exception occurred."""
@@ -843,7 +848,20 @@ class EsphomeCore:
         """Deprecated: use :attr:`is_rp2` for the family check, or
         ``rp2.get_rp2040_variant() == rp2.VARIANT_RP2040`` for the
         variant-specific check. Kept as an alias since pre-RP2350
-        callers used it as a family check, identical to ``is_rp2``."""
+        callers used it as a family check, identical to ``is_rp2``.
+
+        Scheduled for removal in 2027.7.0. Logs a one-shot deprecation
+        warning per run (deduped via ``self.data`` so repeated reads in
+        the same invocation don't spam) to match the parallel
+        ``cv.only_on_rp2040`` shim.
+        """
+        if not self.data.get(_IS_RP2040_DEPRECATED_KEY):
+            _LOGGER.warning(
+                "CORE.is_rp2040 is deprecated; use CORE.is_rp2 for the family "
+                "gate, or rp2.get_rp2040_variant() == rp2.VARIANT_RP2040 for "
+                "the variant-specific check. Removed in 2027.7.0."
+            )
+            self.data[_IS_RP2040_DEPRECATED_KEY] = True
         return self.is_rp2
 
     @property
