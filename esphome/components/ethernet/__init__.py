@@ -95,11 +95,6 @@ ESP32P4_RMII_DEFAULT_PINS = {
     49: "EMAC_TX_EN",
 }
 
-# Default RGMII data-plane GPIOs for the ESP32-S31-Function-CoreBoard-1.
-# Order matches set_rgmii_pins(): tx_clk, tx_ctl, txd0..3, rx_clk, rx_ctl, rxd0..3
-ESP32S31_RGMII_DEFAULT_PINS = [13, 12, 8, 9, 10, 11, 14, 15, 19, 18, 17, 16]
-CONF_RGMII_PINS = "rgmii_pins"
-
 ethernet_ns = cg.esphome_ns.namespace("ethernet")
 PHYRegister = ethernet_ns.struct("PHYRegister")
 CONF_PHY_ADDR = "phy_addr"
@@ -409,8 +404,9 @@ RMII_SCHEMA = cv.All(
 )
 
 # Generic IEEE 802.3 PHY over the internal EMAC's RGMII (gigabit) interface.
-# Used by gigabit-capable variants (e.g. ESP32-S31). Pins default to the
-# ESP32-S31-Function-CoreBoard-1 layout; override via rgmii_pins if needed.
+# Used by gigabit-capable variants (e.g. ESP32-S31). The RGMII data-plane GPIOs
+# come from the IDF per-target default config (eth_esp32_emac_default_config()),
+# which for ESP32-S31 is the Function CoreBoard layout.
 GENERIC_SCHEMA = cv.All(
     BASE_SCHEMA.extend(
         cv.Schema(
@@ -418,11 +414,6 @@ GENERIC_SCHEMA = cv.All(
                 cv.Required(CONF_MDC_PIN): pins.internal_gpio_output_pin_number,
                 cv.Required(CONF_MDIO_PIN): pins.internal_gpio_output_pin_number,
                 cv.Optional(CONF_PHY_ADDR, default=0): cv.int_range(min=0, max=31),
-                cv.Optional(
-                    CONF_RGMII_PINS, default=ESP32S31_RGMII_DEFAULT_PINS
-                ): cv.All(
-                    [pins.internal_gpio_output_pin_number], cv.Length(min=12, max=12)
-                ),
             }
         )
     ),
@@ -610,18 +601,12 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
         cg.add_define("USE_ETHERNET_OPENETH")
         add_idf_sdkconfig_option("CONFIG_ETH_USE_OPENETH", True)
     elif config[CONF_TYPE] == "GENERIC":
-        # Generic IEEE 802.3 PHY over the internal EMAC RGMII interface.
-        cg.add_define("USE_ETHERNET_RGMII")
+        # Generic IEEE 802.3 PHY over the internal EMAC RGMII interface. The RGMII
+        # data pins come from the IDF per-target default config; only MDC/MDIO and
+        # the PHY address are configured here.
         cg.add(var.set_phy_addr(config[CONF_PHY_ADDR]))
         cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))
         cg.add(var.set_mdio_pin(config[CONF_MDIO_PIN]))
-        cg.add(
-            var.set_rgmii_pins(
-                cg.RawExpression(
-                    "{" + ", ".join(str(p) for p in config[CONF_RGMII_PINS]) + "}"
-                )
-            )
-        )
     else:
         cg.add(var.set_phy_addr(config[CONF_PHY_ADDR]))
         cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))

@@ -254,25 +254,11 @@ void EthernetComponent::ethernet_lazy_init_() {
   esp32_emac_config.smi_mdc_gpio_num = this->mdc_pin_;
   esp32_emac_config.smi_mdio_gpio_num = this->mdio_pin_;
 #endif
-#if defined(USE_ETHERNET_RGMII) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-  if (this->type_ == ETHERNET_TYPE_GENERIC) {
-    // rgmii_pins_ order: {tx_clk, tx_ctl, txd0..3, rx_clk, rx_ctl, rxd0..3}
-    const auto &p = this->rgmii_pins_;
-    esp32_emac_config.interface = EMAC_DATA_INTERFACE_RGMII;
-    esp32_emac_config.clock_config.rgmii.clock_tx_gpio = p[0];
-    esp32_emac_config.clock_config.rgmii.clock_rx_gpio = p[6];
-    esp32_emac_config.clock_config.rgmii.clock_phy_ref_gpio = -1;
-    esp32_emac_config.emac_dataif_gpio.rgmii.tx_ctl_num = p[1];
-    esp32_emac_config.emac_dataif_gpio.rgmii.txd0_num = p[2];
-    esp32_emac_config.emac_dataif_gpio.rgmii.txd1_num = p[3];
-    esp32_emac_config.emac_dataif_gpio.rgmii.txd2_num = p[4];
-    esp32_emac_config.emac_dataif_gpio.rgmii.txd3_num = p[5];
-    esp32_emac_config.emac_dataif_gpio.rgmii.rx_ctl_num = p[7];
-    esp32_emac_config.emac_dataif_gpio.rgmii.rxd0_num = p[8];
-    esp32_emac_config.emac_dataif_gpio.rgmii.rxd1_num = p[9];
-    esp32_emac_config.emac_dataif_gpio.rgmii.rxd2_num = p[10];
-    esp32_emac_config.emac_dataif_gpio.rgmii.rxd3_num = p[11];
-  } else
+  // For the GENERIC type, eth_esp32_emac_default_config() already selects the
+  // variant's RGMII interface and default GPIO map (the ESP32-S31 default is the
+  // Function CoreBoard layout), so the RMII clock override below is skipped.
+#ifdef USE_ETHERNET_GENERIC
+  if (this->type_ != ETHERNET_TYPE_GENERIC)
 #endif
   {
     esp32_emac_config.clock_config.rmii.clock_mode = this->clk_mode_;
