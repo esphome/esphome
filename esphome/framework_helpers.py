@@ -11,8 +11,6 @@ import sys
 import time
 from typing import IO
 
-import requests
-
 from esphome.helpers import ProgressBar, rmtree
 
 PathType = str | os.PathLike
@@ -635,6 +633,10 @@ def download_from_mirrors(
         ValueError: If mirrors list is empty.
         Exception: If all download attempts fail.
     """
+    # Imported lazily: requests is a heavy import (~85ms) and is only needed
+    # when actually downloading a toolchain, never during config validation.
+    import requests
+
     # 1. Open target file for writing if path given
     with ExitStack() as stack:
         if isinstance(target, (str, os.PathLike)):
