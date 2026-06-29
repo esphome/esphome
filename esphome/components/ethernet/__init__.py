@@ -312,13 +312,21 @@ def _validate(config):
                         f"'{CONF_INTERRUPT_PIN}' is a required option for [ethernet]."
                     )
         elif config[CONF_TYPE] == "GENERIC":
-            from esphome.components.esp32 import VARIANT_ESP32S31, get_esp32_variant
+            from esphome.components.esp32 import (
+                VARIANT_ESP32S31,
+                get_esp32_variant,
+                idf_version,
+            )
 
             variant = get_esp32_variant()
             if variant != VARIANT_ESP32S31:
                 raise cv.Invalid(
                     "The 'GENERIC' (RGMII) PHY is only supported on gigabit-capable "
                     f"variants (ESP32-S31), not {variant}"
+                )
+            if idf_version() < cv.Version(6, 0, 0):
+                raise cv.Invalid(
+                    "The 'GENERIC' (RGMII) PHY requires ESP-IDF 6.0 or newer."
                 )
         elif config[CONF_TYPE] != "OPENETH":
             from esphome.components.esp32 import (

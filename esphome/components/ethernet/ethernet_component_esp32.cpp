@@ -496,6 +496,11 @@ void EthernetComponent::dump_config() {
       eth_type = "LAN8670";
       break;
 #endif
+#ifdef USE_ETHERNET_GENERIC
+    case ETHERNET_TYPE_GENERIC:
+      eth_type = "Generic (RGMII)";
+      break;
+#endif
 
     default:
       eth_type = "Unknown";
