@@ -154,6 +154,10 @@ ignore = [
   "PLW1641", # Object does not implement `__hash__` method
   "PLR2004", # Magic value used in comparison, consider replacing {value} with a constant variable
   "PLW2901", # Outer {outer_kind} variable {name} overwritten by inner {inner_kind} target
+  # PEP 695 type-parameter syntax, newly flagged by the 3.12 target. Adopting it
+  # repo-wide is out of scope for the validation-engine swap; revisit separately.
+  "UP046", # Generic class uses `Generic` subclass instead of type parameters
+  "UP047", # Generic function should use type parameters
 ]
 
 [tool.ruff.lint.isort]

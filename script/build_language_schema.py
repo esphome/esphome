@@ -1162,9 +1162,11 @@ def convert_keys(converted, schema, path):
                     "value": str(default_value),
                     "components": components,
                 }
-        elif hasattr(k, "default") and str(k.default) != "...":
+        elif hasattr(k, "default") and not isinstance(k.default, probatio.Undefined):
             default_value = k.default()
-            if default_value is not None:
+            if default_value is not None and not isinstance(
+                default_value, probatio.Undefined
+            ):
                 result["default"] = str(default_value)
 
         # UI hint from ``cv.Optional`` / ``cv.Required`` — surfaced
