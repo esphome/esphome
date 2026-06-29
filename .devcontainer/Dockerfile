@@ -1,4 +1,4 @@
-ARG BUILD_BASE_VERSION=2025.04.0
+ARG BUILD_BASE_VERSION=2026.06.1
 
 
 FROM ghcr.io/esphome/docker-base:debian-${BUILD_BASE_VERSION} AS base
@@ -7,8 +7,7 @@ RUN git config --system --add safe.directory "*"
 
 RUN apt update \
     && apt install -y \
-      protobuf-compiler \
-      build-essential
+      protobuf-compiler
 
 RUN pip install uv
 
