@@ -91,17 +91,8 @@ void APCProteousCover::parse_response_() {
     }
 
     if (this->current_operation != new_operation) {
-      bool reverting_to_idle =
-          new_operation == COVER_OPERATION_IDLE &&
-          (this->current_operation == COVER_OPERATION_OPENING || this->current_operation == COVER_OPERATION_CLOSING);
-      if (reverting_to_idle && (millis() - this->last_command_time_) < COMMAND_LOCKOUT_MS) {
-        // The controller may not report "operating" until the gate physically starts
-        // moving; keep the commanded operation until the lockout expires.
-        ESP_LOGV(TAG, "Ignoring idle status during startup lockout");
-      } else {
-        this->current_operation = new_operation;
-        state_changed = true;
-      }
+      this->current_operation = new_operation;
+      state_changed = true;
     }
 
     ESP_LOGV(TAG, "s-status: 0x%02X (operating=%d, closed=%d)", this->s_status_, is_operating, is_closed);
@@ -161,36 +152,49 @@ CoverTraits APCProteousCover::get_traits() {
   return traits;
 }
 
+void APCProteousCover::send_command_(const char *cmd) {
+  // Don't publish state here: current_operation and position are updated only from
+  // status reads, so the published state always reflects what the controller reports.
+  // Record the command so stop_cmd_() can cancel it before the controller has reported
+  // the resulting motion.
+  this->pending_command_ = cmd;
+  this->pending_command_time_ = millis();
+  this->write_str(cmd);
+}
+
 void APCProteousCover::open_cmd_() {
-  if (this->current_operation != COVER_OPERATION_OPENING) {
-    ESP_LOGD(TAG, "Sending open command");
-    this->write_str(OPEN_CMD);
-    this->current_operation = COVER_OPERATION_OPENING;
-    this->last_command_time_ = millis();
-    this->publish_state();
+  // OPEN_CMD is directional and idempotent, so only skip it when the controller already
+  // reports the gate opening. current_operation is authoritative and self-clears to idle
+  // when the gate stops, so a part-open idle gate is correctly re-commanded.
+  if (this->current_operation == COVER_OPERATION_OPENING) {
+    return;
   }
+  ESP_LOGD(TAG, "Sending open command");
+  this->send_command_(OPEN_CMD);
 }
 
 void APCProteousCover::close_cmd_() {
-  if (this->current_operation != COVER_OPERATION_CLOSING) {
-    ESP_LOGD(TAG, "Sending close command");
-    this->write_str(CLOSE_CMD);
-    this->current_operation = COVER_OPERATION_CLOSING;
-    this->last_command_time_ = millis();
-    this->publish_state();
+  if (this->current_operation == COVER_OPERATION_CLOSING) {
+    return;
   }
+  ESP_LOGD(TAG, "Sending close command");
+  this->send_command_(CLOSE_CMD);
 }
 
 void APCProteousCover::stop_cmd_() {
-  ESP_LOGD(TAG, "Sending stop command");
-  if (this->current_operation == COVER_OPERATION_IDLE) {
+  // START_CMD (*1) is a start/stop toggle, so only send it when the gate is actually
+  // moving -- either the controller reports motion, or we have an in-flight movement
+  // command that the controller has not reported yet. Otherwise it would start the gate.
+  bool command_pending =
+      this->pending_command_ != nullptr && (millis() - this->pending_command_time_) < PENDING_COMMAND_MS;
+  if (this->current_operation == COVER_OPERATION_IDLE && !command_pending) {
     ESP_LOGD(TAG, "Cover already idle, ignoring stop command");
     return;
   }
+  ESP_LOGD(TAG, "Sending stop command");
   this->write_str(START_CMD);
-  this->current_operation = COVER_OPERATION_IDLE;
-  this->last_command_time_ = 0;
-  this->publish_state();
+  this->pending_command_ = nullptr;
+  // current_operation will update from the next status poll.
 }
 
 void APCProteousCover::control(const CoverCall &call) {
@@ -208,7 +212,6 @@ void APCProteousCover::control(const CoverCall &call) {
       this->open_cmd_();
     } else if (target_position == COVER_CLOSED) {
       // Fully close
-      ESP_LOGD(TAG, "Sending close command");
       this->close_cmd_();
     } else {
       // Partial position - open or close to approximate position
