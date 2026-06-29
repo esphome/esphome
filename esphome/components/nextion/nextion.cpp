@@ -36,8 +36,9 @@ bool Nextion::send_command_(const std::string &command) {
   }
 
 #ifdef USE_NEXTION_COMMAND_SPACING
-  if (!this->connection_state_.ignore_is_setup_ && !this->command_pacer_.can_send()) {
-    ESP_LOGN(TAG, "Command spacing: delaying command '%s'", command.c_str());
+  const uint32_t now = App.get_loop_component_start_time();
+  if (!this->connection_state_.ignore_is_setup_ && !this->command_pacer_.can_send(now)) {
+    ESP_LOGN(TAG, "Command spacing: delaying '%s'", command.c_str());
     return false;
   }
 #endif  // USE_NEXTION_COMMAND_SPACING
@@ -47,6 +48,16 @@ bool Nextion::send_command_(const std::string &command) {
   this->write_str(command.c_str());
   const uint8_t to_send[3] = {0xFF, 0xFF, 0xFF};
   this->write_array(to_send, sizeof(to_send));
+
+#ifdef USE_NEXTION_COMMAND_SPACING
+  // Mark sent immediately after writing to UART. The pacer enforces inter-command
+  // spacing from the transmit side. Marking on ACK (0x01) would leave last_command_time_
+  // at zero indefinitely, making can_send() always return true and spacing a no-op.
+  // ignore_is_setup_ commands (setup/init sequence) bypass spacing intentionally.
+  if (!this->connection_state_.ignore_is_setup_) {
+    this->command_pacer_.mark_sent(now);
+  }
+#endif  // USE_NEXTION_COMMAND_SPACING
 
   return true;
 }
@@ -106,30 +117,41 @@ bool Nextion::check_connect_() {
 
   ESP_LOGN(TAG, "connect: %s", response.c_str());
 
-  size_t start;
+  // Parse comok response fields directly
+  // Format: comok <touch>,<reserved>,<model>,<fw>,<mcu_code>,<serial>,<flash>
+  size_t field_count = 0;
+  size_t start = 0;
   size_t end = 0;
-  std::vector<std::string> connect_info;
+  auto copy_field = [&](char *dst, size_t cap) {
+    size_t len = (end == std::string::npos ? response.size() : end) - start;
+    size_t n = len < cap ? len : cap;
+    std::memcpy(dst, response.data() + start, n);
+    dst[n] = '\0';
+  };
   while ((start = response.find_first_not_of(',', end)) != std::string::npos) {
     end = response.find(',', start);
-    connect_info.push_back(response.substr(start, end - start));
+    switch (field_count) {
+      case 2:
+        copy_field(this->device_model_, this->NEXTION_MODEL_MAX);
+        break;
+      case 3:
+        copy_field(this->firmware_version_, this->NEXTION_FW_MAX);
+        break;
+      case 5:
+        copy_field(this->serial_number_, this->NEXTION_SERIAL_MAX);
+        break;
+      case 6:
+        this->flash_size_ = static_cast<uint32_t>(std::strtoul(response.data() + start, nullptr, 10));
+        break;
+      default:
+        break;
+    }
+    ++field_count;
   }
 
-  this->is_detected_ = (connect_info.size() == 7);
+  this->is_detected_ = (field_count == 7);
   if (this->is_detected_) {
-    ESP_LOGN(TAG, "Connect info: %zu", connect_info.size());
-#ifdef USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
-    this->device_model_ = connect_info[2];
-    this->firmware_version_ = connect_info[3];
-    this->serial_number_ = connect_info[5];
-    this->flash_size_ = connect_info[6];
-#else   // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
-    ESP_LOGI(TAG,
-             "  Device Model:   %s\n"
-             "  FW Version:     %s\n"
-             "  Serial Number:  %s\n"
-             "  Flash Size:     %s\n",
-             connect_info[2].c_str(), connect_info[3].c_str(), connect_info[5].c_str(), connect_info[6].c_str());
-#endif  // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
+    ESP_LOGN(TAG, "Connect info: %zu fields", field_count);
   } else {
     ESP_LOGE(TAG, "Bad connect value: '%s'", response.c_str());
   }
@@ -167,24 +189,26 @@ void Nextion::dump_config() {
 #ifdef USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
   ESP_LOGCONFIG(TAG, "  Skip handshake: YES");
 #else  // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
-#ifdef USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
+  if (this->is_setup()) {
+    ESP_LOGCONFIG(TAG,
+                  "  Device Model: %s\n"
+                  "  FW Version: %s\n"
+                  "  Serial Number: %s\n"
+                  "  Flash Size: %" PRIu32 " bytes",
+                  this->device_model_, this->firmware_version_, this->serial_number_, this->flash_size_);
+  } else {
+    ESP_LOGCONFIG(TAG, "  Device info: not yet detected");
+  }
   ESP_LOGCONFIG(TAG,
-                "  Device Model: %s\n"
-                "  FW Version: %s\n"
-                "  Serial Number: %s\n"
-                "  Flash Size: %s\n"
-                "  Max queue age: %u ms\n"
-                "  Startup override: %u ms\n",
-                this->device_model_.c_str(), this->firmware_version_.c_str(), this->serial_number_.c_str(),
-                this->flash_size_.c_str(), this->max_q_age_ms_, this->startup_override_ms_);
-#endif  // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
 #ifdef USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START
-  ESP_LOGCONFIG(TAG, "  Exit reparse: YES\n");
+                "  Exit reparse: YES\n"
 #endif  // USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START
-  ESP_LOGCONFIG(TAG,
+                "  Max queue age: %u ms\n"
+                "  Startup override: %u ms\n"
                 "  Wake On Touch: %s\n"
                 "  Touch Timeout: %" PRIu16,
-                YESNO(this->connection_state_.auto_wake_on_touch_), this->touch_sleep_timeout_);
+                this->max_q_age_ms_, this->startup_override_ms_, YESNO(this->connection_state_.auto_wake_on_touch_),
+                this->touch_sleep_timeout_);
 #endif  // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
 
 #ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
@@ -253,11 +277,8 @@ bool Nextion::send_command(const char *command) {
   if ((!this->is_setup() && !this->connection_state_.ignore_is_setup_) || this->is_sleeping())
     return false;
 
-  if (this->send_command_(command)) {
-    this->add_no_result_to_queue_("command");
-    return true;
-  }
-  return false;
+  this->add_no_result_to_queue_with_command_("command", command);
+  return true;
 }
 
 bool Nextion::send_command_printf(const char *format, ...) {
@@ -274,11 +295,8 @@ bool Nextion::send_command_printf(const char *format, ...) {
     return false;
   }
 
-  if (this->send_command_(buffer)) {
-    this->add_no_result_to_queue_("command_printf");
-    return true;
-  }
-  return false;
+  this->add_no_result_to_queue_with_command_("command_printf", buffer);
+  return true;
 }
 
 #ifdef NEXTION_PROTOCOL_LOG
@@ -349,25 +367,43 @@ void Nextion::loop() {
   }
 
 #ifdef USE_NEXTION_COMMAND_SPACING
-  // Try to send any pending commands if spacing allows
   this->process_pending_in_queue_();
+#ifdef USE_NEXTION_WAVEFORM
+  if (!this->waveform_queue_.empty()) {
+    this->check_pending_waveform_();
+  }
+#endif  // USE_NEXTION_WAVEFORM
 #endif  // USE_NEXTION_COMMAND_SPACING
 }
 
 #ifdef USE_NEXTION_COMMAND_SPACING
 void Nextion::process_pending_in_queue_() {
-  if (this->nextion_queue_.empty() || !this->command_pacer_.can_send()) {
-    return;
-  }
+#ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
+  size_t commands_sent = 0;
+#endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
 
-  // Check if first item in queue has a pending command
-  auto *front_item = this->nextion_queue_.front();
-  if (front_item && !front_item->pending_command.empty()) {
-    if (this->send_command_(front_item->pending_command)) {
-      // Command sent successfully, clear the pending command
-      front_item->pending_command.clear();
-      ESP_LOGVV(TAG, "Pending command sent: %s", front_item->component->get_variable_name().c_str());
+  for (auto *item : this->nextion_queue_) {
+    if (item == nullptr || item->pending_command.empty()) {
+      continue;  // Already sent, waiting for ACK — skip, don't stop
     }
+
+#ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
+    if (++commands_sent > this->max_commands_per_loop_) {
+      ESP_LOGV(TAG, "Pending cmds: loop limit reached, deferring");
+      break;
+    }
+#endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
+
+    const uint32_t now = App.get_loop_component_start_time();
+    if (!this->command_pacer_.can_send(now)) {
+      break;  // Spacing not elapsed, stop for this loop iteration
+    }
+
+    if (!this->send_command_(item->pending_command)) {
+      break;  // Unexpected send failure, stop
+    }
+    item->pending_command.clear();
+    ESP_LOGVV(TAG, "Pending cmd sent: %s", item->component->get_variable_name().c_str());
   }
 }
 #endif  // USE_NEXTION_COMMAND_SPACING
@@ -470,10 +506,6 @@ void Nextion::process_nextion_commands_() {
             this->setup_callback_.call();
           }
         }
-#ifdef USE_NEXTION_COMMAND_SPACING
-        this->command_pacer_.mark_sent();  // Here is where we should mark the command as sent
-        ESP_LOGN(TAG, "Command spacing: marked command sent");
-#endif
         break;
       case 0x02:  // invalid Component ID or name was used
         ESP_LOGW(TAG, "Invalid component ID/name");
@@ -622,6 +654,7 @@ void Nextion::process_nextion_commands_() {
         } else {
           ESP_LOGN(TAG, "String resp: '%s' id: %s type: %s", to_process.c_str(), component->get_variable_name().c_str(),
                    component->get_queue_type_string());
+          component->set_state_from_string(to_process, true, false);
         }
 
         delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
@@ -1079,10 +1112,18 @@ void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
 }
 
 /**
- * @brief
+ * @brief Send a command and enqueue it for response tracking.
  *
- * @param variable_name Variable name for the queue
- * @param command
+ * Callers are responsible for checking is_sleeping() before calling this
+ * method. The sleep guard is deliberately absent here because some callers
+ * (e.g. add_no_result_to_queue_with_ignore_sleep_printf_()) are explicitly
+ * sleep-safe and must bypass it.
+ *
+ * If USE_NEXTION_COMMAND_SPACING is enabled and the pacer is not ready,
+ * the command is saved in the queue entry for retry rather than dropped.
+ *
+ * @param variable_name Name of the variable or component associated with the command.
+ * @param command       The raw command string to send.
  */
 void Nextion::add_no_result_to_queue_with_command_(const std::string &variable_name, const std::string &command) {
   if ((!this->is_setup() && !this->connection_state_.ignore_is_setup_) || command.empty())
@@ -1263,9 +1304,22 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
 
   std::string command = "get " + component->get_variable_name_to_send();
 
+#ifdef USE_NEXTION_COMMAND_SPACING
+  // Always enqueue first so the response handler is present when the command
+  // is eventually sent. Store the command for retry if spacing blocked it;
+  // process_pending_in_queue_() will transmit it when the pacer allows.
+  nextion_queue->pending_command = command;
+  this->nextion_queue_.push_back(nextion_queue);
+  if (this->send_command_(command)) {
+    nextion_queue->pending_command.clear();
+  }
+#else   // USE_NEXTION_COMMAND_SPACING
   if (this->send_command_(command)) {
     this->nextion_queue_.push_back(nextion_queue);
+  } else {
+    delete nextion_queue;  // NOLINT(cppcoreguidelines-owning-memory)
   }
+#endif  // USE_NEXTION_COMMAND_SPACING
 }
 
 #ifdef USE_NEXTION_WAVEFORM
@@ -1309,10 +1363,10 @@ void Nextion::check_pending_waveform_() {
   char command[24];  // "addt " + uint8 + "," + uint8 + "," + uint8 + null = max 17 chars
   buf_append_printf(command, sizeof(command), 0, "addt %u,%u,%zu", component->get_component_id(),
                     component->get_wave_channel_id(), buffer_to_send);
-  if (!this->send_command_(command)) {
-    delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
-    this->waveform_queue_.pop();
-  }
+  // If spacing or setup state blocks the send, leave the entry at the front
+  // of waveform_queue_ for retry on the next loop iteration via
+  // check_pending_waveform_(). Only pop on a successful send.
+  this->send_command_(command);
 }
 #endif  // USE_NEXTION_WAVEFORM
 

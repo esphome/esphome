@@ -10,8 +10,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
 
-namespace esphome {
-namespace event {
+namespace esphome::event {
 
 #define LOG_EVENT(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -80,5 +79,4 @@ class Event : public EntityBase {
   const char *last_event_type_{nullptr};
 };
 
-}  // namespace event
-}  // namespace esphome
+}  // namespace esphome::event

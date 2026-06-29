@@ -5,8 +5,7 @@
 #include "esphome/components/packet_transport/packet_transport.h"
 #include <vector>
 
-namespace esphome {
-namespace sx126x {
+namespace esphome::sx126x {
 
 class SX126xTransport : public packet_transport::PacketTransport, public Parented<SX126x>, public SX126xListener {
  public:
@@ -20,5 +19,4 @@ class SX126xTransport : public packet_transport::PacketTransport, public Parente
   size_t get_max_packet_size() override { return this->parent_->get_max_packet_size(); }
 };
 
-}  // namespace sx126x
-}  // namespace esphome
+}  // namespace esphome::sx126x

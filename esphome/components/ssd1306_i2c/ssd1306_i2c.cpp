@@ -1,8 +1,7 @@
 #include "ssd1306_i2c.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ssd1306_i2c {
+namespace esphome::ssd1306_i2c {
 
 static const char *const TAG = "ssd1306_i2c";
 
@@ -76,5 +75,4 @@ void HOT I2CSSD1306::write_display_data() {
   }
 }
 
-}  // namespace ssd1306_i2c
-}  // namespace esphome
+}  // namespace esphome::ssd1306_i2c

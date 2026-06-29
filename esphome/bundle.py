@@ -98,11 +98,13 @@ _KNOWN_FILE_EXTENSIONS = frozenset(
 )
 
 
-# Matches !secret references in YAML text.  This is intentionally a simple
-# regex scan rather than a YAML parse — it may match inside comments or
-# multi-line strings, which is the conservative direction (include more
-# secrets rather than fewer).
-_SECRET_RE = re.compile(r"!secret\s+(\S+)")
+# Matches !secret references in YAML text.  An optional surrounding
+# quote pair around the key is allowed and ignored: YAML treats
+# ``!secret 'foo'`` and ``!secret foo`` as the same key.  This is
+# intentionally a simple regex scan rather than a YAML parse — it may
+# match inside comments or multi-line strings, which is the conservative
+# direction (include more secrets rather than fewer).
+_SECRET_RE = re.compile(r"""!secret\s+['"]?([^\s'"]+)""")
 
 
 def _find_used_secret_keys(yaml_files: list[Path]) -> set[str]:
@@ -151,8 +153,8 @@ class ConfigBundleCreator:
 
     def __init__(self, config: dict[str, Any]) -> None:
         self._config = config
-        self._config_dir = CORE.config_dir
-        self._config_path = CORE.config_path
+        self._config_dir = Path(CORE.config_dir).resolve()
+        self._config_path = Path(CORE.config_path).resolve()
         self._files: list[BundleFile] = []
         self._seen_paths: set[Path] = set()
         self._secrets_paths: set[Path] = set()
@@ -258,27 +260,20 @@ class ConfigBundleCreator:
     def _discover_yaml_includes(self) -> None:
         """Discover YAML files loaded during config parsing.
 
-        We track files by wrapping _load_yaml_internal. The config has already
-        been loaded at this point (bundle is a POST_CONFIG_ACTION), so we
-        re-load just to discover the file list.
-
-        Secrets files are tracked separately so we can filter them to
-        only include the keys this config actually references.
+        Delegates to :func:`yaml_util.discover_user_yaml_files`, which does a
+        fresh re-parse and force-loads every deferred ``IncludeFile`` so that
+        *all* potentially-reachable includes are captured (even branches not
+        selected by local substitutions). Bundles are meant to be compiled on
+        another system where command-line substitution overrides may choose a
+        different branch — e.g. ``!include network/${eth_model}/config.yaml``
+        must ship every candidate so the remote build can pick any one.
         """
-        with yaml_util.track_yaml_loads() as loaded_files:
-            try:
-                yaml_util.load_yaml(self._config_path)
-            except EsphomeError:
-                _LOGGER.debug(
-                    "Bundle: re-loading YAML for include discovery failed, "
-                    "proceeding with partial file list"
-                )
-
-        for fpath in loaded_files:
-            if fpath == self._config_path.resolve():
+        discovered = yaml_util.discover_user_yaml_files(self._config_path)
+        self._secrets_paths.update(discovered.secrets)
+        config_resolved = self._config_path.resolve()
+        for fpath in discovered.files:
+            if fpath == config_resolved:
                 continue  # Already added as config
-            if fpath.name in const.SECRETS_FILES:
-                self._secrets_paths.add(fpath)
             self._add_file(fpath)
 
     def _discover_component_files(self) -> None:
@@ -417,7 +412,7 @@ class ConfigBundleCreator:
     @staticmethod
     def _add_to_tar(tar: tarfile.TarFile, bf: BundleFile) -> None:
         """Add a BundleFile to the tar archive with deterministic metadata."""
-        with open(bf.source, "rb") as f:
+        with bf.source.open("rb") as f:
             _add_bytes_to_tar(tar, bf.path, f.read())
 
 

@@ -81,7 +81,7 @@ struct ThermostatCustomPresetEntry {
   ThermostatClimateTargetTempConfig config;
 };
 
-class ThermostatClimate : public climate::Climate, public Component {
+class ThermostatClimate final : public climate::Climate, public Component {
  public:
   using PresetEntry = ThermostatPresetEntry;
   using CustomPresetEntry = ThermostatCustomPresetEntry;

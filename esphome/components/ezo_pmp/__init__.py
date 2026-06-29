@@ -202,7 +202,7 @@ async def ezo_pmp_dose_volume_over_time_to_code(config, action_id, template_arg,
     template_ = await cg.templatable(config[CONF_VOLUME], args, cg.double)
     cg.add(var.set_volume(template_))
 
-    template_ = await cg.templatable(config[CONF_DURATION], args, int)
+    template_ = await cg.templatable(config[CONF_DURATION], args, cg.int_)
     cg.add(var.set_duration(template_))
 
     return var
@@ -236,7 +236,7 @@ async def ezo_pmp_dose_with_constant_flow_rate_to_code(
     template_ = await cg.templatable(config[CONF_VOLUME_PER_MINUTE], args, cg.double)
     cg.add(var.set_volume(template_))
 
-    template_ = await cg.templatable(config[CONF_DURATION], args, int)
+    template_ = await cg.templatable(config[CONF_DURATION], args, cg.int_)
     cg.add(var.set_duration(template_))
 
     return var

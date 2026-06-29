@@ -4,7 +4,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <nvs_flash.h>
-#include <cinttypes>
 #include <cstring>
 #include <vector>
 
@@ -12,15 +11,18 @@ namespace esphome::esp32 {
 
 static const char *const TAG = "preferences";
 
-// Buffer size for converting uint32_t to string: max "4294967295" (10 chars) + null terminator + 1 padding
-static constexpr size_t KEY_BUFFER_SIZE = 12;
-
 struct NVSData {
   uint32_t key;
   SmallInlineBuffer<8> data;  // Most prefs fit in 8 bytes (covers fan, cover, select, etc.)
 };
 
 static std::vector<NVSData> s_pending_save;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+// open() runs from app_main() before the logger is initialized, so any failure
+// must be deferred until after global_logger is set. This is emitted from the
+// first make_preference() call, which runs from the generated setup() after
+// log->pre_setup() has run at EARLY_INIT priority.
+static esp_err_t s_open_err = ESP_OK;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 bool ESP32PreferenceBackend::save(const uint8_t *data, size_t len) {
   // try find in pending saves and update that
@@ -51,8 +53,8 @@ bool ESP32PreferenceBackend::load(uint8_t *data, size_t len) {
     }
   }
 
-  char key_str[KEY_BUFFER_SIZE];
-  snprintf(key_str, sizeof(key_str), "%" PRIu32, this->key);
+  char key_str[UINT32_MAX_STR_SIZE];
+  uint32_to_str(key_str, this->key);
   size_t actual_len;
   esp_err_t err = nvs_get_blob(this->nvs_handle, key_str, nullptr, &actual_len);
   if (err != 0) {
@@ -74,12 +76,14 @@ bool ESP32PreferenceBackend::load(uint8_t *data, size_t len) {
 }
 
 void ESP32Preferences::open() {
+  // Runs from app_main() before the logger is initialized; any logging here
+  // must be deferred. See s_open_err and make_preference() below.
   nvs_flash_init();
   esp_err_t err = nvs_open("esphome", NVS_READWRITE, &this->nvs_handle);
   if (err == 0)
     return;
 
-  ESP_LOGW(TAG, "nvs_open failed: %s - erasing NVS", esp_err_to_name(err));
+  s_open_err = err;
   nvs_flash_deinit();
   nvs_flash_erase();
   nvs_flash_init();
@@ -91,6 +95,14 @@ void ESP32Preferences::open() {
 }
 
 ESPPreferenceObject ESP32Preferences::make_preference(size_t length, uint32_t type) {
+  if (s_open_err != ESP_OK) {
+    if (this->nvs_handle == 0) {
+      ESP_LOGW(TAG, "nvs_open failed: %s - NVS unavailable", esp_err_to_name(s_open_err));
+    } else {
+      ESP_LOGW(TAG, "nvs_open failed: %s - erased NVS", esp_err_to_name(s_open_err));
+    }
+    s_open_err = ESP_OK;
+  }
   auto *pref = new ESP32PreferenceBackend();  // NOLINT(cppcoreguidelines-owning-memory)
   pref->nvs_handle = this->nvs_handle;
   pref->key = type;
@@ -108,8 +120,8 @@ bool ESP32Preferences::sync() {
   uint32_t last_key = 0;
 
   for (const auto &save : s_pending_save) {
-    char key_str[KEY_BUFFER_SIZE];
-    snprintf(key_str, sizeof(key_str), "%" PRIu32, save.key);
+    char key_str[UINT32_MAX_STR_SIZE];
+    uint32_to_str(key_str, save.key);
     ESP_LOGVV(TAG, "Checking if NVS data %s has changed", key_str);
     if (this->is_changed_(this->nvs_handle, save, key_str)) {
       esp_err_t err = nvs_set_blob(this->nvs_handle, key_str, save.data.data(), save.data.size());

@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace lc709203f {
+namespace esphome::lc709203f {
 
 enum LC709203FState {
   STATE_INIT,
@@ -20,7 +19,7 @@ enum LC709203FBatteryVoltage {
   LC709203F_BATTERY_VOLTAGE_3_7 = 0x0001,
 };
 
-class Lc709203f : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
+class Lc709203f final : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void update() override;
@@ -50,5 +49,4 @@ class Lc709203f : public sensor::Sensor, public PollingComponent, public i2c::I2
   uint16_t pack_voltage_;
 };
 
-}  // namespace lc709203f
-}  // namespace esphome
+}  // namespace esphome::lc709203f

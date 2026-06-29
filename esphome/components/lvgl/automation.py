@@ -2,6 +2,7 @@ from collections.abc import Callable
 from typing import Any
 
 from esphome import automation
+from esphome.automation import StatelessLambdaAction
 import esphome.codegen as cg
 from esphome.components.display import validate_rotation
 import esphome.config_validation as cv
@@ -24,7 +25,9 @@ from .defines import (
     PARTS,
     StaticCastExpression,
     add_warning,
+    get_focused_widgets,
     get_options,
+    get_refreshed_widgets,
 )
 from .lv_validation import lv_bool, lv_milliseconds
 from .lvcode import (
@@ -69,9 +72,9 @@ from .widgets import (
     wait_for_widgets,
 )
 
-# Record widgets that are used in a focused action here
-focused_widgets = set()
-refreshed_widgets = set()
+# Widgets that are used in a focused/refreshed action are tracked in
+# ``CORE.data`` (under the lvgl domain) so the state is cleared between
+# successive compilations / unit tests via ``CORE.reset()``.
 
 
 async def layers_to_code(lv_component, config):
@@ -201,7 +204,7 @@ def _validate_rotation(value):
 
 @automation.register_action(
     "lvgl.display.set_rotation",
-    ObjUpdateAction,
+    StatelessLambdaAction,
     cv.maybe_simple_value(
         LVGL_SCHEMA.extend(
             {
@@ -214,8 +217,7 @@ def _validate_rotation(value):
 )
 async def lvgl_set_rotation(config, action_id, template_arg, args):
     lv_comp = await cg.get_variable(config[CONF_LVGL_ID])
-    async with LambdaContext() as context:
-        add_line_marks(where=action_id)
+    async with LambdaContext(args, where=action_id) as context:
         lv_add(lv_comp.set_rotation(config[CONF_ROTATION]))
     return cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
 
@@ -316,7 +318,7 @@ async def resume_action_to_code(config, action_id, template_arg, args):
 )
 async def obj_disable_to_code(config, action_id, template_arg, args):
     async def do_disable(widget: Widget):
-        widget.add_state(LV_STATE.DISABLED)
+        widget.set_state(LV_STATE.DISABLED, True)
 
     return await action_to_code(
         await get_widgets(config), do_disable, action_id, template_arg, args
@@ -328,7 +330,7 @@ async def obj_disable_to_code(config, action_id, template_arg, args):
 )
 async def obj_enable_to_code(config, action_id, template_arg, args):
     async def do_enable(widget: Widget):
-        widget.clear_state(LV_STATE.DISABLED)
+        widget.set_state(LV_STATE.DISABLED, False)
 
     return await action_to_code(
         await get_widgets(config), do_enable, action_id, template_arg, args
@@ -361,7 +363,7 @@ async def obj_show_to_code(config, action_id, template_arg, args):
 
 def focused_id(value):
     value = cv.use_id(lv_pseudo_button_t)(value)
-    focused_widgets.add(value)
+    get_focused_widgets().add(value)
     return value
 
 
@@ -446,8 +448,9 @@ async def obj_update_to_code(config, action_id, template_arg, args):
 
 
 def validate_refresh_config(config):
+    refreshed = get_refreshed_widgets()
     for w in config:
-        refreshed_widgets.add(w[CONF_ID])
+        refreshed.add(w[CONF_ID])
     return config
 
 

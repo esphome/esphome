@@ -23,6 +23,7 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    queue_entity_register,
     setup_device_class,
     setup_entity,
 )
@@ -166,7 +167,7 @@ async def setup_switch_core_(var, config):
 async def register_switch(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_switch(var))
+    queue_entity_register("switch", config)
     CORE.register_platform_component("switch", var)
     await setup_switch_core_(var, config)
 
@@ -196,7 +197,7 @@ SWITCH_CONTROL_ACTION_SCHEMA = automation.maybe_simple_id(
 async def switch_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_STATE], args, bool)
+    template_ = await cg.templatable(config[CONF_STATE], args, cg.bool_)
     cg.add(var.set_state(template_))
     return var
 

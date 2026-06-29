@@ -1,8 +1,7 @@
 #include "pn7160_spi.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pn7160_spi {
+namespace esphome::pn7160_spi {
 
 static const char *const TAG = "pn7160_spi";
 
@@ -50,5 +49,4 @@ void PN7160Spi::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
 }
 
-}  // namespace pn7160_spi
-}  // namespace esphome
+}  // namespace esphome::pn7160_spi

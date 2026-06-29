@@ -3,8 +3,7 @@
 #include "esphome/components/climate_ir/climate_ir.h"
 #include "midea_data.h"
 
-namespace esphome {
-namespace midea_ir {
+namespace esphome::midea_ir {
 
 // Temperature
 const uint8_t MIDEA_TEMPC_MIN = 17;  // Celsius
@@ -43,5 +42,4 @@ class MideaIR : public climate_ir::ClimateIR {
   bool boost_{false};
 };
 
-}  // namespace midea_ir
-}  // namespace esphome
+}  // namespace esphome::midea_ir

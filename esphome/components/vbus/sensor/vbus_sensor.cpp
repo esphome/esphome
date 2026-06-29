@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace vbus {
+namespace esphome::vbus {
 
 static const char *const TAG = "vbus.sensor";
 
@@ -337,5 +336,4 @@ void VBusCustomSubSensor::parse_message(std::vector<uint8_t> &message) {
   this->publish_state(this->message_parser_(message));
 }
 
-}  // namespace vbus
-}  // namespace esphome
+}  // namespace esphome::vbus

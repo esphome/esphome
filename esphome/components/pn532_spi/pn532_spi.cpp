@@ -7,8 +7,7 @@
 // - https://www.nxp.com/docs/en/nxp/application-notes/AN133910.pdf
 // - https://www.nxp.com/docs/en/nxp/application-notes/153710.pdf
 
-namespace esphome {
-namespace pn532_spi {
+namespace esphome::pn532_spi {
 
 static const char *const TAG = "pn532_spi";
 
@@ -151,5 +150,4 @@ void PN532Spi::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
 }
 
-}  // namespace pn532_spi
-}  // namespace esphome
+}  // namespace esphome::pn532_spi

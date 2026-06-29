@@ -8,6 +8,7 @@ import logging
 from typing import TypeVar
 
 from aioesphomeapi import (
+    APIClient,
     BinarySensorState,
     ButtonInfo,
     EntityInfo,
@@ -19,6 +20,42 @@ from aioesphomeapi import (
 _LOGGER = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=EntityInfo)
+S = TypeVar("S", bound=EntityState)
+
+
+async def wait_for_state(
+    client: APIClient,
+    predicate: Callable[[EntityState], bool],
+    timeout: float = 5.0,
+) -> EntityState:
+    """Subscribe to states and wait for one matching ``predicate``.
+
+    Resolves with the first :class:`EntityState` for which ``predicate``
+    returns ``True``. Useful when a component publishes multiple states
+    during setup (e.g. before sensor readings arrive) and the test needs
+    to wait for the state to converge to expected values rather than
+    capturing whichever state happens to arrive first.
+
+    Args:
+        client: Connected API client.
+        predicate: Callable invoked for every received state; the first
+            state for which it returns ``True`` is returned.
+        timeout: Maximum time to wait in seconds.
+
+    Returns:
+        The first state matching ``predicate``.
+
+    Raises:
+        asyncio.TimeoutError: If no matching state arrives within ``timeout``.
+    """
+    future: asyncio.Future[EntityState] = asyncio.get_running_loop().create_future()
+
+    def on_state(state: EntityState) -> None:
+        if not future.done() and predicate(state):
+            future.set_result(state)
+
+    client.subscribe_states(on_state)
+    return await asyncio.wait_for(future, timeout=timeout)
 
 
 def find_entity(

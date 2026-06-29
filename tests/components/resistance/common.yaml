@@ -1,11 +1,11 @@
 sensor:
   - platform: adc
-    id: my_sensor
+    id: resistance_my_sensor
     pin: ${pin}
   - platform: resistance
-    sensor: my_sensor
+    sensor: resistance_my_sensor
     configuration: DOWNSTREAM
     resistor: 10kΩ
     reference_voltage: 3.3V
     name: Resistance
-    id: resist
+    id: resistance_resist

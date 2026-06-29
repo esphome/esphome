@@ -28,9 +28,6 @@ namespace esphome::espnow {
 
 static constexpr const char *TAG = "espnow";
 
-static const esp_err_t CONFIG_ESPNOW_WAKE_WINDOW = 50;
-static const esp_err_t CONFIG_ESPNOW_WAKE_INTERVAL = 100;
-
 ESPNowComponent *global_esp_now = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static const LogString *espnow_error_to_str(esp_err_t error) {
@@ -149,12 +146,6 @@ bool ESPNowComponent::is_wifi_enabled() {
 }
 
 void ESPNowComponent::setup() {
-#ifndef USE_WIFI
-  // Initialize LwIP stack for wake_loop_threadsafe() socket support
-  // When WiFi component is present, it handles esp_netif_init()
-  ESP_ERROR_CHECK(esp_netif_init());
-#endif
-
   if (this->enable_on_boot_) {
     this->enable_();
   } else {
@@ -174,8 +165,6 @@ void ESPNowComponent::enable() {
 
 void ESPNowComponent::enable_() {
   if (!this->is_wifi_enabled()) {
-    esp_event_loop_create_default();
-
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
@@ -211,11 +200,6 @@ void ESPNowComponent::enable_() {
   }
 
   esp_wifi_get_mac(WIFI_IF_STA, this->own_address_);
-
-#ifdef USE_DEEP_SLEEP
-  esp_now_set_wake_window(CONFIG_ESPNOW_WAKE_WINDOW);
-  esp_wifi_connectionless_module_set_wake_interval(CONFIG_ESPNOW_WAKE_INTERVAL);
-#endif
 
   this->state_ = ESPNOW_STATE_ENABLED;
 
@@ -299,13 +283,13 @@ void ESPNowComponent::loop() {
                    format_hex_pretty_to(hex_buf, packet->packet_.receive.data, packet->packet_.receive.size));
 #endif
           if (memcmp(info.des_addr, ESPNOW_BROADCAST_ADDR, ESP_NOW_ETH_ALEN) == 0) {
-            for (auto *handler : this->broadcasted_handlers_) {
-              if (handler->on_broadcasted(info, packet->packet_.receive.data, packet->packet_.receive.size))
+            for (auto *handler : this->broadcast_handlers_) {
+              if (handler->on_broadcast(info, packet->packet_.receive.data, packet->packet_.receive.size))
                 break;  // If a handler returns true, stop processing further handlers
             }
           } else {
-            for (auto *handler : this->received_handlers_) {
-              if (handler->on_received(info, packet->packet_.receive.data, packet->packet_.receive.size))
+            for (auto *handler : this->receive_handlers_) {
+              if (handler->on_receive(info, packet->packet_.receive.data, packet->packet_.receive.size))
                 break;  // If a handler returns true, stop processing further handlers
             }
           }
@@ -319,7 +303,9 @@ void ESPNowComponent::loop() {
         ESP_LOGV(TAG, ">>> [%s] %s", addr_buf, LOG_STR_ARG(espnow_error_to_str(packet->packet_.sent.status)));
 #endif
         if (this->current_send_packet_ != nullptr) {
-          this->current_send_packet_->callback_(packet->packet_.sent.status);
+          if (this->current_send_packet_->callback_ != nullptr) {
+            this->current_send_packet_->callback_(packet->packet_.sent.status);
+          }
           this->send_packet_pool_.release(this->current_send_packet_);
           this->current_send_packet_ = nullptr;  // Reset current packet after sending
         }

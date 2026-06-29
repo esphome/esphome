@@ -11,9 +11,9 @@ esp32:
 logger:
   <<: !include common/base.yaml
 
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
+# Plain nested !include — deferred as an IncludeFile until the substitution
+# pass. The bundle must force-resolve it to pick up common/wifi.yaml.
+wifi: !include common/wifi.yaml
 
 api:
 

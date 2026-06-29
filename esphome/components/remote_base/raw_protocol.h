@@ -6,8 +6,7 @@
 #include <cinttypes>
 #include <vector>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 class RawBinarySensor : public RemoteReceiverBinarySensorBase {
  public:
@@ -32,7 +31,7 @@ class RawBinarySensor : public RemoteReceiverBinarySensorBase {
   size_t len_;
 };
 
-class RawTrigger : public Trigger<RawTimings>, public Component, public RemoteReceiverListener {
+class RawTrigger final : public Trigger<RawTimings>, public Component, public RemoteReceiverListener {
  protected:
   bool on_receive(RemoteReceiveData src) override {
     this->trigger(src.get_raw_data());
@@ -82,5 +81,4 @@ class RawDumper : public RemoteReceiverDumperBase {
   bool is_secondary() override { return true; }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base
