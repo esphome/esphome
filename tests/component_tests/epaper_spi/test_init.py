@@ -454,3 +454,71 @@ def test_enable_pin_code_generation(
     # Both pin objects must be passed to the display via set_enable_pins() as a
     # std::vector initializer list, in the configured order.
     assert f"set_enable_pins({{{pin_25}, {pin_26}}});" in main_cpp
+
+
+def test_collect_updates_for_config_validation(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """Test that collect_updates_for accepts a time period and validates correctly."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    result = run_schema_validation(
+        {
+            "id": "test_display",
+            "model": "goodisplay-gdey042t81-4.2",
+            "dc_pin": 21,
+            "busy_pin": 22,
+            "reset_pin": 23,
+            "cs_pin": 5,
+            "collect_updates_for": "100ms",
+        }
+    )
+
+    from esphome.core import TimePeriodMilliseconds
+
+    assert "collect_updates_for" in result
+    assert result["collect_updates_for"] == TimePeriodMilliseconds(milliseconds=100)
+
+
+def test_collect_updates_for_default_is_zero(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """Test that collect_updates_for defaults to 0ms when not specified."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    result = run_schema_validation(
+        {
+            "id": "test_display",
+            "model": "goodisplay-gdey042t81-4.2",
+            "dc_pin": 21,
+            "busy_pin": 22,
+            "reset_pin": 23,
+            "cs_pin": 5,
+        }
+    )
+
+    from esphome.core import TimePeriodMilliseconds
+
+    assert result["collect_updates_for"] == TimePeriodMilliseconds(milliseconds=0)
+
+
+def test_collect_updates_for_code_generation(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test that collect_updates_for is wired up in the generated C++ code."""
+    main_cpp = generate_main(component_config_path("collect_updates_for_test.yaml"))
+
+    assert "set_collect_updates_for(100);" in main_cpp
