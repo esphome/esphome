@@ -1,0 +1,36 @@
+---
+description: "Instructions for setting up cst9220 touch screen controller with ESPHome"
+title: "cst9220 Touch Screen Controller"
+---
+
+import APIRef from '@components/APIRef.astro';
+
+The `cst9220` touchscreen platform allows using touch screen controllers based on the Hynitron CST92xx series of
+chips with ESPHome. The component supports the CST9220 (multi-touch) and CST9217 (single-touch) controllers, which
+are found on a number of Waveshare ESP32-S3 Touch AMOLED displays.
+The [I²C](/components/i2c) is required to be set up in your configuration for this touchscreen to work.
+
+## Base Touchscreen Configuration
+
+```yaml
+# Example configuration entry
+touchscreen:
+  platform: cst9220
+  id: my_touchscreen
+  interrupt_pin: GPIOXX
+  reset_pin: GPIOXX
+```
+
+### Configuration variables
+
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually set the ID of this touchscreen.
+- **interrupt_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The touch detection pin.
+- **reset_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The chip reset pin.
+
+- All other options from [Touchscreen](/components/touchscreen#config-touchscreen).
+
+The display resolution is read from the controller automatically; calibration is therefore not normally required.
+
+## See Also
+
+- <APIRef text="cst9220_touchscreen.h" path="cst9220/touchscreen/cst9220_touchscreen.h" />
