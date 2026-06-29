@@ -31,6 +31,15 @@ ethernet:
 ```
 
 ```yaml
+# Example configuration entry for the GENERIC RGMII PHY (ESP32-S31)
+ethernet:
+  type: GENERIC
+  mdc_pin: GPIO5
+  mdio_pin: GPIO6
+  power_pin: GPIO7   # the PHY reset pin
+```
+
+```yaml
 # Example configuration entry for SPI chips (ESP32)
 ethernet:
   type: W5500
@@ -75,6 +84,8 @@ ethernet:
   - `W6100` (SPI, RP2040/RP2350 only)
   - `W6300` (PIO QSPI, RP2040/RP2350 only)
   - `LAN8670` (RMII, ESP32 only)
+  - `GENERIC` (RGMII, ESP32-S31 only)
+  - `YT8531` (RGMII, ESP32-S31 only)
 
 ### RMII configuration variables
 
@@ -102,6 +113,34 @@ ethernet:
 
 - **power_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The pin controlling the
   power/reset status of the Ethernet controller. Leave unspecified for no power pin (default).
+
+### GENERIC (RGMII) configuration variables
+
+The `GENERIC` type drives a standard IEEE 802.3 PHY over the internal EMAC's RGMII (Reduced Gigabit
+Media-Independent Interface, gigabit) interface, using ESP-IDF's built-in generic PHY driver. It is only
+supported on gigabit-capable variants (currently the ESP32-S31). The RGMII data, control and clock GPIOs are
+taken from the ESP-IDF per-target default configuration, so only the management pins need to be set:
+
+- **mdc_pin** (**Required**, [Pin](/guides/configuration-types#pin)): The MDC pin. On the ESP32-S31 this is `GPIO5`.
+- **mdio_pin** (**Required**, [Pin](/guides/configuration-types#pin)): The MDIO pin. On the ESP32-S31 this is `GPIO6`.
+- **phy_addr** (*Optional*, int): The PHY address of the Ethernet controller. Defaults to `0`.
+- **power_pin** (*Optional*, [Pin](/guides/configuration-types#pin)): The PHY reset/power pin. On the ESP32-S31
+  this is `GPIO7`. Recommended so the PHY is reset cleanly at startup.
+- **phy_registers** (*Optional*, mapping): Arbitrary PHY register values to set after Ethernet
+  initialization, with the same `address`/`value`/`page_id` sub-options as the
+  [RMII configuration variables](#rmii-configuration-variables) above.
+
+### YT8531 (RGMII) configuration variables
+
+The `YT8531` type is the `GENERIC` RGMII PHY plus the chip-specific initialization the Motorcomm YT8531
+requires (it is the PHY on the ESP32-S31 Functional-Core Board). On a hardware reset the YT8531 comes up with
+auto-negotiation disabled and without RGMII clock delays, so ESPHome automatically re-enables
+auto-negotiation and configures the ~2 ns Tx/Rx clock delays needed for reliable gigabit operation. Use this
+type instead of `GENERIC` for YT8531-based boards; no extra options are needed.
+
+It takes the same configuration variables as the [GENERIC type](#generic-rgmii-configuration-variables)
+(`mdc_pin`, `mdio_pin`, `phy_addr`, `power_pin`, `phy_registers`). On the ESP32-S31 the management pins are
+`mdc_pin: GPIO5`, `mdio_pin: GPIO6` and `power_pin: GPIO7`.
 
 ### SPI configuration variables
 
