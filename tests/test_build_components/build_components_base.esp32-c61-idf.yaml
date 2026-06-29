@@ -3,7 +3,7 @@ esphome:
   friendly_name: $component_name
 
 esp32:
-  board: esp32-c61-devkitc1-n8r2
+  variant: ESP32C61
   flash_size: 8MB
   framework:
     type: esp-idf
