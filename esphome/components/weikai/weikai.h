@@ -266,7 +266,7 @@ class WeikaiComponent : public Component {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Helper class to expose a WeiKai family IO pin as an internal GPIO pin.
 ///////////////////////////////////////////////////////////////////////////////
-class WeikaiGPIOPin final : public GPIOPin {
+class WeikaiGPIOPin : public GPIOPin {
  public:
   void set_parent(WeikaiComponent *parent) { this->parent_ = parent; }
   void set_pin(uint8_t pin) { this->pin_ = pin; }
@@ -293,7 +293,7 @@ class WeikaiGPIOPin final : public GPIOPin {
 /// uart::UARTComponent virtual class. This class is common to the different members of the Weikai
 /// components family and therefore avoid code duplication.
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-class WeikaiChannel final : public uart::UARTComponent {
+class WeikaiChannel : public uart::UARTComponent {
  public:
   /// @brief We belongs to this WeikaiComponent
   /// @param parent pointer to the component we belongs to
