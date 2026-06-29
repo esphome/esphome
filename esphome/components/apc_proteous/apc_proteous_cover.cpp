@@ -2,18 +2,17 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace apc_proteous {
+namespace esphome::apc_proteous {
 
 static const char *const TAG = "apc_proteous.cover";
 static const char *const START_CMD = "*1\r";
-static const char *const START_PARTIAL_CMD = "*2\r";
-static const char *const AUX1_CMD = "*4\r";
-static const char *const AUX2_CMD = "*5\r";
 static const char *const OPEN_CMD = "*6\r";
 static const char *const CLOSE_CMD = "*7\r";
 static const char *const QUERY_S = "?s\r";
 static const char *const QUERY_X = "?x\r";
+
+// Upper bound on a buffered response line; the longest valid frame is "?s=XX".
+static const size_t MAX_RESPONSE_LEN = 16;
 
 using namespace esphome::cover;
 
@@ -40,7 +39,12 @@ void APCProteousCover::loop() {
           this->parse_response_();
           this->rx_buffer_.clear();
         }
-      } else {
+      } else if (data != '\n') {
+        // Ignore line feeds; bound the buffer so missed delimiters or line noise
+        // cannot grow it without limit (the longest valid frame is "?s=XX").
+        if (this->rx_buffer_.length() >= MAX_RESPONSE_LEN) {
+          this->rx_buffer_.clear();
+        }
         this->rx_buffer_ += (char) data;
       }
     }
@@ -48,7 +52,7 @@ void APCProteousCover::loop() {
 }
 
 void APCProteousCover::parse_response_() {
-  // Expected format: "?s-XX" or "?x-XX" where XX is hex value
+  // Expected format: "?s=XX" or "?x=XX" where XX is a hex value
   if (this->rx_buffer_.length() < 4 || this->rx_buffer_[0] != '?') {
     ESP_LOGV(TAG, "Invalid response: %s", this->rx_buffer_.c_str());
     return;
@@ -63,7 +67,7 @@ void APCProteousCover::parse_response_() {
   // Parse hex value
   const char *hex_str = this->rx_buffer_.c_str() + 3;
   char *end_ptr;
-  long value = strtol(hex_str, &end_ptr, 16);
+  int32_t value = static_cast<int32_t>(strtol(hex_str, &end_ptr, 16));
 
   if (end_ptr == hex_str) {
     ESP_LOGW(TAG, "Failed to parse hex value: %s", this->rx_buffer_.c_str());
@@ -107,7 +111,6 @@ void APCProteousCover::parse_response_() {
     if (this->position != new_position) {
       this->position = new_position;
       state_changed = true;
-      this->initial_state_received_ = true;
       if (this->current_operation != COVER_OPERATION_IDLE && this->target_position_ != COVER_OPEN &&
           this->target_position_ != COVER_CLOSED) {
         // Check if we've reached target position
@@ -230,5 +233,4 @@ void APCProteousCover::control(const CoverCall &call) {
   }
 }
 
-}  // namespace apc_proteous
-}  // namespace esphome
+}  // namespace esphome::apc_proteous
