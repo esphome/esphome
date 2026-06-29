@@ -60,11 +60,11 @@ Please see [command line substitutions](/components/substitutions#command-line-s
 **`--toolchain TOOLCHAIN`**
 : Selects which toolchain to use for compiling the project. Supported values are:
 
-* `platformio` (default)
-* `esp-idf`
+* `esp-idf` (ESP32 only)
+* `platformio`
 
 The toolchain can be configured using `esp32.toolchain` (see the [ESP32 toolchain configuration](/components/esp32#esp32-toolchain)).
-If not specified, `platformio` is used by default.
+If not specified, ESP32 devices default to `esp-idf`; all other platforms use `platformio`.
 If both `esp32.toolchain` and the `--toolchain` CLI option are set, the CLI option takes precedence.
 
 Please see [ESP-IDF toolchain documentation](/guides/esp_idf/) for details on using the ESP-IDF integration.

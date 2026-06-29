@@ -342,25 +342,25 @@ ESPHome supports multiple toolchains for building firmware. The toolchain determ
 
 Currently supported toolchains include:
 
-- `platformio` (default)
-- `esp-idf`
+- `esp-idf` (default)
+- `platformio`
 
-**Example for using ESP-IDF toolchain:**
+By default, ESPHome uses its native ESP-IDF integration, including automatic framework installation and environment management as described in this [documentation](/guides/esp_idf/).
+
+**Example for using the PlatformIO toolchain:**
 
 ```yaml
 esp32:
-  toolchain: esp-idf
+  toolchain: platformio
 ```
-
-When `esp-idf` is selected, ESPHome uses its native ESP-IDF integration, including automatic framework installation and environment management as described in this [documentation](/guides/esp_idf/).
 
 You can also select the toolchain via the [CLI](/guides/cli#cli-toolchain):
 
 ```bash
-esphome --toolchain esp-idf compile my_device.yaml
+esphome --toolchain platformio compile my_device.yaml
 ```
 
-If not specified, `platformio` is used by default.
+If not specified, `esp-idf` is used by default.
 If both `esp32.toolchain` and the `--toolchain` CLI option are set, the CLI option takes precedence.
 
 ## Framework
