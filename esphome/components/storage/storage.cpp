@@ -1,8 +1,7 @@
 #include "storage.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace storage {
+namespace esphome::storage {
 
 static const char *const TAG = "storage";
 
@@ -12,15 +11,16 @@ void StorageRegistry::register_storage(Storage *s) {
   if (s == nullptr)
     return;
 
-  for (size_t i = 0; i < this->storages_.size(); i++) {
-    if (this->storages_[i] == s)
+  for (auto *existing : this->storages_) {
+    if (existing == s)
       return;  // already registered
   }
 
-  if (!this->storages_.push_back(s)) {
+  if (this->storages_.full()) {
     ESP_LOGE(TAG, "Registry full — increase device count");
     return;
   }
+  this->storages_.push_back(s);
 
   StorageInfo info{};
   if (s->get_info(&info) == StorageError::OK) {
@@ -35,51 +35,62 @@ void StorageRegistry::unregister_storage(Storage *s) {
   if (s == nullptr)
     return;
 
-  for (size_t i = 0; i < this->storages_.size(); i++) {
-    if (this->storages_[i] == s) {
-      // Shift remaining entries down to fill the gap
-      for (size_t j = i + 1; j < this->storages_.size(); j++) {
-        this->storages_[j - 1] = this->storages_[j];
-      }
-      this->storages_.pop_back();
-
-      StorageInfo info{};
-      if (s->get_info(&info) == StorageError::OK) {
-        ESP_LOGI(TAG, "Storage unregistered: %s", info.name != nullptr ? info.name : "?");
-      }
-
-      this->on_unregistered_.call(s);
-      return;
+  // Null the slot of the matching entry, then compact by rebuilding.
+  // FixedVector has no pop_back — we clear and re-push all non-null, non-removed entries.
+  bool found = false;
+  for (auto *entry : this->storages_) {
+    if (entry == s) {
+      found = true;
+      break;
     }
   }
+  if (!found)
+    return;
+
+  // Collect pointers to keep (all except s), clear, re-push
+  // storages_ is sized exactly at setup — this is safe because we always remove one entry
+  // before rebuilding, so we never exceed capacity.
+  FixedVector<Storage *> tmp;
+  tmp.init(this->storages_.size());
+  for (auto *entry : this->storages_) {
+    if (entry != s)
+      tmp.push_back(entry);
+  }
+  this->storages_ = std::move(tmp);
+
+  StorageInfo info{};
+  if (s->get_info(&info) == StorageError::OK) {
+    ESP_LOGI(TAG, "Storage unregistered: %s", info.name != nullptr ? info.name : "?");
+  }
+
+  this->on_unregistered_.call(s);
 }
 
 void StorageRegistry::for_each(void (*cb)(Storage *s, void *ctx), void *ctx) {
-  for (size_t i = 0; i < this->storages_.size(); i++) {
-    cb(this->storages_[i], ctx);
+  for (auto *s : this->storages_) {
+    cb(s, ctx);
   }
 }
 
 void StorageRegistry::for_each_filesystem(void (*cb)(FilesystemStorage *s, void *ctx), void *ctx) {
-  for (size_t i = 0; i < this->storages_.size(); i++) {
-    if (auto *fs = dynamic_cast<FilesystemStorage *>(this->storages_[i]))
-      cb(fs, ctx);
+  for (auto *s : this->storages_) {
+    if (s->get_storage_type() == StorageType::FILESYSTEM)
+      cb(static_cast<FilesystemStorage *>(s), ctx);
   }
 }
 
 void StorageRegistry::for_each_raw(void (*cb)(RawStorage *s, void *ctx), void *ctx) {
-  for (size_t i = 0; i < this->storages_.size(); i++) {
-    if (auto *rs = dynamic_cast<RawStorage *>(this->storages_[i]))
-      cb(rs, ctx);
+  for (auto *s : this->storages_) {
+    if (s->get_storage_type() == StorageType::RAW)
+      cb(static_cast<RawStorage *>(s), ctx);
   }
 }
 
 void StorageRegistry::for_each_network(void (*cb)(NetworkStorage *s, void *ctx), void *ctx) {
-  for (size_t i = 0; i < this->storages_.size(); i++) {
-    if (auto *ns = dynamic_cast<NetworkStorage *>(this->storages_[i]))
-      cb(ns, ctx);
+  for (auto *s : this->storages_) {
+    if (s->get_storage_type() == StorageType::NETWORK)
+      cb(static_cast<NetworkStorage *>(s), ctx);
   }
 }
 
-}  // namespace storage
-}  // namespace esphome
+}  // namespace esphome::storage

@@ -64,20 +64,19 @@ class LittleFSMount : public storage::FilesystemStorage {
   storage::StorageError unmount() override;
   storage::StorageError format() override;
   storage::StorageError sync() override;
-  storage::StorageError open(const char *path, storage::FileHandle *&handle,
-                             storage::OpenMode mode = storage::OpenMode::READ) override;
+  storage::StorageError open(const char *path, storage::FileHandle *&handle, storage::OpenMode mode) override;
   storage::StorageError close(storage::FileHandle *handle) override;
   storage::StorageError read(storage::FileHandle *handle, uint8_t *buf, size_t len,
-                             size_t *bytes_transferred = nullptr) override;
+                             size_t *bytes_transferred) override;
   storage::StorageError write(storage::FileHandle *handle, const uint8_t *buf, size_t len,
-                              size_t *bytes_transferred = nullptr) override;
+                              size_t *bytes_transferred) override;
   storage::StorageError seek(storage::FileHandle *handle, size_t offset) override;
   storage::StorageError tell(storage::FileHandle *handle, size_t *position) override;
   storage::StorageError stat(const char *path, storage::FileStat *stat) override;
   storage::StorageError list_dir(const char *path, void (*callback)(const storage::FileStat *entry, void *ctx),
                                  void *ctx) override;
   storage::StorageError mkdir(const char *path) override;
-  storage::StorageError rmdir(const char *path, bool recursive = false) override;
+  storage::StorageError rmdir(const char *path, bool recursive) override;
   storage::StorageError remove(const char *path) override;
   storage::StorageError rename(const char *old_path, const char *new_path) override;
   storage::StorageError copy(const char *src_path, const char *dst_path) override;

@@ -5,8 +5,7 @@
 #include "esphome/core/helpers.h"
 #include <cstdio>
 
-namespace esphome {
-namespace storage {
+namespace esphome::storage {
 
 enum class StorageError : uint8_t {
   OK = 0,
@@ -28,6 +27,15 @@ enum class OpenMode : uint8_t {
   READ_WRITE,
 };
 
+// Identifies the concrete subtype of a Storage pointer without RTTI.
+// Used by StorageRegistry::for_each_filesystem/raw/network() to safely
+// static_cast without dynamic_cast (RTTI is disabled on ESP32).
+enum class StorageType : uint8_t {
+  RAW = 0,
+  FILESYSTEM,
+  NETWORK,
+};
+
 struct StorageInfo {
   const char *id;
   const char *name;
@@ -39,9 +47,10 @@ struct StorageInfo {
   bool is_read_only;
 };
 
-#ifndef STORAGE_MAX_PATH_LEN
-#define STORAGE_MAX_PATH_LEN 256
+#ifndef STORAGE_MAX_PATH_LEN_VALUE
+#define STORAGE_MAX_PATH_LEN_VALUE 256
 #endif
+static constexpr size_t STORAGE_MAX_PATH_LEN = STORAGE_MAX_PATH_LEN_VALUE;
 
 struct FileStat {
   char name[STORAGE_MAX_PATH_LEN];
@@ -55,7 +64,7 @@ struct FileHandle {
   bool in_use{false};
   const char *path{nullptr};  // Must point to driver-owned storage (e.g. char[] in driver subtype)
   Storage *storage{nullptr};
-  FILE *file{nullptr};        // POSIX handle — valid for all VFS-backed drivers, nullptr otherwise
+  FILE *file{nullptr};  // POSIX handle — valid for all VFS-backed drivers, nullptr otherwise
   // Drivers bypassing VFS subclass this and add their own handle (lfs_file_t, etc.)
 };
 
@@ -63,13 +72,16 @@ struct FileHandle {
 class Storage : public Component {
  public:
   virtual StorageError get_info(StorageInfo *info) = 0;
+  virtual StorageType get_storage_type() const = 0;
 };
 
 // Offset-based byte access (raw flash, FRAM, EEPROM, NVS blobs)
 class RawStorage : public Storage {
  public:
-  virtual StorageError read(size_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred = nullptr) = 0;
-  virtual StorageError write(size_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred = nullptr) = 0;
+  StorageType get_storage_type() const override { return StorageType::RAW; }
+
+  virtual StorageError read(size_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) = 0;
+  virtual StorageError write(size_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) = 0;
   virtual StorageError erase(size_t offset, size_t len) = 0;
   virtual StorageError format() = 0;
 };
@@ -77,21 +89,22 @@ class RawStorage : public Storage {
 // Path-based file access with a local filesystem layer (SD, USB, LittleFS partition)
 class FilesystemStorage : public Storage {
  public:
+  StorageType get_storage_type() const override { return StorageType::FILESYSTEM; }
+
   virtual StorageError mount() = 0;
   virtual StorageError unmount() = 0;
   virtual StorageError format() = 0;
   virtual StorageError sync() = 0;
-  virtual StorageError open(const char *path, FileHandle *&handle, OpenMode mode = OpenMode::READ) = 0;
+  virtual StorageError open(const char *path, FileHandle *&handle, OpenMode mode) = 0;
   virtual StorageError close(FileHandle *handle) = 0;
-  virtual StorageError read(FileHandle *handle, uint8_t *buf, size_t len, size_t *bytes_transferred = nullptr) = 0;
-  virtual StorageError write(FileHandle *handle, const uint8_t *buf, size_t len,
-                             size_t *bytes_transferred = nullptr) = 0;
+  virtual StorageError read(FileHandle *handle, uint8_t *buf, size_t len, size_t *bytes_transferred) = 0;
+  virtual StorageError write(FileHandle *handle, const uint8_t *buf, size_t len, size_t *bytes_transferred) = 0;
   virtual StorageError seek(FileHandle *handle, size_t offset) = 0;
   virtual StorageError tell(FileHandle *handle, size_t *position) = 0;
   virtual StorageError stat(const char *path, FileStat *stat) = 0;
   virtual StorageError list_dir(const char *path, void (*callback)(const FileStat *entry, void *ctx), void *ctx) = 0;
   virtual StorageError mkdir(const char *path) = 0;
-  virtual StorageError rmdir(const char *path, bool recursive = false) = 0;
+  virtual StorageError rmdir(const char *path, bool recursive) = 0;
   virtual StorageError remove(const char *path) = 0;
   virtual StorageError rename(const char *old_path, const char *new_path) = 0;
   virtual StorageError copy(const char *src_path, const char *dst_path) = 0;
@@ -100,16 +113,18 @@ class FilesystemStorage : public Storage {
 // Path-based file access over a network protocol (NFS, SMB) — stateless, no file handles
 class NetworkStorage : public Storage {
  public:
+  StorageType get_storage_type() const override { return StorageType::NETWORK; }
+
   virtual StorageError connect() = 0;
   virtual StorageError disconnect() = 0;
   virtual StorageError read_chunk(const char *path, uint8_t *buf, size_t offset, size_t len,
-                                  size_t *bytes_transferred = nullptr) = 0;
+                                  size_t *bytes_transferred) = 0;
   virtual StorageError write_chunk(const char *path, const uint8_t *buf, size_t offset, size_t len,
-                                   size_t *bytes_transferred = nullptr) = 0;
+                                   size_t *bytes_transferred) = 0;
   virtual StorageError stat(const char *path, FileStat *stat) = 0;
   virtual StorageError list_dir(const char *path, void (*callback)(const FileStat *entry, void *ctx), void *ctx) = 0;
   virtual StorageError mkdir(const char *path) = 0;
-  virtual StorageError rmdir(const char *path, bool recursive = false) = 0;
+  virtual StorageError rmdir(const char *path, bool recursive) = 0;
   virtual StorageError remove(const char *path) = 0;
   virtual StorageError rename(const char *old_path, const char *new_path) = 0;
   virtual StorageError copy(const char *src_path, const char *dst_path) = 0;
@@ -158,5 +173,4 @@ class StorageRegistry : public Component {
 
 extern StorageRegistry *global_storage_registry;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace storage
-}  // namespace esphome
+}  // namespace esphome::storage
