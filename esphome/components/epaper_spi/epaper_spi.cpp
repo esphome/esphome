@@ -135,7 +135,7 @@ void EPaperBase::update() {
     ESP_LOGD(TAG, "Update debounced (collecting rapid updates)");
     return;
   }
-  ESP_LOGD(TAG, "Update debouncing for %lums", this->collect_updates_for_ms_);
+  ESP_LOGD(TAG, "Update debouncing for %" PRIu32 "ms", this->collect_updates_for_ms_);
   this->debounce_timer_active_ = true;
   this->set_timeout(this->collect_updates_for_ms_, [this] { this->start_update_(); });
 }
@@ -390,7 +390,7 @@ void EPaperBase::dump_config() {
                 "  Swap X/Y: %s\n"
                 "  Mirror X: %s\n"
                 "  Mirror Y: %s\n"
-                "  Collect updates for: %lums",
+                "  Collect updates for: %" PRIu32 "ms",
                 this->name_, (unsigned) (this->data_rate_ / 1000000), this->full_update_every_,
                 YESNO(this->transform_ & SWAP_XY), YESNO(this->transform_ & MIRROR_X),
                 YESNO(this->transform_ & MIRROR_Y), this->collect_updates_for_ms_);
