@@ -115,11 +115,21 @@ storage::StorageError FlashPartition::mount() {
     return storage::StorageError::READ_ERROR;
 
   this->mounted_ = true;
+
+  if (storage::global_storage_registry != nullptr)
+    storage::global_storage_registry->register_storage(this);
+
   return storage::StorageError::OK;
 }
 
 storage::StorageError FlashPartition::unmount() {
-  return this->unmount_lfs_() ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+  if (!this->unmount_lfs_())
+    return storage::StorageError::WRITE_ERROR;
+
+  if (storage::global_storage_registry != nullptr)
+    storage::global_storage_registry->unregister_storage(this);
+
+  return storage::StorageError::OK;
 }
 
 storage::StorageError FlashPartition::format() {

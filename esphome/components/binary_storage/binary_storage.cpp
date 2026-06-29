@@ -1,6 +1,7 @@
 #include "binary_storage.h"
 #include "esphome/core/log.h"
 #include "esphome/core/defines.h"
+#include "esphome/components/storage/storage.h"
 #include <algorithm>
 #include <cstring>
 
@@ -20,6 +21,9 @@ void BinaryStorage::setup() {
   if (erase_size > 0) {
     ESP_LOGCONFIG(TAG, "  Erase Block Size: %u bytes", erase_size);
   }
+
+  if (storage::global_storage_registry != nullptr)
+    storage::global_storage_registry->register_storage(this);
 }
 
 void BinaryStorage::dump_config() {

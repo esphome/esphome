@@ -6,6 +6,7 @@ from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import i2c, spi
 from esphome.components.esp32 import add_idf_sdkconfig_option, require_vfs_dir
+from esphome.components.storage import request_storage_device
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -375,6 +376,7 @@ async def to_code(config):
         cg.add(var.set_storage_id(storage_id))
         cg.add(var.set_storage_name(storage_name))
 
+        request_storage_device()
         return
 
     # External memory devices (FRAM, EEPROM, SPI Flash, MRAM, OneWire)
@@ -435,6 +437,9 @@ async def to_code(config):
     cg.add(var.set_storage_id(storage_id))
     cg.add(var.set_storage_name(storage_name))
 
+    # Raw device always registers itself
+    request_storage_device()
+
     # Create LittleFSMount if mode requires filesystem access
     if mode in [MODE_LITTLEFS, MODE_BOTH]:
         mount_path = config.get(CONF_MOUNT_PATH) or f"/{config[CONF_ID]}"
@@ -456,6 +461,9 @@ async def to_code(config):
         cg.add(mount_var.set_mount_path(mount_path))
         if (auto_format := config.get(CONF_AUTO_FORMAT)) is not None:
             cg.add(mount_var.set_auto_format(auto_format))
+
+        # LittleFSMount registers as a separate filesystem storage device
+        request_storage_device()
 
 
 # ============================================================================

@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include <cstdio>
 
 namespace esphome {
@@ -83,7 +84,8 @@ class FilesystemStorage : public Storage {
   virtual StorageError open(const char *path, FileHandle *&handle, OpenMode mode = OpenMode::READ) = 0;
   virtual StorageError close(FileHandle *handle) = 0;
   virtual StorageError read(FileHandle *handle, uint8_t *buf, size_t len, size_t *bytes_transferred = nullptr) = 0;
-  virtual StorageError write(FileHandle *handle, const uint8_t *buf, size_t len, size_t *bytes_transferred = nullptr) = 0;
+  virtual StorageError write(FileHandle *handle, const uint8_t *buf, size_t len,
+                             size_t *bytes_transferred = nullptr) = 0;
   virtual StorageError seek(FileHandle *handle, size_t offset) = 0;
   virtual StorageError tell(FileHandle *handle, size_t *position) = 0;
   virtual StorageError stat(const char *path, FileStat *stat) = 0;
@@ -112,6 +114,49 @@ class NetworkStorage : public Storage {
   virtual StorageError rename(const char *old_path, const char *new_path) = 0;
   virtual StorageError copy(const char *src_path, const char *dst_path) = 0;
 };
+
+// Runtime registry of all storage devices.
+// Initializes before any driver (setup_priority::BUS) so drivers can safely
+// call register_storage() / unregister_storage() from their own setup() or
+// on hotplug events. Pool is sized exactly at codegen time from the number of
+// configured devices — no compile-time upper bound, no wasted slots.
+class StorageRegistry : public Component {
+ public:
+  float get_setup_priority() const override { return setup_priority::BUS; }
+
+  // Called by codegen with the exact number of configured storage devices
+  void set_device_count(size_t count) { this->storages_.init(count); }
+
+  void register_storage(Storage *s);
+  void unregister_storage(Storage *s);
+
+  // Enumerate by type — callback receives each matching device and caller ctx
+  void for_each(void (*cb)(Storage *s, void *ctx), void *ctx);
+  void for_each_filesystem(void (*cb)(FilesystemStorage *s, void *ctx), void *ctx);
+  void for_each_raw(void (*cb)(RawStorage *s, void *ctx), void *ctx);
+  void for_each_network(void (*cb)(NetworkStorage *s, void *ctx), void *ctx);
+
+  // Notification callbacks — fired whenever a device registers or unregisters.
+  // Templatized so both std::function and pointer-sized forwarder structs are
+  // accepted without forcing heap allocation.
+  template<typename F> void add_on_registered_callback(F &&cb) {
+    this->on_registered_.add(std::forward<F>(cb));
+  }
+  template<typename F> void add_on_unregistered_callback(F &&cb) {
+    this->on_unregistered_.add(std::forward<F>(cb));
+  }
+
+ protected:
+  // Single allocation at set_device_count() — no realloc machinery
+  FixedVector<Storage *> storages_;
+
+  // LazyCallbackManager: 4-byte nullptr until first subscriber — saves RAM
+  // on devices where no component listens for hotplug events
+  LazyCallbackManager<void(Storage *)> on_registered_;
+  LazyCallbackManager<void(Storage *)> on_unregistered_;
+};
+
+extern StorageRegistry *global_storage_registry;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace storage
 }  // namespace esphome
