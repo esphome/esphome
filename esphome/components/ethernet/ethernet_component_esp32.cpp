@@ -385,6 +385,36 @@ void EthernetComponent::ethernet_lazy_init_() {
     bool autoneg_enable = true;
     err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_S_AUTONEGO, &autoneg_enable);
     ESPHL_ERROR_CHECK(err, "Enable auto-negotiation failed");
+
+    // TEST (YT8531-specific): RGMII needs ~2 ns Tx/Rx clock delays for reliable data
+    // sampling above 10M. Configured via the YT8531 extended-register interface
+    // (0x1E = ext address, 0x1F = ext data). This is chip-specific; not all generic
+    // PHYs have these registers — productize before merge (gate/option/phy_registers).
+    esp_eth_phy_reg_rw_data_t phy_reg;
+    uint32_t reg_val;
+    phy_reg.reg_value_p = &reg_val;
+    // RX ~2 ns coarse delay: EXT_CHIP_CONFIG (0xA001), set bit 8 (rxc_dly_en)
+    reg_val = 0xA001;
+    phy_reg.reg_addr = 0x1E;
+    err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_WRITE_PHY_REG, &phy_reg);
+    ESPHL_ERROR_CHECK(err, "YT8531 select Chip_Config failed");
+    phy_reg.reg_addr = 0x1F;
+    err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_READ_PHY_REG, &phy_reg);
+    ESPHL_ERROR_CHECK(err, "YT8531 read Chip_Config failed");
+    reg_val |= (1U << 8);
+    err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_WRITE_PHY_REG, &phy_reg);
+    ESPHL_ERROR_CHECK(err, "YT8531 write Chip_Config failed");
+    // TX ~2 ns delay: EXT_RGMII_CONFIG1 (0xA003), tx_delay_sel[3:0] and tx_delay_sel_fe[7:4] = 13
+    reg_val = 0xA003;
+    phy_reg.reg_addr = 0x1E;
+    err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_WRITE_PHY_REG, &phy_reg);
+    ESPHL_ERROR_CHECK(err, "YT8531 select RGMII_Config1 failed");
+    phy_reg.reg_addr = 0x1F;
+    err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_READ_PHY_REG, &phy_reg);
+    ESPHL_ERROR_CHECK(err, "YT8531 read RGMII_Config1 failed");
+    reg_val = (reg_val & ~0x00FFU) | (13U << 4) | (13U << 0);
+    err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_WRITE_PHY_REG, &phy_reg);
+    ESPHL_ERROR_CHECK(err, "YT8531 write RGMII_Config1 failed");
   }
 #endif
 #endif
