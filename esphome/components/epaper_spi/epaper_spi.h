@@ -61,6 +61,7 @@ class EPaperBase : public Display,
     this->update_effective_transform_();
   }
   void set_full_update_every(uint8_t full_update_every) { this->full_update_every_ = full_update_every; }
+  void set_collect_updates_for(uint32_t ms) { this->collect_updates_for_ms_ = ms; }
   void dump_config() override;
 
   void command(uint8_t value);
@@ -100,10 +101,10 @@ class EPaperBase : public Display,
 
     // We store 8 pixels per byte
     this->buffer_.fill(pixel_color);
-    this->x_high_ = this->width_;
-    this->y_high_ = this->height_;
-    this->x_low_ = 0;
-    this->y_low_ = 0;
+    this->live_x_high_ = this->width_;
+    this->live_y_high_ = this->height_;
+    this->live_x_low_ = 0;
+    this->live_y_low_ = 0;
   }
 
   void clear() override {
@@ -120,6 +121,7 @@ class EPaperBase : public Display,
   int get_width_internal() override { return this->width_; };
   bool is_using_partial_update_() const { return this->full_update_every_ > 1; }
   void process_state_();
+  void start_update_();
 
   const char *epaper_state_to_string_();
   bool is_idle_() const;
@@ -185,9 +187,23 @@ class EPaperBase : public Display,
   uint8_t transform_{};
   uint8_t effective_transform_{};
   uint8_t update_count_{};
-  // these values represent the bounds of the updated buffer. Note that x_high and y_high
-  // point to the pixel past the last one updated, i.e. may range up to width/height.
+  // The x_/y_ bounds are the transfer snapshot: copied from the live_ bounds when the
+  // UPDATE state begins, then used by set_window()/transfer_data() to know which region
+  // to send to the display. The live_ bounds track every pixel drawn since the last
+  // snapshot; they are copied to x_/y_ at the start of each update cycle and then reset
+  // so that draws during the refresh are captured for the next cycle.
   uint16_t x_low_{}, y_low_{}, x_high_{}, y_high_{};
+  uint16_t live_x_low_{}, live_y_low_{}, live_x_high_{}, live_y_high_{};
+
+  // When true, an update() call was received while the display was busy; the update
+  // will be started immediately after the current refresh returns to IDLE.
+  bool pending_update_{};
+  // When true, the debounce timer is active (waiting before starting an update).
+  bool debounce_timer_active_{};
+  // How long to wait (in ms) after an update() call while idle before starting the
+  // refresh, to collect multiple rapid updates into a single screen refresh. A value
+  // of 0 starts the refresh immediately.
+  uint32_t collect_updates_for_ms_{};
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   uint32_t waiting_for_idle_last_print_{};

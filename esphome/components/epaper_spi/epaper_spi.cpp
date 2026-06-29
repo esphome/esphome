@@ -120,9 +120,35 @@ void EPaperBase::update_effective_transform_() {
 
 void EPaperBase::update() {
   if (this->state_ != EPaperState::IDLE) {
-    ESP_LOGE(TAG, "Display already in state %s", epaper_state_to_string_());
+    // Display is busy; queue the update to run after the current refresh completes.
+    // Multiple queued updates are naturally combined because the live dirty bounds
+    // keep expanding as pixels are drawn.
+    ESP_LOGD(TAG, "Update queued (display busy, state %s)", this->epaper_state_to_string_());
+    this->pending_update_ = true;
     return;
   }
+  if (this->collect_updates_for_ms_ == 0) {
+    this->start_update_();
+    return;
+  }
+  if (this->debounce_timer_active_) {
+    ESP_LOGD(TAG, "Update debounced (collecting rapid updates)");
+    return;
+  }
+  ESP_LOGD(TAG, "Update debouncing for %lums", this->collect_updates_for_ms_);
+  this->debounce_timer_active_ = true;
+  this->set_timeout(this->collect_updates_for_ms_, [this] { this->start_update_(); });
+}
+
+void EPaperBase::start_update_() {
+  this->debounce_timer_active_ = false;
+  if (this->state_ != EPaperState::IDLE) {
+    // Should not normally happen, but if the display started updating for another
+    // reason, queue this update for after that refresh.
+    this->pending_update_ = true;
+    return;
+  }
+  ESP_LOGD(TAG, "Update starting");
   this->set_state_(EPaperState::UPDATE);
   this->enable_loop();
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
@@ -174,6 +200,10 @@ void EPaperBase::loop() {
  * IDLE -> RESET -> RESET_END -> UPDATE -> INITIALISE -> TRANSFER_DATA -> POWER_ON -> REFRESH_SCREEN -> POWER_OFF ->
  * DEEP_SLEEP -> IDLE
  *
+ * When a pending update is queued, REFRESH_SCREEN skips POWER_OFF/DEEP_SLEEP and loops
+ * directly back to UPDATE (after waiting for the physical refresh to complete), keeping
+ * the display powered on between consecutive refreshes.
+ *
  * Should a subclassed class need to override this, the method will need to be made virtual.
  */
 void EPaperBase::process_state_() {
@@ -196,7 +226,18 @@ void EPaperBase::process_state_() {
       break;
     case EPaperState::UPDATE:
       this->do_update_();  // Calls ESPHome (current page) lambda
+      // Snapshot the live dirty bounds for this transfer, then reset the live
+      // bounds so that draws during the refresh are tracked for the next cycle.
+      this->x_low_ = this->live_x_low_;
+      this->y_low_ = this->live_y_low_;
+      this->x_high_ = this->live_x_high_;
+      this->y_high_ = this->live_y_high_;
+      this->live_x_low_ = this->width_;
+      this->live_x_high_ = 0;
+      this->live_y_low_ = this->height_;
+      this->live_y_high_ = 0;
       if (this->x_high_ < this->x_low_ || this->y_high_ < this->y_low_) {
+        this->pending_update_ = false;
         this->set_state_(EPaperState::IDLE);
         return;
       }
@@ -212,10 +253,6 @@ void EPaperBase::process_state_() {
       if (!this->transfer_data()) {
         return;  // Not done yet, come back next loop
       }
-      this->x_low_ = this->width_;
-      this->x_high_ = 0;
-      this->y_low_ = this->height_;
-      this->y_high_ = 0;
       this->set_state_(EPaperState::POWER_ON);
       break;
     case EPaperState::POWER_ON:
@@ -225,7 +262,15 @@ void EPaperBase::process_state_() {
     case EPaperState::REFRESH_SCREEN:
       this->refresh_screen(this->update_count_ != 0);
       this->update_count_ = (this->update_count_ + 1) % this->full_update_every_;
-      this->set_state_(EPaperState::POWER_OFF);
+      if (this->pending_update_) {
+        this->pending_update_ = false;
+        // Skip power-off/deep-sleep; the display stays powered on. Wait for the
+        // physical refresh to complete, then immediately start the next update.
+        this->set_state_(EPaperState::UPDATE);
+        this->wait_for_idle_(true);
+      } else {
+        this->set_state_(EPaperState::POWER_OFF);
+      }
       break;
     case EPaperState::POWER_OFF:
       this->power_off();
@@ -309,10 +354,10 @@ bool EPaperBase::rotate_coordinates_(int &x, int &y) {
     y = this->height_ - y - 1;
   if (x >= this->width_ || y >= this->height_ || x < 0 || y < 0)
     return false;
-  this->x_low_ = clamp_at_most(this->x_low_, x);
-  this->x_high_ = clamp_at_least(this->x_high_, x + 1);
-  this->y_low_ = clamp_at_most(this->y_low_, y);
-  this->y_high_ = clamp_at_least(this->y_high_, y + 1);
+  this->live_x_low_ = clamp_at_most(this->live_x_low_, x);
+  this->live_x_high_ = clamp_at_least(this->live_x_high_, x + 1);
+  this->live_y_low_ = clamp_at_most(this->live_y_low_, y);
+  this->live_y_high_ = clamp_at_least(this->live_y_high_, y + 1);
   return true;
 }
 

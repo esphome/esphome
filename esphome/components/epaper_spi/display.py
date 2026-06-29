@@ -47,6 +47,7 @@ DEPENDENCIES = ["spi"]
 
 CONF_INIT_SEQUENCE_ID = "init_sequence_id"
 CONF_MINIMUM_UPDATE_INTERVAL = "minimum_update_interval"
+CONF_COLLECT_UPDATES_FOR = "collect_updates_for"
 
 epaper_spi_ns = cg.esphome_ns.namespace("epaper_spi")
 EPaperBase = epaper_spi_ns.class_(
@@ -112,6 +113,9 @@ def model_schema(config):
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=core.TimePeriod(milliseconds=500)),
             ),
+            cv.Optional(
+                CONF_COLLECT_UPDATES_FOR, default=core.TimePeriodMilliseconds(0)
+            ): cv.positive_time_period_milliseconds,
         }
     )
 
@@ -218,6 +222,7 @@ async def to_code(config):
         enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
         cg.add(var.set_enable_pins(enable))
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
+    cg.add(var.set_collect_updates_for(config[CONF_COLLECT_UPDATES_FOR]))
     if CONF_RESET_DURATION in config:
         cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))
     if transform := config.get(CONF_TRANSFORM):
