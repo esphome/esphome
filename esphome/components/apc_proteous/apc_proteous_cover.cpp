@@ -91,8 +91,17 @@ void APCProteousCover::parse_response_() {
     }
 
     if (this->current_operation != new_operation) {
-      this->current_operation = new_operation;
-      state_changed = true;
+      bool reverting_to_idle =
+          new_operation == COVER_OPERATION_IDLE &&
+          (this->current_operation == COVER_OPERATION_OPENING || this->current_operation == COVER_OPERATION_CLOSING);
+      if (reverting_to_idle && (millis() - this->last_command_time_) < COMMAND_LOCKOUT_MS) {
+        // The controller may not report "operating" until the gate physically starts
+        // moving; keep the commanded operation until the lockout expires.
+        ESP_LOGV(TAG, "Ignoring idle status during startup lockout");
+      } else {
+        this->current_operation = new_operation;
+        state_changed = true;
+      }
     }
 
     ESP_LOGV(TAG, "s-status: 0x%02X (operating=%d, closed=%d)", this->s_status_, is_operating, is_closed);
@@ -157,6 +166,7 @@ void APCProteousCover::open_cmd_() {
     ESP_LOGD(TAG, "Sending open command");
     this->write_str(OPEN_CMD);
     this->current_operation = COVER_OPERATION_OPENING;
+    this->last_command_time_ = millis();
     this->publish_state();
   }
 }
@@ -166,6 +176,7 @@ void APCProteousCover::close_cmd_() {
     ESP_LOGD(TAG, "Sending close command");
     this->write_str(CLOSE_CMD);
     this->current_operation = COVER_OPERATION_CLOSING;
+    this->last_command_time_ = millis();
     this->publish_state();
   }
 }
@@ -178,6 +189,7 @@ void APCProteousCover::stop_cmd_() {
   }
   this->write_str(START_CMD);
   this->current_operation = COVER_OPERATION_IDLE;
+  this->last_command_time_ = 0;
   this->publish_state();
 }
 
