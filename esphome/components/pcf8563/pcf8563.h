@@ -6,7 +6,7 @@
 
 namespace esphome::pcf8563 {
 
-class PCF8563Component : public time::RealTimeClock, public i2c::I2CDevice {
+class PCF8563Component final : public time::RealTimeClock, public i2c::I2CDevice {
  public:
   void setup() override;
   void update() override;
@@ -109,12 +109,12 @@ class PCF8563Component : public time::RealTimeClock, public i2c::I2CDevice {
   } pcf8563_;
 };
 
-template<typename... Ts> class WriteAction : public Action<Ts...>, public Parented<PCF8563Component> {
+template<typename... Ts> class WriteAction final : public Action<Ts...>, public Parented<PCF8563Component> {
  public:
   void play(const Ts &...x) override { this->parent_->write_time(); }
 };
 
-template<typename... Ts> class ReadAction : public Action<Ts...>, public Parented<PCF8563Component> {
+template<typename... Ts> class ReadAction final : public Action<Ts...>, public Parented<PCF8563Component> {
  public:
   void play(const Ts &...x) override { this->parent_->read_time(); }
 };
