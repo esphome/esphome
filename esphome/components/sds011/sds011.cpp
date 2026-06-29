@@ -73,7 +73,6 @@ void SDS011Component::dump_config() {
                 this->update_interval_min_, ONOFF(this->rx_mode_only_));
   LOG_SENSOR("  ", "PM2.5", this->pm_2_5_sensor_);
   LOG_SENSOR("  ", "PM10.0", this->pm_10_0_sensor_);
-  this->check_uart_settings(9600);
 }
 
 void SDS011Component::loop() {

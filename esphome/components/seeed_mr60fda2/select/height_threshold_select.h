@@ -5,7 +5,7 @@
 
 namespace esphome::seeed_mr60fda2 {
 
-class HeightThresholdSelect : public select::Select, public Parented<MR60FDA2Component> {
+class HeightThresholdSelect final : public select::Select, public Parented<MR60FDA2Component> {
  public:
   HeightThresholdSelect() = default;
 

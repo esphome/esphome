@@ -1,6 +1,8 @@
 """Tests for time component cron expression parsing."""
 
 import errno
+import subprocess
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -143,3 +145,43 @@ def test_validate_tz_accepts_posix_string_when_read_bytes_raises_einval() -> Non
         _mock_resources_with_error(OSError(errno.EINVAL, "Invalid argument")),
     ):
         assert validate_tz("<+08>-8") == "<+08>-8"
+
+
+def _modules_after(code: str) -> set[str]:
+    """Run code in a fresh interpreter and return the imported module names.
+
+    A subprocess is required because the test process itself has already
+    imported aioesphomeapi via other tests, so sys.modules here is useless.
+    """
+    result = subprocess.run(
+        [sys.executable, "-c", f"import sys\n{code}\nprint('\\n'.join(sys.modules))"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return set(result.stdout.split())
+
+
+def test_importing_time_does_not_import_aioesphomeapi() -> None:
+    """Importing the time component must not drag in aioesphomeapi.
+
+    aioesphomeapi is a heavy import (it builds a large number of dataclasses at
+    import time). The time component is auto-loaded by many components, so
+    importing it for its schema during config validation must not pay that
+    cost. The import is deferred to the functions that actually need it.
+    """
+    modules = _modules_after("import esphome.components.time")
+    assert "aioesphomeapi" not in modules
+
+
+def test_validate_tz_imports_aioesphomeapi_lazily() -> None:
+    """Validating a non-empty timezone is what triggers the lazy import.
+
+    Documents the boundary: the cost is only paid when a timezone is actually
+    validated, not merely by loading the component.
+    """
+    modules = _modules_after(
+        "from esphome.components.time import validate_tz\n"
+        "validate_tz('EST5EDT,M3.2.0,M11.1.0')"
+    )
+    assert "aioesphomeapi" in modules

@@ -213,6 +213,32 @@ def test_execute_from_psram_p4_sdkconfig(
     assert "CONFIG_SPIRAM_RODATA" not in sdkconfig
 
 
+@pytest.mark.parametrize(
+    ("fixture", "expect_warning"),
+    [
+        ("psram_quad_gpio34.yaml", False),
+        ("psram_octal_gpio34.yaml", True),
+        ("psram_octal_disabled_gpio34.yaml", False),
+    ],
+)
+def test_s3_psram_pin_warning_only_for_octal(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    caplog: pytest.LogCaptureFixture,
+    fixture: str,
+    expect_warning: bool,
+) -> None:
+    """GPIO33-37 are only used by the PSRAM interface in octal mode.
+
+    Using such a pin must only warn when octal PSRAM is configured; on quad
+    PSRAM the pins are free and warning would be a false positive (#16857).
+    """
+    with caplog.at_level("WARNING"):
+        generate_main(component_config_path(fixture))
+    warned = "GPIO34 is used by the PSRAM interface in octal mode" in caplog.text
+    assert warned == expect_warning
+
+
 def test_ignore_pin_validation_error_on_clean_pin_warns(
     set_core_config: SetCoreConfigCallable,
     caplog: pytest.LogCaptureFixture,

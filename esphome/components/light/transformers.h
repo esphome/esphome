@@ -47,7 +47,7 @@ class LightTransitionTransformer : public LightTransformer {
     LightColorValues &start = this->changing_color_mode_ && p > 0.5f ? this->intermediate_values_ : this->start_values_;
     LightColorValues &end = this->changing_color_mode_ && p < 0.5f ? this->intermediate_values_ : this->end_values_;
     if (this->changing_color_mode_)
-      p = p < 0.5f ? p * 2 : (p - 0.5) * 2;
+      p = p < 0.5f ? p * 2 : (p - 0.5f) * 2;
 
     float v = LightTransformer::smoothed_progress(p);
     return LightColorValues::lerp(start, end, v);

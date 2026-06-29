@@ -8,7 +8,7 @@
 
 namespace esphome::lvgl {
 
-class LVGLNumber : public number::Number, public Component {
+class LVGLNumber final : public number::Number, public Component {
  public:
   LVGLNumber(std::function<void(float)> control_lambda, std::function<float()> value_lambda, bool restore)
       : control_lambda_(std::move(control_lambda)), value_lambda_(std::move(value_lambda)), restore_(restore) {}
