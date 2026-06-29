@@ -7,7 +7,8 @@ RUN git config --system --add safe.directory "*"
 
 RUN apt update \
     && apt install -y \
-      protobuf-compiler
+      protobuf-compiler \
+      build-essential
 
 RUN pip install uv
 
