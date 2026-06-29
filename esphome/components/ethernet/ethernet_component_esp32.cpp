@@ -826,6 +826,27 @@ void EthernetComponent::dump_connect_params_() {
                 this->get_eth_mac_address_pretty_into_buffer(mac_buf),
                 YESNO(this->get_duplex_mode() == ETH_DUPLEX_FULL), link_speed);
 
+  // TEMP DEBUG: dump PHY negotiation registers to diagnose GENERIC RGMII link speed/duplex.
+  if (this->type_ == ETHERNET_TYPE_GENERIC) {
+    static const struct {
+      const char *name;
+      uint32_t addr;
+    } DEBUG_PHY_REGS[] = {
+        {"BMCR (0)", 0x00}, {"BMSR (1)", 0x01},  {"ANAR (4)", 0x04},  {"ANLPAR (5)", 0x05},
+        {"GBCR (9)", 0x09}, {"GBSR (10)", 0x0A}, {"EXSR (15)", 0x0F},
+    };
+    for (const auto &reg : DEBUG_PHY_REGS) {
+      uint32_t val = 0;
+      esp_eth_phy_reg_rw_data_t rw = {.reg_addr = reg.addr, .reg_value_p = &val};
+      esp_err_t reg_err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_READ_PHY_REG, &rw);
+      if (reg_err == ESP_OK) {
+        ESP_LOGCONFIG(TAG, "  PHY %s = 0x%04" PRIX32, reg.name, val);
+      } else {
+        ESP_LOGCONFIG(TAG, "  PHY %s read failed: %s", reg.name, esp_err_to_name(reg_err));
+      }
+    }
+  }
+
 #if USE_NETWORK_IPV6
   struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
   uint8_t count = 0;
