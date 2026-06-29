@@ -336,13 +336,13 @@ void ESPNowComponent::loop() {
   // Log dropped received packets periodically
   uint16_t received_dropped = this->receive_packet_queue_.get_and_reset_dropped_count();
   if (received_dropped > 0) {
-    ESP_LOGW(TAG, "Dropped %u received packets due to buffer overflow", received_dropped);
+    ESP_LOGW(TAG, "Dropped %u received packets (queue full or oversized frame)", received_dropped);
   }
 
   // Log dropped send packets periodically
   uint16_t send_dropped = this->send_packet_queue_.get_and_reset_dropped_count();
   if (send_dropped > 0) {
-    ESP_LOGW(TAG, "Dropped %u send packets due to buffer overflow", send_dropped);
+    ESP_LOGW(TAG, "Dropped %u send packets (queue full)", send_dropped);
   }
 }
 
