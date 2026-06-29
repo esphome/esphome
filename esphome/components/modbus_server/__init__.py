@@ -27,7 +27,7 @@ MULTI_CONF = True
 
 modbus_server_ns = cg.esphome_ns.namespace("modbus_server")
 ModbusServer = modbus_server_ns.class_(
-    "ModbusServer", cg.Component, modbus.ModbusDevice
+    "ModbusServer", cg.Component, modbus.ModbusServerDevice
 )
 
 ServerCourtesyResponse = modbus_server_ns.struct("ServerCourtesyResponse")
@@ -44,7 +44,7 @@ SERVER_COURTESY_RESPONSE_SCHEMA = cv.Schema(
 ModbusServerRegisterSchema = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ServerRegister),
-        cv.Required(CONF_ADDRESS): cv.positive_int,
+        cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
         cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(SENSOR_VALUE_TYPE),
         cv.Required(CONF_READ_LAMBDA): cv.returning_lambda,
         cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
@@ -61,7 +61,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_REGISTERS,
             ): cv.ensure_list(ModbusServerRegisterSchema),
         }
-    ).extend(modbus.modbus_device_schema(0x01)),
+    ).extend(modbus.modbus_device_schema(0x01, role="server")),
 )
 
 
@@ -119,6 +119,5 @@ async def to_code(config):
                     )
                 )
             cg.add(var.add_server_register(server_register_var))
-    cg.add(var.set_address(config[CONF_ADDRESS]))
     await cg.register_component(var, config)
-    return await modbus.register_modbus_device(var, config)
+    return await modbus.register_modbus_server_device(var, config)
