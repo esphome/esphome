@@ -420,6 +420,7 @@ GENERIC_SCHEMA = cv.All(
                 cv.Required(CONF_MDC_PIN): pins.internal_gpio_output_pin_number,
                 cv.Required(CONF_MDIO_PIN): pins.internal_gpio_output_pin_number,
                 cv.Optional(CONF_PHY_ADDR, default=0): cv.int_range(min=0, max=31),
+                cv.Optional(CONF_POWER_PIN): pins.internal_gpio_output_pin_number,
             }
         )
     ),
@@ -611,6 +612,8 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
         cg.add(var.set_phy_addr(config[CONF_PHY_ADDR]))
         cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))
         cg.add(var.set_mdio_pin(config[CONF_MDIO_PIN]))
+        if CONF_POWER_PIN in config:
+            cg.add(var.set_power_pin(config[CONF_POWER_PIN]))
     else:
         cg.add(var.set_phy_addr(config[CONF_PHY_ADDR]))
         cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))
