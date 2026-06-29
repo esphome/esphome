@@ -19,9 +19,11 @@ psram:
 ## Configuration variables
 
 - **mode** (*Optional*): Defines the operating mode the PSRAM should utilize. One of `quad`, `octal` or `hex`.
-  Defaults to `quad` for ESP32, ESP32-C5, ESP32-C61, ESP32-S2 and `hex` for ESP32-P4. ESP32-S3 has no default and *requires* this option to be set.
+  Defaults to `quad` for ESP32, ESP32-C5, ESP32-C61, ESP32-S2 and ESP32-H4, `octal` for ESP32-S31, and `hex` for ESP32-P4. ESP32-S3 has no default and *requires* this option to be set.
   See notes below.
-- **speed** (*Optional*, int): The speed at which the PSRAM should operate. One of `40MHz` (default), `80MHz` or `120MHz`.
+- **speed** (*Optional*, int): The speed at which the PSRAM should operate. The supported values depend on the variant:
+  `40MHz`, `80MHz` or `120MHz` for ESP32, ESP32-C5, ESP32-S2 and ESP32-S3; `40MHz`, `100MHz`, `200MHz` or `250MHz` for ESP32-S31;
+  `32MHz` or `64MHz` for ESP32-H4; `20MHz`, `100MHz` or `200MHz` for ESP32-P4. Defaults to the lowest supported speed for the variant.
 - **enable_ecc** (*Optional*, bool): For octal mode, enable ECC (Error Correction Code) for the PSRAM (default is off.)
   ECC is a method of detecting and correcting single-bit errors in memory. It will reduce the available PSRAM size and speed by
   1/16th, but also increases the rated temperature range of some ESP32 modules.
@@ -35,8 +37,8 @@ psram:
 
 ## Modes
 
-The ESP32, ESP32-C5, ESP32-C61 and ESP32-S2 PSRAM is only available in `quad` mode, and ESP32-P4 only supports `hex` mode. These are the defaults
-when using those variants. For ESP32-S3, the `mode` option is required and must be set to `quad` or `octal`.
+The ESP32, ESP32-C5, ESP32-C61, ESP32-S2 and ESP32-H4 PSRAM is only available in `quad` mode, ESP32-S31 only supports `octal` mode, and ESP32-P4 only
+supports `hex` mode. These are the defaults when using those variants. For ESP32-S3, the `mode` option is required and must be set to `quad` or `octal`.
 Typically on ESP32-S3 modules, a 2MB PSRAM will use quad mode, while 8 or 16MB will use octal mode, but check
 the datasheet for the module you are using to be sure.
 
