@@ -34,7 +34,7 @@ enum SampleRate {
 
 #define BME680_BSEC_SAMPLE_RATE_LOG(r) (r == SAMPLE_RATE_DEFAULT ? "Default" : (r == SAMPLE_RATE_ULP ? "ULP" : "LP"))
 
-class BME680BSECComponent : public Component, public i2c::I2CDevice {
+class BME680BSECComponent final : public Component, public i2c::I2CDevice {
  public:
   void set_device_id(const std::string &devid) { this->device_id_.assign(devid); }
   void set_temperature_offset(float offset) { this->temperature_offset_ = offset; }

@@ -1,6 +1,6 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const { detectNewPlatforms, detectNewComponents } = require('../detectors');
+const { detectNewPlatforms, detectNewComponents, detectPRSize } = require('../detectors');
 
 // Minimal GitHub API mock — only repos.getContent is called by detectNewPlatforms/detectNewComponents
 // to check for CONFIG_SCHEMA in newly added files.
@@ -143,5 +143,81 @@ describe('detectNewComponents', () => {
     ];
     const result = await detectNewComponents(makeGithub(WITH_SCHEMA), CONTEXT, prFiles);
     assert.equal(result.labels.size, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// detectPRSize
+// ---------------------------------------------------------------------------
+
+describe('detectPRSize', () => {
+  const SMALL = 30;
+  const MEDIUM = 100;
+  const TOO_BIG = 1000;
+
+  function size(prFiles, isMegaPR = false) {
+    const totalAdditions = prFiles.reduce((sum, file) => sum + (file.additions || 0), 0);
+    const totalDeletions = prFiles.reduce((sum, file) => sum + (file.deletions || 0), 0);
+    return detectPRSize(prFiles, totalAdditions, totalDeletions, isMegaPR, SMALL, MEDIUM, TOO_BIG);
+  }
+
+  it('counts only non-test changes toward small-pr', async () => {
+    // 10 source + 5000 test lines -> non-test churn of 10 is still small.
+    const labels = await size([
+      { filename: 'esphome/components/foo/foo.cpp', additions: 10, deletions: 0 },
+      { filename: 'tests/components/foo/test.esp32-idf.yaml', additions: 5000, deletions: 0 },
+    ]);
+    assert.ok(labels.has('small-pr'));
+    assert.equal(labels.size, 1);
+  });
+
+  it('counts additions and deletions as churn (not net delta)', async () => {
+    // A balanced refactor (40 added, 40 removed) is 80 lines of churn -> medium, not small.
+    const labels = await size([
+      { filename: 'esphome/components/foo/foo.cpp', additions: 40, deletions: 40 },
+    ]);
+    assert.ok(labels.has('medium-pr'));
+    assert.equal(labels.size, 1);
+  });
+
+  it('labels medium-pr when non-test changes exceed small threshold', async () => {
+    const labels = await size([
+      { filename: 'esphome/components/foo/foo.cpp', additions: 60, deletions: 0 },
+      { filename: 'tests/components/foo/test.esp32-idf.yaml', additions: 5000, deletions: 0 },
+    ]);
+    assert.ok(labels.has('medium-pr'));
+    assert.equal(labels.size, 1);
+  });
+
+  it('uses net delta (not churn) for too-big', async () => {
+    // 600 added + 600 removed: 1200 churn (above too-big) but 0 net delta -> not too-big.
+    const labels = await size([
+      { filename: 'esphome/components/foo/foo.cpp', additions: 600, deletions: 600 },
+    ]);
+    assert.equal(labels.size, 0);
+  });
+
+  it('labels too-big when non-test changes exceed the big threshold', async () => {
+    const labels = await size([
+      { filename: 'esphome/components/foo/foo.cpp', additions: 2000, deletions: 0 },
+      { filename: 'tests/components/foo/test.esp32-idf.yaml', additions: 5000, deletions: 0 },
+    ]);
+    assert.ok(labels.has('too-big'));
+    assert.equal(labels.size, 1);
+  });
+
+  it('does not label too-big when mega-pr is set', async () => {
+    const labels = await size([
+      { filename: 'esphome/components/foo/foo.cpp', additions: 2000, deletions: 0 },
+    ], true);
+    assert.equal(labels.size, 0);
+  });
+
+  it('produces no size label for a large mega-pr in the gap above medium', async () => {
+    // Non-test changes land between MEDIUM and TOO_BIG: not small/medium, and mega-pr suppresses too-big.
+    const labels = await size([
+      { filename: 'esphome/components/foo/foo.cpp', additions: 500, deletions: 0 },
+    ], true);
+    assert.equal(labels.size, 0);
   });
 });
