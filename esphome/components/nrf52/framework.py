@@ -54,22 +54,15 @@ def _get_toolchain_path(version: str) -> Path:
     return _get_tools_path() / "toolchains" / version
 
 
-# onexc/dir_fd were added to shutil.rmtree in 3.12; the 3.11 branch uses onerror.
 _SITECUSTOMIZE = """\
-import os, stat, shutil, sys
+import os, stat, shutil
 _orig = shutil.rmtree
 def _handler(func, path, exc):
     os.chmod(path, stat.S_IWRITE); func(path)
-if sys.version_info >= (3, 12):
-    def _rmtree(path, ignore_errors=False, onerror=None, *, onexc=None, dir_fd=None):
-        if onerror is None and onexc is None:
-            onexc = _handler
-        return _orig(path, ignore_errors=ignore_errors, onerror=onerror, onexc=onexc, dir_fd=dir_fd)
-else:
-    def _rmtree(path, ignore_errors=False, onerror=None):
-        if onerror is None:
-            onerror = _handler
-        return _orig(path, ignore_errors=ignore_errors, onerror=onerror)
+def _rmtree(path, ignore_errors=False, onerror=None, *, onexc=None, dir_fd=None):
+    if onerror is None and onexc is None:
+        onexc = _handler
+    return _orig(path, ignore_errors=ignore_errors, onerror=onerror, onexc=onexc, dir_fd=dir_fd)
 shutil.rmtree = _rmtree
 """
 

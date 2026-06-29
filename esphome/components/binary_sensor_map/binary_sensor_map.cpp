@@ -112,7 +112,7 @@ float BinarySensorMap::bayesian_predicate_(bool sensor_state, float prior, float
     prob_state_source_false = 1 - prob_given_false;
   }
 
-  return prob_state_source_true / (prior * prob_state_source_true + (1.0 - prior) * prob_state_source_false);
+  return prob_state_source_true / (prior * prob_state_source_true + (1.0f - prior) * prob_state_source_false);
 }
 
 void BinarySensorMap::add_channel(binary_sensor::BinarySensor *sensor, float value) {

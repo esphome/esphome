@@ -13,7 +13,7 @@ permissions:
 
 env:
   DEFAULT_PYTHON: "3.12"
-  PYUPGRADE_TARGET: "--py311-plus"
+  PYUPGRADE_TARGET: "--py312-plus"
 
 concurrency:
   # yamllint disable-line rule:line-length
