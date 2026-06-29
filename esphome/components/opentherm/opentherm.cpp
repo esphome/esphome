@@ -541,7 +541,7 @@ void OpenTherm::debug_error(OpenThermError &error) const {
            error.capture, error.bit_pos);
 }
 
-float OpenthermData::f88() { return ((float) this->s16()) / 256.0; }
+float OpenthermData::f88() { return ((float) this->s16()) / 256.0f; }
 
 void OpenthermData::f88(float value) { this->s16((int16_t) (value * 256)); }
 
