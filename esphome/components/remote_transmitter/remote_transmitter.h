@@ -33,11 +33,11 @@ struct RemoteTransmitterComponentStore {
 #endif
 #endif
 
-class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
-                                   public Component
+class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBase,
+                                         public Component
 #if defined(USE_ESP32) && SOC_RMT_SUPPORTED
     ,
-                                   public remote_base::RemoteRMTChannel
+                                         public remote_base::RemoteRMTChannel
 #endif
 {
  public:

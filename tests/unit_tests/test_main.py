@@ -442,6 +442,36 @@ def test_redact_with_legacy_fallback__does_not_match_fragment_as_suffix(
     assert not any("legacy substring" in rec.message for rec in caplog.records)
 
 
+def test_redact_with_legacy_fallback__substitutions_redacted_without_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Substitution keys have no schema validator, so their values are still
+    redacted but the unactionable cv.sensitive migration warning is suppressed
+    (see issue #17225)."""
+    text = "substitutions:\n  ota_password: apolloautomation\nesphome:\n  name: x\n"
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback(text)
+    assert "ota_password: \\033[8mapolloautomation\\033[28m" in out
+    assert not any("legacy substring" in rec.message for rec in caplog.records)
+
+
+def test_redact_with_legacy_fallback__warns_after_substitutions_block(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The suppression ends at the next top-level key; a sensitive-shaped field
+    in a later block (a real schema field) still warns, while the substitution
+    above it does not."""
+    text = (
+        "substitutions:\n  ota_password: apolloautomation\nwifi:\n  password: hunter2\n"
+    )
+    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
+        out = _redact_with_legacy_fallback(text)
+    assert "ota_password: \\033[8mapolloautomation\\033[28m" in out
+    assert "password: \\033[8mhunter2\\033[28m" in out
+    assert any("'password'" in rec.message for rec in caplog.records)
+    assert not any("ota_password" in rec.message for rec in caplog.records)
+
+
 def test_command_config__invokes_legacy_fallback_when_redacting(
     tmp_path: Path, capfd: CaptureFixture[str]
 ) -> None:

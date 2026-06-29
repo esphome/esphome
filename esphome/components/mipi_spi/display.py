@@ -295,13 +295,7 @@ def customise_schema(config):
         raise cv.Invalid(f"DC pin is required in {bus_mode} mode")
     denominator(config)
     model = MODELS[config[CONF_MODEL]]
-    has_hardware_transform = config.get(
-        CONF_TRANSFORM
-    ) != CONF_DISABLED and model.transforms == {
-        CONF_MIRROR_X,
-        CONF_MIRROR_Y,
-        CONF_SWAP_XY,
-    }
+    has_hardware_transform = model.has_hardware_transform(config)
     width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
         model.get_dimensions(config, not has_hardware_transform)
     )
@@ -366,13 +360,7 @@ def get_instance(config):
     :return: type, template arguments
     """
     model = MODELS[config[CONF_MODEL]]
-    has_hardware_transform = config.get(
-        CONF_TRANSFORM
-    ) != CONF_DISABLED and model.transforms == {
-        CONF_MIRROR_X,
-        CONF_MIRROR_Y,
-        CONF_SWAP_XY,
-    }
+    has_hardware_transform = model.has_hardware_transform(config)
     width, height, offset_width, offset_height, pad_width, pad_height = (
         model.get_dimensions(config, not has_hardware_transform)
     )

@@ -1488,12 +1488,29 @@ _LEGACY_REDACTION_REMOVAL = "2026.12.0"
 
 def _redact_with_legacy_fallback(output: str) -> str:
     unmarked: set[str] = set()
+    # Track the top-level ``substitutions:`` block. Its keys are arbitrary
+    # user-chosen names with no schema validator, so the ``cv.sensitive(...)``
+    # migration named in the warning can't be applied to them. Their values are
+    # still redacted, but emitting the (unactionable) deprecation warning would
+    # only confuse users.
+    in_substitutions = False
 
-    def _replace(m: re.Match[str]) -> str:
-        unmarked.add(m.group("key"))
-        return f"{m.group('key')}: \\033[8m{m.group('val')}\\033[28m"
-
-    output = _LEGACY_REDACTION_RE.sub(_replace, output)
+    lines = output.split("\n")
+    for i, line in enumerate(lines):
+        # A non-indented, non-blank line is a top-level key that opens or
+        # closes the substitutions block.
+        if line and not line[0].isspace():
+            in_substitutions = line.startswith(f"{CONF_SUBSTITUTIONS}:")
+        m = _LEGACY_REDACTION_RE.search(line)
+        if m is None:
+            continue
+        if not in_substitutions:
+            unmarked.add(m.group("key"))
+        lines[i] = (
+            f"{line[: m.start()]}{m.group('key')}: "
+            f"\\033[8m{m.group('val')}\\033[28m{line[m.end() :]}"
+        )
+    output = "\n".join(lines)
     for key in sorted(unmarked):
         _LOGGER.warning(
             "Field '%s' is being redacted by a legacy substring heuristic. "

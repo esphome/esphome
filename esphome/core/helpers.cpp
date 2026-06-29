@@ -669,11 +669,11 @@ void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation,
   if (delta == 0) {
     hue = 0;
   } else if (max_color_value == red) {
-    hue = int(fmod(((60 * ((green - blue) / delta)) + 360), 360));
+    hue = int(fmodf((60.0f * ((green - blue) / delta)) + 360.0f, 360.0f));
   } else if (max_color_value == green) {
-    hue = int(fmod(((60 * ((blue - red) / delta)) + 120), 360));
+    hue = int(fmodf((60.0f * ((blue - red) / delta)) + 120.0f, 360.0f));
   } else if (max_color_value == blue) {
-    hue = int(fmod(((60 * ((red - green) / delta)) + 240), 360));
+    hue = int(fmodf((60.0f * ((red - green) / delta)) + 240.0f, 360.0f));
   }
 
   if (max_color_value == 0) {
@@ -686,8 +686,8 @@ void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation,
 }
 void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green, float &blue) {
   float chroma = value * saturation;
-  float hue_prime = fmod(hue / 60.0, 6);
-  float intermediate = chroma * (1 - fabs(fmod(hue_prime, 2) - 1));
+  float hue_prime = fmodf(hue / 60.0f, 6.0f);
+  float intermediate = chroma * (1.0f - fabsf(fmodf(hue_prime, 2.0f) - 1.0f));
   float delta = value - chroma;
 
   if (0 <= hue_prime && hue_prime < 1) {

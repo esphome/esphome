@@ -9,7 +9,7 @@
 
 namespace esphome::rp2040_pwm {
 
-class RP2040PWM : public output::FloatOutput, public Component {
+class RP2040PWM final : public output::FloatOutput, public Component {
  public:
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
   void set_frequency(float frequency) { this->frequency_ = frequency; }
@@ -39,7 +39,7 @@ class RP2040PWM : public output::FloatOutput, public Component {
   bool frequency_changed_{false};
 };
 
-template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
+template<typename... Ts> class SetFrequencyAction final : public Action<Ts...> {
  public:
   SetFrequencyAction(RP2040PWM *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(float, frequency);

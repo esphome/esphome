@@ -86,6 +86,8 @@ enum EthernetType : uint8_t {
   ETHERNET_TYPE_ENC28J60,
   ETHERNET_TYPE_W6100,
   ETHERNET_TYPE_W6300,
+  ETHERNET_TYPE_GENERIC,
+  ETHERNET_TYPE_YT8531,
 };
 
 struct ManualIP {
@@ -229,6 +231,11 @@ class EthernetComponent final : public Component {
 #ifdef USE_ETHERNET_KSZ8081
   /// @brief Set `RMII Reference Clock Select` bit for KSZ8081.
   void ksz8081_set_clock_reference_(esp_eth_mac_t *mac);
+#endif
+#ifdef USE_ETHERNET_YT8531
+  /// @brief Apply YT8531-specific config: re-enable auto-negotiation (disabled on
+  /// reset) and set the RGMII Tx/Rx clock delays needed for reliable data sampling.
+  void yt8531_phy_init_();
 #endif
   /// @brief Set arbitratry PHY registers from config.
   void write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_data);

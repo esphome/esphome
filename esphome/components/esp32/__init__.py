@@ -1102,6 +1102,8 @@ def final_validate(config):
     # Imported locally to avoid circular import issues
     from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 
+    from .gpio import final_validate_pins
+
     errs = []
     conf_fw = config[CONF_FRAMEWORK]
     advanced = conf_fw[CONF_ADVANCED]
@@ -1184,6 +1186,8 @@ def final_validate(config):
                     path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_EXECUTE_FROM_PSRAM],
                 )
             )
+
+    final_validate_pins(full_config)
 
     if (
         config[CONF_FLASH_SIZE] == "32MB"

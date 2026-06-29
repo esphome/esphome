@@ -55,11 +55,11 @@ struct RemoteReceiverComponentStore {
 };
 #endif
 
-class RemoteReceiverComponent : public remote_base::RemoteReceiverBase,
-                                public Component
+class RemoteReceiverComponent final : public remote_base::RemoteReceiverBase,
+                                      public Component
 #if defined(USE_ESP32) && SOC_RMT_SUPPORTED
     ,
-                                public remote_base::RemoteRMTChannel
+                                      public remote_base::RemoteRMTChannel
 #endif
 
 {

@@ -7,7 +7,7 @@
 
 namespace esphome::rp2 {
 
-class RP2GPIOPin : public InternalGPIOPin {
+class RP2GPIOPin final : public InternalGPIOPin {
  public:
   void set_pin(uint8_t pin) { pin_ = pin; }
   void set_inverted(bool inverted) { inverted_ = inverted; }
