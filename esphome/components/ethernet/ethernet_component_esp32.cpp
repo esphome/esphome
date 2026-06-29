@@ -254,9 +254,10 @@ void EthernetComponent::ethernet_lazy_init_() {
   esp32_emac_config.smi_mdc_gpio_num = this->mdc_pin_;
   esp32_emac_config.smi_mdio_gpio_num = this->mdio_pin_;
 #endif
-  // GENERIC uses the RGMII interface and default GPIO map from
-  // eth_esp32_emac_default_config(), so skip the RMII clock override.
-  if (this->type_ != ETHERNET_TYPE_GENERIC) {
+  // The RGMII types (GENERIC, YT8531) use the RGMII interface and default GPIO map from
+  // eth_esp32_emac_default_config(); writing the RMII clock config would clobber that
+  // union, so skip the RMII clock override for them.
+  if (this->type_ != ETHERNET_TYPE_GENERIC && this->type_ != ETHERNET_TYPE_YT8531) {
     esp32_emac_config.clock_config.rmii.clock_mode = this->clk_mode_;
     esp32_emac_config.clock_config.rmii.clock_gpio =
         static_cast<decltype(esp32_emac_config.clock_config.rmii.clock_gpio)>(this->clk_pin_);
