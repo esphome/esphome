@@ -121,6 +121,34 @@ modbus::ServerResponseStatus ModbusServer::on_modbus_write_registers(uint16_t st
   return {};
 }
 
+modbus::ServerResponseStatus ModbusServer::on_modbus_read_write_registers(uint16_t read_start_address,
+                                                                          uint16_t number_of_registers,
+                                                                          uint16_t write_start_address,
+                                                                          const modbus::RegisterValues &write_registers,
+                                                                          modbus::RegisterValues &read_registers) {
+  ESP_LOGV(TAG,
+           "Received read/write multiple registers for device 0x%X. Read address: 0x%X. Read count: 0x%X. "
+           "Write address: 0x%X. Write count: 0x%zX.",
+           this->address_, read_start_address, number_of_registers, write_start_address, write_registers.size());
+
+  // A user supplied transaction handler takes full control of the response. This is required for protocols where
+  // the read result depends on the values written in the same transaction or on internal state.
+  if (this->read_write_lambda_) {
+    if (!this->read_write_lambda_(read_start_address, number_of_registers, write_start_address, write_registers,
+                                  read_registers)) {
+      return ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;
+    }
+    return {};
+  }
+
+  // Default: apply the write first, then the read, reusing the per-register handlers.
+  auto write_status = this->on_modbus_write_registers(write_start_address, write_registers);
+  if (write_status.has_value()) {
+    return write_status;
+  }
+  return this->on_modbus_read_registers(read_start_address, number_of_registers, read_registers);
+}
+
 void ModbusServer::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "ModbusServer:\n"

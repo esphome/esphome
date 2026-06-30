@@ -93,6 +93,13 @@ class ServerRegister {
 
 class ModbusServer : public Component, public modbus::ModbusServerDevice {
  public:
+  // Handler for read/write multiple registers (function code 0x17) transactions. Returns true on success;
+  // returning false makes the server reply with an ILLEGAL_DATA_ADDRESS exception. read_values must be filled
+  // with exactly read_count registers.
+  using ReadWriteLambda =
+      std::function<bool(uint16_t read_address, uint16_t read_count, uint16_t write_address,
+                         const modbus::RegisterValues &write_values, modbus::RegisterValues &read_values)>;
+
   void dump_config() override;
 
   /// Registers a server register with the controller. Called by esphomes code generator
@@ -103,12 +110,21 @@ class ModbusServer : public Component, public modbus::ModbusServerDevice {
   /// called when a modbus request (function code 0x06 or 0x10) was parsed without errors
   modbus::ServerResponseStatus on_modbus_write_registers(uint16_t start_address,
                                                          const modbus::RegisterValues &registers) final;
+  /// called when a modbus read/write multiple registers request (function code 0x17) was parsed without errors
+  modbus::ServerResponseStatus on_modbus_read_write_registers(uint16_t read_start_address, uint16_t number_of_registers,
+                                                              uint16_t write_start_address,
+                                                              const modbus::RegisterValues &write_registers,
+                                                              modbus::RegisterValues &read_registers) final;
   /// Called by esphome generated code to set the server courtesy response object
   void set_server_courtesy_response(const ServerCourtesyResponse &server_courtesy_response) {
     this->server_courtesy_response_ = server_courtesy_response;
   }
   /// Get the server courtesy response object
   ServerCourtesyResponse get_server_courtesy_response() const { return this->server_courtesy_response_; }
+  /// Called by esphome generated code to set the read/write multiple registers transaction handler
+  void set_read_write_lambda(ReadWriteLambda &&read_write_lambda) {
+    this->read_write_lambda_ = std::move(read_write_lambda);
+  }
 
  protected:
   /// Collection of all server registers for this component
@@ -116,6 +132,8 @@ class ModbusServer : public Component, public modbus::ModbusServerDevice {
   /// Server courtesy response
   ServerCourtesyResponse server_courtesy_response_{
       .enabled = false, .register_last_address = 0xFFFF, .register_value = 0};
+  /// Optional handler for read/write multiple registers (function code 0x17) transactions
+  ReadWriteLambda read_write_lambda_{};
 };
 
 }  // namespace esphome::modbus_server

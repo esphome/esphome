@@ -441,6 +441,56 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       response_len = 4;
       break;
     }
+    case ModbusFunctionCode::READ_WRITE_MULTIPLE_REGISTERS: {
+      // PDU data: read start address(2) + read quantity(2) + write start address(2) + write quantity(2) +
+      // write byte count(1) + write register values. Per Modbus 6.17 the write is performed before the read.
+      uint16_t read_start_address = helpers::get_data<uint16_t>(data, 0);
+      uint16_t number_of_registers = helpers::get_data<uint16_t>(data, 2);
+      uint16_t write_start_address = helpers::get_data<uint16_t>(data, 4);
+      uint16_t number_of_write_registers = helpers::get_data<uint16_t>(data, 6);
+      uint8_t number_of_bytes = helpers::get_data<uint8_t>(data, 8);
+      if (number_of_registers == 0 || number_of_registers > MAX_NUM_OF_REGISTERS_TO_READ ||
+          number_of_write_registers == 0 || number_of_write_registers > MAX_NUM_OF_REGISTERS_TO_WRITE ||
+          number_of_write_registers * 2 != number_of_bytes) {
+        ESP_LOGW(TAG, "Invalid number of registers (read %" PRIu16 ", write %" PRIu16 ") or bytes %" PRIu8,
+                 number_of_registers, number_of_write_registers, number_of_bytes);
+        this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
+        return;
+      }
+      if (!this->check_register_range_(address, function_code, read_start_address, number_of_registers) ||
+          !this->check_register_range_(address, function_code, write_start_address, number_of_write_registers)) {
+        return;
+      }
+      // Assemble the written register values (host byte order); they follow the 9-byte request header.
+      RegisterValues write_registers;
+      for (uint16_t i = 0; i < number_of_write_registers; i++) {
+        write_registers.push_back(helpers::get_data<uint16_t>(data, 9 + i * 2));
+      }
+      RegisterValues registers;
+      status = device->on_modbus_read_write_registers(read_start_address, number_of_registers, write_start_address,
+                                                      write_registers, registers);
+
+      // A handler that returns an exception leaves registers partially filled, so check the exception
+      // first and forward it before validating the register count on the success path.
+      if (status.has_value()) {
+        this->send_exception_(address, function_code, status.value());
+        return;
+      }
+
+      if (registers.size() != number_of_registers) {
+        ESP_LOGE(TAG, "Incorrect response %" PRIu16 " requested, %zu returned", number_of_registers, registers.size());
+        this->send_exception_(address, function_code, ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
+        return;
+      }
+
+      response_buffer[response_len++] = static_cast<uint8_t>(number_of_registers * 2);  // actual byte count
+      for (auto r : registers) {
+        auto register_bytes = decode_value(r);
+        response_buffer[response_len++] = register_bytes[0];
+        response_buffer[response_len++] = register_bytes[1];
+      }
+      break;
+    }
     default:
       ESP_LOGW(TAG, "Unsupported function code %" PRIu8, function_code);
       this->send_exception_(address, function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);

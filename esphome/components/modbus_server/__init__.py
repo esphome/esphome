@@ -12,6 +12,7 @@ from esphome.const import CONF_ADDRESS, CONF_ID
 from .const import (
     CONF_COURTESY_RESPONSE,
     CONF_READ_LAMBDA,
+    CONF_READ_WRITE_LAMBDA,
     CONF_REGISTER_LAST_ADDRESS,
     CONF_REGISTER_VALUE,
     CONF_REGISTERS,
@@ -57,6 +58,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(ModbusServer),
             cv.Optional(CONF_COURTESY_RESPONSE): SERVER_COURTESY_RESPONSE_SCHEMA,
+            cv.Optional(CONF_READ_WRITE_LAMBDA): cv.returning_lambda,
             cv.Optional(
                 CONF_REGISTERS,
             ): cv.ensure_list(ModbusServerRegisterSchema),
@@ -85,6 +87,25 @@ async def to_code(config):
                         server_courtesy_response[CONF_REGISTER_LAST_ADDRESS],
                     ),
                     ("register_value", server_courtesy_response[CONF_REGISTER_VALUE]),
+                )
+            )
+        )
+    if read_write_lambda := config.get(CONF_READ_WRITE_LAMBDA):
+        cg.add(
+            var.set_read_write_lambda(
+                await cg.process_lambda(
+                    read_write_lambda,
+                    [
+                        (cg.uint16, "read_address"),
+                        (cg.uint16, "read_count"),
+                        (cg.uint16, "write_address"),
+                        (
+                            modbus.RegisterValues.operator("ref").operator("const"),
+                            "write_values",
+                        ),
+                        (modbus.RegisterValues.operator("ref"), "read_values"),
+                    ],
+                    return_type=cg.bool_,
                 )
             )
         )
