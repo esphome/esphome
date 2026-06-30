@@ -17,7 +17,7 @@ enum class CardType : uint8_t {
 };
 
 struct SdFileHandle : public storage::FileHandle {
-  char path_buf[storage::STORAGE_MAX_PATH_LEN]{};
+  char path_buf[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)]{};
 };
 
 // Base class for both SDMMC and SPI implementations.

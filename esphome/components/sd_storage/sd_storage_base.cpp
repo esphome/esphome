@@ -147,7 +147,7 @@ storage::StorageError SdStorageBase::stat(const char *path, storage::FileStat *s
   if (!this->is_mounted_)
     return storage::StorageError::NOT_READY;
 
-  char full[storage::STORAGE_MAX_PATH_LEN];
+  char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   if (!this->build_full_path(path, full, sizeof(full)))
     return storage::StorageError::INVALID_ARGS;
 
@@ -167,7 +167,7 @@ storage::StorageError SdStorageBase::list_dir(const char *path,
   if (!this->is_mounted_)
     return storage::StorageError::NOT_READY;
 
-  char full[storage::STORAGE_MAX_PATH_LEN];
+  char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   if (!this->build_full_path(path, full, sizeof(full)))
     return storage::StorageError::INVALID_ARGS;
 
@@ -186,9 +186,9 @@ storage::StorageError SdStorageBase::list_dir(const char *path,
     entry.is_dir = (ent->d_type == DT_DIR);
 
     if (!entry.is_dir) {
-      char rel[storage::STORAGE_MAX_PATH_LEN];
+      char rel[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
       snprintf(rel, sizeof(rel), "%s/%s", path, ent->d_name);
-      char entry_full[storage::STORAGE_MAX_PATH_LEN];
+      char entry_full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
       struct stat s;
       if (this->build_full_path(rel, entry_full, sizeof(entry_full)))
         entry.size = (::stat(entry_full, &s) == 0) ? static_cast<size_t>(s.st_size) : 0;
@@ -205,7 +205,7 @@ storage::StorageError SdStorageBase::mkdir(const char *path) {
   if (!this->is_mounted_)
     return storage::StorageError::NOT_READY;
 
-  char full[storage::STORAGE_MAX_PATH_LEN];
+  char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   if (!this->build_full_path(path, full, sizeof(full)))
     return storage::StorageError::INVALID_ARGS;
 
@@ -216,7 +216,7 @@ storage::StorageError SdStorageBase::rmdir(const char *path, bool recursive) {
   if (!this->is_mounted_)
     return storage::StorageError::NOT_READY;
 
-  char full[storage::STORAGE_MAX_PATH_LEN];
+  char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   if (!this->build_full_path(path, full, sizeof(full)))
     return storage::StorageError::INVALID_ARGS;
 
@@ -230,7 +230,7 @@ storage::StorageError SdStorageBase::rmdir(const char *path, bool recursive) {
       if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
         continue;
 
-      char child_rel[storage::STORAGE_MAX_PATH_LEN];
+      char child_rel[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
       if (snprintf(child_rel, sizeof(child_rel), "%s/%s", path, ent->d_name) >= static_cast<int>(sizeof(child_rel)))
         continue;
 
@@ -255,7 +255,7 @@ storage::StorageError SdStorageBase::remove(const char *path) {
   if (!this->is_mounted_)
     return storage::StorageError::NOT_READY;
 
-  char full[storage::STORAGE_MAX_PATH_LEN];
+  char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   if (!this->build_full_path(path, full, sizeof(full)))
     return storage::StorageError::INVALID_ARGS;
 
@@ -266,8 +266,8 @@ storage::StorageError SdStorageBase::rename(const char *old_path, const char *ne
   if (!this->is_mounted_)
     return storage::StorageError::NOT_READY;
 
-  char full_old[storage::STORAGE_MAX_PATH_LEN];
-  char full_new[storage::STORAGE_MAX_PATH_LEN];
+  char full_old[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
+  char full_new[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   if (!this->build_full_path(old_path, full_old, sizeof(full_old)))
     return storage::StorageError::INVALID_ARGS;
   if (!this->build_full_path(new_path, full_new, sizeof(full_new)))
@@ -280,8 +280,8 @@ storage::StorageError SdStorageBase::copy(const char *src_path, const char *dst_
   if (!this->is_mounted_)
     return storage::StorageError::NOT_READY;
 
-  char full_src[storage::STORAGE_MAX_PATH_LEN];
-  char full_dst[storage::STORAGE_MAX_PATH_LEN];
+  char full_src[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
+  char full_dst[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   if (!this->build_full_path(src_path, full_src, sizeof(full_src)))
     return storage::StorageError::INVALID_ARGS;
   if (!this->build_full_path(dst_path, full_dst, sizeof(full_dst)))
