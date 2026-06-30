@@ -658,11 +658,6 @@ def test_get_python_env_executable_path_nt() -> None:
 
 
 class TestTarExtractAllBranches:
-    @pytest.mark.skipif(
-        sys.version_info < (3, 12),
-        reason="patching os.name makes pathlib build a WindowsPath, which only "
-        "instantiates on POSIX in 3.12+",
-    )
     def test_windows_drive_path_skipped(self, tmp_path: Path) -> None:
         """Windows-style drive path (C:/...) is skipped when os.name == 'nt'."""
         info = tarfile.TarInfo(name="C:/secret.txt")
@@ -755,11 +750,6 @@ class TestTarExtractAllBranches:
 
 
 class TestZipExtractAllBranches:
-    @pytest.mark.skipif(
-        sys.version_info < (3, 12),
-        reason="patching os.name makes pathlib build a WindowsPath, which only "
-        "instantiates on POSIX in 3.12+",
-    )
     def test_windows_drive_path_skipped(self, tmp_path: Path) -> None:
         """Windows-style drive path (C:/...) is skipped when os.name == 'nt'."""
         buf = _make_zip([("C:/secret.txt", "bad")])
