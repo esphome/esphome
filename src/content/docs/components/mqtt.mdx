@@ -11,6 +11,8 @@ The MQTT Client Component sets up the MQTT connection to your broker.
 If you are connecting to Home Assistant, you may prefer to use the native API,
 in which case this is not needed.
 
+MQTT is supported on the ESP32, ESP8266, BK72xx, LN882H and RTL87xx platforms.
+
 > [!WARNING]
 > If you enable MQTT and you do *not* use the [Api](/components/api/), you must
 > remove the `api:` configuration or set `reboot_timeout: 0s`, otherwise the ESP will
