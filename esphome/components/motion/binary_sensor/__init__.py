@@ -61,8 +61,8 @@ CONFIG_SCHEMA = cv.typed_schema(
     {
         "face_up": _binary_sensor_schema(30.0, _angle_threshold),
         "face_down": _binary_sensor_schema(30.0, _angle_threshold),
-        "free_fall": _binary_sensor_schema(0.15, cv.float_, "100ms"),
-        "moving": _binary_sensor_schema(0.05, cv.float_, "2s"),
+        "free_fall": _binary_sensor_schema(0.15, cv.positive_float, "100ms"),
+        "moving": _binary_sensor_schema(0.05, cv.positive_float, "2s"),
     }
 )
 

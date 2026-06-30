@@ -1016,14 +1016,13 @@ def mock_binary_sensor_codegen():
 
 @pytest.mark.asyncio
 async def test_binary_sensor_to_code(mock_binary_sensor_codegen):
-    from esphome.core import TimePeriod
 
+    # face_up has no duration: only the threshold is configured.
     config = {
         "id": "my_binary_sensor_id",
         "type": "face_up",
         "motion_id": "my_motion_component",
         "threshold": 30.0,
-        "duration": TimePeriod(milliseconds=100),
     }
     await binary_sensor_to_code(config)
     mock_binary_sensor_codegen["get_variable"].assert_called_once_with(
@@ -1036,10 +1035,31 @@ async def test_binary_sensor_to_code(mock_binary_sensor_codegen):
     mock_binary_sensor_codegen["register_component"].assert_called_once_with(
         mock_binary_sensor_codegen["var"], config
     )
-    assert mock_binary_sensor_codegen["add"].call_count == 2
+    assert mock_binary_sensor_codegen["add"].call_count == 1
     # face_up threshold is configured in degrees and converted to a cosine for C++.
     mock_binary_sensor_codegen["var"].set_threshold.assert_called_once_with(
         pytest.approx(math.cos(math.radians(30.0)))
+    )
+
+
+@pytest.mark.asyncio
+async def test_binary_sensor_to_code_with_duration(mock_binary_sensor_codegen):
+    from esphome.core import TimePeriod
+
+    # free_fall has a duration: both threshold and duration are configured, and the
+    # threshold is passed straight through (no degrees-to-cosine conversion).
+    config = {
+        "id": "my_binary_sensor_id",
+        "type": "free_fall",
+        "motion_id": "my_motion_component",
+        "threshold": 0.15,
+        "duration": TimePeriod(milliseconds=100),
+    }
+    await binary_sensor_to_code(config)
+    assert mock_binary_sensor_codegen["add"].call_count == 2
+    mock_binary_sensor_codegen["var"].set_threshold.assert_called_once_with(0.15)
+    mock_binary_sensor_codegen["var"].set_duration.assert_called_once_with(
+        TimePeriod(milliseconds=100)
     )
 
 

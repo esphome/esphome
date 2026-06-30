@@ -115,33 +115,36 @@ void MotionBinarySensor::process_motion_data_(const MotionData &data) {
 
       bool moving = false;
 
-      // Check acceleration delta
-      if (!std::isnan(ax) && !std::isnan(this->last_accel_[0])) {
-        float dx = ax - this->last_accel_[0];
-        float dy = ay - this->last_accel_[1];
-        float dz = az - this->last_accel_[2];
-        float accel_diff = std::sqrt(dx * dx + dy * dy + dz * dz);
-        if (accel_diff > this->threshold_) {
-          moving = true;
+      // Check acceleration delta. Require all three axes to be valid so a NaN on any
+      // axis can't poison last_accel_ and silently stop motion detection.
+      bool accel_valid = !std::isnan(ax) && !std::isnan(ay) && !std::isnan(az);
+      if (accel_valid) {
+        if (!std::isnan(this->last_accel_[0])) {
+          float dx = ax - this->last_accel_[0];
+          float dy = ay - this->last_accel_[1];
+          float dz = az - this->last_accel_[2];
+          float accel_diff = std::sqrt(dx * dx + dy * dy + dz * dz);
+          if (accel_diff > this->threshold_) {
+            moving = true;
+          }
         }
-      }
-      if (!std::isnan(ax)) {
         this->last_accel_[0] = ax;
         this->last_accel_[1] = ay;
         this->last_accel_[2] = az;
       }
 
-      // Check angular rate delta
-      if (!std::isnan(gx) && !std::isnan(this->last_gyro_[0])) {
-        float dgx = gx - this->last_gyro_[0];
-        float dgy = gy - this->last_gyro_[1];
-        float dgz = gz - this->last_gyro_[2];
-        float gyro_diff = std::sqrt(dgx * dgx + dgy * dgy + dgz * dgz);
-        if (gyro_diff > this->threshold_ * 50.0f) {
-          moving = true;
+      // Check angular rate delta. Require all three axes to be valid for the same reason.
+      bool gyro_valid = !std::isnan(gx) && !std::isnan(gy) && !std::isnan(gz);
+      if (gyro_valid) {
+        if (!std::isnan(this->last_gyro_[0])) {
+          float dgx = gx - this->last_gyro_[0];
+          float dgy = gy - this->last_gyro_[1];
+          float dgz = gz - this->last_gyro_[2];
+          float gyro_diff = std::sqrt(dgx * dgx + dgy * dgy + dgz * dgz);
+          if (gyro_diff > this->threshold_ * 50.0f) {
+            moving = true;
+          }
         }
-      }
-      if (!std::isnan(gx)) {
         this->last_gyro_[0] = gx;
         this->last_gyro_[1] = gy;
         this->last_gyro_[2] = gz;
