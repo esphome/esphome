@@ -267,7 +267,6 @@ void EPaperBase::process_state_() {
         // Skip power-off/deep-sleep; the display stays powered on. Wait for the
         // physical refresh to complete, then immediately start the next update.
         this->set_state_(EPaperState::UPDATE);
-        this->wait_for_idle_(true);
       } else {
         this->set_state_(EPaperState::POWER_OFF);
       }
