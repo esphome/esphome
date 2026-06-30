@@ -88,7 +88,9 @@ def _get_idf_tools_path() -> Path:
         # Machine-global so all projects share the multi-GB install instead of
         # a per-config-directory copy. The user cache dir (not ~/.esphome)
         # avoids colliding with data_dir when configs live in the home dir.
-        path = Path(platformdirs.user_cache_dir("esphome")) / "idf"
+        # appauthor=False drops the redundant <author>\ segment on Windows
+        # (which otherwise repeats "esphome\esphome\") to keep the path short.
+        path = Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "idf"
     # Resolve so an unnormalized config path (e.g. compiling ``../config/x.yaml``)
     # doesn't leave ``..`` segments in the IDF_TOOLS_PATH handed to idf.py, which
     # otherwise warns that the venv interpreter path doesn't match the install.

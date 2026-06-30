@@ -812,7 +812,9 @@ def test_get_idf_tools_path_default_uses_user_cache(
     import platformdirs
 
     monkeypatch.delenv("ESPHOME_ESP_IDF_PREFIX", raising=False)
-    expected = (Path(platformdirs.user_cache_dir("esphome")) / "idf").resolve()
+    expected = (
+        Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "idf"
+    ).resolve()
     assert _get_idf_tools_path() == expected
 
 
