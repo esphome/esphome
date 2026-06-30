@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_DISABLED,
     CONF_MDNS,
     KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     Toolchain,
@@ -179,6 +180,8 @@ class StorageJSON:
 
             hardware = esp32.get_esp32_variant(esph)
             framework_version = str(esp32.idf_version())
+        elif esph.is_nrf52:
+            framework_version = str(esph.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
         return StorageJSON(
             storage_version=1,
             name=esph.name,
@@ -334,6 +337,19 @@ class StorageJSON:
                         f"Please clean the build files and recompile."
                     ) from err
             CORE.data[KEY_ESP32] = esp32_data
+        elif target_platform == const.PLATFORM_NRF52 and self.framework_version:
+            import esphome.config_validation as cv
+
+            try:
+                CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
+                    self.framework_version
+                )
+            except ValueError as err:
+                raise EsphomeError(
+                    f"Could not parse the framework version "
+                    f"{self.framework_version!r} from {storage_path()}. "
+                    f"Please clean the build files and recompile."
+                ) from err
 
     def __eq__(self, o) -> bool:
         return isinstance(o, StorageJSON) and self.as_dict() == o.as_dict()

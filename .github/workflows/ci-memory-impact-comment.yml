@@ -60,7 +60,7 @@ jobs:
         if: steps.pr.outputs.skip != 'true'
         uses: ./.github/actions/restore-python
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache-key: ${{ hashFiles('.cache-key') }}
 
       - name: Download memory analysis artifacts

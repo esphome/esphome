@@ -51,6 +51,29 @@ _load_listeners: list[Callable[[Path], None]] = []
 
 DocumentPath = list[str | int]
 
+# Key under CORE.data used to accumulate keys that a `<<` merge silently
+# dropped. The warning is emitted later (see esphome.config.validate_config),
+# because the esphome: option that suppresses it isn't known while parsing.
+_MERGE_WARNINGS_KEY = "yaml_dropped_merge_keys"
+
+
+def _record_dropped_merge_key(parent_file: Path, key: Any) -> None:
+    """Record a mapping key that a ``<<`` merge silently dropped.
+
+    Merge keys follow the YAML spec's shallow, first-wins semantics: a key that
+    already exists in the mapping (or came from an earlier merge) is discarded
+    rather than deep-merged the way ``packages:`` would combine it. We collect
+    these so a single warning can be emitted once the config is loaded.
+    """
+    esp_range = getattr(key, "esp_range", None)
+    location = str(esp_range.start_mark) if esp_range is not None else str(parent_file)
+    CORE.data.setdefault(_MERGE_WARNINGS_KEY, []).append((str(key), location))
+
+
+def take_dropped_merge_keys() -> list[tuple[str, str]]:
+    """Return and clear the keys dropped during ``<<`` merges so far."""
+    return CORE.data.pop(_MERGE_WARNINGS_KEY, [])
+
 
 class SensitiveStr(str):
     """Marker subclass for validated strings that should be masked in
@@ -551,6 +574,10 @@ class ESPHomeLoaderMixin:
                     #  is expected to contain mapping nodes and each of these nodes is merged in
                     #  turn according to its order in the sequence. Keys in mapping nodes earlier
                     #  in the sequence override keys specified in later mapping nodes."
+                    #
+                    # This is a silent shallow drop (unlike `packages:`, which deep-merges).
+                    # Record it so a warning can be emitted after the config loads.
+                    _record_dropped_merge_key(self.name, key)
                     continue
                 pairs.append((key, value))
                 # Add key node to seen keys, for sequence merge values.

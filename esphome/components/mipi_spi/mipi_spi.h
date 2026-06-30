@@ -151,6 +151,9 @@ class MipiSpi : public display::Display,
       this->reset_pin_->digital_write(false);
       delay(5);
       this->reset_pin_->digital_write(true);
+    } else {
+      // no reset pin, send software reset command
+      this->write_command_(SW_RESET_CMD);
     }
 
     // need to know when the display is ready for SLPOUT command - will be 120ms after reset
