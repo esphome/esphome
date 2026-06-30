@@ -2508,7 +2508,7 @@ async def to_code(config):
     # Components that need FATFS (SD card, etc.) can call require_fatfs()
     if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
         # Component called require_fatfs() - enable regardless of user setting
-        add_idf_sdkconfig_option("CONFIG_FATFS_LFN_NONE", False)
+        # LFN mode is set explicitly via LFN_HEAP/LFN_STACK below; do not set LFN_NONE
         lfn_max = CORE.data[KEY_ESP32].get(KEY_FATFS_LFN_MAX, 0)
         if lfn_max > 0:
             add_idf_sdkconfig_option("CONFIG_FATFS_MAX_LFN", lfn_max)
