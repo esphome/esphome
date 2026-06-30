@@ -121,4 +121,108 @@ TEST(ModbusServerWrite, CallbackFailureIsServiceDeviceFailure) {
   EXPECT_TRUE(first_written);  // pre-validation passed, so the first write applied before the failure
 }
 
+// Function code 0x17 performs the write before the read, so a register read in the same transaction
+// observes the value just written through the default per-register routing.
+TEST(ModbusServerReadWrite, DefaultRoutingAppliesWriteBeforeRead) {
+  ModbusServer server;
+  uint16_t stored = 0x0000;
+  ServerRegister reg(0x0000, SensorValueType::U_WORD, 1);
+  reg.read_lambda = [&stored]() { return static_cast<int64_t>(stored); };
+  reg.write_lambda = [&stored](int64_t value) {
+    stored = static_cast<uint16_t>(value);
+    return true;
+  };
+  server.add_server_register(&reg);
+
+  RegisterValues read_registers;
+  auto status = server.on_modbus_read_write_registers(0x0000, 1, 0x0000, make_registers({0xBEEF}), read_registers);
+  EXPECT_FALSE(status.has_value());
+  ASSERT_EQ(read_registers.size(), 1u);
+  EXPECT_EQ(read_registers[0], 0xBEEF);
+}
+
+// When the write half fails, the default routing returns that exception and never serves the read.
+TEST(ModbusServerReadWrite, DefaultRoutingWriteFailureSkipsRead) {
+  ModbusServer server;
+  bool read_called = false;
+  ServerRegister read_reg(0x0000, SensorValueType::U_WORD, 1);
+  read_reg.read_lambda = [&read_called]() {
+    read_called = true;
+    return static_cast<int64_t>(0x1234);
+  };
+  server.add_server_register(&read_reg);
+
+  // Write targets an unregistered address, so the write fails and the read must be skipped.
+  RegisterValues read_registers;
+  auto status = server.on_modbus_read_write_registers(0x0000, 1, 0x0010, make_registers({0x0001}), read_registers);
+  ASSERT_TRUE(status.has_value());
+  if (status.has_value())
+    EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+  EXPECT_FALSE(read_called);
+  EXPECT_TRUE(read_registers.empty());
+}
+
+// A configured transaction handler takes full control: it receives the request context, builds the
+// response, and the per-register read/write handlers are bypassed entirely.
+TEST(ModbusServerReadWrite, LambdaOverridesPerRegisterHandlers) {
+  ModbusServer server;
+  bool reg_read = false;
+  bool reg_written = false;
+  ServerRegister reg(0x0000, SensorValueType::U_WORD, 1);
+  reg.read_lambda = [&reg_read]() {
+    reg_read = true;
+    return static_cast<int64_t>(0);
+  };
+  reg.write_lambda = [&reg_written](int64_t) {
+    reg_written = true;
+    return true;
+  };
+  server.add_server_register(&reg);
+
+  uint16_t seen_read_address = 0;
+  uint16_t seen_read_count = 0;
+  uint16_t seen_write_address = 0;
+  size_t seen_write_count = 0;
+  uint16_t seen_write_value = 0;
+  server.set_read_write_lambda([&](uint16_t read_address, uint16_t read_count, uint16_t write_address,
+                                   const RegisterValues &write_values, RegisterValues &read_values) {
+    seen_read_address = read_address;
+    seen_read_count = read_count;
+    seen_write_address = write_address;
+    seen_write_count = write_values.size();
+    if (!write_values.empty())
+      seen_write_value = write_values[0];
+    for (uint16_t i = 0; i < read_count; i++)
+      read_values.push_back(0xA000 + i);
+    return true;
+  });
+
+  // The register at 0x0000 has both handlers, so if routing fell through to them they would run.
+  RegisterValues read_registers;
+  auto status = server.on_modbus_read_write_registers(0x0000, 1, 0x0000, make_registers({0x0102}), read_registers);
+  EXPECT_FALSE(status.has_value());
+  EXPECT_FALSE(reg_read);
+  EXPECT_FALSE(reg_written);
+  EXPECT_EQ(seen_read_address, 0x0000);
+  EXPECT_EQ(seen_read_count, 1);
+  EXPECT_EQ(seen_write_address, 0x0000);
+  EXPECT_EQ(seen_write_count, 1u);
+  EXPECT_EQ(seen_write_value, 0x0102);
+  ASSERT_EQ(read_registers.size(), 1u);
+  EXPECT_EQ(read_registers[0], 0xA000);
+}
+
+// A transaction handler that rejects the request maps to an ILLEGAL_DATA_ADDRESS exception.
+TEST(ModbusServerReadWrite, LambdaFailureIsIllegalDataAddress) {
+  ModbusServer server;
+  server.set_read_write_lambda(
+      [](uint16_t, uint16_t, uint16_t, const RegisterValues &, RegisterValues &) { return false; });
+
+  RegisterValues read_registers;
+  auto status = server.on_modbus_read_write_registers(0x0000, 1, 0x0000, make_registers({0x0001}), read_registers);
+  ASSERT_TRUE(status.has_value());
+  if (status.has_value())
+    EXPECT_EQ(status.value(), ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
+}
+
 }  // namespace esphome::modbus_server
