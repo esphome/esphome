@@ -10,6 +10,12 @@ static const char *const TAG = "modbus_server";
 
 // The widest Modbus value type (QWORD) spans four registers.
 static constexpr uint8_t MAX_REGISTERS_PER_VALUE = 4;
+// number_to_payload() encodes the 64-bit value returned by read_lambda() into 16-bit registers, so the
+// widest possible value spans exactly sizeof(int64_t) / sizeof(uint16_t) registers. Tie the bound to that
+// source so a future wider value type -- which would require widening the encoded value itself -- can't
+// silently overflow the value_words buffer below (StaticVector::push_back drops words past capacity).
+static_assert(MAX_REGISTERS_PER_VALUE == sizeof(int64_t) / sizeof(uint16_t),
+              "MAX_REGISTERS_PER_VALUE must match the register span of the widest encodable value");
 
 ServerRegister *ModbusServer::find_containing_register_(uint32_t address) const {
   for (auto *server_register : this->server_registers_) {
