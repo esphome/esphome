@@ -804,6 +804,24 @@ def test_get_idf_tools_path_env_override(tmp_path: Path) -> None:
         assert _get_idf_tools_path() == Path(override)
 
 
+@pytest.mark.parametrize("value", ["", "   "])
+def test_get_idf_tools_path_blank_env_falls_back_to_default(
+    value: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A blank ESPHOME_ESP_IDF_PREFIX is treated as unset, not as CWD.
+
+    Path("") would resolve to the working directory, which clean-all could then
+    delete by accident.
+    """
+    import platformdirs
+
+    monkeypatch.setenv("ESPHOME_ESP_IDF_PREFIX", value)
+    expected = (
+        Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "idf"
+    ).resolve()
+    assert _get_idf_tools_path() == expected
+
+
 def test_get_idf_tools_path_default_uses_user_cache(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

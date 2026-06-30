@@ -82,8 +82,11 @@ def _get_idf_tools_path() -> Path:
     Returns:
         Path object pointing to the ESP-IDF tools directory
     """
-    if "ESPHOME_ESP_IDF_PREFIX" in os.environ:
-        path = Path(get_str_env("ESPHOME_ESP_IDF_PREFIX", None)).expanduser()
+    # Treat an empty/whitespace ESPHOME_ESP_IDF_PREFIX as unset: Path("")
+    # resolves to the CWD, which would install into (and let clean-all delete)
+    # the working directory by accident.
+    if prefix := get_str_env("ESPHOME_ESP_IDF_PREFIX", "").strip():
+        path = Path(prefix).expanduser()
     else:
         # Machine-global so all projects share the multi-GB install instead of
         # a per-config-directory copy. The user cache dir (not ~/.esphome)
