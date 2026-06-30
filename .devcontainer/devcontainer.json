@@ -15,7 +15,6 @@
     // uncomment and edit the path in order to pass through local USB serial to the container
     // , "--device=/dev/ttyACM0"
   ],
-  "appPort": 6052,
   // if you are using avahi in the host device, uncomment these to allow the
   // devcontainer to find devices via mdns
   //"mounts": [
