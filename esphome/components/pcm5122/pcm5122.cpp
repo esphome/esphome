@@ -10,6 +10,12 @@ namespace esphome::pcm5122 {
 static const char *const TAG = "pcm5122";
 
 void PCM5122::setup() {
+  // Hold XSMT low (soft mute asserted) until init completes
+  if (this->enable_pin_ != nullptr) {
+    this->enable_pin_->setup();
+    this->enable_pin_->digital_write(false);
+  }
+
   // Select page 0 and verify chip presence via I2C ACK
   if (!this->select_page_(0)) {
     ESP_LOGE(TAG, "Write failed");
@@ -51,6 +57,16 @@ void PCM5122::setup() {
   }
   this->reg(PCM5122_REG_AUDIO_FORMAT) = PCM5122_AUDIO_FORMAT_I2S | alen;
 
+  if (!this->write_channel_mix_()) {
+    this->mark_failed();
+    return;
+  }
+
+  if (!this->write_analog_gain_()) {
+    this->mark_failed();
+    return;
+  }
+
   // PLL reference clock: BCK
   optional<uint8_t> pll_ref = this->read_byte(PCM5122_REG_PLL_REF);
   if (!pll_ref.has_value()) {
@@ -67,6 +83,11 @@ void PCM5122::setup() {
     this->mark_failed();
     return;
   }
+
+  // Release XSMT (soft un-mute) now that init has completed
+  if (this->enable_pin_ != nullptr) {
+    this->enable_pin_->digital_write(true);
+  }
 }
 
 void PCM5122::dump_config() {
@@ -74,8 +95,10 @@ void PCM5122::dump_config() {
   LOG_I2C_DEVICE(this);
   ESP_LOGCONFIG(TAG,
                 "  Bits per sample: %u\n"
+                "  Analog gain: %s\n"
                 "  Muted: %s",
-                this->bits_per_sample_, YESNO(this->is_muted_));
+                this->bits_per_sample_, this->analog_gain_ == PCM5122_ANALOG_GAIN_0DB ? "0 dB" : "-6 dB",
+                YESNO(this->is_muted_));
 }
 
 bool PCM5122::set_mute_off() {
@@ -118,11 +141,11 @@ bool PCM5122::write_mute_() {
 }
 
 bool PCM5122::write_volume_() {
-  // DVOL register: 0x00 = +24 dB, 0x30 = 0 dB, 0xFF = mute (-0.5 dB/step).
-  // Note: volume=0.0 maps to -52.5 dB (still audible), not true silence.
+  // DVOL register: 0x00 = +24 dB, 0x30 = 0 dB, 0xFE = -103 dB, 0xFF = mute (-0.5 dB/step).
+  // Note: volume=0.0 maps to volume_min_db_, which is not true silence unless set to -103 dB.
   // Use set_mute_on() for silence.
-  const uint8_t dvol_max_volume = 0x30;  // 0 dB at full scale
-  const uint8_t dvol_min_volume = 0x99;  // -52.5 dB at minimum
+  const uint8_t dvol_max_volume = static_cast<uint8_t>(lroundf(0x30 - this->volume_max_db_ * 2.0f));
+  const uint8_t dvol_min_volume = static_cast<uint8_t>(lroundf(0x30 - this->volume_min_db_ * 2.0f));
 
   const uint8_t volume_byte =
       dvol_max_volume + static_cast<uint8_t>(lroundf((1.0f - this->volume_) * (dvol_min_volume - dvol_max_volume)));
@@ -132,6 +155,44 @@ bool PCM5122::write_volume_() {
   if (!this->select_page_(0) || !this->write_byte(PCM5122_REG_DVOL_LEFT, volume_byte) ||
       !this->write_byte(PCM5122_REG_DVOL_RIGHT, volume_byte)) {
     ESP_LOGE(TAG, "Writing volume failed");
+    return false;
+  }
+  return true;
+}
+
+bool PCM5122::write_analog_gain_() {
+  uint8_t gain_byte = this->analog_gain_;
+  if (!this->select_page_(1) || !this->write_byte(PCM5122_REG_ANALOG_GAIN, gain_byte)) {
+    ESP_LOGE(TAG, "Writing analog gain failed");
+    return false;
+  }
+  return true;
+}
+
+bool PCM5122::write_channel_mix_() {
+  uint8_t channel_mix_byte = this->channel_mix_;
+  if (!this->select_page_(0) || !this->write_byte(PCM5122_REG_DAC_DATA_PATH, channel_mix_byte)) {
+    ESP_LOGE(TAG, "Writing channel mix failed");
+    return false;
+  }
+  return true;
+}
+
+bool PCM5122::set_standby(bool enable) {
+  this->standby_ = enable;
+  return this->write_power_control_();
+}
+
+bool PCM5122::set_powerdown(bool enable) {
+  this->powerdown_ = enable;
+  return this->write_power_control_();
+}
+
+bool PCM5122::write_power_control_() {
+  uint8_t power_byte =
+      (this->standby_ ? PCM5122_POWER_CONTROL_RQST : 0) | (this->powerdown_ ? PCM5122_POWER_CONTROL_RQPD : 0);
+  if (!this->select_page_(0) || !this->write_byte(PCM5122_REG_POWER_CONTROL, power_byte)) {
+    ESP_LOGE(TAG, "Writing power control failed");
     return false;
   }
   return true;
