@@ -933,3 +933,5 @@ def test_check_windows_path_length_long_path_warns(
     message = caplog.records[0].getMessage()
     assert _LONG_IDF_PATH in message
     assert "long path support" in message
+    # The install is global now; the remedy is the prefix env, not moving the project.
+    assert "ESPHOME_ESP_IDF_PREFIX" in message

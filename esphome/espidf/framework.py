@@ -153,7 +153,7 @@ def _check_windows_path_length() -> None:
         "  - Enable Windows long path support: set\n"
         "    HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem\\LongPathsEnabled\n"
         "    to 1 and reboot, or\n"
-        "  - Move your ESPHome project to a shorter path\n"
+        "  - Set ESPHOME_ESP_IDF_PREFIX to a shorter path (e.g. C:\\esphome-idf)\n"
         "Then delete the ESP-IDF tools directory above so the toolchain "
         "reinstalls cleanly.",
         tools_path,
