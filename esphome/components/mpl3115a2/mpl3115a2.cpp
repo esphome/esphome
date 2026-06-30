@@ -75,16 +75,16 @@ void MPL3115A2Component::update() {
   float altitude = 0, pressure = 0;
   if (this->altitude_ != nullptr) {
     int32_t alt = encode_uint32(buffer[0], buffer[1], buffer[2], 0);
-    altitude = float(alt) / 65536.0;
+    altitude = float(alt) / 65536.0f;
     this->altitude_->publish_state(altitude);
   } else {
     uint32_t p = encode_uint32(0, buffer[0], buffer[1], buffer[2]);
-    pressure = float(p) / 6400.0;
+    pressure = float(p) / 6400.0f;
     if (this->pressure_ != nullptr)
       this->pressure_->publish_state(pressure);
   }
   int16_t t = encode_uint16(buffer[3], buffer[4]);
-  float temperature = float(t) / 256.0;
+  float temperature = float(t) / 256.0f;
   if (this->temperature_ != nullptr)
     this->temperature_->publish_state(temperature);
 

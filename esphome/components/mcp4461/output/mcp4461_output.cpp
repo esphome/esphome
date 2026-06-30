@@ -29,7 +29,9 @@ void Mcp4461Wiper::write_state(float state) {
   }
 }
 
-float Mcp4461Wiper::read_state() { return (static_cast<float>(this->parent_->get_wiper_level_(this->wiper_)) / 256.0); }
+float Mcp4461Wiper::read_state() {
+  return (static_cast<float>(this->parent_->get_wiper_level_(this->wiper_)) / 256.0f);
+}
 
 float Mcp4461Wiper::update_state() {
   this->state_ = this->read_state();

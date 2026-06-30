@@ -254,9 +254,14 @@ void EthernetComponent::ethernet_lazy_init_() {
   esp32_emac_config.smi_mdc_gpio_num = this->mdc_pin_;
   esp32_emac_config.smi_mdio_gpio_num = this->mdio_pin_;
 #endif
-  esp32_emac_config.clock_config.rmii.clock_mode = this->clk_mode_;
-  esp32_emac_config.clock_config.rmii.clock_gpio =
-      static_cast<decltype(esp32_emac_config.clock_config.rmii.clock_gpio)>(this->clk_pin_);
+  // The RGMII types (GENERIC, YT8531) use the RGMII interface and default GPIO map from
+  // eth_esp32_emac_default_config(); writing the RMII clock config would clobber that
+  // union, so skip the RMII clock override for them.
+  if (this->type_ != ETHERNET_TYPE_GENERIC && this->type_ != ETHERNET_TYPE_YT8531) {
+    esp32_emac_config.clock_config.rmii.clock_mode = this->clk_mode_;
+    esp32_emac_config.clock_config.rmii.clock_gpio =
+        static_cast<decltype(esp32_emac_config.clock_config.rmii.clock_gpio)>(this->clk_pin_);
+  }
 
   esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&esp32_emac_config, &mac_config);
 #endif
@@ -319,6 +324,20 @@ void EthernetComponent::ethernet_lazy_init_() {
       break;
     }
 #endif
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    // GENERIC and YT8531 both use the built-in generic 802.3 PHY driver; YT8531 gets
+    // extra chip-specific tuning applied later in ethernet_lazy_init_().
+#ifdef USE_ETHERNET_GENERIC
+    case ETHERNET_TYPE_GENERIC:
+#endif
+#ifdef USE_ETHERNET_YT8531
+    case ETHERNET_TYPE_YT8531:
+#endif
+#if defined(USE_ETHERNET_GENERIC) || defined(USE_ETHERNET_YT8531)
+      this->phy_ = esp_eth_phy_new_generic(&phy_config);
+      break;
+#endif
+#endif
 #endif
 #ifdef USE_ETHERNET_SPI
 #if defined(USE_ETHERNET_W5500)
@@ -363,7 +382,30 @@ void EthernetComponent::ethernet_lazy_init_() {
   for (const auto &phy_register : this->phy_registers_) {
     this->write_phy_register_(mac, phy_register);
   }
+
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#ifdef USE_ETHERNET_GENERIC
+  // The generic 802.3 PHY driver only resets the PHY in its init; it never enables
+  // auto-negotiation. A PHY that resets into a forced-speed mode (BMCR auto-nego bit
+  // clear) therefore stays there, and esp_eth_start() skips negotiation because the
+  // driver cached auto_nego_en=false at install time. Force auto-negotiation on here
+  // (which also updates that cached state) so esp_eth_start() restarts a proper
+  // negotiation. (YT8531 does this as part of its own chip-specific init below.)
+  if (this->type_ == ETHERNET_TYPE_GENERIC) {
+    bool autoneg_enable = true;
+    err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_S_AUTONEGO, &autoneg_enable);
+    ESPHL_ERROR_CHECK(err, "Enable auto-negotiation failed");
+  }
 #endif
+#ifdef USE_ETHERNET_YT8531
+  if (this->type_ == ETHERNET_TYPE_YT8531) {
+    this->yt8531_phy_init_();
+    if (this->is_failed())
+      return;
+  }
+#endif
+#endif  // ESP_IDF_VERSION >= 6.0.0
+#endif  // !USE_ETHERNET_SPI
 
   // use ESP internal eth mac
   uint8_t mac_addr[6];
@@ -484,6 +526,16 @@ void EthernetComponent::dump_config() {
 #ifdef USE_ETHERNET_LAN8670
     case ETHERNET_TYPE_LAN8670:
       eth_type = "LAN8670";
+      break;
+#endif
+#ifdef USE_ETHERNET_GENERIC
+    case ETHERNET_TYPE_GENERIC:
+      eth_type = "Generic (RGMII)";
+      break;
+#endif
+#ifdef USE_ETHERNET_YT8531
+    case ETHERNET_TYPE_YT8531:
+      eth_type = "YT8531 (RGMII)";
       break;
 #endif
 
@@ -782,6 +834,19 @@ void EthernetComponent::dump_connect_params_() {
   char dns1_buf[network::IP_ADDRESS_BUFFER_SIZE];
   char dns2_buf[network::IP_ADDRESS_BUFFER_SIZE];
   char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  uint16_t link_speed = 10;
+  switch (this->get_link_speed()) {
+    case ETH_SPEED_100M:
+      link_speed = 100;
+      break;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    case ETH_SPEED_1000M:
+      link_speed = 1000;
+      break;
+#endif
+    default:
+      break;
+  }
   ESP_LOGCONFIG(TAG,
                 "  IP Address: %s\n"
                 "  Hostname: '%s'\n"
@@ -796,7 +861,7 @@ void EthernetComponent::dump_connect_params_() {
                 network::IPAddress(&ip.netmask).str_to(subnet_buf), network::IPAddress(&ip.gw).str_to(gateway_buf),
                 network::IPAddress(dns_ip1).str_to(dns1_buf), network::IPAddress(dns_ip2).str_to(dns2_buf),
                 this->get_eth_mac_address_pretty_into_buffer(mac_buf),
-                YESNO(this->get_duplex_mode() == ETH_DUPLEX_FULL), this->get_link_speed() == ETH_SPEED_100M ? 100 : 10);
+                YESNO(this->get_duplex_mode() == ETH_DUPLEX_FULL), link_speed);
 
 #if USE_NETWORK_IPV6
   struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
@@ -957,6 +1022,50 @@ void EthernetComponent::write_phy_register_(esp_eth_mac_t *mac, PHYRegister regi
   }
 #endif
 }
+
+#ifdef USE_ETHERNET_YT8531
+void EthernetComponent::yt8531_phy_init_() {
+  esp_err_t err;
+
+  // The YT8531 disables auto-negotiation on hardware reset (undocumented behavior), and the
+  // generic 802.3 driver only resets the PHY, so re-enable it (this also updates the driver's
+  // cached auto-nego state used by esp_eth_start()).
+  bool autoneg_enable = true;
+  err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_S_AUTONEGO, &autoneg_enable);
+  ESPHL_ERROR_CHECK(err, "YT8531 enable auto-negotiation failed");
+
+  // RGMII needs ~2 ns Tx and Rx clock delays for reliable data sampling. These are set through
+  // the YT8531 extended-register interface: write the ext-register address to 0x1E, then
+  // read/modify/write its value via 0x1F.
+  esp_eth_phy_reg_rw_data_t phy_reg;
+  uint32_t reg_val;
+  phy_reg.reg_value_p = &reg_val;
+
+  // RX ~2 ns coarse delay: EXT_CHIP_CONFIG (0xA001), set rxc_dly_en (bit 8).
+  reg_val = 0xA001;
+  phy_reg.reg_addr = 0x1E;
+  err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_WRITE_PHY_REG, &phy_reg);
+  ESPHL_ERROR_CHECK(err, "YT8531 select Chip_Config failed");
+  phy_reg.reg_addr = 0x1F;
+  err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_READ_PHY_REG, &phy_reg);
+  ESPHL_ERROR_CHECK(err, "YT8531 read Chip_Config failed");
+  reg_val |= (1U << 8);
+  err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_WRITE_PHY_REG, &phy_reg);
+  ESPHL_ERROR_CHECK(err, "YT8531 write Chip_Config failed");
+
+  // TX ~2 ns delay: EXT_RGMII_CONFIG1 (0xA003), tx_delay_sel[3:0] and tx_delay_sel_fe[7:4] = 13.
+  reg_val = 0xA003;
+  phy_reg.reg_addr = 0x1E;
+  err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_WRITE_PHY_REG, &phy_reg);
+  ESPHL_ERROR_CHECK(err, "YT8531 select RGMII_Config1 failed");
+  phy_reg.reg_addr = 0x1F;
+  err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_READ_PHY_REG, &phy_reg);
+  ESPHL_ERROR_CHECK(err, "YT8531 read RGMII_Config1 failed");
+  reg_val = (reg_val & ~0x00FFU) | (13U << 4) | (13U << 0);
+  err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_WRITE_PHY_REG, &phy_reg);
+  ESPHL_ERROR_CHECK(err, "YT8531 write RGMII_Config1 failed");
+}
+#endif
 
 #endif
 
