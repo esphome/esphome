@@ -261,14 +261,10 @@ def _get_test_config_components(component: str, platform: str) -> frozenset[str]
         return frozenset()
     try:
         config = yaml_util.load_yaml(test_file)
-    except Exception as err:  # noqa: BLE001 - never let a bad test config crash grouping
-        # The file exists but failed to parse -- surface it rather than silently
-        # degrading conflict detection (which could let conflicting components
-        # be grouped into the same build with no diagnostic).
-        print(
-            f"WARNING: could not parse {test_file} for conflict detection: {err}",
-            file=sys.stderr,
-        )
+    except Exception:  # noqa: BLE001 - never let a bad test config crash grouping
+        # Matches analyze_component_buses, which loads these same files and
+        # silently tolerates parse failures; surfacing it only here would be
+        # inconsistent and noisy.
         return frozenset()
     if not isinstance(config, dict):
         return frozenset()
