@@ -150,10 +150,11 @@ def _check_windows_path_length() -> None:
         "  fatal error: bits/c++config.h: No such file or directory\n"
         "  cannot execute 'as': CreateProcess: No such file or directory\n"
         "To fix, either:\n"
-        "  - Enable Windows long path support: set\n"
-        "    HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem\\LongPathsEnabled\n"
-        "    to 1 and reboot, or\n"
-        "  - Set ESPHOME_ESP_IDF_PREFIX to a shorter path (e.g. C:\\esphome-idf)\n"
+        "  - Enable Windows long path support, then reboot. In an elevated\n"
+        "    PowerShell run:\n"
+        "      Set-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\FileSystem' LongPathsEnabled 1\n"
+        "    Details: https://learn.microsoft.com/windows/win32/fileio/maximum-file-path-limitation\n"
+        "  - Or set ESPHOME_ESP_IDF_PREFIX to a shorter path (e.g. C:\\esphome-idf)\n"
         "Then delete the ESP-IDF tools directory above so the toolchain "
         "reinstalls cleanly.",
         tools_path,
