@@ -27,7 +27,7 @@ bool SdStorageBase::build_full_path(const char *rel_path, char *buf, size_t buf_
 }
 
 storage::StorageError SdStorageBase::get_info(storage::StorageInfo *info) {
-  info->id = this->storage_id_ != nullptr ? this->storage_id_ : "sd_storage";
+  info->id = this->mount_path_;
   info->name = "SD Card";
   info->total_bytes = this->total_bytes_;
   info->free_bytes = this->get_free_bytes_impl();
