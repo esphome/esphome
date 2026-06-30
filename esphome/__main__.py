@@ -2386,7 +2386,11 @@ def parse_args(argv):
     )
 
     parser_clean_all = subparsers.add_parser(
-        "clean-all", help="Clean all build and platform files."
+        "clean-all",
+        help="Clean all build and platform files, including machine-global "
+        "toolchain caches (PlatformIO packages/platforms and the native "
+        "ESP-IDF install) shared by all configurations, so other projects will "
+        "re-download them on next build.",
     )
     parser_clean_all.add_argument(
         "configuration", help="Your YAML file or configuration directory.", nargs="*"
