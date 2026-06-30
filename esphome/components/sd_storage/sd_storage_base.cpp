@@ -186,10 +186,12 @@ storage::StorageError SdStorageBase::list_dir(const char *path,
     entry.is_dir = (ent->d_type == DT_DIR);
 
     if (!entry.is_dir) {
+      char rel[storage::STORAGE_MAX_PATH_LEN];
+      snprintf(rel, sizeof(rel), "%s/%s", path, ent->d_name);
       char entry_full[storage::STORAGE_MAX_PATH_LEN];
-      snprintf(entry_full, sizeof(entry_full), "%s/%s", full, ent->d_name);
       struct stat s;
-      entry.size = (::stat(entry_full, &s) == 0) ? static_cast<size_t>(s.st_size) : 0;
+      if (this->build_full_path(rel, entry_full, sizeof(entry_full)))
+        entry.size = (::stat(entry_full, &s) == 0) ? static_cast<size_t>(s.st_size) : 0;
     }
 
     callback(&entry, ctx);
@@ -229,7 +231,8 @@ storage::StorageError SdStorageBase::rmdir(const char *path, bool recursive) {
         continue;
 
       char child_rel[storage::STORAGE_MAX_PATH_LEN];
-      snprintf(child_rel, sizeof(child_rel), "%s/%s", path, ent->d_name);
+      if (snprintf(child_rel, sizeof(child_rel), "%s/%s", path, ent->d_name) >= static_cast<int>(sizeof(child_rel)))
+        continue;
 
       storage::StorageError err;
       if (ent->d_type == DT_DIR) {
