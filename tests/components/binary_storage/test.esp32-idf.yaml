@@ -1,0 +1,13 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+
+<<: !include common.yaml
+
+binary_storage:
+  - type: FLASH_PARTITION
+    id: flash_partition_lfs
+    partition_label: storage
+    mount_path: /littlefs
+    auto_format: true
+    storage_name: "Flash Partition"
