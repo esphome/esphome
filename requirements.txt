@@ -3,15 +3,15 @@ voluptuous==0.16.0
 PyYAML==6.0.3
 paho-mqtt==1.6.1
 colorama==0.4.6
-tzlocal==5.4.3    # from time
+tzlocal==5.4.4    # from time
 tzdata>=2026.2  # from time
 pyserial==3.5
 platformio==6.1.19
-esptool==5.3.0
+esptool==5.3.1
 click==8.3.3
 aioesphomeapi==45.5.2
 zeroconf==0.150.0
-puremagic==1.30
+puremagic==2.2.0
 ruamel.yaml==0.19.1 # dashboard_import
 ruamel.yaml.clib==0.2.15 # dashboard_import
 esphome-glyphsets==0.2.0
