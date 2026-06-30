@@ -9,6 +9,8 @@ import re
 import shutil
 import tempfile
 
+import platformdirs
+
 from esphome.config_validation import Version
 from esphome.core import CORE
 from esphome.framework_helpers import (
@@ -83,11 +85,28 @@ def _get_idf_tools_path() -> Path:
     if "ESPHOME_ESP_IDF_PREFIX" in os.environ:
         path = Path(get_str_env("ESPHOME_ESP_IDF_PREFIX", None)).expanduser()
     else:
-        path = CORE.data_dir / "idf"
+        # Machine-global cache shared across all projects rather than the
+        # per-config-directory ``<data_dir>/idf``. ESP-IDF plus its toolchains
+        # are multi-GB, so a per-project copy wastes disk and forces a fresh
+        # download for every config directory. The OS user *cache* dir (not
+        # ``~/.esphome``) is used deliberately: ``data_dir`` defaults to
+        # ``<config_dir>/.esphome``, so a user keeping configs in their home
+        # directory would otherwise collide the global install with a config's
+        # own data dir.
+        path = Path(platformdirs.user_cache_dir("esphome")) / "idf"
     # Resolve so an unnormalized config path (e.g. compiling ``../config/x.yaml``)
     # doesn't leave ``..`` segments in the IDF_TOOLS_PATH handed to idf.py, which
     # otherwise warns that the venv interpreter path doesn't match the install.
     return path.resolve()
+
+
+def get_idf_install_path() -> Path:
+    """Return the ESP-IDF install root (frameworks, penvs, tools, ccache).
+
+    Public accessor for the machine-global install location so callers such as
+    ``esphome clean-all`` can remove it. Honors ``ESPHOME_ESP_IDF_PREFIX``.
+    """
+    return _get_idf_tools_path()
 
 
 # Windows' default MAX_PATH is 260 characters. ESP-IDF toolchains nest deeply
@@ -553,7 +572,7 @@ def _check_esphome_idf_framework_install(
     # Logged every invocation (not just on install) so the user can verify the
     # override. A changed URL needs ``esphome clean-all`` to force a re-download
     # (``esphome clean`` only wipes the build dir, not the extracted framework
-    # under <data_dir>/idf/frameworks/<version>).
+    # under the global install dir's ``frameworks/<version>``).
     if source_url:
         _LOGGER.info("Using framework source override: %s", source_url)
 
@@ -822,11 +841,10 @@ def _ccache_env() -> dict[str, str]:
 
     Enabled by default whenever the ``ccache`` binary is on PATH; set
     ``IDF_CCACHE_ENABLE=0`` in the environment to opt out. The cache lives under
-    the IDF tools path. How widely it is shared depends on where that resolves:
-    across projects (and surviving ``clean-all``) when it is a common location
-    (``ESPHOME_ESP_IDF_PREFIX`` or the add-on ``/data``), but per-project under
-    ``.esphome/idf`` for a default pip install, where ``clean-all`` clears it
-    along with the framework.
+    the IDF tools path, which defaults to the machine-global OS user cache dir
+    (or ``ESPHOME_ESP_IDF_PREFIX`` / the add-on ``/data``), so it is shared
+    across all projects. ``esphome clean-all`` removes it along with the
+    framework.
 
     Depend mode keeps cache-miss overhead low (hashes the compiler's depfiles
     instead of preprocessing). ``CCACHE_BASEDIR`` rewrites the per-build

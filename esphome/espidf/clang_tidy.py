@@ -147,9 +147,10 @@ def _setup_core(work_dir: Path, settings: _Settings) -> None:
     from esphome.core import CORE
 
     CORE.name = TIDY_PROJECT_NAME
-    # config_path's parent is the data dir root: the IDF install lives at
-    # ``<parent>/.esphome/idf`` -- keep it beside (not inside) the per-run
-    # project dir so clearing the project doesn't force an IDF re-download.
+    # config_path's parent is the data dir root for per-run artifacts (idedata,
+    # converted pio_components). The IDF install itself lives in the machine-
+    # global cache dir (or ESPHOME_ESP_IDF_PREFIX), independent of this path, so
+    # clearing the project never forces an IDF re-download.
     CORE.config_path = work_dir.parent / "tidy.yaml"
     CORE.build_path = work_dir
     esp32 = CORE.data.setdefault(KEY_ESP32, {})

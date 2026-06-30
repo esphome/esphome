@@ -15,6 +15,12 @@ export PLATFORMIO_PLATFORMS_DIR="${pio_cache_base}/platforms"
 export PLATFORMIO_PACKAGES_DIR="${pio_cache_base}/packages"
 export PLATFORMIO_CACHE_DIR="${pio_cache_base}/cache"
 
+# Keep the native ESP-IDF toolchain install (multi-GB framework + tools) on the
+# persistent /data volume. Without this it would default to the OS user cache
+# dir inside the container, which is wiped on every add-on update/restart and
+# re-downloaded from scratch.
+export ESPHOME_ESP_IDF_PREFIX=/data/cache/idf
+
 if bashio::config.true 'leave_front_door_open'; then
     export DISABLE_HA_AUTHENTICATION=true
 fi
