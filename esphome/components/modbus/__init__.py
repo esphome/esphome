@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Literal
 
 from esphome import pins
@@ -9,6 +10,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_DISABLE_CRC, CONF_FLOW_CONTROL_PIN, CONF_ID
 from esphome.cpp_helpers import gpio_pin_expression
 import esphome.final_validate as fv
+
+_LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ["uart"]
 
@@ -129,4 +132,9 @@ async def register_modbus_server_device(var, config):
 
 
 async def register_modbus_device(var, config):
+    # Remove before 2026.12.0
+    _LOGGER.warning(
+        "'register_modbus_device' is deprecated, use 'register_modbus_client_device' "
+        "instead. Will be removed in 2026.12.0"
+    )
     return await register_modbus_client_device(var, config)

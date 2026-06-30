@@ -1,4 +1,4 @@
-ARG BUILD_BASE_VERSION=2025.04.0
+ARG BUILD_BASE_VERSION=2026.06.1
 
 
 FROM ghcr.io/esphome/docker-base:debian-${BUILD_BASE_VERSION} AS base
