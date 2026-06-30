@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components.storage import request_storage_device
-from esphome.const import CONF_ID, CONF_PORT
+from esphome.const import CONF_ID, CONF_PORT, CONF_UID
 
 CODEOWNERS = ["@p1ngb4ck"]
 DEPENDENCIES = ["network"]
@@ -10,7 +10,6 @@ AUTO_LOAD = ["storage"]
 CONF_SERVER = "server"
 CONF_EXPORT = "export"
 CONF_MOUNT_PATH = "mount_path"
-CONF_UID = "uid"
 CONF_GID = "gid"
 
 nfs_client_ns = cg.esphome_ns.namespace("nfs_client")
