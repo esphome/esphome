@@ -316,12 +316,12 @@ class NFSClient : public storage::NetworkStorage {
   storage::StorageError connect() override;
   storage::StorageError disconnect() override;
   storage::StorageError read_chunk(const char *path, uint8_t *buf, size_t offset, size_t len,
-                          size_t *bytes_transferred) override;
+                                   size_t *bytes_transferred) override;
   storage::StorageError write_chunk(const char *path, const uint8_t *buf, size_t offset, size_t len,
-                           size_t *bytes_transferred) override;
+                                    size_t *bytes_transferred) override;
   storage::StorageError stat(const char *path, storage::FileStat *stat) override;
   storage::StorageError list_dir(const char *path, void (*callback)(const storage::FileStat *entry, void *ctx),
-                        void *ctx) override;
+                                 void *ctx) override;
   storage::StorageError mkdir(const char *path) override;
   storage::StorageError rmdir(const char *path, bool recursive) override;
   storage::StorageError remove(const char *path) override;

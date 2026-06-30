@@ -198,8 +198,8 @@ bool NFSFileAttr::decode(XDRBuffer &xdr) {
     return false;
   }
   if (!xdr.decode_uint64(this->fsid)) {
-    ESP_LOGW(TAG, "NFSFileAttr::decode failed at fsid, position=%" PRIu32 ", size=%" PRIu32,
-             (uint32_t) xdr.position(), (uint32_t) xdr.size());
+    ESP_LOGW(TAG, "NFSFileAttr::decode failed at fsid, position=%" PRIu32 ", size=%" PRIu32, (uint32_t) xdr.position(),
+             (uint32_t) xdr.size());
     return false;
   }
   if (!xdr.decode_uint64(this->fileid)) {
@@ -700,8 +700,8 @@ storage::StorageError NFSClient::stat(const char *path, storage::FileStat *stat)
   return storage::StorageError::OK;
 }
 
-storage::StorageError NFSClient::list_dir(const char *path,
-                                          void (*callback)(const storage::FileStat *entry, void *ctx), void *ctx) {
+storage::StorageError NFSClient::list_dir(const char *path, void (*callback)(const storage::FileStat *entry, void *ctx),
+                                          void *ctx) {
   if (path == nullptr || callback == nullptr) {
     return storage::StorageError::INVALID_ARGS;
   }
@@ -754,7 +754,7 @@ storage::StorageError NFSClient::mkdir(const char *path) {
 
   NFSFileHandle fh;
   return this->nfs_mkdir_(parent_fh, dirname, 0777, fh) ? storage::StorageError::OK
-                                                         : storage::StorageError::WRITE_ERROR;
+                                                        : storage::StorageError::WRITE_ERROR;
 }
 
 storage::StorageError NFSClient::rmdir(const char *path, bool recursive) {
@@ -849,7 +849,7 @@ storage::StorageError NFSClient::rename(const char *old_path, const char *new_pa
   }
 
   return this->nfs_rename_(old_parent_fh, old_name, new_parent_fh, new_name) ? storage::StorageError::OK
-                                                                              : storage::StorageError::WRITE_ERROR;
+                                                                             : storage::StorageError::WRITE_ERROR;
 }
 
 storage::StorageError NFSClient::copy(const char *src_path, const char *dst_path) {
@@ -1005,7 +1005,8 @@ bool NFSClient::resolve_hostname_() {
     }
   }
 
-  struct addrinfo hints{}, *result = nullptr;
+  struct addrinfo hints {
+  }, *result = nullptr;
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_protocol = IPPROTO_TCP;
@@ -1016,8 +1017,7 @@ bool NFSClient::resolve_hostname_() {
   int ret_dns = getaddrinfo(this->server_.c_str(), port_str, &hints, &result);
   if (ret_dns != 0 || result == nullptr) {
     if (is_mdns_host) {
-      ESP_LOGE(TAG, "Failed to resolve mDNS host '%s' via both mDNS and DNS: error %d", this->server_.c_str(),
-               ret_dns);
+      ESP_LOGE(TAG, "Failed to resolve mDNS host '%s' via both mDNS and DNS: error %d", this->server_.c_str(), ret_dns);
       ESP_LOGE(TAG, "Recommendation: Use IP address instead (e.g., '192.168.1.100')");
     } else {
       ESP_LOGE(TAG, "Failed to resolve host '%s': error %d", this->server_.c_str(), ret_dns);
@@ -1211,11 +1211,11 @@ bool NFSClient::send_rpc_(const XDRBuffer &request, XDRBuffer &response) {
   std::vector<uint8_t> response_data(response_length);
   size_t total_received = 0;
   while (total_received < response_length) {
-    int received =
-        recv(this->socket_, response_data.data() + total_received, response_length - total_received, 0);
+    int received = recv(this->socket_, response_data.data() + total_received, response_length - total_received, 0);
     if (received <= 0) {
-      ESP_LOGE(TAG, "Failed to receive RPC response data: received=%d, expected=%" PRIu32
-                    ", total_received=%" PRIu32 ", errno=%d",
+      ESP_LOGE(TAG,
+               "Failed to receive RPC response data: received=%d, expected=%" PRIu32 ", total_received=%" PRIu32
+               ", errno=%d",
                received, response_length, (uint32_t) total_received, errno);
       close(this->socket_);
       this->socket_ = -1;
@@ -1343,8 +1343,7 @@ bool NFSClient::query_portmapper_(uint32_t program, uint32_t version, uint16_t &
 //========================================================================
 
 bool NFSClient::mount_export_(const std::string &export_path, NFSFileHandle &fh) {
-  ESP_LOGD(TAG, "Mounting export: %s with UID=%" PRIu32 ", GID=%" PRIu32, export_path.c_str(), this->uid_,
-           this->gid_);
+  ESP_LOGD(TAG, "Mounting export: %s with UID=%" PRIu32 ", GID=%" PRIu32, export_path.c_str(), this->uid_, this->gid_);
 
   uint32_t xid = RPCClient::generate_xid();
   XDRBuffer request;
