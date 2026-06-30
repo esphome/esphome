@@ -692,8 +692,8 @@ storage::StorageError NFSClient::stat(const char *path, storage::FileStat *stat)
   // Fill FileStat — extract filename component from path
   const char *name_start = strrchr(path, '/');
   name_start = (name_start != nullptr) ? name_start + 1 : path;
-  strncpy(stat->name, name_start, storage::STORAGE_MAX_PATH_LEN - 1);
-  stat->name[storage::STORAGE_MAX_PATH_LEN - 1] = '\0';
+  strncpy(stat->name, name_start, 255);  // NFSv3/v4 max filename length
+  stat->name[255] = '\0';
 
   stat->size = attr.size;
   stat->is_dir = (attr.type == NF3DIR);
@@ -727,8 +727,8 @@ storage::StorageError NFSClient::list_dir(const char *path,
 
   storage::FileStat entry_stat;
   for (const auto &e : entries) {
-    strncpy(entry_stat.name, e.name.c_str(), storage::STORAGE_MAX_PATH_LEN - 1);
-    entry_stat.name[storage::STORAGE_MAX_PATH_LEN - 1] = '\0';
+    strncpy(entry_stat.name, e.name.c_str(), NAME_MAX);
+    entry_stat.name[NAME_MAX] = '\0';
     entry_stat.size = e.has_attr ? e.attr.size : 0;
     entry_stat.is_dir = e.has_attr && (e.attr.type == NF3DIR);
     callback(&entry_stat, ctx);
