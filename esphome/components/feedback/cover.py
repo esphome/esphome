@@ -90,7 +90,7 @@ CONFIG_FEEDBACK_COVER_BASE_SCHEMA = (
 
 CONFIG_SCHEMA = cv.All(
     CONFIG_FEEDBACK_COVER_BASE_SCHEMA,
-    cv.has_none_or_all_keys(CONF_OPEN_SENSOR, CONF_CLOSE_SENSOR),
+    cv.AllOrNone(CONF_OPEN_SENSOR, CONF_CLOSE_SENSOR),
     validate_infer_endstop,
 )
 

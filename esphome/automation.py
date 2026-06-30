@@ -198,7 +198,13 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
                 try:
                     return cv.Schema([schema])(value)
                 except cv.Invalid as err2:
-                    if "extra keys not allowed" in str(err2) and len(err2.path) == 2:
+                    err2_errors = (
+                        err2.errors if isinstance(err2, cv.MultipleInvalid) else [err2]
+                    )
+                    if (
+                        any(isinstance(e, cv.ExtraKeysInvalid) for e in err2_errors)
+                        and len(err2.path) == 2
+                    ):
                         raise err from None
                     if "Unable to find action" in str(err):
                         raise err2 from None
@@ -414,8 +420,8 @@ async def delay_action_to_code(
             cv.Optional(CONF_THEN): validate_action_list,
             cv.Optional(CONF_ELSE): validate_action_list,
         },
-        cv.has_at_least_one_key(CONF_THEN, CONF_ELSE),
-        cv.has_at_least_one_key(CONF_CONDITION, CONF_ANY, CONF_ALL),
+        cv.AtLeastOne(CONF_THEN, CONF_ELSE),
+        cv.AtLeastOne(CONF_CONDITION, CONF_ANY, CONF_ALL),
     ),
     synchronous=True,
 )

@@ -221,7 +221,7 @@ CONFIG_SCHEMA = cv.All(
             ): _validate_timing,
         }
     ),
-    cv.has_exactly_one_key(CONF_CHIPSET, CONF_BIT0_HIGH),
+    cv.ExactlyOne(CONF_CHIPSET, CONF_BIT0_HIGH),
 )
 
 

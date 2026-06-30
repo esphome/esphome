@@ -1,5 +1,5 @@
 cryptography==49.0.0
-voluptuous==0.16.0
+probatio==0.5.1
 PyYAML==6.0.3
 paho-mqtt==1.6.1
 colorama==0.4.6

@@ -63,7 +63,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(CONFIG_SENSOR_COMPONENT_SCHEMA)
     .extend(cv.polling_component_schema("never")),
-    cv.has_exactly_one_key(CONF_COMPONENT_ID, CONF_COMPONENT_NAME, CONF_VARIABLE_NAME),
+    cv.ExactlyOne(CONF_COMPONENT_ID, CONF_COMPONENT_NAME, CONF_VARIABLE_NAME),
     _validate,
 )
 

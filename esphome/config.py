@@ -10,7 +10,7 @@ import logging
 import re
 from typing import Any
 
-import voluptuous as vol
+import probatio
 
 from esphome import core, loader, pins, yaml_util
 from esphome.components.substitutions import do_substitution_pass
@@ -185,7 +185,7 @@ def _resolve_component_aliases(config: dict[str, Any]) -> None:
         if canonical in config:
             # The canonical key and (at least) one deprecated alias are both
             # present.
-            raise vol.Invalid(
+            raise probatio.Invalid(
                 f"Both '{legacies[0]}:' (deprecated alias of '{canonical}:') "
                 f"and '{canonical}:' are present in the configuration. Remove "
                 f"the deprecated '{legacies[0]}:' key.",
@@ -194,7 +194,7 @@ def _resolve_component_aliases(config: dict[str, Any]) -> None:
         if len(legacies) > 1:
             # Several different deprecated aliases of the same component.
             listed = ", ".join(f"'{alias}:'" for alias in legacies)
-            raise vol.Invalid(
+            raise probatio.Invalid(
                 f"Multiple deprecated aliases of '{canonical}:' are present "
                 f"({listed}). Use only '{canonical}:'.",
                 path=[legacies[0]],
@@ -253,7 +253,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
     def __init__(self):
         super().__init__()
         # A list of voluptuous errors
-        self.errors: list[vol.Invalid] = []
+        self.errors: list[probatio.Invalid] = []
         # A list of paths that should be fully outputted
         # The values will be the paths to all "domain", for example (['logger'], 'logger')
         # or (['sensor', 'ultrasonic'], 'sensor.ultrasonic')
@@ -271,8 +271,8 @@ class Config(OrderedDict, fv.FinalValidateConfig):
         # ID to ensure stable order for keys with equal priority
         self._validation_tasks_id = 0
 
-    def add_error(self, error: vol.Invalid) -> None:
-        if isinstance(error, vol.MultipleInvalid):
+    def add_error(self, error: probatio.Invalid) -> None:
+        if isinstance(error, probatio.MultipleInvalid):
             for err in error.errors:
                 self.add_error(err)
             return
@@ -282,7 +282,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
                 i for i, v in enumerate(error.path) if v is cv.ROOT_CONFIG_PATH
             )
             # can't change the path so re-create the error
-            error = vol.Invalid(
+            error = probatio.Invalid(
                 message=error.error_message,
                 path=error.path[last_root + 1 :],
                 error_type=error.error_type,
@@ -308,12 +308,12 @@ class Config(OrderedDict, fv.FinalValidateConfig):
             yield
         except cv.FinalExternalInvalid as e:
             self.add_error(e)
-        except vol.Invalid as e:
+        except probatio.Invalid as e:
             e.prepend(path)
             self.add_error(e)
 
     def add_str_error(self, message: str, path: ConfigPath) -> None:
-        self.add_error(vol.Invalid(message, path))
+        self.add_error(probatio.Invalid(message, path))
 
     def add_output_path(self, path: ConfigPath, domain: str) -> None:
         self.output_paths.append((path, domain))
@@ -330,7 +330,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
             conf = conf[key]
         conf[path[-1]] = value
 
-    def get_error_for_path(self, path: ConfigPath) -> vol.Invalid | None:
+    def get_error_for_path(self, path: ConfigPath) -> probatio.Invalid | None:
         for err in self.errors:
             if self.get_deepest_path(err.path) == path:
                 self.errors.remove(err)
@@ -1113,7 +1113,7 @@ def validate_config(
                 config,
                 command_line_substitutions=command_line_substitutions,
             )
-        except vol.Invalid as err:
+        except probatio.Invalid as err:
             result.update(config)
             result.add_error(err)
             return result
@@ -1123,7 +1123,7 @@ def validate_config(
         result.add_output_path([CONF_SUBSTITUTIONS], CONF_SUBSTITUTIONS)
     try:
         config = do_substitution_pass(config, command_line_substitutions)
-    except vol.Invalid as err:
+    except probatio.Invalid as err:
         CORE.raw_config = config
         result.add_error(err)
         return result
@@ -1146,7 +1146,7 @@ def validate_config(
     # plain config errors and abort further validation.
     try:
         _resolve_component_aliases(config)
-    except vol.Invalid as err:
+    except probatio.Invalid as err:
         result.update(config)
         result.add_error(err)
         return result
@@ -1155,7 +1155,7 @@ def validate_config(
     # After this step, there will not be any Extend or Remove values in the config anymore
     try:
         resolve_extend_remove(config)
-    except vol.Invalid as err:
+    except probatio.Invalid as err:
         result.add_error(err)
 
     # 1.3. Load external_components
@@ -1165,7 +1165,7 @@ def validate_config(
         result.add_output_path([CONF_EXTERNAL_COMPONENTS], CONF_EXTERNAL_COMPONENTS)
         try:
             do_external_components_pass(config)
-        except vol.Invalid as err:
+        except probatio.Invalid as err:
             result.update(config)
             result.add_error(err)
             return result
@@ -1219,7 +1219,7 @@ def validate_config(
     result.add_output_path([CONF_ESPHOME], CONF_ESPHOME)
     try:
         target_platform = core_config.preload_core_config(config, result)
-    except vol.Invalid as err:
+    except probatio.Invalid as err:
         result.add_error(err)
         return result
     # Remove temporary esphome config path again, it will be reloaded later
@@ -1287,7 +1287,7 @@ def _get_parent_name(path, config):
     return path[-1]
 
 
-def _format_vol_invalid(ex: vol.Invalid, config: Config) -> str:
+def _format_vol_invalid(ex: probatio.Invalid, config: Config) -> str:
     message = ""
 
     paren = _get_parent_name(ex.path[:-1], config)
@@ -1299,7 +1299,7 @@ def _format_vol_invalid(ex: vol.Invalid, config: Config) -> str:
             message += f"[{ex.path[-1]}] is an invalid option for [{paren}]. Please check the indentation."
     elif "extra keys not allowed" in str(ex):
         message += f"[{ex.path[-1]}] is an invalid option for [{paren}]."
-    elif isinstance(ex, vol.RequiredFieldInvalid):
+    elif isinstance(ex, probatio.RequiredFieldInvalid):
         if ex.msg == "required key not provided":
             message += f"'{ex.path[-1]}' is a required option for [{paren}]."
         else:
@@ -1345,7 +1345,7 @@ def load_config(
 ) -> Config:
     try:
         return _load_config(command_line_substitutions, skip_external_update)
-    except vol.Invalid as err:
+    except probatio.Invalid as err:
         raise EsphomeError(f"Error while parsing config: {err}") from err
 
 

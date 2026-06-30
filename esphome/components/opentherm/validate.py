@@ -1,7 +1,5 @@
 from collections.abc import Callable
 
-from voluptuous import Schema
-
 import esphome.config_validation as cv
 
 from . import const, generate, schema
@@ -11,7 +9,7 @@ from .schema import TSchema
 def create_entities_schema(
     entities: dict[str, TSchema],
     get_entity_validation_schema: Callable[[TSchema], cv.Schema],
-) -> Schema:
+) -> cv.Schema:
     entity_schema = {}
     for key, entity in entities.items():
         schema_key = (
@@ -26,7 +24,7 @@ def create_entities_schema(
 def create_component_schema(
     entities: dict[str, schema.EntitySchema],
     get_entity_validation_schema: Callable[[TSchema], cv.Schema],
-) -> Schema:
+) -> cv.Schema:
     return (
         cv.Schema(
             {cv.GenerateID(const.CONF_OPENTHERM_ID): cv.use_id(generate.OpenthermHub)}

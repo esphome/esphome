@@ -50,9 +50,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
-    cv.has_exactly_one_key(
-        CONF_MAC_ADDRESS, CONF_IRK, CONF_SERVICE_UUID, CONF_IBEACON_UUID
-    ),
+    cv.ExactlyOne(CONF_MAC_ADDRESS, CONF_IRK, CONF_SERVICE_UUID, CONF_IBEACON_UUID),
     _validate,
 )
 

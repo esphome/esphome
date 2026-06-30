@@ -62,7 +62,7 @@ OTA_HTTP_REQUEST_FLASH_ACTION_SCHEMA = cv.All(
             cv.Required(CONF_URL): cv.templatable(cv.url),
         }
     ),
-    cv.has_exactly_one_key(CONF_MD5, CONF_MD5_URL),
+    cv.ExactlyOne(CONF_MD5, CONF_MD5_URL),
 )
 
 

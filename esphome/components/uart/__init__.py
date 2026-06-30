@@ -268,7 +268,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DEBUG): maybe_empty_debug,
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN, CONF_PORT),
+    cv.AtLeastOne(CONF_TX_PIN, CONF_RX_PIN, CONF_PORT),
     validate_host_config,
     validate_rx_buffer_size,
 )

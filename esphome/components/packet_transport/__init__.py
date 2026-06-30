@@ -147,7 +147,7 @@ def packet_transport_sensor_schema(base_schema):
                 cv.Required(CONF_PROVIDER): provider_name_validate,
             }
         ),
-        cv.has_at_least_one_key(CONF_ID, CONF_REMOTE_ID),
+        cv.AtLeastOne(CONF_ID, CONF_REMOTE_ID),
         validate_packet_transport_sensor,
     )
 

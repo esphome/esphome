@@ -21,7 +21,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.COMPONENT_SCHEMA)
     .extend(spi.spi_device_schema(cs_pin_required=False)),
-    cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
+    cv.AtMostOne(CONF_PAGES, CONF_LAMBDA),
 )
 
 FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(

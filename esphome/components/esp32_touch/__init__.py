@@ -279,15 +279,15 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_WATERPROOF_SHIELD_DRIVER): cv.int_range(min=0, max=7),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.has_none_or_all_keys(CONF_DENOISE_GRADE, CONF_DENOISE_CAP_LEVEL),
-    cv.has_none_or_all_keys(
+    cv.AllOrNone(CONF_DENOISE_GRADE, CONF_DENOISE_CAP_LEVEL),
+    cv.AllOrNone(
         CONF_DEBOUNCE_COUNT,
         CONF_FILTER_MODE,
         CONF_NOISE_THRESHOLD,
         CONF_JITTER_STEP,
         CONF_SMOOTH_MODE,
     ),
-    cv.has_none_or_all_keys(CONF_WATERPROOF_GUARD_RING, CONF_WATERPROOF_SHIELD_DRIVER),
+    cv.AllOrNone(CONF_WATERPROOF_GUARD_RING, CONF_WATERPROOF_SHIELD_DRIVER),
     esp32.only_on_variant(
         supported=[
             esp32.VARIANT_ESP32,

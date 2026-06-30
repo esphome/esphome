@@ -34,7 +34,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PIXEL_MAPPER): cv.returning_lambda,
         }
     ),
-    cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
+    cv.AtMostOne(CONF_PAGES, CONF_LAMBDA),
 )
 
 

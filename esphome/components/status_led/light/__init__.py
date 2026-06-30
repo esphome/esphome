@@ -20,7 +20,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_OUTPUT): cv.use_id(output.BinaryOutput),
         }
     ),
-    cv.has_at_least_one_key(CONF_PIN, CONF_OUTPUT),
+    cv.AtLeastOne(CONF_PIN, CONF_OUTPUT),
 )
 
 

@@ -272,7 +272,7 @@ EAP_AUTH_SCHEMA = cv.All(
         }
     ),
     wpa2_eap.validate_eap,
-    cv.has_at_least_one_key(CONF_IDENTITY, CONF_CERTIFICATE),
+    cv.AtLeastOne(CONF_IDENTITY, CONF_CERTIFICATE),
 )
 
 WIFI_NETWORK_BASE = cv.Schema(

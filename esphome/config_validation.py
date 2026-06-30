@@ -22,7 +22,7 @@ from string import ascii_letters, digits
 import typing
 import uuid as uuid_
 
-import voluptuous as vol
+import probatio
 
 from esphome import core
 import esphome.codegen as cg
@@ -100,7 +100,12 @@ from esphome.schema_extractors import (
     schema_extractor_typed,
 )
 from esphome.util import parse_esphome_version
-from esphome.voluptuous_schema import _Schema
+
+# ExtraKeysInvalid is re-exported here so it is reachable as cv.ExtraKeysInvalid.
+from esphome.voluptuous_schema import (  # noqa: F401  pylint: disable=unused-import
+    ExtraKeysInvalid,
+    _Schema,
+)
 from esphome.yaml_util import SensitiveStr, make_data_base
 
 _LOGGER = logging.getLogger(__name__)
@@ -108,20 +113,24 @@ _LOGGER = logging.getLogger(__name__)
 # pylint: disable=invalid-name
 
 Schema = _Schema
-All = vol.All
-Coerce = vol.Coerce
-Range = vol.Range
-Invalid = vol.Invalid
-MultipleInvalid = vol.MultipleInvalid
-Any = vol.Any
-Lower = vol.Lower
-Upper = vol.Upper
-Length = vol.Length
-Exclusive = vol.Exclusive
-Inclusive = vol.Inclusive
-ALLOW_EXTRA = vol.ALLOW_EXTRA
-UNDEFINED = vol.UNDEFINED
-RequiredFieldInvalid = vol.RequiredFieldInvalid
+All = probatio.All
+Coerce = probatio.Coerce
+Range = probatio.Range
+Invalid = probatio.Invalid
+MultipleInvalid = probatio.MultipleInvalid
+Any = probatio.Any
+Lower = probatio.Lower
+Upper = probatio.Upper
+Length = probatio.Length
+Exclusive = probatio.Exclusive
+Inclusive = probatio.Inclusive
+AtLeastOne = probatio.AtLeastOne
+ExactlyOne = probatio.ExactlyOne
+AtMostOne = probatio.AtMostOne
+AllOrNone = probatio.AllOrNone
+ALLOW_EXTRA = probatio.ALLOW_EXTRA
+UNDEFINED = probatio.UNDEFINED
+RequiredFieldInvalid = probatio.RequiredFieldInvalid
 # this sentinel object can be placed in an 'Invalid' path to say
 # the rest of the error path is relative to the root config path
 ROOT_CONFIG_PATH = object()
@@ -330,7 +339,7 @@ class Visibility(StrEnum):
     YAML_ONLY = "yaml_only"
 
 
-class Optional(vol.Optional):
+class Optional(probatio.Optional):
     """Mark a field as optional and optionally define a default for the field.
 
     When no default is defined, the validated config will not contain the key.
@@ -360,7 +369,7 @@ class Optional(vol.Optional):
         self.visibility: Visibility | None = visibility
 
 
-class Required(vol.Required):
+class Required(probatio.Required):
     """Define a field to be required to be set. The validated configuration is guaranteed
     to contain this key.
 
@@ -865,67 +874,13 @@ only_with_arduino = only_with_framework(Framework.ARDUINO)
 
 # Adapted from:
 # https://github.com/alecthomas/voluptuous/issues/115#issuecomment-144464666
-def has_at_least_one_key(*keys):
-    """Validate that at least one of the given keys exist in the config."""
-
-    def validate(obj):
-        """Test keys exist in dict."""
-        if not isinstance(obj, dict):
-            raise Invalid("expected dictionary")
-
-        if not any(k in keys for k in obj):
-            raise Invalid(f"Must contain at least one of {', '.join(keys)}.")
-        return obj
-
-    return validate
-
-
-def has_exactly_one_key(*keys):
-    """Validate that exactly one of the given keys exist in the config."""
-
-    def validate(obj):
-        if not isinstance(obj, dict):
-            raise Invalid("expected dictionary")
-
-        number = sum(k in keys for k in obj)
-        if number > 1:
-            raise Invalid(f"Cannot specify more than one of {', '.join(keys)}.")
-        if number < 1:
-            raise Invalid(f"Must contain exactly one of {', '.join(keys)}.")
-        return obj
-
-    return validate
-
-
-def has_at_most_one_key(*keys):
-    """Validate that at most one of the given keys exist in the config."""
-
-    def validate(obj):
-        if not isinstance(obj, dict):
-            raise Invalid("expected dictionary")
-
-        used = set(obj) & set(keys)
-        if len(used) > 1:
-            msg = "Cannot specify more than one of '" + "', '".join(used) + "'."
-            raise MultipleInvalid([Invalid(msg, path=[k]) for k in used])
-        return obj
-
-    return validate
-
-
-def has_none_or_all_keys(*keys):
-    """Validate that none or all of the given keys exist in the config."""
-
-    def validate(obj):
-        if not isinstance(obj, dict):
-            raise Invalid("expected dictionary")
-
-        number = sum(k in keys for k in obj)
-        if number != 0 and number != len(keys):
-            raise Invalid(f"Must specify either none or all of {', '.join(keys)}.")
-        return obj
-
-    return validate
+# Kept as aliases for backwards compatibility with external components that use
+# these names (they also mirror Home Assistant's cv helpers). Internally, prefer the
+# probatio names (cv.AtLeastOne, ...).
+has_at_least_one_key = AtLeastOne
+has_exactly_one_key = ExactlyOne
+has_at_most_one_key = AtMostOne
+has_none_or_all_keys = AllOrNone
 
 
 TIME_PERIOD_ERROR = (
@@ -1440,9 +1395,24 @@ def hostname(value):
     raise Invalid(f"Invalid hostname: {value}")
 
 
+# Domain/IP matcher (ported from voluptuous, which ESPHome used as vol.DOMAIN_REGEX).
+_DOMAIN_REGEX = re.compile(
+    "(?:"
+    # domain
+    r"(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+"
+    # tld
+    r"(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?$)"
+    # literal form, ipv4 address (SMTP 4.1.3)
+    r"|^\[(25[0-5]|2[0-4]\d|[0-1]?\d?\d)"
+    r"(\.(25[0-5]|2[0-4]\d|[0-1]?\d?\d)){3}\]$"
+    r")\Z",
+    re.IGNORECASE,
+)
+
+
 def domain(value):
     value = string(value)
-    if re.match(vol.DOMAIN_REGEX, value) is not None:
+    if _DOMAIN_REGEX.match(value) is not None:
         return value
     try:
         return str(ipaddress(value))
@@ -1730,7 +1700,7 @@ def prepend_path(path):
         path = [path]
     try:
         yield
-    except vol.Invalid as e:
+    except probatio.Invalid as e:
         e.prepend(path)
         raise e
 
@@ -1742,7 +1712,7 @@ def remove_prepend_path(path):
         path = [path]
     try:
         yield
-    except vol.Invalid as e:
+    except probatio.Invalid as e:
         if list_starts_with(e.path, path):
             # Can't set e.path (namedtuple
             for _ in range(len(path)):
@@ -1941,7 +1911,7 @@ def extract_keys(schema):
     for skey in list(schema.keys()):
         if isinstance(skey, str):
             keys.append(skey)
-        elif isinstance(skey, vol.Marker) and isinstance(skey.schema, str):
+        elif isinstance(skey, probatio.Marker) and isinstance(skey.schema, str):
             keys.append(skey.schema)
         else:
             raise ValueError
@@ -1998,10 +1968,22 @@ class SplitDefault(Optional):
         self._defaults = {}
 
         for platform_key, value in kwargs.items():
-            self._defaults[platform_key] = vol.default_factory(value)
+            self._defaults[platform_key] = probatio.default_factory(value)
 
     @property
     def default(self):
+        # Return a stable factory. probatio captures it once when the schema is
+        # compiled and calls it at validation time, when the target platform is
+        # known. The factory yields UNDEFINED when no value is configured for the
+        # active platform, which probatio treats as "no default" (key stays absent).
+        return self._resolve_default
+
+    @default.setter
+    def default(self, value):
+        # Ignore default set from probatio.Optional
+        pass
+
+    def _resolve_default(self):
         keys = []
         if CORE.is_esp32:
             from esphome.components.esp32 import VARIANT_ESP32, get_esp32_variant
@@ -2014,14 +1996,10 @@ class SplitDefault(Optional):
             keys += _get_default_key(framework)
         keys += _get_default_key()
         for key in keys:
-            if self._defaults.get(key) is not None:
-                return self._defaults[key]
-        return vol.default_factory(vol.UNDEFINED)
-
-    @default.setter
-    def default(self, value):
-        # Ignore default set from vol.Optional
-        pass
+            factory = self._defaults.get(key)
+            if factory is not None and not isinstance(factory, probatio.Undefined):
+                return factory()
+        return probatio.UNDEFINED
 
 
 class OnlyWith(Optional):
@@ -2048,21 +2026,25 @@ class OnlyWith(Optional):
     def __init__(self, key, component: str | list[str], default=None) -> None:
         super().__init__(key)
         self._component = component
-        self._default = vol.default_factory(default)
+        self._default = probatio.default_factory(default)
 
     @property
-    def default(self) -> Callable[[], typing.Any] | vol.Undefined:
-        if isinstance(self._component, list):
-            if all(c in CORE.loaded_integrations for c in self._component):
-                return self._default
-        elif self._component in CORE.loaded_integrations:
-            return self._default
-        return vol.UNDEFINED
+    def default(self) -> Callable[[], typing.Any]:
+        # Stable factory resolved at validation time (see SplitDefault.default).
+        return self._resolve_default
 
     @default.setter
     def default(self, value):
-        # Ignore default set from vol.Optional
+        # Ignore default set from probatio.Optional
         pass
+
+    def _resolve_default(self) -> typing.Any:
+        if isinstance(self._component, list):
+            if all(c in CORE.loaded_integrations for c in self._component):
+                return self._default()
+        elif self._component in CORE.loaded_integrations:
+            return self._default()
+        return probatio.UNDEFINED
 
 
 class OnlyWithout(Optional):
@@ -2071,18 +2053,22 @@ class OnlyWithout(Optional):
     def __init__(self, key, component, default=None):
         super().__init__(key)
         self._component = component
-        self._default = vol.default_factory(default)
+        self._default = probatio.default_factory(default)
 
     @property
     def default(self):
-        if self._component not in CORE.loaded_integrations:
-            return self._default
-        return vol.UNDEFINED
+        # Stable factory resolved at validation time (see SplitDefault.default).
+        return self._resolve_default
 
     @default.setter
     def default(self, value):
-        # Ignore default set from vol.Optional
+        # Ignore default set from probatio.Optional
         pass
+
+    def _resolve_default(self):
+        if self._component not in CORE.loaded_integrations:
+            return self._default()
+        return probatio.UNDEFINED
 
 
 def _entity_base_validator(config):
@@ -2101,7 +2087,7 @@ def _entity_base_validator(config):
 
 
 def ensure_schema(schema):
-    if not isinstance(schema, vol.Schema):
+    if not isinstance(schema, probatio.Schema):
         return Schema(schema)
     return schema
 
@@ -2495,7 +2481,7 @@ def require_esphome_version(year, month, patch):
 
 @contextmanager
 def suppress_invalid():
-    with suppress(vol.Invalid):
+    with suppress(probatio.Invalid):
         yield
 
 

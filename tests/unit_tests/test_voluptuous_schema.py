@@ -1,9 +1,9 @@
 """Tests for voluptuous_schema.py."""
 
+import probatio as vol
 import pytest
-import voluptuous as vol
 
-from esphome.voluptuous_schema import _Schema
+from esphome.voluptuous_schema import ExtraKeysInvalid, _Schema
 
 
 class TestIdKeyDropping:
@@ -38,8 +38,11 @@ class TestIdKeyDropping:
                 vol.Required("name"): str,
             }
         )
-        with pytest.raises(vol.MultipleInvalid, match="extra keys not allowed"):
+        with pytest.raises(vol.MultipleInvalid) as exc_info:
             schema({"name": "test", "unknown_key": "value"})
+        # The extra key is reported as an ExtraKeysInvalid (probatio carries the
+        # close-match candidates on it); assert the type, not the exact wording.
+        assert any(isinstance(err, ExtraKeysInvalid) for err in exc_info.value.errors)
 
     def test_id_key_not_dropped_when_in_schema(self):
         """When 'id' is declared in the schema, it should be validated normally."""

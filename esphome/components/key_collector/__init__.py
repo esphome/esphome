@@ -86,7 +86,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
         }
     ),
-    cv.has_at_least_one_key(CONF_END_KEYS, CONF_MAX_LENGTH),
+    cv.AtLeastOne(CONF_END_KEYS, CONF_MAX_LENGTH),
 )
 
 

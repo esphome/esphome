@@ -52,7 +52,7 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
-    cv.has_exactly_one_key(CONF_NDEF_CONTAINS, CONF_TAG_ID, CONF_UID),
+    cv.ExactlyOne(CONF_NDEF_CONTAINS, CONF_TAG_ID, CONF_UID),
 )
 
 

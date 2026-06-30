@@ -146,7 +146,7 @@ INDICATOR_LINE_SCHEMA = cv.Schema(
         cv.Optional(CONF_VALUE, default=0.0): lv_float,
         cv.Optional(CONF_OPA, default=1.0): opacity,
     }
-).add_extra(cv.has_at_most_one_key(CONF_R_MOD, CONF_LENGTH))
+).add_extra(cv.AtMostOne(CONF_R_MOD, CONF_LENGTH))
 
 
 class ScaleType(WidgetType):
@@ -186,7 +186,7 @@ INDICATOR_ARC_SCHEMA = cv.Schema(
         cv.Optional(CONF_OPA, default=1.0): opacity,
         cv.Optional(CONF_ROUNDED, default=False): cv.boolean,
     }
-).add_extra(cv.has_at_most_one_key(CONF_VALUE, CONF_START_VALUE))
+).add_extra(cv.AtMostOne(CONF_VALUE, CONF_START_VALUE))
 
 INDICATOR_TICKS_SCHEMA = cv.Schema(
     {
@@ -198,7 +198,7 @@ INDICATOR_TICKS_SCHEMA = cv.Schema(
         cv.Optional(CONF_END_VALUE): lv_float,
         cv.Optional(CONF_LOCAL, default=False): lv_bool,
     }
-).add_extra(cv.has_at_most_one_key(CONF_VALUE, CONF_START_VALUE))
+).add_extra(cv.AtMostOne(CONF_VALUE, CONF_START_VALUE))
 
 INDICATOR_SCHEMA = cv.Schema(
     {
@@ -355,7 +355,7 @@ class MeterType(WidgetType):
         return CONF_SCALE, CONF_LINE, CONF_IMAGE, CONF_LABEL
 
     def validate(self, value):
-        return cv.has_at_most_one_key(CONF_INDICATOR, CONF_PIVOT)(value)
+        return cv.AtMostOne(CONF_INDICATOR, CONF_PIVOT)(value)
 
     async def on_create(self, var: MockObj, config: dict):
         # Remove theme styling from outer container

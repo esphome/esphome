@@ -17,7 +17,7 @@ CUSTOMIZED_ENTITY = cv.All(
             cv.Optional(CONF_NAME): cv.string_strict,
         },
     ),
-    cv.has_at_least_one_key(CONF_ID, CONF_NAME),
+    cv.AtLeastOne(CONF_ID, CONF_NAME),
 )
 
 CONFIG_SCHEMA = cv.Schema(

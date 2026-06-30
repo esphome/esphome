@@ -208,7 +208,7 @@ _NUMBER_SCHEMA = (
                     cv.Optional(CONF_ABOVE): cv.templatable(cv.float_),
                     cv.Optional(CONF_BELOW): cv.templatable(cv.float_),
                 },
-                cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
+                cv.AtLeastOne(CONF_ABOVE, CONF_BELOW),
             ),
             cv.Optional(CONF_UNIT_OF_MEASUREMENT): validate_unit_of_measurement,
             cv.Optional(CONF_MODE, default="AUTO"): cv.enum(NUMBER_MODES, upper=True),
@@ -323,7 +323,7 @@ NUMBER_IN_RANGE_CONDITION_SCHEMA = cv.All(
         cv.Optional(CONF_ABOVE): cv.float_,
         cv.Optional(CONF_BELOW): cv.float_,
     },
-    cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
+    cv.AtLeastOne(CONF_ABOVE, CONF_BELOW),
 )
 
 

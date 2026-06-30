@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import re
 
-import voluptuous as vol
+import probatio
 
 # NOTE: Cannot import other esphome components globally as a modification in vol_schema
 # is needed before modules are loaded
@@ -929,7 +929,7 @@ def convert(schema, config_var, path):
     elif schema in (cv.string, cv.string_strict, cv.valid_name):
         config_var[S_TYPE] = "string"
 
-    elif isinstance(schema, vol.Schema):
+    elif isinstance(schema, probatio.Schema):
         # test: esphome/project
         config_var[S_TYPE] = "schema"
         config_var["schema"] = convert_config(schema.schema, path + "/s")["schema"]
@@ -1162,9 +1162,11 @@ def convert_keys(converted, schema, path):
                     "value": str(default_value),
                     "components": components,
                 }
-        elif hasattr(k, "default") and str(k.default) != "...":
+        elif hasattr(k, "default") and not isinstance(k.default, probatio.Undefined):
             default_value = k.default()
-            if default_value is not None:
+            if default_value is not None and not isinstance(
+                default_value, probatio.Undefined
+            ):
                 result["default"] = str(default_value)
 
         # UI hint from ``cv.Optional`` / ``cv.Required`` — surfaced

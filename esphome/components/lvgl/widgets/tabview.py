@@ -122,7 +122,7 @@ tabview_spec = TabviewType()
             cv.Optional(CONF_ANIMATED, default=False): animated,
             cv.Required(CONF_INDEX): lv_int,
         },
-    ).add_extra(cv.has_at_least_one_key(CONF_INDEX, CONF_TAB_ID)),
+    ).add_extra(cv.AtLeastOne(CONF_INDEX, CONF_TAB_ID)),
     synchronous=True,
 )
 async def tabview_select(config, action_id, template_arg, args):

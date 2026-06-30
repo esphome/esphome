@@ -32,7 +32,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(CONFIG_BINARY_SENSOR_SCHEMA)
     .extend(cv.polling_component_schema("never")),
-    cv.has_at_least_one_key(
+    cv.AtLeastOne(
         CONF_PAGE_ID,
         CONF_COMPONENT_ID,
         CONF_COMPONENT_NAME,

@@ -78,7 +78,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ),
-    cv.has_at_least_one_key(CONF_COOL_OUTPUT, CONF_HEAT_OUTPUT),
+    cv.AtLeastOne(CONF_COOL_OUTPUT, CONF_HEAT_OUTPUT),
 )
 
 

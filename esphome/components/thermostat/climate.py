@@ -674,7 +674,7 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
-    cv.has_at_least_one_key(
+    cv.AtLeastOne(
         CONF_COOL_ACTION, CONF_DRY_ACTION, CONF_FAN_ONLY_ACTION, CONF_HEAT_ACTION
     ),
     validate_thermostat,

@@ -198,7 +198,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.COMPONENT_SCHEMA)
     .extend(i2c.i2c_device_schema(0x36)),
     # ensure end_position and range are mutually exclusive
-    cv.has_at_most_one_key(CONF_END_POSITION, CONF_RANGE),
+    cv.AtMostOne(CONF_END_POSITION, CONF_RANGE),
     has_valid_range_config(),
 )
 

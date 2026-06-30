@@ -186,7 +186,7 @@ async def select_set_index_to_code(config, action_id, template_arg, args):
             ),
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
         }
-    ).add_extra(cv.has_exactly_one_key(CONF_OPTIONS, CONF_LAMBDA)),
+    ).add_extra(cv.ExactlyOne(CONF_OPTIONS, CONF_LAMBDA)),
 )
 async def select_is_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

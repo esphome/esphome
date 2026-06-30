@@ -20,7 +20,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.COMPONENT_SCHEMA)
     .extend(spi.spi_device_schema()),
-    cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
+    cv.AtMostOne(CONF_PAGES, CONF_LAMBDA),
     _validate,
 )
 

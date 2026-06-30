@@ -149,7 +149,7 @@ RADAR_SETTINGS_SCHEMA = cv.Schema(
         ),
     }
 ).add_extra(
-    cv.has_at_least_one_key(
+    cv.AtLeastOne(
         CONF_HW_FRONTEND_RESET,
         CONF_FREQUENCY,
         CONF_SENSING_DISTANCE,
