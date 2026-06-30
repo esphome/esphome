@@ -85,14 +85,9 @@ def _get_idf_tools_path() -> Path:
     if "ESPHOME_ESP_IDF_PREFIX" in os.environ:
         path = Path(get_str_env("ESPHOME_ESP_IDF_PREFIX", None)).expanduser()
     else:
-        # Machine-global cache shared across all projects rather than the
-        # per-config-directory ``<data_dir>/idf``. ESP-IDF plus its toolchains
-        # are multi-GB, so a per-project copy wastes disk and forces a fresh
-        # download for every config directory. The OS user *cache* dir (not
-        # ``~/.esphome``) is used deliberately: ``data_dir`` defaults to
-        # ``<config_dir>/.esphome``, so a user keeping configs in their home
-        # directory would otherwise collide the global install with a config's
-        # own data dir.
+        # Machine-global so all projects share the multi-GB install instead of
+        # a per-config-directory copy. The user cache dir (not ~/.esphome)
+        # avoids colliding with data_dir when configs live in the home dir.
         path = Path(platformdirs.user_cache_dir("esphome")) / "idf"
     # Resolve so an unnormalized config path (e.g. compiling ``../config/x.yaml``)
     # doesn't leave ``..`` segments in the IDF_TOOLS_PATH handed to idf.py, which
@@ -832,10 +827,9 @@ def _ccache_env() -> dict[str, str]:
 
     Enabled by default whenever the ``ccache`` binary is on PATH; set
     ``IDF_CCACHE_ENABLE=0`` in the environment to opt out. The cache lives under
-    the IDF tools path, which defaults to the machine-global OS user cache dir
-    (or ``ESPHOME_ESP_IDF_PREFIX`` / the add-on ``/data``), so it is shared
-    across all projects. ``esphome clean-all`` removes it along with the
-    framework.
+    the IDF tools path (the machine-global cache dir, or
+    ``ESPHOME_ESP_IDF_PREFIX``), so it is shared across all projects and removed
+    by ``esphome clean-all`` along with the framework.
 
     Depend mode keeps cache-miss overhead low (hashes the compiler's depfiles
     instead of preprocessing). ``CCACHE_BASEDIR`` rewrites the per-build

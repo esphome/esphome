@@ -653,10 +653,8 @@ def clean_all(configuration: list[str]):
                 elif item.is_dir() and item.name != "storage":
                     rmtree(item)
 
-    # Clean the native ESP-IDF toolchain install (framework + Python envs +
-    # tools + ccache). It now lives in a machine-global cache dir (or
-    # ESPHOME_ESP_IDF_PREFIX), outside any .esphome data dir, so the per-config
-    # loop above no longer reaches it and it must be removed explicitly.
+    # The native ESP-IDF install lives in a machine-global cache dir, outside
+    # any .esphome data dir, so the per-config loop above won't reach it.
     from esphome.espidf.framework import _get_idf_tools_path
 
     idf_install_path = _get_idf_tools_path()

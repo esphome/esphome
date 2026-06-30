@@ -21,10 +21,8 @@ export PLATFORMIO_PLATFORMS_DIR="${pio_cache_base}/platforms"
 export PLATFORMIO_PACKAGES_DIR="${pio_cache_base}/packages"
 export PLATFORMIO_CACHE_DIR="${pio_cache_base}/cache"
 
-# Keep the native ESP-IDF toolchain install (multi-GB framework + tools) on the
-# same persistent cache root as the PlatformIO packages. Without this it would
-# default to the OS user cache dir inside the container and be re-downloaded on
-# every container restart.
+# Keep the native ESP-IDF install on the persistent cache root, not the
+# container's ephemeral user cache dir (re-downloaded on every restart).
 export ESPHOME_ESP_IDF_PREFIX="$(dirname "${pio_cache_base}")/idf"
 
 # If /build is mounted, use that as the build path
