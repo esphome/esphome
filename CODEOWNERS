@@ -123,6 +123,7 @@ esphome/components/cs5460a/* @balrog-kun
 esphome/components/cse7761/* @berfenger
 esphome/components/cst226/* @clydebarrow
 esphome/components/cst816/* @clydebarrow
+esphome/components/cst9220/* @clydebarrow
 esphome/components/ct_clamp/* @jesserockz
 esphome/components/current_based/* @djwmarcx
 esphome/components/dac7678/* @NickB1
@@ -386,6 +387,7 @@ esphome/components/pcm5122/* @remcom
 esphome/components/pi4ioe5v6408/* @jesserockz
 esphome/components/pid/* @OttoWinter
 esphome/components/pipsolar/* @andreashergert1984
+esphome/components/pixoo/* @jesserockz
 esphome/components/pm1006/* @habbie
 esphome/components/pm2005/* @andrewjswan
 esphome/components/pmsa003i/* @sjtrny
@@ -405,6 +407,7 @@ esphome/components/psram/* @esphome/core
 esphome/components/pulse_meter/* @cstaahl @stevebaxter @TrentHouliston
 esphome/components/pvvx_mithermometer/* @pasiz
 esphome/components/pylontech/* @functionpointer
+esphome/components/qmi8658/* @clydebarrow
 esphome/components/qmp6988/* @andrewpc
 esphome/components/qr_code/* @wjtje
 esphome/components/qspi_dbi/* @clydebarrow
