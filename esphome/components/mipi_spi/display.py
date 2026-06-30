@@ -413,6 +413,7 @@ async def to_code(config):
     var = cg.new_Pvariable(var_id, TemplateArguments(*templateargs))
     cg.add(var.set_init_sequence(init_sequence))
     cg.add(var.set_model(config[CONF_MODEL]))
+    cg.add(var.set_invert_colors(config[CONF_INVERT_COLORS]))
     if enable_pin := config.get(CONF_ENABLE_PIN):
         enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
         cg.add(var.set_enable_pins(enable))
