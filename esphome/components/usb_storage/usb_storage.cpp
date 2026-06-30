@@ -509,7 +509,7 @@ void USBStorageDevice::build_path_(char *out, size_t out_size, const char *path)
 // ─────────────────────────────────────────────────────────────────────────────
 
 storage::StorageError USBStorageDevice::get_info(storage::StorageInfo *info) {
-  info->id = this->storage_id_ ? this->storage_id_ : "usb_storage";
+  info->id = this->mount_path_;
   info->name = "USB Storage";
   info->is_mounted = this->fs_mounted_;
   info->is_removable = true;
