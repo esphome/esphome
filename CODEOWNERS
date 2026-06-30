@@ -491,7 +491,6 @@ esphome/components/spi_led_strip/* @clydebarrow
 esphome/components/split_buffer/* @jesserockz
 esphome/components/sprinkler/* @kbx81
 esphome/components/sps30/* @martgras
-esphome/components/storage/* @p1ngb4ck
 esphome/components/ssd1322_base/* @kbx81
 esphome/components/ssd1322_spi/* @kbx81
 esphome/components/ssd1325_base/* @kbx81
