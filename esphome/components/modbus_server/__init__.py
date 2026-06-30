@@ -8,6 +8,7 @@ from esphome.components.modbus.helpers import (
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID
+from esphome.types import ConfigType
 
 from .const import (
     CONF_ALLOW_PARTIAL_READ,
@@ -63,7 +64,7 @@ ModbusServerRegisterSchema = cv.Schema(
 )
 
 
-def _validate_register_ranges(config):
+def _validate_register_ranges(config: ConfigType) -> ConfigType:
     # Each register occupies [address, address + register_count); the whole span must fit inside the 16-bit
     # Modbus address space (0x0000-0xFFFF).
     for register in config.get(CONF_REGISTERS, []):
@@ -77,7 +78,7 @@ def _validate_register_ranges(config):
     return config
 
 
-def _validate_no_overlapping_registers(config):
+def _validate_no_overlapping_registers(config: ConfigType) -> ConfigType:
     # Each register occupies [address, address + register_count). Reject configs where any two ranges
     # overlap -- the same address twice, or a multi-register value straddling a neighbour -- since the
     # server resolves a request by the value containing an address and overlaps are ambiguous.
