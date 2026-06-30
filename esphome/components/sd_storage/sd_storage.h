@@ -29,8 +29,8 @@ class SdMmc : public SdStorageBase {
   void set_cs_pin(GPIOPin *pin) { this->cs_pin_ = pin; }
   void set_slot(uint8_t slot) { this->slot_ = slot; }
 
-  StorageError mount() override;
-  StorageError unmount() override;
+  storage::StorageError mount() override;
+  storage::StorageError unmount() override;
 
  protected:
   SdFileHandle *get_handle_pool() override { return this->handle_pool_; }

@@ -32,26 +32,26 @@ class SdStorageBase : public storage::FilesystemStorage {
   template<typename F> void add_on_mounted_callback(F &&cb) { this->on_mounted_.add(std::forward<F>(cb)); }
 
   // Storage base interface
-  StorageError get_info(storage::StorageInfo *info) override;
+  storage::StorageError get_info(storage::StorageInfo *info) override;
 
   // FilesystemStorage virtuals — common POSIX implementations (subclasses provide mount/unmount)
-  StorageError format() override;
-  StorageError sync() override;
-  StorageError open(const char *path, storage::FileHandle *&handle, storage::OpenMode mode) override;
-  StorageError close(storage::FileHandle *handle) override;
-  StorageError read(storage::FileHandle *handle, uint8_t *buf, size_t len, size_t *bytes_transferred) override;
-  StorageError write(storage::FileHandle *handle, const uint8_t *buf, size_t len,
+  storage::StorageError format() override;
+  storage::StorageError sync() override;
+  storage::StorageError open(const char *path, storage::FileHandle *&handle, storage::OpenMode mode) override;
+  storage::StorageError close(storage::FileHandle *handle) override;
+  storage::StorageError read(storage::FileHandle *handle, uint8_t *buf, size_t len, size_t *bytes_transferred) override;
+  storage::StorageError write(storage::FileHandle *handle, const uint8_t *buf, size_t len,
                      size_t *bytes_transferred) override;
-  StorageError seek(storage::FileHandle *handle, size_t offset) override;
-  StorageError tell(storage::FileHandle *handle, size_t *position) override;
-  StorageError stat(const char *path, storage::FileStat *stat) override;
-  StorageError list_dir(const char *path, void (*callback)(const storage::FileStat *entry, void *ctx),
+  storage::StorageError seek(storage::FileHandle *handle, size_t offset) override;
+  storage::StorageError tell(storage::FileHandle *handle, size_t *position) override;
+  storage::StorageError stat(const char *path, storage::FileStat *stat) override;
+  storage::StorageError list_dir(const char *path, void (*callback)(const storage::FileStat *entry, void *ctx),
                         void *ctx) override;
-  StorageError mkdir(const char *path) override;
-  StorageError rmdir(const char *path, bool recursive) override;
-  StorageError remove(const char *path) override;
-  StorageError rename(const char *old_path, const char *new_path) override;
-  StorageError copy(const char *src_path, const char *dst_path) override;
+  storage::StorageError mkdir(const char *path) override;
+  storage::StorageError rmdir(const char *path, bool recursive) override;
+  storage::StorageError remove(const char *path) override;
+  storage::StorageError rename(const char *old_path, const char *new_path) override;
+  storage::StorageError copy(const char *src_path, const char *dst_path) override;
 
  protected:
   static constexpr int MAX_OPEN_FILES = 4;

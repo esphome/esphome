@@ -37,8 +37,8 @@ class SdSpi : public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARIT
   void set_data1_pin(GPIOPin *pin) { this->data1_pin_ = pin; }
   void set_data2_pin(GPIOPin *pin) { this->data2_pin_ = pin; }
 
-  StorageError mount() override;
-  StorageError unmount() override;
+  storage::StorageError mount() override;
+  storage::StorageError unmount() override;
 
  protected:
   SdFileHandle *get_handle_pool() override { return this->handle_pool_; }
