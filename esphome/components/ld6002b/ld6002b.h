@@ -26,7 +26,7 @@
 #endif
 
 #include <array>
-#include <vector>
+#include <memory>
 #include <cmath>
 
 namespace esphome::ld6002b {
@@ -346,7 +346,7 @@ class LD6002BComponent : public Component, public uart::UARTDevice {
   uint32_t discard_remaining_{0};
   size_t max_data_len_{0};
   bool max_data_len_overridden_{false};
-  std::vector<uint8_t> data_buf_{};
+  std::unique_ptr<uint8_t[]> data_buf_;
   uint16_t next_frame_id_{0};
 
   static constexpr uint8_t CMD_QUEUE_SIZE = 16;

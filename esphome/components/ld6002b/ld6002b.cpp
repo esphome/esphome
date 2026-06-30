@@ -262,7 +262,7 @@ void LD6002BComponent::write_f32_le(uint8_t *data, float value) {
 void LD6002BComponent::set_max_data_len(size_t max_data_len) {
   this->max_data_len_overridden_ = true;
   this->max_data_len_ = max_data_len;
-  this->data_buf_.resize(std::max<size_t>(max_data_len, 6));
+  this->data_buf_ = std::make_unique<uint8_t[]>(std::max<size_t>(max_data_len, 6));
 }
 
 void LD6002BComponent::setup() {
@@ -279,7 +279,7 @@ void LD6002BComponent::setup() {
     desired_data_len = point_cloud_configured ? DEFAULT_MAX_DATA_LEN_POINT_CLOUD : DEFAULT_MAX_DATA_LEN;
   }
   this->max_data_len_ = desired_data_len;
-  this->data_buf_.resize(std::max<size_t>(desired_data_len, 6));
+  this->data_buf_ = std::make_unique<uint8_t[]>(std::max<size_t>(desired_data_len, 6));
   if (this->wakeup_pin_ != nullptr) {
     this->wakeup_pin_->setup();
     this->wakeup_pin_->digital_write(true);
@@ -509,9 +509,9 @@ void LD6002BComponent::parse_byte_(uint8_t byte) {
         this->header_xor_ ^= byte;
         this->header_pos_++;
         if (this->header_pos_ == 6) {
-          this->frame_id_ = read_u16_be(this->data_buf_.data());
-          this->data_len_ = read_u16_be(this->data_buf_.data() + 2);
-          this->frame_type_ = read_u16_be(this->data_buf_.data() + 4);
+          this->frame_id_ = read_u16_be(this->data_buf_.get());
+          this->data_len_ = read_u16_be(this->data_buf_.get() + 2);
+          this->frame_type_ = read_u16_be(this->data_buf_.get() + 4);
           if (this->data_len_ > this->max_data_len_) {
             ESP_LOGW(TAG, "Frame too large: %u", this->data_len_);
             // Discard the remaining bytes in this frame: header checksum + payload + data checksum (if any)
@@ -550,7 +550,7 @@ void LD6002BComponent::parse_byte_(uint8_t byte) {
     case ParseState::DCK: {
       uint8_t expected = static_cast<uint8_t>(~this->data_xor_);
       if (byte == expected) {
-        this->handle_frame_(this->frame_type_, this->data_buf_.data(), this->data_len_);
+        this->handle_frame_(this->frame_type_, this->data_buf_.get(), this->data_len_);
       } else {
         ESP_LOGV(TAG, "Data checksum mismatch");
       }
