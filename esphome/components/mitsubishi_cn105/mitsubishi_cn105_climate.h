@@ -5,6 +5,7 @@
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/uart/uart.h"
 #include "mitsubishi_cn105.h"
+#include "mitsubishi_cn105_swing_mode_manager.h"
 
 namespace esphome::mitsubishi_cn105 {
 
@@ -31,9 +32,7 @@ class MitsubishiCN105Climate final : public climate::Climate, public Component, 
   void apply_values_();
 
   MitsubishiCN105 hp_;
-  climate::ClimateSwingModeMask supported_swing_modes_{};
-  MitsubishiCN105::VaneMode last_non_swing_vane_mode_{MitsubishiCN105::VaneMode::AUTO};
-  MitsubishiCN105::WideVaneMode last_non_swing_wide_vane_mode_{MitsubishiCN105::WideVaneMode::CENTER};
+  SwingModeManager swing_mode_manager_;
 };
 
 template<typename... Ts>
