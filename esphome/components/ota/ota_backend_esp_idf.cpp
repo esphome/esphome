@@ -168,8 +168,12 @@ OTAResponseTypes IDFOTABackend::end() {
     // update if it is older than the running version by leaving the boot
     // partition unchanged -- the staged image simply never boots.
     esp_app_desc_t incoming;
-    if (esp_ota_get_partition_description(this->partition_, &incoming) == ESP_OK &&
-        version_is_older(incoming.version, ESPHOME_PROJECT_VERSION)) {
+    esp_err_t desc_err = esp_ota_get_partition_description(this->partition_, &incoming);
+    if (desc_err != ESP_OK) {
+      // Couldn't read the staged image's version, so the comparison is skipped.
+      // Warn so the bypassed check is observable rather than silent.
+      ESP_LOGW(TAG, "Downgrade protection: could not read image version (err=0x%X); allowing update", desc_err);
+    } else if (version_is_older(incoming.version, ESPHOME_PROJECT_VERSION)) {
       ESP_LOGE(TAG, "Rejecting downgrade: image version '%s' is older than running version '%s'", incoming.version,
                ESPHOME_PROJECT_VERSION);
       return OTA_RESPONSE_ERROR_VERSION_DOWNGRADE;
