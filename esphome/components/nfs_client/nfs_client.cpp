@@ -506,11 +506,11 @@ void NFSClient::dump_config() {
 
 storage::StorageError NFSClient::get_info(storage::StorageInfo *info) {
   if (info == nullptr) {
-    return storage::StorageError::INVALID_ARGS;
+    return storage::storage::StorageError::INVALID_ARGS;
   }
   if (!this->mounted_) {
     info->is_mounted = false;
-    return storage::StorageError::NOT_READY;
+    return storage::storage::StorageError::NOT_READY;
   }
 
   uint64_t total = 0, free_b = 0;
@@ -524,7 +524,7 @@ storage::StorageError NFSClient::get_info(storage::StorageInfo *info) {
   info->is_mounted = true;
   info->is_removable = false;
   info->is_read_only = false;
-  return storage::StorageError::OK;
+  return storage::storage::StorageError::OK;
 }
 
 storage::StorageError NFSClient::connect() {
@@ -532,12 +532,12 @@ storage::StorageError NFSClient::connect() {
   if (this->mount_state_ == MountState::IDLE || this->mount_state_ == MountState::FAILED) {
     this->mount_state_ = MountState::IDLE;
   }
-  return storage::StorageError::OK;
+  return storage::storage::StorageError::OK;
 }
 
 storage::StorageError NFSClient::disconnect() {
   if (!this->mounted_) {
-    return storage::StorageError::OK;
+    return storage::storage::StorageError::OK;
   }
   if (storage::global_storage_registry != nullptr) {
     storage::global_storage_registry->unregister_storage(this);
@@ -547,16 +547,16 @@ storage::StorageError NFSClient::disconnect() {
   this->mounted_ = false;
   this->mount_state_ = MountState::FAILED;
   ESP_LOGI(TAG, "NFS disconnected");
-  return storage::StorageError::OK;
+  return storage::storage::StorageError::OK;
 }
 
 storage::StorageError NFSClient::read_chunk(const char *path, uint8_t *buf, size_t offset, size_t len,
                                             size_t *bytes_transferred) {
   if (path == nullptr || buf == nullptr || bytes_transferred == nullptr) {
-    return storage::StorageError::INVALID_ARGS;
+    return storage::storage::StorageError::INVALID_ARGS;
   }
   if (!this->mounted_) {
-    return storage::StorageError::NOT_READY;
+    return storage::storage::StorageError::NOT_READY;
   }
 
   *bytes_transferred = 0;
@@ -572,7 +572,7 @@ storage::StorageError NFSClient::read_chunk(const char *path, uint8_t *buf, size
     attr = this->cached_attr_;
   } else {
     if (!this->resolve_path_(path_str, fh, attr)) {
-      return storage::StorageError::NOT_FOUND;
+      return storage::storage::StorageError::NOT_FOUND;
     }
     this->cached_path_ = path_str;
     this->cached_fh_ = fh;
@@ -581,11 +581,11 @@ storage::StorageError NFSClient::read_chunk(const char *path, uint8_t *buf, size
   }
 
   if (attr.type != NF3REG) {
-    return storage::StorageError::INVALID_ARGS;
+    return storage::storage::StorageError::INVALID_ARGS;
   }
   if (offset >= attr.size) {
     // EOF — not an error, just 0 bytes transferred
-    return storage::StorageError::OK;
+    return storage::storage::StorageError::OK;
   }
 
   size_t to_read = len;
@@ -603,19 +603,19 @@ storage::StorageError NFSClient::read_chunk(const char *path, uint8_t *buf, size
   XDRBuffer response;
   if (!this->send_rpc_(request, response)) {
     this->cached_path_.clear();
-    return storage::StorageError::READ_ERROR;
+    return storage::storage::StorageError::READ_ERROR;
   }
 
   RPCAcceptStatus rpc_status;
   if (!this->rpc_.parse_reply(response, xid, rpc_status)) {
     this->cached_path_.clear();
-    return storage::StorageError::READ_ERROR;
+    return storage::storage::StorageError::READ_ERROR;
   }
 
   uint32_t nfs_status;
   if (!response.decode_uint32(nfs_status) || nfs_status != NFS3_OK) {
     this->cached_path_.clear();
-    return storage::StorageError::READ_ERROR;
+    return storage::storage::StorageError::READ_ERROR;
   }
 
   bool has_attr_result;
@@ -628,26 +628,26 @@ storage::StorageError NFSClient::read_chunk(const char *path, uint8_t *buf, size
   bool eof;
   if (!response.decode_uint32(nfs_bytes_read) || !response.decode_bool(eof)) {
     this->cached_path_.clear();
-    return storage::StorageError::READ_ERROR;
+    return storage::storage::StorageError::READ_ERROR;
   }
 
   size_t actual_bytes;
   if (!response.decode_opaque_to_buffer(buf, len, actual_bytes)) {
     this->cached_path_.clear();
-    return storage::StorageError::READ_ERROR;
+    return storage::storage::StorageError::READ_ERROR;
   }
 
   *bytes_transferred = actual_bytes;
-  return storage::StorageError::OK;
+  return storage::storage::StorageError::OK;
 }
 
 storage::StorageError NFSClient::write_chunk(const char *path, const uint8_t *buf, size_t offset, size_t len,
                                              size_t *bytes_transferred) {
   if (path == nullptr || buf == nullptr || bytes_transferred == nullptr) {
-    return storage::StorageError::INVALID_ARGS;
+    return storage::storage::StorageError::INVALID_ARGS;
   }
   if (!this->mounted_) {
-    return storage::StorageError::NOT_READY;
+    return storage::storage::StorageError::NOT_READY;
   }
 
   *bytes_transferred = 0;
@@ -661,32 +661,32 @@ storage::StorageError NFSClient::write_chunk(const char *path, const uint8_t *bu
     NFSFileHandle parent_fh;
     std::string filename;
     if (!this->resolve_parent_path_(path_str, parent_fh, filename)) {
-      return storage::StorageError::NOT_FOUND;
+      return storage::storage::StorageError::NOT_FOUND;
     }
     if (!this->nfs_create_(parent_fh, filename, 0644, fh)) {
-      return storage::StorageError::WRITE_ERROR;
+      return storage::storage::StorageError::WRITE_ERROR;
     }
   }
 
   if (!this->nfs_write_(fh, offset, buf, len)) {
-    return storage::StorageError::WRITE_ERROR;
+    return storage::storage::StorageError::WRITE_ERROR;
   }
 
   *bytes_transferred = len;
-  return storage::StorageError::OK;
+  return storage::storage::StorageError::OK;
 }
 
 storage::StorageError NFSClient::stat(const char *path, storage::FileStat *stat) {
   if (path == nullptr || stat == nullptr) {
-    return storage::StorageError::INVALID_ARGS;
+    return storage::storage::StorageError::INVALID_ARGS;
   }
   if (!this->mounted_) {
-    return storage::StorageError::NOT_READY;
+    return storage::storage::StorageError::NOT_READY;
   }
 
   NFSFileAttr attr;
   if (!this->get_file_attributes(std::string(path), attr)) {
-    return storage::StorageError::NOT_FOUND;
+    return storage::storage::StorageError::NOT_FOUND;
   }
 
   // Fill FileStat — extract filename component from path
@@ -697,16 +697,16 @@ storage::StorageError NFSClient::stat(const char *path, storage::FileStat *stat)
 
   stat->size = attr.size;
   stat->is_dir = (attr.type == NF3DIR);
-  return storage::StorageError::OK;
+  return storage::storage::StorageError::OK;
 }
 
 storage::StorageError NFSClient::list_dir(const char *path,
                                           void (*callback)(const storage::FileStat *entry, void *ctx), void *ctx) {
   if (path == nullptr || callback == nullptr) {
-    return storage::StorageError::INVALID_ARGS;
+    return storage::storage::StorageError::INVALID_ARGS;
   }
   if (!this->mounted_) {
-    return storage::StorageError::NOT_READY;
+    return storage::storage::StorageError::NOT_READY;
   }
 
   const std::string path_str(path);
@@ -714,15 +714,15 @@ storage::StorageError NFSClient::list_dir(const char *path,
   NFSFileAttr attr;
 
   if (!this->resolve_path_(path_str, fh, attr)) {
-    return storage::StorageError::NOT_FOUND;
+    return storage::storage::StorageError::NOT_FOUND;
   }
   if (attr.type != NF3DIR) {
-    return storage::StorageError::INVALID_ARGS;
+    return storage::storage::StorageError::INVALID_ARGS;
   }
 
   std::vector<NFSDirEntry> entries;
   if (!this->nfs_readdir_(fh, entries)) {
-    return storage::StorageError::READ_ERROR;
+    return storage::storage::StorageError::READ_ERROR;
   }
 
   storage::FileStat entry_stat;
@@ -734,35 +734,35 @@ storage::StorageError NFSClient::list_dir(const char *path,
     callback(&entry_stat, ctx);
   }
 
-  return storage::StorageError::OK;
+  return storage::storage::StorageError::OK;
 }
 
 storage::StorageError NFSClient::mkdir(const char *path) {
   if (path == nullptr) {
-    return storage::StorageError::INVALID_ARGS;
+    return storage::storage::StorageError::INVALID_ARGS;
   }
   if (!this->mounted_) {
-    return storage::StorageError::NOT_READY;
+    return storage::storage::StorageError::NOT_READY;
   }
 
   const std::string path_str(path);
   NFSFileHandle parent_fh;
   std::string dirname;
   if (!this->resolve_parent_path_(path_str, parent_fh, dirname)) {
-    return storage::StorageError::NOT_FOUND;
+    return storage::storage::StorageError::NOT_FOUND;
   }
 
   NFSFileHandle fh;
-  return this->nfs_mkdir_(parent_fh, dirname, 0777, fh) ? storage::StorageError::OK
-                                                         : storage::StorageError::WRITE_ERROR;
+  return this->nfs_mkdir_(parent_fh, dirname, 0777, fh) ? storage::storage::StorageError::OK
+                                                         : storage::storage::StorageError::WRITE_ERROR;
 }
 
 storage::StorageError NFSClient::rmdir(const char *path, bool recursive) {
   if (path == nullptr) {
-    return storage::StorageError::INVALID_ARGS;
+    return storage::storage::StorageError::INVALID_ARGS;
   }
   if (!this->mounted_) {
-    return storage::StorageError::NOT_READY;
+    return storage::storage::StorageError::NOT_READY;
   }
 
   const std::string path_str(path);
@@ -772,27 +772,27 @@ storage::StorageError NFSClient::rmdir(const char *path, bool recursive) {
     NFSFileHandle fh;
     NFSFileAttr attr;
     if (!this->resolve_path_(path_str, fh, attr)) {
-      return storage::StorageError::NOT_FOUND;
+      return storage::storage::StorageError::NOT_FOUND;
     }
     if (attr.type != NF3DIR) {
-      return storage::StorageError::INVALID_ARGS;
+      return storage::storage::StorageError::INVALID_ARGS;
     }
 
     std::vector<NFSDirEntry> entries;
     if (!this->nfs_readdir_(fh, entries)) {
-      return storage::StorageError::READ_ERROR;
+      return storage::storage::StorageError::READ_ERROR;
     }
 
     for (const auto &e : entries) {
       std::string child_path = path_str + "/" + e.name;
       if (e.has_attr && e.attr.type == NF3DIR) {
-        storage::StorageError err = this->rmdir(child_path.c_str(), true);
-        if (err != storage::StorageError::OK) {
+        storage::storage::StorageError err = this->rmdir(child_path.c_str(), true);
+        if (err != storage::storage::StorageError::OK) {
           return err;
         }
       } else {
         if (!this->nfs_remove_(fh, e.name)) {
-          return storage::StorageError::WRITE_ERROR;
+          return storage::storage::StorageError::WRITE_ERROR;
         }
       }
     }
@@ -801,36 +801,36 @@ storage::StorageError NFSClient::rmdir(const char *path, bool recursive) {
   NFSFileHandle parent_fh;
   std::string dirname;
   if (!this->resolve_parent_path_(path_str, parent_fh, dirname)) {
-    return storage::StorageError::NOT_FOUND;
+    return storage::storage::StorageError::NOT_FOUND;
   }
 
-  return this->nfs_rmdir_(parent_fh, dirname) ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+  return this->nfs_rmdir_(parent_fh, dirname) ? storage::storage::StorageError::OK : storage::storage::StorageError::WRITE_ERROR;
 }
 
 storage::StorageError NFSClient::remove(const char *path) {
   if (path == nullptr) {
-    return storage::StorageError::INVALID_ARGS;
+    return storage::storage::StorageError::INVALID_ARGS;
   }
   if (!this->mounted_) {
-    return storage::StorageError::NOT_READY;
+    return storage::storage::StorageError::NOT_READY;
   }
 
   const std::string path_str(path);
   NFSFileHandle parent_fh;
   std::string filename;
   if (!this->resolve_parent_path_(path_str, parent_fh, filename)) {
-    return storage::StorageError::NOT_FOUND;
+    return storage::storage::StorageError::NOT_FOUND;
   }
 
-  return this->nfs_remove_(parent_fh, filename) ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+  return this->nfs_remove_(parent_fh, filename) ? storage::storage::StorageError::OK : storage::storage::StorageError::WRITE_ERROR;
 }
 
 storage::StorageError NFSClient::rename(const char *old_path, const char *new_path) {
   if (old_path == nullptr || new_path == nullptr) {
-    return storage::StorageError::INVALID_ARGS;
+    return storage::storage::StorageError::INVALID_ARGS;
   }
   if (!this->mounted_) {
-    return storage::StorageError::NOT_READY;
+    return storage::storage::StorageError::NOT_READY;
   }
 
   const std::string old_str(old_path);
@@ -839,25 +839,25 @@ storage::StorageError NFSClient::rename(const char *old_path, const char *new_pa
   NFSFileHandle old_parent_fh;
   std::string old_name;
   if (!this->resolve_parent_path_(old_str, old_parent_fh, old_name)) {
-    return storage::StorageError::NOT_FOUND;
+    return storage::storage::StorageError::NOT_FOUND;
   }
 
   NFSFileHandle new_parent_fh;
   std::string new_name;
   if (!this->resolve_parent_path_(new_str, new_parent_fh, new_name)) {
-    return storage::StorageError::NOT_FOUND;
+    return storage::storage::StorageError::NOT_FOUND;
   }
 
-  return this->nfs_rename_(old_parent_fh, old_name, new_parent_fh, new_name) ? storage::StorageError::OK
-                                                                              : storage::StorageError::WRITE_ERROR;
+  return this->nfs_rename_(old_parent_fh, old_name, new_parent_fh, new_name) ? storage::storage::StorageError::OK
+                                                                              : storage::storage::StorageError::WRITE_ERROR;
 }
 
 storage::StorageError NFSClient::copy(const char *src_path, const char *dst_path) {
   if (src_path == nullptr || dst_path == nullptr) {
-    return storage::StorageError::INVALID_ARGS;
+    return storage::storage::StorageError::INVALID_ARGS;
   }
   if (!this->mounted_) {
-    return storage::StorageError::NOT_READY;
+    return storage::storage::StorageError::NOT_READY;
   }
 
   const std::string src_str(src_path);
@@ -867,21 +867,21 @@ storage::StorageError NFSClient::copy(const char *src_path, const char *dst_path
   NFSFileHandle src_fh;
   NFSFileAttr src_attr;
   if (!this->resolve_path_(src_str, src_fh, src_attr)) {
-    return storage::StorageError::NOT_FOUND;
+    return storage::storage::StorageError::NOT_FOUND;
   }
   if (src_attr.type != NF3REG) {
-    return storage::StorageError::INVALID_ARGS;
+    return storage::storage::StorageError::INVALID_ARGS;
   }
 
   // Create destination
   NFSFileHandle dst_parent_fh;
   std::string dst_name;
   if (!this->resolve_parent_path_(dst_str, dst_parent_fh, dst_name)) {
-    return storage::StorageError::NOT_FOUND;
+    return storage::storage::StorageError::NOT_FOUND;
   }
   NFSFileHandle dst_fh;
   if (!this->nfs_create_(dst_parent_fh, dst_name, 0644, dst_fh)) {
-    return storage::StorageError::WRITE_ERROR;
+    return storage::storage::StorageError::WRITE_ERROR;
   }
 
   // Copy in 8KB chunks
@@ -895,18 +895,18 @@ storage::StorageError NFSClient::copy(const char *src_path, const char *dst_path
 
     std::vector<uint8_t> chunk;
     if (!this->nfs_read_(src_fh, offset, to_read, chunk)) {
-      return storage::StorageError::READ_ERROR;
+      return storage::storage::StorageError::READ_ERROR;
     }
     if (chunk.empty()) {
       break;
     }
     if (!this->nfs_write_(dst_fh, offset, chunk.data(), chunk.size())) {
-      return storage::StorageError::WRITE_ERROR;
+      return storage::storage::StorageError::WRITE_ERROR;
     }
     offset += chunk.size();
   }
 
-  return storage::StorageError::OK;
+  return storage::storage::StorageError::OK;
 }
 
 //========================================================================
