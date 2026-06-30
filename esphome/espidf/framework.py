@@ -9,6 +9,8 @@ import re
 import shutil
 import tempfile
 
+import platformdirs
+
 from esphome.config_validation import Version
 from esphome.core import CORE
 from esphome.framework_helpers import (
@@ -80,10 +82,18 @@ def _get_idf_tools_path() -> Path:
     Returns:
         Path object pointing to the ESP-IDF tools directory
     """
-    if "ESPHOME_ESP_IDF_PREFIX" in os.environ:
-        path = Path(get_str_env("ESPHOME_ESP_IDF_PREFIX", None)).expanduser()
+    # Treat an empty/whitespace ESPHOME_ESP_IDF_PREFIX as unset: Path("")
+    # resolves to the CWD, which would install into (and let clean-all delete)
+    # the working directory by accident.
+    if prefix := get_str_env("ESPHOME_ESP_IDF_PREFIX", "").strip():
+        path = Path(prefix).expanduser()
     else:
-        path = CORE.data_dir / "idf"
+        # Machine-global so all projects share the multi-GB install instead of
+        # a per-config-directory copy. The user cache dir (not ~/.esphome)
+        # avoids colliding with data_dir when configs live in the home dir.
+        # appauthor=False drops the redundant <author>\ segment on Windows
+        # (which otherwise repeats "esphome\esphome\") to keep the path short.
+        path = Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "idf"
     # Resolve so an unnormalized config path (e.g. compiling ``../config/x.yaml``)
     # doesn't leave ``..`` segments in the IDF_TOOLS_PATH handed to idf.py, which
     # otherwise warns that the venv interpreter path doesn't match the install.
@@ -145,10 +155,11 @@ def _check_windows_path_length() -> None:
         "  fatal error: bits/c++config.h: No such file or directory\n"
         "  cannot execute 'as': CreateProcess: No such file or directory\n"
         "To fix, either:\n"
-        "  - Enable Windows long path support: set\n"
-        "    HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem\\LongPathsEnabled\n"
-        "    to 1 and reboot, or\n"
-        "  - Move your ESPHome project to a shorter path\n"
+        "  - Enable Windows long path support, then reboot. In an elevated\n"
+        "    PowerShell run:\n"
+        "      Set-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\FileSystem' LongPathsEnabled 1\n"
+        "    Details: https://learn.microsoft.com/windows/win32/fileio/maximum-file-path-limitation\n"
+        "  - Or set ESPHOME_ESP_IDF_PREFIX to a shorter path (e.g. C:\\ESPHome\\idf)\n"
         "Then delete the ESP-IDF tools directory above so the toolchain "
         "reinstalls cleanly.",
         tools_path,
@@ -553,7 +564,7 @@ def _check_esphome_idf_framework_install(
     # Logged every invocation (not just on install) so the user can verify the
     # override. A changed URL needs ``esphome clean-all`` to force a re-download
     # (``esphome clean`` only wipes the build dir, not the extracted framework
-    # under <data_dir>/idf/frameworks/<version>).
+    # under the global install dir's ``frameworks/<version>``).
     if source_url:
         _LOGGER.info("Using framework source override: %s", source_url)
 
@@ -822,11 +833,9 @@ def _ccache_env() -> dict[str, str]:
 
     Enabled by default whenever the ``ccache`` binary is on PATH; set
     ``IDF_CCACHE_ENABLE=0`` in the environment to opt out. The cache lives under
-    the IDF tools path. How widely it is shared depends on where that resolves:
-    across projects (and surviving ``clean-all``) when it is a common location
-    (``ESPHOME_ESP_IDF_PREFIX`` or the add-on ``/data``), but per-project under
-    ``.esphome/idf`` for a default pip install, where ``clean-all`` clears it
-    along with the framework.
+    the IDF tools path (the machine-global cache dir, or
+    ``ESPHOME_ESP_IDF_PREFIX``), so it is shared across all projects and removed
+    by ``esphome clean-all`` along with the framework.
 
     Depend mode keeps cache-miss overhead low (hashes the compiler's depfiles
     instead of preprocessing). ``CCACHE_BASEDIR`` rewrites the per-build
