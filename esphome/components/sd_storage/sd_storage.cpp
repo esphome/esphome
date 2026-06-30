@@ -39,7 +39,7 @@ void SdMmc::setup() {
     this->cs_pin_->setup();
   }
 
-  if (this->mount() != StorageError::OK) {
+  if (this->mount() != storage::StorageError::OK) {
     ESP_LOGE(TAG, "Failed to mount SD/MMC card");
     this->mark_failed();
   }
@@ -58,7 +58,7 @@ void SdMmc::dump_config() {
   }
 }
 
-StorageError SdMmc::mount() {
+storage::StorageError SdMmc::mount() {
   sdmmc_host_t host = SDMMC_HOST_DEFAULT();
 #if defined(SD_MMC_USE_HIGHSPEED)
   host.max_freq_khz = SDMMC_FREQ_HIGHSPEED;
@@ -88,7 +88,7 @@ StorageError SdMmc::mount() {
     esp_err_t pre_ret = sdmmc_host_init_slot(host.slot, &slot_config);
     if (pre_ret != ESP_OK) {
       ESP_LOGE(TAG, "Failed to init SDMMC slot %d: %s", this->slot_, esp_err_to_name(pre_ret));
-      return StorageError::NOT_READY;
+      return storage::StorageError::NOT_READY;
     }
   }
 #endif
@@ -111,7 +111,7 @@ StorageError SdMmc::mount() {
 
   if (ret != ESP_OK) {
     ESP_LOGE(TAG, "Failed to mount SD card: %s", esp_err_to_name(ret));
-    return StorageError::NOT_READY;
+    return storage::StorageError::NOT_READY;
   }
 
   if (s_card->is_mmc) {
@@ -132,12 +132,12 @@ StorageError SdMmc::mount() {
 
   this->on_mounted_.call(this->mount_path_);
 
-  return StorageError::OK;
+  return storage::StorageError::OK;
 }
 
-StorageError SdMmc::unmount() {
+storage::StorageError SdMmc::unmount() {
   if (!this->is_mounted_ || s_card == nullptr)
-    return StorageError::OK;
+    return storage::StorageError::OK;
 
   if (storage::global_storage_registry != nullptr)
     storage::global_storage_registry->unregister_storage(this);
@@ -146,7 +146,7 @@ StorageError SdMmc::unmount() {
   s_card = nullptr;
   this->is_mounted_ = false;
   ESP_LOGI(TAG, "SD/MMC card unmounted");
-  return StorageError::OK;
+  return storage::StorageError::OK;
 }
 
 bool SdMmc::update_card_info() {

@@ -237,7 +237,7 @@ storage::StorageError SdStorageBase::rmdir(const char *path, bool recursive) {
       } else {
         err = this->remove(child_rel);
       }
-      if (err != storage::storage::StorageError::OK) {
+      if (err != storage::StorageError::OK) {
         closedir(dir);
         return err;
       }
@@ -296,7 +296,7 @@ storage::StorageError SdStorageBase::copy(const char *src_path, const char *dst_
 
   uint8_t buf[256];
   size_t n;
-  storage::storage::StorageError err = storage::storage::StorageError::OK;
+  storage::StorageError err = storage::StorageError::OK;
   while ((n = fread(buf, 1, sizeof(buf), src)) > 0) {
     if (fwrite(buf, 1, n, dst) != n) {
       err = storage::StorageError::WRITE_ERROR;
