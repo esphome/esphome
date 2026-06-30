@@ -635,6 +635,7 @@ LVGL_TOP_LEVEL_SCHEMA = (
                 for x in SIMPLE_TRIGGERS
             },
             cv.Optional(df.CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
+            cv.Optional(df.CONF_ANIMATIONS): cv.ensure_list(ANIMATION_SCHEMA),
             cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
             cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),
             cv.Optional(df.CONF_BOTTOM_LAYER): container_schema(obj_spec),
