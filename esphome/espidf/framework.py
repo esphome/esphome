@@ -100,15 +100,6 @@ def _get_idf_tools_path() -> Path:
     return path.resolve()
 
 
-def get_idf_install_path() -> Path:
-    """Return the ESP-IDF install root (frameworks, penvs, tools, ccache).
-
-    Public accessor for the machine-global install location so callers such as
-    ``esphome clean-all`` can remove it. Honors ``ESPHOME_ESP_IDF_PREFIX``.
-    """
-    return _get_idf_tools_path()
-
-
 # Windows' default MAX_PATH is 260 characters. ESP-IDF toolchains nest deeply
 # below the IDF tools directory: the longest file on disk (picolibc C++
 # headers) sits ~209 characters down, but the operative number is worse -- gcc

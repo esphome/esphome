@@ -657,9 +657,9 @@ def clean_all(configuration: list[str]):
     # tools + ccache). It now lives in a machine-global cache dir (or
     # ESPHOME_ESP_IDF_PREFIX), outside any .esphome data dir, so the per-config
     # loop above no longer reaches it and it must be removed explicitly.
-    from esphome.espidf.framework import get_idf_install_path
+    from esphome.espidf.framework import _get_idf_tools_path
 
-    idf_install_path = get_idf_install_path()
+    idf_install_path = _get_idf_tools_path()
     if idf_install_path.is_dir():
         _LOGGER.info("Deleting %s", idf_install_path)
         rmtree(idf_install_path)
