@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2026.6.0-dev"
+__version__ = "2026.7.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -20,6 +20,7 @@ class Toolchain(StrEnum):
 
     PLATFORMIO = "platformio"
     ESP_IDF = "esp-idf"
+    SDK_NRF = "sdk-nrf"
 
 
 class Platform(StrEnum):
@@ -612,6 +613,7 @@ CONF_MEASUREMENT_SEQUENCE_NUMBER = "measurement_sequence_number"
 CONF_MEDIA_PLAYER = "media_player"
 CONF_MEDIUM = "medium"
 CONF_MEMORY_BLOCKS = "memory_blocks"
+CONF_MERGE_WARNINGS = "merge_warnings"
 CONF_MESSAGE = "message"
 CONF_METHANE = "methane"
 CONF_METHOD = "method"

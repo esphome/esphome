@@ -175,6 +175,10 @@ void Logger::process_messages_() {
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // Process any buffered messages when available
   if (this->log_buffer_.has_messages()) {
+    // Prevent main-task logs emitted by listener callbacks (e.g. the API send path) from re-entering
+    // and corrupting the shared tx_buffer_ / API shared_write_buffer_ while we are draining here.
+    // Mirrors the guard held by log_message_to_buffer_and_send_ on the synchronous logging path.
+    RecursionGuard guard(this->main_task_recursion_guard_);
     logger::TaskLogBuffer::LogMessage *message;
     uint16_t text_length;
     while (this->log_buffer_.borrow_message_main_loop(message, text_length)) {

@@ -5,7 +5,7 @@
 
 namespace esphome::seeed_mr24hpc1 {
 
-class SceneModeSelect : public select::Select, public Parented<MR24HPC1Component> {
+class SceneModeSelect final : public select::Select, public Parented<MR24HPC1Component> {
  public:
   SceneModeSelect() = default;
 

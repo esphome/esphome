@@ -342,7 +342,7 @@ class APIServer final : public Component,
 
 extern APIServer *global_api_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
+template<typename... Ts> class APIConnectedCondition final : public Condition<Ts...> {
   TEMPLATABLE_VALUE(bool, state_subscription_only)
  public:
   bool check(const Ts &...x) override {

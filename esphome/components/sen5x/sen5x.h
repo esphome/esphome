@@ -44,7 +44,7 @@ struct TemperatureCompensation {
 // Prevents wear of the flash because of too many write operations
 static const uint32_t SHORTEST_BASELINE_STORE_INTERVAL = 2 * 60 * 60 * 1000;
 
-class SEN5XComponent : public PollingComponent, public sensirion_common::SensirionI2CDevice {
+class SEN5XComponent final : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
   void setup() override;
   void dump_config() override;
