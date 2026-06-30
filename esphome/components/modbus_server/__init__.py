@@ -112,7 +112,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> ConfigType:
     return modbus.final_validate_modbus_device("modbus_server", role="server")(config)
 
 
