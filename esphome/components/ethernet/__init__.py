@@ -126,6 +126,8 @@ ETHERNET_TYPES = {
     "ENC28J60": EthernetType.ETHERNET_TYPE_ENC28J60,
     "W6100": EthernetType.ETHERNET_TYPE_W6100,
     "W6300": EthernetType.ETHERNET_TYPE_W6300,
+    "GENERIC": EthernetType.ETHERNET_TYPE_GENERIC,
+    "YT8531": EthernetType.ETHERNET_TYPE_YT8531,
 }
 
 # PHY types that need compile-time defines for conditional compilation
@@ -145,6 +147,8 @@ _PHY_TYPE_TO_DEFINE = {
     "ENC28J60": "USE_ETHERNET_ENC28J60",
     "W6100": "USE_ETHERNET_W6100",
     "W6300": "USE_ETHERNET_W6300",
+    "GENERIC": "USE_ETHERNET_GENERIC",
+    "YT8531": "USE_ETHERNET_YT8531",
 }
 
 
@@ -309,6 +313,24 @@ def _validate(config):
                         f"({CORE.target_framework} {CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}), "
                         f"'{CONF_INTERRUPT_PIN}' is a required option for [ethernet]."
                     )
+        elif config[CONF_TYPE] in ("GENERIC", "YT8531"):
+            from esphome.components.esp32 import (
+                VARIANT_ESP32S31,
+                get_esp32_variant,
+                idf_version,
+            )
+
+            eth_type = config[CONF_TYPE]
+            variant = get_esp32_variant()
+            if variant != VARIANT_ESP32S31:
+                raise cv.Invalid(
+                    f"The '{eth_type}' (RGMII) PHY is only supported on gigabit-capable "
+                    f"variants (ESP32-S31), not {variant}"
+                )
+            if idf_version() < cv.Version(6, 0, 0):
+                raise cv.Invalid(
+                    f"The '{eth_type}' (RGMII) PHY requires ESP-IDF 6.0 or newer."
+                )
         elif config[CONF_TYPE] != "OPENETH":
             from esphome.components.esp32 import (
                 VARIANT_ESP32,
@@ -392,6 +414,23 @@ RMII_SCHEMA = cv.All(
     cv.only_on([Platform.ESP32]),
 )
 
+# Generic IEEE 802.3 PHY over the internal EMAC RGMII interface (e.g. ESP32-S31).
+# RGMII data pins come from the IDF per-target default config.
+GENERIC_SCHEMA = cv.All(
+    BASE_SCHEMA.extend(
+        cv.Schema(
+            {
+                cv.Required(CONF_MDC_PIN): pins.internal_gpio_output_pin_number,
+                cv.Required(CONF_MDIO_PIN): pins.internal_gpio_output_pin_number,
+                cv.Optional(CONF_PHY_ADDR, default=0): cv.int_range(min=0, max=31),
+                cv.Optional(CONF_POWER_PIN): pins.internal_gpio_output_pin_number,
+                cv.Optional(CONF_PHY_REGISTERS): cv.ensure_list(PHY_REGISTER_SCHEMA),
+            }
+        )
+    ),
+    cv.only_on([Platform.ESP32]),
+)
+
 SPI_SCHEMA = cv.All(
     BASE_SCHEMA.extend(
         cv.Schema(
@@ -442,6 +481,8 @@ CONFIG_SCHEMA = cv.All(
             "W6100": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2040])),
             "W6300": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2040])),
             "LAN8670": RMII_SCHEMA,
+            "GENERIC": GENERIC_SCHEMA,
+            "YT8531": GENERIC_SCHEMA,
         },
         upper=True,
     ),
@@ -571,6 +612,20 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
     elif config[CONF_TYPE] == "OPENETH":
         cg.add_define("USE_ETHERNET_OPENETH")
         add_idf_sdkconfig_option("CONFIG_ETH_USE_OPENETH", True)
+    elif config[CONF_TYPE] in ("GENERIC", "YT8531"):
+        # RGMII data pins come from the IDF default config; set MDC/MDIO + PHY addr.
+        cg.add(var.set_phy_addr(config[CONF_PHY_ADDR]))
+        cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))
+        cg.add(var.set_mdio_pin(config[CONF_MDIO_PIN]))
+        if CONF_POWER_PIN in config:
+            cg.add(var.set_power_pin(config[CONF_POWER_PIN]))
+        for register_value in config.get(CONF_PHY_REGISTERS, []):
+            reg = phy_register(
+                register_value.get(CONF_ADDRESS),
+                register_value.get(CONF_VALUE),
+                register_value.get(CONF_PAGE_ID),
+            )
+            cg.add(var.add_phy_register(reg))
     else:
         cg.add(var.set_phy_addr(config[CONF_PHY_ADDR]))
         cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))

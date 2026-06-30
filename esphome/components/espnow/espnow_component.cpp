@@ -303,7 +303,9 @@ void ESPNowComponent::loop() {
         ESP_LOGV(TAG, ">>> [%s] %s", addr_buf, LOG_STR_ARG(espnow_error_to_str(packet->packet_.sent.status)));
 #endif
         if (this->current_send_packet_ != nullptr) {
-          this->current_send_packet_->callback_(packet->packet_.sent.status);
+          if (this->current_send_packet_->callback_ != nullptr) {
+            this->current_send_packet_->callback_(packet->packet_.sent.status);
+          }
           this->send_packet_pool_.release(this->current_send_packet_);
           this->current_send_packet_ = nullptr;  // Reset current packet after sending
         }

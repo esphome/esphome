@@ -25,7 +25,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: "3.11"
+          python-version: "3.12"
       - name: Set up uv
         # ``--system`` (below) installs into the setup-python interpreter;
         # no venv is created or restored by this workflow.
