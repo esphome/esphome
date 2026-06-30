@@ -4,6 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/storage/storage.h"
 #include <cstdint>
+#include <esp_vfs.h>
 
 namespace esphome::sd_storage {
 
