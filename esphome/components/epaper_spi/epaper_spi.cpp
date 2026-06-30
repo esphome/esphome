@@ -142,12 +142,6 @@ void EPaperBase::update() {
 
 void EPaperBase::start_update_() {
   this->debounce_timer_active_ = false;
-  if (this->state_ != EPaperState::IDLE) {
-    // Should not normally happen, but if the display started updating for another
-    // reason, queue this update for after that refresh.
-    this->pending_update_ = true;
-    return;
-  }
   ESP_LOGD(TAG, "Update starting");
   this->set_state_(EPaperState::UPDATE);
   this->enable_loop();
@@ -201,8 +195,7 @@ void EPaperBase::loop() {
  * DEEP_SLEEP -> IDLE
  *
  * When a pending update is queued, REFRESH_SCREEN skips POWER_OFF/DEEP_SLEEP and loops
- * directly back to UPDATE (after waiting for the physical refresh to complete), keeping
- * the display powered on between consecutive refreshes.
+ * directly back to UPDATE, keeping the display awake between consecutive refreshes.
  *
  * Should a subclassed class need to override this, the method will need to be made virtual.
  */
@@ -225,6 +218,7 @@ void EPaperBase::process_state_() {
       }
       break;
     case EPaperState::UPDATE:
+      this->pending_update_ = false;
       this->do_update_();  // Calls ESPHome (current page) lambda
       // Snapshot the live dirty bounds for this transfer, then reset the live
       // bounds so that draws during the refresh are tracked for the next cycle.
@@ -237,7 +231,6 @@ void EPaperBase::process_state_() {
       this->live_y_low_ = this->height_;
       this->live_y_high_ = 0;
       if (this->x_high_ < this->x_low_ || this->y_high_ < this->y_low_) {
-        this->pending_update_ = false;
         this->set_state_(EPaperState::IDLE);
         return;
       }
