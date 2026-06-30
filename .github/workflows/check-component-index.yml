@@ -25,16 +25,20 @@ jobs:
     steps:
       # Checkout the BASE branch (trusted code) — the script runs from here.
       - name: Checkout base branch
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       # Sparse-checkout only the index file from the PR head into a
       # separate directory. No untrusted code is executed.
+      # checkout v7 blocks fork-PR checkouts under pull_request_target unless
+      # opted in; safe here because only the single data file is fetched and it
+      # is never executed.
       - name: Checkout PR index file
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           sparse-checkout: src/content/docs/components/index.mdx
           path: pr-head
+          allow-unsafe-pr-checkout: true
 
       - name: Set up Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
