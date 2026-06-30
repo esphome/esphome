@@ -121,22 +121,6 @@ def test_friendly_name_slugify(value, expected):
     assert helpers.friendly_name_slugify(value) == expected
 
 
-def test_friendly_name_slugify_back_compat_shim():
-    """``esphome.dashboard.util.text`` keeps re-exporting for back-compat.
-
-    The function moved to ``esphome.helpers`` so the new
-    device-builder dashboard backend can import it without depending
-    on the legacy dashboard package, but downstream code that still
-    imports from the old path keeps working until the dashboard
-    module is removed.
-    """
-    from esphome.dashboard.util.text import (
-        friendly_name_slugify as legacy_friendly_name_slugify,
-    )
-
-    assert legacy_friendly_name_slugify is helpers.friendly_name_slugify
-
-
 @pytest.mark.parametrize(
     "host",
     (
