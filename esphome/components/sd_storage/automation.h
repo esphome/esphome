@@ -28,7 +28,7 @@ template<typename T, typename... Ts> class MountCardAction : public Action<Ts...
   explicit MountCardAction(T *parent) : parent_(parent) {}
 
   void play(Ts... x) override {
-    if (this->parent_->mount() == StorageError::OK) {
+    if (this->parent_->mount() == storage::StorageError::OK) {
       ESP_LOGI("sd_storage", "Card mounted via automation");
     } else {
       ESP_LOGE("sd_storage", "Failed to mount card via automation");
