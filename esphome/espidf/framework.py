@@ -159,7 +159,7 @@ def _check_windows_path_length() -> None:
         "    PowerShell run:\n"
         "      Set-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\FileSystem' LongPathsEnabled 1\n"
         "    Details: https://learn.microsoft.com/windows/win32/fileio/maximum-file-path-limitation\n"
-        "  - Or set ESPHOME_ESP_IDF_PREFIX to a shorter path (e.g. C:\\esphome-idf)\n"
+        "  - Or set ESPHOME_ESP_IDF_PREFIX to a shorter path (e.g. C:\\ESPHome\\idf)\n"
         "Then delete the ESP-IDF tools directory above so the toolchain "
         "reinstalls cleanly.",
         tools_path,
