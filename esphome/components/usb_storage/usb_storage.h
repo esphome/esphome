@@ -112,8 +112,7 @@ struct USBFileHandle : public storage::FileHandle {
 // in the StorageRegistry. Mount/unmount are driven by USBStorageClient events;
 // all file ops go through POSIX (FAT is already VFS-registered by the client).
 // ─────────────────────────────────────────────────────────────────────────────
-class USBStorageDevice : public Component,
-                         public Parented<USBStorageClient>,
+class USBStorageDevice : public Parented<USBStorageClient>,
                          public storage::FilesystemStorage {
   friend class USBStorageClient;
 

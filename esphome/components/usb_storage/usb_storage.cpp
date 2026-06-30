@@ -662,11 +662,14 @@ storage::StorageError USBStorageDevice::list_dir(const char *path,
     snprintf(st.name, sizeof(st.name), "%s", entry->d_name);
     st.is_dir = entry->d_type == DT_DIR;
     if (!st.is_dir) {
-      char entry_full[storage::STORAGE_MAX_PATH_LEN];
-      snprintf(entry_full, sizeof(entry_full), "%s/%s", full, entry->d_name);
-      struct stat s;
-      if (::stat(entry_full, &s) == 0)
-        st.size = static_cast<size_t>(s.st_size);
+      char child_rel[storage::STORAGE_MAX_PATH_LEN];
+      if (snprintf(child_rel, sizeof(child_rel), "%s/%s", path, entry->d_name) < static_cast<int>(sizeof(child_rel))) {
+        char entry_full[storage::STORAGE_MAX_PATH_LEN];
+        this->build_path_(entry_full, sizeof(entry_full), child_rel);
+        struct stat s;
+        if (::stat(entry_full, &s) == 0)
+          st.size = static_cast<size_t>(s.st_size);
+      }
     }
     callback(&st, ctx);
   }
@@ -697,7 +700,8 @@ storage::StorageError USBStorageDevice::rmdir(const char *path, bool recursive) 
       if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
         continue;
       char child[storage::STORAGE_MAX_PATH_LEN];
-      snprintf(child, sizeof(child), "%s/%s", path, entry->d_name);
+      if (snprintf(child, sizeof(child), "%s/%s", path, entry->d_name) >= static_cast<int>(sizeof(child)))
+        continue;
       storage::StorageError err = (entry->d_type == DT_DIR) ? this->rmdir(child, true) : this->remove(child);
       if (err != storage::StorageError::OK) {
         closedir(dir);
