@@ -47,10 +47,8 @@ struct StorageInfo {
   bool is_read_only;
 };
 
-static constexpr size_t STORAGE_MAX_PATH_LEN = 256;
-
 struct FileStat {
-  char name[STORAGE_MAX_PATH_LEN];
+  char name[CONFIG_FATFS_MAX_LFN + 1];
   size_t size;
   bool is_dir;
 };

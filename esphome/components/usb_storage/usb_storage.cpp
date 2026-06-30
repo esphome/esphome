@@ -632,7 +632,7 @@ storage::StorageError USBStorageDevice::tell(storage::FileHandle *handle, size_t
 storage::StorageError USBStorageDevice::stat(const char *path, storage::FileStat *st) {
   if (!this->fs_mounted_)
     return storage::StorageError::NOT_READY;
-  char full[storage::STORAGE_MAX_PATH_LEN];
+  char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   this->build_path_(full, sizeof(full), path);
   struct stat s;
   if (::stat(full, &s) != 0)
@@ -648,7 +648,7 @@ storage::StorageError USBStorageDevice::list_dir(const char *path,
                                                  void *ctx) {
   if (!this->fs_mounted_)
     return storage::StorageError::NOT_READY;
-  char full[storage::STORAGE_MAX_PATH_LEN];
+  char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   this->build_path_(full, sizeof(full), path);
   DIR *dir = opendir(full);
   if (dir == nullptr)
@@ -662,9 +662,9 @@ storage::StorageError USBStorageDevice::list_dir(const char *path,
     snprintf(st.name, sizeof(st.name), "%s", entry->d_name);
     st.is_dir = entry->d_type == DT_DIR;
     if (!st.is_dir) {
-      char child_rel[storage::STORAGE_MAX_PATH_LEN];
+      char child_rel[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
       if (snprintf(child_rel, sizeof(child_rel), "%s/%s", path, entry->d_name) < static_cast<int>(sizeof(child_rel))) {
-        char entry_full[storage::STORAGE_MAX_PATH_LEN];
+        char entry_full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
         this->build_path_(entry_full, sizeof(entry_full), child_rel);
         struct stat s;
         if (::stat(entry_full, &s) == 0)
@@ -680,7 +680,7 @@ storage::StorageError USBStorageDevice::list_dir(const char *path,
 storage::StorageError USBStorageDevice::mkdir(const char *path) {
   if (!this->fs_mounted_)
     return storage::StorageError::NOT_READY;
-  char full[storage::STORAGE_MAX_PATH_LEN];
+  char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   this->build_path_(full, sizeof(full), path);
   return ::mkdir(full, 0755) == 0 ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
 }
@@ -688,7 +688,7 @@ storage::StorageError USBStorageDevice::mkdir(const char *path) {
 storage::StorageError USBStorageDevice::rmdir(const char *path, bool recursive) {
   if (!this->fs_mounted_)
     return storage::StorageError::NOT_READY;
-  char full[storage::STORAGE_MAX_PATH_LEN];
+  char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   this->build_path_(full, sizeof(full), path);
 
   if (recursive) {
@@ -699,7 +699,7 @@ storage::StorageError USBStorageDevice::rmdir(const char *path, bool recursive) 
     while ((entry = readdir(dir)) != nullptr) {
       if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
         continue;
-      char child[storage::STORAGE_MAX_PATH_LEN];
+      char child[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
       if (snprintf(child, sizeof(child), "%s/%s", path, entry->d_name) >= static_cast<int>(sizeof(child)))
         continue;
       storage::StorageError err = (entry->d_type == DT_DIR) ? this->rmdir(child, true) : this->remove(child);
@@ -716,7 +716,7 @@ storage::StorageError USBStorageDevice::rmdir(const char *path, bool recursive) 
 storage::StorageError USBStorageDevice::remove(const char *path) {
   if (!this->fs_mounted_)
     return storage::StorageError::NOT_READY;
-  char full[storage::STORAGE_MAX_PATH_LEN];
+  char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   this->build_path_(full, sizeof(full), path);
   return ::remove(full) == 0 ? storage::StorageError::OK : storage::StorageError::NOT_FOUND;
 }
@@ -724,8 +724,8 @@ storage::StorageError USBStorageDevice::remove(const char *path) {
 storage::StorageError USBStorageDevice::rename(const char *old_path, const char *new_path) {
   if (!this->fs_mounted_)
     return storage::StorageError::NOT_READY;
-  char old_full[storage::STORAGE_MAX_PATH_LEN];
-  char new_full[storage::STORAGE_MAX_PATH_LEN];
+  char old_full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
+  char new_full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   this->build_path_(old_full, sizeof(old_full), old_path);
   this->build_path_(new_full, sizeof(new_full), new_path);
   return ::rename(old_full, new_full) == 0 ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
@@ -734,8 +734,8 @@ storage::StorageError USBStorageDevice::rename(const char *old_path, const char 
 storage::StorageError USBStorageDevice::copy(const char *src_path, const char *dst_path) {
   if (!this->fs_mounted_)
     return storage::StorageError::NOT_READY;
-  char src_full[storage::STORAGE_MAX_PATH_LEN];
-  char dst_full[storage::STORAGE_MAX_PATH_LEN];
+  char src_full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
+  char dst_full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   this->build_path_(src_full, sizeof(src_full), src_path);
   this->build_path_(dst_full, sizeof(dst_full), dst_path);
 

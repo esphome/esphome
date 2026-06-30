@@ -102,7 +102,7 @@ class USBStorageClient : public usb_host::USBClient {
 // the base FILE *file is sufficient since FAT is VFS-backed.
 // ─────────────────────────────────────────────────────────────────────────────
 struct USBFileHandle : public storage::FileHandle {
-  char path_buf[storage::STORAGE_MAX_PATH_LEN]{};
+  char path_buf[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)]{};
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

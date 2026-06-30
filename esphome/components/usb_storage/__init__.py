@@ -7,8 +7,11 @@ from esphome.components.esp32 import (
     include_builtin_idf_component,
     only_on_variant,
     require_fatfs,
+    require_fatfs_lfn_heap,
+    require_fatfs_lfn_max,
     require_fatfs_volume_count,
     require_vfs_dir,
+    require_vfs_select,
 )
 from esphome.components.storage import request_storage_device
 from esphome.components.usb_host import usb_host_ns
@@ -25,8 +28,11 @@ CONF_PID = "pid"
 CONF_ON_MOUNTED = "on_mounted"
 
 require_vfs_dir()
+require_vfs_select()
 require_fatfs()
 require_fatfs_volume_count(4)
+require_fatfs_lfn_max(255)
+require_fatfs_lfn_heap()
 
 usb_storage_ns = cg.esphome_ns.namespace("usb_storage")
 
