@@ -68,6 +68,11 @@ void PCM5122::setup() {
   }
 
   // PLL reference clock: BCK
+  if (!this->select_page_(0)) {
+    ESP_LOGE(TAG, "Write failed");
+    this->mark_failed();
+    return;
+  }
   optional<uint8_t> pll_ref = this->read_byte(PCM5122_REG_PLL_REF);
   if (!pll_ref.has_value()) {
     ESP_LOGE(TAG, "Failed to read PLL_REF");
