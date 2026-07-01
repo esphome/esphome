@@ -5554,6 +5554,32 @@ class MockSerial:
         raise serial.SerialException("Port closed")
 
 
+
+def test_run_miniterm_uses_serial_for_url_for_rfc2217() -> None:
+    """Test that RFC2217 URLs use serial_for_url() instead of Serial()."""
+
+    mock_serial = MockSerial([MOCK_SERIAL_END])
+
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
+    config = {
+        CONF_LOGGER: {
+            CONF_BAUD_RATE: 115200,
+            "deassert_rts_dtr": False,
+        }
+    }
+    args = MockArgs()
+
+    with (
+        patch("serial.serial_for_url", return_value=mock_serial) as mock_url,
+        patch("serial.Serial") as mock_serial_ctor,
+        patch.object(esp32, "process_stacktrace", return_value=False),
+    ):
+        run_miniterm(config, "rfc2217://192.168.1.126:3333", args)
+
+    mock_url.assert_called_once_with("rfc2217://192.168.1.126:3333")
+    mock_serial_ctor.assert_not_called()
+
+
 def test_run_miniterm_batches_lines_with_same_timestamp(
     capfd: CaptureFixture[str],
 ) -> None:
