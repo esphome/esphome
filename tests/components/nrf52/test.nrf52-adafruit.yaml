@@ -21,3 +21,4 @@ nrf52:
     uicr_erase: true
   framework:
     version: "2.6.1-b"
+  toolchain: sdk-nrf

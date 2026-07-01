@@ -7,3 +7,4 @@ nrf52:
         output: true
   reg0:
     voltage: 1.8V
+  toolchain: sdk-nrf
