@@ -10,7 +10,7 @@
 #ifdef USE_ESP_IDF
 #include "lwip/sockets.h"
 #include "lwip/netdb.h"
-#elif defined(USE_ARDUINO)
+#elif defined(USE_ARDUINO) && !defined(USE_ESP32)
 #include <WiFiClient.h>
 #endif
 
@@ -353,7 +353,7 @@ class NFSClient : public storage::NetworkStorage {
 
 #ifdef USE_ESP_IDF
   int socket_{-1};
-#elif defined(USE_ARDUINO) || defined(USE_LIBRETINY)
+#elif (defined(USE_ARDUINO) && !defined(USE_ESP32)) || defined(USE_LIBRETINY)
   std::unique_ptr<WiFiClient> client_;
 #endif
 
