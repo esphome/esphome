@@ -118,11 +118,10 @@ void PCM5122::dump_config() {
                 "  Analog gain: %s\n"
                 "  Channel mix: %s\n"
                 "  Volume range: %.1f dB to %.1f dB\n"
-                "  Enable pin: %s\n"
                 "  Muted: %s",
                 this->bits_per_sample_, this->analog_gain_ == PCM5122_ANALOG_GAIN_0DB ? "0 dB" : "-6 dB",
-                channel_mix_str, this->volume_min_db_, this->volume_max_db_,
-                this->enable_pin_ != nullptr ? "yes" : "no", YESNO(this->is_muted_));
+                channel_mix_str, this->volume_min_db_, this->volume_max_db_, YESNO(this->is_muted_));
+  LOG_PIN("  Enable Pin: ", this->enable_pin_);
 }
 
 bool PCM5122::set_mute_off() {
@@ -203,13 +202,23 @@ bool PCM5122::write_channel_mix_() {
 }
 
 bool PCM5122::set_standby(bool enable) {
+  bool prev_standby = this->standby_;
   this->standby_ = enable;
-  return this->write_power_control_();
+  if (!this->write_power_control_()) {
+    this->standby_ = prev_standby;
+    return false;
+  }
+  return true;
 }
 
 bool PCM5122::set_powerdown(bool enable) {
+  bool prev_powerdown = this->powerdown_;
   this->powerdown_ = enable;
-  return this->write_power_control_();
+  if (!this->write_power_control_()) {
+    this->powerdown_ = prev_powerdown;
+    return false;
+  }
+  return true;
 }
 
 bool PCM5122::write_power_control_() {
