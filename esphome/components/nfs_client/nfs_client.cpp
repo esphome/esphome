@@ -343,13 +343,7 @@ void RPCClient::encode_auth_null_(XDRBuffer &xdr) {
 // NFSClient Implementation
 //========================================================================
 
-NFSClient::~NFSClient() {
-  this->unmount_();
-  if (this->rpc_response_buffer_ != nullptr) {
-    free(this->rpc_response_buffer_);
-    this->rpc_response_buffer_ = nullptr;
-  }
-}
+NFSClient::~NFSClient() { this->unmount_(); }
 
 void NFSClient::setup() {
   ESP_LOGCONFIG(TAG, "Setting up NFS Client...");
@@ -361,15 +355,18 @@ void NFSClient::setup() {
   }
 
 #if defined(USE_PSRAM) && defined(USE_ESP_IDF)
-  this->rpc_response_buffer_ = (uint8_t *) heap_caps_malloc(65536, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-  if (this->rpc_response_buffer_ != nullptr) {
-    ESP_LOGI(TAG, "Allocated 65KB RPC buffer from PSRAM");
-  } else {
-    ESP_LOGW(TAG, "PSRAM allocation failed, using heap for RPC buffer");
-    this->rpc_response_buffer_ = (uint8_t *) malloc(65536);
+  {
+    auto *psram_buf = static_cast<uint8_t *>(heap_caps_malloc(65536, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+    if (psram_buf != nullptr) {
+      this->rpc_response_buffer_.reset(psram_buf);
+      ESP_LOGI(TAG, "Allocated 65KB RPC buffer from PSRAM");
+    } else {
+      ESP_LOGW(TAG, "PSRAM allocation failed, using heap for RPC buffer");
+      this->rpc_response_buffer_ = std::make_unique<uint8_t[]>(65536);
+    }
   }
 #else
-  this->rpc_response_buffer_ = (uint8_t *) malloc(65536);
+  this->rpc_response_buffer_ = std::make_unique<uint8_t[]>(65536);
   ESP_LOGI(TAG, "Allocated 65KB RPC buffer from heap");
 #endif
 
@@ -612,7 +609,7 @@ storage::StorageError NFSClient::read_chunk(const char *path, uint8_t *buf, size
     return storage::StorageError::READ_ERROR;
   }
 
-  uint32_t nfs_status;
+  uint32_t nfs_status{0};
   if (!response.decode_uint32(nfs_status) || nfs_status != NFS3_OK) {
     this->cached_path_.clear();
     return storage::StorageError::READ_ERROR;
@@ -938,7 +935,7 @@ bool NFSClient::get_space_info(uint64_t &total_bytes, uint64_t &free_bytes) {
     return false;
   }
 
-  uint32_t nfs_status;
+  uint32_t nfs_status{0};
   if (!response.decode_uint32(nfs_status) || nfs_status != NFS3_OK) {
     ESP_LOGW(TAG, "FSSTAT failed: status=%" PRIu32, nfs_status);
     return false;
@@ -1541,7 +1538,7 @@ bool NFSClient::nfs_lookup_(const NFSFileHandle &dir_fh, const std::string &name
     return false;
   }
 
-  uint32_t nfs_status;
+  uint32_t nfs_status{0};
   if (!response.decode_uint32(nfs_status) || nfs_status != NFS3_OK) {
     ESP_LOGW(TAG, "LOOKUP failed: status=%" PRIu32, nfs_status);
     return false;
@@ -1579,7 +1576,7 @@ bool NFSClient::nfs_getattr_(const NFSFileHandle &fh, NFSFileAttr &attr) {
     return false;
   }
 
-  uint32_t nfs_status;
+  uint32_t nfs_status{0};
   if (!response.decode_uint32(nfs_status)) {
     ESP_LOGW(TAG, "GETATTR failed: could not decode NFS status");
     return false;
@@ -1612,7 +1609,7 @@ bool NFSClient::nfs_read_(const NFSFileHandle &fh, uint64_t offset, uint32_t cou
     return false;
   }
 
-  uint32_t nfs_status;
+  uint32_t nfs_status{0};
   if (!response.decode_uint32(nfs_status) || nfs_status != NFS3_OK) {
     ESP_LOGW(TAG, "READ failed: status=%" PRIu32, nfs_status);
     return false;
@@ -1660,7 +1657,7 @@ bool NFSClient::nfs_write_(const NFSFileHandle &fh, uint64_t offset, const uint8
     return false;
   }
 
-  uint32_t nfs_status;
+  uint32_t nfs_status{0};
   if (!response.decode_uint32(nfs_status) || nfs_status != NFS3_OK) {
     ESP_LOGW(TAG, "WRITE failed: status=%" PRIu32, nfs_status);
     return false;
@@ -1732,7 +1729,7 @@ bool NFSClient::nfs_create_(const NFSFileHandle &dir_fh, const std::string &name
     return false;
   }
 
-  uint32_t nfs_status;
+  uint32_t nfs_status{0};
   if (!response.decode_uint32(nfs_status) || nfs_status != NFS3_OK) {
     ESP_LOGW(TAG, "CREATE failed: status=%" PRIu32, nfs_status);
     return false;
@@ -1765,7 +1762,7 @@ bool NFSClient::nfs_remove_(const NFSFileHandle &dir_fh, const std::string &name
     return false;
   }
 
-  uint32_t nfs_status;
+  uint32_t nfs_status{0};
   if (!response.decode_uint32(nfs_status) || nfs_status != NFS3_OK) {
     ESP_LOGW(TAG, "REMOVE failed: status=%" PRIu32, nfs_status);
     return false;
@@ -1803,7 +1800,7 @@ bool NFSClient::nfs_mkdir_(const NFSFileHandle &dir_fh, const std::string &name,
     return false;
   }
 
-  uint32_t nfs_status;
+  uint32_t nfs_status{0};
   if (!response.decode_uint32(nfs_status) || nfs_status != NFS3_OK) {
     ESP_LOGW(TAG, "MKDIR failed: status=%" PRIu32, nfs_status);
     return false;
@@ -1836,7 +1833,7 @@ bool NFSClient::nfs_rmdir_(const NFSFileHandle &dir_fh, const std::string &name)
     return false;
   }
 
-  uint32_t nfs_status;
+  uint32_t nfs_status{0};
   if (!response.decode_uint32(nfs_status) || nfs_status != NFS3_OK) {
     ESP_LOGW(TAG, "RMDIR failed: status=%" PRIu32, nfs_status);
     return false;
@@ -1845,17 +1842,17 @@ bool NFSClient::nfs_rmdir_(const NFSFileHandle &dir_fh, const std::string &name)
   return true;
 }
 
-bool NFSClient::nfs_rename_(const NFSFileHandle &from_dir_fh, const std::string &from_name,
-                            const NFSFileHandle &to_dir_fh, const std::string &to_name) {
-  ESP_LOGD(TAG, "NFS RENAME: %s -> %s", from_name.c_str(), to_name.c_str());
+bool NFSClient::nfs_rename_(const NFSFileHandle &old_dir_fh, const std::string &old_name,
+                            const NFSFileHandle &new_dir_fh, const std::string &new_name) {
+  ESP_LOGD(TAG, "NFS RENAME: %s -> %s", old_name.c_str(), new_name.c_str());
 
   uint32_t xid = RPCClient::generate_xid();
   XDRBuffer request;
   this->rpc_.build_call(request, xid, NFS_PROGRAM, NFS_VERSION_3, NFSPROC3_RENAME, this->uid_, this->gid_);
-  from_dir_fh.encode(request);
-  request.encode_string(from_name);
-  to_dir_fh.encode(request);
-  request.encode_string(to_name);
+  old_dir_fh.encode(request);
+  request.encode_string(old_name);
+  new_dir_fh.encode(request);
+  request.encode_string(new_name);
 
   XDRBuffer response;
   if (!this->send_rpc_(request, response)) {
@@ -1867,7 +1864,7 @@ bool NFSClient::nfs_rename_(const NFSFileHandle &from_dir_fh, const std::string 
     return false;
   }
 
-  uint32_t nfs_status;
+  uint32_t nfs_status{0};
   if (!response.decode_uint32(nfs_status) || nfs_status != NFS3_OK) {
     ESP_LOGW(TAG, "RENAME failed: status=%" PRIu32, nfs_status);
     return false;
@@ -1902,7 +1899,7 @@ bool NFSClient::nfs_readdir_(const NFSFileHandle &dir_fh, std::vector<NFSDirEntr
       return false;
     }
 
-    uint32_t nfs_status;
+    uint32_t nfs_status{0};
     if (!response.decode_uint32(nfs_status) || nfs_status != NFS3_OK) {
       ESP_LOGW(TAG, "READDIRPLUS failed: status=%" PRIu32, nfs_status);
       return false;

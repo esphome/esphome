@@ -10,7 +10,7 @@
 #ifdef USE_ESP_IDF
 #include "lwip/sockets.h"
 #include "lwip/netdb.h"
-#else
+#elif defined(USE_ARDUINO)
 #include <WiFiClient.h>
 #endif
 
@@ -395,7 +395,7 @@ class NFSClient : public storage::NetworkStorage {
   //========================================================================
 
   RPCClient rpc_;
-  uint8_t *rpc_response_buffer_{nullptr};
+  std::unique_ptr<uint8_t[]> rpc_response_buffer_;
 
   //========================================================================
   // File Handle Cache (for chunked reads)
@@ -431,8 +431,8 @@ class NFSClient : public storage::NetworkStorage {
   bool nfs_mkdir_(const NFSFileHandle &dir_fh, const std::string &name, uint32_t mode, NFSFileHandle &fh);
   bool nfs_rmdir_(const NFSFileHandle &dir_fh, const std::string &name);
   bool nfs_readdir_(const NFSFileHandle &dir_fh, std::vector<NFSDirEntry> &entries);
-  bool nfs_rename_(const NFSFileHandle &from_dir_fh, const std::string &from_name, const NFSFileHandle &to_dir_fh,
-                   const std::string &to_name);
+  bool nfs_rename_(const NFSFileHandle &old_dir_fh, const std::string &old_name, const NFSFileHandle &new_dir_fh,
+                   const std::string &new_name);
 
   bool resolve_path_(const std::string &path, NFSFileHandle &fh, NFSFileAttr &attr);
   bool resolve_parent_path_(const std::string &path, NFSFileHandle &parent_fh, std::string &filename);
