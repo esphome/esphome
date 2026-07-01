@@ -438,10 +438,10 @@ esphome/components/rx8130/* @beormund
 esphome/components/safe_mode/* @jsuanet @kbx81 @paulmonigatti
 esphome/components/scd4x/* @martgras @sjtrny
 esphome/components/script/* @esphome/core
+esphome/components/sd_storage/* @p1ngb4ck
 esphome/components/sdl/* @bdm310 @clydebarrow
 esphome/components/sdm_meter/* @jesserockz @polyfaces
 esphome/components/sdp3x/* @Azimath
-esphome/components/sd_storage/* @p1ngb4ck
 esphome/components/seeed_mr24hpc1/* @limengdu
 esphome/components/seeed_mr60bha2/* @limengdu
 esphome/components/seeed_mr60fda2/* @limengdu
@@ -491,7 +491,6 @@ esphome/components/spi_led_strip/* @clydebarrow
 esphome/components/split_buffer/* @jesserockz
 esphome/components/sprinkler/* @kbx81
 esphome/components/sps30/* @martgras
-esphome/components/storage/* @p1ngb4ck
 esphome/components/ssd1322_base/* @kbx81
 esphome/components/ssd1322_spi/* @kbx81
 esphome/components/ssd1325_base/* @kbx81
@@ -503,6 +502,7 @@ esphome/components/ssd1331_base/* @kbx81
 esphome/components/ssd1331_spi/* @kbx81
 esphome/components/ssd1351_base/* @kbx81
 esphome/components/ssd1351_spi/* @kbx81
+esphome/components/storage/* @p1ngb4ck
 esphome/components/st7567_base/* @latonita
 esphome/components/st7567_i2c/* @latonita
 esphome/components/st7567_spi/* @latonita

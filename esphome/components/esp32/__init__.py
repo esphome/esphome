@@ -2521,6 +2521,7 @@ async def to_code(config):
                 add_idf_sdkconfig_option("CONFIG_FATFS_LFN_STACK", True)
                 add_idf_sdkconfig_option("CONFIG_FATFS_LFN_HEAP", False)
             add_idf_sdkconfig_option("CONFIG_FATFS_MAX_LFN", lfn_max)
+            cg.add_define("CONFIG_FATFS_MAX_LFN", lfn_max)
         else:
             add_idf_sdkconfig_option("CONFIG_FATFS_LFN_NONE", False)
         add_idf_sdkconfig_option("CONFIG_FATFS_VOLUME_COUNT", volume_count)
