@@ -24,7 +24,8 @@ void I2CFram::setup() {
     uint16_t density = this->get_density();
     if (density > 0) {
       this->capacity_ = (1UL << density) * 1024UL;  // Convert density to bytes
-      ESP_LOGI(TAG, "Auto-detected size: %" PRIu32 " KB (%" PRIu32 " bytes)", (uint32_t)(1UL << density), this->capacity_);
+      ESP_LOGI(TAG, "Auto-detected size: %" PRIu32 " KB (%" PRIu32 " bytes)", (uint32_t) (1UL << density),
+               this->capacity_);
     } else {
       ESP_LOGW(TAG, "Could not auto-detect size, set it in config!");
     }
