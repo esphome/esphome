@@ -72,7 +72,8 @@ def _validate_register_ranges(config: ConfigType) -> ConfigType:
         register_count = TYPE_REGISTER_MAP[register[CONF_VALUE_TYPE]]
         if address + register_count > 0x10000:
             raise cv.Invalid(
-                f"Register at 0x{address:04X} spans {register_count} register(s) and runs past the end of the 16-bit address space (0xFFFF)",
+                f"Register at 0x{address:04X} spans {register_count} register(s) and runs past "
+                "the end of the 16-bit address space (0xFFFF)",
                 path=[CONF_REGISTERS],
             )
     return config
@@ -91,7 +92,8 @@ def _validate_no_overlapping_registers(config: ConfigType) -> ConfigType:
     ):
         if next_address < address + register_count:
             raise cv.Invalid(
-                f"Register address 0x{next_address:04X} overlaps the register at 0x{address:04X}, which spans {register_count} register(s); each register's address range must be unique",
+                f"Register address 0x{next_address:04X} overlaps the register at 0x{address:04X}, "
+                f"which spans {register_count} register(s); each register's address range must be unique",
                 path=[CONF_REGISTERS],
             )
     return config
