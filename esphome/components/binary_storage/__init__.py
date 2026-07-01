@@ -496,6 +496,7 @@ BINARY_STORAGE_ACTION_SCHEMA = automation.maybe_simple_id(
             cv.Required(CONF_LENGTH): cv.templatable(cv.uint32_t),
         }
     ),
+    synchronous=True,
 )
 async def binary_storage_read_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -517,6 +518,7 @@ async def binary_storage_read_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_DATA): cv.templatable(cv.ensure_list(cv.hex_uint8_t)),
         }
     ),
+    synchronous=True,
 )
 async def binary_storage_write_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -542,6 +544,7 @@ async def binary_storage_write_to_code(config, action_id, template_arg, args):
             cv.Optional(CONF_VALUE, default=0xFF): cv.templatable(cv.hex_uint8_t),
         }
     ),
+    synchronous=True,
 )
 async def binary_storage_fill_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -561,6 +564,7 @@ async def binary_storage_fill_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_VALUE): cv.templatable(cv.hex_uint8_t),
         }
     ),
+    synchronous=True,
 )
 async def binary_storage_write_byte_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -582,6 +586,7 @@ async def binary_storage_write_byte_to_code(config, action_id, template_arg, arg
             cv.Required(CONF_VALUE): cv.templatable(cv.string),
         }
     ),
+    synchronous=True,
 )
 async def binary_storage_write_string_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
