@@ -1,7 +1,7 @@
 #pragma once
 #include "esphome/core/defines.h"
 
-#ifdef USE_ESP_IDF
+#ifdef USE_BINARY_STORAGE_LITTLEFS
 #include "binary_storage.h"
 #include "esphome/components/storage/storage.h"
 #include <memory>
@@ -113,4 +113,4 @@ class LittleFSMount : public storage::FilesystemStorage {
 
 }  // namespace esphome::binary_storage
 
-#endif  // USE_ESP_IDF
+#endif  // USE_BINARY_STORAGE_LITTLEFS

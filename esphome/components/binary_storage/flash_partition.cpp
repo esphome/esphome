@@ -417,10 +417,12 @@ storage::StorageError FlashPartition::copy(const char *src_path, const char *dst
   }
 
   uint8_t buf[256];
-  size_t n;
   storage::StorageError result = storage::StorageError::OK;
 
-  while ((n = fread(buf, 1, sizeof(buf), src)) > 0) {
+  while (!feof(src) && !ferror(src)) {
+    size_t n = fread(buf, 1, sizeof(buf), src);
+    if (n == 0)
+      break;
     if (fwrite(buf, 1, n, dst) != n) {
       result = storage::StorageError::WRITE_ERROR;
       break;

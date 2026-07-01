@@ -1,4 +1,4 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_BINARY_STORAGE_LITTLEFS
 
 #include "littlefs_mount.h"
 #include "esphome/core/log.h"
@@ -79,7 +79,6 @@ static int lfs_errno_remap(int lfs_err) {
     case LFS_ERR_OK:
       return 0;
     case LFS_ERR_IO:
-      return EIO;
     case LFS_ERR_CORRUPT:
       return EIO;
     case LFS_ERR_NOENT:
@@ -1109,4 +1108,4 @@ void LittleFSMount::free_handle_(storage::FileHandle *handle) {
 
 }  // namespace esphome::binary_storage
 
-#endif  // USE_ESP_IDF
+#endif  // USE_BINARY_STORAGE_LITTLEFS
