@@ -123,6 +123,18 @@ def get_build_env() -> dict:
     return env
 
 
+def _patch_uf2conv_escape_sequences(framework_path: Path) -> None:
+    # SDK v2.6.1 ships uf2conv.py with '\s+' — an unrecognised escape that
+    # Python 3.12+ rejects with SyntaxWarning/DeprecationWarning.
+    uf2conv = framework_path / "zephyr" / "scripts" / "build" / "uf2conv.py"
+    if not uf2conv.exists():
+        return
+    content = uf2conv.read_text(encoding="utf-8")
+    patched = content.replace("re.split('\\s+', line)", "re.split('\\\\s+', line)")
+    if patched != content:
+        uf2conv.write_text(patched, encoding="utf-8")
+
+
 def check_and_install() -> None:
     version = _get_version_str()
     python_env_path = _get_python_env_path(version)
@@ -185,6 +197,14 @@ def check_and_install() -> None:
         if not run_command_ok(cmd, cwd=framework_path):
             raise EsphomeError(f"Can't update nRF Connect SDK {version}")
         sentinel.touch()
+
+    framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    if (
+        framework_ver.major == 2
+        and framework_ver.minor == 6
+        and framework_ver.patch == 1
+    ):
+        _patch_uf2conv_escape_sequences(framework_path)
 
     zephyr_sentinel = python_env_path / ".zephyr_reqs_ready"
     if (
