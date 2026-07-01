@@ -1,7 +1,6 @@
 #include "equitherm_binary_sensor_base.h"
 
-namespace esphome {
-namespace equitherm {
+namespace esphome::equitherm {
 
 void EquithermBinarySensorBase::init_state_(bool value) {
   if (this->restore_value_) {
@@ -17,5 +16,4 @@ void EquithermBinarySensorBase::save_state_(bool value) {
   }
 }
 
-}  // namespace equitherm
-}  // namespace esphome
+}  // namespace esphome::equitherm

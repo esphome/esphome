@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "../equitherm.h"
 
-namespace esphome {
-namespace equitherm {
+namespace esphome::equitherm {
 
 static const char *const TAG = "pid_active_binary_sensor";
 
@@ -19,5 +18,4 @@ void PidActiveBinarySensor::update_from_parent_() {
 
 void PidActiveBinarySensor::dump_config() { LOG_BINARY_SENSOR("", "PidActiveBinarySensor", this); }
 
-}  // namespace equitherm
-}  // namespace esphome
+}  // namespace esphome::equitherm

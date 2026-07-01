@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace equitherm {
+namespace esphome::equitherm {
 
 class EquithermClimate;
 
@@ -37,5 +36,4 @@ class EquithermSensor : public sensor::Sensor, public Component {
   EquithermSensorType type_{};
 };
 
-}  // namespace equitherm
-}  // namespace esphome
+}  // namespace esphome::equitherm

@@ -4,8 +4,7 @@
 #include "esphome/core/helpers.h"
 #include <cmath>
 
-namespace esphome {
-namespace equitherm {
+namespace esphome::equitherm {
 
 /// Embedded PID controller — avoids dependency on pid component.
 /// Kept in sync with esphome/components/pid/pid_controller.
@@ -73,5 +72,4 @@ struct PIDController {
   FixedRingBuffer<float> output_window_;
 };
 
-}  // namespace equitherm
-}  // namespace esphome
+}  // namespace esphome::equitherm

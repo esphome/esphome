@@ -3,8 +3,7 @@
 #include "esphome/core/log.h"
 #include "../equitherm.h"
 
-namespace esphome {
-namespace equitherm {
+namespace esphome::equitherm {
 
 static const char *const TAG = "equitherm.sensor";
 
@@ -59,5 +58,4 @@ void EquithermSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "  Type: %d", static_cast<int>(this->type_));
 }
 
-}  // namespace equitherm
-}  // namespace esphome
+}  // namespace esphome::equitherm

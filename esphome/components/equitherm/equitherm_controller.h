@@ -3,8 +3,7 @@
 #include "esphome/core/hal.h"
 #include <cmath>
 
-namespace esphome {
-namespace equitherm {
+namespace esphome::equitherm {
 
 /// Standard European heating curve (Buderus/Viessmann style).
 /// Pure calculator — no side effects, testable in isolation.
@@ -52,5 +51,4 @@ class HeatingCurve {
   float max_flow_temp_{70.0f};
 };
 
-}  // namespace equitherm
-}  // namespace esphome
+}  // namespace esphome::equitherm

@@ -4,8 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-namespace esphome {
-namespace equitherm {
+namespace esphome::equitherm {
 
 /// Base class for equitherm climate binary sensor entities
 class EquithermBinarySensorBase : public binary_sensor::BinarySensor, public Component {
@@ -20,5 +19,4 @@ class EquithermBinarySensorBase : public binary_sensor::BinarySensor, public Com
   ESPPreferenceObject pref_;
 };
 
-}  // namespace equitherm
-}  // namespace esphome
+}  // namespace esphome::equitherm

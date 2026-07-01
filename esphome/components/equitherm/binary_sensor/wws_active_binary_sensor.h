@@ -2,8 +2,7 @@
 
 #include "equitherm_binary_sensor_base.h"
 
-namespace esphome {
-namespace equitherm {
+namespace esphome::equitherm {
 
 class EquithermClimate;
 
@@ -18,5 +17,4 @@ class WwsActiveBinarySensor : public EquithermBinarySensorBase, public Parented<
   void update_from_parent_();
 };
 
-}  // namespace equitherm
-}  // namespace esphome
+}  // namespace esphome::equitherm
