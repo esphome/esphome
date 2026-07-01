@@ -6,7 +6,7 @@
 #include <cstring>
 #include <algorithm>
 
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP_IDF) || defined(USE_ESP32)
 #include "mdns.h"
 #include "esp_netif.h"
 #endif
@@ -973,7 +973,7 @@ bool NFSClient::get_space_info(uint64_t &total_bytes, uint64_t &free_bytes) {
 // Connection Management
 //========================================================================
 
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP_IDF) || defined(USE_ESP32)
 bool NFSClient::resolve_hostname_() {
   if (this->server_addr_resolved_) {
     return true;
@@ -1054,7 +1054,7 @@ bool NFSClient::connect_tcp_() {
 
   ESP_LOGD(TAG, "Connecting to %s %s:%u...", service_name, this->server_.c_str(), target_port);
 
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP_IDF) || defined(USE_ESP32)
   if (!this->resolve_hostname_()) {
     return false;
   }
@@ -1132,7 +1132,7 @@ bool NFSClient::connect_tcp_() {
 }
 
 void NFSClient::close_connection_() {
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP_IDF) || defined(USE_ESP32)
   if (this->socket_ >= 0) {
     close(this->socket_);
     this->socket_ = -1;
@@ -1162,7 +1162,7 @@ bool NFSClient::send_rpc_(const XDRBuffer &request, XDRBuffer &response) {
 
   uint32_t length = request.size() | 0x80000000;
 
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP_IDF) || defined(USE_ESP32)
   uint8_t length_buf[4];
   length_buf[0] = (length >> 24) & 0xFF;
   length_buf[1] = (length >> 16) & 0xFF;
@@ -1396,7 +1396,7 @@ bool NFSClient::mount_export_(const std::string &export_path, NFSFileHandle &fh)
         break;
     }
     ESP_LOGE(TAG, "MOUNT failed: %s (status %" PRIu32 ")", error_str, mount_status);
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP_IDF) || defined(USE_ESP32)
     ESP_LOGE(TAG, "Check NFS server export configuration:");
     ESP_LOGE(TAG, "  - Verify export path exists on server");
     ESP_LOGE(TAG, "  - Check /etc/exports allows access from %s", inet_ntoa(this->server_addr_.sin_addr));

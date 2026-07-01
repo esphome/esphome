@@ -7,10 +7,10 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/storage/storage.h"
 
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP_IDF) || defined(USE_ESP32)
 #include "lwip/sockets.h"
 #include "lwip/netdb.h"
-#elif defined(USE_ARDUINO) && !defined(USE_ESP32)
+#else
 #include <WiFiClient.h>
 #endif
 
@@ -351,9 +351,9 @@ class NFSClient : public storage::NetworkStorage {
   // Connection State
   //========================================================================
 
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP_IDF) || defined(USE_ESP32)
   int socket_{-1};
-#elif (defined(USE_ARDUINO) && !defined(USE_ESP32)) || defined(USE_LIBRETINY)
+#else
   std::unique_ptr<WiFiClient> client_;
 #endif
 
@@ -380,7 +380,7 @@ class NFSClient : public storage::NetworkStorage {
   uint32_t last_mount_attempt_{0};
   uint32_t mount_retry_interval_{30000};
 
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP_IDF) || defined(USE_ESP32)
   struct sockaddr_in server_addr_ {};
   bool server_addr_resolved_{false};
 #endif
@@ -410,7 +410,7 @@ class NFSClient : public storage::NetworkStorage {
   // Internal Operations
   //========================================================================
 
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP_IDF) || defined(USE_ESP32)
   bool resolve_hostname_();
 #endif
   bool connect_tcp_();
