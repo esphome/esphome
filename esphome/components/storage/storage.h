@@ -47,8 +47,12 @@ struct StorageInfo {
   bool is_read_only;
 };
 
+// Maximum filename length — covers NFSv3/v4 (255) and full FATFS LFN (255).
+// All storage drivers must fit filenames within this bound.
+static constexpr size_t STORAGE_NAME_MAX = 255;
+
 struct FileStat {
-  char name[CONFIG_FATFS_MAX_LFN + 1];
+  char name[STORAGE_NAME_MAX + 1];
   size_t size;
   bool is_dir;
 };
