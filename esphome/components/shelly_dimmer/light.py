@@ -186,6 +186,10 @@ CONFIG_SCHEMA = (
     .extend(uart.UART_DEVICE_SCHEMA)
 )
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "shelly_dimmer", baud_rate=115200, require_rx=True, require_tx=True
+)
+
 
 async def to_code(config):
     fw_hex = get_firmware(config[CONF_FIRMWARE])

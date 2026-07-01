@@ -54,7 +54,9 @@ const float MAXIMUM_STORAGE_DIFF = 50.0f;
 class SGP4xComponent;
 
 /// This class implements support for the Sensirion sgp4x i2c GAS (VOC) sensors.
-class SGP4xComponent : public PollingComponent, public sensor::Sensor, public sensirion_common::SensirionI2CDevice {
+class SGP4xComponent final : public PollingComponent,
+                             public sensor::Sensor,
+                             public sensirion_common::SensirionI2CDevice {
   enum ErrorCode {
     COMMUNICATION_FAILED,
     MEASUREMENT_INIT_FAILED,
