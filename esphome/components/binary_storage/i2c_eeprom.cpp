@@ -39,7 +39,7 @@ void I2CEeprom::dump_config() {
   LOG_I2C_DEVICE(this);
   ESP_LOGCONFIG(TAG, "  Model: %s", this->model_.c_str());
   ESP_LOGCONFIG(TAG, "  Capacity: %" PRIu32 " bytes (%.1f KB)", this->capacity_, this->capacity_ / 1024.0f);
-  ESP_LOGCONFIG(TAG, "  Page Size: %u bytes", this->page_size_);
+  ESP_LOGCONFIG(TAG, "  Page Size: %" PRIu32 " bytes", (uint32_t) this->page_size_);
   ESP_LOGCONFIG(TAG, "  Addressing: %u-bit", this->addressing_bits_);
 
   if (this->is_failed()) {
@@ -105,8 +105,8 @@ void I2CEeprom::auto_configure_from_model_() {
         this->page_size_ = 128;
       }
 
-      ESP_LOGD(TAG, "Auto-configured: %u Kbit = %" PRIu32 " bytes, page=%u, addr=%u-bit", capacity_kbit,
-               this->capacity_, this->page_size_, this->addressing_bits_);
+      ESP_LOGD(TAG, "Auto-configured: %d Kbit = %" PRIu32 " bytes, page=%" PRIu32 ", addr=%u-bit", capacity_kbit,
+               this->capacity_, (uint32_t) this->page_size_, this->addressing_bits_);
     }
   }
 
@@ -173,7 +173,7 @@ bool I2CEeprom::read_block_(uint32_t address, uint8_t *data, size_t length) {
   }
 
   if (err != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Read failed at address 0x%04X: %d", address, err);
+    ESP_LOGE(TAG, "Read failed at address 0x%04" PRIx32 ": %d", address, err);
     return false;
   }
 
@@ -225,7 +225,8 @@ bool I2CEeprom::read_raw(uint32_t address, uint8_t *data, size_t length) {
 
 bool I2CEeprom::write_page_(uint32_t address, const uint8_t *data, size_t length) {
   if (length == 0 || length > this->page_size_) {
-    ESP_LOGE(TAG, "Invalid page write length: %" PRIu32 " (max %u)", (uint32_t) length, this->page_size_);
+    ESP_LOGE(TAG, "Invalid page write length: %" PRIu32 " (max %" PRIu32 ")", (uint32_t) length,
+             (uint32_t) this->page_size_);
     return false;
   }
 
@@ -251,7 +252,7 @@ bool I2CEeprom::write_page_(uint32_t address, const uint8_t *data, size_t length
   // Write to device
   i2c::ErrorCode err = this->bus_->write(device_addr, write_buffer, write_len);
   if (err != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Page write failed at address 0x%04X: %d", address, err);
+    ESP_LOGE(TAG, "Page write failed at address 0x%04" PRIx32 ": %d", address, err);
     return false;
   }
 

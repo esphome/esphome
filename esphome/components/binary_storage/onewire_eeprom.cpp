@@ -86,7 +86,7 @@ void OneWireEEPROM::dump_config() {
   LOG_PIN("  Data Pin: ", this->pin_);
   ESP_LOGCONFIG(TAG, "  Model: %s", this->model_.c_str());
   ESP_LOGCONFIG(TAG, "  Capacity: %" PRIu32 " bytes", this->capacity_);
-  ESP_LOGCONFIG(TAG, "  Page Size: %u bytes", this->page_size_);
+  ESP_LOGCONFIG(TAG, "  Page Size: %" PRIu32 " bytes", (uint32_t) this->page_size_);
   ESP_LOGCONFIG(TAG, "  ROM ID: 0x%016" PRIX64, this->rom_address_);
   ESP_LOGCONFIG(TAG, "  Family Code: 0x%02X", this->get_family_code());
   ESP_LOGCONFIG(TAG, "  Mode: %s", this->skip_rom_ ? "Skip ROM (single device)" : "Match ROM (addressed)");

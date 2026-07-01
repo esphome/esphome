@@ -19,9 +19,9 @@ void SPIFlash::setup() {
   // Read JEDEC ID for device identification
   this->jedec_id_ = this->read_jedec_id();
 
-  ESP_LOGCONFIG(TAG, "  JEDEC ID: 0x%06X", this->jedec_id_);
+  ESP_LOGCONFIG(TAG, "  JEDEC ID: 0x%06" PRIX32, this->jedec_id_);
   ESP_LOGCONFIG(TAG, "  Manufacturer: 0x%02X", this->get_manufacturer_id());
-  ESP_LOGCONFIG(TAG, "  Device ID: 0x%04X", this->get_device_id());
+  ESP_LOGCONFIG(TAG, "  Device ID: 0x%04" PRIX32, (uint32_t) this->get_device_id());
 
   // Auto-configure from JEDEC ID if capacity not set
   if (this->capacity_ == 0 && this->jedec_id_ != 0 && this->jedec_id_ != 0xFFFFFF) {
@@ -78,7 +78,7 @@ void SPIFlash::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Page Size: %" PRIu32 " bytes", this->page_size_);
   ESP_LOGCONFIG(TAG, "  Sector Size: %" PRIu32 " bytes", this->sector_size_);
-  ESP_LOGCONFIG(TAG, "  JEDEC ID: 0x%06X", this->jedec_id_);
+  ESP_LOGCONFIG(TAG, "  JEDEC ID: 0x%06" PRIX32, this->jedec_id_);
   ESP_LOGCONFIG(TAG, "  Manufacturer: 0x%02X", this->get_manufacturer_id());
   ESP_LOGCONFIG(TAG, "  Quad Mode: %s", this->quad_mode_ ? "Enabled (4x faster)" : "Disabled");
   ESP_LOGCONFIG(TAG, "  4-Byte Addressing: %s", this->four_byte_mode_ ? "Enabled (>16MB)" : "Disabled");
@@ -496,17 +496,17 @@ bool SPIFlash::erase_(uint32_t address, uint8_t cmd) {
 }
 
 bool SPIFlash::erase_sector(uint32_t address) {
-  ESP_LOGD(TAG, "Erasing sector at 0x%06X", address & ~(this->sector_size_ - 1));
+  ESP_LOGD(TAG, "Erasing sector at 0x%06" PRIX32, address & ~(this->sector_size_ - 1));
   return this->erase_(address, CMD_SECTOR_ERASE_4K);
 }
 
 bool SPIFlash::erase_block_32k(uint32_t address) {
-  ESP_LOGD(TAG, "Erasing 32KB block at 0x%06X", address & ~0x7FFF);
+  ESP_LOGD(TAG, "Erasing 32KB block at 0x%06" PRIX32, address & ~(uint32_t) 0x7FFF);
   return this->erase_(address, CMD_BLOCK_ERASE_32K);
 }
 
 bool SPIFlash::erase_block_64k(uint32_t address) {
-  ESP_LOGD(TAG, "Erasing 64KB block at 0x%06X", address & ~0xFFFF);
+  ESP_LOGD(TAG, "Erasing 64KB block at 0x%06" PRIX32, address & ~(uint32_t) 0xFFFF);
   return this->erase_(address, CMD_BLOCK_ERASE_64K);
 }
 
