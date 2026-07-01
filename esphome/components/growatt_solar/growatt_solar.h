@@ -65,7 +65,7 @@ constexpr size_t RTU2_TODAY_PRODUCTION = 53;         // length = 2
 constexpr size_t RTU2_TOTAL_ENERGY_PRODUCTION = 55;  // length = 2
 constexpr size_t RTU2_INVERTER_MODULE_TEMP = 93;     // length = 1
 
-class GrowattSolar : public PollingComponent, public modbus::ModbusDevice {
+class GrowattSolar final : public PollingComponent, public modbus::ModbusClientDevice {
  public:
   void loop() override;
   void update() override;

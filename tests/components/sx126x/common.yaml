@@ -21,6 +21,8 @@ sx126x:
   coding_rate: CR_4_6
   tcxo_voltage: 1_8V
   tcxo_delay: 5ms
+  whitening_enable: false
+  whitening_initial: 0x1FF
   on_packet:
     then:
       - lambda: |-

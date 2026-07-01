@@ -9,6 +9,8 @@ import re
 import shutil
 import tempfile
 
+import platformdirs
+
 from esphome.config_validation import Version
 from esphome.core import CORE
 from esphome.framework_helpers import (
@@ -23,7 +25,7 @@ from esphome.framework_helpers import (
     run_command_ok,
     str_to_lst_of_str,
 )
-from esphome.helpers import get_str_env, write_file_if_changed
+from esphome.helpers import get_bool_env, get_str_env, write_file_if_changed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -80,10 +82,18 @@ def _get_idf_tools_path() -> Path:
     Returns:
         Path object pointing to the ESP-IDF tools directory
     """
-    if "ESPHOME_ESP_IDF_PREFIX" in os.environ:
-        path = Path(get_str_env("ESPHOME_ESP_IDF_PREFIX", None)).expanduser()
+    # Treat an empty/whitespace ESPHOME_ESP_IDF_PREFIX as unset: Path("")
+    # resolves to the CWD, which would install into (and let clean-all delete)
+    # the working directory by accident.
+    if prefix := get_str_env("ESPHOME_ESP_IDF_PREFIX", "").strip():
+        path = Path(prefix).expanduser()
     else:
-        path = CORE.data_dir / "idf"
+        # Machine-global so all projects share the multi-GB install instead of
+        # a per-config-directory copy. The user cache dir (not ~/.esphome)
+        # avoids colliding with data_dir when configs live in the home dir.
+        # appauthor=False drops the redundant <author>\ segment on Windows
+        # (which otherwise repeats "esphome\esphome\") to keep the path short.
+        path = Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "idf"
     # Resolve so an unnormalized config path (e.g. compiling ``../config/x.yaml``)
     # doesn't leave ``..`` segments in the IDF_TOOLS_PATH handed to idf.py, which
     # otherwise warns that the venv interpreter path doesn't match the install.
@@ -145,10 +155,11 @@ def _check_windows_path_length() -> None:
         "  fatal error: bits/c++config.h: No such file or directory\n"
         "  cannot execute 'as': CreateProcess: No such file or directory\n"
         "To fix, either:\n"
-        "  - Enable Windows long path support: set\n"
-        "    HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem\\LongPathsEnabled\n"
-        "    to 1 and reboot, or\n"
-        "  - Move your ESPHome project to a shorter path\n"
+        "  - Enable Windows long path support, then reboot. In an elevated\n"
+        "    PowerShell run:\n"
+        "      Set-ItemProperty 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\FileSystem' LongPathsEnabled 1\n"
+        "    Details: https://learn.microsoft.com/windows/win32/fileio/maximum-file-path-limitation\n"
+        "  - Or set ESPHOME_ESP_IDF_PREFIX to a shorter path (e.g. C:\\ESPHome\\idf)\n"
         "Then delete the ESP-IDF tools directory above so the toolchain "
         "reinstalls cleanly.",
         tools_path,
@@ -337,16 +348,19 @@ print(".".join([str(x) for x in sys.version_info]))
 
 
 _GITHUB_SHORTHAND_RE = re.compile(
-    r"^github://([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+?)(?:@([a-zA-Z0-9\-_.\./]+))?$"
+    r"^github://([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+?)(?:[@#]([a-zA-Z0-9\-_.\./]+))?$"
 )
 _GITHUB_HTTPS_RE = re.compile(
-    r"^(https://github\.com/[a-zA-Z0-9\-]+/[a-zA-Z0-9\-\._]+?\.git)(?:@([a-zA-Z0-9\-_.\./]+))?$"
+    r"^(https://github\.com/[a-zA-Z0-9\-]+/[a-zA-Z0-9\-\._]+?\.git)(?:[@#]([a-zA-Z0-9\-_.\./]+))?$"
 )
 
 
 def _parse_git_source(source_url: str) -> tuple[str, str | None] | None:
     """Return ``(url, ref)`` for ``github://owner/repo[@ref]`` or
-    ``https://github.com/owner/repo.git[@ref]``, else ``None``."""
+    ``https://github.com/owner/repo.git[@ref]``, else ``None``.
+
+    The ref may be separated with ``@`` or ``#``; ``#`` matches the PlatformIO
+    convention used for ``platform_version`` URLs."""
     if m := _GITHUB_SHORTHAND_RE.match(source_url):
         owner, repo, ref = m.group(1), m.group(2), m.group(3)
         # Tolerate a trailing ".git" on the shorthand repo so the
@@ -550,7 +564,7 @@ def _check_esphome_idf_framework_install(
     # Logged every invocation (not just on install) so the user can verify the
     # override. A changed URL needs ``esphome clean-all`` to force a re-download
     # (``esphome clean`` only wipes the build dir, not the extracted framework
-    # under <data_dir>/idf/frameworks/<version>).
+    # under the global install dir's ``frameworks/<version>``).
     if source_url:
         _LOGGER.info("Using framework source override: %s", source_url)
 
@@ -609,14 +623,16 @@ def _check_esphome_idf_framework_install(
         install = True
         if _check_stamp(env_stamp_file, stamp_info):
             _LOGGER.info("Checking ESP-IDF %s framework installation ...", version)
-            cmd = [
-                get_system_python_path(),
-                str(idf_tools_path),
-                "--non-interactive",
-                "check",
-            ]
-            if run_command_ok(cmd, msg=f"ESP-IDF {version} check", env=env):
+            # Validate via the managed tool-path resolution, not ``idf_tools.py check``:
+            # ``check`` probes tools on the system PATH and aborts if any fail to run (e.g. a
+            # broken Homebrew openocd), which forced a toolchain reinstall on every build.
+            try:
+                _get_idf_tool_paths(framework_path, env)
                 install = False
+            except RuntimeError as err:
+                _LOGGER.debug(
+                    "ESP-IDF %s tool resolution failed, reinstalling: %s", version, err
+                )
 
     # 4. Install framework tools if not installed or needs update
     if install:
@@ -812,6 +828,54 @@ def check_esp_idf_install(
     return framework_path, python_env_path
 
 
+def _ccache_env() -> dict[str, str]:
+    """Return ccache settings for ESP-IDF compiles.
+
+    Enabled by default whenever the ``ccache`` binary is on PATH; set
+    ``IDF_CCACHE_ENABLE=0`` in the environment to opt out. The cache lives under
+    the IDF tools path (the machine-global cache dir, or
+    ``ESPHOME_ESP_IDF_PREFIX``), so it is shared across all projects and removed
+    by ``esphome clean-all`` along with the framework.
+
+    Depend mode keeps cache-miss overhead low (hashes the compiler's depfiles
+    instead of preprocessing). ``CCACHE_BASEDIR`` rewrites the per-build
+    absolute paths (generated ``sdkconfig`` include, etc.) so different devices
+    share framework cache entries; it is scoped to the build dir on purpose --
+    a broader base would also rewrite the shared IDF path under the cache dir
+    and lose those hits.
+
+    Only values the user has not already set in the environment are returned, so
+    a custom ``CCACHE_DIR`` / ``CCACHE_MAXSIZE`` / etc. is respected.
+    """
+    # Honor an explicit choice already in the environment (opt-out or opt-in).
+    if "IDF_CCACHE_ENABLE" in os.environ:
+        if not get_bool_env("IDF_CCACHE_ENABLE"):
+            return {}
+    elif shutil.which("ccache") is None:
+        # ESP-IDF silently skips ccache without the binary; don't enable it.
+        return {}
+
+    # ccache is enabled past here. build_path is set during preload for every
+    # config-loading command, so it being unset means a caller built the IDF env
+    # too early -- fail loudly rather than silently drop CCACHE_BASEDIR (which
+    # would quietly cost cross-device cache hits).
+    if CORE.build_path is None:
+        raise ValueError(
+            "CORE.build_path must be set before constructing the ESP-IDF build "
+            "environment"
+        )
+
+    defaults = {
+        "IDF_CCACHE_ENABLE": "1",
+        "CCACHE_DIR": str(_get_idf_tools_path() / "ccache"),
+        "CCACHE_NOHASHDIR": "true",
+        "CCACHE_DEPEND": "1",
+        "CCACHE_BASEDIR": str(Path(CORE.build_path).resolve()),
+    }
+    # Don't override CCACHE_* values the user already set in their environment.
+    return {k: v for k, v in defaults.items() if k not in os.environ}
+
+
 def get_framework_env(
     framework_path: PathType,
     python_env_path: PathType | None = None,
@@ -853,5 +917,8 @@ def get_framework_env(
     paths_to_export, export_vars = _get_idf_tool_paths(framework_path, env)
     env.update(export_vars)
     env["PATH"] = os.pathsep.join(paths_to_export + path_list)
+
+    # 6. Enable ccache for the compile toolchain (default on when available).
+    env.update(_ccache_env())
 
     return env

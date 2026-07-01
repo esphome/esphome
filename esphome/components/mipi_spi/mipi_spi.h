@@ -151,6 +151,9 @@ class MipiSpi : public display::Display,
       this->reset_pin_->digital_write(false);
       delay(5);
       this->reset_pin_->digital_write(true);
+    } else {
+      // no reset pin, send software reset command
+      this->write_command_(SW_RESET_CMD);
     }
 
     // need to know when the display is ready for SLPOUT command - will be 120ms after reset
@@ -176,7 +179,6 @@ class MipiSpi : public display::Display,
           this->mark_failed();
           return;
         }
-        auto arg_byte = vec[index];
         switch (cmd) {
           case SLEEP_OUT: {
             // are we ready, boots?
@@ -186,13 +188,6 @@ class MipiSpi : public display::Display,
               delay(duration);
             }
           } break;
-
-          case INVERT_ON:
-            this->invert_colors_ = true;
-            break;
-          case BRIGHTNESS:
-            this->brightness_ = arg_byte;
-            break;
 
           default:
             break;
