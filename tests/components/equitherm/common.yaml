@@ -9,11 +9,33 @@ sensor:
     lambda: return 19.5;
     update_interval: 60s
 
+# Output-safety binary sensor
+binary_sensor:
+  - platform: equitherm
+    climate_id: heating_controller
+    rate_limiting_active:
+      name: "Rate Limiting Active"
+      id: rate_limiting_sensor
+
 output:
   - platform: slow_pwm
     pin: 4
     id: heat_output
     period: 15s
+
+# Runtime tuning numbers for output safety
+number:
+  - platform: equitherm
+    climate_id: heating_controller
+    fallback_outdoor_temp:
+      name: "Fallback Outdoor Temperature"
+      id: fallback_outdoor_temp_number
+    rate_limit_rising:
+      name: "Rate Limit Rising"
+      id: rate_limit_rising_number
+    rate_limit_falling:
+      name: "Rate Limit Falling"
+      id: rate_limit_falling_number
 
 climate:
   - platform: equitherm
@@ -22,6 +44,7 @@ climate:
     outdoor_sensor: outdoor_sensor
     indoor_sensor: indoor_sensor
     default_target_temperature: 20°C
+    fallback_outdoor_temp: 0.0
     heat_output: heat_output
     control_parameters:
       heat_curve_coefficient: 3.0
@@ -36,6 +59,8 @@ climate:
     output_parameters:
       min_flow_temp: 25.0
       max_flow_temp: 70.0
+      rate_limit_rising: 0.5
+      rate_limit_falling: 2.0
     deadband_parameters:
       threshold_high: 0.5
       threshold_low: -0.5

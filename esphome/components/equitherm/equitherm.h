@@ -53,6 +53,12 @@ class EquithermClimate : public climate::Climate, public Component {
   void set_max_flow_temp(float temp) { heating_curve_.set_max_flow_temp(temp); }
   void set_write_deadband(float deadband) { write_deadband_ = deadband; }
 
+  // Rate limiting (asymmetric: different limits for rising vs falling)
+  void set_rate_limit_rising(float value) { rate_limit_rising_ = value; }
+  void set_rate_limit_falling(float value) { rate_limit_falling_ = value; }
+  float get_rate_limit_rising() const { return rate_limit_rising_; }
+  float get_rate_limit_falling() const { return rate_limit_falling_; }
+
   // PID parameters
   void set_kp(float kp) { pid_controller_.kp_ = kp; }
   void set_ki(float ki) { pid_controller_.ki_ = ki; }
@@ -72,6 +78,11 @@ class EquithermClimate : public climate::Climate, public Component {
   void set_ki_multiplier(float mult) { pid_controller_.ki_multiplier_ = mult; }
   void set_kd_multiplier(float mult) { pid_controller_.kd_multiplier_ = mult; }
 
+  // Fallback parameters (sensor failure handling)
+  void set_fallback_outdoor_temp(float temp) { fallback_outdoor_temp_ = temp; }
+  float get_fallback_outdoor_temp() const { return fallback_outdoor_temp_; }
+
+  bool is_rate_limiting_active() const { return rate_limiting_active_; }
   bool is_wws_active() const { return wws_active_; }
 
   // State getters (for diagnostics)
@@ -112,8 +123,14 @@ class EquithermClimate : public climate::Climate, public Component {
     this->on_heating_stop_callback_.add(std::forward<F>(callback));
   }
 
-  // Force immediate recalculation (used by runtime tuning numbers)
-  void force_recalculate(bool update_pid = false) { this->compute_and_apply_(update_pid); }
+  // Force immediate recalculation, bypassing rate limiting (used by runtime tuning numbers)
+  void force_recalculate(bool update_pid = false) {
+    // Setting prev_rate_limited_flow_ to NAN triggers the "first calculation" path
+    // in compute_and_apply_(), which bypasses rate limiting and initializes
+    // the rate limiter state with the new calculated value.
+    this->prev_rate_limited_flow_ = NAN;
+    this->compute_and_apply_(update_pid);
+  }
 
  protected:
   /// Override control to handle climate calls from HA
@@ -144,18 +161,30 @@ class EquithermClimate : public climate::Climate, public Component {
   PIDController pid_controller_;
   /// Default target temperature when no state restored
   float default_target_temperature_{20.0f};
-  /// Raw heating curve output before PID (for diagnostics)
+  /// Rate limit for rising output changes (°C per minute)
+  float rate_limit_rising_{NAN};
+  /// Rate limit for falling output changes (°C per minute)
+  float rate_limit_falling_{NAN};
+  /// Previous rate-limited flow temperature (for time-based rate limiting)
+  float prev_rate_limited_flow_{NAN};
+  /// Raw heating curve output before rate limiting (for diagnostics)
   float heating_curve_output_{NAN};
-  /// Setpoint after PID (for diagnostics)
+  /// Setpoint after PID, before rate limiting (for diagnostics)
   float pid_adjusted_output_{NAN};
+  /// Whether rate limiting is currently clamping the output
+  bool rate_limiting_active_{false};
   /// Whether warm weather shutdown is active (delta_t <= 0, no heating demand)
   bool wws_active_{false};
-  /// Flow setpoint (after PID, for diagnostics)
+  /// Timestamp of last rate-limited update for time-based limiting
+  uint32_t last_rate_limit_time_{0};
+  /// Flow setpoint (after rate limiting + PID, for diagnostics)
   float flow_setpoint_{NAN};
   /// Last value actually written to boiler (confirmed active setpoint)
   float active_setpoint_{NAN};
   /// PID correction (for diagnostics)
   float pid_correction_{NAN};
+  /// Fallback outdoor temperature when sensor fails (default 0°C - safe for winter)
+  float fallback_outdoor_temp_{0.0f};
   /// Minimum setpoint change (°C) required to write to boiler output
   float write_deadband_{0.05f};
 

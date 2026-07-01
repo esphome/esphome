@@ -12,6 +12,7 @@ CONF_INDOOR_SENSOR = "indoor_sensor"
 CONF_FLOW_SETPOINT = "flow_setpoint"
 CONF_MANUAL_FLOW_TEMP = "manual_flow_temp"
 CONF_HEAT_OUTPUT = "heat_output"
+CONF_FALLBACK_OUTDOOR_TEMP = "fallback_outdoor_temp"
 CONF_CONTROL_PARAMETERS = "control_parameters"
 CONF_OUTPUT_PARAMETERS = "output_parameters"
 CONF_DEADBAND_PARAMETERS = "deadband_parameters"
@@ -23,6 +24,8 @@ CONF_HEAT_CURVE_SHIFT = "heat_curve_shift"
 
 CONF_MIN_FLOW_TEMP = "min_flow_temp"
 CONF_MAX_FLOW_TEMP = "max_flow_temp"
+CONF_RATE_LIMIT_RISING = "rate_limit_rising"
+CONF_RATE_LIMIT_FALLING = "rate_limit_falling"
 
 # Output behavior parameters
 CONF_WRITE_DEADBAND = "write_deadband"
@@ -93,6 +96,12 @@ OUTPUT_PARAMETERS_SCHEMA = cv.All(
         {
             cv.Required(CONF_MIN_FLOW_TEMP): cv.temperature,
             cv.Required(CONF_MAX_FLOW_TEMP): cv.temperature,
+            cv.Optional(CONF_RATE_LIMIT_RISING, default=0.5): cv.float_range(
+                min=0.0, max=2.0
+            ),
+            cv.Optional(CONF_RATE_LIMIT_FALLING, default=1): cv.float_range(
+                min=0.0, max=2.0
+            ),
             cv.Optional(CONF_WRITE_DEADBAND, default="0.05°C"): cv.temperature_delta,
         }
     ),
@@ -135,6 +144,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FLOW_SETPOINT): cv.use_id(number.Number),
             cv.Optional(CONF_MANUAL_FLOW_TEMP): cv.use_id(number.Number),
             cv.Optional(CONF_HEAT_OUTPUT): cv.use_id(output.FloatOutput),
+            cv.Optional(CONF_FALLBACK_OUTDOOR_TEMP, default=0.0): cv.temperature,
             cv.Required(CONF_CONTROL_PARAMETERS): CONTROL_PARAMETERS_SCHEMA,
             cv.Required(CONF_OUTPUT_PARAMETERS): OUTPUT_PARAMETERS_SCHEMA,
             cv.Optional(CONF_DEADBAND_PARAMETERS): DEADBAND_PARAMETERS_SCHEMA,
@@ -175,6 +185,9 @@ async def to_code(config):
     # Climate defaults
     cg.add(var.set_default_target_temperature(config[CONF_DEFAULT_TARGET_TEMPERATURE]))
 
+    # Fallback outdoor temperature (sensor failure handling)
+    cg.add(var.set_fallback_outdoor_temp(config[CONF_FALLBACK_OUTDOOR_TEMP]))
+
     # Control parameters (heating curve + PID)
     params = config[CONF_CONTROL_PARAMETERS]
     cg.add(var.set_heat_curve_coefficient(params[CONF_HEAT_CURVE_COEFFICIENT]))
@@ -192,6 +205,8 @@ async def to_code(config):
     params = config[CONF_OUTPUT_PARAMETERS]
     cg.add(var.set_min_flow_temp(params[CONF_MIN_FLOW_TEMP]))
     cg.add(var.set_max_flow_temp(params[CONF_MAX_FLOW_TEMP]))
+    cg.add(var.set_rate_limit_rising(params[CONF_RATE_LIMIT_RISING]))
+    cg.add(var.set_rate_limit_falling(params[CONF_RATE_LIMIT_FALLING]))
     cg.add(var.set_write_deadband(params[CONF_WRITE_DEADBAND]))
 
     # Deadband parameters - optional

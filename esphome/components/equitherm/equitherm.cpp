@@ -31,6 +31,7 @@ void EquithermClimate::setup() {
     this->mode = climate::CLIMATE_MODE_HEAT;
     this->target_temperature = this->default_target_temperature_;
     // On first boot, trigger initial calculation
+    // Note: We don't require both sensors to be ready - fallback will handle missing sensors
     this->compute_and_apply_();
   }
 }
@@ -103,8 +104,15 @@ void EquithermClimate::dump_config() {
 
   ESP_LOGCONFIG(TAG,
                 "  Output Parameters:\n"
-                "    min_flow_temp: %.1f°C, max_flow_temp: %.1f°C",
-                heating_curve_.get_min_flow_temp(), heating_curve_.get_max_flow_temp());
+                "    min_flow_temp: %.1f°C, max_flow_temp: %.1f°C\n"
+                "    rate_limit_rising: %.2f°C/min, rate_limit_falling: %.2f°C/min",
+                heating_curve_.get_min_flow_temp(), heating_curve_.get_max_flow_temp(), this->rate_limit_rising_,
+                this->rate_limit_falling_);
+
+  ESP_LOGCONFIG(TAG,
+                "  Fallback (invalid outdoor reading):\n"
+                "    fallback_outdoor_temp: %.1f°C",
+                this->fallback_outdoor_temp_);
 }
 
 void EquithermClimate::write_setpoint_(float temp_c) {
@@ -172,17 +180,27 @@ void EquithermClimate::write_setpoint_off_() {
 void EquithermClimate::compute_and_apply_(bool update_pid) {
   // Target temperature must be valid
   if (std::isnan(this->target_temperature)) {
+    // Reset rate limiting state and notify sensors before early return
+    this->rate_limiting_active_ = false;
     this->state_callback_.call();
     return;
   }
 
   // --- OUTDOOR SENSOR HANDLING ---
-  // Straight read: if the outdoor reading is present, finite and in range use it; otherwise
-  // mark it invalid. With no configured substitute in core, an invalid outdoor sensor skips
-  // recalculation and holds the last setpoint (see guard below). No fault flag here.
+  // Straight read + fallback: if the outdoor reading is present, finite and in range use it;
+  // otherwise fall back to fallback_outdoor_temp_. No staleness timer, no fault flag.
+  float t_outdoor;
+  uint32_t now = millis();
   bool outdoor_valid = this->outdoor_sensor_->has_state() && !std::isnan(this->outdoor_sensor_->state) &&
                        this->outdoor_sensor_->state >= OUTDOOR_SENSOR_MIN_VALID &&
                        this->outdoor_sensor_->state <= OUTDOOR_SENSOR_MAX_VALID;
+
+  if (outdoor_valid) {
+    t_outdoor = this->outdoor_sensor_->state;
+  } else {
+    t_outdoor = this->fallback_outdoor_temp_;
+    ESP_LOGD(TAG, "Outdoor sensor invalid, using fallback: %.1f°C", t_outdoor);
+  }
 
   // --- INDOOR SENSOR HANDLING ---
   // Straight read: t_indoor is the current indoor state when present and finite, else NAN.
@@ -194,6 +212,8 @@ void EquithermClimate::compute_and_apply_(bool update_pid) {
   if (!std::isnan(t_indoor)) {
     this->current_temperature = t_indoor;
   }
+
+  float t_flow;
 
   if (this->mode == climate::CLIMATE_MODE_OFF) {
     // Reset PID integral only on transition to OFF (not every update)
@@ -211,9 +231,13 @@ void EquithermClimate::compute_and_apply_(bool update_pid) {
     this->prev_action_ = climate::CLIMATE_ACTION_OFF;
     this->heating_curve_output_ = NAN;
     this->pid_adjusted_output_ = NAN;
+    this->rate_limiting_active_ = false;
     this->wws_active_ = false;
     this->flow_setpoint_ = NAN;
     this->active_setpoint_ = NAN;
+    // Reset rate limiter state to avoid issues on next HEAT transition
+    this->prev_rate_limited_flow_ = NAN;
+    this->last_rate_limit_time_ = millis();
     this->publish_state();
     this->state_callback_.call();
     return;  // Don't write any setpoint to boiler
@@ -227,18 +251,6 @@ void EquithermClimate::compute_and_apply_(bool update_pid) {
                   !std::isnan(this->manual_flow_temp_->state);
 #endif
 
-  // Without a configured substitute, an invalid outdoor reading makes the curve incalculable.
-  // In normal (non-manual, non-OFF) mode we hold the last setpoint rather than drive the
-  // boiler from a garbage reading. Manual mode bypasses the curve entirely.
-  if (!manual_active && !outdoor_valid) {
-    ESP_LOGD(TAG, "Outdoor sensor invalid, holding last setpoint");
-    this->publish_state();
-    this->state_callback_.call();
-    return;
-  }
-
-  float t_flow;
-
   if (manual_active) {
 #ifdef USE_NUMBER
     // Bypass curve and PID: use manual flow temperature directly
@@ -250,11 +262,10 @@ void EquithermClimate::compute_and_apply_(bool update_pid) {
     this->pid_adjusted_output_ = t_flow;
 #endif
   } else {
-    // Normal equitherm curve (outdoor_valid is guaranteed true here)
-    float t_outdoor = this->outdoor_sensor_->state;
+    // Normal equitherm curve
     // WWS decision is owned by the controller, not the curve calculator.
     // This keeps HeatingCurve stateless and allows the formula to change independently.
-    this->wws_active_ = (this->target_temperature - t_outdoor) <= 0.0f;
+    this->wws_active_ = std::isnan(t_outdoor) || (this->target_temperature - t_outdoor) <= 0.0f;
 
     t_flow = heating_curve_.compute_flow_temperature(this->target_temperature, t_outdoor);
 
@@ -263,10 +274,11 @@ void EquithermClimate::compute_and_apply_(bool update_pid) {
       t_flow = std::clamp(t_flow, heating_curve_.get_min_flow_temp(), heating_curve_.get_max_flow_temp());
     }
 
-    // Store raw curve output for diagnostics (before PID)
+    // Store raw curve output for diagnostics (before PID and rate limiting)
     this->heating_curve_output_ = t_flow;
 
     // PID correction (ONLY when indoor sensor is valid)
+    // Calculate PID BEFORE rate limiting so the combined output is rate-limited together
     if (indoor_valid && update_pid) {
       this->pid_correction_ = this->pid_controller_.update(this->target_temperature, t_indoor);
       // Guard against nan from PID controller (can happen on first call)
@@ -278,12 +290,63 @@ void EquithermClimate::compute_and_apply_(bool update_pid) {
       this->pid_correction_ = 0.0f;
     }
 
-    // Apply PID correction to flow temperature
+    // Apply PID correction to flow temperature BEFORE rate limiting
     t_flow += this->pid_correction_;
 
-    // Store setpoint for diagnostics (curve + PID)
+    // Store setpoint for diagnostics (curve + PID, before rate limiting)
     this->pid_adjusted_output_ = t_flow;
   }
+
+  // Apply rate limiting only in normal mode (manual mode bypasses for direct control)
+  // Rate limiting protects the boiler from thermal shock during automatic operation
+  if (!manual_active) {
+    // This ensures PID corrections are also subject to rate limiting
+    // Asymmetric limits: slower ramp-up (boiler protection), faster drop-off (energy optimal)
+    uint32_t elapsed_ms = now - this->last_rate_limit_time_;
+
+    // First valid calculation - initialize without limiting
+    if (std::isnan(this->prev_rate_limited_flow_)) {
+      ESP_LOGI(TAG, "Initializing rate limiter: starting at %.1f°C", t_flow);
+      this->prev_rate_limited_flow_ = t_flow;
+      this->rate_limiting_active_ = false;
+    }
+    // Subsequent runs: apply rate limiting
+    // Guard against sub-millisecond elapsed time to prevent floating-point noise
+    else if (elapsed_ms > 0) {
+      float elapsed_minutes = elapsed_ms / 60000.0f;
+      float delta = t_flow - this->prev_rate_limited_flow_;
+
+      // Select rate limit based on direction (rising = temp increasing, falling = temp decreasing)
+      float rate_limit = (delta > 0) ? this->rate_limit_rising_ : this->rate_limit_falling_;
+
+      if (rate_limit > 0.0f) {
+        float max_change = rate_limit * elapsed_minutes;
+
+        if (fabsf(delta) > max_change) {
+          delta = (delta > 0) ? max_change : -max_change;
+          t_flow = this->prev_rate_limited_flow_ + delta;
+          this->rate_limiting_active_ = true;
+          ESP_LOGD(TAG, "Rate limiting (%s): raw=%.1f°C, limited=%.1f°C, remaining=%.1f°C, limit=%.3f°C/min",
+                   (delta > 0) ? "rising" : "falling", this->pid_adjusted_output_, t_flow,
+                   fabsf(this->pid_adjusted_output_ - t_flow), rate_limit);
+        } else {
+          this->rate_limiting_active_ = false;
+          ESP_LOGVV(TAG, "No rate limiting: delta=%.3f°C <= max_change=%.3f°C", fabsf(delta), max_change);
+        }
+      } else {
+        this->rate_limiting_active_ = false;
+      }
+    }
+    // Same millisecond or rate limiting disabled
+    else {
+      this->rate_limiting_active_ = false;
+    }
+  } else {
+    this->rate_limiting_active_ = false;
+  }
+
+  this->prev_rate_limited_flow_ = t_flow;
+  this->last_rate_limit_time_ = now;
 
   // Set action based on heating demand
   // Manual mode always calls for heat. In normal mode, WWS = off (no demand).
@@ -303,6 +366,7 @@ void EquithermClimate::compute_and_apply_(bool update_pid) {
 
   // WWS: don't send a setpoint to the boiler (only in normal mode — manual mode bypasses curve)
   if (!manual_active && this->wws_active_) {
+    this->rate_limiting_active_ = false;
     this->flow_setpoint_ = 0.0f;
     if (std::isnan(this->active_setpoint_) || this->active_setpoint_ != 0.0f) {
       this->active_setpoint_ = 0.0f;
@@ -315,6 +379,8 @@ void EquithermClimate::compute_and_apply_(bool update_pid) {
 
   // Final guard: never write nan to output
   if (std::isnan(t_flow)) {
+    // Reset rate limiting state and notify sensors before early return
+    this->rate_limiting_active_ = false;
     this->state_callback_.call();
     return;
   }
