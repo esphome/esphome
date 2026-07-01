@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sx127x {
+namespace esphome::sx127x {
 
 static const char *const TAG = "sx127x";
 static const uint32_t FXOSC = 32000000u;
@@ -53,6 +52,8 @@ void SX127x::write_fifo_(const std::vector<uint8_t> &packet) {
   this->disable();
 }
 
+void IRAM_ATTR SX127x::gpio_intr(SX127x *arg) { arg->enable_loop_soon_any_context(); }
+
 void SX127x::setup() {
   // setup reset
   this->rst_pin_->setup();
@@ -60,6 +61,7 @@ void SX127x::setup() {
   // setup dio0
   if (this->dio0_pin_) {
     this->dio0_pin_->setup();
+    this->dio0_pin_->attach_interrupt(&SX127x::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
   }
 
   // start spi
@@ -199,8 +201,8 @@ void SX127x::configure_fsk_ook_() {
   this->write_register_(REG_OOK_AVG, OOK_AVG_RESERVED | OOK_THRESH_DEC_1_8);
 
   // set rx floor
-  this->write_register_(REG_OOK_FIX, 256 + int(this->rx_floor_ * 2.0));
-  this->write_register_(REG_RSSI_THRESH, std::abs(int(this->rx_floor_ * 2.0)));
+  this->write_register_(REG_OOK_FIX, 256 + int(this->rx_floor_ * 2.0f));
+  this->write_register_(REG_RSSI_THRESH, std::abs(int(this->rx_floor_ * 2.0f)));
 }
 
 void SX127x::configure_lora_() {
@@ -223,7 +225,7 @@ void SX127x::configure_lora_() {
   }
 
   // optimize detection
-  float duration = 1000.0f * std::pow(2, this->spreading_factor_) / BW_HZ[this->bandwidth_];
+  float duration = 1000.0f * (1UL << this->spreading_factor_) / BW_HZ[this->bandwidth_];
   if (duration > 16) {
     this->write_register_(REG_MODEM_CONFIG3, MODEM_AGC_AUTO_ON | LOW_DATA_RATE_OPTIMIZE_ON);
   } else {
@@ -313,6 +315,7 @@ void SX127x::call_listeners_(const std::vector<uint8_t> &packet, float rssi, flo
 }
 
 void SX127x::loop() {
+  this->disable_loop();
   if (this->dio0_pin_ == nullptr || !this->dio0_pin_->digital_read()) {
     return;
   }
@@ -383,7 +386,7 @@ void SX127x::set_mode_(uint8_t modulation, uint8_t mode) {
     if (millis() - start > 20) {
       ESP_LOGE(TAG, "Set mode failure");
       this->mark_failed();
-      break;
+      return;
     }
   }
 }
@@ -503,5 +506,4 @@ void SX127x::dump_config() {
   }
 }
 
-}  // namespace sx127x
-}  // namespace esphome
+}  // namespace esphome::sx127x

@@ -1,0 +1,14 @@
+# Per-target ESP-IDF sdkconfig defaults for esp32c6 static analysis (clang-tidy) only.
+# Read by IDF in addition to sdkconfig.defaults. Enables variant-only components so
+# their headers register for the tidy translation unit (these are normally set at
+# codegen via add_idf_sdkconfig_option, which the stub tidy build skips).
+
+# openthread (only the C6/H2 variants have the 802.15.4 radio)
+CONFIG_IEEE802154_ENABLED=y
+CONFIG_OPENTHREAD_ENABLED=y
+CONFIG_OPENTHREAD_RADIO_NATIVE=y
+
+# zigbee
+CONFIG_ZB_ENABLED=y
+CONFIG_ZB_ZED=y
+CONFIG_ZB_RADIO_NATIVE=y

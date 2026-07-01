@@ -160,9 +160,13 @@ struct ClientStateCounts {
   uint8_t connecting = 0;
   uint8_t discovered = 0;
   uint8_t disconnecting = 0;
+  // CONNECTED + ESTABLISHED clients. Tracked so coex stays at PREFER_BT
+  // while active connections may still need to send/receive GATT traffic.
+  uint8_t active = 0;
 
   bool operator==(const ClientStateCounts &other) const {
-    return connecting == other.connecting && discovered == other.discovered && disconnecting == other.disconnecting;
+    return connecting == other.connecting && discovered == other.discovered && disconnecting == other.disconnecting &&
+           active == other.active;
   }
 
   bool operator!=(const ClientStateCounts &other) const { return !(*this == other); }
@@ -290,11 +294,11 @@ class ESPBTClient : public ESPBTDeviceListener {
   uint8_t *tracker_state_version_{nullptr};
 };
 
-class ESP32BLETracker : public Component,
+class ESP32BLETracker final : public Component,
 #ifdef USE_OTA_STATE_LISTENER
-                        public ota::OTAGlobalStateListener,
+                              public ota::OTAGlobalStateListener,
 #endif
-                        public Parented<ESP32BLE> {
+                              public Parented<ESP32BLE> {
  public:
   void set_scan_duration(uint32_t scan_duration) { scan_duration_ = scan_duration; }
   void set_scan_interval(uint32_t scan_interval) { scan_interval_ = scan_interval; }
@@ -380,6 +384,10 @@ class ESP32BLETracker : public Component,
           break;
         case ClientState::CONNECTING:
           counts.connecting++;
+          break;
+        case ClientState::CONNECTED:
+        case ClientState::ESTABLISHED:
+          counts.active++;
           break;
         default:
           break;

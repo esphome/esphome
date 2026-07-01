@@ -8,8 +8,7 @@
  * https://arduino-irremote.github.io/Arduino-IRremote/ir__MagiQuest_8cpp_source.html
  */
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct MagiQuestData {
   uint16_t magnitude;
@@ -48,5 +47,4 @@ template<typename... Ts> class MagiQuestAction : public RemoteTransmitterActionB
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

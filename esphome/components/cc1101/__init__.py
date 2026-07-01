@@ -423,11 +423,10 @@ def _register_setter_actions():
             var = cg.new_Pvariable(action_id, template_arg)
             await cg.register_parented(var, config[CONF_ID])
             data = config[CONF_VALUE]
-            if cg.is_template(data):
-                templ_ = await cg.templatable(data, args, _type)
-                cg.add(getattr(var, _setter)(templ_))
-            else:
-                cg.add(getattr(var, _setter)(_map[data] if _map else data))
+            if _map and not cg.is_template(data):
+                data = _map[data]
+            templ_ = await cg.templatable(data, args, _type)
+            cg.add(getattr(var, _setter)(templ_))
             return var
 
         automation.register_action(

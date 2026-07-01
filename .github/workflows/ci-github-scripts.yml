@@ -1,0 +1,27 @@
+name: CI - GitHub Scripts
+
+on:
+  push:
+    branches: [dev, beta, release]
+    paths:
+      - ".github/scripts/**"
+      - ".github/workflows/ci-github-scripts.yml"
+  pull_request:
+    paths:
+      - ".github/scripts/**"
+      - ".github/workflows/ci-github-scripts.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test-auto-label-pr:
+    name: Test auto-label-pr scripts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Run tests
+        working-directory: .github/scripts/auto-label-pr
+        run: npm test

@@ -5,10 +5,9 @@
 #include <Arduino.h>
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace rp2040 {
+namespace esphome::rp2040 {
 
-class RP2040GPIOPin : public InternalGPIOPin {
+class RP2040GPIOPin final : public InternalGPIOPin {
  public:
   void set_pin(uint8_t pin) { pin_ = pin; }
   void set_inverted(bool inverted) { inverted_ = inverted; }
@@ -33,7 +32,6 @@ class RP2040GPIOPin : public InternalGPIOPin {
   gpio::Flags flags_{};
 };
 
-}  // namespace rp2040
-}  // namespace esphome
+}  // namespace esphome::rp2040
 
 #endif  // USE_RP2040

@@ -16,8 +16,7 @@
 #include <freertos/task.h>
 #include <esp_gap_ble_api.h>
 
-namespace esphome {
-namespace esp32_ble_server {
+namespace esphome::esp32_ble_server {
 
 static const char *const TAG = "esp32_ble_server";
 
@@ -248,7 +247,6 @@ void BLEServer::dump_config() {
 
 BLEServer *global_ble_server = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace esp32_ble_server
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_server
 
 #endif

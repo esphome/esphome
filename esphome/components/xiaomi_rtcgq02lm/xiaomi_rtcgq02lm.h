@@ -13,8 +13,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace xiaomi_rtcgq02lm {
+namespace esphome::xiaomi_rtcgq02lm {
 
 class XiaomiRTCGQ02LM : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
@@ -54,7 +53,6 @@ class XiaomiRTCGQ02LM : public Component, public esp32_ble_tracker::ESPBTDeviceL
 #endif
 };
 
-}  // namespace xiaomi_rtcgq02lm
-}  // namespace esphome
+}  // namespace esphome::xiaomi_rtcgq02lm
 
 #endif

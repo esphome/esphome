@@ -4,13 +4,13 @@
 #include "../nextion_component.h"
 #include "../nextion_base.h"
 
-namespace esphome {
-namespace nextion {
+namespace esphome::nextion {
+
 class NextionBinarySensor;
 
-class NextionBinarySensor : public NextionComponent,
-                            public binary_sensor::BinarySensorInitiallyOff,
-                            public PollingComponent {
+class NextionBinarySensor final : public NextionComponent,
+                                  public binary_sensor::BinarySensorInitiallyOff,
+                                  public PollingComponent {
  public:
   NextionBinarySensor(NextionBase *nextion) { this->nextion_ = nextion; }
 
@@ -38,5 +38,4 @@ class NextionBinarySensor : public NextionComponent,
  protected:
   uint8_t page_id_;
 };
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion

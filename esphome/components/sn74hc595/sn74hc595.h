@@ -11,8 +11,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace sn74hc595 {
+namespace esphome::sn74hc595 {
 
 class SN74HC595Component : public Component {
  public:
@@ -93,5 +92,4 @@ class SN74HC595SPIComponent : public SN74HC595Component,
 
 #endif
 
-}  // namespace sn74hc595
-}  // namespace esphome
+}  // namespace esphome::sn74hc595

@@ -1,8 +1,6 @@
 import logging
 from pathlib import Path
-import time
-
-import requests
+from typing import Any
 
 from esphome import git, loader
 import esphome.config_validation as cv
@@ -21,7 +19,7 @@ from esphome.const import (
     TYPE_LOCAL,
     __version__ as ESPHOME_VERSION,
 )
-from esphome.core import CORE
+from esphome.core import CORE, TimePeriodSeconds
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,17 +37,15 @@ CONFIG_SCHEMA = cv.ensure_list(
 )
 
 
-async def to_code(config):
+async def to_code(config: dict[str, Any]) -> None:
     pass
 
 
-def _process_git_config(config: dict, refresh, skip_update: bool = False) -> str:
-    # When skip_update is True, use NEVER_REFRESH to prevent updates
-    actual_refresh = git.NEVER_REFRESH if skip_update else refresh
+def _process_git_config(config: dict[str, Any], refresh: TimePeriodSeconds) -> Path:
     repo_dir, _ = git.clone_or_update(
         url=config[CONF_URL],
         ref=config.get(CONF_REF),
-        refresh=actual_refresh,
+        refresh=refresh,
         domain=DOMAIN,
         username=config.get(CONF_USERNAME),
         password=config.get(CONF_PASSWORD),
@@ -76,71 +72,18 @@ def _process_git_config(config: dict, refresh, skip_update: bool = False) -> str
     return components_dir
 
 
-def _check_for_merged_prs(srcs: list[tuple]):
-    cache_file = CORE.relative_internal_path(".merged_prs_cache")
-    cache_file.parent.mkdir(parents=True, exist_ok=True)
-    merged_prs = []
-    if cache_file.is_file():
-        with open(cache_file, encoding="utf-8") as f:
-            merged_prs = f.read().splitlines()
-        stale = (time.time() - cache_file.stat().st_mtime) > 3600
-    else:
-        cache_file.touch()
-        stale = True
-    check_numbers = [n for n, _ in srcs if n not in merged_prs]
-    if stale and check_numbers:
-        url = "https://pr-check.control-j.com"
-
-        payload = {
-            "release_tag": ESPHOME_VERSION,
-            "pr_numbers": check_numbers,
-            "repo_owner": "esphome",
-            "repo_name": "esphome",
-        }
-        headers = {
-            "Cache-Control": "no-cache, no-store, must-revalidate",
-            "Pragma": "no-cache",
-            "Expires": "0",
-        }
-
-        response = requests.post(url, json=payload, headers=headers, timeout=15)
-        if response.status_code != 200:
-            return
-        result_data = response.json()
-        new_merged_prs = [
-            pr for pr, data in result_data.items() if data["status"] == "merged"
-        ]
-        if new_merged_prs:
-            merged_prs.extend(new_merged_prs)
-            with open(cache_file, "w", encoding="utf-8") as f:
-                f.write("\n".join(set(merged_prs)))
-        else:
-            cache_file.touch()
-    for pr_number, components in srcs:
-        if pr_number in merged_prs:
-            # Use lazy % formatting to prevent unnecessary string concat if not logging
-            _LOGGER.warning(
-                "The git reference 'github://PR#%s' "
-                "for components %s\n"
-                "is a pull request that has been merged and released.\n"
-                "You should remove the external_components configuration for this source.",
-                pr_number,
-                ", ".join(components),
-            )
-
-
-def _process_single_config(config: dict, skip_update: bool = False):
+def _process_single_config(config: dict[str, Any]) -> None:
     conf = config[CONF_SOURCE]
     if conf[CONF_TYPE] == TYPE_GIT:
         with cv.prepend_path([CONF_SOURCE]):
             components_dir = _process_git_config(
-                config[CONF_SOURCE], config[CONF_REFRESH], skip_update
+                config[CONF_SOURCE], config[CONF_REFRESH]
             )
 
     elif conf[CONF_TYPE] == TYPE_LOCAL:
         components_dir = Path(CORE.relative_config_path(conf[CONF_PATH]))
     else:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     if config[CONF_COMPONENTS] == "all":
         num_components = len(list(components_dir.glob("*/__init__.py")))
@@ -165,7 +108,7 @@ def _process_single_config(config: dict, skip_update: bool = False):
     loader.install_meta_finder(components_dir, allowed_components=allowed_components)
 
 
-def do_external_components_pass(config: dict, skip_update: bool = False) -> None:
+def do_external_components_pass(config: dict[str, Any]) -> None:
     conf = config.get(DOMAIN)
     if conf is None:
         return
@@ -174,13 +117,4 @@ def do_external_components_pass(config: dict, skip_update: bool = False) -> None
         pr_srcs = []
         for i, c in enumerate(conf):
             with cv.prepend_path(i):
-                _process_single_config(c, skip_update)
-                source = c[CONF_SOURCE]
-                if (
-                    source[CONF_TYPE] == TYPE_GIT
-                    and "github.com/esphome/esphome" in source[CONF_URL]
-                    and "pull" in source.get(CONF_REF, "")
-                ):
-                    pr_number = source[CONF_REF].split("/")[1]
-                    pr_srcs.append((pr_number, c[CONF_COMPONENTS]))
-        _check_for_merged_prs(pr_srcs)
+                _process_single_config(c)

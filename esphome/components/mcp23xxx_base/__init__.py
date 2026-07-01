@@ -2,9 +2,11 @@ from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ALLOW_OTHER_USES,
     CONF_ID,
     CONF_INPUT,
     CONF_INTERRUPT,
+    CONF_INTERRUPT_PIN,
     CONF_INVERTED,
     CONF_MODE,
     CONF_NUMBER,
@@ -29,9 +31,29 @@ MCP23XXX_INTERRUPT_MODES = {
     "FALLING": MCP23XXXInterruptMode.MCP23XXX_FALLING,
 }
 
+
+def _validate_interrupt_pin(value):
+    # The MCP component owns INT polarity (active-low, hardcoded falling-edge ISR)
+    # and installs a single ISR per GPIO, so neither inversion nor sharing is supported.
+    value = pins.internal_gpio_input_pin_schema(value)
+    if value.get(CONF_INVERTED):
+        raise cv.Invalid(
+            f"'{CONF_INVERTED}: true' is not supported on '{CONF_INTERRUPT_PIN}'; "
+            "the MCP23xxx INT line is fixed active-low"
+        )
+    if value.get(CONF_ALLOW_OTHER_USES):
+        raise cv.Invalid(
+            f"'{CONF_ALLOW_OTHER_USES}: true' is not supported on '{CONF_INTERRUPT_PIN}'; "
+            "sharing the interrupt pin between multiple MCP23xxx (or other components) "
+            "is not implemented. Remove the interrupt_pin to fall back to polling."
+        )
+    return value
+
+
 MCP23XXX_CONFIG_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_OPEN_DRAIN_INTERRUPT, default=False): cv.boolean,
+        cv.Optional(CONF_INTERRUPT_PIN): _validate_interrupt_pin,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -43,6 +65,8 @@ async def register_mcp23xxx(config, num_pins):
     await cg.register_component(var, config)
     CORE.data.setdefault(CONF_MCP23XXX, {})[id.id] = num_pins
     cg.add(var.set_open_drain_ints(config[CONF_OPEN_DRAIN_INTERRUPT]))
+    if interrupt_pin := config.get(CONF_INTERRUPT_PIN):
+        cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
     return var
 
 
