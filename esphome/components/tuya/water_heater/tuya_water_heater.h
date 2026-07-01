@@ -61,7 +61,13 @@ class TuyaWaterHeater final : public water_heater::WaterHeater, public Component
   float target_temperature_multiplier_{1.0f};
   float current_temperature_multiplier_{1.0f};
   water_heater::WaterHeaterModeMask supported_modes_;
+  /// Last non-OFF mode reported by the mode datapoint, applied when the heater turns on.
+  optional<water_heater::WaterHeaterMode> last_reported_mode_{};
   bool is_on_{false};
+
+  /// The mode to show when the heater is on but no mode datapoint value is known yet: the last
+  /// reported mode, else the first configured supported non-OFF mode, else ELECTRIC.
+  water_heater::WaterHeaterMode default_on_mode_() const;
 };
 
 }  // namespace esphome::tuya

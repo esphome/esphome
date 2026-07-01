@@ -13,9 +13,11 @@ void TuyaWaterHeater::setup() {
       this->set_state_flag_(water_heater::WATER_HEATER_STATE_ON, this->is_on_);
       if (!this->is_on_) {
         this->set_mode_(water_heater::WATER_HEATER_MODE_OFF);
-      } else if (this->mode_ == water_heater::WATER_HEATER_MODE_OFF) {
-        // Switched on but no mode reported yet: fall back to ELECTRIC.
-        this->set_mode_(water_heater::WATER_HEATER_MODE_ELECTRIC);
+      } else {
+        // Turned on: use the last mode reported by the mode datapoint if we have one, otherwise
+        // fall back to a supported mode. Datapoints can arrive in any order, so the mode enum may
+        // have been reported before this switch update.
+        this->set_mode_(this->last_reported_mode_.value_or(this->default_on_mode_()));
       }
       this->publish_state();
     });
@@ -25,7 +27,13 @@ void TuyaWaterHeater::setup() {
     this->parent_->register_listener(*this->mode_id_, [this](const TuyaDatapoint &datapoint) {
       ESP_LOGV(TAG, "MCU reported mode value is: %u", datapoint.value_enum);
       water_heater::WaterHeaterMode mode;
-      if (this->is_on_ && this->mode_from_value_(datapoint.value_enum, mode)) {
+      if (!this->mode_from_value_(datapoint.value_enum, mode)) {
+        return;
+      }
+      // Always remember the reported mode; only surface it while the heater is on (OFF is driven
+      // by the switch datapoint, not the mode enum).
+      this->last_reported_mode_ = mode;
+      if (this->is_on_ && this->mode_ != mode) {
         this->set_mode_(mode);
         this->publish_state();
       }
@@ -154,6 +162,17 @@ bool TuyaWaterHeater::value_from_mode_(water_heater::WaterHeaterMode mode, uint8
     return true;
   }
   return false;
+}
+
+water_heater::WaterHeaterMode TuyaWaterHeater::default_on_mode_() const {
+  // Prefer the first configured supported non-OFF mode so we never surface a mode the user
+  // cannot control. Fall back to ELECTRIC when no supported modes are configured.
+  for (water_heater::WaterHeaterMode mode : this->supported_modes_) {
+    if (mode != water_heater::WATER_HEATER_MODE_OFF) {
+      return mode;
+    }
+  }
+  return water_heater::WATER_HEATER_MODE_ELECTRIC;
 }
 
 void TuyaWaterHeater::dump_config() {
