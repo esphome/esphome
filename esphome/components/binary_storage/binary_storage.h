@@ -51,8 +51,7 @@ class BinaryStorage : public storage::RawStorage {
   //========================================================================
 
   virtual storage::StorageError get_info(storage::StorageInfo *info) override;
-  virtual storage::StorageError read(size_t offset, uint8_t *buf, size_t len,
-                                     size_t *bytes_transferred = nullptr) = 0;
+  virtual storage::StorageError read(size_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred = nullptr) = 0;
   virtual storage::StorageError write(size_t offset, const uint8_t *buf, size_t len,
                                       size_t *bytes_transferred = nullptr) = 0;
   virtual storage::StorageError erase(size_t offset, size_t len) = 0;
@@ -85,9 +84,7 @@ class BinaryStorage : public storage::RawStorage {
   void set_storage_name(const char *name) { this->storage_name_ = name; }
 
  protected:
-  bool is_valid_address_(uint32_t address, size_t length) const {
-    return (address + length) <= this->get_capacity();
-  }
+  bool is_valid_address_(uint32_t address, size_t length) const { return (address + length) <= this->get_capacity(); }
 
   const char *storage_id_{nullptr};
   const char *storage_name_{nullptr};

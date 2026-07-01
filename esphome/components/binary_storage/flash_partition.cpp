@@ -141,8 +141,7 @@ storage::StorageError FlashPartition::sync() {
   return this->mounted_ ? storage::StorageError::OK : storage::StorageError::NOT_READY;
 }
 
-storage::StorageError FlashPartition::open(const char *path, storage::FileHandle *&handle,
-                                           storage::OpenMode mode) {
+storage::StorageError FlashPartition::open(const char *path, storage::FileHandle *&handle, storage::OpenMode mode) {
   if (!this->mounted_)
     return storage::StorageError::NOT_READY;
   if (path == nullptr)
@@ -153,11 +152,21 @@ storage::StorageError FlashPartition::open(const char *path, storage::FileHandle
 
   const char *fopen_mode;
   switch (mode) {
-    case storage::OpenMode::READ:       fopen_mode = "rb";  break;
-    case storage::OpenMode::WRITE:      fopen_mode = "wb";  break;
-    case storage::OpenMode::APPEND:     fopen_mode = "ab";  break;
-    case storage::OpenMode::READ_WRITE: fopen_mode = "r+b"; break;
-    default:                            fopen_mode = "rb";  break;
+    case storage::OpenMode::READ:
+      fopen_mode = "rb";
+      break;
+    case storage::OpenMode::WRITE:
+      fopen_mode = "wb";
+      break;
+    case storage::OpenMode::APPEND:
+      fopen_mode = "ab";
+      break;
+    case storage::OpenMode::READ_WRITE:
+      fopen_mode = "r+b";
+      break;
+    default:
+      fopen_mode = "rb";
+      break;
   }
 
   FILE *f = fopen(full_path, fopen_mode);
@@ -257,8 +266,7 @@ storage::StorageError FlashPartition::stat(const char *path, storage::FileStat *
 }
 
 storage::StorageError FlashPartition::list_dir(const char *path,
-                                               void (*callback)(const storage::FileStat *entry, void *ctx),
-                                               void *ctx) {
+                                               void (*callback)(const storage::FileStat *entry, void *ctx), void *ctx) {
   if (!this->mounted_ || path == nullptr || callback == nullptr)
     return storage::StorageError::INVALID_ARGS;
 

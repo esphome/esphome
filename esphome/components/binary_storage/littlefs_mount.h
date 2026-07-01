@@ -66,8 +66,7 @@ class LittleFSMount : public storage::FilesystemStorage {
   storage::StorageError sync() override;
   storage::StorageError open(const char *path, storage::FileHandle *&handle, storage::OpenMode mode) override;
   storage::StorageError close(storage::FileHandle *handle) override;
-  storage::StorageError read(storage::FileHandle *handle, uint8_t *buf, size_t len,
-                             size_t *bytes_transferred) override;
+  storage::StorageError read(storage::FileHandle *handle, uint8_t *buf, size_t len, size_t *bytes_transferred) override;
   storage::StorageError write(storage::FileHandle *handle, const uint8_t *buf, size_t len,
                               size_t *bytes_transferred) override;
   storage::StorageError seek(storage::FileHandle *handle, size_t offset) override;

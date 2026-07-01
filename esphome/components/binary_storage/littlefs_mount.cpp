@@ -54,22 +54,38 @@ static int lfs_block_device_sync(const struct lfs_config *c) {
 
 static int lfs_errno_remap(int lfs_err) {
   switch (lfs_err) {
-    case LFS_ERR_OK:        return 0;
-    case LFS_ERR_IO:        return EIO;
-    case LFS_ERR_CORRUPT:   return EIO;
-    case LFS_ERR_NOENT:     return ENOENT;
-    case LFS_ERR_EXIST:     return EEXIST;
-    case LFS_ERR_NOTDIR:    return ENOTDIR;
-    case LFS_ERR_ISDIR:     return EISDIR;
-    case LFS_ERR_NOTEMPTY:  return ENOTEMPTY;
-    case LFS_ERR_BADF:      return EBADF;
-    case LFS_ERR_FBIG:      return EFBIG;
-    case LFS_ERR_INVAL:     return EINVAL;
-    case LFS_ERR_NOSPC:     return ENOSPC;
-    case LFS_ERR_NOMEM:     return ENOMEM;
-    case LFS_ERR_NOATTR:    return ENODATA;
-    case LFS_ERR_NAMETOOLONG: return ENAMETOOLONG;
-    default:                return EIO;
+    case LFS_ERR_OK:
+      return 0;
+    case LFS_ERR_IO:
+      return EIO;
+    case LFS_ERR_CORRUPT:
+      return EIO;
+    case LFS_ERR_NOENT:
+      return ENOENT;
+    case LFS_ERR_EXIST:
+      return EEXIST;
+    case LFS_ERR_NOTDIR:
+      return ENOTDIR;
+    case LFS_ERR_ISDIR:
+      return EISDIR;
+    case LFS_ERR_NOTEMPTY:
+      return ENOTEMPTY;
+    case LFS_ERR_BADF:
+      return EBADF;
+    case LFS_ERR_FBIG:
+      return EFBIG;
+    case LFS_ERR_INVAL:
+      return EINVAL;
+    case LFS_ERR_NOSPC:
+      return ENOSPC;
+    case LFS_ERR_NOMEM:
+      return ENOMEM;
+    case LFS_ERR_NOATTR:
+      return ENODATA;
+    case LFS_ERR_NAMETOOLONG:
+      return ENAMETOOLONG;
+    default:
+      return EIO;
   }
 }
 
@@ -84,10 +100,14 @@ static int posix_flags_to_lfs(int flags) {
     lfs_flags |= LFS_O_RDWR;
   }
 
-  if (flags & O_CREAT)  lfs_flags |= LFS_O_CREAT;
-  if (flags & O_EXCL)   lfs_flags |= LFS_O_EXCL;
-  if (flags & O_TRUNC)  lfs_flags |= LFS_O_TRUNC;
-  if (flags & O_APPEND) lfs_flags |= LFS_O_APPEND;
+  if (flags & O_CREAT)
+    lfs_flags |= LFS_O_CREAT;
+  if (flags & O_EXCL)
+    lfs_flags |= LFS_O_EXCL;
+  if (flags & O_TRUNC)
+    lfs_flags |= LFS_O_TRUNC;
+  if (flags & O_APPEND)
+    lfs_flags |= LFS_O_APPEND;
 
   return lfs_flags;
 }
@@ -203,9 +223,15 @@ static off_t vfs_lfs_lseek(void *ctx, int fd, off_t offset, int whence) {
 
   int lfs_whence;
   switch (whence) {
-    case SEEK_SET: lfs_whence = LFS_SEEK_SET; break;
-    case SEEK_CUR: lfs_whence = LFS_SEEK_CUR; break;
-    case SEEK_END: lfs_whence = LFS_SEEK_END; break;
+    case SEEK_SET:
+      lfs_whence = LFS_SEEK_SET;
+      break;
+    case SEEK_CUR:
+      lfs_whence = LFS_SEEK_CUR;
+      break;
+    case SEEK_END:
+      lfs_whence = LFS_SEEK_END;
+      break;
     default:
       errno = EINVAL;
       return -1;
@@ -346,7 +372,8 @@ static struct dirent *vfs_lfs_readdir(void *ctx, DIR *pdir) {
   while (true) {
     int err = lfs_dir_read(vfs_ctx->lfs, &dir->lfs_dir, &info);
 
-    if (err == 0)  return nullptr;  // End of directory
+    if (err == 0)
+      return nullptr;  // End of directory
     if (err < 0) {
       errno = lfs_errno_remap(err);
       return nullptr;
@@ -392,7 +419,8 @@ static int vfs_lfs_closedir(void *ctx, DIR *pdir) {
 
   int err = lfs_dir_close(vfs_ctx->lfs, &dir->lfs_dir);
 
-  if (dir->path) free(dir->path);
+  if (dir->path)
+    free(dir->path);
   free(dir);
 
   if (err != LFS_ERR_OK) {
@@ -484,8 +512,7 @@ void LittleFSMount::dump_config() {
       ESP_LOGCONFIG(TAG, "  Total: %u bytes (%.1f KB)", total_bytes, total_bytes / 1024.0f);
       ESP_LOGCONFIG(TAG, "  Used:  %u bytes (%.1f KB, %.1f%%)", used_bytes, used_bytes / 1024.0f,
                     (used_bytes * 100.0f) / total_bytes);
-      ESP_LOGCONFIG(TAG, "  Free:  %u bytes (%.1f KB)", total_bytes - used_bytes,
-                    (total_bytes - used_bytes) / 1024.0f);
+      ESP_LOGCONFIG(TAG, "  Free:  %u bytes (%.1f KB)", total_bytes - used_bytes, (total_bytes - used_bytes) / 1024.0f);
     }
   }
 }
@@ -558,8 +585,7 @@ storage::StorageError LittleFSMount::sync() {
   return storage::StorageError::OK;
 }
 
-storage::StorageError LittleFSMount::open(const char *path, storage::FileHandle *&handle,
-                                          storage::OpenMode mode) {
+storage::StorageError LittleFSMount::open(const char *path, storage::FileHandle *&handle, storage::OpenMode mode) {
   if (!this->mounted_)
     return storage::StorageError::NOT_READY;
   if (path == nullptr)
@@ -571,11 +597,21 @@ storage::StorageError LittleFSMount::open(const char *path, storage::FileHandle 
 
   const char *fopen_mode;
   switch (mode) {
-    case storage::OpenMode::READ:       fopen_mode = "rb";  break;
-    case storage::OpenMode::WRITE:      fopen_mode = "wb";  break;
-    case storage::OpenMode::APPEND:     fopen_mode = "ab";  break;
-    case storage::OpenMode::READ_WRITE: fopen_mode = "r+b"; break;
-    default:                            fopen_mode = "rb";  break;
+    case storage::OpenMode::READ:
+      fopen_mode = "rb";
+      break;
+    case storage::OpenMode::WRITE:
+      fopen_mode = "wb";
+      break;
+    case storage::OpenMode::APPEND:
+      fopen_mode = "ab";
+      break;
+    case storage::OpenMode::READ_WRITE:
+      fopen_mode = "r+b";
+      break;
+    default:
+      fopen_mode = "rb";
+      break;
   }
 
   FILE *f = fopen(full_path, fopen_mode);
@@ -677,8 +713,7 @@ storage::StorageError LittleFSMount::stat(const char *path, storage::FileStat *s
 }
 
 storage::StorageError LittleFSMount::list_dir(const char *path,
-                                              void (*callback)(const storage::FileStat *entry, void *ctx),
-                                              void *ctx) {
+                                              void (*callback)(const storage::FileStat *entry, void *ctx), void *ctx) {
   if (!this->mounted_ || path == nullptr || callback == nullptr)
     return storage::StorageError::INVALID_ARGS;
 
@@ -855,7 +890,8 @@ void LittleFSMount::list_files() const {
   struct lfs_info info;
   while (true) {
     err = lfs_dir_read(this->lfs_.get(), &dir, &info);
-    if (err <= 0) break;
+    if (err <= 0)
+      break;
 
     if (info.type == LFS_TYPE_REG) {
       ESP_LOGI(TAG, "  File: %s, Size: %u", info.name, info.size);

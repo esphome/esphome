@@ -334,12 +334,12 @@ def _final_validate(config):
     if needs_littlefs:
         if CORE.using_arduino:
             raise cv.Invalid(
-                f"LittleFS and flash partition support requires ESP32 with ESP-IDF framework, "
-                f"not Arduino. Use mode: raw or switch to esp-idf."
+                "LittleFS and flash partition support requires ESP32 with ESP-IDF framework, "
+                "not Arduino. Use mode: raw or switch to esp-idf."
             )
         if not CORE.is_esp32:
             raise cv.Invalid(
-                f"LittleFS and flash partition support is only available on ESP32."
+                "LittleFS and flash partition support is only available on ESP32."
             )
         require_vfs_dir()
     return config
