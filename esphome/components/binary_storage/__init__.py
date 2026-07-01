@@ -327,10 +327,20 @@ def _final_validate(config):
     if (internal_type := TYPE_TO_DEVICE.get(device_type)) is not None:
         CORE.data.setdefault("binary_storage_device_types", set()).add(internal_type)
     mode = config.get(CONF_MODE, MODE_RAW)
-    if mode in [MODE_LITTLEFS, MODE_BOTH] or device_type in [
+    needs_littlefs = mode in [MODE_LITTLEFS, MODE_BOTH] or device_type in [
         "FLASH_PARTITION",
         "PARTITION",
-    ]:
+    ]
+    if needs_littlefs:
+        if CORE.using_arduino:
+            raise cv.Invalid(
+                f"LittleFS and flash partition support requires ESP32 with ESP-IDF framework, "
+                f"not Arduino. Use mode: raw or switch to esp-idf."
+            )
+        if not CORE.is_esp32:
+            raise cv.Invalid(
+                f"LittleFS and flash partition support is only available on ESP32."
+            )
         require_vfs_dir()
     return config
 
@@ -350,15 +360,14 @@ def FILTER_SOURCE_FILES():
 async def to_code(config):
     device_type = config[CONF_TYPE].upper()
 
-    # LittleFS sdkconfig options (required for all device types that use LittleFS)
-    _add_littlefs_sdkconfig()
-
-    # Add forked LittleFS library with custom block device support
-    cg.add_library(
-        "LittleFS library for ESPHome with block device support",
-        None,
-        "https://github.com/p1ngb4ck/esphome_esp_littlefs.git#main",
-    )
+    if CORE.is_esp32 and not CORE.using_arduino:
+        # LittleFS sdkconfig options and library only needed on ESP32-IDF
+        _add_littlefs_sdkconfig()
+        cg.add_library(
+            "LittleFS library for ESPHome with block device support",
+            None,
+            "https://github.com/p1ngb4ck/esphome_esp_littlefs.git#main",
+        )
 
     # Handle FLASH_PARTITION
     if device_type in ["FLASH_PARTITION", "PARTITION"]:
