@@ -115,21 +115,53 @@ water_heater::WaterHeaterTraits TuyaWaterHeater::traits() {
 }
 
 bool TuyaWaterHeater::mode_from_value_(uint8_t value, water_heater::WaterHeaterMode &mode) const {
-  for (size_t i = 0; i < this->mode_values_.size(); i++) {
-    if (this->mode_values_[i] != MODE_VALUE_UNSET && this->mode_values_[i] == value) {
-      mode = static_cast<water_heater::WaterHeaterMode>(i);
-      return true;
-    }
+  if (this->eco_value_ == value) {
+    mode = water_heater::WATER_HEATER_MODE_ECO;
+  } else if (this->electric_value_ == value) {
+    mode = water_heater::WATER_HEATER_MODE_ELECTRIC;
+  } else if (this->performance_value_ == value) {
+    mode = water_heater::WATER_HEATER_MODE_PERFORMANCE;
+  } else if (this->high_demand_value_ == value) {
+    mode = water_heater::WATER_HEATER_MODE_HIGH_DEMAND;
+  } else if (this->heat_pump_value_ == value) {
+    mode = water_heater::WATER_HEATER_MODE_HEAT_PUMP;
+  } else if (this->gas_value_ == value) {
+    mode = water_heater::WATER_HEATER_MODE_GAS;
+  } else {
+    return false;
   }
-  return false;
+  return true;
 }
 
 bool TuyaWaterHeater::value_from_mode_(water_heater::WaterHeaterMode mode, uint8_t &value) const {
-  if (this->mode_values_[mode] == MODE_VALUE_UNSET) {
-    return false;
+  optional<uint8_t> mapped;
+  switch (mode) {
+    case water_heater::WATER_HEATER_MODE_ECO:
+      mapped = this->eco_value_;
+      break;
+    case water_heater::WATER_HEATER_MODE_ELECTRIC:
+      mapped = this->electric_value_;
+      break;
+    case water_heater::WATER_HEATER_MODE_PERFORMANCE:
+      mapped = this->performance_value_;
+      break;
+    case water_heater::WATER_HEATER_MODE_HIGH_DEMAND:
+      mapped = this->high_demand_value_;
+      break;
+    case water_heater::WATER_HEATER_MODE_HEAT_PUMP:
+      mapped = this->heat_pump_value_;
+      break;
+    case water_heater::WATER_HEATER_MODE_GAS:
+      mapped = this->gas_value_;
+      break;
+    default:
+      break;
   }
-  value = this->mode_values_[mode];
-  return true;
+  if (mapped.has_value()) {
+    value = *mapped;
+    return true;
+  }
+  return false;
 }
 
 water_heater::WaterHeaterMode TuyaWaterHeater::default_on_mode_() const {
