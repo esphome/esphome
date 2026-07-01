@@ -1,10 +1,18 @@
 substitutions:
-  spi_flash_cs_pin: GPIO7
-  spi_fram_cs_pin: GPIO8
-  spi_mram_cs_pin: GPIO9
-  onewire_pin: GPIO14
+  spi_flash_cs_pin: P24
+  spi_fram_cs_pin: P26
+  spi_mram_cs_pin: P7
+  onewire_pin: P22
+
+# Inline i2c config using valid BK7252 I2C1 pins (P20=SCL1, P21=SDA1).
+# The shared bk72xx-ard i2c package uses P26/P24 which don't support I2C mode —
+# remove this block once that package is fixed upstream.
+i2c:
+  - id: i2c_bus
+    scl: P20
+    sda: P21
+    scan: true
 
 packages:
-  i2c: !include ../../test_build_components/common/i2c/bk72xx-ard.yaml
   spi: !include ../../test_build_components/common/spi/bk72xx-ard.yaml
   common: !include common.yaml
