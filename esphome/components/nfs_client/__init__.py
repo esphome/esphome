@@ -1,7 +1,16 @@
 import esphome.codegen as cg
 from esphome.components.storage import request_storage_device
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_PORT, CONF_UID
+from esphome.const import (
+    CONF_ID,
+    CONF_PORT,
+    CONF_UID,
+    PLATFORM_BK72XX,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_LN882X,
+    PLATFORM_RTL87XX,
+)
 
 CODEOWNERS = ["@p1ngb4ck"]
 DEPENDENCIES = ["network"]
@@ -48,6 +57,15 @@ def validate_mount_paths(configs):
 CONFIG_SCHEMA = cv.All(
     cv.ensure_list(NFS_SHARE_SCHEMA),
     validate_mount_paths,
+    cv.only_on(
+        [
+            PLATFORM_BK72XX,
+            PLATFORM_ESP32,
+            PLATFORM_ESP8266,
+            PLATFORM_LN882X,
+            PLATFORM_RTL87XX,
+        ]
+    ),
 )
 
 
