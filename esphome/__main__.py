@@ -640,9 +640,14 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
         )
 
     backtrace_state = False
-    ser = serial.Serial()
+
+    if "://" in port:
+        ser = serial.serial_for_url(port)
+    else:
+        ser = serial.Serial()
+        ser.port = port
+
     ser.baudrate = baud_rate
-    ser.port = port
 
     # We can't set to False by default since it leads to toggling and hence
     # ESP32 resets on some platforms.
