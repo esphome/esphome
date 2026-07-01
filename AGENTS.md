@@ -709,3 +709,9 @@ This document provides essential context for AI models interacting with this pro
         _LOGGER.warning(f"'{CONF_OLD_KEY}' deprecated, use '{CONF_NEW_KEY}'. Removed in 2026.6.0")
         config[CONF_NEW_KEY] = config.pop(CONF_OLD_KEY)  # Auto-migrate
     ```
+## 9. English Language
+
+The project uses English for non-code content. When drafting documentation, code comments, commit messages,
+PR descriptions, and similar text, avoid technical jargon. Instead, express concepts in plain English,
+using standard technical terms only when required. Ensure the text is readily comprehensible to a wide
+audience, including non-native English speakers.
