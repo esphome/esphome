@@ -66,6 +66,12 @@ class SdStorageBase : public storage::FilesystemStorage {
   // Returns false if the result would exceed buf_size.
   bool build_full_path(const char *rel_path, char *buf, size_t buf_size) const;
 
+  // Logging helpers — defined in .cpp so ESP_LOG* stays out of the header.
+  void log_mount_result_(bool success) const;
+  void log_unmount_() const;
+  void log_list_dir_start_(const char *path) const;
+  static void log_list_dir_entry_(const storage::FileStat *entry);
+
   CardType card_type_{CardType::UNKNOWN};
   bool is_mounted_{false};
   uint64_t total_bytes_{0};

@@ -28,11 +28,8 @@ template<typename T, typename... Ts> class MountCardAction : public Action<Ts...
   explicit MountCardAction(T *parent) : parent_(parent) {}
 
   void play(Ts... x) override {
-    if (this->parent_->mount() == storage::StorageError::OK) {
-      ESP_LOGI("sd_storage", "Card mounted via automation");
-    } else {
-      ESP_LOGE("sd_storage", "Failed to mount card via automation");
-    }
+    bool ok = this->parent_->mount() == storage::StorageError::OK;
+    this->parent_->log_mount_result_(ok);
   }
 
  protected:
@@ -45,7 +42,7 @@ template<typename T, typename... Ts> class UnmountCardAction : public Action<Ts.
 
   void play(Ts... x) override {
     this->parent_->unmount();
-    ESP_LOGI("sd_storage", "Card unmounted via automation");
+    this->parent_->log_unmount_();
   }
 
  protected:
@@ -63,15 +60,10 @@ template<typename T, typename... Ts> class ListFilesAction : public Action<Ts...
     if (path == nullptr || path[0] == '\0')
       path = this->parent_->get_mount_path();
 
-    auto cb = [](const storage::FileStat *entry, void *ctx) {
-      if (entry->is_dir) {
-        ESP_LOGI("sd_storage", "  [DIR]  %s", entry->name);
-      } else {
-        ESP_LOGI("sd_storage", "  [FILE] %s (%zu bytes)", entry->name, entry->size);
-      }
-    };
-    ESP_LOGI("sd_storage", "Listing files in: %s", path);
-    this->parent_->list_dir(path, cb, nullptr);
+    this->parent_->log_list_dir_start_(path);
+    this->parent_->list_dir(path, [](const storage::FileStat *entry, void *ctx) {
+      SdStorageBase::log_list_dir_entry_(entry);
+    }, nullptr);
   }
 
  protected:

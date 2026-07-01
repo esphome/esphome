@@ -310,4 +310,26 @@ storage::StorageError SdStorageBase::copy(const char *src_path, const char *dst_
   return err;
 }
 
+void SdStorageBase::log_mount_result_(bool success) const {
+  if (success) {
+    ESP_LOGI(TAG_BASE, "Card mounted via automation");
+  } else {
+    ESP_LOGE(TAG_BASE, "Failed to mount card via automation");
+  }
+}
+
+void SdStorageBase::log_unmount_() const { ESP_LOGI(TAG_BASE, "Card unmounted via automation"); }
+
+void SdStorageBase::log_list_dir_start_(const char *path) const {
+  ESP_LOGI(TAG_BASE, "Listing files in: %s", path);
+}
+
+void SdStorageBase::log_list_dir_entry_(const storage::FileStat *entry) {
+  if (entry->is_dir) {
+    ESP_LOGI(TAG_BASE, "  [DIR]  %s", entry->name);
+  } else {
+    ESP_LOGI(TAG_BASE, "  [FILE] %s (%zu bytes)", entry->name, entry->size);
+  }
+}
+
 }  // namespace esphome::sd_storage
