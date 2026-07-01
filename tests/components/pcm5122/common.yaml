@@ -5,7 +5,7 @@ audio_dac:
     address: 0x4D
     bits_per_sample: 32bit
     analog_gain: -6db
-    channel_mix: inverted
+    channel_mix: swapped
     volume_min_db: -60dB
     volume_max_db: -3dB
     enable_pin: GPIO12

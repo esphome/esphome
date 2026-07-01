@@ -65,7 +65,7 @@ enum PCM5122ChannelMix : uint8_t {
   PCM5122_CHANNEL_MIX_STEREO = 0x11,      // Left data -> left out, right data -> right out
   PCM5122_CHANNEL_MIX_LEFT_ONLY = 0x12,   // Left data -> both outputs
   PCM5122_CHANNEL_MIX_RIGHT_ONLY = 0x21,  // Right data -> both outputs
-  PCM5122_CHANNEL_MIX_INVERTED = 0x22,    // Left/right outputs swapped
+  PCM5122_CHANNEL_MIX_SWAPPED = 0x22,     // Left/right outputs swapped
 };
 
 class PCM5122 final : public audio_dac::AudioDac, public Component, public i2c::I2CDevice {

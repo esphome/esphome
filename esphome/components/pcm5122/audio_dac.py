@@ -44,7 +44,7 @@ PCM5122_CHANNEL_MIX_ENUM = {
     "stereo": pcm5122_channel_mix.PCM5122_CHANNEL_MIX_STEREO,
     "left": pcm5122_channel_mix.PCM5122_CHANNEL_MIX_LEFT_ONLY,
     "right": pcm5122_channel_mix.PCM5122_CHANNEL_MIX_RIGHT_ONLY,
-    "inverted": pcm5122_channel_mix.PCM5122_CHANNEL_MIX_INVERTED,
+    "swapped": pcm5122_channel_mix.PCM5122_CHANNEL_MIX_SWAPPED,
 }
 
 _validate_bits = cv.float_with_unit("bits", "bit")

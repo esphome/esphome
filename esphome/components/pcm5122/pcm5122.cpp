@@ -96,14 +96,33 @@ void PCM5122::setup() {
 }
 
 void PCM5122::dump_config() {
+  const char *channel_mix_str;
+  switch (this->channel_mix_) {
+    case PCM5122_CHANNEL_MIX_LEFT_ONLY:
+      channel_mix_str = "left only";
+      break;
+    case PCM5122_CHANNEL_MIX_RIGHT_ONLY:
+      channel_mix_str = "right only";
+      break;
+    case PCM5122_CHANNEL_MIX_SWAPPED:
+      channel_mix_str = "swapped";
+      break;
+    default:
+      channel_mix_str = "stereo";
+      break;
+  }
   ESP_LOGCONFIG(TAG, "Audio DAC:");
   LOG_I2C_DEVICE(this);
   ESP_LOGCONFIG(TAG,
                 "  Bits per sample: %u\n"
                 "  Analog gain: %s\n"
+                "  Channel mix: %s\n"
+                "  Volume range: %.1f dB to %.1f dB\n"
+                "  Enable pin: %s\n"
                 "  Muted: %s",
                 this->bits_per_sample_, this->analog_gain_ == PCM5122_ANALOG_GAIN_0DB ? "0 dB" : "-6 dB",
-                YESNO(this->is_muted_));
+                channel_mix_str, this->volume_min_db_, this->volume_max_db_,
+                this->enable_pin_ != nullptr ? "yes" : "no", YESNO(this->is_muted_));
 }
 
 bool PCM5122::set_mute_off() {
