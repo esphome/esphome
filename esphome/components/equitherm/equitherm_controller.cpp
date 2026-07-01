@@ -1,8 +1,7 @@
 #include "equitherm_controller.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace equitherm {
+namespace esphome::equitherm {
 
 float HeatingCurve::compute_flow_temperature(float t_target, float t_outdoor) {
   // Guard against invalid inputs
@@ -29,5 +28,4 @@ float HeatingCurve::compute_flow_temperature(float t_target, float t_outdoor) {
   return clamp(t_flow, this->min_flow_temp_, this->max_flow_temp_);
 }
 
-}  // namespace equitherm
-}  // namespace esphome
+}  // namespace esphome::equitherm
