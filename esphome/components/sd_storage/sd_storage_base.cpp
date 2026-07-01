@@ -296,17 +296,18 @@ storage::StorageError SdStorageBase::copy(const char *src_path, const char *dst_
   }
 
   uint8_t buf[256];
-  size_t n;
   storage::StorageError err = storage::StorageError::OK;
-  while (err == storage::StorageError::OK) {
-    n = fread(buf, 1, sizeof(buf), src);
+  while (true) {
+    size_t n = fread(buf, 1, sizeof(buf), src);
     if (n == 0) {
       if (ferror(src))
         err = storage::StorageError::READ_ERROR;
       break;
     }
-    if (fwrite(buf, 1, n, dst) != n)
+    if (fwrite(buf, 1, n, dst) != n) {
       err = storage::StorageError::WRITE_ERROR;
+      break;
+    }
   }
 
   fclose(src);
