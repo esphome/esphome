@@ -1,11 +1,10 @@
 substitutions:
-  spi_flash_cs_pin: GPIO5
-  spi_fram_cs_pin: GPIO6
-  spi_mram_cs_pin: GPIO7
-  onewire_pin: GPIO10
+  spi_flash_cs_pin: P7
+  spi_fram_cs_pin: P8
+  spi_mram_cs_pin: P9
+  onewire_pin: P14
 
 packages:
   i2c: !include ../../test_build_components/common/i2c/bk72xx-ard.yaml
   spi: !include ../../test_build_components/common/spi/bk72xx-ard.yaml
-
-<<: !include common.yaml
+  common: !include common.yaml

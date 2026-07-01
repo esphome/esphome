@@ -5,7 +5,7 @@ import re
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import i2c, spi
-from esphome.components.esp32 import add_idf_sdkconfig_option, require_vfs_dir
+from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option, require_vfs_dir
 from esphome.components.storage import request_storage_device
 import esphome.config_validation as cv
 from esphome.const import (
@@ -363,10 +363,10 @@ async def to_code(config):
     if CORE.is_esp32 and not CORE.using_arduino:
         # LittleFS sdkconfig options and library only needed on ESP32-IDF
         _add_littlefs_sdkconfig()
-        cg.add_library(
-            "LittleFS library for ESPHome with block device support",
-            None,
-            "https://github.com/p1ngb4ck/esphome_esp_littlefs.git#main",
+        add_idf_component(
+            name="espressif/esp_littlefs",
+            repo="https://github.com/p1ngb4ck/esphome_esp_littlefs.git",
+            ref="main",
         )
 
     # Handle FLASH_PARTITION

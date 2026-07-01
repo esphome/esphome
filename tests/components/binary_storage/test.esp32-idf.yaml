@@ -1,14 +1,13 @@
 substitutions:
   spi_flash_cs_pin: GPIO5
-  spi_fram_cs_pin: GPIO16
-  spi_mram_cs_pin: GPIO17
-  onewire_pin: GPIO4
+  spi_fram_cs_pin: GPIO25
+  spi_mram_cs_pin: GPIO26
+  onewire_pin: GPIO27
 
 packages:
   i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
   spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
-
-<<: !include common.yaml
+  common: !include common.yaml
 
 binary_storage:
   - type: FLASH_PARTITION

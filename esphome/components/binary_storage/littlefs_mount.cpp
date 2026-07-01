@@ -110,15 +110,10 @@ static int lfs_errno_remap(int lfs_err) {
 }
 
 static int posix_flags_to_lfs(int flags) {
-  int lfs_flags;
+  // O_RDONLY=0, O_WRONLY=1, O_RDWR=2 map directly to LFS equivalents
+  static const int ACC_TO_LFS[3] = {LFS_O_RDONLY, LFS_O_WRONLY, LFS_O_RDWR};
   const int acc = flags & O_ACCMODE;
-  if (acc == O_WRONLY) {
-    lfs_flags = LFS_O_WRONLY;
-  } else if (acc == O_RDWR) {
-    lfs_flags = LFS_O_RDWR;
-  } else {
-    lfs_flags = LFS_O_RDONLY;
-  }
+  int lfs_flags = ACC_TO_LFS[acc < 3 ? acc : 0];
 
   if (flags & O_CREAT)
     lfs_flags |= LFS_O_CREAT;
@@ -241,12 +236,12 @@ static off_t vfs_lfs_lseek(void *ctx, int fd, off_t offset, int whence) {
     return -1;
   }
 
-  static const int lfs_whence_map[3] = {LFS_SEEK_SET, LFS_SEEK_CUR, LFS_SEEK_END};
+  static const int LFS_WHENCE_MAP[3] = {LFS_SEEK_SET, LFS_SEEK_CUR, LFS_SEEK_END};
   if (whence < 0 || whence > 2) {
     errno = EINVAL;
     return -1;
   }
-  int lfs_whence = lfs_whence_map[whence];
+  int lfs_whence = LFS_WHENCE_MAP[whence];
 
   lfs_soff_t result = lfs_file_seek(vfs_ctx->lfs, &vfs_ctx->files[fd], offset, lfs_whence);
   if (result < 0) {

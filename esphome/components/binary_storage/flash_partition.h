@@ -75,7 +75,7 @@ class FlashPartition : public storage::FilesystemStorage {
   // Pool of FileHandles for open() — no heap allocation per open call
   static constexpr int MAX_OPEN_FILES = 8;
   storage::FileHandle handle_pool_[MAX_OPEN_FILES]{};
-  char handle_paths_[MAX_OPEN_FILES][STORAGE_MAX_PATH_LEN]{};
+  char handle_paths_[MAX_OPEN_FILES][storage::STORAGE_MAX_PATH_LEN]{};
 
   //========================================================================
   // Internal helpers

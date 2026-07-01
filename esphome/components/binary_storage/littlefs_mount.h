@@ -82,7 +82,7 @@ class LittleFSMount : public storage::FilesystemStorage {
   // Pool of FileHandles for open() — no heap allocation per open call
   storage::FileHandle handle_pool_[LFS_VFS_MAX_FDS]{};
   // Path storage for handle_pool_ entries (mount_path_ + "/" + filename)
-  char handle_paths_[LFS_VFS_MAX_FDS][STORAGE_MAX_PATH_LEN]{};
+  char handle_paths_[LFS_VFS_MAX_FDS][storage::STORAGE_MAX_PATH_LEN]{};
 
   //========================================================================
   // LittleFS objects (opaque — lfs_t/lfs_config are managed component types,
