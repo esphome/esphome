@@ -14,6 +14,8 @@
 
 namespace esphome::binary_storage {
 
+using storage::STORAGE_MAX_PATH_LEN;
+
 static inline lfs_t *lfs_cast(void *p) { return static_cast<lfs_t *>(p); }
 static inline lfs_config *cfg_cast(void *p) { return static_cast<lfs_config *>(p); }
 
@@ -519,8 +521,8 @@ void LittleFSMount::dump_config() {
   if (this->mounted_ && this->lfs_ != nullptr) {
     lfs_ssize_t block_count = lfs_fs_size(lfs_cast(this->lfs_));
     if (block_count >= 0) {
-      uint32_t total_bytes = this->lfs_cfg_->block_count * this->lfs_cfg_->block_size;
-      uint32_t used_bytes = block_count * this->lfs_cfg_->block_size;
+      uint32_t total_bytes = cfg_cast(this->lfs_cfg_)->block_count * cfg_cast(this->lfs_cfg_)->block_size;
+      uint32_t used_bytes = block_count * cfg_cast(this->lfs_cfg_)->block_size;
       ESP_LOGCONFIG(TAG, "  Total: %" PRIu32 " bytes (%.1f KB)", total_bytes, total_bytes / 1024.0f);
       ESP_LOGCONFIG(TAG, "  Used:  %" PRIu32 " bytes (%.1f KB, %.1f%%)", used_bytes, used_bytes / 1024.0f,
                     (used_bytes * 100.0f) / total_bytes);
@@ -543,15 +545,15 @@ storage::StorageError LittleFSMount::get_info(storage::StorageInfo *info) {
   info->is_mounted = this->mounted_;
   info->is_removable = false;
   info->is_read_only = false;
-  info->block_size = (this->lfs_cfg_ != nullptr) ? this->lfs_cfg_->block_size : 0;
+  info->block_size = (this->lfs_cfg_ != nullptr) ? cfg_cast(this->lfs_cfg_)->block_size : 0;
   info->total_bytes = 0;
   info->free_bytes = 0;
 
   if (this->mounted_ && this->lfs_ != nullptr && this->lfs_cfg_ != nullptr) {
     lfs_ssize_t used_blocks = lfs_fs_size(lfs_cast(this->lfs_));
     if (used_blocks >= 0) {
-      info->total_bytes = static_cast<uint64_t>(this->lfs_cfg_->block_count) * this->lfs_cfg_->block_size;
-      uint64_t used_bytes = static_cast<uint64_t>(used_blocks) * this->lfs_cfg_->block_size;
+      info->total_bytes = static_cast<uint64_t>(cfg_cast(this->lfs_cfg_)->block_count) * cfg_cast(this->lfs_cfg_)->block_size;
+      uint64_t used_bytes = static_cast<uint64_t>(used_blocks) * cfg_cast(this->lfs_cfg_)->block_size;
       info->free_bytes = info->total_bytes > used_bytes ? info->total_bytes - used_bytes : 0;
     }
   }
@@ -939,27 +941,27 @@ bool LittleFSMount::init_lfs_config_() {
 
   memset(cfg_cast(this->lfs_cfg_), 0, sizeof(lfs_config));
 
-  this->lfs_cfg_->read = lfs_block_device_read;
-  this->lfs_cfg_->prog = lfs_block_device_prog;
-  this->lfs_cfg_->erase = lfs_block_device_erase;
-  this->lfs_cfg_->sync = lfs_block_device_sync;
+  cfg_cast(this->lfs_cfg_)->read = lfs_block_device_read;
+  cfg_cast(this->lfs_cfg_)->prog = lfs_block_device_prog;
+  cfg_cast(this->lfs_cfg_)->erase = lfs_block_device_erase;
+  cfg_cast(this->lfs_cfg_)->sync = lfs_block_device_sync;
 
-  this->lfs_cfg_->read_size = block_config.read_size;
-  this->lfs_cfg_->prog_size = block_config.prog_size;
-  this->lfs_cfg_->block_size = block_config.block_size;
-  this->lfs_cfg_->block_count = block_config.block_count;
-  this->lfs_cfg_->lookahead_size = block_config.lookahead_size;
-  this->lfs_cfg_->cache_size = block_config.block_size;
-  this->lfs_cfg_->block_cycles = 500;
+  cfg_cast(this->lfs_cfg_)->read_size = block_config.read_size;
+  cfg_cast(this->lfs_cfg_)->prog_size = block_config.prog_size;
+  cfg_cast(this->lfs_cfg_)->block_size = block_config.block_size;
+  cfg_cast(this->lfs_cfg_)->block_count = block_config.block_count;
+  cfg_cast(this->lfs_cfg_)->lookahead_size = block_config.lookahead_size;
+  cfg_cast(this->lfs_cfg_)->cache_size = block_config.block_size;
+  cfg_cast(this->lfs_cfg_)->block_cycles = 500;
 
   this->read_buffer_ = std::make_unique<uint8_t[]>(block_config.block_size);
   this->prog_buffer_ = std::make_unique<uint8_t[]>(block_config.block_size);
   this->lookahead_buffer_ = std::make_unique<uint8_t[]>(block_config.lookahead_size);
 
-  this->lfs_cfg_->read_buffer = this->read_buffer_.get();
-  this->lfs_cfg_->prog_buffer = this->prog_buffer_.get();
-  this->lfs_cfg_->lookahead_buffer = this->lookahead_buffer_.get();
-  this->lfs_cfg_->context = this->lfs_context_;
+  cfg_cast(this->lfs_cfg_)->read_buffer = this->read_buffer_.get();
+  cfg_cast(this->lfs_cfg_)->prog_buffer = this->prog_buffer_.get();
+  cfg_cast(this->lfs_cfg_)->lookahead_buffer = this->lookahead_buffer_.get();
+  cfg_cast(this->lfs_cfg_)->context = this->lfs_context_;
 
   return true;
 }
