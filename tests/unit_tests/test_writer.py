@@ -67,15 +67,23 @@ def _isolate_platformio_paths(tmp_path_factory: pytest.TempPathFactory) -> Any:
     want to verify the PIO-cleanup branch (e.g. test_clean_all,
     test_clean_all_partial_exists) install their own inner patch which
     stacks on top of this one and wins for the duration of their block.
+
+    Also pin ``ESPHOME_ESP_IDF_PREFIX`` to a nonexistent tmp dir for the
+    same reason: ``clean_all`` removes the now machine-global ESP-IDF
+    install, which otherwise defaults to the real ``~/.cache/esphome``.
     """
     pio_root = tmp_path_factory.mktemp("isolated_pio") / "nonexistent"
+    idf_root = tmp_path_factory.mktemp("isolated_idf") / "nonexistent"
     mock_cfg = MagicMock()
     mock_cfg.get.side_effect = lambda section, option: (
         str(pio_root / option) if section == "platformio" else ""
     )
-    with patch(
-        "platformio.project.config.ProjectConfig.get_instance",
-        return_value=mock_cfg,
+    with (
+        patch(
+            "platformio.project.config.ProjectConfig.get_instance",
+            return_value=mock_cfg,
+        ),
+        patch.dict("os.environ", {"ESPHOME_ESP_IDF_PREFIX": str(idf_root)}),
     ):
         yield
 
@@ -988,6 +996,30 @@ def test_clean_all_with_yaml_file(
     # Verify logging mentions the build dir
     assert "Cleaning" in caplog.text
     assert str(build_dir) in caplog.text
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_removes_global_idf_install(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """clean_all removes the machine-global native ESP-IDF install dir."""
+    idf_install = tmp_path / "idf_install"
+    (idf_install / "frameworks").mkdir(parents=True)
+    monkeypatch.setenv("ESPHOME_ESP_IDF_PREFIX", str(idf_install))
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    from esphome.writer import clean_all
+
+    with caplog.at_level("INFO"):
+        clean_all([str(config_dir)])
+
+    assert not idf_install.exists()
+    assert str(idf_install.resolve()) in caplog.text
 
 
 @patch("esphome.writer.CORE")
