@@ -15,6 +15,11 @@ modbus_server:
   - id: modbus_server3
     address: 0x3
     modbus_id: mod_bus2
+    read_write_lambda: |-
+      // Function code 0x17: build the read response from the values written in the same transaction.
+      for (uint16_t i = 0; i < read_count; i++)
+        read_values.push_back(write_values.empty() ? read_address + i : write_values[0] + i);
+      return write_address != 0;
     registers:
       - address: 0x9
         value_type: S_DWORD
