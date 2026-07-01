@@ -299,11 +299,12 @@ storage::StorageError SdStorageBase::copy(const char *src_path, const char *dst_
   storage::StorageError err = storage::StorageError::OK;
   while (true) {
     size_t n = fread(buf, 1, sizeof(buf), src);
-    if (n == 0) {
-      if (ferror(src))
-        err = storage::StorageError::READ_ERROR;
+    if (ferror(src)) {
+      err = storage::StorageError::READ_ERROR;
       break;
     }
+    if (n == 0)
+      break;
     if (fwrite(buf, 1, n, dst) != n) {
       err = storage::StorageError::WRITE_ERROR;
       break;
