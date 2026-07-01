@@ -36,6 +36,19 @@ from esphome.espidf.framework import (
 from esphome.framework_helpers import _tar_extract_all, get_python_env_executable_path
 
 
+@pytest.fixture(autouse=True)
+def _isolate_idf_install_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the ESP-IDF install root to a tmp dir for every test.
+
+    The default location is the OS user cache dir, so without this any test
+    that builds framework paths or pre-creates the framework dir would touch
+    the real ``~/.cache/esphome`` on the developer's machine. Tests that need
+    to exercise the override or default-resolution logic clear/override the env
+    themselves.
+    """
+    monkeypatch.setenv("ESPHOME_ESP_IDF_PREFIX", str(tmp_path / "idf_install"))
+
+
 @pytest.mark.parametrize(
     ("source", "expected"),
     [
@@ -791,6 +804,38 @@ def test_get_idf_tools_path_env_override(tmp_path: Path) -> None:
         assert _get_idf_tools_path() == Path(override)
 
 
+@pytest.mark.parametrize("value", ["", "   "])
+def test_get_idf_tools_path_blank_env_falls_back_to_default(
+    value: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A blank ESPHOME_ESP_IDF_PREFIX is treated as unset, not as CWD.
+
+    Path("") would resolve to the working directory, which clean-all could then
+    delete by accident.
+    """
+    import platformdirs
+
+    monkeypatch.setenv("ESPHOME_ESP_IDF_PREFIX", value)
+    expected = (
+        Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "idf"
+    ).resolve()
+    assert _get_idf_tools_path() == expected
+
+
+def test_get_idf_tools_path_default_uses_user_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without the env override the install root is the machine-global OS user
+    cache dir, not the per-config ``<data_dir>/idf``."""
+    import platformdirs
+
+    monkeypatch.delenv("ESPHOME_ESP_IDF_PREFIX", raising=False)
+    expected = (
+        Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "idf"
+    ).resolve()
+    assert _get_idf_tools_path() == expected
+
+
 def test_write_idf_version_txt_warns_on_write_error(tmp_path: Path) -> None:
     with patch("pathlib.Path.write_text", side_effect=OSError("denied")):
         # write failure is caught and warned, not raised
@@ -908,3 +953,5 @@ def test_check_windows_path_length_long_path_warns(
     message = caplog.records[0].getMessage()
     assert _LONG_IDF_PATH in message
     assert "long path support" in message
+    # The install is global now; the remedy is the prefix env, not moving the project.
+    assert "ESPHOME_ESP_IDF_PREFIX" in message
