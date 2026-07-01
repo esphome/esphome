@@ -7,8 +7,7 @@
 #include "esphome/core/helpers.h"
 #include <algorithm>
 
-namespace esphome {
-namespace binary_storage {
+namespace esphome::binary_storage {
 
 static const char *const TAG = "onewire_eeprom";
 
@@ -101,7 +100,28 @@ void OneWireEEPROM::dump_config() {
 // BinaryStorage Interface
 //========================================================================
 
-bool OneWireEEPROM::read(uint32_t address, uint8_t *data, size_t length) {
+storage::StorageError OneWireEEPROM::read(size_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) {
+  bool ok = this->read_raw(static_cast<uint32_t>(offset), buf, len);
+  if (bytes_transferred != nullptr)
+    *bytes_transferred = ok ? len : 0;
+  return ok ? storage::StorageError::OK : storage::StorageError::READ_ERROR;
+}
+
+storage::StorageError OneWireEEPROM::write(size_t offset, const uint8_t *buf, size_t len,
+                                           size_t *bytes_transferred) {
+  bool ok = this->write_raw(static_cast<uint32_t>(offset), buf, len);
+  if (bytes_transferred != nullptr)
+    *bytes_transferred = ok ? len : 0;
+  return ok ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+}
+
+storage::StorageError OneWireEEPROM::erase(size_t offset, size_t len) { return storage::StorageError::OK; }
+
+storage::StorageError OneWireEEPROM::format() {
+  return this->BinaryStorage::format();
+}
+
+bool OneWireEEPROM::read_raw(uint32_t address, uint8_t *data, size_t length) {
   if (address + length > this->capacity_) {
     ESP_LOGE(TAG, "Read overflow: address 0x%04X + length %u > capacity %u", address, length, this->capacity_);
     return false;
@@ -110,7 +130,7 @@ bool OneWireEEPROM::read(uint32_t address, uint8_t *data, size_t length) {
   return this->read_memory_(address, data, length);
 }
 
-bool OneWireEEPROM::write(uint32_t address, const uint8_t *data, size_t length) {
+bool OneWireEEPROM::write_raw(uint32_t address, const uint8_t *data, size_t length) {
   if (address + length > this->capacity_) {
     ESP_LOGE(TAG, "Write overflow: address 0x%04X + length %u > capacity %u", address, length, this->capacity_);
     return false;
@@ -427,7 +447,6 @@ bool OneWireEEPROM::read_memory_(uint16_t address, uint8_t *data, size_t length)
   return true;
 }
 
-}  // namespace binary_storage
-}  // namespace esphome
+}  // namespace esphome::binary_storage
 
 #endif  // USE_BINARY_STORAGE_ONEWIRE_EEPROM

@@ -10,6 +10,7 @@ from esphome.components.storage import request_storage_device
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
+    CONF_CAPACITY,
     CONF_DATA,
     CONF_ID,
     CONF_LENGTH,
@@ -72,7 +73,6 @@ IsReadyCondition = binary_storage_ns.class_("IsReadyCondition", automation.Condi
 
 # Configuration keys
 CONF_PAGE_SIZE = "page_size"
-CONF_CAPACITY = "capacity"
 CONF_ADDRESSING_BITS = "addressing_bits"
 CONF_MOUNT_PATH = "mount_path"
 CONF_AUTO_FORMAT = "auto_format"

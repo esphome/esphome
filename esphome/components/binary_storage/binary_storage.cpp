@@ -5,8 +5,7 @@
 #include <algorithm>
 #include <cstring>
 
-namespace esphome {
-namespace binary_storage {
+namespace esphome::binary_storage {
 
 static const char *const TAG = "binary_storage";
 
@@ -63,7 +62,7 @@ uint32_t BinaryStorage::fill(uint8_t value) {
 
   while (address < capacity) {
     size_t chunk_size = std::min((size_t) (capacity - address), buffer_size);
-    if (this->write(address, buffer, chunk_size) != storage::StorageError::OK) {
+    if (this->write(address, buffer, chunk_size, nullptr) != storage::StorageError::OK) {
       ESP_LOGE(TAG, "Fill failed at address 0x%X", address);
       return address;
     }
@@ -111,7 +110,7 @@ int BinaryStorage::block_read(uint32_t block, uint32_t offset, void *buffer, uin
     return -1;
   }
 
-  return (this->read(address, static_cast<uint8_t *>(buffer), size) == storage::StorageError::OK) ? 0 : -1;
+  return (this->read(address, static_cast<uint8_t *>(buffer), size, nullptr) == storage::StorageError::OK) ? 0 : -1;
 }
 
 int BinaryStorage::block_prog(uint32_t block, uint32_t offset, const void *buffer, uint32_t size) {
@@ -123,7 +122,7 @@ int BinaryStorage::block_prog(uint32_t block, uint32_t offset, const void *buffe
     return -1;
   }
 
-  return (this->write(address, static_cast<const uint8_t *>(buffer), size) == storage::StorageError::OK) ? 0 : -1;
+  return (this->write(address, static_cast<const uint8_t *>(buffer), size, nullptr) == storage::StorageError::OK) ? 0 : -1;
 }
 
 int BinaryStorage::block_erase(uint32_t block) {
@@ -133,5 +132,4 @@ int BinaryStorage::block_erase(uint32_t block) {
   return (this->erase(address, cfg.block_size) == storage::StorageError::OK) ? 0 : -1;
 }
 
-}  // namespace binary_storage
-}  // namespace esphome
+}  // namespace esphome::binary_storage

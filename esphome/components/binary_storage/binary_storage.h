@@ -7,8 +7,7 @@
 #include <cstdint>
 #include <cstddef>
 
-namespace esphome {
-namespace binary_storage {
+namespace esphome::binary_storage {
 
 #ifdef USE_ESP_IDF
 // Block device configuration for LittleFS integration.
@@ -50,19 +49,20 @@ class BinaryStorage : public storage::RawStorage {
   // RawStorage interface (pure virtuals — implement in each device driver)
   //========================================================================
 
-  virtual storage::StorageError get_info(storage::StorageInfo *info) override;
-  virtual storage::StorageError read(size_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred = nullptr) = 0;
-  virtual storage::StorageError write(size_t offset, const uint8_t *buf, size_t len,
-                                      size_t *bytes_transferred = nullptr) = 0;
-  virtual storage::StorageError erase(size_t offset, size_t len) = 0;
-  virtual storage::StorageError format() override;
+  storage::StorageError get_info(storage::StorageInfo *info) override;
+  storage::StorageError read(size_t offset, uint8_t *buf, size_t len,
+                             size_t *bytes_transferred) override = 0;
+  storage::StorageError write(size_t offset, const uint8_t *buf, size_t len,
+                              size_t *bytes_transferred) override = 0;
+  storage::StorageError erase(size_t offset, size_t len) override = 0;
+  storage::StorageError format() override;
 
   //========================================================================
   // Utility
   //========================================================================
 
   // Fill entire device with a value. Returns bytes written.
-  virtual uint32_t fill(uint8_t value = 0xFF);
+  virtual uint32_t fill(uint8_t value);
 
 #ifdef USE_ESP_IDF
   //========================================================================
@@ -90,5 +90,4 @@ class BinaryStorage : public storage::RawStorage {
   const char *storage_name_{nullptr};
 };
 
-}  // namespace binary_storage
-}  // namespace esphome
+}  // namespace esphome::binary_storage

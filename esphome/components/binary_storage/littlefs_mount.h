@@ -8,8 +8,7 @@
 #include <memory>
 #include <dirent.h>
 
-namespace esphome {
-namespace binary_storage {
+namespace esphome::binary_storage {
 
 // Maximum simultaneously open files (kept low for MCU memory constraints)
 static constexpr int LFS_VFS_MAX_FDS = 8;
@@ -130,7 +129,6 @@ class LittleFSMount : public storage::FilesystemStorage {
   void free_handle_(storage::FileHandle *handle);
 };
 
-}  // namespace binary_storage
-}  // namespace esphome
+}  // namespace esphome::binary_storage
 
 #endif  // USE_ESP_IDF

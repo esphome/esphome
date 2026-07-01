@@ -7,8 +7,7 @@
 #include "esphome/core/hal.h"
 #include <algorithm>
 
-namespace esphome {
-namespace binary_storage {
+namespace esphome::binary_storage {
 
 static const char *const TAG = "spi_flash";
 
@@ -375,7 +374,36 @@ bool SPIFlash::read_data_(uint32_t address, uint8_t *data, size_t length) {
   return true;
 }
 
-bool SPIFlash::read(uint32_t address, uint8_t *data, size_t length) {
+storage::StorageError SPIFlash::read(size_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) {
+  bool ok = this->read_raw(static_cast<uint32_t>(offset), buf, len);
+  if (bytes_transferred != nullptr)
+    *bytes_transferred = ok ? len : 0;
+  return ok ? storage::StorageError::OK : storage::StorageError::READ_ERROR;
+}
+
+storage::StorageError SPIFlash::write(size_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) {
+  bool ok = this->write_raw(static_cast<uint32_t>(offset), buf, len);
+  if (bytes_transferred != nullptr)
+    *bytes_transferred = ok ? len : 0;
+  return ok ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+}
+
+storage::StorageError SPIFlash::erase(size_t offset, size_t len) {
+  uint32_t addr = static_cast<uint32_t>(offset);
+  uint32_t end = addr + static_cast<uint32_t>(len);
+  while (addr < end) {
+    if (!this->erase_block(addr))
+      return storage::StorageError::WRITE_ERROR;
+    addr += this->sector_size_;
+  }
+  return storage::StorageError::OK;
+}
+
+storage::StorageError SPIFlash::format() {
+  return this->erase_chip() ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+}
+
+bool SPIFlash::read_raw(uint32_t address, uint8_t *data, size_t length) {
   if (!this->is_valid_address_(address, length)) {
     ESP_LOGE(TAG, "Read address out of bounds: 0x%X + %u", address, length);
     return false;
@@ -423,7 +451,7 @@ bool SPIFlash::write_page_(uint32_t address, const uint8_t *data, size_t length)
   return this->wait_ready();
 }
 
-bool SPIFlash::write(uint32_t address, const uint8_t *data, size_t length) {
+bool SPIFlash::write_raw(uint32_t address, const uint8_t *data, size_t length) {
   if (!this->is_valid_address_(address, length)) {
     ESP_LOGE(TAG, "Write address out of bounds: 0x%X + %u", address, length);
     return false;
@@ -540,7 +568,6 @@ void SPIFlash::wake_up() {
   ESP_LOGD(TAG, "Woke up from power down");
 }
 
-}  // namespace binary_storage
-}  // namespace esphome
+}  // namespace esphome::binary_storage
 
 #endif  // USE_BINARY_STORAGE_SPI_FLASH

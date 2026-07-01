@@ -6,8 +6,7 @@
 #include "esp_partition.h"
 #include "esp_littlefs.h"
 
-namespace esphome {
-namespace binary_storage {
+namespace esphome::binary_storage {
 
 // LittleFS on an internal flash partition via ESP-IDF's esp_vfs_littlefs.
 // Simpler than LittleFSMount — IDF handles VFS registration and LittleFS internals.
@@ -90,7 +89,6 @@ class FlashPartition : public storage::FilesystemStorage {
   void free_handle_(storage::FileHandle *handle);
 };
 
-}  // namespace binary_storage
-}  // namespace esphome
+}  // namespace esphome::binary_storage
 
 #endif  // USE_ESP_IDF

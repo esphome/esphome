@@ -12,8 +12,7 @@
 #include <cstring>
 #include <algorithm>
 
-namespace esphome {
-namespace binary_storage {
+namespace esphome::binary_storage {
 
 static const char *const TAG = "littlefs_mount";
 
@@ -1078,7 +1077,6 @@ void LittleFSMount::free_handle_(storage::FileHandle *handle) {
   handle->file = nullptr;
 }
 
-}  // namespace binary_storage
-}  // namespace esphome
+}  // namespace esphome::binary_storage
 
 #endif  // USE_ESP_IDF

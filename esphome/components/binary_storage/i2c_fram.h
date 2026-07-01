@@ -7,8 +7,7 @@
 #include "binary_storage.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace binary_storage {
+namespace esphome::binary_storage {
 
 /**
  * @brief I2C FRAM storage device (Fujitsu MB85RC, Cypress FM24 series)
@@ -64,13 +63,16 @@ class I2CFram : public BinaryStorage, public i2c::I2CDevice {
   const char *get_device_type() const override { return "fram"; }
   uint32_t get_page_size() const override { return 1; }  // FRAM has no page limit
 
-  bool read(uint32_t address, uint8_t *data, size_t length) override;
-  bool write(uint32_t address, const uint8_t *data, size_t length) override;
+  // RawStorage interface
+  storage::StorageError read(size_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) override;
+  storage::StorageError write(size_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) override;
+  storage::StorageError erase(size_t offset, size_t len) override;
+  storage::StorageError format() override;
 
-  // FRAM-specific features (no delays, no erase needed)
-  bool is_ready() override { return true; }
-  bool sync() override { return true; }
-  bool erase_block(uint32_t address) override { return true; }
+  // Hardware-level byte access
+  bool read_raw(uint32_t address, uint8_t *data, size_t length);
+  bool write_raw(uint32_t address, const uint8_t *data, size_t length);
+  bool erase_block(uint32_t address) { return true; }  // FRAM has no erase
 
   //========================================================================
   // FRAM-Specific Metadata
@@ -170,7 +172,6 @@ class I2CFram : public BinaryStorage, public i2c::I2CDevice {
   uint8_t get_device_address_for_memory_(uint32_t mem_address) const;
 };
 
-}  // namespace binary_storage
-}  // namespace esphome
+}  // namespace esphome::binary_storage
 
 #endif  // USE_BINARY_STORAGE_I2C_FRAM

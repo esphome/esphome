@@ -8,8 +8,7 @@
 #include <cstring>
 #include <cctype>
 
-namespace esphome {
-namespace binary_storage {
+namespace esphome::binary_storage {
 
 static const char *const TAG = "i2c_eeprom";
 
@@ -181,7 +180,27 @@ bool I2CEeprom::read_block_(uint32_t address, uint8_t *data, size_t length) {
   return true;
 }
 
-bool I2CEeprom::read(uint32_t address, uint8_t *data, size_t length) {
+storage::StorageError I2CEeprom::read(size_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) {
+  bool ok = this->read_raw(static_cast<uint32_t>(offset), buf, len);
+  if (bytes_transferred != nullptr)
+    *bytes_transferred = ok ? len : 0;
+  return ok ? storage::StorageError::OK : storage::StorageError::READ_ERROR;
+}
+
+storage::StorageError I2CEeprom::write(size_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) {
+  bool ok = this->write_raw(static_cast<uint32_t>(offset), buf, len);
+  if (bytes_transferred != nullptr)
+    *bytes_transferred = ok ? len : 0;
+  return ok ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+}
+
+storage::StorageError I2CEeprom::erase(size_t offset, size_t len) { return storage::StorageError::OK; }
+
+storage::StorageError I2CEeprom::format() {
+  return this->BinaryStorage::format();
+}
+
+bool I2CEeprom::read_raw(uint32_t address, uint8_t *data, size_t length) {
   if (!this->is_valid_address_(address, length)) {
     ESP_LOGE(TAG, "Read address out of bounds: 0x%X + %u", address, length);
     return false;
@@ -242,7 +261,7 @@ bool I2CEeprom::write_page_(uint32_t address, const uint8_t *data, size_t length
   return this->wait_for_write_complete_();
 }
 
-bool I2CEeprom::write(uint32_t address, const uint8_t *data, size_t length) {
+bool I2CEeprom::write_raw(uint32_t address, const uint8_t *data, size_t length) {
   if (!this->is_valid_address_(address, length)) {
     ESP_LOGE(TAG, "Write address out of bounds: 0x%X + %u", address, length);
     return false;
@@ -266,12 +285,7 @@ bool I2CEeprom::write(uint32_t address, const uint8_t *data, size_t length) {
   return true;
 }
 
-bool I2CEeprom::sync() {
-  // Just ensure device is ready (any pending write is complete)
-  return this->wait_for_write_complete_();
-}
 
-}  // namespace binary_storage
-}  // namespace esphome
+}  // namespace esphome::binary_storage
 
 #endif  // USE_BINARY_STORAGE_I2C_EEPROM

@@ -6,8 +6,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace binary_storage {
+namespace esphome::binary_storage {
 
 static const char *const TAG = "spi_mram";
 
@@ -66,7 +65,27 @@ void SPIMRAM::dump_config() {
 // BinaryStorage Interface
 //========================================================================
 
-bool SPIMRAM::read(uint32_t address, uint8_t *data, size_t length) {
+storage::StorageError SPIMRAM::read(size_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) {
+  bool ok = this->read_raw(static_cast<uint32_t>(offset), buf, len);
+  if (bytes_transferred != nullptr)
+    *bytes_transferred = ok ? len : 0;
+  return ok ? storage::StorageError::OK : storage::StorageError::READ_ERROR;
+}
+
+storage::StorageError SPIMRAM::write(size_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) {
+  bool ok = this->write_raw(static_cast<uint32_t>(offset), buf, len);
+  if (bytes_transferred != nullptr)
+    *bytes_transferred = ok ? len : 0;
+  return ok ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+}
+
+storage::StorageError SPIMRAM::erase(size_t offset, size_t len) { return storage::StorageError::OK; }
+
+storage::StorageError SPIMRAM::format() {
+  return this->BinaryStorage::format();
+}
+
+bool SPIMRAM::read_raw(uint32_t address, uint8_t *data, size_t length) {
   if (address + length > this->capacity_) {
     ESP_LOGE(TAG, "Read overflow: address 0x%04" PRIX32 " + length %u > capacity %" PRIu32, address, length,
              this->capacity_);
@@ -76,7 +95,7 @@ bool SPIMRAM::read(uint32_t address, uint8_t *data, size_t length) {
   return this->read_data_(address, data, length);
 }
 
-bool SPIMRAM::write(uint32_t address, const uint8_t *data, size_t length) {
+bool SPIMRAM::write_raw(uint32_t address, const uint8_t *data, size_t length) {
   if (address + length > this->capacity_) {
     ESP_LOGE(TAG, "Write overflow: address 0x%04" PRIX32 " + length %u > capacity %" PRIu32, address, length,
              this->capacity_);
@@ -118,7 +137,7 @@ uint32_t SPIMRAM::clear(uint8_t value) {
   uint32_t address = 0;
   while (address < this->capacity_) {
     size_t write_len = std::min(CHUNK_SIZE, (size_t) (this->capacity_ - address));
-    if (!this->write(address, buffer, write_len)) {
+    if (!this->write_raw(address, buffer, write_len)) {
       ESP_LOGE(TAG, "Clear failed at address 0x%04" PRIX32, address);
       return address;
     }
@@ -214,7 +233,6 @@ bool SPIMRAM::read_data_(uint32_t address, uint8_t *data, size_t length) {
   return true;
 }
 
-}  // namespace binary_storage
-}  // namespace esphome
+}  // namespace esphome::binary_storage
 
 #endif  // USE_BINARY_STORAGE_SPI_MRAM

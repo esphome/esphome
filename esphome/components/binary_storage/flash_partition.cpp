@@ -8,8 +8,7 @@
 #include <sys/stat.h>
 #include <dirent.h>
 
-namespace esphome {
-namespace binary_storage {
+namespace esphome::binary_storage {
 
 static const char *const TAG = "flash_partition";
 
@@ -509,7 +508,6 @@ void FlashPartition::free_handle_(storage::FileHandle *handle) {
   handle->file = nullptr;
 }
 
-}  // namespace binary_storage
-}  // namespace esphome
+}  // namespace esphome::binary_storage
 
 #endif  // USE_ESP_IDF
