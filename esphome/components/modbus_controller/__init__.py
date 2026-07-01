@@ -11,6 +11,7 @@ from esphome.components.modbus.helpers import (
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_OFFSET
 from esphome.cpp_helpers import logging
+from esphome.types import ConfigType
 
 from .const import (
     CONF_ALLOW_DUPLICATE_COMMANDS,
@@ -42,7 +43,7 @@ MULTI_CONF = True
 
 modbus_controller_ns = cg.esphome_ns.namespace("modbus_controller")
 ModbusController = modbus_controller_ns.class_(
-    "ModbusController", cg.PollingComponent, modbus.ModbusDevice
+    "ModbusController", cg.PollingComponent, modbus.ModbusClientDevice
 )
 
 SensorItem = modbus_controller_ns.struct("SensorItem")
@@ -117,7 +118,7 @@ def validate_modbus_register(config):
     return config
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> ConfigType:
     return modbus.final_validate_modbus_device("modbus_controller", role="client")(
         config
     )
@@ -211,7 +212,7 @@ async def to_code(config):
 async def register_modbus_device(var, config):
     cg.add(var.set_address(config[CONF_ADDRESS]))
     await cg.register_component(var, config)
-    return await modbus.register_modbus_device(var, config)
+    return await modbus.register_modbus_client_device(var, config)
 
 
 def function_code_to_register(function_code):
