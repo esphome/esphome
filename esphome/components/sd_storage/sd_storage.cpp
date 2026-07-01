@@ -160,8 +160,8 @@ bool SdMmc::update_card_info() {
   char path_buf[8];
   snprintf(path_buf, sizeof(path_buf), "%s/", this->mount_path_);
   if (f_getfree(path_buf, &fre_clust, &fs) == FR_OK) {
-    uint64_t total = (uint64_t)((fs->n_fatent - 2) * fs->csize) * fs->ssize;
-    uint64_t free_b = (uint64_t)(fre_clust * fs->csize) * fs->ssize;
+    uint64_t total = (uint64_t) ((fs->n_fatent - 2) * fs->csize) * fs->ssize;
+    uint64_t free_b = (uint64_t) (fre_clust * fs->csize) * fs->ssize;
     this->used_bytes_ = total - free_b;
   }
   return true;
@@ -177,7 +177,7 @@ uint64_t SdMmc::get_free_bytes_impl() const {
   snprintf(path_buf, sizeof(path_buf), "%s/", this->mount_path_);
   if (f_getfree(path_buf, &fre_clust, &fs) != FR_OK)
     return 0;
-  return (uint64_t)(fre_clust * fs->csize) * fs->ssize;
+  return (uint64_t) (fre_clust * fs->csize) * fs->ssize;
 }
 
 }  // namespace esphome::sd_storage

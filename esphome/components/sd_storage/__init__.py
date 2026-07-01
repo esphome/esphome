@@ -30,7 +30,9 @@ CardMountedTrigger = sd_storage_ns.class_(
 MountCardAction = sd_storage_ns.class_("MountCardAction", automation.Action)
 UnmountCardAction = sd_storage_ns.class_("UnmountCardAction", automation.Action)
 ListFilesAction = sd_storage_ns.class_("ListFilesAction", automation.Action)
-CardMountedCondition = sd_storage_ns.class_("CardMountedCondition", automation.Condition)
+CardMountedCondition = sd_storage_ns.class_(
+    "CardMountedCondition", automation.Condition
+)
 
 CONF_CMD_PIN = "cmd_pin"
 CONF_DATA0_PIN = "data0_pin"
@@ -50,9 +52,13 @@ def validate_spi_cs_config(config):
     data3_pin_config = config.get(CONF_DATA3_PIN)
     cs_pin_config = config.get(CONF_CS_PIN)
     if data3_pin_config and cs_pin_config:
-        raise cv.Invalid(f"{CONF_DATA3_PIN} is the same as {CONF_CS_PIN}. Please remove one.")
+        raise cv.Invalid(
+            f"{CONF_DATA3_PIN} is the same as {CONF_CS_PIN}. Please remove one."
+        )
     if not data3_pin_config and not cs_pin_config:
-        raise cv.Invalid(f"{CONF_DATA3_PIN} or {CONF_CS_PIN} required. Please specify one.")
+        raise cv.Invalid(
+            f"{CONF_DATA3_PIN} or {CONF_CS_PIN} required. Please specify one."
+        )
     if data3_pin_config:
         config[CONF_CS_PIN] = data3_pin_config
         del config[CONF_DATA3_PIN]
@@ -243,7 +249,9 @@ async def to_code(config):
 
     for conf in config.get(CONF_ON_MOUNTED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.const_char_ptr, "mount_path")], conf)
+        await automation.build_automation(
+            trigger, [(cg.const_char_ptr, "mount_path")], conf
+        )
 
 
 SD_STORAGE_ACTION_SCHEMA = automation.maybe_simple_id(

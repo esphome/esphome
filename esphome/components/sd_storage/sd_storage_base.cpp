@@ -43,9 +43,7 @@ storage::StorageError SdStorageBase::format() {
   return storage::StorageError::WRITE_ERROR;
 }
 
-storage::StorageError SdStorageBase::sync() {
-  return storage::StorageError::OK;
-}
+storage::StorageError SdStorageBase::sync() { return storage::StorageError::OK; }
 
 storage::StorageError SdStorageBase::open(const char *path, storage::FileHandle *&handle, storage::OpenMode mode) {
   if (!this->is_mounted_)
@@ -107,7 +105,7 @@ storage::StorageError SdStorageBase::close(storage::FileHandle *handle) {
 }
 
 storage::StorageError SdStorageBase::read(storage::FileHandle *handle, uint8_t *buf, size_t len,
-                                  size_t *bytes_transferred) {
+                                          size_t *bytes_transferred) {
   if (handle == nullptr || !handle->in_use || handle->file == nullptr)
     return storage::StorageError::INVALID_ARGS;
   size_t n = fread(buf, 1, len, handle->file);
@@ -117,7 +115,7 @@ storage::StorageError SdStorageBase::read(storage::FileHandle *handle, uint8_t *
 }
 
 storage::StorageError SdStorageBase::write(storage::FileHandle *handle, const uint8_t *buf, size_t len,
-                                   size_t *bytes_transferred) {
+                                           size_t *bytes_transferred) {
   if (handle == nullptr || !handle->in_use || handle->file == nullptr)
     return storage::StorageError::INVALID_ARGS;
   size_t n = fwrite(buf, 1, len, handle->file);
@@ -130,7 +128,7 @@ storage::StorageError SdStorageBase::seek(storage::FileHandle *handle, size_t of
   if (handle == nullptr || !handle->in_use || handle->file == nullptr)
     return storage::StorageError::INVALID_ARGS;
   return fseek(handle->file, static_cast<long>(offset), SEEK_SET) == 0 ? storage::StorageError::OK
-                                                                        : storage::StorageError::READ_ERROR;
+                                                                       : storage::StorageError::READ_ERROR;
 }
 
 storage::StorageError SdStorageBase::tell(storage::FileHandle *handle, size_t *position) {
@@ -163,7 +161,7 @@ storage::StorageError SdStorageBase::stat(const char *path, storage::FileStat *s
 }
 
 storage::StorageError SdStorageBase::list_dir(const char *path,
-                                      void (*callback)(const storage::FileStat *entry, void *ctx), void *ctx) {
+                                              void (*callback)(const storage::FileStat *entry, void *ctx), void *ctx) {
   if (!this->is_mounted_)
     return storage::StorageError::NOT_READY;
 

@@ -99,8 +99,7 @@ StorageError SdSpi::mount() {
   esp_err_t mount_error = ESP_OK;
   for (const auto freq_khz : {SDMMC_FREQ_DEFAULT, SDMMC_FREQ_PROBING}) {
     host.max_freq_khz = freq_khz;
-    mount_error =
-        esp_vfs_fat_sdspi_mount(this->mount_path_, &host, &slot_config, &mount_config, &this->card_);
+    mount_error = esp_vfs_fat_sdspi_mount(this->mount_path_, &host, &slot_config, &mount_config, &this->card_);
     if (mount_error != ESP_ERR_INVALID_RESPONSE)
       break;
   }
@@ -123,8 +122,8 @@ StorageError SdSpi::mount() {
   this->is_mounted_ = true;
   this->update_card_info();
 
-  ESP_LOGI(TAG_SPI, "SD card mounted at %s (max %d kHz, real %d kHz)", this->mount_path_,
-           this->card_->max_freq_khz, this->card_->real_freq_khz);
+  ESP_LOGI(TAG_SPI, "SD card mounted at %s (max %d kHz, real %d kHz)", this->mount_path_, this->card_->max_freq_khz,
+           this->card_->real_freq_khz);
 
   if (storage::global_storage_registry != nullptr)
     storage::global_storage_registry->register_storage(this);
@@ -160,8 +159,8 @@ bool SdSpi::update_card_info() {
   char path_buf[8];
   snprintf(path_buf, sizeof(path_buf), "%s/", this->mount_path_);
   if (f_getfree(path_buf, &fre_clust, &fs) == FR_OK) {
-    uint64_t total = (uint64_t)((fs->n_fatent - 2) * fs->csize) * fs->ssize;
-    uint64_t free_b = (uint64_t)(fre_clust * fs->csize) * fs->ssize;
+    uint64_t total = (uint64_t) ((fs->n_fatent - 2) * fs->csize) * fs->ssize;
+    uint64_t free_b = (uint64_t) (fre_clust * fs->csize) * fs->ssize;
     this->used_bytes_ = total - free_b;
   }
   return true;
@@ -177,12 +176,10 @@ uint64_t SdSpi::get_free_bytes_impl() const {
   snprintf(path_buf, sizeof(path_buf), "%s/", this->mount_path_);
   if (f_getfree(path_buf, &fre_clust, &fs) != FR_OK)
     return 0;
-  return (uint64_t)(fre_clust * fs->csize) * fs->ssize;
+  return (uint64_t) (fre_clust * fs->csize) * fs->ssize;
 }
 
-uint32_t SdSpi::get_block_size_impl() const {
-  return (this->card_ != nullptr) ? this->card_->csd.sector_size : 512;
-}
+uint32_t SdSpi::get_block_size_impl() const { return (this->card_ != nullptr) ? this->card_->csd.sector_size : 512; }
 
 }  // namespace esphome::sd_storage
 
