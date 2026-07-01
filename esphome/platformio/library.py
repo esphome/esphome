@@ -24,7 +24,7 @@ import os
 from pathlib import Path
 import re
 import tempfile
-from typing import Any, TypeVar
+from typing import Any
 from urllib.parse import urlparse, urlsplit, urlunsplit
 
 from esphome import git
@@ -195,10 +195,7 @@ class LibraryBackend:
     emit: Callable[["ConvertedLibrary"], None]
 
 
-T = TypeVar("T")
-
-
-def ensure_list(obj: T | list[T]) -> list[T]:
+def ensure_list[T](obj: T | list[T]) -> list[T]:
     """
     Convert an object to a list if it isn't already a list.
 
