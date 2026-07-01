@@ -5,7 +5,11 @@ import re
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import i2c, spi
-from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option, require_vfs_dir
+from esphome.components.esp32 import (
+    add_idf_component,
+    add_idf_sdkconfig_option,
+    require_vfs_dir,
+)
 from esphome.components.storage import request_storage_device
 import esphome.config_validation as cv
 from esphome.const import (
