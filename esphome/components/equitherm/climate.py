@@ -12,6 +12,9 @@ CONF_INDOOR_SENSOR = "indoor_sensor"
 CONF_FLOW_SETPOINT = "flow_setpoint"
 CONF_MANUAL_FLOW_TEMP = "manual_flow_temp"
 CONF_HEAT_OUTPUT = "heat_output"
+CONF_SENSOR_STALE_TIMEOUT = "sensor_stale_timeout"  # outdoor-only (back-compat)
+CONF_INDOOR_FRESH_WINDOW = "indoor_fresh_window"
+CONF_INDOOR_FAULT_HORIZON = "indoor_fault_horizon"
 CONF_CONTROL_PARAMETERS = "control_parameters"
 CONF_OUTPUT_PARAMETERS = "output_parameters"
 CONF_DEADBAND_PARAMETERS = "deadband_parameters"
@@ -88,6 +91,18 @@ def _validate_output_parameters(config):
     return config
 
 
+def _validate_indoor_timeouts(config):
+    """fresh_window must be strictly less than fault_horizon."""
+    fw = config[CONF_INDOOR_FRESH_WINDOW]
+    fh = config[CONF_INDOOR_FAULT_HORIZON]
+    if fw >= fh:
+        raise cv.Invalid(
+            f"{CONF_INDOOR_FRESH_WINDOW} ({fw}) must be less than "
+            f"{CONF_INDOOR_FAULT_HORIZON} ({fh})"
+        )
+    return config
+
+
 OUTPUT_PARAMETERS_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -135,6 +150,15 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FLOW_SETPOINT): cv.use_id(number.Number),
             cv.Optional(CONF_MANUAL_FLOW_TEMP): cv.use_id(number.Number),
             cv.Optional(CONF_HEAT_OUTPUT): cv.use_id(output.FloatOutput),
+            cv.Optional(
+                CONF_SENSOR_STALE_TIMEOUT, default="10min"
+            ): cv.positive_time_period_milliseconds,  # outdoor-only now
+            cv.Optional(
+                CONF_INDOOR_FRESH_WINDOW, default="30min"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_INDOOR_FAULT_HORIZON, default="4h"
+            ): cv.positive_time_period_milliseconds,
             cv.Required(CONF_CONTROL_PARAMETERS): CONTROL_PARAMETERS_SCHEMA,
             cv.Required(CONF_OUTPUT_PARAMETERS): OUTPUT_PARAMETERS_SCHEMA,
             cv.Optional(CONF_DEADBAND_PARAMETERS): DEADBAND_PARAMETERS_SCHEMA,
@@ -144,6 +168,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.COMPONENT_SCHEMA),
     cv.has_exactly_one_key(CONF_FLOW_SETPOINT, CONF_HEAT_OUTPUT),
+    _validate_indoor_timeouts,
 )
 
 
@@ -174,6 +199,11 @@ async def to_code(config):
 
     # Climate defaults
     cg.add(var.set_default_target_temperature(config[CONF_DEFAULT_TARGET_TEMPERATURE]))
+
+    # Sensor staleness / indoor health timeouts
+    cg.add(var.set_outdoor_stale_timeout_ms(config[CONF_SENSOR_STALE_TIMEOUT]))
+    cg.add(var.set_indoor_fresh_window_ms(config[CONF_INDOOR_FRESH_WINDOW]))
+    cg.add(var.set_indoor_fault_horizon_ms(config[CONF_INDOOR_FAULT_HORIZON]))
 
     # Control parameters (heating curve + PID)
     params = config[CONF_CONTROL_PARAMETERS]

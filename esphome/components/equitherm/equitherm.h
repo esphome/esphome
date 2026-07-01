@@ -25,6 +25,7 @@ class EquithermClimate : public climate::Climate, public Component {
  public:
   EquithermClimate() = default;
   void setup() override;
+  void loop() override;
   void dump_config() override;
 
   // Sensor inputs
@@ -72,6 +73,14 @@ class EquithermClimate : public climate::Climate, public Component {
   void set_ki_multiplier(float mult) { pid_controller_.ki_multiplier_ = mult; }
   void set_kd_multiplier(float mult) { pid_controller_.kd_multiplier_ = mult; }
 
+  // Indoor data-health timeouts (split from the old shared sensor_stale_timeout)
+  void set_indoor_fresh_window_ms(uint32_t ms) { this->indoor_fresh_window_ms_ = ms; }
+  void set_indoor_fault_horizon_ms(uint32_t ms) { this->indoor_fault_horizon_ms_ = ms; }
+  void set_outdoor_stale_timeout_ms(uint32_t ms) { this->outdoor_stale_timeout_ms_ = ms; }
+
+  bool is_outdoor_sensor_fault() const { return outdoor_sensor_fault_; }
+  bool is_indoor_sensor_coasting() const { return this->indoor_data_health_ == IndoorDataHealth::COASTING; }
+  bool is_indoor_sensor_fault() const { return this->indoor_data_health_ == IndoorDataHealth::FAULT; }
   bool is_wws_active() const { return wws_active_; }
 
   // State getters (for diagnostics)
@@ -124,6 +133,8 @@ class EquithermClimate : public climate::Climate, public Component {
   void compute_and_apply_(bool update_pid = true);
   void write_setpoint_(float temp_c);
   void write_setpoint_off_();
+  /// Advance indoor health from reading age (indoor-only; the both-dead hold owns outdoor interaction).
+  void update_indoor_health_(uint32_t now_ms);
 
   /// Outdoor temperature sensor (required)
   sensor::Sensor *outdoor_sensor_{nullptr};
@@ -150,6 +161,8 @@ class EquithermClimate : public climate::Climate, public Component {
   float pid_adjusted_output_{NAN};
   /// Whether warm weather shutdown is active (delta_t <= 0, no heating demand)
   bool wws_active_{false};
+  /// Last time loop() ran its staleness safety-net check (throttle)
+  uint32_t last_loop_check_time_{0};
   /// Flow setpoint (after PID, for diagnostics)
   float flow_setpoint_{NAN};
   /// Last value actually written to boiler (confirmed active setpoint)
@@ -158,7 +171,34 @@ class EquithermClimate : public climate::Climate, public Component {
   float pid_correction_{NAN};
   /// Minimum setpoint change (°C) required to write to boiler output
   float write_deadband_{0.05f};
+  /// Timeout for outdoor sensor staleness (ms)
+  uint32_t outdoor_stale_timeout_ms_{600000};  // 10 min, unchanged
+  /// Indoor reading is considered quiet (-> COASTING) after this (ms)
+  uint32_t indoor_fresh_window_ms_{1800000};  // 30 min
+  /// Indoor reading is considered failed (-> FAULT) after this (ms)
+  uint32_t indoor_fault_horizon_ms_{14400000};  // 4 h
+  /// Last known valid outdoor temperature for stale data window
+  float last_valid_outdoor_temp_{NAN};
+  /// Last known valid indoor temperature for display when sensor fails
+  float last_valid_indoor_temp_{NAN};
+  /// Whether outdoor sensor has failed (stale / out of range)
+  bool outdoor_sensor_fault_{false};
+  /// Timestamp of last valid outdoor sensor reading
+  uint32_t last_valid_outdoor_time_{0};
+  /// Timestamp of last valid indoor sensor reading
+  uint32_t last_valid_indoor_time_{0};
 
+  /// Indoor data-health state machine (protected; accessors expose booleans)
+  enum class IndoorDataHealth : uint8_t {
+    WARM_UP = 0,   // no valid reading seen yet
+    FRESH = 1,     // within fresh_window — PID on
+    COASTING = 2,  // quiet but plausible — PID off, curve-only, no alarm
+    FAULT = 3,     // dead / implausible / both-dead — alarm on
+  };
+
+  IndoorDataHealth indoor_data_health_{IndoorDataHealth::WARM_UP};
+  bool indoor_ever_received_{false};
+  IndoorDataHealth prev_indoor_health_{IndoorDataHealth::WARM_UP};  // for FAULT->FRESH reset
   /// Callback for diagnostic sensors
   CallbackManager<void()> state_callback_;
   /// Previous climate action — used to detect heating start/stop transitions

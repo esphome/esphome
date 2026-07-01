@@ -14,14 +14,41 @@ static const char *const TAG = "equitherm";
 // Covers all realistic climates: --55°C (extreme cold) to +50°C (extreme heat).
 static constexpr float OUTDOOR_SENSOR_MIN_VALID = -55.0f;
 static constexpr float OUTDOOR_SENSOR_MAX_VALID = 50.0f;
+// How often loop() re-checks sensor staleness. Only matters when BOTH sensors have stopped
+// publishing (no callback fires to re-evaluate staleness). See EquithermClimate::loop().
+static constexpr uint32_t STALENESS_RECHECK_INTERVAL_MS = 30000;
 
 void EquithermClimate::setup() {
-  // Register callback for indoor sensor updates — recompute on every update so the climate
-  // reflects the latest reading (the validity check itself lives in compute_and_apply_()).
-  this->indoor_sensor_->add_on_state_callback([this](float) { this->compute_and_apply_(); });
+  // Register callback for indoor sensor updates
+  this->indoor_sensor_->add_on_state_callback([this](float state) {
+    const uint32_t now = millis();
+    // NAN: don't poison the held last-known-good value (it's the display source,
+    // initialised NAN). Just recompute so age-based health can advance.
+    if (std::isnan(state)) {
+      this->compute_and_apply_();
+      return;
+    }
+    // Any real reading (in- or out-of-range) is trusted, consistent with the
+    // outdoor path: record freshness and recover to FRESH. No transient filter.
+    this->last_valid_indoor_temp_ = state;
+    this->last_valid_indoor_time_ = now;
+    this->indoor_ever_received_ = true;
+    this->indoor_data_health_ = IndoorDataHealth::FRESH;
+    this->compute_and_apply_();
+  });
 
-  // Register callback for outdoor sensor updates — same rationale.
-  this->outdoor_sensor_->add_on_state_callback([this](float) { this->compute_and_apply_(); });
+  // Register callback for outdoor sensor updates
+  this->outdoor_sensor_->add_on_state_callback([this](float state) {
+    // Refresh the freshness timestamp ONLY on a genuine, in-range outdoor update. This must NOT
+    // happen inside compute_and_apply_(): that method also runs on indoor-driven recomputations, so
+    // refreshing the timestamp there would reset the staleness timer even when no new outdoor reading
+    // arrived — masking a dead outdoor sensor (the timer would measure recompute frequency, not the
+    // time since the last real reading).
+    if (!std::isnan(state) && state >= OUTDOOR_SENSOR_MIN_VALID && state <= OUTDOOR_SENSOR_MAX_VALID) {
+      this->last_valid_outdoor_time_ = millis();
+    }
+    this->compute_and_apply_();
+  });
 
   // Restore previous state or set defaults
   auto restore = this->restore_state_();
@@ -31,6 +58,39 @@ void EquithermClimate::setup() {
     this->mode = climate::CLIMATE_MODE_HEAT;
     this->target_temperature = this->default_target_temperature_;
     // On first boot, trigger initial calculation
+    this->compute_and_apply_();
+  }
+}
+
+void EquithermClimate::loop() {
+  // Safety net for the case no sensor callback covers.
+  //
+  // compute_and_apply_() is event-driven: it runs on sensor callbacks and climate control() calls.
+  // As long as at least one sensor keeps publishing, its callback re-evaluates the other sensor's
+  // age, so a dead sensor is detected. But if BOTH sensors stop publishing callbacks entirely, no
+  // callback ever fires — the boiler would be left on its last setpoint with no fault flagged.
+  //
+  // This loop closes that gap. It only acts when BOTH sensors have stopped publishing: the outdoor
+  // sensor is past its stale timeout (outdoor_stale_timeout_ms_) AND the indoor sensor is past its
+  // fresh window (indoor_fresh_window_ms_) — i.e. no callback has fired for either side. In that
+  // sole case it calls compute_and_apply_() so the age-based indoor transitions (FRESH -> COASTING
+  // -> FAULT) and the both-dead hold can advance. It does not use the outdoor "stale" notion for the
+  // indoor side: indoor is evaluated by its own fresh/fault window, which is the "quiet" threshold.
+  // The throttle interval is deliberately keyed to the (longer) indoor fresh window, not the outdoor
+  // timeout.
+  uint32_t now = millis();
+  // Recheck no slower than half the fresh window so a short window is still detected promptly;
+  // cap at STALENESS_RECHECK_INTERVAL_MS and floor at 1s to avoid recomputing every loop iteration.
+  uint32_t interval =
+      std::clamp(this->indoor_fresh_window_ms_ / 2, static_cast<uint32_t>(1000), STALENESS_RECHECK_INTERVAL_MS);
+  if (now - this->last_loop_check_time_ < interval)
+    return;
+  this->last_loop_check_time_ = now;
+
+  bool outdoor_stale = (now - this->last_valid_outdoor_time_) > this->outdoor_stale_timeout_ms_;
+  bool indoor_quiet = (now - this->last_valid_indoor_time_) > this->indoor_fresh_window_ms_;
+
+  if (outdoor_stale && indoor_quiet) {
     this->compute_and_apply_();
   }
 }
@@ -105,6 +165,13 @@ void EquithermClimate::dump_config() {
                 "  Output Parameters:\n"
                 "    min_flow_temp: %.1f°C, max_flow_temp: %.1f°C",
                 heating_curve_.get_min_flow_temp(), heating_curve_.get_max_flow_temp());
+
+  ESP_LOGCONFIG(TAG,
+                "  Sensor Health:\n"
+                "    outdoor_stale_timeout: %.1f min\n"
+                "    indoor fresh_window: %.1f min, fault_horizon: %.1f h",
+                this->outdoor_stale_timeout_ms_ / 60000.0f, this->indoor_fresh_window_ms_ / 60000.0f,
+                this->indoor_fault_horizon_ms_ / 3600000.0f);
 }
 
 void EquithermClimate::write_setpoint_(float temp_c) {
@@ -169,6 +236,25 @@ void EquithermClimate::write_setpoint_off_() {
 #endif
 }
 
+void EquithermClimate::update_indoor_health_(uint32_t now_ms) {
+  // No good reading yet: hold WARM_UP (no alarm). FAULT is reached only via the
+  // age-based fault_horizon timeout below, which is gated on last_valid_indoor_time_
+  // having been set by a real reading — so it cannot fire before the first read.
+  if (!this->indoor_ever_received_) {
+    this->indoor_data_health_ = IndoorDataHealth::WARM_UP;  // no alarm until first good read
+    return;
+  }
+  const uint32_t age = now_ms - this->last_valid_indoor_time_;
+  if (age > this->indoor_fault_horizon_ms_) {
+    this->indoor_data_health_ = IndoorDataHealth::FAULT;
+  } else if (age > this->indoor_fresh_window_ms_) {
+    // Only relax FRESH -> COASTING; never downgrade an existing FAULT here.
+    if (this->indoor_data_health_ == IndoorDataHealth::FRESH) {
+      this->indoor_data_health_ = IndoorDataHealth::COASTING;
+    }
+  }
+}
+
 void EquithermClimate::compute_and_apply_(bool update_pid) {
   // Target temperature must be valid
   if (std::isnan(this->target_temperature)) {
@@ -177,20 +263,53 @@ void EquithermClimate::compute_and_apply_(bool update_pid) {
   }
 
   // --- OUTDOOR SENSOR HANDLING ---
-  // Straight read: if the outdoor reading is present, finite and in range use it; otherwise
-  // mark it invalid. With no configured substitute in core, an invalid outdoor sensor skips
-  // recalculation and holds the last setpoint (see guard below). No fault flag here.
-  bool outdoor_valid = this->outdoor_sensor_->has_state() && !std::isnan(this->outdoor_sensor_->state) &&
-                       this->outdoor_sensor_->state >= OUTDOOR_SENSOR_MIN_VALID &&
-                       this->outdoor_sensor_->state <= OUTDOOR_SENSOR_MAX_VALID;
+  // A reading is usable only when present, finite, in range, AND not stale (updated within
+  // outdoor_stale_timeout_ms_). The freshness timestamp is refreshed in the outdoor sensor
+  // callback (see setup()), NOT here — refreshing it here would reset the staleness timer on
+  // every recomputation, including indoor-driven ones, and mask a dead outdoor sensor.
+  uint32_t now = millis();
+  bool outdoor_reading_valid = this->outdoor_sensor_->has_state() && !std::isnan(this->outdoor_sensor_->state) &&
+                               this->outdoor_sensor_->state >= OUTDOOR_SENSOR_MIN_VALID &&
+                               this->outdoor_sensor_->state <= OUTDOOR_SENSOR_MAX_VALID;
+  bool outdoor_stale = (now - this->last_valid_outdoor_time_) > this->outdoor_stale_timeout_ms_;
+  bool outdoor_valid = outdoor_reading_valid && !outdoor_stale;
+
+  if (outdoor_valid) {
+    this->last_valid_outdoor_temp_ = this->outdoor_sensor_->state;
+    if (this->outdoor_sensor_fault_) {
+      ESP_LOGI(TAG, "Outdoor sensor recovered (%.1f°C), resuming normal operation", this->outdoor_sensor_->state);
+      this->outdoor_sensor_fault_ = false;
+    }
+  } else {
+    if (!this->outdoor_sensor_fault_) {
+      if (outdoor_stale) {
+        ESP_LOGW(TAG, "Outdoor sensor stale (no update for %.1f min), latching fault",
+                 (now - this->last_valid_outdoor_time_) / 60000.0f);
+      } else {
+        ESP_LOGW(TAG, "Outdoor sensor invalid, latching fault");
+      }
+      this->outdoor_sensor_fault_ = true;
+    }
+  }
 
   // --- INDOOR SENSOR HANDLING ---
-  // Straight read: t_indoor is the current indoor state when present and finite, else NAN.
-  // No range check (the transient filter is gone). current_temperature is published only
-  // when the reading is not NAN so HA does not show a garbage value.
-  bool indoor_valid = this->indoor_sensor_->has_state() && !std::isnan(this->indoor_sensor_->state);
-  float t_indoor = indoor_valid ? this->indoor_sensor_->state : NAN;
+  this->update_indoor_health_(now);
 
+  // FAULT -> FRESH recovery: reset PID integral to avoid windup spike.
+  if (this->prev_indoor_health_ == IndoorDataHealth::FAULT && this->indoor_data_health_ == IndoorDataHealth::FRESH) {
+    ESP_LOGI(TAG, "Indoor sensor recovered, resetting PID integral");
+    this->pid_controller_.reset_accumulated_integral();
+    this->pid_correction_ = 0.0f;
+  }
+  this->prev_indoor_health_ = this->indoor_data_health_;
+
+  const bool indoor_valid_for_pid = (this->indoor_data_health_ == IndoorDataHealth::FRESH);
+  float t_indoor = this->last_valid_indoor_temp_;  // held value (NAN until first good read)
+
+  // Publish only when a real last-known-good value exists. last_valid_indoor_temp_ is
+  // initialised NAN and written only on a validated in-range read, so WARM_UP (and a
+  // garbage-only FAULT) leave it NAN -> current_temperature stays unset (HA "unavailable",
+  // the honest state). FRESH/COASTING/FAULT-after-good-read publish the held value.
   if (!std::isnan(t_indoor)) {
     this->current_temperature = t_indoor;
   }
@@ -227,16 +346,6 @@ void EquithermClimate::compute_and_apply_(bool update_pid) {
                   !std::isnan(this->manual_flow_temp_->state);
 #endif
 
-  // Without a configured substitute, an invalid outdoor reading makes the curve incalculable.
-  // In normal (non-manual, non-OFF) mode we hold the last setpoint rather than drive the
-  // boiler from a garbage reading. Manual mode bypasses the curve entirely.
-  if (!manual_active && !outdoor_valid) {
-    ESP_LOGD(TAG, "Outdoor sensor invalid, holding last setpoint");
-    this->publish_state();
-    this->state_callback_.call();
-    return;
-  }
-
   float t_flow;
 
   if (manual_active) {
@@ -250,6 +359,27 @@ void EquithermClimate::compute_and_apply_(bool update_pid) {
     this->pid_adjusted_output_ = t_flow;
 #endif
   } else {
+    // No configured outdoor substitute: an invalid/stale outdoor reading makes the curve
+    // incalculable. Hold the boiler on its last known-good setpoint (the last value actually
+    // written) and flag the fault rather than drive the boiler from a guessed temperature.
+    // (OFF mode already returned above; Manual mode is handled in the branch above and is
+    // exempt — explicit user control keeps applying manual_flow_temp_.)
+    if (!outdoor_valid) {
+      // "Freeze where it was": leave wws_active_ and action untouched so the diagnostics stay
+      // coherent. In particular, if the system was in WWS (active_setpoint_ == 0) when the
+      // outdoor sensor died, keeping wws_active_ true avoids the contradictory "0 setpoint +
+      // WWS off". The outdoor fault flag is set above; an indoor fault (when present) is
+      // already reflected in indoor_data_health_ (FAULT — invalid-for-hold). So either/both
+      // fault binary sensors go ON as appropriate. We deliberately do not write to the
+      // boiler — it holds its last setpoint.
+      this->heating_curve_output_ = NAN;
+      this->pid_adjusted_output_ = NAN;
+      this->flow_setpoint_ = this->active_setpoint_;  // reflect the setpoint we're holding
+      this->publish_state();
+      this->state_callback_.call();
+      return;
+    }
+
     // Normal equitherm curve (outdoor_valid is guaranteed true here)
     float t_outdoor = this->outdoor_sensor_->state;
     // WWS decision is owned by the controller, not the curve calculator.
@@ -266,15 +396,15 @@ void EquithermClimate::compute_and_apply_(bool update_pid) {
     // Store raw curve output for diagnostics (before PID)
     this->heating_curve_output_ = t_flow;
 
-    // PID correction (ONLY when indoor sensor is valid)
-    if (indoor_valid && update_pid) {
+    // PID correction (ONLY when indoor sensor is FRESH)
+    if (indoor_valid_for_pid && update_pid) {
       this->pid_correction_ = this->pid_controller_.update(this->target_temperature, t_indoor);
       // Guard against nan from PID controller (can happen on first call)
       if (std::isnan(this->pid_correction_)) {
         this->pid_correction_ = 0.0f;
       }
     } else {
-      // Indoor sensor invalid - disable PID correction (pure equitherm mode)
+      // Indoor sensor not FRESH (COASTING/WARM_UP/FAULT) - disable PID correction (pure equitherm)
       this->pid_correction_ = 0.0f;
     }
 
