@@ -926,8 +926,8 @@ bool LittleFSMount::init_lfs_config_() {
   ESP_LOGD(TAG,
            "Block device config: block_size=%" PRIu32 ", block_count=%" PRIu32 ", read_size=%" PRIu32
            ", prog_size=%" PRIu32,
-           (uint32_t) block_config.block_size, (uint32_t) block_config.block_count,
-           (uint32_t) block_config.read_size, (uint32_t) block_config.prog_size);
+           (uint32_t) block_config.block_size, (uint32_t) block_config.block_count, (uint32_t) block_config.read_size,
+           (uint32_t) block_config.prog_size);
 
   this->lfs_ = new lfs_t();
   this->lfs_cfg_ = new lfs_config();

@@ -71,7 +71,8 @@ void SPIFlash::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
   ESP_LOGCONFIG(TAG, "  Model: %s", this->model_.c_str());
   if (this->capacity_ >= 1024 * 1024) {
-    ESP_LOGCONFIG(TAG, "  Capacity: %" PRIu32 " bytes (%.1f MB)", this->capacity_, this->capacity_ / (1024.0f * 1024.0f));
+    ESP_LOGCONFIG(TAG, "  Capacity: %" PRIu32 " bytes (%.1f MB)", this->capacity_,
+                  this->capacity_ / (1024.0f * 1024.0f));
   } else {
     ESP_LOGCONFIG(TAG, "  Capacity: %" PRIu32 " bytes (%.1f KB)", this->capacity_, this->capacity_ / 1024.0f);
   }
@@ -98,7 +99,8 @@ void SPIFlash::auto_configure_from_jedec_id_() {
   // Codes 11-25 cover 2KB to 32MB (code 25 = 32MB for 256Mbit chips)
   if (capacity_code >= 11 && capacity_code <= 25) {
     this->capacity_ = 1UL << capacity_code;
-    ESP_LOGI(TAG, "Auto-detected capacity: %" PRIu32 " bytes (%.1f MB)", this->capacity_, this->capacity_ / (1024.0f * 1024.0f));
+    ESP_LOGI(TAG, "Auto-detected capacity: %" PRIu32 " bytes (%.1f MB)", this->capacity_,
+             this->capacity_ / (1024.0f * 1024.0f));
   }
 
   // Known chip identification

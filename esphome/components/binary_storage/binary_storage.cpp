@@ -108,7 +108,8 @@ int BinaryStorage::block_read(uint32_t block, uint32_t offset, void *buffer, uin
   uint32_t address = block * cfg.block_size + offset;
 
   if (!this->is_valid_address_(address, size)) {
-    ESP_LOGE(TAG, "Block read out of bounds: block=%" PRIu32 ", offset=%" PRIu32 ", size=%" PRIu32, block, offset, size);
+    ESP_LOGE(TAG, "Block read out of bounds: block=%" PRIu32 ", offset=%" PRIu32 ", size=%" PRIu32, block, offset,
+             size);
     return -1;
   }
 
@@ -120,7 +121,8 @@ int BinaryStorage::block_prog(uint32_t block, uint32_t offset, const void *buffe
   uint32_t address = block * cfg.block_size + offset;
 
   if (!this->is_valid_address_(address, size)) {
-    ESP_LOGE(TAG, "Block program out of bounds: block=%" PRIu32 ", offset=%" PRIu32 ", size=%" PRIu32, block, offset, size);
+    ESP_LOGE(TAG, "Block program out of bounds: block=%" PRIu32 ", offset=%" PRIu32 ", size=%" PRIu32, block, offset,
+             size);
     return -1;
   }
 
