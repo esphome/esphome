@@ -762,7 +762,7 @@ def run_compile(args, config: ConfigType) -> bool:
         "-m",
         "west",
         "build",
-        "--pristine=auto",
+        "--pristine=always",
         "-b",
         board,
         "-d",
