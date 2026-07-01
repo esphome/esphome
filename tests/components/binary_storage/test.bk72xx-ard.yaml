@@ -1,0 +1,5 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/bk72xx-ard.yaml
+  spi: !include ../../test_build_components/common/spi/bk72xx-ard.yaml
+
+<<: !include common.yaml
