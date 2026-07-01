@@ -5554,7 +5554,6 @@ class MockSerial:
         raise serial.SerialException("Port closed")
 
 
-
 def test_run_miniterm_uses_serial_for_url_for_rfc2217() -> None:
     """Test that RFC2217 URLs use serial_for_url() instead of Serial()."""
 
