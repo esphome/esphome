@@ -14,6 +14,13 @@ static const char *const QUERY_X = "?x\r";
 // Upper bound on a buffered response line; the longest valid frame is "?s=XX".
 static const size_t MAX_RESPONSE_LEN = 16;
 
+// Depending on the controller's calibration the reported position may stop a
+// little short of the physical limits (e.g. 99% at the fully-open reed switch)
+// rather than reaching a clean 0 or 100. Treat any reading within this margin
+// (in percent) of an end as fully open/closed so the endpoint states track the
+// limit switches regardless of calibration.
+static const uint8_t ENDPOINT_MARGIN = 2;
+
 using namespace esphome::cover;
 
 void APCProteousCover::setup() {
@@ -77,17 +84,15 @@ void APCProteousCover::parse_response_() {
   bool state_changed = false;
 
   if (type == 's') {
-    // s-status: bit 0 = operating, bit 1 = open
+    // s-status: bit 0 = operating, bit 1 = opening
     this->s_status_ = (uint8_t) value;
 
     bool is_operating = (value & 0x01) != 0;
-    bool is_closed = (value & 0x02) == 0;
+    bool is_opening = (value & 0x02) == 0;
 
     CoverOperation new_operation = COVER_OPERATION_IDLE;
     if (is_operating) {
-      // Determine direction based on whether we're closed or not
-      // If closed and operating, we're opening. Otherwise, we're closing.
-      if (is_closed) {
+      if (is_opening) {
         new_operation = COVER_OPERATION_OPENING;
       } else {
         new_operation = COVER_OPERATION_CLOSING;
@@ -99,14 +104,21 @@ void APCProteousCover::parse_response_() {
       state_changed = true;
     }
 
-    ESP_LOGV(TAG, "s-status: 0x%02X (operating=%d, closed=%d)", this->s_status_, is_operating, is_closed);
+    ESP_LOGV(TAG, "s-status: 0x%02X (operating=%d, opening=%d)", this->s_status_, is_operating, is_opening);
   } else if (type == 'x') {
     // x-status: position percentage (0-100 decimal, but sent as hex)
     this->x_status_ = (uint8_t) value;
 
-    // Convert 0-100 to 0.0-1.0 range
-    float new_position = this->x_status_ / 100.0f;
-    new_position = clamp(new_position, 0.0f, 1.0f);
+    // Convert 0-100 to 0.0-1.0 range, snapping the extremes to the endpoints so
+    // a calibration offset does not stop is_open/is_closed from ever being true.
+    float new_position;
+    if (this->x_status_ + ENDPOINT_MARGIN >= 100) {
+      new_position = COVER_OPEN;
+    } else if (this->x_status_ <= ENDPOINT_MARGIN) {
+      new_position = COVER_CLOSED;
+    } else {
+      new_position = clamp(this->x_status_ / 100.0f, 0.0f, 1.0f);
+    }
 
     if (this->position != new_position) {
       this->position = new_position;
