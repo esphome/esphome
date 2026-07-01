@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+
 #include "esphome/core/component.h"
 #include "esphome/components/tuya/tuya.h"
 #include "esphome/components/water_heater/water_heater.h"
@@ -8,6 +10,8 @@ namespace esphome::tuya {
 
 class TuyaWaterHeater final : public water_heater::WaterHeater, public Component {
  public:
+  TuyaWaterHeater() { this->mode_values_.fill(MODE_VALUE_UNSET); }
+
   void setup() override;
   void dump_config() override;
 
@@ -24,12 +28,8 @@ class TuyaWaterHeater final : public water_heater::WaterHeater, public Component
   void set_current_temperature_multiplier(float multiplier) { this->current_temperature_multiplier_ = multiplier; }
 
   void set_mode_id(uint8_t mode_id) { this->mode_id_ = mode_id; }
-  void set_eco_value(uint8_t value) { this->eco_value_ = value; }
-  void set_electric_value(uint8_t value) { this->electric_value_ = value; }
-  void set_performance_value(uint8_t value) { this->performance_value_ = value; }
-  void set_high_demand_value(uint8_t value) { this->high_demand_value_ = value; }
-  void set_heat_pump_value(uint8_t value) { this->heat_pump_value_ = value; }
-  void set_gas_value(uint8_t value) { this->gas_value_ = value; }
+  /// Map a WaterHeaterMode to the raw Tuya enum value the device uses for it.
+  void set_mode_value(water_heater::WaterHeaterMode mode, uint8_t value) { this->mode_values_[mode] = value; }
 
   void set_supported_modes(const std::initializer_list<water_heater::WaterHeaterMode> &modes) {
     this->supported_modes_ = modes;
@@ -52,15 +52,13 @@ class TuyaWaterHeater final : public water_heater::WaterHeater, public Component
   optional<uint8_t> target_temperature_id_{};
   optional<uint8_t> current_temperature_id_{};
   optional<uint8_t> mode_id_{};
-  optional<uint8_t> eco_value_{};
-  optional<uint8_t> electric_value_{};
-  optional<uint8_t> performance_value_{};
-  optional<uint8_t> high_demand_value_{};
-  optional<uint8_t> heat_pump_value_{};
-  optional<uint8_t> gas_value_{};
   float target_temperature_multiplier_{1.0f};
   float current_temperature_multiplier_{1.0f};
   water_heater::WaterHeaterModeMask supported_modes_;
+  /// Raw Tuya enum value for each WaterHeaterMode, or MODE_VALUE_UNSET when not configured.
+  /// Indexed by WaterHeaterMode (0..WATER_HEATER_MODE_GAS).
+  static constexpr uint8_t MODE_VALUE_UNSET = 0xFF;
+  std::array<uint8_t, water_heater::WATER_HEATER_MODE_GAS + 1> mode_values_{};
   /// Last non-OFF mode reported by the mode datapoint, applied when the heater turns on.
   optional<water_heater::WaterHeaterMode> last_reported_mode_{};
   bool is_on_{false};

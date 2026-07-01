@@ -23,15 +23,16 @@ CONF_HIGH_DEMAND_VALUE = "high_demand_value"
 CONF_HEAT_PUMP_VALUE = "heat_pump_value"
 CONF_GAS_VALUE = "gas_value"
 
-# Map of config key -> C++ setter name, one per non-OFF WaterHeaterMode. OFF is not an enum
-# value: it is represented by the switch datapoint being off, just like the tuya climate.
+# Map of config key -> WaterHeaterMode, one per non-OFF mode. OFF is not an enum value: it is
+# represented by the switch datapoint being off, just like the tuya climate.
+WaterHeaterMode = water_heater.WaterHeaterMode
 MODE_VALUES = {
-    CONF_ECO_VALUE: "set_eco_value",
-    CONF_ELECTRIC_VALUE: "set_electric_value",
-    CONF_PERFORMANCE_VALUE: "set_performance_value",
-    CONF_HIGH_DEMAND_VALUE: "set_high_demand_value",
-    CONF_HEAT_PUMP_VALUE: "set_heat_pump_value",
-    CONF_GAS_VALUE: "set_gas_value",
+    CONF_ECO_VALUE: WaterHeaterMode.WATER_HEATER_MODE_ECO,
+    CONF_ELECTRIC_VALUE: WaterHeaterMode.WATER_HEATER_MODE_ELECTRIC,
+    CONF_PERFORMANCE_VALUE: WaterHeaterMode.WATER_HEATER_MODE_PERFORMANCE,
+    CONF_HIGH_DEMAND_VALUE: WaterHeaterMode.WATER_HEATER_MODE_HIGH_DEMAND,
+    CONF_HEAT_PUMP_VALUE: WaterHeaterMode.WATER_HEATER_MODE_HEAT_PUMP,
+    CONF_GAS_VALUE: WaterHeaterMode.WATER_HEATER_MODE_GAS,
 }
 
 TuyaWaterHeater = tuya_ns.class_(
@@ -111,9 +112,9 @@ async def to_code(config):
 
     if (mode_dp := config.get(CONF_MODE_DATAPOINT)) is not None:
         cg.add(var.set_mode_id(mode_dp))
-        for key, setter in MODE_VALUES.items():
+        for key, mode in MODE_VALUES.items():
             if (value := config.get(key)) is not None:
-                cg.add(getattr(var, setter)(value))
+                cg.add(var.set_mode_value(mode, value))
 
     if (supported_modes := config.get(CONF_SUPPORTED_MODES)) is not None:
         cg.add(var.set_supported_modes(supported_modes))
