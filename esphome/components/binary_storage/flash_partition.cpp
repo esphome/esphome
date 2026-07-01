@@ -292,6 +292,11 @@ storage::StorageError FlashPartition::list_dir(const char *path,
 
     if (!fs_entry.is_dir) {
       char entry_path[STORAGE_MAX_PATH_LEN];
+      if (strlen(full_path) + 1 + strlen(entry->d_name) + 1 > STORAGE_MAX_PATH_LEN) {
+        ESP_LOGE(TAG, "Path too long: %s/%s", full_path, entry->d_name);
+        closedir(dir);
+        return storage::StorageError::INVALID_ARGS;
+      }
       snprintf(entry_path, sizeof(entry_path), "%s/%s", full_path, entry->d_name);
       struct stat st;
       if (::stat(entry_path, &st) == 0)
@@ -334,11 +339,20 @@ storage::StorageError FlashPartition::rmdir(const char *path, bool recursive) {
           continue;
 
         char child[STORAGE_MAX_PATH_LEN];
+        if (strlen(full_path) + 1 + strlen(entry->d_name) + 1 > STORAGE_MAX_PATH_LEN) {
+          ESP_LOGE(TAG, "Path too long: %s/%s", full_path, entry->d_name);
+          closedir(dir);
+          return storage::StorageError::INVALID_ARGS;
+        }
         snprintf(child, sizeof(child), "%s/%s", full_path, entry->d_name);
 
         if (entry->d_type == DT_DIR) {
-          // Relative path for recursive call
           char rel_child[STORAGE_MAX_PATH_LEN];
+          if (strlen(path) + 1 + strlen(entry->d_name) + 1 > STORAGE_MAX_PATH_LEN) {
+            ESP_LOGE(TAG, "Path too long: %s/%s", path, entry->d_name);
+            closedir(dir);
+            return storage::StorageError::INVALID_ARGS;
+          }
           snprintf(rel_child, sizeof(rel_child), "%s/%s", path, entry->d_name);
           this->rmdir(rel_child, true);
         } else {

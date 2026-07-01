@@ -753,6 +753,11 @@ storage::StorageError LittleFSMount::list_dir(const char *path,
 
     if (!fs_entry.is_dir) {
       char entry_path[STORAGE_MAX_PATH_LEN];
+      if (strlen(full_path) + 1 + strlen(entry->d_name) + 1 > STORAGE_MAX_PATH_LEN) {
+        ESP_LOGE(TAG, "Path too long: %s/%s", full_path, entry->d_name);
+        closedir(dir);
+        return storage::StorageError::INVALID_ARGS;
+      }
       snprintf(entry_path, sizeof(entry_path), "%s/%s", full_path, entry->d_name);
       struct stat st;
       if (::stat(entry_path, &st) == 0)
@@ -797,6 +802,11 @@ storage::StorageError LittleFSMount::rmdir(const char *path, bool recursive) {
       while (lfs_dir_read(lfs_cast(this->lfs_), &dir, &info) > 0) {
         if (strcmp(info.name, ".") == 0 || strcmp(info.name, "..") == 0)
           continue;
+        if (strlen(path) + 1 + strlen(info.name) + 1 > STORAGE_MAX_PATH_LEN) {
+          ESP_LOGE(TAG, "Path too long: %s/%s", path, info.name);
+          lfs_dir_close(lfs_cast(this->lfs_), &dir);
+          return storage::StorageError::INVALID_ARGS;
+        }
         snprintf(child, sizeof(child), "%s/%s", path, info.name);
         lfs_remove(lfs_cast(this->lfs_), child);
       }
