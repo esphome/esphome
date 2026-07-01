@@ -128,7 +128,7 @@ storage::StorageError SdStorageBase::seek(storage::FileHandle *handle, size_t of
   if (handle == nullptr || !handle->in_use || handle->file == nullptr)
     return storage::StorageError::INVALID_ARGS;
   return fseek(handle->file, static_cast<int32_t>(offset), SEEK_SET) == 0 ? storage::StorageError::OK
-                                                                       : storage::StorageError::READ_ERROR;
+                                                                          : storage::StorageError::READ_ERROR;
 }
 
 storage::StorageError SdStorageBase::tell(storage::FileHandle *handle, size_t *position) {
