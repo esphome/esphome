@@ -724,8 +724,8 @@ storage::StorageError NFSClient::list_dir(const char *path, void (*callback)(con
 
   storage::FileStat entry_stat;
   for (const auto &e : entries) {
-    strncpy(entry_stat.name, e.name.c_str(), NAME_MAX);
-    entry_stat.name[NAME_MAX] = '\0';
+    strncpy(entry_stat.name, e.name.c_str(), storage::STORAGE_NAME_MAX);
+    entry_stat.name[storage::STORAGE_NAME_MAX] = '\0';
     entry_stat.size = e.has_attr ? e.attr.size : 0;
     entry_stat.is_dir = e.has_attr && (e.attr.type == NF3DIR);
     callback(&entry_stat, ctx);
@@ -1123,7 +1123,9 @@ bool NFSClient::connect_tcp_() {
     this->client_ = nullptr;
     return false;
   }
+#ifndef USE_LIBRETINY
   this->client_->setNoDelay(true);
+#endif
   this->connected_ = true;
   return true;
 #endif
@@ -1263,7 +1265,7 @@ bool NFSClient::send_rpc_(const XDRBuffer &request, XDRBuffer &response) {
   while (total_read < response_length && millis() - start < 10000) {
     int available = this->client_->available();
     if (available > 0) {
-      size_t to_read = std::min(static_cast<size_t>(available), response_length - total_read);
+      size_t to_read = std::min(static_cast<size_t>(available), static_cast<size_t>(response_length - total_read));
       int bytes_read = this->client_->read(response_data.data() + total_read, to_read);
       if (bytes_read > 0) {
         total_read += bytes_read;
