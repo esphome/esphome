@@ -1,14 +1,5 @@
 substitutions:
   onewire_pin: P22
 
-# Inline i2c config using valid BK7252 I2C1 pins (P20=SCL1, P21=SDA1).
-# The shared bk72xx-ard i2c package uses P26/P24 which don't support I2C mode —
-# remove this block once that package is fixed upstream.
-i2c:
-  - id: i2c_bus
-    scl: P20
-    sda: P21
-    scan: true
-
 packages:
   common: !include common.bk72xx.yaml
