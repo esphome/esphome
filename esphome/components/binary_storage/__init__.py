@@ -377,6 +377,12 @@ async def to_code(config):
     if device_type in ["FLASH_PARTITION", "PARTITION"]:
         require_vfs_dir()
         cg.add_define("USE_BINARY_STORAGE_LITTLEFS")
+        _add_littlefs_sdkconfig()
+        add_idf_component(
+            name="espressif/esp_littlefs",
+            repo="https://github.com/p1ngb4ck/esphome_esp_littlefs.git",
+            ref="main",
+        )
 
         var = cg.new_Pvariable(config[CONF_ID])
         await cg.register_component(var, config)
