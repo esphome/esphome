@@ -17,7 +17,9 @@ def load_idedata(environment, temp_folder, platformio_ini):
         """
 #include <zephyr/kernel.h>
 int main() { return 0;}
-extern "C" void zboss_signal_handler() {};
+extern "C" {
+void zboss_signal_handler() {}
+}
 """,
         encoding="utf-8",
     )
@@ -50,6 +52,7 @@ CONFIG_CRYPTO=y
 CONFIG_NVS=y
 CONFIG_SETTINGS=y
 #zigbee end
+CONFIG_DEBUG_COREDUMP=y
 """,
         encoding="utf-8",
     )
