@@ -35,6 +35,7 @@ class Platform(StrEnum):
     NRF52 = "nrf52"
     RP2040 = "rp2040"
     RTL87XX = "rtl87xx"
+    STM32 = "stm32"
 
 
 class Framework(StrEnum):
@@ -108,6 +109,7 @@ PLATFORM_LN882X = Platform.LN882X
 PLATFORM_NRF52 = Platform.NRF52
 PLATFORM_RP2040 = Platform.RP2040
 PLATFORM_RTL87XX = Platform.RTL87XX
+PLATFORM_STM32 = Platform.STM32
 
 
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}

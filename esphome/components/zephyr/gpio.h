@@ -1,6 +1,7 @@
 #pragma once
 
 #ifdef USE_ZEPHYR
+#include <zephyr/kernel.h>
 #include "esphome/core/hal.h"
 #include <zephyr/device.h>
 namespace esphome::zephyr {

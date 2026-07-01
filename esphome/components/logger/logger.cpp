@@ -226,7 +226,7 @@ void Logger::dump_config() {
                 "  Initial Level: %s",
                 LOG_STR_ARG(get_log_level_str(ESPHOME_LOG_LEVEL)),
                 LOG_STR_ARG(get_log_level_str(this->current_level_)));
-#ifndef USE_HOST
+#if !defined(USE_HOST) && !defined(USE_STM32)
   ESP_LOGCONFIG(TAG,
                 "  Log Baud Rate: %" PRIu32 "\n"
                 "  Hardware UART: %s",

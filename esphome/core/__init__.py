@@ -27,6 +27,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     PLATFORM_RP2040,
     PLATFORM_RTL87XX,
+    PLATFORM_STM32,
     Toolchain,
 )
 
@@ -837,6 +838,10 @@ class EsphomeCore:
     @property
     def is_rtl87xx(self):
         return self.target_platform == PLATFORM_RTL87XX
+
+    @property
+    def is_stm32(self):
+        return self.target_platform == PLATFORM_STM32
 
     @property
     def is_ln882x(self):

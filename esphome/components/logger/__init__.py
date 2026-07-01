@@ -184,6 +184,8 @@ def uart_selection(value):
         raise cv.Invalid("Uart selection not valid for host platform")
     if CORE.is_nrf52:
         return cv.one_of(*UART_SELECTION_NRF52, upper=True)(value)
+    if CORE.target_platform == "stm32":
+        raise cv.Invalid("Uart selection not valid for stm32 platform")
     raise NotImplementedError
 
 
@@ -494,6 +496,11 @@ async def _late_logger_init(config: ConfigType) -> None:
                 cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
                 zephyr_add_prj_conf("UART_LINE_CTRL", True)
                 zephyr_add_cdc_acm(config, 0)
+
+    if CORE.target_platform == "stm32":
+        zephyr_add_prj_conf("SERIAL", True)
+        zephyr_add_prj_conf("UART_CONSOLE", True)
+        zephyr_add_prj_conf("CONSOLE", True)
 
     # Register at end for safe mode
     await cg.register_component(log, config)
