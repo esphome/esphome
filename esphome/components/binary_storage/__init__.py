@@ -376,6 +376,7 @@ async def to_code(config):
     # Handle FLASH_PARTITION
     if device_type in ["FLASH_PARTITION", "PARTITION"]:
         require_vfs_dir()
+        cg.add_define("USE_BINARY_STORAGE_LITTLEFS")
 
         var = cg.new_Pvariable(config[CONF_ID])
         await cg.register_component(var, config)
@@ -399,6 +400,7 @@ async def to_code(config):
     if mode in [MODE_LITTLEFS, MODE_BOTH]:
         add_idf_sdkconfig_option("CONFIG_LITTLEFS_CUSTOM_BLOCK_DEVICE", True)
         require_vfs_dir()
+        cg.add_define("USE_BINARY_STORAGE_LITTLEFS")
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)

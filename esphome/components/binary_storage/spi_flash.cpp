@@ -71,12 +71,12 @@ void SPIFlash::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
   ESP_LOGCONFIG(TAG, "  Model: %s", this->model_.c_str());
   if (this->capacity_ >= 1024 * 1024) {
-    ESP_LOGCONFIG(TAG, "  Capacity: %u bytes (%.1f MB)", this->capacity_, this->capacity_ / (1024.0f * 1024.0f));
+    ESP_LOGCONFIG(TAG, "  Capacity: %" PRIu32 " bytes (%.1f MB)", this->capacity_, this->capacity_ / (1024.0f * 1024.0f));
   } else {
-    ESP_LOGCONFIG(TAG, "  Capacity: %u bytes (%.1f KB)", this->capacity_, this->capacity_ / 1024.0f);
+    ESP_LOGCONFIG(TAG, "  Capacity: %" PRIu32 " bytes (%.1f KB)", this->capacity_, this->capacity_ / 1024.0f);
   }
-  ESP_LOGCONFIG(TAG, "  Page Size: %u bytes", this->page_size_);
-  ESP_LOGCONFIG(TAG, "  Sector Size: %u bytes", this->sector_size_);
+  ESP_LOGCONFIG(TAG, "  Page Size: %" PRIu32 " bytes", this->page_size_);
+  ESP_LOGCONFIG(TAG, "  Sector Size: %" PRIu32 " bytes", this->sector_size_);
   ESP_LOGCONFIG(TAG, "  JEDEC ID: 0x%06X", this->jedec_id_);
   ESP_LOGCONFIG(TAG, "  Manufacturer: 0x%02X", this->get_manufacturer_id());
   ESP_LOGCONFIG(TAG, "  Quad Mode: %s", this->quad_mode_ ? "Enabled (4x faster)" : "Disabled");
@@ -98,7 +98,7 @@ void SPIFlash::auto_configure_from_jedec_id_() {
   // Codes 11-25 cover 2KB to 32MB (code 25 = 32MB for 256Mbit chips)
   if (capacity_code >= 11 && capacity_code <= 25) {
     this->capacity_ = 1UL << capacity_code;
-    ESP_LOGI(TAG, "Auto-detected capacity: %u bytes (%.1f MB)", this->capacity_, this->capacity_ / (1024.0f * 1024.0f));
+    ESP_LOGI(TAG, "Auto-detected capacity: %" PRIu32 " bytes (%.1f MB)", this->capacity_, this->capacity_ / (1024.0f * 1024.0f));
   }
 
   // Known chip identification
@@ -253,7 +253,7 @@ bool SPIFlash::wait_ready(uint32_t timeout_ms) {
     delay(1);
   }
 
-  ESP_LOGW(TAG, "Wait ready timeout after %u ms", timeout_ms);
+  ESP_LOGW(TAG, "Wait ready timeout after %" PRIu32 " ms", timeout_ms);
   return false;
 }
 
@@ -405,7 +405,7 @@ storage::StorageError SPIFlash::format() {
 
 bool SPIFlash::read_raw(uint32_t address, uint8_t *data, size_t length) {
   if (!this->is_valid_address_(address, length)) {
-    ESP_LOGE(TAG, "Read address out of bounds: 0x%X + %u", address, length);
+    ESP_LOGE(TAG, "Read address out of bounds: 0x%" PRIx32 " + %" PRIu32, address, (uint32_t) length);
     return false;
   }
 
@@ -429,7 +429,7 @@ bool SPIFlash::read_raw(uint32_t address, uint8_t *data, size_t length) {
 
 bool SPIFlash::write_page_(uint32_t address, const uint8_t *data, size_t length) {
   if (length == 0 || length > this->page_size_) {
-    ESP_LOGE(TAG, "Invalid page write length: %u (max %u)", length, this->page_size_);
+    ESP_LOGE(TAG, "Invalid page write length: %" PRIu32 " (max %" PRIu32 ")", (uint32_t) length, this->page_size_);
     return false;
   }
 
@@ -453,7 +453,7 @@ bool SPIFlash::write_page_(uint32_t address, const uint8_t *data, size_t length)
 
 bool SPIFlash::write_raw(uint32_t address, const uint8_t *data, size_t length) {
   if (!this->is_valid_address_(address, length)) {
-    ESP_LOGE(TAG, "Write address out of bounds: 0x%X + %u", address, length);
+    ESP_LOGE(TAG, "Write address out of bounds: 0x%" PRIx32 " + %" PRIu32, address, (uint32_t) length);
     return false;
   }
 

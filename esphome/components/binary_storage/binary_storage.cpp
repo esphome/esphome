@@ -13,12 +13,12 @@ void BinaryStorage::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Binary Storage...");
   ESP_LOGCONFIG(TAG, "  Device: %s", this->get_device_name());
   ESP_LOGCONFIG(TAG, "  Type: %s", this->get_device_type());
-  ESP_LOGCONFIG(TAG, "  Capacity: %u bytes (%.1f KB)", this->get_capacity(), this->get_capacity() / 1024.0f);
-  ESP_LOGCONFIG(TAG, "  Page Size: %u bytes", this->get_page_size());
+  ESP_LOGCONFIG(TAG, "  Capacity: %" PRIu32 " bytes (%.1f KB)", this->get_capacity(), this->get_capacity() / 1024.0f);
+  ESP_LOGCONFIG(TAG, "  Page Size: %" PRIu32 " bytes", this->get_page_size());
 
   uint32_t erase_size = this->get_erase_size();
   if (erase_size > 0) {
-    ESP_LOGCONFIG(TAG, "  Erase Block Size: %u bytes", erase_size);
+    ESP_LOGCONFIG(TAG, "  Erase Block Size: %" PRIu32 " bytes", erase_size);
   }
 
   if (storage::global_storage_registry != nullptr)
@@ -28,7 +28,7 @@ void BinaryStorage::setup() {
 void BinaryStorage::dump_config() {
   ESP_LOGCONFIG(TAG, "Binary Storage:");
   ESP_LOGCONFIG(TAG, "  Device: %s", this->get_device_name());
-  ESP_LOGCONFIG(TAG, "  Capacity: %u bytes", this->get_capacity());
+  ESP_LOGCONFIG(TAG, "  Capacity: %" PRIu32 " bytes", this->get_capacity());
 }
 
 storage::StorageError BinaryStorage::get_info(storage::StorageInfo *info) {
@@ -63,7 +63,7 @@ uint32_t BinaryStorage::fill(uint8_t value) {
   while (address < capacity) {
     size_t chunk_size = std::min((size_t) (capacity - address), buffer_size);
     if (this->write(address, buffer, chunk_size, nullptr) != storage::StorageError::OK) {
-      ESP_LOGE(TAG, "Fill failed at address 0x%X", address);
+      ESP_LOGE(TAG, "Fill failed at address 0x%" PRIx32, address);
       return address;
     }
     address += chunk_size;
@@ -71,6 +71,8 @@ uint32_t BinaryStorage::fill(uint8_t value) {
 
   return capacity;
 }
+
+#ifdef USE_BINARY_STORAGE_LITTLEFS
 
 BlockDeviceConfig BinaryStorage::get_block_config() const {
   BlockDeviceConfig config;
@@ -106,7 +108,7 @@ int BinaryStorage::block_read(uint32_t block, uint32_t offset, void *buffer, uin
   uint32_t address = block * cfg.block_size + offset;
 
   if (!this->is_valid_address_(address, size)) {
-    ESP_LOGE(TAG, "Block read out of bounds: block=%u, offset=%u, size=%u", block, offset, size);
+    ESP_LOGE(TAG, "Block read out of bounds: block=%" PRIu32 ", offset=%" PRIu32 ", size=%" PRIu32, block, offset, size);
     return -1;
   }
 
@@ -118,7 +120,7 @@ int BinaryStorage::block_prog(uint32_t block, uint32_t offset, const void *buffe
   uint32_t address = block * cfg.block_size + offset;
 
   if (!this->is_valid_address_(address, size)) {
-    ESP_LOGE(TAG, "Block program out of bounds: block=%u, offset=%u, size=%u", block, offset, size);
+    ESP_LOGE(TAG, "Block program out of bounds: block=%" PRIu32 ", offset=%" PRIu32 ", size=%" PRIu32, block, offset, size);
     return -1;
   }
 
@@ -132,5 +134,7 @@ int BinaryStorage::block_erase(uint32_t block) {
 
   return (this->erase(address, cfg.block_size) == storage::StorageError::OK) ? 0 : -1;
 }
+
+#endif  // USE_BINARY_STORAGE_LITTLEFS
 
 }  // namespace esphome::binary_storage

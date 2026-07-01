@@ -43,9 +43,8 @@ void SPIMRAM::setup() {
 void SPIMRAM::dump_config() {
   ESP_LOGCONFIG(TAG, "SPI MRAM:");
   ESP_LOGCONFIG(TAG, "  Model: %s", this->model_.c_str());
-  ESP_LOGCONFIG(TAG, "  Capacity: %u bytes (%" PRIu32 " KB)", this->capacity_, this->capacity_ / 1024);
+  ESP_LOGCONFIG(TAG, "  Capacity: %" PRIu32 " bytes (%" PRIu32 " KB)", this->capacity_, this->capacity_ / 1024);
   ESP_LOGCONFIG(TAG, "  Addressing: %u-bit", this->addressing_bits_);
-  ESP_LOGCONFIG(TAG, "  SPI Speed: %u Hz", this->get_data_rate());
   ESP_LOGCONFIG(TAG, "  Features: Unlimited write cycles, instant writes, no erase needed");
 
   uint8_t status = this->read_status_register();

@@ -38,7 +38,7 @@ void I2CEeprom::dump_config() {
   ESP_LOGCONFIG(TAG, "I2C EEPROM:");
   LOG_I2C_DEVICE(this);
   ESP_LOGCONFIG(TAG, "  Model: %s", this->model_.c_str());
-  ESP_LOGCONFIG(TAG, "  Capacity: %u bytes (%.1f KB)", this->capacity_, this->capacity_ / 1024.0f);
+  ESP_LOGCONFIG(TAG, "  Capacity: %" PRIu32 " bytes (%.1f KB)", this->capacity_, this->capacity_ / 1024.0f);
   ESP_LOGCONFIG(TAG, "  Page Size: %u bytes", this->page_size_);
   ESP_LOGCONFIG(TAG, "  Addressing: %u-bit", this->addressing_bits_);
 
@@ -105,8 +105,8 @@ void I2CEeprom::auto_configure_from_model_() {
         this->page_size_ = 128;
       }
 
-      ESP_LOGD(TAG, "Auto-configured: %u Kbit = %u bytes, page=%u, addr=%u-bit", capacity_kbit, this->capacity_,
-               this->page_size_, this->addressing_bits_);
+      ESP_LOGD(TAG, "Auto-configured: %u Kbit = %" PRIu32 " bytes, page=%u, addr=%u-bit", capacity_kbit,
+               this->capacity_, this->page_size_, this->addressing_bits_);
     }
   }
 
@@ -153,7 +153,7 @@ bool I2CEeprom::wait_for_write_complete_(uint32_t timeout_ms) {
     delayMicroseconds(100);
   }
 
-  ESP_LOGW(TAG, "Write timeout after %u ms", timeout_ms);
+  ESP_LOGW(TAG, "Write timeout after %" PRIu32 " ms", timeout_ms);
   return false;
 }
 
@@ -200,7 +200,7 @@ storage::StorageError I2CEeprom::format() { return this->BinaryStorage::format()
 
 bool I2CEeprom::read_raw(uint32_t address, uint8_t *data, size_t length) {
   if (!this->is_valid_address_(address, length)) {
-    ESP_LOGE(TAG, "Read address out of bounds: 0x%X + %u", address, length);
+    ESP_LOGE(TAG, "Read address out of bounds: 0x%" PRIx32 " + %" PRIu32, address, (uint32_t) length);
     return false;
   }
 
@@ -225,7 +225,7 @@ bool I2CEeprom::read_raw(uint32_t address, uint8_t *data, size_t length) {
 
 bool I2CEeprom::write_page_(uint32_t address, const uint8_t *data, size_t length) {
   if (length == 0 || length > this->page_size_) {
-    ESP_LOGE(TAG, "Invalid page write length: %u (max %u)", length, this->page_size_);
+    ESP_LOGE(TAG, "Invalid page write length: %" PRIu32 " (max %u)", (uint32_t) length, this->page_size_);
     return false;
   }
 
@@ -261,7 +261,7 @@ bool I2CEeprom::write_page_(uint32_t address, const uint8_t *data, size_t length
 
 bool I2CEeprom::write_raw(uint32_t address, const uint8_t *data, size_t length) {
   if (!this->is_valid_address_(address, length)) {
-    ESP_LOGE(TAG, "Write address out of bounds: 0x%X + %u", address, length);
+    ESP_LOGE(TAG, "Write address out of bounds: 0x%" PRIx32 " + %" PRIu32, address, (uint32_t) length);
     return false;
   }
 

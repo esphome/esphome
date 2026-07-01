@@ -49,9 +49,8 @@ void SPIFram::setup() {
 void SPIFram::dump_config() {
   ESP_LOGCONFIG(TAG, "SPI FRAM:");
   ESP_LOGCONFIG(TAG, "  Model: %s", this->model_.c_str());
-  ESP_LOGCONFIG(TAG, "  Capacity: %u bytes (%" PRIu32 " KB)", this->capacity_, this->capacity_ / 1024);
+  ESP_LOGCONFIG(TAG, "  Capacity: %" PRIu32 " bytes (%" PRIu32 " KB)", this->capacity_, this->capacity_ / 1024);
   ESP_LOGCONFIG(TAG, "  Addressing: %u-bit", this->addressing_bits_);
-  ESP_LOGCONFIG(TAG, "  SPI Speed: %u Hz", this->get_data_rate());
 
   uint8_t status = this->read_status_register();
   ESP_LOGCONFIG(TAG, "  Status Register: 0x%02X", status);

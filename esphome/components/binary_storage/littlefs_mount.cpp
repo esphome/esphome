@@ -521,10 +521,11 @@ void LittleFSMount::dump_config() {
     if (block_count >= 0) {
       uint32_t total_bytes = this->lfs_cfg_->block_count * this->lfs_cfg_->block_size;
       uint32_t used_bytes = block_count * this->lfs_cfg_->block_size;
-      ESP_LOGCONFIG(TAG, "  Total: %u bytes (%.1f KB)", total_bytes, total_bytes / 1024.0f);
-      ESP_LOGCONFIG(TAG, "  Used:  %u bytes (%.1f KB, %.1f%%)", used_bytes, used_bytes / 1024.0f,
+      ESP_LOGCONFIG(TAG, "  Total: %" PRIu32 " bytes (%.1f KB)", total_bytes, total_bytes / 1024.0f);
+      ESP_LOGCONFIG(TAG, "  Used:  %" PRIu32 " bytes (%.1f KB, %.1f%%)", used_bytes, used_bytes / 1024.0f,
                     (used_bytes * 100.0f) / total_bytes);
-      ESP_LOGCONFIG(TAG, "  Free:  %u bytes (%.1f KB)", total_bytes - used_bytes, (total_bytes - used_bytes) / 1024.0f);
+      ESP_LOGCONFIG(TAG, "  Free:  %" PRIu32 " bytes (%.1f KB)", total_bytes - used_bytes,
+                    (total_bytes - used_bytes) / 1024.0f);
     }
   }
 }
@@ -906,7 +907,7 @@ void LittleFSMount::list_files() const {
       break;
 
     if (info.type == LFS_TYPE_REG) {
-      ESP_LOGI(TAG, "  File: %s, Size: %u", info.name, info.size);
+      ESP_LOGI(TAG, "  File: %s, Size: %" PRIu32, info.name, (uint32_t) info.size);
     } else if (info.type == LFS_TYPE_DIR) {
       ESP_LOGI(TAG, "  Directory: %s", info.name);
     }
@@ -922,8 +923,11 @@ void LittleFSMount::list_files() const {
 bool LittleFSMount::init_lfs_config_() {
   BlockDeviceConfig block_config = this->storage_->get_block_config();
 
-  ESP_LOGD(TAG, "Block device config: block_size=%u, block_count=%u, read_size=%u, prog_size=%u",
-           block_config.block_size, block_config.block_count, block_config.read_size, block_config.prog_size);
+  ESP_LOGD(TAG,
+           "Block device config: block_size=%" PRIu32 ", block_count=%" PRIu32 ", read_size=%" PRIu32
+           ", prog_size=%" PRIu32,
+           (uint32_t) block_config.block_size, (uint32_t) block_config.block_count,
+           (uint32_t) block_config.read_size, (uint32_t) block_config.prog_size);
 
   this->lfs_ = new lfs_t();
   this->lfs_cfg_ = new lfs_config();

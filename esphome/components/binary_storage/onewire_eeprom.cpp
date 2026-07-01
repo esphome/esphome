@@ -85,7 +85,7 @@ void OneWireEEPROM::dump_config() {
   ESP_LOGCONFIG(TAG, "OneWire EEPROM:");
   LOG_PIN("  Data Pin: ", this->pin_);
   ESP_LOGCONFIG(TAG, "  Model: %s", this->model_.c_str());
-  ESP_LOGCONFIG(TAG, "  Capacity: %u bytes", this->capacity_);
+  ESP_LOGCONFIG(TAG, "  Capacity: %" PRIu32 " bytes", this->capacity_);
   ESP_LOGCONFIG(TAG, "  Page Size: %u bytes", this->page_size_);
   ESP_LOGCONFIG(TAG, "  ROM ID: 0x%016" PRIX64, this->rom_address_);
   ESP_LOGCONFIG(TAG, "  Family Code: 0x%02X", this->get_family_code());
@@ -120,7 +120,8 @@ storage::StorageError OneWireEEPROM::format() { return this->BinaryStorage::form
 
 bool OneWireEEPROM::read_raw(uint32_t address, uint8_t *data, size_t length) {
   if (address + length > this->capacity_) {
-    ESP_LOGE(TAG, "Read overflow: address 0x%04X + length %u > capacity %u", address, length, this->capacity_);
+    ESP_LOGE(TAG, "Read overflow: address 0x%04" PRIx32 " + length %" PRIu32 " > capacity %" PRIu32, address,
+             (uint32_t) length, this->capacity_);
     return false;
   }
 
@@ -129,7 +130,8 @@ bool OneWireEEPROM::read_raw(uint32_t address, uint8_t *data, size_t length) {
 
 bool OneWireEEPROM::write_raw(uint32_t address, const uint8_t *data, size_t length) {
   if (address + length > this->capacity_) {
-    ESP_LOGE(TAG, "Write overflow: address 0x%04X + length %u > capacity %u", address, length, this->capacity_);
+    ESP_LOGE(TAG, "Write overflow: address 0x%04" PRIx32 " + length %" PRIu32 " > capacity %" PRIu32, address,
+             (uint32_t) length, this->capacity_);
     return false;
   }
 
@@ -141,11 +143,11 @@ bool OneWireEEPROM::write_raw(uint32_t address, const uint8_t *data, size_t leng
     size_t write_len = std::min((size_t) bytes_to_boundary, length);
     write_len = std::min(write_len, (size_t) this->page_size_);
 
-    ESP_LOGV(TAG, "Writing %u bytes at 0x%04X", write_len, address);
+    ESP_LOGV(TAG, "Writing %" PRIu32 " bytes at 0x%04" PRIx32, (uint32_t) write_len, address);
 
     // Write to scratchpad
     if (!this->write_scratchpad_(address, data, write_len)) {
-      ESP_LOGE(TAG, "Write scratchpad failed at 0x%04X", address);
+      ESP_LOGE(TAG, "Write scratchpad failed at 0x%04" PRIx32, address);
       return false;
     }
 
@@ -153,19 +155,19 @@ bool OneWireEEPROM::write_raw(uint32_t address, const uint8_t *data, size_t leng
     uint8_t ta1, ta2, es;
     uint8_t verify_buffer[32];  // Max page size
     if (!this->read_scratchpad_(ta1, ta2, es, verify_buffer, write_len)) {
-      ESP_LOGE(TAG, "Read scratchpad failed at 0x%04X", address);
+      ESP_LOGE(TAG, "Read scratchpad failed at 0x%04" PRIx32, address);
       return false;
     }
 
     // Verify data
     if (memcmp(data, verify_buffer, write_len) != 0) {
-      ESP_LOGE(TAG, "Scratchpad data mismatch at 0x%04X", address);
+      ESP_LOGE(TAG, "Scratchpad data mismatch at 0x%04" PRIx32, address);
       return false;
     }
 
     // Copy scratchpad to memory
     if (!this->copy_scratchpad_(ta1, ta2, es)) {
-      ESP_LOGE(TAG, "Copy scratchpad failed at 0x%04X", address);
+      ESP_LOGE(TAG, "Copy scratchpad failed at 0x%04" PRIx32, address);
       return false;
     }
 

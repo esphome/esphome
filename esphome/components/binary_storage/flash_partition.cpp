@@ -51,7 +51,7 @@ void FlashPartition::setup() {
 
   size_t total = 0, used = 0;
   if (esp_littlefs_info(this->partition_label_, &total, &used) == ESP_OK) {
-    ESP_LOGI(TAG, "Partition size: total=%u, used=%u", total, used);
+    ESP_LOGI(TAG, "Partition size: total=%" PRIu32 ", used=%" PRIu32, (uint32_t) total, (uint32_t) used);
   }
 }
 
@@ -65,9 +65,9 @@ void FlashPartition::dump_config() {
   if (this->mounted_) {
     size_t total = 0, used = 0;
     if (esp_littlefs_info(this->partition_label_, &total, &used) == ESP_OK) {
-      ESP_LOGCONFIG(TAG, "  Total: %u bytes", total);
-      ESP_LOGCONFIG(TAG, "  Used:  %u bytes", used);
-      ESP_LOGCONFIG(TAG, "  Free:  %u bytes", total - used);
+      ESP_LOGCONFIG(TAG, "  Total: %" PRIu32 " bytes", (uint32_t) total);
+      ESP_LOGCONFIG(TAG, "  Used:  %" PRIu32 " bytes", (uint32_t) used);
+      ESP_LOGCONFIG(TAG, "  Free:  %" PRIu32 " bytes", (uint32_t) (total - used));
     }
   }
 }

@@ -9,7 +9,7 @@
 
 namespace esphome::binary_storage {
 
-#ifdef USE_ESP_IDF
+#ifdef USE_BINARY_STORAGE_LITTLEFS
 // Block device configuration for LittleFS integration.
 // LittleFS requires block-oriented operations — this provides the translation
 // layer between byte-addressable storage and LittleFS block callbacks.
@@ -20,7 +20,7 @@ struct BlockDeviceConfig {
   uint32_t prog_size;
   uint32_t lookahead_size;
 };
-#endif  // USE_ESP_IDF
+#endif  // USE_BINARY_STORAGE_LITTLEFS
 
 // Abstract base for all binary storage devices (FRAM, EEPROM, SPI Flash, MRAM, OneWire EEPROM).
 // Extends RawStorage — provides offset-based byte access.
@@ -62,7 +62,7 @@ class BinaryStorage : public storage::RawStorage {
   // Fill entire device with a value. Returns bytes written.
   virtual uint32_t fill(uint8_t value);
 
-#ifdef USE_ESP_IDF
+#ifdef USE_BINARY_STORAGE_LITTLEFS
   //========================================================================
   // LittleFS block device interface (internal — used by LittleFSMount only)
   //========================================================================
@@ -72,7 +72,7 @@ class BinaryStorage : public storage::RawStorage {
   virtual int block_prog(uint32_t block, uint32_t offset, const void *buffer, uint32_t size);
   virtual int block_erase(uint32_t block);
   virtual int block_sync() { return 0; }
-#endif  // USE_ESP_IDF
+#endif  // USE_BINARY_STORAGE_LITTLEFS
 
   //========================================================================
   // Configuration setters (called by Python codegen)

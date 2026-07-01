@@ -24,7 +24,7 @@ void I2CFram::setup() {
     uint16_t density = this->get_density();
     if (density > 0) {
       this->capacity_ = (1UL << density) * 1024UL;  // Convert density to bytes
-      ESP_LOGI(TAG, "Auto-detected size: %u KB (%u bytes)", (1UL << density), this->capacity_);
+      ESP_LOGI(TAG, "Auto-detected size: %" PRIu32 " KB (%" PRIu32 " bytes)", (1UL << density), this->capacity_);
     } else {
       ESP_LOGW(TAG, "Could not auto-detect size, set it in config!");
     }
@@ -51,7 +51,7 @@ void I2CFram::dump_config() {
   ESP_LOGCONFIG(TAG, "I2C FRAM:");
   LOG_I2C_DEVICE(this);
   ESP_LOGCONFIG(TAG, "  Model: %s", this->model_.c_str());
-  ESP_LOGCONFIG(TAG, "  Capacity: %u bytes (%.1f KB)", this->capacity_, this->capacity_ / 1024.0f);
+  ESP_LOGCONFIG(TAG, "  Capacity: %" PRIu32 " bytes (%.1f KB)", this->capacity_, this->capacity_ / 1024.0f);
   ESP_LOGCONFIG(TAG, "  Addressing: %u-bit", this->addressing_bits_);
   ESP_LOGCONFIG(TAG, "  Manufacturer: 0x%04X", this->get_manufacturer_id());
   ESP_LOGCONFIG(TAG, "  Product: 0x%04X", this->get_product_id());
@@ -168,7 +168,7 @@ storage::StorageError I2CFram::format() { return this->BinaryStorage::format(); 
 
 bool I2CFram::read_raw(uint32_t address, uint8_t *data, size_t length) {
   if (!this->is_valid_address_(address, length)) {
-    ESP_LOGE(TAG, "Read address out of bounds: 0x%X + %u", address, length);
+    ESP_LOGE(TAG, "Read address out of bounds: 0x%" PRIx32 " + %" PRIu32, address, (uint32_t) length);
     return false;
   }
 
@@ -193,7 +193,7 @@ bool I2CFram::read_raw(uint32_t address, uint8_t *data, size_t length) {
 
 bool I2CFram::write_raw(uint32_t address, const uint8_t *data, size_t length) {
   if (!this->is_valid_address_(address, length)) {
-    ESP_LOGE(TAG, "Write address out of bounds: 0x%X + %u", address, length);
+    ESP_LOGE(TAG, "Write address out of bounds: 0x%" PRIx32 " + %" PRIu32, address, (uint32_t) length);
     return false;
   }
 
