@@ -11,6 +11,8 @@
 
 namespace esphome::binary_storage {
 
+using storage::STORAGE_MAX_PATH_LEN;
+
 static const char *const TAG = "flash_partition";
 
 //========================================================================
