@@ -39,28 +39,28 @@
  * this does _not_ mean the gate has started closing. The component only
  * considers status replies as authoritative and simply fires off commands,
  * ignoring the echoed messages.
- * 
+ *
  * Controlling the light if present:
  *
  * | sequence  |        length       |    type   |       payload       |
  * | 0x40 0xFF | 0x00 0x00 0x00 0x06 | 0x01 0x06 | 0x00 0x0B 0x00 0x01 |
  * | 0x40 0xFF | 0x00 0x00 0x00 0x06 | 0x01 0x06 | 0x00 0x0B 0x00 0x01 |
  *
- * The unit acks any commands by echoing back the message in full. 
+ * The unit acks any commands by echoing back the message in full.
  * The payload structure is as follows: [0x00, 0x0B] (light), followed by
  * one of the states normally carried in status replies: (0x0) off, (0x1)
- * on. 
- * 
- * payload and responses: 
+ * on.
+ *
+ * payload and responses:
  * | payload                                    | response                                                      |
  * | 0x00 0x00 0x00 0x00 - 0x00 0x09 0xff 0xff  | errorcode 00 00 00 04 01 06 86 02                             |
  * | 0x00 0x0a 0x00 0x00 - 0x00 0x0a 0x00 0x03  | controlling the door as described above                       |
  * | 0x00 0x0a 0x00 0x04 - 0x00 0x0a 0xff 0xff  | sends back the payload. The third parameter does not matter.  |
- * |                                            | so 0a0101 0a0201 0a0301 to 0aff01 all closes the door         | 
+ * |                                            | so 0a0101 0a0201 0a0301 to 0aff01 all closes the door         |
  * | 0x00 0x0b 0x00 0x00 - 0x00 0x0b 0xff 0xff  | sends back the payload. The third parameter does not matter.  |
- * |                                            | so 0b0101 0b0201 0b0301 to 0bff01 all turns the light on      | 
+ * |                                            | so 0b0101 0b0201 0b0301 to 0bff01 all turns the light on      |
  * | 0x00 0x0c 0x00 0x00 - 0x00 0x.. 0x.. 0x..  | errorcode 00 00 00 04 01 06 86 02  (futher codes in progress) |
- * 
+ *
  */
 
 namespace esphome::tormatic {
