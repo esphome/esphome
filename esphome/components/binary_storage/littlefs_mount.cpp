@@ -552,7 +552,8 @@ storage::StorageError LittleFSMount::get_info(storage::StorageInfo *info) {
   if (this->mounted_ && this->lfs_ != nullptr && this->lfs_cfg_ != nullptr) {
     lfs_ssize_t used_blocks = lfs_fs_size(lfs_cast(this->lfs_));
     if (used_blocks >= 0) {
-      info->total_bytes = static_cast<uint64_t>(cfg_cast(this->lfs_cfg_)->block_count) * cfg_cast(this->lfs_cfg_)->block_size;
+      info->total_bytes =
+          static_cast<uint64_t>(cfg_cast(this->lfs_cfg_)->block_count) * cfg_cast(this->lfs_cfg_)->block_size;
       uint64_t used_bytes = static_cast<uint64_t>(used_blocks) * cfg_cast(this->lfs_cfg_)->block_size;
       info->free_bytes = info->total_bytes > used_bytes ? info->total_bytes - used_bytes : 0;
     }
