@@ -778,15 +778,19 @@ def run_compile(args, config: ConfigType) -> bool:
     ):
         raise EsphomeError("nRF52 native build failed")
 
-    # Zephyr's cmake places kernel artifacts in build_dir/zephyr/zephyr/ and
-    # merged.hex at build_dir/. Normalize to build_dir/zephyr/ so paths match
-    # get_download_types (which mirrors the platformio build output layout).
+    # SDK < 2.9.2 places kernel artifacts directly in build_dir/zephyr/.
+    # SDK >= 2.9.2 nests them one level deeper (build_dir/zephyr/zephyr/);
+    # copy uf2 up to build_dir/zephyr/ to match get_download_types layout.
     zephyr_dir = build_dir / "zephyr"
-    west_out = zephyr_dir / "zephyr"
-    for filename in ["zephyr.uf2"]:
-        src = west_out / filename
-        if src.is_file():
-            shutil.copy2(src, zephyr_dir / filename)
+    framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    if framework_ver < cv.Version(2, 9, 2):
+        west_out = zephyr_dir
+    else:
+        west_out = zephyr_dir / "zephyr"
+        for filename in ["zephyr.uf2"]:
+            src = west_out / filename
+            if src.is_file():
+                shutil.copy2(src, zephyr_dir / filename)
 
     # (dev_type, sd_req) per bootloader — values from Nordic SoftDevice release notes
     _GENPKG_PARAMS = {
@@ -801,7 +805,7 @@ def run_compile(args, config: ConfigType) -> bool:
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
     ):
-        hex_file = zephyr_dir / "zephyr.hex"
+        hex_file = west_out / "zephyr.hex"
         dfu_package = build_dir / "firmware.zip"
         genpkg_cmd = [
             str(paths["python_executable"]),
