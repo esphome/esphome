@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP_IDF
+
 #include "esphome/core/automation.h"
 #include "esphome/core/defines.h"
 #include "sd_storage_base.h"
@@ -81,3 +83,5 @@ template<typename T, typename... Ts> class CardMountedCondition : public Conditi
 };
 
 }  // namespace esphome::sd_storage
+
+#endif  // USE_ESP_IDF
