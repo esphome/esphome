@@ -2,8 +2,7 @@
 
 #include "equitherm_number_base.h"
 
-namespace esphome {
-namespace equitherm {
+namespace esphome::equitherm {
 
 class EquithermClimate;
 
@@ -18,5 +17,4 @@ class PIDIntegralGainNumber : public EquithermNumberBase, public Parented<Equith
   void control(float value) override;
 };
 
-}  // namespace equitherm
-}  // namespace esphome
+}  // namespace esphome::equitherm

@@ -6,8 +6,7 @@
 #include "esphome/components/number/number.h"
 #endif
 
-namespace esphome {
-namespace equitherm {
+namespace esphome::equitherm {
 
 static const char *const TAG = "equitherm";
 
@@ -343,5 +342,4 @@ void EquithermClimate::compute_and_apply_(bool update_pid) {
   this->state_callback_.call();
 }
 
-}  // namespace equitherm
-}  // namespace esphome
+}  // namespace esphome::equitherm

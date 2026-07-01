@@ -4,8 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/number/number.h"
 
-namespace esphome {
-namespace equitherm {
+namespace esphome::equitherm {
 
 /// Base class for equitherm climate number entities with common restore logic.
 ///
@@ -24,5 +23,4 @@ class EquithermNumberBase : public number::Number, public Component {
   ESPPreferenceObject pref_;
 };
 
-}  // namespace equitherm
-}  // namespace esphome
+}  // namespace esphome::equitherm

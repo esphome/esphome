@@ -1,7 +1,6 @@
 #include "equitherm_number_base.h"
 
-namespace esphome {
-namespace equitherm {
+namespace esphome::equitherm {
 
 void EquithermNumberBase::init_state_(float value) {
   if (this->restore_value_) {
@@ -17,5 +16,4 @@ void EquithermNumberBase::save_state_(float value) {
   }
 }
 
-}  // namespace equitherm
-}  // namespace esphome
+}  // namespace esphome::equitherm

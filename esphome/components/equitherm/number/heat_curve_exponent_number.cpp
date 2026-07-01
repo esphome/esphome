@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "../equitherm.h"
 
-namespace esphome {
-namespace equitherm {
+namespace esphome::equitherm {
 
 static const char *const TAG = "heat_curve_exponent_number";
 
@@ -24,5 +23,4 @@ void HeatCurveExponentNumber::dump_config() {
   ESP_LOGCONFIG(TAG, "  Restore value: %s", YESNO(this->restore_value_));
 }
 
-}  // namespace equitherm
-}  // namespace esphome
+}  // namespace esphome::equitherm

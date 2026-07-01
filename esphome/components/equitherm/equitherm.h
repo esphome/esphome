@@ -15,11 +15,11 @@
 #include "equitherm_controller.h"
 #include "pid_controller.h"
 
-namespace esphome {
-namespace number {
+namespace esphome::number {
 class Number;  // Forward declaration
-}
-namespace equitherm {
+}  // namespace esphome::number
+
+namespace esphome::equitherm {
 
 class EquithermClimate : public climate::Climate, public Component {
  public:
@@ -182,5 +182,4 @@ template<typename... Ts> class EquithermForceRecalculateAction : public Action<T
   bool update_pid_{true};
 };
 
-}  // namespace equitherm
-}  // namespace esphome
+}  // namespace esphome::equitherm

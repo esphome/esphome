@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "../equitherm.h"
 
-namespace esphome {
-namespace equitherm {
+namespace esphome::equitherm {
 
 static const char *const TAG = "pid_integral_gain_number";
 
@@ -24,5 +23,4 @@ void PIDIntegralGainNumber::dump_config() {
   ESP_LOGCONFIG(TAG, "  Restore value: %s", YESNO(this->restore_value_));
 }
 
-}  // namespace equitherm
-}  // namespace esphome
+}  // namespace esphome::equitherm
