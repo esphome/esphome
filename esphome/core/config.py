@@ -26,6 +26,7 @@ from esphome.const import (
     CONF_INCLUDES,
     CONF_INCLUDES_C,
     CONF_LIBRARIES,
+    CONF_MERGE_WARNINGS,
     CONF_MIN_VERSION,
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
@@ -316,6 +317,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_INCLUDES_C, default=[]): cv.ensure_list(valid_include),
             cv.Optional(CONF_LIBRARIES, default=[]): cv.ensure_list(cv.string_strict),
             cv.Optional(CONF_NAME_ADD_MAC_SUFFIX, default=False): cv.boolean,
+            cv.Optional(CONF_MERGE_WARNINGS, default=True): cv.boolean,
             cv.Optional(CONF_DEBUG_SCHEDULER, default=False): cv.boolean,
             cv.Optional(CONF_PROJECT): cv.Schema(
                 {

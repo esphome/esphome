@@ -63,7 +63,6 @@ class Modbus : public uart::UARTDevice, public Component {
   uint32_t last_receive_check_{0};
   uint32_t last_send_{0};
   uint32_t last_send_tx_offset_{0};
-  bool last_send_was_broadcast_{false};
   uint16_t frame_delay_ms_{5};
   uint16_t long_rx_buffer_delay_ms_{0};
 
@@ -198,7 +197,9 @@ class ModbusClientDevice {
 };
 
 // This is for compatibility with external components using the former class name
-using ModbusDevice = ModbusClientDevice;
+// Remove before 2026.12.0
+using ModbusDevice ESPDEPRECATED("Use ModbusClientDevice instead. Removed in 2026.12.0",
+                                 "2026.6.0") = ModbusClientDevice;
 
 // Result of a server register handler: std::nullopt means success, otherwise the Modbus exception code to return.
 using ServerResponseStatus = std::optional<ModbusExceptionCode>;

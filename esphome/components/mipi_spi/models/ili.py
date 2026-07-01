@@ -24,13 +24,11 @@ from esphome.components.mipi import (
     PWSET,
     PWSETN,
     SETEXTC,
-    SWRESET,
     VMCTR,
     VMCTR1,
     VMCTR2,
     VSCRSADD,
     DriverChip,
-    delay,
 )
 from esphome.components.spi import TYPE_OCTAL
 
@@ -367,7 +365,6 @@ ST7796 = DriverChip(
     width=320,
     height=480,
     initsequence=(
-        (SWRESET,),
         (CSCON, 0xC3),
         (CSCON, 0x96),
         (VMCTR1, 0x1C),
@@ -728,8 +725,6 @@ DriverChip(
     width=128,
     height=160,
     initsequence=(
-        SWRESET,
-        delay(10),
         (FRMCTR1, 0x01, 0x2C, 0x2D),
         (FRMCTR2, 0x01, 0x2C, 0x2D),
         (FRMCTR3, 0x01, 0x2C, 0x2D, 0x01, 0x2C, 0x2D),
@@ -786,7 +781,7 @@ ST7796.extend(
     bus_mode=TYPE_OCTAL,
     mirror_x=True,
     reset_pin=4,
-    dc_pin=0,
+    dc_pin={"number": 0, "ignore_strapping_warning": True},
     invert_colors=True,
 )
 
