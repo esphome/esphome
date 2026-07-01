@@ -320,9 +320,7 @@ void SdStorageBase::log_mount_result_(bool success) const {
 
 void SdStorageBase::log_unmount_() const { ESP_LOGI(TAG_BASE, "Card unmounted via automation"); }
 
-void SdStorageBase::log_list_dir_start_(const char *path) const {
-  ESP_LOGI(TAG_BASE, "Listing files in: %s", path);
-}
+void SdStorageBase::log_list_dir_start_(const char *path) const { ESP_LOGI(TAG_BASE, "Listing files in: %s", path); }
 
 void SdStorageBase::log_list_dir_entry_(const storage::FileStat *entry) {
   if (entry->is_dir) {
