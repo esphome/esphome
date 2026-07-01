@@ -123,6 +123,7 @@ esphome/components/cs5460a/* @balrog-kun
 esphome/components/cse7761/* @berfenger
 esphome/components/cst226/* @clydebarrow
 esphome/components/cst816/* @clydebarrow
+esphome/components/cst9220/* @clydebarrow
 esphome/components/ct_clamp/* @jesserockz
 esphome/components/current_based/* @djwmarcx
 esphome/components/dac7678/* @NickB1
@@ -266,6 +267,7 @@ esphome/components/integration/* @OttoWinter
 esphome/components/internal_temperature/* @Mat931
 esphome/components/interval/* @esphome/core
 esphome/components/ir_rf_proxy/* @kbx81
+esphome/components/it8951/* @koosoli @limengdu @Passific
 esphome/components/jsn_sr04t/* @Mafus1
 esphome/components/json/* @esphome/core
 esphome/components/kamstrup_kmp/* @cfeenstra1024
@@ -385,6 +387,7 @@ esphome/components/pcm5122/* @remcom
 esphome/components/pi4ioe5v6408/* @jesserockz
 esphome/components/pid/* @OttoWinter
 esphome/components/pipsolar/* @andreashergert1984
+esphome/components/pixoo/* @jesserockz
 esphome/components/pm1006/* @habbie
 esphome/components/pm2005/* @andrewjswan
 esphome/components/pmsa003i/* @sjtrny
@@ -404,6 +407,7 @@ esphome/components/psram/* @esphome/core
 esphome/components/pulse_meter/* @cstaahl @stevebaxter @TrentHouliston
 esphome/components/pvvx_mithermometer/* @pasiz
 esphome/components/pylontech/* @functionpointer
+esphome/components/qmi8658/* @clydebarrow
 esphome/components/qmp6988/* @andrewpc
 esphome/components/qr_code/* @wjtje
 esphome/components/qspi_dbi/* @clydebarrow
@@ -445,7 +449,7 @@ esphome/components/select/* @esphome/core
 esphome/components/sen0321/* @notjj
 esphome/components/sen21231/* @shreyaskarnik
 esphome/components/sen5x/* @martgras
-esphome/components/sen6x/* @martgras @mebner86 @mikelawrence @tuct
+esphome/components/sen6x/* @martgras @mebner86 @tuct
 esphome/components/sendspin/* @kahrendt
 esphome/components/sendspin/media_player/* @kahrendt
 esphome/components/sendspin/media_source/* @kahrendt
@@ -561,6 +565,7 @@ esphome/components/uart/packet_transport/* @clydebarrow
 esphome/components/udp/* @clydebarrow
 esphome/components/ufire_ec/* @pvizeli
 esphome/components/ufire_ise/* @pvizeli
+esphome/components/ufm01/* @ljungqvist
 esphome/components/ultrasonic/* @ssieb @swoboda1337
 esphome/components/update/* @jesserockz
 esphome/components/uponor_smatrix/* @kroimon
@@ -577,6 +582,7 @@ esphome/components/wake_on_lan/* @clydebarrow @willwill2will54
 esphome/components/watchdog/* @oarcher
 esphome/components/water_heater/* @dhoeben
 esphome/components/waveshare_epaper/* @clydebarrow
+esphome/components/waveshare_io_ch32v003/* @latonita
 esphome/components/web_server/ota/* @esphome/core
 esphome/components/web_server_base/* @esphome/core
 esphome/components/web_server_idf/* @dentra
