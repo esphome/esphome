@@ -359,7 +359,9 @@ if __name__ == "__main__":
     check_base_code(BASE_CODE_INIT)
     # list all boards from ltchiptool
     components_dir = Path(__file__).parent.parent
-    boards = [Board(b) for b in Board.get_list()]
+    # Board.get_list() returns glob (filesystem) order, which is non-deterministic
+    # and produces noisy diffs on regeneration; sort by board id for stable output.
+    boards = sorted((Board(b) for b in Board.get_list()), key=lambda b: b.name)
     # keep track of all supported root- and chip-families
     components = set()
     families = {}
