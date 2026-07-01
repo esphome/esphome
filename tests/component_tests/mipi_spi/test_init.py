@@ -377,6 +377,6 @@ def test_lvgl_generation(
         "mipi_spi::MipiSpi<uint16_t, mipi_spi::PIXEL_MODE_16, true, mipi_spi::PIXEL_MODE_16, mipi_spi::BUS_TYPE_SINGLE, 128, 160, 0, 0, 0, 0, 0, true>();"
         in main_cpp
     )
-    assert "set_init_sequence({1, 0, 10, 255, 177" in main_cpp
+    assert "set_init_sequence({177, 3, 1, 44, 45, 178" in main_cpp
     assert "show_test_card();" not in main_cpp
     assert "set_auto_clear(false);" in main_cpp
