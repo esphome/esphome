@@ -12,7 +12,7 @@ namespace esphome::sd_storage {
 
 static const char *const TAG_BASE = "sd_storage";
 
-bool SdStorageBase::build_full_path(const char *rel_path, char *buf, size_t buf_size) const {
+bool SdStorageBase::build_full_path_(const char *rel_path, char *buf, size_t buf_size) const {
   size_t mount_len = strlen(this->mount_path_);
   bool needs_sep = (rel_path[0] != '/');
   size_t total = mount_len + (needs_sep ? 1 : 0) + strlen(rel_path) + 1;
@@ -60,7 +60,7 @@ storage::StorageError SdStorageBase::open(const char *path, storage::FileHandle 
   if (h == nullptr)
     return storage::StorageError::NO_SPACE;
 
-  if (!this->build_full_path(path, h->path_buf, sizeof(h->path_buf)))
+  if (!this->build_full_path_(path, h->path_buf, sizeof(h->path_buf)))
     return storage::StorageError::INVALID_ARGS;
 
   const char *fmode = nullptr;
@@ -146,7 +146,7 @@ storage::StorageError SdStorageBase::stat(const char *path, storage::FileStat *s
     return storage::StorageError::NOT_READY;
 
   char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-  if (!this->build_full_path(path, full, sizeof(full)))
+  if (!this->build_full_path_(path, full, sizeof(full)))
     return storage::StorageError::INVALID_ARGS;
 
   struct stat s;
@@ -166,7 +166,7 @@ storage::StorageError SdStorageBase::list_dir(const char *path,
     return storage::StorageError::NOT_READY;
 
   char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-  if (!this->build_full_path(path, full, sizeof(full)))
+  if (!this->build_full_path_(path, full, sizeof(full)))
     return storage::StorageError::INVALID_ARGS;
 
   DIR *dir = opendir(full);
@@ -188,7 +188,7 @@ storage::StorageError SdStorageBase::list_dir(const char *path,
       snprintf(rel, sizeof(rel), "%s/%s", path, ent->d_name);
       char entry_full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
       struct stat s;
-      if (this->build_full_path(rel, entry_full, sizeof(entry_full)))
+      if (this->build_full_path_(rel, entry_full, sizeof(entry_full)))
         entry.size = (::stat(entry_full, &s) == 0) ? static_cast<size_t>(s.st_size) : 0;
     }
 
@@ -204,7 +204,7 @@ storage::StorageError SdStorageBase::mkdir(const char *path) {
     return storage::StorageError::NOT_READY;
 
   char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-  if (!this->build_full_path(path, full, sizeof(full)))
+  if (!this->build_full_path_(path, full, sizeof(full)))
     return storage::StorageError::INVALID_ARGS;
 
   return ::mkdir(full, 0755) == 0 ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
@@ -215,7 +215,7 @@ storage::StorageError SdStorageBase::rmdir(const char *path, bool recursive) {
     return storage::StorageError::NOT_READY;
 
   char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-  if (!this->build_full_path(path, full, sizeof(full)))
+  if (!this->build_full_path_(path, full, sizeof(full)))
     return storage::StorageError::INVALID_ARGS;
 
   if (recursive) {
@@ -254,7 +254,7 @@ storage::StorageError SdStorageBase::remove(const char *path) {
     return storage::StorageError::NOT_READY;
 
   char full[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-  if (!this->build_full_path(path, full, sizeof(full)))
+  if (!this->build_full_path_(path, full, sizeof(full)))
     return storage::StorageError::INVALID_ARGS;
 
   return ::remove(full) == 0 ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
@@ -266,9 +266,9 @@ storage::StorageError SdStorageBase::rename(const char *old_path, const char *ne
 
   char full_old[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   char full_new[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-  if (!this->build_full_path(old_path, full_old, sizeof(full_old)))
+  if (!this->build_full_path_(old_path, full_old, sizeof(full_old)))
     return storage::StorageError::INVALID_ARGS;
-  if (!this->build_full_path(new_path, full_new, sizeof(full_new)))
+  if (!this->build_full_path_(new_path, full_new, sizeof(full_new)))
     return storage::StorageError::INVALID_ARGS;
 
   return ::rename(full_old, full_new) == 0 ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
@@ -280,9 +280,9 @@ storage::StorageError SdStorageBase::copy(const char *src_path, const char *dst_
 
   char full_src[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
   char full_dst[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)];
-  if (!this->build_full_path(src_path, full_src, sizeof(full_src)))
+  if (!this->build_full_path_(src_path, full_src, sizeof(full_src)))
     return storage::StorageError::INVALID_ARGS;
-  if (!this->build_full_path(dst_path, full_dst, sizeof(full_dst)))
+  if (!this->build_full_path_(dst_path, full_dst, sizeof(full_dst)))
     return storage::StorageError::INVALID_ARGS;
 
   FILE *src = fopen(full_src, "rb");
@@ -322,7 +322,7 @@ void SdStorageBase::log_unmount_() const { ESP_LOGI(TAG_BASE, "Card unmounted vi
 
 void SdStorageBase::log_list_dir_start_(const char *path) const { ESP_LOGI(TAG_BASE, "Listing files in: %s", path); }
 
-void SdStorageBase::log_list_dir_entry_(const storage::FileStat *entry) {
+void SdStorageBase::log_list_dir_entry(const storage::FileStat *entry) {
   if (entry->is_dir) {
     ESP_LOGI(TAG_BASE, "  [DIR]  %s", entry->name);
   } else {

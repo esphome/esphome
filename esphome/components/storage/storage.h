@@ -5,6 +5,8 @@
 #include "esphome/core/helpers.h"
 #include <cstdio>
 
+#ifdef USE_ESP_IDF
+
 namespace esphome::storage {
 
 enum class StorageError : uint8_t {
@@ -165,3 +167,5 @@ class StorageRegistry : public Component {
 extern StorageRegistry *global_storage_registry;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome::storage
+
+#endif  // USE_ESP_IDF
