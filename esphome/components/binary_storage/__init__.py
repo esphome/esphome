@@ -368,7 +368,7 @@ async def to_code(config):
         # LittleFS sdkconfig options and library only needed on ESP32-IDF
         _add_littlefs_sdkconfig()
         add_idf_component(
-            name="espressif/esp_littlefs",
+            name="p1ngb4ck/esphome_esp_littlefs",
             repo="https://github.com/p1ngb4ck/esphome_esp_littlefs.git",
             ref="main",
         )
@@ -379,7 +379,7 @@ async def to_code(config):
         cg.add_define("USE_BINARY_STORAGE_LITTLEFS")
         _add_littlefs_sdkconfig()
         add_idf_component(
-            name="espressif/esp_littlefs",
+            name="p1ngb4ck/esphome_esp_littlefs",
             repo="https://github.com/p1ngb4ck/esphome_esp_littlefs.git",
             ref="main",
         )
