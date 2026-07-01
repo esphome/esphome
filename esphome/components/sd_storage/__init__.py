@@ -16,6 +16,8 @@ from esphome.core import CORE
 import esphome.final_validate as fv
 
 CODEOWNERS = ["@p1ngb4ck"]
+
+FATFS_LFN_MAX = 255
 DEPENDENCIES = ["esp32"]
 AUTO_LOAD = ["storage"]
 
@@ -197,9 +199,10 @@ async def to_code(config):
     esp32.require_vfs_select()
     esp32.require_fatfs()
     esp32.require_fatfs_volume_count(4)
-    esp32.require_fatfs_lfn_max(255)
+    esp32.require_fatfs_lfn_max(FATFS_LFN_MAX)
     esp32.require_fatfs_lfn_heap()
     esp32.include_builtin_idf_component("fatfs")
+    cg.add_define("CONFIG_FATFS_MAX_LFN", FATFS_LFN_MAX)
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)

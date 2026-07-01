@@ -22,7 +22,7 @@ bool SdStorageBase::build_full_path_(const char *rel_path, char *buf, size_t buf
   size_t pos = mount_len;
   if (needs_sep)
     buf[pos++] = '/';
-  strcpy(buf + pos, rel_path);
+  strlcpy(buf + pos, rel_path, buf_size - pos);
   return true;
 }
 
@@ -127,14 +127,14 @@ storage::StorageError SdStorageBase::write(storage::FileHandle *handle, const ui
 storage::StorageError SdStorageBase::seek(storage::FileHandle *handle, size_t offset) {
   if (handle == nullptr || !handle->in_use || handle->file == nullptr)
     return storage::StorageError::INVALID_ARGS;
-  return fseek(handle->file, static_cast<long>(offset), SEEK_SET) == 0 ? storage::StorageError::OK
+  return fseek(handle->file, static_cast<int32_t>(offset), SEEK_SET) == 0 ? storage::StorageError::OK
                                                                        : storage::StorageError::READ_ERROR;
 }
 
 storage::StorageError SdStorageBase::tell(storage::FileHandle *handle, size_t *position) {
   if (handle == nullptr || !handle->in_use || handle->file == nullptr)
     return storage::StorageError::INVALID_ARGS;
-  long pos = ftell(handle->file);
+  int32_t pos = ftell(handle->file);
   if (pos < 0)
     return storage::StorageError::READ_ERROR;
   *position = static_cast<size_t>(pos);
@@ -298,11 +298,15 @@ storage::StorageError SdStorageBase::copy(const char *src_path, const char *dst_
   uint8_t buf[256];
   size_t n;
   storage::StorageError err = storage::StorageError::OK;
-  while ((n = fread(buf, 1, sizeof(buf), src)) > 0) {
-    if (fwrite(buf, 1, n, dst) != n) {
-      err = storage::StorageError::WRITE_ERROR;
+  while (err == storage::StorageError::OK) {
+    n = fread(buf, 1, sizeof(buf), src);
+    if (n == 0) {
+      if (ferror(src))
+        err = storage::StorageError::READ_ERROR;
       break;
     }
+    if (fwrite(buf, 1, n, dst) != n)
+      err = storage::StorageError::WRITE_ERROR;
   }
 
   fclose(src);
