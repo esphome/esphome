@@ -196,9 +196,7 @@ storage::StorageError I2CEeprom::write(size_t offset, const uint8_t *buf, size_t
 
 storage::StorageError I2CEeprom::erase(size_t offset, size_t len) { return storage::StorageError::OK; }
 
-storage::StorageError I2CEeprom::format() {
-  return this->BinaryStorage::format();
-}
+storage::StorageError I2CEeprom::format() { return this->BinaryStorage::format(); }
 
 bool I2CEeprom::read_raw(uint32_t address, uint8_t *data, size_t length) {
   if (!this->is_valid_address_(address, length)) {
@@ -284,7 +282,6 @@ bool I2CEeprom::write_raw(uint32_t address, const uint8_t *data, size_t length) 
 
   return true;
 }
-
 
 }  // namespace esphome::binary_storage
 

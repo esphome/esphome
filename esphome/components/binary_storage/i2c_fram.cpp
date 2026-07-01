@@ -164,9 +164,7 @@ storage::StorageError I2CFram::write(size_t offset, const uint8_t *buf, size_t l
 
 storage::StorageError I2CFram::erase(size_t offset, size_t len) { return storage::StorageError::OK; }
 
-storage::StorageError I2CFram::format() {
-  return this->BinaryStorage::format();
-}
+storage::StorageError I2CFram::format() { return this->BinaryStorage::format(); }
 
 bool I2CFram::read_raw(uint32_t address, uint8_t *data, size_t length) {
   if (!this->is_valid_address_(address, length)) {

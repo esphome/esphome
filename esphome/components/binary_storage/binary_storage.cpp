@@ -122,7 +122,8 @@ int BinaryStorage::block_prog(uint32_t block, uint32_t offset, const void *buffe
     return -1;
   }
 
-  return (this->write(address, static_cast<const uint8_t *>(buffer), size, nullptr) == storage::StorageError::OK) ? 0 : -1;
+  return (this->write(address, static_cast<const uint8_t *>(buffer), size, nullptr) == storage::StorageError::OK) ? 0
+                                                                                                                  : -1;
 }
 
 int BinaryStorage::block_erase(uint32_t block) {

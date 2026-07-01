@@ -107,8 +107,7 @@ storage::StorageError OneWireEEPROM::read(size_t offset, uint8_t *buf, size_t le
   return ok ? storage::StorageError::OK : storage::StorageError::READ_ERROR;
 }
 
-storage::StorageError OneWireEEPROM::write(size_t offset, const uint8_t *buf, size_t len,
-                                           size_t *bytes_transferred) {
+storage::StorageError OneWireEEPROM::write(size_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) {
   bool ok = this->write_raw(static_cast<uint32_t>(offset), buf, len);
   if (bytes_transferred != nullptr)
     *bytes_transferred = ok ? len : 0;
@@ -117,9 +116,7 @@ storage::StorageError OneWireEEPROM::write(size_t offset, const uint8_t *buf, si
 
 storage::StorageError OneWireEEPROM::erase(size_t offset, size_t len) { return storage::StorageError::OK; }
 
-storage::StorageError OneWireEEPROM::format() {
-  return this->BinaryStorage::format();
-}
+storage::StorageError OneWireEEPROM::format() { return this->BinaryStorage::format(); }
 
 bool OneWireEEPROM::read_raw(uint32_t address, uint8_t *data, size_t length) {
   if (address + length > this->capacity_) {

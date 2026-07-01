@@ -50,10 +50,8 @@ class BinaryStorage : public storage::RawStorage {
   //========================================================================
 
   storage::StorageError get_info(storage::StorageInfo *info) override;
-  storage::StorageError read(size_t offset, uint8_t *buf, size_t len,
-                             size_t *bytes_transferred) override = 0;
-  storage::StorageError write(size_t offset, const uint8_t *buf, size_t len,
-                              size_t *bytes_transferred) override = 0;
+  storage::StorageError read(size_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) override = 0;
+  storage::StorageError write(size_t offset, const uint8_t *buf, size_t len, size_t *bytes_transferred) override = 0;
   storage::StorageError erase(size_t offset, size_t len) override = 0;
   storage::StorageError format() override;
 

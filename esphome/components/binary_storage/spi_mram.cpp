@@ -81,9 +81,7 @@ storage::StorageError SPIMRAM::write(size_t offset, const uint8_t *buf, size_t l
 
 storage::StorageError SPIMRAM::erase(size_t offset, size_t len) { return storage::StorageError::OK; }
 
-storage::StorageError SPIMRAM::format() {
-  return this->BinaryStorage::format();
-}
+storage::StorageError SPIMRAM::format() { return this->BinaryStorage::format(); }
 
 bool SPIMRAM::read_raw(uint32_t address, uint8_t *data, size_t length) {
   if (address + length > this->capacity_) {
