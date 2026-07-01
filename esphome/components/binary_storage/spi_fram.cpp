@@ -89,8 +89,8 @@ storage::StorageError SPIFram::format() { return this->BinaryStorage::format(); 
 
 bool SPIFram::read_raw(uint32_t address, uint8_t *data, size_t length) {
   if (address + length > this->capacity_) {
-    ESP_LOGE(TAG, "Read overflow: address 0x%04" PRIX32 " + length %u > capacity %" PRIu32, address, length,
-             this->capacity_);
+    ESP_LOGE(TAG, "Read overflow: address 0x%04" PRIX32 " + length %" PRIu32 " > capacity %" PRIu32, address,
+             (uint32_t) length, this->capacity_);
     return false;
   }
 
@@ -99,8 +99,8 @@ bool SPIFram::read_raw(uint32_t address, uint8_t *data, size_t length) {
 
 bool SPIFram::write_raw(uint32_t address, const uint8_t *data, size_t length) {
   if (address + length > this->capacity_) {
-    ESP_LOGE(TAG, "Write overflow: address 0x%04" PRIX32 " + length %u > capacity %" PRIu32, address, length,
-             this->capacity_);
+    ESP_LOGE(TAG, "Write overflow: address 0x%04" PRIX32 " + length %" PRIu32 " > capacity %" PRIu32, address,
+             (uint32_t) length, this->capacity_);
     return false;
   }
 
@@ -147,13 +147,13 @@ uint32_t SPIFram::clear(uint8_t value) {
   ESP_LOGI(TAG, "Clearing FRAM with value 0x%02X...", value);
 
   // FRAM can write quickly, so we can do larger chunks
-  constexpr size_t CHUNK_SIZE = 256;
-  uint8_t buffer[CHUNK_SIZE];
-  memset(buffer, value, CHUNK_SIZE);
+  constexpr size_t chunk_size = 256;
+  uint8_t buffer[chunk_size];
+  memset(buffer, value, chunk_size);
 
   uint32_t address = 0;
   while (address < this->capacity_) {
-    size_t write_len = std::min(CHUNK_SIZE, (size_t) (this->capacity_ - address));
+    size_t write_len = std::min(chunk_size, (size_t) (this->capacity_ - address));
     if (!this->write_raw(address, buffer, write_len)) {
       ESP_LOGE(TAG, "Clear failed at address 0x%04" PRIX32, address);
       return address;
@@ -185,10 +185,10 @@ bool SPIFram::write_data_(uint32_t address, const uint8_t *data, size_t length) 
   // FRAM can write any size instantly (no page boundaries!)
   // But we break it into chunks for SPI efficiency
 
-  constexpr size_t MAX_CHUNK = 256;  // Reasonable SPI transaction size
+  constexpr size_t max_chunk = 256;  // Reasonable SPI transaction size
 
   while (length > 0) {
-    size_t chunk_size = std::min(length, MAX_CHUNK);
+    size_t chunk_size = std::min(length, max_chunk);
 
     // Enable writes
     this->write_enable_();
@@ -222,10 +222,10 @@ bool SPIFram::write_data_(uint32_t address, const uint8_t *data, size_t length) 
 
 bool SPIFram::read_data_(uint32_t address, uint8_t *data, size_t length) {
   // FRAM can read any size
-  constexpr size_t MAX_CHUNK = 256;  // Reasonable SPI transaction size
+  constexpr size_t max_chunk = 256;  // Reasonable SPI transaction size
 
   while (length > 0) {
-    size_t chunk_size = std::min(length, MAX_CHUNK);
+    size_t chunk_size = std::min(length, max_chunk);
 
     // Start read command
     this->enable();
