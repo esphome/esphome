@@ -4,34 +4,15 @@
 #ifdef USE_ESP_IDF
 #include "binary_storage.h"
 #include "esphome/components/storage/storage.h"
-#include "lfs.h"
 #include <memory>
-#include <dirent.h>
 
 namespace esphome::binary_storage {
 
 // Maximum simultaneously open files (kept low for MCU memory constraints)
 static constexpr int LFS_VFS_MAX_FDS = 8;
 
-class LittleFSMount;
-
-// Holds filesystem state and the VFS file descriptor table
-struct LfsVfsContext {
-  lfs_t *lfs;
-  lfs_config *cfg;
-  LittleFSMount *mount;
-  lfs_file_t files[LFS_VFS_MAX_FDS];
-  bool fd_used[LFS_VFS_MAX_FDS];
-  char *fd_paths[LFS_VFS_MAX_FDS];
-};
-
-// Directory handle wrapper for VFS readdir support (vfs_dir must be first)
-struct LfsVfsDir {
-  DIR vfs_dir;
-  lfs_dir_t lfs_dir;
-  struct dirent dirent;
-  char *path;
-};
+// Forward-declared — defined in littlefs_mount.cpp alongside the VFS callbacks that use it
+struct LfsVfsContext;
 
 // Mounts a BinaryStorage device as a LittleFS filesystem in the ESP-IDF VFS.
 // Extends FilesystemStorage — all file operations go through POSIX/VFS after mount.
@@ -104,11 +85,12 @@ class LittleFSMount : public storage::FilesystemStorage {
   char handle_paths_[LFS_VFS_MAX_FDS][STORAGE_MAX_PATH_LEN]{};
 
   //========================================================================
-  // LittleFS objects
+  // LittleFS objects (opaque — lfs_t/lfs_config are managed component types,
+  // only available when building for IDF with managed components downloaded)
   //========================================================================
 
-  std::unique_ptr<lfs_t> lfs_;
-  std::unique_ptr<lfs_config> lfs_cfg_;
+  void *lfs_{nullptr};
+  void *lfs_cfg_{nullptr};
   std::unique_ptr<uint8_t[]> read_buffer_;
   std::unique_ptr<uint8_t[]> prog_buffer_;
   std::unique_ptr<uint8_t[]> lookahead_buffer_;

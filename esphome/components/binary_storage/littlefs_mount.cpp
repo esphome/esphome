@@ -6,13 +6,34 @@
 #include "lfs.h"
 #include "esp_vfs.h"
 #include <fcntl.h>
-#include <errno.h>
+#include <cerrno>
 #include <sys/stat.h>
 #include <dirent.h>
 #include <cstring>
 #include <algorithm>
 
 namespace esphome::binary_storage {
+
+static inline lfs_t *lfs_cast(void *p) { return static_cast<lfs_t *>(p); }
+static inline lfs_config *cfg_cast(void *p) { return static_cast<lfs_config *>(p); }
+
+// Holds filesystem state and the VFS file descriptor table
+struct LfsVfsContext {
+  lfs_t *lfs;
+  lfs_config *cfg;
+  LittleFSMount *mount;
+  lfs_file_t files[LFS_VFS_MAX_FDS];
+  bool fd_used[LFS_VFS_MAX_FDS];
+  char *fd_paths[LFS_VFS_MAX_FDS];
+};
+
+// Directory handle wrapper for VFS readdir support (vfs_dir must be first)
+struct LfsVfsDir {
+  DIR vfs_dir;
+  lfs_dir_t lfs_dir;
+  struct dirent dirent;
+  char *path;
+};
 
 static const char *const TAG = "littlefs_mount";
 
@@ -89,14 +110,14 @@ static int lfs_errno_remap(int lfs_err) {
 }
 
 static int posix_flags_to_lfs(int flags) {
-  int lfs_flags = 0;
-
-  if ((flags & O_ACCMODE) == O_RDONLY) {
-    lfs_flags |= LFS_O_RDONLY;
-  } else if ((flags & O_ACCMODE) == O_WRONLY) {
-    lfs_flags |= LFS_O_WRONLY;
-  } else if ((flags & O_ACCMODE) == O_RDWR) {
-    lfs_flags |= LFS_O_RDWR;
+  int lfs_flags;
+  const int acc = flags & O_ACCMODE;
+  if (acc == O_WRONLY) {
+    lfs_flags = LFS_O_WRONLY;
+  } else if (acc == O_RDWR) {
+    lfs_flags = LFS_O_RDWR;
+  } else {
+    lfs_flags = LFS_O_RDONLY;
   }
 
   if (flags & O_CREAT)
@@ -126,7 +147,7 @@ static void vfs_lfs_free_fd(LfsVfsContext *ctx, int fd) {
   if (fd >= 0 && fd < LFS_VFS_MAX_FDS) {
     ctx->fd_used[fd] = false;
     if (ctx->fd_paths[fd]) {
-      free(ctx->fd_paths[fd]);
+      free(ctx->fd_paths[fd]);  // NOLINT(cppcoreguidelines-no-malloc)
       ctx->fd_paths[fd] = nullptr;
     }
   }
@@ -148,7 +169,7 @@ static int vfs_lfs_open(void *ctx, const char *path, int flags, int mode) {
     return -1;
   }
 
-  vfs_ctx->fd_paths[fd] = strdup(path);
+  vfs_ctx->fd_paths[fd] = strdup(path);  // NOLINT(cppcoreguidelines-no-malloc)
   ESP_LOGD(TAG, "VFS open: %s -> fd=%d", path, fd);
   return fd;
 }
@@ -220,21 +241,12 @@ static off_t vfs_lfs_lseek(void *ctx, int fd, off_t offset, int whence) {
     return -1;
   }
 
-  int lfs_whence;
-  switch (whence) {
-    case SEEK_SET:
-      lfs_whence = LFS_SEEK_SET;
-      break;
-    case SEEK_CUR:
-      lfs_whence = LFS_SEEK_CUR;
-      break;
-    case SEEK_END:
-      lfs_whence = LFS_SEEK_END;
-      break;
-    default:
-      errno = EINVAL;
-      return -1;
+  static const int lfs_whence_map[3] = {LFS_SEEK_SET, LFS_SEEK_CUR, LFS_SEEK_END};
+  if (whence < 0 || whence > 2) {
+    errno = EINVAL;
+    return -1;
   }
+  int lfs_whence = lfs_whence_map[whence];
 
   lfs_soff_t result = lfs_file_seek(vfs_ctx->lfs, &vfs_ctx->files[fd], offset, lfs_whence);
   if (result < 0) {
@@ -341,7 +353,7 @@ static int vfs_lfs_rmdir(void *ctx, const char *name) {
 static DIR *vfs_lfs_opendir(void *ctx, const char *name) {
   auto *vfs_ctx = static_cast<LfsVfsContext *>(ctx);
 
-  auto *dir = static_cast<LfsVfsDir *>(malloc(sizeof(LfsVfsDir)));
+  auto *dir = static_cast<LfsVfsDir *>(malloc(sizeof(LfsVfsDir)));  // NOLINT(cppcoreguidelines-no-malloc)
   if (!dir) {
     errno = ENOMEM;
     return nullptr;
@@ -351,12 +363,12 @@ static DIR *vfs_lfs_opendir(void *ctx, const char *name) {
 
   int err = lfs_dir_open(vfs_ctx->lfs, &dir->lfs_dir, name);
   if (err != LFS_ERR_OK) {
-    free(dir);
+    free(dir);  // NOLINT(cppcoreguidelines-no-malloc)
     errno = lfs_errno_remap(err);
     return nullptr;
   }
 
-  dir->path = strdup(name);
+  dir->path = strdup(name);  // NOLINT(cppcoreguidelines-no-malloc)
   ESP_LOGD(TAG, "VFS opendir: %s", name);
 
   return reinterpret_cast<DIR *>(dir);
@@ -389,7 +401,7 @@ static struct dirent *vfs_lfs_readdir(void *ctx, DIR *pdir) {
   }
 }
 
-static long vfs_lfs_telldir(void *ctx, DIR *pdir) {
+static long vfs_lfs_telldir(void *ctx, DIR *pdir) {  // NOLINT(google-runtime-int)
   auto *vfs_ctx = static_cast<LfsVfsContext *>(ctx);
   auto *dir = reinterpret_cast<LfsVfsDir *>(pdir);
 
@@ -399,10 +411,10 @@ static long vfs_lfs_telldir(void *ctx, DIR *pdir) {
     return -1;
   }
 
-  return (long) pos;
+  return static_cast<long>(pos);  // NOLINT(google-runtime-int)
 }
 
-static void vfs_lfs_seekdir(void *ctx, DIR *pdir, long loc) {
+static void vfs_lfs_seekdir(void *ctx, DIR *pdir, long loc) {  // NOLINT(google-runtime-int)
   auto *vfs_ctx = static_cast<LfsVfsContext *>(ctx);
   auto *dir = reinterpret_cast<LfsVfsDir *>(pdir);
 
@@ -419,8 +431,8 @@ static int vfs_lfs_closedir(void *ctx, DIR *pdir) {
   int err = lfs_dir_close(vfs_ctx->lfs, &dir->lfs_dir);
 
   if (dir->path)
-    free(dir->path);
-  free(dir);
+    free(dir->path);  // NOLINT(cppcoreguidelines-no-malloc)
+  free(dir);          // NOLINT(cppcoreguidelines-no-malloc)
 
   if (err != LFS_ERR_OK) {
     errno = lfs_errno_remap(err);
@@ -456,15 +468,21 @@ LittleFSMount::~LittleFSMount() {
     this->unmount_lfs_();
   }
 
+  delete lfs_cast(this->lfs_);
+  this->lfs_ = nullptr;
+  delete cfg_cast(this->lfs_cfg_);
+  this->lfs_cfg_ = nullptr;
+
   if (this->lfs_context_ != nullptr) {
     delete static_cast<LittleFSContext *>(this->lfs_context_);
     this->lfs_context_ = nullptr;
   }
 
   if (this->vfs_context_ != nullptr) {
-    for (int i = 0; i < LFS_VFS_MAX_FDS; i++) {
-      if (this->vfs_context_->fd_paths[i]) {
-        free(this->vfs_context_->fd_paths[i]);
+    for (auto &fd_path : this->vfs_context_->fd_paths) {
+      if (fd_path) {
+        free(fd_path);  // NOLINT(cppcoreguidelines-no-malloc)
+        fd_path = nullptr;
       }
     }
     delete this->vfs_context_;
@@ -504,7 +522,7 @@ void LittleFSMount::dump_config() {
   ESP_LOGCONFIG(TAG, "  Mounted: %s", this->mounted_ ? "YES" : "NO");
 
   if (this->mounted_ && this->lfs_ != nullptr) {
-    lfs_ssize_t block_count = lfs_fs_size(this->lfs_.get());
+    lfs_ssize_t block_count = lfs_fs_size(lfs_cast(this->lfs_));
     if (block_count >= 0) {
       uint32_t total_bytes = this->lfs_cfg_->block_count * this->lfs_cfg_->block_size;
       uint32_t used_bytes = block_count * this->lfs_cfg_->block_size;
@@ -534,7 +552,7 @@ storage::StorageError LittleFSMount::get_info(storage::StorageInfo *info) {
   info->free_bytes = 0;
 
   if (this->mounted_ && this->lfs_ != nullptr && this->lfs_cfg_ != nullptr) {
-    lfs_ssize_t used_blocks = lfs_fs_size(this->lfs_.get());
+    lfs_ssize_t used_blocks = lfs_fs_size(lfs_cast(this->lfs_));
     if (used_blocks >= 0) {
       info->total_bytes = static_cast<uint64_t>(this->lfs_cfg_->block_count) * this->lfs_cfg_->block_size;
       uint64_t used_bytes = static_cast<uint64_t>(used_blocks) * this->lfs_cfg_->block_size;
@@ -577,7 +595,7 @@ storage::StorageError LittleFSMount::sync() {
 
   for (int i = 0; i < LFS_VFS_MAX_FDS; i++) {
     if (this->vfs_context_->fd_used[i]) {
-      lfs_file_sync(this->lfs_.get(), &this->vfs_context_->files[i]);
+      lfs_file_sync(lfs_cast(this->lfs_), &this->vfs_context_->files[i]);
     }
   }
 
@@ -674,7 +692,7 @@ storage::StorageError LittleFSMount::seek(storage::FileHandle *handle, size_t of
   if (handle == nullptr || !handle->in_use || handle->file == nullptr)
     return storage::StorageError::INVALID_ARGS;
 
-  if (fseek(handle->file, (long) offset, SEEK_SET) != 0)
+  if (fseek(handle->file, static_cast<int32_t>(offset), SEEK_SET) != 0)
     return storage::StorageError::INVALID_ARGS;
 
   return storage::StorageError::OK;
@@ -684,7 +702,7 @@ storage::StorageError LittleFSMount::tell(storage::FileHandle *handle, size_t *p
   if (handle == nullptr || !handle->in_use || handle->file == nullptr || position == nullptr)
     return storage::StorageError::INVALID_ARGS;
 
-  long pos = ftell(handle->file);
+  int32_t pos = ftell(handle->file);
   if (pos < 0)
     return storage::StorageError::READ_ERROR;
 
@@ -773,17 +791,17 @@ storage::StorageError LittleFSMount::rmdir(const char *path, bool recursive) {
     // Remove all contents first via LittleFS directly
     // Only one level of recursion needed — LittleFS doesn't support nested dirs in practice
     lfs_dir_t dir;
-    int err = lfs_dir_open(this->lfs_.get(), &dir, path);
+    int err = lfs_dir_open(lfs_cast(this->lfs_), &dir, path);
     if (err == LFS_ERR_OK) {
       struct lfs_info info;
       char child[STORAGE_MAX_PATH_LEN];
-      while (lfs_dir_read(this->lfs_.get(), &dir, &info) > 0) {
+      while (lfs_dir_read(lfs_cast(this->lfs_), &dir, &info) > 0) {
         if (strcmp(info.name, ".") == 0 || strcmp(info.name, "..") == 0)
           continue;
         snprintf(child, sizeof(child), "%s/%s", path, info.name);
-        lfs_remove(this->lfs_.get(), child);
+        lfs_remove(lfs_cast(this->lfs_), child);
       }
-      lfs_dir_close(this->lfs_.get(), &dir);
+      lfs_dir_close(lfs_cast(this->lfs_), &dir);
     }
   }
 
@@ -880,7 +898,7 @@ void LittleFSMount::list_files() const {
   ESP_LOGI(TAG, "Listing files in LittleFS at %s:", this->mount_path_);
 
   lfs_dir_t dir;
-  int err = lfs_dir_open(this->lfs_.get(), &dir, "/");
+  int err = lfs_dir_open(lfs_cast(this->lfs_), &dir, "/");
   if (err != LFS_ERR_OK) {
     ESP_LOGE(TAG, "Failed to open root directory (err=%d)", err);
     return;
@@ -888,7 +906,7 @@ void LittleFSMount::list_files() const {
 
   struct lfs_info info;
   while (true) {
-    err = lfs_dir_read(this->lfs_.get(), &dir, &info);
+    err = lfs_dir_read(lfs_cast(this->lfs_), &dir, &info);
     if (err <= 0)
       break;
 
@@ -899,7 +917,7 @@ void LittleFSMount::list_files() const {
     }
   }
 
-  lfs_dir_close(this->lfs_.get(), &dir);
+  lfs_dir_close(lfs_cast(this->lfs_), &dir);
 }
 
 //========================================================================
@@ -912,15 +930,15 @@ bool LittleFSMount::init_lfs_config_() {
   ESP_LOGD(TAG, "Block device config: block_size=%u, block_count=%u, read_size=%u, prog_size=%u",
            block_config.block_size, block_config.block_count, block_config.read_size, block_config.prog_size);
 
-  this->lfs_ = std::make_unique<lfs_t>();
-  this->lfs_cfg_ = std::make_unique<lfs_config>();
+  this->lfs_ = new lfs_t();
+  this->lfs_cfg_ = new lfs_config();
 
   auto *ctx = new LittleFSContext();
   ctx->storage = this->storage_;
   ctx->config = block_config;
   this->lfs_context_ = ctx;
 
-  memset(this->lfs_cfg_.get(), 0, sizeof(lfs_config));
+  memset(cfg_cast(this->lfs_cfg_), 0, sizeof(lfs_config));
 
   this->lfs_cfg_->read = lfs_block_device_read;
   this->lfs_cfg_->prog = lfs_block_device_prog;
@@ -948,19 +966,19 @@ bool LittleFSMount::init_lfs_config_() {
 }
 
 bool LittleFSMount::mount_lfs_() {
-  int err = lfs_mount(this->lfs_.get(), this->lfs_cfg_.get());
+  int err = lfs_mount(lfs_cast(this->lfs_), cfg_cast(this->lfs_cfg_));
 
   if (err != LFS_ERR_OK) {
     if (this->auto_format_) {
       ESP_LOGW(TAG, "Mount failed (err=%d), attempting to format...", err);
 
-      err = lfs_format(this->lfs_.get(), this->lfs_cfg_.get());
+      err = lfs_format(lfs_cast(this->lfs_), cfg_cast(this->lfs_cfg_));
       if (err != LFS_ERR_OK) {
         ESP_LOGE(TAG, "Format failed (err=%d)", err);
         return false;
       }
 
-      err = lfs_mount(this->lfs_.get(), this->lfs_cfg_.get());
+      err = lfs_mount(lfs_cast(this->lfs_), cfg_cast(this->lfs_cfg_));
       if (err != LFS_ERR_OK) {
         ESP_LOGE(TAG, "Mount failed after format (err=%d)", err);
         return false;
@@ -980,7 +998,7 @@ bool LittleFSMount::unmount_lfs_() {
   if (!this->mounted_)
     return true;
 
-  int err = lfs_unmount(this->lfs_.get());
+  int err = lfs_unmount(lfs_cast(this->lfs_));
   if (err != LFS_ERR_OK) {
     ESP_LOGE(TAG, "Failed to unmount (err=%d)", err);
     return false;
@@ -997,7 +1015,7 @@ bool LittleFSMount::format_lfs_() {
   if (was_mounted)
     this->unmount_lfs_();
 
-  int err = lfs_format(this->lfs_.get(), this->lfs_cfg_.get());
+  int err = lfs_format(lfs_cast(this->lfs_), cfg_cast(this->lfs_cfg_));
   if (err != LFS_ERR_OK) {
     ESP_LOGE(TAG, "Format failed (err=%d)", err);
     return false;
@@ -1014,8 +1032,8 @@ bool LittleFSMount::format_lfs_() {
 void LittleFSMount::register_with_vfs_() {
   this->vfs_context_ = new LfsVfsContext();
   memset(this->vfs_context_, 0, sizeof(LfsVfsContext));
-  this->vfs_context_->lfs = this->lfs_.get();
-  this->vfs_context_->cfg = this->lfs_cfg_.get();
+  this->vfs_context_->lfs = lfs_cast(this->lfs_);
+  this->vfs_context_->cfg = cfg_cast(this->lfs_cfg_);
   this->vfs_context_->mount = this;
 
   for (int i = 0; i < LFS_VFS_MAX_FDS; i++) {

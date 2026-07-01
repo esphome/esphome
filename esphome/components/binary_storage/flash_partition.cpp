@@ -3,6 +3,7 @@
 #ifdef USE_ESP_IDF
 
 #include "esphome/core/log.h"
+#include "esp_littlefs.h"
 #include <cstring>
 #include <cerrno>
 #include <sys/stat.h>
@@ -227,7 +228,7 @@ storage::StorageError FlashPartition::seek(storage::FileHandle *handle, size_t o
   if (handle == nullptr || !handle->in_use || handle->file == nullptr)
     return storage::StorageError::INVALID_ARGS;
 
-  if (fseek(handle->file, (long) offset, SEEK_SET) != 0)
+  if (fseek(handle->file, static_cast<int32_t>(offset), SEEK_SET) != 0)
     return storage::StorageError::INVALID_ARGS;
 
   return storage::StorageError::OK;
@@ -237,7 +238,7 @@ storage::StorageError FlashPartition::tell(storage::FileHandle *handle, size_t *
   if (handle == nullptr || !handle->in_use || handle->file == nullptr || position == nullptr)
     return storage::StorageError::INVALID_ARGS;
 
-  long pos = ftell(handle->file);
+  int32_t pos = ftell(handle->file);
   if (pos < 0)
     return storage::StorageError::READ_ERROR;
 

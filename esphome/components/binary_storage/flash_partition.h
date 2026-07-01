@@ -4,7 +4,6 @@
 #ifdef USE_ESP_IDF
 #include "esphome/components/storage/storage.h"
 #include "esp_partition.h"
-#include "esp_littlefs.h"
 
 namespace esphome::binary_storage {
 
