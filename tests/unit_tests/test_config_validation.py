@@ -1926,7 +1926,7 @@ def test_ipv4address_multi_broadcast_broadcast() -> None:
 
 
 def test_ipv4address_multi_broadcast_invalid() -> None:
-    with pytest.raises(Invalid, match="not a multicasst"):
+    with pytest.raises(Invalid, match="not a multicast"):
         cv.ipv4address_multi_broadcast("192.168.0.1")
 
 

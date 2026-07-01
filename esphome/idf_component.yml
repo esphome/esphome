@@ -12,7 +12,7 @@ dependencies:
   esphome/micro-flac:
     version: 0.2.0
   esphome/micro-mp3:
-    version: 0.3.0
+    version: 0.4.0
   esphome/micro-opus:
     version: 0.4.1
   esphome/micro-wav:

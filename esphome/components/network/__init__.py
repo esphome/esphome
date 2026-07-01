@@ -221,6 +221,27 @@ async def to_code(config):
         zephyr_add_prj_conf("NET_IPV6", True)
         zephyr_add_prj_conf("NET_TCP", True)
         zephyr_add_prj_conf("NET_UDP", True)
+        # The nRF Connect SDK replaces mbedTLS with PSA/Oberon crypto and does not provide the
+        # legacy mbedtls_md5() symbol that Zephyr's RFC 6528 TCP ISN generator links against
+        # (selecting MBEDTLS_MAC_MD5_ENABLED does not bring in the legacy C API here). Disable it so
+        # TCP links; Zephyr falls back to sys_rand32_get() for the ISN (randomized, but not the
+        # RFC 6528 keyed hash).
+        zephyr_add_prj_conf("NET_TCP_ISN_RFC6528", False)
+        # Enlarge the Zephyr network buffer pool and TCP windows for the Thread path.
+        # Zephyr's defaults are tiny: NET_BUF_TX_COUNT=16 * NET_BUF_DATA_SIZE=128 is only
+        # ~2 KB of TX data -- barely one 1280-byte IPv6 packet once 6LoWPAN fragments it.
+        # The ESPHome API entity-sync burst overruns that instantly, so socket writes fail
+        # with ENOBUFS ("Buffer full") and the connection is dropped. ESP32 sidesteps this
+        # by enlarging the lwIP TCP window (CONFIG_LWIP_TCP_* above); give Zephyr the
+        # equivalent headroom, sized to RAM and the Thread 1280-byte MTU (not ESP32's 64 KB).
+        # The bounded send window also provides flow control so TCP stops queueing past
+        # what the buffer pool can hold instead of erroring.
+        zephyr_add_prj_conf("NET_PKT_RX_COUNT", 24)
+        zephyr_add_prj_conf("NET_PKT_TX_COUNT", 24)
+        zephyr_add_prj_conf("NET_BUF_RX_COUNT", 48)
+        zephyr_add_prj_conf("NET_BUF_TX_COUNT", 48)
+        zephyr_add_prj_conf("NET_TCP_MAX_RECV_WINDOW_SIZE", 2280)
+        zephyr_add_prj_conf("NET_TCP_MAX_SEND_WINDOW_SIZE", 2280)
 
     if (enable_ipv6 := config.get(CONF_ENABLE_IPV6, None)) is not None:
         cg.add_define("USE_NETWORK_IPV6", enable_ipv6)
