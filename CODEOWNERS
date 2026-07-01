@@ -361,13 +361,13 @@ esphome/components/ms8607/* @e28eta
 esphome/components/msa3xx/* @latonita
 esphome/components/nau7802/* @cujomalainey
 esphome/components/network/* @esphome/core
-esphome/components/nfs_client/* @p1ngb4ck
 esphome/components/nextion/* @edwardtfn @senexcrenshaw
 esphome/components/nextion/binary_sensor/* @senexcrenshaw
 esphome/components/nextion/sensor/* @senexcrenshaw
 esphome/components/nextion/switch/* @senexcrenshaw
 esphome/components/nextion/text_sensor/* @senexcrenshaw
 esphome/components/nfc/* @jesserockz @kbx81
+esphome/components/nfs_client/* @p1ngb4ck
 esphome/components/noblex/* @AGalfra
 esphome/components/npi19/* @bakerkj
 esphome/components/nrf52/* @tomaszduda23
