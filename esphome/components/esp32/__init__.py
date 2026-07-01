@@ -2214,6 +2214,18 @@ async def to_code(config):
     # This saves ~250 bytes of RAM (tag cache) and associated code
     add_idf_sdkconfig_option("CONFIG_LOG_TAG_LEVEL_IMPL_NONE", True)
 
+    # ESP-IDF Log V2 centralizes formatting inside esp_log(), removing the
+    # per-site macro expansions of V1 (saves ~4KB flash, ~180B RAM). Only enable
+    # on IDF >= 6.1, where CONFIG_LOG_API_CONSTRAINED_ENV_SAFE=n lets
+    # ESP_DRAM_LOGx / ESP_EARLY_LOGx expand directly to esp_rom_printf and drops
+    # the ~1.2KB esp_rom_vprintf that would otherwise sit in IRAM. Below 6.1 the
+    # option does not exist, so we stay on V1 unchanged.
+    if idf_version() >= cv.Version(6, 1, 0):
+        add_idf_sdkconfig_option("CONFIG_LOG_VERSION_1", False)
+        add_idf_sdkconfig_option("CONFIG_LOG_VERSION_2", True)
+        add_idf_sdkconfig_option("CONFIG_LOG_API_CONSTRAINED_ENV_SAFE", False)
+        cg.add_define("USE_ESP32_LOG_V2")
+
     # Reduce PHY TX power in the event of a brownout
     add_idf_sdkconfig_option("CONFIG_ESP_PHY_REDUCE_TX_POWER", True)
 
