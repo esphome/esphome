@@ -115,12 +115,12 @@ uint8_t SPIMRAM::read_status_register() {
 }
 
 void SPIMRAM::write_status_register(uint8_t value) {
-  this->write_enable();
+  this->write_enable_();
   this->enable();
   this->write_byte(CMD_WRSR);
   this->write_byte(value);
   this->disable();
-  this->write_disable();
+  this->write_disable_();
 }
 
 uint32_t SPIMRAM::clear(uint8_t value) {
@@ -149,13 +149,13 @@ uint32_t SPIMRAM::clear(uint8_t value) {
 // Internal Helpers
 //========================================================================
 
-void SPIMRAM::write_enable() {
+void SPIMRAM::write_enable_() {
   this->enable();
   this->write_byte(CMD_WREN);
   this->disable();
 }
 
-void SPIMRAM::write_disable() {
+void SPIMRAM::write_disable_() {
   this->enable();
   this->write_byte(CMD_WRDI);
   this->disable();
@@ -171,7 +171,7 @@ bool SPIMRAM::write_data_(uint32_t address, const uint8_t *data, size_t length) 
     size_t chunk_size = std::min(length, MAX_CHUNK);
 
     // Enable writes
-    this->write_enable();
+    this->write_enable_();
 
     // Start write command
     this->enable();
@@ -190,7 +190,7 @@ bool SPIMRAM::write_data_(uint32_t address, const uint8_t *data, size_t length) 
 
     // MRAM writes are instant - no need to wait!
     // Optionally disable writes (not strictly necessary)
-    this->write_disable();
+    this->write_disable_();
 
     address += chunk_size;
     data += chunk_size;

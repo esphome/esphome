@@ -52,7 +52,7 @@ void SPIFlash::setup() {
   // Enable quad mode if configured
   if (this->quad_mode_) {
     ESP_LOGCONFIG(TAG, "  Enabling Quad SPI mode...");
-    if (!this->enable_quad_mode()) {
+    if (!this->enable_quad_mode_()) {
       ESP_LOGW(TAG, "  Failed to enable Quad SPI mode, falling back to standard SPI");
       this->quad_mode_ = false;
     } else {
@@ -165,7 +165,7 @@ uint8_t SPIFlash::read_status_register2() {
   return status;
 }
 
-bool SPIFlash::enable_quad_mode() {
+bool SPIFlash::enable_quad_mode_() {
   // Read current status registers
   uint8_t status1 = this->read_status_register();
   uint8_t status2 = this->read_status_register2();
@@ -208,7 +208,7 @@ bool SPIFlash::enable_quad_mode() {
   return true;
 }
 
-bool SPIFlash::disable_quad_mode() {
+bool SPIFlash::disable_quad_mode_() {
   // Read current status registers
   uint8_t status1 = this->read_status_register();
   uint8_t status2 = this->read_status_register2();
@@ -366,7 +366,7 @@ bool SPIFlash::read_data_(uint32_t address, uint8_t *data, size_t length) {
     this->read_array(data, length);
   } else {
     // Standard read command (single SPI line)
-    this->write_byte(CMD_READ_DATA);
+    this->write_byte(CMD_READ_BYTES);
     this->write_address_(address);
     this->read_array(data, length);
   }

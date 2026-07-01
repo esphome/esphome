@@ -140,12 +140,12 @@ class SPIMRAM : public BinaryStorage,
   /**
    * @brief Enable writes (must be called before write operation)
    */
-  void write_enable();
+  void write_enable_();
 
   /**
    * @brief Disable writes
    */
-  void write_disable();
+  void write_disable_();
 
   /**
    * @brief Write data to MRAM

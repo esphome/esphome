@@ -256,7 +256,7 @@ class SPIFlash : public BinaryStorage,
   static constexpr uint8_t CMD_RELEASE_POWER_DOWN = 0xAB;
   static constexpr uint8_t CMD_MANUFACTURER_DEVICE_ID = 0x90;
   static constexpr uint8_t CMD_JEDEC_ID = 0x9F;
-  static constexpr uint8_t CMD_READ_DATA = 0x03;
+  static constexpr uint8_t CMD_READ_BYTES = 0x03;
   static constexpr uint8_t CMD_FAST_READ = 0x0B;
   static constexpr uint8_t CMD_READ_UNIQUE_ID = 0x4B;
 
@@ -293,7 +293,7 @@ class SPIFlash : public BinaryStorage,
    *
    * @return true on success
    */
-  bool enable_quad_mode();
+  bool enable_quad_mode_();
 
   /**
    * @brief Disable quad mode in status register
@@ -302,7 +302,7 @@ class SPIFlash : public BinaryStorage,
    *
    * @return true on success
    */
-  bool disable_quad_mode();
+  bool disable_quad_mode_();
 
   /**
    * @brief Write a page (up to 256 bytes, must not cross page boundary)

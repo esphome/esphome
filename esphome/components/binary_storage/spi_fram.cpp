@@ -120,12 +120,12 @@ uint8_t SPIFram::read_status_register() {
 }
 
 void SPIFram::write_status_register(uint8_t value) {
-  this->write_enable();
+  this->write_enable_();
   this->enable();
   this->write_byte(CMD_WRSR);
   this->write_byte(value);
   this->disable();
-  this->write_disable();
+  this->write_disable_();
 }
 
 uint32_t SPIFram::read_device_id() {
@@ -169,13 +169,13 @@ uint32_t SPIFram::clear(uint8_t value) {
 // Internal Helpers
 //========================================================================
 
-void SPIFram::write_enable() {
+void SPIFram::write_enable_() {
   this->enable();
   this->write_byte(CMD_WREN);
   this->disable();
 }
 
-void SPIFram::write_disable() {
+void SPIFram::write_disable_() {
   this->enable();
   this->write_byte(CMD_WRDI);
   this->disable();
@@ -191,7 +191,7 @@ bool SPIFram::write_data_(uint32_t address, const uint8_t *data, size_t length) 
     size_t chunk_size = std::min(length, MAX_CHUNK);
 
     // Enable writes
-    this->write_enable();
+    this->write_enable_();
 
     // Start write command
     this->enable();
@@ -210,7 +210,7 @@ bool SPIFram::write_data_(uint32_t address, const uint8_t *data, size_t length) 
 
     // FRAM writes are instant - no need to wait!
     // Optionally disable writes (not strictly necessary)
-    this->write_disable();
+    this->write_disable_();
 
     address += chunk_size;
     data += chunk_size;

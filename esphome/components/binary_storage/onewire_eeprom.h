@@ -157,40 +157,40 @@ class OneWireEEPROM : public BinaryStorage {
    *
    * @return true if device present
    */
-  bool onewire_reset();
+  bool onewire_reset_();
 
   /**
    * @brief Write a byte to OneWire bus
    *
    * @param data Byte to write
    */
-  void onewire_write_byte(uint8_t data);
+  void onewire_write_byte_(uint8_t data);
 
   /**
    * @brief Read a byte from OneWire bus
    *
    * @return Byte read
    */
-  uint8_t onewire_read_byte();
+  uint8_t onewire_read_byte_();
 
   /**
    * @brief Write a bit to OneWire bus
    *
    * @param bit Bit to write (0 or 1)
    */
-  void onewire_write_bit(bool bit);
+  void onewire_write_bit_(bool bit);
 
   /**
    * @brief Read a bit from OneWire bus
    *
    * @return Bit read (0 or 1)
    */
-  bool onewire_read_bit();
+  bool onewire_read_bit_();
 
   /**
    * @brief Select device on bus (Skip ROM or Match ROM)
    */
-  void onewire_select();
+  void onewire_select_();
 
   /**
    * @brief Calculate CRC-8 (Dallas/Maxim)
@@ -199,7 +199,7 @@ class OneWireEEPROM : public BinaryStorage {
    * @param length Data length
    * @return CRC-8 value
    */
-  uint8_t crc8(const uint8_t *data, size_t length);
+  uint8_t crc8_(const uint8_t *data, size_t length);
 
   /**
    * @brief Calculate CRC-16 (for scratchpad verification)
@@ -208,7 +208,7 @@ class OneWireEEPROM : public BinaryStorage {
    * @param length Data length
    * @return CRC-16 value
    */
-  uint16_t crc16(const uint8_t *data, size_t length);
+  uint16_t crc16_(const uint8_t *data, size_t length);
 
   //========================================================================
   // Memory Access Helpers
