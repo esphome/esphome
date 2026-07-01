@@ -1,7 +1,4 @@
 substitutions:
-  spi_flash_cs_pin: P24
-  spi_fram_cs_pin: P26
-  spi_mram_cs_pin: P7
   onewire_pin: P22
 
 # Inline i2c config using valid BK7252 I2C1 pins (P20=SCL1, P21=SDA1).
@@ -14,5 +11,4 @@ i2c:
     scan: true
 
 packages:
-  spi: !include ../../test_build_components/common/spi/bk72xx-ard.yaml
-  common: !include common.yaml
+  common: !include common.bk72xx.yaml
