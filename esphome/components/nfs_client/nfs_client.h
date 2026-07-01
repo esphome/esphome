@@ -353,7 +353,7 @@ class NFSClient : public storage::NetworkStorage {
 
 #ifdef USE_ESP_IDF
   int socket_{-1};
-#else
+#elif defined(USE_ARDUINO) || defined(USE_LIBRETINY)
   std::unique_ptr<WiFiClient> client_;
 #endif
 
