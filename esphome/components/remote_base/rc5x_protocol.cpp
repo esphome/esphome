@@ -13,7 +13,6 @@ static const char *const TAG = "remote.rc5x";
 static const uint32_t BIT_TIME_US = 889;
 // RC5X sends data in 2 parts separated by pause: Start bit, Field bit, toggle bit and adress first
 // 1 + 1 + 1 + 5
-static const uint8_t RC5_COMMAND_FIELD_BIT = 1;
 static const uint8_t RC5_TOGGLE_BIT = 1;
 static const uint8_t RC5_ADDRESS_BITS = 5;
 static const uint8_t FIRST_PART_NBITS = 8;
@@ -41,7 +40,7 @@ void RC5XProtocol::encode(RemoteTransmitData *dst, const RC5XData &data) {
   out_data |= command << (RC5_EXT_BITS);
   out_data |= extension & 0x3F;
 
-  u_int8_t pos = 0;
+  uint8_t pos = 0;
   for (uint64_t mask = 1UL << (NBITS - 1); mask != 0; mask >>= 1) {
     // Send 4 space pause between adress and command + extension
     if (pos == FIRST_PART_NBITS) {
@@ -156,7 +155,7 @@ optional<RC5XData> RC5XProtocol::decode(RemoteReceiveData src) {
   ESP_LOGVV(TAG, "All bits read, out_data: 0x%05X", out_data);
 
   // Step 5: Extract fields from bit stream
-  // Bit layout: [17 address bits] [11-6 command] [5-0 extension]
+  // Bit layout: [16-12 address] [11-6 command] [5-0 extension]
   out.extension = out_data & 0x3F;
   out.command = (out_data >> 6) & 0x3F;
   out.address = (out_data >> 12) & 0x1F;

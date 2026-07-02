@@ -14,6 +14,10 @@ struct RC5XData {
   uint8_t address;
   uint8_t command;
   uint8_t extension;
+
+  bool operator==(const RC5XData &rhs) const {
+    return address == rhs.address && command == rhs.command && extension == rhs.extension;
+  }
 };
 
 class RC5XProtocol : public RemoteProtocol<RC5XData> {
