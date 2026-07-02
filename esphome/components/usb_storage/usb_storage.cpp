@@ -90,8 +90,7 @@ bool USBStorageClient::parse_msc_endpoints_() {
   }
 
   if (!this->bulk_in_ep_ || !this->bulk_out_ep_) {
-    ESP_LOGE(TAG, "Failed to find MSC bulk endpoints (in=0x%02X out=0x%02X)", this->bulk_in_ep_,
-             this->bulk_out_ep_);
+    ESP_LOGE(TAG, "Failed to find MSC bulk endpoints (in=0x%02X out=0x%02X)", this->bulk_in_ep_, this->bulk_out_ep_);
     return false;
   }
   ESP_LOGD(TAG, "MSC endpoints: bulk_in=0x%02X bulk_out=0x%02X intf=%d", this->bulk_in_ep_, this->bulk_out_ep_,
@@ -103,8 +102,7 @@ bool USBStorageClient::parse_msc_endpoints_() {
 // BOT primitives
 // ─────────────────────────────────────────────────────────────────────────────
 
-bool USBStorageClient::send_cbw_(uint32_t tag, uint32_t data_len, uint8_t flags, const uint8_t *cdb,
-                                 uint8_t cdb_len) {
+bool USBStorageClient::send_cbw_(uint32_t tag, uint32_t data_len, uint8_t flags, const uint8_t *cdb, uint8_t cdb_len) {
   MscCbw cbw{};
   cbw.tag = tag;
   cbw.data_transfer_length = data_len;
@@ -218,8 +216,7 @@ bool USBStorageClient::scsi_read_capacity_() {
   this->sector_count_ = __builtin_bswap32(resp.last_lba) + 1;
   this->sector_size_ = __builtin_bswap32(resp.block_size);
   ESP_LOGI(TAG, "SCSI READ CAPACITY: sectors=%" PRIu32 " sector_size=%" PRIu32 " (%.1f MB)", this->sector_count_,
-           this->sector_size_,
-           static_cast<float>(this->sector_count_) * this->sector_size_ / (1024.0f * 1024.0f));
+           this->sector_size_, static_cast<float>(this->sector_count_) * this->sector_size_ / (1024.0f * 1024.0f));
   return this->sector_size_ > 0 && this->sector_count_ > 0;
 }
 
@@ -438,8 +435,7 @@ void USBStorageDevice::on_device_connected(const char *mount_path) {
 }
 
 void USBStorageDevice::on_device_disconnected() {
-  ESP_LOGI(TAG, "USB Storage Device disconnected (mount_path='%s')",
-           this->mount_path_ ? this->mount_path_ : "(none)");
+  ESP_LOGI(TAG, "USB Storage Device disconnected (mount_path='%s')", this->mount_path_ ? this->mount_path_ : "(none)");
   this->fs_mounted_ = false;
 
   if (storage::global_storage_registry != nullptr)
@@ -551,8 +547,7 @@ storage::StorageError USBStorageDevice::format() {
 
 storage::StorageError USBStorageDevice::sync() { return storage::StorageError::OK; }
 
-storage::StorageError USBStorageDevice::open(const char *path, storage::FileHandle *&handle,
-                                             storage::OpenMode mode) {
+storage::StorageError USBStorageDevice::open(const char *path, storage::FileHandle *&handle, storage::OpenMode mode) {
   if (!this->fs_mounted_)
     return storage::StorageError::NOT_READY;
 
@@ -617,7 +612,7 @@ storage::StorageError USBStorageDevice::write(storage::FileHandle *handle, const
 storage::StorageError USBStorageDevice::seek(storage::FileHandle *handle, size_t offset) {
   auto *h = static_cast<USBFileHandle *>(handle);
   return fseek(h->file, static_cast<long>(offset), SEEK_SET) == 0 ? storage::StorageError::OK
-                                                                    : storage::StorageError::READ_ERROR;
+                                                                  : storage::StorageError::READ_ERROR;
 }
 
 storage::StorageError USBStorageDevice::tell(storage::FileHandle *handle, size_t *position) {

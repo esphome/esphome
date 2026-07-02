@@ -112,8 +112,7 @@ struct USBFileHandle : public storage::FileHandle {
 // in the StorageRegistry. Mount/unmount are driven by USBStorageClient events;
 // all file ops go through POSIX (FAT is already VFS-registered by the client).
 // ─────────────────────────────────────────────────────────────────────────────
-class USBStorageDevice : public Parented<USBStorageClient>,
-                         public storage::FilesystemStorage {
+class USBStorageDevice : public Parented<USBStorageClient>, public storage::FilesystemStorage {
   friend class USBStorageClient;
 
  public:
@@ -149,8 +148,7 @@ class USBStorageDevice : public Parented<USBStorageClient>,
   storage::StorageError sync() override;
   storage::StorageError open(const char *path, storage::FileHandle *&handle, storage::OpenMode mode) override;
   storage::StorageError close(storage::FileHandle *handle) override;
-  storage::StorageError read(storage::FileHandle *handle, uint8_t *buf, size_t len,
-                             size_t *bytes_transferred) override;
+  storage::StorageError read(storage::FileHandle *handle, uint8_t *buf, size_t len, size_t *bytes_transferred) override;
   storage::StorageError write(storage::FileHandle *handle, const uint8_t *buf, size_t len,
                               size_t *bytes_transferred) override;
   storage::StorageError seek(storage::FileHandle *handle, size_t offset) override;
