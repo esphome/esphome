@@ -287,10 +287,7 @@ def copy_files() -> None:
     )
 
     if changed:
-        # A configure-time input (prj.conf, devicetree overlay, pm_static.yml,
-        # Kconfig root) changed. Drop the CMake cache so the next build cannot
-        # reuse stale configure results: the native sdk-nrf toolchain treats a
-        # missing cache as the signal for a pristine rebuild (Zephyr caches
-        # Kconfig and devicetree state that a plain cmake re-run would keep),
-        # and a PlatformIO build reconfigures from the current inputs.
+        # A configure-time input changed; drop the CMake cache so the build
+        # can't reuse stale configure results (the native sdk-nrf toolchain
+        # rebuilds pristine when the cache is missing).
         clean_cmake_cache()

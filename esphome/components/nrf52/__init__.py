@@ -758,16 +758,11 @@ def run_compile(args, config: ConfigType) -> bool:
     build_dir = CORE.relative_pioenvs_path(CORE.name)
     source_dir = CORE.relative_build_path("zephyr")
 
-    # Wipe the build directory when a configure-time input changed: either
-    # the CMakeLists.txt written above, or the CMake cache is gone because
-    # zephyr's copy_files() dropped it after a prj.conf/overlay/pm_static/
-    # Kconfig change. Zephyr caches Kconfig and devicetree results in the
-    # build dir and a plain cmake re-run keeps them, so only a pristine
-    # build reliably picks up the new config. We delete the directory
-    # ourselves because west cannot: its pristine handling (both always and
-    # auto) only wipes directories it recognizes as Zephyr build dirs, which
-    # requires reading ZEPHYR_BASE from the very cache that was dropped.
-    # Unchanged configs keep fully incremental builds via --pristine=auto.
+    # A missing CMake cache (dropped by zephyr's copy_files() on config
+    # change) or a changed CMakeLists.txt requires a pristine build: Zephyr
+    # caches Kconfig/devicetree state that survives a plain cmake re-run.
+    # West can't do the wipe — its pristine modes only recognize a build dir
+    # by reading ZEPHYR_BASE from the very cache that was dropped.
     if (
         cmake_lists_changed or not (build_dir / "CMakeCache.txt").is_file()
     ) and build_dir.is_dir():
