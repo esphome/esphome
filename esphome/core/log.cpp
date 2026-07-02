@@ -155,18 +155,32 @@ void IRAM_ATTR esp_log_format(esp_log_msg_t *message) {
     esp_log_format_direct_(message);
     return;
   }
-  // After hook installed, normal environment: skip V2's decoration and forward
-  // to the ESPHome logger via esp_log_vprint_func directly, which also avoids
-  // pulling in esp_rom_vprintf (1.2KB IRAM) through the esp_log_vprintf inline.
-  //
-  // V2 keeps the component tag (wifi, phy_init, ...) separate from the format
-  // string, and our hook labels everything "esp-idf", so prepend "tag: " to
-  // preserve which IDF component logged. The tag is a static literal with no %
-  // specifiers, so concatenating it in front of the format leaves the original
-  // args aligned. Only do this when the whole thing fits; never truncate the
-  // format, which could cut a % specifier and misread an arg. This path runs
-  // with cache enabled (not constrained_env), so flash-resident strlen/memcpy
-  // are safe here.
+  // After hook installed, normal environment. Never call the esp_log_vprintf
+  // inline here: it would pull in esp_rom_vprintf (1.2KB IRAM).
+#ifdef USE_LOGGER
+  if (esp_log_vprint_func == &esphome::esp_idf_log_vprintf_ && esphome::logger::global_logger != nullptr) {
+    // The hook is ESPHome's own (the common case). V2 keeps the component tag
+    // (wifi, phy_init, ...) and per-message severity separate from the format
+    // string, so call the logger directly with both: lines render with the
+    // real tag and level (e.g. "[E][wifi]: ...") including color and per-tag
+    // filtering, details the (format, args) hook signature cannot carry.
+    // IDF levels: NONE=0 E=1 W=2 I=3 D=4 V=5; ESPHome inserts CONFIG at 4.
+    static const uint8_t LEVEL_MAP[] = {ESPHOME_LOG_LEVEL_NONE, ESPHOME_LOG_LEVEL_ERROR, ESPHOME_LOG_LEVEL_WARN,
+                                        ESPHOME_LOG_LEVEL_INFO, ESPHOME_LOG_LEVEL_DEBUG, ESPHOME_LOG_LEVEL_VERBOSE};
+    uint8_t idf_level = message->config.opts.log_level;
+    uint8_t level = idf_level < sizeof(LEVEL_MAP) ? LEVEL_MAP[idf_level] : ESPHOME_LOG_LEVEL_VERBOSE;
+    esphome::logger::global_logger->log_vprintf_(level, message->tag ? message->tag : "esp-idf", 0, message->format,
+                                                 message->args);
+    return;
+  }
+#endif
+  // A custom vprintf hook is installed: forward through it, prepending
+  // "tag: " to preserve which IDF component logged. The tag is a static
+  // literal with no % specifiers, so concatenating it in front of the format
+  // leaves the original args aligned. Only do this when the whole thing fits;
+  // never truncate the format, which could cut a % specifier and misread an
+  // arg. This path runs with cache enabled (not constrained_env), so
+  // flash-resident strlen/memcpy are safe here.
   const char *tag = message->tag;
   if (tag != nullptr) {
     size_t tag_len = strlen(tag);
