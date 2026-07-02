@@ -15,11 +15,6 @@ inputs:
     description: "Version to build"
     required: true
     example: "2023.12.0"
-  base_os:
-    description: "Base OS to use"
-    required: false
-    default: "debian"
-    example: "debian"
 runs:
   using: "composite"
   steps:
@@ -60,7 +55,6 @@ runs:
         build-args: |
           BUILD_TYPE=${{ inputs.build_type }}
           BUILD_VERSION=${{ inputs.version }}
-          BUILD_OS=${{ inputs.base_os }}
         outputs: |
           type=image,name=ghcr.io/${{ steps.tags.outputs.image_name }},push-by-digest=true,name-canonical=true,push=true
 
@@ -86,7 +80,6 @@ runs:
         build-args: |
           BUILD_TYPE=${{ inputs.build_type }}
           BUILD_VERSION=${{ inputs.version }}
-          BUILD_OS=${{ inputs.base_os }}
         outputs: |
           type=image,name=docker.io/${{ steps.tags.outputs.image_name }},push-by-digest=true,name-canonical=true,push=true
 
