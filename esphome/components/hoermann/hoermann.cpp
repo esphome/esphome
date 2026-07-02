@@ -17,10 +17,10 @@ static constexpr uint16_t COMMAND_REG = 0x9C41;    // Commands written by the bu
 static constexpr uint16_t STATE_REG = 0x9CB9;      // Internal state read back by the bus controller
 static constexpr uint16_t BROADCAST_REG = 0x9D31;  // Door status broadcast by the bus controller
 
-// Command definitions: {reg_plus2_start, reg_plus2_end, reg_plus3_start, reg_plus3_end}.
-static constexpr HoermannCommand COMMAND_OPEN{0x0210, 0x0110, 0x0000, 0x0000};
-static constexpr HoermannCommand COMMAND_CLOSE{0x0220, 0x0120, 0x0000, 0x0000};
-static constexpr HoermannCommand COMMAND_IMPULSE{0x0240, 0x0140, 0x0000, 0x0000};
+// Command definitions: {name, reg_plus2_start, reg_plus2_end, reg_plus3_start, reg_plus3_end}.
+static constexpr HoermannCommand COMMAND_OPEN{"open", 0x0210, 0x0110, 0x0000, 0x0000};
+static constexpr HoermannCommand COMMAND_CLOSE{"close", 0x0220, 0x0120, 0x0000, 0x0000};
+static constexpr HoermannCommand COMMAND_IMPULSE{"impulse", 0x0240, 0x0140, 0x0000, 0x0000};
 
 void Hoermann::setup() {
   ESP_LOGCONFIG(TAG, "Waiting for the bus controller to start polling Modbus address 0x%02X", this->get_address());
@@ -130,10 +130,12 @@ void Hoermann::get_command_values_to_read_(uint16_t &reg_plus2, uint16_t &reg_pl
     reg_plus2 = this->next_command_->reg_plus2_start;
     reg_plus3 = this->next_command_->reg_plus3_start;
     this->command_written_at_ = millis();
+    ESP_LOGI(TAG, "Sending '%s' command to door", this->next_command_->name);
   } else if (millis() - this->command_written_at_ > SIMULATE_KEY_PRESS_DELAY_MS) {
     // Enough time passed: present the "key released" values and clear the command.
     reg_plus2 = this->next_command_->reg_plus2_end;
     reg_plus3 = this->next_command_->reg_plus3_end;
+    ESP_LOGD(TAG, "Released '%s' command", this->next_command_->name);
     this->command_written_at_ = 0;
     this->next_command_ = nullptr;
   }

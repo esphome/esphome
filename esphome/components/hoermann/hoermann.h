@@ -24,6 +24,7 @@ enum class DoorState : uint8_t {
 // A HCP command is a simulated key press: the "start" values are presented to the bus controller, then after a
 // short delay the "end" values, mimicking a button being pressed and released.
 struct HoermannCommand {
+  const char *name;
   uint16_t reg_plus2_start;
   uint16_t reg_plus2_end;
   uint16_t reg_plus3_start;
