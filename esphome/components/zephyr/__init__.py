@@ -8,6 +8,7 @@ from esphome.const import CONF_BOARD, KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, write_file_if_changed
 from esphome.types import ConfigType
+from esphome.writer import clean_cmake_cache
 
 from .const import (
     CONF_CDC_ACM,
@@ -203,7 +204,20 @@ def zephyr_add_user(key, value):
     user[key] += [value]
 
 
-def copy_files():
+def _write_or_remove_file_if_changed(path: Path, content: str) -> bool:
+    """Write content to path, or remove a stale file when content is empty.
+
+    Returns True if the file changed on disk.
+    """
+    if content:
+        return write_file_if_changed(path, content)
+    if path.is_file():
+        path.unlink()
+        return True
+    return False
+
+
+def copy_files() -> None:
     user = zephyr_data()[KEY_USER]
     if user:
         entries = " ".join(
@@ -219,6 +233,8 @@ def copy_files():
             """
         )
 
+    changed = False
+
     for image, want_opts in zephyr_data()[KEY_PRJ_CONF].items():
         prj_conf = (
             "\n".join(
@@ -233,26 +249,25 @@ def copy_files():
         else:
             path = CORE.relative_build_path("zephyr/prj.conf")
 
-        write_file_if_changed(CORE.relative_build_path(path), prj_conf)
+        changed |= write_file_if_changed(path, prj_conf)
 
     for image, content in zephyr_data()[KEY_OVERLAY].items():
         if image:
             path = CORE.relative_build_path(f"sysbuild/{image}.overlay")
         else:
             path = CORE.relative_build_path("zephyr/app.overlay")
-        write_file_if_changed(path, content)
+        changed |= write_file_if_changed(path, content)
 
     for filename, path in zephyr_data()[KEY_EXTRA_BUILD_FILES].items():
-        copy_file_if_changed(
+        changed |= copy_file_if_changed(
             path,
             CORE.relative_build_path(filename),
         )
 
     pm_static = "\n".join(str(item) for item in zephyr_data()[KEY_PM_STATIC])
-    if pm_static:
-        write_file_if_changed(
-            CORE.relative_build_path("zephyr/pm_static.yml"), pm_static
-        )
+    changed |= _write_or_remove_file_if_changed(
+        CORE.relative_build_path("zephyr/pm_static.yml"), pm_static
+    )
 
     kconfig = zephyr_data()[KEY_KCONFIG]
     if kconfig:
@@ -267,4 +282,15 @@ def copy_files():
             + "\n"
             + kconfig
         )
-        write_file_if_changed(CORE.relative_build_path("zephyr/Kconfig"), kconfig)
+    changed |= _write_or_remove_file_if_changed(
+        CORE.relative_build_path("zephyr/Kconfig"), kconfig
+    )
+
+    if changed:
+        # A configure-time input (prj.conf, devicetree overlay, pm_static.yml,
+        # Kconfig root) changed. Drop the CMake cache so the next build cannot
+        # reuse stale configure results: the native sdk-nrf toolchain treats a
+        # missing cache as the signal for a pristine rebuild (Zephyr caches
+        # Kconfig and devicetree state that a plain cmake re-run would keep),
+        # and a PlatformIO build reconfigures from the current inputs.
+        clean_cmake_cache()

@@ -58,7 +58,7 @@ from esphome.framework_helpers import (
     get_project_link_flags,
     run_command_ok,
 )
-from esphome.helpers import write_file_if_changed
+from esphome.helpers import rmtree, write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
@@ -697,7 +697,8 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
     return False
 
 
-def _generate_cmake_lists() -> None:
+def _generate_cmake_lists() -> bool:
+    """Write the project CMakeLists.txt, returning True if it changed."""
     compile_flags = get_project_compile_flags()
     link_flags = get_project_link_flags()
 
@@ -732,7 +733,7 @@ def _generate_cmake_lists() -> None:
             ")",
         ]
 
-    write_file_if_changed(
+    return write_file_if_changed(
         CORE.relative_build_path("zephyr", "CMakeLists.txt"),
         "\n".join(lines) + "\n",
     )
@@ -751,18 +752,34 @@ def run_compile(args, config: ConfigType) -> bool:
     paths = get_build_paths()
     env = get_build_env()
 
-    _generate_cmake_lists()
+    cmake_lists_changed = _generate_cmake_lists()
 
     board = zephyr_data()[KEY_BOARD]
     build_dir = CORE.relative_pioenvs_path(CORE.name)
     source_dir = CORE.relative_build_path("zephyr")
+
+    # Wipe the build directory when a configure-time input changed: either
+    # the CMakeLists.txt written above, or the CMake cache is gone because
+    # zephyr's copy_files() dropped it after a prj.conf/overlay/pm_static/
+    # Kconfig change. Zephyr caches Kconfig and devicetree results in the
+    # build dir and a plain cmake re-run keeps them, so only a pristine
+    # build reliably picks up the new config. We delete the directory
+    # ourselves because west cannot: its pristine handling (both always and
+    # auto) only wipes directories it recognizes as Zephyr build dirs, which
+    # requires reading ZEPHYR_BASE from the very cache that was dropped.
+    # Unchanged configs keep fully incremental builds via --pristine=auto.
+    if (
+        cmake_lists_changed or not (build_dir / "CMakeCache.txt").is_file()
+    ) and build_dir.is_dir():
+        _LOGGER.info("Build inputs changed, cleaning %s", build_dir)
+        rmtree(build_dir)
 
     west_cmd = [
         str(paths["python_executable"]),
         "-m",
         "west",
         "build",
-        "--pristine=always",
+        "--pristine=auto",
         "-b",
         board,
         "-d",
