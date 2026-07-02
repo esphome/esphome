@@ -168,7 +168,7 @@ void OpenThreadComponent::ot_main() {
   esp_netif_destroy(openthread_netif);
 
   esp_vfs_eventfd_unregister();
-  this->teardown_stage_ = OtcTeardownStage::OTC_TEARDOWN_COMPLETED;
+  this->teardown_stage_ = OtcTeardownStage::COMPLETED;
   vTaskDelete(NULL);
 }
 
