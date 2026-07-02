@@ -97,15 +97,13 @@ def set_core_data(config):
 def get_download_types(storage_json):
     """Binary-download entries for a built ESP8266 firmware.
 
-    Used by:
-    - esphome.dashboard (legacy "Download .bin" button)
-    - device-builder (esphome/device-builder) — same dispatch via
-      ``importlib.import_module(f"esphome.components.{platform}")``
-      then ``module.get_download_types(storage)``. The contract is
-      "returns ``list[dict]`` with at least ``title`` /
-      ``description`` / ``file`` / ``download`` keys"; please keep
-      the shape stable so the new dashboard's download panel
-      doesn't have to special-case per-platform schemas.
+    Used by device-builder (esphome/device-builder), via
+    ``importlib.import_module(f"esphome.components.{platform}")``
+    then ``module.get_download_types(storage)``. The contract is
+    "returns ``list[dict]`` with at least ``title`` /
+    ``description`` / ``file`` / ``download`` keys"; please keep
+    the shape stable so the download panel
+    doesn't have to special-case per-platform schemas.
     """
     return [
         {
@@ -133,7 +131,6 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
 #    The new version needs to be thoroughly validated before changing the
 #    recommended version as otherwise a bunch of devices could be bricked
 #  * For all constants below, update platformio.ini (in this repo)
-#    and platformio.ini/platformio-lint.ini in the esphome-docker-base repository
 
 # The default/recommended arduino framework version
 #  - https://github.com/esp8266/Arduino/releases
@@ -313,6 +310,14 @@ async def to_code(config):
     # For cases where nullptrs can be handled, use nothrow: `new (std::nothrow) T;`
     cg.add_build_flag("-DNEW_OOM_ABORT")
 
+    # Force-include inline std::__throw_* overrides so GCC dead-strips the unused
+    # libstdc++ error message strings (e.g. "basic_string::_M_create") from DRAM.
+    # See throw_stubs.h for details. Must be prepended before <string>, so this
+    # uses build_src_flags with -include.
+    cg.add_platformio_option(
+        "build_src_flags", "-include esphome/components/esp8266/throw_stubs.h"
+    )
+
     # In testing mode, fake larger memory to allow linking grouped component tests
     # Real ESP8266 hardware only has 32KB IRAM and ~80KB RAM, but for CI testing
     # we pretend it has much larger memory to test that components compile together
@@ -472,7 +477,7 @@ def _decode_pc(config, addr):
     command = [idedata.addr2line_path, "-pfiaC", "-e", idedata.firmware_elf_path, addr]
     try:
         translation = subprocess.check_output(command, close_fds=False).decode().strip()
-    except Exception:  # pylint: disable=broad-except
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-except
         _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
         return
 
@@ -492,6 +497,15 @@ def _parse_register(config, regex, line):
 STACKTRACE_ESP8266_EXCEPTION_TYPE_RE = re.compile(r"[eE]xception \((\d+)\):")
 STACKTRACE_ESP8266_PC_RE = re.compile(r"epc1=0x(4[0-9a-fA-F]{7})")
 STACKTRACE_ESP8266_EXCVADDR_RE = re.compile(r"excvaddr=0x(4[0-9a-fA-F]{7})")
+# Structured crash handler output (crash_handler.cpp) from a previous boot:
+#   PC: 0x40220060
+#   EXCVADDR: 0x0000008A
+#   BT0: 0x40212345
+STACKTRACE_ESP8266_CRASH_PC_RE = re.compile(r".*PC\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
+STACKTRACE_ESP8266_CRASH_EXCVADDR_RE = re.compile(
+    r".*EXCVADDR\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})"
+)
+STACKTRACE_ESP8266_CRASH_BT_RE = re.compile(r"BT\d+:\s*0x([0-9a-fA-F]{8})")
 STACKTRACE_BAD_ALLOC_RE = re.compile(
     r"^last failed alloc call: (4[0-9a-fA-F]{7})\((\d+)\)$"
 )
@@ -508,9 +522,16 @@ def process_stacktrace(config, line, backtrace_state):
             "Exception type: %s", ESP8266_EXCEPTION_CODES.get(code, "unknown")
         )
 
-    # ESP8266 PC/EXCVADDR
+    # ESP8266 PC/EXCVADDR (legacy Arduino postmortem)
     _parse_register(config, STACKTRACE_ESP8266_PC_RE, line)
     _parse_register(config, STACKTRACE_ESP8266_EXCVADDR_RE, line)
+
+    # ESP8266 structured crash handler (crash_handler.cpp) from previous boot
+    _parse_register(config, STACKTRACE_ESP8266_CRASH_PC_RE, line)
+    _parse_register(config, STACKTRACE_ESP8266_CRASH_EXCVADDR_RE, line)
+    match = re.search(STACKTRACE_ESP8266_CRASH_BT_RE, line)
+    if match is not None:
+        _decode_pc(config, match.group(1))
 
     # bad alloc
     match = re.match(STACKTRACE_BAD_ALLOC_RE, line)

@@ -2,14 +2,25 @@
 Test ESP32 configuration
 """
 
+import asyncio
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from esphome.components.esp32 import VARIANT_ESP32, VARIANTS
-from esphome.components.esp32.const import KEY_ESP32, KEY_SDKCONFIG_OPTIONS, KEY_VARIANT
+from esphome.components.esp32 import (
+    VARIANT_ESP32,
+    VARIANTS,
+    NetworkSdkconfigData,
+    _reconcile_network_sdkconfig,
+)
+from esphome.components.esp32.const import (
+    KEY_ESP32,
+    KEY_NETWORK_SDKCONFIG,
+    KEY_SDKCONFIG_OPTIONS,
+    KEY_VARIANT,
+)
 from esphome.components.esp32.gpio import validate_gpio_pin
 import esphome.config_validation as cv
 from esphome.const import (
@@ -45,14 +56,55 @@ def test_esp32_config(
     config = CONFIG_SCHEMA(config)
     assert config["variant"] == VARIANT_ESP32
 
-    # Check that defining a variant sets the board name correctly
+    # Check that defining a variant sets the board name correctly.
+    # Run under the ESP-IDF toolchain so variants without an entry in
+    # STANDARD_BOARDS (S31, H4, H21) still derive a board name from
+    # VARIANT_FRIENDLY rather than failing with cv.Invalid. CORE.toolchain
+    # gets pinned by the first CONFIG_SCHEMA() call above (via
+    # _resolve_toolchain) and that pinned value wins over the dict's
+    # CONF_TOOLCHAIN, so clear it between iterations to mirror a fresh
+    # config run.
     for variant in VARIANTS:
+        CORE.toolchain = None
         config = CONFIG_SCHEMA(
             {
                 "variant": variant,
+                "toolchain": Toolchain.ESP_IDF.value,
             }
         )
         assert VARIANT_FRIENDLY[variant].lower() in config["board"]
+
+
+@pytest.mark.parametrize(
+    ("config_toolchain", "expected"),
+    [
+        # No `toolchain:` set -> the new default for esp32.
+        (None, Toolchain.ESP_IDF),
+        # An explicit `toolchain:` still wins over the default.
+        (Toolchain.PLATFORMIO.value, Toolchain.PLATFORMIO),
+        (Toolchain.ESP_IDF.value, Toolchain.ESP_IDF),
+    ],
+)
+def test_esp32_default_toolchain_is_esp_idf(
+    set_core_config: SetCoreConfigCallable,
+    config_toolchain: str | None,
+    expected: Toolchain,
+) -> None:
+    """With no `toolchain:` set (and nothing pinned via the CLI), esp32 resolves
+    to the ESP-IDF toolchain; an explicit `toolchain:` still wins."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    from esphome.components.esp32 import CONFIG_SCHEMA
+
+    # Fresh run: no --toolchain CLI and no prior config pinned CORE.toolchain.
+    CORE.toolchain = None
+    config: dict[str, Any] = {"variant": VARIANT_ESP32}
+    if config_toolchain is not None:
+        config["toolchain"] = config_toolchain
+
+    CONFIG_SCHEMA(config)
+
+    assert CORE.toolchain == expected
 
 
 @pytest.mark.parametrize(
@@ -72,6 +124,11 @@ def test_esp32_config(
             {"variant": "esp32s3", "board": "esp32dev"},
             r"Option 'variant' does not match selected board. @ data\['variant'\]",
             id="mismatched_board_variant_config",
+        ),
+        pytest.param(
+            {"variant": "esp32s31", "toolchain": Toolchain.PLATFORMIO.value},
+            r"No default board is known for ESP32S31\. Please specify the `board:` option explicitly\. @ data\['variant'\]",
+            id="variant_without_default_board_requires_explicit_board_under_platformio",
         ),
         pytest.param(
             {
@@ -154,6 +211,32 @@ def test_execute_from_psram_p4_sdkconfig(
     assert sdkconfig.get("CONFIG_SPIRAM_XIP_FROM_PSRAM") is True
     assert "CONFIG_SPIRAM_FETCH_INSTRUCTIONS" not in sdkconfig
     assert "CONFIG_SPIRAM_RODATA" not in sdkconfig
+
+
+@pytest.mark.parametrize(
+    ("fixture", "expect_warning"),
+    [
+        ("psram_quad_gpio34.yaml", False),
+        ("psram_octal_gpio34.yaml", True),
+        ("psram_octal_disabled_gpio34.yaml", False),
+    ],
+)
+def test_s3_psram_pin_warning_only_for_octal(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    caplog: pytest.LogCaptureFixture,
+    fixture: str,
+    expect_warning: bool,
+) -> None:
+    """GPIO33-37 are only used by the PSRAM interface in octal mode.
+
+    Using such a pin must only warn when octal PSRAM is configured; on quad
+    PSRAM the pins are free and warning would be a false positive (#16857).
+    """
+    with caplog.at_level("WARNING"):
+        generate_main(component_config_path(fixture))
+    warned = "GPIO34 is used by the PSRAM interface in octal mode" in caplog.text
+    assert warned == expect_warning
 
 
 def test_ignore_pin_validation_error_on_clean_pin_warns(
@@ -271,3 +354,209 @@ def test_native_idf_enables_reproducible_build(
 
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_APP_REPRODUCIBLE_BUILD") is True
+
+
+def test_flash_mode_sets_sdkconfig_and_pio_option(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """flash_mode/flash_frequency select the esptool flash parameters on both backends."""
+    generate_main(component_config_path("flash_mode_idf.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_ESPTOOLPY_FLASHMODE_QIO") is True
+    assert sdkconfig.get("CONFIG_ESPTOOLPY_FLASHFREQ_80M") is True
+    assert CORE.platformio_options.get("board_build.flash_mode") == "qio"
+    assert CORE.platformio_options.get("board_build.f_flash") == "80000000L"
+
+
+def test_flash_mode_unset_leaves_defaults(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Without flash_mode the board/sdkconfig defaults stay untouched."""
+    generate_main(component_config_path("flash_mode_default.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert not any(key.startswith("CONFIG_ESPTOOLPY_FLASHMODE_") for key in sdkconfig)
+    assert not any(key.startswith("CONFIG_ESPTOOLPY_FLASHFREQ_") for key in sdkconfig)
+    assert "board_build.flash_mode" not in CORE.platformio_options
+    assert "board_build.f_flash" not in CORE.platformio_options
+
+
+@pytest.mark.parametrize(
+    ("framework", "net", "preset", "expected"),
+    [
+        # --- IDF: single-interface cases (must match pre-refactor behavior) ---
+        pytest.param(
+            PlatformFramework.ESP32_IDF,
+            NetworkSdkconfigData(wifi=True),
+            {},
+            {
+                "CONFIG_ESP_WIFI_SOFTAP_SUPPORT": False,
+                "CONFIG_LWIP_DHCPS": False,
+            },
+            id="idf_wifi_no_ap",
+        ),
+        pytest.param(
+            PlatformFramework.ESP32_IDF,
+            NetworkSdkconfigData(wifi=True, wifi_ap=True),
+            {},
+            {},
+            id="idf_wifi_ap_leaves_softap_dhcps",
+        ),
+        pytest.param(
+            PlatformFramework.ESP32_IDF,
+            NetworkSdkconfigData(ethernet=True),
+            {},
+            {
+                "CONFIG_ESP_WIFI_ENABLED": False,
+                "CONFIG_SW_COEXIST_ENABLE": False,
+            },
+            id="idf_ethernet_only",
+        ),
+        pytest.param(
+            PlatformFramework.ESP32_IDF,
+            NetworkSdkconfigData(
+                wifi=True, bluetooth=True, ble_42=True, software_coexistence=True
+            ),
+            {},
+            {
+                "CONFIG_BT_ENABLED": True,
+                "CONFIG_BT_BLE_42_FEATURES_SUPPORTED": True,
+                "CONFIG_SW_COEXIST_ENABLE": True,
+                "CONFIG_ESP_WIFI_SOFTAP_SUPPORT": False,
+                "CONFIG_LWIP_DHCPS": False,
+            },
+            id="idf_wifi_ble_tracker_coexistence",
+        ),
+        pytest.param(
+            PlatformFramework.ESP32_IDF,
+            NetworkSdkconfigData(bluetooth=True),
+            {},
+            {"CONFIG_BT_ENABLED": True},
+            id="idf_ble_server_only_no_ble42",
+        ),
+        # --- IDF: user sdkconfig_options always win ---
+        pytest.param(
+            PlatformFramework.ESP32_IDF,
+            NetworkSdkconfigData(wifi=True),
+            {"CONFIG_ESP_WIFI_SOFTAP_SUPPORT": True},
+            {
+                "CONFIG_ESP_WIFI_SOFTAP_SUPPORT": True,
+                "CONFIG_LWIP_DHCPS": False,
+            },
+            id="idf_user_override_wins",
+        ),
+        # --- IDF: user advanced enable_lwip_dhcp_server: false, even with AP ---
+        pytest.param(
+            PlatformFramework.ESP32_IDF,
+            NetworkSdkconfigData(
+                wifi=True, wifi_ap=True, enable_lwip_dhcp_server=False
+            ),
+            {},
+            {"CONFIG_LWIP_DHCPS": False},
+            id="idf_user_disables_dhcps_with_ap",
+        ),
+        # --- IDF: WiFi + Ethernet coexist (the multi-interface unlock) ---
+        pytest.param(
+            PlatformFramework.ESP32_IDF,
+            NetworkSdkconfigData(wifi=True, ethernet=True),
+            {},
+            {
+                "CONFIG_ESP_WIFI_SOFTAP_SUPPORT": False,
+                "CONFIG_LWIP_DHCPS": False,
+            },
+            id="idf_wifi_and_ethernet_keeps_wifi_enabled",
+        ),
+        # --- Arduino: SoftAP/DHCPS disable is IDF-only ---
+        pytest.param(
+            PlatformFramework.ESP32_ARDUINO,
+            NetworkSdkconfigData(wifi=True),
+            {},
+            {},
+            id="arduino_wifi_no_ap_untouched",
+        ),
+        pytest.param(
+            PlatformFramework.ESP32_ARDUINO,
+            NetworkSdkconfigData(ethernet=True),
+            {},
+            {
+                "CONFIG_ESP_WIFI_ENABLED": False,
+                "CONFIG_SW_COEXIST_ENABLE": False,
+            },
+            id="arduino_ethernet_only_disables_wifi",
+        ),
+        # --- Arduino + Ethernet: DHCPS stays available even if user disabled it ---
+        pytest.param(
+            PlatformFramework.ESP32_ARDUINO,
+            NetworkSdkconfigData(ethernet=True, enable_lwip_dhcp_server=False),
+            {},
+            {
+                "CONFIG_ESP_WIFI_ENABLED": False,
+                "CONFIG_SW_COEXIST_ENABLE": False,
+            },
+            id="arduino_ethernet_dhcps_exclusion",
+        ),
+    ],
+)
+def test_reconcile_network_sdkconfig(
+    set_core_config: SetCoreConfigCallable,
+    framework: PlatformFramework,
+    net: NetworkSdkconfigData,
+    preset: dict[str, Any],
+    expected: dict[str, Any],
+) -> None:
+    """The FINAL-priority reconciler resolves WiFi/Ethernet/Bluetooth/coexistence
+    sdkconfig flags from the requests recorded in NetworkSdkconfigData."""
+    set_core_config(framework)
+    CORE.data[KEY_ESP32] = {
+        KEY_SDKCONFIG_OPTIONS: dict(preset),
+        KEY_NETWORK_SDKCONFIG: net,
+    }
+
+    asyncio.run(_reconcile_network_sdkconfig())
+
+    assert CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] == expected
+
+
+def test_network_wifi_only_reconciles_end_to_end(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """End-to-end: codegen for an ESP-IDF WiFi (no AP) config runs the reconciler
+    after wifi's request_wifi(), disabling SoftAP support and the DHCP server."""
+    generate_main(component_config_path("network_wifi_only.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_ESP_WIFI_SOFTAP_SUPPORT") is False
+    assert sdkconfig.get("CONFIG_LWIP_DHCPS") is False
+    # WiFi stack stays enabled (no ethernet) and no Bluetooth requested.
+    assert "CONFIG_ESP_WIFI_ENABLED" not in sdkconfig
+    assert "CONFIG_BT_ENABLED" not in sdkconfig
+
+
+def test_network_ethernet_only_reconciles_end_to_end(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """End-to-end: ethernet's request_ethernet() makes the reconciler disable the
+    WiFi stack and coexistence when WiFi is absent."""
+    generate_main(component_config_path("network_ethernet_only.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_ESP_WIFI_ENABLED") is False
+    assert sdkconfig.get("CONFIG_SW_COEXIST_ENABLE") is False
+
+
+def test_network_wifi_ble_coexistence_reconciles_end_to_end(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """End-to-end: WiFi + esp32_ble_tracker software_coexistence resolves to
+    BT enabled and coexistence on, with SoftAP/DHCP server dropped (no AP)."""
+    generate_main(component_config_path("network_wifi_ble_coexistence.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_BT_ENABLED") is True
+    assert sdkconfig.get("CONFIG_BT_BLE_42_FEATURES_SUPPORTED") is True
+    assert sdkconfig.get("CONFIG_SW_COEXIST_ENABLE") is True
+    assert sdkconfig.get("CONFIG_ESP_WIFI_SOFTAP_SUPPORT") is False
+    assert sdkconfig.get("CONFIG_LWIP_DHCPS") is False
+    # WiFi present alongside BT -> WiFi stack must stay enabled.
+    assert "CONFIG_ESP_WIFI_ENABLED" not in sdkconfig

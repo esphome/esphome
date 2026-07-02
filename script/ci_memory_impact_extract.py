@@ -127,7 +127,7 @@ def run_detailed_analysis(build_dir: str) -> dict | None:
         if not idedata_path.exists():
             continue
         try:
-            with open(idedata_path, encoding="utf-8") as f:
+            with idedata_path.open(encoding="utf-8") as f:
                 raw_data = json.load(f)
             idedata = IDEData(raw_data)
             print(f"Loaded idedata from: {idedata_path}", file=sys.stderr)
@@ -264,7 +264,7 @@ def main() -> int:
 
         output_path = Path(args.output_json)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, "w", encoding="utf-8") as f:
+        with output_path.open("w", encoding="utf-8") as f:
             json.dump(output_data, f, indent=2)
         print(f"Saved analysis to {args.output_json}", file=sys.stderr)
 

@@ -74,8 +74,6 @@ def _final_validate(config):
     if not use_interrupt:
         return config
 
-    pin_num = config[CONF_PIN][CONF_NUMBER]
-
     # Expander pins (e.g. PCF8574, MCP23017) don't support direct interrupt
     # attachment — only internal/native GPIO pins do.
     if pins.PIN_SCHEMA_REGISTRY.get_key(config[CONF_PIN]) != CORE.target_platform:
@@ -86,6 +84,8 @@ def _final_validate(config):
         )
         config[CONF_USE_INTERRUPT] = False
         return config
+
+    pin_num = config[CONF_PIN][CONF_NUMBER]
 
     # GPIO16 on ESP8266 doesn't support interrupts through attachInterrupt().
     if CORE.is_esp8266 and pin_num == 16:

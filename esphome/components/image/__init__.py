@@ -395,7 +395,7 @@ def download_image(value):
 def is_svg_file(file):
     if not file:
         return False
-    with open(file, "rb") as f:
+    with Path(file).open("rb") as f:
         return "<svg" in str(f.read(1024))
 
 
@@ -408,7 +408,7 @@ def validate_file_shorthand(value):
             raise cv.Invalid(f"Could not parse mdi icon name from '{value}'.")
         return download_gh_svg(parts[1], parts[0])
 
-    if value.startswith("http://") or value.startswith("https://"):
+    if value.startswith(("http://", "https://")):
         return download_image(value)
 
     value = cv.file_(value)

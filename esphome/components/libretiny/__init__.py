@@ -28,7 +28,7 @@ from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed
 from esphome.storage_json import StorageJSON
 
-from . import gpio  # noqa
+from . import gpio  # noqa: F401
 from .const import (
     COMPONENT_BK72XX,
     CONF_GPIO_RECOVER,
@@ -158,15 +158,13 @@ def only_on_family(*, supported=None, unsupported=None):
 def get_download_types(storage_json: StorageJSON = None):
     """Binary-download entries for a built LibreTiny firmware.
 
-    Used by:
-    - esphome.dashboard (legacy "Download .bin" button)
-    - device-builder (esphome/device-builder) — same dispatch via
-      ``importlib.import_module(f"esphome.components.{platform}")``
-      then ``module.get_download_types(storage)``. The contract is
-      "returns ``list[dict]`` with at least ``title`` /
-      ``description`` / ``file`` / ``download`` keys"; please keep
-      the shape stable so the new dashboard's download panel
-      doesn't have to special-case per-platform schemas.
+    Used by device-builder (esphome/device-builder), via
+    ``importlib.import_module(f"esphome.components.{platform}")``
+    then ``module.get_download_types(storage)``. The contract is
+    "returns ``list[dict]`` with at least ``title`` /
+    ``description`` / ``file`` / ``download`` keys"; please keep
+    the shape stable so the download panel
+    doesn't have to special-case per-platform schemas.
     """
     types = [
         {
@@ -213,14 +211,14 @@ def _notify_old_style(config):
 # The dev and latest branches will be at *least* this version, which is what matters.
 # Use GitHub releases directly to avoid PlatformIO moderation delays.
 ARDUINO_VERSIONS = {
-    "dev": (cv.Version(1, 12, 1), "https://github.com/libretiny-eu/libretiny.git"),
+    "dev": (cv.Version(1, 13, 0), "https://github.com/libretiny-eu/libretiny.git"),
     "latest": (
-        cv.Version(1, 12, 1),
-        "https://github.com/libretiny-eu/libretiny.git#v1.12.1",
+        cv.Version(1, 13, 0),
+        "https://github.com/libretiny-eu/libretiny.git#v1.13.0",
     ),
     "recommended": (
-        cv.Version(1, 12, 1),
-        "https://github.com/libretiny-eu/libretiny.git#v1.12.1",
+        cv.Version(1, 13, 0),
+        "https://github.com/libretiny-eu/libretiny.git#v1.13.0",
     ),
 }
 
@@ -513,13 +511,13 @@ async def component_to_code(config):
 
     # apply LibreTiny options from framework: block
     # setup LT logger to work nicely with ESPHome logger
-    lt_options = dict(
-        LT_LOGLEVEL="LT_LEVEL_" + framework[CONF_LOGLEVEL],
-        LT_LOGGER_CALLER=0,
-        LT_LOGGER_TASK=0,
-        LT_LOGGER_COLOR=1,
-        LT_USE_TIME=1,
-    )
+    lt_options = {
+        "LT_LOGLEVEL": "LT_LEVEL_" + framework[CONF_LOGLEVEL],
+        "LT_LOGGER_CALLER": 0,
+        "LT_LOGGER_TASK": 0,
+        "LT_LOGGER_COLOR": 1,
+        "LT_USE_TIME": 1,
+    }
     # enable/disable per-module debugging
     for module in framework[CONF_DEBUG]:
         if module == "NONE":

@@ -12,12 +12,9 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 import threading
-from typing import Generic, TypeVar
-
-_T = TypeVar("_T")
 
 
-class AsyncThreadRunner(threading.Thread, Generic[_T]):
+class AsyncThreadRunner[T](threading.Thread):
     """Run an async coroutine in a daemon thread and expose its result.
 
     The runner catches all exceptions from the coroutine and stores them in
@@ -35,17 +32,17 @@ class AsyncThreadRunner(threading.Thread, Generic[_T]):
         result = runner.result
     """
 
-    def __init__(self, coro_factory: Callable[[], Awaitable[_T]]) -> None:
+    def __init__(self, coro_factory: Callable[[], Awaitable[T]]) -> None:
         super().__init__(daemon=True)
         self._coro_factory = coro_factory
-        self.result: _T | None = None
+        self.result: T | None = None
         self.exception: BaseException | None = None
         self.event = threading.Event()
 
     async def _runner(self) -> None:
         try:
             self.result = await self._coro_factory()
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception as exc:  # noqa: BLE001  # pylint: disable=broad-except
             # Capture all exceptions so ``event`` is always set — otherwise a
             # crash would hang the waiter forever.
             self.exception = exc

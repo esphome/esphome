@@ -86,6 +86,8 @@ enum EthernetType : uint8_t {
   ETHERNET_TYPE_ENC28J60,
   ETHERNET_TYPE_W6100,
   ETHERNET_TYPE_W6300,
+  ETHERNET_TYPE_GENERIC,
+  ETHERNET_TYPE_YT8531,
 };
 
 struct ManualIP {
@@ -123,6 +125,17 @@ class EthernetComponent final : public Component {
   float get_setup_priority() const override;
   void on_powerdown() override { powerdown(); }
   bool is_connected() { return this->state_ == EthernetComponentState::CONNECTED; }
+
+  // Per-interface lifecycle (parallels WiFiComponent::enable/disable/is_disabled).
+  // enable_on_boot defaults to true; when false, setup() runs all the driver/netif
+  // installation but skips esp_eth_start(), keeping the link cold until enable() is
+  // called. This is the primary lever for memory reclamation in multi-interface
+  // configurations where only one interface should carry traffic at a time.
+  void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
+  void enable();
+  void disable();
+  bool is_disabled() { return this->disabled_; }
+  bool is_enabled() { return !this->disabled_; }
 
   void set_type(EthernetType type);
 #ifdef USE_ETHERNET_MANUAL_IP
@@ -194,6 +207,16 @@ class EthernetComponent final : public Component {
   void finish_connect_();
   void dump_connect_params_();
 
+#ifdef USE_ESP32
+  // ESP-IDF only: defers the SPI bus init, netif creation, MAC/PHY install, driver
+  // install, netif attach, and event handler registration (which together allocate
+  // ~3-8KB of DMA-capable internal SRAM via SPI driver state + eth driver RX queue)
+  // until ethernet actually needs to come up. Idempotent — guarded by the
+  // ethernet_initialized_ flag. Called from setup() when enable_on_boot_=true, or
+  // from enable() on first runtime enable. Mirrors wifi_lazy_init_() in WiFi.
+  void ethernet_lazy_init_();
+#endif
+
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   void notify_ip_state_listeners_();
 #endif
@@ -208,6 +231,11 @@ class EthernetComponent final : public Component {
 #ifdef USE_ETHERNET_KSZ8081
   /// @brief Set `RMII Reference Clock Select` bit for KSZ8081.
   void ksz8081_set_clock_reference_(esp_eth_mac_t *mac);
+#endif
+#ifdef USE_ETHERNET_YT8531
+  /// @brief Apply YT8531-specific config: re-enable auto-negotiation (disabled on
+  /// reset) and set the RGMII Tx/Rx clock delays needed for reliable data sampling.
+  void yt8531_phy_init_();
 #endif
   /// @brief Set arbitratry PHY registers from config.
   void write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_data);
@@ -287,6 +315,17 @@ class EthernetComponent final : public Component {
   bool started_{false};
   bool connected_{false};
   bool got_ipv4_address_{false};
+  // Codegen-time YAML option. When false, setup() defers esp_eth_start().
+  bool enable_on_boot_{true};
+  // Mirror of "is the link intentionally stopped" — set when setup() honors
+  // enable_on_boot=false, cleared by enable(), set again by disable().
+  bool disabled_{false};
+#ifdef USE_ESP32
+  // Tracks whether ethernet_lazy_init_() has completed successfully. Allows enable()
+  // to be called at runtime after enable_on_boot:false without re-allocating, and
+  // ensures setup() skips the heavy init when enable_on_boot_ is false.
+  bool ethernet_initialized_{false};
+#endif
 #if LWIP_IPV6
   uint8_t ipv6_count_{0};
   bool ipv6_setup_done_{false};

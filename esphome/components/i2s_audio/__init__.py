@@ -170,7 +170,7 @@ def i2s_audio_component_schema(
                 min=1
             ),
             cv.Optional(CONF_BITS_PER_SAMPLE, default=default_bits_per_sample): cv.All(
-                _validate_bits, cv.one_of(*I2S_BITS_PER_SAMPLE)
+                _validate_bits, cv.int_, cv.one_of(*I2S_BITS_PER_SAMPLE)
             ),
             cv.Optional(CONF_I2S_MODE, default=CONF_PRIMARY): cv.one_of(
                 *I2S_MODE_OPTIONS, lower=True

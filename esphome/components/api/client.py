@@ -101,13 +101,14 @@ async def async_run_logs(
         client_info=f"ESPHome Logs {__version__}",
         noise_psk=noise_psk,
         addresses=addresses,  # Pass all addresses for automatic retry
+        provide_time=False,
     )
 
     # Try platform-specific stacktrace handler first, fall back to generic
     platform_process_stacktrace = None
     try:
         module = importlib.import_module("esphome.components." + CORE.target_platform)
-        platform_process_stacktrace = getattr(module, "process_stacktrace")
+        platform_process_stacktrace = module.process_stacktrace
     except (AttributeError, ImportError):
         _LOGGER.info(
             'Stacktrace analysis is unavailable: no compatible analyzer found for target platform "%s".',
@@ -118,7 +119,7 @@ async def async_run_logs(
 
     def on_log(msg: SubscribeLogsResponse) -> None:
         """Handle a new log message."""
-        time_ = datetime.now()
+        time_ = datetime.now().astimezone()
         message: bytes = msg.message
         text = message.decode("utf8", "backslashreplace")
         nanoseconds = time_.microsecond // 1000
