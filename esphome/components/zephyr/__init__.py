@@ -204,7 +204,7 @@ def zephyr_add_user(key, value):
     user[key] += [value]
 
 
-def _write_or_remove_file_if_changed(path: Path, content: str) -> bool:
+def _write_file_if_changed_or_remove_when_empty(path: Path, content: str) -> bool:
     """Write content to path, or remove a stale file when content is empty.
 
     Returns True if the file changed on disk.
@@ -265,7 +265,7 @@ def copy_files() -> None:
         )
 
     pm_static = "\n".join(str(item) for item in zephyr_data()[KEY_PM_STATIC])
-    changed |= _write_or_remove_file_if_changed(
+    changed |= _write_file_if_changed_or_remove_when_empty(
         CORE.relative_build_path("zephyr/pm_static.yml"), pm_static
     )
 
@@ -282,7 +282,7 @@ def copy_files() -> None:
             + "\n"
             + kconfig
         )
-    changed |= _write_or_remove_file_if_changed(
+    changed |= _write_file_if_changed_or_remove_when_empty(
         CORE.relative_build_path("zephyr/Kconfig"), kconfig
     )
 
