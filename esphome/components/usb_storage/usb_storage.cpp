@@ -58,7 +58,7 @@ void USBStorageClient::loop() { USBClient::loop(); }
 // ─────────────────────────────────────────────────────────────────────────────
 
 bool USBStorageClient::parse_msc_endpoints_() {
-  const usb_config_desc_t *cfg = this->get_config_desc();
+  const usb_config_desc_t *cfg = this->get_config_desc_();
   if (cfg == nullptr)
     return false;
 
@@ -313,7 +313,7 @@ void USBStorageClient::notify_disconnected_() {
 }
 
 void USBStorageClient::on_connected() {
-  const usb_device_desc_t *dev = this->get_device_desc();
+  const usb_device_desc_t *dev = this->get_device_desc_();
   uint16_t vid = dev ? dev->idVendor : 0;
   uint16_t pid = dev ? dev->idProduct : 0;
 
