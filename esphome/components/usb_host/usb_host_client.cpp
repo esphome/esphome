@@ -150,7 +150,7 @@ static const char *get_descriptor_string(const usb_str_desc_t *desc,
 // ── Static transfer callbacks (USB task context) ──────────────────────────────
 
 // Shared completion logic: fill status, fire callback, release slot.
-static void complete_trq_(TransferRequest *trq, const usb_transfer_t *xfer) {
+static void complete_trq(TransferRequest *trq, const usb_transfer_t *xfer) {
   trq->status.error_code = xfer->status;
   trq->status.success = xfer->status == USB_TRANSFER_STATUS_COMPLETED;
   trq->status.endpoint = xfer->bEndpointAddress;
@@ -163,20 +163,20 @@ static void complete_trq_(TransferRequest *trq, const usb_transfer_t *xfer) {
 
 #ifdef USE_USB_CONTROL_TRANSFERS
 static void control_callback(const usb_transfer_t *xfer) {
-  complete_trq_(static_cast<TransferRequest *>(xfer->context), xfer);
+  complete_trq(static_cast<TransferRequest *>(xfer->context), xfer);
 }
 #endif
 
 #if defined(USE_USB_BULK_TRANSFERS) || defined(USE_USB_CONTROL_TRANSFERS)
 static void transfer_callback(usb_transfer_t *xfer) {
-  complete_trq_(static_cast<TransferRequest *>(xfer->context), xfer);
+  complete_trq(static_cast<TransferRequest *>(xfer->context), xfer);
 }
 #endif
 
 // ── USBClient event callback (USB task context) ───────────────────────────────
 
-void USBClient::client_event_cb(const usb_host_client_event_msg_t *event_msg, void *ptr) {
-  auto *client = static_cast<USBClient *>(ptr);
+void USBClient::client_event_cb(const usb_host_client_event_msg_t *event_msg, void *arg) {
+  auto *client = static_cast<USBClient *>(arg);
   UsbEvent *event = client->event_pool.allocate();
   if (event == nullptr) {
     client->event_queue.increment_dropped_count();
@@ -423,7 +423,7 @@ bool USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, u
   trq->transfer->bEndpointAddress = ep_address | USB_DIR_IN;
   // IN transfers: num_bytes must be an integer multiple of MPS
   trq->transfer->num_bytes = ((length + USB_MAX_PACKET_SIZE - 1) / USB_MAX_PACKET_SIZE) * USB_MAX_PACKET_SIZE;
-  if (!global_usb_host->submit_transfer_(trq)) {
+  if (!get_usb_host()->submit_transfer(trq)) {
     this->release_trq(trq);
     return false;
   }
@@ -447,7 +447,7 @@ bool USBClient::transfer_out(uint8_t ep_address, const transfer_cb_t &callback,
   trq->transfer->bEndpointAddress = ep_address | USB_DIR_OUT;
   trq->transfer->num_bytes = length;
   memcpy(trq->transfer->data_buffer, data, length);
-  if (!global_usb_host->submit_transfer_(trq)) {
+  if (!get_usb_host()->submit_transfer(trq)) {
     this->release_trq(trq);
     return false;
   }
@@ -482,7 +482,7 @@ bool USBClient::control_transfer(uint8_t type, uint8_t request, uint16_t value, 
   trq->transfer->bEndpointAddress = type & USB_DIR_MASK;
   trq->transfer->num_bytes = static_cast<int>(length + SETUP_PACKET_SIZE);
   trq->transfer->callback = reinterpret_cast<usb_transfer_cb_t>(control_callback);
-  if (!global_usb_host->submit_control_(this->handle_, trq)) {
+  if (!get_usb_host()->submit_control(this->handle_, trq)) {
     this->release_trq(trq);
     return false;
   }
@@ -490,19 +490,19 @@ bool USBClient::control_transfer(uint8_t type, uint8_t request, uint16_t value, 
 }
 
 bool USBClient::set_interface(uint8_t interface_num, uint8_t alt_setting) {
-  return global_usb_host->do_set_interface_(this->handle_, this->device_handle_,
+  return get_usb_host()->do_set_interface(this->handle_, this->device_handle_,
                                              interface_num, alt_setting);
 }
 
 #endif  // USE_USB_CONTROL_TRANSFERS
 
 bool USBClient::claim_interface(uint8_t interface_num, uint8_t alt_setting) {
-  return global_usb_host->do_claim_interface_(this->handle_, this->device_handle_,
+  return get_usb_host()->do_claim_interface(this->handle_, this->device_handle_,
                                                interface_num, alt_setting);
 }
 
 bool USBClient::release_interface(uint8_t interface_num) {
-  return global_usb_host->do_release_interface_(this->handle_, this->device_handle_,
+  return get_usb_host()->do_release_interface(this->handle_, this->device_handle_,
                                                  interface_num);
 }
 
@@ -511,24 +511,24 @@ bool USBClient::release_interface(uint8_t interface_num) {
 
 usb_transfer_t *USBClient::isoc_alloc(uint8_t ep_addr, uint16_t mps, uint8_t num_packets,
                                        usb_transfer_cb_t callback, void *context) {
-  return global_usb_host->do_isoc_alloc_(ep_addr, this->device_handle_, mps, num_packets,
+  return get_usb_host()->do_isoc_alloc(ep_addr, this->device_handle_, mps, num_packets,
                                           callback, context);
 }
 
 bool USBClient::isoc_submit(usb_transfer_t *xfer) {
-  return global_usb_host->do_isoc_submit_(xfer);
+  return get_usb_host()->do_isoc_submit(xfer);
 }
 
 void USBClient::isoc_free(usb_transfer_t *xfer) {
-  global_usb_host->do_isoc_free_(xfer);
+  get_usb_host()->do_isoc_free(xfer);
 }
 
-bool USBClient::stream_open_(IsocStream &stream, USBClient *cb) {
-  return global_usb_host->stream_open_(stream, cb, this->handle_, this->device_handle_);
+bool USBClient::stream_open(IsocStream &stream, USBClient *cb) {
+  return get_usb_host()->stream_open(stream, cb, this->handle_, this->device_handle_);
 }
 
-void USBClient::stream_close_(IsocStream &stream) {
-  global_usb_host->stream_close_(stream, this->handle_, this->device_handle_);
+void USBClient::stream_close(IsocStream &stream) {
+  get_usb_host()->stream_close(stream, this->handle_, this->device_handle_);
 }
 
 #endif  // USE_USB_ISOC_TRANSFERS

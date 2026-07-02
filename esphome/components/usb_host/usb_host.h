@@ -179,8 +179,8 @@ class USBClient : public Component {
   bool isoc_submit(usb_transfer_t *xfer);
   void isoc_free(usb_transfer_t *xfer);
 
-  bool stream_open_(IsocStream &stream, USBClient *cb);
-  void stream_close_(IsocStream &stream);
+  bool stream_open(IsocStream &stream, USBClient *cb);
+  void stream_close(IsocStream &stream);
 
   // Override in subclass to process one isochronous packet.
   // Called from USB-task context — must be fast and non-blocking.
@@ -211,8 +211,8 @@ class USBClient : public Component {
   uint16_t vid_{};
   uint16_t pid_{};
 
-  const usb_device_desc_t *get_device_desc() const { return this->device_desc_; }
-  const usb_config_desc_t *get_config_desc() const { return this->config_desc_; }
+  const usb_device_desc_t *get_device_desc_() const { return this->device_desc_; }
+  const usb_config_desc_t *get_config_desc_() const { return this->config_desc_; }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -231,47 +231,47 @@ class USBHost : public Component {
   // ── Submission engine (called by USBClient thin forwarders) ────────────────
 
   // Bulk / interrupt IN and OUT — always compiled if any client uses them
-  bool submit_transfer_(TransferRequest *trq);
+  bool submit_transfer(TransferRequest *trq);
 
   // Control transfer submission — guarded
 #ifdef USE_USB_CONTROL_TRANSFERS
-  bool submit_control_(usb_host_client_handle_t client_handle, TransferRequest *trq);
-  bool do_set_interface_(usb_host_client_handle_t client_handle, usb_device_handle_t device_handle,
-                         uint8_t interface_num, uint8_t alt_setting);
+  bool submit_control(usb_host_client_handle_t client_handle, TransferRequest *trq);
+  bool do_set_interface(usb_host_client_handle_t client_handle, usb_device_handle_t device_handle,
+                        uint8_t interface_num, uint8_t alt_setting);
 #endif
 
   // Interface claim / release — always needed
-  bool do_claim_interface_(usb_host_client_handle_t client_handle, usb_device_handle_t device_handle,
-                           uint8_t interface_num, uint8_t alt_setting);
-  bool do_release_interface_(usb_host_client_handle_t client_handle, usb_device_handle_t device_handle,
-                             uint8_t interface_num);
+  bool do_claim_interface(usb_host_client_handle_t client_handle, usb_device_handle_t device_handle,
+                          uint8_t interface_num, uint8_t alt_setting);
+  bool do_release_interface(usb_host_client_handle_t client_handle, usb_device_handle_t device_handle,
+                            uint8_t interface_num);
 
   // ── Isochronous ─────────────────────────────────────────────────────────────
 #ifdef USE_USB_ISOC_TRANSFERS
-  usb_transfer_t *do_isoc_alloc_(uint8_t ep_addr, usb_device_handle_t device_handle,
-                                  uint16_t mps, uint8_t num_packets,
-                                  usb_transfer_cb_t callback, void *context);
-  bool do_isoc_submit_(usb_transfer_t *xfer);
-  void do_isoc_free_(usb_transfer_t *xfer);
+  usb_transfer_t *do_isoc_alloc(uint8_t ep_addr, usb_device_handle_t device_handle,
+                                 uint16_t mps, uint8_t num_packets,
+                                 usb_transfer_cb_t callback, void *context);
+  bool do_isoc_submit(usb_transfer_t *xfer);
+  void do_isoc_free(usb_transfer_t *xfer);
 
-  bool stream_open_(IsocStream &stream, USBClient *cb,
+  bool stream_open(IsocStream &stream, USBClient *cb,
+                   usb_host_client_handle_t client_handle,
+                   usb_device_handle_t device_handle);
+  void stream_close(IsocStream &stream,
                     usb_host_client_handle_t client_handle,
                     usb_device_handle_t device_handle);
-  void stream_close_(IsocStream &stream,
-                     usb_host_client_handle_t client_handle,
-                     usb_device_handle_t device_handle);
 
   // Static trampoline stored as xfer->callback for every ISOC URB.
   // Iterates isoc_packet_desc[], calls client->on_isoc_packet() per packet, resubmits.
-  static void isoc_cb_(usb_transfer_t *xfer);
+  static void isoc_cb(usb_transfer_t *xfer);
 #endif
 
  protected:
   std::vector<USBClient *> clients_{};
 };
 
-// Global singleton set by USBHost::setup() — used by USBClient forwarders.
-extern USBHost *global_usb_host;
+// Returns the global USBHost singleton, set during USBHost::setup().
+USBHost *get_usb_host();
 
 }  // namespace esphome::usb_host
 
