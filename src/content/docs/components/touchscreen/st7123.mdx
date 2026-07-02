@@ -1,0 +1,39 @@
+---
+description: "Instructions for setting up st7123 touch screen controller with ESPHome"
+title: "st7123 Touch Screen Controller"
+---
+
+import APIRef from '@components/APIRef.astro';
+
+The `st7123` touchscreen platform allows using the touch screen controllers based on the Sitronix ST7123 chip with ESPHome.
+The [I²C](/components/i2c) is required to be set up in your configuration for this touchscreen to work.
+
+This controller is used in the M5Stack Tab5 (newer version);
+
+## Base Touchscreen Configuration
+
+```yaml
+# Example configuration entry
+touchscreen:
+  platform: st7123
+  id: my_touchscreen
+  interrupt_pin: GPIOXX
+  reset_pin: GPIOXX
+```
+
+### Configuration variables
+
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually set the ID of this touchscreen.
+- **interrupt_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The touch detection pin. When connected
+  directly to an MCU GPIO, the driver uses it for interrupt-driven operation; otherwise it falls back to polling.
+- **reset_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The chip reset pin.
+- **address** (*Optional*, int): The I²C address of the touchscreen controller. Defaults to `0x55`.
+
+- All other options from [Touchscreen](/components/touchscreen#config-touchscreen).
+
+If no [calibration](/components/touchscreen#config-touchscreen) is supplied, the driver reads the native coordinate
+resolution from the controller and uses it automatically.
+
+## See Also
+
+- <APIRef text="st7123_touchscreen.h" path="st7123/touchscreen/st7123_touchscreen.h" />
