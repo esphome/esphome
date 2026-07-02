@@ -1,7 +1,8 @@
 #pragma once
 
 // Should not be needed, but it's required to pass CI clang-tidy checks
-#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #include <vector>
@@ -21,26 +22,17 @@ namespace esphome::usb_host {
 //
 // Thread-safe communication:
 // - Lock-free queues for USB task -> main loop events (SPSC pattern)
-// - Lock-free TransferRequest pool using atomic bitmask (MCMP pattern - multi-consumer, multi-producer)
+// - Lock-free TransferRequest pool using atomic bitmask (MCMP pattern)
 //
-// TransferRequest pool access pattern:
-// - get_trq_() [allocate]: Called from BOTH USB task and main loop threads
-//   * USB task: via USB UART input callbacks that restart transfers immediately
-//   * Main loop: for output transfers and flow-controlled input restarts
-// - release_trq() [deallocate]: Called from BOTH USB task and main loop threads
-//   * USB task: immediately after transfer callback completes (critical for preventing slot exhaustion)
-//   * Main loop: when transfer submission fails
-//
-// The multi-threaded allocation/deallocation is intentional for performance:
-// - USB task can immediately restart input transfers and release slots without context switching
-// - Main loop controls backpressure by deciding when to restart after consuming data
-// The atomic bitmask ensures thread-safe allocation/deallocation without mutex blocking.
+// Transfer submission engine (USBHost) is stateless w.r.t. client memory — the
+// Linux URB model: client owns the pool, fills a slot, hands it to USBHost.
 
 static const char *const TAG = "usb_host";
 
 // Forward declarations
 struct TransferRequest;
 class USBClient;
+class USBHost;
 
 // constants for setup packet type
 static constexpr uint8_t USB_RECIP_DEVICE = 0;
@@ -54,28 +46,21 @@ static constexpr uint8_t USB_DIR_IN = 1 << 7;
 static constexpr uint8_t USB_DIR_OUT = 0;
 static constexpr size_t SETUP_PACKET_SIZE = 8;
 
-static constexpr size_t MAX_REQUESTS = USB_HOST_MAX_REQUESTS;  // maximum number of outstanding requests possible.
+static constexpr size_t MAX_REQUESTS = USB_HOST_MAX_REQUESTS;
 static_assert(MAX_REQUESTS >= 1 && MAX_REQUESTS <= 32, "MAX_REQUESTS must be between 1 and 32");
 
-// Select appropriate bitmask type for tracking allocation of TransferRequest slots.
-// The bitmask must have at least as many bits as MAX_REQUESTS, so:
-// - Use uint16_t for up to 16 requests (MAX_REQUESTS <= 16)
-// - Use uint32_t for 17-32 requests (MAX_REQUESTS > 16)
-// This is tied to the static_assert above, which enforces MAX_REQUESTS is between 1 and 32.
-// If MAX_REQUESTS is increased above 32, this logic and the static_assert must be updated.
 using trq_bitmask_t = std::conditional<(MAX_REQUESTS <= 16), uint16_t, uint32_t>::type;
 static constexpr trq_bitmask_t ALL_REQUESTS_IN_USE = MAX_REQUESTS == 32 ? ~0 : (1 << MAX_REQUESTS) - 1;
 
-static constexpr size_t USB_MAX_PACKET_SIZE =
-    USB_HOST_MAX_PACKET_SIZE;                        // Max USB packet size (64 for FS, 512 for P4 HS)
-static constexpr size_t USB_EVENT_QUEUE_SIZE = 32;   // Size of event queue between USB task and main loop
-static constexpr size_t USB_TASK_STACK_SIZE = 4096;  // Stack size for USB task (same as ESP-IDF USB examples)
-static constexpr UBaseType_t USB_TASK_PRIORITY = 5;  // Higher priority than main loop (tskIDLE_PRIORITY + 5)
+static constexpr size_t USB_MAX_PACKET_SIZE = USB_HOST_MAX_PACKET_SIZE;
+static constexpr size_t USB_EVENT_QUEUE_SIZE = 32;
+static constexpr size_t USB_TASK_STACK_SIZE = 4096;
+static constexpr UBaseType_t USB_TASK_PRIORITY = 5;
 
-// USB_INTERFACE_CLASS_ANY: USBClient matches any interface class (default for VID/PID-only drivers)
+// USB_INTERFACE_CLASS_ANY: USBClient matches any interface class
 static constexpr uint8_t USB_INTERFACE_CLASS_ANY = 0xFF;
 
-// used to report a transfer status
+// Transfer status reported to callback
 struct TransferStatus {
   uint8_t *data;
   size_t data_len;
@@ -87,9 +72,9 @@ struct TransferStatus {
 
 using transfer_cb_t = std::function<void(const TransferStatus &)>;
 
-class USBClient;
-
-// struct used to capture all data needed for a transfer
+// TransferRequest — our URB equivalent.
+// Client owns the pool, fills a slot, passes it to USBHost::submit_*().
+// USBHost never allocates or frees these.
 struct TransferRequest {
   usb_transfer_t *transfer;
   transfer_cb_t callback;
@@ -105,15 +90,9 @@ enum EventType : uint8_t {
 struct UsbEvent {
   EventType type;
   union {
-    struct {
-      uint8_t address;
-    } device_new;
-    struct {
-      usb_device_handle_t handle;
-    } device_gone;
+    struct { uint8_t address; } device_new;
+    struct { usb_device_handle_t handle; } device_gone;
   } data;
-
-  // Required for EventPool - no cleanup needed for POD types
   void release() {}
 };
 
@@ -126,6 +105,33 @@ enum ClientState {
   USB_CLIENT_CONNECTED,
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Isochronous stream types — compiled only when USE_USB_ISOC_TRANSFERS is set.
+// ─────────────────────────────────────────────────────────────────────────────
+#ifdef USE_USB_ISOC_TRANSFERS
+
+struct IsocCbCtx {
+  USBClient *client;   // vtable dispatch target for on_isoc_packet()
+  struct IsocStream *stream;
+};
+
+struct IsocStream {
+  usb_transfer_t **xfers{nullptr};
+  IsocCbCtx *ctxs{nullptr};
+  uint8_t num_urbs{0};
+  uint8_t ep_addr{0};
+  uint16_t mps{0};
+  uint8_t packets_per_urb{0};
+  uint8_t interface_num{0};
+  uint8_t alt_setting{0};
+  bool streaming{false};
+};
+
+#endif  // USE_USB_ISOC_TRANSFERS
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USBClient — device state machine + thin forwarding layer to USBHost.
+// ─────────────────────────────────────────────────────────────────────────────
 class USBClient : public Component {
   friend class USBHost;
 
@@ -136,23 +142,50 @@ class USBClient : public Component {
   float get_setup_priority() const override { return setup_priority::IO; }
   void on_opened(uint8_t addr);
   virtual void on_removed(usb_device_handle_t handle);
-  bool transfer_in(uint8_t ep_address, const transfer_cb_t &callback, uint16_t length);
-  bool transfer_out(uint8_t ep_address, const transfer_cb_t &callback, const uint8_t *data, uint16_t length);
   void dump_config() override;
   void release_trq(TransferRequest *trq);
   trq_bitmask_t get_trq_in_use() const { return trq_in_use_; }
-  bool control_transfer(uint8_t type, uint8_t request, uint16_t value, uint16_t index, const transfer_cb_t &callback,
-                        const std::vector<uint8_t> &data = {});
 
-  // Returns the USB interface class this driver handles.
-  // USB_INTERFACE_CLASS_ANY (0xFF) means match by VID/PID only (default for UART drivers).
-  // Override to declare a specific class (e.g. USB_CLASS_MASS_STORAGE for MSC drivers).
   virtual uint8_t get_interface_class() const { return USB_INTERFACE_CLASS_ANY; }
 
-  // Lock-free event queue and pool for USB task to main loop communication
-  // Must be public for access from static callbacks
+  // Lock-free event queue and pool — public for static callbacks
   LockFreeQueue<UsbEvent, USB_EVENT_QUEUE_SIZE> event_queue;
   EventPool<UsbEvent, USB_EVENT_QUEUE_SIZE - 1> event_pool;
+
+  // ── Bulk / interrupt transfers ──────────────────────────────────────────────
+#ifdef USE_USB_BULK_TRANSFERS
+  bool transfer_in(uint8_t ep_address, const transfer_cb_t &callback, uint16_t length);
+  bool transfer_out(uint8_t ep_address, const transfer_cb_t &callback, const uint8_t *data, uint16_t length);
+#endif
+
+  // ── Control transfers ───────────────────────────────────────────────────────
+#ifdef USE_USB_CONTROL_TRANSFERS
+  bool control_transfer(uint8_t type, uint8_t request, uint16_t value, uint16_t index,
+                        const transfer_cb_t &callback, const std::vector<uint8_t> &data = {});
+#endif
+
+  // ── Interface claim / release / alt-setting ─────────────────────────────────
+  bool claim_interface(uint8_t interface_num, uint8_t alt_setting = 0);
+  bool release_interface(uint8_t interface_num);
+
+#ifdef USE_USB_CONTROL_TRANSFERS
+  bool set_interface(uint8_t interface_num, uint8_t alt_setting);
+#endif
+
+  // ── Isochronous support ─────────────────────────────────────────────────────
+#ifdef USE_USB_ISOC_TRANSFERS
+  usb_transfer_t *isoc_alloc(uint8_t ep_addr, uint16_t mps, uint8_t num_packets,
+                              usb_transfer_cb_t callback, void *context);
+  bool isoc_submit(usb_transfer_t *xfer);
+  void isoc_free(usb_transfer_t *xfer);
+
+  bool stream_open_(IsocStream &stream, USBClient *cb);
+  void stream_close_(IsocStream &stream);
+
+  // Override in subclass to process one isochronous packet.
+  // Called from USB-task context — must be fast and non-blocking.
+  virtual void on_isoc_packet(uint8_t ep_addr, const uint8_t *data, size_t len, bool error) {}
+#endif
 
  protected:
   bool process_usb_events_();
@@ -164,28 +197,83 @@ class USBClient : public Component {
 
   static void usb_task_fn(void *arg);
   [[noreturn]] void usb_task_loop_() const;
+  static void client_event_cb(const usb_host_client_event_msg_t *event_msg, void *arg);
 
   TransferRequest requests_[MAX_REQUESTS]{};
   TaskHandle_t usb_task_handle_{nullptr};
   usb_host_client_handle_t handle_{};
   usb_device_handle_t device_handle_{};
+  const usb_device_desc_t *device_desc_{nullptr};
+  const usb_config_desc_t *config_desc_{nullptr};
   int device_addr_{-1};
   int state_{USB_CLIENT_INIT};
   std::atomic<trq_bitmask_t> trq_in_use_;
   uint16_t vid_{};
   uint16_t pid_{};
+
+  const usb_device_desc_t *get_device_desc() const { return this->device_desc_; }
+  const usb_config_desc_t *get_config_desc() const { return this->config_desc_; }
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// USBHost — USB host stack + stateless transfer submission engine.
+//
+// Acts as the Linux host controller driver: owns usb_host_install(), the lib
+// event loop, and all ESP-IDF transfer submission calls.  Never touches client
+// memory — clients own their TransferRequest pools and hand filled slots here.
+// ─────────────────────────────────────────────────────────────────────────────
 class USBHost : public Component {
  public:
   float get_setup_priority() const override { return setup_priority::BUS; }
   void loop() override;
   void setup() override;
 
+  // ── Submission engine (called by USBClient thin forwarders) ────────────────
+
+  // Bulk / interrupt IN and OUT — always compiled if any client uses them
+  bool submit_transfer_(TransferRequest *trq);
+
+  // Control transfer submission — guarded
+#ifdef USE_USB_CONTROL_TRANSFERS
+  bool submit_control_(usb_host_client_handle_t client_handle, TransferRequest *trq);
+  bool do_set_interface_(usb_host_client_handle_t client_handle, usb_device_handle_t device_handle,
+                         uint8_t interface_num, uint8_t alt_setting);
+#endif
+
+  // Interface claim / release — always needed
+  bool do_claim_interface_(usb_host_client_handle_t client_handle, usb_device_handle_t device_handle,
+                           uint8_t interface_num, uint8_t alt_setting);
+  bool do_release_interface_(usb_host_client_handle_t client_handle, usb_device_handle_t device_handle,
+                             uint8_t interface_num);
+
+  // ── Isochronous ─────────────────────────────────────────────────────────────
+#ifdef USE_USB_ISOC_TRANSFERS
+  usb_transfer_t *do_isoc_alloc_(uint8_t ep_addr, usb_device_handle_t device_handle,
+                                  uint16_t mps, uint8_t num_packets,
+                                  usb_transfer_cb_t callback, void *context);
+  bool do_isoc_submit_(usb_transfer_t *xfer);
+  void do_isoc_free_(usb_transfer_t *xfer);
+
+  bool stream_open_(IsocStream &stream, USBClient *cb,
+                    usb_host_client_handle_t client_handle,
+                    usb_device_handle_t device_handle);
+  void stream_close_(IsocStream &stream,
+                     usb_host_client_handle_t client_handle,
+                     usb_device_handle_t device_handle);
+
+  // Static trampoline stored as xfer->callback for every ISOC URB.
+  // Iterates isoc_packet_desc[], calls client->on_isoc_packet() per packet, resubmits.
+  static void isoc_cb_(usb_transfer_t *xfer);
+#endif
+
  protected:
   std::vector<USBClient *> clients_{};
 };
 
+// Global singleton set by USBHost::setup() — used by USBClient forwarders.
+extern USBHost *global_usb_host;
+
 }  // namespace esphome::usb_host
 
-#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 ||
+        // USE_ESP32_VARIANT_ESP32S31 || USE_ESP32_VARIANT_ESP32H4

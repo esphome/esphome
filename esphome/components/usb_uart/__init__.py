@@ -52,36 +52,44 @@ class Type:
         self.vid = vid
         self.pid = pid
         self.cls = usb_uart_ns.class_(f"USBUartType{cls}", USBUartComponent)
-        self.max_channels = max_channels
+        self._max_channels = max_channels
         self.baud_rate_required = baud_rate_required
+        self.channel_cls = USBUartChannel
+
+    @property
+    def max_channels(self):
+        return (
+            3
+            if CORE.is_esp32
+            and get_esp32_variant() != VARIANT_ESP32P4
+            and self._max_channels > 3
+            else self._max_channels
+        )
 
 
 uart_types = (
     Type("CDC_ACM", 0, 0, "CdcAcm", 1, baud_rate_required=False),
-    Type("CP210X", 0x10C4, 0xEA60, "CP210X", 3),
     Type("CH34X", 0x1A86, 0x55D5, "CH34X", 4),
     Type("CH340", 0x1A86, 0x7523, "CH34X", 1),
+    Type("CP210X", 0x10C4, 0xEA60, "CP210X", 3),
     Type("ESP_JTAG", 0x303A, 0x1001, "CdcAcm", 1, baud_rate_required=False),
     Type("FT232", 0x0403, 0x6001, "FT23XX", 1),
     Type("FT2232", 0x0403, 0x6010, "FT23XX", 2),
     Type("FT4232", 0x0403, 0x6011, "FT23XX", 4),
+    Type("PL2303", 0x067B, 0x2303, "PL2303", 1),
     Type("STM32_VCP", 0x0483, 0x5740, "CdcAcm", 1, baud_rate_required=False),
 )
 
 
-def channel_schema(channels, baud_rate_required):
-    # For now S3 is restricted to 3 channels since each needs 2 endpoints, plus the control endpoint, and
-    # there are only a total of 8 endpoints available.
-    # This will need updating when the 8 channel devices that multiplex over an endpoint are added.
-    if CORE.is_esp32 and get_esp32_variant() != VARIANT_ESP32P4 and channels > 3:
-        channels = 3
+def channel_schema(type_: "Type", baud_rate_required):
+    max_channels = type_.max_channels
     return cv.Schema(
         {
             cv.Required(CONF_CHANNELS): cv.All(
                 cv.ensure_list(
                     cv.Schema(
                         {
-                            cv.GenerateID(): cv.declare_id(USBUartChannel),
+                            cv.GenerateID(): cv.declare_id(type_.channel_cls),
                             cv.Optional(CONF_BUFFER_SIZE, default=256): cv.int_range(
                                 min=64, max=8192
                             ),
@@ -110,7 +118,10 @@ def channel_schema(channels, baud_rate_required):
                         }
                     )
                 ),
-                cv.Length(max=channels),
+                cv.Length(
+                    max=type_.max_channels,
+                    msg=f"{type_.name} supports a maximum of {max_channels} channels on this ESP32 variant",
+                ),
             )
         }
     )
@@ -120,7 +131,7 @@ CONFIG_SCHEMA = cv.ensure_list(
     cv.typed_schema(
         {
             it.name: usb_device_schema(it.cls, it.vid, it.pid).extend(
-                channel_schema(it.max_channels, it.baud_rate_required)
+                channel_schema(it, it.baud_rate_required)
             )
             for it in uart_types
         },
@@ -141,6 +152,8 @@ async def to_code(config):
     )
     output_chunk_count = max(max_buffer_size // get_max_packet_size(), 2) + 1
     cg.add_define("USB_UART_OUTPUT_CHUNK_COUNT", output_chunk_count)
+    cg.add_define("USE_USB_BULK_TRANSFERS")
+    cg.add_define("USE_USB_CONTROL_TRANSFERS")
 
     for device in config:
         var = await register_usb_client(device)
