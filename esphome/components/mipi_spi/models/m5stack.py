@@ -11,7 +11,7 @@ from esphome.components.mipi import (
     DriverChip,
 )
 
-from .ili import ST7789V
+from .ili import ILI9341, ST7789V
 
 # fmt: off
 DriverChip(
@@ -33,6 +33,22 @@ DriverChip(
         (DFUNCTR, 0x08, 0x82, 0x1D, 0x04),
         (IDMOFF,),
     ),
+)
+
+# M5Stack Core2 uses ILI9341 chip - mirror_x disabled for correct orientation
+ILI9341.extend(
+    "M5CORE2",
+    # Reset native dimensions due to axis swap.
+    native_width=320,
+    native_height=240,
+    width=320,
+    height=240,
+    mirror_x=False,
+    cs_pin=5,
+    dc_pin=15,
+    invert_colors=True,
+    pixel_mode="18bit",
+    data_rate="40MHz",
 )
 
 GC9107 = ST7789V.extend(
