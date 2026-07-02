@@ -6,6 +6,7 @@
 #include "esphome/components/uart/uart_debugger.h"
 
 #include "esphome/components/bytebuffer/bytebuffer.h"
+#include <cinttypes>
 
 namespace esphome::usb_uart {
 

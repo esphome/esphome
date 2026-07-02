@@ -3,6 +3,7 @@
 #include "usb_uart.h"
 #include "usb/usb_host.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome::usb_uart {
 
