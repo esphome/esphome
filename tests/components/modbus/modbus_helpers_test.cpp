@@ -88,6 +88,19 @@ TEST(ModbusClientFrameLength, WriteMultipleMissingByteCount) {
   EXPECT_EQ(client_frame_length(frame, sizeof(frame)), 9);
 }
 
+TEST(ModbusClientFrameLength, ReadWriteMultipleUsesByteCount) {
+  // read start(2) + read qty(2) + write start(2) + write qty(2) + byte count(1) then data; unlike write-multiple
+  // the byte count sits at frame[10] because of the extra read header. write 2 registers -> 4 data bytes.
+  const uint8_t frame[] = {0x01, 0x17, 0x9C, 0xB9, 0x00, 0x02, 0x9C, 0x41, 0x00, 0x02, 0x04, 0xAA, 0xBB, 0xCC, 0xDD};
+  EXPECT_EQ(client_frame_length(frame, sizeof(frame)), 13 + 4);
+}
+
+TEST(ModbusClientFrameLength, ReadWriteMultipleMissingByteCount) {
+  // header present up to the write quantity but the byte count byte (frame[10]) is absent
+  const uint8_t frame[] = {0x01, 0x17, 0x9C, 0xB9, 0x00, 0x02, 0x9C, 0x41, 0x00, 0x02};
+  EXPECT_EQ(client_frame_length(frame, sizeof(frame)), 13);
+}
+
 TEST(ModbusClientFrameLength, MiscFixedAndUnknown) {
   const uint8_t mask[] = {0x01, static_cast<uint8_t>(FC::MASK_WRITE_REGISTER)};
   const uint8_t fifo[] = {0x01, static_cast<uint8_t>(FC::READ_FIFO_QUEUE)};
