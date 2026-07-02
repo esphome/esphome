@@ -437,7 +437,7 @@ void USBUartTypeFT23XX::start_input(USBUartChannel *channel) {
         this->enable_loop_soon_any_context();
         App.wake_loop_threadsafe();
       }
-    } else {
+    } else if (status.data_len >= 2) {
       ESP_LOGVV(TAG, "RX: Status packet, modem=0x%02X line=0x%02X, ch=%d", status.data[0], status.data[1],
                 channel->index_);
     }
@@ -448,6 +448,11 @@ void USBUartTypeFT23XX::start_input(USBUartChannel *channel) {
 
   channel->input_started_.store(true);
   this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize);
+}
+
+void USBUartTypeFT23XX::on_rx_overflow(USBUartChannel *channel) {
+  ESP_LOGW(TAG, "RX buffer overflow on channel %d, clearing to resync", channel->index_);
+  channel->input_buffer_.clear();
 }
 
 void USBUartTypeFT23XX::enable_channels() {
