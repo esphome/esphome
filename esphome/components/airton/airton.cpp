@@ -27,7 +27,7 @@ void AirtonClimate::set_display_state(bool state, bool send_ir = false) {
 #endif
     this->airton_rtc_.save(&this->settings_);
     if (send_ir)
-      this->transmit_state();
+      this->e();
   }
 }
 
@@ -53,7 +53,7 @@ void AirtonClimate::set_vertical_direction_state(const std::string &state) {
     this->airton_rtc_.save(&this->settings_);
     // This overloaded function is called only from the select component, upon changing selection
     // Therefore, we transmit the updated state after saving it
-    this->transmit_state();
+    this->e();
   }
 }
 
@@ -88,6 +88,18 @@ void AirtonClimate::set_vertical_direction_select(select::Select *sel) {
 uint8_t AirtonClimate::get_previous_mode_() { return previous_mode_; }
 
 void AirtonClimate::set_previous_mode_(uint8_t mode) { previous_mode_ = mode; }
+
+void AirtonClimate::control(const climate::ClimateCall &call) {
+  auto swing_mode = call.get_swing_mode();
+  if (swing_mode.has_value()) {
+    if (*swing_mode == climate::CLIMATE_SWING_VERTICAL) {
+      this->set_vertical_direction_state(VERTICAL_DIRECTION_SWING);
+    } else {
+      this->set_vertical_direction_state(VERTICAL_DIRECTION_OFF);
+    }
+  }
+  ClimateIR::control(call);
+}
 
 void AirtonClimate::transmit_state() {
   // Sampled valid state
