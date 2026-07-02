@@ -240,26 +240,14 @@ def main() -> int:
     )
 
     if ram_bytes is None or flash_bytes is None:
-        print("Failed to extract memory usage from compile output", file=sys.stderr)
-        print("Expected lines like:", file=sys.stderr)
         print(
-            "  RAM:   [====      ]  36.1% (used 29548 bytes from 81920 bytes)",
-            file=sys.stderr,
-        )
-        print(
-            "  Flash: [===       ]  34.0% (used 348511 bytes from 1023984 bytes)",
-            file=sys.stderr,
-        )
-        print("or a Zephyr linker memory usage table like:", file=sys.stderr)
-        print(
-            "  Memory region         Used Size  Region Size  %age Used",
-            file=sys.stderr,
-        )
-        print(
-            "             FLASH:       90624 B       796 KB     11.12%",
-            file=sys.stderr,
-        )
-        print(
+            "Failed to extract memory usage from compile output\n"
+            "Expected lines like:\n"
+            "  RAM:   [====      ]  36.1% (used 29548 bytes from 81920 bytes)\n"
+            "  Flash: [===       ]  34.0% (used 348511 bytes from 1023984 bytes)\n"
+            "or a Zephyr linker memory usage table like:\n"
+            "  Memory region         Used Size  Region Size  %age Used\n"
+            "             FLASH:       90624 B       796 KB     11.12%\n"
             "               RAM:       22432 B       256 KB      8.56%",
             file=sys.stderr,
         )
