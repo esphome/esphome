@@ -1,5 +1,6 @@
 waveshare_io_ch32v003:
   - id: wave_io
+    i2c_id: i2c_bus
     address: 0x24
 
 binary_sensor:
