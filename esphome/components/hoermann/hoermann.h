@@ -57,10 +57,13 @@ class Hoermann : public PollingComponent, public modbus::ModbusServerDevice {
   void impulse_door();
   void stop_door();
   void set_position(int percent);
+  void toggle_light();
+  void turn_light(bool on);
 
   // State accessors used by child entities.
   DoorState get_door_state() const { return this->door_state_; }
   float get_current_position() const { return this->current_position_; }
+  bool is_light_on() const { return this->light_on_; }
   bool is_valid() const { return this->valid_; }
 
  protected:
@@ -69,16 +72,19 @@ class Hoermann : public PollingComponent, public modbus::ModbusServerDevice {
   void get_command_values_to_read_(uint16_t &reg_plus2, uint16_t &reg_plus3);
   void on_door_position_changed_(uint16_t old_value, uint16_t new_value);
   void on_current_state_changed_(uint16_t old_value, uint16_t new_value);
+  void on_light_changed_(uint16_t old_value, uint16_t new_value);
 
   void set_valid_(bool valid);
   void set_door_state_(DoorState state);
   void set_current_position_(float position);
+  void set_light_on_(bool on);
 
   CallbackManager<void()> state_callback_;
 
   DoorState door_state_{DoorState::CLOSED};
   float current_position_{0.0f};
   float goto_position_{0.0f};
+  bool light_on_{false};
   bool valid_{false};
   bool changed_{false};
 
@@ -90,6 +96,7 @@ class Hoermann : public PollingComponent, public modbus::ModbusServerDevice {
   // Previous broadcast register values (to detect high/low byte changes).
   uint16_t prev_position_reg_{0};
   uint16_t prev_state_reg_{0};
+  uint16_t prev_light_reg_{0};
 };
 
 }  // namespace esphome::hoermann

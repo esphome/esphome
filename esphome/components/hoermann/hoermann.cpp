@@ -21,6 +21,7 @@ static constexpr uint16_t BROADCAST_REG = 0x9D31;  // Door status broadcast by t
 static constexpr HoermannCommand COMMAND_OPEN{"open", 0x0210, 0x0110, 0x0000, 0x0000};
 static constexpr HoermannCommand COMMAND_CLOSE{"close", 0x0220, 0x0120, 0x0000, 0x0000};
 static constexpr HoermannCommand COMMAND_IMPULSE{"impulse", 0x0240, 0x0140, 0x0000, 0x0000};
+static constexpr HoermannCommand COMMAND_TOGGLE_LAMP{"toggle light", 0x0100, 0x0800, 0x0200, 0x0200};
 
 void Hoermann::setup() {
   ESP_LOGCONFIG(TAG, "Waiting for the bus controller to start polling Modbus address 0x%02X", this->get_address());
@@ -116,6 +117,10 @@ modbus::ServerResponseStatus Hoermann::on_modbus_write_registers(uint16_t start_
     this->on_current_state_changed_(this->prev_state_reg_, registers[2]);
     this->prev_state_reg_ = registers[2];
   }
+  if (registers.size() > 6) {
+    this->on_light_changed_(this->prev_light_reg_, registers[6]);
+    this->prev_light_reg_ = registers[6];
+  }
   return {};
 }
 
@@ -194,6 +199,13 @@ void Hoermann::on_current_state_changed_(uint16_t old_value, uint16_t new_value)
   }
 }
 
+void Hoermann::on_light_changed_(uint16_t old_value, uint16_t new_value) {
+  if ((old_value & 0x00FF) != (new_value & 0x00FF)) {
+    uint16_t low = new_value & 0x00FF;
+    this->set_light_on_(low == 0x14 || low == 0x10);
+  }
+}
+
 void Hoermann::queue_command_(bool condition, const HoermannCommand &command) {
   if (!condition)
     return;
@@ -207,6 +219,11 @@ void Hoermann::queue_command_(bool condition, const HoermannCommand &command) {
 void Hoermann::open_door() { this->queue_command_(true, COMMAND_OPEN); }
 void Hoermann::close_door() { this->queue_command_(true, COMMAND_CLOSE); }
 void Hoermann::impulse_door() { this->queue_command_(true, COMMAND_IMPULSE); }
+void Hoermann::toggle_light() { this->queue_command_(true, COMMAND_TOGGLE_LAMP); }
+
+void Hoermann::turn_light(bool on) {
+  this->queue_command_((on && !this->light_on_) || (!on && this->light_on_), COMMAND_TOGGLE_LAMP);
+}
 
 void Hoermann::stop_door() {
   // Only send an impulse if the door is actually moving.
@@ -254,6 +271,12 @@ void Hoermann::set_door_state_(DoorState state) {
 void Hoermann::set_current_position_(float position) {
   if (this->current_position_ != position) {
     this->current_position_ = position;
+    this->changed_ = true;
+  }
+}
+void Hoermann::set_light_on_(bool on) {
+  if (this->light_on_ != on) {
+    this->light_on_ = on;
     this->changed_ = true;
   }
 }

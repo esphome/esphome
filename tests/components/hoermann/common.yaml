@@ -10,3 +10,12 @@ cover:
   - platform: hoermann
     name: Garage Door
     device_class: garage
+
+light:
+  - platform: hoermann
+    name: Garage Light
+
+binary_sensor:
+  - platform: hoermann
+    is_connected:
+      name: Garage Connected

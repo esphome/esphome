@@ -84,4 +84,11 @@ TEST(HoermannWrite, BroadcastUpdatesStateAndPosition) {
   EXPECT_FLOAT_EQ(door.get_current_position(), 0.5f);
 }
 
+// Broadcast register 6 low byte decodes the light state (0x10 = light on).
+TEST(HoermannWrite, BroadcastUpdatesLight) {
+  Hoermann door;
+  door.on_modbus_write_registers(BROADCAST_REG, make_registers({0x0000, 0x0000, 0x0000, 0, 0, 0, 0x0010, 0, 0}));
+  EXPECT_TRUE(door.is_light_on());
+}
+
 }  // namespace esphome::hoermann
