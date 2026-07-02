@@ -51,8 +51,9 @@ uint8_t HisenseArgClimate::temperature_() const {
 }
 
 uint8_t HisenseArgClimate::swing_() const {
-  if (this->swing_mode == climate::CLIMATE_SWING_VERTICAL)
+  if (this->swing_mode == climate::CLIMATE_SWING_VERTICAL) {
     return HISENSE_ARG_SWING_V;
+  }
   return 0x00;
 }
 
@@ -83,19 +84,21 @@ void HisenseArgClimate::transmit_state() {
   if (this->mode == climate::CLIMATE_MODE_HEAT_COOL) {
     uint8_t temp = (uint8_t) roundf(clamp<float>(this->target_temperature, HISENSE_ARG_TEMP_MIN, HISENSE_ARG_TEMP_MAX));
     uint8_t step = temp - HISENSE_ARG_TEMP_MIN;
-    if (step < 6)
+    if (step < 6) {
       remote_state[2] |= 0x30;
-    else if (step == 6)
+    } else if (step == 6) {
       remote_state[2] |= 0x50;
-    else if (step == 8)
+    } else if (step == 8) {
       remote_state[2] |= 0x40;
-    else
+    } else {
       remote_state[2] |= 0x20;
+    }
   }
 
   // Vertical swing indicator in byte 2 bit 7
-  if (this->swing_mode == climate::CLIMATE_SWING_VERTICAL)
+  if (this->swing_mode == climate::CLIMATE_SWING_VERTICAL) {
     remote_state[2] |= 0x80;
+  }
 
   // Byte 3: mode (bits[2:0]) + temperature (bits[7:4])
   remote_state[3] = (this->temperature_() << 4) | this->operation_mode_();
@@ -196,8 +199,9 @@ void HisenseArgClimate::transmit_state() {
 
 bool HisenseArgClimate::on_receive(remote_base::RemoteReceiveData data) {
   // Validate header
-  if (!data.expect_item(HISENSE_ARG_HEADER_MARK, HISENSE_ARG_HEADER_SPACE))
+  if (!data.expect_item(HISENSE_ARG_HEADER_MARK, HISENSE_ARG_HEADER_SPACE)) {
     return false;
+  }
 
   // Decode all 21 bytes (3 frames)
   uint8_t remote_state[HISENSE_ARG_STATE_SIZE] = {};
@@ -216,8 +220,9 @@ bool HisenseArgClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Separator after frame 1
-  if (!data.expect_item(HISENSE_ARG_BIT_MARK, HISENSE_ARG_SEPARATOR_SPACE))
+  if (!data.expect_item(HISENSE_ARG_BIT_MARK, HISENSE_ARG_SEPARATOR_SPACE)) {
     return false;
+  }
 
   // Frame 2: 8 bytes (bytes 6-13)
   for (int i = HISENSE_ARG_FRAME1_SIZE; i < HISENSE_ARG_FRAME1_SIZE + HISENSE_ARG_FRAME2_SIZE; i++) {
@@ -249,16 +254,18 @@ bool HisenseArgClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Validate header bytes
-  if (remote_state[0] != 0x83 || remote_state[1] != 0x06)
+  if (remote_state[0] != 0x83 || remote_state[1] != 0x06) {
     return false;
+  }
 
   // Validate checksum (bytes 2-12 XOR = byte 13)
   uint8_t checksum = 0;
   for (int i = 2; i < 13; i++) {
     checksum ^= remote_state[i];
   }
-  if (checksum != remote_state[13])
+  if (checksum != remote_state[13]) {
     return false;
+  }
 
   return this->parse_state_frame_(remote_state);
 }
@@ -281,8 +288,9 @@ bool HisenseArgClimate::parse_state_frame_(const uint8_t frame[]) {
     this->mode = climate::CLIMATE_MODE_OFF;
     this->prev_power_on_ = false;
   } else {
-    if (turning_on)
+    if (turning_on) {
       this->prev_power_on_ = true;
+    }
 
     switch (ir_mode) {
       case HISENSE_ARG_MODE_COOL:
