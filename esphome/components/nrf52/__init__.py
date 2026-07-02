@@ -117,7 +117,7 @@ def set_core_data(config: ConfigType) -> ConfigType:
 
 def _resolve_toolchain(config: ConfigType) -> ConfigType:
     if CORE.toolchain is None:
-        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.PLATFORMIO)
+        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.SDK_NRF)
     return config
 
 

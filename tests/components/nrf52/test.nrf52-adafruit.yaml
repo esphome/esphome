@@ -20,5 +20,4 @@ nrf52:
     voltage: 2.1V
     uicr_erase: true
   framework:
-    version: "2.6.1-b"
-  toolchain: sdk-nrf
+    version: "2.6.1"

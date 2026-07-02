@@ -2,4 +2,3 @@ nrf52:
   dfu: true
   reg0:
     voltage: 1.8V
-  toolchain: sdk-nrf

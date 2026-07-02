@@ -2,4 +2,3 @@ nrf52:
   reg0:
     voltage: 3.3V
     uicr_erase: true
-  toolchain: sdk-nrf
