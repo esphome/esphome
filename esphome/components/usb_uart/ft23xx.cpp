@@ -473,11 +473,11 @@ bool USBUartTypeFT23XX::config_step(USBUartChannel *channel, uint8_t step, bool 
                              channel->cdc_dev_.bulk_interface_number + 1);
       return true;
     case 1: {  // set baudrate
-      auto config = ftdi_convert_baudrate(channel->baud_rate_, this->chip_type_, channel->index_);
-      uint16_t usb_index = (config.ftdi_index & 0xFF00) | (channel->cdc_dev_.bulk_interface_number + 1);
-      ESP_LOGD(TAG, "Baudrate: %u, value=0x%04X, ftdi_index=0x%04X", (unsigned) channel->baud_rate_, config.value,
-               config.ftdi_index);
-      this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x03, config.value, usb_index);
+      uint16_t value = 0, ftdi_index = 0;
+      ftdi_convert_baudrate(channel->baud_rate_, this->chip_type_, channel->index_, &value, &ftdi_index);
+      uint16_t usb_index = (ftdi_index & 0xFF00) | (channel->cdc_dev_.bulk_interface_number + 1);
+      ESP_LOGD(TAG, "Baudrate: %" PRIu32 ", value=0x%04X, ftdi_index=0x%04X", channel->baud_rate_, value, ftdi_index);
+      this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x03, value, usb_index);
       return true;
     }
     case 2: {  // set line properties (data bits / parity / stop bits)
