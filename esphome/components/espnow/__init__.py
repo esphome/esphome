@@ -64,14 +64,18 @@ CONF_MAX_PAYLOAD_SIZE = "max_payload_size"
 # bytes, ~44 KB at 1470).
 ESPNOW_PAYLOAD_V1 = 250
 ESPNOW_PAYLOAD_V2 = 1470
+
+# Config-time cap for action payloads. The per-device limit is the
+# ``max_payload_size`` option, which the action schema cannot see; send()
+# enforces it at runtime.
+MAX_ESPNOW_PACKET_SIZE = ESPNOW_PAYLOAD_V2
+
 CONF_PEERS = "peers"
 CONF_ON_SENT = "on_sent"
 CONF_ON_UNKNOWN_PEER = "on_unknown_peer"
 CONF_ON_BROADCAST = "on_broadcast"
 CONF_CONTINUE_ON_ERROR = "continue_on_error"
 CONF_WAIT_FOR_SENT = "wait_for_sent"
-
-MAX_ESPNOW_PACKET_SIZE = 250  # Maximum size of the payload in bytes
 
 
 def _validate_max_payload_size(config):
