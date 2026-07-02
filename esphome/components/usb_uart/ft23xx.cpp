@@ -3,6 +3,7 @@
 #include "usb_uart.h"
 #include "usb/usb_host.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 #include "esphome/components/uart/uart_debugger.h"
 
 #include "esphome/components/bytebuffer/bytebuffer.h"
