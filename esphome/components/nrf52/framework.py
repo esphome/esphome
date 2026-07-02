@@ -42,17 +42,13 @@ SDK_NG_MINIMAL_MIRRORS = str_to_lst_of_str(
 
 
 def _get_tools_path() -> Path:
-    # Treat an empty/whitespace ESPHOME_SDK_NRF_PREFIX as unset: Path("")
-    # resolves to the CWD, which would install into (and let clean-all delete)
-    # the working directory by accident.
+    # A blank ESPHOME_SDK_NRF_PREFIX must be treated as unset: Path("")
+    # resolves to the CWD, which clean-all would then delete.
     if prefix := get_str_env("ESPHOME_SDK_NRF_PREFIX", "").strip():
         path = Path(prefix).expanduser()
     else:
-        # Machine-global so all projects share the multi-GB install instead of
-        # a per-config-directory copy. The user cache dir (not ~/.esphome)
-        # avoids colliding with data_dir when configs live in the home dir.
-        # appauthor=False drops the redundant <author>\ segment on Windows
-        # (which otherwise repeats "esphome\esphome\") to keep the path short.
+        # Machine-global (OS user cache dir) so all projects share one install;
+        # see espidf.framework._get_idf_tools_path for the location rationale.
         path = Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "sdk-nrf"
     return path.resolve()
 

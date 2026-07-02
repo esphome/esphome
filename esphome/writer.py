@@ -653,9 +653,8 @@ def clean_all(configuration: list[str]):
                 elif item.is_dir() and item.name != "storage":
                     rmtree(item)
 
-    # The native ESP-IDF and sdk-nrf installs live in a machine-global cache
-    # dir, outside any .esphome data dir, so the per-config loop above won't
-    # reach them.
+    # The native toolchain installs live in a machine-global cache dir that
+    # the per-config loop above can't reach.
     from esphome.components.nrf52.framework import (
         _get_tools_path as _get_sdk_nrf_tools_path,
     )
