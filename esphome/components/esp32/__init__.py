@@ -1345,9 +1345,9 @@ KEY_USB_SERIAL_JTAG_SECONDARY_REQUIRED = "usb_serial_jtag_secondary_required"
 KEY_MBEDTLS_PEER_CERT_REQUIRED = "mbedtls_peer_cert_required"
 KEY_MBEDTLS_PKCS7_REQUIRED = "mbedtls_pkcs7_required"
 KEY_FATFS_REQUIRED = "fatfs_required"
+KEY_FATFS_VOLUME_COUNT = "fatfs_volume_count"
 KEY_FATFS_LFN_MAX = "fatfs_lfn_max"
 KEY_FATFS_LFN_HEAP = "fatfs_lfn_heap"
-KEY_FATFS_VOLUME_COUNT = "fatfs_volume_count"
 KEY_MBEDTLS_SHA512_REQUIRED = "mbedtls_sha512_required"
 KEY_ADC_ONESHOT_IRAM_REQUIRED = "adc_oneshot_iram_required"
 KEY_LIBC_PICOLIBC_NEWLIB_COMPAT_REQUIRED = "libc_picolibc_newlib_compat_required"
@@ -1459,10 +1459,9 @@ def require_fatfs_volume_count(count: int) -> None:
 
 
 def require_fatfs_lfn_max(length: int = 255) -> None:
-    """Request a minimum CONFIG_FATFS_MAX_LFN value for long filename support.
+    """Request a minimum CONFIG_FATFS_MAX_LFN value.
 
     Multiple components may call this; the maximum requested value is used.
-    255 supports full LFN filenames as per FAT specification.
     Call require_fatfs() as well — this only adjusts the LFN length, not the enable flag.
     """
     data = CORE.data[KEY_ESP32]
@@ -1470,10 +1469,10 @@ def require_fatfs_lfn_max(length: int = 255) -> None:
 
 
 def require_fatfs_lfn_heap() -> None:
-    """Request that the FATFS LFN buffer is allocated on the heap rather than the stack.
+    """Request that the FATFS LFN buffer is allocated on the heap (CONFIG_FATFS_LFN_HEAP).
 
-    Heap allocation avoids large stack frames in tasks with limited stack space.
-    Once requested by any component, heap mode is used for the entire build.
+    Use this when LFN filenames must be supported with dynamic-length buffers.
+    If not called, LFN placement defaults to stack (CONFIG_FATFS_LFN_STACK).
     Call require_fatfs() and require_fatfs_lfn_max() as well.
     """
     CORE.data[KEY_ESP32][KEY_FATFS_LFN_HEAP] = True
@@ -1814,6 +1813,25 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     )
 
     add_idf_sdkconfig_option("CONFIG_LWIP_MAX_SOCKETS", max_sockets)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _write_fatfs_sdkconfig(disable_fatfs: bool) -> None:
+    """Write FATFS sdkconfig at FINAL priority so require_fatfs() calls from all
+    components are visible before we decide to enable or disable FATFS."""
+    if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
+        lfn_max = CORE.data[KEY_ESP32].get(KEY_FATFS_LFN_MAX, 0)
+        if lfn_max > 0:
+            add_idf_sdkconfig_option("CONFIG_FATFS_MAX_LFN", lfn_max)
+        if CORE.data[KEY_ESP32].get(KEY_FATFS_LFN_HEAP, False):
+            add_idf_sdkconfig_option("CONFIG_FATFS_LFN_HEAP", True)
+        else:
+            add_idf_sdkconfig_option("CONFIG_FATFS_LFN_STACK", True)
+        volume_count = CORE.data[KEY_ESP32].get(KEY_FATFS_VOLUME_COUNT, 2)
+        add_idf_sdkconfig_option("CONFIG_FATFS_VOLUME_COUNT", volume_count)
+    elif disable_fatfs:
+        add_idf_sdkconfig_option("CONFIG_FATFS_LFN_NONE", True)
+        add_idf_sdkconfig_option("CONFIG_FATFS_VOLUME_COUNT", 1)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -2505,29 +2523,8 @@ async def to_code(config):
     ):
         add_idf_sdkconfig_option("CONFIG_ADC_ONESHOT_CTRL_FUNC_IN_IRAM", True)
 
-    # FATFS support
-    # Components that need FATFS (SD card, etc.) can call require_fatfs()
-    if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
-        # Component called require_fatfs() - enable regardless of user setting
-        lfn_heap = CORE.data[KEY_ESP32].get(KEY_FATFS_LFN_HEAP, False)
-        lfn_max = CORE.data[KEY_ESP32].get(KEY_FATFS_LFN_MAX, 0)
-        volume_count = CORE.data[KEY_ESP32].get(KEY_FATFS_VOLUME_COUNT, 2)
-        if lfn_max > 0:
-            add_idf_sdkconfig_option("CONFIG_FATFS_LFN_NONE", False)
-            if lfn_heap:
-                add_idf_sdkconfig_option("CONFIG_FATFS_LFN_HEAP", True)
-                add_idf_sdkconfig_option("CONFIG_FATFS_LFN_STACK", False)
-            else:
-                add_idf_sdkconfig_option("CONFIG_FATFS_LFN_STACK", True)
-                add_idf_sdkconfig_option("CONFIG_FATFS_LFN_HEAP", False)
-            add_idf_sdkconfig_option("CONFIG_FATFS_MAX_LFN", lfn_max)
-        else:
-            add_idf_sdkconfig_option("CONFIG_FATFS_LFN_NONE", False)
-        add_idf_sdkconfig_option("CONFIG_FATFS_VOLUME_COUNT", volume_count)
-    elif advanced[CONF_DISABLE_FATFS]:
-        add_idf_sdkconfig_option("CONFIG_FATFS_LFN_NONE", True)
-        # Kconfig range is [1,10]; 0 gets clamped to the default.
-        add_idf_sdkconfig_option("CONFIG_FATFS_VOLUME_COUNT", 1)
+    # FINAL priority: runs after every require_fatfs() / require_fatfs_lfn_*() call
+    CORE.add_job(_write_fatfs_sdkconfig, advanced[CONF_DISABLE_FATFS])
 
     for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
         add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
