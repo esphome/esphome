@@ -133,10 +133,12 @@ static void zb_action_handler(ezb_zcl_core_action_callback_id_t callback_id, voi
     case EZB_ZCL_CORE_SET_ATTR_VALUE_CB_ID:
       zb_attribute_handler((ezb_zcl_set_attr_value_message_t *) message);
       break;
+#ifdef ESPHOME_LOG_HAS_VERBOSE
     case EZB_ZCL_CORE_DEFAULT_RSP_CB_ID: {
       ezb_zcl_cmd_default_rsp_message_t *default_rsp = (ezb_zcl_cmd_default_rsp_message_t *) message;
-      ESP_LOGD(TAG, "Received ZCL Default Response: 0x%02x", default_rsp->in.status_code);
+      ESP_LOGV(TAG, "Received ZCL Default Response: 0x%02x", default_rsp->in.status_code);
     } break;
+#endif
     default:
       ESP_LOGD(TAG, "Receive Zigbee action(0x%04x) callback", static_cast<unsigned>(callback_id));
       break;
