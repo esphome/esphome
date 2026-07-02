@@ -46,7 +46,7 @@ GC9107 = ST7789V.extend(
 )
 
 GC9107.extend(
-    "M5STACKS3R-GC9107",
+    "M5STACK-ATOMS3R-GC9107",
     data_rate="40MHz",
     invert_colors=True,
     reset_pin=48,
