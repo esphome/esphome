@@ -491,7 +491,7 @@ jobs:
           - id: clang-tidy
             name: Run script/clang-tidy for ZEPHYR
             options: --environment nrf52-tidy --grep USE_ZEPHYR --grep USE_NRF52
-            pio_cache_key: tidy-zephyr
+            cache_sdk_nrf: true
             ignore_errors: false
 
     steps:
@@ -526,6 +526,15 @@ jobs:
         uses: ./.github/actions/cache-esp-idf
         with:
           framework: arduino
+
+      # The native sdk-nrf toolchain installs (west workspace, Zephyr SDK
+      # toolchain, python env) under the clang-tidy temp folder's data dir.
+      - name: Cache sdk-nrf install
+        if: matrix.cache_sdk_nrf
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .temp/.esphome/sdk-nrf
+          key: sdk-nrf-${{ hashFiles('esphome/components/nrf52/clang_tidy.py', 'esphome/components/nrf52/requirements.txt') }}
 
       - name: Register problem matchers
         run: |

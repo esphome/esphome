@@ -1,59 +1,29 @@
+"""Load clang-tidy idedata for the nrf52/Zephyr environment.
+
+The compile commands come from a configure-only build of a minimal Zephyr
+project using the native sdk-nrf toolchain (see
+``esphome.components.nrf52.clang_tidy``); this module extracts the include
+paths, defines and compiler flags clang-tidy needs from them.
+"""
+
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
 
 
-def load_idedata(environment, temp_folder, platformio_ini):
-    build_environment = environment.replace("-tidy", "")
-    build_dir = Path(temp_folder) / f"build-{build_environment}"
-    Path(build_dir).mkdir(exist_ok=True)
-    Path(build_dir / "platformio.ini").write_text(
-        Path(platformio_ini).read_text(encoding="utf-8"), encoding="utf-8"
-    )
-    esphome_dir = Path(build_dir / "esphome")
-    esphome_dir.mkdir(exist_ok=True)
-    Path(esphome_dir / "main.cpp").write_text(
-        """
-#include <zephyr/kernel.h>
-int main() { return 0;}
-extern "C" void zboss_signal_handler() {};
-""",
-        encoding="utf-8",
-    )
-    zephyr_dir = Path(build_dir / "zephyr")
-    zephyr_dir.mkdir(exist_ok=True)
-    Path(zephyr_dir / "prj.conf").write_text(
-        """
-CONFIG_NEWLIB_LIBC=y
-CONFIG_BT=y
-CONFIG_ADC=y
-#mcumgr begin
-CONFIG_NET_BUF=y
-CONFIG_ZCBOR=y
-CONFIG_MCUMGR=y
-CONFIG_MCUMGR_GRP_IMG=y
-CONFIG_IMG_MANAGER=y
-CONFIG_STREAM_FLASH=y
-CONFIG_FLASH_MAP=y
-CONFIG_FLASH=y
-CONFIG_IMG_ERASE_PROGRESSIVELY=y
-CONFIG_BOOTLOADER_MCUBOOT=y
-CONFIG_MCUMGR_MGMT_NOTIFICATION_HOOKS=y
-CONFIG_MCUMGR_GRP_IMG_STATUS_HOOKS=y
-CONFIG_MCUMGR_GRP_IMG_UPLOAD_CHECK_HOOK=y
-CONFIG_MCUMGR_TRANSPORT_UART=y
-#mcumgr end
-#zigbee begin
-CONFIG_ZIGBEE=y
-CONFIG_CRYPTO=y
-CONFIG_NVS=y
-CONFIG_SETTINGS=y
-#zigbee end
-""",
-        encoding="utf-8",
-    )
-    subprocess.run(["pio", "run", "-e", build_environment, "-d", build_dir], check=True)
+def load_idedata(environment, temp_folder, platformio_ini):  # noqa: ARG001
+    if explicit := os.environ.get("ESPHOME_ZEPHYR_COMPILE_COMMANDS"):
+        compile_commands_path = Path(explicit)
+    else:
+        from esphome.components.nrf52.clang_tidy import generate_compile_commands
+
+        work_dir = (Path(temp_folder) / f"zephyr-{environment}").resolve()
+        compile_commands_path = generate_compile_commands(work_dir)
+
+    if not compile_commands_path.is_file():
+        raise RuntimeError(f"compile_commands.json not found: {compile_commands_path}")
 
     def extract_include_paths(command):
         include_paths = []
@@ -143,9 +113,5 @@ CONFIG_SETTINGS=y
 
         return idedata
 
-    compile_commands = json.loads(
-        Path(
-            build_dir / ".pio" / "build" / build_environment / "compile_commands.json"
-        ).read_text(encoding="utf-8")
-    )
+    compile_commands = json.loads(compile_commands_path.read_text(encoding="utf-8"))
     return transform_to_idedata_format(compile_commands)
