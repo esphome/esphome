@@ -140,9 +140,12 @@ static void __attribute__((noinline)) esp_log_format_direct_(esp_log_msg_t *mess
 
 extern "C" {
 // Override esp_log_format from liblog.a to prevent V2's 3-call vprintf
-// fragmentation. IRAM_ATTR to match esp_log_va's IRAM placement and avoid
-// an IRAM->flash cache miss on every ESP-IDF log call.
-void IRAM_ATTR esp_log_format(esp_log_msg_t *message) {
+// fragmentation. Deliberately NOT IRAM_ATTR: every caller that must work with
+// flash cache disabled (ESP_DRAM_LOGx, ESP_EARLY_LOGx) bypasses esp_log()
+// entirely under CONFIG_LOG_API_CONSTRAINED_ENV_SAFE=n, and both paths below
+// immediately call flash-resident code anyway, so IRAM placement would only
+// spend the IRAM this change exists to save.
+void esp_log_format(esp_log_msg_t *message) {
   extern vprintf_like_t esp_log_vprint_func;
   extern int vprintf(const char *, __gnuc_va_list);  // NOLINT
   if (esp_log_vprint_func == &vprintf || message->config.opts.constrained_env) [[unlikely]] {
