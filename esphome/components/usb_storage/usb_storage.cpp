@@ -614,7 +614,7 @@ storage::StorageError USBStorageDevice::write(storage::FileHandle *handle, const
 storage::StorageError USBStorageDevice::seek(storage::FileHandle *handle, size_t offset) {
   auto *h = static_cast<USBFileHandle *>(handle);
   return fseek(h->file, static_cast<int32_t>(offset), SEEK_SET) == 0 ? storage::StorageError::OK
-                                                                  : storage::StorageError::READ_ERROR;
+                                                                     : storage::StorageError::READ_ERROR;
 }
 
 storage::StorageError USBStorageDevice::tell(storage::FileHandle *handle, size_t *position) {
