@@ -306,8 +306,7 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t funct
           device->on_modbus_error(function_code & FUNCTION_CODE_MASK, exception);
 
       } else if (device) {  // Not an error response
-        // on_modbus_data is existing public API taking const std::vector<uint8_t>&
-        device->on_modbus_data(std::vector<uint8_t>(data, data + len));
+        device->on_modbus_data(std::span<const uint8_t>(data, len));
       } else {  // Not an error response, but no device to respond to
         ESP_LOGV(TAG, "Ignoring response from %" PRIu8 " - no callback device set, %" PRIu32 "ms after last send",
                  address, this->last_modbus_byte_ - this->last_send_);

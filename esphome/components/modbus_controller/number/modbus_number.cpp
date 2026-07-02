@@ -10,7 +10,7 @@ static const char *const TAG = "modbus.number";
 // Maximum uint16_t registers to log in verbose hex output
 static constexpr size_t MODBUS_NUMBER_MAX_LOG_REGISTERS = 32;
 
-void ModbusNumber::parse_and_publish(const std::vector<uint8_t> &data) {
+void ModbusNumber::parse_and_publish(std::span<const uint8_t> data) {
   float result = payload_to_float(data, *this) / this->multiply_by_;
 
   // Is there a lambda registered
@@ -57,7 +57,7 @@ void ModbusNumber::control(float value) {
              format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
     write_cmd = ModbusCommandItem::create_custom_command(
         this->parent_, data,
-        [this, write_cmd](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
+        [this, write_cmd](ModbusRegisterType register_type, uint16_t start_address, std::span<const uint8_t> data) {
           this->parent_->on_write_register_response(write_cmd.register_type, this->start_address, data);
         });
   } else {
@@ -78,7 +78,7 @@ void ModbusNumber::control(float value) {
     }
     // publish new value
     write_cmd.on_data_func = [this, write_cmd, value](ModbusRegisterType register_type, uint16_t start_address,
-                                                      const std::vector<uint8_t> &data) {
+                                                      std::span<const uint8_t> data) {
       // gets called when the write command is ack'd from the device
       this->parent_->on_write_register_response(write_cmd.register_type, start_address, data);
       this->publish_state(value);

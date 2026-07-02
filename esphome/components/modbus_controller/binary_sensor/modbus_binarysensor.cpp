@@ -7,7 +7,7 @@ static const char *const TAG = "modbus_controller.binary_sensor";
 
 void ModbusBinarySensor::dump_config() { LOG_BINARY_SENSOR("", "Modbus Controller Binary Sensor", this); }
 
-void ModbusBinarySensor::parse_and_publish(const std::vector<uint8_t> &data) {
+void ModbusBinarySensor::parse_and_publish(std::span<const uint8_t> data) {
   bool value;
 
   switch (this->register_type) {

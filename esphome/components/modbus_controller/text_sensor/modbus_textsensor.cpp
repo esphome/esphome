@@ -8,7 +8,7 @@ static const char *const TAG = "modbus_controller.text_sensor";
 
 void ModbusTextSensor::dump_config() { LOG_TEXT_SENSOR("", "Modbus Controller Text Sensor", this); }
 
-void ModbusTextSensor::parse_and_publish(const std::vector<uint8_t> &data) {
+void ModbusTextSensor::parse_and_publish(std::span<const uint8_t> data) {
   std::string output_str{};
   uint8_t items_left = this->response_bytes;
   uint8_t index = this->offset;

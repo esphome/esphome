@@ -9,6 +9,7 @@
 #include <array>
 #include <cstring>
 #include <memory>
+#include <span>
 #include <vector>
 #include <deque>
 #include <optional>
@@ -168,7 +169,9 @@ class ModbusClientDevice {
   ModbusClientDevice &operator=(ModbusClientDevice &&) = delete;
   void set_parent(ModbusClientHub *parent) { this->parent_ = parent; }
   void set_address(uint8_t address) { this->address_ = address; }
-  virtual void on_modbus_data(const std::vector<uint8_t> &data) {}
+  /// Called with the response PDU payload. The span points into the hub's receive buffer and is only
+  /// valid for the duration of the call - copy the bytes if they must outlive it.
+  virtual void on_modbus_data(std::span<const uint8_t> data) {}
   virtual void on_modbus_error(uint8_t function_code, uint8_t exception_code) {}
   virtual void on_modbus_not_sent() {}
   virtual void on_modbus_no_response() {}

@@ -35,7 +35,7 @@ void GrowattSolar::update() {
   this->last_send_ = millis();
 }
 
-void GrowattSolar::on_modbus_data(const std::vector<uint8_t> &data) {
+void GrowattSolar::on_modbus_data(std::span<const uint8_t> data) {
   // Other components might be sending commands to our device. But we don't get called with enough
   // context to know what is what. So if we didn't do a send, we ignore the data.
   if (!this->last_send_)

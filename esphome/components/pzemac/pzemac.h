@@ -22,7 +22,7 @@ class PZEMAC final : public PollingComponent, public modbus::ModbusClientDevice 
 
   void update() override;
 
-  void on_modbus_data(const std::vector<uint8_t> &data) override;
+  void on_modbus_data(std::span<const uint8_t> data) override;
 
   void dump_config() override;
 

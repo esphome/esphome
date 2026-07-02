@@ -27,12 +27,12 @@ class ModbusBinarySensor : public Component, public binary_sensor::BinarySensor,
     }
   }
 
-  void parse_and_publish(const std::vector<uint8_t> &data) override;
+  void parse_and_publish(std::span<const uint8_t> data) override;
   void set_state(bool state) { this->state = state; }
 
   void dump_config() override;
 
-  using transform_func_t = optional<bool> (*)(ModbusBinarySensor *, bool, const std::vector<uint8_t> &);
+  using transform_func_t = optional<bool> (*)(ModbusBinarySensor *, bool, std::span<const uint8_t>);
   void set_template(transform_func_t f) { this->transform_func_ = f; }
 
  protected:

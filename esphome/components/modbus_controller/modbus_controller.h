@@ -9,6 +9,7 @@
 #include <list>
 #include <queue>
 #include <set>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -95,7 +96,9 @@ class ModbusController;
 
 class SensorItem {
  public:
-  virtual void parse_and_publish(const std::vector<uint8_t> &data) = 0;
+  /// Parse the response payload and publish the sensor state. The span is only valid for the duration
+  /// of the call - copy the bytes if they must outlive it.
+  virtual void parse_and_publish(std::span<const uint8_t> data) = 0;
 
   void set_custom_data(const std::vector<uint8_t> &data) { custom_data = data; }
   size_t virtual get_register_size() const {
@@ -169,7 +172,7 @@ class ModbusCommandItem {
   uint16_t register_count{0};
   ModbusFunctionCode function_code{ModbusFunctionCode::CUSTOM};
   ModbusRegisterType register_type{ModbusRegisterType::CUSTOM};
-  std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
+  std::function<void(ModbusRegisterType register_type, uint16_t start_address, std::span<const uint8_t> data)>
       on_data_func;
   std::vector<uint8_t> payload = {};
   bool send();
@@ -188,7 +191,7 @@ class ModbusCommandItem {
    */
   static ModbusCommandItem create_read_command(
       ModbusController *modbusdevice, ModbusRegisterType register_type, uint16_t start_address, uint16_t register_count,
-      std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
+      std::function<void(ModbusRegisterType register_type, uint16_t start_address, std::span<const uint8_t> data)>
           &&handler);
   /** Create modbus read command
    *  Function code 02-04
@@ -248,7 +251,7 @@ class ModbusCommandItem {
    */
   static ModbusCommandItem create_custom_command(
       ModbusController *modbusdevice, const std::vector<uint8_t> &values,
-      std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
+      std::function<void(ModbusRegisterType register_type, uint16_t start_address, std::span<const uint8_t> data)>
           &&handler = nullptr);
 
   /** Create custom modbus command
@@ -260,7 +263,7 @@ class ModbusCommandItem {
    */
   static ModbusCommandItem create_custom_command(
       ModbusController *modbusdevice, const std::vector<uint16_t> &values,
-      std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
+      std::function<void(ModbusRegisterType register_type, uint16_t start_address, std::span<const uint8_t> data)>
           &&handler = nullptr);
 
   bool is_equal(const ModbusCommandItem &other);
@@ -291,15 +294,15 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
   /// Registers a sensor with the controller. Called by esphomes code generator
   void add_sensor_item(SensorItem *item) { sensorset_.insert(item); }
   /// called when a modbus response was parsed without errors
-  void on_modbus_data(const std::vector<uint8_t> &data) override;
+  void on_modbus_data(std::span<const uint8_t> data) override;
   /// called when a modbus error response was received
   void on_modbus_error(uint8_t function_code, uint8_t exception_code) override;
   /// default delegate called by process_modbus_data when a response has retrieved from the incoming queue
-  void on_register_data(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data);
+  void on_register_data(ModbusRegisterType register_type, uint16_t start_address, std::span<const uint8_t> data);
   /// default delegate called by process_modbus_data when a response for a write response has retrieved from the
   /// incoming queue
   void on_write_register_response(ModbusRegisterType register_type, uint16_t start_address,
-                                  const std::vector<uint8_t> &data);
+                                  std::span<const uint8_t> data);
   /// Allow a duplicate command to be sent
   void set_allow_duplicate_commands(bool allow_duplicate_commands) {
     this->allow_duplicate_commands_ = allow_duplicate_commands;
@@ -372,12 +375,12 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
   CallbackManager<void(int, int)> offline_callback_{};
 };
 
-/** Convert vector<uint8_t> response payload to float.
+/** Convert a response payload span to float.
  * @param data payload with data
  * @param item SensorItem object
  * @return float value of data
  */
-inline float payload_to_float(const std::vector<uint8_t> &data, const SensorItem &item) {
+inline float payload_to_float(std::span<const uint8_t> data, const SensorItem &item) {
   int64_t number = modbus::helpers::payload_to_number(data, item.sensor_value_type, item.offset, item.bitmask);
 
   float float_value;
