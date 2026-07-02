@@ -57,7 +57,7 @@ bool ModbusController::send_next_command_() {
 }
 
 // Queue incoming response
-void ModbusController::on_modbus_data(std::span<const uint8_t> data) {
+void ModbusController::on_modbus_data(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
   if (this->command_queue_.empty()) {
     ESP_LOGW(TAG, "Received modbus data but command queue is empty");
     return;
@@ -80,6 +80,7 @@ void ModbusController::on_modbus_data(std::span<const uint8_t> data) {
 
     // Move the commandItem to the response queue. The span points into the hub's receive buffer, so
     // copy the bytes into the command's payload for deferred processing in loop().
+    auto data = modbus::helpers::server_pdu_payload(response_pdu);
     current_command->payload.assign(data.begin(), data.end());
     this->incoming_queue_.push(std::move(current_command));
     ESP_LOGV(TAG, "Modbus response queued");
@@ -94,7 +95,10 @@ void ModbusController::process_modbus_data_(const ModbusCommandItem *response) {
   response->on_data_func(response->register_type, response->register_address, response->payload);
 }
 
-void ModbusController::on_modbus_error(uint8_t function_code, uint8_t exception_code) {
+void ModbusController::on_modbus_error(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
+  // The frame parser only dispatches complete exception frames: {function code | 0x80, exception code}.
+  const uint8_t function_code = response_pdu[0];
+  const uint8_t exception_code = response_pdu[1];
   ESP_LOGE(TAG, "Modbus error function code: 0x%X exception: %d ", function_code, exception_code);
   if (this->command_queue_.empty()) {
     return;

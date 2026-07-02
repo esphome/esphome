@@ -60,6 +60,16 @@ inline uint8_t server_frame_data_offset(const uint8_t *frame, size_t size) {
   }
 }
 
+/** Returns the payload portion of a server response PDU: the bytes after the function code, and for
+ * read responses also after the byte-count byte. Returns an empty span if the PDU is too short.
+ */
+inline std::span<const uint8_t> server_pdu_payload(std::span<const uint8_t> pdu) {
+  if (pdu.empty())
+    return {};
+  const size_t offset = is_function_code_read(pdu[0]) ? 2 : 1;
+  return pdu.size() > offset ? pdu.subspan(offset) : std::span<const uint8_t>();
+}
+
 inline uint8_t client_frame_data_offset(const uint8_t *, size_t) { return 2; }
 
 enum class SensorValueType : uint8_t {

@@ -77,7 +77,7 @@ class HavellsSolar final : public PollingComponent, public modbus::ModbusClientD
 
   void update() override;
 
-  void on_modbus_data(std::span<const uint8_t> data) override;
+  void on_modbus_data(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
 
   void dump_config() override;
 

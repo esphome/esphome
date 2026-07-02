@@ -215,11 +215,10 @@ bool Modbus::parse_modbus_server_frame_() {
 
   // Process before clearing: process_modbus_server_frame (receiving a response or peer message) never sends a reply
   // synchronously. We can safely point directly into rx_buffer_ and avoid a copy.
-  uint8_t data_offset = helpers::server_frame_data_offset(this->rx_buffer_.data(), this->rx_buffer_.size());
-  const uint8_t *data = this->rx_buffer_.data() + data_offset;
-  uint16_t data_len = frame_length - 2 - data_offset;
+  // The PDU is the frame without the leading address and the trailing CRC.
+  std::span<const uint8_t> pdu(this->rx_buffer_.data() + 1, frame_length - 3);
 
-  this->process_modbus_server_frame(address, function_code, data, data_len);
+  this->process_modbus_server_frame(address, pdu);
   this->clear_rx_buffer_(LOG_STR("parse succeeded"), false, frame_length);
 
   return true;
@@ -259,8 +258,8 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
   return true;
 }
 
-void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data,
-                                                  uint16_t len) {
+void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) {
+  const uint8_t function_code = pdu[0];
   if (!this->waiting_for_response_.has_value()) {
     ESP_LOGW(TAG,
              "Received unexpected frame from address %" PRIu8 ", function code 0x%X, %" PRIu32 "ms after last send",
@@ -294,19 +293,23 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t funct
       return;
     } else {  // We have a valid device waiting for this response
 
-      ModbusClientDevice *device = wfr.device;
+      // Move the command out of the waiting slot so the request PDU stays alive for the callback.
+      ModbusDeviceCommand command = std::move(this->waiting_for_response_.value());
       this->waiting_for_response_.reset();
+      ModbusClientDevice *device = command.device;
+      // The request PDU is the sent frame without the leading address and the trailing CRC.
+      std::span<const uint8_t> request_pdu(command.frame.data.get() + 1, command.frame.size - 3);
       // Is it an error response?
       if (helpers::is_function_code_exception(function_code)) {
-        uint8_t exception = len > 0 ? data[0] : 0;
+        uint8_t exception = pdu[1];  // exception frames are fixed-length, so the code is always present
         ESP_LOGW(TAG,
                  "Error function code: 0x%X exception: %" PRIu8 ", address: %" PRIu8 ", %" PRIu32 "ms after last send",
                  function_code, exception, address, this->last_modbus_byte_ - this->last_send_);
         if (device)
-          device->on_modbus_error(function_code & FUNCTION_CODE_MASK, exception);
+          device->on_modbus_error(request_pdu, pdu);
 
       } else if (device) {  // Not an error response
-        device->on_modbus_data(std::span<const uint8_t>(data, len));
+        device->on_modbus_data(request_pdu, pdu);
       } else {  // Not an error response, but no device to respond to
         ESP_LOGV(TAG, "Ignoring response from %" PRIu8 " - no callback device set, %" PRIu32 "ms after last send",
                  address, this->last_modbus_byte_ - this->last_send_);
@@ -315,7 +318,7 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t funct
   }
 }
 
-void ModbusServerHub::process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *, uint16_t) {
+void ModbusServerHub::process_modbus_server_frame(uint8_t address, std::span<const uint8_t>) {
   if (this->find_device_(address) != nullptr) {
     ESP_LOGE(TAG, "Unexpected response from address %" PRIu8 ", which is mapped to this device.", address);
   }

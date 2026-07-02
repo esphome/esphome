@@ -52,8 +52,8 @@ class Modbus : public uart::UARTDevice, public Component {
   virtual int32_t tx_delay_remaining();
   virtual void parse_modbus_frames() = 0;
   bool parse_modbus_server_frame_();
-  virtual void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data,
-                                           uint16_t len) = 0;
+  // pdu is the whole PDU (function code + payload, no address/CRC); pdu[0] is the (standard or custom) function code.
+  virtual void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) = 0;
   void clear_rx_buffer_(const LogString *reason, bool warn = false, size_t bytes_to_clear = 0);
   bool send_frame_(const ModbusFrame &frame);
   // Scans forward from min_length to find a frame boundary by CRC match for custom function codes.
@@ -111,8 +111,7 @@ class ModbusClientHub : public Modbus {
  protected:
   int32_t tx_delay_remaining() override;
   void parse_modbus_frames() override;
-  // Parsers need to handle standard (ModbusFunctionCode) and custom (uint8_t) function codes, so we use uint8_t here.
-  void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len) override;
+  void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) override;
   void send_next_frame_();
   void queue_raw_(uint8_t address, const uint8_t *pdu, uint16_t pdu_len, ModbusClientDevice *device = nullptr);
 
@@ -135,8 +134,7 @@ class ModbusServerHub : public Modbus {
  protected:
   void parse_modbus_frames() override;
   bool parse_modbus_client_frame_();
-  // Parsers need to handle standard (ModbusFunctionCode) and custom (uint8_t) function codes, so we use uint8_t here.
-  void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len) override;
+  void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) override;
   void process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data);
   ModbusServerDevice *find_device_(uint8_t address);
   // Returns true if [start_address, start_address + number_of_registers) fits in the 16-bit address space.
@@ -169,10 +167,12 @@ class ModbusClientDevice {
   ModbusClientDevice &operator=(ModbusClientDevice &&) = delete;
   void set_parent(ModbusClientHub *parent) { this->parent_ = parent; }
   void set_address(uint8_t address) { this->address_ = address; }
-  /// Called with the response PDU payload. The span points into the hub's receive buffer and is only
-  /// valid for the duration of the call - copy the bytes if they must outlive it.
-  virtual void on_modbus_data(std::span<const uint8_t> data) {}
-  virtual void on_modbus_error(uint8_t function_code, uint8_t exception_code) {}
+  /// Called with the request PDU this device sent and the response PDU received (both: function code +
+  /// data, no address, no CRC). The spans are only valid for the duration of the call - copy the bytes
+  /// if they must outlive it. Slice the payload out of the response with helpers::server_pdu_payload().
+  virtual void on_modbus_data(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {}
+  /// Called with the request PDU and the exception response PDU {function code | 0x80, exception code}.
+  virtual void on_modbus_error(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {}
   virtual void on_modbus_not_sent() {}
   virtual void on_modbus_no_response() {}
   void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities, uint8_t payload_len = 0,

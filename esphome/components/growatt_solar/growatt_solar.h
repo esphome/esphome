@@ -69,7 +69,7 @@ class GrowattSolar final : public PollingComponent, public modbus::ModbusClientD
  public:
   void loop() override;
   void update() override;
-  void on_modbus_data(std::span<const uint8_t> data) override;
+  void on_modbus_data(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
   void dump_config() override;
 
   void set_protocol_version(GrowattProtocolVersion protocol_version) { this->protocol_version_ = protocol_version; }
