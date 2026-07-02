@@ -355,7 +355,7 @@ bool ModbusServerHub::check_register_range_(uint8_t address, uint8_t function_co
 }
 
 void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, const uint8_t *data) {
-  // Broadcasts are only meaningful for writes and are never answered, so any parse error is dropped silently.
+  // Broadcasts are only meaningful for writes and are never answered; invalid broadcast frames are ignored.
   uint16_t start_address = helpers::get_data<uint16_t>(data, 0);
   uint16_t number_of_registers;
   uint16_t values_offset;
