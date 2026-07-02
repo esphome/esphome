@@ -283,7 +283,6 @@ class USBUartTypeCH34X : public USBUartTypeCdcAcm {
   uint8_t num_ports_{1};
 };
 
-
 class USBUartTypeFT23XX : public USBUartTypeCdcAcm {
  public:
   USBUartTypeFT23XX(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {}
