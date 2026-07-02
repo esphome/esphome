@@ -33,8 +33,11 @@ static constexpr uint8_t HISENSE_ARG_FAN_MEDIUM = 0x02;
 static constexpr uint8_t HISENSE_ARG_FAN_LOW = 0x03;
 
 // Power transition (byte[15])
-static constexpr uint8_t HISENSE_ARG_POWER_ON = 0x01;   // Transition: off -> on
-static constexpr uint8_t HISENSE_ARG_POWER_OFF = 0x02;  // Transition: on -> off
+static constexpr uint8_t HISENSE_ARG_POWER_TOGGLE = 0x01;     // Power state change (on->off or off->on)
+static constexpr uint8_t HISENSE_ARG_POWER_NO_CHANGE = 0x02;  // No power change, settings update only
+
+// Power transition flag (byte[2] bit 2)
+static constexpr uint8_t HISENSE_ARG_POWER_FLAG = 0x04;  // Set during any power transition
 
 // Swing (byte[8])
 static constexpr uint8_t HISENSE_ARG_SWING_H = 0x80;  // Horizontal swing

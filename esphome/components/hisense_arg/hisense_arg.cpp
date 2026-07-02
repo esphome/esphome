@@ -122,6 +122,12 @@ void HisenseArgClimate::transmit_state() {
   // Byte 11: display flag (0x80, already set in init)
   // Byte 12: ambient temperature (default 24C = 0x18, already set in init)
 
+  // Byte 2 bit 2: power transition flag (must be set before checksum)
+  bool power_transition = (power_on != this->prev_power_on_);
+  if (power_transition) {
+    remote_state[2] |= HISENSE_ARG_POWER_FLAG;
+  }
+
   // Byte 13: XOR checksum of bytes 2-12
   remote_state[13] = 0;
   for (int i = 2; i < 13; i++) {
@@ -130,13 +136,12 @@ void HisenseArgClimate::transmit_state() {
 
   // --- Frame 3 (bytes 14-20) ---
 
-  // Byte 15: power state transition
-  if (power_on && !this->prev_power_on_) {
-    remote_state[15] = HISENSE_ARG_POWER_ON;  // Turning on
-  } else if (!power_on && this->prev_power_on_) {
-    remote_state[15] = HISENSE_ARG_POWER_OFF;  // Turning off
+  // Byte 15: power transition
+  if (power_transition) {
+    remote_state[15] = HISENSE_ARG_POWER_TOGGLE;  // Power state change (toggle)
+  } else {
+    remote_state[15] = HISENSE_ARG_POWER_NO_CHANGE;  // No power change, settings only
   }
-  // else: no transition, stays 0x00
 
   // Byte 18: variant flag (HISENSE_ARG_VARIANT_A = 0x08, already set in init)
 
@@ -280,18 +285,22 @@ bool HisenseArgClimate::parse_state_frame_(const uint8_t frame[]) {
   // Decode swing from byte[8]
   uint8_t ir_swing = frame[8];
 
-  // Determine power state from frame 3 byte[15]
-  bool turning_on = (frame[15] == HISENSE_ARG_POWER_ON);
-  bool turning_off = (frame[15] == HISENSE_ARG_POWER_OFF);
+  // Determine power state from frame 3 byte[15] and byte[2] bit 2
+  bool is_power_toggle = (frame[15] == HISENSE_ARG_POWER_TOGGLE) && (frame[2] & HISENSE_ARG_POWER_FLAG);
 
-  if (turning_off) {
-    this->mode = climate::CLIMATE_MODE_OFF;
-    this->prev_power_on_ = false;
-  } else {
-    if (turning_on) {
+  if (is_power_toggle) {
+    // Toggle: flip from previous known state
+    if (this->prev_power_on_) {
+      this->mode = climate::CLIMATE_MODE_OFF;
+      this->prev_power_on_ = false;
+    } else {
       this->prev_power_on_ = true;
+      // Decode mode below
     }
+  }
 
+  // If not toggling off, decode mode
+  if (this->mode != climate::CLIMATE_MODE_OFF || !is_power_toggle) {
     switch (ir_mode) {
       case HISENSE_ARG_MODE_COOL:
         this->mode = climate::CLIMATE_MODE_COOL;
