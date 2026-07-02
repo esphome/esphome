@@ -58,7 +58,7 @@ from esphome.framework_helpers import (
     get_project_link_flags,
     run_command_ok,
 )
-from esphome.helpers import write_file_if_changed
+from esphome.helpers import rmtree, write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
@@ -411,6 +411,17 @@ async def _dfu_to_code(dfu_config):
 def copy_files() -> None:
     """Copy files to the build directory."""
 
+    # Library conversion to Zephyr modules is wired into the sdk-nrf
+    # CMakeLists only; the PlatformIO toolchain's forked platform package
+    # cannot compile external libraries at all, so the build would fail at
+    # link time anyway. Fail fast with a clear message instead.
+    if CORE.using_toolchain_platformio and CORE.platformio_libraries:
+        raise EsphomeError(
+            f"Libraries ({', '.join(sorted(CORE.platformio_libraries))}) are "
+            "not supported on the nRF52 'platformio' toolchain; use toolchain "
+            "'sdk-nrf' to build them as Zephyr modules."
+        )
+
     if CORE.using_toolchain_platformio and (
         zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
         or zephyr_data()[KEY_BOARD] == "xiao_ble"
@@ -697,15 +708,31 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
     return False
 
 
-def _generate_cmake_lists() -> None:
+def _generate_cmake_lists() -> bool:
+    """Write the project CMakeLists.txt, returning True if it changed."""
     compile_flags = get_project_compile_flags()
     link_flags = get_project_link_flags()
+
+    # Convert any PlatformIO libraries added via cg.add_library() into Zephyr
+    # modules and discover them through EXTRA_ZEPHYR_MODULES (a CMake list, set
+    # before find_package(Zephyr) so the modules are picked up). Only
+    # framework-agnostic libraries actually compile under Zephyr.
+    from esphome.components.zephyr.library import generate_zephyr_modules
+
+    module_dirs = generate_zephyr_modules(list(CORE.platformio_libraries.values()))
 
     lines = [
         "cmake_minimum_required(VERSION 3.20.0)",
         "",
         'set(Zephyr_DIR "$ENV{ZEPHYR_BASE}/share/zephyr-package/cmake/")',
         "",
+    ]
+
+    if module_dirs:
+        modules = ";".join(str(d).replace("\\", "/") for d in module_dirs)
+        lines += [f'set(EXTRA_ZEPHYR_MODULES "{modules}")', ""]
+
+    lines += [
         "find_package(Zephyr REQUIRED)",
         "",
         f"project({CORE.name})",
@@ -732,7 +759,7 @@ def _generate_cmake_lists() -> None:
             ")",
         ]
 
-    write_file_if_changed(
+    return write_file_if_changed(
         CORE.relative_build_path("zephyr", "CMakeLists.txt"),
         "\n".join(lines) + "\n",
     )
@@ -751,11 +778,22 @@ def run_compile(args, config: ConfigType) -> bool:
     paths = get_build_paths()
     env = get_build_env()
 
-    _generate_cmake_lists()
+    cmake_lists_changed = _generate_cmake_lists()
 
     board = zephyr_data()[KEY_BOARD]
     build_dir = CORE.relative_pioenvs_path(CORE.name)
     source_dir = CORE.relative_build_path("zephyr")
+
+    # A missing CMake cache (dropped by zephyr's copy_files() on config
+    # change) or a changed CMakeLists.txt requires a pristine build: Zephyr
+    # caches Kconfig/devicetree state that survives a plain cmake re-run.
+    # West can't do the wipe — its pristine modes only recognize a build dir
+    # by reading ZEPHYR_BASE from the very cache that was dropped.
+    if (
+        cmake_lists_changed or not (build_dir / "CMakeCache.txt").is_file()
+    ) and build_dir.is_dir():
+        _LOGGER.info("Build inputs changed, cleaning %s", build_dir)
+        rmtree(build_dir)
 
     west_cmd = [
         str(paths["python_executable"]),

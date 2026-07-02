@@ -26,7 +26,9 @@ from esphome.platformio.library import (
 
 
 def _backend(emit=lambda component: None) -> LibraryBackend:
-    return LibraryBackend(platform="espressif32", framework="espidf", emit=emit)
+    return LibraryBackend(
+        platform="espressif32", framework="espidf", emit=emit, cache_key="idf"
+    )
 
 
 def test_check_library_data_accepts_wildcards():
@@ -134,7 +136,7 @@ def test_resolve_registry_version_raises_without_pkg_file(monkeypatch):
 def _patch_download_with_manifests(monkeypatch, tmp_path, manifests, *, properties=()):
     """Fake ConvertedLibrary.download to materialize canned manifests on disk."""
 
-    def fake_download(self, force=False, salt=""):
+    def fake_download(self, force=False, salt="", namespace=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         self.path.mkdir(parents=True, exist_ok=True)
         if self.name in properties:
