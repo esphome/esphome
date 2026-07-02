@@ -2,6 +2,7 @@
 #include "defines.h"
 #include "helpers.h"
 #include <cstdio>
+#include <cstring>
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -136,8 +137,7 @@ static void __attribute__((noinline)) esp_log_format_direct_(esp_log_msg_t *mess
 extern "C" {
 // Override esp_log_format from liblog.a to prevent V2's 3-call vprintf
 // fragmentation. IRAM_ATTR to match esp_log_va's IRAM placement and avoid
-// an IRAM->flash cache miss on every ESP-IDF log call. This function is
-// tiny (~43 bytes) so the IRAM cost is negligible.
+// an IRAM->flash cache miss on every ESP-IDF log call.
 void IRAM_ATTR esp_log_format(esp_log_msg_t *message) {
   extern vprintf_like_t esp_log_vprint_func;
   extern int vprintf(const char *, __gnuc_va_list);  // NOLINT
@@ -155,9 +155,32 @@ void IRAM_ATTR esp_log_format(esp_log_msg_t *message) {
     esp_log_format_direct_(message);
     return;
   }
-  // After hook installed, normal environment: skip formatting, forward body only.
-  // Call esp_log_vprint_func directly to avoid pulling in esp_rom_vprintf
-  // (1.2KB IRAM) through the esp_log_vprintf inline.
+  // After hook installed, normal environment: skip V2's decoration and forward
+  // to the ESPHome logger via esp_log_vprint_func directly, which also avoids
+  // pulling in esp_rom_vprintf (1.2KB IRAM) through the esp_log_vprintf inline.
+  //
+  // V2 keeps the component tag (wifi, phy_init, ...) separate from the format
+  // string, and our hook labels everything "esp-idf", so prepend "tag: " to
+  // preserve which IDF component logged. The tag is a static literal with no %
+  // specifiers, so concatenating it in front of the format leaves the original
+  // args aligned. Only do this when the whole thing fits; never truncate the
+  // format, which could cut a % specifier and misread an arg. This path runs
+  // with cache enabled (not constrained_env), so flash-resident strlen/memcpy
+  // are safe here.
+  const char *tag = message->tag;
+  if (tag != nullptr) {
+    size_t tag_len = strlen(tag);
+    size_t format_len = strlen(message->format);
+    char buf[256];
+    if (tag_len + 2 + format_len < sizeof(buf)) {  // "tag: " + format + '\0'
+      memcpy(buf, tag, tag_len);
+      buf[tag_len] = ':';
+      buf[tag_len + 1] = ' ';
+      memcpy(buf + tag_len + 2, message->format, format_len + 1);  // include '\0'
+      esp_log_vprint_func(buf, message->args);
+      return;
+    }
+  }
   esp_log_vprint_func(message->format, message->args);
 }
 }  // extern "C"
