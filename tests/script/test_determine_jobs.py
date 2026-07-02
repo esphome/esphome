@@ -562,7 +562,7 @@ def test_determine_integration_tests(
     with patch.object(
         determine_jobs,
         "changed_files",
-        return_value=["esphome/dashboard/web_server.py"],
+        return_value=["esphome/analyze_memory/helpers.py"],
     ):
         run_all, test_files = determine_jobs.determine_integration_tests()
         assert run_all is False
@@ -914,7 +914,6 @@ def test_should_run_core_ci_with_branch() -> None:
         # picks them up because esphome's pyproject sets
         # include-package-data = true.
         (["esphome/idf_component.yml"], True),
-        (["esphome/dashboard/templates/index.html"], True),
         (["esphome/components/api/api_pb2_service.json"], True),
         # Mixed: any triggering file is enough
         (["docs/README.md", "esphome/config.py"], True),

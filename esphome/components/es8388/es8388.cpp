@@ -173,8 +173,14 @@ bool ES8388::set_mute_state_(bool mute_state) {
   ES8388_ERROR_CHECK(this->read_byte(ES8388_DACCONTROL3, &value));
   ESP_LOGV(TAG, "Read ES8388_DACCONTROL3: 0x%02X", value);
 
+  // Only toggle the DACMute bit; the other bits of this register hold unrelated
+  // DAC settings that must be preserved. Previously muting overwrote the whole
+  // register with 0x3C and unmuting never cleared the bit, so once muted the DAC
+  // could not be unmuted again.
   if (mute_state) {
-    value = 0x3C;
+    value |= ES8388_DACCONTROL3_DAC_MUTE;
+  } else {
+    value &= ~ES8388_DACCONTROL3_DAC_MUTE;
   }
 
   ESP_LOGV(TAG, "Setting ES8388_DACCONTROL3 to 0x%02X (muted: %s)", value, YESNO(mute_state));

@@ -147,13 +147,6 @@ std::string EntityBase::get_icon() const {
 }
 #endif  // !USE_ESP8266
 
-// Entity Object ID - computed on-demand from name
-std::string EntityBase::get_object_id() const {
-  char buf[OBJECT_ID_MAX_LEN];
-  size_t len = this->write_object_id_to(buf, sizeof(buf));
-  return std::string(buf, len);
-}
-
 // Calculate Object ID Hash directly from name using snake_case + sanitize
 void EntityBase::calc_object_id_() {
   this->object_id_hash_ = fnv1_hash_object_id(this->name_.c_str(), this->name_.size());

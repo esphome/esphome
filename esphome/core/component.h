@@ -33,6 +33,8 @@ class RuntimeStatsCollector;
  */
 namespace setup_priority {
 
+/// For power supply components that must be on before buses like i2c can work.
+inline constexpr float POWER = 1200.0f;
 /// For communication buses like i2c/spi
 inline constexpr float BUS = 1000.0f;
 /// For components that represent GPIO pins like PCF8573
@@ -357,9 +359,9 @@ class Component {
   /// so once a flag is set, subsequent (potentially different) messages may be suppressed.
   bool set_status_flag_(uint8_t flag);
 
-  /** Set an interval function with a unique name. Empty name means no cancelling possible.
+  /** Set an interval function with a const char* name. Empty name means no cancelling possible.
    *
-   * This will call f every interval ms. Can be cancelled via CancelInterval().
+   * This will call f every interval ms. Can be cancelled via cancel_interval().
    * Similar to javascript's setInterval().
    *
    * IMPORTANT NOTE:
@@ -373,25 +375,13 @@ class Component {
    * Note also that the first call to f will not happen immediately, but after a random delay. This is
    * intended to prevent many interval functions from being called at the same time.
    *
-   * @param name The identifier for this interval function.
-   * @param interval The interval in ms.
-   * @param f The function (or lambda) that should be called
-   *
-   * @see cancel_interval()
-   */
-  // Remove before 2026.7.0
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  void set_interval(const std::string &name, uint32_t interval, std::function<void()> &&f);  // NOLINT
-
-  /** Set an interval function with a const char* name.
-   *
    * IMPORTANT: The provided name pointer must remain valid for the lifetime of the scheduler item.
    * This means the name should be:
    *   - A string literal (e.g., "update")
    *   - A static const char* variable
    *   - A pointer with lifetime >= the scheduled task
    *
-   * For dynamic strings, use the std::string overload instead.
+   * For dynamic names, use the uint32_t id overload instead.
    *
    * @param name The identifier for this interval function (must have static lifetime)
    * @param interval The interval in ms
@@ -416,12 +406,9 @@ class Component {
    * @param name The identifier for this interval function.
    * @return Whether an interval functions was deleted.
    */
-  // Remove before 2026.7.0
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  bool cancel_interval(const std::string &name);  // NOLINT
-  bool cancel_interval(const char *name);         // NOLINT
-  bool cancel_interval(uint32_t id);              // NOLINT
-  bool cancel_interval(InternalSchedulerID id);   // NOLINT
+  bool cancel_interval(const char *name);        // NOLINT
+  bool cancel_interval(uint32_t id);             // NOLINT
+  bool cancel_interval(InternalSchedulerID id);  // NOLINT
 
   /// @deprecated set_retry is deprecated. Use set_timeout or set_interval instead. Removed in 2026.8.0.
   // Remove before 2026.8.0
@@ -458,25 +445,13 @@ class Component {
   ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
   bool cancel_retry(uint32_t id);  // NOLINT
 
-  /** Set a timeout function with a unique name.
+  /** Set a timeout function with a const char* name.
    *
    * Similar to javascript's setTimeout(). Empty name means no cancelling possible.
    *
    * IMPORTANT: Do not rely on this having correct timing. This is only called from
-   * loop() and therefore can be significantly delay. If you need exact timing please
+   * loop() and therefore can be significantly delayed. If you need exact timing please
    * use hardware timers.
-   *
-   * @param name The identifier for this timeout function.
-   * @param timeout The timeout in ms.
-   * @param f The function (or lambda) that should be called
-   *
-   * @see cancel_timeout()
-   */
-  // Remove before 2026.7.0
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  void set_timeout(const std::string &name, uint32_t timeout, std::function<void()> &&f);  // NOLINT
-
-  /** Set a timeout function with a const char* name.
    *
    * IMPORTANT: The provided name pointer must remain valid for the lifetime of the scheduler item.
    * This means the name should be:
@@ -484,7 +459,9 @@ class Component {
    *   - A static const char* variable
    *   - A pointer with lifetime >= the timeout duration
    *
-   * For dynamic strings, use the std::string overload instead.
+   * For dynamic names, use the uint32_t id overload instead.
+   *
+   * @see cancel_timeout()
    *
    * @param name The identifier for this timeout function (must have static lifetime)
    * @param timeout The timeout in ms
@@ -509,25 +486,13 @@ class Component {
    * @param name The identifier for this timeout function.
    * @return Whether a timeout functions was deleted.
    */
-  // Remove before 2026.7.0
-  ESPDEPRECATED("Use const char* or uint32_t overload instead. Removed in 2026.7.0", "2026.1.0")
-  bool cancel_timeout(const std::string &name);  // NOLINT
-  bool cancel_timeout(const char *name);         // NOLINT
-  bool cancel_timeout(uint32_t id);              // NOLINT
-  bool cancel_timeout(InternalSchedulerID id);   // NOLINT
-
-  /** Defer a callback to the next loop() call.
-   *
-   * If name is specified and a defer() object with the same name exists, the old one is first removed.
-   *
-   * @param name The name of the defer function.
-   * @param f The callback.
-   */
-  // Remove before 2026.7.0
-  ESPDEPRECATED("Use const char* overload instead. Removed in 2026.7.0", "2026.1.0")
-  void defer(const std::string &name, std::function<void()> &&f);  // NOLINT
+  bool cancel_timeout(const char *name);        // NOLINT
+  bool cancel_timeout(uint32_t id);             // NOLINT
+  bool cancel_timeout(InternalSchedulerID id);  // NOLINT
 
   /** Defer a callback to the next loop() call with a const char* name.
+   *
+   * If name is specified and a defer() object with the same name exists, the old one is first removed.
    *
    * IMPORTANT: The provided name pointer must remain valid for the lifetime of the deferred task.
    * This means the name should be:
@@ -535,7 +500,7 @@ class Component {
    *   - A static const char* variable
    *   - A pointer with lifetime >= the deferred execution
    *
-   * For dynamic strings, use the std::string overload instead.
+   * For dynamic names, use the uint32_t id overload instead.
    *
    * @param name The name of the defer function (must have static lifetime)
    * @param f The callback
@@ -549,11 +514,8 @@ class Component {
   void defer(uint32_t id, std::function<void()> &&f);  // NOLINT
 
   /// Cancel a defer callback using the specified name, name must not be empty.
-  // Remove before 2026.7.0
-  ESPDEPRECATED("Use const char* overload instead. Removed in 2026.7.0", "2026.1.0")
-  bool cancel_defer(const std::string &name);  // NOLINT
-  bool cancel_defer(const char *name);         // NOLINT
-  bool cancel_defer(uint32_t id);              // NOLINT
+  bool cancel_defer(const char *name);  // NOLINT
+  bool cancel_defer(uint32_t id);       // NOLINT
 
   void status_clear_warning_slow_path_();
   void status_clear_error_slow_path_();

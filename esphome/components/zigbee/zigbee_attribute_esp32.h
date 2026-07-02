@@ -27,7 +27,7 @@ enum ZigbeeReportT {
   ZIGBEE_REPORT_FORCE,
 };
 
-class ZigbeeAttribute : public Component {
+class ZigbeeAttribute final : public Component {
  public:
   ZigbeeAttribute(ZigbeeComponent *parent, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
                   uint8_t attr_type, float scale, uint8_t max_size)
