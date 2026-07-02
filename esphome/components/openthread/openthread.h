@@ -20,12 +20,12 @@ namespace esphome::openthread {
 class InstanceLock;
 
 enum class OtcTeardownStage : uint8_t {
-  OTC_TEARDOWN_NOT_STARTED = 0,
-  OTC_TEARDOWN_STARTED,
-  OTC_TEARDOWN_DETACH_COMPLETED,
-  OTC_TEARDOWN_STOP_STARTED,
-  OTC_TEARDOWN_STOP_IN_PROCESS,
-  OTC_TEARDOWN_COMPLETED
+  NOT_STARTED = 0,
+  STARTED,
+  DETACH_COMPLETED,
+  STOP_STARTED,
+  STOP_IN_PROCESS,
+  COMPLETED
 };
 
 template<typename... Ts> class OpenThreadComponentPollPeriodAction;
@@ -45,6 +45,7 @@ class OpenThreadComponent final : public Component {
   network::IPAddresses get_ip_addresses();
   std::optional<otIp6Address> get_omr_address();
 #ifdef USE_OPENTHREAD_GRACEFUL_DETACH_ON_SHUTDOWN
+  // Signature matches otDetachGracefullyCallback: void(*)(void *aContext) -- no otError parameter.
   static void detach_callback(void *context);
 #endif
   void on_factory_reset(std::function<void()> callback);
@@ -70,7 +71,7 @@ class OpenThreadComponent final : public Component {
    */
   void apply_linkmode_(otInstance *instance);
 
-  std::atomic<OtcTeardownStage> teardown_stage_{OtcTeardownStage::OTC_TEARDOWN_NOT_STARTED};
+  std::atomic<OtcTeardownStage> teardown_stage_{OtcTeardownStage::NOT_STARTED};
 
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
   otInstance *get_openthread_instance_();
