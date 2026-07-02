@@ -4,6 +4,8 @@
 #ifdef USE_API
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 #include <functional>
+#include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 #include "api_pb2.h"
@@ -102,6 +104,14 @@ class ActionResponse {
 
 // Callback type for action responses
 template<typename... Ts> using ActionResponseCallback = std::function<void(const ActionResponse &, Ts...)>;
+
+// Storage type used to capture trigger args until the action response arrives.
+// StringRef args are non-owning views into transient storage (for example the API
+// connection's receive buffer, which is reused before the response arrives), so
+// they must be deep-copied into an owning std::string. Other args are stored by value.
+template<typename T> struct CapturedArg { using type = std::decay_t<T>; };
+template<> struct CapturedArg<StringRef> { using type = std::string; };
+template<typename T> using captured_arg_t = typename CapturedArg<T>::type;
 #endif
 
 template<typename... Ts> class HomeAssistantServiceCallAction final : public Action<Ts...> {
@@ -197,25 +207,32 @@ template<typename... Ts> class HomeAssistantServiceCallAction final : public Act
       }
 #endif
 
-      auto captured_args = std::make_tuple(x...);
-      this->parent_->register_action_response_callback(call_id, [this, captured_args](const ActionResponse &response) {
-        std::apply(
-            [this, &response](auto &&...args) {
-              if (response.is_success()) {
+      // Deep-copy the trigger args for the deferred callback: StringRef args are
+      // non-owning views into transient storage (for example the connection's receive
+      // buffer, which is reused before the response arrives) and would dangle if
+      // captured as-is.
+      std::tuple<captured_arg_t<Ts>...> captured_args{x...};
+      this->parent_->register_action_response_callback(
+          call_id, [this, captured_args = std::move(captured_args)](const ActionResponse &response) {
+            std::apply(
+                [this, &response](const auto &...args) {
+                  // Ts(args) rebuilds the original arg types; for StringRef args this is a
+                  // view into the owned copy, which stays alive for the trigger call.
+                  if (response.is_success()) {
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-                if (this->flags_.wants_response) {
-                  this->success_trigger_with_response_.trigger(response.get_json(), args...);
-                } else
+                    if (this->flags_.wants_response) {
+                      this->success_trigger_with_response_.trigger(response.get_json(), Ts(args)...);
+                    } else
 #endif
-                {
-                  this->success_trigger_.trigger(args...);
-                }
-              } else {
-                this->error_trigger_.trigger(response.get_error_message(), args...);
-              }
-            },
-            captured_args);
-      });
+                    {
+                      this->success_trigger_.trigger(Ts(args)...);
+                    }
+                  } else {
+                    this->error_trigger_.trigger(response.get_error_message(), Ts(args)...);
+                  }
+                },
+                captured_args);
+          });
     }
 #endif
 
