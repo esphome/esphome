@@ -4,6 +4,8 @@ from pathlib import Path
 import platform
 import tempfile
 
+import platformdirs
+
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import (
@@ -15,6 +17,7 @@ from esphome.framework_helpers import (
     run_command_ok,
     str_to_lst_of_str,
 )
+from esphome.helpers import get_str_env
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,20 +41,28 @@ SDK_NG_MINIMAL_MIRRORS = str_to_lst_of_str(
 )
 
 
-def _get_tools_path() -> Path:
-    return CORE.data_dir / "sdk-nrf"
+def get_sdk_nrf_tools_path() -> Path:
+    # A blank ESPHOME_SDK_NRF_PREFIX must be treated as unset: Path("")
+    # resolves to the CWD, which clean-all would then delete.
+    if prefix := get_str_env("ESPHOME_SDK_NRF_PREFIX", "").strip():
+        path = Path(prefix).expanduser()
+    else:
+        # Machine-global (OS user cache dir) so all projects share one install;
+        # see espidf.framework.get_idf_tools_path for the location rationale.
+        path = Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "sdk-nrf"
+    return path.resolve()
 
 
 def _get_python_env_path(version: str) -> Path:
-    return _get_tools_path() / "penvs" / version
+    return get_sdk_nrf_tools_path() / "penvs" / version
 
 
 def _get_framework_path(version: str) -> Path:
-    return _get_tools_path() / "frameworks" / version
+    return get_sdk_nrf_tools_path() / "frameworks" / version
 
 
 def _get_toolchain_path(version: str) -> Path:
-    return _get_tools_path() / "toolchains" / version
+    return get_sdk_nrf_tools_path() / "toolchains" / version
 
 
 _SITECUSTOMIZE = """\
