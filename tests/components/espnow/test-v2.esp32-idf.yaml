@@ -3,4 +3,4 @@ packages:
   base: !include common.yaml
 
 espnow:
-  version: 2
+  max_payload_size: 1470

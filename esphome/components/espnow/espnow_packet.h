@@ -19,12 +19,13 @@ namespace esphome::espnow {
 static const uint8_t ESPNOW_BROADCAST_ADDR[ESP_NOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 static const uint8_t ESPNOW_MULTICAST_ADDR[ESP_NOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE};
 
-// Maximum payload this component sends and receives. ESP-NOW v2 frames
-// (1470 bytes) are opt-in via ``version: 2`` because the packet pools are
-// statically sized from this: v2 reserves ~44 KB instead of ~8 KB.
-#ifdef USE_ESPNOW_V2
+// Maximum payload this component sends and receives. The radio stack speaks
+// ESP-NOW v2 regardless (negotiated per peer); v2-sized frames (1470 bytes)
+// are opt-in via ``max_payload_size`` because the packet pools are statically
+// sized from this: v2 reserves ~44 KB instead of ~8 KB.
+#ifdef USE_ESPNOW_V2_PAYLOAD
 #ifndef ESP_NOW_MAX_DATA_LEN_V2
-#error "espnow version: 2 requires an ESP-IDF with ESP-NOW v2 support (5.4+)"
+#error "espnow max_payload_size: 1470 requires an ESP-IDF with ESP-NOW v2 support (5.4+)"
 #endif
 static constexpr uint16_t ESPNOW_MAX_DATA_LEN = ESP_NOW_MAX_DATA_LEN_V2;
 #else

@@ -11,7 +11,6 @@ from esphome.const import (
     CONF_ID,
     CONF_ON_ERROR,
     CONF_TRIGGER_ID,
-    CONF_VERSION,
     CONF_WIFI,
 )
 from esphome.core import HexInt
@@ -57,6 +56,13 @@ OnBroadcastTrigger = espnow_ns.class_(
 
 
 CONF_AUTO_ADD_PEER = "auto_add_peer"
+CONF_MAX_PAYLOAD_SIZE = "max_payload_size"
+
+# Payload limits of ESP-NOW v1 and v2 frames. The radio negotiates the
+# protocol version per peer on its own; the option only sizes this device's
+# packet buffers (v2 frames reserve ~44 KB of static RAM instead of ~8 KB).
+ESPNOW_PAYLOAD_V1 = 250
+ESPNOW_PAYLOAD_V2 = 1470
 CONF_PEERS = "peers"
 CONF_ON_SENT = "on_sent"
 CONF_ON_UNKNOWN_PEER = "on_unknown_peer"
@@ -67,8 +73,8 @@ CONF_WAIT_FOR_SENT = "wait_for_sent"
 MAX_ESPNOW_PACKET_SIZE = 250  # Maximum size of the payload in bytes
 
 
-def _validate_version(config):
-    if config[CONF_VERSION] == 2:
+def _validate_max_payload_size(config):
+    if config[CONF_MAX_PAYLOAD_SIZE] == ESPNOW_PAYLOAD_V2:
         cv.require_framework_version(
             esp_idf=cv.Version(5, 4, 0),
             esp32_arduino=cv.Version(3, 2, 0),
@@ -89,7 +95,9 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(ESPNowComponent),
             cv.OnlyWithout(CONF_CHANNEL, CONF_WIFI): validate_channel,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
-            cv.Optional(CONF_VERSION, default=1): cv.one_of(1, 2, int=True),
+            cv.Optional(CONF_MAX_PAYLOAD_SIZE, default=ESPNOW_PAYLOAD_V1): cv.one_of(
+                ESPNOW_PAYLOAD_V1, ESPNOW_PAYLOAD_V2, int=True
+            ),
             cv.Optional(CONF_AUTO_ADD_PEER, default=False): cv.boolean,
             cv.Optional(CONF_PEERS): cv.ensure_list(cv.mac_address),
             cv.Optional(CONF_ON_UNKNOWN_PEER): automation.validate_automation(
@@ -113,7 +121,7 @@ CONFIG_SCHEMA = cv.All(
         },
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on_esp32,
-    _validate_version,
+    _validate_max_payload_size,
 )
 
 
@@ -138,12 +146,8 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     cg.add_define("USE_ESPNOW")
-    if config[CONF_VERSION] == 2:
-        # Sizes the packet buffers for ESP-NOW v2 frames (1470 bytes instead
-        # of 250). The protocol version itself is negotiated per peer by the
-        # radio stack; this only controls how large a frame this device can
-        # send and accept.
-        cg.add_define("USE_ESPNOW_V2")
+    if config[CONF_MAX_PAYLOAD_SIZE] == ESPNOW_PAYLOAD_V2:
+        cg.add_define("USE_ESPNOW_V2_PAYLOAD")
     if wifi_channel := config.get(CONF_CHANNEL):
         cg.add(var.set_wifi_channel(wifi_channel))
 

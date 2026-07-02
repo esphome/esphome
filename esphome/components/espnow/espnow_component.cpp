@@ -97,7 +97,7 @@ void on_send_report(const uint8_t *mac_addr, esp_now_send_status_t status)
 void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int size) {
   // Drop oversized frames before copying. ESP-NOW v2 peers (IDF >= 5.4 builds a
   // v2 stack with no opt-out) can send up to ESP_NOW_MAX_DATA_LEN_V2 (1470 B),
-  // but the receive buffer only fits v2 frames with ``version: 2``; copying a
+  // but the receive buffer only fits v2 frames with ``max_payload_size``; copying a
   // larger frame would overflow packet_.receive.data.
   if (size < 0 || size > ESPNOW_MAX_DATA_LEN) {
     global_esp_now->receive_packet_queue_.increment_dropped_count();
