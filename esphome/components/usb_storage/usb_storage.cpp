@@ -447,6 +447,7 @@ bool USBStorageDevice::remount_device() {
     ESP_LOGW(TAG, "Device not mounted, cannot remount");
     return false;
   }
+  ESP_LOGI(TAG, "Device remounted successfully");
   this->on_mounted_.call(this->mount_path_);
   return true;
 }
@@ -454,6 +455,7 @@ bool USBStorageDevice::remount_device() {
 void USBStorageDevice::unmount_device() {
   if (!this->fs_mounted_)
     return;
+  ESP_LOGI(TAG, "Device unmounted");
   this->on_device_disconnected();
 }
 

@@ -20,13 +20,7 @@ template<typename... Ts> class RemountDeviceAction : public Action<Ts...> {
  public:
   explicit RemountDeviceAction(USBStorageDevice *device) : device_(device) {}
 
-  void play(Ts... x) override {
-    if (this->device_->remount_device()) {
-      ESP_LOGI("usb_storage", "Device remounted successfully via automation");
-    } else {
-      ESP_LOGE("usb_storage", "Failed to remount device via automation");
-    }
-  }
+  void play(Ts... x) override { this->device_->remount_device(); }
 
  protected:
   USBStorageDevice *device_;
@@ -36,10 +30,7 @@ template<typename... Ts> class UnmountDeviceAction : public Action<Ts...> {
  public:
   explicit UnmountDeviceAction(USBStorageDevice *device) : device_(device) {}
 
-  void play(Ts... x) override {
-    this->device_->unmount_device();
-    ESP_LOGI("usb_storage", "Device unmounted via automation");
-  }
+  void play(Ts... x) override { this->device_->unmount_device(); }
 
  protected:
   USBStorageDevice *device_;
