@@ -6,7 +6,6 @@ from esphome.const import CONF_ID, CONF_INTERRUPT_PIN, CONF_RESET_PIN
 
 from .. import st7123_ns
 
-ST7123ButtonListener = st7123_ns.class_("ST7123ButtonListener")
 ST7123Touchscreen = st7123_ns.class_(
     "ST7123Touchscreen",
     touchscreen.Touchscreen,

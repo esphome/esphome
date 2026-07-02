@@ -1,9 +1,0 @@
-substitutions:
-  display_reset_pin: "10"
-  interrupt_pin: "12"
-  reset_pin: "13"
-
-packages:
-  i2c: !include ../../test_build_components/common/i2c/esp8266-ard.yaml
-
-<<: !include common.yaml

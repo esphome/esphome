@@ -3,140 +3,105 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace st7123 {
+namespace esphome::st7123 {
 
 static const char *const TAG = "st7123.touchscreen";
-
-// Registers
-static const uint16_t REG_GET_TOUCH_INFO = 0x0010;
-static const uint16_t REG_GET_TOUCH = 0x0014;
-static const uint16_t REG_GET_KEYS = 0x0013;
-static const uint16_t REG_GET_MAX_COORD = 0x0005;
-static const uint8_t MAX_TOUCHES = 10;
-static const uint8_t MAX_BUTTONS = 6;
-
-struct TouchData {
-  uint8_t x_h : 6;
-  uint8_t reserved_6 : 1;
-  uint8_t valid : 1;
-  uint8_t x_l;
-  uint8_t y_h : 6;
-  uint8_t reserved_6_7 : 2;
-  uint8_t y_l;
-  uint8_t area;
-  uint8_t intensity;
-  uint8_t reserved;
-};
-
-struct AdvInfo {
-  uint8_t reserved : 2;
-  uint8_t with_prox : 1;
-  uint8_t with_coord : 1;
-  uint8_t prox_status : 3;
-  uint8_t rst_chip : 1;
-};
-
-struct MaxCoordInfo {
-  uint8_t max_x_h : 6;
-  uint8_t reserved_x_7_8 : 2;
-  uint8_t max_x_l;
-  uint8_t max_y_h : 6;
-  uint8_t reserved_y_7_8 : 2;
-  uint8_t max_y_l;
-};
 
 void ST7123Touchscreen::setup() {
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(true);
     delay(5);
-    this->reset_pin_->digital_write(false);
+    this->reset_pin_->digital_write(false);  // TP_RESX is active low, assert for at least tRSTW (2ms)
     delay(5);
     this->reset_pin_->digital_write(true);
-    this->set_timeout(25, [this] { this->setup_internal_(); });
-    return;
+    // The controller needs up to 20ms to initialize after reset before it can be accessed.
+    this->setup_time_ = millis() + 30;
   }
-  this->setup_internal_();
 }
 
-void ST7123Touchscreen::setup_internal_() {
-  if (this->interrupt_pin_ != nullptr) {
-    this->interrupt_pin_->setup();
-    this->attach_interrupt_(this->interrupt_pin_,
-                            gpio::INTERRUPT_RISING_EDGE);  // INTERRUPT_RISING_EDGE / INTERRUPT_FALLING_EDGE?
-  }
+void ST7123Touchscreen::update() {
+  // check if setup is complete
+  if (this->setup_time_ != 0) {
+    if (this->setup_time_ > millis())
+      return;
 
-  this->setup_done_ = true;
-}
+    if (this->interrupt_pin_ != nullptr) {
+      this->interrupt_pin_->setup();
+      // INT is held high when idle and pulses low when touch data is ready.
+      this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
+    }
 
-void ST7123Touchscreen::setup_lazy_() {
-  MaxCoordInfo max_coord_info;
-  ESP_LOGD(TAG, "Reading max touch coordinates");
-  // no calibration? Attempt to read the max values from the touchscreen.
-  i2c::ErrorCode err = this->read_register16(REG_GET_MAX_COORD, (uint8_t *) &max_coord_info, sizeof(MaxCoordInfo));
-  if (err == i2c::ERROR_OK) {
-    this->x_raw_max_ = encode_uint16(max_coord_info.max_x_h, max_coord_info.max_x_l);
-    this->y_raw_max_ = encode_uint16(max_coord_info.max_y_h, max_coord_info.max_y_l);
-    ESP_LOGD(TAG, "Max Coord: %d %d", x_raw_max_, y_raw_max_);
-    if (this->swap_x_y_)
-      std::swap(this->x_raw_max_, this->y_raw_max_);
-  } else {
-    this->mark_failed(LOG_STR("Calibration error"));
+    uint8_t status;
+    if (this->read_register16(ST7123_REG_STATUS, &status, 1) != i2c::ERROR_OK) {
+      this->mark_failed(LOG_STR("Failed to read status register"));
+      return;
+    }
+    if ((status & 0x0F) == ST7123_STATUS_INIT) {
+      ESP_LOGD(TAG, "Controller still initializing");
+      return;
+    }
+    ESP_LOGD(TAG, "Status is %X", status);
+
+    uint8_t data;
+    if (this->read_register16(ST7123_REG_MAX_TOUCHES, &data, 1) == i2c::ERROR_OK && data != 0 &&
+        data <= ST7123_MAX_TOUCHES) {
+      this->max_touches_ = data;
+    }
+
+    // If no calibration was supplied, read the native coordinate resolution from the controller.
+    if (this->x_raw_max_ == this->x_raw_min_ || this->y_raw_max_ == this->y_raw_min_) {
+      uint8_t res[4];
+      if (this->read_register16(ST7123_REG_MAX_X, res, sizeof(res)) == i2c::ERROR_OK) {
+        this->x_raw_max_ = encode_uint16(res[0] & ST7123_COORD_HIGH_MASK, res[1]);
+        this->y_raw_max_ = encode_uint16(res[2] & ST7123_COORD_HIGH_MASK, res[3]);
+        if (this->swap_x_y_)
+          std::swap(this->x_raw_max_, this->y_raw_max_);
+      } else {
+        this->mark_failed(LOG_STR("Failed to read calibration"));
+      }
+      ESP_LOGD(TAG, "Read dimensions %d/%d", this->x_raw_max_, this->y_raw_max_);
+    }
+    this->setup_time_ = 0;  // flag setup complete
   }
+  Touchscreen::update();
 }
 
 void ST7123Touchscreen::update_touches() {
-  this->skip_update_ = true;  // skip send touch events by default, set to false after successful error checks
-  if (!this->setup_done_) {
+  // Read the reporting table from the advanced touch info register through the last touch point.
+  // Reading from this register also clears the INT pin so the controller can report the next frame.
+  uint8_t data[(ST7123_REG_TOUCH_DATA - ST7123_REG_ADV_TOUCH_INFO) + ST7123_MAX_TOUCHES * ST7123_TOUCH_STRIDE];
+  const size_t len = (ST7123_REG_TOUCH_DATA - ST7123_REG_ADV_TOUCH_INFO) + this->max_touches_ * ST7123_TOUCH_STRIDE;
+  if (this->read_register16(ST7123_REG_ADV_TOUCH_INFO, data, len) != i2c::ERROR_OK) {
+    this->skip_update_ = true;
+    this->status_set_warning();
     return;
   }
-  if (x_raw_max_ == 0 || y_raw_max_ == 0) {
-    setup_lazy_();
-  }
-  i2c::ErrorCode err;
-  TouchData touch_data[MAX_TOUCHES];
-  AdvInfo adv_info;
+  this->status_clear_warning();
 
-  err = this->read_register16(REG_GET_TOUCH_INFO, (uint8_t *) &adv_info, 1);
-  if (err == i2c::ERROR_OK) {
-    if (adv_info.with_coord) {
-      err = this->read_register16(REG_GET_TOUCH, (uint8_t *) &touch_data[0], sizeof(TouchData) * MAX_TOUCHES);
-      if (err == i2c::ERROR_OK) {
-        for (auto &i : touch_data) {
-          if (!i.valid) {
-            continue;
-          }
-          uint16_t xpos = encode_uint16(i.x_h, i.x_l);
-          uint16_t ypos = encode_uint16(i.y_h, i.y_l);
-          uint16_t id = i.area;
-          this->add_raw_touch_position_(id, xpos, ypos);
-        }
-      }
-    }
+  const uint8_t *points = data + (ST7123_REG_TOUCH_DATA - ST7123_REG_ADV_TOUCH_INFO);
+  for (uint8_t i = 0; i != this->max_touches_; i++) {
+    const uint8_t *p = points + i * ST7123_TOUCH_STRIDE;
+    if ((p[0] & ST7123_TOUCH_VALID) == 0)
+      continue;
+    uint16_t x = encode_uint16(p[0] & ST7123_COORD_HIGH_MASK, p[1]);
+    uint16_t y = encode_uint16(p[2] & ST7123_COORD_HIGH_MASK, p[3]);
+    uint8_t intensity = p[5];
+    ESP_LOGV(TAG, "Touch %u: x=%u, y=%u, intensity=%u", i, x, y, intensity);
+    this->add_raw_touch_position_(i, x, y, intensity);
   }
-
-  uint8_t keys;
-  err = this->read_register16(REG_GET_KEYS, &keys, 1);
-  if (err == i2c::ERROR_OK) {
-    if (keys != this->button_state_) {
-      this->button_state_ = keys;
-      for (size_t i = 0; i != MAX_BUTTONS; i++) {
-        for (auto *listener : this->button_listeners_)
-          listener->update_button(i, (keys & (1 << i)) != 0);
-      }
-    }
-  }
-
-  this->skip_update_ = false;  // All error checks passed, send touch events
 }
 
 void ST7123Touchscreen::dump_config() {
-  ESP_LOGCONFIG(TAG, "ST7123 Touchscreen:");
+  ESP_LOGCONFIG(TAG,
+                "ST7123 Touchscreen:\n"
+                "  Max touches: %u\n"
+                "  X Raw Min: %d, X Raw Max: %d\n"
+                "  Y Raw Min: %d, Y Raw Max: %d",
+                this->max_touches_, this->x_raw_min_, this->x_raw_max_, this->y_raw_min_, this->y_raw_max_);
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
 }
 
-}  // namespace st7123
-}  // namespace esphome
+}  // namespace esphome::st7123
