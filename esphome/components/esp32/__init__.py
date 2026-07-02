@@ -24,6 +24,7 @@ from esphome.const import (
     CONF_IGNORE_EFUSE_CUSTOM_MAC,
     CONF_IGNORE_EFUSE_MAC_CRC,
     CONF_LOG_LEVEL,
+    CONF_LOGGER,
     CONF_NAME,
     CONF_OTA,
     CONF_PATH,
@@ -2219,8 +2220,11 @@ async def to_code(config):
     # on IDF >= 6.1, where CONFIG_LOG_API_CONSTRAINED_ENV_SAFE=n lets
     # ESP_DRAM_LOGx / ESP_EARLY_LOGx expand directly to esp_rom_printf and drops
     # the ~1.2KB esp_rom_vprintf that would otherwise sit in IRAM. Below 6.1 the
-    # option does not exist, so we stay on V1 unchanged.
-    if idf_version() >= cv.Version(6, 1, 0):
+    # option does not exist, so we stay on V1 unchanged. Also requires the
+    # logger component: the esp_log_format override in core/log.cpp integrates
+    # V2 with ESPHome's logger hook, and without the logger there is no hook to
+    # integrate with, so such builds stay on V1 as well.
+    if idf_version() >= cv.Version(6, 1, 0) and CONF_LOGGER in CORE.config:
         add_idf_sdkconfig_option("CONFIG_LOG_VERSION_1", False)
         add_idf_sdkconfig_option("CONFIG_LOG_VERSION_2", True)
         add_idf_sdkconfig_option("CONFIG_LOG_API_CONSTRAINED_ENV_SAFE", False)
