@@ -89,8 +89,9 @@ def test_get_idedata_generates_and_caches(setup_core: Path) -> None:
         result = toolchain.get_idedata()
 
     mock_transform.assert_called_once()
-    assert result == {"cxx_path": "g++"}
-    assert json.loads(cache.read_text()) == {"cxx_path": "g++"}
+    prog_path = str(toolchain.get_elf_path())
+    assert result == {"cxx_path": "g++", "prog_path": prog_path}
+    assert json.loads(cache.read_text()) == {"cxx_path": "g++", "prog_path": prog_path}
 
 
 def test_get_idedata_uses_cache_when_valid(setup_core: Path) -> None:
@@ -127,7 +128,7 @@ def test_get_idedata_regenerates_when_compile_commands_newer(setup_core: Path) -
         result = toolchain.get_idedata()
 
     mock_transform.assert_called_once()
-    assert result == {"cxx_path": "fresh"}
+    assert result == {"cxx_path": "fresh", "prog_path": str(toolchain.get_elf_path())}
 
 
 def test_get_idedata_regenerates_on_corrupted_cache(setup_core: Path) -> None:
@@ -147,7 +148,26 @@ def test_get_idedata_regenerates_on_corrupted_cache(setup_core: Path) -> None:
         result = toolchain.get_idedata()
 
     mock_transform.assert_called_once()
-    assert result == {"cxx_path": "regen"}
+    assert result == {"cxx_path": "regen", "prog_path": str(toolchain.get_elf_path())}
+
+
+def test_get_idedata_prog_path_points_at_firmware_elf(setup_core: Path) -> None:
+    """The idedata exposes prog_path (the ELF) so consumers like build-action
+    can locate firmware.factory.bin / firmware.ota.bin as its siblings."""
+    compile_commands, _ = _setup_build(setup_core)
+    compile_commands.parent.mkdir(parents=True, exist_ok=True)
+    compile_commands.write_text("[]")
+
+    with patch(
+        "esphome.espidf.idedata.idedata_from_build",
+        return_value={"cxx_path": "g++"},
+    ):
+        result = toolchain.get_idedata()
+
+    # Use Path semantics so the contract holds on Windows too (backslashes).
+    prog_path = Path(result["prog_path"])
+    assert prog_path.name == "firmware.elf"
+    assert prog_path.parent.name == "build"
 
 
 def test_get_idf_env_sets_git_ceiling_directories(setup_core: Path) -> None:

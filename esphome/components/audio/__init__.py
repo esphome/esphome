@@ -395,11 +395,11 @@ async def to_code(config):
         )
     if data.mp3_support:
         cg.add_define("USE_AUDIO_MP3_SUPPORT")
-        add_idf_component(name="esphome/micro-mp3", ref="0.2.3")
+        add_idf_component(name="esphome/micro-mp3", ref="0.4.0")
         _emit_memory_pair(
             data.mp3.buffer_memory,
-            "CONFIG_MP3_DECODER_PREFER_PSRAM",
-            "CONFIG_MP3_DECODER_PREFER_INTERNAL",
+            "CONFIG_MICRO_MP3_PREFER_PSRAM",
+            "CONFIG_MICRO_MP3_PREFER_INTERNAL",
         )
     if data.opus_support:
         cg.add_define("USE_AUDIO_OPUS_SUPPORT")
