@@ -41,7 +41,7 @@ DeletePeerAction = espnow_ns.class_("DeletePeerAction", automation.Action)
 ESPNowHandlerTrigger = automation.Trigger.template(
     ESPNowRecvInfoConstRef,
     cg.uint8.operator("const").operator("ptr"),
-    cg.uint8,
+    cg.uint16,
 )
 
 OnUnknownPeerTrigger = espnow_ns.class_(
