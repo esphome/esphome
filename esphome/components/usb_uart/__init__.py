@@ -25,6 +25,7 @@ CODEOWNERS = ["@clydebarrow"]
 usb_uart_ns = cg.esphome_ns.namespace("usb_uart")
 USBUartComponent = usb_uart_ns.class_("USBUartComponent", Component)
 USBUartChannel = usb_uart_ns.class_("USBUartChannel", UARTComponent)
+CH934XChannel = usb_uart_ns.class_("CH934XChannel", USBUartChannel)
 
 UARTParityOptions = usb_uart_ns.enum("UARTParityOptions")
 UART_PARITY_OPTIONS = {
@@ -54,68 +55,132 @@ class Type:
         cls,
         max_channels=1,
         baud_rate_required=True,
+        channel_cls=None,
         max_baud=1_000_000,
     ):
         self.name = name
         cls = cls or name
+        self.cls_name = cls
         self.vid = vid
         self.pid = pid
         self.cls = usb_uart_ns.class_(f"USBUartType{cls}", USBUartComponent)
         self._max_channels = max_channels
         self.baud_rate_required = baud_rate_required
+        self.channel_cls = channel_cls or USBUartChannel
         self.max_baud = max_baud
 
     @property
-    def max_channels(self) -> int:
+    def max_channels(self):
         return (
             3
-            if (
-                CORE.is_esp32
-                and get_esp32_variant() != VARIANT_ESP32P4
-                and self._max_channels > 3
-            )
+            if CORE.is_esp32
+            and get_esp32_variant() != VARIANT_ESP32P4
+            and self._max_channels > 3
             else self._max_channels
         )
 
 
+class MpxType(Type):
+    @property
+    def max_channels(self):
+        # Multiplexed devices aren't restricted by the number of available USB endpoints
+        return self._max_channels
+
+
 uart_types = (
+    MpxType(
+        "CH9344",
+        0x1A86,
+        0xE018,
+        "CH934X",
+        4,
+        channel_cls=CH934XChannel,
+        max_baud=12_000_000,
+    ),
+    MpxType(
+        "CH9344L",
+        0x1A86,
+        0xE018,
+        "CH934X",
+        4,
+        channel_cls=CH934XChannel,
+        max_baud=12_000_000,
+    ),
+    MpxType(
+        "CH9344Q",
+        0x1A86,
+        0xE018,
+        "CH934X",
+        4,
+        channel_cls=CH934XChannel,
+        max_baud=12_000_000,
+    ),
+    MpxType(
+        "CH348",
+        0x1A86,
+        0x55D9,
+        "CH934X",
+        8,
+        channel_cls=CH934XChannel,
+        max_baud=12_000_000,
+    ),
+    MpxType(
+        "CH348L",
+        0x1A86,
+        0x55D9,
+        "CH934X",
+        8,
+        channel_cls=CH934XChannel,
+        max_baud=12_000_000,
+    ),
+    MpxType(
+        "CH348Q",
+        0x1A86,
+        0x55D9,
+        "CH934X",
+        8,
+        channel_cls=CH934XChannel,
+        max_baud=12_000_000,
+    ),
     Type("CDC_ACM", 0, 0, "CdcAcm", 1, baud_rate_required=False),
-    Type("CH34X", 0x1A86, 0x55D5, "CH34X", 4, max_baud=2_000_000),
-    Type("CH340", 0x1A86, 0x7523, "CH34X", 1, max_baud=2_000_000),
-    Type("CP210X", 0x10C4, 0xEA60, "CP210X", 3, max_baud=2_000_000),
+    Type("CH34X", 0x1A86, 0x55D5, "CH34X", 4),
+    Type("CH340", 0x1A86, 0x7523, "CH34X", 1),
+    Type("CP210X", 0x10C4, 0xEA60, "CP210X", 3),
     Type("ESP_JTAG", 0x303A, 0x1001, "CdcAcm", 1, baud_rate_required=False),
-    Type("FT232", 0x0403, 0x6001, "FT23XX", 1, max_baud=3_000_000),
-    Type("FT2232", 0x0403, 0x6010, "FT23XX", 2, max_baud=12_000_000),
-    Type("FT4232", 0x0403, 0x6011, "FT23XX", 4, max_baud=12_000_000),
-    Type("PL2303", 0x067B, 0x2303, "PL2303", 1, max_baud=6_000_000),
-    Type("PL2303GB", 0x067B, 0x23B3, "PL2303", 1, max_baud=6_000_000),
-    Type("PL2303GC", 0x067B, 0x23A3, "PL2303", 1, max_baud=6_000_000),
-    Type("PL2303GE", 0x067B, 0x23E3, "PL2303", 1, max_baud=6_000_000),
-    Type("PL2303GL", 0x067B, 0x23D3, "PL2303", 1, max_baud=6_000_000),
-    Type("PL2303GS", 0x067B, 0x23F3, "PL2303", 1, max_baud=6_000_000),
-    Type("PL2303GT", 0x067B, 0x23C3, "PL2303", 1, max_baud=6_000_000),
+    Type("FT232", 0x0403, 0x6001, "FT23XX", 1),
+    Type("FT2232", 0x0403, 0x6010, "FT23XX", 2),
+    Type("FT4232", 0x0403, 0x6011, "FT23XX", 4),
+    Type("PL2303", 0x067B, 0x2303, "PL2303", 1),
+    Type("PL2303GB", 0x067B, 0x23B3, "PL2303", 1),
+    Type("PL2303GC", 0x067B, 0x23A3, "PL2303", 1),
+    Type("PL2303GE", 0x067B, 0x23E3, "PL2303", 1),
+    Type("PL2303GL", 0x067B, 0x23D3, "PL2303", 1),
+    Type("PL2303GS", 0x067B, 0x23F3, "PL2303", 1),
+    Type("PL2303GT", 0x067B, 0x23C3, "PL2303", 1),
     Type("STM32_VCP", 0x0483, 0x5740, "CdcAcm", 1, baud_rate_required=False),
 )
 
 
-def channel_schema(type_: "Type") -> cv.Schema:
+def channel_schema(type_: "Type", baud_rate_required):
+    max_channels = type_.max_channels
+    max_baud = type_.max_baud
     return cv.Schema(
         {
             cv.Required(CONF_CHANNELS): cv.All(
                 cv.ensure_list(
                     cv.Schema(
                         {
-                            cv.GenerateID(): cv.declare_id(USBUartChannel),
+                            cv.GenerateID(): cv.declare_id(type_.channel_cls),
                             cv.Optional(CONF_BUFFER_SIZE, default=256): cv.int_range(
                                 min=64, max=8192
                             ),
                             (
                                 cv.Required(CONF_BAUD_RATE)
-                                if type_.baud_rate_required
+                                if baud_rate_required
                                 else cv.Optional(
                                     CONF_BAUD_RATE, default=DEFAULT_BAUD_RATE
                                 )
-                            ): cv.int_range(min=300, max=type_.max_baud),
+                            ): cv.int_range(min=300, max=max_baud),
                             cv.Optional(CONF_STOP_BITS, default="1"): cv.enum(
                                 UART_STOP_BITS_OPTIONS, upper=True
                             ),
@@ -135,8 +200,8 @@ def channel_schema(type_: "Type") -> cv.Schema:
                     )
                 ),
                 cv.Length(
-                    max=type_.max_channels,
-                    msg=f"Device type {type_.name} supports a maximum of {type_.max_channels} channels",
+                    max=max_channels,
+                    msg=f"{type_.name} supports a maximum of {max_channels} channels on this ESP32 variant",
                 ),
             )
         }
@@ -147,7 +212,7 @@ CONFIG_SCHEMA = cv.ensure_list(
     cv.typed_schema(
         {
             it.name: usb_device_schema(it.cls, it.vid, it.pid).extend(
-                channel_schema(it)
+                channel_schema(it, it.baud_rate_required)
             )
             for it in uart_types
         },
