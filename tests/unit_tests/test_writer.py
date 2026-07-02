@@ -69,13 +69,15 @@ def _isolate_platformio_paths(tmp_path_factory: pytest.TempPathFactory) -> Any:
     stacks on top of this one and wins for the duration of their block.
 
     Also pin ``ESPHOME_ESP_IDF_PREFIX`` and ``ESPHOME_SDK_NRF_PREFIX`` to
-    nonexistent tmp dirs for the same reason: ``clean_all`` removes the now
-    machine-global ESP-IDF and sdk-nrf installs, which otherwise default to
-    the real ``~/.cache/esphome``.
+    nonexistent tmp dirs, and patch ``platformdirs.user_cache_dir``, for the
+    same reason: ``clean_all`` removes the machine-global toolchain installs
+    and their default cache root, which otherwise resolve to the real
+    ``~/.cache/esphome``.
     """
     pio_root = tmp_path_factory.mktemp("isolated_pio") / "nonexistent"
     idf_root = tmp_path_factory.mktemp("isolated_idf") / "nonexistent"
     sdk_nrf_root = tmp_path_factory.mktemp("isolated_sdk_nrf") / "nonexistent"
+    cache_root = tmp_path_factory.mktemp("isolated_cache") / "nonexistent"
     mock_cfg = MagicMock()
     mock_cfg.get.side_effect = lambda section, option: (
         str(pio_root / option) if section == "platformio" else ""
@@ -92,6 +94,7 @@ def _isolate_platformio_paths(tmp_path_factory: pytest.TempPathFactory) -> Any:
                 "ESPHOME_SDK_NRF_PREFIX": str(sdk_nrf_root),
             },
         ),
+        patch("platformdirs.user_cache_dir", return_value=str(cache_root)),
     ):
         yield
 
@@ -1052,6 +1055,31 @@ def test_clean_all_removes_global_sdk_nrf_install(
 
     assert not sdk_nrf_install.exists()
     assert str(sdk_nrf_install.resolve()) in caplog.text
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_removes_default_cache_root(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """clean_all removes the default cache root (stale/orphaned installs)."""
+    cache_root = tmp_path / "cache_root"
+    (cache_root / "some-old-toolchain").mkdir(parents=True)
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    from esphome.writer import clean_all
+
+    with (
+        patch("platformdirs.user_cache_dir", return_value=str(cache_root)),
+        caplog.at_level("INFO"),
+    ):
+        clean_all([str(config_dir)])
+
+    assert not cache_root.exists()
+    assert str(cache_root.resolve()) in caplog.text
 
 
 @patch("esphome.writer.CORE")
