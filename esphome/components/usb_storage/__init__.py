@@ -27,13 +27,6 @@ CONF_VID = "vid"
 CONF_PID = "pid"
 CONF_ON_MOUNTED = "on_mounted"
 
-require_vfs_dir()
-require_vfs_select()
-require_fatfs()
-require_fatfs_volume_count(4)
-require_fatfs_lfn_max(255)
-require_fatfs_lfn_heap()
-
 usb_storage_ns = cg.esphome_ns.namespace("usb_storage")
 
 USBStorageClient = usb_storage_ns.class_(
@@ -105,8 +98,18 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+FATFS_LFN_MAX = 255
+
+
 async def to_code(config):
+    require_vfs_dir()
+    require_vfs_select()
+    require_fatfs()
+    require_fatfs_volume_count(4)
+    require_fatfs_lfn_max(FATFS_LFN_MAX)
+    require_fatfs_lfn_heap()
     include_builtin_idf_component("fatfs")
+    cg.add_define("CONFIG_FATFS_MAX_LFN", FATFS_LFN_MAX)
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
