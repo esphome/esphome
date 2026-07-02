@@ -408,24 +408,33 @@ void USBUartTypeFT23XX::start_input(USBUartChannel *channel) {
       return;
     }
 
+    // FTDI prepends a 2-byte modem/line status header to every bulk IN packet.
     size_t uart_data_len = (status.data_len > 2) ? (status.data_len - 2) : 0;
 
     if (uart_data_len > 0) {
       ESP_LOGV(TAG, "RX callback: Received %zu bytes, channel=%d", uart_data_len, channel->index_);
       if (!channel->dummy_receiver_) {
-        // Copy the entire received UART payload into the ring buffer in one
-        // operation to avoid per-byte overhead and reduce the chance of
-        // heap activity in hot paths.
-        channel->input_buffer_.push(status.data + 2, uart_data_len);
+        UsbDataChunk *chunk = this->chunk_pool_.allocate();
+        if (chunk == nullptr) {
+          this->usb_data_queue_.increment_dropped_count();
+          channel->input_started_.store(false);
+          this->start_input(channel);
+          return;
+        }
+        // Strip the 2-byte FTDI header before queuing.
+        memcpy(chunk->data, status.data + 2, uart_data_len);
+        chunk->length = static_cast<uint16_t>(uart_data_len);
+        chunk->channel = channel;
+        this->usb_data_queue_.push(chunk);
 #ifdef USE_UART_DEBUGGER
         if (channel->debug_) {
-          // Debug path creates a temporary vector for logging only; this is
-          // acceptable because debug mode is opt-in and not used in release.
           uart::UARTDebug::log_hex(uart::UART_DIRECTION_RX,
                                    std::vector<uint8_t>(status.data + 2, status.data + 2 + uart_data_len), ',',
                                    channel->debug_prefix_);
         }
 #endif
+        this->enable_loop_soon_any_context();
+        App.wake_loop_threadsafe();
       }
     } else {
       ESP_LOGVV(TAG, "RX: Status packet, modem=0x%02X line=0x%02X, ch=%d", status.data[0], status.data[1],
@@ -433,10 +442,7 @@ void USBUartTypeFT23XX::start_input(USBUartChannel *channel) {
     }
 
     channel->input_started_.store(false);
-    if (channel->dummy_receiver_ ||
-        channel->input_buffer_.get_free_space() >= channel->cdc_dev_.in_ep->wMaxPacketSize) {
-      this->start_input(channel);
-    }
+    this->start_input(channel);
   };
 
   channel->input_started_.store(true);
