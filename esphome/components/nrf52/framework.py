@@ -4,6 +4,8 @@ from pathlib import Path
 import platform
 import tempfile
 
+import platformdirs
+
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import (
@@ -15,6 +17,7 @@ from esphome.framework_helpers import (
     run_command_ok,
     str_to_lst_of_str,
 )
+from esphome.helpers import get_str_env
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,7 +42,19 @@ SDK_NG_MINIMAL_MIRRORS = str_to_lst_of_str(
 
 
 def _get_tools_path() -> Path:
-    return CORE.data_dir / "sdk-nrf"
+    # Treat an empty/whitespace ESPHOME_SDK_NRF_PREFIX as unset: Path("")
+    # resolves to the CWD, which would install into (and let clean-all delete)
+    # the working directory by accident.
+    if prefix := get_str_env("ESPHOME_SDK_NRF_PREFIX", "").strip():
+        path = Path(prefix).expanduser()
+    else:
+        # Machine-global so all projects share the multi-GB install instead of
+        # a per-config-directory copy. The user cache dir (not ~/.esphome)
+        # avoids colliding with data_dir when configs live in the home dir.
+        # appauthor=False drops the redundant <author>\ segment on Windows
+        # (which otherwise repeats "esphome\esphome\") to keep the path short.
+        path = Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "sdk-nrf"
+    return path.resolve()
 
 
 def _get_python_env_path(version: str) -> Path:

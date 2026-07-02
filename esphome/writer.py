@@ -653,14 +653,18 @@ def clean_all(configuration: list[str]):
                 elif item.is_dir() and item.name != "storage":
                     rmtree(item)
 
-    # The native ESP-IDF install lives in a machine-global cache dir, outside
-    # any .esphome data dir, so the per-config loop above won't reach it.
+    # The native ESP-IDF and sdk-nrf installs live in a machine-global cache
+    # dir, outside any .esphome data dir, so the per-config loop above won't
+    # reach them.
+    from esphome.components.nrf52.framework import (
+        _get_tools_path as _get_sdk_nrf_tools_path,
+    )
     from esphome.espidf.framework import _get_idf_tools_path
 
-    idf_install_path = _get_idf_tools_path()
-    if idf_install_path.is_dir():
-        _LOGGER.info("Deleting %s", idf_install_path)
-        rmtree(idf_install_path)
+    for install_path in (_get_idf_tools_path(), _get_sdk_nrf_tools_path()):
+        if install_path.is_dir():
+            _LOGGER.info("Deleting %s", install_path)
+            rmtree(install_path)
 
     # Clean PlatformIO project files
     try:
