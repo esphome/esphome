@@ -104,18 +104,18 @@ int HOT esp_idf_log_vprintf_(const char *format, va_list args) {  // NOLINT
 // then outputs atomically via esp_rom_printf.
 // This path is cold on 99.9% of builds -- it only runs during early boot
 // and at DEBUG framework log level (default is ERROR).
-static void __attribute__((noinline)) esp_log_format_direct_(esp_log_msg_t *message) {
+static void __attribute__((noinline)) esp_log_format_direct_(esp_log_msg_t *message) {  // NOLINT
   // ESP-IDF levels: NONE=0 ERROR=1 WARN=2 INFO=3 DEBUG=4 VERBOSE=5
   // Color digits: E=1(red) W=3(yellow) I=2(green) D=6(cyan) V=7(gray)
-  static const char color_digit[] = {'\0', '1', '3', '2', '6', '7'};
-  static const char lvl[] = {'\0', 'E', 'W', 'I', 'D', 'V'};
+  static const char COLOR_DIGIT[] = {'\0', '1', '3', '2', '6', '7'};
+  static const char LVL[] = {'\0', 'E', 'W', 'I', 'D', 'V'};
   // Format into stack buffer and output atomically via esp_rom_printf.
   // Can't use fwrite (locks crash during early boot and PHY init).
   char buf[512];
   int pos = 0;
   uint8_t level = message->config.opts.log_level;
-  if (level > 0 && level < sizeof(lvl)) {
-    pos = snprintf(buf, sizeof(buf), "\033[0;3%cm[%c][%s]: ", color_digit[level], lvl[level],
+  if (level > 0 && level < sizeof(LVL)) {
+    pos = snprintf(buf, sizeof(buf), "\033[0;3%cm[%c][%s]: ", COLOR_DIGIT[level], LVL[level],
                    message->tag ? message->tag : "idf");
   }
   if (pos >= 0 && pos < (int) sizeof(buf) - 2) {
@@ -123,7 +123,7 @@ static void __attribute__((noinline)) esp_log_format_direct_(esp_log_msg_t *mess
     if (body > 0)
       pos += (body < (int) sizeof(buf) - pos) ? body : (int) sizeof(buf) - pos - 1;
   }
-  if (level > 0 && level < sizeof(lvl) && pos < (int) sizeof(buf) - 6) {
+  if (level > 0 && level < sizeof(LVL) && pos < (int) sizeof(buf) - 6) {
     pos += snprintf(buf + pos, sizeof(buf) - pos, "\033[0m");
   }
   if (pos < (int) sizeof(buf) - 1) {
