@@ -240,7 +240,7 @@ def test_main_all_tests_should_run(
         # Should contain at least one component (no empty batches)
         assert len(batch["components"]) > 0
         assert isinstance(batch["needs_idf"], bool)
-        assert isinstance(batch["needs_sdk_nrf"], bool)
+        assert isinstance(batch["needs_nrf"], bool)
 
 
 def test_main_no_tests_should_run(

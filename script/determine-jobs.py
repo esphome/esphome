@@ -1366,7 +1366,7 @@ def main() -> None:
         # Convert batches to CI matrix entries: the component list plus which
         # native toolchain installs the batch's test platforms need, so the
         # workflow only restores the matching multi-GB toolchain caches.
-        # needs_sdk_nrf has no consumer yet; it becomes live once the nrf52
+        # needs_nrf has no consumer yet; it becomes live once the nrf52
         # component tests build with the native sdk-nrf toolchain.
         for batch in batches:
             platforms: set[str] = set()
@@ -1376,7 +1376,7 @@ def main() -> None:
                 {
                     "components": " ".join(batch),
                     "needs_idf": any(p.startswith("esp32") for p in platforms),
-                    "needs_sdk_nrf": any(p.startswith("nrf52") for p in platforms),
+                    "needs_nrf": any(p.startswith("nrf52") for p in platforms),
                 }
             )
 
