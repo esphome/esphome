@@ -795,7 +795,7 @@ jobs:
         if: always()
 
   test-build-components-split:
-    name: Test components batch (${{ matrix.components }})
+    name: Test components batch (${{ matrix.batch.components }})
     runs-on: ubuntu-24.04
     needs:
       - common
@@ -809,7 +809,7 @@ jobs:
       fail-fast: false
       max-parallel: ${{ (startsWith(github.base_ref, 'beta') || startsWith(github.base_ref, 'release')) && 8 || 4 }}
       matrix:
-        components: ${{ fromJson(needs.determine-jobs.outputs.component-test-batches) }}
+        batch: ${{ fromJson(needs.determine-jobs.outputs.component-test-batches) }}
     steps:
       - name: Show disk space
         run: |
@@ -817,7 +817,7 @@ jobs:
           df -h
 
       - name: List components
-        run: echo ${{ matrix.components }}
+        run: echo ${{ matrix.batch.components }}
 
       - name: Cache apt packages
         uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
@@ -833,8 +833,10 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Cache ESP-IDF install (restore-only)
-        # A batch may contain no esp32 build, so never save -- just reuse the
-        # shared install the dev tidy jobs already cached when present.
+        # Only batches whose test platforms include esp32 need the native
+        # ESP-IDF install; never save -- just reuse the shared install the
+        # dev tidy jobs already cached when present.
+        if: matrix.batch.needs_idf
         uses: ./.github/actions/cache-esp-idf
         with:
           restore-only: true
@@ -868,7 +870,7 @@ jobs:
           fi
 
           # Convert space-separated components to comma-separated for Python script
-          components_csv=$(echo "${{ matrix.components }}" | tr ' ' ',')
+          components_csv=$(echo "${{ matrix.batch.components }}" | tr ' ' ',')
 
           # Only isolate directly changed components when targeting dev branch
           # For beta/release branches, group everything for faster CI
