@@ -27,7 +27,7 @@ void AirtonClimate::set_display_state(bool state, bool send_ir = false) {
 #endif
     this->airton_rtc_.save(&this->settings_);
     if (send_ir)
-      this->e();
+      this->transmit_state();
   }
 }
 
@@ -53,7 +53,7 @@ void AirtonClimate::set_vertical_direction_state(const std::string &state) {
     this->airton_rtc_.save(&this->settings_);
     // This overloaded function is called only from the select component, upon changing selection
     // Therefore, we transmit the updated state after saving it
-    this->e();
+    this->transmit_state();
   }
 }
 
