@@ -47,15 +47,6 @@ def load_idedata(environment, temp_folder, platformio_ini):
             if not any(match.startswith(prefix) for prefix in ignore_prefixes)
         ]
 
-    def find_cxx_path(commands):
-        for entry in commands:
-            command = entry["command"]
-            cxx_path = command.split()[0]
-            if not cxx_path.endswith("++"):
-                continue
-            return cxx_path
-        return None
-
     def get_builtin_include_paths(compiler):
         result = subprocess.run(
             [compiler, "-E", "-x", "c++", "-", "-v"],
@@ -94,33 +85,28 @@ def load_idedata(environment, temp_folder, platformio_ini):
         return flags
 
     def transform_to_idedata_format(compile_commands):
-        cxx_path = find_cxx_path(compile_commands)
-        idedata = {
+        # Use only the tidy app TU (main.cpp): as the app target, its compile
+        # command already carries the full Zephyr include set. Unioning every
+        # TU instead would drag in per-library internal include dirs (e.g. the
+        # Zephyr POSIX shim, whose signal.h redefines newlib's sigset_t) that
+        # no ESPHome source compiles against.
+        entry = next(
+            (e for e in compile_commands if e["file"].endswith("main.cpp")), None
+        )
+        if entry is None:
+            raise RuntimeError("tidy main.cpp not found in compile_commands.json")
+        command = entry["command"]
+        cxx_path = command.split()[0]
+
+        return {
             "includes": {
                 "toolchain": get_builtin_include_paths(cxx_path),
-                "build": set(),
+                "build": extract_include_paths(command),
             },
-            "defines": set(),
+            "defines": extract_defines(command),
             "cxx_path": cxx_path,
-            "cxx_flags": set(),
+            "cxx_flags": extract_cxx_flags(command),
         }
-
-        for entry in compile_commands:
-            command = entry["command"]
-            exec = command.split()[0]
-            if exec != cxx_path:
-                continue
-
-            idedata["includes"]["build"].update(extract_include_paths(command))
-            idedata["defines"].update(extract_defines(command))
-            idedata["cxx_flags"].update(extract_cxx_flags(command))
-
-        # Convert sets to lists for JSON serialization
-        idedata["includes"]["build"] = list(idedata["includes"]["build"])
-        idedata["defines"] = list(idedata["defines"])
-        idedata["cxx_flags"] = list(idedata["cxx_flags"])
-
-        return idedata
 
     compile_commands = json.loads(compile_commands_path.read_text(encoding="utf-8"))
     return transform_to_idedata_format(compile_commands)

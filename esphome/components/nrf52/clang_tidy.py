@@ -25,10 +25,8 @@ from pathlib import Path
 
 TIDY_PROJECT_NAME = "esphome_tidy"
 
-# Same SDK version the PlatformIO tidy environment analyzed against
-# (framework-sdk-nrf v2.6.1-b); the native toolchain resolves it to the
-# sdk-nrf v2.6.1 tag, which CI already builds for the component tests.
-_TIDY_SDK_VERSION = "2.6.1"
+# Analyzed against the native toolchain's default SDK version
+# (RECOMMENDED_SDK_NRF_VERSION), which also keys the CI install cache.
 _TIDY_BOARD = "adafruit_itsybitsy_nrf52840"
 
 # Never compiled (the build is configure-only): the file exists only so the
@@ -40,9 +38,13 @@ _TIDY_MAIN_CPP = "int main() { return 0; }\n"
 _TIDY_PRJ_CONF = """\
 CONFIG_CPP=y
 CONFIG_STD_CPP20=y
+CONFIG_REQUIRES_FULL_LIBCPP=y
 CONFIG_NEWLIB_LIBC=y
 CONFIG_BT=y
 CONFIG_ADC=y
+# posix (time sets POSIX_CLOCK, socket sets POSIX_API); without it the
+# Zephyr POSIX headers clash with the libc ones under analysis
+CONFIG_POSIX_API=y
 #mcumgr begin
 CONFIG_NET_BUF=y
 CONFIG_ZCBOR=y
@@ -161,6 +163,8 @@ def _setup_core(work_dir: Path) -> None:
     )
     from esphome.core import CORE
 
+    from . import RECOMMENDED_SDK_NRF_VERSION
+
     CORE.name = TIDY_PROJECT_NAME
     # config_path's parent is the data-dir root for per-run artifacts. The
     # sdk-nrf install is in the global cache dir, independent of this path.
@@ -169,7 +173,9 @@ def _setup_core(work_dir: Path) -> None:
     CORE.toolchain = Toolchain.SDK_NRF
     CORE.data.setdefault(KEY_CORE, {})[KEY_TARGET_PLATFORM] = PLATFORM_NRF52
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
-    CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(_TIDY_SDK_VERSION)
+    CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
+        RECOMMENDED_SDK_NRF_VERSION
+    )
 
 
 def generate_compile_commands(work_dir: Path, platformio_ini: Path) -> Path:
@@ -211,12 +217,15 @@ def generate_compile_commands(work_dir: Path, platformio_ini: Path) -> Path:
     paths = get_build_paths()
     # Build only the generated-headers target (syscall_list.h, offsets.h, ...)
     # on top of the configure: clang-tidy needs those headers to exist, but a
-    # full firmware build would be wasted work.
+    # full firmware build would be wasted work. --no-sysbuild keeps sdk-nrf
+    # 2.9+ from wrapping the build in a multi-image sysbuild project, which
+    # would nest the compile commands and hide the headers target.
     west_cmd = [
         str(paths["python_executable"]),
         "-m",
         "west",
         "build",
+        "--no-sysbuild",
         "-b",
         _TIDY_BOARD,
         "-d",

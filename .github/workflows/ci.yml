@@ -529,14 +529,22 @@ jobs:
         with:
           framework: arduino
 
-      # The native sdk-nrf toolchain installs (west workspace, Zephyr SDK
-      # toolchain, python env) under the clang-tidy temp folder's data dir.
+      - name: Resolve sdk-nrf version for cache key
+        # The version is pinned in code, not in any hashable file, so resolve
+        # it explicitly (mirrors .github/actions/cache-esp-idf).
+        if: matrix.cache_sdk_nrf
+        id: sdk-nrf-version
+        run: |
+          . venv/bin/activate
+          echo "version=$(python -c 'from esphome.components.nrf52 import RECOMMENDED_SDK_NRF_VERSION as V; print(V)')" >> $GITHUB_OUTPUT
+
       - name: Cache sdk-nrf install
         if: matrix.cache_sdk_nrf
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.esphome-sdk-nrf
-          key: sdk-nrf-${{ hashFiles('esphome/components/nrf52/clang_tidy.py', 'esphome/components/nrf52/requirements.txt') }}
+          # yamllint disable-line rule:line-length
+          key: sdk-nrf-${{ steps.sdk-nrf-version.outputs.version }}-${{ hashFiles('esphome/components/nrf52/requirements.txt') }}
 
       - name: Register problem matchers
         run: |
