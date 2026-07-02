@@ -225,8 +225,9 @@ def _discover_mac_suffix_devices() -> list[str] | None:
 
     Returns:
         - ``None`` when discovery isn't applicable (``name_add_mac_suffix`` off,
-          mDNS disabled, or ``CORE.address`` is already an IP). Callers should
-          then fall back to whatever default OTA address they normally use.
+          mDNS disabled, or ``CORE.address`` isn't a ``.local`` mDNS address).
+          Callers should then fall back to whatever default OTA address they
+          normally use.
         - ``[]`` when discovery ran but found nothing. Callers should NOT fall
           back to the base name: with ``name_add_mac_suffix`` enabled, the base
           name by definition doesn't exist on the network.
@@ -236,7 +237,7 @@ def _discover_mac_suffix_devices() -> list[str] | None:
     ``aioesphomeapi`` via :func:`_resolve_network_devices`) reuses the IPs we
     already have without opening a second Zeroconf client.
     """
-    if not (has_name_add_mac_suffix() and has_mdns() and has_non_ip_address()):
+    if not (has_name_add_mac_suffix() and has_mdns() and has_mdns_address()):
         return None
     from esphome.zeroconf import discover_mdns_devices
 
@@ -503,17 +504,22 @@ def has_mdns() -> bool:
 
 
 def has_non_ip_address() -> bool:
-    """Check if CORE.address is set and is not an IP address."""
+    """Check if ``CORE.address`` is set and is not an IP address."""
     return CORE.address is not None and not is_ip_address(CORE.address)
 
 
+def has_mdns_address() -> bool:
+    """Check if ``CORE.address`` is a ``.local`` mDNS hostname."""
+    return CORE.address is not None and CORE.address.endswith(".local")
+
+
 def has_ip_address() -> bool:
-    """Check if CORE.address is a valid IP address."""
+    """Check if ``CORE.address`` is a valid IP address."""
     return CORE.address is not None and is_ip_address(CORE.address)
 
 
 def has_resolvable_address() -> bool:
-    """Check if CORE.address is resolvable (via mDNS, DNS, or is an IP address)."""
+    """Check if ``CORE.address`` is resolvable (via mDNS, DNS, or is an IP address)."""
     # Any address (IP, mDNS hostname, or regular DNS hostname) is resolvable
     # The resolve_ip_address() function in helpers.py handles all types via AsyncResolver
     if CORE.address is None:
@@ -532,7 +538,7 @@ def has_resolvable_address() -> bool:
         return True
 
     # .local mDNS hostnames are only resolvable if mDNS is enabled
-    return not CORE.address.endswith(".local")
+    return not has_mdns_address()
 
 
 def has_name_add_mac_suffix() -> bool:
