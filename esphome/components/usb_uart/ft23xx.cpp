@@ -419,7 +419,10 @@ void USBUartTypeFT23XX::start_input(USBUartChannel *channel) {
         if (chunk == nullptr) {
           this->usb_data_queue_.increment_dropped_count();
           channel->input_started_.store(false);
-          this->start_input(channel);
+          // Queue is full — wake the main loop to drain it, then let read_array()
+          // retrigger start_input() rather than spinning here in the USB task.
+          this->enable_loop_soon_any_context();
+          App.wake_loop_threadsafe();
           return;
         }
         // Strip the 2-byte FTDI header before queuing.

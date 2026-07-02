@@ -192,7 +192,7 @@ class USBUartComponent : public usb_host::USBClient {
 
   void add_channel(USBUartChannel *channel) { this->channels_.push_back(channel); }
 
-  void start_input(USBUartChannel *channel);
+  virtual void start_input(USBUartChannel *channel);
   void start_output(USBUartChannel *channel);
 
   // Called from loop() when input_buffer_ has insufficient space for the incoming chunk.
@@ -252,7 +252,7 @@ class USBUartTypeFT23XX : public USBUartTypeCdcAcm {
  public:
   USBUartTypeFT23XX(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {}
 
-  void start_input(USBUartChannel *channel);
+  void start_input(USBUartChannel *channel) override;
   void on_rx_overflow(USBUartChannel *channel) override;
 
  protected:
