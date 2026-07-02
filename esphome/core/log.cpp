@@ -121,8 +121,16 @@ static void __attribute__((noinline)) esp_log_format_direct_(esp_log_msg_t *mess
   if (level > 0 && level < sizeof(LVL)) {
     pos = snprintf(buf, sizeof(buf), "\033[0;3%cm[%c][%s]: ", COLOR_DIGIT[level], LVL[level],
                    message->tag ? message->tag : "idf");
+    // Clamp: snprintf returns the untruncated length (or negative on error),
+    // so an oversized tag or an encoding error would otherwise leave pos
+    // outside the buffer and break every bound check below.
+    if (pos < 0) {
+      pos = 0;
+    } else if (pos >= (int) sizeof(buf)) {
+      pos = sizeof(buf) - 1;
+    }
   }
-  if (pos >= 0 && pos < (int) sizeof(buf) - 2) {
+  if (pos < (int) sizeof(buf) - 2) {
     int body = vsnprintf(buf + pos, sizeof(buf) - pos, message->format, message->args);
     if (body > 0)
       pos += (body < (int) sizeof(buf) - pos) ? body : (int) sizeof(buf) - pos - 1;
