@@ -77,3 +77,4 @@ async def sleep_action_to_code(config, action_id, template_arg, args):
 
 async def to_code(config):
     var = await climate_ir.new_climate_ir(config)
+    cg.add(var.set_vertical_direction_state(config[CONF_VERTICAL_DIRECTION]))
