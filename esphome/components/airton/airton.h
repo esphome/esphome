@@ -91,6 +91,7 @@ class AirtonClimate : public climate_ir::ClimateIR {
   void set_vertical_direction_state(VerticalDirection state);
   void set_vertical_direction_state(const std::string &state);
   VerticalDirection get_vertical_direction_state() const;
+  void control(const climate::ClimateCall &call) override;
 
  private:
   // Save the previous operation mode inside instance
