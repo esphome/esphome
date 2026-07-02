@@ -104,5 +104,6 @@ async def to_code(config: ConfigType) -> None:
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
     for device in config.get(CONF_DEVICES) or ():
         await register_usb_client(device)
