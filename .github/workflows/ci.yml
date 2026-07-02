@@ -475,6 +475,8 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       # esp32-arduino-tidy installs ESP-IDF natively; share the native IDF cache.
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
+      # nrf52-tidy installs sdk-nrf natively; pin it to a cacheable path.
+      ESPHOME_SDK_NRF_PREFIX: ~/.esphome-sdk-nrf
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -533,7 +535,7 @@ jobs:
         if: matrix.cache_sdk_nrf
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: .temp/.esphome/sdk-nrf
+          path: ~/.esphome-sdk-nrf
           key: sdk-nrf-${{ hashFiles('esphome/components/nrf52/clang_tidy.py', 'esphome/components/nrf52/requirements.txt') }}
 
       - name: Register problem matchers

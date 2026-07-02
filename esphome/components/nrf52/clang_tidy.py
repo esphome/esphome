@@ -31,13 +31,9 @@ TIDY_PROJECT_NAME = "esphome_tidy"
 _TIDY_SDK_VERSION = "2.6.1"
 _TIDY_BOARD = "adafruit_itsybitsy_nrf52840"
 
-# Minimal C++ app. zboss_signal_handler is required by the zigbee stack
-# enabled in prj.conf; a real build gets it from the esphome zigbee component.
-_TIDY_MAIN_CPP = """\
-#include <zephyr/kernel.h>
-int main() { return 0; }
-extern "C" void zboss_signal_handler() {}
-"""
+# Never compiled (the build is configure-only): the file exists only so the
+# app target emits a C++ compile command to harvest flags/includes from.
+_TIDY_MAIN_CPP = "int main() { return 0; }\n"
 
 # Kconfig superset enabling every subsystem an ESPHome nrf52 component may
 # use, so the compile commands carry all of their include paths.
@@ -166,9 +162,8 @@ def _setup_core(work_dir: Path) -> None:
     from esphome.core import CORE
 
     CORE.name = TIDY_PROJECT_NAME
-    # config_path's parent is the data-dir root: the sdk-nrf install lives at
-    # ``<parent>/.esphome/sdk-nrf`` -- beside (not inside) the per-run project
-    # dir so clearing the project doesn't force a re-download.
+    # config_path's parent is the data-dir root for per-run artifacts. The
+    # sdk-nrf install is in the global cache dir, independent of this path.
     CORE.config_path = work_dir.parent / "tidy.yaml"
     CORE.build_path = work_dir
     CORE.toolchain = Toolchain.SDK_NRF
