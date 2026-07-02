@@ -7,12 +7,12 @@
 
 namespace esphome::usb_host {
 
-static USBHost *&usb_host_ref_() {
+static USBHost *&usb_host_ref() {
   static USBHost *instance = nullptr;
   return instance;
 }
 
-USBHost *get_usb_host() { return usb_host_ref_(); }
+USBHost *get_usb_host() { return usb_host_ref(); }
 
 void USBHost::setup() {
   usb_host_config_t config{};
@@ -21,7 +21,7 @@ void USBHost::setup() {
     this->mark_failed();
     return;
   }
-  usb_host_ref_() = this;
+  usb_host_ref() = this;
 }
 
 void USBHost::loop() {
@@ -225,23 +225,8 @@ bool USBHost::stream_open(IsocStream &stream, USBClient *cb, usb_host_client_han
     }
   }
 
-  stream.xfers = static_cast<usb_transfer_t **>(malloc(stream.num_urbs * sizeof(usb_transfer_t *)));
-  if (stream.xfers == nullptr) {
-    ESP_LOGE(TAG, "stream_open: URB array alloc failed");
-    this->do_set_interface(client_handle, device_handle, stream.interface_num, 0);
-    this->do_release_interface(client_handle, device_handle, stream.interface_num);
-    return false;
-  }
-
-  stream.ctxs = static_cast<IsocCbCtx *>(malloc(stream.num_urbs * sizeof(IsocCbCtx)));
-  if (stream.ctxs == nullptr) {
-    ESP_LOGE(TAG, "stream_open: context array alloc failed");
-    free(stream.xfers);
-    stream.xfers = nullptr;
-    this->do_set_interface(client_handle, device_handle, stream.interface_num, 0);
-    this->do_release_interface(client_handle, device_handle, stream.interface_num);
-    return false;
-  }
+  stream.xfers = std::make_unique<usb_transfer_t *[]>(stream.num_urbs);
+  stream.ctxs = std::make_unique<IsocCbCtx[]>(stream.num_urbs);
 
   stream.streaming = true;
   for (uint8_t i = 0; i < stream.num_urbs; i++) {
@@ -254,10 +239,8 @@ bool USBHost::stream_open(IsocStream &stream, USBClient *cb, usb_host_client_han
       stream.streaming = false;
       for (uint8_t j = 0; j < i; j++)
         this->do_isoc_free(stream.xfers[j]);
-      free(stream.ctxs);
-      stream.ctxs = nullptr;
-      free(stream.xfers);
-      stream.xfers = nullptr;
+      stream.ctxs.reset();
+      stream.xfers.reset();
       this->do_set_interface(client_handle, device_handle, stream.interface_num, 0);
       this->do_release_interface(client_handle, device_handle, stream.interface_num);
       return false;
@@ -271,10 +254,8 @@ bool USBHost::stream_open(IsocStream &stream, USBClient *cb, usb_host_client_han
       vTaskDelay(pdMS_TO_TICKS(50));
       for (uint8_t j = 0; j < stream.num_urbs; j++)
         this->do_isoc_free(stream.xfers[j]);
-      free(stream.ctxs);
-      stream.ctxs = nullptr;
-      free(stream.xfers);
-      stream.xfers = nullptr;
+      stream.ctxs.reset();
+      stream.xfers.reset();
       this->do_set_interface(client_handle, device_handle, stream.interface_num, 0);
       this->do_release_interface(client_handle, device_handle, stream.interface_num);
       return false;
@@ -288,7 +269,7 @@ bool USBHost::stream_open(IsocStream &stream, USBClient *cb, usb_host_client_han
 
 void USBHost::stream_close(IsocStream &stream, usb_host_client_handle_t client_handle,
                            usb_device_handle_t device_handle) {
-  if (!stream.streaming && stream.xfers == nullptr)
+  if (!stream.streaming && !stream.xfers)
     return;
 
   stream.streaming = false;
@@ -298,16 +279,12 @@ void USBHost::stream_close(IsocStream &stream, usb_host_client_handle_t client_h
 
   vTaskDelay(pdMS_TO_TICKS(50));
 
-  if (stream.xfers != nullptr) {
+  if (stream.xfers) {
     for (uint8_t i = 0; i < stream.num_urbs; i++)
       this->do_isoc_free(stream.xfers[i]);
-    free(stream.xfers);
-    stream.xfers = nullptr;
+    stream.xfers.reset();
   }
-  if (stream.ctxs != nullptr) {
-    free(stream.ctxs);
-    stream.ctxs = nullptr;
-  }
+  stream.ctxs.reset();
 
   this->do_release_interface(client_handle, device_handle, stream.interface_num);
   ESP_LOGD(TAG, "stream_close: ep=0x%02X", stream.ep_addr);

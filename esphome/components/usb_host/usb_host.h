@@ -5,6 +5,7 @@
     defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
+#include <memory>
 #include <vector>
 #include "usb/usb_host.h"
 #include <freertos/FreeRTOS.h>
@@ -120,8 +121,8 @@ struct IsocCbCtx {
 };
 
 struct IsocStream {
-  usb_transfer_t **xfers{nullptr};
-  IsocCbCtx *ctxs{nullptr};
+  std::unique_ptr<usb_transfer_t *[]> xfers{};
+  std::unique_ptr<IsocCbCtx[]> ctxs{};
   uint8_t num_urbs{0};
   uint8_t ep_addr{0};
   uint16_t mps{0};
