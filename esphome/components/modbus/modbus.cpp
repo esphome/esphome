@@ -14,6 +14,8 @@ static constexpr size_t MODBUS_MAX_LOG_BYTES = 64;
 static constexpr uint32_t MODBUS_BITS_PER_CHAR = 11;
 // Milliseconds per second
 static constexpr uint32_t MS_PER_SEC = 1000;
+// Modbus broadcast address: the request is processed by every device and no reply is sent (Modbus 4.1).
+static constexpr uint8_t MODBUS_BROADCAST_ADDRESS = 0;
 
 void Modbus::setup() {
   if (this->flow_control_pin_ != nullptr) {
@@ -352,7 +354,53 @@ bool ModbusServerHub::check_register_range_(uint8_t address, uint8_t function_co
   return true;
 }
 
+void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, const uint8_t *data) {
+  // Broadcasts are only meaningful for writes and are never answered, so any parse error is dropped silently.
+  uint16_t start_address = helpers::get_data<uint16_t>(data, 0);
+  uint16_t number_of_registers;
+  uint16_t values_offset;
+  switch (static_cast<ModbusFunctionCode>(function_code)) {
+    case ModbusFunctionCode::WRITE_SINGLE_REGISTER:
+      number_of_registers = 1;
+      values_offset = 2;  // start address(2) then the value
+      break;
+    case ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS: {
+      number_of_registers = helpers::get_data<uint16_t>(data, 2);
+      uint8_t number_of_bytes = helpers::get_data<uint8_t>(data, 4);
+      values_offset = 5;  // start address(2) + quantity(2) + byte count(1)
+      if (number_of_registers == 0 || number_of_registers > MAX_NUM_OF_REGISTERS_TO_WRITE ||
+          number_of_registers * 2 != number_of_bytes) {
+        ESP_LOGW(TAG, "Invalid broadcast register count %" PRIu16 " or byte count %" PRIu8, number_of_registers,
+                 number_of_bytes);
+        return;
+      }
+      break;
+    }
+    default:
+      // Reads and read/write require a reply, so they are not valid as broadcasts.
+      return;
+  }
+  if ((uint32_t) start_address + number_of_registers > 0x10000u) {
+    ESP_LOGW(TAG, "Broadcast register address out of range - start: %" PRIu16 " num: %" PRIu16, start_address,
+             number_of_registers);
+    return;
+  }
+  RegisterValues registers;
+  for (uint16_t i = 0; i < number_of_registers; i++) {
+    registers.push_back(helpers::get_data<uint16_t>(data, values_offset + i * 2));
+  }
+  for (auto *device : this->devices_) {
+    device->on_modbus_write_registers(start_address, registers);
+  }
+}
+
 void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data) {
+  if (address == MODBUS_BROADCAST_ADDRESS) {
+    // A broadcast is delivered to every registered device and is never answered (Modbus 4.1 / 6.12).
+    this->process_broadcast_frame_(function_code, data);
+    return;
+  }
+
   ModbusServerDevice *device = this->find_device_(address);
   if (device == nullptr) {
     this->expecting_peer_response_ = address;
