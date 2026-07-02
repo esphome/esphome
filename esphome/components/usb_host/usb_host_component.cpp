@@ -320,4 +320,4 @@ void USBHost::stream_close_(IsocStream &stream,
 
 }  // namespace esphome::usb_host
 #endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 ||
-        // USE_ESP32_VARIANT_ESP32_S31 || USE_ESP32_VARIANT_ESP32H4
+        // USE_ESP32_VARIANT_ESP32S31 || USE_ESP32_VARIANT_ESP32H4

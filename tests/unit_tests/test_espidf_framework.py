@@ -2,9 +2,12 @@
 
 # pylint: disable=protected-access
 
+from contextlib import contextmanager
 import io
 import json
+import logging
 from pathlib import Path
+import sys
 import tarfile
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -12,7 +15,9 @@ from unittest.mock import patch
 import pytest
 
 from esphome.espidf.framework import (
+    _ccache_env,
     _check_stamp,
+    _check_windows_path_length,
     _clone_idf_with_submodules,
     _get_framework_path,
     _get_idf_tool_paths,
@@ -22,12 +27,26 @@ from esphome.espidf.framework import (
     _get_python_version,
     _parse_git_source,
     _patch_tools_json_for_linux_arm64,
+    _windows_long_paths_enabled,
     _write_idf_version_txt,
     _write_stamp,
     check_esp_idf_install,
     get_framework_env,
 )
 from esphome.framework_helpers import _tar_extract_all, get_python_env_executable_path
+
+
+@pytest.fixture(autouse=True)
+def _isolate_idf_install_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the ESP-IDF install root to a tmp dir for every test.
+
+    The default location is the OS user cache dir, so without this any test
+    that builds framework paths or pre-creates the framework dir would touch
+    the real ``~/.cache/esphome`` on the developer's machine. Tests that need
+    to exercise the override or default-resolution logic clear/override the env
+    themselves.
+    """
+    monkeypatch.setenv("ESPHOME_ESP_IDF_PREFIX", str(tmp_path / "idf_install"))
 
 
 @pytest.mark.parametrize(
@@ -58,6 +77,19 @@ from esphome.framework_helpers import _tar_extract_all, get_python_env_executabl
         (
             "https://github.com/espressif/esp-idf.git@v6.0.1",
             ("https://github.com/espressif/esp-idf.git", "v6.0.1"),
+        ),
+        # '#' ref separator (PlatformIO/git-web convention) works on both forms
+        (
+            "https://github.com/espressif/esp-idf.git#release/v6.1",
+            ("https://github.com/espressif/esp-idf.git", "release/v6.1"),
+        ),
+        (
+            "github://espressif/esp-idf#release/v6.1",
+            ("https://github.com/espressif/esp-idf.git", "release/v6.1"),
+        ),
+        (
+            "github://espressif/esp-idf.git#master",
+            ("https://github.com/espressif/esp-idf.git", "master"),
         ),
         # Tolerate a trailing ".git" on the shorthand so the user doesn't
         # silently end up with a doubled "...esp-idf.git.git" URL.
@@ -293,6 +325,9 @@ def espidf_mocks(setup_core: Path):
         patch("esphome.espidf.framework.archive_extract_all") as extract,
         patch("esphome.espidf.framework.create_venv") as venv,
         patch("esphome.espidf.framework.run_command_ok", return_value=True) as run_ok,
+        patch(
+            "esphome.espidf.framework._get_idf_tool_paths", return_value=([], {})
+        ) as tool_paths,
         patch("esphome.espidf.framework._clone_idf_with_submodules") as clone,
         patch("esphome.espidf.framework._write_idf_version_txt"),
         patch("esphome.espidf.framework._patch_tools_json_for_linux_arm64"),
@@ -303,7 +338,12 @@ def espidf_mocks(setup_core: Path):
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
     ):
         yield SimpleNamespace(
-            download=download, extract=extract, venv=venv, run_ok=run_ok, clone=clone
+            download=download,
+            extract=extract,
+            venv=venv,
+            run_ok=run_ok,
+            tool_paths=tool_paths,
+            clone=clone,
         )
 
 
@@ -398,10 +438,10 @@ def test_check_esp_idf_install_stamp_mismatch_reinstalls(
 def test_check_esp_idf_install_check_command_failure_reinstalls(
     espidf_mocks: SimpleNamespace,
 ) -> None:
-    """A failing idf_tools check reinstalls tools (marker present, no re-extract)."""
+    """A failing tool-path resolution reinstalls tools (marker present, no re-extract)."""
     _mark_installed()
-    # idf_tools check fails -> install stays True; the later installs succeed.
-    espidf_mocks.run_ok.side_effect = [False, True, True, True]
+    # Managed tool resolution fails -> install stays True; the later installs succeed.
+    espidf_mocks.tool_paths.side_effect = RuntimeError("missing ESP-IDF tool")
     check_esp_idf_install(_IDF_VERSION, features=["fb"])
 
     espidf_mocks.extract.assert_not_called()
@@ -607,6 +647,8 @@ def test_get_framework_env_with_python_env(tmp_path: Path) -> None:
             "esphome.espidf.framework._get_idf_tool_paths",
             return_value=(["/tool/bin"], {"IDF_X": "1"}),
         ),
+        # ccache env is covered separately; keep this test host-independent.
+        patch("esphome.espidf.framework._ccache_env", return_value={}),
     ):
         env = get_framework_env(
             tmp_path / "fw", tmp_path / "penv", {"PATH": "/usr/bin"}
@@ -627,11 +669,95 @@ def test_get_framework_env_without_python_env_uses_os_path(tmp_path: Path) -> No
         ),
         patch("esphome.espidf.framework._get_idf_version", return_value="5.1.2"),
         patch("esphome.espidf.framework._get_idf_tool_paths", return_value=([], {})),
+        # ccache env is covered separately; keep this test host-independent.
+        patch("esphome.espidf.framework._ccache_env", return_value={}),
     ):
         env = get_framework_env(tmp_path / "fw")
 
     assert "IDF_PYTHON_ENV_PATH" not in env
     assert env["PATH"]  # taken from os.environ
+
+
+# ---------------------------------------------------------------------------
+# _ccache_env
+# ---------------------------------------------------------------------------
+
+
+def _ccache_patches(tmp_path: Path, which: str | None, build_path: Path | None):
+    return (
+        patch("esphome.espidf.framework.shutil.which", return_value=which),
+        patch(
+            "esphome.espidf.framework._get_idf_tools_path",
+            return_value=tmp_path / "tools",
+        ),
+        patch(
+            "esphome.espidf.framework.CORE",
+            SimpleNamespace(build_path=build_path),
+        ),
+    )
+
+
+def test_ccache_env_default_enabled_when_available(tmp_path: Path) -> None:
+    p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", tmp_path / "build")
+    with patch.dict("os.environ", {}, clear=True), p1, p2, p3:
+        env = _ccache_env()
+    assert env["IDF_CCACHE_ENABLE"] == "1"
+    assert env["CCACHE_DIR"] == str(tmp_path / "tools" / "ccache")
+    assert env["CCACHE_NOHASHDIR"] == "true"
+    assert env["CCACHE_DEPEND"] == "1"
+    assert env["CCACHE_BASEDIR"] == str((tmp_path / "build").resolve())
+
+
+def test_ccache_env_disabled_when_binary_missing(tmp_path: Path) -> None:
+    # build_path is None here too: a disabled cache must not require it.
+    p1, p2, p3 = _ccache_patches(tmp_path, None, None)
+    with patch.dict("os.environ", {}, clear=True), p1, p2, p3:
+        assert _ccache_env() == {}
+
+
+def test_ccache_env_opt_out_via_env(tmp_path: Path) -> None:
+    # Explicit IDF_CCACHE_ENABLE=0 wins even when the binary is present, and
+    # short-circuits before build_path is needed.
+    p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", None)
+    with patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "0"}, clear=True), p1, p2, p3:
+        assert _ccache_env() == {}
+
+
+def test_ccache_env_opt_in_without_binary(tmp_path: Path) -> None:
+    # Explicit IDF_CCACHE_ENABLE=1 forces it on without probing PATH. It's
+    # already in the environment, so it isn't re-emitted, but the rest is.
+    p1, p2, p3 = _ccache_patches(tmp_path, None, tmp_path / "build")
+    with patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "1"}, clear=True), p1, p2, p3:
+        env = _ccache_env()
+    assert "IDF_CCACHE_ENABLE" not in env
+    assert env["CCACHE_DIR"] == str(tmp_path / "tools" / "ccache")
+    assert env["CCACHE_DEPEND"] == "1"
+
+
+def test_ccache_env_preserves_user_overrides(tmp_path: Path) -> None:
+    # User-set CCACHE_* values must not be clobbered; unset ones still default.
+    p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", tmp_path / "build")
+    user_env = {"CCACHE_DIR": "/my/cache", "CCACHE_MAXSIZE": "9G"}
+    with patch.dict("os.environ", user_env, clear=True), p1, p2, p3:
+        env = _ccache_env()
+    assert "CCACHE_DIR" not in env
+    assert "CCACHE_MAXSIZE" not in env
+    assert env["IDF_CCACHE_ENABLE"] == "1"
+    assert env["CCACHE_DEPEND"] == "1"
+
+
+def test_ccache_env_raises_without_build_path(tmp_path: Path) -> None:
+    # Enabled but no build_path means the IDF env was built too early -- fail
+    # loudly instead of silently dropping CCACHE_BASEDIR.
+    p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", None)
+    with (
+        patch.dict("os.environ", {}, clear=True),
+        p1,
+        p2,
+        p3,
+        pytest.raises(ValueError, match="build_path"),
+    ):
+        _ccache_env()
 
 
 # ---------------------------------------------------------------------------
@@ -678,7 +804,154 @@ def test_get_idf_tools_path_env_override(tmp_path: Path) -> None:
         assert _get_idf_tools_path() == Path(override)
 
 
+@pytest.mark.parametrize("value", ["", "   "])
+def test_get_idf_tools_path_blank_env_falls_back_to_default(
+    value: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A blank ESPHOME_ESP_IDF_PREFIX is treated as unset, not as CWD.
+
+    Path("") would resolve to the working directory, which clean-all could then
+    delete by accident.
+    """
+    import platformdirs
+
+    monkeypatch.setenv("ESPHOME_ESP_IDF_PREFIX", value)
+    expected = (
+        Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "idf"
+    ).resolve()
+    assert _get_idf_tools_path() == expected
+
+
+def test_get_idf_tools_path_default_uses_user_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without the env override the install root is the machine-global OS user
+    cache dir, not the per-config ``<data_dir>/idf``."""
+    import platformdirs
+
+    monkeypatch.delenv("ESPHOME_ESP_IDF_PREFIX", raising=False)
+    expected = (
+        Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "idf"
+    ).resolve()
+    assert _get_idf_tools_path() == expected
+
+
 def test_write_idf_version_txt_warns_on_write_error(tmp_path: Path) -> None:
     with patch("pathlib.Path.write_text", side_effect=OSError("denied")):
         # write failure is caught and warned, not raised
         _write_idf_version_txt(tmp_path, "5.1.2")
+
+
+def _fake_winreg(
+    query_result: int | None = None, query_error: OSError | None = None
+) -> SimpleNamespace:
+    """Build a minimal winreg stand-in (the real module is Windows-only)."""
+
+    @contextmanager
+    def open_key(root, path):
+        yield "hkey"
+
+    def query_value_ex(key, name):
+        if query_error is not None:
+            raise query_error
+        return query_result, 4  # (value, REG_DWORD)
+
+    return SimpleNamespace(
+        HKEY_LOCAL_MACHINE=object(),
+        OpenKey=open_key,
+        QueryValueEx=query_value_ex,
+    )
+
+
+@pytest.mark.parametrize(("reg_value", "expected"), [(1, True), (0, False)])
+def test_windows_long_paths_enabled_reads_registry(
+    reg_value: int, expected: bool
+) -> None:
+    with patch.dict(sys.modules, {"winreg": _fake_winreg(query_result=reg_value)}):
+        assert _windows_long_paths_enabled() is expected
+
+
+def test_windows_long_paths_enabled_missing_value() -> None:
+    """A missing registry value (FileNotFoundError is an OSError) reads as disabled."""
+    fake = _fake_winreg(query_error=FileNotFoundError("no such value"))
+    with patch.dict(sys.modules, {"winreg": fake}):
+        assert _windows_long_paths_enabled() is False
+
+
+# 8 chars -> projected well under the 260 limit even with the ~245-char reserve
+_SHORT_IDF_PATH = "C:\\e\\idf"
+# 25 chars -> projected over the limit
+_LONG_IDF_PATH = "C:\\Users\\bob\\.esphome\\idf"
+
+
+def test_check_windows_path_length_noop_off_windows(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Off Windows the check returns before touching the registry or the path."""
+    with (
+        patch("esphome.espidf.framework.platform.system", return_value="Linux"),
+        patch(
+            "esphome.espidf.framework._windows_long_paths_enabled"
+        ) as long_paths_mock,
+        caplog.at_level(logging.WARNING),
+    ):
+        _check_windows_path_length()
+    long_paths_mock.assert_not_called()
+    assert not caplog.records
+
+
+def test_check_windows_path_length_noop_when_long_paths_enabled(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with (
+        patch("esphome.espidf.framework.platform.system", return_value="Windows"),
+        patch(
+            "esphome.espidf.framework._windows_long_paths_enabled", return_value=True
+        ),
+        patch("esphome.espidf.framework._get_idf_tools_path") as get_path_mock,
+        caplog.at_level(logging.WARNING),
+    ):
+        _check_windows_path_length()
+    get_path_mock.assert_not_called()
+    assert not caplog.records
+
+
+def test_check_windows_path_length_short_path_silent(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with (
+        patch("esphome.espidf.framework.platform.system", return_value="Windows"),
+        patch(
+            "esphome.espidf.framework._windows_long_paths_enabled", return_value=False
+        ),
+        patch(
+            "esphome.espidf.framework._get_idf_tools_path",
+            return_value=_SHORT_IDF_PATH,
+        ),
+        caplog.at_level(logging.WARNING),
+    ):
+        _check_windows_path_length()
+    assert not caplog.records
+
+
+def test_check_windows_path_length_long_path_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with (
+        patch("esphome.espidf.framework.platform.system", return_value="Windows"),
+        patch(
+            "esphome.espidf.framework._windows_long_paths_enabled", return_value=False
+        ),
+        patch(
+            "esphome.espidf.framework._get_idf_tools_path",
+            return_value=_LONG_IDF_PATH,
+        ),
+        caplog.at_level(logging.WARNING),
+    ):
+        _check_windows_path_length()
+    assert len(caplog.records) == 1
+    message = caplog.records[0].getMessage()
+    assert _LONG_IDF_PATH in message
+    assert "long path support" in message
+    # The install is global now; the remedy is the prefix env, not moving the project.
+    assert "ESPHOME_ESP_IDF_PREFIX" in message

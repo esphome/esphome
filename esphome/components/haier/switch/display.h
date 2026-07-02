@@ -5,7 +5,7 @@
 
 namespace esphome::haier {
 
-class DisplaySwitch : public switch_::Switch, public Parented<HaierClimateBase> {
+class DisplaySwitch final : public switch_::Switch, public Parented<HaierClimateBase> {
  public:
   DisplaySwitch() = default;
 

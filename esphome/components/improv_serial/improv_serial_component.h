@@ -44,7 +44,7 @@ enum ImprovSerialType : uint8_t {
 static const uint16_t IMPROV_SERIAL_TIMEOUT = 100;
 static const uint8_t IMPROV_SERIAL_VERSION = 1;
 
-class ImprovSerialComponent : public Component, public improv_base::ImprovBase {
+class ImprovSerialComponent final : public Component, public improv_base::ImprovBase {
  public:
   void setup() override;
   void loop() override;
@@ -57,6 +57,7 @@ class ImprovSerialComponent : public Component, public improv_base::ImprovBase {
   bool parse_improv_payload_(improv::ImprovCommand &command);
 
   void set_state_(improv::State state);
+  void send_current_state_(improv::State state);
   void set_error_(improv::Error error);
   void send_response_(std::vector<uint8_t> &response);
   void on_wifi_connect_timeout_();

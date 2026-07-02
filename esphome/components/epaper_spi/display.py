@@ -13,6 +13,7 @@ from esphome.components.mipi import (
 import esphome.config_validation as cv
 from esphome.config_validation import update_interval
 from esphome.const import (
+    CONF_AUTO_CLEAR_ENABLED,
     CONF_BUSY_PIN,
     CONF_CS_PIN,
     CONF_DATA_RATE,
@@ -129,7 +130,23 @@ def customise_schema(config):
         },
         extra=cv.ALLOW_EXTRA,
     )(config)
-    return model_schema(config)(config)
+    model = MODELS[config[CONF_MODEL]]
+    config = model_schema(config)(config)
+    width, height = model.get_dimensions(config)
+    display.add_metadata(
+        config[CONF_ID],
+        width,
+        height,
+        has_hardware_rotation=True,
+        byte_order=cv.UNDEFINED,
+        has_writer=config.get(CONF_AUTO_CLEAR_ENABLED) is True
+        or config.get(CONF_PAGES) is not None
+        or config.get(CONF_LAMBDA) is not None
+        or config.get(CONF_SHOW_TEST_CARD) is True,
+        rotation=config.get(CONF_ROTATION, 0),
+        draw_rounding=0,
+    )
+    return config
 
 
 CONFIG_SCHEMA = customise_schema
@@ -197,6 +214,9 @@ async def to_code(config):
     if busy_pin := config.get(CONF_BUSY_PIN):
         busy = await cg.gpio_pin_expression(busy_pin)
         cg.add(var.set_busy_pin(busy))
+    if enable_pin := config.get(CONF_ENABLE_PIN):
+        enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
+        cg.add(var.set_enable_pins(enable))
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
     if CONF_RESET_DURATION in config:
         cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))

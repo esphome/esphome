@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -13,23 +14,23 @@ from esphome.const import (
     Platform,
 )
 from esphome.core import CORE, Library
-import esphome.espidf.component
 from esphome.espidf.component import (
+    generate_cmakelists_txt,
+    generate_idf_component_yml,
+    generate_idf_components,
+)
+import esphome.platformio.library
+from esphome.platformio.library import (
+    ConvertedLibrary as IDFComponent,
     GitSource,
-    IDFComponent,
-    InvalidIDFComponent,
     URLSource,
-    _check_library_data,
-    _collect_filtered_files,
     _node_key,
     _normalize_dependencies,
     _parse_library_json,
     _parse_library_properties,
     _resolve_registry_version,
-    _split_list_by_condition,
-    generate_cmakelists_txt,
-    generate_idf_component_yml,
-    generate_idf_components,
+    collect_filtered_files,
+    split_list_by_condition,
 )
 
 
@@ -69,7 +70,7 @@ def test_collect_filtered_files_basic(tmp_path):
     f2.parent.mkdir(parents=True)
     f2.write_text("int b;")
 
-    result = _collect_filtered_files(tmp_path, ["+<*>"])
+    result = collect_filtered_files(tmp_path, ["+<*>"])
     assert str(f1) in result
     assert str(f2) in result
 
@@ -80,7 +81,7 @@ def test_collect_filtered_files_exclude(tmp_path):
     f1.write_text("int a;")
     f2.write_text("int b;")
 
-    result = _collect_filtered_files(tmp_path, ["+<*> -<*.cpp>"])
+    result = collect_filtered_files(tmp_path, ["+<*> -<*.cpp>"])
     assert str(f1) in result
     assert str(f2) not in result
 
@@ -88,7 +89,7 @@ def test_collect_filtered_files_exclude(tmp_path):
 def test_split_list_by_condition():
     items = ["-Iinclude", "-Llib", "-Wall"]
 
-    matched, rest = _split_list_by_condition(
+    matched, rest = split_list_by_condition(
         items, lambda x: x[2:] if x.startswith("-I") else None
     )
 
@@ -199,41 +200,6 @@ def test_generate_idf_component_yml_missing_path_raises(tmp_component):
 
     with pytest.raises(RuntimeError):
         generate_idf_component_yml(tmp_component)
-
-
-def test_check_library_data_valid(esp32_idf_core):
-    _check_library_data({"platforms": "*", "frameworks": "*"})
-
-
-def test_check_library_data_valid2(esp32_idf_core):
-    _check_library_data({"platforms": "*"})
-
-
-def test_check_library_data_valid3(esp32_idf_core):
-    _check_library_data({})
-
-
-def test_check_library_data_valid4(esp32_idf_core):
-    _check_library_data({"platforms": "espressif32", "frameworks": "*"})
-
-
-def test_check_library_data_valid5(esp32_idf_core):
-    _check_library_data({"platforms": "*", "frameworks": "espidf"})
-
-
-def test_check_library_data_invalid_platform(esp32_idf_core):
-    with pytest.raises(InvalidIDFComponent):
-        _check_library_data({"platforms": ["other"], "frameworks": "*"})
-
-
-def test_check_library_data_invalid_framework(
-    esp32_idf_core: None, caplog: pytest.LogCaptureFixture
-) -> None:
-    # Framework mismatch is a warning, not a hard skip: the library is still
-    # included so that PIO manifests that only list "arduino" (but actually
-    # compile under IDF) can be used without forking them.
-    _check_library_data({"name": "lib", "platforms": "*", "frameworks": ["other"]})
-    assert "do not include 'espidf'" in caplog.text
 
 
 def test_extra_script_captures_libpath_libs_and_defines(tmp_path):
@@ -452,7 +418,7 @@ def _patch_registry(monkeypatch, versions):
     ``get_compatible_registry_versions`` / ``pick_best_registry_version`` run on
     the canned data so the intersection logic is exercised for real.
     """
-    registry = esphome.espidf.component._make_registry_client()
+    registry = esphome.platformio.library._make_registry_client()
     monkeypatch.setattr(
         registry,
         "fetch_registry_package",
@@ -466,7 +432,7 @@ def _patch_registry(monkeypatch, versions):
         },
     )
     monkeypatch.setattr(
-        esphome.espidf.component, "_make_registry_client", lambda: registry
+        esphome.platformio.library, "_make_registry_client", lambda: registry
     )
 
 
@@ -515,7 +481,7 @@ def test_generate_idf_components_dedupes_shared_dependency(
         "esphome/C": {"name": "C"},
     }
 
-    def fake_download(self, force=False):
+    def fake_download(self, force=False, salt=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         (self.path / "src" / "x.c").write_text("int x;")
@@ -534,7 +500,7 @@ def test_generate_idf_components_dedupes_shared_dependency(
         return owner, pkgname, version, f"http://x/{pkgname}.tar.gz"
 
     monkeypatch.setattr(
-        esphome.espidf.component, "_resolve_registry_version", fake_resolve
+        esphome.platformio.library, "_resolve_registry_version", fake_resolve
     )
 
     top = generate_idf_components(
@@ -557,6 +523,62 @@ def test_generate_idf_components_dedupes_shared_dependency(
     assert "idf_component_register" in generated
 
 
+def test_generate_idf_components_lib_ignore_filters_top_level_and_dependencies(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    esp32_idf_core: None,
+) -> None:
+    # lib_ignore must drop B at the top level and C when it is discovered as a
+    # dependency of A during the graph walk -- neither may be resolved,
+    # downloaded, or wired into a manifest. Matching is by lowercase short name.
+    manifests = {
+        "esphome/A": {
+            "name": "A",
+            "dependencies": [
+                {"owner": "esphome", "name": "C", "version": "==1.10021.0"}
+            ],
+        },
+        "esphome/B": {"name": "B"},
+    }
+
+    download_salts: list[str] = []
+
+    def fake_download(self, force=False, salt=""):
+        download_salts.append(salt)
+        self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
+        (self.path / "src").mkdir(parents=True, exist_ok=True)
+        (self.path / "src" / "x.c").write_text("int x;")
+        (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
+
+    monkeypatch.setattr(IDFComponent, "download", fake_download)
+
+    resolve_calls: list[str] = []
+
+    def fake_resolve(owner, pkgname, requirements):
+        resolve_calls.append(pkgname)
+        return owner, pkgname, "1.0.0", f"http://x/{pkgname}.tar.gz"
+
+    monkeypatch.setattr(
+        esphome.platformio.library, "_resolve_registry_version", fake_resolve
+    )
+    # lib_ignore is read from CORE.platformio_options (stored there by
+    # _add_platformio_options); matched by lowercase short name.
+    monkeypatch.setattr(CORE, "platformio_options", {"lib_ignore": ["B", "esphome/C"]})
+
+    top = generate_idf_components(
+        [Library("esphome/A", "1.0.0", None), Library("esphome/B", "1.0.0", None)]
+    )
+
+    assert [c.name for c in top] == ["esphome/A"]
+    # Ignored libraries were never resolved (and therefore never downloaded).
+    assert resolve_calls == ["A"]
+    # The ignored dependency is not wired into A's manifest.
+    assert top[0].dependencies == []
+    # lib_ignore changes the generated wiring, so the cache path is salted to
+    # keep this conversion separate from ones with a different lib_ignore.
+    assert download_salts == [hashlib.sha256(b"b,c").hexdigest()[:8]]
+
+
 def test_generate_idf_components_handles_dependency_cycle(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -575,7 +597,7 @@ def test_generate_idf_components_handles_dependency_cycle(
         },
     }
 
-    def fake_download(self, force=False):
+    def fake_download(self, force=False, salt=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         (self.path / "src" / "x.c").write_text("int x;")
@@ -583,7 +605,7 @@ def test_generate_idf_components_handles_dependency_cycle(
 
     monkeypatch.setattr(IDFComponent, "download", fake_download)
     monkeypatch.setattr(
-        esphome.espidf.component,
+        esphome.platformio.library,
         "_resolve_registry_version",
         lambda owner, pkgname, requirements: (
             owner,
@@ -632,7 +654,7 @@ def test_generate_idf_components_git_overrides_registry_warns(
         "esphome/shared": {"name": "shared"},
     }
 
-    def fake_download(self, force=False):
+    def fake_download(self, force=False, salt=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         (self.path / "src" / "x.c").write_text("int x;")
@@ -640,7 +662,7 @@ def test_generate_idf_components_git_overrides_registry_warns(
 
     monkeypatch.setattr(IDFComponent, "download", fake_download)
     monkeypatch.setattr(
-        esphome.espidf.component,
+        esphome.platformio.library,
         "_resolve_registry_version",
         lambda owner, pkgname, requirements: (
             owner,
@@ -669,14 +691,14 @@ def test_generate_idf_components_missing_manifest_raises(
 ) -> None:
     # A library with neither library.json nor library.properties is invalid;
     # fail loudly rather than silently generating build files for it.
-    def fake_download(self, force=False):
+    def fake_download(self, force=False, salt=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         # no library.json / library.properties written
 
     monkeypatch.setattr(IDFComponent, "download", fake_download)
     monkeypatch.setattr(
-        esphome.espidf.component,
+        esphome.platformio.library,
         "_resolve_registry_version",
         lambda owner, pkgname, requirements: (
             owner,
@@ -711,7 +733,7 @@ def test_generate_idf_components_warns_on_noncanonical_duplicate(
         "owner/shared": {"name": "shared"},
     }
 
-    def fake_download(self, force=False):
+    def fake_download(self, force=False, salt=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         (self.path / "src" / "x.c").write_text("int x;")
@@ -720,7 +742,7 @@ def test_generate_idf_components_warns_on_noncanonical_duplicate(
     monkeypatch.setattr(IDFComponent, "download", fake_download)
     # Bare "shared" and "owner/shared" both resolve to canonical owner/shared.
     monkeypatch.setattr(
-        esphome.espidf.component,
+        esphome.platformio.library,
         "_resolve_registry_version",
         lambda owner, pkgname, requirements: (
             owner or "owner",
@@ -744,7 +766,7 @@ def test_generate_idf_components_incompatible_top_level_raises(
 ) -> None:
     # A top-level library that isn't ESP-IDF/esp32 compatible must fail fast,
     # not be silently dropped.
-    def fake_download(self, force=False):
+    def fake_download(self, force=False, salt=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         (self.path / "library.json").write_text(
@@ -753,7 +775,7 @@ def test_generate_idf_components_incompatible_top_level_raises(
 
     monkeypatch.setattr(IDFComponent, "download", fake_download)
     monkeypatch.setattr(
-        esphome.espidf.component,
+        esphome.platformio.library,
         "_resolve_registry_version",
         lambda owner, pkgname, requirements: (
             owner,
@@ -763,7 +785,7 @@ def test_generate_idf_components_incompatible_top_level_raises(
         ),
     )
 
-    with pytest.raises(RuntimeError, match="not compatible with ESP-IDF"):
+    with pytest.raises(RuntimeError, match="not compatible with espidf"):
         generate_idf_components([Library("esphome/A", "1.0.0", None)])
 
 
@@ -782,14 +804,14 @@ def test_generate_idf_components_incompatible_dependency_skipped(
         "esphome/B": {"name": "B", "platforms": ["espressif8266"]},
     }
 
-    def fake_download(self, force=False):
+    def fake_download(self, force=False, salt=""):
         self.path = tmp_path / self.get_sanitized_name().replace("/", "__")
         (self.path / "src").mkdir(parents=True, exist_ok=True)
         (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
 
     monkeypatch.setattr(IDFComponent, "download", fake_download)
     monkeypatch.setattr(
-        esphome.espidf.component,
+        esphome.platformio.library,
         "_resolve_registry_version",
         lambda owner, pkgname, requirements: (
             owner,
@@ -804,3 +826,54 @@ def test_generate_idf_components_incompatible_dependency_skipped(
     assert [c.name for c in top] == ["esphome/A"]
     # The incompatible dependency was dropped, not wired in.
     assert top[0].dependencies == []
+
+
+def test_url_source_salt_changes_cache_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The salt is mixed into the URL hash so salted conversions get their own
+    cache tree. Pre-created extraction markers keep this network-free."""
+    monkeypatch.setattr(CORE, "config_path", tmp_path / "test.yaml")
+    url = "http://example.com/lib.tar.gz"
+    base = tmp_path / ".esphome" / "pio_components"
+    expected = {}
+    for salt in ("", "abcd1234"):
+        digest = hashlib.sha256((url + salt).encode()).hexdigest()[:8]
+        expected[salt] = base / digest / "lib"
+        expected[salt].mkdir(parents=True)
+        (expected[salt] / ".esphome_extracted").touch()
+
+    source = URLSource(url)
+    assert source.download("lib") == expected[""]
+    assert source.download("lib", salt="abcd1234") == expected["abcd1234"]
+
+
+def test_git_source_salt_scopes_domain(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The salt becomes a subdirectory of the git clone domain."""
+    domains: list[str] = []
+
+    def fake_clone_or_update(**kwargs):
+        domains.append(kwargs["domain"])
+        return Path("/cloned"), None
+
+    monkeypatch.setattr(
+        esphome.platformio.library.git, "clone_or_update", fake_clone_or_update
+    )
+
+    source = GitSource("https://github.com/esphome/noise-c.git", "v1.0")
+    source.download("noise-c")
+    source.download("noise-c", salt="abcd1234")
+    assert domains == ["pio_components", "pio_components/abcd1234"]
+
+
+def test_idf_component_download_passes_salt() -> None:
+    """IDFComponent.download forwards the sanitized name and salt to the
+    source and records the returned path."""
+    source = MagicMock()
+    source.download.return_value = Path("/converted/owner/name")
+
+    c = IDFComponent("owner/name", "1.0", source=source)
+    c.download(force=True, salt="abcd1234")
+
+    source.download.assert_called_once_with("owner/name", force=True, salt="abcd1234")
+    assert c.path == Path("/converted/owner/name")

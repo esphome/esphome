@@ -337,7 +337,7 @@ def get_base_entity_object_id(
 
     This function calculates what object_id_c_str_ should be set to in C++.
 
-    The C++ EntityBase::get_object_id() (entity_base.cpp lines 38-49) works as:
+    The C++ EntityBase::write_object_id_to() (entity_base.cpp) works as:
     - If !has_own_name && is_name_add_mac_suffix_enabled():
         return str_sanitize(str_snake_case(App.get_friendly_name()))  // Dynamic
     - Else:
