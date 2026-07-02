@@ -125,7 +125,7 @@ def get_build_env() -> dict:
 
 def _patch_uf2conv_escape_sequences(framework_path: Path) -> None:
     # SDK v2.6.1 ships uf2conv.py with '\s+' — an unrecognised escape that
-    # Python 3.12+ rejects with SyntaxWarning/DeprecationWarning.
+    # Python 3.12+ flags with SyntaxWarning (a future version will reject it).
     uf2conv = framework_path / "zephyr" / "scripts" / "build" / "uf2conv.py"
     if not uf2conv.exists():
         return
