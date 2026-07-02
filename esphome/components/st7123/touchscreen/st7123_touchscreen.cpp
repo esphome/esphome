@@ -26,21 +26,21 @@ void ST7123Touchscreen::update() {
     if (this->setup_time_ > millis())
       return;
 
-    if (this->interrupt_pin_ != nullptr) {
-      this->interrupt_pin_->setup();
-      // INT is held high when idle and pulses low when touch data is ready.
-      this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
-    }
-
     uint8_t status;
     if (this->read_register16(ST7123_REG_STATUS, &status, 1) != i2c::ERROR_OK) {
-      this->mark_failed(LOG_STR("Failed to read status register"));
+      this->mark_failed(LOG_STR("Failed to read status register"));  // will stop updates
       return;
     }
     if ((status & 0x0F) == ST7123_STATUS_INIT) {
       ESP_LOGD(TAG, "Controller still initializing");
       return;
     }
+    if (this->interrupt_pin_ != nullptr) {
+      this->interrupt_pin_->setup();
+      // INT is held high when idle and pulses low when touch data is ready.
+      this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
+    }
+
     ESP_LOGD(TAG, "Status is %X", status);
 
     uint8_t data;
@@ -59,6 +59,7 @@ void ST7123Touchscreen::update() {
           std::swap(this->x_raw_max_, this->y_raw_max_);
       } else {
         this->mark_failed(LOG_STR("Failed to read calibration"));
+        return;
       }
       ESP_LOGD(TAG, "Read dimensions %d/%d", this->x_raw_max_, this->y_raw_max_);
     }

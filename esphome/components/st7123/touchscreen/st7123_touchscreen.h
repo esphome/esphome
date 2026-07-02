@@ -42,7 +42,7 @@ class ST7123Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
   InternalGPIOPin *interrupt_pin_{nullptr};
   GPIOPin *reset_pin_{nullptr};
   uint8_t max_touches_{ST7123_MAX_TOUCHES};
-  uint32_t setup_time_{0};
+  uint32_t setup_time_{1};
 };
 
 }  // namespace esphome::st7123
