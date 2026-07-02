@@ -661,12 +661,12 @@ def clean_all(configuration: list[str]):
     import platformdirs
 
     from esphome.components.nrf52.framework import (
-        _get_tools_path as _get_sdk_nrf_tools_path,
+        get_tools_path as get_sdk_nrf_tools_path,
     )
     from esphome.espidf.framework import _get_idf_tools_path
 
     cache_root = Path(platformdirs.user_cache_dir("esphome", appauthor=False)).resolve()
-    for install_path in (cache_root, _get_idf_tools_path(), _get_sdk_nrf_tools_path()):
+    for install_path in (cache_root, _get_idf_tools_path(), get_sdk_nrf_tools_path()):
         if install_path.is_dir():
             _LOGGER.info("Deleting %s", install_path)
             rmtree(install_path)

@@ -41,7 +41,7 @@ SDK_NG_MINIMAL_MIRRORS = str_to_lst_of_str(
 )
 
 
-def _get_tools_path() -> Path:
+def get_tools_path() -> Path:
     # A blank ESPHOME_SDK_NRF_PREFIX must be treated as unset: Path("")
     # resolves to the CWD, which clean-all would then delete.
     if prefix := get_str_env("ESPHOME_SDK_NRF_PREFIX", "").strip():
@@ -54,15 +54,15 @@ def _get_tools_path() -> Path:
 
 
 def _get_python_env_path(version: str) -> Path:
-    return _get_tools_path() / "penvs" / version
+    return get_tools_path() / "penvs" / version
 
 
 def _get_framework_path(version: str) -> Path:
-    return _get_tools_path() / "frameworks" / version
+    return get_tools_path() / "frameworks" / version
 
 
 def _get_toolchain_path(version: str) -> Path:
-    return _get_tools_path() / "toolchains" / version
+    return get_tools_path() / "toolchains" / version
 
 
 _SITECUSTOMIZE = """\
