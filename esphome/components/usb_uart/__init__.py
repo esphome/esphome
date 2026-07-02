@@ -61,9 +61,21 @@ class Type:
         self.vid = vid
         self.pid = pid
         self.cls = usb_uart_ns.class_(f"USBUartType{cls}", USBUartComponent)
-        self.max_channels = max_channels
+        self._max_channels = max_channels
         self.baud_rate_required = baud_rate_required
         self.max_baud = max_baud
+
+    @property
+    def max_channels(self) -> int:
+        return (
+            3
+            if (
+                CORE.is_esp32
+                and get_esp32_variant() != VARIANT_ESP32P4
+                and self._max_channels > 3
+            )
+            else self._max_channels
+        )
 
 
 uart_types = (
@@ -86,12 +98,7 @@ uart_types = (
 )
 
 
-def channel_schema(channels, baud_rate_required, max_baud=1_000_000):
-    # For now S3 is restricted to 3 channels since each needs 2 endpoints, plus the control endpoint, and
-    # there are only a total of 8 endpoints available.
-    # This will need updating when the 8 channel devices that multiplex over an endpoint are added.
-    if CORE.is_esp32 and get_esp32_variant() != VARIANT_ESP32P4 and channels > 3:
-        channels = 3
+def channel_schema(type_: "Type") -> cv.Schema:
     return cv.Schema(
         {
             cv.Required(CONF_CHANNELS): cv.All(
@@ -104,11 +111,11 @@ def channel_schema(channels, baud_rate_required, max_baud=1_000_000):
                             ),
                             (
                                 cv.Required(CONF_BAUD_RATE)
-                                if baud_rate_required
+                                if type_.baud_rate_required
                                 else cv.Optional(
                                     CONF_BAUD_RATE, default=DEFAULT_BAUD_RATE
                                 )
-                            ): cv.int_range(min=300, max=max_baud),
+                            ): cv.int_range(min=300, max=type_.max_baud),
                             cv.Optional(CONF_STOP_BITS, default="1"): cv.enum(
                                 UART_STOP_BITS_OPTIONS, upper=True
                             ),
@@ -127,7 +134,7 @@ def channel_schema(channels, baud_rate_required, max_baud=1_000_000):
                         }
                     )
                 ),
-                cv.Length(max=channels),
+                cv.Length(max=type_.max_channels),
             )
         }
     )
@@ -137,7 +144,7 @@ CONFIG_SCHEMA = cv.ensure_list(
     cv.typed_schema(
         {
             it.name: usb_device_schema(it.cls, it.vid, it.pid).extend(
-                channel_schema(it.max_channels, it.baud_rate_required, it.max_baud)
+                channel_schema(it)
             )
             for it in uart_types
         },
