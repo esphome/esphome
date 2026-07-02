@@ -134,7 +134,10 @@ def channel_schema(type_: "Type") -> cv.Schema:
                         }
                     )
                 ),
-                cv.Length(max=type_.max_channels),
+                cv.Length(
+                    max=type_.max_channels,
+                    msg=f"Device type {type_.name} supports a maximum of {type_.max_channels} channels",
+                ),
             )
         }
     )
