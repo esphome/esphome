@@ -118,5 +118,21 @@ class AirtonClimate : public climate_ir::ClimateIR {
   bool on_receive(remote_base::RemoteReceiveData data) override;
   bool parse_state_frame_(uint8_t const frame[]);
 };
+template<typename... Ts> class DisplayOnAction : public Action<Ts...> {
+ public:
+  explicit DisplayOnAction(AirtonClimate *parent) : parent_(parent) {}
+  void play(Ts... x) override { this->parent_->set_display_state(true, true); }
 
+ protected:
+  AirtonClimate *parent_;
+};
+
+template<typename... Ts> class DisplayOffAction : public Action<Ts...> {
+ public:
+  explicit DisplayOffAction(AirtonClimate *parent) : parent_(parent) {}
+  void play(Ts... x) override { this->parent_->set_display_state(false, true); }
+
+ protected:
+  AirtonClimate *parent_;
+};
 }  // namespace esphome::airton
