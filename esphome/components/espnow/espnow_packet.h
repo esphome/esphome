@@ -19,17 +19,21 @@ namespace esphome::espnow {
 static const uint8_t ESPNOW_BROADCAST_ADDR[ESP_NOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 static const uint8_t ESPNOW_MULTICAST_ADDR[ESP_NOW_ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE};
 
-// Maximum payload this component sends and receives. The radio stack speaks
-// ESP-NOW v2 regardless (negotiated per peer); v2-sized frames (1470 bytes)
-// are opt-in via ``max_payload_size`` because the packet pools are statically
-// sized from this: v2 reserves ~44 KB instead of ~8 KB.
-#ifdef USE_ESPNOW_V2_PAYLOAD
-#ifndef ESP_NOW_MAX_DATA_LEN_V2
-#error "espnow max_payload_size: 1470 requires an ESP-IDF with ESP-NOW v2 support (5.4+)"
+// Maximum payload this component sends and receives, from the
+// ``max_payload_size`` option. The radio stack speaks ESP-NOW v2 regardless
+// (negotiated per peer); payloads beyond the v1 limit (250 bytes) are opt-in
+// because the packet pools are statically sized from this, so their RAM cost
+// is proportional (~8 KB at 250 bytes, ~44 KB at the v2 limit of 1470).
+#ifndef USE_ESPNOW_MAX_PAYLOAD_SIZE
+#define USE_ESPNOW_MAX_PAYLOAD_SIZE ESP_NOW_MAX_DATA_LEN
 #endif
-static constexpr uint16_t ESPNOW_MAX_DATA_LEN = ESP_NOW_MAX_DATA_LEN_V2;
+static constexpr uint16_t ESPNOW_MAX_DATA_LEN = USE_ESPNOW_MAX_PAYLOAD_SIZE;
+#ifdef ESP_NOW_MAX_DATA_LEN_V2
+static_assert(ESPNOW_MAX_DATA_LEN <= ESP_NOW_MAX_DATA_LEN_V2,
+              "espnow max_payload_size cannot exceed the ESP-NOW v2 frame limit");
 #else
-static constexpr uint16_t ESPNOW_MAX_DATA_LEN = ESP_NOW_MAX_DATA_LEN;
+static_assert(ESPNOW_MAX_DATA_LEN <= ESP_NOW_MAX_DATA_LEN,
+              "espnow max_payload_size beyond 250 bytes requires an ESP-IDF with ESP-NOW v2 support (5.4+)");
 #endif
 
 struct WifiPacketRxControl {
