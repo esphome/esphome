@@ -96,7 +96,11 @@ def load_idedata(environment, temp_folder, platformio_ini):
         if entry is None:
             raise RuntimeError("tidy main.cpp not found in compile_commands.json")
         command = entry["command"]
-        cxx_path = command.split()[0]
+        # Find the compiler by name: the command may be prefixed with a
+        # launcher (Zephyr auto-enables ccache when present).
+        cxx_path = next((t for t in shlex.split(command) if t.endswith("++")), None)
+        if cxx_path is None:
+            raise RuntimeError(f"no C++ compiler in compile command: {command}")
 
         return {
             "includes": {

@@ -144,7 +144,9 @@ def _library_include_dirs(platformio_ini: Path) -> list[str]:
             if path.is_dir():
                 dirs.append(str(path))
 
-    backend = LibraryBackend(platform="nordicnrf52", framework="zephyr", emit=emit)
+    backend = LibraryBackend(
+        platform="nordicnrf52", framework="zephyr", emit=emit, cache_key="zephyr"
+    )
     convert_libraries(_parse_lib_deps(platformio_ini), backend)
     return sorted(set(dirs))
 
