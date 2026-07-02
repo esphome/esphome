@@ -2,7 +2,6 @@
 #include "defines.h"
 #include "helpers.h"
 #include <cstdio>
-#include <cstring>
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -179,27 +178,8 @@ void esp_log_format(esp_log_msg_t *message) {
                                                  message->args);
     return;
   }
-  // A custom vprintf hook is installed: forward through it, prepending
-  // "tag: " to preserve which IDF component logged. The tag is a static
-  // literal with no % specifiers, so concatenating it in front of the format
-  // leaves the original args aligned. Only do this when the whole thing fits;
-  // never truncate the format, which could cut a % specifier and misread an
-  // arg. This path runs with cache enabled (not constrained_env), so
-  // flash-resident strlen/memcpy are safe here.
-  const char *tag = message->tag;
-  if (tag != nullptr) {
-    size_t tag_len = strlen(tag);
-    size_t format_len = strlen(message->format);
-    char buf[256];
-    if (tag_len + 2 + format_len < sizeof(buf)) {  // "tag: " + format + '\0'
-      memcpy(buf, tag, tag_len);
-      buf[tag_len] = ':';
-      buf[tag_len + 1] = ' ';
-      memcpy(buf + tag_len + 2, message->format, format_len + 1);  // include '\0'
-      esp_log_vprint_func(buf, message->args);
-      return;
-    }
-  }
+  // A custom hook was installed via esp_log_set_vprintf: honor it and forward
+  // the message body as-is.
   esp_log_vprint_func(message->format, message->args);
 }
 }  // extern "C"
