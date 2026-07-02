@@ -4,8 +4,7 @@
 
 #include <cstdint>
 
-namespace esphome {
-namespace usb_storage {
+namespace esphome::usb_storage {
 
 // USB MSC Bulk-Only Transport constants
 static constexpr uint32_t MSC_BOT_CBW_SIGNATURE = 0x43425355;  // "USBC"
@@ -70,7 +69,6 @@ struct __attribute__((packed)) ScsiReadCapacity10Response {
 };
 static_assert(sizeof(ScsiReadCapacity10Response) == 8, "ScsiReadCapacity10Response must be 8 bytes");
 
-}  // namespace usb_storage
-}  // namespace esphome
+}  // namespace esphome::usb_storage
 
 #endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32P4

@@ -72,7 +72,7 @@ class USBStorageClient : public usb_host::USBClient {
   bool recv_csw_(uint32_t expected_tag);
 
   bool wait_transfer_(uint32_t timeout_ms = 5000);
-  static void transfer_done_cb_(const usb_host::TransferStatus &status, USBStorageClient *client);
+  static void transfer_done_cb(const usb_host::TransferStatus &status, USBStorageClient *client);
 
   void notify_connected_(uint16_t vid, uint16_t pid);
   void notify_disconnected_();

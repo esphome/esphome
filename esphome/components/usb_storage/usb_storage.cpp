@@ -11,7 +11,7 @@
 #include <cinttypes>
 #include <sys/stat.h>
 #include <dirent.h>
-#include <errno.h>
+#include <cerrno>
 
 namespace esphome::usb_storage {
 
@@ -19,7 +19,7 @@ namespace esphome::usb_storage {
 // Transfer semaphore helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-void USBStorageClient::transfer_done_cb_(const usb_host::TransferStatus &status, USBStorageClient *client) {
+void USBStorageClient::transfer_done_cb(const usb_host::TransferStatus &status, USBStorageClient *client) {
   client->transfer_ok_ = status.success;
   client->transfer_len_ = static_cast<uint16_t>(status.data_len);
   xSemaphoreGive(client->transfer_sem_);
@@ -111,21 +111,21 @@ bool USBStorageClient::send_cbw_(uint32_t tag, uint32_t data_len, uint8_t flags,
   cbw.cb_length = cdb_len;
   memcpy(cbw.cb, cdb, cdb_len);
 
-  auto cb = [this](const usb_host::TransferStatus &s) { transfer_done_cb_(s, this); };
+  auto cb = [this](const usb_host::TransferStatus &s) { transfer_done_cb(s, this); };
   if (!this->transfer_out(this->bulk_out_ep_, cb, reinterpret_cast<const uint8_t *>(&cbw), sizeof(MscCbw)))
     return false;
   return this->wait_transfer_();
 }
 
 bool USBStorageClient::recv_data_(uint8_t *buf, uint16_t len) {
-  auto cb = [this](const usb_host::TransferStatus &s) { transfer_done_cb_(s, this); };
+  auto cb = [this](const usb_host::TransferStatus &s) { transfer_done_cb(s, this); };
   if (!this->transfer_in(this->bulk_in_ep_, cb, len))
     return false;
   return this->wait_transfer_();
 }
 
 bool USBStorageClient::send_data_(const uint8_t *buf, uint16_t len) {
-  auto cb = [this](const usb_host::TransferStatus &s) { transfer_done_cb_(s, this); };
+  auto cb = [this](const usb_host::TransferStatus &s) { transfer_done_cb(s, this); };
   return this->transfer_out(this->bulk_out_ep_, cb, buf, len) && this->wait_transfer_();
 }
 
@@ -134,7 +134,7 @@ bool USBStorageClient::recv_csw_(uint32_t expected_tag) {
   auto cb = [this, &csw](const usb_host::TransferStatus &s) {
     if (s.success && s.data_len >= sizeof(MscCsw))
       memcpy(&csw, s.data, sizeof(MscCsw));
-    transfer_done_cb_(s, this);
+    transfer_done_cb(s, this);
   };
   if (!this->transfer_in(this->bulk_in_ep_, cb, sizeof(MscCsw)))
     return false;
@@ -173,7 +173,7 @@ bool USBStorageClient::scsi_inquiry_() {
   auto cb = [this, &resp](const usb_host::TransferStatus &s) {
     if (s.success && s.data_len >= sizeof(ScsiInquiryResponse))
       memcpy(&resp, s.data, sizeof(ScsiInquiryResponse));
-    transfer_done_cb_(s, this);
+    transfer_done_cb(s, this);
   };
 
   if (!this->send_cbw_(tag, sizeof(ScsiInquiryResponse), MSC_BOT_CBW_FLAGS_IN, cdb, sizeof(cdb)))
@@ -201,7 +201,7 @@ bool USBStorageClient::scsi_read_capacity_() {
   auto cb = [this, &resp](const usb_host::TransferStatus &s) {
     if (s.success && s.data_len >= sizeof(ScsiReadCapacity10Response))
       memcpy(&resp, s.data, sizeof(ScsiReadCapacity10Response));
-    transfer_done_cb_(s, this);
+    transfer_done_cb(s, this);
   };
 
   if (!this->send_cbw_(tag, sizeof(ScsiReadCapacity10Response), MSC_BOT_CBW_FLAGS_IN, cdb, sizeof(cdb)))
@@ -244,7 +244,7 @@ bool USBStorageClient::scsi_read(uint32_t lba, uint8_t *buf, uint32_t count) {
     auto cb = [this, sector_buf, sz = this->sector_size_](const usb_host::TransferStatus &s) {
       if (s.success && s.data_len >= sz)
         memcpy(sector_buf, s.data, sz);
-      transfer_done_cb_(s, this);
+      transfer_done_cb(s, this);
     };
 
     if (!this->send_cbw_(tag, this->sector_size_, MSC_BOT_CBW_FLAGS_IN, cdb, sizeof(cdb)))
@@ -613,13 +613,13 @@ storage::StorageError USBStorageDevice::write(storage::FileHandle *handle, const
 
 storage::StorageError USBStorageDevice::seek(storage::FileHandle *handle, size_t offset) {
   auto *h = static_cast<USBFileHandle *>(handle);
-  return fseek(h->file, static_cast<long>(offset), SEEK_SET) == 0 ? storage::StorageError::OK
+  return fseek(h->file, static_cast<int32_t>(offset), SEEK_SET) == 0 ? storage::StorageError::OK
                                                                   : storage::StorageError::READ_ERROR;
 }
 
 storage::StorageError USBStorageDevice::tell(storage::FileHandle *handle, size_t *position) {
   auto *h = static_cast<USBFileHandle *>(handle);
-  long pos = ftell(h->file);
+  int32_t pos = static_cast<int32_t>(ftell(h->file));
   if (pos < 0)
     return storage::StorageError::READ_ERROR;
   *position = static_cast<size_t>(pos);

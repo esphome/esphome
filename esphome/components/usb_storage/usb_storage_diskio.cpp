@@ -5,47 +5,49 @@
 #include "esphome/core/log.h"
 
 namespace {
-static constexpr const char *TAG = "usb_diskio";
+constexpr const char *TAG = "usb_diskio";
 }  // namespace
 
 namespace esphome::usb_storage {
 static constexpr int MAX_DRIVES = FF_VOLUMES;
 
-// Per-drive client table — indexed by FATFS drive number
-static USBStorageClient *s_clients[MAX_DRIVES] = {};
+static USBStorageClient **get_clients() {
+  static USBStorageClient *clients[MAX_DRIVES] = {};
+  return clients;
+}
 
 // DISKIO callbacks — called from FATFS context (may be main loop or a dedicated task).
 // All calls that do actual I/O block on a semaphore until the USB transfer callback fires.
 
 static DSTATUS diskio_initialize(BYTE drive) {
-  if (drive >= MAX_DRIVES || s_clients[drive] == nullptr)
+  if (drive >= MAX_DRIVES || get_clients()[drive] == nullptr)
     return STA_NOINIT;
   return 0;  // RDY
 }
 
 static DSTATUS diskio_status(BYTE drive) {
-  if (drive >= MAX_DRIVES || s_clients[drive] == nullptr)
+  if (drive >= MAX_DRIVES || get_clients()[drive] == nullptr)
     return STA_NOINIT;
-  return s_clients[drive]->is_disk_ready() ? 0 : STA_NOINIT;
+  return get_clients()[drive]->is_disk_ready() ? 0 : STA_NOINIT;
 }
 
 static DRESULT diskio_read(BYTE drive, BYTE *buf, LBA_t sector, UINT count) {
-  if (drive >= MAX_DRIVES || s_clients[drive] == nullptr)
+  if (drive >= MAX_DRIVES || get_clients()[drive] == nullptr)
     return RES_NOTRDY;
-  return s_clients[drive]->scsi_read(sector, buf, count) ? RES_OK : RES_ERROR;
+  return get_clients()[drive]->scsi_read(sector, buf, count) ? RES_OK : RES_ERROR;
 }
 
 static DRESULT diskio_write(BYTE drive, const BYTE *buf, LBA_t sector, UINT count) {
-  if (drive >= MAX_DRIVES || s_clients[drive] == nullptr)
+  if (drive >= MAX_DRIVES || get_clients()[drive] == nullptr)
     return RES_NOTRDY;
-  return s_clients[drive]->scsi_write(sector, buf, count) ? RES_OK : RES_ERROR;
+  return get_clients()[drive]->scsi_write(sector, buf, count) ? RES_OK : RES_ERROR;
 }
 
 static DRESULT diskio_ioctl(BYTE drive, BYTE cmd, void *buf) {
-  if (drive >= MAX_DRIVES || s_clients[drive] == nullptr)
+  if (drive >= MAX_DRIVES || get_clients()[drive] == nullptr)
     return RES_NOTRDY;
 
-  USBStorageClient *client = s_clients[drive];
+  USBStorageClient *client = get_clients()[drive];
   switch (cmd) {
     case CTRL_SYNC:
       return RES_OK;
@@ -63,7 +65,7 @@ static DRESULT diskio_ioctl(BYTE drive, BYTE cmd, void *buf) {
   }
 }
 
-static const ff_diskio_impl_t usb_diskio_driver = {
+static const ff_diskio_impl_t USB_DISKIO_DRIVER = {
     .init = diskio_initialize,
     .status = diskio_status,
     .read = diskio_read,
@@ -73,9 +75,9 @@ static const ff_diskio_impl_t usb_diskio_driver = {
 
 int usb_diskio_register(USBStorageClient *client) {
   for (int i = 0; i < MAX_DRIVES; i++) {
-    if (s_clients[i] == nullptr) {
-      s_clients[i] = client;
-      ff_diskio_register(static_cast<BYTE>(i), &usb_diskio_driver);
+    if (get_clients()[i] == nullptr) {
+      get_clients()[i] = client;
+      ff_diskio_register(static_cast<BYTE>(i), &USB_DISKIO_DRIVER);
       ESP_LOGD(TAG, "Registered USB DISKIO on drive %d", i);
       return i;
     }
@@ -87,7 +89,7 @@ int usb_diskio_register(USBStorageClient *client) {
 void usb_diskio_unregister(int drive) {
   if (drive < 0 || drive >= MAX_DRIVES)
     return;
-  s_clients[drive] = nullptr;
+  get_clients()[drive] = nullptr;
   ff_diskio_register(static_cast<BYTE>(drive), nullptr);
   ESP_LOGD(TAG, "Unregistered USB DISKIO on drive %d", drive);
 }
