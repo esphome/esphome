@@ -88,7 +88,11 @@ int HOT esp_idf_log_vprintf_(const char *format, va_list args) {  // NOLINT
 
 }  // namespace esphome
 
-#if defined(USE_ESP32_LOG_V2) && !defined(BOOTLOADER_BUILD)
+// Only compiled when the logger component is present: the override exists to
+// integrate V2 with ESPHome's logger hook. Without the logger no hook is ever
+// installed, so liblog's stock esp_log_format links in and console output
+// stays bone-stock ESP-IDF (V2's flash savings still apply).
+#if defined(USE_ESP32_LOG_V2) && defined(USE_LOGGER) && !defined(BOOTLOADER_BUILD)
 // Override esp_log_format to prevent V2's 3-call vprintf fragmentation.
 // Without this, Log V2 calls the vprintf hook 3 times per message (header,
 // body, newline) which creates 3 separate log entries in ESPHome's logger.
@@ -157,7 +161,6 @@ void IRAM_ATTR esp_log_format(esp_log_msg_t *message) {
   }
   // After hook installed, normal environment. Never call the esp_log_vprintf
   // inline here: it would pull in esp_rom_vprintf (1.2KB IRAM).
-#ifdef USE_LOGGER
   if (esp_log_vprint_func == &esphome::esp_idf_log_vprintf_ && esphome::logger::global_logger != nullptr) {
     // The hook is ESPHome's own (the common case). V2 keeps the component tag
     // (wifi, phy_init, ...) and per-message severity separate from the format
@@ -173,7 +176,6 @@ void IRAM_ATTR esp_log_format(esp_log_msg_t *message) {
                                                  message->args);
     return;
   }
-#endif
   // A custom vprintf hook is installed: forward through it, prepending
   // "tag: " to preserve which IDF component logged. The tag is a static
   // literal with no % specifiers, so concatenating it in front of the format
