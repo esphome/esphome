@@ -190,7 +190,7 @@ static optional<CdcEps> get_uart(const usb_config_desc_t *config_desc, uint8_t i
   for (const auto *ep : endpoints) {
     if (ep1 == nullptr) {
       ep1 = ep;
-    } else {
+    } else if (ep2 == nullptr) {
       ep2 = ep;
       break;
     }
