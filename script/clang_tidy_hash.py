@@ -21,10 +21,6 @@ CLANG_TIDY_GLOBAL_FILES = (
     "platformio.ini",
     "requirements_dev.txt",
     "esphome/idf_component.yml",
-    # The nrf52 tidy project (board, SDK version, prj.conf, defines) and the
-    # sdk-nrf python environment that configures it.
-    "esphome/components/nrf52/clang_tidy.py",
-    "esphome/components/nrf52/requirements.txt",
 )
 
 # sdkconfig.defaults and per-target sdkconfig.defaults.<target> files flip the
