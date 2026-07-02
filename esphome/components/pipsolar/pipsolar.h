@@ -9,6 +9,10 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
+#ifdef USE_TIME
+#include "esphome/components/time/real_time_clock.h"
+#endif
+
 namespace esphome::pipsolar {
 
 enum ENUMPollingCommand {
@@ -184,6 +188,15 @@ class Pipsolar final : public uart::UARTDevice, public PollingComponent {
   PIPSOLAR_SWITCH(pv_ok_condition_for_parallel_switch, QPIRI)
   PIPSOLAR_SWITCH(pv_power_balance_switch, QPIRI)
 
+#ifdef USE_TIME
+  void set_time(time::RealTimeClock *rtc) {
+    this->time_ = rtc;
+    // ensure QT is polled so the device clock can be compared against real time
+    this->add_polling_command_("QT", POLLING_QT);
+  }
+#endif
+  void set_clock_correction_threshold(uint32_t seconds) { this->clock_correction_threshold_ = seconds; }
+
   void queue_command(const std::string &command);
   void setup() override;
   void loop() override;
@@ -195,6 +208,8 @@ class Pipsolar final : public uart::UARTDevice, public PollingComponent {
   static const size_t COMMAND_QUEUE_LENGTH = 10;
   static const size_t COMMAND_TIMEOUT = 5000;
   static const size_t POLLING_COMMANDS_MAX = 15;
+  static const uint32_t CLOCK_CORRECTION_COOLDOWN_MS = 60000;
+  static const uint32_t CLOCK_CHECK_INTERVAL_MS = 3600000;  // poll QT for drift once per hour
   void add_polling_command_(const char *command, ENUMPollingCommand polling_command);
   void empty_uart_buffer_();
   uint8_t check_incoming_crc_();
@@ -213,6 +228,9 @@ class Pipsolar final : public uart::UARTDevice, public PollingComponent {
   void handle_qpiws_(const char *message);
   void handle_qt_(const char *message);
   void handle_qmn_(const char *message);
+#ifdef USE_TIME
+  void correct_clock_if_needed_(const char *message);
+#endif
 
   void skip_start_(const char *message, size_t *pos);
   void skip_field_(const char *message, size_t *pos);
@@ -243,6 +261,13 @@ class Pipsolar final : public uart::UARTDevice, public PollingComponent {
 
   uint8_t last_polling_command_ = 0;
   PollingCommand enabled_polling_commands_[POLLING_COMMANDS_MAX];
+
+#ifdef USE_TIME
+  time::RealTimeClock *time_{nullptr};
+  uint32_t last_clock_correction_millis_{0};
+  uint32_t last_clock_check_millis_{0};
+#endif
+  uint32_t clock_correction_threshold_{60};
 };
 
 }  // namespace esphome::pipsolar

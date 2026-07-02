@@ -680,7 +680,73 @@ void Pipsolar::handle_qt_(const char *message) {
   if (this->last_qt_) {
     this->last_qt_->publish_state(message);
   }
+#ifdef USE_TIME
+  if (this->time_ != nullptr) {
+    this->correct_clock_if_needed_(message);
+  }
+#endif
 }
+
+#ifdef USE_TIME
+// Keep the inverter's clock aligned with the ESP's *local* civil time. The inverter has no
+// timezone concept, so we compare wall-clock readings: both the device time and now() are
+// turned into a timestamp with recalc_timestamp_utc(false), i.e. their fields are taken
+// as-is. This means the configured time source must have the correct timezone; the inverter
+// then follows local time, including a one-off correction across each DST transition.
+void Pipsolar::correct_clock_if_needed_(const char *message) {
+  ESPTime rt = this->time_->now();
+  if (!rt.is_valid()) {
+    // real time not synced yet, nothing to compare against
+    return;
+  }
+
+  // QT response is "(YYYYMMDDHHMMSS"; bail out if it does not parse (e.g. empty error message)
+  int year, month, day, hour, minute, second;
+  if (sscanf(message, "(%4d%2d%2d%2d%2d%2d", &year, &month, &day, &hour, &minute,  // NOLINT
+             &second) != 6) {
+    return;
+  }
+
+  ESPTime dev{};
+  dev.year = year;
+  dev.month = month;
+  dev.day_of_month = day;
+  dev.hour = hour;
+  dev.minute = minute;
+  dev.second = second;
+  // Compute both timestamps with the same convention (fields treated as UTC) so the
+  // difference is a timezone-agnostic wall-clock drift.
+  dev.recalc_timestamp_utc(false);
+  rt.recalc_timestamp_utc(false);
+  if (dev.timestamp < 0) {
+    // device clock fields out of range
+    return;
+  }
+
+  int32_t drift = (int32_t) ((int64_t) rt.timestamp - (int64_t) dev.timestamp);
+  uint32_t abs_drift = drift < 0 ? -drift : drift;
+  ESP_LOGD(TAG, "Inverter clock drift %d s (threshold %u s)", (int) drift,
+           (unsigned) this->clock_correction_threshold_);
+  if (abs_drift < this->clock_correction_threshold_) {
+    return;
+  }
+
+  const uint32_t now = millis();
+  if (this->last_clock_correction_millis_ != 0 &&
+      now - this->last_clock_correction_millis_ < CLOCK_CORRECTION_COOLDOWN_MS) {
+    // recently corrected, wait for the next QT to reflect the new time
+    return;
+  }
+
+  char buf[16];
+  snprintf(buf, sizeof(buf), "DAT%02u%02u%02u%02u%02u%02u", (unsigned) (rt.year % 100), (unsigned) rt.month,
+           (unsigned) rt.day_of_month, (unsigned) rt.hour, (unsigned) rt.minute, (unsigned) rt.second);
+  ESP_LOGI(TAG, "Inverter clock drift %d s exceeds threshold %u s, correcting via %s", (int) drift,
+           (unsigned) this->clock_correction_threshold_, buf);
+  this->queue_command(buf);
+  this->last_clock_correction_millis_ = now;
+}
+#endif
 
 void Pipsolar::handle_qmn_(const char *message) {
   if (this->last_qmn_) {
@@ -768,9 +834,23 @@ void Pipsolar::dump_config() {
 }
 void Pipsolar::update() {
   for (auto &enabled_polling_command : this->enabled_polling_commands_) {
-    if (enabled_polling_command.length != 0) {
-      enabled_polling_command.needs_update = true;
+    if (enabled_polling_command.length == 0) {
+      continue;
     }
+#ifdef USE_TIME
+    // QT is registered only to drive clock correction. If the raw value is not exposed via a
+    // last_qt text sensor, there is no reason to poll it every update_interval — the inverter
+    // clock drifts only minutes per year — so throttle it to CLOCK_CHECK_INTERVAL_MS and keep
+    // the UART bus free for the live-data polls.
+    if (this->time_ != nullptr && this->last_qt_ == nullptr && enabled_polling_command.identifier == POLLING_QT) {
+      const uint32_t now = millis();
+      if (this->last_clock_check_millis_ != 0 && now - this->last_clock_check_millis_ < CLOCK_CHECK_INTERVAL_MS) {
+        continue;
+      }
+      this->last_clock_check_millis_ = now;
+    }
+#endif
+    enabled_polling_command.needs_update = true;
   }
 }
 
