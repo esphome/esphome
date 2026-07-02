@@ -411,16 +411,15 @@ async def _dfu_to_code(dfu_config):
 def copy_files() -> None:
     """Copy files to the build directory."""
 
-    # PlatformIO-library conversion to Zephyr modules is wired into the sdk-nrf
-    # CMakeLists only; on the PlatformIO toolchain the CMakeLists comes from the
-    # platform package, so libraries can't be injected yet. Warn instead of
-    # silently dropping them.
+    # Library conversion to Zephyr modules is wired into the sdk-nrf
+    # CMakeLists only; the PlatformIO toolchain's forked platform package
+    # cannot compile external libraries at all, so the build would fail at
+    # link time anyway. Fail fast with a clear message instead.
     if CORE.using_toolchain_platformio and CORE.platformio_libraries:
-        _LOGGER.warning(
-            "PlatformIO libraries (%s) are not supported on the nRF52 "
-            "'platformio' toolchain; use toolchain 'sdk-nrf' to build them as "
-            "Zephyr modules.",
-            ", ".join(sorted(CORE.platformio_libraries)),
+        raise EsphomeError(
+            f"Libraries ({', '.join(sorted(CORE.platformio_libraries))}) are "
+            "not supported on the nRF52 'platformio' toolchain; use toolchain "
+            "'sdk-nrf' to build them as Zephyr modules."
         )
 
     if CORE.using_toolchain_platformio and (
@@ -714,7 +713,7 @@ def _generate_cmake_lists() -> None:
     link_flags = get_project_link_flags()
 
     # Convert any PlatformIO libraries added via cg.add_library() into Zephyr
-    # modules and discover them through ZEPHYR_EXTRA_MODULES (a CMake list, set
+    # modules and discover them through EXTRA_ZEPHYR_MODULES (a CMake list, set
     # before find_package(Zephyr) so the modules are picked up). Only
     # framework-agnostic libraries actually compile under Zephyr.
     from esphome.components.zephyr.library import generate_zephyr_modules
@@ -730,7 +729,7 @@ def _generate_cmake_lists() -> None:
 
     if module_dirs:
         modules = ";".join(str(d).replace("\\", "/") for d in module_dirs)
-        lines += [f'set(ZEPHYR_EXTRA_MODULES "{modules}")', ""]
+        lines += [f'set(EXTRA_ZEPHYR_MODULES "{modules}")', ""]
 
     lines += [
         "find_package(Zephyr REQUIRED)",

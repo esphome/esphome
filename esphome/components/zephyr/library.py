@@ -4,7 +4,7 @@ For each PlatformIO library added via ``cg.add_library()``, emit a Zephyr
 external module (``zephyr/module.yml`` + ``zephyr/CMakeLists.txt`` built with the
 ``zephyr_library*`` API) into the shared ``pio_components`` cache. The caller
 wires the resulting module directories into the build via
-``ZEPHYR_EXTRA_MODULES``; Zephyr then compiles each module and links it into the
+``EXTRA_ZEPHYR_MODULES``; Zephyr then compiles each module and links it into the
 final image.
 
 Only framework-agnostic libraries (plain C/C++ that doesn't depend on the Arduino
@@ -147,7 +147,7 @@ def generate_zephyr_modules(libraries: list[Library]) -> list[Path]:
     """Convert ``libraries`` to Zephyr modules and return all module directories.
 
     The returned list includes transitive dependencies (each converted library is
-    its own module). Every directory should be added to ``ZEPHYR_EXTRA_MODULES``;
+    its own module). Every directory should be added to ``EXTRA_ZEPHYR_MODULES``;
     Zephyr links all module libraries into the image, so cross-library symbols
     resolve without explicit dependency declarations.
 
