@@ -23,11 +23,21 @@ static void print_ep_desc(const usb_ep_desc_t *ep_desc) {
   const char *ep_type_str;
   int type = ep_desc->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK;
   switch (type) {
-    case USB_BM_ATTRIBUTES_XFER_CONTROL: ep_type_str = "CTRL"; break;
-    case USB_BM_ATTRIBUTES_XFER_ISOC:   ep_type_str = "ISOC"; break;
-    case USB_BM_ATTRIBUTES_XFER_BULK:   ep_type_str = "BULK"; break;
-    case USB_BM_ATTRIBUTES_XFER_INT:    ep_type_str = "INT";  break;
-    default:                             ep_type_str = NULL;   break;
+    case USB_BM_ATTRIBUTES_XFER_CONTROL:
+      ep_type_str = "CTRL";
+      break;
+    case USB_BM_ATTRIBUTES_XFER_ISOC:
+      ep_type_str = "ISOC";
+      break;
+    case USB_BM_ATTRIBUTES_XFER_BULK:
+      ep_type_str = "BULK";
+      break;
+    case USB_BM_ATTRIBUTES_XFER_INT:
+      ep_type_str = "INT";
+      break;
+    default:
+      ep_type_str = NULL;
+      break;
   }
   ESP_LOGV(TAG,
            "\t\t*** Endpoint descriptor ***\n"
@@ -37,9 +47,9 @@ static void print_ep_desc(const usb_ep_desc_t *ep_desc) {
            "\t\tbmAttributes 0x%x\t%s\n"
            "\t\twMaxPacketSize %d\n"
            "\t\tbInterval %d",
-           ep_desc->bLength, ep_desc->bDescriptorType, ep_desc->bEndpointAddress,
-           USB_EP_DESC_GET_EP_NUM(ep_desc), USB_EP_DESC_GET_EP_DIR(ep_desc) ? "IN" : "OUT",
-           ep_desc->bmAttributes, ep_type_str, ep_desc->wMaxPacketSize, ep_desc->bInterval);
+           ep_desc->bLength, ep_desc->bDescriptorType, ep_desc->bEndpointAddress, USB_EP_DESC_GET_EP_NUM(ep_desc),
+           USB_EP_DESC_GET_EP_DIR(ep_desc) ? "IN" : "OUT", ep_desc->bmAttributes, ep_type_str, ep_desc->wMaxPacketSize,
+           ep_desc->bInterval);
 }
 
 static void usbh_print_intf_desc(const usb_intf_desc_t *intf_desc) {
@@ -52,9 +62,8 @@ static void usbh_print_intf_desc(const usb_intf_desc_t *intf_desc) {
            "\tbNumEndpoints %d\n"
            "\tbInterfaceClass 0x%x\n"
            "\tiInterface %d",
-           intf_desc->bLength, intf_desc->bDescriptorType, intf_desc->bInterfaceNumber,
-           intf_desc->bAlternateSetting, intf_desc->bNumEndpoints, intf_desc->bInterfaceProtocol,
-           intf_desc->iInterface);
+           intf_desc->bLength, intf_desc->bDescriptorType, intf_desc->bInterfaceNumber, intf_desc->bAlternateSetting,
+           intf_desc->bNumEndpoints, intf_desc->bInterfaceProtocol, intf_desc->iInterface);
 }
 
 static void usbh_print_cfg_desc(const usb_config_desc_t *cfg_desc) {
@@ -68,9 +77,8 @@ static void usbh_print_cfg_desc(const usb_config_desc_t *cfg_desc) {
            "  iConfiguration %d\n"
            "  bmAttributes 0x%x\n"
            "  bMaxPower %dmA",
-           cfg_desc->bLength, cfg_desc->bDescriptorType, cfg_desc->wTotalLength,
-           cfg_desc->bNumInterfaces, cfg_desc->bConfigurationValue, cfg_desc->iConfiguration,
-           cfg_desc->bmAttributes, cfg_desc->bMaxPower * 2);
+           cfg_desc->bLength, cfg_desc->bDescriptorType, cfg_desc->wTotalLength, cfg_desc->bNumInterfaces,
+           cfg_desc->bConfigurationValue, cfg_desc->iConfiguration, cfg_desc->bmAttributes, cfg_desc->bMaxPower * 2);
 }
 
 static void usb_client_print_device_descriptor(const usb_device_desc_t *devc_desc) {
@@ -92,13 +100,11 @@ static void usb_client_print_device_descriptor(const usb_device_desc_t *devc_des
            "  iProduct %d\n"
            "  iSerialNumber %d\n"
            "  bNumConfigurations %d",
-           devc_desc->bLength, devc_desc->bDescriptorType,
-           ((devc_desc->bcdUSB >> 8) & 0xF), ((devc_desc->bcdUSB >> 4) & 0xF),
-           devc_desc->bDeviceClass, devc_desc->bDeviceSubClass, devc_desc->bDeviceProtocol,
-           devc_desc->bMaxPacketSize0, devc_desc->idVendor, devc_desc->idProduct,
-           ((devc_desc->bcdDevice >> 8) & 0xF), ((devc_desc->bcdDevice >> 4) & 0xF),
-           devc_desc->iManufacturer, devc_desc->iProduct,
-           devc_desc->iSerialNumber, devc_desc->bNumConfigurations);
+           devc_desc->bLength, devc_desc->bDescriptorType, ((devc_desc->bcdUSB >> 8) & 0xF),
+           ((devc_desc->bcdUSB >> 4) & 0xF), devc_desc->bDeviceClass, devc_desc->bDeviceSubClass,
+           devc_desc->bDeviceProtocol, devc_desc->bMaxPacketSize0, devc_desc->idVendor, devc_desc->idProduct,
+           ((devc_desc->bcdDevice >> 8) & 0xF), ((devc_desc->bcdDevice >> 4) & 0xF), devc_desc->iManufacturer,
+           devc_desc->iProduct, devc_desc->iSerialNumber, devc_desc->bNumConfigurations);
 }
 
 static void usb_client_print_config_descriptor(const usb_config_desc_t *cfg_desc,
@@ -131,8 +137,7 @@ static void usb_client_print_config_descriptor(const usb_config_desc_t *cfg_desc
 
 static constexpr size_t DESC_STRING_BUF_SIZE = 128;
 
-static const char *get_descriptor_string(const usb_str_desc_t *desc,
-                                          std::span<char, DESC_STRING_BUF_SIZE> buffer) {
+static const char *get_descriptor_string(const usb_str_desc_t *desc, std::span<char, DESC_STRING_BUF_SIZE> buffer) {
   if (desc == nullptr || desc->bLength < 2)
     return "(unspecified)";
   int char_count = (desc->bLength - 2) / 2;
@@ -206,10 +211,9 @@ void USBClient::client_event_cb(const usb_host_client_event_msg_t *event_msg, vo
 // ── USBClient lifecycle ───────────────────────────────────────────────────────
 
 void USBClient::setup() {
-  usb_host_client_config_t config{
-      .is_synchronous = false,
-      .max_num_event_msg = 5,
-      .async = {.client_event_callback = USBClient::client_event_cb, .callback_arg = this}};
+  usb_host_client_config_t config{.is_synchronous = false,
+                                  .max_num_event_msg = 5,
+                                  .async = {.client_event_callback = USBClient::client_event_cb, .callback_arg = this}};
   auto err = usb_host_client_register(&config, &this->handle_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "client register failed: %s", esp_err_to_name(err));
@@ -222,17 +226,14 @@ void USBClient::setup() {
     usb_host_transfer_alloc(USB_MAX_PACKET_SIZE, 0, &request.transfer);
     request.client = this;
   }
-  xTaskCreate(usb_task_fn, "usb_task", USB_TASK_STACK_SIZE, this, USB_TASK_PRIORITY,
-              &this->usb_task_handle_);
+  xTaskCreate(usb_task_fn, "usb_task", USB_TASK_STACK_SIZE, this, USB_TASK_PRIORITY, &this->usb_task_handle_);
   if (this->usb_task_handle_ == nullptr) {
     ESP_LOGE(TAG, "Failed to create USB task");
     this->mark_failed();
   }
 }
 
-void USBClient::usb_task_fn(void *arg) {
-  static_cast<USBClient *>(arg)->usb_task_loop_();
-}
+void USBClient::usb_task_fn(void *arg) { static_cast<USBClient *>(arg)->usb_task_loop_(); }
 
 void USBClient::usb_task_loop_() const {
   while (true)
@@ -307,8 +308,8 @@ void USBClient::handle_open_state_() {
     bool found = false;
     int offset = 0;
     const usb_standard_desc_t *next = reinterpret_cast<const usb_standard_desc_t *>(this->config_desc_);
-    while ((next = usb_parse_next_descriptor_of_type(next, this->config_desc_->wTotalLength,
-                                                     USB_W_VALUE_DT_INTERFACE, &offset)) != nullptr) {
+    while ((next = usb_parse_next_descriptor_of_type(next, this->config_desc_->wTotalLength, USB_W_VALUE_DT_INTERFACE,
+                                                     &offset)) != nullptr) {
       if (reinterpret_cast<const usb_intf_desc_t *>(next)->bInterfaceClass == required_class) {
         found = true;
         break;
@@ -430,8 +431,7 @@ bool USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, u
   return true;
 }
 
-bool USBClient::transfer_out(uint8_t ep_address, const transfer_cb_t &callback,
-                              const uint8_t *data, uint16_t length) {
+bool USBClient::transfer_out(uint8_t ep_address, const transfer_cb_t &callback, const uint8_t *data, uint16_t length) {
   auto *trq = this->get_trq_();
   if (trq == nullptr) {
     ESP_LOGE(TAG, "transfer_out: no free slots");
@@ -459,7 +459,7 @@ bool USBClient::transfer_out(uint8_t ep_address, const transfer_cb_t &callback,
 #ifdef USE_USB_CONTROL_TRANSFERS
 
 bool USBClient::control_transfer(uint8_t type, uint8_t request, uint16_t value, uint16_t index,
-                                  const transfer_cb_t &callback, const std::vector<uint8_t> &data) {
+                                 const transfer_cb_t &callback, const std::vector<uint8_t> &data) {
   auto *trq = this->get_trq_();
   if (trq == nullptr)
     return false;
@@ -490,38 +490,30 @@ bool USBClient::control_transfer(uint8_t type, uint8_t request, uint16_t value, 
 }
 
 bool USBClient::set_interface(uint8_t interface_num, uint8_t alt_setting) {
-  return get_usb_host()->do_set_interface(this->handle_, this->device_handle_,
-                                             interface_num, alt_setting);
+  return get_usb_host()->do_set_interface(this->handle_, this->device_handle_, interface_num, alt_setting);
 }
 
 #endif  // USE_USB_CONTROL_TRANSFERS
 
 bool USBClient::claim_interface(uint8_t interface_num, uint8_t alt_setting) {
-  return get_usb_host()->do_claim_interface(this->handle_, this->device_handle_,
-                                               interface_num, alt_setting);
+  return get_usb_host()->do_claim_interface(this->handle_, this->device_handle_, interface_num, alt_setting);
 }
 
 bool USBClient::release_interface(uint8_t interface_num) {
-  return get_usb_host()->do_release_interface(this->handle_, this->device_handle_,
-                                                 interface_num);
+  return get_usb_host()->do_release_interface(this->handle_, this->device_handle_, interface_num);
 }
 
 // ── Isochronous thin forwarders ───────────────────────────────────────────────
 #ifdef USE_USB_ISOC_TRANSFERS
 
-usb_transfer_t *USBClient::isoc_alloc(uint8_t ep_addr, uint16_t mps, uint8_t num_packets,
-                                       usb_transfer_cb_t callback, void *context) {
-  return get_usb_host()->do_isoc_alloc(ep_addr, this->device_handle_, mps, num_packets,
-                                          callback, context);
+usb_transfer_t *USBClient::isoc_alloc(uint8_t ep_addr, uint16_t mps, uint8_t num_packets, usb_transfer_cb_t callback,
+                                      void *context) {
+  return get_usb_host()->do_isoc_alloc(ep_addr, this->device_handle_, mps, num_packets, callback, context);
 }
 
-bool USBClient::isoc_submit(usb_transfer_t *xfer) {
-  return get_usb_host()->do_isoc_submit(xfer);
-}
+bool USBClient::isoc_submit(usb_transfer_t *xfer) { return get_usb_host()->do_isoc_submit(xfer); }
 
-void USBClient::isoc_free(usb_transfer_t *xfer) {
-  get_usb_host()->do_isoc_free(xfer);
-}
+void USBClient::isoc_free(usb_transfer_t *xfer) { get_usb_host()->do_isoc_free(xfer); }
 
 bool USBClient::stream_open(IsocStream &stream, USBClient *cb) {
   return get_usb_host()->stream_open(stream, cb, this->handle_, this->device_handle_);

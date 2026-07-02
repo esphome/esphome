@@ -90,8 +90,12 @@ enum EventType : uint8_t {
 struct UsbEvent {
   EventType type;
   union {
-    struct { uint8_t address; } device_new;
-    struct { usb_device_handle_t handle; } device_gone;
+    struct {
+      uint8_t address;
+    } device_new;
+    struct {
+      usb_device_handle_t handle;
+    } device_gone;
   } data;
   void release() {}
 };
@@ -111,7 +115,7 @@ enum ClientState {
 #ifdef USE_USB_ISOC_TRANSFERS
 
 struct IsocCbCtx {
-  USBClient *client;   // vtable dispatch target for on_isoc_packet()
+  USBClient *client;  // vtable dispatch target for on_isoc_packet()
   struct IsocStream *stream;
 };
 
@@ -160,8 +164,8 @@ class USBClient : public Component {
 
   // ── Control transfers ───────────────────────────────────────────────────────
 #ifdef USE_USB_CONTROL_TRANSFERS
-  bool control_transfer(uint8_t type, uint8_t request, uint16_t value, uint16_t index,
-                        const transfer_cb_t &callback, const std::vector<uint8_t> &data = {});
+  bool control_transfer(uint8_t type, uint8_t request, uint16_t value, uint16_t index, const transfer_cb_t &callback,
+                        const std::vector<uint8_t> &data = {});
 #endif
 
   // ── Interface claim / release / alt-setting ─────────────────────────────────
@@ -174,8 +178,8 @@ class USBClient : public Component {
 
   // ── Isochronous support ─────────────────────────────────────────────────────
 #ifdef USE_USB_ISOC_TRANSFERS
-  usb_transfer_t *isoc_alloc(uint8_t ep_addr, uint16_t mps, uint8_t num_packets,
-                              usb_transfer_cb_t callback, void *context);
+  usb_transfer_t *isoc_alloc(uint8_t ep_addr, uint16_t mps, uint8_t num_packets, usb_transfer_cb_t callback,
+                             void *context);
   bool isoc_submit(usb_transfer_t *xfer);
   void isoc_free(usb_transfer_t *xfer);
 
@@ -248,18 +252,14 @@ class USBHost : public Component {
 
   // ── Isochronous ─────────────────────────────────────────────────────────────
 #ifdef USE_USB_ISOC_TRANSFERS
-  usb_transfer_t *do_isoc_alloc(uint8_t ep_addr, usb_device_handle_t device_handle,
-                                 uint16_t mps, uint8_t num_packets,
-                                 usb_transfer_cb_t callback, void *context);
+  usb_transfer_t *do_isoc_alloc(uint8_t ep_addr, usb_device_handle_t device_handle, uint16_t mps, uint8_t num_packets,
+                                usb_transfer_cb_t callback, void *context);
   bool do_isoc_submit(usb_transfer_t *xfer);
   void do_isoc_free(usb_transfer_t *xfer);
 
-  bool stream_open(IsocStream &stream, USBClient *cb,
-                   usb_host_client_handle_t client_handle,
+  bool stream_open(IsocStream &stream, USBClient *cb, usb_host_client_handle_t client_handle,
                    usb_device_handle_t device_handle);
-  void stream_close(IsocStream &stream,
-                    usb_host_client_handle_t client_handle,
-                    usb_device_handle_t device_handle);
+  void stream_close(IsocStream &stream, usb_host_client_handle_t client_handle, usb_device_handle_t device_handle);
 
   // Static trampoline stored as xfer->callback for every ISOC URB.
   // Iterates isoc_packet_desc[], calls client->on_isoc_packet() per packet, resubmits.

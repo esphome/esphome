@@ -49,9 +49,8 @@ bool USBHost::submit_transfer(TransferRequest *trq) {
 
 // ── Interface claim / release ─────────────────────────────────────────────────
 
-bool USBHost::do_claim_interface(usb_host_client_handle_t client_handle,
-                                  usb_device_handle_t device_handle,
-                                  uint8_t interface_num, uint8_t alt_setting) {
+bool USBHost::do_claim_interface(usb_host_client_handle_t client_handle, usb_device_handle_t device_handle,
+                                 uint8_t interface_num, uint8_t alt_setting) {
   esp_err_t err = usb_host_interface_claim(client_handle, device_handle, interface_num, alt_setting);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "claim_interface %u alt %u failed: %s", interface_num, alt_setting, esp_err_to_name(err));
@@ -60,9 +59,8 @@ bool USBHost::do_claim_interface(usb_host_client_handle_t client_handle,
   return true;
 }
 
-bool USBHost::do_release_interface(usb_host_client_handle_t client_handle,
-                                    usb_device_handle_t device_handle,
-                                    uint8_t interface_num) {
+bool USBHost::do_release_interface(usb_host_client_handle_t client_handle, usb_device_handle_t device_handle,
+                                   uint8_t interface_num) {
   esp_err_t err = usb_host_interface_release(client_handle, device_handle, interface_num);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "release_interface %u failed: %s", interface_num, esp_err_to_name(err));
@@ -83,9 +81,8 @@ bool USBHost::submit_control(usb_host_client_handle_t client_handle, TransferReq
   return true;
 }
 
-bool USBHost::do_set_interface(usb_host_client_handle_t client_handle,
-                                usb_device_handle_t device_handle,
-                                uint8_t interface_num, uint8_t alt_setting) {
+bool USBHost::do_set_interface(usb_host_client_handle_t client_handle, usb_device_handle_t device_handle,
+                               uint8_t interface_num, uint8_t alt_setting) {
   usb_transfer_t *xfer = nullptr;
   esp_err_t err = usb_host_transfer_alloc(SETUP_PACKET_SIZE, 0, &xfer);
   if (err != ESP_OK || xfer == nullptr) {
@@ -146,9 +143,8 @@ bool USBHost::do_set_interface(usb_host_client_handle_t client_handle,
 // ── Isochronous ───────────────────────────────────────────────────────────────
 #ifdef USE_USB_ISOC_TRANSFERS
 
-usb_transfer_t *USBHost::do_isoc_alloc(uint8_t ep_addr, usb_device_handle_t device_handle,
-                                        uint16_t mps, uint8_t num_packets,
-                                        usb_transfer_cb_t callback, void *context) {
+usb_transfer_t *USBHost::do_isoc_alloc(uint8_t ep_addr, usb_device_handle_t device_handle, uint16_t mps,
+                                       uint8_t num_packets, usb_transfer_cb_t callback, void *context) {
   if (mps == 0 || num_packets == 0) {
     ESP_LOGE(TAG, "isoc_alloc: invalid mps=%u or num_packets=%u", mps, num_packets);
     return nullptr;
@@ -201,8 +197,7 @@ void USBHost::isoc_cb(usb_transfer_t *xfer) {
     const uint8_t *payload = xfer->data_buffer;
     for (int i = 0; i < xfer->num_isoc_packets; i++) {
       const usb_isoc_packet_desc_t *desc = &xfer->isoc_packet_desc[i];
-      const bool error = (desc->status != USB_TRANSFER_STATUS_COMPLETED &&
-                          desc->status != USB_TRANSFER_STATUS_SKIPPED);
+      const bool error = (desc->status != USB_TRANSFER_STATUS_COMPLETED && desc->status != USB_TRANSFER_STATUS_SKIPPED);
       client->on_isoc_packet(xfer->bEndpointAddress, payload, desc->actual_num_bytes, error);
       payload += desc->num_bytes;
     }
@@ -213,9 +208,8 @@ void USBHost::isoc_cb(usb_transfer_t *xfer) {
   }
 }
 
-bool USBHost::stream_open(IsocStream &stream, USBClient *cb,
-                           usb_host_client_handle_t client_handle,
-                           usb_device_handle_t device_handle) {
+bool USBHost::stream_open(IsocStream &stream, USBClient *cb, usb_host_client_handle_t client_handle,
+                          usb_device_handle_t device_handle) {
   if (stream.ep_addr == 0 || stream.mps == 0 || stream.num_urbs == 0 || stream.packets_per_urb == 0) {
     ESP_LOGE(TAG, "stream_open: invalid parameters");
     return false;
@@ -253,8 +247,8 @@ bool USBHost::stream_open(IsocStream &stream, USBClient *cb,
   for (uint8_t i = 0; i < stream.num_urbs; i++) {
     stream.ctxs[i].client = cb;
     stream.ctxs[i].stream = &stream;
-    stream.xfers[i] = this->do_isoc_alloc(stream.ep_addr, device_handle, stream.mps,
-                                           stream.packets_per_urb, USBHost::isoc_cb, &stream.ctxs[i]);
+    stream.xfers[i] = this->do_isoc_alloc(stream.ep_addr, device_handle, stream.mps, stream.packets_per_urb,
+                                          USBHost::isoc_cb, &stream.ctxs[i]);
     if (stream.xfers[i] == nullptr) {
       ESP_LOGE(TAG, "stream_open: URB %u alloc failed", i);
       stream.streaming = false;
@@ -287,14 +281,13 @@ bool USBHost::stream_open(IsocStream &stream, USBClient *cb,
     }
   }
 
-  ESP_LOGD(TAG, "stream_open: ep=0x%02X mps=%u urbs=%u pkts/urb=%u",
-           stream.ep_addr, stream.mps, stream.num_urbs, stream.packets_per_urb);
+  ESP_LOGD(TAG, "stream_open: ep=0x%02X mps=%u urbs=%u pkts/urb=%u", stream.ep_addr, stream.mps, stream.num_urbs,
+           stream.packets_per_urb);
   return true;
 }
 
-void USBHost::stream_close(IsocStream &stream,
-                            usb_host_client_handle_t client_handle,
-                            usb_device_handle_t device_handle) {
+void USBHost::stream_close(IsocStream &stream, usb_host_client_handle_t client_handle,
+                           usb_device_handle_t device_handle) {
   if (!stream.streaming && stream.xfers == nullptr)
     return;
 

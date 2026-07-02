@@ -46,7 +46,16 @@ DEFAULT_BAUD_RATE = 9600
 
 
 class Type:
-    def __init__(self, name, vid, pid, cls, max_channels=1, baud_rate_required=True, max_baud=1_000_000):
+    def __init__(
+        self,
+        name,
+        vid,
+        pid,
+        cls,
+        max_channels=1,
+        baud_rate_required=True,
+        max_baud=1_000_000,
+    ):
         self.name = name
         cls = cls or name
         self.vid = vid
