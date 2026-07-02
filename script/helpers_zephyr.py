@@ -10,17 +10,20 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import subprocess
 
 
-def load_idedata(environment, temp_folder, platformio_ini):  # noqa: ARG001
+def load_idedata(environment, temp_folder, platformio_ini):
     if explicit := os.environ.get("ESPHOME_ZEPHYR_COMPILE_COMMANDS"):
         compile_commands_path = Path(explicit)
     else:
         from esphome.components.nrf52.clang_tidy import generate_compile_commands
 
         work_dir = (Path(temp_folder) / f"zephyr-{environment}").resolve()
-        compile_commands_path = generate_compile_commands(work_dir)
+        compile_commands_path = generate_compile_commands(
+            work_dir, Path(platformio_ini)
+        )
 
     if not compile_commands_path.is_file():
         raise RuntimeError(f"compile_commands.json not found: {compile_commands_path}")
@@ -75,14 +78,20 @@ def load_idedata(environment, temp_folder, platformio_ini):  # noqa: ARG001
         return include_paths
 
     def extract_cxx_flags(command):
-        # Extracts CXXFLAGS from the command string, excluding includes and defines.
+        # Extracts CXXFLAGS from the command string, excluding includes and
+        # defines. Anchored per token: a substring match would extract a bogus
+        # "-format-zero-length" from -Wno-format-zero-length.
         flag_pattern = re.compile(
-            r"(-O[0-3s]|-g|-std=[^\s]+|-Wall|-Wextra|-Werror|--[^\s]+|-f[^\s]+|-m[^\s]+|-imacros\s*[^\s]+)"
+            r"^(-O[0-3s]|-g|-std=.+|-Wall|-Wextra|-Werror|--.+|-f.+|-m.+|-imacros.+)$"
         )
-        return [
-            match.replace("-imacros ", "-imacros")
-            for match in flag_pattern.findall(command)
-        ]
+        flags = []
+        tokens = shlex.split(command)
+        for i, token in enumerate(tokens):
+            if token == "-imacros" and i + 1 < len(tokens):
+                flags.append(f"-imacros{tokens[i + 1]}")
+            elif flag_pattern.match(token):
+                flags.append(token)
+        return flags
 
     def transform_to_idedata_format(compile_commands):
         cxx_path = find_cxx_path(compile_commands)

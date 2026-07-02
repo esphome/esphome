@@ -100,7 +100,7 @@ void OTAComponent::update_chunk(const img_mgmt_upload_check &upload) {
 }
 
 void OTAComponent::update_started() {
-  this->defer([this]() {
+  this->defer([this]() {  // NOLINT(clang-diagnostic-unused-lambda-capture)
     ESP_LOGD(TAG, "Starting update");
 #ifdef USE_OTA_STATE_LISTENER
     this->notify_state_(ota::OTA_STARTED, 0.0f, 0);
@@ -122,7 +122,7 @@ void OTAComponent::update_chunk_wrote() {
 }
 
 void OTAComponent::update_pending() {
-  this->defer([this]() {
+  this->defer([this]() {  // NOLINT(clang-diagnostic-unused-lambda-capture)
     ESP_LOGD(TAG, "OTA pending");
 #ifdef USE_OTA_STATE_LISTENER
     this->notify_state_(ota::OTA_COMPLETED, 100.0f, 0);
@@ -131,7 +131,7 @@ void OTAComponent::update_pending() {
 }
 
 void OTAComponent::update_stopped() {
-  this->defer([this]() {
+  this->defer([this]() {  // NOLINT(clang-diagnostic-unused-lambda-capture)
     ESP_LOGD(TAG, "OTA stopped");
 #ifdef USE_OTA_STATE_LISTENER
     this->notify_state_(ota::OTA_ERROR, 0.0f, static_cast<uint8_t>(ota::OTA_RESPONSE_ERROR_UNKNOWN));
