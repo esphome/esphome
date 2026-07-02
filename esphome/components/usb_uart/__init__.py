@@ -25,7 +25,6 @@ CODEOWNERS = ["@clydebarrow"]
 usb_uart_ns = cg.esphome_ns.namespace("usb_uart")
 USBUartComponent = usb_uart_ns.class_("USBUartComponent", Component)
 USBUartChannel = usb_uart_ns.class_("USBUartChannel", UARTComponent)
-CH934XChannel = usb_uart_ns.class_("CH934XChannel", USBUartChannel)
 
 UARTParityOptions = usb_uart_ns.enum("UARTParityOptions")
 UART_PARITY_OPTIONS = {
@@ -55,7 +54,6 @@ class Type:
         cls,
         max_channels=1,
         baud_rate_required=True,
-        channel_cls=None,
         max_baud=1_000_000,
     ):
         self.name = name
@@ -66,7 +64,7 @@ class Type:
         self.cls = usb_uart_ns.class_(f"USBUartType{cls}", USBUartComponent)
         self._max_channels = max_channels
         self.baud_rate_required = baud_rate_required
-        self.channel_cls = channel_cls or USBUartChannel
+        self.channel_cls = USBUartChannel
         self.max_baud = max_baud
 
     @property
@@ -80,68 +78,7 @@ class Type:
         )
 
 
-class MpxType(Type):
-    @property
-    def max_channels(self):
-        # Multiplexed devices aren't restricted by the number of available USB endpoints
-        return self._max_channels
-
-
 uart_types = (
-    MpxType(
-        "CH9344",
-        0x1A86,
-        0xE018,
-        "CH934X",
-        4,
-        channel_cls=CH934XChannel,
-        max_baud=12_000_000,
-    ),
-    MpxType(
-        "CH9344L",
-        0x1A86,
-        0xE018,
-        "CH934X",
-        4,
-        channel_cls=CH934XChannel,
-        max_baud=12_000_000,
-    ),
-    MpxType(
-        "CH9344Q",
-        0x1A86,
-        0xE018,
-        "CH934X",
-        4,
-        channel_cls=CH934XChannel,
-        max_baud=12_000_000,
-    ),
-    MpxType(
-        "CH348",
-        0x1A86,
-        0x55D9,
-        "CH934X",
-        8,
-        channel_cls=CH934XChannel,
-        max_baud=12_000_000,
-    ),
-    MpxType(
-        "CH348L",
-        0x1A86,
-        0x55D9,
-        "CH934X",
-        8,
-        channel_cls=CH934XChannel,
-        max_baud=12_000_000,
-    ),
-    MpxType(
-        "CH348Q",
-        0x1A86,
-        0x55D9,
-        "CH934X",
-        8,
-        channel_cls=CH934XChannel,
-        max_baud=12_000_000,
-    ),
     Type("CDC_ACM", 0, 0, "CdcAcm", 1, baud_rate_required=False),
     Type("CH34X", 0x1A86, 0x55D5, "CH34X", 4),
     Type("CH340", 0x1A86, 0x7523, "CH34X", 1),

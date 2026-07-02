@@ -15,7 +15,6 @@
 namespace esphome::usb_uart {
 
 class USBUartTypeCdcAcm;
-class USBUartTypeCH934X;
 class USBUartComponent;
 class USBUartChannel;
 class USBUartTypePL2303;
@@ -68,23 +67,6 @@ enum CH34xChipType : uint8_t {
   CHIP_UNKNOWN = 0xFF,
 };
 
-struct Ch934xEps {
-  const usb_ep_desc_t *in_ep{nullptr};
-  const usb_ep_desc_t *out_ep{nullptr};
-  const usb_ep_desc_t *ep_cmd_read{nullptr};
-  const usb_ep_desc_t *ep_cmd_write{nullptr};
-  uint8_t data_interface{0};
-};
-
-// clang-format off
-enum CH934xChipType : uint8_t {
-  CHIP_CH9344L = 0,
-  CHIP_CH9344Q,
-  CHIP_CH348L,
-  CHIP_CH348Q,
-  CHIP_CH934X_UNKNOWN = 0xFF,
-};
-// clang-format on
 enum UARTParityOptions {
   UART_CONFIG_PARITY_NONE = 0,
   UART_CONFIG_PARITY_ODD,
@@ -149,8 +131,6 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   friend class USBUartTypeCdcAcm;
   friend class USBUartTypeCP210X;
   friend class USBUartTypeCH34X;
-  friend class USBUartTypeCH934X;
-  friend class CH934XChannel;
   friend class USBUartTypeFT23XX;
   friend class USBUartTypePL2303;
 
@@ -303,57 +283,6 @@ class USBUartTypeCH34X : public USBUartTypeCdcAcm {
   uint8_t num_ports_{1};
 };
 
-class USBUartTypeCH934X : public USBUartComponent {
- public:
-  USBUartTypeCH934X(uint16_t vid, uint16_t pid) : USBUartComponent(vid, pid) {}
-
-  void start_input(USBUartChannel *channel) override;
-
- protected:
-  void on_connected() override;
-  void on_disconnected() override;
-  // Chip detection + one-time device/channel register setup. The CH934x configures its
-  // ports via fire-and-forget bulk writes on a command endpoint (not control transfers),
-  // so all init work is done here once detection completes; config_step() only re-applies
-  // per-channel settings for load_settings().
-  bool config_device_step(uint8_t step, bool ok, const uint8_t *response) override;
-  bool config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok, const uint8_t *response) override;
-
-  bool parse_descriptors_(usb_device_handle_t dev_hdl);
-  bool configure_channel_(USBUartChannel *channel);
-  bool set_uart_mode_(USBUartChannel *channel);
-  bool configure_uart_parameters_(USBUartChannel *channel);
-  uint8_t get_reg_address_(uint8_t portnum);
-
-  void start_rx_reader_();
-  void demux_rx_data_(const uint8_t *data, size_t len);
-  void start_command_reader_();
-  void handle_command_data_(const uint8_t *data, size_t len);
-
-  Ch934xEps uart_host_dev_{};
-  CH934xChipType chiptype_{CHIP_CH934X_UNKNOWN};
-  uint8_t num_ports_{0};
-  uint8_t port_offset_{0};
-  std::atomic<bool> rx_running_{false};
-  std::atomic<bool> cmd_running_{false};
-};
-
-class CH934XChannel : public USBUartChannel {
-  friend class USBUartTypeCH934X;
-
- public:
-  // TX header is 3 bytes: [port, len_lo, len_hi] — max data per packet is reduced accordingly
-  static constexpr size_t TX_HEADER_SIZE = 3;
-  static constexpr size_t TX_MAX_DATA = UsbOutputChunk::MAX_CHUNK_SIZE - TX_HEADER_SIZE;
-
-  CH934XChannel(uint8_t index, uint16_t buffer_size) : USBUartChannel(index, buffer_size) {}
-  void write_array(const uint8_t *data, size_t len) override;
-  uart::UARTFlushResult flush() override;
-
- protected:
-  USBUartChannel *tx_shared_channel_{nullptr};
-  uint8_t tx_port_byte_{0};
-};
 
 class USBUartTypeFT23XX : public USBUartTypeCdcAcm {
  public:
