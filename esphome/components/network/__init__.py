@@ -1,5 +1,6 @@
 import ipaddress
 import logging
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
@@ -56,13 +57,17 @@ NETWORK_PRIORITY_STEP = 5.0
 # strictly above setup_priority::AFTER_WIFI (200.0, see esphome/core/component.h)
 # so a long priority list never drops an interface into the band used by
 # components that expect to run after the network is up. There is ample headroom
-# for the two types today; this assert fires if a future expansion of
-# VALID_NETWORK_TYPES would silently cross that band.
+# for the two types today; this check raises if a future expansion of
+# VALID_NETWORK_TYPES would silently cross that band. Uses an explicit raise
+# rather than a bare assert so the guard isn't stripped under python -O/-OO.
 _SETUP_PRIORITY_AFTER_WIFI = 200.0
-assert (
+if (
     NETWORK_PRIORITY_BASE - (len(VALID_NETWORK_TYPES) - 1) * NETWORK_PRIORITY_STEP
-    > _SETUP_PRIORITY_AFTER_WIFI
-), "network: priority: list is long enough to cross setup_priority::AFTER_WIFI"
+    <= _SETUP_PRIORITY_AFTER_WIFI
+):
+    raise ValueError(
+        "network: priority: list is long enough to cross setup_priority::AFTER_WIFI"
+    )
 
 network_ns = cg.esphome_ns.namespace("network")
 NetworkComponent = network_ns.class_("NetworkComponent", cg.Component)
@@ -205,7 +210,7 @@ def get_network_priority(iface: str) -> float | None:
     return None
 
 
-def get_priority_interfaces_from_full_config(full_config) -> set[str]:
+def get_priority_interfaces_from_full_config(full_config: ConfigType) -> set[str]:
     """Return the set of interface names declared in ``network: priority:``.
 
     Reads from the full validated config (``fv.full_config.get()``) and is
@@ -219,7 +224,7 @@ def get_priority_interfaces_from_full_config(full_config) -> set[str]:
     }
 
 
-def _validate_priority_list(value):
+def _validate_priority_list(value: Any) -> list[dict[str, str]]:
     """Validate and normalize the priority list, rejecting duplicates.
 
     Each entry is the name of one network interface (one of
@@ -270,7 +275,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     """Check that every interface named in 'priority' has a corresponding component block."""
     full = fv.full_config.get()
     for entry in config.get(CONF_PRIORITY, []):
