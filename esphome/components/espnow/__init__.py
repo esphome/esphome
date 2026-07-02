@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_ID,
     CONF_ON_ERROR,
     CONF_TRIGGER_ID,
+    CONF_VERSION,
     CONF_WIFI,
 )
 from esphome.core import HexInt
@@ -66,6 +67,16 @@ CONF_WAIT_FOR_SENT = "wait_for_sent"
 MAX_ESPNOW_PACKET_SIZE = 250  # Maximum size of the payload in bytes
 
 
+def _validate_version(config):
+    if config[CONF_VERSION] == 2:
+        cv.require_framework_version(
+            esp_idf=cv.Version(5, 4, 0),
+            esp32_arduino=cv.Version(3, 2, 0),
+            extra_message="ESP-NOW v2 frames need an ESP-NOW v2 capable framework",
+        )(config)
+    return config
+
+
 def validate_channel(value):
     if value is None:
         raise cv.Invalid("channel is required if wifi is not configured")
@@ -78,6 +89,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(ESPNowComponent),
             cv.OnlyWithout(CONF_CHANNEL, CONF_WIFI): validate_channel,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
+            cv.Optional(CONF_VERSION, default=1): cv.one_of(1, 2, int=True),
             cv.Optional(CONF_AUTO_ADD_PEER, default=False): cv.boolean,
             cv.Optional(CONF_PEERS): cv.ensure_list(cv.mac_address),
             cv.Optional(CONF_ON_UNKNOWN_PEER): automation.validate_automation(
@@ -101,6 +113,7 @@ CONFIG_SCHEMA = cv.All(
         },
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on_esp32,
+    _validate_version,
 )
 
 
@@ -113,7 +126,7 @@ async def _trigger_to_code(config):
         [
             (ESPNowRecvInfoConstRef, "info"),
             (cg.uint8.operator("const").operator("ptr"), "data"),
-            (cg.uint8, "size"),
+            (cg.uint16, "size"),
         ],
         config,
     )
@@ -125,6 +138,12 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     cg.add_define("USE_ESPNOW")
+    if config[CONF_VERSION] == 2:
+        # Sizes the packet buffers for ESP-NOW v2 frames (1470 bytes instead
+        # of 250). The protocol version itself is negotiated per peer by the
+        # radio stack; this only controls how large a frame this device can
+        # send and accept.
+        cg.add_define("USE_ESPNOW_V2")
     if wifi_channel := config.get(CONF_CHANNEL):
         cg.add(var.set_wifi_channel(wifi_channel))
 

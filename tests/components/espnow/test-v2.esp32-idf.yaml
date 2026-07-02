@@ -1,0 +1,6 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+  base: !include common.yaml
+
+espnow:
+  version: 2
