@@ -450,7 +450,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       uint16_t number_of_write_registers = helpers::get_data<uint16_t>(data, 6);
       uint8_t number_of_bytes = helpers::get_data<uint8_t>(data, 8);
       if (number_of_registers == 0 || number_of_registers > MAX_NUM_OF_REGISTERS_TO_READ ||
-          number_of_write_registers == 0 || number_of_write_registers > MAX_NUM_OF_REGISTERS_TO_WRITE ||
+          number_of_write_registers == 0 || number_of_write_registers > MAX_NUM_OF_REGISTERS_TO_WRITE_RW ||
           number_of_write_registers * 2 != number_of_bytes) {
         ESP_LOGW(TAG, "Invalid number of registers (read %" PRIu16 ", write %" PRIu16 ") or bytes %" PRIu8,
                  number_of_registers, number_of_write_registers, number_of_bytes);
