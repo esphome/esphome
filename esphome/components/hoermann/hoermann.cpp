@@ -22,6 +22,10 @@ static constexpr HoermannCommand COMMAND_OPEN{0x0210, 0x0110, 0x0000, 0x0000};
 static constexpr HoermannCommand COMMAND_CLOSE{0x0220, 0x0120, 0x0000, 0x0000};
 static constexpr HoermannCommand COMMAND_IMPULSE{0x0240, 0x0140, 0x0000, 0x0000};
 
+void Hoermann::setup() {
+  ESP_LOGCONFIG(TAG, "Waiting for the bus controller to start polling Modbus address 0x%02X", this->get_address());
+}
+
 void Hoermann::update() {
   // Time out the connection flag if the bus controller stopped polling.
   if (this->valid_ && millis() - this->last_response_ > CONNECTION_TIMEOUT_MS) {
@@ -34,8 +38,11 @@ void Hoermann::update() {
 }
 
 void Hoermann::dump_config() {
-  ESP_LOGCONFIG(TAG, "Hoermann HCP bridge:");
-  ESP_LOGCONFIG(TAG, "  Modbus server address: 0x%02X", this->get_address());
+  ESP_LOGCONFIG(TAG,
+                "Hoermann HCP bridge:\n"
+                "  Modbus server address: 0x%02X\n"
+                "  Connection timeout: %ums",
+                this->get_address(), static_cast<unsigned>(CONNECTION_TIMEOUT_MS));
 }
 
 modbus::ServerResponseStatus Hoermann::on_modbus_read_write_registers(uint16_t read_start_address,
@@ -68,7 +75,8 @@ modbus::ServerResponseStatus Hoermann::on_modbus_read_write_registers(uint16_t r
       read_registers.push_back(static_cast<uint16_t>(0x0004 | counter));
       read_registers.push_back(static_cast<uint16_t>(0x0000 | command));
     } else if (write_registers.size() == 3 && number_of_registers == 5) {
-      // Bus scan.
+      // Bus scan (the bus controller discovering us, typically at startup).
+      ESP_LOGD(TAG, "Bus scan received from bus controller");
       read_registers.push_back(static_cast<uint16_t>(0x0000 | counter));
       read_registers.push_back(static_cast<uint16_t>(0x0005 | command));
       read_registers.push_back(0x0430);
@@ -224,9 +232,15 @@ void Hoermann::record_response_() {
 }
 
 void Hoermann::set_valid_(bool valid) {
-  if (this->valid_ != valid) {
-    this->valid_ = valid;
-    this->changed_ = true;
+  if (this->valid_ == valid)
+    return;
+  this->valid_ = valid;
+  this->changed_ = true;
+  if (valid) {
+    ESP_LOGI(TAG, "Bus controller connected");
+  } else {
+    ESP_LOGW(TAG, "Bus controller connection lost (no request for %ums)",
+             static_cast<unsigned>(millis() - this->last_response_));
   }
 }
 void Hoermann::set_door_state_(DoorState state) {

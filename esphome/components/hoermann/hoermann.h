@@ -32,6 +32,7 @@ struct HoermannCommand {
 
 class Hoermann : public PollingComponent, public modbus::ModbusServerDevice {
  public:
+  void setup() override;
   void update() override;
   void dump_config() override;
 
