@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import os
 from pathlib import Path
@@ -158,9 +159,10 @@ def check_and_install() -> None:
     python_env_path = _get_python_env_path(version)
     env_python_path = get_python_env_executable_path(python_env_path, "python")
     sentinel = python_env_path / ".ready"
+    requirements_hash = hashlib.sha256(_REQUIREMENTS.read_bytes()).hexdigest()
     install_venv = (
         not sentinel.exists()
-        or _REQUIREMENTS.stat().st_mtime > sentinel.stat().st_mtime
+        or sentinel.read_text(encoding="utf-8") != requirements_hash
     )
     if install_venv:
         rmdir(python_env_path, msg=f"Clean up {version} Python environment")
@@ -182,7 +184,7 @@ def check_and_install() -> None:
             raise EsphomeError(
                 f"Install requirements for {version} Python environment failure"
             )
-        sentinel.touch()
+        sentinel.write_text(requirements_hash, encoding="utf-8")
 
     framework_path = _get_framework_path(version)
     sentinel = framework_path / ".ready"

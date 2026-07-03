@@ -35,7 +35,7 @@ def load_idedata(environment, temp_folder, platformio_ini):
             split_strings = re.split(
                 r"\s*-\s*(?:I|isystem)", list(filter(lambda x: x, match))[0]
             )
-            include_paths.append(split_strings[1])
+            include_paths.append(split_strings[1].strip())
         return include_paths
 
     def extract_defines(command):
