@@ -1,9 +1,11 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components.esp32 import (
+    VARIANT_ESP32H4,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
     include_builtin_idf_component,
     only_on_variant,
     require_fatfs,
@@ -94,7 +96,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DEVICES): cv.ensure_list(DEVICE_SCHEMA),
         }
     ),
-    only_on_variant(supported=[VARIANT_ESP32S2, VARIANT_ESP32S3, VARIANT_ESP32P4]),
+    only_on_variant(supported=[VARIANT_ESP32H4, VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3, VARIANT_ESP32S31]),
 )
 
 
