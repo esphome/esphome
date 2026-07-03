@@ -1,5 +1,6 @@
 """Tests for esphome.components.nrf52.framework helpers."""
 
+import hashlib
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -7,6 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from esphome.components.nrf52.framework import (
+    _REQUIREMENTS,
     _TOOLCHAIN_VERSION,
     _get_toolchain_platform_info,
     check_and_install,
@@ -113,6 +115,12 @@ def mock_nrf52_ops():
 # ---------------------------------------------------------------------------
 
 
+def _mark_venv_ready(python_env: Path) -> None:
+    """Write the venv sentinel with the current requirements hash."""
+    requirements_hash = hashlib.sha256(_REQUIREMENTS.read_bytes()).hexdigest()
+    (python_env / ".ready").write_text(requirements_hash, encoding="utf-8")
+
+
 class TestCheckAndInstall:
     def test_all_installed_skips_all_steps(
         self,
@@ -120,7 +128,7 @@ class TestCheckAndInstall:
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
         """All three sentinels present → nothing downloaded or compiled."""
-        (nrf52_dirs.python_env / ".ready").touch()
+        _mark_venv_ready(nrf52_dirs.python_env)
         (nrf52_dirs.python_env / ".zephyr_reqs_ready").touch()
         (nrf52_dirs.framework / ".ready").touch()
         (nrf52_dirs.toolchain / ".ready").touch()
@@ -157,7 +165,7 @@ class TestCheckAndInstall:
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
         """Venv ready but framework missing → skip venv creation, run SDK init+update."""
-        (nrf52_dirs.python_env / ".ready").touch()
+        _mark_venv_ready(nrf52_dirs.python_env)
 
         check_and_install()
 
@@ -173,7 +181,7 @@ class TestCheckAndInstall:
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
         """Venv and framework ready → only toolchain downloaded and extracted."""
-        (nrf52_dirs.python_env / ".ready").touch()
+        _mark_venv_ready(nrf52_dirs.python_env)
         (nrf52_dirs.python_env / ".zephyr_reqs_ready").touch()
         (nrf52_dirs.framework / ".ready").touch()
 
@@ -202,7 +210,7 @@ class TestCheckAndInstall:
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
         """Failing west init raises EsphomeError."""
-        (nrf52_dirs.python_env / ".ready").touch()
+        _mark_venv_ready(nrf52_dirs.python_env)
         mock_nrf52_ops.run_command_ok.return_value = False
 
         with pytest.raises(EsphomeError, match="Can't initialize"):
@@ -214,7 +222,7 @@ class TestCheckAndInstall:
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
         """Failing west update raises EsphomeError."""
-        (nrf52_dirs.python_env / ".ready").touch()
+        _mark_venv_ready(nrf52_dirs.python_env)
         # init succeeds, update fails
         mock_nrf52_ops.run_command_ok.side_effect = [True, False]
 
@@ -227,7 +235,7 @@ class TestCheckAndInstall:
         mock_nrf52_ops: SimpleNamespace,
     ) -> None:
         """download_from_mirrors receives VERSION + platform triple from _get_toolchain_platform_info."""
-        (nrf52_dirs.python_env / ".ready").touch()
+        _mark_venv_ready(nrf52_dirs.python_env)
         (nrf52_dirs.framework / ".ready").touch()
 
         with patch(
