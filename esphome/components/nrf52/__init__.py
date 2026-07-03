@@ -697,10 +697,22 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
             addr2line = find_tool("addr2line")
             if addr2line is None:
                 return False
-            elf = CORE.relative_pioenvs_path(CORE.name, "firmware.elf")
-            if not elf.exists():
-                _LOGGER.warning("%s does not exists", elf)
+
+            candidates = [
+                CORE.relative_pioenvs_path(CORE.name, "zephyr", "zephyr", "zephyr.elf"),
+                CORE.relative_pioenvs_path(CORE.name, "zephyr", "zephyr.elf"),
+                CORE.relative_pioenvs_path(CORE.name, "firmware.elf"),
+            ]
+
+            elf = next((path for path in candidates if path.exists()), None)
+
+            if elf is None:
+                _LOGGER.warning(
+                    "None of the expected ELF files exist:\n%s",
+                    "\n".join(str(p) for p in candidates),
+                )
                 return False
+
             _LOGGER.error("=== CRASH ===")
             _LOGGER.error("PC: %s", _addr2line(addr2line, elf, pc))
             _LOGGER.error("LR: %s", _addr2line(addr2line, elf, lr))
