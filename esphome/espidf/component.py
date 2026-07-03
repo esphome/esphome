@@ -264,5 +264,6 @@ def generate_idf_components(libraries: list[Library]) -> list[IDFComponent]:
         platform=ESP32_PLATFORM,
         framework=_idf_framework(),
         emit=_emit_idf_component,
+        cache_key="idf",
     )
     return convert_libraries(libraries, backend)

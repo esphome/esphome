@@ -58,7 +58,7 @@ from esphome.framework_helpers import (
     get_project_link_flags,
     run_command_ok,
 )
-from esphome.helpers import write_file_if_changed
+from esphome.helpers import rmtree, write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
@@ -117,7 +117,7 @@ def set_core_data(config: ConfigType) -> ConfigType:
 
 def _resolve_toolchain(config: ConfigType) -> ConfigType:
     if CORE.toolchain is None:
-        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.PLATFORMIO)
+        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.SDK_NRF)
     return config
 
 
@@ -411,6 +411,17 @@ async def _dfu_to_code(dfu_config):
 def copy_files() -> None:
     """Copy files to the build directory."""
 
+    # Library conversion to Zephyr modules is wired into the sdk-nrf
+    # CMakeLists only; the PlatformIO toolchain's forked platform package
+    # cannot compile external libraries at all, so the build would fail at
+    # link time anyway. Fail fast with a clear message instead.
+    if CORE.using_toolchain_platformio and CORE.platformio_libraries:
+        raise EsphomeError(
+            f"Libraries ({', '.join(sorted(CORE.platformio_libraries))}) are "
+            "not supported on the nRF52 'platformio' toolchain; use toolchain "
+            "'sdk-nrf' to build them as Zephyr modules."
+        )
+
     if CORE.using_toolchain_platformio and (
         zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
         or zephyr_data()[KEY_BOARD] == "xiao_ble"
@@ -428,8 +439,8 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
     types = []
     UF2_PATH = "zephyr/zephyr.uf2"
     DFU_PATH = "firmware.zip"
-    HEX_PATH = "zephyr/zephyr.hex"
-    HEX_MERGED_PATH = "zephyr/merged.hex"
+    HEX_PATH = "zephyr/zephyr.hex"  # SDK 2.6.1, only generated when OTA is disabled
+    HEX_MERGED_PATH = "zephyr/merged.hex"  # SDK 2.9.2, always generated
     APP_IMAGE_PATH = "zephyr/app_update.bin"
     build_dir = Path(storage_json.firmware_bin_path).parent
     if (build_dir / UF2_PATH).is_file():
@@ -686,10 +697,22 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
             addr2line = find_tool("addr2line")
             if addr2line is None:
                 return False
-            elf = CORE.relative_pioenvs_path(CORE.name, "firmware.elf")
-            if not elf.exists():
-                _LOGGER.warning("%s does not exists", elf)
+
+            candidates = [
+                CORE.relative_pioenvs_path(CORE.name, "zephyr", "zephyr", "zephyr.elf"),
+                CORE.relative_pioenvs_path(CORE.name, "zephyr", "zephyr.elf"),
+                CORE.relative_pioenvs_path(CORE.name, "firmware.elf"),
+            ]
+
+            elf = next((path for path in candidates if path.exists()), None)
+
+            if elf is None:
+                _LOGGER.warning(
+                    "None of the expected ELF files exist:\n%s",
+                    "\n".join(str(p) for p in candidates),
+                )
                 return False
+
             _LOGGER.error("=== CRASH ===")
             _LOGGER.error("PC: %s", _addr2line(addr2line, elf, pc))
             _LOGGER.error("LR: %s", _addr2line(addr2line, elf, lr))
@@ -697,15 +720,31 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
     return False
 
 
-def _generate_cmake_lists() -> None:
+def _generate_cmake_lists() -> bool:
+    """Write the project CMakeLists.txt, returning True if it changed."""
     compile_flags = get_project_compile_flags()
     link_flags = get_project_link_flags()
+
+    # Convert any PlatformIO libraries added via cg.add_library() into Zephyr
+    # modules and discover them through EXTRA_ZEPHYR_MODULES (a CMake list, set
+    # before find_package(Zephyr) so the modules are picked up). Only
+    # framework-agnostic libraries actually compile under Zephyr.
+    from esphome.components.zephyr.library import generate_zephyr_modules
+
+    module_dirs = generate_zephyr_modules(list(CORE.platformio_libraries.values()))
 
     lines = [
         "cmake_minimum_required(VERSION 3.20.0)",
         "",
         'set(Zephyr_DIR "$ENV{ZEPHYR_BASE}/share/zephyr-package/cmake/")',
         "",
+    ]
+
+    if module_dirs:
+        modules = ";".join(str(d).replace("\\", "/") for d in module_dirs)
+        lines += [f'set(EXTRA_ZEPHYR_MODULES "{modules}")', ""]
+
+    lines += [
         "find_package(Zephyr REQUIRED)",
         "",
         f"project({CORE.name})",
@@ -732,10 +771,15 @@ def _generate_cmake_lists() -> None:
             ")",
         ]
 
-    write_file_if_changed(
+    return write_file_if_changed(
         CORE.relative_build_path("zephyr", "CMakeLists.txt"),
         "\n".join(lines) + "\n",
     )
+
+
+def _copy_if_exists(src: Path, dst: Path) -> None:
+    if src.is_file():
+        shutil.copy2(src, dst)
 
 
 def run_compile(args, config: ConfigType) -> bool:
@@ -751,11 +795,22 @@ def run_compile(args, config: ConfigType) -> bool:
     paths = get_build_paths()
     env = get_build_env()
 
-    _generate_cmake_lists()
+    cmake_lists_changed = _generate_cmake_lists()
 
     board = zephyr_data()[KEY_BOARD]
     build_dir = CORE.relative_pioenvs_path(CORE.name)
     source_dir = CORE.relative_build_path("zephyr")
+
+    # A missing CMake cache (dropped by zephyr's copy_files() on config
+    # change) or a changed CMakeLists.txt requires a pristine build: Zephyr
+    # caches Kconfig/devicetree state that survives a plain cmake re-run.
+    # West can't do the wipe — its pristine modes only recognize a build dir
+    # by reading ZEPHYR_BASE from the very cache that was dropped.
+    if (
+        cmake_lists_changed or not (build_dir / "CMakeCache.txt").is_file()
+    ) and build_dir.is_dir():
+        _LOGGER.info("Build inputs changed, cleaning %s", build_dir)
+        rmtree(build_dir)
 
     west_cmd = [
         str(paths["python_executable"]),
@@ -778,15 +833,18 @@ def run_compile(args, config: ConfigType) -> bool:
     ):
         raise EsphomeError("nRF52 native build failed")
 
-    # Zephyr's cmake places kernel artifacts in build_dir/zephyr/zephyr/ and
-    # merged.hex at build_dir/. Normalize to build_dir/zephyr/ so paths match
-    # get_download_types (which mirrors the platformio build output layout).
     zephyr_dir = build_dir / "zephyr"
-    west_out = zephyr_dir / "zephyr"
-    for filename in ["zephyr.uf2"]:
-        src = west_out / filename
-        if src.is_file():
-            shutil.copy2(src, zephyr_dir / filename)
+    framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    # SDK < 2.9.2 places artifacts directly in build_dir/zephyr/.
+    # SDK >= 2.9.2 nests them one level deeper (build_dir/zephyr/zephyr/);
+    # copy files to match get_download_types layout.
+    if framework_ver < cv.Version(2, 9, 2):
+        west_out = zephyr_dir
+    else:
+        west_out = zephyr_dir / "zephyr"
+        _copy_if_exists(west_out / "zephyr.uf2", zephyr_dir / "zephyr.uf2")
+        _copy_if_exists(west_out / "zephyr.signed.bin", zephyr_dir / "app_update.bin")
+        _copy_if_exists(build_dir / "merged.hex", zephyr_dir / "merged.hex")
 
     # (dev_type, sd_req) per bootloader — values from Nordic SoftDevice release notes
     _GENPKG_PARAMS = {
