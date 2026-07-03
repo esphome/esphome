@@ -823,13 +823,13 @@ def run_compile(args, config: ConfigType) -> bool:
 
     zephyr_dir = build_dir / "zephyr"
     framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    # SDK < 2.9.2 places artifacts directly in build_dir/zephyr/.
+    # SDK >= 2.9.2 nests them one level deeper (build_dir/zephyr/zephyr/);
+    # copy files to match get_download_types layout.
     if framework_ver < cv.Version(2, 9, 2):
         west_out = zephyr_dir
     else:
         west_out = zephyr_dir / "zephyr"
-        # SDK < 2.9.2 places artifacts directly in build_dir/zephyr/.
-        # SDK >= 2.9.2 nests them one level deeper (build_dir/zephyr/zephyr/);
-        # copy files to match get_download_types layout.
         _copy_if_exist(west_out / "zephyr.uf2", zephyr_dir / "zephyr.uf2")
         _copy_if_exist(west_out / "zephyr.signed.bin", zephyr_dir / "app_update.bin")
 
