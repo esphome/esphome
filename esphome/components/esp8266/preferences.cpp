@@ -169,7 +169,7 @@ ESPPreferenceObject ESP8266Preferences::make_preference(size_t length, uint32_t 
     return {};
   }
 
-  const uint32_t total_words = length_words + 1;  // +1 for CRC
+  const uint32_t total_words = length_words + 1;  // +1 for checksum
   uint16_t offset;
 
   if (in_flash) {
