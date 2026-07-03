@@ -765,7 +765,7 @@ def _generate_cmake_lists() -> bool:
     )
 
 
-def _copy_if_exist(src: Path, dst: Path) -> None:
+def _copy_if_exists(src: Path, dst: Path) -> None:
     if src.is_file():
         shutil.copy2(src, dst)
 
@@ -830,10 +830,9 @@ def run_compile(args, config: ConfigType) -> bool:
         west_out = zephyr_dir
     else:
         west_out = zephyr_dir / "zephyr"
-        _copy_if_exist(west_out / "zephyr.uf2", zephyr_dir / "zephyr.uf2")
-        _copy_if_exist(west_out / "zephyr.signed.bin", zephyr_dir / "app_update.bin")
-
-        _copy_if_exist(build_dir / "merged.hex", zephyr_dir / "merged.hex")
+        _copy_if_exists(west_out / "zephyr.uf2", zephyr_dir / "zephyr.uf2")
+        _copy_if_exists(west_out / "zephyr.signed.bin", zephyr_dir / "app_update.bin")
+        _copy_if_exists(build_dir / "merged.hex", zephyr_dir / "merged.hex")
 
     # (dev_type, sd_req) per bootloader — values from Nordic SoftDevice release notes
     _GENPKG_PARAMS = {
