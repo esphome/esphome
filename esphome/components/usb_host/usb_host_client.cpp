@@ -63,7 +63,7 @@ static void usbh_print_intf_desc(const usb_intf_desc_t *intf_desc) {
            "\tbInterfaceClass 0x%x\n"
            "\tiInterface %d",
            intf_desc->bLength, intf_desc->bDescriptorType, intf_desc->bInterfaceNumber, intf_desc->bAlternateSetting,
-           intf_desc->bNumEndpoints, intf_desc->bInterfaceProtocol, intf_desc->iInterface);
+           intf_desc->bNumEndpoints, intf_desc->bInterfaceClass, intf_desc->iInterface);
 }
 
 static void usbh_print_cfg_desc(const usb_config_desc_t *cfg_desc) {

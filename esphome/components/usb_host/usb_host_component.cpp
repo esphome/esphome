@@ -4,6 +4,7 @@
 #include "usb_host.h"
 #include <cinttypes>
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome::usb_host {
 
@@ -84,6 +85,7 @@ bool USBHost::submit_control(usb_host_client_handle_t client_handle, TransferReq
 bool USBHost::do_set_interface(usb_host_client_handle_t client_handle, usb_device_handle_t device_handle,
                                uint8_t interface_num, uint8_t alt_setting) {
   usb_transfer_t *xfer = nullptr;
+  // SET_INTERFACE has no data phase so SETUP_PACKET_SIZE (8 bytes) is sufficient.
   esp_err_t err = usb_host_transfer_alloc(SETUP_PACKET_SIZE, 0, &xfer);
   if (err != ESP_OK || xfer == nullptr) {
     ESP_LOGE(TAG, "set_interface: alloc failed: %s", esp_err_to_name(err));
@@ -124,7 +126,8 @@ bool USBHost::do_set_interface(usb_host_client_handle_t client_handle, usb_devic
   } else {
     ok = xSemaphoreTake(sem, pdMS_TO_TICKS(6000)) == pdTRUE;
     if (!ok) {
-      // Callback may still fire after this timeout; avoid freeing resources here to prevent UAF.
+      // ESP-IDF owns the transfer until the callback fires (guaranteed on disconnect too),
+      // so do not free xfer/sem here — the callback will run and give the semaphore.
       ESP_LOGE(TAG, "set_interface: wait timeout");
       return false;
     }
@@ -191,8 +194,28 @@ void USBHost::isoc_cb(usb_transfer_t *xfer) {
   USBClient *client = ctx->client;
   IsocStream *stream = ctx->stream;
 
-  if (xfer->status == USB_TRANSFER_STATUS_NO_DEVICE || xfer->status == USB_TRANSFER_STATUS_CANCELED)
+  // Capture handles now — they may be cleared by disconnect() before the defer runs.
+  usb_host_client_handle_t client_handle = client->handle_;
+  usb_device_handle_t device_handle = client->device_handle_;
+
+  auto finish_urb = [xfer, stream, client_handle, device_handle]() {
+    usb_host_transfer_free(xfer);
+    if (stream->pending_urbs.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+      App.defer([stream, client_handle, device_handle]() {
+        stream->xfers.reset();
+        stream->ctxs.reset();
+        if (stream->alt_setting != 0)
+          get_usb_host()->do_set_interface(client_handle, device_handle, stream->interface_num, 0);
+        get_usb_host()->do_release_interface(client_handle, device_handle, stream->interface_num);
+        ESP_LOGD(TAG, "stream_close deferred: ep=0x%02X", stream->ep_addr);
+      });
+    }
+  };
+
+  if (xfer->status == USB_TRANSFER_STATUS_NO_DEVICE || xfer->status == USB_TRANSFER_STATUS_CANCELED) {
+    finish_urb();
     return;
+  }
 
   if (stream->streaming) {
     const uint8_t *payload = xfer->data_buffer;
@@ -206,6 +229,9 @@ void USBHost::isoc_cb(usb_transfer_t *xfer) {
       xfer->isoc_packet_desc[i].num_bytes = stream->mps;
     }
     usb_host_transfer_submit(xfer);
+  } else {
+    // stream_close() set streaming=false — free and defer cleanup when all URBs done.
+    finish_urb();
   }
 }
 
@@ -228,6 +254,7 @@ bool USBHost::stream_open(IsocStream &stream, USBClient *cb, usb_host_client_han
 
   stream.xfers = std::make_unique<usb_transfer_t *[]>(stream.num_urbs);
   stream.ctxs = std::make_unique<IsocCbCtx[]>(stream.num_urbs);
+  stream.pending_urbs.store(stream.num_urbs, std::memory_order_relaxed);
 
   stream.streaming = true;
   for (uint8_t i = 0; i < stream.num_urbs; i++) {
@@ -251,14 +278,22 @@ bool USBHost::stream_open(IsocStream &stream, USBClient *cb, usb_host_client_han
   for (uint8_t i = 0; i < stream.num_urbs; i++) {
     if (!this->do_isoc_submit(stream.xfers[i])) {
       ESP_LOGE(TAG, "stream_open: URB %u submit failed", i);
+      // Free unsubmitted URBs directly; already-submitted ones (0..i-1) will
+      // drain through isoc_cb and free themselves. Adjust pending_urbs to
+      // reflect only the submitted count so the last callback triggers cleanup.
+      for (uint8_t j = i; j < stream.num_urbs; j++) {
+        usb_host_transfer_free(stream.xfers[j]);
+        stream.xfers[j] = nullptr;
+      }
+      stream.pending_urbs.store(i, std::memory_order_release);
       stream.streaming = false;
-      vTaskDelay(pdMS_TO_TICKS(50));
-      for (uint8_t j = 0; j < stream.num_urbs; j++)
-        this->do_isoc_free(stream.xfers[j]);
-      stream.ctxs.reset();
-      stream.xfers.reset();
-      this->do_set_interface(client_handle, device_handle, stream.interface_num, 0);
-      this->do_release_interface(client_handle, device_handle, stream.interface_num);
+      if (i == 0) {
+        // Nothing was submitted — clean up synchronously right now.
+        stream.xfers.reset();
+        stream.ctxs.reset();
+        this->do_set_interface(client_handle, device_handle, stream.interface_num, 0);
+        this->do_release_interface(client_handle, device_handle, stream.interface_num);
+      }
       return false;
     }
   }
@@ -273,22 +308,10 @@ void USBHost::stream_close(IsocStream &stream, usb_host_client_handle_t client_h
   if (!stream.streaming && !stream.xfers)
     return;
 
+  // Signal callbacks to stop resubmitting. In-flight URBs will return, free
+  // themselves, and the last one defers alt-setting reset, interface release,
+  // and buffer cleanup to the main loop via App.defer() — no blocking needed.
   stream.streaming = false;
-
-  if (stream.alt_setting != 0)
-    this->do_set_interface(client_handle, device_handle, stream.interface_num, 0);
-
-  vTaskDelay(pdMS_TO_TICKS(50));
-
-  if (stream.xfers) {
-    for (uint8_t i = 0; i < stream.num_urbs; i++)
-      this->do_isoc_free(stream.xfers[i]);
-    stream.xfers.reset();
-  }
-  stream.ctxs.reset();
-
-  this->do_release_interface(client_handle, device_handle, stream.interface_num);
-  ESP_LOGD(TAG, "stream_close: ep=0x%02X", stream.ep_addr);
 }
 
 #endif  // USE_USB_ISOC_TRANSFERS
