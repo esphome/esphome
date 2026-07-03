@@ -232,12 +232,6 @@ class ModbusServerDevice {
   virtual ServerResponseStatus on_modbus_write_registers(uint16_t start_address, const RegisterValues &registers) {
     return ModbusExceptionCode::ILLEGAL_FUNCTION;
   };
-  virtual ServerResponseStatus on_modbus_read_write_registers(uint16_t read_start_address, uint16_t number_of_registers,
-                                                              uint16_t write_start_address,
-                                                              const RegisterValues &write_registers,
-                                                              RegisterValues &read_registers) {
-    return ModbusExceptionCode::ILLEGAL_FUNCTION;
-  };
 
  protected:
   uint8_t address_{0};
