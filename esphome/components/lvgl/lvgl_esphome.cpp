@@ -815,10 +815,16 @@ void LvglComponent::loop() {
   // be discarded or replayed: once resumed, the accumulated areas are simply drawn as normal.
   // Input events and other timers keep being processed below regardless of this state.
   if (this->refr_timer_ != nullptr) {
-    if (this->displays_busy_()) {
+    bool busy = this->displays_busy_();
+    if (busy && !this->refr_timer_paused_) {
+      this->refr_timer_paused_ = true;
       lv_timer_pause(this->refr_timer_);
-    } else {
+    } else if (!busy && this->refr_timer_paused_) {
+      this->refr_timer_paused_ = false;
       lv_timer_resume(this->refr_timer_);
+      // Don't wait for the timer's next natural period: refresh right away now that the
+      // display is idle again.
+      lv_timer_ready(this->refr_timer_);
     }
   }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE

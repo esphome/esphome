@@ -323,6 +323,9 @@ class LvglComponent final : public PollingComponent {
   // displays_busy_()) so LVGL neither renders nor flushes to it, without losing track of
   // invalidated areas. Other timers (indev reading, animations, ...) keep running as normal.
   lv_timer_t *refr_timer_{};
+  // Tracks whether refr_timer_ is currently paused, so loop() can detect the busy -> idle edge
+  // and kick off an immediate refresh instead of waiting for the timer's next natural period.
+  bool refr_timer_paused_{};
   uint16_t width_{};
   uint16_t height_{};
   bool paused_{};
