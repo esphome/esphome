@@ -153,6 +153,49 @@ def _patch_uf2conv_escape_sequences(framework_path: Path) -> None:
     tmp.replace(uf2conv)
 
 
+# Projects whose manifest entries use "import:"; west resolves those imports
+# with "git show", which needs the real repository.
+_GIT_IMPORT_PROJECTS = ("zephyr", "tools/bsim")
+
+
+def _prune_git_history(framework_path: Path) -> None:
+    """Replace project git repositories with empty stubs to save disk space.
+
+    The install is immutable once its sentinel exists (a version bump creates
+    a new directory), so the git object stores only duplicate the checked-out
+    files. West still requires every project to look like a git repository
+    (an "uncloned" project is silently dropped from the Zephyr build), and
+    the sdk-nrf version stamping reads .git/index, so each repository is
+    replaced with an empty stub instead of being deleted.
+    """
+    keep = {framework_path / p / ".git" for p in _GIT_IMPORT_PROJECTS}
+    for git_dir in [p for p in framework_path.rglob(".git") if p.is_dir()]:
+        if git_dir in keep:
+            continue
+        project = git_dir.parent
+        rmdir(git_dir)
+        stub_cmds = (
+            ["init", "--quiet"],
+            ["read-tree", "--empty"],
+            [
+                "-c",
+                "user.name=esphome",
+                "-c",
+                "user.email=esphome@localhost",
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "--quiet",
+                "--allow-empty",
+                "-m",
+                "esphome stub",
+            ],
+        )
+        for cmd in stub_cmds:
+            if not run_command_ok(["git", "-C", str(project), *cmd]):
+                raise EsphomeError(f"Can't create stub git repository in {project}")
+
+
 def check_and_install() -> None:
     version = _get_version_str()
     python_env_path = _get_python_env_path(version)
@@ -217,6 +260,7 @@ def check_and_install() -> None:
         framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
         if framework_ver < cv.Version(2, 9, 2):
             _patch_uf2conv_escape_sequences(framework_path)
+        _prune_git_history(framework_path)
         sentinel.touch()
 
     zephyr_sentinel = python_env_path / ".zephyr_reqs_ready"

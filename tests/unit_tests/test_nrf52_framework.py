@@ -1,6 +1,7 @@
 """Tests for esphome.components.nrf52.framework helpers."""
 
 from pathlib import Path
+import subprocess
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -9,6 +10,7 @@ import pytest
 from esphome.components.nrf52.framework import (
     _TOOLCHAIN_VERSION,
     _get_toolchain_platform_info,
+    _prune_git_history,
     check_and_install,
     get_sdk_nrf_tools_path,
 )
@@ -285,3 +287,37 @@ def testget_tools_path_default_is_global_cache(
         Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "sdk-nrf"
     ).resolve()
     assert get_sdk_nrf_tools_path() == expected
+
+
+# ---------------------------------------------------------------------------
+# _prune_git_history tests
+# ---------------------------------------------------------------------------
+
+
+class TestPruneGitHistory:
+    def test_prunes_all_but_import_projects(self, tmp_path: Path) -> None:
+        framework = tmp_path / "framework"
+        projects = ("zephyr", "tools/bsim", "nrf", "modules/hal/nordic")
+        for project in projects:
+            path = framework / project
+            path.mkdir(parents=True)
+            subprocess.run(["git", "-C", str(path), "init", "--quiet"], check=True)
+            (path / ".git" / "marker").write_text("history")
+
+        _prune_git_history(framework)
+
+        # Projects resolved through manifest imports keep their repository
+        for project in ("zephyr", "tools/bsim"):
+            assert (framework / project / ".git" / "marker").exists()
+        # Everything else is replaced with a stub that still looks cloned
+        for project in ("nrf", "modules/hal/nordic"):
+            git_dir = framework / project / ".git"
+            assert not (git_dir / "marker").exists()
+            assert (git_dir / "index").exists()
+            # HEAD must resolve for the Zephyr build metadata step
+            result = subprocess.run(
+                ["git", "-C", str(framework / project), "rev-parse", "HEAD"],
+                capture_output=True,
+                check=False,
+            )
+            assert result.returncode == 0
