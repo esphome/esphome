@@ -827,16 +827,7 @@ void LvglComponent::loop() {
       lv_timer_ready(this->refr_timer_);
     }
   }
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  auto now = millis();
   lv_timer_handler();
-  auto elapsed = millis() - now;
-  if (elapsed > 15) {
-    ESP_LOGV(TAG, "lv_timer_handler took %dms", (int) (millis() - now));
-  }
-#else
-  lv_timer_handler();
-#endif
 }
 
 #ifdef USE_LVGL_ANIMIMG
