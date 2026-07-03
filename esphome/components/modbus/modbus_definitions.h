@@ -82,9 +82,9 @@ static constexpr uint8_t MAX_NUM_OF_REGISTERS_TO_READ = 125;  // 0x7D
 // Smallest possible frame is 4 bytes (custom function with no data): address(1) + function(1) + CRC(2)
 static constexpr uint16_t MIN_FRAME_SIZE = 4;
 static constexpr uint16_t MAX_PDU_SIZE = 253;  // Max PDU size is 256 - address(1) - CRC(2) = 253
-// 6.17 23 (0x17) Read/Write Multiple registers: keep the request PDU within MAX_PDU_SIZE.
-static constexpr uint16_t MAX_NUM_OF_REGISTERS_TO_WRITE_RW = (MAX_PDU_SIZE - 10) / 2;  // 0x79 (121)
-static constexpr uint16_t MAX_RAW_SIZE = 254;  // Max RAW size is 256 - CRC(2) = 254
+// 6.17 23 (0x17) Read/Write Multiple registers: max write quantity per the Modbus spec.
+static constexpr uint16_t MAX_NUM_OF_REGISTERS_TO_WRITE_RW = 121;  // 0x79
+static constexpr uint16_t MAX_RAW_SIZE = 254;                      // Max RAW size is 256 - CRC(2) = 254
 static constexpr uint16_t MAX_FRAME_SIZE = 256;
 /// End of Modbus definitions
 }  // namespace esphome::modbus
