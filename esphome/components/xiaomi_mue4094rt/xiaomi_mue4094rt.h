@@ -7,8 +7,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace xiaomi_mue4094rt {
+namespace esphome::xiaomi_mue4094rt {
 
 class XiaomiMUE4094RT : public Component,
                         public binary_sensor::BinarySensorInitiallyOff,
@@ -26,7 +25,6 @@ class XiaomiMUE4094RT : public Component,
   uint16_t timeout_;
 };
 
-}  // namespace xiaomi_mue4094rt
-}  // namespace esphome
+}  // namespace esphome::xiaomi_mue4094rt
 
 #endif

@@ -3,8 +3,7 @@
 #include "esphome/core/log.h"
 #include <cmath>
 
-namespace esphome {
-namespace max31856 {
+namespace esphome::max31856 {
 
 static const char *const TAG = "max31856";
 
@@ -197,5 +196,4 @@ uint32_t MAX31856Sensor::read_register24_(uint8_t reg) {
   return value;
 }
 
-}  // namespace max31856
-}  // namespace esphome
+}  // namespace esphome::max31856

@@ -5,10 +5,9 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace key_collector {
+namespace esphome::key_collector {
 
-class KeyCollector : public Component {
+class KeyCollector final : public Component {
  public:
   void loop() override;
   void dump_config() override;
@@ -55,13 +54,12 @@ class KeyCollector : public Component {
   bool enabled_{};
 };
 
-template<typename... Ts> class EnableAction : public Action<Ts...>, public Parented<KeyCollector> {
+template<typename... Ts> class EnableAction final : public Action<Ts...>, public Parented<KeyCollector> {
   void play(const Ts &...x) override { this->parent_->set_enabled(true); }
 };
 
-template<typename... Ts> class DisableAction : public Action<Ts...>, public Parented<KeyCollector> {
+template<typename... Ts> class DisableAction final : public Action<Ts...>, public Parented<KeyCollector> {
   void play(const Ts &...x) override { this->parent_->set_enabled(false); }
 };
 
-}  // namespace key_collector
-}  // namespace esphome
+}  // namespace esphome::key_collector

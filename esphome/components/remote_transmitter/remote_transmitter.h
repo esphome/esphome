@@ -33,11 +33,11 @@ struct RemoteTransmitterComponentStore {
 #endif
 #endif
 
-class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
-                                   public Component
+class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBase,
+                                         public Component
 #if defined(USE_ESP32) && SOC_RMT_SUPPORTED
     ,
-                                   public remote_base::RemoteRMTChannel
+                                         public remote_base::RemoteRMTChannel
 #endif
 {
  public:
@@ -92,7 +92,7 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
   rmt_channel_handle_t channel_{NULL};
   rmt_encoder_handle_t encoder_{NULL};
   esp_err_t error_code_{ESP_OK};
-  std::string error_string_{""};
+  std::string error_string_;
   bool inverted_{false};
   bool non_blocking_{false};
 #endif

@@ -211,6 +211,16 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_PS_HIGH_THRESHOLD, "add_on_ps_high_trigger_callback"
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_PS_LOW_THRESHOLD, "add_on_ps_low_trigger_callback"
+    ),
+)
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -240,14 +250,7 @@ async def to_code(config):
         sens = await sensor.new_sensor(prox_cnt_config)
         cg.add(var.set_proximity_counts_sensor(sens))
 
-    for conf in config.get(CONF_ON_PS_HIGH_THRESHOLD, []):
-        await automation.build_callback_automation(
-            var, "add_on_ps_high_trigger_callback", [], conf
-        )
-    for conf in config.get(CONF_ON_PS_LOW_THRESHOLD, []):
-        await automation.build_callback_automation(
-            var, "add_on_ps_low_trigger_callback", [], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     cg.add(var.set_ltr_type(config[CONF_TYPE]))
 

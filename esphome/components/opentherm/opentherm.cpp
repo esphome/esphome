@@ -16,8 +16,7 @@
 #endif
 #include <string>
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
 using std::string;
 
@@ -542,7 +541,7 @@ void OpenTherm::debug_error(OpenThermError &error) const {
            error.capture, error.bit_pos);
 }
 
-float OpenthermData::f88() { return ((float) this->s16()) / 256.0; }
+float OpenthermData::f88() { return ((float) this->s16()) / 256.0f; }
 
 void OpenthermData::f88(float value) { this->s16((int16_t) (value * 256)); }
 
@@ -566,5 +565,4 @@ void OpenthermData::s16(int16_t value) {
   this->valueHB = (value >> 8) & 0xFF;
 }
 
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm

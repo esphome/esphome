@@ -8,13 +8,13 @@ from .defines import (
     CONF_KEYPADS,
     CONF_LONG_PRESS_REPEAT_TIME,
     CONF_LONG_PRESS_TIME,
+    add_lv_use,
     literal,
 )
 from .encoders import set_group_to_code
-from .helpers import lvgl_components_required
-from .lvcode import lv
+from .lvcode import lv, lv_assign, lv_expr, lv_Pvariable
 from .schemas import ENCODER_SCHEMA, SET_GROUP_ACTION_SCHEMA
-from .types import LvglAction, lv_indev_type_t
+from .types import LvglAction, lv_group_t, lv_indev_type_t
 from .widgets import get_widgets
 
 KEYPAD_KEYS = (
@@ -53,7 +53,7 @@ KEYPADS_CONFIG = cv.ensure_list(
 
 async def keypads_to_code(var, config, default_group):
     for enc_conf in config[CONF_KEYPADS]:
-        lvgl_components_required.add("KEY_LISTENER")
+        add_lv_use("KEY_LISTENER")
         lpt = enc_conf[CONF_LONG_PRESS_TIME].total_milliseconds
         lprt = enc_conf[CONF_LONG_PRESS_REPEAT_TIME].total_milliseconds
         listener = cg.new_Pvariable(
@@ -64,12 +64,12 @@ async def keypads_to_code(var, config, default_group):
             b_sensor = await cg.get_variable(enc_conf[key])
             cg.add(listener.add_button(b_sensor, literal(f"LV_KEY_{key.upper()}")))
 
-        group = (
-            await cg.get_variable(enc_conf[CONF_GROUP])
-            if CONF_GROUP in enc_conf
-            else default_group
-        )
-        cg.add(listener.set_group(group))
+        if group := enc_conf.get(CONF_GROUP):
+            group = lv_Pvariable(lv_group_t, group)
+            lv_assign(group, lv_expr.group_create())
+        else:
+            group = default_group
+        lv.indev_set_group(listener.get_drv(), group)
 
 
 async def keypad_initial_focus_to_code(config):

@@ -3,8 +3,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace anova {
+namespace esphome::anova {
 
 static const char *const TAG = "anova";
 
@@ -160,7 +159,6 @@ void Anova::update() {
   }
 }
 
-}  // namespace anova
-}  // namespace esphome
+}  // namespace esphome::anova
 
 #endif

@@ -1,8 +1,7 @@
 #include "output_button.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace output {
+namespace esphome::output {
 
 static const char *const TAG = "output.button";
 
@@ -17,5 +16,4 @@ void OutputButton::press_action() {
   this->set_timeout("reset", this->duration_, [this]() { this->output_->turn_off(); });
 }
 
-}  // namespace output
-}  // namespace esphome
+}  // namespace esphome::output

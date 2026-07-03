@@ -50,29 +50,31 @@ void MultiClickTriggerBase::on_state_(bool state) {
     return;
   }
 
-  if (*this->at_index_ == this->timing_count_) {
+  // at_index_ has a value here (the !has_value() branch above returns).
+  size_t at_index = *this->at_index_;
+  if (at_index == this->timing_count_) {
     this->trigger_();
     return;
   }
 
-  MultiClickTriggerEvent evt = this->timing_[*this->at_index_];
+  MultiClickTriggerEvent evt = this->timing_[at_index];
 
   if (evt.max_length != 4294967294UL) {
-    ESP_LOGV(TAG, "A i=%zu min=%" PRIu32 " max=%" PRIu32, *this->at_index_, evt.min_length, evt.max_length);  // NOLINT
+    ESP_LOGV(TAG, "A i=%zu min=%" PRIu32 " max=%" PRIu32, at_index, evt.min_length, evt.max_length);  // NOLINT
     this->schedule_is_valid_(evt.min_length);
     this->schedule_is_not_valid_(evt.max_length);
-  } else if (*this->at_index_ + 1 != this->timing_count_) {
-    ESP_LOGV(TAG, "B i=%zu min=%" PRIu32, *this->at_index_, evt.min_length);  // NOLINT
+  } else if (at_index + 1 != this->timing_count_) {
+    ESP_LOGV(TAG, "B i=%zu min=%" PRIu32, at_index, evt.min_length);  // NOLINT
     this->cancel_timeout(MULTICLICK_IS_NOT_VALID_ID);
     this->schedule_is_valid_(evt.min_length);
   } else {
-    ESP_LOGV(TAG, "C i=%zu min=%" PRIu32, *this->at_index_, evt.min_length);  // NOLINT
+    ESP_LOGV(TAG, "C i=%zu min=%" PRIu32, at_index, evt.min_length);  // NOLINT
     this->is_valid_ = false;
     this->cancel_timeout(MULTICLICK_IS_NOT_VALID_ID);
     this->set_timeout(MULTICLICK_TRIGGER_ID, evt.min_length, [this]() { this->trigger_(); });
   }
 
-  *this->at_index_ = *this->at_index_ + 1;
+  this->at_index_ = at_index + 1;
 }
 void MultiClickTriggerBase::schedule_cooldown_() {
   ESP_LOGV(TAG, "Multi Click: Invalid length of press, starting cooldown of %" PRIu32 " ms", this->invalid_cooldown_);

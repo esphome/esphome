@@ -18,15 +18,15 @@ void Switch::control(bool target_state) {
   }
 }
 void Switch::turn_on() {
-  ESP_LOGD(TAG, "'%s' Turning ON.", this->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' Turning ON.", this->get_name().c_str());
   this->write_state(!this->inverted_);
 }
 void Switch::turn_off() {
-  ESP_LOGD(TAG, "'%s' Turning OFF.", this->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' Turning OFF.", this->get_name().c_str());
   this->write_state(this->inverted_);
 }
 void Switch::toggle() {
-  ESP_LOGD(TAG, "'%s' Toggling %s.", this->get_name().c_str(), this->state ? "OFF" : "ON");
+  ESP_LOGV(TAG, "'%s' Toggling %s.", this->get_name().c_str(), this->state ? "OFF" : "ON");
   this->write_state(this->inverted_ == this->state);
 }
 optional<bool> Switch::get_initial_state() {

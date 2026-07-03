@@ -175,6 +175,10 @@ void Logger::process_messages_() {
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // Process any buffered messages when available
   if (this->log_buffer_.has_messages()) {
+    // Prevent main-task logs emitted by listener callbacks (e.g. the API send path) from re-entering
+    // and corrupting the shared tx_buffer_ / API shared_write_buffer_ while we are draining here.
+    // Mirrors the guard held by log_message_to_buffer_and_send_ on the synchronous logging path.
+    RecursionGuard guard(this->main_task_recursion_guard_);
     logger::TaskLogBuffer::LogMessage *message;
     uint16_t text_length;
     while (this->log_buffer_.borrow_message_main_loop(message, text_length)) {
@@ -243,6 +247,9 @@ void Logger::dump_config() {
 #endif
 #ifdef USE_ZEPHYR
   dump_crash_();
+  if (!device_is_ready(this->uart_dev_)) {
+    ESP_LOGE(TAG, "  %s is not ready.", LOG_STR_ARG(get_uart_selection_()));
+  }
 #endif
   // Warn users that VERBOSE/VERY_VERBOSE logging impacts performance.
   // Only the compiled log level matters — all log calls up to this level

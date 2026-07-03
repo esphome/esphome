@@ -50,6 +50,7 @@ class EPaperBase : public Display,
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
   void set_busy_pin(GPIOPin *busy) { this->busy_pin_ = busy; }
+  void set_enable_pins(std::vector<GPIOPin *> enable_pins) { this->enable_pins_ = std::move(enable_pins); }
   void set_reset_duration(uint32_t reset_duration) { this->reset_duration_ = reset_duration; }
   void set_transform(uint8_t transform) {
     this->transform_ = transform;
@@ -110,12 +111,14 @@ class EPaperBase : public Display,
     this->fill(COLOR_ON);
   }
 
- protected:
-  int get_height_internal() override { return this->height_; };
-  int get_width_internal() override { return this->width_; };
   int get_width() override { return this->effective_transform_ & SWAP_XY ? this->height_ : this->width_; }
   int get_height() override { return this->effective_transform_ & SWAP_XY ? this->width_ : this->height_; }
   void draw_pixel_at(int x, int y, Color color) override;
+
+ protected:
+  int get_height_internal() override { return this->height_; };
+  int get_width_internal() override { return this->width_; };
+  bool is_using_partial_update_() const { return this->full_update_every_ > 1; }
   void process_state_();
 
   const char *epaper_state_to_string_();
@@ -175,6 +178,7 @@ class EPaperBase : public Display,
   GPIOPin *dc_pin_{};
   GPIOPin *busy_pin_{};
   GPIOPin *reset_pin_{};
+  std::vector<GPIOPin *> enable_pins_{};
   bool waiting_for_idle_{};
   uint32_t delay_until_{};  // timestamp until which to delay processing
   uint16_t next_delay_{};   // milliseconds to delay before next state
