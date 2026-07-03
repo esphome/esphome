@@ -3,6 +3,7 @@
 #include "usb_uart.h"
 #include "usb/usb_host.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 #include "esphome/components/uart/uart_debugger.h"
 
 #include "esphome/components/bytebuffer/bytebuffer.h"
@@ -408,19 +409,18 @@ void USBUartTypeFT23XX::start_input(USBUartChannel *channel) {
       return;
     }
 
+    // FTDI prepends a 2-byte modem/line status header to every bulk IN packet.
     size_t uart_data_len = (status.data_len > 2) ? (status.data_len - 2) : 0;
 
     if (uart_data_len > 0) {
       ESP_LOGV(TAG, "RX callback: Received %zu bytes, channel=%d", uart_data_len, channel->index_);
       if (!channel->dummy_receiver_) {
-        // Copy the entire received UART payload into the ring buffer in one
-        // operation to avoid per-byte overhead and reduce the chance of
-        // heap activity in hot paths.
+        if (channel->input_buffer_.get_free_space() < uart_data_len) {
+          this->on_rx_overflow(channel);
+        }
         channel->input_buffer_.push(status.data + 2, uart_data_len);
 #ifdef USE_UART_DEBUGGER
         if (channel->debug_) {
-          // Debug path creates a temporary vector for logging only; this is
-          // acceptable because debug mode is opt-in and not used in release.
           uart::UARTDebug::log_hex(uart::UART_DIRECTION_RX,
                                    std::vector<uint8_t>(status.data + 2, status.data + 2 + uart_data_len), ',',
                                    channel->debug_prefix_);
@@ -443,6 +443,11 @@ void USBUartTypeFT23XX::start_input(USBUartChannel *channel) {
   this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize);
 }
 
+void USBUartTypeFT23XX::on_rx_overflow(USBUartChannel *channel) {
+  ESP_LOGW(TAG, "RX buffer overflow on channel %d, clearing to resync", channel->index_);
+  channel->input_buffer_.clear();
+}
+
 void USBUartTypeFT23XX::enable_channels() {
   if (!this->channels_.empty() && this->channels_[0]->initialised_.load()) {
     this->reset_(this->channels_[0]);
@@ -453,6 +458,71 @@ void USBUartTypeFT23XX::enable_channels() {
       continue;
     channel->input_started_.store(false);
     channel->output_started_.store(false);
+  }
+}
+
+bool USBUartTypeFT23XX::config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok,
+                                    const uint8_t *response) {
+  // On reload (settings change on an open channel) skip the SIO reset; the FTDI set_termios
+  // path only re-applies baud + line properties and does not re-assert DTR/RTS.
+  if (reload)
+    step++;
+  switch (step) {
+    case 0:  // SIO reset (init only)
+      this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x00, 0x00,
+                             channel->cdc_dev_.bulk_interface_number + 1);
+      return true;
+    case 1: {  // set baudrate
+      uint16_t value = 0, ftdi_index = 0;
+      ftdi_convert_baudrate(channel->baud_rate_, this->chip_type_, channel->index_, &value, &ftdi_index);
+      uint16_t usb_index = (ftdi_index & 0xFF00) | (channel->cdc_dev_.bulk_interface_number + 1);
+      ESP_LOGD(TAG, "Baudrate: %" PRIu32 ", value=0x%04X, ftdi_index=0x%04X", channel->baud_rate_, value, ftdi_index);
+      this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x03, value, usb_index);
+      return true;
+    }
+    case 2: {  // set line properties (data bits / parity / stop bits)
+      uint16_t value = channel->data_bits_;
+      switch (channel->parity_) {
+        case UART_CONFIG_PARITY_NONE:
+          value |= (0x00 << 8);
+          break;
+        case UART_CONFIG_PARITY_ODD:
+          value |= (0x01 << 8);
+          break;
+        case UART_CONFIG_PARITY_EVEN:
+          value |= (0x02 << 8);
+          break;
+        case UART_CONFIG_PARITY_MARK:
+          value |= (0x03 << 8);
+          break;
+        case UART_CONFIG_PARITY_SPACE:
+          value |= (0x04 << 8);
+          break;
+      }
+      switch (channel->stop_bits_) {
+        default:  // 1 bit
+          value |= (0x00 << 11);
+          break;
+        case UART_CONFIG_STOP_BITS_1_5:
+          value |= (0x01 << 11);
+          break;
+        case UART_CONFIG_STOP_BITS_2:
+          value |= (0x02 << 11);
+          break;
+      }
+      value |= (0x00 << 14);
+      this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x04, value,
+                             channel->cdc_dev_.bulk_interface_number + 1);
+      return true;
+    }
+    case 3:  // set modem control DTR+RTS (init only)
+      if (reload)
+        return false;
+      this->config_transfer_(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, 0x01, 0x0000,
+                             channel->cdc_dev_.bulk_interface_number + 1);
+      return true;
+    default:
+      return false;
   }
 }
 

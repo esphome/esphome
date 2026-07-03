@@ -58,9 +58,6 @@ static constexpr size_t USB_EVENT_QUEUE_SIZE = 32;
 static constexpr size_t USB_TASK_STACK_SIZE = 4096;
 static constexpr UBaseType_t USB_TASK_PRIORITY = 5;
 
-// USB_INTERFACE_CLASS_ANY: USBClient matches any interface class
-static constexpr uint8_t USB_INTERFACE_CLASS_ANY = 0xFF;
-
 // Transfer status reported to callback
 struct TransferStatus {
   uint8_t *data;
@@ -123,6 +120,7 @@ struct IsocCbCtx {
 struct IsocStream {
   std::unique_ptr<usb_transfer_t *[]> xfers {};
   std::unique_ptr<IsocCbCtx[]> ctxs{};
+  std::atomic<uint8_t> pending_urbs{0};
   uint8_t num_urbs{0};
   uint8_t ep_addr{0};
   uint16_t mps{0};
@@ -151,7 +149,10 @@ class USBClient : public Component {
   void release_trq(TransferRequest *trq);
   trq_bitmask_t get_trq_in_use() const { return trq_in_use_; }
 
-  virtual uint8_t get_interface_class() const { return USB_INTERFACE_CLASS_ANY; }
+  void set_required_interface_class(uint8_t cls) {
+    this->match_any_interface_class_ = false;
+    this->required_interface_class_ = cls;
+  }
 
   // Lock-free event queue and pool — public for static callbacks
   LockFreeQueue<UsbEvent, USB_EVENT_QUEUE_SIZE> event_queue;
@@ -215,6 +216,8 @@ class USBClient : public Component {
   std::atomic<trq_bitmask_t> trq_in_use_;
   uint16_t vid_{};
   uint16_t pid_{};
+  bool match_any_interface_class_{true};
+  uint8_t required_interface_class_{0};
 
   const usb_device_desc_t *get_device_desc_() const { return this->device_desc_; }
   const usb_config_desc_t *get_config_desc_() const { return this->config_desc_; }

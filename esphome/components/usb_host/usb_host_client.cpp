@@ -63,7 +63,7 @@ static void usbh_print_intf_desc(const usb_intf_desc_t *intf_desc) {
            "\tbInterfaceClass 0x%x\n"
            "\tiInterface %d",
            intf_desc->bLength, intf_desc->bDescriptorType, intf_desc->bInterfaceNumber, intf_desc->bAlternateSetting,
-           intf_desc->bNumEndpoints, intf_desc->bInterfaceProtocol, intf_desc->iInterface);
+           intf_desc->bNumEndpoints, intf_desc->bInterfaceClass, intf_desc->iInterface);
 }
 
 static void usbh_print_cfg_desc(const usb_config_desc_t *cfg_desc) {
@@ -303,20 +303,19 @@ void USBClient::handle_open_state_() {
     }
     this->config_desc_ = cfg_desc;
   }
-  uint8_t required_class = this->get_interface_class();
-  if (required_class != USB_INTERFACE_CLASS_ANY) {
+  if (!this->match_any_interface_class_) {
     bool found = false;
     int offset = 0;
     const usb_standard_desc_t *next = reinterpret_cast<const usb_standard_desc_t *>(this->config_desc_);
     while ((next = usb_parse_next_descriptor_of_type(next, this->config_desc_->wTotalLength, USB_W_VALUE_DT_INTERFACE,
                                                      &offset)) != nullptr) {
-      if (reinterpret_cast<const usb_intf_desc_t *>(next)->bInterfaceClass == required_class) {
+      if (reinterpret_cast<const usb_intf_desc_t *>(next)->bInterfaceClass == this->required_interface_class_) {
         found = true;
         break;
       }
     }
     if (!found) {
-      ESP_LOGD(TAG, "Device has no interface class 0x%02X, closing", required_class);
+      ESP_LOGD(TAG, "Device has no interface class 0x%02X, closing", this->required_interface_class_);
       this->disconnect();
       return;
     }
