@@ -68,12 +68,16 @@ def _isolate_platformio_paths(tmp_path_factory: pytest.TempPathFactory) -> Any:
     test_clean_all_partial_exists) install their own inner patch which
     stacks on top of this one and wins for the duration of their block.
 
-    Also pin ``ESPHOME_ESP_IDF_PREFIX`` to a nonexistent tmp dir for the
-    same reason: ``clean_all`` removes the now machine-global ESP-IDF
-    install, which otherwise defaults to the real ``~/.cache/esphome``.
+    Also pin ``ESPHOME_ESP_IDF_PREFIX`` and ``ESPHOME_SDK_NRF_PREFIX`` to
+    nonexistent tmp dirs, and patch ``platformdirs.user_cache_dir``, for the
+    same reason: ``clean_all`` removes the machine-global toolchain installs
+    and their default cache root, which otherwise resolve to the real
+    ``~/.cache/esphome``.
     """
     pio_root = tmp_path_factory.mktemp("isolated_pio") / "nonexistent"
     idf_root = tmp_path_factory.mktemp("isolated_idf") / "nonexistent"
+    sdk_nrf_root = tmp_path_factory.mktemp("isolated_sdk_nrf") / "nonexistent"
+    cache_root = tmp_path_factory.mktemp("isolated_cache") / "nonexistent"
     mock_cfg = MagicMock()
     mock_cfg.get.side_effect = lambda section, option: (
         str(pio_root / option) if section == "platformio" else ""
@@ -83,7 +87,14 @@ def _isolate_platformio_paths(tmp_path_factory: pytest.TempPathFactory) -> Any:
             "platformio.project.config.ProjectConfig.get_instance",
             return_value=mock_cfg,
         ),
-        patch.dict("os.environ", {"ESPHOME_ESP_IDF_PREFIX": str(idf_root)}),
+        patch.dict(
+            "os.environ",
+            {
+                "ESPHOME_ESP_IDF_PREFIX": str(idf_root),
+                "ESPHOME_SDK_NRF_PREFIX": str(sdk_nrf_root),
+            },
+        ),
+        patch("platformdirs.user_cache_dir", return_value=str(cache_root)),
     ):
         yield
 
@@ -1020,6 +1031,55 @@ def test_clean_all_removes_global_idf_install(
 
     assert not idf_install.exists()
     assert str(idf_install.resolve()) in caplog.text
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_removes_global_sdk_nrf_install(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """clean_all removes the machine-global native sdk-nrf install dir."""
+    sdk_nrf_install = tmp_path / "sdk_nrf_install"
+    (sdk_nrf_install / "frameworks").mkdir(parents=True)
+    monkeypatch.setenv("ESPHOME_SDK_NRF_PREFIX", str(sdk_nrf_install))
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    from esphome.writer import clean_all
+
+    with caplog.at_level("INFO"):
+        clean_all([str(config_dir)])
+
+    assert not sdk_nrf_install.exists()
+    assert str(sdk_nrf_install.resolve()) in caplog.text
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_removes_default_cache_root(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """clean_all removes the default cache root (stale/orphaned installs)."""
+    cache_root = tmp_path / "cache_root"
+    (cache_root / "some-old-toolchain").mkdir(parents=True)
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    from esphome.writer import clean_all
+
+    with (
+        patch("platformdirs.user_cache_dir", return_value=str(cache_root)),
+        caplog.at_level("INFO"),
+    ):
+        clean_all([str(config_dir)])
+
+    assert not cache_root.exists()
+    assert str(cache_root.resolve()) in caplog.text
 
 
 @patch("esphome.writer.CORE")
