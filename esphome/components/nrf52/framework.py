@@ -6,6 +6,7 @@ import tempfile
 
 import platformdirs
 
+import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import (
@@ -210,11 +211,7 @@ def check_and_install() -> None:
         sentinel.touch()
 
     framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    if (
-        framework_ver.major == 2
-        and framework_ver.minor == 6
-        and framework_ver.patch == 1
-    ):
+    if framework_ver < cv.Version(2, 9, 2):
         _patch_uf2conv_escape_sequences(framework_path)
 
     zephyr_sentinel = python_env_path / ".zephyr_reqs_ready"
