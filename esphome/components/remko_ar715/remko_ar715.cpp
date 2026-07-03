@@ -1,7 +1,5 @@
-// Copyright 2026 naKruul
-/// @file
-/// @brief ESPHome climate component for Remko AR-715 IR remote.
-/// @see https://github.com/crankyoldgit/IRremoteESP8266/issues/1812
+/// ESPHome climate component for Remko AR-715 IR remote.
+/// https://github.com/crankyoldgit/IRremoteESP8266/issues/1812
 ///
 /// Supported devices:
 ///   - Remko RKL series (RKL 490, 491, 494, 495) with AR-715 remote
