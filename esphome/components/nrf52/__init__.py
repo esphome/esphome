@@ -122,7 +122,7 @@ def set_core_data(config: ConfigType) -> ConfigType:
 
 def _resolve_toolchain(config: ConfigType) -> ConfigType:
     if CORE.toolchain is None:
-        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.PLATFORMIO)
+        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.SDK_NRF)
     return config
 
 
@@ -448,8 +448,8 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
     types = []
     UF2_PATH = "zephyr/zephyr.uf2"
     DFU_PATH = "firmware.zip"
-    HEX_PATH = "zephyr/zephyr.hex"
-    HEX_MERGED_PATH = "zephyr/merged.hex"
+    HEX_PATH = "zephyr/zephyr.hex"  # SDK 2.6.1, only generated when OTA is disabled
+    HEX_MERGED_PATH = "zephyr/merged.hex"  # SDK 2.9.2, always generated
     APP_IMAGE_PATH = "zephyr/app_update.bin"
     build_dir = Path(storage_json.firmware_bin_path).parent
     if (build_dir / UF2_PATH).is_file():
@@ -706,10 +706,22 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
             addr2line = find_tool("addr2line")
             if addr2line is None:
                 return False
-            elf = CORE.relative_pioenvs_path(CORE.name, "firmware.elf")
-            if not elf.exists():
-                _LOGGER.warning("%s does not exists", elf)
+
+            candidates = [
+                CORE.relative_pioenvs_path(CORE.name, "zephyr", "zephyr", "zephyr.elf"),
+                CORE.relative_pioenvs_path(CORE.name, "zephyr", "zephyr.elf"),
+                CORE.relative_pioenvs_path(CORE.name, "firmware.elf"),
+            ]
+
+            elf = next((path for path in candidates if path.exists()), None)
+
+            if elf is None:
+                _LOGGER.warning(
+                    "None of the expected ELF files exist:\n%s",
+                    "\n".join(str(p) for p in candidates),
+                )
                 return False
+
             _LOGGER.error("=== CRASH ===")
             _LOGGER.error("PC: %s", _addr2line(addr2line, elf, pc))
             _LOGGER.error("LR: %s", _addr2line(addr2line, elf, lr))
@@ -774,6 +786,11 @@ def _generate_cmake_lists() -> bool:
     )
 
 
+def _copy_if_exists(src: Path, dst: Path) -> None:
+    if src.is_file():
+        shutil.copy2(src, dst)
+
+
 def run_compile(args, config: ConfigType) -> bool:
     if CORE.using_toolchain_platformio:
         return False
@@ -825,15 +842,18 @@ def run_compile(args, config: ConfigType) -> bool:
     ):
         raise EsphomeError("nRF52 native build failed")
 
-    # Zephyr's cmake places kernel artifacts in build_dir/zephyr/zephyr/ and
-    # merged.hex at build_dir/. Normalize to build_dir/zephyr/ so paths match
-    # get_download_types (which mirrors the platformio build output layout).
     zephyr_dir = build_dir / "zephyr"
-    west_out = zephyr_dir / "zephyr"
-    for filename in ["zephyr.uf2"]:
-        src = west_out / filename
-        if src.is_file():
-            shutil.copy2(src, zephyr_dir / filename)
+    framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    # SDK < 2.9.2 places artifacts directly in build_dir/zephyr/.
+    # SDK >= 2.9.2 nests them one level deeper (build_dir/zephyr/zephyr/);
+    # copy files to match get_download_types layout.
+    if framework_ver < cv.Version(2, 9, 2):
+        west_out = zephyr_dir
+    else:
+        west_out = zephyr_dir / "zephyr"
+        _copy_if_exists(west_out / "zephyr.uf2", zephyr_dir / "zephyr.uf2")
+        _copy_if_exists(west_out / "zephyr.signed.bin", zephyr_dir / "app_update.bin")
+        _copy_if_exists(build_dir / "merged.hex", zephyr_dir / "merged.hex")
 
     # (dev_type, sd_req) per bootloader — values from Nordic SoftDevice release notes
     _GENPKG_PARAMS = {

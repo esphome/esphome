@@ -2,10 +2,12 @@ import logging
 import os
 from pathlib import Path
 import platform
+import shutil
 import tempfile
 
 import platformdirs
 
+import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import (
@@ -134,6 +136,23 @@ def get_build_env() -> dict:
     return env
 
 
+def _patch_uf2conv_escape_sequences(framework_path: Path) -> None:
+    # SDK v2.6.1 ships uf2conv.py with '\s+' — an unrecognised escape that
+    # Python 3.12+ flags with SyntaxWarning (a future version will reject it).
+    uf2conv = framework_path / "zephyr" / "scripts" / "build" / "uf2conv.py"
+    if not uf2conv.exists():
+        return
+    content = uf2conv.read_text(encoding="utf-8")
+    patched = content.replace("re.split('\\s+', line)", "re.split('\\\\s+', line)")
+    if patched == content:
+        return
+    # Write atomically so a concurrent build never sees a truncated file
+    tmp = uf2conv.with_suffix(".py.tmp")
+    tmp.write_text(patched, encoding="utf-8")
+    shutil.copymode(uf2conv, tmp)
+    tmp.replace(uf2conv)
+
+
 def check_and_install() -> None:
     version = _get_version_str()
     python_env_path = _get_python_env_path(version)
@@ -195,6 +214,9 @@ def check_and_install() -> None:
         ]
         if not run_command_ok(cmd, cwd=framework_path):
             raise EsphomeError(f"Can't update nRF Connect SDK {version}")
+        framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+        if framework_ver < cv.Version(2, 9, 2):
+            _patch_uf2conv_escape_sequences(framework_path)
         sentinel.touch()
 
     zephyr_sentinel = python_env_path / ".zephyr_reqs_ready"
