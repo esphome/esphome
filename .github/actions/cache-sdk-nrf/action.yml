@@ -25,7 +25,11 @@ runs:
       shell: bash
       run: |
         . venv/bin/activate
-        echo "version=$(python -c 'from esphome.components.nrf52 import RECOMMENDED_SDK_NRF_VERSION as v; from esphome.components.nrf52.framework import _TOOLCHAIN_VERSION as t; print(f"{v}-{t}")')" >> "$GITHUB_OUTPUT"
+        version=$(python -c '
+        from esphome.components.nrf52 import RECOMMENDED_SDK_NRF_VERSION
+        from esphome.components.nrf52.framework import _TOOLCHAIN_VERSION
+        print(f"{RECOMMENDED_SDK_NRF_VERSION}-{_TOOLCHAIN_VERSION}")')
+        echo "version=$version" >> "$GITHUB_OUTPUT"
     # Mirror cache-esp-idf: only dev-branch runs write the shared cache (so it
     # lives in the default-branch scope readable by all PRs); PRs are
     # restore-only and never push multi-GB artifacts into their own scope.
