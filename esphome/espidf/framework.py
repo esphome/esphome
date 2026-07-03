@@ -75,7 +75,7 @@ ESP_IDF_CONSTRAINTS_MIRRORS = str_to_lst_of_str(
 )
 
 
-def _get_idf_tools_path() -> Path:
+def get_idf_tools_path() -> Path:
     """
     Get the path to the ESP-IDF tools directory.
 
@@ -141,7 +141,7 @@ def _check_windows_path_length() -> None:
     """
     if platform.system() != "Windows" or _windows_long_paths_enabled():
         return
-    tools_path = str(_get_idf_tools_path())
+    tools_path = str(get_idf_tools_path())
     projected = len(tools_path) + _TOOLCHAIN_NESTED_PATH_LEN
     if projected <= _WINDOWS_MAX_PATH:
         return
@@ -180,7 +180,7 @@ def _get_framework_path(version: str) -> Path:
     Returns:
         Path object pointing to the framework directory
     """
-    return _get_idf_tools_path() / "frameworks" / f"{version}"
+    return get_idf_tools_path() / "frameworks" / f"{version}"
 
 
 def _get_python_env_path(version: str) -> Path:
@@ -193,7 +193,7 @@ def _get_python_env_path(version: str) -> Path:
     Returns:
         Path object pointing to the Python environment directory
     """
-    return _get_idf_tools_path() / "penvs" / f"{version}"
+    return get_idf_tools_path() / "penvs" / f"{version}"
 
 
 def _check_stamp(file: PathType, data: dict[str, str]) -> bool:
@@ -707,7 +707,7 @@ def _check_esp_idf_python_env_install(
 
         esp_idf_version = _get_idf_version(framework_path, env=env)
         constraint_file_path = (
-            _get_idf_tools_path() / f"espidf.constraints.v{esp_idf_version}.txt"
+            get_idf_tools_path() / f"espidf.constraints.v{esp_idf_version}.txt"
         )
         _LOGGER.debug("ESP-IDF version %s", esp_idf_version)
 
@@ -798,7 +798,7 @@ def check_esp_idf_install(
     _check_windows_path_length()
 
     env = {}
-    env["IDF_TOOLS_PATH"] = str(_get_idf_tools_path())
+    env["IDF_TOOLS_PATH"] = str(get_idf_tools_path())
     env["IDF_PATH"] = ""
 
     targets = targets or ESPHOME_IDF_DEFAULT_TARGETS
@@ -867,7 +867,7 @@ def _ccache_env() -> dict[str, str]:
 
     defaults = {
         "IDF_CCACHE_ENABLE": "1",
-        "CCACHE_DIR": str(_get_idf_tools_path() / "ccache"),
+        "CCACHE_DIR": str(get_idf_tools_path() / "ccache"),
         "CCACHE_NOHASHDIR": "true",
         "CCACHE_DEPEND": "1",
         "CCACHE_BASEDIR": str(Path(CORE.build_path).resolve()),
@@ -894,7 +894,7 @@ def get_framework_env(
     """
     # 1. Initialize base environment with extra ESP-IDF environment variables
     env = env.copy() if env else {}
-    env["IDF_TOOLS_PATH"] = str(_get_idf_tools_path())
+    env["IDF_TOOLS_PATH"] = str(get_idf_tools_path())
     env["IDF_PATH"] = ""
 
     # 2. Get existing PATH from env or os.environ
