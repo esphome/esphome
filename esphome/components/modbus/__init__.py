@@ -85,15 +85,30 @@ async def to_code(config):
         cg.add(var.set_turnaround_time(config[CONF_TURNAROUND_TIME]))
 
 
+def _validate_server_address(value):
+    address = cv.hex_uint8_t(value)
+    # Remove before 2027.1.0: turn this deprecation warning into a hard error.
+    # The broadcast address (0) is delivered to every device and is never answered (Modbus 4.1),
+    # so it can't identify an individual server device.
+    if address == 0:
+        _LOGGER.warning(
+            "Address 0 is the Modbus broadcast address; using it as a server "
+            "device address is deprecated and will be removed in 2027.1.0. "
+            "Assign a unique unit address instead."
+        )
+    return address
+
+
 def modbus_device_schema(default_address, role: Literal["client", "server"] = "client"):
     hub_type = ModbusClient if role == "client" else ModbusServer
+    address_validator = _validate_server_address if role == "server" else cv.hex_uint8_t
     schema = {
         cv.GenerateID(CONF_MODBUS_ID): cv.use_id(hub_type),
     }
     if default_address is None:
-        schema[cv.Required(CONF_ADDRESS)] = cv.hex_uint8_t
+        schema[cv.Required(CONF_ADDRESS)] = address_validator
     else:
-        schema[cv.Optional(CONF_ADDRESS, default=default_address)] = cv.hex_uint8_t
+        schema[cv.Optional(CONF_ADDRESS, default=default_address)] = address_validator
     return cv.Schema(schema)
 
 
