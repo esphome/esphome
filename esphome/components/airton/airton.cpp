@@ -89,6 +89,18 @@ uint8_t AirtonClimate::get_previous_mode_() { return previous_mode_; }
 
 void AirtonClimate::set_previous_mode_(uint8_t mode) { previous_mode_ = mode; }
 
+void AirtonClimate::control(const climate::ClimateCall &call) {
+  auto swing_mode = call.get_swing_mode();
+  if (swing_mode.has_value()) {
+    if (*swing_mode == climate::CLIMATE_SWING_VERTICAL) {
+      this->set_vertical_direction_state(VERTICAL_DIRECTION_SWING);
+    } else {
+      this->set_vertical_direction_state(VERTICAL_DIRECTION_OFF);
+    }
+  }
+  ClimateIR::control(call);
+}
+
 void AirtonClimate::transmit_state() {
   // Sampled valid state
   // Power: On, Mode: 2 (Dry), Fan: 1 (Quiet), Temp: 20C, Swing(V): On, Econo: Off, Turbo: Off, Light: On, Health: On,
