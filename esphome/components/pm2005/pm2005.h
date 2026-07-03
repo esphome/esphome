@@ -11,7 +11,7 @@ enum SensorType {
   PM2105,
 };
 
-class PM2005Component : public PollingComponent, public i2c::I2CDevice {
+class PM2005Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_sensor_type(SensorType sensor_type) { this->sensor_type_ = sensor_type; }
 

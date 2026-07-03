@@ -4,6 +4,8 @@ from pathlib import Path
 import platform
 import tempfile
 
+import platformdirs
+
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import (
@@ -15,6 +17,7 @@ from esphome.framework_helpers import (
     run_command_ok,
     str_to_lst_of_str,
 )
+from esphome.helpers import get_str_env
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,38 +41,39 @@ SDK_NG_MINIMAL_MIRRORS = str_to_lst_of_str(
 )
 
 
-def _get_tools_path() -> Path:
-    return CORE.data_dir / "sdk-nrf"
+def get_sdk_nrf_tools_path() -> Path:
+    # A blank ESPHOME_SDK_NRF_PREFIX must be treated as unset: Path("")
+    # resolves to the CWD, which clean-all would then delete.
+    if prefix := get_str_env("ESPHOME_SDK_NRF_PREFIX", "").strip():
+        path = Path(prefix).expanduser()
+    else:
+        # Machine-global (OS user cache dir) so all projects share one install;
+        # see espidf.framework.get_idf_tools_path for the location rationale.
+        path = Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "sdk-nrf"
+    return path.resolve()
 
 
 def _get_python_env_path(version: str) -> Path:
-    return _get_tools_path() / "penvs" / version
+    return get_sdk_nrf_tools_path() / "penvs" / version
 
 
 def _get_framework_path(version: str) -> Path:
-    return _get_tools_path() / "frameworks" / version
+    return get_sdk_nrf_tools_path() / "frameworks" / version
 
 
 def _get_toolchain_path(version: str) -> Path:
-    return _get_tools_path() / "toolchains" / version
+    return get_sdk_nrf_tools_path() / "toolchains" / version
 
 
-# onexc/dir_fd were added to shutil.rmtree in 3.12; the 3.11 branch uses onerror.
 _SITECUSTOMIZE = """\
-import os, stat, shutil, sys
+import os, stat, shutil
 _orig = shutil.rmtree
 def _handler(func, path, exc):
     os.chmod(path, stat.S_IWRITE); func(path)
-if sys.version_info >= (3, 12):
-    def _rmtree(path, ignore_errors=False, onerror=None, *, onexc=None, dir_fd=None):
-        if onerror is None and onexc is None:
-            onexc = _handler
-        return _orig(path, ignore_errors=ignore_errors, onerror=onerror, onexc=onexc, dir_fd=dir_fd)
-else:
-    def _rmtree(path, ignore_errors=False, onerror=None):
-        if onerror is None:
-            onerror = _handler
-        return _orig(path, ignore_errors=ignore_errors, onerror=onerror)
+def _rmtree(path, ignore_errors=False, onerror=None, *, onexc=None, dir_fd=None):
+    if onerror is None and onexc is None:
+        onexc = _handler
+    return _orig(path, ignore_errors=ignore_errors, onerror=onerror, onexc=onexc, dir_fd=dir_fd)
 shutil.rmtree = _rmtree
 """
 
@@ -111,10 +115,9 @@ def _get_version_str() -> str:
 
 def get_build_paths() -> dict:
     version = _get_version_str()
+    env_path = _get_python_env_path(version)
     return {
-        "python_executable": get_python_env_executable_path(
-            _get_python_env_path(version), "python"
-        ),
+        "python_executable": get_python_env_executable_path(env_path, "python"),
         "framework_path": _get_framework_path(version),
     }
 
