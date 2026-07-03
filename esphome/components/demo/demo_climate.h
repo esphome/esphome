@@ -11,7 +11,7 @@ enum class DemoClimateType {
   TYPE_3,
 };
 
-class DemoClimate : public climate::Climate, public Component {
+class DemoClimate final : public climate::Climate, public Component {
  public:
   void set_type(DemoClimateType type) { type_ = type; }
   void setup() override {
