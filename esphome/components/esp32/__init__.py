@@ -853,9 +853,11 @@ ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
 }
 
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
+    # Fork with the IDF 6.0.2 bootloader linker script fix, switch back to
+    # pioarduino once https://github.com/pioarduino/platform-espressif32 takes it
     cv.Version(
         6, 0, 2
-    ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
+    ): "https://github.com/swoboda1337/platform-espressif32.git#prep_IDF6",
     cv.Version(
         6, 0, 1
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
