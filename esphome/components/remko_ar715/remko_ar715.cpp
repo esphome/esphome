@@ -1,13 +1,13 @@
-/// ESPHome climate component for Remko AR-715 IR remote.
-/// https://github.com/crankyoldgit/IRremoteESP8266/issues/1812
-///
-/// Supported devices:
-///   - Remko RKL series (RKL 490, 491, 494, 495) with AR-715 remote
-///   - Fischer ClimaButler RCS-SD43UAI / RCS-SD43UWI
-///   - TROTEC PAC 4600
-///   - Novamatic CL 990 / CL 1590
-///   - Rexair C15000N
-///   - freecom RCS-SD43UAI / RCS-SD43UWI
+// ESPHome climate component for Remko AR-715 IR remote.
+// https://github.com/crankyoldgit/IRremoteESP8266/issues/1812
+//
+// Supported devices:
+//   - Remko RKL series (RKL 490, 491, 494, 495) with AR-715 remote
+//   - Fischer ClimaButler RCS-SD43UAI / RCS-SD43UWI
+//   - TROTEC PAC 4600
+//   - Novamatic CL 990 / CL 1590
+//   - Rexair C15000N
+//   - freecom RCS-SD43UAI / RCS-SD43UWI
 
 #include "remko_ar715.h"
 #include "esphome/core/log.h"
