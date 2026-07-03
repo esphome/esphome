@@ -45,53 +45,51 @@ void Hoermann::dump_config() {
                 this->get_address(), static_cast<unsigned>(CONNECTION_TIMEOUT_MS));
 }
 
-modbus::ServerResponseStatus Hoermann::on_modbus_read_write_registers(uint16_t read_start_address,
-                                                                      uint16_t number_of_registers,
-                                                                      uint16_t write_start_address,
-                                                                      const modbus::RegisterValues &write_registers,
-                                                                      modbus::RegisterValues &read_registers) {
+modbus::ServerResponseStatus Hoermann::on_modbus_read_holding_registers(uint16_t start_address,
+                                                                        uint16_t number_of_registers,
+                                                                        modbus::RegisterValues &registers) {
   this->record_response_();
 
-  if (write_start_address == COMMAND_REG && read_start_address == STATE_REG && !write_registers.empty()) {
-    // High byte of the first written register is a message counter, low byte is the command.
-    uint16_t counter = write_registers[0] & 0xFF00;
-    uint16_t command = (write_registers[0] & 0x00FF) << 8;
+  // 0x17 read half: STATE_REG is read back right after COMMAND_REG was written, so echo the stored message
+  // counter (high byte) and command (low byte). The read length identifies which internal block is requested.
+  if (start_address == STATE_REG) {
+    uint16_t counter = this->command_reg_value_ & 0xFF00;
+    uint16_t command = (this->command_reg_value_ & 0x00FF) << 8;
 
-    if (write_registers.size() == 2 && number_of_registers == 8) {
+    if (number_of_registers == 8) {
       // Command request: return the internal state, injecting any pending command.
       uint16_t reg_plus2;
       uint16_t reg_plus3;
       this->get_command_values_to_read_(reg_plus2, reg_plus3);
-      read_registers.push_back(static_cast<uint16_t>(0x0000 | counter));
-      read_registers.push_back(static_cast<uint16_t>(0x0001 | command));
-      read_registers.push_back(reg_plus2);
-      read_registers.push_back(reg_plus3);
-      read_registers.push_back(0x0000);
-      read_registers.push_back(0x0000);
-      read_registers.push_back(0x0000);
-      read_registers.push_back(0x0000);
-    } else if (write_registers.size() == 2 && number_of_registers == 2) {
+      registers.push_back(static_cast<uint16_t>(0x0000 | counter));
+      registers.push_back(static_cast<uint16_t>(0x0001 | command));
+      registers.push_back(reg_plus2);
+      registers.push_back(reg_plus3);
+      registers.push_back(0x0000);
+      registers.push_back(0x0000);
+      registers.push_back(0x0000);
+      registers.push_back(0x0000);
+    } else if (number_of_registers == 2) {
       // Empty command request.
-      read_registers.push_back(static_cast<uint16_t>(0x0004 | counter));
-      read_registers.push_back(static_cast<uint16_t>(0x0000 | command));
-    } else if (write_registers.size() == 3 && number_of_registers == 5) {
+      registers.push_back(static_cast<uint16_t>(0x0004 | counter));
+      registers.push_back(static_cast<uint16_t>(0x0000 | command));
+    } else if (number_of_registers == 5) {
       // Bus scan (the bus controller discovering us, typically at startup).
       ESP_LOGD(TAG, "Bus scan received from bus controller");
-      read_registers.push_back(static_cast<uint16_t>(0x0000 | counter));
-      read_registers.push_back(static_cast<uint16_t>(0x0005 | command));
-      read_registers.push_back(0x0430);
-      read_registers.push_back(0x10ff);
-      read_registers.push_back(0xa845);
+      registers.push_back(static_cast<uint16_t>(0x0000 | counter));
+      registers.push_back(static_cast<uint16_t>(0x0005 | command));
+      registers.push_back(0x0430);
+      registers.push_back(0x10ff);
+      registers.push_back(0xa845);
     } else {
-      ESP_LOGW(TAG, "Unknown read/write request (write %u, read %u)", static_cast<unsigned>(write_registers.size()),
-               number_of_registers);
+      ESP_LOGW(TAG, "Unknown read request (read %u)", number_of_registers);
       for (uint16_t i = 0; i < number_of_registers; i++)
-        read_registers.push_back(0x0000);
+        registers.push_back(0x0000);
     }
   } else {
-    ESP_LOGW(TAG, "Unknown read/write addresses write=0x%04X read=0x%04X", write_start_address, read_start_address);
+    ESP_LOGW(TAG, "Unknown read address 0x%04X", start_address);
     for (uint16_t i = 0; i < number_of_registers; i++)
-      read_registers.push_back(0x0000);
+      registers.push_back(0x0000);
   }
 
   return {};
@@ -100,6 +98,13 @@ modbus::ServerResponseStatus Hoermann::on_modbus_read_write_registers(uint16_t r
 modbus::ServerResponseStatus Hoermann::on_modbus_write_registers(uint16_t start_address,
                                                                  const modbus::RegisterValues &registers) {
   this->record_response_();
+
+  if (start_address == COMMAND_REG) {
+    // 0x17 write half: stash the command register so the following read half can echo its message counter and
+    // command byte back from STATE_REG. The hub always runs the write before the read within one request.
+    this->command_reg_value_ = registers[0];
+    return {};
+  }
 
   if (start_address != BROADCAST_REG) {
     ESP_LOGW(TAG, "Unknown write address 0x%04X", start_address);

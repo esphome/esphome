@@ -43,13 +43,12 @@ class Hoermann : public PollingComponent, public modbus::ModbusServerDevice {
   }
 
   // Modbus server callbacks. The bus controller polls state and pushes commands with READ_WRITE_MULTIPLE_REGISTERS
-  // (0x17) and broadcasts status with WRITE_MULTIPLE_REGISTERS (0x10).
-  modbus::ServerResponseStatus on_modbus_read_write_registers(uint16_t read_start_address, uint16_t number_of_registers,
-                                                              uint16_t write_start_address,
-                                                              const modbus::RegisterValues &write_registers,
-                                                              modbus::RegisterValues &read_registers) override;
+  // (0x17) and broadcasts status with WRITE_MULTIPLE_REGISTERS (0x10). For 0x17 the hub calls the write half first
+  // (which stores the command register), then the read half (which echoes it back from STATE_REG).
   modbus::ServerResponseStatus on_modbus_write_registers(uint16_t start_address,
                                                          const modbus::RegisterValues &registers) override;
+  modbus::ServerResponseStatus on_modbus_read_holding_registers(uint16_t start_address, uint16_t number_of_registers,
+                                                                modbus::RegisterValues &registers) override;
 
   // Control functions.
   void open_door();
@@ -90,6 +89,10 @@ class Hoermann : public PollingComponent, public modbus::ModbusServerDevice {
   // Previous broadcast register values (to detect high/low byte changes).
   uint16_t prev_position_reg_{0};
   uint16_t prev_state_reg_{0};
+
+  // 0x17 write half: command register last written to COMMAND_REG by the bus controller. The read half echoes
+  // its high-byte message counter and low-byte command back from STATE_REG.
+  uint16_t command_reg_value_{0};
 };
 
 }  // namespace esphome::hoermann

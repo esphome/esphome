@@ -498,7 +498,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       uint16_t number_of_write_registers = helpers::get_data<uint16_t>(data, 6);
       uint8_t number_of_bytes = helpers::get_data<uint8_t>(data, 8);
       if (number_of_registers == 0 || number_of_registers > MAX_NUM_OF_REGISTERS_TO_READ ||
-          number_of_write_registers == 0 || number_of_write_registers > MAX_NUM_OF_REGISTERS_TO_WRITE ||
+          number_of_write_registers == 0 || number_of_write_registers > MAX_NUM_OF_REGISTERS_TO_WRITE_RW ||
           number_of_write_registers * 2 != number_of_bytes) {
         ESP_LOGW(TAG, "Invalid number of registers (read %" PRIu16 ", write %" PRIu16 ") or bytes %" PRIu8,
                  number_of_registers, number_of_write_registers, number_of_bytes);
@@ -514,9 +514,16 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
       for (uint16_t i = 0; i < number_of_write_registers; i++) {
         write_registers.push_back(helpers::get_data<uint16_t>(data, 9 + i * 2));
       }
+      // Dispatch to the standalone write and read handlers so any device implementing those supports 0x17
+      // without a dedicated handler; a device that maps registers by address reconstructs the read response
+      // from the values it just stored.
+      status = device->on_modbus_write_registers(write_start_address, write_registers);
+      if (status.has_value()) {
+        this->send_exception_(address, function_code, status.value());
+        return;
+      }
       RegisterValues registers;
-      status = device->on_modbus_read_write_registers(read_start_address, number_of_registers, write_start_address,
-                                                      write_registers, registers);
+      status = device->on_modbus_read_holding_registers(read_start_address, number_of_registers, registers);
 
       // A handler that returns an exception leaves registers partially filled, so check the exception
       // first and forward it before validating the register count on the success path.
