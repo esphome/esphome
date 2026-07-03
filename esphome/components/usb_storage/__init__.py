@@ -39,7 +39,6 @@ USBStorageClient = usb_storage_ns.class_(
 USBStorageDevice = usb_storage_ns.class_(
     "USBStorageDevice",
     cg.Component,
-    cg.Parented.template(USBStorageClient),
 )
 
 # Automation classes
@@ -57,7 +56,7 @@ DeviceMountedCondition = usb_storage_ns.class_(
 async def register_usb_storage_device(device_config, storage_client):
     var = cg.new_Pvariable(device_config[CONF_ID])
     await cg.register_component(var, device_config)
-    cg.add(var.set_parent(storage_client))
+    cg.add(var.set_client(storage_client))
     cg.add(var.set_mount_path(device_config[CONF_MOUNT_PATH]))
     cg.add(var.set_storage_id(str(device_config[CONF_ID])))
     cg.add(var.set_vid(device_config[CONF_VID]))

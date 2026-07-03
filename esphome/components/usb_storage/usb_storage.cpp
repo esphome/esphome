@@ -513,7 +513,7 @@ storage::StorageError USBStorageDevice::get_info(storage::StorageInfo *info) {
   info->is_mounted = this->fs_mounted_;
   info->is_removable = true;
   info->is_read_only = false;
-  info->block_size = this->parent_->get_sector_size();
+  info->block_size = this->client_->get_sector_size();
   info->total_bytes = 0;
   info->free_bytes = 0;
 

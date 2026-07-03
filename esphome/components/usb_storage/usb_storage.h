@@ -111,7 +111,7 @@ struct USBFileHandle : public storage::FileHandle {
 // in the StorageRegistry. Mount/unmount are driven by USBStorageClient events;
 // all file ops go through POSIX (FAT is already VFS-registered by the client).
 // ─────────────────────────────────────────────────────────────────────────────
-class USBStorageDevice : public Parented<USBStorageClient>, public storage::FilesystemStorage {
+class USBStorageDevice : public storage::FilesystemStorage {
   friend class USBStorageClient;
 
  public:
@@ -121,6 +121,7 @@ class USBStorageDevice : public Parented<USBStorageClient>, public storage::File
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
 
+  void set_client(USBStorageClient *client) { this->client_ = client; }
   void set_mount_path(const char *mount_path) { this->mount_path_ = mount_path; }
   void set_vid(uint16_t vid) { this->vid_ = vid; }
   void set_pid(uint16_t pid) { this->pid_ = pid; }
@@ -166,6 +167,7 @@ class USBStorageDevice : public Parented<USBStorageClient>, public storage::File
   void free_handle_(USBFileHandle *handle);
   void build_path_(char *out, size_t out_size, const char *path) const;
 
+  USBStorageClient *client_{nullptr};
   uint16_t vid_{0};
   uint16_t pid_{0};
   const char *mount_path_{nullptr};
