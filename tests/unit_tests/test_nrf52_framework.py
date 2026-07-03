@@ -9,7 +9,7 @@ import pytest
 
 from esphome.components.nrf52.framework import (
     _REQUIREMENTS,
-    _TOOLCHAIN_VERSION,
+    TOOLCHAIN_VERSION,
     _get_toolchain_platform_info,
     check_and_install,
     get_sdk_nrf_tools_path,
@@ -73,7 +73,7 @@ def nrf52_dirs(setup_core: Path) -> SimpleNamespace:
     tools = get_sdk_nrf_tools_path()
     python_env = tools / "penvs" / f"v{_TEST_SDK_VERSION}"
     framework = tools / "frameworks" / f"v{_TEST_SDK_VERSION}"
-    toolchain_dir = tools / "toolchains" / _TOOLCHAIN_VERSION
+    toolchain_dir = tools / "toolchains" / TOOLCHAIN_VERSION
     for d in (python_env, framework, toolchain_dir):
         d.mkdir(parents=True, exist_ok=True)
     zephyr_scripts = framework / "zephyr" / "scripts"
@@ -246,7 +246,7 @@ class TestCheckAndInstall:
 
         args, _ = mock_nrf52_ops.download_from_mirrors.call_args
         substitutions = args[1]
-        assert substitutions["VERSION"] == _TOOLCHAIN_VERSION
+        assert substitutions["VERSION"] == TOOLCHAIN_VERSION
         assert substitutions["sysname"] == "linux"
         assert substitutions["machine"] == "x86_64"
         assert substitutions["extension"] == "tar.xz"
