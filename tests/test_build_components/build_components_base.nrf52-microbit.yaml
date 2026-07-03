@@ -7,6 +7,7 @@ nrf52:
 
 logger:
   level: VERY_VERBOSE
+  hardware_uart: UART0
 
 packages:
   component_under_test: !include
