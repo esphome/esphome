@@ -71,8 +71,9 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         pm_static=[],
         user={},
         kconfig="",
-        # if OTA is disabled image is build without bootloader even though config says `bootloader: mcuboot``
-        # that way the image can be smaller. It was default behaviour in SDK 2.6.1.
+        # When OTA is disabled, the image is built without a bootloader even if the
+        # config says `bootloader: mcuboot`, so the image can be smaller. This was
+        # the default behaviour in SDK 2.6.1.
         sysbuild=False,
     )
 
