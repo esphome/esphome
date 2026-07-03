@@ -318,7 +318,9 @@ async def to_code(configs):
     df.add_define("LV_USE_STDLIB_SPRINTF", "LV_STDLIB_CLIB")
     df.add_define("LV_USE_STDLIB_STRING", "LV_STDLIB_CLIB")
     df.add_define("LV_USE_STDLIB_MALLOC", "LV_STDLIB_CUSTOM")
-    df.add_define("LV_DEF_REFR_PERIOD", "16")
+    df.add_define(
+        "LV_DEF_REFR_PERIOD", config_0[df.CONF_REFRESH_INTERVAL].total_milliseconds
+    )
     cg.add_define("USE_LVGL")
     # suppress default enabling of extra widgets
     # cg.add_define("LV_KCONFIG_PRESENT")
@@ -598,6 +600,9 @@ LVGL_TOP_LEVEL_SCHEMA = (
             cv.Optional(df.CONF_DEFAULT_FONT, default="montserrat_14"): lvalid.lv_font,
             cv.Optional(df.CONF_FULL_REFRESH, default=False): cv.boolean,
             cv.Optional(df.CONF_UPDATE_WHEN_DISPLAY_IDLE, default=False): cv.boolean,
+            cv.Optional(
+                df.CONF_REFRESH_INTERVAL, default="16ms"
+            ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_DRAW_ROUNDING, default=2): cv.positive_int,
             cv.Optional(CONF_BUFFER_SIZE, default=0): cv.percentage,
             cv.Optional(CONF_ROTATION): validate_rotation,
