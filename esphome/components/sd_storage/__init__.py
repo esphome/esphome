@@ -208,6 +208,7 @@ async def to_code(config):
     esp32.require_fatfs_lfn_max(FATFS_LFN_MAX)
     esp32.require_fatfs_lfn_heap()
     esp32.include_builtin_idf_component("fatfs")
+    esp32.include_builtin_idf_component("esp_vfs_fat")
     cg.add_define("CONFIG_FATFS_MAX_LFN", FATFS_LFN_MAX)
 
     var = cg.new_Pvariable(config[CONF_ID])
