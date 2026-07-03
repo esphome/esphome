@@ -4,6 +4,7 @@
 
 #include "esphome/core/log.h"
 #include <cerrno>
+#include <cinttypes>
 #include <cstdio>
 #include <cstring>
 #include <sys/stat.h>
@@ -128,8 +129,8 @@ StorageError SdSpi::mount() {
   this->is_mounted_ = true;
   this->update_card_info();
 
-  ESP_LOGI(TAG_SPI, "SD card mounted at %s (max %d kHz, real %d kHz)", this->mount_path_, this->card_->max_freq_khz,
-           this->card_->real_freq_khz);
+  ESP_LOGI(TAG_SPI, "SD card mounted at %s (max %" PRIu32 " kHz, real %" PRIu32 " kHz)", this->mount_path_,
+           this->card_->max_freq_khz, this->card_->real_freq_khz);
 
   if (storage::global_storage_registry != nullptr)
     storage::global_storage_registry->register_storage(this);

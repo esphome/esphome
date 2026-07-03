@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 #include <sys/stat.h>
 #include <dirent.h>
+#include <unistd.h>
 #include <cerrno>
 #include <cstring>
 #include <cstdio>
@@ -252,7 +253,7 @@ storage::StorageError SdStorageBase::rmdir(const char *path, bool recursive) {
     closedir(dir);
   }
 
-  return ::rmdir(full) == 0 ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
+  return ::unlink(full) == 0 ? storage::StorageError::OK : storage::StorageError::WRITE_ERROR;
 }
 
 storage::StorageError SdStorageBase::remove(const char *path) {
