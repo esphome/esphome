@@ -1,1 +1,4 @@
 nrf52:
+
+logger:
+  baud_rate: 0
