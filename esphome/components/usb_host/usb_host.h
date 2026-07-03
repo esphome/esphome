@@ -118,7 +118,7 @@ struct IsocCbCtx {
 };
 
 struct IsocStream {
-  std::unique_ptr<usb_transfer_t *[]> xfers{};
+  std::unique_ptr<usb_transfer_t *[]> xfers {};
   std::unique_ptr<IsocCbCtx[]> ctxs{};
   std::atomic<uint8_t> pending_urbs{0};
   uint8_t num_urbs{0};
