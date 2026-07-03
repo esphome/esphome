@@ -821,7 +821,7 @@ void LvglComponent::loop() {
       // calling lv_timer_pause() here would be ineffective; LVGL pauses and resumes the timer based on its own internal
       // state, which is not aware of the display's busy state. Instead, we extend the timer period to avoid it firing
       // while the display is busy.
-      lv_timer_set_period(this->refr_timer_, 5 * 60 * 1000);  // Extend the timer period to avoid it firing
+      lv_timer_set_period(this->refr_timer_, 5 * 60 * 1000);
     } else if (!busy && this->refr_timer_paused_) {
       this->refr_timer_paused_ = false;
       lv_timer_set_period(this->refr_timer_, LV_DEF_REFR_PERIOD);
