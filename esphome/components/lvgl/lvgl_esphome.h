@@ -300,7 +300,7 @@ class LvglComponent final : public PollingComponent {
   // LVGL callback that calls it is not set in that case
   void draw_start_() const { this->draw_start_callback_->trigger(); }
   // Returns true if update_when_display_idle is enabled and at least one underlying display
-  // component is currently busy (e.g. mid-refresh), and so must not be written to or told to update.
+  // component is currently busy (e.g. mid-refresh).
   bool displays_busy_() const;
 
   void write_random_();
@@ -319,12 +319,13 @@ class LvglComponent final : public PollingComponent {
 
   uint8_t *draw_buf_{};
   lv_display_t *disp_{};
+  // The display's own periodic refresh timer, paused while the display is busy (see
+  // displays_busy_()) so LVGL neither renders nor flushes to it, without losing track of
+  // invalidated areas. Other timers (indev reading, animations, ...) keep running as normal.
+  lv_timer_t *refr_timer_{};
   uint16_t width_{};
   uint16_t height_{};
   bool paused_{};
-  // Set when a flush was skipped because the display was busy; cleared once the display goes
-  // idle again and a fresh full redraw has been requested to actually flush the current content.
-  bool flush_deferred_{};
   std::vector<LvPageType *> pages_{};
   size_t current_page_{0};
   bool show_snow_{};

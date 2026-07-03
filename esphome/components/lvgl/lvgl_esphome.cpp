@@ -401,20 +401,12 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
 }
 
 void LvglComponent::flush_cb_(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *color_p) {
-  if (this->paused_) {
-    // explicitly paused: nothing to draw.
-  } else if (this->displays_busy_()) {
-    // The underlying display is mid-refresh: writing into its buffer now could corrupt it.
-    // Skip this flush; once the display goes idle again a full redraw will be forced to catch up.
-    this->flush_deferred_ = true;
-  } else {
+  if (!this->paused_) {
     auto now = millis();
     this->draw_buffer_(area, reinterpret_cast<lv_color_data *>(color_p));
     ESP_LOGV(TAG, "flush_cb, area=%d/%d, %d/%d took %dms", (int) area->x1, (int) area->y1,
              (int) lv_area_get_width(area), (int) lv_area_get_height(area), (int) (millis() - now));
   }
-  // Always signal flush completion immediately: LVGL's single-buffered render path blocks
-  // (busy-waits) on the next redraw until this is called, so deferring it would freeze the loop.
   lv_display_flush_ready(disp_drv);
 }
 
@@ -628,8 +620,9 @@ void LvKeyboardType::set_obj(lv_obj_t *lv_obj) {
 void LvglComponent::draw_end_() {
   if (this->draw_end_callback_ != nullptr)
     this->draw_end_callback_->trigger();
-  // Don't kick off another display update while one is still in progress.
-  if (this->update_when_display_idle_ && !this->displays_busy_()) {
+  // Only reachable once the display is idle again: while busy, the display's refr_timer_ is
+  // paused (see loop()), so LVGL never renders/flushes and this event never fires.
+  if (this->update_when_display_idle_) {
     for (auto *disp : this->displays_)
       disp->update();
   }
@@ -784,6 +777,9 @@ void LvglComponent::setup() {
   if (this->draw_end_callback_ != nullptr || this->update_when_display_idle_) {
     lv_display_add_event_cb(this->disp_, render_end_cb, LV_EVENT_REFR_READY, this);
   }
+  if (this->update_when_display_idle_) {
+    this->refr_timer_ = lv_display_get_refr_timer(this->disp_);
+  }
 #if LV_USE_LOG
   lv_log_register_print_cb([](lv_log_level_t level, const char *buf) {
     auto next = strchr(buf, ')');
@@ -814,14 +810,17 @@ void LvglComponent::loop() {
       this->write_random_();
     return;
   }
-  // The display just became free again after one or more flushes were skipped while it was busy:
-  // force a full redraw so the current content actually gets flushed to it.
-  if (this->flush_deferred_ && !this->displays_busy_()) {
-    this->flush_deferred_ = false;
-    lv_obj_invalidate(lv_screen_active());
+  // Pause/resume the display's own refresh timer to track its busy state. While paused, LVGL
+  // still keeps track of invalidated areas but won't render or flush them, so nothing needs to
+  // be discarded or replayed: once resumed, the accumulated areas are simply drawn as normal.
+  // Input events and other timers keep being processed below regardless of this state.
+  if (this->refr_timer_ != nullptr) {
+    if (this->displays_busy_()) {
+      lv_timer_pause(this->refr_timer_);
+    } else {
+      lv_timer_resume(this->refr_timer_);
+    }
   }
-  // Input events and timers keep being processed here even while the display itself is busy;
-  // only the flush to the physical display is skipped (see flush_cb_ and displays_busy_()).
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   auto now = millis();
   lv_timer_handler();
