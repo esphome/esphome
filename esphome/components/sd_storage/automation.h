@@ -17,9 +17,9 @@
 namespace esphome::sd_storage {
 
 // Trigger — works with both SdMmc and SdSpi via SdStorageBase
-template<typename T> class CardMountedTrigger : public Trigger<const char *> {
+class CardMountedTrigger : public Trigger<const char *> {
  public:
-  explicit CardMountedTrigger(T *parent) {
+  explicit CardMountedTrigger(SdStorageBase *parent) {
     parent->add_on_mounted_callback([this](const char *mount_path) { this->trigger(mount_path); });
   }
 };
