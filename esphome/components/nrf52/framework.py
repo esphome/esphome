@@ -2,6 +2,7 @@ import logging
 import os
 from pathlib import Path
 import platform
+import shutil
 import tempfile
 
 import platformdirs
@@ -143,8 +144,13 @@ def _patch_uf2conv_escape_sequences(framework_path: Path) -> None:
         return
     content = uf2conv.read_text(encoding="utf-8")
     patched = content.replace("re.split('\\s+', line)", "re.split('\\\\s+', line)")
-    if patched != content:
-        uf2conv.write_text(patched, encoding="utf-8")
+    if patched == content:
+        return
+    # Write atomically so a concurrent build never sees a truncated file
+    tmp = uf2conv.with_suffix(".py.tmp")
+    tmp.write_text(patched, encoding="utf-8")
+    shutil.copymode(uf2conv, tmp)
+    tmp.replace(uf2conv)
 
 
 def check_and_install() -> None:
@@ -208,11 +214,10 @@ def check_and_install() -> None:
         ]
         if not run_command_ok(cmd, cwd=framework_path):
             raise EsphomeError(f"Can't update nRF Connect SDK {version}")
+        framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+        if framework_ver < cv.Version(2, 9, 2):
+            _patch_uf2conv_escape_sequences(framework_path)
         sentinel.touch()
-
-    framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    if framework_ver < cv.Version(2, 9, 2):
-        _patch_uf2conv_escape_sequences(framework_path)
 
     zephyr_sentinel = python_env_path / ".zephyr_reqs_ready"
     if (
