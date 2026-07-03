@@ -10,6 +10,7 @@ Components include :func:`storage_schema` in their config and convert the chosen
 value with :func:`is_in_flash` when calling ``make_preference``.
 """
 
+import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_STORAGE
 from esphome.core import CORE
@@ -59,5 +60,13 @@ def storage_schema():
 
 
 def is_in_flash(value: str) -> bool:
-    """Map a CONF_STORAGE value to the ``in_flash`` argument of make_preference."""
-    return value == STORAGE_FLASH
+    """Map a CONF_STORAGE value to the ``in_flash`` argument of make_preference.
+
+    Call this from ``to_code``: when RTC storage is selected on ESP32 it also emits
+    the define that compiles the RTC storage buffer into the ESP32 backend (which is
+    otherwise left out so unused builds don't reserve RTC memory).
+    """
+    in_flash = value == STORAGE_FLASH
+    if not in_flash and CORE.is_esp32:
+        cg.add_define("USE_ESP32_RTC_PREFERENCES")
+    return in_flash

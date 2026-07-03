@@ -36,9 +36,24 @@ def _validate(value: dict):
     return cv.Schema(preferences.storage_schema())(value)
 
 
+def _define_names() -> set[str]:
+    return {define.name for define in CORE.defines}
+
+
 def test_is_in_flash() -> None:
+    _set_platform(PLATFORM_ESP8266)
     assert preferences.is_in_flash(preferences.STORAGE_FLASH) is True
     assert preferences.is_in_flash(preferences.STORAGE_RTC) is False
+    # The RTC storage define is ESP32-specific.
+    assert "USE_ESP32_RTC_PREFERENCES" not in _define_names()
+
+
+def test_is_in_flash_esp32_rtc_emits_define() -> None:
+    _set_esp32(VARIANT_ESP32)
+    assert preferences.is_in_flash(preferences.STORAGE_FLASH) is True
+    assert "USE_ESP32_RTC_PREFERENCES" not in _define_names()
+    assert preferences.is_in_flash(preferences.STORAGE_RTC) is False
+    assert "USE_ESP32_RTC_PREFERENCES" in _define_names()
 
 
 @pytest.mark.parametrize(
