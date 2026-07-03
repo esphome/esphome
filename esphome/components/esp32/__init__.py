@@ -1835,6 +1835,16 @@ async def _write_fatfs_sdkconfig(disable_fatfs: bool) -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
+async def _write_vfs_dir_sdkconfig(disable_vfs_dir: bool) -> None:
+    """Write VFS_SUPPORT_DIR sdkconfig at FINAL priority so require_vfs_dir() calls from all
+    components are visible before we decide to enable or disable VFS directory support."""
+    if CORE.data.get(KEY_VFS_DIR_REQUIRED, False):
+        add_idf_sdkconfig_option("CONFIG_VFS_SUPPORT_DIR", True)
+    else:
+        add_idf_sdkconfig_option("CONFIG_VFS_SUPPORT_DIR", not disable_vfs_dir)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
 async def _write_exclude_components() -> None:
     """Write EXCLUDE_COMPONENTS cmake arg after all components have registered exclusions."""
     if KEY_ESP32 not in CORE.data:
@@ -2350,19 +2360,6 @@ async def to_code(config):
             "CONFIG_VFS_SUPPORT_SELECT", not advanced[CONF_DISABLE_VFS_SUPPORT_SELECT]
         )
 
-    # Disable VFS support for directory functions (opendir, readdir, mkdir, etc.)
-    # ESPHome doesn't use directory functions on ESP32.
-    # Components that need it (e.g., storage components) call require_vfs_dir().
-    # Saves approximately 0.5KB+ of flash when disabled (default).
-    if CORE.data.get(KEY_VFS_DIR_REQUIRED, False):
-        # Component requires VFS directory support - force enable regardless of user setting
-        add_idf_sdkconfig_option("CONFIG_VFS_SUPPORT_DIR", True)
-    else:
-        # No component needs it - allow user to control (default: disabled)
-        add_idf_sdkconfig_option(
-            "CONFIG_VFS_SUPPORT_DIR", not advanced[CONF_DISABLE_VFS_SUPPORT_DIR]
-        )
-
     if use_platformio:
         cg.add_platformio_option("board_build.partitions", "partitions.csv")
     if CONF_PARTITIONS in config:
@@ -2525,6 +2522,7 @@ async def to_code(config):
 
     # FINAL priority: runs after every require_fatfs() / require_fatfs_lfn_*() call
     CORE.add_job(_write_fatfs_sdkconfig, advanced[CONF_DISABLE_FATFS])
+    CORE.add_job(_write_vfs_dir_sdkconfig, advanced[CONF_DISABLE_VFS_SUPPORT_DIR])
 
     for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
         add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
