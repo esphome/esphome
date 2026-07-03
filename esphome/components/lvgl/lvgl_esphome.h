@@ -215,8 +215,8 @@ class LvglComponent final : public PollingComponent {
   // @param show_snow If true, show the snow effect when paused.
   void set_paused(bool paused, bool show_snow);
 
-  // Returns true if the display is explicitly paused, or a blocking display update is in progress.
-  bool is_paused() const;
+  // Returns true if the display has been explicitly paused via set_paused().
+  bool is_paused() const { return this->paused_; }
   // If the display is paused and we have resume_on_input_ set to true, resume the display.
   void maybe_wakeup() {
     if (this->paused_ && this->resume_on_input_) {
@@ -299,6 +299,9 @@ class LvglComponent final : public PollingComponent {
   // Not checking for non-null callback since the
   // LVGL callback that calls it is not set in that case
   void draw_start_() const { this->draw_start_callback_->trigger(); }
+  // Returns true if update_when_display_idle is enabled and at least one underlying display
+  // component is currently busy (e.g. mid-refresh), and so must not be written to or told to update.
+  bool displays_busy_() const;
 
   void write_random_();
   void draw_buffer_(const lv_area_t *area, lv_color_data *ptr);
@@ -319,6 +322,9 @@ class LvglComponent final : public PollingComponent {
   uint16_t width_{};
   uint16_t height_{};
   bool paused_{};
+  // Set when a flush was skipped because the display was busy; cleared once the display goes
+  // idle again and a fresh full redraw has been requested to actually flush the current content.
+  bool flush_deferred_{};
   std::vector<LvPageType *> pages_{};
   size_t current_page_{0};
   bool show_snow_{};
