@@ -5,3 +5,5 @@ openthread:
   tlv: 0E080000000000010000
 
 api:
+  encryption:
+    key: bOFFzzvfpg5DB94DuBGLXD/hMnhpDKgP9UQyBulwWVU=
