@@ -4,7 +4,6 @@
 #include "usb_host.h"
 #include <cinttypes>
 #include "esphome/core/log.h"
-#include "esphome/core/application.h"
 
 namespace esphome::usb_host {
 
@@ -201,7 +200,7 @@ void USBHost::isoc_cb(usb_transfer_t *xfer) {
   auto finish_urb = [xfer, stream, client_handle, device_handle]() {
     usb_host_transfer_free(xfer);
     if (stream->pending_urbs.fetch_sub(1, std::memory_order_acq_rel) == 1) {
-      App.defer([stream, client_handle, device_handle]() {
+      get_usb_host()->defer([stream, client_handle, device_handle]() {
         stream->xfers.reset();
         stream->ctxs.reset();
         if (stream->alt_setting != 0)
@@ -310,7 +309,7 @@ void USBHost::stream_close(IsocStream &stream, usb_host_client_handle_t client_h
 
   // Signal callbacks to stop resubmitting. In-flight URBs will return, free
   // themselves, and the last one defers alt-setting reset, interface release,
-  // and buffer cleanup to the main loop via App.defer() — no blocking needed.
+  // and buffer cleanup to the main loop via get_usb_host()->defer() — no blocking needed.
   stream.streaming = false;
 }
 
