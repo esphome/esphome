@@ -127,7 +127,6 @@ async def to_code(config):
     for device in config.get(CONF_DEVICES) or ():
         await register_usb_storage_device(device, var)
 
-    cg.add_define("USE_USB_STORAGE")
     cg.add_define("USE_USB_BULK_TRANSFERS")
     cg.add_define("USE_USB_CONTROL_TRANSFERS")
 
