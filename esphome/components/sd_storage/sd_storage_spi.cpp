@@ -25,6 +25,12 @@ static constexpr int SD_OCR_SDHC_CAP = (1 << 30);
 
 namespace esphome::sd_storage {
 
+using storage::FileHandle;
+using storage::FileStat;
+using storage::OpenMode;
+using storage::StorageError;
+using storage::StorageInfo;
+
 void SdSpi::setup() {
   ESP_LOGI(TAG_SPI, "Initializing SD card in SPI mode");
 

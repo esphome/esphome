@@ -10,6 +10,12 @@
 
 namespace esphome::sd_storage {
 
+using storage::FileHandle;
+using storage::FileStat;
+using storage::OpenMode;
+using storage::StorageError;
+using storage::StorageInfo;
+
 static const char *const TAG_BASE = "sd_storage";
 
 bool SdStorageBase::build_full_path_(const char *rel_path, char *buf, size_t buf_size) const {
