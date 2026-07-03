@@ -115,19 +115,20 @@ bool USBHost::do_set_interface(usb_host_client_handle_t client_handle, usb_devic
   xfer->num_bytes = static_cast<int>(SETUP_PACKET_SIZE);
   xfer->timeout_ms = 5000;
   xfer->context = sem;
-  xfer->callback = [](usb_transfer_t *t) {
-    xSemaphoreGiveFromISR(static_cast<SemaphoreHandle_t>(t->context), nullptr);
-  };
+  xfer->callback = [](usb_transfer_t *t) { xSemaphoreGive(static_cast<SemaphoreHandle_t>(t->context)); };
 
   err = usb_host_transfer_submit_control(client_handle, xfer);
   bool ok = false;
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "set_interface: submit failed: %s", esp_err_to_name(err));
   } else {
-    ok = xSemaphoreTake(sem, pdMS_TO_TICKS(5000)) == pdTRUE;
+    ok = xSemaphoreTake(sem, pdMS_TO_TICKS(6000)) == pdTRUE;
     if (!ok) {
-      ESP_LOGE(TAG, "set_interface: timeout");
-    } else if (xfer->status != USB_TRANSFER_STATUS_COMPLETED) {
+      // Callback may still fire after this timeout; avoid freeing resources here to prevent UAF.
+      ESP_LOGE(TAG, "set_interface: wait timeout");
+      return false;
+    }
+    if (xfer->status != USB_TRANSFER_STATUS_COMPLETED) {
       ESP_LOGE(TAG, "set_interface: transfer status %d", xfer->status);
       ok = false;
     }
