@@ -115,9 +115,7 @@ bool USBHost::do_set_interface(usb_host_client_handle_t client_handle, usb_devic
   xfer->num_bytes = static_cast<int>(SETUP_PACKET_SIZE);
   xfer->timeout_ms = 5000;
   xfer->context = sem;
-  xfer->callback = [](usb_transfer_t *t) {
-    xSemaphoreGive(static_cast<SemaphoreHandle_t>(t->context));
-  };
+  xfer->callback = [](usb_transfer_t *t) { xSemaphoreGive(static_cast<SemaphoreHandle_t>(t->context)); };
 
   err = usb_host_transfer_submit_control(client_handle, xfer);
   bool ok = false;
