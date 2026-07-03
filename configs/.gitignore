@@ -1,0 +1,8 @@
+# Managed by ESPHome Device Builder — created because this directory
+# was not already a git repository. Edit freely; it won't be regenerated.
+.esphome/
+.device-builder*
+.receiver_peers.json
+.offloader_pairings.json
+.DS_Store
+secrets.yaml
