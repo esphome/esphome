@@ -803,7 +803,7 @@ ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
         4, 0, 0, "alpha1"
-    ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
+    ): "https://github.com/swoboda1337/platform-espressif32.git#prep_IDF6",
     cv.Version(3, 3, 9): cv.Version(55, 3, 39),
     cv.Version(3, 3, 8): cv.Version(55, 3, 38, "1"),
     cv.Version(3, 3, 7): cv.Version(55, 3, 37),
@@ -860,10 +860,10 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
     ): "https://github.com/swoboda1337/platform-espressif32.git#prep_IDF6",
     cv.Version(
         6, 0, 1
-    ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
+    ): "https://github.com/swoboda1337/platform-espressif32.git#prep_IDF6",
     cv.Version(
         6, 0, 0
-    ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
+    ): "https://github.com/swoboda1337/platform-espressif32.git#prep_IDF6",
     cv.Version(5, 5, 4): cv.Version(55, 3, 39),
     cv.Version(5, 5, 3, "1"): cv.Version(55, 3, 37),
     cv.Version(5, 5, 3): cv.Version(55, 3, 37),
@@ -884,7 +884,7 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
+    "recommended": "https://github.com/swoboda1337/platform-espressif32.git#prep_IDF6",
     "latest": cv.Version(55, 3, 39),
     "dev": "https://github.com/pioarduino/platform-espressif32.git#develop",
 }
