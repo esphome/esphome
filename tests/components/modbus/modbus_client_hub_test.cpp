@@ -17,14 +17,18 @@ class NoResponseProbeHub : public ModbusClientHub {
   size_t queued_frames() const { return this->tx_buffer_.size(); }
   const ModbusDeviceCommand &front() const { return this->tx_buffer_.front(); }
   bool waiting() const { return this->waiting_for_response_.has_value(); }
-  const ModbusDeviceCommand &waiting_command() const { return this->waiting_for_response_.value(); }
+  const ModbusDeviceCommand &waiting_command() const {
+    EXPECT_TRUE(this->waiting_for_response_.has_value());
+    return *this->waiting_for_response_;  // NOLINT(bugprone-unchecked-optional-access)
+  }
 
   void force_send_front() {
     this->waiting_for_response_ = std::move(this->tx_buffer_.front());
     this->tx_buffer_.pop_front();
   }
   void timeout_waiting() {
-    this->notify_no_response_();
+    if (this->waiting_for_response_.has_value())
+      this->notify_no_response_(*this->waiting_for_response_);
     this->waiting_for_response_.reset();
   }
 };

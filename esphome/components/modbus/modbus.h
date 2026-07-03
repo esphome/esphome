@@ -114,8 +114,9 @@ class ModbusClientHub : public Modbus {
   void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) override;
   void send_next_frame_();
   // Notify the waiting device of no response; re-queues the frame if on_modbus_no_response() returns true.
-  void notify_no_response_();
-  void requeue_waiting_frame_();
+  // wfr is the caller's checked reference to waiting_for_response_.
+  void notify_no_response_(ModbusDeviceCommand &wfr);
+  void requeue_waiting_frame_(ModbusDeviceCommand &wfr);
   void queue_raw_(uint8_t address, const uint8_t *pdu, uint16_t pdu_len, ModbusClientDevice *device = nullptr);
 
   uint16_t send_wait_time_{2000};

@@ -56,7 +56,7 @@ void ModbusClientHub::loop() {
         (this->rx_buffer_.empty() || this->rx_buffer_[0] != expected_address)) {
       ESP_LOGW(TAG, "Stop waiting for response from %" PRIu8 " %" PRIu32 "ms after last send", expected_address,
                this->last_receive_check_ - this->last_send_);
-      this->notify_no_response_();
+      this->notify_no_response_(wfr);
       this->waiting_for_response_.reset();
     }
   }
@@ -277,7 +277,7 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
                address, expected_address, (function_code & FUNCTION_CODE_MASK), expected_function_code,
                this->last_modbus_byte_ - this->last_send_);
       // Invalidate the device; the entry survives as an interrupted shell so the late response is ignored.
-      this->notify_no_response_();
+      this->notify_no_response_(wfr);
       wfr.interrupted = true;
       return;
     }
@@ -514,16 +514,14 @@ void ModbusClientHub::send_next_frame_() {
   }
 }
 
-void ModbusClientHub::notify_no_response_() {
-  ModbusDeviceCommand &wfr = this->waiting_for_response_.value();
+void ModbusClientHub::notify_no_response_(ModbusDeviceCommand &wfr) {
   if (wfr.device != nullptr && wfr.device->on_modbus_no_response())
-    this->requeue_waiting_frame_();
+    this->requeue_waiting_frame_(wfr);
   // The old transaction is over either way; never deliver anything else to the device through it.
   wfr.device = nullptr;
 }
 
-void ModbusClientHub::requeue_waiting_frame_() {
-  ModbusDeviceCommand &wfr = this->waiting_for_response_.value();
+void ModbusClientHub::requeue_waiting_frame_(ModbusDeviceCommand &wfr) {
   const ModbusFrame &frame = wfr.frame;
   if (this->tx_buffer_.size() >= MODBUS_TX_BUFFER_SIZE) {
     ESP_LOGE(TAG, "Write buffer full, dropped retry for address %" PRIu8, frame.data[0]);
