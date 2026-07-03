@@ -16,15 +16,16 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Resolve sdk-nrf version for cache key
-      # The version is pinned in code, not in any file that feeds the other
-      # cache keys, so resolve it explicitly. Keying on it means the cache
-      # invalidates on a version bump (actions/cache never overwrites a key).
+    - name: Resolve sdk-nrf and toolchain versions for cache key
+      # Both versions are pinned in code, not in any file that feeds the
+      # other cache keys, so resolve them explicitly. Keying on them means
+      # the cache invalidates when either is bumped (actions/cache never
+      # overwrites a key).
       id: version
       shell: bash
       run: |
         . venv/bin/activate
-        echo "version=$(python -c 'from esphome.components.nrf52 import RECOMMENDED_SDK_NRF_VERSION as V; print(V)')" >> "$GITHUB_OUTPUT"
+        echo "version=$(python -c 'from esphome.components.nrf52 import RECOMMENDED_SDK_NRF_VERSION as v; from esphome.components.nrf52.framework import _TOOLCHAIN_VERSION as t; print(f"{v}-{t}")')" >> "$GITHUB_OUTPUT"
     # Mirror cache-esp-idf: only dev-branch runs write the shared cache (so it
     # lives in the default-branch scope readable by all PRs); PRs are
     # restore-only and never push multi-GB artifacts into their own scope.
