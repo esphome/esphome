@@ -139,11 +139,16 @@ class ModbusServerHub : public Modbus {
   void process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data);
   // Dispatches a broadcast (address 0) write to every registered device; broadcasts are never answered.
   void process_broadcast_frame_(uint8_t function_code, const uint8_t *data);
+  // Parses a WRITE_SINGLE_REGISTER / WRITE_MULTIPLE_REGISTERS PDU into start_address and the host-order register
+  // values, validating the register count and address range. Returns std::nullopt on success, otherwise the Modbus
+  // exception code describing the failure. Shared by unicast writes (which reply with the exception) and broadcast
+  // writes (which silently drop invalid frames).
+  ResponseStatus parse_write_registers_(uint8_t function_code, const uint8_t *data, uint16_t &start_address,
+                                          RegisterValues &registers);
   ModbusServerDevice *find_device_(uint8_t address);
-  // Returns true if [start_address, start_address + number_of_registers) fits in the 16-bit address space.
-  // On failure, logs and sends an ILLEGAL_DATA_ADDRESS exception to the client.
-  bool check_register_range_(uint8_t address, uint8_t function_code, uint16_t start_address,
-                             uint16_t number_of_registers);
+  // Returns std::nullopt if [start_address, start_address + number_of_registers) fits in the 16-bit address space,
+  // otherwise ILLEGAL_DATA_ADDRESS. The caller sends the exception reply if one is required.
+  ResponseStatus check_register_range_(uint16_t start_address, uint16_t number_of_registers);
   void send_raw_(const uint8_t *payload, uint16_t len);
   void send_exception_(uint8_t address, uint8_t function_code, ModbusExceptionCode exception_code);
   void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);

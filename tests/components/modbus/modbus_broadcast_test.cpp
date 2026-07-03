@@ -18,7 +18,7 @@ class RecordingDevice : public ModbusServerDevice {
  public:
   explicit RecordingDevice(uint8_t address) { this->set_address(address); }
 
-  ServerResponseStatus on_modbus_write_registers(uint16_t start_address, const RegisterValues &registers) override {
+  ResponseStatus on_write_registers(uint16_t start_address, const RegisterValues &registers) override {
     this->write_count++;
     this->last_start_address = start_address;
     this->last_values.assign(registers.begin(), registers.end());
