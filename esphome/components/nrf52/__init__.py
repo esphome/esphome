@@ -699,7 +699,7 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
                 return False
 
             candidates = [
-                CORE.relative_pioenvs_path(CORE.name, "zephyr/zephyr/zephy2r.elf"),
+                CORE.relative_pioenvs_path(CORE.name, "zephyr/zephyr/zephyr.elf"),
                 CORE.relative_pioenvs_path(CORE.name, "zephyr/zephyr.elf"),
                 CORE.relative_pioenvs_path(CORE.name, "firmware.elf"),
             ]
