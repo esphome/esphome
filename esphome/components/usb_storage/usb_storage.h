@@ -101,7 +101,7 @@ class USBStorageClient : public usb_host::USBClient {
 // USBFileHandle — extends storage::FileHandle with no extra fields needed;
 // the base FILE *file is sufficient since FAT is VFS-backed.
 // ─────────────────────────────────────────────────────────────────────────────
-struct USBFileHandle : public storage::FileHandle {
+struct USBFileHandle : public esphome::storage::FileHandle {
   char path_buf[(ESP_VFS_PATH_MAX + CONFIG_FATFS_MAX_LFN + 1)]{};
 };
 
@@ -112,7 +112,7 @@ struct USBFileHandle : public storage::FileHandle {
 // in the StorageRegistry. Mount/unmount are driven by USBStorageClient events;
 // all file ops go through POSIX (FAT is already VFS-registered by the client).
 // ─────────────────────────────────────────────────────────────────────────────
-class USBStorageDevice : public storage::FilesystemStorage {
+class USBStorageDevice : public esphome::storage::FilesystemStorage {
   friend class USBStorageClient;
 
  public:
