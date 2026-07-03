@@ -439,6 +439,8 @@ def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
     types = []
     UF2_PATH = "zephyr/zephyr.uf2"
     DFU_PATH = "firmware.zip"
+    # SDK 2.6.1 without OTA use this location
+    # SDK 2.9.2 always generate merged.hex
     HEX_PATH = "zephyr/zephyr.hex"
     HEX_MERGED_PATH = "zephyr/merged.hex"
     APP_IMAGE_PATH = "zephyr/app_update.bin"
@@ -765,6 +767,11 @@ def _generate_cmake_lists() -> bool:
     )
 
 
+def _copy_if_exist(src: Path, dst: Path) -> None:
+    if src.is_file():
+        shutil.copy2(src, dst)
+
+
 def run_compile(args, config: ConfigType) -> bool:
     if CORE.using_toolchain_platformio:
         return False
@@ -816,19 +823,19 @@ def run_compile(args, config: ConfigType) -> bool:
     ):
         raise EsphomeError("nRF52 native build failed")
 
-    # SDK < 2.9.2 places kernel artifacts directly in build_dir/zephyr/.
-    # SDK >= 2.9.2 nests them one level deeper (build_dir/zephyr/zephyr/);
-    # copy uf2 up to build_dir/zephyr/ to match get_download_types layout.
     zephyr_dir = build_dir / "zephyr"
     framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     if framework_ver < cv.Version(2, 9, 2):
         west_out = zephyr_dir
     else:
         west_out = zephyr_dir / "zephyr"
-        for filename in ["zephyr.uf2"]:
-            src = west_out / filename
-            if src.is_file():
-                shutil.copy2(src, zephyr_dir / filename)
+        # SDK < 2.9.2 places artifacts directly in build_dir/zephyr/.
+        # SDK >= 2.9.2 nests them one level deeper (build_dir/zephyr/zephyr/);
+        # copy files to match get_download_types layout.
+        _copy_if_exist(west_out / "zephyr.uf2", zephyr_dir / "zephyr.uf2")
+        _copy_if_exist(west_out / "zephyr.signed.bin", zephyr_dir / "app_update.bin")
+
+        _copy_if_exist(build_dir / "merged.hex", zephyr_dir / "merged.hex")
 
     # (dev_type, sd_req) per bootloader — values from Nordic SoftDevice release notes
     _GENPKG_PARAMS = {
