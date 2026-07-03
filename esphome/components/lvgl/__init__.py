@@ -218,6 +218,7 @@ def multi_conf_validate(configs: list[dict]):
             CONF_COLOR_DEPTH,
             CONF_BYTE_ORDER,
             df.CONF_TRANSPARENCY_KEY,
+            df.CONF_REFRESH_INTERVAL,
         ):
             if base_config[item] != config[item]:
                 raise cv.Invalid(
