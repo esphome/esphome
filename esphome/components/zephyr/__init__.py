@@ -18,6 +18,7 @@ from .const import (
     KEY_OVERLAY,
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
+    KEY_SYSBUILD,
     KEY_USER,
     KEY_ZEPHYR,
     zephyr_ns,
@@ -55,6 +56,7 @@ class ZephyrData(TypedDict):
     pm_static: list[Section]
     user: dict[str, list[str]]
     kconfig: str
+    sysbuild: bool
 
 
 def zephyr_set_core_data(config: ConfigType) -> None:
@@ -69,6 +71,10 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         pm_static=[],
         user={},
         kconfig="",
+        # When OTA is disabled, the image is built without a bootloader even if the
+        # config says `bootloader: mcuboot`, so the image can be smaller. This was
+        # the default behaviour in SDK 2.6.1.
+        sysbuild=False,
     )
 
 
@@ -284,6 +290,13 @@ def copy_files() -> None:
         )
     changed |= _write_file_if_changed_or_remove_when_empty(
         CORE.relative_build_path("zephyr/Kconfig"), kconfig
+    )
+
+    sysbuild_conf = ""
+    if zephyr_data()[KEY_SYSBUILD]:
+        sysbuild_conf = "SB_CONFIG_BOOTLOADER_MCUBOOT=y\n"
+    changed |= _write_file_if_changed_or_remove_when_empty(
+        CORE.relative_build_path("zephyr/sysbuild.conf"), sysbuild_conf
     )
 
     if changed:
