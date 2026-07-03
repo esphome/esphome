@@ -1,0 +1,10 @@
+sd_storage:
+  id: sd_card
+  type: sd_spi
+  spi_id: spi_bus
+  cs_pin: GPIO10
+  path: /sdcard
+  on_mounted:
+    - logger.log:
+        format: "SD card mounted at %s"
+        args: [mount_path]

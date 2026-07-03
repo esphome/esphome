@@ -1,0 +1,12 @@
+sd_storage:
+  id: sd_card
+  type: sd_mmc
+  clk_pin: GPIO39
+  cmd_pin: GPIO38
+  data0_pin: GPIO40
+  path: /sdcard
+  mode_1bit: true
+  on_mounted:
+    - logger.log:
+        format: "SD card mounted at %s"
+        args: [mount_path]

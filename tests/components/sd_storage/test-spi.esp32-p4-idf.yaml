@@ -1,0 +1,4 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-p4-idf.yaml
+
+<<: !include common-spi.yaml

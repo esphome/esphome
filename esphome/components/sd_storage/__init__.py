@@ -1,6 +1,12 @@
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import esp32, spi
+from esphome.components.esp32 import only_on_variant
+from esphome.components.esp32.const import (
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
+)
 from esphome.components.storage import request_storage_device
 import esphome.config_validation as cv
 from esphome.const import (
@@ -89,15 +95,15 @@ def validate_spi_mode(config):
     return config
 
 
-def validate_platform_variant(config):
-    from esphome.components.esp32 import get_esp32_variant
-    from esphome.components.esp32.const import VARIANT_ESP32C6
+SDMMC_VARIANTS = [VARIANT_ESP32S3, VARIANT_ESP32P4, VARIANT_ESP32S31]
 
-    variant = get_esp32_variant()
-    if variant == VARIANT_ESP32C6 and config.get(CONF_TYPE) != TYPE_SD_SPI:
-        raise cv.Invalid(
-            f"esp32c6 doesn't have sdmmc host support. Please use `type: {TYPE_SD_SPI}`"
-        )
+
+def validate_platform_variant(config):
+    if config.get(CONF_TYPE) == TYPE_SD_MMC:
+        only_on_variant(
+            supported=SDMMC_VARIANTS,
+            msg_prefix="SD MMC mode",
+        )(config)
     return config
 
 
