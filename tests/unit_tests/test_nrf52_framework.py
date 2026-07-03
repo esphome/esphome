@@ -10,10 +10,26 @@ from esphome.components.nrf52.framework import (
     _TOOLCHAIN_VERSION,
     _get_toolchain_platform_info,
     check_and_install,
+    get_sdk_nrf_tools_path,
 )
 from esphome.config_validation import Version
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
+
+
+@pytest.fixture(autouse=True)
+def _isolate_sdk_nrf_install_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Pin the sdk-nrf install root to a tmp dir for every test.
+
+    The default location is the OS user cache dir, so without this any test
+    that builds framework paths or pre-creates the install dir would touch
+    the real ``~/.cache/esphome`` on the developer's machine. Tests that need
+    to exercise the override or default-resolution logic clear/override the
+    env themselves.
+    """
+    monkeypatch.setenv("ESPHOME_SDK_NRF_PREFIX", str(tmp_path / "sdk_nrf_install"))
 
 
 @pytest.mark.parametrize(
@@ -52,7 +68,7 @@ _TEST_SDK_VERSION = "2.9.0"
 def nrf52_dirs(setup_core: Path) -> SimpleNamespace:
     """Populate CORE and pre-create SDK directories so sentinel.touch() succeeds."""
     CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: Version.parse(_TEST_SDK_VERSION)}
-    tools = CORE.data_dir / "sdk-nrf"
+    tools = get_sdk_nrf_tools_path()
     python_env = tools / "penvs" / f"v{_TEST_SDK_VERSION}"
     framework = tools / "frameworks" / f"v{_TEST_SDK_VERSION}"
     toolchain_dir = tools / "toolchains" / _TOOLCHAIN_VERSION
@@ -226,3 +242,46 @@ class TestCheckAndInstall:
         assert substitutions["sysname"] == "linux"
         assert substitutions["machine"] == "x86_64"
         assert substitutions["extension"] == "tar.xz"
+
+
+# ---------------------------------------------------------------------------
+# get_sdk_nrf_tools_path tests
+# ---------------------------------------------------------------------------
+
+
+def testget_tools_path_env_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    override = tmp_path / "custom" / "sdk-nrf"
+    monkeypatch.setenv("ESPHOME_SDK_NRF_PREFIX", str(override))
+    assert get_sdk_nrf_tools_path() == override.resolve()
+
+
+@pytest.mark.parametrize("value", ["", "   "])
+def testget_tools_path_blank_env_falls_back_to_default(
+    value: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A blank ESPHOME_SDK_NRF_PREFIX is treated as unset, not as CWD.
+
+    Path("") would resolve to the working directory, which clean-all could
+    then delete by accident.
+    """
+    import platformdirs
+
+    monkeypatch.setenv("ESPHOME_SDK_NRF_PREFIX", value)
+    expected = (
+        Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "sdk-nrf"
+    ).resolve()
+    assert get_sdk_nrf_tools_path() == expected
+
+
+def testget_tools_path_default_is_global_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import platformdirs
+
+    monkeypatch.delenv("ESPHOME_SDK_NRF_PREFIX", raising=False)
+    expected = (
+        Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "sdk-nrf"
+    ).resolve()
+    assert get_sdk_nrf_tools_path() == expected
