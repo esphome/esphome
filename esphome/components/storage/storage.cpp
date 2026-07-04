@@ -94,10 +94,13 @@ void StorageRegistry::for_each_network(void (*cb)(NetworkStorage *s, void *ctx),
 void StorageRegistry::for_each_path_based(void (*cb)(PathStorage *s, void *ctx), void *ctx) {
   for (auto *s : this->storages_) {
     StorageType type = s->get_storage_type();
-    if (type == StorageType::FILESYSTEM)
+    if (type == StorageType::FILESYSTEM) {
       cb(static_cast<FilesystemStorage *>(s), ctx);
-    else if (type == StorageType::NETWORK)
+    } else if (type == StorageType::NETWORK) {
       cb(static_cast<NetworkStorage *>(s), ctx);
+    } else if (type == StorageType::FLASH) {
+      cb(static_cast<FlashStorage *>(s), ctx);
+    }
   }
 }
 
