@@ -4,10 +4,9 @@
 #include "esphome/core/automation.h"
 #include "esp_ldo_regulator.h"
 
-namespace esphome {
-namespace esp_ldo {
+namespace esphome::esp_ldo {
 
-class EspLdo : public Component {
+class EspLdo final : public Component {
  public:
   EspLdo(int channel) : channel_(channel) {}
 
@@ -15,7 +14,7 @@ class EspLdo : public Component {
   void dump_config() override;
 
   void set_adjustable(bool adjustable) { this->adjustable_ = adjustable; }
-  void set_voltage(float voltage) { this->voltage_ = voltage; }
+  void set_voltage(int voltage_mv) { this->voltage_mv_ = voltage_mv; }
   void adjust_voltage(float voltage);
   float get_setup_priority() const override {
     return setup_priority::BUS;  // LDO setup should be done early
@@ -23,12 +22,12 @@ class EspLdo : public Component {
 
  protected:
   int channel_;
-  float voltage_{2.7};
+  int voltage_mv_{2700};
   bool adjustable_{false};
   esp_ldo_channel_handle_t handle_{};
 };
 
-template<typename... Ts> class AdjustAction : public Action<Ts...> {
+template<typename... Ts> class AdjustAction final : public Action<Ts...> {
  public:
   explicit AdjustAction(EspLdo *ldo) : ldo_(ldo) {}
 
@@ -40,7 +39,6 @@ template<typename... Ts> class AdjustAction : public Action<Ts...> {
   EspLdo *ldo_;
 };
 
-}  // namespace esp_ldo
-}  // namespace esphome
+}  // namespace esphome::esp_ldo
 
 #endif  // USE_ESP32_VARIANT_ESP32P4

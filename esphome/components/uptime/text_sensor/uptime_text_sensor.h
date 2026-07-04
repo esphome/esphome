@@ -5,8 +5,7 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace uptime {
+namespace esphome::uptime {
 
 class UptimeTextSensor : public text_sensor::TextSensor, public PollingComponent {
  public:
@@ -35,9 +34,6 @@ class UptimeTextSensor : public text_sensor::TextSensor, public PollingComponent
   const char *seconds_text_;
   const char *separator_;
   bool expand_{};
-  uint32_t uptime_{0};  // uptime in seconds, will overflow after 136 years
-  uint32_t last_ms_{0};
 };
 
-}  // namespace uptime
-}  // namespace esphome
+}  // namespace esphome::uptime

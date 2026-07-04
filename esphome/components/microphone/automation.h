@@ -5,8 +5,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace microphone {
+namespace esphome::microphone {
 
 template<typename... Ts> class CaptureAction : public Action<Ts...>, public Parented<Microphone> {
   void play(const Ts &...x) override { this->parent_->start(); }
@@ -40,5 +39,4 @@ template<typename... Ts> class IsMutedCondition : public Condition<Ts...>, publi
   bool check(const Ts &...x) override { return this->parent_->get_mute_state(); }
 };
 
-}  // namespace microphone
-}  // namespace esphome
+}  // namespace esphome::microphone

@@ -79,6 +79,7 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
     "cm1106.calibrate_zero",
     CM1106CalibrateZeroAction,
     CALIBRATION_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
     "cm1106.abc_enable", CM1106ABCEnableAction, CALIBRATION_ACTION_SCHEMA

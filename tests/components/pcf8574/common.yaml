@@ -3,6 +3,11 @@ pcf8574:
     i2c_id: i2c_bus
     address: 0x21
     pcf8575: false
+  - id: pcf8574_hub_int
+    i2c_id: i2c_bus
+    address: 0x22
+    pcf8575: false
+    interrupt_pin: ${interrupt_pin}
 
 binary_sensor:
   - platform: gpio

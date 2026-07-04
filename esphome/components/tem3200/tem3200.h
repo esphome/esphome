@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace tem3200 {
+namespace esphome::tem3200 {
 
 /// This class implements support for the tem3200 pressure and temperature i2c sensors.
 class TEM3200Component : public PollingComponent, public i2c::I2CDevice {
@@ -15,7 +14,6 @@ class TEM3200Component : public PollingComponent, public i2c::I2CDevice {
     this->raw_pressure_sensor_ = raw_pressure_sensor;
   }
 
-  float get_setup_priority() const override;
   void setup() override;
   void dump_config() override;
   void update() override;
@@ -26,5 +24,4 @@ class TEM3200Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *raw_pressure_sensor_{nullptr};
 };
 
-}  // namespace tem3200
-}  // namespace esphome
+}  // namespace esphome::tem3200

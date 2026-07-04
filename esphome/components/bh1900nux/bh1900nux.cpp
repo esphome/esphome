@@ -1,8 +1,7 @@
 #include "esphome/core/log.h"
 #include "bh1900nux.h"
 
-namespace esphome {
-namespace bh1900nux {
+namespace esphome::bh1900nux {
 
 static const char *const TAG = "bh1900nux.sensor";
 
@@ -50,5 +49,4 @@ void BH1900NUXSensor::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-}  // namespace bh1900nux
-}  // namespace esphome
+}  // namespace esphome::bh1900nux

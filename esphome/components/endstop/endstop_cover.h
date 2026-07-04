@@ -5,15 +5,13 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/cover/cover.h"
 
-namespace esphome {
-namespace endstop {
+namespace esphome::endstop {
 
-class EndstopCover : public cover::Cover, public Component {
+class EndstopCover final : public cover::Cover, public Component {
  public:
   void setup() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override;
 
   Trigger<> *get_open_trigger() { return &this->open_trigger_; }
   Trigger<> *get_close_trigger() { return &this->close_trigger_; }
@@ -54,5 +52,4 @@ class EndstopCover : public cover::Cover, public Component {
   cover::CoverOperation last_operation_{cover::COVER_OPERATION_OPENING};
 };
 
-}  // namespace endstop
-}  // namespace esphome
+}  // namespace esphome::endstop

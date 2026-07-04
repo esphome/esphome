@@ -3,8 +3,7 @@
 #include "gpio_arduino.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace libretiny {
+namespace esphome::libretiny {
 
 static const char *const TAG = "lt.gpio";
 
@@ -77,7 +76,9 @@ void ArduinoInternalGPIOPin::detach_interrupt() const {
   detachInterrupt(pin_);  // NOLINT
 }
 
-}  // namespace libretiny
+}  // namespace esphome::libretiny
+
+namespace esphome {
 
 using namespace libretiny;
 

@@ -54,10 +54,16 @@ async def setup_output_platform_(obj, config):
         power_supply_ = await cg.get_variable(config[CONF_POWER_SUPPLY])
         cg.add(obj.set_power_supply(power_supply_))
     if CONF_MAX_POWER in config:
+        cg.add_define("USE_OUTPUT_FLOAT_POWER_SCALING")
         cg.add(obj.set_max_power(config[CONF_MAX_POWER]))
     if CONF_MIN_POWER in config:
+        cg.add_define("USE_OUTPUT_FLOAT_POWER_SCALING")
         cg.add(obj.set_min_power(config[CONF_MIN_POWER]))
-    if CONF_ZERO_MEANS_ZERO in config:
+    # Only emit when zero_means_zero is actually enabled. The schema defaults to False
+    # so this key is always present; emitting unconditionally would force
+    # USE_OUTPUT_FLOAT_POWER_SCALING on for every output, defeating the gate.
+    if config.get(CONF_ZERO_MEANS_ZERO):
+        cg.add_define("USE_OUTPUT_FLOAT_POWER_SCALING")
         cg.add(obj.set_zero_means_zero(config[CONF_ZERO_MEANS_ZERO]))
 
 
@@ -74,14 +80,16 @@ BINARY_OUTPUT_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action("output.turn_on", TurnOnAction, BINARY_OUTPUT_ACTION_SCHEMA)
+@automation.register_action(
+    "output.turn_on", TurnOnAction, BINARY_OUTPUT_ACTION_SCHEMA, synchronous=True
+)
 async def output_turn_on_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(
-    "output.turn_off", TurnOffAction, BINARY_OUTPUT_ACTION_SCHEMA
+    "output.turn_off", TurnOffAction, BINARY_OUTPUT_ACTION_SCHEMA, synchronous=True
 )
 async def output_turn_off_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -97,11 +105,12 @@ async def output_turn_off_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_LEVEL): cv.templatable(cv.percentage),
         }
     ),
+    synchronous=True,
 )
 async def output_set_level_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_LEVEL], args, float)
+    template_ = await cg.templatable(config[CONF_LEVEL], args, cg.float_)
     cg.add(var.set_level(template_))
     return var
 
@@ -115,11 +124,13 @@ async def output_set_level_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_MIN_POWER): cv.templatable(cv.percentage),
         }
     ),
+    synchronous=True,
 )
 async def output_set_min_power_to_code(config, action_id, template_arg, args):
+    cg.add_define("USE_OUTPUT_FLOAT_POWER_SCALING")
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_MIN_POWER], args, float)
+    template_ = await cg.templatable(config[CONF_MIN_POWER], args, cg.float_)
     cg.add(var.set_min_power(template_))
     return var
 
@@ -133,11 +144,13 @@ async def output_set_min_power_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_MAX_POWER): cv.templatable(cv.percentage),
         }
     ),
+    synchronous=True,
 )
 async def output_set_max_power_to_code(config, action_id, template_arg, args):
+    cg.add_define("USE_OUTPUT_FLOAT_POWER_SCALING")
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_MAX_POWER], args, float)
+    template_ = await cg.templatable(config[CONF_MAX_POWER], args, cg.float_)
     cg.add(var.set_max_power(template_))
     return var
 

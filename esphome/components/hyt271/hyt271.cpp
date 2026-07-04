@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace hyt271 {
+namespace esphome::hyt271 {
 
 static const char *const TAG = "hyt271";
 
@@ -46,7 +45,4 @@ void HYT271Component::update() {
     this->status_clear_warning();
   });
 }
-float HYT271Component::get_setup_priority() const { return setup_priority::DATA; }
-
-}  // namespace hyt271
-}  // namespace esphome
+}  // namespace esphome::hyt271

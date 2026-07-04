@@ -34,13 +34,16 @@ SET_AUTO_MUTE_ACTION_SCHEMA = cv.maybe_simple_value(
 
 
 @automation.register_action(
-    "aic3204.set_auto_mute_mode", SetAutoMuteAction, SET_AUTO_MUTE_ACTION_SCHEMA
+    "aic3204.set_auto_mute_mode",
+    SetAutoMuteAction,
+    SET_AUTO_MUTE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def aic3204_set_volume_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
-    template_ = await cg.templatable(config.get(CONF_MODE), args, int)
+    template_ = await cg.templatable(config.get(CONF_MODE), args, cg.uint8)
     cg.add(var.set_auto_mute_mode(template_))
 
     return var

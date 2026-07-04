@@ -1,9 +1,9 @@
 output:
   - platform: ${output_platform}
-    id: fan_output_1
+    id: speed_fan_output_1
     pin: ${pin}
 
 fan:
   - platform: speed
-    id: fan_speed
-    output: fan_output_1
+    id: speed_fan_speed
+    output: speed_fan_output_1

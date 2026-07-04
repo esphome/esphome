@@ -12,8 +12,7 @@ like exact nutation are not included. But in some testing the accuracy appears t
 for random spots around the globe.
 */
 
-namespace esphome {
-namespace sun {
+namespace esphome::sun {
 
 using namespace esphome::sun::internal;
 
@@ -174,20 +173,21 @@ struct SunAtTime {
     // debug output like in example 25.a, p. 165
     auto eq = equatorial_coordinate();
     ESP_LOGV(TAG,
-             "jde: %f\n"
-             "T: %f\n"
-             "L_0: %f\n"
-             "M: %f\n"
-             "e: %f\n"
-             "C: %f\n"
-             "Odot: %f\n"
-             "Omega: %f\n"
-             "lambda: %f\n"
-             "epsilon_0: %f\n"
-             "epsilon: %f\n"
-             "v: %f\n"
-             "right_ascension: %f\n"
-             "declination: %f",
+             "Sun position:\n"
+             "  jde: %f\n"
+             "  T: %f\n"
+             "  L_0: %f\n"
+             "  M: %f\n"
+             "  e: %f\n"
+             "  C: %f\n"
+             "  Odot: %f\n"
+             "  Omega: %f\n"
+             "  lambda: %f\n"
+             "  epsilon_0: %f\n"
+             "  epsilon: %f\n"
+             "  v: %f\n"
+             "  right_ascension: %f\n"
+             "  declination: %f",
              jde, t, mean_longitude(), mean_anomaly(), eccentricity(), equation_of_center(), true_longitude(), omega(),
              apparent_longitude(), mean_obliquity(), true_obliquity(), true_anomaly(), eq.right_ascension,
              eq.declination);
@@ -321,5 +321,4 @@ optional<ESPTime> Sun::sunset(ESPTime date, double elevation) { return this->cal
 double Sun::elevation() { return this->calc_coords_().elevation; }
 double Sun::azimuth() { return this->calc_coords_().azimuth; }
 
-}  // namespace sun
-}  // namespace esphome
+}  // namespace esphome::sun

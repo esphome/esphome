@@ -4,8 +4,6 @@
 
 #include <Arduino.h>
 
-namespace esphome {
-namespace libretiny {}  // namespace libretiny
-}  // namespace esphome
+namespace esphome::libretiny {}  // namespace esphome::libretiny
 
 #endif  // USE_LIBRETINY

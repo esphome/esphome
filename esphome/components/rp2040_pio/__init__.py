@@ -1,6 +1,7 @@
 import platform
 
 import esphome.codegen as cg
+import esphome.config_validation as cv
 
 DEPENDENCIES = ["rp2040"]
 
@@ -31,7 +32,13 @@ async def to_code(config):
     #         "earlephilhower/tool-pioasm-rp2040-earlephilhower",
     #     ],
     # )
-    file = PIOASM_DOWNLOADS[platform.system().lower()][platform.machine().lower()]
+    os_name = platform.system().lower()
+    arch = platform.machine().lower()
+    if os_name not in PIOASM_DOWNLOADS or arch not in PIOASM_DOWNLOADS[os_name]:
+        raise cv.Invalid(
+            f"pioasm is not available for {platform.system()} {platform.machine()}"
+        )
+    file = PIOASM_DOWNLOADS[os_name][arch]
     cg.add_platformio_option(
         "platform_packages",
         [f"earlephilhower/tool-pioasm-rp2040-earlephilhower@{PIOASM_REPO_BASE}/{file}"],

@@ -1,0 +1,21 @@
+# this file is included by level1_package.yaml
+level2:
+  a: ${a}  # top-level substitution
+  b: ${b}  # top-level substitution
+  c: ${c}  # visible from level1 vars
+  d: ${d}  # visible from level1 vars
+  e: ${e}  # from vars when including
+  f: ${f}  # from vars when including
+  g: ${g}  # undefined at this level
+  h: ${h}  # undefined at this level
+  i: ${i}  # undefined at this level
+  j: ${j}  # undefined at this level
+  x: ${x}  # from vars when including, calculated
+  y: ${y}  # from vars when including, calculated
+  level3:
+    - !include
+      file: level3_package.yaml
+      vars:
+        g: ${e*5}
+        h: ${f*5}
+        x: ${x+1}

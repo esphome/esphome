@@ -1,8 +1,7 @@
 #include "sensor_mlx90393.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mlx90393 {
+namespace esphome::mlx90393 {
 
 static const char *const TAG = "mlx90393";
 
@@ -132,8 +131,6 @@ void MLX90393Cls::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->t_sensor_);
 }
 
-float MLX90393Cls::get_setup_priority() const { return setup_priority::DATA; }
-
 void MLX90393Cls::update() {
   MLX90393::txyz data;
 
@@ -162,7 +159,7 @@ bool MLX90393Cls::verify_setting_(MLX90393Setting which) {
   uint8_t read_value = 0xFF;
   uint8_t expected_value = 0xFF;
   uint8_t read_status = -1;
-  char read_back_str[25] = {0};
+  char read_back_str[33] = {0};
 
   switch (which) {
     case MLX90393_GAIN_SEL: {
@@ -272,5 +269,4 @@ void MLX90393Cls::verify_settings_timeout_(MLX90393Setting stage) {
   this->set_timeout("verify settings", 3000, [this, next_stage]() { this->verify_settings_timeout_(next_stage); });
 }
 
-}  // namespace mlx90393
-}  // namespace esphome
+}  // namespace esphome::mlx90393

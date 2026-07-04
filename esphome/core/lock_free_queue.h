@@ -38,13 +38,27 @@ template<class T, uint8_t SIZE> class LockFreeQueue {
   }
 
  protected:
+  // Advance ring buffer index by one, wrapping at SIZE.
+  // Power-of-2 sizes use modulo (compiler emits single mask instruction).
+  // Non-power-of-2 sizes use comparison to avoid expensive multiply-shift sequences.
+  static constexpr uint8_t next_index(uint8_t index) {
+    if constexpr ((SIZE & (SIZE - 1)) == 0) {
+      return (index + 1) % SIZE;
+    } else {
+      uint8_t next = index + 1;
+      if (next >= SIZE) [[unlikely]]
+        next = 0;
+      return next;
+    }
+  }
+
   // Internal push that reports queue state - for use by derived classes
   bool push_internal_(T *element, bool &was_empty, uint8_t &old_tail) {
     if (element == nullptr)
       return false;
 
     uint8_t current_tail = tail_.load(std::memory_order_relaxed);
-    uint8_t next_tail = (current_tail + 1) % SIZE;
+    uint8_t next_tail = next_index(current_tail);
 
     // Read head before incrementing tail
     uint8_t head_before = head_.load(std::memory_order_acquire);
@@ -73,24 +87,39 @@ template<class T, uint8_t SIZE> class LockFreeQueue {
     }
 
     T *element = buffer_[current_head];
-    head_.store((current_head + 1) % SIZE, std::memory_order_release);
+    head_.store(next_index(current_head), std::memory_order_release);
     return element;
   }
 
   size_t size() const {
     uint8_t tail = tail_.load(std::memory_order_acquire);
     uint8_t head = head_.load(std::memory_order_acquire);
-    return (tail - head + SIZE) % SIZE;
+    if constexpr ((SIZE & (SIZE - 1)) == 0) {
+      return (tail - head + SIZE) % SIZE;
+    } else {
+      int diff = static_cast<int>(tail) - static_cast<int>(head);
+      if (diff < 0)
+        diff += SIZE;
+      return static_cast<size_t>(diff);
+    }
   }
 
-  uint16_t get_and_reset_dropped_count() { return dropped_count_.exchange(0, std::memory_order_relaxed); }
+  uint16_t get_and_reset_dropped_count() {
+    // Fast path: relaxed load is a single instruction on all platforms.
+    // The atomic exchange (especially for uint16_t on Xtensa) compiles to
+    // an expensive sub-word CAS retry loop (~25 instructions + memory barriers).
+    // Since drops are rare, avoid the exchange in the common case.
+    if (dropped_count_.load(std::memory_order_relaxed) == 0)
+      return 0;
+    return dropped_count_.exchange(0, std::memory_order_relaxed);
+  }
 
   void increment_dropped_count() { dropped_count_.fetch_add(1, std::memory_order_relaxed); }
 
   bool empty() const { return head_.load(std::memory_order_acquire) == tail_.load(std::memory_order_acquire); }
 
   bool full() const {
-    uint8_t next_tail = (tail_.load(std::memory_order_relaxed) + 1) % SIZE;
+    uint8_t next_tail = next_index(tail_.load(std::memory_order_relaxed));
     return next_tail == head_.load(std::memory_order_acquire);
   }
 

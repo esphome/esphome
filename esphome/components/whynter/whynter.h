@@ -4,8 +4,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace whynter {
+namespace esphome::whynter {
 
 // Temperature
 const uint8_t TEMP_MIN_C = 16;  // Celsius
@@ -49,5 +48,4 @@ class Whynter : public climate_ir::ClimateIR {
   climate::ClimateMode mode_before_{climate::CLIMATE_MODE_OFF};
 };
 
-}  // namespace whynter
-}  // namespace esphome
+}  // namespace esphome::whynter

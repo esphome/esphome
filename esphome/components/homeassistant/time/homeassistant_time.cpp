@@ -1,8 +1,7 @@
 #include "homeassistant_time.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace homeassistant {
+namespace esphome::homeassistant {
 
 static const char *const TAG = "homeassistant.time";
 
@@ -11,12 +10,9 @@ void HomeassistantTime::dump_config() {
   RealTimeClock::dump_config();
 }
 
-float HomeassistantTime::get_setup_priority() const { return setup_priority::DATA; }
-
 void HomeassistantTime::setup() { global_homeassistant_time = this; }
 
 void HomeassistantTime::update() { api::global_api_server->request_time(); }
 
 HomeassistantTime *global_homeassistant_time = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-}  // namespace homeassistant
-}  // namespace esphome
+}  // namespace esphome::homeassistant

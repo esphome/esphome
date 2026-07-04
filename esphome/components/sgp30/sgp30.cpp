@@ -6,8 +6,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace sgp30 {
+namespace esphome::sgp30 {
 
 static const char *const TAG = "sgp30";
 
@@ -41,7 +40,9 @@ void SGP30Component::setup() {
     this->mark_failed();
     return;
   }
-  this->serial_number_ = encode_uint24(raw_serial_number[0], raw_serial_number[1], raw_serial_number[2]);
+  this->serial_number_ = (static_cast<uint64_t>(raw_serial_number[0]) << 32) |
+                         (static_cast<uint64_t>(raw_serial_number[1]) << 16) |
+                         static_cast<uint64_t>(raw_serial_number[2]);
   ESP_LOGD(TAG, "Serial number: %" PRIu64, this->serial_number_);
 
   // Featureset identification for future use
@@ -300,5 +301,4 @@ void SGP30Component::update() {
   });
 }
 
-}  // namespace sgp30
-}  // namespace esphome
+}  // namespace esphome::sgp30

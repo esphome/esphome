@@ -1,8 +1,7 @@
 #include "pm1006.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pm1006 {
+namespace esphome::pm1006 {
 
 static const char *const TAG = "pm1006";
 
@@ -43,8 +42,6 @@ void PM1006Component::loop() {
     }
   }
 }
-
-float PM1006Component::get_setup_priority() const { return setup_priority::DATA; }
 
 uint8_t PM1006Component::pm1006_checksum_(const uint8_t *command_data, uint8_t length) const {
   uint8_t sum = 0;
@@ -95,5 +92,4 @@ void PM1006Component::parse_data_() {
   }
 }
 
-}  // namespace pm1006
-}  // namespace esphome
+}  // namespace esphome::pm1006

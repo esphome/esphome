@@ -8,9 +8,7 @@
 #include "esphome/components/climate/climate_traits.h"
 #include "air_conditioner.h"
 
-namespace esphome {
-namespace midea {
-namespace ac {
+namespace esphome::midea::ac {
 
 using MideaMode = dudanov::midea::ac::Mode;
 using MideaSwingMode = dudanov::midea::ac::SwingMode;
@@ -44,8 +42,6 @@ class Converters {
   static void to_climate_traits(ClimateTraits &traits, const dudanov::midea::ac::Capabilities &capabilities);
 };
 
-}  // namespace ac
-}  // namespace midea
-}  // namespace esphome
+}  // namespace esphome::midea::ac
 
 #endif  // USE_ARDUINO

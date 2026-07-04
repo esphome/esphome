@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import ICON_CURRENT_DC, UNIT_AMPERE_HOUR
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
@@ -55,13 +56,10 @@ CONF_CELL_15_VOLTAGE = "cell_15_voltage"
 CONF_CELL_16_VOLTAGE = "cell_16_voltage"
 CONF_CELL_17_VOLTAGE = "cell_17_voltage"
 CONF_CELL_18_VOLTAGE = "cell_18_voltage"
-ICON_CURRENT_DC = "mdi:current-dc"
 ICON_BATTERY_OUTLINE = "mdi:battery-outline"
 ICON_THERMOMETER_CHEVRON_UP = "mdi:thermometer-chevron-up"
 ICON_THERMOMETER_CHEVRON_DOWN = "mdi:thermometer-chevron-down"
 ICON_CAR_BATTERY = "mdi:car-battery"
-
-UNIT_AMPERE_HOUR = "Ah"
 
 TYPES = [
     CONF_VOLTAGE,
