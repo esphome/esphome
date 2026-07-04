@@ -153,22 +153,31 @@ StorageError file_size(PathStorage *storage, const char *path, uint64_t *size) {
   return StorageError::OK;
 }
 
-StorageError read_file(FilesystemStorage *storage, const char *path, std::unique_ptr<uint8_t[]> &out, size_t *size) {
+StorageError read_file(FilesystemStorage *storage, const char *path, RamBuffer &out, size_t *size) {
   FileStat stat{};
   StorageError err = storage->stat(path, &stat);
   if (err != StorageError::OK)
     return err;
+  // stat.size is uint64_t (NetworkStorage can see files >4GB); reject anything that wouldn't
+  // fit in a size_t before it gets silently truncated by the allocation below.
+  if (stat.size > SIZE_MAX)
+    return StorageError::NO_SPACE;
+  auto buf_size = static_cast<size_t>(stat.size);
 
-  auto buf = std::make_unique<uint8_t[]>(stat.size);
+  uint8_t *raw = RAMAllocator<uint8_t>().allocate(buf_size);
+  if (raw == nullptr)
+    return StorageError::NO_SPACE;
+  RamBuffer buf(raw, RamBufferDeleter{buf_size});
+
   FileHandle *handle = nullptr;
   err = storage->open(path, handle, OpenMode::READ);
   if (err != StorageError::OK)
     return err;
 
   size_t total_read = 0;
-  while (total_read < stat.size) {
+  while (total_read < buf_size) {
     size_t bytes_transferred = 0;
-    err = storage->read(handle, buf.get() + total_read, stat.size - total_read, &bytes_transferred);
+    err = storage->read(handle, buf.get() + total_read, buf_size - total_read, &bytes_transferred);
     if (err != StorageError::OK) {
       storage->close(handle);
       return err;
@@ -184,17 +193,26 @@ StorageError read_file(FilesystemStorage *storage, const char *path, std::unique
   return StorageError::OK;
 }
 
-StorageError read_file(NetworkStorage *storage, const char *path, std::unique_ptr<uint8_t[]> &out, size_t *size) {
+StorageError read_file(NetworkStorage *storage, const char *path, RamBuffer &out, size_t *size) {
   FileStat stat{};
   StorageError err = storage->stat(path, &stat);
   if (err != StorageError::OK)
     return err;
+  // stat.size is uint64_t (NetworkStorage can see files >4GB); reject anything that wouldn't
+  // fit in a size_t before it gets silently truncated by the allocation below.
+  if (stat.size > SIZE_MAX)
+    return StorageError::NO_SPACE;
+  auto buf_size = static_cast<size_t>(stat.size);
 
-  auto buf = std::make_unique<uint8_t[]>(stat.size);
+  uint8_t *raw = RAMAllocator<uint8_t>().allocate(buf_size);
+  if (raw == nullptr)
+    return StorageError::NO_SPACE;
+  RamBuffer buf(raw, RamBufferDeleter{buf_size});
+
   size_t total_read = 0;
-  while (total_read < stat.size) {
+  while (total_read < buf_size) {
     size_t bytes_transferred = 0;
-    err = storage->read_chunk(path, buf.get() + total_read, total_read, stat.size - total_read, &bytes_transferred);
+    err = storage->read_chunk(path, buf.get() + total_read, total_read, buf_size - total_read, &bytes_transferred);
     if (err != StorageError::OK)
       return err;
     if (bytes_transferred == 0)
@@ -246,7 +264,7 @@ StorageError write_file(NetworkStorage *storage, const char *path, const uint8_t
 }
 
 StorageError copy(PathStorage *src_storage, const char *src_path, PathStorage *dst_storage, const char *dst_path) {
-  std::unique_ptr<uint8_t[]> buf;
+  RamBuffer buf;
   size_t size = 0;
 
   StorageError err;
