@@ -249,8 +249,7 @@ StorageError file_size(PathStorage *storage, const char *path, uint64_t *size);
 // (heap allocation — do not call from hot paths or after setup() on the main loop;
 // intended for occasional whole-file reads, e.g. serving a file over HTTP).
 // On success, *out owns the buffer and *size holds the number of bytes read.
-StorageError read_file(FilesystemStorage *storage, const char *path, std::unique_ptr<uint8_t[]> &out,
-                       size_t *size);
+StorageError read_file(FilesystemStorage *storage, const char *path, std::unique_ptr<uint8_t[]> &out, size_t *size);
 StorageError read_file(NetworkStorage *storage, const char *path, std::unique_ptr<uint8_t[]> &out, size_t *size);
 
 // Writes an entire buffer to a file in one call (create/truncate semantics, like
