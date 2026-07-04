@@ -9,7 +9,6 @@ from esphome.components.esp32 import (
     add_idf_component,
     add_idf_sdkconfig_option,
     add_partition,
-    require_libc_picolibc_newlib_compat,
     require_vfs_select,
 )
 import esphome.config_validation as cv
@@ -41,7 +40,6 @@ from .const import (
     CONF_ROUTER,
     KEY_ZIGBEE,
     POWER_SOURCE,
-    REPORT,
     ZigbeeAttribute,
 )
 from .const_esp32 import (
@@ -76,7 +74,7 @@ def get_c_type(attr_type: str) -> Any | None:
         return cg.double
     if "STRING" in attr_type:
         return cg.std_string
-    test = re.match(r"(^U?)(\d{1,2})(BITMAP$|BIT$|BIT_ENUM$|$)", attr_type)
+    test = re.match(r"^(DATA|UINT|MAP|ENUM)(\d{1,2})$", attr_type)
     if test and test.group(2):
         return getattr(cg, "uint" + get_c_size(test.group(2), [8, 16, 32, 64]))
     return None
@@ -89,14 +87,14 @@ def get_cv_by_type(attr_type: str) -> Any | None:
         return cv.float_
     if "STRING" in attr_type:
         return cv.string
-    test = re.match(r"(^U?)(\d{1,2})(BITMAP$|BIT$|BIT_ENUM$|$)", attr_type)
+    test = re.match(r"^(DATA|UINT|MAP|ENUM)(\d{1,2})$", attr_type)
     if test and test.group(2):
         return cv.positive_int
     raise cv.Invalid(f"Zigbee: type {attr_type} not supported or implemented")
 
 
 def get_default_by_type(attr_type: str) -> str | bool | int | float:
-    if attr_type == "CHAR_STRING":
+    if attr_type == "STRING":
         return ""
     if attr_type == "BOOL":
         return False
@@ -134,7 +132,6 @@ def final_validate_esp32(config: ConfigType) -> ConfigType:
         ) as f:
             partitions_tab = f.read()
             for partition, types in [
-                ("zb_storage", {"type": "data", "subtype": "fat", "size": 0x4000}),
                 ("zb_fct", {"type": "data", "subtype": "fat", "size": 0x1000}),
             ]:
                 if partition not in partitions_tab:
@@ -191,14 +188,14 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
             {
                 CONF_ATTRIBUTE_ID: 0x100,
                 CONF_VALUE: (apptype << 16) | 0xFFFF,
-                CONF_TYPE: "U32",
+                CONF_TYPE: "UINT32",
             },
         )
     ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES].append(
         {
             CONF_ATTRIBUTE_ID: 0x75,
             CONF_VALUE: bacunit,
-            CONF_TYPE: "16BIT_ENUM",
+            CONF_TYPE: "ENUM16",
         },
     )
     setup_attributes(config, ep[CONF_CLUSTERS])
@@ -233,15 +230,8 @@ async def _zigbee_add_sdkconfigs(config: ConfigType) -> None:
         add_idf_sdkconfig_option("CONFIG_ZB_ZCZR", True)
     else:
         add_idf_sdkconfig_option("CONFIG_ZB_ZED", True)
-    add_idf_sdkconfig_option("CONFIG_ZB_RADIO_NATIVE", True)
     if CONF_WIFI in CORE.config:
         add_idf_sdkconfig_option("CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE", 4096)
-    # The pre-built Zigbee library uses esp_log_default_level which requires
-    # dynamic log level control to be enabled
-    add_idf_sdkconfig_option("CONFIG_LOG_DYNAMIC_LEVEL_CONTROL", True)
-    # The pre-built Zigbee library is compiled against newlib which requires newlib
-    # reentrancy to be enabled with picolibc compatibility (IDF 6.0+ only).
-    require_libc_picolibc_newlib_compat()
 
 
 async def attributes_to_code(
@@ -274,11 +264,8 @@ async def attributes_to_code(
         await cg.register_component(attr_var, attr)
 
         cg.add(attr_var.add_attr(attr[CONF_VALUE]))
-        if CONF_REPORT in attr and attr[CONF_REPORT] in [
-            REPORT["enable"],
-            REPORT["force"],
-        ]:
-            cg.add(attr_var.set_report(attr[CONF_REPORT] == REPORT["force"]))
+        if CONF_REPORT in attr:
+            cg.add(attr_var.set_report(attr[CONF_REPORT]))
 
         if CONF_DEVICE in attr:
             device = await cg.get_variable(attr[CONF_DEVICE])
@@ -288,19 +275,14 @@ async def attributes_to_code(
 
 async def esp32_to_code(config: ConfigType) -> "MockObj":
     add_idf_component(
-        name="espressif/esp-zboss-lib",
-        ref="1.6.4",
-    )
-    add_idf_component(
         name="espressif/esp-zigbee-lib",
-        ref="1.6.8",
+        ref="2.0.2",
     )
 
     # add sdkconfigs later so they can overwrite esp32 defaults
     CORE.add_job(_zigbee_add_sdkconfigs, config)
 
     # add partitions for zigbee
-    add_partition("zb_storage", "data", "fat", 0x4000)  # 16KB
     add_partition("zb_fct", "data", "fat", 0x1000)  # 4KB, minimum size
 
     # create endpoints
@@ -316,7 +298,7 @@ async def esp32_to_code(config: ConfigType) -> "MockObj":
         var.set_basic_cluster(
             config[CONF_MODEL],
             "esphome",
-            cg.RawExpression(POWER_SOURCE[config[CONF_POWER_SOURCE]]),
+            POWER_SOURCE[config[CONF_POWER_SOURCE]],
         )
     )
     for ep in ep_list:

@@ -101,53 +101,19 @@ static size_t required_payload_size(SensorValueType sensor_value_type) {
   }
 }
 
-void number_to_payload(std::vector<uint16_t> &data, int64_t value, SensorValueType value_type) {
-  switch (value_type) {
-    case SensorValueType::U_WORD:
-    case SensorValueType::S_WORD:
-      data.push_back(value & 0xFFFF);
-      break;
-    case SensorValueType::U_DWORD:
-    case SensorValueType::S_DWORD:
-    case SensorValueType::FP32:
-      data.push_back((value & 0xFFFF0000) >> 16);
-      data.push_back(value & 0xFFFF);
-      break;
-    case SensorValueType::U_DWORD_R:
-    case SensorValueType::S_DWORD_R:
-    case SensorValueType::FP32_R:
-      data.push_back(value & 0xFFFF);
-      data.push_back((value & 0xFFFF0000) >> 16);
-      break;
-    case SensorValueType::U_QWORD:
-    case SensorValueType::S_QWORD:
-      data.push_back((value & 0xFFFF000000000000) >> 48);
-      data.push_back((value & 0xFFFF00000000) >> 32);
-      data.push_back((value & 0xFFFF0000) >> 16);
-      data.push_back(value & 0xFFFF);
-      break;
-    case SensorValueType::U_QWORD_R:
-    case SensorValueType::S_QWORD_R:
-      data.push_back(value & 0xFFFF);
-      data.push_back((value & 0xFFFF0000) >> 16);
-      data.push_back((value & 0xFFFF00000000) >> 32);
-      data.push_back((value & 0xFFFF000000000000) >> 48);
-      break;
-    default:
-      ESP_LOGE(TAG, "Invalid data type for modbus number to payload conversion: %d", static_cast<uint16_t>(value_type));
-      break;
-  }
+void log_unsupported_value_type(SensorValueType value_type) {
+  ESP_LOGE(TAG, "Invalid data type for modbus number to payload conversion: %d", static_cast<uint16_t>(value_type));
 }
 
-int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
+int64_t payload_to_number(const uint8_t *data, size_t size, SensorValueType sensor_value_type, uint8_t offset,
                           uint32_t bitmask, bool *error_return) {
   int64_t value = 0;  // int64_t because it can hold signed and unsigned 32 bits
 
   // Validate offset against the buffer for all types, including RAW/unsupported, so
   // a malformed or misconfigured frame still produces an error log.
-  if (static_cast<size_t>(offset) > data.size()) {
+  if (static_cast<size_t>(offset) > size) {
     ESP_LOGE(TAG, "not enough data for value type=%u offset=%u size=%zu", static_cast<unsigned int>(sensor_value_type),
-             static_cast<unsigned int>(offset), data.size());
+             static_cast<unsigned int>(offset), size);
     if (error_return)
       *error_return = true;
     return value;
@@ -158,10 +124,9 @@ int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sens
     return value;
   }
 
-  if (data.size() - offset < required_size) {
+  if (size - offset < required_size) {
     ESP_LOGE(TAG, "not enough data for value type=%u offset=%u size=%zu required=%zu",
-             static_cast<unsigned int>(sensor_value_type), static_cast<unsigned int>(offset), data.size(),
-             required_size);
+             static_cast<unsigned int>(sensor_value_type), static_cast<unsigned int>(offset), size, required_size);
     if (error_return)
       *error_return = true;
     return value;
@@ -212,6 +177,31 @@ int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sens
       break;
   }
   return value;
+}
+
+int64_t registers_to_number(const uint16_t *registers, size_t count, SensorValueType sensor_value_type,
+                            bool *error_return) {
+  const size_t required_size = required_payload_size(sensor_value_type);
+  if (required_size == 0) {
+    return 0;  // RAW/unsupported: nothing to read
+  }
+  const size_t required_words = required_size / 2;
+  if (required_words > count) {
+    ESP_LOGE(TAG, "not enough registers for value type=%u count=%zu required=%zu",
+             static_cast<unsigned int>(sensor_value_type), count, required_words);
+    if (error_return)
+      *error_return = true;
+    return 0;
+  }
+  // Serialize the needed words back to big-endian bytes and reuse the audited byte decoder so the
+  // sign-extension behaviour stays identical to the wire path.
+  uint8_t bytes[8];  // at most 4 registers (QWORD)
+  for (size_t i = 0; i < required_words; i++) {
+    uint16_t reg = registers[i];
+    bytes[i * 2] = static_cast<uint8_t>(reg >> 8);
+    bytes[i * 2 + 1] = static_cast<uint8_t>(reg & 0xFF);
+  }
+  return payload_to_number(bytes, required_size, sensor_value_type, 0, 0xFFFFFFFF, error_return);
 }
 
 StaticVector<uint8_t, MAX_PDU_SIZE> create_client_pdu(ModbusFunctionCode function_code, uint16_t start_address,
