@@ -756,6 +756,9 @@ storage::StorageError USBStorageDevice::copy(const char *src_path, const char *d
       break;
     }
   }
+  if (err == storage::StorageError::OK && ferror(src)) {
+    err = storage::StorageError::READ_ERROR;
+  }
   fclose(src);
   fclose(dst);
   return err;
