@@ -56,6 +56,50 @@ def test_is_in_flash_esp32_rtc_emits_define() -> None:
     assert "USE_ESP32_RTC_PREFERENCES" in _define_names()
 
 
+def test_request_rtc_storage_esp32_only() -> None:
+    _set_platform(PLATFORM_ESP8266)
+    preferences.request_rtc_storage()
+    # ESP8266 always has its RTC backend; no define is needed or emitted.
+    assert "USE_ESP32_RTC_PREFERENCES" not in _define_names()
+
+
+def test_request_rtc_storage_esp32_emits_define() -> None:
+    _set_esp32(VARIANT_ESP32)
+    preferences.request_rtc_storage()
+    assert "USE_ESP32_RTC_PREFERENCES" in _define_names()
+
+
+@pytest.mark.parametrize("variant", [VARIANT_ESP32, VARIANT_ESP32C3])
+def test_validate_rtc_storage_accepted(variant: str) -> None:
+    _set_esp32(variant)
+    assert preferences.validate_rtc_storage(True) is True
+    assert preferences.validate_rtc_storage(False) is False
+
+
+def test_validate_rtc_storage_esp8266() -> None:
+    _set_platform(PLATFORM_ESP8266)
+    # Tolerated no-op: the ESP8266 backend always has RTC storage.
+    assert preferences.validate_rtc_storage(True) is True
+    # But it cannot be disabled, so an explicit false is an error.
+    with pytest.raises(cv.Invalid, match="always enabled on ESP8266"):
+        preferences.validate_rtc_storage(False)
+
+
+@pytest.mark.parametrize("variant", [VARIANT_ESP32C2, VARIANT_ESP32C61])
+def test_validate_rtc_storage_rejected_without_rtc_memory(variant: str) -> None:
+    _set_esp32(variant)
+    with pytest.raises(cv.Invalid, match="not supported on this platform"):
+        preferences.validate_rtc_storage(True)
+    # Disabling it is always fine.
+    assert preferences.validate_rtc_storage(False) is False
+
+
+def test_validate_rtc_storage_rejected_on_unsupported_platform() -> None:
+    _set_platform(PLATFORM_RP2040)
+    with pytest.raises(cv.Invalid, match="not supported on this platform"):
+        preferences.validate_rtc_storage(True)
+
+
 @pytest.mark.parametrize(
     ("platform", "expected"),
     [

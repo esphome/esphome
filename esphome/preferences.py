@@ -59,14 +59,48 @@ def storage_schema():
     return {cv.Optional(CONF_STORAGE, default=_default_storage): _validate_storage}
 
 
+def request_rtc_storage() -> None:
+    """Compile the RTC-backed storage into the ESP32 preferences backend.
+
+    The RTC storage region is left out of ESP32 builds unless something asks for
+    it, so unused builds don't reserve RTC memory. Call this from ``to_code``
+    when a config option selects RTC storage. No-op on other platforms (ESP8266
+    always has its RTC backend).
+    """
+    if CORE.is_esp32:
+        cg.add_define("USE_ESP32_RTC_PREFERENCES")
+
+
+def validate_rtc_storage(value):
+    """Validate a boolean option that requests RTC-backed preference storage.
+
+    ``false`` means "no request", not "disable": it never turns RTC storage off
+    (another option selecting ``storage: rtc`` still compiles it in). On ESP8266
+    the backend is integral and always enabled, so ``false`` is rejected rather
+    than silently ignored; ``true`` is a tolerated no-op there so shared config
+    packages work across mixed fleets.
+    """
+    value = cv.boolean(value)
+    if not value:
+        if CORE.is_esp8266:
+            raise cv.Invalid(
+                "RTC preference storage is always enabled on ESP8266 and cannot "
+                "be disabled"
+            )
+        return value
+    if not _rtc_supported():
+        raise cv.Invalid("RTC preference storage is not supported on this platform")
+    return value
+
+
 def is_in_flash(value: str) -> bool:
     """Map a CONF_STORAGE value to the ``in_flash`` argument of make_preference.
 
     Call this from ``to_code``: when RTC storage is selected on ESP32 it also emits
-    the define that compiles the RTC storage buffer into the ESP32 backend (which is
-    otherwise left out so unused builds don't reserve RTC memory).
+    the define that compiles the RTC storage buffer into the ESP32 backend (see
+    :func:`request_rtc_storage`).
     """
     in_flash = value == STORAGE_FLASH
-    if not in_flash and CORE.is_esp32:
-        cg.add_define("USE_ESP32_RTC_PREFERENCES")
+    if not in_flash:
+        request_rtc_storage()
     return in_flash

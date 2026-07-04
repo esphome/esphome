@@ -158,7 +158,7 @@ ESPPreferenceObject ESP32Preferences::make_preference(size_t length, uint32_t ty
     // asking for RTC storage can discover the fallback.
     static bool warned = false;
     if (!warned) {
-      ESP_LOGW(TAG, "RTC preference storage not compiled in; using NVS");
+      ESP_LOGW(TAG, "RTC preference storage not compiled in; using NVS (enable with 'preferences: rtc_storage: true')");
       warned = true;
     }
   }
