@@ -31,10 +31,8 @@ def validate_sector_multiple(value):
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(StorageRegistry),
-        cv.Optional(CONF_COPY_CHUNK_SIZE, default="16kB"): cv.All(
-            cv.validate_bytes,
-            cv.int_range(min=4096, max=131072),
-            validate_sector_multiple,
+        cv.Optional(CONF_COPY_CHUNK_SIZE, default=16384): cv.All(
+            cv.int_range(min=4096, max=131072), validate_sector_multiple
         ),
     }
 )
