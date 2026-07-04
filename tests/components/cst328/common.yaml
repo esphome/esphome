@@ -1,31 +1,22 @@
-i2c:
-  - id: i2c_cst328
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
-spi:
-  - id: spi_ili9xxx
-    clk_pin: ${clk_pin}
-    mosi_pin: ${mosi_pin}
-
 display:
-  - id: my_display
-    platform: ili9xxx
-    model: ili9342
-    cs_pin: ${cs_pin}
-    dc_pin: ${dc_pin}
-    reset_pin: ${disp_reset_pin}
-    invert_colors: false
+  - platform: ssd1306_i2c
+    i2c_id: i2c_bus
+    id: cst328_ssd1306_i2c_display
+    model: SSD1306_128X64
+    reset_pin: ${display_reset_pin}
+    pages:
+      - id: cst328_page1
+        lambda: |-
+          it.rectangle(0, 0, it.get_width(), it.get_height());
 
 touchscreen:
-  - id: ts_cst328
-    platform: cst328
+  - platform: cst328
+    i2c_id: i2c_bus
+    id: cst328_touchscreen
+    display: cst328_ssd1306_i2c_display
     interrupt_pin: ${interrupt_pin}
     reset_pin: ${reset_pin}
 
 binary_sensor:
-  - id: cst328_touch
-    platform: cst328
-    on_press:
-      then:
-        - component.update: ts_cst328
+  - platform: cst328
+    id: touch_key_cst328

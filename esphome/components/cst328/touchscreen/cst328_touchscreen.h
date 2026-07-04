@@ -4,7 +4,6 @@
 #include "esphome/components/touchscreen/touchscreen.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/log.h"
 
 namespace esphome::cst328 {
 
@@ -32,7 +31,6 @@ class CST328ButtonListener {
 class CST328Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice {
  public:
   void setup() override;
-  void update_touches() override;
   void register_button_listener(CST328ButtonListener *listener) { this->button_listeners_.push_back(listener); }
   void dump_config() override;
 
@@ -42,6 +40,7 @@ class CST328Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
   bool can_proceed() override { return this->setup_complete_ || this->is_failed(); }
 
  protected:
+  void update_touches() override;
   void reset_device_();
   void continue_setup_();
   void update_button_state_(bool state);

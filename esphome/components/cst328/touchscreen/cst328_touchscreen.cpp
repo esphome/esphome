@@ -1,4 +1,5 @@
 #include "cst328_touchscreen.h"
+#include "esphome/core/log.h"
 
 namespace esphome::cst328 {
 
@@ -52,7 +53,7 @@ void CST328Touchscreen::continue_setup_() {
   ESP_LOGVV(TAG, "Continuing CST328 setup...");
 
   uint8_t data_byte{0};
-  uint8_t buf[24];
+  uint8_t buf[24]{};
 
   I2C_FAIL_ON_ERROR(this->write_register16(CST_WM_DEBUG_INFO, buf, 0), TAG, "Failed to enter debug/info mode");
   I2C_FAIL_ON_ERROR(this->read_register16(CST_REG_FW_CRC_AND_BOOT_TIME, buf, 4), TAG,
