@@ -151,6 +151,17 @@ ESPPreferenceObject ESP32Preferences::make_preference(size_t length, uint32_t ty
 #ifdef USE_ESP32_RTC_PREFERENCES_STORAGE
   if (!in_flash)
     return this->make_rtc_preference_(length, type);
+#else
+  if (!in_flash) {
+    // RTC storage is not compiled in (no config option selected it), so this request
+    // falls back to NVS -- the historic ESP32 behavior. Warn once so callers explicitly
+    // asking for RTC storage can discover the fallback.
+    static bool warned = false;
+    if (!warned) {
+      ESP_LOGW(TAG, "RTC preference storage not compiled in; using NVS");
+      warned = true;
+    }
+  }
 #endif
   // in_flash, or RTC storage not compiled in: fall back to NVS.
   return this->make_preference(length, type);
