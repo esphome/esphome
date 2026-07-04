@@ -197,6 +197,22 @@ def _collect_sensitive_values() -> dict[str, _SensitiveValue]:
     return result
 
 
+# Envelope path of the note recording includes that could not be captured.
+UNCAPTURED_NOTE_PATH = "store_yaml_uncaptured.yaml"
+
+
+def _uncaptured_note(unresolved: list[str]) -> tuple[str, bytes]:
+    """Comment-only YAML entry listing includes that could not be captured, so
+    a recovered config never silently appears complete. Emitted for both the
+    redacted and verbatim paths; user files are never modified to carry it."""
+    text = (
+        "# store_yaml: the following !include paths use substitutions and\n"
+        "# could not be captured; restore these files manually:\n"
+        + "".join(f"#   {inc}\n" for inc in unresolved)
+    )
+    return (UNCAPTURED_NOTE_PATH, text.encode("utf-8"))
+
+
 def _build_secrets_skeleton(keys: set[str]) -> bytes:
     parts = [SECRETS_SKELETON_HEADER]
     parts.extend(f'{key}: ""\n' for key in sorted(keys))
@@ -204,7 +220,7 @@ def _build_secrets_skeleton(keys: set[str]) -> bytes:
 
 
 def _generate_redacted_files(
-    entries: list[tuple[str, Path]], secret_rels: set[str], unresolved: list[str]
+    entries: list[tuple[str, Path]], secret_rels: set[str]
 ) -> list[tuple[str, bytes]]:
     """Re-generate each captured file from its parse tree with cv.sensitive
     values emitted as `!secret <name>` references, and replace secrets files
@@ -246,19 +262,6 @@ def _generate_redacted_files(
             f"{', '.join(leaked)} (built via substitutions?). Reference them "
             "with `!secret` in the YAML, or set `include_secrets: true` to "
             "embed secrets deliberately."
-        )
-
-    if unresolved:
-        # Record the gap inside the recovered config itself, not just in a
-        # compile-time log line: substitution-pathed includes can't be
-        # captured, so the user must restore those files manually.
-        # Discovery parses the entry file first, so entries[0] is the entry.
-        entry_rel = entries[0][0]
-        texts[entry_rel] = (
-            "# store_yaml: the following !include paths use substitutions and\n"
-            "# could not be captured; restore these files manually:\n"
-            + "".join(f"#   {inc}\n" for inc in unresolved)
-            + texts[entry_rel]
         )
 
     skeleton = _build_secrets_skeleton(skeleton_keys)
@@ -337,7 +340,9 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_INCLUDE_SECRETS]:
         files = _read_files_verbatim(entries)
     else:
-        files = _generate_redacted_files(entries, secret_rels, discovered.unresolved)
+        files = _generate_redacted_files(entries, secret_rels)
+    if discovered.unresolved:
+        files.append(_uncaptured_note(discovered.unresolved))
     envelope = _pack_envelope(files)
     compressed = zstd.compress(envelope, level=ZSTD_LEVEL)
 

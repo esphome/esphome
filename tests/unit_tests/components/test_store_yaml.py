@@ -10,10 +10,12 @@ import pytest
 from esphome import yaml_util
 from esphome.components.store_yaml import (
     SECRETS_SKELETON_HEADER,
+    UNCAPTURED_NOTE_PATH,
     _gather_files,
     _generate_redacted_files,
     _pack_envelope,
     _read_files_verbatim,
+    _uncaptured_note,
     unpack_envelope,
 )
 from esphome.core import CORE, EsphomeError
@@ -49,7 +51,7 @@ def _sources(
 
 def _gather_redacted(discovered: DiscoveredYamlFiles) -> dict[str, bytes]:
     entries, secret_rels = _gather_files(discovered)
-    return dict(_generate_redacted_files(entries, secret_rels, discovered.unresolved))
+    return dict(_generate_redacted_files(entries, secret_rels))
 
 
 # ---------------------------------------------------------------------------
@@ -272,14 +274,13 @@ def test_redacted_accepts_secret_only_values(project: Path) -> None:
     assert 'api_key: ""' in files["secrets.yaml"].decode()
 
 
-def test_redacted_records_unresolved_includes_in_entry_file(project: Path) -> None:
-    """Substitution-pathed includes that can't be captured are noted inside the
-    recovered entry file, not just in a compile-time log line."""
-    discovered = _sources(project, "entry.yaml", "secrets.yaml")
-    discovered.unresolved.append("${board}.yaml")
-    files = _gather_redacted(discovered)
-    text = files["entry.yaml"].decode()
-    assert text.startswith("# store_yaml: the following !include paths")
+def test_uncaptured_note_lists_missing_includes() -> None:
+    """Substitution-pathed includes that can't be captured are recorded in a
+    dedicated envelope entry (both modes), not just a compile-time log line."""
+    rel, content = _uncaptured_note(["${board}.yaml"])
+    assert rel == UNCAPTURED_NOTE_PATH
+    text = content.decode()
+    assert text.startswith("# store_yaml:")
     assert "#   ${board}.yaml" in text
 
 
