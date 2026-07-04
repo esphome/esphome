@@ -13,6 +13,18 @@ CONF_COPY_CHUNK_SIZE = "copy_chunk_size"
 storage_ns = cg.esphome_ns.namespace("storage")
 StorageRegistry = storage_ns.class_("StorageRegistry", cg.Component)
 
+
+def validate_sector_multiple(value):
+    """Require a multiple of 512 (the common sector size).
+
+    Anything else loses the FATFS direct-sector-read path that motivated picking a
+    16kB chunk size in the first place — see STORAGE_COPY_CHUNK_SIZE's comment in storage.h.
+    """
+    if value % 512 != 0:
+        raise cv.Invalid(f"copy_chunk_size must be a multiple of 512, got {value}")
+    return value
+
+
 # Default kept in sync with the STORAGE_COPY_CHUNK_SIZE fallback in storage.h.
 # Lower bound matches copy()'s allocation fallback floor (4096, see storage.cpp); upper bound
 # is a sanity cap so a typo (e.g. "16MB") can't request an unreasonable single allocation.
@@ -20,7 +32,9 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(StorageRegistry),
         cv.Optional(CONF_COPY_CHUNK_SIZE, default="16kB"): cv.All(
-            cv.validate_bytes, cv.int_range(min=4096, max=131072)
+            cv.validate_bytes,
+            cv.int_range(min=4096, max=131072),
+            validate_sector_multiple,
         ),
     }
 )

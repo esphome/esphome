@@ -349,9 +349,14 @@ StorageError copy(PathStorage *src_storage, const char *src_path, PathStorage *d
   }
 
   if (src_is_fs)
-    src_fs->close(src_handle);
-  if (dst_is_fs)
-    dst_fs->close(dst_handle);
+    src_fs->close(src_handle);  // close result intentionally ignored — source is read-only
+  if (dst_is_fs) {
+    // FATFS flushes on close; a failed close on the destination means a silently truncated/
+    // corrupt file, so its result must win over an OK from the copy loop above.
+    StorageError close_err = dst_fs->close(dst_handle);
+    if (err == StorageError::OK)
+      err = close_err;
+  }
   return err;
 }
 
