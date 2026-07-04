@@ -13,6 +13,10 @@ The `modbus_server` component creates a RS485 connection to let your ESPHome nod
 
 You must set the `role` attribute of the [Modbus](/components/modbus/) to `server`.
 
+> [!NOTE]
+> Modbus broadcast writes use address `0`. They are delivered to every registered server device on the same hub and
+> do not send a response. Only write function codes `0x06` and `0x10` are treated as broadcasts.
+
 <Image src="/images/modbus.png" width={190} height={200} layout="constrained" alt="" />
 
 ## Hardware setup
