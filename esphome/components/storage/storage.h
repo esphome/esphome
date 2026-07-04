@@ -156,7 +156,8 @@ class FilesystemStorage : public PathStorage {
   // Partial-read contract: see RawStorage::read() above.
   virtual StorageError read(FileHandle *handle, uint8_t *buf, size_t len, size_t *bytes_transferred) = 0;
   virtual StorageError write(FileHandle *handle, const uint8_t *buf, size_t len, size_t *bytes_transferred) = 0;
-  virtual StorageError seek(FileHandle *handle, int64_t offset, SeekMode mode = SeekMode::SET) = 0;
+  virtual StorageError seek(FileHandle *handle, int64_t offset, SeekMode mode) = 0;
+  StorageError seek(FileHandle *handle, int64_t offset) { return seek(handle, offset, SeekMode::SET); }
   virtual StorageError tell(FileHandle *handle, uint64_t *position) = 0;
 };
 
