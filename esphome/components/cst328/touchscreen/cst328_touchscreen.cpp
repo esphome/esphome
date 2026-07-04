@@ -123,13 +123,13 @@ void CST328Touchscreen::update_button_state_(bool state) {
 
 void CST328Touchscreen::update_touches() {
   if (!this->setup_complete_) {
+    this->skip_update_ = true;
     return;
   }
 
   uint8_t touch_data[CST328_TOUCH_DATA_SIZE];
 
   this->status_clear_warning();
-  this->skip_update_ = false;
 
   if (i2c::ERROR_OK != this->read_register16(CST_REG_TOUCH_INFORMATION, touch_data, CST328_TOUCH_DATA_SIZE)) {
     ESP_LOGW(TAG, "Failed to read touch data");
