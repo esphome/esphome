@@ -50,7 +50,7 @@ void CST328Touchscreen::reset_device_() {
 }
 
 void CST328Touchscreen::continue_setup_() {
-  ESP_LOGVV(TAG, "Continuing CST328 setup...");
+  ESP_LOGV(TAG, "Continuing CST328 setup...");
 
   uint8_t data_byte{0};
   uint8_t buf[24]{};
@@ -71,13 +71,13 @@ void CST328Touchscreen::continue_setup_() {
 
   this->chip_id_ = buf[2] + (buf[3] << 8);
   this->project_id_ = buf[0] + (buf[1] << 8);
-  ESP_LOGVV(TAG, "Chip ID %X, project ID %X", this->chip_id_, this->project_id_);
+  ESP_LOGD(TAG, "Chip ID %X, project ID %X", this->chip_id_, this->project_id_);
   I2C_FAIL_ON_ERROR(this->read_register16(CST_REG_FW_REVISION, buf, 4), TAG, "Failed to read FW version");
 
   this->fw_ver_major_ = buf[3];
   this->fw_ver_minor_ = buf[2];
   this->fw_build_ = buf[0] + (buf[1] << 8);
-  ESP_LOGVV(TAG, "FW version %d.%d.%d", this->fw_ver_major_, this->fw_ver_minor_, this->fw_build_);
+  ESP_LOGV(TAG, "FW version %d.%d.%d", this->fw_ver_major_, this->fw_ver_minor_, this->fw_build_);
 
   if (i2c::ERROR_OK == this->read_register16(CST_REG_X_Y_RESOLUTION, buf, 4)) {
     this->x_raw_max_ = buf[0] + (buf[1] << 8);
@@ -98,7 +98,7 @@ void CST328Touchscreen::continue_setup_() {
   }
 
   this->setup_complete_ = true;
-  ESP_LOGVV(TAG, "CST328 setup complete");
+  ESP_LOGV(TAG, "CST328 setup complete");
 }
 
 void CST328Touchscreen::dump_config() {
@@ -132,7 +132,7 @@ void CST328Touchscreen::update_touches() {
   this->skip_update_ = false;
 
   if (i2c::ERROR_OK != this->read_register16(CST_REG_TOUCH_INFORMATION, touch_data, CST328_TOUCH_DATA_SIZE)) {
-    ESP_LOGVV(TAG, "Failed to read touch data");
+    ESP_LOGW(TAG, "Failed to read touch data");
     this->status_set_warning();
     this->skip_update_ = true;
     return;
@@ -161,7 +161,7 @@ void CST328Touchscreen::update_touches() {
   cleanup_error |= (i2c::ERROR_OK != this->write_register16(CST_REG_TOUCH_INFORMATION, &CST328_SYNC_BYTE, 1));
 
   if (cleanup_error) {
-    ESP_LOGVV(TAG, "Failed to clean up touch registers");
+    ESP_LOGW(TAG, "Failed to clean up touch registers");
   }
 }
 

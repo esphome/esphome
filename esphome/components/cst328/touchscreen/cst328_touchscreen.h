@@ -37,8 +37,6 @@ class CST328Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
   void set_reset_pin(GPIOPin *pin) { this->reset_pin_ = pin; }
 
-  bool can_proceed() override { return this->setup_complete_ || this->is_failed(); }
-
  protected:
   void update_touches() override;
   void reset_device_();
