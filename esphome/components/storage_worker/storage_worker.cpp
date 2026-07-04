@@ -16,8 +16,7 @@ void StorageWorker::setup() {
   }
 
   if (global_storage_registry != nullptr) {
-    global_storage_registry->add_on_unregistered_callback(
-        [this](Storage *s) { this->on_storage_unregistered_(s); });
+    global_storage_registry->add_on_unregistered_callback([this](Storage *s) { this->on_storage_unregistered_(s); });
   }
 
 #ifdef USE_ESP32
@@ -227,9 +226,8 @@ void StorageWorker::run_chunk_(TransferRequest &req) {
     finish_request(req, StorageError::NOT_READY);
     return;
   }
-  if (global_storage_registry != nullptr &&
-      (!global_storage_registry->is_registered(req.src_storage) ||
-       !global_storage_registry->is_registered(req.dst_storage))) {
+  if (global_storage_registry != nullptr && (!global_storage_registry->is_registered(req.src_storage) ||
+                                             !global_storage_registry->is_registered(req.dst_storage))) {
     finish_request(req, StorageError::NOT_READY);
     return;
   }
@@ -309,9 +307,9 @@ void StorageWorker::run_chunk_(TransferRequest &req) {
   while (total_written < bytes_read) {
     size_t bytes_written = 0;
     if (req.dst_is_fs) {
-      err = static_cast<FilesystemStorage *>(req.dst_storage)
-                ->write(req.dst_handle, req.chunk_buf.get() + total_written, bytes_read - total_written,
-                        &bytes_written);
+      err =
+          static_cast<FilesystemStorage *>(req.dst_storage)
+              ->write(req.dst_handle, req.chunk_buf.get() + total_written, bytes_read - total_written, &bytes_written);
     } else {
       err = static_cast<NetworkStorage *>(req.dst_storage)
                 ->write_chunk(req.dst_path, req.chunk_buf.get() + total_written, req.offset + total_written,
