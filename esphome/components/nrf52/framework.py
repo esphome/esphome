@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import os
 from pathlib import Path
@@ -24,7 +25,7 @@ from esphome.helpers import get_str_env
 _LOGGER = logging.getLogger(__name__)
 
 _REQUIREMENTS = Path(__file__).parent / "requirements.txt"
-_TOOLCHAIN_VERSION = "0.17.4"
+TOOLCHAIN_VERSION = "0.17.4"
 
 SDK_NG_TOOLCHAIN_MIRRORS = str_to_lst_of_str(
     os.environ.get(
@@ -132,7 +133,7 @@ def get_build_env() -> dict:
     env = os.environ.copy()
     env["PATH"] = str(venv_bin_dir) + os.pathsep + env.get("PATH", "")
     env["ZEPHYR_BASE"] = str(_get_framework_path(version) / "zephyr")
-    env["Zephyr-sdk_DIR"] = str(_get_toolchain_path(_TOOLCHAIN_VERSION) / "cmake")
+    env["Zephyr-sdk_DIR"] = str(_get_toolchain_path(TOOLCHAIN_VERSION) / "cmake")
     return env
 
 
@@ -158,9 +159,10 @@ def check_and_install() -> None:
     python_env_path = _get_python_env_path(version)
     env_python_path = get_python_env_executable_path(python_env_path, "python")
     sentinel = python_env_path / ".ready"
+    requirements_hash = hashlib.sha256(_REQUIREMENTS.read_bytes()).hexdigest()
     install_venv = (
         not sentinel.exists()
-        or _REQUIREMENTS.stat().st_mtime > sentinel.stat().st_mtime
+        or sentinel.read_text(encoding="utf-8") != requirements_hash
     )
     if install_venv:
         rmdir(python_env_path, msg=f"Clean up {version} Python environment")
@@ -182,7 +184,7 @@ def check_and_install() -> None:
             raise EsphomeError(
                 f"Install requirements for {version} Python environment failure"
             )
-        sentinel.touch()
+        sentinel.write_text(requirements_hash, encoding="utf-8")
 
     framework_path = _get_framework_path(version)
     sentinel = framework_path / ".ready"
@@ -238,19 +240,17 @@ def check_and_install() -> None:
             raise EsphomeError(f"Install Zephyr requirements for {version} failure")
         zephyr_sentinel.touch()
 
-    toolchains_dir = _get_toolchain_path(_TOOLCHAIN_VERSION)
+    toolchains_dir = _get_toolchain_path(TOOLCHAIN_VERSION)
     sentinel = toolchains_dir / ".ready"
     if not sentinel.exists():
-        rmdir(
-            toolchains_dir, msg=f"Clean up {_TOOLCHAIN_VERSION} toolchain environment"
-        )
+        rmdir(toolchains_dir, msg=f"Clean up {TOOLCHAIN_VERSION} toolchain environment")
         sysname, machine, extension = _get_toolchain_platform_info()
         with tempfile.NamedTemporaryFile() as tmp:
-            _LOGGER.info("Downloading Zephyr SDK %s minimal ...", _TOOLCHAIN_VERSION)
+            _LOGGER.info("Downloading Zephyr SDK %s minimal ...", TOOLCHAIN_VERSION)
             download_from_mirrors(
                 SDK_NG_MINIMAL_MIRRORS,
                 {
-                    "VERSION": _TOOLCHAIN_VERSION,
+                    "VERSION": TOOLCHAIN_VERSION,
                     "sysname": sysname,
                     "machine": machine,
                     "extension": extension,
@@ -259,11 +259,11 @@ def check_and_install() -> None:
             )
             archive_extract_all(tmp.file, toolchains_dir, progress_header="Extracting")
         with tempfile.NamedTemporaryFile() as tmp:
-            _LOGGER.info("Downloading %s toolchain ...", _TOOLCHAIN_VERSION)
+            _LOGGER.info("Downloading %s toolchain ...", TOOLCHAIN_VERSION)
             download_from_mirrors(
                 SDK_NG_TOOLCHAIN_MIRRORS,
                 {
-                    "VERSION": _TOOLCHAIN_VERSION,
+                    "VERSION": TOOLCHAIN_VERSION,
                     "sysname": sysname,
                     "machine": machine,
                     "extension": extension,

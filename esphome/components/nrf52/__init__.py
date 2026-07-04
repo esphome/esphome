@@ -79,6 +79,11 @@ AUTO_LOAD = ["zephyr", "preferences"]
 IS_TARGET_PLATFORM = True
 _LOGGER = logging.getLogger(__name__)
 
+# Default framework versions per toolchain. The sdk-nrf one also keys the CI
+# sdk-nrf install cache and pins the clang-tidy project's SDK.
+RECOMMENDED_PLATFORMIO_VERSION = "2.6.1-b"
+RECOMMENDED_SDK_NRF_VERSION = "2.9.2"
+
 FAKE_BOARD_MANIFEST = """
 {
     "frameworks": [
@@ -123,7 +128,11 @@ def _resolve_toolchain(config: ConfigType) -> ConfigType:
 
 def set_framework(config: ConfigType) -> ConfigType:
     if CONF_VERSION not in config[CONF_FRAMEWORK]:
-        default_version = "2.6.1-b" if CORE.using_toolchain_platformio else "2.9.2"
+        default_version = (
+            RECOMMENDED_PLATFORMIO_VERSION
+            if CORE.using_toolchain_platformio
+            else RECOMMENDED_SDK_NRF_VERSION
+        )
         config = {
             **config,
             CONF_FRAMEWORK: {**config[CONF_FRAMEWORK], CONF_VERSION: default_version},
