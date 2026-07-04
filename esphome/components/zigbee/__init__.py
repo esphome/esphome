@@ -18,10 +18,12 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 from .const import (
+    CONF_ENDPOINT,
     CONF_ON_JOIN,
     CONF_POWER_SOURCE,
     CONF_REPORT,
     CONF_ROUTER,
+    CONF_USE_TYPE,
     CONF_WIPE_ON_BOOT,
     KEY_ZIGBEE,
     POWER_SOURCE,
@@ -71,7 +73,17 @@ BASE_SCHEMA = cv.Schema(
             cv.requires_component("esp32"),
             _check_report_deprecation,
             cv.enum(REPORT, lower=True),
-        )
+        ),
+        cv.Optional(CONF_ENDPOINT): cv.All(
+            cv.requires_component("zigbee"),
+            cv.requires_component("esp32"),
+            cv.int_range(1, 240),
+        ),
+        cv.Optional(CONF_USE_TYPE): cv.All(
+            cv.requires_component("zigbee"),
+            cv.requires_component("esp32"),
+            cv.boolean,
+        ),
     }
 )
 BINARY_SENSOR_SCHEMA = cv.Schema({}).extend(BASE_SCHEMA).extend(zephyr_binary_sensor)
