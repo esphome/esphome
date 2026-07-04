@@ -15,7 +15,7 @@ namespace esphome::selec_meter {
  public: \
   void set_##name##_sensor(sensor::Sensor *(name)) { this->name##_sensor_ = name; }
 
-class SelecMeter final : public PollingComponent, public modbus::ModbusDevice {
+class SelecMeter final : public PollingComponent, public modbus::ModbusClientDevice {
  public:
   SELEC_METER_SENSOR(total_active_energy)
   SELEC_METER_SENSOR(import_active_energy)

@@ -305,6 +305,7 @@ CONFIG_SCHEMA = cv.All(
                 rtl87xx=4,  # Moderate RAM, BSD-style sockets
                 host=4,  # Abundant resources
                 ln882x=4,  # Moderate RAM
+                nrf52=4,  # ~256KB RAM, BSD sockets
             ): cv.int_range(min=1, max=10),
             cv.SplitDefault(
                 CONF_MAX_CONNECTIONS,
@@ -315,6 +316,7 @@ CONFIG_SCHEMA = cv.All(
                 rtl87xx=5,  # Moderate RAM
                 host=8,  # Abundant resources
                 ln882x=5,  # Moderate RAM
+                nrf52=4,  # ~256KB RAM, BSD sockets, Thread (single HA controller)
             ): cv.int_range(min=1, max=20),
             # Maximum queued send buffers per connection before dropping connection
             # Each buffer uses ~8-12 bytes overhead plus actual message size
@@ -538,17 +540,20 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
 )
 
 
+# synchronous=False: when on_success/on_error is configured, play() stores the
+# trigger args until the HomeassistantActionResponse arrives, so non-owning args
+# (StringRef into the API receive buffer) must not be used.
 @automation.register_action(
     "homeassistant.action",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
-    synchronous=True,
+    synchronous=False,
 )
 @automation.register_action(
     "homeassistant.service",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
-    synchronous=True,
+    synchronous=False,
 )
 async def homeassistant_service_to_code(
     config: ConfigType,
@@ -642,6 +647,8 @@ HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema(
 )
 
 
+# synchronous=True is safe here: the event schema has no on_success/on_error,
+# so play() never stores the trigger args.
 @automation.register_action(
     "homeassistant.event",
     HomeAssistantServiceCallAction,
