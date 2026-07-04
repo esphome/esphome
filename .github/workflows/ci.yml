@@ -529,7 +529,7 @@ jobs:
         with:
           framework: arduino
 
-      - name: Cache sdk-nrf install
+      - name: Cache nRF Connect SDK install
         if: matrix.cache_sdk_nrf
         uses: ./.github/actions/cache-sdk-nrf
 
@@ -849,7 +849,7 @@ jobs:
         uses: ./.github/actions/cache-esp-idf
         with:
           restore-only: true
-      - name: Cache sdk-nrf install (restore-only)
+      - name: Cache nRF Connect SDK install (restore-only)
         # Only batches whose test platforms include nrf52 need the native
         # sdk-nrf install; never save -- just reuse the shared install the
         # dev nrf52 tidy job cached when present.
