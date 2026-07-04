@@ -9,6 +9,7 @@ CODEOWNERS = ["@p1ngb4ck"]
 DOMAIN = "storage"
 
 CONF_COPY_CHUNK_SIZE = "copy_chunk_size"
+CONF_MAX_BLOCKING_TRANSFER_SIZE = "max_blocking_transfer_size"
 
 storage_ns = cg.esphome_ns.namespace("storage")
 StorageRegistry = storage_ns.class_("StorageRegistry", cg.Component)
@@ -34,6 +35,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_COPY_CHUNK_SIZE, default=16384): cv.All(
             cv.int_range(min=4096, max=131072), validate_sector_multiple
         ),
+        # Guard-rail for the blocking copy/read/write helpers: 0 means unlimited (default,
+        # preserves current behavior). See max_blocking_transfer_size's comment in storage.h.
+        cv.Optional(CONF_MAX_BLOCKING_TRANSFER_SIZE, default=0): cv.int_range(min=0),
     }
 )
 
@@ -68,3 +72,4 @@ async def to_code(config):
     cg.add(cg.RawExpression(f"{storage_ns}::global_storage_registry = {var}"))
 
     cg.add_define("USE_STORAGE_COPY_CHUNK_SIZE", config[CONF_COPY_CHUNK_SIZE])
+    cg.add(var.set_max_blocking_transfer_size(config[CONF_MAX_BLOCKING_TRANSFER_SIZE]))

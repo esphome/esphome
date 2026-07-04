@@ -107,6 +107,21 @@ void StorageRegistry::for_each_path_based(void (*cb)(PathStorage *s, void *ctx),
 // Free helper functions
 //========================================================================
 
+namespace {
+
+// Shared guard-rail check for the blocking helpers below. No-op (returns OK) when no limit is
+// configured (registry unset, or max_blocking_transfer_size == 0).
+StorageError check_blocking_transfer_size(uint64_t size) {
+  if (global_storage_registry == nullptr)
+    return StorageError::OK;
+  uint64_t limit = global_storage_registry->get_max_blocking_transfer_size();
+  if (limit != 0 && size > limit)
+    return StorageError::TRANSFER_TOO_LARGE;
+  return StorageError::OK;
+}
+
+}  // namespace
+
 const char *error_to_string(StorageError error) {
   switch (error) {
     case StorageError::OK:
@@ -137,6 +152,8 @@ const char *error_to_string(StorageError error) {
       return "NOT_EMPTY";
     case StorageError::TOO_MANY_OPEN_FILES:
       return "TOO_MANY_OPEN_FILES";
+    case StorageError::TRANSFER_TOO_LARGE:
+      return "TRANSFER_TOO_LARGE";
   }
   return "UNKNOWN";
 }
@@ -158,6 +175,9 @@ StorageError file_size(PathStorage *storage, const char *path, uint64_t *size) {
 StorageError read_file(FilesystemStorage *storage, const char *path, RamBuffer &out, size_t *size) {
   FileStat stat{};
   StorageError err = storage->stat(path, &stat);
+  if (err != StorageError::OK)
+    return err;
+  err = check_blocking_transfer_size(stat.size);
   if (err != StorageError::OK)
     return err;
   // stat.size is uint64_t (NetworkStorage can see files >4GB); reject anything that wouldn't
@@ -201,6 +221,9 @@ StorageError read_file(NetworkStorage *storage, const char *path, RamBuffer &out
   StorageError err = storage->stat(path, &stat);
   if (err != StorageError::OK)
     return err;
+  err = check_blocking_transfer_size(stat.size);
+  if (err != StorageError::OK)
+    return err;
   // stat.size is uint64_t (NetworkStorage can see files >4GB); reject anything that wouldn't
   // fit in a size_t before it gets silently truncated by the allocation below.
   if (stat.size > SIZE_MAX)
@@ -230,8 +253,12 @@ StorageError read_file(NetworkStorage *storage, const char *path, RamBuffer &out
 }
 
 StorageError write_file(FilesystemStorage *storage, const char *path, const uint8_t *data, size_t size) {
+  StorageError err = check_blocking_transfer_size(size);
+  if (err != StorageError::OK)
+    return err;
+
   FileHandle *handle = nullptr;
-  StorageError err = storage->open(path, handle, OpenMode::WRITE);
+  err = storage->open(path, handle, OpenMode::WRITE);
   if (err != StorageError::OK)
     return err;
 
@@ -254,6 +281,10 @@ StorageError write_file(FilesystemStorage *storage, const char *path, const uint
 }
 
 StorageError write_file(NetworkStorage *storage, const char *path, const uint8_t *data, size_t size) {
+  StorageError size_check = check_blocking_transfer_size(size);
+  if (size_check != StorageError::OK)
+    return size_check;
+
   size_t total_written = 0;
   while (total_written < size) {
     size_t bytes_transferred = 0;
@@ -270,6 +301,14 @@ StorageError write_file(NetworkStorage *storage, const char *path, const uint8_t
 }
 
 StorageError copy(PathStorage *src_storage, const char *src_path, PathStorage *dst_storage, const char *dst_path) {
+  FileStat src_stat{};
+  StorageError stat_err = src_storage->stat(src_path, &src_stat);
+  if (stat_err != StorageError::OK)
+    return stat_err;
+  stat_err = check_blocking_transfer_size(src_stat.size);
+  if (stat_err != StorageError::OK)
+    return stat_err;
+
   // PREFER_INTERNAL: PSRAM isn't DMA-capable on classic ESP32 (restricted on S3 too), so
   // SD/SPI drivers would bounce-buffer anyway. Fall back to smaller sizes under memory pressure.
   size_t chunk_size = STORAGE_COPY_CHUNK_SIZE;
@@ -356,6 +395,16 @@ StorageError copy(PathStorage *src_storage, const char *src_path, PathStorage *d
       err = close_err;
   }
   return err;
+}
+
+StorageError move(PathStorage *src_storage, const char *src_path, PathStorage *dst_storage, const char *dst_path) {
+  if (src_storage == dst_storage)
+    return src_storage->rename(src_path, dst_path);  // same-storage: O(1), no size limit
+
+  StorageError err = copy(src_storage, src_path, dst_storage, dst_path);
+  if (err != StorageError::OK)
+    return err;
+  return src_storage->remove(src_path);
 }
 
 namespace {

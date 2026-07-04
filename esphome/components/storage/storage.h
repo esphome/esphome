@@ -20,10 +20,11 @@ enum class StorageError : uint8_t {
   PERMISSION_DENIED,
   TIMEOUT,
   CORRUPT,
-  NOT_SUPPORTED,        // operation not supported by this driver/medium (e.g. format() on read-only)
-  ALREADY_EXISTS,       // mkdir/create on a path that already exists
-  NOT_EMPTY,            // non-recursive rmdir on a non-empty directory
-  TOO_MANY_OPEN_FILES,  // no free FileHandle in the driver's handle pool
+  NOT_SUPPORTED,          // operation not supported by this driver/medium (e.g. format() on read-only)
+  ALREADY_EXISTS,         // mkdir/create on a path that already exists
+  NOT_EMPTY,              // non-recursive rmdir on a non-empty directory
+  TOO_MANY_OPEN_FILES,    // no free FileHandle in the driver's handle pool
+  TRANSFER_TOO_LARGE,     // transfer rejected: exceeds max_blocking_transfer_size (use the async API)
 };
 
 // fopen()-equivalent semantics — drivers must match these exactly:
@@ -99,6 +100,17 @@ struct FileHandle {
   // Drivers bypassing VFS subclass this and add their own handle (lfs_file_t, etc.)
 };
 
+// Optional driver capabilities, reported via Storage::get_capabilities().
+// Bitmask so future capabilities can be added without new virtuals.
+enum StorageCaps : uint8_t {
+  // The driver's data-plane methods (see the control-/data-plane contract below) may be
+  // called from a task other than the main loop, provided all calls to this instance are
+  // externally serialized. Only set this if the driver's I/O path has no hidden
+  // main-loop affinity — e.g. NOT safe if the driver shares a bus (SPI/I2C) with
+  // components that access it from the main loop.
+  STORAGE_CAP_IO_TASK_SAFE = 1 << 0,
+};
+
 // Abstract base — all storage drivers extend one of the three subclasses below.
 //
 // Contract: every call is BLOCKING — drivers do not run I/O on a separate task/thread.
@@ -118,13 +130,19 @@ struct FileHandle {
 // the caller (main loop today, later the worker) — drivers don't need to be thread-safe, just
 // tolerant of running on a single, possibly-different task. setup(), mount()/unmount(),
 // format(), connect()/disconnect(), and all StorageRegistry calls are CONTROL-PLANE and
-// remain main-loop-only (see StorageRegistry's contract below).
+// remain main-loop-only (see StorageRegistry's contract below). A future async worker will
+// only offload data-plane I/O to its own task for storages reporting STORAGE_CAP_IO_TASK_SAFE;
+// all others continue to be driven from the main loop.
 class Storage : public Component {
  public:
   // Must succeed (return OK) even when registered-but-unmounted/-disconnected — report that
   // via StorageInfo::is_mounted = false, not a non-OK error (see StorageRegistry below).
   virtual StorageError get_info(StorageInfo *info) = 0;
   virtual StorageType get_storage_type() const = 0;
+
+  // Bitwise OR of StorageCaps. Default 0: drivers must explicitly opt in to
+  // capabilities — a driver that never considered task-safety is never treated as such.
+  virtual uint8_t get_capabilities() const { return 0; }
 };
 
 // Offset-based byte access (raw flash, FRAM, EEPROM, NVS blobs)
@@ -219,6 +237,13 @@ class StorageRegistry : public Component {
   // Called by codegen with the exact number of configured storage devices
   void set_device_count(size_t count) { this->storages_.init(count); }
 
+  // Guard-rail for the BLOCKING helpers below (read_file()/write_file()/copy()/move()):
+  // transfers larger than this are rejected with StorageError::TRANSFER_TOO_LARGE instead of
+  // freezing the node, so callers get routed through the async API (storage_worker) instead.
+  // 0 (default) means unlimited — preserves current behavior.
+  void set_max_blocking_transfer_size(uint64_t size) { this->max_blocking_transfer_size_ = size; }
+  uint64_t get_max_blocking_transfer_size() const { return this->max_blocking_transfer_size_; }
+
   void register_storage(Storage *s);
   void unregister_storage(Storage *s);
 
@@ -245,6 +270,8 @@ class StorageRegistry : public Component {
   // on devices where no component listens for hotplug events
   LazyCallbackManager<void(Storage *)> on_registered_;
   LazyCallbackManager<void(Storage *)> on_unregistered_;
+
+  uint64_t max_blocking_transfer_size_{0};  // 0 = unlimited
 };
 
 extern StorageRegistry *global_storage_registry;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -295,6 +322,14 @@ StorageError write_file(NetworkStorage *storage, const char *path, const uint8_t
 // the duration of the copy, though — large copies will freeze sensor updates/API
 // responsiveness until an async worker layer exists (planned follow-up).
 StorageError copy(PathStorage *src_storage, const char *src_path, PathStorage *dst_storage, const char *dst_path);
+
+// Moves a file, within the same storage or across two different storages. Same-storage moves
+// go through rename() directly — no chunk buffer, no size limit, near-O(1). Cross-storage moves
+// go through copy() (inheriting its chunking, watchdog feeding, and max_blocking_transfer_size
+// enforcement) followed by remove() on the source, but ONLY if the copy succeeded. If the
+// source remove() fails, its error is returned and the destination copy is kept — the caller
+// ends up with the file in both places rather than in neither.
+StorageError move(PathStorage *src_storage, const char *src_path, PathStorage *dst_storage, const char *dst_path);
 
 // Recursively removes a directory and everything under it, via list_dir() + remove() /
 // remove_recursive() (for subdirectories) + a final non-recursive rmdir(). Drivers only
