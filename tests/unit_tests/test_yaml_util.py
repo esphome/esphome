@@ -26,16 +26,6 @@ from esphome.yaml_util import (
 
 
 @pytest.fixture(autouse=True)
-def clear_secrets_cache() -> None:
-    """Clear the secrets cache before each test."""
-    yaml_util._SECRET_VALUES.clear()
-    yaml_util._SECRET_CACHE.clear()
-    yield
-    yaml_util._SECRET_VALUES.clear()
-    yaml_util._SECRET_CACHE.clear()
-
-
-@pytest.fixture(autouse=True)
 def clear_core_frontmatter() -> None:
     """Reset CORE.frontmatter between tests."""
     core.CORE.frontmatter = {}
@@ -1446,22 +1436,16 @@ def test_secret_values_registered_swaps_scalars_in_dump() -> None:
 def test_secret_values_registered_does_not_clobber_real_secrets() -> None:
     """A value already mapped by a real `!secret` keeps its original name."""
     yaml_util._SECRET_VALUES["hunter2"] = "original_name"
-    try:
-        with yaml_util.secret_values_registered({"hunter2": "generated_name"}):
-            out = yaml_util.dump({"password": make_data_base("hunter2")})
-            assert "!secret 'original_name'" in out
-        # The pre-existing mapping survives the context exit.
-        assert yaml_util.is_secret("hunter2") == "original_name"
-    finally:
-        yaml_util._SECRET_VALUES.clear()
+    with yaml_util.secret_values_registered({"hunter2": "generated_name"}):
+        out = yaml_util.dump({"password": make_data_base("hunter2")})
+        assert "!secret 'original_name'" in out
+    # The pre-existing mapping survives the context exit.
+    assert yaml_util.is_secret("hunter2") == "original_name"
 
 
 def test_registered_secret_names() -> None:
     yaml_util._SECRET_VALUES["value_a"] = "name_a"
-    try:
-        assert "name_a" in yaml_util.registered_secret_names()
-    finally:
-        yaml_util._SECRET_VALUES.clear()
+    assert "name_a" in yaml_util.registered_secret_names()
 
 
 @pytest.fixture(autouse=True)

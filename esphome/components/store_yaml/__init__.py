@@ -85,11 +85,12 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 def _gather_files(
     discovered: yaml_util.DiscoveredYamlFiles,
 ) -> tuple[list[tuple[str, bytes]], set[str]]:
-    """Read each discovered YAML file verbatim.
+    """Map each discovered YAML file to its envelope path.
 
-    Returns (relative_path, content) pairs plus the subset of relative paths
-    that are secrets files (matched upstream on the *un-resolved* basename, so
-    a `secrets.yaml` symlinked to a differently-named target is still flagged).
+    Returns (relative_path, source_path) pairs plus the subset of relative
+    paths that are secrets files (matched upstream on the *un-resolved*
+    basename, so a `secrets.yaml` symlinked to a differently-named target is
+    still flagged).
     """
     if not discovered.files:
         raise EsphomeError(
@@ -113,19 +114,11 @@ def _gather_files(
             ", ".join(discovered.unresolved),
         )
 
-    config_path = Path(CORE.config_path).resolve()
-    root = config_path.parent
+    root = Path(CORE.config_path).resolve().parent
 
-    files: list[tuple[str, bytes]] = []
+    entries: list[tuple[str, Path]] = []
     secret_rels: set[str] = set()
     for path in discovered.files:
-        try:
-            content = path.read_bytes()
-        except OSError as err:
-            raise EsphomeError(
-                f"store_yaml: cannot read tracked YAML file {path}: {err}"
-            ) from err
-
         try:
             rel_str = path.relative_to(root).as_posix()
         except ValueError:
@@ -137,9 +130,24 @@ def _gather_files(
 
         if path in discovered.secrets:
             secret_rels.add(rel_str)
-        files.append((rel_str, content))
+        entries.append((rel_str, path))
 
-    return files, secret_rels
+    return entries, secret_rels
+
+
+def _read_files_verbatim(entries: list[tuple[str, Path]]) -> list[tuple[str, bytes]]:
+    """Read each file's exact on-disk bytes (the `include_secrets: true` path)."""
+    files: list[tuple[str, bytes]] = []
+    for rel, path in entries:
+        try:
+            files.append((rel, path.read_bytes()))
+        except OSError as err:
+            # A silently partial recovery blob defeats the feature; fail the
+            # build instead of embedding an incomplete file set.
+            raise EsphomeError(
+                f"store_yaml: cannot read tracked YAML file {path}: {err}"
+            ) from err
+    return files
 
 
 def _iter_sensitive_values(node: object, path: tuple[str, ...] = ()):
@@ -158,25 +166,23 @@ def _iter_sensitive_values(node: object, path: tuple[str, ...] = ()):
 class _SensitiveValue:
     secret_name: str
     config_path: str  # dotted path, for warnings (never log the value itself)
-    from_secret: bool  # already loaded via !secret somewhere
 
 
-def _collect_sensitive_values(reserved_names: set[str]) -> dict[str, _SensitiveValue]:
+def _collect_sensitive_values() -> dict[str, _SensitiveValue]:
     """Map each cv.sensitive value in the validated config to the `!secret`
     name it should be recovered as.
 
     Values that already come from `!secret` keep their existing name; inline
-    values get a name generated from their config path, avoiding
-    `reserved_names`.
+    values get a name generated from their config path, avoiding names already
+    taken by real secrets.
     """
-    used = set(reserved_names)
+    used = yaml_util.registered_secret_names()
     result: dict[str, _SensitiveValue] = {}
     for path, value in _iter_sensitive_values(CORE.config):
         if not value or value in result:
             continue
-        if existing := yaml_util.is_secret(value):
-            name = existing
-        else:
+        name = yaml_util.is_secret(value)
+        if name is None:
             base = "_".join(path) or "secret"
             name = base
             counter = 2
@@ -184,7 +190,7 @@ def _collect_sensitive_values(reserved_names: set[str]) -> dict[str, _SensitiveV
                 name = f"{base}_{counter}"
                 counter += 1
         used.add(name)
-        result[value] = _SensitiveValue(name, ".".join(path), bool(existing))
+        result[value] = _SensitiveValue(name, ".".join(path))
     return result
 
 
@@ -195,7 +201,7 @@ def _build_secrets_skeleton(keys: set[str]) -> bytes:
 
 
 def _generate_redacted_files(
-    files: list[tuple[str, bytes]], secret_rels: set[str]
+    entries: list[tuple[str, Path]], secret_rels: set[str]
 ) -> list[tuple[str, bytes]]:
     """Re-generate each captured file from its parse tree with cv.sensitive
     values emitted as `!secret <name>` references, and replace secrets files
@@ -207,29 +213,26 @@ def _generate_redacted_files(
     `!include` references round-trip via the dumper's IncludeFile support;
     comments and formatting of the originals are not preserved.
     """
-    sensitive = _collect_sensitive_values(yaml_util.registered_secret_names())
-    inline = {
-        value: info.secret_name
-        for value, info in sensitive.items()
-        if not info.from_secret
-    }
+    sensitive = _collect_sensitive_values()
 
-    config_path = Path(CORE.config_path).resolve()
-    root = config_path.parent
     texts: dict[str, str] = {}
-    with yaml_util.secret_values_registered(inline):
-        for rel, _ in files:
+    registered = {value: info.secret_name for value, info in sensitive.items()}
+    with yaml_util.secret_values_registered(registered):
+        for rel, path in entries:
             if rel in secret_rels:
                 continue
-            tree = yaml_util.load_yaml(root / rel, clear_secrets=False)
+            tree = yaml_util.load_yaml(path, clear_secrets=False)
             texts[rel] = yaml_util.dump(tree)
 
     skeleton_keys: set[str] = set()
     for text in texts.values():
         skeleton_keys |= yaml_util.find_secret_references(text)
 
-    for info in sensitive.values():
-        if not info.from_secret and info.secret_name not in skeleton_keys:
+    for value, info in sensitive.items():
+        # After the context manager exits, only values loaded through a real
+        # `!secret` are still registered — those legitimately never appear
+        # inline, so only warn for inline values that were never swapped.
+        if yaml_util.is_secret(value) is None and info.secret_name not in skeleton_keys:
             _LOGGER.warning(
                 "store_yaml: could not locate the sensitive value of '%s' in the "
                 "source YAML (built via substitutions?); it may still be "
@@ -240,13 +243,13 @@ def _generate_redacted_files(
     skeleton = _build_secrets_skeleton(skeleton_keys)
     result = [
         (rel, skeleton if rel in secret_rels else texts[rel].encode("utf-8"))
-        for rel, _ in files
+        for rel, _ in entries
     ]
     if skeleton_keys and not secret_rels:
         # The generated files reference `!secret` keys but the project has no
         # secrets file (all secrets were inline) — ship a synthetic one so the
         # recovered config is complete.
-        result.append(("secrets.yaml", skeleton))
+        result.append((yaml_util.SECRET_YAML, skeleton))
     return result
 
 
@@ -309,9 +312,11 @@ async def to_code(config: ConfigType) -> None:
     # that components load internally (e.g. LVGL's `hello_world.yaml`), and
     # costs nothing on validate-only runs or configs without this component.
     discovered = yaml_util.discover_user_yaml_files(CORE.config_path)
-    files, secret_rels = _gather_files(discovered)
-    if not config[CONF_INCLUDE_SECRETS]:
-        files = _generate_redacted_files(files, secret_rels)
+    entries, secret_rels = _gather_files(discovered)
+    if config[CONF_INCLUDE_SECRETS]:
+        files = _read_files_verbatim(entries)
+    else:
+        files = _generate_redacted_files(entries, secret_rels)
     envelope = _pack_envelope(files)
     compressed = zstd.compress(envelope, level=ZSTD_LEVEL)
 

@@ -13,6 +13,7 @@ from esphome.components.store_yaml import (
     _gather_files,
     _generate_redacted_files,
     _pack_envelope,
+    _read_files_verbatim,
     unpack_envelope,
 )
 from esphome.core import CORE, EsphomeError
@@ -35,8 +36,6 @@ def project(tmp_path: Path) -> Path:
 @pytest.fixture(autouse=True)
 def _clear_config() -> None:
     CORE.config = {}
-    yield
-    yaml_util._SECRET_VALUES.clear()
 
 
 def _sources(
@@ -58,14 +57,27 @@ def _gather_redacted(discovered: DiscoveredYamlFiles) -> dict[str, bytes]:
 # ---------------------------------------------------------------------------
 
 
-def test_gather_returns_verbatim_content_and_flags_secrets(project: Path) -> None:
+def test_gather_maps_rel_paths_and_flags_secrets(project: Path) -> None:
     discovered = _sources(
         project, "entry.yaml", "secrets.yaml", secrets=("secrets.yaml",)
     )
-    files, secret_rels = _gather_files(discovered)
-    contents = dict(files)
-    assert contents["secrets.yaml"] == b"api_key: SUPER_SECRET\n"
+    entries, secret_rels = _gather_files(discovered)
+    assert dict(entries) == {
+        "entry.yaml": project / "entry.yaml",
+        "secrets.yaml": project / "secrets.yaml",
+    }
     assert secret_rels == {"secrets.yaml"}
+
+
+def test_read_files_verbatim_returns_exact_bytes(project: Path) -> None:
+    """`include_secrets: true` embeds the on-disk bytes untouched."""
+    discovered = _sources(
+        project, "entry.yaml", "secrets.yaml", secrets=("secrets.yaml",)
+    )
+    entries, _ = _gather_files(discovered)
+    contents = dict(_read_files_verbatim(entries))
+    assert contents["secrets.yaml"] == (project / "secrets.yaml").read_bytes()
+    assert contents["entry.yaml"] == (project / "entry.yaml").read_bytes()
 
 
 def test_gather_flags_secret_symlinked_to_other_name(
@@ -117,12 +129,13 @@ def test_gather_raises_on_load_errors(project: Path) -> None:
         _gather_files(discovered)
 
 
-def test_gather_raises_on_unreadable_file(
+def test_read_files_verbatim_raises_on_unreadable_file(
     project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """An unreadable tracked file fails the build instead of producing a
     silently partial recovery blob."""
     discovered = _sources(project, "entry.yaml", "wifi.yaml")
+    entries, _ = _gather_files(discovered)
     orig_read_bytes = Path.read_bytes
 
     def fake_read_bytes(self: Path) -> bytes:
@@ -132,7 +145,7 @@ def test_gather_raises_on_unreadable_file(
 
     monkeypatch.setattr(Path, "read_bytes", fake_read_bytes)
     with pytest.raises(EsphomeError, match="wifi.yaml"):
-        _gather_files(discovered)
+        _read_files_verbatim(entries)
 
 
 def test_gather_warns_on_unresolved_includes(

@@ -25,6 +25,7 @@ except ImportError:
     from backports import zstd  # type: ignore[import-not-found, no-redef]
 
 from esphome.components.store_yaml import unpack_envelope
+from esphome.yaml_util import find_secret_references
 
 from .types import RunCompiledFunction
 
@@ -212,7 +213,7 @@ async def test_store_yaml_recovery(
     assert b"recoverme123" not in envelope, (
         "inline sensitive value leaked into the recovery blob"
     )
-    assert b"!secret 'ota_password'" in combined, (
+    assert "ota_password" in find_secret_references(combined.decode()), (
         "expected the inline OTA password to be recovered as a !secret reference"
     )
     assert b'ota_password: ""' in files["secrets.yaml"], (
