@@ -272,7 +272,8 @@ def force_load_include_files(
     *,
     warn_on_unresolved: bool = True,
     _seen: set[int] | None = None,
-) -> None:
+    _unresolved: list[str] | None = None,
+) -> list[str]:
     """Recursively resolve any deferred ``IncludeFile`` instances in a YAML tree.
 
     Nested ``!include`` returns a deferred ``IncludeFile`` that is only resolved
@@ -285,14 +286,17 @@ def force_load_include_files(
     variables cannot be loaded. By default a warning is logged for each one;
     pass ``warn_on_unresolved=False`` (used by discovery paths that run on a
     fresh re-parse where substitutions haven't been applied yet) to demote it
-    to a debug log.
+    to a debug log. Returns the path strings of those unloadable includes so
+    callers can tell the walk was incomplete.
     """
     if _seen is None:
         _seen = set()
+    if _unresolved is None:
+        _unresolved = []
 
     if isinstance(obj, IncludeFile):
         if id(obj) in _seen:
-            return
+            return _unresolved
         _seen.add(id(obj))
         if obj.has_unresolved_expressions():
             log = _LOGGER.warning if warn_on_unresolved else _LOGGER.debug
@@ -301,7 +305,8 @@ def force_load_include_files(
                 obj.file,
                 obj.parent_file,
             )
-            return
+            _unresolved.append(str(obj.file))
+            return _unresolved
         try:
             loaded = obj.load()
         except EsphomeError as err:
@@ -311,26 +316,36 @@ def force_load_include_files(
                 obj.parent_file,
                 err,
             )
-            return
+            return _unresolved
         force_load_include_files(
-            loaded, warn_on_unresolved=warn_on_unresolved, _seen=_seen
+            loaded,
+            warn_on_unresolved=warn_on_unresolved,
+            _seen=_seen,
+            _unresolved=_unresolved,
         )
     elif isinstance(obj, dict):
         if id(obj) in _seen:
-            return
+            return _unresolved
         _seen.add(id(obj))
         for value in obj.values():
             force_load_include_files(
-                value, warn_on_unresolved=warn_on_unresolved, _seen=_seen
+                value,
+                warn_on_unresolved=warn_on_unresolved,
+                _seen=_seen,
+                _unresolved=_unresolved,
             )
     elif isinstance(obj, (list, tuple)):
         if id(obj) in _seen:
-            return
+            return _unresolved
         _seen.add(id(obj))
         for item in obj:
             force_load_include_files(
-                item, warn_on_unresolved=warn_on_unresolved, _seen=_seen
+                item,
+                warn_on_unresolved=warn_on_unresolved,
+                _seen=_seen,
+                _unresolved=_unresolved,
             )
+    return _unresolved
 
 
 @dataclass(slots=True)
@@ -341,11 +356,14 @@ class DiscoveredYamlFiles:
     were re-parsing the user's config; ``secrets`` is the subset whose
     *un-resolved* filename matched :data:`esphome.const.SECRETS_FILES` (so
     a ``secrets.yaml`` symlinked to a differently-named target is still
-    flagged as secrets).
+    flagged as secrets). ``unresolved`` lists ``!include`` path strings that
+    contain substitution variables and therefore could not be loaded —
+    consumers should treat ``files`` as incomplete when it is non-empty.
     """
 
     files: list[Path] = field(default_factory=list)
     secrets: set[Path] = field(default_factory=set)
+    unresolved: list[str] = field(default_factory=list)
 
 
 def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
@@ -377,7 +395,7 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
                 data = load_yaml(config_path)
             except EsphomeError:
                 return DiscoveredYamlFiles(list(loaded), secrets)
-            force_load_include_files(data, warn_on_unresolved=False)
+            unresolved = force_load_include_files(data, warn_on_unresolved=False)
         finally:
             _load_listeners.remove(_capture_secret)
 
@@ -388,7 +406,7 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
         if path not in seen:
             seen.add(path)
             unique.append(path)
-    return DiscoveredYamlFiles(unique, secrets)
+    return DiscoveredYamlFiles(unique, secrets, unresolved)
 
 
 def _add_data_ref(fn):

@@ -1191,6 +1191,9 @@ void APIConnection::try_send_store_yaml_() {
     return;
   auto *comp = store_yaml::global_store_yaml;
   if (comp == nullptr) {
+    // Defensive only: the global is set once in setup() and never cleared,
+    // and streaming can only start after on_get_yaml_request() saw it
+    // non-null, so this cannot happen mid-stream.
     this->store_yaml_pos_ = std::numeric_limits<size_t>::max();
     return;
   }

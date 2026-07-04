@@ -94,6 +94,14 @@ def _gather_files(include_secrets: bool) -> list[tuple[str, bytes]]:
             "did not populate CORE.data['yaml_sources']."
         )
 
+    if discovered.unresolved:
+        _LOGGER.warning(
+            "store_yaml: %d !include path(s) use substitutions and cannot be "
+            "captured (%s); the embedded recovery data will not contain them",
+            len(discovered.unresolved),
+            ", ".join(discovered.unresolved),
+        )
+
     config_path = Path(CORE.config_path).resolve()
     root = config_path.parent
     secret_paths = discovered.secrets
@@ -109,8 +117,11 @@ def _gather_files(include_secrets: bool) -> list[tuple[str, bytes]]:
             try:
                 content = path.read_bytes()
             except OSError as err:
-                _LOGGER.warning("store_yaml: skipping unreadable %s (%s)", path, err)
-                continue
+                # A silently partial recovery blob defeats the feature; fail
+                # the build instead of embedding an incomplete file set.
+                raise EsphomeError(
+                    f"store_yaml: cannot read tracked YAML file {path}: {err}"
+                ) from err
 
         try:
             rel_str = path.relative_to(root).as_posix()

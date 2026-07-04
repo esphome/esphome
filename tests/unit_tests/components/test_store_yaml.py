@@ -135,6 +135,42 @@ def test_gather_raises_when_no_sources(project: Path) -> None:
         _gather_files(include_secrets=False)
 
 
+def test_gather_raises_on_unreadable_file(
+    project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unreadable tracked file fails the build instead of producing a
+    silently partial recovery blob."""
+    _set_sources(project, "entry.yaml", "wifi.yaml")
+    orig_read_bytes = Path.read_bytes
+
+    def fake_read_bytes(self: Path) -> bytes:
+        if self.name == "wifi.yaml":
+            raise OSError("permission denied")
+        return orig_read_bytes(self)
+
+    monkeypatch.setattr(Path, "read_bytes", fake_read_bytes)
+    with pytest.raises(EsphomeError, match="wifi.yaml"):
+        _gather_files(include_secrets=False)
+
+
+def test_gather_warns_on_unresolved_includes(
+    project: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Substitution-pathed includes that discovery could not capture produce a
+    warning naming them, so the user knows the blob is incomplete."""
+    CORE.config_path = project / "entry.yaml"
+    CORE.data["yaml_sources"] = DiscoveredYamlFiles(
+        [project / "entry.yaml"], set(), ["${board}.yaml"]
+    )
+    with caplog.at_level("WARNING", logger="esphome.components.store_yaml"):
+        files = _gather_files(include_secrets=False)
+    assert len(files) == 1
+    assert any(
+        "${board}.yaml" in r.message and "not contain" in r.message
+        for r in caplog.records
+    )
+
+
 def test_pack_envelope_roundtrip() -> None:
     files = [
         ("entry.yaml", b"esphome:\n  name: test\n"),

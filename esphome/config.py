@@ -1344,10 +1344,12 @@ def _load_config(
     # Discover the user's on-disk YAML files via a fresh re-parse — same
     # pattern bundle.py uses. Doing it post-validation (rather than keeping a
     # listener installed across validation) avoids capturing framework YAML
-    # that components load internally (e.g. LVGL's `hello_world.yaml`). The
-    # result is consumed by components like store_yaml that want to embed the
-    # user's configuration in firmware for recovery.
-    CORE.data["yaml_sources"] = yaml_util.discover_user_yaml_files(CORE.config_path)
+    # that components load internally (e.g. LVGL's `hello_world.yaml`). Only
+    # run when a consumer is configured: the re-parse force-loads every
+    # include and would otherwise tax every compile. `result` is the fully
+    # merged config, so store_yaml pulled in via packages is seen here too.
+    if "store_yaml" in result:
+        CORE.data["yaml_sources"] = yaml_util.discover_user_yaml_files(CORE.config_path)
     return result
 
 
