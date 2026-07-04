@@ -299,6 +299,7 @@ esphome/components/libretiny_pwm/* @kuba2k2
 esphome/components/light/* @esphome/core
 esphome/components/lightwaverf/* @max246
 esphome/components/lilygo_t5_47/touchscreen/* @jesserockz
+esphome/components/lis3dh/* @zebble
 esphome/components/lm75b/* @beormund
 esphome/components/ln882h_ble/* @Bl00d-B0b
 esphome/components/ln882h_ble_tracker/* @Bl00d-B0b
