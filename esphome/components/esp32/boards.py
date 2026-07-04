@@ -1289,6 +1289,8 @@ ESP32_BOARD_PINS = {
         "D8": 19,
         "D9": 20,
         "D10": 18,
+        "TX": 16,  # Silkscreen label on D6
+        "RX": 17,  # Silkscreen label on D7
         "MTDO": 7,
         "MTCK": 6,
         "MTDI": 5,
