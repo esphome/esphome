@@ -20,6 +20,18 @@ list(FILTER esphome_cxx_compile_options EXCLUDE REGEX "^-std=")
 list(APPEND esphome_cxx_compile_options "-std={standard}")
 idf_build_set_property(CXX_COMPILE_OPTIONS "${{esphome_cxx_compile_options}}")"""
 
+# C++20 deprecated ++/--, compound assignment, and chained assignment on
+# volatile lvalues; GCC warns via -Wvolatile, on by default at -std=gnu++20.
+# C++23 (P2327R1) removed the deprecation for compound assignment, so the
+# warning flags patterns that are valid again under newer standards.
+# PlatformIO builds already suppress it via cxx_flags.py
+# (build_gen/platformio.py); this keeps the direct ESP-IDF build in parity.
+# CXX_COMPILE_OPTIONS (not COMPILE_OPTIONS) because the flag is C++-only
+# and GCC warns when it is passed for C.
+CXX_WARNING_OPTIONS = (
+    'idf_build_set_property(CXX_COMPILE_OPTIONS "-Wno-volatile" APPEND)'
+)
+
 
 def get_available_components() -> list[str] | None:
     """Get list of built-in ESP-IDF components from project_description.json.
@@ -154,6 +166,8 @@ set(EXTRA_COMPONENT_DIRS ${{CMAKE_SOURCE_DIR}}/src)
 include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 
 {cpp_standard_options}
+
+{CXX_WARNING_OPTIONS}
 
 {extra_compile_options}
 

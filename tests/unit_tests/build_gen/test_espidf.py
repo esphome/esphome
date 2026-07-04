@@ -248,7 +248,28 @@ def test_get_project_cmakelists_no_cpp_standard(tmp_path: Path) -> None:
 
         content = get_project_cmakelists(minimal=True)
 
-    assert "CXX_COMPILE_OPTIONS" not in content
+    assert "esphome_cxx_compile_options" not in content
+
+
+def test_get_project_cmakelists_suppresses_wvolatile(tmp_path: Path) -> None:
+    """-Wno-volatile is always appended to CXX_COMPILE_OPTIONS between
+    include(project.cmake) and project(), matching the PlatformIO builds
+    which suppress it via cxx_flags.py."""
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+        patch.object(CORE, "cpp_standard", None),
+    ):
+        from esphome.build_gen.espidf import get_project_cmakelists
+
+        content = get_project_cmakelists(minimal=True)
+
+    flag_line = 'idf_build_set_property(CXX_COMPILE_OPTIONS "-Wno-volatile" APPEND)'
+    assert flag_line in content
+    include_pos = content.index("tools/cmake/project.cmake")
+    flag_pos = content.index(flag_line)
+    project_pos = content.index("project(test)")
+    assert include_pos < flag_pos < project_pos
 
 
 def test_get_component_cmakelists_no_compile_features() -> None:
