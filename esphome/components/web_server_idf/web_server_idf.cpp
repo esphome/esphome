@@ -735,10 +735,6 @@ bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t mess
   const char chunk_len_header[] = "        " CRLF_STR;
   const int chunk_len_header_len = sizeof(chunk_len_header) - 1;
 
-  // Upper bound for a single-line message: chunk header + retry/id/event lines + "data: " prefix
-  // + line terminators. Avoids growth reallocations while appending; multi-line messages may still grow.
-  event_buffer_.reserve(message_len + 96);
-
   event_buffer_.append(chunk_len_header);
 
   // Use stack buffer for formatting numeric fields to avoid temporary string allocations
