@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#include <cstdint>
 #include <cstdio>
 #include <memory>
 
@@ -19,10 +20,10 @@ enum class StorageError : uint8_t {
   PERMISSION_DENIED,
   TIMEOUT,
   CORRUPT,
-  NOT_SUPPORTED,        // operation not supported by this driver/medium (e.g. format() on read-only)
-  ALREADY_EXISTS,       // mkdir/create on a path that already exists
-  NOT_EMPTY,            // non-recursive rmdir on a non-empty directory
-  TOO_MANY_OPEN_FILES,  // no free FileHandle in the driver's handle pool
+  NOT_SUPPORTED,
+  ALREADY_EXISTS,
+  NOT_EMPTY,
+  TOO_MANY_OPEN_FILES,
 };
 
 // fopen()-equivalent semantics — drivers must match these exactly:
@@ -245,12 +246,25 @@ const char *error_to_string(StorageError error);
 bool exists(PathStorage *storage, const char *path);
 StorageError file_size(PathStorage *storage, const char *path, uint64_t *size);
 
-// Reads an entire file in one call. Allocates a buffer sized from stat() internally
-// (heap allocation — do not call from hot paths or after setup() on the main loop;
-// intended for occasional whole-file reads, e.g. serving a file over HTTP).
+// Deleter that frees memory obtained from RAMAllocator<uint8_t> (malloc/heap_caps_malloc_prefer)
+// rather than operator delete[] — required because RamBuffer below is backed by RAMAllocator,
+// not `new[]`.
+struct RamBufferDeleter {
+  size_t size;
+  void operator()(uint8_t *ptr) const {
+    if (ptr != nullptr)
+      RAMAllocator<uint8_t>().deallocate(ptr, size);
+  }
+};
+using RamBuffer = std::unique_ptr<uint8_t[], RamBufferDeleter>;
+
+// Reads an entire file in one call. Allocates the buffer via RAMAllocator internally (nothrow —
+// returns StorageError::NO_SPACE on allocation failure rather than throwing/aborting, since
+// ESPHome builds with exceptions disabled). Do not call from hot paths or after setup() on the
+// main loop; intended for occasional whole-file reads, e.g. serving a file over HTTP.
 // On success, *out owns the buffer and *size holds the number of bytes read.
-StorageError read_file(FilesystemStorage *storage, const char *path, std::unique_ptr<uint8_t[]> &out, size_t *size);
-StorageError read_file(NetworkStorage *storage, const char *path, std::unique_ptr<uint8_t[]> &out, size_t *size);
+StorageError read_file(FilesystemStorage *storage, const char *path, RamBuffer &out, size_t *size);
+StorageError read_file(NetworkStorage *storage, const char *path, RamBuffer &out, size_t *size);
 
 // Writes an entire buffer to a file in one call (create/truncate semantics, like
 // OpenMode::WRITE).
