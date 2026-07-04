@@ -1,0 +1,44 @@
+motion:
+  - platform: lis3dh
+    i2c_id: i2c_bus
+    address: 0x18
+    # Full-scale range: 2G | 4G | 8G | 16G
+    accelerometer_range: 2G
+    # Output data rate: 1HZ | 10HZ | 25HZ | 50HZ | 100HZ | 200HZ | 400HZ | 1620HZ | 1344HZ
+    accelerometer_odr: 100HZ
+    # Resolution / power mode: LOW_POWER | NORMAL | HIGH_RESOLUTION
+    operating_mode: HIGH_RESOLUTION
+    axis_map:
+      x: y
+      y: x
+      z: -z
+    # Motion (activity) interrupt - keeps the INT pad asserted while moving so it
+    # can be used as the deep_sleep wakeup_pin.
+    interrupt:
+      pin: INT1
+      threshold: 1.1g
+      duration: 0
+      axes: [x, y, z]
+      latched: true
+      active_high: true
+
+sensor:
+  - platform: lis3dh
+    temperature:
+      name: "LIS3DH Temperature"
+
+  - platform: motion
+    type: acceleration_x
+    name: "Accel X"
+  - platform: motion
+    type: acceleration_y
+    name: "Accel Y"
+  - platform: motion
+    type: acceleration_z
+    name: "Accel Z"
+  - platform: motion
+    type: pitch
+    name: "Pitch"
+  - platform: motion
+    type: roll
+    name: "Roll"
