@@ -85,7 +85,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 def _gather_files(
     discovered: yaml_util.DiscoveredYamlFiles,
-) -> tuple[list[tuple[str, bytes]], set[str]]:
+) -> tuple[list[tuple[str, Path]], set[str]]:
     """Map each discovered YAML file to its envelope path.
 
     Returns (relative_path, source_path) pairs plus the subset of relative
@@ -252,6 +252,7 @@ def _generate_redacted_files(
         # Record the gap inside the recovered config itself, not just in a
         # compile-time log line: substitution-pathed includes can't be
         # captured, so the user must restore those files manually.
+        # Discovery parses the entry file first, so entries[0] is the entry.
         entry_rel = entries[0][0]
         texts[entry_rel] = (
             "# store_yaml: the following !include paths use substitutions and\n"
