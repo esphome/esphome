@@ -20,11 +20,11 @@ enum class StorageError : uint8_t {
   PERMISSION_DENIED,
   TIMEOUT,
   CORRUPT,
-  NOT_SUPPORTED,          // operation not supported by this driver/medium (e.g. format() on read-only)
-  ALREADY_EXISTS,         // mkdir/create on a path that already exists
-  NOT_EMPTY,              // non-recursive rmdir on a non-empty directory
-  TOO_MANY_OPEN_FILES,    // no free FileHandle in the driver's handle pool
-  TRANSFER_TOO_LARGE,     // transfer rejected: exceeds max_blocking_transfer_size (use the async API)
+  NOT_SUPPORTED,        // operation not supported by this driver/medium (e.g. format() on read-only)
+  ALREADY_EXISTS,       // mkdir/create on a path that already exists
+  NOT_EMPTY,            // non-recursive rmdir on a non-empty directory
+  TOO_MANY_OPEN_FILES,  // no free FileHandle in the driver's handle pool
+  TRANSFER_TOO_LARGE,   // transfer rejected: exceeds max_blocking_transfer_size (use the async API)
 };
 
 // fopen()-equivalent semantics — drivers must match these exactly:
