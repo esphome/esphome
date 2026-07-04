@@ -32,10 +32,10 @@ class EPaperT133A01 : public EPaperBase {
   }
 
   void fill(Color color) override;
-  void clear() override;
 
   void setup() override;
   void dump_config() override;
+  void draw_pixel_at(int x, int y, Color color) override;
 
  protected:
   bool reset() override;
@@ -44,13 +44,15 @@ class EPaperT133A01 : public EPaperBase {
   void power_on() override;
   void power_off() override;
   void deep_sleep() override;
-  void draw_pixel_at(int x, int y, Color color) override;
 
   bool transfer_data() override;
 
   /**
    * Send a command (and optional data) selecting one or both controllers.
    * Both chip-selects are active-low and managed directly by this driver.
+   * @param command The command byte to send
+   * @param data Optional pointer to data bytes to send after the command
+   * @param length Number of data bytes to send after the command
    * @param use_cs  assert CS (left controller) for this transaction
    * @param use_cs1 assert CS1 (right controller) for this transaction
    */

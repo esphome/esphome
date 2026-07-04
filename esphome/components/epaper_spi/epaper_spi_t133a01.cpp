@@ -234,8 +234,6 @@ void EPaperT133A01::fill(Color color) {
   this->buffer_.fill(pixel_color + (pixel_color << 4));
 }
 
-void EPaperT133A01::clear() { this->fill(COLOR_ON); }
-
 void EPaperT133A01::draw_pixel_at(int x, int y, Color color) {
   if (!this->rotate_coordinates_(x, y))
     return;
