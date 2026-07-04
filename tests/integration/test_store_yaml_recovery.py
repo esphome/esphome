@@ -205,3 +205,16 @@ async def test_store_yaml_recovery(
     assert b"store_yaml:" in combined, (
         "expected the store_yaml config line to be in the recovery blob"
     )
+
+    # The inline cv.sensitive OTA password must be recovered as a `!secret`
+    # reference, never as its raw value, and the synthetic secrets.yaml
+    # skeleton must list the key so the recovered config is flashable.
+    assert b"recoverme123" not in envelope, (
+        "inline sensitive value leaked into the recovery blob"
+    )
+    assert b"!secret 'ota_password'" in combined, (
+        "expected the inline OTA password to be recovered as a !secret reference"
+    )
+    assert b'ota_password: ""' in files["secrets.yaml"], (
+        "expected the secrets.yaml skeleton to list the ota_password key"
+    )

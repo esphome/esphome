@@ -10,5 +10,9 @@ logger:
 
 api:
 
+ota:
+  - platform: esphome
+    password: recoverme123
+
 store_yaml:
   allow_unencrypted: true

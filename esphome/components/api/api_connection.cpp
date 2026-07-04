@@ -1180,9 +1180,10 @@ static uint8_t store_yaml_chunk_buf[STORE_YAML_CHUNK_SIZE];
 #endif
 
 void APIConnection::on_get_yaml_request() {
-  if (store_yaml::global_store_yaml == nullptr) {
-    // Request arrived before the component's setup() ran — send a single
-    // done=true response so the client doesn't hang.
+  auto *comp = store_yaml::global_store_yaml;
+  if (comp == nullptr || comp->get_size() == 0) {
+    // No component yet (request before setup()) or empty blob — send a single
+    // done=true response so the client always gets a terminal frame.
     GetYamlResponse resp;
     resp.done = true;
     this->send_message(resp);

@@ -11,7 +11,8 @@ import logging
 import math
 import os
 from pathlib import Path
-from typing import Any
+import re
+from typing import Any, NamedTuple
 import uuid
 
 import yaml
@@ -267,11 +268,37 @@ class IncludeFile:
         return has_substitution_or_expression(str(self.file))
 
 
+# Matches !secret references in YAML text.  An optional surrounding
+# quote pair around the key is allowed and ignored: YAML treats
+# ``!secret 'foo'`` and ``!secret foo`` as the same key.  This is
+# intentionally a simple regex scan rather than a YAML parse — it may
+# match inside comments or multi-line strings, which is the conservative
+# direction (include more secrets rather than fewer).
+_SECRET_REFERENCE_RE = re.compile(r"""!secret\s+['"]?([^\s'"]+)""")
+
+
+def find_secret_references(text: str) -> set[str]:
+    """Return the ``!secret <key>`` names referenced in a YAML document text."""
+    return {match.group(1) for match in _SECRET_REFERENCE_RE.finditer(text)}
+
+
+class ForceLoadResult(NamedTuple):
+    """Outcome of :func:`force_load_include_files`.
+
+    ``unresolved`` lists ``!include`` path strings that contain substitution
+    variables and therefore could not be loaded; ``errors`` lists includes
+    that failed to load. Either being non-empty means the walk was incomplete.
+    """
+
+    unresolved: list[str]
+    errors: list[str]
+
+
 def force_load_include_files(
     obj: Any,
     *,
     warn_on_unresolved: bool = True,
-) -> list[str]:
+) -> ForceLoadResult:
     """Recursively resolve any deferred ``IncludeFile`` instances in a YAML tree.
 
     Nested ``!include`` returns a deferred ``IncludeFile`` that is only resolved
@@ -284,11 +311,11 @@ def force_load_include_files(
     variables cannot be loaded. By default a warning is logged for each one;
     pass ``warn_on_unresolved=False`` (used by discovery paths that run on a
     fresh re-parse where substitutions haven't been applied yet) to demote it
-    to a debug log. Returns the path strings of those unloadable includes so
-    callers can tell the walk was incomplete.
+    to a debug log.
     """
     seen: set[int] = set()
     unresolved: list[str] = []
+    errors: list[str] = []
 
     def walk(node: Any) -> None:
         if not isinstance(node, (IncludeFile, dict, list, tuple)) or id(node) in seen:
@@ -313,6 +340,7 @@ def force_load_include_files(
                     node.parent_file,
                     err,
                 )
+                errors.append(f"{node.file}: {err}")
                 return
             walk(loaded)
         elif isinstance(node, dict):
@@ -323,7 +351,7 @@ def force_load_include_files(
                 walk(item)
 
     walk(obj)
-    return unresolved
+    return ForceLoadResult(unresolved, errors)
 
 
 @dataclass(slots=True)
@@ -335,13 +363,15 @@ class DiscoveredYamlFiles:
     *un-resolved* filename matched :data:`esphome.const.SECRETS_FILES` (so
     a ``secrets.yaml`` symlinked to a differently-named target is still
     flagged as secrets). ``unresolved`` lists ``!include`` path strings that
-    contain substitution variables and therefore could not be loaded —
-    consumers should treat ``files`` as incomplete when it is non-empty.
+    contain substitution variables and therefore could not be loaded, and
+    ``load_errors`` lists files that failed to parse or load — consumers
+    should treat ``files`` as incomplete when either is non-empty.
     """
 
     files: list[Path] = field(default_factory=list)
     secrets: set[Path] = field(default_factory=set)
     unresolved: list[str] = field(default_factory=list)
+    load_errors: list[str] = field(default_factory=list)
 
 
 def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
@@ -371,9 +401,16 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
         try:
             try:
                 data = load_yaml(config_path)
-            except EsphomeError:
-                return DiscoveredYamlFiles(list(loaded), secrets)
-            unresolved = force_load_include_files(data, warn_on_unresolved=False)
+            except EsphomeError as err:
+                _LOGGER.warning(
+                    "YAML discovery failed to parse %s: %s", config_path, err
+                )
+                return DiscoveredYamlFiles(
+                    list(loaded), secrets, load_errors=[f"{config_path}: {err}"]
+                )
+            unresolved, load_errors = force_load_include_files(
+                data, warn_on_unresolved=False
+            )
         finally:
             _load_listeners.remove(_capture_secret)
 
@@ -384,7 +421,7 @@ def discover_user_yaml_files(config_path: Path) -> DiscoveredYamlFiles:
         if path not in seen:
             seen.add(path)
             unique.append(path)
-    return DiscoveredYamlFiles(unique, secrets, unresolved)
+    return DiscoveredYamlFiles(unique, secrets, unresolved, load_errors)
 
 
 def _add_data_ref(fn):
@@ -834,6 +871,28 @@ def _load_yaml_internal_with_type(
         raise EsphomeError(exc) from exc
     finally:
         loader.dispose()
+
+
+def registered_secret_names() -> set[str]:
+    """Names of all ``!secret`` keys the loader has seen since the last clear."""
+    return set(_SECRET_VALUES.values())
+
+
+@contextmanager
+def secret_values_registered(values: dict[str, str]) -> Generator[None]:
+    """Temporarily register value→name mappings so :func:`dump` renders those
+    scalars as ``!secret <name>``.
+
+    Mappings already present in ``_SECRET_VALUES`` (values loaded through a
+    real ``!secret``) win over the supplied ones and are left untouched.
+    """
+    added = {v: n for v, n in values.items() if v not in _SECRET_VALUES}
+    _SECRET_VALUES.update(added)
+    try:
+        yield
+    finally:
+        for value in added:
+            _SECRET_VALUES.pop(value, None)
 
 
 def dump(dict_, show_secrets=False, sort_keys=False):

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 import logging
 import os
 from pathlib import Path
@@ -37,8 +38,12 @@ StoreYamlComponent = store_yaml_ns.class_("StoreYamlComponent", cg.Component)
 ZSTD_LEVEL = 22
 # Envelope magic: "EHY1" = ESPHome YAML, version 1.
 ENVELOPE_MAGIC = b"EHY1"
-# Replacement content when secrets are not included.
-REDACTED_PLACEHOLDER = b"# redacted\n"
+# Replacement content for secrets files: a fill-in skeleton listing every
+# `!secret` key the recovered config needs.
+SECRETS_SKELETON_HEADER = (
+    "# Redacted by store_yaml. Fill in these values and the recovered\n"
+    "# config is ready to flash.\n"
+)
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -78,13 +83,26 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 def _gather_files(
-    discovered: yaml_util.DiscoveredYamlFiles, include_secrets: bool
-) -> list[tuple[str, bytes]]:
-    """Read each discovered YAML file, return (relative_path, content) pairs."""
+    discovered: yaml_util.DiscoveredYamlFiles,
+) -> tuple[list[tuple[str, bytes]], set[str]]:
+    """Read each discovered YAML file verbatim.
+
+    Returns (relative_path, content) pairs plus the subset of relative paths
+    that are secrets files (matched upstream on the *un-resolved* basename, so
+    a `secrets.yaml` symlinked to a differently-named target is still flagged).
+    """
     if not discovered.files:
         raise EsphomeError(
             "store_yaml could not discover any YAML files for "
             f"{CORE.config_path}; nothing to embed."
+        )
+
+    if discovered.load_errors:
+        # A silently partial recovery blob defeats the feature; fail the build
+        # instead of embedding an incomplete file set.
+        raise EsphomeError(
+            "store_yaml: could not load all configuration files: "
+            + "; ".join(discovered.load_errors)
         )
 
     if discovered.unresolved:
@@ -97,24 +115,16 @@ def _gather_files(
 
     config_path = Path(CORE.config_path).resolve()
     root = config_path.parent
-    secret_paths = discovered.secrets
 
     files: list[tuple[str, bytes]] = []
+    secret_rels: set[str] = set()
     for path in discovered.files:
-        # `secret_paths` was collected from the *un-resolved* basename, so a
-        # `secrets.yaml` symlinked to a differently-named target is still
-        # treated as secrets here.
-        if path in secret_paths and not include_secrets:
-            content = REDACTED_PLACEHOLDER
-        else:
-            try:
-                content = path.read_bytes()
-            except OSError as err:
-                # A silently partial recovery blob defeats the feature; fail
-                # the build instead of embedding an incomplete file set.
-                raise EsphomeError(
-                    f"store_yaml: cannot read tracked YAML file {path}: {err}"
-                ) from err
+        try:
+            content = path.read_bytes()
+        except OSError as err:
+            raise EsphomeError(
+                f"store_yaml: cannot read tracked YAML file {path}: {err}"
+            ) from err
 
         try:
             rel_str = path.relative_to(root).as_posix()
@@ -125,9 +135,119 @@ def _gather_files(
             # different directories with the same basename don't collide.
             rel_str = os.path.relpath(path, root).replace(os.sep, "/")
 
+        if path in discovered.secrets:
+            secret_rels.add(rel_str)
         files.append((rel_str, content))
 
-    return files
+    return files, secret_rels
+
+
+def _iter_sensitive_values(node: object, path: tuple[str, ...] = ()):
+    """Yield (config_path, value) for every cv.sensitive value in a config tree."""
+    if isinstance(node, yaml_util.SensitiveStr):
+        yield path, str(node)
+    elif isinstance(node, dict):
+        for key, value in node.items():
+            yield from _iter_sensitive_values(value, (*path, str(key)))
+    elif isinstance(node, (list, tuple)):
+        for item in node:
+            yield from _iter_sensitive_values(item, path)
+
+
+@dataclass
+class _SensitiveValue:
+    secret_name: str
+    config_path: str  # dotted path, for warnings (never log the value itself)
+    from_secret: bool  # already loaded via !secret somewhere
+
+
+def _collect_sensitive_values(reserved_names: set[str]) -> dict[str, _SensitiveValue]:
+    """Map each cv.sensitive value in the validated config to the `!secret`
+    name it should be recovered as.
+
+    Values that already come from `!secret` keep their existing name; inline
+    values get a name generated from their config path, avoiding
+    `reserved_names`.
+    """
+    used = set(reserved_names)
+    result: dict[str, _SensitiveValue] = {}
+    for path, value in _iter_sensitive_values(CORE.config):
+        if not value or value in result:
+            continue
+        if existing := yaml_util.is_secret(value):
+            name = existing
+        else:
+            base = "_".join(path) or "secret"
+            name = base
+            counter = 2
+            while name in used:
+                name = f"{base}_{counter}"
+                counter += 1
+        used.add(name)
+        result[value] = _SensitiveValue(name, ".".join(path), bool(existing))
+    return result
+
+
+def _build_secrets_skeleton(keys: set[str]) -> bytes:
+    parts = [SECRETS_SKELETON_HEADER]
+    parts.extend(f'{key}: ""\n' for key in sorted(keys))
+    return "".join(parts).encode("utf-8")
+
+
+def _generate_redacted_files(
+    files: list[tuple[str, bytes]], secret_rels: set[str]
+) -> list[tuple[str, bytes]]:
+    """Re-generate each captured file from its parse tree with cv.sensitive
+    values emitted as `!secret <name>` references, and replace secrets files
+    with a fill-in skeleton — the recovered config is flashable once the user
+    restores their secrets.yaml values.
+
+    The swap happens inside the YAML dumper (`represent_stringify` consults
+    the registered secret values), not by mutating text afterwards. Nested
+    `!include` references round-trip via the dumper's IncludeFile support;
+    comments and formatting of the originals are not preserved.
+    """
+    sensitive = _collect_sensitive_values(yaml_util.registered_secret_names())
+    inline = {
+        value: info.secret_name
+        for value, info in sensitive.items()
+        if not info.from_secret
+    }
+
+    config_path = Path(CORE.config_path).resolve()
+    root = config_path.parent
+    texts: dict[str, str] = {}
+    with yaml_util.secret_values_registered(inline):
+        for rel, _ in files:
+            if rel in secret_rels:
+                continue
+            tree = yaml_util.load_yaml(root / rel, clear_secrets=False)
+            texts[rel] = yaml_util.dump(tree)
+
+    skeleton_keys: set[str] = set()
+    for text in texts.values():
+        skeleton_keys |= yaml_util.find_secret_references(text)
+
+    for info in sensitive.values():
+        if not info.from_secret and info.secret_name not in skeleton_keys:
+            _LOGGER.warning(
+                "store_yaml: could not locate the sensitive value of '%s' in the "
+                "source YAML (built via substitutions?); it may still be "
+                "embedded verbatim",
+                info.config_path,
+            )
+
+    skeleton = _build_secrets_skeleton(skeleton_keys)
+    result = [
+        (rel, skeleton if rel in secret_rels else texts[rel].encode("utf-8"))
+        for rel, _ in files
+    ]
+    if skeleton_keys and not secret_rels:
+        # The generated files reference `!secret` keys but the project has no
+        # secrets file (all secrets were inline) — ship a synthetic one so the
+        # recovered config is complete.
+        result.append(("secrets.yaml", skeleton))
+    return result
 
 
 def _pack_envelope(files: list[tuple[str, bytes]]) -> bytes:
@@ -156,18 +276,25 @@ def unpack_envelope(blob: bytes) -> dict[str, bytes]:
     if blob[:4] != ENVELOPE_MAGIC:
         raise EsphomeError("envelope must start with EHY1 magic")
     pos = 4
-    (count,) = struct.unpack_from("<I", blob, pos)
-    pos += 4
     files: dict[str, bytes] = {}
-    for _ in range(count):
-        (path_len,) = struct.unpack_from("<H", blob, pos)
-        pos += 2
-        path = blob[pos : pos + path_len].decode("utf-8")
-        pos += path_len
-        (content_len,) = struct.unpack_from("<I", blob, pos)
+    try:
+        (count,) = struct.unpack_from("<I", blob, pos)
         pos += 4
-        files[path] = blob[pos : pos + content_len]
-        pos += content_len
+        for _ in range(count):
+            (path_len,) = struct.unpack_from("<H", blob, pos)
+            pos += 2
+            if pos + path_len > len(blob):
+                raise EsphomeError("truncated envelope")
+            path = blob[pos : pos + path_len].decode("utf-8")
+            pos += path_len
+            (content_len,) = struct.unpack_from("<I", blob, pos)
+            pos += 4
+            if pos + content_len > len(blob):
+                raise EsphomeError("truncated envelope")
+            files[path] = blob[pos : pos + content_len]
+            pos += content_len
+    except struct.error as err:
+        raise EsphomeError(f"truncated envelope: {err}") from err
     if pos != len(blob):
         raise EsphomeError("envelope has trailing bytes")
     return files
@@ -182,7 +309,9 @@ async def to_code(config: ConfigType) -> None:
     # that components load internally (e.g. LVGL's `hello_world.yaml`), and
     # costs nothing on validate-only runs or configs without this component.
     discovered = yaml_util.discover_user_yaml_files(CORE.config_path)
-    files = _gather_files(discovered, config[CONF_INCLUDE_SECRETS])
+    files, secret_rels = _gather_files(discovered)
+    if not config[CONF_INCLUDE_SECRETS]:
+        files = _generate_redacted_files(files, secret_rels)
     envelope = _pack_envelope(files)
     compressed = zstd.compress(envelope, level=ZSTD_LEVEL)
 
