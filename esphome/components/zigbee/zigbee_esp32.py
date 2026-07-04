@@ -172,12 +172,10 @@ def setup_attributes(config: ConfigType, clusters: list[dict[str, Any]]) -> None
                 attr[CONF_VALUE] = str(name)
                 attr[CONF_MAX_LENGTH] = len(str(name))
             if CONF_DEVICE in attr:  # connect device
-                # attr[CONF_DEVICE] = config[CONF_ID]
                 if CONF_REPORT in config:
                     attr[CONF_REPORT] = config[CONF_REPORT]
                 attr[CONF_ID] = cv.declare_id(ZigbeeAttribute)(None)
                 ids_dict = config.setdefault(CONF_ZIGBEE_ATTR_IDS, [])
-                # id_tuple = (cl[CONF_ID], cl[ROLE], attr[CONF_ATTRIBUTE_ID])
                 ids_dict.append(attr)
             else:
                 attr[CONF_ID] = None

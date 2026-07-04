@@ -73,7 +73,7 @@ BASE_SCHEMA = cv.Schema(
             _check_report_deprecation,
             cv.enum(REPORT, lower=True),
         ),
-        cv.OnlyWith(CONF_CLUSTER, "esp32", default="basic"): cv.All(
+        cv.OnlyWith(CONF_CLUSTER, ["esp32", "zigbee"], default="basic"): cv.All(
             cv.requires_component("zigbee"),
             cv.requires_component("esp32"),
             cv.one_of(*["basic", "default"], lower=True),
