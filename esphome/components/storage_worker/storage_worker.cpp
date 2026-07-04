@@ -14,6 +14,7 @@ void StorageWorker::setup() {
   for (size_t i = 0; i < this->max_pending_; i++) {
     this->pool_.emplace_back();  // default-construct in place — TransferRequest isn't movable
   }
+  ESP_LOGCONFIG(TAG, "Request pool size: %zu", this->max_pending_);
 
   if (global_storage_registry != nullptr) {
     global_storage_registry->add_on_unregistered_callback([this](Storage *s) { this->on_storage_unregistered_(s); });
@@ -43,6 +44,7 @@ void StorageWorker::setup() {
 }
 
 bool StorageWorker::is_task_safe_(const TransferRequest &req) const {
+  (void) req;  // unused on platforms without a background task (see the #else branch below)
 #ifdef USE_ESP32
   if (!this->task_running_)
     return false;
@@ -53,6 +55,20 @@ bool StorageWorker::is_task_safe_(const TransferRequest &req) const {
 #else
   return false;
 #endif
+}
+
+bool StorageWorker::overlaps_active_(const TransferRequest &candidate) const {
+  for (const auto &req : this->pool_) {
+    if (&req == &candidate)
+      continue;
+    RequestState state = req.state.load();
+    if (state != RequestState::RUNNING && state != RequestState::CANCELLED)
+      continue;
+    if (req.src_storage == candidate.src_storage || req.src_storage == candidate.dst_storage ||
+        req.dst_storage == candidate.src_storage || req.dst_storage == candidate.dst_storage)
+      return true;
+  }
+  return false;
 }
 
 StorageError StorageWorker::submit_(RequestOp op, PathStorage *src, const char *src_path, PathStorage *dst,
@@ -93,7 +109,12 @@ StorageError StorageWorker::submit_(RequestOp op, PathStorage *src, const char *
   slot->dst_is_fs = dst->get_storage_type() == StorageType::FILESYSTEM;
 
 #ifdef USE_ESP32
-  if (this->is_task_safe_(*slot)) {
+  // Skip task dispatch if another active (RUNNING/CANCELLED) request already shares a storage
+  // with this one — two engines must never call the same storage instance concurrently. A
+  // task-safe request that loses this race simply degrades to the loop-sliced engine below
+  // instead of being re-dispatched to the task once the conflict clears; simpler, and the
+  // request still completes correctly, just via the other engine.
+  if (this->is_task_safe_(*slot) && !this->overlaps_active_(*slot)) {
     size_t index = slot - this->pool_.begin();
     slot->state = RequestState::RUNNING;
     if (xQueueSend(this->task_queue_, &index, 0) == pdTRUE) {
@@ -157,8 +178,10 @@ void StorageWorker::loop() {
   if (this->loop_active_index_ == SIZE_MAX) {
     // Pick the next PENDING request, FIFO by pool position (pool order matches submission
     // order well enough in practice — this component makes no stronger ordering promise).
+    // Skip any request that overlaps a storage with something already RUNNING/CANCELLED (e.g.
+    // on the worker task) — it must wait its turn rather than run concurrently with it.
     for (size_t i = 0; i < this->pool_.size(); i++) {
-      if (this->pool_[i].state.load() == RequestState::PENDING) {
+      if (this->pool_[i].state.load() == RequestState::PENDING && !this->overlaps_active_(this->pool_[i])) {
         this->pool_[i].state = RequestState::RUNNING;
         this->loop_active_index_ = i;
         break;
@@ -189,11 +212,16 @@ void StorageWorker::task_loop_() {
       continue;
 
     TransferRequest &req = this->pool_[index];
-    while (req.state.load() == RequestState::RUNNING) {
+    // Loop until DONE, not just while RUNNING: if the hotplug handler flips the state to
+    // CANCELLED between iterations, run_chunk_()'s entry check is what actually closes
+    // handles, frees the chunk buffer, and transitions to DONE. Stopping on state != RUNNING
+    // would exit before that ever happens, leaking the handles/buffer and leaving the slot
+    // (and the pending callback) stuck forever.
+    while (req.state.load() != RequestState::DONE) {
       this->run_chunk_(req);
     }
-    // DONE or CANCELLED->DONE transition already applied by run_chunk_(); loop() on the main
-    // loop delivers the completion callback and frees the slot.
+    // DONE reached; loop() on the main loop delivers the completion callback and frees the
+    // slot.
   }
 }
 #endif

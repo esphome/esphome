@@ -34,6 +34,9 @@ enum class RequestOp : uint8_t {
 //     -> FREE (main loop delivers the completion callback and releases the slot)
 // RUNNING requests can also be marked CANCELLED by the hotplug handler; the engine observes
 // this between chunks (see the per-chunk step) and finishes the request with NOT_READY.
+// Both engines must keep calling run_chunk_() until the state is DONE, not just while it's
+// RUNNING — CANCELLED is only ever acted on inside run_chunk_()'s own entry check, so a loop
+// that stops as soon as the state leaves RUNNING would never actually observe/handle it.
 enum class RequestState : uint8_t {
   FREE,
   PENDING,
@@ -75,6 +78,9 @@ struct TransferRequest {
 // platforms that have one; everything else — including all non-ESP32 platforms — runs in
 // loop-sliced mode, processing one chunk of the head-of-line request per main loop iteration.
 // The public API is identical either way; callers cannot tell the difference except in timing.
+// Requests that share a storage instance never run concurrently across the two engines — see
+// overlaps_active_() below — since the interface requires all data-plane calls on a given
+// instance to be externally serialized.
 class StorageWorker : public Component {
  public:
   void set_task_stack_size(uint32_t size) { this->task_stack_size_ = size; }
@@ -83,7 +89,13 @@ class StorageWorker : public Component {
 
   void setup() override;
   void loop() override;
-  float get_setup_priority() const override { return setup_priority::AFTER_CONNECTION; }
+  // DATA, not AFTER_CONNECTION: the worker has no networking dependency of its own (NFS/SMB
+  // storages are accessed through the storage:: interface, not directly), so there's no reason
+  // to delay pool/task creation until after Wi-Fi/API come up. StorageRegistry (BUS) is
+  // guaranteed to exist by DATA, and setting up this early means async_copy()/async_move()
+  // work correctly even if called from another component's setup() (as long as that
+  // component's own setup_priority is lower than DATA).
+  float get_setup_priority() const override { return setup_priority::DATA; }
 
   // Submits an async copy/move. Returns StorageError::OK once the request is queued (the
   // callback will be invoked exactly once, later, always on the main loop) — or an error
@@ -102,6 +114,13 @@ class StorageWorker : public Component {
 
   // True if every storage involved may have its data-plane calls run off the main loop.
   bool is_task_safe_(const TransferRequest &req) const;
+
+  // True if another request that is currently RUNNING or CANCELLED (i.e. still owned by an
+  // engine) shares a storage instance with `candidate`. Used at both dispatch points to
+  // uphold the interface's per-instance serialization guarantee across the two engines.
+  // Called from the main loop only — a task request finishing concurrently is still seen
+  // as RUNNING here, which merely delays dispatch by one loop iteration (safe/conservative).
+  bool overlaps_active_(const TransferRequest &candidate) const;
 
   // Advances one request by exactly one chunk. Used by both the loop-sliced engine (called
   // from loop(), once per iteration) and the worker task (called in its own loop). Owns
