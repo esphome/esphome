@@ -122,6 +122,7 @@ esphome/components/cover/* @esphome/core
 esphome/components/cs5460a/* @balrog-kun
 esphome/components/cse7761/* @berfenger
 esphome/components/cst226/* @clydebarrow
+esphome/components/cst328/* @latonita
 esphome/components/cst816/* @clydebarrow
 esphome/components/cst9220/* @clydebarrow
 esphome/components/ct_clamp/* @jesserockz

@@ -1338,7 +1338,7 @@ def main() -> None:
 
     # Split components into batches for CI testing
     # This intelligently groups components with similar bus configurations
-    component_test_batches: list[str]
+    component_test_batches: list[dict[str, Any]] = []
     if changed_components_with_tests:
         tests_dir = Path(root_path) / ESPHOME_TESTS_COMPONENTS_PATH
 
@@ -1363,10 +1363,20 @@ def main() -> None:
             batch_size=COMPONENT_TEST_BATCH_SIZE,
             directly_changed=batch_directly_changed,
         )
-        # Convert batches to space-separated strings for CI matrix
-        component_test_batches = [" ".join(batch) for batch in batches]
-    else:
-        component_test_batches = []
+        # Convert batches to CI matrix entries: the component list plus which
+        # native toolchain installs the batch's test platforms need, so the
+        # workflow only restores the matching multi-GB toolchain caches.
+        for batch in batches:
+            platforms: set[str] = set()
+            for component in batch:
+                platforms.update(get_component_test_platforms(component))
+            component_test_batches.append(
+                {
+                    "components": " ".join(batch),
+                    "needs_idf": any(p.startswith("esp32") for p in platforms),
+                    "needs_nrf": any(p.startswith("nrf52") for p in platforms),
+                }
+            )
 
     output: dict[str, Any] = {
         "core_ci": run_core_ci,
