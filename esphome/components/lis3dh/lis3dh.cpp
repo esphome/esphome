@@ -80,7 +80,7 @@ bool LIS3DHComponent::setup_interrupt_() {
     return false;
 
   // Convert the threshold from g to the 7-bit INT1_THS value for the active range.
-  long raw = lroundf(this->interrupt_threshold_g_ * 1000.0f / THRESHOLD_LSB_MG[this->range_]);
+  int32_t raw = lroundf(this->interrupt_threshold_g_ * 1000.0f / THRESHOLD_LSB_MG[this->range_]);
   uint8_t threshold = raw > 0x7F ? 0x7F : (uint8_t) raw;
 
   if (!this->write_byte(LIS3DH_REG_INT1_CFG, this->interrupt_axes_cfg_) ||
