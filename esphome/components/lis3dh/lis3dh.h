@@ -12,10 +12,12 @@ static constexpr uint8_t LIS3DH_REG_OUT_ADC3_L = 0x0C;  // temperature (ADC3) lo
 static constexpr uint8_t LIS3DH_REG_WHO_AM_I = 0x0F;
 static constexpr uint8_t LIS3DH_REG_TEMP_CFG = 0x1F;
 static constexpr uint8_t LIS3DH_REG_CTRL_REG1 = 0x20;  // ODR / low-power / axis enable
+static constexpr uint8_t LIS3DH_REG_CTRL_REG2 = 0x21;  // high-pass filter
 static constexpr uint8_t LIS3DH_REG_CTRL_REG3 = 0x22;  // INT1 pad routing
 static constexpr uint8_t LIS3DH_REG_CTRL_REG4 = 0x23;  // BDU / full-scale / high-resolution
 static constexpr uint8_t LIS3DH_REG_CTRL_REG5 = 0x24;  // interrupt latching
 static constexpr uint8_t LIS3DH_REG_CTRL_REG6 = 0x25;  // INT2 pad routing / polarity
+static constexpr uint8_t LIS3DH_REG_REFERENCE = 0x26;  // high-pass filter reference
 static constexpr uint8_t LIS3DH_REG_OUT_X_L = 0x28;    // acceleration data block (auto-increment)
 static constexpr uint8_t LIS3DH_REG_INT1_CFG = 0x30;
 static constexpr uint8_t LIS3DH_REG_INT1_SRC = 0x31;
@@ -30,6 +32,8 @@ static constexpr uint8_t LIS3DH_AUTO_INCREMENT = 0x80;
 // CTRL_REG1
 static constexpr uint8_t LIS3DH_CTRL_REG1_AXES_EN = 0x07;  // Xen | Yen | Zen
 static constexpr uint8_t LIS3DH_CTRL_REG1_LPEN = 0x08;     // low-power enable
+// CTRL_REG2
+static constexpr uint8_t LIS3DH_CTRL_REG2_HP_IA1 = 0x01;  // high-pass filter the IA1 interrupt
 // CTRL_REG4
 static constexpr uint8_t LIS3DH_CTRL_REG4_HR = 0x08;   // high-resolution enable
 static constexpr uint8_t LIS3DH_CTRL_REG4_BDU = 0x80;  // block data update
@@ -95,7 +99,7 @@ class LIS3DHComponent : public motion::MotionComponent, public i2c::I2CDevice {
   void set_data_rate(LIS3DHDataRate data_rate) { this->data_rate_ = data_rate; }
   void set_operating_mode(LIS3DHOperatingMode mode) { this->operating_mode_ = mode; }
   void set_interrupt(LIS3DHInterruptPin pin, float threshold_g, uint8_t duration, bool x, bool y, bool z, bool latched,
-                     bool active_high) {
+                     bool active_high, bool high_pass) {
     this->interrupt_enabled_ = true;
     this->interrupt_pin_ = pin;
     this->interrupt_threshold_g_ = threshold_g;
@@ -104,6 +108,7 @@ class LIS3DHComponent : public motion::MotionComponent, public i2c::I2CDevice {
         (x ? LIS3DH_INT_CFG_XHIE : 0) | (y ? LIS3DH_INT_CFG_YHIE : 0) | (z ? LIS3DH_INT_CFG_ZHIE : 0);
     this->interrupt_latched_ = latched;
     this->interrupt_active_high_ = active_high;
+    this->interrupt_high_pass_ = high_pass;
   }
 
   template<typename F> void add_temperature_listener(F &&cb) { this->temperature_callback_.add(std::forward<F>(cb)); }
@@ -127,6 +132,7 @@ class LIS3DHComponent : public motion::MotionComponent, public i2c::I2CDevice {
   uint8_t interrupt_axes_cfg_{0};
   bool interrupt_latched_{true};
   bool interrupt_active_high_{true};
+  bool interrupt_high_pass_{false};
 
   LazyCallbackManager<void(float)> temperature_callback_{};
 };

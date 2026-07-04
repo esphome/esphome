@@ -72,6 +72,13 @@ bool LIS3DHComponent::setup_temperature_() {
 }
 
 bool LIS3DHComponent::setup_interrupt_() {
+  // High-pass filter the interrupt (IA1) input so the ~1 g of gravity is removed
+  // from the threshold comparison. The output data registers stay unfiltered
+  // (FDS = 0), so acceleration / pitch / roll still report the full gravity vector.
+  uint8_t ctrl_reg2 = this->interrupt_high_pass_ ? LIS3DH_CTRL_REG2_HP_IA1 : 0x00;
+  if (!this->write_byte(LIS3DH_REG_CTRL_REG2, ctrl_reg2))
+    return false;
+
   // Convert the threshold from g to the 7-bit INT1_THS value for the active range.
   long raw = lroundf(this->interrupt_threshold_g_ * 1000.0f / THRESHOLD_LSB_MG[this->range_]);
   uint8_t threshold = raw > 0x7F ? 0x7F : (uint8_t) raw;
@@ -99,6 +106,13 @@ bool LIS3DHComponent::setup_interrupt_() {
   if (!this->write_byte(LIS3DH_REG_CTRL_REG3, ctrl_reg3) || !this->write_byte(LIS3DH_REG_CTRL_REG6, ctrl_reg6))
     return false;
 
+  // With the high-pass filter enabled, reading REFERENCE captures the current
+  // acceleration as the filter's zero point (removing the standing gravity bias).
+  if (this->interrupt_high_pass_) {
+    uint8_t reference = 0;
+    this->read_byte(LIS3DH_REG_REFERENCE, &reference);
+  }
+
   // Clear any latched request left over from the motion that woke the device.
   uint8_t src = 0;
   this->read_byte(LIS3DH_REG_INT1_SRC, &src);
@@ -120,8 +134,9 @@ void LIS3DHComponent::dump_config() {
                 "  Operating mode: %s",
                 RANGE_STRS[this->range_], MODE_STRS[this->operating_mode_]);
   if (this->interrupt_enabled_) {
-    ESP_LOGCONFIG(TAG, "  Motion interrupt: %s (%s)", this->interrupt_pin_ == LIS3DH_INT_PIN_INT1 ? "INT1" : "INT2",
-                  this->interrupt_active_high_ ? "active high" : "active low");
+    ESP_LOGCONFIG(TAG, "  Motion interrupt: %s (%s%s)", this->interrupt_pin_ == LIS3DH_INT_PIN_INT1 ? "INT1" : "INT2",
+                  this->interrupt_active_high_ ? "active high" : "active low",
+                  this->interrupt_high_pass_ ? ", high-pass" : "");
   }
   MotionComponent::dump_config();
 }

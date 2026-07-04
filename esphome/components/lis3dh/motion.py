@@ -11,6 +11,7 @@ CONF_OPERATING_MODE = "operating_mode"
 CONF_AXES = "axes"
 CONF_LATCHED = "latched"
 CONF_ACTIVE_HIGH = "active_high"
+CONF_HIGH_PASS_FILTER = "high_pass_filter"
 
 #  Enum proxies (must match the C++ enum values exactly)
 LIS3DHRange = lis3dh_ns.enum("LIS3DHRange")
@@ -65,9 +66,11 @@ def _axes(value):
 # The motion (activity) interrupt keeps the physical INT pad asserted while the
 # device is moving. Wire the pad to a GPIO and use it as the `wakeup_pin` of the
 # `deep_sleep` component to wake an ESP32 from deep sleep on motion.
-# The threshold is compared against the total measured acceleration, which
-# always includes the ~1 g of gravity, so it should be set above 1 g to avoid
-# triggering while the device is at rest.
+#
+# By default the threshold is compared against the total measured acceleration,
+# which always includes the ~1 g of gravity, so it must be set above 1 g to avoid
+# triggering at rest. Enable `high_pass_filter` to remove gravity from the
+# comparison, which lets you use a small threshold (the change in acceleration).
 INTERRUPT_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_PIN, default="INT1"): cv.enum(
@@ -80,6 +83,7 @@ INTERRUPT_SCHEMA = cv.Schema(
         cv.Optional(CONF_AXES, default=AXES): _axes,
         cv.Optional(CONF_LATCHED, default=True): cv.boolean,
         cv.Optional(CONF_ACTIVE_HIGH, default=True): cv.boolean,
+        cv.Optional(CONF_HIGH_PASS_FILTER, default=False): cv.boolean,
     }
 )
 
@@ -125,5 +129,6 @@ async def to_code(config):
                 "z" in axes,
                 interrupt[CONF_LATCHED],
                 interrupt[CONF_ACTIVE_HIGH],
+                interrupt[CONF_HIGH_PASS_FILTER],
             )
         )
