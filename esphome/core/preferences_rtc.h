@@ -24,7 +24,9 @@ inline size_t rtc_pref_bytes_to_words(size_t bytes) { return (bytes + 3) / 4; }
 template<class It> uint32_t rtc_pref_calculate_checksum(It first, It last, uint32_t type) {
   uint32_t checksum = type;
   while (first != last) {
-    checksum ^= (*first++ * 2654435769UL) >> 1;
+    // UINT32_C keeps the multiply wrapping at 32 bits regardless of the width of
+    // unsigned long, so 64-bit host builds compute the same value as the devices.
+    checksum ^= (*first++ * UINT32_C(2654435769)) >> 1;
   }
   return checksum;
 }
