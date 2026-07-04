@@ -301,13 +301,18 @@ StorageError write_file(NetworkStorage *storage, const char *path, const uint8_t
 }
 
 StorageError copy(PathStorage *src_storage, const char *src_path, PathStorage *dst_storage, const char *dst_path) {
-  FileStat src_stat{};
-  StorageError stat_err = src_storage->stat(src_path, &src_stat);
-  if (stat_err != StorageError::OK)
-    return stat_err;
-  stat_err = check_blocking_transfer_size(src_stat.size);
-  if (stat_err != StorageError::OK)
-    return stat_err;
+  // Only pay for the extra stat() when a limit is actually configured — the guard-rail is
+  // opt-in and copy() itself doesn't need the file size to stream.
+  if (global_storage_registry != nullptr &&
+      global_storage_registry->get_max_blocking_transfer_size() != 0) {
+    FileStat src_stat{};
+    StorageError stat_err = src_storage->stat(src_path, &src_stat);
+    if (stat_err != StorageError::OK)
+      return stat_err;
+    stat_err = check_blocking_transfer_size(src_stat.size);
+    if (stat_err != StorageError::OK)
+      return stat_err;
+  }
 
   // PREFER_INTERNAL: PSRAM isn't DMA-capable on classic ESP32 (restricted on S3 too), so
   // SD/SPI drivers would bounce-buffer anyway. Fall back to smaller sizes under memory pressure.
