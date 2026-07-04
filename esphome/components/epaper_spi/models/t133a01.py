@@ -55,10 +55,6 @@ Seeed_reTerminal_E1004 = t133a01_base.extend(
     "Seeed-reTerminal-E1004",
     width=1200,
     height=1600,
-    # CS (GPIO10) is managed by the SPI delegate. CS1 (GPIO2) is managed
-    # via manual GPIO control for the dual-CS architecture.
-    # For CS1 operations, GPIO10 is overridden HIGH after enable() to
-    # prevent both chip selects from being active simultaneously.
     cs_pin=10,
     cs1_pin=2,
     dc_pin=11,
@@ -68,11 +64,5 @@ Seeed_reTerminal_E1004 = t133a01_base.extend(
         "inverted": True,
         "mode": {"input": True},
     },
-    enable_pin={
-        "number": 12,
-        "inverted": False,
-        "mode": {
-            "output": True,
-        },
-    },
+    enable_pin=12,
 )
