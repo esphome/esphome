@@ -14,7 +14,7 @@ from esphome.components.mipi import (
 )
 import esphome.config_validation as cv
 
-from .amoled import CO5300
+from .amoled import CO5300, SH8601
 from .ili import ILI9488_A, ST7789V
 from .jc import AXS15231
 
