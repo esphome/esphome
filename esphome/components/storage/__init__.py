@@ -19,7 +19,7 @@ StorageRegistry = storage_ns.class_("StorageRegistry", cg.Component)
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(StorageRegistry),
-        cv.Optional(CONF_COPY_CHUNK_SIZE, default="16KB"): cv.All(
+        cv.Optional(CONF_COPY_CHUNK_SIZE, default="16kB"): cv.All(
             cv.validate_bytes, cv.int_range(min=4096, max=131072)
         ),
     }
