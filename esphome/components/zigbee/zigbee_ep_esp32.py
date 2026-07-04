@@ -217,7 +217,7 @@ ep_configs: dict[str, dict[str, Any]] = {
         DEVICE_TYPE: "CUSTOM_ATTR",
         CONF_CLUSTERS: [
             {
-                CONF_ID: "PM25_MEASUREMENT",
+                CONF_ID: "PM2_5_MEASUREMENT",
                 ROLE: CLUSTER_ROLE["SERVER"],
                 CONF_ATTRIBUTES: [
                     {
@@ -265,9 +265,19 @@ ep_configs: dict[str, dict[str, Any]] = {
                 CONF_ATTRIBUTES: [
                     {
                         CONF_ATTRIBUTE_ID: 0x0,
-                        CONF_TYPE: "BOOL",
+                        CONF_TYPE: "MAP8",
                         CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
                         CONF_DEVICE: None,
+                    },
+                    {
+                        CONF_ATTRIBUTE_ID: 0x1,
+                        CONF_TYPE: "ENUM8",
+                        CONF_VALUE: 0,  # hardcode PIR for now as ultrasonic or physical contact is unlikely
+                    },
+                    {
+                        CONF_ATTRIBUTE_ID: 0x2,
+                        CONF_TYPE: "MAP8",
+                        CONF_VALUE: 0b00000001,  # hardcode PIR for now as ultrasonic or physical contact is unlikely
                     },
                 ],
             },
