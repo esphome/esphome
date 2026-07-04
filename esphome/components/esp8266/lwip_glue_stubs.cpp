@@ -18,6 +18,8 @@
 
 #if defined(USE_ESP8266)
 
+namespace esphome::esp8266 {}
+
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 extern "C" {
 
