@@ -475,6 +475,8 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       # esp32-arduino-tidy installs ESP-IDF natively; share the native IDF cache.
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
+      # nrf52-tidy installs sdk-nrf natively; pin it to a cacheable path.
+      ESPHOME_SDK_NRF_PREFIX: ~/.esphome-sdk-nrf
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -491,7 +493,7 @@ jobs:
           - id: clang-tidy
             name: Run script/clang-tidy for ZEPHYR
             options: --environment nrf52-tidy --grep USE_ZEPHYR --grep USE_NRF52
-            pio_cache_key: tidy-zephyr
+            cache_sdk_nrf: true
             ignore_errors: false
 
     steps:
@@ -526,6 +528,10 @@ jobs:
         uses: ./.github/actions/cache-esp-idf
         with:
           framework: arduino
+
+      - name: Cache sdk-nrf install
+        if: matrix.cache_sdk_nrf
+        uses: ./.github/actions/cache-sdk-nrf
 
       - name: Register problem matchers
         run: |
@@ -805,6 +811,9 @@ jobs:
       # esp32 component builds use the native ESP-IDF toolchain (default), so
       # share the tidy jobs' install location -- the restore below lands here.
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
+      # nrf52 component builds install sdk-nrf natively; pin it to the shared
+      # cacheable path so the restore below lands where the build looks.
+      ESPHOME_SDK_NRF_PREFIX: ~/.esphome-sdk-nrf
     strategy:
       fail-fast: false
       max-parallel: ${{ (startsWith(github.base_ref, 'beta') || startsWith(github.base_ref, 'release')) && 8 || 4 }}
@@ -838,6 +847,14 @@ jobs:
         # dev tidy jobs already cached when present.
         if: matrix.batch.needs_idf
         uses: ./.github/actions/cache-esp-idf
+        with:
+          restore-only: true
+      - name: Cache sdk-nrf install (restore-only)
+        # Only batches whose test platforms include nrf52 need the native
+        # sdk-nrf install; never save -- just reuse the shared install the
+        # dev nrf52 tidy job cached when present.
+        if: matrix.batch.needs_nrf
+        uses: ./.github/actions/cache-sdk-nrf
         with:
           restore-only: true
       - name: Validate and compile components with intelligent grouping
