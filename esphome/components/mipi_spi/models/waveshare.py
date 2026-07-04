@@ -14,7 +14,7 @@ from esphome.components.mipi import (
 )
 import esphome.config_validation as cv
 
-from .amoled import CO5300, SH8601
+from .amoled import CO5300
 from .ili import ILI9488_A, ST7789V
 from .jc import AXS15231
 
@@ -283,7 +283,7 @@ ST7789V.extend(
     data_rate="40MHz",
 )
 
-SH8601.extend(
+CO5300.extend(
     "WAVESHARE-ESP32-S3-TOUCH-AMOLED-1.64",
     width=280,
     height=456,
