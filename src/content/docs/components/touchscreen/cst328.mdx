@@ -1,0 +1,65 @@
+---
+description: "Instructions for setting up cst328 touch screen controller with ESPHome"
+title: "CST328 Touch Screen Controller"
+---
+
+import APIRef from '@components/APIRef.astro';
+
+The `cst328` touchscreen platform allows using the touch screen controllers based on the cst328 chip with ESPHome.
+The [I²C](/components/i2c) is required to be set up in your configuration for this touchscreen to work.
+
+This controller is used in the Waveshare ESP32-S3 Touch LCD 2.8 board.
+
+## Base Touchscreen Configuration
+
+```yaml
+# Example configuration entry
+touchscreen:
+  platform: cst328
+  id: my_touchscreen
+  interrupt_pin: GPIOXX
+```
+
+### Configuration variables
+
+- **id** (*Optional*, [ID](/guides/configuration-types#id)): Manually set the ID of this touchscreen.
+- **interrupt_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The touch detection pin.
+- **reset_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The chip reset pin.
+
+- All other options from [Touchscreen](/components/touchscreen#config-touchscreen).
+
+## Binary Sensor
+
+In addition to touch areas on the screen configured through the [Touchscreen](/components/touchscreen#config-touchscreen) component,
+a binary sensor can be configured to react to touching anywhere on the screen.
+
+```yaml
+# Example configuration entry
+binary_sensor:
+  - platform: cst328
+    name: "Screen touched"
+```
+
+### Configuration variables
+
+- **cst328_id** (*Optional*, [ID](/guides/configuration-types#id)): Manually specify the ID of the touchscreen.
+
+- All other options from [Binary Sensor](/components/binary_sensor#config-binary_sensor).
+
+### Sample config for the Waveshare ESP32-S3 Touch LCD 2.8 board
+
+```yaml
+i2c:
+  sda: GPIO6
+  scl: GPIO7
+
+touchscreen:
+  - platform: cst328
+    id: my_touchscreen
+    interrupt_pin: GPIO8
+    reset_pin: GPIO17
+```
+
+## See Also
+
+- <APIRef text="cst328_touchscreen.h" path="cst328/touchscreen/cst328_touchscreen.h" />
