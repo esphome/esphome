@@ -25,8 +25,8 @@ motion:
 
 sensor:
   - platform: lis3dh
-    temperature:
-      name: "LIS3DH Temperature"
+    type: temperature
+    name: "LIS3DH Temperature"
 
   - platform: motion
     type: acceleration_x
