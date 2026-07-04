@@ -1,4 +1,4 @@
-#include "storage/storage.h"
+#include "storage.h"
 #include "esphome/core/log.h"
 
 namespace esphome::storage {
