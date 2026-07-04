@@ -12,6 +12,7 @@ Supported models:
 from esphome import pins
 import esphome.codegen as cg
 from esphome.const import CONF_CS_PIN
+from esphome.cpp_generator import MockObj
 
 from . import EpaperModel
 
@@ -27,17 +28,19 @@ class T133A01Model(EpaperModel):
     def __init__(self, name, class_name="EPaperT133A01", **defaults):
         super().__init__(name, class_name, **defaults)
 
-    def add_options(self) -> dict:
+    def get_config_options(self) -> dict:
         # CS1 is the second chip-select required by the dual-CS architecture.
         # fallback=None makes it required unless the model provides a default.
         return {
             self.option(CONF_CS1_PIN, fallback=None): pins.gpio_output_pin_schema,
         }
 
-    async def to_code(self, var, config) -> None:
+    async def to_code(self, var: MockObj, config: dict) -> dict:
         cs = await cg.gpio_pin_expression(config[CONF_CS_PIN])
         cs1 = await cg.gpio_pin_expression(config[CONF_CS1_PIN])
         cg.add(var.set_cs_pins(cs, cs1))
+        # Remove CS and CS1 from the config so that the base class doesn't try to handle them.
+        return {k: v for k, v in config.items() if k not in (CONF_CS_PIN, CONF_CS1_PIN)}
 
 
 t133a01_base = T133A01Model(

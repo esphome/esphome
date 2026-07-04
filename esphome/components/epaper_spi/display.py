@@ -77,48 +77,43 @@ def model_schema(config):
         model.get_default(CONF_MINIMUM_UPDATE_INTERVAL, "1s")
     )
     cv_dimensions = cv.Optional if model.get_default(CONF_WIDTH) else cv.Required
-    return (
-        display.FULL_DISPLAY_SCHEMA.extend(
-            spi.spi_device_schema(
-                cs_pin_required=False,
-                default_mode="MODE0",
-                default_data_rate=model.get_default(CONF_DATA_RATE, 10_000_000),
-            )
+    return display.FULL_DISPLAY_SCHEMA.extend(
+        spi.spi_device_schema(
+            cs_pin_required=False,
+            default_mode="MODE0",
+            default_data_rate=model.get_default(CONF_DATA_RATE, 10_000_000),
         )
-        .extend(
-            {
-                cv.Optional(CONF_ROTATION, default=0): validate_rotation,
-                cv.Required(CONF_MODEL): cv.one_of(model.name, upper=True),
-                cv.Optional(CONF_UPDATE_INTERVAL, default=cv.UNDEFINED): cv.All(
-                    update_interval, cv.Range(min=minimum_update_interval)
-                ),
-                cv.Optional(CONF_TRANSFORM): cv.Schema(
-                    {
-                        cv.Required(CONF_MIRROR_X): cv.boolean,
-                        cv.Required(CONF_MIRROR_Y): cv.boolean,
-                    }
-                ),
-                cv.Optional(CONF_FULL_UPDATE_EVERY, default=1): cv.int_range(1, 255),
-                model.option(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
-                model.option(CONF_CS_PIN): pins.gpio_output_pin_schema,
-                model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema,
-                model.option(CONF_RESET_PIN): pins.gpio_output_pin_schema,
-                cv.GenerateID(): cv.declare_id(class_name),
-                cv.GenerateID(CONF_INIT_SEQUENCE_ID): cv.declare_id(cg.uint8),
-                cv_dimensions(CONF_DIMENSIONS): DIMENSION_SCHEMA,
-                model.option(CONF_ENABLE_PIN): cv.ensure_list(
-                    pins.gpio_output_pin_schema
-                ),
-                model.option(CONF_INIT_SEQUENCE, cv.UNDEFINED): cv.ensure_list(
-                    map_sequence
-                ),
-                model.option(CONF_RESET_DURATION, cv.UNDEFINED): cv.All(
-                    cv.positive_time_period_milliseconds,
-                    cv.Range(max=core.TimePeriod(milliseconds=500)),
-                ),
-            }
-        )
-        .extend(model.add_options())
+    ).extend(
+        {
+            cv.Optional(CONF_ROTATION, default=0): validate_rotation,
+            cv.Required(CONF_MODEL): cv.one_of(model.name, upper=True),
+            cv.Optional(CONF_UPDATE_INTERVAL, default=cv.UNDEFINED): cv.All(
+                update_interval, cv.Range(min=minimum_update_interval)
+            ),
+            cv.Optional(CONF_TRANSFORM): cv.Schema(
+                {
+                    cv.Required(CONF_MIRROR_X): cv.boolean,
+                    cv.Required(CONF_MIRROR_Y): cv.boolean,
+                }
+            ),
+            cv.Optional(CONF_FULL_UPDATE_EVERY, default=1): cv.int_range(1, 255),
+            model.option(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
+            model.option(CONF_CS_PIN): pins.gpio_output_pin_schema,
+            model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema,
+            model.option(CONF_RESET_PIN): pins.gpio_output_pin_schema,
+            cv.GenerateID(): cv.declare_id(class_name),
+            cv.GenerateID(CONF_INIT_SEQUENCE_ID): cv.declare_id(cg.uint8),
+            cv_dimensions(CONF_DIMENSIONS): DIMENSION_SCHEMA,
+            model.option(CONF_ENABLE_PIN): cv.ensure_list(pins.gpio_output_pin_schema),
+            model.option(CONF_INIT_SEQUENCE, cv.UNDEFINED): cv.ensure_list(
+                map_sequence
+            ),
+            model.option(CONF_RESET_DURATION, cv.UNDEFINED): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=core.TimePeriod(milliseconds=500)),
+            ),
+            **model.get_config_options(),
+        }
     )
 
 
@@ -204,12 +199,8 @@ async def to_code(config):
     )
 
     await display.register_display(var, config)
-    # Models that manage chip-select themselves keep CS off the SPI bus so the
-    # driver can drive it directly (e.g. dual-CS architectures).
-    spi_config = config
-    if model.manages_cs:
-        spi_config = {k: v for k, v in config.items() if k != CONF_CS_PIN}
-    await spi.register_spi_device(var, spi_config, write_only=True)
+    config = await model.to_code(var, config)
+    await spi.register_spi_device(var, config, write_only=True)
 
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))
@@ -225,10 +216,9 @@ async def to_code(config):
     if busy_pin := config.get(CONF_BUSY_PIN):
         busy = await cg.gpio_pin_expression(busy_pin)
         cg.add(var.set_busy_pin(busy))
-    if enable_pins := config.get(CONF_ENABLE_PIN):
-        enable = [await cg.gpio_pin_expression(pin) for pin in enable_pins]
+    if enable_pin := config.get(CONF_ENABLE_PIN):
+        enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
         cg.add(var.set_enable_pins(enable))
-    await model.to_code(var, config)
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
     if CONF_RESET_DURATION in config:
         cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))
