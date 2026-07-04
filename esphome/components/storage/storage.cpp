@@ -270,10 +270,8 @@ StorageError write_file(NetworkStorage *storage, const char *path, const uint8_t
 }
 
 StorageError copy(PathStorage *src_storage, const char *src_path, PathStorage *dst_storage, const char *dst_path) {
-  // One chunk buffer per call, allocated PREFER_INTERNAL: PSRAM is not DMA-capable on classic
-  // ESP32 (restrictions apply on S3 too), so SD/SPI drivers would have to bounce-buffer through
-  // internal RAM anyway if we handed them a PSRAM pointer — allocate internal directly instead.
-  // Fall back to smaller sizes under memory pressure rather than failing outright.
+  // PREFER_INTERNAL: PSRAM isn't DMA-capable on classic ESP32 (restricted on S3 too), so
+  // SD/SPI drivers would bounce-buffer anyway. Fall back to smaller sizes under memory pressure.
   size_t chunk_size = STORAGE_COPY_CHUNK_SIZE;
   uint8_t *raw = nullptr;
   while (chunk_size >= 4096) {

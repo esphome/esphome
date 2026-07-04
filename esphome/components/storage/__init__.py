@@ -27,7 +27,7 @@ def validate_sector_multiple(value):
 
 # Default kept in sync with the STORAGE_COPY_CHUNK_SIZE fallback in storage.h.
 # Lower bound matches copy()'s allocation fallback floor (4096, see storage.cpp); upper bound
-# is a sanity cap so a typo (e.g. "16MB") can't request an unreasonable single allocation.
+# is a sanity cap so a typo can't request an unreasonable single allocation (e.g. 16777216).
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(StorageRegistry),
@@ -67,4 +67,4 @@ async def to_code(config):
 
     cg.add(cg.RawExpression(f"{storage_ns}::global_storage_registry = {var}"))
 
-    cg.add_define("STORAGE_COPY_CHUNK_SIZE", config[CONF_COPY_CHUNK_SIZE])
+    cg.add_define("USE_STORAGE_COPY_CHUNK_SIZE", config[CONF_COPY_CHUNK_SIZE])

@@ -68,19 +68,18 @@ struct StorageInfo {
 // All storage drivers must fit filenames within this bound.
 static constexpr size_t STORAGE_NAME_MAX = 255;
 
-// Chunk size used by the streaming copy() helper below. A multiple of 512 (the common sector
-// size) so FATFS's f_read can transfer whole sectors directly into the caller's buffer instead
-// of bouncing through its internal window buffer; on ESP32 SD throughput plateaus around 8-16kB
-// so going larger buys little while costing more RAM per copy() call.
-// Overridable from YAML (storage: copy_chunk_size); see storage/__init__.py's to_code().
-#ifndef STORAGE_COPY_CHUNK_SIZE
-#define STORAGE_COPY_CHUNK_SIZE 16384
+// Chunk size for the streaming copy() helper; multiple of 512 so FATFS can do direct
+// whole-sector transfers. Overridable from YAML (storage: copy_chunk_size), which sets
+// the USE_STORAGE_COPY_CHUNK_SIZE define via codegen; falls back to 16 kB otherwise
+// (also covers clang-tidy, which never sees generated defines).
+#ifdef USE_STORAGE_COPY_CHUNK_SIZE
+static constexpr size_t STORAGE_COPY_CHUNK_SIZE = USE_STORAGE_COPY_CHUNK_SIZE;
+#else
+static constexpr size_t STORAGE_COPY_CHUNK_SIZE = 16384;
 #endif
 
-// Maximum directory nesting depth for the recursive remove_recursive() helper below. Each
-// recursion level costs roughly 600 bytes of stack (the ~512-byte path buffer plus the call
-// frame); ESP32 task stacks are typically only 8-16kB, and the path-length bound alone would
-// let a maliciously/accidentally deep tree recurse far past what the stack can survive.
+// Max directory nesting for remove_recursive() below. Each level costs ~600B of stack
+// (path buffer + call frame); ESP32 task stacks are typically only 8-16kB.
 static constexpr size_t STORAGE_MAX_RECURSION_DEPTH = 16;
 
 struct FileStat {
@@ -102,21 +101,28 @@ struct FileHandle {
 
 // Abstract base — all storage drivers extend one of the three subclasses below.
 //
-// Contract: every virtual call on Storage and its subclasses is BLOCKING. Drivers do not
-// run I/O on a separate task/thread. Consumers reading/writing large amounts of data (e.g.
-// serving a large file over HTTP) must chunk their own calls (small len per read()/write()/
-// read_chunk()/write_chunk()) and yield back to the main loop between chunks — a single call
-// that blocks for too long will starve the watchdog and Wi-Fi/BLE stacks. This is the same
-// reason copy()/read_file()/write_file() below exist as opt-in convenience helpers rather
-// than being mandatory: they trade a single long blocking call for consumer simplicity, and
-// are not appropriate to call from latency-sensitive contexts.
+// Contract: every call is BLOCKING — drivers do not run I/O on a separate task/thread.
+// Consumers moving large amounts of data must chunk their own calls and yield between
+// chunks (large len values will starve the watchdog and Wi-Fi/BLE); copy()/read_file()/
+// write_file() below are opt-in convenience helpers for this, not mandatory, and are not
+// appropriate from latency-sensitive contexts.
+//
+// Control plane vs. data plane: get_info(), stat(), list_dir(), mkdir(), rmdir(), remove(),
+// rename(), open(), close(), read(), write(), seek(), tell(), sync(), read_chunk(), and
+// write_chunk() are DATA-PLANE — task-agnostic by design. They must not touch main-loop-only
+// facilities (scheduler, the storage registry, other components), must not assume a
+// particular calling task, and must do no hidden control-plane work (e.g. no lazy mount() on
+// first read() — a data-plane call on an unmounted/disconnected device returns
+// StorageError::NOT_READY instead). This is what lets them run on a future dedicated worker
+// task instead of the main loop. Calls on one Storage instance are externally serialized by
+// the caller (main loop today, later the worker) — drivers don't need to be thread-safe, just
+// tolerant of running on a single, possibly-different task. setup(), mount()/unmount(),
+// format(), connect()/disconnect(), and all StorageRegistry calls are CONTROL-PLANE and
+// remain main-loop-only (see StorageRegistry's contract below).
 class Storage : public Component {
  public:
-  // get_info() must succeed (return OK) even for a registered-but-unmounted device — e.g. a
-  // FilesystemStorage before its medium is mounted, or a NetworkStorage before connect().
-  // Report the unmounted state via StorageInfo::is_mounted = false, not via a non-OK error.
-  // The registry logs/notifies based on registration, not on mount state (see
-  // StorageRegistry::register_storage below) — an unmounted device must still be visible.
+  // Must succeed (return OK) even when registered-but-unmounted/-disconnected — report that
+  // via StorageInfo::is_mounted = false, not a non-OK error (see StorageRegistry below).
   virtual StorageError get_info(StorageInfo *info) = 0;
   virtual StorageType get_storage_type() const = 0;
 };
@@ -196,25 +202,16 @@ class NetworkStorage : public PathStorage {
                                    size_t *bytes_transferred) = 0;
 };
 
-// Runtime registry of all storage devices.
-// Initializes before any driver (setup_priority::BUS) so drivers can safely
-// call register_storage() / unregister_storage() from their own setup() or
-// on hotplug events. Pool is sized exactly at codegen time from the number of
-// configured devices — no compile-time upper bound, no wasted slots.
+// Runtime registry of all storage devices. Initializes before any driver
+// (setup_priority::BUS); pool is sized exactly at codegen time from the number of configured
+// devices — no compile-time upper bound, no wasted slots.
 //
-// Contract: the registry is NOT thread-safe. register_storage()/unregister_storage() and the
-// for_each*() enumerations must only be called from the main loop task. This matters in
-// particular for USB hotplug: the USB host stack's hotplug/disconnect callback may run on a
-// different task than the main loop on some drivers — such drivers must defer their
-// register_storage()/unregister_storage() call onto the main loop (e.g. via a flag polled in
-// loop(), or App.scheduler) rather than calling it directly from the hotplug callback.
-//
-// Contract: "registered" means "usable". A driver must not call register_storage() until the
-// device is ready to serve calls (get_info(), and for PathStorage subclasses, the path-based
-// operations) — even if it's not yet mounted (see Storage::get_info() above, which must
-// report unmounted state via StorageInfo::is_mounted rather than refusing to answer).
-// Conversely, call unregister_storage() as soon as the device stops being usable (e.g. on USB
-// disconnect), before it's torn down.
+// Contract: main-loop-only — register_storage()/unregister_storage()/for_each*() must never
+// be called from another task (e.g. a USB hotplug callback must defer onto the main loop
+// instead of calling directly). Contract: "registered" means "usable" — call
+// register_storage() once the device can serve calls (even if unmounted, per
+// Storage::get_info() above), and unregister_storage() as soon as it stops being usable,
+// before teardown.
 class StorageRegistry : public Component {
  public:
   float get_setup_priority() const override { return setup_priority::BUS; }
