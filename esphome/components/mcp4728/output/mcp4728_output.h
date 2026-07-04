@@ -7,7 +7,7 @@
 
 namespace esphome::mcp4728 {
 
-class MCP4728Channel : public output::FloatOutput {
+class MCP4728Channel final : public output::FloatOutput {
  public:
   MCP4728Channel(MCP4728Component *parent, MCP4728ChannelIdx channel, MCP4728Vref vref, MCP4728Gain gain,
                  MCP4728PwrDown pwrdown)

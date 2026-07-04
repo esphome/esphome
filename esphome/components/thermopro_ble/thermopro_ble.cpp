@@ -196,7 +196,7 @@ static optional<ParseResult> parse_tp3(const uint8_t *data, std::size_t data_siz
   result.humidity = static_cast<float>(data[3]);
 
   // battery level, 2 bits (0-2)
-  result.battery_level = static_cast<float>(data[4] & 0x3) * 50.0;
+  result.battery_level = static_cast<float>(data[4] & 0x3) * 50.0f;
 
   return result;
 }
