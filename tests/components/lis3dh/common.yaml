@@ -21,6 +21,7 @@ motion:
       axes: [x, y, z]
       latched: true
       active_high: true
+      high_pass_filter: false
 
 sensor:
   - platform: lis3dh
